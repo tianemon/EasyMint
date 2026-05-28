@@ -1,0 +1,224 @@
+{
+  "project": "EasyMint",
+  "description": "AI 项目工作台 — Electron 桌面 GUI，为 ai-coding-automation-template 提供图形界面外壳",
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Electron 主进程与 IPC 通信框架",
+      "description": "搭建 Electron 窗口创建、preload contextBridge、所有 IPC 通道的 handler 注册。确保主进程能启动并加载 renderer。",
+      "steps": [
+        "BrowserWindow 创建：1400x900，hiddenInset titleBar，contextIsolation true",
+        "Preload 通过 contextBridge 暴露 electronAPI（project/file/terminal/session/claude 五个命名空间）",
+        "ipc-handlers.ts 注册全部 IPC handle/on 通道",
+        "开发模式加载 localhost:5173，生产模式加载 app/renderer/dist/index.html",
+        "app.whenReady() 创建窗口，window-all-closed 退出"
+      ],
+      "passes": false,
+      "evaluated": false
+    },
+    {
+      "id": 2,
+      "title": "数据存储层 — Store 服务",
+      "description": "实现 ~/.ai-coding-automation/ 下的 JSON 文件读写。projects.json、settings.json 的 CRUD，sessions 目录创建与文件管理。",
+      "steps": [
+        "Store 类构造函数创建 DATA_DIR，调用 ensureFiles() 初始化缺失文件",
+        "getProjects/saveProjects 读写 projects.json",
+        "getSettings/saveSettings 读写 settings.json（默认 dark 主题、14px 字号）",
+        "getSessionsDir 按 projectId 创建 sessions/<projectId>/ 目录",
+        "listSessions/saveSessions 读写 sessions.json"
+      ],
+      "passes": false,
+      "evaluated": false
+    },
+    {
+      "id": 3,
+      "title": "项目服务 — 模板复制与 CRUD",
+      "description": "实现 ProjectService：新建项目时复制 ai-coding-automation-template/ 到目标目录，排除 .git/node_modules。项目列表增删查。",
+      "steps": [
+        "create() 生成 UUID，在目标路径创建目录，调用 copyTemplate()",
+        "copyTemplate() 递归复制模板文件，排除 .git、node_modules、.DS_Store、.playwright-mcp、temp",
+        "确保目标目录有 temp/ 空目录",
+        "list/delete/get 通过 Store 操作 projects.json",
+        "copyTemplate 路径需处理开发环境与打包后的不同模板位置"
+      ],
+      "passes": false,
+      "evaluated": false
+    },
+    {
+      "id": 4,
+      "title": "Claude CLI 检测器",
+      "description": "实现 claude-detector：扫描 PATH 找 claude 二进制，执行 --version 验证。未检测到时返回 found: false。",
+      "steps": [
+        "遍历 process.env.PATH 的每个目录",
+        "对每个目录检查 claude 文件是否存在且可执行",
+        "execSync 执行 --version 获取版本号，超时 5 秒",
+        "返回 DetectResult: { found, path?, version? }",
+        "未找到任何有效 claude 时返回 { found: false }"
+      ],
+      "passes": false,
+      "evaluated": false
+    },
+    {
+      "id": 5,
+      "title": "首页 — 项目列表与新建对话框",
+      "description": "实现 HomePage：加载项目列表并以卡片展示，空状态引导文案，新建项目弹窗（名称+目录），创建后跳转 SetupPage。",
+      "steps": [
+        "useEffect 调用 electronAPI.project.list() 加载项目列表",
+        "空状态：居中显示引导文案和 [新建项目] 按钮",
+        "有项目时 3 列 grid 卡片布局，每张卡片显示名称、路径、日期",
+        "新建项目弹窗：名称输入框 + 目录输入框 + 创建/取消按钮",
+        "创建成功后 navigate 到 /setup/:projectId",
+        "卡片点击 navigate 到 /project/:projectId"
+      ],
+      "passes": false,
+      "evaluated": false
+    },
+    {
+      "id": 6,
+      "title": "需求采集 — 分步表单页",
+      "description": "实现 SetupPage：4 步表单（项目概述→技术偏好→功能清单→UI 风格），侧边步进指示器，底部上一步/下一步/提交按钮。提交后生成 requirements.md 并跳转 ProjectPage。",
+      "steps": [
+        "左侧 56px 宽步进指示栏，当前步高亮蓝色，已完成的步显示绿色",
+        "4 个 Step 的内容区（初始为占位，逐 Step 实现表单字段）",
+        "Step 1 表单：项目名称、目标用户、平台选择（Web/移动/桌面/CLI）、完成度期望（完整/MVP/Demo）",
+        "Step 2 表单：技术栈偏好（可选填）、成本敏感度、功能清单文本框",
+        "Step 3 表单：逐项功能 P0/P1/P2 拖拽分类",
+        "Step 4 表单：UI 风格卡片选择（iOS液态玻璃/新拟物/Material/黑白极简/毛玻璃），默认选中黑白极简",
+        "底部上一步（第1步禁用）/下一步/提交（最后一步显示提交）按钮",
+        "提交：调用 file:writeContent 写入 requirements.md，navigate 到 /project/:projectId"
+      ],
+      "passes": false,
+      "evaluated": false
+    },
+    {
+      "id": 7,
+      "title": "项目工作台 — 布局框架",
+      "description": "实现 ProjectPage 三栏布局：左侧工具栏（48px）、中间编辑区+终端区上下分割、右侧暂空。工具栏按钮切换中间面板。",
+      "steps": [
+        "flex 三栏布局：左侧固定 48px，中间 flex-1，右侧暂不渲染",
+        "中间区域上下分割：编辑区（上 50%）+ 终端区（下 50%，最小 200px）",
+        "中间编辑区根据 activePanel 切换显示 FileTreePanel / SessionHistory / EditorPanel",
+        "activePanel 为 terminal 时编辑区显示 EditorPanel 占位",
+        "activePanel 状态在 ProjectPage 中管理，通过 props 传给 LeftToolbar"
+      ],
+      "passes": false,
+      "evaluated": false
+    },
+    {
+      "id": 8,
+      "title": "左侧工具栏",
+      "description": "实现 LeftToolbar 组件：垂直按钮列，包含新建(📁)、项目结构(🌳)、对话历史(💬)、终端(🖥)、设置(⚙)。当前激活按钮高亮。",
+      "steps": [
+        "48px 宽垂直 flex 布局，按钮 40x40 圆角方块",
+        "新建按钮在最上方，下方分隔线，其余 4 个按钮等距排列",
+        "激活按钮：bg-blue-600/20 + ring-1 ring-blue-600/30",
+        "点击已激活按钮取消选中（回到 editor 占位状态）",
+        "新建按钮 navigate 到 /（首页）"
+      ],
+      "passes": false,
+      "evaluated": false
+    },
+    {
+      "id": 9,
+      "title": "终端嵌入 — xterm.js + node-pty 集成",
+      "description": "在 agent-service 中使用 node-pty 创建真 PTY，renderer 中用 xterm.js 渲染。IPC 通道传递终端数据，支持 resize。",
+      "steps": [
+        "agent-service createTerminal() 使用 node-pty spawn shell，cwd 为项目目录",
+        "pty onData 通过 mainWindow.webContents.send('terminal:onData') 推送到 renderer",
+        "TerminalPanel 使用 xterm.js Terminal + FitAddon，挂载到 div ref",
+        "xterm onData 通过 electronAPI.terminal.write 发送用户输入到 PTY",
+        "terminal:resize 通道：TerminalPanel 监听 container resize，同步 cols/rows 到 PTY",
+        "terminal:destroy 通道：kill PTY 进程，清理 Map"
+      ],
+      "passes": false,
+      "evaluated": false
+    },
+    {
+      "id": 10,
+      "title": "终端面板 — 多 Tab 管理",
+      "description": "实现 TerminalPanel 的多 Tab UI：Tab 栏（标题+关闭按钮）、新建终端按钮(+)。Tab 切换时保持 PTY 状态。",
+      "steps": [
+        "顶部 Tab 栏：每个 Tab 显示标题，激活 Tab 有高亮边框样式",
+        "新建按钮(+)在 Tab 栏最右侧，点击调用 terminal:create 创建新 PTY",
+        "Tab 切换时隐藏非激活的 xterm 实例（display:none），不销毁 PTY",
+        "Tab 关闭按钮(×)：调用 terminal:destroy，切换到相邻 Tab",
+        "最少保留一个终端 Tab（最后一个不显示关闭按钮）"
+      ],
+      "passes": false,
+      "evaluated": false
+    },
+    {
+      "id": 11,
+      "title": "Claude Code 启动与 Resume",
+      "description": "终端创建后自动写入 claude 命令启动 Claude Code。对话结束后自动保存 session。支持从 SessionHistory 恢复历史对话（claude --resume）。",
+      "steps": [
+        "终端创建后延迟 1 秒写入 claude\\n（等待 shell 初始化）",
+        "agent-service.resumeSession() 创建新终端并写入 claude --resume <sessionId>\\n",
+        "Claude 启动后监听终端输出，提取 session ID",
+        "session 信息自动保存到 sessions.json（标题、时间、sessionId）",
+        "SessionHistory 列表项点击调用 resumeSession"
+      ],
+      "passes": false,
+      "evaluated": false
+    },
+    {
+      "id": 12,
+      "title": "文件树浏览",
+      "description": "实现 FileTreePanel：左侧文件树（递归渲染目录+文件图标），右侧文件内容预览。点击文件异步加载内容。排除 .git/node_modules。",
+      "steps": [
+        "useEffect 获取项目 path，调用 electronAPI.file.readTree 加载目录树",
+        "递归渲染 FileNode：目录前 📁，文件前 📄，子节点缩进 16px",
+        "点击目录不展开（本期不做展开折叠，始终全展开）",
+        "点击文件：高亮选中项，调用 file:readContent 异步加载内容到右侧预览区",
+        "右侧预览区用 <pre> 标签等宽字体展示文件内容",
+        "排除 .git、node_modules、dist、temp 目录"
+      ],
+      "passes": false,
+      "evaluated": false
+    },
+    {
+      "id": 13,
+      "title": "对话历史管理",
+      "description": "实现 SessionHistory 组件：列出项目的所有对话记录，按时间倒序。支持点击 resume 和删除。从 sessions.json 读取数据。",
+      "steps": [
+        "useEffect 调用 electronAPI.session.list(projectId) 加载会话列表",
+        "列表项显示：标题、最后活跃时间（格式化为中文日期）",
+        "点击列表项调用 electronAPI.session.resume(sessionId) 恢复对话",
+        "删除按钮调用 electronAPI.session.delete(sessionId)，刷新列表",
+        "空状态：'暂无对话记录' 居中提示",
+        "列表按 lastActiveAt 倒序排列"
+      ],
+      "passes": false,
+      "evaluated": false
+    },
+    {
+      "id": 14,
+      "title": "暗色/亮色主题系统",
+      "description": "实现全局主题切换：CSS 变量定义两套颜色，settings-store 管理 theme 状态，document.documentElement 切换 light class。",
+      "steps": [
+        "index.css 中 :root 定义暗色变量，:root.light 定义亮色变量",
+        "颜色变量：--color-surface、--color-surface-alt、--color-surface-hover、--color-border、--color-text-primary、--color-text-secondary",
+        "settings-store toggleTheme() 切换并操作 document.documentElement.classList",
+        "所有组件使用 Tailwind 的 bg-surface、text-text-primary 等语义类名",
+        "设置面板中提供主题切换开关（本期简单实现：toggleTheme 按钮）"
+      ],
+      "passes": false,
+      "evaluated": false
+    },
+    {
+      "id": 15,
+      "title": "EditorPanel 占位与整体 UI 打磨",
+      "description": "完善 EditorPanel 占位页（引导文案+图标），统一所有页面的过渡动画、空状态、错误处理。确保暗色/亮色主题在所有页面一致。",
+      "steps": [
+        "EditorPanel 显示 📝 图标 + '编辑区 — 文档和代码查看' + 引导文案",
+        "FileTreePanel 空目录时显示 '目录为空'",
+        "SessionHistory 加载失败时显示错误提示（不崩溃）",
+        "TerminalPanel 创建终端失败时显示错误信息而非白屏",
+        "HomePage 加载项目列表失败时显示重试按钮",
+        "所有页面在亮色主题下颜色正常显示"
+      ],
+      "passes": false,
+      "evaluated": false
+    }
+  ]
+}

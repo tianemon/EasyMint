@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dist-electron/
+.env
+.env.local
+temp/
+.vite/
+.DS_Store
+*.log
