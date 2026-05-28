@@ -199,6 +199,7 @@ PROMPT_EOF
     claude -p "$(cat "$PROMPT_FILE")" \
         --permission-mode bypassPermissions \
         --output-format stream-json \
+        --verbose \
         > "${RUN_LOG}.jsonl" 2>"$RUN_LOG" &
     CLAUDE_PID=$!
 
