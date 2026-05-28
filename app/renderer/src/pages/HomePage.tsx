@@ -114,12 +114,15 @@ function NewProjectDialog({
           </div>
           <div>
             <label className="block text-sm text-text-secondary mb-1">项目目录</label>
-            <input
-              className="w-full px-3 py-2 rounded-lg bg-surface-alt border border-border text-text-primary outline-none focus:border-accent"
-              value={dir}
-              onChange={(e) => setDir(e.target.value)}
-              placeholder="/path/to/projects"
-            />
+            <button
+              className="w-full px-3 py-2 rounded-lg bg-surface-alt border border-border text-left text-sm hover:bg-surface-hover transition-colors"
+              onClick={async () => {
+                const selected = await window.electronAPI.dialog.openDirectory();
+                if (selected) setDir(selected);
+              }}
+            >
+              {dir || "点击选择目录..."}
+            </button>
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">

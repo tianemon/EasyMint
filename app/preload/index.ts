@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
+  dialog: {
+    openDirectory: () => ipcRenderer.invoke("dialog:openDirectory"),
+  },
   project: {
     list: () => ipcRenderer.invoke("project:list"),
     create: (opts: { name: string; path: string }) => ipcRenderer.invoke("project:create", opts),

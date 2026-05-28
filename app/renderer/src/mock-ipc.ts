@@ -72,6 +72,9 @@ let _streamCallback: ((event: StreamEvent) => void) | null = null;
 let _exitCallback: ((data: { runId: string; code: number }) => void) | null = null;
 
 export const electronAPIMock = {
+  dialog: {
+    openDirectory: () => delay("/Users/demo/projects"),
+  },
   project: {
     list: () => delay(MOCK_PROJECTS),
     create: (opts: { name: string; path: string }) =>

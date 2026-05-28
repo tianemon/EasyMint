@@ -37,6 +37,9 @@ interface StreamEvent {
 }
 
 interface ElectronAPI {
+  dialog: {
+    openDirectory: () => Promise<string | null>;
+  };
   project: {
     list: () => Promise<Project[]>;
     create: (opts: { name: string; path: string }) => Promise<Project>;

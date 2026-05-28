@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from "electron";
+import { BrowserWindow, ipcMain, dialog } from "electron";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
 import { AgentService } from "./services/agent-service";
@@ -16,6 +16,15 @@ interface Services {
 }
 
 export function registerIpcHandlers({ mainWindow, projectService, fileService, agentService, evaluatorService, store }: Services): void {
+  // dialog:*
+  ipcMain.handle("dialog:openDirectory", async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ["openDirectory", "createDirectory"],
+      title: "选择项目目录",
+    });
+    return result.canceled ? null : result.filePaths[0] ?? null;
+  });
+
   // project:*
   ipcMain.handle("project:list", () => projectService.list());
   ipcMain.handle("project:create", (_e, opts) => projectService.create(opts));
