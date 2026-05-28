@@ -134,3 +134,29 @@
 - UI 集成：新建项目弹窗 → 填写 → 创建后跳转 /setup/:projectId ✅，卡片点击跳转 /project/:projectId ✅
 - getTemplateDir() 正确处理开发环境（__dirname 相对路径）和打包环境（process.resourcesPath）
 - 评估报告: temp/evaluator/report-3.md
+
+## [2026-05-28] - 任务: 需求采集 — 分步表单页
+
+### 完成内容:
+- SetupPage 完整 4 步表单：项目概述→技术偏好→功能清单→UI 风格
+- Step 1: 项目名称、目标用户输入框，平台多选按钮组（Web/移动/桌面/CLI），完成度期望三选一卡片（完整/MVP/Demo）
+- Step 2: 技术栈偏好输入框（可选），成本敏感度三选一卡片（低/中/高），功能概述多行文本框
+- Step 3: 功能添加输入框 + P0/P1/P2 三列 HTML5 拖拽分类区域，支持添加、拖拽移动、删除功能项
+- Step 4: 5 种 UI 风格卡片选择（iOS液态玻璃/新拟物/Material/黑白极简/毛玻璃），默认选中黑白极简
+- 左侧步进指示器可点击跳转，当前步高亮 accent 色，已完成步绿色
+- 底部上一步/下一步/提交按钮，第 1 步禁用上一步
+- 提交时生成 requirements.md 写入项目 docs/ 目录，跳转到 ProjectPage
+- 新增 `.input` 全局 CSS 表单样式
+- 修复 vite-env.d.ts 和 mock-ipc.ts 中 session.resume 缺失
+
+### 测试:
+- ESLint 零错误（1 个预存在的 warning，非本次改动）
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:renderer + build:main 编译成功
+- vitest 28/28 测试全部通过
+- electron-builder 签名失败：codesign Permission denied（预存在的环境问题）
+
+### 备注:
+- SetupPage 使用本地 useState 管理表单数据，未创建独立 store
+- Step 3 拖拽使用 HTML5 原生 Drag and Drop API，无需额外依赖
+- requirements.md 生成逻辑内联，按标准 Markdown 模板格式化

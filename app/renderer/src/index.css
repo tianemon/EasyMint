@@ -71,6 +71,24 @@ button, a, input, select, textarea, .transition-all {
   background: var(--color-text-secondary);
 }
 
+/* Form inputs */
+.input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  outline: none;
+  font-size: 0.875rem;
+}
+.input:focus {
+  border-color: var(--color-accent);
+}
+.input::placeholder {
+  color: var(--color-text-secondary);
+}
+
 /* xterm overrides */
 .xterm {
   padding: 8px;

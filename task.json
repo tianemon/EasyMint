@@ -87,7 +87,7 @@
         "底部上一步（第1步禁用）/下一步/提交（最后一步显示提交）按钮",
         "提交：调用 file:writeContent 写入 requirements.md，navigate 到 /project/:projectId"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     },
     {

@@ -117,6 +117,7 @@ export const electronAPIMock = {
   },
   session: {
     list: (_projectId: string) => delay(MOCK_SESSIONS),
+    resume: (_sessionId: string) => {},
     delete: (_projectId: string, _sessionId: string) => delay(undefined),
   },
   settings: {

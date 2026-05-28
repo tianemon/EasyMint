@@ -63,6 +63,7 @@ interface ElectronAPI {
   };
   session: {
     list: (projectId: string) => Promise<Session[]>;
+    resume: (sessionId: string) => void;
     delete: (projectId: string, sessionId: string) => Promise<void>;
   };
   settings: {
