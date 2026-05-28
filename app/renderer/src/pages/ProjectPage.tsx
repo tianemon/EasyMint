@@ -7,9 +7,11 @@ import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { StreamPanel } from "../components/StreamPanel";
 import { SettingsPanel } from "../components/SettingsPanel";
+import { TabBar } from "../components/TabBar";
 import { DragHandle } from "../components/DragHandle";
 import { TitleBar } from "../components/TitleBar";
 import { useWorkspaceStore } from "../stores/workspace-store";
+import { useTabStore } from "../stores/tab-store";
 
 export type ActivePanel = "editor" | "files" | "sessions" | "chat" | "settings";
 
@@ -30,6 +32,8 @@ export function ProjectPage(): JSX.Element {
     setRightWidth,
   } = useWorkspaceStore();
 
+  const { tabs, activeTabId, openTab } = useTabStore();
+
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
 
   useEffect(() => {
@@ -43,22 +47,32 @@ export function ProjectPage(): JSX.Element {
     }
   }, [projectId]);
 
-  const handleFileClick = useCallback((_filePath: string, _fileName: string) => {
-    // File content editing is in Task 6 (code editor panel)
-  }, []);
+  const handleFileClick = useCallback(
+    (filePath: string, fileName: string) => {
+      openTab({ id: "", type: "file", title: fileName, filePath });
+    },
+    [openTab]
+  );
 
-  const handleSessionClick = useCallback((sessionId: string) => {
-    setActiveSessionId(sessionId);
-    setActivePanel("chat");
-  }, []);
+  const handleSessionClick = useCallback(
+    (sessionId: string) => {
+      setActiveSessionId(sessionId);
+      openTab({ id: "", type: "chat", title: "对话", sessionId });
+    },
+    [openTab]
+  );
 
   const handleNewSession = useCallback(() => {
     if (!projectId) return;
     window.electronAPI.session.create(projectId, "新会话").then((s) => {
       setActiveSessionId(s.id);
-      setActivePanel("chat");
+      openTab({ id: "", type: "chat", title: "新会话", sessionId: s.id });
     });
-  }, [projectId]);
+  }, [projectId, openTab]);
+
+  const handleChatFirstMessage = useCallback(() => {
+    // Tab title already set, no action needed on first message
+  }, []);
 
   const handleLeftDrag = useCallback(
     (delta: number) => setLeftWidth(leftWidth + delta),
@@ -79,15 +93,26 @@ export function ProjectPage(): JSX.Element {
     collapsedRight ? "0px" : `${rightWidth}px`,
   ].join(" ");
 
-  const renderCenterPanel = () => {
-    switch (activePanel) {
-      case "files":
-      case "sessions":
-        return <EditorPanel />;
+  const activeTab = tabs.find((t) => t.id === activeTabId);
+
+  const renderTabContent = () => {
+    if (activePanel === "settings") {
+      return <SettingsPanel />;
+    }
+    if (!activeTab) {
+      return <EditorPanel />;
+    }
+    switch (activeTab.type) {
       case "chat":
-        return <ChatPanel projectPath={projectPath} />;
-      case "settings":
-        return <SettingsPanel />;
+        return (
+          <ChatPanel
+            projectPath={projectPath}
+            onSendFirstMessage={handleChatFirstMessage}
+          />
+        );
+      case "file":
+        // Code editor will be implemented in Task 6
+        return <EditorPanel />;
       default:
         return <EditorPanel />;
     }
@@ -125,12 +150,18 @@ export function ProjectPage(): JSX.Element {
 
         {/* Column 4: Center area */}
         <div className="flex flex-col min-w-0 overflow-hidden">
-          {/* Upper: editor / chat / settings */}
-          <div className="flex-1 min-h-0">{renderCenterPanel()}</div>
+          {/* Tab bar */}
+          <TabBar />
 
-          {/* Lower: stream output panel */}
-          <div className="flex-1 min-h-[200px] border-t border-border">
-            <StreamPanel />
+          {/* Content: tab content (upper) + stream panel (lower) */}
+          <div className="flex-1 min-h-0 flex flex-col">
+            {/* Upper: active tab content */}
+            <div className="flex-1 min-h-0">{renderTabContent()}</div>
+
+            {/* Lower: stream output panel */}
+            <div className="flex-1 min-h-[200px] border-t border-border">
+              <StreamPanel />
+            </div>
           </div>
 
           {/* Bottom action bar */}
@@ -138,7 +169,10 @@ export function ProjectPage(): JSX.Element {
             <button
               className="px-4 py-1.5 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors"
               onClick={() =>
-                window.electronAPI.agent.runWorker(projectPath, "严格按 WORKER.md 流程完成一个任务。")
+                window.electronAPI.agent.runWorker(
+                  projectPath,
+                  "严格按 WORKER.md 流程完成一个任务。"
+                )
               }
             >
               启动开发

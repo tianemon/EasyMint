@@ -696,3 +696,45 @@
 - 侧边栏 "文件"/"会话" 按钮已控制 LeftPanel 内容切换 (Task 2/3 已完成)
 - 文件点击回调预留, 代码编辑器面板在 Task 6 中实现
 - Tab 栏管理在 Task 5 中实现, 聊天消息 UI 在 Task 5 Chat 面板中实现
+
+## [2026-05-28] - 评估: 左面板 — 文件树 + 会话列表双模式
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 轻微: Chat 面板启动时 "Chat 模式已启动 — 与 Claude 自由对话" 重复渲染两次(已知问题)
+
+### 备注:
+- 7/7 验收条件全部通过
+- 文件模式: panel-header "项目文件" + ⊟ + ◀ ✅, 文件树递归渲染 + ▶ 箭头旋转 90deg + 16px/级缩进 ✅
+- 会话模式: panel-header "会话" + ◀ ✅, 状态圆点(绿/灰) + 标题 + 中文日期 ✅
+- 新建会话: dashed green border + accent, 创建后自动打开 chat tab ✅
+- 折叠全部按钮(⊟) + 面板折叠按钮(◀) + panel-peek(▸) 均正常工作 ✅
+- 会话删除乐观更新正常 ✅
+- 0 个 JS 错误
+- 评估报告: temp/evaluator/report-task4.md
+
+## [2026-05-28] - 任务: 中间编辑区 — Tab 栏 + Chat 面板
+
+### 完成内容:
+- 创建 tab-store.ts: Zustand store 管理 tabs 数组和 activeTabId, 支持 openTab(去重)/closeTab(激活相邻)/setActiveTab
+- 创建 TabBar.tsx: 水平 tab 栏, 每个 tab 显示圆点(文件绿/chat灰)+标题+关闭按钮(hover 显示✕), active tab 白色高亮, 右侧 + 按钮新建 chat tab
+- ChatPanel.tsx 重写: 无消息时显示欢迎页(✨ Logo + "欢迎使用 EasyMint" + 3 个快捷操作按钮: 新建项目/创建博客/分析项目)
+- 消息气泡: user 右对齐 accent 绿底白字 + 时间戳, assistant 左对齐 surface 底黑字 + 时间戳
+- msgIn 动画: 200ms cubic-bezier(0.4, 0, 0.2, 1), opacity + translateY 入场效果
+- 输入区: textarea 3 行(Shift+Enter 换行, Enter 发送) + 圆形 accent 发送按钮(↑) + 圆形红色停止按钮(■)
+- Token 状态栏: 底部 28px bar, 模式标签(普通开发/评估中, 从 settings-store evaluateMode 读取) + 预估消耗 ⭐(1-3 颗)
+- ProjectPage.tsx 集成: TabBar 置于中心区顶部, 内容区基于 activeTab type 渲染 ChatPanel/EditorPanel, 文件/会话点击自动打开对应 tab
+- index.css: 新增 .msg-in 动画 keyframe
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:renderer + build:main 编译成功
+- vitest 43/47 测试通过 (4 个预存在 project-service 测试失败, 非本次改动)
+
+### 备注:
+- 代码编辑器面板在 Task 6 中实现, 当前文件 tab 内容显示 EditorPanel 占位
+- Tab 系统通过 tab-store 集中管理, 支持文件(绿点)和 chat(灰点)两种类型
+- 欢迎页快捷按钮发送预设 prompt 到 Chat, 首次发送时更新 tab 标题
