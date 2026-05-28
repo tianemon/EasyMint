@@ -792,3 +792,44 @@
 - 语法高亮为 mock 实现，基于正则替换，覆盖 TypeScript/TSX/JSON 常见语法
 - contentEditable 已设置但无保存逻辑，保存功能不在当前任务范围
 - 代码区与行号渲染在同一 overflow-auto 容器内，保持同步滚动
+
+## [2026-05-28] - 评估: 中间编辑区 — 代码编辑器面板
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无
+
+### 备注:
+- 4/4 验收条件全部通过
+- Editor panel flex 布局：左侧 gutter 44px（w-[44px]，右对齐，bg-surface）+ 右侧代码区 flex-1 ✅
+- 代码区：font-mono, text-xs(12px), whitespace-pre-wrap, contentEditable ✅
+- 语法高亮：.kw #8250df(紫)、.str #16a34a(绿)、.fn #cf222e(红)、.cm #5a7a6a italic(灰) ✅
+- 点击文件树文件 → 打开 editor tab → 显示对应 mock 内容（CLAUDE.md、utils.ts、Header.tsx）✅
+- 0 个 JS 错误
+- Mock 文件不含字符串/注释，.str/.cm 页面无实例但 CSS 规则通过注入测试元素验证正确生效
+- 评估报告: temp/evaluator/report-task6.md
+
+## [2026-05-28] - 任务: 右面板 — 任务列表
+
+### 完成内容:
+- vite-env.d.ts: 新增 TaskItem 和 TaskStep 接口（status: done/running/pending/failed）
+- index.css: 新增 taskPulse keyframe 动画（opacity 1.5s ease-in-out 循环）
+- RightPanel.tsx 重写: 完整任务列表面板
+  - panel-header: "任务列表" 标题 + 完成统计（如 "3/5 完成"）+ 收起按钮
+  - 5 个 mock 任务（2 done + 1 running + 2 pending, 各有 3-4 步骤）
+  - 状态圆点: ✓ done/accent 绿色实心带勾, ◉ running/amber+taskPulse 脉冲动画, ○ pending/border 空心, ✕ failed/red 红色带叉
+  - 点击任务展开/折叠子步骤列表, 箭头旋转 90deg 动画
+  - 子步骤状态: done 划线灰色, running 橙色文字, pending 灰色
+  - running 状态圆点应用 task-pulse class, 1.5s 循环脉冲
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:main + build:renderer 编译成功
+- vitest 43/47 测试通过 (4 个预存在 project-service 测试失败, 非本次改动)
+
+### 备注:
+- 任务数据为 mock（MOCK_TASKS 定义在 RightPanel.tsx 中），后续接入后端 task.json 或 IPC 通道时替换
+- 状态圆点使用内联 SVG 图标（done 的 ✓, failed 的 ✕），running 用纯圆点 + CSS 动画

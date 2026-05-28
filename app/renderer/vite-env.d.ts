@@ -37,6 +37,18 @@ interface StreamEvent {
   source?: "worker" | "evaluator" | "chat";
 }
 
+interface TaskStep {
+  label: string;
+  status: "done" | "running" | "pending" | "failed";
+}
+
+interface TaskItem {
+  id: number;
+  title: string;
+  status: "done" | "running" | "pending" | "failed";
+  steps: TaskStep[];
+}
+
 interface ElectronAPI {
   dialog: {
     openDirectory: () => Promise<string | null>;

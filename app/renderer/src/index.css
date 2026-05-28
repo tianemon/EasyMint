@@ -169,6 +169,15 @@ button, a, input, select, textarea, .transition-all {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Task pulse animation */
+@keyframes taskPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.task-pulse {
+  animation: taskPulse 1.5s ease-in-out infinite;
+}
+
 /* Syntax highlighting for code editor */
 .kw { color: #8250df; }
 .str { color: #16a34a; }
