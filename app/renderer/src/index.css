@@ -55,7 +55,7 @@ body {
 
 /* Smooth transitions for all interactive surfaces */
 button, a, input, select, textarea, .transition-all {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Scrollbar — subtle mint tint */
@@ -106,7 +106,7 @@ button, a, input, select, textarea, .transition-all {
   color: var(--color-text-secondary);
   font-size: 10px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 10;
 }
 .panel-peek-left {

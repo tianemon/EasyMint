@@ -1068,3 +1068,20 @@
 - ESLint 零错误，控制台 0 JS 错误
 - 评估报告: temp/evaluator/report-12.md
 - 截图: task-12-main-page.png, task-12-settings-modal.png, task-12-dropdown-menu.png
+
+## [2026-05-29] - 修复: 评估 Task 12 (整体 UI 打磨) FAIL — 标准动画时长
+
+### 完成内容:
+- index.css:58 全局过渡规则 `transition: all 0.2s` → `0.25s`（button/a/input/select/textarea/.transition-all）
+- index.css:109 .panel-peek 过渡 `0.2s` → `0.25s`
+- 两处变更将标准动画时长从 200ms 修正为 250ms，符合 task.json step 1 "快动作 150ms, 标准 250ms" 要求
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:renderer + build:main 编译成功
+- electron-builder 签名失败：codesign Permission denied（预存在的环境问题）
+
+### 备注:
+- 仅修改 index.css 两处 `0.2s` → `0.25s`，不涉及其他文件
+- 快动作动画（fadeIn/dropdownIn/terminalLineIn 150ms）和特定入场动画（modalIn/msgIn 200ms、grid-panels 200ms）保持不变
