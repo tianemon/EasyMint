@@ -210,6 +210,8 @@ PROMPT_EOF
     POLL_START=$(date +%s)
     EXIT_REASON=""
 
+    TASK_DONE_AT=""
+
     while true; do
         sleep $POLL_INTERVAL
 
@@ -222,16 +224,25 @@ PROMPT_EOF
         fi
 
         # 检查任务是否完成
-        if check_task_done "$CURRENT_TASK"; then
-            kill "$CLAUDE_PID" 2>/dev/null || true
-            sleep 2
-            if kill -0 "$CLAUDE_PID" 2>/dev/null; then
-                kill -9 "$CLAUDE_PID" 2>/dev/null || true
+        if [ -z "$TASK_DONE_AT" ] && check_task_done "$CURRENT_TASK"; then
+            TASK_DONE_AT=$(date +%s)
+            log "SUCCESS" "任务已标记完成，等待 Claude 自然退出（最多 120 秒）..."
+        fi
+
+        # 任务完成后给 120 秒让 Claude 自己退出
+        if [ -n "$TASK_DONE_AT" ]; then
+            GRACE_ELAPSED=$(($(date +%s) - TASK_DONE_AT))
+            if [ $GRACE_ELAPSED -ge 120 ]; then
+                log "WARNING" "Claude 仍未退出，强制终止"
+                kill "$CLAUDE_PID" 2>/dev/null || true
+                sleep 2
+                if kill -0 "$CLAUDE_PID" 2>/dev/null; then
+                    kill -9 "$CLAUDE_PID" 2>/dev/null || true
+                fi
+                wait "$CLAUDE_PID" 2>/dev/null || true
+                EXIT_REASON="killed"
+                break
             fi
-            wait "$CLAUDE_PID" 2>/dev/null || true
-            CLAUDE_EXIT=0
-            EXIT_REASON="killed"
-            break
         fi
 
         NOW=$(date +%s)
