@@ -26,3 +26,24 @@
 - 主进程使用 CommonJS 模块,与 package.json "type" 兼容
 - preload 和 main 各有独立 tsconfig, 输出到各自的 dist/ 子目录
 - Electron 实际启动测试需在 GUI 环境中进行
+
+## [2026-05-28] - 任务: 数据存储层 — Store 服务
+
+### 完成内容:
+- Store 类支持可选 baseDir 参数（生产用 ~/.ai-coding-automation，测试用临时目录）
+- 构造函数创建 DATA_DIR + ensureFiles() 初始化 projects.json 和 settings.json
+- getProjects/saveProjects 读写 projects.json
+- getSettings/saveSettings 读写 settings.json（默认 dark 主题、14px 字号）
+- getSessionsDir 按 projectId 创建 sessions/<projectId>/ 目录
+- listSessions/saveSessions/deleteSession 完整的 sessions CRUD
+- 更新 ipc-handlers.ts 中 session:delete 通道签名（增加 projectId 参数）
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:main 编译成功
+- vitest 14/14 测试通过（覆盖构造函数、projects CRUD、settings CRUD、sessions CRUD）
+
+### 备注:
+- Store 构造函数接受可选 baseDir 参数，方便测试时隔离数据目录
+- deleteSession 已从空存根实现为完整的删除逻辑

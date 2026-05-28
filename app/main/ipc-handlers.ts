@@ -34,7 +34,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // session:*
   ipcMain.handle("session:list", (_e, { projectId }) => store.listSessions(projectId));
   ipcMain.on("session:resume", (_e, { sessionId }) => agentService.resumeSession(sessionId, mainWindow));
-  ipcMain.handle("session:delete", (_e, { sessionId }) => store.deleteSession(sessionId));
+  ipcMain.handle("session:delete", (_e, { projectId, sessionId }) => store.deleteSession(projectId, sessionId));
 
   // claude:*
   ipcMain.handle("claude:detect", () => detectClaude());

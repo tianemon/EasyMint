@@ -27,7 +27,7 @@
         "getSessionsDir 按 projectId 创建 sessions/<projectId>/ 目录",
         "listSessions/saveSessions 读写 sessions.json"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     },
     {

@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
-const DATA_DIR = path.join(os.homedir(), ".ai-coding-automation");
+export const DATA_DIR = path.join(os.homedir(), ".ai-coding-automation");
 
 interface Project {
   id: string;
@@ -32,13 +32,15 @@ interface Settings {
 }
 
 export class Store {
+  private dataDir: string;
   private projectsPath: string;
   private settingsPath: string;
 
-  constructor() {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    this.projectsPath = path.join(DATA_DIR, "projects.json");
-    this.settingsPath = path.join(DATA_DIR, "settings.json");
+  constructor(baseDir?: string) {
+    this.dataDir = baseDir ?? DATA_DIR;
+    fs.mkdirSync(this.dataDir, { recursive: true });
+    this.projectsPath = path.join(this.dataDir, "projects.json");
+    this.settingsPath = path.join(this.dataDir, "settings.json");
     this.ensureFiles();
   }
 
@@ -76,7 +78,7 @@ export class Store {
   }
 
   getSessionsDir(projectId: string): string {
-    const dir = path.join(DATA_DIR, "sessions", projectId);
+    const dir = path.join(this.dataDir, "sessions", projectId);
     fs.mkdirSync(dir, { recursive: true });
     return dir;
   }
@@ -94,7 +96,13 @@ export class Store {
     fs.writeFileSync(sessionsFile, JSON.stringify({ sessions }, null, 2));
   }
 
-  deleteSession(_sessionId: string): void {
-    // Will be implemented in detail later
+  deleteSession(projectId: string, sessionId: string): void {
+    const sessionsFile = path.join(this.getSessionsDir(projectId), "sessions.json");
+    if (!fs.existsSync(sessionsFile)) {
+      return;
+    }
+    const data = JSON.parse(fs.readFileSync(sessionsFile, "utf-8"));
+    data.sessions = data.sessions.filter((s: Session) => s.id !== sessionId);
+    fs.writeFileSync(sessionsFile, JSON.stringify(data, null, 2));
   }
 }
