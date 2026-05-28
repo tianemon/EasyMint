@@ -88,7 +88,7 @@
         "提交：调用 file:writeContent 写入 requirements.md，navigate 到 /project/:projectId"
       ],
       "passes": true,
-      "evaluated": false
+      "evaluated": true
     },
     {
       "id": 7,
@@ -102,7 +102,7 @@
         "activePanel 状态在 ProjectPage 中管理，通过 props 传给 LeftToolbar"
       ],
       "passes": true,
-      "evaluated": false
+      "evaluated": true
     },
     {
       "id": 8,
@@ -117,7 +117,7 @@
         "Chat 按钮点击切换 ChatPanel，用于与 Claude 自由对话"
       ],
       "passes": true,
-      "evaluated": false
+      "evaluated": true
     },
     {
       "id": 9,
@@ -145,7 +145,7 @@
         "支持 abort() 终止子进程",
         "子进程 cwd 设为目标项目目录"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     },
     {
@@ -161,7 +161,7 @@
         "子进程退出（agent:exit）：底部显示 exit code，绿色=0 红色≠0",
         "自动滚动到底部（用户手动上滚时不强制滚动）"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     },
     {
@@ -176,7 +176,7 @@
         "stopChat() 关闭 stdin（EOF），等待子进程自然退出",
         "进程 crash 时自动重新 spawn 并恢复上下文"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     },
     {

@@ -29,7 +29,8 @@ interface Session {
 
 // JSONL stream event types from Claude --output-format stream-json
 interface StreamEvent {
-  type: "assistant" | "message_delta" | "tool_use" | "tool_result" | "system" | "error";
+  runId: string;
+  type: "assistant" | "message_delta" | "tool_use" | "tool_result" | "user_message" | "system" | "error";
   data: Record<string, unknown>;
   timestamp: number;
   source?: "worker" | "evaluator" | "chat";
@@ -54,6 +55,7 @@ interface ElectronAPI {
     stopChat: (chatId: string) => void;
     abort: (runId: string) => void;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
+    onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
   };
   evaluator: {

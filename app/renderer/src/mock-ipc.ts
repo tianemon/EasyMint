@@ -57,11 +57,11 @@ const MOCK_SESSIONS: Session[] = [
 ];
 
 const MOCK_STREAM_EVENTS: StreamEvent[] = [
-  { type: "system", data: { message: "启动 Claude Code..." }, timestamp: Date.now(), source: "worker" },
-  { type: "assistant", data: { text: "正在读取 task.json 和 WORKER.md..." }, timestamp: Date.now() + 100, source: "worker" },
-  { type: "tool_use", data: { tool: "Read", args: { file_path: "task.json" } }, timestamp: Date.now() + 200, source: "worker" },
-  { type: "tool_result", data: { result: "读取成功" }, timestamp: Date.now() + 500, source: "worker" },
-  { type: "assistant", data: { text: "开始实现任务 #5 — 首页项目列表..." }, timestamp: Date.now() + 600, source: "worker" },
+  { runId: "mock-run", type: "system", data: { message: "启动 Claude Code..." }, timestamp: Date.now(), source: "worker" },
+  { runId: "mock-run", type: "assistant", data: { text: "正在读取 task.json 和 WORKER.md..." }, timestamp: Date.now() + 100, source: "worker" },
+  { runId: "mock-run", type: "tool_use", data: { tool: "Read", args: { file_path: "task.json" } }, timestamp: Date.now() + 200, source: "worker" },
+  { runId: "mock-run", type: "tool_result", data: { result: "读取成功" }, timestamp: Date.now() + 500, source: "worker" },
+  { runId: "mock-run", type: "assistant", data: { text: "开始实现任务 #5 — 首页项目列表..." }, timestamp: Date.now() + 600, source: "worker" },
 ];
 
 function delay<T>(value: T, ms = 200): Promise<T> {
@@ -69,6 +69,7 @@ function delay<T>(value: T, ms = 200): Promise<T> {
 }
 
 let _streamCallback: ((event: StreamEvent) => void) | null = null;
+let _exitCallback: ((data: { runId: string; code: number }) => void) | null = null;
 
 export const electronAPIMock = {
   project: {
@@ -90,24 +91,88 @@ export const electronAPIMock = {
   },
   agent: {
     runWorker: (_projectPath: string, _prompt: string) => {
+      const runId = `run-${Date.now()}`;
       // Simulate streaming events after a short delay
       setTimeout(() => {
         if (_streamCallback) {
           MOCK_STREAM_EVENTS.forEach((ev, i) => setTimeout(() => _streamCallback!(ev), i * 300));
         }
       }, 200);
-      return delay({ runId: `run-${Date.now()}` });
+      // Simulate exit after worker events
+      setTimeout(() => {
+        if (_exitCallback) {
+          _exitCallback({ runId, code: 0 });
+        }
+      }, 2000 + MOCK_STREAM_EVENTS.length * 300);
+      return delay({ runId });
     },
-    startChat: (_projectPath: string) => delay({ chatId: `chat-${Date.now()}` }),
-    sendMessage: (_chatId: string, _message: string) => {},
-    stopChat: (_chatId: string) => {},
+    startChat: (_projectPath: string) => {
+      // Simulate chat started
+      setTimeout(() => {
+        if (_streamCallback) {
+          _streamCallback({
+            runId: "mock-chat",
+            type: "system",
+            data: { message: "Chat 模式已启动 — 与 Claude 自由对话" },
+            timestamp: Date.now(),
+            source: "chat",
+          });
+        }
+      }, 100);
+      return delay({ chatId: "mock-chat" });
+    },
+    sendMessage: (_chatId: string, message: string) => {
+      // Echo user message + simulate AI response
+      setTimeout(() => {
+        if (_streamCallback) {
+          _streamCallback({
+            runId: "mock-chat",
+            type: "user_message",
+            data: { text: message },
+            timestamp: Date.now(),
+            source: "chat",
+          });
+        }
+      }, 50);
+      setTimeout(() => {
+        if (_streamCallback) {
+          _streamCallback({
+            runId: "mock-chat",
+            type: "assistant",
+            data: { text: `收到你的消息: "${message}"。这是来自 Claude 的模拟回复，实际使用时将连接到真实的 Claude 进程。` },
+            timestamp: Date.now() + 100,
+            source: "chat",
+          });
+        }
+      }, 800);
+    },
+    stopChat: (_chatId: string) => {
+      setTimeout(() => {
+        if (_streamCallback) {
+          _streamCallback({
+            runId: "mock-chat",
+            type: "system",
+            data: { message: "Chat 已结束" },
+            timestamp: Date.now(),
+            source: "chat",
+          });
+        }
+        if (_exitCallback) {
+          _exitCallback({ runId: _chatId, code: 0 });
+        }
+      }, 100);
+    },
     abort: (_runId: string) => {},
     onStream: (callback: (event: StreamEvent) => void) => {
       _streamCallback = callback;
       return () => { _streamCallback = null; };
     },
-    onExit: (callback: (data: { runId: string; code: number }) => void) => {
+    onStderr: (_callback: (data: { runId: string; data: string; timestamp: number }) => void) => {
       return () => {};
+    },
+    onExit: (callback: (data: { runId: string; code: number }) => void) => {
+      _exitCallback = callback;
+      return () => { _exitCallback = null; };
     },
   },
   evaluator: {

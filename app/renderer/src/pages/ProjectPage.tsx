@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { LeftToolbar } from "../components/LeftToolbar";
 import { FileTreePanel } from "../components/FileTreePanel";
@@ -12,6 +12,15 @@ export type ActivePanel = "editor" | "files" | "sessions" | "chat" | "settings";
 export function ProjectPage(): JSX.Element {
   const { projectId } = useParams<{ projectId: string }>();
   const [activePanel, setActivePanel] = useState<ActivePanel>("editor");
+  const [projectPath, setProjectPath] = useState("");
+
+  useEffect(() => {
+    if (projectId) {
+      window.electronAPI.project.get(projectId).then((p) => {
+        if (p) setProjectPath(p.path);
+      });
+    }
+  }, [projectId]);
 
   const renderCenterPanel = () => {
     switch (activePanel) {
@@ -20,7 +29,7 @@ export function ProjectPage(): JSX.Element {
       case "sessions":
         return <SessionHistory projectId={projectId!} />;
       case "chat":
-        return <ChatPanel />;
+        return <ChatPanel projectPath={projectPath} />;
       default:
         return <EditorPanel />;
     }

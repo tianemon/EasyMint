@@ -36,6 +36,23 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.on("session:resume", (_e, { sessionId }) => agentService.resumeSession(sessionId, mainWindow));
   ipcMain.handle("session:delete", (_e, { projectId, sessionId }) => store.deleteSession(projectId, sessionId));
 
+  // agent:*
+  ipcMain.handle("agent:runWorker", (_e, { projectPath, prompt }) =>
+    agentService.runWorker(projectPath, prompt, mainWindow)
+  );
+  ipcMain.handle("agent:abort", (_e, { runId }) => {
+    agentService.abort(runId);
+  });
+  ipcMain.handle("agent:startChat", (_e, { projectPath }) =>
+    agentService.startChat(projectPath, mainWindow)
+  );
+  ipcMain.handle("agent:sendMessage", (_e, { chatId, message }) => {
+    agentService.sendMessage(chatId, message);
+  });
+  ipcMain.handle("agent:stopChat", (_e, { chatId }) => {
+    agentService.stopChat(chatId);
+  });
+
   // claude:*
   ipcMain.handle("claude:detect", () => detectClaude());
 }

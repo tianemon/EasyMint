@@ -263,3 +263,84 @@
 ### 备注:
 - Task 7 创建的 LeftToolbar 基础结构已完善，满足 Task 8 全部 6 个验收步骤
 - 设置面板（settings 按钮实际功能）在 Task 16 中实现
+
+## [2026-05-28] - 评估: 需求采集 — 分步表单页
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无
+
+### 备注:
+- 8/8 验收条件全部通过
+- 步进指示器：4 步渲染正确，当前步白色高亮，已完成步绿色
+- Step 1-4 表单字段全部齐全，平台多选、完成度单选卡片、成本敏感度三选一、功能拖拽分类、UI 风格卡片
+- 上一步（Step 1 禁用）/下一步/提交（Step 4 显示）按钮行为正确
+- 提交流程：click 提交 → navigate /project/:projectId → ProjectPage 三栏布局正常渲染
+- 动态创建 mock 项目 ID 不在 MOCK_PROJECTS 中，用静态 mock 项目（mock-1）验证完整提交流程
+- 步进器点击跳转保留表单数据，功能清单添加/删除正常
+- 0 个 JS 错误，仅 favicon.ico 404（已知非功能性问题）
+- 评估报告: temp/evaluator/report-6.md
+
+## [2026-05-28] - 评估: 项目工作台 — 布局框架
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无
+
+### 备注:
+- 5/5 验收条件全部通过
+- 三栏 flex 布局：左侧 48px 工具栏 + flex-1 编辑区，右侧暂不渲染 ✅
+- 编辑区上下 50% 等分：EditorPanel + StreamPanel，水平分割线清晰 ✅
+- activePanel 切换：FileTreePanel（🌳）/ SessionHistory（💬）/ ChatPanel（💭）/ EditorPanel（默认）全部正确切换 ✅
+- 底部 [启动开发] [启动评估] 按钮栏 ✅
+- activePanel 状态通过 props 传给 LeftToolbar，激活按钮蓝色高亮 ✅
+- 0 个 JS 错误，仅 2 个 React Router v7 预存在 warning
+- 评估报告: temp/evaluator/report-7.md
+
+## [2026-05-28] - 评估: 左侧工具栏
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无
+
+### 备注:
+- 6/6 验收条件全部通过
+- 48px 宽工具栏，📁 新建按钮 + 分隔线 + 4 个等距工具按钮布局正确
+- 激活按钮高亮（bg-accent/20 + ring-1 ring-accent/30），点击取消选中回到 editor ✅
+- 📁 navigate 到 /，🌳→FileTreePanel，💬→SessionHistory，💭→ChatPanel 全部切换正确
+- 0 个 JS 错误，仅 favicon.ico 404（已知非功能性问题）
+- 评估报告: temp/evaluator/report-8.md
+
+## [2026-05-28] - 任务: agent-service — Chat 模式（长会话双向 JSONL）
+
+### 完成内容:
+- agent-service.ts 新增 startChat/sendMessage/stopChat/spawnChatProcess 方法
+- startChat spawn claude --input-format stream-json --output-format stream-json（双向 JSONL），stdin pipe + stdout pipe
+- sendMessage 序列化用户消息 JSONL 写入子进程 stdin，同时推送 user_message 事件给 renderer
+- stopChat 关闭 stdin（EOF），等待子进程自然退出
+- spawnChatProcess 进程 crash 时自动重连（2s 延迟 respawn + --continue 恢复上下文）
+- ipc-handlers.ts 注册 agent:startChat/agent:sendMessage/agent:stopChat 三个新通道
+- preload 实现 startChat/sendMessage/stopChat 的 IPC invoke 调用
+- ChatPanel 完整实现：底部输入框 + 发送/停止按钮，用户消息右侧气泡，AI 流式响应复用 StreamEntryView
+- StreamPanel 导出 StreamEntryView/normalizeEvent/UserChatBubble 供 ChatPanel 复用
+- vite-env.d.ts StreamEvent 新增 user_message 类型
+- mock-ipc.ts Chat 模式 mock 实现（模拟 startChat/sendMessage/stopChat 及流式事件）
+- ProjectPage useEffect 加载项目 path 传给 ChatPanel
+
+### 测试:
+- ESLint 零错误（1 个预存在的 warning，非本次改动）
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:renderer + build:main 编译成功
+- vitest 47/47 测试全部通过
+- electron-builder 签名失败：codesign Permission denied（预存在的环境问题）
+
+### 备注:
+- Chat 模式复用与 Worker 模式相同的 agent:stream/agent:stderr/agent:exit 事件通道
+- 进程 crash 自动重连机制通过 setTimeout + spawnChatProcess(resume=true) 实现
+- ChatPanel 通过 chatIdRef 确保 unmount 时正确清理子进程

@@ -35,4 +35,30 @@ contextBridge.exposeInMainWorld("electronAPI", {
   claude: {
     detect: () => ipcRenderer.invoke("claude:detect"),
   },
+  agent: {
+    runWorker: (projectPath: string, prompt: string) =>
+      ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),
+    startChat: (projectPath: string) =>
+      ipcRenderer.invoke("agent:startChat", { projectPath }),
+    sendMessage: (chatId: string, message: string) =>
+      ipcRenderer.invoke("agent:sendMessage", { chatId, message }),
+    stopChat: (chatId: string) => ipcRenderer.invoke("agent:stopChat", { chatId }),
+    abort: (runId: string) => ipcRenderer.invoke("agent:abort", { runId }),
+    onStream: (callback: (event: unknown) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
+      ipcRenderer.on("agent:stream", handler);
+      return () => ipcRenderer.removeListener("agent:stream", handler);
+    },
+    onStderr: (callback: (data: unknown) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
+      ipcRenderer.on("agent:stderr", handler);
+      return () => ipcRenderer.removeListener("agent:stderr", handler);
+    },
+    onExit: (callback: (data: { runId: string; code: number }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { runId: string; code: number }) =>
+        callback(data);
+      ipcRenderer.on("agent:exit", handler);
+      return () => ipcRenderer.removeListener("agent:exit", handler);
+    },
+  },
 });
