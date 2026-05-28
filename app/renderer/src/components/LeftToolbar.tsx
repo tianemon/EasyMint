@@ -17,7 +17,7 @@ export function LeftToolbar({ activePanel, onSelect }: LeftToolbarProps): JSX.El
   const navigate = useNavigate();
 
   return (
-    <aside className="w-14 border-r border-border flex flex-col items-center py-4 gap-2 bg-surface-alt">
+    <aside className="w-12 border-r border-border flex flex-col items-center py-4 bg-surface-alt shrink-0">
       <button
         className="w-10 h-10 rounded-lg flex items-center justify-center text-lg hover:bg-surface-hover transition-colors"
         title="新建项目"
@@ -25,19 +25,21 @@ export function LeftToolbar({ activePanel, onSelect }: LeftToolbarProps): JSX.El
       >
         📁
       </button>
-      <div className="w-8 h-px bg-border my-2" />
-      {TOOLS.map((tool) => (
-        <button
-          key={tool.id}
-          className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg transition-colors ${
-            activePanel === tool.id ? "bg-accent/20 ring-1 ring-accent/30" : "hover:bg-surface-hover"
-          }`}
-          title={tool.label}
-          onClick={() => onSelect(tool.id === activePanel ? "editor" : tool.id)}
-        >
-          {tool.icon}
-        </button>
-      ))}
+      <div className="w-8 h-px bg-border my-3" />
+      <div className="flex-1 flex flex-col items-center justify-evenly">
+        {TOOLS.map((tool) => (
+          <button
+            key={tool.id}
+            className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg transition-colors ${
+              activePanel === tool.id ? "bg-accent/20 ring-1 ring-accent/30" : "hover:bg-surface-hover"
+            }`}
+            title={tool.label}
+            onClick={() => onSelect(tool.id === activePanel ? "editor" : tool.id)}
+          >
+            {tool.icon}
+          </button>
+        ))}
+      </div>
     </aside>
   );
 }

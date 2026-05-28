@@ -71,7 +71,7 @@
         "卡片点击 navigate 到 /project/:projectId"
       ],
       "passes": true,
-      "evaluated": false
+      "evaluated": true
     },
     {
       "id": 6,
@@ -116,7 +116,7 @@
         "新建按钮 navigate 到 /（首页）",
         "Chat 按钮点击切换 ChatPanel，用于与 Claude 自由对话"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     },
     {
@@ -130,7 +130,7 @@
         "暴露为 EventEmitter 或 Observable，emit 结构化事件对象",
         "支持 start/stop 生命周期管理，子进程退出时 flush 缓冲区"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     },
     {

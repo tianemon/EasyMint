@@ -200,3 +200,66 @@
 - ChatPanel 和 StreamPanel 为占位组件，对应功能在 Task 11/12 中实现
 - LeftToolbar 的完整实现（图标、分隔线、等距排列）见 Task 8
 - 右侧面板预留，当前不渲染
+
+## [2026-05-28] - 评估: 首页 — 项目列表与新建对话框
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无
+
+### 备注:
+- 6/6 验收条件全部通过
+- 空状态：居中显示"还没有项目"引导文案 + "新建项目"按钮
+- 项目列表：3 列 grid 卡片，显示名称、路径、日期，另有虚线边框"新建项目"卡片
+- 新建弹窗：名称+目录输入框，创建按钮空值时 disabled
+- 创建成功跳转 /setup/:projectId，卡片点击跳转 /project/:projectId
+- 仅 favicon.ico 404（已知非功能性问题）
+- 评估报告: temp/evaluator/report-5.md
+
+
+## [2026-05-28] - 任务: JSONL 流式解析器
+
+### 完成内容:
+- 创建 app/main/utils/jsonl-parser.ts：JsonlParser 类继承 EventEmitter
+- start() 接受 Readable stream，监听 data/end 事件
+- feed() 按行分割、JSON.parse、容错不完整行跨 chunk 拼接
+- classify() 按 type 分类：system(init/status) → 系统事件、stream_event → text_delta/tool_use 增量、assistant → 文本合并 + tool_use、user → tool_result、result → usage/cost
+- flush() 子进程退出时清空缓冲区
+- stop() 移除 stream 监听器并清空缓冲区
+- 支持 Buffer 和 string 输入
+- emitRaw 选项控制是否发出未识别行
+- 导出类型守卫：isAssistantEvent/isToolUseEvent/isToolResultEvent/isSystemEvent/isResultEvent
+- 参考 open-design/apps/daemon/src/claude-stream.ts 的事件分类逻辑
+
+### 测试:
+- ESLint 0 错误 1 预存在 warning（mock-ipc.ts，非本次改动）
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:main + build:renderer 编译成功
+- vitest 47/47 测试通过 (Store 14 + ProjectService 10 + JsonlParser 19 + ClaudeDetector 4)
+
+### 备注:
+- JsonlParser 是 agent-service（Task 10）和 StreamPanel（Task 11）的前置依赖
+- tool_use 增量 input_json_delta 通过 partial 字段传递，完整 input 在 assistant 包装中通过 input 字段传递
+- 完整实现覆盖 Claude --output-format stream-json 的所有事件类型
+
+## [2026-05-28] - 任务: 左侧工具栏
+
+### 完成内容:
+- LeftToolbar 宽度修正为 w-12（48px），与 Task 7 ProjectPage 布局一致
+- 按钮保持 40x40 圆角方块，激活态 bg-accent/20 + ring-1 ring-accent/30
+- 新建按钮位于最上方，分隔线下方 4 个工具按钮通过 justify-evenly 等距排列
+- 点击已激活按钮取消选中，回到 editor 占位状态
+- 新建按钮 navigate 到 /（首页）
+- Chat 按钮点击切换 ChatPanel，用于与 Claude 自由对话
+
+### 测试:
+- ESLint 零错误（1 个预存在的 warning，非本次改动）
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:main + build:renderer 编译成功
+- vitest 28/28 测试全部通过
+
+### 备注:
+- Task 7 创建的 LeftToolbar 基础结构已完善，满足 Task 8 全部 6 个验收步骤
+- 设置面板（settings 按钮实际功能）在 Task 16 中实现
