@@ -1,268 +1,189 @@
 {
   "project": "EasyMint",
-  "description": "AI 项目工作台 — Electron 桌面 GUI，为 ai-coding-automation-template 提供图形界面外壳。三种 AI 交互模式：自动化（spawn + JSONL 流）、Chat（长会话双向 JSONL）、终端（P2）。",
+  "description": "AI 项目工作台 — Electron 桌面 GUI。阶段目标：按设计稿确定 UI 布局和交互，全部使用 mock 数据，暂不接入 Claude 实际调用。",
   "tasks": [
     {
       "id": 1,
-      "title": "Electron 主进程与 IPC 通信框架",
-      "description": "搭建 Electron 窗口创建、preload contextBridge、所有 IPC 通道的 handler 注册。确保主进程能启动并加载 renderer。",
+      "title": "全局主题：纯亮色 Mint 绿",
+      "description": "替换现有的暗色/亮色切换方案为固定亮色 Mint 主题。CSS 变量、Tailwind 配置、所有组件颜色统一更新。",
       "steps": [
-        "BrowserWindow 创建：1400x900，hiddenInset titleBar，contextIsolation true",
-        "Preload 通过 contextBridge 暴露 electronAPI（project/file/agent/evaluator/settings 五个命名空间）",
-        "ipc-handlers.ts 注册全部 IPC handle/on 通道",
-        "开发模式加载 localhost:5173，生产模式加载 app/renderer/dist/index.html",
-        "app.whenReady() 创建窗口，window-all-closed 退出"
+        "index.css: 删除 :root 暗色变量和 :root.light 覆盖, 仅保留亮色 Mint (bg #f5faf7, surface #ecf5f0, accent #16a34a, fg #0d1f17)",
+        "tailwind.config.js: 移除 darkMode: 'class', 只保留 light mint 色阶",
+        "所有组件: 移除 toggleTheme/dark mode 相关逻辑, 删除 settings-store 中 theme 切换",
+        "body 背景设为 #e8edea, app 外壳为白色容器居中, 加投影",
+        "滚动条、表单、过渡动画保持现有 mint-ease 风格",
+        "app 外壳: 宽度 1280px max, 圆角 10px, 居中, 带 macOS 风格窗口投影"
       ],
-      "passes": true,
-      "evaluated": true
+      "passes": false,
+      "evaluated": false
     },
     {
       "id": 2,
-      "title": "数据存储层 — Store 服务",
-      "description": "实现 ~/.easymint/ 下的 JSON 文件读写。projects.json、settings.json 的 CRUD，sessions 目录创建与文件管理。",
+      "title": "工作台四栏布局 + 面板拖拽",
+      "description": "实现设计稿的网格布局: 侧边栏(44px) | 左面板(220px,可折叠) | 中间编辑区(flex-1) | 右面板(280px,可折叠)。面板间拖拽调整宽度。",
       "steps": [
-        "Store 类构造函数创建 ~/.easymint/，调用 ensureFiles() 初始化缺失文件",
-        "getProjects/saveProjects 读写 projects.json",
-        "getSettings/saveSettings 读写 settings.json（默认 dark 主题、14px 字号、评估模式关闭）",
-        "getSessionsDir 按 projectId 创建 sessions/<projectId>/ 目录",
-        "listSessions/saveSessions/deleteSession 读写 sessions.json"
+        "CSS Grid: grid-template-columns: 44px 220px 4px 1fr 4px 280px",
+        "拖拽 handle: 4px 宽, hover/accent 变色, mousedown 开始拖拽, mousemove 更新 CSS 变量, mouseup 释放",
+        "左面板折叠: workspace.collapsed-left → grid 44px 0 0 1fr 4px 280px, panel-peek 按钮显示",
+        "右面板折叠: workspace.collapsed-right → grid 44px 220px 4px 1fr 0 0",
+        "panel-peek 按钮: 绝对定位在面板边缘, hover accent 色, 点击展开",
+        "窗口标题栏: 40px 高, macOS 红绿灯 dots, 项目名称居中"
       ],
-      "passes": true,
-      "evaluated": true
+      "passes": false,
+      "evaluated": false
     },
     {
       "id": 3,
-      "title": "项目服务 — 模板复制与 CRUD",
-      "description": "实现 ProjectService：新建项目时复制 ai-coding-automation-template/ 到目标目录，排除 .git/node_modules。项目列表增删查。",
+      "title": "侧边图标栏 + 下拉菜单 + Tooltip",
+      "description": "实现 44px 宽侧边栏: 新建(+)下拉菜单(新建项目/文件/文件夹)、文件、会话、终端(P2禁用)、设置。按钮带 CSS tooltip。",
       "steps": [
-        "create() 生成 UUID，在目标路径创建目录，调用 copyTemplate()",
-        "copyTemplate() 递归复制模板文件，排除 .git、node_modules、.DS_Store、.playwright-mcp、temp",
-        "确保目标目录有 temp/ 空目录",
-        "list/delete/get 通过 Store 操作 projects.json",
-        "copyTemplate 路径需处理开发环境与打包后的不同模板位置"
+        "sidebar: 44px 宽, 垂直 flex, 按钮 32x32 圆角方块, active 态 accent-soft 背景",
+        "新建按钮点击展开下拉菜单(absolute, left:40px): 新建项目/新建文件/新建文件夹",
+        "点击菜单外部关闭下拉",
+        "终端按钮: opacity 0.35, cursor not-allowed, tooltip 显示 '终端 · 即将推出'",
+        "CSS tooltip: [data-tooltip]:hover::after, 黑底白字, 左偏移 110%",
+        "设置按钮在底部(margin-top: auto)"
       ],
-      "passes": true,
-      "evaluated": true
+      "passes": false,
+      "evaluated": false
     },
     {
       "id": 4,
-      "title": "Claude CLI 检测器",
-      "description": "实现 claude-detector：扫描 PATH 找 claude 二进制，执行 --version 验证。未检测到时返回 found: false。",
+      "title": "左面板 — 文件树 + 会话列表双模式",
+      "description": "左面板支持两种模式切换: 项目文件(文件树+面板按钮) 和 会话(对话列表+新建会话按钮)。侧边栏按钮控制切换。",
       "steps": [
-        "遍历 process.env.PATH 的每个目录",
-        "对每个目录检查 claude 文件是否存在且可执行",
-        "execSync 执行 --version 获取版本号，超时 5 秒",
-        "返回 DetectResult: { found, path?, version? }",
-        "未找到任何有效 claude 时返回 { found: false }"
+        "panel-header: 标题('项目文件'/'会话'), 操作按钮(刷新/折叠全部/收起面板)",
+        "文件树: 递归渲染, 文件夹带 ▶ 箭头(展开旋转90deg), 缩进 16px/级",
+        "文件夹点击展开/折叠, 文件点击打开 editor tab",
+        "modified 文件: 文件名绿色, 尾部 ' M' 标记",
+        "点击侧边栏 '会话' 按钮: 切换面板模式, 显示对话列表",
+        "对话列表: 圆点+标题+时间, active 态 accent-soft, 点击打开 chat tab",
+        "新建会话按钮: dashed border, accent 色, 点击创建新会话并打开 chat tab"
       ],
-      "passes": true,
-      "evaluated": true
+      "passes": false,
+      "evaluated": false
     },
     {
       "id": 5,
-      "title": "首页 — 项目列表与新建对话框",
-      "description": "实现 HomePage：加载项目列表并以卡片展示，空状态引导文案，新建项目弹窗（名称+目录），创建后跳转 SetupPage。",
+      "title": "中间编辑区 — Tab 栏 + Chat 面板",
+      "description": "实现 Tab 栏管理打开的文件/对话, Chat 面板包含欢迎页、消息列表、输入区域、Token 状态栏。消息支持 user/assistant 气泡样式。",
       "steps": [
-        "useEffect 调用 electronAPI.project.list() 加载项目列表",
-        "空状态：居中显示引导文案和 [新建项目] 按钮",
-        "有项目时 3 列 grid 卡片布局，每张卡片显示名称、路径、日期",
-        "新建项目弹窗：名称输入框 + 目录输入框 + 创建/取消按钮",
-        "创建成功后 navigate 到 /setup/:projectId",
-        "卡片点击 navigate 到 /project/:projectId"
+        "Tab 栏: 每个 tab 显示圆点(file绿/chat灰)+标题+关闭按钮, active tab 白底高亮",
+        "Tab 关闭: hover 显示 ✕ 按钮, 关闭后激活相邻 tab",
+        "Tab 新建按钮(+): 右侧, 点击新建 chat tab",
+        "Chat 欢迎页(无消息时): Logo + '欢迎使用 EasyMint' + 快捷操作按钮(新建项目/创建博客/分析项目)",
+        "消息列表: user 消息右对齐 accent 绿底白字, assistant 左对齐 surface 底黑字, 带时间戳",
+        "消息入场动画: msgIn keyframe (opacity + translateY)",
+        "输入区: textarea(3行, Shift+Enter 换行, Enter 发送) + 发送按钮(accent 圆形)",
+        "Token 状态栏: 模式标签(普通开发/评估中) + 预估消耗 ⭐"
       ],
-      "passes": true,
-      "evaluated": true
+      "passes": false,
+      "evaluated": false
     },
     {
       "id": 6,
-      "title": "需求采集 — 分步表单页",
-      "description": "实现 SetupPage：4 步表单（项目概述→技术偏好→功能清单→UI 风格），侧边步进指示器，底部上一步/下一步/提交按钮。提交后生成 requirements.md 并跳转 ProjectPage。",
+      "title": "中间编辑区 — 代码编辑器面板",
+      "description": "实现代码查看面板: 行号 gutter + 代码内容区。语法高亮用 mock CSS class(关键字/字符串/函数/注释)。",
       "steps": [
-        "左侧 56px 宽步进指示栏，当前步高亮蓝色，已完成的步显示绿色",
-        "4 个 Step 的内容区（逐 Step 实现表单字段）",
-        "Step 1 表单：项目名称、目标用户、平台选择（Web/移动/桌面/CLI）、完成度期望（完整/MVP/Demo）",
-        "Step 2 表单：技术栈偏好（可选填）、成本敏感度、功能清单文本框",
-        "Step 3 表单：逐项功能 P0/P1/P2 拖拽分类",
-        "Step 4 表单：UI 风格卡片选择（iOS液态玻璃/新拟物/Material/黑白极简/毛玻璃），默认选中黑白极简",
-        "底部上一步（第1步禁用）/下一步/提交（最后一步显示提交）按钮",
-        "提交：调用 file:writeContent 写入 requirements.md，navigate 到 /project/:projectId"
+        "editor-panel: flex 布局, 左侧 gutter(44px, 行号, 右对齐, surface 背景) + 右侧代码区(flex-1)",
+        "代码区: 等宽字体, 12px, pre-wrap, contenteditable",
+        "CSS 语法高亮 class: .kw(紫色 #8250df), .str(绿色 accent), .fn(红色 #cf222e), .cm(灰色斜体)",
+        "点击文件树中的文件: 打开 editor tab, 显示对应 mock 文件内容"
       ],
-      "passes": true,
-      "evaluated": true
+      "passes": false,
+      "evaluated": false
     },
     {
       "id": 7,
-      "title": "项目工作台 — 布局框架",
-      "description": "实现 ProjectPage 三栏布局：左侧工具栏（48px）、中间编辑区+流式输出面板上下分割、右侧暂空。底部操作按钮栏。",
+      "title": "右面板 — 任务列表",
+      "description": "实现任务列表面板: 任务项带状态图标(done/running/pending/failed), 展开显示步骤。mock 5 个示例任务。",
       "steps": [
-        "flex 三栏布局：左侧固定 48px，中间 flex-1，右侧暂不渲染",
-        "中间区域上下分割：编辑区（上 50%）+ 流式输出面板（下 50%，最小 200px）",
-        "中间编辑区根据 activePanel 切换显示 FileTreePanel / SessionHistory / EditorPanel / ChatPanel",
-        "底部操作按钮栏：[启动开发] [启动评估]",
-        "activePanel 状态在 ProjectPage 中管理，通过 props 传给 LeftToolbar"
+        "panel-header: '任务列表' + 完成数统计(如 '3/5 完成') + 收起按钮",
+        "task-item: 状态圆点(✓ done/accent, ◉ running/warn+pulse, ○ pending/muted, ✕ failed/danger)",
+        "点击展开/折叠: 显示子步骤列表, 每步骤带小圆点状态",
+        "running 状态: pulse 动画(1.5s ease-in-out 循环)",
+        "mock 数据: 5 个任务, 2 done + 1 running + 2 pending, 各有 3-4 个步骤"
       ],
-      "passes": true,
-      "evaluated": true
+      "passes": false,
+      "evaluated": false
     },
     {
       "id": 8,
-      "title": "左侧工具栏",
-      "description": "实现 LeftToolbar 组件：垂直按钮列，包含新建(📁)、项目结构(🌳)、对话历史(💬)、Chat(💭)、设置(⚙)。当前激活按钮高亮。",
+      "title": "新建项目弹窗 — 5步自适应表单",
+      "description": "实现设计稿的 5 步需求采集表单: 项目概述→技术偏好→功能清单→UI 风格→部署方式。步骤根据项目类型动态显隐。",
       "steps": [
-        "48px 宽垂直 flex 布局，按钮 40x40 圆角方块",
-        "新建按钮在最上方，下方分隔线，其余 4 个按钮等距排列",
-        "激活按钮：bg-blue-600/20 + ring-1 ring-blue-600/30",
-        "点击已激活按钮取消选中（回到 editor 占位状态）",
-        "新建按钮 navigate 到 /（首页）",
-        "Chat 按钮点击切换 ChatPanel，用于与 Claude 自由对话"
+        "modal overlay: 固定定位, 半透明黑底, 居中弹窗 560px 宽, 入场动画",
+        "Step 指标器: 4px 高圆点导航条, done/accent, active/accent, pending/border",
+        "Step 1(项目概述): 名称 input + 项目类型 radio-group(Web/移动/CLI/桌面), 默认 Web",
+        "Step 2(技术偏好): 框架(React/Vue/纯HTML)+样式(Tailwind/CSS Modules/纯CSS)+后端(按类型显隐), 每项有 'AI推荐' dashed-border 选项",
+        "Step 3(功能清单): textarea + '✨ AI推荐' 按钮(点击模拟打字机输出功能列表)",
+        "Step 4(UI风格): 色彩 select + 排版 select, CLI类型时跳过此步",
+        "Step 5(部署方式): 技术费用 radio(充足/少量/免费)+部署平台 radio(云端/本地)",
+        "底部: 上一步/下一步/创建项目 按钮, 最后一步提交后关闭弹窗, 更新 titlebar 项目名"
       ],
-      "passes": true,
-      "evaluated": true
+      "passes": false,
+      "evaluated": false
     },
     {
       "id": 9,
-      "title": "JSONL 流式解析器",
-      "description": "实现 utils/jsonl-parser.ts：解析 Claude --output-format stream-json 的输出。每行一个 JSON 对象，按 type 分类（assistant/message_delta/tool_use/tool_result/system）。参考 open-design 的 claude-stream.ts。",
+      "title": "设置弹窗",
+      "description": "实现设置弹窗: 外观信息、Claude CLI 状态、开发选项开关(评估/TDD/截图验证)、Token 消耗对照表。",
       "steps": [
-        "创建 JsonlParser 类，接收 Readable stream 或 Buffer",
-        "按行分割，每行 JSON.parse，容错处理不完整行",
-        "按 type 字段分类事件：assistant → 文本增量、tool_use → 工具调用卡片、tool_result → 工具结果",
-        "暴露为 EventEmitter 或 Observable，emit 结构化事件对象",
-        "支持 start/stop 生命周期管理，子进程退出时 flush 缓冲区"
+        "modal 520px 宽, header('设置'+关闭按钮) + body + footer('完成'按钮)",
+        "外观: 主题显示 '亮色 Mint(仅亮色)' 灰色只读",
+        "Claude CLI: 路径 code 标签 accent 色, 版本号, 检测状态 '✓ 已检测到'",
+        "开发选项: 评估模式/TDD模式/截图验证 三个 toggle 开关, 各自带说明 hint",
+        "Token 消耗表: 5 行(普通/评估/TDD/截图/全开), ⭐ 1-4 颗",
+        "底部备注: DeepSeek 视觉桥接(待商议)"
       ],
-      "passes": true,
-      "evaluated": true
+      "passes": false,
+      "evaluated": false
     },
     {
       "id": 10,
-      "title": "agent-service — Claude 子进程 spawn + JSONL 流",
-      "description": "重写 agent-service：spawn Claude 子进程（自动化模式），解析 JSONL 输出流，通过 IPC 推送到 renderer。替代原来的 PTY 终端方案。",
+      "title": "首次启动 — Onboarding 设置页",
+      "description": "实现独立 onboarding 页面(不依赖 Electron): 3 步完成 Claude Code 检测和配置确认。首次完成后写 localStorage, 之后跳过。",
       "steps": [
-        "runWorker() spawn claude -p '...' --output-format stream-json --permission-mode bypassPermissions",
-        "stdout pipe 到 JsonlParser，解析后通过 mainWindow.webContents.send('agent:stream') 推送结构化事件",
-        "stderr 也通过 IPC 推送（agent:stderr），用于错误展示",
-        "子进程 exit 时发送 agent:exit 事件（含 exit code）",
-        "支持 abort() 终止子进程",
-        "子进程 cwd 设为目标项目目录"
+        "独立 React 页面或条件渲染: 如果 !localStorage.getItem('easymint_setup_complete') 则显示 onboarding",
+        "Step 1(检测 Claude Code): 扫描按钮+扫描动画+终端风格输出+未找到错误提示+手动输入路径",
+        "扫描动画: scan-area dashed→solid accent, icon spinning, 终端模拟逐行输出(which claude → /path/to/claude → claude --version → 版本号)",
+        "Step 2(确认配置): 表格显示路径/版本/工作目录/AI 模型, 返回+确认并继续按钮",
+        "Step 3(完成): ✓ 图标 + 'EasyMint 已准备就绪' + 进入工作台按钮",
+        "完成: 写 localStorage(easymint_setup_complete/cc_path/cc_version), 跳转工作台",
+        "所有 Claude 检测使用 mock 数据, 不实际调用 --version"
       ],
-      "passes": true,
-      "evaluated": true
+      "passes": false,
+      "evaluated": false
     },
     {
       "id": 11,
-      "title": "StreamPanel — JSONL 流式渲染组件",
-      "description": "实现 StreamPanel：接收 agent:stream IPC 事件，按类型结构化渲染。文本 → Markdown、工具调用 → 可折叠卡片显示工具名+参数、工具结果 → 折叠区、文件变更 → 变更摘要。参考 Proma 的 SDKMessageRenderer.tsx。",
+      "title": "Mock 数据完善",
+      "description": "为所有 mock-ipc 通道提供真实感的假数据, 覆盖项目列表、文件树(个人博客项目)、会话列表、任务列表、Chat 对话。确保 UI 各状态都有数据可展示。",
       "steps": [
-        "监听 electronAPI.agent.onStream() 事件流，逐条 append 到消息列表",
-        "文本消息（assistant/message_delta）：Markdown 渲染，打字机效果逐字追加",
-        "工具调用（tool_use）：可折叠卡片，标题栏显示工具名+参数摘要，展开看完整 JSON",
-        "工具结果（tool_result）：缩进显示在对应工具调用下方",
-        "子进程错误（agent:stderr）：红色文字显示",
-        "子进程退出（agent:exit）：底部显示 exit code，绿色=0 红色≠0",
-        "自动滚动到底部（用户手动上滚时不强制滚动）"
+        "项目列表: 1 个 mock 项目 '个人博客'(React+Vite+TS, development 状态, 路径 ~/dev/personal-blog)",
+        "文件树: 15+ 节点, 含 src/components/Header.tsx, PostCard.tsx, Layout.tsx 等, 3-4 个文件标 modified",
+        "文件内容: 每个 mock 文件有 10-20 行真实感的 TSX/TS/JSON 代码",
+        "对话列表: 2 个历史会话('项目初始化讨论','部署方案讨论'), 各含 2-3 条消息",
+        "任务列表: 5 个任务, 2 done + 1 running + 2 pending, 各有步骤",
+        "Chat 模拟: 输入关键词('博客'/'分析'/'项目')返回预设回复, 其他返回通用回复"
       ],
-      "passes": true,
-      "evaluated": true
+      "passes": false,
+      "evaluated": false
     },
     {
       "id": 12,
-      "title": "agent-service — Chat 模式（长会话双向 JSONL）",
-      "description": "实现 Chat 模式：spawn claude --input-format stream-json --output-format stream-json，stdin 写入用户消息 JSONL，stdout 解析响应。进程保持运行直到用户关闭。 [评估: PASS — ChatPanel UI 框架正确，消息对齐、输入交互、主题切换均正常。轻微：状态消息重复显示。]",
+      "title": "整体 UI 打磨与交互动效",
+      "description": "统一动画曲线、过渡时长、空状态、错误状态。确保所有交互流畅, 亮色 Mint 主题在所有组件一致。",
       "steps": [
-        "startChat() spawn claude --input-format stream-json --output-format stream-json",
-        "sendMessage() 将用户消息序列化为 JSONL 写入子进程 stdin",
-        "stdout 通过 JsonlParser 解析，同样 emit agent:stream 事件",
-        "复用 StreamPanel 渲染，额外显示用户消息气泡（右侧对齐）",
-        "stopChat() 关闭 stdin（EOF），等待子进程自然退出",
-        "进程 crash 时自动重新 spawn 并恢复上下文"
+        "所有动画统一 cubic-bezier(0.4, 0, 0.2, 1), 快动作 150ms, 标准 250ms",
+        "modal 入场: fadeIn(150ms) + modalIn(200ms, translateY+scale)",
+        "消息入场: msgIn(200ms, opacity+translateY)",
+        "面板折叠/展开: 200ms ease",
+        "空状态: chat 无消息时显示欢迎页, 文件树无文件时显示引导",
+        "异常状态: 文件加载失败显示错误提示, 项目列表为空不弹新建弹窗",
+        "确认暗色主题代码已全部移除, 所有组件仅亮色"
       ],
-      "passes": true,
-      "evaluated": true
-    },
-    {
-      "id": 13,
-      "title": "文件树浏览",
-      "description": "实现 FileTreePanel：左侧文件树（递归渲染目录+文件图标），右侧文件内容预览。点击文件异步加载内容。排除 .git/node_modules。",
-      "steps": [
-        "useEffect 获取项目 path，调用 electronAPI.file.readTree 加载目录树",
-        "递归渲染 FileNode：目录前 📁，文件前 📄，子节点缩进 16px",
-        "点击文件：高亮选中项，调用 file:readContent 异步加载内容到右侧预览区",
-        "右侧预览区用 <pre> 标签等宽字体展示文件内容",
-        "排除 .git、node_modules、dist、temp 目录"
-      ],
-      "passes": true,
-      "evaluated": true
-    },
-    {
-      "id": 14,
-      "title": "对话历史管理",
-      "description": "实现 SessionHistory 组件：列出项目的所有对话记录，按时间倒序。支持点击 resume 和删除。从 sessions.json 读取数据。",
-      "steps": [
-        "useEffect 调用 electronAPI.session.list(projectId) 加载会话列表",
-        "列表项显示：标题、最后活跃时间（格式化为中文日期）",
-        "点击列表项调用 electronAPI.agent.resume(sessionId) 恢复对话",
-        "删除按钮调用 electronAPI.session.delete(projectId, sessionId)，刷新列表",
-        "空状态：'暂无对话记录' 居中提示",
-        "列表按 lastActiveAt 倒序排列"
-      ],
-      "passes": true,
-      "evaluated": true
-    },
-    {
-      "id": 15,
-      "title": "暗色/亮色主题系统",
-      "description": "实现全局主题切换：CSS 变量定义两套颜色，settings-store 管理 theme 状态，document.documentElement 切换 light class。",
-      "steps": [
-        "index.css 中 :root 定义暗色变量，:root.light 定义亮色变量",
-        "颜色变量：--color-surface、--color-surface-alt、--color-surface-hover、--color-border、--color-text-primary、--color-text-secondary",
-        "settings-store toggleTheme() 切换并操作 document.documentElement.classList",
-        "所有组件使用 Tailwind 的 bg-surface、text-text-primary 等语义类名"
-      ],
-      "passes": true,
-      "evaluated": false
-    },
-    {
-      "id": 16,
-      "title": "设置面板 — 含评估模式开关",
-      "description": "实现设置面板：主题切换、评估模式开关、Claude CLI 路径显示。评估模式开启后，每轮 worker 完成自动触发 evaluator。",
-      "steps": [
-        "设置面板作为 ProjectPage 的 overlay/drawer 展示",
-        "主题切换按钮（暗色/亮色），调用 settings-store.toggleTheme()",
-        "评估模式开关（Toggle/Switch 组件），状态持久化到 settings.json",
-        "Claude CLI 检测结果展示（路径 + 版本，或未检测到提示）",
-        "评估模式说明文字：开启后每轮 worker 完成自动触发 evaluator 验证"
-      ],
-      "passes": true,
-      "evaluated": false
-    },
-    {
-      "id": 17,
-      "title": "evaluator-service — 评估 Agent 调度",
-      "description": "实现 evaluator-service：在评估模式开启时，监听 worker 完成事件，自动启动评估 Agent。评估 Agent 使用 Playwright 测 Vite dev server 的 DOM。",
-      "steps": [
-        "evaluator-service 监听 agent:exit 事件",
-        "检查 settings.json 中评估模式是否开启，未开则跳过",
-        "runEvaluator() spawn claude -p '按 EVALUATOR.md 流程评估一个任务' --output-format stream-json",
-        "评估输出同样通过 agent:stream 推送（标记为 evaluator 来源）",
-        "evaluator 完成后更新 task.json 的 evaluated 字段",
-        "评估 FAIL 时在 StreamPanel 中高亮显示问题"
-      ],
-      "passes": true,
-      "evaluated": false
-    },
-    {
-      "id": 18,
-      "title": "mock-ipc 完善与 EditorPanel 占位",
-      "description": "补齐 mock-ipc 中新增的 agent/evaluator/settings IPC 通道的假数据。完善 EditorPanel 占位页引导文案。统一错误处理。",
-      "steps": [
-        "mock-ipc 新增 agent 命名空间：runWorker、startChat、sendMessage、onStream 等的 mock 实现",
-        "mock-ipc 新增 evaluator 命名空间：toggle、status 等的 mock 实现",
-        "mock-ipc 新增 settings 命名空间：get、set 等的 mock 实现",
-        "mock-ipc onStream 模拟推送几条示例 JSONL 事件用于 UI 调试",
-        "EditorPanel 显示占位图标 + 引导文案",
-        "所有页面在亮色主题下颜色正常显示，加载失败时有重试/错误提示"
-      ],
-      "passes": true,
+      "passes": false,
       "evaluated": false
     }
   ]
