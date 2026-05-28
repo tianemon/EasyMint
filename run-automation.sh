@@ -198,7 +198,7 @@ PROMPT_EOF
     # 排查 "任务完成但不退出" 的问题。
     claude -p "$(cat "$PROMPT_FILE")" \
         --permission-mode bypassPermissions \
-        --output-format stream_json \
+        --output-format stream-json \
         --output "${RUN_LOG}.jsonl" \
         > "$RUN_LOG" 2>&1 &
     CLAUDE_PID=$!
