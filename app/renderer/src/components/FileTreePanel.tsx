@@ -15,11 +15,18 @@ export function FileTreePanel({ projectPath }: FileTreePanelProps): JSX.Element 
   const [files, setFiles] = useState<FileNode[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
+
+  const loadTree = () => {
+    if (!projectPath) return;
+    setError(null);
+    window.electronAPI.file.readTree(projectPath).then(setFiles).catch((e: unknown) => {
+      setError(e instanceof Error ? e.message : "加载文件树失败");
+    });
+  };
 
   useEffect(() => {
-    if (projectPath) {
-      window.electronAPI.file.readTree(projectPath).then(setFiles);
-    }
+    loadTree();
   }, [projectPath]);
 
   const handleFileClick = async (filePath: string) => {
@@ -52,7 +59,19 @@ export function FileTreePanel({ projectPath }: FileTreePanelProps): JSX.Element 
         <div className="p-3 border-b border-border text-sm font-medium text-text-secondary">
           项目结构
         </div>
-        {renderTree(files)}
+        {error ? (
+          <div className="p-4 text-center">
+            <p className="text-red-400 text-sm mb-2">{error}</p>
+            <button
+              className="px-3 py-1 text-xs bg-accent text-white rounded hover:bg-accent-hover transition-colors"
+              onClick={loadTree}
+            >
+              重试
+            </button>
+          </div>
+        ) : (
+          renderTree(files)
+        )}
       </div>
       {/* File content preview */}
       <div className="flex-1 overflow-auto p-4">

@@ -201,6 +201,9 @@ export const electronAPIMock = {
     },
     abort: (_evalId: string) => delay(undefined),
   },
+  claude: {
+    detect: () => delay({ found: true, path: "/usr/local/bin/claude", version: "1.0.0" }),
+  },
   session: {
     list: (_projectId: string) => delay([...MOCK_SESSIONS]),
     resume: (_sessionId: string) => {},

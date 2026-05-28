@@ -489,3 +489,41 @@
 - 评估输出与 Worker/Chat 共用 agent:stream 通道，通过 source 字段区分来源
 - auto-trigger 仅在 worker exit code=0 且 evaluateMode 开启时触发，Chat 模式不触发评估
 
+## [2026-05-28] - 评估: 文件树浏览
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无
+
+### 备注:
+- 5/5 验收条件全部通过
+- 📁/📄 图标正确区分目录和文件（image-vision + DOM evaluate 双重验证）
+- 子节点缩进 16px（paddingLeft 根 12px → 子 28px，差值 16px）✅
+- 点击文件高亮 + 右侧异步加载内容（active 状态 + 内容从空变为文件正文）✅
+- 预览区 `<pre>` 等宽字体（fontFamily: monospace, whiteSpace: pre-wrap）✅
+- 排除目录正确（.git/node_modules/dist/temp 均未出现在文件树中）✅
+- 0 个 JS 错误，仅 favicon.ico 404（已知非功能性问题）
+- 评估报告: temp/evaluator/report-13.md
+
+## [2026-05-28] - 任务: mock-ipc 完善与 EditorPanel 占位
+
+### 完成内容:
+- mock-ipc 新增 claude 命名空间：detect() 返回 { found: true, path, version }
+- HomePage 新增错误处理：loadProjects catch + 错误提示 + 重试按钮
+- FileTreePanel 新增错误处理：loadTree catch + 错误提示 + 重试按钮
+- SessionHistory 新增错误处理：loadSessions catch + 错误提示 + 重试按钮
+- EditorPanel 重写占位页：欢迎标题 + 引导文案 + 4 格功能引导卡片（浏览结构/会话历史/Chat 对话/启动开发）
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:main + build:renderer 编译成功
+- vitest 47/47 测试全部通过
+
+### 备注:
+- agent/evaluator/settings 的 mock 实现在早期任务中已完整实现，本次补齐了缺失的 claude 命名空间
+- 错误处理遵循统一模式：error state → 红色文字 + 重试按钮
+- EditorPanel 引导卡片对应左侧工具栏的 4 个核心功能
+

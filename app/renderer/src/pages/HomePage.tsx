@@ -5,9 +5,17 @@ export function HomePage(): JSX.Element {
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [showNewDialog, setShowNewDialog] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadProjects = () => {
+    setError(null);
+    window.electronAPI.project.list().then(setProjects).catch((e: unknown) => {
+      setError(e instanceof Error ? e.message : "加载项目列表失败");
+    });
+  };
 
   useEffect(() => {
-    window.electronAPI.project.list().then(setProjects);
+    loadProjects();
   }, []);
 
   return (
@@ -17,7 +25,17 @@ export function HomePage(): JSX.Element {
         <p className="text-text-secondary">AI 项目工作台 — 从想法到产品，一键启动</p>
       </div>
 
-      {projects.length === 0 ? (
+      {error ? (
+        <div className="text-center p-12 rounded-lg border border-red-500/30 bg-surface-alt">
+          <p className="text-red-400 mb-4">{error}</p>
+          <button
+            className="px-6 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors"
+            onClick={loadProjects}
+          >
+            重试
+          </button>
+        </div>
+      ) : projects.length === 0 ? (
         <div className="text-center p-12 rounded-lg border border-border bg-surface-alt">
           <p className="text-text-secondary mb-4">还没有项目</p>
           <button

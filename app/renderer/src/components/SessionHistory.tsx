@@ -7,14 +7,19 @@ interface SessionHistoryProps {
 export function SessionHistory({ projectId }: SessionHistoryProps): JSX.Element {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadSessions = useCallback(() => {
     setLoading(true);
+    setError(null);
     window.electronAPI.session.list(projectId).then((list) => {
       const sorted = [...list].sort(
         (a, b) => new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime()
       );
       setSessions(sorted);
+      setLoading(false);
+    }).catch((e: unknown) => {
+      setError(e instanceof Error ? e.message : "加载对话历史失败");
       setLoading(false);
     });
   }, [projectId]);
@@ -42,6 +47,16 @@ export function SessionHistory({ projectId }: SessionHistoryProps): JSX.Element 
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">
           加载中...
+        </div>
+      ) : error ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-2">
+          <p className="text-red-400 text-sm">{error}</p>
+          <button
+            className="px-3 py-1 text-xs bg-accent text-white rounded hover:bg-accent-hover transition-colors"
+            onClick={loadSessions}
+          >
+            重试
+          </button>
         </div>
       ) : sessions.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">
