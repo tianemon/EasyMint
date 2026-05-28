@@ -998,3 +998,23 @@
 
 ### 备注:
 - report-10.md 两个 FAIL 项均已修复
+
+## [2026-05-28] - 任务: Mock 数据完善
+
+### 完成内容:
+- MOCK_PROJECTS: 替换为 1 个 mock 项目「个人博客」(React+Vite+TS, development, ~/dev/personal-blog)
+- MOCK_FILE_TREE: 扩展至 17 个节点, 含 src/components 下 Header.tsx/PostCard.tsx/Layout.tsx/Footer.tsx, src/pages 下 Home.tsx/Post.tsx/About.tsx, src/types/post.ts, 3 个文件标记 modified
+- MOCK_FILE_CONTENT: 覆盖所有 17 个文件, 每个 10-25 行真实感 TSX/TS/JSON 代码, 包含完整组件逻辑、路由、类型定义、Tailwind 样式
+- MOCK_SESSIONS: 改为「项目初始化讨论」和「部署方案讨论」, 各含 2 条用户消息 + 2 条 assistant 回复
+- MOCK_CHAT_RESPONSES: 关键词匹配「博客」返回技术栈推荐,「分析」返回项目优化建议,「项目」返回当前状态概述, 其他返回通用回复
+- session.resume mock: 恢复会话时推送历史消息到 stream callback, 逐条延迟 200ms 模拟加载
+- chat sendMessage mock: 基于关键词匹配返回预设回复
+- MOCK_STREAM_EVENTS: 更新为博客项目上下文 (文章详情页实现流程)
+
+### 测试:
+- ESLint 零错误
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:renderer + build:main 编译成功
+
+### 备注:
+- MOCK_TASKS (RightPanel.tsx) 已有 5 个任务 (2 done+1 running+2 pending), 无需改动
