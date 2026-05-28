@@ -738,3 +738,19 @@
 - 代码编辑器面板在 Task 6 中实现, 当前文件 tab 内容显示 EditorPanel 占位
 - Tab 系统通过 tab-store 集中管理, 支持文件(绿点)和 chat(灰点)两种类型
 - 欢迎页快捷按钮发送预设 prompt 到 Chat, 首次发送时更新 tab 标题
+
+## [2026-05-28] - 评估: 中间编辑区 — Tab 栏 + Chat 面板
+
+### 评估结论:
+- FAIL
+
+### 发现问题:
+- [BUG] 发送按钮始终 disabled: 输入文本后发送按钮不启用, 用户只能通过 Enter 键发送
+- [设计问题] Chat Tab 消息状态不隔离: 新建 Chat Tab 显示的是共享的 chat store 消息, 非空欢迎页
+- [数据缺失] 文件树无 mock 数据, 无法端到端验证文件 Tab 绿色圆点
+
+### 备注:
+- TabBar 组件逻辑正确 (file=绿点/accent, chat=灰点/text-secondary)
+- 消息气泡样式、动画、Token 状态栏均已正确实现
+- 发送按钮 disabled bug 需要修复 ChatPanel 输入组件的 disabled 状态判断逻辑
+- 详见 temp/evaluator/report-5.md

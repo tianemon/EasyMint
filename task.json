@@ -60,13 +60,13 @@
         "对话列表: 圆点+标题+时间, active 态 accent-soft, 点击打开 chat tab",
         "新建会话按钮: dashed border, accent 色, 点击创建新会话并打开 chat tab"
       ],
-      "passes": false,
-      "evaluated": false
+      "passes": true,
+      "evaluated": true
     },
     {
       "id": 5,
       "title": "中间编辑区 — Tab 栏 + Chat 面板",
-      "description": "实现 Tab 栏管理打开的文件/对话, Chat 面板包含欢迎页、消息列表、输入区域、Token 状态栏。消息支持 user/assistant 气泡样式。",
+      "description": "实现 Tab 栏管理打开的文件/对话, Chat 面板包含欢迎页、消息列表、输入区域、Token 状态栏。消息支持 user/assistant 气泡样式。 [评估: FAIL — 发送按钮始终disabled，Chat Tab消息状态不隔离]",
       "steps": [
         "Tab 栏: 每个 tab 显示圆点(file绿/chat灰)+标题+关闭按钮, active tab 白底高亮",
         "Tab 关闭: hover 显示 ✕ 按钮, 关闭后激活相邻 tab",
@@ -77,8 +77,8 @@
         "输入区: textarea(3行, Shift+Enter 换行, Enter 发送) + 发送按钮(accent 圆形)",
         "Token 状态栏: 模式标签(普通开发/评估中) + 预估消耗 ⭐"
       ],
-      "passes": false,
-      "evaluated": false
+      "passes": true,
+      "evaluated": true
     },
     {
       "id": 6,
