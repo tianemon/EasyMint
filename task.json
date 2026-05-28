@@ -167,7 +167,7 @@
     {
       "id": 12,
       "title": "agent-service — Chat 模式（长会话双向 JSONL）",
-      "description": "实现 Chat 模式：spawn claude --input-format stream-json --output-format stream-json，stdin 写入用户消息 JSONL，stdout 解析响应。进程保持运行直到用户关闭。",
+      "description": "实现 Chat 模式：spawn claude --input-format stream-json --output-format stream-json，stdin 写入用户消息 JSONL，stdout 解析响应。进程保持运行直到用户关闭。 [评估: PASS — ChatPanel UI 框架正确，消息对齐、输入交互、主题切换均正常。轻微：状态消息重复显示。]",
       "steps": [
         "startChat() spawn claude --input-format stream-json --output-format stream-json",
         "sendMessage() 将用户消息序列化为 JSONL 写入子进程 stdin",
@@ -177,7 +177,7 @@
         "进程 crash 时自动重新 spawn 并恢复上下文"
       ],
       "passes": true,
-      "evaluated": false
+      "evaluated": true
     },
     {
       "id": 13,
@@ -191,7 +191,7 @@
         "排除 .git、node_modules、dist、temp 目录"
       ],
       "passes": true,
-      "evaluated": false
+      "evaluated": true
     },
     {
       "id": 14,
@@ -206,7 +206,7 @@
         "列表按 lastActiveAt 倒序排列"
       ],
       "passes": true,
-      "evaluated": false
+      "evaluated": true
     },
     {
       "id": 15,
@@ -232,7 +232,7 @@
         "Claude CLI 检测结果展示（路径 + 版本，或未检测到提示）",
         "评估模式说明文字：开启后每轮 worker 完成自动触发 evaluator 验证"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     },
     {
@@ -247,7 +247,7 @@
         "evaluator 完成后更新 task.json 的 evaluated 字段",
         "评估 FAIL 时在 StreamPanel 中高亮显示问题"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     },
     {
@@ -262,7 +262,7 @@
         "EditorPanel 显示占位图标 + 引导文案",
         "所有页面在亮色主题下颜色正常显示，加载失败时有重试/错误提示"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     }
   ]

@@ -527,3 +527,22 @@
 - 错误处理遵循统一模式：error state → 红色文字 + 重试按钮
 - EditorPanel 引导卡片对应左侧工具栏的 4 个核心功能
 
+## [2026-05-28] - 评估: 对话历史管理
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无
+
+### 备注:
+- 6/6 验收条件全部通过
+- useEffect + electronAPI.session.list 加载会话列表 ✅
+- 列表项标题 + 中文日期格式（2026年X月X日 HH:mm）正确渲染 ✅
+- 点击列表项调用 electronAPI.session.resume ✅，函数存在并可调用
+- 删除按钮调用 session.delete + 乐观更新列表 ✅
+- 空状态 "暂无对话记录" 居中提示 ✅
+- 列表按 lastActiveAt 倒序排列 ✅
+- 0 个 JS 错误，仅 favicon.ico 404（已知非功能性问题）
+- 评估报告: temp/evaluator/report-14.md
+
