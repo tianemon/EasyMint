@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { NewProjectDialog } from "../components/NewProjectDialog";
 
 export function ProjectListPage(): JSX.Element {
   const navigate = useNavigate();
@@ -82,65 +83,3 @@ export function ProjectListPage(): JSX.Element {
   );
 }
 
-function NewProjectDialog({
-  onClose,
-  onCreated,
-}: {
-  onClose: () => void;
-  onCreated: (project: Project) => void;
-}): JSX.Element {
-  const [name, setName] = useState("");
-  const [dir, setDir] = useState("");
-
-  const handleCreate = async () => {
-    if (!name.trim() || !dir.trim()) return;
-    const project = await window.electronAPI.project.create({ name: name.trim(), path: dir.trim() });
-    onCreated(project);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-surface p-6 rounded-xl border border-border w-96 shadow-2xl">
-        <h2 className="text-lg font-semibold mb-4">新建项目</h2>
-        <div className="flex flex-col gap-3">
-          <div>
-            <label className="block text-sm text-text-secondary mb-1">项目名称</label>
-            <input
-              className="w-full px-3 py-2 rounded-lg bg-surface-alt border border-border text-text-primary outline-none focus:border-accent"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="例如：我的记账软件"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-text-secondary mb-1">项目目录</label>
-            <button
-              className="w-full px-3 py-2 rounded-lg bg-surface-alt border border-border text-left text-sm hover:bg-surface-hover transition-colors"
-              onClick={async () => {
-                const selected = await window.electronAPI.dialog.openDirectory();
-                if (selected) setDir(selected);
-              }}
-            >
-              {dir || "点击选择目录..."}
-            </button>
-          </div>
-        </div>
-        <div className="flex justify-end gap-3 mt-6">
-          <button
-            className="px-4 py-2 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors"
-            onClick={onClose}
-          >
-            取消
-          </button>
-          <button
-            className="px-4 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
-            disabled={!name.trim() || !dir.trim()}
-            onClick={handleCreate}
-          >
-            创建
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}

@@ -833,3 +833,47 @@
 ### 备注:
 - 任务数据为 mock（MOCK_TASKS 定义在 RightPanel.tsx 中），后续接入后端 task.json 或 IPC 通道时替换
 - 状态圆点使用内联 SVG 图标（done 的 ✓, failed 的 ✕），running 用纯圆点 + CSS 动画
+
+## [2026-05-28] - 评估: 右面板 — 任务列表
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无
+
+### 备注:
+- 5/5 验收条件全部通过
+- panel-header "任务列表 2/5 完成" + 收起按钮 ▶ ✅
+- 状态圆点: done=绿✓, running=amber+pulse, pending=空心灰, failed=红✕ ✅
+- 展开/折叠子步骤含状态小圆点，箭头旋转 90deg ✅
+- running 状态 pulse 动画: 1.5s ease-in-out infinite taskPulse ✅
+- mock 数据: 5 任务, 2 done + 1 running + 2 pending, 各 3-4 步骤 ✅
+- 0 个 JS 错误，仅 2 个预存在 React Router v7 warning
+- 评估报告: temp/evaluator/report-task7.md
+
+## [2026-05-28] - 任务: 新建项目弹窗 — 5步自适应表单
+
+### 完成内容:
+- 创建 NewProjectDialog.tsx 独立组件（app/renderer/src/components/）
+- 5 步自适应表单：项目概述→技术偏好→功能清单→UI风格→部署方式
+- Step 1(项目概述): 项目名称 input + 项目类型 radio 四选一(Web/移动/CLI/桌面,默认 Web) + 项目目录选择
+- Step 2(技术偏好): 前端框架(React/Vue/纯HTML)+样式方案(Tailwind/CSS Modules/纯CSS)+后端(Node.js/Python/不需要,仅 Web 类型显示), 每个选项带 "AI 推荐" dashed-border
+- Step 3(功能清单): textarea + "✨ AI 推荐" 按钮(点击模拟打字机逐字输出功能列表)
+- Step 4(UI风格): 色彩方案(Mint/Ocean/Sunset/Lavender) + 排版(Modern/Classic/Mono), CLI 类型跳过此步
+- Step 5(部署方式): 技术费用(充足/少量/免费) + 部署平台(云端/本地)
+- Step 指标器: 4px 高圆点导航条, 当前和已完成 accent 绿色, 待完成 border 灰色
+- CLI 项目类型时 UI 风格步骤自动跳过(4 个点而非 5 个)
+- Modal 入场动画: fadeIn(150ms) + modalIn(200ms translateY+scale)
+- ProjectListPage.tsx 移除内联 NewProjectDialog, 改为导入新组件
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:renderer + build:main 编译成功
+- electron-builder 签名失败：codesign Permission denied（预存在的环境问题）
+
+### 备注:
+- NewProjectDialog 复用 SetupPage 多步表单模式（updateData callback、按钮组样式）
+- AI 推荐打字机效果使用 setInterval 30ms 逐字输出，组件卸载时清理 interval
+- Step 4 动态显隐通过 getVisibleSteps(projectType) 过滤 CLI 类型
