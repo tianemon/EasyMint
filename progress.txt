@@ -616,3 +616,43 @@
 - 侧边栏下拉菜单和完整 tooltip 在 Task 3 中实现
 - 面板宽度可拖拽范围: 140px-480px(左), 140px-600px(右)
 
+## [2026-05-28] - 评估: 工作台四栏布局 + 面板拖拽
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无阻塞性问题。panel-peek 使用 `position: relative` 而非规格要求的 `absolute`，但 grid 布局中功能等效
+
+### 备注:
+- 6/6 验收条件全部通过
+- CSS Grid `44px 220px 4px 1fr 4px 280px` 精确实现在 1280px 容器中
+- 2 个拖拽 handle：4px 宽，hover accent #16a34a，mousedown/move/up 正确更新 grid 列宽（测试拖拽 50px，左面板 220→270px，中心 728→678px）
+- 左面板折叠 → `44px 0px 0px 1fr 4px 280px` + panel-peek-left ✅
+- 右面板折叠 → `44px 220px 4px 1fr 0px 0px` + panel-peek-right ✅
+- panel-peek hover accent 色，点击展开 ✅
+- 标题栏：40px 高，macOS 红绿灯（红 #ff5f57/黄 #febc2e/绿 #28c840），"EasyMint" 居中 ✅
+- 0 个 JS 错误，2 个预存在 React Router warning
+- 评估报告: temp/evaluator/report-task2.md
+
+## [2026-05-28] - 任务: 侧边图标栏 + 下拉菜单 + Tooltip
+
+### 完成内容:
+- LeftToolbar 新建按钮改为 + 图标，点击展开下拉菜单（新建项目/新建文件/新建文件夹）
+- 新建项目点击 navigate 到 /projects，新建文件/文件夹为占位（后续任务接入）
+- 点击菜单外部自动关闭（mousedown 事件监听）
+- 新增终端按钮：opacity-35 + cursor-not-allowed + data-tooltip "终端 · 即将推出"
+- 设置按钮从 TOOLS 数组移出，使用 mt-auto 固定在侧边栏底部
+- index.css 新增 .dropdown-menu 入场动画（dropdownIn keyframe, 150ms）
+- TOOLS 类型改为 ToolDef，新增 disabled 字段支持禁用态
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:renderer + build:main 编译成功
+- electron-builder 签名失败：codesign Permission denied（预存在的环境问题）
+
+### 备注:
+- 现有 [data-tooltip] CSS tooltip（黑底白字，left: 110%）已满足 Task 3 步骤 5 要求，无需额外改动
+- 新建文件/新建文件夹的菜单项为占位，等后续任务接入具体逻辑
+- 下拉菜单位于按钮右侧（left-full + ml-1），white 背景 + border + shadow-lg 圆角卡片样式
