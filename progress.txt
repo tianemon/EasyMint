@@ -419,3 +419,28 @@
 - SessionHistory 组件复用全局 Session 接口（vite-env.d.ts）
 - 删除操作使用乐观更新，不等待后端确认
 - formatDate 使用中文年月日格式（YYYY年M月D日 HH:mm）
+
+## [2026-05-28] - 任务: 设置面板 — 含评估模式开关
+
+### 完成内容:
+- 创建 SettingsPanel 组件：主题切换按钮、评估模式 Toggle 开关、Claude CLI 检测结果展示
+- settings-store 新增 evaluateMode/claudePath/claudeVersion 状态 + loadFromElectron 初始化
+- setTheme/toggleTheme/setEvaluateMode 变更时自动通过 electronAPI.settings.set 持久化
+- preload 新增 settings 和 evaluator 命名空间（settings:get/settings:set, evaluator:isEnabled/setEnabled/status）
+- ipc-handlers 注册 settings:*, evaluator:* 通道，对接 Store 读写 settings.json
+- Store Settings 接口新增 evaluateMode 可选字段
+- vite-env.d.ts ElectronAPI 新增 claude 命名空间（detect）
+- ProjectPage renderCenterPanel 新增 "settings" case 渲染 SettingsPanel
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:main + build:renderer 编译成功
+- vitest 47/47 测试全部通过
+
+### 备注:
+- 设置面板通过左侧工具栏 ⚙ 按钮打开，在中心编辑区渲染
+- 评估模式开关持久化到 ~/.ai-coding-automation/settings.json
+- Claude CLI 检测调用 claude:detect IPC 通道，失败时显示"未检测到"提示
+- Task 17 (evaluator-service) 依赖 settings.json 中的 evaluateMode 字段
+

@@ -6,6 +6,7 @@ import { SessionHistory } from "../components/SessionHistory";
 import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { StreamPanel } from "../components/StreamPanel";
+import { SettingsPanel } from "../components/SettingsPanel";
 
 export type ActivePanel = "editor" | "files" | "sessions" | "chat" | "settings";
 
@@ -30,6 +31,8 @@ export function ProjectPage(): JSX.Element {
         return <SessionHistory projectId={projectId!} />;
       case "chat":
         return <ChatPanel projectPath={projectPath} />;
+      case "settings":
+        return <SettingsPanel />;
       default:
         return <EditorPanel />;
     }

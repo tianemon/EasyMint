@@ -162,7 +162,7 @@
         "自动滚动到底部（用户手动上滚时不强制滚动）"
       ],
       "passes": true,
-      "evaluated": false
+      "evaluated": true
     },
     {
       "id": 12,
@@ -218,7 +218,7 @@
         "settings-store toggleTheme() 切换并操作 document.documentElement.classList",
         "所有组件使用 Tailwind 的 bg-surface、text-text-primary 等语义类名"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     },
     {

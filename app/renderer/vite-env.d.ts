@@ -63,6 +63,9 @@ interface ElectronAPI {
     setEnabled: (enabled: boolean) => Promise<void>;
     status: () => Promise<{ running: boolean; currentTask?: number }>;
   };
+  claude: {
+    detect: () => Promise<{ found: boolean; path?: string; version?: string }>;
+  };
   session: {
     list: (projectId: string) => Promise<Session[]>;
     resume: (sessionId: string) => void;

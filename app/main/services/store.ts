@@ -29,6 +29,7 @@ interface Settings {
   defaultProjectDir: string;
   claudePath: string;
   terminalFontSize: number;
+  evaluateMode?: boolean;
 }
 
 export class Store {

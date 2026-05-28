@@ -55,4 +55,28 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
 
   // claude:*
   ipcMain.handle("claude:detect", () => detectClaude());
+
+  // settings:*
+  ipcMain.handle("settings:get", () => store.getSettings());
+  ipcMain.handle("settings:set", (_e, { key, value }) => {
+    const settings = store.getSettings();
+    if (key === "theme") {
+      settings.theme = value as "dark" | "light";
+    } else if (key === "evaluateMode") {
+      settings.evaluateMode = value as boolean;
+    }
+    store.saveSettings(settings);
+  });
+
+  // evaluator:*
+  ipcMain.handle("evaluator:isEnabled", () => {
+    const settings = store.getSettings();
+    return settings.evaluateMode ?? false;
+  });
+  ipcMain.handle("evaluator:setEnabled", (_e, { enabled }) => {
+    const settings = store.getSettings();
+    settings.evaluateMode = enabled;
+    store.saveSettings(settings);
+  });
+  ipcMain.handle("evaluator:status", () => ({ running: false }));
 }

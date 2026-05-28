@@ -36,6 +36,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   claude: {
     detect: () => ipcRenderer.invoke("claude:detect"),
   },
+  settings: {
+    get: () => ipcRenderer.invoke("settings:get"),
+    set: (key: string, value: unknown) => ipcRenderer.invoke("settings:set", { key, value }),
+  },
+  evaluator: {
+    isEnabled: () => ipcRenderer.invoke("evaluator:isEnabled"),
+    setEnabled: (enabled: boolean) => ipcRenderer.invoke("evaluator:setEnabled", { enabled }),
+    status: () => ipcRenderer.invoke("evaluator:status"),
+  },
   agent: {
     runWorker: (projectPath: string, prompt: string) =>
       ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),
