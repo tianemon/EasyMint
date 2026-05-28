@@ -136,8 +136,8 @@
         "Token 消耗表: 5 行(普通/评估/TDD/截图/全开), ⭐ 1-4 颗",
         "底部备注: DeepSeek 视觉桥接(待商议)"
       ],
-      "passes": false,
-      "evaluated": false
+      "passes": true,
+      "evaluated": true
     },
     {
       "id": 10,

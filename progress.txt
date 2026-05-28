@@ -921,3 +921,47 @@
 - 设置弹窗替代了原有的 SettingsPanel 内联面板，通过 sidebar ⚙ 按钮触发
 - 三个开发选项 toggle 均通过 settings:set IPC 持久化到 settings.json
 - Token 消耗表为静态参考数据，不随 toggle 状态动态变化
+
+## [2026-05-28] - 评估: 设置弹窗
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无
+
+### 备注:
+- 6/6 验收条件全部通过
+- Modal 面板宽度 520px，header "设置" + ✕ 关闭，footer "完成" 按钮 ✅
+- 外观：主题 "亮色 Mint（仅亮色）" 灰色只读（#5a7a6a）✅
+- Claude CLI：code 标签 accent 绿（#16a34a），路径 /usr/local/bin/claude，版本 1.0.0，✓ 已检测到 ✅
+- 三个 toggle：评估模式（默认 ON）/TDD 模式/截图验证，各含 2 行说明 hint，toggle 切换正常 ✅
+- Token 表：5 行 ⭐1-4 颗，表头模式/说明/消耗 ✅
+- Footer 备注 "DeepSeek 视觉桥接（待商议）" ✅
+- ✕ 关闭按钮和"完成"按钮均能正确关闭弹窗 ✅
+- 0 个 JS 错误
+- 评估报告: temp/evaluator/report-9.md
+
+## [2026-05-28] - 任务: 首次启动 — Onboarding 设置页
+
+### 完成内容:
+- 创建 OnboardingPage.tsx: 3 步 onboarding 流程 — 检测 Claude Code → 确认配置 → 准备就绪
+- Step 1(检测 Claude Code): 扫描区域(dashed→solid accent) + 扫描按钮 + 放大镜图标旋转动画 + 终端风格逐行输出(which claude → /usr/local/bin/claude → claude --version → 版本号) + 手动输入路径备选
+- Step 2(确认配置): 4 行表格显示路径/版本/工作目录/AI 模型，斑马纹交替背景
+- Step 3(完成): ✓ 绿色圆形图标 + "EasyMint 已准备就绪" + 进入工作台按钮
+- Step 指标器: 3 个圆点导航条(已完成 accent 绿/当前 accent+ring/待完成 border 灰)
+- index.css: 新增 .scan-area 过渡、scanIconSpin 旋转动画、.terminal-output 暗底等宽终端样式、.terminal-line 逐行入场动画、.terminal-cursor 闪烁光标
+- App.tsx: localStorage 检查 easymint_setup_complete，未完成则渲染 OnboardingPage，已完成则正常路由
+- 完成时写 localStorage(easymint_setup_complete/cc_path/cc_version)，跳转 /projects
+- 所有 Claude 检测使用 mock 数据，不实际调用 --version
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:renderer + build:main 编译成功
+- electron-builder 签名失败: codesign Permission denied(预存在的环境问题)
+
+### 备注:
+- OnboardingPage 独立于 Electron，使用 localStorage 而非 IPC 判断是否已完成
+- 扫描动画使用 MOCK_SCAN_LINES 数组 + setTimeout 逐行输出，模拟终端效果
+- 手动路径输入作为扫描的备选方案，当用户 CLI 不在标准 PATH 时使用

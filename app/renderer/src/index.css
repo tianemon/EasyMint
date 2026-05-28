@@ -200,6 +200,49 @@ button, a, input, select, textarea, .transition-all {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+/* Scan area for onboarding */
+.scan-area {
+  transition: border-color 200ms ease, background-color 200ms ease;
+}
+
+@keyframes scanIconSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.scan-icon-spin {
+  animation: scanIconSpin 1s linear infinite;
+}
+
+/* Terminal output for onboarding scan */
+.terminal-output {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  min-height: 100px;
+  position: relative;
+}
+
+@keyframes terminalLineIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.terminal-line {
+  animation: terminalLineIn 150ms ease;
+}
+
+@keyframes terminalCursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.terminal-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 14px;
+  background: var(--color-accent);
+  vertical-align: middle;
+  margin-left: 2px;
+  animation: terminalCursorBlink 0.8s ease-in-out infinite;
+}
+
 /* xterm overrides */
 .xterm {
   padding: 8px;
