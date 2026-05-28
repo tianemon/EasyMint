@@ -56,7 +56,7 @@
         "未找到任何有效 claude 时返回 { found: false }"
       ],
       "passes": true,
-      "evaluated": false
+      "evaluated": true
     },
     {
       "id": 5,
@@ -101,7 +101,7 @@
         "底部操作按钮栏：[启动开发] [启动评估]",
         "activePanel 状态在 ProjectPage 中管理，通过 props 传给 LeftToolbar"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     },
     {

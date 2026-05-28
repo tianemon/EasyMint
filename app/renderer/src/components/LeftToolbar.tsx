@@ -1,11 +1,10 @@
 import { useNavigate } from "react-router-dom";
-
-type ActivePanel = "editor" | "files" | "sessions" | "terminal" | "settings";
+import type { ActivePanel } from "../pages/ProjectPage";
 
 const TOOLS: { id: ActivePanel; label: string; icon: string }[] = [
   { id: "files", label: "项目结构", icon: "🌳" },
   { id: "sessions", label: "对话历史", icon: "💬" },
-  { id: "terminal", label: "终端", icon: "🖥" },
+  { id: "chat", label: "Chat", icon: "💭" },
   { id: "settings", label: "设置", icon: "⚙" },
 ];
 

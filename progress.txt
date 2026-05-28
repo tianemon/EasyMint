@@ -158,5 +158,45 @@
 
 ### 备注:
 - SetupPage 使用本地 useState 管理表单数据，未创建独立 store
+
+## [2026-05-28] - 评估: Claude CLI 检测器
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无
+
+### 备注:
+- 5/5 验收条件全部通过
+- 4 个单元测试全部通过（真实 PATH 检测、空 PATH、无 claude PATH、DetectResult 结构验证）
+- 代码实现：path.delimiter 跨平台 PATH 分割、fs.accessSync + X_OK 权限检查、execSync --version timeout 5s
+- IPC 通道 claude:detect 已在 ipc-handlers.ts 注册，preload 已暴露 electronAPI.claude.detect()
+- 运行时验证：应用正常加载，仅 favicon.ico 404（非功能性问题）
+- 评估报告: temp/evaluator/report-4.md
 - Step 3 拖拽使用 HTML5 原生 Drag and Drop API，无需额外依赖
 - requirements.md 生成逻辑内联，按标准 Markdown 模板格式化
+
+## [2026-05-28] - 任务: 项目工作台 — 布局框架
+
+### 完成内容:
+- 重写 ProjectPage 三栏 flex 布局：左侧工具栏 w-12（48px）、中间 flex-1、右侧暂不渲染
+- 中间区域上下等分：编辑区（上 50%）+ StreamPanel 流式输出区（下 50%，min-h-[200px]）
+- 编辑区根据 activePanel 切换：FileTreePanel / SessionHistory / EditorPanel / ChatPanel
+- 底部操作按钮栏：h-12，[启动开发]（accent 色）[启动评估]（outline 样式），右对齐
+- 新增 ChatPanel 占位组件（💭 Chat 对话引导文案）
+- 新增 StreamPanel 占位组件（📡 流式输出引导文案）
+- LeftToolbar 类型从 ProjectPage 导入共享 ActivePanel，新增 Chat 按钮替换终端按钮
+- ActivePanel 类型从 ProjectPage 导出（editor | files | sessions | chat | settings）
+
+### 测试:
+- ESLint 零错误（1 个预存在的 warning，非本次改动）
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:renderer + build:main 编译成功
+- vitest 28/28 测试全部通过
+- electron-builder 签名失败：codesign Permission denied（预存在的环境问题）
+
+### 备注:
+- ChatPanel 和 StreamPanel 为占位组件，对应功能在 Task 11/12 中实现
+- LeftToolbar 的完整实现（图标、分隔线、等距排列）见 Task 8
+- 右侧面板预留，当前不渲染
