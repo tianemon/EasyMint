@@ -106,6 +106,7 @@ export function ProjectPage(): JSX.Element {
       case "chat":
         return (
           <ChatPanel
+            key={activeTab.id}
             projectPath={projectPath}
             onSendFirstMessage={handleChatFirstMessage}
           />

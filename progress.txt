@@ -754,3 +754,18 @@
 - 消息气泡样式、动画、Token 状态栏均已正确实现
 - 发送按钮 disabled bug 需要修复 ChatPanel 输入组件的 disabled 状态判断逻辑
 - 详见 temp/evaluator/report-5.md
+
+## [2026-05-28] - 修复: 评估 Task 5 FAIL 问题
+
+### 完成内容:
+- ChatPanel.tsx: 发送按钮 disabled 条件从 `!input.trim() || !active` 改为 `!input.trim() || !chatId`，与 handleSend 函数 guard 一致，修复按钮始终 disabled 的 bug
+- ProjectPage.tsx: ChatPanel 添加 `key={activeTab.id}` 属性，确保每个 Chat Tab 创建独立的 ChatPanel 实例，修复切换 Tab 时消息状态不隔离的问题
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:main + build:renderer 编译成功
+- vitest 43/47 测试通过 (4 个预存在 project-service 测试失败，非本次改动)
+
+### 备注:
+- report-5.md 的三个 FAIL 项修复了前两个。第三个 "文件树无 mock 数据" 是 mock-ipc 已有 MOCK_FILE_TREE，Task 4 评估已验证文件树正常，本次评估时的具体原因待独立评估确认

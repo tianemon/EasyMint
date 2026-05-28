@@ -264,7 +264,7 @@ export function ChatPanel({
           <div className="flex flex-col gap-1.5">
             <button
               onClick={handleSend}
-              disabled={!input.trim() || !active}
+              disabled={!input.trim() || !chatId}
               className="w-9 h-9 rounded-full bg-accent text-white text-sm flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
             >
               ↑
