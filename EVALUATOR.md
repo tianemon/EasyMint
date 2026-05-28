@@ -16,9 +16,25 @@
 
 ## 2. 理解验收条件
 
-阅读任务的 `description` 和 `steps`，从中提取验收条件清单。每个 step 至少对应一个验证项。
+读取任务的 `description` 和 `steps`，从中提取验收条件清单。每个 step 至少对应一个验证项。
 
-例：step 写"用户可点击登录按钮进入主页"，验收条件就是"点击登录按钮后跳转到主页，页面标题包含'欢迎'"。
+**验收条件必须具体可验证。** 以 step 中的数值/颜色/行为为准：
+
+```
+step: "消息气泡 user 右对齐 accent #16a34a 背景 + 白色文字"
+  → 验证: user 气泡 align-self = flex-end, background-color = #16a34a, color = white
+
+step: "grid-template-columns 精确为 44px 220px 4px 1fr 4px 280px"
+  → 验证: browser_evaluate 读取 computed grid-template-columns, 对比每个值误差 < 2px
+
+step: "pulse 动画 1.5s ease-in-out infinite"
+  → 验证: browser_evaluate 读取 animation-duration = 1.5s, iteration-count = infinite
+```
+
+**step 写法本身规范：**
+- 视觉 step 必须含数值（颜色 hex、像素、百分比）
+- "显示正确"、"布局正常" 这类描述不可验收，必须拒绝并标记 step 不合格
+- 如果 step 本身不含可验证数据，验收条件列为 ⚠️ "不可验收 — step 缺少具体规格"
 
 ---
 
@@ -90,7 +106,30 @@ done
 5. **操作后再次截图 + 再次调 image-vision**，对比验证状态变化
 6. `mcp__playwright__browser_console_messages` 检查 JS 报错
 
-**验收报告中的「证据」列必须引用 image-vision 的返回内容，禁止写「截图显示 xxx」。** 正确写法：引用 describe_image 返回的具体描述。错误写法：根据截图自行判断。
+**验收报告中的「证据」列必须引用 image-vision 的返回内容，包含具体数值。** 
+
+正确写法：
+```
+✅ image-vision 返回: "background color is #f5faf7 (light mint green), 
+   sidebar width measures 44px, button is 32x32px with border-radius 7px"
+```
+
+错误写法（不可接受）：
+```
+✅ 截图显示颜色正确，布局正常
+❌ 组件存在且渲染正确
+```
+
+**PASS 标准：每一步必须满足对应类型的所有条件。**
+
+| 类型 | PASS 条件 |
+|------|----------|
+| 视觉项 | image-vision 描述中的颜色/尺寸/间距与 step 中数值一致（色差 ∆E < 10，尺寸误差 < 3px） |
+| 逻辑项 | browser_snapshot 或 evaluate 确认元素存在、文字匹配、行为触发 |
+| 控制台 | 无 JS error（favicon.ico 404 除外） |
+| 编译 | lint 无错误 + build 成功 |
+
+**全部通过才算 PASS，任何一项 FAIL 则整体 FAIL。**
 
 ### 逻辑验收（元素存在、文字内容、状态切换）
 
@@ -136,7 +175,7 @@ done
 
 ## 6. 更新 task.json
 
-评估完成后，更新对应任务的 `evaluated` 字段：
+### PASS 时
 
 ```python
 python3 -c "
@@ -152,7 +191,39 @@ with open('task.json', 'w') as f:
 "
 ```
 
-**如果 FAIL 且问题明确可复现：** 在对应任务的 description 末尾追加评估结论（PASS 或 FAIL + 问题摘要），方便 builder 在后续轮次修复。
+### FAIL 时
+
+**将 passes 改回 false，evaluated 保持 false。** 这样 builder 下一轮会重新处理这个任务。
+
+```python
+python3 -c "
+import json
+with open('task.json') as f:
+    data = json.load(f)
+for t in data['tasks']:
+    if t['id'] == <TASK_ID>:
+        t['passes'] = False       # 重置，下一轮 builder 重新做
+        # evaluated 保持 false   # 等下次 PASS 再标 true
+        break
+with open('task.json', 'w') as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+"
+```
+
+同时在对应任务的 description 末尾追加评估结论，方便 builder 在后续轮次知道要修什么：
+
+```
+[评估: FAIL — 文件树缩进为 12px 非 16px, 侧边栏按钮为 28x28 非 32x32]
+```
+
+### 状态流转
+
+| 阶段 | passes | evaluated |
+|------|--------|-----------|
+| 未开始 | false | false |
+| 开发完成，待评估 | true | false |
+| 评估 PASS | true | true |
+| 评估 FAIL，需修复 | true → false | false（重置） |
 
 ---
 
