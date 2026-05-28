@@ -1085,3 +1085,20 @@
 ### 备注:
 - 仅修改 index.css 两处 `0.2s` → `0.25s`，不涉及其他文件
 - 快动作动画（fadeIn/dropdownIn/terminalLineIn 150ms）和特定入场动画（modalIn/msgIn 200ms、grid-panels 200ms）保持不变
+
+## [2026-05-29] - 评估: 整体 UI 打磨与交互动效
+
+### 结论: PASS
+### 修复: 无（之前 FAIL 的 index.css:58 0.2s→0.25s 已在上一轮修复）
+### 备注:
+- 7/7 验收条件全部通过
+- Step 1: cubic-bezier(0.4, 0, 0.2, 1) 统一, 快动作150ms(fadeIn/dropdownIn), 标准250ms(transition-all/panel-peek) ✅
+- Step 2: modal fadeIn(150ms)+modalIn(200ms translateY+scale) CSS 确认 ✅
+- Step 3: msgIn(200ms opacity+translateY) CSS+Playwright 验证 ✅
+- Step 4: grid-panels 200ms ease 面板折叠/展开+peek 按钮正常工作 ✅
+- Step 5: chat 欢迎页(欢迎使用 EasyMint+4快捷按钮)+文件树空引导(文件浏览器) ✅
+- Step 6: EditorPanel/FileTreePanel/SessionHistory/ProjectListPage 均有错误提示+重试, 空项目列表不自动弹窗 ✅
+- Step 7: 全项目零 dark: 类名, tailwind.config 无 darkMode, 截图确认仅亮色 Mint 主题 ✅
+- 控制台 0 JS Error, Vite build 成功, lint 通过
+- 评估报告: temp/evaluator/report-task-12.md
+- 截图: task-12-main-page-verify.png, task-12-settings-modal-verify.png, task-12-dropdown-menu-verify.png, task-12-panel-collapsed.png, task-12-chat-message.png
