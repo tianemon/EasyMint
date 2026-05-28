@@ -1,6 +1,6 @@
 # 评估 Agent 操作手册
 
-> **独立评估 + 现场修复。** 发现小问题当场修掉重新验证，大问题才标记 FAIL。不 commit。
+> **独立评估 + 现场修复。** 发现小问题当场修掉重新验证，大问题标记 FAIL。代码修改不 commit，由 harness 统一提交。
 
 ---
 
@@ -25,7 +25,7 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:5173
 - 返回 200 → 直接用
 - 其他 → `npm run dev:renderer &` 后台启动，等端口就绪（最多 30 秒）
 
-**禁止启动 Electron。** mock-ipc 已注入所有假数据，Playwright 直连 `localhost:5173`。
+mock-ipc 已注入所有假数据，Playwright 直连 `localhost:5173`。
 
 ---
 
@@ -35,7 +35,7 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:5173
 
 ### 视觉项（颜色、布局、间距、对齐、溢出）
 
-**必须截图 + image-vision，禁止用 snapshot/evaluate 替代。**
+截图 + image-vision 验证。不用 snapshot/evaluate。
 
 1. `browser_navigate` 打开页面
 2. `browser_take_screenshot` 截图
@@ -44,7 +44,7 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:5173
 5. 操作后再次截图 + 再次 image-vision
 6. `browser_console_messages` 检查 JS 报错
 
-**证据必须引用 image-vision 的具体描述和数值，禁止写"截图显示正常"。**
+证据引用 image-vision 的具体描述和数值。
 
 ### 逻辑项（元素存在、文字内容、状态切换）
 
@@ -117,9 +117,3 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:5173
 
 ---
 
-## 禁止
-
-- 不 commit（只修代码不改 git，由 harness 统一提交）
-- 不改 task.json 的任务描述（FAIL 时末尾追加，不删原文）
-- 不启动 Electron
-- 视觉项不跳 image-vision

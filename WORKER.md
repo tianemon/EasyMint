@@ -10,7 +10,7 @@
 ./init.sh
 ```
 
-安装依赖并启动开发服务器。每个会话必须执行，禁止跳过。
+安装依赖并启动开发服务器。每个会话必须执行。
 
 ---
 
@@ -45,7 +45,7 @@
 
 **前端改动：** lint + build 验证即可。视觉验证由独立 evaluator agent 在后续轮次中完成（见 EVALUATOR.md）。
 
-自查通过后**不要**标记 passes。passes 是最后一步（见 Step 8）。
+自查通过后继续下一步。passes 在 Step 8 标记。
 
 ---
 
@@ -81,7 +81,7 @@ git commit -m "[任务标题] - 已完成"
 提交规则：
 - 不删除任务、不修改任务描述
 - 代码 + progress.txt 必须在同一 commit
-- **此时 task.json 中的 passes 仍然是 false，不要动它**
+- task.json 中的 passes 保持 false，Step 8 再改
 
 ---
 
@@ -103,7 +103,7 @@ with open('task.json', 'w') as f:
 "
 ```
 
-**改完立刻停止，不要再做任何操作。** 不读文件、不检查 git、不验证状态。
+改完即结束本轮工作。
 
 ---
 

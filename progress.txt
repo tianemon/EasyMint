@@ -1054,3 +1054,17 @@
 - taskPulse 和 terminalCursorBlink 使用 ease-in-out（连续循环动画，非入场过渡，无需改为 cubic-bezier）
 - scanIconSpin 使用 linear（持续旋转，属于功能性动画）
 - 空状态引导风格对齐 ChatPanel 欢迎页，文件树无数据时展示统一引导信息
+
+## [2026-05-29] - 评估: 整体 UI 打磨与交互动效
+
+### 评估结论:
+- FAIL — Step 1 标准动画时长 200ms 非 250ms（index.css:58 `transition: all 0.2s`）
+
+### 发现问题:
+- index.css:58 `transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1)` 覆盖所有交互元素，实际为 200ms，step 1 要求标准时长 250ms。需将 `0.2s` 改为 `0.25s`
+- 其余 6 项验收条件全部通过：cubic-bezier 统一、modal 入场动画、msgIn 消息入场、面板折叠过渡、空状态引导、异常状态重试、暗色主题代码已移除
+
+### 备注:
+- ESLint 零错误，控制台 0 JS 错误
+- 评估报告: temp/evaluator/report-12.md
+- 截图: task-12-main-page.png, task-12-settings-modal.png, task-12-dropdown-menu.png
