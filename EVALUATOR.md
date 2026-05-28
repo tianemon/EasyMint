@@ -173,48 +173,37 @@ done
 
 ---
 
-## 6. 更新 task.json
+## 6. 评估结论与修复
 
-### PASS 时
+### PASS — 全通过
 
-```python
-python3 -c "
-import json
-with open('task.json') as f:
-    data = json.load(f)
-for t in data['tasks']:
-    if t['id'] == <TASK_ID>:
-        t['evaluated'] = True
-        break
-with open('task.json', 'w') as f:
-    json.dump(data, f, indent=2, ensure_ascii=False)
-"
-```
+1. 将任务 `evaluated` 改为 `true`
+2. 追加 `progress.txt`
 
-### FAIL 时
+### FAIL — 有问题，当场修复
 
-**将 passes 改回 false，evaluated 保持 false。** 这样 builder 下一轮会重新处理这个任务。
+**不要等下一轮 builder。** 评估过程中发现的问题，直接在同一个 session 里修掉：
 
-```python
-python3 -c "
-import json
-with open('task.json') as f:
-    data = json.load(f)
-for t in data['tasks']:
-    if t['id'] == <TASK_ID>:
-        t['passes'] = False       # 重置，下一轮 builder 重新做
-        # evaluated 保持 false   # 等下次 PASS 再标 true
-        break
-with open('task.json', 'w') as f:
-    json.dump(data, f, indent=2, ensure_ascii=False)
-"
-```
+1. 定位问题根因（读源码、读 CSS、读 DOM）
+2. 修改代码
+3. lint + build 验证修复
+4. **重新截图 + 重新识图**，确认该验收项 PASS
+5. 全部修复后，将任务 `evaluated` 改为 `true`，`passes` 改为 `true`
+6. 追加 `progress.txt`（注明"评估时发现并修复 N 个问题"）
 
-同时在对应任务的 description 末尾追加评估结论，方便 builder 在后续轮次知道要修什么：
+### 严重问题 — 无法当场修复
 
-```
-[评估: FAIL — 文件树缩进为 12px 非 16px, 侧边栏按钮为 28x28 非 32x32]
-```
+只在以下情况才标记 FAIL 并留给 builder：
+
+- 需要大规模重构（> 3 个文件联动）
+- 涉及 IPC/main process 改动（evaluator 只测 renderer）
+- 根因不明需要深入排查
+
+此时：
+
+1. 在任务 description 末尾追加 `[评估: FAIL — 具体原因]`
+2. `passes` 改回 `false`，`evaluated` 保持 `false`
+3. 追加 `progress.txt`（注明"需 builder 修复"）
 
 ### 状态流转
 
@@ -222,8 +211,8 @@ with open('task.json', 'w') as f:
 |------|--------|-----------|
 | 未开始 | false | false |
 | 开发完成，待评估 | true | false |
-| 评估 PASS | true | true |
-| 评估 FAIL，需修复 | true → false | false（重置） |
+| 评估 PASS（或自修后 PASS） | true | true |
+| 评估 FAIL，无法当场修 | true → false | false（重置） |
 
 ---
 
@@ -248,4 +237,6 @@ with open('task.json', 'w') as f:
 
 ## 禁止
 
-- 不修改代码、不 commit、不标记 passes、不删除任务
+- 不 commit（修改代码只在本地，由 harness 统一提交）
+- 不删除任务、不修改任务描述（FAIL 时在末尾追加，不覆盖原文）
+- 严重问题不强行修复（>3 文件或涉及 main 进程 → 标记 FAIL 留给 builder）
