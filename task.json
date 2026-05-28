@@ -14,8 +14,8 @@
         "滚动条、表单、过渡动画保持现有 mint-ease 风格",
         "app 外壳: 宽度 1280px max, 圆角 10px, 居中, 带 macOS 风格窗口投影"
       ],
-      "passes": false,
-      "evaluated": false
+      "passes": true,
+      "evaluated": true
     },
     {
       "id": 2,
