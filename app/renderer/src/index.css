@@ -3,23 +3,11 @@
 @tailwind utilities;
 
 /*
- * EasyMint — Mint-green palette
- * Dark: deep green-black base, fresh mint accents
- * Light: airy white-mint, clean and bright
+ * EasyMint — Mint-green light palette (亮色 Mint)
+ * Fixed light theme only, no dark mode switching
  */
 
 :root {
-  --color-surface: #0d1f17;
-  --color-surface-alt: #132a20;
-  --color-surface-hover: #1a3a2c;
-  --color-border: #2a4a3a;
-  --color-text-primary: #e0f0e8;
-  --color-text-secondary: #7a9a8a;
-  --color-accent: #4ade80;
-  --color-accent-hover: #22c55e;
-}
-
-:root.light {
   --color-surface: #f5faf7;
   --color-surface-alt: #ecf5f0;
   --color-surface-hover: #e0f0e8;
@@ -36,19 +24,33 @@
   box-sizing: border-box;
 }
 
-html {
-  transition: background-color 0.3s ease;
-}
-
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow: hidden;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  background-color: #e8edea;
+  color: var(--color-text-primary);
 }
 
 #root {
   width: 100vw;
   height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* App shell — white container, centered, max 1280px, macOS shadow */
+#app-shell {
+  width: 100%;
+  max-width: 1280px;
+  height: 100vh;
+  background: #ffffff;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.08),
+    0 8px 32px rgba(0, 0, 0, 0.06),
+    0 0 0 0.5px rgba(0, 0, 0, 0.04);
 }
 
 /* Smooth transitions for all interactive surfaces */

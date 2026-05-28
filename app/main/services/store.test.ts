@@ -86,18 +86,15 @@ describe("Store", () => {
   describe("settings CRUD", () => {
     it("应返回默认设置", () => {
       const settings = store.getSettings();
-      expect(settings.theme).toBe("dark");
       expect(settings.terminalFontSize).toBe(14);
     });
 
     it("应能保存和读取设置", () => {
       const newSettings = {
         ...store.getSettings(),
-        theme: "light" as const,
         terminalFontSize: 16,
       };
       store.saveSettings(newSettings);
-      expect(store.getSettings().theme).toBe("light");
       expect(store.getSettings().terminalFontSize).toBe(16);
     });
   });

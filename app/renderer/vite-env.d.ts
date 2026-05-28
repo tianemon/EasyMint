@@ -77,7 +77,7 @@ interface ElectronAPI {
     delete: (projectId: string, sessionId: string) => Promise<void>;
   };
   settings: {
-    get: () => Promise<{ theme: "dark" | "light"; terminalFontSize: number; evaluateMode: boolean }>;
+    get: () => Promise<{ terminalFontSize: number; evaluateMode: boolean }>;
     set: (key: string, value: unknown) => Promise<void>;
   };
 }

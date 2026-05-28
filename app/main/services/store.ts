@@ -25,7 +25,6 @@ interface Session {
 }
 
 interface Settings {
-  theme: "dark" | "light";
   defaultProjectDir: string;
   claudePath: string;
   terminalFontSize: number;
@@ -51,7 +50,6 @@ export class Store {
     }
     if (!fs.existsSync(this.settingsPath)) {
       const defaults: Settings = {
-        theme: "dark",
         defaultProjectDir: os.homedir(),
         claudePath: "",
         terminalFontSize: 14,

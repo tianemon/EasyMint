@@ -5,13 +5,15 @@ import { ProjectPage } from "./pages/ProjectPage";
 
 export function App(): JSX.Element {
   return (
-    <HashRouter>
-      <Routes>
-        <Route path="/" element={<ProjectPage />} />
-        <Route path="/projects" element={<ProjectListPage />} />
-        <Route path="/setup/:projectId" element={<SetupPage />} />
-        <Route path="/project/:projectId" element={<ProjectPage />} />
-      </Routes>
-    </HashRouter>
+    <div id="app-shell">
+      <HashRouter>
+        <Routes>
+          <Route path="/" element={<ProjectPage />} />
+          <Route path="/projects" element={<ProjectListPage />} />
+          <Route path="/setup/:projectId" element={<SetupPage />} />
+          <Route path="/project/:projectId" element={<ProjectPage />} />
+        </Routes>
+      </HashRouter>
+    </div>
   );
 }

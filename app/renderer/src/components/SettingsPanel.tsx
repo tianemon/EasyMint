@@ -3,11 +3,9 @@ import { useSettingsStore } from "../stores/settings-store";
 
 export function SettingsPanel(): JSX.Element {
   const {
-    theme,
     evaluateMode,
     claudePath,
     claudeVersion,
-    toggleTheme,
     setEvaluateMode,
     loadFromElectron,
   } = useSettingsStore();
@@ -21,22 +19,16 @@ export function SettingsPanel(): JSX.Element {
       <div className="max-w-lg mx-auto p-6 space-y-8">
         <h2 className="text-lg font-semibold text-text-primary">设置</h2>
 
-        {/* 主题切换 */}
+        {/* 外观（只读） */}
         <section className="space-y-3">
           <h3 className="text-sm font-medium text-text-secondary">外观</h3>
-          <div className="flex items-center justify-between bg-surface-alt rounded-lg px-4 py-3">
+          <div className="bg-surface-alt rounded-lg px-4 py-3">
             <div>
               <p className="text-sm text-text-primary">主题</p>
               <p className="text-xs text-text-secondary mt-0.5">
-                当前: {theme === "dark" ? "暗色" : "亮色"}
+                亮色 Mint（仅亮色）
               </p>
             </div>
-            <button
-              onClick={toggleTheme}
-              className="px-4 py-2 rounded-lg border border-border text-sm text-text-primary hover:bg-surface-hover transition-colors"
-            >
-              {theme === "dark" ? "☀ 切换亮色" : "🌙 切换暗色"}
-            </button>
           </div>
         </section>
 

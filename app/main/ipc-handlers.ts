@@ -71,9 +71,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("settings:get", () => store.getSettings());
   ipcMain.handle("settings:set", (_e, { key, value }) => {
     const settings = store.getSettings();
-    if (key === "theme") {
-      settings.theme = value as "dark" | "light";
-    } else if (key === "evaluateMode") {
+    if (key === "evaluateMode") {
       settings.evaluateMode = value as boolean;
     }
     store.saveSettings(settings);

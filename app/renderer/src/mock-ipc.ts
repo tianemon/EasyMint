@@ -216,7 +216,7 @@ export const electronAPIMock = {
     },
   },
   settings: {
-    get: () => delay({ theme: "dark" as const, terminalFontSize: 14, evaluateMode: true }),
+    get: () => delay({ terminalFontSize: 14, evaluateMode: true }),
     set: (_key: string, _value: unknown) => delay(undefined),
   },
 };

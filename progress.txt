@@ -546,3 +546,29 @@
 - 0 个 JS 错误，仅 favicon.ico 404（已知非功能性问题）
 - 评估报告: temp/evaluator/report-14.md
 
+## [2026-05-28] - 任务: 全局主题：纯亮色 Mint 绿
+
+### 完成内容:
+- index.css: 删除 :root 暗色变量和 :root.light 覆盖，仅保留亮色 Mint CSS 变量
+- tailwind.config.js: 移除 darkMode: 'class'
+- settings-store.ts: 移除 theme 状态、setTheme、toggleTheme 方法及相关 classList 操作
+- SettingsPanel.tsx: 主题切换按钮替换为只读 "亮色 Mint（仅亮色）"
+- App.tsx: 新增 #app-shell 白色容器（max-w-[1280px]、rounded-[10px]、macOS 风格窗口投影、居中）
+- index.html: body 移除 bg-surface class（背景色由 CSS body 控制为 #e8edea）
+- vite-env.d.ts: 移除 settings.get 返回值中的 theme 字段
+- mock-ipc.ts: 移除 settings.get mock 返回值中的 theme 字段
+- store.ts: 移除 Settings 接口和默认值中的 theme 字段
+- ipc-handlers.ts: 移除 settings:set 中的 theme 处理分支
+- store.test.ts: 更新测试移除 theme 断言
+
+### 测试:
+- ESLint 零错误
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:renderer + build:main 编译成功
+- vitest 47/47 测试通过
+- electron-builder 签名失败：codesign Permission denied（预存在的环境问题）
+
+### 备注:
+- 全项目零 dark: 前缀类名、零 theme toggle 逻辑残留
+- #app-shell 白色外壳 + #e8edea 底色 + macOS 投影，仅亮色 Mint 主题
+
