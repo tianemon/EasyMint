@@ -47,3 +47,37 @@
 ### 备注:
 - Store 构造函数接受可选 baseDir 参数，方便测试时隔离数据目录
 - deleteSession 已从空存根实现为完整的删除逻辑
+
+## [2026-05-28] - 评估: Electron 主进程与 IPC 通信框架
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无
+
+### 备注:
+- 代码层面 5/5 验收条件通过
+- 运行时验证：页面加载正常、弹窗交互正常、无 JS 错误
+- TypeScript + ESLint + 24 单元测试全部通过
+- 仅 favicon.ico 404（非功能性问题）
+- 评估报告: temp/evaluator/report-1.md
+
+## [2026-05-28] - 任务: Claude CLI 检测器
+
+### 完成内容:
+- 完善 detectClaude() 实现：使用 path.delimiter 跨平台 PATH 分隔，使用 fs.accessSync + X_OK 检查可执行权限
+- 导出 DetectResult 接口供外部使用
+- 新增 envPath 可选参数支持测试
+- 编写 4 个单元测试：真实 PATH 检测、空 PATH、不包含 claude 的 PATH、返回值结构验证
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:main + build:renderer 编译成功
+- vitest 28/28 测试通过 (Store 14 + ProjectService 10 + ClaudeDetector 4)
+- electron-builder 打包失败: 下载 Electron 二进制网络 EOF（非代码问题）
+
+### 备注:
+- detectClaude 在 IPC claude:detect 通道中使用，已在 ipc-handlers.ts 中注册
+- 可选 envPath 参数让测试可以不依赖真实环境 PATH

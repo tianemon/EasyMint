@@ -14,7 +14,7 @@
         "app.whenReady() 创建窗口，window-all-closed 退出"
       ],
       "passes": true,
-      "evaluated": false
+      "evaluated": true
     },
     {
       "id": 2,
@@ -41,7 +41,7 @@
         "list/delete/get 通过 Store 操作 projects.json",
         "copyTemplate 路径需处理开发环境与打包后的不同模板位置"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     },
     {
@@ -55,7 +55,7 @@
         "返回 DetectResult: { found, path?, version? }",
         "未找到任何有效 claude 时返回 { found: false }"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     },
     {
