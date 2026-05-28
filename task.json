@@ -29,8 +29,8 @@
         "panel-peek 按钮: 绝对定位在面板边缘, hover accent 色, 点击展开",
         "窗口标题栏: 40px 高, macOS 红绿灯 dots, 项目名称居中"
       ],
-      "passes": false,
-      "evaluated": false
+      "passes": true,
+      "evaluated": true
     },
     {
       "id": 3,
@@ -44,8 +44,8 @@
         "CSS tooltip: [data-tooltip]:hover::after, 黑底白字, 左偏移 110%",
         "设置按钮在底部(margin-top: auto)"
       ],
-      "passes": false,
-      "evaluated": false
+      "passes": true,
+      "evaluated": true
     },
     {
       "id": 4,

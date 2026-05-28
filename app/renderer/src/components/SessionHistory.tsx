@@ -2,9 +2,17 @@ import { useState, useEffect, useCallback } from "react";
 
 interface SessionHistoryProps {
   projectId: string;
+  onSessionClick?: (sessionId: string) => void;
+  onNewSession?: () => void;
+  activeSessionId?: string;
 }
 
-export function SessionHistory({ projectId }: SessionHistoryProps): JSX.Element {
+export function SessionHistory({
+  projectId,
+  onSessionClick,
+  onNewSession,
+  activeSessionId,
+}: SessionHistoryProps): JSX.Element {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -12,16 +20,19 @@ export function SessionHistory({ projectId }: SessionHistoryProps): JSX.Element 
   const loadSessions = useCallback(() => {
     setLoading(true);
     setError(null);
-    window.electronAPI.session.list(projectId).then((list) => {
-      const sorted = [...list].sort(
-        (a, b) => new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime()
-      );
-      setSessions(sorted);
-      setLoading(false);
-    }).catch((e: unknown) => {
-      setError(e instanceof Error ? e.message : "加载对话历史失败");
-      setLoading(false);
-    });
+    window.electronAPI.session
+      .list(projectId)
+      .then((list) => {
+        const sorted = [...list].sort(
+          (a, b) => new Date(b.lastActiveAt).getTime() - new Date(a.lastActiveAt).getTime()
+        );
+        setSessions(sorted);
+        setLoading(false);
+      })
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : "加载对话历史失败");
+        setLoading(false);
+      });
   }, [projectId]);
 
   useEffect(() => {
@@ -40,10 +51,17 @@ export function SessionHistory({ projectId }: SessionHistoryProps): JSX.Element 
   };
 
   return (
-    <div className="flex flex-col h-full bg-surface-alt">
-      <div className="p-3 border-b border-border text-sm font-medium text-text-secondary">
-        对话历史
+    <div className="flex flex-col h-full">
+      {/* New session button */}
+      <div className="px-3 py-2 shrink-0">
+        <button
+          className="w-full py-1.5 border border-dashed border-accent text-accent text-sm rounded-lg hover:bg-accent/5 transition-colors"
+          onClick={onNewSession}
+        >
+          + 新建会话
+        </button>
       </div>
+
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">
           加载中...
@@ -67,14 +85,19 @@ export function SessionHistory({ projectId }: SessionHistoryProps): JSX.Element 
           {sessions.map((s) => (
             <div
               key={s.id}
-              className="group flex items-center w-full text-left px-4 py-3 hover:bg-surface-hover transition-colors border-b border-border cursor-pointer"
-              onClick={() => window.electronAPI.session.resume(s.id)}
+              className={`group flex items-center w-full text-left px-3 py-2.5 hover:bg-surface-hover transition-colors cursor-pointer ${
+                activeSessionId === s.id ? "bg-accent/10" : ""
+              }`}
+              onClick={() => onSessionClick?.(s.id)}
             >
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 mr-2.5 ${
+                  s.status === "active" ? "bg-accent" : "bg-border"
+                }`}
+              />
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{s.title}</div>
-                <div className="text-xs text-text-secondary mt-1">
-                  {formatDate(s.lastActiveAt)}
-                </div>
+                <div className="text-sm truncate">{s.title}</div>
+                <div className="text-xs text-text-secondary mt-0.5">{formatDate(s.lastActiveAt)}</div>
               </div>
               <button
                 className="ml-2 px-2 py-1 text-xs text-text-secondary hover:text-red-500 hover:bg-red-500/10 rounded opacity-0 group-hover:opacity-100 transition-all"

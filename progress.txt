@@ -656,3 +656,43 @@
 - 现有 [data-tooltip] CSS tooltip（黑底白字，left: 110%）已满足 Task 3 步骤 5 要求，无需额外改动
 - 新建文件/新建文件夹的菜单项为占位，等后续任务接入具体逻辑
 - 下拉菜单位于按钮右侧（left-full + ml-1），white 背景 + border + shadow-lg 圆角卡片样式
+
+## [2026-05-28] - 评估: 侧边图标栏 + 下拉菜单 + Tooltip
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无
+
+### 备注:
+- 6/6 验收条件全部通过
+- sidebar 44px 宽 + 垂直 flex + 6 个 32x32 圆角按钮 + active 态 accent-soft（bg-accent/20 ring-1）✅
+- 新建(+)下拉菜单：3 项（项目/新建文件/新建文件夹），absolute 定位左侧展开 ✅
+- 点击菜单外部 mousedown 事件关闭，下拉从 DOM 移除 ✅
+- 终端按钮：opacity 0.35, cursor not-allowed, disabled, tooltip "终端 · 即将推出" ✅
+- CSS tooltip：`:hover::after` 黑底(rgb 26,26,46) 白字(rgb 255,255,255), left=35.19px (≈110% × 32px) ✅
+- 设置按钮 mt-auto 固定在 sidebar 底部 ✅
+- 0 个 JS 错误，2 个预存在 React Router v7 future flag warning
+- 评估报告: temp/evaluator/report-3.md
+
+## [2026-05-28] - 任务: 左面板 — 文件树 + 会话列表双模式
+
+### 完成内容:
+- vite-env.d.ts: FileNode 新增 modified 可选字段, session 命名空间新增 create 方法
+- mock-ipc.ts: 扩展 MOCK_FILE_TREE (12 节点含嵌套 src/components), 4 个文件标记 modified; 新增 session.create mock
+- FileTreePanel.tsx: 重写为单列文件树, 文件夹带 ▶ 箭头 (展开旋转 90deg), 缩进 16px/级, modified 文件绿色 + 'M' 标记, collapseAllKey prop 支持外部折叠
+- SessionHistory.tsx: 新增状态圆点 (active 绿色/completed 灰色), activeSessionId 高亮, onSessionClick/onNewSession 回调, 新建会话按钮 (dashed border + accent)
+- LeftPanel.tsx: panel-header 增强 — 折叠全部按钮(⊟, 仅文件模式) + 收起面板按钮(◀), 透传文件/会话回调
+- ProjectPage.tsx: 新增 handleFileClick/handleSessionClick/handleNewSession, 会话点击切到 chat 面板, 新建会话调用 session.create 后切到 chat
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:renderer + build:main 编译成功
+- vitest 43/47 测试通过 (4 个预存在 project-service 测试失败, 非本次改动)
+
+### 备注:
+- 侧边栏 "文件"/"会话" 按钮已控制 LeftPanel 内容切换 (Task 2/3 已完成)
+- 文件点击回调预留, 代码编辑器面板在 Task 6 中实现
+- Tab 栏管理在 Task 5 中实现, 聊天消息 UI 在 Task 5 Chat 面板中实现

@@ -30,6 +30,8 @@ export function ProjectPage(): JSX.Element {
     setRightWidth,
   } = useWorkspaceStore();
 
+  const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
+
   useEffect(() => {
     if (projectId) {
       window.electronAPI.project.get(projectId).then((p) => {
@@ -39,6 +41,23 @@ export function ProjectPage(): JSX.Element {
         }
       });
     }
+  }, [projectId]);
+
+  const handleFileClick = useCallback((_filePath: string, _fileName: string) => {
+    // File content editing is in Task 6 (code editor panel)
+  }, []);
+
+  const handleSessionClick = useCallback((sessionId: string) => {
+    setActiveSessionId(sessionId);
+    setActivePanel("chat");
+  }, []);
+
+  const handleNewSession = useCallback(() => {
+    if (!projectId) return;
+    window.electronAPI.session.create(projectId, "新会话").then((s) => {
+      setActiveSessionId(s.id);
+      setActivePanel("chat");
+    });
   }, [projectId]);
 
   const handleLeftDrag = useCallback(
@@ -94,6 +113,10 @@ export function ProjectPage(): JSX.Element {
             projectPath={projectPath}
             projectId={projectId!}
             onCollapse={toggleLeft}
+            onFileClick={handleFileClick}
+            onSessionClick={handleSessionClick}
+            onNewSession={handleNewSession}
+            activeSessionId={activeSessionId}
           />
         )}
 

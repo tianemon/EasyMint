@@ -20,17 +20,28 @@ const MOCK_PROJECTS: Project[] = [
 ];
 
 const MOCK_FILE_TREE: FileNode[] = [
-  { name: "CLAUDE.md", path: "/mock/project/CLAUDE.md", isDirectory: false },
-  { name: "task.json", path: "/mock/project/task.json", isDirectory: false },
+  { name: "CLAUDE.md", path: "/mock/project/CLAUDE.md", isDirectory: false, modified: true },
+  { name: "task.json", path: "/mock/project/task.json", isDirectory: false, modified: true },
+  { name: "package.json", path: "/mock/project/package.json", isDirectory: false },
+  { name: "tsconfig.json", path: "/mock/project/tsconfig.json", isDirectory: false },
   {
     name: "app", path: "/mock/project/app", isDirectory: true, children: [
       { name: "index.ts", path: "/mock/project/app/index.ts", isDirectory: false },
-      { name: "utils.ts", path: "/mock/project/app/utils.ts", isDirectory: false },
+      { name: "utils.ts", path: "/mock/project/app/utils.ts", isDirectory: false, modified: true },
     ],
   },
   {
     name: "docs", path: "/mock/project/docs", isDirectory: true, children: [
       { name: "requirements.md", path: "/mock/project/docs/requirements.md", isDirectory: false },
+      { name: "architecture.md", path: "/mock/project/docs/architecture.md", isDirectory: false },
+    ],
+  },
+  {
+    name: "src", path: "/mock/project/src", isDirectory: true, children: [
+      { name: "components", path: "/mock/project/src/components", isDirectory: true, children: [
+        { name: "Header.tsx", path: "/mock/project/src/components/Header.tsx", isDirectory: false, modified: true },
+        { name: "Layout.tsx", path: "/mock/project/src/components/Layout.tsx", isDirectory: false },
+      ]},
     ],
   },
 ];
@@ -41,6 +52,11 @@ const MOCK_FILE_CONTENT: Record<string, string> = {
   "/mock/project/app/index.ts": "console.log('Hello World');\n",
   "/mock/project/app/utils.ts": "export function add(a: number, b: number): number {\n  return a + b;\n}\n",
   "/mock/project/docs/requirements.md": "# 需求规格\n\n## 项目概述\n示例项目用于演示 EasyMint 功能。\n\n## 功能清单\n- P0: 核心功能\n- P1: 增强功能\n",
+  "/mock/project/docs/architecture.md": "# 架构设计\n\n## 技术栈\n- React + Vite + TypeScript\n",
+  "/mock/project/package.json": '{\n  "name": "demo-project",\n  "version": "1.0.0"\n}\n',
+  "/mock/project/tsconfig.json": '{\n  "compilerOptions": {\n    "strict": true\n  }\n}\n',
+  "/mock/project/src/components/Header.tsx": "export function Header() {\n  return <header>My App</header>;\n}\n",
+  "/mock/project/src/components/Layout.tsx": "export function Layout({ children }) {\n  return <div>{children}</div>;\n}\n",
 };
 
 let MOCK_SESSIONS: Session[] = [
@@ -210,6 +226,19 @@ export const electronAPIMock = {
   session: {
     list: (_projectId: string) => delay([...MOCK_SESSIONS]),
     resume: (_sessionId: string) => {},
+    create: (projectId: string, title: string) => {
+      const newSession: Session = {
+        id: `sess-${Date.now()}`,
+        projectId,
+        title,
+        createdAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        claudeSessionId: `claude-sess-${Date.now()}`,
+        status: "active",
+      };
+      MOCK_SESSIONS = [newSession, ...MOCK_SESSIONS];
+      return delay(newSession);
+    },
     delete: (_projectId: string, sessionId: string) => {
       MOCK_SESSIONS = MOCK_SESSIONS.filter((s) => s.id !== sessionId);
       return delay(undefined);

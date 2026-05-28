@@ -15,6 +15,7 @@ interface FileNode {
   path: string;
   isDirectory: boolean;
   children?: FileNode[];
+  modified?: boolean;
 }
 
 interface Session {
@@ -74,6 +75,7 @@ interface ElectronAPI {
   session: {
     list: (projectId: string) => Promise<Session[]>;
     resume: (sessionId: string) => void;
+    create: (projectId: string, title: string) => Promise<Session>;
     delete: (projectId: string, sessionId: string) => Promise<void>;
   };
   settings: {
