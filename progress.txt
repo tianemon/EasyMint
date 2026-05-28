@@ -48,6 +48,24 @@
 - Store 构造函数接受可选 baseDir 参数，方便测试时隔离数据目录
 - deleteSession 已从空存根实现为完整的删除逻辑
 
+## [2026-05-28] - 任务: 暗色/亮色主题系统
+
+### 完成内容:
+- index.css :root 定义暗色主题变量（deep green-black），:root.light 定义亮色主题变量（white-mint）
+- 6 个核心颜色变量：--color-surface、--color-surface-alt、--color-surface-hover、--color-border、--color-text-primary、--color-text-secondary（外加 accent/hover）
+- settings-store toggleTheme() / setTheme() 操作 document.documentElement.classList 切换 light class
+- tailwind.config.js 将 CSS 变量映射到语义类名（bg-surface、text-text-primary、border-border、bg-accent 等）
+- 所有组件（HomePage、SetupPage、ProjectPage、LeftToolbar、StreamPanel、ChatPanel、FileTreePanel、SessionHistory、EditorPanel）均使用语义类名
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:main + build:renderer 编译成功
+
+### 备注:
+- 主题基础设施在早期任务中已搭建，Task 15 确认完整性后标记完成
+- 设置面板中的主题切换 UI 在 Task 16 中实现
+
 ## [2026-05-28] - 评估: Electron 主进程与 IPC 通信框架
 
 ### 评估结论:
