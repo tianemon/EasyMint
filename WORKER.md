@@ -45,7 +45,7 @@
 
 **前端改动：** lint + build 验证即可。视觉验证由独立 evaluator agent 在后续轮次中完成（见 EVALUATOR.md）。
 
-自查通过后标记 `passes: false → true`。**不要设置 `evaluated` 字段**，那是 evaluator 的职责。
+自查通过后**不要**标记 passes。passes 是最后一步（见 Step 8）。
 
 ---
 
@@ -71,9 +71,7 @@
 ## 7. 提交
 
 1. 停止自己启动的所有后台进程（init.sh 启动的不要动）
-2. 更新 `progress.txt`
-3. 将当前任务的 `passes` 改为 `true`
-4. 一次性提交：
+2. 一次性提交代码和 progress.txt：
 
 ```bash
 git add .
@@ -81,10 +79,31 @@ git commit -m "[任务标题] - 已完成"
 ```
 
 提交规则：
-- 所有测试通过后才标记 `passes: true`
 - 不删除任务、不修改任务描述
-- 代码、progress.txt、task.json 必须在同一 commit
-- passes 改完立刻提交，不做额外操作
+- 代码 + progress.txt 必须在同一 commit
+- **此时 task.json 中的 passes 仍然是 false，不要动它**
+
+---
+
+## 8. 标记完成（最后一步）
+
+**这是全部流程的终点。** commit 成功后，将 `passes` 改为 `true`：
+
+```python
+python3 -c "
+import json
+with open('task.json') as f:
+    data = json.load(f)
+for t in data['tasks']:
+    if t['id'] == <当前任务ID>:
+        t['passes'] = True
+        break
+with open('task.json', 'w') as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+"
+```
+
+**改完立刻停止，不要再做任何操作。** 不读文件、不检查 git、不验证状态。
 
 ---
 
