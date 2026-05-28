@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
+import os from "os";
 import { Store } from "./store";
 
 interface Project {
@@ -39,17 +40,19 @@ export class ProjectService {
 
   create(opts: { name: string; path: string }): Project {
     const projects = this.store.getProjects();
+    const basePath = opts.path.startsWith("~") ? path.join(os.homedir(), opts.path.slice(1)) : opts.path;
+    const resolvedPath = path.resolve(basePath, opts.name);
     const project: Project = {
       id: randomUUID(),
       name: opts.name,
-      path: opts.path,
+      path: resolvedPath,
       createdAt: new Date().toISOString(),
       lastOpenedAt: new Date().toISOString(),
       status: "setup",
       description: "",
     };
 
-    const targetDir = path.join(opts.path, opts.name);
+    const targetDir = resolvedPath;
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
     }

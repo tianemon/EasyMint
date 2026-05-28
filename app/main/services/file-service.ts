@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import os from "os";
 
 interface FileNode {
   name: string;
@@ -9,13 +10,21 @@ interface FileNode {
 }
 
 export class FileService {
+  private expand(p: string): string {
+    if (p.startsWith("~")) {
+      return path.join(os.homedir(), p.slice(1));
+    }
+    return p;
+  }
+
   readTree(dirPath: string): FileNode[] {
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    const expanded = this.expand(dirPath);
+    const entries = fs.readdirSync(expanded, { withFileTypes: true });
     const exclude = new Set([".git", "node_modules", ".DS_Store", "dist", "temp"]);
     return entries
       .filter((e) => !exclude.has(e.name))
       .map((entry): FileNode => {
-        const fullPath = path.join(dirPath, entry.name);
+        const fullPath = path.join(expanded, entry.name);
         if (entry.isDirectory()) {
           return {
             name: entry.name,
@@ -29,10 +38,12 @@ export class FileService {
   }
 
   readContent(filePath: string): string {
-    return fs.readFileSync(filePath, "utf-8");
+    return fs.readFileSync(this.expand(filePath), "utf-8");
   }
 
   writeContent(filePath: string, content: string): void {
-    fs.writeFileSync(filePath, content, "utf-8");
+    const expanded = this.expand(filePath);
+    fs.mkdirSync(path.dirname(expanded), { recursive: true });
+    fs.writeFileSync(expanded, content, "utf-8");
   }
 }
