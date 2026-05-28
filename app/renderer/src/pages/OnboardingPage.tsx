@@ -73,8 +73,9 @@ export function OnboardingPage(): JSX.Element {
 
   const handleComplete = () => {
     localStorage.setItem("easymint_setup_complete", "true");
-    localStorage.setItem("easymint_cc_path", detectedPath);
-    localStorage.setItem("easymint_cc_version", detectedVersion);
+    localStorage.setItem("cc_path", detectedPath);
+    localStorage.setItem("cc_version", detectedVersion);
+    window.dispatchEvent(new Event("easymint-setup-complete"));
     navigate("/projects");
   };
 

@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { HashRouter, Routes, Route } from "react-router-dom";
 import { ProjectListPage } from "./pages/ProjectListPage";
 import { SetupPage } from "./pages/SetupPage";
@@ -5,12 +6,20 @@ import { ProjectPage } from "./pages/ProjectPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 
 export function App(): JSX.Element {
-  const isSetupComplete = localStorage.getItem("easymint_setup_complete") === "true";
+  const [setupComplete, setSetupComplete] = useState(
+    localStorage.getItem("easymint_setup_complete") === "true"
+  );
+
+  useEffect(() => {
+    const handler = () => setSetupComplete(true);
+    window.addEventListener("easymint-setup-complete", handler);
+    return () => window.removeEventListener("easymint-setup-complete", handler);
+  }, []);
 
   return (
     <div id="app-shell">
       <HashRouter>
-        {!isSetupComplete ? (
+        {!setupComplete ? (
           <Routes>
             <Route path="*" element={<OnboardingPage />} />
           </Routes>
