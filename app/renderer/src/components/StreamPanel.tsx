@@ -4,6 +4,7 @@ interface TextEntry {
   kind: "text";
   text: string;
   timestamp: number;
+  source?: string;
 }
 
 interface ToolUseEntry {
@@ -13,6 +14,7 @@ interface ToolUseEntry {
   input: unknown;
   timestamp: number;
   collapsed: boolean;
+  source?: string;
 }
 
 interface ToolResultEntry {
@@ -21,30 +23,35 @@ interface ToolResultEntry {
   content: string;
   isError: boolean;
   timestamp: number;
+  source?: string;
 }
 
 interface SystemEntry {
   kind: "system";
   message: string;
   timestamp: number;
+  source?: string;
 }
 
 interface ErrorEntry {
   kind: "error";
   data: string;
   timestamp: number;
+  source?: string;
 }
 
 interface ExitEntry {
   kind: "exit";
   code: number;
   timestamp: number;
+  source?: string;
 }
 
 interface UserMessageEntry {
   kind: "user_message";
   text: string;
   timestamp: number;
+  source?: string;
 }
 
 type StreamEntry =
@@ -149,12 +156,12 @@ export function StreamPanel(): JSX.Element {
 }
 
 export function normalizeEvent(event: StreamEvent): StreamEntry {
-  const { type, data, timestamp } = event;
+  const { type, data, timestamp, source } = event;
 
   switch (type) {
     case "user_message": {
       const text = typeof data.text === "string" ? data.text : "";
-      return { kind: "user_message", text, timestamp };
+      return { kind: "user_message", text, timestamp, source };
     }
     case "assistant": {
       const text =
@@ -163,7 +170,7 @@ export function normalizeEvent(event: StreamEvent): StreamEntry {
           : typeof data.text === "string"
             ? data.text
             : "";
-      return { kind: "text", text, timestamp };
+      return { kind: "text", text, timestamp, source };
     }
     case "message_delta": {
       const text =
@@ -172,7 +179,7 @@ export function normalizeEvent(event: StreamEvent): StreamEntry {
           : typeof data.text === "string"
             ? data.text
             : "";
-      return { kind: "text", text, timestamp };
+      return { kind: "text", text, timestamp, source };
     }
     case "tool_use": {
       const id = typeof data.id === "string" ? data.id : undefined;
@@ -183,7 +190,7 @@ export function normalizeEvent(event: StreamEvent): StreamEntry {
             ? data.tool
             : "unknown";
       const input = data.input ?? data.args ?? null;
-      return { kind: "tool_use", id, name, input, timestamp, collapsed: false };
+      return { kind: "tool_use", id, name, input, timestamp, collapsed: false, source };
     }
     case "tool_result": {
       const toolUseId =
@@ -199,7 +206,7 @@ export function normalizeEvent(event: StreamEvent): StreamEntry {
             ? data.result
             : JSON.stringify(data);
       const isError = Boolean(data.isError ?? data.is_error);
-      return { kind: "tool_result", toolUseId, content, isError, timestamp };
+      return { kind: "tool_result", toolUseId, content, isError, timestamp, source };
     }
     case "system": {
       const message =
@@ -208,50 +215,108 @@ export function normalizeEvent(event: StreamEvent): StreamEntry {
           : typeof data.subtype === "string"
             ? `System: ${data.subtype}`
             : JSON.stringify(data);
-      return { kind: "system", message, timestamp };
+      return { kind: "system", message, timestamp, source };
     }
     case "error": {
-      return { kind: "error", data: JSON.stringify(data), timestamp };
+      return { kind: "error", data: JSON.stringify(data), timestamp, source };
     }
     default:
-      return { kind: "system", message: JSON.stringify(event), timestamp };
+      return { kind: "system", message: JSON.stringify(event), timestamp, source };
   }
 }
 
 export function StreamEntryView({ entry }: { entry: StreamEntry }): JSX.Element {
+  const sourceBadge = entry.source ? (
+    <span
+      className={`text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase ${
+        entry.source === "evaluator"
+          ? "bg-amber-500/20 text-amber-400"
+          : entry.source === "chat"
+            ? "bg-blue-500/20 text-blue-400"
+            : "bg-surface-alt text-text-secondary"
+      }`}
+    >
+      {entry.source}
+    </span>
+  ) : null;
+
   switch (entry.kind) {
     case "text":
-      return <TextBlock text={entry.text} />;
+      return (
+        <div>
+          {sourceBadge}
+          <TextBlock text={entry.text} />
+        </div>
+      );
     case "tool_use":
-      return <ToolUseBlock entry={entry} />;
+      return (
+        <div>
+          {sourceBadge}
+          <ToolUseBlock entry={entry} />
+        </div>
+      );
     case "tool_result":
-      return <ToolResultBlock entry={entry} />;
-    case "system":
       return (
-        <div className="text-xs text-text-secondary bg-surface-alt rounded px-2 py-1">
-          {entry.message}
+        <div>
+          {sourceBadge}
+          <ToolResultBlock entry={entry} />
         </div>
       );
-    case "error":
+    case "system": {
+      const isEvalFail = entry.source === "evaluator" && entry.message.toUpperCase().includes("FAIL");
       return (
-        <div className="text-xs text-red-400 bg-red-500/10 rounded px-2 py-1 whitespace-pre-wrap">
-          {entry.data}
+        <div>
+          {sourceBadge}
+          <div
+            className={`text-xs rounded px-2 py-1 ${
+              isEvalFail
+                ? "text-amber-200 bg-amber-500/15 border border-amber-500/30 font-semibold"
+                : "text-text-secondary bg-surface-alt"
+            }`}
+          >
+            {entry.message}
+          </div>
         </div>
       );
-    case "exit":
+    }
+    case "error": {
+      const isEvalError = entry.source === "evaluator";
       return (
-        <div
-          className={`text-xs rounded px-2 py-1 font-semibold ${
-            entry.code === 0
-              ? "text-green-400 bg-green-500/10"
-              : "text-red-400 bg-red-500/10"
-          }`}
-        >
-          {entry.code === 0
-            ? "✓ 进程正常退出 (exit 0)"
-            : `✗ 进程异常退出 (exit ${entry.code})`}
+        <div>
+          {sourceBadge}
+          <div
+            className={`text-xs rounded px-2 py-1 whitespace-pre-wrap ${
+              isEvalError
+                ? "text-amber-200 bg-amber-500/10 border border-amber-500/30"
+                : "text-red-400 bg-red-500/10"
+            }`}
+          >
+            {entry.data}
+          </div>
         </div>
       );
+    }
+    case "exit": {
+      const isEvalFail = entry.source === "evaluator" && entry.code !== 0;
+      return (
+        <div>
+          {sourceBadge}
+          <div
+            className={`text-xs rounded px-2 py-1 font-semibold ${
+              isEvalFail
+                ? "text-amber-200 bg-amber-500/15 border border-amber-500/30"
+                : entry.code === 0
+                  ? "text-green-400 bg-green-500/10"
+                  : "text-red-400 bg-red-500/10"
+            }`}
+          >
+            {entry.code === 0
+              ? "✓ 进程正常退出 (exit 0)"
+              : `✗ 进程异常退出 (exit ${entry.code})`}
+          </div>
+        </div>
+      );
+    }
     case "user_message":
       return <UserChatBubble text={entry.text} />;
   }

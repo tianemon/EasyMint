@@ -28,6 +28,8 @@ export class AgentService {
   private terminalCounter = 0;
   private runCounter = 0;
   private chatCounter = 0;
+  /** worker 成功完成时触发（code=0），供 evaluator-service 监听 */
+  onWorkerComplete: ((projectPath: string) => void) | null = null;
 
   /** 启动 worker 子进程（自动化模式），spawn Claude + JSONL 流式输出 */
   runWorker(projectPath: string, prompt: string, mainWindow: BrowserWindow): { runId: string } {
@@ -63,6 +65,9 @@ export class AgentService {
       parser.stop();
       this.activeRuns.delete(runId);
       mainWindow.webContents.send("agent:exit", { runId, code: code ?? -1 });
+      if (code === 0 && this.onWorkerComplete) {
+        this.onWorkerComplete(projectPath);
+      }
     });
 
     child.on("error", (err) => {

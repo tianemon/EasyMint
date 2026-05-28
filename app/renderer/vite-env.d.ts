@@ -62,6 +62,8 @@ interface ElectronAPI {
     isEnabled: () => Promise<boolean>;
     setEnabled: (enabled: boolean) => Promise<void>;
     status: () => Promise<{ running: boolean; currentTask?: number }>;
+    runEvaluator: (projectPath: string) => Promise<{ evalId: string }>;
+    abort: (evalId: string) => Promise<void>;
   };
   claude: {
     detect: () => Promise<{ found: boolean; path?: string; version?: string }>;

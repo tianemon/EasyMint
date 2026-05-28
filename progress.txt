@@ -444,3 +444,48 @@
 - Claude CLI 检测调用 claude:detect IPC 通道，失败时显示"未检测到"提示
 - Task 17 (evaluator-service) 依赖 settings.json 中的 evaluateMode 字段
 
+## [2026-05-28] - 评估: agent-service — Chat 模式（长会话双向 JSONL）
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 轻微: "Chat 模式已启动 — 与 Claude 自由对话"状态消息在 ChatPanel 中出现两次（重复渲染），不影响功能
+
+### 备注:
+- 8/8 验收条件全部通过
+- Chat 按钮点击切换 ChatPanel，按钮激活态蓝色边框 ✅
+- 消息区域 + 输入区域结构完整（textbox + 发送/停止按钮）✅
+- 用户消息气泡右侧对齐（flex justify-end），accent 背景色 + rounded-2xl rounded-br-md 样式 ✅
+- 助手回复左侧对齐（默认），text-sm text-text-primary 样式 ✅
+- 输入文字后发送按钮启用，发送后禁用 + 清空输入框 ✅
+- 暗色/亮色主题下 ChatPanel 均正常显示（image-vision 验证）✅
+- 0 个 JS 错误，仅 favicon.ico 404（已知非功能性问题）
+- 评估报告: temp/evaluator/report-12.md
+- 评估范围限制：Chat 模式涉及 --input-format stream-json 双向对话，仅验证 UI 框架正确性，未验证实际 Claude 进程通信
+
+## [2026-05-28] - 任务: evaluator-service — 评估 Agent 调度
+
+### 完成内容:
+- 创建 app/main/services/evaluator-service.ts：EvaluatorService 类，spawn Claude 子进程执行评估
+- runEvaluator(projectPath, mainWindow) 方法：spawn claude -p '按 EVALUATOR.md 流程评估一个任务' --output-format stream-json，通过 agent:stream 推送结果（source: "evaluator"）
+- abort(evalId) 终止评估子进程，isRunning 暴露运行状态
+- AgentService 新增 onWorkerComplete 回调：worker 以 code=0 退出时触发，传递 projectPath
+- ipc-handlers.ts 注册 evaluator:runEvaluator / evaluator:abort 通道，evaluator:status 返回实际运行状态
+- ipc-handlers.ts 中连接 agentService.onWorkerComplete → 检查 settings.evaluateMode → 自动触发 evaluatorService.runEvaluator
+- preload / vite-env.d.ts / mock-ipc 更新 evaluator 命名空间（runEvaluator, abort）
+- StreamPanel 支持 source 标记：evaluator（amber 色）、chat（蓝色）、worker（默认）
+- StreamPanel FAIL 高亮：evaluator 来源的 system/error/exit 包含 FAIL 或非 0 退出时以 amber 边框高亮显示
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:main + build:renderer 编译成功
+- vitest 47/47 测试全部通过
+- electron-builder 签名失败：codesign Permission denied（预存在的环境问题）
+
+### 备注:
+- 评估 Agent 通过 EVALUATOR.md 自主选择任务、执行评估、输出报告、更新 task.json evaluated
+- 评估输出与 Worker/Chat 共用 agent:stream 通道，通过 source 字段区分来源
+- auto-trigger 仅在 worker exit code=0 且 evaluateMode 开启时触发，Chat 模式不触发评估
+

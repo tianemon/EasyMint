@@ -4,6 +4,7 @@ import { registerIpcHandlers } from "./ipc-handlers";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
 import { AgentService } from "./services/agent-service";
+import { EvaluatorService } from "./services/evaluator-service";
 import { Store } from "./services/store";
 
 const isDev = !app.isPackaged;
@@ -28,8 +29,9 @@ function createWindow(): void {
   const projectService = new ProjectService(store);
   const fileService = new FileService();
   const agentService = new AgentService();
+  const evaluatorService = new EvaluatorService();
 
-  registerIpcHandlers({ mainWindow, projectService, fileService, agentService, store });
+  registerIpcHandlers({ mainWindow, projectService, fileService, agentService, evaluatorService, store });
 
   if (isDev) {
     mainWindow.loadURL("http://localhost:5173");

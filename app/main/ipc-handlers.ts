@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain } from "electron";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
 import { AgentService } from "./services/agent-service";
+import { EvaluatorService } from "./services/evaluator-service";
 import { Store } from "./services/store";
 import { detectClaude } from "./utils/claude-detector";
 
@@ -10,10 +11,11 @@ interface Services {
   projectService: ProjectService;
   fileService: FileService;
   agentService: AgentService;
+  evaluatorService: EvaluatorService;
   store: Store;
 }
 
-export function registerIpcHandlers({ mainWindow, projectService, fileService, agentService, store }: Services): void {
+export function registerIpcHandlers({ mainWindow, projectService, fileService, agentService, evaluatorService, store }: Services): void {
   // project:*
   ipcMain.handle("project:list", () => projectService.list());
   ipcMain.handle("project:create", (_e, opts) => projectService.create(opts));
@@ -78,5 +80,21 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     settings.evaluateMode = enabled;
     store.saveSettings(settings);
   });
-  ipcMain.handle("evaluator:status", () => ({ running: false }));
+  ipcMain.handle("evaluator:status", () => ({
+    running: evaluatorService.isRunning,
+  }));
+  ipcMain.handle("evaluator:runEvaluator", (_e, { projectPath }) =>
+    evaluatorService.runEvaluator(projectPath, mainWindow)
+  );
+  ipcMain.handle("evaluator:abort", (_e, { evalId }) => {
+    evaluatorService.abort(evalId);
+  });
+
+  // worker 成功后自动触发 evaluator（如果评估模式开启）
+  agentService.onWorkerComplete = (projectPath: string) => {
+    const settings = store.getSettings();
+    if (settings.evaluateMode) {
+      evaluatorService.runEvaluator(projectPath, mainWindow);
+    }
+  };
 }

@@ -179,6 +179,27 @@ export const electronAPIMock = {
     isEnabled: () => delay(true),
     setEnabled: (_enabled: boolean) => delay(undefined),
     status: () => delay({ running: false }),
+    runEvaluator: (_projectPath: string) => {
+      const evalId = `eval-${Date.now()}`;
+      setTimeout(() => {
+        if (_streamCallback) {
+          _streamCallback({
+            runId: evalId,
+            type: "system",
+            data: { message: "评估 Agent 已启动 — 按 EVALUATOR.md 流程评估..." },
+            timestamp: Date.now(),
+            source: "evaluator",
+          });
+        }
+      }, 200);
+      setTimeout(() => {
+        if (_exitCallback) {
+          _exitCallback({ runId: evalId, code: 0 });
+        }
+      }, 1500);
+      return delay({ evalId });
+    },
+    abort: (_evalId: string) => delay(undefined),
   },
   session: {
     list: (_projectId: string) => delay([...MOCK_SESSIONS]),
