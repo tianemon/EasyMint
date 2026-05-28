@@ -8,17 +8,19 @@ interface FileNode {
 }
 
 interface FileTreePanelProps {
-  projectId: string;
+  projectPath: string;
 }
 
-export function FileTreePanel({ projectId }: FileTreePanelProps): JSX.Element {
-  const [files, _setFiles] = useState<FileNode[]>([]);
+export function FileTreePanel({ projectPath }: FileTreePanelProps): JSX.Element {
+  const [files, setFiles] = useState<FileNode[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string>("");
 
   useEffect(() => {
-    // Will load project path from store, then call file:readTree
-  }, [projectId]);
+    if (projectPath) {
+      window.electronAPI.file.readTree(projectPath).then(setFiles);
+    }
+  }, [projectPath]);
 
   const handleFileClick = async (filePath: string) => {
     setSelectedFile(filePath);

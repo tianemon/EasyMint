@@ -25,7 +25,7 @@ export function ProjectPage(): JSX.Element {
   const renderCenterPanel = () => {
     switch (activePanel) {
       case "files":
-        return <FileTreePanel projectId={projectId!} />;
+        return <FileTreePanel projectPath={projectPath} />;
       case "sessions":
         return <SessionHistory projectId={projectId!} />;
       case "chat":

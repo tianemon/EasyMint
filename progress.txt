@@ -344,3 +344,22 @@
 - Chat 模式复用与 Worker 模式相同的 agent:stream/agent:stderr/agent:exit 事件通道
 - 进程 crash 自动重连机制通过 setTimeout + spawnChatProcess(resume=true) 实现
 - ChatPanel 通过 chatIdRef 确保 unmount 时正确清理子进程
+
+## [2026-05-28] - 任务: 文件树浏览
+
+### 完成内容:
+- FileTreePanel useEffect 从 projectPath 调用 file:readTree 加载目录树
+- 递归渲染 FileNode：📁 目录 / 📄 文件，子节点缩进 16px
+- 点击文件高亮选中（bg-accent/20），调用 file:readContent 异步加载内容到右侧 <pre> 预览区
+- ProjectPage 改为传 projectPath 给 FileTreePanel
+- 排除目录 (.git/node_modules/.DS_Store/dist/temp) 由 FileService.readTree 在后端处理
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:main + build:renderer 编译成功
+- vitest 47/47 测试通过
+
+### 备注:
+- FileTreePanel 后端基础设施（FileService、IPC、preload、mock-ipc）已在早期任务中完成，本次只需补齐前端 useEffect 和传参
+- 空状态和加载失败后暂无重试/错误提示（Task 18 统一错误处理）

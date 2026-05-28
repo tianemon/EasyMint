@@ -131,7 +131,7 @@
         "支持 start/stop 生命周期管理，子进程退出时 flush 缓冲区"
       ],
       "passes": true,
-      "evaluated": false
+      "evaluated": true
     },
     {
       "id": 10,
@@ -190,7 +190,7 @@
         "右侧预览区用 <pre> 标签等宽字体展示文件内容",
         "排除 .git、node_modules、dist、temp 目录"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     },
     {
