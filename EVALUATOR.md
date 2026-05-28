@@ -70,27 +70,38 @@ done
 
 ## 4. 逐项验证
 
-**每个验收条件都必须验证。** 根据条件类型选择验证方式：
+**每个验收条件都必须验证。** 根据条件类型选择验证方式。
 
-### 前端/UI 验证
+### 视觉验收（颜色、布局、间距、对齐、溢出、主题外观）
 
-**每个截图后必须调 `mcp__image-vision__describe_image` 分析，禁止直接看图。**
+**涉及以下任何一项，必须走截图+识图流程，禁止用 browser_snapshot / browser_evaluate 替代：**
+- 颜色是否正确（如 mint 绿强调色、暗色/亮色主题背景）
+- 布局是否正确（如三栏排列、上下分割、卡片网格）
+- 间距/对齐是否合理
+- 组件是否有溢出、重叠、截断
+- 亮色主题下颜色是否正常
+
+**强制流程：**
 
 1. `mcp__playwright__browser_navigate` 打开页面
-2. `mcp__playwright__browser_take_screenshot` → `temp/evaluator/screenshot-<任务ID>-<序号>.png`
-3. `mcp__image-vision__describe_image({path: "/完整路径/.../screenshot-1-1.png"})` 分析截图
-4. `mcp__playwright__browser_click` / `browser_type` 操作
-5. **操作后再次截图 + 识图**，验证状态变化
+2. `mcp__playwright__browser_take_screenshot` → 保存截图
+3. **`mcp__image-vision__describe_image` 分析截图内容**（此步不可跳过）
+4. `mcp__playwright__browser_click` / `browser_type` 执行操作
+5. **操作后再次截图 + 再次调 image-vision**，对比验证状态变化
 6. `mcp__playwright__browser_console_messages` 检查 JS 报错
+
+**验收报告中的「证据」列必须引用 image-vision 的返回内容，禁止写「截图显示 xxx」。** 正确写法：引用 describe_image 返回的具体描述。错误写法：根据截图自行判断。
+
+### 逻辑验收（元素存在、文字内容、状态切换）
+
+仅当不涉及视觉属性时，可用以下方式替代：
+
+- `mcp__playwright__browser_snapshot` 读无障碍树，确认元素存在和文字
+- `mcp__playwright__browser_evaluate` 执行 JS 检查 DOM 状态
 
 ### 后端/API 验证
 
-用 `curl` 测试端点：
-```bash
-curl -s http://localhost:PORT/api/endpoint
-```
-
-检查状态码、响应体结构、关键字段。
+用 `curl` 测试端点，检查状态码、响应体结构、关键字段。
 
 ---
 
