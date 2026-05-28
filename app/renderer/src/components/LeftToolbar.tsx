@@ -21,7 +21,7 @@ export function LeftToolbar({ activePanel, onSelect }: LeftToolbarProps): JSX.El
       <button
         className="w-10 h-10 rounded-lg flex items-center justify-center text-lg hover:bg-surface-hover transition-colors"
         title="新建项目"
-        onClick={() => navigate("/")}
+        onClick={() => navigate("/projects")}
       >
         📁
       </button>
