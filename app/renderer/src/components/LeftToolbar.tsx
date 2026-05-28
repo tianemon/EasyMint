@@ -31,7 +31,7 @@ export function LeftToolbar({ activePanel, onSelect }: LeftToolbarProps): JSX.El
         <button
           key={tool.id}
           className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg transition-colors ${
-            activePanel === tool.id ? "bg-blue-600/20 ring-1 ring-blue-600/30" : "hover:bg-surface-hover"
+            activePanel === tool.id ? "bg-accent/20 ring-1 ring-accent/30" : "hover:bg-surface-hover"
           }`}
           title={tool.label}
           onClick={() => onSelect(tool.id === activePanel ? "editor" : tool.id)}

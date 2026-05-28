@@ -21,7 +21,7 @@ export function HomePage(): JSX.Element {
         <div className="text-center p-12 rounded-lg border border-border bg-surface-alt">
           <p className="text-text-secondary mb-4">还没有项目</p>
           <button
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-6 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors"
             onClick={() => setShowNewDialog(true)}
           >
             + 新建项目
@@ -43,7 +43,7 @@ export function HomePage(): JSX.Element {
             </button>
           ))}
           <button
-            className="p-4 rounded-lg border border-dashed border-border hover:border-blue-500 transition-colors flex items-center justify-center text-text-secondary"
+            className="p-4 rounded-lg border border-dashed border-border hover:border-accent transition-colors flex items-center justify-center text-text-secondary"
             onClick={() => setShowNewDialog(true)}
           >
             + 新建项目
@@ -88,7 +88,7 @@ function NewProjectDialog({
           <div>
             <label className="block text-sm text-text-secondary mb-1">项目名称</label>
             <input
-              className="w-full px-3 py-2 rounded-lg bg-surface-alt border border-border text-text-primary outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 rounded-lg bg-surface-alt border border-border text-text-primary outline-none focus:border-accent"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="例如：我的记账软件"
@@ -97,7 +97,7 @@ function NewProjectDialog({
           <div>
             <label className="block text-sm text-text-secondary mb-1">项目目录</label>
             <input
-              className="w-full px-3 py-2 rounded-lg bg-surface-alt border border-border text-text-primary outline-none focus:border-blue-500"
+              className="w-full px-3 py-2 rounded-lg bg-surface-alt border border-border text-text-primary outline-none focus:border-accent"
               value={dir}
               onChange={(e) => setDir(e.target.value)}
               placeholder="/path/to/projects"
@@ -112,7 +112,7 @@ function NewProjectDialog({
             取消
           </button>
           <button
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="px-4 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
             disabled={!name.trim() || !dir.trim()}
             onClick={handleCreate}
           >

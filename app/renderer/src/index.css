@@ -2,22 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * EasyMint — Mint-green palette
+ * Dark: deep green-black base, fresh mint accents
+ * Light: airy white-mint, clean and bright
+ */
+
 :root {
-  --color-surface: #1a1a2e;
-  --color-surface-alt: #16213e;
-  --color-surface-hover: #0f3460;
-  --color-border: #2a2a4a;
-  --color-text-primary: #e0e0e0;
-  --color-text-secondary: #8888aa;
+  --color-surface: #0d1f17;
+  --color-surface-alt: #132a20;
+  --color-surface-hover: #1a3a2c;
+  --color-border: #2a4a3a;
+  --color-text-primary: #e0f0e8;
+  --color-text-secondary: #7a9a8a;
+  --color-accent: #4ade80;
+  --color-accent-hover: #22c55e;
 }
 
 :root.light {
-  --color-surface: #ffffff;
-  --color-surface-alt: #f5f5f5;
-  --color-surface-hover: #e8e8e8;
-  --color-border: #e0e0e0;
-  --color-text-primary: #1a1a2e;
-  --color-text-secondary: #666680;
+  --color-surface: #f5faf7;
+  --color-surface-alt: #ecf5f0;
+  --color-surface-hover: #e0f0e8;
+  --color-border: #c8ddd2;
+  --color-text-primary: #0d1f17;
+  --color-text-secondary: #5a7a6a;
+  --color-accent: #16a34a;
+  --color-accent-hover: #15803d;
 }
 
 * {
@@ -26,14 +36,39 @@
   box-sizing: border-box;
 }
 
+html {
+  transition: background-color 0.3s ease;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 #root {
   width: 100vw;
   height: 100vh;
+}
+
+/* Smooth transitions for all interactive surfaces */
+button, a, input, select, textarea, .transition-all {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Scrollbar — subtle mint tint */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
 }
 
 /* xterm overrides */

@@ -27,7 +27,7 @@ export function SetupPage(): JSX.Element {
             key={step.number}
             className={`p-3 rounded-lg transition-colors ${
               i === currentStep
-                ? "bg-blue-600/20 text-blue-400 border border-blue-600/30"
+                ? "bg-accent/20 text-accent border border-accent/30"
                 : i < currentStep
                   ? "text-green-400"
                   : "text-text-secondary"
@@ -64,7 +64,7 @@ export function SetupPage(): JSX.Element {
           </button>
           {currentStep < STEPS.length - 1 ? (
             <button
-              className="px-6 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              className="px-6 py-2 rounded-lg bg-accent text-surface hover:bg-accent-hover transition-colors"
               onClick={() => setCurrentStep((s) => s + 1)}
             >
               下一步

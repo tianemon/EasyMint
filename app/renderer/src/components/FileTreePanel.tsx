@@ -31,7 +31,7 @@ export function FileTreePanel({ projectId }: FileTreePanelProps): JSX.Element {
       <div key={node.path}>
         <button
           className={`w-full text-left px-2 py-1 text-sm hover:bg-surface-hover transition-colors ${
-            selectedFile === node.path ? "bg-blue-600/20" : ""
+            selectedFile === node.path ? "bg-accent/20" : ""
           }`}
           style={{ paddingLeft: `${12 + depth * 16}px` }}
           onClick={() => !node.isDirectory && handleFileClick(node.path)}
