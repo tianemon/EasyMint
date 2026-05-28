@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from "electron";
+import { BrowserWindow } from "electron";
 
 interface TerminalSession {
   terminalId: string;
@@ -10,7 +10,7 @@ export class AgentService {
   private terminals: Map<string, TerminalSession> = new Map();
   private terminalCounter = 0;
 
-  createTerminal(cwd: string, mainWindow: BrowserWindow): { terminalId: string } {
+  createTerminal(cwd: string, _mainWindow: BrowserWindow): { terminalId: string } {
     // Will use node-pty to create real PTY
     // Stub: returns terminalId, actual PTY creation in task implementation
     const terminalId = `term-${++this.terminalCounter}`;
@@ -18,14 +18,14 @@ export class AgentService {
     return { terminalId };
   }
 
-  write(terminalId: string, data: string): void {
+  write(terminalId: string, _data: string): void {
     const session = this.terminals.get(terminalId);
     if (session?.pty) {
       // (session.pty as any).write(data);
     }
   }
 
-  resize(terminalId: string, cols: number, rows: number): void {
+  resize(terminalId: string, _cols: number, _rows: number): void {
     const session = this.terminals.get(terminalId);
     if (session?.pty) {
       // (session.pty as any).resize(cols, rows);
@@ -40,7 +40,7 @@ export class AgentService {
     this.terminals.delete(terminalId);
   }
 
-  resumeSession(sessionId: string, mainWindow: BrowserWindow): void {
+  resumeSession(_sessionId: string, _mainWindow: BrowserWindow): void {
     // Will create terminal and write `claude --resume <sessionId>`
   }
 }

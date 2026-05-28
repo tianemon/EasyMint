@@ -2,18 +2,17 @@
   "name": "easymint",
   "version": "0.1.0",
   "description": "AI 项目工作台 — 让不懂技术的人也能用 Claude Code 构建软件",
-  "type": "module",
   "private": true,
-  "main": "app/main/index.js",
+  "main": "app/main/dist/index.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:electron\"",
     "dev:renderer": "vite --config app/renderer/vite.config.ts",
-    "dev:electron": "tsc -p app/main/tsconfig.json && electron .",
+    "dev:electron": "tsc -p app/main/tsconfig.json && tsc -p app/preload/tsconfig.json && electron .",
     "build": "npm run build:renderer && npm run build:main && electron-builder",
     "build:renderer": "vite build --config app/renderer/vite.config.ts",
-    "build:main": "tsc -p app/main/tsconfig.json",
-    "lint": "eslint app/ --ext .ts,.tsx && tsc --noEmit -p app/main/tsconfig.json && tsc --noEmit -p app/renderer/tsconfig.json",
-    "typecheck": "tsc --noEmit -p app/main/tsconfig.json && tsc --noEmit -p app/renderer/tsconfig.json",
+    "build:main": "tsc -p app/main/tsconfig.json && tsc -p app/preload/tsconfig.json",
+    "lint": "eslint app/ --ext .ts,.tsx && tsc --noEmit -p app/main/tsconfig.json && tsc --noEmit -p app/preload/tsconfig.json && tsc --noEmit -p app/renderer/tsconfig.json",
+    "typecheck": "tsc --noEmit -p app/main/tsconfig.json && tsc --noEmit -p app/preload/tsconfig.json && tsc --noEmit -p app/renderer/tsconfig.json",
     "test": "vitest run"
   },
   "dependencies": {

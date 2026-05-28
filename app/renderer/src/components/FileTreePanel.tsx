@@ -1,11 +1,18 @@
 import { useState, useEffect } from "react";
 
+interface FileNode {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  children?: FileNode[];
+}
+
 interface FileTreePanelProps {
   projectId: string;
 }
 
 export function FileTreePanel({ projectId }: FileTreePanelProps): JSX.Element {
-  const [files, setFiles] = useState<FileNode[]>([]);
+  const [files, _setFiles] = useState<FileNode[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string>("");
 

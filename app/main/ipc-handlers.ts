@@ -3,6 +3,7 @@ import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
 import { AgentService } from "./services/agent-service";
 import { Store } from "./services/store";
+import { detectClaude } from "./utils/claude-detector";
 
 interface Services {
   mainWindow: BrowserWindow;
@@ -36,8 +37,5 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("session:delete", (_e, { sessionId }) => store.deleteSession(sessionId));
 
   // claude:*
-  ipcMain.handle("claude:detect", () => {
-    const { detectClaude } = require("./utils/claude-detector");
-    return detectClaude();
-  });
+  ipcMain.handle("claude:detect", () => detectClaude());
 }

@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { Store } from "./store";
 
-const TEMPLATE_DIR = path.resolve(import.meta.dirname, "..", "..", "ai-coding-automation-template");
+const TEMPLATE_DIR = path.resolve(__dirname, "..", "..", "ai-coding-automation-template");
 
 interface Project {
   id: string;

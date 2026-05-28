@@ -94,7 +94,7 @@ export class Store {
     fs.writeFileSync(sessionsFile, JSON.stringify({ sessions }, null, 2));
   }
 
-  deleteSession(sessionId: string): void {
+  deleteSession(_sessionId: string): void {
     // Will be implemented in detail later
   }
 }

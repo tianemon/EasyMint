@@ -17,7 +17,7 @@ function createWindow(): void {
     titleBarStyle: "hiddenInset",
     backgroundColor: isDev ? "#1a1a2e" : undefined,
     webPreferences: {
-      preload: path.join(__dirname, "..", "preload", "index.js"),
+      preload: path.join(__dirname, "..", "..", "preload", "dist", "index.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -35,7 +35,7 @@ function createWindow(): void {
     mainWindow.loadURL("http://localhost:5173");
     mainWindow.webContents.openDevTools({ mode: "detach" });
   } else {
-    mainWindow.loadFile(path.join(__dirname, "..", "renderer", "dist", "index.html"));
+    mainWindow.loadFile(path.join(__dirname, "..", "..", "renderer", "dist", "index.html"));
   }
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {

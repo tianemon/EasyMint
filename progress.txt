@@ -2,3 +2,27 @@
 
 > 本文件是会话间的交接日志。每个 Agent 会话在此记录完成内容、测试方式和给后续 Agent 的备注。
 
+## [2026-05-28] - 任务: Electron 主进程与 IPC 通信框架
+
+### 完成内容:
+- BrowserWindow 创建: 1400x900, hiddenInset titleBar, contextIsolation true
+- Preload 通过 contextBridge 暴露 electronAPI (project/file/terminal/session/claude 五个命名空间)
+- ipc-handlers.ts 注册全部 IPC handle/on 通道 (project:*, file:*, terminal:*, session:*, claude:*)
+- 开发模式加载 localhost:5173, 生产模式加载 app/renderer/dist/index.html
+- app.whenReady() 创建窗口, window-all-closed 退出
+- 修复 tsconfig outDir 路径 (app/main/dist, app/preload/dist)
+- 创建 app/preload/tsconfig.json
+- 移除 package.json "type": "module" 与 CommonJS 编译冲突
+- 修复 ipc-handlers.ts require() → import
+- 创建 .eslintrc.json 配置
+- 更新 dev:electron / build:main / lint / typecheck 脚本加入 preload 编译
+
+### 测试:
+- 所有 TypeScript 类型检查通过 (main + preload + renderer + vite config)
+- ESLint 零错误零警告
+- 编译输出路径验证: app/main/dist/ 和 app/preload/dist/
+
+### 备注:
+- 主进程使用 CommonJS 模块,与 package.json "type" 兼容
+- preload 和 main 各有独立 tsconfig, 输出到各自的 dist/ 子目录
+- Electron 实际启动测试需在 GUI 环境中进行

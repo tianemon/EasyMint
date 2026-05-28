@@ -13,7 +13,7 @@
         "开发模式加载 localhost:5173，生产模式加载 app/renderer/dist/index.html",
         "app.whenReady() 创建窗口，window-all-closed 退出"
       ],
-      "passes": false,
+      "passes": true,
       "evaluated": false
     },
     {
