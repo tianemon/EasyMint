@@ -194,8 +194,12 @@ for ((run=1; run<=TOTAL_RUNS; run++)); do
 PROMPT_EOF
 
     # 后台启动 Claude
+    # --output-format stream_json + --output 用于捕获 worker 内部状态，
+    # 排查 "任务完成但不退出" 的问题。
     claude -p "$(cat "$PROMPT_FILE")" \
         --permission-mode bypassPermissions \
+        --output-format stream_json \
+        --output "${RUN_LOG}.jsonl" \
         > "$RUN_LOG" 2>&1 &
     CLAUDE_PID=$!
 
