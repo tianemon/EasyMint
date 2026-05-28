@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-export function HomePage(): JSX.Element {
+export function ProjectListPage(): JSX.Element {
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [showNewDialog, setShowNewDialog] = useState(false);
