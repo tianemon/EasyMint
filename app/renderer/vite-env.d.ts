@@ -27,32 +27,47 @@ interface Session {
   status: "active" | "completed";
 }
 
+// JSONL stream event types from Claude --output-format stream-json
+interface StreamEvent {
+  type: "assistant" | "message_delta" | "tool_use" | "tool_result" | "system" | "error";
+  data: Record<string, unknown>;
+  timestamp: number;
+  source?: "worker" | "evaluator" | "chat";
+}
+
 interface ElectronAPI {
   project: {
     list: () => Promise<Project[]>;
     create: (opts: { name: string; path: string }) => Promise<Project>;
     delete: (id: string) => Promise<void>;
-    get: (id: string) => Promise<Project>;
+    get: (id: string) => Promise<Project | undefined>;
   };
   file: {
     readTree: (dirPath: string) => Promise<FileNode[]>;
     readContent: (filePath: string) => Promise<string>;
     writeContent: (filePath: string, content: string) => Promise<void>;
   };
-  terminal: {
-    create: (cwd: string) => Promise<{ terminalId: string }>;
-    write: (terminalId: string, data: string) => void;
-    resize: (terminalId: string, cols: number, rows: number) => void;
-    destroy: (terminalId: string) => void;
-    onData: (callback: (data: { terminalId: string; data: string }) => void) => () => void;
+  agent: {
+    runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
+    startChat: (projectPath: string) => Promise<{ chatId: string }>;
+    sendMessage: (chatId: string, message: string) => void;
+    stopChat: (chatId: string) => void;
+    abort: (runId: string) => void;
+    onStream: (callback: (event: StreamEvent) => void) => () => void;
+    onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
+  };
+  evaluator: {
+    isEnabled: () => Promise<boolean>;
+    setEnabled: (enabled: boolean) => Promise<void>;
+    status: () => Promise<{ running: boolean; currentTask?: number }>;
   };
   session: {
     list: (projectId: string) => Promise<Session[]>;
-    resume: (sessionId: string) => void;
-    delete: (sessionId: string) => Promise<void>;
+    delete: (projectId: string, sessionId: string) => Promise<void>;
   };
-  claude: {
-    detect: () => Promise<{ found: boolean; path?: string; version?: string }>;
+  settings: {
+    get: () => Promise<{ theme: "dark" | "light"; terminalFontSize: number; evaluateMode: boolean }>;
+    set: (key: string, value: unknown) => Promise<void>;
   };
 }
 

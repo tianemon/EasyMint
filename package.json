@@ -57,6 +57,12 @@
       "app/preload/**/*.js",
       "app/renderer/dist/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "../ai-coding-automation-template",
+        "to": "ai-coding-automation-template"
+      }
+    ],
     "mac": {
       "target": "dmg",
       "category": "public.app-category.developer-tools"

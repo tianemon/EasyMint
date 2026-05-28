@@ -22,13 +22,49 @@
 
 ---
 
+## 评估范围
+
+**只验证 UI 层交互，不测试需要实际调用 Claude CLI 的功能。** mock-ipc 已注入所有 electronAPI 假数据，评估只关注 DOM 层面的正确性。
+
+### 验证什么
+- 页面布局：元素是否存在、位置是否正确、暗色/亮色主题下颜色是否正常
+- 导航：点击跳转是否到达正确的 route
+- 表单交互：输入、选择、提交按钮状态变化
+- 状态切换：toolbar 按钮切换、步进器步数切换、tab 切换
+- 空状态/错误状态：是否显示正确的占位或错误提示
+- 控制台：有无 JS 报错
+
+### 不验证什么
+- agent-service 的 spawn/JSONL 流 — 需要真实 Claude CLI
+- StreamPanel 实时流渲染 — 需要 Claude 实际输出
+- ChatPanel 双向对话 — 需要 `--input-format stream-json`
+- evaluator-service 调度 — 需要 worker 实际完成
+- 终端嵌入（P2）— 本期不做
+
+涉及以上功能的任务评估时，仅验证 UI 框架是否正确（组件挂载、占位内容、按钮可点击），不验证数据流。
+
+---
+
 ## 3. 启动应用
 
+先检查 Vite dev server 是否已在运行：
+
 ```bash
-./init.sh
+curl -s -o /dev/null -w "%{http_code}" http://localhost:5173
 ```
 
-等开发服务器就绪后再开始测试。
+- **返回 200** → 直接用，跳过启动。
+- **其他** → 执行 `npm run dev:renderer &` 后台启动 Vite，等待端口就绪（最多 30 秒）：
+
+```bash
+for i in {1..30}; do
+  code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5173 2>/dev/null)
+  if [ "$code" = "200" ]; then break; fi
+  sleep 1
+done
+```
+
+**禁止启动 Electron。** 评估只验证 renderer 层，Playwright 直接连 Vite dev server 的 `localhost:5173`。mock-ipc 已为所有 electronAPI 调用注入假数据，无需 Electron 进程。
 
 ---
 

@@ -81,3 +81,56 @@
 ### 备注:
 - detectClaude 在 IPC claude:detect 通道中使用，已在 ipc-handlers.ts 中注册
 - 可选 envPath 参数让测试可以不依赖真实环境 PATH
+
+## [2026-05-28] - 评估: 数据存储层 — Store 服务
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无
+
+### 备注:
+- 5/5 验收条件全部通过
+- 14 个 Store 单元测试全部通过，测试覆盖构造、CRUD、sessions、边界情况
+- 运行时验证：应用正常加载、electronAPI 5 个命名空间全部暴露、Store 数据文件正确创建
+- settings.json 默认值正确（dark 主题、14px 字号）
+- 仅 favicon.ico 404（非功能性问题）
+- 评估报告: temp/evaluator/report-2.md
+
+## [2026-05-28] - 任务: 首页 — 项目列表与新建对话框
+
+### 完成内容:
+- HomePage: useEffect 调用 electronAPI.project.list() 加载项目列表
+- 空状态：居中引导文案 + [新建项目] 按钮
+- 有项目时 3 列 grid 卡片布局，显示名称、路径、日期
+- NewProjectDialog 弹窗：名称输入框 + 目录输入框 + 创建/取消按钮
+- 创建成功后 navigate 到 /setup/:projectId
+- 卡片点击 navigate 到 /project/:projectId
+- main.tsx 集成 mock-ipc 支持无 Electron 环境的浏览器开发
+- 完善 project-service.test.ts（10 个测试）和 mock-ipc.ts
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:renderer + build:main 编译成功
+- vitest 28/28 测试通过 (Store 14 + ProjectService 10 + ClaudeDetector 4)
+- electron-builder 打包失败: 下载 Electron 二进制网络超时（非代码问题）
+
+### 备注:
+- HomePage 和 NewProjectDialog 已完整实现所有 6 个验收步骤
+- mock-ipc.ts 让开发时无需启动 Electron 即可在浏览器中预览 UI
+
+## [2026-05-28] - 评估: 项目服务 — 模板复制与 CRUD
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无
+
+### 备注:
+- 5/5 验收条件全部通过，10/10 单元测试通过
+- UI 集成：新建项目弹窗 → 填写 → 创建后跳转 /setup/:projectId ✅，卡片点击跳转 /project/:projectId ✅
+- getTemplateDir() 正确处理开发环境（__dirname 相对路径）和打包环境（process.resourcesPath）
+- 评估报告: temp/evaluator/report-3.md

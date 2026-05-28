@@ -3,8 +3,6 @@ import fs from "fs";
 import path from "path";
 import { Store } from "./store";
 
-const TEMPLATE_DIR = path.resolve(__dirname, "..", "..", "ai-coding-automation-template");
-
 interface Project {
   id: string;
   name: string;
@@ -15,8 +13,25 @@ interface Project {
   description: string;
 }
 
+function getTemplateDir(): string {
+  // Production: template is bundled as extraResource
+  // process.resourcesPath exists only in Electron, not in plain Node/vitest
+  const resourcesPath = (process as { resourcesPath?: string }).resourcesPath;
+  if (resourcesPath) {
+    const bundled = path.join(resourcesPath, "ai-coding-automation-template");
+    if (fs.existsSync(bundled)) return bundled;
+  }
+  // Development: template is sibling to project root
+  // __dirname = app/main/dist/services → up 5 levels to reach project root's parent
+  return path.resolve(__dirname, "..", "..", "..", "..", "..", "ai-coding-automation-template");
+}
+
 export class ProjectService {
-  constructor(private store: Store) {}
+  private templateDir: string;
+
+  constructor(private store: Store, templateDir?: string) {
+    this.templateDir = templateDir ?? getTemplateDir();
+  }
 
   list(): Project[] {
     return this.store.getProjects();
@@ -34,7 +49,6 @@ export class ProjectService {
       description: "",
     };
 
-    // Copy template to target directory
     const targetDir = path.join(opts.path, opts.name);
     if (!fs.existsSync(targetDir)) {
       fs.mkdirSync(targetDir, { recursive: true });
@@ -56,12 +70,11 @@ export class ProjectService {
   }
 
   private copyTemplate(targetDir: string): void {
-    // Copy all template files except .git and node_modules
     const exclude = new Set([".git", "node_modules", ".DS_Store", ".playwright-mcp", "temp"]);
-    const entries = fs.readdirSync(TEMPLATE_DIR);
+    const entries = fs.readdirSync(this.templateDir);
     for (const entry of entries) {
       if (exclude.has(entry)) continue;
-      const src = path.join(TEMPLATE_DIR, entry);
+      const src = path.join(this.templateDir, entry);
       const dest = path.join(targetDir, entry);
       if (fs.statSync(src).isDirectory()) {
         fs.cpSync(src, dest, { recursive: true });
@@ -69,7 +82,6 @@ export class ProjectService {
         fs.copyFileSync(src, dest);
       }
     }
-    // Ensure temp directory exists
     fs.mkdirSync(path.join(targetDir, "temp"), { recursive: true });
   }
 }

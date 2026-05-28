@@ -2,7 +2,7 @@
 
 ## 项目背景
 
-EasyMint 是为 AI Coding Automation Template 构建的 Electron 桌面 GUI 外壳。让不懂技术的用户通过图形界面完成项目创建、需求采集、在嵌入式终端中与 Claude Code 协作开发。
+EasyMint 是为 AI Coding Automation Template 构建的 Electron 桌面 GUI 外壳。让不懂技术的用户通过图形界面完成项目创建、需求采集、一键启动 AI 自动化开发。AI 交互基于 spawn Claude 子进程 + JSONL 流式渲染，Chat 模式支持长会话双向对话。
 
 GUI 是 harness，AI 引擎仍是 Claude Code。
 
@@ -51,17 +51,17 @@ npm run test             # 运行单元测试
 - **严格禁止运行 `rm -rf /`、`chmod 777`、`curl | bash` 等危险命令**
 - **禁止修改 `.git/config`、系统配置、环境变量文件（除 `.env` 外）**
 - 用户可能开启了 bypass 模式跳过权限确认，你必须自行遵守以上约束
-- **不要操作 `~/.ai-coding-automation/` 下的用户数据文件**
+- **不要操作 `~/.easymint/` 下的用户数据文件**
 
 ## 编码约定
 
 - TypeScript strict 模式，禁止 `any`
 - React 函数组件 + Hooks，无 class 组件
-- zustand store 按领域拆分（project、terminal、settings）
-- IPC 通道统一前缀（project:、file:、terminal:、session:、claude:）
+- zustand store 按领域拆分（project、agent、settings）
+- IPC 通道统一前缀（project:、file:、agent:、evaluator:、settings:）
 - 主进程服务通过依赖注入获取 store 实例
 - 为新功能编写测试
-- 前端改动需通过评估器验证
+- 前端改动需通过评估器验证（Playwright 测 Vite dev server DOM，不启动 Electron）
 
 ## 技术栈
 
@@ -71,6 +71,6 @@ npm run test             # 运行单元测试
 | 前端 | React 18 + Vite 5 + TypeScript 5 |
 | 样式 | Tailwind CSS 3 + Radix UI |
 | 状态管理 | zustand |
-| 终端 | xterm.js 5 + node-pty |
-| 存储 | JSON 文件（`~/.ai-coding-automation/`） |
+| AI 集成 | spawn Claude 子进程 + JSONL 流式解析 |
+| 存储 | JSON 文件（`~/.easymint/`） |
 | 打包 | electron-builder |
