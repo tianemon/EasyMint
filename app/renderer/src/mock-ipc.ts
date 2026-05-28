@@ -43,7 +43,7 @@ const MOCK_FILE_CONTENT: Record<string, string> = {
   "/mock/project/docs/requirements.md": "# 需求规格\n\n## 项目概述\n示例项目用于演示 EasyMint 功能。\n\n## 功能清单\n- P0: 核心功能\n- P1: 增强功能\n",
 };
 
-const MOCK_SESSIONS: Session[] = [
+let MOCK_SESSIONS: Session[] = [
   {
     id: "sess-1", projectId: "mock-1", title: "需求访谈 — 记账软件",
     createdAt: "2026-05-20T08:30:00.000Z", lastActiveAt: "2026-05-20T09:15:00.000Z",
@@ -181,9 +181,12 @@ export const electronAPIMock = {
     status: () => delay({ running: false }),
   },
   session: {
-    list: (_projectId: string) => delay(MOCK_SESSIONS),
+    list: (_projectId: string) => delay([...MOCK_SESSIONS]),
     resume: (_sessionId: string) => {},
-    delete: (_projectId: string, _sessionId: string) => delay(undefined),
+    delete: (_projectId: string, sessionId: string) => {
+      MOCK_SESSIONS = MOCK_SESSIONS.filter((s) => s.id !== sessionId);
+      return delay(undefined);
+    },
   },
   settings: {
     get: () => delay({ theme: "dark" as const, terminalFontSize: 14, evaluateMode: true }),

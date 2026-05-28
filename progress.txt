@@ -363,3 +363,41 @@
 ### 备注:
 - FileTreePanel 后端基础设施（FileService、IPC、preload、mock-ipc）已在早期任务中完成，本次只需补齐前端 useEffect 和传参
 - 空状态和加载失败后暂无重试/错误提示（Task 18 统一错误处理）
+
+## [2026-05-28] - 评估: agent-service — Claude 子进程 spawn + JSONL 流
+
+### 评估结论:
+- PASS
+
+### 发现问题:
+- 无
+
+### 备注:
+- 6/6 验收条件全部通过（代码层面）
+- runWorker() spawn 参数完整：-p, --output-format stream-json, --permission-mode bypassPermissions, cwd
+- stdout → JsonlParser → agent:stream / stderr → agent:stderr / exit → agent:exit 全部正确
+- abort() 实现完整（process.kill + 清理 activeRuns）
+- IPC 通道 agent:runWorker/agent:abort 已在 ipc-handlers.ts 注册
+- Preload agent 命名空间完整暴露（runWorker/startChat/sendMessage/stopChat/abort/onStream/onStderr/onExit）
+- mock-ipc agent.runWorker 有完整 mock 实现（模拟流式事件 + exit 回调）
+- UI 验证：ProjectPage "启动开发"/"启动评估" 按钮可点击，StreamPanel 占位渲染正常，0 个 JS 错误
+- 仅 favicon.ico 404（已知非功能性问题）
+- 评估报告: temp/evaluator/report-10.md
+
+## [2026-05-28] - 任务: 对话历史管理
+
+### 完成内容:
+- 完善 SessionHistory 组件：删除按钮（hover 显示）、按 lastActiveAt 倒序排列、加载中状态
+- 修复 preload/index.ts 中 session.delete 签名，新增 projectId 参数
+- mock-ipc session.delete 改为实际过滤 MOCK_SESSIONS，session.list 返回副本
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:renderer + build:main 编译成功
+- electron-builder 签名失败：codesign Permission denied（预存在的环境问题）
+
+### 备注:
+- SessionHistory 组件复用全局 Session 接口（vite-env.d.ts）
+- 删除操作使用乐观更新，不等待后端确认
+- formatDate 使用中文年月日格式（YYYY年M月D日 HH:mm）

@@ -30,7 +30,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   session: {
     list: (projectId: string) => ipcRenderer.invoke("session:list", { projectId }),
     resume: (sessionId: string) => ipcRenderer.send("session:resume", { sessionId }),
-    delete: (sessionId: string) => ipcRenderer.invoke("session:delete", { sessionId }),
+    delete: (projectId: string, sessionId: string) =>
+      ipcRenderer.invoke("session:delete", { projectId, sessionId }),
   },
   claude: {
     detect: () => ipcRenderer.invoke("claude:detect"),
