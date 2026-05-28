@@ -769,3 +769,26 @@
 
 ### 备注:
 - report-5.md 的三个 FAIL 项修复了前两个。第三个 "文件树无 mock 数据" 是 mock-ipc 已有 MOCK_FILE_TREE，Task 4 评估已验证文件树正常，本次评估时的具体原因待独立评估确认
+
+## [2026-05-28] - 任务: 中间编辑区 — 代码编辑器面板
+
+### 完成内容:
+- EditorPanel.tsx 重写为代码查看面板：接受 filePath/fileName props，无文件时显示欢迎页
+- 左侧行号 gutter：44px 宽，右对齐行号，surface 背景，与代码区同步滚动
+- 右侧代码区：等宽字体 font-mono text-xs leading-5，pre-wrap，contentEditable 可编辑
+- mock 语法高亮：正则 replace 实现关键字(.kw 紫色)、字符串(.str 绿色)、函数调用(.fn 红色)、注释(.cm 灰色斜体)
+- index.css 新增 .kw/.str/.fn/.cm 四个语法高亮 class
+- 加载中/错误重试状态覆盖
+- 底部状态栏显示文件行数
+- ProjectPage.tsx: file tab 点击传递 filePath + fileName 给 EditorPanel
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:main + build:renderer 编译成功
+- vitest 43/47 测试通过 (4 个预存在 project-service 测试失败，非本次改动)
+
+### 备注:
+- 语法高亮为 mock 实现，基于正则替换，覆盖 TypeScript/TSX/JSON 常见语法
+- contentEditable 已设置但无保存逻辑，保存功能不在当前任务范围
+- 代码区与行号渲染在同一 overflow-auto 容器内，保持同步滚动

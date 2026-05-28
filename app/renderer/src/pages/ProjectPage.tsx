@@ -112,8 +112,7 @@ export function ProjectPage(): JSX.Element {
           />
         );
       case "file":
-        // Code editor will be implemented in Task 6
-        return <EditorPanel />;
+        return <EditorPanel filePath={activeTab.filePath} fileName={activeTab.title} />;
       default:
         return <EditorPanel />;
     }

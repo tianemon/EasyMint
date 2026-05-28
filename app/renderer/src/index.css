@@ -169,6 +169,12 @@ button, a, input, select, textarea, .transition-all {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Syntax highlighting for code editor */
+.kw { color: #8250df; }
+.str { color: #16a34a; }
+.fn { color: #cf222e; }
+.cm { color: #5a7a6a; font-style: italic; }
+
 /* xterm overrides */
 .xterm {
   padding: 8px;
