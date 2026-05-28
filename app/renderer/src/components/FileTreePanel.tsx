@@ -95,8 +95,12 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
           </button>
         </div>
       ) : files.length === 0 ? (
-        <div className="flex items-center justify-center h-full text-text-secondary text-sm">
-          暂无文件
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center px-4">
+            <div className="text-3xl mb-3 opacity-50">📁</div>
+            <p className="text-sm text-text-primary font-medium mb-1">文件浏览器</p>
+            <p className="text-xs text-text-secondary">点击左侧按钮浏览项目文件结构</p>
+          </div>
         </div>
       ) : (
         renderTree(files)

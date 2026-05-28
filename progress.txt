@@ -2,6 +2,21 @@
 
 > 本文件是会话间的交接日志。每个 Agent 会话在此记录完成内容、测试方式和给后续 Agent 的备注。
 
+## [2026-05-28] - 评估: Mock 数据完善
+
+### 评估结论:
+- FAIL — Step 5 mock task.json 缺少 steps 数组
+
+### 发现问题:
+- MOCK_FILE_CONTENT["/mock/project/task.json"] 中每个任务仅有 id/title/status，缺少 steps 步骤数组
+- 验收条件要求"各有步骤"（每个任务 3-4 个子步骤）
+
+### 备注:
+- Step 1-4, 6 全部通过 Playwright + image-vision 验证
+- 无 JS 报错
+- 报告: temp/evaluator/report-11.md
+- 截图: temp/evaluator/task11-*.png
+
 ## [2026-05-28] - 评估: 新建项目弹窗 · 5步自适应表单
 
 ### 评估结论:
@@ -1018,3 +1033,24 @@
 
 ### 备注:
 - MOCK_TASKS (RightPanel.tsx) 已有 5 个任务 (2 done+1 running+2 pending), 无需改动
+
+## [2026-05-29] - 任务: 整体 UI 打磨与交互动效
+
+### 完成内容:
+- index.css: .scan-area 和 .terminal-line 动画 timing function 从 `ease` 统一为 `cubic-bezier(0.4, 0, 0.2, 1)`，符合 Step 1 统一动画标准
+- FileTreePanel.tsx: 空状态从纯文字"暂无文件"改为引导式空状态（📁 图标 + "文件浏览器"标题 + 提示文案），对齐 ChatPanel 欢迎页风格
+- 确认全项目无 dark: 前缀类名、无 darkMode 切换逻辑残留
+- 所有动画已统一 cubic-bezier(0.4, 0, 0.2, 1)：modal 入场、消息入场、面板折叠、下拉菜单均使用标准曲线
+- 异常状态已覆盖：FileTreePanel（加载失败+重试）、EditorPanel（加载失败+重试）、ChatPanel（结束状态提示）、SessionHistory（加载失败+重试）、ProjectListPage（加载失败+重试）
+- transition-all 全局规则设定为 0.2s cubic-bezier(0.4, 0, 0.2, 1)，所有 Tailwind transition-* 类默认使用相同曲线
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:renderer + build:main 编译成功
+- electron-builder 签名失败：codesign Permission denied（预存在的环境问题）
+
+### 备注:
+- taskPulse 和 terminalCursorBlink 使用 ease-in-out（连续循环动画，非入场过渡，无需改为 cubic-bezier）
+- scanIconSpin 使用 linear（持续旋转，属于功能性动画）
+- 空状态引导风格对齐 ChatPanel 欢迎页，文件树无数据时展示统一引导信息
