@@ -90,8 +90,8 @@
         "CSS 语法高亮 class: .kw(紫色 #8250df), .str(绿色 accent), .fn(红色 #cf222e), .cm(灰色斜体)",
         "点击文件树中的文件: 打开 editor tab, 显示对应 mock 文件内容"
       ],
-      "passes": false,
-      "evaluated": false
+      "passes": true,
+      "evaluated": true
     },
     {
       "id": 7,
@@ -104,8 +104,8 @@
         "running 状态: pulse 动画(1.5s ease-in-out 循环)",
         "mock 数据: 5 个任务, 2 done + 1 running + 2 pending, 各有 3-4 个步骤"
       ],
-      "passes": false,
-      "evaluated": false
+      "passes": true,
+      "evaluated": true
     },
     {
       "id": 8,
@@ -121,8 +121,8 @@
         "Step 5(部署方式): 技术费用 radio(充足/少量/免费)+部署平台 radio(云端/本地)",
         "底部: 上一步/下一步/创建项目 按钮, 最后一步提交后关闭弹窗, 更新 titlebar 项目名"
       ],
-      "passes": false,
-      "evaluated": false
+      "passes": true,
+      "evaluated": true
     },
     {
       "id": 9,

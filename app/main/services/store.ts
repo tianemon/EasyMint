@@ -29,6 +29,8 @@ interface Settings {
   claudePath: string;
   terminalFontSize: number;
   evaluateMode?: boolean;
+  tddMode?: boolean;
+  screenshotVerification?: boolean;
 }
 
 export class Store {

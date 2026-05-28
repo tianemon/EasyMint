@@ -19,9 +19,10 @@ const TOOLS: ToolDef[] = [
 interface LeftToolbarProps {
   activePanel: ActivePanel;
   onSelect: (panel: ActivePanel) => void;
+  onSettings?: () => void;
 }
 
-export function LeftToolbar({ activePanel, onSelect }: LeftToolbarProps): JSX.Element {
+export function LeftToolbar({ activePanel, onSelect, onSettings }: LeftToolbarProps): JSX.Element {
   const navigate = useNavigate();
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -106,11 +107,9 @@ export function LeftToolbar({ activePanel, onSelect }: LeftToolbarProps): JSX.El
 
       {/* Settings button — pinned to bottom */}
       <button
-        className={`w-8 h-8 rounded-lg flex items-center justify-center text-base transition-colors mt-auto ${
-          activePanel === "settings" ? "bg-accent/20 ring-1 ring-accent/30" : "hover:bg-surface-hover"
-        }`}
+        className="w-8 h-8 rounded-lg flex items-center justify-center text-base transition-colors mt-auto hover:bg-surface-hover"
         data-tooltip="设置"
-        onClick={() => onSelect(activePanel === "settings" ? "editor" : "settings")}
+        onClick={() => onSettings?.()}
       >
         ⚙
       </button>

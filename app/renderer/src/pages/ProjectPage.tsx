@@ -6,18 +6,19 @@ import { RightPanel } from "../components/RightPanel";
 import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { StreamPanel } from "../components/StreamPanel";
-import { SettingsPanel } from "../components/SettingsPanel";
+import { SettingsDialog } from "../components/SettingsDialog";
 import { TabBar } from "../components/TabBar";
 import { DragHandle } from "../components/DragHandle";
 import { TitleBar } from "../components/TitleBar";
 import { useWorkspaceStore } from "../stores/workspace-store";
 import { useTabStore } from "../stores/tab-store";
 
-export type ActivePanel = "editor" | "files" | "sessions" | "chat" | "settings";
+export type ActivePanel = "editor" | "files" | "sessions" | "chat";
 
 export function ProjectPage(): JSX.Element {
   const { projectId } = useParams<{ projectId: string }>();
   const [activePanel, setActivePanel] = useState<ActivePanel>("editor");
+  const [showSettings, setShowSettings] = useState(false);
   const [projectPath, setProjectPath] = useState("");
   const [projectName, setProjectName] = useState("EasyMint");
 
@@ -96,9 +97,6 @@ export function ProjectPage(): JSX.Element {
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
   const renderTabContent = () => {
-    if (activePanel === "settings") {
-      return <SettingsPanel />;
-    }
     if (!activeTab) {
       return <EditorPanel />;
     }
@@ -129,7 +127,7 @@ export function ProjectPage(): JSX.Element {
         style={{ display: "grid", gridTemplateColumns: gridColumns }}
       >
         {/* Column 1: Sidebar — 44px */}
-        <LeftToolbar activePanel={activePanel} onSelect={setActivePanel} />
+        <LeftToolbar activePanel={activePanel} onSelect={setActivePanel} onSettings={() => setShowSettings(true)} />
 
         {/* Column 2: Left panel — collapsible */}
         {!collapsedLeft && (
@@ -209,6 +207,8 @@ export function ProjectPage(): JSX.Element {
           </button>
         )}
       </div>
+
+      <SettingsDialog open={showSettings} onClose={() => setShowSettings(false)} />
     </div>
   );
 }

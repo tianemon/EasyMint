@@ -73,6 +73,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     const settings = store.getSettings();
     if (key === "evaluateMode") {
       settings.evaluateMode = value as boolean;
+    } else if (key === "tddMode") {
+      settings.tddMode = value as boolean;
+    } else if (key === "screenshotVerification") {
+      settings.screenshotVerification = value as boolean;
     }
     store.saveSettings(settings);
   });

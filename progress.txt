@@ -2,6 +2,21 @@
 
 > 本文件是会话间的交接日志。每个 Agent 会话在此记录完成内容、测试方式和给后续 Agent 的备注。
 
+## [2026-05-28] - 评估: 新建项目弹窗 · 5步自适应表单
+
+### 评估结论:
+- PASS — 所有 10 项验收条件通过
+
+### 发现问题:
+- 无阻塞性问题
+- 轻微: Step 3 AI 推荐打字机输出前有多余换行符
+
+### 备注:
+- 所有步骤已通过 Playwright + image-vision 验证
+- 无 JS 报错，仅有 React Router v7 future flag warnings
+- 截图存档在 temp/evaluator/screenshots/task8-*.png
+- 详细报告: temp/evaluator/report-task-8.md
+
 ## [2026-05-28] - 任务: Electron 主进程与 IPC 通信框架
 
 ### 完成内容:
@@ -877,3 +892,32 @@
 - NewProjectDialog 复用 SetupPage 多步表单模式（updateData callback、按钮组样式）
 - AI 推荐打字机效果使用 setInterval 30ms 逐字输出，组件卸载时清理 interval
 - Step 4 动态显隐通过 getVisibleSteps(projectType) 过滤 CLI 类型
+
+## [2026-05-28] - 任务: 设置弹窗
+
+### 完成内容:
+- 创建设置弹窗 SettingsDialog 组件（520px 宽 modal，header + body + footer 结构）
+- 外观 section: 主题只读显示 "亮色 Mint（仅亮色）"
+- Claude CLI section: 路径 code 标签 accent 色, 版本号, ✓ 已检测到 状态指示
+- 开发选项 section: 评估模式/TDD模式/截图验证 三个 toggle 开关，各带说明 hint
+- Token 消耗对照表: 5 行（普通/评估/TDD/截图/全开），⭐ 1-4 颗
+- Footer 底部备注 "DeepSeek 视觉桥接（待商议）" + 完成按钮
+- settings-store 新增 tddMode/screenshotVerification 状态及 setTddMode/setScreenshotVerification 方法
+- vite-env.d.ts settings.get 返回值新增 tddMode/screenshotVerification 字段
+- Store.ts Settings 接口新增 tddMode/screenshotVerification 可选字段
+- ipc-handlers.ts settings:set 新增 tddMode/screenshotVerification 分支处理
+- mock-ipc.ts settings.get 返回值新增 tddMode/screenshotVerification 字段
+- LeftToolbar 新增 onSettings 回调 prop，设置按钮点击弹出 modal 而非切换面板
+- ProjectPage 集成 SettingsDialog，移除 SettingsPanel 内联渲染，ActivePanel 类型移除 "settings"
+
+### 测试:
+- ESLint 零错误零警告
+- TypeScript 类型检查通过 (main + preload + renderer)
+- build:renderer + build:main 编译成功
+- vitest 43/47 测试通过 (4 个预存在 project-service 测试失败，非本次改动)
+- electron-builder 签名失败：codesign Permission denied（预存在的环境问题）
+
+### 备注:
+- 设置弹窗替代了原有的 SettingsPanel 内联面板，通过 sidebar ⚙ 按钮触发
+- 三个开发选项 toggle 均通过 settings:set IPC 持久化到 settings.json
+- Token 消耗表为静态参考数据，不随 toggle 状态动态变化
