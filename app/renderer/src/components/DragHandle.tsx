@@ -38,7 +38,7 @@ export function DragHandle({ onDrag }: DragHandleProps): JSX.Element {
   return (
     <div
       className={`cursor-col-resize transition-colors shrink-0 ${
-        dragging ? "bg-accent" : "bg-transparent hover:bg-accent/40"
+        dragging ? "bg-accent" : "bg-border hover:bg-accent/50"
       }`}
       style={{ width: 4 }}
       onMouseDown={onMouseDown}
