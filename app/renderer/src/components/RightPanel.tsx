@@ -131,7 +131,7 @@ export function RightPanel({ onCollapse }: RightPanelProps): JSX.Element {
   const totalCount = tasks.length;
 
   return (
-    <div className="flex flex-col min-w-0 bg-surface-alt">
+    <div className="flex flex-col min-w-0 bg-surface-alt ml-[-4px] relative z-[1]">
       <div className="h-9 flex items-center justify-between px-3 border-b border-border shrink-0">
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">任务列表</span>
