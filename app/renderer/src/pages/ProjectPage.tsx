@@ -124,7 +124,7 @@ export function ProjectPage(): JSX.Element {
       {/* Grid: sidebar | left panel | handle | center | handle | right panel — all 6 always present */}
       <div
         className="flex-1 min-h-0 grid-panels overflow-hidden"
-        style={{ display: "grid", gridTemplateColumns: gridColumns }}
+        style={{ display: "grid", gridTemplateColumns: gridColumns, gap: 0, background: "var(--color-surface)" }}
       >
         {/* Col 1 */}
         <LeftToolbar activePanel={activePanel} onSelect={setActivePanel} onSettings={() => setShowSettings(true)} />
