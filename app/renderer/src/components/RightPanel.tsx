@@ -142,7 +142,7 @@ export function RightPanel({ onCollapse }: RightPanelProps): JSX.Element {
           onClick={onCollapse}
           title="收起面板"
         >
-          ◀
+          ▶
         </button>
       </div>
 
