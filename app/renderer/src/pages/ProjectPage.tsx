@@ -138,7 +138,12 @@ export function ProjectPage(): JSX.Element {
         <DragHandle onDrag={handleLeftDrag} />
 
         {/* Col 4 — center area, peek buttons float on its edges */}
-        <div className="flex flex-col min-w-0 overflow-hidden relative mx-[-4px] z-[1]">
+        <div className="flex flex-col min-w-0 overflow-hidden relative z-[1]"
+          style={{
+            marginLeft: collapsedLeft ? 0 : -4,
+            marginRight: collapsedRight ? 0 : -4,
+          }}
+        >
           {collapsedLeft && (
             <button className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-r-md bg-surface-alt border border-border border-l-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleLeft} title="展开文件面板">▸</button>
           )}
