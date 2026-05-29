@@ -209,23 +209,22 @@ export function normalizeEvent(event: StreamEvent): StreamEntry {
       return { kind: "tool_result", toolUseId, content, isError, timestamp, source };
     }
     case "system": {
+      // result events come through as system type from agent-service
+      const subtype = typeof data.subtype === "string" ? data.subtype : "";
+      if (subtype === "success" || subtype === "error") {
+        const resultText = typeof data.result === "string" ? data.result : "";
+        return { kind: "system", message: subtype === "success" ? `✓ ${resultText}` : `✗ ${resultText}`, timestamp, source };
+      }
       const message =
         typeof data.message === "string"
           ? data.message
-          : typeof data.subtype === "string"
-            ? `System: ${data.subtype}`
+          : subtype
+            ? `System: ${subtype}`
             : JSON.stringify(data);
       return { kind: "system", message, timestamp, source };
     }
     case "error": {
       return { kind: "error", data: JSON.stringify(data), timestamp, source };
-    }
-    case "result": {
-      const resultText = typeof data.result === "string" ? data.result : "";
-      const isError = data.is_error;
-      if (!resultText) return { kind: "system", message: isError ? "✗ 异常退出" : "✓ 完成", timestamp };
-      // result event: just show a clean status line, not the full JSON
-      return { kind: "system", message: isError ? `✗ ${resultText}` : `✓ ${resultText}`, timestamp, source };
     }
     default:
       return { kind: "system", message: JSON.stringify(event), timestamp, source };
