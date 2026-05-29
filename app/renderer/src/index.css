@@ -92,16 +92,17 @@ button, a, input, select, textarea, .transition-all {
 
 /* DragHandle — splitter between panels, extended invisible hit area via ::before */
 .drag-handle {
-  width: 4px;
+  width: 1px;
   height: 100%;
   cursor: col-resize;
   background: var(--color-border);
   position: relative;
   flex-shrink: 0;
-  transition: background 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .drag-handle:hover,
 .drag-handle.dragging {
+  transform: scaleX(3);
   background: var(--color-accent);
 }
 .drag-handle::before {

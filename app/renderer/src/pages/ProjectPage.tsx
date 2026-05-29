@@ -145,12 +145,12 @@ export function ProjectPage(): JSX.Element {
 
         {/* Handles — grid container level, absolute over all panels */}
         {!collapsedLeft && (
-          <div className="absolute top-0 bottom-0 z-10" style={{ left: `calc(44px + ${leftWidth}px - 2px)` }}>
+          <div className="absolute top-0 bottom-0 z-10" style={{ left: `calc(44px + ${leftWidth}px)` }}>
             <DragHandle onDrag={handleLeftDrag} />
           </div>
         )}
         {!collapsedRight && (
-          <div className="absolute top-0 bottom-0 z-10" style={{ right: `calc(${rightWidth}px - 2px)` }}>
+          <div className="absolute top-0 bottom-0 z-10" style={{ right: `${rightWidth}px` }}>
             <DragHandle onDrag={handleRightDrag} />
           </div>
         )}
