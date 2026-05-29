@@ -215,9 +215,9 @@ export const electronAPIMock = {
     },
   },
   evaluator: {
-    isEnabled: () => Promise.resolve(true),
-    setEnabled: (_enabled: any) => Promise.resolve(),
-    status: () => Promise.resolve({ running: false }),
+    isEnabled: async () => true,
+    setEnabled: async (_enabled: any) => {},
+    status: async () => ({ running: false } as const),
     runEvaluator: (_projectPath: string) => {
       const evalId = `eval-${Date.now()}`;
       setTimeout(() => {
