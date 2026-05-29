@@ -6,17 +6,17 @@ import { FileService } from "./services/file-service";
 import { AgentService } from "./services/agent-service";
 import { EvaluatorService } from "./services/evaluator-service";
 import { Store } from "./services/store";
+import { detectClaude } from "./utils/claude-detector";
 
 const isDev = !app.isPackaged;
 
-function createWindow(): void {
+async function createWindow(): Promise<void> {
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
     titleBarStyle: "hiddenInset",
-    backgroundColor: isDev ? "#1a1a2e" : undefined,
     webPreferences: {
       preload: path.join(__dirname, "..", "..", "preload", "dist", "index.js"),
       contextIsolation: true,
@@ -25,10 +25,12 @@ function createWindow(): void {
     },
   });
 
+  const claudeInfo = detectClaude();
+
   const store = new Store();
   const projectService = new ProjectService(store);
   const fileService = new FileService();
-  const agentService = new AgentService();
+  const agentService = new AgentService(claudeInfo.found ? claudeInfo.path! : "claude");
   const evaluatorService = new EvaluatorService();
 
   registerIpcHandlers({ mainWindow, projectService, fileService, agentService, evaluatorService, store });

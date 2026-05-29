@@ -257,12 +257,11 @@ export function ChatPanel({
             placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
             rows={3}
             className="flex-1 resize-none bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:ring-1 focus:ring-accent/50"
-            disabled={!active && chatId !== null}
           />
           <div className="flex flex-col gap-1.5">
             <button
               onClick={handleSend}
-              disabled={!input.trim() || !chatId}
+              disabled={!input.trim()}
               className="w-9 h-9 rounded-full bg-accent text-white text-sm flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
             >
               ↑

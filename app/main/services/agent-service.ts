@@ -26,6 +26,11 @@ export class AgentService {
   private activeRuns: Map<string, ActiveRun> = new Map();
   private activeChats: Map<string, ActiveChat> = new Map();
   private terminalCounter = 0;
+  private claudePath: string;
+
+  constructor(claudePath = "claude") {
+    this.claudePath = claudePath;
+  }
   private runCounter = 0;
   private chatCounter = 0;
   /** worker 成功完成时触发（code=0），供 evaluator-service 监听 */
@@ -35,7 +40,7 @@ export class AgentService {
   runWorker(projectPath: string, prompt: string, mainWindow: BrowserWindow): { runId: string } {
     const runId = `run-${++this.runCounter}`;
 
-    const child = spawn("claude", [
+    const child = spawn(this.claudePath, [
       "-p", prompt,
       "--output-format", "stream-json",
       "--permission-mode", "bypassPermissions",
@@ -148,7 +153,7 @@ export class AgentService {
     ];
     if (resume) args.push("--continue");
 
-    const child = spawn("claude", args, {
+    const child = spawn(this.claudePath, args, {
       cwd: projectPath,
       stdio: ["pipe", "pipe", "pipe"],
     });
