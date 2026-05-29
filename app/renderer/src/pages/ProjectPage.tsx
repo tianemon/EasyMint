@@ -81,7 +81,7 @@ export function ProjectPage(): JSX.Element {
   );
 
   const handleRightDrag = useCallback(
-    (delta: number) => setRightWidth(rightWidth + delta),
+    (delta: number) => setRightWidth(rightWidth - delta),
     [rightWidth, setRightWidth]
   );
 
@@ -131,7 +131,7 @@ export function ProjectPage(): JSX.Element {
 
         {/* Column 2: Left panel — collapsible, or peek button when collapsed */}
         {collapsedLeft ? (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex items-center justify-center h-full" style={{ gridColumn: "2" }}>
             <button
               className="w-5 h-12 rounded-r-md bg-surface-alt border border-border border-l-0 text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors flex items-center justify-center"
               onClick={toggleLeft}
@@ -141,23 +141,25 @@ export function ProjectPage(): JSX.Element {
             </button>
           </div>
         ) : (
-          <LeftPanel
-            activePanel={activePanel}
-            projectPath={projectPath}
-            projectId={projectId!}
-            onCollapse={toggleLeft}
-            onFileClick={handleFileClick}
-            onSessionClick={handleSessionClick}
-            onNewSession={handleNewSession}
-            activeSessionId={activeSessionId}
-          />
+          <div style={{ gridColumn: "2" }}>
+            <LeftPanel
+              activePanel={activePanel}
+              projectPath={projectPath}
+              projectId={projectId!}
+              onCollapse={toggleLeft}
+              onFileClick={handleFileClick}
+              onSessionClick={handleSessionClick}
+              onNewSession={handleNewSession}
+              activeSessionId={activeSessionId}
+            />
+          </div>
         )}
 
         {/* Column 3: Left drag handle */}
-        {!collapsedLeft && <DragHandle onDrag={handleLeftDrag} />}
+        {!collapsedLeft && <div style={{ gridColumn: "3" }}><DragHandle onDrag={handleLeftDrag} /></div>}
 
         {/* Column 4: Center area */}
-        <div className="flex flex-col min-w-0 overflow-hidden">
+        <div style={{ gridColumn: "4" }} className="flex flex-col min-w-0 overflow-hidden">
           {/* Tab bar */}
           <TabBar />
 
@@ -167,11 +169,11 @@ export function ProjectPage(): JSX.Element {
         </div>
 
         {/* Column 5: Right drag handle */}
-        {!collapsedRight && <DragHandle onDrag={handleRightDrag} />}
+        {!collapsedRight && <div style={{ gridColumn: "5" }}><DragHandle onDrag={handleRightDrag} /></div>}
 
         {/* Column 6: Right panel — collapsible, or peek button when collapsed */}
         {collapsedRight ? (
-          <div className="flex items-center justify-center h-full">
+          <div className="flex items-center justify-center h-full" style={{ gridColumn: "6" }}>
             <button
               className="w-5 h-12 rounded-l-md bg-surface-alt border border-border border-r-0 text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors flex items-center justify-center"
               onClick={toggleRight}
@@ -181,7 +183,9 @@ export function ProjectPage(): JSX.Element {
             </button>
           </div>
         ) : (
-          <RightPanel onCollapse={toggleRight} />
+          <div style={{ gridColumn: "6" }}>
+            <RightPanel onCollapse={toggleRight} />
+          </div>
         )}
       </div>
 
