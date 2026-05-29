@@ -25,7 +25,9 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const msgIdRef = useRef(0);
   const convIdRef = useRef<string | undefined>(convId);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,7 +81,7 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
         window.electronAPI.conv.appendMessage(convIdRef.current, { id: `a-${entry.timestamp}`, role: "assistant", content: entry.text, createdAt: entry.timestamp }).catch(() => {});
       }
     });
-    const unsubExit = window.electronAPI.agent.onExit(() => { currentAiId = 0; setLoading(false); });
+    const unsubExit = window.electronAPI.agent.onExit(() => { currentAiId = 0; setLoading(false); setStreaming(false); });
     return () => { unsub(); unsubExit(); };
   }, []);
 
@@ -107,8 +109,10 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
     setLoading(true);
 
     try {
-      const result = await window.electronAPI.agent.sendMessage(projectPath, trimmed, sessionId);
-      if (!sessionId) setSessionId(result.sessionId);
+      setStreaming(true);
+    const result = await window.electronAPI.agent.sendMessage(projectPath, trimmed, sessionId);
+    setCurrentRunId(result.chatId);
+    if (!sessionId) setSessionId(result.sessionId);
       // Auto-title from first user message
       window.electronAPI.conv.update(cid, { title: trimmed.slice(0, 30) + (trimmed.length > 30 ? "…" : "") }).catch(() => {});
     } catch {
@@ -154,7 +158,7 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
                 ) : msg.entries ? (
                   <div className="flex flex-col max-w-[85%]">
                     <div className="bg-surface border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-2">
-                      {buildBlocks(msg.entries).map((block, i) => <ChatBlockView key={i} block={block} />)}
+                      {buildBlocks(msg.entries).map((block, i) => <ChatBlockView key={i} block={block} streaming={streaming} />)}
                     </div>
                     <span className="text-[10px] text-text-secondary mt-0.5 px-1">{formatTime(msg.timestamp)}</span>
                   </div>
@@ -181,13 +185,22 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
             className="flex-1 resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent"
             disabled={loading}
           />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim()}
-            className="w-9 h-9 rounded-md bg-accent text-white flex items-center justify-center hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
-          </button>
+          {loading ? (
+            <button
+              onClick={() => { if (currentRunId) window.electronAPI.agent.abort(currentRunId); setLoading(false); setStreaming(false); }}
+              className="w-9 h-9 rounded-md bg-red-500/20 text-red-400 flex items-center justify-center hover:bg-red-500/30 transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={!input.trim()}
+              className="w-9 h-9 rounded-md bg-accent text-white flex items-center justify-center hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
+            </button>
+          )}
         </div>
       </div>
     </div>

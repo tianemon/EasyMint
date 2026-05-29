@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { StreamEntry } from "./StreamPanel";
 
 // ── Block types ──────────────────────────────────────
@@ -80,8 +80,19 @@ function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
   return <div className="text-sm leading-relaxed whitespace-pre-wrap">{block.text}</div>;
 }
 
-function ThinkingBlockView({ block }: { block: ThinkingBlock }): JSX.Element {
+function ThinkingBlockView({ block, streaming }: { block: ThinkingBlock; streaming?: boolean }): JSX.Element {
+  // Auto-expand during streaming, collapse when stream ends
   const [open, setOpen] = useState(false);
+  const prevStreaming = useRef(streaming);
+  useEffect(() => {
+    if (streaming && !prevStreaming.current) setOpen(true);
+    if (!streaming && prevStreaming.current) {
+      const timer = setTimeout(() => setOpen(false), 800);
+      prevStreaming.current = streaming;
+      return () => clearTimeout(timer);
+    }
+    prevStreaming.current = streaming;
+  }, [streaming]);
   const preview = block.text.slice(0, 140);
   return (
     <div className="my-1 rounded-md border border-purple-500/20 bg-purple-500/[0.04]">
@@ -165,10 +176,10 @@ function SystemBlockView({ block }: { block: SystemBlock }): JSX.Element {
 
 // ── Exported render function ──────────────────────────
 
-export function ChatBlockView({ block }: { block: Block }): JSX.Element | null {
+export function ChatBlockView({ block, streaming }: { block: Block; streaming?: boolean }): JSX.Element | null {
   switch (block.kind) {
     case "text": return <TextBlockView block={block} />;
-    case "thinking": return <ThinkingBlockView block={block} />;
+    case "thinking": return <ThinkingBlockView block={block} streaming={streaming} />;
     case "tool-group": return <ToolGroupView block={block} />;
     case "system": {
       // Only show significant system messages (errors, completion)
