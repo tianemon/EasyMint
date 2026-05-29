@@ -31,6 +31,8 @@ interface Settings {
   evaluateMode?: boolean;
   tddMode?: boolean;
   screenshotVerification?: boolean;
+  apiBaseUrl?: string;
+  apiKey?: string;
 }
 
 export class Store {

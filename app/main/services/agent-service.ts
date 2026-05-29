@@ -13,7 +13,26 @@ interface ActiveChat {
   projectPath: string;
 }
 
+/** Build a query options block, reading API config from the Store. */
+function buildQueryOptions(projectPath: string, store: Store, overrides?: Partial<QueryOptions>): QueryOptions {
+  const settings = store.getSettings();
+  const env: Record<string, string> = {};
+  if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
+  if (settings.apiKey) env.ANTHROPIC_API_KEY = settings.apiKey;
+  return {
+    cwd: projectPath,
+    permissionMode: "bypassPermissions",
+    model: process.env.ANTHROPIC_MODEL || undefined,
+    env: Object.keys(env).length > 0 ? env : undefined,
+    ...overrides,
+  };
+}
+
+import { Store } from "./store";
+import type { Options as QueryOptions } from "@anthropic-ai/claude-agent-sdk";
+
 export class AgentService {
+  constructor(private store: Store) {}
   private activeRuns: Map<string, ActiveRun> = new Map();
   private activeChats: Map<string, ActiveChat> = new Map();
   private runCounter = 0;
@@ -33,11 +52,7 @@ export class AgentService {
       try {
         for await (const msg of query({
           prompt,
-          options: {
-            cwd: projectPath,
-            permissionMode: "bypassPermissions",
-            model: process.env.ANTHROPIC_MODEL || undefined,
-          },
+          options: buildQueryOptions(projectPath, this.store),
         })) {
           if (aborted) break;
 
@@ -84,13 +99,9 @@ export class AgentService {
     // Send initial system message to establish session
     try {
       for await (const msg of query({
-        prompt: "Hello",
-        options: {
-          cwd: projectPath,
-          permissionMode: "bypassPermissions",
-          model: process.env.ANTHROPIC_MODEL || undefined,
-        },
-      })) {
+          prompt: "Hello",
+          options: buildQueryOptions(projectPath, this.store),
+        })) {
         if (aborted) break;
         const event = toStreamEvent(msg, chatId, "chat");
         if (event) mainWindow.webContents.send("agent:stream", event);
@@ -129,12 +140,7 @@ export class AgentService {
       try {
         for await (const msg of query({
           prompt: message,
-          options: {
-            cwd: chat.projectPath,
-            permissionMode: "bypassPermissions",
-            resume: chat.sessionId,
-            model: process.env.ANTHROPIC_MODEL || undefined,
-          },
+          options: buildQueryOptions(chat.projectPath, this.store, { resume: chat.sessionId }),
         })) {
           if (!this.activeChats.has(chatId)) break;
           const event = toStreamEvent(msg, chatId, "chat");

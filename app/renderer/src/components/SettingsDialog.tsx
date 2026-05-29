@@ -63,9 +63,13 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     screenshotVerification,
     claudePath,
     claudeVersion,
+    apiBaseUrl,
+    apiKey,
     setEvaluateMode,
     setTddMode,
     setScreenshotVerification,
+    setApiBaseUrl,
+    setApiKey,
     loadFromElectron,
   } = useSettingsStore();
 
@@ -127,6 +131,32 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                   <span className="text-sm text-text-secondary">未检测到 Claude CLI</span>
                 </div>
               )}
+            </div>
+          </section>
+
+          {/* API 设置 */}
+          <section>
+            <h3 className="text-sm font-medium text-text-secondary mb-2">API 配置</h3>
+            <div className="bg-surface-alt rounded-lg px-4 py-3 space-y-3">
+              <div>
+                <label className="text-xs text-text-secondary block mb-1">Base URL</label>
+                <input
+                  className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+                  placeholder="https://api.deepseek.com/anthropic"
+                  value={apiBaseUrl}
+                  onChange={(e) => setApiBaseUrl(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary block mb-1">API Key</label>
+                <input
+                  type="password"
+                  className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+                  placeholder="sk-..."
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                />
+              </div>
             </div>
           </section>
 

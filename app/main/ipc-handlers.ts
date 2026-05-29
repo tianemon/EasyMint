@@ -70,13 +70,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("settings:get", () => store.getSettings());
   ipcMain.handle("settings:set", (_e, { key, value }) => {
     const settings = store.getSettings();
-    if (key === "evaluateMode") {
-      settings.evaluateMode = value as boolean;
-    } else if (key === "tddMode") {
-      settings.tddMode = value as boolean;
-    } else if (key === "screenshotVerification") {
-      settings.screenshotVerification = value as boolean;
-    }
+    (settings as unknown as Record<string, unknown>)[key] = value;
     store.saveSettings(settings);
   });
 

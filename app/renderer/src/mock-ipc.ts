@@ -323,7 +323,7 @@ export const electronAPIMock = {
     },
   },
   settings: {
-    get: () => delay({ terminalFontSize: 14, evaluateMode: true, tddMode: false, screenshotVerification: false }),
+    get: () => delay({ terminalFontSize: 14, evaluateMode: true, tddMode: false, screenshotVerification: false, apiBaseUrl: "", apiKey: "" }),
     set: (_key: string, _value: unknown) => delay(undefined),
   },
 };

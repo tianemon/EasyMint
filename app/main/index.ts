@@ -31,7 +31,7 @@ async function createWindow(): Promise<void> {
   const store = new Store();
   const projectService = new ProjectService(store);
   const fileService = new FileService();
-  const agentService = new AgentService();
+  const agentService = new AgentService(store);
   // Claude path no longer needed — SDK manages its own binary
   const evaluatorService = new EvaluatorService();
 
