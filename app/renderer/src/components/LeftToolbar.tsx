@@ -50,6 +50,13 @@ export function LeftToolbar({ activePanel, onSelect, onSettings }: LeftToolbarPr
   const handleDropdownItem = (action: string) => {
     setShowDropdown(false);
     if (action === "project") navigate("/projects");
+    else if (action === "file") {
+      const name = prompt("输入文件名（例如：config.ts）：");
+      if (name) console.log("新建文件:", name);
+    } else if (action === "folder") {
+      const name = prompt("输入文件夹名：");
+      if (name) console.log("新建文件夹:", name);
+    }
   };
 
   return (
@@ -73,11 +80,17 @@ export function LeftToolbar({ activePanel, onSelect, onSettings }: LeftToolbarPr
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2"><rect x="3" y="3" width="10" height="10" rx="3"/><path d="M3 7h10M7 3v5"/></svg>
               新建项目
             </button>
+            <button className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors" onClick={() => handleDropdownItem("file")}>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2"><path d="M10 2H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5l-3-3z"/><path d="M10 2v3h3"/></svg>
+              新建文件
+            </button>
+            <button className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors" onClick={() => handleDropdownItem("folder")}>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2"><path d="M2 4a1 1 0 011-1h3l1.5 2H13a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/></svg>
+              新建文件夹
+            </button>
           </div>
         )}
       </div>
-
-      <div className="w-[18px] h-px bg-border my-1" />
 
       {/* Tool buttons */}
       <div className="flex flex-col items-center gap-0.5">
