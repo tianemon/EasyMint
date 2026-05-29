@@ -130,7 +130,7 @@ export function ProjectPage(): JSX.Element {
           <LeftPanel activePanel={activePanel} projectPath={projectPath} projectId={projectId!} onCollapse={toggleLeft} onFileClick={handleFileClick} onSessionClick={handleSessionClick} onNewSession={handleNewSession} activeSessionId={activeSessionId} />
         )}
 
-        <div className="flex flex-col min-w-0 overflow-hidden relative border-l border-r border-border">
+        <div className="flex flex-col min-w-0 overflow-hidden relative">
           {collapsedLeft && (
             <button className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-r-md bg-surface-alt border border-border border-l-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleLeft} title="展开文件面板">▸</button>
           )}
