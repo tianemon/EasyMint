@@ -140,12 +140,12 @@ export function ProjectPage(): JSX.Element {
         {/* Col 4 — center area, peek buttons float on its edges */}
         <div className="flex flex-col min-w-0 overflow-hidden relative">
           {collapsedLeft && (
-            <button className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-r-md bg-surface-alt border border-border border-l-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleLeft} title="展开文件面板">▸</button>
+            <button className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-r-md bg-surface-alt border border-border border-l-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleLeft} title="展开文件面板">▸</button>
           )}
           <TabBar />
           <div className="flex-1 min-h-0">{renderTabContent()}</div>
           {collapsedRight && (
-            <button className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-l-md bg-surface-alt border border-border border-r-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleRight} title="展开任务面板">◂</button>
+            <button className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-l-md bg-surface-alt border border-border border-r-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleRight} title="展开任务面板">◂</button>
           )}
         </div>
 

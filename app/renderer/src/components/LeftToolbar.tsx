@@ -53,7 +53,7 @@ export function LeftToolbar({ activePanel, onSelect, onSettings }: LeftToolbarPr
   };
 
   return (
-    <aside className="w-[44px] border-r border-border flex flex-col items-center py-2 bg-surface shrink-0">
+    <aside className="w-[44px] flex flex-col items-center py-2 bg-surface shrink-0">
       {/* New button with dropdown */}
       <div ref={dropdownRef} className="relative">
         <button
