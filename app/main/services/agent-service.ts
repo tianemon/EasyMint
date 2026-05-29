@@ -12,15 +12,17 @@ async function getQuery(): Promise<QueryFn> {
   return _query;
 }
 
+type QueryObj = Awaited<ReturnType<QueryFn>>;
+
 interface ActiveRun {
   runId: string;
-  abort: () => void;
+  query: QueryObj | null;
 }
 
 interface ActiveChat {
   chatId: string;
   sessionId: string;
-  abort: () => void;
+  query: QueryObj | null;
   projectPath: string;
 }
 
@@ -52,19 +54,16 @@ export class AgentService {
   /** Worker — sdk.query one-shot, streaming */
   async runWorker(projectPath: string, prompt: string, mainWindow: BrowserWindow): Promise<{ runId: string }> {
     const runId = `run-${++this.runCounter}`;
-    let aborted = false;
+    const run: ActiveRun = { runId, query: null };
+    this.activeRuns.set(runId, run);
 
-    const abort = () => { aborted = true; this.activeRuns.delete(runId); };
-    this.activeRuns.set(runId, { runId, abort });
-
-    // Run async, don't block IPC handler
     (async () => {
       try {
-        for await (const msg of (await getQuery())({
-          prompt,
-          options: buildQueryOptions(projectPath, this.store),
-        })) {
-          if (aborted) break;
+        const q = await getQuery();
+        const queryObj = await q({ prompt, options: buildQueryOptions(projectPath, this.store) });
+        run.query = queryObj;
+        for await (const msg of queryObj) {
+          if (!this.activeRuns.has(runId)) break;
 
           const event = toStreamEvent(msg, runId, "worker");
           if (event) mainWindow.webContents.send("agent:stream", event);
@@ -91,8 +90,8 @@ export class AgentService {
 
   abort(runId: string): void {
     const run = this.activeRuns.get(runId);
-    if (run) {
-      run.abort();
+    if (run?.query) {
+      run.query.interrupt().catch(() => {});
       this.activeRuns.delete(runId);
     }
   }
@@ -100,39 +99,44 @@ export class AgentService {
   /** Send message — first call establishes session, subsequent calls use resume */
   sendMessage(projectPath: string, message: string, sessionId: string | null, thinkingEnabled: boolean, mainWindow: BrowserWindow): { chatId: string; sessionId: string } {
     const chatId = `chat-${++this.chatCounter}`;
-
-    // Build options: first message has no resume, subsequent messages resume existing session
-    const overrides = sessionId ? { resume: sessionId } : {};
+    const overrides = { ...(sessionId ? { resume: sessionId } : {}), ...(thinkingEnabled ? { thinkingEnabled: true } : {}) };
     const options = buildQueryOptions(projectPath, this.store, overrides);
+
+    const chat: ActiveChat = { chatId, sessionId: "", query: null, projectPath };
+    this.activeChats.set(chatId, chat);
 
     (async () => {
       try {
+        const q = await getQuery();
+        const queryObj = await q({ prompt: message, options });
+        chat.query = queryObj;
         let newSessionId = sessionId ?? "";
-        for await (const msg of (await getQuery())({ prompt: message, options })) {
+        for await (const msg of queryObj) {
           const event = toStreamEvent(msg, chatId, "chat");
           if (event) mainWindow.webContents.send("agent:stream", event);
           if (msg.type === "result") {
             newSessionId = (msg as { session_id?: string }).session_id ?? newSessionId;
+            chat.sessionId = newSessionId;
             mainWindow.webContents.send("agent:exit", { runId: chatId, code: msg.subtype === "success" ? 0 : 1 });
-            this.activeChats.set(chatId, { chatId, sessionId: newSessionId, abort: () => {}, projectPath });
           }
         }
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        mainWindow.webContents.send("agent:stderr", { runId: chatId, data: msg, timestamp: Date.now() });
-        mainWindow.webContents.send("agent:exit", { runId: chatId, code: -1 });
+        if (this.activeChats.has(chatId)) {
+          const msg = err instanceof Error ? err.message : String(err);
+          mainWindow.webContents.send("agent:stderr", { runId: chatId, data: msg, timestamp: Date.now() });
+          mainWindow.webContents.send("agent:exit", { runId: chatId, code: -1 });
+        }
       }
+      this.activeChats.delete(chatId);
     })();
 
-    const sid = sessionId ?? "";
-    this.activeChats.set(chatId, { chatId, sessionId: sid, abort: () => {}, projectPath });
-    return { chatId, sessionId: sid };
+    return { chatId, sessionId: "" };
   }
 
   stopChat(chatId: string): void {
     const chat = this.activeChats.get(chatId);
-    if (chat) {
-      chat.abort();
+    if (chat?.query) {
+      chat.query.interrupt().catch(() => {});
       this.activeChats.delete(chatId);
     }
   }
