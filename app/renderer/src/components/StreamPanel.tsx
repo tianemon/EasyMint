@@ -54,8 +54,16 @@ interface UserMessageEntry {
   source?: string;
 }
 
+interface ThinkingEntry {
+  kind: "thinking";
+  text: string;
+  timestamp: number;
+  source?: string;
+}
+
 export type StreamEntry =
   | TextEntry
+  | ThinkingEntry
   | ToolUseEntry
   | ToolResultEntry
   | SystemEntry
@@ -164,21 +172,18 @@ export function normalizeEvent(event: StreamEvent): StreamEntry {
       return { kind: "user_message", text, timestamp, source };
     }
     case "assistant": {
-      const text =
-        typeof data.delta === "string"
-          ? data.delta
-          : typeof data.text === "string"
-            ? data.text
-            : "";
+      // Separate thinking (delta) from final text
+      if (typeof data.delta === "string" && data.delta) {
+        return { kind: "thinking", text: data.delta, timestamp, source };
+      }
+      const text = typeof data.text === "string" ? data.text : "";
       return { kind: "text", text, timestamp, source };
     }
     case "message_delta": {
-      const text =
-        typeof data.delta === "string"
-          ? data.delta
-          : typeof data.text === "string"
-            ? data.text
-            : "";
+      if (typeof data.delta === "string" && data.delta) {
+        return { kind: "thinking", text: data.delta, timestamp, source };
+      }
+      const text = typeof data.text === "string" ? data.text : "";
       return { kind: "text", text, timestamp, source };
     }
     case "tool_use": {

@@ -47,6 +47,7 @@ export function buildBlocks(entries: StreamEntry[]): Block[] {
 
   for (const e of entries) {
     if (e.kind === "text") { flushThink(); flushTool(); flushSys(); textBuf += (textBuf ? "\n" : "") + e.text; }
+    else if (e.kind === "thinking") { flushText(); flushTool(); flushSys(); thinkBuf += (thinkBuf ? "\n" : "") + e.text; }
     else if (e.kind === "system") { flushText(); flushThink(); flushTool(); sysBuf += (sysBuf ? "\n" : "") + e.message; }
     else if (e.kind === "tool_use") { flushText(); flushThink(); flushSys(); toolBuf.push({ name: e.name, input: e.input, id: e.id }); }
     else if (e.kind === "tool_result") { /* skip, results are attached inline */ }
@@ -164,11 +165,18 @@ function SystemBlockView({ block }: { block: SystemBlock }): JSX.Element {
 
 // ── Exported render function ──────────────────────────
 
-export function ChatBlockView({ block }: { block: Block }): JSX.Element {
+export function ChatBlockView({ block }: { block: Block }): JSX.Element | null {
   switch (block.kind) {
     case "text": return <TextBlockView block={block} />;
     case "thinking": return <ThinkingBlockView block={block} />;
     case "tool-group": return <ToolGroupView block={block} />;
-    case "system": return <SystemBlockView block={block} />;
+    case "system": {
+      // Only show significant system messages (errors, completion)
+      const m = block.message;
+      if (m.startsWith("✓") || m.startsWith("✗") || m.startsWith("⚠") || m.toUpperCase().includes("FAIL")) {
+        return <SystemBlockView block={block} />;
+      }
+      return null;
+    }
   }
 }
