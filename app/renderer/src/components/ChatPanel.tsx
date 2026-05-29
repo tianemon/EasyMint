@@ -22,12 +22,11 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps): JSX.Element {
-  const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const msgIdRef = useRef(0);
-  const chatIdRef = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
@@ -58,75 +57,47 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
     });
   }, [convId]);
 
-  // Start chat on first send
-  const ensureChat = useCallback(async (): Promise<string> => {
-    if (chatIdRef.current) return chatIdRef.current;
-    setLoading(true);
-    try {
-      const result = await window.electronAPI.agent.startChat(projectPath);
-      chatIdRef.current = result.chatId;
-      setChatId(result.chatId);
-      return result.chatId;
-    } finally {
-      setLoading(false);
-    }
-  }, [projectPath]);
-
-  // unmount
-  useEffect(() => {
-    return () => { if (chatIdRef.current) window.electronAPI.agent.stopChat(chatIdRef.current); };
-  }, []);
-
-  // Stream listener
+  // Stream listener — batch AI events into turns
   useEffect(() => {
     let currentAiId = 0;
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       if (event.source !== "chat") return;
-      const ts = event.timestamp || Date.now();
-      if (event.type === "user_message" && typeof event.data.text === "string") {
-        setMessages((prev) => [...prev, { id: ++msgIdRef.current, role: "user", text: event.data.text as string, timestamp: ts }]);
-        // Save user message
-        const cid = chatIdRef.current;
-        if (cid) {
-          window.electronAPI.conv.appendMessage(cid, { id: `u-${ts}`, role: "user", content: event.data.text, createdAt: ts }).catch(() => {});
-        }
-        return;
-      }
       const entry = normalizeEvent(event);
-      if (entry.kind === "text") {
-        // Save assistant text
-        const cid = chatIdRef.current;
-        if (cid) {
-          window.electronAPI.conv.appendMessage(cid, { id: `a-${ts}`, role: "assistant", content: entry.text, createdAt: ts }).catch(() => {});
-        }
-      }
+      if (!entry) return;
       if (!currentAiId) {
         currentAiId = ++msgIdRef.current;
-        setMessages((prev) => [...prev, { id: currentAiId, role: "ai", entries: [entry], timestamp: ts }]);
+        setMessages((prev) => [...prev, { id: currentAiId, role: "ai", entries: [entry], timestamp: entry.timestamp }]);
       } else {
-        setMessages((prev) => prev.map((m) => m.id === currentAiId ? { ...m, entries: [...(m.entries || []), entry], timestamp: ts } : m));
+        setMessages((prev) => prev.map((m) => m.id === currentAiId ? { ...m, entries: [...(m.entries || []), entry], timestamp: entry.timestamp } : m));
       }
     });
-    const unsubExit = window.electronAPI.agent.onExit(() => { currentAiId = 0; });
+    const unsubExit = window.electronAPI.agent.onExit(() => { currentAiId = 0; setLoading(false); });
     return () => { unsub(); unsubExit(); };
   }, []);
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
+  // Optimistic send: append user message, call sendMessage
   const handleSend = useCallback(async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
-    const cid = await ensureChat();
-    if (!cid) return;
-    // Auto-generate title from first message
-    if (messages.length === 0 && !convId) {
-      const title = trimmed.slice(0, 20) + (trimmed.length > 20 ? "…" : "");
-      window.electronAPI.conv.update(cid, { title }).catch(() => {});
-      onConvCreated?.(cid, title);
-    }
-    window.electronAPI.agent.sendMessage(cid, trimmed);
+    // Optimistic user message
+    const ts = Date.now();
+    setMessages((prev) => [...prev, { id: ++msgIdRef.current, role: "user", text: trimmed, timestamp: ts }]);
     setInput("");
-  }, [input, ensureChat, messages.length, convId, onConvCreated]);
+    setLoading(true);
+    try {
+      const result = await window.electronAPI.agent.sendMessage(projectPath, trimmed, sessionId);
+      if (!sessionId) setSessionId(result.sessionId);
+      if (messages.length === 0 && convId) {
+        const title = trimmed.slice(0, 20) + (trimmed.length > 20 ? "…" : "");
+        window.electronAPI.conv.update(convId, { title }).catch(() => {});
+        onConvCreated?.(convId, title);
+      }
+    } catch {
+      setLoading(false);
+    }
+  }, [input, projectPath, sessionId, messages.length, convId, onConvCreated]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }

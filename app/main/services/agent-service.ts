@@ -95,74 +95,36 @@ export class AgentService {
     }
   }
 
-  /** Chat — uses sdk.query with resume for multi-turn */
-  async startChat(projectPath: string, mainWindow: BrowserWindow): Promise<{ chatId: string }> {
+  /** Send message — first call establishes session, subsequent calls use resume */
+  sendMessage(projectPath: string, message: string, sessionId: string | null, mainWindow: BrowserWindow): { chatId: string; sessionId: string } {
     const chatId = `chat-${++this.chatCounter}`;
-    let aborted = false;
-    let sessionId = "";
 
-    const abort = () => { aborted = true; this.activeChats.delete(chatId); };
-    this.activeChats.set(chatId, { chatId, sessionId: "", abort, projectPath });
-
-    // Send initial system message to establish session
-    try {
-      for await (const msg of (await getQuery())({
-          prompt: "Hello",
-          options: buildQueryOptions(projectPath, this.store),
-        })) {
-        if (aborted) break;
-        const event = toStreamEvent(msg, chatId, "chat");
-        if (event) mainWindow.webContents.send("agent:stream", event);
-
-        if (msg.type === "result") {
-          sessionId = (msg as { session_id?: string }).session_id ?? "";
-          const chat = this.activeChats.get(chatId);
-          if (chat) chat.sessionId = sessionId;
-        }
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      mainWindow.webContents.send("agent:stderr", { runId: chatId, data: `Chat 启动失败: ${msg}`, timestamp: Date.now() });
-      mainWindow.webContents.send("agent:exit", { runId: chatId, code: -1 });
-      this.activeChats.delete(chatId);
-    }
-
-    return { chatId };
-  }
-
-  /** Send message in existing chat */
-  sendMessage(chatId: string, message: string): void {
-    const chat = this.activeChats.get(chatId);
-    if (!chat) return;
-
-    // Push user message to renderer
-    windowForChat(chatId)?.webContents.send("agent:stream", {
-      runId: chatId,
-      type: "user_message",
-      data: { text: message },
-      timestamp: Date.now(),
-      source: "chat",
-    });
+    // Build options: first message has no resume, subsequent messages resume existing session
+    const overrides = sessionId ? { resume: sessionId } : {};
+    const options = buildQueryOptions(projectPath, this.store, overrides);
 
     (async () => {
       try {
-        for await (const msg of (await getQuery())({
-          prompt: message,
-          options: buildQueryOptions(chat.projectPath, this.store, { resume: chat.sessionId }),
-        })) {
-          if (!this.activeChats.has(chatId)) break;
+        let newSessionId = sessionId ?? "";
+        for await (const msg of (await getQuery())({ prompt: message, options })) {
           const event = toStreamEvent(msg, chatId, "chat");
-          if (event) windowForChat(chatId)?.webContents.send("agent:stream", event);
-
+          if (event) mainWindow.webContents.send("agent:stream", event);
           if (msg.type === "result") {
-            chat.sessionId = (msg as { session_id?: string }).session_id ?? chat.sessionId;
+            newSessionId = (msg as { session_id?: string }).session_id ?? newSessionId;
+            mainWindow.webContents.send("agent:exit", { runId: chatId, code: msg.subtype === "success" ? 0 : 1 });
+            this.activeChats.set(chatId, { chatId, sessionId: newSessionId, abort: () => {}, projectPath });
           }
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        windowForChat(chatId)?.webContents.send("agent:stderr", { runId: chatId, data: msg, timestamp: Date.now() });
+        mainWindow.webContents.send("agent:stderr", { runId: chatId, data: msg, timestamp: Date.now() });
+        mainWindow.webContents.send("agent:exit", { runId: chatId, code: -1 });
       }
     })();
+
+    const sid = sessionId ?? "";
+    this.activeChats.set(chatId, { chatId, sessionId: sid, abort: () => {}, projectPath });
+    return { chatId, sessionId: sid };
   }
 
   stopChat(chatId: string): void {

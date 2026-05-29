@@ -61,11 +61,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   agent: {
     runWorker: (projectPath: string, prompt: string) =>
       ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),
-    startChat: (projectPath: string) =>
-      ipcRenderer.invoke("agent:startChat", { projectPath }),
-    sendMessage: (chatId: string, message: string) =>
-      ipcRenderer.invoke("agent:sendMessage", { chatId, message }),
-    stopChat: (chatId: string) => ipcRenderer.invoke("agent:stopChat", { chatId }),
+    sendMessage: (projectPath: string, message: string, sessionId?: string | null) =>
+      ipcRenderer.invoke("agent:sendMessage", { projectPath, message, sessionId }),
     abort: (runId: string) => ipcRenderer.invoke("agent:abort", { runId }),
     onStream: (callback: (event: unknown) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);

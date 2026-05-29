@@ -66,9 +66,7 @@ interface ElectronAPI {
   };
   agent: {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
-    startChat: (projectPath: string) => Promise<{ chatId: string }>;
-    sendMessage: (chatId: string, message: string) => void;
-    stopChat: (chatId: string) => void;
+    sendMessage: (projectPath: string, message: string, sessionId?: string | null) => Promise<{ chatId: string; sessionId: string }>;
     abort: (runId: string) => void;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;

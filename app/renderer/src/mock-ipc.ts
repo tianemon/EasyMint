@@ -197,71 +197,18 @@ export const electronAPIMock = {
         }
       }, 2000 + MOCK_STREAM_EVENTS.length * 300);
       return delay({ runId });
-    },
-    startChat: (_projectPath: string) => {
-      // Simulate chat started
+    sendMessage: (_projectPath: string, message: string, _sessionId?: string | null) => {
+      const chatId = 'mock-chat';
       setTimeout(() => {
         if (_streamCallback) {
-          _streamCallback({
-            runId: "mock-chat",
-            type: "system",
-            data: { message: "Chat 模式已启动 — 与 Claude 自由对话" },
-            timestamp: Date.now(),
-            source: "chat",
-          });
+          _streamCallback({ runId: chatId, type: 'assistant', data: { text: `收到: "${message}"。这是模拟回复。` }, timestamp: Date.now(), source: 'chat' as const });
         }
-      }, 100);
-      return delay({ chatId: "mock-chat" });
-    },
-    sendMessage: (_chatId: string, message: string) => {
-      setTimeout(() => {
-        if (_streamCallback) {
-          _streamCallback({
-            runId: "mock-chat",
-            type: "user_message",
-            data: { text: message },
-            timestamp: Date.now(),
-            source: "chat",
-          });
-        }
-      }, 50);
-      setTimeout(() => {
-        if (_streamCallback) {
-          const keywords = Object.keys(MOCK_CHAT_RESPONSES);
-          const matched = keywords.find((kw) => message.includes(kw));
-          const reply = matched
-            ? MOCK_CHAT_RESPONSES[matched]!
-            : `收到你的消息。这是一个通用回复，因为你的输入没有匹配到特定关键词。试试输入包含「博客」「分析」或「项目」的内容来获取更有针对性的回复。`;
-          _streamCallback({
-            runId: "mock-chat",
-            type: "assistant",
-            data: { text: reply },
-            timestamp: Date.now() + 100,
-            source: "chat",
-          });
-        }
-      }, 800);
-    },
-    stopChat: (_chatId: string) => {
-      setTimeout(() => {
-        if (_streamCallback) {
-          _streamCallback({
-            runId: "mock-chat",
-            type: "system",
-            data: { message: "Chat 已结束" },
-            timestamp: Date.now(),
-            source: "chat",
-          });
-        }
-        if (_exitCallback) {
-          _exitCallback({ runId: _chatId, code: 0 });
-        }
-      }, 100);
+      }, 600);
+      setTimeout(() => { if (_exitCallback) _exitCallback({ runId: chatId, code: 0 }); }, 800);
+      return delay({ chatId, sessionId: 'mock-sess' });
     },
     abort: (_runId: string) => {},
-    onStream: (callback: (event: StreamEvent) => void) => {
-      _streamCallback = callback;
-      return () => { _streamCallback = null; };
+
     },
     onStderr: (_callback: (data: { runId: string; data: string; timestamp: number }) => void) => {
       return () => {};
