@@ -64,11 +64,12 @@ export function ProjectPage(): JSX.Element {
   );
 
   const handleNewSession = useCallback(() => {
-    if (!projectId) return;
-    window.electronAPI.session.create(projectId, "新会话").then((s) => {
-      setActiveSessionId(s.id);
-      openTab({ id: "", type: "chat", title: "新会话", sessionId: s.id });
-    });
+    const pid = projectId || "default";
+    const tab = { id: `new-${Date.now()}`, type: "chat" as const, title: `新会话`, sessionId: `sess-${Date.now()}` };
+    openTab(tab);
+    if (window.electronAPI.session?.create) {
+      window.electronAPI.session.create(pid, "新会话").catch(() => {});
+    }
   }, [projectId, openTab]);
 
   const handleChatFirstMessage = useCallback(() => {
