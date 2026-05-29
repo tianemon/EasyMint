@@ -1,6 +1,16 @@
 import { BrowserWindow } from "electron";
-import { query, type SDKMessage, type Options as QueryOptions } from "@anthropic-ai/claude-agent-sdk";
+import type { SDKMessage, Options as QueryOptions } from "@anthropic-ai/claude-agent-sdk";
 import { Store } from "./store";
+
+// Dynamic import — ESM SDK in CJS context (matching Proma pattern)
+type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
+let _query: QueryFn | null = null;
+async function getQuery(): Promise<QueryFn> {
+  if (!_query) {
+    _query = (await import("@anthropic-ai/claude-agent-sdk")).query;
+  }
+  return _query;
+}
 
 interface ActiveRun {
   runId: string;
@@ -48,7 +58,7 @@ export class AgentService {
     // Run async, don't block IPC handler
     (async () => {
       try {
-        for await (const msg of query({
+        for await (const msg of (await getQuery())({
           prompt,
           options: buildQueryOptions(projectPath, this.store),
         })) {
@@ -96,7 +106,7 @@ export class AgentService {
 
     // Send initial system message to establish session
     try {
-      for await (const msg of query({
+      for await (const msg of (await getQuery())({
           prompt: "Hello",
           options: buildQueryOptions(projectPath, this.store),
         })) {
@@ -136,7 +146,7 @@ export class AgentService {
 
     (async () => {
       try {
-        for await (const msg of query({
+        for await (const msg of (await getQuery())({
           prompt: message,
           options: buildQueryOptions(chat.projectPath, this.store, { resume: chat.sessionId }),
         })) {

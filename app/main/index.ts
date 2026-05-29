@@ -18,7 +18,7 @@ async function createWindow(): Promise<void> {
     minHeight: 700,
     titleBarStyle: "hiddenInset",
     webPreferences: {
-      preload: path.join(__dirname, "..", "..", "preload", "dist", "index.js"),
+      preload: path.join(__dirname, "..", "..", "preload", "dist", "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
