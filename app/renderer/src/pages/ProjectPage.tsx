@@ -87,11 +87,11 @@ export function ProjectPage(): JSX.Element {
 
   const gridColumns = [
     "44px",
-    collapsedLeft ? "24px" : `${leftWidth}px`,
+    collapsedLeft ? "0px" : `${leftWidth}px`,
     collapsedLeft ? "0px" : "4px",
     "1fr",
     collapsedRight ? "0px" : "4px",
-    collapsedRight ? "24px" : `${rightWidth}px`,
+    collapsedRight ? "0px" : `${rightWidth}px`,
   ].join(" ");
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
@@ -129,39 +129,31 @@ export function ProjectPage(): JSX.Element {
         {/* Col 1 */}
         <LeftToolbar activePanel={activePanel} onSelect={setActivePanel} onSettings={() => setShowSettings(true)} />
 
-        {/* Col 2 — panel or peek button */}
-        <div className="min-w-0 overflow-hidden">
-          {collapsedLeft ? (
-            <div className="flex items-center justify-center h-full">
-              <button className="w-5 h-12 rounded-r-md bg-surface-alt border border-border border-l-0 text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors" onClick={toggleLeft} title="展开文件面板">▸</button>
-            </div>
-          ) : (
-            <LeftPanel activePanel={activePanel} projectPath={projectPath} projectId={projectId!} onCollapse={toggleLeft} onFileClick={handleFileClick} onSessionClick={handleSessionClick} onNewSession={handleNewSession} activeSessionId={activeSessionId} />
-          )}
-        </div>
+        {/* Col 2 — panel when open, empty when collapsed */}
+        {collapsedLeft ? <div /> : (
+          <LeftPanel activePanel={activePanel} projectPath={projectPath} projectId={projectId!} onCollapse={toggleLeft} onFileClick={handleFileClick} onSessionClick={handleSessionClick} onNewSession={handleNewSession} activeSessionId={activeSessionId} />
+        )}
 
-        {/* Col 3 — handle always present, hidden when collapsed */}
+        {/* Col 3 — handle, always present */}
         <DragHandle onDrag={handleLeftDrag} />
 
-        {/* Col 4 */}
-        <div className="flex flex-col min-w-0 overflow-hidden">
+        {/* Col 4 — center area, peek buttons float on its edges */}
+        <div className="flex flex-col min-w-0 overflow-hidden relative">
+          {collapsedLeft && (
+            <button className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-r-md bg-surface-alt border border-border border-l-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleLeft} title="展开文件面板">▸</button>
+          )}
           <TabBar />
           <div className="flex-1 min-h-0">{renderTabContent()}</div>
-        </div>
-
-        {/* Col 5 — handle always present, hidden when collapsed */}
-        <DragHandle onDrag={handleRightDrag} />
-
-        {/* Col 6 — panel or peek button */}
-        <div className="min-w-0 overflow-hidden">
-          {collapsedRight ? (
-            <div className="flex items-center justify-center h-full">
-              <button className="w-5 h-12 rounded-l-md bg-surface-alt border border-border border-r-0 text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors" onClick={toggleRight} title="展开任务面板">◂</button>
-            </div>
-          ) : (
-            <RightPanel onCollapse={toggleRight} />
+          {collapsedRight && (
+            <button className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-l-md bg-surface-alt border border-border border-r-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleRight} title="展开任务面板">◂</button>
           )}
         </div>
+
+        {/* Col 5 — handle, always present */}
+        <DragHandle onDrag={handleRightDrag} />
+
+        {/* Col 6 — panel when open, empty when collapsed */}
+        {collapsedRight ? <div /> : <RightPanel onCollapse={toggleRight} />}
       </div>
 
       <SettingsDialog open={showSettings} onClose={() => setShowSettings(false)} />
