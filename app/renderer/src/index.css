@@ -133,14 +133,14 @@ button, a, input, select, textarea, .transition-all {
   left: 110%;
   top: 50%;
   transform: translateY(-50%);
-  background: #0d1f17;
-  color: #ffffff;
+  background: var(--color-text-primary);
+  color: var(--color-surface);
   font-size: 11px;
   padding: 4px 8px;
   border-radius: 4px;
   white-space: nowrap;
   pointer-events: none;
-  z-index: 100;
+  z-index: 50;
 }
 
 /* Grid transition for panel collapse/expand */

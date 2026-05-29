@@ -270,9 +270,9 @@ export function ChatPanel({
             <button
               onClick={handleSend}
               disabled={!input.trim()}
-              className="w-9 h-9 rounded-full bg-accent text-white text-sm flex items-center justify-center hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+              className="w-9 h-9 rounded-md bg-accent text-white flex items-center justify-center hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              ↑
+              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
             </button>
             {active && (
               <button
