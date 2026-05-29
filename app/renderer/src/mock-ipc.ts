@@ -194,25 +194,6 @@ export const electronAPIMock = {
       setTimeout(() => { if (_exitCallback) _exitCallback({ runId: chatId, code: 0 }); }, 800);
       return delay({ chatId, sessionId: 'mock-sess' });
     },
-    abort: (_runId: string) => {},
-    onStream: (callback: (event: StreamEvent) => void) => {
-      _streamCallback = callback;
-      return () => { _streamCallback = null; };
-    },
-    onStderr: (_callback: (data: { runId: string; data: string; timestamp: number }) => void) => { return () => {}; },
-    onExit: (callback: (data: { runId: string; code: number }) => void) => {
-      _exitCallback = callback;
-      return () => { _exitCallback = null; };
-    },
-  },
-    abort: (_runId: string) => {},
-    onStderr: (_callback: (data: { runId: string; data: string; timestamp: number }) => void) => {
-      return () => {};
-    },
-    onExit: (callback: (data: { runId: string; code: number }) => void) => {
-      _exitCallback = callback;
-      return () => { _exitCallback = null; };
-    },
   },
   evaluator: {
     isEnabled: async () => true,
