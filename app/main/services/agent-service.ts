@@ -184,6 +184,9 @@ function toStreamEvent(msg: SDKMessage, runId: string, source: "worker" | "chat"
 
   if (t === "system") {
     const subtype = (msg as { subtype?: string }).subtype ?? "";
+    // Filter out noisy SDK lifecycle events
+    const skip = new Set(["init", "hook_started", "hook_response", "hook_progress", "memory_recall", "api_retry", "status", "requesting", "compacting", "session_state_changed", "notification", "permission_denied", "files_persisted", "rate_limit"]);
+    if (skip.has(subtype)) return null;
     return { runId, type: "system", data: { message: subtype || "System event" }, timestamp: ts, source };
   }
 
