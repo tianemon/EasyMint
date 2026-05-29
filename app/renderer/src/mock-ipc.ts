@@ -208,8 +208,6 @@ export const electronAPIMock = {
       return delay({ chatId, sessionId: 'mock-sess' });
     },
     abort: (_runId: string) => {},
-
-    },
     onStderr: (_callback: (data: { runId: string; data: string; timestamp: number }) => void) => {
       return () => {};
     },
