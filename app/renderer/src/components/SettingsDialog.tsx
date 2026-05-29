@@ -61,8 +61,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     evaluateMode,
     tddMode,
     screenshotVerification,
-    claudePath,
-    claudeVersion,
     apiBaseUrl,
     apiKey,
     setEvaluateMode,
@@ -105,32 +103,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               <p className="text-xs text-text-secondary mt-0.5">
                 亮色 Mint（仅亮色）
               </p>
-            </div>
-          </section>
-
-          {/* Claude CLI */}
-          <section>
-            <h3 className="text-sm font-medium text-text-secondary mb-2">Claude CLI</h3>
-            <div className="bg-surface-alt rounded-lg px-4 py-3 space-y-1.5">
-              {claudePath ? (
-                <>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-accent shrink-0" />
-                    <span className="text-sm text-text-primary">✓ 已检测到</span>
-                  </div>
-                  <p className="text-xs text-text-secondary pl-4">
-                    路径: <code className="text-accent bg-accent/5 px-1 py-0.5 rounded text-[11px]">{claudePath}</code>
-                  </p>
-                  <p className="text-xs text-text-secondary pl-4">
-                    版本: {claudeVersion}
-                  </p>
-                </>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-yellow-500" />
-                  <span className="text-sm text-text-secondary">未检测到 Claude CLI</span>
-                </div>
-              )}
             </div>
           </section>
 
