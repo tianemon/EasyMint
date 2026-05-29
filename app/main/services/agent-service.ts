@@ -25,15 +25,12 @@ interface ActiveChat {
 }
 
 /** Build a query options block, reading API config from the Store. */
-function buildQueryOptions(projectPath: string, store: Store, overrides?: Partial<QueryOptions> & { thinkingBudget?: number }): QueryOptions {
+function buildQueryOptions(projectPath: string, store: Store, overrides?: Partial<QueryOptions> & { thinkingEnabled?: boolean }): QueryOptions {
   const settings = store.getSettings();
   const env: Record<string, string> = {};
   if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
   if (settings.apiKey) env.ANTHROPIC_API_KEY = settings.apiKey;
-  const thinkingBudget = overrides?.thinkingBudget ?? 0;
-  const thinking = thinkingBudget > 0
-    ? { type: "enabled" as const, budgetTokens: thinkingBudget }
-    : { type: "disabled" as const };
+  const thinking = overrides?.thinkingEnabled ? { type: "enabled" as const } : undefined;
   return {
     cwd: projectPath,
     permissionMode: "bypassPermissions",
@@ -101,7 +98,7 @@ export class AgentService {
   }
 
   /** Send message — first call establishes session, subsequent calls use resume */
-  sendMessage(projectPath: string, message: string, sessionId: string | null, thinkingBudget: number, mainWindow: BrowserWindow): { chatId: string; sessionId: string } {
+  sendMessage(projectPath: string, message: string, sessionId: string | null, thinkingEnabled: boolean, mainWindow: BrowserWindow): { chatId: string; sessionId: string } {
     const chatId = `chat-${++this.chatCounter}`;
 
     // Build options: first message has no resume, subsequent messages resume existing session

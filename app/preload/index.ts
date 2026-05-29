@@ -62,7 +62,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   agent: {
     runWorker: (projectPath: string, prompt: string) =>
       ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; thinkingBudget?: number }) =>
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; thinkingEnabled?: boolean }) =>
       ipcRenderer.invoke("agent:sendMessage", { projectPath, message, ...opts }),
     abort: (runId: string) => ipcRenderer.invoke("agent:abort", { runId }),
     onStream: (callback: (event: unknown) => void) => {

@@ -66,7 +66,7 @@ interface ElectronAPI {
   };
   agent: {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; thinkingBudget?: number }) => Promise<{ chatId: string; sessionId: string }>;
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; thinkingEnabled?: boolean }) => Promise<{ chatId: string; sessionId: string }>;
     abort: (runId: string) => void;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
@@ -83,9 +83,9 @@ interface ElectronAPI {
     detect: () => Promise<{ found: boolean; path?: string; version?: string }>;
   };
   conv: {
-    list: () => Promise<{ id: string; title: string; createdAt: number; updatedAt: number; sdkSessionId?: string; thinkingBudget?: number }[]>;
-    get: (id: string) => Promise<{ id: string; title: string; createdAt: number; updatedAt: number; sdkSessionId?: string; thinkingBudget?: number } | null>;
-    create: (title?: string) => Promise<{ id: string; title: string; createdAt: number; updatedAt: number; sdkSessionId?: string; thinkingBudget?: number }>;
+    list: () => Promise<{ id: string; title: string; createdAt: number; updatedAt: number; sdkSessionId?: string; thinkingEnabled?: boolean }[]>;
+    get: (id: string) => Promise<{ id: string; title: string; createdAt: number; updatedAt: number; sdkSessionId?: string; thinkingEnabled?: boolean } | null>;
+    create: (title?: string) => Promise<{ id: string; title: string; createdAt: number; updatedAt: number; sdkSessionId?: string; thinkingEnabled?: boolean }>;
     update: (id: string, patch: Record<string, unknown>) => Promise<{ id: string; title: string; createdAt: number; updatedAt: number } | null>;
     delete: (id: string) => Promise<void>;
     messages: (id: string) => Promise<{ id: string; role: string; content: string; createdAt: number }[]>;

@@ -27,7 +27,7 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [thinkingBudget, setThinkingBudget] = useState(0);
+  const [thinkingEnabled, setThinkingEnabled] = useState(false);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const msgIdRef = useRef(0);
   const convIdRef = useRef<string | undefined>(convId);
@@ -54,7 +54,7 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
     if (!convId) return;
     window.electronAPI.conv.get(convId).then((meta) => {
       if (meta?.sdkSessionId) setSessionId(meta.sdkSessionId);
-      if (meta?.thinkingBudget !== undefined) setThinkingBudget(meta.thinkingBudget);
+      if (meta?.thinkingEnabled !== undefined) setThinkingEnabled(meta.thinkingEnabled);
     }).catch(() => {});
     window.electronAPI.conv.messages(convId).then((msgs) => {
       const mapped: ChatMessage[] = msgs.map((m) => ({
@@ -115,7 +115,7 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
 
     try {
       setStreaming(true);
-    const result = await window.electronAPI.agent.sendMessage(projectPath, trimmed, { sessionId, thinkingBudget });
+    const result = await window.electronAPI.agent.sendMessage(projectPath, trimmed, { sessionId, thinkingEnabled });
     setCurrentRunId(result.chatId);
     if (!sessionId && result.sessionId) {
         setSessionId(result.sessionId);
@@ -210,19 +210,17 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
           )}
         </div>
         <div className="flex items-center gap-2 mt-2">
-          <span className="text-[10px] text-text-secondary">思考</span>
-          <input
-            type="range"
-            min={0} max={2000} step={250}
-            value={thinkingBudget}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              setThinkingBudget(v);
-              if (convIdRef.current) window.electronAPI.conv.update(convIdRef.current, { thinkingBudget: v } as any).catch(() => {});
+          <span className="text-[10px] text-text-secondary">思考模式</span>
+          <button
+            onClick={() => {
+              const v = !thinkingEnabled;
+              setThinkingEnabled(v);
+              if (convIdRef.current) window.electronAPI.conv.update(convIdRef.current, { thinkingEnabled: v } as any).catch(() => {});
             }}
-            className="flex-1 h-1 accent-accent"
-          />
-          <span className="text-[10px] text-text-secondary w-10 text-right">{thinkingBudget === 0 ? "关" : thinkingBudget}</span>
+            className={`relative w-8 h-5 rounded-full transition-colors ${thinkingEnabled ? "bg-accent" : "bg-border"}`}
+          >
+            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${thinkingEnabled ? "translate-x-3.5" : "translate-x-0.5"}`} />
+          </button>
         </div>
       </div>
     </div>

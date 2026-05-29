@@ -189,7 +189,7 @@ interface ConversationMeta {
   createdAt: number;
   updatedAt: number;
   sdkSessionId?: string;
-  thinkingBudget?: number; // 0 = disabled, per-conversation
+  thinkingEnabled?: boolean;
 }
 
 interface ChatMessage {
