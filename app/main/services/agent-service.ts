@@ -76,7 +76,7 @@ export class AgentService {
           }
         }
       } catch (err: unknown) {
-        if (!aborted) {
+        if (this.activeRuns.has(runId)) {
           const msg = err instanceof Error ? err.message : String(err);
           mainWindow.webContents.send("agent:stderr", { runId, data: msg, timestamp: Date.now() });
           mainWindow.webContents.send("agent:exit", { runId, code: -1 });
