@@ -114,7 +114,6 @@ export function ChatPanel({
           ...prev,
           { id: ++msgIdRef.current, role: "ai" as const, entries: [{ kind: "exit", code: data.code, timestamp: Date.now() } as ReturnType<typeof normalizeEvent>], timestamp: Date.now() },
         ]);
-        ]);
         setActive(false);
       }
     );
