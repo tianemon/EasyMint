@@ -93,6 +93,7 @@ button, a, input, select, textarea, .transition-all {
 /* DragHandle — splitter between panels, extended invisible hit area via ::before */
 .drag-handle {
   width: 4px;
+  height: 100%;
   cursor: col-resize;
   background: var(--color-border);
   position: relative;
