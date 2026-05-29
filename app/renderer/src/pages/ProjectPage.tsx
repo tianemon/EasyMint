@@ -145,7 +145,7 @@ export function ProjectPage(): JSX.Element {
           <TabBar />
           <div className="flex-1 min-h-0">{renderTabContent()}</div>
           {collapsedRight && (
-            <button className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-l-md bg-surface-alt border border-border border-r-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleRight} title="展开任务面板">◂</button>
+            <button className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-l-md bg-surface-alt border border-border border-r-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleRight} title="展开任务面板">▸</button>
           )}
         </div>
 
