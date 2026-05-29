@@ -8,11 +8,13 @@ interface SettingsState {
   claudeVersion: string;
   apiBaseUrl: string;
   apiKey: string;
+  thinkingBudget: number;
   setEvaluateMode: (enabled: boolean) => void;
   setTddMode: (enabled: boolean) => void;
   setScreenshotVerification: (enabled: boolean) => void;
   setApiBaseUrl: (url: string) => void;
   setApiKey: (key: string) => void;
+  setThinkingBudget: (budget: number) => void;
   loadFromElectron: () => Promise<void>;
 }
 
@@ -24,6 +26,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   claudeVersion: "",
   apiBaseUrl: "",
   apiKey: "",
+  thinkingBudget: 1000,
 
   setEvaluateMode: (enabled) => {
     set({ evaluateMode: enabled });
@@ -48,6 +51,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     set({ apiKey: key });
     window.electronAPI?.settings?.set?.("apiKey", key);
   },
+  setThinkingBudget: (budget) => {
+    set({ thinkingBudget: budget });
+    window.electronAPI?.settings?.set?.("thinkingBudget", budget);
+  },
 
   loadFromElectron: async () => {
     try {
@@ -59,6 +66,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
           screenshotVerification: settings.screenshotVerification ?? false,
           apiBaseUrl: settings.apiBaseUrl ?? "",
           apiKey: settings.apiKey ?? "",
+          thinkingBudget: settings.thinkingBudget ?? 1000,
         });
       }
     } catch { /* mock-ipc fallback */ }

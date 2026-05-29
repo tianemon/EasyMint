@@ -30,10 +30,14 @@ function buildQueryOptions(projectPath: string, store: Store, overrides?: Partia
   const env: Record<string, string> = {};
   if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
   if (settings.apiKey) env.ANTHROPIC_API_KEY = settings.apiKey;
+  const thinking = settings.thinkingBudget && settings.thinkingBudget > 0
+    ? { type: "enabled" as const, budgetTokens: settings.thinkingBudget }
+    : { type: "disabled" as const };
   return {
     cwd: projectPath,
     permissionMode: "bypassPermissions",
     model: process.env.ANTHROPIC_MODEL || undefined,
+    thinking,
     env: Object.keys(env).length > 0 ? env : undefined,
     ...overrides,
   };
