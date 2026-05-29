@@ -27,6 +27,7 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [thinkingBudget, setThinkingBudget] = useState(0);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const msgIdRef = useRef(0);
   const convIdRef = useRef<string | undefined>(convId);
@@ -53,6 +54,7 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
     if (!convId) return;
     window.electronAPI.conv.get(convId).then((meta) => {
       if (meta?.sdkSessionId) setSessionId(meta.sdkSessionId);
+      if (meta?.thinkingBudget !== undefined) setThinkingBudget(meta.thinkingBudget);
     }).catch(() => {});
     window.electronAPI.conv.messages(convId).then((msgs) => {
       const mapped: ChatMessage[] = msgs.map((m) => ({
@@ -113,7 +115,7 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
 
     try {
       setStreaming(true);
-    const result = await window.electronAPI.agent.sendMessage(projectPath, trimmed, sessionId);
+    const result = await window.electronAPI.agent.sendMessage(projectPath, trimmed, { sessionId, thinkingBudget });
     setCurrentRunId(result.chatId);
     if (!sessionId && result.sessionId) {
         setSessionId(result.sessionId);
@@ -180,7 +182,26 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
           </div>
         )}
       </div>
-      <div className="border-t border-border p-3 shrink-0">
+      <div className="border-t border-border px-3 pt-2 pb-0 shrink-0">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[10px] text-text-secondary">思考</span>
+          <select
+            className="text-[10px] px-1.5 py-0.5 rounded bg-surface-alt border border-border text-text-primary outline-none"
+            value={thinkingBudget}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setThinkingBudget(v);
+              if (convIdRef.current) window.electronAPI.conv.update(convIdRef.current, { thinkingBudget: v } as any).catch(() => {});
+            }}
+          >
+            <option value={0}>关</option>
+            <option value={500}>低</option>
+            <option value={1000}>中</option>
+            <option value={2000}>高</option>
+          </select>
+        </div>
+      </div>
+      <div className="border-t border-border p-3 pt-2 shrink-0">
         <div className="flex gap-2 items-end">
           <textarea
             value={input}

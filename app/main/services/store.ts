@@ -33,7 +33,6 @@ interface Settings {
   screenshotVerification?: boolean;
   apiBaseUrl?: string;
   apiKey?: string;
-  thinkingBudget?: number; // 0 = disabled, >0 = token budget
 }
 
 export class Store {
@@ -190,6 +189,7 @@ interface ConversationMeta {
   createdAt: number;
   updatedAt: number;
   sdkSessionId?: string;
+  thinkingBudget?: number; // 0 = disabled, per-conversation
 }
 
 interface ChatMessage {

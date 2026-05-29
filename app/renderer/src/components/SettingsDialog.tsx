@@ -63,13 +63,11 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     screenshotVerification,
     apiBaseUrl,
     apiKey,
-    thinkingBudget,
     setEvaluateMode,
     setTddMode,
     setScreenshotVerification,
     setApiBaseUrl,
     setApiKey,
-    setThinkingBudget,
     loadFromElectron,
   } = useSettingsStore();
   const [showKey, setShowKey] = useState(false);
@@ -145,25 +143,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                   </button>
                 </div>
               </div>
-            </div>
-          </section>
-
-          {/* 思考模式 */}
-          <section>
-            <h3 className="text-sm font-medium text-text-secondary mb-2">思考模式</h3>
-            <div className="bg-surface-alt rounded-lg px-4 py-3">
-              <select
-                className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
-                value={thinkingBudget}
-                onChange={(e) => setThinkingBudget(Number(e.target.value))}
-              >
-                <option value={0}>关闭 — 不显示思考过程</option>
-                <option value={500}>低 — 简短思考 (500 tokens)</option>
-                <option value={1000}>中 — 标准思考 (1000 tokens)</option>
-                <option value={2000}>高 — 深度思考 (2000 tokens)</option>
-                <option value={4000}>完整 — 完整推理 (4000 tokens)</option>
-              </select>
-              <p className="text-[11px] text-text-secondary mt-2">控制 Claude 回复前的推理深度。越高回答质量越好，但 Token 消耗更大。</p>
             </div>
           </section>
 
