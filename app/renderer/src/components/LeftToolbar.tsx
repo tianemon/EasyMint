@@ -12,7 +12,6 @@ interface ToolDef {
 const TOOLS: ToolDef[] = [
   { id: "files", label: "项目文件", icon: "🌳" },
   { id: "sessions", label: "会话", icon: "💬" },
-  { id: "chat", label: "Chat 对话", icon: "💭" },
   { label: "终端 · 即将推出", icon: ">_", disabled: true },
 ];
 
@@ -82,8 +81,8 @@ export function LeftToolbar({ activePanel, onSelect, onSettings }: LeftToolbarPr
 
       <div className="w-6 h-px bg-border my-2.5" />
 
-      {/* Tool buttons — evenly spaced */}
-      <div className="flex-1 flex flex-col items-center justify-evenly">
+      {/* Tool buttons — grouped at top */}
+      <div className="flex flex-col items-center gap-2">
         {TOOLS.map((tool) => (
           <button
             key={tool.label}

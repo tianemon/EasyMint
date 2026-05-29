@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { normalizeEvent, StreamEntryView } from "./StreamPanel";
-import { useSettingsStore } from "../stores/settings-store";
 
 interface ChatMessage {
   id: number;
@@ -30,7 +29,6 @@ export function ChatPanel({
   const chatIdRef = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
-  const evaluateMode = useSettingsStore((s) => s.evaluateMode);
 
   const scrollToBottom = useCallback(() => {
     if (autoScrollRef.current && containerRef.current) {
@@ -284,15 +282,6 @@ export function ChatPanel({
         )}
       </div>
 
-      {/* Token 状态栏 */}
-      <div className="h-7 border-t border-border bg-surface-alt flex items-center justify-between px-3 shrink-0">
-        <span className="text-[10px] text-text-secondary">
-          模式：<span className="text-text-primary font-medium">{evaluateMode ? "评估中" : "普通开发"}</span>
-        </span>
-        <span className="text-[10px] text-text-secondary">
-          预估消耗：<span className="text-accent">{"⭐".repeat(evaluateMode ? 3 : 1)}</span>
-        </span>
-      </div>
     </div>
   );
 }

@@ -5,7 +5,6 @@ import { LeftPanel } from "../components/LeftPanel";
 import { RightPanel } from "../components/RightPanel";
 import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
-import { StreamPanel } from "../components/StreamPanel";
 import { SettingsDialog } from "../components/SettingsDialog";
 import { TabBar } from "../components/TabBar";
 import { DragHandle } from "../components/DragHandle";
@@ -152,16 +151,8 @@ export function ProjectPage(): JSX.Element {
           {/* Tab bar */}
           <TabBar />
 
-          {/* Content: tab content (upper) + stream panel (lower) */}
-          <div className="flex-1 min-h-0 flex flex-col">
-            {/* Upper: active tab content */}
-            <div className="flex-1 min-h-0">{renderTabContent()}</div>
-
-            {/* Lower: stream output panel */}
-            <div className="flex-1 min-h-[200px] border-t border-border">
-              <StreamPanel />
-            </div>
-          </div>
+          {/* Content: fills remaining space */}
+          <div className="flex-1 min-h-0">{renderTabContent()}</div>
 
           {/* Bottom action bar */}
           <div className="h-12 border-t border-border flex items-center justify-end px-4 gap-3 bg-surface-alt shrink-0">
