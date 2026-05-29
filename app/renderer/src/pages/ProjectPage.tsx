@@ -32,9 +32,10 @@ export function ProjectPage(): JSX.Element {
     setRightWidth,
   } = useWorkspaceStore();
 
-  const { tabs, activeTabId, openTab } = useTabStore();
+  const { tabs, activeTabId, openTab, closeTab } = useTabStore();
 
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
+  const [currentConvId, setCurrentConvId] = useState<string | undefined>();
 
   useEffect(() => {
     if (projectId) {
@@ -55,21 +56,24 @@ export function ProjectPage(): JSX.Element {
   );
 
   const handleSessionClick = useCallback(
-    (sessionId: string) => {
-      setActiveSessionId(sessionId);
-      openTab({ id: "", type: "chat", title: "对话", sessionId });
+    (convId: string) => {
+      setActiveSessionId(convId);
+      setCurrentConvId(convId);
+      openTab({ id: "", type: "chat", title: "对话", sessionId: convId });
     },
     [openTab]
   );
 
-  const handleNewSession = useCallback(() => {
-    const pid = projectId || "default";
-    const tab = { id: `new-${Date.now()}`, type: "chat" as const, title: `新会话`, sessionId: `sess-${Date.now()}` };
-    openTab(tab);
-    if (window.electronAPI.session?.create) {
-      window.electronAPI.session.create(pid, "新会话").catch(() => {});
-    }
-  }, [projectId, openTab]);
+  const handleNewSession = useCallback(async () => {
+    const meta = await window.electronAPI.conv.create("新会话");
+    setCurrentConvId(meta.id);
+    openTab({ id: "", type: "chat" as const, title: "新会话", sessionId: meta.id });
+  }, [openTab]);
+
+  const handleSessionDelete = useCallback((convId: string) => {
+    if (activeSessionId === convId) setActiveSessionId(undefined);
+    closeTab(convId);
+  }, [activeSessionId, closeTab]);
 
   const handleChatFirstMessage = useCallback(() => {
     // Tab title already set, no action needed on first message
@@ -104,7 +108,7 @@ export function ProjectPage(): JSX.Element {
           <ChatPanel
             key={activeTab.id}
             projectPath={projectPath}
-            onSendFirstMessage={handleChatFirstMessage}
+            convId={currentConvId}
           />
         );
       case "file":
@@ -127,7 +131,7 @@ export function ProjectPage(): JSX.Element {
         <LeftToolbar activePanel={activePanel} onSelect={setActivePanel} onSettings={() => setShowSettings(true)} />
 
         {collapsedLeft ? <div /> : (
-          <LeftPanel activePanel={activePanel} projectPath={projectPath} projectId={projectId!} onCollapse={toggleLeft} onFileClick={handleFileClick} onSessionClick={handleSessionClick} onNewSession={handleNewSession} activeSessionId={activeSessionId} />
+          <LeftPanel activePanel={activePanel} projectPath={projectPath} projectId={projectId!} onCollapse={toggleLeft} onFileClick={handleFileClick} onSessionClick={handleSessionClick} onNewSession={handleNewSession} onSessionDelete={handleSessionDelete} activeSessionId={activeSessionId} />
         )}
 
         <div className="flex flex-col min-w-0 overflow-hidden relative">

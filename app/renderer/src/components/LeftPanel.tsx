@@ -11,6 +11,7 @@ interface LeftPanelProps {
   onFileClick?: (filePath: string, fileName: string) => void;
   onSessionClick?: (sessionId: string) => void;
   onNewSession?: () => void;
+  onSessionDelete?: (convId: string) => void;
   activeSessionId?: string;
 }
 
@@ -22,6 +23,7 @@ export function LeftPanel({
   onFileClick,
   onSessionClick,
   onNewSession,
+  onSessionDelete,
   activeSessionId,
 }: LeftPanelProps): JSX.Element {
   const isFiles = activePanel === "files" || activePanel === "editor";
@@ -65,10 +67,10 @@ export function LeftPanel({
           />
         ) : (
           <SessionHistory
-            projectId={projectId}
             onSessionClick={onSessionClick}
             onNewSession={onNewSession}
-            activeSessionId={activeSessionId}
+            onSessionDelete={onSessionDelete}
+            activeConvId={activeSessionId}
           />
         )}
       </div>

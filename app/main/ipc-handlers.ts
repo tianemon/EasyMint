@@ -63,6 +63,14 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     agentService.stopChat(chatId);
   });
 
+  // conversation:*
+  ipcMain.handle("conv:list", () => store.listConversations());
+  ipcMain.handle("conv:create", (_e, { title }) => store.createConversation(title));
+  ipcMain.handle("conv:update", (_e, { id, patch }) => store.updateConversationMeta(id, patch));
+  ipcMain.handle("conv:delete", (_e, { id }) => { store.deleteConversation(id); });
+  ipcMain.handle("conv:messages", (_e, { id }) => store.getConversationMessages(id));
+  ipcMain.handle("conv:appendMessage", (_e, { convId, message }) => { store.appendConversationMessage(convId, message); });
+
   // claude:*
   ipcMain.handle("claude:detect", () => detectClaude());
 

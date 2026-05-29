@@ -6,27 +6,26 @@ interface ChatMessage {
   id: number;
   role: "user" | "ai";
   text?: string;
-  /** AI messages batch events into one turn: text entries shown, others collapsed */
   entries?: ReturnType<typeof normalizeEvent>[];
   timestamp: number;
 }
 
 function formatTime(ts: number): string {
-  const d = new Date(ts);
-  return d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+  return new Date(ts).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
 }
 
-export function ChatPanel({
-  projectPath,
-  onSendFirstMessage,
-}: {
+interface ChatPanelProps {
   projectPath: string;
-  onSendFirstMessage?: () => void;
-}): JSX.Element {
+  /** Existing conversation to resume, or undefined for new */
+  convId?: string;
+  onConvCreated?: (convId: string, title: string) => void;
+}
+
+export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps): JSX.Element {
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [active, setActive] = useState(false);
+  const [loading, setLoading] = useState(false);
   const msgIdRef = useRef(0);
   const chatIdRef = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -41,179 +40,117 @@ export function ChatPanel({
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-    autoScrollRef.current = atBottom;
+    autoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   }, []);
 
-  // 启动 Chat
+  // Load existing messages
   useEffect(() => {
-    let cancelled = false;
-    window.electronAPI.agent.startChat(projectPath).then((result: { chatId: string }) => {
-      if (!cancelled) {
-        chatIdRef.current = result.chatId;
-        setChatId(result.chatId);
-        setActive(true);
-      }
+    if (!convId) return;
+    window.electronAPI.conv.messages(convId).then((msgs) => {
+      const mapped: ChatMessage[] = msgs.map((m) => ({
+        id: ++msgIdRef.current,
+        role: m.role === "user" ? "user" : "ai",
+        text: m.role === "user" ? m.content : undefined,
+        entries: m.role === "assistant" ? [{ kind: "text", text: m.content, timestamp: m.createdAt }] : undefined,
+        timestamp: m.createdAt,
+      }));
+      setMessages(mapped);
     });
-    return () => {
-      cancelled = true;
-    };
+  }, [convId]);
+
+  // Start chat on first send
+  const ensureChat = useCallback(async (): Promise<string> => {
+    if (chatIdRef.current) return chatIdRef.current;
+    setLoading(true);
+    try {
+      const result = await window.electronAPI.agent.startChat(projectPath);
+      chatIdRef.current = result.chatId;
+      setChatId(result.chatId);
+      return result.chatId;
+    } finally {
+      setLoading(false);
+    }
   }, [projectPath]);
 
-  // unmount 时关闭 chat
+  // unmount
   useEffect(() => {
-    return () => {
-      if (chatIdRef.current) {
-        window.electronAPI.agent.stopChat(chatIdRef.current);
-      }
-    };
+    return () => { if (chatIdRef.current) window.electronAPI.agent.stopChat(chatIdRef.current); };
   }, []);
 
-  // 监听流式事件 — batch AI events into one turn, user_message starts new turn
+  // Stream listener
   useEffect(() => {
     let currentAiId = 0;
-
-    const unsubStream = window.electronAPI.agent.onStream(
-      (event: StreamEvent) => {
-        if (event.source !== "chat") return;
-        const ts = event.timestamp || Date.now();
-
-        if (event.type === "user_message" && typeof event.data.text === "string") {
-          setMessages((prev) => [
-            ...prev,
-            { id: ++msgIdRef.current, role: "user", text: event.data.text as string, timestamp: ts },
-          ]);
-          return;
+    const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
+      if (event.source !== "chat") return;
+      const ts = event.timestamp || Date.now();
+      if (event.type === "user_message" && typeof event.data.text === "string") {
+        setMessages((prev) => [...prev, { id: ++msgIdRef.current, role: "user", text: event.data.text as string, timestamp: ts }]);
+        // Save user message
+        const cid = chatIdRef.current;
+        if (cid) {
+          window.electronAPI.conv.appendMessage(cid, { id: `u-${ts}`, role: "user", content: event.data.text, createdAt: ts }).catch(() => {});
         }
-
-        // Batch AI events into current turn
-        const entry = normalizeEvent(event);
-        if (!currentAiId) {
-          currentAiId = ++msgIdRef.current;
-          setMessages((prev) => [...prev, { id: currentAiId, role: "ai", entries: [entry], timestamp: ts }]);
-        } else {
-          setMessages((prev) =>
-            prev.map((m) => (m.id === currentAiId ? { ...m, entries: [...(m.entries || []), entry], timestamp: ts } : m))
-          );
+        return;
+      }
+      const entry = normalizeEvent(event);
+      if (entry.kind === "text") {
+        // Save assistant text
+        const cid = chatIdRef.current;
+        if (cid) {
+          window.electronAPI.conv.appendMessage(cid, { id: `a-${ts}`, role: "assistant", content: entry.text, createdAt: ts }).catch(() => {});
         }
       }
-    );
-
-    const unsubStderr = window.electronAPI.agent.onStderr(
-      (data: { runId: string; data: string; timestamp: number }) => {
-        setMessages((prev) => [
-          ...prev,
-          { id: ++msgIdRef.current, role: "ai" as const, entries: [{ kind: "error", data: data.data, timestamp: data.timestamp } as ReturnType<typeof normalizeEvent>], timestamp: data.timestamp },
-        ]);
+      if (!currentAiId) {
+        currentAiId = ++msgIdRef.current;
+        setMessages((prev) => [...prev, { id: currentAiId, role: "ai", entries: [entry], timestamp: ts }]);
+      } else {
+        setMessages((prev) => prev.map((m) => m.id === currentAiId ? { ...m, entries: [...(m.entries || []), entry], timestamp: ts } : m));
       }
-    );
-
-    const unsubExit = window.electronAPI.agent.onExit(
-      (data: { runId: string; code: number }) => {
-        currentAiId = 0; // end current turn
-        setMessages((prev) => [
-          ...prev,
-          { id: ++msgIdRef.current, role: "ai" as const, entries: [{ kind: "exit", code: data.code, timestamp: Date.now() } as ReturnType<typeof normalizeEvent>], timestamp: Date.now() },
-        ]);
-        setActive(false);
-      }
-    );
-
-    return () => {
-      unsubStream();
-      unsubStderr();
-      unsubExit();
-    };
+    });
+    const unsubExit = window.electronAPI.agent.onExit(() => { currentAiId = 0; });
+    return () => { unsub(); unsubExit(); };
   }, []);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+  useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     const trimmed = input.trim();
-    if (!trimmed || !chatId) return;
-
-    if (messages.length === 0 && onSendFirstMessage) {
-      onSendFirstMessage();
+    if (!trimmed) return;
+    const cid = await ensureChat();
+    if (!cid) return;
+    // Auto-generate title from first message
+    if (messages.length === 0 && !convId) {
+      const title = trimmed.slice(0, 20) + (trimmed.length > 20 ? "…" : "");
+      window.electronAPI.conv.update(cid, { title }).catch(() => {});
+      onConvCreated?.(cid, title);
     }
-    window.electronAPI.agent.sendMessage(chatId, trimmed);
+    window.electronAPI.agent.sendMessage(cid, trimmed);
     setInput("");
-  }, [input, chatId, messages.length, onSendFirstMessage]);
+  }, [input, ensureChat, messages.length, convId, onConvCreated]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      }
-    },
-    [handleSend]
-  );
-
-  const handleStop = useCallback(() => {
-    if (chatId) {
-      window.electronAPI.agent.stopChat(chatId);
-      setActive(false);
-    }
-  }, [chatId]);
-
-  const handleQuickAction = useCallback(
-    (prompt: string) => {
-      if (!chatId) return;
-      if (messages.length === 0 && onSendFirstMessage) {
-        onSendFirstMessage();
-      }
-      window.electronAPI.agent.sendMessage(chatId, prompt);
-    },
-    [chatId, messages.length, onSendFirstMessage]
-  );
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  }, [handleSend]);
 
   const hasMessages = messages.length > 0;
 
   return (
     <div className="flex flex-col h-full">
-      {/* 消息区域 / 欢迎页 */}
-      <div
-        ref={containerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto"
-      >
+      <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
         {!hasMessages ? (
-          /* 欢迎页 */
           <div className="flex items-center justify-center h-full">
             <div className="text-center px-6">
               <svg className="w-12 h-12 mb-5 text-accent opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 2l1.5 5h5l-4 3 1.5 5-4-3-4 3 1.5-5-4-3h5L12 2z"/></svg>
-              <h2 className="text-lg font-semibold text-text-primary mb-2">
-                欢迎使用 EasyMint
-              </h2>
-              <p className="text-sm text-text-secondary mb-6">
-                与 Claude 自由对话，讨论需求和方案
-              </p>
+              <h2 className="text-lg font-semibold text-text-primary mb-2">欢迎使用 EasyMint</h2>
+              <p className="text-sm text-text-secondary mb-6">与 Claude 自由对话，讨论需求和方案</p>
               <div className="flex gap-2 justify-center flex-wrap">
-                <button
-                  onClick={() => handleQuickAction("帮我新建一个 Web 项目")}
-                  className="px-4 py-2 text-xs rounded-lg border border-accent/30 bg-accent/5 text-accent hover:bg-accent/10 transition-colors"
-                >
-                  新建项目
-                </button>
-                <button
-                  onClick={() => handleQuickAction("帮我创建一个个人博客项目")}
-                  className="px-4 py-2 text-xs rounded-lg border border-border bg-surface-alt text-text-primary hover:bg-surface-hover transition-colors"
-                >
-                  创建博客
-                </button>
-                <button
-                  onClick={() => handleQuickAction("帮我分析当前项目的代码结构")}
-                  className="px-4 py-2 text-xs rounded-lg border border-border bg-surface-alt text-text-primary hover:bg-surface-hover transition-colors"
-                >
-                  分析项目
-                </button>
+                <button onClick={() => { setInput("帮我新建一个 Web 项目"); }} className="px-4 py-2 text-xs rounded-lg border border-accent/30 bg-accent/5 text-accent hover:bg-accent/10 transition-colors">新建项目</button>
+                <button onClick={() => { setInput("帮我创建一个个人博客项目"); }} className="px-4 py-2 text-xs rounded-lg border border-border bg-surface-alt text-text-primary hover:bg-surface-hover transition-colors">创建博客</button>
+                <button onClick={() => { setInput("帮我分析当前项目的代码结构"); }} className="px-4 py-2 text-xs rounded-lg border border-border bg-surface-alt text-text-primary hover:bg-surface-hover transition-colors">分析项目</button>
               </div>
             </div>
           </div>
         ) : (
-          /* 消息列表 */
           <div className="p-4 space-y-3">
             {messages.map((msg) => (
               <div key={msg.id} className="msg-in">
@@ -223,21 +160,15 @@ export function ChatPanel({
                       <div className="bg-accent text-white rounded-[10px] rounded-br-[4px] px-[14px] py-[10px] text-[13px] leading-[1.55]">
                         {msg.text}
                       </div>
-                      <span className="text-[10px] text-text-secondary mt-0.5 px-1">
-                        {formatTime(msg.timestamp)}
-                      </span>
+                      <span className="text-[10px] text-text-secondary mt-0.5 px-1">{formatTime(msg.timestamp)}</span>
                     </div>
                   </div>
                 ) : msg.entries ? (
                   <div className="flex flex-col max-w-[85%]">
                     <div className="bg-surface border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-2">
-                      {buildBlocks(msg.entries).map((block, i) => (
-                        <ChatBlockView key={i} block={block} />
-                      ))}
+                      {buildBlocks(msg.entries).map((block, i) => <ChatBlockView key={i} block={block} />)}
                     </div>
-                    <span className="text-[10px] text-text-secondary mt-0.5 px-1">
-                      {formatTime(msg.timestamp)}
-                    </span>
+                    <span className="text-[10px] text-text-secondary mt-0.5 px-1">{formatTime(msg.timestamp)}</span>
                   </div>
                 ) : null}
               </div>
@@ -245,8 +176,6 @@ export function ChatPanel({
           </div>
         )}
       </div>
-
-      {/* 输入区域 */}
       <div className="border-t border-border p-3 shrink-0">
         <div className="flex gap-2 items-end">
           <textarea
@@ -256,30 +185,17 @@ export function ChatPanel({
             placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
             rows={3}
             className="flex-1 resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent"
+            disabled={loading}
           />
-          <div className="flex flex-col gap-1.5">
-            <button
-              onClick={handleSend}
-              disabled={!input.trim()}
-              className="w-9 h-9 rounded-md bg-accent text-white flex items-center justify-center hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
-            </button>
-            {active && (
-              <button
-                onClick={handleStop}
-                className="w-9 h-9 rounded-full bg-red-500/20 text-red-400 text-xs flex items-center justify-center hover:bg-red-500/30 transition-colors"
-              >
-                ■
-              </button>
-            )}
-          </div>
+          <button
+            onClick={handleSend}
+            disabled={!input.trim()}
+            className="w-9 h-9 rounded-md bg-accent text-white flex items-center justify-center hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
+          </button>
         </div>
-        {!active && chatId !== null && (
-          <p className="text-xs text-text-secondary mt-1">Chat 已结束。关闭面板可重新开始。</p>
-        )}
       </div>
-
     </div>
   );
 }

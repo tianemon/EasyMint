@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
-export const DATA_DIR = path.join(os.homedir(), ".ai-coding-automation");
+export const DATA_DIR = path.join(os.homedir(), ".easymint");
 
 interface Project {
   id: string;
@@ -108,4 +108,87 @@ export class Store {
     data.sessions = data.sessions.filter((s: Session) => s.id !== sessionId);
     fs.writeFileSync(sessionsFile, JSON.stringify(data, null, 2));
   }
+
+  // ── Conversation management (Proma-style) ──
+
+  private get convDir(): string {
+    const d = path.join(this.dataDir, "conversations");
+    fs.mkdirSync(d, { recursive: true });
+    return d;
+  }
+  private get convIndexPath(): string { return path.join(this.dataDir, "conversations.json"); }
+
+  private readConvIndex(): ConversationMeta[] {
+    if (!fs.existsSync(this.convIndexPath)) return [];
+    return JSON.parse(fs.readFileSync(this.convIndexPath, "utf-8")).conversations || [];
+  }
+
+  private writeConvIndex(convs: ConversationMeta[]): void {
+    fs.writeFileSync(this.convIndexPath, JSON.stringify({ conversations: convs }, null, 2));
+  }
+
+  listConversations(): ConversationMeta[] {
+    return this.readConvIndex().sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  createConversation(title = "新对话"): ConversationMeta {
+    const convs = this.readConvIndex();
+    const meta: ConversationMeta = {
+      id: crypto.randomUUID(),
+      title,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    convs.push(meta);
+    this.writeConvIndex(convs);
+    // Create empty message file
+    const msgPath = path.join(this.convDir, `${meta.id}.jsonl`);
+    fs.writeFileSync(msgPath, "");
+    return meta;
+  }
+
+  updateConversationMeta(id: string, patch: Partial<Pick<ConversationMeta, "title" | "updatedAt">>): ConversationMeta | null {
+    const convs = this.readConvIndex();
+    const idx = convs.findIndex(c => c.id === id);
+    if (idx === -1) return null;
+    convs[idx] = { ...convs[idx], ...patch };
+    this.writeConvIndex(convs);
+    return convs[idx];
+  }
+
+  deleteConversation(id: string): void {
+    const convs = this.readConvIndex().filter(c => c.id !== id);
+    this.writeConvIndex(convs);
+    const msgPath = path.join(this.convDir, `${id}.jsonl`);
+    if (fs.existsSync(msgPath)) fs.unlinkSync(msgPath);
+  }
+
+  appendConversationMessage(convId: string, msg: ChatMessage): void {
+    const msgPath = path.join(this.convDir, `${convId}.jsonl`);
+    const line = JSON.stringify(msg) + "\n";
+    fs.appendFileSync(msgPath, line);
+    this.updateConversationMeta(convId, { updatedAt: Date.now() });
+  }
+
+  getConversationMessages(convId: string): ChatMessage[] {
+    const msgPath = path.join(this.convDir, `${convId}.jsonl`);
+    if (!fs.existsSync(msgPath)) return [];
+    const raw = fs.readFileSync(msgPath, "utf-8").trim();
+    if (!raw) return [];
+    return raw.split("\n").map(line => JSON.parse(line) as ChatMessage);
+  }
+}
+
+interface ConversationMeta {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface ChatMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  createdAt: number;
 }

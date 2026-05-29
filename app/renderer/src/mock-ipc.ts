@@ -102,6 +102,12 @@ const MOCK_FILE_CONTENT: Record<string, string> = {
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">\n  <rect width="32" height="32" rx="6" fill="#059669"/>\n  <text x="16" y="22" text-anchor="middle" fill="white" font-size="18" font-family="sans-serif">\n    B\n  </text>\n</svg>\n',
 };
 
+const MOCK_CONVERSATIONS = [
+  { id: "conv-1", title: "项目初始化讨论", createdAt: Date.now() - 86400000, updatedAt: Date.now() - 3600000 },
+  { id: "conv-2", title: "数据库设计讨论", createdAt: Date.now() - 172800000, updatedAt: Date.now() - 7200000 },
+  { id: "conv-3", title: "部署方案分析", createdAt: Date.now() - 259200000, updatedAt: Date.now() - 86400000 },
+];
+
 let MOCK_SESSIONS: Session[] = [
   {
     id: "sess-1", projectId: "mock-1", title: "项目初始化讨论",
@@ -293,6 +299,14 @@ export const electronAPIMock = {
   },
   claude: {
     detect: () => delay({ found: true, path: "/usr/local/bin/claude", version: "1.0.0" }),
+  },
+  conv: {
+    list: () => delay(MOCK_CONVERSATIONS),
+    create: (title?: string) => delay({ id: `conv-${Date.now()}`, title: title || "新对话", createdAt: Date.now(), updatedAt: Date.now() }),
+    update: (id: string, patch: Record<string, unknown>) => delay({ id, title: (patch.title as string) || "新对话", createdAt: Date.now() - 3600000, updatedAt: Date.now() }),
+    delete: (_id: string) => delay(undefined),
+    messages: (_id: string) => delay([{ id: "msg-1", role: "user", content: "你好", createdAt: Date.now() - 60000 }, { id: "msg-2", role: "assistant", content: "你好！有什么可以帮助你的？", createdAt: Date.now() - 30000 }]),
+    appendMessage: (_convId: string, _message: Record<string, unknown>) => delay(undefined),
   },
   session: {
     list: (_projectId: string) => delay([...MOCK_SESSIONS]),
