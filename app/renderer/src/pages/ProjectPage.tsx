@@ -131,7 +131,7 @@ export function ProjectPage(): JSX.Element {
 
         {/* Column 2: Left panel — collapsible, or peek button when collapsed */}
         {collapsedLeft ? (
-          <div className="flex flex-col items-center pt-3">
+          <div className="flex items-center justify-center h-full">
             <button
               className="w-5 h-12 rounded-r-md bg-surface-alt border border-border border-l-0 text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors flex items-center justify-center"
               onClick={toggleLeft}
@@ -171,7 +171,7 @@ export function ProjectPage(): JSX.Element {
 
         {/* Column 6: Right panel — collapsible, or peek button when collapsed */}
         {collapsedRight ? (
-          <div className="flex flex-col items-center pt-3">
+          <div className="flex items-center justify-center h-full">
             <button
               className="w-5 h-12 rounded-l-md bg-surface-alt border border-border border-r-0 text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors flex items-center justify-center"
               onClick={toggleRight}
