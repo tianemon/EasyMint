@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { normalizeEvent, StreamEntryView } from "./StreamPanel";
+import { normalizeEvent } from "./StreamPanel";
+import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 
 interface ChatMessage {
   id: number;
@@ -228,21 +229,11 @@ export function ChatPanel({
                     </div>
                   </div>
                 ) : msg.entries ? (
-                  <div className="flex flex-col">
-                    <div className="bg-surface border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-[10px] text-[13px] leading-[1.55] text-text-primary max-w-[85%]">
-                      {msg.entries.map((e, i) => {
-                        // Show text/system messages directly, collapse tool_use/tool_result
-                        const isCollapsible = e.kind === "tool_use" || e.kind === "tool_result" || e.kind === "error" || e.kind === "exit" || (e.kind === "system" && !e.message.toUpperCase().includes("FAIL"));
-                        if (isCollapsible) {
-                          return (
-                            <details key={i} className="mt-1 first:mt-0 text-xs">
-                              <summary className="cursor-pointer text-text-secondary hover:text-text-primary">{e.kind === "tool_use" ? `🔧 ${(e as {name:string}).name}` : e.kind === "tool_result" ? "📋 返回结果" : e.kind === "error" ? "⚠️ 错误" : e.kind === "exit" ? (e as {code:number}).code === 0 ? "✅ 完成" : "❌ 退出" : "📌 系统"}</summary>
-                              <div className="mt-1"><StreamEntryView entry={e} /></div>
-                            </details>
-                          );
-                        }
-                        return <StreamEntryView key={i} entry={e} />;
-                      })}
+                  <div className="flex flex-col max-w-[85%]">
+                    <div className="bg-surface border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-2">
+                      {buildBlocks(msg.entries).map((block, i) => (
+                        <ChatBlockView key={i} block={block} />
+                      ))}
                     </div>
                     <span className="text-[10px] text-text-secondary mt-0.5 px-1">
                       {formatTime(msg.timestamp)}

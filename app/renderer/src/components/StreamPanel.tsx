@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
-interface TextEntry {
+export interface TextEntry {
   kind: "text";
   text: string;
   timestamp: number;
@@ -54,7 +54,7 @@ interface UserMessageEntry {
   source?: string;
 }
 
-type StreamEntry =
+export type StreamEntry =
   | TextEntry
   | ToolUseEntry
   | ToolResultEntry
