@@ -154,23 +154,6 @@ export function ProjectPage(): JSX.Element {
           {/* Content: fills remaining space */}
           <div className="flex-1 min-h-0">{renderTabContent()}</div>
 
-          {/* Bottom action bar */}
-          <div className="h-12 border-t border-border flex items-center justify-end px-4 gap-3 bg-surface-alt shrink-0">
-            <button
-              className="px-4 py-1.5 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors"
-              onClick={() =>
-                window.electronAPI.agent.runWorker(
-                  projectPath,
-                  "严格按 WORKER.md 流程完成一个任务。"
-                )
-              }
-            >
-              启动开发
-            </button>
-            <button className="px-4 py-1.5 rounded-lg border border-border text-text-primary text-sm hover:bg-surface-hover transition-colors">
-              启动评估
-            </button>
-          </div>
         </div>
 
         {/* Column 5: Right drag handle */}
