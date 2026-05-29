@@ -121,72 +121,47 @@ export function ProjectPage(): JSX.Element {
       {/* Title bar — 40px macOS-style */}
       <TitleBar projectName={projectName} />
 
-      {/* Grid: sidebar | left panel | handle | center | handle | right panel */}
+      {/* Grid: sidebar | left panel | handle | center | handle | right panel — all 6 always present */}
       <div
-        className="flex-1 min-h-0 relative grid-panels"
+        className="flex-1 min-h-0 grid-panels"
         style={{ display: "grid", gridTemplateColumns: gridColumns }}
       >
-        {/* Column 1: Sidebar — 44px */}
+        {/* Col 1 */}
         <LeftToolbar activePanel={activePanel} onSelect={setActivePanel} onSettings={() => setShowSettings(true)} />
 
-        {/* Column 2: Left panel — collapsible, or peek button when collapsed */}
-        {collapsedLeft ? (
-          <div className="flex items-center justify-center h-full" style={{ gridColumn: "2" }}>
-            <button
-              className="w-5 h-12 rounded-r-md bg-surface-alt border border-border border-l-0 text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors flex items-center justify-center"
-              onClick={toggleLeft}
-              title="展开文件面板"
-            >
-              ▸
-            </button>
-          </div>
-        ) : (
-          <div style={{ gridColumn: "2" }}>
-            <LeftPanel
-              activePanel={activePanel}
-              projectPath={projectPath}
-              projectId={projectId!}
-              onCollapse={toggleLeft}
-              onFileClick={handleFileClick}
-              onSessionClick={handleSessionClick}
-              onNewSession={handleNewSession}
-              activeSessionId={activeSessionId}
-            />
-          </div>
-        )}
-
-        {/* Column 3: Left drag handle */}
-        {!collapsedLeft && <div style={{ gridColumn: "3" }}><DragHandle onDrag={handleLeftDrag} /></div>}
-
-        {/* Column 4: Center area */}
-        <div style={{ gridColumn: "4" }} className="flex flex-col min-w-0 overflow-hidden">
-          {/* Tab bar */}
-          <TabBar />
-
-          {/* Content: fills remaining space */}
-          <div className="flex-1 min-h-0">{renderTabContent()}</div>
-
+        {/* Col 2 — panel or peek button */}
+        <div className="min-w-0 overflow-hidden">
+          {collapsedLeft ? (
+            <div className="flex items-center justify-center h-full">
+              <button className="w-5 h-12 rounded-r-md bg-surface-alt border border-border border-l-0 text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors" onClick={toggleLeft} title="展开文件面板">▸</button>
+            </div>
+          ) : (
+            <LeftPanel activePanel={activePanel} projectPath={projectPath} projectId={projectId!} onCollapse={toggleLeft} onFileClick={handleFileClick} onSessionClick={handleSessionClick} onNewSession={handleNewSession} activeSessionId={activeSessionId} />
+          )}
         </div>
 
-        {/* Column 5: Right drag handle */}
-        {!collapsedRight && <div style={{ gridColumn: "5" }}><DragHandle onDrag={handleRightDrag} /></div>}
+        {/* Col 3 — handle always present, hidden when collapsed */}
+        <DragHandle onDrag={handleLeftDrag} />
 
-        {/* Column 6: Right panel — collapsible, or peek button when collapsed */}
-        {collapsedRight ? (
-          <div className="flex items-center justify-center h-full" style={{ gridColumn: "6" }}>
-            <button
-              className="w-5 h-12 rounded-l-md bg-surface-alt border border-border border-r-0 text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors flex items-center justify-center"
-              onClick={toggleRight}
-              title="展开任务面板"
-            >
-              ◂
-            </button>
-          </div>
-        ) : (
-          <div style={{ gridColumn: "6" }}>
+        {/* Col 4 */}
+        <div className="flex flex-col min-w-0 overflow-hidden">
+          <TabBar />
+          <div className="flex-1 min-h-0">{renderTabContent()}</div>
+        </div>
+
+        {/* Col 5 — handle always present, hidden when collapsed */}
+        <DragHandle onDrag={handleRightDrag} />
+
+        {/* Col 6 — panel or peek button */}
+        <div className="min-w-0 overflow-hidden">
+          {collapsedRight ? (
+            <div className="flex items-center justify-center h-full">
+              <button className="w-5 h-12 rounded-l-md bg-surface-alt border border-border border-r-0 text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors" onClick={toggleRight} title="展开任务面板">◂</button>
+            </div>
+          ) : (
             <RightPanel onCollapse={toggleRight} />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <SettingsDialog open={showSettings} onClose={() => setShowSettings(false)} />
