@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 
 interface SettingsDialogProps {
@@ -70,6 +70,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     setApiKey,
     loadFromElectron,
   } = useSettingsStore();
+  const [showKey, setShowKey] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -121,13 +122,22 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               </div>
               <div>
                 <label className="text-xs text-text-secondary block mb-1">API Key</label>
-                <input
-                  type="password"
-                  className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
-                  placeholder="sk-..."
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                />
+                <div className="relative">
+                  <input
+                    type={showKey ? "text" : "password"}
+                    className="w-full px-3 py-2 pr-8 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+                    placeholder="sk-..."
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
+                    onClick={() => setShowKey(!showKey)}
+                  >
+                    {showKey ? "🙈" : "👁"}
+                  </button>
+                </div>
               </div>
             </div>
           </section>
