@@ -220,6 +220,13 @@ export function normalizeEvent(event: StreamEvent): StreamEntry {
     case "error": {
       return { kind: "error", data: JSON.stringify(data), timestamp, source };
     }
+    case "result": {
+      const resultText = typeof data.result === "string" ? data.result : "";
+      const isError = data.is_error;
+      if (!resultText) return { kind: "system", message: isError ? "✗ 异常退出" : "✓ 完成", timestamp };
+      // result event: just show a clean status line, not the full JSON
+      return { kind: "system", message: isError ? `✗ ${resultText}` : `✓ ${resultText}`, timestamp, source };
+    }
     default:
       return { kind: "system", message: JSON.stringify(event), timestamp, source };
   }
