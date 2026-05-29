@@ -37,13 +37,16 @@ export function DragHandle({ onDrag }: DragHandleProps): JSX.Element {
 
   return (
     <div
-      className={`cursor-col-resize shrink-0 relative z-10 select-none ${
-        dragging ? "bg-accent" : "bg-transparent"
-      }`}
-      style={{ width: 4, transition: "background 150ms cubic-bezier(0.4, 0, 0.2, 1)" }}
+      className="cursor-col-resize shrink-0 select-none relative flex items-center justify-center z-10"
+      style={{ width: 4 }}
       onMouseDown={onMouseDown}
-      onMouseEnter={(e) => { if (!dragging) (e.target as HTMLElement).style.background = "var(--color-accent)"; }}
-      onMouseLeave={(e) => { if (!dragging) (e.target as HTMLElement).style.background = "transparent"; }}
-    />
+    >
+      <div
+        className="w-px h-full transition-colors"
+        style={{
+          backgroundColor: dragging ? "var(--color-accent)" : "var(--color-border)",
+        }}
+      />
+    </div>
   );
 }
