@@ -29,7 +29,7 @@ export function LeftPanel({
   const [collapseAllKey, setCollapseAllKey] = useState(0);
 
   return (
-    <div className="flex flex-col min-w-0 bg-surface">
+    <div className="flex flex-col min-w-0 bg-surface border-r border-border">
       {/* Panel header */}
       <div className="h-9 flex items-center justify-between px-3 border-b border-border shrink-0">
         <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">{title}</span>
