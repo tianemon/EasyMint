@@ -27,8 +27,12 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const msgIdRef = useRef(0);
+  const convIdRef = useRef<string | undefined>(convId);
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+
+  // Sync convId ref
+  useEffect(() => { convIdRef.current = convId; }, [convId]);
 
   const scrollToBottom = useCallback(() => {
     if (autoScrollRef.current && containerRef.current) {
@@ -57,7 +61,7 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
     });
   }, [convId]);
 
-  // Stream listener — batch AI events into turns
+  // Stream listener — batch AI events into turns, save text to JSONL
   useEffect(() => {
     let currentAiId = 0;
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
@@ -70,6 +74,10 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
       } else {
         setMessages((prev) => prev.map((m) => m.id === currentAiId ? { ...m, entries: [...(m.entries || []), entry], timestamp: entry.timestamp } : m));
       }
+      // Save assistant text to JSONL
+      if (entry.kind === "text" && convIdRef.current) {
+        window.electronAPI.conv.appendMessage(convIdRef.current, { id: `a-${entry.timestamp}`, role: "assistant", content: entry.text, createdAt: entry.timestamp }).catch(() => {});
+      }
     });
     const unsubExit = window.electronAPI.agent.onExit(() => { currentAiId = 0; setLoading(false); });
     return () => { unsub(); unsubExit(); };
@@ -77,27 +85,36 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
-  // Optimistic send: append user message, call sendMessage
+  // Optimistic send: create conv if needed, append user message, call sendMessage
   const handleSend = useCallback(async () => {
     const trimmed = input.trim();
     if (!trimmed) return;
-    // Optimistic user message
     const ts = Date.now();
+
+    // Create conversation if first message with no existing conv
+    let cid = convIdRef.current;
+    if (!cid) {
+      const meta = await window.electronAPI.conv.create("新会话");
+      cid = meta.id;
+      convIdRef.current = cid;
+      onConvCreated?.(cid, meta.title);
+    }
+
+    // Optimistic user message + save to JSONL
     setMessages((prev) => [...prev, { id: ++msgIdRef.current, role: "user", text: trimmed, timestamp: ts }]);
+    window.electronAPI.conv.appendMessage(cid, { id: `u-${ts}`, role: "user", content: trimmed, createdAt: ts }).catch(() => {});
     setInput("");
     setLoading(true);
+
     try {
       const result = await window.electronAPI.agent.sendMessage(projectPath, trimmed, sessionId);
       if (!sessionId) setSessionId(result.sessionId);
-      if (messages.length === 0 && convId) {
-        const title = trimmed.slice(0, 20) + (trimmed.length > 20 ? "…" : "");
-        window.electronAPI.conv.update(convId, { title }).catch(() => {});
-        onConvCreated?.(convId, title);
-      }
+      // Auto-title from first user message
+      window.electronAPI.conv.update(cid, { title: trimmed.slice(0, 30) + (trimmed.length > 30 ? "…" : "") }).catch(() => {});
     } catch {
       setLoading(false);
     }
-  }, [input, projectPath, sessionId, messages.length, convId, onConvCreated]);
+  }, [input, projectPath, sessionId, onConvCreated]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
