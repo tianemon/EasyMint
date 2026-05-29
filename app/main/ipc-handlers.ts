@@ -36,18 +36,11 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("file:readContent", (_e, { filePath }) => fileService.readContent(filePath));
   ipcMain.handle("file:writeContent", (_e, { filePath, content }) => fileService.writeContent(filePath, content));
 
-  // terminal:*
-  ipcMain.handle("terminal:create", (_e, { cwd }) => agentService.createTerminal(cwd, mainWindow));
-  ipcMain.on("terminal:write", (_e, { terminalId, data }) => agentService.write(terminalId, data));
-  ipcMain.on("terminal:resize", (_e, { terminalId, cols, rows }) => agentService.resize(terminalId, cols, rows));
-  ipcMain.on("terminal:destroy", (_e, { terminalId }) => agentService.destroyTerminal(terminalId));
-
   // session:*
   ipcMain.handle("session:list", (_e, { projectId }) => {
     if (!projectId || typeof projectId !== "string") return [];
     return store.listSessions(projectId);
   });
-  ipcMain.on("session:resume", (_e, { sessionId }) => agentService.resumeSession(sessionId, mainWindow));
   ipcMain.handle("session:delete", (_e, { projectId, sessionId }) => {
     if (!projectId || typeof projectId !== "string") return;
     store.deleteSession(projectId, sessionId);

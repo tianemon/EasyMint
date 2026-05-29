@@ -3,7 +3,7 @@ import path from "path";
 import { registerIpcHandlers } from "./ipc-handlers";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
-import { AgentService } from "./services/agent-service";
+import { AgentService, setMainWindow } from "./services/agent-service";
 import { EvaluatorService } from "./services/evaluator-service";
 import { Store } from "./services/store";
 import { detectClaude } from "./utils/claude-detector";
@@ -25,12 +25,14 @@ async function createWindow(): Promise<void> {
     },
   });
 
-  const claudeInfo = detectClaude();
+  setMainWindow(mainWindow);
+  detectClaude(); // warm up detection for claude:detect IPC handler
 
   const store = new Store();
   const projectService = new ProjectService(store);
   const fileService = new FileService();
-  const agentService = new AgentService(claudeInfo.found ? claudeInfo.path! : "claude");
+  const agentService = new AgentService();
+  // Claude path no longer needed — SDK manages its own binary
   const evaluatorService = new EvaluatorService();
 
   registerIpcHandlers({ mainWindow, projectService, fileService, agentService, evaluatorService, store });
