@@ -215,10 +215,10 @@ export function normalizeEvent(event: StreamEvent): StreamEntry {
     }
     case "system": {
       // result events come through as system type from agent-service
+      // Don't show result text — it duplicates the assistant's final message
       const subtype = typeof data.subtype === "string" ? data.subtype : "";
       if (subtype === "success" || subtype === "error") {
-        const resultText = typeof data.result === "string" ? data.result : "";
-        return { kind: "system", message: subtype === "success" ? `✓ ${resultText}` : `✗ ${resultText}`, timestamp, source };
+        return { kind: "system", message: subtype === "success" ? "✓" : "✗", timestamp, source };
       }
       const message =
         typeof data.message === "string"

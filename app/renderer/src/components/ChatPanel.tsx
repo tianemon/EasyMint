@@ -161,6 +161,12 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
                 ) : null}
               </div>
             ))}
+            {loading && (
+              <div className="flex items-center gap-2 text-text-secondary text-sm msg-in">
+                <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                思考中...
+              </div>
+            )}
           </div>
         )}
       </div>
