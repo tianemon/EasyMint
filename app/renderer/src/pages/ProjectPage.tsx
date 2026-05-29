@@ -123,7 +123,7 @@ export function ProjectPage(): JSX.Element {
 
       {/* Grid: sidebar | left panel | handle | center | handle | right panel — all 6 always present */}
       <div
-        className="flex-1 min-h-0 grid-panels"
+        className="flex-1 min-h-0 grid-panels overflow-hidden"
         style={{ display: "grid", gridTemplateColumns: gridColumns }}
       >
         {/* Col 1 */}
