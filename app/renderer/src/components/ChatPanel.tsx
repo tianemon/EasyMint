@@ -182,25 +182,6 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
           </div>
         )}
       </div>
-      <div className="border-t border-border px-3 pt-2 pb-0 shrink-0">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-[10px] text-text-secondary">思考</span>
-          <select
-            className="text-[10px] px-1.5 py-0.5 rounded bg-surface-alt border border-border text-text-primary outline-none"
-            value={thinkingBudget}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              setThinkingBudget(v);
-              if (convIdRef.current) window.electronAPI.conv.update(convIdRef.current, { thinkingBudget: v } as any).catch(() => {});
-            }}
-          >
-            <option value={0}>关</option>
-            <option value={500}>低</option>
-            <option value={1000}>中</option>
-            <option value={2000}>高</option>
-          </select>
-        </div>
-      </div>
       <div className="border-t border-border p-3 pt-2 shrink-0">
         <div className="flex gap-2 items-end">
           <textarea
@@ -227,6 +208,21 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
               <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
             </button>
           )}
+        </div>
+        <div className="flex items-center gap-2 mt-2">
+          <span className="text-[10px] text-text-secondary">思考</span>
+          <input
+            type="range"
+            min={0} max={2000} step={250}
+            value={thinkingBudget}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setThinkingBudget(v);
+              if (convIdRef.current) window.electronAPI.conv.update(convIdRef.current, { thinkingBudget: v } as any).catch(() => {});
+            }}
+            className="flex-1 h-1 accent-accent"
+          />
+          <span className="text-[10px] text-text-secondary w-10 text-right">{thinkingBudget === 0 ? "关" : thinkingBudget}</span>
         </div>
       </div>
     </div>
