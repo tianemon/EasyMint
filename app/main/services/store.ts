@@ -147,7 +147,11 @@ export class Store {
     return meta;
   }
 
-  updateConversationMeta(id: string, patch: Partial<Pick<ConversationMeta, "title" | "updatedAt">>): ConversationMeta | null {
+  getConversation(id: string): ConversationMeta | null {
+    return this.readConvIndex().find(c => c.id === id) ?? null;
+  }
+
+  updateConversationMeta(id: string, patch: Partial<Pick<ConversationMeta, "title" | "updatedAt" | "sdkSessionId">>): ConversationMeta | null {
     const convs = this.readConvIndex();
     const idx = convs.findIndex(c => c.id === id);
     if (idx === -1) return null;
@@ -184,6 +188,7 @@ interface ConversationMeta {
   title: string;
   createdAt: number;
   updatedAt: number;
+  sdkSessionId?: string;
 }
 
 interface ChatMessage {

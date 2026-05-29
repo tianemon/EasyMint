@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   conv: {
     list: () => ipcRenderer.invoke("conv:list"),
+    get: (id: string) => ipcRenderer.invoke("conv:get", { id }),
     create: (title?: string) => ipcRenderer.invoke("conv:create", { title }),
     update: (id: string, patch: Record<string, unknown>) => ipcRenderer.invoke("conv:update", { id, patch }),
     delete: (id: string) => ipcRenderer.invoke("conv:delete", { id }),

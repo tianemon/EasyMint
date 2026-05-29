@@ -48,9 +48,12 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
     autoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   }, []);
 
-  // Load existing messages
+  // Load existing messages + sdkSessionId
   useEffect(() => {
     if (!convId) return;
+    window.electronAPI.conv.get(convId).then((meta) => {
+      if (meta?.sdkSessionId) setSessionId(meta.sdkSessionId);
+    }).catch(() => {});
     window.electronAPI.conv.messages(convId).then((msgs) => {
       const mapped: ChatMessage[] = msgs.map((m) => ({
         id: ++msgIdRef.current,
@@ -59,7 +62,7 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
         entries: m.role === "assistant" ? [{ kind: "text", text: m.content, timestamp: m.createdAt }] : undefined,
         timestamp: m.createdAt,
       }));
-      setMessages(mapped);
+      if (mapped.length > 0) setMessages(mapped);
     });
   }, [convId]);
 
@@ -112,7 +115,10 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
       setStreaming(true);
     const result = await window.electronAPI.agent.sendMessage(projectPath, trimmed, sessionId);
     setCurrentRunId(result.chatId);
-    if (!sessionId) setSessionId(result.sessionId);
+    if (!sessionId && result.sessionId) {
+        setSessionId(result.sessionId);
+        if (cid) window.electronAPI.conv.update(cid, { sdkSessionId: result.sessionId } as any).catch(() => {});
+      }
       // Auto-title from first user message
       window.electronAPI.conv.update(cid, { title: trimmed.slice(0, 30) + (trimmed.length > 30 ? "…" : "") }).catch(() => {});
     } catch {

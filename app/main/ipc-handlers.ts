@@ -62,6 +62,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
 
   // conversation:*
   ipcMain.handle("conv:list", () => store.listConversations());
+  ipcMain.handle("conv:get", (_e, { id }) => store.getConversation(id));
   ipcMain.handle("conv:create", (_e, { title }) => store.createConversation(title));
   ipcMain.handle("conv:update", (_e, { id, patch }) => store.updateConversationMeta(id, patch));
   ipcMain.handle("conv:delete", (_e, { id }) => { store.deleteConversation(id); });

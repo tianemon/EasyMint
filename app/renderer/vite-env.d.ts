@@ -83,8 +83,9 @@ interface ElectronAPI {
     detect: () => Promise<{ found: boolean; path?: string; version?: string }>;
   };
   conv: {
-    list: () => Promise<{ id: string; title: string; createdAt: number; updatedAt: number }[]>;
-    create: (title?: string) => Promise<{ id: string; title: string; createdAt: number; updatedAt: number }>;
+    list: () => Promise<{ id: string; title: string; createdAt: number; updatedAt: number; sdkSessionId?: string }[]>;
+    get: (id: string) => Promise<{ id: string; title: string; createdAt: number; updatedAt: number; sdkSessionId?: string } | null>;
+    create: (title?: string) => Promise<{ id: string; title: string; createdAt: number; updatedAt: number; sdkSessionId?: string }>;
     update: (id: string, patch: Record<string, unknown>) => Promise<{ id: string; title: string; createdAt: number; updatedAt: number } | null>;
     delete: (id: string) => Promise<void>;
     messages: (id: string) => Promise<{ id: string; role: string; content: string; createdAt: number }[]>;
