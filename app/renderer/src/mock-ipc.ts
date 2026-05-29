@@ -184,29 +184,27 @@ export const electronAPIMock = {
   agent: {
     runWorker: (_projectPath: string, _prompt: string) => {
       const runId = `run-${Date.now()}`;
-      // Simulate streaming events after a short delay
-      setTimeout(() => {
-        if (_streamCallback) {
-          MOCK_STREAM_EVENTS.forEach((ev, i) => setTimeout(() => _streamCallback!(ev), i * 300));
-        }
-      }, 200);
-      // Simulate exit after worker events
-      setTimeout(() => {
-        if (_exitCallback) {
-          _exitCallback({ runId, code: 0 });
-        }
-      }, 2000 + MOCK_STREAM_EVENTS.length * 300);
+      setTimeout(() => { if (_streamCallback) { MOCK_STREAM_EVENTS.forEach((ev: any, i: number) => setTimeout(() => _streamCallback!(ev), i * 300)); } }, 200);
+      setTimeout(() => { if (_exitCallback) _exitCallback({ runId, code: 0 }); }, 2000 + MOCK_STREAM_EVENTS.length * 300);
       return delay({ runId });
+    },
     sendMessage: (_projectPath: string, message: string, _sessionId?: string | null) => {
       const chatId = 'mock-chat';
-      setTimeout(() => {
-        if (_streamCallback) {
-          _streamCallback({ runId: chatId, type: 'assistant', data: { text: `收到: "${message}"。这是模拟回复。` }, timestamp: Date.now(), source: 'chat' as const });
-        }
-      }, 600);
+      setTimeout(() => { if (_streamCallback) { _streamCallback({ runId: chatId, type: 'assistant', data: { text: `收到: "${message}"。这是模拟回复。` }, timestamp: Date.now(), source: 'chat' as const }); } }, 600);
       setTimeout(() => { if (_exitCallback) _exitCallback({ runId: chatId, code: 0 }); }, 800);
       return delay({ chatId, sessionId: 'mock-sess' });
     },
+    abort: (_runId: string) => {},
+    onStream: (callback: (event: StreamEvent) => void) => {
+      _streamCallback = callback;
+      return () => { _streamCallback = null; };
+    },
+    onStderr: (_callback: (data: { runId: string; data: string; timestamp: number }) => void) => { return () => {}; },
+    onExit: (callback: (data: { runId: string; code: number }) => void) => {
+      _exitCallback = callback;
+      return () => { _exitCallback = null; };
+    },
+  },
     abort: (_runId: string) => {},
     onStderr: (_callback: (data: { runId: string; data: string; timestamp: number }) => void) => {
       return () => {};
