@@ -5,7 +5,8 @@ interface ChatMessage {
   id: number;
   role: "user" | "ai";
   text?: string;
-  entry?: ReturnType<typeof normalizeEvent>;
+  /** AI messages batch events into one turn: text entries shown, others collapsed */
+  entries?: ReturnType<typeof normalizeEvent>[];
   timestamp: number;
 }
 
@@ -67,24 +68,32 @@ export function ChatPanel({
     };
   }, []);
 
-  // 监听流式事件
+  // 监听流式事件 — batch AI events into one turn, user_message starts new turn
   useEffect(() => {
+    let currentAiId = 0;
+
     const unsubStream = window.electronAPI.agent.onStream(
       (event: StreamEvent) => {
         if (event.source !== "chat") return;
-        const msgId = ++msgIdRef.current;
         const ts = event.timestamp || Date.now();
 
         if (event.type === "user_message" && typeof event.data.text === "string") {
           setMessages((prev) => [
             ...prev,
-            { id: msgId, role: "user", text: event.data.text as string, timestamp: ts },
+            { id: ++msgIdRef.current, role: "user", text: event.data.text as string, timestamp: ts },
           ]);
+          return;
+        }
+
+        // Batch AI events into current turn
+        const entry = normalizeEvent(event);
+        if (!currentAiId) {
+          currentAiId = ++msgIdRef.current;
+          setMessages((prev) => [...prev, { id: currentAiId, role: "ai", entries: [entry], timestamp: ts }]);
         } else {
-          setMessages((prev) => [
-            ...prev,
-            { id: msgId, role: "ai", entry: normalizeEvent(event), timestamp: ts },
-          ]);
+          setMessages((prev) =>
+            prev.map((m) => (m.id === currentAiId ? { ...m, entries: [...(m.entries || []), entry], timestamp: ts } : m))
+          );
         }
       }
     );
@@ -93,30 +102,18 @@ export function ChatPanel({
       (data: { runId: string; data: string; timestamp: number }) => {
         setMessages((prev) => [
           ...prev,
-          {
-            id: ++msgIdRef.current,
-            role: "ai",
-            entry: { kind: "error", data: data.data, timestamp: data.timestamp } as ReturnType<
-              typeof normalizeEvent
-            >,
-            timestamp: data.timestamp,
-          },
+          { id: ++msgIdRef.current, role: "ai" as const, entries: [{ kind: "error", data: data.data, timestamp: data.timestamp } as ReturnType<typeof normalizeEvent>], timestamp: data.timestamp },
         ]);
       }
     );
 
     const unsubExit = window.electronAPI.agent.onExit(
       (data: { runId: string; code: number }) => {
+        currentAiId = 0; // end current turn
         setMessages((prev) => [
           ...prev,
-          {
-            id: ++msgIdRef.current,
-            role: "ai",
-            entry: { kind: "exit", code: data.code, timestamp: Date.now() } as ReturnType<
-              typeof normalizeEvent
-            >,
-            timestamp: Date.now(),
-          },
+          { id: ++msgIdRef.current, role: "ai" as const, entries: [{ kind: "exit", code: data.code, timestamp: Date.now() } as ReturnType<typeof normalizeEvent>], timestamp: Date.now() },
+        ]);
         ]);
         setActive(false);
       }
@@ -231,10 +228,22 @@ export function ChatPanel({
                       </span>
                     </div>
                   </div>
-                ) : msg.entry ? (
+                ) : msg.entries ? (
                   <div className="flex flex-col">
                     <div className="bg-surface rounded-2xl rounded-bl-md px-4 py-2 text-sm text-text-primary max-w-[85%]">
-                      <StreamEntryView entry={msg.entry} />
+                      {msg.entries.map((e, i) => {
+                        // Show text/system messages directly, collapse tool_use/tool_result
+                        const isCollapsible = e.kind === "tool_use" || e.kind === "tool_result" || e.kind === "error" || e.kind === "exit" || (e.kind === "system" && !e.message.toUpperCase().includes("FAIL"));
+                        if (isCollapsible) {
+                          return (
+                            <details key={i} className="mt-1 first:mt-0 text-xs">
+                              <summary className="cursor-pointer text-text-secondary hover:text-text-primary">{e.kind === "tool_use" ? `🔧 ${(e as {name:string}).name}` : e.kind === "tool_result" ? "📋 返回结果" : e.kind === "error" ? "⚠️ 错误" : e.kind === "exit" ? (e as {code:number}).code === 0 ? "✅ 完成" : "❌ 退出" : "📌 系统"}</summary>
+                              <div className="mt-1"><StreamEntryView entry={e} /></div>
+                            </details>
+                          );
+                        }
+                        return <StreamEntryView key={i} entry={e} />;
+                      })}
                     </div>
                     <span className="text-[10px] text-text-secondary mt-0.5 px-1">
                       {formatTime(msg.timestamp)}

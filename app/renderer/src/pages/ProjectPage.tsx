@@ -129,8 +129,18 @@ export function ProjectPage(): JSX.Element {
         {/* Column 1: Sidebar — 44px */}
         <LeftToolbar activePanel={activePanel} onSelect={setActivePanel} onSettings={() => setShowSettings(true)} />
 
-        {/* Column 2: Left panel — collapsible */}
-        {!collapsedLeft && (
+        {/* Column 2: Left panel — collapsible, or peek button when collapsed */}
+        {collapsedLeft ? (
+          <div className="flex flex-col items-center pt-3">
+            <button
+              className="w-5 h-12 rounded-r-md bg-surface-alt border border-border border-l-0 text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors flex items-center justify-center"
+              onClick={toggleLeft}
+              title="展开文件面板"
+            >
+              ▸
+            </button>
+          </div>
+        ) : (
           <LeftPanel
             activePanel={activePanel}
             projectPath={projectPath}
@@ -159,27 +169,19 @@ export function ProjectPage(): JSX.Element {
         {/* Column 5: Right drag handle */}
         {!collapsedRight && <DragHandle onDrag={handleRightDrag} />}
 
-        {/* Column 6: Right panel — collapsible */}
-        {!collapsedRight && <RightPanel onCollapse={toggleRight} />}
-
-        {/* Panel-peek buttons — absolutely positioned overlays */}
-        {collapsedLeft && (
-          <button
-            className="panel-peek panel-peek-left"
-            onClick={toggleLeft}
-            data-tooltip="展开文件面板"
-          >
-            ▸
-          </button>
-        )}
-        {collapsedRight && (
-          <button
-            className="panel-peek panel-peek-right"
-            onClick={toggleRight}
-            data-tooltip="展开任务列表"
-          >
-            ◂
-          </button>
+        {/* Column 6: Right panel — collapsible, or peek button when collapsed */}
+        {collapsedRight ? (
+          <div className="flex flex-col items-center pt-3">
+            <button
+              className="w-5 h-12 rounded-l-md bg-surface-alt border border-border border-r-0 text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors flex items-center justify-center"
+              onClick={toggleRight}
+              title="展开任务面板"
+            >
+              ◂
+            </button>
+          </div>
+        ) : (
+          <RightPanel onCollapse={toggleRight} />
         )}
       </div>
 
