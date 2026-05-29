@@ -88,7 +88,7 @@ function ThinkingBlockView({ block }: { block: ThinkingBlock }): JSX.Element {
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-purple-500/[0.06] transition-colors"
       >
-        <span className="text-purple-400 text-xs">✨</span>
+        <svg className="w-3.5 h-3.5 text-purple-400" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.5 5h5l-4 3 1.5 5-4-3-4 3 1.5-5-4-3h5L12 2z"/></svg>
         <span className="text-[11px] text-purple-300/80 uppercase tracking-wider font-semibold">思考中</span>
         <span className="text-[11px] text-text-secondary italic truncate flex-1">{open ? "" : preview}{!open && block.text.length > 140 ? "…" : ""}</span>
         <span className="text-[10px] text-text-secondary">{open ? "▲" : "▼"}</span>

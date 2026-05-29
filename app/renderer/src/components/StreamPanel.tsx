@@ -132,7 +132,7 @@ export function StreamPanel(): JSX.Element {
     return (
       <div className="flex items-center justify-center h-full text-text-secondary">
         <div className="text-center">
-          <div className="text-4xl mb-4">📡</div>
+          <svg className="w-10 h-10 mb-4 opacity-40 text-text-secondary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 2a14.5 14.5 0 000 20"/><path d="M2 12h20"/></svg>
           <p>流式输出</p>
           <p className="text-sm mt-1">AI 自动化开发输出将在此实时展示</p>
         </div>

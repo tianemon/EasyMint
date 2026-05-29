@@ -183,7 +183,7 @@ export function ChatPanel({
           /* 欢迎页 */
           <div className="flex items-center justify-center h-full">
             <div className="text-center px-6">
-              <div className="text-5xl mb-5">✨</div>
+              <svg className="w-12 h-12 mb-5 text-accent opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 2l1.5 5h5l-4 3 1.5 5-4-3-4 3 1.5-5-4-3h5L12 2z"/></svg>
               <h2 className="text-lg font-semibold text-text-primary mb-2">
                 欢迎使用 EasyMint
               </h2>

@@ -70,26 +70,22 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
     return (
       <div className="flex items-center justify-center h-full text-text-secondary">
         <div className="text-center max-w-sm">
-          <div className="text-5xl mb-5 opacity-40">📝</div>
+          <svg className="w-12 h-12 mb-5 opacity-40 text-text-secondary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           <p className="text-sm font-medium text-text-primary mb-2">欢迎使用 EasyMint</p>
           <p className="text-sm mb-4 leading-relaxed">
             点击左侧工具栏浏览项目结构、查看对话历史，或与 Claude Chat 自由对话。
           </p>
           <div className="grid grid-cols-2 gap-2 text-xs text-text-secondary">
             <div className="p-3 rounded-lg border border-border bg-surface-alt">
-              <div className="text-lg mb-1">🌳</div>
+              <svg className="w-5 h-5 mb-1 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 3v18"/></svg>
               <div>浏览项目结构</div>
             </div>
             <div className="p-3 rounded-lg border border-border bg-surface-alt">
-              <div className="text-lg mb-1">💬</div>
+              <svg className="w-5 h-5 mb-1 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
               <div>查看对话历史</div>
             </div>
             <div className="p-3 rounded-lg border border-border bg-surface-alt">
-              <div className="text-lg mb-1">💭</div>
-              <div>Chat 自由对话</div>
-            </div>
-            <div className="p-3 rounded-lg border border-border bg-surface-alt">
-              <div className="text-lg mb-1">🚀</div>
+              <svg className="w-5 h-5 mb-1 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
               <div>启动自动化开发</div>
             </div>
           </div>

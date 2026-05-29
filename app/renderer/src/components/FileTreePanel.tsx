@@ -97,7 +97,7 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
       ) : files.length === 0 ? (
         <div className="flex items-center justify-center h-full">
           <div className="text-center px-4">
-            <div className="text-3xl mb-3 opacity-50">📁</div>
+            <svg className="w-8 h-8 mb-3 opacity-50 text-text-secondary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
             <p className="text-sm text-text-primary font-medium mb-1">文件浏览器</p>
             <p className="text-xs text-text-secondary">点击左侧按钮浏览项目文件结构</p>
           </div>
