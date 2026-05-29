@@ -8,3 +8,5 @@ temp/
 .DS_Store
 *.log
 .playwright-mcp/
+.playwright-mcp/
+task-*.png

@@ -16,6 +16,13 @@
   --color-text-secondary: #5a7a6a;
   --color-accent: #16a34a;
   --color-accent-hover: #15803d;
+  --color-accent-soft: color-mix(in oklab, #16a34a 12%, transparent);
+  --color-success: #17a34a;
+  --color-warn: #d97706;
+  --color-danger: #dc2626;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
 }
 
 * {
@@ -134,7 +141,7 @@ button, a, input, select, textarea, .transition-all {
   left: 110%;
   top: 50%;
   transform: translateY(-50%);
-  background: #1a1a2e;
+  background: #0d1f17;
   color: #ffffff;
   font-size: 11px;
   padding: 4px 8px;
@@ -215,8 +222,8 @@ button, a, input, select, textarea, .transition-all {
 
 /* Terminal output for onboarding scan */
 .terminal-output {
-  background: #1a1a2e;
-  color: #e0e0e0;
+  background: #1a2e1f;
+  color: #86efac;
   min-height: 100px;
   position: relative;
 }
