@@ -1,17 +1,6 @@
 import { BrowserWindow } from "electron";
-import type { SDKMessage, Options as QueryOptions } from "@anthropic-ai/claude-agent-sdk";
+import { query, type SDKMessage, type Options as QueryOptions } from "@anthropic-ai/claude-agent-sdk";
 import { Store } from "./store";
-
-// SDK is ESM-only; new Function bypasses TypeScript CJS transpilation
-type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
-let _query: QueryFn | null = null;
-async function getQuery(): Promise<QueryFn> {
-  if (!_query) {
-    const sdk = await new Function("return import('@anthropic-ai/claude-agent-sdk')")() as typeof import("@anthropic-ai/claude-agent-sdk");
-    _query = sdk.query;
-  }
-  return _query;
-}
 
 interface ActiveRun {
   runId: string;
@@ -59,7 +48,7 @@ export class AgentService {
     // Run async, don't block IPC handler
     (async () => {
       try {
-        for await (const msg of (await getQuery())({
+        for await (const msg of query({
           prompt,
           options: buildQueryOptions(projectPath, this.store),
         })) {
@@ -107,7 +96,7 @@ export class AgentService {
 
     // Send initial system message to establish session
     try {
-      for await (const msg of (await getQuery())({
+      for await (const msg of query({
           prompt: "Hello",
           options: buildQueryOptions(projectPath, this.store),
         })) {
@@ -147,7 +136,7 @@ export class AgentService {
 
     (async () => {
       try {
-        for await (const msg of (await getQuery())({
+        for await (const msg of query({
           prompt: message,
           options: buildQueryOptions(chat.projectPath, this.store, { resume: chat.sessionId }),
         })) {
