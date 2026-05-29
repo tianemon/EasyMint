@@ -87,11 +87,11 @@ export function ProjectPage(): JSX.Element {
 
   const gridColumns = [
     "44px",
-    collapsedLeft ? "0px" : `${leftWidth}px`,
+    collapsedLeft ? "24px" : `${leftWidth}px`,
     collapsedLeft ? "0px" : "4px",
     "1fr",
     collapsedRight ? "0px" : "4px",
-    collapsedRight ? "0px" : `${rightWidth}px`,
+    collapsedRight ? "24px" : `${rightWidth}px`,
   ].join(" ");
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
