@@ -88,9 +88,7 @@ export function ProjectPage(): JSX.Element {
   const gridColumns = [
     "44px",
     collapsedLeft ? "0px" : `${leftWidth}px`,
-    collapsedLeft ? "0px" : "4px",
     "1fr",
-    collapsedRight ? "0px" : "4px",
     collapsedRight ? "0px" : `${rightWidth}px`,
   ].join(" ");
 
@@ -121,24 +119,21 @@ export function ProjectPage(): JSX.Element {
       {/* Title bar — 40px macOS-style */}
       <TitleBar projectName={projectName} />
 
-      {/* Grid: sidebar | left panel | handle | center | handle | right panel — all 6 always present */}
+      {/* Grid: sidebar | left panel | center | right panel — 4 columns, handles float */}
       <div
-        className="flex-1 min-h-0 grid-panels overflow-hidden"
+        className="flex-1 min-h-0 grid-panels overflow-hidden relative"
         style={{ display: "grid", gridTemplateColumns: gridColumns, gap: 0, background: "var(--color-surface)" }}
       >
-        {/* Col 1 */}
         <LeftToolbar activePanel={activePanel} onSelect={setActivePanel} onSettings={() => setShowSettings(true)} />
 
-        {/* Col 2 — panel when open, empty when collapsed */}
         {collapsedLeft ? <div /> : (
           <LeftPanel activePanel={activePanel} projectPath={projectPath} projectId={projectId!} onCollapse={toggleLeft} onFileClick={handleFileClick} onSessionClick={handleSessionClick} onNewSession={handleNewSession} activeSessionId={activeSessionId} />
         )}
 
-        {/* Col 3 — handle, always present */}
-        <DragHandle onDrag={handleLeftDrag} />
-
-        {/* Col 4 — center area, peek buttons float on its edges */}
         <div className="flex flex-col min-w-0 overflow-hidden relative border-l border-r border-border">
+          {!collapsedLeft && (
+            <div className="absolute left-[-2px] top-0 bottom-0 z-10"><DragHandle onDrag={handleLeftDrag} /></div>
+          )}
           {collapsedLeft && (
             <button className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-r-md bg-surface-alt border border-border border-l-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleLeft} title="展开文件面板">▸</button>
           )}
@@ -147,12 +142,11 @@ export function ProjectPage(): JSX.Element {
           {collapsedRight && (
             <button className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-l-md bg-surface-alt border border-border border-r-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleRight} title="展开任务面板">◂</button>
           )}
+          {!collapsedRight && (
+            <div className="absolute right-[-2px] top-0 bottom-0 z-10"><DragHandle onDrag={handleRightDrag} /></div>
+          )}
         </div>
 
-        {/* Col 5 — handle, always present */}
-        <DragHandle onDrag={handleRightDrag} />
-
-        {/* Col 6 — panel when open, empty when collapsed */}
         {collapsedRight ? <div /> : <RightPanel onCollapse={toggleRight} />}
       </div>
 
