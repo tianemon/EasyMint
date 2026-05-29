@@ -54,10 +54,10 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
       return (
         <div key={node.path}>
           <button
-            className={`w-full text-left px-2 py-0.5 text-sm flex items-center gap-0.5 transition-colors ${
+            className={`w-full text-left py-1 flex items-center gap-1.5 transition-colors ${
               isSelected ? "bg-accent/20" : "hover:bg-surface-hover"
             } ${node.modified ? "text-accent" : "text-text-primary"}`}
-            style={{ paddingLeft: `${8 + depth * 16}px` }}
+            style={{ paddingLeft: `${14 + depth * 16}px`, fontFamily: 'var(--font-mono)', fontSize: '12px' }}
             onClick={() => {
               if (node.isDirectory) {
                 toggleExpand(node.path);

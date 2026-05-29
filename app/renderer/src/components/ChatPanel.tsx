@@ -218,8 +218,8 @@ export function ChatPanel({
               <div key={msg.id} className="msg-in">
                 {msg.role === "user" && msg.text ? (
                   <div className="flex justify-end">
-                    <div className="flex flex-col items-end max-w-[75%]">
-                      <div className="bg-accent text-white rounded-2xl rounded-br-md px-4 py-2 text-sm">
+                    <div className="flex flex-col items-end max-w-[82%]">
+                      <div className="bg-accent text-white rounded-[10px] rounded-br-[4px] px-[14px] py-[10px] text-[13px] leading-[1.55]">
                         {msg.text}
                       </div>
                       <span className="text-[10px] text-text-secondary mt-0.5 px-1">
@@ -229,7 +229,7 @@ export function ChatPanel({
                   </div>
                 ) : msg.entries ? (
                   <div className="flex flex-col">
-                    <div className="bg-surface rounded-2xl rounded-bl-md px-4 py-2 text-sm text-text-primary max-w-[85%]">
+                    <div className="bg-surface border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-[10px] text-[13px] leading-[1.55] text-text-primary max-w-[85%]">
                       {msg.entries.map((e, i) => {
                         // Show text/system messages directly, collapse tool_use/tool_result
                         const isCollapsible = e.kind === "tool_use" || e.kind === "tool_result" || e.kind === "error" || e.kind === "exit" || (e.kind === "system" && !e.message.toUpperCase().includes("FAIL"));
@@ -264,7 +264,7 @@ export function ChatPanel({
             onKeyDown={handleKeyDown}
             placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
             rows={3}
-            className="flex-1 resize-none bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:ring-1 focus:ring-accent/50"
+            className="flex-1 resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent"
           />
           <div className="flex flex-col gap-1.5">
             <button
