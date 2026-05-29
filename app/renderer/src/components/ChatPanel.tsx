@@ -90,7 +90,7 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
   // Optimistic send: create conv if needed, append user message, call sendMessage
   const handleSend = useCallback(async () => {
     const trimmed = input.trim();
-    if (!trimmed) return;
+    if (!trimmed || loading) return;
     const ts = Date.now();
 
     // Create conversation if first message with no existing conv
@@ -183,7 +183,6 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
             placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
             rows={3}
             className="flex-1 resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent"
-            disabled={loading}
           />
           {loading ? (
             <button
