@@ -32,7 +32,7 @@ export function LeftPanel({
     <div className="flex flex-col min-w-0 bg-surface border-r border-border">
       {/* Panel header */}
       <div className="h-9 flex items-center justify-between px-3 border-b border-border shrink-0">
-        <span className="text-xs font-medium text-text-primary">{title}</span>
+        <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">{title}</span>
         <div className="flex items-center gap-1">
           {isFiles && (
             <>

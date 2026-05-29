@@ -134,7 +134,7 @@ export function RightPanel({ onCollapse }: RightPanelProps): JSX.Element {
     <div className="flex flex-col min-w-0 bg-surface border-l border-border">
       <div className="h-9 flex items-center justify-between px-3 border-b border-border shrink-0">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs font-medium text-text-primary">任务列表</span>
+          <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">任务列表</span>
           <span className="text-2xs text-text-secondary">{doneCount}/{totalCount} 完成</span>
         </div>
         <button
