@@ -32,7 +32,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
       // metaKey = Cmd (Mac), ctrlKey = Ctrl+scroll (Win) or pinch (Mac)
       if (!e.metaKey && !e.ctrlKey) return;
       e.preventDefault();
-      const delta = e.deltaY > 0 ? 1 : -1;
+      const delta = e.deltaY > 0 ? -1 : 1;
       setDensity((prev) => Math.max(0, Math.min(4, prev + delta)));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
