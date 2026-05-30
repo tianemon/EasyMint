@@ -64,6 +64,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
     set: (key: string, value: unknown) => ipcRenderer.invoke("settings:set", { key, value }),
     setLastProject: (projectId: string) => ipcRenderer.invoke("settings:set-last-project", { projectId }),
   },
+  shell: {
+    exec: (projectPath: string, command: string) => ipcRenderer.invoke("shell:exec", { projectPath, command }),
+    onStdout: (callback: (data: { line: string }) => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, data: { line: string }) => callback(data);
+      ipcRenderer.on("shell:stdout", handler);
+      return () => ipcRenderer.removeListener("shell:stdout", handler);
+    },
+    onStderr: (callback: (data: { line: string }) => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, data: { line: string }) => callback(data);
+      ipcRenderer.on("shell:stderr", handler);
+      return () => ipcRenderer.removeListener("shell:stderr", handler);
+    },
+  },
   evaluator: {
     isEnabled: () => ipcRenderer.invoke("evaluator:isEnabled"),
     setEnabled: (enabled: boolean) => ipcRenderer.invoke("evaluator:setEnabled", { enabled }),

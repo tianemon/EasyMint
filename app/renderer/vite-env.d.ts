@@ -73,6 +73,11 @@ interface ElectronAPI {
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
     onChatSession: (callback: (data: { chatId: string; sessionId: string }) => void) => () => void;
   };
+  shell: {
+    exec: (projectPath: string, command: string) => Promise<{ code: number | null }>;
+    onStdout: (callback: (data: { line: string }) => void) => () => void;
+    onStderr: (callback: (data: { line: string }) => void) => () => void;
+  };
   evaluator: {
     isEnabled: () => Promise<boolean>;
     setEnabled: (enabled: boolean) => Promise<void>;

@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { LeftToolbar } from "../components/LeftToolbar";
 import { LeftPanel } from "../components/LeftPanel";
 import { RightPanel } from "../components/RightPanel";
+import { TaskPanel } from "../components/TaskPanel";
 import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { SettingsDialog } from "../components/SettingsDialog";
@@ -12,8 +13,9 @@ import { DragHandle } from "../components/DragHandle";
 import { TitleBar } from "../components/TitleBar";
 import { useWorkspaceStore } from "../stores/workspace-store";
 import { useTabStore } from "../stores/tab-store";
+import { useTaskStore } from "../stores/task-store";
 
-export type ActivePanel = "editor" | "files" | "sessions" | "chat";
+export type ActivePanel = "editor" | "files" | "sessions" | "chat" | "tasks";
 
 export function ProjectPage(): JSX.Element {
   const { projectId } = useParams<{ projectId: string }>();
@@ -45,8 +47,9 @@ export function ProjectPage(): JSX.Element {
   const [sessionRefreshKey, setSessionRefreshKey] = useState(0);
 
   useEffect(() => {
-    // 切换项目时清空标签页
+    // 切换项目时清空标签页和任务
     useTabStore.getState().clearTabs();
+    useTaskStore.getState().clearTasks();
     if (projectId) {
       window.electronAPI.project.get(projectId).then((p) => {
         if (p) {
@@ -54,6 +57,12 @@ export function ProjectPage(): JSX.Element {
           setProjectName(p.name);
           document.title = `${p.name} — EasyMint`;
           window.electronAPI.settings.setLastProject(projectId);
+          // 添加默认任务
+          const tasks = useTaskStore.getState();
+          if (tasks.tasks.length === 0) {
+            tasks.addTask({ id: "init-env", title: "初始化开发环境", description: "填充 init.sh 并安装项目依赖", command: "bash init.sh", status: "pending" });
+            tasks.addTask({ id: "start-dev", title: "启动开发服务器", description: "启动项目并验证可运行", command: "bash init.sh && echo 'dev server started'", status: "pending" });
+          }
           // 如果 URL 带有 session 参数，自动打开该会话
           const params = new URLSearchParams(location.search);
           const urlSessionId = params.get("session");
@@ -178,7 +187,13 @@ export function ProjectPage(): JSX.Element {
           )}
         </div>
 
-        {collapsedRight ? <div /> : <RightPanel onCollapse={toggleRight} />}
+        {collapsedRight ? <div /> : (
+          activePanel === "tasks" ? (
+            <TaskPanel projectPath={projectPath} onCollapse={toggleRight} />
+          ) : (
+            <RightPanel onCollapse={toggleRight} />
+          )
+        )}
 
         {/* Handles — grid container level, absolute over all panels */}
         {!collapsedLeft && (

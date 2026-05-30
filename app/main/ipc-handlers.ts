@@ -5,6 +5,7 @@ import { AgentService } from "./services/agent-service";
 import { EvaluatorService } from "./services/evaluator-service";
 import { Store } from "./services/store";
 import { detectClaude } from "./utils/claude-detector";
+import { execShell } from "./services/shell-service";
 import {
   getSystemPromptConfig,
   createSystemPrompt,
@@ -122,6 +123,17 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("system-prompt:delete", (_e, { id }) => { deleteSystemPrompt(id); });
   ipcMain.handle("system-prompt:update-append", (_e, { enabled }) => { updateAppendSetting(enabled); });
   ipcMain.handle("system-prompt:set-default", (_e, { id }) => { setDefaultPrompt(id); });
+
+  // shell:exec — run a shell command in project directory, stream output
+  ipcMain.handle("shell:exec", async (event, { projectPath, command }) => {
+    const result = await execShell(
+      projectPath,
+      command,
+      (line) => event.sender.send("shell:stdout", { line }),
+      (line) => event.sender.send("shell:stderr", { line }),
+    );
+    return { code: result.code };
+  });
 
   // worker 成功后自动触发 evaluator（如果评估模式开启）
   agentService.onWorkerComplete = (projectPath: string) => {
