@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { LeftToolbar } from "../components/LeftToolbar";
 import { LeftPanel } from "../components/LeftPanel";
-import { RightPanel } from "../components/RightPanel";
 import { TaskPanel } from "../components/TaskPanel";
 import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
@@ -15,7 +14,7 @@ import { useWorkspaceStore } from "../stores/workspace-store";
 import { useTabStore } from "../stores/tab-store";
 import { useTaskStore } from "../stores/task-store";
 
-export type ActivePanel = "editor" | "files" | "sessions" | "chat" | "tasks";
+export type ActivePanel = "editor" | "files" | "sessions" | "chat";
 
 export function ProjectPage(): JSX.Element {
   const { projectId } = useParams<{ projectId: string }>();
@@ -57,12 +56,6 @@ export function ProjectPage(): JSX.Element {
           setProjectName(p.name);
           document.title = `${p.name} — EasyMint`;
           window.electronAPI.settings.setLastProject(projectId);
-          // 添加默认任务
-          const tasks = useTaskStore.getState();
-          if (tasks.tasks.length === 0) {
-            tasks.addTask({ id: "init-env", title: "初始化开发环境", description: "填充 init.sh 并安装项目依赖", command: "bash init.sh", status: "pending" });
-            tasks.addTask({ id: "start-dev", title: "启动开发服务器", description: "启动项目并验证可运行", command: "bash init.sh && echo 'dev server started'", status: "pending" });
-          }
           // 如果 URL 带有 session 参数，自动打开该会话
           const params = new URLSearchParams(location.search);
           const urlSessionId = params.get("session");
@@ -188,11 +181,7 @@ export function ProjectPage(): JSX.Element {
         </div>
 
         {collapsedRight ? <div /> : (
-          activePanel === "tasks" ? (
-            <TaskPanel projectPath={projectPath} onCollapse={toggleRight} />
-          ) : (
-            <RightPanel onCollapse={toggleRight} />
-          )
+          <TaskPanel projectPath={projectPath} onCollapse={toggleRight} />
         )}
 
         {/* Handles — grid container level, absolute over all panels */}
