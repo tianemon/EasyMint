@@ -6,16 +6,21 @@ interface TaskPanelProps {
   onCollapse: () => void;
 }
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending: { label: "待执行", color: "text-text-secondary" },
-  running: { label: "运行中", color: "text-accent" },
-  done: { label: "已完成", color: "text-green-500" },
-  failed: { label: "失败", color: "text-red-400" },
+const STATUS_LABELS: Record<string, string> = {
+  pending: "待执行",
+  running: "运行中",
+  done: "已完成",
+  failed: "失败",
 };
+
+/** Scale: 0 = densest, 4 = loosest */
+const DENSITY_GAPS = ["gap-1", "gap-2", "gap-3", "gap-4", "gap-5"];
 
 export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Element {
   const { tasks, updateTask, appendOutput } = useTaskStore();
   const [executing, setExecuting] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [density, setDensity] = useState(2);
   const outputRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
@@ -29,6 +34,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
     if (!task || executing) return;
 
     setExecuting(taskId);
+    setExpandedId(taskId);
     updateTask(taskId, { status: "running", output: [] });
 
     const unsubOut = window.electronAPI.shell.onStdout(({ line }) => {
@@ -40,9 +46,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
 
     try {
       const result = await window.electronAPI.shell.exec(projectPath, task.command);
-      updateTask(taskId, {
-        status: result.code === 0 ? "done" : "failed",
-      });
+      updateTask(taskId, { status: result.code === 0 ? "done" : "failed" });
     } catch {
       updateTask(taskId, { status: "failed" });
     } finally {
@@ -57,8 +61,37 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
   return (
     <div className="h-full flex flex-col bg-surface">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-border shrink-0">
-        <span className="text-xs font-medium text-text-primary">任务</span>
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
+        <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">任务时间轴</span>
+        <span className="text-2xs text-text-secondary">{tasks.length} 个</span>
+        <div className="flex-1" />
+        {/* Density control */}
+        <div className="flex items-center gap-1">
+          <button
+            className={`w-5 h-5 rounded flex items-center justify-center text-[10px] transition-colors ${
+              density === 0 ? "text-text-secondary cursor-not-allowed" : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
+            }`}
+            onClick={() => setDensity(Math.max(0, density - 1))}
+            disabled={density === 0}
+            title="更密集"
+          >
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3 h-3">
+              <path d="M3 9v2M6 6.5v4.5M9 4v7" strokeLinecap="round" />
+            </svg>
+          </button>
+          <button
+            className={`w-5 h-5 rounded flex items-center justify-center text-[10px] transition-colors ${
+              density === 4 ? "text-text-secondary cursor-not-allowed" : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
+            }`}
+            onClick={() => setDensity(Math.min(4, density + 1))}
+            disabled={density === 4}
+            title="更松散"
+          >
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3 h-3">
+              <path d="M3 2v9M6 2v9M9 2v9" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
         <button
           className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:bg-surface-hover transition-colors"
           onClick={onCollapse}
@@ -70,67 +103,103 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
         </button>
       </div>
 
-      {/* Task list */}
+      {/* Timeline */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         {tasks.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <p className="text-xs text-text-secondary">暂无任务</p>
           </div>
         ) : (
-          <div className="p-2 space-y-1.5">
-            {tasks.map((task) => {
-              const st = STATUS_LABELS[task.status] ?? STATUS_LABELS.pending!;
-              const isActive = executing === task.id;
+          <div className={`relative px-3 py-2 flex flex-col ${DENSITY_GAPS[density]}`}>
+            {/* Center timeline line */}
+            <div className="absolute left-1/2 top-4 bottom-4 w-px bg-border" style={{ transform: "translateX(-0.5px)" }} />
+
+            {tasks.map((task, idx) => {
+              const isRight = idx % 2 === 0;
+              const isExpanded = expandedId === task.id;
+              const isRunning = task.status === "running";
+
               return (
-                <div key={task.id} className="rounded-lg border border-border bg-surface-alt overflow-hidden">
-                  {/* Task header */}
-                  <div className="flex items-center gap-2 px-3 py-2">
-                    {/* Status dot */}
+                <div key={task.id} className="relative flex items-start" style={{ minHeight: 40 }}>
+                  {/* Spacer for the other side */}
+                  <div className="w-[calc(50%-10px)]" />
+
+                  {/* Timeline dot — sits on the center line */}
+                  <div className="absolute left-1/2 top-3 z-10" style={{ transform: "translate(-50%, -50%)" }}>
+                    {/* Connector line from dot to card */}
+                    <div
+                      className={`absolute top-1/2 h-px w-[10px] ${isRight ? "left-full" : "right-full"}`}
+                      style={{ background: "var(--color-border)" }}
+                    />
+                    {/* Dot */}
                     <span
-                      className={`w-2 h-2 rounded-full shrink-0 ${
+                      className={`block w-2.5 h-2.5 rounded-full ring-2 ring-surface ${
                         task.status === "running" ? "bg-accent animate-pulse" :
                         task.status === "done" ? "bg-green-500" :
                         task.status === "failed" ? "bg-red-400" :
                         "bg-border"
                       }`}
                     />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-text-primary truncate">{task.title}</div>
-                      {task.description && (
-                        <div className="text-[10px] text-text-secondary truncate mt-0.5">{task.description}</div>
-                      )}
-                    </div>
-                    <span className={`text-[10px] shrink-0 ${st.color}`}>{st.label}</span>
-                    {task.status !== "running" && (
-                      <button
-                        className={`ml-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
-                          isActive
-                            ? "bg-accent/20 text-accent"
-                            : "bg-accent/10 text-accent hover:bg-accent/20"
-                        }`}
-                        onClick={() => execute(task.id)}
-                        disabled={isActive}
-                      >
-                        {task.status === "done" ? "重试" : task.status === "failed" ? "重试" : "执行"}
-                      </button>
-                    )}
                   </div>
 
-                  {/* Output (only for active/completed task) */}
-                  {(task.status === "running" || task.output.length > 0) && (
-                    <div className="border-t border-border/50 bg-[#1a1a1e] rounded-b-lg">
-                      <pre
-                        ref={executing === task.id ? outputRef : undefined}
-                        className="text-[10px] text-green-400 font-mono p-2 max-h-40 overflow-y-auto leading-relaxed whitespace-pre-wrap break-all"
-                      >
-                        {task.output.length === 0 && task.status === "running" ? (
-                          <span className="text-text-secondary animate-pulse">执行中...</span>
-                        ) : (
-                          task.output.join("\n")
+                  {/* Task card */}
+                  <div
+                    className={`w-[calc(50%-10px)] ${isRight ? "" : "order-first"}`}
+                  >
+                    <button
+                      className={`w-full text-left rounded-lg border transition-colors overflow-hidden ${
+                        isRunning ? "border-accent/40 bg-accent/5" :
+                        task.status === "failed" ? "border-red-400/30 bg-red-50" :
+                        "border-border bg-surface-alt hover:bg-surface-hover"
+                      }`}
+                      onClick={() => setExpandedId(isExpanded ? null : task.id)}
+                    >
+                      <div className="px-2.5 py-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-medium text-text-primary truncate flex-1">{task.title}</span>
+                          <span className={`text-[9px] shrink-0 ${
+                            isRunning ? "text-accent" :
+                            task.status === "failed" ? "text-red-400" :
+                            task.status === "done" ? "text-green-500" :
+                            "text-text-secondary"
+                          }`}>
+                            {STATUS_LABELS[task.status]}
+                          </span>
+                        </div>
+                        {task.description && (
+                          <div className="text-[10px] text-text-secondary truncate mt-0.5">{task.description}</div>
                         )}
-                      </pre>
-                    </div>
-                  )}
+                      </div>
+
+                      {/* Expanded: output + actions */}
+                      {isExpanded && (
+                        <div className="border-t border-border/50">
+                          {(task.status === "running" || task.output.length > 0) && (
+                            <pre
+                              ref={isRunning ? outputRef : undefined}
+                              className="text-[10px] text-green-400 font-mono p-2 max-h-32 overflow-y-auto leading-relaxed whitespace-pre-wrap break-all bg-[#1a1a1e]"
+                            >
+                              {task.output.length === 0 && isRunning ? (
+                                <span className="text-text-secondary animate-pulse">执行中...</span>
+                              ) : (
+                                task.output.join("\n")
+                              )}
+                            </pre>
+                          )}
+                          {task.status !== "running" && (
+                            <div className="flex gap-1.5 px-2 py-1.5">
+                              <button
+                                className="flex-1 py-1 rounded text-[10px] font-medium bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+                                onClick={(e) => { e.stopPropagation(); execute(task.id); }}
+                              >
+                                {task.status === "done" || task.status === "failed" ? "重新执行" : "执行"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -138,13 +207,13 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
         )}
       </div>
 
-      {/* Active task indicator for status bar */}
+      {/* Active indicator */}
       {activeTask && (
         <div className="border-t border-border px-3 py-1.5 bg-surface-alt shrink-0">
           <div className="flex items-center gap-1.5 text-[10px] text-text-secondary">
             <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0" />
             <span className="truncate">{activeTask.title}</span>
-            <span className="text-accent">{STATUS_LABELS[activeTask.status]?.label}</span>
+            <span className="text-accent">{STATUS_LABELS[activeTask.status]}</span>
           </div>
         </div>
       )}
