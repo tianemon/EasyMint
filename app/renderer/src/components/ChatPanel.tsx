@@ -31,6 +31,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const [streaming, setStreaming] = useState(false);
   const [statusText, setStatusText] = useState("思考中...");
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const [permissionMode, setPermissionMode] = useState("auto");
   const msgIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
@@ -136,6 +137,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       setStreaming(true);
       const result = await window.electronAPI.agent.sendMessage(projectPath, trimmed, {
         sessionId: sidRef.current,
+        permissionMode,
       });
       setCurrentRunId(result.chatId);
     } catch {
@@ -200,6 +202,27 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           <span className="ml-1">{statusText}</span>
         </div>
       )}
+      {/* Toolbar — permission mode, placeholders */}
+      <div className="flex items-center gap-2 px-3 py-1.5 border-t border-border/50 bg-surface shrink-0">
+        <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover transition-colors opacity-40 cursor-not-allowed" title="附件上传（即将推出）" disabled>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M14.5 10v3.5a1 1 0 01-1 1H2.5a1 1 0 01-1-1V10M4.5 5L8 1.5 11.5 5M8 1.5v10"/></svg>
+        </button>
+        <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover transition-colors opacity-40 cursor-not-allowed" title="思考模式（即将推出）" disabled>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><circle cx="8" cy="8" r="6"/><path d="M8 5v4M8 11h0"/></svg>
+        </button>
+        <div className="flex-1" />
+        <select
+          value={permissionMode}
+          onChange={(e) => setPermissionMode(e.target.value)}
+          className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer"
+        >
+          <option value="auto">🧠 智能判断</option>
+          <option value="plan">📖 只读</option>
+          <option value="acceptEdits">🔒 手动确认</option>
+          <option value="bypassPermissions">🚀 完全自主</option>
+        </select>
+        <span className="text-[10px] text-text-secondary hidden sm:inline">权限</span>
+      </div>
       <div className="border-t border-border p-3 pt-2 shrink-0">
         <div className="flex gap-2 items-end">
           <textarea

@@ -2,7 +2,7 @@ import os from "os";
 import path from "path";
 import fs from "fs";
 import { BrowserWindow } from "electron";
-import type { SDKMessage, Options as QueryOptions } from "@anthropic-ai/claude-agent-sdk";
+import type { SDKMessage, Options as QueryOptions, PermissionMode } from "@anthropic-ai/claude-agent-sdk";
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 
@@ -31,7 +31,7 @@ interface ActiveChat {
 }
 
 /** Build a query options block, reading API config from the Store. */
-function buildQueryOptions(projectPath: string, store: Store, isResume: boolean, overrides?: Partial<QueryOptions>): QueryOptions {
+function buildQueryOptions(projectPath: string, store: Store, isResume: boolean, permissionMode: PermissionMode = "auto", overrides?: Partial<QueryOptions>): QueryOptions {
   // Ensure the working directory exists (important for default workspace)
   const resolvedPath = projectPath || path.join(os.homedir(), "EasyMintProject", "workspace");
   const cwd = resolvedPath.startsWith("~") ? path.join(os.homedir(), resolvedPath.slice(1)) : resolvedPath;
@@ -47,7 +47,7 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
   const customPrompt = isResume ? "" : resolveEffectivePrompt();
   return {
     cwd,
-    permissionMode: "bypassPermissions",
+    permissionMode,
     model: process.env.ANTHROPIC_MODEL || undefined,
     env,
     systemPrompt: customPrompt ? { type: "preset" as const, preset: "claude_code" as const, append: customPrompt } : undefined,
@@ -109,11 +109,12 @@ export class AgentService {
   }
 
   /** Send message — SDK manages session lifecycle, we just capture & pass session_id */
-  sendMessage(projectPath: string, message: string, resumeSessionId: string | null, mainWindow: BrowserWindow): { chatId: string } {
+  sendMessage(projectPath: string, message: string, resumeSessionId: string | null, permissionMode: string | undefined, mainWindow: BrowserWindow): { chatId: string } {
     const chatId = `chat-${++this.chatCounter}`;
     const isResume = !!resumeSessionId;
     const overrides = isResume ? { resume: resumeSessionId } : {};
-    const options = buildQueryOptions(projectPath, this.store, isResume, overrides);
+    const mode = (permissionMode as PermissionMode) || "auto";
+    const options = buildQueryOptions(projectPath, this.store, isResume, mode, overrides);
 
     const chat: ActiveChat = { chatId, sessionId: resumeSessionId ?? "", query: null, projectPath };
     this.activeChats.set(chatId, chat);
