@@ -604,8 +604,8 @@ ${ctx}
 
 请立即按顺序编写以下项目文档（直接编辑已有文件即可）：
 
-1. docs/APP_SPEC.md — 项目需求规格文档
-2. docs/ARCHITECTURE.md — 架构设计文档
+1. docs/需求规格.md — 项目需求规格文档
+2. docs/架构设计.md — 架构设计文档
 3. README.md — 项目说明文档
 4. CLAUDE.md — 更新项目上下文
 
