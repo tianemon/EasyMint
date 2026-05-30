@@ -200,7 +200,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                           className="mt-2 self-start px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/30 text-accent text-xs hover:bg-accent/20 transition-colors"
                           onClick={() => sendText("帮我初始化开发环境")}
                         >
-                          💬 帮我初始化开发环境
+                          帮我初始化开发环境
                         </button>
                       )}
                       <span className="text-[10px] text-text-secondary mt-0.5 px-1">{formatTime(msg.timestamp)}</span>
@@ -235,10 +235,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           onChange={(e) => setPermissionMode(e.target.value)}
           className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer"
         >
-          <option value="auto">🧠 智能判断</option>
-          <option value="plan">📖 只读</option>
-          <option value="acceptEdits">🔒 手动确认</option>
-          <option value="bypassPermissions">🚀 完全自主</option>
+          <option value="auto">智能判断</option>
+          <option value="plan">只读</option>
+          <option value="acceptEdits">手动确认</option>
+          <option value="bypassPermissions">完全自主</option>
         </select>
         <span className="text-[10px] text-text-secondary hidden sm:inline">权限</span>
       </div>

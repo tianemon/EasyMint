@@ -344,7 +344,7 @@ function ToolUseBlock({ entry }: { entry: ToolUseEntry }): JSX.Element {
         className="w-full flex items-center gap-2 px-3 py-1.5 bg-surface-alt hover:bg-surface-hover transition-colors text-left"
       >
         <span className="text-xs">{collapsed ? "▶" : "▼"}</span>
-        <span className="text-xs text-accent font-semibold">🔧 {entry.name}</span>
+        <span className="text-xs text-accent font-semibold">{entry.name}</span>
         <span className="text-xs text-text-secondary truncate flex-1">
           {summarizeInput(entry.input)}
         </span>

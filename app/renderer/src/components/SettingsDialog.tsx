@@ -44,7 +44,7 @@ function ToggleRow({ label, description, hint, enabled, onChange }: ToggleRowPro
 function StarRating({ count }: { count: number }): JSX.Element {
   return (
     <span className="text-amber-500 text-xs">
-      {"⭐".repeat(count)}
+      {count}
     </span>
   );
 }

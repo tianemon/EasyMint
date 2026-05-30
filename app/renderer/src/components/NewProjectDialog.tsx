@@ -253,13 +253,13 @@ function Step2Form({
         <label className="block text-sm font-medium text-text-primary">功能清单</label>
         <div className="flex gap-2">
           <button className="px-3 py-1 rounded-lg border border-dashed border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/10 transition-colors" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
-            {loadingRec === "features" ? "思考中..." : "✨ Mint 推荐"}
+            {loadingRec === "features" ? "思考中..." : "Mint 推荐"}
           </button>
           <button className="px-3 py-1 rounded-lg border border-dashed border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/10 transition-colors" onClick={addFeature}>+ 添加功能</button>
         </div>
       </div>
       {data.features.length === 0 && !loadingRec && (
-        <p className="text-xs text-text-secondary py-3 text-center">暂无功能，点击"+ 添加功能"或"✨ Mint 推荐"开始。</p>
+        <p className="text-xs text-text-secondary py-3 text-center">暂无功能，点击"+ 添加功能"或"Mint 推荐"开始。</p>
       )}
       {loadingRec === "features" && (
         <p className="text-xs text-text-secondary py-3 text-center animate-pulse">Mint 正在根据项目信息推荐功能...</p>
@@ -384,7 +384,7 @@ function Step4Form({
           ) : (
             <span className="flex items-center gap-2">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M8 2l1 4h4l-3 2.5 1 4-3-2.5-3 2.5 1-4-3-2.5h4L8 2z"/></svg>
-              ✨ Mint 推荐一套方案
+              Mint 推荐一套方案
             </span>
           )}
         </button>

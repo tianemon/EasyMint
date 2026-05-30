@@ -223,7 +223,7 @@ function Step1Detect({
         }`}
       >
         <div className={`text-3xl ${isScanning ? "scan-icon-spin" : ""}`}>
-          {scanDone ? "✓" : "🔍"}
+          {scanDone ? "OK" : "🔍"}
         </div>
 
         {!isScanning && !scanDone && (
