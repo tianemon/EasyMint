@@ -56,6 +56,22 @@ export function ProjectPage(): JSX.Element {
           setProjectName(p.name);
           document.title = `${p.name} — EasyMint`;
           window.electronAPI.settings.setLastProject(projectId);
+          // DEBUG: mock tasks for timeline testing
+          const ts = useTaskStore.getState();
+          if (ts.tasks.length === 0) {
+            const now = Date.now();
+            const m = (n: number) => now - n * 60000;
+            ts.addTask({ id: "t1", title: "初始化开发环境", description: "填充 init.sh 并安装依赖", command: "echo 'npm install...'", status: "done" });
+            useTaskStore.setState((s) => ({ tasks: s.tasks.map((t) => t.id === "t1" ? { ...t, completedAt: m(120), output: ["node -v → v22.0.0", "npm install → 134 packages", "环境就绪"] } : t) }));
+            ts.addTask({ id: "t2", title: "创建数据库表结构", description: "根据架构设计创建 users / posts 表", command: "echo 'create tables...'", status: "done" });
+            useTaskStore.setState((s) => ({ tasks: s.tasks.map((t) => t.id === "t2" ? { ...t, completedAt: m(90), output: ["CREATE TABLE users (...)", "CREATE TABLE posts (...)", "迁移完成"] } : t) }));
+            ts.addTask({ id: "t3", title: "搭建首页布局", description: "响应式三栏布局 + 导航栏", command: "echo 'build layout...'", status: "done" });
+            useTaskStore.setState((s) => ({ tasks: s.tasks.map((t) => t.id === "t3" ? { ...t, completedAt: m(60), output: ["layout 组件已创建", "响应式断点已配置"] } : t) }));
+            ts.addTask({ id: "t4", title: "实现用户登录页面", description: "邮箱密码登录 + JWT 认证", command: "echo 'login page...'", status: "failed" });
+            useTaskStore.setState((s) => ({ tasks: s.tasks.map((t) => t.id === "t4" ? { ...t, completedAt: m(30), output: ["构建成功", "测试失败: JWT token 未正确验证", "需要修复 auth middleware"] } : t) }));
+            ts.addTask({ id: "t5", title: "编写 API 接口文档", description: "RESTful 接口规范 + Swagger", command: "echo 'api docs...'", status: "pending" });
+            ts.addTask({ id: "t6", title: "修复登录页面样式错乱", description: "移动端按钮重叠，需要调整 flex", command: "echo 'fix style...'", status: "pending" });
+          }
           // 如果 URL 带有 session 参数，自动打开该会话
           const params = new URLSearchParams(location.search);
           const urlSessionId = params.get("session");
