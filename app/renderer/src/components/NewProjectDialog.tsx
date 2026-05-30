@@ -3,9 +3,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 // ---- Types ----
 
 type PlatformChoice = "web" | "mobile" | "cli" | "desktop";
-type FrameworkChoice = "react" | "vue" | "html";
-type StyleChoice = "tailwind" | "css-modules" | "pure-css";
-type BackendChoice = "node" | "python" | "none";
+type FrontendChoice = "react-nextjs-tailwind" | "vue-nuxt-tailwind" | "svelte-sveltekit-tailwind" | "angular-material" | "solidjs-tailwind" | "pure-html";
+type BackendChoice = "node" | "python" | "go" | "php-laravel" | "java-spring" | "none";
 type BudgetChoice = "充足" | "少量" | "免费";
 type DeployChoice = "云端" | "本地";
 type CompletenessChoice = "full" | "mvp" | "demo";
@@ -24,8 +23,7 @@ interface ProjectFormData {
   completeness: CompletenessChoice;
   features: FeatureItem[];
   uiStyle: string;
-  framework: FrameworkChoice;
-  styling: StyleChoice;
+  frontend: FrontendChoice;
   backend: BackendChoice;
   techBudget: BudgetChoice;
   deployPlatform: DeployChoice;
@@ -44,22 +42,22 @@ const COMPLETENESS_OPTIONS = [
   { value: "demo", label: "演示版", desc: "原型展示，核心流程可跑通" },
 ] as const;
 
-const FRAMEWORK_OPTIONS = [
-  { value: "react", label: "React" },
-  { value: "vue", label: "Vue" },
-  { value: "html", label: "纯 HTML" },
-] as const;
-
-const STYLE_OPTIONS = [
-  { value: "tailwind", label: "Tailwind CSS" },
-  { value: "css-modules", label: "CSS Modules" },
-  { value: "pure-css", label: "纯 CSS" },
+const FRONTEND_OPTIONS = [
+  { value: "react-nextjs-tailwind", label: "React + Next.js + Tailwind CSS", desc: "最主流，生态最大，AI 编程支持最好" },
+  { value: "vue-nuxt-tailwind", label: "Vue 3 + Nuxt 3 + Tailwind CSS", desc: "渐进式框架，中文社区强，上手快" },
+  { value: "svelte-sveltekit-tailwind", label: "Svelte + SvelteKit + Tailwind CSS", desc: "极致性能，编译时框架，打包极小" },
+  { value: "angular-material", label: "Angular + Material + CSS", desc: "企业级标配，大型项目结构清晰" },
+  { value: "solidjs-tailwind", label: "SolidJS + Tailwind CSS", desc: "超高性能，类 React 写法，无虚拟 DOM" },
+  { value: "pure-html", label: "纯 HTML + CSS + JS", desc: "无框架，最简单直接，适合静态页面" },
 ] as const;
 
 const BACKEND_OPTIONS = [
-  { value: "node", label: "Node.js" },
-  { value: "python", label: "Python" },
-  { value: "none", label: "不需要" },
+  { value: "node", label: "Node.js (Express/NestJS)", desc: "与前端同语言，生态最大，全栈统一" },
+  { value: "python", label: "Python (FastAPI/Django)", desc: "AI/ML 首选，开发速度快，库丰富" },
+  { value: "go", label: "Go (Gin)", desc: "高性能微服务，低资源占用，部署简单" },
+  { value: "php-laravel", label: "PHP (Laravel)", desc: "快速出活，部署便宜，CMS 生态成熟" },
+  { value: "java-spring", label: "Java (Spring Boot)", desc: "企业级标准，银行金融首选，稳定可靠" },
+  { value: "none", label: "不需要后端", desc: "纯前端项目，数据全在客户端" },
 ] as const;
 
 const UI_STYLE_OPTIONS = [
@@ -100,8 +98,8 @@ const ALL_STEPS = [
   { number: 1, title: "项目概述", desc: "名称、类型与目录" },
   { number: 2, title: "功能清单", desc: "核心功能与优先级" },
   { number: 3, title: "视觉风格", desc: "UI 设计风格" },
-  { number: 4, title: "技术选型", desc: "框架、样式与后端" },
-  { number: 5, title: "部署方式", desc: "成本与平台" },
+  { number: 4, title: "技术选型", desc: "前端、后端与成本" },
+  { number: 5, title: "部署方式", desc: "云端或本地" },
 ];
 
 const DEFAULT_DATA: ProjectFormData = {
@@ -113,8 +111,7 @@ const DEFAULT_DATA: ProjectFormData = {
   completeness: "mvp",
   features: [],
   uiStyle: "minimalism",
-  framework: "react",
-  styling: "tailwind",
+  frontend: "react-nextjs-tailwind",
   backend: "node",
   techBudget: "少量",
   deployPlatform: "云端",
@@ -135,7 +132,9 @@ function buildContext(data: ProjectFormData): string {
   const platforms = data.platforms.join("、");
   const features = data.features.map((f) => `${f.name}(${f.priority})`).join("；");
   const hasWeb = data.platforms.includes("web");
-  return `项目信息：名称「${data.name}」，平台「${platforms}」，描述「${data.description}」，目标用户「${data.targetUsers}」，完成度「${data.completeness}」。功能清单：「${features}」。UI风格「${data.uiStyle}」。${hasWeb ? `技术选型：框架「${data.framework}」，样式「${data.styling}」，后端「${data.backend}」。` : ""}预算「${data.techBudget}」，部署「${data.deployPlatform}」。`;
+  const frontendLabel = FRONTEND_OPTIONS.find((o) => o.value === data.frontend)?.label || data.frontend;
+  const backendLabel = BACKEND_OPTIONS.find((o) => o.value === data.backend)?.label || data.backend;
+  return `项目信息：名称「${data.name}」，平台「${platforms}」，描述「${data.description}」，目标用户「${data.targetUsers}」，完成度「${data.completeness}」。功能清单：「${features}」。UI风格「${data.uiStyle}」。${hasWeb ? `前端「${frontendLabel}」，后端「${backendLabel}」。` : ""}预算「${data.techBudget}」，部署「${data.deployPlatform}」。`;
 }
 
 // ---- Sub-components ----
@@ -324,63 +323,20 @@ function Step3Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
 // ---- Step 4: Tech with Mint recommendation ----
 
 function Step4Form({
-  data, onChange, onRecommend, loadingRec,
+  data, onChange, onRecommend, loadingRec, recReason,
 }: {
   data: ProjectFormData;
   onChange: (p: Partial<ProjectFormData>) => void;
   onRecommend: () => void;
   loadingRec: string | null;
+  recReason: string;
 }): JSX.Element {
   const hasWeb = data.platforms.includes("web");
+  const canRecommend = !loadingRec && data.techBudget !== undefined;
   return (
     <div className="space-y-5">
       {!hasWeb && <p className="text-xs text-text-secondary">非 Web 项目可跳过技术选型。</p>}
-      <div className="text-center py-4">
-        <button
-          className="px-6 py-3 rounded-lg border-2 border-dashed border-accent/40 text-accent hover:border-accent hover:bg-accent/5 transition-colors disabled:opacity-50"
-          onClick={onRecommend}
-          disabled={loadingRec !== null}
-        >
-          {loadingRec === "tech" ? (
-            <span className="flex items-center gap-2">
-              <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3"/><path d="M12 2a10 10 0 019.95 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
-              Mint 正在推荐...
-            </span>
-          ) : (
-            <span className="flex items-center gap-2">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M8 2l1 4h4l-3 2.5 1 4-3-2.5-3 2.5 1-4-3-2.5h4L8 2z"/></svg>
-              让 Mint 推荐技术栈
-            </span>
-          )}
-        </button>
-        <p className="text-xs text-text-secondary mt-2">Mint 会根据项目信息和行业现状推荐三个技术方案</p>
-      </div>
 
-      {hasWeb && (
-        <div className="space-y-3 bg-surface-alt rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-text-secondary">前端框架</span>
-            <span className="text-sm font-medium text-text-primary">{FRAMEWORK_OPTIONS.find((o) => o.value === data.framework)?.label || data.framework}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-text-secondary">样式方案</span>
-            <span className="text-sm font-medium text-text-primary">{STYLE_OPTIONS.find((o) => o.value === data.styling)?.label || data.styling}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-text-secondary">后端技术</span>
-            <span className="text-sm font-medium text-text-primary">{BACKEND_OPTIONS.find((o) => o.value === data.backend)?.label || data.backend}</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---- Step 5: Deploy ----
-
-function Step5Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void }): JSX.Element {
-  return (
-    <div className="space-y-5">
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">开发运维成本</label>
         <div className="flex gap-2">
@@ -394,20 +350,94 @@ function Step5Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
             );
           })}
         </div>
+        <p className="text-[10px] text-text-secondary mt-1.5">选择成本后即可让 Mint 推荐最合适的技术方案</p>
       </div>
-      <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">部署平台</label>
-        <div className="flex gap-2">
-          {DEPLOY_OPTIONS.map((opt) => {
-            const active = data.deployPlatform === opt.value;
-            return (
-              <button key={opt.value} className={`flex-1 p-3 rounded-lg border transition-colors text-left ${active ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`} onClick={() => onChange({ deployPlatform: opt.value as DeployChoice })}>
-                <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
-                <div className="text-xs text-text-secondary mt-0.5">{opt.desc}</div>
-              </button>
-            );
-          })}
+
+      {hasWeb && (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1.5">前端技术栈</label>
+            <select className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent" value={data.frontend} onChange={(e) => onChange({ frontend: e.target.value as FrontendChoice })}>
+              {FRONTEND_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label} — {o.desc}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1.5">后端技术栈</label>
+            <select className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent" value={data.backend} onChange={(e) => onChange({ backend: e.target.value as BackendChoice })}>
+              {BACKEND_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label} — {o.desc}</option>)}
+            </select>
+          </div>
         </div>
+      )}
+
+      <div className="text-center pt-2">
+        <button
+          className="px-6 py-3 rounded-lg border-2 border-dashed border-accent/40 text-accent hover:border-accent hover:bg-accent/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          onClick={onRecommend}
+          disabled={!canRecommend}
+        >
+          {loadingRec === "tech" ? (
+            <span className="flex items-center gap-2">
+              <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3"/><path d="M12 2a10 10 0 019.95 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
+              Mint 正在推荐...
+            </span>
+          ) : (
+            <span className="flex items-center gap-2">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M8 2l1 4h4l-3 2.5 1 4-3-2.5-3 2.5 1-4-3-2.5h4L8 2z"/></svg>
+              ✨ Mint 推荐一套方案
+            </span>
+          )}
+        </button>
+        {!canRecommend && (
+          <p className="text-xs text-text-secondary mt-2">请先选择开发运维成本</p>
+        )}
+        {canRecommend && !recReason && (
+          <p className="text-xs text-text-secondary mt-2">Mint 根据成本和项目信息推荐最适合的一套技术组合</p>
+        )}
+        {recReason && (
+          <div className="mt-3 bg-accent/5 border border-accent/20 rounded-lg p-3">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 text-accent"><path d="M8 2l1 4h4l-3 2.5 1 4-3-2.5-3 2.5 1-4-3-2.5h4L8 2z"/></svg>
+              <span className="text-xs font-medium text-accent">Mint 推荐理由</span>
+            </div>
+            <p className="text-xs text-text-primary leading-relaxed">{recReason}</p>
+            <p className="text-[10px] text-text-secondary mt-1.5">已自动填入下拉框，可手动修改</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---- Step 5: Deploy ----
+
+function Step5Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void }): JSX.Element {
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-text-secondary">选择项目的最终部署方式，决定用户如何访问。</p>
+      <div className="flex gap-2">
+        <button
+          className={`flex-1 p-4 rounded-lg border transition-colors text-left ${data.deployPlatform === "云端" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
+          onClick={() => onChange({ deployPlatform: "云端" })}
+        >
+          <div className={`text-sm font-medium mb-1.5 ${data.deployPlatform === "云端" ? "text-accent" : "text-text-primary"}`}>云端部署</div>
+          <div className="text-xs text-text-secondary space-y-0.5">
+            <div>需要云服务资源（可以互联网访问）</div>
+            <div>有服务器费用产生（Vercel / Railway / 云服务器等）</div>
+            <div>适合需要对外提供服务的项目</div>
+          </div>
+        </button>
+        <button
+          className={`flex-1 p-4 rounded-lg border transition-colors text-left ${data.deployPlatform === "本地" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
+          onClick={() => onChange({ deployPlatform: "本地" })}
+        >
+          <div className={`text-sm font-medium mb-1.5 ${data.deployPlatform === "本地" ? "text-accent" : "text-text-primary"}`}>本地部署</div>
+          <div className="text-xs text-text-secondary space-y-0.5">
+            <div>完全免费，无需云服务</div>
+            <div>仅在本机电脑上运行</div>
+            <div>适合个人工具和内部使用</div>
+          </div>
+        </button>
       </div>
     </div>
   );
@@ -463,6 +493,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
   const pathRef = useRef<string | null>(null);
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
   const [loadingRec, setLoadingRec] = useState<string | null>(null);
+  const [recReason, setRecReason] = useState<string>("");
 
   const { ask, sidRef } = useMintChat(pathRef);
 
@@ -530,28 +561,25 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
 
   const handleRecommend = async () => {
     setLoadingRec("tech");
-    const info = `项目名称：${data.name}，平台：${data.platforms.join("、")}，描述：${data.description}，目标用户：${data.targetUsers}，完成度：${data.completeness}`;
-    const resp = await ask(`结合以下项目信息和当前行业趋势，推荐三个技术方案：${info}\n\n每个方案用一行，格式：方案N: [框架](前端) + [样式](CSS方案) + [后端](后端技术) - 一句话理由\n如果项目不需要后端，后端写\"无\"。\n\n给出三个方案后，在最后一行单独写：推荐: 方案X ，其中X是你最推荐的方案号。`);
+    setRecReason("");
+    const info = `项目名称：${data.name}，平台：${data.platforms.join("、")}，描述：${data.description}，目标用户：${data.targetUsers}，完成度：${data.completeness}，预算：${data.techBudget}`;
+    const resp = await ask(`结合以下项目信息和当前行业趋势，推荐一套最合适的技术方案：${info}\n\n备选前端：${FRONTEND_OPTIONS.map((o) => o.label).join("、")}\n备选后端：${BACKEND_OPTIONS.map((o) => o.label).join("、")}\n\n请直接回复，格式：\n前端: [完整选项名称]\n后端: [完整选项名称]\n理由: [一句话推荐理由]\n\n只推荐一套，选最适合的。`);
     setLoadingRec(null);
     if (resp) {
-      // Parse the recommended plan and auto-fill
-      const recMatch = resp.match(/推荐:\s*方案(\d)/i);
-      const recNum = recMatch ? parseInt(recMatch[1]!) : 1;
-      const planRegex = new RegExp(`方案${recNum}:\\s*\\[([^\\]]+)\\]\\(前端\\)\\s*\\+\\s*\\[([^\\]]+)\\]\\(CSS方案\\)\\s*\\+\\s*\\[([^\\]]+)\\]\\(后端技术\\)`, "i");
-      const planMatch = resp.match(planRegex);
-      if (planMatch) {
-        const fw = planMatch[1]!.toLowerCase();
-        const st = planMatch[2]!.toLowerCase();
-        const be = planMatch[3]!.toLowerCase();
-        const fwOpt = FRAMEWORK_OPTIONS.find((o) => o.label.toLowerCase().includes(fw) || o.value === fw);
-        const stOpt = STYLE_OPTIONS.find((o) => o.label.toLowerCase().includes(st) || o.value === st);
-        const beOpt = BACKEND_OPTIONS.find((o) => o.label.toLowerCase().includes(be) || o.value === be || be.includes("无"));
-        const patch: Partial<ProjectFormData> = {};
-        if (fwOpt) patch.framework = fwOpt.value;
-        if (stOpt) patch.styling = stOpt.value;
-        if (be.includes("无")) patch.backend = "none";
-        else if (beOpt) patch.backend = beOpt.value;
-        if (Object.keys(patch).length > 0) updateData(patch);
+      const fwMatch = resp.match(/前端:\s*(.+)/);
+      const beMatch = resp.match(/后端:\s*(.+)/);
+      const reasonMatch = resp.match(/理由:\s*(.+)/);
+      if (reasonMatch) setRecReason(reasonMatch[1]!.trim());
+      if (fwMatch) {
+        const fwName = fwMatch[1]!.trim();
+        const fwOpt = FRONTEND_OPTIONS.find((o) => o.label.includes(fwName) || fwName.includes(o.label));
+        if (fwOpt) updateData({ frontend: fwOpt.value });
+      }
+      if (beMatch) {
+        const beName = beMatch[1]!.trim();
+        const beOpt = BACKEND_OPTIONS.find((o) => o.label.includes(beName) || beName.includes(o.label));
+        if (beOpt) updateData({ backend: beOpt.value });
+        if (beName.includes("不需要")) updateData({ backend: "none" });
       }
     }
   };
@@ -599,7 +627,7 @@ task.json 和 init.sh 暂时不要修改。完成后总结已完成的工作。`
       case 1: return <Step1Form data={data} onChange={updateData} />;
       case 2: return <Step2Form data={data} onChange={updateData} onRecommendFeatures={handleRecommendFeatures} loadingRec={loadingRec} />;
       case 3: return <Step3Form data={data} onChange={updateData} />;
-      case 4: return <Step4Form data={data} onChange={updateData} onRecommend={handleRecommend} loadingRec={loadingRec} />;
+      case 4: return <Step4Form data={data} onChange={updateData} onRecommend={handleRecommend} loadingRec={loadingRec} recReason={recReason} />;
       case 5: return <Step5Form data={data} onChange={updateData} />;
       default: return null;
     }
