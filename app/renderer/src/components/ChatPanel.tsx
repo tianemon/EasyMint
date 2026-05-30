@@ -121,8 +121,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
-  const handleSend = useCallback(async () => {
-    const trimmed = input.trim();
+  const sendText = useCallback(async (text: string) => {
+    const trimmed = text.trim();
     if (!trimmed || loading) return;
     const ts = Date.now();
 
@@ -143,7 +143,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     } catch {
       setLoading(false);
     }
-  }, [input, projectPath, loading]);
+  }, [projectPath, loading, permissionMode]);
+
+  const handleSend = useCallback(async () => {
+    await sendText(input);
+  }, [input, sendText]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); handleSend(); }
@@ -169,27 +173,42 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           </div>
         ) : (
           <div className="p-4 space-y-3">
-            {messages.map((msg) => (
-              <div key={msg.id} className="msg-in">
-                {msg.role === "user" && msg.text ? (
-                  <div className="flex justify-end">
-                    <div className="flex flex-col items-end max-w-[82%]">
-                      <div className="bg-accent text-white rounded-[10px] rounded-br-[4px] px-[14px] py-[10px] text-[13px] leading-[1.55]">
-                        {msg.text}
+            {messages.map((msg, idx) => {
+              const isLast = idx === messages.length - 1;
+              const aiText = msg.role === "ai" && msg.entries
+                ? msg.entries.filter((e) => e.kind === "text").map((e: { text?: string }) => e.text ?? "").join("")
+                : "";
+              const hasInitPrompt = isLast && aiText.includes("帮我初始化开发环境");
+              return (
+                <div key={msg.id} className="msg-in">
+                  {msg.role === "user" && msg.text ? (
+                    <div className="flex justify-end">
+                      <div className="flex flex-col items-end max-w-[82%]">
+                        <div className="bg-accent text-white rounded-[10px] rounded-br-[4px] px-[14px] py-[10px] text-[13px] leading-[1.55]">
+                          {msg.text}
+                        </div>
+                        <span className="text-[10px] text-text-secondary mt-0.5 px-1">{formatTime(msg.timestamp)}</span>
                       </div>
+                    </div>
+                  ) : msg.entries ? (
+                    <div className="flex flex-col max-w-[85%]">
+                      <div className="bg-surface border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-2">
+                        {buildBlocks(msg.entries).map((block, i) => <ChatBlockView key={i} block={block} streaming={streaming} />)}
+                      </div>
+                      {hasInitPrompt && !loading && (
+                        <button
+                          className="mt-2 self-start px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/30 text-accent text-xs hover:bg-accent/20 transition-colors"
+                          onClick={() => sendText("帮我初始化开发环境")}
+                        >
+                          💬 帮我初始化开发环境
+                        </button>
+                      )}
                       <span className="text-[10px] text-text-secondary mt-0.5 px-1">{formatTime(msg.timestamp)}</span>
                     </div>
-                  </div>
-                ) : msg.entries ? (
-                  <div className="flex flex-col max-w-[85%]">
-                    <div className="bg-surface border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-2">
-                      {buildBlocks(msg.entries).map((block, i) => <ChatBlockView key={i} block={block} streaming={streaming} />)}
-                    </div>
-                    <span className="text-[10px] text-text-secondary mt-0.5 px-1">{formatTime(msg.timestamp)}</span>
-                  </div>
-                ) : null}
-              </div>
-            ))}
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
