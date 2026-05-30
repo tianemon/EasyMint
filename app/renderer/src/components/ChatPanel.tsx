@@ -197,9 +197,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                       </div>
                       {hasInitPrompt && !loading && (
                         <button
-                          className="mt-2 self-start px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/30 text-accent text-xs hover:bg-accent/20 transition-colors"
+                          className="mt-2 self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/30 text-accent text-xs hover:bg-accent/20 transition-colors"
                           onClick={() => sendText("帮我初始化开发环境")}
                         >
+                          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                            <path d="M1 7h10M9 3l4 4-4 4" />
+                          </svg>
                           帮我初始化开发环境
                         </button>
                       )}
@@ -224,10 +227,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       {/* Toolbar — permission mode, placeholders */}
       <div className="flex items-center gap-2 px-3 py-1.5 border-t border-border/50 bg-surface shrink-0">
         <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover transition-colors opacity-40 cursor-not-allowed" title="附件上传（即将推出）" disabled>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M14.5 10v3.5a1 1 0 01-1 1H2.5a1 1 0 01-1-1V10M4.5 5L8 1.5 11.5 5M8 1.5v10"/></svg>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <path d="M3 9v4a1 1 0 001 1h8a1 1 0 001-1V9" />
+            <path d="M8 2v8M4.5 5.5L8 2l3.5 3.5" />
+          </svg>
         </button>
         <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover transition-colors opacity-40 cursor-not-allowed" title="思考模式（即将推出）" disabled>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><circle cx="8" cy="8" r="6"/><path d="M8 5v4M8 11h0"/></svg>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <path d="M8 1a7 7 0 100 14A7 7 0 008 1z" />
+            <path d="M8 4.5V8l2.5 2.5" />
+          </svg>
         </button>
         <div className="flex-1" />
         <select

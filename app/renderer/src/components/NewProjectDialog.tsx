@@ -383,7 +383,10 @@ function Step4Form({
             </span>
           ) : (
             <span className="flex items-center gap-2">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M8 2l1 4h4l-3 2.5 1 4-3-2.5-3 2.5 1-4-3-2.5h4L8 2z"/></svg>
+              <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <path d="M9 2l.75 5h5l-4 3 1.25 5L9 12.5l-4 2.5L6.25 10l-4-3h5L8 2z" />
+                <circle cx="9" cy="9" r="1.25" fill="currentColor" stroke="none" />
+              </svg>
               Mint 推荐一套方案
             </span>
           )}
@@ -397,7 +400,7 @@ function Step4Form({
         {recReason && (
           <div className="mt-3 bg-accent/5 border border-accent/20 rounded-lg p-3">
             <div className="flex items-center gap-1.5 mb-1.5">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 text-accent"><path d="M8 2l1 4h4l-3 2.5 1 4-3-2.5-3 2.5 1-4-3-2.5h4L8 2z"/></svg>
+              <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-accent"><path d="M9 2l.75 5h5l-4 3 1.25 5L9 12.5l-4 2.5L6.25 10l-4-3h5L8 2z" /><circle cx="9" cy="9" r="1.25" fill="currentColor" stroke="none" /></svg>
               <span className="text-xs font-medium text-accent">Mint 推荐理由</span>
             </div>
             <p className="text-xs text-text-primary leading-relaxed">{recReason}</p>
