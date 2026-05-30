@@ -52,7 +52,7 @@ export function buildBlocks(entries: StreamEntry[]): Block[] {
     else if (e.kind === "tool_use") { flushText(); flushThink(); flushSys(); toolBuf.push({ name: e.name, input: e.input, id: e.id }); }
     else if (e.kind === "tool_result") { /* skip, results are attached inline */ }
     else if (e.kind === "error") { flushText(); flushThink(); flushTool(); blocks.push({ kind: "system", message: e.data }); }
-    else if (e.kind === "exit") { flushAll(); blocks.push({ kind: "system", message: e.code === 0 ? "✓ 完成" : `✗ 退出 (${e.code})` }); }
+    else if (e.kind === "exit") { flushAll(); /* suppress — user doesn't need to see process exit code */ }
     else { flushAll(); }
   }
   flushAll();

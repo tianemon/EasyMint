@@ -13,6 +13,7 @@ interface LeftPanelProps {
   onNewSession?: () => void;
   onSessionDelete?: (convId: string) => void;
   activeSessionId?: string;
+  sessionRefreshKey?: number;
 }
 
 export function LeftPanel({
@@ -25,6 +26,7 @@ export function LeftPanel({
   onNewSession,
   onSessionDelete,
   activeSessionId,
+  sessionRefreshKey,
 }: LeftPanelProps): JSX.Element {
   const isFiles = activePanel === "files" || activePanel === "editor";
   const title = isFiles ? "项目文件" : "会话";
@@ -67,10 +69,12 @@ export function LeftPanel({
           />
         ) : (
           <SessionHistory
+            projectPath={projectPath}
             onSessionClick={onSessionClick}
             onNewSession={onNewSession}
             onSessionDelete={onSessionDelete}
-            activeConvId={activeSessionId}
+            activeSessionId={activeSessionId}
+            refreshKey={sessionRefreshKey}
           />
         )}
       </div>

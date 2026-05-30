@@ -33,6 +33,7 @@ interface Settings {
   screenshotVerification?: boolean;
   apiBaseUrl?: string;
   apiKey?: string;
+  lastProjectId?: string;
 }
 
 export class Store {
@@ -44,7 +45,7 @@ export class Store {
     this.dataDir = baseDir ?? DATA_DIR;
     fs.mkdirSync(this.dataDir, { recursive: true });
     this.projectsPath = path.join(this.dataDir, "projects.json");
-    this.settingsPath = path.join(this.dataDir, "settings.json");
+    this.settingsPath = path.join(this.dataDir, "sdk-config", "settings.json");
     this.ensureFiles();
   }
 
@@ -53,12 +54,13 @@ export class Store {
       fs.writeFileSync(this.projectsPath, JSON.stringify({ projects: [] }, null, 2));
     }
     if (!fs.existsSync(this.settingsPath)) {
-      const defaults: Settings = {
+      const dir = path.dirname(this.settingsPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(this.settingsPath, JSON.stringify({
         defaultProjectDir: os.homedir(),
         claudePath: "",
         terminalFontSize: 14,
-      };
-      fs.writeFileSync(this.settingsPath, JSON.stringify(defaults, null, 2));
+      }, null, 2));
     }
   }
 
@@ -72,12 +74,62 @@ export class Store {
   }
 
   getSettings(): Settings {
+    if (!fs.existsSync(this.settingsPath)) {
+      return { defaultProjectDir: os.homedir(), claudePath: "", terminalFontSize: 14 };
+    }
     const raw = fs.readFileSync(this.settingsPath, "utf-8");
-    return JSON.parse(raw);
+    const data = JSON.parse(raw);
+    // SDK stores API key under env.ANTHROPIC_AUTH_TOKEN, map back to Mint format
+    const env = data.env || {};
+    return {
+      defaultProjectDir: data.defaultProjectDir || os.homedir(),
+      claudePath: data.claudePath || "",
+      terminalFontSize: data.terminalFontSize || 14,
+      evaluateMode: data.evaluateMode,
+      tddMode: data.tddMode,
+      screenshotVerification: data.screenshotVerification,
+      apiBaseUrl: env.ANTHROPIC_BASE_URL || data.apiBaseUrl,
+      apiKey: env.ANTHROPIC_AUTH_TOKEN || data.apiKey,
+      lastProjectId: data.lastProjectId || undefined,
+    };
+  }
+
+  getLastProjectId(): string | null {
+    return this.getSettings().lastProjectId ?? null;
+  }
+
+  setLastProjectId(projectId: string): void {
+    const settings = this.getSettings();
+    settings.lastProjectId = projectId;
+    this.saveSettings(settings);
   }
 
   saveSettings(settings: Settings): void {
-    fs.writeFileSync(this.settingsPath, JSON.stringify(settings, null, 2));
+    const dir = path.dirname(this.settingsPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    // Read existing SDK settings to preserve other config
+    let data: Record<string, unknown> = {};
+    if (fs.existsSync(this.settingsPath)) {
+      try { data = JSON.parse(fs.readFileSync(this.settingsPath, "utf-8")); } catch { /* overwrite */ }
+    }
+
+    // Merge Mint settings into the SDK settings file
+    data.defaultProjectDir = settings.defaultProjectDir;
+    data.claudePath = settings.claudePath;
+    data.terminalFontSize = settings.terminalFontSize;
+    data.evaluateMode = settings.evaluateMode;
+    data.tddMode = settings.tddMode;
+    data.screenshotVerification = settings.screenshotVerification;
+    data.lastProjectId = settings.lastProjectId;
+
+    // Inject API key into SDK's expected env format
+    const env = (data.env as Record<string, string>) || {};
+    if (settings.apiKey) env.ANTHROPIC_AUTH_TOKEN = settings.apiKey;
+    if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
+    data.env = env;
+
+    fs.writeFileSync(this.settingsPath, JSON.stringify(data, null, 2));
   }
 
   getSessionsDir(projectId: string): string {
@@ -109,92 +161,4 @@ export class Store {
     fs.writeFileSync(sessionsFile, JSON.stringify(data, null, 2));
   }
 
-  // ── Conversation management (Proma-style) ──
-
-  private get convDir(): string {
-    const d = path.join(this.dataDir, "conversations");
-    fs.mkdirSync(d, { recursive: true });
-    return d;
-  }
-  private get convIndexPath(): string { return path.join(this.dataDir, "conversations.json"); }
-
-  private readConvIndex(): ConversationMeta[] {
-    if (!fs.existsSync(this.convIndexPath)) return [];
-    return JSON.parse(fs.readFileSync(this.convIndexPath, "utf-8")).conversations || [];
-  }
-
-  private writeConvIndex(convs: ConversationMeta[]): void {
-    fs.writeFileSync(this.convIndexPath, JSON.stringify({ conversations: convs }, null, 2));
-  }
-
-  listConversations(): ConversationMeta[] {
-    return this.readConvIndex().sort((a, b) => b.updatedAt - a.updatedAt);
-  }
-
-  createConversation(title = "新对话"): ConversationMeta {
-    const convs = this.readConvIndex();
-    const meta: ConversationMeta = {
-      id: crypto.randomUUID(),
-      title,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    convs.push(meta);
-    this.writeConvIndex(convs);
-    // Create empty message file
-    const msgPath = path.join(this.convDir, `${meta.id}.jsonl`);
-    fs.writeFileSync(msgPath, "");
-    return meta;
-  }
-
-  getConversation(id: string): ConversationMeta | null {
-    return this.readConvIndex().find(c => c.id === id) ?? null;
-  }
-
-  updateConversationMeta(id: string, patch: Partial<Pick<ConversationMeta, "title" | "updatedAt" | "sdkSessionId">>): ConversationMeta | null {
-    const convs = this.readConvIndex();
-    const idx = convs.findIndex(c => c.id === id);
-    if (idx === -1) return null;
-    convs[idx] = { ...convs[idx], ...patch };
-    this.writeConvIndex(convs);
-    return convs[idx];
-  }
-
-  deleteConversation(id: string): void {
-    const convs = this.readConvIndex().filter(c => c.id !== id);
-    this.writeConvIndex(convs);
-    const msgPath = path.join(this.convDir, `${id}.jsonl`);
-    if (fs.existsSync(msgPath)) fs.unlinkSync(msgPath);
-  }
-
-  appendConversationMessage(convId: string, msg: ChatMessage): void {
-    const msgPath = path.join(this.convDir, `${convId}.jsonl`);
-    const line = JSON.stringify(msg) + "\n";
-    fs.appendFileSync(msgPath, line);
-    this.updateConversationMeta(convId, { updatedAt: Date.now() });
-  }
-
-  getConversationMessages(convId: string): ChatMessage[] {
-    const msgPath = path.join(this.convDir, `${convId}.jsonl`);
-    if (!fs.existsSync(msgPath)) return [];
-    const raw = fs.readFileSync(msgPath, "utf-8").trim();
-    if (!raw) return [];
-    return raw.split("\n").map(line => JSON.parse(line) as ChatMessage);
-  }
-}
-
-interface ConversationMeta {
-  id: string;
-  title: string;
-  createdAt: number;
-  updatedAt: number;
-  sdkSessionId?: string;
-  thinkingEnabled?: boolean;
-}
-
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  createdAt: number;
 }

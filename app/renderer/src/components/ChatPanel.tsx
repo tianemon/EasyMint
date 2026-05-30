@@ -16,30 +16,41 @@ function formatTime(ts: number): string {
 
 interface ChatPanelProps {
   projectPath: string;
-  /** Existing conversation to resume, or undefined for new */
-  convId?: string;
-  onConvCreated?: (convId: string, title: string) => void;
+  /** SDK session ID to resume, undefined = new session */
+  sessionId?: string;
+  /** Called when SDK returns the real session_id (first message of a new session) */
+  onSessionCreated?: (sessionId: string) => void;
+  /** Called whenever a response completes — triggers sidebar re-sort */
+  onActivity?: () => void;
 }
 
-export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps): JSX.Element {
+export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreated, onActivity }: ChatPanelProps): JSX.Element {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [thinkingEnabled, setThinkingEnabled] = useState(false);
+  const [statusText, setStatusText] = useState("思考中...");
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const msgIdRef = useRef(0);
-  const convIdRef = useRef<string | undefined>(convId);
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
-  // Sync convId ref
-  useEffect(() => { convIdRef.current = convId; }, [convId]);
+  // SDK session_id — starts as the incoming prop (null for new sessions)
+  const sidRef = useRef<string | null>(existingSid ?? null);
 
-  const scrollToBottom = useCallback(() => {
-    if (autoScrollRef.current && containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+  useEffect(() => {
+    if (existingSid) sidRef.current = existingSid;
+  }, [existingSid]);
+
+  const scrollToBottom = useCallback((force = false) => {
+    if (!containerRef.current) return;
+    if (force || autoScrollRef.current) {
+      // Use rAF to ensure DOM has painted the new message
+      requestAnimationFrame(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        }
+      });
     }
   }, []);
 
@@ -49,30 +60,43 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
     autoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   }, []);
 
-  // Load existing messages + sdkSessionId
+  // Load history for existing session
   useEffect(() => {
-    if (!convId) return;
-    window.electronAPI.conv.get(convId).then((meta) => {
-      if (meta?.sdkSessionId) setSessionId(meta.sdkSessionId);
-      if (meta?.thinkingEnabled !== undefined) setThinkingEnabled(meta.thinkingEnabled);
-    }).catch(() => {});
-    window.electronAPI.conv.messages(convId).then((msgs) => {
-      const mapped: ChatMessage[] = msgs.map((m) => ({
-        id: ++msgIdRef.current,
-        role: m.role === "user" ? "user" : "ai",
-        text: m.role === "user" ? m.content : undefined,
-        entries: m.role === "assistant" ? [{ kind: "text", text: m.content, timestamp: m.createdAt }] : undefined,
-        timestamp: m.createdAt,
-      }));
+    if (!existingSid) return;
+    window.electronAPI.conv.messages(existingSid, projectPath).then((msgs) => {
+      const mapped: ChatMessage[] = [];
+      for (const m of msgs) {
+        if (m.type === "user") {
+          const content = (m.message as { content?: string | unknown[] })?.content;
+          const text = typeof content === "string" ? content : Array.isArray(content)
+            ? content.map((b: unknown) => (b as { text?: string })?.text ?? "").join("")
+            : "";
+          if (text) mapped.push({ id: ++msgIdRef.current, role: "user", text, timestamp: Date.now() });
+        } else if (m.type === "assistant") {
+          const content = (m.message as { content?: unknown[] })?.content;
+          if (Array.isArray(content)) {
+            const textBlocks = content.filter((b: unknown) => (b as { type?: string })?.type === "text");
+            const text = textBlocks.map((b: unknown) => (b as { text?: string })?.text ?? "").join("\n");
+            if (text) {
+              mapped.push({ id: ++msgIdRef.current, role: "ai", entries: [{ kind: "text", text, timestamp: Date.now() }], timestamp: Date.now() });
+            }
+          }
+        }
+      }
       if (mapped.length > 0) setMessages(mapped);
-    });
-  }, [convId]);
+    }).catch(() => {});
+  }, [existingSid, projectPath]);
 
-  // Stream listener — batch AI events into turns, save text to JSONL
+  // Stream listener
   useEffect(() => {
     let currentAiId = 0;
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       if (event.source !== "chat") return;
+      setStreaming(true);
+      if (event.type === "status") {
+        setStatusText(typeof event.data.text === "string" ? event.data.text : "处理中...");
+        return;
+      }
       const entry = normalizeEvent(event);
       if (!entry) return;
       if (!currentAiId) {
@@ -81,61 +105,52 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
       } else {
         setMessages((prev) => prev.map((m) => m.id === currentAiId ? { ...m, entries: [...(m.entries || []), entry], timestamp: entry.timestamp } : m));
       }
-      // Save assistant text to JSONL
-      if (entry.kind === "text" && convIdRef.current) {
-        window.electronAPI.conv.appendMessage(convIdRef.current, { id: `a-${entry.timestamp}`, role: "assistant", content: entry.text, createdAt: entry.timestamp }).catch(() => {});
+      scrollToBottom(true);
+    });
+    const unsubExit = window.electronAPI.agent.onExit(() => { currentAiId = 0; setLoading(false); setStreaming(false); onActivity?.(); });
+    // SDK returns session_id in first stream message — capture it
+    const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: realSid }) => {
+      if (!sidRef.current) {
+        sidRef.current = realSid;
+        onSessionCreated?.(realSid);
       }
     });
-    const unsubExit = window.electronAPI.agent.onExit(() => { currentAiId = 0; setLoading(false); setStreaming(false); });
-    return () => { unsub(); unsubExit(); };
+    return () => { unsub(); unsubExit(); unsubSession(); };
   }, []);
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
-  // Optimistic send: create conv if needed, append user message, call sendMessage
   const handleSend = useCallback(async () => {
     const trimmed = input.trim();
     if (!trimmed || loading) return;
     const ts = Date.now();
 
-    // Create conversation if first message with no existing conv
-    let cid = convIdRef.current;
-    if (!cid) {
-      const meta = await window.electronAPI.conv.create("新会话");
-      cid = meta.id;
-      convIdRef.current = cid;
-      onConvCreated?.(cid, meta.title);
-    }
-
-    // Optimistic user message + save to JSONL
     setMessages((prev) => [...prev, { id: ++msgIdRef.current, role: "user", text: trimmed, timestamp: ts }]);
-    window.electronAPI.conv.appendMessage(cid, { id: `u-${ts}`, role: "user", content: trimmed, createdAt: ts }).catch(() => {});
     setInput("");
     setLoading(true);
+    setStatusText("思考中...");
+    autoScrollRef.current = true;
+    scrollToBottom(true);
 
     try {
       setStreaming(true);
-    const result = await window.electronAPI.agent.sendMessage(projectPath, trimmed, { sessionId, thinkingEnabled });
-    setCurrentRunId(result.chatId);
-    if (!sessionId && result.sessionId) {
-        setSessionId(result.sessionId);
-        if (cid) window.electronAPI.conv.update(cid, { sdkSessionId: result.sessionId } as any).catch(() => {});
-      }
-      // Auto-title from first user message
-      window.electronAPI.conv.update(cid, { title: trimmed.slice(0, 30) + (trimmed.length > 30 ? "…" : "") }).catch(() => {});
+      const result = await window.electronAPI.agent.sendMessage(projectPath, trimmed, {
+        sessionId: sidRef.current,
+      });
+      setCurrentRunId(result.chatId);
     } catch {
       setLoading(false);
     }
-  }, [input, projectPath, sessionId, onConvCreated]);
+  }, [input, projectPath, loading]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); handleSend(); }
   }, [handleSend]);
 
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="absolute inset-0 flex flex-col">
       <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
         {!hasMessages ? (
           <div className="flex items-center justify-center h-full">
@@ -173,15 +188,18 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
                 ) : null}
               </div>
             ))}
-            {loading && (
-              <div className="flex items-center gap-2 text-text-secondary text-sm msg-in">
-                <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                思考中...
-              </div>
-            )}
           </div>
         )}
       </div>
+      {/* Streaming indicator — fixed position above input */}
+      {(streaming || loading) && (
+        <div className="flex items-center gap-2 px-4 py-1.5 text-text-secondary text-xs bg-surface-alt/50 border-t border-border/50 shrink-0">
+          <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+          <span className="w-2 h-2 rounded-full bg-accent animate-pulse" style={{ animationDelay: "0.2s" }} />
+          <span className="w-2 h-2 rounded-full bg-accent animate-pulse" style={{ animationDelay: "0.4s" }} />
+          <span className="ml-1">{statusText}</span>
+        </div>
+      )}
       <div className="border-t border-border p-3 pt-2 shrink-0">
         <div className="flex gap-2 items-end">
           <textarea
@@ -208,19 +226,6 @@ export function ChatPanel({ projectPath, convId, onConvCreated }: ChatPanelProps
               <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
             </button>
           )}
-        </div>
-        <div className="flex items-center gap-2 mt-2">
-          <span className="text-[10px] text-text-secondary">思考模式</span>
-          <button
-            onClick={() => {
-              const v = !thinkingEnabled;
-              setThinkingEnabled(v);
-              if (convIdRef.current) window.electronAPI.conv.update(convIdRef.current, { thinkingEnabled: v } as any).catch(() => {});
-            }}
-            className={`relative w-8 h-5 rounded-full transition-colors ${thinkingEnabled ? "bg-accent" : "bg-border"}`}
-          >
-            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${thinkingEnabled ? "translate-x-3.5" : "translate-x-0.5"}`} />
-          </button>
         </div>
       </div>
     </div>

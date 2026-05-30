@@ -31,7 +31,7 @@ interface Session {
 // JSONL stream event types from Claude --output-format stream-json
 interface StreamEvent {
   runId: string;
-  type: "assistant" | "message_delta" | "tool_use" | "tool_result" | "user_message" | "system" | "error";
+  type: "assistant" | "message_delta" | "tool_use" | "tool_result" | "user_message" | "system" | "error" | "status";
   data: Record<string, unknown>;
   timestamp: number;
   source?: "worker" | "evaluator" | "chat";
@@ -66,11 +66,12 @@ interface ElectronAPI {
   };
   agent: {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; thinkingEnabled?: boolean }) => Promise<{ chatId: string; sessionId: string }>;
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null }) => Promise<{ chatId: string }>;
     abort: (runId: string) => void;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
+    onChatSession: (callback: (data: { chatId: string; sessionId: string }) => void) => () => void;
   };
   evaluator: {
     isEnabled: () => Promise<boolean>;
@@ -83,13 +84,12 @@ interface ElectronAPI {
     detect: () => Promise<{ found: boolean; path?: string; version?: string }>;
   };
   conv: {
-    list: () => Promise<{ id: string; title: string; createdAt: number; updatedAt: number; sdkSessionId?: string; thinkingEnabled?: boolean }[]>;
-    get: (id: string) => Promise<{ id: string; title: string; createdAt: number; updatedAt: number; sdkSessionId?: string; thinkingEnabled?: boolean } | null>;
-    create: (title?: string) => Promise<{ id: string; title: string; createdAt: number; updatedAt: number; sdkSessionId?: string; thinkingEnabled?: boolean }>;
-    update: (id: string, patch: Record<string, unknown>) => Promise<{ id: string; title: string; createdAt: number; updatedAt: number } | null>;
-    delete: (id: string) => Promise<void>;
-    messages: (id: string) => Promise<{ id: string; role: string; content: string; createdAt: number }[]>;
-    appendMessage: (convId: string, message: Record<string, unknown>) => Promise<void>;
+    list: (projectPath: string) => Promise<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number }[]>;
+    get: (id: string, projectPath: string) => Promise<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number } | null>;
+    messages: (id: string, projectPath: string) => Promise<{ type: string; uuid: string; session_id: string; message: unknown; parent_tool_use_id: string | null }[]>;
+    rename: (id: string, title: string, projectPath: string) => Promise<void>;
+    delete: (id: string, projectPath: string) => Promise<void>;
+    togglePin: (id: string) => Promise<boolean>;
   };
   session: {
     list: (projectId: string) => Promise<Session[]>;
@@ -97,9 +97,18 @@ interface ElectronAPI {
     create: (projectId: string, title: string) => Promise<Session>;
     delete: (projectId: string, sessionId: string) => Promise<void>;
   };
+  systemPrompt: {
+    getConfig: () => Promise<{ prompts: { id: string; name: string; content: string; isBuiltin: boolean; createdAt: number; updatedAt: number }[]; defaultPromptId?: string; appendDateTimeAndUserName: boolean }>;
+    create: (input: { name: string; content: string }) => Promise<{ id: string; name: string; content: string; isBuiltin: boolean; createdAt: number; updatedAt: number }>;
+    update: (id: string, input: { name?: string; content?: string }) => Promise<{ id: string; name: string; content: string; isBuiltin: boolean; createdAt: number; updatedAt: number }>;
+    delete: (id: string) => Promise<void>;
+    updateAppend: (enabled: boolean) => Promise<void>;
+    setDefault: (id: string) => Promise<void>;
+  };
   settings: {
     get: () => Promise<{ terminalFontSize: number; evaluateMode: boolean; tddMode: boolean; screenshotVerification: boolean; apiBaseUrl?: string; apiKey?: string }>;
     set: (key: string, value: unknown) => Promise<void>;
+    setLastProject: (projectId: string) => Promise<void>;
   };
 }
 

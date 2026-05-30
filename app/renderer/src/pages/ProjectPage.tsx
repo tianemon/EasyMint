@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import React, { useState, useEffect, useCallback } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { LeftToolbar } from "../components/LeftToolbar";
 import { LeftPanel } from "../components/LeftPanel";
 import { RightPanel } from "../components/RightPanel";
 import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { SettingsDialog } from "../components/SettingsDialog";
+import { NewProjectDialog } from "../components/NewProjectDialog";
 import { TabBar } from "../components/TabBar";
 import { DragHandle } from "../components/DragHandle";
 import { TitleBar } from "../components/TitleBar";
@@ -16,10 +17,15 @@ export type ActivePanel = "editor" | "files" | "sessions" | "chat";
 
 export function ProjectPage(): JSX.Element {
   const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [activePanel, setActivePanel] = useState<ActivePanel>("editor");
   const [showSettings, setShowSettings] = useState(false);
+  const [showNewProject, setShowNewProject] = useState(false);
   const [projectPath, setProjectPath] = useState("");
-  const [projectName, setProjectName] = useState("EasyMint");
+  const [projectName, setProjectName] = useState("");
+  const [showOpenProject, setShowOpenProject] = useState(false);
+  const [openProjectList, setOpenProjectList] = useState<Array<{ id: string; name: string; path: string }>>([]);
 
   const {
     collapsedLeft,
@@ -35,16 +41,33 @@ export function ProjectPage(): JSX.Element {
   const { tabs, activeTabId, openTab, closeTab } = useTabStore();
 
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
-  const [currentConvId, setCurrentConvId] = useState<string | undefined>();
+  const [currentSessionId, setCurrentSessionId] = useState<string | undefined>();
+  const [sessionRefreshKey, setSessionRefreshKey] = useState(0);
 
   useEffect(() => {
+    // 切换项目时清空标签页
+    useTabStore.getState().clearTabs();
     if (projectId) {
       window.electronAPI.project.get(projectId).then((p) => {
         if (p) {
           setProjectPath(p.path);
           setProjectName(p.name);
+          document.title = `${p.name} — EasyMint`;
+          window.electronAPI.settings.setLastProject(projectId);
+          // 如果 URL 带有 session 参数，自动打开该会话
+          const params = new URLSearchParams(location.search);
+          const urlSessionId = params.get("session");
+          if (urlSessionId) {
+            setCurrentSessionId(urlSessionId);
+            setActiveSessionId(urlSessionId);
+            // 切换到聊天面板并打开此会话 tab
+            setActivePanel("chat");
+            openTab({ id: urlSessionId, type: "chat", title: "新项目", sessionId: urlSessionId });
+          }
         }
       });
+    } else {
+      document.title = "EasyMint";
     }
   }, [projectId]);
 
@@ -56,27 +79,35 @@ export function ProjectPage(): JSX.Element {
   );
 
   const handleSessionClick = useCallback(
-    (convId: string) => {
-      setActiveSessionId(convId);
-      setCurrentConvId(convId);
-      openTab({ id: "", type: "chat", title: "对话", sessionId: convId });
+    (sessionId: string) => {
+      setActiveSessionId(sessionId);
+      setCurrentSessionId(sessionId);
+      openTab({ id: "", type: "chat", title: "对话", sessionId });
     },
     [openTab]
   );
 
-  const handleNewSession = useCallback(async () => {
-    const meta = await window.electronAPI.conv.create("新会话");
-    setCurrentConvId(meta.id);
-    openTab({ id: "", type: "chat" as const, title: "新会话", sessionId: meta.id });
+  const handleNewSession = useCallback(() => {
+    const tabId = `new-${Date.now()}`;
+    setCurrentSessionId(undefined);
+    openTab({ id: tabId, type: "chat" as const, title: "新会话", sessionId: tabId });
   }, [openTab]);
 
-  const handleSessionDelete = useCallback((convId: string) => {
-    if (activeSessionId === convId) setActiveSessionId(undefined);
-    closeTab(convId);
+  const handleSessionDelete = useCallback((sessionId: string) => {
+    if (activeSessionId === sessionId) setActiveSessionId(undefined);
+    closeTab(sessionId);
   }, [activeSessionId, closeTab]);
 
-  const handleChatFirstMessage = useCallback(() => {
-    // Tab title already set, no action needed on first message
+  const handleOpenProject = useCallback(async () => {
+    const projects = await window.electronAPI.project.list();
+    setOpenProjectList(projects);
+    setShowOpenProject(true);
+  }, []);
+
+  const handleDeleteProject = useCallback(async (e: React.MouseEvent, projectIdToDelete: string) => {
+    e.stopPropagation();
+    await window.electronAPI.project.delete(projectIdToDelete);
+    setOpenProjectList((prev) => prev.filter((p) => p.id !== projectIdToDelete));
   }, []);
 
   const handleLeftDrag = useCallback(
@@ -108,7 +139,9 @@ export function ProjectPage(): JSX.Element {
           <ChatPanel
             key={activeTab.id}
             projectPath={projectPath}
-            convId={currentConvId}
+            sessionId={currentSessionId}
+            onSessionCreated={(sid) => { setCurrentSessionId(sid); setSessionRefreshKey((k) => k + 1); }}
+            onActivity={() => setSessionRefreshKey((k) => k + 1)}
           />
         );
       case "file":
@@ -126,12 +159,12 @@ export function ProjectPage(): JSX.Element {
       {/* Grid + floating handles */}
       <div
         className="flex-1 min-h-0 grid-panels overflow-hidden relative"
-        style={{ display: "grid", gridTemplateColumns: gridColumns, gap: 0, background: "var(--color-surface)" }}
+        style={{ display: "grid", gridTemplateColumns: gridColumns, gridTemplateRows: "100%", gap: 0, background: "var(--color-surface)" }}
       >
-        <LeftToolbar activePanel={activePanel} onSelect={setActivePanel} onSettings={() => setShowSettings(true)} />
+        <LeftToolbar activePanel={activePanel} onSelect={setActivePanel} onSettings={() => setShowSettings(true)} onNewProject={() => setShowNewProject(true)} onOpenProject={handleOpenProject} />
 
         {collapsedLeft ? <div /> : (
-          <LeftPanel activePanel={activePanel} projectPath={projectPath} projectId={projectId!} onCollapse={toggleLeft} onFileClick={handleFileClick} onSessionClick={handleSessionClick} onNewSession={handleNewSession} onSessionDelete={handleSessionDelete} activeSessionId={activeSessionId} />
+          <LeftPanel activePanel={activePanel} projectPath={projectPath} projectId={projectId!} onCollapse={toggleLeft} onFileClick={handleFileClick} onSessionClick={handleSessionClick} onNewSession={handleNewSession} onSessionDelete={handleSessionDelete} activeSessionId={activeSessionId} sessionRefreshKey={sessionRefreshKey} />
         )}
 
         <div className="flex flex-col min-w-0 overflow-hidden relative">
@@ -139,7 +172,7 @@ export function ProjectPage(): JSX.Element {
             <button className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-r-md bg-surface-alt border border-border border-l-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleLeft} title="展开文件面板">▸</button>
           )}
           <TabBar />
-          <div className="flex-1 min-h-0">{renderTabContent()}</div>
+          <div className="flex-1 min-h-0 relative">{renderTabContent()}</div>
           {collapsedRight && (
             <button className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-l-md bg-surface-alt border border-border border-r-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleRight} title="展开任务面板">◂</button>
           )}
@@ -161,6 +194,61 @@ export function ProjectPage(): JSX.Element {
       </div>
 
       <SettingsDialog open={showSettings} onClose={() => setShowSettings(false)} />
+
+      {/* Open Project Picker */}
+      {showOpenProject && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowOpenProject(false)}>
+          <div className="bg-white rounded-xl border border-border shadow-2xl w-[420px] max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
+              <h2 className="text-base font-semibold text-text-primary">打开项目</h2>
+              <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setShowOpenProject(false)}>✕</button>
+            </div>
+            <p className="px-5 pb-2 text-xs text-text-secondary">选择一个项目，在当前窗口打开。</p>
+            <div className="overflow-y-auto flex-1 px-3 pb-3">
+              {openProjectList.length === 0 ? (
+                <p className="text-xs text-text-secondary text-center py-8">暂无项目，创建第一个吧。</p>
+              ) : (
+                openProjectList.map((p) => (
+                  <div key={p.id} className="relative group">
+                    <button
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors mb-0.5 ${p.id === projectId ? "bg-accent/10" : "hover:bg-surface-hover"}`}
+                      onClick={() => {
+                        setShowOpenProject(false);
+                        navigate(`/project/${p.id}`);
+                      }}
+                    >
+                      <div className={`text-sm font-medium pr-5 ${p.id === projectId ? "text-accent" : "text-text-primary"}`}>{p.name}</div>
+                      <div className="text-[11px] text-text-secondary truncate">{p.path}</div>
+                    </button>
+                    <button
+                      className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-text-secondary hover:text-red-500 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100 text-[11px]"
+                      onClick={(e) => handleDeleteProject(e, p.id)}
+                      title="删除记录"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNewProject && (
+        <NewProjectDialog
+          openInNewWindow={!!projectId}
+          onClose={() => setShowNewProject(false)}
+          onCreated={(project, sessionId) => {
+            setShowNewProject(false);
+            if (!projectId) {
+              // 无项目时，原地跳转到新项目页面
+              const query = sessionId ? `?session=${sessionId}` : "";
+              navigate(`/project/${project.id}${query}`);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

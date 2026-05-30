@@ -1,6 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
+  window: {
+    openProject: (projectId: string, sessionId?: string) => ipcRenderer.invoke("window:open-project", { projectId, sessionId }),
+    newWindow: () => ipcRenderer.invoke("window:new"),
+  },
   dialog: {
     openDirectory: () => ipcRenderer.invoke("dialog:openDirectory"),
   },
@@ -40,17 +44,25 @@ contextBridge.exposeInMainWorld("electronAPI", {
     detect: () => ipcRenderer.invoke("claude:detect"),
   },
   conv: {
-    list: () => ipcRenderer.invoke("conv:list"),
-    get: (id: string) => ipcRenderer.invoke("conv:get", { id }),
-    create: (title?: string) => ipcRenderer.invoke("conv:create", { title }),
-    update: (id: string, patch: Record<string, unknown>) => ipcRenderer.invoke("conv:update", { id, patch }),
-    delete: (id: string) => ipcRenderer.invoke("conv:delete", { id }),
-    messages: (id: string) => ipcRenderer.invoke("conv:messages", { id }),
-    appendMessage: (convId: string, message: Record<string, unknown>) => ipcRenderer.invoke("conv:appendMessage", { convId, message }),
+    list: (projectPath: string) => ipcRenderer.invoke("conv:list", { projectPath }),
+    get: (id: string, projectPath: string) => ipcRenderer.invoke("conv:get", { id, projectPath }),
+    messages: (id: string, projectPath: string) => ipcRenderer.invoke("conv:messages", { id, projectPath }),
+    rename: (id: string, title: string, projectPath: string) => ipcRenderer.invoke("conv:rename", { id, title, projectPath }),
+    delete: (id: string, projectPath: string) => ipcRenderer.invoke("conv:delete", { id, projectPath }),
+    togglePin: (id: string) => ipcRenderer.invoke("conv:togglePin", { id }),
+  },
+  systemPrompt: {
+    getConfig: () => ipcRenderer.invoke("system-prompt:get-config"),
+    create: (input: { name: string; content: string }) => ipcRenderer.invoke("system-prompt:create", input),
+    update: (id: string, input: { name?: string; content?: string }) => ipcRenderer.invoke("system-prompt:update", { id, input }),
+    delete: (id: string) => ipcRenderer.invoke("system-prompt:delete", { id }),
+    updateAppend: (enabled: boolean) => ipcRenderer.invoke("system-prompt:update-append", { enabled }),
+    setDefault: (id: string) => ipcRenderer.invoke("system-prompt:set-default", { id }),
   },
   settings: {
     get: () => ipcRenderer.invoke("settings:get"),
     set: (key: string, value: unknown) => ipcRenderer.invoke("settings:set", { key, value }),
+    setLastProject: (projectId: string) => ipcRenderer.invoke("settings:set-last-project", { projectId }),
   },
   evaluator: {
     isEnabled: () => ipcRenderer.invoke("evaluator:isEnabled"),
@@ -62,7 +74,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   agent: {
     runWorker: (projectPath: string, prompt: string) =>
       ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; thinkingEnabled?: boolean }) =>
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null }) =>
       ipcRenderer.invoke("agent:sendMessage", { projectPath, message, ...opts }),
     abort: (runId: string) => ipcRenderer.invoke("agent:abort", { runId }),
     onStream: (callback: (event: unknown) => void) => {
@@ -80,6 +92,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
         callback(data);
       ipcRenderer.on("agent:exit", handler);
       return () => ipcRenderer.removeListener("agent:exit", handler);
+    },
+    onChatSession: (callback: (data: { chatId: string; sessionId: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { chatId: string; sessionId: string }) =>
+        callback(data);
+      ipcRenderer.on("agent:chat-session", handler);
+      return () => ipcRenderer.removeListener("agent:chat-session", handler);
     },
   },
 });

@@ -1,6 +1,10 @@
+import os from "os";
+import path from "path";
+import fs from "fs";
 import { BrowserWindow } from "electron";
 import type { SDKMessage, Options as QueryOptions } from "@anthropic-ai/claude-agent-sdk";
 import { Store } from "./store";
+import { resolveEffectivePrompt } from "./system-prompt-manager";
 
 // Dynamic import — ESM SDK in CJS context (matching Proma pattern)
 type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
@@ -27,18 +31,26 @@ interface ActiveChat {
 }
 
 /** Build a query options block, reading API config from the Store. */
-function buildQueryOptions(projectPath: string, store: Store, overrides?: Partial<QueryOptions> & { thinkingEnabled?: boolean }): QueryOptions {
+function buildQueryOptions(projectPath: string, store: Store, isResume: boolean, overrides?: Partial<QueryOptions>): QueryOptions {
+  // Ensure the working directory exists (important for default workspace)
+  const resolvedPath = projectPath || path.join(os.homedir(), "EasyMintProject", "workspace");
+  const cwd = resolvedPath.startsWith("~") ? path.join(os.homedir(), resolvedPath.slice(1)) : resolvedPath;
+  if (!fs.existsSync(cwd)) fs.mkdirSync(cwd, { recursive: true });
+
   const settings = store.getSettings();
-  const env: Record<string, string> = {};
+  const env: Record<string, string> = {
+    CLAUDE_CONFIG_DIR: path.join(os.homedir(), ".easymint", "sdk-config"),
+  };
   if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
   if (settings.apiKey) env.ANTHROPIC_API_KEY = settings.apiKey;
-  const thinking = overrides?.thinkingEnabled ? { type: "enabled" as const } : undefined;
+  // Inject system prompt only for new sessions. Resume uses the session's stored prompt.
+  const customPrompt = isResume ? "" : resolveEffectivePrompt();
   return {
-    cwd: projectPath,
+    cwd,
     permissionMode: "bypassPermissions",
     model: process.env.ANTHROPIC_MODEL || undefined,
-    thinking,
-    env: Object.keys(env).length > 0 ? env : undefined,
+    env,
+    systemPrompt: customPrompt ? { type: "preset" as const, preset: "claude_code" as const, append: customPrompt } : undefined,
     ...overrides,
   };
 }
@@ -60,17 +72,17 @@ export class AgentService {
     (async () => {
       try {
         const q = await getQuery();
-        const queryObj = await q({ prompt, options: buildQueryOptions(projectPath, this.store) });
+        const queryObj = await q({ prompt, options: buildQueryOptions(projectPath, this.store, false) });
         run.query = queryObj;
         for await (const msg of queryObj) {
           if (!this.activeRuns.has(runId)) break;
 
           const event = toStreamEvent(msg, runId, "worker");
-          if (event) mainWindow.webContents.send("agent:stream", event);
+          if (event) broadcast("agent:stream", event);
 
           if (msg.type === "result") {
             const code = msg.subtype === "success" ? 0 : 1;
-            mainWindow.webContents.send("agent:exit", { runId, code });
+            broadcast("agent:exit", { runId, code });
             this.activeRuns.delete(runId);
             if (code === 0 && this.onWorkerComplete) this.onWorkerComplete(projectPath);
           }
@@ -78,8 +90,8 @@ export class AgentService {
       } catch (err: unknown) {
         if (this.activeRuns.has(runId)) {
           const msg = err instanceof Error ? err.message : String(err);
-          mainWindow.webContents.send("agent:stderr", { runId, data: msg, timestamp: Date.now() });
-          mainWindow.webContents.send("agent:exit", { runId, code: -1 });
+          broadcast("agent:stderr", { runId, data: msg, timestamp: Date.now() });
+          broadcast("agent:exit", { runId, code: -1 });
           this.activeRuns.delete(runId);
         }
       }
@@ -96,41 +108,57 @@ export class AgentService {
     }
   }
 
-  /** Send message — first call establishes session, subsequent calls use resume */
-  sendMessage(projectPath: string, message: string, sessionId: string | null, thinkingEnabled: boolean, mainWindow: BrowserWindow): { chatId: string; sessionId: string } {
+  /** Send message — SDK manages session lifecycle, we just capture & pass session_id */
+  sendMessage(projectPath: string, message: string, resumeSessionId: string | null, mainWindow: BrowserWindow): { chatId: string } {
     const chatId = `chat-${++this.chatCounter}`;
-    const overrides = { ...(sessionId ? { resume: sessionId } : {}), ...(thinkingEnabled ? { thinkingEnabled: true } : {}) };
-    const options = buildQueryOptions(projectPath, this.store, overrides);
+    const isResume = !!resumeSessionId;
+    const overrides = isResume ? { resume: resumeSessionId } : {};
+    const options = buildQueryOptions(projectPath, this.store, isResume, overrides);
 
-    const chat: ActiveChat = { chatId, sessionId: "", query: null, projectPath };
+    const chat: ActiveChat = { chatId, sessionId: resumeSessionId ?? "", query: null, projectPath };
     this.activeChats.set(chatId, chat);
+
+    // For resume: inject session ID so the model knows its identity
+    if (resumeSessionId) {
+      if (!options.systemPrompt) {
+        options.systemPrompt = { type: "preset" as const, preset: "claude_code" as const, append: `<session_info>\n当前会话 ID: ${resumeSessionId}\n</session_info>` };
+      } else if (typeof options.systemPrompt === "object" && "append" in options.systemPrompt) {
+        const sp = options.systemPrompt as { append?: string };
+        sp.append = (sp.append || "") + `\n\n<session_info>\n当前会话 ID: ${resumeSessionId}\n</session_info>`;
+      }
+    }
 
     (async () => {
       try {
         const q = await getQuery();
         const queryObj = await q({ prompt: message, options });
         chat.query = queryObj;
-        let newSessionId = sessionId ?? "";
+        let capturedSid = resumeSessionId ?? "";
         for await (const msg of queryObj) {
+          // Capture session_id from first message (SDK auto-generates for new sessions)
+          const sdkSid = (msg as { session_id?: string }).session_id;
+          if (!capturedSid && sdkSid) {
+            capturedSid = sdkSid;
+            chat.sessionId = sdkSid;
+            broadcast("agent:chat-session", { chatId, sessionId: sdkSid });
+          }
           const event = toStreamEvent(msg, chatId, "chat");
-          if (event) mainWindow.webContents.send("agent:stream", event);
+          if (event) broadcast("agent:stream", event);
           if (msg.type === "result") {
-            newSessionId = (msg as { session_id?: string }).session_id ?? newSessionId;
-            chat.sessionId = newSessionId;
-            mainWindow.webContents.send("agent:exit", { runId: chatId, code: msg.subtype === "success" ? 0 : 1 });
+            broadcast("agent:exit", { runId: chatId, code: msg.subtype === "success" ? 0 : 1 });
           }
         }
       } catch (err: unknown) {
         if (this.activeChats.has(chatId)) {
           const msg = err instanceof Error ? err.message : String(err);
-          mainWindow.webContents.send("agent:stderr", { runId: chatId, data: msg, timestamp: Date.now() });
-          mainWindow.webContents.send("agent:exit", { runId: chatId, code: -1 });
+          broadcast("agent:stderr", { runId: chatId, data: msg, timestamp: Date.now() });
+          broadcast("agent:exit", { runId: chatId, code: -1 });
         }
       }
       this.activeChats.delete(chatId);
     })();
 
-    return { chatId, sessionId: "" };
+    return { chatId };
   }
 
   stopChat(chatId: string): void {
@@ -142,10 +170,18 @@ export class AgentService {
   }
 }
 
+// ── Multi-window broadcast ──
+function broadcast(channel: string, data: unknown): void {
+  BrowserWindow.getAllWindows().forEach((win) => {
+    if (!win.isDestroyed()) {
+      win.webContents.send(channel, data);
+    }
+  });
+}
+
 // ── Shared mutable reference for IPC window access ──
 let _mainWindow: BrowserWindow | null = null;
 export function setMainWindow(win?: BrowserWindow) { if (win) _mainWindow = win; }
-function windowForChat(_chatId: string): BrowserWindow | null { return _mainWindow; }
 
 // ── SDK message → StreamEvent mapping ──
 function toStreamEvent(msg: SDKMessage, runId: string, source: "worker" | "chat"): {
@@ -190,11 +226,25 @@ function toStreamEvent(msg: SDKMessage, runId: string, source: "worker" | "chat"
 
   if (t === "system") {
     const subtype = (msg as { subtype?: string }).subtype ?? "";
+    // SDK status events — translate to Chinese for UI
+    if (subtype === "status") {
+      const status = (msg as { status?: string | null }).status;
+      const text = status ? STATUS_LABELS[status] ?? status : null;
+      if (text) return { runId, type: "status", data: { text }, timestamp: ts, source };
+      return null;
+    }
     // Filter out noisy SDK lifecycle events
-    const skip = new Set(["init", "hook_started", "hook_response", "hook_progress", "memory_recall", "api_retry", "status", "requesting", "compacting", "session_state_changed", "notification", "permission_denied", "files_persisted", "rate_limit"]);
+    const skip = new Set(["init", "hook_started", "hook_response", "hook_progress", "memory_recall", "api_retry", "requesting", "compacting", "session_state_changed", "notification", "permission_denied", "files_persisted", "rate_limit"]);
     if (skip.has(subtype)) return null;
     return { runId, type: "system", data: { message: subtype || "System event" }, timestamp: ts, source };
   }
 
   return null;
 }
+
+// ── SDK status → Chinese labels ──
+const STATUS_LABELS: Record<string, string> = {
+  requesting: "正在思考...",
+  compacting: "整理上下文中...",
+  idle: "",
+};

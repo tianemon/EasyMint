@@ -19,12 +19,11 @@ function getTemplateDir(): string {
   // process.resourcesPath exists only in Electron, not in plain Node/vitest
   const resourcesPath = (process as { resourcesPath?: string }).resourcesPath;
   if (resourcesPath) {
-    const bundled = path.join(resourcesPath, "ai-coding-automation-template");
+    const bundled = path.join(resourcesPath, "template");
     if (fs.existsSync(bundled)) return bundled;
   }
-  // Development: template is sibling to project root
-  // __dirname = app/main/dist/services → up 5 levels to reach project root's parent
-  return path.resolve(__dirname, "..", "..", "..", "..", "..", "ai-coding-automation-template");
+  // Development: __dirname = app/main/dist → up 3 levels to project root → template/
+  return path.resolve(__dirname, "..", "..", "..", "template");
 }
 
 export class ProjectService {
@@ -64,6 +63,10 @@ export class ProjectService {
   }
 
   delete(id: string): void {
+    const project = this.store.getProjects().find((p) => p.id === id);
+    if (project && fs.existsSync(project.path)) {
+      fs.rmSync(project.path, { recursive: true, force: true });
+    }
     const projects = this.store.getProjects().filter((p) => p.id !== id);
     this.store.saveProjects(projects);
   }

@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import type { ActivePanel } from "../pages/ProjectPage";
 
 interface ToolDef {
@@ -29,10 +28,11 @@ interface LeftToolbarProps {
   activePanel: ActivePanel;
   onSelect: (panel: ActivePanel) => void;
   onSettings?: () => void;
+  onNewProject?: () => void;
+  onOpenProject?: () => void;
 }
 
-export function LeftToolbar({ activePanel, onSelect, onSettings }: LeftToolbarProps): JSX.Element {
-  const navigate = useNavigate();
+export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, onOpenProject }: LeftToolbarProps): JSX.Element {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -49,7 +49,9 @@ export function LeftToolbar({ activePanel, onSelect, onSettings }: LeftToolbarPr
 
   const handleDropdownItem = (action: string) => {
     setShowDropdown(false);
-    if (action === "project") navigate("/projects");
+    if (action === "project") onNewProject?.();
+    else if (action === "openproject") onOpenProject?.();
+    else if (action === "newwindow") window.electronAPI.window.newWindow();
     else if (action === "file") {
       const name = prompt("输入文件名（例如：config.ts）：");
       if (name) console.log("新建文件:", name);
@@ -80,6 +82,11 @@ export function LeftToolbar({ activePanel, onSelect, onSettings }: LeftToolbarPr
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2"><rect x="3" y="3" width="10" height="10" rx="3"/><path d="M3 7h10M7 3v5"/></svg>
               新建项目
             </button>
+            <button className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors" onClick={() => handleDropdownItem("openproject")}>
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2"><path d="M2 4.5v7a1 1 0 001 1h10a1 1 0 001-1v-7M2 4.5L8 8l6-3.5M2 4.5a1 1 0 011-1h10a1 1 0 011 1"/></svg>
+              打开项目
+            </button>
+            <div className="border-t border-border my-0.5" />
             <button className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors" onClick={() => handleDropdownItem("file")}>
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2"><path d="M10 2H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5l-3-3z"/><path d="M10 2v3h3"/></svg>
               新建文件
@@ -87,6 +94,10 @@ export function LeftToolbar({ activePanel, onSelect, onSettings }: LeftToolbarPr
             <button className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors" onClick={() => handleDropdownItem("folder")}>
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2"><path d="M2 4a1 1 0 011-1h3l1.5 2H13a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/></svg>
               新建文件夹
+            </button>
+            <div className="border-t border-border my-0.5" />
+            <button className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors" onClick={() => handleDropdownItem("newwindow")}>           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2"><rect x="2" y="2" width="12" height="12" rx="3"/><path d="M8 3v11M3 8h11"/></svg>
+              新建窗口
             </button>
           </div>
         )}

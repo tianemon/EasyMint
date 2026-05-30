@@ -19,6 +19,7 @@ export class FileService {
 
   readTree(dirPath: string): FileNode[] {
     const expanded = this.expand(dirPath);
+    if (!fs.existsSync(expanded)) return [];
     const entries = fs.readdirSync(expanded, { withFileTypes: true });
     const exclude = new Set([".git", "node_modules", ".DS_Store", "dist", "temp"]);
     return entries
@@ -38,7 +39,10 @@ export class FileService {
   }
 
   readContent(filePath: string): string {
-    return fs.readFileSync(this.expand(filePath), "utf-8");
+    if (!filePath) return "";
+    const expanded = this.expand(filePath);
+    if (!fs.existsSync(expanded)) return "";
+    return fs.readFileSync(expanded, "utf-8");
   }
 
   writeContent(filePath: string, content: string): void {

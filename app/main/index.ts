@@ -1,5 +1,9 @@
-import { app, BrowserWindow, shell } from "electron";
+import os from "os";
+import { app, BrowserWindow, shell, ipcMain, Menu } from "electron";
 import path from "path";
+
+process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint", "sdk-config");
+
 import { registerIpcHandlers } from "./ipc-handlers";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
@@ -10,8 +14,32 @@ import { detectClaude } from "./utils/claude-detector";
 
 const isDev = !app.isPackaged;
 
-async function createWindow(): Promise<void> {
-  const mainWindow = new BrowserWindow({
+function loadApp(window: BrowserWindow, hash = ""): void {
+  const baseUrl = isDev
+    ? "http://localhost:5173"
+    : `file://${path.join(__dirname, "..", "..", "renderer", "dist", "index.html")}`;
+
+  window.loadURL(baseUrl);
+  if (isDev) window.webContents.openDevTools({ mode: "detach" });
+
+  // Navigate to hash route after page loads (more reliable than passing hash to loadURL)
+  if (hash) {
+    window.webContents.once("did-finish-load", () => {
+      window.webContents.executeJavaScript(`window.location.hash = "#${hash}"`).catch(() => {});
+    });
+  }
+}
+
+let sharedServices: {
+  store: Store;
+  projectService: ProjectService;
+  fileService: FileService;
+  agentService: AgentService;
+  evaluatorService: EvaluatorService;
+} | null = null;
+
+export async function createWindow(hash?: string, isMain = false): Promise<BrowserWindow> {
+  const window = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1024,
@@ -25,39 +53,90 @@ async function createWindow(): Promise<void> {
     },
   });
 
-  setMainWindow(mainWindow);
-  detectClaude(); // warm up detection for claude:detect IPC handler
-
-  const store = new Store();
-  const projectService = new ProjectService(store);
-  const fileService = new FileService();
-  const agentService = new AgentService(store);
-  // Claude path no longer needed — SDK manages its own binary
-  const evaluatorService = new EvaluatorService();
-
-  registerIpcHandlers({ mainWindow, projectService, fileService, agentService, evaluatorService, store });
-
-  if (isDev) {
-    mainWindow.loadURL("http://localhost:5173");
-    mainWindow.webContents.openDevTools({ mode: "detach" });
-  } else {
-    mainWindow.loadFile(path.join(__dirname, "..", "..", "renderer", "dist", "index.html"));
+  // Initialize shared services once. IPC handlers are registered only for the main window;
+  // additional windows reuse the same services via the preload bridge.
+  if (!sharedServices) {
+    const store = new Store();
+    sharedServices = {
+      store,
+      projectService: new ProjectService(store),
+      fileService: new FileService(),
+      agentService: new AgentService(store),
+      evaluatorService: new EvaluatorService(),
+    };
+    setMainWindow(window);
+    detectClaude();
+    registerIpcHandlers({ mainWindow: window, ...sharedServices });
+    isMain = true;
   }
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  loadApp(window, hash);
+
+  window.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
   });
+
+  return window;
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  // 恢复上次打开的项目
+  let startHash: string | undefined;
+  try {
+    const tempStore = new Store();
+    const lastId = tempStore.getLastProjectId();
+    if (lastId) startHash = `/project/${lastId}`;
+  } catch { /* ignore */ }
+  createWindow(startHash, true);
 
-app.on("window-all-closed", () => {
-  app.quit();
+  if (process.platform === "darwin") {
+    const template: Electron.MenuItemConstructorOptions[] = [
+      {
+        label: "EasyMint",
+        submenu: [
+          { role: "about" as const },
+          { type: "separator" as const },
+          { role: "quit" as const },
+        ],
+      },
+      {
+        label: "File",
+        submenu: [
+          {
+            label: "New Window",
+            accelerator: "Cmd+N",
+            click: () => createWindow("/projects"),
+          },
+          { type: "separator" as const },
+          { role: "close" as const },
+        ],
+      },
+      { label: "Edit", submenu: [{ role: "undo" as const }, { role: "redo" as const }, { type: "separator" as const }, { role: "cut" as const }, { role: "copy" as const }, { role: "paste" as const }, { role: "selectAll" as const }] },
+      { label: "View", submenu: [{ role: "reload" as const }, { role: "toggleDevTools" as const }, { type: "separator" as const }, { role: "zoomIn" as const }, { role: "zoomOut" as const }, { role: "resetZoom" as const }] },
+    ];
+    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  }
 });
 
+app.on("window-all-closed", () => { app.quit(); });
+
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
+  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+});
+
+// ── Multi-window IPC ──
+
+ipcMain.handle("window:open-project", (_e, { projectId, sessionId }) => {
+  const hash = sessionId ? `/project/${projectId}?session=${sessionId}` : `/project/${projectId}`;
+  if (sharedServices) sharedServices.store.setLastProjectId(projectId);
+  createWindow(hash);
+});
+
+ipcMain.handle("window:new", () => {
+  createWindow("/projects");
+});
+
+ipcMain.handle("settings:set-last-project", (_e, { projectId }) => {
+  if (sharedServices) sharedServices.store.setLastProjectId(projectId);
 });

@@ -218,7 +218,8 @@ export function normalizeEvent(event: StreamEvent): StreamEntry {
       // Don't show result text — it duplicates the assistant's final message
       const subtype = typeof data.subtype === "string" ? data.subtype : "";
       if (subtype === "success" || subtype === "error") {
-        return { kind: "system", message: subtype === "success" ? "✓" : "✗", timestamp, source };
+        // Suppress — exit code is irrelevant to the user
+        return null;
       }
       const message =
         typeof data.message === "string"

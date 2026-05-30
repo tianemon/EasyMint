@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSettingsStore } from "../stores/settings-store";
+import { PromptSettings } from "./settings/PromptSettings";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -71,6 +72,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     loadFromElectron,
   } = useSettingsStore();
   const [showKey, setShowKey] = useState(false);
+  const [activeTab, setActiveTab] = useState<"general" | "prompts">("general");
 
   useEffect(() => {
     if (open) {
@@ -82,10 +84,23 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay">
-      <div className="bg-white rounded-xl border border-border shadow-2xl modal-card" style={{ width: 520 }}>
+      <div className="bg-white rounded-xl border border-border shadow-2xl modal-card" style={{ width: activeTab === "prompts" ? 620 : 520 }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-border">
-          <h2 className="text-lg font-semibold text-text-primary">设置</h2>
+        <div className="flex items-center justify-between px-6 pt-5 pb-0 border-b border-border">
+          <div className="flex gap-0">
+            <button
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "general" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setActiveTab("general")}
+            >
+              通用
+            </button>
+            <button
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "prompts" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setActiveTab("prompts")}
+            >
+              提示词
+            </button>
+          </div>
           <button
             className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors"
             onClick={onClose}
@@ -95,111 +110,95 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
         </div>
 
         {/* Body */}
-        <div className="px-6 py-4 space-y-5 max-h-[520px] overflow-y-auto">
-          {/* 外观 */}
-          <section>
-            <h3 className="text-sm font-medium text-text-secondary mb-2">外观</h3>
-            <div className="bg-surface-alt rounded-lg px-4 py-3">
-              <p className="text-sm text-text-primary">主题</p>
-              <p className="text-xs text-text-secondary mt-0.5">
-                亮色 Mint（仅亮色）
-              </p>
-            </div>
-          </section>
-
-          {/* API 设置 */}
-          <section>
-            <h3 className="text-sm font-medium text-text-secondary mb-2">API 配置</h3>
-            <div className="bg-surface-alt rounded-lg px-4 py-3 space-y-3">
-              <div>
-                <label className="text-xs text-text-secondary block mb-1">Base URL</label>
-                <input
-                  className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
-                  placeholder="https://api.deepseek.com/anthropic"
-                  value={apiBaseUrl}
-                  onChange={(e) => setApiBaseUrl(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-text-secondary block mb-1">API Key</label>
-                <div className="relative">
-                  <input
-                    type={showKey ? "text" : "password"}
-                    className="w-full px-3 py-2 pr-8 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
-                    placeholder="sk-..."
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
-                    onClick={() => setShowKey(!showKey)}
-                  >
-                    {showKey ? (
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                    ) : (
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    )}
-                  </button>
+        <div className="px-6 py-4 max-h-[520px] overflow-y-auto">
+          {activeTab === "general" ? (
+            <div className="space-y-5">
+              {/* 外观 */}
+              <section>
+                <h3 className="text-sm font-medium text-text-secondary mb-2">外观</h3>
+                <div className="bg-surface-alt rounded-lg px-4 py-3">
+                  <p className="text-sm text-text-primary">主题</p>
+                  <p className="text-xs text-text-secondary mt-0.5">亮色 Mint（仅亮色）</p>
                 </div>
-              </div>
-            </div>
-          </section>
+              </section>
 
-          {/* 开发选项 */}
-          <section>
-            <h3 className="text-sm font-medium text-text-secondary mb-2">开发选项</h3>
-            <div className="bg-surface-alt rounded-lg px-4 divide-y divide-border">
-              <ToggleRow
-                label="评估模式"
-                description="每轮 Worker 完成后自动触发 Evaluator 验证"
-                hint="启用 Playwright 自动化测试，验证前端改动正确性"
-                enabled={evaluateMode}
-                onChange={setEvaluateMode}
-              />
-              <ToggleRow
-                label="TDD 模式"
-                description="先编写测试代码，再实现功能"
-                hint="每次实现前先生成测试用例，以测试驱动开发流程"
-                enabled={tddMode}
-                onChange={setTddMode}
-              />
-              <ToggleRow
-                label="截图验证"
-                description="使用 image-vision 对每次改动进行截图对比"
-                hint="每轮完成后截图并通过视觉模型分析，确保 UI 无回归"
-                enabled={screenshotVerification}
-                onChange={setScreenshotVerification}
-              />
-            </div>
-          </section>
+              {/* API 设置 */}
+              <section>
+                <h3 className="text-sm font-medium text-text-secondary mb-2">API 配置</h3>
+                <div className="bg-surface-alt rounded-lg px-4 py-3 space-y-3">
+                  <div>
+                    <label className="text-xs text-text-secondary block mb-1">Base URL</label>
+                    <input
+                      className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+                      placeholder="https://api.deepseek.com/anthropic"
+                      value={apiBaseUrl}
+                      onChange={(e) => setApiBaseUrl(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary block mb-1">API Key</label>
+                    <div className="relative">
+                      <input
+                        type={showKey ? "text" : "password"}
+                        className="w-full px-3 py-2 pr-8 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+                        placeholder="sk-..."
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
+                        onClick={() => setShowKey(!showKey)}
+                      >
+                        {showKey ? (
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                        ) : (
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
 
-          {/* Token 消耗对照表 */}
-          <section>
-            <h3 className="text-sm font-medium text-text-secondary mb-2">预估 Token 消耗</h3>
-            <div className="bg-surface-alt rounded-lg overflow-hidden">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left px-4 py-2.5 text-text-secondary font-medium">模式</th>
-                    <th className="text-left px-4 py-2.5 text-text-secondary font-medium">说明</th>
-                    <th className="text-center px-4 py-2.5 text-text-secondary font-medium">消耗</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {TOKEN_ROWS.map((row) => (
-                    <tr key={row.label} className="border-b border-border last:border-0">
-                      <td className="px-4 py-2.5 text-text-primary">{row.label}</td>
-                      <td className="px-4 py-2.5 text-text-secondary">{row.desc}</td>
-                      <td className="px-4 py-2.5 text-center">
-                        <StarRating count={row.stars} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {/* 开发选项 */}
+              <section>
+                <h3 className="text-sm font-medium text-text-secondary mb-2">开发选项</h3>
+                <div className="bg-surface-alt rounded-lg px-4 divide-y divide-border">
+                  <ToggleRow label="评估模式" description="每轮 Worker 完成后自动触发 Evaluator 验证" hint="启用 Playwright 自动化测试，验证前端改动正确性" enabled={evaluateMode} onChange={setEvaluateMode} />
+                  <ToggleRow label="TDD 模式" description="先编写测试代码，再实现功能" hint="每次实现前先生成测试用例，以测试驱动开发流程" enabled={tddMode} onChange={setTddMode} />
+                  <ToggleRow label="截图验证" description="使用 image-vision 对每次改动进行截图对比" hint="每轮完成后截图并通过视觉模型分析，确保 UI 无回归" enabled={screenshotVerification} onChange={setScreenshotVerification} />
+                </div>
+              </section>
+
+              {/* Token 消耗对照表 */}
+              <section>
+                <h3 className="text-sm font-medium text-text-secondary mb-2">预估 Token 消耗</h3>
+                <div className="bg-surface-alt rounded-lg overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left px-4 py-2.5 text-text-secondary font-medium">模式</th>
+                        <th className="text-left px-4 py-2.5 text-text-secondary font-medium">说明</th>
+                        <th className="text-center px-4 py-2.5 text-text-secondary font-medium">消耗</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {TOKEN_ROWS.map((row) => (
+                        <tr key={row.label} className="border-b border-border last:border-0">
+                          <td className="px-4 py-2.5 text-text-primary">{row.label}</td>
+                          <td className="px-4 py-2.5 text-text-secondary">{row.desc}</td>
+                          <td className="px-4 py-2.5 text-center"><StarRating count={row.stars} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
             </div>
-          </section>
+          ) : (
+            <PromptSettings />
+          )}
         </div>
 
         {/* Footer */}

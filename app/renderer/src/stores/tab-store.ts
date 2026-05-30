@@ -14,6 +14,7 @@ interface TabState {
   openTab: (tab: Tab) => void;
   closeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
+  clearTabs: () => void;
 }
 
 let nextTabIdx = 0;
@@ -60,4 +61,6 @@ export const useTabStore = create<TabState>((set, get) => ({
   },
 
   setActiveTab: (id) => set({ activeTabId: id }),
+
+  clearTabs: () => set({ tabs: [], activeTabId: null }),
 }));

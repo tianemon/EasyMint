@@ -63,8 +63,8 @@
     ],
     "extraResources": [
       {
-        "from": "../ai-coding-automation-template",
-        "to": "ai-coding-automation-template"
+        "from": "template",
+        "to": "template"
       }
     ],
     "mac": {

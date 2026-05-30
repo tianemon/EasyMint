@@ -5,6 +5,22 @@ import { AgentService } from "./services/agent-service";
 import { EvaluatorService } from "./services/evaluator-service";
 import { Store } from "./services/store";
 import { detectClaude } from "./utils/claude-detector";
+import {
+  getSystemPromptConfig,
+  createSystemPrompt,
+  updateSystemPrompt,
+  deleteSystemPrompt,
+  updateAppendSetting,
+  setDefaultPrompt,
+} from "./services/system-prompt-manager";
+import {
+  listSessions,
+  getSessionMessages,
+  renameSession,
+  deleteSession,
+  getSessionInfo,
+  togglePin,
+} from "./services/session-service";
 
 interface Services {
   mainWindow: BrowserWindow;
@@ -53,21 +69,20 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:abort", (_e, { runId }) => {
     agentService.abort(runId);
   });
-  ipcMain.handle("agent:sendMessage", (_e, { projectPath, message, sessionId, thinkingEnabled }) => {
-    return agentService.sendMessage(projectPath, message, sessionId ?? null, thinkingEnabled ?? false, mainWindow);
+  ipcMain.handle("agent:sendMessage", (_e, { projectPath, message, sessionId }) => {
+    return agentService.sendMessage(projectPath, message, sessionId ?? null, mainWindow);
   });
   ipcMain.handle("agent:stopChat", (_e, { chatId }) => {
     agentService.stopChat(chatId);
   });
 
-  // conversation:*
-  ipcMain.handle("conv:list", () => store.listConversations());
-  ipcMain.handle("conv:get", (_e, { id }) => store.getConversation(id));
-  ipcMain.handle("conv:create", (_e, { title }) => store.createConversation(title));
-  ipcMain.handle("conv:update", (_e, { id, patch }) => store.updateConversationMeta(id, patch));
-  ipcMain.handle("conv:delete", (_e, { id }) => { store.deleteConversation(id); });
-  ipcMain.handle("conv:messages", (_e, { id }) => store.getConversationMessages(id));
-  ipcMain.handle("conv:appendMessage", (_e, { convId, message }) => { store.appendConversationMessage(convId, message); });
+  // conversation:* — backed by SDK session APIs
+  ipcMain.handle("conv:list", (_e, { projectPath }) => listSessions(projectPath));
+  ipcMain.handle("conv:get", (_e, { id, projectPath }) => getSessionInfo(id, projectPath));
+  ipcMain.handle("conv:messages", (_e, { id, projectPath }) => getSessionMessages(id, projectPath));
+  ipcMain.handle("conv:rename", (_e, { id, title, projectPath }) => renameSession(id, title, projectPath));
+  ipcMain.handle("conv:delete", (_e, { id, projectPath }) => { deleteSession(id, projectPath); });
+  ipcMain.handle("conv:togglePin", (_e, { id }) => togglePin(id));
 
   // claude:*
   ipcMain.handle("claude:detect", () => detectClaude());
@@ -99,6 +114,14 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("evaluator:abort", (_e, { evalId }) => {
     evaluatorService.abort(evalId);
   });
+
+  // system-prompt:*
+  ipcMain.handle("system-prompt:get-config", () => getSystemPromptConfig());
+  ipcMain.handle("system-prompt:create", (_e, input) => createSystemPrompt(input));
+  ipcMain.handle("system-prompt:update", (_e, { id, input }) => updateSystemPrompt(id, input));
+  ipcMain.handle("system-prompt:delete", (_e, { id }) => { deleteSystemPrompt(id); });
+  ipcMain.handle("system-prompt:update-append", (_e, { enabled }) => { updateAppendSetting(enabled); });
+  ipcMain.handle("system-prompt:set-default", (_e, { id }) => { setDefaultPrompt(id); });
 
   // worker 成功后自动触发 evaluator（如果评估模式开启）
   agentService.onWorkerComplete = (projectPath: string) => {
