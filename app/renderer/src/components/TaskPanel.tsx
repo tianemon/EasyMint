@@ -56,7 +56,21 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
     }
   }, [projectPath, executing, updateTask, appendOutput]);
 
+  // Sort: completed tasks by completedAt (oldest first), then pending by creation order
+  const sortedTasks = [...tasks].sort((a, b) => {
+    const aDone = a.status === "done";
+    const bDone = b.status === "done";
+    if (aDone && bDone) return (a.completedAt || 0) - (b.completedAt || 0);
+    if (aDone) return -1;
+    if (bDone) return 1;
+    return a.createdAt - b.createdAt;
+  });
+
   const activeTask = tasks.find((t) => t.id === executing) || tasks.find((t) => t.status === "running");
+
+  function formatTime(ts: number): string {
+    return new Date(ts).toLocaleString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
 
   return (
     <div className="h-full flex flex-col bg-surface">
@@ -114,7 +128,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
             {/* Center timeline line */}
             <div className="absolute left-1/2 top-4 bottom-4 w-px bg-border" style={{ transform: "translateX(-0.5px)" }} />
 
-            {tasks.map((task, idx) => {
+            {sortedTasks.map((task, idx) => {
               const isRight = idx % 2 === 0;
               const isExpanded = expandedId === task.id;
               const isRunning = task.status === "running";
@@ -166,6 +180,9 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
                             {STATUS_LABELS[task.status]}
                           </span>
                         </div>
+                        {task.status === "done" && task.completedAt && (
+                          <div className="text-[9px] text-text-secondary mt-0.5">{formatTime(task.completedAt)}</div>
+                        )}
                         {task.description && (
                           <div className="text-[10px] text-text-secondary truncate mt-0.5">{task.description}</div>
                         )}

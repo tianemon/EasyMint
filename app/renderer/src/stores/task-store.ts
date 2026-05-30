@@ -11,6 +11,7 @@ export interface TaskItem {
   status: TaskStatus;
   output: string[];
   createdAt: number;
+  completedAt?: number;
 }
 
 interface TaskState {
@@ -35,7 +36,15 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   updateTask: (id, patch) => {
     set((s) => ({
-      tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+      tasks: s.tasks.map((t) => {
+        if (t.id !== id) return t;
+        const updated = { ...t, ...patch };
+        // Auto-set completedAt when status becomes done
+        if (patch.status === "done" && !updated.completedAt) {
+          updated.completedAt = Date.now();
+        }
+        return updated;
+      }),
     }));
   },
 
