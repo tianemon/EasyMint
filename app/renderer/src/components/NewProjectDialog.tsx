@@ -476,7 +476,26 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
     });
   }, [pathRef]);
 
-  return { ask, sidRef };
+  /** 发送消息，等待首次流事件到达后 resolve（或 2s 超时） */
+  const askAndWaitFirst = useCallback((prompt: string): Promise<void> => {
+    const cwd = getCwd();
+    return new Promise((resolve) => {
+      let chatId = "";
+      let resolved = false;
+      const done = () => { if (!resolved) { resolved = true; unsubStream(); unsubSession(); resolve(); } };
+      const timeout = setTimeout(done, 2000);
+      const unsubStream = window.electronAPI.agent.onStream((event: StreamEvent) => {
+        if (chatId && event.runId !== chatId) return;
+        if (event.type === "assistant") { clearTimeout(timeout); done(); }
+      });
+      const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => { if (sid) sidRef.current = sid; });
+      window.electronAPI.agent.sendMessage(cwd, prompt, { sessionId: sidRef.current }).then((result) => {
+        chatId = result.chatId;
+      }).catch(() => { clearTimeout(timeout); done(); });
+    });
+  }, [pathRef]);
+
+  return { ask, askAndWaitFirst, sidRef };
 }
 
 // ---- Main Component ----
@@ -498,7 +517,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
   const [loadingRec, setLoadingRec] = useState<string | null>(null);
   const [recReason, setRecReason] = useState<string>("");
 
-  const { ask, sidRef } = useMintChat(pathRef);
+  const { ask, askAndWaitFirst, sidRef } = useMintChat(pathRef);
 
   const updateData = useCallback((patch: Partial<ProjectFormData>) => setData((prev) => ({ ...prev, ...patch })), []);
 
@@ -597,8 +616,16 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
   const handleCreate = async () => {
     setCreating(true);
     if (createdProject) {
-      // 发送文档编写指令（项目路径此时已确定）
-      const ctx = buildContext(data);
+      const instruction = await window.electronAPI.systemPrompt.getInitInstruction();
+      const initPrompt = `[系统通知] 项目已创建完毕。
+
+项目路径：${createdProject.path}
+
+${buildContext(data)}
+
+${instruction}`;
+      // 发送并等待 Mint 开始回复
+      await askAndWaitFirst(initPrompt);
       const sid = sidRef.current;
       if (openInNewWindow) {
         await window.electronAPI.window.openProject(createdProject.id, sid ?? undefined, true);

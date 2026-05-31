@@ -2,8 +2,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { normalizeEvent } from "./StreamPanel";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 
-/** Track which sessions have already sent the init instruction (module-level, survives remounts) */
-const _initSentSessions = new Set<string>();
 
 interface ChatMessage {
   id: number;
@@ -94,29 +92,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isNewProject, o
     }).catch(() => {});
   }, [existingSid, projectPath]);
 
-  // Auto-send project init instruction for newly created projects (once per session)
-  useEffect(() => {
-    if (!isNewProject || !existingSid) return;
-    if (_initSentSessions.has(existingSid)) return;
-    _initSentSessions.add(existingSid);
-    const send = async () => {
-      try {
-        const instruction = await window.electronAPI.systemPrompt.getInitInstruction();
-        if (instruction) {
-          const fullPrompt = `[系统通知] 项目已创建完毕。
-
-项目路径：${projectPath}
-
-项目信息已通过新建项目表单采集，请开始工作。
-
-${instruction}`;
-          await sendText(fullPrompt);
-        }
-      } catch { /* ignore */ }
-    };
-    send();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isNewProject, existingSid]);
 
   // Stream listener
   useEffect(() => {
