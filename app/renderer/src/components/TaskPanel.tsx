@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useTaskStore } from "../stores/task-store";
 import { chatActions } from "../stores/chat-actions";
 
@@ -55,11 +55,8 @@ function FlowArrow({ done }: { done: boolean }): JSX.Element {
 }
 
 export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Element {
-  const { tasks, updateTask, appendOutput } = useTaskStore();
-  const [executing, setExecuting] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const { tasks } = useTaskStore();
   const [density, setDensity] = useState(2);
-  const outputRef = useRef<HTMLPreElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Flow phase tracking (module-level, survives remounts)
@@ -91,19 +88,6 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
-  useEffect(() => {
-    if (outputRef.current) {
-      outputRef.current.scrollTop = outputRef.current.scrollHeight;
-    }
-  }, [tasks]);
-
-  const execute = useCallback((taskId: string) => {
-    const task = useTaskStore.getState().tasks.find((t) => t.id === taskId);
-    if (!task || executing) return;
-    updateTask(taskId, { status: "running", output: [] });
-    chatActions.send(`请执行任务 #${task.id}：${task.title}\n${task.description || ""}`);
-  }, [executing, updateTask]);
-
   // Sort: completed tasks by completedAt (oldest first), then pending by creation order
   const sortedTasks = [...tasks].sort((a, b) => {
     const aDone = a.status === "done";
@@ -113,12 +97,6 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
     if (bDone) return 1;
     return a.createdAt - b.createdAt;
   });
-
-  const activeTask = tasks.find((t) => t.id === executing) || tasks.find((t) => t.status === "running");
-
-  function formatTime(ts: number): string {
-    return new Date(ts).toLocaleString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-  }
 
   return (
     <div ref={panelRef} className="h-full flex flex-col bg-surface">
@@ -195,99 +173,42 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
             <p className="text-xs text-text-secondary">暂无任务</p>
           </div>
         ) : (
-          <div className={`relative px-3 py-2 flex flex-col ${DENSITY_GAPS[density]}`}>
+          <div className={`relative px-4 py-2 flex flex-col ${DENSITY_GAPS[density]}`}>
             {/* Center timeline line */}
-            <div className="absolute left-1/2 top-4 bottom-4 w-px bg-border" style={{ transform: "translateX(-0.5px)" }} />
+            <div className="absolute left-[18px] top-4 bottom-4 w-px bg-border" />
 
-            {sortedTasks.map((task, idx) => {
-              const isRight = idx % 2 === 0;
-              const isExpanded = expandedId === task.id;
+            {sortedTasks.map((task) => {
               const isRunning = task.status === "running";
-
               return (
-                <div key={task.id} className="relative flex items-start" style={{ minHeight: 40 }}>
-                  {/* Spacer for the other side */}
-                  <div className="w-[calc(50%-10px)]" />
-
-                  {/* Timeline dot — sits on the center line */}
-                  <div className="absolute left-1/2 top-3 z-10" style={{ transform: "translate(-50%, -50%)" }}>
-                    {/* Connector line from dot to card */}
-                    <div
-                      className={`absolute top-1/2 h-px w-[10px] ${isRight ? "left-full" : "right-full"}`}
-                      style={{ background: "var(--color-border)" }}
-                    />
-                    {/* Dot */}
-                    <span
-                      className={`block w-2.5 h-2.5 rounded-full ring-2 ring-surface ${
-                        task.status === "running" ? "bg-accent animate-pulse" :
-                        task.status === "done" ? "bg-green-500" :
-                        task.status === "failed" ? "bg-red-400" :
-                        "bg-border"
-                      }`}
-                    />
-                  </div>
-
-                  {/* Task card */}
-                  <div
-                    className={`w-[calc(50%-10px)] ${isRight ? "" : "order-first"}`}
-                  >
-                    <button
-                      className={`w-full text-left rounded-lg border transition-colors overflow-hidden ${
-                        isRunning ? "border-accent/40 bg-accent/5" :
-                        task.status === "failed" ? "border-red-400/30 bg-red-50" :
-                        "border-border bg-surface-alt hover:bg-surface-hover"
-                      }`}
-                      onClick={() => setExpandedId(isExpanded ? null : task.id)}
-                    >
-                      <div className="px-2.5 py-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] font-medium text-text-primary truncate flex-1">{task.title}</span>
-                          <span className={`text-[9px] shrink-0 ${
-                            isRunning ? "text-accent" :
-                            task.status === "failed" ? "text-red-400" :
-                            task.status === "done" ? "text-green-500" :
-                            "text-text-secondary"
-                          }`}>
-                            {STATUS_LABELS[task.status]}
-                          </span>
-                        </div>
-                        {task.status === "done" && task.completedAt && (
-                          <div className="text-[9px] text-text-secondary mt-0.5">{formatTime(task.completedAt)}</div>
-                        )}
-                        {task.description && (
-                          <div className="text-[10px] text-text-secondary truncate mt-0.5">{task.description}</div>
-                        )}
-                      </div>
-
-                      {/* Expanded: output + actions */}
-                      {isExpanded && (
-                        <div className="border-t border-border/50">
-                          {(task.status === "running" || task.output.length > 0) && (
-                            <pre
-                              ref={isRunning ? outputRef : undefined}
-                              className="text-[10px] text-green-400 font-mono p-2 max-h-32 overflow-y-auto leading-relaxed whitespace-pre-wrap break-all bg-[#1a1a1e]"
-                            >
-                              {task.output.length === 0 && isRunning ? (
-                                <span className="text-text-secondary animate-pulse">执行中...</span>
-                              ) : (
-                                task.output.join("\n")
-                              )}
-                            </pre>
-                          )}
-                          {task.status !== "running" && (
-                            <div className="flex gap-1.5 px-2 py-1.5">
-                              <button
-                                className="flex-1 py-1 rounded text-[10px] font-medium bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
-                                onClick={(e) => { e.stopPropagation(); execute(task.id); }}
-                              >
-                                {task.status === "done" || task.status === "failed" ? "重新执行" : "执行"}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </button>
-                  </div>
+                <div key={task.id} className="relative flex items-center gap-3 py-1">
+                  {/* Timeline dot */}
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full ring-2 ring-surface shrink-0 z-10 ${
+                      task.status === "running" ? "bg-accent animate-pulse" :
+                      task.status === "done" ? "bg-green-500" :
+                      task.status === "failed" ? "bg-red-400" :
+                      "bg-border"
+                    }`}
+                  />
+                  {/* Connector */}
+                  <div className="absolute left-[18px] top-1/2 h-px w-3 bg-border" style={{ transform: "translate(-50%, -50%)" }} />
+                  {/* Title */}
+                  <span className={`text-[11px] truncate ${
+                    task.status === "done" ? "text-text-secondary line-through decoration-green-400/50" :
+                    isRunning ? "text-accent font-medium" :
+                    "text-text-primary"
+                  }`}>
+                    {task.title}
+                  </span>
+                  {/* Status label */}
+                  <span className={`text-[9px] shrink-0 ml-auto ${
+                    isRunning ? "text-accent" :
+                    task.status === "failed" ? "text-red-400" :
+                    task.status === "done" ? "text-green-500" :
+                    "text-text-secondary"
+                  }`}>
+                    {STATUS_LABELS[task.status]}
+                  </span>
                 </div>
               );
             })}
@@ -295,16 +216,6 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
         )}
       </div>
 
-      {/* Active indicator */}
-      {activeTask && (
-        <div className="border-t border-border px-3 py-1.5 bg-surface-alt shrink-0">
-          <div className="flex items-center gap-1.5 text-[10px] text-text-secondary">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0" />
-            <span className="truncate">{activeTask.title}</span>
-            <span className="text-accent">{STATUS_LABELS[activeTask.status]}</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
