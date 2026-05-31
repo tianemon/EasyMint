@@ -173,7 +173,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
             <p className="text-xs text-text-secondary">暂无任务</p>
           </div>
         ) : (
-          <div className={`relative px-3 py-2 flex flex-col ${DENSITY_GAPS[density]}`}>
+          <div className={`relative px-3 py-2 flex flex-col min-h-full ${DENSITY_GAPS[density]}`}>
             {/* Center timeline line — full height */}
             <div className="absolute left-1/2 inset-y-0 w-0.5 bg-border z-0" style={{ transform: "translateX(-50%)" }} />
 
