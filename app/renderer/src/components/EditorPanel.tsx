@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { EditorView, basicSetup, keymap } from "codemirror";
+import { EditorView, basicSetup } from "codemirror";
+import { keymap } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { json } from "@codemirror/lang-json";
 import { javascript } from "@codemirror/lang-javascript";
