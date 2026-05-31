@@ -113,6 +113,7 @@ interface ElectronAPI {
     delete: (id: string) => Promise<void>;
     updateAppend: (enabled: boolean) => Promise<void>;
     setDefault: (id: string) => Promise<void>;
+    getInitInstruction: () => Promise<string>;
   };
   settings: {
     get: () => Promise<{ terminalFontSize: number; evaluateMode: boolean; tddMode: boolean; screenshotVerification: boolean; apiBaseUrl?: string; apiKey?: string }>;

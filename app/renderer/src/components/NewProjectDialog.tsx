@@ -599,28 +599,14 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
     if (createdProject) {
       // 发送文档编写指令（项目路径此时已确定）
       const ctx = buildContext(data);
+      const instruction = await window.electronAPI.systemPrompt.getInitInstruction();
       const initPrompt = `[系统通知] 项目已创建完毕。
 
 项目路径：${createdProject.path}
 
 ${ctx}
 
-请按顺序完成以下全部工作（一气呵成，中间不要停下来问用户）：
-
-1. 写 docs/需求规格.md — 项目需求规格文档
-2. 写 docs/架构设计.md — 架构设计文档
-3. 写 README.md — 项目说明文档
-4. 更新 CLAUDE.md — 写入项目背景、技术栈、常用命令
-
-5. 编辑 task.json，创建第一个任务：
-   { "tasks": [{ "id": 1, "title": "初始化开发环境", "description": "根据技术栈填充 init.sh 并安装依赖", "steps": ["检测运行时", "安装依赖", "启动项目"], "passes": false, "evaluated": false }] }
-
-6. 编辑 init.sh，根据项目实际技术栈填入 PROJECT_DIR、运行时检测、依赖安装和启动命令
-
-7. 执行 bash init.sh：
-   - 成功 → 编辑 task.json 将 passes 改为 true，告知"环境就绪"
-   - 被权限拦截 → 提示用户切换到"完全自主"模式
-   - 失败 → 修改后重试，最多3次`;
+${instruction}`;
       ask(initPrompt).catch(() => {});
       const sid = sidRef.current;
       if (openInNewWindow) {
