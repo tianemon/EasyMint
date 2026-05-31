@@ -666,7 +666,7 @@ ${instruction}`;
             </button>
           ) : (
             <button className="px-6 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors font-medium disabled:opacity-50" disabled={!canNext() || creating} onClick={handleCreate}>
-              {creating ? "创建中..." : "创建项目"}
+              {creating ? "初始化中..." : "创建项目"}
             </button>
           )}
         </div>

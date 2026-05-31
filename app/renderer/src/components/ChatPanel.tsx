@@ -30,6 +30,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(!!existingSid);
   const [streaming, setStreaming] = useState(!!existingSid);
+  const streamReceivedRef = useRef(false);
   const [statusText, setStatusText] = useState("思考中...");
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentRunRef = useRef<string | null>(null);
@@ -118,10 +119,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   }, [existingSid, projectPath]);
 
 
-  // If no stream events arrive within 5s, session is idle — clear loading
+  // If no stream activity within 5s, session is idle — clear loading
+  // But never clear if stream events have been received (assistant is working)
   useEffect(() => {
     if (!existingSid) return;
-    const t = setTimeout(() => { setLoading(false); setStreaming(false); }, 5000);
+    const t = setTimeout(() => {
+      if (!streamReceivedRef.current) {
+        setLoading(false);
+        setStreaming(false);
+      }
+    }, 5000);
     return () => clearTimeout(t);
   }, [existingSid]);
 
@@ -130,6 +137,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     let currentAiId = 0;
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       if (event.source !== "chat") return;
+      streamReceivedRef.current = true;
       setStreaming(true);
       if (event.type === "status") {
         setStatusText(typeof event.data.text === "string" ? event.data.text : "处理中...");
