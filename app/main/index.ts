@@ -121,6 +121,10 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", () => { app.quit(); });
 
+app.on("before-quit", () => {
+  if (sharedServices) sharedServices.agentService.shutdown();
+});
+
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });

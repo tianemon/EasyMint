@@ -170,6 +170,20 @@ export class AgentService {
       broadcast("agent:exit", { runId: chatId, code: -1 });
     }
   }
+
+  /** Interrupt all active queries — call on app quit or project switch */
+  shutdown(): void {
+    for (const [id, chat] of this.activeChats) {
+      chat.query?.interrupt().catch(() => {});
+      broadcast("agent:exit", { runId: id, code: -1 });
+    }
+    this.activeChats.clear();
+    for (const [id, run] of this.activeRuns) {
+      run.query?.interrupt().catch(() => {});
+      broadcast("agent:exit", { runId: id, code: -1 });
+    }
+    this.activeRuns.clear();
+  }
 }
 
 // ── Multi-window broadcast ──

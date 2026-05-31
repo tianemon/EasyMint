@@ -116,6 +116,16 @@ ${instruction}`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNewProject, existingSid]);
 
+  // Cleanup running query on unmount
+  useEffect(() => {
+    return () => {
+      if (currentRunRef.current) {
+        window.electronAPI.agent.abort(currentRunRef.current);
+        currentRunRef.current = null;
+      }
+    };
+  }, []);
+
   // Stream listener
   useEffect(() => {
     let currentAiId = 0;
