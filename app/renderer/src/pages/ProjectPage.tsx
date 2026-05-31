@@ -117,6 +117,10 @@ export function ProjectPage(): JSX.Element {
     if (!p) return;
     window.electronAPI.task.read(p).then((r) => {
       const ts = useTaskStore.getState();
+      const jsonIds = new Set(r.tasks.map((t) => t.id));
+      // Remove stale tasks not in task.json
+      ts.tasks.forEach((t) => { if (!jsonIds.has(t.id)) ts.updateTask(t.id, { status: "pending" }); });
+      // Upsert from task.json
       r.tasks.forEach((t) => {
         const existing = ts.tasks.find((x) => x.id === t.id);
         const newStatus = (t.passes ? "done" : "pending") as "done" | "pending";

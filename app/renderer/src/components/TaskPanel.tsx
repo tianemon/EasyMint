@@ -54,18 +54,10 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
   const outputRef = useRef<HTMLPreElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Flow phase tracking
-  const initTriggered = useRef(false);
-  const [initDone, setInitDone] = useState(false);
+  // Flow phase tracking (module-level, survives remounts)
   const tasksAllocated = tasks.length > 0;
 
-  // When tasks appear after init was triggered, mark init as done
-  useEffect(() => {
-    if (tasks.length > 0 && initTriggered.current) setInitDone(true);
-  }, [tasks.length]);
-
   const handleInitEnv = () => {
-    initTriggered.current = true;
     chatActions.send("帮我初始化开发环境");
   };
 
@@ -192,20 +184,20 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
         {/* Step 1: Init */}
         <FlowStep
           label="初始化环境"
-          done={initDone}
-          active={!initDone}
-          onClick={initDone ? undefined : handleInitEnv}
+          done={tasksAllocated}
+          active
+          onClick={handleInitEnv}
         />
-        <FlowArrow done={initDone} />
+        <FlowArrow done={tasksAllocated} />
         {/* Step 2: Allocate */}
         <FlowStep
           label="分配任务"
           done={tasksAllocated}
-          active={initDone && !tasksAllocated}
-          onClick={initDone && !tasksAllocated ? handleAllocateTasks : undefined}
+          active={!tasksAllocated}
+          onClick={handleAllocateTasks}
         />
-        <FlowArrow done={tasksAllocated} />
-        {/* Step 3: Execute */}
+        <FlowArrow done={false} />
+        {/* Step 3: Execute (placeholder) */}
         <FlowStep
           label="执行任务"
           done={false}
