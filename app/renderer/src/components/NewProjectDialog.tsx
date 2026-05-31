@@ -464,7 +464,7 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
         if (chatId && event.runId !== chatId) return;
         if (event.type === "assistant" && typeof event.data.text === "string") text += event.data.text;
       });
-      const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => { sidRef.current = sid; });
+      const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => { if (sid) sidRef.current = sid; });
       const unsubExit = window.electronAPI.agent.onExit(({ runId }) => {
         if (chatId && runId !== chatId) return;
         unsubStream(); unsubSession(); unsubExit();
