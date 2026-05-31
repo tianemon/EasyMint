@@ -121,8 +121,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   // Check if session is active on mount — show stop button if assistant is working
   useEffect(() => {
     if (!existingSid) return;
-    window.electronAPI.agent.isSessionActive(existingSid).then((active) => {
-      if (active) { setLoading(true); setStreaming(true); }
+    window.electronAPI.agent.isSessionActive(existingSid).then((activeChatId) => {
+      if (activeChatId) {
+        setLoading(true);
+        setStreaming(true);
+        setCurrentRunId(activeChatId);
+        currentRunRef.current = activeChatId;
+      }
     });
   }, [existingSid]);
 

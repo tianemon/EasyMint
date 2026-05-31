@@ -171,12 +171,12 @@ export class AgentService {
     }
   }
 
-  /** Check if a session has an active query running */
-  isSessionActive(sessionId: string): boolean {
+  /** Check if a session has an active query running, return chatId if so */
+  getActiveChatId(sessionId: string): string | null {
     for (const chat of this.activeChats.values()) {
-      if (chat.sessionId === sessionId) return true;
+      if (chat.sessionId === sessionId) return chat.chatId;
     }
-    return false;
+    return null;
   }
 
   /** Interrupt all active queries — call on app quit or project switch */
