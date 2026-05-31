@@ -164,7 +164,6 @@ export function ProjectPage(): JSX.Element {
             key={activeTab.id}
             projectPath={projectPath}
             sessionId={currentSessionId}
-            isNewProject={activeTab.isNewProject}
             onSessionCreated={(sid) => { setCurrentSessionId(sid); setSessionRefreshKey((k) => k + 1); }}
             onActivity={() => setSessionRefreshKey((k) => k + 1)}
           />

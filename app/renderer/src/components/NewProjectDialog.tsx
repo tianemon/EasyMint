@@ -476,26 +476,7 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
     });
   }, [pathRef]);
 
-  /** 发送消息，等待首次流事件到达后 resolve（或 2s 超时） */
-  const askAndWaitFirst = useCallback((prompt: string): Promise<void> => {
-    const cwd = getCwd();
-    return new Promise((resolve) => {
-      let chatId = "";
-      let resolved = false;
-      const done = () => { if (!resolved) { resolved = true; unsubStream(); unsubSession(); resolve(); } };
-      const timeout = setTimeout(done, 2000);
-      const unsubStream = window.electronAPI.agent.onStream((event: StreamEvent) => {
-        if (chatId && event.runId !== chatId) return;
-        if (event.type === "assistant") { clearTimeout(timeout); done(); }
-      });
-      const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => { if (sid) sidRef.current = sid; });
-      window.electronAPI.agent.sendMessage(cwd, prompt, { sessionId: sidRef.current }).then((result) => {
-        chatId = result.chatId;
-      }).catch(() => { clearTimeout(timeout); done(); });
-    });
-  }, [pathRef]);
-
-  return { ask, askAndWaitFirst, sidRef };
+  return { ask, sidRef };
 }
 
 // ---- Main Component ----
@@ -517,7 +498,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
   const [loadingRec, setLoadingRec] = useState<string | null>(null);
   const [recReason, setRecReason] = useState<string>("");
 
-  const { ask, askAndWaitFirst, sidRef } = useMintChat(pathRef);
+  const { ask, sidRef } = useMintChat(pathRef);
 
   const updateData = useCallback((patch: Partial<ProjectFormData>) => setData((prev) => ({ ...prev, ...patch })), []);
 
@@ -627,8 +608,8 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
 ${buildContext(data)}
 
 ${instruction}`;
-      // 发送并等待 Mint 开始回复
-      await askAndWaitFirst(initPrompt);
+      // 发送消息（fire and forget），然后直接跳转
+      ask(initPrompt).catch(() => {});
       const sid = sidRef.current;
       if (openInNewWindow) {
         await window.electronAPI.window.openProject(createdProject.id, sid ?? undefined, true);

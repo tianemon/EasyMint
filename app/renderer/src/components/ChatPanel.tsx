@@ -19,15 +19,13 @@ interface ChatPanelProps {
   projectPath: string;
   /** SDK session ID to resume, undefined = new session */
   sessionId?: string;
-  /** True when this session was just created by NewProjectDialog */
-  isNewProject?: boolean;
   /** Called when SDK returns the real session_id (first message of a new session) */
   onSessionCreated?: (sessionId: string) => void;
   /** Called whenever a response completes — triggers sidebar re-sort */
   onActivity?: () => void;
 }
 
-export function ChatPanel({ projectPath, sessionId: existingSid, isNewProject, onSessionCreated, onActivity }: ChatPanelProps): JSX.Element {
+export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreated, onActivity }: ChatPanelProps): JSX.Element {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -68,28 +66,55 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isNewProject, o
   // Load history for existing session
   useEffect(() => {
     if (!existingSid) return;
-    window.electronAPI.conv.messages(existingSid, projectPath).then((msgs) => {
-      const mapped: ChatMessage[] = [];
-      for (const m of msgs) {
-        if (m.type === "user") {
-          const content = (m.message as { content?: string | unknown[] })?.content;
-          const text = typeof content === "string" ? content : Array.isArray(content)
-            ? content.map((b: unknown) => (b as { text?: string })?.text ?? "").join("")
-            : "";
-          if (text) mapped.push({ id: ++msgIdRef.current, role: "user", text, timestamp: Date.now() });
-        } else if (m.type === "assistant") {
-          const content = (m.message as { content?: unknown[] })?.content;
-          if (Array.isArray(content)) {
-            const textBlocks = content.filter((b: unknown) => (b as { type?: string })?.type === "text");
-            const text = textBlocks.map((b: unknown) => (b as { text?: string })?.text ?? "").join("\n");
-            if (text) {
-              mapped.push({ id: ++msgIdRef.current, role: "ai", entries: [{ kind: "text", text, timestamp: Date.now() }], timestamp: Date.now() });
+    let cancelled = false;
+    const load = () => {
+      window.electronAPI.conv.messages(existingSid, projectPath).then((msgs) => {
+        if (cancelled) return;
+        const mapped: ChatMessage[] = [];
+        for (const m of msgs) {
+          if (m.type === "user") {
+            const content = (m.message as { content?: string | unknown[] })?.content;
+            const text = typeof content === "string" ? content : Array.isArray(content)
+              ? content.map((b: unknown) => (b as { text?: string })?.text ?? "").join("")
+              : "";
+            if (text) mapped.push({ id: ++msgIdRef.current, role: "user", text, timestamp: Date.now() });
+          } else if (m.type === "assistant") {
+            const content = (m.message as { content?: unknown[] })?.content;
+            if (Array.isArray(content)) {
+              const textBlocks = content.filter((b: unknown) => (b as { type?: string })?.type === "text");
+              const text = textBlocks.map((b: unknown) => (b as { text?: string })?.text ?? "").join("\n");
+              if (text) {
+                mapped.push({ id: ++msgIdRef.current, role: "ai", entries: [{ kind: "text", text, timestamp: Date.now() }], timestamp: Date.now() });
+              }
             }
           }
         }
-      }
-      if (mapped.length > 0) setMessages((prev) => prev.length > 0 ? prev : mapped);
-    }).catch(() => {});
+        if (mapped.length > 0) {
+          setMessages(mapped);
+        } else {
+          // SDK may not have persisted yet — retry once after 800ms
+          setTimeout(() => {
+            if (cancelled) return;
+            window.electronAPI.conv.messages(existingSid, projectPath).then((retryMsgs) => {
+              if (cancelled) return;
+              const retryMapped: ChatMessage[] = [];
+              for (const m of retryMsgs) {
+                if (m.type === "user") {
+                  const content = (m.message as { content?: string | unknown[] })?.content;
+                  const text = typeof content === "string" ? content : Array.isArray(content)
+                    ? content.map((b: unknown) => (b as { text?: string })?.text ?? "").join("")
+                    : "";
+                  if (text) retryMapped.push({ id: ++msgIdRef.current, role: "user", text, timestamp: Date.now() });
+                }
+              }
+              if (retryMapped.length > 0) setMessages(retryMapped);
+            }).catch(() => {});
+          }, 800);
+        }
+      }).catch(() => {});
+    };
+    load();
+    return () => { cancelled = true; };
   }, [existingSid, projectPath]);
 
 
