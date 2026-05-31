@@ -92,9 +92,13 @@ export function ProjectPage(): JSX.Element {
     (sessionId: string) => {
       setActiveSessionId(sessionId);
       setCurrentSessionId(sessionId);
-      openTab({ id: "", type: "chat", title: "对话", sessionId });
+      window.electronAPI.conv.get(sessionId, projectPath).then((info) => {
+        openTab({ id: "", type: "chat", title: info?.title || "对话", sessionId });
+      }).catch(() => {
+        openTab({ id: "", type: "chat", title: "对话", sessionId });
+      });
     },
-    [openTab]
+    [openTab, projectPath]
   );
 
   const handleNewSession = useCallback(() => {
