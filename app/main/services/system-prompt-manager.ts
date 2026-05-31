@@ -122,10 +122,10 @@ export const PROJECT_INIT_INSTRUCTION = `请按顺序完成以下全部工作（
 3. 写 README.md — 项目说明文档，从模板空文件编辑，填入项目名称、简介、技术栈、如何运行
 4. 更新 CLAUDE.md — 删除"检查是否已初始化"章节，填入项目背景、常用命令、技术栈信息
 
-5. 编辑 task.json，创建第一个任务：
-   { "tasks": [{ "id": 1, "title": "初始化开发环境", "description": "根据技术栈填充 init.sh 并安装依赖", "steps": ["检测运行时", "安装依赖", "启动项目"], "passes": false, "evaluated": false }] }
+5. 编辑 init.sh，根据项目实际技术栈填入 PROJECT_DIR、运行时检测、依赖安装和启动命令
 
-6. 编辑 init.sh，根据项目实际技术栈填入 PROJECT_DIR、运行时检测、依赖安装和启动命令
+6. 编辑 task.json，创建第一个任务：
+   { "tasks": [{ "id": 1, "title": "初始化开发环境", "description": "根据技术栈填充 init.sh 并安装依赖", "steps": ["检测运行时", "安装依赖", "启动项目"], "passes": false, "evaluated": false }] }
 
 7. 执行 bash init.sh：
    - 成功 → 编辑 task.json 将 passes 改为 true，告知"环境就绪，可以开始开发了"
