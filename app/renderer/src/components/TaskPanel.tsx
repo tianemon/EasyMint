@@ -115,7 +115,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
             disabled={density === 0}
             title="压缩间距 · 双指捏合 或 Cmd/Ctrl+滚轮"
           >
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 rotate-90">
               <path d="M5 8H1M3 6l2 2-2 2M11 8h6M13 6l-2 2 2 2" />
             </svg>
           </button>
@@ -127,7 +127,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
             disabled={density === 4}
             title="扩展间距 · 双指张开 或 Cmd/Ctrl+滚轮"
           >
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 rotate-90">
               <path d="M7 8H1M3 6l-2 2 2 2M9 8h6M13 6l2 2-2 2" />
             </svg>
           </button>
@@ -174,8 +174,8 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
           </div>
         ) : (
           <div className={`relative px-3 py-2 flex flex-col ${DENSITY_GAPS[density]}`}>
-            {/* Center timeline line */}
-            <div className="absolute left-1/2 top-3 bottom-3 w-0.5 bg-border z-0" style={{ transform: "translateX(-50%)" }} />
+            {/* Center timeline line — full height */}
+            <div className="absolute left-1/2 inset-y-0 w-0.5 bg-border z-0" style={{ transform: "translateX(-50%)" }} />
 
             {sortedTasks.map((task, idx) => {
               const isRight = idx % 2 === 0;
