@@ -608,8 +608,9 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
 ${buildContext(data)}
 
 ${instruction}`;
-      // 发送消息（fire and forget），然后直接跳转
+      // 发送消息，等 2 秒让 SDK 持久化，再跳转
       ask(initPrompt).catch(() => {});
+      await new Promise((r) => setTimeout(r, 2000));
       const sid = sidRef.current;
       if (openInNewWindow) {
         await window.electronAPI.window.openProject(createdProject.id, sid ?? undefined, true);
