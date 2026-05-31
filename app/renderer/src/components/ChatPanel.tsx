@@ -77,13 +77,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             const text = typeof content === "string" ? content : Array.isArray(content)
               ? content.map((b: unknown) => (b as { text?: string })?.text ?? "").join("")
               : "";
-            if (text && !text.includes("Request interrupted")) mapped.push({ id: ++msgIdRef.current, role: "user", text, timestamp: Date.now() });
+            if (text && !text.includes("Request interrupted") && !text.includes("No response requested")) mapped.push({ id: ++msgIdRef.current, role: "user", text, timestamp: Date.now() });
           } else if (m.type === "assistant") {
             const content = (m.message as { content?: unknown[] })?.content;
             if (Array.isArray(content)) {
               const textBlocks = content.filter((b: unknown) => (b as { type?: string })?.type === "text");
               const text = textBlocks.map((b: unknown) => (b as { text?: string })?.text ?? "").join("\n");
-              if (text && !text.includes("Request interrupted")) {
+              if (text && !text.includes("Request interrupted") && !text.includes("No response requested")) {
                 mapped.push({ id: ++msgIdRef.current, role: "ai", entries: [{ kind: "text", text, timestamp: Date.now() }], timestamp: Date.now() });
               }
             }
@@ -104,7 +104,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                   const text = typeof content === "string" ? content : Array.isArray(content)
                     ? content.map((b: unknown) => (b as { text?: string })?.text ?? "").join("")
                     : "";
-                  if (text && !text.includes("Request interrupted")) retryMapped.push({ id: ++msgIdRef.current, role: "user", text, timestamp: Date.now() });
+                  if (text && !text.includes("Request interrupted") && !text.includes("No response requested")) retryMapped.push({ id: ++msgIdRef.current, role: "user", text, timestamp: Date.now() });
                 }
               }
               if (retryMapped.length > 0) setMessages(retryMapped);
