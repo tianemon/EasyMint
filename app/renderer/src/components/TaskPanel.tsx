@@ -227,8 +227,6 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
                 </div>
               );
             })}
-              );
-            })}
           </div>
         )}
       </div>
