@@ -97,34 +97,12 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
     }
   }, [tasks]);
 
-  const execute = useCallback(async (taskId: string) => {
+  const execute = useCallback((taskId: string) => {
     const task = useTaskStore.getState().tasks.find((t) => t.id === taskId);
     if (!task || executing) return;
-
-    setExecuting(taskId);
-    setExpandedId(taskId);
     updateTask(taskId, { status: "running", output: [] });
-
-    const unsubOut = window.electronAPI.shell.onStdout(({ line }) => {
-      appendOutput(taskId, line);
-    });
-    const unsubErr = window.electronAPI.shell.onStderr(({ line }) => {
-      appendOutput(taskId, `[stderr] ${line}`);
-    });
-
-    try {
-      const result = await window.electronAPI.shell.exec(projectPath, task.command);
-      const isDone = result.code === 0;
-      updateTask(taskId, { status: isDone ? "done" : "failed" });
-      if (isDone) window.electronAPI.task.markDone(projectPath, taskId).catch((e: unknown) => { console.error("[TaskPanel] markDone failed:", e); });
-    } catch {
-      updateTask(taskId, { status: "failed" });
-    } finally {
-      unsubOut();
-      unsubErr();
-      setExecuting(null);
-    }
-  }, [projectPath, executing, updateTask, appendOutput]);
+    chatActions.send(`请执行任务 #${task.id}：${task.title}\n${task.description || ""}`);
+  }, [executing, updateTask]);
 
   // Sort: completed tasks by completedAt (oldest first), then pending by creation order
   const sortedTasks = [...tasks].sort((a, b) => {

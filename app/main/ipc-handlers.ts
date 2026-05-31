@@ -145,7 +145,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
         id: String(t.id),
         title: t.title,
         description: t.description || (t.steps ? t.steps.join("; ") : ""),
-        command: `bash init.sh`,
+        command: "",
         passes: t.passes ?? false,
       })) };
     } catch { return { tasks: [] }; }
