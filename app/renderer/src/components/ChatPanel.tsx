@@ -90,9 +90,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isNewProject, o
     }).catch(() => {});
   }, [existingSid, projectPath]);
 
-  // Auto-send project init instruction for newly created projects
+  const initSentRef = useRef<Set<string>>(new Set());
+  // Auto-send project init instruction for newly created projects (once per session)
   useEffect(() => {
     if (!isNewProject || !existingSid) return;
+    if (initSentRef.current.has(existingSid)) return;
+    initSentRef.current.add(existingSid);
     const send = async () => {
       try {
         const instruction = await window.electronAPI.systemPrompt.getInitInstruction();
@@ -109,6 +112,7 @@ ${instruction}`;
       } catch { /* ignore */ }
     };
     send();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNewProject, existingSid]);
 
   // Stream listener
