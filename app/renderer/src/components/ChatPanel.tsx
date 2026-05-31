@@ -64,7 +64,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   // Load history for existing session
   useEffect(() => {
     if (!existingSid) return;
-    window.electronAPI.conv.messages(existingSid, projectPath).then((msgs) => {
+    window.electronAPI.conv.messages(existingSid, projectPath).then(async (msgs) => {
       const mapped: ChatMessage[] = [];
       for (const m of msgs) {
         if (m.type === "user") {
@@ -84,7 +84,24 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           }
         }
       }
-      if (mapped.length > 0) setMessages(mapped);
+      if (mapped.length > 0) {
+        setMessages(mapped);
+      } else {
+        // Fresh session from project creation — auto-send init instruction
+        try {
+          const instruction = await window.electronAPI.systemPrompt.getInitInstruction();
+          if (instruction) {
+            const fullPrompt = `[系统通知] 项目已创建完毕。
+
+项目路径：${projectPath}
+
+项目信息已通过新建项目表单采集，请开始工作。
+
+${instruction}`;
+            await sendText(fullPrompt);
+          }
+        } catch { /* ignore */ }
+      }
     }).catch(() => {});
   }, [existingSid, projectPath]);
 

@@ -599,15 +599,6 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
     if (createdProject) {
       // 发送文档编写指令（项目路径此时已确定）
       const ctx = buildContext(data);
-      const instruction = await window.electronAPI.systemPrompt.getInitInstruction();
-      const initPrompt = `[系统通知] 项目已创建完毕。
-
-项目路径：${createdProject.path}
-
-${ctx}
-
-${instruction}`;
-      ask(initPrompt).catch(() => {});
       const sid = sidRef.current;
       if (openInNewWindow) {
         await window.electronAPI.window.openProject(createdProject.id, sid ?? undefined);
