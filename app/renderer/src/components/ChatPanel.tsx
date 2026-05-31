@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { normalizeEvent } from "./StreamPanel";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 
+/** Track which sessions have already sent the init instruction (module-level, survives remounts) */
+const _initSentSessions = new Set<string>();
+
 interface ChatMessage {
   id: number;
   role: "user" | "ai";
@@ -87,16 +90,15 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isNewProject, o
           }
         }
       }
-      if (mapped.length > 0) setMessages(mapped);
+      if (mapped.length > 0) setMessages((prev) => prev.length > 0 ? prev : mapped);
     }).catch(() => {});
   }, [existingSid, projectPath]);
 
-  const initSentRef = useRef<Set<string>>(new Set());
   // Auto-send project init instruction for newly created projects (once per session)
   useEffect(() => {
     if (!isNewProject || !existingSid) return;
-    if (initSentRef.current.has(existingSid)) return;
-    initSentRef.current.add(existingSid);
+    if (_initSentSessions.has(existingSid)) return;
+    _initSentSessions.add(existingSid);
     const send = async () => {
       try {
         const instruction = await window.electronAPI.systemPrompt.getInitInstruction();
@@ -115,16 +117,6 @@ ${instruction}`;
     send();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNewProject, existingSid]);
-
-  // Cleanup running query on unmount
-  useEffect(() => {
-    return () => {
-      if (currentRunRef.current) {
-        window.electronAPI.agent.abort(currentRunRef.current);
-        currentRunRef.current = null;
-      }
-    };
-  }, []);
 
   // Stream listener
   useEffect(() => {
