@@ -27,14 +27,12 @@ export function TabBar(): JSX.Element {
                   : "bg-transparent text-text-secondary hover:bg-surface-hover"
               }`}
             >
-              {/* Dot indicator */}
-              <span
-                className={`w-2 h-2 rounded-full shrink-0 ${
-                  tab.type === "file" ? "bg-accent" : "bg-text-secondary"
-                }`}
-              />
+              {/* Dot — only for dirty (unsaved) files */}
+              {(tab as { dirty?: boolean }).dirty && (
+                <span className="w-2 h-2 rounded-full bg-accent shrink-0" />
+              )}
               {/* Title */}
-              <span className="truncate max-w-[120px]">{tab.title}</span>
+              <span className="truncate max-w-[140px]">{tab.title}</span>
               {/* Close button — visible on hover */}
               <button
                 onClick={(e) => {

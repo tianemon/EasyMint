@@ -7,6 +7,7 @@ export interface Tab {
   filePath?: string;
   sessionId?: string;
   isNewProject?: boolean;
+  dirty?: boolean;
 }
 
 interface TabState {
@@ -16,6 +17,7 @@ interface TabState {
   closeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
   clearTabs: () => void;
+  setDirty: (id: string, dirty: boolean) => void;
 }
 
 let nextTabIdx = 0;
@@ -64,4 +66,8 @@ export const useTabStore = create<TabState>((set, get) => ({
   setActiveTab: (id) => set({ activeTabId: id }),
 
   clearTabs: () => set({ tabs: [], activeTabId: null }),
+
+  setDirty: (id, dirty) => set((s) => ({
+    tabs: s.tabs.map((t) => (t.id === id ? { ...t, dirty } : t)),
+  })),
 }));

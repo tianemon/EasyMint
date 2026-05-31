@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useTabStore } from "../stores/tab-store";
 import { EditorView, basicSetup } from "codemirror";
 import { keymap } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
@@ -132,12 +133,24 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
       basicSetup,
       syntaxHighlighting(defaultHighlightStyle),
       easyMintTheme,
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged && fileName) {
+          // Mark tab as dirty when content changes
+          const tabs = useTabStore.getState().tabs;
+          const tab = tabs.find((t) => t.filePath === filePath);
+          if (tab) useTabStore.getState().setDirty(tab.id, true);
+        }
+      }),
       keymap.of([{
         key: "Mod-s",
         run: () => {
           if (!filePath || !viewRef.current) return false;
           const text = viewRef.current.state.doc.toString();
           window.electronAPI.file.writeContent(filePath, text).then(() => {
+            // Mark tab as clean
+            const tabs = useTabStore.getState().tabs;
+            const tab = tabs.find((t) => t.filePath === filePath);
+            if (tab) useTabStore.getState().setDirty(tab.id, false);
             setSaved(true);
             setTimeout(() => setSaved(false), 1500);
           });
