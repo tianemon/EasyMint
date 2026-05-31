@@ -81,16 +81,11 @@ function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
 }
 
 function ThinkingBlockView({ block, streaming }: { block: ThinkingBlock; streaming?: boolean }): JSX.Element {
-  // Auto-expand during streaming, collapse when stream ends
+  // Auto-expand during streaming, stay as-is after stream ends
   const [open, setOpen] = useState(false);
   const prevStreaming = useRef(streaming);
   useEffect(() => {
     if (streaming && !prevStreaming.current) setOpen(true);
-    if (!streaming && prevStreaming.current) {
-      const timer = setTimeout(() => setOpen(false), 800);
-      prevStreaming.current = streaming;
-      return () => clearTimeout(timer);
-    }
     prevStreaming.current = streaming;
   }, [streaming]);
   const preview = block.text.slice(0, 140);
