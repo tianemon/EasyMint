@@ -72,47 +72,6 @@ export function ProjectPage(): JSX.Element {
               }
             });
           });
-          // DEBUG: mock tasks for timeline testing
-          const ts = useTaskStore.getState();
-          if (ts.tasks.length === 0) {
-            const now = Date.now();
-            const m = (n: number) => now - n * 60000;
-
-            const doAdd = (id: string, title: string, desc: string, cmd: string, status: TaskItem["status"], completedMin: number, out?: string[]) => {
-              ts.addTask({ id, title, description: desc, command: cmd, status });
-              if (completedMin || out) {
-                useTaskStore.setState((s) => ({
-                  tasks: s.tasks.map((t) => {
-                    if (t.id !== id) return t;
-                    const u = { ...t };
-                    if (completedMin) u.completedAt = m(completedMin);
-                    if (out) u.output = out;
-                    return u;
-                  }),
-                }));
-              }
-            };
-
-            // Done — spreading across last 3 hours
-            doAdd("t01", "初始化开发环境", "填充 init.sh 并安装项目依赖", "bash init.sh", "done", 180, ["node -v → v22.0.0", "npm install → 134 packages", "环境就绪"]);
-            doAdd("t02", "创建数据库表结构", "根据架构设计创建 users / posts / comments 表", "echo 'migrate'", "done", 165, ["CREATE TABLE users", "CREATE TABLE posts", "CREATE TABLE comments", "迁移完成"]);
-            doAdd("t03", "搭建首页布局", "响应式三栏布局 + 顶部导航栏", "echo 'layout'", "done", 150, ["layout 组件已创建", "响应式断点已配置 sm/md/lg/xl"]);
-            doAdd("t04", "实现用户注册接口", "邮箱注册 + 密码加密 + 邮箱验证", "echo 'register'", "done", 135, ["POST /api/auth/register → 201", "bcrypt 加密正常", "验证邮件已发送"]);
-            doAdd("t05", "设计全局 CSS 变量体系", "色彩 / 间距 / 字体 / 阴影统一管理", "echo 'css vars'", "done", 120, [":root 变量文件已创建", "替换了 47 处硬编码色值"]);
-            doAdd("t06", "编写 README 文档", "项目介绍 + 技术栈 + 本地运行指南", "echo 'readme'", "done", 105, ["README.md 已更新"]);
-            doAdd("t07", "配置 ESLint + Prettier", "统一代码风格，pre-commit 自动格式化", "echo 'lint'", "done", 90, [".eslintrc 配置完成", "prettier 集成", "pre-commit hook 已添加"]);
-            doAdd("t08", "实现用户登录页面", "邮箱密码登录 + JWT token 存储", "echo 'login'", "failed", 75, ["登录表单 UI 完成", "API 调用 200", "JWT 存储到 localStorage", "测试失败: token 过期未刷新"]);
-            doAdd("t09", "编写 API 接口文档", "Swagger OpenAPI 3.0 规范", "echo 'swagger'", "done", 60, ["swagger.json 已生成", "/api/docs 可访问"]);
-            doAdd("t10", "实现文章列表分页", "RESTful 分页 + 无限滚动", "echo 'pagination'", "done", 45, ["GET /api/posts?page=1&size=20", "前端 IntersectionObserver", "加载更多已完成"]);
-            doAdd("t11", "添加暗黑模式切换", "CSS 变量切换 + localStorage 持久化", "echo 'dark mode'", "failed", 30, ["dark 主题变量已定义", "切换按钮正常", "部分第三方组件未适配"]);
-            doAdd("t12", "修复登录页面样式错乱", "移动端按钮重叠，flex 布局修正", "echo 'fix flex'", "pending", 0);
-            doAdd("t13", "实现文章搜索功能", "全文搜索 + 高亮关键词", "echo 'search'", "pending", 0);
-            doAdd("t14", "添加单元测试覆盖", "Jest + React Testing Library", "echo 'test'", "pending", 0);
-            doAdd("t15", "优化首页加载性能", "图片懒加载 + 代码分割 + CDN", "echo 'perf'", "pending", 0);
-            doAdd("t16", "部署到 Vercel", "配置环境变量 + 自定义域名", "echo 'deploy'", "pending", 0);
-            doAdd("t17", "实现评论功能", "嵌套评论 + 实时通知", "echo 'comments'", "pending", 0);
-            doAdd("t18", "添加国际化 i18n", "中英文切换 + 语言检测", "echo 'i18n'", "pending", 0);
-          }
           // 如果 URL 带有 session 参数，自动打开该会话
           const params = new URLSearchParams(location.search);
           const urlSessionId = params.get("session");

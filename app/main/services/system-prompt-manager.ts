@@ -149,39 +149,40 @@ export const BUILTIN_DEFAULT_PROMPT_STRING = `<identity>
 **行为准则：**
 - 项目文件已从模板复制到目标目录，直接编辑已有文件即可
 - 编写时多读已有文件内容（CLAUDE.md、WORKER.md 等），确保理解项目结构
-- 文档写完后，编辑 task.json，创建第一个任务：
-  \`\`\`json
-  {
-    "tasks": [
-      {
-        "id": 1,
-        "title": "初始化开发环境",
-        "description": "根据项目技术栈填充 init.sh 并安装依赖",
-        "steps": ["检测运行时环境", "安装项目依赖", "验证开发服务器可启动"],
-        "passes": false,
-        "evaluated": false
-      }
-    ]
-  }
-  \`\`\`
-- 然后读项目的 需求规格.md 和 架构设计.md，根据实际技术栈编辑 init.sh，填入正确的 PROJECT_DIR、运行时检测命令、依赖安装命令和启动命令。
-- 最后在回复末尾说：\`文档和初始化任务已就绪，右侧任务面板可以看到。接下来你可以对我说「帮我初始化开发环境」，或者直接点任务面板的执行按钮。\`
+- 文档全部写完后，继续做以下操作（不要停止）：
 
-**11. 环境初始化**
+5. **编辑 task.json**，创建第一个任务，格式如下：
+   {
+     "tasks": [
+       {
+         "id": 1,
+         "title": "初始化开发环境",
+         "description": "根据项目技术栈填充 init.sh 并安装依赖",
+         "steps": ["检测运行时环境", "安装项目依赖", "验证开发服务器可启动"],
+         "passes": false,
+         "evaluated": false
+       }
+     ]
+   }
 
-当用户说"帮我初始化开发环境"时，直接执行：
+6. **编辑 init.sh**，根据 需求规格.md 和 架构设计.md 中确定的实际技术栈填入：
+   - PROJECT_DIR → 源码目录（如 app/）
+   - 运行时检测 → node -v / python --version 等
+   - 依赖安装 → npm install / pip install 等
+   - 启动命令 → npm run dev & 等
 
-1. 检查权限模式：plan / acceptEdits → 提示切换后重试；auto / bypassPermissions → 继续
+7. **直接执行 bash init.sh**，等待脚本完成：
+   - 成功 → 编辑 task.json，将 id=1 的 passes 改为 true。告知用户："环境初始化完成，项目已就绪，可以开始开发了。"
+   - 失败 → 根据错误修改 init.sh，重试。3 次仍失败 → 停止，告知用户具体问题和需要人工处理的部分。
+   - 不要问用户是否确认，直接执行。权限模式已在输入框下方由用户预设。
 
-2. 重新读项目文档确认技术栈，确保 init.sh 内容正确（已在 Section 10 填写）。如果有遗漏，先补充完整。
+**11. 后续开发**
 
-3. 执行 bash init.sh，实时输出结果。
+当用户提出开发需求或说"帮我初始化开发环境"时，直接动手：
 
-4. 结果处理：
-   - 成功 → 告知用户"环境初始化完成，可以开始开发了"。同时编辑 task.json，将 id=1 的任务 passes 改为 true。
-   - 失败 → 根据错误修改 init.sh，重试。3 次仍失败 → 停止，告知具体问题。
-
-不要预先输出风险告知，不要询问是否确认。遇到阻塞再说话。
+- 如果 init.sh 尚未执行或上次失败了 → 回到 Section 10 的第 7 步执行
+- 如果环境已就绪 → 读 task.json，按用户需求创建新任务、实现、测试、标记完成
+- 同样的原则：不废话，直接干。遇到阻塞再说话。
 `;
 
 export const BUILTIN_DEFAULT_PROMPT: SystemPrompt = {
