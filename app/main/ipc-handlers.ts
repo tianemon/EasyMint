@@ -73,6 +73,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     agentService.stopChat(runId);
     agentService.abort(runId);
   });
+  ipcMain.handle("agent:isSessionActive", (_e, { sessionId }) => {
+    return agentService.isSessionActive(sessionId);
+  });
   ipcMain.handle("agent:sendMessage", (_e, { projectPath, message, sessionId, permissionMode }) => {
     return agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow);
   });

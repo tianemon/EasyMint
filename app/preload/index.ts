@@ -95,6 +95,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null }) =>
       ipcRenderer.invoke("agent:sendMessage", { projectPath, message, ...opts }),
     abort: (runId: string) => ipcRenderer.invoke("agent:abort", { runId }),
+    isSessionActive: (sessionId: string) => ipcRenderer.invoke("agent:isSessionActive", { sessionId }),
     onStream: (callback: (event: unknown) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on("agent:stream", handler);

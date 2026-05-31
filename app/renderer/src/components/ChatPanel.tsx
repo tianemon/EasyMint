@@ -28,9 +28,8 @@ interface ChatPanelProps {
 export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreated, onActivity }: ChatPanelProps): JSX.Element {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(!!existingSid);
-  const [streaming, setStreaming] = useState(!!existingSid);
-  const streamReceivedRef = useRef(false);
+  const [loading, setLoading] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const [statusText, setStatusText] = useState("思考中...");
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentRunRef = useRef<string | null>(null);
@@ -119,17 +118,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   }, [existingSid, projectPath]);
 
 
-  // If no stream activity within 5s, session is idle — clear loading
-  // But never clear if stream events have been received (assistant is working)
+  // Check if session is active on mount — show stop button if assistant is working
   useEffect(() => {
     if (!existingSid) return;
-    const t = setTimeout(() => {
-      if (!streamReceivedRef.current) {
-        setLoading(false);
-        setStreaming(false);
-      }
-    }, 5000);
-    return () => clearTimeout(t);
+    window.electronAPI.agent.isSessionActive(existingSid).then((active) => {
+      if (active) { setLoading(true); setStreaming(true); }
+    });
   }, [existingSid]);
 
   // Stream listener
@@ -137,7 +131,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     let currentAiId = 0;
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       if (event.source !== "chat") return;
-      streamReceivedRef.current = true;
       setStreaming(true);
       if (event.type === "status") {
         setStatusText(typeof event.data.text === "string" ? event.data.text : "处理中...");

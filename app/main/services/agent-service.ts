@@ -171,6 +171,14 @@ export class AgentService {
     }
   }
 
+  /** Check if a session has an active query running */
+  isSessionActive(sessionId: string): boolean {
+    for (const chat of this.activeChats.values()) {
+      if (chat.sessionId === sessionId) return true;
+    }
+    return false;
+  }
+
   /** Interrupt all active queries — call on app quit or project switch */
   shutdown(): void {
     for (const [id, chat] of this.activeChats) {
