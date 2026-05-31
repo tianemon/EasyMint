@@ -52,6 +52,11 @@ export function ProjectPage(): JSX.Element {
     if (projectId) {
       window.electronAPI.project.get(projectId).then((p) => {
         if (p) {
+          if (!p.exists) {
+            setProjectName(p.name + "（目录已删除）");
+            document.title = `项目已删除 — EasyMint`;
+            return;
+          }
           setProjectPath(p.path);
           setProjectName(p.name);
           document.title = `${p.name} — EasyMint`;

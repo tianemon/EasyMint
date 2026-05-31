@@ -8,6 +8,7 @@ interface Project {
   lastOpenedAt: string;
   status: "setup" | "development" | "completed";
   description: string;
+  exists?: boolean;
 }
 
 interface FileNode {

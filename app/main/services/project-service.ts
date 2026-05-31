@@ -33,8 +33,11 @@ export class ProjectService {
     this.templateDir = templateDir ?? getTemplateDir();
   }
 
-  list(): Project[] {
-    return this.store.getProjects();
+  list(): Array<Project & { exists: boolean }> {
+    return this.store.getProjects().map((p) => ({
+      ...p,
+      exists: fs.existsSync(p.path),
+    }));
   }
 
   create(opts: { name: string; path: string }): Project {
@@ -71,8 +74,10 @@ export class ProjectService {
     this.store.saveProjects(projects);
   }
 
-  get(id: string): Project | undefined {
-    return this.store.getProjects().find((p) => p.id === id);
+  get(id: string): (Project & { exists: boolean }) | undefined {
+    const p = this.store.getProjects().find((p) => p.id === id);
+    if (!p) return undefined;
+    return { ...p, exists: fs.existsSync(p.path) };
   }
 
   private copyTemplate(targetDir: string): void {

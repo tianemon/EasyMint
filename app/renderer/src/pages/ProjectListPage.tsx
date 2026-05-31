@@ -57,10 +57,19 @@ export function ProjectListPage(): JSX.Element {
           {projects.map((p) => (
             <div key={p.id} className="relative group">
               <button
-                className="w-full p-4 rounded-lg border border-border bg-surface-alt hover:bg-surface-hover transition-colors text-left"
-                onClick={() => { window.electronAPI.settings.setLastProject(p.id); navigate(`/project/${p.id}`); }}
+                className={`w-full p-4 rounded-lg border transition-colors text-left ${
+                  p.exists === false ? "border-red-400/30 bg-red-50 cursor-default" : "border-border bg-surface-alt hover:bg-surface-hover"
+                }`}
+                onClick={() => {
+                  if (p.exists === false) return;
+                  window.electronAPI.settings.setLastProject(p.id);
+                  navigate(`/project/${p.id}`);
+                }}
               >
-                <div className="font-medium pr-5">{p.name}</div>
+                <div className="font-medium pr-5">
+                  {p.name}
+                  {p.exists === false && <span className="text-red-400 text-xs ml-1.5">（目录已删除）</span>}
+                </div>
                 <div className="text-sm text-text-secondary mt-1 truncate">{p.path}</div>
                 <div className="text-xs text-text-secondary mt-2">
                   {new Date(p.lastOpenedAt).toLocaleDateString("zh-CN")}
