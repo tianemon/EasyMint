@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { EditorView, basicSetup } from "codemirror";
+import { EditorView, basicSetup, keymap } from "codemirror";
 import { EditorState } from "@codemirror/state";
 import { json } from "@codemirror/lang-json";
 import { javascript } from "@codemirror/lang-javascript";
@@ -91,6 +91,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lineCount, setLineCount] = useState(0);
+  const [saved, setSaved] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
 
@@ -128,9 +129,21 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
     const lang = fileName ? langForFile(fileName) : null;
     const extensions = [
       basicSetup,
-      EditorView.editable.of(false),
       syntaxHighlighting(defaultHighlightStyle),
       easyMintTheme,
+      keymap.of([{
+        key: "Mod-s",
+        run: () => {
+          if (!filePath || !viewRef.current) return false;
+          const text = viewRef.current.state.doc.toString();
+          window.electronAPI.file.writeContent(filePath, text).then(() => {
+            setSaved(true);
+            setTimeout(() => setSaved(false), 1500);
+          });
+          return true;
+        },
+        preventDefault: true,
+      }]),
     ];
     if (lang) extensions.push(lang);
 
@@ -203,8 +216,10 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
           <span className="text-[11px] text-text-secondary">{fileName || filePath}</span>
         </div>
         <div ref={containerRef} className="flex-1 overflow-auto" />
-        <div className="h-5 border-t border-border bg-surface-alt flex items-center px-3 shrink-0">
+        <div className="h-5 border-t border-border bg-surface-alt flex items-center px-3 shrink-0 gap-3">
           <span className="text-[10px] text-text-secondary">{lineCount} 行</span>
+          <span className={`text-[10px] transition-opacity duration-200 ${saved ? "text-accent opacity-100" : "opacity-0"}`}>已保存</span>
+          <span className="text-[10px] text-text-secondary ml-auto">Cmd+S 保存</span>
         </div>
       </div>
     </div>
