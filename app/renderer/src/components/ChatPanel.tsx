@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { normalizeEvent } from "./StreamPanel";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
+import { chatActions } from "../stores/chat-actions";
 
 
 interface ChatMessage {
@@ -208,6 +209,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       currentRunRef.current = null;
     }
   }, [projectPath, loading, permissionMode]);
+
+  // Register sendText for cross-component chat triggers
+  useEffect(() => {
+    chatActions.register((text: string) => sendText(text));
+    return () => chatActions.unregister();
+  }, [sendText]);
 
   const handleSend = useCallback(async () => {
     await sendText(input);

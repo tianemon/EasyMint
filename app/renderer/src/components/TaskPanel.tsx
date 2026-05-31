@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTaskStore } from "../stores/task-store";
+import { chatActions } from "../stores/chat-actions";
 
 interface TaskPanelProps {
   projectPath: string;
@@ -65,17 +66,13 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
 
   const handleInitEnv = () => {
     initTriggered.current = true;
-    window.electronAPI.agent.sendMessage(projectPath, "帮我初始化开发环境", {})
-      .catch((e: unknown) => console.error("[TaskPanel] init env:", e));
+    chatActions.send("帮我初始化开发环境");
   };
 
   const handleAllocateTasks = async () => {
     try {
       const instruction = await window.electronAPI.systemPrompt.getTaskInstruction();
-      if (instruction) {
-        window.electronAPI.agent.sendMessage(projectPath, instruction, {})
-          .catch((e: unknown) => console.error("[TaskPanel] allocate tasks:", e));
-      }
+      if (instruction) chatActions.send(instruction);
     } catch { /* ignore */ }
   };
 
