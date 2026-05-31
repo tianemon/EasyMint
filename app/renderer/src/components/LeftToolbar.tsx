@@ -118,7 +118,7 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, o
             data-tooltip={tool.label}
             disabled={tool.disabled}
             onClick={() => {
-              if (tool.id) onSelect(tool.id === activePanel ? "editor" : tool.id);
+              if (tool.id) onSelect(tool.id);
             }}
           >
             {tool.svg}
