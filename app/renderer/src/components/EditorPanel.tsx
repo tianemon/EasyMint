@@ -1,50 +1,48 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { EditorView, basicSetup } from "codemirror";
+import { EditorState } from "@codemirror/state";
+import { json } from "@codemirror/lang-json";
+import { javascript } from "@codemirror/lang-javascript";
+import { css } from "@codemirror/lang-css";
+import { html } from "@codemirror/lang-html";
+import { markdown } from "@codemirror/lang-markdown";
+import { oneDark } from "@codemirror/theme-one-dark";
 
 interface EditorPanelProps {
   filePath?: string;
   fileName?: string;
 }
 
-function highlightSyntax(code: string): string {
-  let result = code
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
-  // Line comments
-  result = result.replace(/(\/\/.*)/g, '<span class="cm">$1</span>');
-  // Block comments
-  result = result.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="cm">$1</span>');
-  // Strings
-  result = result.replace(/("(?:[^"\\]|\\.)*")/g, '<span class="str">$1</span>');
-  result = result.replace(/('(?:[^'\\]|\\.)*')/g, '<span class="str">$1</span>');
-  result = result.replace(/(`(?:[^`\\]|\\.)*`)/g, '<span class="str">$1</span>');
-
-  // Keywords
-  const keywords = [
-    "const", "let", "var", "function", "import", "export", "from", "return",
-    "if", "else", "class", "interface", "type", "extends", "implements", "new", "this",
-    "async", "await", "try", "catch", "throw", "default", "as", "of", "in", "for", "while",
-    "switch", "case", "break", "continue", "true", "false", "null", "undefined",
-    "number", "string", "boolean", "void", "any", "never",
-  ];
-  const kwPattern = new RegExp(`\\b(${keywords.join("|")})\\b`, "g");
-  result = result.replace(kwPattern, '<span class="kw">$1</span>');
-
-  // Function calls: word followed by (
-  result = result.replace(/\b([a-zA-Z_$][\w$]*)(\s*\()/g, (_, name, paren) => {
-    if (keywords.includes(name)) return `${name}${paren}`;
-    return `<span class="fn">${name}</span>${paren}`;
-  });
-
-  return result;
+function langForFile(name: string) {
+  const ext = name.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "json": return json();
+    case "js":
+    case "jsx":
+    case "ts":
+    case "tsx":
+    case "mjs":
+    case "cjs": return javascript({ jsx: true, typescript: ext === "ts" || ext === "tsx" });
+    case "css":
+    case "scss":
+    case "less": return css();
+    case "html":
+    case "htm": return html();
+    case "md":
+    case "mdx": return markdown();
+    default: return null;
+  }
 }
 
 export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Element {
   const [content, setContent] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lineCount, setLineCount] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
 
+  // Load file content
   useEffect(() => {
     if (!filePath) {
       setContent("");
@@ -56,7 +54,9 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
     window.electronAPI.file
       .readContent(filePath)
       .then((c) => {
-        setContent(typeof c === "string" ? c : String(c));
+        const text = typeof c === "string" ? c : String(c);
+        setContent(text);
+        setLineCount(text.split("\n").length);
         setLoading(false);
       })
       .catch((e: unknown) => {
@@ -65,30 +65,47 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
       });
   }, [filePath]);
 
-  // Welcome page when no file is open
+  // Create / update CodeMirror editor
+  useEffect(() => {
+    if (!containerRef.current || !content) {
+      viewRef.current?.destroy();
+      viewRef.current = null;
+      return;
+    }
+
+    const lang = fileName ? langForFile(fileName) : null;
+    const extensions = [basicSetup, EditorView.editable.of(false), oneDark];
+    if (lang) extensions.push(lang);
+
+    if (viewRef.current) {
+      // Update existing editor
+      viewRef.current.dispatch({
+        changes: {
+          from: 0,
+          to: viewRef.current.state.doc.length,
+          insert: content,
+        },
+      });
+    } else {
+      // Create new editor
+      const state = EditorState.create({ doc: content, extensions });
+      viewRef.current = new EditorView({ state, parent: containerRef.current });
+    }
+
+    return () => {
+      viewRef.current?.destroy();
+      viewRef.current = null;
+    };
+  }, [content, fileName]);
+
+  // Welcome page
   if (!filePath) {
     return (
       <div className="flex items-center justify-center h-full text-text-secondary">
         <div className="text-center max-w-sm">
           <svg className="w-12 h-12 mb-5 opacity-40 text-text-secondary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           <p className="text-sm font-medium text-text-primary mb-2">欢迎使用 EasyMint</p>
-          <p className="text-sm mb-4 leading-relaxed">
-            点击左侧工具栏浏览项目结构、查看对话历史，或与 Claude Chat 自由对话。
-          </p>
-          <div className="grid grid-cols-2 gap-2 text-xs text-text-secondary">
-            <div className="p-3 rounded-lg border border-border bg-surface-alt">
-              <svg className="w-5 h-5 mb-1 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 3v18"/></svg>
-              <div>浏览项目结构</div>
-            </div>
-            <div className="p-3 rounded-lg border border-border bg-surface-alt">
-              <svg className="w-5 h-5 mb-1 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-              <div>查看对话历史</div>
-            </div>
-            <div className="p-3 rounded-lg border border-border bg-surface-alt">
-              <svg className="w-5 h-5 mb-1 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-              <div>启动自动化开发</div>
-            </div>
-          </div>
+          <p className="text-sm mb-4 leading-relaxed">点击左侧工具栏浏览项目结构、查看对话历史，或与 Claude Chat 自由对话。</p>
         </div>
       </div>
     );
@@ -112,67 +129,25 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
             onClick={() => {
               setError(null);
               setLoading(true);
-              window.electronAPI.file
-                .readContent(filePath)
-                .then((c) => {
-                  setContent(typeof c === "string" ? c : String(c));
-                  setLoading(false);
-                })
-                .catch(() => {
-                  setError("重新加载失败");
-                  setLoading(false);
-                });
+              window.electronAPI.file.readContent(filePath)
+                .then((c) => { setContent(typeof c === "string" ? c : String(c)); setLoading(false); })
+                .catch(() => { setError("重新加载失败"); setLoading(false); });
             }}
-          >
-            重试
-          </button>
+          >重试</button>
         </div>
       </div>
     );
   }
 
-  const lines = content.split("\n");
-  const lineCount = lines.length;
-
   return (
     <div className="flex h-full overflow-hidden">
-      {/* Title bar: file name */}
       <div className="flex-1 flex flex-col min-w-0">
         <div className="h-7 flex items-center px-3 border-b border-border bg-surface-alt shrink-0">
           <span className="text-[11px] text-text-secondary">{fileName || filePath}</span>
         </div>
-
-        {/* Editor body: gutter + code */}
-        <div className="flex-1 overflow-auto flex">
-          {/* Line number gutter — 44px */}
-          <div className="w-[44px] bg-surface border-r border-border shrink-0 select-none pt-1 pb-4">
-            {lines.map((_, i) => (
-              <div
-                key={i}
-                className="text-right pr-2 text-xs leading-5 text-text-secondary"
-              >
-                {i + 1}
-              </div>
-            ))}
-          </div>
-
-          {/* Code content area */}
-          <div className="flex-1 min-w-0 pt-1 pb-4">
-            <pre
-              className="text-xs font-mono leading-5 whitespace-pre-wrap m-0 px-3 text-text-primary outline-none"
-              contentEditable
-              suppressContentEditableWarning
-              spellCheck={false}
-              dangerouslySetInnerHTML={{ __html: highlightSyntax(content) || "&#8203;" }}
-            />
-          </div>
-        </div>
-
-        {/* Status bar */}
+        <div ref={containerRef} className="flex-1 overflow-auto" />
         <div className="h-5 border-t border-border bg-surface-alt flex items-center px-3 shrink-0">
-          <span className="text-[10px] text-text-secondary">
-            {lineCount} 行
-          </span>
+          <span className="text-[10px] text-text-secondary">{lineCount} 行</span>
         </div>
       </div>
     </div>
