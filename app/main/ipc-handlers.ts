@@ -68,6 +68,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     agentService.runWorker(projectPath, prompt, mainWindow)
   );
   ipcMain.handle("agent:abort", (_e, { runId }) => {
+    // Try chat first (chat uses chatId), fall back to worker runs
+    agentService.stopChat(runId);
     agentService.abort(runId);
   });
   ipcMain.handle("agent:sendMessage", (_e, { projectPath, message, sessionId, permissionMode }) => {

@@ -167,6 +167,7 @@ export class AgentService {
     if (chat?.query) {
       chat.query.interrupt().catch(() => {});
       this.activeChats.delete(chatId);
+      broadcast("agent:exit", { runId: chatId, code: -1 });
     }
   }
 }
