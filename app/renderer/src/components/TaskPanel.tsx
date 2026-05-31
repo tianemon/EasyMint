@@ -17,20 +17,28 @@ const STATUS_LABELS: Record<string, string> = {
 /** Scale: 0 = densest, 4 = loosest */
 const DENSITY_GAPS = ["gap-1", "gap-2", "gap-3", "gap-4", "gap-5"];
 
-function FlowStep({ label, done, active, onClick }: { label: string; done: boolean; active: boolean; onClick?: () => void }): JSX.Element {
+type FlowState = "disabled" | "ready" | "running" | "done";
+
+function FlowStep({ label, state, onClick }: { label: string; state: FlowState; onClick?: () => void }): JSX.Element {
+  const colors: Record<FlowState, string> = {
+    disabled: "bg-surface border border-border text-text-secondary opacity-50 cursor-not-allowed",
+    ready: "bg-red-500/10 border border-red-400/40 text-red-500 hover:bg-red-500/20 cursor-pointer",
+    running: "bg-amber-400/10 border border-amber-400/40 text-amber-500 cursor-default",
+    done: "bg-green-100 border border-green-300/50 text-green-600 cursor-default",
+  };
+  const dots: Record<FlowState, string> = {
+    disabled: "bg-border",
+    ready: "bg-red-500 animate-pulse",
+    running: "bg-amber-400 animate-pulse",
+    done: "bg-green-500",
+  };
   return (
     <button
-      disabled={!onClick}
+      disabled={state !== "ready"}
       onClick={onClick}
-      className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-colors shrink-0 ${
-        done
-          ? "bg-green-100 text-green-600 cursor-default"
-          : active && onClick
-            ? "bg-accent/10 text-accent hover:bg-accent/20 cursor-pointer"
-            : "bg-surface border border-border text-text-secondary opacity-50 cursor-not-allowed"
-      }`}
+      className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors shrink-0 ${colors[state]}`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${done ? "bg-green-500" : active ? "bg-accent" : "bg-border"}`} />
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dots[state]}`} />
       {label}
     </button>
   );
@@ -181,27 +189,24 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
 
       {/* Flow indicator — three steps with arrows */}
       <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 border-b border-border/50 bg-surface-alt shrink-0">
-        {/* Step 1: Init */}
+        {/* Step 1: Init — always ready, done when tasks exist */}
         <FlowStep
           label="初始化环境"
-          done={tasksAllocated}
-          active
-          onClick={handleInitEnv}
+          state={tasksAllocated ? "done" : "ready"}
+          onClick={tasksAllocated ? undefined : handleInitEnv}
         />
         <FlowArrow done={tasksAllocated} />
-        {/* Step 2: Allocate */}
+        {/* Step 2: Allocate — ready after init, done when tasks exist */}
         <FlowStep
           label="分配任务"
-          done={tasksAllocated}
-          active={!tasksAllocated}
-          onClick={handleAllocateTasks}
+          state={tasksAllocated ? "done" : "ready"}
+          onClick={tasksAllocated ? undefined : handleAllocateTasks}
         />
         <FlowArrow done={false} />
-        {/* Step 3: Execute (placeholder) */}
+        {/* Step 3: Execute — disabled until tasks exist, then ready */}
         <FlowStep
           label="执行任务"
-          done={false}
-          active={false}
+          state={tasksAllocated ? "ready" : "disabled"}
         />
       </div>
 
