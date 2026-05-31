@@ -81,10 +81,23 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           } else if (m.type === "assistant") {
             const content = (m.message as { content?: unknown[] })?.content;
             if (Array.isArray(content)) {
-              const textBlocks = content.filter((b: unknown) => (b as { type?: string })?.type === "text");
-              const text = textBlocks.map((b: unknown) => (b as { text?: string })?.text ?? "").join("\n");
-              if (text && !text.includes("Request interrupted") && !text.includes("No response requested")) {
-                mapped.push({ id: ++msgIdRef.current, role: "ai", entries: [{ kind: "text", text, timestamp: Date.now() }], timestamp: Date.now() });
+              const entries: ReturnType<typeof normalizeEvent>[] = [];
+              for (const block of content) {
+                const b = block as { type?: string; text?: string; thinking?: string; name?: string; input?: unknown; tool_use_id?: string; content?: unknown; is_error?: boolean };
+                if (b.type === "text" && b.text) {
+                  if (!b.text.includes("Request interrupted") && !b.text.includes("No response requested")) {
+                    entries.push({ kind: "text", text: b.text, timestamp: Date.now() });
+                  }
+                } else if (b.type === "thinking" && b.thinking) {
+                  entries.push({ kind: "thinking", text: b.thinking, timestamp: Date.now() });
+                } else if (b.type === "tool_use") {
+                  entries.push({ kind: "tool_use", id: (b as { id?: string }).id || "", name: b.name || "?", input: b.input || {}, timestamp: Date.now() });
+                } else if (b.type === "tool_result") {
+                  entries.push({ kind: "tool_result", toolUseId: b.tool_use_id || "", content: b.content, isError: !!b.is_error, timestamp: Date.now() });
+                }
+              }
+              if (entries.length > 0) {
+                mapped.push({ id: ++msgIdRef.current, role: "ai", entries, timestamp: Date.now() });
               }
             }
           }
