@@ -6,7 +6,7 @@ import { javascript } from "@codemirror/lang-javascript";
 import { css } from "@codemirror/lang-css";
 import { html } from "@codemirror/lang-html";
 import { markdown } from "@codemirror/lang-markdown";
-import { oneDark } from "@codemirror/theme-one-dark";
+import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
 
 interface EditorPanelProps {
   filePath?: string;
@@ -33,6 +33,58 @@ function langForFile(name: string) {
     default: return null;
   }
 }
+
+// Clean light theme matching EasyMint's design
+const easyMintTheme = EditorView.theme({
+  "&": {
+    backgroundColor: "#fafbfc",
+    color: "#2d3748",
+    fontSize: "13px",
+    lineHeight: "1.65",
+  },
+  ".cm-gutters": {
+    backgroundColor: "#f1f3f5",
+    color: "#a0aec0",
+    border: "none",
+    borderRight: "1px solid #e2e8f0",
+    paddingRight: "8px",
+  },
+  ".cm-gutterElement": {
+    padding: "0 4px",
+  },
+  ".cm-activeLineGutter": {
+    backgroundColor: "#e2e8f0",
+    color: "#4a5568",
+  },
+  ".cm-activeLine": {
+    backgroundColor: "rgba(8,145,178,0.06)",
+  },
+  ".cm-cursor": {
+    borderLeftColor: "#0891b2",
+  },
+  ".cm-selectionBackground, ::selection": {
+    backgroundColor: "rgba(8,145,178,0.15)",
+  },
+  ".cm-selectionMatch": {
+    backgroundColor: "rgba(8,145,178,0.08)",
+  },
+  ".cm-matchingBracket": {
+    backgroundColor: "rgba(8,145,178,0.12)",
+    outline: "1px solid rgba(8,145,178,0.3)",
+  },
+  ".cm-tooltip": {
+    backgroundColor: "#fff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "8px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+  },
+  "&.cm-focused .cm-cursor": {
+    borderLeftColor: "#0891b2",
+  },
+  "&.cm-focused": {
+    outline: "none",
+  },
+}, { dark: false });
 
 export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Element {
   const [content, setContent] = useState<string>("");
@@ -74,7 +126,12 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
     }
 
     const lang = fileName ? langForFile(fileName) : null;
-    const extensions = [basicSetup, EditorView.editable.of(false), oneDark];
+    const extensions = [
+      basicSetup,
+      EditorView.editable.of(false),
+      syntaxHighlighting(defaultHighlightStyle),
+      easyMintTheme,
+    ];
     if (lang) extensions.push(lang);
 
     if (viewRef.current) {
