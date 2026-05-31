@@ -162,9 +162,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       } else {
         setMessages((prev) => prev.map((m) => m.id === currentAiId ? { ...m, entries: [...(m.entries || []), entry], timestamp: entry.timestamp } : m));
       }
-      scrollToBottom(true);
+      // Don't force-scroll — let user read history while assistant streams
+      scrollToBottom();
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (currentRunRef.current && runId !== currentRunRef.current) return; currentAiId = 0; setLoading(false); setStreaming(false); onActivity?.(); });
+    const unsubExit= window.electronAPI.agent.onExit(({ runId }) => { if (currentRunRef.current && runId !== currentRunRef.current) return; currentAiId = 0; setLoading(false); setStreaming(false); onActivity?.(); });
     // SDK returns session_id in first stream message — capture it
     const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: realSid }) => {
       if (!sidRef.current) {
