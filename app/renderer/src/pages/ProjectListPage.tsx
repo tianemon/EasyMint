@@ -89,8 +89,10 @@ export function ProjectListPage(): JSX.Element {
           onClose={() => setShowNewDialog(false)}
           onCreated={(project, sessionId) => {
             setShowNewDialog(false);
-            const query = sessionId ? `?session=${sessionId}` : "";
-            navigate(`/project/${project.id}${query}`);
+            const params = new URLSearchParams();
+            if (sessionId) params.set("session", sessionId);
+            params.set("init", "1");
+            navigate(`/project/${project.id}?${params.toString()}`);
           }}
         />
       )}

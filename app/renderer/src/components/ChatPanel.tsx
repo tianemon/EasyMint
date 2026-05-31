@@ -18,13 +18,15 @@ interface ChatPanelProps {
   projectPath: string;
   /** SDK session ID to resume, undefined = new session */
   sessionId?: string;
+  /** True when this session was just created by NewProjectDialog */
+  isNewProject?: boolean;
   /** Called when SDK returns the real session_id (first message of a new session) */
   onSessionCreated?: (sessionId: string) => void;
   /** Called whenever a response completes — triggers sidebar re-sort */
   onActivity?: () => void;
 }
 
-export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreated, onActivity }: ChatPanelProps): JSX.Element {
+export function ChatPanel({ projectPath, sessionId: existingSid, isNewProject, onSessionCreated, onActivity }: ChatPanelProps): JSX.Element {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,7 +66,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   // Load history for existing session
   useEffect(() => {
     if (!existingSid) return;
-    window.electronAPI.conv.messages(existingSid, projectPath).then(async (msgs) => {
+    window.electronAPI.conv.messages(existingSid, projectPath).then((msgs) => {
       const mapped: ChatMessage[] = [];
       for (const m of msgs) {
         if (m.type === "user") {
@@ -84,26 +86,30 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           }
         }
       }
-      if (mapped.length > 0) {
-        setMessages(mapped);
-      } else {
-        // Fresh session from project creation — auto-send init instruction
-        try {
-          const instruction = await window.electronAPI.systemPrompt.getInitInstruction();
-          if (instruction) {
-            const fullPrompt = `[系统通知] 项目已创建完毕。
+      if (mapped.length > 0) setMessages(mapped);
+    }).catch(() => {});
+  }, [existingSid, projectPath]);
+
+  // Auto-send project init instruction for newly created projects
+  useEffect(() => {
+    if (!isNewProject || !existingSid) return;
+    const send = async () => {
+      try {
+        const instruction = await window.electronAPI.systemPrompt.getInitInstruction();
+        if (instruction) {
+          const fullPrompt = `[系统通知] 项目已创建完毕。
 
 项目路径：${projectPath}
 
 项目信息已通过新建项目表单采集，请开始工作。
 
 ${instruction}`;
-            await sendText(fullPrompt);
-          }
-        } catch { /* ignore */ }
-      }
-    }).catch(() => {});
-  }, [existingSid, projectPath]);
+          await sendText(fullPrompt);
+        }
+      } catch { /* ignore */ }
+    };
+    send();
+  }, [isNewProject, existingSid]);
 
   // Stream listener
   useEffect(() => {

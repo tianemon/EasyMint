@@ -601,7 +601,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
       const ctx = buildContext(data);
       const sid = sidRef.current;
       if (openInNewWindow) {
-        await window.electronAPI.window.openProject(createdProject.id, sid ?? undefined);
+        await window.electronAPI.window.openProject(createdProject.id, sid ?? undefined, true);
         onClose();
       } else {
         onCreated(createdProject, sid);

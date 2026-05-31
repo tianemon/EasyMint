@@ -6,6 +6,7 @@ export interface Tab {
   title: string;
   filePath?: string;
   sessionId?: string;
+  isNewProject?: boolean;
 }
 
 interface TabState {

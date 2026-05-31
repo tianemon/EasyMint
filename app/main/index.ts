@@ -127,8 +127,12 @@ app.on("activate", () => {
 
 // ── Multi-window IPC ──
 
-ipcMain.handle("window:open-project", (_e, { projectId, sessionId }) => {
-  const hash = sessionId ? `/project/${projectId}?session=${sessionId}` : `/project/${projectId}`;
+ipcMain.handle("window:open-project", (_e, { projectId, sessionId, init }) => {
+  const params = new URLSearchParams();
+  if (sessionId) params.set("session", sessionId);
+  if (init) params.set("init", "1");
+  const qs = params.toString();
+  const hash = qs ? `/project/${projectId}?${qs}` : `/project/${projectId}`;
   if (sharedServices) sharedServices.store.setLastProjectId(projectId);
   createWindow(hash);
 });

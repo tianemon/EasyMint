@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
   window: {
-    openProject: (projectId: string, sessionId?: string) => ipcRenderer.invoke("window:open-project", { projectId, sessionId }),
+    openProject: (projectId: string, sessionId?: string, init?: boolean) => ipcRenderer.invoke("window:open-project", { projectId, sessionId, init }),
     newWindow: () => ipcRenderer.invoke("window:new"),
   },
   dialog: {

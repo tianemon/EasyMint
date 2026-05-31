@@ -75,12 +75,13 @@ export function ProjectPage(): JSX.Element {
           // 如果 URL 带有 session 参数，自动打开该会话
           const params = new URLSearchParams(location.search);
           const urlSessionId = params.get("session");
+          const isNewProject = params.get("init") === "1";
           if (urlSessionId) {
             setCurrentSessionId(urlSessionId);
             setActiveSessionId(urlSessionId);
             // 切换到聊天面板并打开此会话 tab
             setActivePanel("chat");
-            openTab({ id: urlSessionId, type: "chat", title: "新项目", sessionId: urlSessionId });
+            openTab({ id: urlSessionId, type: "chat", title: "新项目", sessionId: urlSessionId, isNewProject });
           }
         }
       });
@@ -158,6 +159,7 @@ export function ProjectPage(): JSX.Element {
             key={activeTab.id}
             projectPath={projectPath}
             sessionId={currentSessionId}
+            isNewProject={activeTab.isNewProject}
             onSessionCreated={(sid) => { setCurrentSessionId(sid); setSessionRefreshKey((k) => k + 1); }}
             onActivity={() => setSessionRefreshKey((k) => k + 1)}
           />
@@ -263,8 +265,10 @@ export function ProjectPage(): JSX.Element {
             setShowNewProject(false);
             if (!projectId) {
               // 无项目时，原地跳转到新项目页面
-              const query = sessionId ? `?session=${sessionId}` : "";
-              navigate(`/project/${project.id}${query}`);
+              const params = new URLSearchParams();
+              if (sessionId) params.set("session", sessionId);
+              params.set("init", "1");
+              navigate(`/project/${project.id}?${params.toString()}`);
             }
           }}
         />
