@@ -128,13 +128,40 @@ function actualStepNumber(visibleSteps: typeof ALL_STEPS, currentIndex: number):
   return visibleSteps[currentIndex]?.number ?? 1;
 }
 
-function buildContext(data: ProjectFormData): string {
+function buildContext(data: ProjectFormData, step?: number): string {
   const platforms = data.platforms.join("、");
-  const features = data.features.map((f) => `${f.name}(${f.priority})`).join("；");
-  const hasWeb = data.platforms.includes("web");
-  const frontendLabel = FRONTEND_OPTIONS.find((o) => o.value === data.frontend)?.label || data.frontend;
-  const backendLabel = BACKEND_OPTIONS.find((o) => o.value === data.backend)?.label || data.backend;
-  return `项目信息：名称「${data.name}」，平台「${platforms}」，描述「${data.description}」，目标用户「${data.targetUsers}」，完成度「${data.completeness}」。功能清单：「${features}」。UI风格「${data.uiStyle}」。${hasWeb ? `前端「${frontendLabel}」，后端「${backendLabel}」。` : ""}预算「${data.techBudget}」，部署「${data.deployPlatform}」。`;
+  const parts: string[] = [];
+  const push = (s: string) => parts.push(s);
+
+  // Step 1: always include basics
+  push(`名称「${data.name}」，平台「${platforms}」，描述「${data.description}」，目标用户「${data.targetUsers}」，完成度「${data.completeness}」`);
+
+  // Step 2+: include features
+  if (!step || step >= 2) {
+    const features = data.features.map((f) => `${f.name}(${f.priority})`).join("；");
+    push(`功能清单：「${features || "无"}"」`);
+  }
+
+  // Step 3+: include UI style
+  if (!step || step >= 3) {
+    push(`UI 风格「${data.uiStyle}」`);
+  }
+
+  // Step 4+: include tech stack
+  if (!step || step >= 4) {
+    const hasWeb = data.platforms.includes("web");
+    const frontendLabel = FRONTEND_OPTIONS.find((o) => o.value === data.frontend)?.label || data.frontend;
+    const backendLabel = BACKEND_OPTIONS.find((o) => o.value === data.backend)?.label || data.backend;
+    if (hasWeb) push(`前端「${frontendLabel}」，后端「${backendLabel}」`);
+    push(`预算「${data.techBudget}」`);
+  }
+
+  // Step 5: include deploy
+  if (!step || step >= 5) {
+    push(`部署「${data.deployPlatform}」`);
+  }
+
+  return `项目信息：${parts.join("。")}。`;
 }
 
 // ---- Sub-components ----
@@ -530,7 +557,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
         pathRef.current = project.path;
         setCreatedProject(project);
         setCreateError(null);
-        await ask(`[系统通知] 用户点击了新建项目。请默默收集以下需求，无需主动回复：\n${buildContext(data)}\n收到后只需回复"已记录"。`);
+        await ask(`[系统通知] 用户点击了新建项目。请默默收集以下需求，无需主动回复：\n${buildContext(data, 1)}\n收到后只需回复"已记录"。`);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "创建项目失败";
         setCreateError(msg);
