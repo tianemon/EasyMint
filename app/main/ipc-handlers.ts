@@ -124,6 +124,42 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("system-prompt:update-append", (_e, { enabled }) => { updateAppendSetting(enabled); });
   ipcMain.handle("system-prompt:set-default", (_e, { id }) => { setDefaultPrompt(id); });
 
+  // task:read — read task.json and return tasks
+  ipcMain.handle("task:read", (_e, { projectPath }) => {
+    try {
+      const p = require("path");
+      const fs = require("fs");
+      const filePath = p.join(projectPath, "task.json");
+      if (!fs.existsSync(filePath)) return { tasks: [] };
+      const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+      return { tasks: (data.tasks || []).map((t: { id: number; title: string; description?: string; steps?: string[]; passes?: boolean }) => ({
+        id: String(t.id),
+        title: t.title,
+        description: t.description || (t.steps ? t.steps.join("; ") : ""),
+        command: `bash init.sh`,
+        passes: t.passes ?? false,
+      })) };
+    } catch { return { tasks: [] }; }
+  });
+
+  // task:markDone — update passes field in task.json
+  ipcMain.handle("task:markDone", (_e, { projectPath, taskId }) => {
+    try {
+      const p = require("path");
+      const fs = require("fs");
+      const filePath = p.join(projectPath, "task.json");
+      if (!fs.existsSync(filePath)) return false;
+      const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+      const task = (data.tasks || []).find((t: { id: number }) => String(t.id) === String(taskId));
+      if (task) {
+        task.passes = true;
+        task.evaluated = false;
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+      }
+      return true;
+    } catch { return false; }
+  });
+
   // shell:exec — run a shell command in project directory, stream output
   ipcMain.handle("shell:exec", async (event, { projectPath, command }) => {
     const result = await execShell(

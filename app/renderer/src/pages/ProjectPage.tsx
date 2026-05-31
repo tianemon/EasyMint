@@ -56,6 +56,22 @@ export function ProjectPage(): JSX.Element {
           setProjectName(p.name);
           document.title = `${p.name} — EasyMint`;
           window.electronAPI.settings.setLastProject(projectId);
+          // 从 task.json 同步任务到面板
+          window.electronAPI.task.read(p.path).then((result) => {
+            const ts = useTaskStore.getState();
+            result.tasks.forEach((t) => {
+              const existing = ts.tasks.find((x) => x.id === t.id);
+              if (!existing) {
+                ts.addTask({
+                  id: t.id,
+                  title: t.title,
+                  description: t.description,
+                  command: t.command,
+                  status: t.passes ? "done" : "pending",
+                });
+              }
+            });
+          });
           // DEBUG: mock tasks for timeline testing
           const ts = useTaskStore.getState();
           if (ts.tasks.length === 0) {

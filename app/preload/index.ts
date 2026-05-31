@@ -64,6 +64,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     set: (key: string, value: unknown) => ipcRenderer.invoke("settings:set", { key, value }),
     setLastProject: (projectId: string) => ipcRenderer.invoke("settings:set-last-project", { projectId }),
   },
+  task: {
+    read: (projectPath: string) => ipcRenderer.invoke("task:read", { projectPath }),
+    markDone: (projectPath: string, taskId: string) => ipcRenderer.invoke("task:markDone", { projectPath, taskId }),
+  },
   shell: {
     exec: (projectPath: string, command: string) => ipcRenderer.invoke("shell:exec", { projectPath, command }),
     onStdout: (callback: (data: { line: string }) => void) => {

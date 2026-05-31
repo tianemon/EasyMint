@@ -73,6 +73,10 @@ interface ElectronAPI {
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
     onChatSession: (callback: (data: { chatId: string; sessionId: string }) => void) => () => void;
   };
+  task: {
+    read: (projectPath: string) => Promise<{ tasks: { id: string; title: string; description: string; command: string; passes: boolean }[] }>;
+    markDone: (projectPath: string, taskId: string) => Promise<boolean>;
+  };
   shell: {
     exec: (projectPath: string, command: string) => Promise<{ code: number | null }>;
     onStdout: (callback: (data: { line: string }) => void) => () => void;
