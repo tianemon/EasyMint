@@ -492,6 +492,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
   const [currentStep, setCurrentStep] = useState(0);
   const [data, setData] = useState<ProjectFormData>(DEFAULT_DATA);
   const [creating, setCreating] = useState(false);
+  const [initializing, setInitializing] = useState(false);
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const pathRef = useRef<string | null>(null);
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
@@ -598,7 +599,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
   const handleCreate = async () => {
     if (creatingRef.current) return;
     creatingRef.current = true;
-    setCreating(true);
+    setInitializing(true);
     if (createdProject) {
       const instruction = await window.electronAPI.systemPrompt.getInitInstruction();
       const initPrompt = `[系统通知] 项目已创建完毕。
@@ -619,7 +620,7 @@ ${instruction}`;
         onCreated(createdProject, sid);
       }
     }
-    setCreating(false);
+    setInitializing(false);
   };
 
   const renderStepContent = () => {
@@ -660,13 +661,13 @@ ${instruction}`;
               {creating ? (
                 <span className="flex items-center gap-2">
                   <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3"/><path d="M12 2a10 10 0 019.95 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
-                  创建中...
+                  初始化中...
                 </span>
               ) : "下一步"}
             </button>
           ) : (
-            <button className="px-6 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors font-medium disabled:opacity-50" disabled={!canNext() || creating} onClick={handleCreate}>
-              {creating ? "初始化中..." : "创建项目"}
+            <button className="px-6 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors font-medium disabled:opacity-50" disabled={!canNext() || initializing} onClick={handleCreate}>
+              {initializing ? "创建中..." : "创建项目"}
             </button>
           )}
         </div>
