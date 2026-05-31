@@ -33,6 +33,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isNewProject, o
   const [streaming, setStreaming] = useState(false);
   const [statusText, setStatusText] = useState("思考中...");
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const currentRunRef = useRef<string | null>(null);
   const [permissionMode, setPermissionMode] = useState("auto");
   const msgIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -135,7 +136,7 @@ ${instruction}`;
       }
       scrollToBottom(true);
     });
-    const unsubExit = window.electronAPI.agent.onExit(() => { currentAiId = 0; setLoading(false); setStreaming(false); onActivity?.(); });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (currentRunRef.current && runId !== currentRunRef.current) return; currentAiId = 0; setLoading(false); setStreaming(false); onActivity?.(); });
     // SDK returns session_id in first stream message — capture it
     const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: realSid }) => {
       if (!sidRef.current) {
@@ -167,6 +168,7 @@ ${instruction}`;
         permissionMode,
       });
       setCurrentRunId(result.chatId);
+      currentRunRef.current = result.chatId;
     } catch {
       setLoading(false);
     }
