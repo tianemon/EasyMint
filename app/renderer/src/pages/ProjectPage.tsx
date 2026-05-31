@@ -62,21 +62,7 @@ export function ProjectPage(): JSX.Element {
           document.title = `${p.name} — EasyMint`;
           window.electronAPI.settings.setLastProject(projectId);
           // 从 task.json 同步任务到面板
-          window.electronAPI.task.read(p.path).then((result) => {
-            const ts = useTaskStore.getState();
-            result.tasks.forEach((t) => {
-              const existing = ts.tasks.find((x) => x.id === t.id);
-              if (!existing) {
-                ts.addTask({
-                  id: t.id,
-                  title: t.title,
-                  description: t.description,
-                  command: t.command,
-                  status: t.passes ? "done" : "pending",
-                });
-              }
-            });
-          });
+          syncTasks(p.path);
           // 如果 URL 带有 session 参数，自动打开该会话
           const params = new URLSearchParams(location.search);
           const urlSessionId = params.get("session");
@@ -122,6 +108,23 @@ export function ProjectPage(): JSX.Element {
     closeTab(sessionId);
   }, [activeSessionId, closeTab]);
 
+  const syncTasks = useCallback((path?: string) => {
+    const p = path || projectPath;
+    if (!p) return;
+    window.electronAPI.task.read(p).then((r) => {
+      const ts = useTaskStore.getState();
+      r.tasks.forEach((t) => {
+        const existing = ts.tasks.find((x) => x.id === t.id);
+        const newStatus = (t.passes ? "done" : "pending") as "done" | "pending";
+        if (existing) {
+          if (existing.status !== newStatus) ts.updateTask(t.id, { status: newStatus });
+        } else {
+          ts.addTask({ id: t.id, title: t.title, description: t.description, command: t.command, status: newStatus });
+        }
+      });
+    }).catch(() => {});
+  }, [projectPath]);
+
   const handleOpenProject = useCallback(async () => {
     const projects = await window.electronAPI.project.list();
     setOpenProjectList(projects);
@@ -165,7 +168,7 @@ export function ProjectPage(): JSX.Element {
             projectPath={projectPath}
             sessionId={currentSessionId}
             onSessionCreated={(sid) => { setCurrentSessionId(sid); setSessionRefreshKey((k) => k + 1); }}
-            onActivity={() => setSessionRefreshKey((k) => k + 1)}
+            onActivity={() => { setSessionRefreshKey((k) => k + 1); syncTasks(); }}
           />
         );
       case "file":
