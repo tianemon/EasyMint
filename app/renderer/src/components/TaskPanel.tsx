@@ -173,43 +173,60 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
             <p className="text-xs text-text-secondary">暂无任务</p>
           </div>
         ) : (
-          <div className={`relative px-4 py-2 flex flex-col ${DENSITY_GAPS[density]}`}>
+          <div className={`relative px-3 py-2 flex flex-col ${DENSITY_GAPS[density]}`}>
             {/* Center timeline line */}
-            <div className="absolute left-[18px] top-4 bottom-4 w-px bg-border" />
+            <div className="absolute left-1/2 top-4 bottom-4 w-px bg-border" style={{ transform: "translateX(-0.5px)" }} />
 
-            {sortedTasks.map((task) => {
+            {sortedTasks.map((task, idx) => {
+              const isRight = idx % 2 === 0;
               const isRunning = task.status === "running";
               return (
-                <div key={task.id} className="relative flex items-center gap-3 py-1">
-                  {/* Timeline dot */}
+                <div key={task.id} className="relative flex items-center min-h-[28px]">
+                  {/* Left side (even tasks go right, odd tasks go left) */}
+                  {isRight ? <div className="flex-1" /> : (
+                    <div className="flex-1 flex justify-end pr-4">
+                      <span className={`text-[11px] truncate max-w-[160px] ${
+                        task.status === "done" ? "text-text-secondary line-through decoration-green-400/50" :
+                        isRunning ? "text-accent font-medium" : "text-text-primary"
+                      }`}>
+                        {task.title}
+                        <span className={`text-[9px] ml-1.5 ${
+                          isRunning ? "text-accent" : task.status === "failed" ? "text-red-400" :
+                          task.status === "done" ? "text-green-500" : "text-text-secondary"
+                        }`}>{STATUS_LABELS[task.status]}</span>
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Center dot */}
                   <span
-                    className={`w-2.5 h-2.5 rounded-full ring-2 ring-surface shrink-0 z-10 ${
+                    className={`absolute left-1/2 w-2.5 h-2.5 rounded-full ring-2 ring-surface shrink-0 z-10 ${
                       task.status === "running" ? "bg-accent animate-pulse" :
                       task.status === "done" ? "bg-green-500" :
                       task.status === "failed" ? "bg-red-400" :
                       "bg-border"
                     }`}
+                    style={{ transform: "translate(-50%, 0)" }}
                   />
-                  {/* Connector */}
-                  <div className="absolute left-[18px] top-1/2 h-px w-3 bg-border" style={{ transform: "translate(-50%, -50%)" }} />
-                  {/* Title */}
-                  <span className={`text-[11px] truncate ${
-                    task.status === "done" ? "text-text-secondary line-through decoration-green-400/50" :
-                    isRunning ? "text-accent font-medium" :
-                    "text-text-primary"
-                  }`}>
-                    {task.title}
-                  </span>
-                  {/* Status label */}
-                  <span className={`text-[9px] shrink-0 ml-auto ${
-                    isRunning ? "text-accent" :
-                    task.status === "failed" ? "text-red-400" :
-                    task.status === "done" ? "text-green-500" :
-                    "text-text-secondary"
-                  }`}>
-                    {STATUS_LABELS[task.status]}
-                  </span>
+
+                  {/* Right side (even tasks) or spacer (odd tasks) */}
+                  {isRight ? (
+                    <div className="flex-1 pl-4">
+                      <span className={`text-[11px] truncate max-w-[160px] inline-block ${
+                        task.status === "done" ? "text-text-secondary line-through decoration-green-400/50" :
+                        isRunning ? "text-accent font-medium" : "text-text-primary"
+                      }`}>
+                        {task.title}
+                        <span className={`text-[9px] ml-1.5 ${
+                          isRunning ? "text-accent" : task.status === "failed" ? "text-red-400" :
+                          task.status === "done" ? "text-green-500" : "text-text-secondary"
+                        }`}>{STATUS_LABELS[task.status]}</span>
+                      </span>
+                    </div>
+                  ) : <div className="flex-1" />}
                 </div>
+              );
+            })}
               );
             })}
           </div>
