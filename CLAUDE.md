@@ -63,45 +63,16 @@ npm run test             # 运行单元测试
 - 为新功能编写测试
 - 前端改动需通过评估器验证（Playwright 测 Vite dev server DOM，不启动 Electron）
 
-## 架构原则
+## 代码规范
 
-> 2026-05-31 架构审计后提炼。每条背后都有修过多次的血泪教训。
+### 时序值用 ref，不用 state
+需要立刻生效的值用 `useRef`，state 只给 UI 渲染用。
 
-### 1. 时序敏感的值用 ref，不用 state
+### 异步路径必须有失败态
+空 `catch(() => {})` 禁止。至少加 `console.error` 或设 error 状态。
 
-需要"立刻生效"的值（abort 目标、防重入标志、流过滤 ID），用 `useRef`。state 给 UI 渲染用，ref 给逻辑用。
-
-```tsx
-// 好：ref 立即可读，不依赖渲染周期
-const runRef = useRef<string | null>(null);
-runRef.current = result.chatId;
-
-// 坏：state 异步，几百ms的窗口期内值是旧的
-const [runId, setRunId] = useState(null);
-```
-
-### 2. 每个异步路径必须有失败态
-
-`catch(() => {})` 是 Bug 孵化器——用户看不到失败，开发者找不到线索。
-
-任何 `try/catch` 或 `.catch()`，至少做一件：
-- `console.error("[模块名]", err)` — 给开发者
-- 设一个 error 状态 — 给用户
-
-### 3. 组件超过 200 行就拆
-
-超过 200 行意味着有没拆干净的职责。拆法：
-- 自定义 hook（状态 + 副作用）
-- 子组件（纯展示）
-- 工具函数（纯逻辑）
-
-### 写新代码前检查
-
-| 检查项 | 否 → 就改 |
-|--------|----------|
-| 新 state 需要重渲染吗？ | 不需要就用 ref |
-| IPC 调用 catch 了吗？ | 日志 + 错误态 |
-| 组件接近 200 行？ | 拆 hook / 拆子组件 |
+### 组件超 200 行就拆
+超过说明职责没拆干净。拆成 hook（逻辑）、子组件（展示）、工具函数（纯计算）。
 
 ## 技术栈
 
