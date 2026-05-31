@@ -28,8 +28,8 @@ interface ChatPanelProps {
 export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreated, onActivity }: ChatPanelProps): JSX.Element {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [streaming, setStreaming] = useState(false);
+  const [loading, setLoading] = useState(!!existingSid);
+  const [streaming, setStreaming] = useState(!!existingSid);
   const [statusText, setStatusText] = useState("思考中...");
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentRunRef = useRef<string | null>(null);
@@ -117,6 +117,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     return () => { cancelled = true; };
   }, [existingSid, projectPath]);
 
+
+  // If no stream events arrive within 5s, session is idle — clear loading
+  useEffect(() => {
+    if (!existingSid) return;
+    const t = setTimeout(() => { setLoading(false); setStreaming(false); }, 5000);
+    return () => clearTimeout(t);
+  }, [existingSid]);
 
   // Stream listener
   useEffect(() => {
