@@ -613,7 +613,10 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
     onClose();
   };
 
+  const creatingRef = useRef(false);
   const handleCreate = async () => {
+    if (creatingRef.current) return;
+    creatingRef.current = true;
     setCreating(true);
     if (createdProject) {
       const instruction = await window.electronAPI.systemPrompt.getInitInstruction();
