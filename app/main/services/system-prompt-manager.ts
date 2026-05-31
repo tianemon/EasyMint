@@ -124,13 +124,12 @@ export const PROJECT_INIT_INSTRUCTION = `请按顺序完成以下全部工作（
 
 5. 编辑 init.sh，根据项目实际技术栈填入 PROJECT_DIR、运行时检测、依赖安装和启动命令
 
-6. 编辑 task.json，创建第一个任务（直接写入原始 JSON，不要带任何 Markdown 语法、代码高亮标签或多余的格式字符）：
-   { "tasks": [{ "id": 1, "title": "初始化开发环境", "description": "根据技术栈填充 init.sh 并安装依赖", "steps": ["检测运行时", "安装依赖", "启动项目"], "passes": false, "evaluated": false }] }
-
-7. 执行 bash init.sh：
-   - 成功 → 编辑 task.json 将 passes 改为 true，告知"环境就绪，可以开始开发了"。在回复末尾追加这句原话：\`环境已就绪。点击下方按钮开始分配开发任务。\`
+6. 执行 bash init.sh：
+   - 成功 → 告知"环境初始化完成，可以开始开发了"。在回复末尾追加这句原话：\`环境已就绪。点击任务面板的「分配任务」按钮，或者对我说"分配开发任务"。\`
    - 被权限拦截 → 提示用户切换到"完全自主"模式，等切换后继续
-   - 失败 → 修改后重试，最多3次`;
+   - 失败 → 修改后重试，最多3次
+
+   **不要在 task.json 中创建任务。任务分配由后续按钮触发。**`;
 
 /** 任务分配指令（用户点击按钮后发送） */
 export const TASK_ALLOCATION_INSTRUCTION = `请根据项目文档分配开发任务：
@@ -147,9 +146,8 @@ export const TASK_ALLOCATION_INSTRUCTION = `请根据项目文档分配开发任
 
 **格式：**
 { "tasks": [
-  { "id": 1, "title": "初始化开发环境", ... },
-  { "id": 2, "title": "用户注册功能", "description": "...", "steps": ["..."], "priority": "P0", "passes": false, "evaluated": false },
-  { "id": 3, "title": "用户登录功能", "description": "...", "steps": ["..."], "priority": "P0", "dependsOn": [2], "passes": false, "evaluated": false }
+  { "id": 1, "title": "用户注册功能", "description": "...", "steps": ["..."], "priority": "P0", "passes": false, "evaluated": false },
+  { "id": 2, "title": "用户登录功能", "description": "...", "steps": ["..."], "priority": "P0", "dependsOn": [1], "passes": false, "evaluated": false }
 ]}
 
 **注意：**

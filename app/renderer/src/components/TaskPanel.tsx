@@ -16,6 +16,35 @@ const STATUS_LABELS: Record<string, string> = {
 /** Scale: 0 = densest, 4 = loosest */
 const DENSITY_GAPS = ["gap-1", "gap-2", "gap-3", "gap-4", "gap-5"];
 
+function FlowStep({ label, done, active, onClick }: { label: string; done: boolean; active: boolean; onClick?: () => void }): JSX.Element {
+  return (
+    <button
+      disabled={!onClick}
+      onClick={onClick}
+      className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-colors shrink-0 ${
+        done
+          ? "bg-green-100 text-green-600 cursor-default"
+          : active && onClick
+            ? "bg-accent/10 text-accent hover:bg-accent/20 cursor-pointer"
+            : "bg-surface border border-border text-text-secondary opacity-50 cursor-not-allowed"
+      }`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${done ? "bg-green-500" : active ? "bg-accent" : "bg-border"}`} />
+      {label}
+    </button>
+  );
+}
+
+function FlowArrow({ done }: { done: boolean }): JSX.Element {
+  return (
+    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"
+      className={`w-3 h-3 shrink-0 ${done ? "text-green-400" : "text-border"}`}
+    >
+      <path d="M3 6h5M7 3l3 3-3 3" />
+    </svg>
+  );
+}
+
 export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Element {
   const { tasks, updateTask, appendOutput } = useTaskStore();
   const [executing, setExecuting] = useState<string | null>(null);
@@ -23,6 +52,32 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
   const [density, setDensity] = useState(2);
   const outputRef = useRef<HTMLPreElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // Flow phase tracking
+  const initTriggered = useRef(false);
+  const [initDone, setInitDone] = useState(false);
+  const tasksAllocated = tasks.length > 0;
+
+  // When tasks appear after init was triggered, mark init as done
+  useEffect(() => {
+    if (tasks.length > 0 && initTriggered.current) setInitDone(true);
+  }, [tasks.length]);
+
+  const handleInitEnv = () => {
+    initTriggered.current = true;
+    window.electronAPI.agent.sendMessage(projectPath, "帮我初始化开发环境", {})
+      .catch((e: unknown) => console.error("[TaskPanel] init env:", e));
+  };
+
+  const handleAllocateTasks = async () => {
+    try {
+      const instruction = await window.electronAPI.systemPrompt.getTaskInstruction();
+      if (instruction) {
+        window.electronAPI.agent.sendMessage(projectPath, instruction, {})
+          .catch((e: unknown) => console.error("[TaskPanel] allocate tasks:", e));
+      }
+    } catch { /* ignore */ }
+  };
 
   // Cmd/Ctrl + scroll or pinch gesture → adjust density
   useEffect(() => {
@@ -133,6 +188,32 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
             <path d="M11 4l-6 4 6 4" />
           </svg>
         </button>
+      </div>
+
+      {/* Flow indicator — three steps with arrows */}
+      <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 border-b border-border/50 bg-surface-alt shrink-0">
+        {/* Step 1: Init */}
+        <FlowStep
+          label="初始化环境"
+          done={initDone}
+          active={!initDone}
+          onClick={initDone ? undefined : handleInitEnv}
+        />
+        <FlowArrow done={initDone} />
+        {/* Step 2: Allocate */}
+        <FlowStep
+          label="分配任务"
+          done={tasksAllocated}
+          active={initDone && !tasksAllocated}
+          onClick={initDone && !tasksAllocated ? handleAllocateTasks : undefined}
+        />
+        <FlowArrow done={tasksAllocated} />
+        {/* Step 3: Execute */}
+        <FlowStep
+          label="执行任务"
+          done={false}
+          active={false}
+        />
       </div>
 
       {/* Timeline */}
