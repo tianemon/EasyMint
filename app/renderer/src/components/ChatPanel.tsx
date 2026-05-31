@@ -243,6 +243,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 ? msg.entries.filter((e) => e.kind === "text").map((e: { text?: string }) => e.text ?? "").join("")
                 : "";
               const hasInitPrompt = isLast && aiText.includes("帮我初始化开发环境");
+              const hasTaskPrompt = isLast && aiText.includes("开始分配开发任务");
+              const handleAllocateTasks = async () => {
+                try {
+                  const instruction = await window.electronAPI.systemPrompt.getTaskInstruction();
+                  if (instruction) await sendText(instruction);
+                } catch { /* ignore */ }
+              };
               return (
                 <div key={msg.id} className="msg-in">
                   {msg.role === "user" && msg.text ? (
@@ -268,6 +275,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                             <path d="M1 7h10M9 3l4 4-4 4" />
                           </svg>
                           帮我初始化开发环境
+                        </button>
+                      )}
+                      {hasTaskPrompt && !loading && (
+                        <button
+                          className="mt-2 self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/30 text-accent text-xs hover:bg-accent/20 transition-colors"
+                          onClick={handleAllocateTasks}
+                        >
+                          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                            <path d="M1 7h10M9 3l4 4-4 4" />
+                          </svg>
+                          开始分配开发任务
                         </button>
                       )}
                       <span className="text-[10px] text-text-secondary mt-0.5 px-1">{formatTime(msg.timestamp)}</span>

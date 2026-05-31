@@ -14,6 +14,7 @@ import {
   updateAppendSetting,
   setDefaultPrompt,
   PROJECT_INIT_INSTRUCTION,
+  TASK_ALLOCATION_INSTRUCTION,
 } from "./services/system-prompt-manager";
 import {
   listSessions,
@@ -130,6 +131,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("system-prompt:update-append", (_e, { enabled }) => { updateAppendSetting(enabled); });
   ipcMain.handle("system-prompt:set-default", (_e, { id }) => { setDefaultPrompt(id); });
   ipcMain.handle("system-prompt:get-init-instruction", () => PROJECT_INIT_INSTRUCTION);
+  ipcMain.handle("system-prompt:get-task-instruction", () => TASK_ALLOCATION_INSTRUCTION);
 
   // task:read — read task.json and return tasks
   ipcMain.handle("task:read", (_e, { projectPath }) => {

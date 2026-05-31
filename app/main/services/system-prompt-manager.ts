@@ -128,9 +128,36 @@ export const PROJECT_INIT_INSTRUCTION = `请按顺序完成以下全部工作（
    { "tasks": [{ "id": 1, "title": "初始化开发环境", "description": "根据技术栈填充 init.sh 并安装依赖", "steps": ["检测运行时", "安装依赖", "启动项目"], "passes": false, "evaluated": false }] }
 
 7. 执行 bash init.sh：
-   - 成功 → 编辑 task.json 将 passes 改为 true，告知"环境就绪，可以开始开发了"
+   - 成功 → 编辑 task.json 将 passes 改为 true，告知"环境就绪，可以开始开发了"。在回复末尾追加这句原话：\`环境已就绪。点击下方按钮开始分配开发任务。\`
    - 被权限拦截 → 提示用户切换到"完全自主"模式，等切换后继续
    - 失败 → 修改后重试，最多3次`;
+
+/** 任务分配指令（用户点击按钮后发送） */
+export const TASK_ALLOCATION_INSTRUCTION = `请根据项目文档分配开发任务：
+
+1. 读 docs/需求规格.md — 了解所有功能及其优先级（P0/P1/P2）
+2. 读 docs/架构设计.md — 了解技术栈和系统结构
+3. 按以下原则编辑 task.json：
+
+**拆分原则：**
+- 一个功能 = 一个任务。以用户能理解的功能为基本单位（如"用户注册"而非"创建表单组件"）
+- 一个功能描述超过一句话说不清楚的，拆成多个任务
+- 每个任务预估一个 subagent 会话能完成（30分钟以内）
+- 有依赖的任务标注 dependsOn 字段，无依赖的可以并行
+
+**格式：**
+{ "tasks": [
+  { "id": 1, "title": "初始化开发环境", ... },
+  { "id": 2, "title": "用户注册功能", "description": "...", "steps": ["..."], "priority": "P0", "passes": false, "evaluated": false },
+  { "id": 3, "title": "用户登录功能", "description": "...", "steps": ["..."], "priority": "P0", "dependsOn": [2], "passes": false, "evaluated": false }
+]}
+
+**注意：**
+- 直接覆盖 task.json，不要创建新文件
+- 写原始 JSON，不要加 Markdown 代码块或语法高亮标签
+- P0 任务优先排在前面，然后 P1，最后 P2
+- 覆盖所有 P0 和大部分 P1，P2 可先不写入
+- 完成后告知用户任务分配情况（共 N 个任务，P0 X 个，P1 Y 个）`;
 
 /** 内置默认提示词（即系统提示词） */
 export const BUILTIN_DEFAULT_PROMPT_STRING = MINT_SYSTEM_PROMPT;
