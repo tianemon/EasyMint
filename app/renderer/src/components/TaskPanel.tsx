@@ -175,7 +175,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
         ) : (
           <div className={`relative px-3 py-2 flex flex-col ${DENSITY_GAPS[density]}`}>
             {/* Center timeline line */}
-            <div className="absolute left-1/2 top-4 bottom-4 w-px bg-border" style={{ transform: "translateX(-0.5px)" }} />
+            <div className="absolute left-1/2 top-3 bottom-3 w-0.5 bg-border z-0" style={{ transform: "translateX(-50%)" }} />
 
             {sortedTasks.map((task, idx) => {
               const isRight = idx % 2 === 0;
