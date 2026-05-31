@@ -64,7 +64,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
       const result = await window.electronAPI.shell.exec(projectPath, task.command);
       const isDone = result.code === 0;
       updateTask(taskId, { status: isDone ? "done" : "failed" });
-      if (isDone) window.electronAPI.task.markDone(projectPath, taskId).catch(() => {});
+      if (isDone) window.electronAPI.task.markDone(projectPath, taskId).catch((e: unknown) => { console.error("[TaskPanel] markDone failed:", e); });
     } catch {
       updateTask(taskId, { status: "failed" });
     } finally {

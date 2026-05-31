@@ -493,6 +493,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
   const [data, setData] = useState<ProjectFormData>(DEFAULT_DATA);
   const [creating, setCreating] = useState(false);
   const [initializing, setInitializing] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const pathRef = useRef<string | null>(null);
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
@@ -528,11 +529,19 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
         setProjectPath(project.path);
         pathRef.current = project.path;
         setCreatedProject(project);
+        setCreateError(null);
         await ask(`[系统通知] 用户点击了新建项目。请默默收集以下需求，无需主动回复：\n${buildContext(data)}\n收到后只需回复"已记录"。`);
-      } catch { /* ignore */ }
-      setCreating(false);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "创建项目失败";
+        setCreateError(msg);
+        console.error("[NewProjectDialog] create failed:", e);
+      } finally {
+        setCreating(false);
+      }
     }
-    setCurrentStep((s) => Math.min(s + 1, visibleSteps.length - 1));
+    if (!createError) {
+      setCurrentStep((s) => Math.min(s + 1, visibleSteps.length - 1));
+    }
   };
 
   const handleRecommendFeatures = async () => {
@@ -600,27 +609,31 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
     if (creatingRef.current) return;
     creatingRef.current = true;
     setInitializing(true);
-    if (createdProject) {
-      const instruction = await window.electronAPI.systemPrompt.getInitInstruction();
-      const initPrompt = `[系统通知] 项目已创建完毕。
+    try {
+      if (createdProject) {
+        const instruction = await window.electronAPI.systemPrompt.getInitInstruction();
+        const initPrompt = `[系统通知] 项目已创建完毕。
 
 项目路径：${createdProject.path}
 
 ${buildContext(data)}
 
 ${instruction}`;
-      // 发送消息，等 2 秒让 SDK 持久化，再跳转
-      ask(initPrompt).catch(() => {});
-      await new Promise((r) => setTimeout(r, 2000));
-      const sid = sidRef.current;
-      if (openInNewWindow) {
-        await window.electronAPI.window.openProject(createdProject.id, sid ?? undefined, true);
-        onClose();
-      } else {
-        onCreated(createdProject, sid);
+        // 发送消息，等 2 秒让 SDK 持久化，再跳转
+        ask(initPrompt).catch(() => {});
+        await new Promise((r) => setTimeout(r, 2000));
+        const sid = sidRef.current;
+        if (openInNewWindow) {
+          await window.electronAPI.window.openProject(createdProject.id, sid ?? undefined, true);
+          onClose();
+        } else {
+          onCreated(createdProject, sid);
+        }
       }
+    } finally {
+      setInitializing(false);
+      creatingRef.current = false;
     }
-    setInitializing(false);
   };
 
   const renderStepContent = () => {

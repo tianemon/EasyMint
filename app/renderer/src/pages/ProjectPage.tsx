@@ -126,7 +126,7 @@ export function ProjectPage(): JSX.Element {
           ts.addTask({ id: t.id, title: t.title, description: t.description, command: t.command, status: newStatus });
         }
       });
-    }).catch(() => {});
+    }).catch((e: unknown) => { console.error("[syncTasks]", e); });
   }, [projectPath]);
 
   const handleOpenProject = useCallback(async () => {

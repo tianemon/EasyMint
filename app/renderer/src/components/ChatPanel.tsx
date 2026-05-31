@@ -33,6 +33,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const [statusText, setStatusText] = useState("思考中...");
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentRunRef = useRef<string | null>(null);
+  const stoppedRef = useRef(false);
   const [permissionMode, setPermissionMode] = useState("auto");
   const msgIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,9 +92,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 } else if (b.type === "thinking" && b.thinking) {
                   entries.push({ kind: "thinking", text: b.thinking, timestamp: Date.now() });
                 } else if (b.type === "tool_use") {
-                  entries.push({ kind: "tool_use", id: (b as { id?: string }).id || "", name: b.name || "?", input: b.input || {}, timestamp: Date.now() });
+                  entries.push({ kind: "tool_use", id: (b as { id?: string }).id || "", name: b.name || "?", input: b.input || {}, timestamp: Date.now(), collapsed: false, source: "chat" });
                 } else if (b.type === "tool_result") {
-                  entries.push({ kind: "tool_result", toolUseId: b.tool_use_id || "", content: b.content, isError: !!b.is_error, timestamp: Date.now() });
+                  entries.push({ kind: "tool_result", toolUseId: b.tool_use_id || "", content: String(b.content ?? ""), isError: !!b.is_error, timestamp: Date.now(), source: "chat" });
                 }
               }
               if (entries.length > 0) {
@@ -149,6 +150,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     let currentAiId = 0;
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       if (event.source !== "chat") return;
+      if (currentRunRef.current && event.runId !== currentRunRef.current) return;
+      if (stoppedRef.current) return;
       setStreaming(true);
       if (event.type === "status") {
         setStatusText(typeof event.data.text === "string" ? event.data.text : "处理中...");
@@ -187,11 +190,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     setInput("");
     setLoading(true);
     setStatusText("思考中...");
+    stoppedRef.current = false;
     autoScrollRef.current = true;
     scrollToBottom(true);
 
     try {
       setStreaming(true);
+      currentRunRef.current = null; // clear stale ref before new message
       const result = await window.electronAPI.agent.sendMessage(projectPath, trimmed, {
         sessionId: sidRef.current,
         permissionMode,
@@ -200,6 +205,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       currentRunRef.current = result.chatId;
     } catch {
       setLoading(false);
+      currentRunRef.current = null;
     }
   }, [projectPath, loading, permissionMode]);
 
@@ -321,7 +327,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           />
           {loading ? (
             <button
-              onClick={() => { if (currentRunId) window.electronAPI.agent.abort(currentRunId); setLoading(false); setStreaming(false); }}
+              onClick={() => { stoppedRef.current = true; const rid = currentRunRef.current; if (rid) window.electronAPI.agent.abort(rid); setLoading(false); setStreaming(false); }}
               className="w-9 h-9 rounded-md bg-red-500/20 text-red-400 flex items-center justify-center hover:bg-red-500/30 transition-colors"
             >
               <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
