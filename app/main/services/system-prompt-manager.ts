@@ -124,7 +124,7 @@ export const PROJECT_INIT_INSTRUCTION = `请按顺序完成以下全部工作（
 
 5. 编辑 init.sh，根据项目实际技术栈填入 PROJECT_DIR、运行时检测、依赖安装和启动命令
 
-6. 编辑 task.json，创建第一个任务：
+6. 编辑 task.json，创建第一个任务（直接写入原始 JSON，不要带任何 Markdown 语法、代码高亮标签或多余的格式字符）：
    { "tasks": [{ "id": 1, "title": "初始化开发环境", "description": "根据技术栈填充 init.sh 并安装依赖", "steps": ["检测运行时", "安装依赖", "启动项目"], "passes": false, "evaluated": false }] }
 
 7. 执行 bash init.sh：
