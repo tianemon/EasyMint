@@ -102,7 +102,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
   return (
     <div ref={panelRef} className="h-full flex flex-col bg-surface">
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
+      <div className="flex items-center gap-2 h-9 px-3 border-b border-border shrink-0">
         <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">任务时间轴</span>
         <div className="flex-1" />
         {/* Density control */}
