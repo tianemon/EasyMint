@@ -134,13 +134,11 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
           </button>
         </div>
         <button
-          className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:bg-surface-hover transition-colors"
+          className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors text-xs"
           onClick={onCollapse}
           title="收起面板"
         >
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
-            <path d="M11 4l-6 4 6 4" />
-          </svg>
+          ▶
         </button>
       </div>
 
