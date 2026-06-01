@@ -36,16 +36,24 @@ interface Settings {
   lastProjectId?: string;
 }
 
+const EM_DEFAULTS = {
+  defaultProjectDir: os.homedir(),
+  claudePath: "",
+  terminalFontSize: 14,
+};
+
 export class Store {
   private dataDir: string;
   private projectsPath: string;
-  private settingsPath: string;
+  private emSettingsPath: string;
+  private sdkSettingsPath: string;
 
   constructor(baseDir?: string) {
     this.dataDir = baseDir ?? DATA_DIR;
     fs.mkdirSync(this.dataDir, { recursive: true });
     this.projectsPath = path.join(this.dataDir, "projects.json");
-    this.settingsPath = path.join(this.dataDir, "sdk-config", "settings.json");
+    this.emSettingsPath = path.join(this.dataDir, "settings.json");
+    this.sdkSettingsPath = path.join(this.dataDir, "sdk-config", "settings.json");
     this.ensureFiles();
   }
 
@@ -53,14 +61,15 @@ export class Store {
     if (!fs.existsSync(this.projectsPath)) {
       fs.writeFileSync(this.projectsPath, JSON.stringify({ projects: [] }, null, 2));
     }
-    if (!fs.existsSync(this.settingsPath)) {
-      const dir = path.dirname(this.settingsPath);
+    // EM settings
+    if (!fs.existsSync(this.emSettingsPath)) {
+      fs.writeFileSync(this.emSettingsPath, JSON.stringify(EM_DEFAULTS, null, 2));
+    }
+    // SDK settings (don't touch if SDK already created it; only create minimal if missing)
+    if (!fs.existsSync(this.sdkSettingsPath)) {
+      const dir = path.dirname(this.sdkSettingsPath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(this.settingsPath, JSON.stringify({
-        defaultProjectDir: os.homedir(),
-        claudePath: "",
-        terminalFontSize: 14,
-      }, null, 2));
+      fs.writeFileSync(this.sdkSettingsPath, JSON.stringify({}, null, 2));
     }
   }
 
@@ -74,23 +83,29 @@ export class Store {
   }
 
   getSettings(): Settings {
-    if (!fs.existsSync(this.settingsPath)) {
-      return { defaultProjectDir: os.homedir(), claudePath: "", terminalFontSize: 14 };
+    // Read EM-specific settings
+    let emData: Record<string, unknown> = {};
+    if (fs.existsSync(this.emSettingsPath)) {
+      try { emData = JSON.parse(fs.readFileSync(this.emSettingsPath, "utf-8")); } catch { /* ignore */ }
     }
-    const raw = fs.readFileSync(this.settingsPath, "utf-8");
-    const data = JSON.parse(raw);
-    // SDK stores API key under env.ANTHROPIC_AUTH_TOKEN, map back to Mint format
-    const env = data.env || {};
+
+    // Read SDK settings (for apiKey, apiBaseUrl)
+    let sdkData: Record<string, unknown> = {};
+    if (fs.existsSync(this.sdkSettingsPath)) {
+      try { sdkData = JSON.parse(fs.readFileSync(this.sdkSettingsPath, "utf-8")); } catch { /* ignore */ }
+    }
+    const env = (sdkData.env as Record<string, string>) || {};
+
     return {
-      defaultProjectDir: data.defaultProjectDir || os.homedir(),
-      claudePath: data.claudePath || "",
-      terminalFontSize: data.terminalFontSize || 14,
-      evaluateMode: data.evaluateMode,
-      tddMode: data.tddMode,
-      screenshotVerification: data.screenshotVerification,
-      apiBaseUrl: env.ANTHROPIC_BASE_URL || data.apiBaseUrl,
-      apiKey: env.ANTHROPIC_AUTH_TOKEN || data.apiKey,
-      lastProjectId: data.lastProjectId || undefined,
+      defaultProjectDir: (emData.defaultProjectDir as string) || EM_DEFAULTS.defaultProjectDir,
+      claudePath: (emData.claudePath as string) || "",
+      terminalFontSize: (emData.terminalFontSize as number) || EM_DEFAULTS.terminalFontSize,
+      evaluateMode: emData.evaluateMode as boolean | undefined,
+      tddMode: emData.tddMode as boolean | undefined,
+      screenshotVerification: emData.screenshotVerification as boolean | undefined,
+      apiBaseUrl: env.ANTHROPIC_BASE_URL || (sdkData.apiBaseUrl as string),
+      apiKey: env.ANTHROPIC_AUTH_TOKEN || (sdkData.apiKey as string),
+      lastProjectId: emData.lastProjectId as string | undefined,
     };
   }
 
@@ -99,22 +114,19 @@ export class Store {
   }
 
   setLastProjectId(projectId: string): void {
-    const settings = this.getSettings();
-    settings.lastProjectId = projectId;
-    this.saveSettings(settings);
+    const s = this.getSettings();
+    s.lastProjectId = projectId;
+    this.writeEmSettings(s);
   }
 
-  saveSettings(settings: Settings): void {
-    const dir = path.dirname(this.settingsPath);
+  /** Write EM-only fields to ~/.easymint/settings.json */
+  private writeEmSettings(settings: Settings): void {
+    const dir = path.dirname(this.emSettingsPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-    // Read existing SDK settings to preserve other config
-    let data: Record<string, unknown> = {};
-    if (fs.existsSync(this.settingsPath)) {
-      try { data = JSON.parse(fs.readFileSync(this.settingsPath, "utf-8")); } catch { /* overwrite */ }
+    const data: Record<string, unknown> = {};
+    if (fs.existsSync(this.emSettingsPath)) {
+      try { Object.assign(data, JSON.parse(fs.readFileSync(this.emSettingsPath, "utf-8"))); } catch { /* overwrite */ }
     }
-
-    // Merge Mint settings into the SDK settings file
     data.defaultProjectDir = settings.defaultProjectDir;
     data.claudePath = settings.claudePath;
     data.terminalFontSize = settings.terminalFontSize;
@@ -122,14 +134,28 @@ export class Store {
     data.tddMode = settings.tddMode;
     data.screenshotVerification = settings.screenshotVerification;
     data.lastProjectId = settings.lastProjectId;
+    fs.writeFileSync(this.emSettingsPath, JSON.stringify(data, null, 2));
+  }
 
+  /** Write SDK fields (apiKey, apiBaseUrl) to ~/.easymint/sdk-config/settings.json */
+  private writeSdkSettings(settings: Settings): void {
+    const dir = path.dirname(this.sdkSettingsPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const data: Record<string, unknown> = {};
+    if (fs.existsSync(this.sdkSettingsPath)) {
+      try { Object.assign(data, JSON.parse(fs.readFileSync(this.sdkSettingsPath, "utf-8"))); } catch { /* overwrite */ }
+    }
     // Inject API key into SDK's expected env format
     const env = (data.env as Record<string, string>) || {};
     if (settings.apiKey) env.ANTHROPIC_AUTH_TOKEN = settings.apiKey;
     if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
     data.env = env;
+    fs.writeFileSync(this.sdkSettingsPath, JSON.stringify(data, null, 2));
+  }
 
-    fs.writeFileSync(this.settingsPath, JSON.stringify(data, null, 2));
+  saveSettings(settings: Settings): void {
+    this.writeEmSettings(settings);
+    this.writeSdkSettings(settings);
   }
 
   getSessionsDir(projectId: string): string {
@@ -140,9 +166,7 @@ export class Store {
 
   listSessions(projectId: string): Session[] {
     const sessionsFile = path.join(this.getSessionsDir(projectId), "sessions.json");
-    if (!fs.existsSync(sessionsFile)) {
-      return [];
-    }
+    if (!fs.existsSync(sessionsFile)) return [];
     return JSON.parse(fs.readFileSync(sessionsFile, "utf-8")).sessions;
   }
 
@@ -153,12 +177,9 @@ export class Store {
 
   deleteSession(projectId: string, sessionId: string): void {
     const sessionsFile = path.join(this.getSessionsDir(projectId), "sessions.json");
-    if (!fs.existsSync(sessionsFile)) {
-      return;
-    }
+    if (!fs.existsSync(sessionsFile)) return;
     const data = JSON.parse(fs.readFileSync(sessionsFile, "utf-8"));
     data.sessions = data.sessions.filter((s: Session) => s.id !== sessionId);
     fs.writeFileSync(sessionsFile, JSON.stringify(data, null, 2));
   }
-
 }
