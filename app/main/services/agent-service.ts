@@ -40,7 +40,7 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
   const settings = store.getSettings();
   const env: Record<string, string> = {
     ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => typeof v === "string")) as Record<string, string>,
-    CLAUDE_CONFIG_DIR: path.join(os.homedir(), ".easymint", "sdk-config"),
+    CLAUDE_CONFIG_DIR: path.join(os.homedir(), ".easymint"),
   };
   if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
   if (settings.apiKey) env.ANTHROPIC_API_KEY = settings.apiKey;

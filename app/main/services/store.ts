@@ -52,8 +52,8 @@ export class Store {
     this.dataDir = baseDir ?? DATA_DIR;
     fs.mkdirSync(this.dataDir, { recursive: true });
     this.projectsPath = path.join(this.dataDir, "projects.json");
-    this.emSettingsPath = path.join(this.dataDir, "settings.json");
-    this.sdkSettingsPath = path.join(this.dataDir, "sdk-config", "settings.json");
+    this.emSettingsPath = path.join(this.dataDir, "em-settings.json");
+    this.sdkSettingsPath = path.join(this.dataDir, "settings.json");
     this.ensureFiles();
   }
 

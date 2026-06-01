@@ -72,7 +72,7 @@ export class ProjectService {
         fs.rmSync(project.path, { recursive: true, force: true });
       }
       // Also clean up SDK session directory
-      const sdkProjectsDir = path.join(os.homedir(), ".easymint", "sdk-config", "projects");
+      const sdkProjectsDir = path.join(os.homedir(), ".easymint", "projects");
       const encodedPath = project.path.replace(/\//g, "-");
       const sdkDir = path.join(sdkProjectsDir, encodedPath);
       if (fs.existsSync(sdkDir)) {

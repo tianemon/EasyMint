@@ -2,7 +2,7 @@ import os from "os";
 import { app, BrowserWindow, shell, ipcMain, Menu } from "electron";
 import path from "path";
 
-process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint", "sdk-config");
+process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint");
 
 import { registerIpcHandlers } from "./ipc-handlers";
 import { ProjectService } from "./services/project-service";
@@ -72,7 +72,7 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
     // Clean up orphaned SDK session directories for deleted projects
     try {
       const fs = require("fs");
-      const sdkDir = path.join(os.homedir(), ".easymint", "sdk-config", "projects");
+      const sdkDir = path.join(os.homedir(), ".easymint", "projects");
       if (fs.existsSync(sdkDir)) {
         const projects = store.getProjects().map((p: { path: string }) => p.path.replace(/\//g, "-"));
         for (const entry of fs.readdirSync(sdkDir)) {
