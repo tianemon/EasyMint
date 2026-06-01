@@ -67,8 +67,17 @@ export class ProjectService {
 
   delete(id: string): void {
     const project = this.store.getProjects().find((p) => p.id === id);
-    if (project && fs.existsSync(project.path)) {
-      fs.rmSync(project.path, { recursive: true, force: true });
+    if (project) {
+      if (fs.existsSync(project.path)) {
+        fs.rmSync(project.path, { recursive: true, force: true });
+      }
+      // Also clean up SDK session directory
+      const sdkProjectsDir = path.join(os.homedir(), ".easymint", "sdk-config", "projects");
+      const encodedPath = project.path.replace(/\//g, "-");
+      const sdkDir = path.join(sdkProjectsDir, encodedPath);
+      if (fs.existsSync(sdkDir)) {
+        fs.rmSync(sdkDir, { recursive: true, force: true });
+      }
     }
     const projects = this.store.getProjects().filter((p) => p.id !== id);
     this.store.saveProjects(projects);

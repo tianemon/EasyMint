@@ -84,8 +84,8 @@ const BUDGET_OPTIONS = [
 ] as const;
 
 const DEPLOY_OPTIONS = [
-  { value: "云端", label: "云端部署", desc: "Vercel / Railway / 云服务器" },
   { value: "本地", label: "本地运行", desc: "仅在本机使用" },
+  { value: "云端", label: "云端部署", desc: "Vercel / Railway / 云服务器" },
 ] as const;
 
 const PRIORITY_OPTIONS = [
@@ -114,7 +114,7 @@ const DEFAULT_DATA: ProjectFormData = {
   frontend: "react-nextjs-tailwind",
   backend: "node",
   techBudget: "少量",
-  deployPlatform: "云端",
+  deployPlatform: "本地",
 };
 
 // ---- Helpers ----
@@ -447,17 +447,6 @@ function Step5Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
       <p className="text-xs text-text-secondary">选择项目的最终部署方式，决定用户如何访问。</p>
       <div className="flex gap-2">
         <button
-          className={`flex-1 p-4 rounded-lg border transition-colors text-left ${data.deployPlatform === "云端" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
-          onClick={() => onChange({ deployPlatform: "云端" })}
-        >
-          <div className={`text-sm font-medium mb-1.5 ${data.deployPlatform === "云端" ? "text-accent" : "text-text-primary"}`}>云端部署</div>
-          <div className="text-xs text-text-secondary space-y-0.5">
-            <div>需要云服务资源（可以互联网访问）</div>
-            <div>有服务器费用产生（Vercel / Railway / 云服务器等）</div>
-            <div>适合需要对外提供服务的项目</div>
-          </div>
-        </button>
-        <button
           className={`flex-1 p-4 rounded-lg border transition-colors text-left ${data.deployPlatform === "本地" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
           onClick={() => onChange({ deployPlatform: "本地" })}
         >
@@ -466,6 +455,17 @@ function Step5Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
             <div>完全免费，无需云服务</div>
             <div>仅在本机电脑上运行</div>
             <div>适合个人工具和内部使用</div>
+          </div>
+        </button>
+        <button
+          className={`flex-1 p-4 rounded-lg border transition-colors text-left ${data.deployPlatform === "云端" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
+          onClick={() => onChange({ deployPlatform: "云端" })}
+        >
+          <div className={`text-sm font-medium mb-1.5 ${data.deployPlatform === "云端" ? "text-accent" : "text-text-primary"}`}>云端部署</div>
+          <div className="text-xs text-text-secondary space-y-0.5">
+            <div>需要云服务资源（可以互联网访问）</div>
+            <div>有服务器费用产生（Vercel / Railway / 云服务器等）</div>
+            <div>适合需要对外提供服务的项目</div>
           </div>
         </button>
       </div>
