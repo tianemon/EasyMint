@@ -132,7 +132,7 @@ function StepIndicator({ currentStep, onStepClick }: { currentStep: number; onSt
             i === currentStep
               ? "bg-accent/20 text-accent border border-accent/30"
               : i < currentStep
-                ? "text-green-400 hover:bg-surface-hover"
+                ? "text-success hover:bg-surface-hover"
                 : "text-text-secondary hover:bg-surface-hover"
           }`}
           onClick={() => onStepClick(i)}
@@ -331,7 +331,7 @@ function Step3Form({ data, onChange }: { data: SetupFormData; onChange: (patch: 
               <span className="text-text-secondary text-xs shrink-0">⠿</span>
               <span className="flex-1 truncate">{f.name}</span>
               <button
-                className="shrink-0 text-text-secondary hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs px-1"
+                className="shrink-0 text-text-secondary hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity text-xs px-1"
                 onClick={() => removeFeature(f.id)}
               >
                 ✕
@@ -363,7 +363,7 @@ function Step3Form({ data, onChange }: { data: SetupFormData; onChange: (patch: 
       </div>
 
       <div className="flex gap-3">
-        {renderColumn("P0", "P0 核心", "text-red-400")}
+        {renderColumn("P0", "P0 核心", "text-danger")}
         {renderColumn("P1", "P1 重要", "text-yellow-400")}
         {renderColumn("P2", "P2 可选", "text-text-secondary")}
       </div>
@@ -417,7 +417,7 @@ function FormField({
     <div>
       <label className="block text-sm font-medium text-text-primary mb-2">
         {label}
-        {required && <span className="text-red-400 ml-1">*</span>}
+        {required && <span className="text-danger ml-1">*</span>}
       </label>
       {children}
       {hint && <p className="text-xs text-text-secondary mt-1">{hint}</p>}
@@ -499,7 +499,7 @@ export function SetupPage(): JSX.Element {
             </button>
           ) : (
             <button
-              className="px-6 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
+              className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium disabled:opacity-50"
               onClick={handleSubmit}
               disabled={!projectId}
             >

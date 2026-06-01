@@ -33,10 +33,10 @@ export function ProjectListPage(): JSX.Element {
       </div>
 
       {error ? (
-        <div className="text-center p-12 rounded-lg border border-red-500/30 bg-surface-alt">
-          <p className="text-red-400 mb-4">{error}</p>
+        <div className="text-center p-12 rounded-lg border border-danger bg-surface-alt">
+          <p className="text-danger mb-4">{error}</p>
           <button
-            className="px-6 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors"
+            className="px-6 py-2 bg-accent text-text-inverse rounded-lg hover:bg-accent-hover transition-colors"
             onClick={loadProjects}
           >
             重试
@@ -46,7 +46,7 @@ export function ProjectListPage(): JSX.Element {
         <div className="text-center p-12 rounded-lg border border-border bg-surface-alt">
           <p className="text-text-secondary mb-4">还没有项目</p>
           <button
-            className="px-6 py-2 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors"
+            className="px-6 py-2 bg-accent text-text-inverse rounded-lg hover:bg-accent-hover transition-colors"
             onClick={() => setShowNewDialog(true)}
           >
             + 新建项目
@@ -58,7 +58,7 @@ export function ProjectListPage(): JSX.Element {
             <div key={p.id} className="relative group">
               <button
                 className={`w-full p-4 rounded-lg border transition-colors text-left ${
-                  p.exists === false ? "border-red-400/30 bg-red-50 cursor-default" : "border-border bg-surface-alt hover:bg-surface-hover"
+                  p.exists === false ? "border-danger bg-danger-bg cursor-default" : "border-border bg-surface-alt hover:bg-surface-hover"
                 }`}
                 onClick={() => {
                   if (p.exists === false) return;
@@ -68,7 +68,7 @@ export function ProjectListPage(): JSX.Element {
               >
                 <div className="font-medium pr-5">
                   {p.name}
-                  {p.exists === false && <span className="text-red-400 text-xs ml-1.5">（目录已删除）</span>}
+                  {p.exists === false && <span className="text-danger text-xs ml-1.5">（目录已删除）</span>}
                 </div>
                 <div className="text-sm text-text-secondary mt-1 truncate">{p.path}</div>
                 <div className="text-xs text-text-secondary mt-2">
@@ -76,7 +76,7 @@ export function ProjectListPage(): JSX.Element {
                 </div>
               </button>
               <button
-                className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-text-secondary hover:text-red-500 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-text-secondary hover:text-danger hover:bg-danger-bg transition-colors opacity-0 group-hover:opacity-100"
                 onClick={(e) => handleDelete(e, p.id)}
                 title="删除记录"
               >

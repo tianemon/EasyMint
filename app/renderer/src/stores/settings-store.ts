@@ -8,6 +8,7 @@ interface SettingsState {
   claudeVersion: string;
   apiBaseUrl: string;
   apiKey: string;
+  thinkingBudget: number;
   setEvaluateMode: (enabled: boolean) => void;
   setTddMode: (enabled: boolean) => void;
   setScreenshotVerification: (enabled: boolean) => void;
@@ -66,7 +67,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
           thinkingBudget: 0,
         });
       }
-    } catch { /* mock-ipc fallback */ }
+    } catch { /* electronAPI unavailable */ }
     try {
       if (window.electronAPI?.claude?.detect) {
         const result = await window.electronAPI.claude.detect();

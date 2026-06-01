@@ -23,7 +23,7 @@ export function TabBar(): JSX.Element {
               onClick={() => setActiveTab(tab.id)}
               className={`group flex items-center gap-1.5 h-full px-3 text-xs cursor-pointer select-none shrink-0 border-r border-border transition-colors ${
                 isActive
-                  ? "bg-white text-text-primary"
+                  ? "bg-surface-elevated text-text-primary"
                   : "bg-transparent text-text-secondary hover:bg-surface-hover"
               }`}
             >

@@ -17,6 +17,64 @@ async function getQuery(): Promise<QueryFn> {
 }
 
 type QueryObj = Awaited<ReturnType<QueryFn>>;
+type SDKUserMessage = import("@anthropic-ai/claude-agent-sdk").SDKUserMessage;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Long-lived message channel — one process per session, messages flow through a
+// persistent AsyncGenerator that SDK's query() consumes.  Enqueue a new message
+// to start the next turn without spawning a fresh process.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface MessageChannel {
+  /** Push a user message into the queue (non-blocking) */
+  enqueue: (msg: SDKUserMessage) => void;
+  /** Persistent generator consumed by SDK query() — stays alive across turns */
+  generator: AsyncGenerator<SDKUserMessage>;
+  /** Graceful close: mark done, drain remaining queue, let SDK wind down */
+  close: () => void;
+}
+
+function createMessageChannel(signal: AbortSignal): MessageChannel {
+  const queue: SDKUserMessage[] = [];
+  let resolver: ((value: void) => void) | null = null;
+  let done = signal.aborted;
+
+  if (!done) {
+    signal.addEventListener("abort", () => {
+      done = true;
+      if (resolver) { const r = resolver; resolver = null; r(); }
+    }, { once: true });
+  }
+
+  async function* generator(): AsyncGenerator<SDKUserMessage> {
+    while (!done) {
+      if (queue.length > 0) {
+        yield queue.shift()!;
+      } else {
+        await new Promise<void>((resolve) => { resolver = resolve; });
+      }
+    }
+    while (queue.length > 0) {
+      yield queue.shift()!;
+    }
+  }
+
+  return {
+    enqueue: (msg: SDKUserMessage) => {
+      queue.push(msg);
+      if (resolver) { const r = resolver; resolver = null; r(); }
+    },
+    generator: generator(),
+    close: () => {
+      done = true;
+      if (resolver) { const r = resolver; resolver = null; r(); }
+    },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Active sessions
+// ═══════════════════════════════════════════════════════════════════════════════
 
 interface ActiveRun {
   runId: string;
@@ -26,25 +84,28 @@ interface ActiveRun {
 interface ActiveChat {
   chatId: string;
   sessionId: string;
+  channel: MessageChannel;
+  abortController: AbortController;
   query: QueryObj | null;
   projectPath: string;
 }
 
 /** Build a query options block, reading API config from the Store. */
 function buildQueryOptions(projectPath: string, store: Store, isResume: boolean, permissionMode: PermissionMode = "auto", overrides?: Partial<QueryOptions>): QueryOptions {
-  // Ensure the working directory exists (important for default workspace)
   const resolvedPath = projectPath || path.join(os.homedir(), "EasyMintProject", "workspace");
-  const cwd = resolvedPath.startsWith("~") ? path.join(os.homedir(), resolvedPath.slice(1)) : resolvedPath;
+  const cwd = path.resolve(resolvedPath.startsWith("~") ? path.join(os.homedir(), resolvedPath.slice(1)) : resolvedPath);
   if (!fs.existsSync(cwd)) fs.mkdirSync(cwd, { recursive: true });
+  console.log("[buildQueryOptions] projectPath=%s → cwd=%s", projectPath || "(empty)", cwd);
 
   const settings = store.getSettings();
+  const configDir = path.join(os.homedir(), ".easymint");
   const env: Record<string, string> = {
     ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => typeof v === "string")) as Record<string, string>,
-    CLAUDE_CONFIG_DIR: path.join(os.homedir(), ".easymint"),
+    CLAUDE_CONFIG_DIR: configDir,
   };
+  console.log("[buildQueryOptions] CLAUDE_CONFIG_DIR=%s", configDir);
   if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
   if (settings.apiKey) env.ANTHROPIC_API_KEY = settings.apiKey;
-  // Inject system prompt only for new sessions. Resume uses the session's stored prompt.
   const customPrompt = isResume ? "" : resolveEffectivePrompt();
   return {
     cwd,
@@ -56,6 +117,16 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
   };
 }
 
+/** Build an SDKUserMessage for enqueuing into a channel */
+function buildUserMessage(message: string, sessionId: string): SDKUserMessage {
+  return {
+    type: "user" as const,
+    session_id: sessionId,
+    message: { role: "user" as const, content: message },
+    parent_tool_use_id: null,
+  } as SDKUserMessage;
+}
+
 export class AgentService {
   constructor(private store: Store) {}
   private activeRuns: Map<string, ActiveRun> = new Map();
@@ -64,7 +135,8 @@ export class AgentService {
   private chatCounter = 0;
   onWorkerComplete: ((projectPath: string) => void) | null = null;
 
-  /** Worker — sdk.query one-shot, streaming */
+  // ── Worker (one-shot, unchanged) ──────────────────────────────────────
+
   async runWorker(projectPath: string, prompt: string, mainWindow: BrowserWindow): Promise<{ runId: string }> {
     const runId = `run-${++this.runCounter}`;
     const run: ActiveRun = { runId, query: null };
@@ -77,10 +149,8 @@ export class AgentService {
         run.query = queryObj;
         for await (const msg of queryObj) {
           if (!this.activeRuns.has(runId)) break;
-
           const event = toStreamEvent(msg, runId, "worker");
           if (event) broadcast("agent:stream", event);
-
           if (msg.type === "result") {
             const code = msg.subtype === "success" ? 0 : 1;
             broadcast("agent:exit", { runId, code });
@@ -109,18 +179,45 @@ export class AgentService {
     }
   }
 
-  /** Send message — SDK manages session lifecycle, we just capture & pass session_id */
+  // ── Chat (long-lived process + message channel) ───────────────────────
+
+  /**
+   * Send a chat message.  If a session with this sessionId is already active
+   * the message is enqueued into the live channel; otherwise a new long-lived
+   * query is started.
+   */
   sendMessage(projectPath: string, message: string, resumeSessionId: string | null, permissionMode: string | undefined, mainWindow: BrowserWindow): { chatId: string } {
+    // Existing session → enqueue into live channel
+    if (resumeSessionId) {
+      const existing = this.findActiveChat(resumeSessionId);
+      if (existing) {
+        console.log("[sendMessage] enqueue to existing session: sessionId=%s chatId=%s", resumeSessionId, existing.chatId);
+        existing.channel.enqueue(buildUserMessage(message, resumeSessionId));
+        return { chatId: existing.chatId };
+      }
+    }
+
+    // New session
     const chatId = `chat-${++this.chatCounter}`;
     const isResume = !!resumeSessionId;
     const overrides = isResume ? { resume: resumeSessionId } : {};
     const mode = (permissionMode as PermissionMode) || "auto";
     const options = buildQueryOptions(projectPath, this.store, isResume, mode, overrides);
 
-    const chat: ActiveChat = { chatId, sessionId: resumeSessionId ?? "", query: null, projectPath };
+    const abortController = new AbortController();
+    const channel = createMessageChannel(abortController.signal);
+
+    const chat: ActiveChat = {
+      chatId,
+      sessionId: resumeSessionId ?? "",
+      channel,
+      abortController,
+      query: null,
+      projectPath,
+    };
     this.activeChats.set(chatId, chat);
 
-    // For resume: inject session ID so the model knows its identity
+    // For resume: inject session identity into the first turn
     if (resumeSessionId) {
       if (!options.systemPrompt) {
         options.systemPrompt = { type: "preset" as const, preset: "claude_code" as const, append: `<session_info>\n当前会话 ID: ${resumeSessionId}\n</session_info>` };
@@ -130,60 +227,111 @@ export class AgentService {
       }
     }
 
-    (async () => {
-      try {
-        const q = await getQuery();
-        const queryObj = await q({ prompt: message, options });
-        chat.query = queryObj;
-        let capturedSid = resumeSessionId ?? "";
-        for await (const msg of queryObj) {
-          // Capture session_id from first message (SDK auto-generates for new sessions)
-          const sdkSid = (msg as { session_id?: string }).session_id;
-          if (!capturedSid && sdkSid) {
-            capturedSid = sdkSid;
-            chat.sessionId = sdkSid;
-            broadcast("agent:chat-session", { chatId, sessionId: sdkSid });
-          }
-          const event = toStreamEvent(msg, chatId, "chat");
-          if (event) broadcast("agent:stream", event);
-          if (msg.type === "result") {
-            broadcast("agent:exit", { runId: chatId, code: msg.subtype === "success" ? 0 : 1 });
-          }
-        }
-      } catch (err: unknown) {
-        if (this.activeChats.has(chatId)) {
-          const msg = err instanceof Error ? err.message : String(err);
-          broadcast("agent:stderr", { runId: chatId, data: msg, timestamp: Date.now() });
-          broadcast("agent:exit", { runId: chatId, code: -1 });
-        }
-      }
-      this.activeChats.delete(chatId);
-    })();
+    // Enqueue the first message BEFORE starting query (SDK pulls immediately)
+    channel.enqueue(buildUserMessage(message, resumeSessionId ?? ""));
+
+    // Start the long-lived query loop (fire-and-forget)
+    this.startChatLoop(chat, options);
 
     return { chatId };
   }
 
+  /** Background async loop that drives the long-lived query for a chat session */
+  private startChatLoop(chat: ActiveChat, options: QueryOptions): void {
+    (async () => {
+      try {
+        const q = await getQuery();
+        const queryObj = await q({ prompt: chat.channel.generator, options });
+        chat.query = queryObj;
+        console.log("[chat-loop] started: chatId=%s sessionId=%s", chat.chatId, chat.sessionId || "(new)");
+
+        let capturedSid = chat.sessionId;
+
+        for await (const msg of queryObj) {
+          if (chat.abortController.signal.aborted) break;
+
+          // Capture session_id from SDK (first message carries it for new sessions)
+          const sdkSid = (msg as { session_id?: string }).session_id;
+          if (!capturedSid && sdkSid) {
+            capturedSid = sdkSid;
+            chat.sessionId = sdkSid;
+            console.log("[chat-loop] session created: sessionId=%s chatId=%s", sdkSid, chat.chatId);
+            broadcast("agent:chat-session", { chatId: chat.chatId, sessionId: sdkSid });
+          }
+
+          // Stream event → renderer
+          const event = toStreamEvent(msg, chat.chatId, "chat");
+          if (event) broadcast("agent:stream", event);
+
+          // result = turn completed. With the long-lived channel the process is
+          // still alive; the renderer treats this as "done with this turn".
+          if (msg.type === "result") {
+            console.log("[chat-loop] turn complete: chatId=%s subtype=%s terminal_reason=%s",
+              chat.chatId, msg.subtype, (msg as { terminal_reason?: string }).terminal_reason);
+            broadcast("agent:exit", { runId: chat.chatId, code: msg.subtype === "success" ? 0 : 1 });
+          }
+        }
+      } catch (err: unknown) {
+        if (this.activeChats.has(chat.chatId)) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error("[chat-loop] error: chatId=%s %s", chat.chatId, msg);
+          broadcast("agent:stderr", { runId: chat.chatId, data: msg, timestamp: Date.now() });
+          broadcast("agent:exit", { runId: chat.chatId, code: -1 });
+        }
+      }
+      console.log("[chat-loop] ended: chatId=%s", chat.chatId);
+      this.activeChats.delete(chat.chatId);
+    })();
+  }
+
+  /** Find an active chat by SDK session ID */
+  private findActiveChat(sessionId: string): ActiveChat | undefined {
+    for (const chat of this.activeChats.values()) {
+      if (chat.sessionId === sessionId) return chat;
+    }
+    return undefined;
+  }
+
+  /**
+   * Stop generating (soft interrupt).  Interrupts the current turn without
+   * killing the process — the channel stays open for the next message.
+   */
   stopChat(chatId: string): void {
     const chat = this.activeChats.get(chatId);
     if (chat?.query) {
       chat.query.interrupt().catch(() => {});
-      this.activeChats.delete(chatId);
-      broadcast("agent:exit", { runId: chatId, code: -1 });
+      console.log("[stopChat] soft interrupt: chatId=%s", chatId);
     }
+  }
+
+  /** Hard kill a chat session — close channel, abort process, remove */
+  private killChat(chatId: string): void {
+    const chat = this.activeChats.get(chatId);
+    if (!chat) return;
+    chat.channel.close();
+    chat.abortController.abort();
+    if (chat.query) {
+      try { chat.query.close?.(); } catch { /* ignore */ }
+    }
+    this.activeChats.delete(chatId);
+    broadcast("agent:exit", { runId: chatId, code: -1 });
+    console.log("[killChat] hard killed: chatId=%s", chatId);
   }
 
   /** Check if a session has an active query running, return chatId if so */
   getActiveChatId(sessionId: string): string | null {
-    for (const chat of this.activeChats.values()) {
-      if (chat.sessionId === sessionId) return chat.chatId;
-    }
-    return null;
+    const chat = this.findActiveChat(sessionId);
+    return chat ? chat.chatId : null;
   }
 
-  /** Interrupt all active queries — call on app quit or project switch */
+  /** Interrupt all active sessions — call on app quit or project switch */
   shutdown(): void {
     for (const [id, chat] of this.activeChats) {
-      chat.query?.interrupt().catch(() => {});
+      chat.channel.close();
+      chat.abortController.abort();
+      if (chat.query) {
+        try { chat.query.close?.(); } catch { /* ignore */ }
+      }
       broadcast("agent:exit", { runId: id, code: -1 });
     }
     this.activeChats.clear();
@@ -251,14 +399,12 @@ function toStreamEvent(msg: SDKMessage, runId: string, source: "worker" | "chat"
 
   if (t === "system") {
     const subtype = (msg as { subtype?: string }).subtype ?? "";
-    // SDK status events — translate to Chinese for UI
     if (subtype === "status") {
       const status = (msg as { status?: string | null }).status;
       const text = status ? STATUS_LABELS[status] ?? status : null;
       if (text) return { runId, type: "status", data: { text }, timestamp: ts, source };
       return null;
     }
-    // Filter out noisy SDK lifecycle events
     const skip = new Set(["init", "hook_started", "hook_response", "hook_progress", "memory_recall", "api_retry", "requesting", "compacting", "session_state_changed", "notification", "permission_denied", "files_persisted", "rate_limit"]);
     if (skip.has(subtype)) return null;
     return { runId, type: "system", data: { message: subtype || "System event" }, timestamp: ts, source };
@@ -267,7 +413,6 @@ function toStreamEvent(msg: SDKMessage, runId: string, source: "worker" | "chat"
   return null;
 }
 
-// ── SDK status → Chinese labels ──
 const STATUS_LABELS: Record<string, string> = {
   requesting: "正在思考...",
   compacting: "整理上下文中...",

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useTaskStore } from "../stores/task-store";
 import { useProjectStatusStore } from "../stores/project-status-store";
 import { chatActions } from "../stores/chat-actions";
+import { TASK_ALLOCATION_INSTRUCTION } from "../../../shared/prompts";
 
 interface TaskPanelProps {
   projectPath: string;
@@ -23,15 +24,15 @@ type FlowState = "disabled" | "ready" | "running" | "done";
 function FlowStep({ label, state, onClick }: { label: string; state: FlowState; onClick?: () => void }): JSX.Element {
   const colors: Record<FlowState, string> = {
     disabled: "bg-surface border border-border text-text-secondary opacity-50 cursor-not-allowed",
-    ready: "bg-red-500/10 border border-red-400/40 text-red-500 hover:bg-red-500/20 cursor-pointer",
-    running: "bg-amber-400/10 border border-amber-400/40 text-amber-500 cursor-default",
-    done: "bg-green-100 border border-green-300/50 text-green-600 cursor-default",
+    ready: "bg-danger-bg border border-danger text-danger hover:bg-danger-bg cursor-pointer",
+    running: "bg-warning-bg border border-warning text-warning cursor-default",
+    done: "bg-success-bg border border-success text-success cursor-default",
   };
   const dots: Record<FlowState, string> = {
     disabled: "bg-border",
-    ready: "bg-red-500 animate-pulse",
-    running: "bg-amber-400 animate-pulse",
-    done: "bg-green-500",
+    ready: "bg-danger animate-pulse",
+    running: "bg-warning animate-pulse",
+    done: "bg-success",
   };
   return (
     <button
@@ -48,7 +49,7 @@ function FlowStep({ label, state, onClick }: { label: string; state: FlowState; 
 function FlowArrow({ done }: { done: boolean }): JSX.Element {
   return (
     <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"
-      className={`w-3 h-3 shrink-0 ${done ? "text-green-400" : "text-border"}`}
+      className={`w-3 h-3 shrink-0 ${done ? "text-success" : "text-border"}`}
     >
       <path d="M3 6h5M7 3l3 3-3 3" />
     </svg>
@@ -69,8 +70,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
   const handleAllocateTasks = async () => {
     setPhase("allocPhase", "running");
     try {
-      const instruction = await window.electronAPI.systemPrompt.getTaskInstruction();
-      if (instruction) chatActions.send(instruction);
+      chatActions.send(TASK_ALLOCATION_INSTRUCTION);
     } catch { /* ignore */ }
   };
 
@@ -191,8 +191,8 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
                       }`}>
                         {task.title}
                         <span className={`text-[9px] ml-1.5 ${
-                          isRunning ? "text-accent" : task.status === "failed" ? "text-red-400" :
-                          task.status === "done" ? "text-green-500" : "text-text-secondary"
+                          isRunning ? "text-accent" : task.status === "failed" ? "text-danger" :
+                          task.status === "done" ? "text-success" : "text-text-secondary"
                         }`}>{STATUS_LABELS[task.status]}</span>
                       </span>
                     </div>
@@ -202,8 +202,8 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
                   <span
                     className={`absolute left-1/2 w-2.5 h-2.5 rounded-full ring-2 ring-surface shrink-0 z-10 ${
                       task.status === "running" ? "bg-accent animate-pulse" :
-                      task.status === "done" ? "bg-green-500" :
-                      task.status === "failed" ? "bg-red-400" :
+                      task.status === "done" ? "bg-success" :
+                      task.status === "failed" ? "bg-danger" :
                       "bg-border"
                     }`}
                     style={{ transform: "translate(-50%, 0)" }}
@@ -218,8 +218,8 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
                       }`}>
                         {task.title}
                         <span className={`text-[9px] ml-1.5 ${
-                          isRunning ? "text-accent" : task.status === "failed" ? "text-red-400" :
-                          task.status === "done" ? "text-green-500" : "text-text-secondary"
+                          isRunning ? "text-accent" : task.status === "failed" ? "text-danger" :
+                          task.status === "done" ? "text-success" : "text-text-secondary"
                         }`}>{STATUS_LABELS[task.status]}</span>
                       </span>
                     </div>

@@ -88,7 +88,8 @@ export function SessionHistory({
 
   const handleDelete = async () => {
     if (!menu.sessionId) return;
-    await window.electronAPI.conv.delete(menu.sessionId, projectPath);
+    const path = projectPath || "~/EasyMintProject/workspace/";
+    await window.electronAPI.conv.delete(menu.sessionId, path);
     onSessionDelete?.(menu.sessionId);
     setSessions((prev) => prev.filter((s) => s.sessionId !== menu.sessionId));
     setMenu((m) => ({ ...m, visible: false }));
@@ -98,7 +99,8 @@ export function SessionHistory({
     if (!editingId) return;
     const title = editTitle.trim();
     if (title) {
-      await window.electronAPI.conv.rename(editingId, title, projectPath);
+      const path = projectPath || "~/EasyMintProject/workspace/";
+      await window.electronAPI.conv.rename(editingId, title, path);
       setSessions((prev) => prev.map((s) => (s.sessionId === editingId ? { ...s, title } : s)));
     }
     setEditingId(null);
@@ -123,8 +125,8 @@ export function SessionHistory({
         <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">加载中...</div>
       ) : error ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2">
-          <p className="text-red-400 text-sm">{error}</p>
-          <button className="px-3 py-1 text-xs bg-accent text-white rounded hover:bg-accent-hover transition-colors" onClick={load}>重试</button>
+          <p className="text-danger text-sm">{error}</p>
+          <button className="px-3 py-1 text-xs bg-accent text-text-inverse rounded hover:bg-accent-hover transition-colors" onClick={load}>重试</button>
         </div>
       ) : sessions.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">暂无对话记录</div>
@@ -151,7 +153,7 @@ export function SessionHistory({
 
       {/* Context menu */}
       {menu.visible && (
-        <div className="fixed z-[100] bg-white border border-border rounded-lg shadow-xl py-1 min-w-[120px]" style={{ left: menu.x, top: menu.y }}>
+        <div className="fixed z-[100] bg-surface-elevated border border-border rounded-lg shadow-xl py-1 min-w-[120px]" style={{ left: menu.x, top: menu.y }}>
           <button className="w-full text-left px-3 py-1.5 text-sm text-text-primary hover:bg-surface-hover transition-colors flex items-center gap-2" onClick={handlePin}>
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="16" x2="12" y2="2"/><polyline points="6 8 12 2 18 8"/></svg>
             {menu.pinned ? "取消置顶" : "置顶"}
@@ -161,7 +163,7 @@ export function SessionHistory({
             重命名
           </button>
           <div className="border-t border-border my-0.5" />
-          <button className="w-full text-left px-3 py-1.5 text-sm text-red-500 hover:bg-red-500/10 transition-colors flex items-center gap-2" onClick={handleDelete}>
+          <button className="w-full text-left px-3 py-1.5 text-sm text-danger hover:bg-danger-bg transition-colors flex items-center gap-2" onClick={handleDelete}>
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
             删除
           </button>
@@ -207,13 +209,13 @@ function SessionItemRow({ session, active, editingId, editTitle, onSelect, onCon
       onClick={() => onSelect?.(session.sessionId)}
       onContextMenu={(e) => onContextMenu(e, session)}
     >
-      <span className={`w-2 h-2 rounded-full shrink-0 mr-2.5 ${session.pinnedAt ? "bg-amber-500" : "bg-accent"}`} />
+      <span className={`w-2 h-2 rounded-full shrink-0 mr-2.5 ${session.pinnedAt ? "bg-warning" : "bg-accent"}`} />
       <div className="flex-1 min-w-0">
         <div className="text-sm truncate">{session.title}</div>
         <div className="text-xs text-text-secondary mt-0.5">{fmtDate(session.updatedAt)}</div>
       </div>
       {session.pinnedAt && (
-        <svg className="w-3 h-3 text-amber-500 shrink-0 ml-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 3h-2v6h2l-3 3-3-3h2V5H9l3-3z"/></svg>
+        <svg className="w-3 h-3 text-warning shrink-0 ml-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 3h-2v6h2l-3 3-3-3h2V5H9l3-3z"/></svg>
       )}
     </div>
   );

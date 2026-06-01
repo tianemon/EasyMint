@@ -3,28 +3,102 @@
 @tailwind utilities;
 
 /*
- * EasyMint — Mint-green light palette (亮色 Mint)
- * Fixed light theme only, no dark mode switching
+ * EasyMint — Theme system
+ *
+ * Every visual property lives under :root as a CSS variable.
+ * To create a new theme, copy the :root block and change values.
  */
 
 :root {
+  /* ── Surface ─────────────────────── */
   --color-surface: #f5faf7;
   --color-surface-alt: #ecf5f0;
   --color-surface-hover: #e0f0e8;
-  --color-border: #c8ddd2;
+  --color-surface-elevated: #ffffff;
+  --color-overlay: rgba(0, 0, 0, 0.5);
+  --color-tooltip-bg: #1a1a1a;
+  --color-tooltip-text: #ffffff;
+
+  /* ── Text ────────────────────────── */
   --color-text-primary: #0d1f17;
   --color-text-secondary: #5a7a6a;
+  --color-text-inverse: #ffffff;
+  --color-text-muted: #a0aec0;
+
+  /* ── Border ──────────────────────── */
+  --color-border: #c8ddd2;
+  --color-border-light: #e2e8f0;
+
+  /* ── Brand / Accent ──────────────── */
   --color-accent: #16a34a;
   --color-accent-hover: #15803d;
   --color-accent-soft: color-mix(in oklab, #16a34a 12%, transparent);
+  --color-accent-bg: color-mix(in oklab, #16a34a 10%, transparent);
+  --color-accent-border: color-mix(in oklab, #16a34a 20%, transparent);
+
+  /* ── Semantic ────────────────────── */
   --color-success: #17a34a;
-  --color-warn: #d97706;
+  --color-success-bg: #f0fdf4;
+  --color-success-border: #bbf7d0;
+  --color-warning: #d97706;
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fde68a;
   --color-danger: #dc2626;
+  --color-danger-bg: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-info: #0891b2;
+  --color-info-bg: color-mix(in oklab, #0891b2 12%, transparent);
+
+  /* ── Status dots ─────────────────── */
+  --color-dot-gray: #c8ccd4;
+  --color-dot-green: #16a34a;
+  --color-dot-amber: #d97706;
+  --color-dot-red: #dc2626;
+  --color-dot-blue: #3b82f6;
+
+  /* ── Code highlight ──────────────── */
+  --color-code-kw: #8250df;
+  --color-code-str: #16a34a;
+  --color-code-fn: #cf222e;
+  --color-code-cm: #5a7a6a;
+
+  /* ── Editor ─────────────────────── */
+  --color-editor-bg: #fafbfc;
+  --color-editor-gutter-bg: #f1f3f5;
+  --color-editor-line-highlight: #e2e8f0;
+
+  /* ── Terminal ────────────────────── */
+  --color-terminal-bg: #1a2e1f;
+  --color-terminal-text: #86efac;
+
+  /* ── Radius ──────────────────────── */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
+  --radius-full: 9999px;
+
+  /* ── Shadow ──────────────────────── */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+  --shadow-xl: 0 12px 40px rgba(0,0,0,0.16);
+
+  /* ── Font ────────────────────────── */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+
+  /* ── Animation ───────────────────── */
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --anim-fast: 150ms;
+  --anim-normal: 200ms;
+  --anim-slow: 250ms;
 }
+
+/* ── Base ─────────────────────────────────────────── */
 
 * {
   margin: 0;
@@ -33,7 +107,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
   overflow: hidden;
   background: var(--color-surface);
   color: var(--color-text-primary);
@@ -44,7 +118,6 @@ body {
   height: 100vh;
 }
 
-/* App shell — fills the window */
 #app-shell {
   width: 100%;
   height: 100vh;
@@ -52,106 +125,73 @@ body {
   overflow: hidden;
 }
 
-/* Smooth transitions for all interactive surfaces */
+/* ── Smooth transitions ───────────────────────────── */
+
 button, a, input, select, textarea, .transition-all {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--anim-slow) var(--ease-smooth);
 }
 
-/* Scrollbar — subtle mint tint */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-secondary);
-}
+/* ── Scrollbar ────────────────────────────────────── */
 
-/* Form inputs */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-secondary); }
+
+/* ── Form inputs ──────────────────────────────────── */
+
 .input {
   width: 100%;
   padding: 0.5rem 0.75rem;
-  border-radius: 0.5rem;
-  background: var(--color-surface-alt);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
   color: var(--color-text-primary);
   outline: none;
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
 }
 .input:focus {
   border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
 .input::placeholder {
   color: var(--color-text-secondary);
 }
 
-/* DragHandle — splitter between panels, extended invisible hit area via ::before */
-.drag-handle {
-  width: 1px;
-  height: 100%;
-  cursor: col-resize;
-  background: var(--color-border);
-  position: relative;
-  flex-shrink: 0;
-  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-.drag-handle:hover,
-.drag-handle.dragging {
-  transform: scaleX(3);
-  background: var(--color-accent);
-}
-.drag-handle::before {
-  content: '';
-  position: absolute;
-  left: -8px;
-  right: -8px;
-  top: 0;
-  bottom: 0;
-  z-index: 0;
-}
-
-/* Panel peek button — appears when panel is collapsed */
-.panel-peek {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 20px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-surface-alt);
-  border: 1px solid var(--color-border);
-  color: var(--color-text-secondary);
-  font-size: 10px;
+select.input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 12 12' fill='none' stroke='%23999' stroke-width='1.2' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M3 5l3 3 3-3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 2rem;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 10;
-}
-.panel-peek-left {
-  left: 44px;
-  border-left: 0;
-  border-radius: 0 6px 6px 0;
-}
-.panel-peek-right {
-  right: 0;
-  border-right: 0;
-  border-radius: 6px 0 0 6px;
-}
-.panel-peek:hover {
-  background: var(--color-accent);
-  color: #ffffff;
 }
 
-/* CSS tooltip for sidebar buttons */
-[data-tooltip] {
-  position: relative;
+/* ── Tooltip ──────────────────────────────────────── */
+
+.tip { position: relative; }
+.tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-tooltip-bg);
+  color: var(--color-tooltip-text);
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+  z-index: 100;
 }
+.tip:hover::after { opacity: 1; }
+
+/* ── Sidebar tooltip ──────────────────────────────── */
+
+[data-tooltip] { position: relative; }
 [data-tooltip]:hover::after {
   content: attr(data-tooltip);
   position: absolute;
@@ -168,106 +208,139 @@ button, a, input, select, textarea, .transition-all {
   z-index: 50;
 }
 
-/* Grid transition for panel collapse/expand */
-.grid-panels {
-  transition: grid-template-columns 200ms cubic-bezier(0.4, 0, 0.2, 1);
+/* ── Drag handle ──────────────────────────────────── */
+
+.drag-handle {
+  width: 1px;
+  height: 100%;
+  cursor: col-resize;
+  background: var(--color-border);
+  position: relative;
+  flex-shrink: 0;
+  transition: transform 150ms var(--ease-smooth);
+}
+.drag-handle:hover, .drag-handle.dragging {
+  transform: scaleX(3);
+  background: var(--color-accent);
+}
+.drag-handle::before {
+  content: '';
+  position: absolute;
+  left: -8px; right: -8px;
+  top: 0; bottom: 0;
+  z-index: 0;
 }
 
-/* Dropdown menu — with entry animation */
+/* ── Panel peek ───────────────────────────────────── */
+
+.panel-peek {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px; height: 48px;
+  display: flex;
+  align-items: center; justify-content: center;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all var(--anim-slow) var(--ease-smooth);
+  z-index: 10;
+}
+.panel-peek-left  { left: 44px; border-left: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.panel-peek-right { right: 0;   border-right: 0; border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.panel-peek:hover { background: var(--color-accent); color: var(--color-text-inverse); }
+
+/* ── Grid transition ──────────────────────────────── */
+
+.grid-panels {
+  transition: grid-template-columns var(--anim-normal) var(--ease-smooth);
+}
+
+/* ── Dropdown animation ───────────────────────────── */
+
 .dropdown-menu {
-  animation: dropdownIn 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  animation: dropdownIn var(--anim-fast) var(--ease-smooth);
 }
 @keyframes dropdownIn {
   from { opacity: 0; transform: translateX(-4px); }
-  to { opacity: 1; transform: translateX(0); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
-/* macOS traffic light dots (no extra styles needed, colored inline) */
+/* ── Message entry ────────────────────────────────── */
 
-/* Message entry animation */
-.msg-in {
-  animation: msgIn 200ms cubic-bezier(0.4, 0, 0.2, 1);
-}
+.msg-in { animation: msgIn var(--anim-normal) var(--ease-smooth); }
 @keyframes msgIn {
   from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Task pulse animation */
+/* ── Task pulse ───────────────────────────────────── */
+
 @keyframes taskPulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50%      { opacity: 0.5; }
 }
-.task-pulse {
-  animation: taskPulse 1.5s ease-in-out infinite;
-}
+.task-pulse { animation: taskPulse 1.5s ease-in-out infinite; }
 
-/* Syntax highlighting for code editor */
-.kw { color: #8250df; }
-.str { color: #16a34a; }
-.fn { color: #cf222e; }
-.cm { color: #5a7a6a; font-style: italic; }
+/* ── Code syntax ──────────────────────────────────── */
 
-/* Modal entrance animation */
-.modal-overlay {
-  animation: fadeIn 150ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-.modal-card {
-  animation: modalIn 200ms cubic-bezier(0.4, 0, 0.2, 1);
-}
+.kw  { color: var(--color-code-kw); }
+.str { color: var(--color-code-str); }
+.fn  { color: var(--color-code-fn); }
+.cm  { color: var(--color-code-cm); font-style: italic; }
+
+/* ── Modal ────────────────────────────────────────── */
+
+.modal-overlay { animation: fadeIn var(--anim-fast) var(--ease-smooth); }
+.modal-card    { animation: modalIn var(--anim-normal) var(--ease-smooth); }
 @keyframes fadeIn {
   from { opacity: 0; }
-  to { opacity: 1; }
+  to   { opacity: 1; }
 }
 @keyframes modalIn {
   from { opacity: 0; transform: translateY(12px) scale(0.97); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* Scan area for onboarding */
+/* ── Scan / Onboarding ────────────────────────────── */
+
 .scan-area {
-  transition: border-color 200ms cubic-bezier(0.4, 0, 0.2, 1), background-color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color var(--anim-normal) var(--ease-smooth),
+              background-color var(--anim-normal) var(--ease-smooth);
 }
-
 @keyframes scanIconSpin {
   from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  to   { transform: rotate(360deg); }
 }
-.scan-icon-spin {
-  animation: scanIconSpin 1s linear infinite;
-}
+.scan-icon-spin { animation: scanIconSpin 1s linear infinite; }
 
-/* Terminal output for onboarding scan */
 .terminal-output {
-  background: #1a2e1f;
-  color: #86efac;
+  background: var(--color-terminal-bg);
+  color: var(--color-terminal-text);
   min-height: 100px;
   position: relative;
 }
-
 @keyframes terminalLineIn {
   from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-.terminal-line {
-  animation: terminalLineIn 150ms cubic-bezier(0.4, 0, 0.2, 1);
-}
+.terminal-line { animation: terminalLineIn var(--anim-fast) var(--ease-smooth); }
 
 @keyframes terminalCursorBlink {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  50%      { opacity: 0; }
 }
 .terminal-cursor {
   display: inline-block;
-  width: 8px;
-  height: 14px;
+  width: 8px; height: 14px;
   background: var(--color-accent);
   vertical-align: middle;
   margin-left: 2px;
   animation: terminalCursorBlink 0.8s ease-in-out infinite;
 }
 
-/* xterm overrides */
-.xterm {
-  padding: 8px;
-}
+/* ── xterm overrides ──────────────────────────────── */
+
+.xterm { padding: 8px; }

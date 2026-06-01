@@ -159,7 +159,7 @@ export function OnboardingPage(): JSX.Element {
               返回
             </button>
             <button
-              className="px-6 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors font-medium disabled:opacity-40"
+              className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium disabled:opacity-40"
               disabled={currentStep === 0 && !scanDone}
               onClick={goNext}
             >
@@ -175,7 +175,7 @@ export function OnboardingPage(): JSX.Element {
               返回
             </button>
             <button
-              className="px-6 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors font-medium"
+              className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium"
               onClick={handleComplete}
             >
               进入工作台
@@ -232,7 +232,7 @@ function Step1Detect({
               点击下方按钮自动扫描系统中的 Claude CLI
             </p>
             <button
-              className="px-6 py-2.5 rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors font-medium"
+              className="px-6 py-2.5 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium"
               onClick={onStartScan}
             >
               开始扫描
@@ -290,7 +290,7 @@ function Step1Detect({
             placeholder="输入 Claude CLI 路径，如 /usr/local/bin/claude"
           />
           <button
-            className="px-4 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors text-sm disabled:opacity-40"
+            className="px-4 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors text-sm disabled:opacity-40"
             disabled={!manualPath.trim()}
             onClick={onManualSubmit}
           >
@@ -347,7 +347,7 @@ function Step3Done(): JSX.Element {
   return (
     <div className="flex flex-col items-center gap-6 py-8">
       <div className="w-20 h-20 rounded-full bg-accent flex items-center justify-center">
-        <span className="text-3xl text-white">✓</span>
+        <span className="text-3xl text-text-inverse">✓</span>
       </div>
       <div className="text-center">
         <h2 className="text-xl font-semibold mb-2">EasyMint 已准备就绪</h2>

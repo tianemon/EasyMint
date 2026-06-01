@@ -27,8 +27,8 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex items-center justify-center h-full bg-surface">
           <div className="text-center max-w-sm px-6">
-            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-6 h-6 text-red-500">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-danger-bg flex items-center justify-center">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-6 h-6 text-danger">
                 <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
             </div>
@@ -37,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
               {this.state.error?.message || "未知错误"}
             </p>
             <button
-              className="px-4 py-1.5 text-xs rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors"
+              className="px-4 py-1.5 text-xs rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors"
               onClick={() => this.setState({ hasError: false, error: null })}
             >
               重试

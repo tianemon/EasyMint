@@ -21,7 +21,7 @@ export function ProjectPage(): JSX.Element {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const [activePanel, setActivePanel] = useState<ActivePanel>("editor");
+  const [activePanel, setActivePanel] = useState<ActivePanel>("sessions");
   const [showSettings, setShowSettings] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [projectPath, setProjectPath] = useState("");
@@ -96,7 +96,7 @@ export function ProjectPage(): JSX.Element {
     (sessionId: string) => {
       setActiveSessionId(sessionId);
       setCurrentSessionId(sessionId);
-      window.electronAPI.conv.get(sessionId, projectPath).then((info) => {
+      window.electronAPI.conv.get(sessionId, projectPath || "~/EasyMintProject/workspace/").then((info) => {
         openTab({ id: "", type: "chat", title: info?.title || "对话", sessionId });
       }).catch(() => {
         openTab({ id: "", type: "chat", title: "对话", sessionId });
@@ -124,8 +124,10 @@ export function ProjectPage(): JSX.Element {
       const jsonIds = new Set(r.tasks.map((t) => t.id));
       // Remove stale tasks not in task.json
       ts.tasks.forEach((t) => { if (!jsonIds.has(t.id)) ts.updateTask(t.id, { status: "pending" }); });
+      // Filter out template placeholder tasks (containing {{...}})
+      const realTasks = r.tasks.filter((t) => !t.title.includes("{{"));
       // Upsert from task.json
-      r.tasks.forEach((t) => {
+      realTasks.forEach((t) => {
         const existing = ts.tasks.find((x) => x.id === t.id);
         const newStatus = (t.passes ? "done" : "pending") as "done" | "pending";
         if (existing) {
@@ -134,8 +136,8 @@ export function ProjectPage(): JSX.Element {
           ts.addTask({ id: t.id, title: t.title, description: t.description, command: t.command, status: newStatus });
         }
       });
-      // If tasks exist, mark alloc as done
-      if (r.tasks.length > 0) useProjectStatusStore.getState().setPhase("allocPhase", "done");
+      // Only mark alloc as done if there are real tasks (not template placeholders)
+      if (realTasks.length > 0) useProjectStatusStore.getState().setPhase("allocPhase", "done");
     }).catch((e: unknown) => { console.error("[syncTasks]", e); });
   }, [projectPath]);
 
@@ -241,7 +243,7 @@ export function ProjectPage(): JSX.Element {
       {/* Open Project Picker */}
       {showOpenProject && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowOpenProject(false)}>
-          <div className="bg-white rounded-xl border border-border shadow-2xl w-[420px] max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl w-[420px] max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
               <h2 className="text-base font-semibold text-text-primary">打开项目</h2>
               <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setShowOpenProject(false)}>✕</button>
@@ -249,7 +251,15 @@ export function ProjectPage(): JSX.Element {
             <p className="px-5 pb-2 text-xs text-text-secondary">选择一个项目，在当前窗口打开。</p>
             <div className="overflow-y-auto flex-1 px-3 pb-3">
               {openProjectList.length === 0 ? (
-                <p className="text-xs text-text-secondary text-center py-8">暂无项目，创建第一个吧。</p>
+                <div className="text-center py-8">
+                  <p className="text-xs text-text-secondary mb-3">暂无项目</p>
+                  <button
+                    className="px-4 py-2 text-sm bg-accent text-text-inverse rounded-lg hover:bg-accent-hover transition-colors"
+                    onClick={() => { setShowOpenProject(false); setShowNewProject(true); }}
+                  >
+                    + 创建项目
+                  </button>
+                </div>
               ) : (
                 openProjectList.map((p) => (
                   <div key={p.id} className="relative group">
@@ -264,7 +274,7 @@ export function ProjectPage(): JSX.Element {
                       <div className="text-[11px] text-text-secondary truncate">{p.path}</div>
                     </button>
                     <button
-                      className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-text-secondary hover:text-red-500 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100 text-[11px]"
+                      className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-text-secondary hover:text-danger hover:bg-danger-bg transition-colors opacity-0 group-hover:opacity-100 text-[11px]"
                       onClick={(e) => handleDeleteProject(e, p.id)}
                       title="删除记录"
                     >

@@ -157,7 +157,7 @@ function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }
 function SystemBlockView({ block }: { block: SystemBlock }): JSX.Element {
   const isError = block.message.startsWith("✗") || block.message.startsWith("⚠");
   return (
-    <div className={`text-xs px-2 py-1 rounded ${isError ? "text-red-400 bg-red-500/10" : block.message.startsWith("✓") ? "text-green-400 bg-green-500/10" : "text-text-secondary bg-surface-alt"}`}>
+    <div className={`text-xs px-2 py-1 rounded ${isError ? "text-danger bg-danger-bg" : block.message.startsWith("✓") ? "text-success bg-success-bg" : "text-text-secondary bg-surface-alt"}`}>
       {block.message}
     </div>
   );

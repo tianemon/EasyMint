@@ -94,7 +94,7 @@ export function StreamPanel(): JSX.Element {
       (event: StreamEvent) => {
         setEntries((prev) => {
           const entry = normalizeEvent(event);
-          return [...prev, entry];
+          return entry ? [...prev, entry] : prev;
         });
       }
     );
@@ -163,7 +163,7 @@ export function StreamPanel(): JSX.Element {
   );
 }
 
-export function normalizeEvent(event: StreamEvent): StreamEntry {
+export function normalizeEvent(event: StreamEvent): StreamEntry | null {
   const { type, data, timestamp, source } = event;
 
   switch (type) {
@@ -242,9 +242,9 @@ export function StreamEntryView({ entry }: { entry: StreamEntry }): JSX.Element 
     <span
       className={`text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase ${
         entry.source === "evaluator"
-          ? "bg-amber-500/20 text-amber-400"
+          ? "bg-warning-bg text-warning"
           : entry.source === "chat"
-            ? "bg-blue-500/20 text-blue-400"
+            ? "bg-info-bg text-info"
             : "bg-surface-alt text-text-secondary"
       }`}
     >
@@ -282,7 +282,7 @@ export function StreamEntryView({ entry }: { entry: StreamEntry }): JSX.Element 
           <div
             className={`text-xs rounded px-2 py-1 ${
               isEvalFail
-                ? "text-amber-200 bg-amber-500/15 border border-amber-500/30 font-semibold"
+                ? "text-warning bg-warning-bg border border-warning font-semibold"
                 : "text-text-secondary bg-surface-alt"
             }`}
           >
@@ -299,8 +299,8 @@ export function StreamEntryView({ entry }: { entry: StreamEntry }): JSX.Element 
           <div
             className={`text-xs rounded px-2 py-1 whitespace-pre-wrap ${
               isEvalError
-                ? "text-amber-200 bg-amber-500/10 border border-amber-500/30"
-                : "text-red-400 bg-red-500/10"
+                ? "text-warning bg-warning-bg border border-warning"
+                : "text-danger bg-danger-bg"
             }`}
           >
             {entry.data}
@@ -316,10 +316,10 @@ export function StreamEntryView({ entry }: { entry: StreamEntry }): JSX.Element 
           <div
             className={`text-xs rounded px-2 py-1 font-semibold ${
               isEvalFail
-                ? "text-amber-200 bg-amber-500/15 border border-amber-500/30"
+                ? "text-warning bg-warning-bg border border-warning"
                 : entry.code === 0
-                  ? "text-green-400 bg-green-500/10"
-                  : "text-red-400 bg-red-500/10"
+                  ? "text-success bg-success-bg"
+                  : "text-danger bg-danger-bg"
             }`}
           >
             {entry.code === 0
@@ -331,7 +331,17 @@ export function StreamEntryView({ entry }: { entry: StreamEntry }): JSX.Element 
     }
     case "user_message":
       return <UserChatBubble text={entry.text} />;
+    case "thinking":
+      return <ThinkingBlock text={entry.text} />;
   }
+}
+
+function ThinkingBlock({ text }: { text: string }): JSX.Element {
+  return (
+    <div className="text-xs text-text-secondary italic px-2 py-1 opacity-60">
+      {text}
+    </div>
+  );
 }
 
 function ToolUseBlock({ entry }: { entry: ToolUseEntry }): JSX.Element {
@@ -363,7 +373,7 @@ function ToolResultBlock({ entry }: { entry: ToolResultEntry }): JSX.Element {
     <div
       className={`ml-4 text-xs rounded px-2 py-1 whitespace-pre-wrap border ${
         entry.isError
-          ? "border-red-500/30 bg-red-500/5 text-red-400"
+          ? "border-danger border bg-danger-bg text-danger"
           : "border-border bg-surface text-text-secondary"
       }`}
     >

@@ -24,7 +24,7 @@ function statusDot(status: TaskItem["status"], large = false): JSX.Element {
       return (
         <span className={`${size} rounded-full bg-accent inline-block shrink-0`}>
           {large && (
-            <svg className="w-full h-full text-white p-0.5" viewBox="0 0 10 10" fill="none">
+            <svg className="w-full h-full text-text-inverse p-0.5" viewBox="0 0 10 10" fill="none">
               <path d="M2 5l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           )}
@@ -32,15 +32,15 @@ function statusDot(status: TaskItem["status"], large = false): JSX.Element {
       );
     case "running":
       return (
-        <span className={`${size} rounded-full bg-amber-400 inline-block shrink-0 task-pulse`}>
-          {large && <span className="block w-full h-full rounded-full bg-amber-400" />}
+        <span className={`${size} rounded-full bg-warning inline-block shrink-0 task-pulse`}>
+          {large && <span className="block w-full h-full rounded-full bg-warning" />}
         </span>
       );
     case "failed":
       return (
-        <span className={`${size} rounded-full bg-red-500 inline-block shrink-0`}>
+        <span className={`${size} rounded-full bg-danger inline-block shrink-0`}>
           {large && (
-            <svg className="w-full h-full text-white p-0.5" viewBox="0 0 10 10" fill="none">
+            <svg className="w-full h-full text-text-inverse p-0.5" viewBox="0 0 10 10" fill="none">
               <path d="M3 3l4 4M7 3l-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           )}
@@ -169,7 +169,7 @@ export function RightPanel({ onCollapse }: RightPanelProps): JSX.Element {
                   {task.steps.map((step, idx) => (
                     <div key={idx} className="flex items-center gap-2 pl-8 pr-3 py-0.5">
                       {statusDot(step.status)}
-                      <span className={`text-2xs ${step.status === "done" ? "text-text-secondary line-through" : step.status === "running" ? "text-amber-600" : "text-text-secondary"}`}>
+                      <span className={`text-2xs ${step.status === "done" ? "text-text-secondary line-through" : step.status === "running" ? "text-warning" : "text-text-secondary"}`}>
                         {step.label}
                       </span>
                     </div>

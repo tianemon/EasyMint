@@ -32,7 +32,7 @@ function ToggleRow({ label, description, hint, enabled, onChange }: ToggleRowPro
         aria-checked={enabled}
       >
         <span
-          className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+          className={`absolute top-0.5 w-5 h-5 rounded-full bg-surface-elevated shadow transition-transform ${
             enabled ? "translate-x-5" : "translate-x-0.5"
           }`}
         />
@@ -43,7 +43,7 @@ function ToggleRow({ label, description, hint, enabled, onChange }: ToggleRowPro
 
 function StarRating({ count }: { count: number }): JSX.Element {
   return (
-    <span className="text-amber-500 text-xs">
+    <span className="text-warning text-xs">
       {count}
     </span>
   );
@@ -84,7 +84,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay">
-      <div className="bg-white rounded-xl border border-border shadow-2xl modal-card" style={{ width: activeTab === "prompts" ? 620 : 520 }}>
+      <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl modal-card" style={{ width: activeTab === "prompts" ? 620 : 520 }}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-0 border-b border-border">
           <div className="flex gap-0">
@@ -207,7 +207,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
             DeepSeek 视觉桥接（待商议）
           </p>
           <button
-            className="px-6 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors font-medium"
+            className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium"
             onClick={onClose}
           >
             完成

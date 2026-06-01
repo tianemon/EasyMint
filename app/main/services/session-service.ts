@@ -13,6 +13,15 @@ import type { SDKSessionInfo, SessionMessage } from "@anthropic-ai/claude-agent-
 const DATA_DIR = path.join(os.homedir(), ".easymint");
 const PINNED_PATH = path.join(DATA_DIR, "pinned-sessions.json");
 
+/** Normalize a directory path for SDK session APIs — expand ~, resolve to absolute, strip trailing slash. */
+function normalizeDir(dir: string): string {
+  // Expand ~ to home directory
+  let resolved = dir.startsWith("~") ? path.join(os.homedir(), dir.slice(1)) : dir;
+  // Resolve to absolute and strip trailing slash
+  resolved = path.resolve(resolved);
+  return resolved;
+}
+
 function ensureDir(): void {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 }
@@ -65,7 +74,10 @@ export interface SessionListItem {
 
 export async function listSessions(projectPath: string): Promise<SessionListItem[]> {
   const { listSessions: ls } = await sdk();
-  const sessions = await ls({ dir: projectPath });
+  const normalized = normalizeDir(projectPath);
+  console.log("[listSessions] input=%s → normalized=%s", projectPath || "(empty)", normalized);
+  const sessions = await ls({ dir: normalized });
+  console.log("[listSessions] SDK returned %d sessions for dir=%s", sessions.length, normalized);
   const pinned = readPinned();
 
   return sessions
@@ -88,17 +100,17 @@ export async function listSessions(projectPath: string): Promise<SessionListItem
 
 export async function getSessionMessages(sessionId: string, projectPath: string): Promise<SessionMessage[]> {
   const { getSessionMessages: gsm } = await sdk();
-  return gsm(sessionId, { dir: projectPath });
+  return gsm(sessionId, { dir: normalizeDir(projectPath) });
 }
 
 export async function renameSession(sessionId: string, title: string, projectPath: string): Promise<void> {
   const { renameSession: rs } = await sdk();
-  await rs(sessionId, title, { dir: projectPath });
+  await rs(sessionId, title, { dir: normalizeDir(projectPath) });
 }
 
 export async function deleteSession(sessionId: string, projectPath: string): Promise<void> {
   const { deleteSession: ds } = await sdk();
-  await ds(sessionId, { dir: projectPath });
+  await ds(sessionId, { dir: normalizeDir(projectPath) });
   const pinned = readPinned();
   delete pinned[sessionId];
   writePinned(pinned);
@@ -106,7 +118,7 @@ export async function deleteSession(sessionId: string, projectPath: string): Pro
 
 export async function getSessionInfo(sessionId: string, projectPath: string): Promise<SessionListItem | null> {
   const { getSessionInfo: gsi } = await sdk();
-  const info = await gsi(sessionId, { dir: projectPath });
+  const info = await gsi(sessionId, { dir: normalizeDir(projectPath) });
   if (!info) return null;
   const pinned = readPinned();
   return {

@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { normalizeEvent } from "./StreamPanel";
+import type { StreamEntry } from "./StreamPanel";
+import { TASK_ALLOCATION_INSTRUCTION } from "../../../shared/prompts";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { chatActions } from "../stores/chat-actions";
 import { useProjectStatusStore } from "../stores/project-status-store";
@@ -9,7 +11,7 @@ interface ChatMessage {
   id: number;
   role: "user" | "ai";
   text?: string;
-  entries?: ReturnType<typeof normalizeEvent>[];
+  entries?: StreamEntry[];
   timestamp: number;
 }
 
@@ -72,7 +74,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (!existingSid) return;
     let cancelled = false;
     const load = () => {
-      window.electronAPI.conv.messages(existingSid, projectPath).then((msgs) => {
+      window.electronAPI.conv.messages(existingSid, projectPath || "~/EasyMintProject/workspace/").then((msgs) => {
         if (cancelled) return;
         const mapped: ChatMessage[] = [];
         for (const m of msgs) {
@@ -85,7 +87,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           } else if (m.type === "assistant") {
             const content = (m.message as { content?: unknown[] })?.content;
             if (Array.isArray(content)) {
-              const entries: ReturnType<typeof normalizeEvent>[] = [];
+              const entries: StreamEntry[] = [];
               for (const block of content) {
                 const b = block as { type?: string; text?: string; thinking?: string; name?: string; input?: unknown; tool_use_id?: string; content?: unknown; is_error?: boolean };
                 if (b.type === "text" && b.text) {
@@ -240,14 +242,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             {messages.map((msg, idx) => {
               const isLast = idx === messages.length - 1;
               const aiText = msg.role === "ai" && msg.entries
-                ? msg.entries.filter((e) => e.kind === "text").map((e: { text?: string }) => e.text ?? "").join("")
+                ? msg.entries.filter((e) => e.kind === "text").map((e) => e.text ?? "").join("")
                 : "";
               const hasInitPrompt = isLast && aiText.includes("帮我初始化开发环境");
               const hasTaskPrompt = isLast && aiText.includes("开始分配开发任务") && allocPhase === "pending";
               const handleAllocateTasks = async () => {
                 try {
-                  const instruction = await window.electronAPI.systemPrompt.getTaskInstruction();
-                  if (instruction) await sendText(instruction);
+                  await sendText(TASK_ALLOCATION_INSTRUCTION);
                 } catch { /* ignore */ }
               };
               return (
@@ -255,7 +256,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                   {msg.role === "user" && msg.text ? (
                     <div className="flex justify-end">
                       <div className="flex flex-col items-end max-w-[82%]">
-                        <div className="bg-accent text-white rounded-[10px] rounded-br-[4px] px-[14px] py-[10px] text-[13px] leading-[1.55]">
+                        <div className="bg-accent text-text-inverse rounded-[10px] rounded-br-[4px] px-[14px] py-[10px] text-[13px] leading-[1.55]">
                           {msg.text}
                         </div>
                         <span className="text-[10px] text-text-secondary mt-0.5 px-1">{formatTime(msg.timestamp)}</span>
@@ -346,7 +347,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           {loading ? (
             <button
               onClick={() => { stoppedRef.current = true; const rid = currentRunRef.current; if (rid) window.electronAPI.agent.abort(rid); setLoading(false); setStreaming(false); }}
-              className="w-9 h-9 rounded-md bg-red-500/20 text-red-400 flex items-center justify-center hover:bg-red-500/30 transition-colors"
+              className="w-9 h-9 rounded-md bg-danger-bg text-danger flex items-center justify-center hover:bg-danger-bg transition-colors"
             >
               <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
             </button>
@@ -354,7 +355,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             <button
               onClick={handleSend}
               disabled={!input.trim()}
-              className="w-9 h-9 rounded-md bg-accent text-white flex items-center justify-center hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="w-9 h-9 rounded-md bg-accent text-text-inverse flex items-center justify-center hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
             </button>

@@ -47,6 +47,8 @@ EasyMint 专属设置，不与 SDK 混淆。
 | `screenshotVerification` | 是否开启截图验证 |
 | `lastProjectId` | 上次打开的项目 ID（启动恢复用） |
 
+> **注意**：`apiKey` 和 `apiBaseUrl` 不属于 EasyMint，由 SDK 的 `settings.json`（`env.ANTHROPIC_AUTH_TOKEN` / `env.ANTHROPIC_BASE_URL`）管理。
+
 ---
 
 ## `projects.json`

@@ -131,11 +131,11 @@ export function PromptSettings(): JSX.Element {
                 <span className="flex-1 truncate">{prompt.name}</span>
                 {prompt.isBuiltin && <span className="text-[10px] text-text-secondary shrink-0">内置</span>}
                 {prompt.id === config.defaultPromptId && (
-                  <svg className="w-3 h-3 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  <svg className="w-3 h-3 text-warning shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                 )}
                 {hoveredId === prompt.id && !prompt.isBuiltin && (
                   <button
-                    className="text-[10px] text-text-secondary hover:text-red-500 shrink-0"
+                    className="text-[10px] text-text-secondary hover:text-danger shrink-0"
                     onClick={(e) => { e.stopPropagation(); handleDelete(prompt.id); }}
                   >
                     删除
@@ -198,7 +198,7 @@ export function PromptSettings(): JSX.Element {
           }}
           className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${config.appendDateTimeAndUserName ? "bg-accent" : "bg-surface-hover border border-border"}`}
         >
-          <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${config.appendDateTimeAndUserName ? "translate-x-5" : "translate-x-0.5"}`} />
+          <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-surface-elevated shadow transition-transform ${config.appendDateTimeAndUserName ? "translate-x-5" : "translate-x-0.5"}`} />
         </button>
       </div>
     </div>

@@ -61,8 +61,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     delete: (id: string) => ipcRenderer.invoke("system-prompt:delete", { id }),
     updateAppend: (enabled: boolean) => ipcRenderer.invoke("system-prompt:update-append", { enabled }),
     setDefault: (id: string) => ipcRenderer.invoke("system-prompt:set-default", { id }),
-    getInitInstruction: () => ipcRenderer.invoke("system-prompt:get-init-instruction"),
-    getTaskInstruction: () => ipcRenderer.invoke("system-prompt:get-task-instruction"),
   },
   settings: {
     get: () => ipcRenderer.invoke("settings:get"),

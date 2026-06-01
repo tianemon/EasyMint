@@ -36,52 +36,52 @@ function langForFile(name: string) {
   }
 }
 
-// Clean light theme matching EasyMint's design
+// Clean light theme matching EasyMint's design — all colors from CSS variables
 const easyMintTheme = EditorView.theme({
   "&": {
-    backgroundColor: "#fafbfc",
-    color: "#2d3748",
+    backgroundColor: "var(--color-editor-bg)",
+    color: "var(--color-text-primary)",
     fontSize: "13px",
     lineHeight: "1.65",
   },
   ".cm-gutters": {
-    backgroundColor: "#f1f3f5",
-    color: "#a0aec0",
+    backgroundColor: "var(--color-editor-gutter-bg)",
+    color: "var(--color-text-muted)",
     border: "none",
-    borderRight: "1px solid #e2e8f0",
+    borderRight: "1px solid var(--color-border-light)",
     paddingRight: "8px",
   },
   ".cm-gutterElement": {
     padding: "0 4px",
   },
   ".cm-activeLineGutter": {
-    backgroundColor: "#e2e8f0",
-    color: "#4a5568",
+    backgroundColor: "var(--color-editor-line-highlight)",
+    color: "var(--color-text-secondary)",
   },
   ".cm-activeLine": {
-    backgroundColor: "rgba(8,145,178,0.06)",
+    backgroundColor: "color-mix(in oklab, var(--color-info) 6%, transparent)",
   },
   ".cm-cursor": {
-    borderLeftColor: "#0891b2",
+    borderLeftColor: "var(--color-info)",
   },
   ".cm-selectionBackground, ::selection": {
-    backgroundColor: "rgba(8,145,178,0.15)",
+    backgroundColor: "color-mix(in oklab, var(--color-info) 15%, transparent)",
   },
   ".cm-selectionMatch": {
-    backgroundColor: "rgba(8,145,178,0.08)",
+    backgroundColor: "color-mix(in oklab, var(--color-info) 8%, transparent)",
   },
   ".cm-matchingBracket": {
-    backgroundColor: "rgba(8,145,178,0.12)",
-    outline: "1px solid rgba(8,145,178,0.3)",
+    backgroundColor: "color-mix(in oklab, var(--color-info) 12%, transparent)",
+    outline: "1px solid color-mix(in oklab, var(--color-info) 30%, transparent)",
   },
   ".cm-tooltip": {
-    backgroundColor: "#fff",
-    border: "1px solid #e2e8f0",
+    backgroundColor: "var(--color-surface-elevated)",
+    border: "1px solid var(--color-border-light)",
     borderRadius: "8px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+    boxShadow: "var(--shadow-md)",
   },
   "&.cm-focused .cm-cursor": {
-    borderLeftColor: "#0891b2",
+    borderLeftColor: "var(--color-info)",
   },
   "&.cm-focused": {
     outline: "none",
@@ -206,9 +206,9 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <p className="text-red-400 text-sm mb-3">{error}</p>
+          <p className="text-danger text-sm mb-3">{error}</p>
           <button
-            className="px-3 py-1 text-xs bg-accent text-white rounded hover:bg-accent-hover transition-colors"
+            className="px-3 py-1 text-xs bg-accent text-text-inverse rounded hover:bg-accent-hover transition-colors"
             onClick={() => {
               setError(null);
               setLoading(true);

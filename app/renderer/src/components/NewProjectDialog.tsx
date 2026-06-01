@@ -1,39 +1,40 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildInitTriggerPrompt, PROJECT_INIT_INSTRUCTION } from "../../../shared/prompts";
 
 // ---- Types ----
 
-type PlatformChoice = "web" | "mobile" | "cli" | "desktop";
-type FrontendChoice = "react-nextjs-tailwind" | "vue-nuxt-tailwind" | "svelte-sveltekit-tailwind" | "angular-material" | "solidjs-tailwind" | "pure-html";
-type BackendChoice = "node" | "python" | "go" | "php-laravel" | "java-spring" | "none";
 type BudgetChoice = "充足" | "少量" | "免费";
 type DeployChoice = "云端" | "本地";
 type CompletenessChoice = "full" | "mvp" | "demo";
 
+interface TechOption { value: string; label: string; desc: string }
+
 interface FeatureItem {
   name: string;
-  priority: "P0" | "P1" | "P2";
 }
 
 interface ProjectFormData {
   name: string;
-  platforms: PlatformChoice[];
+  targets: string[];
   dir: string;
   description: string;
   targetUsers: string;
   completeness: CompletenessChoice;
   features: FeatureItem[];
   uiStyle: string;
-  frontend: FrontendChoice;
-  backend: BackendChoice;
+  techNotes: string;
   techBudget: BudgetChoice;
   deployPlatform: DeployChoice;
 }
 
-const PLATFORM_OPTIONS = [
-  { value: "web", label: "Web", desc: "网站 / SPA" },
-  { value: "mobile", label: "移动", desc: "iOS / Android" },
-  { value: "cli", label: "CLI", desc: "命令行工具" },
-  { value: "desktop", label: "桌面", desc: "桌面应用" },
+const TARGET_OPTIONS = [
+  { value: "web", label: "Web 网页", desc: "浏览器访问，不限设备" },
+  { value: "ios-mobile", label: "iOS 移动 App", desc: "iPhone / iPad 原生应用" },
+  { value: "android-mobile", label: "Android 移动 App", desc: "Android 手机/平板原生应用" },
+  { value: "windows-desktop", label: "Windows 桌面应用", desc: "Windows 原生桌面应用" },
+  { value: "macos-desktop", label: "macOS 桌面应用", desc: "Mac 原生桌面应用" },
+  { value: "linux-desktop", label: "Linux 桌面应用", desc: "Linux 原生桌面应用" },
+  { value: "cli", label: "命令行工具", desc: "跨平台终端工具" },
 ] as const;
 
 const COMPLETENESS_OPTIONS = [
@@ -42,23 +43,46 @@ const COMPLETENESS_OPTIONS = [
   { value: "demo", label: "演示版", desc: "原型展示，核心流程可跑通" },
 ] as const;
 
-const FRONTEND_OPTIONS = [
-  { value: "react-nextjs-tailwind", label: "React + Next.js + Tailwind CSS", desc: "最主流，生态最大，AI 编程支持最好" },
-  { value: "vue-nuxt-tailwind", label: "Vue 3 + Nuxt 3 + Tailwind CSS", desc: "渐进式框架，中文社区强，上手快" },
-  { value: "svelte-sveltekit-tailwind", label: "Svelte + SvelteKit + Tailwind CSS", desc: "极致性能，编译时框架，打包极小" },
-  { value: "angular-material", label: "Angular + Material + CSS", desc: "企业级标配，大型项目结构清晰" },
-  { value: "solidjs-tailwind", label: "SolidJS + Tailwind CSS", desc: "超高性能，类 React 写法，无虚拟 DOM" },
-  { value: "pure-html", label: "纯 HTML + CSS + JS", desc: "无框架，最简单直接，适合静态页面" },
-] as const;
+const FRONTEND_LANG_OPTIONS: TechOption[] = [
+  { value: "typescript", label: "TypeScript", desc: "JavaScript 的超集，类型安全" },
+  { value: "javascript", label: "JavaScript", desc: "Web 原生语言，无需编译" },
+];
 
-const BACKEND_OPTIONS = [
-  { value: "node", label: "Node.js (Express/NestJS)", desc: "与前端同语言，生态最大，全栈统一" },
-  { value: "python", label: "Python (FastAPI/Django)", desc: "AI/ML 首选，开发速度快，库丰富" },
-  { value: "go", label: "Go (Gin)", desc: "高性能微服务，低资源占用，部署简单" },
-  { value: "php-laravel", label: "PHP (Laravel)", desc: "快速出活，部署便宜，CMS 生态成熟" },
-  { value: "java-spring", label: "Java (Spring Boot)", desc: "企业级标准，银行金融首选，稳定可靠" },
-  { value: "none", label: "不需要后端", desc: "纯前端项目，数据全在客户端" },
-] as const;
+const FRONTEND_FRAMEWORK_OPTIONS: TechOption[] = [
+  { value: "react", label: "React", desc: "最主流的前端框架，生态最大" },
+  { value: "vue", label: "Vue", desc: "渐进式框架，上手快，中文社区强" },
+  { value: "svelte", label: "Svelte", desc: "编译时框架，打包极小，极致性能" },
+  { value: "angular", label: "Angular", desc: "企业级框架，适合大型项目" },
+  { value: "solidjs", label: "SolidJS", desc: "类 React 写法，无虚拟 DOM，超高性能" },
+  { value: "none-fe", label: "纯 HTML（无框架）", desc: "零依赖，单文件即可，适合极简项目" },
+];
+
+const BACKEND_LANG_OPTIONS: TechOption[] = [
+  { value: "node", label: "Node.js", desc: "与前端同语言，全栈统一" },
+  { value: "python", label: "Python", desc: "AI/ML 首选，开发速度快" },
+  { value: "go", label: "Go", desc: "高性能微服务，部署简单" },
+  { value: "php", label: "PHP", desc: "快速出活，部署便宜" },
+  { value: "java", label: "Java", desc: "企业级标准，稳定可靠" },
+];
+
+const BACKEND_FRAMEWORK_OPTIONS: TechOption[] = [
+  { value: "express", label: "Express", desc: "Node.js 最流行的 HTTP 框架" },
+  { value: "nestjs", label: "NestJS", desc: "企业级 Node.js 框架，类 Angular 架构" },
+  { value: "fastapi", label: "FastAPI", desc: "高性能 Python API 框架" },
+  { value: "django", label: "Django", desc: "Python 全栈框架，自带 ORM 和后台" },
+  { value: "gin", label: "Gin", desc: "Go 高性能 HTTP 框架" },
+  { value: "laravel", label: "Laravel", desc: "PHP 全栈框架，生态成熟" },
+  { value: "spring", label: "Spring Boot", desc: "Java 企业级框架" },
+];
+
+const CROSS_PLATFORM_OPTIONS: TechOption[] = [
+  { value: "flutter", label: "Flutter", desc: "Google 的跨平台框架，Dart 语言，移动/Web/桌面" },
+  { value: "react-native", label: "React Native", desc: "Facebook 的跨平台框架，React 语法，移动端为主" },
+  { value: "electron", label: "Electron", desc: "Web 技术构建桌面应用（Windows/macOS/Linux）" },
+  { value: "tauri", label: "Tauri", desc: "Rust 驱动的轻量桌面应用框架" },
+  { value: "uniapp", label: "uni-app", desc: "Vue 语法，一套代码多端发布，国内生态成熟" },
+  { value: "kotlin-mp", label: "Kotlin Multiplatform", desc: "JetBrains 跨平台方案，Android/iOS/桌面" },
+];
 
 const UI_STYLE_OPTIONS = [
   { value: "skeuomorphism", label: "拟物化", desc: "模仿现实物体的质感与纹理，让用户感到熟悉、亲切" },
@@ -88,15 +112,9 @@ const DEPLOY_OPTIONS = [
   { value: "云端", label: "云端部署", desc: "Vercel / Railway / 云服务器" },
 ] as const;
 
-const PRIORITY_OPTIONS = [
-  { value: "P0", label: "P0 必做" },
-  { value: "P1", label: "P1 该做" },
-  { value: "P2", label: "P2 可做" },
-] as const;
-
 const ALL_STEPS = [
   { number: 1, title: "项目概述", desc: "名称、类型与目录" },
-  { number: 2, title: "功能清单", desc: "核心功能与优先级" },
+  { number: 2, title: "功能清单", desc: "用户实际使用的功能" },
   { number: 3, title: "视觉风格", desc: "UI 设计风格" },
   { number: 4, title: "技术选型", desc: "前端、后端与成本" },
   { number: 5, title: "部署方式", desc: "云端或本地" },
@@ -104,23 +122,22 @@ const ALL_STEPS = [
 
 const DEFAULT_DATA: ProjectFormData = {
   name: "",
-  platforms: ["web"],
+  targets: ["web"],
   dir: "~/EasyMintProject/",
   description: "",
   targetUsers: "",
   completeness: "mvp",
   features: [],
-  uiStyle: "minimalism",
-  frontend: "react-nextjs-tailwind",
-  backend: "node",
+  uiStyle: "",
+  techNotes: "",
   techBudget: "少量",
   deployPlatform: "本地",
 };
 
 // ---- Helpers ----
 
-function getVisibleSteps(platforms: PlatformChoice[]) {
-  if (platforms.length === 1 && platforms[0] === "cli") return ALL_STEPS.filter((s) => s.number !== 3);
+function getVisibleSteps(targets: string[]) {
+  if (targets.length === 1 && targets[0] === "cli") return ALL_STEPS.filter((s) => s.number !== 3);
   return ALL_STEPS;
 }
 
@@ -129,30 +146,27 @@ function actualStepNumber(visibleSteps: typeof ALL_STEPS, currentIndex: number):
 }
 
 function buildContext(data: ProjectFormData, step?: number): string {
-  const platforms = data.platforms.join("、");
+  const targets = data.targets.map((v) => TARGET_OPTIONS.find((o) => o.value === v)?.label || v).join("、");
   const parts: string[] = [];
   const push = (s: string) => parts.push(s);
 
   // Step 1: always include basics
-  push(`名称「${data.name}」，平台「${platforms}」，描述「${data.description}」，目标用户「${data.targetUsers}」，完成度「${data.completeness}」`);
+  push(`名称「${data.name}」，项目形式「${targets}」，描述「${data.description}」，目标用户「${data.targetUsers}」，完成度「${data.completeness}」`);
 
   // Step 2+: include features
   if (!step || step >= 2) {
-    const features = data.features.map((f) => `${f.name}(${f.priority})`).join("；");
+    const features = data.features.map((f) => f.name).join("；");
     push(`功能清单：「${features || "无"}"」`);
   }
 
   // Step 3+: include UI style
   if (!step || step >= 3) {
-    push(`UI 风格「${data.uiStyle}」`);
+    push(`UI 风格「${data.uiStyle || "未指定"}」`);
   }
 
   // Step 4+: include tech stack
   if (!step || step >= 4) {
-    const hasWeb = data.platforms.includes("web");
-    const frontendLabel = FRONTEND_OPTIONS.find((o) => o.value === data.frontend)?.label || data.frontend;
-    const backendLabel = BACKEND_OPTIONS.find((o) => o.value === data.backend)?.label || data.backend;
-    if (hasWeb) push(`前端「${frontendLabel}」，后端「${backendLabel}」`);
+    if (data.techNotes) push(`技术偏好「${data.techNotes}」`);
     push(`预算「${data.techBudget}」`);
   }
 
@@ -176,42 +190,95 @@ function StepDots({ total, current }: { total: number; current: number }): JSX.E
   );
 }
 
+// ---- Custom Select (matches white+green theme) ----
+
+function Select({ value, onChange, options, placeholder }: { value: string; onChange: (v: string) => void; options: readonly { value: string; label: string; desc: string }[]; placeholder?: string }): JSX.Element {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const selected = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      if (btnRef.current) {
+        const r = btnRef.current.getBoundingClientRect();
+        setPos({ top: r.bottom + 4, left: r.left, width: r.width });
+      }
+    };
+    update();
+    const handler = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
+
+  return (
+    <div>
+      <button
+        ref={btnRef}
+        className="w-full input text-left flex items-center justify-between"
+        onClick={() => setOpen(!open)}
+      >
+        <span className={selected ? "text-text-primary" : "text-text-secondary"}>
+          {selected ? `${selected.label} — ${selected.desc}` : (placeholder || "请选择...")}
+        </span>
+        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" className={`w-3 h-3 shrink-0 transition-transform text-text-secondary ${open ? "rotate-180" : ""}`}>
+          <path d="M3 5l3 3 3-3"/>
+        </svg>
+      </button>
+      {open && (
+        <div ref={menuRef} className="fixed z-[9999] bg-surface-elevated border border-border rounded-lg shadow-lg max-h-52 overflow-y-auto" style={{ top: pos.top, left: pos.left, width: pos.width }}>
+          {options.map((o) => (
+            <button
+              key={o.value}
+              className={`w-full text-left px-3 py-2 text-sm transition-colors ${o.value === value ? "bg-accent/10 text-accent" : "text-text-primary hover:bg-surface-hover"}`}
+              onClick={() => { onChange(o.value); setOpen(false); }}
+            >
+              <span>{o.label}</span>
+              <span className="text-text-secondary ml-1.5 text-xs">{o.desc}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- Step 1: Overview ----
 
 function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void }): JSX.Element {
-  const togglePlatform = (v: PlatformChoice) => {
-    const set = new Set(data.platforms);
-    if (set.has(v)) set.delete(v); else set.add(v);
-    if (set.size === 0) return;
-    onChange({ platforms: [...set] as PlatformChoice[] });
+  const updateTarget = (i: number, value: string) => {
+    const next = [...data.targets];
+    next[i] = value;
+    onChange({ targets: next });
+  };
+  const addTarget = () => {
+    onChange({ targets: [...data.targets, "web"] });
+  };
+  const removeTarget = (i: number) => {
+    if (data.targets.length <= 1) return;
+    onChange({ targets: data.targets.filter((_, idx) => idx !== i) });
   };
 
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">项目名称 <span className="text-red-400">*</span></label>
+        <label className="block text-sm font-medium text-text-primary mb-2">项目名称 <span className="text-danger">*</span></label>
         <input className="input" value={data.name} onChange={(e) => onChange({ name: e.target.value })} placeholder="例如：个人博客" />
       </div>
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">项目类型（可多选）</label>
-        <div className="grid grid-cols-2 gap-2">
-          {PLATFORM_OPTIONS.map((opt) => {
-            const active = data.platforms.includes(opt.value);
-            return (
-              <button
-                key={opt.value}
-                className={`p-3 rounded-lg border transition-colors text-left ${active ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
-                onClick={() => togglePlatform(opt.value)}
-              >
-                <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
-                <div className="text-xs text-text-secondary mt-0.5">{opt.desc}</div>
-              </button>
-            );
-          })}
-        </div>
+        <label className="block text-sm font-medium text-text-primary mb-2">项目描述</label>
+        <textarea className="input min-h-[60px] resize-y" value={data.description} onChange={(e) => onChange({ description: e.target.value })} placeholder="简单描述这个项目是做什么的..." />
       </div>
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">项目目录 <span className="text-red-400">*</span></label>
+        <label className="block text-sm font-medium text-text-primary mb-2">项目目录 <span className="text-danger">*</span></label>
         <button
           className="w-full px-3 py-2 rounded-lg bg-surface-alt border border-border text-left text-sm hover:bg-surface-hover transition-colors"
           onClick={async () => { const selected = await window.electronAPI.dialog.openDirectory(); if (selected) onChange({ dir: selected }); }}
@@ -221,13 +288,30 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
         <p className="text-[10px] text-text-secondary mt-1">默认 ~/EasyMintProject/，不选则使用默认路径</p>
       </div>
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">项目描述</label>
-        <textarea className="input min-h-[60px] resize-y" value={data.description} onChange={(e) => onChange({ description: e.target.value })} placeholder="简单描述这个项目是做什么的..." />
-      </div>
-      <div>
         <label className="block text-sm font-medium text-text-primary mb-2">目标用户</label>
         <input className="input" value={data.targetUsers} onChange={(e) => onChange({ targetUsers: e.target.value })} placeholder="例如：个人用户、小团队、企业内部..." />
       </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-sm font-medium text-text-primary">项目形式</label>
+          <button className="px-2 py-0.5 rounded border border-dashed border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/5 transition-colors" onClick={addTarget}>+ 添加</button>
+        </div>
+        <div className="space-y-2">
+          {data.targets.map((t, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="flex-1">
+                <Select value={t} onChange={(v) => updateTarget(i, v)} options={TARGET_OPTIONS} />
+              </div>
+              {data.targets.length > 1 && (
+                <button className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-danger transition-colors shrink-0" onClick={() => removeTarget(i)}>✕</button>
+              )}
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] text-text-secondary mt-1.5">选择项目的运行平台和交付形式，可添加多个</p>
+      </div>
+
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">完成度</label>
         <div className="flex gap-2">
@@ -250,7 +334,7 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
   );
 }
 
-// ---- Step 2: Features (structured with P0/P1/P2 + Mint recommend) ----
+// ---- Step 2: Features ----
 
 function Step2Form({
   data, onChange, onRecommendFeatures, loadingRec,
@@ -261,7 +345,7 @@ function Step2Form({
   loadingRec: string | null;
 }): JSX.Element {
   const addFeature = () => {
-    onChange({ features: [...data.features, { name: "", priority: "P1" as const }] });
+    onChange({ features: [...data.features, { name: "" }] });
   };
 
   const updateFeature = (idx: number, f: Partial<FeatureItem>) => {
@@ -279,10 +363,10 @@ function Step2Form({
       <div className="flex items-center justify-between mb-2">
         <label className="block text-sm font-medium text-text-primary">功能清单</label>
         <div className="flex gap-2">
-          <button className="px-3 py-1 rounded-lg border border-dashed border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/10 transition-colors" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
+          <button className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors disabled:opacity-40" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
             {loadingRec === "features" ? "思考中..." : "Mint 推荐"}
           </button>
-          <button className="px-3 py-1 rounded-lg border border-dashed border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/10 transition-colors" onClick={addFeature}>+ 添加功能</button>
+          <button className="px-3 py-1.5 rounded-lg border border-dashed border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/10 transition-colors" onClick={addFeature}>+ 添加功能</button>
         </div>
       </div>
       {data.features.length === 0 && !loadingRec && (
@@ -294,19 +378,12 @@ function Step2Form({
       {data.features.map((f, i) => (
         <div key={i} className="flex items-center gap-2">
           <input
-            className="flex-1 px-2 py-1.5 rounded-lg bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
+            className="flex-1 input"
             value={f.name}
             onChange={(e) => updateFeature(i, { name: e.target.value })}
             placeholder={`功能 ${i + 1}`}
           />
-          <select
-            className="px-2 py-1.5 rounded-lg bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent shrink-0"
-            value={f.priority}
-            onChange={(e) => updateFeature(i, { priority: e.target.value as "P0" | "P1" | "P2" })}
-          >
-            {PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          <button className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-red-500 transition-colors text-xs" onClick={() => removeFeature(i)}>✕</button>
+          <button className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-danger transition-colors text-xs shrink-0" onClick={() => removeFeature(i)}>✕</button>
         </div>
       ))}
     </div>
@@ -332,16 +409,12 @@ function Step3Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
       </div>
       <div>
         <label className="block text-xs text-text-secondary mb-1.5">或者从经典风格中选择：</label>
-        <select
-          className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+        <Select
           value={isCustom ? "" : data.uiStyle}
-          onChange={(e) => onChange({ uiStyle: e.target.value })}
-        >
-          <option value="" disabled>— 选择预设风格 —</option>
-          {UI_STYLE_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label} — {opt.desc}</option>
-          ))}
-        </select>
+          onChange={(v) => onChange({ uiStyle: v })}
+          options={UI_STYLE_OPTIONS}
+          placeholder="— 不限，让 Mint 推荐 —"
+        />
       </div>
     </div>
   );
@@ -350,20 +423,26 @@ function Step3Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
 // ---- Step 4: Tech with Mint recommendation ----
 
 function Step4Form({
-  data, onChange, onRecommend, loadingRec, recReason,
+  data, onChange, onRecommend, loadingRec,
 }: {
   data: ProjectFormData;
   onChange: (p: Partial<ProjectFormData>) => void;
   onRecommend: () => void;
   loadingRec: string | null;
-  recReason: string;
 }): JSX.Element {
-  const hasWeb = data.platforms.includes("web");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const canRecommend = !loadingRec && data.techBudget !== undefined;
+
+  const appendToNotes = (label: string) => {
+    const current = data.techNotes.trim();
+    const toAdd = current ? `，${label}` : label;
+    onChange({ techNotes: current + toAdd });
+  };
+
   return (
     <div className="space-y-5">
-      {!hasWeb && <p className="text-xs text-text-secondary">非 Web 项目可跳过技术选型。</p>}
 
+      {/* Budget */}
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">开发运维成本</label>
         <div className="flex gap-2">
@@ -377,63 +456,70 @@ function Step4Form({
             );
           })}
         </div>
-        <p className="text-[10px] text-text-secondary mt-1.5">选择成本后即可让 Mint 推荐最合适的技术方案</p>
       </div>
 
-      {hasWeb && (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-1.5">前端技术栈</label>
-            <select className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent" value={data.frontend} onChange={(e) => onChange({ frontend: e.target.value as FrontendChoice })}>
-              {FRONTEND_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label} — {o.desc}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-1.5">后端技术栈</label>
-            <select className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent" value={data.backend} onChange={(e) => onChange({ backend: e.target.value as BackendChoice })}>
-              {BACKEND_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label} — {o.desc}</option>)}
-            </select>
-          </div>
+      {/* Tech notes textarea + Mint recommend */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="block text-sm font-medium text-text-primary">技术偏好</label>
+          <button
+            className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={onRecommend}
+            disabled={!canRecommend}
+          >
+            {loadingRec === "tech" ? "Mint 推荐中..." : "Mint 推荐"}
+          </button>
         </div>
-      )}
-
-      <div className="text-center pt-2">
-        <button
-          className="px-6 py-3 rounded-lg border-2 border-dashed border-accent/40 text-accent hover:border-accent hover:bg-accent/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          onClick={onRecommend}
-          disabled={!canRecommend}
-        >
-          {loadingRec === "tech" ? (
-            <span className="flex items-center gap-2">
-              <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3"/><path d="M12 2a10 10 0 019.95 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
-              Mint 正在推荐...
-            </span>
-          ) : (
-            <span className="flex items-center gap-2">
-              <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <path d="M9 2l.75 5h5l-4 3 1.25 5L9 12.5l-4 2.5L6.25 10l-4-3h5L8 2z" />
-                <circle cx="9" cy="9" r="1.25" fill="currentColor" stroke="none" />
-              </svg>
-              Mint 推荐一套方案
-            </span>
-          )}
-        </button>
         {!canRecommend && (
-          <p className="text-xs text-text-secondary mt-2">请先选择开发运维成本</p>
+          <p className="text-[10px] text-text-secondary mb-1">选择成本后可使用 Mint 推荐</p>
         )}
-        {canRecommend && !recReason && (
-          <p className="text-xs text-text-secondary mt-2">Mint 根据成本和项目信息推荐最适合的一套技术组合</p>
-        )}
-        {recReason && (
-          <div className="mt-3 bg-accent/5 border border-accent/20 rounded-lg p-3">
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 text-accent"><path d="M9 2l.75 5h5l-4 3 1.25 5L9 12.5l-4 2.5L6.25 10l-4-3h5L8 2z" /><circle cx="9" cy="9" r="1.25" fill="currentColor" stroke="none" /></svg>
-              <span className="text-xs font-medium text-accent">Mint 推荐理由</span>
-            </div>
-            <p className="text-xs text-text-primary leading-relaxed">{recReason}</p>
-            <p className="text-[10px] text-text-secondary mt-1.5">已自动填入下拉框，可手动修改</p>
+        <textarea
+          className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent resize-none"
+          rows={3}
+          placeholder="让 Mint 帮你推荐，或者自己写，例如：前端用 React + TypeScript，后端用 Node.js"
+          value={data.techNotes}
+          onChange={(e) => onChange({ techNotes: e.target.value })}
+        />
+      </div>
+
+      {/* Advanced: tech chip quick-select, collapsed by default */}
+      <div>
+        <button
+          className="text-xs text-text-secondary hover:text-text-primary transition-colors flex items-center gap-1.5"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+        >
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" className={`w-2.5 h-2.5 transition-transform ${showAdvanced ? "rotate-90" : ""}`}><path d="M4 2l4 4-4 4"/></svg>
+          有技术偏好吗？展开参考选项
+        </button>
+        {showAdvanced && (
+          <div className="mt-3 space-y-3 pl-4 border-l-2 border-border">
+            <ChipGroup label="前端语言" options={FRONTEND_LANG_OPTIONS} onSelect={appendToNotes} />
+            <ChipGroup label="前端框架" options={FRONTEND_FRAMEWORK_OPTIONS} onSelect={appendToNotes} />
+            <ChipGroup label="后端语言" options={BACKEND_LANG_OPTIONS} onSelect={appendToNotes} />
+            <ChipGroup label="后端框架" options={BACKEND_FRAMEWORK_OPTIONS} onSelect={appendToNotes} />
+            <ChipGroup label="多平台框架" options={CROSS_PLATFORM_OPTIONS} onSelect={appendToNotes} />
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function ChipGroup({ label, options, onSelect }: { label: string; options: TechOption[]; onSelect: (label: string) => void }): JSX.Element {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-text-secondary mb-1">{label}</label>
+      <div className="flex flex-wrap gap-1">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            className="tip px-2 py-1 rounded border border-border text-xs text-text-secondary hover:border-accent/40 hover:text-text-primary transition-colors"
+            onClick={() => onSelect(o.label)}
+            data-tip={o.desc}
+          >
+            {o.label}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -525,13 +611,11 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
   const pathRef = useRef<string | null>(null);
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
   const [loadingRec, setLoadingRec] = useState<string | null>(null);
-  const [recReason, setRecReason] = useState<string>("");
-
   const { ask, sidRef } = useMintChat(pathRef);
 
   const updateData = useCallback((patch: Partial<ProjectFormData>) => setData((prev) => ({ ...prev, ...patch })), []);
 
-  const visibleSteps = getVisibleSteps(data.platforms);
+  const visibleSteps = getVisibleSteps(data.targets);
 
   useEffect(() => {
     if (currentStep >= visibleSteps.length) setCurrentStep(visibleSteps.length - 1);
@@ -557,7 +641,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
         pathRef.current = project.path;
         setCreatedProject(project);
         setCreateError(null);
-        await ask(`[系统通知] 用户点击了新建项目。请默默收集以下需求，无需主动回复：\n${buildContext(data, 1)}\n收到后只需回复"已记录"。`);
+        await ask(buildProjectCreatedPrompt(buildContext(data, 1)));
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "创建项目失败";
         setCreateError(msg);
@@ -573,20 +657,15 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
 
   const handleRecommendFeatures = async () => {
     setLoadingRec("features");
-    const ctx = `项目名称：${data.name}，平台：${data.platforms.join("、")}，描述：${data.description}，目标用户：${data.targetUsers}`;
-    const resp = await ask(`结合以下项目信息，给用户推荐功能清单：${ctx}\n要求：每行一个功能，格式为"[功能名称](优先级)"，如"[用户登录](P0)"。优先级按P0/P1/P2划分。列出最重要的6-10个功能。`);
+    const ctx = `项目名称：${data.name}，${buildContext(data, 1)}`;
+    const resp = await ask(buildFeatureRecommendPrompt(ctx));
     setLoadingRec(null);
     if (resp) {
-      const lines = resp.split("\n").filter((l) => l.trim());
+      const lines = resp.split("\n").filter((l) => /^[-•*]\s/.test(l.trim()));
       const parsed: FeatureItem[] = [];
       for (const line of lines) {
-        const m = line.match(/\[([^\]]+)\]\(([^)]+)\)/);
-        if (m) {
-          const name = m[1]!.trim();
-          const rawP = m[2]!.trim().toUpperCase();
-          const priority = (rawP.includes("P0") ? "P0" : rawP.includes("P2") ? "P2" : "P1") as "P0" | "P1" | "P2";
-          parsed.push({ name, priority });
-        }
+        const name = line.trim().replace(/^[-•*]\s*/, "");
+        if (name) parsed.push({ name });
       }
       if (parsed.length > 0) {
         const current = data.features;
@@ -601,26 +680,13 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
 
   const handleRecommend = async () => {
     setLoadingRec("tech");
-    setRecReason("");
-    const info = `项目名称：${data.name}，平台：${data.platforms.join("、")}，描述：${data.description}，目标用户：${data.targetUsers}，完成度：${data.completeness}，预算：${data.techBudget}`;
-    const resp = await ask(`结合以下项目信息和当前行业趋势，推荐一套最合适的技术方案：${info}\n\n备选前端：${FRONTEND_OPTIONS.map((o) => o.label).join("、")}\n备选后端：${BACKEND_OPTIONS.map((o) => o.label).join("、")}\n\n请直接回复，格式：\n前端: [完整选项名称]\n后端: [完整选项名称]\n理由: [一句话推荐理由]\n\n只推荐一套，选最适合的。`);
+    const info = `项目名称：${data.name}，${buildContext(data, 4)}`;
+    const existingNote = data.techNotes ? `\n用户当前填写的技术偏好：${data.techNotes}` : "";
+    const resp = await ask(`请根据以下项目信息推荐技术方案：${info}${existingNote}\n\n用简洁的文本描述推荐的技术组合，格式如：前端：React + TypeScript + Tailwind CSS，后端：Node.js + Express。一句话说理由。`);
     setLoadingRec(null);
     if (resp) {
-      const fwMatch = resp.match(/前端:\s*(.+)/);
-      const beMatch = resp.match(/后端:\s*(.+)/);
-      const reasonMatch = resp.match(/理由:\s*(.+)/);
-      if (reasonMatch) setRecReason(reasonMatch[1]!.trim());
-      if (fwMatch) {
-        const fwName = fwMatch[1]!.trim();
-        const fwOpt = FRONTEND_OPTIONS.find((o) => o.label.includes(fwName) || fwName.includes(o.label));
-        if (fwOpt) updateData({ frontend: fwOpt.value });
-      }
-      if (beMatch) {
-        const beName = beMatch[1]!.trim();
-        const beOpt = BACKEND_OPTIONS.find((o) => o.label.includes(beName) || beName.includes(o.label));
-        if (beOpt) updateData({ backend: beOpt.value });
-        if (beName.includes("不需要")) updateData({ backend: "none" });
-      }
+      const text = resp.trim();
+      updateData({ techNotes: text });
     }
   };
 
@@ -638,14 +704,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
     setInitializing(true);
     try {
       if (createdProject) {
-        const instruction = await window.electronAPI.systemPrompt.getInitInstruction();
-        const initPrompt = `[系统通知] 项目已创建完毕。
-
-项目路径：${createdProject.path}
-
-${buildContext(data)}
-
-${instruction}`;
+        const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), PROJECT_INIT_INSTRUCTION);
         // 发送消息，等 2 秒让 SDK 持久化，再跳转
         ask(initPrompt).catch(() => {});
         await new Promise((r) => setTimeout(r, 2000));
@@ -668,7 +727,7 @@ ${instruction}`;
       case 1: return <Step1Form data={data} onChange={updateData} />;
       case 2: return <Step2Form data={data} onChange={updateData} onRecommendFeatures={handleRecommendFeatures} loadingRec={loadingRec} />;
       case 3: return <Step3Form data={data} onChange={updateData} />;
-      case 4: return <Step4Form data={data} onChange={updateData} onRecommend={handleRecommend} loadingRec={loadingRec} recReason={recReason} />;
+      case 4: return <Step4Form data={data} onChange={updateData} onRecommend={handleRecommend} loadingRec={loadingRec} />;
       case 5: return <Step5Form data={data} onChange={updateData} />;
       default: return null;
     }
@@ -676,7 +735,7 @@ ${instruction}`;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay">
-      <div className="bg-white rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 560, maxHeight: "90vh" }}>
+      <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 560, maxHeight: "90vh" }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-1 shrink-0">
           <h2 className="text-lg font-semibold text-text-primary">新建项目</h2>
           <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={handleCancel}>✕</button>
@@ -692,12 +751,11 @@ ${instruction}`;
         <div className="px-6 py-4 overflow-y-auto flex-1">{renderStepContent()}</div>
 
         <div className="flex items-center justify-between px-6 pb-5 pt-2 shrink-0">
+          <button className="px-4 py-2 rounded-lg text-text-secondary text-sm hover:bg-surface-hover transition-colors disabled:opacity-30" disabled={currentStep === 0 || creating} onClick={goPrev}>上一步</button>
           <div className="flex gap-2">
-            <button className="px-4 py-2 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors disabled:opacity-30" disabled={currentStep === 0 || creating} onClick={goPrev}>上一步</button>
-            <button className="px-4 py-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors text-sm" onClick={handleCancel}>取消项目</button>
-          </div>
-          {!isLastStep ? (
-            <button className="px-6 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors font-medium disabled:opacity-50" disabled={!canNext() || creating} onClick={goNext}>
+            <button className="text-xs text-text-secondary hover:text-danger transition-colors" onClick={handleCancel}>取消项目</button>
+            {!isLastStep ? (
+            <button className="px-6 py-2 rounded-lg bg-accent text-text-inverse text-sm hover:bg-accent-hover transition-colors font-medium disabled:opacity-50" disabled={!canNext() || creating} onClick={goNext}>
               {creating ? (
                 <span className="flex items-center gap-2">
                   <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3"/><path d="M12 2a10 10 0 019.95 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
@@ -706,12 +764,13 @@ ${instruction}`;
               ) : "下一步"}
             </button>
           ) : (
-            <button className="px-6 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors font-medium disabled:opacity-50" disabled={!canNext() || initializing} onClick={handleCreate}>
+            <button className="px-6 py-2 rounded-lg bg-accent text-text-inverse text-sm hover:bg-accent-hover transition-colors font-medium disabled:opacity-50" disabled={!canNext() || initializing} onClick={handleCreate}>
               {initializing ? "创建中..." : "创建项目"}
             </button>
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 }
