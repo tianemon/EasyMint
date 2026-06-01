@@ -37,6 +37,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const currentRunRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
   const [permissionMode, setPermissionMode] = useState("auto");
+  const allocPhase = useProjectStatusStore((s) => s.allocPhase);
   const msgIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
@@ -251,7 +252,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 ? msg.entries.filter((e) => e.kind === "text").map((e: { text?: string }) => e.text ?? "").join("")
                 : "";
               const hasInitPrompt = isLast && aiText.includes("帮我初始化开发环境");
-              const allocPhase = useProjectStatusStore.getState().allocPhase;
               const hasTaskPrompt = isLast && aiText.includes("开始分配开发任务") && allocPhase === "pending";
               const handleAllocateTasks = async () => {
                 try {
