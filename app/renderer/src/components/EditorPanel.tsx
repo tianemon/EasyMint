@@ -186,11 +186,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
   if (!filePath) {
     return (
       <div className="flex items-center justify-center h-full text-text-secondary">
-        <div className="text-center max-w-sm">
-          <svg className="w-12 h-12 mb-5 opacity-40 text-text-secondary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          <p className="text-sm font-medium text-text-primary mb-2">欢迎使用 EasyMint</p>
-          <p className="text-sm mb-4 leading-relaxed">点击左侧工具栏浏览项目结构、查看对话历史，或与 Claude Chat 自由对话。</p>
-        </div>
+        <p className="text-sm">打开文件开始编辑。</p>
       </div>
     );
   }
