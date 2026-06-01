@@ -11,6 +11,7 @@ import { AgentService, setMainWindow } from "./services/agent-service";
 import { EvaluatorService } from "./services/evaluator-service";
 import { Store } from "./services/store";
 import { detectClaude } from "./utils/claude-detector";
+import { trackProjectWindow, closeProjectWindows } from "./services/window-manager";
 
 const isDev = !app.isPackaged;
 
@@ -149,14 +150,15 @@ app.on("activate", () => {
 
 // ── Multi-window IPC ──
 
-ipcMain.handle("window:open-project", (_e, { projectId, sessionId, init }) => {
+ipcMain.handle("window:open-project", async (_e, { projectId, sessionId, init }) => {
   const params = new URLSearchParams();
   if (sessionId) params.set("session", sessionId);
   if (init) params.set("init", "1");
   const qs = params.toString();
   const hash = qs ? `/project/${projectId}?${qs}` : `/project/${projectId}`;
   if (sharedServices) sharedServices.store.setLastProjectId(projectId);
-  createWindow(hash);
+  const win = await createWindow(hash);
+  trackProjectWindow(win, projectId);
 });
 
 ipcMain.handle("window:new", () => {

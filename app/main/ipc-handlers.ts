@@ -6,6 +6,7 @@ import { EvaluatorService } from "./services/evaluator-service";
 import { Store } from "./services/store";
 import { detectClaude } from "./utils/claude-detector";
 import { execShell } from "./services/shell-service";
+import { closeProjectWindows } from "./services/window-manager";
 import {
   getSystemPromptConfig,
   createSystemPrompt,
@@ -47,7 +48,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // project:*
   ipcMain.handle("project:list", () => projectService.list());
   ipcMain.handle("project:create", (_e, opts) => projectService.create(opts));
-  ipcMain.handle("project:delete", (_e, { id }) => projectService.delete(id));
+  ipcMain.handle("project:delete", (_e, { id }) => {
+    if (closeProjectWindows) closeProjectWindows(id);
+    projectService.delete(id);
+  });
   ipcMain.handle("project:get", (_e, { id }) => projectService.get(id));
 
   // file:*
