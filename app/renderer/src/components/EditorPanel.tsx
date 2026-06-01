@@ -186,7 +186,10 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
   if (!filePath) {
     return (
       <div className="flex items-center justify-center h-full text-text-secondary">
-        <p className="text-sm">打开文件开始编辑。</p>
+        <div className="text-center">
+          <p className="text-sm font-medium text-text-primary mb-1">欢迎使用 EasyMint</p>
+          <p className="text-xs">点击按钮或者与 Mint 聊天开始创建项目</p>
+        </div>
       </div>
     );
   }
