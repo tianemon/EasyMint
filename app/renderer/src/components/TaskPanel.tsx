@@ -144,7 +144,8 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
         </button>
       </div>
 
-      {/* Flow indicator — three steps with arrows */}
+      {/* Flow indicator — three steps with arrows, only when project is loaded */}
+      {projectPath && (
       <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 border-b border-border/50 bg-surface-alt shrink-0">
         {/* Step 1: Init */}
         <FlowStep
@@ -166,6 +167,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
           state={allocPhase === "done" ? "ready" : "disabled"}
         />
       </div>
+      )}
 
       {/* Timeline */}
       <div className="flex-1 min-h-0 overflow-y-auto">
