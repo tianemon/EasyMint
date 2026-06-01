@@ -67,6 +67,24 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
     setMainWindow(window);
     detectClaude();
     registerIpcHandlers({ mainWindow: window, ...sharedServices });
+
+    // Clean up orphaned SDK session directories for deleted projects
+    try {
+      const fs = require("fs");
+      const sdkDir = path.join(os.homedir(), ".easymint", "sdk-config", "projects");
+      if (fs.existsSync(sdkDir)) {
+        const projects = store.getProjects().map((p: { path: string }) => p.path.replace(/\//g, "-"));
+        for (const entry of fs.readdirSync(sdkDir)) {
+          if (!projects.includes(entry)) {
+            const full = path.join(sdkDir, entry);
+            if (fs.statSync(full).isDirectory()) {
+              fs.rmSync(full, { recursive: true, force: true });
+              console.log("[init] cleaned orphaned SDK sessions:", entry);
+            }
+          }
+        }
+      }
+    } catch { /* best effort */ }
     isMain = true;
   }
 
