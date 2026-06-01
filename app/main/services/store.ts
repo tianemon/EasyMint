@@ -103,8 +103,8 @@ export class Store {
       evaluateMode: emData.evaluateMode as boolean | undefined,
       tddMode: emData.tddMode as boolean | undefined,
       screenshotVerification: emData.screenshotVerification as boolean | undefined,
-      apiBaseUrl: env.ANTHROPIC_BASE_URL || (sdkData.apiBaseUrl as string),
-      apiKey: env.ANTHROPIC_AUTH_TOKEN || (sdkData.apiKey as string),
+      apiBaseUrl: emData.apiBaseUrl as string || env.ANTHROPIC_BASE_URL || (sdkData.apiBaseUrl as string),
+      apiKey: emData.apiKey as string || env.ANTHROPIC_AUTH_TOKEN || (sdkData.apiKey as string),
       lastProjectId: emData.lastProjectId as string | undefined,
     };
   }
@@ -134,6 +134,8 @@ export class Store {
     data.tddMode = settings.tddMode;
     data.screenshotVerification = settings.screenshotVerification;
     data.lastProjectId = settings.lastProjectId;
+    if (settings.apiKey) data.apiKey = settings.apiKey;
+    if (settings.apiBaseUrl) data.apiBaseUrl = settings.apiBaseUrl;
     fs.writeFileSync(this.emSettingsPath, JSON.stringify(data, null, 2));
   }
 
