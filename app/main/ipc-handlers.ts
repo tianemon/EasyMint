@@ -145,6 +145,29 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     } catch { return { done: false, reason: "error" }; }
   });
 
+  // project:readState — read .easymint/state.json in project
+  ipcMain.handle("project:readState", (_e, { projectPath }) => {
+    try {
+      const p = require("path");
+      const fs = require("fs");
+      const filePath = p.join(projectPath, ".easymint", "state.json");
+      if (!fs.existsSync(filePath)) return null;
+      return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    } catch { return null; }
+  });
+
+  // project:writeState — write .easymint/state.json in project
+  ipcMain.handle("project:writeState", (_e, { projectPath, state }) => {
+    try {
+      const p = require("path");
+      const fs = require("fs");
+      const dir = p.join(projectPath, ".easymint");
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(p.join(dir, "state.json"), JSON.stringify(state, null, 2));
+      return true;
+    } catch { return false; }
+  });
+
   // task:read — read task.json and return tasks
   ipcMain.handle("task:read", (_e, { projectPath }) => {
     try {
