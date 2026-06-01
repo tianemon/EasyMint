@@ -133,6 +133,18 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("system-prompt:get-init-instruction", () => PROJECT_INIT_INSTRUCTION);
   ipcMain.handle("system-prompt:get-task-instruction", () => TASK_ALLOCATION_INSTRUCTION);
 
+  // project:checkInitStatus — check if init.sh has been filled
+  ipcMain.handle("project:checkInitStatus", (_e, { projectPath }) => {
+    try {
+      const p = require("path");
+      const fs = require("fs");
+      const filePath = p.join(projectPath, "init.sh");
+      if (!fs.existsSync(filePath)) return { done: false, reason: "init.sh not found" };
+      const content = fs.readFileSync(filePath, "utf-8");
+      return { done: !content.includes("{{PROJECT_DIR}}"), reason: content.includes("{{PROJECT_DIR}}") ? "still template" : "filled" };
+    } catch { return { done: false, reason: "error" }; }
+  });
+
   // task:read — read task.json and return tasks
   ipcMain.handle("task:read", (_e, { projectPath }) => {
     try {

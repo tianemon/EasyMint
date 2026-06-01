@@ -2,9 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { normalizeEvent } from "./StreamPanel";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { chatActions } from "../stores/chat-actions";
-
-/** Track which sessions have already shown the allocate button */
-const _allocSentSessions = new Set<string>();
+import { useProjectStatusStore } from "../stores/project-status-store";
 
 
 interface ChatMessage {
@@ -253,9 +251,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 ? msg.entries.filter((e) => e.kind === "text").map((e: { text?: string }) => e.text ?? "").join("")
                 : "";
               const hasInitPrompt = isLast && aiText.includes("帮我初始化开发环境");
-              const hasTaskPrompt = isLast && aiText.includes("开始分配开发任务") && !_allocSentSessions.has(existingSid || "");
+              const allocPhase = useProjectStatusStore.getState().allocPhase;
+              const hasTaskPrompt = isLast && aiText.includes("开始分配开发任务") && allocPhase === "pending";
               const handleAllocateTasks = async () => {
-                if (existingSid) _allocSentSessions.add(existingSid);
                 try {
                   const instruction = await window.electronAPI.systemPrompt.getTaskInstruction();
                   if (instruction) await sendText(instruction);

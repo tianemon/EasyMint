@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useTaskStore } from "../stores/task-store";
+import { useProjectStatusStore } from "../stores/project-status-store";
 import { chatActions } from "../stores/chat-actions";
 
 interface TaskPanelProps {
@@ -56,17 +57,17 @@ function FlowArrow({ done }: { done: boolean }): JSX.Element {
 
 export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Element {
   const { tasks } = useTaskStore();
+  const { initPhase, allocPhase, setPhase } = useProjectStatusStore();
   const [density, setDensity] = useState(2);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Flow phase tracking (module-level, survives remounts)
-  const tasksAllocated = tasks.length > 0;
-
   const handleInitEnv = () => {
+    setPhase("initPhase", "running");
     chatActions.send("帮我初始化开发环境");
   };
 
   const handleAllocateTasks = async () => {
+    setPhase("allocPhase", "running");
     try {
       const instruction = await window.electronAPI.systemPrompt.getTaskInstruction();
       if (instruction) chatActions.send(instruction);
@@ -145,24 +146,24 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
 
       {/* Flow indicator — three steps with arrows */}
       <div className="flex items-center justify-center gap-1.5 px-3 py-2.5 border-b border-border/50 bg-surface-alt shrink-0">
-        {/* Step 1: Init — always ready, done when tasks exist */}
+        {/* Step 1: Init */}
         <FlowStep
           label="初始化环境"
-          state={tasksAllocated ? "done" : "ready"}
-          onClick={tasksAllocated ? undefined : handleInitEnv}
+          state={initPhase === "done" ? "done" : initPhase === "running" ? "running" : "ready"}
+          onClick={initPhase === "done" ? undefined : handleInitEnv}
         />
-        <FlowArrow done={tasksAllocated} />
-        {/* Step 2: Allocate — ready after init, done when tasks exist */}
+        <FlowArrow done={initPhase === "done"} />
+        {/* Step 2: Allocate */}
         <FlowStep
           label="分配任务"
-          state={tasksAllocated ? "done" : "ready"}
-          onClick={tasksAllocated ? undefined : handleAllocateTasks}
+          state={allocPhase === "done" ? "done" : allocPhase === "running" ? "running" : initPhase === "done" ? "ready" : "disabled"}
+          onClick={initPhase === "done" && allocPhase !== "done" ? handleAllocateTasks : undefined}
         />
-        <FlowArrow done={false} />
-        {/* Step 3: Execute — disabled until tasks exist, then ready */}
+        <FlowArrow done={allocPhase === "done"} />
+        {/* Step 3: Execute */}
         <FlowStep
           label="执行任务"
-          state={tasksAllocated ? "ready" : "disabled"}
+          state={allocPhase === "done" ? "ready" : "disabled"}
         />
       </div>
 

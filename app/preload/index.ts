@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     create: (opts: { name: string; path: string }) => ipcRenderer.invoke("project:create", opts),
     delete: (id: string) => ipcRenderer.invoke("project:delete", { id }),
     get: (id: string) => ipcRenderer.invoke("project:get", { id }),
+    checkInitStatus: (projectPath: string) => ipcRenderer.invoke("project:checkInitStatus", { projectPath }),
   },
   file: {
     readTree: (dirPath: string) => ipcRenderer.invoke("file:readTree", { dirPath }),

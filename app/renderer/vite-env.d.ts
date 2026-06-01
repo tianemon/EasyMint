@@ -59,6 +59,7 @@ interface ElectronAPI {
     create: (opts: { name: string; path: string }) => Promise<Project>;
     delete: (id: string) => Promise<void>;
     get: (id: string) => Promise<Project | undefined>;
+    checkInitStatus: (projectPath: string) => Promise<{ done: boolean; reason: string }>;
   };
   file: {
     readTree: (dirPath: string) => Promise<FileNode[]>;

@@ -13,6 +13,7 @@ import { TitleBar } from "../components/TitleBar";
 import { useWorkspaceStore } from "../stores/workspace-store";
 import { useTabStore } from "../stores/tab-store";
 import { useTaskStore } from "../stores/task-store";
+import { useProjectStatusStore } from "../stores/project-status-store";
 
 export type ActivePanel = "editor" | "files" | "sessions" | "chat";
 
@@ -49,6 +50,7 @@ export function ProjectPage(): JSX.Element {
     // 切换项目时清空标签页和任务
     useTabStore.getState().clearTabs();
     useTaskStore.getState().clearTasks();
+    useProjectStatusStore.getState().reset();
     if (projectId) {
       window.electronAPI.project.get(projectId).then((p) => {
         if (p) {
@@ -63,6 +65,8 @@ export function ProjectPage(): JSX.Element {
           window.electronAPI.settings.setLastProject(projectId);
           // 从 task.json 同步任务到面板
           syncTasks(p.path);
+          // 初始化项目开发状态
+          useProjectStatusStore.getState().sync(p.path);
           // 如果 URL 带有 session 参数，自动打开该会话
           const params = new URLSearchParams(location.search);
           const urlSessionId = params.get("session");
@@ -176,7 +180,7 @@ export function ProjectPage(): JSX.Element {
             projectPath={projectPath}
             sessionId={currentSessionId}
             onSessionCreated={(sid) => { setCurrentSessionId(sid); setSessionRefreshKey((k) => k + 1); }}
-            onActivity={() => { setSessionRefreshKey((k) => k + 1); syncTasks(); }}
+            onActivity={() => { setSessionRefreshKey((k) => k + 1); syncTasks(); useProjectStatusStore.getState().sync(projectPath); }}
           />
         );
       case "file":
