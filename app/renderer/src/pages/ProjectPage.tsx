@@ -63,10 +63,10 @@ export function ProjectPage(): JSX.Element {
           setProjectName(p.name);
           document.title = `${p.name} — EasyMint`;
           window.electronAPI.settings.setLastProject(projectId);
+          // 初始化项目开发状态（必须在 syncTasks 之前，否则会误判已完成）
+          useProjectStatusStore.getState().sync(p.path);
           // 从 task.json 同步任务到面板
           syncTasks(p.path);
-          // 初始化项目开发状态
-          useProjectStatusStore.getState().sync(p.path);
           // 如果 URL 带有 session 参数，自动打开该会话
           const params = new URLSearchParams(location.search);
           const urlSessionId = params.get("session");
