@@ -42,10 +42,10 @@ export function SessionHistory({
   const [menu, setMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, sessionId: "", title: "", pinned: false });
 
   const load = useCallback(() => {
-    if (!projectPath) { setSessions([]); setLoading(false); return; }
+    const path = projectPath || "~/EasyMintProject/workspace/";
     setLoading(true);
     setError(null);
-    window.electronAPI.conv.list(projectPath)
+    window.electronAPI.conv.list(path)
       .then(setSessions)
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "加载失败"))
       .finally(() => setLoading(false));
