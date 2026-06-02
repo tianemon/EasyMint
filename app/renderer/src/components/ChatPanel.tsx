@@ -368,26 +368,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           <option value="bypassPermissions">完全自主</option>
         </select>
         <span className="text-[10px] text-text-secondary hidden sm:inline">权限</span>
-        {availableModels.length > 0 ? (
-          <select
-            className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer max-w-[200px]"
-            value={chatModel || storeModel}
-            onChange={(e) => handleModelChange(e.target.value)}
-            title="切换模型"
-          >
-            {availableModels.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-        ) : (
-          <input
-            className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent w-28"
-            value={chatModel || storeModel}
-            onChange={(e) => handleModelChange(e.target.value)}
-            placeholder="模型 ID"
-            title="手动输入模型 ID"
-          />
-        )}
+        <select
+          className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer max-w-[200px]"
+          value={chatModel || storeModel}
+          onChange={(e) => handleModelChange(e.target.value)}
+          title="切换模型"
+        >
+          {availableModels.map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
         {balanceText && (
           <span className="text-[10px] text-text-secondary cursor-pointer hover:text-accent transition-colors" onClick={refreshBalance} title="点击刷新余额">{balanceText}</span>
         )}

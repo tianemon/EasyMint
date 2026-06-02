@@ -1,15 +1,7 @@
 import { useTabStore } from "../stores/tab-store";
 
 export function TabBar(): JSX.Element {
-  const { tabs, activeTabId, setActiveTab, closeTab, openTab } = useTabStore();
-
-  const handleNewChat = () => {
-    openTab({
-      id: "",
-      type: "chat",
-      title: `Chat ${tabs.filter((t) => t.type === "chat").length + 1}`,
-    });
-  };
+  const { tabs, activeTabId, setActiveTab, closeTab } = useTabStore();
 
   return (
     <div className="flex items-center h-9 bg-surface-alt border-b border-border shrink-0">
@@ -47,15 +39,6 @@ export function TabBar(): JSX.Element {
           );
         })}
       </div>
-
-      {/* New tab button (+) */}
-      <button
-        onClick={handleNewChat}
-        className="h-full w-9 flex items-center justify-center text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors shrink-0 text-base font-medium border-l border-border"
-        data-tooltip="新建 Chat"
-      >
-        +
-      </button>
     </div>
   );
 }
