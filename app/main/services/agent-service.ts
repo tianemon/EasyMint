@@ -151,6 +151,8 @@ export class AgentService {
   private runCounter = 0;
   private chatCounter = 0;
   onWorkerComplete: ((projectPath: string) => void) | null = null;
+  /** Buffer stream events per sessionId — flushed when a late-connecting window requests them */
+  private streamBuffer: Map<string, unknown[]> = new Map();
 
   // ── Worker (one-shot, unchanged) ──────────────────────────────────────
 
@@ -276,15 +278,17 @@ export class AgentService {
             broadcast("agent:chat-session", { chatId: chat.chatId, sessionId: sdkSid });
           }
 
-          // Stream event → renderer
+          // Stream event → renderer + buffer for late-connecting windows
           const event = toStreamEvent(msg, chat.chatId, "chat");
-          if (event) broadcast("agent:stream", event);
+          if (event) {
+            broadcast("agent:stream", event);
+            this.bufferEvent(chat.sessionId || chat.chatId, event);
+          }
 
           // result = turn completed
           if (msg.type === "result") {
             chat.status = "idle";
             broadcast("agent:exit", { runId: chat.chatId, code: msg.subtype === "success" ? 0 : 1 });
-          }
         }
       } catch (err: unknown) {
         if (this.activeChats.has(chat.chatId)) {
@@ -398,6 +402,26 @@ export class AgentService {
   }
 
   /** Interrupt all active sessions — call on app quit or project switch */
+  /** Buffer a stream event for a session. Late-connecting windows can replay via getBufferedStream. */
+  private bufferEvent(key: string, event: unknown): void {
+    if (!this.streamBuffer.has(key)) this.streamBuffer.set(key, []);
+    this.streamBuffer.get(key)!.push(event);
+  }
+
+  /** Return buffered stream events for a session and clear them. Called by new windows on mount. */
+  getBufferedStream(sessionId: string): unknown[] {
+    const events = this.streamBuffer.get(sessionId) || [];
+    this.streamBuffer.delete(sessionId);
+    // Also check by chatId (used as key for brand-new sessions before sessionId is known)
+    const chat = this.findActiveChat(sessionId);
+    if (chat) {
+      const chatEvents = this.streamBuffer.get(chat.chatId) || [];
+      this.streamBuffer.delete(chat.chatId);
+      events.push(...chatEvents);
+    }
+    return events;
+  }
+
   shutdown(): void {
     for (const [id, chat] of this.activeChats) {
       chat.channel.close();

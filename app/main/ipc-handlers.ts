@@ -85,6 +85,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:chatStatus", (_e, { sessionId }) => {
     return agentService.getChatStatus(sessionId);
   });
+  ipcMain.handle("agent:getBufferedStream", (_e, { sessionId }) => {
+    return agentService.getBufferedStream(sessionId);
+  });
   ipcMain.handle("agent:setModel", (_e, { sessionId, model }) => {
     return agentService.setModel(sessionId, model);
   });

@@ -80,6 +80,7 @@ interface ElectronAPI {
     notifySession: (sessionId: string, message: string) => void;
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => Promise<{ chatId: string }>;
     chatStatus: (sessionId: string) => Promise<string | null>;
+    getBufferedStream: (sessionId: string) => Promise<unknown[]>;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;

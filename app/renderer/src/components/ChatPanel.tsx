@@ -117,23 +117,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   // SDK session_id — starts as the incoming prop (null for new sessions)
   const sidRef = useRef<string | null>(existingSid ?? null);
-  // historyReady: true when file-based history has been loaded.
-  // Stream listener only subscribes after this to avoid overwriting history.
-  const historyReadyRef = useRef(!existingSid); // new session = no history to wait for
 
   useEffect(() => {
-    if (existingSid) {
-      sidRef.current = existingSid;
-      historyReadyRef.current = false;
-    } else {
-      historyReadyRef.current = true;
-    }
+    if (existingSid) sidRef.current = existingSid;
   }, [existingSid]);
 
   const scrollToBottom = useCallback((force = false) => {
     if (!containerRef.current) return;
     if (force || autoScrollRef.current) {
-      // Use rAF to ensure DOM has painted the new message
       requestAnimationFrame(() => {
         if (containerRef.current) {
           containerRef.current.scrollTop = containerRef.current.scrollHeight;
@@ -148,60 +139,56 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     autoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   }, []);
 
-  // Load history from SDK file storage FIRST, then allow stream listener to attach.
-  // This ensures complete history regardless of when the window was opened.
+  // Replay buffered stream events (missed during window-creation gap) + load history
   useEffect(() => {
     if (!existingSid) return;
     let cancelled = false;
     const projectDir = projectPath || "~/EasyMintProject/workspace/";
 
-    async function loadWithRetry() {
-      // Retry up to 6 times (300ms, 600ms, 1200ms, 2400ms, 4800ms, 9600ms)
-      for (let attempt = 0; attempt < 6; attempt++) {
-        if (cancelled) return;
-        try {
-          const msgs = await window.electronAPI.conv.messages(existingSid!, projectDir);
-          if (cancelled) return;
-          if (msgs.length > 0) {
-            const mapped = mapSessionMessages(msgs);
-            if (mapped.length > 0) {
-              setMessages(mapped);
-              return; // success
+    (async () => {
+      // 1. Replay any stream events buffered in main process memory
+      try {
+        const buffered = await window.electronAPI.agent.getBufferedStream(existingSid);
+        if (!cancelled && buffered.length > 0) {
+          let currentAiId = 0;
+          for (const raw of buffered) {
+            const entry = normalizeEvent(raw as StreamEvent);
+            if (!entry) continue;
+            if (!currentAiId) {
+              currentAiId = ++msgIdRef.current;
+              setMessages((prev) => [...prev, { id: currentAiId, role: "ai", entries: [entry], timestamp: Date.now() }]);
+            } else {
+              setMessages((prev) => prev.map((m) => m.id === currentAiId ? { ...m, entries: [...(m.entries || []), entry] } : m));
             }
           }
-        } catch { /* retry */ }
-        // Exponential backoff: 300, 600, 1200, 2400, 4800, 9600
-        await new Promise((r) => setTimeout(r, 300 * Math.pow(2, attempt)));
-      }
-      // All retries exhausted — mark ready anyway so stream can work
-    }
+        }
+      } catch { /* ignore */ }
 
-    loadWithRetry().finally(() => {
-      if (!cancelled) historyReadyRef.current = true;
-    });
+      // 2. Load past turns from SDK file storage (retry once if empty)
+      if (cancelled) return;
+      const snapshot = msgIdRef.current;
+      try {
+        let msgs = await window.electronAPI.conv.messages(existingSid, projectDir);
+        if (!cancelled && msgs.length === 0) {
+          await new Promise((r) => setTimeout(r, 500));
+          if (cancelled) return;
+          msgs = await window.electronAPI.conv.messages(existingSid, projectDir);
+        }
+        if (!cancelled && msgs.length > 0 && msgIdRef.current <= snapshot) {
+          const mapped = mapSessionMessages(msgs);
+          if (mapped.length > 0) setMessages(mapped);
+        }
+      } catch { /* ignore */ }
+    })();
 
     return () => { cancelled = true; };
   }, [existingSid, projectPath]);
 
-
-  // Check if session is actively processing (only after history is loaded)
-  useEffect(() => {
-    if (!existingSid || !historyReadyRef.current) return;
-    window.electronAPI.agent.chatStatus(existingSid).then((status) => {
-      if (status === "requesting" || status === "compacting") {
-        setLoading(true);
-        setStreaming(true);
-        setStatusText(status === "compacting" ? "整理上下文中..." : "思考中...");
-      }
-    }).catch(() => {});
-  }, [existingSid]);
-
-  // Stream listener — only active after file-based history is loaded.
-  // Before historyReady, events are dropped (they'll be in the file when we load it).
+  // Stream listener — live events after mount
   useEffect(() => {
     let currentAiId = 0;
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
-      if (!historyReadyRef.current) return; // wait for file-based history first
+      // Buffer replay already handled missed events; only process new ones.
       if (event.source !== "chat") return;
       if (currentRunRef.current && event.runId !== currentRunRef.current) return;
       if (stoppedRef.current) return;
