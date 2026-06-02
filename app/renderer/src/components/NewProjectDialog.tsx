@@ -709,24 +709,6 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
 
   const creatingRef = useRef(false);
 
-  /**
-   * Poll getSessionInfo until SDK has persisted the session to disk.
-   * After SDK sends session_id (onChatSession event), the JSONL file
-   * may not be written yet. getSessionInfo reads from disk, so it
-   * returns null until persistence is complete.
-   */
-  const waitForSessionPersisted = async (sessionId: string, projectPath: string, timeoutMs = 10000): Promise<boolean> => {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-      try {
-        const info = await window.electronAPI.conv.get(sessionId, projectPath);
-        if (info) return true;
-      } catch { /* retry */ }
-      await new Promise((r) => setTimeout(r, 300));
-    }
-    return false;
-  };
-
   const handleCreate = async () => {
     if (creatingRef.current) return;
     creatingRef.current = true;
@@ -734,14 +716,13 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
     try {
       if (createdProject) {
         const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), PROJECT_INIT_INSTRUCTION);
-        // Wait for the init message to complete (Mint responds)
-        await ask(initPrompt).catch(() => {});
+        // Fire-and-forget: don't block navigation waiting for Mint's response.
+        // ChatPanel will stream the reply live after mount, and history loads
+        // automatically once SDK persists the session.
+        ask(initPrompt).catch(() => {});
         const sid = sidRef.current;
-        // Wait until SDK has persisted the session to disk before navigating
-        if (sid) {
-          const persisted = await waitForSessionPersisted(sid, createdProject.path, 10000);
-          console.log("[handleCreate] session %s persisted=%s", sid, persisted);
-        }
+        // Navigate immediately — sidRef was already set in step 1
+        console.log("[handleCreate] navigating with sid=%s", sid);
         if (openInNewWindow) {
           await window.electronAPI.window.openProject(createdProject.id, sid ?? undefined, true);
           onClose();
