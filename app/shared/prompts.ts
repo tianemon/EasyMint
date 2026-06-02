@@ -156,13 +156,7 @@ export function buildProjectCreatedPrompt(ctx: string): string {
 export function buildFeatureRecommendPrompt(ctx: string): string {
   return `请根据以下项目信息推荐功能清单：${ctx}
 
-要求：
-- 只输出功能名称，一行一个，格式为 "- 功能名称"
-- 不要解释、不要分析、不要分类（不要写 P0/P1/P2）
-- 不要输出"为什么选择"或其他任何文字
-- 只输出纯功能列表，就像这样：
-- 功能一
-- 功能二`;
+输出要求：每个功能一行，格式为 "- 功能名称"。不要输出其他内容。`;
 }
 
 /** 项目创建完毕后的初始化触发 */
