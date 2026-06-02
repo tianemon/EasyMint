@@ -74,13 +74,14 @@ interface ElectronAPI {
   };
   agent: {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string }) => Promise<{ chatId: string }>;
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string }) => Promise<{ chatId: string }>;
     abort: (runId: string) => void;
     setModel: (sessionId: string, model: string) => Promise<void>;
     notifySession: (sessionId: string, message: string) => void;
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => Promise<{ chatId: string }>;
     chatStatus: (sessionId: string) => Promise<string | null>;
     getBufferedStream: (sessionId: string) => Promise<unknown[]>;
+    killChat: (chatId: string) => Promise<void>;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;

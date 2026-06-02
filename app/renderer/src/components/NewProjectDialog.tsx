@@ -563,7 +563,6 @@ function Step5Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
 
 function useMintChat(pathRef: React.RefObject<string | null>) {
   const sidRef = useRef<string | null>(null);      // project session
-  const wsSidRef = useRef<string | null>(null);     // workspace session — reused for translations
 
   const getCwd = useCallback(() => {
     return pathRef.current || "~/EasyMintProject/workspace/";
@@ -572,8 +571,8 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
   const WORKSPACE_DIR = "~/EasyMintProject/workspace/";
 
   /** Send a prompt and wait for the full response. Uses sidRef for session reuse. */
-  const ask = useCallback((prompt: string, opts?: { cwd?: string; forceNewSession?: boolean }): Promise<string> => {
-    const cwd = opts?.cwd || getCwd();
+  const ask = useCallback((prompt: string, opts?: { forceNewSession?: boolean }): Promise<string> => {
+    const cwd = getCwd();
     const sessionId = opts?.forceNewSession ? null : sidRef.current;
     return new Promise((resolve) => {
       let chatId = "";
@@ -596,7 +595,10 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
     });
   }, [pathRef]);
 
-  /** Lightweight ask on the workspace chat — reused across all projects for translations etc. */
+  /**
+   * One-shot workspace ask for lightweight tasks like name translation.
+   * Always creates a fresh chat with a fast model, kills it after the response.
+   */
   const askWorkspace = useCallback((prompt: string): Promise<string> => {
     return new Promise((resolve) => {
       let chatId = "";
@@ -605,17 +607,20 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
         if (chatId && event.runId !== chatId) return;
         if (event.type === "assistant" && typeof event.data.text === "string") text += event.data.text;
       });
-      const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => {
-        if (sid) wsSidRef.current = sid;
-      });
       const unsubExit = window.electronAPI.agent.onExit(({ runId }) => {
         if (chatId && runId !== chatId) return;
-        unsubStream(); unsubSession(); unsubExit();
+        unsubStream(); unsubExit();
+        // Kill the throwaway session immediately
+        if (chatId) window.electronAPI.agent.killChat(chatId).catch(() => {});
         resolve(text.trim());
       });
-      window.electronAPI.agent.sendMessage(WORKSPACE_DIR, prompt, { sessionId: wsSidRef.current }).then((result) => {
+      // Always new session, fast model
+      window.electronAPI.agent.sendMessage(WORKSPACE_DIR, prompt, {
+        sessionId: null,
+        model: "deepseek-v4-flash",
+      }).then((result) => {
         chatId = result.chatId;
-      }).catch(() => { unsubStream(); unsubSession(); unsubExit(); resolve(""); });
+      }).catch(() => { unsubStream(); unsubExit(); resolve(""); });
     });
   }, []);
 

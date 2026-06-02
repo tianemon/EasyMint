@@ -205,7 +205,7 @@ export class AgentService {
    * the message is enqueued into the live channel; otherwise a new long-lived
    * query is started.
    */
-  sendMessage(projectPath: string, message: string, resumeSessionId: string | null, permissionMode: string | undefined, mainWindow: BrowserWindow): { chatId: string } {
+  sendMessage(projectPath: string, message: string, resumeSessionId: string | null, permissionMode: string | undefined, mainWindow: BrowserWindow, model?: string): { chatId: string } {
     // Existing session → enqueue into live channel
     if (resumeSessionId) {
       const existing = this.findActiveChat(resumeSessionId);
@@ -219,7 +219,8 @@ export class AgentService {
     // New session
     const chatId = `chat-${++this.chatCounter}`;
     const isResume = !!resumeSessionId;
-    const overrides = isResume ? { resume: resumeSessionId } : {};
+    const overrides: Partial<QueryOptions> = isResume ? { resume: resumeSessionId } : {};
+    if (model) overrides.model = model;
     const mode = (permissionMode as PermissionMode) || "auto";
     const options = buildQueryOptions(projectPath, this.store, isResume, mode, overrides);
 
@@ -383,7 +384,7 @@ export class AgentService {
   }
 
   /** Hard kill a chat session — close channel, abort process, remove */
-  private killChat(chatId: string): void {
+  killChat(chatId: string): void {
     const chat = this.activeChats.get(chatId);
     if (!chat) return;
     chat.channel.close();
