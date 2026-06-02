@@ -20,6 +20,46 @@ function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
 }
 
+/** Map raw SDK session messages to ChatMessage[], extracting user text + assistant entries. */
+function mapSessionMessages(msgs: Array<{ type: string; message: unknown }>): ChatMessage[] {
+  let nextId = 0;
+  const mapped: ChatMessage[] = [];
+  for (const m of msgs) {
+    if (m.type === "user") {
+      const content = (m.message as { content?: string | unknown[] })?.content;
+      const text = typeof content === "string" ? content : Array.isArray(content)
+        ? content.map((b: unknown) => (b as { text?: string })?.text ?? "").join("")
+        : "";
+      if (text && !text.includes("Request interrupted") && !text.includes("No response requested")) {
+        mapped.push({ id: ++nextId, role: "user", text, timestamp: Date.now() });
+      }
+    } else if (m.type === "assistant") {
+      const content = (m.message as { content?: unknown[] })?.content;
+      if (Array.isArray(content)) {
+        const entries: StreamEntry[] = [];
+        for (const block of content) {
+          const b = block as { type?: string; text?: string; thinking?: string; name?: string; input?: unknown; tool_use_id?: string; content?: unknown; is_error?: boolean };
+          if (b.type === "text" && b.text) {
+            if (!b.text.includes("Request interrupted") && !b.text.includes("No response requested")) {
+              entries.push({ kind: "text", text: b.text, timestamp: Date.now() });
+            }
+          } else if (b.type === "thinking" && b.thinking) {
+            entries.push({ kind: "thinking", text: b.thinking, timestamp: Date.now() });
+          } else if (b.type === "tool_use") {
+            entries.push({ kind: "tool_use", id: (b as { id?: string }).id || "", name: b.name || "?", input: b.input || {}, timestamp: Date.now(), collapsed: false, source: "chat" });
+          } else if (b.type === "tool_result") {
+            entries.push({ kind: "tool_result", toolUseId: b.tool_use_id || "", content: String(b.content ?? ""), isError: !!b.is_error, timestamp: Date.now(), source: "chat" });
+          }
+        }
+        if (entries.length > 0) {
+          mapped.push({ id: ++nextId, role: "ai", entries, timestamp: Date.now() });
+        }
+      }
+    }
+  }
+  return mapped;
+}
+
 interface ChatPanelProps {
   projectPath: string;
   /** SDK session ID to resume, undefined = new session */
@@ -77,9 +117,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   // SDK session_id — starts as the incoming prop (null for new sessions)
   const sidRef = useRef<string | null>(existingSid ?? null);
+  // historyReady: true when file-based history has been loaded.
+  // Stream listener only subscribes after this to avoid overwriting history.
+  const historyReadyRef = useRef(!existingSid); // new session = no history to wait for
 
   useEffect(() => {
-    if (existingSid) sidRef.current = existingSid;
+    if (existingSid) {
+      sidRef.current = existingSid;
+      historyReadyRef.current = false;
+    } else {
+      historyReadyRef.current = true;
+    }
   }, [existingSid]);
 
   const scrollToBottom = useCallback((force = false) => {
@@ -100,77 +148,45 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     autoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   }, []);
 
-  // Load history for existing session
+  // Load history from SDK file storage FIRST, then allow stream listener to attach.
+  // This ensures complete history regardless of when the window was opened.
   useEffect(() => {
     if (!existingSid) return;
     let cancelled = false;
-    const load = () => {
-      window.electronAPI.conv.messages(existingSid, projectPath || "~/EasyMintProject/workspace/").then((msgs) => {
+    const projectDir = projectPath || "~/EasyMintProject/workspace/";
+
+    async function loadWithRetry() {
+      // Retry up to 6 times (300ms, 600ms, 1200ms, 2400ms, 4800ms, 9600ms)
+      for (let attempt = 0; attempt < 6; attempt++) {
         if (cancelled) return;
-        const mapped: ChatMessage[] = [];
-        for (const m of msgs) {
-          if (m.type === "user") {
-            const content = (m.message as { content?: string | unknown[] })?.content;
-            const text = typeof content === "string" ? content : Array.isArray(content)
-              ? content.map((b: unknown) => (b as { text?: string })?.text ?? "").join("")
-              : "";
-            if (text && !text.includes("Request interrupted") && !text.includes("No response requested")) mapped.push({ id: ++msgIdRef.current, role: "user", text, timestamp: Date.now() });
-          } else if (m.type === "assistant") {
-            const content = (m.message as { content?: unknown[] })?.content;
-            if (Array.isArray(content)) {
-              const entries: StreamEntry[] = [];
-              for (const block of content) {
-                const b = block as { type?: string; text?: string; thinking?: string; name?: string; input?: unknown; tool_use_id?: string; content?: unknown; is_error?: boolean };
-                if (b.type === "text" && b.text) {
-                  if (!b.text.includes("Request interrupted") && !b.text.includes("No response requested")) {
-                    entries.push({ kind: "text", text: b.text, timestamp: Date.now() });
-                  }
-                } else if (b.type === "thinking" && b.thinking) {
-                  entries.push({ kind: "thinking", text: b.thinking, timestamp: Date.now() });
-                } else if (b.type === "tool_use") {
-                  entries.push({ kind: "tool_use", id: (b as { id?: string }).id || "", name: b.name || "?", input: b.input || {}, timestamp: Date.now(), collapsed: false, source: "chat" });
-                } else if (b.type === "tool_result") {
-                  entries.push({ kind: "tool_result", toolUseId: b.tool_use_id || "", content: String(b.content ?? ""), isError: !!b.is_error, timestamp: Date.now(), source: "chat" });
-                }
-              }
-              if (entries.length > 0) {
-                mapped.push({ id: ++msgIdRef.current, role: "ai", entries, timestamp: Date.now() });
-              }
+        try {
+          const msgs = await window.electronAPI.conv.messages(existingSid!, projectDir);
+          if (cancelled) return;
+          if (msgs.length > 0) {
+            const mapped = mapSessionMessages(msgs);
+            if (mapped.length > 0) {
+              setMessages(mapped);
+              return; // success
             }
           }
-        }
-        if (mapped.length > 0) {
-          setMessages(mapped);
-        } else {
-          // SDK may not have persisted yet — retry once after 800ms
-          setTimeout(() => {
-            if (cancelled) return;
-            window.electronAPI.conv.messages(existingSid, projectPath).then((retryMsgs) => {
-              if (cancelled) return;
-              const retryMapped: ChatMessage[] = [];
-              for (const m of retryMsgs) {
-                if (m.type === "user") {
-                  const content = (m.message as { content?: string | unknown[] })?.content;
-                  const text = typeof content === "string" ? content : Array.isArray(content)
-                    ? content.map((b: unknown) => (b as { text?: string })?.text ?? "").join("")
-                    : "";
-                  if (text && !text.includes("Request interrupted") && !text.includes("No response requested")) retryMapped.push({ id: ++msgIdRef.current, role: "user", text, timestamp: Date.now() });
-                }
-              }
-              if (retryMapped.length > 0) setMessages(retryMapped);
-            }).catch(() => {});
-          }, 800);
-        }
-      }).catch(() => {});
-    };
-    load();
+        } catch { /* retry */ }
+        // Exponential backoff: 300, 600, 1200, 2400, 4800, 9600
+        await new Promise((r) => setTimeout(r, 300 * Math.pow(2, attempt)));
+      }
+      // All retries exhausted — mark ready anyway so stream can work
+    }
+
+    loadWithRetry().finally(() => {
+      if (!cancelled) historyReadyRef.current = true;
+    });
+
     return () => { cancelled = true; };
   }, [existingSid, projectPath]);
 
 
-  // Check if session is actively processing on mount (e.g. user navigated away mid-turn)
+  // Check if session is actively processing (only after history is loaded)
   useEffect(() => {
-    if (!existingSid) return;
+    if (!existingSid || !historyReadyRef.current) return;
     window.electronAPI.agent.chatStatus(existingSid).then((status) => {
       if (status === "requesting" || status === "compacting") {
         setLoading(true);
@@ -180,10 +196,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     }).catch(() => {});
   }, [existingSid]);
 
-  // Stream listener
+  // Stream listener — only active after file-based history is loaded.
+  // Before historyReady, events are dropped (they'll be in the file when we load it).
   useEffect(() => {
     let currentAiId = 0;
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
+      if (!historyReadyRef.current) return; // wait for file-based history first
       if (event.source !== "chat") return;
       if (currentRunRef.current && event.runId !== currentRunRef.current) return;
       if (stoppedRef.current) return;
