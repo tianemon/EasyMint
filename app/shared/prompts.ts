@@ -111,30 +111,20 @@ export const PROJECT_INIT_INSTRUCTION = `按顺序完成以下全部工作：
 
    不在 task.json 中创建任务。任务分配由后续按钮触发。`;
 
-export const TASK_ALLOCATION_INSTRUCTION = `请根据项目文档分配开发任务。
+export const TASK_ALLOCATION_INSTRUCTION = `基于已拆解好的需求，将功能分配为开发任务，写入 task.json。
 
-任务分配的前提是需求拆解：先梳理功能之间的依赖关系和工作流顺序，再决定哪些独立成任务、哪些合并。拆解到位了，任务粒度和依赖关系自然就对了。
-
-1. 读 docs/需求规格.md — 了解所有功能和工作流
-2. 读 docs/架构设计.md — 了解技术栈和系统结构
-3. 按以下原则编辑 task.json：
-
-**拆分原则：**
-- 一个任务 = 用户能理解的一个功能（如"用户注册"，不是"创建表单组件"）
-- 功能复杂到一句话说不清时拆成多个任务
-- 任务太小时合并：少于 50 行代码或只涉及 1 个文件，合并到相邻任务
+拆分原则：
+- 一个任务 = 一个用户可理解的功能（如"用户注册"，不是"创建表单组件"）
+- 复杂功能拆成多个任务，简单功能（<50 行或 1 个文件）合并
 - 按工作流顺序排列，有依赖的任务标注 dependsOn
 
-**格式：**
+格式：
 { "tasks": [
   { "id": 1, "title": "用户注册功能", "description": "...", "steps": ["..."], "passes": false, "evaluated": false },
   { "id": 2, "title": "用户登录功能", "description": "...", "steps": ["..."], "dependsOn": [1], "passes": false, "evaluated": false }
 ]}
 
-**输出格式：**
-- 写入 task.json 文件（覆盖现有内容）
-- 输出原始 JSON（不带 Markdown 代码块标记）
-- 完成后告知用户任务分配情况。如果无需开发，写入空 tasks 数组`;
+输出：覆盖 task.json，原始 JSON 不带 Markdown 代码块。完成后告知分配情况。无需开发则写入空 tasks 数组。`;
 
 // ── 业务 Prompt 构建函数 ────────────────────────────
 
