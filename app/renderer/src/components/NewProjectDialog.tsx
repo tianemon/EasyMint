@@ -636,21 +636,27 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
     if (stepNumber === 1 && !projectPath) {
       setCreating(true);
       try {
-        // If the project name contains non-ASCII, ask Mint to translate for directory name
+        // Create project first so pathRef is set before any ask() call.
+        // Otherwise the first ask() falls back to workspace cwd and the
+        // session binds to the wrong directory forever.
         let dirName = data.name.trim();
-        if (/[^\x00-\x7F]/.test(dirName)) {
-          try {
-            const translated = await ask(`请把"${dirName}"翻译成简短的英文目录名（小写、连字符分隔），直接回复翻译结果不要加任何解释`);
-            if (translated && /^[a-z0-9-]+$/.test(translated.trim())) {
-              dirName = translated.trim();
-            }
-          } catch { /* keep Chinese name if translation fails */ }
-        }
         const project = await window.electronAPI.project.create({ name: dirName, path: data.dir.trim() });
         setProjectPath(project.path);
         pathRef.current = project.path;
         setCreatedProject(project);
         setCreateError(null);
+
+        // Now safe to use ask() — pathRef.current points to the project.
+        // If the name contains non-ASCII, ask Mint to translate and rename.
+        if (/[^\x00-\x7F]/.test(dirName)) {
+          try {
+            const translated = await ask(`请把"${dirName}"翻译成简短的英文目录名（小写、连字符分隔），直接回复翻译结果不要加任何解释`);
+            if (translated && /^[a-z0-9-]+$/.test(translated.trim())) {
+              dirName = translated.trim();
+              // TODO: rename project directory on disk
+            }
+          } catch { /* keep original name */ }
+        }
         await ask(buildProjectCreatedPrompt(buildContext(data, 1)));
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "创建项目失败";
