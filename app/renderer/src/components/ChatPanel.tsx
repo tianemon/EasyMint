@@ -190,6 +190,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       // Buffer replay already handled missed events; only process new ones.
       if (event.source !== "chat") return;
+      // Filter by sessionId: only process events for our own session
+      if (sidRef.current && event.sessionId && event.sessionId !== sidRef.current) return;
       if (currentRunRef.current && event.runId !== currentRunRef.current) return;
       if (stoppedRef.current) return;
       // Track runId from stream events (may be set by sendMessage, but also

@@ -168,7 +168,7 @@ export class AgentService {
         run.query = queryObj;
         for await (const msg of queryObj) {
           if (!this.activeRuns.has(runId)) break;
-          const event = toStreamEvent(msg, runId, "worker");
+          const event = toStreamEvent(msg, runId, "", "worker");
           if (event) broadcast("agent:stream", event);
           if (msg.type === "result") {
             const code = msg.subtype === "success" ? 0 : 1;
@@ -280,7 +280,7 @@ export class AgentService {
           }
 
           // Stream event → renderer + buffer for late-connecting windows
-          const event = toStreamEvent(msg, chat.chatId, "chat");
+          const event = toStreamEvent(msg, chat.chatId, capturedSid, "chat");
           if (event) {
             broadcast("agent:stream", event);
             this.bufferEvent(chat.sessionId || chat.chatId, event);
@@ -456,11 +456,13 @@ let _mainWindow: BrowserWindow | null = null;
 export function setMainWindow(win?: BrowserWindow) { if (win) _mainWindow = win; }
 
 // ── SDK message → StreamEvent mapping ──
-function toStreamEvent(msg: SDKMessage, runId: string, source: "worker" | "chat"): {
-  runId: string; type: string; data: Record<string, unknown>; timestamp: number; source: string;
+function toStreamEvent(msg: SDKMessage, runId: string, sessionId: string, source: "worker" | "chat"): {
+  runId: string; sessionId: string; type: string; data: Record<string, unknown>; timestamp: number; source: string;
 } | null {
   const ts = Date.now();
   const t = msg.type;
+  // Filtering key: ChatPanel only processes events matching its own sessionId
+  const base = { runId, sessionId, timestamp: ts, source };
 
   if (t === "assistant") {
     const content = (msg as { message?: { content?: unknown[] } }).message?.content;
@@ -468,13 +470,13 @@ function toStreamEvent(msg: SDKMessage, runId: string, source: "worker" | "chat"
       const block = content[0] as Record<string, unknown>;
       const blockType = typeof block.type === "string" ? block.type : "text";
       if (blockType === "text") {
-        return { runId, type: "assistant", data: { text: block.text }, timestamp: ts, source };
+        return { ...base, type: "assistant", data: { text: block.text } };
       }
       if (blockType === "tool_use") {
-        return { runId, type: "tool_use", data: { id: block.id, name: block.name, input: block.input }, timestamp: ts, source };
+        return { ...base, type: "tool_use", data: { id: block.id, name: block.name, input: block.input } };
       }
       if (blockType === "thinking") {
-        return { runId, type: "assistant", data: { delta: block.thinking }, timestamp: ts, source };
+        return { ...base, type: "assistant", data: { delta: block.thinking } };
       }
     }
     return null;
@@ -485,7 +487,7 @@ function toStreamEvent(msg: SDKMessage, runId: string, source: "worker" | "chat"
     if (Array.isArray(content) && content.length > 0) {
       const block = content[0] as Record<string, unknown>;
       if (block.type === "tool_result") {
-        return { runId, type: "tool_result", data: { tool_use_id: block.tool_use_id, content: block.content, isError: !!block.is_error }, timestamp: ts, source };
+        return { ...base, type: "tool_result", data: { tool_use_id: block.tool_use_id, content: block.content, isError: !!block.is_error } };
       }
     }
     return null;
@@ -493,7 +495,7 @@ function toStreamEvent(msg: SDKMessage, runId: string, source: "worker" | "chat"
 
   if (t === "result") {
     const rm = msg as { subtype: string; result?: string; is_error?: boolean; session_id?: string };
-    return { runId, type: "system", data: { subtype: rm.subtype, result: rm.result ?? "", is_error: rm.is_error }, timestamp: ts, source };
+    return { ...base, type: "system", data: { subtype: rm.subtype, result: rm.result ?? "", is_error: rm.is_error } };
   }
 
   if (t === "system") {
@@ -501,12 +503,12 @@ function toStreamEvent(msg: SDKMessage, runId: string, source: "worker" | "chat"
     if (subtype === "status") {
       const status = (msg as { status?: string | null }).status;
       const text = status ? STATUS_LABELS[status] ?? status : null;
-      if (text) return { runId, type: "status", data: { text }, timestamp: ts, source };
+      if (text) return { ...base, type: "status", data: { text } };
       return null;
     }
     const skip = new Set(["init", "hook_started", "hook_response", "hook_progress", "memory_recall", "api_retry", "requesting", "compacting", "session_state_changed", "notification", "permission_denied", "files_persisted", "rate_limit"]);
     if (skip.has(subtype)) return null;
-    return { runId, type: "system", data: { message: subtype || "System event" }, timestamp: ts, source };
+    return { ...base, type: "system", data: { message: subtype || "System event" } };
   }
 
   return null;

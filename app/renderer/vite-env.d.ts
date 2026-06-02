@@ -32,6 +32,7 @@ interface Session {
 // JSONL stream event types from Claude --output-format stream-json
 interface StreamEvent {
   runId: string;
+  sessionId?: string;
   type: "assistant" | "message_delta" | "tool_use" | "tool_result" | "user_message" | "system" | "error" | "status";
   data: Record<string, unknown>;
   timestamp: number;
