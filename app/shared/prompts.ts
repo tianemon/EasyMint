@@ -124,7 +124,7 @@ export const TASK_ALLOCATION_INSTRUCTION = `基于已拆解好的需求，将功
   { "id": 2, "title": "用户登录功能", "description": "...", "steps": ["..."], "dependsOn": [1], "passes": false, "evaluated": false }
 ]}
 
-输出：覆盖 task.json，原始 JSON 不带 Markdown 代码块。完成后告知分配情况。无需开发则写入空 tasks 数组。`;
+输出：覆盖 task.json，原始 JSON 不带 Markdown 代码块。完成后告知用户任务分配情况，并提示点击任务面板的「执行任务」按钮启动自动化开发。不要自己开始执行任务。无需开发则写入空 tasks 数组。`;
 
 // ── 业务 Prompt 构建函数 ────────────────────────────
 

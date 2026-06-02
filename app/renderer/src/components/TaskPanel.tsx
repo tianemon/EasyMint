@@ -74,6 +74,15 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
     } catch { /* ignore */ }
   };
 
+  const handleExecute = async () => {
+    try {
+      await window.electronAPI.agent.spawnAgentChat(projectPath, "default-orchestrator",
+        "读 task.json，逐个任务调 Builder 实现、Evaluator 验收，直到全部完成。");
+    } catch (e) {
+      console.error("[TaskPanel] spawnAgentChat failed:", e);
+    }
+  };
+
   // Cmd/Ctrl + scroll or pinch gesture → adjust density
   useEffect(() => {
     const el = panelRef.current;
@@ -162,6 +171,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
         <FlowStep
           label="执行任务"
           state={allocPhase === "done" ? "ready" : "disabled"}
+          onClick={allocPhase === "done" ? handleExecute : undefined}
         />
       </div>
       )}
