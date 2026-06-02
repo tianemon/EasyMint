@@ -602,25 +602,29 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
   const askWorkspace = useCallback((prompt: string): Promise<string> => {
     return new Promise((resolve) => {
       let chatId = "";
+      let sessionId = "";
       let text = "";
       const unsubStream = window.electronAPI.agent.onStream((event: StreamEvent) => {
         if (chatId && event.runId !== chatId) return;
         if (event.type === "assistant" && typeof event.data.text === "string") text += event.data.text;
       });
+      const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => {
+        if (sid) sessionId = sid;
+      });
       const unsubExit = window.electronAPI.agent.onExit(({ runId }) => {
         if (chatId && runId !== chatId) return;
-        unsubStream(); unsubExit();
-        // Kill the throwaway session immediately
+        unsubStream(); unsubSession(); unsubExit();
+        // Kill chat loop + delete session from disk
         if (chatId) window.electronAPI.agent.killChat(chatId).catch(() => {});
+        if (sessionId) window.electronAPI.conv.delete(sessionId, WORKSPACE_DIR).catch(() => {});
         resolve(text.trim());
       });
-      // Always new session, fast model
       window.electronAPI.agent.sendMessage(WORKSPACE_DIR, prompt, {
         sessionId: null,
         model: "deepseek-v4-flash",
       }).then((result) => {
         chatId = result.chatId;
-      }).catch(() => { unsubStream(); unsubExit(); resolve(""); });
+      }).catch(() => { unsubStream(); unsubSession(); unsubExit(); resolve(""); });
     });
   }, []);
 

@@ -192,6 +192,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (event.source !== "chat") return;
       if (currentRunRef.current && event.runId !== currentRunRef.current) return;
       if (stoppedRef.current) return;
+      // Track runId from stream events (may be set by sendMessage, but also
+      // needed when another window initiated the turn, e.g. after project creation)
+      if (!currentRunRef.current) {
+        currentRunRef.current = event.runId;
+        setCurrentRunId(event.runId);
+      }
+      setLoading(true);
       setStreaming(true);
       if (event.type === "status") {
         setStatusText(typeof event.data.text === "string" ? event.data.text : "处理中...");
@@ -392,7 +399,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             rows={3}
             className="flex-1 resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent"
           />
-          {loading ? (
+          {(loading || streaming) ? (
             <button
               onClick={() => { stoppedRef.current = true; const rid = currentRunRef.current; if (rid) window.electronAPI.agent.abort(rid); setLoading(false); setStreaming(false); }}
               className="w-9 h-9 rounded-md bg-danger-bg text-danger flex items-center justify-center hover:bg-danger-bg transition-colors"
