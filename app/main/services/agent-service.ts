@@ -206,6 +206,9 @@ export class AgentService {
    * query is started.
    */
   sendMessage(projectPath: string, message: string, resumeSessionId: string | null, permissionMode: string | undefined, mainWindow: BrowserWindow, model?: string): { chatId: string } {
+    // Diagnostic: check if message has newlines
+    const nlCount = (message.match(/\n/g) || []).length;
+    console.log("[sendMessage] len=%d newlines=%d preview=%s", message.length, nlCount, message.slice(0, 100).replace(/\n/g, "\\n"));
     // Existing session → enqueue into live channel
     if (resumeSessionId) {
       const existing = this.findActiveChat(resumeSessionId);

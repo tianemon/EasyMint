@@ -140,7 +140,7 @@ export const TASK_ALLOCATION_INSTRUCTION = `请根据项目文档分配开发任
 
 /** 项目创建时的需求收集 */
 export function buildProjectCreatedPrompt(ctx: string): string {
-  return `[系统通知] 用户点击了新建项目。请了解以下需求信息，无需回复：\n${ctx}\n收到后只需回复"已记录"。`;
+  return `[系统通知] 用户点击了新建项目。请了解以下需求信息，无需回复：\n${ctx}\n收到后只需回复"已确认"。`;
 }
 
 /** 功能清单推荐 */
