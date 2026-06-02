@@ -139,11 +139,11 @@ export const TASK_ALLOCATION_INSTRUCTION = `请根据项目文档分配开发任
   { "id": 2, "title": "用户登录功能", "description": "...", "steps": ["..."], "dependsOn": [1], "passes": false, "evaluated": false }
 ]}
 
-**注意：**
-- 直接覆盖 task.json，不要创建新文件
-- 写原始 JSON，不要加 Markdown 代码块
+**输出格式：**
+- 写入 task.json 文件（覆盖现有内容）
+- 输出原始 JSON（不带 Markdown 代码块标记）
 - 核心功能排前面，次要功能排后面
-- 完成后告知用户任务分配情况。如果无需开发（项目已完成），写入空的 tasks 数组并直接告知用户`;
+- 完成后告知用户任务分配情况。如果无需开发，写入空 tasks 数组`;
 
 // ── 业务 Prompt 构建函数 ────────────────────────────
 
