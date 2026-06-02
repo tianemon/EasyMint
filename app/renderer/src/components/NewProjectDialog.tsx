@@ -707,11 +707,17 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
     const resp = await ask(buildFeatureRecommendPrompt(ctx));
     setLoadingRec(null);
     if (resp) {
-      const lines = resp.split("\n").filter((l) => /^[-•*]\s/.test(l.trim()));
+      // Extract the first contiguous block of bullet-point lines only.
+      // Stop at the first non-bullet line to avoid mixing in analysis text.
       const parsed: FeatureItem[] = [];
-      for (const line of lines) {
-        const name = line.trim().replace(/^[-•*]\s*/, "");
-        if (name) parsed.push({ name });
+      for (const raw of resp.split("\n")) {
+        const line = raw.trim();
+        if (/^[-•*]\s/.test(line)) {
+          const name = line.replace(/^[-•*]\s*/, "");
+          if (name) parsed.push({ name });
+        } else if (parsed.length > 0) {
+          break; // end of bullet block — skip commentary below
+        }
       }
       if (parsed.length > 0) {
         const current = data.features;
