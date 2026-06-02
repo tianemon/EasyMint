@@ -568,8 +568,10 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
     return pathRef.current || "~/EasyMintProject/workspace/";
   }, [pathRef]);
 
-  const ask = useCallback((prompt: string): Promise<string> => {
-    const cwd = getCwd();
+  /** Send a prompt and wait for the full response. Uses sidRef for session reuse. */
+  const ask = useCallback((prompt: string, opts?: { cwd?: string; forceNewSession?: boolean }): Promise<string> => {
+    const cwd = opts?.cwd || getCwd();
+    const sessionId = opts?.forceNewSession ? null : sidRef.current;
     return new Promise((resolve) => {
       let chatId = "";
       let text = "";
@@ -577,13 +579,15 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
         if (chatId && event.runId !== chatId) return;
         if (event.type === "assistant" && typeof event.data.text === "string") text += event.data.text;
       });
-      const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => { if (sid) sidRef.current = sid; });
+      const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => {
+        if (sid) sidRef.current = sid;
+      });
       const unsubExit = window.electronAPI.agent.onExit(({ runId }) => {
         if (chatId && runId !== chatId) return;
         unsubStream(); unsubSession(); unsubExit();
         resolve(text.trim());
       });
-      window.electronAPI.agent.sendMessage(cwd, prompt, { sessionId: sidRef.current }).then((result) => {
+      window.electronAPI.agent.sendMessage(cwd, prompt, { sessionId }).then((result) => {
         chatId = result.chatId;
       }).catch(() => { unsubStream(); unsubSession(); unsubExit(); resolve(""); });
     });
@@ -636,28 +640,29 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
     if (stepNumber === 1 && !projectPath) {
       setCreating(true);
       try {
-        // Create project first so pathRef is set before any ask() call.
-        // Otherwise the first ask() falls back to workspace cwd and the
-        // session binds to the wrong directory forever.
+        // Step 1a: If name is non-ASCII, translate via workspace chat (fast, throwaway)
         let dirName = data.name.trim();
+        if (/[^\x00-\x7F]/.test(dirName)) {
+          try {
+            const translated = await ask(
+              `请把"${dirName}"翻译成简短的英文目录名（小写、连字符分隔），直接回复翻译结果不要加任何解释`,
+              { cwd: "~/EasyMintProject/workspace/" }
+            );
+            if (translated && /^[a-z0-9-]+$/.test(translated.trim())) {
+              dirName = translated.trim();
+            }
+          } catch { /* keep original name */ }
+        }
+
+        // Step 1b: Create project with (possibly translated) name
         const project = await window.electronAPI.project.create({ name: dirName, path: data.dir.trim() });
         setProjectPath(project.path);
         pathRef.current = project.path;
         setCreatedProject(project);
         setCreateError(null);
 
-        // Now safe to use ask() — pathRef.current points to the project.
-        // If the name contains non-ASCII, ask Mint to translate and rename.
-        if (/[^\x00-\x7F]/.test(dirName)) {
-          try {
-            const translated = await ask(`请把"${dirName}"翻译成简短的英文目录名（小写、连字符分隔），直接回复翻译结果不要加任何解释`);
-            if (translated && /^[a-z0-9-]+$/.test(translated.trim())) {
-              dirName = translated.trim();
-              // TODO: rename project directory on disk
-            }
-          } catch { /* keep original name */ }
-        }
-        await ask(buildProjectCreatedPrompt(buildContext(data, 1)));
+        // Step 1c: Force a new session under the project path (not workspace)
+        await ask(buildProjectCreatedPrompt(buildContext(data, 1)), { forceNewSession: true });
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "创建项目失败";
         setCreateError(msg);
