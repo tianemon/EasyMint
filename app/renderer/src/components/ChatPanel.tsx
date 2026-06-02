@@ -291,7 +291,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                   {msg.role === "user" && msg.text ? (
                     <div className="flex justify-end">
                       <div className="flex flex-col items-end max-w-[82%]">
-                        <div className="bg-accent text-text-inverse rounded-[10px] rounded-br-[4px] px-[14px] py-[10px] text-[13px] leading-[1.55]">
+                        <div className="bg-accent text-text-inverse rounded-[10px] rounded-br-[4px] px-[14px] py-[10px] text-[13px] leading-[1.55] whitespace-pre-wrap">
                           {msg.text}
                         </div>
                         <span className="text-[10px] text-text-secondary mt-0.5 px-1">{formatTime(msg.timestamp)}</span>
