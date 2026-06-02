@@ -289,6 +289,7 @@ export class AgentService {
           if (msg.type === "result") {
             chat.status = "idle";
             broadcast("agent:exit", { runId: chat.chatId, code: msg.subtype === "success" ? 0 : 1 });
+          }
         }
       } catch (err: unknown) {
         if (this.activeChats.has(chat.chatId)) {
