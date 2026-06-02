@@ -562,11 +562,14 @@ function Step5Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
 // ---- AI Helper ----
 
 function useMintChat(pathRef: React.RefObject<string | null>) {
-  const sidRef = useRef<string | null>(null);
+  const sidRef = useRef<string | null>(null);      // project session
+  const wsSidRef = useRef<string | null>(null);     // workspace session — reused for translations
 
   const getCwd = useCallback(() => {
     return pathRef.current || "~/EasyMintProject/workspace/";
   }, [pathRef]);
+
+  const WORKSPACE_DIR = "~/EasyMintProject/workspace/";
 
   /** Send a prompt and wait for the full response. Uses sidRef for session reuse. */
   const ask = useCallback((prompt: string, opts?: { cwd?: string; forceNewSession?: boolean }): Promise<string> => {
@@ -593,7 +596,30 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
     });
   }, [pathRef]);
 
-  return { ask, sidRef };
+  /** Lightweight ask on the workspace chat — reused across all projects for translations etc. */
+  const askWorkspace = useCallback((prompt: string): Promise<string> => {
+    return new Promise((resolve) => {
+      let chatId = "";
+      let text = "";
+      const unsubStream = window.electronAPI.agent.onStream((event: StreamEvent) => {
+        if (chatId && event.runId !== chatId) return;
+        if (event.type === "assistant" && typeof event.data.text === "string") text += event.data.text;
+      });
+      const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => {
+        if (sid) wsSidRef.current = sid;
+      });
+      const unsubExit = window.electronAPI.agent.onExit(({ runId }) => {
+        if (chatId && runId !== chatId) return;
+        unsubStream(); unsubSession(); unsubExit();
+        resolve(text.trim());
+      });
+      window.electronAPI.agent.sendMessage(WORKSPACE_DIR, prompt, { sessionId: wsSidRef.current }).then((result) => {
+        chatId = result.chatId;
+      }).catch(() => { unsubStream(); unsubSession(); unsubExit(); resolve(""); });
+    });
+  }, []);
+
+  return { ask, askWorkspace, sidRef };
 }
 
 // ---- Main Component ----
@@ -615,7 +641,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
   const pathRef = useRef<string | null>(null);
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
   const [loadingRec, setLoadingRec] = useState<string | null>(null);
-  const { ask, sidRef } = useMintChat(pathRef);
+  const { ask, askWorkspace, sidRef } = useMintChat(pathRef);
 
   const updateData = useCallback((patch: Partial<ProjectFormData>) => setData((prev) => ({ ...prev, ...patch })), []);
 
@@ -644,9 +670,8 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
         let dirName = data.name.trim();
         if (/[^\x00-\x7F]/.test(dirName)) {
           try {
-            const translated = await ask(
-              `请把"${dirName}"翻译成简短的英文目录名（小写、连字符分隔），直接回复翻译结果不要加任何解释`,
-              { cwd: "~/EasyMintProject/workspace/" }
+            const translated = await askWorkspace(
+              `请把"${dirName}"翻译成简短的英文目录名（小写、连字符分隔），直接回复翻译结果不要加任何解释`
             );
             if (translated && /^[a-z0-9-]+$/.test(translated.trim())) {
               dirName = translated.trim();
