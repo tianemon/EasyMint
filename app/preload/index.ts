@@ -69,6 +69,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
     fetchModels: () => ipcRenderer.invoke("settings:fetchModels") as Promise<string[]>,
     fetchBalance: () => ipcRenderer.invoke("settings:fetchBalance") as Promise<{ balance_infos?: { currency: string; total_balance: string; granted_balance: string }[] }>,
   },
+  agentTemplates: {
+    list: () => ipcRenderer.invoke("agent-template:list"),
+    create: (input: { name: string; description: string; prompt: string; tools: string[]; model?: string; agentType: string }) => ipcRenderer.invoke("agent-template:create", { input }),
+    update: (id: string, input: { name?: string; description?: string; prompt?: string; tools?: string[]; model?: string; agentType?: string }) => ipcRenderer.invoke("agent-template:update", { id, input }),
+    delete: (id: string) => ipcRenderer.invoke("agent-template:delete", { id }),
+  },
   task: {
     read: (projectPath: string) => ipcRenderer.invoke("task:read", { projectPath }),
     markDone: (projectPath: string, taskId: string) => ipcRenderer.invoke("task:markDone", { projectPath, taskId }),
@@ -100,7 +106,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("agent:sendMessage", { projectPath, message, ...opts }),
     abort: (runId: string) => ipcRenderer.invoke("agent:abort", { runId }),
     setModel: (sessionId: string, model: string) => ipcRenderer.invoke("agent:setModel", { sessionId, model }) as Promise<void>,
-    isSessionActive: (sessionId: string) => ipcRenderer.invoke("agent:isSessionActive", { sessionId }),
+    notifySession: (sessionId: string, message: string) => ipcRenderer.invoke("agent:notifySession", { sessionId, message }),
+    spawnAgentChat: (projectPath: string, templateId: string, message: string) => ipcRenderer.invoke("agent:spawnAgentChat", { projectPath, templateId, message }) as Promise<{ chatId: string }>,
+    chatStatus: (sessionId: string) => ipcRenderer.invoke("agent:chatStatus", { sessionId }),
     onStream: (callback: (event: unknown) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on("agent:stream", handler);

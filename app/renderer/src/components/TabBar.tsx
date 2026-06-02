@@ -48,7 +48,7 @@ export function TabBar(): JSX.Element {
         })}
       </div>
 
-      {/* New tab button (+), creates new chat tab */}
+      {/* New tab button (+) */}
       <button
         onClick={handleNewChat}
         className="h-full w-9 flex items-center justify-center text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors shrink-0 text-base font-medium border-l border-border"

@@ -636,7 +636,17 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
     if (stepNumber === 1 && !projectPath) {
       setCreating(true);
       try {
-        const project = await window.electronAPI.project.create({ name: data.name.trim(), path: data.dir.trim() });
+        // If the project name contains non-ASCII, ask Mint to translate for directory name
+        let dirName = data.name.trim();
+        if (/[^\x00-\x7F]/.test(dirName)) {
+          try {
+            const translated = await ask(`请把"${dirName}"翻译成简短的英文目录名（小写、连字符分隔），直接回复翻译结果不要加任何解释`);
+            if (translated && /^[a-z0-9-]+$/.test(translated.trim())) {
+              dirName = translated.trim();
+            }
+          } catch { /* keep Chinese name if translation fails */ }
+        }
+        const project = await window.electronAPI.project.create({ name: dirName, path: data.dir.trim() });
         setProjectPath(project.path);
         pathRef.current = project.path;
         setCreatedProject(project);
@@ -698,6 +708,25 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
   };
 
   const creatingRef = useRef(false);
+
+  /**
+   * Poll getSessionInfo until SDK has persisted the session to disk.
+   * After SDK sends session_id (onChatSession event), the JSONL file
+   * may not be written yet. getSessionInfo reads from disk, so it
+   * returns null until persistence is complete.
+   */
+  const waitForSessionPersisted = async (sessionId: string, projectPath: string, timeoutMs = 10000): Promise<boolean> => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      try {
+        const info = await window.electronAPI.conv.get(sessionId, projectPath);
+        if (info) return true;
+      } catch { /* retry */ }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    return false;
+  };
+
   const handleCreate = async () => {
     if (creatingRef.current) return;
     creatingRef.current = true;
@@ -705,10 +734,14 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
     try {
       if (createdProject) {
         const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), PROJECT_INIT_INSTRUCTION);
-        // 发送消息，等 2 秒让 SDK 持久化，再跳转
-        ask(initPrompt).catch(() => {});
-        await new Promise((r) => setTimeout(r, 2000));
+        // Wait for the init message to complete (Mint responds)
+        await ask(initPrompt).catch(() => {});
         const sid = sidRef.current;
+        // Wait until SDK has persisted the session to disk before navigating
+        if (sid) {
+          const persisted = await waitForSessionPersisted(sid, createdProject.path, 10000);
+          console.log("[handleCreate] session %s persisted=%s", sid, persisted);
+        }
         if (openInNewWindow) {
           await window.electronAPI.window.openProject(createdProject.id, sid ?? undefined, true);
           onClose();

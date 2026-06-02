@@ -168,17 +168,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   }, [existingSid, projectPath]);
 
 
-  // Check if session is active on mount — show stop button if assistant is working
+  // Check if session is actively processing on mount (e.g. user navigated away mid-turn)
   useEffect(() => {
     if (!existingSid) return;
-    window.electronAPI.agent.isSessionActive(existingSid).then((activeChatId) => {
-      if (activeChatId) {
+    window.electronAPI.agent.chatStatus(existingSid).then((status) => {
+      if (status === "requesting" || status === "compacting") {
         setLoading(true);
         setStreaming(true);
-        setCurrentRunId(activeChatId);
-        currentRunRef.current = activeChatId;
+        setStatusText(status === "compacting" ? "整理上下文中..." : "思考中...");
       }
-    });
+    }).catch(() => {});
   }, [existingSid]);
 
   // Stream listener

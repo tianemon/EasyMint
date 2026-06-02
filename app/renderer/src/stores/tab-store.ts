@@ -18,6 +18,7 @@ interface TabState {
   setActiveTab: (id: string) => void;
   clearTabs: () => void;
   setDirty: (id: string, dirty: boolean) => void;
+  updateTab: (id: string, patch: Partial<Omit<Tab, "id">>) => void;
 }
 
 let nextTabIdx = 0;
@@ -36,7 +37,8 @@ export const useTabStore = create<TabState>((set, get) => ({
     const existing = tabs.find(
       (t) =>
         (tab.type === "file" && t.type === "file" && t.filePath === tab.filePath) ||
-        (tab.type === "chat" && t.type === "chat" && t.sessionId === tab.sessionId)
+        // Only dedup by sessionId if it's a real SDK session (not undefined=new)
+        (tab.type === "chat" && t.type === "chat" && tab.sessionId && t.sessionId === tab.sessionId)
     );
     if (existing) {
       set({ activeTabId: existing.id });
@@ -69,5 +71,9 @@ export const useTabStore = create<TabState>((set, get) => ({
 
   setDirty: (id, dirty) => set((s) => ({
     tabs: s.tabs.map((t) => (t.id === id ? { ...t, dirty } : t)),
+  })),
+
+  updateTab: (id, patch) => set((s) => ({
+    tabs: s.tabs.map((t) => (t.id === id ? { ...t, ...patch } : t)),
   })),
 }));

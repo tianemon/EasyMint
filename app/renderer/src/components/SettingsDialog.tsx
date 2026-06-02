@@ -57,6 +57,127 @@ const TOKEN_ROWS = [
   { label: "全开（评估+TDD+截图）", stars: 4, desc: "所有验证机制全部开启，消耗最高" },
 ];
 
+// ── Agent Templates Tab ──────────────────────────────────────────────────────
+
+function AgentsTab(): JSX.Element {
+  const [templates, setTemplates] = useState<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; agentType: string }[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: "", description: "", prompt: "", tools: "", model: "", agentType: "builder" as string });
+  const [loadError, setLoadError] = useState("");
+
+  const load = () => {
+    window.electronAPI.agentTemplates.list().then(setTemplates).catch((e: unknown) => setLoadError(String(e)));
+  };
+  useEffect(load, []);
+
+  const resetForm = () => {
+    setForm({ name: "", description: "", prompt: "", tools: "", model: "", agentType: "builder" });
+    setEditingId(null);
+  };
+
+  const handleSave = async () => {
+    const toolsArr = form.tools.split(",").map((s) => s.trim()).filter(Boolean);
+    const input = { ...form, tools: toolsArr, model: form.model || undefined };
+    if (editingId) {
+      await window.electronAPI.agentTemplates.update(editingId, input);
+    } else {
+      await window.electronAPI.agentTemplates.create(input);
+    }
+    resetForm();
+    load();
+  };
+
+  const handleEdit = (t: typeof templates[0]) => {
+    setEditingId(t.id);
+    setForm({ name: t.name, description: t.description, prompt: t.prompt, tools: t.tools.join(", "), model: t.model || "", agentType: t.agentType });
+  };
+
+  const handleDelete = async (id: string) => {
+    await window.electronAPI.agentTemplates.delete(id);
+    if (editingId === id) resetForm();
+    load();
+  };
+
+  const AGENT_TYPES = [
+    { value: "mint", label: "Mint（PM / 主对话）" },
+    { value: "orchestrator", label: "Orchestrator（调度者）" },
+    { value: "builder", label: "Builder（开发者）" },
+    { value: "evaluator", label: "Evaluator（验收者）" },
+  ];
+
+  return (
+    <div className="px-6 py-4 overflow-y-auto space-y-4" style={{ maxHeight: "60vh" }}>
+      {loadError && <p className="text-danger text-xs">{loadError}</p>}
+
+      {/* Template List */}
+      {templates.length === 0 ? (
+        <p className="text-text-secondary text-xs text-center py-4">暂无 Agent 模板，创建一个吧。</p>
+      ) : (
+        <div className="space-y-2">
+          {templates.map((t) => (
+            <div key={t.id} className={`p-3 rounded-lg border transition-colors ${editingId === t.id ? "border-accent bg-accent/5" : "border-border hover:border-accent/30"}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-medium text-text-primary">{t.name}</span>
+                  <span className="text-xs text-text-secondary ml-2">{t.agentType}</span>
+                </div>
+                <div className="flex gap-1">
+                  <button className="text-xs text-text-secondary hover:text-accent transition-colors" onClick={() => handleEdit(t)}>编辑</button>
+                  <button className="text-xs text-text-secondary hover:text-danger transition-colors" onClick={() => handleDelete(t.id)}>删除</button>
+                </div>
+              </div>
+              <p className="text-xs text-text-secondary mt-0.5 truncate">{t.description}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Form */}
+      <div className="border-t border-border pt-4">
+        <h3 className="text-sm font-medium text-text-primary mb-3">{editingId ? "编辑模板" : "新建模板"}</h3>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-xs text-text-secondary block mb-1">名称</label>
+              <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如 Builder" />
+            </div>
+            <div className="w-44">
+              <label className="text-xs text-text-secondary block mb-1">类型</label>
+              <select className="input" value={form.agentType} onChange={(e) => setForm({ ...form, agentType: e.target.value })}>
+                {AGENT_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-text-secondary block mb-1">描述（SDK 用于匹配调用时机）</label>
+            <input className="input" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="如：当需要实现 task.json 中的开发任务时使用" />
+          </div>
+          <div>
+            <label className="text-xs text-text-secondary block mb-1">系统提示词</label>
+            <textarea className="input resize-y" rows={4} value={form.prompt} onChange={(e) => setForm({ ...form, prompt: e.target.value })} placeholder="Agent 的身份定义和工作流程..." />
+          </div>
+          <div>
+            <label className="text-xs text-text-secondary block mb-1">工具（逗号分隔）</label>
+            <input className="input" value={form.tools} onChange={(e) => setForm({ ...form, tools: e.target.value })} placeholder="Read, Write, Edit, Bash, Glob, Grep" />
+          </div>
+          <div>
+            <label className="text-xs text-text-secondary block mb-1">模型（可选，不填继承默认）</label>
+            <input className="input" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="如 deepseek-v4-pro" />
+          </div>
+          <div className="flex gap-2">
+            <button className="px-4 py-2 rounded-lg bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors disabled:opacity-40" disabled={!form.name || !form.prompt} onClick={handleSave}>
+              {editingId ? "更新" : "创建"}
+            </button>
+            {editingId && (
+              <button className="px-4 py-2 rounded-lg text-text-secondary text-sm hover:bg-surface-hover transition-colors" onClick={resetForm}>取消</button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Element | null {
   const {
     evaluateMode,
@@ -76,7 +197,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     loadFromElectron,
   } = useSettingsStore();
   const [showKey, setShowKey] = useState(false);
-  const [activeTab, setActiveTab] = useState<"general" | "prompts">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "prompts" | "agents">("general");
 
   useEffect(() => {
     if (open) {
@@ -88,7 +209,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay">
-      <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl modal-card" style={{ width: activeTab === "prompts" ? 620 : 520 }}>
+      <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl modal-card" style={{ width: activeTab === "prompts" || activeTab === "agents" ? 620 : 520 }}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-0 border-b border-border">
           <div className="flex gap-0">
@@ -103,6 +224,12 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               onClick={() => setActiveTab("prompts")}
             >
               提示词
+            </button>
+            <button
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "agents" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setActiveTab("agents")}
+            >
+              Agent 模板
             </button>
           </div>
           <button
@@ -263,8 +390,10 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                 </div>
               </section>
             </div>
-          ) : (
+          ) : activeTab === "prompts" ? (
             <PromptSettings />
+          ) : (
+            <AgentsTab />
           )}
         </div>
 

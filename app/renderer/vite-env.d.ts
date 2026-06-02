@@ -77,7 +77,9 @@ interface ElectronAPI {
     sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string }) => Promise<{ chatId: string }>;
     abort: (runId: string) => void;
     setModel: (sessionId: string, model: string) => Promise<void>;
-    isSessionActive: (sessionId: string) => Promise<string | null>;
+    notifySession: (sessionId: string, message: string) => void;
+    spawnAgentChat: (projectPath: string, templateId: string, message: string) => Promise<{ chatId: string }>;
+    chatStatus: (sessionId: string) => Promise<string | null>;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
@@ -130,6 +132,12 @@ interface ElectronAPI {
     setLastProject: (projectId: string) => Promise<void>;
     fetchModels: () => Promise<string[]>;
     fetchBalance: () => Promise<{ balance_infos?: { currency: string; total_balance: string; granted_balance: string }[] }>;
+  };
+  agentTemplates: {
+    list: () => Promise<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; agentType: string }[]>;
+    create: (input: { name: string; description: string; prompt: string; tools: string[]; model?: string; agentType: string }) => Promise<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; agentType: string }>;
+    update: (id: string, input: { name?: string; description?: string; prompt?: string; tools?: string[]; model?: string; agentType?: string }) => Promise<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; agentType: string }>;
+    delete: (id: string) => Promise<void>;
   };
 }
 

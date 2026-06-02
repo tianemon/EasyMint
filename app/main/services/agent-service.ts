@@ -5,6 +5,7 @@ import { BrowserWindow } from "electron";
 import type { SDKMessage, Options as QueryOptions, PermissionMode } from "@anthropic-ai/claude-agent-sdk";
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
+import { listTemplates, getTemplate } from "./agent-templates";
 
 // Dynamic import — ESM SDK in CJS context (matching Proma pattern)
 type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
@@ -89,6 +90,9 @@ interface ActiveChat {
   query: QueryObj | null;
   projectPath: string;
   currentModel?: string;
+  agentType?: "mint" | "orchestrator" | "builder" | "evaluator";
+  /** SDK status: "requesting" | "compacting" | "idle" — tracks if agent is actively processing */
+  status: string;
 }
 
 /** Build a query options block, reading API config from the Store. */
@@ -108,12 +112,24 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
   if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
   if (settings.apiKey) env.ANTHROPIC_API_KEY = settings.apiKey;
   const customPrompt = isResume ? "" : resolveEffectivePrompt();
+  // Load Agent templates into SDK's options.agents
+  const agents: Record<string, { description: string; prompt: string; tools: string[]; model?: string }> = {};
+  for (const t of listTemplates()) {
+    agents[t.name.toLowerCase().replace(/\s+/g, "-")] = {
+      description: t.description,
+      prompt: t.prompt,
+      tools: t.tools,
+      ...(t.model ? { model: t.model } : {}),
+    };
+  }
+
   return {
     cwd,
     permissionMode,
     model: overrides?.model || settings.model || process.env.ANTHROPIC_MODEL || undefined,
     env,
     systemPrompt: customPrompt ? { type: "preset" as const, preset: "claude_code" as const, append: customPrompt } : undefined,
+    agents: Object.keys(agents).length > 0 ? agents : undefined,
     ...overrides,
   };
 }
@@ -215,6 +231,7 @@ export class AgentService {
       abortController,
       query: null,
       projectPath,
+      status: "idle",
     };
     this.activeChats.set(chatId, chat);
 
@@ -256,7 +273,6 @@ export class AgentService {
           if (!capturedSid && sdkSid) {
             capturedSid = sdkSid;
             chat.sessionId = sdkSid;
-            console.log("[chat-loop] session created: sessionId=%s chatId=%s", sdkSid, chat.chatId);
             broadcast("agent:chat-session", { chatId: chat.chatId, sessionId: sdkSid });
           }
 
@@ -264,11 +280,9 @@ export class AgentService {
           const event = toStreamEvent(msg, chat.chatId, "chat");
           if (event) broadcast("agent:stream", event);
 
-          // result = turn completed. With the long-lived channel the process is
-          // still alive; the renderer treats this as "done with this turn".
+          // result = turn completed
           if (msg.type === "result") {
-            console.log("[chat-loop] turn complete: chatId=%s subtype=%s terminal_reason=%s",
-              chat.chatId, msg.subtype, (msg as { terminal_reason?: string }).terminal_reason);
+            chat.status = "idle";
             broadcast("agent:exit", { runId: chat.chatId, code: msg.subtype === "success" ? 0 : 1 });
           }
         }
@@ -319,6 +333,50 @@ export class AgentService {
     }
   }
 
+  /** Create an independent Agent session from a template */
+  spawnAgentChat(projectPath: string, templateId: string, initialMessage: string): { chatId: string } {
+    const template = getTemplate(templateId);
+    if (!template) throw new Error(`模板不存在: ${templateId}`);
+
+    const chatId = `agent-${++this.chatCounter}`;
+    const mode: PermissionMode = "bypassPermissions";
+    const options = buildQueryOptions(projectPath, this.store, false, mode);
+
+    // Replace the system prompt with the template's prompt
+    options.systemPrompt = {
+      type: "preset" as const,
+      preset: "claude_code" as const,
+      append: template.prompt,
+    };
+    if (template.model) options.model = template.model;
+
+    const abortController = new AbortController();
+    const channel = createMessageChannel(abortController.signal);
+
+    const chat: ActiveChat = {
+      chatId, sessionId: "", channel, abortController, query: null, projectPath,
+      agentType: template.agentType,
+    };
+    this.activeChats.set(chatId, chat);
+
+    channel.enqueue(buildUserMessage(initialMessage, ""));
+    this.startChatLoop(chat, options);
+
+    console.log("[spawnAgentChat] %s (%s) → chatId=%s", template.name, template.agentType, chatId);
+    return { chatId };
+  }
+
+  /** Push a system message into another active chat's channel (cross-Agent communication) */
+  notifySession(targetSessionId: string, message: string): void {
+    const target = this.findActiveChat(targetSessionId);
+    if (!target) {
+      console.warn("[notifySession] target session not active: %s", targetSessionId);
+      return;
+    }
+    target.channel.enqueue(buildUserMessage(message, targetSessionId));
+    console.log("[notifySession] → sessionId=%s", targetSessionId);
+  }
+
   /** Hard kill a chat session — close channel, abort process, remove */
   private killChat(chatId: string): void {
     const chat = this.activeChats.get(chatId);
@@ -333,10 +391,10 @@ export class AgentService {
     console.log("[killChat] hard killed: chatId=%s", chatId);
   }
 
-  /** Check if a session has an active query running, return chatId if so */
-  getActiveChatId(sessionId: string): string | null {
+  /** Get the current SDK status for a session: "requesting" | "compacting" | "idle" | null (unknown/not alive) */
+  getChatStatus(sessionId: string): string | null {
     const chat = this.findActiveChat(sessionId);
-    return chat ? chat.chatId : null;
+    return chat ? chat.status : null;
   }
 
   /** Interrupt all active sessions — call on app quit or project switch */

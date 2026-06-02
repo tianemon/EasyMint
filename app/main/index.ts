@@ -46,6 +46,7 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
     minWidth: 1024,
     minHeight: 700,
     titleBarStyle: "hiddenInset",
+    ...(isDev ? {} : { icon: path.join(__dirname, "..", "..", "..", "assets", "icon.icns") }),
     webPreferences: {
       preload: path.join(__dirname, "..", "..", "preload", "dist", "preload.cjs"),
       contextIsolation: true,
@@ -67,6 +68,11 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
     };
     setMainWindow(window);
     detectClaude();
+    // Seed default Agent templates on first launch
+    try {
+      const { seedDefaults } = require("./services/agent-templates");
+      seedDefaults();
+    } catch { /* ignore */ }
     registerIpcHandlers({ mainWindow: window, ...sharedServices });
 
     // Clean up orphaned SDK session directories for deleted projects

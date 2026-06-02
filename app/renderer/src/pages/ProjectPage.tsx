@@ -43,7 +43,6 @@ export function ProjectPage(): JSX.Element {
   const { tabs, activeTabId, openTab, closeTab } = useTabStore();
 
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
-  const [currentSessionId, setCurrentSessionId] = useState<string | undefined>();
   const [sessionRefreshKey, setSessionRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -72,7 +71,6 @@ export function ProjectPage(): JSX.Element {
           const urlSessionId = params.get("session");
           const isNewProject = params.get("init") === "1";
           if (urlSessionId) {
-            setCurrentSessionId(urlSessionId);
             setActiveSessionId(urlSessionId);
             // 切换到聊天面板并打开此会话 tab
             setActivePanel("chat");
@@ -95,7 +93,6 @@ export function ProjectPage(): JSX.Element {
   const handleSessionClick = useCallback(
     (sessionId: string) => {
       setActiveSessionId(sessionId);
-      setCurrentSessionId(sessionId);
       window.electronAPI.conv.get(sessionId, projectPath || "~/EasyMintProject/workspace/").then((info) => {
         openTab({ id: "", type: "chat", title: info?.title || "对话", sessionId });
       }).catch(() => {
@@ -107,14 +104,16 @@ export function ProjectPage(): JSX.Element {
 
   const handleNewSession = useCallback(() => {
     const tabId = `new-${Date.now()}`;
-    setCurrentSessionId(undefined);
-    openTab({ id: tabId, type: "chat" as const, title: "新会话", sessionId: tabId });
+    // sessionId undefined = ChatPanel treats as brand-new session, not resume
+    openTab({ id: tabId, type: "chat" as const, title: "新会话" });
   }, [openTab]);
 
   const handleSessionDelete = useCallback((sessionId: string) => {
     if (activeSessionId === sessionId) setActiveSessionId(undefined);
-    closeTab(sessionId);
-  }, [activeSessionId, closeTab]);
+    // Close any tab that holds this session (match by sessionId, not tab id)
+    const tab = tabs.find((t) => t.type === "chat" && t.sessionId === sessionId);
+    if (tab) closeTab(tab.id);
+  }, [activeSessionId, closeTab, tabs]);
 
   const syncTasks = useCallback((path?: string) => {
     const p = path || projectPath;
@@ -182,8 +181,13 @@ export function ProjectPage(): JSX.Element {
           <ChatPanel
             key={activeTab.id}
             projectPath={projectPath}
-            sessionId={currentSessionId}
-            onSessionCreated={(sid) => { setCurrentSessionId(sid); setSessionRefreshKey((k) => k + 1); }}
+            sessionId={activeTab.sessionId}
+            onSessionCreated={(sid) => {
+              // Write real SDK session_id back to tab (replaces temporary new-xxx id)
+              useTabStore.getState().updateTab(activeTab.id, { sessionId: sid, title: "新会话" });
+              setActiveSessionId(sid);
+              setSessionRefreshKey((k) => k + 1);
+            }}
             onActivity={() => { setSessionRefreshKey((k) => k + 1); syncTasks(); useProjectStatusStore.getState().sync(projectPath); }}
           />
         );

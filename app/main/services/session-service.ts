@@ -15,9 +15,7 @@ const PINNED_PATH = path.join(DATA_DIR, "pinned-sessions.json");
 
 /** Normalize a directory path for SDK session APIs — expand ~, resolve to absolute, strip trailing slash. */
 function normalizeDir(dir: string): string {
-  // Expand ~ to home directory
   let resolved = dir.startsWith("~") ? path.join(os.homedir(), dir.slice(1)) : dir;
-  // Resolve to absolute and strip trailing slash
   resolved = path.resolve(resolved);
   return resolved;
 }

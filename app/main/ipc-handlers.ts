@@ -16,6 +16,12 @@ import {
   setDefaultPrompt,
 } from "./services/system-prompt-manager";
 import {
+  listTemplates,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate,
+} from "./services/agent-templates";
+import {
   listSessions,
   getSessionMessages,
   renameSession,
@@ -76,8 +82,17 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     agentService.stopChat(runId);
     agentService.abort(runId);
   });
-  ipcMain.handle("agent:isSessionActive", (_e, { sessionId }) => {
-    return agentService.getActiveChatId(sessionId);
+  ipcMain.handle("agent:chatStatus", (_e, { sessionId }) => {
+    return agentService.getChatStatus(sessionId);
+  });
+  ipcMain.handle("agent:setModel", (_e, { sessionId, model }) => {
+    return agentService.setModel(sessionId, model);
+  });
+  ipcMain.handle("agent:notifySession", (_e, { sessionId, message }) => {
+    agentService.notifySession(sessionId, message);
+  });
+  ipcMain.handle("agent:spawnAgentChat", (_e, { projectPath, templateId, message }) => {
+    return agentService.spawnAgentChat(projectPath, templateId, message);
   });
   ipcMain.handle("agent:sendMessage", (_e, { projectPath, message, sessionId, permissionMode }) => {
     return agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow);
@@ -85,9 +100,12 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:stopChat", (_e, { chatId }) => {
     agentService.stopChat(chatId);
   });
-  ipcMain.handle("agent:setModel", (_e, { sessionId, model }) => {
-    return agentService.setModel(sessionId, model);
-  });
+
+  // agent-template:*
+  ipcMain.handle("agent-template:list", () => listTemplates());
+  ipcMain.handle("agent-template:create", (_e, { input }) => createTemplate(input));
+  ipcMain.handle("agent-template:update", (_e, { id, input }) => updateTemplate(id, input));
+  ipcMain.handle("agent-template:delete", (_e, { id }) => { deleteTemplate(id); });
 
   // conversation:* — backed by SDK session APIs
   ipcMain.handle("conv:list", (_e, { projectPath }) => listSessions(projectPath));
