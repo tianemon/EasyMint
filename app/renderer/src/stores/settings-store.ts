@@ -8,12 +8,16 @@ interface SettingsState {
   claudeVersion: string;
   apiBaseUrl: string;
   apiKey: string;
+  model: string;
+  availableModels: string[];
   thinkingBudget: number;
   setEvaluateMode: (enabled: boolean) => void;
   setTddMode: (enabled: boolean) => void;
   setScreenshotVerification: (enabled: boolean) => void;
   setApiBaseUrl: (url: string) => void;
   setApiKey: (key: string) => void;
+  setModel: (model: string) => void;
+  setAvailableModels: (models: string[]) => void;
   setThinkingBudget: (budget: number) => void;
   loadFromElectron: () => Promise<void>;
 }
@@ -26,7 +30,19 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   claudeVersion: "",
   apiBaseUrl: "",
   apiKey: "",
+  model: "",
+  availableModels: [],
+
   thinkingBudget: 0,
+
+  setModel: (model: string) => {
+    set({ model });
+    window.electronAPI?.settings?.set?.("model", model);
+  },
+  setAvailableModels: (availableModels: string[]) => {
+    set({ availableModels });
+    window.electronAPI?.settings?.set?.("availableModels", availableModels);
+  },
 
   setEvaluateMode: (enabled) => {
     set({ evaluateMode: enabled });
@@ -64,6 +80,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
           screenshotVerification: settings.screenshotVerification ?? false,
           apiBaseUrl: settings.apiBaseUrl ?? "",
           apiKey: settings.apiKey ?? "",
+          model: settings.model ?? "",
+          availableModels: settings.availableModels ?? [],
           thinkingBudget: 0,
         });
       }

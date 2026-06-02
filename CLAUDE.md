@@ -2,9 +2,9 @@
 
 ## 项目背景
 
-EasyMint 是为 AI Coding Automation Template 构建的 Electron 桌面 GUI 外壳。让不懂技术的用户通过图形界面完成项目创建、需求采集、一键启动 AI 自动化开发。AI 交互基于 spawn Claude 子进程 + JSONL 流式渲染，Chat 模式支持长会话双向对话。
+EasyMint 是一个 Electron 桌面应用，让不懂技术的用户通过图形界面完成项目创建、需求采集，与 AI 对话驱动开发。AI 交互基于 claude-agent-sdk，Chat 模式采用长生命周期进程 + 消息通道，无需反复启停子进程。
 
-GUI 是 harness，AI 引擎仍是 Claude Code。
+GUI 是 harness，AI 引擎是 claude-agent-sdk。
 
 ## 文件组织
 
@@ -14,16 +14,7 @@ GUI 是 harness，AI 引擎仍是 Claude Code。
   - `app/renderer/` — React + Vite 前端（pages、components、stores）
 - **`docs/`** — 项目文档（APP_SPEC.md、ARCHITECTURE.md、SETUP.md）
 - **`temp/`** — 开发过程中产生的临时文件（调试日志、截图、草稿等）
-- **根目录** — harness 文件：
-  - `CLAUDE.md` — 项目通用上下文
-  - `WORKER.md` — 工作会话操作手册
-  - `EVALUATOR.md` — 评估 Agent 操作手册
-  - `task.json` — 任务定义
-  - `progress.txt` — 会话交接日志
-  - `init.sh` — 环境初始化脚本
-  - `run-automation.sh` — 自动化执行器
-  - `evaluate.sh` — 独立评估启动脚本
-  - `README.md`、`.gitignore`、`LICENSE`
+- **根目录** — `CLAUDE.md`、`README.md`、`.gitignore`、`LICENSE`，以及构建配置文件（`package.json`、`tsconfig.json`、`tailwind.config.js` 等）
 
 ## 常用命令
 
@@ -35,11 +26,14 @@ npm run lint             # ESLint + TypeScript 类型检查
 
 # 测试
 npm run test             # 运行单元测试
-
-# 自动化
-./init.sh                # 环境初始化
-./run-automation.sh N    # 自动化开发（N 轮）
 ```
+
+## 行为准则
+
+- **对用户的提问和需求，永远先给出分析和方案**，和用户确认后再动手。不要在未经允许的情况下直接开始编码
+- **如果用户发了一堆需求且没有标注序号，先拆解用户的需求**，列出序号请用户确认，确保没有遗漏和理解错误
+- **网页访问**：DeepSeek 不支持直接 fetch 网页，需要时使用 Tavily MCP 工具（`tavily_search`、`tavily_extract`）代替 `WebFetch`
+- **删除文件前必须列出清单**，逐项说明原因，等用户明确确认后再动手。禁止直接 `rm -f`
 
 ## 交互约定
 
@@ -95,7 +89,7 @@ npm run test             # 运行单元测试
 | 前端 | React 18 + Vite 5 + TypeScript 5 |
 | 样式 | Tailwind CSS 3 + Radix UI |
 | 状态管理 | zustand |
-| AI 集成 | spawn Claude 子进程 + JSONL 流式解析 |
+| AI 集成 | claude-agent-sdk + 长生命周期进程 + 消息通道 |
 | 存储 | JSON 文件（`~/.easymint/`） |
 | 打包 | electron-builder |
 

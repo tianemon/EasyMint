@@ -64,11 +64,15 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     screenshotVerification,
     apiBaseUrl,
     apiKey,
+    model,
+    availableModels,
     setEvaluateMode,
     setTddMode,
     setScreenshotVerification,
     setApiBaseUrl,
     setApiKey,
+    setModel,
+    setAvailableModels,
     loadFromElectron,
   } = useSettingsStore();
   const [showKey, setShowKey] = useState(false);
@@ -157,6 +161,69 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                         )}
                       </button>
                     </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary block mb-1">可选模型列表</label>
+                    <div className="space-y-1 mb-2">
+                      {availableModels.map((m, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <input
+                            className="flex-1 px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
+                            value={m}
+                            onChange={(e) => {
+                              const next = [...availableModels];
+                              next[i] = e.target.value;
+                              setAvailableModels(next);
+                            }}
+                          />
+                          <button
+                            className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-danger transition-colors text-xs"
+                            onClick={() => setAvailableModels(availableModels.filter((_, j) => j !== i))}
+                          >✕</button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        className="px-3 py-1 rounded border border-dashed border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/5 transition-colors"
+                        onClick={() => setAvailableModels([...availableModels, ""])}
+                      >+ 添加模型</button>
+                      <button
+                        className="px-3 py-1 rounded border border-dashed border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/5 transition-colors"
+                        onClick={async () => {
+                          try {
+                            const models = await window.electronAPI.settings.fetchModels();
+                            if (models.length > 0) setAvailableModels(models);
+                          } catch (e: unknown) {
+                            alert(e instanceof Error ? e.message : "获取失败");
+                          }
+                        }}
+                      >从 API 获取</button>
+                    </div>
+                    <p className="text-[10px] text-text-secondary mt-1.5">在聊天窗口中可切换的模型列表。默认使用第一个或下方指定的模型。</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-secondary block mb-1">默认模型</label>
+                    {availableModels.length > 0 ? (
+                      <select
+                        className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+                        value={model}
+                        onChange={(e) => setModel(e.target.value)}
+                      >
+                        <option value="">— 不限 —</option>
+                        {availableModels.map((m) => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+                        placeholder="deepseek-v4-pro[1m]"
+                        value={model}
+                        onChange={(e) => setModel(e.target.value)}
+                      />
+                    )}
+                    <p className="text-[10px] text-text-secondary mt-0.5">新会话的默认模型，先获取模型列表后可从下拉选择</p>
                   </div>
                 </div>
               </section>

@@ -76,6 +76,7 @@ interface ElectronAPI {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
     sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string }) => Promise<{ chatId: string }>;
     abort: (runId: string) => void;
+    setModel: (sessionId: string, model: string) => Promise<void>;
     isSessionActive: (sessionId: string) => Promise<string | null>;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
@@ -124,9 +125,11 @@ interface ElectronAPI {
     setDefault: (id: string) => Promise<void>;
   };
   settings: {
-    get: () => Promise<{ terminalFontSize: number; evaluateMode: boolean; tddMode: boolean; screenshotVerification: boolean; apiBaseUrl?: string; apiKey?: string }>;
+    get: () => Promise<{ terminalFontSize: number; evaluateMode: boolean; tddMode: boolean; screenshotVerification: boolean; apiBaseUrl?: string; apiKey?: string; model?: string; availableModels?: string[] }>;
     set: (key: string, value: unknown) => Promise<void>;
     setLastProject: (projectId: string) => Promise<void>;
+    fetchModels: () => Promise<string[]>;
+    fetchBalance: () => Promise<{ balance_infos?: { currency: string; total_balance: string; granted_balance: string }[] }>;
   };
 }
 

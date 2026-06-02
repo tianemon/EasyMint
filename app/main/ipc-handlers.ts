@@ -85,6 +85,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:stopChat", (_e, { chatId }) => {
     agentService.stopChat(chatId);
   });
+  ipcMain.handle("agent:setModel", (_e, { sessionId, model }) => {
+    return agentService.setModel(sessionId, model);
+  });
 
   // conversation:* — backed by SDK session APIs
   ipcMain.handle("conv:list", (_e, { projectPath }) => listSessions(projectPath));
@@ -103,6 +106,31 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     const settings = store.getSettings();
     (settings as unknown as Record<string, unknown>)[key] = value;
     store.saveSettings(settings);
+  });
+  ipcMain.handle("settings:fetchModels", async () => {
+    const settings = store.getSettings();
+    const rawUrl = settings.apiBaseUrl || "https://api.deepseek.com";
+    const apiKey = settings.apiKey;
+    if (!apiKey) throw new Error("请先配置 API Key");
+    // /models is at API root, not under /anthropic etc.
+    const origin = new URL(rawUrl).origin;
+    const url = `${origin}/models`;
+    const resp = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const json = await resp.json() as { data?: { id: string }[] };
+    return (json.data || []).map((m: { id: string }) => m.id);
+  });
+  ipcMain.handle("settings:fetchBalance", async () => {
+    const settings = store.getSettings();
+    const rawUrl = settings.apiBaseUrl || "https://api.deepseek.com";
+    const apiKey = settings.apiKey;
+    if (!apiKey) throw new Error("请先配置 API Key");
+    const origin = new URL(rawUrl).origin;
+    const url = `${origin}/user/balance`;
+    const resp = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const json = await resp.json() as { balance_infos?: { currency: string; total_balance: string; granted_balance: string; topped_up_balance: string }[] };
+    return json;
   });
 
   // evaluator:*

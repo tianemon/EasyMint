@@ -33,6 +33,8 @@ interface Settings {
   screenshotVerification?: boolean;
   apiBaseUrl?: string;
   apiKey?: string;
+  model?: string;
+  availableModels?: string[];
   lastProjectId?: string;
 }
 
@@ -105,6 +107,8 @@ export class Store {
       screenshotVerification: emData.screenshotVerification as boolean | undefined,
       apiBaseUrl: env.ANTHROPIC_BASE_URL || (sdkData.apiBaseUrl as string),
       apiKey: env.ANTHROPIC_AUTH_TOKEN || (sdkData.apiKey as string),
+      model: (emData.model as string) || undefined,
+      availableModels: (emData.availableModels as string[]) || undefined,
       lastProjectId: emData.lastProjectId as string | undefined,
     };
   }
@@ -134,6 +138,8 @@ export class Store {
     data.tddMode = settings.tddMode;
     data.screenshotVerification = settings.screenshotVerification;
     data.lastProjectId = settings.lastProjectId;
+    if (settings.model) data.model = settings.model;
+    if (settings.availableModels) data.availableModels = settings.availableModels;
     fs.writeFileSync(this.emSettingsPath, JSON.stringify(data, null, 2));
   }
 

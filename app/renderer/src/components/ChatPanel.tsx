@@ -5,6 +5,7 @@ import { TASK_ALLOCATION_INSTRUCTION } from "../../../shared/prompts";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { chatActions } from "../stores/chat-actions";
 import { useProjectStatusStore } from "../stores/project-status-store";
+import { useSettingsStore } from "../stores/settings-store";
 
 
 interface ChatMessage {
@@ -39,6 +40,36 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const currentRunRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
   const [permissionMode, setPermissionMode] = useState("auto");
+  const storeModel = useSettingsStore((s) => s.model);
+  const setStoreModel = useSettingsStore((s) => s.setModel);
+  const availableModels = useSettingsStore((s) => s.availableModels);
+  const [chatModel, setChatModel] = useState("");
+  const [balanceText, setBalanceText] = useState("");
+
+  const refreshBalance = useCallback(async () => {
+    try {
+      const data = await window.electronAPI.settings.fetchBalance();
+      if (data?.balance_infos?.length) {
+        const b = data.balance_infos[0]!;
+        setBalanceText(`${b.total_balance} ${b.currency}`);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    refreshBalance();
+    const timer = setInterval(refreshBalance, 5 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [refreshBalance]);
+
+  const handleModelChange = useCallback(async (m: string) => {
+    setChatModel(m);
+    setStoreModel(m);
+    const sid = sidRef.current;
+    if (sid) {
+      try { await window.electronAPI.agent.setModel(sid, m); } catch { /* no active query yet */ }
+    }
+  }, [setStoreModel]);
   const allocPhase = useProjectStatusStore((s) => s.allocPhase);
   const msgIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -333,6 +364,29 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           <option value="bypassPermissions">完全自主</option>
         </select>
         <span className="text-[10px] text-text-secondary hidden sm:inline">权限</span>
+        {availableModels.length > 0 ? (
+          <select
+            className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer max-w-[200px]"
+            value={chatModel || storeModel}
+            onChange={(e) => handleModelChange(e.target.value)}
+            title="切换模型"
+          >
+            {availableModels.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+        ) : (
+          <input
+            className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent w-28"
+            value={chatModel || storeModel}
+            onChange={(e) => handleModelChange(e.target.value)}
+            placeholder="模型 ID"
+            title="手动输入模型 ID"
+          />
+        )}
+        {balanceText && (
+          <span className="text-[10px] text-text-secondary cursor-pointer hover:text-accent transition-colors" onClick={refreshBalance} title="点击刷新余额">{balanceText}</span>
+        )}
       </div>
       <div className="border-t border-border p-3 pt-2 shrink-0">
         <div className="flex gap-2 items-end">

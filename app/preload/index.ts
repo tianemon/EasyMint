@@ -66,6 +66,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     get: () => ipcRenderer.invoke("settings:get"),
     set: (key: string, value: unknown) => ipcRenderer.invoke("settings:set", { key, value }),
     setLastProject: (projectId: string) => ipcRenderer.invoke("settings:set-last-project", { projectId }),
+    fetchModels: () => ipcRenderer.invoke("settings:fetchModels") as Promise<string[]>,
+    fetchBalance: () => ipcRenderer.invoke("settings:fetchBalance") as Promise<{ balance_infos?: { currency: string; total_balance: string; granted_balance: string }[] }>,
   },
   task: {
     read: (projectPath: string) => ipcRenderer.invoke("task:read", { projectPath }),
@@ -97,6 +99,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null }) =>
       ipcRenderer.invoke("agent:sendMessage", { projectPath, message, ...opts }),
     abort: (runId: string) => ipcRenderer.invoke("agent:abort", { runId }),
+    setModel: (sessionId: string, model: string) => ipcRenderer.invoke("agent:setModel", { sessionId, model }) as Promise<void>,
     isSessionActive: (sessionId: string) => ipcRenderer.invoke("agent:isSessionActive", { sessionId }),
     onStream: (callback: (event: unknown) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);

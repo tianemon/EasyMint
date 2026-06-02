@@ -88,6 +88,7 @@ interface ActiveChat {
   abortController: AbortController;
   query: QueryObj | null;
   projectPath: string;
+  currentModel?: string;
 }
 
 /** Build a query options block, reading API config from the Store. */
@@ -110,7 +111,7 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
   return {
     cwd,
     permissionMode,
-    model: process.env.ANTHROPIC_MODEL || undefined,
+    model: overrides?.model || settings.model || process.env.ANTHROPIC_MODEL || undefined,
     env,
     systemPrompt: customPrompt ? { type: "preset" as const, preset: "claude_code" as const, append: customPrompt } : undefined,
     ...overrides,
@@ -301,6 +302,20 @@ export class AgentService {
     if (chat?.query) {
       chat.query.interrupt().catch(() => {});
       console.log("[stopChat] soft interrupt: chatId=%s", chatId);
+    }
+  }
+
+  /** Switch model in an active chat session */
+  async setModel(sessionId: string, model: string): Promise<void> {
+    const chat = this.findActiveChat(sessionId);
+    if (!chat?.query) throw new Error("无活跃会话");
+    try {
+      await (chat.query as { setModel?: (m: string) => Promise<void> }).setModel?.(model);
+      chat.currentModel = model;
+      console.log("[setModel] switched to %s for sessionId=%s", model, sessionId);
+    } catch (err) {
+      console.error("[setModel] error:", err);
+      throw err;
     }
   }
 
