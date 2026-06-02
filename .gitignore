@@ -10,3 +10,4 @@ temp/
 .playwright-mcp/
 .playwright-mcp/
 task-*.png
+.codegraph/
