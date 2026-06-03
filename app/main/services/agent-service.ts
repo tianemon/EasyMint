@@ -271,10 +271,13 @@ export class AgentService {
     (async () => {
       try {
         const q = await getQuery();
-        log("[chat-loop] calling SDK query cwd=" + (options.cwd || "?") + " model=" + (options.model || "?"));
-        const queryObj = await q({ prompt: chat.channel.generator, options });
-        chat.query = queryObj;
-        log("[chat-loop] SDK query returned, starting for-await");
+        log("[chat-loop] SDK query: cwd=" + (options.cwd || "?") + " env.ANTHROPIC_BASE_URL=" + (options.env?.ANTHROPIC_BASE_URL || "?") + " env.ANTHROPIC_AUTH_TOKEN=" + (options.env?.ANTHROPIC_AUTH_TOKEN ? "***" : "MISSING"));
+        // Timeout wrapper — reject if SDK hangs > 60s
+        const queryPromise = q({ prompt: chat.channel.generator, options });
+        const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("SDK query() timeout 60s")), 60000));
+        const queryObj = await Promise.race([queryPromise, timeout]);
+        log("[chat-loop] SDK query returned");
+        chat.query = queryObj as QueryObj;
 
         let capturedSid = chat.sessionId;
 
@@ -303,9 +306,9 @@ export class AgentService {
           }
         }
       } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        log("[chat-loop] ERROR: " + msg);
         if (this.activeChats.has(chat.chatId)) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error("[chat-loop] error: chatId=%s %s", chat.chatId, msg);
           broadcast("agent:stderr", { runId: chat.chatId, data: msg, timestamp: Date.now() });
           broadcast("agent:exit", { runId: chat.chatId, code: -1 });
         }
