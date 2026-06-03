@@ -95,9 +95,10 @@ const DEFAULTS: AgentTemplate[] = [
 3. 读 task.json 找到下一个 passes: false 的任务
 4. 实现功能代码，遵循项目编码规范
 5. 运行 lint + build 验证
-6. 标记 task.json 中该任务的 passes: true
+6. git add . && git commit -m "[任务标题]"
+7. 标记 task.json 中该任务的 passes: true
 
-原则：非交互模式，不提问不等反馈。改完立刻 build 验证。3 次失败写入 escalation.json。只负责实现，验收是 Evaluator 的工作。`,
+原则：非交互模式，不提问不等反馈。改完立刻 build 验证。每次完成任务必须 git commit。3 次失败写入 escalation.json。只负责实现，验收是 Evaluator 的工作。`,
     tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
     agentType: "builder",
   },

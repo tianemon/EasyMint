@@ -108,6 +108,7 @@ Builder 独立执行任务时看不到对话历史，只读任务描述和项目
 
 export const PROJECT_INIT_INSTRUCTION = `按顺序完成以下全部工作：
 
+0. git init && git add . && git commit -m "项目初始化：模板"
 1. 按第 13 条的方法拆解需求，将结构化结果写入 docs/需求规格.md。包含：用户目标、工作流、功能树（含输入/输出/异常）、页面/模块结构、数据模型、设计风格。
 2. 写 docs/架构设计.md — 系统架构图（Mermaid）、技术栈说明、页面/组件树、API 设计、环境变量
 3. 写 README.md — 项目名称、简介、技术栈、如何运行
