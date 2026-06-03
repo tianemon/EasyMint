@@ -44,6 +44,10 @@ type RenameSessionFn = typeof import("@anthropic-ai/claude-agent-sdk").renameSes
 type DeleteSessionFn = typeof import("@anthropic-ai/claude-agent-sdk").deleteSession;
 type GetSessionInfoFn = typeof import("@anthropic-ai/claude-agent-sdk").getSessionInfo;
 
+import { appendFileSync } from "node:fs";
+const LOG = path.join(os.homedir(), ".easymint", "easymint.log");
+function log(msg: string) { try { appendFileSync(LOG, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } }
+
 let _listSessions: ListSessionsFn | null = null;
 let _getSessionMessages: GetSessionMessagesFn | null = null;
 let _renameSession: RenameSessionFn | null = null;
@@ -73,9 +77,9 @@ export interface SessionListItem {
 export async function listSessions(projectPath: string): Promise<SessionListItem[]> {
   const { listSessions: ls } = await sdk();
   const normalized = normalizeDir(projectPath);
-  console.log("[listSessions] input=%s → normalized=%s", projectPath || "(empty)", normalized);
+  log("[listSessions] calling SDK with dir=" + normalized);
   const sessions = await ls({ dir: normalized });
-  console.log("[listSessions] SDK returned %d sessions for dir=%s", sessions.length, normalized);
+  log("[listSessions] SDK returned " + sessions.length + " sessions");
   const pinned = readPinned();
 
   return sessions

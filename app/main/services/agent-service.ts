@@ -3,6 +3,9 @@ import path from "path";
 import fs from "fs";
 import { BrowserWindow } from "electron";
 import type { SDKMessage, Options as QueryOptions, PermissionMode } from "@anthropic-ai/claude-agent-sdk";
+
+const LOG = path.join(os.homedir(), ".easymint", "easymint.log");
+function log(msg: string) { try { fs.appendFileSync(LOG, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } }
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { listTemplates, getTemplate } from "./agent-templates";
@@ -13,6 +16,7 @@ let _query: QueryFn | null = null;
 async function getQuery(): Promise<QueryFn> {
   if (!_query) {
     _query = (await import("@anthropic-ai/claude-agent-sdk")).query;
+    log("[getQuery] SDK query function loaded");
   }
   return _query;
 }
@@ -264,9 +268,10 @@ export class AgentService {
     (async () => {
       try {
         const q = await getQuery();
+        log("[chat-loop] calling SDK query...");
         const queryObj = await q({ prompt: chat.channel.generator, options });
         chat.query = queryObj;
-        console.log("[chat-loop] started: chatId=%s sessionId=%s", chat.chatId, chat.sessionId || "(new)");
+        log("[chat-loop] SDK query returned, starting for-await");
 
         let capturedSid = chat.sessionId;
 
