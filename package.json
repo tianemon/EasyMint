@@ -72,7 +72,8 @@
       "app/main/dist/**/*",
       "app/preload/dist/**/*",
       "app/renderer/dist/**/*",
-      "assets/icon.icns"
+      "assets/icon.icns",
+      "assets/icon.ico"
     ],
     "extraResources": [
       {
@@ -86,7 +87,7 @@
     },
     "win": {
       "target": ["nsis", "portable"],
-      "icon": "assets/mint.png",
+      "icon": "assets/icon.ico",
       "signAndEditExecutable": false
     },
     "nsis": {
