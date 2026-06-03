@@ -103,7 +103,7 @@
       "target": ["nsis", "portable"],
       "icon": "assets/icon.png",
       "signAndEditExecutable": true,
-      "files": ["!node_modules/@anthropic-ai/claude-agent-sdk-darwin-*"]
+      "files": ["!node_modules/@anthropic-ai/claude-agent-sdk-darwin-*"],
       "artifactName": "${productName}-windows-${arch}.${ext}"
     },
     "nsis": {
