@@ -123,12 +123,15 @@ for platform in "${SELECTED[@]}"; do
       echo -e "${GREEN}✓ dist-electron/EasyMint-macOS-Intel.dmg${NC}"
       ;;
     win-x64)
+      # Force-install Windows SDK binary for cross-compile from macOS
+      npm install @anthropic-ai/claude-agent-sdk-win32-x64@0.3.156 --no-save --force 2>/dev/null || true
       CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win --x64
       echo -e "${GREEN}✓ Windows x64:${NC}"
       echo "  dist-electron/EasyMint-windows-x64.exe (安装版)"
       echo "  dist-electron/EasyMint-windows-x64-portable.exe (免安装)"
       ;;
     win-arm64)
+      npm install @anthropic-ai/claude-agent-sdk-win32-arm64@0.3.156 --no-save --force 2>/dev/null || true
       CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win --arm64
       echo -e "${GREEN}✓ Windows ARM64:${NC}"
       echo "  dist-electron/EasyMint-windows-arm64.exe (安装版)"
