@@ -91,7 +91,7 @@
     "win": {
       "target": ["nsis", "portable"],
       "icon": "assets/icon.png",
-      "signAndEditExecutable": false,
+      "signAndEditExecutable": true,
       "artifactName": "${productName}-windows-${arch}.${ext}"
     },
     "nsis": {

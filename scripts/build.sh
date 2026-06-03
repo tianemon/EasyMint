@@ -123,13 +123,13 @@ for platform in "${SELECTED[@]}"; do
       echo -e "${GREEN}✓ dist-electron/EasyMint-macOS-Intel.dmg${NC}"
       ;;
     win-x64)
-      npx electron-builder --win --x64
+      CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win --x64
       echo -e "${GREEN}✓ Windows x64:${NC}"
       echo "  dist-electron/EasyMint-windows-x64.exe (安装版)"
       echo "  dist-electron/EasyMint-windows-x64-portable.exe (免安装)"
       ;;
     win-arm64)
-      npx electron-builder --win --arm64
+      CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win --arm64
       echo -e "${GREEN}✓ Windows ARM64:${NC}"
       echo "  dist-electron/EasyMint-windows-arm64.exe (安装版)"
       echo "  dist-electron/EasyMint-windows-arm64-portable.exe (免安装)"
