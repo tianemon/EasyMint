@@ -57,6 +57,9 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
 
   // Initialize shared services once. IPC handlers are registered only for the main window;
   // additional windows reuse the same services via the preload bridge.
+  // DEBUG: open DevTools to see console errors
+  if (!isDev) window.webContents.openDevTools({ mode: "detach" });
+
   if (!sharedServices) {
     const store = new Store();
     sharedServices = {

@@ -12,7 +12,13 @@ type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
 let _query: QueryFn | null = null;
 async function getQuery(): Promise<QueryFn> {
   if (!_query) {
-    _query = (await import("@anthropic-ai/claude-agent-sdk")).query;
+    try {
+      _query = (await import("@anthropic-ai/claude-agent-sdk")).query;
+      console.log("[getQuery] SDK loaded successfully");
+    } catch (err) {
+      console.error("[getQuery] SDK import failed:", err);
+      throw err;
+    }
   }
   return _query;
 }
