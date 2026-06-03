@@ -3,9 +3,6 @@ import path from "path";
 import fs from "fs";
 import { BrowserWindow } from "electron";
 import type { SDKMessage, Options as QueryOptions, PermissionMode } from "@anthropic-ai/claude-agent-sdk";
-
-const LOG = path.join(os.homedir(), ".easymint", "easymint.log");
-function log(msg: string) { try { fs.appendFileSync(LOG, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } }
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { listTemplates, getTemplate } from "./agent-templates";
@@ -15,14 +12,7 @@ type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
 let _query: QueryFn | null = null;
 async function getQuery(): Promise<QueryFn> {
   if (!_query) {
-    log("[getQuery] loading SDK...");
-    try {
-      _query = (await import("@anthropic-ai/claude-agent-sdk")).query;
-      log("[getQuery] OK");
-    } catch (e) {
-      log("[getQuery] ERROR: " + String(e));
-      throw e;
-    }
+    _query = (await import("@anthropic-ai/claude-agent-sdk")).query;
   }
   return _query;
 }

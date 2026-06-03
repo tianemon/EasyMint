@@ -5,7 +5,7 @@
  *   - pinned status (~/.easymint/pinned-sessions.json)
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import type { SDKSessionInfo, SessionMessage } from "@anthropic-ai/claude-agent-sdk";
@@ -50,24 +50,14 @@ let _renameSession: RenameSessionFn | null = null;
 let _deleteSession: DeleteSessionFn | null = null;
 let _getSessionInfo: GetSessionInfoFn | null = null;
 
-const LOG = path.join(os.homedir(), ".easymint", "easymint.log");
-function log(msg: string) { try { appendFileSync(LOG, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } }
-
 async function sdk() {
   if (!_listSessions) {
-    log("[sdk] loading SDK...");
-    try {
-      const m = await import("@anthropic-ai/claude-agent-sdk");
-      _listSessions = m.listSessions;
-      _getSessionMessages = m.getSessionMessages;
-      _renameSession = m.renameSession;
-      _deleteSession = m.deleteSession;
-      _getSessionInfo = m.getSessionInfo;
-      log("[sdk] OK");
-    } catch (e) {
-      log("[sdk] ERROR: " + String(e));
-      throw e;
-    }
+    const m = await import("@anthropic-ai/claude-agent-sdk");
+    _listSessions = m.listSessions;
+    _getSessionMessages = m.getSessionMessages;
+    _renameSession = m.renameSession;
+    _deleteSession = m.deleteSession;
+    _getSessionInfo = m.getSessionInfo;
   }
   return { listSessions: _listSessions!, getSessionMessages: _getSessionMessages!, renameSession: _renameSession!, deleteSession: _deleteSession!, getSessionInfo: _getSessionInfo! };
 }
