@@ -85,7 +85,7 @@
       "category": "public.app-category.developer-tools"
     },
     "win": {
-      "target": "nsis",
+      "target": ["nsis", "portable"],
       "icon": "assets/mint.png",
       "signAndEditExecutable": false
     },
