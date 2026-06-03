@@ -99,8 +99,8 @@ echo -e "${YELLOW}[2/3] 构建主进程 & preload...${NC}"
 npm run build:main --silent
 npm run build:preload --silent
 
-# 清理旧打包产物
-rm -rf dist-electron/* 2>/dev/null || true
+# 清理中间解包目录（安装包会被 electron-builder 自动覆盖）
+rm -rf dist-electron/mac-arm64 dist-electron/mac dist-electron/win-arm64-unpacked dist-electron/win-unpacked dist-electron/.icon-ico dist-electron/builder-debug.yml 2>/dev/null || true
 
 # ── 打包 ──
 
