@@ -128,6 +128,19 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
     };
   }
 
+  // Resolve SDK native binary path — asarUnpack puts it outside the asar
+  let pathToClaudeCodeExecutable: string | undefined;
+  const binaryName = process.platform === "win32" ? "claude.exe" : "claude";
+  const pkgName = `claude-agent-sdk-${process.platform}-${process.arch}`;
+  const possiblePaths = [
+    path.join(process.resourcesPath || "", "app.asar.unpacked", "node_modules", "@anthropic-ai", pkgName, binaryName),
+    path.join(process.resourcesPath || "", "..", "app.asar.unpacked", "node_modules", "@anthropic-ai", pkgName, binaryName),
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) { pathToClaudeCodeExecutable = p; break; }
+  }
+  log("[buildQueryOptions] binary path: " + (pathToClaudeCodeExecutable || "NOT FOUND"));
+
   return {
     cwd,
     permissionMode,
@@ -135,6 +148,7 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
     env,
     systemPrompt: customPrompt ? { type: "preset" as const, preset: "claude_code" as const, append: customPrompt } : undefined,
     agents: Object.keys(agents).length > 0 ? agents : undefined,
+    pathToClaudeCodeExecutable,
     ...overrides,
   };
 }
