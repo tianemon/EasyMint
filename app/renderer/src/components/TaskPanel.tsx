@@ -64,7 +64,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
 
   const handleInitEnv = () => {
     setPhase("initPhase", "running");
-    chatActions.send("帮我初始化开发环境");
+    chatActions.send("[系统消息] 帮我初始化开发环境");
   };
 
   const handleAllocateTasks = async () => {

@@ -680,7 +680,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
         if (/[^\x00-\x7F]/.test(dirName)) {
           try {
             const translated = await askWorkspace(
-              `请把"${dirName}"翻译成简短的英文目录名（小写、连字符分隔），直接回复翻译结果不要加任何解释`
+              `[系统消息] 请把"${dirName}"翻译成简短的英文目录名（小写、连字符分隔），直接回复翻译结果不要加任何解释`
             );
             if (translated && /^[a-z0-9-]+$/.test(translated.trim())) {
               dirName = translated.trim();
@@ -743,7 +743,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
     setLoadingRec("tech");
     const info = `项目名称：${data.name}，${buildContext(data, 4)}`;
     const existingNote = data.techNotes ? `\n用户当前填写的技术偏好：${data.techNotes}` : "";
-    const resp = await ask(`请根据以下项目信息推荐技术方案：${info}${existingNote}\n\n用简洁的文本描述推荐的技术组合，格式如：前端：React + TypeScript + Tailwind CSS，后端：Node.js + Express。一句话说理由。`);
+    const resp = await ask(`[系统消息] 请根据以下项目信息推荐技术方案：${info}${existingNote}\n\n用简洁的文本描述推荐的技术组合，格式如：前端：React + TypeScript + Tailwind CSS，后端：Node.js + Express。一句话说理由。`);
     setLoadingRec(null);
     if (resp) {
       const text = resp.trim();

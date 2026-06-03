@@ -142,7 +142,7 @@ export function buildProjectCreatedPrompt(ctx: string): string {
 
 /** 功能清单推荐 */
 export function buildFeatureRecommendPrompt(ctx: string): string {
-  return `请根据以下项目信息推荐功能清单：${ctx}
+  return `[系统消息] 请根据以下项目信息推荐功能清单：${ctx}
 
 输出要求：每个功能一行，格式为 "- 功能名称"。不要输出其他内容。`;
 }
