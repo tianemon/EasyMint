@@ -77,7 +77,7 @@
       "assets/icon.png"
     ],
     "asarUnpack": [
-      "node_modules/@anthropic-ai/**"
+      "node_modules/**"
     ],
     "extraResources": [
       {
