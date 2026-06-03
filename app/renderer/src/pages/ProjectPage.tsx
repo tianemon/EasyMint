@@ -14,6 +14,12 @@ import { useWorkspaceStore } from "../stores/workspace-store";
 import { useTabStore } from "../stores/tab-store";
 import { useTaskStore } from "../stores/task-store";
 import { useProjectStatusStore } from "../stores/project-status-store";
+import { useSettingsStore } from "../stores/settings-store";
+
+function getWorkspaceDir(): string {
+  const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
+  return `${base.replace(/\/$/, "")}/workspace/`;
+}
 
 export type ActivePanel = "editor" | "files" | "sessions" | "chat";
 
@@ -93,7 +99,7 @@ export function ProjectPage(): JSX.Element {
   const handleSessionClick = useCallback(
     (sessionId: string) => {
       setActiveSessionId(sessionId);
-      window.electronAPI.conv.get(sessionId, projectPath || "~/EasyMintProject/workspace/").then((info) => {
+      window.electronAPI.conv.get(sessionId, projectPath || getWorkspaceDir()).then((info) => {
         openTab({ id: "", type: "chat", title: info?.title || "对话", sessionId });
       }).catch(() => {
         openTab({ id: "", type: "chat", title: "对话", sessionId });

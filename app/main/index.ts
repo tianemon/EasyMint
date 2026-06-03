@@ -79,7 +79,9 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
       if (fs.existsSync(sdkDir)) {
         const projects = store.getProjects().map((p: { path: string }) => p.path.replace(/\//g, "-"));
         // Keep the fallback workspace (no-project sessions use this dir)
-        const workspaceKey = path.join(os.homedir(), "EasyMintProject", "workspace").replace(/\//g, "-");
+        const defaultDir = store.getSettings().defaultProjectDir || path.join(os.homedir(), "EasyMintProject");
+        const workspacePath = defaultDir.startsWith("~") ? path.join(os.homedir(), defaultDir.slice(1), "workspace") : path.join(defaultDir, "workspace");
+        const workspaceKey = workspacePath.replace(/\//g, "-");
         projects.push(workspaceKey);
         for (const entry of fs.readdirSync(sdkDir)) {
           if (!projects.includes(entry)) {

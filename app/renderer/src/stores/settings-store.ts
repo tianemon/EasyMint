@@ -4,6 +4,7 @@ interface SettingsState {
   evaluateMode: boolean;
   tddMode: boolean;
   screenshotVerification: boolean;
+  defaultProjectDir: string;
   claudePath: string;
   claudeVersion: string;
   apiBaseUrl: string;
@@ -14,6 +15,7 @@ interface SettingsState {
   setEvaluateMode: (enabled: boolean) => void;
   setTddMode: (enabled: boolean) => void;
   setScreenshotVerification: (enabled: boolean) => void;
+  setDefaultProjectDir: (dir: string) => void;
   setApiBaseUrl: (url: string) => void;
   setApiKey: (key: string) => void;
   setModel: (model: string) => void;
@@ -26,6 +28,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   evaluateMode: false,
   tddMode: false,
   screenshotVerification: false,
+  defaultProjectDir: "~/EasyMintProject",
   claudePath: "",
   claudeVersion: "",
   apiBaseUrl: "",
@@ -59,6 +62,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     set({ screenshotVerification: enabled });
     window.electronAPI?.settings?.set?.("screenshotVerification", enabled);
   },
+  setDefaultProjectDir: (dir) => {
+    set({ defaultProjectDir: dir });
+    window.electronAPI?.settings?.set?.("defaultProjectDir", dir);
+  },
   setApiBaseUrl: (url) => {
     set({ apiBaseUrl: url });
     window.electronAPI?.settings?.set?.("apiBaseUrl", url);
@@ -78,6 +85,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
           evaluateMode: settings.evaluateMode ?? false,
           tddMode: settings.tddMode ?? false,
           screenshotVerification: settings.screenshotVerification ?? false,
+          defaultProjectDir: settings.defaultProjectDir || "~/EasyMintProject",
           apiBaseUrl: settings.apiBaseUrl ?? "",
           apiKey: settings.apiKey ?? "",
           model: settings.model ?? "",

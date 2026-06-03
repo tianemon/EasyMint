@@ -187,9 +187,11 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     apiKey,
     model,
     availableModels,
+    defaultProjectDir,
     setEvaluateMode,
     setTddMode,
     setScreenshotVerification,
+    setDefaultProjectDir,
     setApiBaseUrl,
     setApiKey,
     setModel,
@@ -250,6 +252,20 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                 <div className="bg-surface-alt rounded-lg px-4 py-3">
                   <p className="text-sm text-text-primary">主题</p>
                   <p className="text-xs text-text-secondary mt-0.5">亮色 Mint（仅亮色）</p>
+                </div>
+              </section>
+
+              {/* 路径 */}
+              <section>
+                <h3 className="text-sm font-medium text-text-secondary mb-2">默认项目路径</h3>
+                <div className="bg-surface-alt rounded-lg px-4 py-3">
+                  <input
+                    className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+                    placeholder="~/EasyMintProject"
+                    value={defaultProjectDir}
+                    onChange={(e) => setDefaultProjectDir(e.target.value)}
+                  />
+                  <p className="text-[10px] text-text-secondary mt-0.5">新建项目时的默认父目录，workspace 会话也存放于此路径下</p>
                 </div>
               </section>
 

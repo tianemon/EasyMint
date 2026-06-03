@@ -1,5 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildTechRecommendPrompt, buildInitTriggerPrompt, PROJECT_INIT_INSTRUCTION } from "../../../shared/prompts";
+import { useSettingsStore } from "../stores/settings-store";
+
+function getWorkspaceDir(): string {
+  const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
+  return `${base.replace(/\/$/, "")}/workspace/`;
+}
 
 // ---- Types ----
 
@@ -123,7 +129,7 @@ const ALL_STEPS = [
 const DEFAULT_DATA: ProjectFormData = {
   name: "",
   targets: ["web"],
-  dir: "~/EasyMintProject/",
+  dir: useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject",
   description: "",
   targetUsers: "",
   completeness: "mvp",
@@ -283,9 +289,9 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
           className="w-full px-3 py-2 rounded-lg bg-surface-alt border border-border text-left text-sm hover:bg-surface-hover transition-colors"
           onClick={async () => { const selected = await window.electronAPI.dialog.openDirectory(); if (selected) onChange({ dir: selected }); }}
         >
-          <span className={data.dir && data.dir !== "~/EasyMintProject/" ? "text-text-primary" : "text-text-secondary"}>{data.dir || "点击选择目录..."}</span>
+          <span className="text-text-secondary">{data.dir || "点击选择目录..."}</span>
         </button>
-        <p className="text-[10px] text-text-secondary mt-1">默认 ~/EasyMintProject/，不选则使用默认路径</p>
+        <p className="text-[10px] text-text-secondary mt-1">默认路径可在设置中修改。不选则使用默认路径</p>
       </div>
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">目标用户</label>
@@ -564,11 +570,11 @@ function Step5Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
 function useMintChat(pathRef: React.RefObject<string | null>) {
   const sidRef = useRef<string | null>(null);      // project session
 
-  const getCwd = useCallback(() => {
-    return pathRef.current || "~/EasyMintProject/workspace/";
-  }, [pathRef]);
+  const WORKSPACE_DIR = getWorkspaceDir();
 
-  const WORKSPACE_DIR = "~/EasyMintProject/workspace/";
+  const getCwd = useCallback(() => {
+    return pathRef.current || WORKSPACE_DIR;
+  }, [pathRef]);
 
   /** Send a prompt and wait for the full response. Uses sidRef for session reuse. */
   const ask = useCallback((prompt: string, opts?: { forceNewSession?: boolean }): Promise<string> => {

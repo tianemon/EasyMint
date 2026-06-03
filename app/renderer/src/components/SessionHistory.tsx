@@ -1,4 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSettingsStore } from "../stores/settings-store";
+
+function getWorkspaceDir(): string {
+  const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
+  return `${base.replace(/\/$/, "")}/workspace/`;
+}
 
 interface SessionItem {
   sessionId: string;
@@ -42,7 +48,7 @@ export function SessionHistory({
   const [menu, setMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, sessionId: "", title: "", pinned: false });
 
   const load = useCallback(() => {
-    const path = projectPath || "~/EasyMintProject/workspace/";
+    const path = projectPath || getWorkspaceDir();
     setLoading(true);
     setError(null);
     window.electronAPI.conv.list(path)
@@ -88,7 +94,7 @@ export function SessionHistory({
 
   const handleDelete = async () => {
     if (!menu.sessionId) return;
-    const path = projectPath || "~/EasyMintProject/workspace/";
+    const path = projectPath || getWorkspaceDir();
     await window.electronAPI.conv.delete(menu.sessionId, path);
     onSessionDelete?.(menu.sessionId);
     setSessions((prev) => prev.filter((s) => s.sessionId !== menu.sessionId));
@@ -99,7 +105,7 @@ export function SessionHistory({
     if (!editingId) return;
     const title = editTitle.trim();
     if (title) {
-      const path = projectPath || "~/EasyMintProject/workspace/";
+      const path = projectPath || getWorkspaceDir();
       await window.electronAPI.conv.rename(editingId, title, path);
       setSessions((prev) => prev.map((s) => (s.sessionId === editingId ? { ...s, title } : s)));
     }

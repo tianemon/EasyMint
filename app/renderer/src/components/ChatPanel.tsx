@@ -7,6 +7,11 @@ import { chatActions } from "../stores/chat-actions";
 import { useProjectStatusStore } from "../stores/project-status-store";
 import { useSettingsStore } from "../stores/settings-store";
 
+function getWorkspaceDir(): string {
+  const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
+  return `${base.replace(/\/$/, "")}/workspace/`;
+}
+
 
 interface ChatMessage {
   id: number;
@@ -143,7 +148,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   useEffect(() => {
     if (!existingSid) return;
     let cancelled = false;
-    const projectDir = projectPath || "~/EasyMintProject/workspace/";
+    const projectDir = projectPath || getWorkspaceDir();
 
     (async () => {
       // 1. Replay any stream events buffered in main process memory

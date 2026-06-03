@@ -127,7 +127,7 @@ interface ElectronAPI {
     setDefault: (id: string) => Promise<void>;
   };
   settings: {
-    get: () => Promise<{ terminalFontSize: number; evaluateMode: boolean; tddMode: boolean; screenshotVerification: boolean; apiBaseUrl?: string; apiKey?: string; model?: string; availableModels?: string[] }>;
+    get: () => Promise<{ defaultProjectDir?: string; terminalFontSize: number; evaluateMode: boolean; tddMode: boolean; screenshotVerification: boolean; apiBaseUrl?: string; apiKey?: string; model?: string; availableModels?: string[] }>;
     set: (key: string, value: unknown) => Promise<void>;
     setLastProject: (projectId: string) => Promise<void>;
     fetchModels: () => Promise<string[]>;

@@ -97,7 +97,9 @@ interface ActiveChat {
 
 /** Build a query options block, reading API config from the Store. */
 function buildQueryOptions(projectPath: string, store: Store, isResume: boolean, permissionMode: PermissionMode = "auto", overrides?: Partial<QueryOptions>): QueryOptions {
-  const resolvedPath = projectPath || path.join(os.homedir(), "EasyMintProject", "workspace");
+  const defaultDir = store.getSettings().defaultProjectDir || path.join(os.homedir(), "EasyMintProject");
+  const baseDir = defaultDir.startsWith("~") ? path.join(os.homedir(), defaultDir.slice(1)) : defaultDir;
+  const resolvedPath = projectPath || path.join(baseDir, "workspace");
   const cwd = path.resolve(resolvedPath.startsWith("~") ? path.join(os.homedir(), resolvedPath.slice(1)) : resolvedPath);
   if (!fs.existsSync(cwd)) fs.mkdirSync(cwd, { recursive: true });
   console.log("[buildQueryOptions] projectPath=%s → cwd=%s", projectPath || "(empty)", cwd);
