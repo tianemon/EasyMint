@@ -1,9 +1,7 @@
 #!/bin/bash
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-cd "$PROJECT_DIR"
+cd "$(dirname "$0")/.."
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -18,30 +16,16 @@ PLATFORMS=(
   "win-arm64|Windows (ARM64)"
 )
 
-# ── 解析命令行参数 ──
-
 SELECTED=()
 if [ $# -gt 0 ]; then
   for arg in "$@"; do
     case "$arg" in
-      mac-arm64|mac-x64|win-x64|win-arm64)
-        SELECTED+=("$arg")
-        ;;
-      all)
-        for p in "${PLATFORMS[@]}"; do
-          SELECTED+=("${p%%|*}")
-        done
-        ;;
-      *)
-        echo -e "${RED}未知平台: $arg${NC}"
-        echo "可用: mac-arm64, mac-x64, win-x64, win-arm64, all"
-        exit 1
-        ;;
+      mac-arm64|mac-x64|win-x64|win-arm64) SELECTED+=("$arg") ;;
+      all) for p in "${PLATFORMS[@]}"; do SELECTED+=("${p%%|*}"); done ;;
+      *) echo -e "${RED}未知平台: $arg${NC}"; echo "可用: mac-arm64, mac-x64, win-x64, win-arm64, all"; exit 1 ;;
     esac
   done
 fi
-
-# ── 交互选择 ──
 
 if [ ${#SELECTED[@]} -eq 0 ]; then
   echo ""
@@ -50,34 +34,19 @@ if [ ${#SELECTED[@]} -eq 0 ]; then
   echo -e "${GREEN}========================================${NC}"
   echo ""
   echo "选择平台（输入序号，空格分隔，如 1 3）："
-  echo ""
   for i in "${!PLATFORMS[@]}"; do
-    key="${PLATFORMS[$i]%%|*}"
-    label="${PLATFORMS[$i]##*|}"
-    printf "  %s) %-30s" "$((i+1))" "$label"
+    printf "  %s) %-30s" "$((i+1))" "${PLATFORMS[$i]##*|}"
     if [ $((i % 2)) -eq 1 ]; then echo ""; fi
   done
   [ $(( ${#PLATFORMS[@]} % 2 )) -eq 1 ] && echo ""
-  echo ""
   echo "  a) 全部"
   echo ""
   read -p "输入: " input
-
   for item in $input; do
     case "$item" in
-      a|A)
-        for p in "${PLATFORMS[@]}"; do
-          SELECTED+=("${p%%|*}")
-        done
-        ;;
-      [1-4])
-        idx=$((item - 1))
-        SELECTED+=("${PLATFORMS[$idx]%%|*}")
-        ;;
-      *)
-        echo -e "${RED}无效选择: $item${NC}"
-        exit 1
-        ;;
+      a|A) for p in "${PLATFORMS[@]}"; do SELECTED+=("${p%%|*}"); done ;;
+      [1-4]) SELECTED+=("${PLATFORMS[$((item-1))]%%|*}") ;;
+      *) echo -e "${RED}无效选择: $item${NC}"; exit 1 ;;
     esac
   done
 fi
@@ -90,9 +59,6 @@ fi
 echo ""
 echo -e "${CYAN}已选择: ${SELECTED[*]}${NC}"
 
-# ── 构建前端 ──
-
-# CodeGraph daemon socket 会导致 electron-builder 打包失败
 rm -f .codegraph/daemon.sock .codegraph/daemon.lock 2>/dev/null || true
 
 echo -e "${YELLOW}[1/3] 构建前端...${NC}"
@@ -102,10 +68,7 @@ echo -e "${YELLOW}[2/3] 构建主进程 & preload...${NC}"
 npm run build:main --silent
 npm run build:preload --silent
 
-# 清理中间解包目录（安装包会被 electron-builder 自动覆盖）
 rm -rf dist-electron/mac-arm64 dist-electron/mac dist-electron/win-arm64-unpacked dist-electron/win-unpacked dist-electron/.icon-ico dist-electron/builder-debug.yml 2>/dev/null || true
-
-# ── 打包 ──
 
 STEP=3
 TOTAL=$(( STEP - 1 + ${#SELECTED[@]} ))
@@ -116,44 +79,26 @@ for platform in "${SELECTED[@]}"; do
 
   case "$platform" in
     mac-arm64)
-      mkdir -p /tmp/easymint-win
-      mv node_modules/@anthropic-ai/claude-agent-sdk-win32-* /tmp/easymint-win/ 2>/dev/null || true
       npx electron-builder --mac --arm64
-      mv /tmp/easymint-win/* node_modules/@anthropic-ai/ 2>/dev/null || true
       mv dist-electron/EasyMint-macOS-arm64.dmg dist-electron/EasyMint-macOS-AppleSilicon.dmg 2>/dev/null || true
       echo -e "${GREEN}✓ dist-electron/EasyMint-macOS-AppleSilicon.dmg${NC}"
       ;;
     mac-x64)
-      mkdir -p /tmp/easymint-win
-      mv node_modules/@anthropic-ai/claude-agent-sdk-win32-* /tmp/easymint-win/ 2>/dev/null || true
       npx electron-builder --mac --x64
-      mv /tmp/easymint-win/* node_modules/@anthropic-ai/ 2>/dev/null || true
       mv dist-electron/EasyMint-macOS-x64.dmg dist-electron/EasyMint-macOS-Intel.dmg 2>/dev/null || true
       echo -e "${GREEN}✓ dist-electron/EasyMint-macOS-Intel.dmg${NC}"
       ;;
     win-x64)
-      echo "Moving darwin packages out of the way..."
-      mkdir -p /tmp/easymint-darwin
-      ls node_modules/@anthropic-ai/claude-agent-sdk-darwin-* >/dev/null 2>&1 && mv -v node_modules/@anthropic-ai/claude-agent-sdk-darwin-* /tmp/easymint-darwin/ || echo "(no darwin packages to move)"
-      [ -d node_modules/@anthropic-ai/claude-agent-sdk-win32-x64 ] || npm install @anthropic-ai/claude-agent-sdk-win32-x64@0.3.161 --no-save --force
-      echo "Building Windows x64..."
-      CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win --x64
-      echo "Restoring darwin packages..."
-      ls /tmp/easymint-darwin/* >/dev/null 2>&1 && mv -v /tmp/easymint-darwin/* node_modules/@anthropic-ai/ || echo "(no darwin packages to restore)"
-      echo "Done."
+      npx electron-builder --win --x64
       echo -e "${GREEN}✓ Windows x64:${NC}"
-      echo "  dist-electron/EasyMint-windows-x64.exe (安装版)"
-      echo "  dist-electron/EasyMint-windows-x64-portable.exe (免安装)"
+      echo "  dist-electron/EasyMint-windows-x64.exe"
+      echo "  dist-electron/EasyMint-windows-x64-portable.exe"
       ;;
     win-arm64)
-      mkdir -p /tmp/easymint-darwin
-      mv node_modules/@anthropic-ai/claude-agent-sdk-darwin-* /tmp/easymint-darwin/ 2>/dev/null || true
-      [ -d node_modules/@anthropic-ai/claude-agent-sdk-win32-arm64 ] || npm install @anthropic-ai/claude-agent-sdk-win32-arm64@0.3.161 --no-save --force
-      CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win --arm64
-      mv /tmp/easymint-darwin/* node_modules/@anthropic-ai/ 2>/dev/null || true
+      npx electron-builder --win --arm64
       echo -e "${GREEN}✓ Windows ARM64:${NC}"
-      echo "  dist-electron/EasyMint-windows-arm64.exe (安装版)"
-      echo "  dist-electron/EasyMint-windows-arm64-portable.exe (免安装)"
+      echo "  dist-electron/EasyMint-windows-arm64.exe"
+      echo "  dist-electron/EasyMint-windows-arm64-portable.exe"
       ;;
   esac
 
