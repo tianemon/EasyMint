@@ -99,6 +99,9 @@ echo -e "${YELLOW}[2/3] 构建主进程 & preload...${NC}"
 npm run build:main --silent
 npm run build:preload --silent
 
+# 清理旧打包产物
+rm -rf dist-electron/* 2>/dev/null || true
+
 # ── 打包 ──
 
 STEP=3
