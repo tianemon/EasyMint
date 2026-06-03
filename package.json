@@ -96,14 +96,12 @@
     "mac": {
       "target": "dmg",
       "category": "public.app-category.developer-tools",
-      "artifactName": "${productName}-macOS-${arch}.${ext}",
-      "files": ["!node_modules/@anthropic-ai/claude-agent-sdk-win32-*"]
+      "artifactName": "${productName}-macOS-${arch}.${ext}"
     },
     "win": {
       "target": ["nsis", "portable"],
       "icon": "assets/icon.png",
       "signAndEditExecutable": true,
-      "files": ["!node_modules/@anthropic-ai/claude-agent-sdk-darwin-*"],
       "artifactName": "${productName}-windows-${arch}.${ext}"
     },
     "nsis": {
