@@ -11,7 +11,7 @@
     "dev:electron": "npm run build:main && npm run build:preload && electron .",
     "build": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder",
     "build:renderer": "vite build --config app/renderer/vite.config.ts",
-    "build:main": "esbuild app/main/index.ts --bundle --platform=node --format=cjs --outfile=app/main/dist/main.cjs --external:electron --external:node-pty",
+    "build:main": "esbuild app/main/index.ts --bundle --platform=node --format=cjs --outfile=app/main/dist/main.cjs --external:electron --external:@anthropic-ai/claude-agent-sdk --external:node-pty",
     "build:preload": "esbuild app/preload/index.ts --bundle --platform=node --format=cjs --outfile=app/preload/dist/preload.cjs --external:electron",
     "lint": "eslint app/ --ext .ts,.tsx && tsc --noEmit -p app/main/tsconfig.json && tsc --noEmit -p app/preload/tsconfig.json && tsc --noEmit -p app/renderer/tsconfig.json",
     "typecheck": "tsc --noEmit -p app/main/tsconfig.json && tsc --noEmit -p app/preload/tsconfig.json && tsc --noEmit -p app/renderer/tsconfig.json",
@@ -74,7 +74,9 @@
       "app/renderer/dist/**/*",
       "assets/icon.icns",
       "assets/icon.ico",
-      "assets/icon.png",
+      "assets/icon.png"
+    ],
+    "asarUnpack": [
       "node_modules/@anthropic-ai/**"
     ],
     "extraResources": [

@@ -15,22 +15,7 @@ type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
 let _query: QueryFn | null = null;
 async function getQuery(): Promise<QueryFn> {
   if (!_query) {
-    log("[getQuery] trying dynamic import...");
-    try {
-      _query = (await import("@anthropic-ai/claude-agent-sdk")).query;
-      log("[getQuery] OK - dynamic import");
-    } catch (e1) {
-      log("[getQuery] FAIL dynamic import: " + String(e1));
-      try {
-        const { createRequire } = await import("module");
-        const req = createRequire(typeof __filename !== "undefined" ? __filename : (import.meta as { url: string }).url);
-        _query = (req("@anthropic-ai/claude-agent-sdk") as typeof import("@anthropic-ai/claude-agent-sdk")).query;
-        log("[getQuery] OK - createRequire fallback");
-      } catch (e2) {
-        log("[getQuery] FAIL createRequire: " + String(e2));
-        throw e2;
-      }
-    }
+    _query = (await import("@anthropic-ai/claude-agent-sdk")).query;
   }
   return _query;
 }
