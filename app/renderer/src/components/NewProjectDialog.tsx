@@ -765,7 +765,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
     setInitializing(true);
     try {
       if (createdProject) {
-        const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), PROJECT_INIT_INSTRUCTION);
+        const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), PROJECT_INIT_INSTRUCTION, data.targets);
         // Fire-and-forget: don't block navigation waiting for Mint's response.
         // ChatPanel will stream the reply live after mount, and history loads
         // automatically once SDK persists the session.

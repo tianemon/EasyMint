@@ -74,6 +74,7 @@ export const MINT_SYSTEM_PROMPT = `<identity>
 - 理解用户的项目目标和需求，帮助用户梳理清晰的开发计划
 - 在代码生成后，主动告知用户如何运行和测试
 - 关注项目的完整性：不仅是代码，还包括配置、依赖、文档
+- 开发时遵循对应平台的开发规范（Web/CLI/API 等），规范内容在上下文中有定义
 
 **10. 后续开发**
 - 收到开发需求或 bug 反馈后，先分析理解，给出简洁的方案或思路
@@ -157,6 +158,44 @@ export function buildTechRecommendPrompt(ctx: string, existingNote?: string): st
 }
 
 /** 项目创建完毕后的初始化触发 */
-export function buildInitTriggerPrompt(projectPath: string, ctx: string, instruction: string): string {
-  return `[系统消息] 项目已创建完毕。\n\n项目路径：${projectPath}\n\n${ctx}\n\n${instruction}`;
+export function buildInitTriggerPrompt(projectPath: string, ctx: string, instruction: string, targets?: string[]): string {
+  const platformPrompt = targets ? getPlatformPrompt(targets) : "";
+  return `[系统消息] 项目已创建完毕。\n\n项目路径：${projectPath}${platformPrompt}\n\n${ctx}\n\n${instruction}`;
+}
+
+// ── 平台开发规范 ──────────────────────────────────────
+
+export const PLATFORM_WEB = `## Web 项目开发规范
+- 优先使用语义化 HTML，SEO 友好
+- CSS 使用项目约定的方案（Tailwind / CSS Modules / 原生）
+- 响应式设计：移动端、平板、桌面端均需适配
+- 交互反馈：按钮 hover/active 态、加载状态、空状态、错误提示
+- 可访问性：合理的 color contrast、focus 样式、aria 标签
+- 性能：图片懒加载、字体子集化、关键 CSS 内联`;
+
+export const PLATFORM_CLI = `## CLI 工具开发规范
+- 命令行参数解析使用标准库或项目约定的库
+- --help 输出必须包含：用途、参数列表、使用示例
+- 错误信息输出到 stderr，正常输出到 stdout
+- 退出码：0=成功，1=参数错误，2=运行时错误
+- 支持 --version 输出版本号`;
+
+export const PLATFORM_API = `## API/后端服务开发规范
+- RESTful 命名：名词复数、层级不超过 2 层
+- 统一响应格式：{ code, data, message }
+- 输入校验：必填/类型/长度/格式，错误时返回 400
+- 错误处理：所有异步路径有 try-catch，返回明确错误信息
+- 敏感信息不在响应中暴露（密码、token、内部错误堆栈）`;
+
+/** 根据项目类型返回对应的平台规范 */
+export function getPlatformPrompt(targets: string[]): string {
+  const map: Record<string, string> = {
+    web: PLATFORM_WEB,
+    cli: PLATFORM_CLI,
+    api: PLATFORM_API,
+  };
+  const matched = targets
+    .map((t) => map[t.toLowerCase()] || "")
+    .filter(Boolean);
+  return matched.length > 0 ? `\n\n${matched.join("\n\n")}` : "";
 }
