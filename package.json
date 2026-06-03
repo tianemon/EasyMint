@@ -75,6 +75,7 @@
       "output": "dist-electron"
     },
     "files": [
+      "!.codegraph/**",
       "app/main/dist/**/*",
       "app/preload/dist/**/*",
       "app/renderer/dist/**/*",
