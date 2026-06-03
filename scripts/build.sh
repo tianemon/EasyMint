@@ -92,6 +92,9 @@ echo -e "${CYAN}已选择: ${SELECTED[*]}${NC}"
 
 # ── 构建前端 ──
 
+# CodeGraph daemon socket 会导致 electron-builder 打包失败
+rm -f .codegraph/daemon.sock .codegraph/daemon.lock 2>/dev/null || true
+
 echo -e "${YELLOW}[1/3] 构建前端...${NC}"
 npm run build:renderer --silent
 
