@@ -41,7 +41,7 @@ interface Settings {
 
 const EM_DEFAULTS = {
   setupComplete: false,
-  defaultProjectDir: os.homedir(),
+  defaultProjectDir: "~/EasyMintProject",
   claudePath: "",
   terminalFontSize: 14,
 };
