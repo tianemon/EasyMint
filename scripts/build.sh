@@ -114,23 +114,23 @@ for platform in "${SELECTED[@]}"; do
   case "$platform" in
     mac-arm64)
       npx electron-builder --mac --arm64
-      echo -e "${GREEN}✓ dist-electron/EasyMint-0.1.0-arm64.dmg${NC}"
+      echo -e "${GREEN}✓ dist-electron/EasyMint-macOS-arm64.dmg${NC}"
       ;;
     mac-x64)
       npx electron-builder --mac --x64
-      echo -e "${GREEN}✓ dist-electron/EasyMint-0.1.0-x64.dmg${NC}"
+      echo -e "${GREEN}✓ dist-electron/EasyMint-macOS-x64.dmg${NC}"
       ;;
     win-x64)
       npx electron-builder --win --x64
       echo -e "${GREEN}✓ Windows x64:${NC}"
-      echo "  dist-electron/EasyMint Setup 0.1.0.exe"
-      echo "  dist-electron/EasyMint 0.1.0.exe"
+      echo "  dist-electron/EasyMint-windows-x64.exe (安装版)"
+      echo "  dist-electron/EasyMint-windows-x64-portable.exe (免安装)"
       ;;
     win-arm64)
       npx electron-builder --win --arm64
       echo -e "${GREEN}✓ Windows ARM64:${NC}"
-      echo "  dist-electron/EasyMint Setup 0.1.0.exe"
-      echo "  dist-electron/EasyMint 0.1.0.exe"
+      echo "  dist-electron/EasyMint-windows-arm64.exe (安装版)"
+      echo "  dist-electron/EasyMint-windows-arm64-portable.exe (免安装)"
       ;;
   esac
 

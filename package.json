@@ -83,16 +83,21 @@
     ],
     "mac": {
       "target": "dmg",
-      "category": "public.app-category.developer-tools"
+      "category": "public.app-category.developer-tools",
+      "artifactName": "${productName}-macOS-${arch}.${ext}"
     },
     "win": {
       "target": ["nsis", "portable"],
       "icon": "assets/icon.ico",
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "artifactName": "${productName}-windows-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
+    },
+    "portable": {
+      "artifactName": "${productName}-windows-${arch}-portable.${ext}"
     }
   }
 }
