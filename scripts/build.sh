@@ -124,14 +124,14 @@ for platform in "${SELECTED[@]}"; do
       ;;
     win-x64)
       # Install Windows SDK binary if missing (cross-compile from macOS)
-      [ -d node_modules/@anthropic-ai/claude-agent-sdk-win32-x64 ] || npm install @anthropic-ai/claude-agent-sdk-win32-x64@0.3.156 --no-save --force 2>/dev/null || true
+      [ -d node_modules/@anthropic-ai/claude-agent-sdk-win32-x64 ] || npm install @anthropic-ai/claude-agent-sdk-win32-x64@0.3.161 --no-save --force 2>/dev/null || true
       CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win --x64
       echo -e "${GREEN}✓ Windows x64:${NC}"
       echo "  dist-electron/EasyMint-windows-x64.exe (安装版)"
       echo "  dist-electron/EasyMint-windows-x64-portable.exe (免安装)"
       ;;
     win-arm64)
-      [ -d node_modules/@anthropic-ai/claude-agent-sdk-win32-arm64 ] || npm install @anthropic-ai/claude-agent-sdk-win32-arm64@0.3.156 --no-save --force 2>/dev/null || true
+      [ -d node_modules/@anthropic-ai/claude-agent-sdk-win32-arm64 ] || npm install @anthropic-ai/claude-agent-sdk-win32-arm64@0.3.161 --no-save --force 2>/dev/null || true
       CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win --arm64
       echo -e "${GREEN}✓ Windows ARM64:${NC}"
       echo "  dist-electron/EasyMint-windows-arm64.exe (安装版)"
