@@ -3,6 +3,8 @@ import { app, BrowserWindow, shell, ipcMain, Menu } from "electron";
 import path from "path";
 
 process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint");
+// Redirect Electron userData to our directory so all data lives in one place
+app.setPath("userData", path.join(os.homedir(), ".easymint", "electron"));
 
 import { registerIpcHandlers } from "./ipc-handlers";
 import { ProjectService } from "./services/project-service";
