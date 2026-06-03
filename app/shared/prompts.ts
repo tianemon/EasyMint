@@ -147,6 +147,14 @@ export function buildFeatureRecommendPrompt(ctx: string): string {
 输出要求：每个功能一行，格式为 "- 功能名称"。不要输出其他内容。`;
 }
 
+/** 技术方案推荐 */
+export function buildTechRecommendPrompt(ctx: string, existingNote?: string): string {
+  const note = existingNote ? `\n用户当前填写的技术偏好：${existingNote}` : "";
+  return `[系统消息] 请根据以下项目信息推荐技术方案：${ctx}${note}
+
+用简洁的文本描述推荐的技术组合，格式如：前端：React + TypeScript + Tailwind CSS，后端：Node.js + Express。一句话说理由。`;
+}
+
 /** 项目创建完毕后的初始化触发 */
 export function buildInitTriggerPrompt(projectPath: string, ctx: string, instruction: string): string {
   return `[系统消息] 项目已创建完毕。\n\n项目路径：${projectPath}\n\n${ctx}\n\n${instruction}`;

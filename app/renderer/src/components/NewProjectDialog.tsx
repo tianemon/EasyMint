@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildInitTriggerPrompt, PROJECT_INIT_INSTRUCTION } from "../../../shared/prompts";
+import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildTechRecommendPrompt, buildInitTriggerPrompt, PROJECT_INIT_INSTRUCTION } from "../../../shared/prompts";
 
 // ---- Types ----
 
@@ -742,8 +742,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
   const handleRecommend = async () => {
     setLoadingRec("tech");
     const info = `项目名称：${data.name}，${buildContext(data, 4)}`;
-    const existingNote = data.techNotes ? `\n用户当前填写的技术偏好：${data.techNotes}` : "";
-    const resp = await ask(`[系统消息] 请根据以下项目信息推荐技术方案：${info}${existingNote}\n\n用简洁的文本描述推荐的技术组合，格式如：前端：React + TypeScript + Tailwind CSS，后端：Node.js + Express。一句话说理由。`);
+    const resp = await ask(buildTechRecommendPrompt(info, data.techNotes));
     setLoadingRec(null);
     if (resp) {
       const text = resp.trim();
