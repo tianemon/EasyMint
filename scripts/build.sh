@@ -8,27 +8,87 @@ cd "$PROJECT_DIR"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
-echo ""
-echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}  EasyMint 一键打包${NC}"
-echo -e "${GREEN}========================================${NC}"
-echo ""
+PLATFORMS=(
+  "mac-arm64|macOS (Apple Silicon)"
+  "mac-x64|macOS (Intel)"
+  "win-x64|Windows (x64)"
+  "win-arm64|Windows (ARM64)"
+)
 
-# ── 选择平台 ──
+# ── 解析命令行参数 ──
 
-if [ -z "$1" ]; then
-  echo "请选择打包平台："
-  echo "  1) macOS (ARM64)"
-  echo "  2) Windows (x64)"
-  echo "  3) Windows (ARM64)"
-  echo "  4) macOS + Windows (全部)"
-  echo ""
-  read -p "输入序号 [1-4]: " choice
-else
-  choice="$1"
+SELECTED=()
+if [ $# -gt 0 ]; then
+  for arg in "$@"; do
+    case "$arg" in
+      mac-arm64|mac-x64|win-x64|win-arm64)
+        SELECTED+=("$arg")
+        ;;
+      all)
+        for p in "${PLATFORMS[@]}"; do
+          SELECTED+=("${p%%|*}")
+        done
+        ;;
+      *)
+        echo -e "${RED}未知平台: $arg${NC}"
+        echo "可用: mac-arm64, mac-x64, win-x64, win-arm64, all"
+        exit 1
+        ;;
+    esac
+  done
 fi
+
+# ── 交互选择 ──
+
+if [ ${#SELECTED[@]} -eq 0 ]; then
+  echo ""
+  echo -e "${GREEN}========================================${NC}"
+  echo -e "${GREEN}  EasyMint 一键打包${NC}"
+  echo -e "${GREEN}========================================${NC}"
+  echo ""
+  echo "选择平台（输入序号，空格分隔，如 1 3）："
+  echo ""
+  for i in "${!PLATFORMS[@]}"; do
+    key="${PLATFORMS[$i]%%|*}"
+    label="${PLATFORMS[$i]##*|}"
+    printf "  %s) %-30s" "$((i+1))" "$label"
+    if [ $((i % 2)) -eq 1 ]; then echo ""; fi
+  done
+  [ $(( ${#PLATFORMS[@]} % 2 )) -eq 1 ] && echo ""
+  echo ""
+  echo "  a) 全部"
+  echo ""
+  read -p "输入: " input
+
+  for item in $input; do
+    case "$item" in
+      a|A)
+        for p in "${PLATFORMS[@]}"; do
+          SELECTED+=("${p%%|*}")
+        done
+        ;;
+      [1-4])
+        idx=$((item - 1))
+        SELECTED+=("${PLATFORMS[$idx]%%|*}")
+        ;;
+      *)
+        echo -e "${RED}无效选择: $item${NC}"
+        exit 1
+        ;;
+    esac
+  done
+fi
+
+if [ ${#SELECTED[@]} -eq 0 ]; then
+  echo -e "${RED}未选择任何平台${NC}"
+  exit 1
+fi
+
+echo ""
+echo -e "${CYAN}已选择: ${SELECTED[*]}${NC}"
 
 # ── 构建前端 ──
 
@@ -41,45 +101,42 @@ npm run build:preload --silent
 
 # ── 打包 ──
 
-build_mac() {
-  echo -e "${YELLOW}[3/3] 打包 macOS (ARM64)...${NC}"
-  npx electron-builder --mac --arm64
-  echo ""
-  echo -e "${GREEN}✓ macOS: dist-electron/EasyMint-0.1.0-arm64.dmg${NC}"
-}
+STEP=3
+TOTAL=$(( STEP - 1 + ${#SELECTED[@]} ))
 
-build_win_x64() {
-  echo -e "${YELLOW}[3/3] 打包 Windows (x64)...${NC}"
-  npx electron-builder --win --x64
+for platform in "${SELECTED[@]}"; do
   echo ""
-  echo -e "${GREEN}✓ Windows x64:${NC}"
-  echo -e "  dist-electron/EasyMint Setup 0.1.0.exe (安装版)"
-  echo -e "  dist-electron/EasyMint 0.1.0.exe        (免安装)"
-}
+  echo -e "${YELLOW}[$STEP/$TOTAL] 打包 $platform...${NC}"
 
-build_win_arm64() {
-  echo -e "${YELLOW}[3/3] 打包 Windows (ARM64)...${NC}"
-  npx electron-builder --win --arm64
-  echo ""
-  echo -e "${GREEN}✓ Windows ARM64:${NC}"
-  echo -e "  dist-electron/EasyMint Setup 0.1.0.exe (安装版)"
-  echo -e "  dist-electron/EasyMint 0.1.0.exe        (免安装)"
-}
+  case "$platform" in
+    mac-arm64)
+      npx electron-builder --mac --arm64
+      echo -e "${GREEN}✓ dist-electron/EasyMint-0.1.0-arm64.dmg${NC}"
+      ;;
+    mac-x64)
+      npx electron-builder --mac --x64
+      echo -e "${GREEN}✓ dist-electron/EasyMint-0.1.0-x64.dmg${NC}"
+      ;;
+    win-x64)
+      npx electron-builder --win --x64
+      echo -e "${GREEN}✓ Windows x64:${NC}"
+      echo "  dist-electron/EasyMint Setup 0.1.0.exe"
+      echo "  dist-electron/EasyMint 0.1.0.exe"
+      ;;
+    win-arm64)
+      npx electron-builder --win --arm64
+      echo -e "${GREEN}✓ Windows ARM64:${NC}"
+      echo "  dist-electron/EasyMint Setup 0.1.0.exe"
+      echo "  dist-electron/EasyMint 0.1.0.exe"
+      ;;
+  esac
 
-case "$choice" in
-  1)  build_mac ;;
-  2)  build_win_x64 ;;
-  3)  build_win_arm64 ;;
-  4)
-    build_mac
-    build_win_x64
-    build_win_arm64
-    echo ""
-    echo -e "${GREEN}全部打包完成！${NC}"
-    ls -lh dist-electron/*.dmg dist-electron/*.exe 2>/dev/null | awk '{print "  " $NF " (" $5 ")"}'
-    ;;
-  *)
-    echo -e "${RED}无效选择: $choice${NC}"
-    exit 1
-    ;;
-esac
+  STEP=$((STEP + 1))
+done
+
+echo ""
+echo -e "${GREEN}========================================${NC}"
+echo -e "${GREEN}  打包完成！${NC}"
+echo -e "${GREEN}========================================${NC}"
+echo ""
+ls -lh dist-electron/*.dmg dist-electron/*.exe 2>/dev/null | awk '{printf "  %-50s %s\n", $NF, $5}'
