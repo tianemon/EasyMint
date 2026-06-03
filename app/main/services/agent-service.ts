@@ -52,9 +52,12 @@ function createMessageChannel(signal: AbortSignal): MessageChannel {
   }
 
   async function* generator(): AsyncGenerator<SDKUserMessage> {
+    log("[generator] started, queue.length=" + queue.length);
     while (!done) {
       if (queue.length > 0) {
-        yield queue.shift()!;
+        const msg = queue.shift()!;
+        log("[generator] yielding message");
+        yield msg;
       } else {
         await new Promise<void>((resolve) => { resolver = resolve; });
       }
