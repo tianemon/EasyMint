@@ -8,7 +8,6 @@ import { registerIpcHandlers } from "./ipc-handlers";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
 import { AgentService, setMainWindow } from "./services/agent-service";
-import { EvaluatorService } from "./services/evaluator-service";
 import { Store } from "./services/store";
 import { detectClaude } from "./utils/claude-detector";
 import { trackProjectWindow, closeProjectWindows } from "./services/window-manager";
@@ -36,7 +35,6 @@ let sharedServices: {
   projectService: ProjectService;
   fileService: FileService;
   agentService: AgentService;
-  evaluatorService: EvaluatorService;
 } | null = null;
 
 export async function createWindow(hash?: string, isMain = false): Promise<BrowserWindow> {
@@ -64,7 +62,6 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
       projectService: new ProjectService(store),
       fileService: new FileService(),
       agentService: new AgentService(store),
-      evaluatorService: new EvaluatorService(),
     };
     setMainWindow(window);
     detectClaude();

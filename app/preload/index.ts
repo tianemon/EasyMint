@@ -95,9 +95,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   evaluator: {
     isEnabled: () => ipcRenderer.invoke("evaluator:isEnabled"),
     setEnabled: (enabled: boolean) => ipcRenderer.invoke("evaluator:setEnabled", { enabled }),
-    status: () => ipcRenderer.invoke("evaluator:status"),
-    runEvaluator: (projectPath: string) => ipcRenderer.invoke("evaluator:runEvaluator", { projectPath }),
-    abort: (evalId: string) => ipcRenderer.invoke("evaluator:abort", { evalId }),
   },
   agent: {
     runWorker: (projectPath: string, prompt: string) =>
