@@ -132,12 +132,15 @@ for platform in "${SELECTED[@]}"; do
       echo -e "${GREEN}✓ dist-electron/EasyMint-macOS-Intel.dmg${NC}"
       ;;
     win-x64)
-      # Temporarily move darwin packages out so electron-builder won't include them
+      echo "Moving darwin packages out of the way..."
       mkdir -p /tmp/easymint-darwin
-      mv node_modules/@anthropic-ai/claude-agent-sdk-darwin-* /tmp/easymint-darwin/ 2>/dev/null || true
+      ls node_modules/@anthropic-ai/claude-agent-sdk-darwin-* >/dev/null 2>&1 && mv -v node_modules/@anthropic-ai/claude-agent-sdk-darwin-* /tmp/easymint-darwin/ || echo "(no darwin packages to move)"
       [ -d node_modules/@anthropic-ai/claude-agent-sdk-win32-x64 ] || npm install @anthropic-ai/claude-agent-sdk-win32-x64@0.3.161 --no-save --force
+      echo "Building Windows x64..."
       CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win --x64
-      mv /tmp/easymint-darwin/* node_modules/@anthropic-ai/ 2>/dev/null || true
+      echo "Restoring darwin packages..."
+      ls /tmp/easymint-darwin/* >/dev/null 2>&1 && mv -v /tmp/easymint-darwin/* node_modules/@anthropic-ai/ || echo "(no darwin packages to restore)"
+      echo "Done."
       echo -e "${GREEN}✓ Windows x64:${NC}"
       echo "  dist-electron/EasyMint-windows-x64.exe (安装版)"
       echo "  dist-electron/EasyMint-windows-x64-portable.exe (免安装)"
