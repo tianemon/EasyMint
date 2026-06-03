@@ -3,6 +3,9 @@ import path from "path";
 import fs from "fs";
 import { BrowserWindow } from "electron";
 import type { SDKMessage, Options as QueryOptions, PermissionMode } from "@anthropic-ai/claude-agent-sdk";
+
+const LOG = path.join(os.homedir(), ".easymint", "easymint.log");
+function log(msg: string) { try { fs.appendFileSync(LOG, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } }
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { listTemplates, getTemplate } from "./agent-templates";
@@ -12,19 +15,19 @@ type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
 let _query: QueryFn | null = null;
 async function getQuery(): Promise<QueryFn> {
   if (!_query) {
+    log("[getQuery] trying dynamic import...");
     try {
-      // Try dynamic import first (works on macOS)
       _query = (await import("@anthropic-ai/claude-agent-sdk")).query;
-      console.log("[getQuery] loaded via dynamic import");
+      log("[getQuery] OK - dynamic import");
     } catch (e1) {
-      console.warn("[getQuery] dynamic import failed, trying createRequire:", e1);
+      log("[getQuery] FAIL dynamic import: " + String(e1));
       try {
         const { createRequire } = await import("module");
         const req = createRequire(typeof __filename !== "undefined" ? __filename : (import.meta as { url: string }).url);
         _query = (req("@anthropic-ai/claude-agent-sdk") as typeof import("@anthropic-ai/claude-agent-sdk")).query;
-        console.log("[getQuery] loaded via createRequire");
+        log("[getQuery] OK - createRequire fallback");
       } catch (e2) {
-        console.error("[getQuery] createRequire also failed:", e2);
+        log("[getQuery] FAIL createRequire: " + String(e2));
         throw e2;
       }
     }
