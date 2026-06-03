@@ -113,37 +113,25 @@ for platform in "${SELECTED[@]}"; do
 
   case "$platform" in
     mac-arm64)
-      rm -rf node_modules/@anthropic-ai/claude-agent-sdk-win32-*
       npx electron-builder --mac --arm64
       mv dist-electron/EasyMint-macOS-arm64.dmg dist-electron/EasyMint-macOS-AppleSilicon.dmg 2>/dev/null || true
       echo -e "${GREEN}✓ dist-electron/EasyMint-macOS-AppleSilicon.dmg${NC}"
       ;;
     mac-x64)
-      rm -rf node_modules/@anthropic-ai/claude-agent-sdk-win32-*
       npx electron-builder --mac --x64
       mv dist-electron/EasyMint-macOS-x64.dmg dist-electron/EasyMint-macOS-Intel.dmg 2>/dev/null || true
       echo -e "${GREEN}✓ dist-electron/EasyMint-macOS-Intel.dmg${NC}"
       ;;
     win-x64)
-      # Remove macOS SDK binaries so they don't leak into Windows build
-      mv node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64 /tmp/easymint-darwin-arm64 2>/dev/null || true
-      mv node_modules/@anthropic-ai/claude-agent-sdk-darwin-x64 /tmp/easymint-darwin-x64 2>/dev/null || true
       [ -d node_modules/@anthropic-ai/claude-agent-sdk-win32-x64 ] || npm install @anthropic-ai/claude-agent-sdk-win32-x64@0.3.161 --no-save --force
       CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win --x64
-      # Restore macOS binaries
-      mv /tmp/easymint-darwin-arm64 node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64 2>/dev/null || true
-      mv /tmp/easymint-darwin-x64 node_modules/@anthropic-ai/claude-agent-sdk-darwin-x64 2>/dev/null || true
       echo -e "${GREEN}✓ Windows x64:${NC}"
       echo "  dist-electron/EasyMint-windows-x64.exe (安装版)"
       echo "  dist-electron/EasyMint-windows-x64-portable.exe (免安装)"
       ;;
     win-arm64)
-      mv node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64 /tmp/easymint-darwin-arm64 2>/dev/null || true
-      mv node_modules/@anthropic-ai/claude-agent-sdk-darwin-x64 /tmp/easymint-darwin-x64 2>/dev/null || true
       [ -d node_modules/@anthropic-ai/claude-agent-sdk-win32-arm64 ] || npm install @anthropic-ai/claude-agent-sdk-win32-arm64@0.3.161 --no-save --force
       CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --win --arm64
-      mv /tmp/easymint-darwin-arm64 node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64 2>/dev/null || true
-      mv /tmp/easymint-darwin-x64 node_modules/@anthropic-ai/claude-agent-sdk-darwin-x64 2>/dev/null || true
       echo -e "${GREEN}✓ Windows ARM64:${NC}"
       echo "  dist-electron/EasyMint-windows-arm64.exe (安装版)"
       echo "  dist-electron/EasyMint-windows-arm64-portable.exe (免安装)"
