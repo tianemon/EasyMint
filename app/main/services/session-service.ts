@@ -44,21 +44,26 @@ type RenameSessionFn = typeof import("@anthropic-ai/claude-agent-sdk").renameSes
 type DeleteSessionFn = typeof import("@anthropic-ai/claude-agent-sdk").deleteSession;
 type GetSessionInfoFn = typeof import("@anthropic-ai/claude-agent-sdk").getSessionInfo;
 
+import { createRequire } from "module";
+const sdkRequire = createRequire(typeof __filename !== "undefined" ? __filename : import.meta.url);
+
 let _listSessions: ListSessionsFn | null = null;
 let _getSessionMessages: GetSessionMessagesFn | null = null;
 let _renameSession: RenameSessionFn | null = null;
 let _deleteSession: DeleteSessionFn | null = null;
 let _getSessionInfo: GetSessionInfoFn | null = null;
 
-async function sdk() {
-  if (!_listSessions) {
-    const m = await import("@anthropic-ai/claude-agent-sdk");
-    _listSessions = m.listSessions;
-    _getSessionMessages = m.getSessionMessages;
-    _renameSession = m.renameSession;
-    _deleteSession = m.deleteSession;
-    _getSessionInfo = m.getSessionInfo;
-  }
+function loadSdk() {
+  const m = sdkRequire("@anthropic-ai/claude-agent-sdk") as typeof import("@anthropic-ai/claude-agent-sdk");
+  _listSessions = m.listSessions;
+  _getSessionMessages = m.getSessionMessages;
+  _renameSession = m.renameSession;
+  _deleteSession = m.deleteSession;
+  _getSessionInfo = m.getSessionInfo;
+}
+
+function sdk() {
+  if (!_listSessions) loadSdk();
   return { listSessions: _listSessions!, getSessionMessages: _getSessionMessages!, renameSession: _renameSession!, deleteSession: _deleteSession!, getSessionInfo: _getSessionInfo! };
 }
 

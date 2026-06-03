@@ -7,19 +7,25 @@ import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { listTemplates, getTemplate } from "./agent-templates";
 
-// Dynamic import — ESM SDK in CJS context (matching Proma pattern)
+// Use createRequire for CJS/ESM compatibility in packaged Electron
+import { createRequire } from "module";
+const sdkRequire = createRequire(typeof __filename !== "undefined" ? __filename : import.meta.url);
+
 type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
 let _query: QueryFn | null = null;
-async function getQuery(): Promise<QueryFn> {
-  if (!_query) {
-    try {
-      _query = (await import("@anthropic-ai/claude-agent-sdk")).query;
-      console.log("[getQuery] SDK loaded successfully");
-    } catch (err) {
-      console.error("[getQuery] SDK import failed:", err);
-      throw err;
-    }
+function loadQuery(): QueryFn {
+  // Try ESM import first, fall back to require
+  try {
+    const sdk = sdkRequire("@anthropic-ai/claude-agent-sdk") as typeof import("@anthropic-ai/claude-agent-sdk");
+    return sdk.query as QueryFn;
+  } catch {
+    // Some SDK builds need a different path
+    const sdk2 = sdkRequire("@anthropic-ai/claude-agent-sdk/bridge.mjs");
+    return (sdk2 as { query: QueryFn }).query;
   }
+}
+function getQuery(): QueryFn {
+  if (!_query) _query = loadQuery();
   return _query;
 }
 
