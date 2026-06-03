@@ -94,7 +94,8 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "include": "scripts/installer.nsh"
     },
     "portable": {
       "artifactName": "${productName}-windows-${arch}-portable.${ext}"

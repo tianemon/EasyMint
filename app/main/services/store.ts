@@ -4,6 +4,11 @@ import os from "os";
 
 export const DATA_DIR = path.join(os.homedir(), ".easymint");
 
+function resolveHome(dir: string): string {
+  if (dir.startsWith("~")) return path.join(os.homedir(), dir.slice(1));
+  return dir;
+}
+
 interface Project {
   id: string;
   name: string;
@@ -101,7 +106,7 @@ export class Store {
     const env = (sdkData.env as Record<string, string>) || {};
 
     return {
-      defaultProjectDir: (emData.defaultProjectDir as string) || EM_DEFAULTS.defaultProjectDir,
+      defaultProjectDir: resolveHome((emData.defaultProjectDir as string) || EM_DEFAULTS.defaultProjectDir),
       claudePath: (emData.claudePath as string) || "",
       terminalFontSize: (emData.terminalFontSize as number) || EM_DEFAULTS.terminalFontSize,
       evaluateMode: emData.evaluateMode as boolean | undefined,
