@@ -3,9 +3,6 @@ import path from "path";
 import fs from "fs";
 import { BrowserWindow } from "electron";
 import type { SDKMessage, Options as QueryOptions, PermissionMode } from "@anthropic-ai/claude-agent-sdk";
-
-const LOG = path.join(os.homedir(), ".easymint", "easymint.log");
-function log(msg: string) { try { fs.appendFileSync(LOG, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } }
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { listTemplates, getTemplate } from "./agent-templates";
@@ -16,7 +13,6 @@ let _query: QueryFn | null = null;
 async function getQuery(): Promise<QueryFn> {
   if (!_query) {
     _query = (await import("@anthropic-ai/claude-agent-sdk")).query;
-    log("[getQuery] SDK query function loaded");
   }
   return _query;
 }
@@ -52,12 +48,9 @@ function createMessageChannel(signal: AbortSignal): MessageChannel {
   }
 
   async function* generator(): AsyncGenerator<SDKUserMessage> {
-    log("[generator] started, queue.length=" + queue.length);
     while (!done) {
       if (queue.length > 0) {
-        const msg = queue.shift()!;
-        log("[generator] yielding message");
-        yield msg;
+        yield queue.shift()!;
       } else {
         await new Promise<void>((resolve) => { resolver = resolve; });
       }
@@ -271,13 +264,8 @@ export class AgentService {
     (async () => {
       try {
         const q = await getQuery();
-        log("[chat-loop] SDK query: cwd=" + (options.cwd || "?") + " env.ANTHROPIC_BASE_URL=" + (options.env?.ANTHROPIC_BASE_URL || "?") + " env.ANTHROPIC_AUTH_TOKEN=" + (options.env?.ANTHROPIC_AUTH_TOKEN ? "***" : "MISSING"));
-        // Timeout wrapper — reject if SDK hangs > 60s
-        const queryPromise = q({ prompt: chat.channel.generator, options });
-        const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("SDK query() timeout 60s")), 60000));
-        const queryObj = await Promise.race([queryPromise, timeout]);
-        log("[chat-loop] SDK query returned");
-        chat.query = queryObj as QueryObj;
+        const queryObj = await q({ prompt: chat.channel.generator, options });
+        chat.query = queryObj;
 
         let capturedSid = chat.sessionId;
 
@@ -306,9 +294,9 @@ export class AgentService {
           }
         }
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        log("[chat-loop] ERROR: " + msg);
         if (this.activeChats.has(chat.chatId)) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error("[chat-loop] error: chatId=%s %s", chat.chatId, msg);
           broadcast("agent:stderr", { runId: chat.chatId, data: msg, timestamp: Date.now() });
           broadcast("agent:exit", { runId: chat.chatId, code: -1 });
         }

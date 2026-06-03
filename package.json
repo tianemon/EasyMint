@@ -19,6 +19,10 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.156",
+    "@anthropic-ai/claude-agent-sdk-darwin-arm64": "0.3.156",
+    "@anthropic-ai/claude-agent-sdk-darwin-x64": "0.3.156",
+    "@anthropic-ai/claude-agent-sdk-win32-x64": "0.3.156",
+    "@anthropic-ai/claude-agent-sdk-win32-arm64": "0.3.156",
     "@codemirror/commands": "^6.10.3",
     "@codemirror/lang-css": "^6.3.1",
     "@codemirror/lang-html": "^6.4.11",
@@ -71,14 +75,19 @@
     "files": [
       "app/main/dist/**/*",
       "app/preload/dist/**/*",
-      "node_modules/@anthropic-ai/claude-agent-sdk-win32-x64/**",
       "app/renderer/dist/**/*",
       "assets/icon.icns",
       "assets/icon.ico",
-      "assets/icon.png"
+      "assets/icon.png",
+      "package.json",
+      "node_modules/@anthropic-ai/claude-agent-sdk/**/*",
+      "node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/**/*",
+      "node_modules/@anthropic-ai/claude-agent-sdk-darwin-x64/**/*",
+      "node_modules/@anthropic-ai/claude-agent-sdk-win32-x64/**/*",
+      "node_modules/@anthropic-ai/claude-agent-sdk-win32-arm64/**/*"
     ],
     "asarUnpack": [
-      "node_modules/**"
+      "node_modules/@anthropic-ai/**"
     ],
     "extraResources": [
       {
