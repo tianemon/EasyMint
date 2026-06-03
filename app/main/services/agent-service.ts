@@ -3,6 +3,9 @@ import path from "path";
 import fs from "fs";
 import { BrowserWindow } from "electron";
 import type { SDKMessage, Options as QueryOptions, PermissionMode } from "@anthropic-ai/claude-agent-sdk";
+
+const LOG = path.join(os.homedir(), ".easymint", "easymint.log");
+function log(msg: string) { try { fs.appendFileSync(LOG, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } }
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { listTemplates, getTemplate } from "./agent-templates";
@@ -264,7 +267,9 @@ export class AgentService {
     (async () => {
       try {
         const q = await getQuery();
+        log("[chat-loop] query cwd=" + (options.cwd || "?") + " token=" + (options.env?.ANTHROPIC_AUTH_TOKEN ? "SET" : "MISSING"));
         const queryObj = await q({ prompt: chat.channel.generator, options });
+        log("[chat-loop] query OK");
         chat.query = queryObj;
 
         let capturedSid = chat.sessionId;
@@ -294,6 +299,7 @@ export class AgentService {
           }
         }
       } catch (err: unknown) {
+        log("[chat-loop] ERROR: " + String(err));
         if (this.activeChats.has(chat.chatId)) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error("[chat-loop] error: chatId=%s %s", chat.chatId, msg);

@@ -70,10 +70,16 @@ export interface SessionListItem {
   pinnedAt?: number;
 }
 
+import { appendFileSync } from "node:fs";
+const DL = path.join(os.homedir(), ".easymint", "easymint.log");
+function sdlog(msg: string) { try { appendFileSync(DL, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } }
+
 export async function listSessions(projectPath: string): Promise<SessionListItem[]> {
   const { listSessions: ls } = await sdk();
   const normalized = normalizeDir(projectPath);
+  sdlog("[listSessions] " + normalized);
   const sessions = await ls({ dir: normalized });
+  sdlog("[listSessions] OK " + sessions.length);
   const pinned = readPinned();
 
   return sessions
