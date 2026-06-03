@@ -268,7 +268,7 @@ export class AgentService {
     (async () => {
       try {
         const q = await getQuery();
-        log("[chat-loop] calling SDK query...");
+        log("[chat-loop] calling SDK query cwd=" + (options.cwd || "?") + " model=" + (options.model || "?"));
         const queryObj = await q({ prompt: chat.channel.generator, options });
         chat.query = queryObj;
         log("[chat-loop] SDK query returned, starting for-await");
