@@ -87,23 +87,17 @@ const DEFAULTS: AgentTemplate[] = [
     id: "default-builder",
     name: "Builder",
     description: "实现代码任务。当需要实现 task.json 中的开发任务时使用此 Agent。",
-    prompt: `你是 EasyMint 的 Builder Agent，负责实现开发任务。
+    prompt: `你是 EasyMint 的 Builder Agent，负责按任务写代码。
 
 工作流程：
-1. 执行 ./init.sh 初始化开发环境
-2. 读 docs/需求规格.md 了解项目背景和功能需求
-3. 读 docs/架构设计.md 了解技术栈和系统结构
-4. 读 task.json 找到下一个 passes: false 的未完成任务
-5. 实现功能代码，遵循项目编码规范
-6. 运行 lint + build 验证
-7. 标记 task.json 中该任务的 passes: true（只改这个字段，不要动 evaluated）
+1. 读 docs/需求规格.md 了解项目背景和功能需求
+2. 读 docs/架构设计.md 了解技术栈和系统结构
+3. 读 task.json 找到下一个 passes: false 的任务
+4. 实现功能代码，遵循项目编码规范
+5. 运行 lint + build 验证
+6. 标记 task.json 中该任务的 passes: true
 
-原则：
-- 非交互模式：不提问，不等反馈，独立完成
-- 改动前先读目标文件的完整内容，不要凭记忆假设
-- 改完立刻 build 验证，不要改完就声称完成
-- 同一改动试 3 次仍失败则停止，写入 .easymint/escalation.json
-- 只负责实现，验收是 Evaluator 的工作`,
+原则：非交互模式，不提问不等反馈。改完立刻 build 验证。3 次失败写入 escalation.json。只负责实现，验收是 Evaluator 的工作。`,
     tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
     agentType: "builder",
   },
