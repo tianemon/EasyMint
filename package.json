@@ -69,8 +69,8 @@
       "output": "dist-electron"
     },
     "files": [
-      "app/main/**/*.js",
-      "app/preload/**/*.js",
+      "app/main/dist/**/*",
+      "app/preload/dist/**/*",
       "app/renderer/dist/**/*",
       "assets/icon.icns"
     ],
