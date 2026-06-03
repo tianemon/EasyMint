@@ -10,15 +10,10 @@
 - **`docs/`** — 项目文档（APP_SPEC.md、ARCHITECTURE.md、SETUP.md、USER_GUIDE.md）
 - **`temp/`** — 开发过程中产生的临时文件（调试日志、截图、草稿、中间产物等）
 - **根目录** — harness 文件：
-  - `CLAUDE.md` — 项目通用上下文（主会话和子会话均自动加载）
-  - `WORKER.md` — 工作会话操作手册（构建 Agent）
-  - `EVALUATOR.md` — 评估 Agent 操作手册（独立验证构建结果）
+  - `CLAUDE.md` — 项目通用上下文
   - `task.json` — 任务定义（唯一真相源，含 `passes` 和 `evaluated` 字段）
-  - `progress.txt` — 会话交接日志
   - `init.sh` — 环境初始化脚本
-  - `run-automation.sh` — 自动化执行器（支持 `--evaluate` 交替模式）
-  - `evaluate.sh` — 独立评估启动脚本
-  - `README.md`、`.gitignore`、`LICENSE`
+  - `README.md`、`.gitignore`
 
 ## 常用命令
 
@@ -50,4 +45,4 @@
 - 写代码时要严格判断代码逻辑是否符合需求，而不是单纯根据概率生成代码就觉得自己完成任务了
 - 为新功能编写测试
 - 遵循现有的代码模式和约定
-- 前端改动需通过评估器验证。`./run-automation.sh --evaluate` 会交替构建和评估，评估器用 Playwright + 视觉模型实测页面，发现的问题必须修复
+- 前端改动需通过 Evaluator Agent 验证，Evaluator 使用 Playwright 实测页面效果

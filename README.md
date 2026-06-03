@@ -46,17 +46,7 @@ EasyMint/
 │   └── renderer/     # React 前端
 ├── docs/             # 项目文档
 ├── task.json         # 开发任务定义
-├── init.sh           # 环境初始化
-└── run-automation.sh # 自动化开发
-```
-
-## 自动化开发
-
-EasyMint 自身也使用 AI Coding Automation 流程开发：
-
-```bash
-./init.sh                # 初始化环境
-./run-automation.sh 5    # 自动执行 5 轮开发
+└── init.sh           # 环境初始化
 ```
 
 ## License
