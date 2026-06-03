@@ -1,5 +1,6 @@
 import os from "os";
-import { app, BrowserWindow, shell, ipcMain, Menu } from "electron";
+import fs from "fs";
+import { app, BrowserWindow, shell, ipcMain, Menu, dialog } from "electron";
 import path from "path";
 
 process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint");
