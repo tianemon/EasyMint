@@ -53,7 +53,7 @@ export function OnboardingPage(): JSX.Element {
     window.electronAPI?.settings?.set?.("setupComplete", true);
     localStorage.removeItem("easymint_api_base_url");
     window.dispatchEvent(new Event("easymint-setup-complete"));
-    navigate("/projects");
+    navigate("/");
   };
 
   const goNext = () => setCurrentStep((s) => Math.min(s + 1, STEPS.length - 1));

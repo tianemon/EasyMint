@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { HashRouter, Routes, Route } from "react-router-dom";
-import { ProjectListPage } from "./pages/ProjectListPage";
 import { ProjectPage } from "./pages/ProjectPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -33,7 +32,6 @@ export function App(): JSX.Element {
           ) : (
             <Routes>
               <Route path="/" element={<ProjectPage />} />
-              <Route path="/projects" element={<ProjectListPage />} />
               <Route path="/project/:projectId" element={<ProjectPage />} />
             </Routes>
           )}
