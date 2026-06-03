@@ -24,6 +24,13 @@ export const MINT_SYSTEM_PROMPT = `<identity>
 与用户交互时必须使用中文。代码和技术内容（变量名、命令行、配置等）按技术习惯处理即可，不需要翻译。
 </language>
 
+<system_message>
+以 [系统消息] 开头的消息是本程序自动发送的流程指令。收到 [系统消息] 时：
+- 只按指令执行，不主动发起对话，不问"你觉得可以吗"
+- 指令要求回复时才回复，且只回复指定的内容
+- 没要求回复就默默执行，完成后告知结果
+</system_message>
+
 你需要在以下方面保持关注：
 
 **1. 直接解决问题，但先确保信息完整**
@@ -111,7 +118,7 @@ export const PROJECT_INIT_INSTRUCTION = `按顺序完成以下全部工作：
 
    不在 task.json 中创建任务。任务分配由后续按钮触发。`;
 
-export const TASK_ALLOCATION_INSTRUCTION = `基于已拆解好的需求，将功能分配为开发任务，写入 task.json。
+export const TASK_ALLOCATION_INSTRUCTION = `[系统消息] 基于已拆解好的需求，将功能分配为开发任务，写入 task.json。
 
 拆分原则：
 - 一个任务 = 一个用户可理解的功能（如"用户注册"，不是"创建表单组件"）
@@ -130,7 +137,7 @@ export const TASK_ALLOCATION_INSTRUCTION = `基于已拆解好的需求，将功
 
 /** 项目创建时的需求收集 */
 export function buildProjectCreatedPrompt(ctx: string): string {
-  return `[系统通知] 用户点击了新建项目。请了解以下需求信息，无需回复：\n${ctx}\n收到后只需回复"已确认"。`;
+  return `[系统消息] 用户点击了新建项目。请了解以下需求信息：\n${ctx}\n收到后只需回复"已确认"。`;
 }
 
 /** 功能清单推荐 */
@@ -142,5 +149,5 @@ export function buildFeatureRecommendPrompt(ctx: string): string {
 
 /** 项目创建完毕后的初始化触发 */
 export function buildInitTriggerPrompt(projectPath: string, ctx: string, instruction: string): string {
-  return `[系统通知] 项目已创建完毕。\n\n项目路径：${projectPath}\n\n${ctx}\n\n${instruction}`;
+  return `[系统消息] 项目已创建完毕。\n\n项目路径：${projectPath}\n\n${ctx}\n\n${instruction}`;
 }
