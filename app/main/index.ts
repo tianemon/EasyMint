@@ -6,6 +6,12 @@ process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint");
 // Redirect Electron userData to our directory so all data lives in one place
 app.setPath("userData", path.join(os.homedir(), ".easymint", "electron"));
 
+// Write startup logs to ~/.easymint/easymint.log (visible on Windows)
+const logFile = path.join(os.homedir(), ".easymint", "easymint.log");
+try { fs.mkdirSync(path.dirname(logFile), { recursive: true }); } catch { /* ignore */ }
+const log = (msg: string) => { try { fs.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } };
+log("EasyMint starting...");
+
 import { registerIpcHandlers } from "./ipc-handlers";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
