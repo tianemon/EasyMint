@@ -33,18 +33,13 @@ echo ""
 
 echo -e "${YELLOW}检测开发环境...${NC}"
 
-# Git 检测（预置，不需要项目自定义）
+# Git 检测
 GIT_AVAILABLE=false
 if command -v git &> /dev/null; then
     echo -e "  ${GREEN}✓${NC} Git $(git --version | cut -d' ' -f3)"
     GIT_AVAILABLE=true
 else
-    echo -e "  ${YELLOW}⚠${NC} Git 未安装。版本控制和任务进度追踪将不可用。"
-    echo "  安装方法："
-    echo "    macOS:  brew install git"
-    echo "    Windows: https://git-scm.com/download/win"
-    echo "    Linux:   sudo apt install git 或 yum install git"
-    echo "  也可忽略此提示，后续跳过 Git 相关操作。"
+    echo -e "  ${YELLOW}⚠${NC} Git 未安装"
 fi
 
 # TODO: 添加运行时检测，示例：
