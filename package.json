@@ -71,6 +71,7 @@
     "files": [
       "app/main/dist/**/*",
       "app/preload/dist/**/*",
+      "node_modules/@anthropic-ai/claude-agent-sdk-win32-x64/**",
       "app/renderer/dist/**/*",
       "assets/icon.icns",
       "assets/icon.ico",

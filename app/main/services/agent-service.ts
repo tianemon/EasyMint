@@ -119,7 +119,7 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
   };
   console.log("[buildQueryOptions] CLAUDE_CONFIG_DIR=%s", configDir);
   if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
-  if (settings.apiKey) env.ANTHROPIC_API_KEY = settings.apiKey;
+  if (settings.apiKey) env.ANTHROPIC_AUTH_TOKEN = settings.apiKey;
   const customPrompt = isResume ? "" : resolveEffectivePrompt();
   // Load Agent templates into SDK's options.agents
   const agents: Record<string, { description: string; prompt: string; tools: string[]; model?: string }> = {};
