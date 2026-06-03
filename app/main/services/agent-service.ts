@@ -8,24 +8,27 @@ import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { listTemplates, getTemplate } from "./agent-templates";
 
 // Use createRequire for CJS/ESM compatibility in packaged Electron
-import { createRequire } from "module";
-const sdkRequire = createRequire(typeof __filename !== "undefined" ? __filename : import.meta.url);
-
 type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
 let _query: QueryFn | null = null;
-function loadQuery(): QueryFn {
-  // Try ESM import first, fall back to require
-  try {
-    const sdk = sdkRequire("@anthropic-ai/claude-agent-sdk") as typeof import("@anthropic-ai/claude-agent-sdk");
-    return sdk.query as QueryFn;
-  } catch {
-    // Some SDK builds need a different path
-    const sdk2 = sdkRequire("@anthropic-ai/claude-agent-sdk/bridge.mjs");
-    return (sdk2 as { query: QueryFn }).query;
+async function getQuery(): Promise<QueryFn> {
+  if (!_query) {
+    try {
+      // Try dynamic import first (works on macOS)
+      _query = (await import("@anthropic-ai/claude-agent-sdk")).query;
+      console.log("[getQuery] loaded via dynamic import");
+    } catch (e1) {
+      console.warn("[getQuery] dynamic import failed, trying createRequire:", e1);
+      try {
+        const { createRequire } = await import("module");
+        const req = createRequire(typeof __filename !== "undefined" ? __filename : (import.meta as { url: string }).url);
+        _query = (req("@anthropic-ai/claude-agent-sdk") as typeof import("@anthropic-ai/claude-agent-sdk")).query;
+        console.log("[getQuery] loaded via createRequire");
+      } catch (e2) {
+        console.error("[getQuery] createRequire also failed:", e2);
+        throw e2;
+      }
+    }
   }
-}
-function getQuery(): QueryFn {
-  if (!_query) _query = loadQuery();
   return _query;
 }
 
