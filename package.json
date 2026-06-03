@@ -80,11 +80,7 @@
       "assets/icon.ico",
       "assets/icon.png",
       "package.json",
-      "node_modules/@anthropic-ai/claude-agent-sdk/**/*",
-      "node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/**/*",
-      "node_modules/@anthropic-ai/claude-agent-sdk-darwin-x64/**/*",
-      "node_modules/@anthropic-ai/claude-agent-sdk-win32-x64/**/*",
-      "node_modules/@anthropic-ai/claude-agent-sdk-win32-arm64/**/*"
+      "node_modules/@anthropic-ai/claude-agent-sdk/**/*"
     ],
     "asarUnpack": [
       "node_modules/@anthropic-ai/**"
