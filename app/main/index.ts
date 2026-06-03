@@ -108,12 +108,15 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
 }
 
 app.whenReady().then(() => {
-  // 恢复上次打开的项目
+  // 恢复上次打开的项目（仅在 setup 完成后）
   let startHash: string | undefined;
   try {
     const tempStore = new Store();
-    const lastId = tempStore.getLastProjectId();
-    if (lastId) startHash = `/project/${lastId}`;
+    const settings = tempStore.getSettings();
+    if (settings.setupComplete) {
+      const lastId = tempStore.getLastProjectId();
+      if (lastId) startHash = `/project/${lastId}`;
+    }
   } catch { /* ignore */ }
   createWindow(startHash, true);
 

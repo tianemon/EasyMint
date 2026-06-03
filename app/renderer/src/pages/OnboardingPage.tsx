@@ -49,6 +49,8 @@ export function OnboardingPage(): JSX.Element {
     storeSetApiBaseUrl(baseUrl);
     storeSetApiKey(key);
     localStorage.setItem("easymint_setup_complete", "true");
+    // Persist to main process so createWindow can skip Onboarding on restart
+    window.electronAPI?.settings?.set?.("setupComplete", true);
     localStorage.removeItem("easymint_api_base_url");
     window.dispatchEvent(new Event("easymint-setup-complete"));
     navigate("/projects");

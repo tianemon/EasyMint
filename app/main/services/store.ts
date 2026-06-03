@@ -36,9 +36,11 @@ interface Settings {
   model?: string;
   availableModels?: string[];
   lastProjectId?: string;
+  setupComplete?: boolean;
 }
 
 const EM_DEFAULTS = {
+  setupComplete: false,
   defaultProjectDir: os.homedir(),
   claudePath: "",
   terminalFontSize: 14,
@@ -109,6 +111,7 @@ export class Store {
       apiKey: env.ANTHROPIC_AUTH_TOKEN || (sdkData.apiKey as string),
       model: (emData.model as string) || undefined,
       availableModels: (emData.availableModels as string[]) || undefined,
+      setupComplete: emData.setupComplete as boolean | undefined,
       lastProjectId: emData.lastProjectId as string | undefined,
     };
   }
@@ -138,6 +141,7 @@ export class Store {
     data.tddMode = settings.tddMode;
     data.screenshotVerification = settings.screenshotVerification;
     data.lastProjectId = settings.lastProjectId;
+    data.setupComplete = settings.setupComplete;
     if (settings.model) data.model = settings.model;
     if (settings.availableModels) data.availableModels = settings.availableModels;
     fs.writeFileSync(this.emSettingsPath, JSON.stringify(data, null, 2));
