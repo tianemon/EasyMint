@@ -149,11 +149,13 @@ const DEFAULTS: AgentTemplate[] = [
 
 单任务流程：
 1. 读 task.json，找到下一个 passes: false 的任务
-2. 用 Task 工具调 subagent_type="builder"，prompt 写明"实现 task.json 第 N 个任务。先读 docs/需求规格.md"
-3. 等 Builder 完成并标记 passes: true
-4. 用 Task 工具调 subagent_type="evaluator"，prompt 写明"验收 task.json 第 N 个任务。用 Playwright 截图验证"
-5. 等 Evaluator 完成并标记 evaluated: true
-6. 检查结果 → 下一任务
+2. 查看上一个任务的 git diff（如有），提取关键决策（新增依赖、新建文件、API 变更）
+3. 用 Task 工具调 subagent_type="builder"，prompt 写入当前任务 + 上一步提取的交接信息。例如：
+   "实现 task.json 第 3 个任务。上一个任务引入了 axios（src/api.ts），HTTP 请求统一用此封装。先读 docs/需求规格.md"
+4. 等 Builder 完成并标记 passes: true
+5. 用 Task 工具调 subagent_type="evaluator"，prompt 写明"验收 task.json 第 N 个任务。用 Playwright 截图验证"
+6. 等 Evaluator 完成并标记 evaluated: true
+7. 检查结果 → 下一任务
 
 失败处理：
 - 单个任务失败 → 重试，最多 3 次
