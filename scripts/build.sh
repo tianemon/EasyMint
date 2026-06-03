@@ -114,11 +114,13 @@ for platform in "${SELECTED[@]}"; do
   case "$platform" in
     mac-arm64)
       npx electron-builder --mac --arm64
-      echo -e "${GREEN}✓ dist-electron/EasyMint-macOS-arm64.dmg${NC}"
+      mv dist-electron/EasyMint-macOS-arm64.dmg dist-electron/EasyMint-macOS-AppleSilicon.dmg 2>/dev/null || true
+      echo -e "${GREEN}✓ dist-electron/EasyMint-macOS-AppleSilicon.dmg${NC}"
       ;;
     mac-x64)
       npx electron-builder --mac --x64
-      echo -e "${GREEN}✓ dist-electron/EasyMint-macOS-x64.dmg${NC}"
+      mv dist-electron/EasyMint-macOS-x64.dmg dist-electron/EasyMint-macOS-Intel.dmg 2>/dev/null || true
+      echo -e "${GREEN}✓ dist-electron/EasyMint-macOS-Intel.dmg${NC}"
       ;;
     win-x64)
       npx electron-builder --win --x64
