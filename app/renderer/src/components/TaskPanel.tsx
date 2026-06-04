@@ -18,15 +18,12 @@ const STATUS_ICON: Record<string, JSX.Element> = {
 };
 
 // ── SVG Boomerang Chevron (Skeuomorphic) ─────────────
-//
-//  Shape: thick ">" — each stage has a top highlight, gradient fill,
-//  drop shadow, and rounded tips for a tactile 3D feel.
 
 const STAGE_H = 54;
 const POINT = 14;
 const NOTCH = 14;
 const GAP = 5;
-const EXP_W = 106;
+const EXP_W = 100;
 const COL_W = 43;
 const RADIUS = 4;
 let _uid = 0;
@@ -40,7 +37,6 @@ function StageChevron({ entry, isFirst, isLast, expanded, onHover }: { entry: St
   const isCurrent = entry.status === "current";
 
   const base = isDone ? "#22c55e" : isCurrent ? "#16a34a" : "#9ca3af";
-  // Current stage uses the same mint green as the leaf button
   const topFill = isDone ? "#f0fdf4" : isCurrent ? "#e8f5ec" : "#f9fafb";
   const botFill = isDone ? "#dcfce7" : isCurrent ? "#d4edda" : "#f3f4f6";
   const shadowColor = isDone ? "rgba(34,197,94,0.12)" : isCurrent ? "rgba(22,163,74,0.12)" : "rgba(0,0,0,0.04)";
@@ -101,22 +97,53 @@ function StageChevron({ entry, isFirst, isLast, expanded, onHover }: { entry: St
   );
 }
 
+// ── Task Row (hover to expand) ──────────────────────
+
+function TaskRow({ task }: { task: { id: string; title: string; description?: string; status: string; completedAt?: number } }): JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  const hasDesc = !!task.description;
+
+  return (
+    <div
+      className={`border-b border-[#16a34a]/10 last:border-0 transition-colors ${task.status === "running" ? "bg-[#16a34a]/10" : "hover:bg-[#16a34a]/5"}`}
+      onMouseEnter={() => hasDesc && setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
+    >
+      <div className="flex items-center gap-2 px-3 py-1.5">
+        {STATUS_ICON[task.status]}
+        <span className={`text-[11px] truncate flex-1 ${task.status === "done" ? "text-text-secondary": task.status === "running" ? "text-text-primary font-medium" : "text-text-secondary"}`}>
+          {task.title}
+        </span>
+      </div>
+      {expanded && hasDesc && (
+        <div className="px-3 pb-2 pl-8">
+          <p className="text-[10px] text-text-secondary leading-relaxed">{task.description}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main Panel ──────────────────────────────────────
+
 export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Element {
   const { tasks } = useTaskStore();
-  const { timeline, doneCount, taskCount, stage } = useProjectStatusStore();
+  const { timeline, doneCount, taskCount } = useProjectStatusStore();
   const [hovered, setHovered] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [userScrolled, setUserScrolled] = useState(false);
 
+  // Sort: running → pending → done (newest first), then reverse → oldest at top
   const sortedTasks = [...tasks].sort((a, b) => {
     if (a.status === "running") return -1;
     if (b.status === "running") return 1;
     if (a.status === "pending") return -1;
     if (b.status === "pending") return 1;
-    if (a.status === "done" && b.status === "done") return (a.completedAt || 0) - (b.completedAt || 0);
+    if (a.status === "done" && b.status === "done") return (b.completedAt || 0) - (a.completedAt || 0);
     return 0;
-  });
+  }).reverse();
+
   const runningIdx = sortedTasks.findIndex((t) => t.status === "running");
 
   const centerRunning = useCallback(() => {
@@ -153,33 +180,33 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
           onClick={onCollapse} title="收起面板">▶</button>
       </div>
 
-      {/* SVG Boomerang stepper */}
-      <div className="flex items-center border-b border-border/50 bg-surface-alt shrink-0" onMouseLeave={() => setHovered(null)}>
-        {timeline.map((entry, i) => (
-          <StageChevron key={entry.stage} entry={entry} isFirst={i === 0} isLast={i === timeline.length - 1}
-            expanded={hovered ? entry.stage === hovered : entry.status === "current"}
-            onHover={() => setHovered(entry.stage)} />
-        ))}
+      {/* Boomerang stepper — rounded container */}
+      <div className="shrink-0 px-3 pt-1.5">
+        <div className="rounded-xl bg-[#16a34a]/5 border border-[#16a34a]/10 overflow-hidden" onMouseLeave={() => setHovered(null)}>
+          <div className="flex items-center">
+            {timeline.map((entry, i) => (
+              <StageChevron key={entry.stage} entry={entry} isFirst={i === 0} isLast={i === timeline.length - 1}
+                expanded={hovered ? entry.stage === hovered : entry.status === "current"}
+                onHover={() => setHovered(entry.stage)} />
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* Task list */}
+      {/* Task list — mint container fills remaining space */}
       {tasks.length > 0 && (
-        <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-0.5">
-          <div className="text-[10px] text-text-secondary pb-1.5 pl-1">开发任务</div>
-          {sortedTasks.map((task) => (
-            <div key={task.id}
-              className={`flex items-center gap-2 pl-1 py-1 rounded transition-colors ${task.status === "running" ? "bg-accent/5 ring-1 ring-accent/20" : "hover:bg-surface-hover"}`}>
-              {STATUS_ICON[task.status]}
-              <span className={`text-[11px] truncate flex-1 ${task.status === "done" ? "text-text-secondary line-through decoration-green-400/40" : task.status === "running" ? "text-text-primary font-medium" : "text-text-secondary"}`}>
-                {task.title}
-              </span>
-            </div>
-          ))}
+        <div className="flex-1 min-h-0 flex flex-col px-3 py-1.5">
+          <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-[#16a34a]/5 border border-[#16a34a]/10">
+            <div className="text-[10px] text-text-secondary px-3 pt-2 pb-1">开发任务</div>
+            {sortedTasks.map((task) => (
+              <TaskRow key={task.id} task={task} />
+            ))}
+          </div>
         </div>
       )}
 
       {/* Leaf button */}
-      <div className="shrink-0 px-3 pb-3 pt-1.5 flex flex-col items-center">
+      <div className="shrink-0 px-3 pb-2 pt-1 flex flex-col items-center">
         <button onClick={handleLeafClick}
           className="w-full h-12 rounded-xl bg-[#16a34a]/10 hover:bg-[#16a34a]/20 border border-[#16a34a]/30 flex items-center justify-center transition-colors group">
           <svg viewBox="0 0 28 28" fill="none" className="w-7 h-7 text-[#16a34a] group-hover:scale-110 transition-transform">
