@@ -7,21 +7,27 @@ import { useTabStore } from "../stores/tab-store";
 // Load Monaco from local bundle, not CDN
 loader.config({ monaco });
 
-// Configure web workers for Vite (loader.config alone doesn't do this)
-(self as unknown as Record<string, unknown>).MonacoEnvironment = {
-  getWorker(_workerId: string, label: string) {
-    const workers: Record<string, () => Worker> = {
-      json: () => new Worker(new URL("monaco-editor/esm/vs/language/json/json.worker.js", import.meta.url), { type: "module" }),
-      css: () => new Worker(new URL("monaco-editor/esm/vs/language/css/css.worker.js", import.meta.url), { type: "module" }),
-      html: () => new Worker(new URL("monaco-editor/esm/vs/language/html/html.worker.js", import.meta.url), { type: "module" }),
-      typescript: () => new Worker(new URL("monaco-editor/esm/vs/language/typescript/ts.worker.js", import.meta.url), { type: "module" }),
-      javascript: () => new Worker(new URL("monaco-editor/esm/vs/language/typescript/ts.worker.js", import.meta.url), { type: "module" }),
-      handlebars: () => new Worker(new URL("monaco-editor/esm/vs/language/typescript/ts.worker.js", import.meta.url), { type: "module" }),
-      editorWorkerService: () => new Worker(new URL("monaco-editor/esm/vs/editor/editor.worker.js", import.meta.url), { type: "module" }),
-    };
-    return (workers[label] || workers.editorWorkerService)!();
-  },
-};
+// Configure web workers — Vite dev uses URL imports, prod falls back to main thread
+try {
+  const workerUrl = (path: string) => new URL(path, import.meta.url);
+  (self as unknown as Record<string, unknown>).MonacoEnvironment = {
+    getWorker(_workerId: string, label: string) {
+      const map: Record<string, string> = {
+        json: "monaco-editor/esm/vs/language/json/json.worker.js",
+        css: "monaco-editor/esm/vs/language/css/css.worker.js",
+        html: "monaco-editor/esm/vs/language/html/html.worker.js",
+        typescript: "monaco-editor/esm/vs/language/typescript/ts.worker.js",
+        javascript: "monaco-editor/esm/vs/language/typescript/ts.worker.js",
+        handlebars: "monaco-editor/esm/vs/language/typescript/ts.worker.js",
+        editorWorkerService: "monaco-editor/esm/vs/editor/editor.worker.js",
+      };
+      const p = map[label] || map.editorWorkerService!;
+      return new Worker(workerUrl(p), { type: "module" });
+    },
+  };
+} catch {
+  // Production build — Monaco handles workers internally via loader.config
+}
 
 interface EditorPanelProps {
   filePath?: string;
