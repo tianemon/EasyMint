@@ -218,14 +218,14 @@ export function ProjectPage(): JSX.Element {
 
         <div className="flex flex-col min-w-0 overflow-hidden relative">
           {collapsedLeft && (
-            <button className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-r-md bg-surface-alt border border-border border-l-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleLeft} title="展开文件面板">
+            <button className="absolute -left-px top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-r-md bg-surface-alt border border-border text-text-secondary hover:text-accent transition-colors flex items-center justify-center" onClick={toggleLeft} title="展开文件面板">
           <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3"><path d="M4.5 3l3 3-3 3"/></svg>
         </button>
           )}
           <TabBar />
           <div className="flex-1 min-h-0 relative">{renderTabContent()}</div>
           {collapsedRight && (
-            <button className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-l-md bg-surface-alt border border-border border-r-0 text-text-secondary hover:text-accent transition-colors" onClick={toggleRight} title="展开任务面板">
+            <button className="absolute -right-px top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-l-md bg-surface-alt border border-border text-text-secondary hover:text-accent transition-colors flex items-center justify-center" onClick={toggleRight} title="展开任务面板">
           <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3"><path d="M7.5 3l-3 3 3 3"/></svg>
         </button>
           )}

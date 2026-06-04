@@ -180,7 +180,7 @@ function SkillsTab(): JSX.Element {
   const projectSkills = skills.filter((s) => s.level === "project");
 
   return (
-    <div className="px-6 py-4 overflow-y-auto space-y-4" style={{ maxHeight: "60vh" }}>
+    <div className="px-6 py-4 overflow-y-auto space-y-4">
       {loadError && <p className="text-danger text-xs">{loadError}</p>}
 
       {/* Import button */}
@@ -287,8 +287,7 @@ function McpTab(): JSX.Element {
   const [requiredKeys, setRequiredKeys] = useState<Record<string, Record<string, string>>>({});
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState("");
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [keyValue, setKeyValue] = useState("");
+  const [showKey, setShowKey] = useState(false);
 
   const load = async () => {
     try {
@@ -311,11 +310,10 @@ function McpTab(): JSX.Element {
     setServers((prev) => prev.map((s) => (s.name === name ? { ...s, enabled } : s)));
   };
 
-  const saveKey = async (key: string) => {
-    const next = { ...apiKeys, [key]: keyValue };
+  const saveKey = async (key: string, value: string) => {
+    const next = { ...apiKeys, [key]: value };
     setApiKeys(next);
     await window.electronAPI.settings.set("apiKeys", next);
-    setEditingKey(null);
   };
 
   const typeLabel = (t: string) => t === "stdio" ? "本地进程" : t === "http" ? "HTTP" : "SSE";
@@ -330,7 +328,7 @@ function McpTab(): JSX.Element {
   }
 
   return (
-    <div className="px-6 py-4 overflow-y-auto space-y-5" style={{ maxHeight: "60vh" }}>
+    <div className="px-6 py-4 overflow-y-auto space-y-5">
       {loadError && <p className="text-danger text-xs">{loadError}</p>}
 
       {/* API Keys */}
@@ -344,36 +342,24 @@ function McpTab(): JSX.Element {
             {Array.from(allKeys.entries()).map(([key, val]) => (
               <div key={key}>
                 <label className="text-xs text-text-secondary block mb-1">{key}</label>
-                {editingKey === key ? (
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      className="flex-1 px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
-                      value={keyValue}
-                      onChange={(e) => setKeyValue(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") saveKey(key); if (e.key === "Escape") setEditingKey(null); }}
-                      autoFocus
-                    />
-                    <button className="px-2 py-1 rounded bg-accent text-text-inverse text-xs" onClick={() => saveKey(key)}>保存</button>
-                    <button className="px-2 py-1 rounded text-text-secondary text-xs hover:bg-surface-hover" onClick={() => setEditingKey(null)}>取消</button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2 items-center">
-                    <input
-                      type="password"
-                      className="flex-1 px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none"
-                      value={val ? "••••••••" : ""}
-                      readOnly
-                      onFocus={() => { setEditingKey(key); setKeyValue(val); }}
-                    />
-                    <button
-                      className="text-xs text-text-secondary hover:text-accent shrink-0"
-                      onClick={() => { setEditingKey(key); setKeyValue(val); }}
-                    >
-                      {val ? "编辑" : "设置"}
-                    </button>
-                  </div>
-                )}
+                <div className="relative">
+                  <input
+                    type={showKey ? "text" : "password"}
+                    className="w-full px-2 py-1.5 pr-7 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
+                    defaultValue={val}
+                    placeholder="未设置"
+                    onBlur={(e) => { const v = e.target.value.trim(); if (v !== val) saveKey(key, v); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                  />
+                  <button type="button" className="absolute right-1.5 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
+                    onClick={() => setShowKey(!showKey)}>
+                    {showKey ? (
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    )}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -486,7 +472,7 @@ function AgentsTab(): JSX.Element {
   ];
 
   return (
-    <div className="px-6 py-4 overflow-y-auto space-y-4" style={{ maxHeight: "60vh" }}>
+    <div className="px-6 py-4 overflow-y-auto space-y-4">
       {loadError && <p className="text-danger text-xs">{loadError}</p>}
 
       {/* Template List */}
@@ -591,7 +577,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay">
-      <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl modal-card" style={{ width: activeTab !== "general" ? 620 : 520 }}>
+      <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 800, height: 700 }}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-0 border-b border-border">
           <div className="flex gap-0">
@@ -635,7 +621,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
         </div>
 
         {/* Body */}
-        <div className="px-6 py-4 max-h-[520px] overflow-y-auto">
+        <div className="px-6 py-4 flex-1 overflow-y-auto">
           {activeTab === "general" ? (
             <div className="space-y-5">
               {/* 外观 */}
@@ -812,15 +798,18 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 pb-5 pt-3 border-t border-border">
-          <p className="text-[11px] text-text-secondary opacity-70">
-            DeepSeek 视觉桥接（待商议）
-          </p>
+        <div className="flex items-center justify-end gap-2 px-6 py-2 border-t border-border">
           <button
-            className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium"
+            className="px-5 py-1.5 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm"
             onClick={onClose}
           >
-            完成
+            取消
+          </button>
+          <button
+            className="px-5 py-1.5 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors text-sm font-medium"
+            onClick={onClose}
+          >
+            保存
           </button>
         </div>
       </div>

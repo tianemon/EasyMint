@@ -54,7 +54,7 @@ export function LeftPanel({
             onClick={onCollapse}
             title="收起面板"
           >
-            ◀
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3"><path d="M7.5 3l-3 3 3 3"/></svg>
           </button>
         </div>
       </div>

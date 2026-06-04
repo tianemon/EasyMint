@@ -71,7 +71,7 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
                 isExpanded ? "rotate-90" : ""
               }`}
             >
-              {node.isDirectory ? "▶" : ""}
+              {node.isDirectory ? <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><path d="M3.5 2l3 3-3 3"/></svg> : null}
             </span>
             <span className="truncate">{node.name}</span>
             {node.modified && <span className="text-accent text-[10px] font-medium shrink-0 ml-0.5">M</span>}

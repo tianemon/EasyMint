@@ -116,7 +116,10 @@ function ToolGroupView({ block }: { block: ToolGroupBlock }): JSX.Element {
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-2 px-3 py-1.5 bg-surface-alt hover:bg-surface-hover transition-colors text-left"
       >
-        <span className="text-[10px]">{open ? "▼" : "▶"}</span>
+        <span className="text-[10px]">{open
+          ? <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><path d="M2 3.5l3 3 3-3"/></svg>
+          : <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><path d="M3.5 2l3 3-3 3"/></svg>
+        }</span>
         <span className="text-xs text-text-secondary">{summary}</span>
       </button>
       <div className={`grid transition-all ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
