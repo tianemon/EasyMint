@@ -40,6 +40,7 @@
     "@anthropic-ai/claude-agent-sdk-win32-x64": "0.3.161"
   },
   "devDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.61.1",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
