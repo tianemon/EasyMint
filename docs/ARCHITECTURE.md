@@ -8,9 +8,13 @@ graph TB
         subgraph Main["Main Process (Node.js)"]
             PS[project-service<br/>模板复制、项目 CRUD]
             FS[file-service<br/>目录树读取、文件内容]
-            AS[agent-service<br/>PTY 管理、Claude 启动]
+            AS[agent-service<br/>SDK query 封装、消息通道]
             ST[store<br/>JSON 文件读写]
-            CD[claude-detector<br/>PATH 扫描检测]
+            SP[skill-service<br/>Skill 扫描/导入/seed]
+            MC[mcp-service<br/>MCP 扫描/注入/apiKeys]
+            UC[upload-cache<br/>上传追踪/清理]
+            AT[agent-templates<br/>模板 CRUD/seed]
+            PM[system-prompt-manager<br/>提示词集中管理]
         end
 
         subgraph Preload["Preload (contextBridge)"]

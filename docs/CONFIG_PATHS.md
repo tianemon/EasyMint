@@ -46,6 +46,14 @@ EasyMint 专属设置，不与 SDK 混淆。
 | `tddMode` | 是否开启 TDD 模式 |
 | `screenshotVerification` | 是否开启截图验证 |
 | `lastProjectId` | 上次打开的项目 ID（启动恢复用） |
+| `setupComplete` | Onboarding 是否完成 |
+| `apiKeys` | `Record<string, string>`，MCP 服务器所需的第三方 API Key（如 VISION_API_KEY） |
+| `hiddenSkills` | `string[]`，EasyMint 内隐藏（不显示/不注入）的 Skill 名称列表 |
+| `hiddenMcpServers` | `string[]`，EasyMint 内禁用注入的 MCP 服务器名称列表 |
+| `disabledSkills` | `string[]`（已弃用，迁移至 `hiddenSkills`） |
+| `disabledMcpServers` | `string[]`（已弃用，迁移至 `hiddenMcpServers`） |
+| `model` | 默认模型 |
+| `availableModels` | `string[]`，可选模型列表 |
 
 > **注意**：`apiKey` 和 `apiBaseUrl` 不属于 EasyMint，由 SDK 的 `settings.json`（`env.ANTHROPIC_AUTH_TOKEN` / `env.ANTHROPIC_BASE_URL`）管理。
 
@@ -138,6 +146,25 @@ template/
 ```
 
 ---
+
+## Skill 目录
+
+与 Claude Code 共享，EasyMint 的 `seedDefaultSkills` 会在启动时补全内置 Skill。
+
+```
+~/.claude/skills/              ← 全局 Skill（所有项目可用）
+  <skill-name>/
+    SKILL.md                   ← YAML frontmatter + Markdown body
+    references/                ← 可选，按需加载的文档
+
+<project>/.claude/skills/      ← 项目级 Skill（仅当前项目）
+```
+
+## MCP 配置
+
+与 Claude Code 共享 `.claude.json` 中的 `mcpServers` 字段。EasyMint 扫描该文件 + `em-settings.json` 的 `hiddenMcpServers` 来决定注入哪些 MCP 服务器到 SDK 会话。
+
+`.claude.json` 位置：`~/.claude/.claude.json`（Claude Code 主配置）或 `~/.easymint/.claude.json`（SDK 配置，由 CLAUDE_CONFIG_DIR 决定）。
 
 ## SDK session 项目隔离机制
 
