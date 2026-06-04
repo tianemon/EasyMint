@@ -189,27 +189,29 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
           <div className="flex items-center">
             {timeline.map((entry, i) => (
               <StageChevron key={entry.stage} entry={entry} isFirst={i === 0} isLast={i === timeline.length - 1}
-                expanded={hovered ? entry.stage === hovered : entry.status === "current"}
+                expanded={hovered ? entry.stage === hovered : entry.status === "current" || (!timeline.some(e => e.status === "current") && i === 0)}
                 onHover={() => setHovered(entry.stage)} />
             ))}
           </div>
         </div>
       </div>
 
-      {/* Task list — mint container fills remaining space */}
-      {tasks.length > 0 && (
-        <div className="flex-1 min-h-0 flex flex-col px-3 py-1.5">
-          <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-[#16a34a]/5 border border-[#16a34a]/10">
-            <div className="flex items-center justify-between px-3 pt-2 pb-1">
-              <span className="text-[10px] text-text-secondary">开发任务</span>
-              {taskCount > 0 && <span className="text-[10px] text-text-secondary">{doneCount}/{taskCount} 完成</span>}
-            </div>
-            {sortedTasks.map((task) => (
-              <TaskRow key={task.id} task={task} />
-            ))}
+      {/* Task list — mint container always visible, fixed area */}
+      <div className="flex-1 min-h-0 flex flex-col px-3 py-1.5">
+        <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-[#16a34a]/5 border border-[#16a34a]/10">
+          <div className="flex items-center justify-between px-3 pt-2 pb-1">
+            <span className="text-[10px] text-text-secondary">开发任务</span>
+            {taskCount > 0 && <span className="text-[10px] text-text-secondary">{doneCount}/{taskCount} 完成</span>}
           </div>
+          {tasks.length > 0 ? (
+            sortedTasks.map((task) => (
+              <TaskRow key={task.id} task={task} />
+            ))
+          ) : (
+            <div className="flex items-center justify-center flex-1 py-8 text-[10px] text-text-secondary">暂无任务</div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Leaf button */}
       <div className="shrink-0 px-3 pb-2 flex flex-col items-center">
