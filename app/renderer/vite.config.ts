@@ -6,9 +6,6 @@ export default defineConfig({
   plugins: [react()],
   root: __dirname,
   base: "./",
-  optimizeDeps: {
-    exclude: ["monaco-editor"],
-  },
   build: {
     outDir: "dist",
     emptyOutDir: true,

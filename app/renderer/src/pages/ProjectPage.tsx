@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { LeftToolbar } from "../components/LeftToolbar";
 import { LeftPanel } from "../components/LeftPanel";
 import { TaskPanel } from "../components/TaskPanel";
-import { EditorPanel } from "../components/EditorPanel";
+const EditorPanel = React.lazy(() => import("../components/EditorPanel").then((m) => ({ default: m.EditorPanel })));
 import { ChatPanel } from "../components/ChatPanel";
 import { SettingsDialog } from "../components/SettingsDialog";
 import { NewProjectDialog } from "../components/NewProjectDialog";
@@ -194,7 +194,7 @@ switch (activeTab.type) {
           />
         );
       case "file":
-        return <EditorPanel filePath={activeTab.filePath} fileName={activeTab.title} />;
+        return <React.Suspense fallback={<div className="flex items-center justify-center h-full text-text-secondary text-sm">加载中…</div>}><EditorPanel filePath={activeTab.filePath} fileName={activeTab.title} /></React.Suspense>;
       default:
         return <EditorPanel />;
     }
