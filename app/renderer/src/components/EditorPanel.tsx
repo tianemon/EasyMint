@@ -7,6 +7,22 @@ import { useTabStore } from "../stores/tab-store";
 // Load Monaco from local bundle, not CDN
 loader.config({ monaco });
 
+// Configure web workers for Vite (loader.config alone doesn't do this)
+(self as unknown as Record<string, unknown>).MonacoEnvironment = {
+  getWorker(_workerId: string, label: string) {
+    const workers: Record<string, () => Worker> = {
+      json: () => new Worker(new URL("monaco-editor/esm/vs/language/json/json.worker.js", import.meta.url), { type: "module" }),
+      css: () => new Worker(new URL("monaco-editor/esm/vs/language/css/css.worker.js", import.meta.url), { type: "module" }),
+      html: () => new Worker(new URL("monaco-editor/esm/vs/language/html/html.worker.js", import.meta.url), { type: "module" }),
+      typescript: () => new Worker(new URL("monaco-editor/esm/vs/language/typescript/ts.worker.js", import.meta.url), { type: "module" }),
+      javascript: () => new Worker(new URL("monaco-editor/esm/vs/language/typescript/ts.worker.js", import.meta.url), { type: "module" }),
+      handlebars: () => new Worker(new URL("monaco-editor/esm/vs/language/typescript/ts.worker.js", import.meta.url), { type: "module" }),
+      editorWorkerService: () => new Worker(new URL("monaco-editor/esm/vs/editor/editor.worker.js", import.meta.url), { type: "module" }),
+    };
+    return (workers[label] || workers.editorWorkerService)!();
+  },
+};
+
 interface EditorPanelProps {
   filePath?: string;
   fileName?: string;
@@ -24,19 +40,19 @@ const MONACO_THEME: editor.IStandaloneThemeData = {
     { token: "function", foreground: "DC2626" },
   ],
   colors: {
-    "editor.background": "#fafbfb",
+    "editor.background": "#ecf5f0",
     "editor.foreground": "#374151",
-    "editor.lineHighlightBackground": "#f0fdf4",
-    "editor.selectionBackground": "#dcfce7",
-    "editor.inactiveSelectionBackground": "#f0fdf4",
+    "editor.lineHighlightBackground": "#dcfce7",
+    "editor.selectionBackground": "#bbf7d0",
+    "editor.inactiveSelectionBackground": "#dcfce7",
     "editorCursor.foreground": "#16a34a",
     "editorLineNumber.foreground": "#9CA3AF",
     "editorLineNumber.activeForeground": "#16a34a",
-    "editorGutter.background": "#f5faf7",
+    "editorGutter.background": "#e6f0ea",
     "editorWidget.background": "#ffffff",
-    "editorWidget.border": "#e5e7eb",
+    "editorWidget.border": "#d1d5db",
     "input.background": "#ffffff",
-    "input.border": "#e5e7eb",
+    "input.border": "#d1d5db",
     "focusBorder": "#16a34a",
   },
 };
@@ -136,6 +152,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
     <div className="flex h-full overflow-hidden">
       <div className="flex-1 flex flex-col min-w-0">
         <Editor
+          key={filePath}
           height="100%"
           language={langForFile(fileName)}
           value={content}
@@ -158,9 +175,9 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
             bracketPairColorization: { enabled: true },
             guides: { bracketPairs: true },
             padding: { top: 8 },
-            smoothScrolling: true,
-            cursorBlinking: "smooth",
-            cursorSmoothCaretAnimation: "on",
+            smoothScrolling: false,
+            cursorBlinking: "blink",
+            cursorSmoothCaretAnimation: "off",
           }}
         />
         {saved && (
