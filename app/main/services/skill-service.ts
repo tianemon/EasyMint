@@ -63,7 +63,7 @@ function saveHiddenSkills(list: string[]): void {
 // ── YAML frontmatter parser ────────────────────────
 
 function parseFrontmatter(content: string): { name?: string; description?: string; body: string } {
-  const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!match) {
     // No frontmatter — treat entire file as body
     return { body: content };
@@ -244,7 +244,7 @@ export function toggleSkill(name: string, enabled: boolean): void {
 
 // ── Seed built-in skills ───────────────────────────
 
-const BUILTIN_SKILLS = ["plan-first", "requirement-breakdown", "describe-image", "web-verify"];
+const BUILTIN_SKILLS = ["plan-first", "requirement-breakdown", "describe-image", "web-verify", "easymint-guide"];
 
 function getBuiltinSkillsDir(): string {
   // In packaged app: process.resourcesPath/skills

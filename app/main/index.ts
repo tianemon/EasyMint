@@ -84,6 +84,11 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
       const { seedDefaultSkills } = require("./services/skill-service");
       seedDefaultSkills();
     } catch { /* ignore */ }
+    // Seed default MCP configs (~/.easymint/.claude.json)
+    try {
+      const { seedDefaultMcp } = require("./services/mcp-service");
+      seedDefaultMcp();
+    } catch { /* ignore */ }
     // Auto-cleanup old uploads (60 days / 10GB)
     try {
       const { autoClean } = require("./services/upload-cache");

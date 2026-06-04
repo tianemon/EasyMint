@@ -8,7 +8,7 @@
  * Enable/disable is managed at the EasyMint level via em-settings.json.
  */
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, cpSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
@@ -175,7 +175,92 @@ export function toggleMcpServer(name: string, enabled: boolean): void {
     if (!list.includes(name)) list.push(name);
   }
   data.hiddenMcpServers = list;
-  const { writeFileSync, mkdirSync } = require("node:fs");
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   writeFileSync(EM_SETTINGS, JSON.stringify(data, null, 2));
+}
+
+// ── Seed built-in MCP configs ─────────────────────
+
+function getBuiltinMcpDir(): string {
+  try {
+    const rp = (process as { resourcesPath?: string }).resourcesPath;
+    if (rp) {
+      const p = path.join(rp, "mcp");
+      if (existsSync(p)) return p;
+    }
+  } catch { /* fall through */ }
+  return path.join(__dirname, "..", "..", "..", "resources", "mcp");
+}
+
+const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
+  playwright: {
+    type: "stdio",
+    command: "npx",
+    args: ["@playwright/mcp@latest", "--headless"],
+  },
+  codegraph: {
+    type: "stdio",
+    command: "codegraph",
+    args: ["serve", "--mcp"],
+  },
+  tavily: {
+    type: "http",
+    url: "https://mcp.tavily.com/mcp/?tavilyApiKey=YOUR_TAVILY_API_KEY",
+  },
+};
+
+/** Write default MCP server configs on first launch. Merges into existing
+ *  config — never overwrites servers already configured. */
+export function seedDefaultMcp(): void {
+  const configPath = easyMintMcpPath();
+  const configDir = path.dirname(configPath);
+  if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true });
+
+  let data: Record<string, unknown> = {};
+  if (existsSync(configPath)) {
+    try { data = JSON.parse(readFileSync(configPath, "utf-8")); } catch { /* overwrite */ }
+  }
+
+  const existing: Record<string, McpServerConfig> =
+    (data.mcpServers as Record<string, McpServerConfig>) || {};
+  let changed = false;
+
+  // Standard servers — just write config entries
+  for (const [name, cfg] of Object.entries(DEFAULT_MCP_SERVERS)) {
+    if (!existing[name]) {
+      existing[name] = cfg;
+      changed = true;
+      console.log(`[seedDefaultMcp] added config: ${name}`);
+    }
+  }
+
+  // image-vision — copy source files + write config pointing to the copy
+  if (!existing["image-vision"]) {
+    const srcDir = path.join(getBuiltinMcpDir(), "image-vision");
+    const targetDir = path.join(os.homedir(), ".easymint", "mcp", "image-vision");
+
+    if (existsSync(srcDir)) {
+      try {
+        if (!existsSync(targetDir)) mkdirSync(targetDir, { recursive: true });
+        cpSync(srcDir, targetDir, { recursive: true });
+        console.log("[seedDefaultMcp] copied image-vision to", targetDir);
+
+        existing["image-vision"] = {
+          type: "stdio",
+          command: "python3",
+          args: [path.join(targetDir, "server.py")],
+          env: { VISION_API_KEY: "" },
+        };
+        changed = true;
+      } catch (err) {
+        console.error("[seedDefaultMcp] image-vision copy failed:", err);
+      }
+    }
+  }
+
+  if (changed) {
+    data.mcpServers = existing;
+    writeFileSync(configPath, JSON.stringify(data, null, 2), "utf-8");
+    console.log("[seedDefaultMcp] mcp config written to", configPath);
+  }
 }
