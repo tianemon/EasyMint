@@ -17,83 +17,103 @@ const STATUS_ICON: Record<string, JSX.Element> = {
   pending: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" fill="none" stroke="#94a3b8" strokeWidth="1"/></svg>,
 };
 
-// ── SVG Boomerang Chevron (Skeuomorphic) ─────────────
+// ── Fishbone Stepper (leaf vein style) ──────────────
+//
+//  Layout: center spine with branches alternating up/down.
+//  Each branch: diagonal → horizontal → dot + label.
+//
+//  Tunable parameters (all in SVG px units):
+//    H, w         — SVG viewBox 尺寸
+//    spineY       — 脊柱线 y 坐标
+//    branchY_up   — 上方分支 y 坐标
+//    branchY_down — 下方分支 y 坐标
+//    sx spacing   — 脊柱节点 x 间距 (12 + i * 42)
+//    elbowX       — 拐点 x = sx + 偏移 (调整斜线陡峭度)
+//    dotX         — 圆点 x = elbowX + 偏移 (调整横线长度)
+//    r            — 圆点半径 (done/pending/current 三种)
+//    spine stroke — 脊柱线颜色 + strokeWidth (line 39)
+//    branch stroke— 分支线颜色 + strokeWidth (line 58)
+//    text fontSize— 标签字号 (line 68)
+//    text y offset— branchY - 5 / branchY + 14 (line 68, 标签与圆点间距)
 
-const STAGE_H = 54;
-const POINT = 14;
-const NOTCH = 14;
-const GAP = 5;
-const EXP_W = 100;
-const COL_W = 43;
-const RADIUS = 4;
-let _uid = 0;
+function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hovered: string | null; onHover: (s: string) => void }): JSX.Element {
+  // ── SVG 画布 ──
+  const H = 90;            // 画布高度
+  const spineY = 45;       // 脊柱线 y 位置
+  const w = 300;           // 画布宽度
+  const branchY_up = 15;   // 上分支 y 位置
+  const branchY_down = 75; // 下分支 y 位置
 
-function StageChevron({ entry, isFirst, isLast, expanded, onHover }: { entry: StageEntry; isFirst: boolean; isLast: boolean; expanded: boolean; onHover: () => void }): JSX.Element {
-  const midY = STAGE_H / 2;
-  const w = expanded ? EXP_W : COL_W;
-  const uid = ++_uid;
-
-  const isDone = entry.status === "done";
-  const isCurrent = entry.status === "current";
-
-  const base = isDone ? "#22c55e" : isCurrent ? "#16a34a" : "#9ca3af";
-  const topFill = isDone ? "#f0fdf4" : isCurrent ? "#e8f5ec" : "#f9fafb";
-  const botFill = isDone ? "#dcfce7" : isCurrent ? "#d4edda" : "#f3f4f6";
-  const shadowColor = isDone ? "rgba(34,197,94,0.12)" : isCurrent ? "rgba(22,163,74,0.12)" : "rgba(0,0,0,0.04)";
-
-  const d = isFirst && isLast
-    ? `M 0,0 L ${w},0 L ${w},${STAGE_H} L 0,${STAGE_H} Z`
-    : isFirst
-    ? `M 0,0 L ${w - POINT},0 L ${w},${midY} L ${w - POINT},${STAGE_H} L 0,${STAGE_H} Z`
-    : isLast
-    ? `M 0,0 L ${NOTCH},${midY} L 0,${STAGE_H} L ${w},${STAGE_H} L ${w},0 Z`
-    : `M 0,0 L ${NOTCH},${midY} L 0,${STAGE_H} L ${w - POINT},${STAGE_H} L ${w},${midY} L ${w - POINT},0 Z`;
-
-  const hl = isFirst && isLast
-    ? `M ${RADIUS},1 L ${w - RADIUS},1`
-    : isFirst
-    ? `M ${RADIUS},1 L ${w - POINT - RADIUS},1`
-    : isLast
-    ? `M ${RADIUS},1 L ${w - RADIUS},1`
-    : `M ${RADIUS},1 L ${w - POINT - RADIUS},1`;
-
-  const overlap = isFirst ? 0 : -(POINT - GAP);
+  const hasCurrent = timeline.some((e) => e.status === "current");
 
   return (
-    <div style={{ width: w, marginLeft: overlap, flexShrink: 0 }} onMouseEnter={onHover}
-      className={expanded ? "z-10" : "z-0"}>
-      <svg viewBox={`0 0 ${w} ${STAGE_H}`} width={w} height={STAGE_H} className="block cursor-pointer">
-        <defs>
-          <linearGradient id={`g-${uid}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={topFill} />
-            <stop offset="100%" stopColor={botFill} />
-          </linearGradient>
-          <filter id={`s-${uid}`}>
-            <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor={shadowColor} />
-          </filter>
-        </defs>
-        <path d={d} fill="rgba(0,0,0,0.04)" transform="translate(0,1.5)" />
-        <path d={d} fill={`url(#g-${uid})`}
-          strokeLinejoin="round" filter={`url(#s-${uid})`} />
-        <path d={hl} stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" fill="none"
-          strokeLinecap="round" />
-        {isDone ? (
-          <g transform={`translate(${w / 2 - 6}, ${midY - 6})`}>
-            <circle cx="6" cy="6" r="6" fill={base} />
-            <path d="M3 6l2.5 2.5L9.5 3.5" stroke="#fff" strokeWidth="1.3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox={`0 0 ${w} ${H}`} className="block w-full" height={H}
+      onMouseLeave={() => onHover("")}>
+      {/* ── 脊柱横线 ── */}
+      <polyline
+        points={timeline.map((_, i) => `${12 + i * 56},${spineY}`).join(" ")}
+        fill="none"
+        stroke={hasCurrent ? "#86efac" : "#d1d5db"}
+        strokeWidth="3"               // 脊柱线粗细
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* ── 分支 + 圆点 + 标签 ── */}
+      {timeline.map((entry, i) => {
+        const sx = 20 + i * 40;       // 脊柱节点 x
+        const branchY = i % 2 === 0 ? branchY_up : branchY_down;
+        const elbowX = sx + 22;       // 拐点 x（斜线 → 横线的转折点）
+        const dotX = elbowX + 30;     // 圆点 x（横线末端）
+
+        // 状态判断
+        const isCurrent = hovered ? entry.stage === hovered
+          : entry.status === "current" || (!hasCurrent && i === 0);
+        const isDone = entry.status === "done";
+
+        // ── 圆点样式 ──
+        const r = isCurrent ? 5 : isDone ? 4 : 4;          // 圆点半径（当前/完成/未完成）
+        const fill = isDone ? "#22c55e" : isCurrent ? "#16a34a" : "none";  // 填充色
+        const stroke = isDone ? "#22c55e" : isCurrent ? "#16a34a" : "#9ca3af"; // 描边色
+        const lc = isDone || isCurrent ? "#86efac" : "#d1d5db"; // 分支线颜色
+
+        return (
+          <g key={entry.stage} onMouseEnter={() => onHover(entry.stage)} className="cursor-pointer">
+            {/* ── 分支折线：脊柱 → 拐点 → 圆点 ── */}
+            <polyline
+              points={`${sx},${spineY} ${elbowX},${branchY} ${dotX},${branchY}`}
+              fill="none"
+              stroke={lc}
+              strokeWidth="1.5"         // 分支线粗细
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* ── 圆点 ── */}
+            {isDone ? (
+              <>
+                <circle cx={dotX} cy={branchY} r={r} fill={fill} stroke={stroke} strokeWidth="1.5" />
+                <path d={`M${dotX - 3},${branchY} L${dotX - 1},${branchY + 2.5} L${dotX + 3},${branchY - 2.5}`} stroke="#fff" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              </>
+            ) : (
+              <circle cx={dotX} cy={branchY} r={r} fill={fill} stroke={stroke} strokeWidth="1.5" className={isCurrent ? "animate-pulse" : ""} />
+            )}
+            {/* ── 标签（仅当前阶段显示） ── */}
+            {isCurrent && (
+              <text
+                x={dotX}
+                y={branchY < spineY ? branchY - 7 : branchY + 16}  // 上方-5 / 下方+14
+                textAnchor="middle"
+                fill="#16a34a"
+                fontSize="12"             // 标签字号
+                fontWeight="600"
+                fontFamily="system-ui, sans-serif"
+              >
+                {entry.label}
+              </text>
+            )}
           </g>
-        ) : isCurrent ? (
-          <circle cx={w / 2} cy={midY} r="3.5" fill={base} className="animate-pulse" />
-        ) : (
-          <circle cx={w / 2} cy={midY} r="2.5" fill="none" stroke={base} strokeWidth="1" />
-        )}
-        {expanded && (
-          <text x={w / 2} y={midY + 15} textAnchor="middle" fill={base} fontSize="10" fontWeight="600" fontFamily="system-ui, sans-serif">
-            {entry.label}
-          </text>
-        )}
-      </svg>
-    </div>
+        );
+      })}
+    </svg>
   );
 }
 
@@ -183,16 +203,10 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
         </button>
       </div>
 
-      {/* Boomerang stepper — rounded container */}
-      <div className="shrink-0 px-3 pt-1.5">
-        <div className="rounded-xl bg-[#16a34a]/5 border border-[#16a34a]/10 overflow-hidden" onMouseLeave={() => setHovered(null)}>
-          <div className="flex items-center">
-            {timeline.map((entry, i) => (
-              <StageChevron key={entry.stage} entry={entry} isFirst={i === 0} isLast={i === timeline.length - 1}
-                expanded={hovered ? entry.stage === hovered : entry.status === "current" || (!timeline.some(e => e.status === "current") && i === 0)}
-                onHover={() => setHovered(entry.stage)} />
-            ))}
-          </div>
+      {/* Fishbone stepper */}
+      <div className="shrink-0 px-3 pt-2" onMouseLeave={() => setHovered(null)}>
+        <div className="rounded-xl bg-[#16a34a]/5 border border-[#16a34a]/10 overflow-hidden">
+          <Fishbone timeline={timeline} hovered={hovered} onHover={setHovered} />
         </div>
       </div>
 
