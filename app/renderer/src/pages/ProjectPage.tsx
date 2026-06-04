@@ -68,10 +68,8 @@ export function ProjectPage(): JSX.Element {
           setProjectName(p.name);
           document.title = `${p.name} — EasyMint`;
           window.electronAPI.settings.setLastProject(projectId);
-          // 加载项目开发状态（恢复 saved  + 检查文件实际状态）
-          useProjectStatusStore.getState().load(p.path);
-          // 从 task.json 同步任务到面板
-          syncTasks(p.path);
+          // 加载项目开发状态 + 同步任务（集中式 refreshAll）
+          refreshAll(p.path);
           // 如果 URL 带有 session 参数，自动打开该会话
           const params = new URLSearchParams(location.search);
           const urlSessionId = params.get("session");
@@ -121,17 +119,15 @@ export function ProjectPage(): JSX.Element {
     if (tab) closeTab(tab.id);
   }, [activeSessionId, closeTab, tabs]);
 
-  const syncTasks = useCallback((path?: string) => {
+  // Sync tasks from task.json → taskStore, then refresh button states
+  const refreshAll = useCallback((path?: string) => {
     const p = path || projectPath;
     if (!p) return;
     window.electronAPI.task.read(p).then((r) => {
       const ts = useTaskStore.getState();
       const jsonIds = new Set(r.tasks.map((t) => t.id));
-      // Remove stale tasks not in task.json
       ts.tasks.forEach((t) => { if (!jsonIds.has(t.id)) ts.updateTask(t.id, { status: "pending" }); });
-      // Filter out template placeholder tasks (containing {{...}})
       const realTasks = r.tasks.filter((t) => !t.title.includes("{{"));
-      // Upsert from task.json
       realTasks.forEach((t) => {
         const existing = ts.tasks.find((x) => x.id === t.id);
         const newStatus = (t.passes ? "done" : "pending") as "done" | "pending";
@@ -141,9 +137,9 @@ export function ProjectPage(): JSX.Element {
           ts.addTask({ id: t.id, title: t.title, description: t.description, command: t.command, status: newStatus });
         }
       });
-      // Only mark alloc as done if there are real tasks (not template placeholders)
-      if (realTasks.length > 0) useProjectStatusStore.getState().setPhase("allocPhase", "done");
-    }).catch((e: unknown) => { console.error("[syncTasks]", e); });
+      // Refresh button states after task sync
+      useProjectStatusStore.getState().refreshAll(p);
+    }).catch((e: unknown) => { console.error("[refreshAll]", e); });
   }, [projectPath]);
 
   const handleOpenProject = useCallback(async () => {
@@ -194,7 +190,7 @@ export function ProjectPage(): JSX.Element {
               setActiveSessionId(sid);
               setSessionRefreshKey((k) => k + 1);
             }}
-            onActivity={() => { setSessionRefreshKey((k) => k + 1); syncTasks(); useProjectStatusStore.getState().sync(projectPath); }}
+            onActivity={() => { setSessionRefreshKey((k) => k + 1); refreshAll(); }}
           />
         );
       case "file":

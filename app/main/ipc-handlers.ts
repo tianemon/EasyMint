@@ -21,6 +21,26 @@ import {
   deleteTemplate,
 } from "./services/agent-templates";
 import {
+  scanSkills,
+  readSkill,
+  importSkill,
+  deleteSkill,
+  toggleSkill,
+  buildSkillsPrompt,
+} from "./services/skill-service";
+import {
+  scanMcpServers,
+  buildMcpServersOption,
+  toggleMcpServer,
+  getMcpRequiredKeys,
+} from "./services/mcp-service";
+import {
+  trackUpload,
+  getUploadStats,
+  cleanFiles,
+  cleanAll,
+} from "./services/upload-cache";
+import {
   listSessions,
   getSessionMessages,
   renameSession,
@@ -110,6 +130,24 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent-template:create", (_e, { input }) => createTemplate(input));
   ipcMain.handle("agent-template:update", (_e, { id, input }) => updateTemplate(id, input));
   ipcMain.handle("agent-template:delete", (_e, { id }) => { deleteTemplate(id); });
+
+  // skill:*
+  ipcMain.handle("skill:list", (_e, { projectPath }: { projectPath?: string }) => scanSkills(projectPath));
+  ipcMain.handle("skill:get", (_e, { skillPath }: { skillPath: string }) => readSkill(skillPath));
+  ipcMain.handle("skill:import", (_e, { sourcePath, level, projectPath }: { sourcePath: string; level: "global" | "project"; projectPath?: string }) => importSkill(sourcePath, level, projectPath));
+  ipcMain.handle("skill:delete", (_e, { skillPath }: { skillPath: string }) => { deleteSkill(skillPath); });
+  ipcMain.handle("skill:toggle", (_e, { name, enabled }: { name: string; enabled: boolean }) => { toggleSkill(name, enabled); });
+  ipcMain.handle("skill:buildPrompt", (_e, { projectPath }: { projectPath?: string }) => buildSkillsPrompt(projectPath));
+
+  // mcp:*
+  ipcMain.handle("mcp:list", () => scanMcpServers());
+  ipcMain.handle("mcp:toggle", (_e, { name, enabled }: { name: string; enabled: boolean }) => { toggleMcpServer(name, enabled); });
+  ipcMain.handle("mcp:requiredKeys", () => getMcpRequiredKeys());
+
+  // upload:*
+  ipcMain.handle("upload:stats", (_e, { sortBy }: { sortBy?: "time" | "size" }) => getUploadStats(sortBy));
+  ipcMain.handle("upload:clean", (_e, { filenames }: { filenames: string[] }) => cleanFiles(filenames));
+  ipcMain.handle("upload:cleanAll", () => cleanAll());
 
   // conversation:* — backed by SDK session APIs
   ipcMain.handle("conv:list", (_e, { projectPath }) => listSessions(projectPath));
@@ -243,6 +281,42 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       }
       return true;
     } catch { return false; }
+  });
+
+  // file:saveUpload — save uploaded image to ~/.easymint/uploads/
+  ipcMain.handle("file:saveUpload", async (_e, { name, data }: { name: string; data: number[] }) => {
+    const os = require("os");
+    const fs = require("fs");
+    const p = require("path");
+    const uploadDir = p.join(os.homedir(), ".easymint", "uploads");
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    const timestamp = Date.now();
+    const safeName = `${timestamp}-${name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const filePath = p.join(uploadDir, safeName);
+    const buf = Buffer.from(data);
+    fs.writeFileSync(filePath, buf);
+    const ext = p.extname(name).toLowerCase();
+    const mimeMap: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp", ".svg": "image/svg+xml" };
+    const mime = mimeMap[ext] || "image/png";
+    const result = { path: filePath, dataUrl: `data:${mime};base64,${buf.toString("base64")}` };
+    trackUpload(safeName, buf.length);
+    return result;
+  });
+
+  // file:readUpload — read an uploaded file and return as data URL (for history restore)
+  ipcMain.handle("file:readUpload", async (_e, { filePath }: { filePath: string }) => {
+    const fs = require("fs");
+    const p = require("path");
+    const os = require("os");
+    // Security: only allow files under ~/.easymint/uploads/
+    const allowedDir = p.resolve(p.join(os.homedir(), ".easymint", "uploads"));
+    if (!p.resolve(filePath).startsWith(allowedDir)) return null;
+    if (!fs.existsSync(filePath)) return null;
+    const buf = fs.readFileSync(filePath);
+    const ext = p.extname(filePath).toLowerCase();
+    const mimeMap: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp", ".svg": "image/svg+xml" };
+    const mime = mimeMap[ext] || "image/png";
+    return `data:${mime};base64,${buf.toString("base64")}`;
   });
 
   // shell:exec — run a shell command in project directory, stream output

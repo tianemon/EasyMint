@@ -10,9 +10,17 @@ export function App(): JSX.Element {
     localStorage.getItem("easymint_setup_complete") === "true"
   );
 
-  // Restore persisted settings (model list, API keys, etc.) on startup
+  // Restore persisted settings (model list, API keys, etc.) on startup.
+  // Also fall back to main-process setupComplete if localStorage was lost
+  // (e.g. after Electron userData path change or cache clear).
   useEffect(() => {
-    useSettingsStore.getState().loadFromElectron();
+    useSettingsStore.getState().loadFromElectron().then(() => {
+      const fromMain = useSettingsStore.getState().setupComplete;
+      if (fromMain && !setupComplete) {
+        localStorage.setItem("easymint_setup_complete", "true");
+        setSetupComplete(true);
+      }
+    });
   }, []);
 
   useEffect(() => {

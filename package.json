@@ -91,6 +91,10 @@
       {
         "from": "template",
         "to": "template"
+      },
+      {
+        "from": "resources/skills",
+        "to": "skills"
       }
     ],
     "mac": {

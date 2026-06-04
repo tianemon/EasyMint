@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { PromptSettings } from "./settings/PromptSettings";
 
@@ -25,15 +25,15 @@ function ToggleRow({ label, description, hint, enabled, onChange }: ToggleRowPro
       </div>
       <button
         onClick={() => onChange(!enabled)}
-        className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${
+        className={`relative w-11 h-6 rounded-full transition-colors shrink-0 overflow-hidden ${
           enabled ? "bg-accent" : "bg-surface-hover border border-border"
         }`}
         role="switch"
         aria-checked={enabled}
       >
         <span
-          className={`absolute top-0.5 w-5 h-5 rounded-full bg-surface-elevated shadow transition-transform ${
-            enabled ? "translate-x-5" : "translate-x-0.5"
+          className={`absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-surface-elevated shadow transition-all ${
+            enabled ? "left-[calc(100%-22px)]" : "left-0.5"
           }`}
         />
       </button>
@@ -49,6 +49,93 @@ function StarRating({ count }: { count: number }): JSX.Element {
   );
 }
 
+// ── Upload Cache Section ─────────────────────────────────────────────────────
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function UploadCacheSection(): JSX.Element | null {
+  const [stats, setStats] = useState<{ totalSize: number; fileCount: number; files: { name: string; size: number; created: number; isImage: boolean }[] } | null>(null);
+  const [sortBy, setSortBy] = useState<"time" | "size">("time");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [cleaning, setCleaning] = useState(false);
+
+  const load = useCallback(async () => {
+    try { setStats(await window.electronAPI.upload.stats(sortBy)); } catch { /* */ }
+  }, [sortBy]);
+  useEffect(() => { load(); }, [load]);
+
+  const handleCleanSelected = async () => {
+    if (selected.size === 0) return;
+    setCleaning(true);
+    await window.electronAPI.upload.clean([...selected]);
+    setSelected(new Set());
+    await load();
+    setCleaning(false);
+  };
+
+  const handleCleanAll = async () => {
+    if (!confirm(`确定删除全部 ${stats?.fileCount || 0} 个上传文件（${formatBytes(stats?.totalSize || 0)}）？`)) return;
+    setCleaning(true);
+    await window.electronAPI.upload.cleanAll();
+    setSelected(new Set());
+    await load();
+    setCleaning(false);
+  };
+
+  const toggleSelect = (name: string) => {
+    const next = new Set(selected);
+    if (next.has(name)) next.delete(name); else next.add(name);
+    setSelected(next);
+  };
+
+  const selectAll = () => {
+    if (stats && selected.size === stats.files.length) setSelected(new Set());
+    else if (stats) setSelected(new Set(stats.files.map((f) => f.name)));
+  };
+
+  if (!stats || stats.fileCount === 0) return null;
+
+  return (
+    <section>
+      <h3 className="text-sm font-medium text-text-secondary mb-2">上传缓存</h3>
+      <div className="bg-surface-alt rounded-lg overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+          <span className="text-xs text-text-secondary">总 {formatBytes(stats.totalSize)} · {stats.fileCount} 个文件</span>
+          <div className="flex gap-2">
+            <button className="text-[11px] text-text-secondary hover:text-accent transition-colors" onClick={() => setSortBy(sortBy === "time" ? "size" : "time")}>
+              {sortBy === "time" ? "按时间 ↓" : "按大小 ↓"}
+            </button>
+            <button className="text-[11px] text-text-secondary hover:text-accent transition-colors" onClick={selectAll}>
+              {stats && selected.size === stats.files.length ? "取消全选" : "全选"}
+            </button>
+            <button className="text-[11px] text-danger hover:text-danger/80 transition-colors disabled:opacity-40" disabled={selected.size === 0} onClick={handleCleanSelected}>
+              清理选中
+            </button>
+            <button className="text-[11px] text-danger hover:text-danger/80 transition-colors" onClick={handleCleanAll}>清理全部</button>
+          </div>
+        </div>
+        <div className="max-h-[160px] overflow-y-auto">
+          {stats.files.map((f) => (
+            <div key={f.name} className={`flex items-center gap-2 px-4 py-1.5 border-b border-border/50 last:border-0 cursor-pointer hover:bg-surface-hover transition-colors text-xs ${selected.has(f.name) ? "bg-accent/5" : ""}`}
+              onClick={() => toggleSelect(f.name)}>
+              <input type="checkbox" checked={selected.has(f.name)} readOnly className="w-3 h-3 rounded accent-accent shrink-0" />
+              <span className="flex-1 text-text-primary truncate">{f.name}</span>
+              <span className="text-text-secondary shrink-0 w-16 text-right">{formatBytes(f.size)}</span>
+              <span className="text-text-secondary shrink-0 w-20 text-right">{new Date(f.created).toLocaleDateString("zh-CN")}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      {cleaning && <p className="text-text-secondary text-[11px] mt-1">清理中...</p>}
+    </section>
+  );
+}
+
 const TOKEN_ROWS = [
   { label: "普通开发", stars: 1, desc: "仅 Worker agent 消耗" },
   { label: "评估模式", stars: 2, desc: "Worker + Evaluator（Playwright 自动化）" },
@@ -56,6 +143,299 @@ const TOKEN_ROWS = [
   { label: "截图验证", stars: 3, desc: "image-vision 每次截图分析，Token 消耗高" },
   { label: "全开（评估+TDD+截图）", stars: 4, desc: "所有验证机制全部开启，消耗最高" },
 ];
+
+// ── Skills Tab ───────────────────────────────────────────────────────────────
+
+function SkillsTab(): JSX.Element {
+  const [skills, setSkills] = useState<{ name: string; description: string; path: string; level: "global" | "project"; enabled: boolean }[]>([]);
+  const [loadError, setLoadError] = useState("");
+
+  const load = () => {
+    window.electronAPI.skill.list(undefined).then(setSkills).catch((e: unknown) => setLoadError(String(e)));
+  };
+  useEffect(load, []);
+
+  const handleImport = async () => {
+    try {
+      const dir = await window.electronAPI.dialog.openDirectory();
+      if (!dir) return;
+      await window.electronAPI.skill.import(dir, "global");
+      load();
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "导入失败");
+    }
+  };
+
+  const handleHide = async (skillPath: string, skillName: string) => {
+    await window.electronAPI.skill.delete(skillPath);
+    setSkills((prev) => prev.filter((s) => s.name !== skillName));
+  };
+
+  const handleToggle = async (name: string, enabled: boolean) => {
+    await window.electronAPI.skill.toggle(name, enabled);
+    setSkills((prev) => prev.map((s) => (s.name === name ? { ...s, enabled } : s)));
+  };
+
+  const globalSkills = skills.filter((s) => s.level === "global");
+  const projectSkills = skills.filter((s) => s.level === "project");
+
+  return (
+    <div className="px-6 py-4 overflow-y-auto space-y-4" style={{ maxHeight: "60vh" }}>
+      {loadError && <p className="text-danger text-xs">{loadError}</p>}
+
+      {/* Import button */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-text-primary">Skill 管理</p>
+        <button
+          className="px-3 py-1 rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors"
+          onClick={handleImport}
+        >
+          导入 Skill
+        </button>
+      </div>
+      <p className="text-[11px] text-text-secondary -mt-3">
+        与 Claude Code 共用 ~/.claude/skills/ 和项目级 .claude/skills/ 目录
+      </p>
+
+      {/* Global skills */}
+      {globalSkills.length > 0 && (
+        <div>
+          <h4 className="text-xs font-medium text-text-secondary mb-2">全局</h4>
+          <div className="space-y-1">
+            {globalSkills.map((s) => (
+              <div key={s.path} className={`p-3 rounded-lg border transition-colors ${s.enabled ? "border-border" : "border-border/50 opacity-60"}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm text-text-primary">{s.name}</span>
+                    <p className="text-xs text-text-secondary mt-0.5 truncate">{s.description}</p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-3 shrink-0">
+                    <button
+                      onClick={() => handleToggle(s.name, !s.enabled)}
+                      className={`relative w-9 h-5 rounded-full transition-colors overflow-hidden ${s.enabled ? "bg-accent" : "bg-surface-hover border border-border"}`}
+                      role="switch"
+                      aria-checked={s.enabled}
+                    >
+                      <span
+                        className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-surface-elevated shadow transition-all ${s.enabled ? "left-[calc(100%-18px)]" : "left-0.5"}`}
+                      />
+                    </button>
+                    <button
+                      className="text-xs text-text-secondary hover:text-danger transition-colors"
+                      onClick={() => handleHide(s.path, s.name)}
+                    >
+                      隐藏
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Project skills */}
+      {projectSkills.length > 0 && (
+        <div>
+          <h4 className="text-xs font-medium text-text-secondary mb-2">项目级</h4>
+          <div className="space-y-1">
+            {projectSkills.map((s) => (
+              <div key={s.path} className={`p-3 rounded-lg border transition-colors ${s.enabled ? "border-border" : "border-border/50 opacity-60"}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm text-text-primary">{s.name}</span>
+                    <p className="text-xs text-text-secondary mt-0.5 truncate">{s.description}</p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-3 shrink-0">
+                    <button
+                      onClick={() => handleToggle(s.name, !s.enabled)}
+                      className={`relative w-9 h-5 rounded-full transition-colors overflow-hidden ${s.enabled ? "bg-accent" : "bg-surface-hover border border-border"}`}
+                      role="switch"
+                      aria-checked={s.enabled}
+                    >
+                      <span
+                        className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-surface-elevated shadow transition-all ${s.enabled ? "left-[calc(100%-18px)]" : "left-0.5"}`}
+                      />
+                    </button>
+                    <button
+                      className="text-xs text-text-secondary hover:text-danger transition-colors"
+                      onClick={() => handleHide(s.path, s.name)}
+                    >
+                      隐藏
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {skills.length === 0 && (
+        <p className="text-text-secondary text-xs text-center py-8">
+          暂无 Skill。点击「导入 Skill」选择一个 skill 文件夹，或手动将 skill 放入 ~/.claude/skills/ 目录。
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── MCP Tab ───────────────────────────────────────────────────────────────────
+
+function McpTab(): JSX.Element {
+  const [servers, setServers] = useState<{ name: string; type: string; command?: string; args?: string[]; url?: string; enabled: boolean }[]>([]);
+  const [requiredKeys, setRequiredKeys] = useState<Record<string, Record<string, string>>>({});
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+  const [loadError, setLoadError] = useState("");
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [keyValue, setKeyValue] = useState("");
+
+  const load = async () => {
+    try {
+      const [s, keys] = await Promise.all([
+        window.electronAPI.mcp.list(),
+        window.electronAPI.mcp.requiredKeys(),
+      ]);
+      setServers(s);
+      setRequiredKeys(keys);
+      const settings = await window.electronAPI.settings.get();
+      setApiKeys(settings.apiKeys ?? {});
+    } catch (e: unknown) {
+      setLoadError(String(e));
+    }
+  };
+  useEffect(() => { load(); }, []);
+
+  const handleToggle = async (name: string, enabled: boolean) => {
+    await window.electronAPI.mcp.toggle(name, enabled);
+    setServers((prev) => prev.map((s) => (s.name === name ? { ...s, enabled } : s)));
+  };
+
+  const saveKey = async (key: string) => {
+    const next = { ...apiKeys, [key]: keyValue };
+    setApiKeys(next);
+    await window.electronAPI.settings.set("apiKeys", next);
+    setEditingKey(null);
+  };
+
+  const typeLabel = (t: string) => t === "stdio" ? "本地进程" : t === "http" ? "HTTP" : "SSE";
+
+  // Collect all required keys across MCP servers, with their current values.
+  // MCP config env (.claude.json) takes priority, then apiKeys from em-settings.json.
+  const allKeys = new Map<string, string>(); // key → value
+  for (const keyMap of Object.values(requiredKeys)) {
+    for (const [k, v] of Object.entries(keyMap)) {
+      if (!allKeys.has(k)) allKeys.set(k, v || apiKeys[k] || "");
+    }
+  }
+
+  return (
+    <div className="px-6 py-4 overflow-y-auto space-y-5" style={{ maxHeight: "60vh" }}>
+      {loadError && <p className="text-danger text-xs">{loadError}</p>}
+
+      {/* API Keys */}
+      {allKeys.size > 0 && (
+        <section>
+          <h3 className="text-sm font-medium text-text-primary mb-2">API Keys</h3>
+          <p className="text-[11px] text-text-secondary mb-3">
+            MCP 工具所需的第三方服务密钥，会注入到对应 MCP 服务器的环境变量中。
+          </p>
+          <div className="bg-surface-alt rounded-lg px-4 py-3 space-y-2">
+            {Array.from(allKeys.entries()).map(([key, val]) => (
+              <div key={key}>
+                <label className="text-xs text-text-secondary block mb-1">{key}</label>
+                {editingKey === key ? (
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      className="flex-1 px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
+                      value={keyValue}
+                      onChange={(e) => setKeyValue(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveKey(key); if (e.key === "Escape") setEditingKey(null); }}
+                      autoFocus
+                    />
+                    <button className="px-2 py-1 rounded bg-accent text-text-inverse text-xs" onClick={() => saveKey(key)}>保存</button>
+                    <button className="px-2 py-1 rounded text-text-secondary text-xs hover:bg-surface-hover" onClick={() => setEditingKey(null)}>取消</button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="password"
+                      className="flex-1 px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none"
+                      value={val ? "••••••••" : ""}
+                      readOnly
+                      onFocus={() => { setEditingKey(key); setKeyValue(val); }}
+                    />
+                    <button
+                      className="text-xs text-text-secondary hover:text-accent shrink-0"
+                      onClick={() => { setEditingKey(key); setKeyValue(val); }}
+                    >
+                      {val ? "编辑" : "设置"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* MCP Servers */}
+      <section>
+        <h3 className="text-sm font-medium text-text-primary mb-2">服务器</h3>
+        <p className="text-[11px] text-text-secondary mb-3">
+          与 Claude Code 共享配置。使用 `claude mcp add/remove` 管理服务器。
+        </p>
+
+        {servers.length === 0 ? (
+          <p className="text-text-secondary text-xs text-center py-8">
+            未检测到 MCP 服务器。在终端运行 `claude mcp add &lt;name&gt; &lt;command&gt;` 添加。
+          </p>
+        ) : (
+          <div className="space-y-1">
+            {servers.map((s) => (
+              <div key={s.name} className={`p-3 rounded-lg border transition-colors ${s.enabled ? "border-border" : "border-border/50 opacity-60"}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-text-primary">{s.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-alt text-text-secondary">{typeLabel(s.type)}</span>
+                      {Object.entries(requiredKeys[s.name] || {}).map(([k, v]) => (
+                        <span key={k} className={`text-[10px] px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${v || apiKeys[k] ? "bg-accent/10 text-accent" : "bg-warning/10 text-warning"}`}>
+                          {v || apiKeys[k] ? (
+                            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-2.5 h-2.5"><circle cx="4.5" cy="5" r="2.5"/><path d="M6.5 7l3 3M5.5 3v2"/></svg>
+                          ) : (
+                            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-2.5 h-2.5"><path d="M6 2v4M6 8.5h0"/><circle cx="6" cy="6" r="4.5"/></svg>
+                          )}
+                          {k}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-xs text-text-secondary mt-0.5 truncate">
+                      {s.type === "http" ? s.url : [s.command, ...(s.args || [])].join(" ")}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-3 shrink-0">
+                    <button
+                      onClick={() => handleToggle(s.name, !s.enabled)}
+                      className={`relative w-9 h-5 rounded-full transition-colors overflow-hidden ${s.enabled ? "bg-accent" : "bg-surface-hover border border-border"}`}
+                      role="switch"
+                      aria-checked={s.enabled}
+                    >
+                      <span
+                        className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-surface-elevated shadow transition-all ${s.enabled ? "left-[calc(100%-18px)]" : "left-0.5"}`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
 
 // ── Agent Templates Tab ──────────────────────────────────────────────────────
 
@@ -199,7 +579,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     loadFromElectron,
   } = useSettingsStore();
   const [showKey, setShowKey] = useState(false);
-  const [activeTab, setActiveTab] = useState<"general" | "prompts" | "agents">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "prompts" | "agents" | "skills" | "mcp">("general");
 
   useEffect(() => {
     if (open) {
@@ -211,7 +591,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay">
-      <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl modal-card" style={{ width: activeTab === "prompts" || activeTab === "agents" ? 620 : 520 }}>
+      <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl modal-card" style={{ width: activeTab !== "general" ? 620 : 520 }}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-0 border-b border-border">
           <div className="flex gap-0">
@@ -232,6 +612,18 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               onClick={() => setActiveTab("agents")}
             >
               Agent 模板
+            </button>
+            <button
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "skills" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setActiveTab("skills")}
+            >
+              Skill
+            </button>
+            <button
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "mcp" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setActiveTab("mcp")}
+            >
+              MCP
             </button>
           </div>
           <button
@@ -381,6 +773,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                 </div>
               </section>
 
+              {/* Upload cache */}
+              <UploadCacheSection />
               {/* Token 消耗对照表 */}
               <section>
                 <h3 className="text-sm font-medium text-text-secondary mb-2">预估 Token 消耗</h3>
@@ -408,8 +802,12 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
             </div>
           ) : activeTab === "prompts" ? (
             <PromptSettings />
-          ) : (
+          ) : activeTab === "agents" ? (
             <AgentsTab />
+          ) : activeTab === "skills" ? (
+            <SkillsTab />
+          ) : (
+            <McpTab />
           )}
         </div>
 

@@ -9,6 +9,8 @@ function log(msg: string) { try { fs.appendFileSync(LOG, `[${new Date().toISOStr
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { listTemplates, getTemplate } from "./agent-templates";
+import { buildSkillsPrompt } from "./skill-service";
+import { buildMcpServersOption } from "./mcp-service";
 
 // Use createRequire for CJS/ESM compatibility in packaged Electron
 type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
@@ -116,7 +118,7 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
   console.log("[buildQueryOptions] CLAUDE_CONFIG_DIR=%s", configDir);
   if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
   if (settings.apiKey) env.ANTHROPIC_AUTH_TOKEN = settings.apiKey;
-  const customPrompt = isResume ? "" : resolveEffectivePrompt();
+  const customPrompt = isResume ? "" : (resolveEffectivePrompt() + buildSkillsPrompt(projectPath));
   // Load Agent templates into SDK's options.agents
   const agents: Record<string, { description: string; prompt: string; tools: string[]; model?: string }> = {};
   for (const t of listTemplates()) {
@@ -148,6 +150,8 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
     env,
     systemPrompt: customPrompt ? { type: "preset" as const, preset: "claude_code" as const, append: customPrompt } : undefined,
     agents: Object.keys(agents).length > 0 ? agents : undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mcpServers: buildMcpServersOption() as any,
     pathToClaudeCodeExecutable,
     ...overrides,
   };
@@ -382,7 +386,7 @@ export class AgentService {
 
     const chat: ActiveChat = {
       chatId, sessionId: "", channel, abortController, query: null, projectPath,
-      agentType: template.agentType,
+      agentType: template.agentType, status: "idle",
     };
     this.activeChats.set(chatId, chat);
 

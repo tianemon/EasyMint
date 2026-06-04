@@ -29,7 +29,8 @@ function loadApp(window: BrowserWindow, hash = ""): void {
     : `file://${path.join(__dirname, "..", "..", "renderer", "dist", "index.html")}`;
 
   window.loadURL(baseUrl);
-  if (isDev) window.webContents.openDevTools({ mode: "detach" });
+  // DevTools can be opened manually via View → Toggle Developer Tools
+  // if (isDev) window.webContents.openDevTools({ mode: "detach" });
 
   // Navigate to hash route after page loads (more reliable than passing hash to loadURL)
   if (hash) {
@@ -78,6 +79,17 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
     try {
       const { seedDefaults } = require("./services/agent-templates");
       seedDefaults();
+    } catch { /* ignore */ }
+    // Seed built-in skills (~/.claude/skills/)
+    try {
+      const { seedDefaultSkills } = require("./services/skill-service");
+      seedDefaultSkills();
+    } catch { /* ignore */ }
+    // Auto-cleanup old uploads (60 days / 10GB)
+    try {
+      const { autoClean } = require("./services/upload-cache");
+      const deleted = autoClean();
+      if (deleted > 0) console.log("[init] auto-cleaned uploads:", deleted);
     } catch { /* ignore */ }
     registerIpcHandlers({ mainWindow: window, ...sharedServices });
 
@@ -145,7 +157,7 @@ app.whenReady().then(() => {
           {
             label: "New Window",
             accelerator: "Cmd+N",
-            click: () => createWindow("/projects"),
+            click: () => createWindow("/"),
           },
           { type: "separator" as const },
           { role: "close" as const },
@@ -182,7 +194,7 @@ ipcMain.handle("window:open-project", async (_e, { projectId, sessionId, init })
 });
 
 ipcMain.handle("window:new", () => {
-  createWindow("/projects");
+  createWindow("/");
 });
 
 ipcMain.handle("settings:set-last-project", (_e, { projectId }) => {

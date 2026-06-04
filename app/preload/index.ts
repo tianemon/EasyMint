@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     readContent: (filePath: string) => ipcRenderer.invoke("file:readContent", { filePath }),
     writeContent: (filePath: string, content: string) =>
       ipcRenderer.invoke("file:writeContent", { filePath, content }),
+    saveUpload: (name: string, data: Uint8Array) => ipcRenderer.invoke("file:saveUpload", { name, data: Array.from(data) }) as Promise<{ path: string; dataUrl: string }>,
+    readUpload: (filePath: string) => ipcRenderer.invoke("file:readUpload", { filePath }) as Promise<string | null>,
   },
   terminal: {
     create: (cwd: string) => ipcRenderer.invoke("terminal:create", { cwd }),
@@ -91,6 +93,24 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("shell:stderr", handler);
       return () => ipcRenderer.removeListener("shell:stderr", handler);
     },
+  },
+  skill: {
+    list: (projectPath?: string) => ipcRenderer.invoke("skill:list", { projectPath }),
+    get: (skillPath: string) => ipcRenderer.invoke("skill:get", { skillPath }),
+    import: (sourcePath: string, level: "global" | "project", projectPath?: string) => ipcRenderer.invoke("skill:import", { sourcePath, level, projectPath }),
+    delete: (skillPath: string) => ipcRenderer.invoke("skill:delete", { skillPath }),
+    toggle: (name: string, enabled: boolean) => ipcRenderer.invoke("skill:toggle", { name, enabled }),
+    buildPrompt: (projectPath?: string) => ipcRenderer.invoke("skill:buildPrompt", { projectPath }),
+  },
+  mcp: {
+    list: () => ipcRenderer.invoke("mcp:list"),
+    toggle: (name: string, enabled: boolean) => ipcRenderer.invoke("mcp:toggle", { name, enabled }),
+    requiredKeys: () => ipcRenderer.invoke("mcp:requiredKeys") as Promise<Record<string, string[]>>,
+  },
+  upload: {
+    stats: (sortBy?: "time" | "size") => ipcRenderer.invoke("upload:stats", { sortBy }),
+    clean: (filenames: string[]) => ipcRenderer.invoke("upload:clean", { filenames }),
+    cleanAll: () => ipcRenderer.invoke("upload:cleanAll"),
   },
   evaluator: {
     isEnabled: () => ipcRenderer.invoke("evaluator:isEnabled"),

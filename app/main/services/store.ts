@@ -40,6 +40,7 @@ interface Settings {
   apiKey?: string;
   model?: string;
   availableModels?: string[];
+  apiKeys?: Record<string, string>;
   lastProjectId?: string;
   setupComplete?: boolean;
 }
@@ -116,6 +117,7 @@ export class Store {
       apiKey: env.ANTHROPIC_AUTH_TOKEN || (sdkData.apiKey as string),
       model: (emData.model as string) || undefined,
       availableModels: (emData.availableModels as string[]) || undefined,
+      apiKeys: (emData.apiKeys as Record<string, string>) || undefined,
       setupComplete: emData.setupComplete as boolean | undefined,
       lastProjectId: emData.lastProjectId as string | undefined,
     };
@@ -149,6 +151,7 @@ export class Store {
     data.setupComplete = settings.setupComplete;
     if (settings.model) data.model = settings.model;
     if (settings.availableModels) data.availableModels = settings.availableModels;
+    if (settings.apiKeys) data.apiKeys = settings.apiKeys;
     fs.writeFileSync(this.emSettingsPath, JSON.stringify(data, null, 2));
   }
 

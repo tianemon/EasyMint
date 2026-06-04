@@ -1,75 +1,129 @@
 import { create } from "zustand";
 
-export type PhaseState = "pending" | "running" | "done";
+export type ProjectStage =
+  | "requirements"
+  | "tech-selection"
+  | "init"
+  | "planning"
+  | "developing"
+  | "done";
+
+export interface StageEntry {
+  stage: ProjectStage;
+  label: string;
+  status: "pending" | "current" | "done";
+  summary?: string;
+  time?: string;
+}
 
 interface ProjectStatusState {
-  initPhase: PhaseState;
-  allocPhase: PhaseState;
-  execPhase: PhaseState;
+  stage: ProjectStage;
+  timeline: StageEntry[];
+  taskCount: number;
+  doneCount: number;
   projectPath: string;
 
-  /** Load saved state from .easymint/state.json, then check init.sh */
-  load: (path: string) => Promise<void>;
-  /** Sync initPhase by checking init.sh content */
-  sync: (path: string) => Promise<void>;
-  setPhase: (key: "initPhase" | "allocPhase" | "execPhase", value: PhaseState) => void;
+  refreshAll: (path: string) => Promise<void>;
   reset: () => void;
 }
 
-function saveState(path: string): void {
-  if (!path) return;
-  const { initPhase, allocPhase, execPhase } = useProjectStatusStore.getState();
-  window.electronAPI.project.writeState(path, { initPhase, allocPhase, execPhase }).catch(() => {});
+const STAGE_ORDER: ProjectStage[] = ["requirements", "tech-selection", "init", "planning", "developing", "done"];
+
+const STAGE_LABELS: Record<ProjectStage, string> = {
+  requirements: "需求采集",
+  "tech-selection": "技术选型",
+  init: "环境初始化",
+  planning: "任务规划",
+  developing: "正在开发",
+  done: "开发完成",
+};
+
+function fmtTime(ts?: number): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
 
-export const useProjectStatusStore = create<ProjectStatusState>((set, get) => ({
-  initPhase: "pending",
-  allocPhase: "pending",
-  execPhase: "pending",
+export const useProjectStatusStore = create<ProjectStatusState>((set) => ({
+  stage: "requirements",
+  timeline: STAGE_ORDER.map((s) => ({ stage: s, label: STAGE_LABELS[s], status: "pending" as const })),
+  taskCount: 0,
+  doneCount: 0,
   projectPath: "",
 
-  load: async (path: string) => {
+  refreshAll: async (path: string) => {
     if (!path) return;
     set({ projectPath: path });
 
-    // Restore saved state first
+    // Load saved stage times from .easymint/state.json
+    let saved: Record<string, number> = {};
     try {
-      const saved = await window.electronAPI.project.readState(path);
-      if (saved) {
-        set({
-          initPhase: (saved.initPhase as PhaseState) || "pending",
-          allocPhase: (saved.allocPhase as PhaseState) || "pending",
-          execPhase: (saved.execPhase as PhaseState) || "pending",
-        });
-      }
-    } catch { /* no saved state */ }
+      const s = await window.electronAPI.project.readState(path);
+      if (s?.stageTimes) saved = s.stageTimes as unknown as Record<string, number>;
+    } catch { /* ignore */ }
 
-    // Then sync actual file state to correct any drift
-    const { initPhase } = get();
-    if (initPhase !== "done") {
-      try {
-        const r = await window.electronAPI.project.checkInitStatus(path);
-        if (r.done) set({ initPhase: "done" });
-      } catch { /* ignore */ }
-    }
-  },
+    // Check files
+    let hasAppSpec = false;
+    let initDone = false;
+    let hasInitSh = false;
+    let realTasks: { id: string; passes: boolean }[] = [];
+    let taskCount = 0;
 
-  sync: async (path: string) => {
-    if (!path) return;
+    try {
+      const files = await window.electronAPI.file.readTree(path);
+      hasAppSpec = files.some((f: { name: string }) => f.name === "APP_SPEC.md");
+    } catch { /* */ }
+
     try {
       const r = await window.electronAPI.project.checkInitStatus(path);
-      if (r.done) {
-        set({ initPhase: "done" });
-        saveState(path);
-      }
-    } catch { /* ignore */ }
+      hasInitSh = true;
+      initDone = !!r.done;
+    } catch { /* */ }
+
+    try {
+      const r = await window.electronAPI.task.read(path);
+      realTasks = (r.tasks || []).filter((t: { title: string }) => !t.title.includes("{{"));
+      taskCount = (r.tasks || []).length;
+    } catch { /* */ }
+
+    const doneCount = realTasks.filter((t) => t.passes).length;
+
+    // Determine stage
+    let stage: ProjectStage;
+    if (!hasAppSpec) stage = "requirements";
+    else if (!hasInitSh) stage = "tech-selection";
+    else if (!initDone) stage = "init";
+    else if (realTasks.length === 0) stage = "planning";
+    else if (realTasks.every((t) => t.passes)) stage = "done";
+    else stage = "developing";
+
+    // Record timestamps for completed stages in old stage detection
+    const now = Date.now();
+    const stageTimes: Record<string, number> = { ...saved };
+    const completedUpTo = STAGE_ORDER.indexOf(stage);
+    for (let i = 0; i < completedUpTo; i++) {
+      if (!stageTimes[STAGE_ORDER[i]!]) stageTimes[STAGE_ORDER[i]!] = now;
+    }
+    // Persist if changed
+    if (JSON.stringify(stageTimes) !== JSON.stringify(saved)) {
+      window.electronAPI.project.writeState(path, { stageTimes }).catch(() => {});
+    }
+
+    // Build timeline
+    const currentIdx = STAGE_ORDER.indexOf(stage);
+    const timeline: StageEntry[] = STAGE_ORDER.map((s, i) => ({
+      stage: s,
+      label: STAGE_LABELS[s],
+      status: i < currentIdx ? "done" : i === currentIdx ? "current" : "pending",
+      time: fmtTime(stageTimes[s]),
+    }));
+
+    set({ stage, timeline, taskCount, doneCount });
   },
 
-  setPhase: (key, value) => {
-    set({ [key]: value });
-    const { projectPath } = get();
-    if (projectPath) saveState(projectPath);
-  },
-
-  reset: () => set({ initPhase: "pending", allocPhase: "pending", execPhase: "pending" }),
+  reset: () => set({
+    stage: "requirements",
+    timeline: STAGE_ORDER.map((s) => ({ stage: s, label: STAGE_LABELS[s], status: "pending" as const })),
+    taskCount: 0, doneCount: 0, projectPath: "",
+  }),
 }));

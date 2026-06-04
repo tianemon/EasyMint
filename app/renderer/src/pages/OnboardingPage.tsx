@@ -124,7 +124,7 @@ export function OnboardingPage(): JSX.Element {
                 {models.length > 0 ? (
                   <>
                     <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
-                      <span className="text-accent text-lg">✓</span>
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-accent"><path d="M5 10l3.5 3.5L15 7"/></svg>
                     </div>
                     <p className="text-sm text-text-primary">已获取 {models.length} 个模型</p>
                     <div className="w-full max-h-40 overflow-y-auto bg-surface-alt rounded-lg p-3">
@@ -136,7 +136,7 @@ export function OnboardingPage(): JSX.Element {
                 ) : (
                   <>
                     <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
-                      <span className="text-2xl">📡</span>
+                      <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="w-8 h-8 text-accent"><path d="M6 18a10 10 0 0 1 20 0"/><path d="M10 14a6 6 0 0 1 12 0"/><path d="M14 10a2 2 0 0 1 4 0"/><circle cx="16" cy="22" r="2"/></svg>
                     </div>
                     <p className="text-sm text-text-secondary text-center">
                       点击下方按钮从 API 获取可用模型列表
@@ -166,7 +166,7 @@ export function OnboardingPage(): JSX.Element {
           {currentStep === 2 && (
             <div className="flex flex-col items-center gap-6 py-8">
               <div className="w-20 h-20 rounded-full bg-accent flex items-center justify-center">
-                <span className="text-3xl text-text-inverse">✓</span>
+                <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-text-inverse"><path d="M7 17l6 6L25 9"/></svg>
               </div>
               <div className="text-center">
                 <h2 className="text-xl font-semibold mb-2">EasyMint 已准备就绪</h2>

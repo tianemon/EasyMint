@@ -9,8 +9,10 @@ interface SettingsState {
   claudeVersion: string;
   apiBaseUrl: string;
   apiKey: string;
+  apiKeys: Record<string, string>;
   model: string;
   availableModels: string[];
+  setupComplete: boolean;
   thinkingBudget: number;
   setEvaluateMode: (enabled: boolean) => void;
   setTddMode: (enabled: boolean) => void;
@@ -33,9 +35,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   claudeVersion: "",
   apiBaseUrl: "",
   apiKey: "",
+  apiKeys: {},
   model: "",
   availableModels: [],
 
+  setupComplete: false,
   thinkingBudget: 0,
 
   setModel: (model: string) => {
@@ -88,9 +92,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
           defaultProjectDir: settings.defaultProjectDir || "~/EasyMintProject",
           apiBaseUrl: settings.apiBaseUrl ?? "",
           apiKey: settings.apiKey ?? "",
+          apiKeys: settings.apiKeys ?? {},
           model: settings.model ?? "",
           availableModels: settings.availableModels ?? [],
           thinkingBudget: 0,
+          setupComplete: settings.setupComplete ?? false,
         });
       }
     } catch { /* electronAPI unavailable */ }

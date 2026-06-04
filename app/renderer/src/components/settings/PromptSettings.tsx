@@ -196,9 +196,9 @@ export function PromptSettings(): JSX.Element {
             await window.electronAPI.systemPrompt.updateAppend(v);
             setConfig((prev) => prev ? { ...prev, appendDateTimeAndUserName: v } : prev);
           }}
-          className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${config.appendDateTimeAndUserName ? "bg-accent" : "bg-surface-hover border border-border"}`}
+          className={`relative w-11 h-6 rounded-full transition-colors shrink-0 overflow-hidden ${config.appendDateTimeAndUserName ? "bg-accent" : "bg-surface-hover border border-border"}`}
         >
-          <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-surface-elevated shadow transition-transform ${config.appendDateTimeAndUserName ? "translate-x-5" : "translate-x-0.5"}`} />
+          <span className={`absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-surface-elevated shadow transition-all ${config.appendDateTimeAndUserName ? "left-[calc(100%-22px)]" : "left-0.5"}`} />
         </button>
       </div>
     </div>

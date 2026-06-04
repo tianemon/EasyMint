@@ -72,6 +72,8 @@ interface ElectronAPI {
     readTree: (dirPath: string) => Promise<FileNode[]>;
     readContent: (filePath: string) => Promise<string>;
     writeContent: (filePath: string, content: string) => Promise<void>;
+    saveUpload: (name: string, data: Uint8Array) => Promise<{ path: string; dataUrl: string }>;
+    readUpload: (filePath: string) => Promise<string | null>;
   };
   agent: {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
@@ -97,6 +99,24 @@ interface ElectronAPI {
     onStdout: (callback: (data: { line: string }) => void) => () => void;
     onStderr: (callback: (data: { line: string }) => void) => () => void;
   };
+  skill: {
+    list: (projectPath?: string) => Promise<{ name: string; description: string; path: string; level: "global" | "project"; enabled: boolean }[]>;
+    get: (skillPath: string) => Promise<{ name: string; description: string; path: string; level: "global" | "project"; enabled: boolean; body: string } | null>;
+    import: (sourcePath: string, level: "global" | "project", projectPath?: string) => Promise<{ name: string; description: string; path: string; level: "global" | "project"; enabled: boolean }>;
+    delete: (skillPath: string) => Promise<void>;
+    toggle: (name: string, enabled: boolean) => Promise<void>;
+    buildPrompt: (projectPath?: string) => Promise<string>;
+  },
+  mcp: {
+    list: () => Promise<{ name: string; type: "stdio" | "http" | "sse"; command?: string; args?: string[]; url?: string; enabled: boolean }[]>;
+    toggle: (name: string, enabled: boolean) => Promise<void>;
+    requiredKeys: () => Promise<Record<string, Record<string, string>>>;
+  },
+  upload: {
+    stats: (sortBy?: "time" | "size") => Promise<{ totalSize: number; fileCount: number; files: { name: string; size: number; created: number; isImage: boolean }[] }>;
+    clean: (filenames: string[]) => Promise<number>;
+    cleanAll: () => Promise<number>;
+  },
   evaluator: {
     isEnabled: () => Promise<boolean>;
     setEnabled: (enabled: boolean) => Promise<void>;
@@ -127,7 +147,7 @@ interface ElectronAPI {
     setDefault: (id: string) => Promise<void>;
   };
   settings: {
-    get: () => Promise<{ defaultProjectDir?: string; terminalFontSize: number; evaluateMode: boolean; tddMode: boolean; screenshotVerification: boolean; apiBaseUrl?: string; apiKey?: string; model?: string; availableModels?: string[] }>;
+    get: () => Promise<{ defaultProjectDir?: string; terminalFontSize: number; evaluateMode: boolean; tddMode: boolean; screenshotVerification: boolean; setupComplete?: boolean; apiBaseUrl?: string; apiKey?: string; apiKeys?: Record<string, string>; model?: string; availableModels?: string[] }>;
     set: (key: string, value: unknown) => Promise<void>;
     setLastProject: (projectId: string) => Promise<void>;
     fetchModels: () => Promise<string[]>;
