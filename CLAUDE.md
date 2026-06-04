@@ -1,5 +1,27 @@
 # EasyMint
 
+## 新会话启动指引
+
+你是 EasyMint 项目的开发会话。开始工作前，按需阅读：
+
+| 场景 | 文档 | 内容 |
+|------|------|------|
+| 了解整体架构 | `docs/ARCHITECTURE.md` | 系统架构、数据模型、IPC 通道 |
+| 了解功能规格 | `docs/APP_SPEC.md` | 页面结构、功能清单、设计风格 |
+| 了解当前进度 | `docs/需求跟进1.md` | 已实现/未实现/架构变更/新增设计 |
+| 了解 Agent 系统 | `docs/AGENT_SYSTEM.md` + `AGENT_TASK_SPEC.md` | 多 Agent 协作、模板系统、SDK 集成 |
+| 了解配置路径 | `docs/CONFIG_PATHS.md` | `~/.easymint/` 全局目录、em-settings 字段、Skill/MCP 位置 |
+| 了解需求设计方法论 | `docs/AI驱动开发需求设计原则.md` | 11 条 AORD 原则，任务拆解规范 |
+| 了解 SDK API | `docs/SDK_REFERENCE.md` | `query()`、会话管理、权限模式、Hooks |
+| 修改系统提示词 | `app/shared/prompts.ts` | Mint 身份定义、阶段指令、万能按钮前缀 |
+| 看懂构建流程 | `package.json` scripts + `scripts/build.sh` | dev/build/pack 命令 |
+
+核心架构要点：
+- **AI 引擎**：`claude-agent-sdk`，`query()` 长生命周期 + message channel，非 CLI spawn
+- **主进程服务**：agent-service / project-service / file-service / skill-service / mcp-service / upload-cache / agent-templates / system-prompt-manager
+- **前端 stores**：project-status / task / tab / settings / workspace / chat-actions
+- **数据存储**：`~/.easymint/` 全局 + `<project>/.easymint/state.json` 项目级
+
 ## 项目背景
 
 EasyMint 是一个 Electron 桌面应用，让不懂技术的用户通过图形界面完成项目创建、需求采集，与 AI 对话驱动开发。AI 交互基于 claude-agent-sdk，Chat 模式采用长生命周期进程 + 消息通道，无需反复启停子进程。
