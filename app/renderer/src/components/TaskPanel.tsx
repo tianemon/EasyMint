@@ -17,10 +17,10 @@ const STATUS_ICON: Record<string, JSX.Element> = {
   pending: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" fill="none" stroke="#94a3b8" strokeWidth="1"/></svg>,
 };
 
-// ── SVG Boomerang Chevron ───────────────────────────
+// ── SVG Boomerang Chevron (Skeuomorphic) ─────────────
 //
-//  Shape: like a thick ">" — right side V-points outward, left side V-notches inward.
-//  Each stage nests into the next, forming a continuous arrow chain: >>>>
+//  Shape: thick ">" — each stage has a top highlight, gradient fill,
+//  drop shadow, and rounded tips for a tactile 3D feel.
 
 const STAGE_H = 54;
 const POINT = 14;
@@ -28,48 +28,71 @@ const NOTCH = 14;
 const GAP = 5;
 const EXP_W = 106;
 const COL_W = 43;
+const RADIUS = 4;
+let _uid = 0;
 
 function StageChevron({ entry, isFirst, isLast, expanded, onHover }: { entry: StageEntry; isFirst: boolean; isLast: boolean; expanded: boolean; onHover: () => void }): JSX.Element {
   const midY = STAGE_H / 2;
   const w = expanded ? EXP_W : COL_W;
+  const uid = ++_uid;
 
-  const color = entry.status === "done" ? "#22c55e"
-    : entry.status === "current" ? "#16a34a"
-    : "#9ca3af";
-  const fill = entry.status === "done" ? "#dcfce7"
-    : entry.status === "current" ? "#dcfce7"
-    : "#f3f4f6";
-  const stroke = entry.status === "done" ? "#86efac"
-    : entry.status === "current" ? "#4ade80"
-    : "#e5e7eb";
+  const isDone = entry.status === "done";
+  const isCurrent = entry.status === "current";
 
-  // First: flat left.  Last: flat right.  Middle: both V tips point right.
+  const base = isDone ? "#22c55e" : isCurrent ? "#16a34a" : "#9ca3af";
+  // Current stage uses the same mint green as the leaf button
+  const topFill = isDone ? "#f0fdf4" : isCurrent ? "#e8f5ec" : "#f9fafb";
+  const botFill = isDone ? "#dcfce7" : isCurrent ? "#d4edda" : "#f3f4f6";
+  const shadowColor = isDone ? "rgba(34,197,94,0.12)" : isCurrent ? "rgba(22,163,74,0.12)" : "rgba(0,0,0,0.04)";
+
   const d = isFirst && isLast
-    ? `M 0,0 L ${w},0 L ${w},${STAGE_H} L 0,${STAGE_H} Z`  // rectangle
+    ? `M 0,0 L ${w},0 L ${w},${STAGE_H} L 0,${STAGE_H} Z`
     : isFirst
     ? `M 0,0 L ${w - POINT},0 L ${w},${midY} L ${w - POINT},${STAGE_H} L 0,${STAGE_H} Z`
     : isLast
     ? `M 0,0 L ${NOTCH},${midY} L 0,${STAGE_H} L ${w},${STAGE_H} L ${w},0 Z`
     : `M 0,0 L ${NOTCH},${midY} L 0,${STAGE_H} L ${w - POINT},${STAGE_H} L ${w},${midY} L ${w - POINT},0 Z`;
 
+  const hl = isFirst && isLast
+    ? `M ${RADIUS},1 L ${w - RADIUS},1`
+    : isFirst
+    ? `M ${RADIUS},1 L ${w - POINT - RADIUS},1`
+    : isLast
+    ? `M ${RADIUS},1 L ${w - RADIUS},1`
+    : `M ${RADIUS},1 L ${w - POINT - RADIUS},1`;
+
   const overlap = isFirst ? 0 : -(POINT - GAP);
 
   return (
-    <div style={{ width: w, marginLeft: overlap, flexShrink: 0 }} onMouseEnter={onHover}>
+    <div style={{ width: w, marginLeft: overlap, flexShrink: 0 }} onMouseEnter={onHover}
+      className={expanded ? "z-10" : "z-0"}>
       <svg viewBox={`0 0 ${w} ${STAGE_H}`} width={w} height={STAGE_H} className="block cursor-pointer">
-        <path d={d} fill={fill} stroke={stroke} strokeWidth="1" />
-        {entry.status === "done" ? (
+        <defs>
+          <linearGradient id={`g-${uid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={topFill} />
+            <stop offset="100%" stopColor={botFill} />
+          </linearGradient>
+          <filter id={`s-${uid}`}>
+            <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor={shadowColor} />
+          </filter>
+        </defs>
+        <path d={d} fill="rgba(0,0,0,0.04)" transform="translate(0,1.5)" />
+        <path d={d} fill={`url(#g-${uid})`}
+          strokeLinejoin="round" filter={`url(#s-${uid})`} />
+        <path d={hl} stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" fill="none"
+          strokeLinecap="round" />
+        {isDone ? (
           <g transform={`translate(${w / 2 - 6}, ${midY - 6})`}>
-            <circle cx="6" cy="6" r="6" fill={color} />
+            <circle cx="6" cy="6" r="6" fill={base} />
             <path d="M3 6l2.5 2.5L9.5 3.5" stroke="#fff" strokeWidth="1.3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           </g>
-        ) : entry.status === "current" ? (
-          <circle cx={w / 2} cy={midY} r="3.5" fill={color} className="animate-pulse" />
+        ) : isCurrent ? (
+          <circle cx={w / 2} cy={midY} r="3.5" fill={base} className="animate-pulse" />
         ) : (
-          <circle cx={w / 2} cy={midY} r="2.5" fill="none" stroke={color} strokeWidth="1" />
+          <circle cx={w / 2} cy={midY} r="2.5" fill="none" stroke={base} strokeWidth="1" />
         )}
         {expanded && (
-          <text x={w / 2} y={midY + 14} textAnchor="middle" fill={color} fontSize="10" fontWeight="600" fontFamily="system-ui, sans-serif">
+          <text x={w / 2} y={midY + 15} textAnchor="middle" fill={base} fontSize="10" fontWeight="600" fontFamily="system-ui, sans-serif">
             {entry.label}
           </text>
         )}
