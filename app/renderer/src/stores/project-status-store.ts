@@ -70,8 +70,16 @@ export const useProjectStatusStore = create<ProjectStatusState>((set) => ({
     let taskCount = 0;
 
     try {
-      const files = await window.electronAPI.file.readTree(path);
-      hasAppSpec = files.some((f: { name: string }) => f.name === "APP_SPEC.md");
+      const rootFiles = await window.electronAPI.file.readTree(path);
+      hasAppSpec = rootFiles.some((f: { name: string }) => f.name === "需求规格.md");
+      if (!hasAppSpec) {
+        try {
+          const docsFiles = await window.electronAPI.file.readTree(path + "/docs");
+          hasAppSpec = docsFiles.some((f: { name: string; isDirectory?: boolean }) =>
+            !f.isDirectory && f.name === "需求规格.md"
+          );
+        } catch { /* */ }
+      }
     } catch { /* */ }
 
     try {

@@ -15,7 +15,8 @@ interface EditorPanelProps {
   fileName?: string;
 }
 
-function langForFile(name: string) {
+function langForFile(name: string | undefined) {
+  if (!name) return null;
   const ext = name.split(".").pop()?.toLowerCase();
   switch (ext) {
     case "json": return json();
@@ -29,7 +30,7 @@ function langForFile(name: string) {
     case "scss":
     case "less": return css();
     case "html":
-    case "htm": return html();
+    case "htm": return null; // CodeMirror html() lezer parser crashes on some HTML — use plain text
     case "md":
     case "mdx": return markdown();
     default: return null;
@@ -110,6 +111,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
       .readContent(filePath)
       .then((c) => {
         const text = typeof c === "string" ? c : String(c);
+        console.log("[EditorPanel] loaded", { filePath, textLen: text.length, preview: text.substring(0, 80) });
         setContent(text);
         setLineCount(text.split("\n").length);
         setLoading(false);
@@ -122,13 +124,13 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
 
   // Create / update CodeMirror editor
   useEffect(() => {
-    if (!containerRef.current || !content) {
+    if (!containerRef.current) {
       viewRef.current?.destroy();
       viewRef.current = null;
       return;
     }
 
-    const lang = fileName ? langForFile(fileName) : null;
+    const lang = langForFile(fileName);
     const extensions = [
       basicSetup,
       syntaxHighlighting(defaultHighlightStyle),

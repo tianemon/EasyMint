@@ -177,7 +177,7 @@ export function ProjectPage(): JSX.Element {
     if (!activeTab) {
       return <EditorPanel />;
     }
-    switch (activeTab.type) {
+switch (activeTab.type) {
       case "chat":
         return (
           <ChatPanel

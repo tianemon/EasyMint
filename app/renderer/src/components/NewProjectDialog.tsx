@@ -823,7 +823,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
         <div className="flex items-center justify-between px-6 pb-5 pt-2 shrink-0">
           <button className="px-4 py-2 rounded-lg text-text-secondary text-sm hover:bg-surface-hover transition-colors disabled:opacity-30" disabled={currentStep === 0 || creating} onClick={goPrev}>上一步</button>
           <div className="flex gap-2">
-            <button className="text-xs text-text-secondary hover:text-danger transition-colors" onClick={handleCancel}>取消项目</button>
+            <button className="px-5 py-1.5 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={handleCancel}>取消项目</button>
             {!isLastStep ? (
             <button className="px-6 py-2 rounded-lg bg-accent text-text-inverse text-sm hover:bg-accent-hover transition-colors font-medium disabled:opacity-50" disabled={!canNext() || creating} onClick={goNext}>
               {creating ? (

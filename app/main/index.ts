@@ -29,8 +29,7 @@ function loadApp(window: BrowserWindow, hash = ""): void {
     : `file://${path.join(__dirname, "..", "..", "renderer", "dist", "index.html")}`;
 
   window.loadURL(baseUrl);
-  // DevTools can be opened manually via View → Toggle Developer Tools
-  // if (isDev) window.webContents.openDevTools({ mode: "detach" });
+  if (isDev) window.webContents.openDevTools({ mode: "detach" });
 
   // Navigate to hash route after page loads (more reliable than passing hash to loadURL)
   if (hash) {
