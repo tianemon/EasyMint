@@ -2,12 +2,11 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useTaskStore } from "../stores/task-store";
 import { useProjectStatusStore } from "../stores/project-status-store";
 import type { StageEntry } from "../stores/project-status-store";
-import { chatActions } from "../stores/chat-actions";
-import { CONTINUE_NEXT_STEP } from "../../../shared/prompts";
 
 interface TaskPanelProps {
   projectPath: string;
   onCollapse: () => void;
+  onLeafClick: () => void;
 }
 
 const STATUS_ICON: Record<string, JSX.Element> = {
@@ -146,7 +145,7 @@ function TaskRow({ task }: { task: { id: string; title: string; description?: st
 
 // ── Main Panel ──────────────────────────────────────
 
-export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Element {
+export function TaskPanel({ projectPath, onCollapse, onLeafClick }: TaskPanelProps): JSX.Element {
   const { tasks } = useTaskStore();
   const { timeline, doneCount, taskCount } = useProjectStatusStore();
   const [hovered, setHovered] = useState<string | null>(null);
@@ -187,7 +186,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
     }, 5000);
   }, [centerRunning]);
 
-  const handleLeafClick = () => chatActions.send(CONTINUE_NEXT_STEP);
+  const handleLeafClick = () => onLeafClick();
 
   return (
     <div className="h-full flex flex-col bg-surface">

@@ -15,6 +15,8 @@ import { useTabStore } from "../stores/tab-store";
 import { useTaskStore } from "../stores/task-store";
 import { useProjectStatusStore } from "../stores/project-status-store";
 import { useSettingsStore } from "../stores/settings-store";
+import { chatActions } from "../stores/chat-actions";
+import { CONTINUE_NEXT_STEP } from "../../../shared/prompts";
 
 function getWorkspaceDir(): string {
   const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
@@ -232,7 +234,21 @@ switch (activeTab.type) {
         </div>
 
         {collapsedRight ? <div /> : (
-          <TaskPanel projectPath={projectPath} onCollapse={toggleRight} />
+          <TaskPanel projectPath={projectPath} onCollapse={toggleRight} onLeafClick={() => {
+            const ts = useTabStore.getState();
+            // 查找已有 Mint 会话
+            const existingChat = ts.tabs.find((t) => t.type === "chat" && t.sessionId);
+            if (existingChat) {
+              ts.setActiveTab(existingChat.id);
+            } else {
+              // 没有会话，新建一个
+              const tabId = `leaf-${Date.now()}`;
+              ts.openTab({ id: tabId, type: "chat" as const, title: "新会话" });
+            }
+            setActivePanel("chat");
+            // 等 chat panel 挂载后发送
+            setTimeout(() => chatActions.send(CONTINUE_NEXT_STEP), 200);
+          }} />
         )}
 
         {/* Handles — grid container level, absolute over all panels */}
