@@ -1,188 +1,107 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
+import Editor, { type OnMount } from "@monaco-editor/react";
+import type { editor } from "monaco-editor";
 import { useTabStore } from "../stores/tab-store";
-import { EditorView, basicSetup } from "codemirror";
-import { keymap } from "@codemirror/view";
-import { EditorState } from "@codemirror/state";
-import { json } from "@codemirror/lang-json";
-import { javascript } from "@codemirror/lang-javascript";
-import { css } from "@codemirror/lang-css";
-import { html } from "@codemirror/lang-html";
-import { markdown } from "@codemirror/lang-markdown";
-import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
 
 interface EditorPanelProps {
   filePath?: string;
   fileName?: string;
 }
 
-function langForFile(name: string | undefined) {
-  if (!name) return null;
+const MONACO_THEME: editor.IStandaloneThemeData = {
+  base: "vs",
+  inherit: true,
+  rules: [
+    { token: "comment", foreground: "6B7280", fontStyle: "italic" },
+    { token: "keyword", foreground: "7C3AED" },
+    { token: "string", foreground: "059669" },
+    { token: "number", foreground: "D97706" },
+    { token: "type", foreground: "2563EB" },
+    { token: "function", foreground: "DC2626" },
+  ],
+  colors: {
+    "editor.background": "#fafbfb",
+    "editor.foreground": "#374151",
+    "editor.lineHighlightBackground": "#f0fdf4",
+    "editor.selectionBackground": "#dcfce7",
+    "editor.inactiveSelectionBackground": "#f0fdf4",
+    "editorCursor.foreground": "#16a34a",
+    "editorLineNumber.foreground": "#9CA3AF",
+    "editorLineNumber.activeForeground": "#16a34a",
+    "editorGutter.background": "#f5faf7",
+    "editorWidget.background": "#ffffff",
+    "editorWidget.border": "#e5e7eb",
+    "input.background": "#ffffff",
+    "input.border": "#e5e7eb",
+    "focusBorder": "#16a34a",
+  },
+};
+
+function langForFile(name: string | undefined): string {
+  if (!name) return "plaintext";
   const ext = name.split(".").pop()?.toLowerCase();
   switch (ext) {
-    case "json": return json();
+    case "json": return "json";
     case "js":
     case "jsx":
-    case "ts":
-    case "tsx":
     case "mjs":
-    case "cjs": return javascript({ jsx: true, typescript: ext === "ts" || ext === "tsx" });
+    case "cjs": return "javascript";
+    case "ts":
+    case "tsx": return "typescript";
     case "css":
     case "scss":
-    case "less": return css();
+    case "less": return "css";
     case "html":
-    case "htm": return null; // CodeMirror html() lezer parser crashes on some HTML — use plain text
+    case "htm": return "html";
     case "md":
-    case "mdx": return markdown();
-    default: return null;
+    case "mdx": return "markdown";
+    default: return "plaintext";
   }
 }
-
-// Clean light theme matching EasyMint's design — all colors from CSS variables
-const easyMintTheme = EditorView.theme({
-  "&": {
-    backgroundColor: "var(--color-editor-bg)",
-    color: "var(--color-text-primary)",
-    fontSize: "13px",
-    lineHeight: "1.65",
-  },
-  ".cm-gutters": {
-    backgroundColor: "var(--color-editor-gutter-bg)",
-    color: "var(--color-text-muted)",
-    border: "none",
-    borderRight: "1px solid var(--color-border-light)",
-    paddingRight: "8px",
-  },
-  ".cm-gutterElement": {
-    padding: "0 4px",
-  },
-  ".cm-activeLineGutter": {
-    backgroundColor: "var(--color-editor-line-highlight)",
-    color: "var(--color-text-secondary)",
-  },
-  ".cm-activeLine": {
-    backgroundColor: "color-mix(in oklab, var(--color-info) 6%, transparent)",
-  },
-  ".cm-cursor": {
-    borderLeftColor: "var(--color-info)",
-  },
-  ".cm-selectionBackground, ::selection": {
-    backgroundColor: "color-mix(in oklab, var(--color-info) 15%, transparent)",
-  },
-  ".cm-selectionMatch": {
-    backgroundColor: "color-mix(in oklab, var(--color-info) 8%, transparent)",
-  },
-  ".cm-matchingBracket": {
-    backgroundColor: "color-mix(in oklab, var(--color-info) 12%, transparent)",
-    outline: "1px solid color-mix(in oklab, var(--color-info) 30%, transparent)",
-  },
-  ".cm-tooltip": {
-    backgroundColor: "var(--color-surface-elevated)",
-    border: "1px solid var(--color-border-light)",
-    borderRadius: "8px",
-    boxShadow: "var(--shadow-md)",
-  },
-  "&.cm-focused .cm-cursor": {
-    borderLeftColor: "var(--color-info)",
-  },
-  "&.cm-focused": {
-    outline: "none",
-  },
-}, { dark: false });
 
 export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Element {
   const [content, setContent] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lineCount, setLineCount] = useState(0);
   const [saved, setSaved] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<EditorView | null>(null);
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const dirtyRef = useRef(false);
 
   // Load file content
   useEffect(() => {
-    if (!filePath) {
-      setContent("");
-      setError(null);
-      return;
-    }
+    if (!filePath) { setContent(""); setError(null); dirtyRef.current = false; return; }
     setLoading(true);
     setError(null);
-    window.electronAPI.file
-      .readContent(filePath)
-      .then((c) => {
-        const text = typeof c === "string" ? c : String(c);
-        console.log("[EditorPanel] loaded", { filePath, textLen: text.length, preview: text.substring(0, 80) });
-        setContent(text);
-        setLineCount(text.split("\n").length);
-        setLoading(false);
-      })
-      .catch((e: unknown) => {
-        setError(e instanceof Error ? e.message : "加载文件失败");
-        setLoading(false);
-      });
+    dirtyRef.current = false;
+    window.electronAPI.file.readContent(filePath)
+      .then((c) => { setContent(typeof c === "string" ? c : String(c)); setLoading(false); })
+      .catch((e: unknown) => { setError(e instanceof Error ? e.message : "加载文件失败"); setLoading(false); });
   }, [filePath]);
 
-  // Create / update CodeMirror editor
-  useEffect(() => {
-    if (!containerRef.current) {
-      viewRef.current?.destroy();
-      viewRef.current = null;
-      return;
-    }
-
-    const lang = langForFile(fileName);
-    const extensions = [
-      basicSetup,
-      syntaxHighlighting(defaultHighlightStyle),
-      easyMintTheme,
-      EditorView.updateListener.of((update) => {
-        if (update.docChanged && fileName) {
-          // Mark tab as dirty when content changes
-          const tabs = useTabStore.getState().tabs;
-          const tab = tabs.find((t) => t.filePath === filePath);
-          if (tab) useTabStore.getState().setDirty(tab.id, true);
-        }
-      }),
-      keymap.of([{
-        key: "Mod-s",
-        run: () => {
-          if (!filePath || !viewRef.current) return false;
-          const text = viewRef.current.state.doc.toString();
-          window.electronAPI.file.writeContent(filePath, text).then(() => {
-            // Mark tab as clean
-            const tabs = useTabStore.getState().tabs;
-            const tab = tabs.find((t) => t.filePath === filePath);
-            if (tab) useTabStore.getState().setDirty(tab.id, false);
-            setSaved(true);
-            setTimeout(() => setSaved(false), 1500);
-          });
-          return true;
-        },
-        preventDefault: true,
-      }]),
-    ];
-    if (lang) extensions.push(lang);
-
-    if (viewRef.current) {
-      // Update existing editor
-      viewRef.current.dispatch({
-        changes: {
-          from: 0,
-          to: viewRef.current.state.doc.length,
-          insert: content,
-        },
+  const handleMount: OnMount = (editor) => {
+    editorRef.current = editor;
+    editor.addCommand(2097 /* KeyMod.CtrlCmd | KeyCode.KeyS */, () => {
+      if (!filePath) return;
+      const text = editor.getValue();
+      window.electronAPI.file.writeContent(filePath, text).then(() => {
+        const tabs = useTabStore.getState().tabs;
+        const tab = tabs.find((t) => t.filePath === filePath);
+        if (tab) useTabStore.getState().setDirty(tab.id, false);
+        dirtyRef.current = false;
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1500);
       });
-    } else {
-      // Create new editor
-      const state = EditorState.create({ doc: content, extensions });
-      viewRef.current = new EditorView({ state, parent: containerRef.current });
-    }
+    });
+  };
 
-    return () => {
-      viewRef.current?.destroy();
-      viewRef.current = null;
-    };
-  }, [content, fileName]);
+  const handleChange = () => {
+    if (fileName && !dirtyRef.current) {
+      dirtyRef.current = true;
+      const tabs = useTabStore.getState().tabs;
+      const tab = tabs.find((t) => t.filePath === filePath);
+      if (tab) useTabStore.getState().setDirty(tab.id, true);
+    }
+  };
 
   // Welcome page
   if (!filePath) {
@@ -196,29 +115,14 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
     );
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full text-text-secondary">
-        <p className="text-sm">加载中…</p>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <p className="text-danger text-sm mb-3">{error}</p>
-          <button
-            className="px-3 py-1 text-xs bg-accent text-text-inverse rounded hover:bg-accent-hover transition-colors"
-            onClick={() => {
-              setError(null);
-              setLoading(true);
-              window.electronAPI.file.readContent(filePath)
-                .then((c) => { setContent(typeof c === "string" ? c : String(c)); setLoading(false); })
-                .catch(() => { setError("重新加载失败"); setLoading(false); });
-            }}
-          >重试</button>
+          <button className="px-3 py-1 text-xs bg-accent text-text-inverse rounded hover:bg-accent-hover transition-colors"
+            onClick={() => { setError(null); setLoading(true); window.electronAPI.file.readContent(filePath).then((c) => { setContent(typeof c === "string" ? c : String(c)); setLoading(false); }).catch(() => { setError("重新加载失败"); setLoading(false); }); }}>
+            重试</button>
         </div>
       </div>
     );
@@ -227,15 +131,39 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
   return (
     <div className="flex h-full overflow-hidden">
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="h-7 flex items-center px-3 border-b border-border bg-surface-alt shrink-0">
-          <span className="text-[11px] text-text-secondary">{fileName || filePath}</span>
-        </div>
-        <div ref={containerRef} className="flex-1 overflow-auto" />
-        <div className="h-5 border-t border-border bg-surface-alt flex items-center px-3 shrink-0 gap-3">
-          <span className="text-[10px] text-text-secondary">{lineCount} 行</span>
-          <span className={`text-[10px] transition-opacity duration-200 ${saved ? "text-accent opacity-100" : "opacity-0"}`}>已保存</span>
-          <span className="text-[10px] text-text-secondary ml-auto">Cmd+S 保存</span>
-        </div>
+        <Editor
+          height="100%"
+          language={langForFile(fileName)}
+          value={content}
+          loading={<div className="flex items-center justify-center h-full text-text-secondary text-sm">加载中…</div>}
+          beforeMount={(monaco) => {
+            monaco.editor.defineTheme("easymint", MONACO_THEME);
+          }}
+          onMount={handleMount}
+          onChange={handleChange}
+          theme="easymint"
+          options={{
+            fontSize: 13,
+            fontFamily: "'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace",
+            lineHeight: 22,
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            wordWrap: "on",
+            tabSize: 2,
+            renderWhitespace: "selection",
+            bracketPairColorization: { enabled: true },
+            guides: { bracketPairs: true },
+            padding: { top: 8 },
+            smoothScrolling: true,
+            cursorBlinking: "smooth",
+            cursorSmoothCaretAnimation: "on",
+          }}
+        />
+        {saved && (
+          <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-accent/10 text-accent text-xs">
+            已保存
+          </div>
+        )}
       </div>
     </div>
   );
