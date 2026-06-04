@@ -175,9 +175,12 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
       <div className="flex items-center gap-2 h-9 px-3 border-b border-border shrink-0">
         <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">项目进度</span>
         <div className="flex-1" />
-        {taskCount > 0 && <span className="text-[10px] text-text-secondary">{doneCount}/{taskCount} 任务</span>}
         <button className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors text-xs"
-          onClick={onCollapse} title="收起面板">▶</button>
+          onClick={onCollapse} title="收起面板">
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
+            <path d="M4.5 3l3 3-3 3" />
+          </svg>
+        </button>
       </div>
 
       {/* Boomerang stepper — rounded container */}
@@ -197,7 +200,10 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
       {tasks.length > 0 && (
         <div className="flex-1 min-h-0 flex flex-col px-3 py-1.5">
           <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-[#16a34a]/5 border border-[#16a34a]/10">
-            <div className="text-[10px] text-text-secondary px-3 pt-2 pb-1">开发任务</div>
+            <div className="flex items-center justify-between px-3 pt-2 pb-1">
+              <span className="text-[10px] text-text-secondary">开发任务</span>
+              {taskCount > 0 && <span className="text-[10px] text-text-secondary">{doneCount}/{taskCount} 完成</span>}
+            </div>
             {sortedTasks.map((task) => (
               <TaskRow key={task.id} task={task} />
             ))}
@@ -206,7 +212,7 @@ export function TaskPanel({ projectPath, onCollapse }: TaskPanelProps): JSX.Elem
       )}
 
       {/* Leaf button */}
-      <div className="shrink-0 px-3 pb-2 pt-1 flex flex-col items-center">
+      <div className="shrink-0 px-3 pb-2 flex flex-col items-center">
         <button onClick={handleLeafClick}
           className="w-full h-12 rounded-xl bg-[#16a34a]/10 hover:bg-[#16a34a]/20 border border-[#16a34a]/30 flex items-center justify-center transition-colors group">
           <svg viewBox="0 0 28 28" fill="none" className="w-7 h-7 text-[#16a34a] group-hover:scale-110 transition-transform">
