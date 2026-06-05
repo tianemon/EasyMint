@@ -234,27 +234,27 @@ export function seedDefaultMcp(): void {
     }
   }
 
-  // image-vision — copy source files + write config pointing to the copy
-  if (!existing["image-vision"]) {
-    const srcDir = path.join(getBuiltinMcpDir(), "image-vision");
-    const targetDir = path.join(os.homedir(), ".easymint", "mcp", "image-vision");
+  // image-vision — always sync source files, only write config if missing
+  const srcDir = path.join(getBuiltinMcpDir(), "image-vision");
+  const targetDir = path.join(os.homedir(), ".easymint", "mcp", "image-vision");
 
-    if (existsSync(srcDir)) {
-      try {
-        if (!existsSync(targetDir)) mkdirSync(targetDir, { recursive: true });
-        cpSync(srcDir, targetDir, { recursive: true });
-        console.log("[seedDefaultMcp] copied image-vision to", targetDir);
+  if (existsSync(srcDir)) {
+    try {
+      if (!existsSync(targetDir)) mkdirSync(targetDir, { recursive: true });
+      cpSync(srcDir, targetDir, { recursive: true });
+      console.log("[seedDefaultMcp] image-vision synced to", targetDir);
+    } catch (err) {
+      console.error("[seedDefaultMcp] image-vision sync failed:", err);
+    }
 
-        existing["image-vision"] = {
-          type: "stdio",
-          command: "python3",
-          args: [path.join(targetDir, "server.py")],
-          env: { VISION_API_KEY: "" },
-        };
-        changed = true;
-      } catch (err) {
-        console.error("[seedDefaultMcp] image-vision copy failed:", err);
-      }
+    if (!existing["image-vision"]) {
+      existing["image-vision"] = {
+        type: "stdio",
+        command: "python3",
+        args: [path.join(targetDir, "server.py")],
+        env: { VISION_API_KEY: "" },
+      };
+      changed = true;
     }
   }
 
