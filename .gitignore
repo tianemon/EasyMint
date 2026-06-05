@@ -12,3 +12,4 @@ temp/
 task-*.png
 .codegraph/
 .codegraph/
+*.png
