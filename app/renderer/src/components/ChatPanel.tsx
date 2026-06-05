@@ -483,19 +483,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           {availableModels.map((m) => (<option key={m} value={m}>{m}</option>))}
         </select>
         {balanceText && <span className="text-[10px] text-text-secondary cursor-pointer hover:text-accent transition-colors" onClick={refreshBalance} title="点击刷新余额">{balanceText}</span>}
-        {(ctxPct > 0 || existingSid) && (
-          <div className="flex items-center gap-1.5" title={`上下文用量 ${ctxPct}%`}>
-            <div className="w-16 h-2 rounded-full bg-surface-hover overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${ctxPct}%`,
-                  background: ctxPct >= (storeThreshold ?? 60) ? 'var(--color-danger)' : ctxPct >= 40 ? 'var(--color-warning)' : 'var(--color-accent)',
-                }}
-              />
-            </div>
-            <span className="text-[10px] text-text-secondary w-8">{ctxPct}%</span>
-          </div>
-        )}
+      </div>
+
+      {/* Context usage bar */}
+      <div className="flex items-center gap-2 px-4 py-1 bg-surface-alt/30 border-t border-border shrink-0">
+        <span className="text-[10px] text-text-secondary w-6 text-right">{ctxPct}%</span>
+        <div className="flex-1 h-1.5 rounded-full bg-surface-hover overflow-hidden">
+          <div className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${Math.max(ctxPct, 2)}%`,
+              background: ctxPct >= (storeThreshold ?? 60) ? 'var(--color-danger)' : ctxPct >= 40 ? 'var(--color-warning)' : 'var(--color-accent)',
+            }}
+          />
+        </div>
       </div>
 
       {/* Input area */}
