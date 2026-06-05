@@ -229,17 +229,8 @@ export function TaskPanel({ projectPath, onCollapse, onLeafClick }: TaskPanelPro
       {/* Leaf button */}
       <div className="shrink-0 px-3 pb-2 flex flex-col items-center">
         <button onClick={handleLeafClick}
-          className="w-full h-12 rounded-xl bg-accent-bg hover:bg-accent-border border border-accent-border-strong flex items-center justify-center transition-colors group overflow-hidden">
-          <svg viewBox="0 0 60 60" fill="none" className="w-[180%] h-[180%] text-accent group-hover:scale-105 transition-transform -rotate-[20deg]">
-            {/* leaf body — oversized, only a fragment visible in button */}
-            <path d="M30 10c-8 5-18 12-22 24-3 9 3 18 12 20 8 2 20-4 24-14 5-12-2-22-14-30z" fill="currentColor" opacity="0.12" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
-            {/* central vein */}
-            <path d="M28 12c-8 8-14 18-16 30" stroke="currentColor" strokeWidth="0.7" strokeLinecap="round" opacity="0.45"/>
-            {/* side veins — left */}
-            <path d="M22 20l-5 0M20 26l-5 2M18 32l-4 3" stroke="currentColor" strokeWidth="0.5" strokeLinecap="round" opacity="0.3"/>
-            {/* side veins — right */}
-            <path d="M28 20l5-2M30 26l6-1M32 32l5 1" stroke="currentColor" strokeWidth="0.5" strokeLinecap="round" opacity="0.3"/>
-          </svg>
+          className="w-full h-12 rounded-xl bg-accent-bg hover:bg-accent-border border border-accent-border-strong flex items-center justify-center transition-colors group">
+          <span className="text-accent text-xl font-bold tracking-[0.15em] italic select-none group-hover:scale-105 transition-transform">Mint</span>
         </button>
         <p className="text-[10px] text-text-secondary mt-1.5 opacity-60">如果你不知道要做什么，就点一下</p>
       </div>
