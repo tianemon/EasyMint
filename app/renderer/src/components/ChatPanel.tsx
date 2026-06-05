@@ -451,11 +451,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M3 2h7l4 4v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M10 2v4h4M6 9h4M6 12h4"/></svg>
         </button>
         <div className="flex-1" />
-        <select value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-border-strong cursor-pointer">
+        <select value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer">
           <option value="auto">智能判断</option><option value="plan">只读</option><option value="acceptEdits">手动确认</option><option value="bypassPermissions">完全自主</option>
         </select>
         <span className="text-[10px] text-text-secondary hidden sm:inline">权限</span>
-        <select value={chatModel || storeModel} onChange={(e) => handleModelChange(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-border-strong cursor-pointer max-w-[200px]" title="切换模型">
+        <select value={chatModel || storeModel} onChange={(e) => handleModelChange(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer max-w-[200px]" title="切换模型">
           {availableModels.map((m) => (<option key={m} value={m}>{m}</option>))}
         </select>
         {balanceText && <span className="text-[10px] text-text-secondary cursor-pointer hover:text-accent transition-colors" onClick={refreshBalance} title="点击刷新余额">{balanceText}</span>}
@@ -474,7 +474,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             onPaste={handlePaste}
             placeholder="输入消息，Enter 发送，Shift+Enter 换行，粘贴或拖入图片..."
             rows={3}
-            className="flex-1 min-h-[90px] resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:border-border-strong"
+            className="flex-1 min-h-[90px] resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent"
           />
           {(loading || streaming) ? (
             <button onClick={() => { stoppedRef.current = true; const rid = currentRunRef.current; if (rid) window.electronAPI.agent.abort(rid); setLoading(false); setStreaming(false); }}

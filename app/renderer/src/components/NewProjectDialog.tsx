@@ -480,7 +480,7 @@ function Step4Form({
           <p className="text-[10px] text-text-secondary mb-1">选择成本后可使用 Mint 推荐</p>
         )}
         <textarea
-          className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-border-strong resize-none"
+          className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent resize-none"
           rows={3}
           placeholder="让 Mint 帮你推荐，或者自己写，例如：前端用 React + TypeScript，后端用 Node.js"
           value={data.techNotes}
