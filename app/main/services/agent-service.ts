@@ -469,7 +469,7 @@ ${summary}
   /** Switch model in an active chat session */
   async setModel(sessionId: string, model: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
-    if (!chat?.query) throw new Error("无活跃会话");
+    if (!chat?.query) return; // not active yet, model will apply on next sendMessage
     try {
       await (chat.query as { setModel?: (m: string) => Promise<void> }).setModel?.(model);
       chat.currentModel = model;

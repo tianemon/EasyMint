@@ -151,7 +151,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const handleModelChange = useCallback(async (m: string) => {
     setChatModel(m); setStoreModel(m);
     const sid = sidRef.current;
-    if (sid) { try { await window.electronAPI.agent.setModel(sid, m); } catch { /* */ } }
+    if (sid) { window.electronAPI.agent.setModel(sid, m).catch(() => {}); }
   }, [setStoreModel]);
 
   const stage = useProjectStatusStore((s) => s.stage);
