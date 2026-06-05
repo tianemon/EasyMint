@@ -6,7 +6,7 @@ import type { StageEntry } from "../stores/project-status-store";
 interface TaskPanelProps {
   projectPath: string;
   onCollapse: () => void;
-  onLeafClick: () => void;
+  onMintClick: () => void;
 }
 
 const STATUS_ICON: Record<string, JSX.Element> = {
@@ -145,7 +145,7 @@ function TaskRow({ task }: { task: { id: string; title: string; description?: st
 
 // ── Main Panel ──────────────────────────────────────
 
-export function TaskPanel({ projectPath, onCollapse, onLeafClick }: TaskPanelProps): JSX.Element {
+export function TaskPanel({ projectPath, onCollapse, onMintClick }: TaskPanelProps): JSX.Element {
   const { tasks } = useTaskStore();
   const { timeline, doneCount, taskCount } = useProjectStatusStore();
   const [hovered, setHovered] = useState<string | null>(null);
@@ -186,7 +186,7 @@ export function TaskPanel({ projectPath, onCollapse, onLeafClick }: TaskPanelPro
     }, 5000);
   }, [centerRunning]);
 
-  const handleLeafClick = () => onLeafClick();
+  const handleMintClick = () => onMintClick();
 
   return (
     <div className="h-full flex flex-col bg-surface">
@@ -226,9 +226,9 @@ export function TaskPanel({ projectPath, onCollapse, onLeafClick }: TaskPanelPro
         </div>
       </div>
 
-      {/* Leaf button */}
+      {/* Mint button */}
       <div className="shrink-0 px-3 pb-2 flex flex-col items-center">
-        <button onClick={handleLeafClick}
+        <button onClick={handleMintClick}
           className="w-full h-12 rounded-xl bg-accent-bg hover:bg-accent-border border border-accent-border-strong flex items-center justify-center transition-colors group">
           <span className="text-accent text-2xl select-none group-hover:scale-105 transition-transform" style={{ fontFamily: "'Snell Roundhand', 'Apple Chancery', 'Brush Script MT', 'Segoe Script', cursive" }}>Mint</span>
         </button>

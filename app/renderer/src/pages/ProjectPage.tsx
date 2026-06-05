@@ -255,19 +255,32 @@ switch (activeTab.type) {
         </div>
 
         {collapsedRight ? <div /> : (
-          <TaskPanel projectPath={projectPath} onCollapse={toggleRight} onLeafClick={() => {
+          <TaskPanel projectPath={projectPath} onCollapse={toggleRight} onMintClick={async () => {
             const ts = useTabStore.getState();
-            // 查找已有 Mint 会话
+
+            // 优先：已有 Mint 会话 Tab → 激活
             const existingChat = ts.tabs.find((t) => t.type === "chat" && t.sessionId);
             if (existingChat) {
               ts.setActiveTab(existingChat.id);
-            } else {
-              // 没有会话，新建一个
-              const tabId = `leaf-${Date.now()}`;
-              ts.openTab({ id: tabId, type: "chat" as const, title: "新会话" });
+              setActivePanel("chat");
+              setTimeout(() => chatActions.send(CONTINUE_NEXT_STEP), 200);
+              return;
             }
+
+            // 其次：从会话列表中拉取第一个会话
+            const sessions = await window.electronAPI.conv.list(projectPath || getWorkspaceDir());
+            if (sessions.length > 0) {
+              const first = sessions[0]!;
+              ts.openTab({ id: "", type: "chat" as const, title: first.title, sessionId: first.sessionId });
+              ts.setActiveTab(ts.tabs[ts.tabs.length - 1]!.id);
+              setActivePanel("chat");
+              return;
+            }
+
+            // 最后：全新会话
+            const tabId = `mint-${Date.now()}`;
+            ts.openTab({ id: tabId, type: "chat" as const, title: "新会话" });
             setActivePanel("chat");
-            // 等 chat panel 挂载后发送
             setTimeout(() => chatActions.send(CONTINUE_NEXT_STEP), 200);
           }} />
         )}
