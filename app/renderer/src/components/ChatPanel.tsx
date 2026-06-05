@@ -138,7 +138,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       const data = await window.electronAPI.settings.fetchBalance();
       if (data?.balance_infos?.length) {
         const b = data.balance_infos[0]!;
-        setBalanceText(`${b.total_balance} ${b.currency}`);
+        setBalanceText(`${b.total_balance}`);
       }
     } catch { /* ignore */ }
   }, []);
@@ -511,8 +511,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         <select value={chatModel || storeModel} onChange={(e) => handleModelChange(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer max-w-[200px]" title="切换模型">
           {availableModels.map((m) => (<option key={m} value={m}>{m}</option>))}
         </select>
-        {balanceText && <span className="text-[10px] text-text-secondary cursor-pointer hover:text-accent transition-colors" onClick={refreshBalance} title="点击刷新余额">{balanceText}</span>}
-        <span className="text-[10px] text-text-secondary" title="上下文用量">{ctxPct}%</span>
+        {balanceText && <span className="text-[10px] text-text-secondary cursor-pointer hover:text-accent transition-colors" onClick={refreshBalance} title="账户余额，点击刷新">{balanceText}</span>}
+        <span className="text-[10px] text-text-secondary" title="上下文使用率，可设置阈值">{ctxPct}%</span>
       </div>
 
       {/* Input area */}
