@@ -89,6 +89,11 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
       const { seedDefaultMcp } = require("./services/mcp-service");
       seedDefaultMcp();
     } catch { /* ignore */ }
+    // Seed built-in plugin marketplaces (~/.easymint/plugins/)
+    try {
+      const { seedDefaultPlugins } = require("./services/mcp-service");
+      seedDefaultPlugins();
+    } catch { /* ignore */ }
     // Clean up orphaned session caches
     try {
       const { listSessions } = require("@anthropic-ai/claude-agent-sdk");

@@ -1,0 +1,15 @@
+{
+  "name": "image-vision-local",
+  "version": "0.1.0",
+  "description": "Amon 的本地插件市场 — 包含图片识别等个人开发工具",
+  "owner": {
+    "name": "amon"
+  },
+  "plugins": [
+    {
+      "name": "image-vision",
+      "source": "./plugins/image-vision",
+      "description": "为 DeepSeek 等纯文本模型补齐视觉能力，支持图片描述和 UI 验证"
+    }
+  ]
+}

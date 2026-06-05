@@ -264,3 +264,66 @@ export function seedDefaultMcp(): void {
     console.log("[seedDefaultMcp] mcp config written to", configPath);
   }
 }
+
+// ── Plugin marketplace seed ────────────────────────
+
+function getBuiltinPluginsDir(): string {
+  try {
+    const rp = (process as { resourcesPath?: string }).resourcesPath;
+    if (rp) {
+      const p = path.join(rp, "plugins");
+      if (existsSync(p)) return p;
+    }
+  } catch { /* fall through */ }
+  return path.join(__dirname, "..", "..", "..", "resources", "plugins");
+}
+
+const SDK_SETTINGS_PATH = path.join(os.homedir(), ".easymint", "settings.json");
+
+/** Sync built-in plugin marketplaces to ~/.easymint/plugins/ and register in SDK settings */
+export function seedDefaultPlugins(): void {
+  const srcDir = getBuiltinPluginsDir();
+  if (!existsSync(srcDir)) return;
+
+  const pluginsDir = path.join(os.homedir(), ".easymint", "plugins");
+  if (!existsSync(pluginsDir)) mkdirSync(pluginsDir, { recursive: true });
+
+  // Sync each built-in marketplace
+  let marketplaceRoot = "";
+  for (const name of ["image-vision"]) {
+    const srcPath = path.join(srcDir, name);
+    if (!existsSync(srcPath)) continue;
+    const targetPath = path.join(pluginsDir, name);
+    try {
+      cpSync(srcPath, targetPath, { recursive: true });
+      console.log("[seedDefaultPlugins] synced:", name, "→", targetPath);
+      if (!marketplaceRoot) marketplaceRoot = targetPath;
+    } catch (err) {
+      console.error("[seedDefaultPlugins] sync failed:", name, err);
+    }
+  }
+
+  if (!marketplaceRoot) return;
+
+  // Register marketplace in SDK settings
+  try {
+    let settings: Record<string, unknown> = {};
+    if (existsSync(SDK_SETTINGS_PATH)) {
+      try { settings = JSON.parse(readFileSync(SDK_SETTINGS_PATH, "utf-8")); } catch { /* overwrite */ }
+    }
+
+    const existing: Record<string, unknown> =
+      (settings.extraKnownMarketplaces as Record<string, unknown>) || {};
+
+    if (!existing["image-vision-local"]) {
+      existing["image-vision-local"] = {
+        source: { source: "directory", path: marketplaceRoot },
+      };
+      settings.extraKnownMarketplaces = existing;
+      writeFileSync(SDK_SETTINGS_PATH, JSON.stringify(settings, null, 2), "utf-8");
+      console.log("[seedDefaultPlugins] marketplace registered in SDK settings");
+    }
+  } catch (err) {
+    console.error("[seedDefaultPlugins] failed to write settings:", err);
+  }
+}
