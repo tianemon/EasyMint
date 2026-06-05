@@ -56,6 +56,7 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
         strokeWidth="3"
         strokeLinecap="round"
         strokeLinejoin="round"
+        className={hasCurrent ? "fishbone-flow" : ""}
       />
       {/* ── 分支 + 圆点 + 标签 ── */}
       {timeline.map((entry, i) => {
@@ -82,9 +83,10 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
               points={`${sx},${spineY} ${elbowX},${branchY} ${dotX},${branchY}`}
               fill="none"
               stroke={lc}
-              strokeWidth="1.5"         // 分支线粗细
+              strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
+              className={isDone || isCurrent ? "fishbone-flow-slow" : ""}
             />
             {/* ── 圆点 ── */}
             {isDone ? (
