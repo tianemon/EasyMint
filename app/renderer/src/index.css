@@ -169,17 +169,17 @@
   --color-warning: #888888;
   --color-warning-bg: #1a1a1a;
   --color-warning-border: #333333;
-  --color-danger: #888888;
-  --color-danger-bg: #1a1a1a;
-  --color-danger-border: #333333;
+  --color-danger: #ef4444;
+  --color-danger-bg: #2e0a0a;
+  --color-danger-border: #7f1d1d;
   --color-info: #888888;
   --color-info-bg: #1a1a1a;
 
-  /* ── Status dots — 仅 green 有色 ─── */
+  /* ── Status dots — 仅 green + red 有色 ─── */
   --color-dot-gray: #3a3a3a;
   --color-dot-green: #22c55e;
   --color-dot-amber: #555555;
-  --color-dot-red: #555555;
+  --color-dot-red: #ef4444;
   --color-dot-blue: #555555;
 
   /* ── Code highlight — 灰度 ───────── */
