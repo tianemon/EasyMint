@@ -124,7 +124,7 @@ function TaskRow({ task }: { task: { id: string; title: string; description?: st
 
   return (
     <div
-      className={`border-b border-accent-border-light last:border-0 transition-colors ${task.status === "running" ? "bg-accent-bg" : "hover:bg-accent-subtle"}`}
+      className={`border-b border-border last:border-0 transition-colors ${task.status === "running" ? "bg-surface-alt" : "hover:bg-surface-hover"}`}
       onMouseEnter={() => hasDesc && setExpanded(true)}
       onMouseLeave={() => setExpanded(false)}
     >
@@ -204,14 +204,14 @@ export function TaskPanel({ projectPath, onCollapse, onLeafClick }: TaskPanelPro
 
       {/* Fishbone stepper */}
       <div className="shrink-0 px-3 pt-2" onMouseLeave={() => setHovered(null)}>
-        <div className="rounded-xl bg-accent-subtle border border-accent-border-light overflow-hidden">
+        <div className="rounded-xl bg-surface-alt border border-border overflow-hidden">
           <Fishbone timeline={timeline} hovered={hovered} onHover={setHovered} />
         </div>
       </div>
 
       {/* Task list — mint container always visible, fixed area */}
       <div className="flex-1 min-h-0 flex flex-col px-3 py-1.5">
-        <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-accent-subtle border border-accent-border-light">
+        <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-surface-alt border border-border">
           <div className="flex items-center justify-between px-3 pt-2 pb-1">
             <span className="text-[10px] text-text-secondary">开发任务</span>
             {taskCount > 0 && <span className="text-[10px] text-text-secondary">{doneCount}/{taskCount} 完成</span>}
@@ -229,7 +229,7 @@ export function TaskPanel({ projectPath, onCollapse, onLeafClick }: TaskPanelPro
       {/* Leaf button */}
       <div className="shrink-0 px-3 pb-2 flex flex-col items-center">
         <button onClick={handleLeafClick}
-          className="w-full h-12 rounded-xl bg-accent-bg hover:bg-accent-border border border-accent-border-strong flex items-center justify-center transition-colors group">
+          className="w-full h-12 rounded-xl bg-surface-alt hover:bg-surface-hover border border-border flex items-center justify-center transition-colors group">
           <span className="text-accent text-2xl select-none group-hover:scale-105 transition-transform" style={{ fontFamily: "'Snell Roundhand', 'Apple Chancery', 'Brush Script MT', 'Segoe Script', cursive" }}>Mint</span>
         </button>
         <p className="text-[10px] text-text-secondary mt-1.5 opacity-60">如果你不知道要做什么，就点一下</p>
