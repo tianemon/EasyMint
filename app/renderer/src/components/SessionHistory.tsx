@@ -47,6 +47,7 @@ export function SessionHistory({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [menu, setMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, sessionId: "", title: "", pinned: false });
+  const [showArchive, setShowArchive] = useState(false);
 
   const load = useCallback(() => {
     const path = projectPath || getWorkspaceDir();
@@ -156,14 +157,24 @@ export function SessionHistory({
               ))}
             </div>
           ))}
-          {archived.length > 0 && (
-            <div>
-              <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium flex items-center gap-1.5">
-                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" className="w-3 h-3"><circle cx="6" cy="6" r="4.5"/><path d="M6 3v3.5M6 6.5l2 1.5" strokeLinecap="round"/></svg>
-                历史记录
-              </div>
+        </div>
+      )}
+
+      {/* Archive clock button */}
+      {archived.length > 0 && (
+        <div className="shrink-0 px-3 pb-2 relative">
+          <button
+            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm ${showArchive ? "bg-accent-bg text-accent" : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"}`}
+            onClick={() => setShowArchive(!showArchive)}
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-4 h-4"><circle cx="8" cy="8" r="6"/><path d="M8 4v5M8 7.5l2.5 1.5" strokeLinecap="round"/></svg>
+            <span>历史记录</span>
+            <span className="ml-auto text-[10px] text-text-muted">{archived.length}</span>
+          </button>
+          {showArchive && (
+            <div className="absolute bottom-full left-3 right-3 mb-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-surface-elevated shadow-lg">
               {archived.map((s) => (
-                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
+                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={(sid) => { onSessionClick?.(sid); setShowArchive(false); }} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
             </div>
           )}
