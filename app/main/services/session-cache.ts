@@ -44,7 +44,6 @@ export function writeCache(sessionId: string, data: Partial<SessionCache>): void
   const merged: SessionCache = {
     permissionMode: "auto",
     contextUsage: 0,
-    updatedAt: Date.now(),
     ...existing,
     ...data,
     updatedAt: Date.now(),
