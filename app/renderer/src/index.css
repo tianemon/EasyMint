@@ -137,70 +137,70 @@
    ═══════════════════════════════════════════════════════ */
 
 [data-theme="dark"] {
-  /* ── Surface ─────────────────────── */
-  --color-surface: #0d0d0d;
-  --color-surface-alt: #141414;
-  --color-surface-hover: #1e1e1e;
-  --color-surface-elevated: #181818;
+  /* ── Surface — 4 级灰度嵌套 ──────── */
+  --color-surface: #121212;
+  --color-surface-alt: #1a1a1a;
+  --color-surface-hover: #242424;
+  --color-surface-elevated: #1e1e1e;
   --color-overlay: rgba(0, 0, 0, 0.8);
-  --color-tooltip-bg: #ffffff;
-  --color-tooltip-text: #000000;
+  --color-tooltip-bg: #e4e4e4;
+  --color-tooltip-text: #121212;
 
   /* ── Text ────────────────────────── */
-  --color-text-primary: #ffffff;
-  --color-text-secondary: #999999;
-  --color-text-inverse: #000000;
+  --color-text-primary: #e4e4e4;
+  --color-text-secondary: #888888;
+  --color-text-inverse: #121212;
   --color-text-muted: #555555;
 
-  /* ── Border ──────────────────────── */
+  /* ── Border — 3 级灰度 ──────────── */
   --color-border: #2a2a2a;
-  --color-border-light: #1f1f1f;
+  --color-border-light: #222222;
   --color-border-strong: #444444;
 
-  /* ── Brand / Accent — neutral blue ─ */
-  --color-accent: #60a5fa;
-  --color-accent-hover: #93bbfd;
-  --color-accent-light: #93bbfd;
+  /* ── Accent — 白/灰按钮系 ───────── */
+  --color-accent: #e4e4e4;
+  --color-accent-hover: #ffffff;
+  --color-accent-light: #aaaaaa;
 
-  /* ── Semantic ────────────────────── */
+  /* ── Semantic — 仅 success 保留绿 ── */
   --color-success: #22c55e;
   --color-success-bg: #0a2e14;
   --color-success-border: #166534;
-  --color-warning: #f59e0b;
-  --color-warning-bg: #2e1a00;
-  --color-warning-border: #78350f;
-  --color-danger: #ef4444;
-  --color-danger-bg: #2e0a0a;
-  --color-danger-border: #7f1d1d;
-  --color-info: #60a5fa;
-  --color-info-bg: color-mix(in oklab, #60a5fa 12%, transparent);
+  --color-warning: #888888;
+  --color-warning-bg: #1a1a1a;
+  --color-warning-border: #333333;
+  --color-danger: #888888;
+  --color-danger-bg: #1a1a1a;
+  --color-danger-border: #333333;
+  --color-info: #888888;
+  --color-info-bg: #1a1a1a;
 
-  /* ── Status dots ─────────────────── */
+  /* ── Status dots — 仅 green 有色 ─── */
   --color-dot-gray: #3a3a3a;
   --color-dot-green: #22c55e;
-  --color-dot-amber: #f59e0b;
-  --color-dot-red: #ef4444;
-  --color-dot-blue: #60a5fa;
+  --color-dot-amber: #555555;
+  --color-dot-red: #555555;
+  --color-dot-blue: #555555;
 
-  /* ── Code highlight ──────────────── */
-  --color-code-kw: #a78bfa;
-  --color-code-str: #6ee7b7;
-  --color-code-fn: #f87171;
-  --color-code-cm: #777777;
+  /* ── Code highlight — 灰度 ───────── */
+  --color-code-kw: #aaaaaa;
+  --color-code-str: #999999;
+  --color-code-fn: #cccccc;
+  --color-code-cm: #666666;
 
   /* ── Editor ─────────────────────── */
-  --color-editor-bg: #0d0d0d;
-  --color-editor-gutter-bg: #141414;
-  --color-editor-line-highlight: #1e1e1e;
+  --color-editor-bg: #121212;
+  --color-editor-gutter-bg: #1a1a1a;
+  --color-editor-line-highlight: #242424;
 
   /* ── Monaco ─────────────────────── */
-  --color-monaco-bg: #0d0d0d;
-  --color-monaco-fg: #ffffff;
-  --color-monaco-line-highlight: #181818;
-  --color-monaco-selection: #1e3a5f;
-  --color-monaco-inactive-selection: #141414;
-  --color-monaco-gutter-bg: #0f0f0f;
-  --color-monaco-widget-bg: #141414;
+  --color-monaco-bg: #121212;
+  --color-monaco-fg: #e4e4e4;
+  --color-monaco-line-highlight: #1e1e1e;
+  --color-monaco-selection: #333333;
+  --color-monaco-inactive-selection: #1a1a1a;
+  --color-monaco-gutter-bg: #1a1a1a;
+  --color-monaco-widget-bg: #1e1e1e;
   --color-monaco-widget-border: #2a2a2a;
   --color-monaco-focus: var(--color-accent);
   --color-monaco-cursor: var(--color-accent);
@@ -208,20 +208,20 @@
   --color-monaco-line-number-active: var(--color-accent);
 
   /* ── Terminal ────────────────────── */
-  --color-terminal-bg: #000000;
+  --color-terminal-bg: #0a0a0a;
   --color-terminal-text: #cccccc;
 
-  /* ── File type icons ────────────── */
-  --color-file-doc-bg: #2a0a0a;
-  --color-file-doc-stroke: #f87171;
-  --color-file-code-bg: #0a1e30;
-  --color-file-code-stroke: #60a5fa;
-  --color-file-data-bg: #0a2812;
-  --color-file-data-stroke: #4ade80;
-  --color-file-config-bg: #1a1040;
-  --color-file-config-stroke: #a78bfa;
-  --color-file-other-bg: #181818;
-  --color-file-other-stroke: #888888;
+  /* ── File type icons — 灰度区分 ──── */
+  --color-file-doc-bg: #1a1a1a;
+  --color-file-doc-stroke: #999999;
+  --color-file-code-bg: #1a1a1a;
+  --color-file-code-stroke: #aaaaaa;
+  --color-file-data-bg: #1a1a1a;
+  --color-file-data-stroke: #999999;
+  --color-file-config-bg: #1a1a1a;
+  --color-file-config-stroke: #aaaaaa;
+  --color-file-other-bg: #1a1a1a;
+  --color-file-other-stroke: #777777;
 }
 
 /* ── Base ─────────────────────────────────────────── */
