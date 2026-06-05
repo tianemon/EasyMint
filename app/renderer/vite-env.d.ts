@@ -85,6 +85,7 @@ interface ElectronAPI {
     chatStatus: (sessionId: string) => Promise<string | null>;
     getBufferedStream: (sessionId: string) => Promise<unknown[]>;
     killChat: (chatId: string) => Promise<void>;
+    ensureActive: (projectPath: string, sessionId: string) => Promise<void>;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;

@@ -299,6 +299,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     return () => clearTimeout(timer);
   }, [summarizing]);
 
+  // Activate session on mount — ensure chat loop is running for context usage
+  useEffect(() => {
+    if (existingSid) {
+      window.electronAPI.agent.ensureActive(projectPath, existingSid).catch(() => {});
+    }
+  }, [existingSid]);
+
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
   // ── Send ───────────────────────────────────────────

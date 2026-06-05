@@ -120,6 +120,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:sendMessage", (_e, { projectPath, message, sessionId, permissionMode, model }) => {
     return agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model);
   });
+  ipcMain.handle("agent:ensureActive", (_e, { projectPath, sessionId }) => {
+    services.agentService.ensureActive(projectPath, sessionId);
+  });
   ipcMain.handle("agent:killChat", (_e, { chatId }) => {
     agentService.killChat(chatId);
   });

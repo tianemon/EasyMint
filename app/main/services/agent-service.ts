@@ -393,6 +393,23 @@ export class AgentService {
     })();
   }
 
+  /** Ensure a chat loop is running for this session (without sending a message). */
+  ensureActive(projectPath: string, sessionId: string): void {
+    if (this.findActiveChat(sessionId)) return; // already running
+    // Start loop with resume — don't enqueue a message, just start listening
+    const chatId = `chat-${++this.chatCounter}`;
+    const overrides: Partial<QueryOptions> = { resume: sessionId };
+    const options = buildQueryOptions(projectPath, this.store, true, "auto", overrides);
+    const chat: ActiveChat = {
+      chatId, sessionId, channel: createMessageChannel(new AbortController().signal),
+      abortController: new AbortController(), query: null, projectPath,
+      status: "idle", contextStatus: "normal", summaryBuffer: "",
+    };
+    this.activeChats.set(chatId, chat);
+    this.startChatLoop(chat, options);
+    console.log("[ensureActive] started loop for sessionId=%s chatId=%s", sessionId, chatId);
+  }
+
   /** Find an active chat by SDK session ID */
   private findActiveChat(sessionId: string): ActiveChat | undefined {
     for (const chat of this.activeChats.values()) {
