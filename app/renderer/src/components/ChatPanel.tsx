@@ -286,6 +286,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); };
   }, []);
 
+  // Summarizing timeout — 120s safety net
+  useEffect(() => {
+    if (!summarizing) return;
+    const timer = setTimeout(() => {
+      setSummarizing(false);
+      setStatusText("思考中...");
+      console.error("[ChatPanel] summarization timed out after 120s");
+    }, 120_000);
+    return () => clearTimeout(timer);
+  }, [summarizing]);
+
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
   // ── Send ───────────────────────────────────────────
@@ -482,11 +493,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
-            placeholder="输入消息，Enter 发送，Shift+Enter 换行，粘贴或拖入图片..."
+            placeholder={summarizing ? "正在进行会话摘要..." : "输入消息，Enter 发送，Shift+Enter 换行，粘贴或拖入图片..."}
             rows={3}
-            className="flex-1 min-h-[90px] resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent"
+            disabled={summarizing}
+            className="flex-1 min-h-[90px] resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed"
           />
-          {(loading || streaming) ? (
+          {summarizing ? (
+            <div className="w-9 h-9 rounded-md bg-surface-alt border border-border flex items-center justify-center shrink-0 opacity-40 cursor-not-allowed">
+              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
+            </div>
+          ) : (loading || streaming) ? (
             <button onClick={() => { stoppedRef.current = true; const rid = currentRunRef.current; if (rid) window.electronAPI.agent.abort(rid); setLoading(false); setStreaming(false); }}
               className="w-9 h-9 rounded-md bg-danger-bg text-danger flex items-center justify-center hover:bg-danger-bg transition-colors shrink-0">
               <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>

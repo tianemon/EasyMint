@@ -355,7 +355,9 @@ export class AgentService {
                   broadcast("agent:context-summarizing", { chatId: chat.chatId });
                   log(`[chat-loop] context ${usage.percentage}% >= ${threshold}%, starting summarization`);
                 }
-              } catch { /* getContextUsage may fail; ignore */ }
+              } catch (err) {
+                log(`[chat-loop] getContextUsage failed: ${String(err)}`);
+              }
             }
           }
         }
