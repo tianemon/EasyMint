@@ -51,7 +51,7 @@ const EM_DEFAULTS = {
   defaultProjectDir: "~/EasyMintProject",
   claudePath: "",
   terminalFontSize: 14,
-  contextThreshold: 17,
+  contextThreshold: 60,
 };
 
 export class Store {

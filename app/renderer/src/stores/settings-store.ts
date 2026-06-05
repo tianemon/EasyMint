@@ -43,7 +43,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
   setupComplete: false,
   thinkingBudget: 0,
-  contextThreshold: 17,
+  contextThreshold: 60,
 
   setModel: (model: string) => {
     set({ model });
