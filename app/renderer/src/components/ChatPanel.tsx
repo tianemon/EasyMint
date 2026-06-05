@@ -452,7 +452,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                   ) : msg.entries ? (
                     <div className="flex flex-col max-w-[85%]">
                       <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-2 overflow-hidden">
-                        {buildBlocks(msg.entries, String(msg.id)).map((block, i) => <ChatBlockView key={`${msg.id}-${i}`} block={block} streaming={streaming} />)}
+                        {buildBlocks(msg.entries, String(msg.id)).map((block, i) => <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={streaming} />)}
                       </div>
                       {hasInitPrompt && !loading && (
                         <button className="mt-2 self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/30 text-accent text-xs hover:bg-accent/20 transition-colors" onClick={() => sendText("帮我初始化开发环境")}>
