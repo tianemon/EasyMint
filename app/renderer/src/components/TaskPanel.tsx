@@ -229,15 +229,16 @@ export function TaskPanel({ projectPath, onCollapse, onLeafClick }: TaskPanelPro
       {/* Leaf button */}
       <div className="shrink-0 px-3 pb-2 flex flex-col items-center">
         <button onClick={handleLeafClick}
-          className="w-full h-12 rounded-xl bg-accent-bg hover:bg-accent-border border border-accent-border-strong flex items-center justify-center transition-colors group">
-          <svg viewBox="0 0 48 48" fill="none" className="w-10 h-10 text-accent group-hover:scale-105 transition-transform -rotate-12">
-            {/* leaf body — tilted oval with pointed tip */}
-            <path d="M32 8C24 12 12 18 12 28c0 8 6 12 12 12 6 0 14-6 16-14 2-10-4-16-8-18z" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          className="w-full h-12 rounded-xl bg-accent-bg hover:bg-accent-border border border-accent-border-strong flex items-center justify-center transition-colors group overflow-hidden">
+          <svg viewBox="0 0 60 60" fill="none" className="w-[180%] h-[180%] text-accent group-hover:scale-105 transition-transform -rotate-[20deg]">
+            {/* leaf body — oversized, only a fragment visible in button */}
+            <path d="M30 10c-8 5-18 12-22 24-3 9 3 18 12 20 8 2 20-4 24-14 5-12-2-22-14-30z" fill="currentColor" opacity="0.12" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
             {/* central vein */}
-            <path d="M28 10C22 16 18 24 18 32" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" opacity="0.5"/>
-            {/* side veins */}
-            <path d="M24 16L20 13M22 21L17 19M20 27L16 26" stroke="currentColor" strokeWidth="0.6" strokeLinecap="round" opacity="0.35"/>
-            <path d="M27 16L30 13M28 21L32 18M27 27L31 26" stroke="currentColor" strokeWidth="0.6" strokeLinecap="round" opacity="0.35"/>
+            <path d="M28 12c-8 8-14 18-16 30" stroke="currentColor" strokeWidth="0.7" strokeLinecap="round" opacity="0.45"/>
+            {/* side veins — left */}
+            <path d="M22 20l-5 0M20 26l-5 2M18 32l-4 3" stroke="currentColor" strokeWidth="0.5" strokeLinecap="round" opacity="0.3"/>
+            {/* side veins — right */}
+            <path d="M28 20l5-2M30 26l6-1M32 32l5 1" stroke="currentColor" strokeWidth="0.5" strokeLinecap="round" opacity="0.3"/>
           </svg>
         </button>
         <p className="text-[10px] text-text-secondary mt-1.5 opacity-60">如果你不知道要做什么，就点一下</p>
