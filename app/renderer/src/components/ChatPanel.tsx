@@ -435,7 +435,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       )}
 
       {(streaming || loading) && (
-        <div className="flex items-center gap-2 px-4 py-1.5 text-text-secondary text-xs bg-surface-alt/50 border-t border-border/50 shrink-0">
+        <div className="flex items-center gap-2 px-4 py-1.5 text-text-secondary text-xs bg-surface-alt/50 shrink-0">
           <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
           <span className="w-2 h-2 rounded-full bg-accent animate-pulse" style={{ animationDelay: "0.2s" }} />
           <span className="w-2 h-2 rounded-full bg-accent animate-pulse" style={{ animationDelay: "0.4s" }} />
@@ -444,7 +444,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       )}
 
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-t border-border/50 bg-surface shrink-0">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-surface shrink-0">
         <input ref={imgInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/svg+xml" multiple className="hidden" onChange={handleImgChange} />
         <input ref={docInputRef} type="file" multiple className="hidden" onChange={handleDocChange} accept=".pdf,.doc,.docx,.md,.txt,.csv,.xls,.xlsx,.ts,.tsx,.js,.jsx,.py,.java,.json,.yaml,.yml,.toml,.html,.css,.sh,.env,.cfg" />
         <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-accent transition-colors" title="上传图片" onClick={() => imgInputRef.current?.click()}>
