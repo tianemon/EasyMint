@@ -427,8 +427,6 @@ function McpTab(): JSX.Element {
 
 function AgentsTab(): JSX.Element {
   const [templates, setTemplates] = useState<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; agentType: string }[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", description: "", prompt: "", tools: "", model: "", agentType: "builder" as string });
   const [loadError, setLoadError] = useState("");
 
   const load = () => {
@@ -436,109 +434,38 @@ function AgentsTab(): JSX.Element {
   };
   useEffect(load, []);
 
-  const resetForm = () => {
-    setForm({ name: "", description: "", prompt: "", tools: "", model: "", agentType: "builder" });
-    setEditingId(null);
+  const AGENT_TYPE_LABELS: Record<string, string> = {
+    mint: "Mint（PM / 主对话）",
+    builder: "Builder（开发者）",
+    evaluator: "Evaluator（验收者）",
   };
-
-  const handleSave = async () => {
-    const toolsArr = form.tools.split(",").map((s) => s.trim()).filter(Boolean);
-    const input = { ...form, tools: toolsArr, model: form.model || undefined };
-    if (editingId) {
-      await window.electronAPI.agentTemplates.update(editingId, input);
-    } else {
-      await window.electronAPI.agentTemplates.create(input);
-    }
-    resetForm();
-    load();
-  };
-
-  const handleEdit = (t: typeof templates[0]) => {
-    setEditingId(t.id);
-    setForm({ name: t.name, description: t.description, prompt: t.prompt, tools: t.tools.join(", "), model: t.model || "", agentType: t.agentType });
-  };
-
-  const handleDelete = async (id: string) => {
-    await window.electronAPI.agentTemplates.delete(id);
-    if (editingId === id) resetForm();
-    load();
-  };
-
-  const AGENT_TYPES = [
-    { value: "mint", label: "Mint（PM / 主对话）" },
-    { value: "builder", label: "Builder（开发者）" },
-    { value: "evaluator", label: "Evaluator（验收者）" },
-  ];
 
   return (
     <div className="px-6 py-4 overflow-y-auto space-y-4">
       {loadError && <p className="text-danger text-xs">{loadError}</p>}
 
-      {/* Template List */}
+      <p className="text-[11px] text-text-secondary">
+        Agent 模板由系统管理，启动时自动同步。如需修改 Builder/Evaluator 的行为，请编辑项目 CLAUDE.md。
+      </p>
+
       {templates.length === 0 ? (
-        <p className="text-text-secondary text-xs text-center py-4">暂无 Agent 模板，创建一个吧。</p>
+        <p className="text-text-secondary text-xs text-center py-4">暂无 Agent 模板</p>
       ) : (
         <div className="space-y-2">
           {templates.map((t) => (
-            <div key={t.id} className={`p-3 rounded-lg border transition-colors ${editingId === t.id ? "border-accent bg-accent/5" : "border-border hover:border-accent/30"}`}>
+            <div key={t.id} className="p-3 rounded-lg border border-border">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-sm font-medium text-text-primary">{t.name}</span>
-                  <span className="text-xs text-text-secondary ml-2">{t.agentType}</span>
-                </div>
-                <div className="flex gap-1">
-                  <button className="text-xs text-text-secondary hover:text-accent transition-colors" onClick={() => handleEdit(t)}>编辑</button>
-                  <button className="text-xs text-text-secondary hover:text-danger transition-colors" onClick={() => handleDelete(t.id)}>删除</button>
+                  <span className="text-xs text-text-secondary ml-2">{AGENT_TYPE_LABELS[t.agentType] || t.agentType}</span>
                 </div>
               </div>
               <p className="text-xs text-text-secondary mt-0.5 truncate">{t.description}</p>
+              <p className="text-[10px] text-text-muted mt-1 truncate">{t.tools.join(", ")}</p>
             </div>
           ))}
         </div>
       )}
-
-      {/* Form */}
-      <div className="border-t border-border pt-4">
-        <h3 className="text-sm font-medium text-text-primary mb-3">{editingId ? "编辑模板" : "新建模板"}</h3>
-        <div className="space-y-3">
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <label className="text-xs text-text-secondary block mb-1">名称</label>
-              <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如 Builder" />
-            </div>
-            <div className="w-44">
-              <label className="text-xs text-text-secondary block mb-1">类型</label>
-              <select className="input" value={form.agentType} onChange={(e) => setForm({ ...form, agentType: e.target.value })}>
-                {AGENT_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="text-xs text-text-secondary block mb-1">描述（SDK 用于匹配调用时机）</label>
-            <input className="input" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="如：当需要实现 task.json 中的开发任务时使用" />
-          </div>
-          <div>
-            <label className="text-xs text-text-secondary block mb-1">系统提示词</label>
-            <textarea className="input resize-y" rows={4} value={form.prompt} onChange={(e) => setForm({ ...form, prompt: e.target.value })} placeholder="Agent 的身份定义和工作流程..." />
-          </div>
-          <div>
-            <label className="text-xs text-text-secondary block mb-1">工具（逗号分隔）</label>
-            <input className="input" value={form.tools} onChange={(e) => setForm({ ...form, tools: e.target.value })} placeholder="Read, Write, Edit, Bash, Glob, Grep" />
-          </div>
-          <div>
-            <label className="text-xs text-text-secondary block mb-1">模型（可选，不填继承默认）</label>
-            <input className="input" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="如 deepseek-v4-pro" />
-          </div>
-          <div className="flex gap-2">
-            <button className="px-4 py-2 rounded-lg bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors disabled:opacity-40" disabled={!form.name || !form.prompt} onClick={handleSave}>
-              {editingId ? "更新" : "创建"}
-            </button>
-            {editingId && (
-              <button className="px-4 py-2 rounded-lg text-text-secondary text-sm hover:bg-surface-hover transition-colors" onClick={resetForm}>取消</button>
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
