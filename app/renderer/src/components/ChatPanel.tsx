@@ -135,7 +135,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const availableModels = useSettingsStore((s) => s.availableModels);
   const [chatModel, setChatModel] = useState("");
   const [balanceText, setBalanceText] = useState("");
-  const storeThreshold = useSettingsStore((s) => s.contextThreshold);
 
   const refreshBalance = useCallback(async () => {
     try {
