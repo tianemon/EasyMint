@@ -49,8 +49,7 @@ function ThemeToggleButton(): JSX.Element {
     </svg>
   ) : (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-[17px] h-[17px]">
-      <circle cx="6" cy="12" r="3"/><path d="M9 12h10M14 7l5 5-5 5"/>
-      <path d="M12 2v1M12 21v1M3 4l1 1M20 19l1 1M2 12h1M22 11h-1M4 20l1-1M19 5l1-1" strokeWidth="1" opacity="0.6"/>
+      <circle cx="12" cy="12" r="9"/><text x="12" y="16" textAnchor="middle" fill="currentColor" stroke="none" fontSize="11" fontWeight="700" fontFamily="system-ui">A</text>
     </svg>
   );
 
