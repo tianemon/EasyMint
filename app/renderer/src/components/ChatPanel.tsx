@@ -124,6 +124,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const currentRunRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
   const [summarizing, setSummarizing] = useState(false);
+  const [ctxPct, setCtxPct] = useState(0);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const [attaches, setAttaches] = useState<AttachItem[]>([]);
@@ -134,6 +135,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const availableModels = useSettingsStore((s) => s.availableModels);
   const [chatModel, setChatModel] = useState("");
   const [balanceText, setBalanceText] = useState("");
+  const storeThreshold = useSettingsStore((s) => s.contextThreshold);
 
   const refreshBalance = useCallback(async () => {
     try {
@@ -283,7 +285,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid }) => { if (!sidRef.current) { sidRef.current = realSid; onSessionCreated?.(realSid); } });
     // Context rotation events
     const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(() => { setSummarizing(true); setStatusText("正在整理会话..."); });
-    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); };
+    const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ percentage }) => { setCtxPct(Math.round(percentage)); });
+    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); };
   }, []);
 
   // Summarizing timeout — 120s safety net
@@ -480,6 +483,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           {availableModels.map((m) => (<option key={m} value={m}>{m}</option>))}
         </select>
         {balanceText && <span className="text-[10px] text-text-secondary cursor-pointer hover:text-accent transition-colors" onClick={refreshBalance} title="点击刷新余额">{balanceText}</span>}
+        {ctxPct > 0 && (
+          <div className="flex items-center gap-1.5" title={`上下文用量 ${ctxPct}%`}>
+            <div className="w-16 h-2 rounded-full bg-surface-hover overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${ctxPct}%`,
+                  background: ctxPct >= (storeThreshold ?? 60) ? 'var(--color-danger)' : ctxPct >= 40 ? 'var(--color-warning)' : 'var(--color-accent)',
+                }}
+              />
+            </div>
+            <span className="text-[10px] text-text-secondary w-8">{ctxPct}%</span>
+          </div>
+        )}
       </div>
 
       {/* Input area */}

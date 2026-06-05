@@ -347,6 +347,7 @@ export class AgentService {
             if (chat.contextStatus === "normal") {
               try {
                 const usage = await chat.query!.getContextUsage();
+                broadcast("agent:context-usage", { chatId: chat.chatId, percentage: usage.percentage, totalTokens: usage.totalTokens, maxTokens: usage.maxTokens });
                 const threshold = this.store.getSettings().contextThreshold ?? 60;
                 if (usage.percentage >= threshold) {
                   chat.contextStatus = "summarizing";

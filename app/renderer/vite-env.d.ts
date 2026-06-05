@@ -92,6 +92,7 @@ interface ElectronAPI {
     onContextSummarizing: (callback: (data: { chatId: string }) => void) => () => void;
     onContextSummary: (callback: (data: { chatId: string; summary: string }) => void) => () => void;
     onRotateCreate: (callback: (data: { oldChatId: string; oldSessionId: string; projectPath: string; handoffPrompt: string }) => void) => () => void;
+    onContextUsage: (callback: (data: { chatId: string; percentage: number; totalTokens: number; maxTokens: number }) => void) => () => void;
   };
   task: {
     read: (projectPath: string) => Promise<{ tasks: { id: string; title: string; description: string; command: string; passes: boolean }[] }>;
