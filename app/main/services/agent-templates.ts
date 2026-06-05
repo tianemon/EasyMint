@@ -139,21 +139,31 @@ const DEFAULTS: AgentTemplate[] = [
 ];
 
 /** Sync default templates: update existing by id, add new ones, keep user templates */
+/** Default template IDs that have been removed in a newer version.
+ *  On seed, these are purged from the user's local store. */
+const REMOVED_DEFAULT_IDS = new Set(["default-orchestrator"]);
+
 export function seedDefaults(): void {
   const current = readAll();
-  const nonDefaults = current.filter((t) => !DEFAULTS.some((d) => d.id === t.id));
-  const synced: AgentTemplate[] = [...nonDefaults];
+  // Purge removed defaults + keep user templates
+  const keepers = current.filter((t) =>
+    !REMOVED_DEFAULT_IDS.has(t.id) && !DEFAULTS.some((d) => d.id === t.id)
+  );
+  const synced: AgentTemplate[] = [...keepers];
 
   for (const d of DEFAULTS) {
     const existing = current.find((t) => t.id === d.id);
     if (existing && existing.prompt === d.prompt && existing.description === d.description) {
-      synced.push(existing); // unchanged, keep existing
+      synced.push(existing);
     } else {
-      synced.push({ ...d }); // new or updated
+      synced.push({ ...d });
     }
   }
 
   writeAll(synced);
+  if (current.length !== synced.length) {
+    console.log("[seedDefaults] cleaned up removed defaults");
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
