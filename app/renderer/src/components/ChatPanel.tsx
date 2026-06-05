@@ -435,11 +435,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       )}
 
       {(streaming || loading) && (
-        <div className="flex items-center gap-2 px-4 py-1.5 text-text-secondary text-xs bg-surface-alt/50 shrink-0">
-          <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-          <span className="w-2 h-2 rounded-full bg-accent animate-pulse" style={{ animationDelay: "0.2s" }} />
-          <span className="w-2 h-2 rounded-full bg-accent animate-pulse" style={{ animationDelay: "0.4s" }} />
-          <span className="ml-1">{statusText}</span>
+        <div className="flex items-center gap-1.5 px-4 py-1.5 text-text-secondary text-xs bg-surface-alt/50 shrink-0">
+          <span>{statusText}</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" style={{ animationDelay: "0.2s" }} />
+          <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" style={{ animationDelay: "0.4s" }} />
         </div>
       )}
 
