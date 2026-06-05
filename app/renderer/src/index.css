@@ -138,10 +138,10 @@
 
 [data-theme="dark"] {
   /* ── Surface ─────────────────────── */
-  --color-surface: #000000;
-  --color-surface-alt: #0f0f0f;
-  --color-surface-hover: #1a1a1a;
-  --color-surface-elevated: #141414;
+  --color-surface: #0d0d0d;
+  --color-surface-alt: #141414;
+  --color-surface-hover: #1e1e1e;
+  --color-surface-elevated: #181818;
   --color-overlay: rgba(0, 0, 0, 0.8);
   --color-tooltip-bg: #ffffff;
   --color-tooltip-text: #000000;
@@ -189,14 +189,14 @@
   --color-code-cm: #777777;
 
   /* ── Editor ─────────────────────── */
-  --color-editor-bg: #000000;
-  --color-editor-gutter-bg: #0f0f0f;
-  --color-editor-line-highlight: #1a1a1a;
+  --color-editor-bg: #0d0d0d;
+  --color-editor-gutter-bg: #141414;
+  --color-editor-line-highlight: #1e1e1e;
 
   /* ── Monaco ─────────────────────── */
-  --color-monaco-bg: #000000;
+  --color-monaco-bg: #0d0d0d;
   --color-monaco-fg: #ffffff;
-  --color-monaco-line-highlight: #141414;
+  --color-monaco-line-highlight: #181818;
   --color-monaco-selection: #1e3a5f;
   --color-monaco-inactive-selection: #141414;
   --color-monaco-gutter-bg: #0f0f0f;
