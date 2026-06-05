@@ -34,34 +34,40 @@ interface EditorPanelProps {
   fileName?: string;
 }
 
-const MONACO_THEME: editor.IStandaloneThemeData = {
-  base: "vs",
-  inherit: true,
-  rules: [
-    { token: "comment", foreground: "6B7280", fontStyle: "italic" },
-    { token: "keyword", foreground: "7C3AED" },
-    { token: "string", foreground: "059669" },
-    { token: "number", foreground: "D97706" },
-    { token: "type", foreground: "2563EB" },
-    { token: "function", foreground: "DC2626" },
-  ],
-  colors: {
-    "editor.background": "#ecf5f0",
-    "editor.foreground": "#374151",
-    "editor.lineHighlightBackground": "#dcfce7",
-    "editor.selectionBackground": "#bbf7d0",
-    "editor.inactiveSelectionBackground": "#dcfce7",
-    "editorCursor.foreground": "#16a34a",
-    "editorLineNumber.foreground": "#9CA3AF",
-    "editorLineNumber.activeForeground": "#16a34a",
-    "editorGutter.background": "#e6f0ea",
-    "editorWidget.background": "#ffffff",
-    "editorWidget.border": "#d1d5db",
-    "input.background": "#ffffff",
-    "input.border": "#d1d5db",
-    "focusBorder": "#16a34a",
-  },
-};
+function readCSS(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function buildMonacoTheme(): editor.IStandaloneThemeData {
+  return {
+    base: "vs",
+    inherit: true,
+    rules: [
+      { token: "comment", foreground: "6B7280", fontStyle: "italic" },
+      { token: "keyword", foreground: "7C3AED" },
+      { token: "string", foreground: "059669" },
+      { token: "number", foreground: "D97706" },
+      { token: "type", foreground: "2563EB" },
+      { token: "function", foreground: "DC2626" },
+    ],
+    colors: {
+      "editor.background": readCSS("--color-monaco-bg"),
+      "editor.foreground": readCSS("--color-monaco-fg"),
+      "editor.lineHighlightBackground": readCSS("--color-monaco-line-highlight"),
+      "editor.selectionBackground": readCSS("--color-monaco-selection"),
+      "editor.inactiveSelectionBackground": readCSS("--color-monaco-inactive-selection"),
+      "editorCursor.foreground": readCSS("--color-monaco-cursor"),
+      "editorLineNumber.foreground": readCSS("--color-monaco-line-number"),
+      "editorLineNumber.activeForeground": readCSS("--color-monaco-line-number-active"),
+      "editorGutter.background": readCSS("--color-monaco-gutter-bg"),
+      "editorWidget.background": readCSS("--color-monaco-widget-bg"),
+      "editorWidget.border": readCSS("--color-monaco-widget-border"),
+      "input.background": readCSS("--color-monaco-widget-bg"),
+      "input.border": readCSS("--color-monaco-widget-border"),
+      "focusBorder": readCSS("--color-monaco-focus"),
+    },
+  };
+}
 
 function langForFile(name: string | undefined): string {
   if (!name) return "plaintext";
@@ -164,7 +170,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
           value={content}
           loading={<div className="flex items-center justify-center h-full text-text-secondary text-sm">加载中…</div>}
           beforeMount={(monaco) => {
-            monaco.editor.defineTheme("easymint", MONACO_THEME);
+            monaco.editor.defineTheme("easymint", buildMonacoTheme());
           }}
           onMount={handleMount}
           onChange={handleChange}

@@ -93,18 +93,18 @@ function DocIcon({ name }: { name: string }): JSX.Element {
   const configExts = new Set(["env","gitignore","dockerfile","cfg","ini","conf","toml","yml","yaml","json","xml","makefile","cmake","gradle","lock","editorconfig","prettierrc","eslintrc"]);
   const docExts = new Set(["md","markdown","txt","pdf","doc","docx","pages","rst","tex","log"]);
   if (docExts.has(ext) || ext === "pdf") {
-    return <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 shrink-0"><rect x="3" y="2" width="18" height="20" rx="2" fill="#fef2f2" stroke="#ef4444" strokeWidth="1.2"/><text x="12" y="17" textAnchor="middle" fill="#ef4444" fontSize="7" fontWeight="600" fontFamily="system-ui">{ext === "pdf" ? "PDF" : "DOC"}</text></svg>;
+    return <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 shrink-0"><rect x="3" y="2" width="18" height="20" rx="2" className="fill-file-doc stroke-file-doc" strokeWidth="1.2" style={{ fill: 'var(--color-file-doc-bg)', stroke: 'var(--color-file-doc-stroke)' }}/><text x="12" y="17" textAnchor="middle" fill="var(--color-file-doc-stroke)" fontSize="7" fontWeight="600" fontFamily="system-ui">{ext === "pdf" ? "PDF" : "DOC"}</text></svg>;
   }
   if (codeExts.has(ext)) {
-    return <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 shrink-0"><rect x="3" y="2" width="18" height="20" rx="2" fill="#f0fdf4" stroke="#22c55e" strokeWidth="1.2"/><path d="M8 9h8M8 13h6M8 17h4" stroke="#22c55e" strokeWidth="1.3" strokeLinecap="round"/></svg>;
+    return <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 shrink-0"><rect x="3" y="2" width="18" height="20" rx="2" className="fill-file-code stroke-file-code" strokeWidth="1.2" style={{ fill: 'var(--color-file-code-bg)', stroke: 'var(--color-file-code-stroke)' }}/><path d="M8 9h8M8 13h6M8 17h4" className="stroke-file-code" strokeWidth="1.3" strokeLinecap="round"/></svg>;
   }
   if (dataExts.has(ext)) {
-    return <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 shrink-0"><rect x="3" y="2" width="18" height="20" rx="2" fill="#eff6ff" stroke="#3b82f6" strokeWidth="1.2"/><path d="M7 9h10M7 13h10M7 17h10" stroke="#3b82f6" strokeWidth="1.3" strokeLinecap="round"/></svg>;
+    return <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 shrink-0"><rect x="3" y="2" width="18" height="20" rx="2" className="fill-file-data stroke-file-data" strokeWidth="1.2" style={{ fill: 'var(--color-file-data-bg)', stroke: 'var(--color-file-data-stroke)' }}/><path d="M7 9h10M7 13h10M7 17h10" className="stroke-file-data" strokeWidth="1.3" strokeLinecap="round"/></svg>;
   }
   if (configExts.has(ext)) {
-    return <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 shrink-0"><rect x="3" y="2" width="18" height="20" rx="2" fill="#f5f3ff" stroke="#8b5cf6" strokeWidth="1.2"/><circle cx="12" cy="11" r="3" stroke="#8b5cf6" strokeWidth="1.3"/><path d="M12 14v3M10 8l2-3 2 3" stroke="#8b5cf6" strokeWidth="1.3" strokeLinecap="round"/></svg>;
+    return <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 shrink-0"><rect x="3" y="2" width="18" height="20" rx="2" className="fill-file-config stroke-file-config" strokeWidth="1.2" style={{ fill: 'var(--color-file-config-bg)', stroke: 'var(--color-file-config-stroke)' }}/><circle cx="12" cy="11" r="3" className="stroke-file-config" strokeWidth="1.3"/><path d="M12 14v3M10 8l2-3 2 3" className="stroke-file-config" strokeWidth="1.3" strokeLinecap="round"/></svg>;
   }
-  return <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 shrink-0"><rect x="3" y="2" width="18" height="20" rx="2" fill="#fafaf9" stroke="#78716c" strokeWidth="1.2"/><path d="M8 9h8M8 13h8M8 17h5" stroke="#78716c" strokeWidth="1.3" strokeLinecap="round"/></svg>;
+  return <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 shrink-0"><rect x="3" y="2" width="18" height="20" rx="2" className="fill-file-other stroke-file-other" strokeWidth="1.2" style={{ fill: 'var(--color-file-other-bg)', stroke: 'var(--color-file-other-stroke)' }}/><path d="M8 9h8M8 13h8M8 17h5" className="stroke-file-other" strokeWidth="1.3" strokeLinecap="round"/></svg>;
 }
 
 interface ChatPanelProps {
@@ -339,7 +339,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             )}
             {a.kind !== "image" || !a.dataUrl ? <span className="text-xs text-text-primary truncate flex-1 min-w-0">{a.name}</span> : null}
             <button className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500/70 flex items-center justify-center" onClick={() => removeAttach(i)}>
-              <svg viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" className="w-2 h-2"><path d="M2 2l6 6M8 2L2 8"/></svg>
+              <svg viewBox="0 0 10 10" fill="none" className="stroke-inverse w-2 h-2" strokeWidth="2" strokeLinecap="round"><path d="M2 2l6 6M8 2L2 8"/></svg>
             </button>
           </div>
         ))}

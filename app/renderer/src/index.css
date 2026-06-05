@@ -32,9 +32,13 @@
   /* ── Brand / Accent ──────────────── */
   --color-accent: #16a34a;
   --color-accent-hover: #15803d;
-  --color-accent-soft: color-mix(in oklab, #16a34a 12%, transparent);
-  --color-accent-bg: color-mix(in oklab, #16a34a 10%, transparent);
-  --color-accent-border: color-mix(in oklab, #16a34a 20%, transparent);
+  --color-accent-light: #86efac;
+  --color-accent-soft: color-mix(in oklab, var(--color-accent) 12%, transparent);
+  --color-accent-bg: color-mix(in oklab, var(--color-accent) 10%, transparent);
+  --color-accent-subtle: color-mix(in oklab, var(--color-accent) 5%, transparent);
+  --color-accent-border: color-mix(in oklab, var(--color-accent) 20%, transparent);
+  --color-accent-border-light: color-mix(in oklab, var(--color-accent) 10%, transparent);
+  --color-accent-border-strong: color-mix(in oklab, var(--color-accent) 30%, transparent);
 
   /* ── Semantic ────────────────────── */
   --color-success: #17a34a;
@@ -47,7 +51,22 @@
   --color-danger-bg: #fef2f2;
   --color-danger-border: #fecaca;
   --color-info: #0891b2;
-  --color-info-bg: color-mix(in oklab, #0891b2 12%, transparent);
+  --color-info-bg: color-mix(in oklab, var(--color-info) 12%, transparent);
+
+  /* ── Border extras ──────────────── */
+  --color-border-strong: #94a3b8;
+
+  /* ── File type icons ────────────── */
+  --color-file-doc-bg: #fef2f2;
+  --color-file-doc-stroke: #ef4444;
+  --color-file-code-bg: #f0fdf4;
+  --color-file-code-stroke: #22c55e;
+  --color-file-data-bg: #eff6ff;
+  --color-file-data-stroke: #3b82f6;
+  --color-file-config-bg: #f5f3ff;
+  --color-file-config-stroke: #8b5cf6;
+  --color-file-other-bg: #fafaf9;
+  --color-file-other-stroke: #78716c;
 
   /* ── Status dots ─────────────────── */
   --color-dot-gray: #c8ccd4;
@@ -66,6 +85,20 @@
   --color-editor-bg: #fafbfc;
   --color-editor-gutter-bg: #f1f3f5;
   --color-editor-line-highlight: #e2e8f0;
+
+  /* ── Monaco ─────────────────────── */
+  --color-monaco-bg: #ecf5f0;
+  --color-monaco-fg: #374151;
+  --color-monaco-line-highlight: #dcfce7;
+  --color-monaco-selection: #bbf7d0;
+  --color-monaco-inactive-selection: #dcfce7;
+  --color-monaco-gutter-bg: #e6f0ea;
+  --color-monaco-widget-bg: #ffffff;
+  --color-monaco-widget-border: #d1d5db;
+  --color-monaco-focus: var(--color-accent);
+  --color-monaco-cursor: var(--color-accent);
+  --color-monaco-line-number: #9CA3AF;
+  --color-monaco-line-number-active: var(--color-accent);
 
   /* ── Terminal ────────────────────── */
   --color-terminal-bg: #1a2e1f;
@@ -340,6 +373,35 @@ select.input {
   margin-left: 2px;
   animation: terminalCursorBlink 0.8s ease-in-out infinite;
 }
+
+/* ── SVG fill/stroke utilities ────────────────────────── */
+
+.fill-success  { fill: var(--color-success); }
+.fill-warning  { fill: var(--color-warning); }
+.fill-danger   { fill: var(--color-danger); }
+.fill-accent   { fill: var(--color-accent); }
+.fill-inverse  { fill: var(--color-text-inverse); }
+.fill-none     { fill: none; }
+.stroke-success { stroke: var(--color-success); }
+.stroke-warning { stroke: var(--color-warning); }
+.stroke-danger  { stroke: var(--color-danger); }
+.stroke-accent  { stroke: var(--color-accent); }
+.stroke-accent-light { stroke: var(--color-accent-light); }
+.stroke-muted   { stroke: var(--color-border-strong); }
+.stroke-inverse { stroke: var(--color-text-inverse); }
+.stroke-none    { stroke: none; }
+
+/* ── File type icon fills ─────────────────────────── */
+.fill-file-doc    { fill: var(--color-file-doc-stroke); }
+.fill-file-code   { fill: var(--color-file-code-stroke); }
+.fill-file-data   { fill: var(--color-file-data-stroke); }
+.fill-file-config { fill: var(--color-file-config-stroke); }
+.fill-file-other  { fill: var(--color-file-other-stroke); }
+.stroke-file-doc    { stroke: var(--color-file-doc-stroke); }
+.stroke-file-code   { stroke: var(--color-file-code-stroke); }
+.stroke-file-data   { stroke: var(--color-file-data-stroke); }
+.stroke-file-config { stroke: var(--color-file-config-stroke); }
+.stroke-file-other  { stroke: var(--color-file-other-stroke); }
 
 /* ── xterm overrides ──────────────────────────────── */
 

@@ -14,6 +14,7 @@ export default {
         border: {
           DEFAULT: "var(--color-border)",
           light: "var(--color-border-light)",
+          strong: "var(--color-border-strong)",
         },
         text: {
           primary: "var(--color-text-primary)",
@@ -24,6 +25,13 @@ export default {
         accent: {
           DEFAULT: "var(--color-accent)",
           hover: "var(--color-accent-hover)",
+          light: "var(--color-accent-light)",
+          subtle: "var(--color-accent-subtle)",
+          bg: "var(--color-accent-bg)",
+          soft: "var(--color-accent-soft)",
+          border: "var(--color-accent-border)",
+          "border-light": "var(--color-accent-border-light)",
+          "border-strong": "var(--color-accent-border-strong)",
         },
         danger: {
           DEFAULT: "var(--color-danger)",

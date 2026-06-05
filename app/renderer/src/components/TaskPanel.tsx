@@ -10,10 +10,10 @@ interface TaskPanelProps {
 }
 
 const STATUS_ICON: Record<string, JSX.Element> = {
-  done: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" fill="#22c55e" stroke="#22c55e" strokeWidth="1"/><path d="M3.5 6l2 2 3-4" stroke="#fff" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-  running: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" fill="#eab308" stroke="#eab308" strokeWidth="1"/><circle cx="6" cy="6" r="2.5" fill="#fff" className="animate-pulse"/></svg>,
-  failed: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" fill="#ef4444" stroke="#ef4444" strokeWidth="1"/><path d="M4 4l4 4M8 4l-4 4" stroke="#fff" strokeWidth="1.2" strokeLinecap="round"/></svg>,
-  pending: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" fill="none" stroke="#94a3b8" strokeWidth="1"/></svg>,
+  done: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" className="fill-success stroke-success" strokeWidth="1"/><path d="M3.5 6l2 2 3-4" className="stroke-inverse" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  running: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" className="fill-warning stroke-warning" strokeWidth="1"/><circle cx="6" cy="6" r="2.5" className="fill-inverse animate-pulse"/></svg>,
+  failed: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" className="fill-danger stroke-danger" strokeWidth="1"/><path d="M4 4l4 4M8 4l-4 4" className="stroke-inverse" strokeWidth="1.2" strokeLinecap="round"/></svg>,
+  pending: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" className="fill-none stroke-muted" strokeWidth="1"/></svg>,
 };
 
 // ── Fishbone Stepper (leaf vein style) ──────────────
@@ -52,8 +52,8 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
       <polyline
         points={timeline.map((_, i) => `${12 + i * 56},${spineY}`).join(" ")}
         fill="none"
-        stroke={hasCurrent ? "#86efac" : "#d1d5db"}
-        strokeWidth="3"               // 脊柱线粗细
+        stroke={hasCurrent ? "var(--color-accent-light)" : "var(--color-dot-gray)"}
+        strokeWidth="3"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -70,10 +70,10 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
         const isDone = entry.status === "done";
 
         // ── 圆点样式 ──
-        const r = isCurrent ? 5 : isDone ? 4 : 4;          // 圆点半径（当前/完成/未完成）
-        const fill = isDone ? "#22c55e" : isCurrent ? "#16a34a" : "none";  // 填充色
-        const stroke = isDone ? "#22c55e" : isCurrent ? "#16a34a" : "#9ca3af"; // 描边色
-        const lc = isDone || isCurrent ? "#86efac" : "#d1d5db"; // 分支线颜色
+        const r = isCurrent ? 5 : isDone ? 4 : 4;
+        const fill = isDone ? "var(--color-success)" : isCurrent ? "var(--color-accent)" : "none";
+        const stroke = isDone ? "var(--color-success)" : isCurrent ? "var(--color-accent)" : "var(--color-border-strong)";
+        const lc = isDone || isCurrent ? "var(--color-accent-light)" : "var(--color-dot-gray)";
 
         return (
           <g key={entry.stage} onMouseEnter={() => onHover(entry.stage)} className="cursor-pointer">
@@ -90,7 +90,7 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
             {isDone ? (
               <>
                 <circle cx={dotX} cy={branchY} r={r} fill={fill} stroke={stroke} strokeWidth="1.5" />
-                <path d={`M${dotX - 3},${branchY} L${dotX - 1},${branchY + 2.5} L${dotX + 3},${branchY - 2.5}`} stroke="#fff" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                <path d={`M${dotX - 3},${branchY} L${dotX - 1},${branchY + 2.5} L${dotX + 3},${branchY - 2.5}`} className="stroke-inverse" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </>
             ) : (
               <circle cx={dotX} cy={branchY} r={r} fill={fill} stroke={stroke} strokeWidth="1.5" className={isCurrent ? "animate-pulse" : ""} />
@@ -101,7 +101,7 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
                 x={dotX}
                 y={branchY < spineY ? branchY - 7 : branchY + 16}  // 上方-5 / 下方+14
                 textAnchor="middle"
-                fill="#16a34a"
+                fill="var(--color-accent)"
                 fontSize="12"             // 标签字号
                 fontWeight="600"
                 fontFamily="system-ui, sans-serif"
@@ -124,7 +124,7 @@ function TaskRow({ task }: { task: { id: string; title: string; description?: st
 
   return (
     <div
-      className={`border-b border-[#16a34a]/10 last:border-0 transition-colors ${task.status === "running" ? "bg-[#16a34a]/10" : "hover:bg-[#16a34a]/5"}`}
+      className={`border-b border-accent-border-light last:border-0 transition-colors ${task.status === "running" ? "bg-accent-bg" : "hover:bg-accent-subtle"}`}
       onMouseEnter={() => hasDesc && setExpanded(true)}
       onMouseLeave={() => setExpanded(false)}
     >
@@ -204,14 +204,14 @@ export function TaskPanel({ projectPath, onCollapse, onLeafClick }: TaskPanelPro
 
       {/* Fishbone stepper */}
       <div className="shrink-0 px-3 pt-2" onMouseLeave={() => setHovered(null)}>
-        <div className="rounded-xl bg-[#16a34a]/5 border border-[#16a34a]/10 overflow-hidden">
+        <div className="rounded-xl bg-accent-subtle border border-accent-border-light overflow-hidden">
           <Fishbone timeline={timeline} hovered={hovered} onHover={setHovered} />
         </div>
       </div>
 
       {/* Task list — mint container always visible, fixed area */}
       <div className="flex-1 min-h-0 flex flex-col px-3 py-1.5">
-        <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-[#16a34a]/5 border border-[#16a34a]/10">
+        <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-accent-subtle border border-accent-border-light">
           <div className="flex items-center justify-between px-3 pt-2 pb-1">
             <span className="text-[10px] text-text-secondary">开发任务</span>
             {taskCount > 0 && <span className="text-[10px] text-text-secondary">{doneCount}/{taskCount} 完成</span>}
@@ -229,8 +229,8 @@ export function TaskPanel({ projectPath, onCollapse, onLeafClick }: TaskPanelPro
       {/* Leaf button */}
       <div className="shrink-0 px-3 pb-2 flex flex-col items-center">
         <button onClick={handleLeafClick}
-          className="w-full h-12 rounded-xl bg-[#16a34a]/10 hover:bg-[#16a34a]/20 border border-[#16a34a]/30 flex items-center justify-center transition-colors group">
-          <svg viewBox="0 0 28 28" fill="none" className="w-7 h-7 text-[#16a34a] group-hover:scale-110 transition-transform">
+          className="w-full h-12 rounded-xl bg-accent-bg hover:bg-accent-border border border-accent-border-strong flex items-center justify-center transition-colors group">
+          <svg viewBox="0 0 28 28" fill="none" className="w-7 h-7 text-accent group-hover:scale-110 transition-transform">
             <path d="M14 2C14 2 8 8 8 14a6 6 0 0012 0C20 8 14 2 14 2z" fill="currentColor" opacity="0.3"/>
             <path d="M14 3C14 3 9 8.5 9 13.5a5 5 0 0010 0C19 8.5 14 3 14 3z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M14 9v10M14 9C12 9 9 11 9 13" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
