@@ -33,7 +33,6 @@ export default {
           "border-light": "var(--color-accent-border-light)",
           "border-strong": "var(--color-accent-border-strong)",
         },
-        "input-focus": "var(--color-input-focus)",
         danger: {
           DEFAULT: "var(--color-danger)",
           bg: "var(--color-danger-bg)",
