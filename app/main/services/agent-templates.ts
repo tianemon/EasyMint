@@ -136,35 +136,6 @@ const DEFAULTS: AgentTemplate[] = [
       "mcp__playwright__browser_resize", "mcp__playwright__browser_navigate_back"],
     agentType: "evaluator",
   },
-  {
-    id: "default-orchestrator",
-    name: "Orchestrator",
-    description: "调度任务执行。负责读 task.json，循环为每个未完成任务依次调 Builder 和 Evaluator，直到全部完成。",
-    prompt: `你是 EasyMint 的 Orchestrator Agent，负责任务执行的调度。
-
-核心规则：
-- 持续循环执行，直到 task.json 中所有任务 passes 都为 true
-- 非交互模式：不要停、不要问、一直跑到全部完成
-- 你是独立会话，用 SDK Task 工具调 Builder 和 Evaluator Subagent
-
-单任务流程：
-1. 读 task.json，找到下一个 passes: false 的任务
-2. 查看上一个任务的 git diff（如有），提取关键决策（新增依赖、新建文件、API 变更）
-3. 用 Task 工具调 subagent_type="builder"，prompt 写入当前任务 + 上一步提取的交接信息。例如：
-   "实现 task.json 第 3 个任务。上一个任务引入了 axios（src/api.ts），HTTP 请求统一用此封装。先读 docs/需求规格.md"
-4. 等 Builder 完成并标记 passes: true
-5. 用 Task 工具调 subagent_type="evaluator"，prompt 写明"验收 task.json 第 N 个任务。用 Playwright 截图验证"
-6. 等 Evaluator 完成并标记 evaluated: true
-7. 检查结果 → 下一任务
-
-失败处理：
-- 单个任务失败 → 重试，最多 3 次
-- 3 次仍失败 → 写入 .easymint/escalation.json → 继续下一任务
-
-全部完成后统计通过/失败数，写入 .easymint/summary.json。`,
-    tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-    agentType: "orchestrator",
-  },
 ];
 
 /** Sync default templates: update existing by id, add new ones, keep user templates */
@@ -191,7 +162,7 @@ export function seedDefaults(): void {
 
 /**
  * Escalation file format (.easymint/escalation.json).
- * Builder/Evaluator write this when blocked. Orchestrator reads it.
+ * Builder/Evaluator write this when blocked. Mint reads it and reports to user.
  */
 export interface Escalation {
   type: "escalation";
@@ -205,7 +176,7 @@ export interface Escalation {
 
 /**
  * Decision file format (.easymint/decision.json).
- * Mint writes this after user makes a decision. Orchestrator reads it.
+ * Mint writes this after user makes a decision, then Mint continues task execution.
  */
 export interface Decision {
   taskId: string;
