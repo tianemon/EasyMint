@@ -91,7 +91,7 @@ export function OnboardingPage(): JSX.Element {
               <div>
                 <label className="text-xs text-text-secondary block mb-1">API Base URL</label>
                 <input
-                  className="w-full px-3 py-2.5 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+                  className="w-full px-3 py-2.5 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-border-strong"
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
                   placeholder="https://api.deepseek.com/anthropic"
@@ -101,7 +101,7 @@ export function OnboardingPage(): JSX.Element {
                 <label className="text-xs text-text-secondary block mb-1">API Key</label>
                 <div className="flex gap-2">
                   <input
-                    className="flex-1 px-3 py-2.5 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent font-mono"
+                    className="flex-1 px-3 py-2.5 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-border-strong font-mono"
                     type={showKey ? "text" : "password"}
                     value={key}
                     onChange={(e) => setKey(e.target.value)}

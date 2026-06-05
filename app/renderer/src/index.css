@@ -281,7 +281,7 @@ button, a, input, select, textarea, .transition-all {
   font-size: var(--font-size-sm);
 }
 .input:focus {
-  border-color: var(--color-accent);
+  border-color: var(--color-border-strong);
   box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
 .input::placeholder {

@@ -165,7 +165,7 @@ export function PromptSettings(): JSX.Element {
         {selectedPrompt && (
           <div className="flex-1 flex flex-col gap-2 min-w-0">
             <input
-              className="w-full px-3 py-1.5 text-sm rounded-lg bg-surface border border-border text-text-primary outline-none focus:border-accent disabled:opacity-50"
+              className="w-full px-3 py-1.5 text-sm rounded-lg bg-surface border border-border text-text-primary outline-none focus:border-border-strong disabled:opacity-50"
               value={editName}
               onChange={(e) => { setEditName(e.target.value); if (!selectedPrompt.isBuiltin) debounceSave(selectedPrompt.id, { name: e.target.value }); }}
               disabled={selectedPrompt.isBuiltin}
@@ -173,7 +173,7 @@ export function PromptSettings(): JSX.Element {
               placeholder="提示词名称"
             />
             <textarea
-              className="flex-1 w-full resize-none px-3 py-2 text-sm rounded-lg bg-surface border border-border text-text-primary outline-none focus:border-accent disabled:opacity-50 font-mono"
+              className="flex-1 w-full resize-none px-3 py-2 text-sm rounded-lg bg-surface border border-border text-text-primary outline-none focus:border-border-strong disabled:opacity-50 font-mono"
               value={editContent}
               onChange={(e) => { setEditContent(e.target.value); if (!selectedPrompt.isBuiltin) debounceSave(selectedPrompt.id, { content: e.target.value }); }}
               disabled={selectedPrompt.isBuiltin}
