@@ -130,7 +130,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     chatStatus: (sessionId: string) => ipcRenderer.invoke("agent:chatStatus", { sessionId }),
     getBufferedStream: (sessionId: string) => ipcRenderer.invoke("agent:getBufferedStream", { sessionId }) as Promise<unknown[]>,
     killChat: (chatId: string) => ipcRenderer.invoke("agent:killChat", { chatId }) as Promise<void>,
-    ensureActive: (projectPath: string, sessionId: string) => ipcRenderer.invoke("agent:ensureActive", { projectPath, sessionId }) as Promise<void>,
+    peekUsage: (projectPath: string, sessionId: string) => ipcRenderer.invoke("agent:peekUsage", { projectPath, sessionId }) as Promise<void>,
     onStream: (callback: (event: unknown) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on("agent:stream", handler);

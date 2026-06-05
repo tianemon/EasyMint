@@ -317,7 +317,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   // Activate session on mount — ensure chat loop is running for context usage
   useEffect(() => {
     if (existingSid) {
-      window.electronAPI.agent.ensureActive(projectPath, existingSid).catch(() => {});
+      window.electronAPI.agent.peekUsage(projectPath, existingSid).catch(() => {});
     }
   }, [existingSid]);
 
