@@ -79,10 +79,33 @@ const FAMILY_LABELS: Record<string, string> = { file: "文件操作", bash: "命
 
 // ── Block rendering ──────────────────────────────────
 
+function CodeBlock({ language, children }: { language?: string; children: string }): JSX.Element {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(children).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  };
+  return (
+    <div className="my-3 rounded-lg border border-border overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-surface-alt border-b border-border">
+        <span className="text-[10px] text-text-muted uppercase tracking-wider">{language || "code"}</span>
+        <button onClick={handleCopy} className="text-[10px] text-text-secondary hover:text-text-primary transition-colors">
+          {copied ? "已复制" : "复制"}
+        </button>
+      </div>
+      <pre className="px-4 py-3 overflow-x-auto text-xs leading-relaxed bg-surface-alt/50 font-mono text-text-primary whitespace-pre">
+        <code>{children}</code>
+      </pre>
+    </div>
+  );
+}
+
 function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
   const olCounter = useRef(0);
   return (
-    <div className="text-sm leading-relaxed prose prose-sm max-w-none prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-code:text-accent prose-code:bg-surface-alt prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-pre:bg-surface-alt prose-pre:border prose-pre:border-border prose-a:text-accent prose-li:text-text-primary">
+    <div className="text-sm leading-relaxed prose prose-sm max-w-none prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-code:before:content-none prose-code:after:content-none prose-a:text-accent prose-li:text-text-primary">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -93,6 +116,18 @@ function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
                 React.isValidElement(child) ? React.cloneElement(child, { key: `li-${id}-${i}` }) : child
               )
             }</ol>;
+          },
+          code: ({ className, children, ...props }) => {
+            const match = /language-(\w+)/.exec(className || "");
+            const isBlock = String(children).includes("\n");
+            if (isBlock && match) {
+              return <CodeBlock language={match[1]}>{String(children).replace(/\n$/, "")}</CodeBlock>;
+            }
+            if (isBlock) {
+              return <CodeBlock>{String(children).replace(/\n$/, "")}</CodeBlock>;
+            }
+            // inline code
+            return <code className="px-1 py-0.5 rounded text-xs bg-surface-alt text-accent font-mono" {...props}>{children}</code>;
           },
         }}
       >

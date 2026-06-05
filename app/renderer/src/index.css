@@ -33,6 +33,10 @@
   --color-accent: #16a34a;
   --color-accent-hover: #15803d;
   --color-accent-light: #86efac;
+
+  /* ── Chat bubbles ───────────────── */
+  --color-user-bubble: var(--color-accent);
+  --color-user-bubble-text: var(--color-text-inverse);
   --color-accent-soft: color-mix(in oklab, var(--color-accent) 12%, transparent);
   --color-accent-bg: color-mix(in oklab, var(--color-accent) 10%, transparent);
   --color-accent-subtle: color-mix(in oklab, var(--color-accent) 5%, transparent);
@@ -162,6 +166,10 @@
   --color-accent: #e4e4e4;
   --color-accent-hover: #ffffff;
   --color-accent-light: #aaaaaa;
+
+  /* ── Chat bubbles ───────────────── */
+  --color-user-bubble: #999999;
+  --color-user-bubble-text: #121212;
 
   /* ── Semantic — 仅 success 保留绿 ── */
   --color-success: #22c55e;
