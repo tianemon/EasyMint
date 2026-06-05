@@ -55,6 +55,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     rename: (id: string, title: string, projectPath: string) => ipcRenderer.invoke("conv:rename", { id, title, projectPath }),
     delete: (id: string, projectPath: string) => ipcRenderer.invoke("conv:delete", { id, projectPath }),
     togglePin: (id: string) => ipcRenderer.invoke("conv:togglePin", { id }),
+    archiveSession: (sessionId: string) => ipcRenderer.invoke("conv:archiveSession", { sessionId }),
+    unarchiveSession: (sessionId: string) => ipcRenderer.invoke("conv:unarchiveSession", { sessionId }),
   },
   systemPrompt: {
     getConfig: () => ipcRenderer.invoke("system-prompt:get-config"),

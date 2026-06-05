@@ -11,6 +11,7 @@ import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { listTemplates, getTemplate } from "./agent-templates";
 import { buildSkillsPrompt } from "./skill-service";
 import { buildMcpServersOption } from "./mcp-service";
+import { archiveSession } from "./session-service";
 import { CONTEXT_SUMMARY_INSTRUCTION } from "../../shared/prompts";
 
 // Use createRequire for CJS/ESM compatibility in packaged Electron
@@ -424,6 +425,11 @@ ${summary}
 </previous_session_summary>
 
 请检查项目当前状态，然后用自然的语气对用户说一句话作为开场，告诉用户会话已整理完毕，接下来继续做什么。开场白以"${continuation}"结尾。`;
+
+    // Archive old session
+    if (chat.sessionId) {
+      try { archiveSession(chat.sessionId); } catch { /* best effort */ }
+    }
 
     // Broadcast to renderer: create new chat tab with the handoff
     broadcast("agent:rotate-create", {

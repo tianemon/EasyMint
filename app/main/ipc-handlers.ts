@@ -47,6 +47,8 @@ import {
   deleteSession,
   getSessionInfo,
   togglePin,
+  archiveSession,
+  unarchiveSession,
 } from "./services/session-service";
 
 interface Services {
@@ -156,6 +158,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("conv:rename", (_e, { id, title, projectPath }) => renameSession(id, title, projectPath));
   ipcMain.handle("conv:delete", (_e, { id, projectPath }) => { deleteSession(id, projectPath); });
   ipcMain.handle("conv:togglePin", (_e, { id }) => togglePin(id));
+  ipcMain.handle("conv:archiveSession", (_e, { sessionId }) => { archiveSession(sessionId); });
+  ipcMain.handle("conv:unarchiveSession", (_e, { sessionId }) => { unarchiveSession(sessionId); });
 
   // claude:*
   ipcMain.handle("claude:detect", () => detectClaude());

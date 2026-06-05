@@ -12,6 +12,7 @@ import type { SDKSessionInfo, SessionMessage } from "@anthropic-ai/claude-agent-
 
 const DATA_DIR = path.join(os.homedir(), ".easymint");
 const PINNED_PATH = path.join(DATA_DIR, "pinned-sessions.json");
+const ARCHIVED_PATH = path.join(DATA_DIR, "archived-sessions.json");
 
 /** Normalize a directory path for SDK session APIs — expand ~, resolve to absolute, strip trailing slash. */
 function normalizeDir(dir: string): string {
@@ -34,6 +35,16 @@ function readPinned(): Record<string, number> {
 function writePinned(data: Record<string, number>): void {
   ensureDir();
   writeFileSync(PINNED_PATH, JSON.stringify(data, null, 2));
+}
+
+function readArchived(): Record<string, number> {
+  if (!existsSync(ARCHIVED_PATH)) return {};
+  try { return JSON.parse(readFileSync(ARCHIVED_PATH, "utf-8")); } catch { return {}; }
+}
+
+function writeArchived(data: Record<string, number>): void {
+  ensureDir();
+  writeFileSync(ARCHIVED_PATH, JSON.stringify(data, null, 2));
 }
 
 // ── SDK wrappers ───────────────────────────────────
@@ -68,6 +79,7 @@ export interface SessionListItem {
   createdAt: number;
   updatedAt: number;
   pinnedAt?: number;
+  archivedAt?: number;
 }
 
 import { appendFileSync } from "node:fs";
@@ -81,6 +93,7 @@ export async function listSessions(projectPath: string): Promise<SessionListItem
   const sessions = await ls({ dir: normalized });
   sdlog("[listSessions] OK " + sessions.length);
   const pinned = readPinned();
+  const archived = readArchived();
 
   return sessions
     .map((s: SDKSessionInfo) => ({
@@ -89,6 +102,7 @@ export async function listSessions(projectPath: string): Promise<SessionListItem
       createdAt: s.createdAt ?? s.lastModified,
       updatedAt: s.lastModified,
       pinnedAt: pinned[s.sessionId] || undefined,
+      archivedAt: archived[s.sessionId] || undefined,
     }))
     .sort((a, b) => {
       const ap = a.pinnedAt || 0;
@@ -142,4 +156,18 @@ export function togglePin(sessionId: string): boolean {
   }
   writePinned(pinned);
   return !currently;
+}
+
+/** Archive a session — marks it with a timestamp. Archived sessions get a clock icon. */
+export function archiveSession(sessionId: string): void {
+  const archived = readArchived();
+  archived[sessionId] = Date.now();
+  writeArchived(archived);
+}
+
+/** Unarchive — remove from archive list (back to normal active state). */
+export function unarchiveSession(sessionId: string): void {
+  const archived = readArchived();
+  delete archived[sessionId];
+  writeArchived(archived);
 }

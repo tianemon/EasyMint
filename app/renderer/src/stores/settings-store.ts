@@ -24,6 +24,7 @@ interface SettingsState {
   setModel: (model: string) => void;
   setAvailableModels: (models: string[]) => void;
   setThinkingBudget: (budget: number) => void;
+  setContextThreshold: (pct: number) => void;
   loadFromElectron: () => Promise<void>;
 }
 

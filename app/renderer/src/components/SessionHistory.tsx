@@ -12,6 +12,7 @@ interface SessionItem {
   createdAt: number;
   updatedAt: number;
   pinnedAt?: number;
+  archivedAt?: number;
 }
 
 interface SessionHistoryProps {
@@ -112,8 +113,9 @@ export function SessionHistory({
     setEditingId(null);
   };
 
-  const pinned = sessions.filter((s) => s.pinnedAt);
-  const unpinned = sessions.filter((s) => !s.pinnedAt);
+  const pinned = sessions.filter((s) => s.pinnedAt && !s.archivedAt);
+  const archived = sessions.filter((s) => s.archivedAt);
+  const unpinned = sessions.filter((s) => !s.pinnedAt && !s.archivedAt);
   const groups = groupByDate(unpinned);
 
   return (
@@ -154,6 +156,17 @@ export function SessionHistory({
               ))}
             </div>
           ))}
+          {archived.length > 0 && (
+            <div>
+              <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium flex items-center gap-1.5">
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" className="w-3 h-3"><circle cx="6" cy="6" r="4.5"/><path d="M6 3v3.5M6 6.5l2 1.5" strokeLinecap="round"/></svg>
+                历史记录
+              </div>
+              {archived.map((s) => (
+                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -209,18 +222,24 @@ function SessionItemRow({ session, active, editingId, editTitle, onSelect, onCon
     );
   }
 
+  const isArchived = !!session.archivedAt;
+
   return (
     <div
-      className={`group flex items-center w-full text-left px-3 py-2 hover:bg-accent-subtle transition-colors cursor-pointer ${active ? "bg-accent-bg" : ""}`}
+      className={`group flex items-center w-full text-left px-3 py-2 hover:bg-accent-subtle transition-colors cursor-pointer ${active ? "bg-accent-bg" : ""} ${isArchived ? "opacity-70" : ""}`}
       onClick={() => onSelect?.(session.sessionId)}
       onContextMenu={(e) => onContextMenu(e, session)}
     >
-      <span className={`w-2 h-2 rounded-full shrink-0 mr-2.5 ${session.pinnedAt ? "bg-warning" : "bg-accent"}`} />
+      {isArchived ? (
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-3.5 h-3.5 shrink-0 mr-2 text-text-muted"><circle cx="8" cy="8" r="6"/><path d="M8 4v5M8 8l2.5 2.5" strokeLinecap="round"/></svg>
+      ) : (
+        <span className={`w-2 h-2 rounded-full shrink-0 mr-2.5 ${session.pinnedAt ? "bg-warning" : "bg-accent"}`} />
+      )}
       <div className="flex-1 min-w-0">
         <div className="text-sm truncate">{session.title}</div>
         <div className="text-xs text-text-secondary mt-0.5">{fmtDate(session.updatedAt)}</div>
       </div>
-      {session.pinnedAt && (
+      {session.pinnedAt && !isArchived && (
         <svg className="w-3 h-3 text-warning shrink-0 ml-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 3h-2v6h2l-3 3-3-3h2V5H9l3-3z"/></svg>
       )}
     </div>

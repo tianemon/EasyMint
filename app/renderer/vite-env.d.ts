@@ -134,6 +134,8 @@ interface ElectronAPI {
     rename: (id: string, title: string, projectPath: string) => Promise<void>;
     delete: (id: string, projectPath: string) => Promise<void>;
     togglePin: (id: string) => Promise<boolean>;
+    archiveSession: (sessionId: string) => Promise<void>;
+    unarchiveSession: (sessionId: string) => Promise<void>;
   };
   session: {
     list: (projectId: string) => Promise<Session[]>;
@@ -150,7 +152,7 @@ interface ElectronAPI {
     setDefault: (id: string) => Promise<void>;
   };
   settings: {
-    get: () => Promise<{ defaultProjectDir?: string; terminalFontSize: number; evaluateMode: boolean; tddMode: boolean; screenshotVerification: boolean; setupComplete?: boolean; apiBaseUrl?: string; apiKey?: string; apiKeys?: Record<string, string>; model?: string; availableModels?: string[] }>;
+    get: () => Promise<{ defaultProjectDir?: string; terminalFontSize: number; evaluateMode: boolean; tddMode: boolean; screenshotVerification: boolean; setupComplete?: boolean; apiBaseUrl?: string; apiKey?: string; apiKeys?: Record<string, string>; model?: string; availableModels?: string[]; contextThreshold?: number }>;
     set: (key: string, value: unknown) => Promise<void>;
     setLastProject: (projectId: string) => Promise<void>;
     fetchModels: () => Promise<string[]>;
