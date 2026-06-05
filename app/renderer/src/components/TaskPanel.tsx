@@ -230,7 +230,7 @@ export function TaskPanel({ projectPath, onCollapse, onMintClick }: TaskPanelPro
       <div className="shrink-0 px-3 pb-2 flex flex-col items-center">
         <button onClick={handleMintClick}
           className="w-full h-12 rounded-xl bg-accent-bg hover:bg-accent-border border border-accent-border-strong flex items-center justify-center transition-colors group">
-          <span className="text-accent text-2xl select-none group-hover:scale-105 transition-transform" style={{ fontFamily: "'Snell Roundhand', 'Apple Chancery', 'Brush Script MT', 'Segoe Script', cursive" }}>Mint</span>
+          <span className="text-accent text-2xl select-none group-hover:scale-105 transition-transform tracking-[0.08em]" style={{ fontFamily: "'Snell Roundhand', 'Apple Chancery', 'Brush Script MT', 'Segoe Script', cursive" }}>Mint</span>
         </button>
         <p className="text-[10px] text-text-secondary mt-1.5 opacity-60">如果你不知道要做什么，就点一下</p>
       </div>
