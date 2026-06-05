@@ -1,6 +1,5 @@
-import { useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { useState, useMemo } from "react";
+import { marked } from "marked";
 import type { StreamEntry } from "./StreamPanel";
 
 // ── Block types ──────────────────────────────────────
@@ -103,27 +102,40 @@ function CodeBlock({ language, children }: { language?: string; children: string
 }
 
 function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
+  const html = useMemo(() => {
+    // Extract fenced code blocks before html rendering, handle them separately
+    const parts: Array<{ type: "html" | "code"; content: string; lang?: string }> = [];
+    const codeRegex = /```(\w*)\n([\s\S]*?)```/g;
+    let lastIdx = 0;
+    let match: RegExpExecArray | null;
+    while ((match = codeRegex.exec(block.text)) !== null) {
+      if (match.index > lastIdx) {
+        parts.push({ type: "html", content: block.text.slice(lastIdx, match.index) });
+      }
+      parts.push({ type: "code", lang: match[1] || undefined, content: match[2]!.replace(/\n$/, "") });
+      lastIdx = match.index + match[0].length;
+    }
+    if (lastIdx < block.text.length) {
+      parts.push({ type: "html", content: block.text.slice(lastIdx) });
+    }
+    return parts;
+  }, [block.text]);
+
   return (
-    <div className="text-sm leading-relaxed prose prose-sm max-w-none prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-code:before:content-none prose-code:after:content-none prose-a:text-accent prose-li:text-text-primary">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          code: ({ className, children, ...props }) => {
-            const match = /language-(\w+)/.exec(className || "");
-            const isBlock = String(children).includes("\n");
-            if (isBlock && match) {
-              return <CodeBlock language={match[1]}>{String(children).replace(/\n$/, "")}</CodeBlock>;
-            }
-            if (isBlock) {
-              return <CodeBlock>{String(children).replace(/\n$/, "")}</CodeBlock>;
-            }
-            // inline code
-            return <code className="px-1 py-0.5 rounded text-xs bg-surface-alt text-accent font-mono" {...props}>{children}</code>;
-          },
-        }}
-      >
-        {block.text}
-      </ReactMarkdown>
+    <div className="text-sm leading-relaxed prose prose-sm max-w-none prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-a:text-accent prose-li:text-text-primary">
+      {html.map((part, i) => {
+        if (part.type === "code") {
+          return <CodeBlock key={i} language={part.lang}>{part.content}</CodeBlock>;
+        }
+        return (
+          <div
+            key={i}
+            dangerouslySetInnerHTML={{
+              __html: marked.parse(part.content, { breaks: true }) as string,
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
