@@ -211,7 +211,7 @@ function SessionItemRow({ session, active, editingId, editTitle, onSelect, onCon
 
   return (
     <div
-      className={`group flex items-center w-full text-left px-3 py-2 hover:bg-surface-hover transition-colors cursor-pointer ${active ? "bg-accent/10" : ""}`}
+      className={`group flex items-center w-full text-left px-3 py-2 hover:bg-accent-subtle transition-colors cursor-pointer ${active ? "bg-accent-bg" : ""}`}
       onClick={() => onSelect?.(session.sessionId)}
       onContextMenu={(e) => onContextMenu(e, session)}
     >
