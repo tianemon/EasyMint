@@ -120,7 +120,7 @@ export function SessionHistory({
     <div className="flex flex-col h-full">
       <div className="px-3 py-2 shrink-0">
         <button
-          className="w-full py-1.5 border border-dashed border-accent text-accent text-sm rounded-lg hover:bg-accent/5 transition-colors"
+          className="w-full py-1.5 border border-accent text-accent text-sm rounded-lg hover:bg-accent-subtle transition-colors"
           onClick={onNewSession}
         >
           + 新建会话

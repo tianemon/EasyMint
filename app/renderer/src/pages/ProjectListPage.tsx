@@ -85,7 +85,7 @@ export function ProjectListPage(): JSX.Element {
             </div>
           ))}
           <button
-            className="p-4 rounded-lg border border-dashed border-border hover:border-accent transition-colors flex items-center justify-center text-text-secondary"
+            className="p-4 rounded-lg border border-border hover:border-accent transition-colors flex items-center justify-center text-text-secondary"
             onClick={() => setShowNewDialog(true)}
           >
             + 新建项目

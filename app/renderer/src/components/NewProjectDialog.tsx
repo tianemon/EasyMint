@@ -301,7 +301,7 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
       <div>
         <div className="flex items-center justify-between mb-2">
           <label className="text-sm font-medium text-text-primary">项目形式</label>
-          <button className="px-2 py-0.5 rounded border border-dashed border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/5 transition-colors" onClick={addTarget}>+ 添加</button>
+          <button className="px-2 py-0.5 rounded border border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/5 transition-colors" onClick={addTarget}>+ 添加</button>
         </div>
         <div className="space-y-2">
           {data.targets.map((t, i) => (
@@ -372,7 +372,7 @@ function Step2Form({
           <button className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors disabled:opacity-40" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
             {loadingRec === "features" ? "思考中..." : "Mint 推荐"}
           </button>
-          <button className="px-3 py-1.5 rounded-lg border border-dashed border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/10 transition-colors" onClick={addFeature}>+ 添加功能</button>
+          <button className="px-3 py-1.5 rounded-lg border border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/10 transition-colors" onClick={addFeature}>+ 添加功能</button>
         </div>
       </div>
       {data.features.length === 0 && !loadingRec && (

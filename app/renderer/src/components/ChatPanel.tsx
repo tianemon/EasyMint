@@ -343,7 +343,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             </button>
           </div>
         ))}
-        <button className="w-10 h-10 rounded-lg border border-dashed border-border flex items-center justify-center text-text-secondary hover:border-accent hover:text-accent transition-colors shrink-0"
+        <button className="w-10 h-10 rounded-lg border border-border flex items-center justify-center text-text-secondary hover:border-accent hover:text-accent transition-colors shrink-0"
           onClick={() => imgInputRef.current?.click()} title="添加文件">
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="w-4 h-4"><path d="M7 3v8M3 7h8"/></svg>
         </button>

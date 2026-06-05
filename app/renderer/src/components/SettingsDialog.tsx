@@ -706,11 +706,11 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                     </div>
                     <div className="flex gap-2">
                       <button
-                        className="px-3 py-1 rounded border border-dashed border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/5 transition-colors"
+                        className="px-3 py-1 rounded border border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/5 transition-colors"
                         onClick={() => setAvailableModels([...availableModels, ""])}
                       >+ 添加模型</button>
                       <button
-                        className="px-3 py-1 rounded border border-dashed border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/5 transition-colors"
+                        className="px-3 py-1 rounded border border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/5 transition-colors"
                         onClick={async () => {
                           try {
                             const models = await window.electronAPI.settings.fetchModels();
