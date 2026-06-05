@@ -150,5 +150,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:chat-session", handler);
       return () => ipcRenderer.removeListener("agent:chat-session", handler);
     },
+    onContextSummarizing: (callback: (data: { chatId: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { chatId: string }) => callback(data);
+      ipcRenderer.on("agent:context-summarizing", handler);
+      return () => ipcRenderer.removeListener("agent:context-summarizing", handler);
+    },
+    onContextSummary: (callback: (data: { chatId: string; summary: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { chatId: string; summary: string }) => callback(data);
+      ipcRenderer.on("agent:context-summary", handler);
+      return () => ipcRenderer.removeListener("agent:context-summary", handler);
+    },
+    onRotateCreate: (callback: (data: { oldChatId: string; oldSessionId: string; projectPath: string; handoffPrompt: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { oldChatId: string; oldSessionId: string; projectPath: string; handoffPrompt: string }) => callback(data);
+      ipcRenderer.on("agent:rotate-create", handler);
+      return () => ipcRenderer.removeListener("agent:rotate-create", handler);
+    },
   },
 });

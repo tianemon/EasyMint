@@ -89,6 +89,27 @@ export function ProjectPage(): JSX.Element {
     }
   }, [projectId]);
 
+  // Listen for context rotation: old session archived → new tab with handoff
+  useEffect(() => {
+    const unsub = window.electronAPI.agent.onRotateCreate(({ oldChatId, oldSessionId, projectPath, handoffPrompt }) => {
+      // Close old tab
+      const ts = useTabStore.getState();
+      const oldTab = ts.tabs.find((t) => t.type === "chat" && t.sessionId === oldSessionId);
+      if (oldTab) ts.closeTab(oldTab.id);
+
+      // Create new tab — sessionId undefined so ChatPanel treats as brand-new
+      const tabId = `rotate-${Date.now()}`;
+      ts.openTab({ id: tabId, type: "chat" as const, title: "新会话" });
+      ts.setActiveTab(tabId);
+
+      // Auto-send the handoff prompt after ChatPanel mounts
+      setTimeout(() => {
+        chatActions.send(handoffPrompt);
+      }, 400);
+    });
+    return () => unsub();
+  }, [projectId]);
+
   const handleFileClick = useCallback(
     (filePath: string, fileName: string) => {
       openTab({ id: "", type: "file", title: fileName, filePath });

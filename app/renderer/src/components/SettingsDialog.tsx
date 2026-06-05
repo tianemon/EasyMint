@@ -554,10 +554,12 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     model,
     availableModels,
     defaultProjectDir,
+    contextThreshold,
     setEvaluateMode,
     setTddMode,
     setScreenshotVerification,
     setDefaultProjectDir,
+    setContextThreshold,
     setApiBaseUrl,
     setApiKey,
     setModel,
@@ -756,6 +758,26 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                   <ToggleRow label="评估模式" description="每轮 Worker 完成后自动触发 Evaluator 验证" hint="启用 Playwright 自动化测试，验证前端改动正确性" enabled={evaluateMode} onChange={setEvaluateMode} />
                   <ToggleRow label="TDD 模式" description="先编写测试代码，再实现功能" hint="每次实现前先生成测试用例，以测试驱动开发流程" enabled={tddMode} onChange={setTddMode} />
                   <ToggleRow label="截图验证" description="使用 image-vision 对每次改动进行截图对比" hint="每轮完成后截图并通过视觉模型分析，确保 UI 无回归" enabled={screenshotVerification} onChange={setScreenshotVerification} />
+                </div>
+              </section>
+
+              {/* Context threshold */}
+              <section>
+                <h3 className="text-sm font-medium text-text-secondary mb-2">上下文轮转阈值</h3>
+                <div className="bg-surface-alt rounded-lg px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="40"
+                      max="85"
+                      step="5"
+                      value={contextThreshold}
+                      onChange={(e) => setContextThreshold(Number(e.target.value))}
+                      className="flex-1 accent-accent"
+                    />
+                    <span className="text-sm text-text-primary font-medium w-10 text-right">{contextThreshold}%</span>
+                  </div>
+                  <p className="text-[11px] text-text-secondary mt-1">当上下文使用达到此百分比时，自动总结对话并切换到新会话继续工作。</p>
                 </div>
               </section>
 

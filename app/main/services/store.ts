@@ -43,6 +43,7 @@ interface Settings {
   apiKeys?: Record<string, string>;
   lastProjectId?: string;
   setupComplete?: boolean;
+  contextThreshold?: number;
 }
 
 const EM_DEFAULTS = {
@@ -50,6 +51,7 @@ const EM_DEFAULTS = {
   defaultProjectDir: "~/EasyMintProject",
   claudePath: "",
   terminalFontSize: 14,
+  contextThreshold: 60,
 };
 
 export class Store {
@@ -120,6 +122,7 @@ export class Store {
       apiKeys: (emData.apiKeys as Record<string, string>) || undefined,
       setupComplete: emData.setupComplete as boolean | undefined,
       lastProjectId: emData.lastProjectId as string | undefined,
+      contextThreshold: (emData.contextThreshold as number) ?? EM_DEFAULTS.contextThreshold,
     };
   }
 

@@ -123,6 +123,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentRunRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
+  const [summarizing, setSummarizing] = useState(false);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const [attaches, setAttaches] = useState<AttachItem[]>([]);
@@ -280,7 +281,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     });
     const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (currentRunRef.current && runId !== currentRunRef.current) return; curAi = 0; setLoading(false); setStreaming(false); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid }) => { if (!sidRef.current) { sidRef.current = realSid; onSessionCreated?.(realSid); } });
-    return () => { unsub(); unsubExit(); unsubSid(); };
+    // Context rotation events
+    const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(() => { setSummarizing(true); setStatusText("正在整理会话..."); });
+    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); };
   }, []);
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
@@ -437,6 +440,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       {(streaming || loading) && (
         <div className="flex items-center px-4 py-1.5 text-text-secondary text-xs bg-surface-alt/50 shrink-0">
           <span>{statusText}</span>
+        </div>
+      )}
+
+      {summarizing && (
+        <div className="flex items-center gap-2 px-4 py-2 text-text-primary text-sm bg-accent-bg border-b border-accent-border-light shrink-0">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4 text-accent animate-spin"><circle cx="8" cy="8" r="6" strokeOpacity="0.3"/><path d="M8 2a6 6 0 015.5 3.5" strokeLinecap="round"/></svg>
+          <span>正在进行会话摘要，将在新会话继续。</span>
         </div>
       )}
 

@@ -11,6 +11,7 @@ import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { listTemplates, getTemplate } from "./agent-templates";
 import { buildSkillsPrompt } from "./skill-service";
 import { buildMcpServersOption } from "./mcp-service";
+import { CONTEXT_SUMMARY_INSTRUCTION } from "../../shared/prompts";
 
 // Use createRequire for CJS/ESM compatibility in packaged Electron
 type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
@@ -98,6 +99,10 @@ interface ActiveChat {
   agentType?: "mint" | "orchestrator" | "builder" | "evaluator";
   /** SDK status: "requesting" | "compacting" | "idle" — tracks if agent is actively processing */
   status: string;
+  /** Context rotation state: normal | summarizing | rotated */
+  contextStatus: "normal" | "summarizing" | "rotated";
+  /** Accumulated summary text during context rotation */
+  summaryBuffer: string;
 }
 
 /** Build a query options block, reading API config from the Store. */
@@ -258,6 +263,8 @@ export class AgentService {
       query: null,
       projectPath,
       status: "idle",
+      contextStatus: "normal",
+      summaryBuffer: "",
     };
     this.activeChats.set(chatId, chat);
 
@@ -303,6 +310,17 @@ export class AgentService {
             broadcast("agent:chat-session", { chatId: chat.chatId, sessionId: sdkSid });
           }
 
+          // Accumulate assistant text during summarization
+          if (chat.contextStatus === "summarizing" && msg.type === "assistant") {
+            const content = (msg as { message?: { content?: unknown[] } }).message?.content;
+            if (Array.isArray(content)) {
+              for (const block of content) {
+                const b = block as { type?: string; text?: string };
+                if (b.type === "text" && b.text) chat.summaryBuffer += b.text;
+              }
+            }
+          }
+
           // Stream event → renderer + buffer for late-connecting windows
           const event = toStreamEvent(msg, chat.chatId, capturedSid, "chat");
           if (event) {
@@ -314,6 +332,39 @@ export class AgentService {
           if (msg.type === "result") {
             chat.status = "idle";
             broadcast("agent:exit", { runId: chat.chatId, code: msg.subtype === "success" ? 0 : 1 });
+
+            // ── Context rotation ──
+            if (chat.contextStatus === "summarizing" && msg.subtype === "success") {
+              chat.contextStatus = "rotated";
+              // Send summary to renderer before rotating
+              if (chat.summaryBuffer) {
+                broadcast("agent:context-summary", { chatId: chat.chatId, summary: chat.summaryBuffer });
+              }
+              break; // exit loop → triggers rotation in finally-like handler
+            }
+
+            if (chat.contextStatus === "normal") {
+              try {
+                const usage = await chat.query!.getContextUsage();
+                const threshold = this.store.getSettings().contextThreshold ?? 60;
+                if (usage.percentage >= threshold) {
+                  chat.contextStatus = "summarizing";
+                  chat.summaryBuffer = "";
+                  chat.channel.enqueue(buildUserMessage(CONTEXT_SUMMARY_INSTRUCTION, capturedSid));
+                  broadcast("agent:context-summarizing", { chatId: chat.chatId });
+                  log(`[chat-loop] context ${usage.percentage}% >= ${threshold}%, starting summarization`);
+                }
+              } catch { /* getContextUsage may fail; ignore */ }
+            }
+          }
+        }
+
+        // ── Rotate: create new session with summary ──
+        if (chat.contextStatus === "rotated" && chat.summaryBuffer) {
+          try {
+            this.rotateSession(chat);
+          } catch (err) {
+            log("[chat-loop] rotate ERROR: " + String(err));
           }
         }
       } catch (err: unknown) {
@@ -348,6 +399,39 @@ export class AgentService {
       chat.query.interrupt().catch(() => {});
       console.log("[stopChat] soft interrupt: chatId=%s", chatId);
     }
+  }
+
+  /** Context rotation: archive old session and create a new chat tab with summary */
+  private rotateSession(chat: ActiveChat): void {
+    const summary = chat.summaryBuffer;
+    log(`[rotateSession] rotating chatId=${chat.chatId} sessionId=${chat.sessionId}`);
+
+    // Determine the next step hint from the last line of the summary
+    const continuationMatch = summary.match(/我们继续.*吧/);
+    const continuation = continuationMatch ? continuationMatch[0] : "我们继续推进吧";
+
+    // Build handoff message: project context + summary + documents list
+    const projectPath = chat.projectPath;
+    const handoffPrompt = `[系统消息] 这是从上一轮会话迁移过来的项目上下文。请从这个断点继续工作。
+
+<project_context>
+项目路径: ${projectPath}
+请阅读项目中的 CLAUDE.md、docs/需求规格.md、docs/架构设计.md 了解项目背景和技术栈。
+</project_context>
+
+<previous_session_summary>
+${summary}
+</previous_session_summary>
+
+请检查项目当前状态，然后用自然的语气对用户说一句话作为开场，告诉用户会话已整理完毕，接下来继续做什么。开场白以"${continuation}"结尾。`;
+
+    // Broadcast to renderer: create new chat tab with the handoff
+    broadcast("agent:rotate-create", {
+      oldChatId: chat.chatId,
+      oldSessionId: chat.sessionId,
+      projectPath,
+      handoffPrompt,
+    });
   }
 
   /** Switch model in an active chat session */
@@ -386,7 +470,7 @@ export class AgentService {
 
     const chat: ActiveChat = {
       chatId, sessionId: "", channel, abortController, query: null, projectPath,
-      agentType: template.agentType, status: "idle",
+      agentType: template.agentType, status: "idle", contextStatus: "normal", summaryBuffer: "",
     };
     this.activeChats.set(chatId, chat);
 
