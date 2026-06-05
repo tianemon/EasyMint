@@ -53,6 +53,7 @@ async def list_tools():
                 "type": "object",
                 "properties": {
                     "path": {"type": "string", "description": "图片的本地绝对路径或 URL"},
+                    "prompt": {"type": "string", "description": "可选的提示词，例如'详细描述UI界面的色彩搭配'。不填则用默认提示"},
                 },
                 "required": ["path"],
             },
@@ -64,6 +65,7 @@ async def list_tools():
                 "type": "object",
                 "properties": {
                     "paths": {"type": "array", "items": {"type": "string"}, "description": "图片的本地绝对路径或 URL 列表"},
+                    "prompt": {"type": "string", "description": "可选的提示词，所有图片共用同一个 prompt。不填则用默认提示"},
                 },
                 "required": ["paths"],
             },
@@ -85,11 +87,11 @@ async def list_tools():
     return tools
 
 
-async def _call_vision(image_content: dict) -> str:
+async def _call_vision(image_content: dict, prompt: str | None = None) -> str:
     body = {
         "model": VISION_MODEL,
         "messages": [{"role": "user", "content": [
-            {"type": "text", "text": "Describe this image in detail."},
+            {"type": "text", "text": prompt or "Describe this image in detail."},
             image_content,
         ]}],
         "max_tokens": 1024,
@@ -137,13 +139,14 @@ async def call_tool(name: str, arguments: dict):
 
     if name == "describe_image":
         img = _build_image_content(arguments["path"])
-        caption = await _call_vision(img)
+        caption = await _call_vision(img, arguments.get("prompt"))
         return [TextContent(type="text", text=caption)]
 
     if name == "describe_images":
         import asyncio
+        prompt = arguments.get("prompt")
         imgs = [_build_image_content(p) for p in arguments["paths"]]
-        captions = await asyncio.gather(*(_call_vision(img) for img in imgs))
+        captions = await asyncio.gather(*(_call_vision(img, prompt) for img in imgs))
         result = "\n\n".join(f"[Image {i+1}]\n{c}" for i, c in enumerate(captions))
         return [TextContent(type="text", text=result)]
 

@@ -19,12 +19,12 @@ description: 图片识别 — 使用 Qwen 视觉模型描述图片内容
 
 ## 工具说明
 
-- `describe_image` — 描述单张图片，参数 `path`: 本地绝对路径或 URL。**仅在只有一张图片时使用**
-- `describe_images` — 批量描述多张图片，参数 `paths`: 路径的**数组**，格式为 `{"paths": ["/path/a.png", "/path/b.png"]}`。并发处理，比逐张调用快得多
+- `describe_image` — 描述单张图片，参数 `path`: 本地绝对路径或 URL。可选参数 `prompt`: 自定义提示词，如 `"详细描述UI界面的色彩搭配和组件布局"`
+- `describe_images` — 批量描述多张图片，参数 `paths`: 路径的**数组**。可选参数 `prompt`: 所有图片共用同一提示词
 
 ## 选择哪个工具（强制规则）
 
-- **1 张图片** → `describe_image({path: "..."})`
+- **1 张图片** → `describe_image({path: "..."})`，可加 `prompt: "自定义提示"`
 - **2 张及以上** → **必须**用 `describe_images({paths: ["...", "..."]})`，**禁止**循环调用 `describe_image`
 
 ## 重要提示
