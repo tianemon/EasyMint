@@ -519,8 +519,8 @@ select.input {
 /* ── Mint button shimmer ──────────────────────────────── */
 
 @keyframes mintShimmer {
-  0%   { background-position: -300% 0; }
-  100% { background-position: 300% 0; }
+  0%   { background-position: 300% 0; }
+  100% { background-position: -300% 0; }
 }
 
 .mint-shimmer {
@@ -537,7 +537,7 @@ select.input {
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: mintShimmer 6s linear infinite;
+  animation: mintShimmer 8s linear infinite;
 }
 
 /* ── xterm overrides ──────────────────────────────── */
