@@ -511,8 +511,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         <select value={chatModel || storeModel} onChange={(e) => handleModelChange(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer max-w-[200px]" title="切换模型">
           {availableModels.map((m) => (<option key={m} value={m}>{m}</option>))}
         </select>
-        {balanceText && <span className="text-[10px] text-text-secondary cursor-pointer hover:text-accent transition-colors" onClick={refreshBalance} data-tooltip="账户余额，点击刷新">{balanceText}</span>}
-        <span className="text-[10px] text-text-secondary" data-tooltip="上下文使用率，可设置阈值">{ctxPct}%</span>
+        {balanceText && <span className="text-[10px] text-text-secondary cursor-pointer hover:text-accent transition-colors" onClick={refreshBalance} title="账户余额，点击刷新">{balanceText}</span>}
+        <span className="text-[10px] text-text-secondary" title="上下文使用率，可设置阈值">{ctxPct}%</span>
       </div>
 
       {/* Input area */}
