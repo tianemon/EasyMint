@@ -19,6 +19,10 @@ interface AttachItem {
   kind: "image" | "doc";
 }
 
+function formatTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+}
+
 interface ChatMessage {
   id: number;
   role: "user" | "ai";
@@ -428,6 +432,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           )}
           {msg.text ? <span className="whitespace-pre-wrap">{msg.text}</span> : null}
         </div>
+        <span className="text-[10px] text-text-secondary mt-0.5 px-1">{formatTime(msg.timestamp)}</span>
       </div>
     );
   }
@@ -466,6 +471,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                           开始分配开发任务
                         </button>
                       )}
+                      <span className="text-[10px] text-text-secondary mt-0.5 px-1">{formatTime(msg.timestamp)}</span>
                     </div>
                   ) : null}
                 </div>
