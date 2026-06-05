@@ -309,6 +309,11 @@ export class AgentService {
             capturedSid = sdkSid;
             chat.sessionId = sdkSid;
             broadcast("agent:chat-session", { chatId: chat.chatId, sessionId: sdkSid });
+            // Initial context usage — show immediately, don't wait for first reply
+            try {
+              const usage = await chat.query!.getContextUsage();
+              broadcast("agent:context-usage", { chatId: chat.chatId, percentage: usage.percentage, totalTokens: usage.totalTokens, maxTokens: usage.maxTokens });
+            } catch { /* ignore */ }
           }
 
           // Accumulate assistant text during summarization
