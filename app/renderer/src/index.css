@@ -125,7 +125,7 @@
   --font-size-lg: 1.125rem;
 
   /* ── Input focus ────────────────── */
-  --color-input-focus: var(--color-accent);
+  --color-input-focus: #16a34a;
 
   /* ── Animation ───────────────────── */
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
