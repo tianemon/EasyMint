@@ -138,24 +138,24 @@
 
 [data-theme="dark"] {
   /* ── Surface ─────────────────────── */
-  --color-surface: #121212;
-  --color-surface-alt: #1a1a1a;
-  --color-surface-hover: #242424;
-  --color-surface-elevated: #1e1e1e;
-  --color-overlay: rgba(0, 0, 0, 0.7);
-  --color-tooltip-bg: #e4e4e4;
-  --color-tooltip-text: #121212;
+  --color-surface: #000000;
+  --color-surface-alt: #0f0f0f;
+  --color-surface-hover: #1a1a1a;
+  --color-surface-elevated: #141414;
+  --color-overlay: rgba(0, 0, 0, 0.8);
+  --color-tooltip-bg: #ffffff;
+  --color-tooltip-text: #000000;
 
   /* ── Text ────────────────────────── */
-  --color-text-primary: #e4e4e4;
-  --color-text-secondary: #888888;
-  --color-text-inverse: #121212;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #999999;
+  --color-text-inverse: #000000;
   --color-text-muted: #555555;
 
   /* ── Border ──────────────────────── */
-  --color-border: #333333;
-  --color-border-light: #2a2a2a;
-  --color-border-strong: #555555;
+  --color-border: #2a2a2a;
+  --color-border-light: #1f1f1f;
+  --color-border-strong: #444444;
 
   /* ── Brand / Accent ──────────────── */
   --color-accent: #22c55e;
@@ -176,7 +176,7 @@
   --color-info-bg: color-mix(in oklab, #22d3ee 12%, transparent);
 
   /* ── Status dots ─────────────────── */
-  --color-dot-gray: #444444;
+  --color-dot-gray: #3a3a3a;
   --color-dot-green: #22c55e;
   --color-dot-amber: #f59e0b;
   --color-dot-red: #ef4444;
@@ -186,41 +186,41 @@
   --color-code-kw: #a78bfa;
   --color-code-str: #4ade80;
   --color-code-fn: #f87171;
-  --color-code-cm: #888888;
+  --color-code-cm: #777777;
 
   /* ── Editor ─────────────────────── */
-  --color-editor-bg: #121212;
-  --color-editor-gutter-bg: #1a1a1a;
-  --color-editor-line-highlight: #242424;
+  --color-editor-bg: #000000;
+  --color-editor-gutter-bg: #0f0f0f;
+  --color-editor-line-highlight: #1a1a1a;
 
   /* ── Monaco ─────────────────────── */
-  --color-monaco-bg: #121212;
-  --color-monaco-fg: #e4e4e4;
-  --color-monaco-line-highlight: #1e1e1e;
-  --color-monaco-selection: #264f36;
-  --color-monaco-inactive-selection: #1e1e1e;
-  --color-monaco-gutter-bg: #1a1a1a;
-  --color-monaco-widget-bg: #1e1e1e;
-  --color-monaco-widget-border: #333333;
+  --color-monaco-bg: #000000;
+  --color-monaco-fg: #ffffff;
+  --color-monaco-line-highlight: #141414;
+  --color-monaco-selection: #1a4a2e;
+  --color-monaco-inactive-selection: #141414;
+  --color-monaco-gutter-bg: #0f0f0f;
+  --color-monaco-widget-bg: #141414;
+  --color-monaco-widget-border: #2a2a2a;
   --color-monaco-focus: var(--color-accent);
   --color-monaco-cursor: var(--color-accent);
   --color-monaco-line-number: #555555;
   --color-monaco-line-number-active: var(--color-accent);
 
   /* ── Terminal ────────────────────── */
-  --color-terminal-bg: #0a0a0a;
+  --color-terminal-bg: #000000;
   --color-terminal-text: #22c55e;
 
   /* ── File type icons ────────────── */
-  --color-file-doc-bg: #2e0a0a;
+  --color-file-doc-bg: #2a0a0a;
   --color-file-doc-stroke: #f87171;
-  --color-file-code-bg: #0a2e14;
+  --color-file-code-bg: #0a2812;
   --color-file-code-stroke: #4ade80;
-  --color-file-data-bg: #0a1e3a;
+  --color-file-data-bg: #0a1830;
   --color-file-data-stroke: #60a5fa;
-  --color-file-config-bg: #1a1040;
+  --color-file-config-bg: #160e38;
   --color-file-config-stroke: #a78bfa;
-  --color-file-other-bg: #1a1a1a;
+  --color-file-other-bg: #181818;
   --color-file-other-stroke: #888888;
 }
 
