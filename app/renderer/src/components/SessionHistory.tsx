@@ -137,7 +137,7 @@ export function SessionHistory({
       ) : sessions.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">暂无对话记录</div>
       ) : (
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto mx-3 rounded-xl bg-accent-subtle border border-accent-border-light">
           {pinned.length > 0 && (
             <div>
               <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium">置顶</div>
