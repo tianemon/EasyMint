@@ -255,7 +255,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             }
           }
           if (loads.length > 0) await Promise.all(loads);
-          if (!cancelled && mapped.length > 0) setMessages(mapped);
+          if (!cancelled && mapped.length > 0) { setMessages(mapped); msgIdRef.current = Math.max(...mapped.map((m) => m.id)); }
         }
       } catch { /* */ }
     })();

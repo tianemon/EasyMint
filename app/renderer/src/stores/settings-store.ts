@@ -15,6 +15,7 @@ interface SettingsState {
   setupComplete: boolean;
   thinkingBudget: number;
   contextThreshold: number;
+  context1M: boolean;
   setEvaluateMode: (enabled: boolean) => void;
   setTddMode: (enabled: boolean) => void;
   setScreenshotVerification: (enabled: boolean) => void;
@@ -25,6 +26,7 @@ interface SettingsState {
   setAvailableModels: (models: string[]) => void;
   setThinkingBudget: (budget: number) => void;
   setContextThreshold: (pct: number) => void;
+  setContext1M: (enabled: boolean) => void;
   loadFromElectron: () => Promise<void>;
 }
 
@@ -44,6 +46,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setupComplete: false,
   thinkingBudget: 0,
   contextThreshold: 60,
+  context1M: false,
 
   setModel: (model: string) => {
     set({ model });
@@ -87,6 +90,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     set({ contextThreshold: pct });
     window.electronAPI?.settings?.set?.("contextThreshold", pct);
   },
+  setContext1M: (enabled: boolean) => {
+    set({ context1M: enabled });
+    window.electronAPI?.settings?.set?.("context1M", enabled);
+  },
 
   loadFromElectron: async () => {
     try {
@@ -104,6 +111,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
           availableModels: settings.availableModels ?? [],
           thinkingBudget: 0,
           contextThreshold: settings.contextThreshold ?? 60,
+          context1M: settings.context1M ?? false,
           setupComplete: settings.setupComplete ?? false,
         });
       }

@@ -481,11 +481,13 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     availableModels,
     defaultProjectDir,
     contextThreshold,
+    context1M,
     setEvaluateMode,
     setTddMode,
     setScreenshotVerification,
     setDefaultProjectDir,
     setContextThreshold,
+    setContext1M,
     setApiBaseUrl,
     setApiKey,
     setModel,
@@ -651,6 +653,15 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                     </div>
                     <p className="text-[10px] text-text-secondary mt-1.5">在聊天窗口中可切换的模型列表。默认使用第一个或下方指定的模型。</p>
                   </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={context1M}
+                      onChange={(e) => setContext1M(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded accent-accent"
+                    />
+                    <span className="text-xs text-text-primary">开启 1M 上下文（仅支持 Pro 模型）</span>
+                  </label>
                   <div>
                     <label className="text-xs text-text-secondary block mb-1">默认模型</label>
                     {availableModels.length > 0 ? (

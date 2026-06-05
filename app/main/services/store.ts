@@ -44,6 +44,7 @@ interface Settings {
   lastProjectId?: string;
   setupComplete?: boolean;
   contextThreshold?: number;
+  context1M?: boolean;
 }
 
 const EM_DEFAULTS = {
@@ -52,6 +53,7 @@ const EM_DEFAULTS = {
   claudePath: "",
   terminalFontSize: 14,
   contextThreshold: 60,
+  context1M: false,
 };
 
 export class Store {
@@ -123,6 +125,7 @@ export class Store {
       setupComplete: emData.setupComplete as boolean | undefined,
       lastProjectId: emData.lastProjectId as string | undefined,
       contextThreshold: (emData.contextThreshold as number) ?? EM_DEFAULTS.contextThreshold,
+      context1M: (emData.context1M as boolean) ?? false,
     };
   }
 
@@ -155,6 +158,7 @@ export class Store {
     if (settings.model) data.model = settings.model;
     if (settings.availableModels) data.availableModels = settings.availableModels;
     if (settings.apiKeys) data.apiKeys = settings.apiKeys;
+    if (settings.context1M !== undefined) data.context1M = settings.context1M;
     fs.writeFileSync(this.emSettingsPath, JSON.stringify(data, null, 2));
   }
 

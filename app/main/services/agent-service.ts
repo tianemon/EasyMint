@@ -106,6 +106,13 @@ interface ActiveChat {
   summaryBuffer: string;
 }
 
+/** Append [1M] suffix to model name when context1M setting is enabled */
+function resolveModel(model: string | undefined, store: Store): string | undefined {
+  if (!model) return model;
+  if (!store.getSettings().context1M) return model;
+  return model.endsWith("[1M]") ? model : model + "[1M]";
+}
+
 /** Build a query options block, reading API config from the Store. */
 function buildQueryOptions(projectPath: string, store: Store, isResume: boolean, permissionMode: PermissionMode = "auto", overrides?: Partial<QueryOptions>): QueryOptions {
   const defaultDir = store.getSettings().defaultProjectDir || path.join(os.homedir(), "EasyMintProject");
@@ -152,7 +159,7 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
   return {
     cwd,
     permissionMode,
-    model: overrides?.model || settings.model || process.env.ANTHROPIC_MODEL || undefined,
+    model: resolveModel(overrides?.model || settings.model || process.env.ANTHROPIC_MODEL || undefined, store),
     env,
     systemPrompt: customPrompt ? { type: "preset" as const, preset: "claude_code" as const, append: customPrompt } : undefined,
     agents: Object.keys(agents).length > 0 ? agents : undefined,
@@ -470,10 +477,11 @@ ${summary}
   async setModel(sessionId: string, model: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
     if (!chat?.query) return; // not active yet, model will apply on next sendMessage
+    const resolved = resolveModel(model, this.store) || model;
     try {
-      await (chat.query as { setModel?: (m: string) => Promise<void> }).setModel?.(model);
+      await (chat.query as { setModel?: (m: string) => Promise<void> }).setModel?.(resolved);
       chat.currentModel = model;
-      console.log("[setModel] switched to %s for sessionId=%s", model, sessionId);
+      console.log("[setModel] switched to %s for sessionId=%s", resolved, sessionId);
     } catch (err) {
       console.error("[setModel] error:", err);
       throw err;
