@@ -108,6 +108,10 @@
   --color-terminal-bg: #1a2e1f;
   --color-terminal-text: #86efac;
 
+  /* ── Code block ────────────────── */
+  --color-code-block-bg: #f5f5f5;
+  --color-code-block-header: #e8e8e8;
+
   /* ── Radius ──────────────────────── */
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -231,6 +235,10 @@
   --color-file-config-stroke: #aaaaaa;
   --color-file-other-bg: #1a1a1a;
   --color-file-other-stroke: #777777;
+
+  /* ── Code block ────────────────── */
+  --color-code-block-bg: #2a2a2a;
+  --color-code-block-header: #333333;
 }
 
 /* ── Dark mode overrides ──────────────────────────────── */

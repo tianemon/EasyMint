@@ -89,13 +89,13 @@ function CodeBlock({ language, children }: { language?: string; children: string
   };
   return (
     <div className="my-3 rounded-lg border border-border overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-1.5 bg-surface-hover border-b border-border">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border" style={{ background: 'var(--color-code-block-header)' }}>
         <span className="text-[10px] text-text-muted uppercase tracking-wider">{language || "code"}</span>
         <button onClick={handleCopy} className="text-[10px] text-text-secondary hover:text-text-primary transition-colors">
           {copied ? "已复制" : "复制"}
         </button>
       </div>
-      <pre className="px-4 py-3 overflow-x-auto text-xs leading-relaxed bg-surface-elevated font-mono text-text-primary whitespace-pre">
+      <pre className="px-4 py-3 overflow-x-auto text-xs leading-relaxed font-mono text-text-primary whitespace-pre" style={{ background: 'var(--color-code-block-bg)' }}>
         <code>{children}</code>
       </pre>
     </div>
