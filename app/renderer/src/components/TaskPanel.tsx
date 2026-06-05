@@ -230,11 +230,14 @@ export function TaskPanel({ projectPath, onCollapse, onLeafClick }: TaskPanelPro
       <div className="shrink-0 px-3 pb-2 flex flex-col items-center">
         <button onClick={handleLeafClick}
           className="w-full h-12 rounded-xl bg-accent-bg hover:bg-accent-border border border-accent-border-strong flex items-center justify-center transition-colors group">
-          <svg viewBox="0 0 28 28" fill="none" className="w-7 h-7 text-accent group-hover:scale-110 transition-transform">
-            <path d="M14 2C14 2 8 8 8 14a6 6 0 0012 0C20 8 14 2 14 2z" fill="currentColor" opacity="0.3"/>
-            <path d="M14 3C14 3 9 8.5 9 13.5a5 5 0 0010 0C19 8.5 14 3 14 3z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M14 9v10M14 9C12 9 9 11 9 13" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-            <path d="M14 19c2 0 5-2 5-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+          <svg viewBox="0 0 48 48" fill="none" className="w-10 h-10 text-accent group-hover:scale-105 transition-transform -rotate-12">
+            {/* leaf body — tilted oval with pointed tip */}
+            <path d="M32 8C24 12 12 18 12 28c0 8 6 12 12 12 6 0 14-6 16-14 2-10-4-16-8-18z" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            {/* central vein */}
+            <path d="M28 10C22 16 18 24 18 32" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" opacity="0.5"/>
+            {/* side veins */}
+            <path d="M24 16L20 13M22 21L17 19M20 27L16 26" stroke="currentColor" strokeWidth="0.6" strokeLinecap="round" opacity="0.35"/>
+            <path d="M27 16L30 13M28 21L32 18M27 27L31 26" stroke="currentColor" strokeWidth="0.6" strokeLinecap="round" opacity="0.35"/>
           </svg>
         </button>
         <p className="text-[10px] text-text-secondary mt-1.5 opacity-60">如果你不知道要做什么，就点一下</p>
