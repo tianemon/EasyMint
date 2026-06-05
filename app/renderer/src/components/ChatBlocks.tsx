@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { StreamEntry } from "./StreamPanel";
@@ -80,9 +80,22 @@ const FAMILY_LABELS: Record<string, string> = { file: "文件操作", bash: "命
 // ── Block rendering ──────────────────────────────────
 
 function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
+  const olCounter = useRef(0);
   return (
-    <div key={block.keyPrefix} className="text-sm leading-relaxed prose prose-sm max-w-none prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-code:text-accent prose-code:bg-surface-alt prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-pre:bg-surface-alt prose-pre:border prose-pre:border-border prose-a:text-accent prose-li:text-text-primary">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+    <div className="text-sm leading-relaxed prose prose-sm max-w-none prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-code:text-accent prose-code:bg-surface-alt prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-pre:bg-surface-alt prose-pre:border prose-pre:border-border prose-a:text-accent prose-li:text-text-primary">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          ol: ({ children, start, ...props }) => {
+            const id = ++olCounter.current;
+            return <ol {...props} start={start}>{
+              React.Children.map(children, (child, i) =>
+                React.isValidElement(child) ? React.cloneElement(child, { key: `li-${id}-${i}` }) : child
+              )
+            }</ol>;
+          },
+        }}
+      >
         {block.text}
       </ReactMarkdown>
     </div>
