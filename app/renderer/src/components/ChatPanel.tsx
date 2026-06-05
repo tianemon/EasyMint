@@ -19,6 +19,10 @@ interface AttachItem {
   kind: "image" | "doc";
 }
 
+function formatTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+}
+
 interface ChatMessage {
   id: number;
   role: "user" | "ai";
@@ -32,6 +36,7 @@ function mapSessionMessages(msgs: Array<{ type: string; message: unknown }>): Ch
   let nextId = 0;
   const mapped: ChatMessage[] = [];
   for (const m of msgs) {
+    const ts = (m.message as { created_at?: number })?.created_at ?? Date.now();
     if (m.type === "user") {
       const content = (m.message as { content?: string | unknown[] })?.content;
       const text = typeof content === "string" ? content : Array.isArray(content)
@@ -39,7 +44,7 @@ function mapSessionMessages(msgs: Array<{ type: string; message: unknown }>): Ch
         : "";
       if (text && !text.includes("Request interrupted") && !text.includes("No response requested")) {
         const { attaches, cleanText } = parseAttachMarkers(text);
-        mapped.push({ id: ++nextId, role: "user", text: cleanText, attaches: attaches.length > 0 ? attaches : undefined, timestamp: Date.now() });
+        mapped.push({ id: ++nextId, role: "user", text: cleanText, attaches: attaches.length > 0 ? attaches : undefined, timestamp: ts });
       }
     } else if (m.type === "assistant") {
       const content = (m.message as { content?: unknown[] })?.content;
@@ -49,17 +54,17 @@ function mapSessionMessages(msgs: Array<{ type: string; message: unknown }>): Ch
           const b = block as { type?: string; text?: string; thinking?: string; name?: string; input?: unknown; tool_use_id?: string; content?: unknown; is_error?: boolean };
           if (b.type === "text" && b.text) {
             if (!b.text.includes("Request interrupted") && !b.text.includes("No response requested")) {
-              entries.push({ kind: "text", text: b.text, timestamp: Date.now() });
+              entries.push({ kind: "text", text: b.text, timestamp: ts });
             }
           } else if (b.type === "thinking" && b.thinking) {
-            entries.push({ kind: "thinking", text: b.thinking, timestamp: Date.now() });
+            entries.push({ kind: "thinking", text: b.thinking, timestamp: ts });
           } else if (b.type === "tool_use") {
-            entries.push({ kind: "tool_use", id: (b as { id?: string }).id || "", name: b.name || "?", input: b.input || {}, timestamp: Date.now(), collapsed: false, source: "chat" });
+            entries.push({ kind: "tool_use", id: (b as { id?: string }).id || "", name: b.name || "?", input: b.input || {}, timestamp: ts, collapsed: false, source: "chat" });
           } else if (b.type === "tool_result") {
-            entries.push({ kind: "tool_result", toolUseId: b.tool_use_id || "", content: String(b.content ?? ""), isError: !!b.is_error, timestamp: Date.now(), source: "chat" });
+            entries.push({ kind: "tool_result", toolUseId: b.tool_use_id || "", content: String(b.content ?? ""), isError: !!b.is_error, timestamp: ts, source: "chat" });
           }
         }
-        if (entries.length > 0) mapped.push({ id: ++nextId, role: "ai", entries, timestamp: Date.now() });
+        if (entries.length > 0) mapped.push({ id: ++nextId, role: "ai", entries, timestamp: ts });
       }
     }
   }
@@ -281,9 +286,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (!sidRef.current) {
         sidRef.current = realSid;
         onSessionCreated?.(realSid);
-        // Restore cached usage if available
-        const cached = ctxUsageCache.get(realSid);
-        if (cached !== undefined) setCtxPct(cached);
       }
     });
     // Context rotation events
@@ -430,6 +432,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           )}
           {msg.text ? <span className="whitespace-pre-wrap">{msg.text}</span> : null}
         </div>
+        <span className="text-[10px] text-text-secondary mt-0.5 px-1">{formatTime(msg.timestamp)}</span>
       </div>
     );
   }
@@ -468,6 +471,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                           开始分配开发任务
                         </button>
                       )}
+                      <span className="text-[10px] text-text-secondary mt-0.5 px-1">{formatTime(msg.timestamp)}</span>
                     </div>
                   ) : null}
                 </div>
