@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { StreamEntry } from "./StreamPanel";
@@ -103,20 +103,11 @@ function CodeBlock({ language, children }: { language?: string; children: string
 }
 
 function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
-  const olCounter = useRef(0);
   return (
     <div className="text-sm leading-relaxed prose prose-sm max-w-none prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-code:before:content-none prose-code:after:content-none prose-a:text-accent prose-li:text-text-primary">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          ol: ({ children, start, ...props }) => {
-            const id = ++olCounter.current;
-            return <ol {...props} start={start}>{
-              React.Children.map(children, (child, i) =>
-                React.isValidElement(child) ? React.cloneElement(child, { key: `li-${id}-${i}` }) : child
-              )
-            }</ol>;
-          },
           code: ({ className, children, ...props }) => {
             const match = /language-(\w+)/.exec(className || "");
             const isBlock = String(children).includes("\n");
