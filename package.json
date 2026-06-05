@@ -31,14 +31,15 @@
     "react-router-dom": "^7.16.0",
     "xterm": "^5.3.0",
     "xterm-addon-fit": "^0.8.0",
-    "@anthropic-ai/claude-agent-sdk-darwin-arm64": "0.3.161",
-    "@anthropic-ai/claude-agent-sdk-darwin-x64": "0.3.161",
-    "@anthropic-ai/claude-agent-sdk-win32-arm64": "0.3.161",
-    "@anthropic-ai/claude-agent-sdk-win32-x64": "0.3.161",
     "zustand": "^4.5.0"
   },
+  "optionalDependencies": {
+    "@anthropic-ai/claude-agent-sdk-win32-x64": "0.3.161",
+    "@anthropic-ai/claude-agent-sdk-darwin-arm64": "0.3.161",
+    "@anthropic-ai/claude-agent-sdk-darwin-x64": "0.3.161",
+    "@anthropic-ai/claude-agent-sdk-win32-arm64": "0.3.161"
+  },
   "devDependencies": {
-    "@rollup/rollup-win32-x64-msvc": "^4.61.1",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
