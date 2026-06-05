@@ -466,7 +466,6 @@ function AgentsTab(): JSX.Element {
 
   const AGENT_TYPES = [
     { value: "mint", label: "Mint（PM / 主对话）" },
-    { value: "orchestrator", label: "Orchestrator（调度者）" },
     { value: "builder", label: "Builder（开发者）" },
     { value: "evaluator", label: "Evaluator（验收者）" },
   ];

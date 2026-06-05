@@ -19,7 +19,7 @@ export interface AgentTemplate {
   prompt: string;
   tools: string[];
   model?: string;
-  agentType: "mint" | "orchestrator" | "builder" | "evaluator";
+  agentType: "mint" | "builder" | "evaluator";
 }
 
 export interface AgentTemplateInput {
@@ -28,7 +28,7 @@ export interface AgentTemplateInput {
   prompt: string;
   tools: string[];
   model?: string;
-  agentType: "mint" | "orchestrator" | "builder" | "evaluator";
+  agentType: "mint" | "builder" | "evaluator";
 }
 
 // ── Storage ────────────────────────────────────────
