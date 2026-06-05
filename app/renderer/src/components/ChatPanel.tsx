@@ -7,32 +7,6 @@ import { chatActions } from "../stores/chat-actions";
 import { useProjectStatusStore } from "../stores/project-status-store";
 import { useSettingsStore } from "../stores/settings-store";
 
-// Read session cache on mount
-useEffect(() => {
-  if (!existingSid) return;
-  window.electronAPI.sessionCache.read(existingSid).then((cache) => {
-    if (cache) {
-      if (cache.permissionMode) setPermissionMode(cache.permissionMode);
-      if (cache.model) setChatModel(cache.model);
-      if (cache.contextUsage > 0) setCtxPct(cache.contextUsage);
-    }
-  }).catch(() => {});
-}, [existingSid]);
-
-// Write permission mode to cache
-useEffect(() => {
-  if (sidRef.current) {
-    window.electronAPI.sessionCache.write(sidRef.current, { permissionMode }).catch(() => {});
-  }
-}, [permissionMode]);
-
-// Write model to cache
-useEffect(() => {
-  if (sidRef.current && chatModel) {
-    window.electronAPI.sessionCache.write(sidRef.current, { model: chatModel }).catch(() => {});
-  }
-}, [chatModel]);
-
 function getWorkspaceDir(): string {
   const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
   return `${base.replace(/\/$/, "")}/workspace/`;
@@ -340,6 +314,30 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   }, [summarizing]);
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
+
+  // ── Session cache ────────────────────────────────
+  useEffect(() => {
+    if (!existingSid) return;
+    window.electronAPI.sessionCache.read(existingSid).then((cache) => {
+      if (cache) {
+        if (cache.permissionMode) setPermissionMode(cache.permissionMode);
+        if (cache.model) setChatModel(cache.model);
+        if (cache.contextUsage > 0) setCtxPct(cache.contextUsage);
+      }
+    }).catch(() => {});
+  }, [existingSid]);
+
+  useEffect(() => {
+    if (sidRef.current) {
+      window.electronAPI.sessionCache.write(sidRef.current, { permissionMode }).catch(() => {});
+    }
+  }, [permissionMode]);
+
+  useEffect(() => {
+    if (sidRef.current && chatModel) {
+      window.electronAPI.sessionCache.write(sidRef.current, { model: chatModel }).catch(() => {});
+    }
+  }, [chatModel]);
 
   // ── Send ───────────────────────────────────────────
 
