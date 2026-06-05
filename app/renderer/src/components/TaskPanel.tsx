@@ -48,15 +48,25 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
   return (
     <svg viewBox={`0 0 ${w} ${H}`} className="block w-full" height={H}
       onMouseLeave={() => onHover("")}>
+      <defs>
+        <linearGradient id="fishbone-current" gradientUnits="userSpaceOnUse" x1="-300" y1="0" x2="0" y2="0">
+          <stop offset="0%" stopColor="#60a5fa" />
+          <stop offset="25%" stopColor="#a78bfa" />
+          <stop offset="50%" stopColor="#f472b6" />
+          <stop offset="75%" stopColor="#4ade80" />
+          <stop offset="100%" stopColor="#60a5fa" />
+          <animate attributeName="x1" values="-300;300" dur="3s" repeatCount="indefinite" />
+          <animate attributeName="x2" values="0;600" dur="3s" repeatCount="indefinite" />
+        </linearGradient>
+      </defs>
       {/* ── 脊柱横线 ── */}
       <polyline
         points={timeline.map((_, i) => `${12 + i * 56},${spineY}`).join(" ")}
         fill="none"
-        stroke={hasCurrent ? "var(--color-accent-light)" : "var(--color-dot-gray)"}
+        stroke={hasCurrent ? "url(#fishbone-current)" : "var(--color-dot-gray)"}
         strokeWidth="3"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className={hasCurrent ? "fishbone-flow" : ""}
       />
       {/* ── 分支 + 圆点 + 标签 ── */}
       {timeline.map((entry, i) => {
@@ -74,7 +84,6 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
         const r = isCurrent ? 5 : isDone ? 4 : 4;
         const fill = isDone ? "var(--color-success)" : isCurrent ? "var(--color-accent)" : "none";
         const stroke = isDone ? "var(--color-success)" : isCurrent ? "var(--color-accent)" : "var(--color-border-strong)";
-        const lc = isDone || isCurrent ? "var(--color-accent-light)" : "var(--color-dot-gray)";
 
         return (
           <g key={entry.stage} onMouseEnter={() => onHover(entry.stage)} className="cursor-pointer">
@@ -82,11 +91,10 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
             <polyline
               points={`${sx},${spineY} ${elbowX},${branchY} ${dotX},${branchY}`}
               fill="none"
-              stroke={lc}
+              stroke={isDone || isCurrent ? "url(#fishbone-current)" : "var(--color-dot-gray)"}
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className={isDone || isCurrent ? "fishbone-flow-slow" : ""}
             />
             {/* ── 圆点 ── */}
             {isDone ? (

@@ -516,23 +516,6 @@ select.input {
 .stroke-file-config { stroke: var(--color-file-config-stroke); }
 .stroke-file-other  { stroke: var(--color-file-other-stroke); }
 
-/* ── Fishbone current flow ────────────────────────────── */
-
-@keyframes currentFlow {
-  0%   { stroke-dashoffset: 24; }
-  100% { stroke-dashoffset: 0; }
-}
-
-.fishbone-flow {
-  stroke-dasharray: 8 16;
-  animation: currentFlow 1.2s linear infinite;
-}
-
-.fishbone-flow-slow {
-  stroke-dasharray: 6 18;
-  animation: currentFlow 2s linear infinite;
-}
-
 /* ── Mint button shimmer ──────────────────────────────── */
 
 @keyframes mintShimmer {
