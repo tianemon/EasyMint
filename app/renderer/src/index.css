@@ -516,6 +516,29 @@ select.input {
 .stroke-file-config { stroke: var(--color-file-config-stroke); }
 .stroke-file-other  { stroke: var(--color-file-other-stroke); }
 
+/* ── Mint button shimmer ──────────────────────────────── */
+
+@keyframes mintShimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.mint-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-accent) 0%,
+    var(--color-accent) 40%,
+    #ffffff 50%,
+    var(--color-accent) 60%,
+    var(--color-accent) 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: mintShimmer 3s ease-in-out infinite;
+}
+
 /* ── xterm overrides ──────────────────────────────── */
 
 .xterm { padding: 8px; }
