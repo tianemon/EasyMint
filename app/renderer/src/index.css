@@ -124,6 +124,9 @@
   --font-size-base: 1rem;
   --font-size-lg: 1.125rem;
 
+  /* ── Input focus ────────────────── */
+  --color-input-focus: var(--color-accent);
+
   /* ── Animation ───────────────────── */
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
   --anim-fast: 150ms;
@@ -161,6 +164,9 @@
   --color-accent: #e4e4e4;
   --color-accent-hover: #ffffff;
   --color-accent-light: #aaaaaa;
+
+  /* ── Input focus ────────────────── */
+  --color-input-focus: #555555;
 
   /* ── Semantic — 仅 success 保留绿 ── */
   --color-success: #22c55e;
@@ -226,12 +232,6 @@
 
 /* ── Dark mode overrides ──────────────────────────────── */
 
-[data-theme="dark"] .input:focus,
-[data-theme="dark"] textarea:focus,
-[data-theme="dark"] select:focus {
-  border-color: var(--color-border-strong);
-  box-shadow: none;
-}
 
 /* ── Base ─────────────────────────────────────────── */
 
@@ -286,7 +286,7 @@ button, a, input, select, textarea, .transition-all {
   font-size: var(--font-size-sm);
 }
 .input:focus {
-  border-color: var(--color-accent);
+  border-color: var(--color-input-focus);
   box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
 .input::placeholder {

@@ -345,7 +345,7 @@ function McpTab(): JSX.Element {
                 <div className="relative">
                   <input
                     type={showKey ? "text" : "password"}
-                    className="w-full px-2 py-1.5 pr-7 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
+                    className="w-full px-2 py-1.5 pr-7 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-input-focus"
                     defaultValue={val}
                     placeholder="未设置"
                     onBlur={(e) => { const v = e.target.value.trim(); if (v !== val) saveKey(key, v); }}
@@ -638,7 +638,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                 <h3 className="text-sm font-medium text-text-secondary mb-2">默认项目路径</h3>
                 <div className="bg-surface-alt rounded-lg px-4 py-3">
                   <input
-                    className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+                    className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-input-focus"
                     placeholder="~/EasyMintProject"
                     value={defaultProjectDir}
                     onChange={(e) => setDefaultProjectDir(e.target.value)}
@@ -654,7 +654,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                   <div>
                     <label className="text-xs text-text-secondary block mb-1">Base URL</label>
                     <input
-                      className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+                      className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-input-focus"
                       placeholder="https://api.deepseek.com/anthropic"
                       value={apiBaseUrl}
                       onChange={(e) => setApiBaseUrl(e.target.value)}
@@ -665,7 +665,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                     <div className="relative">
                       <input
                         type={showKey ? "text" : "password"}
-                        className="w-full px-3 py-2 pr-8 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+                        className="w-full px-3 py-2 pr-8 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-input-focus"
                         placeholder="sk-..."
                         value={apiKey}
                         onChange={(e) => setApiKey(e.target.value)}
@@ -689,7 +689,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                       {availableModels.map((m, i) => (
                         <div key={i} className="flex items-center gap-1">
                           <input
-                            className="flex-1 px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
+                            className="flex-1 px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-input-focus"
                             value={m}
                             onChange={(e) => {
                               const next = [...availableModels];
@@ -727,7 +727,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                     <label className="text-xs text-text-secondary block mb-1">默认模型</label>
                     {availableModels.length > 0 ? (
                       <select
-                        className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+                        className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-input-focus"
                         value={model}
                         onChange={(e) => setModel(e.target.value)}
                       >
@@ -738,7 +738,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                       </select>
                     ) : (
                       <input
-                        className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+                        className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-input-focus"
                         placeholder="deepseek-v4-pro[1m]"
                         value={model}
                         onChange={(e) => setModel(e.target.value)}
