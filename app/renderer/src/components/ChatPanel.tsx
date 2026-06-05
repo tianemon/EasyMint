@@ -379,7 +379,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     return (
       <div className="flex gap-2 flex-wrap">
         {attaches.map((a, i) => (
-          <div key={i} className={`group relative shrink-0 border border-border ${a.kind === "image" && a.dataUrl ? "w-16 h-16 rounded-lg" : "flex items-center gap-2 px-2 py-1.5 rounded-lg bg-surface max-w-[220px]"}`}>
+          <div key={`attach-${i}`} className={`group relative shrink-0 border border-border ${a.kind === "image" && a.dataUrl ? "w-16 h-16 rounded-lg" : "flex items-center gap-2 px-2 py-1.5 rounded-lg bg-surface max-w-[220px]"}`}>
             {a.kind === "image" && a.dataUrl ? (
               <img src={a.dataUrl} alt={a.name} className="w-full h-full object-cover rounded-lg" />
             ) : (
@@ -410,15 +410,15 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
               {msg.attaches.map((a, i) => (
                 a.kind === "image" ? (
                   a.dataUrl ? (
-                    <img key={i} src={a.dataUrl} alt={a.name} className="max-w-[260px] max-h-[220px] rounded-lg object-contain cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setPreviewImage(a.dataUrl || null)} />
+                    <img key={`img-${i}`} src={a.dataUrl} alt={a.name} className="max-w-[260px] max-h-[220px] rounded-lg object-contain cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setPreviewImage(a.dataUrl || null)} />
                   ) : (
-                    <div key={i} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/10 max-w-[200px]">
+                    <div key={`doc-${i}`} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/10 max-w-[200px]">
                       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-4 h-4 shrink-0"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><circle cx="5" cy="6" r="1.3"/><path d="M1.5 11l3.5-3.5 2.5 2.5 3-4 4 5"/></svg>
                       <span className="text-[11px] truncate">{a.name}</span>
                     </div>
                   )
                 ) : (
-                  <div key={i} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/10 max-w-[200px]">
+                  <div key={`udoc-${i}`} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/10 max-w-[200px]">
                     <DocIcon name={a.name} />
                     <span className="text-[11px] truncate">{a.name}</span>
                   </div>
@@ -452,7 +452,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                   ) : msg.entries ? (
                     <div className="flex flex-col max-w-[85%]">
                       <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-2 overflow-hidden">
-                        {buildBlocks(msg.entries, String(msg.id)).map((block, i) => <ChatBlockView key={i} block={block} streaming={streaming} />)}
+                        {buildBlocks(msg.entries, String(msg.id)).map((block, i) => <ChatBlockView key={`${msg.id}-${i}`} block={block} streaming={streaming} />)}
                       </div>
                       {hasInitPrompt && !loading && (
                         <button className="mt-2 self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/30 text-accent text-xs hover:bg-accent/20 transition-colors" onClick={() => sendText("帮我初始化开发环境")}>
