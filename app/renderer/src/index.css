@@ -157,10 +157,10 @@
   --color-border-light: #1f1f1f;
   --color-border-strong: #444444;
 
-  /* ── Brand / Accent ──────────────── */
-  --color-accent: #22c55e;
-  --color-accent-hover: #4ade80;
-  --color-accent-light: #4ade80;
+  /* ── Brand / Accent — neutral blue ─ */
+  --color-accent: #60a5fa;
+  --color-accent-hover: #93bbfd;
+  --color-accent-light: #93bbfd;
 
   /* ── Semantic ────────────────────── */
   --color-success: #22c55e;
@@ -172,8 +172,8 @@
   --color-danger: #ef4444;
   --color-danger-bg: #2e0a0a;
   --color-danger-border: #7f1d1d;
-  --color-info: #22d3ee;
-  --color-info-bg: color-mix(in oklab, #22d3ee 12%, transparent);
+  --color-info: #60a5fa;
+  --color-info-bg: color-mix(in oklab, #60a5fa 12%, transparent);
 
   /* ── Status dots ─────────────────── */
   --color-dot-gray: #3a3a3a;
@@ -184,7 +184,7 @@
 
   /* ── Code highlight ──────────────── */
   --color-code-kw: #a78bfa;
-  --color-code-str: #4ade80;
+  --color-code-str: #6ee7b7;
   --color-code-fn: #f87171;
   --color-code-cm: #777777;
 
@@ -197,7 +197,7 @@
   --color-monaco-bg: #000000;
   --color-monaco-fg: #ffffff;
   --color-monaco-line-highlight: #141414;
-  --color-monaco-selection: #1a4a2e;
+  --color-monaco-selection: #1e3a5f;
   --color-monaco-inactive-selection: #141414;
   --color-monaco-gutter-bg: #0f0f0f;
   --color-monaco-widget-bg: #141414;
@@ -209,16 +209,16 @@
 
   /* ── Terminal ────────────────────── */
   --color-terminal-bg: #000000;
-  --color-terminal-text: #22c55e;
+  --color-terminal-text: #cccccc;
 
   /* ── File type icons ────────────── */
   --color-file-doc-bg: #2a0a0a;
   --color-file-doc-stroke: #f87171;
-  --color-file-code-bg: #0a2812;
-  --color-file-code-stroke: #4ade80;
-  --color-file-data-bg: #0a1830;
-  --color-file-data-stroke: #60a5fa;
-  --color-file-config-bg: #160e38;
+  --color-file-code-bg: #0a1e30;
+  --color-file-code-stroke: #60a5fa;
+  --color-file-data-bg: #0a2812;
+  --color-file-data-stroke: #4ade80;
+  --color-file-config-bg: #1a1040;
   --color-file-config-stroke: #a78bfa;
   --color-file-other-bg: #181818;
   --color-file-other-stroke: #888888;
