@@ -48,6 +48,19 @@ export function SessionHistory({
   const [editTitle, setEditTitle] = useState("");
   const [menu, setMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, sessionId: "", title: "", pinned: false });
   const [showArchive, setShowArchive] = useState(false);
+  const archiveRef = useRef<HTMLDivElement>(null);
+
+  // Close archive popup on click outside
+  useEffect(() => {
+    if (!showArchive) return;
+    const handler = (e: MouseEvent) => {
+      if (archiveRef.current && !archiveRef.current.contains(e.target as Node)) {
+        setShowArchive(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showArchive]);
 
   const load = useCallback(() => {
     const path = projectPath || getWorkspaceDir();
@@ -162,9 +175,9 @@ export function SessionHistory({
 
       {/* Archive clock button */}
       {archived.length > 0 && (
-        <div className="shrink-0 px-3 pb-2 relative">
+        <div className="shrink-0 px-3 pb-2 relative" ref={archiveRef}>
           <button
-            className={`w-8 h-8 mx-auto rounded-lg flex items-center justify-center transition-colors ${showArchive ? "bg-accent-bg text-accent" : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"}`}
+            className={`w-8 h-8 mx-auto rounded-md flex items-center justify-center transition-colors ${showArchive ? "bg-accent-bg text-accent" : "text-text-secondary hover:text-text-primary"}`}
             onClick={() => setShowArchive(!showArchive)}
           >
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-4 h-4"><circle cx="8" cy="8" r="6"/><path d="M8 4v5M8 7.5l2.5 1.5" strokeLinecap="round"/></svg>
