@@ -63,7 +63,7 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
       <polyline
         points={timeline.map((_, i) => `${12 + i * 56},${spineY}`).join(" ")}
         fill="none"
-        stroke={hasCurrent ? "url(#fishbone-current)" : "var(--color-dot-gray)"}
+        stroke="url(#fishbone-current)"
         strokeWidth="3"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -91,7 +91,7 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
             <polyline
               points={`${sx},${spineY} ${elbowX},${branchY} ${dotX},${branchY}`}
               fill="none"
-              stroke={isDone || isCurrent ? "url(#fishbone-current)" : "var(--color-dot-gray)"}
+              stroke="url(#fishbone-current)"
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
