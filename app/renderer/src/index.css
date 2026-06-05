@@ -373,9 +373,6 @@ select.input {
   pointer-events: none;
   z-index: 100;
 }
-  pointer-events: none;
-  z-index: 50;
-}
 
 /* ── Drag handle ──────────────────────────────────── */
 
