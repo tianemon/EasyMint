@@ -8,6 +8,7 @@ import type { StreamEntry } from "./StreamPanel";
 interface TextBlock {
   kind: "text";
   text: string;
+  keyPrefix?: string;
 }
 
 interface ThinkingBlock {
@@ -35,14 +36,14 @@ type Block = TextBlock | ThinkingBlock | ToolGroupBlock | SystemBlock;
 
 // ── buildBlocks: merge consecutive events of the same type ──
 
-export function buildBlocks(entries: StreamEntry[]): Block[] {
+export function buildBlocks(entries: StreamEntry[], keyPrefix = ""): Block[] {
   const blocks: Block[] = [];
   let textBuf = "";
   let thinkBuf = "";
   let toolBuf: ToolItem[] = [];
   let sysBuf = "";
 
-  const flushText = () => { if (textBuf) { blocks.push({ kind: "text", text: textBuf.trim() }); textBuf = ""; } };
+  const flushText = () => { if (textBuf) { blocks.push({ kind: "text", text: textBuf.trim(), keyPrefix }); textBuf = ""; } };
   const flushThink = () => { if (thinkBuf) { blocks.push({ kind: "thinking", text: thinkBuf.trim() }); thinkBuf = ""; } };
   const flushTool = () => { if (toolBuf.length) { blocks.push({ kind: "tool-group", items: [...toolBuf] }); toolBuf = []; } };
   const flushSys = () => { if (sysBuf) { blocks.push({ kind: "system", message: sysBuf.trim() }); sysBuf = ""; } };
@@ -80,7 +81,7 @@ const FAMILY_LABELS: Record<string, string> = { file: "文件操作", bash: "命
 
 function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
   return (
-    <div className="text-sm leading-relaxed prose prose-sm max-w-none prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-code:text-accent prose-code:bg-surface-alt prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-pre:bg-surface-alt prose-pre:border prose-pre:border-border prose-a:text-accent prose-li:text-text-primary">
+    <div key={block.keyPrefix} className="text-sm leading-relaxed prose prose-sm max-w-none prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-code:text-accent prose-code:bg-surface-alt prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-pre:bg-surface-alt prose-pre:border prose-pre:border-border prose-a:text-accent prose-li:text-text-primary">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>
         {block.text}
       </ReactMarkdown>
