@@ -50,6 +50,7 @@ import {
   archiveSession,
   unarchiveSession,
 } from "./services/session-service";
+import { readCache, writeCache, deleteCache } from "./services/session-cache";
 
 interface Services {
   mainWindow: BrowserWindow;
@@ -163,6 +164,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("conv:togglePin", (_e, { id }) => togglePin(id));
   ipcMain.handle("conv:archiveSession", (_e, { sessionId }) => { archiveSession(sessionId); });
   ipcMain.handle("conv:unarchiveSession", (_e, { sessionId }) => { unarchiveSession(sessionId); });
+  ipcMain.handle("session-cache:read", (_e, { sessionId }) => readCache(sessionId));
+  ipcMain.handle("session-cache:write", (_e, { sessionId, data }) => { writeCache(sessionId, data); });
+  ipcMain.handle("session-cache:delete", (_e, { sessionId }) => { deleteCache(sessionId); });
 
   // claude:*
   ipcMain.handle("claude:detect", () => detectClaude());

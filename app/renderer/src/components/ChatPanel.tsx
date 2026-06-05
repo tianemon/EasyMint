@@ -7,8 +7,31 @@ import { chatActions } from "../stores/chat-actions";
 import { useProjectStatusStore } from "../stores/project-status-store";
 import { useSettingsStore } from "../stores/settings-store";
 
-// Persisted context usage — survives component unmount/remount
-const ctxUsageCache = new Map<string, number>();
+// Read session cache on mount
+useEffect(() => {
+  if (!existingSid) return;
+  window.electronAPI.sessionCache.read(existingSid).then((cache) => {
+    if (cache) {
+      if (cache.permissionMode) setPermissionMode(cache.permissionMode);
+      if (cache.model) setChatModel(cache.model);
+      if (cache.contextUsage > 0) setCtxPct(cache.contextUsage);
+    }
+  }).catch(() => {});
+}, [existingSid]);
+
+// Write permission mode to cache
+useEffect(() => {
+  if (sidRef.current) {
+    window.electronAPI.sessionCache.write(sidRef.current, { permissionMode }).catch(() => {});
+  }
+}, [permissionMode]);
+
+// Write model to cache
+useEffect(() => {
+  if (sidRef.current && chatModel) {
+    window.electronAPI.sessionCache.write(sidRef.current, { model: chatModel }).catch(() => {});
+  }
+}, [chatModel]);
 
 function getWorkspaceDir(): string {
   const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
@@ -127,7 +150,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const currentRunRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
   const [summarizing, setSummarizing] = useState(false);
-  const [ctxPct, setCtxPct] = useState(() => ctxUsageCache.get(existingSid ?? "") ?? 0);
+  const [ctxPct, setCtxPct] = useState(0);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const [attaches, setAttaches] = useState<AttachItem[]>([]);
@@ -298,7 +321,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ percentage }) => {
       const pct = Math.round(percentage);
       setCtxPct(pct);
-      if (sidRef.current) ctxUsageCache.set(sidRef.current, pct);
+      if (sidRef.current) {
+        window.electronAPI.sessionCache.write(sidRef.current, { contextUsage: pct }).catch(() => {});
+      }
     });
     return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); };
   }, []);

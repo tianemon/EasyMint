@@ -145,6 +145,11 @@ interface ElectronAPI {
     create: (projectId: string, title: string) => Promise<Session>;
     delete: (projectId: string, sessionId: string) => Promise<void>;
   };
+  sessionCache: {
+    read: (sessionId: string) => Promise<{ permissionMode: string; model?: string; contextUsage: number; updatedAt: number } | null>;
+    write: (sessionId: string, data: Record<string, unknown>) => Promise<void>;
+    delete: (sessionId: string) => Promise<void>;
+  };
   systemPrompt: {
     getConfig: () => Promise<{ prompts: { id: string; name: string; content: string; isBuiltin: boolean; createdAt: number; updatedAt: number }[]; defaultPromptId?: string; appendDateTimeAndUserName: boolean }>;
     create: (input: { name: string; content: string }) => Promise<{ id: string; name: string; content: string; isBuiltin: boolean; createdAt: number; updatedAt: number }>;

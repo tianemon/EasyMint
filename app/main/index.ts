@@ -89,6 +89,14 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
       const { seedDefaultMcp } = require("./services/mcp-service");
       seedDefaultMcp();
     } catch { /* ignore */ }
+    // Clean up orphaned session caches
+    try {
+      const { listSessions } = require("@anthropic-ai/claude-agent-sdk");
+      const { purgeOrphanedCaches } = require("./services/session-cache");
+      listSessions().then((all: Array<{ sessionId: string }>) => {
+        purgeOrphanedCaches(new Set(all.map((s: { sessionId: string }) => s.sessionId)));
+      }).catch(() => {});
+    } catch { /* ignore */ }
     // Auto-cleanup old uploads (60 days / 10GB)
     try {
       const { autoClean } = require("./services/upload-cache");

@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import type { SDKSessionInfo, SessionMessage } from "@anthropic-ai/claude-agent-sdk";
+import { deleteCache } from "./session-cache";
 
 const DATA_DIR = path.join(os.homedir(), ".easymint");
 const PINNED_PATH = path.join(DATA_DIR, "pinned-sessions.json");
@@ -130,6 +131,7 @@ export async function deleteSession(sessionId: string, projectPath: string): Pro
   const pinned = readPinned();
   delete pinned[sessionId];
   writePinned(pinned);
+  deleteCache(sessionId);
 }
 
 export async function getSessionInfo(sessionId: string, projectPath: string): Promise<SessionListItem | null> {

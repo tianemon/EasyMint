@@ -58,6 +58,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     archiveSession: (sessionId: string) => ipcRenderer.invoke("conv:archiveSession", { sessionId }),
     unarchiveSession: (sessionId: string) => ipcRenderer.invoke("conv:unarchiveSession", { sessionId }),
   },
+  sessionCache: {
+    read: (sessionId: string) => ipcRenderer.invoke("session-cache:read", { sessionId }),
+    write: (sessionId: string, data: Record<string, unknown>) => ipcRenderer.invoke("session-cache:write", { sessionId, data }),
+    delete: (sessionId: string) => ipcRenderer.invoke("session-cache:delete", { sessionId }),
+  },
   systemPrompt: {
     getConfig: () => ipcRenderer.invoke("system-prompt:get-config"),
     create: (input: { name: string; content: string }) => ipcRenderer.invoke("system-prompt:create", input),
