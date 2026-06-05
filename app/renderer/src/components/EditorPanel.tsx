@@ -39,8 +39,9 @@ function readCSS(name: string): string {
 }
 
 function buildMonacoTheme(): editor.IStandaloneThemeData {
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
   return {
-    base: "vs",
+    base: isDark ? "vs-dark" : "vs",
     inherit: true,
     rules: [
       { token: "comment", foreground: "6B7280", fontStyle: "italic" },

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import type { ActivePanel } from "../pages/ProjectPage";
+import { useThemeStore } from "../stores/theme-store";
 
 interface ToolDef {
   id?: ActivePanel;
@@ -30,6 +31,38 @@ interface LeftToolbarProps {
   onSettings?: () => void;
   onNewProject?: () => void;
   onOpenProject?: () => void;
+}
+
+function ThemeToggleButton(): JSX.Element {
+  const mode = useThemeStore((s) => s.mode);
+  const toggle = useThemeStore((s) => s.toggle);
+
+  const tooltip = mode === "light" ? "亮色" : mode === "dark" ? "暗色" : "自动";
+
+  const icon = mode === "light" ? (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-[17px] h-[17px]">
+      <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+    </svg>
+  ) : mode === "dark" ? (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-[17px] h-[17px]">
+      <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-[17px] h-[17px]">
+      <circle cx="6" cy="12" r="3"/><path d="M9 12h10M14 7l5 5-5 5"/>
+      <path d="M12 2v1M12 21v1M3 4l1 1M20 19l1 1M2 12h1M22 11h-1M4 20l1-1M19 5l1-1" strokeWidth="1" opacity="0.6"/>
+    </svg>
+  );
+
+  return (
+    <button
+      className="w-8 h-8 rounded-md flex items-center justify-center text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary mb-1"
+      data-tooltip={`主题 · ${tooltip}`}
+      onClick={toggle}
+    >
+      {icon}
+    </button>
+  );
 }
 
 export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, onOpenProject }: LeftToolbarProps): JSX.Element {
@@ -126,9 +159,13 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, o
         ))}
       </div>
 
+      {/* Theme + Settings — pinned to bottom */}
+      <div className="mt-auto" />
+      <ThemeToggleButton />
+
       {/* Settings button — pinned to bottom */}
       <button
-        className="w-8 h-8 rounded-md flex items-center justify-center text-text-secondary transition-colors mt-auto hover:bg-surface-hover hover:text-text-primary"
+        className="w-8 h-8 rounded-md flex items-center justify-center text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
         data-tooltip="设置"
         onClick={() => onSettings?.()}
       >
