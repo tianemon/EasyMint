@@ -7,6 +7,9 @@ import { chatActions } from "../stores/chat-actions";
 import { useProjectStatusStore } from "../stores/project-status-store";
 import { useSettingsStore } from "../stores/settings-store";
 
+// Persisted context usage — survives component unmount/remount
+const ctxUsageCache = new Map<string, number>();
+
 function getWorkspaceDir(): string {
   const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
   return `${base.replace(/\/$/, "")}/workspace/`;
@@ -124,7 +127,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const currentRunRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
   const [summarizing, setSummarizing] = useState(false);
-  const [ctxPct, setCtxPct] = useState(0);
+  const [ctxPct, setCtxPct] = useState(() => ctxUsageCache.get(existingSid ?? "") ?? 0);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const [attaches, setAttaches] = useState<AttachItem[]>([]);
@@ -281,10 +284,22 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       scrollToBottom();
     });
     const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (currentRunRef.current && runId !== currentRunRef.current) return; curAi = 0; setLoading(false); setStreaming(false); onActivity?.(); });
-    const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid }) => { if (!sidRef.current) { sidRef.current = realSid; onSessionCreated?.(realSid); } });
+    const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid }) => {
+      if (!sidRef.current) {
+        sidRef.current = realSid;
+        onSessionCreated?.(realSid);
+        // Restore cached usage if available
+        const cached = ctxUsageCache.get(realSid);
+        if (cached !== undefined) setCtxPct(cached);
+      }
+    });
     // Context rotation events
     const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(() => { setSummarizing(true); setStatusText("正在整理会话..."); });
-    const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ percentage }) => { setCtxPct(Math.round(percentage)); });
+    const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ percentage }) => {
+      const pct = Math.round(percentage);
+      setCtxPct(pct);
+      if (sidRef.current) ctxUsageCache.set(sidRef.current, pct);
+    });
     return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); };
   }, []);
 
