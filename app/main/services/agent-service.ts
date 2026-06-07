@@ -12,7 +12,7 @@ import { listTemplates, getTemplate } from "./agent-templates";
 import { buildSkillsPrompt } from "./skill-service";
 import { buildMcpServersOption } from "./mcp-service";
 import { archiveSession } from "./session-service";
-import { CONTEXT_SUMMARY_INSTRUCTION } from "../../shared/prompts";
+import { CONTEXT_SUMMARY_INSTRUCTION, buildSessionInfoAppend, buildContextHandoffPrompt } from "../../shared/prompts";
 
 // Use createRequire for CJS/ESM compatibility in packaged Electron
 type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
@@ -279,10 +279,10 @@ export class AgentService {
     // For resume: inject session identity into the first turn
     if (resumeSessionId) {
       if (!options.systemPrompt) {
-        options.systemPrompt = { type: "preset" as const, preset: "claude_code" as const, append: `<session_info>\n当前会话 ID: ${resumeSessionId}\n</session_info>` };
+        options.systemPrompt = { type: "preset" as const, preset: "claude_code" as const, append: buildSessionInfoAppend(resumeSessionId) };
       } else if (typeof options.systemPrompt === "object" && "append" in options.systemPrompt) {
         const sp = options.systemPrompt as { append?: string };
-        sp.append = (sp.append || "") + `\n\n<session_info>\n当前会话 ID: ${resumeSessionId}\n</session_info>`;
+        sp.append = (sp.append || "") + "\n\n" + buildSessionInfoAppend(resumeSessionId);
       }
     }
 
@@ -404,7 +404,7 @@ export class AgentService {
   async peekUsage(projectPath: string, sessionId: string): Promise<void> {
     try {
       const q = await getQuery();
-      const overrides: Partial<QueryOptions> = { resume: sessionId, maxBypassTurns: 0 };
+      const overrides: Partial<QueryOptions> = { resume: sessionId };
       const options = buildQueryOptions(projectPath, this.store, true, "auto", overrides);
       const queryObj = await q({ prompt: "", options });
       const usage = await queryObj.getContextUsage();
@@ -446,18 +446,7 @@ export class AgentService {
 
     // Build handoff message: project context + summary + documents list
     const projectPath = chat.projectPath;
-    const handoffPrompt = `[系统消息] 这是从上一轮会话迁移过来的项目上下文。请从这个断点继续工作。
-
-<project_context>
-项目路径: ${projectPath}
-请阅读项目中的 CLAUDE.md、docs/需求规格.md、docs/架构设计.md 了解项目背景和技术栈。
-</project_context>
-
-<previous_session_summary>
-${summary}
-</previous_session_summary>
-
-请检查项目当前状态，然后用自然的语气对用户说一句话作为开场，告诉用户会话已整理完毕，接下来继续做什么。开场白以"${continuation}"结尾。`;
+    const handoffPrompt = buildContextHandoffPrompt(projectPath, summary, continuation);
 
     // Archive old session
     if (chat.sessionId) {

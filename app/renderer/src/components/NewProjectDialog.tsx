@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildTechRecommendPrompt, buildInitTriggerPrompt, PROJECT_INIT_INSTRUCTION } from "../../../shared/prompts";
+import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildTechRecommendPrompt, buildInitTriggerPrompt, buildDirectoryTranslationPrompt, buildInitInstruction, detectProfile } from "../../../shared/prompts";
 import { useSettingsStore } from "../stores/settings-store";
 
 function getWorkspaceDir(): string {
@@ -686,7 +686,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
         if (/[^\x00-\x7F]/.test(dirName)) {
           try {
             const translated = await askWorkspace(
-              `[系统消息] 请把"${dirName}"翻译成简短的英文目录名（小写、连字符分隔），直接回复翻译结果不要加任何解释`
+              buildDirectoryTranslationPrompt(dirName)
             );
             if (translated && /^[a-z0-9-]+$/.test(translated.trim())) {
               dirName = translated.trim();
@@ -771,7 +771,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
     setInitializing(true);
     try {
       if (createdProject) {
-        const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), PROJECT_INIT_INSTRUCTION, data.targets);
+        const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), buildInitInstruction(detectProfile(data.targets)), data.targets);
         // Fire-and-forget: don't block navigation waiting for Mint's response.
         // ChatPanel will stream the reply live after mount, and history loads
         // automatically once SDK persists the session.

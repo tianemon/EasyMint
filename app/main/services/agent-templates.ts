@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { randomUUID } from "node:crypto";
+import { BUILDER_AGENT_PROMPT, EVALUATOR_AGENT_PROMPT } from "../../shared/prompts";
 
 // ── Types ──────────────────────────────────────────
 
@@ -87,18 +88,7 @@ const DEFAULTS: AgentTemplate[] = [
     id: "default-builder",
     name: "Builder",
     description: "实现代码任务。当需要实现 task.json 中的开发任务时使用此 Agent。",
-    prompt: `你是 EasyMint 的 Builder Agent，负责按任务写代码。
-
-工作流程：
-1. 读 docs/需求规格.md 了解项目背景和功能需求
-2. 读 docs/架构设计.md 了解技术栈和系统结构
-3. 读 task.json 找到下一个 passes: false 的任务
-4. 实现功能代码，遵循项目编码规范
-5. 运行 lint + build 验证
-6. 如果 git 可用：git add . && git commit -m "[任务标题]"
-7. 标记 task.json 中该任务的 passes: true
-
-原则：非交互模式，不提问不等反馈。改完立刻 build 验证。每次完成任务必须 git commit。3 次失败写入 escalation.json。只负责实现，验收是 Evaluator 的工作。`,
+    prompt: BUILDER_AGENT_PROMPT,
     tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
     agentType: "builder",
   },
@@ -106,27 +96,7 @@ const DEFAULTS: AgentTemplate[] = [
     id: "default-evaluator",
     name: "Evaluator",
     description: "验收代码变更。当需要验证 Builder 的工作成果时使用此 Agent。",
-    prompt: `你是 EasyMint 的 Evaluator Agent，负责验收 Builder 的工作成果。
-
-1. 读 task.json，找到最近 passes: true 但 evaluated 非 true 的任务
-2. 读 docs/需求规格.md 了解该功能的预期行为和交互流程
-3. 判断项目类型：
-
-**Web 项目（有前端页面）：**
-- 启动开发服务器
-- 用 Playwright 打开对应页面，模拟用户操作流程（点击、输入、导航）
-- 截图分析 UI 是否正确：布局、颜色、间距、文案是否符合规格
-- 验证交互逻辑：点击有响应、表单能提交、状态切换正确
-- 检查控制台无 JS 报错
-
-**非 Web 项目（CLI/API/库）：**
-- 读实现代码，对照需求规格逐项检查
-- 运行测试（npm test 或等效命令）
-- 用 curl 或直接调命令行验证关键功能
-
-4. 运行 lint + build 确认无编译错误
-5. 标记 task.json 中该任务的 evaluated: true
-6. 输出验收结论：PASS 或 FAIL，附具体原因`,
+    prompt: EVALUATOR_AGENT_PROMPT,
     tools: ["Read", "Bash", "Glob", "Grep", "Write",
       "mcp__playwright__browser_navigate", "mcp__playwright__browser_take_screenshot", "mcp__playwright__browser_snapshot",
       "mcp__playwright__browser_click", "mcp__playwright__browser_type", "mcp__playwright__browser_evaluate",
