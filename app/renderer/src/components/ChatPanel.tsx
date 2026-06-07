@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { normalizeEvent } from "./StreamPanel";
 import type { StreamEntry } from "./StreamPanel";
-import { TASK_ALLOCATION_INSTRUCTION } from "../../../shared/prompts";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { chatActions } from "../stores/chat-actions";
 import { useProjectStatusStore } from "../stores/project-status-store";
 import { useSettingsStore } from "../stores/settings-store";
+import { QuickPrompts } from "./QuickPrompts";
 
 function getWorkspaceDir(): string {
   const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
@@ -124,6 +124,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const [ctxPct, setCtxPct] = useState(0);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [attaches, setAttaches] = useState<AttachItem[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [permissionMode, setPermissionMode] = useState("auto");
@@ -439,12 +440,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           <div className="flex items-center justify-center h-full"><p className="text-sm text-text-secondary">开始对话，让 Mint 帮你开发项目。</p></div>
         ) : (
           <div className="p-4 space-y-3">
-            {messages.map((msg, idx) => {
-              const isLast = idx === messages.length - 1;
-              const aiText = msg.role === "ai" && msg.entries
-                ? msg.entries.filter((e) => e.kind === "text").map((e) => e.text ?? "").join("") : "";
-              const hasInitPrompt = isLast && aiText.includes("帮我初始化开发环境");
-              const hasTaskPrompt = isLast && aiText.includes("开始分配开发任务") && stage === "planning";
+            {messages.map((msg) => {
               return (
                 <div key={msg.id} className="msg-in">
                   {msg.role === "user" ? (
@@ -454,18 +450,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                       <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-2 overflow-hidden">
                         {buildBlocks(msg.entries, String(msg.id)).map((block, i) => <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={streaming} />)}
                       </div>
-                      {hasInitPrompt && !loading && (
-                        <button className="mt-2 self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/30 text-accent text-xs hover:bg-accent/20 transition-colors" onClick={() => sendText("帮我初始化开发环境")}>
-                          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M1 7h10M9 3l4 4-4 4"/></svg>
-                          帮我初始化开发环境
-                        </button>
-                      )}
-                      {hasTaskPrompt && !loading && (
-                        <button className="mt-2 self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/30 text-accent text-xs hover:bg-accent/20 transition-colors" onClick={() => sendText(TASK_ALLOCATION_INSTRUCTION)}>
-                          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M1 7h10M9 3l4 4-4 4"/></svg>
-                          开始分配开发任务
-                        </button>
-                      )}
                     </div>
                   ) : null}
                 </div>
@@ -492,6 +476,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           <span>正在进行会话摘要，将在新会话继续。</span>
         </div>
       )}
+
+      {/* Quick prompts */}
+      <QuickPrompts
+        stage={stage}
+        onSend={(text) => sendText(text)}
+        onFill={() => textareaRef.current?.focus()}
+      />
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-1.5 bg-surface shrink-0">
@@ -522,6 +513,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         )}
         <div className="flex gap-2 items-end">
           <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}

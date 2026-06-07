@@ -321,6 +321,17 @@ export const TASK_ALLOCATION_INSTRUCTION = `[系统消息] 基于已拆解好的
 
 输出：覆盖 task.json，原始 JSON 不带 Markdown 代码块。完成后告知用户任务分配情况，并提示点击任务面板的「执行任务」按钮启动自动化开发。不要自己开始执行任务。无需开发则写入空 tasks 数组。`;
 
+// ── 快捷提示词 ────────────────────────────────────────
+
+/** 分析用户需求，给出功能清单和技术方案建议 */
+export const ANALYZE_REQUIREMENTS_PROMPT = `[系统消息] 请分析用户的项目需求，梳理功能清单，给出技术方案建议。如果需求有不清楚或矛盾的地方，主动向用户确认。`;
+
+/** 继续执行 task.json 中的下一个未完成任务 */
+export const CONTINUE_EXECUTION_PROMPT = `[系统消息] 继续执行 task.json 中的下一个未完成任务。`;
+
+/** 查看当前任务进度 */
+export const CHECK_PROGRESS_PROMPT = `[系统消息] 查看当前项目进度，汇报 task.json 中已完成和未完成的任务，以及下一步计划。`;
+
 // ── Mint按钮 ──────────────────────────────────────────
 
 export const CONTINUE_NEXT_STEP = `[系统消息] 检查项目当前阶段和进度，总结当前状态，然后继续推进下一步工作。`;
