@@ -157,7 +157,7 @@ function TaskRow({ task }: { task: { id: string; title: string; description?: st
 
 export function TaskPanel({ projectPath, onCollapse, onMintClick }: TaskPanelProps): JSX.Element {
   const { tasks } = useTaskStore();
-  const { timeline, doneCount, taskCount } = useProjectStatusStore();
+  const { stage, timeline, doneCount, taskCount } = useProjectStatusStore();
   const [hovered, setHovered] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -237,13 +237,27 @@ export function TaskPanel({ projectPath, onCollapse, onMintClick }: TaskPanelPro
       </div>
 
       {/* Mint button */}
-      <div className="shrink-0 px-3 pb-2 flex flex-col items-center">
-        <button onClick={handleMintClick}
-          className="w-full h-12 rounded-xl bg-accent-bg hover:bg-accent-border border border-accent-border-strong flex items-center justify-center transition-colors group">
-          <span className="mint-shimmer text-2xl select-none group-hover:scale-105 transition-transform tracking-[0.1em]" style={{ fontFamily: "'Snell Roundhand', 'Apple Chancery', 'Brush Script MT', 'Segoe Script', cursive" }}>Mint</span>
-        </button>
-        <p className="text-[10px] text-text-secondary mt-1.5 opacity-60">如果你不知道要做什么，就点一下</p>
-      </div>
+      {(() => {
+        const pending = (taskCount || 0) - (doneCount || 0);
+        const hints: Record<string, string> = {
+          requirements: "告诉 Mint 你想做什么",
+          "tech-selection": "帮项目确定技术方案",
+          init: "生成文档，搭建项目骨架",
+          planning: "把需求拆成开发任务",
+          developing: pending > 0 ? `还有 ${pending} 个任务，点此推进` : "点此推进任务",
+          done: "想加新功能？跟 Mint 说",
+        };
+        const hint = !projectPath ? "打开或创建一个项目开始使用" : hints[stage] || hints["requirements"]!;
+        return (
+          <div className="shrink-0 px-3 pb-2 flex flex-col items-center">
+            <button onClick={handleMintClick}
+              className="w-full h-12 rounded-xl bg-accent-bg hover:bg-accent-border border border-accent-border-strong flex items-center justify-center transition-colors group">
+              <span className="mint-shimmer text-2xl select-none group-hover:scale-105 transition-transform tracking-[0.125em]">Mint</span>
+            </button>
+            <p className="text-[10px] text-text-secondary mt-1.5 opacity-60">{hint}</p>
+          </div>
+        );
+      })()}
     </div>
   );
 }

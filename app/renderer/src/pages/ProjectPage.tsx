@@ -264,6 +264,11 @@ switch (activeTab.type) {
 
         {collapsedRight ? <div /> : (
           <TaskPanel projectPath={projectPath} onCollapse={toggleRight} onMintClick={async () => {
+            // 无项目 → 打开新建项目弹窗
+            if (!projectPath) {
+              setShowNewProject(true);
+              return;
+            }
             const ts = useTabStore.getState();
 
             // 优先：已有 Mint 会话 Tab → 激活

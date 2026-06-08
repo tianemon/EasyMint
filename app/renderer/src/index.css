@@ -538,12 +538,16 @@ select.input {
 
 /* ── Mint button shimmer ──────────────────────────────── */
 
+/* Mint 签名内嵌字体 */
+@font-face { font-family: 'Mint'; src: url('./assets/fonts/dancing-script.woff2') format('woff2'); }
+
 @keyframes mintShimmer {
   0%   { background-position: 300% 0; }
   100% { background-position: -300% 0; }
 }
 
 .mint-shimmer {
+  font-family: 'Mint', 'Snell Roundhand', 'Apple Chancery', 'Brush Script MT', 'Segoe Script', cursive;
   background: linear-gradient(
     90deg,
     #60a5fa 0%,
