@@ -274,6 +274,34 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (!currentRunRef.current) { currentRunRef.current = event.runId; setCurrentRunId(event.runId); }
       setLoading(true); setStreaming(true);
       if (event.type === "status") { setStatusText(typeof event.data.text === "string" ? event.data.text : "处理中..."); return; }
+      if (event.type === "tool_use") {
+        const name = typeof event.data.name === "string" ? event.data.name : "";
+        const input = event.data.input as Record<string, unknown> | undefined;
+        const labels: Record<string, string> = {
+          Bash: "执行命令", Read: "读取文件", Write: "写入文件", Edit: "编辑文件",
+          Grep: "搜索内容", Glob: "搜索文件", WebFetch: "抓取网页", WebSearch: "搜索网页",
+          Task: "调用子 Agent", TodoWrite: "更新待办",
+        };
+        let label = labels[name] || name;
+        if (name.startsWith("mcp__")) {
+          const parts = name.split("__");
+          label = `MCP: ${parts[1] || "工具"}`;
+        }
+        // Append context for relevant tools
+        if (name === "Bash") {
+          const cmd = input?.command as string | undefined;
+          if (cmd) label += `: ${cmd.length > 50 ? cmd.slice(0, 50) + "…" : cmd}`;
+        } else if (name === "Task") {
+          const agent = input?.subagent_type as string | undefined;
+          if (agent) label += `: ${agent}`;
+        } else {
+          const ctx = (input?.file_path || input?.filePath || input?.url || input?.query || input?.pattern || input?.target_file) as string | undefined;
+          if (ctx && typeof ctx === "string" && ctx.length < 80) {
+            label += `: ${ctx.split("/").pop() || ctx}`;
+          }
+        }
+        if (label) setStatusText(label);
+      }
       const entry = normalizeEvent(event); if (!entry) return;
       if (!curAi) { curAi = ++msgIdRef.current; setMessages((prev) => [...prev, { id: curAi, role: "ai", entries: [entry], timestamp: entry.timestamp }]); }
       else setMessages((prev) => prev.map((m) => m.id === curAi ? { ...m, entries: [...(m.entries || []), entry], timestamp: entry.timestamp } : m));

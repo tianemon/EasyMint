@@ -173,8 +173,8 @@
   --color-accent-light: #aaaaaa;
 
   /* ── Chat bubbles ───────────────── */
-  --color-user-bubble: #b0b0b0;
-  --color-user-bubble-text: #050505;
+  --color-user-bubble: #222222;
+  --color-user-bubble-text: #ffffff;
 
   /* ── Semantic — 仅 success 保留绿 ── */
   --color-success: #22c55e;
