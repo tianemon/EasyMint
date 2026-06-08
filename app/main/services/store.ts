@@ -45,6 +45,8 @@ interface Settings {
   setupComplete?: boolean;
   contextThreshold?: number;
   context1M?: boolean;
+  showThinking?: boolean;
+  showToolUse?: boolean;
 }
 
 const EM_DEFAULTS = {
@@ -126,6 +128,8 @@ export class Store {
       lastProjectId: emData.lastProjectId as string | undefined,
       contextThreshold: (emData.contextThreshold as number) ?? EM_DEFAULTS.contextThreshold,
       context1M: (emData.context1M as boolean) ?? false,
+      showThinking: emData.showThinking as boolean | undefined,
+      showToolUse: emData.showToolUse as boolean | undefined,
     };
   }
 
@@ -159,6 +163,8 @@ export class Store {
     if (settings.availableModels) data.availableModels = settings.availableModels;
     if (settings.apiKeys) data.apiKeys = settings.apiKeys;
     if (settings.context1M !== undefined) data.context1M = settings.context1M;
+    if (settings.showThinking !== undefined) data.showThinking = settings.showThinking;
+    if (settings.showToolUse !== undefined) data.showToolUse = settings.showToolUse;
     fs.writeFileSync(this.emSettingsPath, JSON.stringify(data, null, 2));
   }
 

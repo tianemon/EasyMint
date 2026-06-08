@@ -16,6 +16,8 @@ interface SettingsState {
   thinkingBudget: number;
   contextThreshold: number;
   context1M: boolean;
+  showThinking: boolean;
+  showToolUse: boolean;
   setEvaluateMode: (enabled: boolean) => void;
   setTddMode: (enabled: boolean) => void;
   setScreenshotVerification: (enabled: boolean) => void;
@@ -27,6 +29,8 @@ interface SettingsState {
   setThinkingBudget: (budget: number) => void;
   setContextThreshold: (pct: number) => void;
   setContext1M: (enabled: boolean) => void;
+  setShowThinking: (enabled: boolean) => void;
+  setShowToolUse: (enabled: boolean) => void;
   loadFromElectron: () => Promise<void>;
 }
 
@@ -47,6 +51,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   thinkingBudget: 0,
   contextThreshold: 60,
   context1M: false,
+  showThinking: true,
+  showToolUse: true,
 
   setModel: (model: string) => {
     set({ model });
@@ -94,6 +100,14 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     set({ context1M: enabled });
     window.electronAPI?.settings?.set?.("context1M", enabled);
   },
+  setShowThinking: (enabled: boolean) => {
+    set({ showThinking: enabled });
+    window.electronAPI?.settings?.set?.("showThinking", enabled);
+  },
+  setShowToolUse: (enabled: boolean) => {
+    set({ showToolUse: enabled });
+    window.electronAPI?.settings?.set?.("showToolUse", enabled);
+  },
 
   loadFromElectron: async () => {
     try {
@@ -112,6 +126,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
           thinkingBudget: 0,
           contextThreshold: settings.contextThreshold ?? 60,
           context1M: settings.context1M ?? false,
+          showThinking: settings.showThinking ?? true,
+          showToolUse: settings.showToolUse ?? true,
           setupComplete: settings.setupComplete ?? false,
         });
       }

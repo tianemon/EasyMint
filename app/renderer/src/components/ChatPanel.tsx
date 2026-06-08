@@ -3,9 +3,9 @@ import { normalizeEvent } from "./StreamPanel";
 import type { StreamEntry } from "./StreamPanel";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { chatActions } from "../stores/chat-actions";
-import { useProjectStatusStore } from "../stores/project-status-store";
 import { useSettingsStore } from "../stores/settings-store";
 import { QuickPrompts } from "./QuickPrompts";
+import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
 
 function getWorkspaceDir(): string {
   const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
@@ -38,7 +38,7 @@ function mapSessionMessages(msgs: Array<{ type: string; message: unknown }>): Ch
       const text = typeof content === "string" ? content : Array.isArray(content)
         ? content.map((b: unknown) => (b as { text?: string })?.text ?? "").join("")
         : "";
-      if (text && !text.includes("Request interrupted") && !text.includes("No response requested")) {
+      if (text && !text.includes("Request interrupted") && !text.includes("No response requested") && !text.includes("<command-") && !text.includes("<local-command-") && !/set model to/i.test(text)) {
         const { attaches, cleanText } = parseAttachMarkers(text);
         mapped.push({ id: ++nextId, role: "user", text: cleanText, attaches: attaches.length > 0 ? attaches : undefined, timestamp: ts });
       }
@@ -49,7 +49,7 @@ function mapSessionMessages(msgs: Array<{ type: string; message: unknown }>): Ch
         for (const block of content) {
           const b = block as { type?: string; text?: string; thinking?: string; name?: string; input?: unknown; tool_use_id?: string; content?: unknown; is_error?: boolean };
           if (b.type === "text" && b.text) {
-            if (!b.text.includes("Request interrupted") && !b.text.includes("No response requested")) {
+            if (!b.text.includes("Request interrupted") && !b.text.includes("No response requested") && !b.text.includes("<command-") && !b.text.includes("<local-command-") && !/set model to/i.test(b.text)) {
               entries.push({ kind: "text", text: b.text, timestamp: ts });
             }
           } else if (b.type === "thinking" && b.thinking) {
@@ -131,6 +131,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const storeModel = useSettingsStore((s) => s.model);
   const setStoreModel = useSettingsStore((s) => s.setModel);
   const availableModels = useSettingsStore((s) => s.availableModels);
+  const showThinking = useSettingsStore((s) => s.showThinking);
+  const showToolUse = useSettingsStore((s) => s.showToolUse);
   const [chatModel, setChatModel] = useState("");
   const [balanceText, setBalanceText] = useState("");
 
@@ -152,7 +154,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (sid) { window.electronAPI.agent.setModel(sid, m).catch(() => {}); }
   }, [setStoreModel]);
 
-  const stage = useProjectStatusStore((s) => s.stage);
   const msgIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
@@ -373,6 +374,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   }, [handleSend]);
 
   const hasMessages = messages.length > 0;
+
+  // Detect "确认开发" button trigger
+  const lastAiText = messages.length > 0
+    ? messages.filter((m) => m.role === "ai" && m.entries).pop()?.entries
+        ?.filter((e) => e.kind === "text").map((e) => (e as { text: string }).text).join("") ?? ""
+    : "";
+  const showConfirmDev = lastAiText.includes("确认开发") && !loading;
   const canSend = input.trim() || attaches.length > 0;
 
   // ── Attach preview (shared between both positions) ─
@@ -446,15 +454,43 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                   {msg.role === "user" ? (
                     <div className="flex justify-end"><UserBubble msg={msg} /></div>
                   ) : msg.entries ? (
-                    <div className="flex flex-col max-w-[85%]">
-                      <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-2 overflow-hidden">
-                        {buildBlocks(msg.entries, String(msg.id)).map((block, i) => <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={streaming} />)}
+                    msg.entries.filter((e) => {
+                      // Suppress model-switch hook output regardless of event type
+                      const t = (e as { text?: string; message?: string; content?: string }).text
+                            || (e as { message?: string }).message
+                            || (e as { content?: string }).content
+                            || "";
+                      if (e.kind === "text") return true;
+                      if (e.kind === "thinking") return showThinking;
+                      return showToolUse;
+                    }).length === 0 ? null : (
+                      <div className="flex flex-col max-w-[85%]">
+                        <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-2 overflow-hidden">
+                          {buildBlocks(
+                            msg.entries.filter((e) => {
+                              if (e.kind === "text") return true;
+                              if (e.kind === "thinking") return showThinking;
+                              return showToolUse;
+                            }),
+                            String(msg.id)
+                          ).map((block, i) => <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={streaming} />)}
+                        </div>
                       </div>
-                    </div>
+                    )
                   ) : null}
                 </div>
               );
             })}
+            {showConfirmDev && (
+              <div className="flex justify-center pb-3">
+                <button
+                  onClick={() => sendText(CONFIRM_DEVELOPMENT_PROMPT)}
+                  className="px-6 py-2.5 rounded-xl bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors shadow-sm"
+                >
+                  确认开发
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -476,13 +512,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           <span>正在进行会话摘要，将在新会话继续。</span>
         </div>
       )}
-
-      {/* Quick prompts */}
-      <QuickPrompts
-        stage={stage}
-        onSend={(text) => sendText(text)}
-        onFill={() => textareaRef.current?.focus()}
-      />
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-1.5 bg-surface shrink-0">
@@ -523,21 +552,28 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             disabled={summarizing}
             className="flex-1 min-h-[90px] resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed"
           />
-          {summarizing ? (
-            <div className="w-9 h-9 rounded-md bg-surface-alt border border-border flex items-center justify-center shrink-0 opacity-40 cursor-not-allowed">
-              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
-            </div>
-          ) : (loading || streaming) ? (
-            <button onClick={() => { stoppedRef.current = true; const rid = currentRunRef.current; if (rid) window.electronAPI.agent.abort(rid); setLoading(false); setStreaming(false); }}
-              className="w-9 h-9 rounded-md bg-danger-bg text-danger flex items-center justify-center hover:bg-danger-bg transition-colors shrink-0">
-              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
-            </button>
-          ) : (
-            <button onClick={handleSend} disabled={!canSend}
-              className="w-9 h-9 rounded-md bg-accent text-text-inverse flex items-center justify-center hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0">
-              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
-            </button>
-          )}
+          <div className="flex flex-col gap-1.5 shrink-0">
+            {!summarizing && (
+              <QuickPrompts
+                onFill={(text) => { setInput(text); textareaRef.current?.focus(); }}
+              />
+            )}
+            {summarizing ? (
+              <div className="w-9 h-9 rounded-md bg-surface-alt border border-border flex items-center justify-center opacity-40 cursor-not-allowed">
+                <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
+              </div>
+            ) : (loading || streaming) ? (
+              <button onClick={() => { stoppedRef.current = true; const rid = currentRunRef.current; if (rid) window.electronAPI.agent.abort(rid); setLoading(false); setStreaming(false); }}
+                className="w-9 h-9 rounded-md bg-danger-bg text-danger flex items-center justify-center hover:bg-danger-bg transition-colors">
+                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
+              </button>
+            ) : (
+              <button onClick={handleSend} disabled={!canSend}
+                className="w-9 h-9 rounded-md bg-accent text-text-inverse flex items-center justify-center hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
+              </button>
+            )}
+          </div>
         </div>
       </div>
       {/* Image lightbox */}

@@ -168,8 +168,8 @@ export function normalizeEvent(event: StreamEvent): StreamEntry | null {
 
   switch (type) {
     case "user_message": {
-      const text = typeof data.text === "string" ? data.text : "";
-      return { kind: "user_message", text, timestamp, source };
+      // Internal SDK commands (e.g. /model), suppress from chat display
+      return null;
     }
     case "assistant": {
       // Separate thinking (delta) from final text
@@ -177,6 +177,8 @@ export function normalizeEvent(event: StreamEvent): StreamEntry | null {
         return { kind: "thinking", text: data.delta, timestamp, source };
       }
       const text = typeof data.text === "string" ? data.text : "";
+      // Suppress internal hook output (e.g. /model command feedback)
+      if (text.includes("<command-") || text.includes("<local-command-") || /set model to/i.test(text)) return null;
       return { kind: "text", text, timestamp, source };
     }
     case "message_delta": {
