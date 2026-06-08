@@ -55,66 +55,54 @@ export const useProjectStatusStore = create<ProjectStatusState>((set) => ({
     if (!path) return;
     set({ projectPath: path });
 
-    // Load saved stage times from .easymint/state.json
-    let saved: Record<string, number> = {};
+    // Read state.json facts — Mint writes these at key milestones
+    let facts: Record<string, unknown> = {};
+    let stageTimes: Record<string, number> = {};
     try {
       const s = await window.electronAPI.project.readState(path);
-      if (s?.stageTimes) saved = s.stageTimes as unknown as Record<string, number>;
+      if (s) {
+        facts = s;
+        if (s.stageTimes) stageTimes = s.stageTimes as unknown as Record<string, number>;
+      }
     } catch { /* ignore */ }
 
-    // Check files
-    let hasAppSpec = false;
-    let initDone = false;
-    let hasInitSh = false;
-    let realTasks: { id: string; passes: boolean }[] = [];
-    let taskCount = 0;
+    const initCompleted = facts.initCompleted as boolean | undefined;
+    const docsLevel = facts.docsLevel as string | undefined;
+    const factTaskCount = facts.taskCount as number | undefined;
 
-    try {
-      const rootFiles = await window.electronAPI.file.readTree(path);
-      hasAppSpec = rootFiles.some((f: { name: string }) => f.name === "需求规格.md");
-      if (!hasAppSpec) {
-        try {
-          const docsFiles = await window.electronAPI.file.readTree(path + "/docs");
-          hasAppSpec = docsFiles.some((f: { name: string; isDirectory?: boolean }) =>
-            !f.isDirectory && f.name === "需求规格.md"
-          );
-        } catch { /* */ }
-      }
-    } catch { /* */ }
-
-    try {
-      const r = await window.electronAPI.project.checkInitStatus(path);
-      hasInitSh = true;
-      initDone = !!r.done;
-    } catch { /* */ }
-
+    // Read task.json for real pass/fail status
+    let doneCount = 0;
     try {
       const r = await window.electronAPI.task.read(path);
-      realTasks = (r.tasks || []).filter((t: { title: string }) => !t.title.includes("{{"));
-      taskCount = (r.tasks || []).length;
+      const tasks = (r.tasks || []).filter((t: { title: string }) => !t.title.includes("{{"));
+      doneCount = tasks.filter((t) => t.passes).length;
     } catch { /* */ }
 
-    const doneCount = realTasks.filter((t) => t.passes).length;
-
-    // Determine stage
+    // Derive stage from facts + task.json reality
     let stage: ProjectStage;
-    if (!hasAppSpec) stage = "requirements";
-    else if (!hasInitSh) stage = "tech-selection";
-    else if (!initDone) stage = "init";
-    else if (realTasks.length === 0) stage = "planning";
-    else if (realTasks.every((t) => t.passes)) stage = "done";
-    else stage = "developing";
+    if (initCompleted === undefined) {
+      stage = "requirements"; // Nothing recorded yet
+    } else if (!initCompleted) {
+      stage = "init";
+    } else if (factTaskCount === undefined) {
+      stage = docsLevel === "none" ? "done" : "planning";
+    } else if (factTaskCount === 0) {
+      stage = "planning";
+    } else if (doneCount >= factTaskCount && factTaskCount > 0) {
+      stage = "done";
+    } else {
+      stage = "developing";
+    }
 
-    // Record timestamps for completed stages in old stage detection
+    // Update stageTimes
     const now = Date.now();
-    const stageTimes: Record<string, number> = { ...saved };
+    const saved: Record<string, number> = { ...stageTimes };
     const completedUpTo = STAGE_ORDER.indexOf(stage);
     for (let i = 0; i < completedUpTo; i++) {
       if (!stageTimes[STAGE_ORDER[i]!]) stageTimes[STAGE_ORDER[i]!] = now;
     }
-    // Persist if changed
     if (JSON.stringify(stageTimes) !== JSON.stringify(saved)) {
-      window.electronAPI.project.writeState(path, { stageTimes }).catch(() => {});
+      window.electronAPI.project.writeState(path, { ...facts, stageTimes }).catch(() => {});
     }
 
     // Build timeline
@@ -126,7 +114,7 @@ export const useProjectStatusStore = create<ProjectStatusState>((set) => ({
       time: fmtTime(stageTimes[s]),
     }));
 
-    set({ stage, timeline, taskCount, doneCount });
+    set({ stage, timeline, taskCount: factTaskCount ?? 0, doneCount });
   },
 
   reset: () => set({

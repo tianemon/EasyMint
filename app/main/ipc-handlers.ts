@@ -246,14 +246,20 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     } catch { return null; }
   });
 
-  // project:writeState — write .easymint/state.json in project
+  // project:writeState — merge-write .easymint/state.json in project
   ipcMain.handle("project:writeState", (_e, { projectPath, state }) => {
     try {
       const p = require("path");
       const fs = require("fs");
       const dir = p.join(projectPath, ".easymint");
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(p.join(dir, "state.json"), JSON.stringify(state, null, 2));
+      const filePath = p.join(dir, "state.json");
+      let existing: Record<string, unknown> = {};
+      if (fs.existsSync(filePath)) {
+        try { existing = JSON.parse(fs.readFileSync(filePath, "utf-8")); } catch { /* overwrite */ }
+      }
+      const merged = { ...existing, ...(state as Record<string, unknown>) };
+      fs.writeFileSync(filePath, JSON.stringify(merged, null, 2));
       return true;
     } catch { return false; }
   });
