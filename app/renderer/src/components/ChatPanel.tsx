@@ -135,10 +135,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const showToolUse = useSettingsStore((s) => s.showToolUse);
   const [chatModel, setChatModel] = useState("");
   const HISTORY_KEY = "easymint_input_history";
-  const inputHistoryRef = useRef<string[]>(() => {
-    try { const v = localStorage.getItem(HISTORY_KEY); return v ? JSON.parse(v) : []; }
-    catch { return []; }
-  });
+  const inputHistoryRef = useRef<string[]>(
+    (() => { try { const v = localStorage.getItem(HISTORY_KEY); return v ? JSON.parse(v) : []; } catch { return []; } })()
+  );
   const historyPosRef = useRef(-1);
   const savedInputRef = useRef("");
   const persistHistory = () => {
