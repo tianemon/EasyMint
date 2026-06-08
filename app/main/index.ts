@@ -3,7 +3,7 @@ import fs from "fs";
 import { app, BrowserWindow, shell, ipcMain, Menu } from "electron";
 import path from "path";
 
-process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint");
+process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint").replace(/\\/g, "/");
 // Redirect Electron userData to our directory so all data lives in one place
 app.setPath("userData", path.join(os.homedir(), ".easymint", "electron"));
 
@@ -115,11 +115,11 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
       const fs = require("fs");
       const sdkDir = path.join(os.homedir(), ".easymint", "projects");
       if (fs.existsSync(sdkDir)) {
-        const projects = store.getProjects().map((p: { path: string }) => p.path.replace(/\//g, "-"));
+        const projects = store.getProjects().map((p: { path: string }) => p.path.replace(/[:/\\]/g, "-"));
         // Keep the fallback workspace (no-project sessions use this dir)
         const defaultDir = store.getSettings().defaultProjectDir || path.join(os.homedir(), "EasyMintProject");
         const workspacePath = defaultDir.startsWith("~") ? path.join(os.homedir(), defaultDir.slice(1), "workspace") : path.join(defaultDir, "workspace");
-        const workspaceKey = workspacePath.replace(/\//g, "-");
+        const workspaceKey = workspacePath.replace(/[:/\\]/g, "-");
         projects.push(workspaceKey);
         for (const entry of fs.readdirSync(sdkDir)) {
           if (!projects.includes(entry)) {
@@ -135,6 +135,14 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
   }
 
   loadApp(window, hash);
+
+  // Defer Python dependency install to after UI is ready (avoids blocking startup)
+  setTimeout(() => {
+    try {
+      const { installImageVisionDeps } = require("./services/mcp-service");
+      installImageVisionDeps();
+    } catch { /* ignore */ }
+  }, 2000);
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);

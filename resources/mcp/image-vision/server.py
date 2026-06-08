@@ -9,43 +9,18 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
-CONFIG_DIR = Path.home() / ".config" / "image-vision"
-CONFIG_FILE = CONFIG_DIR / "config.json"
-
-
-def _load_api_key() -> str | None:
-    # env var 优先，其次读配置文件
-    key = os.environ.get("VISION_API_KEY")
-    if key:
-        return key
-    if CONFIG_FILE.exists():
-        try:
-            return json.loads(CONFIG_FILE.read_text()).get("api_key")
-        except Exception:
-            return None
-    return None
-
-
 VISION_BASE_URL = os.environ.get(
     "VISION_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"
 )
 VISION_MODEL = os.environ.get("VISION_MODEL", "qwen3.6-flash")
-VISION_API_KEY = _load_api_key()
-
-SETUP_MSG = """image-vision 尚未配置。请提供 API Key：
-
-在终端中设置环境变量（推荐）：
-  export VISION_API_KEY="sk-your-key-here"
-
-或在此对话中说「帮我配置 image-vision」，调用 configure 工具保存。
-申请地址：https://dashscope.console.aliyun.com/"""
+VISION_API_KEY = os.environ.get("VISION_API_KEY")
 
 server = Server("image-vision")
 
 
 @server.list_tools()
 async def list_tools():
-    tools = [
+    return [
         Tool(
             name="describe_image",
             description="描述图片内容。支持本地路径或 URL。",
@@ -70,21 +45,7 @@ async def list_tools():
                 "required": ["paths"],
             },
         ),
-        Tool(
-            name="configure",
-            description="保存 API Key 到本地配置文件（~/.config/image-vision/config.json）。环境变量优先级更高。",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "api_key": {"type": "string", "description": "视觉模型 API Key"},
-                    "base_url": {"type": "string", "description": "API 地址，默认 DashScope"},
-                    "model": {"type": "string", "description": "模型名，默认 qwen3.6-flash"},
-                },
-                "required": ["api_key"],
-            },
-        ),
     ]
-    return tools
 
 
 async def _call_vision(image_content: dict, prompt: str | None = None) -> str:
@@ -106,7 +67,11 @@ async def _call_vision(image_content: dict, prompt: str | None = None) -> str:
             json=body,
         )
         resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
+        data = resp.json()
+        choices = data.get("choices", [])
+        if not choices:
+            raise ValueError(f"Vision API returned empty choices: {resp.text[:200]}")
+        return choices[0]["message"]["content"]
 
 
 def _build_image_content(source: str) -> dict:
@@ -124,18 +89,8 @@ def _build_image_content(source: str) -> dict:
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict):
-    if name == "configure":
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        cfg = {"api_key": arguments["api_key"]}
-        if arguments.get("base_url"):
-            cfg["base_url"] = arguments["base_url"]
-        if arguments.get("model"):
-            cfg["model"] = arguments["model"]
-        CONFIG_FILE.write_text(json.dumps(cfg, indent=2))
-        return [TextContent(type="text", text="配置已保存。重启 Claude Code 后生效。")]
-
     if not VISION_API_KEY:
-        return [TextContent(type="text", text=SETUP_MSG)]
+        return [TextContent(type="text", text="VISION_API_KEY 未配置。请在 EasyMint 设置 → 通用 → API Key 中填写。")]
 
     if name == "describe_image":
         img = _build_image_content(arguments["path"])

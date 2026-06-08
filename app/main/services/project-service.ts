@@ -75,7 +75,7 @@ export class ProjectService {
       // Clean up SDK session directory
       try {
         const sdkProjectsDir = path.join(os.homedir(), ".easymint", "projects");
-        const encodedPath = project.path.replace(/[/\\]/g, "-");
+        const encodedPath = project.path.replace(/[:/\\]/g, "-");
         const sdkDir = path.join(sdkProjectsDir, encodedPath);
         if (fs.existsSync(sdkDir)) fs.rmSync(sdkDir, { recursive: true, force: true });
       } catch (e) { console.error("删除 SDK session 目录失败:", e); }

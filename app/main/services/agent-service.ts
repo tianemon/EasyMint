@@ -119,12 +119,12 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
   const defaultDir = store.getSettings().defaultProjectDir || path.join(os.homedir(), "EasyMintProject");
   const baseDir = defaultDir.startsWith("~") ? path.join(os.homedir(), defaultDir.slice(1)) : defaultDir;
   const resolvedPath = projectPath || path.join(baseDir, "workspace");
-  const cwd = path.resolve(resolvedPath.startsWith("~") ? path.join(os.homedir(), resolvedPath.slice(1)) : resolvedPath);
+  const cwd = path.resolve(resolvedPath.startsWith("~") ? path.join(os.homedir(), resolvedPath.slice(1)) : resolvedPath).replace(/\\/g, "/");
   if (!fs.existsSync(cwd)) fs.mkdirSync(cwd, { recursive: true });
   console.log("[buildQueryOptions] projectPath=%s → cwd=%s", projectPath || "(empty)", cwd);
 
   const settings = store.getSettings();
-  const configDir = path.join(os.homedir(), ".easymint");
+  const configDir = path.join(os.homedir(), ".easymint").replace(/\\/g, "/");
   const env: Record<string, string> = {
     ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => typeof v === "string")) as Record<string, string>,
     CLAUDE_CONFIG_DIR: configDir,
