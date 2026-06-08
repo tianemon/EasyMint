@@ -289,12 +289,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         const labels: Record<string, string> = {
           Bash: "执行命令", Read: "读取文件", Write: "写入文件", Edit: "编辑文件",
           Grep: "搜索内容", Glob: "搜索文件", WebFetch: "抓取网页", WebSearch: "搜索网页",
-          Task: "调用子 Agent", TodoWrite: "更新待办",
+          Task: "Agent", TodoWrite: "待办",
         };
         let label = labels[name] || name;
-        if (name.startsWith("Skill__")) {
-          const skillName = name.slice(7); // Remove "Skill__" prefix
-          label = `调用 Skill: ${skillName}`;
+        const skillInInput = input?.skill as string | undefined;
+        if (skillInInput) {
+          label = `调用 Skill: ${skillInInput}`;
+        } else if (name.startsWith("Skill__")) {
+          label = `调用 Skill: ${name.slice(7)}`;
         } else if (name.startsWith("mcp__")) {
           const parts = name.split("__");
           label = `MCP: ${parts[1] || "工具"}`;
@@ -305,7 +307,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           if (cmd) label += `: ${cmd.length > 50 ? cmd.slice(0, 50) + "…" : cmd}`;
         } else if (name === "Task") {
           const agent = input?.subagent_type as string | undefined;
-          if (agent) label += `: ${agent}`;
+          label = agent ? `调用 Agent: ${agent}` : "调用 Agent";
         } else {
           const ctx = (input?.file_path || input?.filePath || input?.url || input?.query || input?.pattern || input?.target_file) as string | undefined;
           if (ctx && typeof ctx === "string" && ctx.length < 80) {
