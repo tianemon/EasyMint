@@ -27,7 +27,7 @@ interface ProjectStatusState {
   reset: () => void;
 }
 
-const STAGE_ORDER: ProjectStage[] = ["requirements", "tech-selection", "init", "planning", "developing", "done"];
+const STAGE_ORDER: ProjectStage[] = ["requirements", "tech-selection", "planning", "init", "developing", "done"];
 
 const STAGE_LABELS: Record<ProjectStage, string> = {
   requirements: "需求采集",

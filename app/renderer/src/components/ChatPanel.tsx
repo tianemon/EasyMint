@@ -302,6 +302,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         }
         if (label) setStatusText(label);
       }
+      // Task subagent completion → refresh project status
+      if (event.type === "tool_result" && (event.data as { tool_use_id?: string }).tool_use_id) {
+        onActivity?.();
+      }
       const entry = normalizeEvent(event); if (!entry) return;
       if (!curAi) { curAi = ++msgIdRef.current; setMessages((prev) => [...prev, { id: curAi, role: "ai", entries: [entry], timestamp: entry.timestamp }]); }
       else setMessages((prev) => prev.map((m) => m.id === curAi ? { ...m, entries: [...(m.entries || []), entry], timestamp: entry.timestamp } : m));
@@ -529,8 +533,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       )}
 
       {(streaming || loading) && (
-        <div className="flex items-center px-4 py-1.5 text-text-secondary text-xs bg-surface-alt/50 shrink-0">
-          <span>{statusText}</span>
+        <div className="flex items-center px-4 py-1.5 bg-surface-alt/50 shrink-0">
+          <span className="text-xs font-medium" style={{
+            background: `linear-gradient(90deg, var(--shimmer-1), var(--shimmer-2), var(--shimmer-3), var(--shimmer-4), var(--shimmer-5), var(--shimmer-2), var(--shimmer-1))`,
+            backgroundSize: "300% 100%",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            animation: "shimmerSweep 6s linear infinite",
+          }}>{statusText}</span>
         </div>
       )}
 
