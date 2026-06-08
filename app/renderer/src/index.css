@@ -552,8 +552,8 @@ select.input {
 
 /* ── Mint button shimmer ──────────────────────────────── */
 
-/* Mint 签名内嵌字体 */
-@font-face { font-family: 'Mint'; src: url('./assets/fonts/dancing-script.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+/* Mint 签名字体 */
+@font-face { font-family: 'Mint'; src: url('./assets/fonts/DancingScript.ttf') format('truetype'); font-weight: 400 700; font-display: swap; }
 
 /* ── Shimmer gradient — 双主题色系 ──────────── */
 :root  { --shimmer-1: #16a34a; --shimmer-2: #22c55e; --shimmer-3: #eab308; --shimmer-4: #facc15; --shimmer-5: #4ade80; }
