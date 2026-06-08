@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { shell } from "electron";
 import { Store } from "./store";
 
 interface Project {
@@ -65,12 +66,13 @@ export class ProjectService {
     return project;
   }
 
-  delete(id: string): void {
+  async delete(id: string): Promise<void> {
     const project = this.store.getProjects().find((p) => p.id === id);
     if (project) {
-      try { if (fs.existsSync(project.path)) fs.rmSync(project.path, { recursive: true, force: true }); }
-      catch (e) { console.error("删除项目目录失败:", e); }
-      // Also clean up SDK session directory
+      if (fs.existsSync(project.path)) {
+        await shell.trashItem(project.path);
+      }
+      // Clean up SDK session directory
       try {
         const sdkProjectsDir = path.join(os.homedir(), ".easymint", "projects");
         const encodedPath = project.path.replace(/[/\\]/g, "-");
