@@ -134,6 +134,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const showThinking = useSettingsStore((s) => s.showThinking);
   const showToolUse = useSettingsStore((s) => s.showToolUse);
   const [chatModel, setChatModel] = useState("");
+  const HISTORY_KEY = "easymint_input_history";
+  const inputHistoryRef = useRef<string[]>(() => {
+    try { const v = localStorage.getItem(HISTORY_KEY); return v ? JSON.parse(v) : []; }
+    catch { return []; }
+  });
+  const historyPosRef = useRef(-1);
+  const savedInputRef = useRef("");
+  const persistHistory = () => {
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(inputHistoryRef.current)); } catch { /* */ }
+  };
   const [balanceText, setBalanceText] = useState("");
 
   const refreshBalance = useCallback(async () => {
@@ -387,6 +397,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     setMessages((prev) => [...prev, { id: ++msgIdRef.current, role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts }]);
     setInput("");
     setAttaches([]);
+    // Save to input history, avoid consecutive duplicates
+    const last = inputHistoryRef.current[0];
+    if (msg && msg !== last) inputHistoryRef.current.unshift(msg);
+    if (inputHistoryRef.current.length > 100) inputHistoryRef.current.pop();
+    persistHistory();
+    historyPosRef.current = -1;
     setLoading(true); setStatusText("思考中...");
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
 
@@ -402,8 +418,30 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const handleSend = useCallback(() => sendText(), [sendText]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); handleSend(); }
-  }, [handleSend]);
+    if (e.key === "ArrowUp" && !e.shiftKey) {
+      e.preventDefault();
+      const hist = inputHistoryRef.current;
+      if (hist.length === 0) return;
+      if (historyPosRef.current === -1) savedInputRef.current = input;
+      const next = historyPosRef.current + 1;
+      if (next < hist.length) {
+        historyPosRef.current = next;
+        setInput(hist[next]!);
+      }
+    } else if (e.key === "ArrowDown" && !e.shiftKey) {
+      e.preventDefault();
+      const prev = historyPosRef.current - 1;
+      if (prev >= 0) {
+        historyPosRef.current = prev;
+        setInput(inputHistoryRef.current[prev]!);
+      } else if (prev === -1) {
+        historyPosRef.current = -1;
+        setInput(savedInputRef.current);
+      }
+    } else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault(); handleSend();
+    }
+  }, [handleSend, input]);
 
   const hasMessages = messages.length > 0;
 
