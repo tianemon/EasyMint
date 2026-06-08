@@ -163,9 +163,9 @@
   --color-text-muted: #666666;
 
   /* ── Border — 外深内浅，3 级嵌套 ── */
-  --color-border: #2a2a2a;             /* 常规分割线 */
-  --color-border-light: #1c1c1c;       /* 内部浅分割线 */
-  --color-border-strong: #3a3a3a;      /* 外框深分割线（最外层） */
+  --color-border: #333333;             /* 常规分割线 */
+  --color-border-light: #282828;       /* 内部浅分割线 */
+  --color-border-strong: #444444;      /* 外框深分割线（最外层） */
 
   /* ── Accent — 白/灰按钮系 ───────── */
   --color-accent: #cccccc;
@@ -553,7 +553,7 @@ select.input {
 /* ── Mint button shimmer ──────────────────────────────── */
 
 /* Mint 签名内嵌字体 */
-@font-face { font-family: 'Mint'; src: url('./assets/fonts/dancing-script.woff2') format('woff2'); }
+@font-face { font-family: 'Mint'; src: url('./assets/fonts/dancing-script.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 
 @keyframes mintShimmer {
   0%   { background-position: 300% 0; }
@@ -562,6 +562,8 @@ select.input {
 
 .mint-shimmer {
   font-family: 'Mint', 'Snell Roundhand', 'Apple Chancery', 'Brush Script MT', 'Segoe Script', cursive;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
   background: linear-gradient(
     90deg,
     #60a5fa 0%,

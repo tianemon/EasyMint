@@ -805,7 +805,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay">
-      <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 560, maxHeight: "90vh" }}>
+      <div className="bg-surface-alt rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 560, maxHeight: "90vh" }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-1 shrink-0">
           <h2 className="text-lg font-semibold text-text-primary">新建项目</h2>
           <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={handleCancel}>✕</button>
