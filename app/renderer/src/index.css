@@ -153,14 +153,14 @@
   --color-surface-elevated: #2a2a2a;   /* 弹窗/卡片（最内层，最亮） */
 
   --color-overlay: rgba(0, 0, 0, 0.85);
-  --color-tooltip-bg: #e4e4e4;
+  --color-tooltip-bg: #cccccc;
   --color-tooltip-text: #050505;
 
   /* ── Text ────────────────────────── */
-  --color-text-primary: #e4e4e4;
+  --color-text-primary: #cccccc;
   --color-text-secondary: #888888;
-  --color-text-inverse: #050505;
-  --color-text-muted: #555555;
+  --color-text-inverse: #0d0d0d;
+  --color-text-muted: #666666;
 
   /* ── Border — 外深内浅，3 级嵌套 ── */
   --color-border: #2a2a2a;             /* 常规分割线 */
@@ -168,13 +168,15 @@
   --color-border-strong: #3a3a3a;      /* 外框深分割线（最外层） */
 
   /* ── Accent — 白/灰按钮系 ───────── */
-  --color-accent: #e4e4e4;
-  --color-accent-hover: #ffffff;
+  --color-accent: #cccccc;
+  --color-accent-hover: #dddddd;
   --color-accent-light: #aaaaaa;
+  --color-accent-bg: #1e1e1e;
+  --color-accent-border-strong: #3a3a3a;
 
   /* ── Chat bubbles ───────────────── */
   --color-user-bubble: #222222;
-  --color-user-bubble-text: #ffffff;
+  --color-user-bubble-text: #cccccc;
 
   /* ── Semantic — 仅 success 保留绿 ── */
   --color-success: #22c55e;
@@ -209,7 +211,7 @@
 
   /* ── Monaco ─────────────────────── */
   --color-monaco-bg: #0d0d0d;
-  --color-monaco-fg: #e4e4e4;
+  --color-monaco-fg: #cccccc;
   --color-monaco-line-highlight: #2a2a2a;
   --color-monaco-selection: #333333;
   --color-monaco-inactive-selection: #161616;

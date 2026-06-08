@@ -60,7 +60,7 @@ export function QuickPrompts({ onFill }: QuickPromptsProps): JSX.Element {
     <div ref={ref} className="relative shrink-0">
       <button
         onClick={() => setOpen(!open)}
-        className="w-9 h-9 rounded-md border border-border flex items-center justify-center text-text-secondary hover:border-accent hover:text-accent transition-colors"
+        className={`w-9 h-9 rounded-md border flex items-center justify-center transition-colors ${open ? "border-accent text-accent bg-accent-bg" : "border-border text-text-secondary hover:border-accent/50 hover:text-accent"}`}
         title="快捷操作"
       >
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
@@ -69,15 +69,15 @@ export function QuickPrompts({ onFill }: QuickPromptsProps): JSX.Element {
         </svg>
       </button>
       {open && (
-        <div className="absolute bottom-full right-0 mb-1 w-60 bg-surface-elevated border border-border rounded-lg shadow-lg overflow-hidden z-50">
+        <div className="absolute bottom-full right-0 mb-1 w-52 bg-surface-elevated border border-border rounded-lg shadow-md overflow-hidden z-50">
           {ALL_PROMPTS.map((p, i) => (
             <button
               key={i}
               onClick={() => { setOpen(false); onFill(p.template); }}
-              className="w-full px-3 py-2 hover:bg-surface-alt transition-colors text-left border-b border-border/30 last:border-0"
+              className="w-full px-3 py-1.5 hover:bg-surface-hover transition-colors text-left border-b border-border last:border-0"
             >
-              <div className="text-xs text-text-primary">{p.label}</div>
-              <div className="text-[10px] text-text-secondary mt-0.5">{p.desc}</div>
+              <div className="text-xs font-medium text-text-primary">{p.label}</div>
+              <div className="text-[10px] text-text-muted mt-0.5 leading-tight">{p.desc}</div>
             </button>
           ))}
         </div>
