@@ -245,6 +245,13 @@
 /* ── Dark mode overrides ──────────────────────────────── */
 
 
+/* ── Focus ring ──────────────────────────────────── */
+*:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-accent) 40%, transparent);
+  border-radius: 3px;
+}
+
 /* ── Base ─────────────────────────────────────────── */
 
 * {
