@@ -555,7 +555,7 @@ select.input {
 /* Mint 签名字体 — 四选一，取消注释即可 */
 /* @font-face { font-family: 'Mint'; src: url('./assets/fonts/DancingScript.ttf') format('truetype'); font-weight: 400 700; font-display: swap; }  活泼手写 */
 /* @font-face { font-family: 'Mint'; src: url('./assets/fonts/GreatVibes.ttf') format('truetype'); font-display: swap; } */    /* 优雅斜体 */
-/* @font-face { font-family: 'Mint'; src: url('./assets/fonts/Pacifico.ttf') format('truetype'); font-display: swap; } */      /* 圆润可爱 */
+@font-face { font-family: 'Mint'; src: url('./assets/fonts/Pacifico.ttf') format('truetype'); font-display: swap; }      /* 圆润可爱 */
 /* @font-face { font-family: 'Mint'; src: url('./assets/fonts/Tangerine.ttf') format('truetype'); font-display: swap; } */     /* 纤细典雅 */
 
 /* ── Shimmer gradient — 双主题色系 ──────────── */
