@@ -194,7 +194,15 @@ export function SessionHistory({
 
       {/* Context menu */}
       {menu.visible && (
-        <div className="fixed z-[100] bg-surface-elevated border border-border rounded-lg shadow-xl py-1 min-w-[120px]" style={{ left: menu.x, top: menu.y }}>
+        <div className="fixed z-[100] bg-surface-elevated border border-border rounded-lg shadow-xl py-1 min-w-[120px]" style={{ left: menu.x, top: menu.y }}
+          ref={(el) => {
+            if (!el) return;
+            const h = el.offsetHeight;
+            if (menu.y + h > window.innerHeight) {
+              el.style.top = "auto";
+              el.style.bottom = `${window.innerHeight - menu.y}px`;
+            }
+          }}>
           <button className="w-full text-left px-3 py-1.5 text-sm text-text-primary hover:bg-surface-hover transition-colors flex items-center gap-2" onClick={handlePin}>
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="16" x2="12" y2="2"/><polyline points="6 8 12 2 18 8"/></svg>
             {menu.pinned ? "取消置顶" : "置顶"}

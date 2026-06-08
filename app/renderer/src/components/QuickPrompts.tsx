@@ -8,26 +8,6 @@ interface QuickPrompt {
 
 const ALL_PROMPTS: QuickPrompt[] = [
   {
-    label: "初始化项目",
-    desc: "分析需求、生成文档、搭建项目骨架",
-    template: "帮我初始化这个项目",
-  },
-  {
-    label: "分析需求",
-    desc: "梳理功能清单并推荐技术方案",
-    template: "帮我分析一下项目需求，梳理功能清单，推荐技术方案。如果需求有不清楚或矛盾的地方，主动向我确认。",
-  },
-  {
-    label: "分配任务",
-    desc: "把需求拆成可执行的开发任务",
-    template: "帮我把需求拆成开发任务，写到 task.json 里。\n\n拆分原则：\n- 一个任务 = 一个用户可理解的功能\n- 复杂功能拆成多个，简单功能合并\n- 按工作流顺序排列，有依赖标注 dependsOn",
-  },
-  {
-    label: "继续执行",
-    desc: "驱动 Builder 完成下一个任务",
-    template: "继续执行下一个任务",
-  },
-  {
     label: "查看进度",
     desc: "汇报已完成和未完成的任务",
     template: "查看一下当前项目进度，汇报已完成和未完成的任务，以及下一步计划。",

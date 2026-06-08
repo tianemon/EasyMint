@@ -146,25 +146,26 @@
    ═══════════════════════════════════════════════════════ */
 
 [data-theme="dark"] {
-  /* ── Surface — 4 级灰度嵌套 ──────── */
-  --color-surface: #121212;
-  --color-surface-alt: #1a1a1a;
-  --color-surface-hover: #242424;
-  --color-surface-elevated: #1e1e1e;
-  --color-overlay: rgba(0, 0, 0, 0.8);
+  /* ── Surface — 外深内浅，4 级嵌套 ── */
+  --color-surface: #0d0d0d;            /* 最外层底色（标题栏、工具栏） */
+  --color-surface-alt: #161616;        /* 面板背景（聊天区、文件、任务面板） */
+  --color-surface-hover: #202020;      /* hover 态 */
+  --color-surface-elevated: #2a2a2a;   /* 弹窗/卡片（最内层，最亮） */
+
+  --color-overlay: rgba(0, 0, 0, 0.85);
   --color-tooltip-bg: #e4e4e4;
-  --color-tooltip-text: #121212;
+  --color-tooltip-text: #050505;
 
   /* ── Text ────────────────────────── */
   --color-text-primary: #e4e4e4;
   --color-text-secondary: #888888;
-  --color-text-inverse: #121212;
+  --color-text-inverse: #050505;
   --color-text-muted: #555555;
 
-  /* ── Border — 3 级灰度 ──────────── */
-  --color-border: #2a2a2a;
-  --color-border-light: #222222;
-  --color-border-strong: #444444;
+  /* ── Border — 外深内浅，3 级嵌套 ── */
+  --color-border: #2a2a2a;             /* 常规分割线 */
+  --color-border-light: #1c1c1c;       /* 内部浅分割线 */
+  --color-border-strong: #3a3a3a;      /* 外框深分割线（最外层） */
 
   /* ── Accent — 白/灰按钮系 ───────── */
   --color-accent: #e4e4e4;
@@ -173,20 +174,20 @@
 
   /* ── Chat bubbles ───────────────── */
   --color-user-bubble: #b0b0b0;
-  --color-user-bubble-text: #121212;
+  --color-user-bubble-text: #050505;
 
   /* ── Semantic — 仅 success 保留绿 ── */
   --color-success: #22c55e;
   --color-success-bg: #0a2e14;
   --color-success-border: #166534;
   --color-warning: #888888;
-  --color-warning-bg: #1a1a1a;
-  --color-warning-border: #333333;
+  --color-warning-bg: #161616;
+  --color-warning-border: #2a2a2a;
   --color-danger: #ef4444;
   --color-danger-bg: #2e0a0a;
   --color-danger-border: #7f1d1d;
   --color-info: #888888;
-  --color-info-bg: #1a1a1a;
+  --color-info-bg: #161616;
 
   /* ── Status dots — 仅 green + red 有色 ─── */
   --color-dot-gray: #3a3a3a;
@@ -202,18 +203,18 @@
   --color-code-cm: #666666;
 
   /* ── Editor ─────────────────────── */
-  --color-editor-bg: #121212;
-  --color-editor-gutter-bg: #1a1a1a;
-  --color-editor-line-highlight: #242424;
+  --color-editor-bg: #0d0d0d;
+  --color-editor-gutter-bg: #161616;
+  --color-editor-line-highlight: #2a2a2a;
 
   /* ── Monaco ─────────────────────── */
-  --color-monaco-bg: #121212;
+  --color-monaco-bg: #0d0d0d;
   --color-monaco-fg: #e4e4e4;
-  --color-monaco-line-highlight: #1e1e1e;
+  --color-monaco-line-highlight: #2a2a2a;
   --color-monaco-selection: #333333;
-  --color-monaco-inactive-selection: #1a1a1a;
-  --color-monaco-gutter-bg: #1a1a1a;
-  --color-monaco-widget-bg: #1e1e1e;
+  --color-monaco-inactive-selection: #161616;
+  --color-monaco-gutter-bg: #161616;
+  --color-monaco-widget-bg: #363636;
   --color-monaco-widget-border: #2a2a2a;
   --color-monaco-focus: var(--color-accent);
   --color-monaco-cursor: var(--color-accent);
@@ -221,24 +222,24 @@
   --color-monaco-line-number-active: var(--color-accent);
 
   /* ── Terminal ────────────────────── */
-  --color-terminal-bg: #0a0a0a;
+  --color-terminal-bg: #0d0d0d;
   --color-terminal-text: #cccccc;
 
   /* ── File type icons — 灰度区分 ──── */
-  --color-file-doc-bg: #1a1a1a;
+  --color-file-doc-bg: #161616;
   --color-file-doc-stroke: #999999;
-  --color-file-code-bg: #1a1a1a;
+  --color-file-code-bg: #161616;
   --color-file-code-stroke: #aaaaaa;
-  --color-file-data-bg: #1a1a1a;
+  --color-file-data-bg: #161616;
   --color-file-data-stroke: #999999;
-  --color-file-config-bg: #1a1a1a;
+  --color-file-config-bg: #161616;
   --color-file-config-stroke: #aaaaaa;
-  --color-file-other-bg: #1a1a1a;
+  --color-file-other-bg: #161616;
   --color-file-other-stroke: #777777;
 
   /* ── Code block ────────────────── */
   --color-code-block-bg: #2a2a2a;
-  --color-code-block-header: #333333;
+  --color-code-block-header: #363636;
 }
 
 /* ── Dark mode overrides ──────────────────────────────── */
@@ -273,7 +274,7 @@ body {
 
 /* ── Smooth transitions ───────────────────────────── */
 
-button, a, input, select, textarea, .transition-all {
+button, a, select, .transition-all {
   transition: all var(--anim-slow) var(--ease-smooth);
 }
 
@@ -296,6 +297,10 @@ button, a, input, select, textarea, .transition-all {
   outline: none;
   font-size: var(--font-size-sm);
 }
+.chat-input:focus {
+  --tw-ring-color: color-mix(in oklab, var(--color-accent) 30%, transparent);
+}
+
 .input:focus {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 3px var(--color-accent-soft);

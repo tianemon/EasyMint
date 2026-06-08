@@ -550,7 +550,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             placeholder={summarizing ? "正在进行会话摘要..." : "输入消息，Enter 发送，Shift+Enter 换行，粘贴或拖入图片..."}
             rows={3}
             disabled={summarizing}
-            className="flex-1 min-h-[90px] resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed"
+            className="chat-input flex-1 min-h-[90px] resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-inset disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <div className="flex flex-col gap-1.5 shrink-0">
             {!summarizing && (
