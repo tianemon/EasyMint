@@ -50,13 +50,13 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
       onMouseLeave={() => onHover("")}>
       <defs>
         <linearGradient id="fishbone-current" gradientUnits="userSpaceOnUse" x1="-300" y1="0" x2="0" y2="0">
-          <stop offset="0%" stopColor="#60a5fa" />
-          <stop offset="25%" stopColor="#a78bfa" />
-          <stop offset="50%" stopColor="#f472b6" />
-          <stop offset="75%" stopColor="#4ade80" />
-          <stop offset="100%" stopColor="#60a5fa" />
-          <animate attributeName="x1" values="-300;300" dur="3s" repeatCount="indefinite" />
-          <animate attributeName="x2" values="0;600" dur="3s" repeatCount="indefinite" />
+          <stop offset="0%" stopColor="var(--shimmer-2)" />
+          <stop offset="25%" stopColor="var(--shimmer-3)" />
+          <stop offset="50%" stopColor="var(--shimmer-4)" />
+          <stop offset="75%" stopColor="var(--shimmer-5)" />
+          <stop offset="100%" stopColor="var(--shimmer-2)" />
+          <animate attributeName="x1" values="-300;300" dur="6s" repeatCount="indefinite" />
+          <animate attributeName="x2" values="0;600" dur="6s" repeatCount="indefinite" />
         </linearGradient>
       </defs>
       {/* ── 脊柱横线 ── */}

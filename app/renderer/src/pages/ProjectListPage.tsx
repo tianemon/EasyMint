@@ -17,8 +17,13 @@ export function ProjectListPage(): JSX.Element {
 
   const handleDelete = async (e: React.MouseEvent, projectId: string) => {
     e.stopPropagation();
-    await window.electronAPI.project.delete(projectId);
-    loadProjects();
+    try {
+      await window.electronAPI.project.delete(projectId);
+      loadProjects();
+    } catch (err) {
+      console.error("删除项目失败:", err);
+      setError("删除失败，请重试");
+    }
   };
 
   useEffect(() => {
