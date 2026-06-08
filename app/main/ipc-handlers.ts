@@ -30,7 +30,6 @@ import {
 } from "./services/skill-service";
 import {
   scanMcpServers,
-  buildMcpServersOption,
   toggleMcpServer,
   getMcpRequiredKeys,
 } from "./services/mcp-service";

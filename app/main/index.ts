@@ -1,6 +1,6 @@
 import os from "os";
 import fs from "fs";
-import { app, BrowserWindow, shell, ipcMain, Menu, dialog } from "electron";
+import { app, BrowserWindow, shell, ipcMain, Menu } from "electron";
 import path from "path";
 
 process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint");
@@ -19,7 +19,7 @@ import { FileService } from "./services/file-service";
 import { AgentService, setMainWindow } from "./services/agent-service";
 import { Store } from "./services/store";
 import { detectClaude } from "./utils/claude-detector";
-import { trackProjectWindow, closeProjectWindows } from "./services/window-manager";
+import { trackProjectWindow } from "./services/window-manager";
 
 const isDev = !app.isPackaged;
 
@@ -46,7 +46,7 @@ let sharedServices: {
   agentService: AgentService;
 } | null = null;
 
-export async function createWindow(hash?: string, isMain = false): Promise<BrowserWindow> {
+export async function createWindow(hash?: string, _isMain = false): Promise<BrowserWindow> {
   const window = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -132,7 +132,6 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
         }
       }
     } catch { /* best effort */ }
-    isMain = true;
   }
 
   loadApp(window, hash);

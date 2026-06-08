@@ -193,7 +193,7 @@ export class AgentService {
 
   // ── Worker (one-shot, unchanged) ──────────────────────────────────────
 
-  async runWorker(projectPath: string, prompt: string, mainWindow: BrowserWindow): Promise<{ runId: string }> {
+  async runWorker(projectPath: string, prompt: string, _mainWindow: BrowserWindow): Promise<{ runId: string }> {
     const runId = `run-${++this.runCounter}`;
     const run: ActiveRun = { runId, query: null };
     this.activeRuns.set(runId, run);

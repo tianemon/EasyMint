@@ -297,18 +297,6 @@ ${ctx}
 ${instruction}`;
 }
 
-/** 获取项目场景的验收指引（供 Mint 在调用 Evaluator 时使用） */
-export function getEvaluatorHint(targets?: string[]): string {
-  const profile = targets && targets.length > 0 ? detectProfile(targets) : PROFILES["web-frontend"]!;
-  return profile.evaluatorHint;
-}
-
-/** 根据场景返回平台规范（供 system prompt 注入） */
-export function getPlatformSpec(targets: string[]): string {
-  const profile = detectProfile(targets);
-  return profile.platformSpec;
-}
-
 // ── 确认开发 ──────────────────────────────────────────
 
 export const CONFIRM_DEVELOPMENT_PROMPT = `开始拆解需求、分配开发任务到 task.json。写入 task.json 后立即调用 project:writeState 更新 state.json 的 taskCount 和 lastSummary。然后用 Task 工具驱动 Builder 逐条执行。全程自动推进不等确认，直到全部完成或用户打断。每完成一个任务更新 doneCount。`;
@@ -433,7 +421,3 @@ export const EVALUATOR_AGENT_PROMPT = `你是 EasyMint 的 Evaluator Agent，负
 
 // ── 平台规范 ───────────────────────────────────────────
 
-/** 根据项目类型返回对应的平台规范（兼容旧接口，内部使用 profile 系统） */
-export function getPlatformPrompt(targets: string[]): string {
-  return getPlatformSpec(targets);
-}
