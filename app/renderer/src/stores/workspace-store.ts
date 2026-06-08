@@ -3,32 +3,38 @@ import { create } from "zustand";
 interface WorkspaceState {
   collapsedLeft: boolean;
   collapsedRight: boolean;
-  leftWidth: number;
-  rightWidth: number;
+  /** Stored as ratio (0-1), converted to px on read */
+  leftRatio: number;
+  rightRatio: number;
   toggleLeft: () => void;
   toggleRight: () => void;
-  setLeftWidth: (w: number) => void;
-  setRightWidth: (w: number) => void;
+  setLeftRatio: (r: number) => void;
+  setRightRatio: (r: number) => void;
 }
 
-const DEFAULT_LEFT_WIDTH = 220;
-const DEFAULT_RIGHT_WIDTH = 280;
-const MIN_PANEL_WIDTH = 140;
-const MAX_LEFT_WIDTH = 480;
-const MAX_RIGHT_WIDTH = 600;
+const DEFAULT_LEFT_RATIO = 0.18;
+const DEFAULT_RIGHT_RATIO = 0.22;
+const MIN_RATIO = 0.08;
+const MAX_LEFT_RATIO = 0.35;
+const MAX_RIGHT_RATIO = 0.45;
+
+/** Convert ratio to pixel width based on current window width */
+export function ratioToPx(ratio: number): number {
+  return Math.round(ratio * window.innerWidth);
+}
 
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   collapsedLeft: false,
   collapsedRight: false,
-  leftWidth: DEFAULT_LEFT_WIDTH,
-  rightWidth: DEFAULT_RIGHT_WIDTH,
+  leftRatio: DEFAULT_LEFT_RATIO,
+  rightRatio: DEFAULT_RIGHT_RATIO,
 
   toggleLeft: () =>
     set((s) => ({ collapsedLeft: !s.collapsedLeft })),
   toggleRight: () =>
     set((s) => ({ collapsedRight: !s.collapsedRight })),
-  setLeftWidth: (w) =>
-    set({ leftWidth: Math.max(MIN_PANEL_WIDTH, Math.min(w, MAX_LEFT_WIDTH)) }),
-  setRightWidth: (w) =>
-    set({ rightWidth: Math.max(MIN_PANEL_WIDTH, Math.min(w, MAX_RIGHT_WIDTH)) }),
+  setLeftRatio: (r) =>
+    set({ leftRatio: Math.max(MIN_RATIO, Math.min(r, MAX_LEFT_RATIO)) }),
+  setRightRatio: (r) =>
+    set({ rightRatio: Math.max(MIN_RATIO, Math.min(r, MAX_RIGHT_RATIO)) }),
 }));
