@@ -1,20 +1,21 @@
 # EasyMint — 架构设计
 
-## 系统架构图
+## 系统架构
 
 ```mermaid
 graph TB
     subgraph Electron["Electron App"]
-        subgraph Main["Main Process (Node.js)"]
-            PS[project-service<br/>模板复制、项目 CRUD]
-            FS[file-service<br/>目录树读取、文件内容]
-            AS[agent-service<br/>SDK query 封装、消息通道]
+        subgraph Main["Main Process"]
+            AS[agent-service<br/>SDK query 封装、消息通道、上下文轮转]
+            PS[project-service<br/>项目 CRUD]
+            FS[file-service<br/>目录树、文件读写、上传缓存]
+            SS[session-service<br/>会话归档/列表]
             ST[store<br/>JSON 文件读写]
-            SP[skill-service<br/>Skill 扫描/导入/seed]
-            MC[mcp-service<br/>MCP 扫描/注入/apiKeys]
-            UC[upload-cache<br/>上传追踪/清理]
-            AT[agent-templates<br/>模板 CRUD/seed]
             PM[system-prompt-manager<br/>提示词集中管理]
+            AT[agent-templates<br/>Agent 模板 CRUD/seed]
+            SP[skill-service<br/>Skill 扫描/导入/seed]
+            MC[mcp-service<br/>MCP 扫描/seed/注入]
+            SC[session-cache<br/>per-session 缓存]
         end
 
         subgraph Preload["Preload (contextBridge)"]
@@ -23,154 +24,143 @@ graph TB
 
         subgraph Renderer["Renderer (React + Vite)"]
             subgraph Pages["Pages"]
-                HP[HomePage]
-                SP[SetupPage]
                 PP[ProjectPage]
             end
             subgraph Components["Components"]
-                LT[LeftToolbar]
-                RF[RequirementForm]
-                TP[TerminalPanel]
-                EP[EditorPanel]
-                FT[FileTreePanel]
-                SH[SessionHistory]
+                CP[ChatPanel]
+                TP[TaskPanel]
+                LP[LeftPanel/LeftToolbar]
+                SD[SettingsDialog]
+                QP[QuickPrompts]
+                EB[EditorPanel]
             end
             subgraph Stores["Stores (zustand)"]
-                PSt[projectStore]
-                TSt[terminalStore]
-                SSt[settingsStore]
+                psStore[project-status-store]
+                wsStore[workspace-store]
+                setStore[settings-store]
+                themeStore[theme-store]
             end
         end
     end
 
     subgraph External["External"]
-        Claude[Claude Code CLI]
-        Template[ai-coding-automation-template/]
-        DataStore["~/.ai-coding-automation/"]
+        SDK[claude-agent-sdk]
+        DataStore["~/.easymint/"]
+        ProjectDir["<project>/.easymint/"]
     end
 
     Main -->|IPC| Preload -->|contextBridge| Renderer
-    AS -->|node-pty| Claude
-    PS -->|copy| Template
+    AS -->|query()| SDK
     ST -->|read/write| DataStore
 ```
 
 ## 数据模型
 
-### projects.json
+### projects.json (`~/.easymint/`)
+
 ```json
 {
-  "projects": [
-    {
-      "id": "uuid",
-      "name": "MyProject",
-      "path": "/path/to/project",
-      "createdAt": "ISO datetime",
-      "lastOpenedAt": "ISO datetime",
-      "status": "setup | development | completed",
-      "description": ""
-    }
-  ]
+  "projects": [{
+    "id": "uuid",
+    "name": "项目名",
+    "path": "/path/to/project",
+    "createdAt": "ISO",
+    "lastOpenedAt": "ISO",
+    "status": "setup | development | completed",
+    "description": ""
+  }]
 }
 ```
 
-### settings.json
+### em-settings.json (`~/.easymint/`)
+
 ```json
 {
-  "theme": "dark | light",
-  "defaultProjectDir": "/path/to/default",
-  "claudePath": "/usr/local/bin/claude",
-  "terminalFontSize": 14
+  "defaultProjectDir": "~/EasyMintProject",
+  "model": "deepseek-v4-pro",
+  "availableModels": ["..."],
+  "evaluateMode": false,
+  "contextThreshold": 60,
+  "context1M": false,
+  "showThinking": true,
+  "showToolUse": true
 }
 ```
 
-### sessions.json
+### state.json (`<project>/.easymint/`)
+
+事实模型，Mint 在关键节点写入，refreshAll 据此推导阶段：
+
 ```json
 {
-  "sessions": [
-    {
-      "id": "uuid",
-      "projectId": "uuid",
-      "title": "需求访谈 - 2026-05-28",
-      "createdAt": "ISO datetime",
-      "lastActiveAt": "ISO datetime",
-      "claudeSessionId": "claude-session-uuid",
-      "status": "active | completed"
-    }
-  ]
+  "initCompleted": true,
+  "docsLevel": "full",
+  "taskCount": 5,
+  "doneCount": 3,
+  "lastSummary": "正在实现用户登录",
+  "stageTimes": {}
 }
 ```
 
-## 页面/模块树
+### task.json (`<project>/`)
 
-```
-App
-├── HomePage (/)
-│   └── ProjectCard[]
-│       └── NewProjectDialog
-├── SetupPage (/setup/:projectId)
-│   ├── StepIndicator
-│   └── RequirementForm
-│       ├── Step1: ProjectOverview
-│       ├── Step2: TechPreferences
-│       ├── Step3: FeatureList
-│       └── Step4: UIStyle
-└── ProjectPage (/project/:projectId)
-    ├── LeftToolbar
-    │   ├── NewProjectButton
-    │   ├── FileTreeButton
-    │   ├── SessionHistoryButton
-    │   ├── TerminalButton
-    │   └── SettingsButton
-    ├── EditorPanel (placeholder)
-    ├── FileTreePanel (conditional)
-    ├── SessionHistory (conditional)
-    └── TerminalPanel
-        └── TerminalTab[]
+```json
+{
+  "tasks": [{
+    "id": 1,
+    "title": "用户注册功能",
+    "description": "...",
+    "steps": ["..."],
+    "passes": false,
+    "evaluated": false,
+    "tdd": true,
+    "dependsOn": []
+  }]
+}
 ```
 
-## IPC 通道设计
+### escalation.json (`<project>/.easymint/`)
 
-### project:* 
-| 通道 | 方向 | 参数 | 返回 |
-|------|------|------|------|
-| `project:list` | renderer→main | — | Project[] |
-| `project:create` | renderer→main | {name, path} | Project |
-| `project:delete` | renderer→main | {id} | void |
-| `project:get` | renderer→main | {id} | Project |
+Builder 3 次失败后写入，Mint 读取向用户汇报。
 
-### file:*
-| 通道 | 方向 | 参数 | 返回 |
-|------|------|------|------|
-| `file:readTree` | renderer→main | {dirPath} | FileNode[] |
-| `file:readContent` | renderer→main | {filePath} | string |
-| `file:writeContent` | renderer→main | {filePath, content} | void |
+## IPC 通道
 
-### terminal:*
-| 通道 | 方向 | 参数 | 返回 |
-|------|------|------|------|
-| `terminal:create` | renderer→main | {cwd} | {terminalId} |
-| `terminal:write` | renderer→main | {terminalId, data} | void |
-| `terminal:resize` | renderer→main | {terminalId, cols, rows} | void |
-| `terminal:destroy` | renderer→main | {terminalId} | void |
-| `terminal:onData` | main→renderer | {terminalId, data} | — |
+统一前缀规范：`project:` / `file:` / `agent:` / `conv:` / `settings:` / `skill:` / `mcp:` / `upload:` / `system-prompt:` / `session-cache:` / `task:`
 
-### session:*
-| 通道 | 方向 | 参数 | 返回 |
-|------|------|------|------|
-| `session:list` | renderer→main | {projectId} | Session[] |
-| `session:resume` | renderer→main | {sessionId} | void |
-| `session:delete` | renderer→main | {sessionId} | void |
+关键通道：
 
-### claude:*
-| 通道 | 方向 | 参数 | 返回 |
-|------|------|------|------|
-| `claude:detect` | renderer→main | — | {found, path?, version?} |
+| 通道 | 方向 | 说明 |
+|------|------|------|
+| `agent:sendMessage` | renderer → main | 发送聊天消息 |
+| `agent:stream` | main → renderer | SDK 流式事件推送 |
+| `agent:setModel` | renderer → main | 切换模型 |
+| `agent:context-usage` | main → renderer | 上下文使用率 |
+| `conv:messages` | renderer → main | 读取会话历史 |
+| `project:writeState` | renderer → main | Mint 写 state.json |
+| `settings:fetchModels` | renderer → main | 从 API 获取模型列表 |
 
-## 环境变量
+## 核心流程
 
-无外部服务依赖。Claude CLI 需在 PATH 中可用。
+### Chat 会话生命周期
 
-## 打包分发
+```
+sendMessage → createMessageChannel → startChatLoop → query(prompt: generator, options)
+    → for await (SDK message) → toStreamEvent → broadcast → ChatPanel.onStream → normalizeEvent → render
+    → result → getContextUsage → 超阈值 → 总结 → rotateSession → 新 Tab
+```
 
-使用 electron-builder 打包为 macOS `.dmg`。后续可扩展 Windows/Linux。
+### Mint 按钮流程
+
+```
+点击 → onMintClick → 找/建 chat tab → 发 CONTINUE_NEXT_STEP → Mint 读 state.json + task.json → 判断下一步
+```
+
+### 项目状态刷新
+
+```
+agent:exit → onActivity → refreshAll(path) → 读 state.json facts → 推导 stage → 更新 UI
+```
+
+## 提示词架构
+
+`prompts.ts` 集中管理所有提示词：Mint 身份、5 条规则、场景模板、阶段指令、业务构建函数。所有文件 import 自此单一来源。

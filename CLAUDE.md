@@ -35,7 +35,12 @@ GUI 是 harness，AI 引擎是 claude-agent-sdk。
   - `app/preload/` — contextBridge 预加载脚本
   - `app/renderer/` — React + Vite 前端（pages、components、stores）
 - **`docs/`** — 项目文档（APP_SPEC.md、ARCHITECTURE.md、SETUP.md）
-- **`temp/`** — 开发过程中产生的临时文件（调试日志、截图、草稿等）
+- **`temp/`** — 所有非项目必须的临时文件，按类别分目录存放：
+  - `temp/logs/` — 调试日志、错误堆栈
+  - `temp/screenshots/` — Playwright 截图、UI 对比图
+  - `temp/drafts/` — 草稿代码、中间产物、临时脚本
+  - `temp/tests/` — 临时测试文件、测试输出
+  任何不纳入 git 版本控制的临时产物都放 temp/ 对应子目录
 - **根目录** — `CLAUDE.md`、`README.md`、`.gitignore`、`LICENSE`，以及构建配置文件（`package.json`、`tsconfig.json`、`tailwind.config.js` 等）
 
 ## 常用命令
