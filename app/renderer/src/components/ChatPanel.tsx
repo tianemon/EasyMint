@@ -9,7 +9,7 @@ import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
 
 function getWorkspaceDir(): string {
   const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
-  return `${base.replace(/\/$/, "")}/workspace/`;
+  return `${base.replace(/\/$/, "")}/workspace`;
 }
 
 interface AttachItem {
@@ -292,7 +292,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           Task: "调用子 Agent", TodoWrite: "更新待办",
         };
         let label = labels[name] || name;
-        if (name.startsWith("mcp__")) {
+        if (name.startsWith("Skill__")) {
+          const skillName = name.slice(7); // Remove "Skill__" prefix
+          label = `调用 Skill: ${skillName}`;
+        } else if (name.startsWith("mcp__")) {
           const parts = name.split("__");
           label = `MCP: ${parts[1] || "工具"}`;
         }

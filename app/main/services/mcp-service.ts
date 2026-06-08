@@ -119,8 +119,13 @@ export function buildMcpServersOption(): Record<string, McpServerConfig> | undef
   const result: Record<string, McpServerConfig> = {};
   for (const [name, cfg] of Object.entries(merged)) {
     if (disabled.includes(name)) continue;
-    // Merge apiKeys into env: existing MCP env values take priority over apiKeys
-    const env = { ...apiKeys, ...(cfg.env || {}) };
+    // Merge apiKeys into env: MCP config values take priority, but skip empty strings
+    const cfgEnv = cfg.env || {};
+    const filteredCfgEnv: Record<string, string> = {};
+    for (const [k, v] of Object.entries(cfgEnv)) {
+      if (v) filteredCfgEnv[k] = v; // Skip empty/placeholder values
+    }
+    const env = { ...apiKeys, ...filteredCfgEnv };
     result[name] = { ...cfg, env: Object.keys(env).length > 0 ? env : undefined };
   }
 

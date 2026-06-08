@@ -4,7 +4,7 @@ import { useSettingsStore } from "../stores/settings-store";
 
 function getWorkspaceDir(): string {
   const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
-  return `${base.replace(/\/$/, "")}/workspace/`;
+  return `${base.replace(/\/$/, "")}/workspace`;
 }
 
 // ---- Types ----
