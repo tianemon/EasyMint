@@ -40,13 +40,13 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
   const H = 90;            // 画布高度
   const spineY = 45;       // 脊柱线 y 位置
   const w = 300;           // 画布宽度
-  const branchY_up = 15;   // 上分支 y 位置
-  const branchY_down = 75; // 下分支 y 位置
+  const branchY_up = 17;   // 上分支 y 位置
+  const branchY_down = 72; // 下分支 y 位置
 
   const hasCurrent = timeline.some((e) => e.status === "current");
 
   return (
-    <svg viewBox={`0 0 ${w} ${H}`} className="block w-full" height={H}
+    <svg viewBox={`0 0 ${w} ${H}`} className="block w-full" style={{ aspectRatio: `${w}/${H}` }}
       onMouseLeave={() => onHover("")}>
       <defs>
         <linearGradient id="fishbone-current" gradientUnits="userSpaceOnUse" x1="-300" y1="0" x2="0" y2="0">
@@ -109,10 +109,10 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
             {isCurrent && (
               <text
                 x={dotX}
-                y={branchY < spineY ? branchY - 7 : branchY + 16}  // 上方-5 / 下方+14
+                y={branchY < spineY ? branchY - 7 : branchY + 13}  // 上方-5 / 下方+14
                 textAnchor="middle"
                 fill="var(--color-accent)"
-                fontSize="12"             // 标签字号
+                fontSize="10"             // 标签字号
                 fontWeight="600"
                 fontFamily="system-ui, sans-serif"
               >
