@@ -552,11 +552,17 @@ select.input {
 
 /* ── Mint button shimmer ──────────────────────────────── */
 
-/* Mint 签名字体 — 四选一，取消注释即可 */
+/* Mint 签名字体 — 11 款可选，取消注释切换 */
+@font-face { font-family: 'Mint'; src: url('./assets/fonts/Pacifico.ttf') format('truetype'); font-display: swap; }       /* 圆润可爱 */
+/* @font-face { font-family: 'Mint'; src: url('./assets/fonts/KaushanScript.ttf') format('truetype'); font-display: swap; } *//* 大胆奔放 */
+/* @font-face { font-family: 'Mint'; src: url('./assets/fonts/MarckScript.ttf') format('truetype'); font-display: swap; } 马克笔触 */
 /* @font-face { font-family: 'Mint'; src: url('./assets/fonts/DancingScript.ttf') format('truetype'); font-weight: 400 700; font-display: swap; }  活泼手写 */
-/* @font-face { font-family: 'Mint'; src: url('./assets/fonts/GreatVibes.ttf') format('truetype'); font-display: swap; } */    /* 优雅斜体 */
-@font-face { font-family: 'Mint'; src: url('./assets/fonts/Pacifico.ttf') format('truetype'); font-display: swap; }      /* 圆润可爱 */
-/* @font-face { font-family: 'Mint'; src: url('./assets/fonts/Tangerine.ttf') format('truetype'); font-display: swap; } */     /* 纤细典雅 */
+/* @font-face { font-family: 'Mint'; src: url('./assets/fonts/GreatVibes.ttf') format('truetype'); font-display: swap; } */  /* 优雅斜体 */
+/* @font-face { font-family: 'Mint'; src: url('./assets/fonts/Caveat.ttf') format('truetype'); font-weight: 400 700; font-display: swap; } */       /* 自然手写 */
+/* @font-face { font-family: 'Mint'; src: url('./assets/fonts/Qwigley.ttf') format('truetype'); font-display: swap; } */     /* 极细铜版 */
+/* @font-face { font-family: 'Mint'; src: url('./assets/fonts/Tangerine.ttf') format('truetype'); font-display: swap; } */   /* 纤细典雅 */
+/* @font-face { font-family: 'Mint'; src: url('./assets/fonts/AlexBrush.ttf') format('truetype'); font-display: swap; }   经典书法 */
+/* @font-face { font-family: 'Mint'; src: url('./assets/fonts/Sacramento.ttf') format('truetype'); font-display: swap; } */  /* 清秀手帐 */
 
 /* ── Shimmer gradient — 双主题色系 ──────────── */
 :root  { --shimmer-1: #16a34a; --shimmer-2: #22c55e; --shimmer-3: #eab308; --shimmer-4: #facc15; --shimmer-5: #4ade80; }

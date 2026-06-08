@@ -255,7 +255,7 @@ export function seedDefaultMcp(): void {
     if (!existing["image-vision"]) {
       existing["image-vision"] = {
         type: "stdio",
-        command: "python3",
+        command: process.platform === "win32" ? "python" : "python3",
         args: [path.join(targetDir, "server.py")],
         env: { VISION_API_KEY: "" },
       };
