@@ -259,22 +259,27 @@ export function detectProfile(targets: string[]): ProjectProfile {
 
 /** 根据场景生成项目初始化指令 */
 export function buildInitInstruction(profile: ProjectProfile): string {
-  return `先按规则 2 的项目复杂度判断标准，决定需要生成的文档级别（极简跳过全部文档 / 简单跳过架构设计 / 中等及以上全量）。然后按以下顺序完成：
+  return `先按规则 2 的项目复杂度判断标准，决定需要生成的文档级别（极简跳过全部文档 / 简单跳过架构设计 / 中等及以上全量）。然后按以下顺序完成——不需要的步骤直接跳过：
 
-0. 如果 git 可用：git init && git add . && git commit -m "项目初始化"。不可用则跳过。
-1. 以下步骤按复杂度判断结果执行——不需要的文档直接跳过：
+1. 拆解需求：按第 3 条的方法深度拆解，写入 docs/需求规格.md。向用户展示需求列表，等待确认。
 ${profile.initSteps}
-2. 需要需求规格时，按第 3 条的方法拆解需求，写入 docs/需求规格.md。
-3. 需要架构设计时，写 docs/架构设计.md — 系统架构图（Mermaid）、技术栈说明、页面/组件树、API 设计、环境变量
-4. 写 README.md — 项目名称、简介、技术栈、如何运行
-5. 更新 CLAUDE.md — 删除"检查是否已初始化"章节，填入项目背景、常用命令、技术栈信息
-6. 编辑 init.sh — 环境准备（Git 检测已内置，只需补充运行时检测和依赖安装），不写业务代码
-7. 执行 bash init.sh：
-   - 成功 → 调用 project:writeState 写入 .easymint/state.json：{ initCompleted: true, docsLevel: 按实际填, lastSummary: "初始化完成" }
-     如果项目已完成说"项目已完成"；如需开发，回复末尾追加：\`环境已就绪。点击下方的「确认开发」按钮，将开始拆解需求、分配任务、开始开发。\`
-   - 成功但 Git 未安装 → 告知用户"Git 未安装，版本控制和任务进度追踪将不可用。回复'继续'跳过，或安装 Git 后重新运行"。安装方式：macOS 用 brew install git，Windows 下载 git-scm.com
-   - 权限拦截 → 提示切换到"完全自主"模式
-   - 失败 → 修改后重试，最多 3 次`;
+2. 二次技术评估：基于完整的 docs/需求规格.md，重新审视用户之前在表单中填写的技术选型——之前的选型是初步判断，现在需求细节清楚了，可能有更合适的技术方案。如果有更优方案，主动向用户推荐并等待确认。确认后写入 docs/架构设计.md（简单项目跳过架构设计）。
+
+3. 分配任务：按第 4 条的方法，基于 docs/需求规格.md 把功能分配为开发任务，写入 task.json。调用 project:writeState 更新 state.json 的 taskCount 和 lastSummary。告知用户任务分配情况。
+
+4. 写 README.md — 项目名称、简介、技术栈、如何运行。
+
+5. 更新 CLAUDE.md — 在通用模板基础上，根据确认的技术栈和项目场景，补充对应技术的开发规范和常用命令。
+
+6. 检测开发环境：
+   - 如果 git 可用：git init && git add . && git commit -m "项目初始化"；不可用则跳过
+   - 编辑 init.sh — 补充运行时检测和依赖安装
+   - 执行 bash init.sh：
+     - 成功 → 调用 project:writeState 写入 state.json：{ initCompleted: true, docsLevel: 按实际填, lastSummary: "初始化完成" }
+       回复末尾追加：\`环境已就绪。点击下方的「确认开发」按钮，将开始执行任务。\`
+     - 成功但 Git 未安装 → 告知用户"Git 未安装，版本控制和任务进度追踪将不可用。回复'继续'跳过"。安装方式：macOS brew install git，Windows 下载 git-scm.com
+     - 权限拦截 → 提示切换到"完全自主"模式
+     - 失败 → 修改后重试，最多 3 次`;
 }
 
 /** 项目创建完毕后的初始化触发 */
