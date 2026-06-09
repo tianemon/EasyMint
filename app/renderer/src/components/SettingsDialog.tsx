@@ -503,9 +503,9 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay">
-      <div className="bg-surface-elevated rounded-2xl border border-border-light shadow-xl overflow-hidden modal-card flex flex-col" style={{ width: 800, height: 700 }}>
+      <div className="bg-surface rounded-2xl border border-border-light shadow-xl overflow-hidden modal-card flex flex-col" style={{ width: 800, height: 700 }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-0 border-b border-border bg-surface">
+        <div className="flex items-center justify-between px-6 pt-5 pb-0 border-b border-border bg-surface-alt">
           <div className="flex gap-0">
             <button
               className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "general" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
@@ -674,7 +674,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-6 py-2 border-t border-border bg-surface">
+        <div className="flex items-center justify-end gap-2 px-6 py-2 border-t border-border bg-surface-alt">
           <button
             className="px-5 py-1.5 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm"
             onClick={handleClose}
