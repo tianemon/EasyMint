@@ -26,7 +26,7 @@ function GitCheckSection(): JSX.Element {
             {gitInfo === null ? (
               <span className="text-xs text-text-muted">检测中...</span>
             ) : gitInfo.found ? (
-              <span className="text-xs text-success">{gitInfo.version}</span>
+              <span className="text-xs text-text-secondary">{gitInfo.version}</span>
             ) : (
               <span className="text-xs text-danger">未安装</span>
             )}
