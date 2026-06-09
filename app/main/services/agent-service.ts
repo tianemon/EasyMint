@@ -11,6 +11,7 @@ import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { listTemplates, getTemplate } from "./agent-templates";
 import { buildSkillsPrompt } from "./skill-service";
 import { buildMcpServersOption } from "./mcp-service";
+import { getPreset } from "../../shared/platform-presets";
 import { archiveSession } from "./session-service";
 import { CONTEXT_SUMMARY_INSTRUCTION, buildSessionInfoAppend, buildContextHandoffPrompt } from "../../shared/prompts";
 
@@ -106,10 +107,16 @@ interface ActiveChat {
   summaryBuffer: string;
 }
 
-/** Append [1M] suffix to model name when context1M setting is enabled */
+/** Append [1M] suffix to model name when context1M setting is enabled (global or per-provider) */
 function resolveModel(model: string | undefined, store: Store): string | undefined {
   if (!model) return model;
-  if (!store.getSettings().context1M) return model;
+  const settings = store.getSettings();
+  // 优先检查激活供应商的 context1M，fallback 到全局设置
+  const providers = settings.apiProviders;
+  const activeId = providers?.current;
+  const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
+  const enable1M = activeCfg?.context1M ?? settings.context1M ?? false;
+  if (!enable1M) return model;
   if (!/pro/i.test(model)) return model;
   return model.endsWith("[1M]") ? model : model + "[1M]";
 }
@@ -130,8 +137,28 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
     CLAUDE_CONFIG_DIR: configDir,
   };
   console.log("[buildQueryOptions] CLAUDE_CONFIG_DIR=%s", configDir);
-  if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
-  if (settings.apiKey) env.ANTHROPIC_AUTH_TOKEN = settings.apiKey;
+
+  // ── 多平台 API 供应商配置 ──
+  const providers = settings.apiProviders;
+  const activeId = providers?.current;
+  const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
+  const activePreset = activeCfg ? getPreset(activeCfg.presetId) : undefined;
+
+  if (activeCfg) {
+    // 激活了供应商 → 应用其 env 配置
+    if (activePreset?.env.ANTHROPIC_BASE_URL || activeCfg.baseUrl) {
+      env.ANTHROPIC_BASE_URL = activeCfg.baseUrl || activePreset?.env.ANTHROPIC_BASE_URL || "";
+    }
+    if (activeCfg.apiKey) env.ANTHROPIC_AUTH_TOKEN = activeCfg.apiKey;
+    if (activePreset?.env.API_TIMEOUT_MS) env.API_TIMEOUT_MS = activePreset.env.API_TIMEOUT_MS;
+    if (activePreset?.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC) {
+      env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = String(activePreset.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC);
+    }
+  } else {
+    // 未激活供应商 → fallback 旧字段
+    if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
+    if (settings.apiKey) env.ANTHROPIC_AUTH_TOKEN = settings.apiKey;
+  }
   const customPrompt = isResume ? "" : (resolveEffectivePrompt() + buildSkillsPrompt(projectPath));
   // Load Agent templates into SDK's options.agents
   const agents: Record<string, { description: string; prompt: string; tools: string[]; model?: string }> = {};
@@ -160,7 +187,10 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
   return {
     cwd,
     permissionMode,
-    model: resolveModel(overrides?.model || settings.model || process.env.ANTHROPIC_MODEL || undefined, store),
+    model: resolveModel(
+      overrides?.model || activeCfg?.model || settings.model || process.env.ANTHROPIC_MODEL || undefined,
+      store,
+    ),
     env,
     systemPrompt: customPrompt ? { type: "preset" as const, preset: "claude_code" as const, append: customPrompt } : undefined,
     agents: Object.keys(agents).length > 0 ? agents : undefined,

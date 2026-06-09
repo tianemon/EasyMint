@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { ApiProvidersData, ProviderConfig } from "@shared/platform-presets";
 
 interface SettingsState {
   evaluateMode: boolean;
@@ -18,6 +19,7 @@ interface SettingsState {
   context1M: boolean;
   showThinking: boolean;
   showToolUse: boolean;
+  apiProviders: ApiProvidersData | null;
   setEvaluateMode: (enabled: boolean) => void;
   setTddMode: (enabled: boolean) => void;
   setScreenshotVerification: (enabled: boolean) => void;
@@ -31,10 +33,12 @@ interface SettingsState {
   setContext1M: (enabled: boolean) => void;
   setShowThinking: (enabled: boolean) => void;
   setShowToolUse: (enabled: boolean) => void;
+  setApiProviders: (data: ApiProvidersData) => void;
+  activateProvider: (providerId: string) => void;
   loadFromElectron: () => Promise<void>;
 }
 
-export const useSettingsStore = create<SettingsState>((set) => ({
+export const useSettingsStore = create<SettingsState>((set, get) => ({
   evaluateMode: false,
   tddMode: false,
   screenshotVerification: false,
@@ -46,6 +50,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   apiKeys: {},
   model: "",
   availableModels: [],
+  apiProviders: null,
 
   setupComplete: false,
   thinkingBudget: 0,
@@ -109,6 +114,33 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     window.electronAPI?.settings?.set?.("showToolUse", enabled);
   },
 
+  setApiProviders: (data: ApiProvidersData) => {
+    // 同步激活供应商的模型信息到旧字段（ChatPanel 下拉引用）
+    const activeId = data.current;
+    const activeCfg = activeId ? data.configs[activeId] : undefined;
+    const patch: Partial<SettingsState> = { apiProviders: data };
+    if (activeCfg) {
+      if (activeCfg.model) patch.model = activeCfg.model;
+      if (activeCfg.models.length > 0) patch.availableModels = activeCfg.models;
+    }
+    set(patch);
+    window.electronAPI?.settings?.set?.("apiProviders", data);
+  },
+
+  activateProvider: (providerId: string) => {
+    const current = get().apiProviders;
+    if (!current) return;
+    const next: ApiProvidersData = { ...current, current: providerId };
+    const activeCfg = next.configs[providerId];
+    const patch: Partial<SettingsState> = { apiProviders: next };
+    if (activeCfg) {
+      if (activeCfg.model) patch.model = activeCfg.model;
+      if (activeCfg.models.length > 0) patch.availableModels = activeCfg.models;
+    }
+    set(patch);
+    window.electronAPI?.settings?.set?.("apiProviders", next);
+  },
+
   loadFromElectron: async () => {
     try {
       if (window.electronAPI?.settings?.get) {
@@ -129,6 +161,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
           showThinking: settings.showThinking ?? true,
           showToolUse: settings.showToolUse ?? true,
           setupComplete: settings.setupComplete ?? false,
+          apiProviders: (settings.apiProviders as ApiProvidersData) ?? null,
         });
       }
     } catch { /* electronAPI unavailable */ }

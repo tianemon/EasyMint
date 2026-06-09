@@ -177,18 +177,25 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     (settings as unknown as Record<string, unknown>)[key] = value;
     store.saveSettings(settings);
   });
-  ipcMain.handle("settings:fetchModels", async () => {
+  ipcMain.handle("settings:fetchModels", async (_e, modelsUrl?: string, apiKey?: string) => {
     const settings = store.getSettings();
-    const rawUrl = settings.apiBaseUrl || "https://api.deepseek.com";
-    const apiKey = settings.apiKey;
-    if (!apiKey) throw new Error("请先配置 API Key");
-    // /models is at API root, not under /anthropic etc.
-    const origin = new URL(rawUrl).origin;
-    const url = `${origin}/models`;
-    const resp = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+    const providers = settings.apiProviders;
+    const activeId = providers?.current;
+    const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
+    const key = apiKey || activeCfg?.apiKey || settings.apiKey;
+    if (!key) throw new Error("请先配置 API Key");
+    if (!modelsUrl) throw new Error("该平台未配置模型列表地址");
+
+    const resp = await fetch(modelsUrl, { headers: { Authorization: `Bearer ${key}` } });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const json = await resp.json() as { data?: { id: string }[] };
-    return (json.data || []).map((m: { id: string }) => m.id);
+    const models: string[] = [];
+    if (json.data) {
+      for (const m of json.data) {
+        models.push(typeof m === "string" ? m : (m as { id: string }).id);
+      }
+    }
+    return models;
   });
   ipcMain.handle("settings:fetchBalance", async () => {
     const settings = store.getSettings();

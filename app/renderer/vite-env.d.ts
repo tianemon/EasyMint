@@ -159,10 +159,24 @@ interface ElectronAPI {
     setDefault: (id: string) => Promise<void>;
   };
   settings: {
-    get: () => Promise<{ defaultProjectDir?: string; terminalFontSize: number; evaluateMode: boolean; tddMode: boolean; screenshotVerification: boolean; setupComplete?: boolean; apiBaseUrl?: string; apiKey?: string; apiKeys?: Record<string, string>; model?: string; availableModels?: string[]; contextThreshold?: number; context1M?: boolean; showThinking?: boolean; showToolUse?: boolean }>;
+    get: () => Promise<{
+      defaultProjectDir?: string; terminalFontSize: number; evaluateMode: boolean; tddMode: boolean;
+      screenshotVerification: boolean; setupComplete?: boolean; apiBaseUrl?: string;
+      apiKey?: string; apiKeys?: Record<string, string>; model?: string;
+      availableModels?: string[]; contextThreshold?: number; context1M?: boolean;
+      showThinking?: boolean; showToolUse?: boolean;
+      apiProviders?: {
+        current: string | null;
+        configs: Record<string, {
+          id: string; presetId: string; name: string; apiKey: string;
+          baseUrl?: string; model: string; models: string[];
+          context1M: boolean; createdAt: number;
+        }>;
+      };
+    }>;
     set: (key: string, value: unknown) => Promise<void>;
     setLastProject: (projectId: string) => Promise<void>;
-    fetchModels: () => Promise<string[]>;
+    fetchModels: (modelsUrl: string, apiKey: string) => Promise<string[]>;
     fetchBalance: () => Promise<{ balance_infos?: { currency: string; total_balance: string; granted_balance: string }[] }>;
   };
   agentTemplates: {

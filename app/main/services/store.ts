@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
+import type { ProviderConfig, ApiProvidersData } from "../../shared/platform-presets";
 
 export const DATA_DIR = path.join(os.homedir(), ".easymint");
 
@@ -8,6 +9,13 @@ function resolveHome(dir: string): string {
   if (dir.startsWith("~")) return path.join(os.homedir(), dir.slice(1));
   return dir;
 }
+
+// ── 多平台 API 供应商配置 ──────────────────────
+// 类型定义见 app/shared/platform-presets.ts
+
+export type { ProviderConfig, ApiProvidersData };
+
+// ───────────────────────────────────────────────
 
 interface Project {
   id: string;
@@ -47,6 +55,7 @@ interface Settings {
   context1M?: boolean;
   showThinking?: boolean;
   showToolUse?: boolean;
+  apiProviders?: ApiProvidersData;
 }
 
 const EM_DEFAULTS = {
@@ -130,6 +139,7 @@ export class Store {
       context1M: (emData.context1M as boolean) ?? false,
       showThinking: emData.showThinking as boolean | undefined,
       showToolUse: emData.showToolUse as boolean | undefined,
+      apiProviders: (emData.apiProviders as ApiProvidersData) || undefined,
     };
   }
 
@@ -159,16 +169,26 @@ export class Store {
     data.screenshotVerification = settings.screenshotVerification;
     data.lastProjectId = settings.lastProjectId;
     data.setupComplete = settings.setupComplete;
-    if (settings.model) data.model = settings.model;
-    if (settings.availableModels) data.availableModels = settings.availableModels;
+    // 同步激活供应商的模型列表到旧字段（ChatPanel 下拉引用）
+    const providers = settings.apiProviders;
+    const activeId = providers?.current;
+    const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
+    if (activeCfg) {
+      if (activeCfg.model) data.model = activeCfg.model;
+      if (activeCfg.models.length > 0) data.availableModels = activeCfg.models;
+    } else {
+      if (settings.model) data.model = settings.model;
+      if (settings.availableModels) data.availableModels = settings.availableModels;
+    }
     if (settings.apiKeys) data.apiKeys = settings.apiKeys;
     if (settings.context1M !== undefined) data.context1M = settings.context1M;
     if (settings.showThinking !== undefined) data.showThinking = settings.showThinking;
     if (settings.showToolUse !== undefined) data.showToolUse = settings.showToolUse;
+    if (settings.apiProviders) data.apiProviders = settings.apiProviders;
     fs.writeFileSync(this.emSettingsPath, JSON.stringify(data, null, 2));
   }
 
-  /** Write SDK fields (apiKey, apiBaseUrl) to ~/.easymint/sdk-config/settings.json */
+  /** Write SDK fields (apiKey, apiBaseUrl) to ~/.easymint/settings.json */
   private writeSdkSettings(settings: Settings): void {
     const dir = path.dirname(this.sdkSettingsPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -176,10 +196,18 @@ export class Store {
     if (fs.existsSync(this.sdkSettingsPath)) {
       try { Object.assign(data, JSON.parse(fs.readFileSync(this.sdkSettingsPath, "utf-8"))); } catch { /* overwrite */ }
     }
-    // Inject API key into SDK's expected env format
+    // 优先从激活的供应商配置读取，fallback 到旧字段
+    const providers = settings.apiProviders;
+    const activeId = providers?.current;
+    const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
     const env = (data.env as Record<string, string>) || {};
-    if (settings.apiKey) env.ANTHROPIC_AUTH_TOKEN = settings.apiKey;
-    if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
+    if (activeCfg) {
+      env.ANTHROPIC_AUTH_TOKEN = activeCfg.apiKey;
+      if (activeCfg.baseUrl) env.ANTHROPIC_BASE_URL = activeCfg.baseUrl;
+    } else {
+      if (settings.apiKey) env.ANTHROPIC_AUTH_TOKEN = settings.apiKey;
+      if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
+    }
     data.env = env;
     fs.writeFileSync(this.sdkSettingsPath, JSON.stringify(data, null, 2));
   }

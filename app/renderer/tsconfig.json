@@ -11,7 +11,11 @@
     "jsx": "react-jsx",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noUncheckedIndexedAccess": true
+    "noUncheckedIndexedAccess": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@shared/*": ["../shared/*"]
+    }
   },
-  "include": ["./src/**/*.ts", "./src/**/*.tsx", "./vite-env.d.ts"]
+  "include": ["./src/**/*.ts", "./src/**/*.tsx", "./vite-env.d.ts", "../shared/**/*.ts"]
 }

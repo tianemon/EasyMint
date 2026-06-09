@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { PromptSettings } from "./settings/PromptSettings";
+import { ProviderSettings } from "./settings/ProviderSettings";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -422,51 +423,25 @@ function AgentsTab(): JSX.Element {
 
 export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Element | null {
   const {
-    apiBaseUrl,
-    apiKey,
-    model,
-    availableModels,
     defaultProjectDir,
     contextThreshold,
-    context1M,
     showThinking,
     showToolUse,
     setDefaultProjectDir,
     setContextThreshold,
-    setContext1M,
     setShowThinking,
     setShowToolUse,
-    setApiBaseUrl,
-    setApiKey,
-    setModel,
-    setAvailableModels,
     loadFromElectron,
   } = useSettingsStore();
-  const [showKey, setShowKey] = useState(false);
-  const [activeTab, setActiveTab] = useState<"general" | "prompts" | "agents" | "skills" | "mcp">("general");
-  const apiDirty = useRef(false);
+  const [activeTab, setActiveTab] = useState<"general" | "prompts" | "agents" | "skills" | "mcp" | "providers">("general");
 
   useEffect(() => {
     if (open) {
       loadFromElectron();
-      apiDirty.current = false;
     }
   }, [open, loadFromElectron]);
 
-  const handleApiBaseUrlChange = useCallback((url: string) => {
-    setApiBaseUrl(url);
-    apiDirty.current = true;
-  }, [setApiBaseUrl]);
-
-  const handleApiKeyChange = useCallback((key: string) => {
-    setApiKey(key);
-    apiDirty.current = true;
-  }, [setApiKey]);
-
   const handleClose = useCallback(() => {
-    if (apiDirty.current) {
-      alert("API 配置已修改，需要重启软件后生效。");
-    }
     onClose();
   }, [onClose]);
 
@@ -507,6 +482,12 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               onClick={() => setActiveTab("mcp")}
             >
               MCP
+            </button>
+            <button
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "providers" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setActiveTab("providers")}
+            >
+              供应商
             </button>
           </div>
           <button
@@ -569,117 +550,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                 </div>
               </section>
 
-              {/* API 设置 */}
-              <section>
-                <h3 className="text-sm font-medium text-text-secondary mb-2">API 配置</h3>
-                <div className="bg-surface-alt rounded-lg px-4 py-3 space-y-3">
-                  <div>
-                    <label className="text-xs text-text-secondary block mb-1">Base URL <span className="text-[10px] text-text-muted">（重启生效）</span></label>
-                    <input
-                      className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
-                      placeholder="https://api.deepseek.com/anthropic"
-                      value={apiBaseUrl}
-                      onChange={(e) => handleApiBaseUrlChange(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-text-secondary block mb-1">API Key <span className="text-[10px] text-text-muted">（重启生效）</span></label>
-                    <div className="relative">
-                      <input
-                        type={showKey ? "text" : "password"}
-                        className="w-full px-3 py-2 pr-8 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
-                        placeholder="sk-..."
-                        value={apiKey}
-                        onChange={(e) => handleApiKeyChange(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
-                        onClick={() => setShowKey(!showKey)}
-                      >
-                        {showKey ? (
-                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                        ) : (
-                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs text-text-secondary block mb-1">可选模型列表</label>
-                    <div className="space-y-1 mb-2">
-                      {availableModels.map((m, i) => (
-                        <div key={i} className="flex items-center gap-1">
-                          <input
-                            className="flex-1 px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
-                            value={m}
-                            onChange={(e) => {
-                              const next = [...availableModels];
-                              next[i] = e.target.value;
-                              setAvailableModels(next);
-                            }}
-                          />
-                          <button
-                            className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-danger transition-colors text-xs"
-                            onClick={() => setAvailableModels(availableModels.filter((_, j) => j !== i))}
-                          >✕</button>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        className="px-3 py-1 rounded border border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/5 transition-colors"
-                        onClick={() => setAvailableModels([...availableModels, ""])}
-                      >+ 添加模型</button>
-                      <button
-                        className="px-3 py-1 rounded border border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/5 transition-colors"
-                        onClick={async () => {
-                          try {
-                            const models = await window.electronAPI.settings.fetchModels();
-                            if (models.length > 0) setAvailableModels(models);
-                          } catch (e: unknown) {
-                            alert(e instanceof Error ? e.message : "获取失败");
-                          }
-                        }}
-                      >从 API 获取</button>
-                    </div>
-                    <p className="text-[10px] text-text-secondary mt-1.5">在聊天窗口中可切换的模型列表。默认使用第一个或下方指定的模型。</p>
-                  </div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={context1M}
-                      onChange={(e) => setContext1M(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded accent-accent"
-                    />
-                    <span className="text-xs text-text-primary">开启 1M 上下文（仅支持 Pro 模型）</span>
-                  </label>
-                  <div>
-                    <label className="text-xs text-text-secondary block mb-1">默认模型</label>
-                    {availableModels.length > 0 ? (
-                      <select
-                        className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
-                        value={model}
-                        onChange={(e) => setModel(e.target.value)}
-                      >
-                        <option value="">— 不限 —</option>
-                        {availableModels.map((m) => (
-                          <option key={m} value={m}>{m}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
-                        placeholder="deepseek-v4-pro[1m]"
-                        value={model}
-                        onChange={(e) => setModel(e.target.value)}
-                      />
-                    )}
-                    <p className="text-[10px] text-text-secondary mt-0.5">新会话的默认模型，先获取模型列表后可从下拉选择</p>
-                  </div>
-                </div>
-              </section>
-
               {/* Context threshold */}
               <section>
                 <h3 className="text-sm font-medium text-text-secondary mb-2">上下文轮转阈值</h3>
@@ -709,6 +579,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
             <AgentsTab />
           ) : activeTab === "skills" ? (
             <SkillsTab />
+          ) : activeTab === "providers" ? (
+            <ProviderSettings />
           ) : (
             <McpTab />
           )}

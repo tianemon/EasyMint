@@ -75,7 +75,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     get: () => ipcRenderer.invoke("settings:get"),
     set: (key: string, value: unknown) => ipcRenderer.invoke("settings:set", { key, value }),
     setLastProject: (projectId: string) => ipcRenderer.invoke("settings:set-last-project", { projectId }),
-    fetchModels: () => ipcRenderer.invoke("settings:fetchModels") as Promise<string[]>,
+    fetchModels: (modelsUrl: string, apiKey: string) => ipcRenderer.invoke("settings:fetchModels", modelsUrl, apiKey) as Promise<string[]>,
     fetchBalance: () => ipcRenderer.invoke("settings:fetchBalance") as Promise<{ balance_infos?: { currency: string; total_balance: string; granted_balance: string }[] }>,
   },
   agentTemplates: {

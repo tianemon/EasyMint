@@ -52,10 +52,47 @@ EasyMint 专属设置，不与 SDK 混淆。
 | `hiddenMcpServers` | `string[]`，EasyMint 内禁用注入的 MCP 服务器名称列表 |
 | `disabledSkills` | `string[]`（已弃用，迁移至 `hiddenSkills`） |
 | `disabledMcpServers` | `string[]`（已弃用，迁移至 `hiddenMcpServers`） |
-| `model` | 默认模型 |
-| `availableModels` | `string[]`，可选模型列表 |
+| `model` | 默认模型（旧字段，新配置优先用 `apiProviders`） |
+| `availableModels` | `string[]`，可选模型列表（旧字段） |
+| `context1M` | 是否启用 1M 上下文（旧字段，新配置优先用 `apiProviders`） |
+| `apiProviders` | 多平台 API 供应商配置（见下方说明） |
 
-> **注意**：`apiKey` 和 `apiBaseUrl` 不属于 EasyMint，由 SDK 的 `settings.json`（`env.ANTHROPIC_AUTH_TOKEN` / `env.ANTHROPIC_BASE_URL`）管理。
+> **注意**：`apiKey` 和 `apiBaseUrl` 属于 SDK 的 `settings.json`（`env.ANTHROPIC_AUTH_TOKEN` / `env.ANTHROPIC_BASE_URL`）。EasyMint 通过 `saveSettings()` 在 `writeSdkSettings()` 中自动同步激活的供应商配置到 SDK 文件。
+
+### `apiProviders` 结构
+
+```json
+{
+  "current": "deepseek-main",
+  "configs": {
+    "deepseek-main": {
+      "id": "deepseek-main",
+      "presetId": "deepseek",
+      "name": "我的DeepSeek",
+      "apiKey": "sk-xxx",
+      "baseUrl": "https://api.deepseek.com/anthropic",
+      "model": "deepseek-v4-pro",
+      "models": ["deepseek-v4-pro", "deepseek-v4-pro[1M]", "deepseek-v4-flash"],
+      "context1M": false,
+      "createdAt": 1718000000000
+    }
+  }
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `current` | 当前激活的供应商配置 ID |
+| `configs` | 所有用户保存的供应商配置，key 为配置 ID |
+| `configs.<id>.presetId` | 引用的平台预设 ID（见 `app/shared/platform-presets.ts`） |
+| `configs.<id>.name` | 用户自定义名称 |
+| `configs.<id>.apiKey` | API Key |
+| `configs.<id>.baseUrl` | 可选的 Base URL 覆盖 |
+| `configs.<id>.model` | 当前选中的默认模型 |
+| `configs.<id>.models` | 可选模型列表 |
+| `configs.<id>.context1M` | 是否启用 1M 上下文（仅 DeepSeek 等支持平台显示此开关） |
+
+**读取优先级**：`buildQueryOptions()` → `apiProviders.current` → `apiProviders.configs[activeId]` → 预设 env → 旧 `apiBaseUrl`/`apiKey` 字段
 
 ---
 

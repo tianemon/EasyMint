@@ -1,64 +1,39 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSettingsStore } from "../stores/settings-store";
+import { ProviderForm } from "../components/settings/ProviderSettings";
+import type { ProviderConfig, ApiProvidersData } from "@shared/platform-presets";
 
 const STEPS = [
-  { number: 1, title: "配置 API", description: "设置 API 地址和密钥" },
-  { number: 2, title: "获取模型", description: "拉取可用模型列表" },
-  { number: 3, title: "准备就绪", description: "EasyMint 已配置完成" },
+  { number: 1, title: "欢迎使用 EasyMint" },
+  { number: 2, title: "选择 AI 供应商" },
 ];
 
 export function OnboardingPage(): JSX.Element {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
-  const [baseUrl, setBaseUrl] = useState("https://api.deepseek.com/anthropic");
-  const [key, setKey] = useState("");
-  const [models, setModels] = useState<string[]>([]);
-  const [fetching, setFetching] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [showKey, setShowKey] = useState(false);
+  const { apiProviders, setApiProviders } = useSettingsStore();
 
-  const storeSetApiBaseUrl = useSettingsStore((s) => s.setApiBaseUrl);
-  const storeSetApiKey = useSettingsStore((s) => s.setApiKey);
-  const storeSetAvailableModels = useSettingsStore((s) => s.setAvailableModels);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("easymint_api_base_url");
-    if (saved) setBaseUrl(saved);
-  }, []);
-
-  const handleFetchModels = async () => {
-    setFetching(true);
-    setFetchError(null);
-    try {
-      if (!key.trim()) { setFetchError("请先填写 API Key"); setFetching(false); return; }
-      storeSetApiBaseUrl(baseUrl);
-      storeSetApiKey(key);
-      localStorage.setItem("easymint_api_base_url", baseUrl);
-      const list = await window.electronAPI.settings.fetchModels();
-      setModels(list);
-      storeSetAvailableModels(list);
-    } catch (e: unknown) {
-      setFetchError(e instanceof Error ? e.message : "获取失败");
-    } finally {
-      setFetching(false);
-    }
+  const handleProviderSave = (cfg: ProviderConfig) => {
+    const configs = { ...(apiProviders?.configs ?? {}), [cfg.id]: cfg };
+    const nextData: ApiProvidersData = {
+      current: cfg.id,
+      configs,
+    };
+    setApiProviders(nextData);
   };
 
   const handleComplete = () => {
-    storeSetApiBaseUrl(baseUrl);
-    storeSetApiKey(key);
     localStorage.setItem("easymint_setup_complete", "true");
-    // Persist to main process so createWindow can skip Onboarding on restart
     window.electronAPI?.settings?.set?.("setupComplete", true);
-    localStorage.removeItem("easymint_api_base_url");
     window.dispatchEvent(new Event("easymint-setup-complete"));
     navigate("/");
   };
 
   const goNext = () => setCurrentStep((s) => Math.min(s + 1, STEPS.length - 1));
   const goPrev = () => setCurrentStep((s) => Math.max(s - 1, 0));
-  const isLastStep = currentStep === STEPS.length - 1;
+
+  const hasProvider = apiProviders?.current && apiProviders?.configs?.[apiProviders.current];
 
   return (
     <div className="flex flex-col h-full">
@@ -68,13 +43,19 @@ export function OnboardingPage(): JSX.Element {
           <div key={step.number} className="flex items-center gap-3">
             <div
               className={`w-2 h-2 rounded-full transition-colors ${
-                i < currentStep ? "bg-accent"
-                  : i === currentStep ? "bg-accent ring-2 ring-accent/30"
-                  : "bg-border"
+                i < currentStep
+                  ? "bg-accent"
+                  : i === currentStep
+                    ? "bg-accent ring-2 ring-accent/30"
+                    : "bg-border"
               }`}
             />
             {i < STEPS.length - 1 && (
-              <div className={`w-8 h-[2px] transition-colors ${i < currentStep ? "bg-accent" : "bg-border"}`} />
+              <div
+                className={`w-8 h-[2px] transition-colors ${
+                  i < currentStep ? "bg-accent" : "bg-border"
+                }`}
+              />
             )}
           </div>
         ))}
@@ -82,120 +63,82 @@ export function OnboardingPage(): JSX.Element {
 
       {/* Content */}
       <div className="flex-1 flex flex-col items-center justify-center px-8 pb-8">
-        <div className="w-full max-w-[480px]">
-          <h1 className="text-xl font-semibold text-center mb-1">{STEPS[currentStep]!.title}</h1>
-          <p className="text-text-secondary text-center text-sm mb-8">{STEPS[currentStep]!.description}</p>
-
-          {currentStep === 0 && (
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs text-text-secondary block mb-1">API Base URL</label>
-                <input
-                  className="w-full px-3 py-2.5 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
-                  value={baseUrl}
-                  onChange={(e) => setBaseUrl(e.target.value)}
-                  placeholder="https://api.deepseek.com/anthropic"
+        {currentStep === 0 ? (
+          /* ── Step 1: Welcome ── */
+          <div className="w-full max-w-[480px] flex flex-col items-center text-center">
+            {/* Logo */}
+            <div className="w-24 h-24 rounded-2xl bg-accent/10 flex items-center justify-center mb-6">
+              <svg
+                viewBox="0 0 64 64"
+                fill="none"
+                className="w-14 h-14 text-accent"
+              >
+                <path
+                  d="M32 4C32 4 12 20 12 36c0 8 6 14 14 14 4 0 6-2 6-6V28c0-2 2-4 4-4s4 2 4 4v16c0 4 2 6 6 6 8 0 14-6 14-14C60 20 32 4 32 4Z"
+                  fill="currentColor"
+                  opacity="0.9"
                 />
-              </div>
-              <div>
-                <label className="text-xs text-text-secondary block mb-1">API Key</label>
-                <div className="flex gap-2">
-                  <input
-                    className="flex-1 px-3 py-2.5 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent font-mono"
-                    type={showKey ? "text" : "password"}
-                    value={key}
-                    onChange={(e) => setKey(e.target.value)}
-                    placeholder="sk-..."
-                  />
-                  <button
-                    className="px-3 py-2 rounded-lg border border-border text-text-secondary hover:text-text-primary text-xs"
-                    onClick={() => setShowKey(!showKey)}
-                  >
-                    {showKey ? "隐藏" : "显示"}
-                  </button>
-                </div>
-              </div>
+                <path
+                  d="M32 8s14 12 14 24c0 4-2 8-6 8s-6-3-6-6V22c0-2-2-4-4-4s-4 2-4 4v12c0 3-2 6-6 6s-6-4-6-8c0-12 14-24 14-24Z"
+                  fill="currentColor"
+                />
+              </svg>
             </div>
-          )}
 
-          {currentStep === 1 && (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-border p-6 flex flex-col items-center gap-4">
-                {models.length > 0 ? (
-                  <>
-                    <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
-                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-accent"><path d="M5 10l3.5 3.5L15 7"/></svg>
-                    </div>
-                    <p className="text-sm text-text-primary">已获取 {models.length} 个模型</p>
-                    <div className="w-full max-h-40 overflow-y-auto bg-surface-alt rounded-lg p-3">
-                      {models.map((m) => (
-                        <div key={m} className="text-xs text-text-secondary font-mono py-0.5">{m}</div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
-                      <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="w-8 h-8 text-accent"><path d="M6 18a10 10 0 0 1 20 0"/><path d="M10 14a6 6 0 0 1 12 0"/><path d="M14 10a2 2 0 0 1 4 0"/><circle cx="16" cy="22" r="2"/></svg>
-                    </div>
-                    <p className="text-sm text-text-secondary text-center">
-                      点击下方按钮从 API 获取可用模型列表
-                    </p>
-                    <button
-                      className="px-6 py-2.5 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium disabled:opacity-40"
-                      disabled={fetching}
-                      onClick={handleFetchModels}
-                    >
-                      {fetching ? "获取中..." : "获取模型列表"}
-                    </button>
-                    {fetchError && (
-                      <p className="text-xs text-danger text-center">{fetchError}</p>
-                    )}
-                    <button
-                      className="text-xs text-text-secondary hover:text-accent underline transition-colors"
-                      onClick={() => { setModels(["跳过"]); }}
-                    >
-                      跳过，稍后设置
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
+            <h1 className="text-2xl font-bold text-text-primary mb-2">EasyMint</h1>
+            <p className="text-sm text-text-secondary mb-1">
+              AI 驱动开发，让不懂技术的人也能创建软件
+            </p>
+            <p className="text-xs text-text-muted mb-8 leading-relaxed">
+              填写项目需求，Mint 自动拆解任务、选择技术栈、调度 Builder 编码、
+              Evaluator 验收，你只需要对话。
+            </p>
 
-          {currentStep === 2 && (
-            <div className="flex flex-col items-center gap-6 py-8">
-              <div className="w-20 h-20 rounded-full bg-accent flex items-center justify-center">
-                <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-10 h-10 text-text-inverse"><path d="M7 17l6 6L25 9"/></svg>
+            <div className="flex flex-col gap-3 w-full">
+              <div className="px-4 py-3 rounded-lg bg-surface-alt text-left">
+                <p className="text-sm font-medium text-text-primary">AI 项目管理</p>
+                <p className="text-xs text-text-muted mt-0.5">
+                  Mint 自动分析需求、拆分任务、跟进进度
+                </p>
               </div>
-              <div className="text-center">
-                <h2 className="text-xl font-semibold mb-2">EasyMint 已准备就绪</h2>
-                <p className="text-sm text-text-secondary">
-                  API 已配置{models.length > 0 ? `，${models.length} 个模型可用` : ""}。现在可以开始创建项目了
+              <div className="px-4 py-3 rounded-lg bg-surface-alt text-left">
+                <p className="text-sm font-medium text-text-primary">自动开发执行</p>
+                <p className="text-xs text-text-muted mt-0.5">
+                  Builder 编码 → Evaluator 验收，全自动循环
+                </p>
+              </div>
+              <div className="px-4 py-3 rounded-lg bg-surface-alt text-left">
+                <p className="text-sm font-medium text-text-primary">多平台支持</p>
+                <p className="text-xs text-text-muted mt-0.5">
+                  内置 Anthropic、DeepSeek、Kimi、MiniMax 等 8 个平台
                 </p>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          /* ── Step 2: Provider Setup ── */
+          <div className="w-full max-w-[540px]">
+            <h1 className="text-xl font-semibold text-center mb-1">
+              选择 AI 供应商
+            </h1>
+            <p className="text-text-secondary text-center text-sm mb-6">
+              选择一个平台并填写 API Key 即可开始使用
+            </p>
+            <ProviderForm onSave={handleProviderSave} />
+          </div>
+        )}
       </div>
 
       {/* Footer */}
       <footer className="border-t border-border p-4 flex justify-between bg-surface-alt shrink-0">
-        {!isLastStep ? (
+        {currentStep === 0 ? (
           <>
+            <div />
             <button
-              className="px-4 py-2 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors disabled:opacity-30"
-              disabled={currentStep === 0}
-              onClick={goPrev}
-            >
-              返回
-            </button>
-            <button
-              className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium disabled:opacity-40"
-              disabled={currentStep === 0 && !key.trim()}
+              className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium"
               onClick={goNext}
             >
-              下一步
+              开始设置
             </button>
           </>
         ) : (
@@ -207,8 +150,10 @@ export function OnboardingPage(): JSX.Element {
               返回
             </button>
             <button
-              className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium"
+              className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium disabled:opacity-40"
+              disabled={!hasProvider}
               onClick={handleComplete}
+              title={!hasProvider ? "请先保存一个供应商配置" : undefined}
             >
               进入工作台
             </button>
