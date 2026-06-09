@@ -62,12 +62,14 @@ export function SessionHistory({
     return () => document.removeEventListener("mousedown", handler);
   }, [showArchive]);
 
+  const initialLoadDone = useRef(false);
+
   const load = useCallback(() => {
     const path = projectPath || getWorkspaceDir();
-    setLoading(true);
+    if (!initialLoadDone.current) setLoading(true);
     setError(null);
     window.electronAPI.conv.list(path)
-      .then(setSessions)
+      .then((data) => { setSessions(data); initialLoadDone.current = true; })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "加载失败"))
       .finally(() => setLoading(false));
   }, [projectPath]);
