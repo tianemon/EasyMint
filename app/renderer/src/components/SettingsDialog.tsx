@@ -460,6 +460,12 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               通用
             </button>
             <button
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "providers" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setActiveTab("providers")}
+            >
+              供应商
+            </button>
+            <button
               className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "prompts" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
               onClick={() => setActiveTab("prompts")}
             >
@@ -482,12 +488,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               onClick={() => setActiveTab("mcp")}
             >
               MCP
-            </button>
-            <button
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "providers" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
-              onClick={() => setActiveTab("providers")}
-            >
-              供应商
             </button>
             <button
               className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "about" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
