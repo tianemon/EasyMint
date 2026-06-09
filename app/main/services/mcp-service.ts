@@ -203,7 +203,7 @@ const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
   playwright: {
     type: "stdio",
     command: "npx",
-    args: ["@playwright/mcp@latest"],
+    args: ["@playwright/mcp@latest", "--headless"],
   },
   codegraph: {
     type: "stdio",
