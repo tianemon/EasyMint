@@ -592,7 +592,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               <img src="/icon.png" className="w-20 h-20" />
               <div className="text-center">
                 <h2 className="text-xl font-bold text-text-primary">EasyMint</h2>
-                <p className="text-sm text-text-secondary mt-1">AI 驱动开发，让不懂技术的人也能创建软件</p>
+                <p className="text-sm text-text-secondary mt-1">AI 驱动开发，简单的操作让想法变为现实</p>
               </div>
               <div className="bg-surface-alt rounded-lg px-6 py-4 space-y-2 text-sm">
                 <div className="flex justify-between gap-8">

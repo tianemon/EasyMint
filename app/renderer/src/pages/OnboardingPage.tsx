@@ -92,7 +92,7 @@ export function OnboardingPage(): JSX.Element {
 
             <h1 className="text-2xl font-bold text-text-primary mb-2">EasyMint</h1>
             <p className="text-sm text-text-secondary mb-1">
-              AI 驱动开发，让不懂技术的人也能创建软件
+              AI 驱动开发，简单的操作让想法变为现实
             </p>
             <p className="text-xs text-text-muted mb-8 leading-relaxed">
               填写项目需求，Mint 自动拆解任务、选择技术栈、调度 Builder 编码、
