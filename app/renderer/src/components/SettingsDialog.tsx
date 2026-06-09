@@ -589,12 +589,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
             <ProviderSettings />
           ) : activeTab === "about" ? (
             <div className="flex flex-col items-center justify-center py-12 space-y-6">
-              <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center">
-                <svg viewBox="0 0 64 64" fill="none" className="w-10 h-10 text-accent">
-                  <path d="M32 4C32 4 12 20 12 36c0 8 6 14 14 14 4 0 6-2 6-6V28c0-2 2-4 4-4s4 2 4 4v16c0 4 2 6 6 6 8 0 14-6 14-14C60 20 32 4 32 4Z" fill="currentColor" opacity="0.9" />
-                  <path d="M32 8s14 12 14 24c0 4-2 8-6 8s-6-3-6-6V22c0-2-2-4-4-4s-4 2-4 4v12c0 3-2 6-6 6s-6-4-6-8c0-12 14-24 14-24Z" fill="currentColor" />
-                </svg>
-              </div>
+              <img src="/icon.png" className="w-20 h-20" />
               <div className="text-center">
                 <h2 className="text-xl font-bold text-text-primary">EasyMint</h2>
                 <p className="text-sm text-text-secondary mt-1">AI 驱动开发，让不懂技术的人也能创建软件</p>
