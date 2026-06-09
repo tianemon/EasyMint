@@ -158,32 +158,29 @@ export function OnboardingPage(): JSX.Element {
       {/* Footer */}
       <footer className="border-t border-border p-4 flex justify-between bg-surface-alt shrink-0">
         {currentStep === 0 ? (
-          <>
-            <div />
-            <button
-              className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium"
-              onClick={goNext}
-            >
-              开始设置
-            </button>
-          </>
+          <button
+            className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium ml-auto"
+            onClick={goNext}
+          >
+            开始设置
+          </button>
         ) : (
-          <>
-            <button
-              className="px-4 py-2 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors"
-              onClick={goPrev}
-            >
-              返回
-            </button>
-            <button
-              className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium disabled:opacity-40"
-              disabled={!savedCfg}
-              onClick={handleComplete}
-              title={!savedCfg ? "请先保存一个供应商配置" : undefined}
-            >
-              进入工作台
-            </button>
-          </>
+          <button
+            className="px-4 py-2 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors"
+            onClick={goPrev}
+          >
+            返回
+          </button>
+        )}
+        {currentStep !== 0 && (
+          <button
+            className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium disabled:opacity-40"
+            disabled={!savedCfg}
+            onClick={handleComplete}
+            title={!savedCfg ? "请先保存一个供应商配置" : undefined}
+          >
+            进入工作台
+          </button>
         )}
       </footer>
     </div>
