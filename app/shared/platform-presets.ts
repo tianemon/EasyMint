@@ -207,7 +207,7 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
     models: [],
     keyPlaceholder: "sk-...",
     supportsModelList: true,
-    modelsUrl: "https://api.minimaxi.com/anthropic/v1/models",
+    modelsUrl: "https://api.minimaxi.com/v1/models",
     supportsContext1M: false,
   },
 ];
