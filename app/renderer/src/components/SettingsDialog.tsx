@@ -501,7 +501,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay">
-      <div className="bg-surface-alt rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 800, height: 700 }}>
+      <div className="bg-surface-elevated rounded-2xl border border-border-light shadow-xl modal-card flex flex-col" style={{ width: 800, height: 700 }}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-0 border-b border-border bg-surface">
           <div className="flex gap-0">
