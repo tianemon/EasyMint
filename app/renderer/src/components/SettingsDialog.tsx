@@ -488,10 +488,12 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
   const [activeTab, setActiveTab] = useState<"general" | "prompts" | "agents" | "skills" | "mcp" | "providers" | "about">("general");
 
   useEffect(() => {
-    if (open) {
-      loadFromElectron();
-    }
-  }, [open, loadFromElectron]);
+    if (!open) return;
+    loadFromElectron();
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, loadFromElectron, onClose]);
 
   const handleClose = useCallback(() => {
     onClose();
