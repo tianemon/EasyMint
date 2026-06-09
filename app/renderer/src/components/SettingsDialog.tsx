@@ -573,7 +573,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               {/* 聊天 */}
               <section>
                 <h3 className="text-sm font-medium text-text-secondary mb-2">聊天</h3>
-                <div className="bg-surface-alt rounded-lg px-4 py-3 space-y-3">
+                <div className="bg-surface-alt rounded-lg border border-border px-4 py-3 space-y-3">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
