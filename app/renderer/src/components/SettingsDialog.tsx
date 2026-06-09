@@ -19,7 +19,7 @@ function GitCheckSection(): JSX.Element {
   return (
     <section>
       <h3 className="text-sm font-medium text-text-secondary mb-2">环境检测</h3>
-      <div className="bg-surface-alt rounded-lg px-4 py-3">
+      <div className="bg-surface-alt rounded-lg border border-border px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm text-text-primary">Git</span>
@@ -550,7 +550,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               {/* 外观 */}
               <section>
                 <h3 className="text-sm font-medium text-text-secondary mb-2">外观</h3>
-                <div className="bg-surface-alt rounded-lg px-4 py-3">
+                <div className="bg-surface-alt rounded-lg border border-border px-4 py-3">
                   <p className="text-sm text-text-primary">主题</p>
                   <p className="text-xs text-text-secondary mt-0.5">亮色 Mint（仅亮色）</p>
                 </div>
@@ -559,7 +559,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               {/* 路径 */}
               <section>
                 <h3 className="text-sm font-medium text-text-secondary mb-2">默认项目路径</h3>
-                <div className="bg-surface-alt rounded-lg px-4 py-3">
+                <div className="bg-surface-alt rounded-lg border border-border px-4 py-3">
                   <input
                     className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
                     placeholder="~/EasyMintProject"
@@ -598,7 +598,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               {/* Context threshold */}
               <section>
                 <h3 className="text-sm font-medium text-text-secondary mb-2">上下文轮转阈值</h3>
-                <div className="bg-surface-alt rounded-lg px-4 py-3">
+                <div className="bg-surface-alt rounded-lg border border-border px-4 py-3">
                   <div className="flex items-center gap-3">
                     <input
                       type="range"
