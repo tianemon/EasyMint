@@ -136,14 +136,6 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
 
   loadApp(window, hash);
 
-  // Defer Python dependency install to after UI is ready (avoids blocking startup)
-  setTimeout(() => {
-    try {
-      const { installImageVisionDeps } = require("./services/mcp-service");
-      installImageVisionDeps();
-    } catch { /* ignore */ }
-  }, 2000);
-
   window.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };

@@ -9,8 +9,6 @@
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, cpSync } from "node:fs";
-import { createHash } from "node:crypto";
-import { execSync } from "node:child_process";
 import path from "node:path";
 import os from "node:os";
 
@@ -257,8 +255,8 @@ export function seedDefaultMcp(): void {
     if (!existing["image-vision"]) {
       existing["image-vision"] = {
         type: "stdio",
-        command: process.platform === "win32" ? "python" : "python3",
-        args: [path.join(targetDir, "server.py")],
+        command: "node",
+        args: [path.join(targetDir, "server.js")],
         env: { VISION_API_KEY: "" },
       };
       changed = true;
@@ -269,35 +267,6 @@ export function seedDefaultMcp(): void {
     data.mcpServers = existing;
     writeFileSync(configPath, JSON.stringify(data, null, 2), "utf-8");
     console.log("[seedDefaultMcp] mcp config written to", configPath);
-  }
-}
-
-/** Install Python dependencies for image-vision MCP. Runs after UI is ready
- *  to avoid blocking startup. Uses .deps-installed marker to skip if up to date. */
-export function installImageVisionDeps(): void {
-  const targetDir = path.join(os.homedir(), ".easymint", "mcp", "image-vision");
-  const requirementsPath = path.join(targetDir, "requirements.txt");
-  if (!existsSync(requirementsPath)) return;
-
-  const depsHash = createHash("md5").update(readFileSync(requirementsPath, "utf-8")).digest("hex");
-  const markerPath = path.join(targetDir, ".deps-installed");
-  if (existsSync(markerPath)) {
-    try {
-      const marker = JSON.parse(readFileSync(markerPath, "utf-8"));
-      if (marker.hash === depsHash) return; // already installed
-    } catch { /* reinstall */ }
-  }
-
-  const pythonCmd = process.platform === "win32" ? "python" : "python3";
-  try {
-    execSync(`"${pythonCmd}" -m pip install -r "${requirementsPath}"`, {
-      stdio: "pipe",
-      timeout: 120000,
-    });
-    writeFileSync(markerPath, JSON.stringify({ hash: depsHash, installedAt: new Date().toISOString() }));
-    console.log("[installImageVisionDeps] deps installed");
-  } catch (err) {
-    console.error("[installImageVisionDeps] failed:", err);
   }
 }
 
