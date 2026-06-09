@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
-@theme {
+/* Tailwind 4: 注册设计 token，引用 :root 中的 CSS 变量实现运行时换肤。
+   inline 模式确保生成的 class 使用 var(--color-xxx)，而非编译期内联值。 */
+@theme inline {
   --color-surface: var(--color-surface);
   --color-surface-alt: var(--color-surface-alt);
   --color-surface-hover: var(--color-surface-hover);
@@ -45,9 +47,9 @@
   --color-tooltip-bg: var(--color-tooltip-bg);
   --color-tooltip-text: var(--color-tooltip-text);
   --color-overlay: rgba(0, 0, 0, 0.5);
-  --radius-sm: var(--radius-sm);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-lg);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
   --ease-mint-ease: cubic-bezier(0.4, 0, 0.2, 1);
