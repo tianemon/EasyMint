@@ -433,7 +433,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     setShowToolUse,
     loadFromElectron,
   } = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<"general" | "prompts" | "agents" | "skills" | "mcp" | "providers">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "prompts" | "agents" | "skills" | "mcp" | "providers" | "about">("general");
 
   useEffect(() => {
     if (open) {
@@ -488,6 +488,12 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               onClick={() => setActiveTab("providers")}
             >
               供应商
+            </button>
+            <button
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "about" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setActiveTab("about")}
+            >
+              关于
             </button>
           </div>
           <button
@@ -581,6 +587,41 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
             <SkillsTab />
           ) : activeTab === "providers" ? (
             <ProviderSettings />
+          ) : activeTab === "about" ? (
+            <div className="flex flex-col items-center justify-center py-12 space-y-6">
+              <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center">
+                <svg viewBox="0 0 64 64" fill="none" className="w-10 h-10 text-accent">
+                  <path d="M32 4C32 4 12 20 12 36c0 8 6 14 14 14 4 0 6-2 6-6V28c0-2 2-4 4-4s4 2 4 4v16c0 4 2 6 6 6 8 0 14-6 14-14C60 20 32 4 32 4Z" fill="currentColor" opacity="0.9" />
+                  <path d="M32 8s14 12 14 24c0 4-2 8-6 8s-6-3-6-6V22c0-2-2-4-4-4s-4 2-4 4v12c0 3-2 6-6 6s-6-4-6-8c0-12 14-24 14-24Z" fill="currentColor" />
+                </svg>
+              </div>
+              <div className="text-center">
+                <h2 className="text-xl font-bold text-text-primary">EasyMint</h2>
+                <p className="text-sm text-text-secondary mt-1">AI 驱动开发，让不懂技术的人也能创建软件</p>
+              </div>
+              <div className="bg-surface-alt rounded-lg px-6 py-4 space-y-2 text-sm">
+                <div className="flex justify-between gap-8">
+                  <span className="text-text-secondary">版本</span>
+                  <span className="text-text-primary">v0.1.0</span>
+                </div>
+                <div className="flex justify-between gap-8">
+                  <span className="text-text-secondary">技术栈</span>
+                  <span className="text-text-primary">Electron · React · TypeScript</span>
+                </div>
+                <div className="flex justify-between gap-8">
+                  <span className="text-text-secondary">AI 引擎</span>
+                  <span className="text-text-primary">claude-agent-sdk</span>
+                </div>
+              </div>
+              <a
+                href="https://github.com/tianemon/EasyMint"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-accent hover:underline"
+              >
+                github.com/tianemon/EasyMint
+              </a>
+            </div>
           ) : (
             <McpTab />
           )}
