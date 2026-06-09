@@ -56,8 +56,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   thinkingBudget: 0,
   contextThreshold: 60,
   context1M: false,
-  showThinking: true,
-  showToolUse: true,
+  showThinking: false,
+  showToolUse: false,
 
   setModel: (model: string) => {
     set({ model });
@@ -158,8 +158,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           thinkingBudget: 0,
           contextThreshold: settings.contextThreshold ?? 60,
           context1M: settings.context1M ?? false,
-          showThinking: settings.showThinking ?? true,
-          showToolUse: settings.showToolUse ?? true,
+          showThinking: settings.showThinking ?? false,
+          showToolUse: settings.showToolUse ?? false,
           setupComplete: settings.setupComplete ?? false,
           apiProviders: (settings.apiProviders as ApiProvidersData) ?? null,
         });
