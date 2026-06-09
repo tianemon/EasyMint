@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { LeftToolbar } from "../components/LeftToolbar";
 import { LeftPanel } from "../components/LeftPanel";
@@ -60,6 +60,7 @@ export function ProjectPage(): JSX.Element {
 
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
   const [sessionRefreshKey, setSessionRefreshKey] = useState(0);
+  const lastSessionRefresh = useRef(0);
 
   useEffect(() => {
     // 切换项目时清空标签页和任务
@@ -221,7 +222,14 @@ switch (activeTab.type) {
               setActiveSessionId(sid);
               setSessionRefreshKey((k) => k + 1);
             }}
-            onActivity={() => { setSessionRefreshKey((k) => k + 1); refreshAll(); }}
+            onActivity={() => {
+              const now = Date.now();
+              if (now - lastSessionRefresh.current > 3000) {
+                lastSessionRefresh.current = now;
+                setSessionRefreshKey((k) => k + 1);
+              }
+              refreshAll();
+            }}
             onNewProject={() => setShowNewProject(true)}
           />
         );
