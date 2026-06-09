@@ -108,9 +108,10 @@ interface ChatPanelProps {
   sessionId?: string;
   onSessionCreated?: (sessionId: string) => void;
   onActivity?: () => void;
+  onNewProject?: () => void;
 }
 
-export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreated, onActivity }: ChatPanelProps): JSX.Element {
+export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreated, onActivity, onNewProject }: ChatPanelProps): JSX.Element {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -453,6 +454,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     ? messages.filter((m) => m.role === "ai" && m.entries).pop()?.entries
         ?.filter((e) => e.kind === "text").map((e) => (e as { text: string }).text).join("") ?? ""
     : "";
+  // Detect user intent to create a new project
+  const lastUserText = messages.length > 0
+    ? messages.filter((m) => m.role === "user" && m.text).pop()?.text ?? ""
+    : "";
+  const showNewProjectBtn = onNewProject && /新建|建个|创建|帮我建|我要建|新建.*项目|建.*项目|创建.*项目/.test(lastUserText);
   const showConfirmDev = lastAiText.includes("确认开发") && !loading;
   const canSend = input.trim() || attaches.length > 0;
 
@@ -550,6 +556,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 </div>
               );
             })}
+            {showNewProjectBtn && (
+              <div className="flex justify-center pb-3">
+                <button
+                  onClick={onNewProject}
+                  className="px-6 py-2.5 rounded-xl bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors shadow-sm"
+                >
+                  新建项目
+                </button>
+              </div>
+            )}
             {showConfirmDev && (
               <div className="flex justify-center pb-3">
                 <button

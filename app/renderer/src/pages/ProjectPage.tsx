@@ -222,6 +222,7 @@ switch (activeTab.type) {
               setSessionRefreshKey((k) => k + 1);
             }}
             onActivity={() => { setSessionRefreshKey((k) => k + 1); refreshAll(); }}
+            onNewProject={() => setShowNewProject(true)}
           />
         );
       case "file":
