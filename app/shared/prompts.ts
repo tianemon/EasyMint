@@ -299,11 +299,9 @@ ${instruction}`;
 
 // ── 确认开发 ──────────────────────────────────────────
 
-export const CONFIRM_DEVELOPMENT_PROMPT = `开始拆解需求、分配开发任务到 task.json。写入 task.json 后立即调用 project:writeState 更新 state.json 的 taskCount 和 lastSummary。然后用 Task 工具驱动 Builder 逐条执行。全程自动推进不等确认，直到全部完成或用户打断。每完成一个任务更新 doneCount。
+export const CONFIRM_DEVELOPMENT_PROMPT = `开始执行 task.json 中的开发任务。按顺序逐条推进，每完成一个用 Task(builder) 实现、Task(evaluator) 验收，通过后更新 doneCount。全程自动推进不等确认，直到全部完成或用户打断。遇到阻塞写入 escalation.json 并通知用户。
 
-分配任务时，为每个任务判断是否需要 TDD：涉及纯逻辑、算法、校验、API、数据处理的任务，标注 tdd: true；涉及 UI 样式、布局、动画、视觉组件、配置文件的任务，不标或标 tdd: false。
-
-task.json 格式增加 tdd 字段：{ "id": 1, "title": "...", "passes": false, "tdd": true }`;
+执行前确认每个任务的 TDD 标注：逻辑/算法/校验/API/数据处理 → tdd: true；UI样式/布局/动画/组件/配置 → tdd: false。`;
 
 // ── Mint按钮 ──────────────────────────────────────────
 
