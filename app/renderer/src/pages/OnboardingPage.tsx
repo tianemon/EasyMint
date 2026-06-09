@@ -115,7 +115,7 @@ export function OnboardingPage(): JSX.Element {
               <div className="px-4 py-3 rounded-lg bg-surface-alt text-left">
                 <p className="text-sm font-medium text-text-primary">多平台支持</p>
                 <p className="text-xs text-text-muted mt-0.5">
-                  内置 Anthropic、DeepSeek、Kimi、MiniMax 等 8 个平台
+                  内置 Anthropic、DeepSeek、MiMo、MiniMax 等平台
                 </p>
               </div>
             </div>

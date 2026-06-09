@@ -149,44 +149,6 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
     supportsContext1M: true,
   },
 
-  // ── Kimi ─────────────────────────────────────
-  {
-    id: "kimi",
-    name: "Kimi",
-    category: "cn_official",
-    websiteUrl: "https://platform.moonshot.cn/console",
-    env: {
-      ANTHROPIC_BASE_URL: "https://api.moonshot.cn/anthropic",
-      ANTHROPIC_AUTH_TOKEN: "",
-      ANTHROPIC_MODEL: "kimi-k2.6",
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: "kimi-k2.6",
-      ANTHROPIC_DEFAULT_SONNET_MODEL: "kimi-k2.6",
-      ANTHROPIC_DEFAULT_OPUS_MODEL: "kimi-k2.6",
-    },
-    models: [],
-    keyPlaceholder: "sk-...",
-    supportsModelList: true,
-    modelsUrl: "https://api.moonshot.cn/v1/models",
-    supportsContext1M: false,
-  },
-
-  // ── Kimi For Coding ──────────────────────────
-  {
-    id: "kimi-coding",
-    name: "Kimi For Coding",
-    category: "cn_official",
-    websiteUrl: "https://www.kimi.com/code/docs/",
-    env: {
-      ANTHROPIC_BASE_URL: "https://api.kimi.com/coding/",
-      ANTHROPIC_AUTH_TOKEN: "",
-    },
-    models: [],
-    keyPlaceholder: "sk-...",
-    supportsModelList: true,
-    modelsUrl: "https://api.kimi.com/coding/v1/models",
-    supportsContext1M: false,
-  },
-
   // ── MiniMax ──────────────────────────────────
   {
     id: "minimax",
