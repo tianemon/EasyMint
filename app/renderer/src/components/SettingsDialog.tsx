@@ -433,7 +433,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     setShowToolUse,
     loadFromElectron,
   } = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<"general" | "prompts" | "agents" | "skills" | "mcp" | "providers" | "about">("about");
+  const [activeTab, setActiveTab] = useState<"general" | "prompts" | "agents" | "skills" | "mcp" | "providers" | "about">("general");
 
   useEffect(() => {
     if (open) {
@@ -453,12 +453,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-0 border-b border-border bg-surface">
           <div className="flex gap-0">
-            <button
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "about" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
-              onClick={() => setActiveTab("about")}
-            >
-              关于
-            </button>
             <button
               className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "general" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
               onClick={() => setActiveTab("general")}
@@ -494,6 +488,12 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               onClick={() => setActiveTab("providers")}
             >
               供应商
+            </button>
+            <button
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "about" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setActiveTab("about")}
+            >
+              关于
             </button>
           </div>
           <button
