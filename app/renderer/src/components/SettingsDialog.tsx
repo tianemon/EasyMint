@@ -8,6 +8,45 @@ interface SettingsDialogProps {
   onClose: () => void;
 }
 
+// ── Git Check Section ─────────────────────────────────────────────────────────
+
+function GitCheckSection(): JSX.Element {
+  const [gitInfo, setGitInfo] = useState<{ found: boolean; version?: string } | null>(null);
+  useEffect(() => {
+    window.electronAPI?.git?.detect().then(setGitInfo).catch(() => setGitInfo({ found: false }));
+  }, []);
+
+  return (
+    <section>
+      <h3 className="text-sm font-medium text-text-secondary mb-2">环境检测</h3>
+      <div className="bg-surface-alt rounded-lg px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-text-primary">Git</span>
+            {gitInfo === null ? (
+              <span className="text-xs text-text-muted">检测中...</span>
+            ) : gitInfo.found ? (
+              <span className="text-xs text-success">{gitInfo.version}</span>
+            ) : (
+              <span className="text-xs text-danger">未安装</span>
+            )}
+          </div>
+          {gitInfo && !gitInfo.found && (
+            <a
+              href="https://git-scm.com/downloads"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors"
+            >
+              点击安装 Git
+            </a>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ── Upload Cache Section ─────────────────────────────────────────────────────
 
 function formatBytes(bytes: number): string {
@@ -578,6 +617,9 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
 
               {/* Upload cache */}
               <UploadCacheSection />
+
+              {/* 环境检测 */}
+              <GitCheckSection />
             </div>
           ) : activeTab === "prompts" ? (
             <PromptSettings />

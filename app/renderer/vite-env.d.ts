@@ -134,6 +134,9 @@ interface ElectronAPI {
   claude: {
     detect: () => Promise<{ found: boolean; path?: string; version?: string }>;
   };
+  git: {
+    detect: () => Promise<{ found: boolean; version?: string }>;
+  };
   conv: {
     list: (projectPath: string) => Promise<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number }[]>;
     get: (id: string, projectPath: string) => Promise<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number } | null>;

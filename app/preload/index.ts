@@ -48,6 +48,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   claude: {
     detect: () => ipcRenderer.invoke("claude:detect"),
   },
+  git: {
+    detect: () => ipcRenderer.invoke("git:detect"),
+  },
   conv: {
     list: (projectPath: string) => ipcRenderer.invoke("conv:list", { projectPath }),
     get: (id: string, projectPath: string) => ipcRenderer.invoke("conv:get", { id, projectPath }),
