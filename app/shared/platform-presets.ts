@@ -1,6 +1,6 @@
 /**
  * 平台预设定义 — 内置的 API 供应商模板
- * 参考 cc-switch 的 ProviderPreset 模式，简化为 EasyMint 专用
+ * 参考 cc-switch 的 ProviderPreset + Proma 的 PROVIDER_DEFAULT_URLS
  */
 
 // ── 共享类型（main & renderer 共用）─────────────────
@@ -30,7 +30,7 @@ export interface PlatformPreset {
   websiteUrl: string;          // 获取 API Key 的链接
   apiKeyUrl?: string;          // 直达 Key 管理页
   env: {
-    ANTHROPIC_BASE_URL?: string;     // undefined = SDK 默认（Anthropic 官方）
+    ANTHROPIC_BASE_URL?: string;     // undefined = SDK 默认
     ANTHROPIC_AUTH_TOKEN: string;    // 永远为空字符串，用户填
     ANTHROPIC_MODEL?: string;
     ANTHROPIC_DEFAULT_HAIKU_MODEL?: string;
@@ -46,19 +46,104 @@ export interface PlatformPreset {
   supportsContext1M: boolean;  // 是否需要手动勾选 1M 后缀
 }
 
+// 按名称首字母排序
 export const PLATFORM_PRESETS: PlatformPreset[] = [
-  // ── Anthropic 官方 ──────────────────────────────
+  // ── Anthropic ─────────────────────────────────
   {
     id: "anthropic",
-    name: "Anthropic (官方)",
+    name: "Anthropic",
     category: "official",
     websiteUrl: "https://www.anthropic.com/claude-code",
     env: {
+      ANTHROPIC_BASE_URL: "https://api.anthropic.com",
       ANTHROPIC_AUTH_TOKEN: "",
     },
     models: [],
     keyPlaceholder: "sk-ant-...",
     supportsModelList: false,
+    supportsContext1M: false,
+  },
+
+  // ── DeepSeek ─────────────────────────────────
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    category: "cn_official",
+    websiteUrl: "https://platform.deepseek.com",
+    env: {
+      ANTHROPIC_BASE_URL: "https://api.deepseek.com/anthropic",
+      ANTHROPIC_AUTH_TOKEN: "",
+      ANTHROPIC_MODEL: "deepseek-v4-pro",
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: "deepseek-v4-flash",
+      ANTHROPIC_DEFAULT_SONNET_MODEL: "deepseek-v4-pro",
+      ANTHROPIC_DEFAULT_OPUS_MODEL: "deepseek-v4-pro",
+    },
+    models: [],
+    keyPlaceholder: "sk-...",
+    supportsModelList: true,
+    modelsUrl: "https://api.deepseek.com/models",
+    supportsContext1M: true,
+  },
+
+  // ── Kimi API ─────────────────────────────────
+  {
+    id: "kimi-api",
+    name: "Kimi API",
+    category: "cn_official",
+    websiteUrl: "https://platform.moonshot.cn/console",
+    env: {
+      ANTHROPIC_BASE_URL: "https://api.moonshot.cn/anthropic",
+      ANTHROPIC_AUTH_TOKEN: "",
+      ANTHROPIC_MODEL: "kimi-k2.6",
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: "kimi-k2.6",
+      ANTHROPIC_DEFAULT_SONNET_MODEL: "kimi-k2.6",
+      ANTHROPIC_DEFAULT_OPUS_MODEL: "kimi-k2.6",
+    },
+    models: [],
+    keyPlaceholder: "sk-...",
+    supportsModelList: true,
+    modelsUrl: "https://api.moonshot.cn/v1/models",
+    supportsContext1M: false,
+  },
+
+  // ── Kimi Coding Plan ─────────────────────────
+  {
+    id: "kimi-coding",
+    name: "Kimi Coding Plan",
+    category: "cn_official",
+    websiteUrl: "https://www.kimi.com/code/docs/",
+    env: {
+      ANTHROPIC_BASE_URL: "https://api.kimi.com/coding/",
+      ANTHROPIC_AUTH_TOKEN: "",
+    },
+    models: [],
+    keyPlaceholder: "sk-...",
+    supportsModelList: true,
+    modelsUrl: "https://api.kimi.com/coding/v1/models",
+    supportsContext1M: false,
+  },
+
+  // ── MiniMax ──────────────────────────────────
+  {
+    id: "minimax",
+    name: "MiniMax",
+    category: "cn_official",
+    websiteUrl: "https://platform.minimaxi.com",
+    apiKeyUrl: "https://platform.minimaxi.com/subscribe/coding-plan",
+    env: {
+      ANTHROPIC_BASE_URL: "https://api.minimaxi.com/anthropic",
+      ANTHROPIC_AUTH_TOKEN: "",
+      API_TIMEOUT_MS: "3000000",
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1,
+      ANTHROPIC_MODEL: "MiniMax-M2.7",
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: "MiniMax-M2.7",
+      ANTHROPIC_DEFAULT_SONNET_MODEL: "MiniMax-M2.7",
+      ANTHROPIC_DEFAULT_OPUS_MODEL: "MiniMax-M2.7",
+    },
+    models: [],
+    keyPlaceholder: "sk-...",
+    supportsModelList: true,
+    modelsUrl: "https://api.minimaxi.com/v1/models",
     supportsContext1M: false,
   },
 
@@ -84,10 +169,10 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
     supportsContext1M: true,
   },
 
-  // ── Xiaomi MiMo Token Plan (China) ───────────
+  // ── MiMo Token Plan (China) ──────────────────
   {
     id: "xiaomi-mimo-token",
-    name: "MiMo Token Plan (China)",
+    name: "Xiaomi MiMo Token Plan (China)",
     category: "cn_official",
     websiteUrl: "https://platform.xiaomimimo.com/#/token-plan",
     apiKeyUrl: "https://platform.xiaomimimo.com/#/console/plan-manage",
@@ -106,10 +191,10 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
     supportsContext1M: true,
   },
 
-  // ── Zhipu GLM ───────────────────────────────
+  // ── Zhipu Coding Plan ────────────────────────
   {
-    id: "zhipu-glm",
-    name: "Zhipu GLM",
+    id: "zhipu-coding",
+    name: "Zhipu Coding Plan",
     category: "cn_official",
     websiteUrl: "https://open.bigmodel.cn",
     apiKeyUrl: "https://www.bigmodel.cn/claude-code?ic=RRVJPB5SII",
@@ -128,48 +213,25 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
     supportsContext1M: false,
   },
 
-  // ── DeepSeek ─────────────────────────────────
+  // ── Zhipu GLM ────────────────────────────────
   {
-    id: "deepseek",
-    name: "DeepSeek",
+    id: "zhipu-glm",
+    name: "Zhipu GLM",
     category: "cn_official",
-    websiteUrl: "https://platform.deepseek.com",
+    websiteUrl: "https://open.bigmodel.cn",
+    apiKeyUrl: "https://www.bigmodel.cn/claude-code?ic=RRVJPB5SII",
     env: {
-      ANTHROPIC_BASE_URL: "https://api.deepseek.com/anthropic",
+      ANTHROPIC_BASE_URL: "https://open.bigmodel.cn/api/anthropic",
       ANTHROPIC_AUTH_TOKEN: "",
-      ANTHROPIC_MODEL: "deepseek-v4-pro",
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: "deepseek-v4-flash",
-      ANTHROPIC_DEFAULT_SONNET_MODEL: "deepseek-v4-pro",
-      ANTHROPIC_DEFAULT_OPUS_MODEL: "deepseek-v4-pro",
+      ANTHROPIC_MODEL: "glm-5.1",
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: "glm-5.1",
+      ANTHROPIC_DEFAULT_SONNET_MODEL: "glm-5.1",
+      ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.1",
     },
     models: [],
     keyPlaceholder: "sk-...",
     supportsModelList: true,
-    modelsUrl: "https://api.deepseek.com/models",
-    supportsContext1M: true,
-  },
-
-  // ── MiniMax ──────────────────────────────────
-  {
-    id: "minimax",
-    name: "MiniMax",
-    category: "cn_official",
-    websiteUrl: "https://platform.minimaxi.com",
-    apiKeyUrl: "https://platform.minimaxi.com/subscribe/coding-plan",
-    env: {
-      ANTHROPIC_BASE_URL: "https://api.minimaxi.com/anthropic",
-      ANTHROPIC_AUTH_TOKEN: "",
-      API_TIMEOUT_MS: "3000000",
-      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1,
-      ANTHROPIC_MODEL: "MiniMax-M2.7",
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: "MiniMax-M2.7",
-      ANTHROPIC_DEFAULT_SONNET_MODEL: "MiniMax-M2.7",
-      ANTHROPIC_DEFAULT_OPUS_MODEL: "MiniMax-M2.7",
-    },
-    models: [],
-    keyPlaceholder: "sk-...",
-    supportsModelList: true,
-    modelsUrl: "https://api.minimaxi.com/v1/models",
+    modelsUrl: "https://open.bigmodel.cn/api/paas/v4/models",
     supportsContext1M: false,
   },
 ];
