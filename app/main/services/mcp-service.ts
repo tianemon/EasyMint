@@ -241,16 +241,6 @@ export function seedDefaultMcp(): void {
     }
   }
 
-  // Fix existing playwright: strip --headless to avoid Windows black window bug
-  if (existing.playwright?.args?.includes("--headless")) {
-    existing.playwright = {
-      ...existing.playwright,
-      args: existing.playwright.args.filter((a) => a !== "--headless"),
-    };
-    changed = true;
-    console.log("[seedDefaultMcp] stripped --headless from playwright config");
-  }
-
   // image-vision — always sync source files, only write config if missing
   const srcDir = path.join(getBuiltinMcpDir(), "image-vision");
   const targetDir = path.join(os.homedir(), ".easymint", "mcp", "image-vision");
