@@ -607,15 +607,18 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                   <span className="text-text-secondary">AI 引擎</span>
                   <span className="text-text-primary">claude-agent-sdk</span>
                 </div>
+                <div className="flex justify-between gap-8">
+                  <span className="text-text-secondary">开源项目地址</span>
+                  <a
+                    href="https://github.com/tianemon/EasyMint"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent hover:underline"
+                  >
+                    github.com/tianemon/EasyMint
+                  </a>
+                </div>
               </div>
-              <a
-                href="https://github.com/tianemon/EasyMint"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-accent hover:underline"
-              >
-                github.com/tianemon/EasyMint
-              </a>
             </div>
           ) : (
             <McpTab />
