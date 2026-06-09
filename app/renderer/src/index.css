@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+@source "../";
+@source "../../node_modules/@anthropic-ai";
+
 /* Tailwind 4 主题：注册设计 token。
    :root 里的同名 CSS 变量会覆盖这里的编译期默认值，实现运行时换肤。 */
 @theme {

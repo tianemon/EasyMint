@@ -487,7 +487,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   function UserBubble({ msg }: { msg: ChatMessage }): JSX.Element {
     return (
       <div className="flex flex-col items-end max-w-[82%]">
-        <div className="rounded-[10px] rounded-br-[4px] px-[14px] py-[10px] text-[13px] leading-[1.55] overflow-hidden" style={{ background: 'var(--color-user-bubble)', color: 'var(--color-user-bubble-text)' }}>
+        <div className="rounded-[10px] rounded-br-[4px] px-3.5 py-2.5 text-[13px] leading-[1.55] overflow-hidden" style={{ background: 'var(--color-user-bubble)', color: 'var(--color-user-bubble-text)' }}>
           {msg.attaches && msg.attaches.length > 0 && (
             <div className="flex gap-1.5 mb-2 flex-wrap">
               {msg.attaches.map((a, i) => (
@@ -539,7 +539,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                       return showToolUse;
                     }).length === 0 ? null : (
                       <div className="flex flex-col max-w-[85%]">
-                        <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-2 overflow-hidden">
+                        <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-3.5 py-2 overflow-hidden">
                           {buildBlocks(
                             msg.entries.filter((e) => {
                               if (e.kind === "text") return true;
@@ -630,7 +630,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             placeholder={summarizing ? "正在进行会话摘要..." : "输入消息，Enter 发送，Shift+Enter 换行，粘贴或拖入图片..."}
             rows={3}
             disabled={summarizing}
-            className="chat-input flex-1 min-h-[90px] resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-inset disabled:opacity-50 disabled:cursor-not-allowed"
+            className="chat-input flex-1 min-h-[90px] resize-none bg-surface border border-border rounded-[10px] px-3.5 py-2.5 text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-inset disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <div className="flex flex-col gap-1.5 shrink-0">
             {!summarizing && (
