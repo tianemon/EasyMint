@@ -14,13 +14,20 @@ export function OnboardingPage(): JSX.Element {
   const [currentStep, setCurrentStep] = useState(0);
   const { apiProviders, setApiProviders } = useSettingsStore();
 
+  // 记录本次已保存的供应商 ID，避免重复保存
+  const [savedCfg, setSavedCfg] = useState<ProviderConfig | null>(null);
+
   const handleProviderSave = (cfg: ProviderConfig) => {
-    const configs = { ...(apiProviders?.configs ?? {}), [cfg.id]: cfg };
+    // 复用已保存的 ID，避免重复创建
+    const id = savedCfg?.id || cfg.id;
+    const finalCfg = { ...cfg, id };
+    const configs = { ...(apiProviders?.configs ?? {}), [id]: finalCfg };
     const nextData: ApiProvidersData = {
-      current: cfg.id,
+      current: id,
       configs,
     };
     setApiProviders(nextData);
+    setSavedCfg(finalCfg);
   };
 
   const handleComplete = () => {
@@ -32,8 +39,6 @@ export function OnboardingPage(): JSX.Element {
 
   const goNext = () => setCurrentStep((s) => Math.min(s + 1, STEPS.length - 1));
   const goPrev = () => setCurrentStep((s) => Math.max(s - 1, 0));
-
-  const hasProvider = apiProviders?.current && apiProviders?.configs?.[apiProviders.current];
 
   return (
     <div className="flex flex-col h-full">
@@ -124,7 +129,28 @@ export function OnboardingPage(): JSX.Element {
             <p className="text-text-secondary text-center text-sm mb-6">
               选择一个平台并填写 API Key 即可开始使用
             </p>
-            <ProviderForm onSave={handleProviderSave} />
+            {savedCfg ? (
+              <div className="bg-surface-alt rounded-lg p-4 space-y-4">
+                <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-accent/10 border border-accent/30">
+                  <div className="w-2 h-2 rounded-full bg-accent shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-text-primary font-medium truncate">{savedCfg.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent shrink-0">使用中</span>
+                    </div>
+                    <div className="text-[11px] text-text-muted mt-0.5">
+                      {savedCfg.baseUrl || "API 地址已设置"} · 模型 {savedCfg.models.length} 个
+                    </div>
+                  </div>
+                </div>
+                <button
+                  className="w-full px-4 py-2 rounded-lg border border-border text-text-secondary text-xs hover:border-accent/50 transition-colors"
+                  onClick={() => setSavedCfg(null)}
+                >重新配置</button>
+              </div>
+            ) : (
+              <ProviderForm onSave={handleProviderSave} />
+            )}
           </div>
         )}
       </div>
@@ -151,9 +177,9 @@ export function OnboardingPage(): JSX.Element {
             </button>
             <button
               className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium disabled:opacity-40"
-              disabled={!hasProvider}
+              disabled={!savedCfg}
               onClick={handleComplete}
-              title={!hasProvider ? "请先保存一个供应商配置" : undefined}
+              title={!savedCfg ? "请先保存一个供应商配置" : undefined}
             >
               进入工作台
             </button>
