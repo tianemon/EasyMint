@@ -1,5 +1,10 @@
 /// <reference types="vite/client" />
 
+// React 19 将 JSX namespace 移入模块作用域，此处补回全局声明
+declare namespace JSX {
+  type Element = import("react").ReactElement;
+}
+
 interface Project {
   id: string;
   name: string;

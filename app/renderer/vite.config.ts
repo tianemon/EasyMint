@@ -1,9 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   root: __dirname,
   base: "./",
   publicDir: path.resolve(__dirname, "..", "..", "assets"),
@@ -12,8 +13,8 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          monaco: ["monaco-editor", "@monaco-editor/react"],
+        manualChunks(id: string) {
+          if (id.includes("monaco")) return "monaco";
         },
       },
     },
