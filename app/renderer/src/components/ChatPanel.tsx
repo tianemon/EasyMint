@@ -74,7 +74,7 @@ function parseAttachMarkers(text: string): { attaches: AttachItem[]; cleanText: 
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     const kind = m[1] === "Image" ? "image" : "doc";
-    const num = parseInt(m[2]!, 10);
+    const _num = parseInt(m[2]!, 10);
     const p = m[3]!;
     attaches.push({ kind, name: p.split("/").pop() || p, path: p, dataUrl: kind === "image" ? "" : undefined });
     clean = clean.replace(m[0], "");
@@ -117,7 +117,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [statusText, setStatusText] = useState("思考中...");
-  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const [_currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentRunRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
   const [summarizing, setSummarizing] = useState(false);
@@ -529,11 +529,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                     <div className="flex justify-end"><UserBubble msg={msg} /></div>
                   ) : msg.entries ? (
                     msg.entries.filter((e) => {
-                      // Suppress model-switch hook output regardless of event type
-                      const t = (e as { text?: string; message?: string; content?: string }).text
-                            || (e as { message?: string }).message
-                            || (e as { content?: string }).content
-                            || "";
+                      // Filter entries by type (model-switch hook output suppressed via event source)
                       if (e.kind === "text") return true;
                       if (e.kind === "thinking") return showThinking;
                       return showToolUse;

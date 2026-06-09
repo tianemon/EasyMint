@@ -19,7 +19,7 @@ interface LeftPanelProps {
 export function LeftPanel({
   activePanel,
   projectPath,
-  projectId,
+  projectId: _projectId,
   onCollapse,
   onFileClick,
   onSessionClick,

@@ -94,7 +94,7 @@ function langForFile(name: string | undefined): string {
 
 export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Element {
   const [content, setContent] = useState<string>("");
-  const [loading, setLoading] = useState(false);
+  const [_loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);

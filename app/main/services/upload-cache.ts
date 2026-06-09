@@ -5,7 +5,7 @@
  * Auto-cleanup runs at startup: 60-day age or 10GB cap.
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, unlinkSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 

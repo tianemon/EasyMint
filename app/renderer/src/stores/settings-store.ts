@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ApiProvidersData, ProviderConfig } from "@shared/platform-presets";
+import type { ApiProvidersData } from "@shared/platform-presets";
 
 interface SettingsState {
   evaluateMode: boolean;
@@ -95,7 +95,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ apiKey: key });
     window.electronAPI?.settings?.set?.("apiKey", key);
   },
-  setThinkingBudget: (budget) => {
+  setThinkingBudget: (_budget) => {
   },
   setContextThreshold: (pct: number) => {
     set({ contextThreshold: pct });

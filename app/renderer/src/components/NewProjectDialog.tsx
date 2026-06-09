@@ -113,7 +113,7 @@ const BUDGET_OPTIONS = [
   { value: "免费", label: "免费", desc: "仅使用免费/开源方案" },
 ] as const;
 
-const DEPLOY_OPTIONS = [
+const _DEPLOY_OPTIONS = [
   { value: "本地", label: "本地运行", desc: "仅在本机使用" },
   { value: "云端", label: "云端部署", desc: "Vercel / Railway / 云服务器" },
 ] as const;

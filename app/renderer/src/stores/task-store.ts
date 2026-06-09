@@ -22,7 +22,7 @@ interface TaskState {
   clearTasks: () => void;
 }
 
-export const useTaskStore = create<TaskState>((set, get) => ({
+export const useTaskStore = create<TaskState>((set) => ({
   tasks: [],
 
   addTask: (t) => {

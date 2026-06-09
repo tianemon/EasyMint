@@ -99,7 +99,7 @@ export function ProjectPage(): JSX.Element {
 
   // Listen for context rotation: old session archived → new tab with handoff
   useEffect(() => {
-    const unsub = window.electronAPI.agent.onRotateCreate(({ oldChatId, oldSessionId, projectPath, handoffPrompt }) => {
+    const unsub = window.electronAPI.agent.onRotateCreate(({ oldSessionId, handoffPrompt }) => {
       // Close old tab
       const ts = useTabStore.getState();
       const oldTab = ts.tabs.find((t) => t.type === "chat" && t.sessionId === oldSessionId);
