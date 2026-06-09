@@ -113,11 +113,6 @@ const BUDGET_OPTIONS = [
   { value: "免费", label: "免费", desc: "仅使用免费/开源方案" },
 ] as const;
 
-const _DEPLOY_OPTIONS = [
-  { value: "本地", label: "本地运行", desc: "仅在本机使用" },
-  { value: "云端", label: "云端部署", desc: "Vercel / Railway / 云服务器" },
-] as const;
-
 const ALL_STEPS = [
   { number: 1, title: "项目概述", desc: "名称、类型与目录" },
   { number: 2, title: "功能清单", desc: "用户实际使用的功能" },

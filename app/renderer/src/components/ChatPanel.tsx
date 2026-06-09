@@ -74,7 +74,6 @@ function parseAttachMarkers(text: string): { attaches: AttachItem[]; cleanText: 
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
     const kind = m[1] === "Image" ? "image" : "doc";
-    const _num = parseInt(m[2]!, 10);
     const p = m[3]!;
     attaches.push({ kind, name: p.split("/").pop() || p, path: p, dataUrl: kind === "image" ? "" : undefined });
     clean = clean.replace(m[0], "");
