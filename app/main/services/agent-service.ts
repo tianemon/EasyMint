@@ -194,7 +194,7 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
     env,
     systemPrompt: customPrompt ? { type: "preset" as const, preset: "claude_code" as const, append: customPrompt } : undefined,
     agents: Object.keys(agents).length > 0 ? agents : undefined,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     mcpServers: buildMcpServersOption() as any,
     pathToClaudeCodeExecutable,
     ...overrides,
