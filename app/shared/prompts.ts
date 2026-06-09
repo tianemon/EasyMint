@@ -299,9 +299,7 @@ ${instruction}`;
 
 // ── 确认开发 ──────────────────────────────────────────
 
-export const CONFIRM_DEVELOPMENT_PROMPT = `开始执行 task.json 中的开发任务。按顺序逐条推进，每完成一个用 Task(builder) 实现、Task(evaluator) 验收，通过后更新 doneCount。全程自动推进不等确认，直到全部完成或用户打断。遇到阻塞写入 escalation.json 并通知用户。
-
-执行前确认每个任务的 TDD 标注：逻辑/算法/校验/API/数据处理 → tdd: true；UI样式/布局/动画/组件/配置 → tdd: false。`;
+export const CONFIRM_DEVELOPMENT_PROMPT = `开始执行 task.json 中的开发任务。按顺序逐条推进，每完成一个用 Task(builder) 实现、Task(evaluator) 验收，通过后更新 doneCount。全程自动推进不等确认，直到全部完成或用户打断。遇到阻塞写入 escalation.json 并通知用户。`;
 
 // ── Mint按钮 ──────────────────────────────────────────
 
