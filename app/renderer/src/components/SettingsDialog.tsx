@@ -605,6 +605,11 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                   github.com/tianemon/EasyMint
                 </a>
               </div>
+              <div className="text-xs text-text-muted space-x-4">
+                <span>v0.1.0</span>
+                <span>Electron · React · TypeScript</span>
+                <span>claude-agent-sdk</span>
+              </div>
             </div>
           ) : (
             <McpTab />
