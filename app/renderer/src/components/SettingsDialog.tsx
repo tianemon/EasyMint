@@ -596,30 +596,16 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                 <h2 className="text-2xl font-bold text-text-primary">EasyMint</h2>
                 <p className="text-sm text-text-secondary mt-1">AI 驱动开发，简单的操作让想法变为现实</p>
               </div>
-              <div className="bg-surface-alt rounded-lg px-6 py-4 space-y-2 text-sm">
-                <div className="flex justify-between gap-8">
-                  <span className="text-text-secondary">版本</span>
-                  <span className="text-text-primary">v0.1.0</span>
-                </div>
-                <div className="flex justify-between gap-8">
-                  <span className="text-text-secondary">技术栈</span>
-                  <span className="text-text-primary">Electron · React · TypeScript</span>
-                </div>
-                <div className="flex justify-between gap-8">
-                  <span className="text-text-secondary">AI 引擎</span>
-                  <span className="text-text-primary">claude-agent-sdk</span>
-                </div>
-                <div className="flex justify-between gap-8">
-                  <span className="text-text-secondary">开源项目地址</span>
-                  <a
-                    href="https://github.com/tianemon/EasyMint"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-accent hover:underline"
-                  >
-                    github.com/tianemon/EasyMint
-                  </a>
-                </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-text-secondary">开源项目地址</span>
+                <a
+                  href="https://github.com/tianemon/EasyMint"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent hover:underline"
+                >
+                  github.com/tianemon/EasyMint
+                </a>
               </div>
             </div>
           ) : (
