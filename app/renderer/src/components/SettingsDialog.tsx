@@ -10,38 +10,51 @@ interface SettingsDialogProps {
 
 // ── Git Check Section ─────────────────────────────────────────────────────────
 
-function GitCheckSection(): JSX.Element {
-  const [gitInfo, setGitInfo] = useState<{ found: boolean; version?: string } | null>(null);
+function useDetect(cmd: "git" | "nodeRuntime") {
+  const [info, setInfo] = useState<{ found: boolean; version?: string } | null>(null);
   useEffect(() => {
-    window.electronAPI?.git?.detect().then(setGitInfo).catch(() => setGitInfo({ found: false }));
-  }, []);
+    window.electronAPI?.[cmd]?.detect().then(setInfo).catch(() => setInfo({ found: false }));
+  }, [cmd]);
+  return info;
+}
+
+function EnvRow({ label, info, installUrl }: { label: string; info: { found: boolean; version?: string } | null; installUrl?: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-text-primary">{label}</span>
+        {info === null ? (
+          <span className="text-xs text-text-muted">检测中...</span>
+        ) : info.found ? (
+          <span className="text-xs text-text-secondary">{info.version}</span>
+        ) : (
+          <span className="text-xs text-danger">未安装</span>
+        )}
+      </div>
+      {info && !info.found && installUrl && (
+        <a
+          href={installUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors"
+        >
+          点击安装 {label}
+        </a>
+      )}
+    </div>
+  );
+}
+
+function EnvCheckSection(): JSX.Element {
+  const gitInfo = useDetect("git");
+  const nodeInfo = useDetect("nodeRuntime");
 
   return (
     <section>
       <h3 className="text-sm font-medium text-text-secondary mb-2">环境检测</h3>
-      <div className="bg-surface-alt rounded-lg border border-border px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-text-primary">Git</span>
-            {gitInfo === null ? (
-              <span className="text-xs text-text-muted">检测中...</span>
-            ) : gitInfo.found ? (
-              <span className="text-xs text-text-secondary">{gitInfo.version}</span>
-            ) : (
-              <span className="text-xs text-danger">未安装</span>
-            )}
-          </div>
-          {gitInfo && !gitInfo.found && (
-            <a
-              href="https://git-scm.com/downloads"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors"
-            >
-              点击安装 Git
-            </a>
-          )}
-        </div>
+      <div className="bg-surface-alt rounded-lg border border-border px-4 py-3 space-y-3">
+        <EnvRow label="Git" info={gitInfo} installUrl="https://git-scm.com/downloads" />
+        <EnvRow label="Node.js" info={nodeInfo} installUrl="https://nodejs.org/" />
       </div>
     </section>
   );
@@ -619,7 +632,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               <UploadCacheSection />
 
               {/* 环境检测 */}
-              <GitCheckSection />
+              <EnvCheckSection />
             </div>
           ) : activeTab === "prompts" ? (
             <PromptSettings />
