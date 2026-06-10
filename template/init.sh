@@ -42,6 +42,16 @@ else
     echo -e "  ${YELLOW}⚠${NC} Git 未安装"
 fi
 
+# CodeGraph 索引
+if command -v codegraph &> /dev/null; then
+    echo -e "  ${GREEN}✓${NC} CodeGraph $(codegraph --version 2>&1 | head -1)"
+    codegraph init -i "$PROJECT_DIR" 2>&1 | while IFS= read -r line; do
+        echo -e "  ${GREEN}  ${NC} $line"
+    done
+else
+    echo -e "  ${YELLOW}⚠${NC} CodeGraph 未安装（代码智能索引，可选）"
+fi
+
 # TODO: 添加运行时检测，示例：
 # if command -v node &> /dev/null; then
 #     echo -e "  ${GREEN}✓${NC} Node.js $(node -v)"
