@@ -10,12 +10,12 @@ GUI 是 harness，AI 引擎是 claude-agent-sdk。
 
 | 层 | 技术 |
 |---|------|
-| 壳 | Electron 28+ |
-| 前端 | React 18 + Vite 5 + TypeScript 5 |
-| 样式 | Tailwind CSS 3 + Radix UI |
+| 壳 | Electron 42 |
+| 前端 | React 19 + Vite 8 + TypeScript 5.9 |
+| 样式 | Tailwind CSS 4 + Radix UI |
 | 状态管理 | zustand |
-| AI 引擎 | `@anthropic-ai/claude-agent-sdk`，长生命周期 query + 消息通道 |
-| SubAgent | Builder（编码）+ Evaluator（验收），模板化 |
+| AI 引擎 | `@anthropic-ai/claude-agent-sdk` 0.3.169，长生命周期 query + 消息通道 |
+| SubAgent | Builder（编码）+ Evaluator（验收），SDK Task 自动托管 |
 | 存储 | `~/.easymint/` 全局 + `<project>/.easymint/state.json` 项目级 |
 | 打包 | electron-builder |
 
@@ -77,12 +77,14 @@ GUI 是 harness，AI 引擎是 claude-agent-sdk。
 
 表单提交后自动触发 Mint 初始化流程。
 
-### SettingsModal — 设置弹窗
+### SettingsDialog — 设置弹窗
 
-- 聊天：思考过程 / 工具调用 显示开关
-- API 配置：Base URL、Key、模型列表、默认模型、1M 上下文开关
-- 上下文轮转阈值（40%-85%）
-- Agent 模板、Skill、MCP 管理
+- 通用：外观、默认项目路径、思考过程/工具调用显示开关、上下文轮转阈值、环境检测（Git、Node.js）、上传缓存
+- 模型：多平台 API 管理——添加/编辑/激活供应商，获取模型列表，1M 上下文开关
+- 提示词：自定义系统提示词管理
+- Agent 模板：Builder/Evaluator 模板只读展示
+- Skill / MCP：与 Claude Code 共享管理
+- 关于：版本号、技术栈、开源项目地址
 
 ## 核心功能
 
@@ -98,7 +100,7 @@ GUI 是 harness，AI 引擎是 claude-agent-sdk。
 
 ### 任务执行
 
-Mint（PM+架构师）→ 分配 task.json → Builder 编码 → Evaluator 验收 → 循环。Mint 只负责"想"，Builder 负责"写"，Evaluator 负责"验"。
+Mint（PM+架构师）→ 分配 task.json → 调 Task(builder) 编码 → Task(evaluator) 验收 → 循环。Mint 负责"想"和"调度"，Builder 负责"写"，Evaluator 负责"验"。
 
 TDD：分配任务时自动判断，逻辑/API/数据层标 `tdd: true`，Builder 先写测试再编码。
 

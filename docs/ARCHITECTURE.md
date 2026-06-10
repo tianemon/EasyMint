@@ -77,13 +77,22 @@ graph TB
 ```json
 {
   "defaultProjectDir": "~/EasyMintProject",
-  "model": "deepseek-v4-pro",
-  "availableModels": ["..."],
+  "apiProviders": {
+    "current": "deepseek-main",
+    "configs": {
+      "deepseek-main": {
+        "presetId": "deepseek", "name": "我的DeepSeek",
+        "apiKey": "sk-xxx", "model": "deepseek-v4-pro",
+        "models": ["deepseek-v4-pro", "deepseek-v4-flash"],
+        "baseUrl": "https://api.deepseek.com/anthropic",
+        "context1M": false
+      }
+    }
+  },
   "evaluateMode": false,
   "contextThreshold": 60,
-  "context1M": false,
-  "showThinking": true,
-  "showToolUse": true
+  "showThinking": false,
+  "showToolUse": false
 }
 ```
 
@@ -121,7 +130,7 @@ graph TB
 
 ### escalation.json (`<project>/.easymint/`)
 
-Builder 3 次失败后写入，Mint 读取向用户汇报。
+Builder/Evaluator 遇阻塞时写入，Mint 读取并向用户汇报，含建议操作选项。
 
 ## IPC 通道
 
@@ -135,9 +144,12 @@ Builder 3 次失败后写入，Mint 读取向用户汇报。
 | `agent:stream` | main → renderer | SDK 流式事件推送 |
 | `agent:setModel` | renderer → main | 切换模型 |
 | `agent:context-usage` | main → renderer | 上下文使用率 |
+| `agent:spawnAgentChat` | renderer → main | 从模板创建独立 Agent 会话 |
 | `conv:messages` | renderer → main | 读取会话历史 |
 | `project:writeState` | renderer → main | Mint 写 state.json |
 | `settings:fetchModels` | renderer → main | 从 API 获取模型列表 |
+| `git:detect` | renderer → main | 检测 Git 安装状态 |
+| `node:detect` | renderer → main | 检测 Node.js 版本 |
 
 ## 核心流程
 
