@@ -11,6 +11,7 @@ import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { listTemplates, getTemplate } from "./agent-templates";
 import { buildSkillsPrompt } from "./skill-service";
 import { buildMcpServersOption } from "./mcp-service";
+import { buildBuiltinMcpServers } from "./builtin-mcp";
 import { getPreset } from "../../shared/platform-presets";
 import { archiveSession } from "./session-service";
 import { CONTEXT_SUMMARY_INSTRUCTION, buildSessionInfoAppend, buildContextHandoffPrompt } from "../../shared/prompts";
@@ -195,7 +196,7 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
     systemPrompt: customPrompt ? { type: "preset" as const, preset: "claude_code" as const, append: customPrompt } : undefined,
     agents: Object.keys(agents).length > 0 ? agents : undefined,
      
-    mcpServers: buildMcpServersOption() as any,
+    mcpServers: { ...buildMcpServersOption(), ...buildBuiltinMcpServers() } as any,
     pathToClaudeCodeExecutable,
     ...overrides,
   };

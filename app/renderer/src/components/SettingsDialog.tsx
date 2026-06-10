@@ -321,6 +321,12 @@ function McpTab(): JSX.Element {
 
   const typeLabel = (t: string) => t === "stdio" ? "本地进程" : t === "http" ? "HTTP" : "SSE";
 
+  // Floating hints for API keys
+  const KEY_HINTS: Record<string, string> = {
+    VISION_API_KEY: "填写后将自动启用内置图片识别。换用多模态模型时可留空。获取: dashscope.aliyun.com",
+    TAVILY_API_KEY: "填写后将自动启用内置网页抓取 + 联网搜索。获取: tavily.com",
+  };
+
   // Collect all required keys across MCP servers, with their current values.
   // MCP config env (.claude.json) takes priority, then apiKeys from em-settings.json.
   const allKeys = new Map<string, string>(); // key → value
@@ -342,7 +348,9 @@ function McpTab(): JSX.Element {
             MCP 工具所需的第三方服务密钥，会注入到对应 MCP 服务器的环境变量中。
           </p>
           <div className="bg-surface-alt rounded-lg px-4 py-3 space-y-2">
-            {Array.from(allKeys.entries()).map(([key, val]) => (
+            {Array.from(allKeys.entries()).map(([key, val]) => {
+              const hint = KEY_HINTS[key];
+              return (
               <div key={key}>
                 <label className="text-xs text-text-secondary block mb-1">{key}</label>
                 <div className="relative">
@@ -363,8 +371,12 @@ function McpTab(): JSX.Element {
                     )}
                   </button>
                 </div>
+                {hint && (
+                  <p className="text-[10px] text-text-muted mt-1">{hint}</p>
+                )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}

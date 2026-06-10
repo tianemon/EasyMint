@@ -5,7 +5,7 @@
  *   - pinned status (~/.easymint/pinned-sessions.json)
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import type { SDKSessionInfo, SessionMessage } from "@anthropic-ai/claude-agent-sdk";
@@ -46,6 +46,44 @@ function readArchived(): Record<string, number> {
 function writeArchived(data: Record<string, number>): void {
   ensureDir();
   writeFileSync(ARCHIVED_PATH, JSON.stringify(data, null, 2));
+}
+
+// ── SDK satellite cleanup ─────────────────────────
+
+/**
+ * SDK stores runtime data across multiple directories. When we delete a session,
+ * we need to clean up all satellite data, not just the .jsonl under projects/.
+ *
+ * Both ~/.easymint/ and ~/.claude/ are checked because:
+ *   - EasyMint sets CLAUDE_CONFIG_DIR=~/.easymint/, so SDK writes project data there
+ *   - Some SDK runtime data always goes to ~/.claude/ regardless of env
+ */
+function cleanupSessionSatellites(sessionId: string): void {
+  const configDirs = [
+    path.join(os.homedir(), ".easymint"),
+    path.join(os.homedir(), ".claude"),
+  ];
+
+  for (const base of configDirs) {
+    // Directories named with this session ID
+    for (const sub of ["session-env", "tasks", "file-history"]) {
+      const dir = path.join(base, sub, sessionId);
+      try { rmSync(dir, { recursive: true, force: true }); } catch { /* already gone or no permission */ }
+    }
+
+    // telemetry/ files that start with or contain this session ID
+    const teleDir = path.join(base, "telemetry");
+    try {
+      if (existsSync(teleDir)) {
+        const files = readdirSync(teleDir);
+        for (const f of files) {
+          if (f.includes(sessionId)) {
+            try { rmSync(path.join(teleDir, f), { force: true }); } catch { /* skip */ }
+          }
+        }
+      }
+    } catch { /* directory doesn't exist */ }
+  }
 }
 
 // ── SDK wrappers ───────────────────────────────────
@@ -132,6 +170,8 @@ export async function deleteSession(sessionId: string, projectPath: string): Pro
   delete pinned[sessionId];
   writePinned(pinned);
   deleteCache(sessionId);
+  // Clean up SDK satellite directories (session-env, tasks, file-history, telemetry)
+  cleanupSessionSatellites(sessionId);
 }
 
 export async function getSessionInfo(sessionId: string, projectPath: string): Promise<SessionListItem | null> {

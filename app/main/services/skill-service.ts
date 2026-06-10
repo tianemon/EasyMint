@@ -244,7 +244,7 @@ export function toggleSkill(name: string, enabled: boolean): void {
 
 // ── Seed built-in skills ───────────────────────────
 
-const BUILTIN_SKILLS = ["plan-first", "requirement-breakdown", "describe-image", "web-verify", "easymint-guide"];
+const BUILTIN_SKILLS = ["plan-first", "requirement-breakdown", "easymint-guide"];
 
 function getBuiltinSkillsDir(): string {
   // In packaged app: process.resourcesPath/skills
