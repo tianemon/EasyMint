@@ -89,7 +89,7 @@ const DEFAULTS: AgentTemplate[] = [
     name: "Builder",
     description: "实现代码任务。当需要实现 task.json 中的开发任务时使用此 Agent。",
     prompt: BUILDER_AGENT_PROMPT,
-    tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+    tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "mcp__codegraph__codegraph_context", "mcp__codegraph__codegraph_impact", "mcp__codegraph__codegraph_callers", "mcp__codegraph__codegraph_search", "mcp__codegraph__codegraph_trace"],
     agentType: "builder",
   },
   {
@@ -98,6 +98,7 @@ const DEFAULTS: AgentTemplate[] = [
     description: "验收代码变更。当需要验证 Builder 的工作成果时使用此 Agent。",
     prompt: EVALUATOR_AGENT_PROMPT,
     tools: ["Read", "Bash", "Glob", "Grep", "Write",
+      "mcp__codegraph__codegraph_context", "mcp__codegraph__codegraph_impact", "mcp__codegraph__codegraph_callers", "mcp__codegraph__codegraph_search",
       "mcp__playwright__browser_navigate", "mcp__playwright__browser_take_screenshot", "mcp__playwright__browser_snapshot",
       "mcp__playwright__browser_click", "mcp__playwright__browser_type", "mcp__playwright__browser_evaluate",
       "mcp__playwright__browser_console_messages", "mcp__playwright__browser_wait_for",
