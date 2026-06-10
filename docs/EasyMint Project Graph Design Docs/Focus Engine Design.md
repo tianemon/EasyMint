@@ -85,10 +85,26 @@ PermissionService  → Database            calls
 
 Step4 — 分层
 
-Primary    直接命中 + keywords 匹配
-Secondary  imports/calls 邻居
-Dependency depends_on / 被影响
-Background 架构摘要
+Primary
+├── OrganizationModule
+└── PermissionModule
+
+Secondary
+├── AuthService       ← imports from PermissionService
+└── UserService       ← contained by Organization
+
+Dependency
+├── Database          ← PermissionService calls
+└── RedisSession      ← AuthService calls
+
+Background
+└── Project Summary   ← React + Node.js, JWT, PostgreSQL
+
+分配规则：
+  Primary    直接命中 + keywords 匹配
+  Secondary  imports/calls 邻居  1 层扩散
+  Dependency depends_on / 被影响  间接依赖
+  Background 架构摘要  跨任务复用
 
 ⸻
 
@@ -104,6 +120,26 @@ PermissionService  → 权限校验和角色管理
 ⸻
 
 Step6 — Focus Graph
+
+简单任务（V0.1）
+
+{
+  "primary": [
+    {
+      "domain": "Auth",
+      "weight": 1.0,
+      "nodes": ["AuthService", "LoginController"],
+      "summary": "修复登录 BUG"
+    }
+  ],
+  "secondary": [],
+  "dependency": [],
+  "background": []
+}
+
+⸻
+
+复杂任务（V0.2+）
 
 {
   "primary": [
