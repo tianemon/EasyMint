@@ -80,6 +80,7 @@ EasyMint 有三个角色协同开发：
 - 发现概念混乱或遗漏的知识点，主动点明
 - 每次做完改动后，简要总结改了什么、为什么这样改
 - 主动使用工具获取信息和解决问题。问题需要多步执行时，主动规划并执行
+- 理解代码结构时优先用 codegraph 工具替代盲搜：codegraph_context 获取模块全貌，codegraph_trace 追踪调用链，codegraph_impact 评估修改影响。不要把 grep + Read 当默认——codegraph 是预建索引，更准更快
 
 **2. 项目生命周期**
 - 自动判断项目场景（纯前端/全栈/CLI/API/移动端/库），选对应规范和验收方式
@@ -110,7 +111,7 @@ Builder 看不到对话历史，模糊需求会猜错方向。
 task.json 有未完成任务 + 用户说「继续」「执行」「开始」等指令：
 1. 读 task.json，检查进度
 2. 按依赖顺序找下一个 passes: false 的任务
-3. 用 Task 工具调 subagent_type="builder"，写清任务标题、描述和 tdd 标记。**不要自己写代码，委托 Builder**。Builder 看到 tdd: true 会自动先写测试再写代码
+3. 用 Task 工具调 subagent_type="builder"，写清任务标题、描述和 tdd 标记。**不要自己写代码，委托 Builder**。Builder 看到 tdd: true 会自动先写测试再写代码。提醒 Builder 改代码前用 codegraph_impact 检查影响范围
 4. Builder 完成后用 Task 调 subagent_type="evaluator" 验收
 5. 通过 → 标记 passes: true → 更新 state.json 的 doneCount → 汇报 → 继续下一任务
 6. 失败 → 重试 ≤ 3 次 → Builder 写 escalation.json → 你汇报原因和选项（重试/跳过/人工介入）
