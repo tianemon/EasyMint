@@ -1,16 +1,42 @@
-Focus Engine Design
+Cognitive Workspace Engine — Design
 
-Version 0.2
+Version 0.3
 
 ⸻
 
 一、定位
 
-Focus Engine 是 CodeGraph 的上层。
+市场上已有四类项目：
 
-CodeGraph 做索引和查询，Focus Engine 做聚焦和上下文组织。
+Aider Repo Map     → 返回相关文件   Code Graph  不是 Focus
+Context Engine     → 返回代码片段   Semantic Search  不是 Focus
+Kage / Engram      → 返回历史记忆   Memory  不是 Focus
+A-MEM / GBrain     → 实体关系推理   Knowledge Graph  不是 Focus
 
-不重新实现 Project Graph。
+Focus Engine 做的事：
+
+Task → 生成动态认知工作区 → 控制 Agent 注意力分配
+
+这不是搜索、不是记忆、不是图谱。
+
+是 IDE 里的 Workspace，给 AI 用的 Cognitive Workspace。
+
+⸻
+
+二、系统关系
+
+Builder / Evaluator
+    │
+    ▼
+Cognitive Workspace Engine
+├─ Task Parser
+├─ Workspace Builder
+└─ Context Builder
+    │
+    ▼ 委托给 CodeGraph
+CodeGraph
+├─ search  callers  callees  impact
+└─ SQLite 图谱
 
 ⸻
 
