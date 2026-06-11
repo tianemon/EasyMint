@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useChatStore } from "./chat-store";
 
 export interface Tab {
   id: string;
@@ -55,8 +56,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     // Evict chat messages from memory when tab is closed
     const tab = get().tabs.find((t) => t.id === id);
     if (tab?.sessionId) {
-      // Dynamic import to avoid circular dependency
-      import("./chat-store").then((m) => m.useChatStore.getState().evictSession(tab.sessionId!));
+      useChatStore.getState().evictSession(tab.sessionId);
     }
     set((s) => {
       const idx = s.tabs.findIndex((t) => t.id === id);
