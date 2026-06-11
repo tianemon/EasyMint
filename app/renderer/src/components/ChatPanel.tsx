@@ -122,8 +122,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const rawMsgs = useChatStore((s) => s.messagesBySession[sid]);
   const messages: ChatMessage[] = rawMsgs || (emptyArr.current as ChatMessage[]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [statusText, setStatusText] = useState("思考中...");
+  const [statusText, setStatusText] = useState("���考中...");
   const [_currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentRunRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
@@ -176,8 +175,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const sidRef = useRef<string>(initialSid);
   useEffect(() => { if (existingSid) { sidRef.current = existingSid; setSid(existingSid); } }, [existingSid]);
   const runningSessions = useTabStore((s) => s.runningSessions);
-  const streaming = runningSessions.has(sidRef.current);
-  const setStreaming = (v: boolean) => { useTabStore.getState().setSessionRunning(sidRef.current, v); };
+  const busy = runningSessions.has(sidRef.current);
+  const setBusy = (v: boolean) => { useTabStore.getState().setSessionRunning(sidRef.current, v); };
 
   const scrollToBottom = useCallback((force = false) => {
     if (!containerRef.current) return;
@@ -290,7 +289,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (currentRunRef.current && event.runId !== currentRunRef.current) return;
       if (stoppedRef.current) return;
       if (!currentRunRef.current) { currentRunRef.current = event.runId; setCurrentRunId(event.runId); }
-      setLoading(true); setStreaming(true);
+      setBusy(true); setBusy(true);
       if (event.type === "status") { setStatusText(typeof event.data.text === "string" ? event.data.text : "处理中..."); return; }
       if (event.type === "tool_use") {
         const name = typeof event.data.name === "string" ? event.data.name : "";
@@ -333,7 +332,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       curAi = useChatStore.getState().appendAiEntry(sid, entry);
       scrollToBottom();
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (currentRunRef.current && runId !== currentRunRef.current) return; curAi = 0; setLoading(false); setStreaming(false); onActivity?.(); });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (currentRunRef.current && runId !== currentRunRef.current) return; curAi = 0; setBusy(false); setBusy(false); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid }) => {
       if (sidRef.current && sidRef.current !== realSid) {
         // Migrate messages from temp ID to real session ID, then evict temp
@@ -407,7 +406,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const sendText = useCallback(async (text?: string) => {
     const msg = (text ?? input).trim();
     if (!msg && attaches.length === 0) return;
-    if (loading) return;
+    if (busy) return;
 
     // Build agent message with numbered markers
     const parts: string[] = [];
@@ -428,15 +427,15 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (inputHistoryRef.current.length > 100) inputHistoryRef.current.pop();
     persistHistory();
     historyPosRef.current = -1;
-    setLoading(true); setStatusText("思考中...");
+    setBusy(true); setStatusText("思考中...");
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
 
     try {
-      setStreaming(true); currentRunRef.current = null;
+      setBusy(true); currentRunRef.current = null;
       const result = await window.electronAPI.agent.sendMessage(projectPath, agentText, { sessionId: sidRef.current, permissionMode });
       setCurrentRunId(result.chatId); currentRunRef.current = result.chatId;
-    } catch { setLoading(false); currentRunRef.current = null; }
-  }, [input, loading, attaches, projectPath, permissionMode]);
+    } catch { setBusy(false); currentRunRef.current = null; }
+  }, [input, busy, attaches, projectPath, permissionMode]);
 
   useEffect(() => { chatActions.register((t: string) => sendText(t)); return () => chatActions.unregister(); }, [sendText]);
 
@@ -480,7 +479,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     ? messages.filter((m) => m.role === "user" && m.text).pop()?.text ?? ""
     : "";
   const showNewProjectBtn = onNewProject && /新建|建个|创建|帮我建|我要建|新建.*项目|建.*项目|创建.*项目/.test(lastUserText);
-  const showConfirmDev = lastAiText.includes("确认开发") && !loading;
+  const showConfirmDev = lastAiText.includes("确认开发") && !busy;
   const canSend = input.trim() || attaches.length > 0;
 
   // ── Attach preview (shared between both positions) ─
@@ -569,7 +568,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                               return showToolUse;
                             }),
                             String(msg.id)
-                          ).map((block, i) => <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={streaming} />)}
+                          ).map((block, i) => <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} />)}
                         </div>
                       </div>
                     )
@@ -601,12 +600,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         )}
       </div>
 
-      {/* Attach preview — above thinking when loading */}
-      {(streaming || loading) && attaches.length > 0 && (
+      {/* Attach preview — above thinking when busy */}
+      {busy && attaches.length > 0 && (
         <div className="px-4 py-2 bg-surface-alt/30 border-t border-border/50 shrink-0"><AttachPreview /></div>
       )}
 
-      {(streaming || loading) && (
+      {busy && (
         <div className="flex items-center px-4 py-1.5 bg-surface-alt/50 shrink-0">
           <span className="text-xs font-medium" style={{
             background: `linear-gradient(90deg, var(--shimmer-1), var(--shimmer-2), var(--shimmer-3), var(--shimmer-4), var(--shimmer-5), var(--shimmer-2), var(--shimmer-1))`,
@@ -649,7 +648,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
       {/* Input area */}
       <div className="border-t border-border p-3 pt-2 shrink-0">
-        {!(streaming || loading) && attaches.length > 0 && (
+        {!busy && attaches.length > 0 && (
           <div className="mb-2"><AttachPreview /></div>
         )}
         <div className="flex gap-2 items-end">
@@ -674,8 +673,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
               <div className="w-9 h-9 rounded-md bg-surface-alt border border-border flex items-center justify-center opacity-40 cursor-not-allowed">
                 <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
               </div>
-            ) : (loading || streaming) ? (
-              <button onClick={() => { stoppedRef.current = true; const rid = currentRunRef.current; if (rid) window.electronAPI.agent.abort(rid); setLoading(false); setStreaming(false); }}
+            ) : busy ? (
+              <button onClick={() => { stoppedRef.current = true; const rid = currentRunRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); setBusy(false); }}
                 className="w-9 h-9 rounded-md bg-danger-bg text-danger flex items-center justify-center hover:bg-danger-bg transition-colors">
                 <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
               </button>
