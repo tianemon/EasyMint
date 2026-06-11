@@ -8,7 +8,7 @@
 |------|------|------|
 | 了解整体架构 | `docs/design/ARCHITECTURE.md` | 系统架构、数据模型、IPC 通道 |
 | 了解功能规格 | `docs/design/APP_SPEC.md` | 页面结构、功能清单、设计风格 |
-| 了解当前进度 | `docs/需求跟进1.md` | 已实现/未实现/架构变更/新增设计 |
+| 了解当前进度 | `docs/开发进度.md` | 任务完成状态、增量变更记录 |
 | 了解 Agent 系统 | `docs/design/AGENT_SYSTEM.md` | 多 Agent 协作、模板系统、SDK 集成 |
 | 了解配置路径 | `docs/design/CONFIG_PATHS.md` | `~/.easymint/` 全局目录、em-settings 字段、Skill/MCP 位置 |
 | 了解需求设计方法论 | `docs/design/AI驱动开发需求设计原则.md` | 11 条 AORD 原则，任务拆解规范 |

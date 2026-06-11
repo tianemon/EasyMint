@@ -109,11 +109,11 @@ Builder 看不到对话历史，模糊需求会猜错方向。
 除此之外，必须走 task.json 任务模式：
 
 task.json 有未完成任务 + 用户说「继续」「执行」「开始」等指令：
-1. 读 task.json，检查进度
+1. 读 task.json + docs/开发进度.md，检查进度
 2. 按依赖顺序找下一个 passes: false 的任务
 3. 用 Task 工具调 subagent_type="builder"，写清任务标题、描述和 tdd 标记。**不要自己写代码，委托 Builder**。Builder 看到 tdd: true 会自动先写测试再写代码。提醒 Builder 改代码前用 codegraph_impact 检查影响范围
 4. Builder 完成后用 Task 调 subagent_type="evaluator" 验收
-5. 通过 → 标记 passes: true → 更新 state.json 的 doneCount → 汇报 → 继续下一任务
+5. 通过 → 标记 passes: true → 更新 state.json 的 doneCount → 更新 docs/开发进度.md（记录已完成的任务和关键变更）→ 汇报 → 继续下一任务
 6. 失败 → 重试 ≤ 3 次 → Builder 写 escalation.json → 你汇报原因和选项（重试/跳过/人工介入）
 7. 全部完成简要总结
 
@@ -268,7 +268,7 @@ export function buildInitInstruction(profile: ProjectProfile): string {
 ${profile.initSteps}
 2. 二次技术评估：基于完整的 docs/需求文档.md，重新审视用户之前在表单中填写的技术选型——之前的选型是初步判断，现在需求细节清楚了，可能有更合适的技术方案。如果有更优方案，主动向用户推荐并等待确认。确认后写入 docs/技术架构.md（简单项目跳过技术架构）。
 
-3. 分配任务：按第 4 条的方法，基于 docs/需求文档.md 把功能分配为开发任务，写入 task.json。调用 project:writeState 更新 state.json 的 taskCount 和 lastSummary。告知用户任务分配情况。
+3. 分配任务：按第 4 条的方法，基于 docs/需求文档.md 把功能分配为开发任务，写入 task.json。创建 docs/开发进度.md（记录初始状态：任务总数、待开始）。调用 project:writeState 更新 state.json 的 taskCount 和 lastSummary。告知用户任务分配情况。
 
 4. 写 README.md — 项目名称、简介、技术栈、如何运行。
 
@@ -302,11 +302,11 @@ ${instruction}`;
 
 // ── 确认开发 ──────────────────────────────────────────
 
-export const CONFIRM_DEVELOPMENT_PROMPT = `开始执行 task.json 中的开发任务。按顺序逐条推进，每完成一个用 Task(builder) 实现、Task(evaluator) 验收，通过后更新 doneCount。全程自动推进不等确认，直到全部完成或用户打断。遇到阻塞写入 escalation.json 并通知用户。遵循项目 TDD 设定。`;
+export const CONFIRM_DEVELOPMENT_PROMPT = `开始执行 task.json 中的开发任务。按顺序逐条推进，每完成一个用 Task(builder) 实现、Task(evaluator) 验收，通过后更新 doneCount 并更新 docs/开发进度.md。全程自动推进不等确认，直到全部完成或用户打断。遇到阻塞写入 escalation.json 并通知用户。遵循项目 TDD 设定。`;
 
 // ── Mint按钮 ──────────────────────────────────────────
 
-export const CONTINUE_NEXT_STEP = `[系统消息] 检查项目当前阶段和进度，总结当前状态，然后继续推进下一步工作。`;
+export const CONTINUE_NEXT_STEP = `[系统消息] 先读 docs/开发进度.md 了解最新进展，然后检查项目当前阶段和进度，总结当前状态，继续推进下一步工作。`;
 
 // ── 上下文轮转 ──────────────────────────────────────
 
@@ -319,7 +319,7 @@ export const CONTEXT_SUMMARY_INSTRUCTION = `[系统消息] 当前会话上下文
    - 已完成的关键工作（列出具体成果）
    - 正在进行中的任务
    - 下一步计划
-   - 需要继续阅读的项目文档（需求文档.md、技术架构.md 等）
+   - 需要继续阅读的项目文档（需求文档.md、技术架构.md、开发进度.md 等）
 4. 以自然段落形式输出，不要用列表格式，像在给同事交接工作一样
 5. 最后以一句"我们继续推进xxx吧"结尾，xxx是下一步要做的事情`;
 
