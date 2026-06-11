@@ -17,12 +17,12 @@ export function TabBar(): JSX.Element {
             <div
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`group flex items-center gap-1.5 h-full px-2.5 text-xs cursor-pointer select-none min-w-0 border-r border-border transition-colors ${
+              className={`group flex items-center gap-1.5 h-full px-2.5 text-xs cursor-pointer select-none border-r border-border transition-colors ${
                 isActive
                   ? "bg-surface-elevated text-text-primary"
                   : "bg-transparent text-text-secondary hover:bg-surface-hover"
               }`}
-              style={{ flex: "1 1 0" }}
+              style={{ flex: `0 1 ${100 / tabs.length}%`, minWidth: 0, maxWidth: 180 }}
             >
               {/* Dot — only for dirty (unsaved) files */}
               {(tab as { dirty?: boolean }).dirty && (
