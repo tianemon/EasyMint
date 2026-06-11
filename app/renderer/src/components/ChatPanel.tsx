@@ -116,9 +116,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const runningSessions = useTabStore((s) => s.runningSessions);
-  const streaming = runningSessions.has(sidRef.current || "");
-  const setStreaming = (v: boolean) => { if (sidRef.current) useTabStore.getState().setSessionRunning(sidRef.current, v); };
   const [statusText, setStatusText] = useState("思考中...");
   const [_currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentRunRef = useRef<string | null>(null);
@@ -171,6 +168,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const autoScrollRef = useRef(true);
   const sidRef = useRef<string | null>(existingSid ?? null);
   useEffect(() => { if (existingSid) sidRef.current = existingSid; }, [existingSid]);
+  const runningSessions = useTabStore((s) => s.runningSessions);
+  const streaming = runningSessions.has(sidRef.current || "");
+  const setStreaming = (v: boolean) => { if (sidRef.current) useTabStore.getState().setSessionRunning(sidRef.current, v); };
 
   const scrollToBottom = useCallback((force = false) => {
     if (!containerRef.current) return;
