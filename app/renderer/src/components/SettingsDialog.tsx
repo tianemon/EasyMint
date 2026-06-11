@@ -329,12 +329,6 @@ function McpTab(): JSX.Element {
 
   const typeLabel = (t: string) => t === "stdio" ? "本地进程" : t === "http" ? "HTTP" : "SSE";
 
-  // Floating hints for API keys
-  const KEY_HINTS: Record<string, string> = {
-    VISION_API_KEY: "开启上方「图片识别」开关并填写 Key 后生效。获取: dashscope.aliyun.com",
-    TAVILY_API_KEY: "开启上方「网页抓取」开关并填写 Key 后生效。获取: tavily.com",
-  };
-
   // Collect all required keys across MCP servers, with their current values.
   // MCP config env (.claude.json) takes priority, then apiKeys from em-settings.json.
   const allKeys = new Map<string, string>(); // key → value
@@ -350,43 +344,71 @@ function McpTab(): JSX.Element {
 
       {/* Built-in Tools */}
       <section>
-        <h3 className="text-sm font-medium text-text-primary mb-2">内置工具</h3>
+        <h3 className="text-sm font-medium text-text-primary mb-2">模型能力增强</h3>
         <p className="text-[11px] text-text-secondary mb-3">
-          EasyMint 内置的辅助工具，开启后自动注入到每次会话。使用多模态模型时无需开启图片识别。
+          对于非多模态模型，提供视觉识别和网页抓取能力。开启后自动注入到每次会话。
         </p>
         <div className="space-y-2">
           {([
-            { key: "vision", label: "图片识别", desc: "使用 Qwen 视觉模型描述图片内容，让纯文本模型也能\"看懂\"图片" },
-            { key: "webFetch", label: "网页抓取", desc: "读取网页实际内容，让模型能查阅在线文档和资料" },
-          ] as const).map(({ key, label, desc }) => (
-            <div key={key} className="bg-surface-alt rounded-lg px-4 py-3 flex items-center justify-between">
-              <div className="flex-1 min-w-0 mr-3">
-                <div className="text-xs font-medium text-text-primary">{label}</div>
-                <div className="text-[10px] text-text-muted mt-0.5">{desc}</div>
+            { key: "vision", label: "图片识别", desc: "使用 Qwen 视觉模型描述图片内容，让纯文本模型也能\"看懂\"图片", keyId: "VISION_API_KEY", keyHint: "获取: dashscope.aliyun.com" },
+            { key: "webFetch", label: "网页抓取", desc: "读取网页实际内容，让模型能查阅在线文档和资料", keyId: "TAVILY_API_KEY", keyHint: "获取: tavily.com" },
+          ] as const).map(({ key, label, desc, keyId, keyHint }) => {
+            const on = builtinTools[key];
+            return (
+            <div key={key} className="bg-surface-alt rounded-lg px-4 py-3">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0 mr-3">
+                  <div className="text-xs font-medium text-text-primary">{label}</div>
+                  <div className="text-[10px] text-text-muted mt-0.5">{desc}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleBuiltinToggle(key, !on)}
+                  className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${on ? "bg-accent" : "bg-border"}`}
+                >
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${on ? "left-4" : "left-0.5"}`} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => handleBuiltinToggle(key, !builtinTools[key])}
-                className={`w-9 h-5 rounded-full transition-colors relative ${builtinTools[key] ? "bg-accent" : "bg-border"}`}
-              >
-                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${builtinTools[key] ? "left-4" : "left-0.5"}`} />
-              </button>
+              {on && (
+                <div className="mt-2">
+                  <label className="text-[10px] text-text-secondary block mb-1">{keyId}</label>
+                  <div className="relative">
+                    <input
+                      type={showKey ? "text" : "password"}
+                      className="w-full px-2 py-1.5 pr-7 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
+                      defaultValue={apiKeys[keyId] || ""}
+                      placeholder="未设置"
+                      onBlur={(e) => { const v = e.target.value.trim(); if (v !== (apiKeys[keyId] || "")) saveKey(keyId, v); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                    />
+                    <button type="button" className="absolute right-1.5 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
+                      onClick={() => setShowKey(!showKey)}>
+                      {showKey ? (
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      )}
+                    </button>
+                  </div>
+                  <div className="text-[10px] text-text-muted mt-1">{keyHint}</div>
+                </div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
       {/* API Keys */}
-      {allKeys.size > 0 && (
+      {/* Filter out keys managed by built-in tools section above */}
+      {Array.from(allKeys.entries()).filter(([k]) => k !== "VISION_API_KEY" && k !== "TAVILY_API_KEY").length > 0 && (
         <section>
           <h3 className="text-sm font-medium text-text-primary mb-2">API Keys</h3>
           <p className="text-[11px] text-text-secondary mb-3">
             MCP 工具所需的第三方服务密钥，会注入到对应 MCP 服务器的环境变量中。
           </p>
           <div className="bg-surface-alt rounded-lg px-4 py-3 space-y-2">
-            {Array.from(allKeys.entries()).map(([key, val]) => {
-              const hint = KEY_HINTS[key];
-              return (
+            {Array.from(allKeys.entries()).filter(([k]) => k !== "VISION_API_KEY" && k !== "TAVILY_API_KEY").map(([key, val]) => (
               <div key={key}>
                 <label className="text-xs text-text-secondary block mb-1">{key}</label>
                 <div className="relative">
@@ -407,12 +429,8 @@ function McpTab(): JSX.Element {
                     )}
                   </button>
                 </div>
-                {hint && (
-                  <p className="text-[10px] text-text-muted mt-1">{hint}</p>
-                )}
               </div>
-              );
-            })}
+            ))}
           </div>
         </section>
       )}
