@@ -34,7 +34,7 @@ export function TabBar(): JSX.Element {
                 onClick={(e) => {
                   e.stopPropagation();
                   if (isTabRunning(tab, runningSessions)) {
-                    if (!confirm("该会话的 Agent 正在运行中，关闭将丢失实时进度。确定要关闭吗？")) return;
+                    if (!confirm("Mint 正在思考中，确认关闭吗？")) return;
                   }
                   closeTab(tab.id);
                 }}
