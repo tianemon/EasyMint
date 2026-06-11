@@ -9,8 +9,8 @@ export function TabBar(): JSX.Element {
 
   return (
     <div className="flex items-center h-9 bg-surface-alt border-b border-border shrink-0 overflow-hidden">
-      {/* Tabs — compress like browser tabs, no scrollbar */}
-      <div className="flex-1 flex items-center h-full min-w-0">
+      {/* Tabs — compress until min-width, then scroll without scrollbar */}
+      <div className="flex-1 flex items-center h-full min-w-0 overflow-x-auto tabbar-scroll">
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
           return (
@@ -22,7 +22,7 @@ export function TabBar(): JSX.Element {
                   ? "bg-surface-elevated text-text-primary"
                   : "bg-transparent text-text-secondary hover:bg-surface-hover"
               }`}
-              style={{ flex: `0 1 ${100 / tabs.length}%`, minWidth: 0, maxWidth: 180 }}
+              style={{ flex: "0 0 auto", minWidth: 60, maxWidth: 180, width: `${100 / tabs.length}%` }}
             >
               {/* Dot — only for dirty (unsaved) files */}
               {(tab as { dirty?: boolean }).dirty && (

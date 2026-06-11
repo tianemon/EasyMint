@@ -523,6 +523,9 @@ select.input {
 .fn  { color: var(--color-code-fn); }
 .cm  { color: var(--color-code-cm); font-style: italic; }
 
+.tabbar-scroll { scrollbar-width: none; }
+.tabbar-scroll::-webkit-scrollbar { display: none; }
+
 /* ── Modal ────────────────────────────────────────── */
 
 .modal-overlay { animation: fadeIn var(--anim-fast) var(--ease-smooth); }
