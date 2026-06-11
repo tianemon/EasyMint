@@ -283,6 +283,87 @@ function SkillsTab(): JSX.Element {
   );
 }
 
+// ── Built-in Tools Section (used in Providers tab) ─────────────────────────────
+
+function BuiltinToolsSection(): JSX.Element {
+  const [builtinTools, setBuiltinTools] = useState<Record<string, boolean>>({ vision: false, webFetch: false });
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+  const [showKey, setShowKey] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const s = await window.electronAPI.settings.get();
+      setBuiltinTools(s.builtinTools ?? { vision: false, webFetch: false });
+      setApiKeys(s.apiKeys ?? {});
+    })();
+  }, []);
+
+  const handleToggle = async (name: string, on: boolean) => {
+    const next = { ...builtinTools, [name]: on };
+    setBuiltinTools(next);
+    await window.electronAPI.settings.set("builtinTools", next);
+  };
+
+  const saveKey = async (key: string, value: string) => {
+    const next = { ...apiKeys, [key]: value };
+    setApiKeys(next);
+    await window.electronAPI.settings.set("apiKeys", next);
+  };
+
+  return (
+    <section>
+      <h3 className="text-sm font-medium text-text-primary mb-2">模型能力增强</h3>
+      <p className="text-[11px] text-text-secondary mb-3">
+        对于非多模态模型，提供视觉识别和网页抓取能力。开启后自动注入到每次会话。
+      </p>
+      <div className="space-y-2">
+        {([
+          { key: "vision", label: "图片识别", desc: "使用 Qwen 视觉模型描述图片内容，让纯文本模型也能\"看懂\"图片", keyId: "VISION_API_KEY", keyHint: "获取: dashscope.aliyun.com" },
+          { key: "webFetch", label: "网页抓取", desc: "读取网页实际内容，让模型能查阅在线文档和资料", keyId: "TAVILY_API_KEY", keyHint: "获取: tavily.com" },
+        ] as const).map(({ key, label, desc, keyId, keyHint }) => {
+          const on = builtinTools[key];
+          return (
+          <div key={key} className="bg-surface-alt rounded-lg px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0 mr-3">
+                <div className="text-xs font-medium text-text-primary">{label}</div>
+                <div className="text-[10px] text-text-muted mt-0.5">{desc}</div>
+              </div>
+              <button type="button" onClick={() => handleToggle(key, !on)}
+                className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${on ? "bg-accent" : "bg-border"}`}>
+                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${on ? "left-4" : "left-0.5"}`} />
+              </button>
+            </div>
+            {on && (
+              <div className="mt-2">
+                <label className="text-[10px] text-text-secondary block mb-1">{keyId}</label>
+                <div className="relative">
+                  <input type={showKey ? "text" : "password"}
+                    className="w-full px-2 py-1.5 pr-7 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
+                    defaultValue={apiKeys[keyId] || ""} placeholder="未设置"
+                    onBlur={(e) => { const v = e.target.value.trim(); if (v !== (apiKeys[keyId] || "")) saveKey(keyId, v); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                  />
+                  <button type="button" className="absolute right-1.5 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
+                    onClick={() => setShowKey(!showKey)}>
+                    {showKey ? (
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    )}
+                  </button>
+                </div>
+                <div className="text-[10px] text-text-muted mt-1">{keyHint}</div>
+              </div>
+            )}
+          </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 // ── MCP Tab ───────────────────────────────────────────────────────────────────
 
 function McpTab(): JSX.Element {
@@ -291,7 +372,6 @@ function McpTab(): JSX.Element {
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState("");
   const [showKey, setShowKey] = useState(false);
-  const [builtinTools, setBuiltinTools] = useState<Record<string, boolean>>({ vision: false, webFetch: false });
 
   const load = async () => {
     try {
@@ -303,18 +383,11 @@ function McpTab(): JSX.Element {
       setServers(s);
       setRequiredKeys(keys);
       setApiKeys(settings.apiKeys ?? {});
-      setBuiltinTools(settings.builtinTools ?? { vision: false, webFetch: false });
     } catch (e: unknown) {
       setLoadError(String(e));
     }
   };
   useEffect(() => { load(); }, []);
-
-  const handleBuiltinToggle = async (name: string, on: boolean) => {
-    const next = { ...builtinTools, [name]: on };
-    setBuiltinTools(next);
-    await window.electronAPI.settings.set("builtinTools", next);
-  };
 
   const handleToggle = async (name: string, enabled: boolean) => {
     await window.electronAPI.mcp.toggle(name, enabled);
@@ -342,65 +415,6 @@ function McpTab(): JSX.Element {
     <div className="px-6 py-4 overflow-y-auto space-y-5">
       {loadError && <p className="text-danger text-xs">{loadError}</p>}
 
-      {/* Built-in Tools */}
-      <section>
-        <h3 className="text-sm font-medium text-text-primary mb-2">模型能力增强</h3>
-        <p className="text-[11px] text-text-secondary mb-3">
-          对于非多模态模型，提供视觉识别和网页抓取能力。开启后自动注入到每次会话。
-        </p>
-        <div className="space-y-2">
-          {([
-            { key: "vision", label: "图片识别", desc: "使用 Qwen 视觉模型描述图片内容，让纯文本模型也能\"看懂\"图片", keyId: "VISION_API_KEY", keyHint: "获取: dashscope.aliyun.com" },
-            { key: "webFetch", label: "网页抓取", desc: "读取网页实际内容，让模型能查阅在线文档和资料", keyId: "TAVILY_API_KEY", keyHint: "获取: tavily.com" },
-          ] as const).map(({ key, label, desc, keyId, keyHint }) => {
-            const on = builtinTools[key];
-            return (
-            <div key={key} className="bg-surface-alt rounded-lg px-4 py-3">
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0 mr-3">
-                  <div className="text-xs font-medium text-text-primary">{label}</div>
-                  <div className="text-[10px] text-text-muted mt-0.5">{desc}</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleBuiltinToggle(key, !on)}
-                  className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${on ? "bg-accent" : "bg-border"}`}
-                >
-                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${on ? "left-4" : "left-0.5"}`} />
-                </button>
-              </div>
-              {on && (
-                <div className="mt-2">
-                  <label className="text-[10px] text-text-secondary block mb-1">{keyId}</label>
-                  <div className="relative">
-                    <input
-                      type={showKey ? "text" : "password"}
-                      className="w-full px-2 py-1.5 pr-7 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
-                      defaultValue={apiKeys[keyId] || ""}
-                      placeholder="未设置"
-                      onBlur={(e) => { const v = e.target.value.trim(); if (v !== (apiKeys[keyId] || "")) saveKey(keyId, v); }}
-                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                    />
-                    <button type="button" className="absolute right-1.5 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
-                      onClick={() => setShowKey(!showKey)}>
-                      {showKey ? (
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                      ) : (
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                      )}
-                    </button>
-                  </div>
-                  <div className="text-[10px] text-text-muted mt-1">{keyHint}</div>
-                </div>
-              )}
-            </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* API Keys */}
-      {/* Filter out keys managed by built-in tools section above */}
       {Array.from(allKeys.entries()).filter(([k]) => k !== "VISION_API_KEY" && k !== "TAVILY_API_KEY").length > 0 && (
         <section>
           <h3 className="text-sm font-medium text-text-primary mb-2">API Keys</h3>
@@ -551,7 +565,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     setShowToolUse,
     loadFromElectron,
   } = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<"general" | "prompts" | "agents" | "skills" | "mcp" | "providers" | "about">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "prompts" | "agents" | "plugins" | "providers" | "about">("general");
 
   useEffect(() => {
     if (!open) return;
@@ -592,28 +606,22 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               Agent 模板
             </button>
             <button
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "skills" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
-              onClick={() => setActiveTab("skills")}
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "plugins" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setActiveTab("plugins")}
             >
-              Skill
-            </button>
-            <button
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "mcp" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
-              onClick={() => setActiveTab("mcp")}
-            >
-              MCP
-            </button>
-            <button
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "about" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
-              onClick={() => setActiveTab("about")}
-            >
-              关于
+              插件
             </button>
             <button
               className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "providers" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
               onClick={() => setActiveTab("providers")}
             >
               模型
+            </button>
+            <button
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "about" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setActiveTab("about")}
+            >
+              关于
             </button>
           </div>
           <button
@@ -706,10 +714,16 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
             <PromptSettings />
           ) : activeTab === "agents" ? (
             <AgentsTab />
-          ) : activeTab === "skills" ? (
-            <SkillsTab />
+          ) : activeTab === "plugins" ? (
+            <div className="space-y-5">
+              <SkillsTab />
+              <McpTab />
+            </div>
           ) : activeTab === "providers" ? (
-            <ProviderSettings />
+            <div className="space-y-5">
+              <ProviderSettings />
+              <BuiltinToolsSection />
+            </div>
           ) : activeTab === "about" ? (
             <div className="flex flex-col items-center justify-center py-12 space-y-6">
               <img src="/icon.png" className="w-20 h-20 mb-2" />
