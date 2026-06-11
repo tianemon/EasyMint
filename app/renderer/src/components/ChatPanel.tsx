@@ -432,7 +432,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
     try {
       setBusy(true); currentRunRef.current = null;
-      const result = await window.electronAPI.agent.sendMessage(projectPath, agentText, { sessionId: sidRef.current, permissionMode });
+      const result = await window.electronAPI.agent.sendMessage(projectPath, agentText, { sessionId: existingSid ?? null, permissionMode });
       setCurrentRunId(result.chatId); currentRunRef.current = result.chatId;
     } catch { setBusy(false); currentRunRef.current = null; }
   }, [input, busy, attaches, projectPath, permissionMode]);
