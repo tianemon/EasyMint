@@ -122,9 +122,21 @@ CodeGraph 用于**结构性**问题——谁调了谁、改动会影响什么、
 # [待填写]
 ```
 
-## 4.3 目录结构
+## 4.3 文件组织
 
-> [待填写项目特有的目录说明]
+- **`app/`** — 所有项目源码（前后端代码、配置文件、构建产物、运行时环境）。app/ 内部结构由项目决定，不要在 app/ 以外创建代码目录
+- **`docs/`** — 项目文档（APP_SPEC.md、ARCHITECTURE.md、SETUP.md、USER_GUIDE.md）
+- **`temp/`** — 所有非项目必须的临时文件，按类别分目录存放：
+  - `temp/logs/` — 调试日志、错误堆栈
+  - `temp/screenshots/` — Playwright 截图、UI 对比图
+  - `temp/drafts/` — 草稿代码、中间产物、临时脚本
+  - `temp/tests/` — 临时测试文件、测试输出
+  任何不纳入 git 版本控制的临时产物都放 temp/ 对应子目录
+- **根目录** — harness 文件：
+  - `CLAUDE.md` — 项目通用上下文
+  - `task.json` — 任务定义（唯一真相源，含 `passes` 和 `evaluated` 字段）
+  - `init.sh` — 环境初始化脚本
+  - `README.md`、`.gitignore`
 
 ## 4.4 项目专属规则
 
