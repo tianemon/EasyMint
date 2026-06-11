@@ -12,7 +12,8 @@ interface ChatState {
 
   loadSession: (sessionId: string, messages: StoredMessage[]) => void;
   evictSession: (sessionId: string) => void;
-  appendUserMsg: (sessionId: string, msg: StoredMessage) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  appendUserMsg: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai" }) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   appendAiEntry: (sessionId: string, entry: Record<string, any>) => number;
   nextMsgId: (sessionId: string) => number;
