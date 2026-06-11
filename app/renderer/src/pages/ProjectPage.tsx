@@ -205,31 +205,39 @@ export function ProjectPage(): JSX.Element {
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
   const renderTabContent = () => {
-    if (!activeTab) {
-      return <EditorPanel />;
-    }
-switch (activeTab.type) {
-      case "chat":
-        return (
-          <ChatPanel
-            key={activeTab.id}
-            projectPath={projectPath}
-            sessionId={activeTab.sessionId}
-            onSessionCreated={(sid) => {
-              // Write real SDK session_id back to tab (replaces temporary new-xxx id)
-              useTabStore.getState().updateTab(activeTab.id, { sessionId: sid, title: "新会话" });
-              setActiveSessionId(sid);
-              setSessionRefreshKey((k) => k + 1);
-            }}
-            onActivity={() => { setSessionRefreshKey((k) => k + 1); refreshAll(); }}
-            onNewProject={() => setShowNewProject(true)}
-          />
-        );
-      case "file":
-        return <EditorPanel filePath={activeTab.filePath} fileName={activeTab.title} />;
-      default:
-        return <EditorPanel />;
-    }
+    return (
+      <>
+        {tabs.length === 0 && <EditorPanel />}
+        {tabs.map((tab) => {
+          const isActive = tab.id === activeTabId;
+          if (tab.type === "chat") {
+            return (
+              <div key={tab.id} className="absolute inset-0" style={{ display: isActive ? undefined : "none" }}>
+                <ChatPanel
+                  projectPath={projectPath}
+                  sessionId={tab.sessionId}
+                  onSessionCreated={(sid) => {
+                    useTabStore.getState().updateTab(tab.id, { sessionId: sid, title: "新会话" });
+                    setActiveSessionId(sid);
+                    setSessionRefreshKey((k) => k + 1);
+                  }}
+                  onActivity={() => { setSessionRefreshKey((k) => k + 1); refreshAll(); }}
+                  onNewProject={() => setShowNewProject(true)}
+                />
+              </div>
+            );
+          }
+          if (tab.type === "file") {
+            return (
+              <div key={tab.id} className="absolute inset-0" style={{ display: isActive ? undefined : "none" }}>
+                <EditorPanel filePath={tab.filePath} fileName={tab.title} />
+              </div>
+            );
+          }
+          return null;
+        })}
+      </>
+    );
   };
 
   return (
