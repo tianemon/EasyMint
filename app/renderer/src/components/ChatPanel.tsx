@@ -286,8 +286,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     let curAi = 0;
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       if (event.source !== "chat") return;
-      if (sidRef.current && event.sessionId && event.sessionId !== sidRef.current) return;
-      if (currentRunRef.current && event.runId !== currentRunRef.current) return;
+      // Filter by chatId first (always set, sync), fallback to sessionId
+      if (currentChatRef.current) {
+        if (!event.runId || event.runId !== currentChatRef.current) return;
+      } else if (event.sessionId && sidRef.current && event.sessionId !== sidRef.current) {
+        return;
+      }
       if (stoppedRef.current) return;
       if (!currentRunRef.current) { currentRunRef.current = event.runId; setCurrentRunId(event.runId); }
       setBusy(true); setBusy(true);
