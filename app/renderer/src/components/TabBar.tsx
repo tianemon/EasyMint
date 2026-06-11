@@ -1,7 +1,11 @@
 import { useTabStore } from "../stores/tab-store";
 
+function isTabRunning(tab: { type: string; sessionId?: string }, runningSessions: Set<string>): boolean {
+  return tab.type === "chat" && !!tab.sessionId && runningSessions.has(tab.sessionId);
+}
+
 export function TabBar(): JSX.Element {
-  const { tabs, activeTabId, setActiveTab, closeTab } = useTabStore();
+  const { tabs, activeTabId, setActiveTab, closeTab, runningSessions } = useTabStore();
 
   return (
     <div className="flex items-center h-9 bg-surface-alt border-b border-border shrink-0">
@@ -29,6 +33,9 @@ export function TabBar(): JSX.Element {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (isTabRunning(tab, runningSessions)) {
+                    if (!confirm("该会话的 Agent 正在运行中，关闭将丢失实时进度。确定要关闭吗？")) return;
+                  }
                   closeTab(tab.id);
                 }}
                 className="ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-surface-hover transition-opacity text-text-secondary leading-none"
