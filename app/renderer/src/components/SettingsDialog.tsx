@@ -164,17 +164,6 @@ function SkillsTab(): JSX.Element {
   };
   useEffect(load, []);
 
-  const handleImport = async () => {
-    try {
-      const dir = await window.electronAPI.dialog.openDirectory();
-      if (!dir) return;
-      await window.electronAPI.skill.import(dir, "global");
-      load();
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "导入失败");
-    }
-  };
-
   const handleHide = async (skillPath: string, skillName: string) => {
     await window.electronAPI.skill.delete(skillPath);
     setSkills((prev) => prev.filter((s) => s.name !== skillName));
@@ -192,16 +181,7 @@ function SkillsTab(): JSX.Element {
     <div className="px-6 py-4 overflow-y-auto space-y-4">
       {loadError && <p className="text-danger text-xs">{loadError}</p>}
 
-      {/* Import button */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-text-primary">Skills</p>
-        <button
-          className="px-3 py-1 rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors"
-          onClick={handleImport}
-        >
-          导入 Skill
-        </button>
-      </div>
+      <p className="text-sm font-medium text-text-primary">Skills</p>
       <p className="text-[11px] text-text-secondary -mt-3">
         与 Claude Code 共用 ~/.claude/skills/ 和项目级 .claude/skills/ 目录
       </p>

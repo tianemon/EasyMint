@@ -9,7 +9,7 @@
  * EasyMint maintains its own disabled-skills list in em-settings.json.
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, rmSync, cpSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, cpSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
@@ -174,73 +174,6 @@ export function readSkill(skillPath: string): SkillDetail | null {
   }
 }
 
-// ── Import ─────────────────────────────────────────
-
-/** Import a skill from a source directory into the target level */
-export function importSkill(
-  sourcePath: string,
-  level: "global" | "project",
-  projectPath?: string,
-): SkillManifest {
-  const skillFile = path.join(sourcePath, "SKILL.md");
-  if (!existsSync(skillFile)) {
-    throw new Error(`源目录中未找到 SKILL.md: ${sourcePath}`);
-  }
-
-  // Read source to get the skill name
-  const raw = readFileSync(skillFile, "utf-8");
-  const fm = parseFrontmatter(raw);
-  const skillName = fm.name || path.basename(sourcePath);
-
-  const targetDir = level === "global"
-    ? GLOBAL_SKILLS_DIR
-    : projectSkillsDir(projectPath || "");
-  const targetPath = path.join(targetDir, skillName);
-
-  // Copy entire folder
-  if (!existsSync(targetDir)) mkdirSync(targetDir, { recursive: true });
-  if (existsSync(targetPath)) {
-    rmSync(targetPath, { recursive: true, force: true });
-  }
-  cpSync(sourcePath, targetPath, { recursive: true });
-
-  // Ensure enabled after import
-  const disabled = getHiddenSkills().filter((n) => n !== skillName);
-  saveHiddenSkills(disabled);
-
-  return {
-    name: skillName,
-    description: fm.description || "(无描述)",
-    path: targetPath,
-    level,
-    enabled: true,
-  };
-}
-
-// ── Delete (hide from EM, keep files on disk) ──────
-
-export function deleteSkill(skillPath: string): void {
-  const name = path.basename(skillPath);
-  const list = getHiddenSkills();
-  if (!list.includes(name)) {
-    list.push(name);
-    saveHiddenSkills(list);
-  }
-}
-
-// ── Toggle ─────────────────────────────────────────
-
-export function toggleSkill(name: string, enabled: boolean): void {
-  const disabled = getHiddenSkills();
-  if (enabled) {
-    saveHiddenSkills(disabled.filter((n) => n !== name));
-  } else {
-    if (!disabled.includes(name)) {
-      disabled.push(name);
-      saveHiddenSkills(disabled);
-    }
-  }
-}
 
 // ── Seed built-in skills ───────────────────────────
 
