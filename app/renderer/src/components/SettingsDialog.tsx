@@ -164,11 +164,6 @@ function SkillsTab(): JSX.Element {
   };
   useEffect(load, []);
 
-  const handleHide = async (skillPath: string, skillName: string) => {
-    await window.electronAPI.skill.delete(skillPath);
-    setSkills((prev) => prev.filter((s) => s.name !== skillName));
-  };
-
   const handleToggle = async (name: string, enabled: boolean) => {
     await window.electronAPI.skill.toggle(name, enabled);
     setSkills((prev) => prev.map((s) => (s.name === name ? { ...s, enabled } : s)));
@@ -209,12 +204,6 @@ function SkillsTab(): JSX.Element {
                         className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-surface-elevated shadow transition-all ${s.enabled ? "left-[calc(100%-18px)]" : "left-0.5"}`}
                       />
                     </button>
-                    <button
-                      className="text-xs text-text-secondary hover:text-danger transition-colors"
-                      onClick={() => handleHide(s.path, s.name)}
-                    >
-                      隐藏
-                    </button>
                   </div>
                 </div>
               </div>
@@ -245,12 +234,6 @@ function SkillsTab(): JSX.Element {
                       <span
                         className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-surface-elevated shadow transition-all ${s.enabled ? "left-[calc(100%-18px)]" : "left-0.5"}`}
                       />
-                    </button>
-                    <button
-                      className="text-xs text-text-secondary hover:text-danger transition-colors"
-                      onClick={() => handleHide(s.path, s.name)}
-                    >
-                      隐藏
                     </button>
                   </div>
                 </div>
@@ -469,18 +452,6 @@ function McpTab(): JSX.Element {
                     <p className="text-xs text-text-secondary mt-0.5 truncate">
                       {s.type === "http" ? s.url : [s.command, ...(s.args || [])].join(" ")}
                     </p>
-                  </div>
-                  <div className="flex items-center gap-2 ml-3 shrink-0">
-                    <button
-                      onClick={() => handleToggle(s.name, !s.enabled)}
-                      className={`relative w-9 h-5 rounded-full transition-colors overflow-hidden ${s.enabled ? "bg-accent" : "bg-surface-hover border border-border"}`}
-                      role="switch"
-                      aria-checked={s.enabled}
-                    >
-                      <span
-                        className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-surface-elevated shadow transition-all ${s.enabled ? "left-[calc(100%-18px)]" : "left-0.5"}`}
-                      />
-                    </button>
                   </div>
                 </div>
               </div>
