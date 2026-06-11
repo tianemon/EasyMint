@@ -1,6 +1,6 @@
 # AI 开发规范
 
-> 从实际项目经验中沉淀的规则，按「行为约束 → 开发规范 → 技术栈模板」分层。
+> 从实际项目经验中沉淀的规则，按「行为约束 → 开发规范 → 通用准则」分层。
 
 ---
 
@@ -73,6 +73,7 @@
 ## 3.3 文档管理
 
 - 文档必须放到 doc（或 docs）目录下，严格限制随意创建文档（下次再对话就无用了），优先更新现有文档
+- 文档名称优先以中文命名
 
 ## 3.4 进度追踪
 
@@ -88,10 +89,6 @@
 | 目录/文件 | 用途 |
 |-----------|------|
 | `doc/`（或 `docs/`） | 所有文档，优先更新现有文档 |
-| `temp/` | 临时测试代码，用完立即删除 |
-| `script/`（或 `scripts/`） | 可长期执行的工具脚本 |
-
-> 各技术栈可能追加专属目录，见第四部分。
 
 ## 3.7 常见场景处理
 
@@ -102,229 +99,95 @@
 | 遇到技术难题时 | 先搜索资料，再提供 2-3 个备选方案 |
 | 代码报错时 | 先分析原因，再提供修复方案 |
 | 不确定用户意图时 | 主动询问确认，不要猜测 |
-| 发现潜在问题时 | 提醒用户，但不擅自修改 |
-| UI/交互设计问题 | 提供多个方案截图或描述，让用户选择 |
+| 发现潜在问题时 | 提醒用户，不擅自修改 |
 
-## 3.8 沟通语言
+## 3.8 工具环境
+
+| 工具 | 用途 | 使用方式 |
+|------|------|----------|
+| CodeGraph | 代码结构查询 | `codegraph_*` MCP 工具 |
+
+## 3.9 沟通语言
 
 - 对话：中文
 - 搜索：可用英文
 - 代码注释：中文
 
-## 3.9 代码风格
+## 3.10 代码风格
 
-> 遵循该技术栈的官方规范和社区最佳实践即可，无特殊要求。各技术栈的补充见第四部分。
-
----
-
-# 四、技术栈模板
-
-> 以下为各技术栈的专属模板。使用时复制对应部分，填写 `[待填写]`，删除不需要的条目。
-
-## 4.1 Python / 模型训练
-
-### AI 身份
-
-你是一个 Python 专家、模型专家、算法专家，[待填写：擅长的具体领域，如"精通 YOLO 模型的训练和使用"]。
-
-### 用户背景
-
-| 问题 | 回答 |
-|------|------|
-| 用户是否熟悉该技术领域？ | [待填写] |
-| 用户是否需要 AI 主动引导和解释？ | [待填写] |
-| 用户偏好的方案复杂度？ | [待填写] |
-| 用户是否有代码审查能力？ | [待填写] |
-| 用户对错误信息的容忍度？ | [待填写] |
-| 用户希望 AI 主动提建议吗？ | [待填写] |
-| 用户的时间紧迫程度？ | [待填写] |
-
-### 项目专属规则
-
-> 基于用户的开发习惯和本项目所使用技术栈的特定要求。
-
-- 资源文件（数据集、模型权重等）必须放在项目外部，禁止在项目内创建
-- 脚本分类存放：`temp/` 临时测试代码用完删除，`script/` 长期使用的工具脚本
-- 训练配置文件放在 `train/` 目录
-
-### 补充禁止行为
-
-- ❌ 在项目内创建资源文件（数据集、模型权重等）
-
-### 文件管理
-
-| 目录/文件 | 用途 |
-|-----------|------|
-| `doc/` | 所有文档，优先更新现有文档 |
-| `temp/` | 临时测试代码，用完立即删除 |
-| `script/` | 可长期执行的工具脚本 |
-| `train/` | 训练配置文件 |
-| [待填写] | [待填写] |
-
-### 代码风格补充
-
-> 遵循 Python 官方规范（PEP 8）和社区最佳实践即可。路径管理推荐使用 `pathlib.Path`。
+> 遵循该技术栈的官方规范和社区最佳实践即可，无特殊要求。
 
 ---
 
-## 4.2 Flutter / 移动端
+# 四、通用行为准则（CLAUDE.md）
 
-### AI 身份
+> Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+>
+> **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
-你是一个 Flutter 专家和算法专家，擅长开发移动端应用，开发时严格遵守相关规范。
+## 4.1 Think Before Coding
 
-你具备顶级的理性思维能力，遇到问题时不会走捷径，而是用最合理、最高效的方式去解决问题。在面对复杂问题时，你会深入分析根本原因，从多角度权衡利弊，选择最优方案而非最简单方案。
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
 
-### 用户背景
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
 
-| 问题 | 回答 |
-|------|------|
-| 用户是否熟悉该技术领域？ | [待填写] |
-| 用户是否需要 AI 主动引导和解释？ | [待填写] |
-| 用户偏好的方案复杂度？ | [待填写] |
-| 用户是否有代码审查能力？ | [待填写] |
-| 用户对错误信息的容忍度？ | [待填写] |
-| 用户希望 AI 主动提建议吗？ | [待填写] |
-| 用户的时间紧迫程度？ | [待填写] |
+## 4.2 Simplicity First
 
-### 项目专属规则
+**Minimum code that solves the problem. Nothing speculative.**
 
-> 基于用户的开发习惯和本项目所使用技术栈的特定要求。
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
 
-- 每次更改完代码，必须运行 `flutter analyze`，解决所有编译问题，优化所有官方不推荐的用法
-- 开发方案优先查找成熟的 Flutter 库/插件
-- [待填写：默认调试平台，如"默认只在 iOS 调试"]
-- 文档名称优先以中文命名
-- **每次开发前读取开发记录文档，开发后更新记录进度**
-- **每次开发完成后，更新需求追踪文档，标记相关功能的实现状态为"待验证"，等待用户反馈后更新为"已实现"或"未实现"**
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
-### 补充禁止行为
+## 4.3 Surgical Changes
 
-- ❌ 在本机部署服务端文件（服务端已在其他设备部署）
+**Touch only what you must. Clean up only your own mess.**
 
-### 平台配置
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
 
-- [待填写：平台最低版本要求]
-- [待填写：平台特有的编译/链接配置]
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
 
-### 排查问题（Flutter 特定）
+The test: Every changed line should trace directly to the user's request.
 
-- 必须在关键位置添加 debugPrint 打印执行日志和调用栈，根据日志定位问题，禁止猜测
+## 4.4 Goal-Driven Execution
 
-### 文件管理
+**Define success criteria. Loop until verified.**
 
-| 目录/文件 | 用途 |
-|-----------|------|
-| `doc/` | 所有文档，优先更新现有文档，文档名称优先以中文命名 |
-| `doc/用户预期追踪.md` | 功能实现状态追踪 |
-| `.kiro/开发记录.md` | 开发进度记录，每次开发前读取、开发后更新 |
-| [待填写] | [待填写] |
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
 
-### 代码风格补充
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
 
-> 遵循 Dart/Flutter 官方规范和社区最佳实践即可，无特殊要求。
-
----
-
-## 4.3 通用模板
-
-> 适用其他技术栈，填写 `[待填写]` 后使用。
-
-### AI 身份
-
-你是一个 [待填写：专业领域]，[待填写：擅长的具体方向]。
-
-### 用户背景
-
-| 问题 | 回答 |
-|------|------|
-| 用户是否熟悉该技术领域？ | [待填写] |
-| 用户是否需要 AI 主动引导和解释？ | [待填写] |
-| 用户偏好的方案复杂度？ | [待填写] |
-| 用户是否有代码审查能力？ | [待填写] |
-| 用户对错误信息的容忍度？ | [待填写] |
-| 用户希望 AI 主动提建议吗？ | [待填写] |
-| 用户的时间紧迫程度？ | [待填写] |
-
-### 项目信息
-
-- **项目名称**: [待填写]
-- **项目描述**: [待填写]
-- **技术栈**: [待填写]
-- **目标平台**: [待填写]
-
-### 补充禁止行为
-
-- ❌ [待填写：项目特有的禁止事项]
-
-### 项目专属规则
-
-> 基于用户的开发习惯和本项目所使用技术栈的特定要求。
-
-- [待填写]
-- [待填写]
-
-### 文件管理
-
-| 目录/文件 | 用途 |
-|-----------|------|
-| `doc/` | 所有文档，优先更新现有文档 |
-| [待填写] | [待填写] |
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
 ---
 
-# 五、项目初始化模板
-
-> 新项目创建后，按以下模板填充 `SETUP.md`，让任何新会话都能快速上车。
-
-## 5.1 项目概述
-
-- **项目名称**: [待填写]
-- **一句话描述**: [待填写]
-- **核心功能**: [待填写]
-
-## 5.2 当前进度
-
-| 状态 | 功能/任务 | 备注 |
-|------|----------|------|
-| ✅ 已完成 | [待填写] | |
-| 🔄 进行中 | [待填写] | |
-| ⏳ 待开始 | [待填写] | |
-
-## 5.3 技术架构
-
-- **技术栈**: [待填写]
-- **目录结构**: [待填写]
-- **启动命令**: [待填写]
-
-## 5.4 规则规范
-
-> 见本文档前三部分，以及项目专属的补充规则。
-
-## 5.5 工具环境
-
-| 工具 | 用途 | 使用方式 |
-|------|------|----------|
-| CodeGraph | 代码结构查询 | `codegraph_*` MCP 工具 |
-| [待填写] | [待填写] | [待填写] |
-
-## 5.6 最近决策
-
-| 日期 | 决策 | 原因 |
-|------|------|------|
-| [待填写] | [待填写] | [待填写] |
-
-## 5.7 下一步做什么
-
-1. [待填写]
-2. [待填写]
-3. [待填写]
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
 ---
 
 # 附录：EasyMint 项目开发规范
-
-> EasyMint 项目特有的行为约束和编码规则。
 
 ## 行为准则
 
@@ -347,23 +210,7 @@
 - 用户可能开启了 bypass 模式跳过权限确认，你必须自行遵守以上约束
 - **不要操作 `~/.easymint/` 下的用户数据文件**
 
-## 编码约定
-
-- TypeScript strict 模式，禁止 `any`
-- React 函数组件 + Hooks，无 class 组件
-- zustand store 按领域拆分（project、agent、settings）
-- IPC 通道统一前缀（project:、file:、agent:、evaluator:、settings:）
-- 主进程服务通过依赖注入获取 store 实例
-- 为新功能编写测试
-- 前端改动需通过评估器验证（Playwright 测 Vite dev server DOM，不启动 Electron）
-
 ## 代码规范
-
-### 时序值用 ref，不用 state
-需要立刻生效的值用 `useRef`，state 只给 UI 渲染用。
-
-### 异步路径必须有失败态
-空 `catch(() => {})` 禁止。至少加 `console.error` 或设 error 状态。
 
 ### 一个文件只做一件事
 如果改一个功能要翻到同一个文件的另一个区域，说明该拆了。拆成 hook（逻辑）、子组件（展示）、工具函数（纯计算）。
@@ -376,4 +223,4 @@
 
 ---
 
-> 文档版本：v3.0 | 最后更新：2026-06-11
+> 文档版本：v3.1 | 最后更新：2026-06-11
