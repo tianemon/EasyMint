@@ -39,8 +39,14 @@ function readApiKeys(): Record<string, string> {
   return (readEmSettings().apiKeys as Record<string, string>) || {};
 }
 
-// Tools are always registered — if key is missing, handler returns
-// a helpful error telling the user to configure it in settings.
+/** Check if a built-in tool is explicitly enabled AND its API key is set */
+function isToolEnabled(name: "vision" | "webFetch"): boolean {
+  const settings = readEmSettings();
+  const builtin = (settings.builtinTools as Record<string, boolean>) || {};
+  const keys = readApiKeys();
+  if (name === "vision") return builtin.vision === true && !!keys.VISION_API_KEY;
+  return builtin.webFetch === true && !!keys.TAVILY_API_KEY;
+}
 
 // ── Vision ──────────────────────────────────────────
 
@@ -166,44 +172,52 @@ let _server: ReturnType<typeof createSdkMcpServer> | null = null;
  *  Tools are always registered. If the API key is missing, the handler
  *  returns a helpful error telling the user to configure it in settings. */
 export function buildBuiltinMcpServers(): Record<string, unknown> {
+  const visionOn = isToolEnabled("vision");
+  const fetchOn = isToolEnabled("webFetch");
+  if (!visionOn && !fetchOn) return {};
+
   if (_server) return { "easymint-builtin": _server as unknown as Record<string, unknown> };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tools: any[] = [];
 
-  tools.push(tool(
-    "describe_image",
-    "描述图片内容。支持本地路径或 URL。当用户发送图片、或消息中有 [Image] 标记、或需要理解图片内容时调用。",
-    {
-      path: z.string().describe("图片的本地绝对路径或 URL"),
-      prompt: z.string().optional().describe("可选的提示词，如'描述UI界面的色彩搭配'"),
-    },
-    async (args) => {
-      try {
-        const text = await describeImage(args);
-        return { content: [{ type: "text", text }] };
-      } catch (e) {
-        return { content: [{ type: "text", text: `describe_image 失败: ${(e as Error).message}` }] };
-      }
-    },
-  ));
+  if (visionOn) {
+    tools.push(tool(
+      "describe_image",
+      "描述图片内容。支持本地路径或 URL。当用户发送图片、或消息中有 [Image] 标记、或需要理解图片内容时调用。",
+      {
+        path: z.string().describe("图片的本地绝对路径或 URL"),
+        prompt: z.string().optional().describe("可选的提示词，如'描述UI界面的色彩搭配'"),
+      },
+      async (args) => {
+        try {
+          const text = await describeImage(args);
+          return { content: [{ type: "text", text }] };
+        } catch (e) {
+          return { content: [{ type: "text", text: `describe_image 失败: ${(e as Error).message}` }] };
+        }
+      },
+    ));
+  }
 
-  tools.push(tool(
-    "web_fetch",
-    "抓取网页内容。当需要读取某个 URL 的实际内容时调用。支持各类网页，返回提取后的文本。",
-    {
-      url: z.string().describe("要抓取的网页 URL"),
-      prompt: z.string().optional().describe("对抓取内容的分析要求"),
-    },
-    async (args) => {
-      try {
-        const text = await webFetch(args);
-        return { content: [{ type: "text", text }] };
-      } catch (e) {
-        return { content: [{ type: "text", text: `web_fetch 失败: ${(e as Error).message}` }] };
-      }
-    },
-  ));
+  if (fetchOn) {
+    tools.push(tool(
+      "web_fetch",
+      "抓取网页内容。当需要读取某个 URL 的实际内容时调用。支持各类网页，返回提取后的文本。",
+      {
+        url: z.string().describe("要抓取的网页 URL"),
+        prompt: z.string().optional().describe("对抓取内容的分析要求"),
+      },
+      async (args) => {
+        try {
+          const text = await webFetch(args);
+          return { content: [{ type: "text", text }] };
+        } catch (e) {
+          return { content: [{ type: "text", text: `web_fetch 失败: ${(e as Error).message}` }] };
+        }
+      },
+    ));
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   _server = createSdkMcpServer({

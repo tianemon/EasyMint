@@ -291,22 +291,30 @@ function McpTab(): JSX.Element {
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState("");
   const [showKey, setShowKey] = useState(false);
+  const [builtinTools, setBuiltinTools] = useState<Record<string, boolean>>({ vision: false, webFetch: false });
 
   const load = async () => {
     try {
-      const [s, keys] = await Promise.all([
+      const [s, keys, settings] = await Promise.all([
         window.electronAPI.mcp.list(),
         window.electronAPI.mcp.requiredKeys(),
+        window.electronAPI.settings.get(),
       ]);
       setServers(s);
       setRequiredKeys(keys);
-      const settings = await window.electronAPI.settings.get();
       setApiKeys(settings.apiKeys ?? {});
+      setBuiltinTools(settings.builtinTools ?? { vision: false, webFetch: false });
     } catch (e: unknown) {
       setLoadError(String(e));
     }
   };
   useEffect(() => { load(); }, []);
+
+  const handleBuiltinToggle = async (name: string, on: boolean) => {
+    const next = { ...builtinTools, [name]: on };
+    setBuiltinTools(next);
+    await window.electronAPI.settings.set("builtinTools", next);
+  };
 
   const handleToggle = async (name: string, enabled: boolean) => {
     await window.electronAPI.mcp.toggle(name, enabled);
@@ -323,8 +331,8 @@ function McpTab(): JSX.Element {
 
   // Floating hints for API keys
   const KEY_HINTS: Record<string, string> = {
-    VISION_API_KEY: "填写后将自动启用内置图片识别。换用多模态模型时可留空。获取: dashscope.aliyun.com",
-    TAVILY_API_KEY: "填写后将自动启用内置网页抓取 + 联网搜索。获取: tavily.com",
+    VISION_API_KEY: "开启上方「图片识别」开关并填写 Key 后生效。获取: dashscope.aliyun.com",
+    TAVILY_API_KEY: "开启上方「网页抓取」开关并填写 Key 后生效。获取: tavily.com",
   };
 
   // Collect all required keys across MCP servers, with their current values.
@@ -339,6 +347,34 @@ function McpTab(): JSX.Element {
   return (
     <div className="px-6 py-4 overflow-y-auto space-y-5">
       {loadError && <p className="text-danger text-xs">{loadError}</p>}
+
+      {/* Built-in Tools */}
+      <section>
+        <h3 className="text-sm font-medium text-text-primary mb-2">内置工具</h3>
+        <p className="text-[11px] text-text-secondary mb-3">
+          EasyMint 内置的辅助工具，开启后自动注入到每次会话。使用多模态模型时无需开启图片识别。
+        </p>
+        <div className="space-y-2">
+          {([
+            { key: "vision", label: "图片识别", desc: "使用 Qwen 视觉模型描述图片内容，让纯文本模型也能\"看懂\"图片" },
+            { key: "webFetch", label: "网页抓取", desc: "读取网页实际内容，让模型能查阅在线文档和资料" },
+          ] as const).map(({ key, label, desc }) => (
+            <div key={key} className="bg-surface-alt rounded-lg px-4 py-3 flex items-center justify-between">
+              <div className="flex-1 min-w-0 mr-3">
+                <div className="text-xs font-medium text-text-primary">{label}</div>
+                <div className="text-[10px] text-text-muted mt-0.5">{desc}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleBuiltinToggle(key, !builtinTools[key])}
+                className={`w-9 h-5 rounded-full transition-colors relative ${builtinTools[key] ? "bg-accent" : "bg-border"}`}
+              >
+                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${builtinTools[key] ? "left-4" : "left-0.5"}`} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* API Keys */}
       {allKeys.size > 0 && (
