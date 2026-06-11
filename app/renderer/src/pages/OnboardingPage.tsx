@@ -72,9 +72,7 @@ export function OnboardingPage(): JSX.Element {
           /* ── Step 1: Welcome ── */
           <div className="w-full max-w-[480px] flex flex-col items-center text-center">
             {/* Logo */}
-            <div className="w-24 h-24 rounded-2xl bg-accent/10 flex items-center justify-center mb-6">
-              <img src="/icon.png" className="w-14 h-14" />
-            </div>
+            <img src="/icon.png" className="w-24 h-24 mb-6" />
 
             <h1 className="text-2xl font-bold text-text-primary mb-2">EasyMint</h1>
             <p className="text-sm text-text-secondary mb-1">
