@@ -68,6 +68,9 @@ function readMcpServersFrom(filePath: string): Record<string, McpServerConfig> {
   }
 }
 
+// Servers replaced by built-in tools — hidden from settings UI
+const REPLACED_SERVERS = new Set(["image-vision", "tavily"]);
+
 /** Scan all MCP config sources and return unified manifest */
 export function scanMcpServers(): McpServerManifest[] {
   const disabled = getHiddenMcpServers();
@@ -79,6 +82,7 @@ export function scanMcpServers(): McpServerManifest[] {
 
   const result: McpServerManifest[] = [];
   for (const [name, cfg] of Object.entries(merged)) {
+    if (REPLACED_SERVERS.has(name)) continue;
     result.push({
       name,
       type: cfg.type,
