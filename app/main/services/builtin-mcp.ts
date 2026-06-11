@@ -195,32 +195,43 @@ export function buildBuiltinMcpServers(): Record<string, unknown> {
     ));
   }
 
-  if (fetchOn) {
-    tools.push(tool(
-      "web_fetch",
-      "抓取网页内容。当需要读取某个 URL 的实际内容时调用。支持各类网页，返回提取后的文本。",
-      {
-        url: z.string().describe("要抓取的网页 URL"),
-        prompt: z.string().optional().describe("对抓取内容的分析要求"),
-      },
-      async (args) => {
-        try {
-          const text = await webFetch(args);
-          return { content: [{ type: "text", text }] };
-        } catch (e) {
-          return { content: [{ type: "text", text: `web_fetch 失败: ${(e as Error).message}` }] };
-        }
-      },
-    ));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const servers: Record<string, any> = {};
+
+  if (visionOn && tools.length > 0) {
+    servers["easymint-vision"] = createSdkMcpServer({
+      name: "easymint-vision",
+      version: "1.0.0",
+      alwaysLoad: true,
+      tools: [...tools],
+    });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const server = createSdkMcpServer({
-    name: "easymint-builtin",
-    version: "1.0.0",
-    alwaysLoad: true, // tools always visible to the model, no tool-search needed
-    tools: tools as any,
-  });
+  if (fetchOn) {
+    servers["easymint-web-fetch"] = createSdkMcpServer({
+      name: "easymint-web-fetch",
+      version: "1.0.0",
+      alwaysLoad: true,
+      tools: [
+        tool(
+          "web_fetch",
+          "抓取网页内容。当需要读取某个 URL 的实际内容时调用。支持各类网页，返回提取后的文本。",
+          {
+            url: z.string().describe("要抓取的网页 URL"),
+            prompt: z.string().optional().describe("对抓取内容的分析要求"),
+          },
+          async (args) => {
+            try {
+              const text = await webFetch(args);
+              return { content: [{ type: "text", text }] };
+            } catch (e) {
+              return { content: [{ type: "text", text: `web_fetch 失败: ${(e as Error).message}` }] };
+            }
+          },
+        ),
+      ],
+    });
+  }
 
-  return { "easymint-builtin": server as unknown as Record<string, unknown> };
+  return servers as unknown as Record<string, unknown>;
 }

@@ -150,13 +150,12 @@ export function getMcpRequiredKeys(): Record<string, Record<string, string>> {
     if (Object.keys(keys).length > 0) result[name] = keys;
   }
 
-  // Built-in MCP server (easymint-builtin) — not in config files, keys from apiKeys only
-  const builtinKeys: Record<string, string> = {};
-  for (const k of ["VISION_API_KEY"]) {
-    builtinKeys[k] = apiKeys[k] || "";
+  // Built-in MCP servers — not in config files, keys from apiKeys only
+  if (apiKeys.VISION_API_KEY) {
+    result["easymint-vision"] = { VISION_API_KEY: apiKeys.VISION_API_KEY };
   }
-  if (Object.keys(builtinKeys).length > 0) {
-    result["easymint-builtin"] = builtinKeys;
+  if (apiKeys.TAVILY_API_KEY) {
+    result["easymint-web-fetch"] = { TAVILY_API_KEY: apiKeys.TAVILY_API_KEY };
   }
 
   return result;
