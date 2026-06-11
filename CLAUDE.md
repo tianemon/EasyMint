@@ -151,7 +151,7 @@ npm run test             # 运行单元测试
   - `app/main/` — Electron 主进程（services、utils、ipc handlers）
   - `app/preload/` — contextBridge 预加载脚本
   - `app/renderer/` — React + Vite 前端（pages、components、stores）
-- **`docs/`** — 项目文档（APP_SPEC.md、ARCHITECTURE.md、SETUP.md、USER_GUIDE.md）
+- **`docs/`** — 项目文档（需求文档、技术架构、开发进度）
 - **`temp/`** — 所有非项目必须的临时文件，按类别分目录存放：
   - `temp/logs/` — 调试日志、错误堆栈
   - `temp/screenshots/` — Playwright 截图、UI 对比图
