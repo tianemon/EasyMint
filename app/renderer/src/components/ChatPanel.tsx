@@ -251,7 +251,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           let cur = 0;
           for (const raw of buffered) {
             const entry = normalizeEvent(raw as StreamEvent); if (!entry) continue;
-            cur = useChatStore.getState().appendAiEntry(sid, entry);
+            cur = useChatStore.getState().appendAiEntry(sidRef.current, entry);
           }
         }
       } catch { /* */ }
@@ -330,7 +330,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         onActivity?.();
       }
       const entry = normalizeEvent(event); if (!entry) return;
-      curAi = useChatStore.getState().appendAiEntry(sid, entry);
+      curAi = useChatStore.getState().appendAiEntry(sidRef.current, entry);
       scrollToBottom();
     });
     const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (currentRunRef.current && runId !== currentRunRef.current) return; curAi = 0; setBusy(false); setBusy(false); onActivity?.(); });
@@ -420,7 +420,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     const agentText = parts.join("\n");
 
     const ts = Date.now();
-    useChatStore.getState().appendUserMsg(sid, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
+    useChatStore.getState().appendUserMsg(sidRef.current, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
     setInput("");
     setAttaches([]);
     // Save to input history, avoid consecutive duplicates
