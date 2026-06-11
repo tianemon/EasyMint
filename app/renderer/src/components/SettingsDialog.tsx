@@ -451,7 +451,7 @@ function McpTab(): JSX.Element {
 
       {/* MCP Servers */}
       <section>
-        <h3 className="text-sm font-medium text-text-primary mb-2">服务器</h3>
+        <h3 className="text-sm font-medium text-text-primary mb-2">MCP</h3>
         <p className="text-[11px] text-text-secondary mb-3">
           与 Claude Code 共享配置。使用 `claude mcp add/remove` 管理服务器。
         </p>
@@ -565,7 +565,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     setShowToolUse,
     loadFromElectron,
   } = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<"general" | "prompts" | "agents" | "plugins" | "providers" | "about">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "agent" | "plugins" | "providers" | "about">("general");
 
   useEffect(() => {
     if (!open) return;
@@ -594,16 +594,16 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               通用
             </button>
             <button
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "prompts" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
-              onClick={() => setActiveTab("prompts")}
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "providers" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setActiveTab("providers")}
             >
-              提示词
+              模型
             </button>
             <button
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "agents" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
-              onClick={() => setActiveTab("agents")}
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "agent" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setActiveTab("agent")}
             >
-              Agent 模板
+              Agent
             </button>
             <button
               className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "plugins" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
@@ -611,12 +611,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
             >
               插件
             </button>
-            <button
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "providers" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
-              onClick={() => setActiveTab("providers")}
-            >
-              模型
-            </button>
+
             <button
               className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "about" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
               onClick={() => setActiveTab("about")}
@@ -710,13 +705,15 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               {/* 环境检测 */}
               <EnvCheckSection />
             </div>
-          ) : activeTab === "prompts" ? (
-            <PromptSettings />
-          ) : activeTab === "agents" ? (
-            <AgentsTab />
+          ) : activeTab === "agent" ? (
+            <div className="space-y-5">
+              <PromptSettings />
+              <AgentsTab />
+            </div>
           ) : activeTab === "plugins" ? (
             <div className="space-y-5">
               <SkillsTab />
+              <hr className="border-border" />
               <McpTab />
             </div>
           ) : activeTab === "providers" ? (
@@ -748,9 +745,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                 <span>claude-agent-sdk</span>
               </div>
             </div>
-          ) : (
-            <McpTab />
-          )}
+          ) : null}
         </div>
 
         {/* Footer */}
