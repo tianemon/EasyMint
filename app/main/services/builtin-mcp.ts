@@ -166,17 +166,12 @@ async function webFetch(args: { url: string; prompt?: string }): Promise<string>
 
 // ── MCP Server ──────────────────────────────────────
 
-let _server: ReturnType<typeof createSdkMcpServer> | null = null;
-
-/** Build built-in MCP servers (singleton — call once per process).
- *  Tools are always registered. If the API key is missing, the handler
- *  returns a helpful error telling the user to configure it in settings. */
+/** Build built-in MCP servers. Creates a fresh server per session —
+ *  transport disconnects when the session ends, so never reuse. */
 export function buildBuiltinMcpServers(): Record<string, unknown> {
   const visionOn = isToolEnabled("vision");
   const fetchOn = isToolEnabled("webFetch");
   if (!visionOn && !fetchOn) return {};
-
-  if (_server) return { "easymint-builtin": _server as unknown as Record<string, unknown> };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tools: any[] = [];
@@ -220,12 +215,12 @@ export function buildBuiltinMcpServers(): Record<string, unknown> {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  _server = createSdkMcpServer({
+  const server = createSdkMcpServer({
     name: "easymint-builtin",
     version: "1.0.0",
     alwaysLoad: true, // tools always visible to the model, no tool-search needed
     tools: tools as any,
   });
 
-  return { "easymint-builtin": _server as unknown as Record<string, unknown> };
+  return { "easymint-builtin": server as unknown as Record<string, unknown> };
 }
