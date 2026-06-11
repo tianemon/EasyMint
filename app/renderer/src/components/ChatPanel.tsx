@@ -125,6 +125,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const [statusText, setStatusText] = useState("���考中...");
   const [_currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentRunRef = useRef<string | null>(null);
+  const currentChatRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
   const [summarizing, setSummarizing] = useState(false);
   const [ctxPct, setCtxPct] = useState(0);
@@ -333,7 +334,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       scrollToBottom();
     });
     const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (currentRunRef.current && runId !== currentRunRef.current) return; curAi = 0; setBusy(false); setBusy(false); onActivity?.(); });
-    const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid }) => {
+    const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
+      if (eventChatId && currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (sidRef.current && sidRef.current !== realSid) {
         // Migrate messages from temp ID to real session ID, then evict temp
         const tempMsgs = useChatStore.getState().messagesBySession[sidRef.current];
@@ -434,7 +436,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     try {
       setBusy(true); currentRunRef.current = null;
       const result = await window.electronAPI.agent.sendMessage(projectPath, agentText, { sessionId: existingSid ?? null, permissionMode });
-      setCurrentRunId(result.chatId); currentRunRef.current = result.chatId;
+      setCurrentRunId(result.chatId); currentRunRef.current = result.chatId; currentChatRef.current = result.chatId;
     } catch { setBusy(false); currentRunRef.current = null; }
   }, [input, busy, attaches, projectPath, permissionMode]);
 
