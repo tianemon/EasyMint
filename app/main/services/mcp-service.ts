@@ -116,9 +116,13 @@ export function buildMcpServersOption(): Record<string, McpServerConfig> | undef
   const merged = { ...easyMintServers, ...claudeServers };
   const apiKeys = getApiKeys();
 
+  // Servers replaced by built-in MCP — never load from config files
+  const BUILTIN_REPLACED = new Set(["image-vision"]);
+
   const result: Record<string, McpServerConfig> = {};
   for (const [name, cfg] of Object.entries(merged)) {
     if (disabled.includes(name)) continue;
+    if (BUILTIN_REPLACED.has(name)) continue; // replaced by easymint-builtin
     // Merge apiKeys into env: MCP config values take priority, but skip empty strings
     const cfgEnv = cfg.env || {};
     const filteredCfgEnv: Record<string, string> = {};
