@@ -177,7 +177,7 @@ interface ElectronAPI {
     get: () => Promise<{
       defaultProjectDir?: string; terminalFontSize: number; evaluateMode: boolean; tddMode: boolean;
       screenshotVerification: boolean; setupComplete?: boolean; apiBaseUrl?: string;
-      apiKey?: string; apiKeys?: Record<string, string>; model?: string;
+      apiKey?: string; apiKeys?: Record<string, string>; builtinTools?: Record<string, boolean>; model?: string;
       availableModels?: string[]; contextThreshold?: number; context1M?: boolean;
       showThinking?: boolean; showToolUse?: boolean;
       apiProviders?: {
