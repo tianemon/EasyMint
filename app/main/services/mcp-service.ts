@@ -207,10 +207,6 @@ const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
     command: "codegraph",
     args: ["serve", "--mcp"],
   },
-  tavily: {
-    type: "http",
-    url: "https://mcp.tavily.com/mcp/?tavilyApiKey=YOUR_TAVILY_API_KEY",
-  },
 };
 
 /** Write default MCP server configs on first launch. Merges into existing

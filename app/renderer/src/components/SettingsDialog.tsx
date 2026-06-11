@@ -188,7 +188,7 @@ function SkillsTab(): JSX.Element {
 
       {/* Import button */}
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-text-primary">Skill 管理</p>
+        <p className="text-sm font-medium text-text-primary">Skills</p>
         <button
           className="px-3 py-1 rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors"
           onClick={handleImport}
@@ -600,16 +600,16 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
               模型
             </button>
             <button
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "agent" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
-              onClick={() => setActiveTab("agent")}
-            >
-              Agent
-            </button>
-            <button
               className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "plugins" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
               onClick={() => setActiveTab("plugins")}
             >
               插件
+            </button>
+            <button
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "agent" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setActiveTab("agent")}
+            >
+              Agent
             </button>
 
             <button
