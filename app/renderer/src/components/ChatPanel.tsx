@@ -348,7 +348,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         window.electronAPI.sessionCache.write(sidRef.current, { contextUsage: pct }).catch(() => {});
       }
     });
-    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); useChatStore.getState().evictSession(sidRef.current); } };
+    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) useTabStore.getState().setSessionRunning(sidRef.current, false); };
   }, []);
 
   // Summarizing timeout — 120s safety net
