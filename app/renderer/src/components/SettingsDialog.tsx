@@ -453,6 +453,16 @@ function McpTab(): JSX.Element {
                       {s.type === "http" ? s.url : [s.command, ...(s.args || [])].join(" ")}
                     </p>
                   </div>
+                  <button
+                    onClick={() => handleToggle(s.name, !s.enabled)}
+                    className={`relative w-9 h-5 rounded-full transition-colors overflow-hidden shrink-0 ml-3 ${s.enabled ? "bg-accent" : "bg-surface-hover border border-border"}`}
+                    role="switch"
+                    aria-checked={s.enabled}
+                  >
+                    <span
+                      className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-surface-elevated shadow transition-all ${s.enabled ? "left-[calc(100%-18px)]" : "left-0.5"}`}
+                    />
+                  </button>
                 </div>
               </div>
             ))}
