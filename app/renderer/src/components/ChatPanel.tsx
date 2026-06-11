@@ -5,6 +5,7 @@ import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { chatActions } from "../stores/chat-actions";
 import { useSettingsStore } from "../stores/settings-store";
 import { useTabStore } from "../stores/tab-store";
+import { useChatStore } from "../stores/chat-store";
 import { QuickPrompts } from "./QuickPrompts";
 import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
 
@@ -113,7 +114,8 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreated, onActivity, onNewProject }: ChatPanelProps): JSX.Element {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [sid, setSid] = useState<string | null>(existingSid ?? null);
+  const messages = useChatStore((s) => (sid ? (s.messagesBySession[sid] || []) : [])) as ChatMessage[];
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusText, setStatusText] = useState("思考中...");
@@ -167,7 +169,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
   const sidRef = useRef<string | null>(existingSid ?? null);
-  useEffect(() => { if (existingSid) sidRef.current = existingSid; }, [existingSid]);
+  useEffect(() => { if (existingSid) { sidRef.current = existingSid; setSid(existingSid); } }, [existingSid]);
   const runningSessions = useTabStore((s) => s.runningSessions);
   const streaming = runningSessions.has(sidRef.current || "");
   const setStreaming = (v: boolean) => { if (sidRef.current) useTabStore.getState().setSessionRunning(sidRef.current, v); };
@@ -244,8 +246,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           let cur = 0;
           for (const raw of buffered) {
             const entry = normalizeEvent(raw as StreamEvent); if (!entry) continue;
-            if (!cur) { cur = ++msgIdRef.current; setMessages((prev) => [...prev, { id: cur, role: "ai", entries: [entry], timestamp: Date.now() }]); }
-            else setMessages((prev) => prev.map((m) => m.id === cur ? { ...m, entries: [...(m.entries || []), entry] } : m));
+            cur = useChatStore.getState().appendAiEntry(sid!, entry);
           }
         }
       } catch { /* */ }
@@ -269,7 +270,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             }
           }
           if (loads.length > 0) await Promise.all(loads);
-          if (!cancelled && mapped.length > 0) { setMessages(mapped); msgIdRef.current = Math.max(...mapped.map((m) => m.id)); }
+          if (!cancelled && mapped.length > 0) { useChatStore.getState().loadSession(sid!, mapped); msgIdRef.current = Math.max(...mapped.map((m) => m.id)); }
         }
       } catch { /* */ }
     })();
@@ -324,14 +325,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         onActivity?.();
       }
       const entry = normalizeEvent(event); if (!entry) return;
-      if (!curAi) { curAi = ++msgIdRef.current; setMessages((prev) => [...prev, { id: curAi, role: "ai", entries: [entry], timestamp: entry.timestamp }]); }
-      else setMessages((prev) => prev.map((m) => m.id === curAi ? { ...m, entries: [...(m.entries || []), entry], timestamp: entry.timestamp } : m));
+      curAi = useChatStore.getState().appendAiEntry(sid!, entry);
       scrollToBottom();
     });
     const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (currentRunRef.current && runId !== currentRunRef.current) return; curAi = 0; setLoading(false); setStreaming(false); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid }) => {
       if (!sidRef.current) {
         sidRef.current = realSid;
+        setSid(realSid);
         useTabStore.getState().setSessionRunning(realSid, true);
         onSessionCreated?.(realSid);
       }
@@ -345,7 +346,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         window.electronAPI.sessionCache.write(sidRef.current, { contextUsage: pct }).catch(() => {});
       }
     });
-    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) useTabStore.getState().setSessionRunning(sidRef.current, false); };
+    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); useChatStore.getState().evictSession(sidRef.current); } };
   }, []);
 
   // Summarizing timeout — 120s safety net
@@ -402,7 +403,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     const agentText = parts.join("\n");
 
     const ts = Date.now();
-    setMessages((prev) => [...prev, { id: ++msgIdRef.current, role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts }]);
+    if (sid) useChatStore.getState().appendUserMsg(sid, { id: ++msgIdRef.current, role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts }]);
     setInput("");
     setAttaches([]);
     // Save to input history, avoid consecutive duplicates
