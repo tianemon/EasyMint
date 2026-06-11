@@ -113,10 +113,14 @@ interface ChatPanelProps {
   onNewProject?: () => void;
 }
 
+const tempSidRef = useRef<string | null>(null);
+
 export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreated, onActivity, onNewProject }: ChatPanelProps): JSX.Element {
-  const [sid, setSid] = useState<string | null>(existingSid ?? null);
+  if (!existingSid && !tempSidRef.current) tempSidRef.current = `__new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const initialSid = existingSid ?? tempSidRef.current!;
+  const [sid, setSid] = useState<string>(initialSid);
   const emptyArr = useRef<ChatMessage[]>([]);
-  const rawMsgs = useChatStore((s) => (sid ? s.messagesBySession[sid] : undefined));
+  const rawMsgs = useChatStore((s) => s.messagesBySession[sid]);
   const messages: ChatMessage[] = rawMsgs || (emptyArr.current as ChatMessage[]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -170,11 +174,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const msgIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
-  const sidRef = useRef<string | null>(existingSid ?? null);
+  const sidRef = useRef<string>(initialSid);
   useEffect(() => { if (existingSid) { sidRef.current = existingSid; setSid(existingSid); } }, [existingSid]);
   const runningSessions = useTabStore((s) => s.runningSessions);
-  const streaming = runningSessions.has(sidRef.current || "");
-  const setStreaming = (v: boolean) => { if (sidRef.current) useTabStore.getState().setSessionRunning(sidRef.current, v); };
+  const streaming = runningSessions.has(sidRef.current);
+  const setStreaming = (v: boolean) => { useTabStore.getState().setSessionRunning(sidRef.current, v); };
 
   const scrollToBottom = useCallback((force = false) => {
     if (!containerRef.current) return;
@@ -248,7 +252,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           let cur = 0;
           for (const raw of buffered) {
             const entry = normalizeEvent(raw as StreamEvent); if (!entry) continue;
-            cur = useChatStore.getState().appendAiEntry(sid!, entry);
+            cur = useChatStore.getState().appendAiEntry(sid, entry);
           }
         }
       } catch { /* */ }
@@ -272,7 +276,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             }
           }
           if (loads.length > 0) await Promise.all(loads);
-          if (!cancelled && mapped.length > 0) { useChatStore.getState().loadSession(sid!, mapped); msgIdRef.current = Math.max(...mapped.map((m) => m.id)); }
+          if (!cancelled && mapped.length > 0) { useChatStore.getState().loadSession(sid, mapped); msgIdRef.current = Math.max(...mapped.map((m) => m.id)); }
         }
       } catch { /* */ }
     })();
@@ -327,12 +331,23 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         onActivity?.();
       }
       const entry = normalizeEvent(event); if (!entry) return;
-      curAi = useChatStore.getState().appendAiEntry(sid!, entry);
+      curAi = useChatStore.getState().appendAiEntry(sid, entry);
       scrollToBottom();
     });
     const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (currentRunRef.current && runId !== currentRunRef.current) return; curAi = 0; setLoading(false); setStreaming(false); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid }) => {
-      if (!sidRef.current) {
+      if (sidRef.current && sidRef.current !== realSid) {
+        // Migrate messages from temp ID to real session ID, then evict temp
+        const tempMsgs = useChatStore.getState().messagesBySession[sidRef.current];
+        if (tempMsgs) {
+          useChatStore.getState().loadSession(realSid, tempMsgs);
+          useChatStore.getState().evictSession(sidRef.current);
+        }
+        setSid(realSid);
+        sidRef.current = realSid;
+        useTabStore.getState().setSessionRunning(realSid, true);
+        onSessionCreated?.(realSid);
+      } else if (!sidRef.current) {
         sidRef.current = realSid;
         setSid(realSid);
         useTabStore.getState().setSessionRunning(realSid, true);
@@ -405,7 +420,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     const agentText = parts.join("\n");
 
     const ts = Date.now();
-    if (sid) useChatStore.getState().appendUserMsg(sid, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
+    useChatStore.getState().appendUserMsg(sid, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
     setInput("");
     setAttaches([]);
     // Save to input history, avoid consecutive duplicates
