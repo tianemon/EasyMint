@@ -22,7 +22,7 @@ export function TabBar(): JSX.Element {
                   ? "bg-surface-elevated text-text-primary"
                   : "bg-transparent text-text-secondary hover:bg-surface-hover"
               }`}
-              style={{ minWidth: 60, maxWidth: 180, flex: `0 1 ${100 / tabs.length}%` }}
+              style={{ minWidth: 60, maxWidth: 180, width: 180 }}
             >
               {/* Dot — only for dirty (unsaved) files */}
               {(tab as { dirty?: boolean }).dirty && (
