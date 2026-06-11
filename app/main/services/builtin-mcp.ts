@@ -16,7 +16,7 @@ import { homedir } from "node:os";
 // ── Config ──────────────────────────────────────────
 
 const VISION_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
-const VISION_MODEL = "qwen-vl-max";
+const VISION_MODEL = "qwen3.6-flash";
 
 /** Resolve paths ~/ → /Users/xxx/ */
 function resolve(input: string): string {
