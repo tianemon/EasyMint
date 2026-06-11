@@ -1,10 +1,8 @@
 /**
- * MCP Service — scan MCP server configs shared with Claude Code.
+ * MCP Service — shares MCP config with Claude Code.
  *
- * Claude Code stores MCP configs in ~/.claude/.claude.json under "mcpServers".
- * SDK also uses ~/.easymint/.claude.json (when CLAUDE_CONFIG_DIR is set).
- *
- * We scan both locations, merge, and inject into SDK's options.mcpServers.
+ * All MCP config is read from and written to ~/.claude/.claude.json.
+ * EM does not maintain its own separate MCP config.
  * Enable/disable is managed at the EasyMint level via em-settings.json.
  */
 
@@ -38,10 +36,6 @@ function claudeCodeMcpPath(): string {
   return path.join(os.homedir(), ".claude", ".claude.json");
 }
 
-function easyMintMcpPath(): string {
-  return path.join(os.homedir(), ".easymint", ".claude.json");
-}
-
 // ── Disabled list ──────────────────────────────────
 
 const EM_SETTINGS = path.join(os.homedir(), ".easymint", "em-settings.json");
@@ -68,21 +62,14 @@ function readMcpServersFrom(filePath: string): Record<string, McpServerConfig> {
   }
 }
 
-// Servers replaced by built-in tools — hidden from settings UI
-const REPLACED_SERVERS = new Set(["image-vision", "tavily"]);
-
-/** Scan all MCP config sources and return unified manifest */
+/** Scan CC's MCP config (shared with EM) for the settings panel display */
 export function scanMcpServers(): McpServerManifest[] {
   const disabled = getHiddenMcpServers();
 
-  // Merge: Claude Code primary, EasyMint fallback (CC overrides EM for same name)
-  const easyMintServers = readMcpServersFrom(easyMintMcpPath());
-  const claudeServers = readMcpServersFrom(claudeCodeMcpPath());
-  const merged = { ...easyMintServers, ...claudeServers };
+  const servers = readMcpServersFrom(claudeCodeMcpPath());
 
   const result: McpServerManifest[] = [];
-  for (const [name, cfg] of Object.entries(merged)) {
-    if (REPLACED_SERVERS.has(name)) continue;
+  for (const [name, cfg] of Object.entries(servers)) {
     result.push({
       name,
       type: cfg.type,
@@ -115,13 +102,12 @@ function getApiKeys(): Record<string, string> {
 /** Build the mcpServers object for SDK's options (full config with env, apiKeys merged) */
 export function buildMcpServersOption(): Record<string, McpServerConfig> | undefined {
   const disabled = getHiddenMcpServers();
-  const easyMintServers = readMcpServersFrom(easyMintMcpPath());
-  const claudeServers = readMcpServersFrom(claudeCodeMcpPath());
-  const merged = { ...easyMintServers, ...claudeServers };
+  // Read from shared CC config only
+  const servers = readMcpServersFrom(claudeCodeMcpPath());
   const apiKeys = getApiKeys();
 
   const result: Record<string, McpServerConfig> = {};
-  for (const [name, cfg] of Object.entries(merged)) {
+  for (const [name, cfg] of Object.entries(servers)) {
     if (disabled.includes(name)) continue;
     // Merge apiKeys into env: MCP config values take priority, but skip empty strings
     const cfgEnv = cfg.env || {};
@@ -139,13 +125,11 @@ export function buildMcpServersOption(): Record<string, McpServerConfig> | undef
 /** Discover which env vars each MCP server needs, with their current values.
  *  Checks MCP config env first, then apiKeys from em-settings.json. */
 export function getMcpRequiredKeys(): Record<string, Record<string, string>> {
-  const easyMintServers = readMcpServersFrom(easyMintMcpPath());
-  const claudeServers = readMcpServersFrom(claudeCodeMcpPath());
-  const merged = { ...easyMintServers, ...claudeServers };
+  const servers = readMcpServersFrom(claudeCodeMcpPath());
   const apiKeys = getApiKeys();
 
   const result: Record<string, Record<string, string>> = {};
-  for (const [name, cfg] of Object.entries(merged)) {
+  for (const [name, cfg] of Object.entries(servers)) {
     const keys: Record<string, string> = {};
 
     // Keys from MCP config env vars (already configured via claude mcp add -e)
@@ -219,7 +203,7 @@ const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
  *  Writes to ~/.easymint/.claude.json so EM's config stays independent
  *  from Claude Code. buildMcpServersOption merges from both sources. */
 export function seedDefaultMcp(): void {
-  const configPath = easyMintMcpPath();
+  const configPath = claudeCodeMcpPath();
   const configDir = path.dirname(configPath);
   if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true });
 
