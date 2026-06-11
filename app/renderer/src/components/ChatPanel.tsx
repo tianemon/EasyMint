@@ -4,6 +4,7 @@ import type { StreamEntry } from "./StreamPanel";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { chatActions } from "../stores/chat-actions";
 import { useSettingsStore } from "../stores/settings-store";
+import { useTabStore } from "../stores/tab-store";
 import { QuickPrompts } from "./QuickPrompts";
 import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
 
@@ -115,7 +116,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [streaming, setStreaming] = useState(false);
+  const runningSessions = useTabStore((s) => s.runningSessions);
+  const streaming = runningSessions.has(sidRef.current || "");
+  const setStreaming = (v: boolean) => { if (sidRef.current) useTabStore.getState().setSessionRunning(sidRef.current, v); };
   const [statusText, setStatusText] = useState("思考中...");
   const [_currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentRunRef = useRef<string | null>(null);
@@ -329,6 +332,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid }) => {
       if (!sidRef.current) {
         sidRef.current = realSid;
+        useTabStore.getState().setSessionRunning(realSid, true);
         onSessionCreated?.(realSid);
       }
     });
@@ -341,7 +345,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         window.electronAPI.sessionCache.write(sidRef.current, { contextUsage: pct }).catch(() => {});
       }
     });
-    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); };
+    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) useTabStore.getState().setSessionRunning(sidRef.current, false); };
   }, []);
 
   // Summarizing timeout — 120s safety net

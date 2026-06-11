@@ -13,12 +13,14 @@ export interface Tab {
 interface TabState {
   tabs: Tab[];
   activeTabId: string | null;
+  runningSessions: Set<string>;
   openTab: (tab: Tab) => void;
   closeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
   clearTabs: () => void;
   setDirty: (id: string, dirty: boolean) => void;
   updateTab: (id: string, patch: Partial<Omit<Tab, "id">>) => void;
+  setSessionRunning: (sessionId: string, running: boolean) => void;
 }
 
 let nextTabIdx = 0;
@@ -31,6 +33,7 @@ function genId(): string {
 export const useTabStore = create<TabState>((set, get) => ({
   tabs: [],
   activeTabId: null,
+  runningSessions: new Set<string>(),
 
   openTab: (tab) => {
     const { tabs } = get();
@@ -76,4 +79,11 @@ export const useTabStore = create<TabState>((set, get) => ({
   updateTab: (id, patch) => set((s) => ({
     tabs: s.tabs.map((t) => (t.id === id ? { ...t, ...patch } : t)),
   })),
+
+  setSessionRunning: (sessionId, running) => set((s) => {
+    const next = new Set(s.runningSessions);
+    if (running) next.add(sessionId);
+    else next.delete(sessionId);
+    return { runningSessions: next };
+  }),
 }));
