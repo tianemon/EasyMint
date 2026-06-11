@@ -428,6 +428,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     persistHistory();
     historyPosRef.current = -1;
     setBusy(true); setStatusText("思考中...");
+    onActivity?.(); // 立即刷新会话列表，不等 Mint 回复
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
 
     try {
