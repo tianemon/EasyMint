@@ -8,7 +8,7 @@ export function TabBar(): JSX.Element {
   const { tabs, activeTabId, setActiveTab, closeTab, runningSessions } = useTabStore();
 
   return (
-    <div className="flex items-center h-9 bg-surface-alt border-b border-border shrink-0 overflow-hidden">
+    <div className="flex items-center h-9 bg-surface-alt border-b border-border shrink-0">
       {/* Tabs — compress until min-width, then scroll without scrollbar */}
       <div className="flex-1 flex items-center h-full min-w-0 overflow-x-auto tabbar-scroll">
         {tabs.map((tab) => {
@@ -22,7 +22,7 @@ export function TabBar(): JSX.Element {
                   ? "bg-surface-elevated text-text-primary"
                   : "bg-transparent text-text-secondary hover:bg-surface-hover"
               }`}
-              style={{ flex: "0 0 auto", minWidth: 60, maxWidth: 180, width: `${100 / tabs.length}%` }}
+              style={{ minWidth: 60, maxWidth: 180, flex: `0 1 ${100 / tabs.length}%` }}
             >
               {/* Dot — only for dirty (unsaved) files */}
               {(tab as { dirty?: boolean }).dirty && (
