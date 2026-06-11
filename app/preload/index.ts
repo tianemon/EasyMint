@@ -74,7 +74,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     create: (input: { name: string; content: string }) => ipcRenderer.invoke("system-prompt:create", input),
     update: (id: string, input: { name?: string; content?: string }) => ipcRenderer.invoke("system-prompt:update", { id, input }),
     delete: (id: string) => ipcRenderer.invoke("system-prompt:delete", { id }),
-    updateAppend: (enabled: boolean) => ipcRenderer.invoke("system-prompt:update-append", { enabled }),
     setDefault: (id: string) => ipcRenderer.invoke("system-prompt:set-default", { id }),
   },
   settings: {

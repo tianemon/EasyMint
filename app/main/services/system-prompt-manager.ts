@@ -27,7 +27,6 @@ export interface SystemPrompt {
 export interface SystemPromptConfig {
   prompts: SystemPrompt[];
   defaultPromptId?: string;
-  appendDateTimeAndUserName: boolean;
 }
 
 export interface SystemPromptCreateInput {
@@ -71,7 +70,6 @@ function getDefaultConfig(): SystemPromptConfig {
   return {
     prompts: [{ ...BUILTIN_DEFAULT_PROMPT }],
     defaultPromptId: BUILTIN_DEFAULT_ID,
-    appendDateTimeAndUserName: true,
   };
 }
 
@@ -97,7 +95,6 @@ function readConfig(): SystemPromptConfig {
     return {
       prompts: data.prompts,
       defaultPromptId: data.defaultPromptId ?? BUILTIN_DEFAULT_ID,
-      appendDateTimeAndUserName: data.appendDateTimeAndUserName ?? true,
     };
   } catch (error) {
     console.error("[系统提示词] 读取配置失败:", error);
@@ -185,13 +182,6 @@ export function deleteSystemPrompt(id: string): void {
   console.log(`[系统提示词] 已删除: ${prompt.name} (${id})`);
 }
 
-export function updateAppendSetting(enabled: boolean): void {
-  const config = readConfig();
-  config.appendDateTimeAndUserName = enabled;
-  writeConfig(config);
-  console.log(`[系统提示词] 追加设置已更新: ${enabled}`);
-}
-
 export function setDefaultPrompt(id: string | null): void {
   const config = readConfig();
 
@@ -219,19 +209,3 @@ export function resolveEffectivePrompt(): string {
   return prompt?.content ?? "";
 }
 
-/** Dynamic context that changes per-message — prepend to user message, not system prompt. */
-export function buildDynamicContext(): string {
-  const config = readConfig();
-  if (!config.appendDateTimeAndUserName) return "";
-
-  const now = new Date();
-  const dateTimeStr = now.toLocaleString("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    weekday: "long",
-  });
-  return `[当前时间: ${dateTimeStr}]\n`;
-}

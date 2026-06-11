@@ -13,7 +13,6 @@ import {
   createSystemPrompt,
   updateSystemPrompt,
   deleteSystemPrompt,
-  updateAppendSetting,
   setDefaultPrompt,
 } from "./services/system-prompt-manager";
 import {
@@ -230,7 +229,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("system-prompt:create", (_e, input) => createSystemPrompt(input));
   ipcMain.handle("system-prompt:update", (_e, { id, input }) => updateSystemPrompt(id, input));
   ipcMain.handle("system-prompt:delete", (_e, { id }) => { deleteSystemPrompt(id); });
-  ipcMain.handle("system-prompt:update-append", (_e, { enabled }) => { updateAppendSetting(enabled); });
   ipcMain.handle("system-prompt:set-default", (_e, { id }) => { setDefaultPrompt(id); });
 
   // project:checkInitStatus — check if init.sh has been filled

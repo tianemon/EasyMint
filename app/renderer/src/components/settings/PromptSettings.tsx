@@ -21,7 +21,6 @@ interface SystemPrompt {
 interface PromptConfig {
   prompts: SystemPrompt[];
   defaultPromptId?: string;
-  appendDateTimeAndUserName: boolean;
 }
 
 const DEBOUNCE_DELAY = 500;
@@ -184,23 +183,6 @@ export function PromptSettings(): JSX.Element {
         )}
       </div>
 
-      {/* 增强选项 */}
-      <div className="flex items-center justify-between py-2 px-3 bg-surface-alt rounded-lg">
-        <div>
-          <p className="text-sm text-text-primary">追加日期时间和用户名</p>
-          <p className="text-xs text-text-secondary mt-0.5">在提示词末尾自动追加当前日期时间和系统用户名</p>
-        </div>
-        <button
-          onClick={async () => {
-            const v = !config.appendDateTimeAndUserName;
-            await window.electronAPI.systemPrompt.updateAppend(v);
-            setConfig((prev) => prev ? { ...prev, appendDateTimeAndUserName: v } : prev);
-          }}
-          className={`relative w-11 h-6 rounded-full transition-colors shrink-0 overflow-hidden ${config.appendDateTimeAndUserName ? "bg-accent" : "bg-surface-hover border border-border"}`}
-        >
-          <span className={`absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-surface-elevated shadow transition-all ${config.appendDateTimeAndUserName ? "left-[calc(100%-22px)]" : "left-0.5"}`} />
-        </button>
-      </div>
     </div>
   );
 }

@@ -162,11 +162,10 @@ interface ElectronAPI {
     delete: (sessionId: string) => Promise<void>;
   };
   systemPrompt: {
-    getConfig: () => Promise<{ prompts: { id: string; name: string; content: string; isBuiltin: boolean; createdAt: number; updatedAt: number }[]; defaultPromptId?: string; appendDateTimeAndUserName: boolean }>;
+    getConfig: () => Promise<{ prompts: { id: string; name: string; content: string; isBuiltin: boolean; createdAt: number; updatedAt: number }[]; defaultPromptId?: string }>;
     create: (input: { name: string; content: string }) => Promise<{ id: string; name: string; content: string; isBuiltin: boolean; createdAt: number; updatedAt: number }>;
     update: (id: string, input: { name?: string; content?: string }) => Promise<{ id: string; name: string; content: string; isBuiltin: boolean; createdAt: number; updatedAt: number }>;
     delete: (id: string) => Promise<void>;
-    updateAppend: (enabled: boolean) => Promise<void>;
     setDefault: (id: string) => Promise<void>;
   };
   settings: {
