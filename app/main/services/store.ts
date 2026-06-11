@@ -134,6 +134,7 @@ export class Store {
       model: (emData.model as string) || undefined,
       availableModels: (emData.availableModels as string[]) || undefined,
       apiKeys: (emData.apiKeys as Record<string, string>) || undefined,
+      builtinTools: (emData.builtinTools as Record<string, boolean>) || undefined,
       setupComplete: emData.setupComplete as boolean | undefined,
       lastProjectId: emData.lastProjectId as string | undefined,
       contextThreshold: (emData.contextThreshold as number) ?? EM_DEFAULTS.contextThreshold,
