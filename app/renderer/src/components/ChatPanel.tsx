@@ -115,7 +115,9 @@ interface ChatPanelProps {
 
 export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreated, onActivity, onNewProject }: ChatPanelProps): JSX.Element {
   const [sid, setSid] = useState<string | null>(existingSid ?? null);
-  const messages = useChatStore((s) => (sid ? (s.messagesBySession[sid] || []) : [])) as ChatMessage[];
+  const emptyArr = useRef<ChatMessage[]>([]);
+  const rawMsgs = useChatStore((s) => (sid ? s.messagesBySession[sid] : undefined));
+  const messages: ChatMessage[] = rawMsgs || (emptyArr.current as ChatMessage[]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusText, setStatusText] = useState("思考中...");
