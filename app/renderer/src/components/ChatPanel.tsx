@@ -113,9 +113,8 @@ interface ChatPanelProps {
   onNewProject?: () => void;
 }
 
-const tempSidRef = useRef<string | null>(null);
-
 export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreated, onActivity, onNewProject }: ChatPanelProps): JSX.Element {
+  const tempSidRef = useRef<string | null>(null);
   if (!existingSid && !tempSidRef.current) tempSidRef.current = `__new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const initialSid = existingSid ?? tempSidRef.current!;
   const [sid, setSid] = useState<string>(initialSid);
