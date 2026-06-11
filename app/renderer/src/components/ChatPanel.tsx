@@ -403,7 +403,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     const agentText = parts.join("\n");
 
     const ts = Date.now();
-    if (sid) useChatStore.getState().appendUserMsg(sid, { id: ++msgIdRef.current, role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts }]);
+    if (sid) useChatStore.getState().appendUserMsg(sid, { id: ++msgIdRef.current, role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
     setInput("");
     setAttaches([]);
     // Save to input history, avoid consecutive duplicates
