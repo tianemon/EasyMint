@@ -10,7 +10,7 @@ interface SettingsDialogProps {
 
 // ── Git Check Section ─────────────────────────────────────────────────────────
 
-function useDetect(cmd: "git" | "nodeRuntime") {
+function useDetect(cmd: "git" | "nodeRuntime" | "npx" | "codegraph") {
   const [info, setInfo] = useState<{ found: boolean; version?: string } | null>(null);
   useEffect(() => {
     window.electronAPI?.[cmd]?.detect().then(setInfo).catch(() => setInfo({ found: false }));
@@ -48,6 +48,8 @@ function EnvRow({ label, info, installUrl }: { label: string; info: { found: boo
 function EnvCheckSection(): JSX.Element {
   const gitInfo = useDetect("git");
   const nodeInfo = useDetect("nodeRuntime");
+  const npxInfo = useDetect("npx");
+  const codegraphInfo = useDetect("codegraph");
 
   return (
     <section>
@@ -55,6 +57,10 @@ function EnvCheckSection(): JSX.Element {
       <div className="bg-surface-alt rounded-lg border border-border px-4 py-3 space-y-3">
         <EnvRow label="Git" info={gitInfo} installUrl="https://git-scm.com/downloads" />
         <EnvRow label="Node.js" info={nodeInfo} installUrl="https://nodejs.org/" />
+        <EnvRow label="Playwright (npx)" info={npxInfo}
+          installUrl="https://nodejs.org/" />
+        <EnvRow label="CodeGraph" info={codegraphInfo}
+          installUrl="https://github.com/tianemon/CodeGraph?tab=readme-ov-file#%E5%AE%89%E8%A3%85" />
       </div>
     </section>
   );

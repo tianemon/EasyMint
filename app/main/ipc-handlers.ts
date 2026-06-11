@@ -6,6 +6,8 @@ import { Store } from "./services/store";
 import { detectClaude } from "./utils/claude-detector";
 import { detectGit } from "./utils/git-detector";
 import { detectNode } from "./utils/node-detector";
+import { detectNpx } from "./utils/npx-detector";
+import { detectCodegraph } from "./utils/codegraph-detector";
 import { execShell } from "./services/shell-service";
 import { closeProjectWindows } from "./services/window-manager";
 import {
@@ -172,6 +174,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("claude:detect", () => detectClaude());
   ipcMain.handle("git:detect", () => detectGit());
   ipcMain.handle("node:detect", () => detectNode());
+  ipcMain.handle("npx:detect", () => detectNpx());
+  ipcMain.handle("codegraph:detect", () => detectCodegraph());
 
   // settings:*
   ipcMain.handle("settings:get", () => store.getSettings());

@@ -54,6 +54,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   nodeRuntime: {
     detect: () => ipcRenderer.invoke("node:detect"),
   },
+  npx: {
+    detect: () => ipcRenderer.invoke("npx:detect"),
+  },
+  codegraph: {
+    detect: () => ipcRenderer.invoke("codegraph:detect"),
+  },
   conv: {
     list: (projectPath: string) => ipcRenderer.invoke("conv:list", { projectPath }),
     get: (id: string, projectPath: string) => ipcRenderer.invoke("conv:get", { id, projectPath }),

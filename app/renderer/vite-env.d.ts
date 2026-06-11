@@ -140,6 +140,12 @@ interface ElectronAPI {
   nodeRuntime: {
     detect: () => Promise<{ found: boolean; version?: string }>;
   };
+  npx: {
+    detect: () => Promise<{ found: boolean; version?: string }>;
+  };
+  codegraph: {
+    detect: () => Promise<{ found: boolean; version?: string }>;
+  };
   conv: {
     list: (projectPath: string) => Promise<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number }[]>;
     get: (id: string, projectPath: string) => Promise<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number } | null>;
