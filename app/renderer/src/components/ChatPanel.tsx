@@ -124,7 +124,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const [input, setInput] = useState("");
   const [statusText, setStatusText] = useState("���考中...");
   const [_currentRunId, setCurrentRunId] = useState<string | null>(null);
-  const currentRunRef = useRef<string | null>(null);
   const currentChatRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
   const [summarizing, setSummarizing] = useState(false);
@@ -291,7 +290,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // hasn't started any agent session — block everything.
       if (!currentChatRef.current || !event.runId || event.runId !== currentChatRef.current) return;
       if (stoppedRef.current) return;
-      if (!currentRunRef.current) { currentRunRef.current = event.runId; setCurrentRunId(event.runId); }
+      if (!currentChatRef.current) { currentChatRef.current = event.runId; setCurrentRunId(event.runId); }
       setBusy(true); setBusy(true);
       if (event.type === "status") { setStatusText(typeof event.data.text === "string" ? event.data.text : "处理中..."); return; }
       if (event.type === "tool_use") {
@@ -437,10 +436,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
 
     try {
-      setBusy(true); currentRunRef.current = null;
+      currentChatRef.current = null;
       const result = await window.electronAPI.agent.sendMessage(projectPath, agentText, { sessionId: existingSid ?? null, permissionMode });
-      setCurrentRunId(result.chatId); currentRunRef.current = result.chatId; currentChatRef.current = result.chatId;
-    } catch { setBusy(false); currentRunRef.current = null; }
+      setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
+    } catch { setBusy(false); currentChatRef.current = null; }
   }, [input, busy, attaches, projectPath, permissionMode]);
 
   useEffect(() => { chatActions.register((t: string) => sendText(t)); return () => chatActions.unregister(); }, [sendText]);
@@ -680,7 +679,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
               </div>
             ) : busy ? (
-              <button onClick={() => { stoppedRef.current = true; const rid = currentRunRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
+              <button onClick={() => { stoppedRef.current = true; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
                 className="w-9 h-9 rounded-md bg-danger-bg text-danger flex items-center justify-center hover:bg-danger-bg transition-colors">
                 <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
               </button>
