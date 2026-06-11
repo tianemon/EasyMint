@@ -181,6 +181,7 @@ export class Store {
       if (settings.availableModels) data.availableModels = settings.availableModels;
     }
     if (settings.apiKeys) data.apiKeys = settings.apiKeys;
+    if (settings.builtinTools) data.builtinTools = settings.builtinTools;
     if (settings.context1M !== undefined) data.context1M = settings.context1M;
     if (settings.showThinking !== undefined) data.showThinking = settings.showThinking;
     if (settings.showToolUse !== undefined) data.showToolUse = settings.showToolUse;
