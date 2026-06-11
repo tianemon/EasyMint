@@ -49,6 +49,7 @@ interface Settings {
   model?: string;
   availableModels?: string[];
   apiKeys?: Record<string, string>;
+  builtinTools?: Record<string, boolean>;
   lastProjectId?: string;
   setupComplete?: boolean;
   contextThreshold?: number;
