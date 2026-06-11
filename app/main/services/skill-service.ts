@@ -174,6 +174,14 @@ export function readSkill(skillPath: string): SkillDetail | null {
   }
 }
 
+export function toggleSkill(name: string, enabled: boolean): void {
+  const hidden = getHiddenSkills();
+  const next = enabled
+    ? hidden.filter((n) => n !== name)
+    : [...hidden, name];
+  saveHiddenSkills(next);
+}
+
 
 // ── Seed built-in skills ───────────────────────────
 

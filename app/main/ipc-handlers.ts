@@ -26,7 +26,6 @@ import {
 import {
   scanSkills,
   readSkill,
-  deleteSkill,
   toggleSkill,
   buildSkillsPrompt,
 } from "./services/skill-service";
@@ -141,7 +140,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // skill:*
   ipcMain.handle("skill:list", (_e, { projectPath }: { projectPath?: string }) => scanSkills(projectPath));
   ipcMain.handle("skill:get", (_e, { skillPath }: { skillPath: string }) => readSkill(skillPath));
-  ipcMain.handle("skill:delete", (_e, { skillPath }: { skillPath: string }) => { deleteSkill(skillPath); });
   ipcMain.handle("skill:toggle", (_e, { name, enabled }: { name: string; enabled: boolean }) => { toggleSkill(name, enabled); });
   ipcMain.handle("skill:buildPrompt", (_e, { projectPath }: { projectPath?: string }) => buildSkillsPrompt(projectPath));
 

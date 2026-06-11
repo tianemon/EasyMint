@@ -112,7 +112,6 @@ interface ElectronAPI {
   skill: {
     list: (projectPath?: string) => Promise<{ name: string; description: string; path: string; level: "global" | "project"; enabled: boolean }[]>;
     get: (skillPath: string) => Promise<{ name: string; description: string; path: string; level: "global" | "project"; enabled: boolean; body: string } | null>;
-    delete: (skillPath: string) => Promise<void>;
     toggle: (name: string, enabled: boolean) => Promise<void>;
     buildPrompt: (projectPath?: string) => Promise<string>;
   },
