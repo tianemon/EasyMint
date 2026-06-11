@@ -73,21 +73,7 @@ export function OnboardingPage(): JSX.Element {
           <div className="w-full max-w-[480px] flex flex-col items-center text-center">
             {/* Logo */}
             <div className="w-24 h-24 rounded-2xl bg-accent/10 flex items-center justify-center mb-6">
-              <svg
-                viewBox="0 0 64 64"
-                fill="none"
-                className="w-14 h-14 text-accent"
-              >
-                <path
-                  d="M32 4C32 4 12 20 12 36c0 8 6 14 14 14 4 0 6-2 6-6V28c0-2 2-4 4-4s4 2 4 4v16c0 4 2 6 6 6 8 0 14-6 14-14C60 20 32 4 32 4Z"
-                  fill="currentColor"
-                  opacity="0.9"
-                />
-                <path
-                  d="M32 8s14 12 14 24c0 4-2 8-6 8s-6-3-6-6V22c0-2-2-4-4-4s-4 2-4 4v12c0 3-2 6-6 6s-6-4-6-8c0-12 14-24 14-24Z"
-                  fill="currentColor"
-                />
-              </svg>
+              <img src="/icon.png" className="w-14 h-14" />
             </div>
 
             <h1 className="text-2xl font-bold text-text-primary mb-2">EasyMint</h1>
