@@ -286,12 +286,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     let curAi = 0;
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       if (event.source !== "chat") return;
-      // Filter by chatId first (always set, sync), fallback to sessionId
-      if (currentChatRef.current) {
-        if (!event.runId || event.runId !== currentChatRef.current) return;
-      } else if (event.sessionId && sidRef.current && event.sessionId !== sidRef.current) {
-        return;
-      }
+      // Each ChatPanel only processes events from its own chatId.
+      // chatId is set synchronously by sendMessage; if it's null, this tab
+      // hasn't started any agent session — block everything.
+      if (!currentChatRef.current || !event.runId || event.runId !== currentChatRef.current) return;
       if (stoppedRef.current) return;
       if (!currentRunRef.current) { currentRunRef.current = event.runId; setCurrentRunId(event.runId); }
       setBusy(true); setBusy(true);
@@ -337,9 +335,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       curAi = useChatStore.getState().appendAiEntry(sidRef.current, entry);
       scrollToBottom();
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (currentRunRef.current && runId !== currentRunRef.current) return; curAi = 0; setBusy(false); setBusy(false); onActivity?.(); });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (!currentChatRef.current || runId !== currentChatRef.current) return; curAi = 0; setBusy(false); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
-      if (eventChatId && currentChatRef.current && eventChatId !== currentChatRef.current) return;
+      if (!currentChatRef.current || eventChatId !== currentChatRef.current) return;
       if (sidRef.current && sidRef.current !== realSid) {
         // Migrate messages from temp ID to real session ID, then evict temp
         const tempMsgs = useChatStore.getState().messagesBySession[sidRef.current];
@@ -358,9 +356,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         onSessionCreated?.(realSid);
       }
     });
-    // Context rotation events
-    const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(() => { setSummarizing(true); setStatusText("正在整理会话..."); });
-    const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ percentage }) => {
+    // Context rotation events — filter by chatId
+    const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(({ chatId: ctxChatId }) => { if (!currentChatRef.current || ctxChatId !== currentChatRef.current) return; setSummarizing(true); setStatusText("正在整理会话..."); });
+    const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ chatId: ctxChatId, percentage }) => {
+      if (!currentChatRef.current || ctxChatId !== currentChatRef.current) return;
       const pct = Math.round(percentage);
       setCtxPct(pct);
       if (sidRef.current) {
@@ -681,7 +680,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
               </div>
             ) : busy ? (
-              <button onClick={() => { stoppedRef.current = true; const rid = currentRunRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); setBusy(false); }}
+              <button onClick={() => { stoppedRef.current = true; const rid = currentRunRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
                 className="w-9 h-9 rounded-md bg-danger-bg text-danger flex items-center justify-center hover:bg-danger-bg transition-colors">
                 <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
               </button>
