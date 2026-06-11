@@ -119,14 +119,13 @@ export function buildMcpServersOption(): Record<string, McpServerConfig> | undef
   const result: Record<string, McpServerConfig> = {};
   for (const [name, cfg] of Object.entries(merged)) {
     if (disabled.includes(name)) continue;
-    // Merge apiKeys into env. apiKeys from em-settings.json take priority
-    // over MCP config env — keys are owned by EM settings exclusively.
+    // Merge apiKeys into env: MCP config values take priority, but skip empty strings
     const cfgEnv = cfg.env || {};
     const filteredCfgEnv: Record<string, string> = {};
     for (const [k, v] of Object.entries(cfgEnv)) {
       if (v) filteredCfgEnv[k] = v; // Skip empty/placeholder values
     }
-    const env = { ...filteredCfgEnv, ...apiKeys };
+    const env = { ...apiKeys, ...filteredCfgEnv };
     result[name] = { ...cfg, env: Object.keys(env).length > 0 ? env : undefined };
   }
 
@@ -145,10 +144,10 @@ export function getMcpRequiredKeys(): Record<string, Record<string, string>> {
   for (const [name, cfg] of Object.entries(merged)) {
     const keys: Record<string, string> = {};
 
-    // Keys from MCP config env — apiKeys from em-settings.json take priority
+    // Keys from MCP config env vars (already configured via claude mcp add -e)
     if (cfg.env) {
       for (const [k, v] of Object.entries(cfg.env)) {
-        keys[k] = apiKeys[k] || v || "";
+        keys[k] = v || apiKeys[k] || "";
       }
     }
 
