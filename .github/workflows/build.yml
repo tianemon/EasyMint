@@ -27,6 +27,20 @@ jobs:
 
       - run: npm ci
 
+      - name: Prune non-platform SDK binaries
+        shell: bash
+        run: |
+          KEEP="claude-agent-sdk"
+          if [ "$RUNNER_OS" = "macOS" ]; then KEEP="darwin"; fi
+          if [ "$RUNNER_OS" = "Windows" ]; then KEEP="win32"; fi
+          for dir in node_modules/@anthropic-ai/claude-agent-sdk-*; do
+            [ -d "$dir" ] || continue
+            case "$dir" in
+              *"$KEEP"*) echo "[keep] $dir" ;;
+              *) echo "[remove] $dir"; rm -rf "$dir" ;;
+            esac
+          done
+
       - name: Build
         run: npm run build:ci
         env:
