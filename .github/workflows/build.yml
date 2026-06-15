@@ -28,10 +28,9 @@ jobs:
       - run: npm ci
 
       - name: Build
-        run: npm run build
+        run: npm run build:ci
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          ELECTRON_BUILDER_SKIP_PUBLISH: "true"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
