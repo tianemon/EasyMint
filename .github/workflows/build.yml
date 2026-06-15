@@ -54,3 +54,5 @@ jobs:
         with:
           files: easymint-*/*
           generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
