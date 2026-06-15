@@ -89,14 +89,6 @@
       {
         "from": "resources/skills",
         "to": "skills"
-      },
-      {
-        "from": "resources/plugins",
-        "to": "plugins"
-      },
-      {
-        "from": "resources/mcp",
-        "to": "mcp"
       }
     ],
     "mac": {
