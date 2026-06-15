@@ -1,6 +1,6 @@
 {
   "name": "easymint",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "AI 项目工作台 — 让不懂技术的人也能用 Claude Code 构建软件",
   "private": true,
   "main": "app/main/dist/main.cjs",
