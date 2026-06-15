@@ -65,7 +65,11 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: easymint-*/*
+          files: |
+            easymint-*/*.dmg
+            easymint-*/*.dmg.blockmap
+            easymint-*/*.exe
+            easymint-*/*.exe.blockmap
           generate_release_notes: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
