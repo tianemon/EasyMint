@@ -6,8 +6,8 @@
 
 | 场景 | 文档 | 内容 |
 |------|------|------|
-| 了解整体架构 | `docs/design/ARCHITECTURE.md` | 系统架构、数据模型、IPC 通道 |
-| 了解功能规格 | `docs/design/APP_SPEC.md` | 页面结构、功能清单、设计风格 |
+| 了解整体架构 | `docs/技术架构.md` | 系统架构、数据模型、IPC 通道 |
+| 了解功能规格 | `docs/需求文档.md` | 页面结构、功能清单、设计风格 |
 | 了解当前进度 | `docs/开发进度.md` | 任务完成状态、增量变更记录 |
 | 了解 Agent 系统 | `docs/design/AGENT_SYSTEM.md` | 多 Agent 协作、模板系统、SDK 集成 |
 | 了解配置路径 | `docs/design/CONFIG_PATHS.md` | `~/.easymint/` 全局目录、em-settings 字段、Skill/MCP 位置 |
