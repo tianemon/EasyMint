@@ -29,7 +29,7 @@ npm run dev        # 开发模式
 npm run build      # 生产构建
 ```
 
-安装后打开应用，配置 API Key 即可使用。不需要安装 Claude Code CLI。
+安装后打开应用，配置 API Key 即可使用。内置 Claude Agent SDK，无需额外安装。
 
 ## 项目结构
 
@@ -50,8 +50,8 @@ EasyMint/
 ## 主要功能
 
 - **Chat 驱动开发** — Mint AI 助手引导需求分析、技术选型、任务拆解
-- **Skill 管理** — 内置 4 个 Skill（plan-first / requirement-breakdown / describe-image / web-verify），支持导入和自定义
-- **MCP 管理** — 与 Claude Code 共享 MCP 服务器配置，支持 API Key 管理
+- **Skill 管理** — 与 Claude Agent SDK 共享 Skill，内置 3 个 Skill（plan-first / requirement-breakdown / easymint-guide）
+- **MCP 管理** — 与 Claude Agent SDK 共享 MCP 服务器配置，内置图片识别和网页抓取工具
 - **图片/文档上传** — 支持粘贴、拖拽、多文件，分离式附件预览
 - **Fishbone 进度面板** — 六阶段鱼骨图指示器 + 任务时间轴 + 万能推进按钮
 - **Monaco 编辑器** — VS Code 同款引擎，HTML/CSS/JS/TS/JSON/Markdown 全语法高亮
