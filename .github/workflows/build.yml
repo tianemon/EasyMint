@@ -1,0 +1,56 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      # macOS code-sign: skip notarization (no Apple Developer account)
+      - name: Build (macOS unsigned)
+        if: runner.os == 'macOS'
+        run: npm run build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: npm run build
+
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: npm run build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: easymint-${{ matrix.os }}
+          path: dist-electron/*.*
+          if-no-files-found: ignore
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: easymint-*/*
+          generate_release_notes: true
