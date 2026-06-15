@@ -9,7 +9,13 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        include:
+          - os: macos-latest
+            name: macOS-arm64
+          - os: macos-13
+            name: macOS-x64
+          - os: windows-latest
+            name: Windows-x64
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -21,25 +27,15 @@ jobs:
 
       - run: npm ci
 
-      # macOS code-sign: skip notarization (no Apple Developer account)
-      - name: Build (macOS unsigned)
-        if: runner.os == 'macOS'
+      - name: Build
         run: npm run build
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-      - name: Build (Windows)
-        if: runner.os == 'Windows'
-        run: npm run build
-
-      - name: Build (Linux)
-        if: runner.os == 'Linux'
-        run: npm run build
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: easymint-${{ matrix.os }}
+          name: easymint-${{ matrix.name }}
           path: dist-electron/*.*
           if-no-files-found: ignore
 
