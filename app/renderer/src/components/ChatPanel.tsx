@@ -285,10 +285,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     let curAi = 0;
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       if (event.source !== "chat") return;
-      // Each ChatPanel only processes events from its own chatId.
-      // chatId is set synchronously by sendMessage; if it's null, this tab
-      // hasn't started any agent session — block everything.
-      if (!currentChatRef.current || !event.runId || event.runId !== currentChatRef.current) return;
+      // Filter by chatId when known; for existing sessions where chat was started
+      // externally (e.g. project init), fall back to sessionId match.
+      if (currentChatRef.current) {
+        if (!event.runId || event.runId !== currentChatRef.current) return;
+      } else if (existingSid) {
+        // Existing session from outside — accept events matching our sessionId
+        if (!event.sessionId || event.sessionId !== existingSid) return;
+      } else {
+        // New tab, no chat started yet — block everything
+        return;
+      }
       if (stoppedRef.current) return;
       if (!currentChatRef.current) { currentChatRef.current = event.runId; setCurrentRunId(event.runId); }
       setBusy(true); setBusy(true);
@@ -334,9 +341,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       curAi = useChatStore.getState().appendAiEntry(sidRef.current, entry);
       scrollToBottom();
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (!currentChatRef.current || runId !== currentChatRef.current) return; curAi = 0; setBusy(false); onActivity?.(); });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId, sessionId: exitSid }) => { if (!currentChatRef.current && (!existingSid || exitSid !== existingSid)) return; if (currentChatRef.current && runId !== currentChatRef.current) return; curAi = 0; setBusy(false); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
-      if (!currentChatRef.current || eventChatId !== currentChatRef.current) return;
+      if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
+      if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;
       if (sidRef.current && sidRef.current !== realSid) {
         // Migrate messages from temp ID to real session ID, then evict temp
         const tempMsgs = useChatStore.getState().messagesBySession[sidRef.current];
@@ -356,9 +364,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       }
     });
     // Context rotation events — filter by chatId
-    const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(({ chatId: ctxChatId }) => { if (!currentChatRef.current || ctxChatId !== currentChatRef.current) return; setSummarizing(true); setStatusText("正在整理会话..."); });
+    const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(({ chatId: ctxChatId }) => { if (!currentChatRef.current) return; if (ctxChatId !== currentChatRef.current) return; setSummarizing(true); setStatusText("正在整理会话..."); });
     const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ chatId: ctxChatId, percentage }) => {
-      if (!currentChatRef.current || ctxChatId !== currentChatRef.current) return;
+      if (!currentChatRef.current) return;
+      if (ctxChatId !== currentChatRef.current) return;
       const pct = Math.round(percentage);
       setCtxPct(pct);
       if (sidRef.current) {
