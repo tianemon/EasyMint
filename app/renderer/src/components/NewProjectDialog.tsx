@@ -577,10 +577,11 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
   const ask = useCallback((prompt: string, opts?: { forceNewSession?: boolean }): Promise<string> => {
     const cwd = getCwd();
     const sessionId = opts?.forceNewSession ? null : sidRef.current;
-    // Snapshot existing AI message IDs before sending — only collect new ones
+    // Snapshot per-message entry counts — appendAiEntry adds to the LAST ai message, not new ones
     const snapSid = sidRef.current;
     const cur = snapSid ? (useChatStore.getState().messagesBySession[snapSid] || []) : [];
-    const seen = new Set(cur.map((m: { id: number }) => m.id));
+    const entryCounts = new Map<number, number>();
+    for (const m of cur) { if (m.role === "ai") entryCounts.set(m.id as number, (m.entries as any[])?.length || 0); }
 
     return new Promise((resolve) => {
       let chatId = "";
@@ -594,8 +595,11 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
         const msgs = useChatStore.getState().messagesBySession[sid] || [];
         let text = "";
         for (const m of msgs) {
-          if (seen.has(m.id) || m.role !== "ai" || !m.entries) continue;
-          for (const e of m.entries) {
+          if (m.role !== "ai" || !m.entries) continue;
+          const prev = entryCounts.get(m.id as number) || 0;
+          const entries = m.entries as any[];
+          for (let i = prev; i < entries.length; i++) {
+            const e = entries[i];
             if (e.kind === "text" || e.kind === "thinking") text += (e.text as string) || "";
           }
         }
