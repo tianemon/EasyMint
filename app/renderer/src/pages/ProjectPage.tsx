@@ -66,6 +66,14 @@ export function ProjectPage(): JSX.Element {
     useTabStore.getState().clearTabs();
     useTaskStore.getState().clearTasks();
     useProjectStatusStore.getState().reset();
+    // 清理 workspace 下标记为 [翻译] 的临时会话
+    window.electronAPI.conv.list(getWorkspaceDir()).then((list: Array<{ sessionId: string; title: string }>) => {
+      for (const s of list) {
+        if (s.title?.startsWith("[翻译]")) {
+          window.electronAPI.conv.delete(s.sessionId, getWorkspaceDir()).catch(() => {});
+        }
+      }
+    }).catch(() => {});
     if (projectId) {
       window.electronAPI.project.get(projectId).then((p) => {
         if (p) {
@@ -202,7 +210,7 @@ export function ProjectPage(): JSX.Element {
     collapsedRight ? "0px" : `${rightWidth}px`,
   ].join(" ");
 
-  const activeTab = tabs.find((t) => t.id === activeTabId);
+  const _activeTab = tabs.find((t) => t.id === activeTabId);
 
   const renderTabContent = () => {
     return (

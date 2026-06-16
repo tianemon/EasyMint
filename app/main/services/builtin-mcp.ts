@@ -172,7 +172,6 @@ export function buildBuiltinMcpServers(): Record<string, unknown> {
   const visionOn = isToolEnabled("vision");
   const fetchOn = isToolEnabled("webFetch");
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const servers: Record<string, any> = {};
 
   // UI control tools — always registered regardless of vision/fetch state
@@ -198,7 +197,6 @@ export function buildBuiltinMcpServers(): Record<string, unknown> {
 
   if (!visionOn && !fetchOn) return servers as unknown as Record<string, unknown>;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tools: any[] = [];
 
   if (visionOn) {

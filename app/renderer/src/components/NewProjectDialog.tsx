@@ -647,14 +647,18 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
         if (event.type === "assistant" && typeof event.data.text === "string") text += event.data.text;
       });
       const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => {
-        if (sid) sessionId = sid;
+        if (sid) { sessionId = sid; window.electronAPI.conv.rename(sid, `[翻译] ${Date.now()}`, WORKSPACE_DIR).catch(() => {}); }
       });
       const unsubExit = window.electronAPI.agent.onExit(({ runId }) => {
         if (chatId && runId !== chatId) return;
         unsubStream(); unsubSession(); unsubExit();
-        // Kill chat loop + delete session from disk
-        if (chatId) window.electronAPI.agent.killChat(chatId).catch(() => {});
-        if (sessionId) window.electronAPI.conv.delete(sessionId, WORKSPACE_DIR).catch(() => {});
+        if (runId) window.electronAPI.agent.killChat(runId).catch(() => {});
+        // Delay delete to ensure SDK has finished writing session to disk
+        if (sessionId) {
+          setTimeout(() => {
+            window.electronAPI.conv.delete(sessionId, WORKSPACE_DIR).catch(() => {});
+          }, 500);
+        }
         resolve(text.trim());
       });
       window.electronAPI.agent.sendMessage(WORKSPACE_DIR, prompt, {

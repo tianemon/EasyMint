@@ -1,6 +1,5 @@
 import { create } from "zustand";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type StoredMessage = Record<string, any> & { id: number; role: "user" | "ai" };
 
 interface ChatState {

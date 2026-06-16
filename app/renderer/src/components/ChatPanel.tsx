@@ -247,10 +247,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       try {
         const buffered = await window.electronAPI.agent.getBufferedStream(existingSid);
         if (!cancelled && buffered.length > 0) {
-          let cur = 0;
+          let _cur = 0;
           for (const raw of buffered) {
             const entry = normalizeEvent(raw as StreamEvent); if (!entry) continue;
-            cur = useChatStore.getState().appendAiEntry(sidRef.current, entry);
+            _cur = useChatStore.getState().appendAiEntry(sidRef.current, entry);
           }
         }
       } catch { /* */ }
@@ -282,7 +282,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   }, [existingSid, projectPath]);
 
   useEffect(() => {
-    let curAi = 0;
+    let _curAi = 0;
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       if (event.source !== "chat") return;
       // Filter by chatId when known; for existing sessions where chat was started
@@ -338,10 +338,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         onActivity?.();
       }
       const entry = normalizeEvent(event); if (!entry) return;
-      curAi = useChatStore.getState().appendAiEntry(sidRef.current, entry);
+      _curAi = useChatStore.getState().appendAiEntry(sidRef.current, entry);
       scrollToBottom();
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; curAi = 0; setBusy(false); onActivity?.(); });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; _curAi = 0; setBusy(false); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;
