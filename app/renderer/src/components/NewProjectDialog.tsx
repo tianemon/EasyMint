@@ -579,7 +579,8 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
     const sessionId = opts?.forceNewSession ? null : sidRef.current;
     return new Promise((resolve) => {
       let chatId = "";
-      let msgIdx = 0; // track how many messages we've read from store
+      const sid = sidRef.current;
+      let msgIdx = sid ? (useChatStore.getState().messagesBySession[sid]?.length || 0) : 0;
       let unsubStream: (() => void) | null = null;
       let unsubSession: (() => void) | null = null;
       let unsubExit: (() => void) | null = null;
