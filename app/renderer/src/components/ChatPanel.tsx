@@ -122,7 +122,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const rawMsgs = useChatStore((s) => s.messagesBySession[sid]);
   const messages: ChatMessage[] = rawMsgs || (emptyArr.current as ChatMessage[]);
   const [input, setInput] = useState("");
-  const [statusText, setStatusText] = useState("���考中...");
+  const [statusText, setStatusText] = useState("思考中...");
   const [_currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentChatRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
