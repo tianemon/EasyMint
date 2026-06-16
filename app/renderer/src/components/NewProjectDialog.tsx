@@ -577,10 +577,13 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
   const ask = useCallback((prompt: string, opts?: { forceNewSession?: boolean }): Promise<string> => {
     const cwd = getCwd();
     const sessionId = opts?.forceNewSession ? null : sidRef.current;
+    // Snapshot existing AI message IDs before sending — only collect new ones
+    const snapSid = sidRef.current;
+    const cur = snapSid ? (useChatStore.getState().messagesBySession[snapSid] || []) : [];
+    const seen = new Set(cur.map((m: { id: number }) => m.id));
+
     return new Promise((resolve) => {
       let chatId = "";
-      const sid = sidRef.current;
-      let msgIdx = sid ? (useChatStore.getState().messagesBySession[sid]?.length || 0) : 0;
       let unsubStream: (() => void) | null = null;
       let unsubSession: (() => void) | null = null;
       let unsubExit: (() => void) | null = null;
@@ -590,17 +593,12 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
         if (!sid) return "";
         const msgs = useChatStore.getState().messagesBySession[sid] || [];
         let text = "";
-        for (let i = msgIdx; i < msgs.length; i++) {
-          const m = msgs[i]!;
-          if (m.role === "ai" && m.entries) {
-            for (const e of m.entries) {
-              if ((e.kind === "text" || e.kind === "thinking" || e.type === "assistant") && typeof e.text === "string") text += e.text;
-              else if (typeof e.text === "string") text += e.text;
-              else if (e.kind === "assistant" && typeof e.delta === "string") text += e.delta;
-            }
+        for (const m of msgs) {
+          if (seen.has(m.id) || m.role !== "ai" || !m.entries) continue;
+          for (const e of m.entries) {
+            if (e.kind === "text" || e.kind === "thinking") text += (e.text as string) || "";
           }
         }
-        msgIdx = msgs.length;
         return text;
       };
 
@@ -608,21 +606,17 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
         unsubStream?.(); unsubSession?.(); unsubExit?.();
       };
 
-      // Channel 1: onStream → chat-store (shared with ChatPanel)
       unsubStream = window.electronAPI.agent.onStream((event: any) => {
         if (event.source !== "chat") return;
         if (chatId && event.runId && event.runId !== chatId) return;
-        // Write to shared store
         const entry = normalizeEvent(event);
         if (entry && sidRef.current) useChatStore.getState().appendAiEntry(sidRef.current, entry);
       });
 
-      // Channel 2: session ID tracker
       unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }: { sessionId: string }) => {
         if (sid) sidRef.current = sid;
       });
 
-      // Exit detector — resolve when agent finishes
       unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => {
         if (chatId && runId !== chatId) return;
         const text = getText();
