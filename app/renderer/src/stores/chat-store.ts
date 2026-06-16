@@ -19,10 +19,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
   msgIdBySession: {},
 
   loadSession: (sessionId, messages) =>
-    set((s) => ({
-      messagesBySession: { ...s.messagesBySession, [sessionId]: messages },
-      msgIdBySession: { ...s.msgIdBySession, [sessionId]: Math.max(0, ...messages.map((m) => m.id)) },
-    })),
+    set((s) => {
+      const existing = s.messagesBySession[sessionId] || [];
+      if (existing.length === 0) {
+        return {
+          messagesBySession: { ...s.messagesBySession, [sessionId]: messages },
+          msgIdBySession: { ...s.msgIdBySession, [sessionId]: Math.max(0, ...messages.map((m) => m.id)) },
+        };
+      }
+      // Merge: prepend store-only messages (e.g. init prompt pre-written by handleCreate)
+      const existingIds = new Set(messages.map((m: { id: number }) => m.id));
+      const storeOnly = existing.filter((m: { id: number }) => !existingIds.has(m.id));
+      const merged = [...storeOnly, ...messages].sort((a: { id: number }, b: { id: number }) => a.id - b.id);
+      return {
+        messagesBySession: { ...s.messagesBySession, [sessionId]: merged },
+        msgIdBySession: { ...s.msgIdBySession, [sessionId]: Math.max(0, ...merged.map((m: { id: number }) => m.id)) },
+      };
+    }),
 
   evictSession: (sessionId) =>
     set((s) => {
