@@ -171,7 +171,32 @@ async function webFetch(args: { url: string; prompt?: string }): Promise<string>
 export function buildBuiltinMcpServers(): Record<string, unknown> {
   const visionOn = isToolEnabled("vision");
   const fetchOn = isToolEnabled("webFetch");
-  if (!visionOn && !fetchOn) return {};
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const servers: Record<string, any> = {};
+
+  // UI control tools — always registered regardless of vision/fetch state
+  servers["easymint-ui"] = createSdkMcpServer({
+    name: "easymint-ui",
+    version: "1.0.0",
+    alwaysLoad: true,
+    tools: [
+      tool(
+        "show_confirm_dev",
+        "通知前端显示「确认开发」按钮。项目初始化完成、准备开始执行 task.json 时调用，无需在回复文本中再提。",
+        {},
+        async () => ({ content: [{ type: "text", text: "ok" }] }),
+      ),
+      tool(
+        "show_new_project",
+        "通知前端显示「新建项目」按钮。检测到用户想创建新项目时调用。",
+        {},
+        async () => ({ content: [{ type: "text", text: "ok" }] }),
+      ),
+    ],
+  });
+
+  if (!visionOn && !fetchOn) return servers as unknown as Record<string, unknown>;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tools: any[] = [];
@@ -194,9 +219,6 @@ export function buildBuiltinMcpServers(): Record<string, unknown> {
       },
     ));
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const servers: Record<string, any> = {};
 
   if (visionOn && tools.length > 0) {
     servers["easymint-vision"] = createSdkMcpServer({
@@ -232,27 +254,6 @@ export function buildBuiltinMcpServers(): Record<string, unknown> {
       ],
     });
   }
-
-  // UI control tools — always registered so Mint can control frontend buttons
-  servers["easymint-ui"] = createSdkMcpServer({
-    name: "easymint-ui",
-    version: "1.0.0",
-    alwaysLoad: true,
-    tools: [
-      tool(
-        "show_confirm_dev",
-        "通知前端显示「确认开发」按钮。项目初始化完成、准备开始执行 task.json 时调用，无需在回复文本中再提。",
-        {},
-        async () => ({ content: [{ type: "text", text: "ok" }] }),
-      ),
-      tool(
-        "show_new_project",
-        "通知前端显示「新建项目」按钮。检测到用户想创建新项目时调用。",
-        {},
-        async () => ({ content: [{ type: "text", text: "ok" }] }),
-      ),
-    ],
-  });
 
   return servers as unknown as Record<string, unknown>;
 }
