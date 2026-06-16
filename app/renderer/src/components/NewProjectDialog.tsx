@@ -815,11 +815,11 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
         };
         const profile = composeProfile(dims);
         const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), buildInitInstruction(profile), data.targets);
-        // Write init message to store immediately — ChatPanel reads it on mount,
-        // avoiding the 500ms disk-load delay.
+        // Pre-write a loading placeholder — the full init prompt is too large
+        // and blocks the renderer thread. ChatPanel loads from disk within 500ms.
         if (sidRef.current) {
           useChatStore.getState().appendUserMsg(sidRef.current, {
-            role: "user", text: initPrompt, timestamp: Date.now(),
+            role: "user", text: "[项目初始化]", timestamp: Date.now(),
           });
         }
         ask(initPrompt).catch(() => {});
