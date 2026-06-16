@@ -352,7 +352,7 @@ ${profile.initSteps}
 
 /** 项目创建完毕后的初始化触发 */
 export function buildInitTriggerPrompt(projectPath: string, ctx: string, instruction: string, targets?: string[]): string {
-  const profile = targets && targets.length > 0 ? detectProfile(targets) : PROFILES["web-frontend"]!;
+  const profile = detectProfile(targets && targets.length > 0 ? targets : ["web"]);
   return `[系统消息] 项目已创建完毕。
 
 项目场景：${profile.label}
