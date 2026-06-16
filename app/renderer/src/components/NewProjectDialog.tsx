@@ -121,8 +121,7 @@ const ALL_STEPS = [
   { number: 1, title: "项目概述", desc: "名称、类型与目录" },
   { number: 2, title: "功能清单", desc: "用户实际使用的功能" },
   { number: 3, title: "视觉风格", desc: "UI 设计风格" },
-  { number: 4, title: "技术选型", desc: "前端、后端与成本" },
-  { number: 5, title: "部署方式", desc: "云端或本地" },
+  { number: 4, title: "技术选型", desc: "技术栈、部署与成本" },
 ];
 
 const DEFAULT_DATA: ProjectFormData = {
@@ -176,8 +175,8 @@ function buildContext(data: ProjectFormData, step?: number): string {
     push(`预算「${data.techBudget}」`);
   }
 
-  // Step 5: include deploy
-  if (!step || step >= 5) {
+  // Step 4: include deploy
+  if (!step || step >= 4) {
     push(`部署「${data.deployPlatform}」`);
   }
 
@@ -509,6 +508,34 @@ function Step4Form({
         />
       </div>
 
+      {/* 部署方式 */}
+      <div>
+        <label className="block text-sm font-medium text-text-primary mb-2">部署方式</label>
+        <div className="flex gap-2">
+          <button
+            className={`flex-1 p-3 rounded-lg border transition-colors text-left ${data.deployPlatform === "本地" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
+            onClick={() => onChange({ deployPlatform: "本地" })}
+          >
+            <div className={`text-sm font-medium ${data.deployPlatform === "本地" ? "text-accent" : "text-text-primary"}`}>本地</div>
+            <div className="text-xs text-text-secondary mt-0.5">本机运行，无需云服务</div>
+          </button>
+          <button
+            className={`flex-1 p-3 rounded-lg border transition-colors text-left ${data.deployPlatform === "云端" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
+            onClick={() => onChange({ deployPlatform: "云端" })}
+          >
+            <div className={`text-sm font-medium ${data.deployPlatform === "云端" ? "text-accent" : "text-text-primary"}`}>云端</div>
+            <div className="text-xs text-text-secondary mt-0.5">可互联网访问，有服务器费用</div>
+          </button>
+          <button
+            className={`flex-1 p-3 rounded-lg border transition-colors text-left ${data.deployPlatform === "混合" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
+            onClick={() => onChange({ deployPlatform: "混合" })}
+          >
+            <div className={`text-sm font-medium ${data.deployPlatform === "混合" ? "text-accent" : "text-text-primary"}`}>混合</div>
+            <div className="text-xs text-text-secondary mt-0.5">本地 UI + 云端同步</div>
+          </button>
+        </div>
+      </div>
+
       {/* Advanced: tech chip quick-select, collapsed by default */}
       <div>
         <button
@@ -547,40 +574,6 @@ function ChipGroup({ label, options, onSelect }: { label: string; options: TechO
             {o.label}
           </button>
         ))}
-      </div>
-    </div>
-  );
-}
-
-// ---- Step 5: Deploy ----
-
-function Step5Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void }): JSX.Element {
-  return (
-    <div className="space-y-4">
-      <p className="text-xs text-text-secondary">选择项目的最终部署方式，决定用户如何访问。</p>
-      <div className="flex gap-2">
-        <button
-          className={`flex-1 p-4 rounded-lg border transition-colors text-left ${data.deployPlatform === "本地" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
-          onClick={() => onChange({ deployPlatform: "本地" })}
-        >
-          <div className={`text-sm font-medium mb-1.5 ${data.deployPlatform === "本地" ? "text-accent" : "text-text-primary"}`}>本地部署</div>
-          <div className="text-xs text-text-secondary space-y-0.5">
-            <div>完全免费，无需云服务</div>
-            <div>仅在本机电脑上运行</div>
-            <div>适合个人工具和内部使用</div>
-          </div>
-        </button>
-        <button
-          className={`flex-1 p-4 rounded-lg border transition-colors text-left ${data.deployPlatform === "云端" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
-          onClick={() => onChange({ deployPlatform: "云端" })}
-        >
-          <div className={`text-sm font-medium mb-1.5 ${data.deployPlatform === "云端" ? "text-accent" : "text-text-primary"}`}>云端部署</div>
-          <div className="text-xs text-text-secondary space-y-0.5">
-            <div>需要云服务资源（可以互联网访问）</div>
-            <div>有服务器费用产生（Vercel / Railway / 云服务器等）</div>
-            <div>适合需要对外提供服务的项目</div>
-          </div>
-        </button>
       </div>
     </div>
   );
@@ -842,7 +835,6 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
       case 2: return <Step2Form data={data} onChange={updateData} onRecommendFeatures={handleRecommendFeatures} loadingRec={loadingRec} />;
       case 3: return <Step3Form data={data} onChange={updateData} />;
       case 4: return <Step4Form data={data} onChange={updateData} onRecommend={handleRecommend} loadingRec={loadingRec} />;
-      case 5: return <Step5Form data={data} onChange={updateData} />;
       default: return null;
     }
   };
