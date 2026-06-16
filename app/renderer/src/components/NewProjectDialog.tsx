@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildTechRecommendPrompt, buildInitTriggerPrompt, buildDirectoryTranslationPrompt, buildInitInstruction, detectProfile } from "../../../shared/prompts";
 import { useSettingsStore } from "../stores/settings-store";
+import { useChatStore } from "../stores/chat-store";
+import { normalizeEvent } from "./StreamPanel";
 
 function getWorkspaceDir(): string {
   const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
@@ -577,22 +579,60 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
     const sessionId = opts?.forceNewSession ? null : sidRef.current;
     return new Promise((resolve) => {
       let chatId = "";
-      let text = "";
-      const unsubStream = window.electronAPI.agent.onStream((event: StreamEvent) => {
-        if (chatId && event.runId !== chatId) return;
-        if (event.type === "assistant" && typeof event.data.text === "string") text += event.data.text;
+      let msgIdx = 0; // track how many messages we've read from store
+      let unsubStore: (() => void) | null = null;
+      let unsubStream: (() => void) | null = null;
+      let unsubSession: (() => void) | null = null;
+      let unsubExit: (() => void) | null = null;
+
+      const getText = (): string => {
+        const sid = sidRef.current;
+        if (!sid) return "";
+        const msgs = useChatStore.getState().messagesBySession[sid] || [];
+        let text = "";
+        for (let i = msgIdx; i < msgs.length; i++) {
+          const m = msgs[i]!;
+          if (m.role === "ai" && m.entries) {
+            for (const e of m.entries) {
+              if ((e.kind === "text" || e.kind === "thinking" || e.type === "assistant") && typeof e.text === "string") text += e.text;
+              else if (typeof e.text === "string") text += e.text;
+              else if (e.kind === "assistant" && typeof e.delta === "string") text += e.delta;
+            }
+          }
+        }
+        msgIdx = msgs.length;
+        return text;
+      };
+
+      const teardown = () => {
+        unsubStore?.(); unsubStream?.(); unsubSession?.(); unsubExit?.();
+      };
+
+      // Channel 1: onStream → chat-store (shared with ChatPanel)
+      unsubStream = window.electronAPI.agent.onStream((event: any) => {
+        if (event.source !== "chat") return;
+        if (chatId && event.runId && event.runId !== chatId) return;
+        // Write to shared store
+        const entry = normalizeEvent(event);
+        if (entry && sidRef.current) useChatStore.getState().appendAiEntry(sidRef.current, entry);
       });
-      const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => {
+
+      // Channel 2: session ID tracker
+      unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }: { sessionId: string }) => {
         if (sid) sidRef.current = sid;
       });
-      const unsubExit = window.electronAPI.agent.onExit(({ runId }) => {
+
+      // Exit detector — resolve when agent finishes
+      unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => {
         if (chatId && runId !== chatId) return;
-        unsubStream(); unsubSession(); unsubExit();
+        const text = getText();
+        teardown();
         resolve(text.trim());
       });
-      window.electronAPI.agent.sendMessage(cwd, prompt, { sessionId }).then((result) => {
+
+      window.electronAPI.agent.sendMessage(cwd, prompt, { sessionId }).then((result: { chatId: string }) => {
         chatId = result.chatId;
-      }).catch(() => { unsubStream(); unsubSession(); unsubExit(); resolve(""); });
+      }).catch(() => { teardown(); resolve(""); });
     });
   }, [pathRef]);
 

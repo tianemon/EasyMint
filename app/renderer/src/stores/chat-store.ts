@@ -1,27 +1,34 @@
 import { create } from "zustand";
+import { normalizeEvent } from "../components/StreamPanel";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type StoredMessage = Record<string, any> & { id: number; role: "user" | "ai" };
 
 interface ChatState {
-  /** Per-session message cache. Key = sessionId. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   messagesBySession: Record<string, any[]>;
-  /** Per-session msgId counter. */
   msgIdBySession: Record<string, number>;
+  /** Active stream subscriptions — keyed by sessionId. When initStreamSync is called,
+   *  it sets up an onStream → appendAiEntry bridge and stores the cleanup here. */
+  streamSubs: Record<string, () => void>;
 
   loadSession: (sessionId: string, messages: StoredMessage[]) => void;
   evictSession: (sessionId: string) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   appendUserMsg: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai" }) => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   appendAiEntry: (sessionId: string, entry: Record<string, any>) => number;
   nextMsgId: (sessionId: string) => number;
+  /** Set up the global onStream → chat-store bridge for a session.
+   *  Returns cleanup — call on unmount or when session changes. */
+  initStreamSync: (opts: {
+    sessionId: string;
+    chatIdRef: { current: string | null };
+    existingSid?: string;
+  }) => () => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
   messagesBySession: {},
   msgIdBySession: {},
+  streamSubs: {},
 
   loadSession: (sessionId, messages) =>
     set((s) => ({
@@ -80,5 +87,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const next = (get().msgIdBySession[sessionId] || 0) + 1;
     set((s) => ({ msgIdBySession: { ...s.msgIdBySession, [sessionId]: next } }));
     return next;
+  },
+
+  initStreamSync: ({ sessionId, chatIdRef, existingSid }) => {
+    if (typeof window === "undefined") return () => {};
+    const api = (window as any).electronAPI?.agent;
+    if (!api?.onStream) return () => {};
+    const unsub = api.onStream((event: any) => {
+      if (event.source !== "chat") return;
+      if (chatIdRef.current) {
+        if (!event.runId || event.runId !== chatIdRef.current) return;
+      } else if (existingSid) {
+        if (!event.sessionId || event.sessionId !== existingSid) return;
+      } else {
+        return;
+      }
+      const entry = normalizeEvent(event);
+      if (entry) get().appendAiEntry(sessionId, entry);
+    });
+    return unsub;
   },
 }));
