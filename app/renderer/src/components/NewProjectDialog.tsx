@@ -816,7 +816,21 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
         const profile = composeProfile(dims);
         const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), buildInitInstruction(profile), data.targets);
         ask(initPrompt).catch(() => {});
-        await new Promise((r) => setTimeout(r, 2000));
+        // 轮询 session 文件，等 "[系统消息]" 落盘后再跳转
+        for (let i = 0; i < 100; i++) {
+          await new Promise((r) => setTimeout(r, 100));
+          const sid = sidRef.current;
+          if (!sid) continue;
+          try {
+            const msgs: any[] = await window.electronAPI.conv.messages(sid, createdProject.path);
+            if (msgs.some((m: any) => {
+              if (m.type !== "user") return false;
+              const c = m.message?.content;
+              const text = typeof c === "string" ? c : Array.isArray(c) ? c.map((b: any) => b?.text ?? "").join("") : "";
+              return text.includes("[系统消息] 项目已创建完毕");
+            })) break;
+          } catch { /* SDK not ready yet */ }
+        }
         const sid = sidRef.current;
         if (openInNewWindow) {
           await window.electronAPI.window.openProject(createdProject.id, sid ?? undefined, true);
