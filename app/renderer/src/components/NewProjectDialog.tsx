@@ -761,33 +761,21 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
   const creatingRef = useRef(false);
 
   const handleCreate = async () => {
-    if (creatingRef.current) { console.log("[handleCreate] already creating, skip"); return; }
+    if (creatingRef.current) return;
     creatingRef.current = true;
     setInitializing(true);
     try {
       if (createdProject) {
-        console.log("[handleCreate] step start: project=%s sid=%s", createdProject.id, sidRef.current);
         const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), buildInitInstruction(detectProfile(data.targets)), data.targets);
-        console.log("[handleCreate] initPrompt first 200 chars:", initPrompt.slice(0, 200));
-        // Fire-and-forget: don't block navigation waiting for Mint's response.
-        // ChatPanel will stream the reply live after mount, and history loads
-        // automatically once SDK persists the session.
-        ask(initPrompt).catch((e) => console.error("[handleCreate] ask failed:", e));
+        ask(initPrompt).catch(() => {});
         const sid = sidRef.current;
-        // Navigate immediately — sidRef was already set in step 1
-        console.log("[handleCreate] navigating with sid=%s", sid);
         if (openInNewWindow) {
           await window.electronAPI.window.openProject(createdProject.id, sid ?? undefined, true);
           onClose();
         } else {
-          console.log("[handleCreate] calling onCreated with sid=%s", sid);
           onCreated(createdProject, sid);
         }
-      } else {
-        console.log("[handleCreate] no createdProject!");
       }
-    } catch (e) {
-      console.error("[handleCreate] error:", e);
     } finally {
       setInitializing(false);
       creatingRef.current = false;
