@@ -339,7 +339,7 @@ export function buildInitInstruction(profile: ProjectProfile): string {
     .filter((l) => l.trim().startsWith("-") || l.trim().startsWith("项目"))
     .join("\n");
   return sceneDiffs
-    ? \`\n初始化时注意以下场景差异：\n$\{sceneDiffs}\`
+    ? `\n初始化时注意以下场景差异：\n${sceneDiffs}`
     : "";
 }
 /** 项目创建完毕后的初始化触发 */
@@ -349,13 +349,13 @@ export function buildInitTriggerPrompt(projectPath: string, ctx: string, instruc
     .split("\n")
     .filter((l) => l.trim().startsWith("-") && !l.includes("无需"))
     .join("\n");
-  return \`[系统消息] 项目已创建完毕。
+  return `[系统消息] 项目已创建完毕。
 
-项目场景：$\{profile.label}
-项目路径：$\{projectPath}
-$\{ctx}
-$\{dimHighlights ? \`关键约束：\n$\{dimHighlights}\n\` : ""}
-$\{instruction}\`;
+项目场景：${profile.label}
+项目路径：${projectPath}
+${ctx}
+${dimHighlights ? `关键约束：\n${dimHighlights}\n` : ""}
+${instruction}`;
 }
 // ── 确认开发 ──────────────────────────────────────────
 
