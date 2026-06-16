@@ -484,6 +484,35 @@ function Step4Form({
         </div>
       </div>
 
+      {/* 部署方式 */}
+      <div>
+        <label className="block text-sm font-medium text-text-primary mb-2">部署方式</label>
+        <p className="text-xs text-text-secondary mb-2">Mint 会根据此选择推荐合适的技术方案。</p>
+        <div className="flex gap-2">
+          <button
+            className={`flex-1 p-2 rounded-lg border transition-colors text-left ${data.deployPlatform === "本地" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
+            onClick={() => onChange({ deployPlatform: "本地" })}
+          >
+            <div className={`text-sm font-medium ${data.deployPlatform === "本地" ? "text-accent" : "text-text-primary"}`}>本地</div>
+            <div className="text-[10px] text-text-secondary mt-0.5">本机运行，无需云服务</div>
+          </button>
+          <button
+            className={`flex-1 p-2 rounded-lg border transition-colors text-left ${data.deployPlatform === "云端" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
+            onClick={() => onChange({ deployPlatform: "云端" })}
+          >
+            <div className={`text-sm font-medium ${data.deployPlatform === "云端" ? "text-accent" : "text-text-primary"}`}>云端</div>
+            <div className="text-[10px] text-text-secondary mt-0.5">可互联网访问，有服务器费用</div>
+          </button>
+          <button
+            className={`flex-1 p-2 rounded-lg border transition-colors text-left ${data.deployPlatform === "混合" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
+            onClick={() => onChange({ deployPlatform: "混合" })}
+          >
+            <div className={`text-sm font-medium ${data.deployPlatform === "混合" ? "text-accent" : "text-text-primary"}`}>混合</div>
+            <div className="text-[10px] text-text-secondary mt-0.5">本地 UI + 云端同步</div>
+          </button>
+        </div>
+      </div>
+
       {/* Tech notes textarea + Mint recommend */}
       <div>
         <div className="flex items-center justify-between mb-1.5">
@@ -506,34 +535,6 @@ function Step4Form({
           value={data.techNotes}
           onChange={(e) => onChange({ techNotes: e.target.value })}
         />
-      </div>
-
-      {/* 部署方式 */}
-      <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">部署方式</label>
-        <div className="flex gap-2">
-          <button
-            className={`flex-1 p-3 rounded-lg border transition-colors text-left ${data.deployPlatform === "本地" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
-            onClick={() => onChange({ deployPlatform: "本地" })}
-          >
-            <div className={`text-sm font-medium ${data.deployPlatform === "本地" ? "text-accent" : "text-text-primary"}`}>本地</div>
-            <div className="text-xs text-text-secondary mt-0.5">本机运行，无需云服务</div>
-          </button>
-          <button
-            className={`flex-1 p-3 rounded-lg border transition-colors text-left ${data.deployPlatform === "云端" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
-            onClick={() => onChange({ deployPlatform: "云端" })}
-          >
-            <div className={`text-sm font-medium ${data.deployPlatform === "云端" ? "text-accent" : "text-text-primary"}`}>云端</div>
-            <div className="text-xs text-text-secondary mt-0.5">可互联网访问，有服务器费用</div>
-          </button>
-          <button
-            className={`flex-1 p-3 rounded-lg border transition-colors text-left ${data.deployPlatform === "混合" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
-            onClick={() => onChange({ deployPlatform: "混合" })}
-          >
-            <div className={`text-sm font-medium ${data.deployPlatform === "混合" ? "text-accent" : "text-text-primary"}`}>混合</div>
-            <div className="text-xs text-text-secondary mt-0.5">本地 UI + 云端同步</div>
-          </button>
-        </div>
       </div>
 
       {/* Advanced: tech chip quick-select, collapsed by default */}
