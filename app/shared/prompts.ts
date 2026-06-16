@@ -344,7 +344,7 @@ ${profile.initSteps}
    - 编辑 init.sh — 补充运行时检测和依赖安装
    - 执行 bash init.sh：
      - 成功 → 调用 project:writeState 写入 state.json：{ initCompleted: true, docsLevel: 按实际填, lastSummary: "初始化完成" }
-       回复末尾追加：\`环境已就绪。点击下方的「确认开发」按钮，将开始执行任务。\`
+       调用 show_confirm_dev() 通知前端，然后简要告知用户「环境已就绪，可以开始开发了。」
      - 成功但 Git 未安装 → 告知用户"Git 未安装，版本控制和任务进度追踪将不可用。回复'继续'跳过"。安装方式：macOS brew install git，Windows 下载 git-scm.com
      - 权限拦截 → 提示切换到"完全自主"模式
      - 失败 → 修改后重试，最多 3 次`;

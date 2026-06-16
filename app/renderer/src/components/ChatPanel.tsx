@@ -483,17 +483,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   const hasMessages = messages.length > 0;
 
-  // Detect "确认开发" button trigger
-  const lastAiText = messages.length > 0
-    ? messages.filter((m) => m.role === "ai" && m.entries).pop()?.entries
-        ?.filter((e) => e.kind === "text").map((e) => (e as { text: string }).text).join("") ?? ""
-    : "";
-  // Detect user intent to create a new project
-  const lastUserText = messages.length > 0
-    ? messages.filter((m) => m.role === "user" && m.text).pop()?.text ?? ""
-    : "";
-  const showNewProjectBtn = onNewProject && !lastUserText.startsWith("[系统消息]") && /新建|建个|创建|帮我建|我要建|新建.*项目|建.*项目|创建.*项目/.test(lastUserText);
-  const showConfirmDev = lastAiText.includes("确认开发") && !busy;
+  // Tool-call driven UI actions — Mint calls show_* tools, frontend detects tool_use entries
+  const lastAiEntries = messages.length > 0
+    ? messages.filter((m) => m.role === "ai" && m.entries).pop()?.entries ?? []
+    : [];
+  const lastToolUses = lastAiEntries.filter((e) => e.kind === "tool_use");
+  const showConfirmDev = !busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_confirm_dev");
+  const showNewProjectBtn = onNewProject && !busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_new_project");
   const canSend = input.trim() || attaches.length > 0;
 
   // ── Attach preview (shared between both positions) ─
