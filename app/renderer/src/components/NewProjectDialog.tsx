@@ -577,34 +577,12 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
   const ask = useCallback((prompt: string, opts?: { forceNewSession?: boolean }): Promise<string> => {
     const cwd = getCwd();
     const sessionId = opts?.forceNewSession ? null : sidRef.current;
-    // Snapshot per-message entry counts — appendAiEntry adds to the LAST ai message, not new ones
-    const snapSid = sidRef.current;
-    const cur = snapSid ? (useChatStore.getState().messagesBySession[snapSid] || []) : [];
-    const entryCounts = new Map<number, number>();
-    for (const m of cur) { if (m.role === "ai") entryCounts.set(m.id as number, (m.entries as any[])?.length || 0); }
-
     return new Promise((resolve) => {
       let chatId = "";
+      let text = "";
       let unsubStream: (() => void) | null = null;
       let unsubSession: (() => void) | null = null;
       let unsubExit: (() => void) | null = null;
-
-      const getText = (): string => {
-        const sid = sidRef.current;
-        if (!sid) return "";
-        const msgs = useChatStore.getState().messagesBySession[sid] || [];
-        let text = "";
-        for (const m of msgs) {
-          if (m.role !== "ai" || !m.entries) continue;
-          const prev = entryCounts.get(m.id as number) || 0;
-          const entries = m.entries as any[];
-          for (let i = prev; i < entries.length; i++) {
-            const e = entries[i];
-            if (e.kind === "text" || e.kind === "thinking") text += (e.text as string) || "";
-          }
-        }
-        return text;
-      };
 
       const teardown = () => {
         unsubStream?.(); unsubSession?.(); unsubExit?.();
@@ -612,7 +590,11 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
 
       unsubStream = window.electronAPI.agent.onStream((event: any) => {
         if (event.source !== "chat") return;
-        if (chatId && event.runId && event.runId !== chatId) return;
+        // Only this ask()'s chat — filtered by chatId assigned after sendMessage
+        if (chatId && (!event.runId || event.runId !== chatId)) return;
+        // Accumulate text from this response only
+        if (event.type === "assistant" && typeof event.data.text === "string") text += event.data.text;
+        // Also write to shared store (so ChatPanel sees it if mounted)
         const entry = normalizeEvent(event);
         if (entry && sidRef.current) useChatStore.getState().appendAiEntry(sidRef.current, entry);
       });
@@ -623,7 +605,6 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
 
       unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => {
         if (chatId && runId !== chatId) return;
-        const text = getText();
         teardown();
         resolve(text.trim());
       });
