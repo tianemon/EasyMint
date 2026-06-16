@@ -334,44 +334,29 @@ export function detectProfile(targets: string[]): ProjectProfile {
 
 
 export function buildInitInstruction(profile: ProjectProfile): string {
-  return `先按规则 2 的项目复杂度判断标准，决定需要生成的文档级别（极简跳过全部文档 / 简单跳过技术架构 / 中等及以上全量）。然后按以下顺序完成——不需要的步骤直接跳过：
-
-1. 拆解需求：按第 3 条的方法深度拆解，写入 docs/需求文档.md。向用户展示需求列表，等待确认。
-${profile.initSteps}
-2. 二次技术评估：基于完整的 docs/需求文档.md，重新审视用户之前在表单中填写的技术选型——之前的选型是初步判断，现在需求细节清楚了，可能有更合适的技术方案。如果有更优方案，主动向用户推荐并等待确认。确认后写入 docs/技术架构.md（简单项目跳过技术架构）。
-
-3. 分配任务：按第 4 条的方法，基于 docs/需求文档.md 把功能分配为开发任务，写入 task.json。创建 docs/开发进度.md（记录初始状态：任务总数、待开始）。调用 project:writeState 更新 state.json 的 taskCount 和 lastSummary。告知用户任务分配情况。
-
-4. 写 README.md — 项目名称、简介、技术栈、如何运行。
-
-5. 更新 CLAUDE.md — 在通用模板基础上，根据确认的技术栈和项目场景，补充对应技术的开发规范和常用命令。同时加入文件组织规范：所有非项目必须的临时文件（调试日志、截图、测试输出、草稿代码等）统一放入 temp/ 目录，按类别分 temp/logs/、temp/screenshots/、temp/drafts/、temp/tests/。
-
-6. 检测开发环境：
-   - 如果 git 可用：git init && git add . && git commit -m "项目初始化"；不可用则跳过
-   - 编辑 init.sh — 补充运行时检测和依赖安装
-   - 执行 bash init.sh：
-     - 成功 → 调用 project:writeState 写入 state.json：{ initCompleted: true, docsLevel: 按实际填, lastSummary: "初始化完成" }
-       调用 show_confirm_dev() 通知前端，然后简要告知用户「环境已就绪，可以开始开发了。」
-     - 成功但 Git 未安装 → 告知用户"Git 未安装，版本控制和任务进度追踪将不可用。回复'继续'跳过"。安装方式：macOS brew install git，Windows 下载 git-scm.com
-     - 权限拦截 → 提示切换到"完全自主"模式
-     - 失败 → 修改后重试，最多 3 次`;
+  const sceneDiffs = profile.initSteps
+    .split("\n")
+    .filter((l) => l.trim().startsWith("-") || l.trim().startsWith("项目"))
+    .join("\n");
+  return sceneDiffs
+    ? \`\n初始化时注意以下场景差异：\n$\{sceneDiffs}\`
+    : "";
 }
-
 /** 项目创建完毕后的初始化触发 */
 export function buildInitTriggerPrompt(projectPath: string, ctx: string, instruction: string, targets?: string[]): string {
   const profile = detectProfile(targets && targets.length > 0 ? targets : ["web"]);
-  return `[系统消息] 项目已创建完毕。
+  const dimHighlights = profile.initSteps
+    .split("\n")
+    .filter((l) => l.trim().startsWith("-") && !l.includes("无需"))
+    .join("\n");
+  return \`[系统消息] 项目已创建完毕。
 
-项目场景：${profile.label}
-项目路径：${projectPath}
-
-${profile.platformSpec}
-
-${ctx}
-
-${instruction}`;
+项目场景：$\{profile.label}
+项目路径：$\{projectPath}
+$\{ctx}
+$\{dimHighlights ? \`关键约束：\n$\{dimHighlights}\n\` : ""}
+$\{instruction}\`;
 }
-
 // ── 确认开发 ──────────────────────────────────────────
 
 export const CONFIRM_DEVELOPMENT_PROMPT = `开始执行 task.json 中的开发任务。按顺序逐条推进，每完成一个用 Task(builder) 实现、Task(evaluator) 验收，通过后更新 doneCount 并更新 docs/开发进度.md。全程自动推进不等确认，直到全部完成或用户打断。遇到阻塞写入 escalation.json 并通知用户。遵循项目 TDD 设定。`;
