@@ -375,13 +375,16 @@ export function ProjectPage(): JSX.Element {
           openInNewWindow={!!projectId}
           onClose={() => setShowNewProject(false)}
           onCreated={(project, sessionId) => {
+            console.log("[ProjectPage] onCreated: project=%s sessionId=%s", project.id, sessionId);
             setShowNewProject(false);
             if (!projectId) {
               // 无项目时，原地跳转到新项目页面
               const params = new URLSearchParams();
               if (sessionId) params.set("session", sessionId);
               params.set("init", "1");
-              navigate(`/project/${project.id}?${params.toString()}`);
+              const url = `/project/${project.id}?${params.toString()}`;
+              console.log("[ProjectPage] onCreated navigating to:", url);
+              navigate(url);
             }
           }}
         />
