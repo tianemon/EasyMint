@@ -580,7 +580,6 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
     return new Promise((resolve) => {
       let chatId = "";
       let msgIdx = 0; // track how many messages we've read from store
-      let unsubStore: (() => void) | null = null;
       let unsubStream: (() => void) | null = null;
       let unsubSession: (() => void) | null = null;
       let unsubExit: (() => void) | null = null;
@@ -605,7 +604,7 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
       };
 
       const teardown = () => {
-        unsubStore?.(); unsubStream?.(); unsubSession?.(); unsubExit?.();
+        unsubStream?.(); unsubSession?.(); unsubExit?.();
       };
 
       // Channel 1: onStream → chat-store (shared with ChatPanel)
