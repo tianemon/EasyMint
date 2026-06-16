@@ -3,8 +3,6 @@ import path from "path";
 import fs from "fs";
 import { BrowserWindow } from "electron";
 import type { SDKMessage, Options as QueryOptions, PermissionMode } from "@anthropic-ai/claude-agent-sdk";
-import { tool } from "@anthropic-ai/claude-agent-sdk";
-import { z } from "zod";
 
 const LOG = path.join(os.homedir(), ".easymint", "easymint.log");
 function log(msg: string) { try { fs.appendFileSync(LOG, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } }
@@ -125,24 +123,6 @@ function resolveModel(model: string | undefined, store: Store): string | undefin
 }
 
 /** Build a query options block, reading API config from the Store. */
-// ── UI Control Tools ──────────────────────────────────
-// Mint 通过调用这些 tool 来控制前端 UI，替代关键词匹配
-
-const uiTools = [
-  tool(
-    "show_confirm_dev",
-    "通知前端显示「确认开发」按钮。在项目初始化完成、准备开始执行开发任务时调用。",
-    {},
-    async () => ({ content: [{ type: "text", text: "ok" }] }),
-  ),
-  tool(
-    "show_new_project",
-    "通知前端显示「新建项目」按钮。当检测到用户意图创建新项目时调用。",
-    {},
-    async () => ({ content: [{ type: "text", text: "ok" }] }),
-  ),
-];
-
 function buildQueryOptions(projectPath: string, store: Store, isResume: boolean, permissionMode: PermissionMode = "auto", overrides?: Partial<QueryOptions>): QueryOptions {
   const defaultDir = store.getSettings().defaultProjectDir || path.join(os.homedir(), "EasyMintProject");
   const baseDir = defaultDir.startsWith("~") ? path.join(os.homedir(), defaultDir.slice(1)) : defaultDir;
@@ -217,7 +197,6 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
     agents: Object.keys(agents).length > 0 ? agents : undefined,
      
     mcpServers: { ...buildMcpServersOption(), ...buildBuiltinMcpServers() } as any,
-    tools: uiTools as any,
     pathToClaudeCodeExecutable,
     ...overrides,
   };

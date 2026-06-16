@@ -233,5 +233,26 @@ export function buildBuiltinMcpServers(): Record<string, unknown> {
     });
   }
 
+  // UI control tools — always registered so Mint can control frontend buttons
+  servers["easymint-ui"] = createSdkMcpServer({
+    name: "easymint-ui",
+    version: "1.0.0",
+    alwaysLoad: true,
+    tools: [
+      tool(
+        "show_confirm_dev",
+        "通知前端显示「确认开发」按钮。项目初始化完成、准备开始执行 task.json 时调用，无需在回复文本中再提。",
+        {},
+        async () => ({ content: [{ type: "text", text: "ok" }] }),
+      ),
+      tool(
+        "show_new_project",
+        "通知前端显示「新建项目」按钮。检测到用户想创建新项目时调用。",
+        {},
+        async () => ({ content: [{ type: "text", text: "ok" }] }),
+      ),
+    ],
+  });
+
   return servers as unknown as Record<string, unknown>;
 }
