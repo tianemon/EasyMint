@@ -369,7 +369,7 @@ function Step2Form({
         <label className="block text-sm font-medium text-text-primary">功能清单</label>
         <div className="flex gap-2">
           <button className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors disabled:opacity-40" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
-            {loadingRec === "features" ? "思考中..." : "Mint 推荐"}
+            {loadingRec === "features" ? "Mint 思考中..." : "Mint 推荐"}
           </button>
           <button className="px-3 py-1.5 rounded-lg border border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/10 transition-colors" onClick={addFeature}>+ 添加功能</button>
         </div>
@@ -522,7 +522,7 @@ function Step4Form({
             onClick={onRecommend}
             disabled={!canRecommend}
           >
-            {loadingRec === "tech" ? "Mint 推荐中..." : "Mint 推荐"}
+            {loadingRec === "tech" ? "Mint 思考中..." : "Mint 推荐"}
           </button>
         </div>
         {!canRecommend && (
