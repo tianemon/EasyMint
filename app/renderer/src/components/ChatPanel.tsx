@@ -488,8 +488,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     ? messages.filter((m) => m.role === "ai" && m.entries).pop()?.entries ?? []
     : [];
   const lastToolUses = lastAiEntries.filter((e) => e.kind === "tool_use");
-  const showConfirmDev = !busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_confirm_dev");
-  const showNewProjectBtn = onNewProject && !busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_new_project");
+  const showConfirmDev = !busy && lastToolUses.some((e) => (e as { name?: string }).name === "easymint-ui__show_confirm_dev");
+  const showNewProjectBtn = onNewProject && !busy && lastToolUses.some((e) => (e as { name?: string }).name === "easymint-ui__show_new_project");
   const canSend = input.trim() || attaches.length > 0;
 
   // ── Attach preview (shared between both positions) ─
