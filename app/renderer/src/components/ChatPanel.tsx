@@ -492,7 +492,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const lastUserText = messages.length > 0
     ? messages.filter((m) => m.role === "user" && m.text).pop()?.text ?? ""
     : "";
-  const showNewProjectBtn = onNewProject && /新建|建个|创建|帮我建|我要建|新建.*项目|建.*项目|创建.*项目/.test(lastUserText);
+  const showNewProjectBtn = onNewProject && !lastUserText.startsWith("[系统消息]") && /新建|建个|创建|帮我建|我要建|新建.*项目|建.*项目|创建.*项目/.test(lastUserText);
   const showConfirmDev = lastAiText.includes("确认开发") && !busy;
   const canSend = input.trim() || attaches.length > 0;
 
