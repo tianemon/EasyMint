@@ -815,14 +815,8 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
         };
         const profile = composeProfile(dims);
         const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), buildInitInstruction(profile), data.targets);
-        // Pre-write a loading placeholder — the full init prompt is too large
-        // and blocks the renderer thread. ChatPanel loads from disk within 500ms.
-        if (sidRef.current) {
-          useChatStore.getState().appendUserMsg(sidRef.current, {
-            role: "user", text: "[项目初始化]", timestamp: Date.now(),
-          });
-        }
         ask(initPrompt).catch(() => {});
+        await new Promise((r) => setTimeout(r, 2000));
         const sid = sidRef.current;
         if (openInNewWindow) {
           await window.electronAPI.window.openProject(createdProject.id, sid ?? undefined, true);
