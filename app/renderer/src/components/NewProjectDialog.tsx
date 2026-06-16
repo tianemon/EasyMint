@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildTechRecommendPrompt, buildInitTriggerPrompt, buildDirectoryTranslationPrompt, buildInitInstruction, detectProfile } from "../../../shared/prompts";
+import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildTechRecommendPrompt, buildInitTriggerPrompt, buildDirectoryTranslationPrompt, buildInitInstruction, detectProfile, composeProfile } from "../../../shared/prompts";
+import type { ProjectDimensions, DeployMode, AIIntegration } from "../../../shared/prompts";
 import { useSettingsStore } from "../stores/settings-store";
 import { useChatStore } from "../stores/chat-store";
 import { normalizeEvent } from "./StreamPanel";
@@ -12,7 +13,7 @@ function getWorkspaceDir(): string {
 // ---- Types ----
 
 type BudgetChoice = "充足" | "少量" | "免费";
-type DeployChoice = "云端" | "本地";
+type DeployChoice = "云端" | "本地" | "混合";
 type CompletenessChoice = "full" | "mvp" | "demo";
 
 interface TechOption { value: string; label: string; desc: string }
@@ -33,6 +34,7 @@ interface ProjectFormData {
   techNotes: string;
   techBudget: BudgetChoice;
   deployPlatform: DeployChoice;
+  aiIntegration: AIIntegration;
 }
 
 const TARGET_OPTIONS = [
@@ -135,6 +137,7 @@ const DEFAULT_DATA: ProjectFormData = {
   techNotes: "",
   techBudget: "少量",
   deployPlatform: "本地",
+  aiIntegration: "none",
 };
 
 // ---- Helpers ----
@@ -455,6 +458,27 @@ function Step4Form({
               <button key={opt.value} className={`flex-1 p-3 rounded-lg border transition-colors text-left ${active ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`} onClick={() => onChange({ techBudget: opt.value as BudgetChoice })}>
                 <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
                 <div className="text-xs text-text-secondary mt-0.5">{opt.desc}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* AI 集成 */}
+      <div>
+        <label className="block text-sm font-medium text-text-primary mb-2">AI 能力集成</label>
+        <p className="text-xs text-text-secondary mb-2">你的产品是否需要 AI 能力？这会影响技术架构。</p>
+        <div className="flex gap-2">
+          {[
+            { value: "none", label: "不需要", desc: "无 AI" },
+            { value: "assistant", label: "AI 辅助", desc: "调用 LLM API 增强功能" },
+            { value: "agent", label: "Agent", desc: "自主决策、工具调用" },
+          ].map((opt) => {
+            const active = data.aiIntegration === opt.value;
+            return (
+              <button key={opt.value} className={`flex-1 p-2 rounded-lg border transition-colors text-left ${active ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`} onClick={() => onChange({ aiIntegration: opt.value as AIIntegration })}>
+                <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
+                <div className="text-[10px] text-text-secondary mt-0.5">{opt.desc}</div>
               </button>
             );
           })}
@@ -785,7 +809,18 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
     setInitializing(true);
     try {
       if (createdProject) {
-        const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), buildInitInstruction(detectProfile(data.targets)), data.targets);
+        const dims: ProjectDimensions = {
+          product: detectProfile(data.targets).id as any,
+          deploy: (data.deployPlatform === "云端" ? "cloud" : data.deployPlatform === "混合" ? "hybrid" : "local") as DeployMode,
+          complexity: "medium",
+          ai: data.aiIntegration,
+          storage: data.deployPlatform === "云端" ? "postgres" : "sqlite",
+          productUsesAI: data.aiIntegration !== "none",
+          needsAuth: data.deployPlatform === "云端",
+          needsPayment: false,
+        };
+        const profile = composeProfile(dims);
+        const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), buildInitInstruction(profile), data.targets);
         ask(initPrompt).catch(() => {});
         const sid = sidRef.current;
         if (openInNewWindow) {
