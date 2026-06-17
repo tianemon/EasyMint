@@ -77,8 +77,10 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
         const dotX = elbowX + 30;     // 圆点 x（横线末端）
 
         // 状态判断
+        // 兜底：无 current 且非全部完成 → 第一个节点作为默认聚焦（初始状态）
+        const allDone = timeline.every((e) => e.status === "done");
         const isCurrent = hovered ? entry.stage === hovered
-          : entry.status === "current" || (!hasCurrent && i === 0);
+          : entry.status === "current" || (!hasCurrent && !allDone && i === 0);
         const isDone = entry.status === "done";
 
         // ── 圆点样式 ──
