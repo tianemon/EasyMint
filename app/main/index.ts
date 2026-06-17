@@ -108,7 +108,6 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
 
     // Clean up orphaned SDK session directories for deleted projects
     try {
-      const fs = require("fs");
       const sdkDir = path.join(os.homedir(), ".easymint", "projects");
       if (fs.existsSync(sdkDir)) {
         const projects = store.getProjects().map((p: { path: string }) => p.path.replace(/[:/\\]/g, "-"));
