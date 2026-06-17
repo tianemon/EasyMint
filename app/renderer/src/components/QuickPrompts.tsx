@@ -8,48 +8,18 @@ interface QuickPrompt {
 
 const ALL_PROMPTS: QuickPrompt[] = [
   {
-    label: "查看进度",
-    desc: "汇报已完成和未完成的任务",
-    template: "查看一下当前项目进度，汇报已完成和未完成的任务，以及下一步计划。",
-  },
-  {
-    label: "调整需求",
-    desc: "修改已有的需求或设计",
-    template: "帮我调整一下需求：\n- 原来：\n- 改为：",
-  },
-  {
-    label: "报告 Bug",
-    desc: "结构化描述问题，便于定位",
-    template: "请帮我排查一个 Bug：\n- 问题描述：\n- 预期行为：\n- 实际行为：\n- 复现步骤：",
-  },
-  {
-    label: "新功能",
-    desc: "描述想要的功能和交互流程",
-    template: "帮我实现一个新功能：\n- 功能描述：\n- 交互流程：\n- 关联页面/模块：",
-  },
-  {
-    label: "代码审查",
-    desc: "检查代码质量和潜在问题",
-    template: "帮我审查一下最近的代码变更，检查代码质量、潜在问题和改进空间。",
-  },
-  {
-    label: "技术咨询",
-    desc: "技术选型、架构决策等专业问题",
-    template: "我有一个技术问题想咨询：\n- 场景：\n- 备选方案：\n- 我的考量：",
-  },
-  {
     label: "简化方案",
-    desc: "ponytail · 强制最简实现",
+    desc: "强制最简实现，标准库优先，一行代码好过五十行",
     template: "用 ponytail skill，给我最简方案。",
   },
   {
     label: "精简审查",
-    desc: "ponytail-review · 只砍该砍的",
+    desc: "审查最近改动，找出过度设计的代码",
     template: "用 ponytail-review skill，审查最近的改动有没有过度设计。",
   },
   {
     label: "全库体检",
-    desc: "ponytail-audit · 扫描臃肿代码",
+    desc: "扫描整个项目，列出该删、该简化、该替换的",
     template: "用 ponytail-audit skill，扫描整个项目的臃肿代码。",
   },
 ];
