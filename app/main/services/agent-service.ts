@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import { BrowserWindow } from "electron";
 import type { SDKMessage, Options as QueryOptions, PermissionMode } from "@anthropic-ai/claude-agent-sdk";
+import { resolveHome } from "../utils/paths";
 
 const LOG = path.join(os.homedir(), ".easymint", "easymint.log");
 function log(msg: string) { try { fs.appendFileSync(LOG, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } }
@@ -125,9 +126,9 @@ function resolveModel(model: string | undefined, store: Store): string | undefin
 /** Build a query options block, reading API config from the Store. */
 function buildQueryOptions(projectPath: string, store: Store, isResume: boolean, permissionMode: PermissionMode = "auto", overrides?: Partial<QueryOptions>): QueryOptions {
   const defaultDir = store.getSettings().defaultProjectDir || path.join(os.homedir(), "EasyMintProject");
-  const baseDir = defaultDir.startsWith("~") ? path.join(os.homedir(), defaultDir.slice(1)) : defaultDir;
+  const baseDir = resolveHome(defaultDir);
   const resolvedPath = projectPath || path.join(baseDir, "workspace");
-  const cwd = path.resolve(resolvedPath.startsWith("~") ? path.join(os.homedir(), resolvedPath.slice(1)) : resolvedPath).replace(/\\/g, "/");
+  const cwd = path.resolve(resolveHome(resolvedPath)).replace(/\\/g, "/");
   if (!fs.existsSync(cwd)) fs.mkdirSync(cwd, { recursive: true });
   console.log("[buildQueryOptions] projectPath=%s → cwd=%s", projectPath || "(empty)", cwd);
 

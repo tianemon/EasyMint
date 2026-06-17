@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import os from "os";
+import { resolveHome } from "../utils/paths";
 
 interface FileNode {
   name: string;
@@ -11,10 +11,7 @@ interface FileNode {
 
 export class FileService {
   private expand(p: string): string {
-    if (p.startsWith("~")) {
-      return path.join(os.homedir(), p.slice(1));
-    }
-    return p;
+    return resolveHome(p);
   }
 
   readTree(dirPath: string): FileNode[] {

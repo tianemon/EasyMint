@@ -13,6 +13,7 @@ try { fs.mkdirSync(path.dirname(LOG2), { recursive: true }); } catch { /* ignore
 const dlog = (msg: string) => { try { fs.appendFileSync(LOG2, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } };
 dlog("EasyMint starting...");
 
+import { resolveHome } from "./utils/paths";
 import { registerIpcHandlers } from "./ipc-handlers";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
@@ -113,7 +114,7 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
         const projects = store.getProjects().map((p: { path: string }) => p.path.replace(/[:/\\]/g, "-"));
         // Keep the fallback workspace (no-project sessions use this dir)
         const defaultDir = store.getSettings().defaultProjectDir || path.join(os.homedir(), "EasyMintProject");
-        const workspacePath = defaultDir.startsWith("~") ? path.join(os.homedir(), defaultDir.slice(1), "workspace") : path.join(defaultDir, "workspace");
+        const workspacePath = path.join(resolveHome(defaultDir), "workspace");
         const workspaceKey = workspacePath.replace(/[:/\\]/g, "-");
         projects.push(workspaceKey);
         for (const entry of fs.readdirSync(sdkDir)) {

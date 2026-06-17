@@ -4,6 +4,7 @@ import path from "path";
 import os from "os";
 import { shell } from "electron";
 import { Store } from "./store";
+import { resolveHome } from "../utils/paths";
 
 interface Project {
   id: string;
@@ -43,7 +44,7 @@ export class ProjectService {
 
   create(opts: { name: string; path: string }): Project {
     const projects = this.store.getProjects();
-    const basePath = opts.path.startsWith("~") ? path.join(os.homedir(), opts.path.slice(1)) : opts.path;
+    const basePath = resolveHome(opts.path);
     const resolvedPath = path.resolve(basePath, opts.name);
     const project: Project = {
       id: randomUUID(),

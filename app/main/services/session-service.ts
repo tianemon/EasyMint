@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync
 import path from "node:path";
 import os from "node:os";
 import type { SDKSessionInfo, SessionMessage } from "@anthropic-ai/claude-agent-sdk";
+import { resolveHome } from "../utils/paths";
 import { deleteCache } from "./session-cache";
 
 const DATA_DIR = path.join(os.homedir(), ".easymint");
@@ -17,8 +18,7 @@ const ARCHIVED_PATH = path.join(DATA_DIR, "archived-sessions.json");
 
 /** Normalize a directory path for SDK session APIs — expand ~, resolve to absolute, strip trailing slash, use forward slashes. */
 function normalizeDir(dir: string): string {
-  let resolved = dir.startsWith("~") ? path.join(os.homedir(), dir.slice(1)) : dir;
-  resolved = path.resolve(resolved);
+  const resolved = path.resolve(resolveHome(dir));
   return resolved.replace(/\\/g, "/");
 }
 

@@ -12,17 +12,13 @@ import { z } from "zod";
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import { homedir } from "node:os";
+import { resolveHome } from "../utils/paths";
 import { BrowserWindow } from "electron";
 
 // ── Config ──────────────────────────────────────────
 
 const VISION_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const VISION_MODEL = "qwen3.6-flash";
-
-/** Resolve paths ~/ → /Users/xxx/ */
-function resolve(input: string): string {
-  return input.startsWith("~") ? input.replace(/^~/, homedir()) : input;
-}
 
 // ── Helpers ─────────────────────────────────────────
 
@@ -56,7 +52,7 @@ async function describeImage(args: { path: string; prompt?: string }): Promise<s
   const key = keys.VISION_API_KEY;
   if (!key) return "VISION_API_KEY 未配置，请在设置中填写 DashScope API Key。";
 
-  const src = resolve(args.path);
+  const src = resolveHome(args.path);
   let imageContent: Record<string, unknown>;
 
   if (src.startsWith("http://") || src.startsWith("https://")) {

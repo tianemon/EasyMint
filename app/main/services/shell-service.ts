@@ -1,5 +1,5 @@
 import { spawn } from "child_process";
-import path from "path";
+import { resolveHome } from "../utils/paths";
 
 export interface ShellExecResult {
   code: number | null;
@@ -18,9 +18,7 @@ export function execShell(
   onStderr: (line: string) => void,
 ): Promise<ShellExecResult> {
   return new Promise((resolve) => {
-    const cwd = projectPath.startsWith("~")
-      ? path.join(require("os").homedir(), projectPath.slice(1))
-      : projectPath;
+    const cwd = resolveHome(projectPath);
 
     const proc = spawn("bash", ["-c", command], {
       cwd,
