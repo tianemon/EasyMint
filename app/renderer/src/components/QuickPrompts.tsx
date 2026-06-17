@@ -37,6 +37,21 @@ const ALL_PROMPTS: QuickPrompt[] = [
     desc: "技术选型、架构决策等专业问题",
     template: "我有一个技术问题想咨询：\n- 场景：\n- 备选方案：\n- 我的考量：",
   },
+  {
+    label: "简化方案",
+    desc: "ponytail · 强制最简实现",
+    template: "用 ponytail skill，给我最简方案。",
+  },
+  {
+    label: "精简审查",
+    desc: "ponytail-review · 只砍该砍的",
+    template: "用 ponytail-review skill，审查最近的改动有没有过度设计。",
+  },
+  {
+    label: "全库体检",
+    desc: "ponytail-audit · 扫描臃肿代码",
+    template: "用 ponytail-audit skill，扫描整个项目的臃肿代码。",
+  },
 ];
 
 interface QuickPromptsProps {
