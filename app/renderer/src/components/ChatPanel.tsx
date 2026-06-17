@@ -127,6 +127,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const [_currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentChatRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
+  const busyRef = useRef(false);
+  const lastStatusRef = useRef("");
   const [summarizing, setSummarizing] = useState(false);
   const [ctxPct, setCtxPct] = useState(0);
   const imgInputRef = useRef<HTMLInputElement>(null);
@@ -308,8 +310,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       }
       if (stoppedRef.current) return;
       if (!currentChatRef.current) { currentChatRef.current = event.runId; setCurrentRunId(event.runId); }
-      setBusy(true); setBusy(true);
-      if (event.type === "status") { setStatusText(typeof event.data.text === "string" ? event.data.text : "处理中..."); return; }
+      // 仅在首次事件设 busy（用 ref 避免闭包捕获旧值），避免每秒数十次 state 更新导致重渲染卡顿
+      if (!busyRef.current) { busyRef.current = true; setBusy(true); }
+      if (event.type === "status") {
+        const st = typeof event.data.text === "string" ? event.data.text : "处理中...";
+        if (lastStatusRef.current !== st) { lastStatusRef.current = st; setStatusText(st); }
+        return;
+      }
       if (event.type === "tool_use") {
         const name = typeof event.data.name === "string" ? event.data.name : "";
         const input = event.data.input as Record<string, unknown> | undefined;
@@ -341,7 +348,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             label += `: ${ctx.split("/").pop() || ctx}`;
           }
         }
-        if (label) setStatusText(label);
+        if (label && lastStatusRef.current !== label) { lastStatusRef.current = label; setStatusText(label); }
       }
       // Task subagent completion → refresh project status
       if (event.type === "tool_result" && (event.data as { tool_use_id?: string }).tool_use_id) {
@@ -356,7 +363,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       _curAi = useChatStore.getState().appendAiEntry(sidRef.current, entry);
       scrollToBottom();
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; _curAi = 0; setBusy(false); onActivity?.(); });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; _curAi = 0; busyRef.current = false; lastStatusRef.current = ""; setBusy(false); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;
@@ -455,7 +462,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (inputHistoryRef.current.length > 100) inputHistoryRef.current.pop();
     persistHistory();
     historyPosRef.current = -1;
-    setBusy(true); setStatusText("思考中...");
+    busyRef.current = true; lastStatusRef.current = "思考中..."; setBusy(true); setStatusText("思考中...");
     onActivity?.(); // 立即刷新会话列表，不等 Mint 回复
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
 
@@ -465,7 +472,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
       // chat 模式 fire-and-forget：replyText 不 await，AI 消息入 store 由下方 onStream 负责
       result.replyText.catch(() => {});
-    } catch { setBusy(false); currentChatRef.current = null; }
+    } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; }
   }, [input, busy, attaches, projectPath, permissionMode]);
 
   useEffect(() => { chatActions.register((t: string) => sendText(t)); return () => chatActions.unregister(); }, [sendText]);
@@ -701,7 +708,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
               </div>
             ) : busy ? (
-              <button onClick={() => { stoppedRef.current = true; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
+              <button onClick={() => { stoppedRef.current = true; busyRef.current = false; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
                 className="w-9 h-9 rounded-md bg-danger-bg text-danger flex items-center justify-center hover:bg-danger-bg transition-colors">
                 <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
               </button>
