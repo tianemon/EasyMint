@@ -126,6 +126,45 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const stoppedRef = useRef(false);
   const busyRef = useRef(false);
   const lastStatusRef = useRef("");
+
+  /** 从流事件更新状态栏——Effect A（缓冲补放）和 Effect B（实时 onStream）共用 */
+  const updateStreamStatus = useCallback((event: StreamEvent, setBusyFn: (v: boolean) => void) => {
+    if (!busyRef.current) { busyRef.current = true; setBusyFn(true); }
+    if (event.type === "status") {
+      const st = typeof event.data.text === "string" ? event.data.text : "处理中...";
+      if (lastStatusRef.current !== st) { lastStatusRef.current = st; useStatusStore.getState().setText(st); }
+      return;
+    }
+    if (event.type === "tool_use") {
+      const name = typeof event.data.name === "string" ? event.data.name : "";
+      const input = event.data.input as Record<string, unknown> | undefined;
+      const labels: Record<string, string> = {
+        Bash: "执行命令", Read: "读取文件", Write: "写入文件", Edit: "编辑文件",
+        Grep: "搜索内容", Glob: "搜索文件", WebFetch: "抓取网页", WebSearch: "搜索网页",
+        Task: "Agent", TodoWrite: "待办",
+      };
+      let label = labels[name] || name;
+      const skillInInput = input?.skill as string | undefined;
+      if (skillInInput) {
+        label = `调用 Skill: ${skillInInput}`;
+      } else if (name.startsWith("Skill__")) {
+        label = `调用 Skill: ${name.slice(7)}`;
+      } else if (name.startsWith("mcp__")) {
+        label = `MCP: ${name.split("__")[1] || "工具"}`;
+      }
+      if (name === "Bash") {
+        const cmd = input?.command as string | undefined;
+        if (cmd) label += `: ${cmd.length > 50 ? cmd.slice(0, 50) + "…" : cmd}`;
+      } else if (name === "Task") {
+        const agent = input?.subagent_type as string | undefined;
+        label = agent ? `调用 Agent: ${agent}` : "调用 Agent";
+      } else {
+        const ctx = (input?.file_path || input?.filePath || input?.url || input?.query || input?.pattern || input?.target_file) as string | undefined;
+        if (ctx && typeof ctx === "string" && ctx.length < 80) label += `: ${ctx.split("/").pop() || ctx}`;
+      }
+      if (label && lastStatusRef.current !== label) { lastStatusRef.current = label; useStatusStore.getState().setText(label); }
+    }
+  }, []);
   // 状态栏独立存储 → 密集更新时只重渲染 StatusBar，不牵连 ChatPanel/消息列表
   // 注意：ChatPanel 不读 s.text，否则每次 statusText 变化都会重渲染整个组件
   const summarizing = useStatusStore((s) => s.summarizing);
@@ -259,6 +298,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             const ev = raw as StreamEvent;
             // seq 去重：实时 onStream 可能已处理过该事件，跳过避免双写
             if (typeof ev.seq === "number" && processedSeqRef.current.has(ev.seq)) continue;
+            // 状态栏更新（setBusy/setText）——缓冲补放和实时 onStream 共用同一逻辑
+            updateStreamStatus(ev, setBusy);
             const entry = normalizeEvent(ev); if (!entry) continue;
             if (typeof ev.seq === "number") processedSeqRef.current.add(ev.seq);
             _cur = useChatStore.getState().appendAiEntry(sidRef.current, entry);
@@ -309,46 +350,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       }
       if (stoppedRef.current) return;
       if (!currentChatRef.current) { currentChatRef.current = event.runId; setCurrentRunId(event.runId); }
-      // 仅在首次事件设 busy（用 ref 避免闭包捕获旧值），避免每秒数十次 state 更新导致重渲染卡顿
-      if (!busyRef.current) { busyRef.current = true; setBusy(true); }
-      if (event.type === "status") {
-        const st = typeof event.data.text === "string" ? event.data.text : "处理中...";
-        if (lastStatusRef.current !== st) { lastStatusRef.current = st; useStatusStore.getState().setText(st); }
-        return;
-      }
-      if (event.type === "tool_use") {
-        const name = typeof event.data.name === "string" ? event.data.name : "";
-        const input = event.data.input as Record<string, unknown> | undefined;
-        const labels: Record<string, string> = {
-          Bash: "执行命令", Read: "读取文件", Write: "写入文件", Edit: "编辑文件",
-          Grep: "搜索内容", Glob: "搜索文件", WebFetch: "抓取网页", WebSearch: "搜索网页",
-          Task: "Agent", TodoWrite: "待办",
-        };
-        let label = labels[name] || name;
-        const skillInInput = input?.skill as string | undefined;
-        if (skillInInput) {
-          label = `调用 Skill: ${skillInInput}`;
-        } else if (name.startsWith("Skill__")) {
-          label = `调用 Skill: ${name.slice(7)}`;
-        } else if (name.startsWith("mcp__")) {
-          const parts = name.split("__");
-          label = `MCP: ${parts[1] || "工具"}`;
-        }
-        // Append context for relevant tools
-        if (name === "Bash") {
-          const cmd = input?.command as string | undefined;
-          if (cmd) label += `: ${cmd.length > 50 ? cmd.slice(0, 50) + "…" : cmd}`;
-        } else if (name === "Task") {
-          const agent = input?.subagent_type as string | undefined;
-          label = agent ? `调用 Agent: ${agent}` : "调用 Agent";
-        } else {
-          const ctx = (input?.file_path || input?.filePath || input?.url || input?.query || input?.pattern || input?.target_file) as string | undefined;
-          if (ctx && typeof ctx === "string" && ctx.length < 80) {
-            label += `: ${ctx.split("/").pop() || ctx}`;
-          }
-        }
-        if (label && lastStatusRef.current !== label) { lastStatusRef.current = label; useStatusStore.getState().setText(label); }
-      }
+      // 状态栏更新（setBusy/setText）——与 Effect A 缓冲补放共用同一逻辑
+      updateStreamStatus(event, setBusy);
       // Task subagent completion → refresh project status
       if (event.type === "tool_result" && (event.data as { tool_use_id?: string }).tool_use_id) {
         onActivity?.();
