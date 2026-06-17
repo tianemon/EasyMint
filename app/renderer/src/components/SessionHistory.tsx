@@ -1,11 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useSettingsStore } from "../stores/settings-store";
+import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 import { sessionListActions } from "../stores/session-list-actions";
 
-function getWorkspaceDir(): string {
-  const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
-  return `${base.replace(/\/$/, "")}/workspace`;
-}
 
 interface SessionItem {
   sessionId: string;

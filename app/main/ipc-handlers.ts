@@ -1,4 +1,7 @@
 import { BrowserWindow, ipcMain, dialog } from "electron";
+import p from "path";
+import fs from "fs";
+import os from "os";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
 import { AgentService } from "./services/agent-service";
@@ -8,6 +11,7 @@ import { detectGit } from "./utils/git-detector";
 import { detectNode } from "./utils/node-detector";
 import { detectNpx } from "./utils/npx-detector";
 import { detectCodegraph } from "./utils/codegraph-detector";
+import { IMAGE_MIME } from "./utils/paths";
 import { execShell } from "./services/shell-service";
 import { closeProjectWindows } from "./services/window-manager";
 import {
@@ -234,9 +238,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // project:checkInitStatus — check if init.sh has been filled
   ipcMain.handle("project:checkInitStatus", (_e, { projectPath }) => {
     try {
-      const p = require("path");
-      const fs = require("fs");
-      const filePath = p.join(projectPath, "init.sh");
+const filePath = p.join(projectPath, "init.sh");
       if (!fs.existsSync(filePath)) return { done: false, reason: "init.sh not found" };
       const content = fs.readFileSync(filePath, "utf-8");
       return { done: !content.includes("{{PROJECT_DIR}}"), reason: content.includes("{{PROJECT_DIR}}") ? "still template" : "filled" };
@@ -246,9 +248,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // project:readState — read .easymint/state.json in project
   ipcMain.handle("project:readState", (_e, { projectPath }) => {
     try {
-      const p = require("path");
-      const fs = require("fs");
-      const filePath = p.join(projectPath, ".easymint", "state.json");
+const filePath = p.join(projectPath, ".easymint", "state.json");
       if (!fs.existsSync(filePath)) return null;
       return JSON.parse(fs.readFileSync(filePath, "utf-8"));
     } catch { return null; }
@@ -257,9 +257,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // project:writeState — merge-write .easymint/state.json in project
   ipcMain.handle("project:writeState", (_e, { projectPath, state }) => {
     try {
-      const p = require("path");
-      const fs = require("fs");
-      const dir = p.join(projectPath, ".easymint");
+const dir = p.join(projectPath, ".easymint");
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       const filePath = p.join(dir, "state.json");
       let existing: Record<string, unknown> = {};
@@ -275,9 +273,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // task:read — read task.json and return tasks
   ipcMain.handle("task:read", (_e, { projectPath }) => {
     try {
-      const p = require("path");
-      const fs = require("fs");
-      const filePath = p.join(projectPath, "task.json");
+const filePath = p.join(projectPath, "task.json");
       if (!fs.existsSync(filePath)) return { tasks: [] };
       const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
       return { tasks: (data.tasks || []).map((t: { id: number; title: string; description?: string; steps?: string[]; status?: string; attempts?: number }) => ({
@@ -293,9 +289,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
 
   // file:saveUpload — save uploaded image to ~/.easymint/uploads/
   ipcMain.handle("file:saveUpload", async (_e, { name, data }: { name: string; data: number[] }) => {
-    const os = require("os");
-    const fs = require("fs");
-    const p = require("path");
     const uploadDir = p.join(os.homedir(), ".easymint", "uploads");
     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
     const timestamp = Date.now();
@@ -304,8 +297,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     const buf = Buffer.from(data);
     fs.writeFileSync(filePath, buf);
     const ext = p.extname(name).toLowerCase();
-    const mimeMap: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp", ".svg": "image/svg+xml" };
-    const mime = mimeMap[ext] || "image/png";
+    const mime = IMAGE_MIME[ext] || "image/png";
     const result = { path: filePath, dataUrl: `data:${mime};base64,${buf.toString("base64")}` };
     trackUpload(safeName, buf.length);
     return result;
@@ -313,17 +305,13 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
 
   // file:readUpload — read an uploaded file and return as data URL (for history restore)
   ipcMain.handle("file:readUpload", async (_e, { filePath }: { filePath: string }) => {
-    const fs = require("fs");
-    const p = require("path");
-    const os = require("os");
     // Security: only allow files under ~/.easymint/uploads/
     const allowedDir = p.resolve(p.join(os.homedir(), ".easymint", "uploads"));
     if (!p.resolve(filePath).startsWith(allowedDir)) return null;
     if (!fs.existsSync(filePath)) return null;
     const buf = fs.readFileSync(filePath);
     const ext = p.extname(filePath).toLowerCase();
-    const mimeMap: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp", ".svg": "image/svg+xml" };
-    const mime = mimeMap[ext] || "image/png";
+    const mime = IMAGE_MIME[ext] || "image/png";
     return `data:${mime};base64,${buf.toString("base64")}`;
   });
 

@@ -11,11 +11,7 @@ import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
 import { postToAgent } from "../lib/agent-stream";
 import { useStatusStore } from "../stores/status-store";
 import { StatusBar } from "./StatusBar";
-
-function getWorkspaceDir(): string {
-  const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
-  return `${base.replace(/\/$/, "")}/workspace`;
-}
+import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 
 interface AttachItem {
   name: string;

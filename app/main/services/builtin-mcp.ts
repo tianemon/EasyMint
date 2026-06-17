@@ -12,7 +12,7 @@ import { z } from "zod";
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import { homedir } from "node:os";
-import { resolveHome } from "../utils/paths";
+import { resolveHome, IMAGE_MIME } from "../utils/paths";
 import { BrowserWindow } from "electron";
 
 // ── Config ──────────────────────────────────────────
@@ -60,8 +60,7 @@ async function describeImage(args: { path: string; prompt?: string }): Promise<s
   } else {
     if (!existsSync(src)) return `文件不存在: ${src}`;
     const ext = extname(basename(src)).toLowerCase();
-    const MIME: Record<string, string> = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp" };
-    const mime = MIME[ext] || "image/png";
+    const mime = IMAGE_MIME[ext] || "image/png";
     const data = readFileSync(src).toString("base64");
     imageContent = { type: "image_url", image_url: { url: `data:${mime};base64,${data}` } };
   }

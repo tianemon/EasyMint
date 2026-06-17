@@ -4,11 +4,7 @@ import type { ProjectDimensions, DeployMode, AIIntegration } from "../../../shar
 import { useSettingsStore } from "../stores/settings-store";
 import { postToAgent } from "../lib/agent-stream";
 import { sessionListActions } from "../stores/session-list-actions";
-
-function getWorkspaceDir(): string {
-  const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
-  return `${base.replace(/\/$/, "")}/workspace`;
-}
+import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 
 // ---- Types ----
 

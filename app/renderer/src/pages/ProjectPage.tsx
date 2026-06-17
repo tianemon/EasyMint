@@ -14,14 +14,9 @@ import { useWorkspaceStore, ratioToPx } from "../stores/workspace-store";
 import { useTabStore } from "../stores/tab-store";
 import { useTaskStore, type TaskStatus } from "../stores/task-store";
 import { useProjectStatusStore, type ProjectStage } from "../stores/project-status-store";
-import { useSettingsStore } from "../stores/settings-store";
 import { chatActions } from "../stores/chat-actions";
 import { CONTINUE_NEXT_STEP } from "../../../shared/prompts";
-
-function getWorkspaceDir(): string {
-  const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
-  return `${base.replace(/\/$/, "")}/workspace/`;
-}
+import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 
 export type ActivePanel = "editor" | "files" | "sessions" | "chat";
 
