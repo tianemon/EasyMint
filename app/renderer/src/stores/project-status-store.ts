@@ -52,7 +52,7 @@ function buildTimeline(stage: ProjectStage, stageTimes: Record<string, number>):
   return STAGE_ORDER.map((s, i) => ({
     stage: s,
     label: STAGE_LABELS[s],
-    status: i < currentIdx ? "done" : i === currentIdx ? "current" : "pending",
+    status: i < currentIdx ? "done" : stage === "done" ? "done" : i === currentIdx ? "current" : "pending",
     time: fmtTime(stageTimes[s]),
   })) as StageEntry[];
 }
