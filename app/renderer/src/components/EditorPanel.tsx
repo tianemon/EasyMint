@@ -4,30 +4,9 @@ import * as monaco from "monaco-editor";
 import type { editor } from "monaco-editor";
 import { useTabStore } from "../stores/tab-store";
 
-// Load Monaco from local bundle, not CDN
+// Load Monaco from local bundle, not CDN.
+// Worker loading is handled by vite-plugin-monaco-editor.
 loader.config({ monaco });
-
-// Configure web workers — Vite dev uses URL imports, prod falls back to main thread
-try {
-  const workerUrl = (path: string) => new URL(path, import.meta.url);
-  (self as unknown as Record<string, unknown>).MonacoEnvironment = {
-    getWorker(_workerId: string, label: string) {
-      const map: Record<string, string> = {
-        json: "monaco-editor/esm/vs/language/json/json.worker.js",
-        css: "monaco-editor/esm/vs/language/css/css.worker.js",
-        html: "monaco-editor/esm/vs/language/html/html.worker.js",
-        typescript: "monaco-editor/esm/vs/language/typescript/ts.worker.js",
-        javascript: "monaco-editor/esm/vs/language/typescript/ts.worker.js",
-        handlebars: "monaco-editor/esm/vs/language/typescript/ts.worker.js",
-        editorWorkerService: "monaco-editor/esm/vs/editor/editor.worker.js",
-      };
-      const p = map[label] || map.editorWorkerService!;
-      return new Worker(workerUrl(p), { type: "module" });
-    },
-  };
-} catch {
-  // Production build — Monaco handles workers internally via loader.config
-}
 
 interface EditorPanelProps {
   filePath?: string;

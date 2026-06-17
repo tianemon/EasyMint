@@ -1,10 +1,17 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import monacoEditorPlugin from "vite-plugin-monaco-editor";
 import path from "path";
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    monacoEditorPlugin({
+      languageWorkers: ["editorWorkerService", "json"],
+    }),
+  ],
   root: __dirname,
   base: "./",
   publicDir: path.resolve(__dirname, "..", "..", "assets"),
