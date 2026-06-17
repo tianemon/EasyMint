@@ -626,13 +626,15 @@ let _mainWindow: BrowserWindow | null = null;
 export function setMainWindow(win?: BrowserWindow) { if (win) _mainWindow = win; }
 
 // ── SDK message → StreamEvent mapping ──
+// 全局单调递增 seq：每个流事件唯一标识，前端用于缓冲补放 vs 实时流去重
+let _streamSeq = 0;
 function toStreamEvent(msg: SDKMessage, runId: string, sessionId: string, source: "worker" | "chat"): {
-  runId: string; sessionId: string; type: string; data: Record<string, unknown>; timestamp: number; source: string;
+  seq: number; runId: string; sessionId: string; type: string; data: Record<string, unknown>; timestamp: number; source: string;
 } | null {
   const ts = Date.now();
   const t = msg.type;
   // Filtering key: ChatPanel only processes events matching its own sessionId
-  const base = { runId, sessionId, timestamp: ts, source };
+  const base = { seq: ++_streamSeq, runId, sessionId, timestamp: ts, source };
 
   if (t === "assistant") {
     const content = (msg as { message?: { content?: unknown[] } }).message?.content;

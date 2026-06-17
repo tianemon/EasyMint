@@ -134,7 +134,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   agent: {
     runWorker: (projectPath: string, prompt: string) =>
       ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null }) =>
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string }) =>
       ipcRenderer.invoke("agent:sendMessage", { projectPath, message, ...opts }),
     abort: (runId: string) => ipcRenderer.invoke("agent:abort", { runId }),
     setModel: (sessionId: string, model: string) => ipcRenderer.invoke("agent:setModel", { sessionId, model }) as Promise<void>,

@@ -2,8 +2,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildTechRecommendPrompt, buildInitTriggerPrompt, buildDirectoryTranslationPrompt, buildInitInstruction, detectProfile, composeProfile } from "../../../shared/prompts";
 import type { ProjectDimensions, DeployMode, AIIntegration } from "../../../shared/prompts";
 import { useSettingsStore } from "../stores/settings-store";
-import { useChatStore } from "../stores/chat-store";
-import { normalizeEvent } from "./StreamPanel";
+import { postToAgent } from "../lib/agent-stream";
+import { sessionListActions } from "../stores/session-list-actions";
 
 function getWorkspaceDir(): string {
   const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
@@ -595,79 +595,48 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
   const ask = useCallback((prompt: string, opts?: { forceNewSession?: boolean }): Promise<string> => {
     const cwd = getCwd();
     const sessionId = opts?.forceNewSession ? null : sidRef.current;
-    return new Promise((resolve) => {
-      let chatId = "";
-      let text = "";
-      let unsubStream: (() => void) | null = null;
-      let unsubSession: (() => void) | null = null;
-      let unsubExit: (() => void) | null = null;
-
-      const teardown = () => {
-        unsubStream?.(); unsubSession?.(); unsubExit?.();
-      };
-
-      unsubStream = window.electronAPI.agent.onStream((event: any) => {
-        if (event.source !== "chat") return;
-        // Only this ask()'s chat — filtered by chatId assigned after sendMessage
-        if (chatId && (!event.runId || event.runId !== chatId)) return;
-        // Accumulate text from this response only
-        if (event.type === "assistant" && typeof event.data.text === "string") text += event.data.text;
-        // Also write to shared store (so ChatPanel sees it if mounted)
-        const entry = normalizeEvent(event);
-        if (entry && sidRef.current) useChatStore.getState().appendAiEntry(sidRef.current, entry);
-      });
-
-      unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }: { sessionId: string }) => {
-        if (sid) sidRef.current = sid;
-      });
-
-      unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => {
-        if (chatId && runId !== chatId) return;
-        teardown();
-        resolve(text.trim());
-      });
-
-      window.electronAPI.agent.sendMessage(cwd, prompt, { sessionId }).then((result: { chatId: string }) => {
-        chatId = result.chatId;
-      }).catch(() => { teardown(); resolve(""); });
+    // 捕获本次会话的真实 sessionId（新会话首消息携带），更新 sidRef 供后续复用
+    const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }: { sessionId: string }) => {
+      if (sid) sidRef.current = sid;
     });
+    return postToAgent({ cwd, sessionId }, prompt)
+      .then((r) => r.replyText)
+      .catch(() => "")
+      .finally(() => { unsubSession(); });
   }, [pathRef]);
 
   /**
    * One-shot workspace ask for lightweight tasks like name translation.
-   * Always creates a fresh chat with a fast model, kills it after the response.
+   * Always creates a fresh chat with a fast model, deletes the session after.
+   *
+   * 时序：等 onExit（SDK 正常完成） → killChat（关闭 chat，触发 SDK flush 并阻止后续写入）
+   * → 延迟确保 flush 完成 → deleteSession（删文件） → 刷新会话列表。
+   * killChat 必须在 delete 之前，否则 SDK 内部状态在 chat 销毁时重新写回元数据到磁盘。
    */
   const askWorkspace = useCallback((prompt: string): Promise<string> => {
-    return new Promise((resolve) => {
-      let chatId = "";
-      let sessionId = "";
-      let text = "";
-      const unsubStream = window.electronAPI.agent.onStream((event: StreamEvent) => {
-        if (chatId && event.runId !== chatId) return;
-        if (event.type === "assistant" && typeof event.data.text === "string") text += event.data.text;
-      });
-      const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => {
-        if (sid) { sessionId = sid; window.electronAPI.conv.rename(sid, `[翻译] ${Date.now()}`, WORKSPACE_DIR).catch(() => {}); }
-      });
-      const unsubExit = window.electronAPI.agent.onExit(({ runId }) => {
-        if (chatId && runId !== chatId) return;
-        unsubStream(); unsubSession(); unsubExit();
-        if (runId) window.electronAPI.agent.killChat(runId).catch(() => {});
-        // Delay delete to ensure SDK has finished writing session to disk
-        if (sessionId) {
-          setTimeout(() => {
-            window.electronAPI.conv.delete(sessionId, WORKSPACE_DIR).catch(() => {});
-          }, 500);
-        }
-        resolve(text.trim());
-      });
-      window.electronAPI.agent.sendMessage(WORKSPACE_DIR, prompt, {
-        sessionId: null,
-        model: "deepseek-v4-flash",
-      }).then((result) => {
-        chatId = result.chatId;
-      }).catch(() => { unsubStream(); unsubSession(); unsubExit(); resolve(""); });
+    let capturedSessionId = "";
+    let capturedChatId = "";
+    const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => {
+      if (sid) capturedSessionId = sid;
     });
+    return postToAgent({ cwd: WORKSPACE_DIR, sessionId: null, model: "deepseek-v4-flash" }, prompt)
+      .then(async (r) => { capturedChatId = r.chatId; return await r.replyText; })
+      .catch(() => "")
+      .finally(() => {
+        unsubSession();
+        if (capturedSessionId && capturedChatId) {
+          // ① 先 killChat——关闭 channel + abort + close query，触发 SDK flush
+          window.electronAPI.agent.killChat(capturedChatId).catch(() => {});
+          // ② 延迟后 delete——确保 flush 完成再删文件
+          setTimeout(() => {
+            window.electronAPI.conv.delete(capturedSessionId, WORKSPACE_DIR)
+              .then(() => sessionListActions.refresh())
+              .catch(() => {});
+          }, 500);
+        } else {
+          console.warn("[askWorkspace] missing sessionId or chatId, skip delete");
+        }
+      });
   }, []);
 
   return { ask, askWorkspace, sidRef };

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSettingsStore } from "../stores/settings-store";
+import { sessionListActions } from "../stores/session-list-actions";
 
 function getWorkspaceDir(): string {
   const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
@@ -76,6 +77,11 @@ export function SessionHistory({
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (refreshKey) load(); }, [refreshKey, load]);
+  // 允许其他组件（如 askWorkspace 后台删会话）触发本列表刷新
+  useEffect(() => {
+    sessionListActions.register(load);
+    return () => sessionListActions.unregister();
+  }, [load]);
   useEffect(() => {
     const onFocus = () => load();
     window.addEventListener("focus", onFocus);

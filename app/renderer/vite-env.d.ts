@@ -36,6 +36,7 @@ interface Session {
 
 // JSONL stream event types from Claude --output-format stream-json
 interface StreamEvent {
+  seq: number;           // 全局单调递增，前端去重用
   runId: string;
   sessionId?: string;
   type: "assistant" | "message_delta" | "tool_use" | "tool_result" | "user_message" | "system" | "error" | "status";

@@ -8,6 +8,7 @@ import { useTabStore } from "../stores/tab-store";
 import { useChatStore } from "../stores/chat-store";
 import { QuickPrompts } from "./QuickPrompts";
 import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
+import { postToAgent } from "../lib/agent-stream";
 
 function getWorkspaceDir(): string {
   const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
@@ -172,6 +173,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const msgIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
+  // 已处理事件 seq 集合：缓冲补放（Effect A）与实时 onStream 共享，避免同一事件被两条路径双写
+  const processedSeqRef = useRef<Set<number>>(new Set());
   const sidRef = useRef<string>(initialSid);
   useEffect(() => { if (existingSid) { sidRef.current = existingSid; setSid(existingSid); } }, [existingSid]);
   const runningSessions = useTabStore((s) => s.runningSessions);
@@ -187,7 +190,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   const handleScroll = useCallback(() => {
     const el = containerRef.current; if (!el) return;
-    autoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    // 用户主动滚动：一旦离开底部就立即停止自动跟随（阈值小，轻滑即可解锁），
+    // 避免 onStream 的 scrollToBottom 把用户拉回底部导致"滑不动"。
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    autoScrollRef.current = distFromBottom < 8;
   }, []);
 
   // ── Upload helpers ─────────────────────────────────
@@ -249,7 +255,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         if (!cancelled && buffered.length > 0) {
           let _cur = 0;
           for (const raw of buffered) {
-            const entry = normalizeEvent(raw as StreamEvent); if (!entry) continue;
+            const ev = raw as StreamEvent;
+            // seq 去重：实时 onStream 可能已处理过该事件，跳过避免双写
+            if (typeof ev.seq === "number" && processedSeqRef.current.has(ev.seq)) continue;
+            const entry = normalizeEvent(ev); if (!entry) continue;
+            if (typeof ev.seq === "number") processedSeqRef.current.add(ev.seq);
             _cur = useChatStore.getState().appendAiEntry(sidRef.current, entry);
           }
         }
@@ -338,6 +348,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         onActivity?.();
       }
       const entry = normalizeEvent(event); if (!entry) return;
+      // seq 去重：缓冲补放（Effect A）可能已处理过该事件，跳过避免双写
+      if (typeof event.seq === "number") {
+        if (processedSeqRef.current.has(event.seq)) return;
+        processedSeqRef.current.add(event.seq);
+      }
       _curAi = useChatStore.getState().appendAiEntry(sidRef.current, entry);
       scrollToBottom();
     });
@@ -446,8 +461,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
     try {
       currentChatRef.current = null;
-      const result = await window.electronAPI.agent.sendMessage(projectPath, agentText, { sessionId: existingSid ?? null, permissionMode });
+      const result = await postToAgent({ cwd: projectPath, sessionId: existingSid ?? null, permissionMode }, agentText);
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
+      // chat 模式 fire-and-forget：replyText 不 await，AI 消息入 store 由下方 onStream 负责
+      result.replyText.catch(() => {});
     } catch { setBusy(false); currentChatRef.current = null; }
   }, [input, busy, attaches, projectPath, permissionMode]);
 

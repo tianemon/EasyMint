@@ -165,13 +165,22 @@ export async function renameSession(sessionId: string, title: string, projectPat
 
 export async function deleteSession(sessionId: string, projectPath: string): Promise<void> {
   const { deleteSession: ds } = await sdk();
-  await ds(sessionId, { dir: normalizeDir(projectPath) });
+  const dir = normalizeDir(projectPath);
+  sdlog(`[deleteSession] sid=${sessionId} dir=${dir}`);
+  try {
+    await ds(sessionId, { dir });
+    sdlog(`[deleteSession] SDK delete OK sid=${sessionId}`);
+  } catch (e) {
+    sdlog(`[deleteSession] SDK delete FAILED sid=${sessionId} err=${String(e)}`);
+    throw e;
+  }
   const pinned = readPinned();
   delete pinned[sessionId];
   writePinned(pinned);
   deleteCache(sessionId);
   // Clean up SDK satellite directories (session-env, tasks, file-history, telemetry)
   cleanupSessionSatellites(sessionId);
+  sdlog(`[deleteSession] done sid=${sessionId}`);
 }
 
 export async function getSessionInfo(sessionId: string, projectPath: string): Promise<SessionListItem | null> {
