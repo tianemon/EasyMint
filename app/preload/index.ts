@@ -97,7 +97,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   task: {
     read: (projectPath: string) => ipcRenderer.invoke("task:read", { projectPath }),
-    markDone: (projectPath: string, taskId: string) => ipcRenderer.invoke("task:markDone", { projectPath, taskId }),
   },
   shell: {
     exec: (projectPath: string, command: string) => ipcRenderer.invoke("shell:exec", { projectPath, command }),
@@ -186,6 +185,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
       const handler = (_event: Electron.IpcRendererEvent, data: { chatId: string; percentage: number; totalTokens: number; maxTokens: number }) => callback(data);
       ipcRenderer.on("agent:context-usage", handler);
       return () => ipcRenderer.removeListener("agent:context-usage", handler);
+    },
+    onTaskStatus: (callback: (data: { taskId: string; status: string; projectPath: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { taskId: string; status: string; projectPath: string }) => callback(data);
+      ipcRenderer.on("agent:task-status", handler);
+      return () => ipcRenderer.removeListener("agent:task-status", handler);
+    },
+    onProjectStage: (callback: (data: { stage: string; projectPath: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { stage: string; projectPath: string }) => callback(data);
+      ipcRenderer.on("agent:project-stage", handler);
+      return () => ipcRenderer.removeListener("agent:project-stage", handler);
     },
   },
 });

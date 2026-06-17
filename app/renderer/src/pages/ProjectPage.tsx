@@ -12,8 +12,8 @@ import { DragHandle } from "../components/DragHandle";
 import { TitleBar } from "../components/TitleBar";
 import { useWorkspaceStore, ratioToPx } from "../stores/workspace-store";
 import { useTabStore } from "../stores/tab-store";
-import { useTaskStore } from "../stores/task-store";
-import { useProjectStatusStore } from "../stores/project-status-store";
+import { useTaskStore, type TaskStatus } from "../stores/task-store";
+import { useProjectStatusStore, type ProjectStage } from "../stores/project-status-store";
 import { useSettingsStore } from "../stores/settings-store";
 import { chatActions } from "../stores/chat-actions";
 import { CONTINUE_NEXT_STEP } from "../../../shared/prompts";
@@ -126,6 +126,28 @@ export function ProjectPage(): JSX.Element {
     return () => unsub();
   }, [projectId]);
 
+  // Listen for real-time task status updates from set_task_status MCP tool
+  useEffect(() => {
+    const unsub = window.electronAPI.agent.onTaskStatus(({ taskId, status, projectPath: eventPath }) => {
+      // 守卫：只处理当前项目的事件
+      if (eventPath && projectPath && eventPath !== projectPath) return;
+      useTaskStore.getState().updateTask(taskId, { status: status as TaskStatus });
+      // 同步刷新 project-status-store（doneCount / stage / Fishbone stepper）
+      if (projectPath) useProjectStatusStore.getState().refreshAll(projectPath);
+    });
+    return () => unsub();
+  }, [projectPath]);
+
+  // Listen for real-time project stage updates from set_project_stage MCP tool
+  useEffect(() => {
+    const unsub = window.electronAPI.agent.onProjectStage(({ stage, projectPath: eventPath }) => {
+      // 守卫：只处理当前项目的事件
+      if (eventPath && projectPath && eventPath !== projectPath) return;
+      useProjectStatusStore.getState().setStage(stage as ProjectStage);
+    });
+    return () => unsub();
+  }, [projectPath]);
+
   const handleFileClick = useCallback(
     (filePath: string, fileName: string) => {
       openTab({ id: "", type: "file", title: fileName, filePath });
@@ -169,7 +191,7 @@ export function ProjectPage(): JSX.Element {
       const realTasks = r.tasks.filter((t) => !t.title.includes("{{"));
       realTasks.forEach((t) => {
         const existing = ts.tasks.find((x) => x.id === t.id);
-        const newStatus = (t.passes ? "done" : "pending") as "done" | "pending";
+        const newStatus = (t.status || "pending") as TaskStatus;
         if (existing) {
           if (existing.status !== newStatus) ts.updateTask(t.id, { status: newStatus });
         } else {
@@ -229,7 +251,7 @@ export function ProjectPage(): JSX.Element {
                     setActiveSessionId(sid);
                     setSessionRefreshKey((k) => k + 1);
                   }}
-                  onActivity={() => { setSessionRefreshKey((k) => k + 1); refreshAll(); }}
+                  onActivity={() => { setSessionRefreshKey((k) => k + 1); }}
                   onNewProject={() => setShowNewProject(true)}
                 />
               </div>

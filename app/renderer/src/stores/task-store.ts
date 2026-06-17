@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type TaskStatus = "pending" | "running" | "done" | "failed";
+export type TaskStatus = "pending" | "building" | "evaluating" | "done" | "failed";
 
 export interface TaskItem {
   id: string;

@@ -9,9 +9,10 @@
 
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { existsSync, readFileSync } from "node:fs";
-import { basename, extname } from "node:path";
+import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
+import { basename, extname, join } from "node:path";
 import { homedir } from "node:os";
+import { BrowserWindow } from "electron";
 
 // ── Config ──────────────────────────────────────────
 
@@ -168,7 +169,7 @@ async function webFetch(args: { url: string; prompt?: string }): Promise<string>
 
 /** Build built-in MCP servers. Creates a fresh server per session —
  *  transport disconnects when the session ends, so never reuse. */
-export function buildBuiltinMcpServers(): Record<string, unknown> {
+export function buildBuiltinMcpServers(projectPath?: string): Record<string, unknown> {
   const visionOn = isToolEnabled("vision");
   const fetchOn = isToolEnabled("webFetch");
 
@@ -191,6 +192,78 @@ export function buildBuiltinMcpServers(): Record<string, unknown> {
         "通知前端显示「新建项目」按钮。检测到用户想创建新项目时调用。",
         {},
         async () => ({ content: [{ type: "text", text: "ok" }] }),
+      ),
+      tool(
+        "set_task_status",
+        "更新 task.json 中某任务的状态并实时刷新 UI 任务列表。状态取值：building(开始编码)/evaluating(交 Evaluator 验收)/done(验收通过)/failed(验收失败)/pending(重置为待办)。在调度任务前后调用此工具，让 UI 实时反映进度。",
+        {
+          taskId: z.string().describe("task.json 中的任务 id（字符串）"),
+          status: z.enum(["pending", "building", "evaluating", "done", "failed"]).describe("任务新状态"),
+        },
+        async (args) => {
+          if (!projectPath) {
+            return { content: [{ type: "text", text: "当前无项目路径，无法更新任务状态" }] };
+          }
+          const filePath = join(projectPath, "task.json");
+          if (!existsSync(filePath)) {
+            return { content: [{ type: "text", text: "task.json 不存在，无法更新任务状态" }] };
+          }
+          try {
+            const data = JSON.parse(readFileSync(filePath, "utf-8"));
+            const task = (data.tasks || []).find((t: { id: number | string }) => String(t.id) === String(args.taskId));
+            if (!task) {
+              return { content: [{ type: "text", text: `未找到 id=${args.taskId} 的任务` }] };
+            }
+            // 更新 status
+            task.status = args.status;
+            // 原子写回：先写 .tmp 再 rename
+            const tmpPath = filePath + ".tmp";
+            writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf-8");
+            renameSync(tmpPath, filePath);
+            // 广播事件到前端
+            BrowserWindow.getAllWindows().forEach((win) => {
+              if (!win.isDestroyed()) {
+                win.webContents.send("agent:task-status", { taskId: String(args.taskId), status: args.status, projectPath });
+              }
+            });
+            return { content: [{ type: "text", text: `任务 ${args.taskId} 状态已更新为 ${args.status}` }] };
+          } catch (e) {
+            return { content: [{ type: "text", text: `更新失败: ${(e as Error).message}` }] };
+          }
+        },
+      ),
+      tool(
+        "set_project_stage",
+        "设置项目进度节点，实时刷新 UI 的 Fishbone 进度条。取值：requirements(需求采集)/tech-selection(技术选型)/init(环境初始化)/planning(任务规划)/developing(开发中)/done(开发完成)。项目每进入一个新阶段时调用。",
+        {
+          stage: z.enum(["requirements", "tech-selection", "init", "planning", "developing", "done"]).describe("当前项目阶段"),
+        },
+        async (args) => {
+          if (!projectPath) {
+            return { content: [{ type: "text", text: "当前无项目路径，无法设置进度" }] };
+          }
+          try {
+            // 合并写入 state.json（保留已有字段）
+            const stateDir = join(projectPath, ".easymint");
+            const statePath = join(stateDir, "state.json");
+            let existing: Record<string, unknown> = {};
+            if (existsSync(statePath)) {
+              try { existing = JSON.parse(readFileSync(statePath, "utf-8")); } catch { /* overwrite */ }
+            } else if (!existsSync(stateDir)) {
+              mkdirSync(stateDir, { recursive: true });
+            }
+            writeFileSync(statePath, JSON.stringify({ ...existing, stage: args.stage }, null, 2), "utf-8");
+            // 广播事件到前端
+            BrowserWindow.getAllWindows().forEach((win) => {
+              if (!win.isDestroyed()) {
+                win.webContents.send("agent:project-stage", { stage: args.stage, projectPath });
+              }
+            });
+            return { content: [{ type: "text", text: `项目进度已更新为 ${args.stage}` }] };
+          } catch (e) {
+            return { content: [{ type: "text", text: `设置进度失败: ${(e as Error).message}` }] };
+          }
+        },
       ),
     ],
   });

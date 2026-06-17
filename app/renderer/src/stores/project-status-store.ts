@@ -22,8 +22,11 @@ interface ProjectStatusState {
   taskCount: number;
   doneCount: number;
   projectPath: string;
+  stageTimes: Record<string, number>;
 
   refreshAll: (path: string) => Promise<void>;
+  /** 直接设置阶段 — 由 set_project_stage MCP 工具驱动，即时刷新 UI */
+  setStage: (stage: ProjectStage) => void;
   reset: () => void;
 }
 
@@ -44,18 +47,46 @@ function fmtTime(ts?: number): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
 }
 
-export const useProjectStatusStore = create<ProjectStatusState>((set) => ({
+function buildTimeline(stage: ProjectStage, stageTimes: Record<string, number>): StageEntry[] {
+  const currentIdx = STAGE_ORDER.indexOf(stage);
+  return STAGE_ORDER.map((s, i) => ({
+    stage: s,
+    label: STAGE_LABELS[s],
+    status: i < currentIdx ? "done" : i === currentIdx ? "current" : "pending",
+    time: fmtTime(stageTimes[s]),
+  })) as StageEntry[];
+}
+
+export const useProjectStatusStore = create<ProjectStatusState>((set, get) => ({
   stage: "requirements",
   timeline: STAGE_ORDER.map((s) => ({ stage: s, label: STAGE_LABELS[s], status: "pending" as const })),
   taskCount: 0,
   doneCount: 0,
   projectPath: "",
+  stageTimes: {},
+
+  setStage: (stage: ProjectStage) => {
+    const { stageTimes } = get();
+    const now = Date.now();
+    const currentIdx = STAGE_ORDER.indexOf(stage);
+    // 标记已完成的阶段时间
+    const updated: Record<string, number> = { ...stageTimes };
+    for (let i = 0; i < currentIdx; i++) {
+      if (!updated[STAGE_ORDER[i]!]) updated[STAGE_ORDER[i]!] = now;
+    }
+    set({ stage, timeline: buildTimeline(stage, updated), stageTimes: updated });
+    // 异步持久化 stageTimes 到 state.json（best-effort）
+    const { projectPath } = get();
+    if (projectPath) {
+      window.electronAPI.project.writeState(projectPath, { stage, stageTimes: updated }).catch(() => {});
+    }
+  },
 
   refreshAll: async (path: string) => {
     if (!path) return;
     set({ projectPath: path });
 
-    // Read state.json facts — Mint writes these at key milestones
+    // 读 state.json — Mint 通过 set_project_stage 写 stage，前端 setStage 写 stageTimes
     let facts: Record<string, unknown> = {};
     let stageTimes: Record<string, number> = {};
     try {
@@ -66,35 +97,29 @@ export const useProjectStatusStore = create<ProjectStatusState>((set) => ({
       }
     } catch { /* ignore */ }
 
-    const initCompleted = facts.initCompleted as boolean | undefined;
-    const docsLevel = facts.docsLevel as string | undefined;
-    const factTaskCount = facts.taskCount as number | undefined;
+    const persistedStage = facts.stage as string | undefined;
 
-    // Read task.json for real pass/fail status
+    // 读 task.json — 直接算 doneCount + taskCount，不依赖 state.json
     let doneCount = 0;
+    let taskCount = 0;
     try {
       const r = await window.electronAPI.task.read(path);
       const tasks = (r.tasks || []).filter((t: { title: string }) => !t.title.includes("{{"));
-      doneCount = tasks.filter((t) => t.passes).length;
+      doneCount = tasks.filter((t) => t.status === "done").length;
+      taskCount = tasks.length;
     } catch { /* */ }
 
-    // Derive stage from facts + task.json reality
+    // 决定 stage：安全网优先 → Mint 写入的 stage → 默认 requirements
     let stage: ProjectStage;
-    if (initCompleted === undefined) {
-      stage = "requirements"; // Nothing recorded yet
-    } else if (!initCompleted) {
-      stage = "init";
-    } else if (factTaskCount === undefined) {
-      stage = docsLevel === "none" ? "done" : "planning";
-    } else if (factTaskCount === 0) {
-      stage = "planning";
-    } else if (doneCount >= factTaskCount && factTaskCount > 0) {
-      stage = "done";
+    if (taskCount > 0 && doneCount >= taskCount) {
+      stage = "done";                          // 安全网：任务全部完成
+    } else if (persistedStage && STAGE_ORDER.includes(persistedStage as ProjectStage)) {
+      stage = persistedStage as ProjectStage;   // Mint 主动写入
     } else {
-      stage = "developing";
+      stage = "requirements";                   // 新项目，没有任何记录
     }
 
-    // Update stageTimes
+    // 更新 stageTimes
     const now = Date.now();
     const saved: Record<string, number> = { ...stageTimes };
     const completedUpTo = STAGE_ORDER.indexOf(stage);
@@ -105,21 +130,14 @@ export const useProjectStatusStore = create<ProjectStatusState>((set) => ({
       window.electronAPI.project.writeState(path, { ...facts, stageTimes }).catch(() => {});
     }
 
-    // Build timeline
-    const currentIdx = STAGE_ORDER.indexOf(stage);
-    const timeline: StageEntry[] = STAGE_ORDER.map((s, i) => ({
-      stage: s,
-      label: STAGE_LABELS[s],
-      status: i < currentIdx ? "done" : i === currentIdx ? "current" : "pending",
-      time: fmtTime(stageTimes[s]),
-    }));
+    const timeline = buildTimeline(stage, stageTimes);
 
-    set({ stage, timeline, taskCount: factTaskCount ?? 0, doneCount });
+    set({ stage, timeline, taskCount, doneCount, stageTimes });
   },
 
   reset: () => set({
     stage: "requirements",
     timeline: STAGE_ORDER.map((s) => ({ stage: s, label: STAGE_LABELS[s], status: "pending" as const })),
-    taskCount: 0, doneCount: 0, projectPath: "",
+    taskCount: 0, doneCount: 0, projectPath: "", stageTimes: {},
   }),
 }));

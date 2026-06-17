@@ -196,7 +196,7 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
     systemPrompt: customPrompt ? { type: "preset" as const, preset: "claude_code" as const, append: customPrompt } : undefined,
     agents: Object.keys(agents).length > 0 ? agents : undefined,
      
-    mcpServers: { ...buildMcpServersOption(), ...buildBuiltinMcpServers() } as any,
+    mcpServers: { ...buildMcpServersOption(), ...buildBuiltinMcpServers(cwd) } as any,
     pathToClaudeCodeExecutable,
     ...overrides,
   };

@@ -280,32 +280,15 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       const filePath = p.join(projectPath, "task.json");
       if (!fs.existsSync(filePath)) return { tasks: [] };
       const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-      return { tasks: (data.tasks || []).map((t: { id: number; title: string; description?: string; steps?: string[]; passes?: boolean }) => ({
+      return { tasks: (data.tasks || []).map((t: { id: number; title: string; description?: string; steps?: string[]; status?: string; attempts?: number }) => ({
         id: String(t.id),
         title: t.title,
         description: t.description || (t.steps ? t.steps.join("; ") : ""),
         command: "",
-        passes: t.passes ?? false,
+        status: t.status || "pending",
+        attempts: t.attempts ?? 0,
       })) };
     } catch { return { tasks: [] }; }
-  });
-
-  // task:markDone — update passes field in task.json
-  ipcMain.handle("task:markDone", (_e, { projectPath, taskId }) => {
-    try {
-      const p = require("path");
-      const fs = require("fs");
-      const filePath = p.join(projectPath, "task.json");
-      if (!fs.existsSync(filePath)) return false;
-      const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-      const task = (data.tasks || []).find((t: { id: number }) => String(t.id) === String(taskId));
-      if (task) {
-        task.passes = true;
-        task.evaluated = false;
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-      }
-      return true;
-    } catch { return false; }
   });
 
   // file:saveUpload — save uploaded image to ~/.easymint/uploads/

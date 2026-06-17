@@ -11,7 +11,8 @@ interface TaskPanelProps {
 
 const STATUS_ICON: Record<string, JSX.Element> = {
   done: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" className="fill-success stroke-success" strokeWidth="1"/><path d="M3.5 6l2 2 3-4" className="stroke-inverse" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
-  running: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" className="fill-warning stroke-warning" strokeWidth="1"/><circle cx="6" cy="6" r="2.5" className="fill-inverse animate-pulse"/></svg>,
+  building: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" className="fill-warning stroke-warning" strokeWidth="1"/><circle cx="6" cy="6" r="2.5" className="fill-inverse animate-pulse"/></svg>,
+  evaluating: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" className="fill-accent stroke-accent" strokeWidth="1"/><circle cx="6" cy="6" r="2.5" className="fill-inverse animate-pulse"/></svg>,
   failed: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" className="fill-danger stroke-danger" strokeWidth="1"/><path d="M4 4l4 4M8 4l-4 4" className="stroke-inverse" strokeWidth="1.2" strokeLinecap="round"/></svg>,
   pending: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" className="fill-none stroke-muted" strokeWidth="1"/></svg>,
 };
@@ -134,13 +135,13 @@ function TaskRow({ task }: { task: { id: string; title: string; description?: st
 
   return (
     <div
-      className={`border-b border-accent-border-light last:border-0 transition-colors ${task.status === "running" ? "bg-accent-bg" : "hover:bg-accent-subtle"}`}
+      className={`border-b border-accent-border-light last:border-0 transition-colors ${(task.status === "building" || task.status === "evaluating") ? "bg-accent-bg" : task.status === "failed" ? "bg-danger/5" : "hover:bg-accent-subtle"}`}
       onMouseEnter={() => hasDesc && setExpanded(true)}
       onMouseLeave={() => setExpanded(false)}
     >
       <div className="flex items-center gap-2 px-3 py-1.5">
         {STATUS_ICON[task.status]}
-        <span className={`text-[11px] truncate flex-1 ${task.status === "done" ? "text-text-secondary": task.status === "running" ? "text-text-primary font-medium" : "text-text-secondary"}`}>
+        <span className={`text-[11px] truncate flex-1 ${task.status === "done" ? "text-text-secondary" : (task.status === "building" || task.status === "evaluating") ? "text-text-primary font-medium" : task.status === "failed" ? "text-danger" : "text-text-secondary"}`}>
           {task.title}
         </span>
       </div>
@@ -163,17 +164,15 @@ export function TaskPanel({ projectPath, onCollapse, onMintClick }: TaskPanelPro
   const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [userScrolled, setUserScrolled] = useState(false);
 
-  // Sort: running → pending → done (newest first), then reverse → oldest at top
+  // Sort: building/evaluating → pending → failed → done (newest first), then reverse → oldest at top
   const sortedTasks = [...tasks].sort((a, b) => {
-    if (a.status === "running") return -1;
-    if (b.status === "running") return 1;
-    if (a.status === "pending") return -1;
-    if (b.status === "pending") return 1;
+    const rank = (s: string) => s === "building" || s === "evaluating" ? 0 : s === "pending" ? 1 : s === "failed" ? 2 : 3;
+    if (rank(a.status) !== rank(b.status)) return rank(a.status) - rank(b.status);
     if (a.status === "done" && b.status === "done") return (b.completedAt || 0) - (a.completedAt || 0);
     return 0;
   }).reverse();
 
-  const runningIdx = sortedTasks.findIndex((t) => t.status === "running");
+  const runningIdx = sortedTasks.findIndex((t) => t.status === "building" || t.status === "evaluating");
 
   const centerRunning = useCallback(() => {
     if (runningIdx < 0 || !listRef.current) return;

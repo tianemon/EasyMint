@@ -44,18 +44,6 @@ interface StreamEvent {
   source?: "worker" | "evaluator" | "chat";
 }
 
-interface TaskStep {
-  label: string;
-  status: "done" | "running" | "pending" | "failed";
-}
-
-interface TaskItem {
-  id: number;
-  title: string;
-  status: "done" | "running" | "pending" | "failed";
-  steps: TaskStep[];
-}
-
 interface ElectronAPI {
   window: {
     openProject: (projectId: string, sessionId?: string, init?: boolean) => Promise<void>;
@@ -99,10 +87,11 @@ interface ElectronAPI {
     onContextSummary: (callback: (data: { chatId: string; summary: string }) => void) => () => void;
     onRotateCreate: (callback: (data: { oldChatId: string; oldSessionId: string; projectPath: string; handoffPrompt: string }) => void) => () => void;
     onContextUsage: (callback: (data: { chatId: string; percentage: number; totalTokens: number; maxTokens: number }) => void) => () => void;
+    onTaskStatus: (callback: (data: { taskId: string; status: string; projectPath: string }) => void) => () => void;
+    onProjectStage: (callback: (data: { stage: string; projectPath: string }) => void) => () => void;
   };
   task: {
-    read: (projectPath: string) => Promise<{ tasks: { id: string; title: string; description: string; command: string; passes: boolean }[] }>;
-    markDone: (projectPath: string, taskId: string) => Promise<boolean>;
+    read: (projectPath: string) => Promise<{ tasks: { id: string; title: string; description: string; command: string; status: string; attempts: number }[] }>;
   };
   shell: {
     exec: (projectPath: string, command: string) => Promise<{ code: number | null }>;
