@@ -9,6 +9,8 @@ import { useChatStore } from "../stores/chat-store";
 import { QuickPrompts } from "./QuickPrompts";
 import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
 import { postToAgent } from "../lib/agent-stream";
+import { useStatusStore } from "../stores/status-store";
+import { StatusBar } from "./StatusBar";
 
 function getWorkspaceDir(): string {
   const base = useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject";
@@ -123,14 +125,15 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const rawMsgs = useChatStore((s) => s.messagesBySession[sid]);
   const messages: ChatMessage[] = rawMsgs || (emptyArr.current as ChatMessage[]);
   const [input, setInput] = useState("");
-  const [statusText, setStatusText] = useState("思考中...");
   const [_currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentChatRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
   const busyRef = useRef(false);
   const lastStatusRef = useRef("");
-  const [summarizing, setSummarizing] = useState(false);
-  const [ctxPct, setCtxPct] = useState(0);
+  // 状态栏独立存储 → 密集更新时只重渲染 StatusBar，不牵连 ChatPanel/消息列表
+  // 注意：ChatPanel 不读 s.text，否则每次 statusText 变化都会重渲染整个组件
+  const summarizing = useStatusStore((s) => s.summarizing);
+  const ctxPct = useStatusStore((s) => s.ctxPct);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -314,7 +317,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (!busyRef.current) { busyRef.current = true; setBusy(true); }
       if (event.type === "status") {
         const st = typeof event.data.text === "string" ? event.data.text : "处理中...";
-        if (lastStatusRef.current !== st) { lastStatusRef.current = st; setStatusText(st); }
+        if (lastStatusRef.current !== st) { lastStatusRef.current = st; useStatusStore.getState().setText(st); }
         return;
       }
       if (event.type === "tool_use") {
@@ -348,7 +351,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             label += `: ${ctx.split("/").pop() || ctx}`;
           }
         }
-        if (label && lastStatusRef.current !== label) { lastStatusRef.current = label; setStatusText(label); }
+        if (label && lastStatusRef.current !== label) { lastStatusRef.current = label; useStatusStore.getState().setText(label); }
       }
       // Task subagent completion → refresh project status
       if (event.type === "tool_result" && (event.data as { tool_use_id?: string }).tool_use_id) {
@@ -386,12 +389,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       }
     });
     // Context rotation events — filter by chatId
-    const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(({ chatId: ctxChatId }) => { if (!currentChatRef.current) return; if (ctxChatId !== currentChatRef.current) return; setSummarizing(true); setStatusText("正在整理会话..."); });
+    const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(({ chatId: ctxChatId }) => { if (!currentChatRef.current) return; if (ctxChatId !== currentChatRef.current) return; useStatusStore.getState().setSummarizing(true); useStatusStore.getState().setText("正在整理会话..."); });
     const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ chatId: ctxChatId, percentage }) => {
       if (!currentChatRef.current) return;
       if (ctxChatId !== currentChatRef.current) return;
       const pct = Math.round(percentage);
-      setCtxPct(pct);
+      useStatusStore.getState().setCtxPct(pct);
       if (sidRef.current) {
         window.electronAPI.sessionCache.write(sidRef.current, { contextUsage: pct }).catch(() => {});
       }
@@ -403,8 +406,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   useEffect(() => {
     if (!summarizing) return;
     const timer = setTimeout(() => {
-      setSummarizing(false);
-      setStatusText("思考中...");
+      useStatusStore.getState().setSummarizing(false);
+      useStatusStore.getState().setText("思考中...");
       console.error("[ChatPanel] summarization timed out after 120s");
     }, 120_000);
     return () => clearTimeout(timer);
@@ -419,7 +422,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (cache) {
         if (cache.permissionMode) setPermissionMode(cache.permissionMode);
         if (cache.model) setChatModel(cache.model);
-        if (cache.contextUsage > 0) setCtxPct(cache.contextUsage);
+        if (cache.contextUsage > 0) useStatusStore.getState().setCtxPct(cache.contextUsage);
       }
     }).catch(() => {});
   }, [existingSid]);
@@ -462,7 +465,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (inputHistoryRef.current.length > 100) inputHistoryRef.current.pop();
     persistHistory();
     historyPosRef.current = -1;
-    busyRef.current = true; lastStatusRef.current = "思考中..."; setBusy(true); setStatusText("思考中...");
+    busyRef.current = true; lastStatusRef.current = "思考中..."; setBusy(true); useStatusStore.getState().setText("思考中...");
     onActivity?.(); // 立即刷新会话列表，不等 Mint 回复
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
 
@@ -639,24 +642,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         <div className="px-4 py-2 bg-surface-alt/30 border-t border-border/50 shrink-0"><AttachPreview /></div>
       )}
 
-      {busy && (
-        <div className="flex items-center px-4 py-1.5 bg-surface-alt/50 shrink-0">
-          <span className="text-xs font-medium" style={{
-            background: `linear-gradient(90deg, var(--shimmer-1), var(--shimmer-2), var(--shimmer-3), var(--shimmer-4), var(--shimmer-5), var(--shimmer-2), var(--shimmer-1))`,
-            backgroundSize: "300% 100%",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            animation: "shimmerSweep 6s linear infinite",
-          }}>{statusText}</span>
-        </div>
-      )}
-
-      {summarizing && (
-        <div className="flex items-center gap-2 px-4 py-2 text-text-primary text-sm bg-accent-bg border-b border-accent-border-light shrink-0">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4 text-accent animate-spin"><circle cx="8" cy="8" r="6" strokeOpacity="0.3"/><path d="M8 2a6 6 0 015.5 3.5" strokeLinecap="round"/></svg>
-          <span>正在进行会话摘要，将在新会话继续。</span>
-        </div>
-      )}
+      <StatusBar sessionId={sidRef.current} />
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-1.5 bg-surface shrink-0">
