@@ -637,12 +637,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         )}
       </div>
 
+      <StatusBar sessionId={sidRef.current} />
+
       {/* Attach preview — above thinking when busy */}
       {busy && attaches.length > 0 && (
         <div className="px-4 py-2 bg-surface-alt/30 border-t border-border/50 shrink-0"><AttachPreview /></div>
       )}
-
-      <StatusBar sessionId={sidRef.current} />
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-1.5 bg-surface shrink-0">

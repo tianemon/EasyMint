@@ -15,7 +15,7 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
   return (
     <>
       {busy && text && (
-        <div className="flex items-center px-4 py-1.5 bg-surface-alt/50 shrink-0">
+        <div className="flex items-center px-4 py-1.5">
           <span className="text-xs font-medium" style={{
             background: `linear-gradient(90deg, var(--shimmer-1), var(--shimmer-2), var(--shimmer-3), var(--shimmer-4), var(--shimmer-5), var(--shimmer-2), var(--shimmer-1))`,
             backgroundSize: "300% 100%",
