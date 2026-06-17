@@ -53,12 +53,6 @@
 15. **不掩盖问题**：积极修复所有报错和警告，禁止以"不影响运行""后面再修"等理由掩盖或忽视。无法实现时直接说明原因，不可投机取巧实现。
 16. **文档修改要确认**：增量更新文档时直接追加即可；如果涉及修改或删除用户的原有内容，必须先列出要改动的内容，和用户确认保留哪些，禁止随意精简用户的原话，优先保证原意。
 
-## 1.2 沟通语言
-
-- 对话：中文
-- 搜索：可用英文
-- 代码注释：中文
-
 ---
 
 # 二、编码规范
@@ -108,37 +102,27 @@
 
 # 三、CodeGraph — 项目分析工具
 
-> CodeGraph 是一个基于 tree-sitter 的符号知识图谱，覆盖项目中每个符号、每条调用边、每个文件。亚毫秒级查询，返回 grep 拿不到的结构信息。
+> CodeGraph 是基于 tree-sitter 的符号知识图谱，覆盖每个符号、调用边、文件。亚毫秒级查询。
 
-## 3.1 何时用 CodeGraph 而非 grep
+## 3.1 工具选择
 
-CodeGraph 用于**结构性**问题——谁调了谁、改动会影响什么、某符号定义在哪。grep / Read 只用于**字面文本**查询（字符串内容、注释、日志信息），或者已经打开具体文件时。
+- **结构性问题**（谁调了谁、改动影响什么、符号定义在哪、调用链追踪）→ 用 codegraph
+- **字面文本搜索**（字符串常量、注释、日志内容）→ 用 grep
+- 没有 `.codegraph/` 索引时 → 直接用 grep，或运行 `codegraph init -i` 建索引
+
+按场景选择，不做硬性禁止。codegraph 是预建索引，对结构问题更准更快；grep 对文本搜索更直接。
+
+## 3.2 常用 codegraph 调用
 
 | 问题 | 工具 |
 |------|------|
-| "X 定义在哪？" / "找符号 X" | `codegraph_search` |
-| "谁调了函数 Y？" | `codegraph_callers` |
-| "Y 调了谁？" | `codegraph_callees` |
-| "X 怎么到 Y？" / "从 X 到 Y 的完整路径" | `codegraph_trace`（一次调用返回全路径，含 callback/React/JSX 动态跳转） |
-| "改了 Z 会影响什么？" | `codegraph_impact` |
-| "看 Y 的签名/源码/文档" | `codegraph_node` |
-| "给我某个模块的聚焦上下文" | `codegraph_context` |
-| "同时看几个相关符号的源码" | `codegraph_explore` |
-| "某路径下有哪些文件？" | `codegraph_files` |
-| "索引是否健康？" | `codegraph_status` |
+| 符号定义/签名/源码 | `codegraph_search` / `codegraph_node` |
+| 谁→谁 / 调用链全路径 | `codegraph_trace`（含 callback/React 动态跳转） |
+| 改了 X 会影响什么 | `codegraph_impact` |
+| 某模块聚焦上下文 | `codegraph_context` |
+| 同时看多个符号源码 | `codegraph_explore` |
 
-## 3.2 经验法则
-
-- **直接回答，不要委托探索。** "X 是怎么工作的"这类问题 2–3 个 codegraph 调用就够了：先用 `codegraph_context`，再用一个 `codegraph_explore` 看它返回的符号源码。跟踪流程用 `codegraph_trace` from→to —— 一次调用返回全路径 —— 再用一个 `codegraph_explore` 看源码。不要手动用 `codegraph_search` + `codegraph_callers` 拼路径。CodeGraph 是预建索引，另行开子任务或 grep + Read 循环是重复劳动，成本更高
-- **信任 CodeGraph 结果。** 它们来自完整 AST 解析。不要用 grep 重新验证——更慢、更不准、浪费上下文
-- **不要先 grep。** 按名称查符号时，`codegraph_search` 一次返回 kind + 位置 + 签名
-- **不要链式调用 `codegraph_search` + `codegraph_node`。** 需要上下文时，`codegraph_context` 一次就够了
-- **不要在多个符号上循环 `codegraph_node`。** 一个 `codegraph_explore` 返回多个符号源码，单独的 node/Read 调用会重复读取上下文，成本高得多
-- **索引滞后看 banner，不要猜。** CodeGraph 返回内容开头如果出现 "⚠️ Some files referenced below were edited since the last index sync…"，列出的文件待重新索引——Read 那些文件获取最新内容。没在 banner 里的都是最新的，CodeGraph 是权威来源。`codegraph_status` 也会在 "Pending sync" 下列出待同步文件
-
-## 3.3 如果 `.codegraph/` 不存在
-
-运行 `codegraph init -i` 建索引。
+索引滞后：返回开头出现 "⚠️ ...edited since the last index sync" 时，Read 列出的文件获取最新内容。
 
 ---
 
@@ -178,7 +162,7 @@ npm run test             # 运行单元测试
   任何不纳入 git 版本控制的临时产物都放 temp/ 对应子目录
 - **根目录** — harness 文件：
   - `CLAUDE.md` — 项目通用上下文
-  - `task.json` — 任务定义（唯一真相源，含 `passes` 和 `evaluated` 字段）
+  - `task.json` — 任务定义（唯一真相源，含 `status` 字段：pending/building/evaluating/done/failed）
   - `init.sh` — 环境初始化脚本
   - `README.md`、`.gitignore`
 
