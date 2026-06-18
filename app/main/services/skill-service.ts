@@ -222,7 +222,7 @@ export function seedDefaultSkills(): void {
 
     try {
       cpSync(srcPath, targetPath, { recursive: true });
-    } catch { /* ignore */ }
+    } catch { }
   }
 }
 

@@ -79,7 +79,7 @@ export class ProjectService {
         const encodedPath = project.path.replace(/[:/\\]/g, "-");
         const sdkDir = path.join(sdkProjectsDir, encodedPath);
         if (fs.existsSync(sdkDir)) fs.rmSync(sdkDir, { recursive: true, force: true });
-      } catch { /* ignore */ }
+      } catch { }
     }
     const projects = this.store.getProjects().filter((p) => p.id !== id);
     this.store.saveProjects(projects);

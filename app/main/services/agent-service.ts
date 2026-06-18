@@ -337,7 +337,7 @@ export class AgentService {
           try {
             const usage = await chat.query!.getContextUsage();
             broadcast("agent:context-usage", { chatId: chat.chatId, percentage: usage.percentage, totalTokens: usage.totalTokens, maxTokens: usage.maxTokens });
-          } catch { /* ignore */ }
+          } catch { }
         }, 500);
 
         for await (const msg of queryObj) {
@@ -419,7 +419,7 @@ export class AgentService {
                     broadcast("agent:context-summarizing", { chatId: chat.chatId });
                   }
                 }
-              } catch { /* ignore */ }
+              } catch { }
             }
           }
         }
@@ -428,7 +428,7 @@ export class AgentService {
         if (chat.contextStatus === "rotated" && chat.summaryBuffer) {
           try {
             this.rotateSession(chat);
-          } catch { /* ignore */ }
+          } catch { }
         }
       } catch (err: unknown) {
         if (this.activeChats.has(chat.chatId)) {
@@ -451,7 +451,7 @@ export class AgentService {
       const usage = await queryObj.getContextUsage();
       broadcast("agent:context-usage", { chatId: `peek-${sessionId}`, percentage: usage.percentage, totalTokens: usage.totalTokens, maxTokens: usage.maxTokens });
       queryObj.interrupt().catch(() => {});
-    } catch { /* ignore */ }
+    } catch { }
   }
 
   /** Find an active chat by SDK session ID */
@@ -487,7 +487,7 @@ export class AgentService {
 
     // Archive old session
     if (chat.sessionId) {
-      try { archiveSession(chat.sessionId); } catch { /* best effort */ }
+      try { archiveSession(chat.sessionId); } catch { }
     }
 
     // Broadcast to renderer: create new chat tab with the handoff
@@ -561,7 +561,7 @@ export class AgentService {
     chat.channel.close();
     chat.abortController.abort();
     if (chat.query) {
-      try { chat.query.close?.(); } catch { /* ignore */ }
+      try { chat.query.close?.(); } catch { }
     }
     this.activeChats.delete(chatId);
     broadcast("agent:exit", { runId: chatId, code: -1 });
@@ -599,7 +599,7 @@ export class AgentService {
       chat.channel.close();
       chat.abortController.abort();
       if (chat.query) {
-        try { chat.query.close?.(); } catch { /* ignore */ }
+        try { chat.query.close?.(); } catch { }
       }
       broadcast("agent:exit", { runId: id, code: -1 });
     }

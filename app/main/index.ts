@@ -75,17 +75,17 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     try {
       const { seedDefaults } = require("./services/agent-templates");
       seedDefaults();
-    } catch { /* ignore */ }
+    } catch { }
     // Seed built-in skills (~/.claude/skills/)
     try {
       const { seedDefaultSkills } = require("./services/skill-service");
       seedDefaultSkills();
-    } catch { /* ignore */ }
+    } catch { }
     // Seed default MCP configs (~/.easymint/.claude.json)
     try {
       const { seedDefaultMcp } = require("./services/mcp-service");
       seedDefaultMcp();
-    } catch { /* ignore */ }
+    } catch { }
     // Clean up orphaned session caches
     try {
       const { listSessions } = require("@anthropic-ai/claude-agent-sdk");
@@ -93,12 +93,12 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
       listSessions().then((all: Array<{ sessionId: string }>) => {
         purgeOrphanedCaches(new Set(all.map((s: { sessionId: string }) => s.sessionId)));
       }).catch(() => {});
-    } catch { /* ignore */ }
+    } catch { }
     // Auto-cleanup old uploads (60 days / 10GB)
     try {
       const { autoClean } = require("./services/upload-cache");
       autoClean();
-    } catch { /* ignore */ }
+    } catch { }
     registerIpcHandlers({ mainWindow: window, ...sharedServices });
 
     // Clean up orphaned SDK session directories for deleted projects
@@ -120,7 +120,7 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
           }
         }
       }
-    } catch { /* best effort */ }
+    } catch { }
   }
 
   loadApp(window, hash);
@@ -143,7 +143,7 @@ app.whenReady().then(() => {
       const lastId = tempStore.getLastProjectId();
       if (lastId) startHash = `/project/${lastId}`;
     }
-  } catch { /* ignore */ }
+  } catch { }
   createWindow(startHash, true);
 
   if (process.platform === "darwin") {
