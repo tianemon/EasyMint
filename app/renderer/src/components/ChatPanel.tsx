@@ -341,11 +341,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // externally (e.g. project init), fall back to sessionId match.
       if (currentChatRef.current) {
         if (!event.runId || event.runId !== currentChatRef.current) return;
-      } else if (existingSid) {
-        // Existing session from outside — accept events matching our sessionId
-        if (!event.sessionId || event.sessionId !== existingSid) return;
+      } else if (sidRef.current) {
+        // 已获取到真实 sessionId（来自 onChatSession）——按 sessionId 匹配
+        if (!event.sessionId || event.sessionId !== sidRef.current) return;
       } else {
-        // New tab, no chat started yet — block everything
+        // 新标签页，还没获取到真实 sessionId —— 先收着不拦截（sidRef 很快会被更新）
         return;
       }
       if (stoppedRef.current) return;
