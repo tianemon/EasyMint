@@ -8,7 +8,7 @@ import { useTabStore } from "../stores/tab-store";
 import { useChatStore } from "../stores/chat-store";
 import { QuickPrompts } from "./QuickPrompts";
 import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
-import { postToAgent } from "../lib/agent-stream";
+
 import { useStatusStore } from "../stores/status-store";
 import { StatusBar } from "./StatusBar";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
@@ -470,7 +470,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
     try {
       currentChatRef.current = null;
-      // sendText 是 fire-and-forget，直接调 sendMessage 拿 chatId（无需等 postToAgent 的 replyText）
+      // sendText 是 fire-and-forget，直接调 sendMessage 拿 chatId。
       // chatId 必须立即可得，否则 onStream 过滤器 currentChatRef 为 null 会拦截所有事件
       const result = await window.electronAPI.agent.sendMessage(projectPath, agentText, { sessionId: existingSid ?? null, permissionMode });
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
