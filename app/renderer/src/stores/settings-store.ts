@@ -54,7 +54,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setupComplete: false,
   thinkingBudget: 0,
-  contextThreshold: 60,
+  contextThreshold: 65,
   context1M: false,
   showThinking: false,
   showToolUse: false,
@@ -156,7 +156,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           model: settings.model ?? "",
           availableModels: settings.availableModels ?? [],
           thinkingBudget: 0,
-          contextThreshold: settings.contextThreshold ?? 60,
+          contextThreshold: settings.contextThreshold ?? 65,
           context1M: settings.context1M ?? false,
           showThinking: settings.showThinking ?? false,
           showToolUse: settings.showToolUse ?? false,

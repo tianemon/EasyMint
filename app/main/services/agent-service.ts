@@ -7,6 +7,11 @@ import { resolveHome } from "../utils/paths";
 
 const LOG = path.join(os.homedir(), ".easymint", "easymint.log");
 function log(msg: string) { try { fs.appendFileSync(LOG, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } }
+
+/** 单会话最大 compact 次数，超过则归档旧会话、开启新会话（避免摘要的摘要质量崩塌） */
+const MAX_COMPACT = 3;
+/** 触发 compact 的上下文使用率默认阈值（百分比）。实测 50%+ 开始降智，65% 留余裕。可在设置中调整 */
+const DEFAULT_COMPACT_THRESHOLD = 65;
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { listTemplates, getTemplate } from "./agent-templates";
@@ -107,6 +112,8 @@ interface ActiveChat {
   contextStatus: "normal" | "summarizing" | "rotated";
   /** Accumulated summary text during context rotation */
   summaryBuffer: string;
+  /** 本会话已 compact 次数。超过 MAX_COMPACT 次后改用轮转归档开新会话 */
+  compactCount: number;
 }
 
 /** Append [1M] suffix to model name when context1M setting is enabled (global or per-provider) */
@@ -306,6 +313,7 @@ export class AgentService {
       status: "idle",
       contextStatus: "normal",
       summaryBuffer: "",
+      compactCount: 0,
     };
     this.activeChats.set(chatId, chat);
 
@@ -370,6 +378,28 @@ export class AgentService {
             }
           }
 
+          // ── compact 计数：捕获 compact_boundary，达上限标记转轮转 ──
+          if (msg.type === "system" && (msg as { subtype?: string }).subtype === "compact_boundary") {
+            chat.compactCount++;
+            const meta = (msg as { compact_metadata?: { trigger?: string; pre_tokens?: number; post_tokens?: number } }).compact_metadata;
+            log(`[chat-loop] compact #${chat.compactCount} trigger=${meta?.trigger ?? "?"} pre=${meta?.pre_tokens ?? "?"} post=${meta?.post_tokens ?? "?"}`);
+            if (chat.compactCount >= MAX_COMPACT) {
+              log(`[chat-loop] compact reached MAX_COMPACT (${MAX_COMPACT}), will rotate on next result`);
+            }
+          }
+
+          // ── compact 失败兜底：SDK 压缩失败时改用轮转开新会话 ──
+          if (msg.type === "system" && (msg as { subtype?: string }).subtype === "status") {
+            const statusMsg = msg as { compact_result?: "success" | "failed"; status?: string | null };
+            if (statusMsg.compact_result === "failed" && chat.contextStatus === "normal") {
+              log(`[chat-loop] compact failed, falling back to session rotation`);
+              chat.contextStatus = "summarizing";
+              chat.summaryBuffer = "";
+              chat.channel.enqueue(buildUserMessage(CONTEXT_SUMMARY_INSTRUCTION, capturedSid));
+              broadcast("agent:context-summarizing", { chatId: chat.chatId });
+            }
+          }
+
           // Stream event → renderer + buffer for late-connecting windows
           const event = toStreamEvent(msg, chat.chatId, capturedSid, "chat");
           if (event) {
@@ -382,27 +412,34 @@ export class AgentService {
             chat.status = "idle";
             broadcast("agent:exit", { runId: chat.chatId, code: msg.subtype === "success" ? 0 : 1 });
 
-            // ── Context rotation ──
+            // ── 轮转收尾：summarizing 完成 → 归档旧会话开新会话 ──
             if (chat.contextStatus === "summarizing" && msg.subtype === "success") {
               chat.contextStatus = "rotated";
-              // Send summary to renderer before rotating
               if (chat.summaryBuffer) {
                 broadcast("agent:context-summary", { chatId: chat.chatId, summary: chat.summaryBuffer });
               }
               break; // exit loop → triggers rotation in finally-like handler
             }
 
+            // ── 上下文管理：每轮结束后检测使用率 ──
             if (chat.contextStatus === "normal") {
               try {
                 const usage = await chat.query!.getContextUsage();
                 broadcast("agent:context-usage", { chatId: chat.chatId, percentage: usage.percentage, totalTokens: usage.totalTokens, maxTokens: usage.maxTokens });
-                const threshold = this.store.getSettings().contextThreshold ?? 60;
+                const threshold = this.store.getSettings().contextThreshold ?? DEFAULT_COMPACT_THRESHOLD;
                 if (usage.percentage >= threshold) {
-                  chat.contextStatus = "summarizing";
-                  chat.summaryBuffer = "";
-                  chat.channel.enqueue(buildUserMessage(CONTEXT_SUMMARY_INSTRUCTION, capturedSid));
-                  broadcast("agent:context-summarizing", { chatId: chat.chatId });
-                  log(`[chat-loop] context ${usage.percentage}% >= ${threshold}%, starting summarization`);
+                  if (chat.compactCount < MAX_COMPACT) {
+                    // compact 优先：发 /compact 让 SDK 原地压缩，会话不断、无感
+                    chat.channel.enqueue(buildUserMessage("/compact", capturedSid));
+                    log(`[chat-loop] context ${usage.percentage}% >= ${threshold}%, compact #${chat.compactCount + 1} (count=${chat.compactCount})`);
+                  } else {
+                    // compact 达上限：改用轮转归档开新会话，避免摘要的摘要质量崩塌
+                    chat.contextStatus = "summarizing";
+                    chat.summaryBuffer = "";
+                    chat.channel.enqueue(buildUserMessage(CONTEXT_SUMMARY_INSTRUCTION, capturedSid));
+                    broadcast("agent:context-summarizing", { chatId: chat.chatId });
+                    log(`[chat-loop] context ${usage.percentage}% but compact reached MAX_COMPACT (${MAX_COMPACT}), rotating session`);
+                  }
                 }
               } catch (err) {
                 log(`[chat-loop] getContextUsage failed: ${String(err)}`);
@@ -532,7 +569,7 @@ export class AgentService {
 
     const chat: ActiveChat = {
       chatId, sessionId: "", channel, abortController, query: null, projectPath,
-      agentType: template.agentType, status: "idle", contextStatus: "normal", summaryBuffer: "",
+      agentType: template.agentType, status: "idle", contextStatus: "normal", summaryBuffer: "", compactCount: 0,
     };
     this.activeChats.set(chatId, chat);
 

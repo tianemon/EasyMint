@@ -60,7 +60,7 @@ const EM_DEFAULTS = {
   defaultProjectDir: "~/EasyMintProject",
   claudePath: "",
   terminalFontSize: 14,
-  contextThreshold: 60,
+  contextThreshold: 65,
   context1M: false,
 };
 
