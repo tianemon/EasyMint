@@ -126,7 +126,6 @@ function resolveModel(model: string | undefined, store: Store): string | undefin
   const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
   const enable1M = activeCfg?.context1M ?? settings.context1M ?? false;
   if (!enable1M) return model;
-  if (!/pro/i.test(model)) return model;
   return model.endsWith("[1M]") ? model : model + "[1M]";
 }
 
