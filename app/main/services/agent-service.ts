@@ -334,10 +334,8 @@ export class AgentService {
 
         // Initial context usage — show immediately for both new and resume sessions
         setTimeout(async () => {
-          try {
-            const usage = await chat.query!.getContextUsage();
-            broadcast("agent:context-usage", { chatId: chat.chatId, percentage: usage.percentage, totalTokens: usage.totalTokens, maxTokens: usage.maxTokens });
-          } catch { }
+          const usage = await chat.query!.getContextUsage();
+          broadcast("agent:context-usage", { chatId: chat.chatId, percentage: usage.percentage, totalTokens: usage.totalTokens, maxTokens: usage.maxTokens });
         }, 500);
 
         for await (const msg of queryObj) {
@@ -443,15 +441,13 @@ export class AgentService {
 
   /** Peek context usage for a session without modifying it. One-shot — no persistent chat loop. */
   async peekUsage(projectPath: string, sessionId: string): Promise<void> {
-    try {
-      const q = await getQuery();
-      const overrides: Partial<QueryOptions> = { resume: sessionId };
-      const options = buildQueryOptions(projectPath, this.store, true, "auto", overrides);
-      const queryObj = await q({ prompt: "", options });
-      const usage = await queryObj.getContextUsage();
-      broadcast("agent:context-usage", { chatId: `peek-${sessionId}`, percentage: usage.percentage, totalTokens: usage.totalTokens, maxTokens: usage.maxTokens });
-      queryObj.interrupt().catch(() => {});
-    } catch { }
+    const q = await getQuery();
+    const overrides: Partial<QueryOptions> = { resume: sessionId };
+    const options = buildQueryOptions(projectPath, this.store, true, "auto", overrides);
+    const queryObj = await q({ prompt: "", options });
+    const usage = await queryObj.getContextUsage();
+    broadcast("agent:context-usage", { chatId: `peek-${sessionId}`, percentage: usage.percentage, totalTokens: usage.totalTokens, maxTokens: usage.maxTokens });
+    queryObj.interrupt().catch(() => {});
   }
 
   /** Find an active chat by SDK session ID */
