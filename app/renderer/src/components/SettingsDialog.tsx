@@ -648,7 +648,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
 
               {/* Context threshold */}
               <section>
-                <h3 className="text-sm font-medium text-text-secondary mb-2">上下文轮转阈值</h3>
+                <h3 className="text-sm font-medium text-text-secondary mb-2">上下文压缩阈值</h3>
                 <div className="bg-surface-alt rounded-lg border border-border px-4 py-3">
                   <div className="flex items-center gap-3">
                     <input
@@ -662,7 +662,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                     />
                     <span className="text-sm text-text-primary font-medium w-10 text-right">{contextThreshold}%</span>
                   </div>
-                  <p className="text-[11px] text-text-secondary mt-1">当上下文使用达到此百分比时，自动总结对话并切换到新会话继续工作。</p>
+                  <p className="text-[11px] text-text-secondary mt-1">达到阈值时优先原地压缩（同会话无感），压缩 3 次后自动开启新会话。建议 65%。</p>
                 </div>
               </section>
 
