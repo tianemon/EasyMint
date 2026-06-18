@@ -222,7 +222,6 @@ export function seedDefaultSkills(): void {
 
     try {
       cpSync(srcPath, targetPath, { recursive: true });
-      console.log("[seedDefaultSkills] installed:", name);
     } catch (err) {
       console.error("[seedDefaultSkills] failed:", name, err);
     }

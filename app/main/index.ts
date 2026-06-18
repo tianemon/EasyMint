@@ -7,12 +7,6 @@ process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint").replace(/\\
 // Redirect Electron userData to our directory so all data lives in one place
 app.setPath("userData", path.join(os.homedir(), ".easymint", "electron"));
 
-// Temp debug log — DO NOT REMOVE until everything confirmed working
-const LOG2 = path.join(os.homedir(), ".easymint", "easymint.log");
-try { fs.mkdirSync(path.dirname(LOG2), { recursive: true }); } catch { /* ignore */ }
-const dlog = (msg: string) => { try { fs.appendFileSync(LOG2, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } };
-dlog("EasyMint starting...");
-
 import { resolveHome } from "./utils/paths";
 import { registerIpcHandlers } from "./ipc-handlers";
 import { ProjectService } from "./services/project-service";
@@ -103,8 +97,7 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     // Auto-cleanup old uploads (60 days / 10GB)
     try {
       const { autoClean } = require("./services/upload-cache");
-      const deleted = autoClean();
-      if (deleted > 0) console.log("[init] auto-cleaned uploads:", deleted);
+      autoClean();
     } catch { /* ignore */ }
     registerIpcHandlers({ mainWindow: window, ...sharedServices });
 
@@ -123,7 +116,6 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
             const full = path.join(sdkDir, entry);
             if (fs.statSync(full).isDirectory()) {
               fs.rmSync(full, { recursive: true, force: true });
-              console.log("[init] cleaned orphaned SDK sessions:", entry);
             }
           }
         }

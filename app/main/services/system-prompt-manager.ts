@@ -133,7 +133,6 @@ export function createSystemPrompt(input: SystemPromptCreateInput): SystemPrompt
 
   config.prompts.push(prompt);
   writeConfig(config);
-  console.log(`[系统提示词] 已创建: ${prompt.name} (${prompt.id})`);
   return prompt;
 }
 
@@ -155,7 +154,6 @@ export function updateSystemPrompt(id: string, input: SystemPromptUpdateInput): 
   prompt.updatedAt = Date.now();
 
   writeConfig(config);
-  console.log(`[系统提示词] 已更新: ${prompt.name} (${prompt.id})`);
   return prompt;
 }
 
@@ -179,7 +177,6 @@ export function deleteSystemPrompt(id: string): void {
   }
 
   writeConfig(config);
-  console.log(`[系统提示词] 已删除: ${prompt.name} (${id})`);
 }
 
 export function setDefaultPrompt(id: string | null): void {
@@ -194,7 +191,6 @@ export function setDefaultPrompt(id: string | null): void {
 
   config.defaultPromptId = id ?? BUILTIN_DEFAULT_ID;
   writeConfig(config);
-  console.log(`[系统提示词] 默认提示词已设置: ${config.defaultPromptId}`);
 }
 
 /**

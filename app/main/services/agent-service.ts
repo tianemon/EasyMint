@@ -5,8 +5,6 @@ import { BrowserWindow } from "electron";
 import type { SDKMessage, Options as QueryOptions, PermissionMode } from "@anthropic-ai/claude-agent-sdk";
 import { resolveHome } from "../utils/paths";
 
-const LOG = path.join(os.homedir(), ".easymint", "easymint.log");
-function log(msg: string) { try { fs.appendFileSync(LOG, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } }
 
 /** 单会话最大 compact 次数，超过则归档旧会话、开启新会话（避免摘要的摘要质量崩塌） */
 const MAX_COMPACT = 3;
@@ -136,7 +134,6 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
   const resolvedPath = projectPath || path.join(baseDir, "workspace");
   const cwd = path.resolve(resolveHome(resolvedPath)).replace(/\\/g, "/");
   if (!fs.existsSync(cwd)) fs.mkdirSync(cwd, { recursive: true });
-  console.log("[buildQueryOptions] projectPath=%s → cwd=%s", projectPath || "(empty)", cwd);
 
   const settings = store.getSettings();
   const configDir = path.join(os.homedir(), ".easymint").replace(/\\/g, "/");
@@ -144,7 +141,6 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
     ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => typeof v === "string")) as Record<string, string>,
     CLAUDE_CONFIG_DIR: configDir,
   };
-  console.log("[buildQueryOptions] CLAUDE_CONFIG_DIR=%s", configDir);
 
   // ── 多平台 API 供应商配置 ──
   // API Key / Base URL 已通过 writeSdkSettings 写入 settings.json env 字段
@@ -183,7 +179,6 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
   for (const p of possiblePaths) {
     if (fs.existsSync(p)) { pathToClaudeCodeExecutable = p; break; }
   }
-  log("[buildQueryOptions] binary path: " + (pathToClaudeCodeExecutable || "NOT FOUND"));
 
   return {
     cwd,
@@ -278,7 +273,6 @@ export class AgentService {
     if (resumeSessionId) {
       const existing = this.findActiveChat(resumeSessionId);
       if (existing) {
-        console.log("[sendMessage] enqueue to existing session: sessionId=%s chatId=%s", resumeSessionId, existing.chatId);
         existing.channel.enqueue(buildUserMessage(message, resumeSessionId));
         return { chatId: existing.chatId };
       }
@@ -333,9 +327,7 @@ export class AgentService {
     (async () => {
       try {
         const q = await getQuery();
-        log("[chat-loop] query cwd=" + (options.cwd || "?") + " token=" + (options.env?.ANTHROPIC_AUTH_TOKEN ? "SET" : "MISSING"));
         const queryObj = await q({ prompt: chat.channel.generator, options });
-        log("[chat-loop] query OK");
         chat.query = queryObj;
 
         let capturedSid = chat.sessionId;
@@ -373,10 +365,7 @@ export class AgentService {
           // ── compact 计数：捕获 compact_boundary，达上限标记转轮转 ──
           if (msg.type === "system" && (msg as { subtype?: string }).subtype === "compact_boundary") {
             chat.compactCount++;
-            const meta = (msg as { compact_metadata?: { trigger?: string; pre_tokens?: number; post_tokens?: number } }).compact_metadata;
-            log(`[chat-loop] compact #${chat.compactCount} trigger=${meta?.trigger ?? "?"} pre=${meta?.pre_tokens ?? "?"} post=${meta?.post_tokens ?? "?"}`);
             if (chat.compactCount >= MAX_COMPACT) {
-              log(`[chat-loop] compact reached MAX_COMPACT (${MAX_COMPACT}), will rotate on next result`);
             }
           }
 
@@ -384,7 +373,6 @@ export class AgentService {
           if (msg.type === "system" && (msg as { subtype?: string }).subtype === "status") {
             const statusMsg = msg as { compact_result?: "success" | "failed"; status?: string | null };
             if (statusMsg.compact_result === "failed" && chat.contextStatus === "normal") {
-              log(`[chat-loop] compact failed, falling back to session rotation`);
               chat.contextStatus = "summarizing";
               chat.summaryBuffer = "";
               chat.channel.enqueue(buildUserMessage(CONTEXT_SUMMARY_INSTRUCTION, capturedSid));
@@ -423,19 +411,15 @@ export class AgentService {
                   if (chat.compactCount < MAX_COMPACT) {
                     // compact 优先：发 /compact 让 SDK 原地压缩，会话不断、无感
                     chat.channel.enqueue(buildUserMessage("/compact", capturedSid));
-                    log(`[chat-loop] context ${usage.percentage}% >= ${threshold}%, compact #${chat.compactCount + 1} (count=${chat.compactCount})`);
                   } else {
                     // compact 达上限：改用轮转归档开新会话，避免摘要的摘要质量崩塌
                     chat.contextStatus = "summarizing";
                     chat.summaryBuffer = "";
                     chat.channel.enqueue(buildUserMessage(CONTEXT_SUMMARY_INSTRUCTION, capturedSid));
                     broadcast("agent:context-summarizing", { chatId: chat.chatId });
-                    log(`[chat-loop] context ${usage.percentage}% but compact reached MAX_COMPACT (${MAX_COMPACT}), rotating session`);
                   }
                 }
-              } catch (err) {
-                log(`[chat-loop] getContextUsage failed: ${String(err)}`);
-              }
+              } catch { /* ignore */ }
             }
           }
         }
@@ -444,12 +428,9 @@ export class AgentService {
         if (chat.contextStatus === "rotated" && chat.summaryBuffer) {
           try {
             this.rotateSession(chat);
-          } catch (err) {
-            log("[chat-loop] rotate ERROR: " + String(err));
-          }
+          } catch { /* ignore */ }
         }
       } catch (err: unknown) {
-        log("[chat-loop] ERROR: " + String(err));
         if (this.activeChats.has(chat.chatId)) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error("[chat-loop] error: chatId=%s %s", chat.chatId, msg);
@@ -457,7 +438,6 @@ export class AgentService {
           broadcast("agent:exit", { runId: chat.chatId, code: -1 });
         }
       }
-      console.log("[chat-loop] ended: chatId=%s", chat.chatId);
       this.activeChats.delete(chat.chatId);
     })();
   }
@@ -493,14 +473,12 @@ export class AgentService {
     const chat = this.activeChats.get(chatId);
     if (chat?.query) {
       chat.query.interrupt().catch(() => {});
-      console.log("[stopChat] soft interrupt: chatId=%s", chatId);
     }
   }
 
   /** Context rotation: archive old session and create a new chat tab with summary */
   private rotateSession(chat: ActiveChat): void {
     const summary = chat.summaryBuffer;
-    log(`[rotateSession] rotating chatId=${chat.chatId} sessionId=${chat.sessionId}`);
 
     // Determine the next step hint from the last line of the summary
     const continuationMatch = summary.match(/我们继续.*吧/);
@@ -532,7 +510,6 @@ export class AgentService {
     try {
       await (chat.query as { setModel?: (m: string) => Promise<void> }).setModel?.(resolved);
       chat.currentModel = model;
-      console.log("[setModel] switched to %s for sessionId=%s", resolved, sessionId);
     } catch (err) {
       console.error("[setModel] error:", err);
       throw err;
@@ -568,7 +545,6 @@ export class AgentService {
     channel.enqueue(buildUserMessage(initialMessage, ""));
     this.startChatLoop(chat, options);
 
-    console.log("[spawnAgentChat] %s (%s) → chatId=%s", template.name, template.agentType, chatId);
     return { chatId };
   }
 
@@ -580,7 +556,6 @@ export class AgentService {
       return;
     }
     target.channel.enqueue(buildUserMessage(message, targetSessionId));
-    console.log("[notifySession] → sessionId=%s", targetSessionId);
   }
 
   /** Hard kill a chat session — close channel, abort process, remove */
@@ -594,7 +569,6 @@ export class AgentService {
     }
     this.activeChats.delete(chatId);
     broadcast("agent:exit", { runId: chatId, code: -1 });
-    console.log("[killChat] hard killed: chatId=%s", chatId);
   }
 
   /** Get the current SDK status for a session: "requesting" | "compacting" | "idle" | null (unknown/not alive) */

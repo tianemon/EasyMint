@@ -220,14 +220,12 @@ export function seedDefaultMcp(): void {
     if (!existing[name]) {
       existing[name] = cfg;
       changed = true;
-      console.log(`[seedDefaultMcp] added config: ${name}`);
     }
   }
 
   if (changed) {
     data.mcpServers = existing;
     writeFileSync(configPath, JSON.stringify(data, null, 2), "utf-8");
-    console.log("[seedDefaultMcp] mcp config written to", configPath);
   }
 }
 

@@ -133,7 +133,6 @@ export function seedDefaults(): void {
 
   writeAll(synced);
   if (current.length !== synced.length) {
-    console.log("[seedDefaults] cleaned up removed defaults");
   }
 }
 

@@ -121,16 +121,9 @@ export interface SessionListItem {
   archivedAt?: number;
 }
 
-import { appendFileSync } from "node:fs";
-const DL = path.join(os.homedir(), ".easymint", "easymint.log");
-function sdlog(msg: string) { try { appendFileSync(DL, `[${new Date().toISOString()}] ${msg}\n`); } catch { /* ignore */ } }
-
 export async function listSessions(projectPath: string): Promise<SessionListItem[]> {
   const { listSessions: ls } = await sdk();
-  const normalized = normalizeDir(projectPath);
-  sdlog("[listSessions] " + normalized);
-  const sessions = await ls({ dir: normalized });
-  sdlog("[listSessions] OK " + sessions.length);
+  const sessions = await ls({ dir: normalizeDir(projectPath) });
   const pinned = readPinned();
   const archived = readArchived();
 
@@ -165,22 +158,13 @@ export async function renameSession(sessionId: string, title: string, projectPat
 
 export async function deleteSession(sessionId: string, projectPath: string): Promise<void> {
   const { deleteSession: ds } = await sdk();
-  const dir = normalizeDir(projectPath);
-  sdlog(`[deleteSession] sid=${sessionId} dir=${dir}`);
-  try {
-    await ds(sessionId, { dir });
-    sdlog(`[deleteSession] SDK delete OK sid=${sessionId}`);
-  } catch (e) {
-    sdlog(`[deleteSession] SDK delete FAILED sid=${sessionId} err=${String(e)}`);
-    throw e;
-  }
+  await ds(sessionId, { dir: normalizeDir(projectPath) });
   const pinned = readPinned();
   delete pinned[sessionId];
   writePinned(pinned);
   deleteCache(sessionId);
   // Clean up SDK satellite directories (session-env, tasks, file-history, telemetry)
   cleanupSessionSatellites(sessionId);
-  sdlog(`[deleteSession] done sid=${sessionId}`);
 }
 
 export async function getSessionInfo(sessionId: string, projectPath: string): Promise<SessionListItem | null> {
