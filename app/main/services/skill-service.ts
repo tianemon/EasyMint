@@ -155,23 +155,19 @@ export function scanSkills(projectPath?: string): SkillManifest[] {
 export function readSkill(skillPath: string): SkillDetail | null {
   const skillFile = path.join(skillPath, "SKILL.md");
   if (!existsSync(skillFile)) return null;
-  try {
-    const raw = readFileSync(skillFile, "utf-8");
-    const fm = parseFrontmatter(raw);
-    const name = path.basename(skillPath);
-    const disabled = getHiddenSkills();
-    const isProject = !skillPath.startsWith(GLOBAL_SKILLS_DIR);
-    return {
-      name,
-      description: fm.description || "(无描述)",
-      path: skillPath,
-      level: isProject ? "project" : "global",
-      enabled: !disabled.includes(name),
-      body: fm.body,
-    };
-  } catch {
-    return null;
-  }
+  const raw = readFileSync(skillFile, "utf-8");
+  const fm = parseFrontmatter(raw);
+  const name = path.basename(skillPath);
+  const disabled = getHiddenSkills();
+  const isProject = !skillPath.startsWith(GLOBAL_SKILLS_DIR);
+  return {
+    name,
+    description: fm.description || "(无描述)",
+    path: skillPath,
+    level: isProject ? "project" : "global",
+    enabled: !disabled.includes(name),
+    body: fm.body,
+  };
 }
 
 export function toggleSkill(name: string, enabled: boolean): void {
@@ -220,9 +216,7 @@ export function seedDefaultSkills(): void {
     const srcPath = path.join(srcDir, name);
     if (!existsSync(srcPath)) continue;
 
-    try {
-      cpSync(srcPath, targetPath, { recursive: true });
-    } catch { }
+    cpSync(srcPath, targetPath, { recursive: true });
   }
 }
 

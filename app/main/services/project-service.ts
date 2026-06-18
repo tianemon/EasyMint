@@ -74,12 +74,10 @@ export class ProjectService {
         await shell.trashItem(project.path);
       }
       // Clean up SDK session directory
-      try {
-        const sdkProjectsDir = path.join(os.homedir(), ".easymint", "projects");
-        const encodedPath = project.path.replace(/[:/\\]/g, "-");
-        const sdkDir = path.join(sdkProjectsDir, encodedPath);
-        if (fs.existsSync(sdkDir)) fs.rmSync(sdkDir, { recursive: true, force: true });
-      } catch { }
+      const sdkProjectsDir = path.join(os.homedir(), ".easymint", "projects");
+      const encodedPath = project.path.replace(/[:/\\]/g, "-");
+      const sdkDir = path.join(sdkProjectsDir, encodedPath);
+      if (fs.existsSync(sdkDir)) fs.rmSync(sdkDir, { recursive: true, force: true });
     }
     const projects = this.store.getProjects().filter((p) => p.id !== id);
     this.store.saveProjects(projects);

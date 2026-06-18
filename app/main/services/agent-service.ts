@@ -483,7 +483,7 @@ export class AgentService {
 
     // Archive old session
     if (chat.sessionId) {
-      try { archiveSession(chat.sessionId); } catch { }
+      archiveSession(chat.sessionId);
     }
 
     // Broadcast to renderer: create new chat tab with the handoff
@@ -500,12 +500,8 @@ export class AgentService {
     const chat = this.findActiveChat(sessionId);
     if (!chat?.query) return; // not active yet, model will apply on next sendMessage
     const resolved = resolveModel(model, this.store) || model;
-    try {
-      await (chat.query as { setModel?: (m: string) => Promise<void> }).setModel?.(resolved);
-      chat.currentModel = model;
-    } catch (err) {
-      throw err;
-    }
+    await (chat.query as { setModel?: (m: string) => Promise<void> }).setModel?.(resolved);
+    chat.currentModel = model;
   }
 
   /** Create an independent Agent session from a template */
@@ -557,7 +553,7 @@ export class AgentService {
     chat.channel.close();
     chat.abortController.abort();
     if (chat.query) {
-      try { chat.query.close?.(); } catch { }
+      chat.query.close?.();
     }
     this.activeChats.delete(chatId);
     broadcast("agent:exit", { runId: chatId, code: -1 });
@@ -595,7 +591,7 @@ export class AgentService {
       chat.channel.close();
       chat.abortController.abort();
       if (chat.query) {
-        try { chat.query.close?.(); } catch { }
+        chat.query.close?.();
       }
       broadcast("agent:exit", { runId: id, code: -1 });
     }

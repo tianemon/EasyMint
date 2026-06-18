@@ -72,55 +72,43 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     setMainWindow(window);
     detectClaude();
     // Seed default Agent templates on first launch
-    try {
-      const { seedDefaults } = require("./services/agent-templates");
-      seedDefaults();
-    } catch { }
+    const { seedDefaults } = require("./services/agent-templates");
+    seedDefaults();
     // Seed built-in skills (~/.claude/skills/)
-    try {
-      const { seedDefaultSkills } = require("./services/skill-service");
-      seedDefaultSkills();
-    } catch { }
+    const { seedDefaultSkills } = require("./services/skill-service");
+    seedDefaultSkills();
     // Seed default MCP configs (~/.easymint/.claude.json)
-    try {
-      const { seedDefaultMcp } = require("./services/mcp-service");
-      seedDefaultMcp();
-    } catch { }
+    const { seedDefaultMcp } = require("./services/mcp-service");
+    seedDefaultMcp();
     // Clean up orphaned session caches
-    try {
-      const { listSessions } = require("@anthropic-ai/claude-agent-sdk");
-      const { purgeOrphanedCaches } = require("./services/session-cache");
-      listSessions().then((all: Array<{ sessionId: string }>) => {
-        purgeOrphanedCaches(new Set(all.map((s: { sessionId: string }) => s.sessionId)));
-      }).catch(() => {});
-    } catch { }
+    const { listSessions } = require("@anthropic-ai/claude-agent-sdk");
+    const { purgeOrphanedCaches } = require("./services/session-cache");
+    listSessions().then((all: Array<{ sessionId: string }>) => {
+      purgeOrphanedCaches(new Set(all.map((s: { sessionId: string }) => s.sessionId)));
+    }).catch(() => {});
     // Auto-cleanup old uploads (60 days / 10GB)
-    try {
-      const { autoClean } = require("./services/upload-cache");
-      autoClean();
-    } catch { }
+    const { autoClean } = require("./services/upload-cache");
+    autoClean();
     registerIpcHandlers({ mainWindow: window, ...sharedServices });
 
     // Clean up orphaned SDK session directories for deleted projects
-    try {
-      const sdkDir = path.join(os.homedir(), ".easymint", "projects");
-      if (fs.existsSync(sdkDir)) {
-        const projects = store.getProjects().map((p: { path: string }) => p.path.replace(/[:/\\]/g, "-"));
-        // Keep the fallback workspace (no-project sessions use this dir)
-        const defaultDir = store.getSettings().defaultProjectDir || path.join(os.homedir(), "EasyMintProject");
-        const workspacePath = path.join(resolveHome(defaultDir), "workspace");
-        const workspaceKey = workspacePath.replace(/[:/\\]/g, "-");
-        projects.push(workspaceKey);
-        for (const entry of fs.readdirSync(sdkDir)) {
-          if (!projects.includes(entry)) {
-            const full = path.join(sdkDir, entry);
-            if (fs.statSync(full).isDirectory()) {
-              fs.rmSync(full, { recursive: true, force: true });
-            }
+    const sdkDir = path.join(os.homedir(), ".easymint", "projects");
+    if (fs.existsSync(sdkDir)) {
+      const projects = store.getProjects().map((p: { path: string }) => p.path.replace(/[:/\\]/g, "-"));
+      // Keep the fallback workspace (no-project sessions use this dir)
+      const defaultDir = store.getSettings().defaultProjectDir || path.join(os.homedir(), "EasyMintProject");
+      const workspacePath = path.join(resolveHome(defaultDir), "workspace");
+      const workspaceKey = workspacePath.replace(/[:/\\]/g, "-");
+      projects.push(workspaceKey);
+      for (const entry of fs.readdirSync(sdkDir)) {
+        if (!projects.includes(entry)) {
+          const full = path.join(sdkDir, entry);
+          if (fs.statSync(full).isDirectory()) {
+            fs.rmSync(full, { recursive: true, force: true });
           }
         }
       }
-    } catch { }
+    }
   }
 
   loadApp(window, hash);
@@ -136,14 +124,12 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
 app.whenReady().then(() => {
   // 恢复上次打开的项目（仅在 setup 完成后）
   let startHash: string | undefined;
-  try {
-    const tempStore = new Store();
-    const settings = tempStore.getSettings();
-    if (settings.setupComplete) {
-      const lastId = tempStore.getLastProjectId();
-      if (lastId) startHash = `/project/${lastId}`;
-    }
-  } catch { }
+  const tempStore = new Store();
+  const settings = tempStore.getSettings();
+  if (settings.setupComplete) {
+    const lastId = tempStore.getLastProjectId();
+    if (lastId) startHash = `/project/${lastId}`;
+  }
   createWindow(startHash, true);
 
   if (process.platform === "darwin") {
