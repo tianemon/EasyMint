@@ -145,6 +145,14 @@ export function ProjectPage(): JSX.Element {
   const handleSessionClick = useCallback(
     (sessionId: string) => {
       setActiveSessionId(sessionId);
+      // 若已有同 session 的 Tab，直接激活，不再重复打开
+      const ts = useTabStore.getState();
+      const existing = ts.tabs.find((t) => t.type === "chat" && t.sessionId === sessionId);
+      if (existing) {
+        ts.setActiveTab(existing.id);
+        setActivePanel("chat");
+        return;
+      }
       window.electronAPI.conv.get(sessionId, projectPath || getWorkspaceDir()).then((info) => {
         openTab({ id: "", type: "chat", title: info?.title || "对话", sessionId });
       }).catch(() => {
