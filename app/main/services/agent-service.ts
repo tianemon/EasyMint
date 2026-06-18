@@ -188,14 +188,10 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
   return {
     cwd,
     permissionMode,
-    model: (() => {
-      const m = resolveModel(
-        overrides?.model || activeCfg?.model || settings.model || process.env.ANTHROPIC_MODEL || undefined,
-        store,
-      );
-      console.log("[buildQueryOptions] 模型: %s (1M: %s)", m, m?.includes("[1M]") ? "是" : "否");
-      return m;
-    })(),
+    model: resolveModel(
+      overrides?.model || activeCfg?.model || settings.model || process.env.ANTHROPIC_MODEL || undefined,
+      store,
+    ),
     env,
     systemPrompt: customPrompt ? { type: "preset" as const, preset: "claude_code" as const, append: customPrompt } : undefined,
     agents: Object.keys(agents).length > 0 ? agents : undefined,
@@ -348,7 +344,6 @@ export class AgentService {
         setTimeout(async () => {
           try {
             const usage = await chat.query!.getContextUsage();
-            console.log("[上下文] 初始 max=%d total=%d (%.1f%%)", usage.maxTokens, usage.totalTokens, usage.percentage);
             broadcast("agent:context-usage", { chatId: chat.chatId, percentage: usage.percentage, totalTokens: usage.totalTokens, maxTokens: usage.maxTokens });
           } catch { /* ignore */ }
         }, 500);
@@ -422,7 +417,6 @@ export class AgentService {
             if (chat.contextStatus === "normal") {
               try {
                 const usage = await chat.query!.getContextUsage();
-                console.log("[上下文] 已用 %d / 最大 %d (%.1f%%)", usage.totalTokens, usage.maxTokens, usage.percentage);
                 broadcast("agent:context-usage", { chatId: chat.chatId, percentage: usage.percentage, totalTokens: usage.totalTokens, maxTokens: usage.maxTokens });
                 const threshold = this.store.getSettings().contextThreshold ?? DEFAULT_COMPACT_THRESHOLD;
                 if (usage.percentage >= threshold) {
