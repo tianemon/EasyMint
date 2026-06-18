@@ -341,9 +341,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // externally (e.g. project init), fall back to sessionId match.
       if (currentChatRef.current) {
         if (!event.runId || event.runId !== currentChatRef.current) return;
-      } else if (sidRef.current) {
-        // 临时 ID（__new_*）→ 先不拦截，等 onChatSession 更新为真实 ID 后再匹配
-        if (!sidRef.current.startsWith("__new_") && (!event.sessionId || event.sessionId !== sidRef.current)) return;
+      } else if (existingSid) {
+        // Existing session from outside — accept events matching our sessionId
+        if (!event.sessionId || event.sessionId !== existingSid) return;
       } else {
         // 新标签页，还没获取到真实 sessionId —— 先收着不拦截（sidRef 很快会被更新）
         return;
@@ -470,10 +470,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
     try {
       currentChatRef.current = null;
-      const result = await postToAgent({ cwd: projectPath, sessionId: existingSid ?? null, permissionMode }, agentText);
+      // sendText 是 fire-and-forget，直接调 sendMessage 拿 chatId（无需等 postToAgent 的 replyText）
+      // chatId 必须立即可得，否则 onStream 过滤器 currentChatRef 为 null 会拦截所有事件
+      const result = await window.electronAPI.agent.sendMessage(projectPath, agentText, { sessionId: existingSid ?? null, permissionMode });
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
-      // chat 模式 fire-and-forget：replyText 不 await，AI 消息入 store 由下方 onStream 负责
-      result.replyText.catch(() => {});
     } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; }
   }, [input, busy, attaches, projectPath, permissionMode]);
 
