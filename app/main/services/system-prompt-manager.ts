@@ -96,8 +96,7 @@ function readConfig(): SystemPromptConfig {
       prompts: data.prompts,
       defaultPromptId: data.defaultPromptId ?? BUILTIN_DEFAULT_ID,
     };
-  } catch (error) {
-    console.error("[系统提示词] 读取配置失败:", error);
+  } catch {
     return getDefaultConfig();
   }
 }
@@ -106,8 +105,7 @@ function writeConfig(config: SystemPromptConfig): void {
   ensureDir();
   try {
     writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
-  } catch (error) {
-    console.error("[系统提示词] 写入配置失败:", error);
+  } catch {
     throw new Error("写入系统提示词配置失败");
   }
 }

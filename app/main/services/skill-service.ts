@@ -222,9 +222,7 @@ export function seedDefaultSkills(): void {
 
     try {
       cpSync(srcPath, targetPath, { recursive: true });
-    } catch (err) {
-      console.error("[seedDefaultSkills] failed:", name, err);
-    }
+    } catch { /* ignore */ }
   }
 }
 

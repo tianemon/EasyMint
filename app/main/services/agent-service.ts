@@ -433,7 +433,6 @@ export class AgentService {
       } catch (err: unknown) {
         if (this.activeChats.has(chat.chatId)) {
           const msg = err instanceof Error ? err.message : String(err);
-          console.error("[chat-loop] error: chatId=%s %s", chat.chatId, msg);
           broadcast("agent:stderr", { runId: chat.chatId, data: msg, timestamp: Date.now() });
           broadcast("agent:exit", { runId: chat.chatId, code: -1 });
         }
@@ -452,9 +451,7 @@ export class AgentService {
       const usage = await queryObj.getContextUsage();
       broadcast("agent:context-usage", { chatId: `peek-${sessionId}`, percentage: usage.percentage, totalTokens: usage.totalTokens, maxTokens: usage.maxTokens });
       queryObj.interrupt().catch(() => {});
-    } catch (err) {
-      console.error("[peekUsage] failed:", String(err));
-    }
+    } catch { /* ignore */ }
   }
 
   /** Find an active chat by SDK session ID */
@@ -511,7 +508,6 @@ export class AgentService {
       await (chat.query as { setModel?: (m: string) => Promise<void> }).setModel?.(resolved);
       chat.currentModel = model;
     } catch (err) {
-      console.error("[setModel] error:", err);
       throw err;
     }
   }
