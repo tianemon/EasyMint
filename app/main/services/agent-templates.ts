@@ -132,8 +132,6 @@ export function seedDefaults(): void {
   }
 
   writeAll(synced);
-  if (current.length !== synced.length) {
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

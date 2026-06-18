@@ -363,8 +363,6 @@ export class AgentService {
           // ── compact 计数：捕获 compact_boundary，达上限标记转轮转 ──
           if (msg.type === "system" && (msg as { subtype?: string }).subtype === "compact_boundary") {
             chat.compactCount++;
-            if (chat.compactCount >= MAX_COMPACT) {
-            }
           }
 
           // ── compact 失败兜底：SDK 压缩失败时改用轮转开新会话 ──
