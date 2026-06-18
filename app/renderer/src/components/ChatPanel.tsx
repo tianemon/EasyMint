@@ -342,8 +342,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (currentChatRef.current) {
         if (!event.runId || event.runId !== currentChatRef.current) return;
       } else if (sidRef.current) {
-        // 已获取到真实 sessionId（来自 onChatSession）——按 sessionId 匹配
-        if (!event.sessionId || event.sessionId !== sidRef.current) return;
+        // 临时 ID（__new_*）→ 先不拦截，等 onChatSession 更新为真实 ID 后再匹配
+        if (!sidRef.current.startsWith("__new_") && (!event.sessionId || event.sessionId !== sidRef.current)) return;
       } else {
         // 新标签页，还没获取到真实 sessionId —— 先收着不拦截（sidRef 很快会被更新）
         return;
