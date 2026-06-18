@@ -67,6 +67,8 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
   // additional windows reuse the same services via the preload bridge.
   if (!sharedServices) {
     const store = new Store();
+    // 启动时同步当前供应商配置到 SDK settings.json
+    store.saveSettings(store.getSettings());
     sharedServices = {
       store,
       projectService: new ProjectService(store),

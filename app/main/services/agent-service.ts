@@ -147,25 +147,18 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
   console.log("[buildQueryOptions] CLAUDE_CONFIG_DIR=%s", configDir);
 
   // ── 多平台 API 供应商配置 ──
+  // API Key / Base URL 已通过 writeSdkSettings 写入 settings.json env 字段
+  // SDK 每次 API 调用前会重读 settings.json，进程 env 不再覆盖（验证实时切换）
   const providers = settings.apiProviders;
   const activeId = providers?.current;
   const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
   const activePreset = activeCfg ? getPreset(activeCfg.presetId) : undefined;
 
   if (activeCfg) {
-    // 激活了供应商 → 应用其 env 配置
-    if (activePreset?.env.ANTHROPIC_BASE_URL || activeCfg.baseUrl) {
-      env.ANTHROPIC_BASE_URL = activeCfg.baseUrl || activePreset?.env.ANTHROPIC_BASE_URL || "";
-    }
-    if (activeCfg.apiKey) env.ANTHROPIC_AUTH_TOKEN = activeCfg.apiKey;
     if (activePreset?.env.API_TIMEOUT_MS) env.API_TIMEOUT_MS = activePreset.env.API_TIMEOUT_MS;
     if (activePreset?.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC) {
       env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = String(activePreset.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC);
     }
-  } else {
-    // 未激活供应商 → fallback 旧字段
-    if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
-    if (settings.apiKey) env.ANTHROPIC_AUTH_TOKEN = settings.apiKey;
   }
   const customPrompt = isResume ? "" : (resolveEffectivePrompt() + buildSkillsPrompt(projectPath));
   // Load Agent templates into SDK's options.agents
