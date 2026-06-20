@@ -17,7 +17,7 @@ import { buildSkillsPrompt } from "./skill-service";
 import { buildMcpServersOption } from "./mcp-service";
 import { buildBuiltinMcpServers } from "./builtin-mcp";
 import { getPreset } from "../../shared/platform-presets";
-import { archiveSession } from "./session-service";
+import { archiveSession, renameSession } from "./session-service";
 import { CONTEXT_SUMMARY_INSTRUCTION, buildSessionInfoAppend, buildContextHandoffPrompt, buildDynamicContext } from "../../shared/prompts";
 
 // Use createRequire for CJS/ESM compatibility in packaged Electron
@@ -112,6 +112,8 @@ interface ActiveChat {
   summaryBuffer: string;
   /** 本会话已 compact 次数。超过 MAX_COMPACT 次后改用轮转归档开新会话 */
   compactCount: number;
+  /** 首条用户消息原文，用于生成中文会话标题 */
+  firstUserMessage: string;
 }
 
 /** Append [1M] suffix to model name when context1M setting is enabled (global or per-provider) */
@@ -297,6 +299,7 @@ export class AgentService {
       sessionId: resumeSessionId ?? "",
       channel,
       abortController,
+      firstUserMessage: message,
       query: null,
       projectPath,
       status: "idle",
@@ -418,6 +421,18 @@ export class AgentService {
                 broadcast("agent:context-summary", { chatId: chat.chatId, summary: chat.summaryBuffer });
               }
               break; // exit loop → triggers rotation in finally-like handler
+            }
+
+            // ── 新会话首次对话完成：用首条消息生成中文标题（仅主会话）──
+            if (msg.subtype === "success" && capturedSid && chat.firstUserMessage && !chat.agentType) {
+              const firstMsg = chat.firstUserMessage;
+              chat.firstUserMessage = ""; // 只执行一次
+              const title = firstMsg.startsWith("[系统消息] 项目已创建") || firstMsg.startsWith("[系统消息] 用户点击了新建项目")
+                ? "新建项目"
+                : firstMsg.startsWith("[系统消息] 这是从上一轮会话迁移")
+                ? "会话迁移"
+                : firstMsg.length > 15 ? firstMsg.slice(0, 15) + "…" : firstMsg;
+              renameSession(capturedSid, title, chat.projectPath).catch(() => {});
             }
 
             // ── 上下文管理：每轮结束后检测使用率 ──
@@ -548,6 +563,7 @@ export class AgentService {
     const chat: ActiveChat = {
       chatId, sessionId: "", channel, abortController, query: null, projectPath,
       agentType: template.agentType, status: "idle", contextStatus: "normal", summaryBuffer: "", compactCount: 0,
+      firstUserMessage: initialMessage,
     };
     this.activeChats.set(chatId, chat);
 
