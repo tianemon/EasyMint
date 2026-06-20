@@ -40,12 +40,12 @@ function buildMonacoTheme(): editor.IStandaloneThemeData {
     base: isDark ? "vs-dark" : "vs",
     inherit: true,
     rules: [
-      { token: "comment", foreground: "6B7280", fontStyle: "italic" },
-      { token: "keyword", foreground: "7C3AED" },
-      { token: "string", foreground: "059669" },
-      { token: "number", foreground: "D97706" },
-      { token: "type", foreground: "2563EB" },
-      { token: "function", foreground: "DC2626" },
+      { token: "comment", foreground: "#6B7280", fontStyle: "italic" },
+      { token: "keyword", foreground: "#7C3AED" },
+      { token: "string", foreground: "#059669" },
+      { token: "number", foreground: "#D97706" },
+      { token: "type", foreground: "#2563EB" },
+      { token: "function", foreground: "#DC2626" },
     ],
     colors: {
       "editor.background": readCSS("--color-monaco-bg"),
