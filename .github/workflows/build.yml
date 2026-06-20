@@ -60,16 +60,29 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
+
+      - name: Extract release notes from CHANGELOG
+        id: changelog
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          awk -v ver="$TAG_NAME" '
+            $0 ~ "^## " ver { found=1; next }
+            found && $0 ~ "^## " { exit }
+            found { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          cat /tmp/release-notes.md
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          body_path: /tmp/release-notes.md
           files: |
             easymint-*/*.dmg
             easymint-*/*.dmg.blockmap
             easymint-*/*.exe
             easymint-*/*.exe.blockmap
-          generate_release_notes: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
