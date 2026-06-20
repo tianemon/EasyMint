@@ -142,6 +142,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => ipcRenderer.invoke("agent:spawnAgentChat", { projectPath, templateId, message }) as Promise<{ chatId: string }>,
     chatStatus: (sessionId: string) => ipcRenderer.invoke("agent:chatStatus", { sessionId }),
     getBufferedStream: (sessionId: string) => ipcRenderer.invoke("agent:getBufferedStream", { sessionId }) as Promise<unknown[]>,
+    listCommands: () => ipcRenderer.invoke("agent:listCommands") as Promise<Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }>>,
     killChat: (chatId: string) => ipcRenderer.invoke("agent:killChat", { chatId }) as Promise<void>,
     peekUsage: (projectPath: string, sessionId: string) => ipcRenderer.invoke("agent:peekUsage", { projectPath, sessionId }) as Promise<void>,
     onStream: (callback: (event: unknown) => void) => {
@@ -195,6 +196,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       const handler = (_event: Electron.IpcRendererEvent, data: { stage: string; projectPath: string }) => callback(data);
       ipcRenderer.on("agent:project-stage", handler);
       return () => ipcRenderer.removeListener("agent:project-stage", handler);
+    },
+    onCommandsChanged: (callback: (data: { commands: Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { commands: Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> }) => callback(data);
+      ipcRenderer.on("agent:commands-changed", handler);
+      return () => ipcRenderer.removeListener("agent:commands-changed", handler);
     },
   },
 });

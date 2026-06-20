@@ -80,34 +80,26 @@ function readConfig(): SystemPromptConfig {
     return getDefaultConfig();
   }
 
-  try {
-    const raw = readFileSync(CONFIG_PATH, "utf-8");
-    const data = JSON.parse(raw) as SystemPromptConfig;
+  const raw = readFileSync(CONFIG_PATH, "utf-8");
+  const data = JSON.parse(raw) as SystemPromptConfig;
 
-    // 确保内置提示词始终存在，且内容与源码保持同步
-    const builtinIndex = data.prompts.findIndex((p) => p.id === BUILTIN_DEFAULT_ID);
-    if (builtinIndex === -1) {
-      data.prompts.unshift({ ...BUILTIN_DEFAULT_PROMPT });
-    } else {
-      data.prompts[builtinIndex] = { ...BUILTIN_DEFAULT_PROMPT };
-    }
-
-    return {
-      prompts: data.prompts,
-      defaultPromptId: data.defaultPromptId ?? BUILTIN_DEFAULT_ID,
-    };
-  } catch {
-    return getDefaultConfig();
+  // 确保内置提示词始终存在，且内容与源码保持同步
+  const builtinIndex = data.prompts.findIndex((p) => p.id === BUILTIN_DEFAULT_ID);
+  if (builtinIndex === -1) {
+    data.prompts.unshift({ ...BUILTIN_DEFAULT_PROMPT });
+  } else {
+    data.prompts[builtinIndex] = { ...BUILTIN_DEFAULT_PROMPT };
   }
+
+  return {
+    prompts: data.prompts,
+    defaultPromptId: data.defaultPromptId ?? BUILTIN_DEFAULT_ID,
+  };
 }
 
 function writeConfig(config: SystemPromptConfig): void {
   ensureDir();
-  try {
-    writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
-  } catch {
-    throw new Error("写入系统提示词配置失败");
-  }
+  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
 }
 
 // ── Public API ─────────────────────────────────────

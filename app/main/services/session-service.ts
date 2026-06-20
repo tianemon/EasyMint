@@ -30,7 +30,7 @@ function ensureDir(): void {
 
 function readPinned(): Record<string, number> {
   if (!existsSync(PINNED_PATH)) return {};
-  try { return JSON.parse(readFileSync(PINNED_PATH, "utf-8")); } catch { return {}; }
+  return JSON.parse(readFileSync(PINNED_PATH, "utf-8"));
 }
 
 function writePinned(data: Record<string, number>): void {
@@ -40,7 +40,7 @@ function writePinned(data: Record<string, number>): void {
 
 function readArchived(): Record<string, number> {
   if (!existsSync(ARCHIVED_PATH)) return {};
-  try { return JSON.parse(readFileSync(ARCHIVED_PATH, "utf-8")); } catch { return {}; }
+  return JSON.parse(readFileSync(ARCHIVED_PATH, "utf-8"));
 }
 
 function writeArchived(data: Record<string, number>): void {
@@ -68,21 +68,18 @@ function cleanupSessionSatellites(sessionId: string): void {
     // Directories named with this session ID
     for (const sub of ["session-env", "tasks", "file-history"]) {
       const dir = path.join(base, sub, sessionId);
-      try { rmSync(dir, { recursive: true, force: true }); } catch { /* already gone or no permission */ }
+      if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
     }
 
     // telemetry/ files that start with or contain this session ID
     const teleDir = path.join(base, "telemetry");
-    try {
-      if (existsSync(teleDir)) {
-        const files = readdirSync(teleDir);
-        for (const f of files) {
-          if (f.includes(sessionId)) {
-            try { rmSync(path.join(teleDir, f), { force: true }); } catch { /* skip */ }
-          }
+    if (existsSync(teleDir)) {
+      for (const f of readdirSync(teleDir)) {
+        if (f.includes(sessionId)) {
+          rmSync(path.join(teleDir, f), { force: true });
         }
       }
-    } catch { /* directory doesn't exist */ }
+    }
   }
 }
 

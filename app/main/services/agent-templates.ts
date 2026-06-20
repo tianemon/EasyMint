@@ -43,7 +43,7 @@ function ensureDir(): void {
 
 function readAll(): AgentTemplate[] {
   if (!existsSync(STORE_PATH)) return [];
-  try { return JSON.parse(readFileSync(STORE_PATH, "utf-8")); } catch { return []; }
+  return JSON.parse(readFileSync(STORE_PATH, "utf-8"));
 }
 
 function writeAll(templates: AgentTemplate[]): void {

@@ -41,25 +41,17 @@ function claudeCodeMcpPath(): string {
 const EM_SETTINGS = path.join(os.homedir(), ".easymint", "em-settings.json");
 
 function getHiddenMcpServers(): string[] {
-  try {
-    if (!existsSync(EM_SETTINGS)) return [];
-    const data = JSON.parse(readFileSync(EM_SETTINGS, "utf-8"));
-    return (data.hiddenMcpServers as string[]) || [];
-  } catch {
-    return [];
-  }
+  if (!existsSync(EM_SETTINGS)) return [];
+  const data = JSON.parse(readFileSync(EM_SETTINGS, "utf-8"));
+  return (data.hiddenMcpServers as string[]) || [];
 }
 
 // ── Scan ───────────────────────────────────────────
 
 function readMcpServersFrom(filePath: string): Record<string, McpServerConfig> {
-  try {
-    if (!existsSync(filePath)) return {};
-    const data = JSON.parse(readFileSync(filePath, "utf-8"));
-    return (data.mcpServers as Record<string, McpServerConfig>) || {};
-  } catch {
-    return {};
-  }
+  if (!existsSync(filePath)) return {};
+  const data = JSON.parse(readFileSync(filePath, "utf-8"));
+  return (data.mcpServers as Record<string, McpServerConfig>) || {};
 }
 
 /** Scan CC's MCP config (shared with EM) for the settings panel display */
@@ -88,13 +80,9 @@ export function scanMcpServers(): McpServerManifest[] {
 // ── API keys ───────────────────────────────────────
 
 function getApiKeys(): Record<string, string> {
-  try {
-    if (!existsSync(EM_SETTINGS)) return {};
-    const data = JSON.parse(readFileSync(EM_SETTINGS, "utf-8"));
-    return (data.apiKeys as Record<string, string>) || {};
-  } catch {
-    return {};
-  }
+  if (!existsSync(EM_SETTINGS)) return {};
+  const data = JSON.parse(readFileSync(EM_SETTINGS, "utf-8"));
+  return (data.apiKeys as Record<string, string>) || {};
 }
 
 // ── Build SDK mcpServers ───────────────────────────
@@ -168,7 +156,7 @@ export function toggleMcpServer(name: string, enabled: boolean): void {
   if (!existsSync(dir)) return;
   const data: Record<string, unknown> = {};
   if (existsSync(EM_SETTINGS)) {
-    try { Object.assign(data, JSON.parse(readFileSync(EM_SETTINGS, "utf-8"))); } catch { /* overwrite */ }
+    Object.assign(data, JSON.parse(readFileSync(EM_SETTINGS, "utf-8")));
   }
   let list: string[] = (data.hiddenMcpServers as string[]) || [];
   if (enabled) {
@@ -208,7 +196,7 @@ export function seedDefaultMcp(): void {
 
   let data: Record<string, unknown> = {};
   if (existsSync(configPath)) {
-    try { data = JSON.parse(readFileSync(configPath, "utf-8")); } catch { /* overwrite */ }
+    data = JSON.parse(readFileSync(configPath, "utf-8"));
   }
 
   const existing: Record<string, McpServerConfig> =

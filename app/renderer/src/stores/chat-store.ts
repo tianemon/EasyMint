@@ -2,6 +2,10 @@ import { create } from "zustand";
 
 export type StoredMessage = Record<string, any> & { id: number; role: "user" | "ai" };
 
+/** 剥离注入消息的上下文标签（<current_time> 等），仅展示用户原始文本 */
+const stripContextTag = (text?: string): string =>
+  (text || "").replace(/^<current_time>[^<]*<\/current_time>\n\n/, "");
+
 interface ChatState {
   messagesBySession: Record<string, any[]>;
   msgIdBySession: Record<string, number>;
@@ -19,17 +23,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   loadSession: (sessionId, messages) =>
     set((s) => {
+      const cleaned = messages.map((m) => (m.role === "user" ? { ...m, text: stripContextTag(m.text) } : m));
       const existing = s.messagesBySession[sessionId] || [];
       if (existing.length === 0) {
         return {
-          messagesBySession: { ...s.messagesBySession, [sessionId]: messages },
-          msgIdBySession: { ...s.msgIdBySession, [sessionId]: Math.max(0, ...messages.map((m) => m.id)) },
+          messagesBySession: { ...s.messagesBySession, [sessionId]: cleaned },
+          msgIdBySession: { ...s.msgIdBySession, [sessionId]: Math.max(0, ...cleaned.map((m) => m.id)) },
         };
       }
       // Merge: prepend store-only messages (e.g. init prompt pre-written by handleCreate)
-      const existingIds = new Set(messages.map((m: { id: number }) => m.id));
+      const existingIds = new Set(cleaned.map((m: { id: number }) => m.id));
       const storeOnly = existing.filter((m: { id: number }) => !existingIds.has(m.id));
-      const merged = [...storeOnly, ...messages].sort((a: { id: number }, b: { id: number }) => a.id - b.id);
+      const merged = [...storeOnly, ...cleaned].sort((a: { id: number }, b: { id: number }) => a.id - b.id);
       return {
         messagesBySession: { ...s.messagesBySession, [sessionId]: merged },
         msgIdBySession: { ...s.msgIdBySession, [sessionId]: Math.max(0, ...merged.map((m: { id: number }) => m.id)) },
@@ -47,10 +52,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   appendUserMsg: (sessionId, msg) => {
     const id = get().nextMsgId(sessionId);
+    const cleanMsg = msg.role === "user" && msg.text ? { ...msg, text: stripContextTag(msg.text) } : msg;
     return set((s) => ({
       messagesBySession: {
         ...s.messagesBySession,
-        [sessionId]: [...(s.messagesBySession[sessionId] || []), { ...msg, id }],
+        [sessionId]: [...(s.messagesBySession[sessionId] || []), { ...cleanMsg, id }],
       },
     }));
   },

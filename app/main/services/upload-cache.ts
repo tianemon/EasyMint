@@ -42,10 +42,8 @@ function ensureDir(): void {
 // ── Metadata ───────────────────────────────────────
 
 function readMeta(): Record<string, FileMeta> {
-  try {
-    if (!existsSync(META_FILE)) return {};
-    return JSON.parse(readFileSync(META_FILE, "utf-8"));
-  } catch { return {}; }
+  if (!existsSync(META_FILE)) return {};
+  return JSON.parse(readFileSync(META_FILE, "utf-8"));
 }
 
 function writeMeta(meta: Record<string, FileMeta>): void {
@@ -78,7 +76,7 @@ export function untrackSession(sessionId: string): void {
   }
   for (const name of toDelete) {
     delete meta[name];
-    try { unlinkSync(path.join(UPLOAD_DIR, name)); } catch { /* already gone */ }
+      unlinkSync(path.join(UPLOAD_DIR, name));
   }
   writeMeta(meta);
 }
@@ -92,23 +90,21 @@ export function getUploadStats(sortBy: "time" | "size" = "time"): UploadStats {
   const files: UploadStatsItem[] = [];
   let totalSize = 0;
 
-  try {
-    for (const entry of readdirSync(UPLOAD_DIR)) {
-      if (entry === ".meta.json") continue;
-      const filePath = path.join(UPLOAD_DIR, entry);
-      if (!statSync(filePath).isFile()) continue;
-      const m = meta[entry];
-      const stats = statSync(filePath);
-      const isImage = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(entry);
-      files.push({
-        name: entry,
-        size: m?.size || stats.size,
-        created: m?.created || stats.mtimeMs,
-        isImage,
-      });
-      totalSize += m?.size || stats.size;
-    }
-  } catch { /* empty */ }
+  for (const entry of readdirSync(UPLOAD_DIR)) {
+    if (entry === ".meta.json") continue;
+    const filePath = path.join(UPLOAD_DIR, entry);
+    if (!statSync(filePath).isFile()) continue;
+    const m = meta[entry];
+    const stats = statSync(filePath);
+    const isImage = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(entry);
+    files.push({
+      name: entry,
+      size: m?.size || stats.size,
+      created: m?.created || stats.mtimeMs,
+      isImage,
+    });
+    totalSize += m?.size || stats.size;
+  }
 
   files.sort((a, b) => sortBy === "size" ? b.size - a.size : b.created - a.created);
   return { totalSize, fileCount: files.length, files };
@@ -121,7 +117,7 @@ export function cleanFiles(filenames: string[]): number {
   let deleted = 0;
   const meta = readMeta();
   for (const name of filenames) {
-    try { unlinkSync(path.join(UPLOAD_DIR, name)); deleted++; } catch { /* */ }
+    unlinkSync(path.join(UPLOAD_DIR, name)); deleted++;
     delete meta[name];
   }
   writeMeta(meta);
@@ -133,7 +129,7 @@ export function cleanAll(): number {
   const meta = readMeta();
   let deleted = 0;
   for (const name of Object.keys(meta)) {
-    try { unlinkSync(path.join(UPLOAD_DIR, name)); deleted++; } catch { /* */ }
+    unlinkSync(path.join(UPLOAD_DIR, name)); deleted++;
   }
   writeMeta({});
   return deleted;

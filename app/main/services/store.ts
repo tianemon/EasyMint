@@ -38,8 +38,6 @@ interface Settings {
   claudePath: string;
   terminalFontSize: number;
   evaluateMode?: boolean;
-  tddMode?: boolean;
-  screenshotVerification?: boolean;
   apiBaseUrl?: string;
   apiKey?: string;
   model?: string;
@@ -108,13 +106,13 @@ export class Store {
     // Read EM-specific settings
     let emData: Record<string, unknown> = {};
     if (fs.existsSync(this.emSettingsPath)) {
-      try { emData = JSON.parse(fs.readFileSync(this.emSettingsPath, "utf-8")); } catch { /* ignore */ }
+      emData = JSON.parse(fs.readFileSync(this.emSettingsPath, "utf-8"));
     }
 
     // Read SDK settings (for apiKey, apiBaseUrl)
     let sdkData: Record<string, unknown> = {};
     if (fs.existsSync(this.sdkSettingsPath)) {
-      try { sdkData = JSON.parse(fs.readFileSync(this.sdkSettingsPath, "utf-8")); } catch { /* ignore */ }
+      sdkData = JSON.parse(fs.readFileSync(this.sdkSettingsPath, "utf-8"));
     }
     const env = (sdkData.env as Record<string, string>) || {};
 
@@ -123,8 +121,6 @@ export class Store {
       claudePath: (emData.claudePath as string) || "",
       terminalFontSize: (emData.terminalFontSize as number) || EM_DEFAULTS.terminalFontSize,
       evaluateMode: emData.evaluateMode as boolean | undefined,
-      tddMode: emData.tddMode as boolean | undefined,
-      screenshotVerification: emData.screenshotVerification as boolean | undefined,
       apiBaseUrl: env.ANTHROPIC_BASE_URL || (sdkData.apiBaseUrl as string),
       apiKey: env.ANTHROPIC_AUTH_TOKEN || (sdkData.apiKey as string),
       model: (emData.model as string) || undefined,
@@ -157,14 +153,12 @@ export class Store {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     const data: Record<string, unknown> = {};
     if (fs.existsSync(this.emSettingsPath)) {
-      try { Object.assign(data, JSON.parse(fs.readFileSync(this.emSettingsPath, "utf-8"))); } catch { /* overwrite */ }
+      Object.assign(data, JSON.parse(fs.readFileSync(this.emSettingsPath, "utf-8")));
     }
     data.defaultProjectDir = settings.defaultProjectDir;
     data.claudePath = settings.claudePath;
     data.terminalFontSize = settings.terminalFontSize;
     data.evaluateMode = settings.evaluateMode;
-    data.tddMode = settings.tddMode;
-    data.screenshotVerification = settings.screenshotVerification;
     data.lastProjectId = settings.lastProjectId;
     data.setupComplete = settings.setupComplete;
     // 同步激活供应商的模型列表到旧字段（ChatPanel 下拉引用）
@@ -194,7 +188,7 @@ export class Store {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     const data: Record<string, unknown> = {};
     if (fs.existsSync(this.sdkSettingsPath)) {
-      try { Object.assign(data, JSON.parse(fs.readFileSync(this.sdkSettingsPath, "utf-8"))); } catch { /* overwrite */ }
+      Object.assign(data, JSON.parse(fs.readFileSync(this.sdkSettingsPath, "utf-8")));
     }
     // 优先从激活的供应商配置读取，fallback 到旧字段
     const providers = settings.apiProviders;
@@ -240,5 +234,18 @@ export class Store {
     const data = JSON.parse(fs.readFileSync(sessionsFile, "utf-8"));
     data.sessions = data.sessions.filter((s: Session) => s.id !== sessionId);
     fs.writeFileSync(sessionsFile, JSON.stringify(data, null, 2));
+  }
+
+  /** SDK 命令缓存读写（commands.json）— 启动时即使没活跃 query 也能展示列表 */
+  getCommandsCache(): Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> {
+    const file = path.join(this.dataDir, "commands.json");
+    if (!fs.existsSync(file)) return [];
+    const data = JSON.parse(fs.readFileSync(file, "utf-8"));
+    return Array.isArray(data?.commands) ? data.commands : [];
+  }
+
+  setCommandsCache(commands: Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }>): void {
+    const file = path.join(this.dataDir, "commands.json");
+    fs.writeFileSync(file, JSON.stringify({ commands, updatedAt: Date.now() }, null, 2));
   }
 }

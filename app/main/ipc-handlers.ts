@@ -113,6 +113,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:getBufferedStream", (_e, { sessionId }) => {
     return agentService.getBufferedStream(sessionId);
   });
+  ipcMain.handle("agent:listCommands", () => {
+    return agentService.listCommands();
+  });
   ipcMain.handle("agent:setModel", (_e, { sessionId, model }) => {
     return agentService.setModel(sessionId, model);
   });
@@ -237,42 +240,41 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
 
   // project:checkInitStatus — check if init.sh has been filled
   ipcMain.handle("project:checkInitStatus", (_e, { projectPath }) => {
-    try {
+    
 const filePath = p.join(projectPath, "init.sh");
       if (!fs.existsSync(filePath)) return { done: false, reason: "init.sh not found" };
       const content = fs.readFileSync(filePath, "utf-8");
       return { done: !content.includes("{{PROJECT_DIR}}"), reason: content.includes("{{PROJECT_DIR}}") ? "still template" : "filled" };
-    } catch { return { done: false, reason: "error" }; }
+
   });
 
   // project:readState — read .easymint/state.json in project
   ipcMain.handle("project:readState", (_e, { projectPath }) => {
-    try {
+    
 const filePath = p.join(projectPath, ".easymint", "state.json");
       if (!fs.existsSync(filePath)) return null;
       return JSON.parse(fs.readFileSync(filePath, "utf-8"));
-    } catch { return null; }
+
   });
 
   // project:writeState — merge-write .easymint/state.json in project
   ipcMain.handle("project:writeState", (_e, { projectPath, state }) => {
-    try {
+    
 const dir = p.join(projectPath, ".easymint");
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       const filePath = p.join(dir, "state.json");
       let existing: Record<string, unknown> = {};
       if (fs.existsSync(filePath)) {
-        try { existing = JSON.parse(fs.readFileSync(filePath, "utf-8")); } catch { /* overwrite */ }
+        existing = JSON.parse(fs.readFileSync(filePath, "utf-8"));
       }
       const merged = { ...existing, ...(state as Record<string, unknown>) };
       fs.writeFileSync(filePath, JSON.stringify(merged, null, 2));
       return true;
-    } catch { return false; }
   });
 
   // task:read — read task.json and return tasks
   ipcMain.handle("task:read", (_e, { projectPath }) => {
-    try {
+    
 const filePath = p.join(projectPath, "task.json");
       if (!fs.existsSync(filePath)) return { tasks: [] };
       const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
@@ -284,7 +286,6 @@ const filePath = p.join(projectPath, "task.json");
         status: t.status || "pending",
         attempts: t.attempts ?? 0,
       })) };
-    } catch { return { tasks: [] }; }
   });
 
   // file:saveUpload — save uploaded image to ~/.easymint/uploads/

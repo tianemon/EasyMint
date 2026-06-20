@@ -78,6 +78,7 @@ interface ElectronAPI {
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => Promise<{ chatId: string }>;
     chatStatus: (sessionId: string) => Promise<string | null>;
     getBufferedStream: (sessionId: string) => Promise<unknown[]>;
+    listCommands: () => Promise<Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }>>;
     killChat: (chatId: string) => Promise<void>;
     peekUsage: (projectPath: string, sessionId: string) => Promise<void>;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
@@ -90,6 +91,7 @@ interface ElectronAPI {
     onContextUsage: (callback: (data: { chatId: string; percentage: number; totalTokens: number; maxTokens: number }) => void) => () => void;
     onTaskStatus: (callback: (data: { taskId: string; status: string; projectPath: string }) => void) => () => void;
     onProjectStage: (callback: (data: { stage: string; projectPath: string }) => void) => () => void;
+    onCommandsChanged: (callback: (data: { commands: Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> }) => void) => () => void;
   };
   task: {
     read: (projectPath: string) => Promise<{ tasks: { id: string; title: string; description: string; command: string; status: string; attempts: number }[] }>;
@@ -164,8 +166,7 @@ interface ElectronAPI {
   };
   settings: {
     get: () => Promise<{
-      defaultProjectDir?: string; terminalFontSize: number; evaluateMode: boolean; tddMode: boolean;
-      screenshotVerification: boolean; setupComplete?: boolean; apiBaseUrl?: string;
+      defaultProjectDir?: string; terminalFontSize: number; evaluateMode: boolean; setupComplete?: boolean; apiBaseUrl?: string;
       apiKey?: string; apiKeys?: Record<string, string>; builtinTools?: Record<string, boolean>; model?: string;
       availableModels?: string[]; contextThreshold?: number; context1M?: boolean;
       showThinking?: boolean; showToolUse?: boolean;

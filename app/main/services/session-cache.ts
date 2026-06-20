@@ -29,13 +29,9 @@ function ensureDir(): void {
 }
 
 export function readCache(sessionId: string): SessionCache | null {
-  try {
-    const p = cachePath(sessionId);
-    if (!existsSync(p)) return null;
-    return JSON.parse(readFileSync(p, "utf-8")) as SessionCache;
-  } catch {
-    return null;
-  }
+  const p = cachePath(sessionId);
+  if (!existsSync(p)) return null;
+  return JSON.parse(readFileSync(p, "utf-8")) as SessionCache;
 }
 
 export function writeCache(sessionId: string, data: Partial<SessionCache>): void {
@@ -52,22 +48,18 @@ export function writeCache(sessionId: string, data: Partial<SessionCache>): void
 }
 
 export function deleteCache(sessionId: string): void {
-  try {
-    const p = cachePath(sessionId);
-    if (existsSync(p)) unlinkSync(p);
-  } catch { /* ignore */ }
+  const p = cachePath(sessionId);
+  if (existsSync(p)) unlinkSync(p);
 }
 
 /** Purge cache files for sessions that no longer exist in the given list of valid IDs. */
 export function purgeOrphanedCaches(validSessionIds: Set<string>): void {
   ensureDir();
-  try {
-    for (const file of readdirSync(CACHE_DIR)) {
-      if (!file.endsWith(".json")) continue;
-      const sid = file.replace(".json", "");
-      if (!validSessionIds.has(sid)) {
-        unlinkSync(path.join(CACHE_DIR, file));
-      }
+  for (const file of readdirSync(CACHE_DIR)) {
+    if (!file.endsWith(".json")) continue;
+    const sid = file.replace(".json", "");
+    if (!validSessionIds.has(sid)) {
+      unlinkSync(path.join(CACHE_DIR, file));
     }
-  } catch { /* ignore */ }
+  }
 }

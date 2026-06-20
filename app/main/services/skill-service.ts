@@ -40,13 +40,9 @@ function projectSkillsDir(projectPath: string): string {
 const DISABLED_FILE = path.join(os.homedir(), ".easymint", "em-settings.json");
 
 function getHiddenSkills(): string[] {
-  try {
-    if (!existsSync(DISABLED_FILE)) return [];
-    const data = JSON.parse(readFileSync(DISABLED_FILE, "utf-8"));
-    return (data.hiddenSkills as string[]) || [];
-  } catch {
-    return [];
-  }
+  if (!existsSync(DISABLED_FILE)) return [];
+  const data = JSON.parse(readFileSync(DISABLED_FILE, "utf-8"));
+  return (data.hiddenSkills as string[]) || [];
 }
 
 function saveHiddenSkills(list: string[]): void {
@@ -54,7 +50,7 @@ function saveHiddenSkills(list: string[]): void {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const data: Record<string, unknown> = {};
   if (existsSync(DISABLED_FILE)) {
-    try { Object.assign(data, JSON.parse(readFileSync(DISABLED_FILE, "utf-8"))); } catch { /* overwrite */ }
+    Object.assign(data, JSON.parse(readFileSync(DISABLED_FILE, "utf-8")));
   }
   data.hiddenSkills = list;
   writeFileSync(DISABLED_FILE, JSON.stringify(data, null, 2));

@@ -7,6 +7,7 @@ import { useSettingsStore } from "../stores/settings-store";
 import { useTabStore } from "../stores/tab-store";
 import { useChatStore } from "../stores/chat-store";
 import { QuickPrompts } from "./QuickPrompts";
+import { CommandPalette } from "./CommandPalette";
 import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
 
 import { useStatusStore } from "../stores/status-store";
@@ -175,6 +176,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const [attaches, setAttaches] = useState<AttachItem[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [permissionMode, setPermissionMode] = useState("auto");
+  /** 命令面板：null=关闭；query=过滤词（输入框打 / 触发时透传 / 后的字符），点按钮触发时为 "" */
+  const [paletteQuery, setPaletteQuery] = useState<string | null>(null);
   const storeModel = useSettingsStore((s) => s.model);
   const setStoreModel = useSettingsStore((s) => s.setModel);
   const availableModels = useSettingsStore((s) => s.availableModels);
@@ -204,6 +207,15 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   useEffect(() => { refreshBalance(); const t = setInterval(refreshBalance, 5 * 60 * 1000); return () => clearInterval(t); }, [refreshBalance]);
 
+  // 启动时拉取一次命令缓存 + 订阅 SDK 推送的命令变化
+  useEffect(() => {
+    useSettingsStore.getState().loadCommands();
+    const unsub = window.electronAPI?.agent?.onCommandsChanged?.(({ commands }) => {
+      useSettingsStore.getState().setAvailableCommands(commands);
+    });
+    return () => { unsub?.(); };
+  }, []);
+
   const handleModelChange = useCallback(async (m: string) => {
     setChatModel(m); setStoreModel(m);
     const sid = sidRef.current;
@@ -212,6 +224,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   const msgIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  /** 输入框变化处理：检测开头 / 触发命令面板（仅在输入框纯命令上下文下，不影响代码片段） */
+  const handleInputChange = useCallback((value: string) => {
+    setInput(value);
+    // 触发条件：以 / 开头 + 不含换行（多行说明在写代码不是命令）+ 不含空格（一旦带参数就关闭面板，让用户自己写）
+    if (value.startsWith("/") && !value.includes("\n") && !value.includes(" ")) {
+      setPaletteQuery(value);
+    } else {
+      setPaletteQuery(null);
+    }
+  }, []);
   const autoScrollRef = useRef(true);
   // 已处理事件 seq 集合：缓冲补放（Effect A）与实时 onStream 共享，避免同一事件被两条路径双写
   const processedSeqRef = useRef<Set<number>>(new Set());
@@ -290,24 +313,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (!existingSid) return; let cancelled = false;
     const projectDir = projectPath || getWorkspaceDir();
     (async () => {
-      try {
         const buffered = await window.electronAPI.agent.getBufferedStream(existingSid);
         if (!cancelled && buffered.length > 0) {
           let _cur = 0;
           for (const raw of buffered) {
             const ev = raw as StreamEvent;
-            // seq 去重：实时 onStream 可能已处理过该事件，跳过避免双写
             if (typeof ev.seq === "number" && processedSeqRef.current.has(ev.seq)) continue;
-            // 状态栏更新（setBusy/setText）——缓冲补放和实时 onStream 共用同一逻辑
             updateStreamStatus(ev, setBusy);
             const entry = normalizeEvent(ev); if (!entry) continue;
             if (typeof ev.seq === "number") processedSeqRef.current.add(ev.seq);
             _cur = useChatStore.getState().appendAiEntry(sidRef.current, entry);
           }
         }
-      } catch { /* */ }
       if (cancelled) return; const snapshot = msgIdRef.current;
-      try {
         let msgs = await window.electronAPI.conv.messages(existingSid, projectDir);
         if (!cancelled && msgs.length === 0) { await new Promise((r) => setTimeout(r, 500)); if (cancelled) return; msgs = await window.electronAPI.conv.messages(existingSid, projectDir); }
         if (!cancelled && msgs.length > 0 && msgIdRef.current <= snapshot) {
@@ -328,7 +346,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           if (loads.length > 0) await Promise.all(loads);
           if (!cancelled && mapped.length > 0) { useChatStore.getState().loadSession(sid, mapped); msgIdRef.current = Math.max(...mapped.map((m) => m.id)); }
         }
-      } catch { /* */ }
     })();
     return () => { cancelled = true; };
   }, [existingSid, projectPath]);
@@ -482,6 +499,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const handleSend = useCallback(() => sendText(), [sendText]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // 命令面板打开时，把 ↑↓ Enter Esc 让给面板处理（CommandPalette document 监听已接管）
+    if (paletteQuery !== null && (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Enter" || e.key === "Escape")) {
+      e.preventDefault();
+      return;
+    }
     if (e.key === "ArrowUp" && !e.shiftKey) {
       e.preventDefault();
       const hist = inputHistoryRef.current;
@@ -505,7 +527,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     } else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault(); handleSend();
     }
-  }, [handleSend, input]);
+  }, [handleSend, input, paletteQuery]);
 
   const hasMessages = messages.length > 0;
 
@@ -653,6 +675,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-accent transition-colors" title="上传文档" onClick={() => docInputRef.current?.click()}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M3 2h7l4 4v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M10 2v4h4M6 9h4M6 12h4"/></svg>
         </button>
+        <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-accent transition-colors" title="快捷命令（输入 / 也能触发）" onClick={() => setPaletteQuery("")}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M2.5 4l3 4-3 4"/><path d="M7 12h6.5"/></svg>
+        </button>
         <div className="flex-1" />
         <select value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer">
           <option value="auto">智能判断</option><option value="plan">只读</option><option value="acceptEdits">手动确认</option><option value="bypassPermissions">完全自主</option>
@@ -666,7 +691,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       </div>
 
       {/* Input area */}
-      <div className="border-t border-border p-3 pt-2 shrink-0">
+      <div className="border-t border-border p-3 pt-2 shrink-0 relative">
+        {paletteQuery !== null && (
+          <CommandPalette
+            initialQuery={paletteQuery}
+            onClose={() => setPaletteQuery(null)}
+            onPick={(text) => {
+              setInput(text);
+              setPaletteQuery(null);
+              textareaRef.current?.focus();
+            }}
+          />
+        )}
         {!busy && attaches.length > 0 && (
           <div className="mb-2"><AttachPreview /></div>
         )}
@@ -674,7 +710,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           <textarea
             ref={textareaRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             placeholder={summarizing ? "正在进行会话摘要..." : "输入消息，Enter 发送，Shift+Enter 换行，粘贴或拖入图片..."}

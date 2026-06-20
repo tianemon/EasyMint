@@ -18,7 +18,7 @@ import { buildMcpServersOption } from "./mcp-service";
 import { buildBuiltinMcpServers } from "./builtin-mcp";
 import { getPreset } from "../../shared/platform-presets";
 import { archiveSession } from "./session-service";
-import { CONTEXT_SUMMARY_INSTRUCTION, buildSessionInfoAppend, buildContextHandoffPrompt } from "../../shared/prompts";
+import { CONTEXT_SUMMARY_INSTRUCTION, buildSessionInfoAppend, buildContextHandoffPrompt, buildDynamicContext } from "../../shared/prompts";
 
 // Use createRequire for CJS/ESM compatibility in packaged Electron
 type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
@@ -199,10 +199,13 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
 
 /** Build an SDKUserMessage for enqueuing into a channel */
 function buildUserMessage(message: string, sessionId: string): SDKUserMessage {
+  // slash 命令（/compact、/model claude-xxx 等）不注入上下文前缀，避免破坏 SDK 命令识别
+  const isSlashCommand = /^\/[a-z][\w-]*(\s|$)/.test(message.trim());
+  const content = isSlashCommand ? message : `${buildDynamicContext()}\n\n${message}`;
   return {
     type: "user" as const,
     session_id: sessionId,
-    message: { role: "user" as const, content: message },
+    message: { role: "user" as const, content },
     parent_tool_use_id: null,
   } as SDKUserMessage;
 }
@@ -338,6 +341,17 @@ export class AgentService {
           broadcast("agent:context-usage", { chatId: chat.chatId, percentage: usage.percentage, totalTokens: usage.totalTokens, maxTokens: usage.maxTokens });
         }, 500);
 
+        // 拉取 SDK 当前可用 slash 命令并缓存（每次 query 启动后刷新一次）
+        setTimeout(async () => {
+          try {
+            const cmds = await chat.query!.supportedCommands();
+            this.store.setCommandsCache(cmds);
+            broadcast("agent:commands-changed", { commands: cmds });
+          } catch (e) {
+            console.error("[agent] supportedCommands failed:", e);
+          }
+        }, 600);
+
         for await (const msg of queryObj) {
           if (chat.abortController.signal.aborted) break;
 
@@ -363,6 +377,15 @@ export class AgentService {
           // ── compact 计数：捕获 compact_boundary，达上限标记转轮转 ──
           if (msg.type === "system" && (msg as { subtype?: string }).subtype === "compact_boundary") {
             chat.compactCount++;
+          }
+
+          // ── 命令列表变化：插件/Skill 动态注册时 SDK 推送，覆盖更新缓存 ──
+          if (msg.type === "system" && (msg as { subtype?: string }).subtype === "commands_changed") {
+            const cmds = (msg as { commands?: Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> }).commands;
+            if (Array.isArray(cmds)) {
+              this.store.setCommandsCache(cmds);
+              broadcast("agent:commands-changed", { commands: cmds });
+            }
           }
 
           // ── compact 失败兜底：SDK 压缩失败时改用轮转开新会话 ──
@@ -568,6 +591,11 @@ export class AgentService {
   private bufferEvent(key: string, event: unknown): void {
     if (!this.streamBuffer.has(key)) this.streamBuffer.set(key, []);
     this.streamBuffer.get(key)!.push(event);
+  }
+
+  /** 返回 SDK 可用的 slash 命令列表（启动时优先用缓存，会话开始后由 SDK 推送刷新） */
+  listCommands(): Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> {
+    return this.store.getCommandsCache();
   }
 
   /** Return buffered stream events for a session and clear them. Called by new windows on mount. */
