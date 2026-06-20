@@ -88,6 +88,9 @@
     "mac": {
       "target": "dmg",
       "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
       "artifactName": "${productName}-macOS-${arch}.${ext}"
     },
     "win": {
