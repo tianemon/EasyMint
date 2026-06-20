@@ -274,13 +274,13 @@ const DEPLOY_OVERRIDES: Record<DeployMode, ProfileOverride> = {
 const AI_OVERRIDES: Record<AIIntegration, ProfileOverride> = {
   none: {},
   assistant: {
-    initSteps: `产品包含 AI 辅助功能。\n- 需集成 LLM API（OpenAI / Anthropic / 等）\n- docs/技术架构.md 需包含 AI 调用流程、prompt 管理、fallback 策略`,
+    initSteps: `产品包含 AI 辅助功能。\n- 需集成 LLM API（优先推荐 DeepSeek、MiniMax、智谱 GLM 等国产模型，成本低、中文能力强）\n- docs/技术架构.md 需包含 AI 调用流程、prompt 管理、fallback 策略`,
     platformSpec: `\n## AI 集成规范\n- API Key 使用环境变量，不提交到 git\n- AI 调用需有超时和重试机制\n- AI 输出需有兜底展示（加载中、失败重试、空结果）\n- 考虑 API 调用成本，合理使用缓存`,
   },
   agent: {
-    initSteps: `产品包含 Agent 能力（自主决策、工具调用）。\n- 需集成 Agent 框架（LangChain / CrewAI / OpenAI Agent SDK 等）\n- 可能需要向量数据库做 RAG\n- docs/技术架构.md 需包含 Agent 架构、工具定义、记忆管理`,
+    initSteps: `产品包含 Agent 能力（自主决策、工具调用）。\n- 需集成 LLM API（优先推荐 DeepSeek、MiniMax 等国产模型）\n- 可能需要向量数据库做 RAG\n- docs/技术架构.md 需包含 Agent 架构、工具定义、记忆管理`,
     platformSpec: `\n## Agent 开发规范\n- Agent 行为边界需明确定义\n- 工具调用需有超时和错误处理\n- 多步推理需有中间状态记录\n- API Key 使用环境变量`,
-    suggestedStack: ["LangChain", "OpenAI"],
+    suggestedStack: ["DeepSeek", "MiniMax"],
   },
   "multi-agent": {
     initSteps: `产品包含多 Agent 协作能力。\n- 需定义 Agent 角色分工和执行顺序\n- 可能需要消息队列协调 Agent 间通信\n- docs/技术架构.md 需包含多 Agent 架构、通信协议、冲突处理`,
