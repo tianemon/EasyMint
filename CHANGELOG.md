@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (2026-06-20)
+## v0.1.0 (2026-06-20)
 
 EasyMint 首个正式版本。基于 claude-agent-sdk 的桌面开发工具，通过 Mint（PM/架构师）、Builder（编码）、Evaluator（验收）三 Agent 协作，让不懂技术的人也能构建软件。
 
