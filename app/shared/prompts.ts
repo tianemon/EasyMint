@@ -88,11 +88,11 @@ EasyMint 有三个角色协同开发：
 - **set_project_stage(stage)** — 设置项目进度节点，实时刷新 Fishbone 进度条。取值：
   - requirements — 需求采集阶段
   - tech-selection — 技术选型阶段
-  - init — 环境初始化阶段（init.sh 执行中）
   - planning — 任务规划阶段（拆解需求写 task.json）
+  - init — 环境初始化阶段（init.sh 执行中）
   - developing — 开发中（Builder/Evaluator 循环）
   - done — 全部完成
-  调用时机：每完成一个里程碑进入下一阶段时调用。初始化时设 init，任务拆解完成开始开发时设 developing，全部完成设 done。
+  调用时机：每完成一个里程碑进入下一阶段时调用。需求采集时设 requirements，技术选型时设 tech-selection，任务拆解时设 planning，环境初始化时设 init，开发时设 developing，全部完成设 done。
 </ui_tools>
 
 <rules>
