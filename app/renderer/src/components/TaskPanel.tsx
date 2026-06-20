@@ -166,15 +166,9 @@ export function TaskPanel({ projectPath, onCollapse, onMintClick }: TaskPanelPro
   const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [userScrolled, setUserScrolled] = useState(false);
 
-  // Sort: building/evaluating → pending → failed → done (newest first), then reverse → oldest at top
-  const sortedTasks = [...tasks].sort((a, b) => {
-    const rank = (s: string) => s === "building" || s === "evaluating" ? 0 : s === "pending" ? 1 : s === "failed" ? 2 : 3;
-    if (rank(a.status) !== rank(b.status)) return rank(a.status) - rank(b.status);
-    if (a.status === "done" && b.status === "done") return (b.completedAt || 0) - (a.completedAt || 0);
-    return 0;
-  }).reverse();
+  // 按 task.json 原始顺序（任务 1 在顶，后面的在下），active 任务居中高亮
 
-  const runningIdx = sortedTasks.findIndex((t) => t.status === "building" || t.status === "evaluating");
+  const runningIdx = tasks.findIndex((t) => t.status === "building" || t.status === "evaluating");
 
   const centerRunning = useCallback(() => {
     if (runningIdx < 0 || !listRef.current) return;
@@ -228,7 +222,7 @@ export function TaskPanel({ projectPath, onCollapse, onMintClick }: TaskPanelPro
             {taskCount > 0 && <span className="text-[10px] text-text-secondary">{doneCount}/{taskCount} 完成</span>}
           </div>
           {tasks.length > 0 ? (
-            sortedTasks.map((task) => (
+            tasks.map((task) => (
               <TaskRow key={task.id} task={task} />
             ))
           ) : (
