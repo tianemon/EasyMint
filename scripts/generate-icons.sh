@@ -1,67 +1,44 @@
 #!/bin/bash
-# EasyMint Icon Generation Script
-# Proma 同款 SVG 模板 => 1024x1024 图标，100px 边距 + 824px 活动区 + 185px 圆角
+# EasyMint Icon Generation — Proma 同款工具链
+# rsvg-convert (librsvg) + sips + iconutil + ImageMagick
+# 源文件: assets/icon.svg → 引用 assets/mint.png
 
 set -e
 cd "$(dirname "$0")/.."
 
-echo "Generating EasyMint icons..."
-mkdir -p assets
+for tool in rsvg-convert iconutil magick; do
+  if ! command -v $tool &> /dev/null; then
+    echo "❌ $tool not found. Install: brew install librsvg imagemagick"
+    exit 1
+  fi
+done
 
-python3.12 -c "
-from PIL import Image, ImageDraw
-import os
+echo "🎨 Generating EasyMint icons..."
 
-os.makedirs('assets', exist_ok=True)
+# 1. SVG → 1024x1024 PNG
+rsvg-convert -w 1024 -h 1024 assets/icon.svg -o assets/icon.png
+echo "✅ icon.png (1024x1024) generated from SVG"
 
-orig = Image.open('assets/mint.png').convert('RGBA' if os.path.exists('assets/mint.png') else None)
-if orig is None:
-    print('ERROR: assets/mint.png not found. Place source file first.')
-    exit(1)
+# 2. PNG → ICNS (10 Apple standard sizes)
+mkdir -p /tmp/easymint.iconset
+sips -z 16 16     assets/icon.png --out /tmp/easymint.iconset/icon_16x16.png      > /dev/null 2>&1
+sips -z 32 32     assets/icon.png --out /tmp/easymint.iconset/icon_16x16@2x.png   > /dev/null 2>&1
+sips -z 32 32     assets/icon.png --out /tmp/easymint.iconset/icon_32x32.png      > /dev/null 2>&1
+sips -z 64 64     assets/icon.png --out /tmp/easymint.iconset/icon_32x32@2x.png   > /dev/null 2>&1
+sips -z 128 128   assets/icon.png --out /tmp/easymint.iconset/icon_128x128.png    > /dev/null 2>&1
+sips -z 256 256   assets/icon.png --out /tmp/easymint.iconset/icon_128x128@2x.png > /dev/null 2>&1
+sips -z 256 256   assets/icon.png --out /tmp/easymint.iconset/icon_256x256.png    > /dev/null 2>&1
+sips -z 512 512   assets/icon.png --out /tmp/easymint.iconset/icon_256x256@2x.png > /dev/null 2>&1
+sips -z 512 512   assets/icon.png --out /tmp/easymint.iconset/icon_512x512.png    > /dev/null 2>&1
+sips -z 1024 1024 assets/icon.png --out /tmp/easymint.iconset/icon_512x512@2x.png > /dev/null 2>&1
+iconutil -c icns /tmp/easymint.iconset -o assets/icon.icns
+rm -rf /tmp/easymint.iconset
+echo "✅ icon.icns generated"
 
-w = 1024
-margin = 100
-inner = w - margin * 2  # 824
-radius = 185
+# 3. Windows ICO
+magick assets/icon.png -define icon:auto-resize=256,128,96,64,48,32,16 assets/icon.ico
+echo "✅ icon.ico generated"
 
-leaf_size = int(inner * 1.05)
-leaf = orig.resize((leaf_size, leaf_size), Image.LANCZOS)
-l = (leaf_size - inner) // 2
-t = (leaf_size - inner) // 2
-leaf_cropped = leaf.crop((l, t, l + inner, t + inner))
-
-# Proma 风格圆角矩形：白底 + 透明角，参数与 Proma SVG 一致
-canvas = Image.new('RGBA', (w, w), (0, 0, 0, 0))
-draw = ImageDraw.Draw(canvas)
-draw.rounded_rectangle([margin, margin, margin + inner - 1, margin + inner - 1],
-                        radius=radius, fill=(255, 255, 255, 255))
-canvas.paste(leaf_cropped, (margin, margin), leaf_cropped)
-canvas.save('assets/icon.png')
-print('icon.png generated')
-"
-
-# ICNS — 严格对齐 Apple 标准尺寸（16/32/128/256/512 pt + @2x）
-mkdir -p /tmp/easymint-iconset
-sips -z 16 16     assets/icon.png --out /tmp/easymint-iconset/icon_16x16.png      > /dev/null 2>&1
-sips -z 32 32     assets/icon.png --out /tmp/easymint-iconset/icon_16x16@2x.png   > /dev/null 2>&1
-sips -z 32 32     assets/icon.png --out /tmp/easymint-iconset/icon_32x32.png      > /dev/null 2>&1
-sips -z 64 64     assets/icon.png --out /tmp/easymint-iconset/icon_32x32@2x.png   > /dev/null 2>&1
-sips -z 128 128   assets/icon.png --out /tmp/easymint-iconset/icon_128x128.png    > /dev/null 2>&1
-sips -z 256 256   assets/icon.png --out /tmp/easymint-iconset/icon_128x128@2x.png > /dev/null 2>&1
-sips -z 256 256   assets/icon.png --out /tmp/easymint-iconset/icon_256x256.png    > /dev/null 2>&1
-sips -z 512 512   assets/icon.png --out /tmp/easymint-iconset/icon_256x256@2x.png > /dev/null 2>&1
-sips -z 512 512   assets/icon.png --out /tmp/easymint-iconset/icon_512x512.png    > /dev/null 2>&1
-sips -z 1024 1024 assets/icon.png --out /tmp/easymint-iconset/icon_512x512@2x.png > /dev/null 2>&1
-iconutil -c icns /tmp/easymint-iconset -o assets/icon.icns
-rm -rf /tmp/easymint-iconset
-echo "icon.icns generated"
-
-# ICO
-python3.12 -c "
-from PIL import Image
-img = Image.open('assets/icon.png')
-img.save('assets/icon.ico', format='ICO', sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])
-"
-echo "icon.ico generated"
-
-echo "Done: icon.png, icon.icns, icon.ico"
+echo ""
+echo "All done: icon.svg → rsvg-convert → icon.png → sips/iconutil → icon.icns"
+echo "                               └→ magick → icon.ico"

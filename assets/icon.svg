@@ -1,0 +1,12 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <!-- EasyMint icon — Proma template: 824x824 active area, 185px radius, 100px margin -->
+  <defs>
+    <clipPath id="rounded">
+      <rect x="100" y="100" width="824" height="824" rx="185" ry="185"/>
+    </clipPath>
+  </defs>
+  <!-- White rounded rectangle background -->
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="#ffffff"/>
+  <!-- Leaf image, clipped to rounded rect -->
+  <image x="88" y="88" width="848" height="848" xlink:href="mint.png" clip-path="url(#rounded)" preserveAspectRatio="xMidYMid slice"/>
+</svg>
