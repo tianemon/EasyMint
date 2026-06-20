@@ -37,15 +37,18 @@ canvas.save('assets/icon.png')
 print('icon.png generated')
 "
 
-# ICNS
+# ICNS — 严格对齐 Apple 标准尺寸（16/32/128/256/512 pt + @2x）
 mkdir -p /tmp/easymint-iconset
-for s in 16 32 64 128 256 512; do
-  sips -z $s $s assets/icon.png --out "/tmp/easymint-iconset/icon_${s}x${s}.png" > /dev/null 2>&1
-done
-for s in 32 64 256 512 1024; do
-  d=$((s * 2))
-  sips -z $d $d assets/icon.png --out "/tmp/easymint-iconset/icon_${s}x${s}@2x.png" > /dev/null 2>&1
-done
+sips -z 16 16     assets/icon.png --out /tmp/easymint-iconset/icon_16x16.png      > /dev/null 2>&1
+sips -z 32 32     assets/icon.png --out /tmp/easymint-iconset/icon_16x16@2x.png   > /dev/null 2>&1
+sips -z 32 32     assets/icon.png --out /tmp/easymint-iconset/icon_32x32.png      > /dev/null 2>&1
+sips -z 64 64     assets/icon.png --out /tmp/easymint-iconset/icon_32x32@2x.png   > /dev/null 2>&1
+sips -z 128 128   assets/icon.png --out /tmp/easymint-iconset/icon_128x128.png    > /dev/null 2>&1
+sips -z 256 256   assets/icon.png --out /tmp/easymint-iconset/icon_128x128@2x.png > /dev/null 2>&1
+sips -z 256 256   assets/icon.png --out /tmp/easymint-iconset/icon_256x256.png    > /dev/null 2>&1
+sips -z 512 512   assets/icon.png --out /tmp/easymint-iconset/icon_256x256@2x.png > /dev/null 2>&1
+sips -z 512 512   assets/icon.png --out /tmp/easymint-iconset/icon_512x512.png    > /dev/null 2>&1
+sips -z 1024 1024 assets/icon.png --out /tmp/easymint-iconset/icon_512x512@2x.png > /dev/null 2>&1
 iconutil -c icns /tmp/easymint-iconset -o assets/icon.icns
 rm -rf /tmp/easymint-iconset
 echo "icon.icns generated"
