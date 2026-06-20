@@ -9,7 +9,7 @@ echo "Generating EasyMint icons..."
 mkdir -p assets
 
 python3.12 -c "
-from PIL import Image, ImageDraw
+from PIL import Image
 import os
 
 os.makedirs('assets', exist_ok=True)
@@ -30,10 +30,8 @@ l = (leaf_size - inner) // 2
 t = (leaf_size - inner) // 2
 leaf_cropped = leaf.crop((l, t, l + inner, t + inner))
 
-canvas = Image.new('RGBA', (w, w), (0, 0, 0, 0))
-draw = ImageDraw.Draw(canvas)
-draw.rounded_rectangle([margin, margin, margin + inner - 1, margin + inner - 1],
-                        radius=radius, fill=(255, 255, 255, 255))
+# 纯白正方形，零透明，避免 macOS 26 灰底
+canvas = Image.new('RGBA', (w, w), (255, 255, 255, 255))
 canvas.paste(leaf_cropped, (margin, margin), leaf_cropped)
 canvas.save('assets/icon.png')
 print('icon.png generated')
