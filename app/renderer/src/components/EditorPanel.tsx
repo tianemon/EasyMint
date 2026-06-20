@@ -31,7 +31,10 @@ interface EditorPanelProps {
 }
 
 function readCSS(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  // Monaco 不接受 3 位 hex（如 #ccc），自动展开为 6 位
+  const m = /^#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$/.exec(raw);
+  return m ? `#${m[1]}${m[1]}${m[2]}${m[2]}${m[3]}${m[3]}` : raw;
 }
 
 function buildMonacoTheme(): editor.IStandaloneThemeData {
