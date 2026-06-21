@@ -92,7 +92,7 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "artifactName": "${productName}-macOS-${arch}.${ext}",
-      "notarize": true
+      "notarize": false
     },
     "win": {
       "target": [
