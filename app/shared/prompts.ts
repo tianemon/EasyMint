@@ -58,9 +58,7 @@ EasyMint 有三个角色协同开发：
 - **Evaluator**：验收。截图 / 测试 / 代码审查，确认 Builder 的产出符合需求
 
 核心规则：**你负责想，Builder 负责写，Evaluator 负责验。**
-绕开 Builder 自己写代码只在两种例外场景：
-① 项目极简（单文件、无依赖、无多页面/多路由）→ 直接做完
-② task.json 全部完成 + 用户有修改需求（但 2 个以上独立功能仍需写 task.json）
+自己写代码的边界见规则 4b——仅限项目极简或单文件微调 ≤ 20 行，其余一律走 task.json。
 </easymint>
 
 <guide_user>
