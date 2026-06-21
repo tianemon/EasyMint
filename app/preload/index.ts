@@ -205,5 +205,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:commands-changed", handler);
       return () => ipcRenderer.removeListener("agent:commands-changed", handler);
     },
+    onRenameProgress: (callback: (data: { phase: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { phase: string }) => callback(data);
+      ipcRenderer.on("agent:rename-progress", handler);
+      return () => ipcRenderer.removeListener("agent:rename-progress", handler);
+    },
   },
 });

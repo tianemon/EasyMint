@@ -9,7 +9,8 @@
 
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync, cpSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
+import { cp } from "node:fs/promises";
 import { basename, extname, join, dirname } from "node:path";
 import { homedir } from "node:os";
 import { resolveHome, IMAGE_MIME } from "../utils/paths";
@@ -251,8 +252,8 @@ export function buildBuiltinMcpServers(projectPath?: string): Record<string, unk
             return { content: [{ type: "text", text: `目标目录已存在: ${newDir}` }] };
           }
 
-          // 复制项目目录（排除 node_modules .git）
-          cpSync(oldDir, newDir, { recursive: true });
+          // 复制项目目录
+          await cp(oldDir, newDir, { recursive: true });
 
           // 复制 SDK session 数据
           const sdkProjectsDir = join(homedir(), ".easymint", "projects");
@@ -261,7 +262,7 @@ export function buildBuiltinMcpServers(projectPath?: string): Record<string, unk
           const oldSessionDir = join(sdkProjectsDir, oldEncoded);
           const newSessionDir = join(sdkProjectsDir, newEncoded);
           if (existsSync(oldSessionDir)) {
-            cpSync(oldSessionDir, newSessionDir, { recursive: true });
+            await cp(oldSessionDir, newSessionDir, { recursive: true });
           }
 
           // 更新 projects.json

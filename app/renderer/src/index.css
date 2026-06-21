@@ -539,6 +539,15 @@ select.input {
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+@keyframes progressIndeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
+.animate-progress-indeterminate {
+  animation: progressIndeterminate 2s ease-in-out infinite;
+}
+
 /* ── Scan / Onboarding ────────────────────────────── */
 
 .scan-area {

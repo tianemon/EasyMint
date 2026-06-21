@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain, dialog, app } from "electron";
 import p from "path";
 import fs from "fs";
+import { cp } from "node:fs/promises";
 import os from "os";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
@@ -102,8 +103,13 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       return { ok: false, error: `项目目录不存在: ${oldDir}` };
     }
 
-    // ── 复制项目目录（排除 node_modules .git）──
-    fs.cpSync(oldDir, newDir, { recursive: true });
+    // ── 通知渲染进程：开始复制 ──
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send("agent:rename-progress", { phase: "copying" });
+    });
+
+    // ── 异步复制项目目录 ──
+    await cp(oldDir, newDir, { recursive: true });
 
     // ── 复制 SDK session 数据 ──
     const sdkProjectsDir = p.join(os.homedir(), ".easymint", "projects");
@@ -112,8 +118,13 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     const oldSessionDir = p.join(sdkProjectsDir, oldEncoded);
     const newSessionDir = p.join(sdkProjectsDir, newEncoded);
     if (fs.existsSync(oldSessionDir)) {
-      fs.cpSync(oldSessionDir, newSessionDir, { recursive: true });
+      await cp(oldSessionDir, newSessionDir, { recursive: true });
     }
+
+    // ── 通知渲染进程：收尾中 ──
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.send("agent:rename-progress", { phase: "finalizing" });
+    });
 
     // ── 更新 projects.json ──
     const projectsPath = p.join(os.homedir(), ".easymint", "projects.json");

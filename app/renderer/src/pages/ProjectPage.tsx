@@ -34,6 +34,14 @@ export function ProjectPage(): JSX.Element {
   const [projectExists, setProjectExists] = useState(true);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [renameNewName, setRenameNewName] = useState("");
+  const [renamePhase, setRenamePhase] = useState<"input" | "copying" | "finalizing">("input");
+
+  // 监听重命名进度
+  useEffect(() => {
+    return window.electronAPI.agent.onRenameProgress(({ phase }) => {
+      setRenamePhase(phase as "copying" | "finalizing");
+    });
+  }, []);
 
   const {
     collapsedLeft,
@@ -238,6 +246,7 @@ export function ProjectPage(): JSX.Element {
 
   const handleRenameProject = useCallback(() => {
     setRenameNewName(projectName);
+    setRenamePhase("input");
     setShowRenameDialog(true);
   }, [projectName]);
 
@@ -251,12 +260,13 @@ export function ProjectPage(): JSX.Element {
     if (!window.confirm(`重命名将关闭 EasyMint。\n\n新名称: ${trimmed}\n新路径: ${projectPath.replace(/[^/]+$/, trimmed)}\n\n请确保所有工作已保存。`)) {
       return;
     }
-    const res = await window.electronAPI.project.renameExec(projectPath, trimmed);
-    if (!res.ok) {
-      alert(res.error || "重命名失败");
-    }
-    setShowRenameDialog(false);
-    // 成功时脚本会关闭并重启 EM，不需要额外操作
+    setRenamePhase("copying");
+    window.electronAPI.project.renameExec(projectPath, trimmed).then((res) => {
+      if (!res.ok) {
+        alert(res.error || "重命名失败");
+        setRenamePhase("input");
+      }
+    });
   }, [renameNewName, projectName, projectPath]);
 
   const handleLeftDrag = useCallback(
@@ -409,41 +419,66 @@ export function ProjectPage(): JSX.Element {
 
       {/* Rename Project Dialog */}
       {showRenameDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowRenameDialog(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={renamePhase === "input" ? () => setShowRenameDialog(false) : undefined}>
           <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl w-[400px]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-4 pb-2">
               <h2 className="text-base font-semibold text-text-primary">重命名项目</h2>
-              <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setShowRenameDialog(false)}>✕</button>
+              {renamePhase === "input" && (
+                <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setShowRenameDialog(false)}>✕</button>
+              )}
             </div>
-            <p className="px-5 pb-3 text-xs text-text-secondary">
-              重命名将关闭 EasyMint，把项目文件夹和会话数据复制到新位置，验证通过后清理旧数据，然后自动重启。
-            </p>
-            <div className="px-5 pb-4">
-              <label className="block text-xs text-text-secondary mb-1.5">新名称</label>
-              <input
-                className="w-full input"
-                value={renameNewName}
-                onChange={(e) => setRenameNewName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleRenameConfirm(); if (e.key === "Escape") setShowRenameDialog(false); }}
-                autoFocus
-                placeholder="输入新名称"
-              />
-            </div>
-            <div className="flex items-center justify-end gap-2 px-5 pb-4">
-              <button
-                className="px-4 py-2 text-sm text-text-secondary hover:bg-surface-hover rounded-lg transition-colors"
-                onClick={() => setShowRenameDialog(false)}
-              >
-                取消
-              </button>
-              <button
-                className="px-4 py-2 text-sm bg-accent text-text-inverse rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-40"
-                disabled={!renameNewName.trim() || renameNewName.trim() === projectName}
-                onClick={handleRenameConfirm}
-              >
-                确认重命名
-              </button>
-            </div>
+
+            {renamePhase === "input" ? (
+              <>
+                <p className="px-5 pb-3 text-xs text-text-secondary">
+                  重命名将关闭 EasyMint，把项目完整复制到新位置，验证通过后清理旧数据，然后自动重启。
+                </p>
+                <div className="px-5 pb-4">
+                  <label className="block text-xs text-text-secondary mb-1.5">新名称</label>
+                  <input
+                    className="w-full input"
+                    value={renameNewName}
+                    onChange={(e) => setRenameNewName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleRenameConfirm(); if (e.key === "Escape") setShowRenameDialog(false); }}
+                    autoFocus
+                    placeholder="输入新名称"
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-2 px-5 pb-4">
+                  <button
+                    className="px-4 py-2 text-sm text-text-secondary hover:bg-surface-hover rounded-lg transition-colors"
+                    onClick={() => setShowRenameDialog(false)}
+                  >
+                    取消
+                  </button>
+                  <button
+                    className="px-4 py-2 text-sm bg-accent text-text-inverse rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-40"
+                    disabled={!renameNewName.trim() || renameNewName.trim() === projectName}
+                    onClick={handleRenameConfirm}
+                  >
+                    确认重命名
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="px-5 pb-5 text-center">
+                <div className="mx-auto w-8 h-8 mb-3">
+                  <svg className="animate-spin w-8 h-8 text-accent" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                    <path d="M12 2a10 10 0 019.95 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <p className="text-sm text-text-primary font-medium mb-1">
+                  {renamePhase === "copying" ? "正在复制项目文件…" : "正在收尾…"}
+                </p>
+                <p className="text-xs text-text-secondary">
+                  {renamePhase === "copying" ? "文件较多时可能需要一些时间" : "即将重启 EasyMint"}
+                </p>
+                <div className="mt-4 w-full bg-surface-alt rounded-full h-1.5 overflow-hidden">
+                  <div className="h-full bg-accent rounded-full animate-progress-indeterminate" style={{ width: "40%" }} />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
