@@ -103,13 +103,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     }
 
     // ── 复制项目目录（排除 node_modules .git）──
-    fs.cpSync(oldDir, newDir, {
-      recursive: true,
-      filter: (src) => {
-        const name = p.basename(src);
-        return name !== "node_modules" && name !== ".git";
-      },
-    });
+    fs.cpSync(oldDir, newDir, { recursive: true });
 
     // ── 复制 SDK session 数据 ──
     const sdkProjectsDir = p.join(os.homedir(), ".easymint", "projects");

@@ -252,13 +252,7 @@ export function buildBuiltinMcpServers(projectPath?: string): Record<string, unk
           }
 
           // 复制项目目录（排除 node_modules .git）
-          cpSync(oldDir, newDir, {
-            recursive: true,
-            filter: (src: string) => {
-              const name = basename(src);
-              return name !== "node_modules" && name !== ".git";
-            },
-          });
+          cpSync(oldDir, newDir, { recursive: true });
 
           // 复制 SDK session 数据
           const sdkProjectsDir = join(homedir(), ".easymint", "projects");

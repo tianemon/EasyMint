@@ -4,7 +4,7 @@
 
 ### 项目重命名
 - 重命名弹窗：LeftToolbar「+」→「重命名项目」，输入新名称，二次确认后执行
-- 全自动流程：复制项目目录（排除 node_modules/.git）→ 复制 SDK 会话数据 → 更新项目记录 → 重启 → 新进程清理旧目录
+- 全自动流程：完整复制项目目录 → 复制 SDK 会话数据 → 更新项目记录 → 重启 → 新进程清理旧目录
 - 零外部依赖：纯 Electron + Node.js 内置 API（`fs.cpSync`、`app.relaunch`），macOS / Windows 跨平台
 - 安全策略：copy-then-delete，验证通过后才删旧数据；失败自动回滚
 - Mint 可调用：`rename_project` MCP 工具，和 UI 按钮走同一路径
