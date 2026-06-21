@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.2.0 (2026-06-22)
+
+### 项目重命名
+- 重命名弹窗：LeftToolbar「+」→「重命名项目」，输入新名称，二次确认后执行
+- 全自动流程：复制项目目录（排除 node_modules/.git）→ 复制 SDK 会话数据 → 更新项目记录 → 重启 → 新进程清理旧目录
+- 零外部依赖：纯 Electron + Node.js 内置 API（`fs.cpSync`、`app.relaunch`），macOS / Windows 跨平台
+- 安全策略：copy-then-delete，验证通过后才删旧数据；失败自动回滚
+- Mint 可调用：`rename_project` MCP 工具，和 UI 按钮走同一路径
+
+### 项目管理增强
+- 打开已有目录：「打开项目」弹窗加「浏览文件夹…」，首页加「打开已有目录」按钮，支持导入任意目录为项目
+- 项目重新定位：文件夹在 Finder 中被移动或重命名后，TitleBar 红色提示「重新定位」，选择新路径自动迁移会话数据
+- 项目列表显示目录是否存在的状态标记
+
+### Mint 提示词优化
+- 生命周期闭环：done 之后用户提新需求 → 自动切回 developing → 追加 task.json → 继续循环
+- 决策树简化：两层判断（① 单文件微调 ≤ 20 行 → 自己改；② 其余 → 必须委派 Builder + 更新 UI）
+- UI 工具解耦：`set_task_status` / `set_project_stage` 不再绑定 Builder，自行编码时也强制调用
+- 新增 `<keep_ui_alive>` 指令：任何代码产出都要让用户通过进度条和任务列表感知
+
+### UI 改进
+- Fishbone 进度条：全部任务完成后横轴保持亮色渐变，不再变灰
+- TitleBar 简化：纯状态展示（项目名 + 目录删除时重新定位入口）
+- 图标规范：CLAUDE.md 新增 SVG 优先规则，降低 emoji 使用率
+
+---
+
 ## v0.1.0 (2026-06-20)
 
 EasyMint 首个正式版本。基于 claude-agent-sdk 的桌面开发工具，通过 Mint（PM/架构师）、Builder（编码）、Evaluator（验收）三 Agent 协作，让不懂技术的人也能构建软件。
