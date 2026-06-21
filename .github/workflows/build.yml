@@ -60,6 +60,8 @@ jobs:
       - uses: actions/checkout@v6
 
       - uses: actions/download-artifact@v8
+        with:
+          digest-mismatch: warn
 
       - name: Extract release notes from CHANGELOG
         id: changelog
