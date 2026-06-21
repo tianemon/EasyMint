@@ -272,7 +272,8 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
     <div className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">项目名称 <span className="text-danger">*</span></label>
-        <input className="input" value={data.name} onChange={(e) => onChange({ name: e.target.value })} placeholder="例如：个人博客" />
+        <input className="input" value={data.name} onChange={(e) => onChange({ name: e.target.value })} placeholder="建议英文，如 my-blog" />
+        <p className="text-[11px] text-text-secondary mt-1">作为文件夹名，中文可能导致路径兼容问题</p>
       </div>
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">项目描述</label>

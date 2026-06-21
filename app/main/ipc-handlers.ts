@@ -1,7 +1,6 @@
 import { BrowserWindow, ipcMain, dialog, app } from "electron";
 import p from "path";
 import fs from "fs";
-import { cp } from "node:fs/promises";
 import os from "os";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
@@ -86,74 +85,21 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("project:update", (_e, { id, patch }) => projectService.update(id, patch));
   ipcMain.handle("project:import", (_e, { dirPath }) => projectService.import_(dirPath));
 
-  // project:rename-exec — EM 内复制 → relaunch → 新进程启动时删旧
+  // project:rename-exec — 委托 projectService.rename() + 进度事件 + relaunch
   ipcMain.handle("project:rename-exec", async (_e, { oldPath, newName }: { oldPath: string; newName: string }) => {
     const oldDir = p.resolve(oldPath);
-    const parentDir = p.dirname(oldDir);
-    const newDir = p.join(parentDir, newName);
 
-    // ── 前置检查 ──
-    if (p.basename(oldDir) === newName) {
-      return { ok: false, error: "新名称与当前名称相同" };
-    }
-    if (fs.existsSync(newDir)) {
-      return { ok: false, error: `目标目录已存在: ${newDir}` };
-    }
-    if (!fs.existsSync(oldDir)) {
-      return { ok: false, error: `项目目录不存在: ${oldDir}` };
-    }
-
-    // ── 通知渲染进程：开始复制 ──
     BrowserWindow.getAllWindows().forEach((win) => {
       if (!win.isDestroyed()) win.webContents.send("agent:rename-progress", { phase: "copying" });
     });
 
-    // ── 异步复制项目目录 ──
-    await cp(oldDir, newDir, { recursive: true });
+    const result = await projectService.rename(oldDir, newName);
+    if (!result.ok) return result;
 
-    // ── 复制 SDK session 数据 ──
-    const sdkProjectsDir = p.join(os.homedir(), ".easymint", "projects");
-    const oldEncoded = oldDir.replace(/[:\\/]/g, "-");
-    const newEncoded = newDir.replace(/[:\\/]/g, "-");
-    const oldSessionDir = p.join(sdkProjectsDir, oldEncoded);
-    const newSessionDir = p.join(sdkProjectsDir, newEncoded);
-    if (fs.existsSync(oldSessionDir)) {
-      await cp(oldSessionDir, newSessionDir, { recursive: true });
-    }
-
-    // ── 通知渲染进程：收尾中 ──
     BrowserWindow.getAllWindows().forEach((win) => {
       if (!win.isDestroyed()) win.webContents.send("agent:rename-progress", { phase: "finalizing" });
     });
 
-    // ── 更新 projects.json ──
-    const projectsPath = p.join(os.homedir(), ".easymint", "projects.json");
-    if (fs.existsSync(projectsPath)) {
-      const data = JSON.parse(fs.readFileSync(projectsPath, "utf-8"));
-      const found = (data.projects as Array<Record<string, unknown>>).find((prj) => {
-        const p1 = String(prj.path || "").replace(/\/+$/, "");
-        const p2 = oldDir.replace(/\/+$/, "");
-        return p1 === p2 || p1 === oldDir;
-      });
-      if (found) {
-        found.name = newName;
-        found.path = newDir;
-        found.lastOpenedAt = new Date().toISOString();
-        fs.writeFileSync(projectsPath, JSON.stringify(data, null, 2));
-      }
-    }
-
-    // ── 写入清理任务（新进程启动时执行）──
-    const cleanFile = p.join(os.homedir(), ".easymint", ".cleanup-pending.json");
-    const cleanTask = { oldDir, oldSessionDir, timestamp: Date.now() };
-    let cleanTasks: Array<typeof cleanTask> = [];
-    if (fs.existsSync(cleanFile)) {
-      try { cleanTasks = JSON.parse(fs.readFileSync(cleanFile, "utf-8")); } catch { /* overwrite */ }
-    }
-    cleanTasks.push(cleanTask);
-    fs.writeFileSync(cleanFile, JSON.stringify(cleanTasks, null, 2));
-
-    // ── 重启 ──
     app.relaunch();
     app.quit();
 
