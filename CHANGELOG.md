@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.2.1 (2026-06-22)
+
+- 重命名改为完整复制项目（含 node_modules 和 .git），保留 git 历史和依赖
+- 异步复制 + 进度条动画，大项目不会卡死
+- 自动同步 package.json 的 `name` 字段
+- 复制失败自动清理半成品目录，不会残留
+- CI Actions 全升级最新版（checkout@v6, setup-node@v6, upload-artifact@v7, download-artifact@v8, gh-release@v3）
+- 新建项目名称输入框提示使用英文
+
 ## v0.2.0 (2026-06-22)
 
 ### 项目重命名
