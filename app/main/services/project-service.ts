@@ -146,7 +146,7 @@ export class ProjectService {
   }
 
   /** 重命名项目：复制→更新记录→写清理任务。由调用方负责 app.relaunch/quit */
-  async rename(oldDir: string, newName: string): Promise<{ ok: boolean; error?: string; oldSessionDir?: string }> {
+  async rename(oldDir: string, newName: string): Promise<{ ok: boolean; error?: string }> {
     const parentDir = path.dirname(oldDir);
     const newDir = path.join(parentDir, newName);
 
@@ -154,59 +154,71 @@ export class ProjectService {
     if (fs.existsSync(newDir)) return { ok: false, error: `目标目录已存在: ${newDir}` };
     if (!fs.existsSync(oldDir)) return { ok: false, error: `项目目录不存在: ${oldDir}` };
 
-    // 复制项目目录
-    const { cp } = await import("node:fs/promises");
-    await cp(oldDir, newDir, { recursive: true });
+    const newSessDir = path.join(os.homedir(), ".easymint", "projects",
+      newDir.replace(/[:\\/]/g, "-"));
 
-    // 复制 SDK session
-    const sdkDir = path.join(os.homedir(), ".easymint", "projects");
-    const oldEnc = oldDir.replace(/[:\\/]/g, "-");
-    const newEnc = newDir.replace(/[:\\/]/g, "-");
-    const oldSess = path.join(sdkDir, oldEnc);
-    const newSess = path.join(sdkDir, newEnc);
-    if (fs.existsSync(oldSess)) {
-      await cp(oldSess, newSess, { recursive: true });
-    }
+    // 失败时清理半成品
+    const cleanup = () => {
+      try { if (fs.existsSync(newDir)) fs.rmSync(newDir, { recursive: true, force: true }); } catch { /* best effort */ }
+      try { if (fs.existsSync(newSessDir)) fs.rmSync(newSessDir, { recursive: true, force: true }); } catch { /* best effort */ }
+    };
 
-    // 更新 projects.json
-    const projectsPath = path.join(os.homedir(), ".easymint", "projects.json");
-    if (fs.existsSync(projectsPath)) {
-      const data = JSON.parse(fs.readFileSync(projectsPath, "utf-8"));
-      const found = (data.projects as Array<Record<string, unknown>>).find((prj) => {
-        const p1 = String(prj.path || "").replace(/\/+$/, "");
-        const p2 = oldDir.replace(/\/+$/, "");
-        return p1 === p2 || p1 === oldDir;
-      });
-      if (found) {
-        found.name = newName;
-        found.path = newDir;
-        found.lastOpenedAt = new Date().toISOString();
+    try {
+      const { cp } = await import("node:fs/promises");
+
+      // 复制项目目录
+      await cp(oldDir, newDir, { recursive: true });
+
+      // 复制 SDK session
+      const oldSessDir = path.join(os.homedir(), ".easymint", "projects",
+        oldDir.replace(/[:\\/]/g, "-"));
+      if (fs.existsSync(oldSessDir)) {
+        await cp(oldSessDir, newSessDir, { recursive: true });
       }
-      fs.writeFileSync(projectsPath, JSON.stringify(data, null, 2));
-    }
 
-    // 更新新目录下 package.json 的 name
-    const newPkgPath = path.join(newDir, "package.json");
-    if (fs.existsSync(newPkgPath)) {
-      try {
-        const pkg = JSON.parse(fs.readFileSync(newPkgPath, "utf-8"));
-        if (pkg.name && pkg.name !== newName) {
-          pkg.name = newName;
-          fs.writeFileSync(newPkgPath, JSON.stringify(pkg, null, 2) + "\n");
+      // 更新 projects.json
+      const projectsPath = path.join(os.homedir(), ".easymint", "projects.json");
+      if (fs.existsSync(projectsPath)) {
+        const data = JSON.parse(fs.readFileSync(projectsPath, "utf-8"));
+        const found = (data.projects as Array<Record<string, unknown>>).find((prj) => {
+          const p1 = String(prj.path || "").replace(/\/+$/, "");
+          const p2 = oldDir.replace(/\/+$/, "");
+          return p1 === p2 || p1 === oldDir;
+        });
+        if (found) {
+          found.name = newName;
+          found.path = newDir;
+          found.lastOpenedAt = new Date().toISOString();
         }
-      } catch { /* skip */ }
+        fs.writeFileSync(projectsPath, JSON.stringify(data, null, 2));
+      }
+
+      // 更新新目录下 package.json 的 name
+      const newPkgPath = path.join(newDir, "package.json");
+      if (fs.existsSync(newPkgPath)) {
+        try {
+          const pkg = JSON.parse(fs.readFileSync(newPkgPath, "utf-8"));
+          if (pkg.name && pkg.name !== newName) {
+            pkg.name = newName;
+            fs.writeFileSync(newPkgPath, JSON.stringify(pkg, null, 2) + "\n");
+          }
+        } catch { /* skip */ }
+      }
+
+      // 写清理任务
+      const cleanFile = path.join(os.homedir(), ".easymint", ".cleanup-pending.json");
+      const cleanTask = { oldDir, oldSessionDir: oldSessDir, timestamp: Date.now() };
+      const cleanTasks = fs.existsSync(cleanFile)
+        ? (() => { try { return JSON.parse(fs.readFileSync(cleanFile, "utf-8")); } catch { return []; } })()
+        : [];
+      cleanTasks.push(cleanTask);
+      fs.writeFileSync(cleanFile, JSON.stringify(cleanTasks, null, 2));
+
+      return { ok: true };
+    } catch (e) {
+      cleanup();
+      return { ok: false, error: `复制失败: ${(e as Error).message}` };
     }
-
-    // 写清理任务
-    const cleanFile = path.join(os.homedir(), ".easymint", ".cleanup-pending.json");
-    const cleanTask = { oldDir, oldSessionDir: oldSess, timestamp: Date.now() };
-    const cleanTasks = fs.existsSync(cleanFile)
-      ? (() => { try { return JSON.parse(fs.readFileSync(cleanFile, "utf-8")); } catch { return []; } })()
-      : [];
-    cleanTasks.push(cleanTask);
-    fs.writeFileSync(cleanFile, JSON.stringify(cleanTasks, null, 2));
-
-    return { ok: true, oldSessionDir: oldSess };
   }
 
   private copyTemplate(targetDir: string): void {
