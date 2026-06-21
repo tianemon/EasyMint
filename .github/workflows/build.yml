@@ -48,7 +48,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: easymint-${{ matrix.name }}
           path: dist-electron/*.*
@@ -62,7 +62,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v6
 
       - name: Extract release notes from CHANGELOG
         id: changelog
