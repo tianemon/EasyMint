@@ -58,6 +58,9 @@ interface ElectronAPI {
     create: (opts: { name: string; path: string }) => Promise<Project>;
     delete: (id: string) => Promise<void>;
     get: (id: string) => Promise<Project | undefined>;
+    update: (id: string, patch: { name?: string; path?: string }) => Promise<Project | undefined>;
+    import: (dirPath: string) => Promise<Project & { isNew: boolean }>;
+    renameExec: (oldPath: string, newName: string) => Promise<{ ok: boolean; error?: string }>;
     checkInitStatus: (projectPath: string) => Promise<{ done: boolean; reason: string }>;
     readState: (projectPath: string) => Promise<Record<string, string> | null>;
     writeState: (projectPath: string, state: unknown) => Promise<boolean>;

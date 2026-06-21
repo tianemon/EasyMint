@@ -31,6 +31,7 @@ interface LeftToolbarProps {
   onSettings?: () => void;
   onNewProject?: () => void;
   onOpenProject?: () => void;
+  onRenameProject?: () => void;
 }
 
 function ThemeToggleButton(): JSX.Element {
@@ -64,7 +65,7 @@ function ThemeToggleButton(): JSX.Element {
   );
 }
 
-export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, onOpenProject }: LeftToolbarProps): JSX.Element {
+export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, onOpenProject, onRenameProject }: LeftToolbarProps): JSX.Element {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -83,6 +84,7 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, o
     setShowDropdown(false);
     if (action === "project") onNewProject?.();
     else if (action === "openproject") onOpenProject?.();
+    else if (action === "renameproject") onRenameProject?.();
     else if (action === "newwindow") window.electronAPI.window.newWindow();
     else if (action === "file") {
       const name = prompt("输入文件名（例如：config.ts）：");
@@ -118,6 +120,12 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, o
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2"><path d="M2 4.5v7a1 1 0 001 1h10a1 1 0 001-1v-7M2 4.5L8 8l6-3.5M2 4.5a1 1 0 011-1h10a1 1 0 011 1"/></svg>
               打开项目
             </button>
+            {onRenameProject && (
+              <button className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors" onClick={() => handleDropdownItem("renameproject")}>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2"><path d="M14.5 1.5l-3 3-1.5-1.5 3-3"/><path d="M11 4.5l-9 9v1.5H3.5l9-9"/></svg>
+                重命名项目
+              </button>
+            )}
             <div className="border-t border-border my-0.5" />
             <button className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors" onClick={() => handleDropdownItem("file")}>
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2"><path d="M10 2H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5l-3-3z"/><path d="M10 2v3h3"/></svg>

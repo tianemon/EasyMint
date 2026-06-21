@@ -7,7 +7,6 @@ process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint").replace(/\\
 // Redirect Electron userData to our directory so all data lives in one place
 app.setPath("userData", path.join(os.homedir(), ".easymint", "electron"));
 
-import { resolveHome } from "./utils/paths";
 import { registerIpcHandlers } from "./ipc-handlers";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
@@ -91,23 +90,28 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     autoClean();
     registerIpcHandlers({ mainWindow: window, ...sharedServices });
 
-    // Clean up orphaned SDK session directories for deleted projects
-    const sdkDir = path.join(os.homedir(), ".easymint", "projects");
-    if (fs.existsSync(sdkDir)) {
-      const projects = store.getProjects().map((p: { path: string }) => p.path.replace(/[:/\\]/g, "-"));
-      // Keep the fallback workspace (no-project sessions use this dir)
-      const defaultDir = store.getSettings().defaultProjectDir || path.join(os.homedir(), "EasyMintProject");
-      const workspacePath = path.join(resolveHome(defaultDir), "workspace");
-      const workspaceKey = workspacePath.replace(/[:/\\]/g, "-");
-      projects.push(workspaceKey);
-      for (const entry of fs.readdirSync(sdkDir)) {
-        if (!projects.includes(entry)) {
-          const full = path.join(sdkDir, entry);
-          if (fs.statSync(full).isDirectory()) {
-            fs.rmSync(full, { recursive: true, force: true });
-          }
+    // NOTE: Orphan SDK session cleanup removed — will be replaced
+    // with a proper session detection/management UI in a future update.
+
+    // Process pending rename cleanup tasks (from project:rename-exec)
+    const cleanFile = path.join(os.homedir(), ".easymint", ".cleanup-pending.json");
+    if (fs.existsSync(cleanFile)) {
+      try {
+        const tasks = JSON.parse(fs.readFileSync(cleanFile, "utf-8")) as Array<{
+          oldDir: string; oldSessionDir: string; timestamp: number;
+        }>;
+        for (const task of tasks) {
+          try {
+            if (task.oldDir && fs.existsSync(task.oldDir)) {
+              fs.rmSync(task.oldDir, { recursive: true, force: true });
+            }
+            if (task.oldSessionDir && fs.existsSync(task.oldSessionDir)) {
+              fs.rmSync(task.oldSessionDir, { recursive: true, force: true });
+            }
+          } catch { /* skip broken tasks */ }
         }
-      }
+        fs.rmSync(cleanFile);
+      } catch { /* corrupted file, delete it */ try { fs.rmSync(cleanFile); } catch { /* ignore */ } }
     }
   }
 

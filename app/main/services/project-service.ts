@@ -89,6 +89,62 @@ export class ProjectService {
     return { ...p, exists: fs.existsSync(p.path) };
   }
 
+  /** 更新项目名称/路径，路径变更时自动迁移 SDK session 数据 */
+  update(id: string, patch_: { name?: string; path?: string }): (Project & { exists: boolean }) | undefined {
+    const project = this.store.getProjects().find((p) => p.id === id);
+    if (!project) return undefined;
+
+    // 规范化路径后再比较和存储
+    const patch: { name?: string; path?: string } = { ...patch_ };
+    if (patch.path) patch.path = path.resolve(patch.path);
+
+    // 路径变更 → 迁移 SDK session 目录
+    if (patch.path && patch.path !== project.path) {
+      const sdkDir = path.join(os.homedir(), ".easymint", "projects");
+      const oldEncoded = project.path.replace(/[:/\\]/g, "-");
+      const newEncoded = patch.path.replace(/[:/\\]/g, "-");
+      const oldDir = path.join(sdkDir, oldEncoded);
+      const newDir = path.join(sdkDir, newEncoded);
+      if (fs.existsSync(oldDir) && !fs.existsSync(newDir)) {
+        fs.renameSync(oldDir, newDir);
+      }
+    }
+
+    const updated = this.store.updateProject(id, patch);
+    if (!updated) return undefined;
+
+    return { ...updated, exists: fs.existsSync(updated.path) };
+  }
+
+  /** 导入已有目录为项目（不复制 template，目录已存在） */
+  import_(dirPath: string): (Project & { exists: boolean; isNew: boolean }) {
+    const resolved = path.resolve(dirPath);
+
+    // 已有记录的：更新 lastOpenedAt 并返回
+    const existing = this.store.getProjects().find(
+      (p) => path.resolve(p.path) === resolved
+    );
+    if (existing) {
+      const updated = this.store.updateProject(existing.id, {});
+      return { ...updated!, exists: true, isNew: false };
+    }
+
+    // 新目录：创建项目记录（不建目录、不复制模板）
+    const project: Project = {
+      id: randomUUID(),
+      name: path.basename(resolved),
+      path: resolved,
+      createdAt: new Date().toISOString(),
+      lastOpenedAt: new Date().toISOString(),
+      status: "setup",
+      description: "",
+    };
+    const projects = this.store.getProjects();
+    projects.push(project);
+    this.store.saveProjects(projects);
+    return { ...project, exists: true, isNew: true };
+  }
+
   private copyTemplate(targetDir: string): void {
     const exclude = new Set([".git", "node_modules", ".DS_Store", ".playwright-mcp", "temp"]);
     const entries = fs.readdirSync(this.templateDir);

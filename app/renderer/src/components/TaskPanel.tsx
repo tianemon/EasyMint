@@ -45,6 +45,7 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
   const branchY_down = 72; // 下分支 y 位置
 
   const hasCurrent = timeline.some((e) => e.status === "current");
+  const allDone = timeline.length > 0 && timeline.every((e) => e.status === "done");
 
   return (
     <svg viewBox={`0 0 ${w} ${H}`} className="block w-full" style={{ aspectRatio: `${w}/${H}` }}
@@ -64,7 +65,7 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
       <polyline
         points={timeline.map((_, i) => `${12 + i * 56},${spineY}`).join(" ")}
         fill="none"
-        stroke={hasCurrent ? "url(#fishbone-current)" : "var(--color-dot-gray)"}
+        stroke={hasCurrent || allDone ? "url(#fishbone-current)" : "var(--color-dot-gray)"}
         strokeWidth="3"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -78,7 +79,6 @@ function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hove
 
         // 状态判断
         // 兜底：无 current 且非全部完成 → 第一个节点作为默认聚焦（初始状态）
-        const allDone = timeline.every((e) => e.status === "done");
         const isCurrent = hovered ? entry.stage === hovered
           : entry.status === "current" || (!hasCurrent && !allDone && i === 0);
         const isDone = entry.status === "done";

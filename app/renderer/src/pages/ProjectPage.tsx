@@ -30,7 +30,10 @@ export function ProjectPage(): JSX.Element {
   const [projectPath, setProjectPath] = useState("");
   const [projectName, setProjectName] = useState("");
   const [showOpenProject, setShowOpenProject] = useState(false);
-  const [openProjectList, setOpenProjectList] = useState<Array<{ id: string; name: string; path: string }>>([]);
+  const [openProjectList, setOpenProjectList] = useState<Array<{ id: string; name: string; path: string; exists?: boolean }>>([]);
+  const [projectExists, setProjectExists] = useState(true);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [renameNewName, setRenameNewName] = useState("");
 
   const {
     collapsedLeft,
@@ -64,6 +67,7 @@ export function ProjectPage(): JSX.Element {
     if (projectId) {
       window.electronAPI.project.get(projectId).then((p) => {
         if (p) {
+          setProjectExists(p.exists ?? false);
           if (!p.exists) {
             setProjectName(p.name + "（目录已删除）");
             document.title = `项目已删除 — EasyMint`;
@@ -210,6 +214,51 @@ export function ProjectPage(): JSX.Element {
     setOpenProjectList((prev) => prev.filter((p) => p.id !== projectIdToDelete));
   }, []);
 
+  const handleRelocate = useCallback(async () => {
+    const dir = await window.electronAPI.dialog.openDirectory();
+    if (!dir || !projectId) return;
+    const updated = await window.electronAPI.project.update(projectId, { path: dir });
+    if (updated) {
+      setProjectPath(updated.path);
+      setProjectName(updated.name);
+      setProjectExists(updated.exists ?? false);
+      document.title = `${updated.name} — EasyMint`;
+      window.electronAPI.settings.setLastProject(projectId);
+      refreshAll(updated.path);
+    }
+  }, [projectId, refreshAll]);
+
+  const handleBrowseFolder = useCallback(async () => {
+    const dir = await window.electronAPI.dialog.openDirectory();
+    if (!dir) return;
+    const imported = await window.electronAPI.project.import(dir);
+    setShowOpenProject(false);
+    navigate(`/project/${imported.id}`);
+  }, [navigate]);
+
+  const handleRenameProject = useCallback(() => {
+    setRenameNewName(projectName);
+    setShowRenameDialog(true);
+  }, [projectName]);
+
+  const handleRenameConfirm = useCallback(async () => {
+    const trimmed = renameNewName.trim();
+    if (!trimmed || trimmed === projectName || !projectPath) {
+      setShowRenameDialog(false);
+      return;
+    }
+    // 二次确认：提醒用户 EM 将关闭
+    if (!window.confirm(`重命名将关闭 EasyMint。\n\n新名称: ${trimmed}\n新路径: ${projectPath.replace(/[^/]+$/, trimmed)}\n\n请确保所有工作已保存。`)) {
+      return;
+    }
+    const res = await window.electronAPI.project.renameExec(projectPath, trimmed);
+    if (!res.ok) {
+      alert(res.error || "重命名失败");
+    }
+    setShowRenameDialog(false);
+    // 成功时脚本会关闭并重启 EM，不需要额外操作
+  }, [renameNewName, projectName, projectPath]);
+
   const handleLeftDrag = useCallback(
     (delta: number) => setLeftRatio((leftWidth + delta) / window.innerWidth),
     [leftWidth, setLeftRatio]
@@ -268,14 +317,25 @@ export function ProjectPage(): JSX.Element {
   return (
     <div className="h-full flex flex-col">
       {/* Title bar — 40px macOS-style */}
-      <TitleBar projectName={projectName} />
+      <TitleBar
+        projectName={projectName}
+        projectDeleted={!projectExists && !!projectId}
+        onRelocate={!projectExists && !!projectId ? handleRelocate : undefined}
+      />
 
       {/* Grid + floating handles */}
       <div
         className="flex-1 min-h-0 grid-panels overflow-hidden relative"
         style={{ display: "grid", gridTemplateColumns: gridColumns, gridTemplateRows: "100%", gap: 0, background: "var(--color-surface)" }}
       >
-        <LeftToolbar activePanel={activePanel} onSelect={setActivePanel} onSettings={() => setShowSettings(true)} onNewProject={() => setShowNewProject(true)} onOpenProject={handleOpenProject} />
+        <LeftToolbar
+          activePanel={activePanel}
+          onSelect={setActivePanel}
+          onSettings={() => setShowSettings(true)}
+          onNewProject={() => setShowNewProject(true)}
+          onOpenProject={handleOpenProject}
+          onRenameProject={projectId && projectExists ? handleRenameProject : undefined}
+        />
 
         {collapsedLeft ? <div /> : (
           <LeftPanel activePanel={activePanel} projectPath={projectPath} projectId={projectId!} onCollapse={toggleLeft} onFileClick={handleFileClick} onSessionClick={handleSessionClick} onNewSession={handleNewSession} onSessionDelete={handleSessionDelete} activeSessionId={activeSessionId} sessionRefreshKey={sessionRefreshKey} />
@@ -347,6 +407,47 @@ export function ProjectPage(): JSX.Element {
 
       <SettingsDialog open={showSettings} onClose={() => setShowSettings(false)} />
 
+      {/* Rename Project Dialog */}
+      {showRenameDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowRenameDialog(false)}>
+          <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl w-[400px]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 pt-4 pb-2">
+              <h2 className="text-base font-semibold text-text-primary">重命名项目</h2>
+              <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setShowRenameDialog(false)}>✕</button>
+            </div>
+            <p className="px-5 pb-3 text-xs text-text-secondary">
+              重命名将关闭 EasyMint，把项目文件夹和会话数据复制到新位置，验证通过后清理旧数据，然后自动重启。
+            </p>
+            <div className="px-5 pb-4">
+              <label className="block text-xs text-text-secondary mb-1.5">新名称</label>
+              <input
+                className="w-full input"
+                value={renameNewName}
+                onChange={(e) => setRenameNewName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleRenameConfirm(); if (e.key === "Escape") setShowRenameDialog(false); }}
+                autoFocus
+                placeholder="输入新名称"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 pb-4">
+              <button
+                className="px-4 py-2 text-sm text-text-secondary hover:bg-surface-hover rounded-lg transition-colors"
+                onClick={() => setShowRenameDialog(false)}
+              >
+                取消
+              </button>
+              <button
+                className="px-4 py-2 text-sm bg-accent text-text-inverse rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-40"
+                disabled={!renameNewName.trim() || renameNewName.trim() === projectName}
+                onClick={handleRenameConfirm}
+              >
+                确认重命名
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Open Project Picker */}
       {showOpenProject && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowOpenProject(false)}>
@@ -377,7 +478,10 @@ export function ProjectPage(): JSX.Element {
                         navigate(`/project/${p.id}`);
                       }}
                     >
-                      <div className={`text-sm font-medium pr-5 ${p.id === projectId ? "text-accent" : "text-text-primary"}`}>{p.name}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-sm font-medium ${p.id === projectId ? "text-accent" : "text-text-primary"}`}>{p.name}</span>
+                        {p.exists === false && <span className="text-[10px] text-danger">目录已删除</span>}
+                      </div>
                       <div className="text-[11px] text-text-secondary truncate">{p.path}</div>
                     </button>
                     <button
@@ -390,6 +494,18 @@ export function ProjectPage(): JSX.Element {
                   </div>
                 ))
               )}
+              {/* 浏览文件夹入口 */}
+              <div className="border-t border-border mt-2 pt-2">
+                <button
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-text-secondary hover:bg-surface-hover transition-colors flex items-center gap-2"
+                  onClick={handleBrowseFolder}
+                >
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4">
+                    <path d="M2 4a1 1 0 011-1h3l1.5 2H13a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/>
+                  </svg>
+                  浏览文件夹…
+                </button>
+              </div>
             </div>
           </div>
         </div>

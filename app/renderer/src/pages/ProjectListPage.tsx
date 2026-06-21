@@ -26,6 +26,21 @@ export function ProjectListPage(): JSX.Element {
     }
   };
 
+  const handleRelocate = async (e: React.MouseEvent, projectId: string) => {
+    e.stopPropagation();
+    const dir = await window.electronAPI.dialog.openDirectory();
+    if (!dir) return;
+    await window.electronAPI.project.update(projectId, { path: dir });
+    loadProjects();
+  };
+
+  const handleBrowseFolder = async () => {
+    const dir = await window.electronAPI.dialog.openDirectory();
+    if (!dir) return;
+    const imported = await window.electronAPI.project.import(dir);
+    navigate(`/project/${imported.id}`);
+  };
+
   useEffect(() => {
     loadProjects();
   }, []);
@@ -50,12 +65,20 @@ export function ProjectListPage(): JSX.Element {
       ) : projects.length === 0 ? (
         <div className="text-center p-12 rounded-lg border border-border bg-surface-alt">
           <p className="text-text-secondary mb-4">还没有项目</p>
-          <button
-            className="px-6 py-2 bg-accent text-text-inverse rounded-lg hover:bg-accent-hover transition-colors"
-            onClick={() => setShowNewDialog(true)}
-          >
-            + 新建项目
-          </button>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              className="px-6 py-2 bg-accent text-text-inverse rounded-lg hover:bg-accent-hover transition-colors"
+              onClick={() => setShowNewDialog(true)}
+            >
+              + 新建项目
+            </button>
+            <button
+              className="px-6 py-2 border border-border rounded-lg text-text-primary hover:bg-surface-hover transition-colors"
+              onClick={handleBrowseFolder}
+            >
+              打开已有目录
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-3 gap-4 w-full max-w-4xl">
@@ -76,6 +99,14 @@ export function ProjectListPage(): JSX.Element {
                   {p.exists === false && <span className="text-danger text-xs ml-1.5">（目录已删除）</span>}
                 </div>
                 <div className="text-sm text-text-secondary mt-1 truncate">{p.path}</div>
+                {p.exists === false && (
+                  <button
+                    className="mt-2 text-xs text-accent hover:underline cursor-pointer"
+                    onClick={(e) => handleRelocate(e, p.id)}
+                  >
+                    重新定位…
+                  </button>
+                )}
                 <div className="text-xs text-text-secondary mt-2">
                   {new Date(p.lastOpenedAt).toLocaleDateString("zh-CN")}
                 </div>
@@ -94,6 +125,12 @@ export function ProjectListPage(): JSX.Element {
             onClick={() => setShowNewDialog(true)}
           >
             + 新建项目
+          </button>
+          <button
+            className="p-4 rounded-lg border border-border hover:border-accent transition-colors flex items-center justify-center text-text-secondary"
+            onClick={handleBrowseFolder}
+          >
+            打开已有目录
           </button>
         </div>
       )}

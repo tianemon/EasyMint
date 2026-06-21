@@ -102,6 +102,15 @@ export class Store {
     fs.writeFileSync(this.projectsPath, JSON.stringify({ projects }, null, 2));
   }
 
+  updateProject(id: string, patch: { name?: string; path?: string }): Project | undefined {
+    const projects = this.getProjects();
+    const idx = projects.findIndex((p) => p.id === id);
+    if (idx === -1) return undefined;
+    projects[idx] = { ...projects[idx], ...patch, lastOpenedAt: new Date().toISOString() };
+    this.saveProjects(projects);
+    return projects[idx];
+  }
+
   getSettings(): Settings {
     // Read EM-specific settings
     let emData: Record<string, unknown> = {};

@@ -83,7 +83,7 @@
       {
         "from": "resources/skills",
         "to": "skills"
-      }
+      },
     ],
     "mac": {
       "target": "dmg",

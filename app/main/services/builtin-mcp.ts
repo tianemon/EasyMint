@@ -9,11 +9,11 @@
 
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
-import { basename, extname, join } from "node:path";
+import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync, cpSync } from "node:fs";
+import { basename, extname, join, dirname } from "node:path";
 import { homedir } from "node:os";
 import { resolveHome, IMAGE_MIME } from "../utils/paths";
-import { BrowserWindow } from "electron";
+import { BrowserWindow, app } from "electron";
 
 // ── Config ──────────────────────────────────────────
 
@@ -225,6 +225,88 @@ export function buildBuiltinMcpServers(projectPath?: string): Record<string, unk
           } catch (e) {
             return { content: [{ type: "text", text: `更新失败: ${(e as Error).message}` }] };
           }
+        },
+      ),
+      tool(
+        "rename_project",
+        "（仅打包版本可用）重命名当前项目。传入新名称，EasyMint 将关闭、复制项目到新位置、验证通过后删除旧数据、自动重启。"
+        + "调用此工具后，告知用户：EM 即将关闭以完成重命名，请确认已保存工作。",
+        {
+          newName: z.string().describe("新项目名称（仅名称，不含路径）"),
+        },
+        async (args) => {
+          if (!projectPath) {
+            return { content: [{ type: "text", text: "当前无项目，无法重命名" }] };
+          }
+          if (!app.isPackaged) {
+            return { content: [{ type: "text", text: "重命名功能仅在打包版本中可用" }] };
+          }
+          const oldDir = projectPath;
+          const parentDir = dirname(oldDir);
+          const newDir = join(parentDir, args.newName);
+          if (basename(oldDir) === args.newName) {
+            return { content: [{ type: "text", text: "新名称与当前名称相同" }] };
+          }
+          if (existsSync(newDir)) {
+            return { content: [{ type: "text", text: `目标目录已存在: ${newDir}` }] };
+          }
+
+          // 复制项目目录（排除 node_modules .git）
+          cpSync(oldDir, newDir, {
+            recursive: true,
+            filter: (src: string) => {
+              const name = basename(src);
+              return name !== "node_modules" && name !== ".git";
+            },
+          });
+
+          // 复制 SDK session 数据
+          const sdkProjectsDir = join(homedir(), ".easymint", "projects");
+          const oldEncoded = oldDir.replace(/[:\\/]/g, "-");
+          const newEncoded = newDir.replace(/[:\\/]/g, "-");
+          const oldSessionDir = join(sdkProjectsDir, oldEncoded);
+          const newSessionDir = join(sdkProjectsDir, newEncoded);
+          if (existsSync(oldSessionDir)) {
+            cpSync(oldSessionDir, newSessionDir, { recursive: true });
+          }
+
+          // 更新 projects.json
+          const projectsPath = join(homedir(), ".easymint", "projects.json");
+          if (existsSync(projectsPath)) {
+            const data = JSON.parse(readFileSync(projectsPath, "utf-8"));
+            const found = (data.projects as Array<Record<string, unknown>>).find((prj: Record<string, unknown>) => {
+              const p1 = String(prj.path || "").replace(/\/+$/, "");
+              const p2 = oldDir.replace(/\/+$/, "");
+              return p1 === p2 || p1 === oldDir;
+            });
+            if (found) {
+              found.name = args.newName;
+              found.path = newDir;
+              found.lastOpenedAt = new Date().toISOString();
+              writeFileSync(projectsPath, JSON.stringify(data, null, 2));
+            }
+          }
+
+          // 写入清理任务
+          const cleanFile = join(homedir(), ".easymint", ".cleanup-pending.json");
+          const cleanTask = { oldDir, oldSessionDir, timestamp: Date.now() };
+          let cleanTasks: Array<typeof cleanTask> = [];
+          if (existsSync(cleanFile)) {
+            try { cleanTasks = JSON.parse(readFileSync(cleanFile, "utf-8")); } catch { /* overwrite */ }
+          }
+          cleanTasks.push(cleanTask);
+          writeFileSync(cleanFile, JSON.stringify(cleanTasks, null, 2));
+
+          // 重启
+          app.relaunch();
+          app.quit();
+
+          return {
+            content: [{
+              type: "text",
+              text: `项目「${basename(oldDir)}」已复制为新项目「${args.newName}」。EasyMint 即将退出，清理旧数据后自动重启并打开新项目。`,
+            }],
+          };
         },
       ),
       tool(
