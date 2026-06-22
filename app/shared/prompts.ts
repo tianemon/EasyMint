@@ -478,26 +478,6 @@ export function buildSessionInfoAppend(sessionId: string): string {
   return `<session_info>\n当前会话 ID: ${sessionId}\n</session_info>`;
 }
 
-/**
- * 构建每条用户消息的动态上下文前缀
- *
- * 注入精确到分钟的当前时间（含时区），补齐 SDK preset 仅提供日期级 currentDate 的精度缺失。
- * 每次调用都重新生成，确保会话过夜或长时间运行时时间感知不偏。
- */
-export function buildDynamicContext(): string {
-  const now = new Date();
-  const timeStr = now.toLocaleString("zh-CN", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
-  return `<current_time>${timeStr}</current_time>`;
-}
-
 /** 上下文轮转后的新会话 handoff prompt */
 export function buildContextHandoffPrompt(projectPath: string, summary: string, continuation: string): string {
   return `[系统消息] 这是从上一轮会话迁移过来的项目上下文。请从这个断点继续工作。

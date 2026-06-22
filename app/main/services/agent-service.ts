@@ -18,7 +18,7 @@ import { buildMcpServersOption } from "./mcp-service";
 import { buildBuiltinMcpServers } from "./builtin-mcp";
 import { getPreset } from "../../shared/platform-presets";
 import { archiveSession, renameSession } from "./session-service";
-import { CONTEXT_SUMMARY_INSTRUCTION, buildSessionInfoAppend, buildContextHandoffPrompt, buildDynamicContext } from "../../shared/prompts";
+import { CONTEXT_SUMMARY_INSTRUCTION, buildSessionInfoAppend, buildContextHandoffPrompt } from "../../shared/prompts";
 
 // Use createRequire for CJS/ESM compatibility in packaged Electron
 type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
@@ -201,13 +201,10 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
 
 /** Build an SDKUserMessage for enqueuing into a channel */
 function buildUserMessage(message: string, sessionId: string): SDKUserMessage {
-  // slash 命令（/compact、/model claude-xxx 等）不注入上下文前缀，避免破坏 SDK 命令识别
-  const isSlashCommand = /^\/[a-z][\w-]*(\s|$)/.test(message.trim());
-  const content = isSlashCommand ? message : `${buildDynamicContext()}\n\n${message}`;
   return {
     type: "user" as const,
     session_id: sessionId,
-    message: { role: "user" as const, content },
+    message: { role: "user" as const, content: message },
     parent_tool_use_id: null,
   } as SDKUserMessage;
 }
