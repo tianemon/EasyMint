@@ -2,14 +2,6 @@ import { create } from "zustand";
 
 export type StoredMessage = Record<string, any> & { id: number; role: "user" | "ai" };
 
-/** 剥离注入标签（时间戳、命令 XML 包裹），保留用户原始文本 */
-const cleanUserText = (text?: string): string =>
-  (text || "")
-    .replace(/^<current_time>[^<]*<\/current_time>\n\n/, "")
-    .replace(/^<command-name>[^<]*<\/command-name>\n?/, "")
-    .replace(/^<local-command-caveat>[^<]*<\/local-command-caveat>\n?/, "")
-    .replace(/^<local-command-stdout>[^<]*<\/local-command-stdout>\n?/, "")
-    .replace(/^<command-message>[^<]*<\/command-message>\n?/, "");
 
 interface ChatState {
   messagesBySession: Record<string, any[]>;
@@ -28,18 +20,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   loadSession: (sessionId, messages) =>
     set((s) => {
-      const cleaned = messages.map((m) => (m.role === "user" ? { ...m, text: cleanUserText(m.text) } : m));
       const existing = s.messagesBySession[sessionId] || [];
       if (existing.length === 0) {
         return {
-          messagesBySession: { ...s.messagesBySession, [sessionId]: cleaned },
-          msgIdBySession: { ...s.msgIdBySession, [sessionId]: Math.max(0, ...cleaned.map((m) => m.id)) },
+          messagesBySession: { ...s.messagesBySession, [sessionId]: messages },
+          msgIdBySession: { ...s.msgIdBySession, [sessionId]: Math.max(0, ...messages.map((m) => m.id)) },
         };
       }
       // Merge: prepend store-only messages (e.g. init prompt pre-written by handleCreate)
-      const existingIds = new Set(cleaned.map((m: { id: number }) => m.id));
+      const existingIds = new Set(messages.map((m: { id: number }) => m.id));
       const storeOnly = existing.filter((m: { id: number }) => !existingIds.has(m.id));
-      const merged = [...storeOnly, ...cleaned].sort((a: { id: number }, b: { id: number }) => a.id - b.id);
+      const merged = [...storeOnly, ...messages].sort((a: { id: number }, b: { id: number }) => a.id - b.id);
       return {
         messagesBySession: { ...s.messagesBySession, [sessionId]: merged },
         msgIdBySession: { ...s.msgIdBySession, [sessionId]: Math.max(0, ...merged.map((m: { id: number }) => m.id)) },
@@ -57,11 +48,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   appendUserMsg: (sessionId, msg) => {
     const id = get().nextMsgId(sessionId);
-    const cleanMsg = msg.role === "user" && msg.text ? { ...msg, text: cleanUserText(msg.text) } : msg;
     return set((s) => ({
       messagesBySession: {
         ...s.messagesBySession,
-        [sessionId]: [...(s.messagesBySession[sessionId] || []), { ...cleanMsg, id }],
+        [sessionId]: [...(s.messagesBySession[sessionId] || []), { ...msg, id }],
       },
     }));
   },
