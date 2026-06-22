@@ -2,13 +2,10 @@ import { create } from "zustand";
 
 export type StoredMessage = Record<string, any> & { id: number; role: "user" | "ai" };
 
-/** 剥离注入消息的上下文标签（<current_time> 等），仅展示用户原始文本 */
-const stripContextTag = (text?: string): string =>
-  (text || "").replace(/^<current_time>[^<]*<\/current_time>\n\n/, "");
-
-/** 剥离命令 XML 标签，保留内部文本。如 <command-name>/exit</command-name> → /exit */
-const stripCommandTags = (text?: string): string =>
+/** 剥离注入标签（时间戳、命令 XML 包裹），保留用户原始文本 */
+const cleanUserText = (text?: string): string =>
   (text || "")
+    .replace(/^<current_time>[^<]*<\/current_time>\n\n/, "")
     .replace(/^<command-name>[^<]*<\/command-name>\n?/, "")
     .replace(/^<local-command-caveat>[^<]*<\/local-command-caveat>\n?/, "")
     .replace(/^<local-command-stdout>[^<]*<\/local-command-stdout>\n?/, "")
@@ -31,7 +28,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   loadSession: (sessionId, messages) =>
     set((s) => {
-      const cleaned = messages.map((m) => (m.role === "user" ? { ...m, text: stripCommandTags(stripContextTag(m.text)) } : m));
+      const cleaned = messages.map((m) => (m.role === "user" ? { ...m, text: cleanUserText(m.text) } : m));
       const existing = s.messagesBySession[sessionId] || [];
       if (existing.length === 0) {
         return {
@@ -60,7 +57,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   appendUserMsg: (sessionId, msg) => {
     const id = get().nextMsgId(sessionId);
-    const cleanMsg = msg.role === "user" && msg.text ? { ...msg, text: stripCommandTags(stripContextTag(msg.text)) } : msg;
+    const cleanMsg = msg.role === "user" && msg.text ? { ...msg, text: cleanUserText(msg.text) } : msg;
     return set((s) => ({
       messagesBySession: {
         ...s.messagesBySession,
