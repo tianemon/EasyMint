@@ -341,8 +341,7 @@ button, a, select, .transition-all {
 
 /* ── Scrollbar ────────────────────────────────────── */
 
-::-webkit-scrollbar { width: 6px; transition: width 150ms var(--ease-smooth); }
-::-webkit-scrollbar:hover { width: 10px; }
+::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 5px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-text-secondary); }

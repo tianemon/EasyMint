@@ -3,21 +3,21 @@ import { create } from "zustand";
 interface WorkspaceState {
   collapsedLeft: boolean;
   collapsedRight: boolean;
-  leftRatio: number;
-  rightRatio: number;
+  leftWidth: number;
+  rightWidth: number;
   toggleLeft: () => void;
   toggleRight: () => void;
-  setLeftRatio: (r: number) => void;
-  setRightRatio: (r: number) => void;
+  setLeftWidth: (w: number) => void;
+  setRightWidth: (w: number) => void;
 }
 
-const DEFAULT_LEFT_RATIO = 0.18;
-const DEFAULT_RIGHT_RATIO = 0.22;
-const MIN_RATIO = 0.08;
-const MAX_LEFT_RATIO = 0.35;
-const MAX_RIGHT_RATIO = 0.45;
+const DEFAULT_LEFT_WIDTH = 260;
+const DEFAULT_RIGHT_WIDTH = 280;
+const MIN_WIDTH = 120;
+const MAX_LEFT_WIDTH = 500;
+const MAX_RIGHT_WIDTH = 600;
 
-const STORAGE_KEY = "easymint_panel_ratios";
+const STORAGE_KEY = "easymint_panel_widths";
 
 function readStored(): { left: number; right: number } | null {
   try {
@@ -25,46 +25,41 @@ function readStored(): { left: number; right: number } | null {
     if (!raw) return null;
     const v = JSON.parse(raw);
     if (typeof v.left === "number" && typeof v.right === "number") {
-      return { left: Math.max(MIN_RATIO, Math.min(v.left, MAX_LEFT_RATIO)),
-               right: Math.max(MIN_RATIO, Math.min(v.right, MAX_RIGHT_RATIO)) };
+      return {
+        left: Math.max(MIN_WIDTH, Math.min(v.left, MAX_LEFT_WIDTH)),
+        right: Math.max(MIN_WIDTH, Math.min(v.right, MAX_RIGHT_WIDTH)),
+      };
     }
   } catch { /* ignore */ }
   return null;
 }
 
-function persist(ratio: number, side: "left" | "right"): void {
+function persist(width: number, side: "left" | "right"): void {
   try {
-    const current = readStored() || { left: DEFAULT_LEFT_RATIO, right: DEFAULT_RIGHT_RATIO };
-    current[side] = ratio;
+    const current = readStored() || { left: DEFAULT_LEFT_WIDTH, right: DEFAULT_RIGHT_WIDTH };
+    current[side] = width;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
   } catch { /* ignore */ }
 }
 
 const stored = readStored();
 
-/** Convert ratio to pixel width based on current window width */
-export function ratioToPx(ratio: number): number {
-  return Math.round(ratio * window.innerWidth);
-}
-
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   collapsedLeft: false,
   collapsedRight: false,
-  leftRatio: stored?.left ?? DEFAULT_LEFT_RATIO,
-  rightRatio: stored?.right ?? DEFAULT_RIGHT_RATIO,
+  leftWidth: stored?.left ?? DEFAULT_LEFT_WIDTH,
+  rightWidth: stored?.right ?? DEFAULT_RIGHT_WIDTH,
 
-  toggleLeft: () =>
-    set((s) => ({ collapsedLeft: !s.collapsedLeft })),
-  toggleRight: () =>
-    set((s) => ({ collapsedRight: !s.collapsedRight })),
-  setLeftRatio: (r) => {
-    const clamped = Math.max(MIN_RATIO, Math.min(r, MAX_LEFT_RATIO));
+  toggleLeft: () => set((s) => ({ collapsedLeft: !s.collapsedLeft })),
+  toggleRight: () => set((s) => ({ collapsedRight: !s.collapsedRight })),
+  setLeftWidth: (w) => {
+    const clamped = Math.max(MIN_WIDTH, Math.min(w, MAX_LEFT_WIDTH));
     persist(clamped, "left");
-    set({ leftRatio: clamped });
+    set({ leftWidth: clamped });
   },
-  setRightRatio: (r) => {
-    const clamped = Math.max(MIN_RATIO, Math.min(r, MAX_RIGHT_RATIO));
+  setRightWidth: (w) => {
+    const clamped = Math.max(MIN_WIDTH, Math.min(w, MAX_RIGHT_WIDTH));
     persist(clamped, "right");
-    set({ rightRatio: clamped });
+    set({ rightWidth: clamped });
   },
 }));

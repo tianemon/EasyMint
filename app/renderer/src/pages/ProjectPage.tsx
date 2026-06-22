@@ -10,7 +10,7 @@ import { NewProjectDialog } from "../components/NewProjectDialog";
 import { TabBar } from "../components/TabBar";
 import { DragHandle } from "../components/DragHandle";
 import { TitleBar } from "../components/TitleBar";
-import { useWorkspaceStore, ratioToPx } from "../stores/workspace-store";
+import { useWorkspaceStore } from "../stores/workspace-store";
 import { useTabStore } from "../stores/tab-store";
 import { useTaskStore, type TaskStatus } from "../stores/task-store";
 import { useProjectStatusStore, type ProjectStage } from "../stores/project-status-store";
@@ -55,21 +55,13 @@ export function ProjectPage(): JSX.Element {
   const {
     collapsedLeft,
     collapsedRight,
-    leftRatio,
-    rightRatio,
+    leftWidth,
+    rightWidth,
     toggleLeft,
     toggleRight,
-    setLeftRatio,
-    setRightRatio,
+    setLeftWidth,
+    setRightWidth,
   } = useWorkspaceStore();
-  const [, setWinWidth] = useState(window.innerWidth);
-  useEffect(() => {
-    const onResize = () => setWinWidth(window.innerWidth);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-  const leftWidth = ratioToPx(leftRatio);
-  const rightWidth = ratioToPx(rightRatio);
 
   const { tabs, activeTabId, openTab, closeTab } = useTabStore();
 
@@ -279,13 +271,13 @@ export function ProjectPage(): JSX.Element {
   }, [renameNewName, projectName, projectPath]);
 
   const handleLeftDrag = useCallback(
-    (delta: number) => setLeftRatio((leftWidth + delta) / window.innerWidth),
-    [leftWidth, setLeftRatio]
+    (delta: number) => setLeftWidth(leftWidth + delta),
+    [leftWidth, setLeftWidth]
   );
 
   const handleRightDrag = useCallback(
-    (delta: number) => setRightRatio((rightWidth - delta) / window.innerWidth),
-    [rightWidth, setRightRatio]
+    (delta: number) => setRightWidth(rightWidth - delta),
+    [rightWidth, setRightWidth]
   );
 
   const gridColumns = [
