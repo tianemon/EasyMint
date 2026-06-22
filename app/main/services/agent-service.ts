@@ -713,8 +713,13 @@ function toStreamEvent(msg: SDKMessage, runId: string, sessionId: string, source
       if (text) return { ...base, type: "status", data: { text } };
       return null;
     }
-    const skip = new Set(["init", "hook_started", "hook_response", "hook_progress", "memory_recall", "api_retry", "requesting", "compacting", "session_state_changed", "notification", "permission_denied", "files_persisted", "rate_limit"]);
+    const skip = new Set(["init", "hook_started", "hook_response", "hook_progress", "memory_recall", "session_state_changed", "notification", "permission_denied", "files_persisted", "rate_limit"]);
     if (skip.has(subtype)) return null;
+    // SDK 动态状态 → 转为 status 事件让前端状态栏展示
+    if (subtype === "compacting") return { ...base, type: "status", data: { text: STATUS_LABELS.compacting ?? "整理上下文中..." } };
+    if (subtype === "api_retry") return { ...base, type: "status", data: { text: STATUS_LABELS.api_retry ?? "正在重试..." } };
+    if (subtype === "compact_boundary") return { ...base, type: "status", data: { text: "上下文已压缩" } };
+    if (subtype === "requesting") return { ...base, type: "status", data: { text: STATUS_LABELS.requesting ?? "正在思考..." } };
     return { ...base, type: "system", data: { message: subtype || "System event" } };
   }
 
@@ -724,5 +729,6 @@ function toStreamEvent(msg: SDKMessage, runId: string, sessionId: string, source
 const STATUS_LABELS: Record<string, string> = {
   requesting: "正在思考...",
   compacting: "整理上下文中...",
+  api_retry: "正在重试...",
   idle: "",
 };
