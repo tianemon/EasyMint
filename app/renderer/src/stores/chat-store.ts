@@ -6,6 +6,14 @@ export type StoredMessage = Record<string, any> & { id: number; role: "user" | "
 const stripContextTag = (text?: string): string =>
   (text || "").replace(/^<current_time>[^<]*<\/current_time>\n\n/, "");
 
+/** 剥离命令 XML 标签，保留内部文本。如 <command-name>/exit</command-name> → /exit */
+const stripCommandTags = (text?: string): string =>
+  (text || "")
+    .replace(/^<command-name>[^<]*<\/command-name>\n?/, "")
+    .replace(/^<local-command-caveat>[^<]*<\/local-command-caveat>\n?/, "")
+    .replace(/^<local-command-stdout>[^<]*<\/local-command-stdout>\n?/, "")
+    .replace(/^<command-message>[^<]*<\/command-message>\n?/, "");
+
 interface ChatState {
   messagesBySession: Record<string, any[]>;
   msgIdBySession: Record<string, number>;
@@ -23,7 +31,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   loadSession: (sessionId, messages) =>
     set((s) => {
-      const cleaned = messages.map((m) => (m.role === "user" ? { ...m, text: stripContextTag(m.text) } : m));
+      const cleaned = messages.map((m) => (m.role === "user" ? { ...m, text: stripCommandTags(stripContextTag(m.text)) } : m));
       const existing = s.messagesBySession[sessionId] || [];
       if (existing.length === 0) {
         return {
@@ -52,7 +60,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   appendUserMsg: (sessionId, msg) => {
     const id = get().nextMsgId(sessionId);
-    const cleanMsg = msg.role === "user" && msg.text ? { ...msg, text: stripContextTag(msg.text) } : msg;
+    const cleanMsg = msg.role === "user" && msg.text ? { ...msg, text: stripCommandTags(stripContextTag(msg.text)) } : msg;
     return set((s) => ({
       messagesBySession: {
         ...s.messagesBySession,
