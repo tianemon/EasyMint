@@ -177,8 +177,7 @@ export function normalizeEvent(event: StreamEvent): StreamEntry | null {
         return { kind: "thinking", text: data.delta, timestamp, source };
       }
       const text = typeof data.text === "string" ? data.text : "";
-      // Suppress internal hook output (e.g. /model command feedback)
-      if (text.trimStart().startsWith("<command-") || text.trimStart().startsWith("<local-command-") || /set model to/i.test(text)) return null;
+      if (!text) return null;
       return { kind: "text", text, timestamp, source };
     }
     case "message_delta": {
