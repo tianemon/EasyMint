@@ -5,7 +5,16 @@
 <h1 align="center">EasyMint</h1>
 
 <p align="center">
-  不用懂代码，用 AI 造出自己的软件。
+  <strong>不用懂代码，用 AI 造出自己的软件。</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/tianemon/EasyMint/releases"><img src="https://img.shields.io/github/v/release/tianemon/EasyMint?style=flat-square&color=16a34a" alt="Version" /></a>
+  <img src="https://img.shields.io/badge/Electron-42.3-47848f?style=flat-square&logo=electron&logoColor=white" alt="Electron" />
+  <img src="https://img.shields.io/badge/TypeScript-5.9-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/React-19.2-61dafb?style=flat-square&logo=react&logoColor=white" alt="React" />
+  <img src="https://img.shields.io/badge/platform-macOS%20|%20Windows-lightgrey?style=flat-square" alt="Platform" />
+  <img src="https://img.shields.io/badge/license-AGPL--3.0-green?style=flat-square" alt="License" />
 </p>
 
 ---
