@@ -40,7 +40,7 @@ function mapSessionMessages(msgs: Array<{ type: string; message: unknown }>): Ch
       const text = typeof content === "string" ? content : Array.isArray(content)
         ? content.map((b: unknown) => (b as { text?: string })?.text ?? "").join("")
         : "";
-      if (text && !text.includes("Request interrupted") && !text.includes("No response requested") && !text.includes("<command-") && !text.includes("<local-command-") && !/set model to/i.test(text)) {
+      if (text && !text.includes("Request interrupted") && !text.includes("No response requested") && !text.trimStart().startsWith("<command-") && !text.trimStart().startsWith("<local-command-") && !/set model to/i.test(text)) {
         const { attaches, cleanText } = parseAttachMarkers(text);
         mapped.push({ id: ++nextId, role: "user", text: cleanText, attaches: attaches.length > 0 ? attaches : undefined, timestamp: ts });
       }
@@ -51,7 +51,7 @@ function mapSessionMessages(msgs: Array<{ type: string; message: unknown }>): Ch
         for (const block of content) {
           const b = block as { type?: string; text?: string; thinking?: string; name?: string; input?: unknown; tool_use_id?: string; content?: unknown; is_error?: boolean };
           if (b.type === "text" && b.text) {
-            if (!b.text.includes("Request interrupted") && !b.text.includes("No response requested") && !b.text.includes("<command-") && !b.text.includes("<local-command-") && !/set model to/i.test(b.text)) {
+            if (!b.text.includes("Request interrupted") && !b.text.includes("No response requested") && !b.text.trimStart().startsWith("<command-") && !b.text.trimStart().startsWith("<local-command-") && !/set model to/i.test(b.text)) {
               entries.push({ kind: "text", text: b.text, timestamp: ts });
             }
           } else if (b.type === "thinking" && b.thinking) {
