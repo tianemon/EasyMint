@@ -96,6 +96,7 @@ interface ElectronAPI {
     onProjectStage: (callback: (data: { stage: string; projectPath: string }) => void) => () => void;
     onCommandsChanged: (callback: (data: { commands: Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> }) => void) => () => void;
     onRenameProgress: (callback: (data: { phase: string }) => void) => () => void;
+    onSessionRenamed: (callback: (data: { sessionId: string; title: string }) => void) => () => void;
   };
   task: {
     read: (projectPath: string) => Promise<{ tasks: { id: string; title: string; description: string; command: string; status: string; attempts: number }[] }>;

@@ -43,6 +43,15 @@ export function ProjectPage(): JSX.Element {
     });
   }, []);
 
+  // 监听会话自动命名 → 同步 Tab 标题
+  useEffect(() => {
+    return window.electronAPI.agent.onSessionRenamed(({ sessionId, title }) => {
+      const ts = useTabStore.getState();
+      const tab = ts.tabs.find((t) => t.sessionId === sessionId);
+      if (tab) ts.updateTab(tab.id, { title });
+    });
+  }, []);
+
   const {
     collapsedLeft,
     collapsedRight,

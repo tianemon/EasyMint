@@ -210,5 +210,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:rename-progress", handler);
       return () => ipcRenderer.removeListener("agent:rename-progress", handler);
     },
+    onSessionRenamed: (callback: (data: { sessionId: string; title: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string; title: string }) => callback(data);
+      ipcRenderer.on("agent:session-renamed", handler);
+      return () => ipcRenderer.removeListener("agent:session-renamed", handler);
+    },
   },
 });

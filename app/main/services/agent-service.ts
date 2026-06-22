@@ -433,6 +433,10 @@ export class AgentService {
                 ? "会话迁移"
                 : firstMsg.length > 15 ? firstMsg.slice(0, 15) + "…" : firstMsg;
               renameSession(capturedSid, title, chat.projectPath).catch(() => {});
+              // 同步 Tab 标题
+              BrowserWindow.getAllWindows().forEach((win) => {
+                if (!win.isDestroyed()) win.webContents.send("agent:session-renamed", { sessionId: capturedSid, title });
+              });
             }
 
             // ── 上下文管理：每轮结束后检测使用率 ──

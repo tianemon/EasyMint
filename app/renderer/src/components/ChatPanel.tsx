@@ -286,15 +286,22 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) return;
-    const files: File[] = [];
+    const images: File[] = [];
+    const docs: File[] = [];
     for (let i = 0; i < items.length; i++) {
       const item = items[i]!;
+      const file = item.getAsFile();
+      if (!file) continue;
+      e.preventDefault();
       if (item.type.startsWith("image/")) {
-        const file = item.getAsFile();
-        if (file) { e.preventDefault(); files.push(file); }
+        images.push(file);
+      } else if (file.type || file.name) {
+        // 文档粘贴（从 Finder/资源管理器复制）
+        docs.push(file);
       }
     }
-    if (files.length > 0) uploadFiles(files, "image");
+    if (images.length > 0) uploadFiles(images, "image");
+    if (docs.length > 0) uploadFiles(docs, "doc");
   }, [uploadFiles]);
 
   // ── File inputs ────────────────────────────────────

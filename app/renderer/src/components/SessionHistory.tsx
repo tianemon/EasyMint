@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 import { sessionListActions } from "../stores/session-list-actions";
+import { useTabStore } from "../stores/tab-store";
 
 
 interface SessionItem {
@@ -127,6 +128,10 @@ export function SessionHistory({
       const path = projectPath || getWorkspaceDir();
       await window.electronAPI.conv.rename(editingId, title, path);
       setSessions((prev) => prev.map((s) => (s.sessionId === editingId ? { ...s, title } : s)));
+      // 同步更新已打开的 Tab 标题
+      const ts = useTabStore.getState();
+      const tab = ts.tabs.find((t) => t.sessionId === editingId);
+      if (tab) ts.updateTab(tab.id, { title });
     }
     setEditingId(null);
   };
