@@ -5,11 +5,11 @@ export type StoredMessage = Record<string, any> & { id: number; role: "user" | "
 /** 剥离注入标签（时间戳、命令 XML 包裹），保留用户原始文本 */
 const cleanUserText = (text?: string): string =>
   (text || "")
-    .replace(/<current_time>[^<]*<\/current_time>\n\n?/g, "")
-    .replace(/<command-name>[^<]*<\/command-name>\n?/g, "")
-    .replace(/<local-command-caveat>[^<]*<\/local-command-caveat>\n?/g, "")
-    .replace(/<local-command-stdout>[^<]*<\/local-command-stdout>\n?/g, "")
-    .replace(/<command-message>[^<]*<\/command-message>\n?/g, "");
+    .replace(/^<current_time>[^<]*<\/current_time>\n\n/, "")
+    .replace(/^<command-name>[^<]*<\/command-name>\n?/, "")
+    .replace(/^<local-command-caveat>[^<]*<\/local-command-caveat>\n?/, "")
+    .replace(/^<local-command-stdout>[^<]*<\/local-command-stdout>\n?/, "")
+    .replace(/^<command-message>[^<]*<\/command-message>\n?/, "");
 
 interface ChatState {
   messagesBySession: Record<string, any[]>;

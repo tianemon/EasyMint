@@ -341,9 +341,10 @@ button, a, select, .transition-all {
 
 /* ── Scrollbar ────────────────────────────────────── */
 
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 6px; transition: width 150ms var(--ease-smooth); }
+::-webkit-scrollbar:hover { width: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 5px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-text-secondary); }
 
 /* ── Form inputs ──────────────────────────────────── */
@@ -458,9 +459,13 @@ select.input {
 .drag-handle::before {
   content: '';
   position: absolute;
-  left: -4px; right: -4px;
+  left: -2px; right: -2px;
   top: 0; bottom: 0;
   z-index: 0;
+  transition: left 150ms var(--ease-smooth), right 150ms var(--ease-smooth);
+}
+.drag-handle:hover::before, .drag-handle.dragging::before {
+  left: -7px; right: -7px;
 }
 
 /* ── Panel peek ───────────────────────────────────── */
