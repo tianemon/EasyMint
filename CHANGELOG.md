@@ -2,6 +2,8 @@
 
 ## v0.2.3 (2026-06-23)
 
+- SDK 升级到 0.3.186（17 个版本更新），适配 tool_use_meta/model_fallback/worker_shutting_down
+
 ### 状态栏优化
 - 对齐 SDK 事件：api_retry 显示「正在重试...」、compacting 「整理上下文中...」、compact_boundary 「上下文已压缩」
 - 区分 requesting（正在请求）和 thinking（正在思考），不再混用
