@@ -680,7 +680,8 @@ function toStreamEvent(msg: SDKMessage, runId: string, sessionId: string, source
         return { ...base, type: "assistant", data: { text: block.text } };
       }
       if (blockType === "tool_use") {
-        return { ...base, type: "tool_use", data: { id: block.id, name: block.name, input: block.input } };
+        const meta = (msg as { message?: { tool_use_meta?: { display_name?: string; icon_url?: string } } }).message?.tool_use_meta;
+        return { ...base, type: "tool_use", data: { id: block.id, name: block.name, input: block.input, displayName: meta?.display_name, iconUrl: meta?.icon_url } };
       }
       if (blockType === "thinking") {
         return { ...base, type: "assistant", data: { delta: block.thinking } };
@@ -720,6 +721,8 @@ function toStreamEvent(msg: SDKMessage, runId: string, sessionId: string, source
     if (subtype === "api_retry") return { ...base, type: "status", data: { text: STATUS_LABELS.api_retry ?? "正在重试..." } };
     if (subtype === "compact_boundary") return { ...base, type: "status", data: { text: "上下文已压缩" } };
     if (subtype === "requesting") return { ...base, type: "status", data: { text: STATUS_LABELS.requesting ?? "正在请求..." } };
+    if (subtype === "model_fallback") return { ...base, type: "status", data: { text: STATUS_LABELS.model_fallback ?? "模型已切换" } };
+    if (subtype === "worker_shutting_down") return { ...base, type: "status", data: { text: "后台任务已结束" } };
     return { ...base, type: "system", data: { message: subtype || "System event" } };
   }
 
@@ -730,5 +733,6 @@ const STATUS_LABELS: Record<string, string> = {
   requesting: "正在请求...",
   compacting: "整理上下文中...",
   api_retry: "正在重试...",
+  model_fallback: "模型已切换",
   idle: "",
 };

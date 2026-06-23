@@ -140,6 +140,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (event.type === "tool_use") {
       const name = typeof event.data.name === "string" ? event.data.name : "";
       const input = event.data.input as Record<string, unknown> | undefined;
+      // SDK 0.3.179+ tool_use_meta 提供显示名，有则直接用
+      const displayName = typeof event.data.displayName === "string" ? event.data.displayName : "";
+      if (displayName) {
+        if (lastStatusRef.current !== displayName) { lastStatusRef.current = displayName; useStatusStore.getState().setText(displayName); }
+        return;
+      }
       let label = "";
       const ctx = (input?.file_path || input?.filePath || input?.query || input?.pattern || input?.target_file) as string | undefined;
       const fname = (ctx && typeof ctx === "string") ? ctx.split("/").pop() || "" : "";
