@@ -182,10 +182,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       } else if (name === "Bash") {
         const cmd = (input?.command as string) || "";
         const short = cmd.length > 40 ? cmd.slice(0, 40) + "…" : cmd;
-        if (/npm|yarn|pnpm|pip|cargo/i.test(cmd)) label = `安装依赖: ${short}`;
-        else if (/git\scommit/i.test(cmd)) label = `提交代码: ${short}`;
-        else if (/git\s/i.test(cmd)) label = `Git: ${short}`;
-        else if (/node\s|tsx\s|python|ruby|go\srun/i.test(cmd)) label = `运行: ${short}`;
+        const firstWord = cmd.trim().split(/\s+/)[0] || "";
+        if (/^(npm|yarn|pnpm|pip|cargo)$/i.test(firstWord)) label = `安装依赖: ${short}`;
+        else if (/^git$/i.test(firstWord)) label = cmd.includes("commit") ? `提交代码: ${short}` : `Git: ${short}`;
+        else if (/^(node|tsx|python|ruby|go)$/i.test(firstWord)) label = `运行: ${short}`;
         else label = `执行: ${short}`;
       } else if (name === "Task") {
         const agent = input?.subagent_type as string | undefined;
