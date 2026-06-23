@@ -142,30 +142,63 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (event.type === "tool_use") {
       const name = typeof event.data.name === "string" ? event.data.name : "";
       const input = event.data.input as Record<string, unknown> | undefined;
-      const labels: Record<string, string> = {
-        Bash: "执行命令", Read: "读取文件", Write: "写入文件", Edit: "编辑文件",
-        Grep: "搜索内容", Glob: "搜索文件", WebFetch: "抓取网页", WebSearch: "搜索网页",
-        Task: "Agent", TodoWrite: "待办",
-      };
-      let label = labels[name] || name;
+      let label = "";
+      const ctx = (input?.file_path || input?.filePath || input?.query || input?.pattern || input?.target_file) as string | undefined;
+      const fname = (ctx && typeof ctx === "string") ? ctx.split("/").pop() || "" : "";
+      const ext = fname.split(".").pop()?.toLowerCase() || "";
+
+      // Skill / MCP 特殊处理
       const skillInInput = input?.skill as string | undefined;
       if (skillInInput) {
         label = `调用 Skill: ${skillInInput}`;
       } else if (name.startsWith("Skill__")) {
-        label = `调用 Skill: ${name.slice(7)}`;
+        label = `使用技能: ${name.slice(7)}`;
       } else if (name.startsWith("mcp__")) {
-        label = `MCP: ${name.split("__")[1] || "工具"}`;
-      }
-      if (name === "Bash") {
-        const cmd = input?.command as string | undefined;
-        if (cmd) label += `: ${cmd.length > 50 ? cmd.slice(0, 50) + "…" : cmd}`;
+        label = `连接工具: ${name.split("__")[1] || "工具"}`;
+      } else if (name === "Read" || name === "Glob") {
+        const isConfig = /json|toml|yaml|yml|env|ini|config|cfg|rc$/i.test(ext) || /package\.json|tsconfig|eslint|prettier/i.test(fname);
+        const isDoc = /md|markdown|rst|txt|readme/i.test(ext) || /README|CLAUDE|CHANGELOG|LICENSE/i.test(fname);
+        const isSource = /tsx?|jsx?|py|rs|go|java|c|h|cpp|swift|kt|rb|php|vue|svelte|css|scss|html$/i.test(ext);
+        const isTest = /test|spec|__test__/i.test(fname);
+        if (isConfig) label = fname ? `加载配置: ${fname}` : "读取项目配置";
+        else if (isTest) label = fname ? `查看测试: ${fname}` : "查看测试文件";
+        else if (isDoc) label = fname ? `阅读文档: ${fname}` : "查阅文档";
+        else if (isSource) label = fname ? `检查代码: ${fname}` : "分析源代码";
+        else if (name === "Glob") label = fname ? `搜索文件: ${fname}` : "查找文件";
+        else label = fname ? `读取: ${fname}` : "读取文件";
+      } else if (name === "Write") {
+        if (ext === "json" || /package\.json|tsconfig/i.test(fname)) label = fname ? `更新配置: ${fname}` : "写入配置文件";
+        else if (ext === "md" || /README|CLAUDE|CHANGELOG/i.test(fname)) label = fname ? `撰写文档: ${fname}` : "输出文档";
+        else if (/tsx?|jsx?|py|rs|go|css/.test(ext)) label = fname ? `编写代码: ${fname}` : "创建源文件";
+        else label = fname ? `写入: ${fname}` : "写入文件";
+      } else if (name === "Edit") {
+        label = fname ? `修改: ${fname}` : "编辑文件";
+      } else if (name === "Grep") {
+        label = ctx ? `搜索内容` : "查找代码";
+      } else if (name === "Bash") {
+        const cmd = (input?.command as string) || "";
+        const short = cmd.length > 40 ? cmd.slice(0, 40) + "…" : cmd;
+        if (/npm|yarn|pnpm|pip|cargo|go\s(install|get|mod)/i.test(cmd)) label = short ? `安装依赖…` : "管理依赖";
+        else if (/git\s/i.test(cmd)) label = short ? `Git: ${short}` : "执行 Git 操作";
+        else if (/node\s|tsx\s|python|ruby|go\srun/i.test(cmd)) label = short ? `运行: ${short}` : "运行程序";
+        else if (/mkdir|rm|mv|cp|ln\s/i.test(cmd)) label = short ? `文件操作` : "管理系统文件";
+        else label = short ? `执行: ${short}` : "执行命令";
       } else if (name === "Task") {
         const agent = input?.subagent_type as string | undefined;
-        label = agent ? `调用 Agent: ${agent}` : "调用 Agent";
+        if (agent === "builder") label = "委托 Builder 编码";
+        else if (agent === "evaluator") label = "委托 Evaluator 验收";
+        else label = agent ? `调度 Agent: ${agent}` : "调度 Agent";
+      } else if (name === "WebFetch") {
+        const url = ctx || "";
+        const domain = url ? (() => { try { return new URL(url).hostname; } catch { return url.slice(0, 40); } })() : "";
+        label = domain ? `获取网页: ${domain}` : "抓取网页内容";
+      } else if (name === "WebSearch") {
+        const query = (input?.query as string) || ctx || "";
+        label = query ? `搜索: ${query.slice(0, 30)}` : "联网搜索";
       } else {
-        const ctx = (input?.file_path || input?.filePath || input?.url || input?.query || input?.pattern || input?.target_file) as string | undefined;
-        if (ctx && typeof ctx === "string" && ctx.length < 80) label += `: ${ctx.split("/").pop() || ctx}`;
+        label = "执行任务";
       }
+
       if (label && lastStatusRef.current !== label) { lastStatusRef.current = label; useStatusStore.getState().setText(label); }
     }
   }, []);
