@@ -14,6 +14,7 @@
   <img src="https://img.shields.io/badge/TypeScript-5.9-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/React-19.2-61dafb?style=flat-square&logo=react&logoColor=white" alt="React" />
   <img src="https://img.shields.io/badge/platform-macOS%20|%20Windows-lightgrey?style=flat-square" alt="Platform" />
+  <img src="https://img.shields.io/badge/Claude%20Agent%20SDK-0.3.186-blue?style=flat-square" alt="Claude Agent SDK" />
   <img src="https://img.shields.io/badge/license-AGPL--3.0-green?style=flat-square" alt="License" />
 </p>
 
