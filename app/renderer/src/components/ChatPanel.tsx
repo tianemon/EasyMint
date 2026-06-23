@@ -588,25 +588,27 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                   {msg.role === "user" ? (
                     <div className="flex justify-end"><UserBubble msg={msg} /></div>
                   ) : msg.entries ? (
-                    msg.entries.filter((e) => {
-                      // Filter entries by type (model-switch hook output suppressed via event source)
-                      if (e.kind === "text") return true;
-                      if (e.kind === "thinking") return showThinking;
-                      return showToolUse;
-                    }).length === 0 ? null : (
-                      <div className="flex flex-col max-w-[75%] w-fit">
-                        <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
-                          {buildBlocks(
-                            msg.entries.filter((e) => {
-                              if (e.kind === "text") return true;
-                              if (e.kind === "thinking") return showThinking;
-                              return showToolUse;
-                            }),
-                            String(msg.id)
-                          ).map((block, i) => <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} />)}
+                    (() => {
+                      const visible = msg.entries.filter((e) => {
+                        if (e.kind === "text") return true;
+                        if (e.kind === "thinking") return showThinking;
+                        return showToolUse;
+                      });
+                      if (visible.length === 0) return null;
+                      const totalText = visible.reduce((n: number, e: any) => n + (e.text?.length || 0), 0);
+                      const blocks = buildBlocks(visible, String(msg.id)).map((block, i) => <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} />);
+                      // 流式刚开头，内容很少 → 不包裹泡框，避免空泡闪烁
+                      if (totalText < 20 && busy && msg === messages[messages.length - 1]) {
+                        return <div className="flex flex-col max-w-[75%] w-fit">{blocks}</div>;
+                      }
+                      return (
+                        <div className="flex flex-col max-w-[75%] w-fit">
+                          <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
+                            {blocks}
+                          </div>
                         </div>
-                      </div>
-                    )
+                      );
+                    })()
                   ) : null}
                 </div>
               );
