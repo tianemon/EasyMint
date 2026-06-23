@@ -1,4 +1,4 @@
-import { memo, useRef, useState, useCallback } from "react";
+import { memo, useRef, useState, useCallback, useEffect } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { useStatusStore } from "../stores/status-store";
 import { CommandPalette } from "./CommandPalette";
@@ -64,6 +64,16 @@ export const ChatInput = memo(function ChatInput({
     } catch { /* ignore */ }
   }, []);
 
+  useEffect(() => { refreshBalance(); const t = setInterval(refreshBalance, 5 * 60 * 1000); return () => clearInterval(t); }, [refreshBalance]);
+
+  // 输入历史导航
+  const HISTORY_KEY = "easymint_input_history";
+  const inputHistoryRef = useRef<string[]>(
+    (() => { try { const v = localStorage.getItem(HISTORY_KEY); return v ? JSON.parse(v) : []; } catch { return []; } })()
+  );
+  const historyPosRef = useRef(-1);
+  const savedInputRef = useRef("");
+
   const handleInputChange = useCallback((value: string) => {
     setInput(value);
     if (value.startsWith("/") && !value.includes("\n") && !value.includes(" ")) {
@@ -75,58 +85,47 @@ export const ChatInput = memo(function ChatInput({
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (paletteQuery !== null && (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Enter" || e.key === "Escape")) return;
-    if (e.key === "Enter" && !e.shiftKey) {
+    // ↑↓ 历史导航
+    if (e.key === "ArrowUp" && !e.shiftKey) {
       e.preventDefault();
-      if (input.trim() || attaches.length > 0) { onSend(input); setInput(""); textareaRef.current?.focus(); }
+      const hist = inputHistoryRef.current;
+      if (hist.length === 0) return;
+      if (historyPosRef.current === -1) savedInputRef.current = input;
+      const next = historyPosRef.current + 1;
+      if (next < hist.length) {
+        historyPosRef.current = next;
+        setInput(hist[next]!);
+      }
+    } else if (e.key === "ArrowDown" && !e.shiftKey) {
+      e.preventDefault();
+      const prev = historyPosRef.current - 1;
+      if (prev >= 0) {
+        historyPosRef.current = prev;
+        setInput(inputHistoryRef.current[prev]!);
+      } else if (prev === -1) {
+        historyPosRef.current = -1;
+        setInput(savedInputRef.current);
+      }
+    } else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      if (input.trim() || attaches.length > 0) {
+        // 存历史
+        const msg = input.trim();
+        if (msg) {
+          const hist = inputHistoryRef.current;
+          if (msg !== hist[0]) { hist.unshift(msg); if (hist.length > 100) hist.pop(); }
+          try { localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); } catch { /* */ }
+          historyPosRef.current = -1;
+        }
+        onSend(input); setInput(""); textareaRef.current?.focus();
+      }
     }
   }, [paletteQuery, input, attaches, onSend]);
 
   return (
     <>
-      {paletteQuery !== null && (
-        <CommandPalette
-          initialQuery={paletteQuery}
-          onClose={() => setPaletteQuery(null)}
-          onPick={(text) => { setInput(text); setPaletteQuery(null); textareaRef.current?.focus(); }}
-        />
-      )}
-      {!busy && attaches.length > 0 && <div className="mb-2"><AttachPreview attaches={attaches} setAttaches={setAttaches} /></div>}
-      <div className="flex gap-2 items-end">
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => handleInputChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onPaste={onPaste}
-          placeholder={summarizing ? "正在进行会话摘要..." : "输入消息，Enter 发送，Shift+Enter 换行，粘贴或拖入图片..."}
-          rows={3}
-          disabled={summarizing}
-          className="chat-input flex-1 min-h-[90px] resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-inset disabled:opacity-50 disabled:cursor-not-allowed"
-        />
-        <div className="flex flex-col gap-1.5 shrink-0">
-          {!summarizing && (
-            <QuickPrompts onFill={(text) => { setInput(text); textareaRef.current?.focus(); }} />
-          )}
-          {summarizing ? (
-            <div className="w-9 h-9 rounded-md bg-surface-alt border border-border flex items-center justify-center opacity-40 cursor-not-allowed">
-              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
-            </div>
-          ) : busy ? (
-            <button onClick={onStop} className="w-9 h-9 rounded-md bg-danger-bg text-danger flex items-center justify-center hover:bg-danger-bg transition-colors">
-              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
-            </button>
-          ) : (
-            <button
-              className="w-9 h-9 rounded-md bg-accent text-text-inverse flex items-center justify-center hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              disabled={!input.trim() && attaches.length === 0}
-              onClick={() => { onSend(input); setInput(""); textareaRef.current?.focus(); }}
-            >
-              <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="flex items-center gap-2 mt-2">
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-surface shrink-0">
         <input ref={imgInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/svg+xml" multiple className="hidden" onChange={onImgChange} />
         <input ref={docInputRef} type="file" multiple className="hidden" onChange={onDocChange} accept=".pdf,.doc,.docx,.md,.txt,.csv,.xls,.xlsx,.ts,.tsx,.js,.jsx,.py,.java,.json,.yaml,.yml,.toml,.html,.css,.sh,.env,.cfg" />
         <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-accent transition-colors" title="上传图片" onClick={() => imgInputRef.current?.click()}>
@@ -148,6 +147,53 @@ export const ChatInput = memo(function ChatInput({
         </select>
         {balanceText && <span className="text-[10px] text-text-secondary cursor-pointer hover:text-accent transition-colors" onClick={refreshBalance} title="账户余额，点击刷新">{balanceText}</span>}
         <span className="text-[10px] text-text-secondary" title="上下文使用率，可设置阈值">{ctxPct}%</span>
+      </div>
+
+      {/* Input area */}
+      <div className="border-t border-border p-3 pt-2 shrink-0 relative">
+        {paletteQuery !== null && (
+          <CommandPalette
+            initialQuery={paletteQuery}
+            onClose={() => setPaletteQuery(null)}
+            onPick={(text) => { setInput(text); setPaletteQuery(null); textareaRef.current?.focus(); }}
+          />
+        )}
+        {!busy && attaches.length > 0 && <div className="mb-2"><AttachPreview attaches={attaches} setAttaches={setAttaches} /></div>}
+        <div className="flex gap-2 items-end">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => handleInputChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onPaste={onPaste}
+            placeholder={summarizing ? "正在进行会话摘要..." : "输入消息，Enter 发送，Shift+Enter 换行，粘贴或拖入图片..."}
+            rows={3}
+            disabled={summarizing}
+            className="chat-input flex-1 min-h-[90px] resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-inset disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+          <div className="flex flex-col gap-1.5 shrink-0">
+            {!summarizing && (
+              <QuickPrompts onFill={(text) => { setInput(text); textareaRef.current?.focus(); }} />
+            )}
+            {summarizing ? (
+              <div className="w-9 h-9 rounded-md bg-surface-alt border border-border flex items-center justify-center opacity-40 cursor-not-allowed">
+                <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
+              </div>
+            ) : busy ? (
+              <button onClick={onStop} className="w-9 h-9 rounded-md bg-danger-bg text-danger flex items-center justify-center hover:bg-danger-bg transition-colors">
+                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
+              </button>
+            ) : (
+              <button
+                className="w-9 h-9 rounded-md bg-accent text-text-inverse flex items-center justify-center hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                disabled={!input.trim() && attaches.length === 0}
+                onClick={() => { onSend(input); setInput(""); textareaRef.current?.focus(); }}
+              >
+                <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </>
   );

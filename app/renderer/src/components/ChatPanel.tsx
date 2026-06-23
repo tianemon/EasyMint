@@ -216,13 +216,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   showThinkingRef.current = showThinking;
   const showToolUse = useSettingsStore((s) => s.showToolUse);
   const [chatModel, setChatModel] = useState("");
-  const HISTORY_KEY = "easymint_input_history";
-  const inputHistoryRef = useRef<string[]>(
-    (() => { try { const v = localStorage.getItem(HISTORY_KEY); return v ? JSON.parse(v) : []; } catch { return []; } })()
-  );
-  const persistHistory = () => {
-    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(inputHistoryRef.current)); } catch { /* */ }
-  };
 
   // 启动时拉取一次命令缓存 + 订阅 SDK 推送的命令变化
   useEffect(() => {
@@ -494,11 +487,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     const ts = Date.now();
     useChatStore.getState().appendUserMsg(sidRef.current, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
     setAttaches([]);
-    // Save to input history, avoid consecutive duplicates
-    const last = inputHistoryRef.current[0];
-    if (msg && msg !== last) inputHistoryRef.current.unshift(msg);
-    if (inputHistoryRef.current.length > 100) inputHistoryRef.current.pop();
-    persistHistory();
     busyRef.current = true; lastStatusRef.current = "正在请求..."; setBusy(true); useStatusStore.getState().setText("正在请求...");
     onActivity?.(); // 立即刷新会话列表，不等 Mint 回复
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
