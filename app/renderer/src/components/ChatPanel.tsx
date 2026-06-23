@@ -595,12 +595,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                         return showToolUse;
                       });
                       if (visible.length === 0) return null;
-                      const totalText = visible.reduce((n: number, e: any) => n + (e.text?.length || 0), 0);
                       const blocks = buildBlocks(visible, String(msg.id)).map((block, i) => <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} />);
-                      // 流式刚开头，内容很少 → 不包裹泡框，避免空泡闪烁
-                      if (totalText < 20 && busy && msg === messages[messages.length - 1]) {
-                        return <div className="flex flex-col max-w-[75%] w-fit">{blocks}</div>;
-                      }
                       return (
                         <div className="flex flex-col max-w-[75%] w-fit">
                           <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
@@ -633,8 +628,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 </button>
               </div>
             )}
-            {/* 等待 AI 回复的加载占位泡 */}
-            {busy && messages.length > 0 && messages[messages.length - 1]?.role === "user" && (
+            {/* 等待 AI 回复的加载占位泡：无可见 AI 内容时显示 */}
+            {busy && messages.length > 0 && (() => {
+              const last = messages[messages.length - 1]!;
+              if (last.role === "user") return true;
+              if (last.role !== "ai" || !last.entries) return false;
+              const visible = last.entries.filter((e: any) => {
+                if (e.kind === "text") return true;
+                if (e.kind === "thinking") return showThinking;
+                return showToolUse;
+              });
+              return visible.length === 0;
+            })() && (
               <div className="flex flex-col max-w-[75%] w-fit">
                 <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 animate-pulse">
                   <span className="text-sm text-text-secondary">...</span>
