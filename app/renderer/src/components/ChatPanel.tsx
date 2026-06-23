@@ -547,7 +547,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   function UserBubble({ msg }: { msg: ChatMessage }): JSX.Element {
     return (
       <div className="flex flex-col items-end max-w-[70%] min-w-0">
-        <div className="rounded-[10px] rounded-br-[4px] px-[14px] py-[10px] text-sm leading-[1.55] overflow-hidden min-w-0" style={{ background: 'var(--color-user-bubble)', color: 'var(--color-user-bubble-text)' }}>
+        <div className="rounded-[10px] rounded-br-[4px] px-[14px] py-[10px] text-sm leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]" style={{ background: 'var(--color-user-bubble)', color: 'var(--color-user-bubble-text)' }}>
           {msg.attaches && msg.attaches.length > 0 && (
             <div className="flex gap-1.5 mb-2 flex-wrap">
               {msg.attaches.map((a, i) => (
