@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.4 (2026-06-23)
+
+- 消息气泡溢出修复（长文本自动换行、overflow-x-hidden 防止撑宽）
+- 流式等待期显示加载占位泡，消除空白行
+- 会话手动重命名后不再被自动命名覆盖
+- Bash 标签统一「执行: cmd」
+- README 补充定位描述 + Claude Agent SDK 徽章
+
 ## v0.2.3 (2026-06-23)
 
 - SDK 升级到 0.3.186（17 个版本更新），适配 tool_use_meta/model_fallback/worker_shutting_down
