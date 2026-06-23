@@ -547,7 +547,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   function UserBubble({ msg }: { msg: ChatMessage }): JSX.Element {
     return (
       <div className="flex flex-col items-end max-w-[75%] w-fit">
-        <div className="rounded-[10px] rounded-br-[4px] px-[14px] py-[10px] text-sm leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]" style={{ background: 'var(--color-user-bubble)', color: 'var(--color-user-bubble-text)' }}>
+        <div className="rounded-[10px] rounded-br-[4px] px-[14px] py-1.5 text-sm leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]" style={{ background: 'var(--color-user-bubble)', color: 'var(--color-user-bubble-text)' }}>
           {msg.attaches && msg.attaches.length > 0 && (
             <div className="flex gap-1.5 mb-2 flex-wrap">
               {msg.attaches.map((a, i) => (
@@ -595,7 +595,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                       return showToolUse;
                     }).length === 0 ? null : (
                       <div className="flex flex-col max-w-[75%] w-fit">
-                        <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-2 overflow-hidden">
+                        <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
                           {buildBlocks(
                             msg.entries.filter((e) => {
                               if (e.kind === "text") return true;
