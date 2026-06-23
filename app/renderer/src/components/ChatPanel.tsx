@@ -577,7 +577,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   return (
     <div className="absolute inset-0 flex flex-col">
-      <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
+      <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden">
         {!hasMessages ? (
           <div className="flex items-center justify-center h-full"><p className="text-sm text-text-secondary">开始对话，让 Mint 帮你开发项目。</p></div>
         ) : (
