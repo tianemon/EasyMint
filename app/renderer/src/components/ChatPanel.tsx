@@ -134,6 +134,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (lastStatusRef.current !== st) { lastStatusRef.current = st; useStatusStore.getState().setText(st); }
       return;
     }
+    if (event.type === "assistant" && typeof event.data.delta === "string") {
+      const st = "正在思考...";
+      if (lastStatusRef.current !== st) { lastStatusRef.current = st; useStatusStore.getState().setText(st); }
+      return;
+    }
     if (event.type === "tool_use") {
       const name = typeof event.data.name === "string" ? event.data.name : "";
       const input = event.data.input as Record<string, unknown> | undefined;
@@ -431,7 +436,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (!summarizing) return;
     const timer = setTimeout(() => {
       useStatusStore.getState().setSummarizing(false);
-      useStatusStore.getState().setText("思考中...");
+      useStatusStore.getState().setText("正在请求...");
       console.error("[ChatPanel] summarization timed out after 120s");
     }, 120_000);
     return () => clearTimeout(timer);
@@ -489,7 +494,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (inputHistoryRef.current.length > 100) inputHistoryRef.current.pop();
     persistHistory();
     historyPosRef.current = -1;
-    busyRef.current = true; lastStatusRef.current = "思考中..."; setBusy(true); useStatusStore.getState().setText("思考中...");
+    busyRef.current = true; lastStatusRef.current = "正在请求..."; setBusy(true); useStatusStore.getState().setText("正在请求...");
     onActivity?.(); // 立即刷新会话列表，不等 Mint 回复
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
 

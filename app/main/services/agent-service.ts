@@ -727,7 +727,7 @@ function toStreamEvent(msg: SDKMessage, runId: string, sessionId: string, source
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  requesting: "正在思考...",
+  requesting: "正在请求...",
   compacting: "整理上下文中...",
   api_retry: "正在重试...",
   idle: "",
