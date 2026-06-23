@@ -569,7 +569,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
               ))}
             </div>
           )}
-          {msg.text ? <span className="whitespace-pre-wrap">{msg.text}</span> : null}
+          {msg.text ? <span className="whitespace-pre-wrap break-words">{msg.text}</span> : null}
         </div>
       </div>
     );

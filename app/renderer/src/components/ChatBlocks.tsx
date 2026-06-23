@@ -122,7 +122,7 @@ function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
   }, [block.text]);
 
   return (
-    <div className="text-sm leading-relaxed prose prose-sm max-w-none prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-a:text-accent prose-li:text-text-primary">
+    <div className="text-sm leading-relaxed prose prose-sm max-w-none break-words prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-a:text-accent prose-li:text-text-primary">
       {html.map((part, i) => {
         const k = `${block.keyPrefix || "md"}-${i}`;
         if (part.type === "code") {
