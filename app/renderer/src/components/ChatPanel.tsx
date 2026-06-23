@@ -314,6 +314,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   // ── History / stream ───────────────────────────────
 
+  // 新挂载时重置残留状态（防止窗口切换/重开后状态栏显示旧文本）
+  useEffect(() => { useStatusStore.getState().reset(); }, []);
+
   useEffect(() => {
     if (!existingSid) return; let cancelled = false;
     const projectDir = projectPath || getWorkspaceDir();
@@ -387,7 +390,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       _curAi = useChatStore.getState().appendAiEntry(sidRef.current, entry);
       scrollToBottom();
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; _curAi = 0; busyRef.current = false; lastStatusRef.current = ""; setBusy(false); onActivity?.(); });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; _curAi = 0; busyRef.current = false; lastStatusRef.current = ""; setBusy(false); useStatusStore.getState().setText(""); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;
@@ -420,7 +423,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         window.electronAPI.sessionCache.write(sidRef.current, { contextUsage: pct }).catch(() => {});
       }
     });
-    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) useTabStore.getState().setSessionRunning(sidRef.current, false); };
+    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) useTabStore.getState().setSessionRunning(sidRef.current, false); useStatusStore.getState().reset(); };
   }, []);
 
   // Summarizing timeout — 120s safety net
