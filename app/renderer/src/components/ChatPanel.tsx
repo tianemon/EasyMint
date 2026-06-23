@@ -633,6 +633,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 </button>
               </div>
             )}
+            {/* 等待 AI 回复的加载占位泡 */}
+            {busy && messages.length > 0 && messages[messages.length - 1]?.role === "user" && (
+              <div className="flex flex-col max-w-[75%] w-fit">
+                <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 animate-pulse">
+                  <span className="text-sm text-text-secondary">...</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
