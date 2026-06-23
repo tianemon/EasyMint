@@ -57,30 +57,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   appendAiEntry: (sessionId, entry) => {
-    const msgs = get().messagesBySession[sessionId] || [];
-    const last = msgs[msgs.length - 1];
-    let msgId: number;
-    if (last && last.role === "ai") {
-      msgId = last.id;
-      set((s) => {
-        const cur = s.messagesBySession[sessionId];
-        if (!cur) return {};
-        return {
-          messagesBySession: {
-            ...s.messagesBySession,
-            [sessionId]: cur.map((m) => (m.id === msgId ? { ...m, entries: [...(m.entries || []), entry] } : m)),
-          },
-        };
-      });
-    } else {
-      msgId = get().nextMsgId(sessionId);
-      set((s) => ({
-        messagesBySession: {
-          ...s.messagesBySession,
-          [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries: [entry], timestamp: entry.timestamp || Date.now() }],
-        },
-      }));
-    }
+    const msgId = get().nextMsgId(sessionId);
+    set((s) => ({
+      messagesBySession: {
+        ...s.messagesBySession,
+        [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries: [entry], timestamp: entry.timestamp || Date.now() }],
+      },
+    }));
     return msgId;
   },
 
