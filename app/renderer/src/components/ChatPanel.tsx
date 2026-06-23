@@ -118,7 +118,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const emptyArr = useRef<ChatMessage[]>([]);
   const rawMsgs = useChatStore((s) => s.messagesBySession[sid]);
   const messages: ChatMessage[] = rawMsgs || (emptyArr.current as ChatMessage[]);
-  const [input, setInput] = useState("");
   const [_currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentChatRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
@@ -207,15 +206,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const ctxPct = useStatusStore((s) => s.ctxPct);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [attaches, setAttaches] = useState<AttachItem[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [permissionMode, setPermissionMode] = useState("auto");
-  /** 命令面板：null=关闭；query=过滤词（输入框打 / 触发时透传 / 后的字符），点按钮触发时为 "" */
-  const [paletteQuery, setPaletteQuery] = useState<string | null>(null);
   const storeModel = useSettingsStore((s) => s.model);
   const setStoreModel = useSettingsStore((s) => s.setModel);
-  const availableModels = useSettingsStore((s) => s.availableModels);
   const showThinking = useSettingsStore((s) => s.showThinking);
   const showThinkingRef = useRef(showThinking);
   showThinkingRef.current = showThinking;
@@ -225,24 +220,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const inputHistoryRef = useRef<string[]>(
     (() => { try { const v = localStorage.getItem(HISTORY_KEY); return v ? JSON.parse(v) : []; } catch { return []; } })()
   );
-  const historyPosRef = useRef(-1);
-  const savedInputRef = useRef("");
   const persistHistory = () => {
     try { localStorage.setItem(HISTORY_KEY, JSON.stringify(inputHistoryRef.current)); } catch { /* */ }
   };
-  const [balanceText, setBalanceText] = useState("");
-
-  const refreshBalance = useCallback(async () => {
-    try {
-      const data = await window.electronAPI.settings.fetchBalance();
-      if (data?.balance_infos?.length) {
-        const b = data.balance_infos[0]!;
-        setBalanceText(`${b.total_balance}`);
-      }
-    } catch { /* ignore */ }
-  }, []);
-
-  useEffect(() => { refreshBalance(); const t = setInterval(refreshBalance, 5 * 60 * 1000); return () => clearInterval(t); }, [refreshBalance]);
 
   // 启动时拉取一次命令缓存 + 订阅 SDK 推送的命令变化
   useEffect(() => {
@@ -263,15 +243,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const containerRef = useRef<HTMLDivElement>(null);
 
   /** 输入框变化处理：检测开头 / 触发命令面板（仅在输入框纯命令上下文下，不影响代码片段） */
-  const handleInputChange = useCallback((value: string) => {
-    setInput(value);
-    // 触发条件：以 / 开头 + 不含换行（多行说明在写代码不是命令）+ 不含空格（一旦带参数就关闭面板，让用户自己写）
-    if (value.startsWith("/") && !value.includes("\n") && !value.includes(" ")) {
-      setPaletteQuery(value);
-    } else {
-      setPaletteQuery(null);
-    }
-  }, []);
   const autoScrollRef = useRef(true);
   // 已处理事件 seq 集合：缓冲补放（Effect A）与实时 onStream 共享，避免同一事件被两条路径双写
   const processedSeqRef = useRef<Set<number>>(new Set());
@@ -528,7 +499,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (msg && msg !== last) inputHistoryRef.current.unshift(msg);
     if (inputHistoryRef.current.length > 100) inputHistoryRef.current.pop();
     persistHistory();
-    historyPosRef.current = -1;
     busyRef.current = true; lastStatusRef.current = "正在请求..."; setBusy(true); useStatusStore.getState().setText("正在请求...");
     onActivity?.(); // 立即刷新会话列表，不等 Mint 回复
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
@@ -544,39 +514,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   useEffect(() => { chatActions.register((t: string) => sendText(t)); return () => chatActions.unregister(); }, [sendText]);
 
-  const handleSend = useCallback(() => sendText(), [sendText]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    // 命令面板打开时，把 ↑↓ Enter Esc 让给面板处理（CommandPalette document 监听已接管）
-    if (paletteQuery !== null && (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Enter" || e.key === "Escape")) {
-      e.preventDefault();
-      return;
-    }
-    if (e.key === "ArrowUp" && !e.shiftKey) {
-      e.preventDefault();
-      const hist = inputHistoryRef.current;
-      if (hist.length === 0) return;
-      if (historyPosRef.current === -1) savedInputRef.current = input;
-      const next = historyPosRef.current + 1;
-      if (next < hist.length) {
-        historyPosRef.current = next;
-        setInput(hist[next]!);
-      }
-    } else if (e.key === "ArrowDown" && !e.shiftKey) {
-      e.preventDefault();
-      const prev = historyPosRef.current - 1;
-      if (prev >= 0) {
-        historyPosRef.current = prev;
-        setInput(inputHistoryRef.current[prev]!);
-      } else if (prev === -1) {
-        historyPosRef.current = -1;
-        setInput(savedInputRef.current);
-      }
-    } else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-      e.preventDefault(); handleSend();
-    }
-  }, [handleSend, input, paletteQuery]);
-
   const hasMessages = messages.length > 0;
 
   // Tool-call driven UI actions — Mint calls show_* tools, frontend detects tool_use entries
@@ -586,7 +523,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const lastToolUses = lastAiEntries.filter((e) => e.kind === "tool_use");
   const showConfirmDev = !busy && lastToolUses.some((e) => (e as { name?: string }).name === "mcp__easymint-ui__show_confirm_dev");
   const showNewProjectBtn = onNewProject && !busy && lastToolUses.some((e) => (e as { name?: string }).name === "mcp__easymint-ui__show_new_project");
-  const canSend = input.trim() || attaches.length > 0;
 
   // ── Attach preview (shared between both positions) ─
   function AttachPreview(): JSX.Element {
@@ -717,13 +653,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         busy={busy}
         attaches={attaches}
         setAttaches={setAttaches}
-        onSend={handleSend}
+        onSend={sendText}
         onStop={() => { stoppedRef.current = true; busyRef.current = false; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
         onPaste={handlePaste}
         imgInputRef={imgInputRef}
         docInputRef={docInputRef}
         onImgChange={handleImgChange}
         onDocChange={handleDocChange}
+        permissionMode={permissionMode}
+        onPermissionModeChange={setPermissionMode}
+        chatModel={chatModel || storeModel}
+        onModelChange={handleModelChange}
       />
       {/* Image lightbox */}
       {previewImage && (

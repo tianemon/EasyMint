@@ -17,6 +17,10 @@ interface ChatInputProps {
   docInputRef: React.RefObject<HTMLInputElement | null>;
   onImgChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onDocChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  permissionMode: string;
+  onPermissionModeChange: (v: string) => void;
+  chatModel: string;
+  onModelChange: (m: string) => void;
 }
 
 function AttachPreview_({ attaches, setAttaches }: { attaches: AttachItem[]; setAttaches: (a: AttachItem[] | ((prev: AttachItem[]) => AttachItem[])) => void }): JSX.Element {
@@ -44,13 +48,11 @@ const AttachPreview = memo(AttachPreview_);
 export const ChatInput = memo(function ChatInput({
   busy, attaches, setAttaches, onSend, onStop, onPaste,
   imgInputRef, docInputRef, onImgChange, onDocChange,
+  permissionMode, onPermissionModeChange, chatModel, onModelChange,
 }: ChatInputProps): JSX.Element {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [paletteQuery, setPaletteQuery] = useState<string | null>(null);
-  const [permissionMode, setPermissionMode] = useState("auto");
-  const storeModel = useSettingsStore((s) => s.model);
-  const setStoreModel = useSettingsStore((s) => s.setModel);
   const availableModels = useSettingsStore((s) => s.availableModels);
   const ctxPct = useStatusStore((s) => s.ctxPct);
   const summarizing = useStatusStore((s) => s.summarizing);
@@ -61,11 +63,6 @@ export const ChatInput = memo(function ChatInput({
       if (data?.balance_infos?.length) setBalanceText(data.balance_infos[0]!.total_balance);
     } catch { /* ignore */ }
   }, []);
-
-  const handleModelChange = useCallback((m: string) => {
-    setStoreModel(m);
-    window.electronAPI.agent.setModel("", m).catch(() => {});
-  }, [setStoreModel]);
 
   const handleInputChange = useCallback((value: string) => {
     setInput(value);
@@ -142,11 +139,11 @@ export const ChatInput = memo(function ChatInput({
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M2.5 4l3 4-3 4"/><path d="M7 12h6.5"/></svg>
         </button>
         <div className="flex-1" />
-        <select value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer">
+        <select value={permissionMode} onChange={(e) => onPermissionModeChange(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer">
           <option value="auto">智能判断</option><option value="plan">只读</option><option value="acceptEdits">手动确认</option><option value="bypassPermissions">完全自主</option>
         </select>
         <span className="text-[10px] text-text-secondary hidden sm:inline">权限</span>
-        <select value={storeModel} onChange={(e) => handleModelChange(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer max-w-[200px]" title="切换模型">
+        <select value={chatModel} onChange={(e) => onModelChange(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer max-w-[200px]" title="切换模型">
           {availableModels.map((m) => (<option key={m} value={m}>{m}</option>))}
         </select>
         {balanceText && <span className="text-[10px] text-text-secondary cursor-pointer hover:text-accent transition-colors" onClick={refreshBalance} title="账户余额，点击刷新">{balanceText}</span>}
