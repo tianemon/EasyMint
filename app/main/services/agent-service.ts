@@ -17,7 +17,7 @@ import { buildSkillsPrompt } from "./skill-service";
 import { buildMcpServersOption } from "./mcp-service";
 import { buildBuiltinMcpServers } from "./builtin-mcp";
 import { getPreset } from "../../shared/platform-presets";
-import { archiveSession, renameSession } from "./session-service";
+import { archiveSession, renameSession, hasCustomTitle } from "./session-service";
 import { CONTEXT_SUMMARY_INSTRUCTION, buildSessionInfoAppend, buildContextHandoffPrompt } from "../../shared/prompts";
 
 // Use createRequire for CJS/ESM compatibility in packaged Electron
@@ -424,16 +424,19 @@ export class AgentService {
             if (msg.subtype === "success" && capturedSid && chat.firstUserMessage && !chat.agentType) {
               const firstMsg = chat.firstUserMessage;
               chat.firstUserMessage = ""; // 只执行一次
-              const title = firstMsg.startsWith("[系统消息] 项目已创建") || firstMsg.startsWith("[系统消息] 用户点击了新建项目")
-                ? "新建项目"
-                : firstMsg.startsWith("[系统消息] 这是从上一轮会话迁移")
-                ? "会话迁移"
-                : firstMsg.length > 15 ? firstMsg.slice(0, 15) + "…" : firstMsg;
-              renameSession(capturedSid, title, chat.projectPath).catch(() => {});
-              // 同步 Tab 标题
-              BrowserWindow.getAllWindows().forEach((win) => {
-                if (!win.isDestroyed()) win.webContents.send("agent:session-renamed", { sessionId: capturedSid, title });
-              });
+              // 如果用户已手动重命名，不覆盖
+              hasCustomTitle(capturedSid, chat.projectPath).then((alreadyNamed) => {
+                if (alreadyNamed) return;
+                const title = firstMsg.startsWith("[系统消息] 项目已创建") || firstMsg.startsWith("[系统消息] 用户点击了新建项目")
+                  ? "新建项目"
+                  : firstMsg.startsWith("[系统消息] 这是从上一轮会话迁移")
+                  ? "会话迁移"
+                  : firstMsg.length > 15 ? firstMsg.slice(0, 15) + "…" : firstMsg;
+                renameSession(capturedSid, title, chat.projectPath).catch(() => {});
+                BrowserWindow.getAllWindows().forEach((win) => {
+                  if (!win.isDestroyed()) win.webContents.send("agent:session-renamed", { sessionId: capturedSid, title });
+                });
+              }).catch(() => {});
             }
 
             // ── 上下文管理：每轮结束后检测使用率 ──

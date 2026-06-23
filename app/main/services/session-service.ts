@@ -178,6 +178,13 @@ export async function getSessionInfo(sessionId: string, projectPath: string): Pr
   };
 }
 
+/** 检查 SDK 记录中是否有 customTitle（用户手动命名过） */
+export async function hasCustomTitle(sessionId: string, projectPath: string): Promise<boolean> {
+  const { getSessionInfo: gsi } = await sdk();
+  const info = await gsi(sessionId, { dir: normalizeDir(projectPath) });
+  return !!info?.customTitle;
+}
+
 export function togglePin(sessionId: string): boolean {
   const pinned = readPinned();
   const currently = !!pinned[sessionId];
