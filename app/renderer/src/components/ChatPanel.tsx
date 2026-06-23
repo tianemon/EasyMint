@@ -182,11 +182,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       } else if (name === "Bash") {
         const cmd = (input?.command as string) || "";
         const short = cmd.length > 40 ? cmd.slice(0, 40) + "…" : cmd;
-        const firstWord = cmd.trim().split(/\s+/)[0] || "";
-        if (/^(npm|yarn|pnpm|pip|cargo)$/i.test(firstWord)) label = `安装依赖: ${short}`;
-        else if (/^git$/i.test(firstWord)) label = cmd.includes("commit") ? `提交代码: ${short}` : `Git: ${short}`;
-        else if (/^(node|tsx|python|ruby|go)$/i.test(firstWord)) label = `运行: ${short}`;
-        else label = `执行: ${short}`;
+        label = `执行: ${short}`;
       } else if (name === "Task") {
         const agent = input?.subagent_type as string | undefined;
         if (agent === "builder") label = "委托 Builder 编码";
