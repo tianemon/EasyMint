@@ -203,7 +203,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   // 状态栏独立存储 → 密集更新时只重渲染 StatusBar，不牵连 ChatPanel/消息列表
   // 注意：ChatPanel 不读 s.text，否则每次 statusText 变化都会重渲染整个组件
   const summarizing = useStatusStore((s) => s.summarizing);
-  const ctxPct = useStatusStore((s) => s.ctxPct);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const [attaches, setAttaches] = useState<AttachItem[]>([]);
