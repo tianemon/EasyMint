@@ -719,7 +719,7 @@ function toStreamEvent(msg: SDKMessage, runId: string, sessionId: string, source
     if (subtype === "compacting") return { ...base, type: "status", data: { text: STATUS_LABELS.compacting ?? "整理上下文中..." } };
     if (subtype === "api_retry") return { ...base, type: "status", data: { text: STATUS_LABELS.api_retry ?? "正在重试..." } };
     if (subtype === "compact_boundary") return { ...base, type: "status", data: { text: "上下文已压缩" } };
-    if (subtype === "requesting") return { ...base, type: "status", data: { text: STATUS_LABELS.requesting ?? "正在思考..." } };
+    if (subtype === "requesting") return { ...base, type: "status", data: { text: STATUS_LABELS.requesting ?? "正在请求..." } };
     return { ...base, type: "system", data: { message: subtype || "System event" } };
   }
 
