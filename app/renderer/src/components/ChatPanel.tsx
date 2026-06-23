@@ -506,8 +506,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   // ── Send ───────────────────────────────────────────
 
-  const sendText = useCallback(async (text?: string) => {
-    const msg = (text ?? input).trim();
+  const sendText = useCallback(async (text: string) => {
+    const msg = text.trim();
     if (!msg && attaches.length === 0) return;
     if (busy) return;
 
@@ -522,7 +522,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
     const ts = Date.now();
     useChatStore.getState().appendUserMsg(sidRef.current, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
-    setInput("");
     setAttaches([]);
     // Save to input history, avoid consecutive duplicates
     const last = inputHistoryRef.current[0];
@@ -541,7 +540,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       const result = await window.electronAPI.agent.sendMessage(projectPath, agentText, { sessionId: existingSid ?? null, permissionMode });
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
     } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; }
-  }, [input, busy, attaches, projectPath, permissionMode]);
+  }, [busy, attaches, projectPath, permissionMode]);
 
   useEffect(() => { chatActions.register((t: string) => sendText(t)); return () => chatActions.unregister(); }, [sendText]);
 
@@ -716,8 +715,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
       <ChatInput
         busy={busy}
-        input={input}
-        setInput={setInput}
         attaches={attaches}
         setAttaches={setAttaches}
         onSend={handleSend}

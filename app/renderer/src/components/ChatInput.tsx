@@ -8,13 +8,11 @@ interface AttachItem { name: string; path: string; dataUrl?: string; kind: "imag
 
 interface ChatInputProps {
   busy: boolean;
-  input: string;
-  setInput: (v: string) => void;
   attaches: AttachItem[];
   setAttaches: (a: AttachItem[] | ((prev: AttachItem[]) => AttachItem[])) => void;
-  onSend: () => void;
-  onPaste: (e: React.ClipboardEvent) => void;
+  onSend: (text: string) => void;
   onStop: () => void;
+  onPaste: (e: React.ClipboardEvent) => void;
   imgInputRef: React.RefObject<HTMLInputElement | null>;
   docInputRef: React.RefObject<HTMLInputElement | null>;
   onImgChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -25,7 +23,6 @@ function AttachPreview_({ attaches, setAttaches }: { attaches: AttachItem[]; set
   const removeAttach = useCallback((idx: number) => {
     setAttaches((prev) => prev.filter((_, i) => i !== idx));
   }, [setAttaches]);
-
   return (
     <div className="flex flex-wrap gap-1.5">
       {attaches.map((a, i) => (
@@ -45,9 +42,10 @@ function AttachPreview_({ attaches, setAttaches }: { attaches: AttachItem[]; set
 const AttachPreview = memo(AttachPreview_);
 
 export const ChatInput = memo(function ChatInput({
-  busy, input, setInput, attaches, setAttaches, onSend, onStop, onPaste,
+  busy, attaches, setAttaches, onSend, onStop, onPaste,
   imgInputRef, docInputRef, onImgChange, onDocChange,
 }: ChatInputProps): JSX.Element {
+  const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [paletteQuery, setPaletteQuery] = useState<string | null>(null);
   const [permissionMode, setPermissionMode] = useState("auto");
@@ -56,7 +54,6 @@ export const ChatInput = memo(function ChatInput({
   const availableModels = useSettingsStore((s) => s.availableModels);
   const ctxPct = useStatusStore((s) => s.ctxPct);
   const summarizing = useStatusStore((s) => s.summarizing);
-
   const [balanceText, setBalanceText] = useState("");
   const refreshBalance = useCallback(async () => {
     try {
@@ -77,13 +74,13 @@ export const ChatInput = memo(function ChatInput({
     } else {
       setPaletteQuery(null);
     }
-  }, [setInput]);
+  }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (paletteQuery !== null && (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Enter" || e.key === "Escape")) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (input.trim() || attaches.length > 0) { onSend(); textareaRef.current?.focus(); }
+      if (input.trim() || attaches.length > 0) { onSend(input); setInput(""); textareaRef.current?.focus(); }
     }
   }, [paletteQuery, input, attaches, onSend]);
 
@@ -125,7 +122,7 @@ export const ChatInput = memo(function ChatInput({
             <button
               className="w-9 h-9 rounded-md bg-accent text-text-inverse flex items-center justify-center hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               disabled={!input.trim() && attaches.length === 0}
-              onClick={() => { onSend(); textareaRef.current?.focus(); }}
+              onClick={() => { onSend(input); setInput(""); textareaRef.current?.focus(); }}
             >
               <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
             </button>
