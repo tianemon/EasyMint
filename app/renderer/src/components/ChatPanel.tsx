@@ -154,7 +154,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       } else if (name.startsWith("Skill__")) {
         label = `使用技能: ${name.slice(7)}`;
       } else if (name.startsWith("mcp__")) {
-        label = `连接工具: ${name.split("__")[1] || "工具"}`;
+        label = `正在调用: ${name.split("__")[1] || "工具"}`;
       } else if (name === "Read" || name === "Glob") {
         const isConfig = /json|toml|yaml|yml|env|ini|config|cfg|rc$/i.test(ext) || /package\.json|tsconfig|eslint|prettier/i.test(fname);
         const isDoc = /md|markdown|rst|txt|readme/i.test(ext) || /README|CLAUDE|CHANGELOG|LICENSE/i.test(fname);
