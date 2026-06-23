@@ -6,12 +6,11 @@ import { chatActions } from "../stores/chat-actions";
 import { useSettingsStore } from "../stores/settings-store";
 import { useTabStore } from "../stores/tab-store";
 import { useChatStore } from "../stores/chat-store";
-import { QuickPrompts } from "./QuickPrompts";
-import { CommandPalette } from "./CommandPalette";
 import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
 
 import { useStatusStore } from "../stores/status-store";
 import { StatusBar } from "./StatusBar";
+import { ChatInput } from "./ChatInput";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 
 interface AttachItem {
@@ -715,83 +714,20 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         <div className="px-4 py-2 bg-surface-alt/30 border-t border-border/50 shrink-0"><AttachPreview /></div>
       )}
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-surface shrink-0">
-        <input ref={imgInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/svg+xml" multiple className="hidden" onChange={handleImgChange} />
-        <input ref={docInputRef} type="file" multiple className="hidden" onChange={handleDocChange} accept=".pdf,.doc,.docx,.md,.txt,.csv,.xls,.xlsx,.ts,.tsx,.js,.jsx,.py,.java,.json,.yaml,.yml,.toml,.html,.css,.sh,.env,.cfg" />
-        <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-accent transition-colors" title="上传图片" onClick={() => imgInputRef.current?.click()}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><circle cx="5" cy="6" r="1.2"/><path d="M1.5 11l3.5-3.5 2.5 2.5 3-4 4 5"/></svg>
-        </button>
-        <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-accent transition-colors" title="上传文档" onClick={() => docInputRef.current?.click()}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M3 2h7l4 4v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M10 2v4h4M6 9h4M6 12h4"/></svg>
-        </button>
-        <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-accent transition-colors" title="快捷命令（输入 / 也能触发）" onClick={() => setPaletteQuery("")}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M2.5 4l3 4-3 4"/><path d="M7 12h6.5"/></svg>
-        </button>
-        <div className="flex-1" />
-        <select value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer">
-          <option value="auto">智能判断</option><option value="plan">只读</option><option value="acceptEdits">手动确认</option><option value="bypassPermissions">完全自主</option>
-        </select>
-        <span className="text-[10px] text-text-secondary hidden sm:inline">权限</span>
-        <select value={chatModel || storeModel} onChange={(e) => handleModelChange(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer max-w-[200px]" title="切换模型">
-          {availableModels.map((m) => (<option key={m} value={m}>{m}</option>))}
-        </select>
-        {balanceText && <span className="text-[10px] text-text-secondary cursor-pointer hover:text-accent transition-colors" onClick={refreshBalance} title="账户余额，点击刷新">{balanceText}</span>}
-        <span className="text-[10px] text-text-secondary" title="上下文使用率，可设置阈值">{ctxPct}%</span>
-      </div>
-
-      {/* Input area */}
-      <div className="border-t border-border p-3 pt-2 shrink-0 relative">
-        {paletteQuery !== null && (
-          <CommandPalette
-            initialQuery={paletteQuery}
-            onClose={() => setPaletteQuery(null)}
-            onPick={(text) => {
-              setInput(text);
-              setPaletteQuery(null);
-              textareaRef.current?.focus();
-            }}
-          />
-        )}
-        {!busy && attaches.length > 0 && (
-          <div className="mb-2"><AttachPreview /></div>
-        )}
-        <div className="flex gap-2 items-end">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => handleInputChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={summarizing ? "正在进行会话摘要..." : "输入消息，Enter 发送，Shift+Enter 换行，粘贴或拖入图片..."}
-            rows={3}
-            disabled={summarizing}
-            className="chat-input flex-1 min-h-[90px] resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-inset disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-          <div className="flex flex-col gap-1.5 shrink-0">
-            {!summarizing && (
-              <QuickPrompts
-                onFill={(text) => { setInput(text); textareaRef.current?.focus(); }}
-              />
-            )}
-            {summarizing ? (
-              <div className="w-9 h-9 rounded-md bg-surface-alt border border-border flex items-center justify-center opacity-40 cursor-not-allowed">
-                <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
-              </div>
-            ) : busy ? (
-              <button onClick={() => { stoppedRef.current = true; busyRef.current = false; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
-                className="w-9 h-9 rounded-md bg-danger-bg text-danger flex items-center justify-center hover:bg-danger-bg transition-colors">
-                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
-              </button>
-            ) : (
-              <button onClick={handleSend} disabled={!canSend}
-                className="w-9 h-9 rounded-md bg-accent text-text-inverse flex items-center justify-center hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+      <ChatInput
+        busy={busy}
+        input={input}
+        setInput={setInput}
+        attaches={attaches}
+        setAttaches={setAttaches}
+        onSend={handleSend}
+        onStop={() => { stoppedRef.current = true; busyRef.current = false; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
+        onPaste={handlePaste}
+        imgInputRef={imgInputRef}
+        docInputRef={docInputRef}
+        onImgChange={handleImgChange}
+        onDocChange={handleDocChange}
+      />
       {/* Image lightbox */}
       {previewImage && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center outline-none"
