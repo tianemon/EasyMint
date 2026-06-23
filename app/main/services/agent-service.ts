@@ -495,6 +495,12 @@ export class AgentService {
     return undefined;
   }
 
+  /** 用户手动重命名会话 → 清除 firstUserMessage，防止自动命名覆盖 */
+  onSessionRenamed(sessionId: string): void {
+    const chat = this.findActiveChat(sessionId);
+    if (chat) chat.firstUserMessage = "";
+  }
+
   /**
    * Stop generating (soft interrupt).  Interrupts the current turn without
    * killing the process — the channel stays open for the next message.

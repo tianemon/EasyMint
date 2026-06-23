@@ -187,7 +187,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("conv:list", (_e, { projectPath }) => listSessions(projectPath));
   ipcMain.handle("conv:get", (_e, { id, projectPath }) => getSessionInfo(id, projectPath));
   ipcMain.handle("conv:messages", (_e, { id, projectPath }) => getSessionMessages(id, projectPath));
-  ipcMain.handle("conv:rename", (_e, { id, title, projectPath }) => renameSession(id, title, projectPath));
+  ipcMain.handle("conv:rename", (_e, { id, title, projectPath }) => {
+    agentService.onSessionRenamed(id);
+    return renameSession(id, title, projectPath);
+  });
   ipcMain.handle("conv:delete", (_e, { id, projectPath }) => { deleteSession(id, projectPath); });
   ipcMain.handle("conv:togglePin", (_e, { id }) => togglePin(id));
   ipcMain.handle("conv:archiveSession", (_e, { sessionId }) => { archiveSession(sessionId); });
