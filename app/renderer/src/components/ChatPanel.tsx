@@ -152,9 +152,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (skillInInput) {
         label = `调用 Skill: ${skillInInput}`;
       } else if (name.startsWith("Skill__")) {
-        label = `使用技能: ${name.slice(7)}`;
+        label = `调用 Skill: ${name.slice(7)}`;
       } else if (name.startsWith("mcp__")) {
-        label = `正在调用: ${name.split("__")[1] || "工具"}`;
+        label = `调用 MCP: ${name.split("__")[1] || "工具"}`;
       } else if (name === "Read" || name === "Glob") {
         const isConfig = /json|toml|yaml|yml|env|ini|config|cfg|rc$/i.test(ext) || /package\.json|tsconfig|eslint|prettier/i.test(fname);
         const isDoc = /md|markdown|rst|txt|readme/i.test(ext) || /README|CLAUDE|CHANGELOG|LICENSE/i.test(fname);
@@ -178,11 +178,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       } else if (name === "Bash") {
         const cmd = (input?.command as string) || "";
         const short = cmd.length > 40 ? cmd.slice(0, 40) + "…" : cmd;
-        if (/npm|yarn|pnpm|pip|cargo|go\s(install|get|mod)/i.test(cmd)) label = short ? `安装依赖…` : "管理依赖";
-        else if (/git\s/i.test(cmd)) label = short ? `Git: ${short}` : "执行 Git 操作";
-        else if (/node\s|tsx\s|python|ruby|go\srun/i.test(cmd)) label = short ? `运行: ${short}` : "运行程序";
-        else if (/mkdir|rm|mv|cp|ln\s/i.test(cmd)) label = short ? `文件操作` : "管理系统文件";
-        else label = short ? `执行: ${short}` : "执行命令";
+        if (/npm|yarn|pnpm|pip|cargo/i.test(cmd)) label = `安装依赖: ${short}`;
+        else if (/git\scommit/i.test(cmd)) label = `提交代码: ${short}`;
+        else if (/git\s/i.test(cmd)) label = `Git: ${short}`;
+        else if (/node\s|tsx\s|python|ruby|go\srun/i.test(cmd)) label = `运行: ${short}`;
+        else label = `执行: ${short}`;
       } else if (name === "Task") {
         const agent = input?.subagent_type as string | undefined;
         if (agent === "builder") label = "委托 Builder 编码";
@@ -218,6 +218,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const setStoreModel = useSettingsStore((s) => s.setModel);
   const availableModels = useSettingsStore((s) => s.availableModels);
   const showThinking = useSettingsStore((s) => s.showThinking);
+  const showThinkingRef = useRef(showThinking);
+  showThinkingRef.current = showThinking;
   const showToolUse = useSettingsStore((s) => s.showToolUse);
   const [chatModel, setChatModel] = useState("");
   const HISTORY_KEY = "easymint_input_history";
@@ -367,6 +369,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             if (typeof ev.seq === "number" && processedSeqRef.current.has(ev.seq)) continue;
             updateStreamStatus(ev, setBusy);
             const entry = normalizeEvent(ev); if (!entry) continue;
+            if (entry.kind === "thinking" && !showThinkingRef.current) continue;
             if (typeof ev.seq === "number") processedSeqRef.current.add(ev.seq);
             _cur = useChatStore.getState().appendAiEntry(sidRef.current, entry);
           }
@@ -420,6 +423,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         onActivity?.();
       }
       const entry = normalizeEvent(event); if (!entry) return;
+      if (entry.kind === "thinking" && !showThinkingRef.current) return;
       // seq 去重：缓冲补放（Effect A）可能已处理过该事件，跳过避免双写
       if (typeof event.seq === "number") {
         if (processedSeqRef.current.has(event.seq)) return;
