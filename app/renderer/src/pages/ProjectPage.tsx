@@ -31,6 +31,7 @@ export function ProjectPage(): JSX.Element {
   const [projectName, setProjectName] = useState("");
   const [showOpenProject, setShowOpenProject] = useState(false);
   const [openProjectList, setOpenProjectList] = useState<Array<{ id: string; name: string; path: string; exists?: boolean }>>([]);
+  const [windowChoiceTarget, setWindowChoiceTarget] = useState<{ id: string; sid?: string | null; init?: boolean } | null>(null);
   const [projectExists, setProjectExists] = useState(true);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [renameNewName, setRenameNewName] = useState("");
@@ -511,7 +512,11 @@ export function ProjectPage(): JSX.Element {
                       className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors mb-0.5 ${p.id === projectId ? "bg-accent/10" : "hover:bg-surface-hover"}`}
                       onClick={() => {
                         setShowOpenProject(false);
-                        navigate(`/project/${p.id}`);
+                        if (projectId && projectId !== p.id) {
+                          setWindowChoiceTarget({ id: p.id });
+                        } else {
+                          navigate(`/project/${p.id}`);
+                        }
                       }}
                     >
                       <div className="flex items-center gap-1.5">
@@ -547,13 +552,49 @@ export function ProjectPage(): JSX.Element {
         </div>
       )}
 
+      {/* 窗口选择弹窗：打开/新建项目时，让用户选在当前窗口还是新窗口 */}
+      {windowChoiceTarget && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
+          <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl p-6 w-[400px] flex flex-col gap-4">
+            <p className="text-sm text-text-primary font-medium">当前窗口已打开项目，要在哪里打开？</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-5 py-2 rounded-lg border border-border text-text-secondary text-sm hover:bg-surface-hover transition-colors"
+                onClick={async () => {
+                  const t = windowChoiceTarget;
+                  setWindowChoiceTarget(null);
+                  await window.electronAPI.window.openProject(t.id, t.sid ?? undefined, t.init ?? false);
+                }}
+              >
+                在新窗口打开
+              </button>
+              <button
+                className="px-5 py-2 rounded-lg bg-accent text-text-inverse text-sm hover:bg-accent-hover transition-colors font-medium"
+                onClick={() => {
+                  const t = windowChoiceTarget;
+                  setWindowChoiceTarget(null);
+                  const params = new URLSearchParams();
+                  if (t.sid) params.set("session", t.sid);
+                  if (t.init) params.set("init", "1");
+                  const qs = params.toString();
+                  navigate(`/project/${t.id}${qs ? `?${qs}` : ""}`);
+                }}
+              >
+                在当前窗口打开
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showNewProject && (
         <NewProjectDialog
-          openInNewWindow={!!projectId}
           onClose={() => setShowNewProject(false)}
           onCreated={(project, sessionId) => {
             setShowNewProject(false);
-            if (!projectId) {
+            if (projectId && projectId !== project.id) {
+              setWindowChoiceTarget({ id: project.id, sid: sessionId, init: true });
+            } else {
               const params = new URLSearchParams();
               if (sessionId) params.set("session", sessionId);
               params.set("init", "1");

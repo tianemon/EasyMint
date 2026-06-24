@@ -83,6 +83,7 @@ interface ElectronAPI {
     getBufferedStream: (sessionId: string) => Promise<unknown[]>;
     listCommands: () => Promise<Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }>>;
     killChat: (chatId: string) => Promise<void>;
+    scheduleIdleTimeout: (sessionId: string, delayMs: number) => void;
     peekUsage: (projectPath: string, sessionId: string) => Promise<void>;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;

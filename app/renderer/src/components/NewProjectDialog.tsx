@@ -645,10 +645,9 @@ interface NewProjectDialogProps {
   onClose: () => void;
   onCreated: (project: Project, sessionId?: string | null) => void;
   /** If true, open the created project in a new window instead of in-place navigation */
-  openInNewWindow?: boolean;
 }
 
-export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewProjectDialogProps): JSX.Element {
+export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps): JSX.Element {
   const [currentStep, setCurrentStep] = useState(0);
   const [data, setData] = useState<ProjectFormData>(DEFAULT_DATA);
   const [creating, setCreating] = useState(false);
@@ -802,12 +801,7 @@ export function NewProjectDialog({ onClose, onCreated, openInNewWindow }: NewPro
           } catch { /* SDK not ready yet */ }
         }
         const sid = sidRef.current;
-        if (openInNewWindow) {
-          await window.electronAPI.window.openProject(createdProject.id, sid ?? undefined, true);
-          onClose();
-        } else {
-          onCreated(createdProject, sid);
-        }
+        onCreated(createdProject, sid);
       }
     } finally {
       setInitializing(false);

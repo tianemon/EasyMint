@@ -114,6 +114,8 @@ interface ActiveChat {
   compactCount: number;
   /** 首条用户消息原文，用于生成中文会话标题 */
   firstUserMessage: string;
+  /** 空闲超时定时器：Tab 关闭后 N 分钟无输入自动 close query */
+  idleTimer: ReturnType<typeof setTimeout> | null;
 }
 
 /** Append [1M] suffix to model name when context1M setting is enabled (global or per-provider) */
@@ -275,6 +277,7 @@ export class AgentService {
     if (resumeSessionId) {
       const existing = this.findActiveChat(resumeSessionId);
       if (existing) {
+        this.cancelIdleTimeout(resumeSessionId);
         existing.channel.enqueue(buildUserMessage(message, resumeSessionId));
         return { chatId: existing.chatId };
       }
@@ -303,6 +306,7 @@ export class AgentService {
       contextStatus: "normal",
       summaryBuffer: "",
       compactCount: 0,
+      idleTimer: null,
     };
     this.activeChats.set(chatId, chat);
 
@@ -491,7 +495,7 @@ export class AgentService {
   }
 
   /** Find an active chat by SDK session ID */
-  private findActiveChat(sessionId: string): ActiveChat | undefined {
+  findActiveChat(sessionId: string): ActiveChat | undefined {
     for (const chat of this.activeChats.values()) {
       if (chat.sessionId === sessionId) return chat;
     }
@@ -573,7 +577,7 @@ export class AgentService {
     const chat: ActiveChat = {
       chatId, sessionId: "", channel, abortController, query: null, projectPath,
       agentType: template.agentType, status: "idle", contextStatus: "normal", summaryBuffer: "", compactCount: 0,
-      firstUserMessage: initialMessage,
+      firstUserMessage: initialMessage, idleTimer: null,
     };
     this.activeChats.set(chatId, chat);
 
@@ -597,6 +601,7 @@ export class AgentService {
   killChat(chatId: string): void {
     const chat = this.activeChats.get(chatId);
     if (!chat) return;
+    if (chat.idleTimer) { clearTimeout(chat.idleTimer); chat.idleTimer = null; }
     chat.channel.close();
     chat.abortController.abort();
     if (chat.query) {
@@ -604,6 +609,26 @@ export class AgentService {
     }
     this.activeChats.delete(chatId);
     broadcast("agent:exit", { runId: chatId, code: -1 });
+  }
+
+  /** Schedule idle timeout: close query if no message arrives within delayMs */
+  scheduleIdleTimeout(sessionId: string, delayMs: number): void {
+    const chat = this.findActiveChat(sessionId);
+    if (!chat) return;
+    if (chat.idleTimer) clearTimeout(chat.idleTimer);
+    chat.idleTimer = setTimeout(() => {
+      if (chat.query?.close) chat.query.close();
+      this.activeChats.delete(chat.chatId);
+      console.log(`[idle-timeout] closed sessionId=${sessionId} chatId=${chat.chatId}`);
+    }, delayMs);
+  }
+
+  /** Cancel idle timeout — called when a new message arrives for the session */
+  cancelIdleTimeout(sessionId: string): void {
+    const chat = this.findActiveChat(sessionId);
+    if (!chat?.idleTimer) return;
+    clearTimeout(chat.idleTimer);
+    chat.idleTimer = null;
   }
 
   /** Get the current SDK status for a session: "requesting" | "compacting" | "idle" | null (unknown/not alive) */

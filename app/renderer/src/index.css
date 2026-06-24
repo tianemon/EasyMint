@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 /* Tailwind 4 主题：注册设计 token。
    :root 里的同名 CSS 变量会覆盖这里的编译期默认值，实现运行时换肤。 */
@@ -635,6 +636,26 @@ select.input {
 /* ── Shimmer gradient — 双主题色系 ──────────── */
 :root  { --shimmer-1: #16a34a; --shimmer-2: #22c55e; --shimmer-3: #eab308; --shimmer-4: #facc15; --shimmer-5: #4ade80; }
 [data-theme="dark"] { --shimmer-1: #818cf8; --shimmer-2: #a78bfa; --shimmer-3: #f472b6; --shimmer-4: #c084fc; --shimmer-5: #6366f1; }
+
+/* 暗色模式下 prose Markdown 渲染：覆盖 typography 默认深色字体 */
+[data-theme="dark"] .prose {
+  --tw-prose-body: #d1d5db;
+  --tw-prose-headings: #f3f4f6;
+  --tw-prose-lead: #d1d5db;
+  --tw-prose-links: #60a5fa;
+  --tw-prose-bold: #f3f4f6;
+  --tw-prose-counters: #9ca3af;
+  --tw-prose-bullets: #6b7280;
+  --tw-prose-hr: #374151;
+  --tw-prose-quotes: #d1d5db;
+  --tw-prose-quote-borders: #374151;
+  --tw-prose-captions: #9ca3af;
+  --tw-prose-code: #f3f4f6;
+  --tw-prose-pre-code: #d1d5db;
+  --tw-prose-pre-bg: #1f2937;
+  --tw-prose-th-borders: #4b5563;
+  --tw-prose-td-borders: #374151;
+}
 
 @keyframes shimmerSweep {
   0%   { background-position: 300% 0; }

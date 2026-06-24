@@ -57,13 +57,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   appendAiEntry: (sessionId, entry) => {
-    const msgId = get().nextMsgId(sessionId);
-    set((s) => ({
-      messagesBySession: {
-        ...s.messagesBySession,
-        [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries: [entry], timestamp: entry.timestamp || Date.now() }],
-      },
-    }));
+    const msgs = get().messagesBySession[sessionId] || [];
+    const last = msgs[msgs.length - 1];
+    let msgId: number;
+    if (last && last.role === "ai") {
+      // Append to last AI message — streaming deltas accumulate in one bubble
+      msgId = last.id;
+      set((s) => {
+        const cur = s.messagesBySession[sessionId];
+        if (!cur) return {};
+        return {
+          messagesBySession: {
+            ...s.messagesBySession,
+            [sessionId]: cur.map((m) => (m.id === msgId ? { ...m, entries: [...(m.entries || []), entry] } : m)),
+          },
+        };
+      });
+    } else {
+      msgId = get().nextMsgId(sessionId);
+      set((s) => ({
+        messagesBySession: {
+          ...s.messagesBySession,
+          [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries: [entry], timestamp: entry.timestamp || Date.now() }],
+        },
+      }));
+    }
     return msgId;
   },
 

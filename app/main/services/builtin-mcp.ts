@@ -190,7 +190,11 @@ export function buildBuiltinMcpServers(projectPath?: string): Record<string, unk
       ),
       tool(
         "set_task_status",
-        "更新 task.json 中某任务的状态并实时刷新 UI 任务列表。状态取值：building(开始编码)/evaluating(交 Evaluator 验收)/done(验收通过)/failed(验收失败)/pending(重置为待办)。在调度任务前后调用此工具，让 UI 实时反映进度。",
+        "更新 task.json 中某任务的运行时状态并实时刷新 UI。"
+        + "仅在以下时机调用：① 调 Task(builder) 前 → building；② 调 Task(evaluator) 前 → evaluating；"
+        + "③ 验收通过 → done；④ 验收失败 → failed。"
+        + "不要在新增任务（pending）时调用此工具——task.json 中的 status 字段就是真相源，pending/done 会自动读取。"
+        + "只有当 Builder/Evaluator 正在执行时需要实时反映在 UI 上，才调用此工具。",
         {
           taskId: z.string().describe("task.json 中的任务 id（字符串）"),
           status: z.enum(["pending", "building", "evaluating", "done", "failed"]).describe("任务新状态"),

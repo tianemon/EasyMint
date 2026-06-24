@@ -59,7 +59,14 @@ function mapSessionMessages(msgs: Array<{ type: string; message: unknown }>): Ch
             entries.push({ kind: "tool_result", toolUseId: b.tool_use_id || "", content: String(b.content ?? ""), isError: !!b.is_error, timestamp: ts, source: "chat" });
           }
         }
-        if (entries.length > 0) mapped.push({ id: ++nextId, role: "ai", entries, timestamp: ts });
+        if (entries.length === 0) continue;
+        // Merge consecutive AI messages — same as appendAiEntry does during streaming
+        const last = mapped[mapped.length - 1];
+        if (last && last.role === "ai") {
+          last.entries!.push(...entries);
+        } else {
+          mapped.push({ id: ++nextId, role: "ai", entries, timestamp: ts });
+        }
       }
     }
   }
@@ -429,7 +436,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         window.electronAPI.sessionCache.write(sidRef.current, { contextUsage: pct }).catch(() => {});
       }
     });
-    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) useTabStore.getState().setSessionRunning(sidRef.current, false); useStatusStore.getState().reset(); };
+    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(); };
   }, []);
 
   // Summarizing timeout — 120s safety net

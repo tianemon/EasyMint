@@ -161,6 +161,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     agentService.stopChat(chatId);
   });
 
+  ipcMain.handle("agent:scheduleIdleTimeout", (_e, { sessionId, delayMs }) => {
+    agentService.scheduleIdleTimeout(sessionId, delayMs);
+  });
+
   // agent-template:*
   ipcMain.handle("agent-template:list", () => listTemplates());
   ipcMain.handle("agent-template:create", (_e, { input }) => createTemplate(input));
@@ -191,7 +195,18 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     agentService.onSessionRenamed(id);
     return renameSession(id, title, projectPath);
   });
-  ipcMain.handle("conv:delete", (_e, { id, projectPath }) => { deleteSession(id, projectPath); });
+  ipcMain.handle("conv:delete", async (_e, { id, projectPath }) => {
+    // Step 1: gracefully interrupt and kill the chat so the SDK
+    //   subprocess terminates and flushes all pending writes.
+    const chat = agentService.findActiveChat(id);
+    if (chat?.query) await chat.query.interrupt().catch(() => {});
+    if (chat) agentService.killChat(chat.chatId);
+    // Step 2: brief delay for OS to reap the CLI subprocess, then
+    //   delete the session file. Without the delay the SDK may
+    //   recreate an empty file from a still-alive file descriptor.
+    await new Promise((r) => setTimeout(r, 150));
+    return deleteSession(id, projectPath);
+  });
   ipcMain.handle("conv:togglePin", (_e, { id }) => togglePin(id));
   ipcMain.handle("conv:archiveSession", (_e, { sessionId }) => { archiveSession(sessionId); });
   ipcMain.handle("conv:unarchiveSession", (_e, { sessionId }) => { unarchiveSession(sessionId); });
