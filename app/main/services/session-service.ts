@@ -143,9 +143,31 @@ export async function listSessions(projectPath: string): Promise<SessionListItem
     });
 }
 
-export async function getSessionMessages(sessionId: string, projectPath: string): Promise<SessionMessage[]> {
-  const { getSessionMessages: gsm } = await sdk();
-  return gsm(sessionId, { dir: normalizeDir(projectPath) });
+export function getSessionMessages(sessionId: string, projectPath: string): SessionMessage[] {
+  const resolved = path.resolve(resolveHome(projectPath));
+  const slug = resolved.replace(/\//g, "-");
+  const filePath = path.join(DATA_DIR, "projects", slug, `${sessionId}.jsonl`);
+  if (!existsSync(filePath)) return [];
+
+  const raw = readFileSync(filePath, "utf-8");
+  const messages: SessionMessage[] = [];
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const m = JSON.parse(trimmed) as Record<string, unknown>;
+      if (m.type !== "user" && m.type !== "assistant") continue;
+      if (m.isMeta) continue;
+      messages.push({
+        type: m.type as "user" | "assistant",
+        uuid: (m.uuid as string) || "",
+        session_id: (m.sessionId as string) || sessionId,
+        message: m.message,
+        parent_tool_use_id: (m.parentUuid as string) || null,
+      });
+    } catch { /* skip malformed lines */ }
+  }
+  return messages;
 }
 
 export async function renameSession(sessionId: string, title: string, projectPath: string): Promise<void> {

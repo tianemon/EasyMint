@@ -150,7 +150,7 @@ function ThinkingBlockView({ block }: { block: ThinkingBlock }): JSX.Element {
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-purple-500/[0.06] transition-colors"
       >
-        <span className="text-[11px] text-purple-300/80 uppercase tracking-wider font-semibold">思考中</span>
+        <span className="text-[11px] text-purple-300/80 uppercase tracking-wider font-semibold">思考过程</span>
         <span className="text-[11px] text-text-secondary italic truncate flex-1">{open ? "" : preview}{!open && block.text.length > 140 ? "…" : ""}</span>
         <span className="text-[10px] text-text-secondary">{open ? "▲" : "▼"}</span>
       </button>

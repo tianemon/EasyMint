@@ -19,6 +19,7 @@ import { buildBuiltinMcpServers } from "./builtin-mcp";
 import { getPreset } from "../../shared/platform-presets";
 import { archiveSession, renameSession, hasCustomTitle } from "./session-service";
 import { CONTEXT_SUMMARY_INSTRUCTION, buildSessionInfoAppend, buildContextHandoffPrompt } from "../../shared/prompts";
+import { createTaskStatusValidator } from "./hooks";
 
 // Use createRequire for CJS/ESM compatibility in packaged Electron
 type QueryFn = typeof import("@anthropic-ai/claude-agent-sdk").query;
@@ -198,6 +199,14 @@ function buildQueryOptions(projectPath: string, store: Store, isResume: boolean,
     agents: Object.keys(agents).length > 0 ? agents : undefined,
      
     mcpServers: { ...buildMcpServersOption(), ...buildBuiltinMcpServers(cwd) } as any,
+    hooks: {
+      PreToolUse: [{
+        hooks: [createTaskStatusValidator(cwd)],
+      }],
+    } as any,
+    canUseTool: (async (toolName: string, _input: any, _options: any) => {
+      if (toolName.startsWith("mcp__easymint-ui__")) return { behavior: "allow" as const };
+    }) as any,
     pathToClaudeCodeExecutable,
     ...overrides,
   };
@@ -470,7 +479,8 @@ export class AgentService {
                 const threshold = this.store.getSettings().contextThreshold ?? DEFAULT_COMPACT_THRESHOLD;
                 if (usage.percentage >= threshold) {
                   if (chat.compactCount < MAX_COMPACT) {
-                    // compact 优先：发 /compact 让 SDK 原地压缩，会话不断、无感
+                    // compact 优先：发 /compact 让 SDK 原地压缩，会话不断
+                    broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "compact" });
                     chat.channel.enqueue(buildUserMessage("/compact", capturedSid));
                   } else {
                     // compact 达上限：改用轮转归档开新会话，避免摘要的摘要质量崩塌

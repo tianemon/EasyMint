@@ -56,6 +56,8 @@ export const ChatInput = memo(function ChatInput({
   const availableModels = useSettingsStore((s) => s.availableModels);
   const ctxPct = useStatusStore((s) => s.ctxPct);
   const summarizing = useStatusStore((s) => s.summarizing);
+  const compacting = useStatusStore((s) => s.compacting);
+  const inputDisabled = summarizing || compacting;
   const [balanceText, setBalanceText] = useState("");
   const refreshBalance = useCallback(async () => {
     try {
@@ -151,6 +153,12 @@ export const ChatInput = memo(function ChatInput({
 
       {/* Input area */}
       <div className="border-t border-border p-3 pt-2 shrink-0 relative">
+        {/* Compact 蒙版 */}
+        {compacting && (
+          <div className="absolute inset-3 z-10 rounded-[10px] bg-surface/70 backdrop-blur-[2px] flex items-center justify-center">
+            <span className="text-sm text-text-secondary font-medium">Mint 正在总结对话，请稍后…</span>
+          </div>
+        )}
         {paletteQuery !== null && (
           <CommandPalette
             initialQuery={paletteQuery}
@@ -166,16 +174,16 @@ export const ChatInput = memo(function ChatInput({
             onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
             onPaste={onPaste}
-            placeholder={summarizing ? "正在进行会话摘要..." : "输入消息，Enter 发送，Shift+Enter 换行，粘贴或拖入图片..."}
+            placeholder={compacting ? "Mint正在总结对话，请稍后" : summarizing ? "正在进行会话摘要..." : "输入消息，Enter 发送，Shift+Enter 换行，粘贴或拖入图片..."}
             rows={3}
-            disabled={summarizing}
+            disabled={inputDisabled}
             className="chat-input flex-1 min-h-[90px] resize-none bg-surface border border-border rounded-[10px] px-[14px] py-[10px] text-[13px] text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-inset disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <div className="flex flex-col gap-1.5 shrink-0">
-            {!summarizing && (
+            {!inputDisabled && (
               <QuickPrompts onFill={(text) => { setInput(text); textareaRef.current?.focus(); }} />
             )}
-            {summarizing ? (
+            {inputDisabled ? (
               <div className="w-9 h-9 rounded-md bg-surface-alt border border-border flex items-center justify-center opacity-40 cursor-not-allowed">
                 <svg viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg>
               </div>

@@ -137,6 +137,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (event.type === "status") {
       const st = typeof event.data.text === "string" ? event.data.text : "处理中...";
       if (lastStatusRef.current !== st) { lastStatusRef.current = st; useStatusStore.getState().setText(st); }
+      // compact_boundary → compact 完成，清除标志
+      if (st.includes("上下文已压缩")) { useStatusStore.getState().setSummarizing(false); useStatusStore.getState().setCompacting(false); }
       return;
     }
     if (event.type === "assistant" && typeof event.data.delta === "string") {
@@ -212,6 +214,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   // 状态栏独立存储 → 密集更新时只重渲染 StatusBar，不牵连 ChatPanel/消息列表
   // 注意：ChatPanel 不读 s.text，否则每次 statusText 变化都会重渲染整个组件
   const summarizing = useStatusStore((s) => s.summarizing);
+  const compacting = useStatusStore((s) => s.compacting);
+  const [compactDone, setCompactDone] = useState(false);
+  const prevCompacting = useRef(compacting);
+  useEffect(() => {
+    if (prevCompacting.current && !compacting) setCompactDone(true);
+    prevCompacting.current = compacting;
+  }, [compacting]);
+  useEffect(() => {
+    if (!compactDone) return;
+    const t = setTimeout(() => setCompactDone(false), 3000);
+    return () => clearTimeout(t);
+  }, [compactDone]);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const [attaches, setAttaches] = useState<AttachItem[]>([]);
@@ -426,7 +440,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       }
     });
     // Context rotation events — filter by chatId
-    const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(({ chatId: ctxChatId }) => { if (!currentChatRef.current) return; if (ctxChatId !== currentChatRef.current) return; useStatusStore.getState().setSummarizing(true); useStatusStore.getState().setText("正在整理会话..."); });
+    const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(({ chatId: ctxChatId, type }: { chatId: string; type?: string }) => { if (!currentChatRef.current) return; if (ctxChatId !== currentChatRef.current) return; useStatusStore.getState().setText("正在整理会话..."); if (type === "compact") { useTabStore.getState().setSessionRunning(sidRef.current, true); useStatusStore.getState().setCompacting(true); } else { useStatusStore.getState().setSummarizing(true); } });
     const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ chatId: ctxChatId, percentage }) => {
       if (!currentChatRef.current) return;
       if (ctxChatId !== currentChatRef.current) return;
@@ -649,6 +663,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 </div>
               </div>
             )}
+
+            {/* Compact 完成提示 */}
+            {compactDone && (
+              <div className="flex justify-center py-3">
+                <span className="text-[11px] text-text-secondary bg-surface-alt px-3 py-1 rounded-full border border-border/50">会话已整理完毕</span>
+              </div>
+            )}
+
           </div>
         )}
       </div>
