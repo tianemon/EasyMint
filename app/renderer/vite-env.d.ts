@@ -108,8 +108,8 @@ interface ElectronAPI {
     onStderr: (callback: (data: { line: string }) => void) => () => void;
   };
   skill: {
-    list: (projectPath?: string) => Promise<{ name: string; description: string; path: string; level: "global" | "project"; enabled: boolean }[]>;
-    get: (skillPath: string) => Promise<{ name: string; description: string; path: string; level: "global" | "project"; enabled: boolean; body: string } | null>;
+    list: (projectPath?: string) => Promise<{ name: string; description: string; path: string; level: "builtin" | "global" | "project"; enabled: boolean }[]>;
+    get: (skillPath: string) => Promise<{ name: string; description: string; path: string; level: "builtin" | "global" | "project"; enabled: boolean; body: string } | null>;
     toggle: (name: string, enabled: boolean) => Promise<void>;
     buildPrompt: (projectPath?: string) => Promise<string>;
   },

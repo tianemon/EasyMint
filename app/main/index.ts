@@ -73,9 +73,9 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     // Seed default Agent templates on first launch
     const { seedDefaults } = require("./services/agent-templates");
     seedDefaults();
-    // Seed built-in skills (~/.claude/skills/)
-    const { seedDefaultSkills } = require("./services/skill-service");
-    seedDefaultSkills();
+    // Seed bundled skills (~/.claude/skills/) — only if not already installed
+    const { seedBundledSkills } = require("./services/skill-service");
+    seedBundledSkills();
     // Seed default MCP configs (~/.easymint/.claude.json)
     const { seedDefaultMcp } = require("./services/mcp-service");
     seedDefaultMcp();

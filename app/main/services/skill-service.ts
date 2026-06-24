@@ -19,7 +19,7 @@ export interface SkillManifest {
   name: string;
   description: string;
   path: string;
-  level: "global" | "project";
+  level: "builtin" | "global" | "project";
   enabled: boolean;
 }
 
@@ -105,7 +105,7 @@ function parseFrontmatter(content: string): { name?: string; description?: strin
 
 // ── Scan ───────────────────────────────────────────
 
-function scanDir(dir: string, level: "global" | "project", disabledList: string[]): SkillManifest[] {
+function scanDir(dir: string, level: SkillManifest["level"], disabledList: string[]): SkillManifest[] {
   if (!existsSync(dir)) return [];
   const results: SkillManifest[] = [];
   try {
@@ -130,13 +130,50 @@ function scanDir(dir: string, level: "global" | "project", disabledList: string[
   return results;
 }
 
-/** Scan all skill directories and return manifests */
+/** Scan all skill directories and return manifests.
+ *
+ *  Tier rules:
+ *  - EM_SKILLS:      always shown as builtin (CC cannot see them).
+ *                    Global copy with the same name is hidden (old seed artifact).
+ *  - BUNDLED_SKILLS: global copy wins (user can customize). If no global copy,
+ *                    fall back to the builtin version.
+ *  - Everything else: shown as-is (user-installed). */
 export function scanSkills(projectPath?: string): SkillManifest[] {
   const disabled = getHiddenSkills();
   const result: SkillManifest[] = [];
 
+  // Builtin skills (resources/skills/)
+  const builtinDir = getBuiltinSkillsDir();
+  const builtin = scanDir(builtinDir, "builtin", disabled);
+  const emBuiltinNames = new Set(EM_SKILLS);
+  const bundledNames = new Set(BUNDLED_SKILLS);
+
   // Global skills
-  result.push(...scanDir(GLOBAL_SKILLS_DIR, "global", disabled));
+  const globalSkills = scanDir(GLOBAL_SKILLS_DIR, "global", disabled);
+  const globalNames = new Set(globalSkills.map((s) => s.name));
+
+  // EM-only skills: show as builtin, skip global duplicates
+  for (const s of builtin) {
+    if (emBuiltinNames.has(s.name)) {
+      result.push(s); // show as builtin regardless of global
+    }
+  }
+  // Bundled skills: global wins; if not installed globally, show builtin fallback
+  for (const s of builtin) {
+    if (bundledNames.has(s.name) && !globalNames.has(s.name)) {
+      result.push(s); // no global copy → builtin fallback
+    }
+  }
+  // Global skills — skip EM-owned names (those already shown as builtin above)
+  for (const s of globalSkills) {
+    if (!emBuiltinNames.has(s.name)) result.push(s);
+  }
+  // Other builtin skills (not in EM_SKILLS or BUNDLED_SKILLS) — show as builtin
+  for (const s of builtin) {
+    if (!emBuiltinNames.has(s.name) && !bundledNames.has(s.name)) {
+      result.push(s);
+    }
+  }
 
   // Project-level skills
   if (projectPath) {
@@ -155,12 +192,15 @@ export function readSkill(skillPath: string): SkillDetail | null {
   const fm = parseFrontmatter(raw);
   const name = path.basename(skillPath);
   const disabled = getHiddenSkills();
-  const isProject = !skillPath.startsWith(GLOBAL_SKILLS_DIR);
+  const builtinDir = getBuiltinSkillsDir();
+  let level: SkillManifest["level"] = "global";
+  if (skillPath.startsWith(builtinDir)) level = "builtin";
+  else if (!skillPath.startsWith(GLOBAL_SKILLS_DIR)) level = "project";
   return {
     name,
     description: fm.description || "(无描述)",
     path: skillPath,
-    level: isProject ? "project" : "global",
+    level,
     enabled: !disabled.includes(name),
     body: fm.body,
   };
@@ -174,10 +214,6 @@ export function toggleSkill(name: string, enabled: boolean): void {
   saveHiddenSkills(next);
 }
 
-
-// ── Seed built-in skills ───────────────────────────
-
-const BUILTIN_SKILLS = ["plan-first", "requirement-breakdown", "easymint-guide", "ponytail", "ponytail-review", "ponytail-audit"];
 
 function getBuiltinSkillsDir(): string {
   // In packaged app: process.resourcesPath/skills
@@ -193,28 +229,32 @@ function getBuiltinSkillsDir(): string {
   return path.join(__dirname, "..", "..", "..", "resources", "skills");
 }
 
-/** Copy built-in skills to ~/.claude/skills/ on first launch or after deletion */
-export function seedDefaultSkills(): void {
+/** Seed bundled skills to ~/.claude/skills/ on first launch if missing.
+ *  Unlike the old seedDefaultSkills, this only installs BUNDLED_SKILLS
+ *  (third-party, CC-compatible), not EM_SKILLS. Skips if already installed. */
+export function seedBundledSkills(): void {
   const srcDir = getBuiltinSkillsDir();
   if (!existsSync(srcDir)) return;
 
   if (!existsSync(GLOBAL_SKILLS_DIR)) mkdirSync(GLOBAL_SKILLS_DIR, { recursive: true });
 
-  const hidden = getHiddenSkills();
-
-  for (const name of BUILTIN_SKILLS) {
+  for (const name of BUNDLED_SKILLS) {
     const targetPath = path.join(GLOBAL_SKILLS_DIR, name);
-    if (existsSync(targetPath)) continue; // already exists
-
-    // Don't restore if user explicitly hid/deleted via EM
-    if (hidden.includes(name)) continue;
-
+    if (existsSync(targetPath)) continue; // already installed
     const srcPath = path.join(srcDir, name);
     if (!existsSync(srcPath)) continue;
-
     cpSync(srcPath, targetPath, { recursive: true });
   }
 }
+
+// migrateBuiltinSkills removed — no longer auto-clean global skill/MCP dirs.
+
+/** Skills owned by EM — only injected as builtin, never installed to global. CC cannot see them. */
+const EM_SKILLS = ["plan-first", "requirement-breakdown", "easymint-guide", "ui-sync"];
+
+/** Skills bundled with EM for convenience — auto-seeded to global on first launch if missing.
+ *  Global copy takes priority (user can customize), builtin acts as fallback. CC can use them. */
+const BUNDLED_SKILLS = ["ponytail", "ponytail-review", "ponytail-audit"];
 
 // ── Build skills prompt block for SDK injection ────
 
@@ -229,6 +269,7 @@ export function buildSkillsPrompt(projectPath?: string): string {
   const skills = scanSkills(projectPath).filter((s) => s.enabled);
   if (skills.length === 0) return "";
 
+  const builtinSkills = skills.filter((s) => s.level === "builtin");
   const globalSkills = skills.filter((s) => s.level === "global");
   const projectSkills = skills.filter((s) => s.level === "project");
 
@@ -236,6 +277,14 @@ export function buildSkillsPrompt(projectPath?: string): string {
   lines.push("The following skills are available. Each skill lives in a folder");
   lines.push("with a SKILL.md file. When a skill's description matches the user's");
   lines.push("request, Read its SKILL.md at the listed path and follow it.\n");
+
+  if (builtinSkills.length > 0) {
+    lines.push("### Built-in");
+    for (const s of builtinSkills) {
+      lines.push(`- **${s.name}**: ${s.description} _(path: ${s.path})_`);
+    }
+    lines.push("");
+  }
 
   if (globalSkills.length > 0) {
     lines.push("### Global");

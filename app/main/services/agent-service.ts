@@ -116,6 +116,8 @@ interface ActiveChat {
   firstUserMessage: string;
   /** 空闲超时定时器：Tab 关闭后 N 分钟无输入自动 close query */
   idleTimer: ReturnType<typeof setTimeout> | null;
+  /** resume 首次唤醒时需刷新 MCP（注入最新工具），刷新后置 false */
+  mcpNeedsRefresh: boolean;
 }
 
 /** Append [1M] suffix to model name when context1M setting is enabled (global or per-provider) */
@@ -307,16 +309,21 @@ export class AgentService {
       summaryBuffer: "",
       compactCount: 0,
       idleTimer: null,
+      mcpNeedsRefresh: isResume,  // resume 会话从磁盘加载，工具清单可能过期，需刷新一次
     };
     this.activeChats.set(chatId, chat);
 
-    // For resume: inject session identity into the first turn
+    // For resume: inject session identity + latest EM prompt into the first turn.
+    // SDK resumes with the on-disk system prompt snapshot; appending the current
+    // EM prompt ensures tool list / rules updates reach old sessions.
     if (resumeSessionId) {
+      const freshPrompt = resolveEffectivePrompt() + buildSkillsPrompt(projectPath);
+      const appendText = buildSessionInfoAppend(resumeSessionId) + (freshPrompt ? "\n\n" + freshPrompt : "");
       if (!options.systemPrompt) {
-        options.systemPrompt = { type: "preset" as const, preset: "claude_code" as const, append: buildSessionInfoAppend(resumeSessionId) };
+        options.systemPrompt = { type: "preset" as const, preset: "claude_code" as const, append: appendText };
       } else if (typeof options.systemPrompt === "object" && "append" in options.systemPrompt) {
         const sp = options.systemPrompt as { append?: string };
-        sp.append = (sp.append || "") + "\n\n" + buildSessionInfoAppend(resumeSessionId);
+        sp.append = (sp.append || "") + "\n\n" + appendText;
       }
     }
 
@@ -336,6 +343,18 @@ export class AgentService {
         const q = await getQuery();
         const queryObj = await q({ prompt: chat.channel.generator, options });
         chat.query = queryObj;
+
+        // Resume 会话首次唤醒：刷新 MCP，让旧会话也能用最新注册的工具（如新增的 set_project_stage）
+        if (chat.mcpNeedsRefresh && queryObj.setMcpServers) {
+          chat.mcpNeedsRefresh = false;
+          try {
+            const servers = { ...buildMcpServersOption(), ...buildBuiltinMcpServers(options.cwd || chat.projectPath) } as any;
+            await queryObj.setMcpServers(servers);
+            console.log("[chat-loop] MCP refreshed on resume: chatId=" + chat.chatId);
+          } catch (e) {
+            console.log("[chat-loop] MCP refresh failed: " + String(e));
+          }
+        }
 
         let capturedSid = chat.sessionId;
 
@@ -578,6 +597,7 @@ export class AgentService {
       chatId, sessionId: "", channel, abortController, query: null, projectPath,
       agentType: template.agentType, status: "idle", contextStatus: "normal", summaryBuffer: "", compactCount: 0,
       firstUserMessage: initialMessage, idleTimer: null,
+      mcpNeedsRefresh: false,  // spawnAgentChat 是全新会话，MCP 已是最新
     };
     this.activeChats.set(chatId, chat);
 

@@ -156,7 +156,7 @@ function UploadCacheSection(): JSX.Element | null {
 // ── Skills Tab ───────────────────────────────────────────────────────────────
 
 function SkillsTab(): JSX.Element {
-  const [skills, setSkills] = useState<{ name: string; description: string; path: string; level: "global" | "project"; enabled: boolean }[]>([]);
+  const [skills, setSkills] = useState<{ name: string; description: string; path: string; level: "builtin" | "global" | "project"; enabled: boolean }[]>([]);
   const [loadError, setLoadError] = useState("");
 
   const load = () => {
@@ -171,6 +171,7 @@ function SkillsTab(): JSX.Element {
 
   const globalSkills = skills.filter((s) => s.level === "global");
   const projectSkills = skills.filter((s) => s.level === "project");
+  const builtinSkills = skills.filter((s) => s.level === "builtin");
 
   return (
     <div className="px-6 py-4 overflow-y-auto space-y-4">
@@ -178,8 +179,39 @@ function SkillsTab(): JSX.Element {
 
       <p className="text-sm font-medium text-text-primary">Skills</p>
       <p className="text-[11px] text-text-secondary -mt-3">
-        与 Claude Code 共用 ~/.claude/skills/ 和项目级 .claude/skills/ 目录
+        EM 内置 Skill 仅 EasyMint 可用；全局/项目级 Skill 与 Claude Code 共用
       </p>
+
+      {/* Built-in skills */}
+      {builtinSkills.length > 0 && (
+        <div>
+          <h4 className="text-xs font-medium text-text-secondary mb-2">EM 内置</h4>
+          <div className="space-y-1">
+            {builtinSkills.map((s) => (
+              <div key={s.path} className={`p-3 rounded-lg border transition-colors ${s.enabled ? "border-border" : "border-border/50 opacity-60"}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm text-text-primary">{s.name}</span>
+                    <p className="text-xs text-text-secondary mt-0.5 truncate">{s.description}</p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-3 shrink-0">
+                    <button
+                      onClick={() => handleToggle(s.name, !s.enabled)}
+                      className={`relative w-9 h-5 rounded-full transition-colors overflow-hidden ${s.enabled ? "bg-accent" : "bg-surface-hover border border-border"}`}
+                      role="switch"
+                      aria-checked={s.enabled}
+                    >
+                      <span
+                        className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-surface-elevated shadow transition-all ${s.enabled ? "left-[calc(100%-18px)]" : "left-0.5"}`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Global skills */}
       {globalSkills.length > 0 && (
