@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.3.0 (2026-06-25)
+
+### Skill 注入机制
+- EM 内置 Skill 不再 seeding 到 ~/.claude/skills/，改为直接扫描 resources/skills/，CC 无法读取
+- 两层分级：`EM_SKILLS`（EM 专用，仅 builtin）和 `BUNDLED_SKILLS`（ponytail 等第三方，全局优先、builtin 兜底）
+- 新增 `ui-sync` Skill：用户表达新需求时自动触发，同步 UI 状态（task 追加、stage 切换、MCP 调用时机）
+- 种子逻辑只装 BUNDLED_SKILLS 到全局（已有则跳过），EM 专用技能永不泄露
+
+### 开发流程防护
+- PreToolUse Hook 四条校验规则：building 前检查其他任务是否结束、evaluating 必须 preceded by building、failed 必须 preceded by building/evaluating、done 前所有任务必须完成
+- EM 自有 MCP 工具 bypass auto-mode 分类器，不被误拦
+
+### Compact 体验
+- 自动 compact 时广播状态 + 设 busy："正在整理会话..."全程显示直到 compact 完成
+- 输入框加毛玻璃蒙版，禁用输入 + 文案"Mint 正在总结对话，请稍后…"
+- Compact 完成后 toast 提示"会话已整理完毕"（3 秒）
+- Compact 状态在 compact_boundary 到达时正确清除
+
+### 会话历史
+- `getSessionMessages` 从调 SDK 改为直接读 JSONL，全量消息加载
+- 不受 compact 的 parentUuid 链限制，旧历史可正常回显
+- 只过滤 isMeta，其他消息全部保留
+
+### 其他修复
+- 新建项目后跳转空白问题：handleCreate 改为轮询 conv.messages 等 `[系统消息] 项目已创建完毕` 落盘
+- 会话删除防复活：先 killChat 再 deleteSession，切项目/切换项目时正确关闭 query
+- 关闭 Tab 10 分钟无输入自动回收 query（scheduleIdleTimeout）
+- 已有项目时打开/新建弹出窗口选择弹窗（当前窗口 / 新窗口）
+- Markdown 渲染：装 @tailwindcss/typography + 暗色模式 prose 覆盖
+- resume 时注入最新 EM 提示词 + setMcpServers 刷新 MCP 工具清单
+- thinking 块标题"思考中"→"思考过程"
+- 提示词精简：删除 keep_ui_alive 块，步骤 6 强调必须先调 done
+
 ## v0.2.4 (2026-06-23)
 
 - 消息气泡溢出修复（长文本自动换行、overflow-x-hidden 防止撑宽）
