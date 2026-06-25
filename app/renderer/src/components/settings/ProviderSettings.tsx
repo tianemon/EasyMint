@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSettingsStore } from "../../stores/settings-store";
 import { PLATFORM_PRESETS, getPreset } from "@shared/platform-presets";
 import type { ProviderConfig, ApiProvidersData } from "@shared/platform-presets";
@@ -14,7 +14,7 @@ export interface ProviderFormProps {
 export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   const editMode = initial != null;
   const [presetId, setPresetId] = useState<string>(initial?.presetId || "");
-  const preset = presetId ? getPreset(presetId) : undefined;
+  const preset = presetId && presetId !== "custom" ? getPreset(presetId) : undefined;
   const [name, setName] = useState(initial?.name || "");
   const [apiKey, setApiKey] = useState(initial?.apiKey || "");
   const [baseUrl, setBaseUrl] = useState(initial?.baseUrl || preset?.env.ANTHROPIC_BASE_URL || "");
@@ -27,12 +27,18 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
 
   const handlePresetSelect = (id: string) => {
     setPresetId(id);
+    if (id === "custom") {
+      setBaseUrl("");
+      setModel("");
+      setModels([]);
+      setContext1M(false);
+      return;
+    }
     const p = getPreset(id);
     if (p) {
       setBaseUrl(p.env.ANTHROPIC_BASE_URL || "");
       const defaultModel = p.env.ANTHROPIC_MODEL || "";
       setModel(defaultModel);
-      // 确保默认模型在列表中（api 获取前至少有默认模型可用）
       const baseModels = p.models.length > 0 ? p.models : (defaultModel ? [defaultModel] : []);
       setModels(baseModels);
       setContext1M(p.supportsContext1M ? context1M : false);
@@ -102,11 +108,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   ));
 
   return (
-    <div className="bg-surface-alt rounded-lg p-4 space-y-4">
-      <h4 className="text-sm font-medium text-text-primary">
-        {editMode ? "编辑供应商" : "添加供应商"}
-      </h4>
-
+    <div className="space-y-4">
       {/* 预设选择 */}
       <div>
         <label className="text-xs text-text-secondary block mb-2">选择平台</label>
@@ -114,9 +116,9 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
           {presetButtons}
           <button
             type="button"
-            onClick={() => handlePresetSelect("")}
+            onClick={() => handlePresetSelect("custom")}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              !presetId
+              presetId === "custom"
                 ? "bg-accent text-white"
                 : "bg-surface border border-border text-text-secondary hover:border-accent/50"
             }`}
@@ -243,7 +245,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       </div>
 
       {/* context1M toggle — 仅 DeepSeek 等支持平台显示 */}
-      {(preset?.supportsContext1M || (!preset && initial?.context1M !== undefined)) && (
+      {(preset?.supportsContext1M || (presetId === "custom" && initial?.context1M !== undefined)) && (
         <div>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -258,7 +260,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       )}
 
       {/* 按钮 */}
-      <div className="flex gap-2 justify-end">
+      <div className="flex gap-2 justify-end pt-2">
         {onCancel && (
           <button
             className="px-4 py-2 rounded-lg border border-border text-text-secondary text-xs hover:border-accent/50 transition-colors"
@@ -360,11 +362,66 @@ function ProviderItem({ cfg, isActive, onActivate, onEdit, onDelete }: ProviderI
   );
 }
 
+// ── 供应商弹窗 ──────────────────────────────────────────────────────────────
+
+function ProviderModal({
+  editingCfg,
+  onSave,
+  onClose,
+}: {
+  editingCfg: ProviderConfig | null;
+  onSave: (cfg: ProviderConfig) => void;
+  onClose: () => void;
+}) {
+  const isEdit = editingCfg != null;
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  const handleOverlayClick = useCallback((e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) onClose();
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]"
+      onClick={handleOverlayClick}
+    >
+      <div className="bg-surface rounded-2xl border border-border-light shadow-xl overflow-hidden w-[480px] max-h-[85vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="text-sm font-medium text-text-primary">
+            {isEdit ? "编辑供应商" : "添加供应商"}
+          </h3>
+          <button
+            className="w-6 h-6 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors"
+            onClick={onClose}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 overflow-y-auto flex-1">
+          <ProviderForm
+            onSave={onSave}
+            onCancel={onClose}
+            initial={editingCfg}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 主组件 ────────────────────────────────────────────────────────────────
 
 export function ProviderSettings() {
   const { apiProviders, setApiProviders, activateProvider } = useSettingsStore();
-  const [showForm, setShowForm] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const configs: Record<string, ProviderConfig> = apiProviders?.configs ?? {};
@@ -379,7 +436,7 @@ export function ProviderSettings() {
       configs: nextConfigs,
     };
     setApiProviders(nextData);
-    setShowForm(false);
+    setModalOpen(false);
     setEditingId(null);
   };
 
@@ -399,30 +456,28 @@ export function ProviderSettings() {
 
   const handleEdit = (id: string) => {
     setEditingId(id);
-    setShowForm(true);
+    setModalOpen(true);
   };
 
   const handleAddNew = () => {
     setEditingId(null);
-    setShowForm(true);
+    setModalOpen(true);
   };
 
-  const handleCancel = () => {
-    setShowForm(false);
+  const handleCloseModal = () => {
+    setModalOpen(false);
     setEditingId(null);
   };
 
   return (
     <div className="space-y-4">
       {/* 添加供应商按钮 */}
-      {!showForm && (
-        <button
-          className="w-full px-4 py-3 rounded-lg border-2 border-dashed border-border text-text-secondary text-sm hover:border-accent/50 hover:text-accent transition-colors"
-          onClick={handleAddNew}
-        >
-          + 添加供应商
-        </button>
-      )}
+      <button
+        className="w-full px-4 py-3 rounded-lg border-2 border-dashed border-border text-text-secondary text-sm hover:border-accent/50 hover:text-accent transition-colors"
+        onClick={handleAddNew}
+      >
+        + 添加供应商
+      </button>
 
       {/* 已保存的供应商列表 */}
       {configList.length > 0 && (
@@ -440,11 +495,12 @@ export function ProviderSettings() {
         </div>
       )}
 
-      {showForm && (
-        <ProviderForm
+      {/* 弹窗 */}
+      {modalOpen && (
+        <ProviderModal
+          editingCfg={editingCfg}
           onSave={handleSave}
-          onCancel={handleCancel}
-          initial={editingCfg}
+          onClose={handleCloseModal}
         />
       )}
     </div>
