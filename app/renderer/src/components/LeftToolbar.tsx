@@ -138,10 +138,8 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onShowUpdate, o
   };
 
   const handleSettingsClick = () => {
-    if (updatePhase === "downloaded") {
+    if (updatePhase) {
       setShowSettingsMenu(!showSettingsMenu);
-    } else if (updatePhase === "available") {
-      onShowUpdate?.();
     } else {
       onSettings?.();
     }
@@ -241,15 +239,25 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onShowUpdate, o
             <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-danger border border-surface" />
           )}
         </button>
-        {showSettingsMenu && updatePhase === "downloaded" && (
-          <div className="absolute left-full bottom-0 ml-1 w-44 bg-surface border border-border rounded-[10px] shadow-lg py-1 z-50 dropdown-menu">
-            <button
-              className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors"
-              onClick={handleInstallUpdate}
-            >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2 text-accent"><path d="M8 1v9M4.5 6.5L8 10l3.5-3.5"/><path d="M2.5 13h11"/></svg>
-              重启升级到 v{updateVersion}
-            </button>
+        {showSettingsMenu && updatePhase && (
+          <div className="absolute left-full bottom-0 ml-1 w-48 bg-surface border border-border rounded-[10px] shadow-lg py-1 z-50 dropdown-menu">
+            {updatePhase === "downloaded" ? (
+              <button
+                className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors"
+                onClick={handleInstallUpdate}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2 text-accent"><path d="M8 1v9M4.5 6.5L8 10l3.5-3.5"/><path d="M2.5 13h11"/></svg>
+                重启升级到 v{updateVersion}
+              </button>
+            ) : (
+              <button
+                className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors"
+                onClick={() => { setShowSettingsMenu(false); onShowUpdate?.(); }}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2 text-accent"><path d="M8 2v8M4 7l4 4 4-4M2 14h12"/></svg>
+                有新版本 v{updateVersion}
+              </button>
+            )}
             <div className="border-t border-border my-0.5" />
             <button
               className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors"
