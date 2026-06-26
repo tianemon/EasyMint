@@ -11,6 +11,7 @@
     "dev:renderer": "vite --config app/renderer/vite.config.ts",
     "dev:electron": "npm run build:main && npm run build:preload && electron .",
     "build": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder",
+    "build:mac": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --mac && rm -rf dist-electron/mac* dist-electron/*.zip*",
     "build:ci": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --publish never",
     "build:renderer": "vite build --config app/renderer/vite.config.ts",
     "build:main": "esbuild app/main/index.ts --bundle --platform=node --format=cjs --outfile=app/main/dist/main.cjs --external:electron --external:@anthropic-ai/claude-agent-sdk",

@@ -48,8 +48,7 @@ function setupListeners(): void {
 
   autoUpdater.on("update-available", (info) => {
     detectedVersion = info.version ?? null;
-    const totalSize = info.files[0]?.size;
-    broadcast({ status: "available", version: detectedVersion ?? undefined, totalSize });
+    broadcast({ status: "available", version: detectedVersion ?? undefined });
     // autoDownload: true，electron-updater 自动开始下载
   });
 
@@ -153,24 +152,18 @@ export function getDownloadedVersion(): string | null {
   return downloadedVersion;
 }
 
+/** electron-updater 缓存目录，不同平台位置不同 */
+function updaterCacheDir(): string {
+  if (process.platform === "darwin") return path.join(os.homedir(), "Library", "Caches", "easymint-updater");
+  if (process.platform === "win32") return path.join(process.env.LOCALAPPDATA || os.tmpdir(), "easymint-updater");
+  return path.join(os.homedir(), ".cache", "easymint-updater"); // linux
+}
+
 export function clearUpdateCache(): { cleaned: string[]; errors: string[] } {
   const cleaned: string[] = [];
   const errors: string[] = [];
 
-  const targets: string[] = [];
-  if (process.platform === "darwin") {
-    targets.push(path.join(os.homedir(), "Library", "Caches", "com.easymint.app.ShipIt"));
-  }
-  targets.push(path.join(os.tmpdir(), "em-update-extract"));
-
-  // 扫描临时目录里脚本残留
-  try {
-    for (const f of fs.readdirSync(os.tmpdir())) {
-      if (f.startsWith("easymint-") && f.endsWith(".sh")) {
-        targets.push(path.join(os.tmpdir(), f));
-      }
-    }
-  } catch { /* ignore */ }
+  const targets = [updaterCacheDir()];
 
   for (const p of targets) {
     try {
@@ -189,42 +182,25 @@ export function clearUpdateCache(): { cleaned: string[]; errors: string[] } {
 /** 扫描更新缓存大小（字节），不清理。小于 1MB 视为无缓存（元数据残留不算） */
 export function getUpdateCacheSize(): number {
   let total = 0;
+  const dir = updaterCacheDir();
 
-  const dirs = [path.join(os.tmpdir(), "em-update-extract")];
-  if (process.platform === "darwin") {
-    dirs.push(path.join(os.homedir(), "Library", "Caches", "com.easymint.app.ShipIt"));
-  }
-
-  for (const dir of dirs) {
-    try {
-      if (!fs.existsSync(dir)) continue;
+  try {
+    if (fs.existsSync(dir)) {
       for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
         if (f.isFile()) {
           try { total += fs.statSync(path.join(dir, f.name)).size; } catch { /* skip */ }
         }
       }
-    } catch { /* ignore */ }
-  }
-
-  // 统计临时目录里 .sh 脚本残留
-  try {
-    for (const f of fs.readdirSync(os.tmpdir())) {
-      if (f.startsWith("easymint-") && f.endsWith(".sh")) {
-        try { total += fs.statSync(path.join(os.tmpdir(), f)).size; } catch { /* skip */ }
-      }
     }
   } catch { /* ignore */ }
 
-  // 小于 1MB 视为无缓存（electron-updater 元数据残留）
+  // 小于 1MB 视为无缓存（元数据残留）
   return total >= 1024 * 1024 ? total : 0;
 }
 
-/** 打开更新缓存目录（Finder），目录不存在则回退到临时目录 */
+/** 打开更新缓存目录 */
 export function openUpdateCacheDir(): void {
-  const shipItDir = path.join(os.homedir(), "Library", "Caches", "com.easymint.app.ShipIt");
-  const dir = process.platform === "darwin" && fs.existsSync(shipItDir)
-    ? shipItDir
-    : os.tmpdir();
+  const dir = fs.existsSync(updaterCacheDir()) ? updaterCacheDir() : os.tmpdir();
   const { shell } = require("electron");
   shell.openPath(dir);
 }

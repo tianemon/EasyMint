@@ -76,13 +76,22 @@ function formatMB(bytes: number): string {
 }
 
 function CacheManagementSection(): JSX.Element {
+  const [clearing, setClearing] = useState(false);
   const [updateSize, setUpdateSize] = useState<number | null>(null);
   const [uploadSize, setUploadSize] = useState<number | null>(null);
 
-  useEffect(() => {
+  const scan = () => {
     window.electronAPI?.app?.updateCacheSize?.().then(setUpdateSize).catch(() => {});
     window.electronAPI?.upload?.stats?.().then((s) => setUploadSize(s.totalSize)).catch(() => {});
-  }, []);
+  };
+  useEffect(() => { scan(); }, []);
+
+  const handleClear = async () => {
+    setClearing(true);
+    await window.electronAPI?.app?.clearUpdateCache?.();
+    await scan();
+    setClearing(false);
+  };
 
   return (
     <section>
@@ -101,12 +110,21 @@ function CacheManagementSection(): JSX.Element {
             )}
           </div>
           {updateSize !== null && updateSize > 0 && (
-            <button
-              className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:border-accent/50 transition-colors"
-              onClick={() => window.electronAPI?.app?.openUpdateCache?.()}
-            >
-              打开文件夹
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:border-accent/50 transition-colors"
+                onClick={handleClear}
+                disabled={clearing}
+              >
+                {clearing ? "清除中..." : "清除缓存"}
+              </button>
+              <button
+                className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:border-accent/50 transition-colors"
+                onClick={() => window.electronAPI?.app?.openUpdateCache?.()}
+              >
+                文件夹
+              </button>
+            </div>
           )}
         </div>
 
@@ -763,18 +781,15 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
                   <span className="text-xs text-text-secondary">正在检查更新...</span>
                 )}
                 {updateStatus.status === "available" && (
-                  <span className="text-xs text-accent">
-                    发现新版本 v{updateStatus.version}
-                    {updateStatus.totalSize ? `（${formatMB(updateStatus.totalSize)}）` : ""}，准备下载...
-                  </span>
+                  <span className="text-xs text-accent">发现新版本 v{updateStatus.version}，准备下载...</span>
                 )}
                 {updateStatus.status === "downloading" && (
-                  <div className="flex flex-col items-center gap-1 w-48">
-                    <span className="text-xs text-accent">
+                  <div className="flex flex-col items-center gap-1 w-56">
+                    <span className="text-xs text-accent whitespace-nowrap">
                       正在下载 v{updateStatus.version}... {updateStatus.percent ?? 0}%
                       {updateStatus.transferred != null && updateStatus.totalSize
                         ? `（${formatMB(updateStatus.transferred)} / ${formatMB(updateStatus.totalSize)}）`
-                        : updateStatus.totalSize ? ` / ${formatMB(updateStatus.totalSize)}` : ""}
+                        : ""}
                     </span>
                     <div className="w-full h-1 rounded-full bg-surface-hover overflow-hidden">
                       <div className="h-full bg-accent transition-all" style={{ width: `${updateStatus.percent ?? 0}%` }} />
