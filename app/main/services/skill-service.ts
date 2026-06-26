@@ -250,7 +250,7 @@ export function seedBundledSkills(): void {
 // migrateBuiltinSkills removed — no longer auto-clean global skill/MCP dirs.
 
 /** Skills owned by EM — only injected as builtin, never installed to global. CC cannot see them. */
-const EM_SKILLS = ["plan-first", "requirement-breakdown", "easymint-guide", "ui-sync"];
+const EM_SKILLS = ["plan-first", "requirement-breakdown", "easymint-guide", "ui-sync", "ask-runtime-first"];
 
 /** Skills bundled with EM for convenience — auto-seeded to global on first launch if missing.
  *  Global copy takes priority (user can customize), builtin acts as fallback. CC can use them. */

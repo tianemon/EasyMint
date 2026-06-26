@@ -13,7 +13,7 @@ interface SettingsDialogProps {
 
 // ── Git Check Section ─────────────────────────────────────────────────────────
 
-function useDetect(cmd: "git" | "nodeRuntime" | "npx" | "codegraph") {
+function useDetect(cmd: "git" | "nodeRuntime" | "codegraph") {
   const [info, setInfo] = useState<{ found: boolean; version?: string } | null>(null);
   useEffect(() => {
     window.electronAPI?.[cmd]?.detect().then(setInfo).catch(() => setInfo({ found: false }));
@@ -21,7 +21,11 @@ function useDetect(cmd: "git" | "nodeRuntime" | "npx" | "codegraph") {
   return info;
 }
 
-function EnvRow({ label, info, installUrl }: { label: string; info: { found: boolean; version?: string } | null; installUrl?: string }) {
+function EnvRow({ label, info, installUrl }: {
+  label: string;
+  info: { found: boolean; version?: string } | null;
+  installUrl?: string;
+}) {
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
@@ -48,10 +52,40 @@ function EnvRow({ label, info, installUrl }: { label: string; info: { found: boo
   );
 }
 
+function CodegraphRow({ info }: { info: { found: boolean; version?: string } | null }) {
+  const cmd = "curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh";
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-text-primary">CodeGraph</span>
+        {info === null ? (
+          <span className="text-xs text-text-muted">检测中...</span>
+        ) : info.found ? (
+          <span className="text-xs text-text-secondary">{info.version}</span>
+        ) : (
+          <span className="text-xs text-danger">未安装</span>
+        )}
+      </div>
+      {info && !info.found && (
+        <div className="flex flex-col items-end gap-1">
+          <code className="text-[10px] text-text-secondary bg-surface px-2 py-0.5 rounded select-all">{cmd}</code>
+          <a
+            href="https://github.com/colbymchenry/codegraph"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-accent hover:underline"
+          >
+            GitHub 主页 →
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EnvCheckSection(): JSX.Element {
   const gitInfo = useDetect("git");
   const nodeInfo = useDetect("nodeRuntime");
-  const npxInfo = useDetect("npx");
   const codegraphInfo = useDetect("codegraph");
 
   return (
@@ -60,10 +94,7 @@ function EnvCheckSection(): JSX.Element {
       <div className="bg-surface-alt rounded-lg border border-border px-4 py-3 space-y-3">
         <EnvRow label="Git" info={gitInfo} installUrl="https://git-scm.com/downloads" />
         <EnvRow label="Node.js" info={nodeInfo} installUrl="https://nodejs.org/" />
-        <EnvRow label="Playwright (npx)" info={npxInfo}
-          installUrl="https://nodejs.org/" />
-        <EnvRow label="CodeGraph" info={codegraphInfo}
-          installUrl="https://github.com/tianemon/CodeGraph?tab=readme-ov-file#%E5%AE%89%E8%A3%85" />
+        <CodegraphRow info={codegraphInfo} />
       </div>
     </section>
   );
@@ -156,9 +187,39 @@ function CacheManagementSection(): JSX.Element {
 
 // ── Skills Tab ───────────────────────────────────────────────────────────────
 
+function SkillRow({ s, onToggle }: { s: { name: string; description: string; path: string; enabled: boolean }; onToggle: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div
+      className={`px-3 py-2 transition-colors cursor-default ${s.enabled ? "hover:bg-surface-hover" : "opacity-60"}`}
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-text-primary truncate">{s.name}</span>
+        <button
+          onClick={onToggle}
+          className={`relative w-8 h-4 rounded-full transition-colors overflow-hidden shrink-0 ml-2 ${s.enabled ? "bg-accent" : "bg-surface-hover border border-border"}`}
+          role="switch"
+          aria-checked={s.enabled}
+        >
+          <span
+            className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-surface-elevated shadow transition-all ${s.enabled ? "left-[calc(100%-14px)]" : "left-0.5"}`}
+          />
+        </button>
+      </div>
+      {expanded && (
+        <p className="text-[11px] text-text-secondary mt-1 leading-relaxed">{s.description}</p>
+      )}
+    </div>
+  );
+}
+
 function SkillsTab(): JSX.Element {
   const [skills, setSkills] = useState<{ name: string; description: string; path: string; level: "builtin" | "global" | "project"; enabled: boolean }[]>([]);
   const [loadError, setLoadError] = useState("");
+  const [tab, setTab] = useState<"builtin" | "global">("builtin");
 
   const load = () => {
     window.electronAPI.skill.list(undefined).then(setSkills).catch((e: unknown) => setLoadError(String(e)));
@@ -170,107 +231,59 @@ function SkillsTab(): JSX.Element {
     setSkills((prev) => prev.map((s) => (s.name === name ? { ...s, enabled } : s)));
   };
 
+  const builtinSkills = skills.filter((s) => s.level === "builtin");
   const globalSkills = skills.filter((s) => s.level === "global");
   const projectSkills = skills.filter((s) => s.level === "project");
-  const builtinSkills = skills.filter((s) => s.level === "builtin");
+  const visibleSkills = tab === "builtin" ? builtinSkills : globalSkills;
 
   return (
     <div className="px-6 py-4 overflow-y-auto space-y-4">
       {loadError && <p className="text-danger text-xs">{loadError}</p>}
 
-      <p className="text-sm font-medium text-text-primary">Skills</p>
-      <p className="text-[11px] text-text-secondary -mt-3">
-        EM 内置 Skill 仅 EasyMint 可用；全局/项目级 Skill 与 Claude Code 共用
-      </p>
+      <div>
+        <p className="text-sm font-medium text-text-primary">Skills</p>
+        <p className="text-[11px] text-text-secondary mt-0.5">
+          内置 Skill 仅 EasyMint 可用；通用 Skill 与 Claude Code 共用
+        </p>
+      </div>
 
-      {/* Built-in skills */}
-      {builtinSkills.length > 0 && (
-        <div>
-          <h4 className="text-xs font-medium text-text-secondary mb-2">EM 内置</h4>
-          <div className="space-y-1">
-            {builtinSkills.map((s) => (
-              <div key={s.path} className={`p-3 rounded-lg border transition-colors ${s.enabled ? "border-border" : "border-border/50 opacity-60"}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm text-text-primary">{s.name}</span>
-                    <p className="text-xs text-text-secondary mt-0.5 truncate">{s.description}</p>
-                  </div>
-                  <div className="flex items-center gap-2 ml-3 shrink-0">
-                    <button
-                      onClick={() => handleToggle(s.name, !s.enabled)}
-                      className={`relative w-9 h-5 rounded-full transition-colors overflow-hidden ${s.enabled ? "bg-accent" : "bg-surface-hover border border-border"}`}
-                      role="switch"
-                      aria-checked={s.enabled}
-                    >
-                      <span
-                        className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-surface-elevated shadow transition-all ${s.enabled ? "left-[calc(100%-18px)]" : "left-0.5"}`}
-                      />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Tab buttons — pill style */}
+      <div className="inline-flex rounded-lg border border-border overflow-hidden">
+        {(["builtin", "global"] as const).map((t, i) => (
+          <button
+            key={t}
+            className={`px-4 py-1.5 text-xs font-medium transition-colors ${
+              i > 0 ? "border-l border-border" : ""
+            } ${
+              tab === t ? "bg-[color-mix(in_oklab,var(--color-accent)_15%,transparent)] text-accent" : "text-text-secondary hover:bg-surface-hover"
+            }`}
+            onClick={() => setTab(t)}
+          >
+            {t === "builtin" ? "内置" : "通用"}
+          </button>
+        ))}
+      </div>
 
-      {/* Global skills */}
-      {globalSkills.length > 0 && (
-        <div>
-          <h4 className="text-xs font-medium text-text-secondary mb-2">全局</h4>
-          <div className="space-y-1">
-            {globalSkills.map((s) => (
-              <div key={s.path} className={`p-3 rounded-lg border transition-colors ${s.enabled ? "border-border" : "border-border/50 opacity-60"}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm text-text-primary">{s.name}</span>
-                    <p className="text-xs text-text-secondary mt-0.5 truncate">{s.description}</p>
-                  </div>
-                  <div className="flex items-center gap-2 ml-3 shrink-0">
-                    <button
-                      onClick={() => handleToggle(s.name, !s.enabled)}
-                      className={`relative w-9 h-5 rounded-full transition-colors overflow-hidden ${s.enabled ? "bg-accent" : "bg-surface-hover border border-border"}`}
-                      role="switch"
-                      aria-checked={s.enabled}
-                    >
-                      <span
-                        className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-surface-elevated shadow transition-all ${s.enabled ? "left-[calc(100%-18px)]" : "left-0.5"}`}
-                      />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Skill list */}
+      <div className="bg-surface-alt rounded-lg border border-border overflow-hidden max-h-[220px] overflow-y-auto divide-y divide-border/50">
+        {visibleSkills.length > 0 ? (
+          visibleSkills.map((s) => (
+            <SkillRow key={s.path} s={s} onToggle={() => handleToggle(s.name, !s.enabled)} />
+          ))
+        ) : (
+          <p className="text-text-muted text-xs text-center py-6">
+            {tab === "builtin" ? "暂无内置 Skill" : "暂无通用 Skill"}
+          </p>
+        )}
+      </div>
 
       {/* Project skills */}
       {projectSkills.length > 0 && (
         <div>
           <h4 className="text-xs font-medium text-text-secondary mb-2">项目级</h4>
-          <div className="space-y-1">
+          <div className="bg-surface-alt rounded-lg border border-border overflow-hidden max-h-[220px] overflow-y-auto divide-y divide-border/50">
             {projectSkills.map((s) => (
-              <div key={s.path} className={`p-3 rounded-lg border transition-colors ${s.enabled ? "border-border" : "border-border/50 opacity-60"}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm text-text-primary">{s.name}</span>
-                    <p className="text-xs text-text-secondary mt-0.5 truncate">{s.description}</p>
-                  </div>
-                  <div className="flex items-center gap-2 ml-3 shrink-0">
-                    <button
-                      onClick={() => handleToggle(s.name, !s.enabled)}
-                      className={`relative w-9 h-5 rounded-full transition-colors overflow-hidden ${s.enabled ? "bg-accent" : "bg-surface-hover border border-border"}`}
-                      role="switch"
-                      aria-checked={s.enabled}
-                    >
-                      <span
-                        className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-surface-elevated shadow transition-all ${s.enabled ? "left-[calc(100%-18px)]" : "left-0.5"}`}
-                      />
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <SkillRow key={s.path} s={s} onToggle={() => handleToggle(s.name, !s.enabled)} />
             ))}
           </div>
         </div>
@@ -278,7 +291,7 @@ function SkillsTab(): JSX.Element {
 
       {skills.length === 0 && (
         <p className="text-text-secondary text-xs text-center py-8">
-          暂无 Skill。点击「导入 Skill」选择一个 skill 文件夹，或手动将 skill 放入 ~/.claude/skills/ 目录。
+          暂无 Skill。将 skill 放入 ~/.claude/skills/ 目录即可自动识别。
         </p>
       )}
     </div>
@@ -367,6 +380,51 @@ function BuiltinToolsSection(): JSX.Element {
 }
 
 // ── MCP Tab ───────────────────────────────────────────────────────────────────
+
+function McpRow({ s, onToggle, requiredKeys, apiKeys, typeLabel }: {
+  s: { name: string; type: string; command?: string; args?: string[]; url?: string; enabled: boolean };
+  onToggle: () => void;
+  requiredKeys: Record<string, string>;
+  apiKeys: Record<string, string>;
+  typeLabel: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div
+      className={`px-3 py-2 transition-colors cursor-default ${s.enabled ? "hover:bg-surface-hover" : "opacity-60"}`}
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <span className="text-xs text-text-primary truncate">{s.name}</span>
+          <span className="text-[9px] px-1 py-0.5 rounded bg-surface text-text-muted shrink-0">{typeLabel}</span>
+          {Object.entries(requiredKeys).map(([k, v]) => (
+            <span key={k} className={`text-[9px] px-1 py-0.5 rounded shrink-0 ${v || apiKeys[k] ? "bg-accent/10 text-accent" : "bg-warning/10 text-warning"}`}>
+              {k}
+            </span>
+          ))}
+        </div>
+        <button
+          onClick={onToggle}
+          className={`relative w-8 h-4 rounded-full transition-colors overflow-hidden shrink-0 ml-2 ${s.enabled ? "bg-accent" : "bg-surface-hover border border-border"}`}
+          role="switch"
+          aria-checked={s.enabled}
+        >
+          <span
+            className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-surface-elevated shadow transition-all ${s.enabled ? "left-[calc(100%-14px)]" : "left-0.5"}`}
+          />
+        </button>
+      </div>
+      {expanded && (
+        <p className="text-[10px] text-text-secondary mt-1 truncate">
+          {s.type === "http" ? s.url : [s.command, ...(s.args || [])].join(" ")}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function McpTab(): JSX.Element {
   const [servers, setServers] = useState<{ name: string; type: string; command?: string; args?: string[]; url?: string; enabled: boolean }[]>([]);
@@ -463,41 +521,10 @@ function McpTab(): JSX.Element {
             未检测到 MCP 服务器。在终端运行 `claude mcp add &lt;name&gt; &lt;command&gt;` 添加。
           </p>
         ) : (
-          <div className="space-y-1">
+          <div className="bg-surface-alt rounded-lg border border-border overflow-hidden max-h-[220px] overflow-y-auto divide-y divide-border/50">
             {servers.map((s) => (
-              <div key={s.name} className={`p-3 rounded-lg border transition-colors ${s.enabled ? "border-border" : "border-border/50 opacity-60"}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-text-primary">{s.name}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-alt text-text-secondary">{typeLabel(s.type)}</span>
-                      {Object.entries(requiredKeys[s.name] || {}).map(([k, v]) => (
-                        <span key={k} className={`text-[10px] px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${v || apiKeys[k] ? "bg-accent/10 text-accent" : "bg-warning/10 text-warning"}`}>
-                          {v || apiKeys[k] ? (
-                            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-2.5 h-2.5"><circle cx="4.5" cy="5" r="2.5"/><path d="M6.5 7l3 3M5.5 3v2"/></svg>
-                          ) : (
-                            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-2.5 h-2.5"><path d="M6 2v4M6 8.5h0"/><circle cx="6" cy="6" r="4.5"/></svg>
-                          )}
-                          {k}
-                        </span>
-                      ))}
-                    </div>
-                    <p className="text-xs text-text-secondary mt-0.5 truncate">
-                      {s.type === "http" ? s.url : [s.command, ...(s.args || [])].join(" ")}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleToggle(s.name, !s.enabled)}
-                    className={`relative w-9 h-5 rounded-full transition-colors overflow-hidden shrink-0 ml-3 ${s.enabled ? "bg-accent" : "bg-surface-hover border border-border"}`}
-                    role="switch"
-                    aria-checked={s.enabled}
-                  >
-                    <span
-                      className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-surface-elevated shadow transition-all ${s.enabled ? "left-[calc(100%-18px)]" : "left-0.5"}`}
-                    />
-                  </button>
-                </div>
-              </div>
+              <McpRow key={s.name} s={s} onToggle={() => handleToggle(s.name, !s.enabled)}
+                requiredKeys={requiredKeys[s.name] || {}} apiKeys={apiKeys} typeLabel={typeLabel(s.type)} />
             ))}
           </div>
         )}
@@ -661,15 +688,6 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
         <div className="px-6 py-4 flex-1 overflow-y-auto">
           {activeTab === "general" ? (
             <div className="space-y-5">
-              {/* 外观 */}
-              <section>
-                <h3 className="text-sm font-medium text-text-secondary mb-2">外观</h3>
-                <div className="bg-surface-alt rounded-lg border border-border px-4 py-3">
-                  <p className="text-sm text-text-primary">主题</p>
-                  <p className="text-xs text-text-secondary mt-0.5">亮色 Mint（仅亮色）</p>
-                </div>
-              </section>
-
               {/* 路径 */}
               <section>
                 <h3 className="text-sm font-medium text-text-secondary mb-2">默认项目路径</h3>

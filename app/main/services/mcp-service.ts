@@ -153,11 +153,12 @@ export function getMcpRequiredKeys(): Record<string, Record<string, string>> {
 
 export function toggleMcpServer(name: string, enabled: boolean): void {
   const dir = path.dirname(EM_SETTINGS);
-  if (!existsSync(dir)) return;
-  const data: Record<string, unknown> = {};
-  if (existsSync(EM_SETTINGS)) {
-    Object.assign(data, JSON.parse(readFileSync(EM_SETTINGS, "utf-8")));
-  }
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
+  const data: Record<string, unknown> = existsSync(EM_SETTINGS)
+    ? JSON.parse(readFileSync(EM_SETTINGS, "utf-8"))
+    : {};
+
   let list: string[] = (data.hiddenMcpServers as string[]) || [];
   if (enabled) {
     list = list.filter((n) => n !== name);
@@ -165,7 +166,6 @@ export function toggleMcpServer(name: string, enabled: boolean): void {
     if (!list.includes(name)) list.push(name);
   }
   data.hiddenMcpServers = list;
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   writeFileSync(EM_SETTINGS, JSON.stringify(data, null, 2));
 }
 
@@ -186,9 +186,7 @@ const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
 
 /** Write default MCP server configs on first launch. Merges into existing
  *  config — never overwrites servers already configured.
- *
- *  Writes to ~/.easymint/.claude.json so EM's config stays independent
- *  from Claude Code. buildMcpServersOption merges from both sources. */
+ *  Writes to ~/.claude/.claude.json (shared with Claude Code). */
 export function seedDefaultMcp(): void {
   const configPath = claudeCodeMcpPath();
   const configDir = path.dirname(configPath);

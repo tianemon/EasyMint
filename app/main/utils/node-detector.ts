@@ -6,12 +6,19 @@ export interface DetectResult {
   version?: string;
 }
 
-const NODE_PATHS = [
-  "node",
-  "/usr/local/bin/node",
-  "/opt/homebrew/bin/node",
-  "/usr/bin/node",
-];
+const NODE_PATHS = process.platform === "win32"
+  ? [
+      "node",
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Program Files (x86)\\nodejs\\node.exe",
+      `${process.env.APPDATA}\\npm\\node.exe`,
+    ]
+  : [
+      "node",
+      "/usr/local/bin/node",
+      "/opt/homebrew/bin/node",
+      "/usr/bin/node",
+    ];
 
 export function detectNode(): DetectResult {
   for (const p of NODE_PATHS) {
