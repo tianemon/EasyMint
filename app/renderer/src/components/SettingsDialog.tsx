@@ -66,6 +66,49 @@ function EnvCheckSection(): JSX.Element {
   );
 }
 
+// ── Update Cache Section ─────────────────────────────────────────────────────
+
+function UpdateCacheSection(): JSX.Element {
+  const [cleaning, setCleaning] = useState(false);
+  const [result, setResult] = useState<{ cleaned: string[]; errors: string[] } | null>(null);
+
+  const handleClear = async () => {
+    setCleaning(true);
+    setResult(null);
+    try {
+      const r = await window.electronAPI?.app?.clearUpdateCache?.();
+      if (r) setResult(r);
+    } catch {
+      setResult({ cleaned: [], errors: ["调用失败"] });
+    } finally {
+      setCleaning(false);
+    }
+  };
+
+  return (
+    <section>
+      <h3 className="text-sm font-medium text-text-secondary mb-2">更新缓存</h3>
+      <div className="bg-surface-alt rounded-lg border border-border px-4 py-3 space-y-2">
+        <p className="text-xs text-text-secondary">已下载但未安装的更新包会占用磁盘空间。</p>
+        <div className="flex items-center gap-2">
+          <button
+            className="px-3 py-1.5 rounded-lg border border-border text-text-secondary text-xs hover:border-accent/50 transition-colors"
+            onClick={handleClear}
+            disabled={cleaning}
+          >
+            {cleaning ? "清理中..." : "清理更新缓存"}
+          </button>
+          {result && (
+            <span className="text-xs text-text-muted">
+              {result.cleaned.length > 0 ? `已清理 ${result.cleaned.length} 个目录` : result.errors.length > 0 ? "清理失败" : "无需清理"}
+            </span>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ── Upload Cache Section ─────────────────────────────────────────────────────
 
 function formatBytes(bytes: number): string {
@@ -727,6 +770,9 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                   <p className="text-[11px] text-text-secondary mt-1">达到阈值时优先原地压缩（同会话无感），压缩 3 次后自动开启新会话。建议 65%。</p>
                 </div>
               </section>
+
+              {/* 更新缓存 */}
+              <UpdateCacheSection />
 
               {/* Upload cache */}
               <UploadCacheSection />

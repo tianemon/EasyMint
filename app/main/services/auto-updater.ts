@@ -1,5 +1,8 @@
 import { app, BrowserWindow } from "electron";
 import { autoUpdater } from "electron-updater";
+import fs from "fs";
+import path from "path";
+import os from "os";
 
 /**
  * 自动更新服务 — 对接 GitHub Releases
@@ -127,7 +130,26 @@ export function getDownloadedVersion(): string | null {
   return downloadedVersion;
 }
 
-/** 预留：更新完整性校验（后续版本接入） */
-export function _verifyUpdateChecksum(_path: string): boolean {
-  return false;
+/** 清理已下载的更新缓存（ShipIt + electron-updater 缓存目录） */
+export function clearUpdateCache(): { cleaned: string[]; errors: string[] } {
+  const cleaned: string[] = [];
+  const errors: string[] = [];
+
+  const dirs = [
+    path.join(os.homedir(), "Library", "Caches", "com.easymint.app.ShipIt"),
+    path.join(app.getPath("userData"), "easymint-updater"),
+  ];
+
+  for (const dir of dirs) {
+    try {
+      if (fs.existsSync(dir)) {
+        fs.rmSync(dir, { recursive: true, force: true });
+        cleaned.push(dir);
+      }
+    } catch (e) {
+      errors.push(`${dir}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  return { cleaned, errors };
 }

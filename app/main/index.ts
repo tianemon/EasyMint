@@ -8,6 +8,7 @@ import {
   installUpdate,
   hasDownloadedUpdate,
   getDownloadedVersion,
+  clearUpdateCache,
 } from "./services/auto-updater";
 
 process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint").replace(/\\/g, "/");
@@ -112,6 +113,7 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
       hasUpdate: hasDownloadedUpdate(),
       version: getDownloadedVersion(),
     }));
+    ipcMain.handle("app:clear-update-cache", () => clearUpdateCache());
 
     // NOTE: Orphan SDK session cleanup removed — will be replaced
     // with a proper session detection/management UI in a future update.
