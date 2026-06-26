@@ -122,6 +122,7 @@ interface ElectronAPI {
     stats: (sortBy?: "time" | "size") => Promise<{ totalSize: number; fileCount: number; files: { name: string; size: number; created: number; isImage: boolean }[] }>;
     clean: (filenames: string[]) => Promise<number>;
     cleanAll: () => Promise<number>;
+    openDir: () => Promise<void>;
   },
   evaluator: {
     isEnabled: () => Promise<boolean>;
@@ -202,6 +203,8 @@ interface ElectronAPI {
     installUpdate: () => Promise<boolean>;
     hasUpdate: () => Promise<{ hasUpdate: boolean; version: string | null }>;
     clearUpdateCache: () => Promise<{ cleaned: string[]; errors: string[] }>;
+    updateCacheSize: () => Promise<number>;
+    openUpdateCache: () => Promise<void>;
     onUpdateStatus: (callback: (data: { status: string; version?: string; percent?: number }) => void) => () => void;
   };
 }

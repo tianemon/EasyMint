@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, dialog, app } from "electron";
+import { BrowserWindow, ipcMain, dialog, app, shell } from "electron";
 import p from "path";
 import fs from "fs";
 import os from "os";
@@ -186,6 +186,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("upload:stats", (_e, { sortBy }: { sortBy?: "time" | "size" }) => getUploadStats(sortBy));
   ipcMain.handle("upload:clean", (_e, { filenames }: { filenames: string[] }) => cleanFiles(filenames));
   ipcMain.handle("upload:cleanAll", () => cleanAll());
+  ipcMain.handle("upload:openDir", () => {
+    const dir = p.join(os.homedir(), ".easymint", "uploads");
+    shell.openPath(dir);
+  });
 
   // conversation:* — backed by SDK session APIs
   ipcMain.handle("conv:list", (_e, { projectPath }) => listSessions(projectPath));

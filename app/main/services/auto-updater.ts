@@ -180,3 +180,44 @@ export function clearUpdateCache(): { cleaned: string[]; errors: string[] } {
 
   return { cleaned, errors };
 }
+
+/** 扫描更新缓存大小（字节），不清理 */
+export function getUpdateCacheSize(): number {
+  let total = 0;
+
+  const dirs = [path.join(os.tmpdir(), "em-update-extract")];
+  if (process.platform === "darwin") {
+    dirs.push(path.join(os.homedir(), "Library", "Caches", "com.easymint.app.ShipIt"));
+  }
+
+  for (const dir of dirs) {
+    try {
+      if (!fs.existsSync(dir)) continue;
+      for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (f.isFile()) {
+          try { total += fs.statSync(path.join(dir, f.name)).size; } catch { /* skip */ }
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  // 统计临时目录里 .sh 脚本残留
+  try {
+    for (const f of fs.readdirSync(os.tmpdir())) {
+      if (f.startsWith("easymint-") && f.endsWith(".sh")) {
+        try { total += fs.statSync(path.join(os.tmpdir(), f)).size; } catch { /* skip */ }
+      }
+    }
+  } catch { /* ignore */ }
+
+  return total;
+}
+
+/** 打开更新缓存目录（Finder） */
+export function openUpdateCacheDir(): void {
+  const dir = process.platform === "darwin"
+    ? path.join(os.homedir(), "Library", "Caches", "com.easymint.app.ShipIt")
+    : os.tmpdir();
+  const { shell } = require("electron");
+  shell.openPath(dir);
+}

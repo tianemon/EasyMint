@@ -129,6 +129,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     stats: (sortBy?: "time" | "size") => ipcRenderer.invoke("upload:stats", { sortBy }),
     clean: (filenames: string[]) => ipcRenderer.invoke("upload:clean", { filenames }),
     cleanAll: () => ipcRenderer.invoke("upload:cleanAll"),
+    openDir: () => ipcRenderer.invoke("upload:openDir"),
   },
   evaluator: {
     isEnabled: () => ipcRenderer.invoke("evaluator:isEnabled"),
@@ -140,6 +141,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     installUpdate: () => ipcRenderer.invoke("app:install-update") as Promise<boolean>,
     hasUpdate: () => ipcRenderer.invoke("app:has-update") as Promise<{ hasUpdate: boolean; version: string | null }>,
     clearUpdateCache: () => ipcRenderer.invoke("app:clear-update-cache") as Promise<{ cleaned: string[]; errors: string[] }>,
+    updateCacheSize: () => ipcRenderer.invoke("app:update-cache-size") as Promise<number>,
+    openUpdateCache: () => ipcRenderer.invoke("app:open-update-cache"),
     onUpdateStatus: (callback: (data: { status: string; version?: string; percent?: number }) => void) => {
       const handler = (_e: Electron.IpcRendererEvent, data: { status: string; version?: string; percent?: number }) =>
         callback(data);

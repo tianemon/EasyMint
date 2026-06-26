@@ -69,136 +69,69 @@ function EnvCheckSection(): JSX.Element {
   );
 }
 
-// ── Update Cache Section ─────────────────────────────────────────────────────
+// ── Cache Management Section ──────────────────────────────────────────────────
 
-function UpdateCacheSection(): JSX.Element {
-  const [cleaning, setCleaning] = useState(false);
-  const [result, setResult] = useState<{ cleaned: string[]; errors: string[] } | null>(null);
+function formatMB(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
-  const handleClear = async () => {
-    setCleaning(true);
-    setResult(null);
-    try {
-      const r = await window.electronAPI?.app?.clearUpdateCache?.();
-      if (r) setResult(r);
-    } catch {
-      setResult({ cleaned: [], errors: ["调用失败"] });
-    } finally {
-      setCleaning(false);
-    }
-  };
+function CacheManagementSection(): JSX.Element {
+  const [updateSize, setUpdateSize] = useState<number | null>(null);
+  const [uploadSize, setUploadSize] = useState<number | null>(null);
+
+  useEffect(() => {
+    window.electronAPI?.app?.updateCacheSize?.().then(setUpdateSize).catch(() => {});
+    window.electronAPI?.upload?.stats?.().then((s) => setUploadSize(s.totalSize)).catch(() => {});
+  }, []);
 
   return (
     <section>
-      <h3 className="text-sm font-medium text-text-secondary mb-2">更新缓存</h3>
-      <div className="bg-surface-alt rounded-lg border border-border px-4 py-3 space-y-2">
-        <p className="text-xs text-text-secondary">清理下载的更新包和 ShipIt 残留缓存。</p>
-        <div className="flex items-center gap-2">
-          <button
-            className="px-3 py-1.5 rounded-lg border border-border text-text-secondary text-xs hover:border-accent/50 transition-colors"
-            onClick={handleClear}
-            disabled={cleaning}
-          >
-            {cleaning ? "清理中..." : "清理更新缓存"}
-          </button>
-          {result && (
-            <span className="text-xs text-text-muted">
-              {result.cleaned.length > 0
-                ? `已清理 ${result.cleaned.length} 项`
-                : result.errors.length > 0
-                  ? `清理失败: ${result.errors[0]}`
-                  : "无需清理"}
-            </span>
+      <h3 className="text-sm font-medium text-text-secondary mb-2">缓存管理</h3>
+      <div className="bg-surface-alt rounded-lg border border-border divide-y divide-border">
+
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div>
+            <h4 className="text-xs font-medium text-text-primary">安装包缓存</h4>
+            {updateSize === null ? (
+              <p className="text-[11px] text-text-muted">扫描中...</p>
+            ) : updateSize > 0 ? (
+              <p className="text-[11px] text-text-secondary">{formatMB(updateSize)}</p>
+            ) : (
+              <p className="text-[11px] text-text-muted">暂无缓存</p>
+            )}
+          </div>
+          {updateSize !== null && updateSize > 0 && (
+            <button
+              className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:border-accent/50 transition-colors"
+              onClick={() => window.electronAPI?.app?.openUpdateCache?.()}
+            >
+              打开文件夹
+            </button>
           )}
         </div>
-      </div>
-    </section>
-  );
-}
 
-// ── Upload Cache Section ─────────────────────────────────────────────────────
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-function UploadCacheSection(): JSX.Element | null {
-  const [stats, setStats] = useState<{ totalSize: number; fileCount: number; files: { name: string; size: number; created: number; isImage: boolean }[] } | null>(null);
-  const [sortBy, setSortBy] = useState<"time" | "size">("time");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [cleaning, setCleaning] = useState(false);
-
-  const load = useCallback(async () => {
-    try { setStats(await window.electronAPI.upload.stats(sortBy)); } catch { /* */ }
-  }, [sortBy]);
-  useEffect(() => { load(); }, [load]);
-
-  const handleCleanSelected = async () => {
-    if (selected.size === 0) return;
-    setCleaning(true);
-    await window.electronAPI.upload.clean([...selected]);
-    setSelected(new Set());
-    await load();
-    setCleaning(false);
-  };
-
-  const handleCleanAll = async () => {
-    if (!confirm(`确定删除全部 ${stats?.fileCount || 0} 个上传文件（${formatBytes(stats?.totalSize || 0)}）？`)) return;
-    setCleaning(true);
-    await window.electronAPI.upload.cleanAll();
-    setSelected(new Set());
-    await load();
-    setCleaning(false);
-  };
-
-  const toggleSelect = (name: string) => {
-    const next = new Set(selected);
-    if (next.has(name)) next.delete(name); else next.add(name);
-    setSelected(next);
-  };
-
-  const selectAll = () => {
-    if (stats && selected.size === stats.files.length) setSelected(new Set());
-    else if (stats) setSelected(new Set(stats.files.map((f) => f.name)));
-  };
-
-  if (!stats || stats.fileCount === 0) return null;
-
-  return (
-    <section>
-      <h3 className="text-sm font-medium text-text-secondary mb-2">上传缓存</h3>
-      <div className="bg-surface-alt rounded-lg overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
-          <span className="text-xs text-text-secondary">总 {formatBytes(stats.totalSize)} · {stats.fileCount} 个文件</span>
-          <div className="flex gap-2">
-            <button className="text-[11px] text-text-secondary hover:text-accent transition-colors" onClick={() => setSortBy(sortBy === "time" ? "size" : "time")}>
-              {sortBy === "time" ? "按时间 ↓" : "按大小 ↓"}
-            </button>
-            <button className="text-[11px] text-text-secondary hover:text-accent transition-colors" onClick={selectAll}>
-              {stats && selected.size === stats.files.length ? "取消全选" : "全选"}
-            </button>
-            <button className="text-[11px] text-danger hover:text-danger/80 transition-colors disabled:opacity-40" disabled={selected.size === 0} onClick={handleCleanSelected}>
-              清理选中
-            </button>
-            <button className="text-[11px] text-danger hover:text-danger/80 transition-colors" onClick={handleCleanAll}>清理全部</button>
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div>
+            <h4 className="text-xs font-medium text-text-primary">上传缓存</h4>
+            {uploadSize === null ? (
+              <p className="text-[11px] text-text-muted">扫描中...</p>
+            ) : uploadSize > 0 ? (
+              <p className="text-[11px] text-text-secondary">{formatMB(uploadSize)}</p>
+            ) : (
+              <p className="text-[11px] text-text-muted">暂无缓存</p>
+            )}
           </div>
+          {uploadSize !== null && uploadSize > 0 && (
+            <button
+              className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:border-accent/50 transition-colors"
+              onClick={() => window.electronAPI?.upload?.openDir?.()}
+            >
+              打开文件夹
+            </button>
+          )}
         </div>
-        <div className="max-h-[160px] overflow-y-auto">
-          {stats.files.map((f) => (
-            <div key={f.name} className={`flex items-center gap-2 px-4 py-1.5 border-b border-border/50 last:border-0 cursor-pointer hover:bg-surface-hover transition-colors text-xs ${selected.has(f.name) ? "bg-accent/5" : ""}`}
-              onClick={() => toggleSelect(f.name)}>
-              <input type="checkbox" checked={selected.has(f.name)} readOnly className="w-3 h-3 rounded accent-accent shrink-0" />
-              <span className="flex-1 text-text-primary truncate">{f.name}</span>
-              <span className="text-text-secondary shrink-0 w-16 text-right">{formatBytes(f.size)}</span>
-              <span className="text-text-secondary shrink-0 w-20 text-right">{new Date(f.created).toLocaleDateString("zh-CN")}</span>
-            </div>
-          ))}
-        </div>
+
       </div>
-      {cleaning && <p className="text-text-secondary text-[11px] mt-1">清理中...</p>}
     </section>
   );
 }
@@ -779,10 +712,7 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
               </section>
 
               {/* 更新缓存 */}
-              <UpdateCacheSection />
-
-              {/* Upload cache */}
-              <UploadCacheSection />
+              <CacheManagementSection />
 
               {/* 环境检测 */}
               <EnvCheckSection />
