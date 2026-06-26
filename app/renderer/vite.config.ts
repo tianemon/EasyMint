@@ -25,6 +25,9 @@ export default defineConfig({
       "@shared": path.resolve(__dirname, "..", "shared"),
     },
   },
+  build: {
+    chunkSizeWarningLimit: 10000, // Electron 本地加载，无需像网页那样限制 chunk 大小
+  },
   server: {
     port: 5173,
     strictPort: true,
