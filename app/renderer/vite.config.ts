@@ -26,8 +26,9 @@ export default defineConfig({
     },
   },
   build: {
-    chunkSizeWarningLimit: 10000, // Electron 本地加载，无需像网页那样限制 chunk 大小
+    chunkSizeWarningLimit: 10000,
   },
+  logLevel: "warn",
   server: {
     port: 5173,
     strictPort: true,
