@@ -126,3 +126,8 @@ export function hasDownloadedUpdate(): boolean {
 export function getDownloadedVersion(): string | null {
   return downloadedVersion;
 }
+
+/** 预留：更新完整性校验（后续版本接入） */
+export function _verifyUpdateChecksum(_path: string): boolean {
+  return false;
+}
