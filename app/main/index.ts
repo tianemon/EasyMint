@@ -2,6 +2,13 @@ import os from "os";
 import fs from "fs";
 import { app, BrowserWindow, shell, ipcMain, Menu } from "electron";
 import path from "path";
+import {
+  startAutoUpdater,
+  checkForUpdatesManually,
+  installUpdate,
+  hasDownloadedUpdate,
+  getDownloadedVersion,
+} from "./services/auto-updater";
 
 process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint").replace(/\\/g, "/");
 // Redirect Electron userData to our directory so all data lives in one place
@@ -89,6 +96,22 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     const { autoClean } = require("./services/upload-cache");
     autoClean();
     registerIpcHandlers({ mainWindow: window, ...sharedServices });
+
+    // 自动更新检测（4 小时一次）+ IPC
+    startAutoUpdater();
+    ipcMain.handle("app:get-version", () => app.getVersion());
+    ipcMain.handle("app:check-update", () => {
+      checkForUpdatesManually();
+      return true;
+    });
+    ipcMain.handle("app:install-update", () => {
+      installUpdate();
+      return true;
+    });
+    ipcMain.handle("app:has-update", () => ({
+      hasUpdate: hasDownloadedUpdate(),
+      version: getDownloadedVersion(),
+    }));
 
     // NOTE: Orphan SDK session cleanup removed — will be replaced
     // with a proper session detection/management UI in a future update.

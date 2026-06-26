@@ -67,7 +67,23 @@ function ThemeToggleButton(): JSX.Element {
 
 export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, onOpenProject, onRenameProject }: LeftToolbarProps): JSX.Element {
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  // 启动时同步已下载的更新状态
+  useEffect(() => {
+    window.electronAPI?.app?.hasUpdate?.().then(({ hasUpdate, version }) => {
+      if (hasUpdate && version) setUpdateVersion(version);
+    }).catch(() => {});
+    // 监听下载完成广播
+    const off = window.electronAPI?.app?.onUpdateStatus?.((data) => {
+      if (data.status === "downloaded" && data.version) setUpdateVersion(data.version);
+      if (data.status === "no-update") setUpdateVersion(null);
+    });
+    return () => { off?.(); };
+  }, []);
 
   useEffect(() => {
     if (!showDropdown) return;
@@ -79,6 +95,17 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, o
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [showDropdown]);
+
+  useEffect(() => {
+    if (!showSettingsMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setShowSettingsMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showSettingsMenu]);
 
   const handleDropdownItem = (action: string) => {
     setShowDropdown(false);
@@ -93,6 +120,21 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, o
       const name = prompt("输入文件夹名：");
       if (name) console.log("新建文件夹:", name);
     }
+  };
+
+  const handleSettingsClick = () => {
+    if (updateVersion) {
+      // 有更新：弹出上拉菜单
+      setShowSettingsMenu(!showSettingsMenu);
+    } else {
+      // 无更新：直接打开设置
+      onSettings?.();
+    }
+  };
+
+  const handleInstallUpdate = () => {
+    setShowSettingsMenu(false);
+    window.electronAPI?.app?.installUpdate?.();
   };
 
   return (
@@ -171,15 +213,39 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, o
       <ThemeToggleButton />
 
       {/* Settings button — pinned to bottom */}
-      <button
-        className="w-8 h-8 rounded-md flex items-center justify-center text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
-        data-tooltip="设置"
-        onClick={() => onSettings?.()}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-[17px] h-[17px]">
-          <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-        </svg>
-      </button>
+      <div ref={settingsRef} className="relative">
+        <button
+          className="w-8 h-8 rounded-md flex items-center justify-center text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+          data-tooltip={updateVersion ? `有新版本 v${updateVersion}` : "设置"}
+          onClick={handleSettingsClick}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-[17px] h-[17px]">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+          {updateVersion && (
+            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-danger border border-surface" />
+          )}
+        </button>
+        {showSettingsMenu && updateVersion && (
+          <div className="absolute left-full bottom-0 ml-1 w-44 bg-surface border border-border rounded-[10px] shadow-lg py-1 z-50 dropdown-menu">
+            <button
+              className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors"
+              onClick={handleInstallUpdate}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2 text-accent"><path d="M8 1v9M4.5 6.5L8 10l3.5-3.5"/><path d="M2.5 13h11"/></svg>
+              重启更新到 v{updateVersion}
+            </button>
+            <div className="border-t border-border my-0.5" />
+            <button
+              className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors"
+              onClick={() => { setShowSettingsMenu(false); onSettings?.(); }}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2"><circle cx="8" cy="8" r="2"/><path d="M12.5 10a1 1 0 00.2 1.1l0 0a1.2 1.2 0 11-1.7 1.7l0 0a1 1 0 00-1.1-.2 1 1 0 00-.6.9V14a1.2 1.2 0 01-2.4 0v-.1a1 1 0 00-.6-.9 1 1 0 00-1.1.2l0 0a1.2 1.2 0 11-1.7-1.7l0 0a1 1 0 00.2-1.1 1 1 0 00-.9-.6H2a1.2 1.2 0 010-2.4h.1a1 1 0 00.9-.6 1 1 0 00-.2-1.1l0 0a1.2 1.2 0 111.7-1.7l0 0a1 1 0 001.1.2H6a1 1 0 00.6-.9V2a1.2 1.2 0 012.4 0v.1a1 1 0 00.6.9 1 1 0 001.1-.2l0 0a1.2 1.2 0 111.7 1.7l0 0a1 1 0 00-.2 1.1V6a1 1 0 00.9.6H14a1.2 1.2 0 010 2.4h-.1a1 1 0 00-.9.6z"/></svg>
+              打开设置
+            </button>
+          </div>
+        )}
+      </div>
     </aside>
   );
 }

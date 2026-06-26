@@ -196,6 +196,13 @@ interface ElectronAPI {
     update: (id: string, input: { name?: string; description?: string; prompt?: string; tools?: string[]; model?: string; agentType?: string }) => Promise<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; agentType: string }>;
     delete: (id: string) => Promise<void>;
   };
+  app: {
+    getVersion: () => Promise<string>;
+    checkUpdate: () => Promise<boolean>;
+    installUpdate: () => Promise<boolean>;
+    hasUpdate: () => Promise<{ hasUpdate: boolean; version: string | null }>;
+    onUpdateStatus: (callback: (data: { status: string; version?: string; percent?: number }) => void) => () => void;
+  };
 }
 
 interface Window {

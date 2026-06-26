@@ -565,14 +565,44 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     loadFromElectron,
   } = useSettingsStore();
   const [activeTab, setActiveTab] = useState<"general" | "agent" | "plugins" | "providers" | "about">("general");
+  const [appVersion, setAppVersion] = useState("");
+  const [updateStatus, setUpdateStatus] = useState<{ status: string; version?: string; percent?: number }>({ status: "idle" });
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     loadFromElectron();
+    // 拉取版本号 + 同步已下载状态
+    window.electronAPI?.app?.getVersion?.().then((v) => setAppVersion(v)).catch(() => {});
+    window.electronAPI?.app?.hasUpdate?.().then(({ hasUpdate, version }) => {
+      if (hasUpdate && version) setUpdateStatus({ status: "downloaded", version });
+    }).catch(() => {});
     const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, loadFromElectron, onClose]);
+
+  // 监听更新状态广播
+  useEffect(() => {
+    if (!open) return;
+    const off = window.electronAPI?.app?.onUpdateStatus?.((data) => {
+      setUpdateStatus(data);
+      if (data.status === "checking") setChecking(true);
+      else if (data.status === "no-update" || data.status === "error" || data.status === "downloaded") {
+        setChecking(false);
+      }
+    });
+    return () => { off?.(); };
+  }, [open]);
+
+  const handleCheckUpdate = () => {
+    setChecking(true);
+    window.electronAPI?.app?.checkUpdate?.().catch(() => setChecking(false));
+  };
+
+  const handleInstallUpdate = () => {
+    window.electronAPI?.app?.installUpdate?.();
+  };
 
   const handleClose = useCallback(() => {
     onClose();
@@ -727,6 +757,51 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                 <h2 className="text-2xl font-bold text-text-primary">EasyMint</h2>
                 <p className="text-sm text-text-secondary mt-1">AI 驱动开发，简单的操作让想法变为现实</p>
               </div>
+
+              {/* 版本号 + 更新检测 */}
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-text-primary font-medium">v{appVersion || "..."}</span>
+                  <button
+                    type="button"
+                    className="w-5 h-5 flex items-center justify-center text-text-secondary hover:text-accent transition-colors"
+                    onClick={handleCheckUpdate}
+                    disabled={checking}
+                    title="检查更新"
+                  >
+                    <svg className={`w-4 h-4 ${checking ? "animate-spin" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                    </svg>
+                  </button>
+                </div>
+
+                {/* 更新状态文案 */}
+                {updateStatus.status === "checking" && (
+                  <span className="text-xs text-text-secondary">正在检查更新...</span>
+                )}
+                {updateStatus.status === "available" && (
+                  <span className="text-xs text-accent">发现新版本 v{updateStatus.version}，准备下载...</span>
+                )}
+                {updateStatus.status === "downloading" && (
+                  <span className="text-xs text-accent">正在下载 v{updateStatus.version}... {updateStatus.percent ?? 0}%</span>
+                )}
+                {updateStatus.status === "downloaded" && (
+                  <button
+                    type="button"
+                    className="px-4 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent-hover transition-colors"
+                    onClick={handleInstallUpdate}
+                  >
+                    重启并更新到 v{updateStatus.version}
+                  </button>
+                )}
+                {updateStatus.status === "no-update" && (
+                  <span className="text-xs text-text-muted">当前已是最新版本</span>
+                )}
+                {updateStatus.status === "error" && (
+                  <span className="text-xs text-text-muted">检查更新失败，请稍后再试</span>
+                )}
+              </div>
+
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-text-secondary">开源项目地址</span>
                 <a
@@ -739,7 +814,6 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                 </a>
               </div>
               <div className="text-xs text-text-muted space-x-4">
-                <span>v0.1.0</span>
                 <span>Electron · React · TypeScript</span>
                 <span>claude-agent-sdk</span>
               </div>

@@ -134,6 +134,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
     isEnabled: () => ipcRenderer.invoke("evaluator:isEnabled"),
     setEnabled: (enabled: boolean) => ipcRenderer.invoke("evaluator:setEnabled", { enabled }),
   },
+  app: {
+    getVersion: () => ipcRenderer.invoke("app:get-version") as Promise<string>,
+    checkUpdate: () => ipcRenderer.invoke("app:check-update") as Promise<boolean>,
+    installUpdate: () => ipcRenderer.invoke("app:install-update") as Promise<boolean>,
+    hasUpdate: () => ipcRenderer.invoke("app:has-update") as Promise<{ hasUpdate: boolean; version: string | null }>,
+    onUpdateStatus: (callback: (data: { status: string; version?: string; percent?: number }) => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, data: { status: string; version?: string; percent?: number }) =>
+        callback(data);
+      ipcRenderer.on("app:update-status", handler);
+      return () => ipcRenderer.removeListener("app:update-status", handler);
+    },
+  },
   agent: {
     runWorker: (projectPath: string, prompt: string) =>
       ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),

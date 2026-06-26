@@ -83,5 +83,7 @@ jobs:
             easymint-*/*.dmg.blockmap
             easymint-*/*.exe
             easymint-*/*.exe.blockmap
+            easymint-*/*.yml
+            easymint-*/*.yaml
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

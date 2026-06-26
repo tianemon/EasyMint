@@ -1,6 +1,6 @@
 {
   "name": "easymint",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "AI 项目工作台 — 通过 Claude Agent SDK 驱动的智能编程助手，让不懂技术的人也能构建软件",
   "private": true,
   "license": "AGPL-3.0",
@@ -23,6 +23,7 @@
     "@anthropic-ai/claude-agent-sdk": "^0.3.186",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@monaco-editor/react": "^4.7.0",
+    "electron-updater": "^6.8.9",
     "marked": "^18.0.5",
     "monaco-editor": "^0.55.1",
     "react": "^19.2.7",
@@ -77,6 +78,9 @@
     "asarUnpack": [
       "node_modules/@anthropic-ai/**"
     ],
+    "publish": {
+      "provider": "github"
+    },
     "extraResources": [
       {
         "from": "template",
