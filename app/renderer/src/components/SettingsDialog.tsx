@@ -85,7 +85,7 @@ function CodegraphRow({ info }: { info: { found: boolean; version?: string } | n
             </button>
           </div>
           <span className="text-[10px] text-text-muted">
-            github.com/colbymchenry/codegraph
+            https://github.com/colbymchenry/codegraph
           </span>
         </div>
       )}
