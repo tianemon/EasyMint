@@ -22,6 +22,8 @@ export interface UpdateStatusPayload {
   status: UpdateStatus;
   version?: string;
   percent?: number;
+  transferred?: number;  // 已下载字节
+  totalSize?: number;    // 安装包总字节
   errorMessage?: string;
   errorPhase?: "check" | "download";
 }
@@ -46,7 +48,8 @@ function setupListeners(): void {
 
   autoUpdater.on("update-available", (info) => {
     detectedVersion = info.version ?? null;
-    broadcast({ status: "available", version: detectedVersion ?? undefined });
+    const totalSize = info.files[0]?.size;
+    broadcast({ status: "available", version: detectedVersion ?? undefined, totalSize });
     // autoDownload: true，electron-updater 自动开始下载
   });
 
@@ -55,6 +58,8 @@ function setupListeners(): void {
       status: "downloading",
       version: detectedVersion ?? undefined,
       percent: Math.round(progress.percent),
+      transferred: progress.transferred,
+      totalSize: progress.total,
     });
   });
 
@@ -181,7 +186,7 @@ export function clearUpdateCache(): { cleaned: string[]; errors: string[] } {
   return { cleaned, errors };
 }
 
-/** 扫描更新缓存大小（字节），不清理 */
+/** 扫描更新缓存大小（字节），不清理。小于 1MB 视为无缓存（元数据残留不算） */
 export function getUpdateCacheSize(): number {
   let total = 0;
 
@@ -210,13 +215,15 @@ export function getUpdateCacheSize(): number {
     }
   } catch { /* ignore */ }
 
-  return total;
+  // 小于 1MB 视为无缓存（electron-updater 元数据残留）
+  return total >= 1024 * 1024 ? total : 0;
 }
 
-/** 打开更新缓存目录（Finder） */
+/** 打开更新缓存目录（Finder），目录不存在则回退到临时目录 */
 export function openUpdateCacheDir(): void {
-  const dir = process.platform === "darwin"
-    ? path.join(os.homedir(), "Library", "Caches", "com.easymint.app.ShipIt")
+  const shipItDir = path.join(os.homedir(), "Library", "Caches", "com.easymint.app.ShipIt");
+  const dir = process.platform === "darwin" && fs.existsSync(shipItDir)
+    ? shipItDir
     : os.tmpdir();
   const { shell } = require("electron");
   shell.openPath(dir);

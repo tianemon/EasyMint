@@ -7,10 +7,10 @@ export interface DetectResult {
 }
 
 const NODE_PATHS = [
-  "node",                                     // 系统 PATH
-  "/usr/local/bin/node",                      // Homebrew / 官方安装器
-  "/opt/homebrew/bin/node",                   // Apple Silicon Homebrew
-  "/usr/bin/node",                            // 系统自带
+  "node",
+  "/usr/local/bin/node",
+  "/opt/homebrew/bin/node",
+  "/usr/bin/node",
 ];
 
 export function detectNode(): DetectResult {

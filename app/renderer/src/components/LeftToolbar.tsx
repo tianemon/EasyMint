@@ -240,7 +240,7 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onShowUpdate, o
           )}
         </button>
         {showSettingsMenu && updatePhase && (
-          <div className="absolute left-full bottom-0 ml-1 w-48 bg-surface border border-border rounded-[10px] shadow-lg py-1 z-50 dropdown-menu">
+          <div className="absolute bottom-full left-0 mb-1 w-48 bg-surface border border-border rounded-[10px] shadow-lg py-1 z-50 dropdown-menu">
             {updatePhase === "downloaded" ? (
               <button
                 className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors"

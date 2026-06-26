@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.3.4 (2026-06-26)
+
+### 环境检测修复
+- npx / CodeGraph 在打包版中检测失败：它们是 node 脚本，执行时 env 需在 PATH 找到 node，但 GUI 应用的 PATH 不含 Homebrew 目录
+- execSync 传入补全的 PATH（/opt/homebrew/bin、/usr/local/bin），三件套检测均正常
+
+### 缓存管理修复
+- 安装包缓存小于 1MB 视为无缓存（electron-updater 元数据残留不算），不再误显示「0.0 MB」
+- 打开文件夹时目录不存在回退到临时目录，不再静默失败
+
+### 自动更新
+- 下载进度显示已下载/总大小（如 90.1 MB / 200.3 MB）
+- 设置按钮更新菜单移至按钮上方左对齐
+
 ## v0.3.3 (2026-06-26)
 
 ### 缓存管理

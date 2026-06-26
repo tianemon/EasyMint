@@ -205,7 +205,7 @@ interface ElectronAPI {
     clearUpdateCache: () => Promise<{ cleaned: string[]; errors: string[] }>;
     updateCacheSize: () => Promise<number>;
     openUpdateCache: () => Promise<void>;
-    onUpdateStatus: (callback: (data: { status: string; version?: string; percent?: number }) => void) => () => void;
+    onUpdateStatus: (callback: (data: { status: string; version?: string; percent?: number; transferred?: number; totalSize?: number }) => void) => () => void;
   };
 }
 

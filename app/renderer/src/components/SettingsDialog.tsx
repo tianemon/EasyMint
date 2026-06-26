@@ -549,7 +549,7 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
   } = useSettingsStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || "general");
   const [appVersion, setAppVersion] = useState("");
-  const [updateStatus, setUpdateStatus] = useState<{ status: string; version?: string; percent?: number }>({ status: "idle" });
+  const [updateStatus, setUpdateStatus] = useState<{ status: string; version?: string; percent?: number; transferred?: number; totalSize?: number }>({ status: "idle" });
   const [checking, setChecking] = useState(false);
 
   // 外部指定 initialTab 时同步（如 LeftToolbar 点「有新版本」→ 跳到关于页）
@@ -763,11 +763,19 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
                   <span className="text-xs text-text-secondary">正在检查更新...</span>
                 )}
                 {updateStatus.status === "available" && (
-                  <span className="text-xs text-accent">发现新版本 v{updateStatus.version}，准备下载...</span>
+                  <span className="text-xs text-accent">
+                    发现新版本 v{updateStatus.version}
+                    {updateStatus.totalSize ? `（${formatMB(updateStatus.totalSize)}）` : ""}，准备下载...
+                  </span>
                 )}
                 {updateStatus.status === "downloading" && (
                   <div className="flex flex-col items-center gap-1 w-48">
-                    <span className="text-xs text-accent">正在下载 v{updateStatus.version}... {updateStatus.percent ?? 0}%</span>
+                    <span className="text-xs text-accent">
+                      正在下载 v{updateStatus.version}... {updateStatus.percent ?? 0}%
+                      {updateStatus.transferred != null && updateStatus.totalSize
+                        ? `（${formatMB(updateStatus.transferred)} / ${formatMB(updateStatus.totalSize)}）`
+                        : updateStatus.totalSize ? ` / ${formatMB(updateStatus.totalSize)}` : ""}
+                    </span>
                     <div className="w-full h-1 rounded-full bg-surface-hover overflow-hidden">
                       <div className="h-full bg-accent transition-all" style={{ width: `${updateStatus.percent ?? 0}%` }} />
                     </div>

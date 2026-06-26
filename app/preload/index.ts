@@ -143,8 +143,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     clearUpdateCache: () => ipcRenderer.invoke("app:clear-update-cache") as Promise<{ cleaned: string[]; errors: string[] }>,
     updateCacheSize: () => ipcRenderer.invoke("app:update-cache-size") as Promise<number>,
     openUpdateCache: () => ipcRenderer.invoke("app:open-update-cache"),
-    onUpdateStatus: (callback: (data: { status: string; version?: string; percent?: number }) => void) => {
-      const handler = (_e: Electron.IpcRendererEvent, data: { status: string; version?: string; percent?: number }) =>
+    onUpdateStatus: (callback: (data: { status: string; version?: string; percent?: number; transferred?: number; totalSize?: number }) => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, data: { status: string; version?: string; percent?: number; transferred?: number; totalSize?: number }) =>
         callback(data);
       ipcRenderer.on("app:update-status", handler);
       return () => ipcRenderer.removeListener("app:update-status", handler);
