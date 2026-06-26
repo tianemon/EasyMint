@@ -643,8 +643,8 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     window.electronAPI?.app?.checkUpdate?.().catch(() => setChecking(false));
   };
 
-  const handleInstallUpdate = () => {
-    window.electronAPI?.app?.installUpdate?.();
+  const handleOpenRelease = () => {
+    window.electronAPI?.app?.openReleasePage?.();
   };
 
   const handleClose = useCallback(() => {
@@ -835,9 +835,9 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                   <button
                     type="button"
                     className="px-4 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent-hover transition-colors"
-                    onClick={handleInstallUpdate}
+                    onClick={handleOpenRelease}
                   >
-                    重启并更新到 v{updateStatus.version}
+                    下载 v{updateStatus.version}
                   </button>
                 )}
                 {updateStatus.status === "no-update" && (
