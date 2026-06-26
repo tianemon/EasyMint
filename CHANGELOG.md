@@ -4,28 +4,30 @@
 
 ### 插件页面
 - Skills 区改为内置/通用 tab 切换（药片风格），项目级独立显示
-- 列表容器包裹，最多 5 行，超出滚动；悬停展开描述
+- 列表容器包裹，最多 5 行，超出滚动；悬停展开描述；ask-runtime-first 归入 EM 内置
 - MCP 区统一容器和悬停展开风格
-- Eask-runtime-first 归入 EM 内置 Skill
 - 隐藏 Agent 模板页面
 
 ### 环境检测
-- 删除 npx 检测行（node 检测通过即 npx 可用）
-- CodeGraph 未安装时展示安装命令 + GitHub 主页，不再跳错误链接
+- 修复打包版 PATH 受限导致 Node.js / CodeGraph 检测失败
+- 追加 Homebrew / Windows 多路径扫描，node 脚本 execSync 补全 PATH
+- 删除 npx 检测行（node 安装即带 npx）
+- CodeGraph 未安装时展示安装命令 + 复制按钮 + GitHub 地址
+- macOS / Windows 跨平台路径适配
 
 ### 缓存管理
 - 更新缓存和上传缓存合并为「缓存管理」区
-- 打开设置自动扫描缓存大小，有缓存时显示大小 +「清除缓存」按钮 +「文件夹」按钮
-- 无缓存时显示「暂无缓存」
-- 缓存小于 1MB 视为无缓存（元数据残留不算），不再误显示「0.0 MB」
-
-### 环境检测
-- 修复打包版 PATH 受限导致 Node.js / npx / CodeGraph 检测失败
-- 追加 Homebrew 路径扫描，npx / CodeGraph 等 node 脚本 execSync 时补全 PATH
+- 自动扫描缓存大小，有缓存时显示大小 +「清除缓存」+「文件夹」按钮
+- 无缓存时显示「暂无缓存」；小于 1MB 视为无缓存（元数据残留不算）
 
 ### 自动更新
 - 下载进度显示实时下载量（已下载 / 总大小）
 - 设置按钮更新菜单移至按钮上方
+
+### 修复
+- NSIS 卸载脚本不再删除用户数据目录（修复 Windows 自动升级丢失 .easymint 的问题）
+- MCP toggle 目录不存在时静默失败的死代码修复
+- electron-updater 外部化，main.cjs 体积缩小 40%
 
 ## v0.3.2 (2026-06-26)
 

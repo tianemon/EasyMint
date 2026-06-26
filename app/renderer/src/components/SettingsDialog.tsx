@@ -53,9 +53,17 @@ function EnvRow({ label, info, installUrl }: {
 
 function CodegraphRow({ info }: { info: { found: boolean; version?: string } | null }) {
   const cmd = "curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh";
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(cmd);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
+    <div className="flex items-start justify-between">
+      <div className="flex items-center gap-2 mt-1">
         <span className="text-sm text-text-primary">CodeGraph</span>
         {info === null ? (
           <span className="text-xs text-text-muted">检测中...</span>
@@ -66,16 +74,19 @@ function CodegraphRow({ info }: { info: { found: boolean; version?: string } | n
         )}
       </div>
       {info && !info.found && (
-        <div className="flex flex-col items-end gap-1">
-          <code className="text-[10px] text-text-secondary bg-surface px-2 py-0.5 rounded select-all">{cmd}</code>
-          <a
-            href="https://github.com/colbymchenry/codegraph"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[10px] text-accent hover:underline"
-          >
-            GitHub 主页 →
-          </a>
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="flex items-center gap-1">
+            <code className="text-[10px] text-text-secondary bg-surface px-2 py-0.5 rounded select-all">{cmd}</code>
+            <button
+              className="shrink-0 px-1.5 py-0.5 rounded text-[10px] text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors"
+              onClick={handleCopy}
+            >
+              {copied ? "已复制" : "复制"}
+            </button>
+          </div>
+          <span className="text-[10px] text-text-muted">
+            github.com/colbymchenry/codegraph
+          </span>
         </div>
       )}
     </div>
