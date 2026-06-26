@@ -1,9 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
-import { PromptSettings } from "./settings/PromptSettings";
 import { ProviderSettings } from "./settings/ProviderSettings";
 
-export type SettingsTab = "general" | "agent" | "plugins" | "providers" | "about";
+export type SettingsTab = "general" | "plugins" | "providers" | "about";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -533,53 +532,6 @@ function McpTab(): JSX.Element {
   );
 }
 
-// ── Agent Templates Tab ──────────────────────────────────────────────────────
-
-function AgentsTab(): JSX.Element {
-  const [templates, setTemplates] = useState<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; agentType: string }[]>([]);
-  const [loadError, setLoadError] = useState("");
-
-  const load = () => {
-    window.electronAPI.agentTemplates.list().then(setTemplates).catch((e: unknown) => setLoadError(String(e)));
-  };
-  useEffect(load, []);
-
-  const AGENT_TYPE_LABELS: Record<string, string> = {
-    mint: "Mint（PM / 主对话）",
-    builder: "Builder（开发者）",
-    evaluator: "Evaluator（验收者）",
-  };
-
-  return (
-    <div className="px-6 py-4 overflow-y-auto space-y-4">
-      {loadError && <p className="text-danger text-xs">{loadError}</p>}
-
-      <p className="text-[11px] text-text-secondary">
-        Agent 模板由系统管理，启动时自动同步。如需修改 Builder/Evaluator 的行为，请编辑项目 CLAUDE.md。
-      </p>
-
-      {templates.length === 0 ? (
-        <p className="text-text-secondary text-xs text-center py-4">暂无 Agent 模板</p>
-      ) : (
-        <div className="space-y-2">
-          {templates.map((t) => (
-            <div key={t.id} className="p-3 rounded-lg border border-border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-medium text-text-primary">{t.name}</span>
-                  <span className="text-xs text-text-secondary ml-2">{AGENT_TYPE_LABELS[t.agentType] || t.agentType}</span>
-                </div>
-              </div>
-              <p className="text-xs text-text-secondary mt-0.5 truncate">{t.description}</p>
-              <p className="text-[10px] text-text-muted mt-1 truncate">{t.tools.join(", ")}</p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProps): JSX.Element | null {
   const {
     defaultProjectDir,
@@ -663,13 +615,6 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
               插件
             </button>
             <button
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "agent" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
-              onClick={() => setActiveTab("agent")}
-            >
-              Agent
-            </button>
-
-            <button
               className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "about" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
               onClick={() => setActiveTab("about")}
             >
@@ -752,11 +697,6 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
 
               {/* 环境检测 */}
               <EnvCheckSection />
-            </div>
-          ) : activeTab === "agent" ? (
-            <div className="space-y-5">
-              <PromptSettings />
-              <AgentsTab />
             </div>
           ) : activeTab === "plugins" ? (
             <div className="space-y-5">
