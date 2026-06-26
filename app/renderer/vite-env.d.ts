@@ -199,10 +199,10 @@ interface ElectronAPI {
   app: {
     getVersion: () => Promise<string>;
     checkUpdate: () => Promise<boolean>;
-    openReleasePage: () => Promise<boolean>;
+    installUpdate: () => Promise<boolean>;
     hasUpdate: () => Promise<{ hasUpdate: boolean; version: string | null }>;
     clearUpdateCache: () => Promise<{ cleaned: string[]; errors: string[] }>;
-    onUpdateStatus: (callback: (data: { status: string; version?: string; releasePage?: string }) => void) => () => void;
+    onUpdateStatus: (callback: (data: { status: string; version?: string; percent?: number }) => void) => () => void;
   };
 }
 

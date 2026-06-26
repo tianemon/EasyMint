@@ -137,11 +137,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   app: {
     getVersion: () => ipcRenderer.invoke("app:get-version") as Promise<string>,
     checkUpdate: () => ipcRenderer.invoke("app:check-update") as Promise<boolean>,
-    openReleasePage: () => ipcRenderer.invoke("app:open-release-page") as Promise<boolean>,
+    installUpdate: () => ipcRenderer.invoke("app:install-update") as Promise<boolean>,
     hasUpdate: () => ipcRenderer.invoke("app:has-update") as Promise<{ hasUpdate: boolean; version: string | null }>,
     clearUpdateCache: () => ipcRenderer.invoke("app:clear-update-cache") as Promise<{ cleaned: string[]; errors: string[] }>,
-    onUpdateStatus: (callback: (data: { status: string; version?: string; releasePage?: string }) => void) => {
-      const handler = (_e: Electron.IpcRendererEvent, data: { status: string; version?: string; releasePage?: string }) =>
+    onUpdateStatus: (callback: (data: { status: string; version?: string; percent?: number }) => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, data: { status: string; version?: string; percent?: number }) =>
         callback(data);
       ipcRenderer.on("app:update-status", handler);
       return () => ipcRenderer.removeListener("app:update-status", handler);

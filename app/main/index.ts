@@ -5,7 +5,7 @@ import path from "path";
 import {
   startAutoUpdater,
   checkForUpdatesManually,
-  openReleasePage,
+  installUpdate,
   hasDownloadedUpdate,
   getDownloadedVersion,
   clearUpdateCache,
@@ -105,8 +105,8 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
       checkForUpdatesManually();
       return true;
     });
-    ipcMain.handle("app:open-release-page", () => {
-      openReleasePage();
+    ipcMain.handle("app:install-update", () => {
+      installUpdate();
       return true;
     });
     ipcMain.handle("app:has-update", () => ({

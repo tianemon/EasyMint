@@ -132,9 +132,9 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, o
     }
   };
 
-  const handleOpenRelease = () => {
+  const handleInstallUpdate = () => {
     setShowSettingsMenu(false);
-    window.electronAPI?.app?.openReleasePage?.();
+    window.electronAPI?.app?.installUpdate?.();
   };
 
   return (
@@ -230,10 +230,10 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, o
           <div className="absolute left-full bottom-0 ml-1 w-44 bg-surface border border-border rounded-[10px] shadow-lg py-1 z-50 dropdown-menu">
             <button
               className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors"
-              onClick={handleOpenRelease}
+              onClick={handleInstallUpdate}
             >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2 text-accent"><path d="M4 4h8v8M10 10l4-4V2h-4l-4 4"/></svg>
-              下载 v{updateVersion}
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2 text-accent"><path d="M8 1v9M4.5 6.5L8 10l3.5-3.5"/><path d="M2.5 13h11"/></svg>
+              重启更新到 v{updateVersion}
             </button>
             <div className="border-t border-border my-0.5" />
             <button
