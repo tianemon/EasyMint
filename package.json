@@ -1,6 +1,6 @@
 {
   "name": "easymint",
-  "version": "0.3.4",
+  "version": "0.3.3",
   "description": "AI 项目工作台 — 通过 Claude Agent SDK 驱动的智能编程助手，让不懂技术的人也能构建软件",
   "private": true,
   "license": "AGPL-3.0",
