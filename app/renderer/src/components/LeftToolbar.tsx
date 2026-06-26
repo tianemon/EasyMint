@@ -29,6 +29,7 @@ interface LeftToolbarProps {
   activePanel: ActivePanel;
   onSelect: (panel: ActivePanel) => void;
   onSettings?: () => void;
+  onShowUpdate?: () => void;  // 点「有新版本」→ 跳到关于页
   onNewProject?: () => void;
   onOpenProject?: () => void;
   onRenameProject?: () => void;
@@ -65,22 +66,36 @@ function ThemeToggleButton(): JSX.Element {
   );
 }
 
-export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, onOpenProject, onRenameProject }: LeftToolbarProps): JSX.Element {
+export function LeftToolbar({ activePanel, onSelect, onSettings, onShowUpdate, onNewProject, onOpenProject, onRenameProject }: LeftToolbarProps): JSX.Element {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  // updatePhase: null=无更新, "available"=检测到正在下载, "downloaded"=已下载完
+  const [updatePhase, setUpdatePhase] = useState<"available" | "downloaded" | null>(null);
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
 
-  // 启动时同步已下载的更新状态
+  // 启动时同步状态 + 监听实时广播
   useEffect(() => {
     window.electronAPI?.app?.hasUpdate?.().then(({ hasUpdate, version }) => {
-      if (hasUpdate && version) setUpdateVersion(version);
+      if (hasUpdate && version) {
+        setUpdateVersion(version);
+        setUpdatePhase("downloaded");
+      }
     }).catch(() => {});
-    // 监听下载完成广播
     const off = window.electronAPI?.app?.onUpdateStatus?.((data) => {
-      if (data.status === "downloaded" && data.version) setUpdateVersion(data.version);
-      if (data.status === "no-update") setUpdateVersion(null);
+      if (data.status === "downloaded" && data.version) {
+        setUpdateVersion(data.version);
+        setUpdatePhase("downloaded");
+      }
+      if (data.status === "available" && data.version) {
+        setUpdateVersion(data.version);
+        setUpdatePhase("available");
+      }
+      if (data.status === "no-update") {
+        setUpdateVersion(null);
+        setUpdatePhase(null);
+      }
     });
     return () => { off?.(); };
   }, []);
@@ -123,11 +138,11 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, o
   };
 
   const handleSettingsClick = () => {
-    if (updateVersion) {
-      // 有更新：弹出上拉菜单
+    if (updatePhase === "downloaded") {
       setShowSettingsMenu(!showSettingsMenu);
+    } else if (updatePhase === "available") {
+      onShowUpdate?.();
     } else {
-      // 无更新：直接打开设置
       onSettings?.();
     }
   };
@@ -216,24 +231,24 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onNewProject, o
       <div ref={settingsRef} className="relative">
         <button
           className="w-8 h-8 rounded-md flex items-center justify-center text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
-          data-tooltip={updateVersion ? `有新版本 v${updateVersion}` : "设置"}
+          data-tooltip={updatePhase ? `有新版本 v${updateVersion}` : "设置"}
           onClick={handleSettingsClick}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-[17px] h-[17px]">
             <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
           </svg>
-          {updateVersion && (
+          {updatePhase && (
             <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-danger border border-surface" />
           )}
         </button>
-        {showSettingsMenu && updateVersion && (
+        {showSettingsMenu && updatePhase === "downloaded" && (
           <div className="absolute left-full bottom-0 ml-1 w-44 bg-surface border border-border rounded-[10px] shadow-lg py-1 z-50 dropdown-menu">
             <button
               className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors"
               onClick={handleInstallUpdate}
             >
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5 inline mr-2 text-accent"><path d="M8 1v9M4.5 6.5L8 10l3.5-3.5"/><path d="M2.5 13h11"/></svg>
-              重启更新到 v{updateVersion}
+              重启升级到 v{updateVersion}
             </button>
             <div className="border-t border-border my-0.5" />
             <button

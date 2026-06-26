@@ -5,7 +5,7 @@ import { LeftPanel } from "../components/LeftPanel";
 import { TaskPanel } from "../components/TaskPanel";
 import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
-import { SettingsDialog } from "../components/SettingsDialog";
+import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
 import { NewProjectDialog } from "../components/NewProjectDialog";
 import { TabBar } from "../components/TabBar";
 import { DragHandle } from "../components/DragHandle";
@@ -26,6 +26,7 @@ export function ProjectPage(): JSX.Element {
   const location = useLocation();
   const [activePanel, setActivePanel] = useState<ActivePanel>("sessions");
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab | undefined>(undefined);
   const [showNewProject, setShowNewProject] = useState(false);
   const [projectPath, setProjectPath] = useState("");
   const [projectName, setProjectName] = useState("");
@@ -343,7 +344,8 @@ export function ProjectPage(): JSX.Element {
         <LeftToolbar
           activePanel={activePanel}
           onSelect={setActivePanel}
-          onSettings={() => setShowSettings(true)}
+          onSettings={() => { setSettingsTab(undefined); setShowSettings(true); }}
+          onShowUpdate={() => { setSettingsTab("about"); setShowSettings(true); }}
           onNewProject={() => setShowNewProject(true)}
           onOpenProject={handleOpenProject}
           onRenameProject={projectId && projectExists ? handleRenameProject : undefined}
@@ -417,7 +419,7 @@ export function ProjectPage(): JSX.Element {
         )}
       </div>
 
-      <SettingsDialog open={showSettings} onClose={() => setShowSettings(false)} />
+      <SettingsDialog open={showSettings} onClose={() => { setShowSettings(false); setSettingsTab(undefined); }} initialTab={settingsTab} />
 
       {/* Rename Project Dialog */}
       {showRenameDialog && (

@@ -3,9 +3,12 @@ import { useSettingsStore } from "../stores/settings-store";
 import { PromptSettings } from "./settings/PromptSettings";
 import { ProviderSettings } from "./settings/ProviderSettings";
 
+export type SettingsTab = "general" | "agent" | "plugins" | "providers" | "about";
+
 interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
+  initialTab?: SettingsTab;
 }
 
 // ── Git Check Section ─────────────────────────────────────────────────────────
@@ -89,7 +92,7 @@ function UpdateCacheSection(): JSX.Element {
     <section>
       <h3 className="text-sm font-medium text-text-secondary mb-2">更新缓存</h3>
       <div className="bg-surface-alt rounded-lg border border-border px-4 py-3 space-y-2">
-        <p className="text-xs text-text-secondary">已下载但未安装的更新包会占用磁盘空间。</p>
+        <p className="text-xs text-text-secondary">清理下载的更新包和 ShipIt 残留缓存。</p>
         <div className="flex items-center gap-2">
           <button
             className="px-3 py-1.5 rounded-lg border border-border text-text-secondary text-xs hover:border-accent/50 transition-colors"
@@ -100,7 +103,11 @@ function UpdateCacheSection(): JSX.Element {
           </button>
           {result && (
             <span className="text-xs text-text-muted">
-              {result.cleaned.length > 0 ? `已清理 ${result.cleaned.length} 个目录` : result.errors.length > 0 ? "清理失败" : "无需清理"}
+              {result.cleaned.length > 0
+                ? `已清理 ${result.cleaned.length} 项`
+                : result.errors.length > 0
+                  ? `清理失败: ${result.errors[0]}`
+                  : "无需清理"}
             </span>
           )}
         </div>
@@ -595,7 +602,7 @@ function AgentsTab(): JSX.Element {
   );
 }
 
-export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Element | null {
+export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProps): JSX.Element | null {
   const {
     defaultProjectDir,
     contextThreshold,
@@ -607,10 +614,13 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     setShowToolUse,
     loadFromElectron,
   } = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<"general" | "agent" | "plugins" | "providers" | "about">("general");
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || "general");
   const [appVersion, setAppVersion] = useState("");
   const [updateStatus, setUpdateStatus] = useState<{ status: string; version?: string; percent?: number }>({ status: "idle" });
   const [checking, setChecking] = useState(false);
+
+  // 外部指定 initialTab 时同步（如 LeftToolbar 点「有新版本」→ 跳到关于页）
+  useEffect(() => { if (initialTab) setActiveTab(initialTab); }, [initialTab]);
 
   useEffect(() => {
     if (!open) return;
@@ -630,10 +640,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
     if (!open) return;
     const off = window.electronAPI?.app?.onUpdateStatus?.((data) => {
       setUpdateStatus(data);
-      if (data.status === "checking") setChecking(true);
-      else if (data.status === "no-update" || data.status === "error" || data.status === "downloaded") {
-        setChecking(false);
-      }
+      setChecking(data.status === "checking");
     });
     return () => { off?.(); };
   }, [open]);
@@ -829,7 +836,12 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps): JSX.Elem
                   <span className="text-xs text-accent">发现新版本 v{updateStatus.version}，准备下载...</span>
                 )}
                 {updateStatus.status === "downloading" && (
-                  <span className="text-xs text-accent">正在下载 v{updateStatus.version}... {updateStatus.percent ?? 0}%</span>
+                  <div className="flex flex-col items-center gap-1 w-48">
+                    <span className="text-xs text-accent">正在下载 v{updateStatus.version}... {updateStatus.percent ?? 0}%</span>
+                    <div className="w-full h-1 rounded-full bg-surface-hover overflow-hidden">
+                      <div className="h-full bg-accent transition-all" style={{ width: `${updateStatus.percent ?? 0}%` }} />
+                    </div>
+                  </div>
                 )}
                 {updateStatus.status === "downloaded" && (
                   <button

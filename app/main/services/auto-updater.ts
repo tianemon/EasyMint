@@ -54,7 +54,7 @@ function downloadDmg(url: string, dest: string, version: string): Promise<void> 
       try { fs.unlinkSync(dest); } catch { /* */ }
     };
 
-    const request = net.request({ url, method: "GET" });
+    const request = net.request({ url, method: "GET", redirect: "follow" });
 
     request.on("response", (res) => {
       if (res.statusCode !== 200) {
@@ -63,13 +63,16 @@ function downloadDmg(url: string, dest: string, version: string): Promise<void> 
         return;
       }
 
-      totalSize = parseInt(res.headers["content-length"]?.[0] || "0", 10);
+      // 头信息可能是小写或首字母大写，取第一个有效值
+      const clArr = res.headers["content-length"] ?? res.headers["Content-Length"];
+      totalSize = parseInt(clArr?.[0] || "0", 10);
 
       res.on("data", (chunk: Buffer) => {
         received += chunk.length;
         file.write(chunk);
         if (totalSize > 0) {
-          broadcast({ status: "downloading", version, percent: Math.round((received / totalSize) * 100) });
+          const pct = Math.min(100, Math.round((received / totalSize) * 100));
+          broadcast({ status: "downloading", version, percent: pct });
         }
       });
 
