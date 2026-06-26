@@ -81,6 +81,8 @@ jobs:
           files: |
             easymint-*/*.dmg
             easymint-*/*.dmg.blockmap
+            easymint-*/*.zip
+            easymint-*/*.zip.blockmap
             easymint-*/*.exe
             easymint-*/*.exe.blockmap
             easymint-*/*.yml
