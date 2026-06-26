@@ -2,9 +2,7 @@
 ; Cleans up leftover data on uninstall
 
 !macro customUnInstall
-  ; Electron user data (redirected to ~/.easymint/electron)
-  RMDir /r "$PROFILE\.easymint"
-  ; NSIS updater leftovers
+  ; 仅清理更新缓存，不删用户数据（~/.easymint）
   RMDir /r "$LOCALAPPDATA\easymint-updater"
-  RMDir /r "$LOCALAPPDATA\easymint"
 !macroend
+
