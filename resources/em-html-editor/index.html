@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EM HTML Editor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: #f5f5f5; overflow: hidden; }
+    #toolbar {
+      height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+      background: #fff; border-bottom: 1px solid #e4e4e7; flex-shrink: 0;
+    }
+    #toolbar button {
+      height: 30px; padding: 0 12px; border: 1px solid #d4d4d8; border-radius: 6px;
+      background: #fff; font-size: 13px; cursor: pointer; white-space: nowrap;
+    }
+    #toolbar button:hover { background: #f4f4f5; }
+    #toolbar button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+    #toolbar button.primary:hover { background: #1d4ed8; }
+    #toolbar .sep { width: 1px; height: 20px; background: #e4e4e7; margin: 0 4px; }
+    #toolbar .title { font-size: 13px; color: #52525b; margin-left: 4px; }
+    #toolbar #status { font-size: 11px; color: #a1a1aa; margin-left: auto; }
+    iframe { width: 100%; height: calc(100vh - 44px); border: none; }
+    #drop-hint {
+      position: fixed; inset: 0; background: rgba(37,99,235,0.08); display: none;
+      align-items: center; justify-content: center; z-index: 1000; pointer-events: none;
+    }
+    #drop-hint.show { display: flex; }
+    #drop-hint span { font-size: 20px; color: #2563eb; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <span class="title">EM HTML Editor</span>
+    <span class="sep"></span>
+    <button onclick="loadFile()">打开 HTML</button>
+    <span class="sep"></span>
+    <button onclick="toggleEditor()" id="btn-toggle" class="primary">启动编辑</button>
+    <span id="status">选择 HTML 文件开始</span>
+  </div>
+  <iframe id="preview" sandbox="allow-same-origin allow-scripts"></iframe>
+  <div id="drop-hint"><span>拖入 HTML 文件</span></div>
+
+  <script>
+    var editorActive = false;
+    var currentHTML = "";
+    var iframe = document.getElementById("preview");
+    var btnToggle = document.getElementById("btn-toggle");
+    var status = document.getElementById("status");
+    var dropHint = document.getElementById("drop-hint");
+
+    // 拖入文件
+    document.addEventListener("dragover", function (e) { e.preventDefault(); dropHint.classList.add("show"); });
+    document.addEventListener("dragleave", function () { dropHint.classList.remove("show"); });
+    document.addEventListener("drop", function (e) {
+      e.preventDefault(); dropHint.classList.remove("show");
+      var file = e.dataTransfer.files[0];
+      if (file) readFile(file);
+    });
+
+    // 打开文件
+    function loadFile() {
+      var input = document.createElement("input");
+      input.type = "file"; input.accept = ".html,.htm";
+      input.onchange = function () { if (input.files[0]) readFile(input.files[0]); };
+      input.click();
+    }
+
+    function readFile(file) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        currentHTML = reader.result;
+        loadPreview(currentHTML);
+        status.textContent = file.name + " · " + formatSize(file.size);
+        btnToggle.textContent = "启动编辑";
+        btnToggle.classList.add("primary");
+        editorActive = false;
+      };
+      reader.readAsText(file);
+    }
+
+    function loadPreview(html) {
+      var blob = new Blob([html], { type: "text/html" });
+      var url = URL.createObjectURL(blob);
+      iframe.onload = function () {
+        URL.revokeObjectURL(url);
+        injectRuntime();
+      };
+      iframe.src = url;
+    }
+
+    function injectRuntime() {
+      try {
+        var doc = iframe.contentDocument || iframe.contentWindow.document;
+        if (!doc) return;
+        var script = doc.createElement("script");
+        script.src = "runtime.js";
+        doc.head.appendChild(script);
+      } catch (e) { /* cross-origin blocked */ }
+    }
+
+    // 启动/停止编辑
+    function toggleEditor() {
+      try {
+        var win = iframe.contentWindow;
+        if (!win || !win.EMEditor) { status.textContent = "runtime 未加载"; return; }
+
+        if (!editorActive) {
+          win.EMEditor.start();
+          btnToggle.textContent = "停止编辑";
+          btnToggle.classList.remove("primary");
+          status.textContent = "编辑中 — 点击元素开始修改";
+        } else {
+          win.EMEditor.stop();
+          btnToggle.textContent = "启动编辑";
+          btnToggle.classList.add("primary");
+          status.textContent = "已停止编辑";
+        }
+        editorActive = !editorActive;
+      } catch (e) { status.textContent = "错误: " + e.message; }
+    }
+
+    // 监听编辑器的导出事件
+    window.addEventListener("message", function (e) {
+      if (e.data && e.data.type === "em-editor-export") {
+        currentHTML = e.data.html;
+        status.textContent = "已导出 · 自动下载中";
+      }
+    });
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      return (bytes / 1024).toFixed(1) + " KB";
+    }
+  </script>
+</body>
+</html>
