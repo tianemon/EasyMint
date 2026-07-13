@@ -95,9 +95,9 @@
       position: "fixed",
       pointerEvents: "none",
       zIndex: "99998",
-      border: "2px solid #2563eb",
+      border: "2px solid #16a34a",
       borderRadius: "4px",
-      backgroundColor: "rgba(37, 99, 235, 0.06)",
+      backgroundColor: "rgba(22, 163, 74, 0.06)",
       transition: "all 0.12s ease",
       display: "none",
     });
@@ -198,7 +198,7 @@
         // Undo / Redo / 导出
         '<button data-action="undo" title="撤销" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">↩</button>' +
         '<button data-action="redo" title="重做" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">↪</button>' +
-        '<button data-action="export" title="导出 HTML" style="height:24px;padding:0 8px;border:1px solid #2563eb;border-radius:4px;background:#2563eb;color:#fff;cursor:pointer;font-size:11px;font-weight:500">导出</button>' +
+        '<button data-action="export" title="导出 HTML" style="height:24px;padding:0 8px;border:1px solid #16a34a;border-radius:4px;background:#16a34a;color:#fff;cursor:pointer;font-size:11px;font-weight:500">导出</button>' +
       '</div>';
 
     Object.assign(panel.style, {

@@ -16,8 +16,8 @@
       background: #fff; font-size: 13px; cursor: pointer; white-space: nowrap;
     }
     #toolbar button:hover { background: #f4f4f5; }
-    #toolbar button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
-    #toolbar button.primary:hover { background: #1d4ed8; }
+    #toolbar button.primary { background: #16a34a; color: #fff; border-color: #16a34a; }
+    #toolbar button.primary:hover { background: #15803d; }
     #toolbar .sep { width: 1px; height: 20px; background: #e4e4e7; margin: 0 4px; }
     #toolbar .title { font-size: 13px; color: #52525b; margin-left: 4px; }
     #toolbar #status { font-size: 11px; color: #a1a1aa; margin-left: auto; }
@@ -27,7 +27,7 @@
       align-items: center; justify-content: center; z-index: 1000; pointer-events: none;
     }
     #drop-hint.show { display: flex; }
-    #drop-hint span { font-size: 20px; color: #2563eb; font-weight: 600; }
+    #drop-hint span { font-size: 20px; color: #16a34a; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -49,6 +49,15 @@
     var btnToggle = document.getElementById("btn-toggle");
     var status = document.getElementById("status");
     var dropHint = document.getElementById("drop-hint");
+    var runtimeCode = "";  // 预加载 runtime.js 内容，后续注入 iframe
+
+    // 启动时加载 runtime.js
+    fetch("runtime.js").then(function(r) { return r.text(); }).then(function(code) {
+      runtimeCode = code;
+      status.textContent = "就绪 — 选择 HTML 文件开始";
+    }).catch(function() {
+      status.textContent = "runtime.js 加载失败，请通过 HTTP 服务打开此页面";
+    });
 
     // 拖入文件
     document.addEventListener("dragover", function (e) { e.preventDefault(); dropHint.classList.add("show"); });
@@ -93,9 +102,9 @@
     function injectRuntime() {
       try {
         var doc = iframe.contentDocument || iframe.contentWindow.document;
-        if (!doc) return;
+        if (!doc || !runtimeCode) return;
         var script = doc.createElement("script");
-        script.src = "runtime.js";
+        script.textContent = runtimeCode;
         doc.head.appendChild(script);
       } catch (e) { /* cross-origin blocked */ }
     }
