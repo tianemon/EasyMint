@@ -280,10 +280,18 @@
         editor.select(target);
       }, true);
 
-      // 滚动时更新 outline 位置（跟随元素移动）
-      window.addEventListener("scroll", function () {
-        if (editor.selected) updateOutline(outline, editor.selected);
-      }, true);
+      // rAF 循环：每帧同步 outline 位置（滚动/动画时丝滑跟随）
+      var rafId = null;
+      (function syncOutline() {
+        rafId = requestAnimationFrame(syncOutline);
+        if (editor && editor.selected) updateOutline(outline, editor.selected);
+      })();
+      // 停止编辑时取消循环
+      var origStop = EMEditor.stop;
+      EMEditor.stop = function () {
+        if (rafId) cancelAnimationFrame(rafId);
+        origStop();
+      };
 
       // 面板按钮事件
       panel.addEventListener("click", function (e) {
