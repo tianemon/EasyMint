@@ -134,6 +134,30 @@
     "bold-toggle": function (el) {
       el.style.fontWeight = getComputedStyle(el).fontWeight === "700" ? "400" : "700";
     },
+    "line-height+": function (el) {
+      var v = parseFloat(getComputedStyle(el).lineHeight) || 20;
+      el.style.lineHeight = (v + 4) + "px";
+    },
+    "line-height-": function (el) {
+      var v = parseFloat(getComputedStyle(el).lineHeight) || 20;
+      el.style.lineHeight = Math.max(12, v - 4) + "px";
+    },
+    "padding+": function (el) {
+      var v = parseFloat(getComputedStyle(el).paddingTop) || 0;
+      el.style.padding = (v + 4) + "px";
+    },
+    "padding-": function (el) {
+      var v = parseFloat(getComputedStyle(el).paddingTop) || 0;
+      el.style.padding = Math.max(0, v - 4) + "px";
+    },
+    "radius+": function (el) {
+      var v = parseFloat(getComputedStyle(el).borderRadius) || 0;
+      el.style.borderRadius = (v + 4) + "px";
+    },
+    "radius-": function (el) {
+      var v = parseFloat(getComputedStyle(el).borderRadius) || 0;
+      el.style.borderRadius = Math.max(0, v - 4) + "px";
+    },
     "text-edit": function (el) {
       el.contentEditable = el.contentEditable === "true" ? "false" : "true";
       if (el.contentEditable === "true") el.focus();
@@ -186,6 +210,16 @@
         // 粗体 + 文字编辑
         '<button data-action="bold-toggle" title="切换粗体" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-weight:700;font-size:12px">B</button>' +
         '<button data-action="text-edit" title="编辑文字" style="height:24px;padding:0 6px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:11px">✏️</button>' +
+        '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
+        // 行高 + 边距 + 圆角
+        '<button data-action="line-height-" title="缩小行高" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">↕-</button>' +
+        '<button data-action="line-height+" title="增大行高" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">↕+</button>' +
+        '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
+        '<button data-action="padding-" title="缩小边距" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">⬜-</button>' +
+        '<button data-action="padding+" title="增大边距" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">⬜+</button>' +
+        '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
+        '<button data-action="radius-" title="缩小圆角" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">◯-</button>' +
+        '<button data-action="radius+" title="增大圆角" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">◯+</button>' +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // 文本颜色
         '<span style="font-size:10px;color:#666">字色</span>' +
@@ -273,6 +307,27 @@
         panel.style.display = el ? "flex" : "none";
       };
 
+      // hover 高亮提示（借鉴 ClickDeck mouseMove）
+      var hoverOutline = document.createElement("div");
+      hoverOutline.setAttribute("data-em-editor", "hover-outline");
+      Object.assign(hoverOutline.style, {
+        position: "fixed", pointerEvents: "none", zIndex: "99997",
+        border: "1px dashed rgba(22,163,74,0.35)", borderRadius: "4px",
+        backgroundColor: "rgba(22,163,74,0.04)", display: "none",
+      });
+      document.body.appendChild(hoverOutline);
+
+      document.addEventListener("mousemove", function (e) {
+        var target = isEditorUI(e.target) ? null : resolveTarget(e.target);
+        if (!target) { hoverOutline.style.display = "none"; return; }
+        var r = target.getBoundingClientRect();
+        hoverOutline.style.display = "block";
+        hoverOutline.style.left = r.left + "px";
+        hoverOutline.style.top = r.top + "px";
+        hoverOutline.style.width = r.width + "px";
+        hoverOutline.style.height = r.height + "px";
+      }, false);
+
       // 点击页面选中（mousedown 选，click 拦截跳转）
       document.addEventListener("mousedown", function (e) {
         if (isEditorUI(e.target)) return;
@@ -281,16 +336,21 @@
         editor.select(target);
       }, true);
 
-      // click 阶段拦截链接/按钮/表单的原生行为
-      document.addEventListener("click", function (e) {
+      // 无条件拦截所有 click（借鉴 ClickDeck：编辑模式下全页面禁止原生行为）
+      window.addEventListener("click", function (e) {
+        if (isEditorUI(e.target)) return;
+        // contentEditable 元素内点击保留交互（光标定位等）
+        if (e.target && (e.target.isContentEditable || e.target.closest("[contenteditable=true]"))) return;
+        e.preventDefault();
+        e.stopPropagation();
+      }, true);
+
+      // 点击页面空白处取消选中
+      document.addEventListener("mousedown", function (e) {
         if (isEditorUI(e.target)) return;
         var target = resolveTarget(e.target);
-        if (target && target.isContentEditable) return;
-        if (e.target && (e.target.closest("a") || e.target.closest("button") || e.target.closest("form"))) {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-        }
-      }, { capture: true, passive: false });
+        if (!target) { editor.select(null); }
+      }, false); // 冒泡阶段，在选中逻辑之后触发
 
       // rAF 循环：每帧同步 outline 位置（滚动/动画时丝滑跟随）
       var rafId = null;
