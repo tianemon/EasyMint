@@ -273,17 +273,23 @@
         panel.style.display = el ? "flex" : "none";
       };
 
-      // 点击页面选中
+      // 点击页面选中（mousedown 选，click 拦截跳转）
       document.addEventListener("mousedown", function (e) {
         if (isEditorUI(e.target)) return;
         var target = resolveTarget(e.target);
-        // 编辑文字时不拦截（contentEditable 需要正常交互）
         if (target && target.isContentEditable) return;
-        // 阻止链接跳转等原页面行为
-        if (e.target && (e.target.closest("a") || e.target.closest("button") || e.target.closest("form"))) {
-          e.preventDefault();
-        }
         editor.select(target);
+      }, true);
+
+      // click 阶段拦截链接/按钮/表单的原生行为
+      document.addEventListener("click", function (e) {
+        if (isEditorUI(e.target)) return;
+        var target = resolveTarget(e.target);
+        if (target && target.isContentEditable) return;
+        if (e.target.closest("a") || e.target.closest("button") || e.target.closest("form")) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
       }, true);
 
       // rAF 循环：每帧同步 outline 位置（滚动/动画时丝滑跟随）
