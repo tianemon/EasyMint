@@ -286,11 +286,11 @@
         if (isEditorUI(e.target)) return;
         var target = resolveTarget(e.target);
         if (target && target.isContentEditable) return;
-        if (e.target.closest("a") || e.target.closest("button") || e.target.closest("form")) {
+        if (e.target && (e.target.closest("a") || e.target.closest("button") || e.target.closest("form"))) {
           e.preventDefault();
-          e.stopPropagation();
+          e.stopImmediatePropagation();
         }
-      }, true);
+      }, { capture: true, passive: false });
 
       // rAF 循环：每帧同步 outline 位置（滚动/动画时丝滑跟随）
       var rafId = null;
