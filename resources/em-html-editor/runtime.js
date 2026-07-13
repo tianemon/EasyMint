@@ -280,6 +280,11 @@
         editor.select(target);
       }, true);
 
+      // 滚动时更新 outline 位置（跟随元素移动）
+      window.addEventListener("scroll", function () {
+        if (editor.selected) updateOutline(outline, editor.selected);
+      }, true);
+
       // 面板按钮事件
       panel.addEventListener("click", function (e) {
         var btn = e.target.closest("[data-action]");
