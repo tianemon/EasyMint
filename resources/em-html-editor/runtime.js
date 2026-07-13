@@ -277,6 +277,12 @@
       document.addEventListener("mousedown", function (e) {
         if (isEditorUI(e.target)) return;
         var target = resolveTarget(e.target);
+        // 编辑文字时不拦截（contentEditable 需要正常交互）
+        if (target && target.isContentEditable) return;
+        // 阻止链接跳转等原页面行为
+        if (e.target && (e.target.closest("a") || e.target.closest("button") || e.target.closest("form"))) {
+          e.preventDefault();
+        }
         editor.select(target);
       }, true);
 
