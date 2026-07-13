@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MemoFlow — 极简备忘录</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #1a1916; background: #fafaf7; }
+    .nav { display: flex; align-items: center; justify-content: space-between; padding: 16px 32px; border-bottom: 1px solid #e8e5df; background: #fff; }
+    .nav-brand { font-size: 20px; font-weight: 700; }
+    .nav-links { display: flex; gap: 20px; }
+    .nav-links a { color: #6b6964; text-decoration: none; font-size: 14px; }
+    .nav-links a:hover { color: #1a1916; }
+    .hero { text-align: center; padding: 100px 32px 80px; max-width: 700px; margin: 0 auto; }
+    .hero h1 { font-size: 52px; font-weight: 800; line-height: 1.15; margin-bottom: 20px; }
+    .hero p { font-size: 19px; color: #6b6964; line-height: 1.6; margin-bottom: 32px; }
+    .btn { display: inline-block; padding: 14px 28px; border-radius: 10px; font-size: 16px; font-weight: 600; text-decoration: none; cursor: pointer; border: none; }
+    .btn-primary { background: #16a34a; color: #fff; }
+    .btn-secondary { background: transparent; color: #1a1916; border: 1px solid #e8e5df; }
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 960px; margin: 0 auto; padding: 60px 32px; }
+    .feature-card { background: #fff; padding: 32px 24px; border-radius: 12px; border: 1px solid #e8e5df; text-align: center; }
+    .feature-card h3 { font-size: 18px; margin: 12px 0 8px; }
+    .feature-card p { font-size: 14px; color: #6b6964; line-height: 1.5; }
+    .feature-icon { font-size: 32px; }
+    .cta { background: #16a34a; color: #fff; text-align: center; padding: 64px 32px; margin-top: 40px; }
+    .cta h2 { font-size: 32px; font-weight: 700; margin-bottom: 16px; }
+    .cta p { font-size: 16px; opacity: 0.9; margin-bottom: 24px; }
+    .cta .btn { background: #fff; color: #16a34a; }
+    .footer { text-align: center; padding: 32px; border-top: 1px solid #e8e5df; color: #6b6964; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <span class="nav-brand">MemoFlow</span>
+    <div class="nav-links">
+      <a href="#">功能</a>
+      <a href="#">定价</a>
+      <a href="#">关于</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <h1>随手记，随时找</h1>
+    <p>打开就能写，自动保存。不用学、不用配、不用登录。你的想法值得被记下来。</p>
+    <div style="display:flex;gap:12px;justify-content:center">
+      <a href="#" class="btn btn-primary">免费开始</a>
+      <a href="#" class="btn btn-secondary">了解更多</a>
+    </div>
+  </section>
+
+  <section class="features">
+    <div class="feature-card">
+      <div class="feature-icon">⚡</div>
+      <h3>秒开即写</h3>
+      <p>无启动画面，无加载动画。点开应用，光标已经在等你。</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔍</div>
+      <h3>全文搜索</h3>
+      <p>记住一个关键词就能找到任何一条旧笔记。支持中文模糊搜索。</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📱</div>
+      <h3>多端同步</h3>
+      <p>手机、电脑、平板，数据实时同步，换设备不需要迁移。</p>
+    </div>
+  </section>
+
+  <section class="cta">
+    <h2>今天开始记录</h2>
+    <p>不用注册，打开即用。你的第一条笔记只需要 3 秒。</p>
+    <a href="#" class="btn">免费开始</a>
+  </section>
+
+  <footer class="footer">
+    &copy; 2026 MemoFlow · 隐私政策 · 使用条款
+  </footer>
+</body>
+</html>

@@ -218,32 +218,36 @@
     document.body.appendChild(panel);
 
     // 填充颜色按钮
-    fillColorButtons(panel.querySelector("[data-em-editor=text-colors]"), TEXT_COLORS, function (color) {
-      return function () { editor.setColor(color); };
-    });
-    fillColorButtons(panel.querySelector("[data-em-editor=bg-colors]"), BG_COLORS, function (item) {
-      return function () { editor.setBgColor(item.value); };
-    });
+    var textColorsContainer = panel.querySelector("[data-em-editor=text-colors]");
+    var bgColorsContainer = panel.querySelector("[data-em-editor=bg-colors]");
+    for (var ci = 0; ci < TEXT_COLORS.length; ci++) {
+      makeColorBtn(textColorsContainer, TEXT_COLORS[ci], TEXT_COLORS[ci], "字色");
+    }
+    for (var bi = 0; bi < BG_COLORS.length; bi++) {
+      var item = BG_COLORS[bi];
+      makeColorBtn(bgColorsContainer, item.value, item.label, "底色");
+    }
 
     return panel;
   }
 
-  function fillColorButtons(container, palette, getHandler) {
-    for (var i = 0; i < palette.length; i++) {
-      var item = palette[i];
-      var color = typeof item === "string" ? item : item.value;
-      var btn = document.createElement("button");
-      btn.title = typeof item === "string" ? color : item.label;
-      Object.assign(btn.style, {
-        width: "16px", height: "16px", borderRadius: "3px", border: "1px solid #d4d4d8",
-        background: color === "transparent"
-          ? "linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%)"
-          : color,
-        cursor: "pointer", flexShrink: "0",
-      });
-      btn.addEventListener("click", getHandler(item));
-      container.appendChild(btn);
-    }
+  function makeColorBtn(container, colorValue, label, type) {
+    var btn = document.createElement("button");
+    btn.setAttribute("data-em-editor", "color-btn");
+    btn.title = label;
+    Object.assign(btn.style, {
+      width: "18px", height: "18px", borderRadius: "3px", border: "1px solid #d4d4d8",
+      background: colorValue === "transparent"
+        ? "linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%)"
+        : colorValue,
+      cursor: "pointer", flexShrink: "0",
+    });
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (type === "字色") EMEditor.setColor(colorValue);
+      else EMEditor.setBgColor(colorValue);
+    });
+    container.appendChild(btn);
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -259,40 +263,32 @@
       var outline = createOutline();
       var panel = createPanel();
       var history = createHistory();
-      var selected = null;
+      editor = { select: null, outline: outline, panel: panel, history: history, selected: null };
 
       history.push(document.documentElement.outerHTML);
 
-      function select(el) {
-        selected = el;
+      editor.select = function (el) {
+        editor.selected = el;
         updateOutline(outline, el);
         panel.style.display = el ? "flex" : "none";
-      }
-
-      function apply(action) {
-        if (!selected) return;
-        if (typeof action === "function") {
-          history.push(document.documentElement.outerHTML);
-          action(selected);
-        }
-      }
+      };
 
       // 点击页面选中
       document.addEventListener("mousedown", function (e) {
         if (isEditorUI(e.target)) return;
         var target = resolveTarget(e.target);
-        select(target);
+        editor.select(target);
       }, true);
 
       // 面板按钮事件
       panel.addEventListener("click", function (e) {
         var btn = e.target.closest("[data-action]");
-        if (!btn || !selected) return;
+        if (!btn || !editor.selected) return;
         var action = btn.getAttribute("data-action");
 
         if (STYLE_ACTIONS[action]) {
           history.push(document.documentElement.outerHTML);
-          STYLE_ACTIONS[action](selected);
+          STYLE_ACTIONS[action](editor.selected);
         } else if (action === "undo") {
           var html = history.undo();
           if (html) restoreHTML(html);
@@ -308,12 +304,10 @@
         document.open();
         document.write(html);
         document.close();
-        selected = null;
+        editor.selected = null;
         updateOutline(outline, null);
-        // re-init
       }
 
-      editor = { select: select, outline: outline, panel: panel, history: history, selected: selected };
       return editor;
     },
 
