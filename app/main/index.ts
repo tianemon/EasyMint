@@ -119,6 +119,11 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     ipcMain.handle("app:update-cache-size", () => getUpdateCacheSize());
     ipcMain.handle("app:open-update-cache", () => { openUpdateCacheDir(); });
 
+    // tab 状态主进程备份（macOS 合盖 GPU 恢复时渲染进程 localStorage 不可靠）
+    let tabBackup: { tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string }>; activeTabId: string | null } | null = null;
+    ipcMain.handle("tab:save", (_e, data) => { tabBackup = data; });
+    ipcMain.handle("tab:restore", () => tabBackup);
+
     // NOTE: Orphan SDK session cleanup removed — will be replaced
     // with a proper session detection/management UI in a future update.
 

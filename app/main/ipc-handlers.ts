@@ -55,6 +55,9 @@ import {
   unarchiveSession,
 } from "./services/session-service";
 import { readCache, writeCache, deleteCache } from "./services/session-cache";
+import { listIssues, addIssue, setStatus, appendNote, deleteIssue } from "./services/issue-service";
+import type { IssueStatus } from "./services/issue-service";
+import { detectRunnable, startProcess, stopProcess, restartProcess, getStatus, getRunningIds, installDeps } from "./services/process-service";
 
 interface Services {
   mainWindow: BrowserWindow;
@@ -192,6 +195,21 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   });
 
   // conversation:* — backed by SDK session APIs
+  // issue:* - 本地问题记录
+  ipcMain.handle("issue:list", (_e, { projectPath }) => listIssues(projectPath));
+  ipcMain.handle("issue:add", (_e, { projectPath, title, module, symptom }) => addIssue(projectPath, title, module, symptom));
+  ipcMain.handle("issue:set-status", (_e, { projectPath, id, status }) => setStatus(projectPath, id, status as IssueStatus));
+  ipcMain.handle("issue:append-note", (_e, { projectPath, id, content }) => appendNote(projectPath, id, content));
+  ipcMain.handle("issue:delete", (_e, { projectPath, id }) => deleteIssue(projectPath, id));
+
+  // process:* - 项目运行进程管理（按 commandId）
+  ipcMain.handle("process:detect", (_e, { projectPath }) => detectRunnable(projectPath));
+  ipcMain.handle("process:start", (_e, { projectPath, commandId }) => startProcess(projectPath, commandId));
+  ipcMain.handle("process:stop", (_e, { commandId }) => stopProcess(commandId));
+  ipcMain.handle("process:restart", (_e, { projectPath, commandId }) => restartProcess(projectPath, commandId));
+  ipcMain.handle("process:status", (_e, { commandId }) => getStatus(commandId));
+  ipcMain.handle("process:running-ids", () => getRunningIds());
+  ipcMain.handle("process:install", (_e, { projectPath, commandId }) => installDeps(projectPath, commandId));
   ipcMain.handle("conv:list", (_e, { projectPath }) => listSessions(projectPath));
   ipcMain.handle("conv:get", (_e, { id, projectPath }) => getSessionInfo(id, projectPath));
   ipcMain.handle("conv:messages", (_e, { id, projectPath }) => getSessionMessages(id, projectPath));

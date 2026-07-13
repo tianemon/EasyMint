@@ -3,6 +3,11 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { LeftToolbar } from "../components/LeftToolbar";
 import { LeftPanel } from "../components/LeftPanel";
 import { TaskPanel } from "../components/TaskPanel";
+import { IssuePanel } from "../components/IssuePanel";
+import { RunPanel } from "../components/RunPanel";
+import { RightSidebar } from "../components/RightSidebar";
+import { MintButton } from "../components/MintButton";
+import { useProcessStore } from "../stores/process-store";
 import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
@@ -25,6 +30,8 @@ export function ProjectPage(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   const [activePanel, setActivePanel] = useState<ActivePanel>("sessions");
+  const [rightPanel, setRightPanel] = useState<"task" | "issue" | "run">("task");
+  const hasRunnable = useProcessStore((s) => s.runnables.length > 0);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab | undefined>(undefined);
   const [showNewProject, setShowNewProject] = useState(false);
@@ -136,8 +143,15 @@ export function ProjectPage(): JSX.Element {
       useTaskStore.getState().updateTask(taskId, { status: status as TaskStatus });
       // 同步刷新 project-status-store（doneCount / stage / Fishbone stepper）
       if (projectPath) useProjectStatusStore.getState().refreshAll(projectPath);
+      // Mint 开发完（task done）自动刷新运行程序检测
+      if (status === "done" && projectPath) useProcessStore.getState().detect(projectPath);
     });
     return () => unsub();
+  }, [projectPath]);
+
+  // 项目切换时检测可运行程序（开启软件/打开项目自动检测）
+  useEffect(() => {
+    if (projectPath) useProcessStore.getState().detect(projectPath);
   }, [projectPath]);
 
   // Listen for real-time project stage updates from set_project_stage MCP tool
@@ -371,39 +385,53 @@ export function ProjectPage(): JSX.Element {
         </div>
 
         {collapsedRight ? <div /> : (
-          <TaskPanel projectPath={projectPath} onCollapse={toggleRight} onMintClick={async () => {
-            // 无项目 → 打开新建项目弹窗
-            if (!projectPath) {
-              setShowNewProject(true);
-              return;
-            }
-            const ts = useTabStore.getState();
+          <div className="h-full flex bg-surface">
+            <div className="flex-1 min-w-0 flex flex-col">
+              <div className="flex-1 min-h-0 min-w-0">
+                {rightPanel === "task" ? (
+                  <TaskPanel onCollapse={toggleRight} />
+                ) : rightPanel === "issue" ? (
+                  <IssuePanel projectPath={projectPath} onCollapse={toggleRight} />
+                ) : (
+                  <RunPanel projectPath={projectPath} onCollapse={toggleRight} />
+                )}
+              </div>
+              <MintButton projectPath={projectPath} onClick={async () => {
+              // 无项目 -> 打开新建项目弹窗
+              if (!projectPath) {
+                setShowNewProject(true);
+                return;
+              }
+              const ts = useTabStore.getState();
 
-            // 优先：已有 Mint 会话 Tab → 激活
-            const existingChat = ts.tabs.find((t) => t.type === "chat" && t.sessionId);
-            if (existingChat) {
-              ts.setActiveTab(existingChat.id);
+              // 优先：已有 Mint 会话 Tab -> 激活
+              const existingChat = ts.tabs.find((t) => t.type === "chat" && t.sessionId);
+              if (existingChat) {
+                ts.setActiveTab(existingChat.id);
+                setActivePanel("chat");
+                setTimeout(() => chatActions.send(CONTINUE_NEXT_STEP), 200);
+                return;
+              }
+
+              // 其次：从会话列表中拉取第一个会话
+              const sessions = await window.electronAPI.conv.list(projectPath || getWorkspaceDir());
+              if (sessions.length > 0) {
+                const first = sessions[0]!;
+                ts.openTab({ id: "", type: "chat" as const, title: first.title, sessionId: first.sessionId });
+                ts.setActiveTab(ts.tabs[ts.tabs.length - 1]!.id);
+                setActivePanel("chat");
+                return;
+              }
+
+              // 最后：全新会话
+              const tabId = `mint-${Date.now()}`;
+              ts.openTab({ id: tabId, type: "chat" as const, title: "新会话" });
               setActivePanel("chat");
               setTimeout(() => chatActions.send(CONTINUE_NEXT_STEP), 200);
-              return;
-            }
-
-            // 其次：从会话列表中拉取第一个会话
-            const sessions = await window.electronAPI.conv.list(projectPath || getWorkspaceDir());
-            if (sessions.length > 0) {
-              const first = sessions[0]!;
-              ts.openTab({ id: "", type: "chat" as const, title: first.title, sessionId: first.sessionId });
-              ts.setActiveTab(ts.tabs[ts.tabs.length - 1]!.id);
-              setActivePanel("chat");
-              return;
-            }
-
-            // 最后：全新会话
-            const tabId = `mint-${Date.now()}`;
-            ts.openTab({ id: tabId, type: "chat" as const, title: "新会话" });
-            setActivePanel("chat");
-            setTimeout(() => chatActions.send(CONTINUE_NEXT_STEP), 200);
-          }} />
+            }} />
+            </div>
+            <RightSidebar active={rightPanel} onSelect={setRightPanel} hasRunnable={hasRunnable} />
+          </div>
         )}
 
         {/* Handles — grid container level, absolute over all panels */}

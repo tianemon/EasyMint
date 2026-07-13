@@ -131,6 +131,32 @@ contextBridge.exposeInMainWorld("electronAPI", {
     cleanAll: () => ipcRenderer.invoke("upload:cleanAll"),
     openDir: () => ipcRenderer.invoke("upload:openDir"),
   },
+  issue: {
+    list: (projectPath: string) => ipcRenderer.invoke("issue:list", { projectPath }),
+    add: (projectPath: string, title: string, module: string, symptom: string) => ipcRenderer.invoke("issue:add", { projectPath, title, module, symptom }),
+    setStatus: (projectPath: string, id: string, status: string) => ipcRenderer.invoke("issue:set-status", { projectPath, id, status }),
+    appendNote: (projectPath: string, id: string, content: string) => ipcRenderer.invoke("issue:append-note", { projectPath, id, content }),
+    delete: (projectPath: string, id: string) => ipcRenderer.invoke("issue:delete", { projectPath, id }),
+  },
+  process: {
+    detect: (projectPath: string) => ipcRenderer.invoke("process:detect", { projectPath }),
+    start: (projectPath: string, commandId: string) => ipcRenderer.invoke("process:start", { projectPath, commandId }),
+    stop: (commandId: string) => ipcRenderer.invoke("process:stop", { commandId }),
+    restart: (projectPath: string, commandId: string) => ipcRenderer.invoke("process:restart", { projectPath, commandId }),
+    status: (commandId: string) => ipcRenderer.invoke("process:status", { commandId }),
+    runningIds: () => ipcRenderer.invoke("process:running-ids"),
+    install: (projectPath: string, commandId: string) => ipcRenderer.invoke("process:install", { projectPath, commandId }),
+    onOutput: (callback: (data: { commandId: string; line: string; stream: string }) => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, data: { commandId: string; line: string; stream: string }) => callback(data);
+      ipcRenderer.on("process:output", handler);
+      return () => ipcRenderer.removeListener("process:output", handler);
+    },
+    onStatusChanged: (callback: (data: { commandId: string; running: boolean }) => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, data: { commandId: string; running: boolean }) => callback(data);
+      ipcRenderer.on("process:status-changed", handler);
+      return () => ipcRenderer.removeListener("process:status-changed", handler);
+    },
+  },
   evaluator: {
     isEnabled: () => ipcRenderer.invoke("evaluator:isEnabled"),
     setEnabled: (enabled: boolean) => ipcRenderer.invoke("evaluator:setEnabled", { enabled }),
@@ -149,6 +175,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("app:update-status", handler);
       return () => ipcRenderer.removeListener("app:update-status", handler);
     },
+  },
+  tab: {
+    save: (data: unknown) => ipcRenderer.invoke("tab:save", data),
+    restore: () => ipcRenderer.invoke("tab:restore") as Promise<{ tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string }>; activeTabId: string | null } | null>,
   },
   agent: {
     runWorker: (projectPath: string, prompt: string) =>

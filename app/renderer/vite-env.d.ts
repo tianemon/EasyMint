@@ -124,6 +124,28 @@ interface ElectronAPI {
     cleanAll: () => Promise<number>;
     openDir: () => Promise<void>;
   },
+  issue: {
+    list: (projectPath: string) => Promise<Array<{ id: string; title: string; module: string; symptom: string; notes: Array<{ content: string; createdAt: number }>; status: "open" | "fixed"; createdAt: number }>>;
+    add: (projectPath: string, title: string, module: string, symptom: string) => Promise<{ id: string; title: string; module: string; symptom: string; notes: Array<{ content: string; createdAt: number }>; status: "open" | "fixed"; createdAt: number }>;
+    setStatus: (projectPath: string, id: string, status: "open" | "fixed") => Promise<void>;
+    appendNote: (projectPath: string, id: string, content: string) => Promise<void>;
+    delete: (projectPath: string, id: string) => Promise<void>;
+  };
+  tab: {
+    save: (data: { tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string }>; activeTabId: string | null }) => Promise<void>;
+    restore: () => Promise<{ tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string }>; activeTabId: string | null } | null>;
+  };
+  process: {
+    detect: (projectPath: string) => Promise<Array<{ id: string; platform: string; label: string; run_command: string; cwd?: string; install_command?: string; url?: string }>>;
+    start: (projectPath: string, commandId: string) => Promise<void>;
+    stop: (commandId: string) => Promise<void>;
+    restart: (projectPath: string, commandId: string) => Promise<void>;
+    status: (commandId: string) => Promise<{ running: boolean; pid?: number; run_command?: string; output: string[] }>;
+    runningIds: () => Promise<string[]>;
+    install: (projectPath: string, commandId: string) => Promise<void>;
+    onOutput: (callback: (data: { commandId: string; line: string; stream: string }) => void) => () => void;
+    onStatusChanged: (callback: (data: { commandId: string; running: boolean }) => void) => () => void;
+  };
   evaluator: {
     isEnabled: () => Promise<boolean>;
     setEnabled: (enabled: boolean) => Promise<void>;

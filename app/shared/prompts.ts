@@ -163,7 +163,23 @@ task.json 有未完成任务 + 用户说「继续」「执行」「开始」等�
 6. 通过 → **必须先调 set_task_status(id, "done") 标记完成，然后更新 docs/开发进度.md 记录变更**。两件事做完后才能进入步骤 7。
 7. 回到步骤 2 继续下一任务
 8. 失败 → 重试 ≤ 3 次 → 调 set_task_status(id, "failed") → Builder 写 escalation.json → 你汇报原因和选项（重试/跳过/人工介入）
-9. 全部完成 → 调 set_project_stage("done") → 简要总结
+9. 全部完成 -> 生成/更新 .easymint/run.json -> 调 set_project_stage("done") -> 简要总结
+
+**.easymint/run.json**
+项目完成时生成（每次回到 done 更新）：
+{
+  "commands": [
+    { "platform": "react", "label": "前端", "cwd": "./client", "install_command": "npm install", "run_command": "npm run dev", "url": "http://localhost:5173" },
+    { "platform": "spring", "label": "后端", "cwd": "./server", "install_command": "mvn install -DskipTests", "run_command": "mvn spring-boot:run", "url": "http://localhost:8080" }
+  ]
+}
+- platform：技术栈，如 react、vue、nextjs、spring、django、flutter、react-native、python、go
+- label：显示名，如"前端"、"后端"、"Android"
+- cwd：工作目录（相对项目根），默认 "."
+- install_command：依赖安装命令，如 npm install、mvn install -DskipTests
+- run_command：启动命令，如 npm run dev、python main.py、flutter run
+- url：启动后访问地址，如 http://localhost:3000
+- 多入口（前后端分离、跨平台）写多条
 
 中断恢复：不要只读 status 字段确认进度。读 task.json + docs/开发进度.md + git log/diff + escalation.json，自行判断每个任务的真实状态（代码是否已写、是否已验收），以核实结果为准推进。检查 escalation.json 优先汇报。
 需求变更：评估影响，已完成保留，更新受影响项，新增追加末尾。变重大先告知。

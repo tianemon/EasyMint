@@ -139,7 +139,6 @@ export function SessionHistory({
   const pinned = sessions.filter((s) => s.pinnedAt && !s.archivedAt);
   const archived = sessions.filter((s) => s.archivedAt);
   const unpinned = sessions.filter((s) => !s.pinnedAt && !s.archivedAt);
-  const groups = groupByDate(unpinned);
 
   return (
     <div className="flex flex-col h-full">
@@ -171,13 +170,8 @@ export function SessionHistory({
               ))}
             </div>
           )}
-          {groups.map((g) => (
-            <div key={g.label}>
-              <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium">{g.label}</div>
-              {g.items.map((s) => (
-                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
-              ))}
-            </div>
+          {unpinned.map((s) => (
+            <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
           ))}
         </div>
       )}
@@ -290,26 +284,8 @@ function SessionItemRow({ session, active, editingId, editTitle, onSelect, onCon
 function fmtDate(ts: number): string {
   const d = new Date(ts);
   const now = new Date();
-  const diff = now.getTime() - d.getTime();
-  if (diff < 86400000) return d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
-  if (diff < 172800000) return "昨天";
-  return `${d.getMonth() + 1}月${d.getDate()}日`;
-}
-
-function groupByDate(sessions: SessionItem[]): { label: string; items: SessionItem[] }[] {
-  const now = new Date();
-  const today: SessionItem[] = [];
-  const yesterday: SessionItem[] = [];
-  const older: SessionItem[] = [];
-  for (const s of sessions) {
-    const d = new Date(s.updatedAt);
-    if (d.toDateString() === now.toDateString()) today.push(s);
-    else if (new Date(now.getTime() - 86400000).toDateString() === d.toDateString()) yesterday.push(s);
-    else older.push(s);
+  if (d.toDateString() === now.toDateString()) {
+    return `今天 ${d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`;
   }
-  const result: { label: string; items: SessionItem[] }[] = [];
-  if (today.length) result.push({ label: "今天", items: today });
-  if (yesterday.length) result.push({ label: "昨天", items: yesterday });
-  if (older.length) result.push({ label: "更早", items: older });
-  return result;
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
 }

@@ -267,6 +267,53 @@ export function buildBuiltinMcpServers(projectPath?: string): Record<string, unk
         },
       ),
       tool(
+        "list_issues",
+        "读取当前项目在右侧 Issue 面板手动记录的问题清单。当用户说「看一下我记录的问题」「分析下 issue」「记录的问题」等时调用。返回所有 issue（含已解决/未解决状态、标题、描述）。",
+        {},
+        async () => {
+          if (!projectPath) {
+            return { content: [{ type: "text", text: "当前无项目路径" }] };
+          }
+          const p = join(projectPath, ".easymint", "issues.json");
+          if (!existsSync(p)) {
+            return { content: [{ type: "text", text: "暂无记录的 Issue" }] };
+          }
+          try {
+            const data = JSON.parse(readFileSync(p, "utf-8"));
+            const rawIssues = (data.issues as Array<Record<string, unknown>>) || [];
+            if (rawIssues.length === 0) {
+              return { content: [{ type: "text", text: "暂无记录的 Issue" }] };
+            }
+            const lines = rawIssues.map((i, idx) => {
+              const title = i.title as string;
+              const module = i.module as string || (i.description as string) || "";
+              // 兼容：旧格式 description 当 symptom
+              const symptom = i.symptom as string || (i.description as string) || "";
+              const notes = Array.isArray(i.notes) ? i.notes : [];
+              const oldFollowup = typeof i.followup === "string" ? i.followup : "";
+              const status = i.status === "fixed" ? "已修复" : (i.resolved ? "已修复" : "未修复");
+              let line = `${idx + 1}. [${status}] ${title}`;
+              if (module) line += `（模块: ${module}）`;
+              if (symptom) line += `\n   现象: ${symptom}`;
+              if (oldFollowup) line += `\n   补充: ${oldFollowup}`;
+              for (const n of notes) {
+                line += `\n   补充: ${(n as { content: string }).content}`;
+              }
+              return line;
+            });
+            const openCount = rawIssues.filter((i) => !(i.status === "fixed" || i.resolved)).length;
+            return {
+              content: [{
+                type: "text",
+                text: `项目记录的 Issue（共 ${rawIssues.length} 条，其中 ${openCount} 条未修复）：\n\n${lines.join("\n\n")}`,
+              }],
+            };
+          } catch (e) {
+            return { content: [{ type: "text", text: `读取 Issue 失败: ${(e as Error).message}` }] };
+          }
+        },
+      ),
+      tool(
         "set_project_stage",
         "设置项目进度节点，实时刷新 UI 的 Fishbone 进度条。取值：requirements(需求采集)/tech-selection(技术选型)/init(环境初始化)/planning(任务规划)/developing(开发中)/done(开发完成)。项目每进入一个新阶段时调用。",
         {

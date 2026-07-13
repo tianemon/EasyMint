@@ -4,6 +4,7 @@ import { ProjectPage } from "./pages/ProjectPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useSettingsStore } from "./stores/settings-store";
+import { useTabStore } from "./stores/tab-store";
 
 export function App(): JSX.Element {
   const [setupComplete, setSetupComplete] = useState(
@@ -21,6 +22,23 @@ export function App(): JSX.Element {
         setSetupComplete(true);
       }
     });
+  }, []);
+
+  // 从主进程恢复 tab 状态（macOS 合盖 GPU 恢复时 localStorage 不可靠）
+  useEffect(() => {
+    const restore = async () => {
+      try {
+        const backup = await window.electronAPI?.tab?.restore?.();
+        if (backup?.tabs?.length) {
+          const store = useTabStore.getState();
+          if (store.tabs.length === 0) {
+            backup.tabs.forEach((t) => store.openTab(t as any));
+            if (backup.activeTabId) store.setActiveTab(backup.activeTabId);
+          }
+        }
+      } catch { /* ignore */ }
+    };
+    restore();
   }, []);
 
   useEffect(() => {
