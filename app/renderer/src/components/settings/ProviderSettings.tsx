@@ -100,7 +100,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
         presetId === p.id
           ? "bg-accent text-white"
-          : "bg-surface border border-border text-text-secondary hover:border-accent/50"
+          : "bg-surface border border-border text-text-secondary hover:border-accent-border-strong"
       }`}
     >
       {p.name}
@@ -120,7 +120,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               presetId === "custom"
                 ? "bg-accent text-white"
-                : "bg-surface border border-border text-text-secondary hover:border-accent/50"
+                : "bg-surface border border-border text-text-secondary hover:border-accent-border-strong"
             }`}
           >
             自定义
@@ -207,10 +207,10 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         </label>
         <div className="space-y-1 mb-2">
           {models.map((m, i) => (
-            <div key={i} className={`flex items-center gap-1 ${m === model ? "bg-accent/5 rounded" : ""}`}>
+            <div key={i} className={`flex items-center gap-1 ${m === model ? "bg-accent-subtle rounded" : ""}`}>
               <button
                 type="button"
-                className="flex-1 px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs text-left hover:border-accent/50"
+                className="flex-1 px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs text-left hover:border-accent-border-strong"
                 onClick={() => setModel(m)}
                 title="点击设为默认模型"
               >
@@ -238,7 +238,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
             onKeyDown={(e) => e.key === "Enter" && handleAddModel()}
           />
           <button
-            className="px-3 py-1 rounded border border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/5 transition-colors shrink-0"
+            className="px-3 py-1 rounded border border-accent-border-strong text-accent text-xs hover:border-accent hover:bg-accent-subtle transition-colors shrink-0"
             onClick={handleAddModel}
           >+ 添加模型</button>
         </div>
@@ -263,7 +263,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       <div className="flex gap-2 justify-end pt-2">
         {onCancel && (
           <button
-            className="px-4 py-2 rounded-lg border border-border text-text-secondary text-xs hover:border-accent/50 transition-colors"
+            className="px-4 py-2 rounded-lg border border-border text-text-secondary text-xs hover:border-accent-border-strong transition-colors"
             onClick={onCancel}
           >取消</button>
         )}
@@ -294,7 +294,7 @@ function ProviderItem({ cfg, isActive, onActivate, onEdit, onDelete }: ProviderI
     <div
       className={`flex items-center gap-3 px-4 py-3 rounded-lg border transition-colors ${
         isActive
-          ? "bg-accent/10 border-accent/30"
+          ? "bg-accent-bg border-accent-border"
           : "bg-surface border-border hover:border-accent/20"
       }`}
     >
@@ -308,7 +308,7 @@ function ProviderItem({ cfg, isActive, onActivate, onEdit, onDelete }: ProviderI
         <div className="flex items-center gap-2">
           <span className="text-sm text-text-primary font-medium truncate">{cfg.name}</span>
           {isActive && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent shrink-0">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-high text-accent shrink-0">
               使用中
             </span>
           )}
@@ -473,7 +473,7 @@ export function ProviderSettings() {
     <div className="space-y-4">
       {/* 添加供应商按钮 */}
       <button
-        className="w-full px-4 py-3 rounded-lg border-2 border-dashed border-border text-text-secondary text-sm hover:border-accent/50 hover:text-accent transition-colors"
+        className="w-full px-4 py-3 rounded-lg border-2 border-dashed border-border text-text-secondary text-sm hover:border-accent-border-strong hover:text-accent transition-colors"
         onClick={handleAddNew}
       >
         + 添加供应商

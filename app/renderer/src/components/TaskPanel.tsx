@@ -135,7 +135,7 @@ function TaskRow({ task }: { task: { id: string; title: string; description?: st
 
   return (
     <div
-      className={`border-b border-accent-border-light last:border-0 transition-colors ${(task.status === "building" || task.status === "evaluating") ? "bg-accent-bg" : task.status === "failed" ? "bg-danger/5" : "hover:bg-accent-subtle"}`}
+      className={`border-b border-accent-border-light last:border-0 transition-colors ${(task.status === "building" || task.status === "evaluating") ? "bg-accent-bg" : task.status === "failed" ? "bg-danger-soft" : "hover:bg-accent-subtle"}`}
       onMouseEnter={() => hasDesc && setExpanded(true)}
       onMouseLeave={() => setExpanded(false)}
     >

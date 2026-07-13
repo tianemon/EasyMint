@@ -193,7 +193,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
           }}
         />
         {saved && (
-          <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-accent/10 text-accent text-xs">
+          <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-accent-bg text-accent text-xs">
             已保存
           </div>
         )}

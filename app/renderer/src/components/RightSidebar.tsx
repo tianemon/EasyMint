@@ -29,7 +29,7 @@ export function RightSidebar({ active, onSelect, hasRunnable }: RightSidebarProp
           key={it.id}
           className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors mb-1 ${
             active === it.id
-              ? "bg-[color-mix(in_oklab,var(--color-accent)_12%,transparent)] text-accent"
+              ? "bg-accent-soft text-accent"
               : it.disabled
                 ? "text-text-muted opacity-40 cursor-not-allowed"
                 : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"

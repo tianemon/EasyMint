@@ -51,7 +51,7 @@ export function LogOverlay({ commandId }: LogOverlayProps): JSX.Element {
       <div className="bg-surface rounded-xl border border-border shadow-2xl w-[80vw] h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-surface-alt shrink-0">
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/15 text-accent font-mono">[{PLATFORM_LABEL[runnable.platform as RunPlatform] || runnable.platform}]</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-soft text-accent font-mono">[{PLATFORM_LABEL[runnable.platform as RunPlatform] || runnable.platform}]</span>
           <span className="text-sm text-text-primary font-medium">{runnable.label}</span>
           <span className="text-[10px] text-text-muted font-mono truncate">{runnable.run_command}</span>
           {state?.running ? (
@@ -62,7 +62,7 @@ export function LogOverlay({ commandId }: LogOverlayProps): JSX.Element {
           <div className="flex-1" />
           {state?.running && (
             <button
-              className="px-2.5 py-1 rounded-lg bg-danger/10 text-danger text-xs hover:bg-danger/20 transition-colors"
+              className="px-2.5 py-1 rounded-lg bg-danger-soft text-danger text-xs hover:bg-danger-bg transition-colors"
               onClick={() => stop(commandId)}
             >停止运行</button>
           )}

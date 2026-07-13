@@ -45,7 +45,7 @@ export function QuickPrompts({ onFill }: QuickPromptsProps): JSX.Element {
     <div ref={ref} className="relative shrink-0">
       <button
         onClick={() => setOpen(!open)}
-        className={`w-9 h-9 rounded-md border flex items-center justify-center transition-colors ${open ? "border-accent text-accent bg-accent-bg" : "border-border text-text-secondary hover:border-accent/50 hover:text-accent"}`}
+        className={`w-9 h-9 rounded-md border flex items-center justify-center transition-colors ${open ? "border-accent text-accent bg-accent-bg" : "border-border text-text-secondary hover:border-accent-border-strong hover:text-accent"}`}
         title="快捷操作"
       >
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">

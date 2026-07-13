@@ -57,7 +57,7 @@ import {
 import { readCache, writeCache, deleteCache } from "./services/session-cache";
 import { listIssues, addIssue, setStatus, appendNote, deleteIssue } from "./services/issue-service";
 import type { IssueStatus } from "./services/issue-service";
-import { detectRunnable, startProcess, stopProcess, restartProcess, getStatus, getRunningIds, installDeps } from "./services/process-service";
+import { detectRunnable, startProcess, stopProcess, restartProcess, getStatus, getRunningIds } from "./services/process-service";
 
 interface Services {
   mainWindow: BrowserWindow;
@@ -209,7 +209,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("process:restart", (_e, { projectPath, commandId }) => restartProcess(projectPath, commandId));
   ipcMain.handle("process:status", (_e, { commandId }) => getStatus(commandId));
   ipcMain.handle("process:running-ids", () => getRunningIds());
-  ipcMain.handle("process:install", (_e, { projectPath, commandId }) => installDeps(projectPath, commandId));
   ipcMain.handle("conv:list", (_e, { projectPath }) => listSessions(projectPath));
   ipcMain.handle("conv:get", (_e, { id, projectPath }) => getSessionInfo(id, projectPath));
   ipcMain.handle("conv:messages", (_e, { id, projectPath }) => getSessionMessages(id, projectPath));

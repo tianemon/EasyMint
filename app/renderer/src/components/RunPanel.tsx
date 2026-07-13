@@ -70,7 +70,7 @@ function platformColor(p: string): string {
 }
 
 export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Element {
-  const { runnables, cmdStates, activeLogId, detect, start, stop, restart, install, openLog, appendLog, setRunning, loadStatus } = useProcessStore();
+  const { runnables, cmdStates, activeLogId, detect, start, stop, restart, openLog, appendLog, setRunning, loadStatus } = useProcessStore();
 
   useEffect(() => {
     detect(projectPath);
@@ -126,7 +126,7 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
             {runnables.map((r) => {
               const st = cmdStates[r.id] || { running: false, logs: [] };
               return (
-                <div key={r.id} className={`rounded-lg border px-2.5 py-2 transition-colors ${st.running ? "border-success/30 bg-success/5" : "border-border"}`}>
+                <div key={r.id} className={`rounded-lg border px-2.5 py-2 transition-colors ${st.running ? "border-success-border bg-success-soft" : "border-border"}`}>
                   <div className="flex items-center gap-1.5">
                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${platformColor(r.platform)}`}>[{platformLabel(r.platform)}]</span>
                     <span className="text-xs text-text-primary font-medium truncate flex-1">{r.label}</span>
@@ -143,15 +143,15 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                     {st.running ? (
                       <>
                         <button
-                          className="flex-1 px-2 py-1 rounded bg-danger/10 text-danger text-[10px] font-medium hover:bg-danger/20 transition-colors"
+                          className="flex-1 px-2 py-1 rounded bg-danger-soft text-danger text-[10px] font-medium hover:bg-danger-bg transition-colors"
                           onClick={() => stop(r.id)}
                         >停止</button>
                         <button
-                          className="flex-1 px-2 py-1 rounded border border-border text-text-secondary text-[10px] hover:border-accent/50 transition-colors"
+                          className="flex-1 px-2 py-1 rounded border border-border text-text-secondary text-[10px] hover:border-accent-border-strong transition-colors"
                           onClick={() => restart(projectPath, r.id)}
                         >重启</button>
                         <button
-                          className="w-7 h-7 flex items-center justify-center rounded border border-border text-text-secondary hover:text-accent hover:border-accent/50 transition-colors"
+                          className="w-7 h-7 flex items-center justify-center rounded border border-border text-text-secondary hover:text-accent hover:border-accent-border-strong transition-colors"
                           onClick={() => openLog(r.id)}
                           title="查看日志"
                         >
@@ -159,22 +159,14 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                         </button>
                       </>
                     ) : (
-                      <>
-                        {r.install_command && (
-                          <button
-                            className="flex-1 px-2 py-1 rounded border border-border text-text-secondary text-[10px] hover:border-accent/50 transition-colors"
-                            onClick={() => { install(projectPath, r.id); openLog(r.id); }}
-                          >安装依赖</button>
-                        )}
-                        <button
-                          className="flex-1 px-2 py-1 rounded bg-accent text-white text-[10px] font-medium hover:bg-accent-hover transition-colors"
-                          onClick={() => start(projectPath, r.id)}
-                        >启动</button>
-                      </>
+                      <button
+                        className="flex-1 px-2 py-1 rounded bg-accent-soft text-accent text-[10px] font-medium hover:bg-accent-bg transition-colors"
+                        onClick={() => start(projectPath, r.id)}
+                      >启动</button>
                     )}
                     {st.running && r.url && (
                       <button
-                        className="w-7 h-7 flex items-center justify-center rounded border border-border text-text-secondary hover:text-accent hover:border-accent/50 transition-colors ml-1"
+                        className="w-7 h-7 flex items-center justify-center rounded border border-border text-text-secondary hover:text-accent hover:border-accent-border-strong transition-colors ml-1"
                         onClick={() => window.open(r.url, "_blank")}
                         title={`打开 ${r.url}`}
                       >

@@ -31,7 +31,6 @@ interface ProcessState {
   start: (projectPath: string, commandId: string) => Promise<void>;
   stop: (commandId: string) => Promise<void>;
   restart: (projectPath: string, commandId: string) => Promise<void>;
-  install: (projectPath: string, commandId: string) => Promise<void>;
   loadStatus: (commandId: string) => Promise<void>;
   appendLog: (commandId: string, line: string) => void;
   setRunning: (commandId: string, running: boolean) => void;
@@ -87,10 +86,6 @@ export const useProcessStore = create<ProcessState>((set) => ({
     set((s) => ({
       cmdStates: { ...s.cmdStates, [commandId]: { running: true, logs: [] } },
     }));
-  },
-
-  install: async (projectPath, commandId) => {
-    await window.electronAPI.process.install(projectPath, commandId);
   },
 
   loadStatus: async (commandId) => {

@@ -153,7 +153,7 @@ export function PromptSettings(): JSX.Element {
             ))}
           </div>
           <button
-            className="w-full py-1.5 text-xs border-t border-border text-accent hover:bg-accent/5 transition-colors"
+            className="w-full py-1.5 text-xs border-t border-border text-accent hover:bg-accent-subtle transition-colors"
             onClick={handleCreate}
           >
             + 新建

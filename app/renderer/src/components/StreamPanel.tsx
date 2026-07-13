@@ -421,7 +421,7 @@ function formatJson(value: unknown): string {
 export function UserChatBubble({ text }: { text: string }): JSX.Element {
   return (
     <div className="flex justify-end">
-      <div className="max-w-[75%] bg-accent/20 text-text-primary rounded-2xl rounded-br-md px-4 py-2 text-sm">
+      <div className="max-w-[75%] bg-accent-high text-text-primary rounded-2xl rounded-br-md px-4 py-2 text-sm">
         {text}
       </div>
     </div>

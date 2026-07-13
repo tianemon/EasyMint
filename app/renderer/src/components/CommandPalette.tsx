@@ -117,7 +117,7 @@ export function CommandPalette({ initialQuery = "", onClose, onPick }: CommandPa
                         <tr
                           key={cmd.name}
                           data-idx={idx}
-                          className={`cursor-pointer transition-colors ${isActive ? "bg-accent/10 rounded" : "hover:bg-surface-hover rounded"}`}
+                          className={`cursor-pointer transition-colors ${isActive ? "bg-accent-bg rounded" : "hover:bg-surface-hover rounded"}`}
                           onMouseEnter={() => setActiveIdx(idx)}
                           onClick={() => handlePick(cmd)}
                         >

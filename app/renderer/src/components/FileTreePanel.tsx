@@ -55,7 +55,7 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
         <div key={node.path}>
           <button
             className={`w-full text-left py-1 flex items-center gap-1.5 transition-colors ${
-              isSelected ? "bg-accent/20" : "hover:bg-surface-hover"
+              isSelected ? "bg-accent-high" : "hover:bg-surface-hover"
             } ${node.modified ? "text-accent" : "text-text-primary"}`}
             style={{ paddingLeft: `${14 + depth * 16}px`, fontFamily: 'var(--font-mono)', fontSize: '12px' }}
             onClick={() => {

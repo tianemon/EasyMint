@@ -156,7 +156,7 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onShowUpdate, o
       <div ref={dropdownRef} className="relative">
         <button
           className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${
-            showDropdown ? "bg-[color-mix(in_oklab,var(--color-accent)_12%,transparent)] text-accent" : "hover:bg-surface-hover text-text-secondary"
+            showDropdown ? "bg-accent-soft text-accent" : "hover:bg-surface-hover text-text-secondary"
           }`}
           data-tooltip="新建…"
           onClick={() => setShowDropdown(!showDropdown)}
@@ -207,7 +207,7 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onShowUpdate, o
               tool.disabled
                 ? "opacity-35 cursor-not-allowed text-text-secondary"
                 : activePanel === tool.id
-                  ? "bg-[color-mix(in_oklab,var(--color-accent)_12%,transparent)] text-accent"
+                  ? "bg-accent-soft text-accent"
                   : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
             }`}
             data-tooltip={tool.label}

@@ -25,6 +25,7 @@
   --color-accent-soft: #16a34a1f;
   --color-accent-bg: #16a34a1a;
   --color-accent-subtle: #16a34a0d;
+  --color-accent-high: #16a34a33;
   --color-accent-border: #16a34a33;
   --color-accent-border-light: #16a34a1a;
   --color-accent-border-strong: #16a34a4d;
@@ -37,6 +38,8 @@
   --color-danger: #dc2626;
   --color-danger-bg: #fef2f2;
   --color-danger-border: #fecaca;
+  --color-danger-soft: #dc26261a;
+  --color-success-soft: #17a34a1a;
   --color-info: #0891b2;
   --color-info-bg: #0891b21f;
   --color-dot-gray: #718096;
@@ -226,7 +229,10 @@
   --color-accent: #cccccc;
   --color-accent-hover: #dddddd;
   --color-accent-light: #aaaaaa;
+  --color-accent-soft: #1a1a1a;
   --color-accent-bg: #1e1e1e;
+  --color-accent-subtle: #141414;
+  --color-accent-high: #2a2a2a;
   --color-accent-border-strong: #3a3a3a;
 
   /* ── Chat bubbles ───────────────── */
@@ -243,6 +249,8 @@
   --color-danger: #ef4444;
   --color-danger-bg: #2e0a0a;
   --color-danger-border: #7f1d1d;
+  --color-danger-soft: #3a0a0a;
+  --color-success-soft: #0a1e0e;
   --color-info: #888888;
   --color-info-bg: #161616;
 

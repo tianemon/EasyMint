@@ -40,7 +40,7 @@ function IssueRow({ issue, projectPath }: { issue: IssueItem; projectPath: strin
   const isFixed = issue.status === "fixed";
 
   return (
-    <div className={`rounded-lg border px-2.5 py-2 transition-colors ${isFixed ? "border-border/50 opacity-60" : "border-border hover:border-accent/30"}`}>
+    <div className={`rounded-lg border px-2.5 py-2 transition-colors ${isFixed ? "border-border/50 opacity-60" : "border-border hover:border-accent-border"}`}>
       <div className="flex items-start gap-1.5">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
@@ -61,7 +61,7 @@ function IssueRow({ issue, projectPath }: { issue: IssueItem; projectPath: strin
         </div>
         {confirmDelete ? (
           <span className="flex items-center gap-1 shrink-0">
-            <button className="px-1.5 py-0.5 rounded text-[10px] text-danger hover:bg-danger/10 transition-colors" onClick={handleDelete}>确认删除</button>
+            <button className="px-1.5 py-0.5 rounded text-[10px] text-danger hover:bg-danger-soft transition-colors" onClick={handleDelete}>确认删除</button>
             <button className="px-1.5 py-0.5 rounded text-[10px] text-text-muted hover:bg-surface-hover transition-colors" onClick={() => setConfirmDelete(false)}>取消</button>
           </span>
         ) : (
@@ -74,7 +74,7 @@ function IssueRow({ issue, projectPath }: { issue: IssueItem; projectPath: strin
       {/* 操作行 */}
       <div className="flex items-center gap-1 mt-1.5">
         <button
-          className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${isFixed ? "bg-success/15 text-success" : "text-text-muted hover:bg-surface-hover"}`}
+          className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${isFixed ? "bg-success-soft text-success" : "text-text-muted hover:bg-surface-hover"}`}
           onClick={() => setStatus(projectPath, issue.id, isFixed ? "open" : "fixed")}
         >
           {isFixed ? "已修复" : "标记已修复"}
@@ -174,7 +174,7 @@ export function IssuePanel({ projectPath, onCollapse }: IssuePanelProps): JSX.El
             </div>
           </div>
         ) : (
-          <button className="w-full px-3 py-2 rounded-xl border-2 border-dashed border-border text-text-secondary text-xs hover:border-accent/50 hover:text-accent transition-colors" onClick={() => setShowForm(true)}>+ 记录问题</button>
+          <button className="w-full px-3 py-2 rounded-xl border-2 border-dashed border-border text-text-secondary text-xs hover:border-accent-border-strong hover:text-accent transition-colors" onClick={() => setShowForm(true)}>+ 记录问题</button>
         )}
       </div>
 

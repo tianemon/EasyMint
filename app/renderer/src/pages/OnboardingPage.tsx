@@ -115,12 +115,12 @@ export function OnboardingPage(): JSX.Element {
             </p>
             {savedCfg ? (
               <div className="bg-surface-alt rounded-lg p-4 space-y-4">
-                <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-accent/10 border border-accent/30">
+                <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-accent-bg border border-accent-border">
                   <div className="w-2 h-2 rounded-full bg-accent shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-text-primary font-medium truncate">{savedCfg.name}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent shrink-0">使用中</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-high text-accent shrink-0">使用中</span>
                     </div>
                     <div className="text-[11px] text-text-muted mt-0.5">
                       {savedCfg.baseUrl || "API 地址已设置"} · 模型 {savedCfg.models.length} 个
@@ -128,7 +128,7 @@ export function OnboardingPage(): JSX.Element {
                   </div>
                 </div>
                 <button
-                  className="w-full px-4 py-2 rounded-lg border border-border text-text-secondary text-xs hover:border-accent/50 transition-colors"
+                  className="w-full px-4 py-2 rounded-lg border border-border text-text-secondary text-xs hover:border-accent-border-strong transition-colors"
                   onClick={() => setSavedCfg(null)}
                 >重新配置</button>
               </div>

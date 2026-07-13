@@ -130,7 +130,7 @@ function StepIndicator({ currentStep, onStepClick }: { currentStep: number; onSt
           key={step.number}
           className={`p-3 rounded-lg transition-colors text-left ${
             i === currentStep
-              ? "bg-accent/20 text-accent border border-accent/30"
+              ? "bg-accent-high text-accent border border-accent-border"
               : i < currentStep
                 ? "text-success hover:bg-surface-hover"
                 : "text-text-secondary hover:bg-surface-hover"
@@ -182,8 +182,8 @@ function Step1Form({ data, onChange }: { data: SetupFormData; onChange: (patch: 
                 key={opt.value}
                 className={`px-4 py-2 rounded-lg border transition-colors text-sm ${
                   active
-                    ? "bg-accent/20 border-accent text-accent"
-                    : "border-border text-text-secondary hover:border-accent/50"
+                    ? "bg-accent-high border-accent text-accent"
+                    : "border-border text-text-secondary hover:border-accent-border-strong"
                 }`}
                 onClick={() => togglePlatform(opt.value)}
               >
@@ -203,8 +203,8 @@ function Step1Form({ data, onChange }: { data: SetupFormData; onChange: (patch: 
                 key={opt.value}
                 className={`flex-1 p-4 rounded-lg border transition-colors text-left ${
                   active
-                    ? "bg-accent/20 border-accent"
-                    : "border-border hover:border-accent/50"
+                    ? "bg-accent-high border-accent"
+                    : "border-border hover:border-accent-border-strong"
                 }`}
                 onClick={() => onChange({ completeness: opt.value as SetupFormData["completeness"] })}
               >
@@ -242,8 +242,8 @@ function Step2Form({ data, onChange }: { data: SetupFormData; onChange: (patch: 
                 key={opt.value}
                 className={`flex-1 p-4 rounded-lg border transition-colors text-left ${
                   active
-                    ? "bg-accent/20 border-accent"
-                    : "border-border hover:border-accent/50"
+                    ? "bg-accent-high border-accent"
+                    : "border-border hover:border-accent-border-strong"
                 }`}
                 onClick={() => onChange({ costSensitivity: opt.value as SetupFormData["costSensitivity"] })}
               >
@@ -385,8 +385,8 @@ function Step4Form({ data, onChange }: { data: SetupFormData; onChange: (patch: 
             key={style.value}
             className={`p-4 rounded-xl border transition-colors text-left ${
               active
-                ? "border-accent bg-accent/10 ring-1 ring-accent/30"
-                : "border-border hover:border-accent/50 bg-surface-alt"
+                ? "border-accent bg-accent-bg ring-1 ring-accent/30"
+                : "border-border hover:border-accent-border-strong bg-surface-alt"
             }`}
             onClick={() => onChange({ uiStyle: style.value as SetupFormData["uiStyle"] })}
           >

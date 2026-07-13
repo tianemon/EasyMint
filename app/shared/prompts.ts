@@ -169,14 +169,13 @@ task.json 有未完成任务 + 用户说「继续」「执行」「开始」等�
 项目完成时生成（每次回到 done 更新）：
 {
   "commands": [
-    { "platform": "react", "label": "前端", "cwd": "./client", "install_command": "npm install", "run_command": "npm run dev", "url": "http://localhost:5173" },
-    { "platform": "spring", "label": "后端", "cwd": "./server", "install_command": "mvn install -DskipTests", "run_command": "mvn spring-boot:run", "url": "http://localhost:8080" }
+    { "platform": "react", "label": "前端", "cwd": "./client", "run_command": "npm run dev", "url": "http://localhost:5173" },
+    { "platform": "spring", "label": "后端", "cwd": "./server", "run_command": "mvn spring-boot:run", "url": "http://localhost:8080" }
   ]
 }
 - platform：技术栈，如 react、vue、nextjs、spring、django、flutter、react-native、python、go
 - label：显示名，如"前端"、"后端"、"Android"
 - cwd：工作目录（相对项目根），默认 "."
-- install_command：依赖安装命令，如 npm install、mvn install -DskipTests
 - run_command：启动命令，如 npm run dev、python main.py、flutter run
 - url：启动后访问地址，如 http://localhost:3000
 - 多入口（前后端分离、跨平台）写多条

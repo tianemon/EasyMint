@@ -539,7 +539,7 @@ export function ProjectPage(): JSX.Element {
                 openProjectList.map((p) => (
                   <div key={p.id} className="relative group">
                     <button
-                      className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors mb-0.5 ${p.id === projectId ? "bg-accent/10" : "hover:bg-surface-hover"}`}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors mb-0.5 ${p.id === projectId ? "bg-accent-bg" : "hover:bg-surface-hover"}`}
                       onClick={() => {
                         setShowOpenProject(false);
                         if (projectId && projectId !== p.id) {

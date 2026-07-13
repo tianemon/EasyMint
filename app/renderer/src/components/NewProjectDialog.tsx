@@ -239,7 +239,7 @@ function Select({ value, onChange, options, placeholder }: { value: string; onCh
           {options.map((o) => (
             <button
               key={o.value}
-              className={`w-full text-left px-3 py-2 text-sm transition-colors ${o.value === value ? "bg-accent/10 text-accent" : "text-text-primary hover:bg-surface-hover"}`}
+              className={`w-full text-left px-3 py-2 text-sm transition-colors ${o.value === value ? "bg-accent-bg text-accent" : "text-text-primary hover:bg-surface-hover"}`}
               onClick={() => { onChange(o.value); setOpen(false); }}
             >
               <span>{o.label}</span>
@@ -297,7 +297,7 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
       <div>
         <div className="flex items-center justify-between mb-2">
           <label className="text-sm font-medium text-text-primary">项目形式</label>
-          <button className="px-2 py-0.5 rounded border border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/5 transition-colors" onClick={addTarget}>+ 添加</button>
+          <button className="px-2 py-0.5 rounded border border-accent-border-strong text-accent text-xs hover:border-accent hover:bg-accent-subtle transition-colors" onClick={addTarget}>+ 添加</button>
         </div>
         <div className="space-y-2">
           {data.targets.map((t, i) => (
@@ -322,7 +322,7 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
             return (
               <button
                 key={opt.value}
-                className={`flex-1 p-3 rounded-lg border transition-colors text-left ${active ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
+                className={`flex-1 p-3 rounded-lg border transition-colors text-left ${active ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`}
                 onClick={() => onChange({ completeness: opt.value })}
               >
                 <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
@@ -368,7 +368,7 @@ function Step2Form({
           <button className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors disabled:opacity-40" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
             {loadingRec === "features" ? "Mint 思考中..." : "Mint 推荐"}
           </button>
-          <button className="px-3 py-1.5 rounded-lg border border-accent/50 text-accent text-xs hover:border-accent hover:bg-accent/10 transition-colors" onClick={addFeature}>+ 添加功能</button>
+          <button className="px-3 py-1.5 rounded-lg border border-accent-border-strong text-accent text-xs hover:border-accent hover:bg-accent-bg transition-colors" onClick={addFeature}>+ 添加功能</button>
         </div>
       </div>
       {data.features.length === 0 && !loadingRec && (
@@ -451,7 +451,7 @@ function Step4Form({
           {BUDGET_OPTIONS.map((opt) => {
             const active = data.techBudget === opt.value;
             return (
-              <button key={opt.value} className={`flex-1 p-3 rounded-lg border transition-colors text-left ${active ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`} onClick={() => onChange({ techBudget: opt.value as BudgetChoice })}>
+              <button key={opt.value} className={`flex-1 p-3 rounded-lg border transition-colors text-left ${active ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`} onClick={() => onChange({ techBudget: opt.value as BudgetChoice })}>
                 <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
                 <div className="text-xs text-text-secondary mt-0.5">{opt.desc}</div>
               </button>
@@ -472,7 +472,7 @@ function Step4Form({
           ].map((opt) => {
             const active = data.aiIntegration === opt.value;
             return (
-              <button key={opt.value} className={`flex-1 p-2 rounded-lg border transition-colors text-left ${active ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`} onClick={() => onChange({ aiIntegration: opt.value as AIIntegration })}>
+              <button key={opt.value} className={`flex-1 p-2 rounded-lg border transition-colors text-left ${active ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`} onClick={() => onChange({ aiIntegration: opt.value as AIIntegration })}>
                 <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
                 <div className="text-[10px] text-text-secondary mt-0.5">{opt.desc}</div>
               </button>
@@ -487,21 +487,21 @@ function Step4Form({
         <p className="text-xs text-text-secondary mb-2">Mint 会根据此选择推荐合适的技术方案。</p>
         <div className="flex gap-2">
           <button
-            className={`flex-1 p-2 rounded-lg border transition-colors text-left ${data.deployPlatform === "本地" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
+            className={`flex-1 p-2 rounded-lg border transition-colors text-left ${data.deployPlatform === "本地" ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`}
             onClick={() => onChange({ deployPlatform: "本地" })}
           >
             <div className={`text-sm font-medium ${data.deployPlatform === "本地" ? "text-accent" : "text-text-primary"}`}>本地</div>
             <div className="text-[10px] text-text-secondary mt-0.5">本机运行，无需云服务</div>
           </button>
           <button
-            className={`flex-1 p-2 rounded-lg border transition-colors text-left ${data.deployPlatform === "云端" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
+            className={`flex-1 p-2 rounded-lg border transition-colors text-left ${data.deployPlatform === "云端" ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`}
             onClick={() => onChange({ deployPlatform: "云端" })}
           >
             <div className={`text-sm font-medium ${data.deployPlatform === "云端" ? "text-accent" : "text-text-primary"}`}>云端</div>
             <div className="text-[10px] text-text-secondary mt-0.5">可互联网访问，有服务器费用</div>
           </button>
           <button
-            className={`flex-1 p-2 rounded-lg border transition-colors text-left ${data.deployPlatform === "混合" ? "bg-accent/20 border-accent" : "border-border hover:border-accent/50"}`}
+            className={`flex-1 p-2 rounded-lg border transition-colors text-left ${data.deployPlatform === "混合" ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`}
             onClick={() => onChange({ deployPlatform: "混合" })}
           >
             <div className={`text-sm font-medium ${data.deployPlatform === "混合" ? "text-accent" : "text-text-primary"}`}>混合</div>

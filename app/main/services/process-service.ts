@@ -150,33 +150,6 @@ export function startProcess(projectPath: string, commandId: string): void {
 }
 
 /** 安装依赖（一次性命令，输出广播到同一 commandId 日志） */
-export function installDeps(projectPath: string, commandId: string): void {
-  const config = getCommandConfig(projectPath, commandId);
-  if (!config?.install_command) return;
-
-  const resolved = resolveHome(projectPath);
-  const cwd = config.cwd ? join(resolved, config.cwd) : resolved;
-  const isWin = process.platform === "win32";
-  const shell = isWin ? "cmd.exe" : "bash";
-  const shellArgs = isWin ? ["/c", config.install_command] : ["-c", config.install_command];
-
-  broadcast(commandId, `[安装依赖] ${config.install_command}`, "stdout");
-  const proc = spawn(shell, shellArgs, { cwd, env: buildEnv(), shell: false });
-
-  proc.stdout?.on("data", (chunk: Buffer) => {
-    chunk.toString().split("\n").filter(Boolean).forEach((l) => broadcast(commandId, l, "stdout"));
-  });
-  proc.stderr?.on("data", (chunk: Buffer) => {
-    chunk.toString().split("\n").filter(Boolean).forEach((l) => broadcast(commandId, l, "stderr"));
-  });
-  proc.on("close", (code) => {
-    broadcast(commandId, code === 0 ? "[安装完成]" : `[安装失败] exit ${code}`, "stdout");
-  });
-  proc.on("error", (err) => {
-    broadcast(commandId, `[安装失败] ${err.message}`, "stderr");
-  });
-}
-
 /** 停止进程（杀整树 + 销毁日志） */
 export function stopProcess(commandId: string): void {
   const info = processes.get(commandId);

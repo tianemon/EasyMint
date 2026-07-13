@@ -145,7 +145,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     restart: (projectPath: string, commandId: string) => ipcRenderer.invoke("process:restart", { projectPath, commandId }),
     status: (commandId: string) => ipcRenderer.invoke("process:status", { commandId }),
     runningIds: () => ipcRenderer.invoke("process:running-ids"),
-    install: (projectPath: string, commandId: string) => ipcRenderer.invoke("process:install", { projectPath, commandId }),
     onOutput: (callback: (data: { commandId: string; line: string; stream: string }) => void) => {
       const handler = (_e: Electron.IpcRendererEvent, data: { commandId: string; line: string; stream: string }) => callback(data);
       ipcRenderer.on("process:output", handler);

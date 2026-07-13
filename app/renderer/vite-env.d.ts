@@ -142,7 +142,6 @@ interface ElectronAPI {
     restart: (projectPath: string, commandId: string) => Promise<void>;
     status: (commandId: string) => Promise<{ running: boolean; pid?: number; run_command?: string; output: string[] }>;
     runningIds: () => Promise<string[]>;
-    install: (projectPath: string, commandId: string) => Promise<void>;
     onOutput: (callback: (data: { commandId: string; line: string; stream: string }) => void) => () => void;
     onStatusChanged: (callback: (data: { commandId: string; running: boolean }) => void) => () => void;
   };
