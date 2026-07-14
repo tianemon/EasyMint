@@ -1,17 +1,17 @@
 /**
  * EM HTML Editor — 可视化页面编辑器运行时
  *
- * 注入到预览 HTML 中，提供：点击选中元素 → 样式面板 → 导出。
- * 借鉴 ClickDeck 的 patch 式撤销重做和面板设计。
+ * 注入到预览 HTML 中，提供：
+ *   画布转换 → 点击选中 → 拖动移位 → resize → 样式编辑 → 撤销重做 → 导出
  *
- * 用法：在父窗口（EM）中加载此脚本后，调用 EMEditor.start() 启动编辑。
+ * 借鉴 ClickDeck（patch 式撤销重做、选中机制）和
+ * html-deck-editor（画布式布局、拖动/resize 手柄）。
  */
-
 (function () {
   "use strict";
 
   // ═══════════════════════════════════════════════════════════
-  // 1. 颜色预设
+  // 1. 常量
   // ═══════════════════════════════════════════════════════════
 
   var TEXT_COLORS = [
@@ -19,6 +19,7 @@
     "#dc2626", "#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16",
     "#16a34a", "#14b8a6", "#06b6d4", "#0ea5e9", "#2563eb", "#4f46e5",
     "#7c3aed", "#a855f7", "#d946ef", "#ec4899", "#f43f5e", "#7f1d1d",
+    "#78350f", "#365314", "#064e3b", "#0f172a", "#312e81", "#581c87"
   ];
 
   var BG_COLORS = [
@@ -26,14 +27,29 @@
     { value: "#ffffff", label: "白色" },
     { value: "#f7f7f5", label: "浅灰" },
     { value: "#e5e7eb", label: "灰色" },
+    { value: "#d4d4d4", label: "中灰" },
     { value: "#111111", label: "黑色" },
-    { value: "#fef3c7", label: "浅黄" },
+    { value: "#fff2b8", label: "浅黄" },
+    { value: "#fde68a", label: "暖黄" },
+    { value: "#ffd6e7", label: "浅粉" },
+    { value: "#fecdd3", label: "玫瑰粉" },
     { value: "#d9f99d", label: "浅绿" },
     { value: "#bbf7d0", label: "薄荷绿" },
+    { value: "#99f6e4", label: "青绿" },
     { value: "#bfdbfe", label: "浅蓝" },
+    { value: "#bae6fd", label: "天蓝" },
     { value: "#c4b5fd", label: "浅紫" },
     { value: "#fed7aa", label: "浅橙" },
-    { value: "#fecdd3", label: "浅红" },
+    { value: "#fca5a5", label: "浅红" },
+    { value: "#ff3d8b", label: "洋红" },
+    { value: "#f97316", label: "橙色" },
+    { value: "#eab308", label: "黄色" },
+    { value: "#22c55e", label: "绿色" },
+    { value: "#14b8a6", label: "青色" },
+    { value: "#0ea5e9", label: "亮蓝" },
+    { value: "#1f2be0", label: "蓝色" },
+    { value: "#7c3aed", label: "紫色" },
+    { value: "#0f172a", label: "深蓝灰" }
   ];
 
   // ═══════════════════════════════════════════════════════════
@@ -81,25 +97,18 @@
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 3. Outline（高亮框）— 借鉴 ClickDeck overlay
+  // 3. Outline（选中高亮框）
   // ═══════════════════════════════════════════════════════════
 
   function createOutline() {
     var div = document.createElement("div");
     div.setAttribute("data-em-editor", "outline");
     Object.assign(div.style, {
-      position: "fixed",
-      pointerEvents: "none",
-      zIndex: "99998",
-      border: "2px solid #16a34a",
-      borderRadius: "4px",
-      // 双层 box-shadow 确保在任何背景色上都可见：
-      // 内层白色环 → 绿色/深色背景上可见
-      // 外层绿色光晕 → 白色/浅色背景上可见
+      position: "fixed", pointerEvents: "none", zIndex: "99998",
+      border: "2px solid #16a34a", borderRadius: "4px",
       boxShadow: "0 0 0 1px rgba(255,255,255,0.85), 0 0 0 3px rgba(22,163,74,0.35)",
       backgroundColor: "rgba(22, 163, 74, 0.05)",
-      transition: "all 0.12s ease",
-      display: "none",
+      transition: "all 0.12s ease", display: "none",
     });
     document.body.appendChild(div);
     return div;
@@ -116,10 +125,55 @@
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 4. 样式操作 — 返回 {prop, before} 供 patch 记录
+  // 4. EditorFrame（选中框：拖动把手 + resize 手柄 + 删除按钮）
   // ═══════════════════════════════════════════════════════════
 
-  /** 读取属性的当前有效值（优先 inline，其次 computed） */
+  function createEditorFrame() {
+    var frame = document.createElement("div");
+    frame.setAttribute("data-em-editor", "editor-frame");
+    Object.assign(frame.style, {
+      position: "fixed", pointerEvents: "none", zIndex: "99999",
+      display: "none",
+    });
+    frame.innerHTML =
+      '<div data-em-editor="frame-drag-handle" style="' +
+        'position:absolute;top:-28px;left:0;right:0;height:24px;' +
+        'background:#16a34a;border-radius:4px 4px 0 0;' +
+        'display:flex;align-items:center;justify-content:center;' +
+        'cursor:grab;pointer-events:auto;color:#fff;font-size:11px;user-select:none' +
+      '">拖动</div>' +
+      '<button data-em-editor="frame-delete-btn" style="' +
+        'position:absolute;top:-28px;right:0;width:24px;height:24px;' +
+        'border:none;background:transparent;color:#fff;font-size:16px;' +
+        'cursor:pointer;pointer-events:auto;line-height:1' +
+      '" title="删除 (Delete)">×</button>' +
+      // 四角 resize 手柄
+      '<div data-em-editor="frame-resize" data-handle="nw" style="position:absolute;top:-6px;left:-6px;width:10px;height:10px;background:#fff;border:2px solid #16a34a;border-radius:2px;cursor:nwse-resize;pointer-events:auto"></div>' +
+      '<div data-em-editor="frame-resize" data-handle="ne" style="position:absolute;top:-6px;right:-6px;width:10px;height:10px;background:#fff;border:2px solid #16a34a;border-radius:2px;cursor:nesw-resize;pointer-events:auto"></div>' +
+      '<div data-em-editor="frame-resize" data-handle="sw" style="position:absolute;bottom:-6px;left:-6px;width:10px;height:10px;background:#fff;border:2px solid #16a34a;border-radius:2px;cursor:nesw-resize;pointer-events:auto"></div>' +
+      '<div data-em-editor="frame-resize" data-handle="se" style="position:absolute;bottom:-6px;right:-6px;width:10px;height:10px;background:#fff;border:2px solid #16a34a;border-radius:2px;cursor:nwse-resize;pointer-events:auto"></div>';
+
+    document.body.appendChild(frame);
+    frame._dragHandle = frame.querySelector("[data-em-editor=frame-drag-handle]");
+    frame._deleteBtn = frame.querySelector("[data-em-editor=frame-delete-btn]");
+    frame._resizeHandles = frame.querySelectorAll("[data-em-editor=frame-resize]");
+    return frame;
+  }
+
+  function updateFramePosition(frame, el) {
+    if (!el) { frame.style.display = "none"; return; }
+    var r = el.getBoundingClientRect();
+    frame.style.display = "block";
+    frame.style.left = (r.left - 2) + "px";
+    frame.style.top = (r.top - 2) + "px";
+    frame.style.width = (r.width + 4) + "px";
+    frame.style.height = (r.height + 4) + "px";
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 5. 样式操作 — 返回 {prop, before, apply}
+  // ═══════════════════════════════════════════════════════════
+
   function readStyle(el, prop) {
     if (el.style[prop]) return el.style[prop];
     return getComputedStyle(el)[prop];
@@ -146,6 +200,9 @@
     "bold-toggle": function (el) {
       return { prop: "fontWeight", before: readStyle(el, "fontWeight"), apply: function () { el.style.fontWeight = getComputedStyle(el).fontWeight === "700" ? "400" : "700"; } };
     },
+    "italic-toggle": function (el) {
+      return { prop: "fontStyle", before: readStyle(el, "fontStyle"), apply: function () { el.style.fontStyle = getComputedStyle(el).fontStyle === "italic" ? "normal" : "italic"; } };
+    },
     "line-height+": function (el) {
       var v = parseFloat(getComputedStyle(el).lineHeight) || 20;
       return { prop: "lineHeight", before: readStyle(el, "lineHeight"), apply: function () { el.style.lineHeight = (v + 4) + "px"; } };
@@ -170,38 +227,61 @@
       var v = parseFloat(getComputedStyle(el).borderRadius) || 0;
       return { prop: "borderRadius", before: readStyle(el, "borderRadius"), apply: function () { el.style.borderRadius = Math.max(0, v - 4) + "px"; } };
     },
-    "text-edit": function (el) {
-      return { prop: "contentEditable", before: String(el.contentEditable), apply: function () { el.contentEditable = el.contentEditable === "true" ? "false" : "true"; if (el.contentEditable === "true") el.focus(); } };
-    },
   };
 
   // ═══════════════════════════════════════════════════════════
-  // 5. 历史（Patch 式 Undo / Redo）— 借鉴 ClickDeck
+  // 6. 历史系统（Patch 式）
   // ═══════════════════════════════════════════════════════════
 
   function createHistory() {
     var undoStack = [];
     var redoStack = [];
 
-    function applyPatch(patch, value) {
-      if (patch.el && patch.el.style) {
-        patch.el.style[patch.prop] = value;
+    function applyValue(patch, value) {
+      switch (patch.type) {
+        case "style":
+          if (patch.el && patch.el.style) patch.el.style[patch.prop] = value;
+          break;
+        case "move":
+          if (patch.el && patch.el.style) { patch.el.style.left = value.l; patch.el.style.top = value.t; }
+          break;
+        case "resize":
+          if (patch.el && patch.el.style) {
+            patch.el.style.width = value.w; patch.el.style.height = value.h;
+            patch.el.style.left = value.l; patch.el.style.top = value.t;
+          }
+          break;
+        case "delete":
+          // value.html contains the element's outerHTML; value.pEl is parent; value.ref is nextSibling
+          var tmp = document.createElement("div");
+          tmp.innerHTML = value.h;
+          var restored = tmp.firstChild;
+          if (value.ref && value.ref.parentNode === value.pEl) {
+            value.pEl.insertBefore(restored, value.ref);
+          } else if (value.pEl) {
+            value.pEl.appendChild(restored);
+          }
+          patch.el = restored;
+          break;
+        case "add":
+          if (patch.el && patch.el.parentNode) patch.el.remove();
+          break;
       }
     }
 
     return {
-      /** 记录一次修改：先应用，再入栈，清空 redo */
-      record: function (el, prop, before, after) {
-        var patch = { el: el, prop: prop, before: before, after: after };
+      record: function (type, el, before, after, extra) {
+        var patch = { type: type, el: el, before: before, after: after };
+        if (extra) { patch.parent = extra.parent; patch.nextSibling = extra.nextSibling; patch.html = extra.html; patch.prop = extra.prop; }
         undoStack.push(patch);
         if (undoStack.length > 100) undoStack.shift();
-        redoStack.length = 0; // 新操作清空重做栈
+        redoStack.length = 0;
       },
 
       undo: function () {
         if (undoStack.length === 0) return false;
         var patch = undoStack.pop();
-        applyPatch(patch, patch.before);
+        applyValue(patch, patch.before);
         redoStack.push(patch);
         return true;
       },
@@ -209,7 +289,7 @@
       redo: function () {
         if (redoStack.length === 0) return false;
         var patch = redoStack.pop();
-        applyPatch(patch, patch.after);
+        applyValue(patch, patch.after);
         undoStack.push(patch);
         return true;
       },
@@ -220,7 +300,7 @@
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 6. 面板 UI — 借鉴 ClickDeck panel，始终可见
+  // 7. 面板 UI
   // ═══════════════════════════════════════════════════════════
 
   function createPanel() {
@@ -228,6 +308,14 @@
     panel.setAttribute("data-em-editor", "panel");
     panel.innerHTML =
       '<div data-em-editor="panel-inner" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">' +
+        // Undo / Redo
+        '<button type="button" data-action="undo" id="em-btn-undo" title="撤销 Ctrl+Z" disabled style="width:28px;height:28px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1">↩</button>' +
+        '<button type="button" data-action="redo" id="em-btn-redo" title="重做 Ctrl+Shift+Z" disabled style="width:28px;height:28px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1">↪</button>' +
+        '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
+        // 添加元素
+        '<button type="button" data-action="add-text" title="添加文字" style="height:28px;padding:0 8px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">+文字</button>' +
+        '<button type="button" data-action="add-image" title="添加图片" style="height:28px;padding:0 8px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">+图片</button>' +
+        '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // 字号
         '<button type="button" data-action="font-" title="缩小字号" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1">A-</button>' +
         '<button type="button" data-action="font+" title="增大字号" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1">A+</button>' +
@@ -237,9 +325,9 @@
         '<button type="button" data-action="align-center" title="居中" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">⬌</button>' +
         '<button type="button" data-action="align-right" title="右对齐" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">➡</button>' +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
-        // 粗体 + 文字编辑
+        // 粗体 + 斜体
         '<button type="button" data-action="bold-toggle" title="切换粗体" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-weight:700;font-size:12px">B</button>' +
-        '<button type="button" data-action="text-edit" title="编辑文字" style="height:24px;padding:0 6px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:11px">✏️</button>' +
+        '<button type="button" data-action="italic-toggle" title="切换斜体" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-style:italic;font-size:12px">I</button>' +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // 行高 + 边距 + 圆角
         '<button type="button" data-action="line-height-" title="缩小行高" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">↕-</button>' +
@@ -259,43 +347,31 @@
         '<span style="font-size:10px;color:#666">底色</span>' +
         '<span data-em-editor="bg-colors" style="display:flex;gap:2px"></span>' +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
-        // Undo / Redo / 导出
-        '<button type="button" data-action="undo" id="em-btn-undo" title="撤销 Ctrl+Z" disabled style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">↩</button>' +
-        '<button type="button" data-action="redo" id="em-btn-redo" title="重做 Ctrl+Shift+Z" disabled style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">↪</button>' +
-        '<button type="button" data-action="export" title="导出 HTML" style="height:24px;padding:0 8px;border:1px solid #16a34a;border-radius:4px;background:#16a34a;color:#fff;cursor:pointer;font-size:11px;font-weight:500">导出</button>' +
+        // 导出
+        '<button type="button" data-action="export" title="导出 HTML" style="height:28px;padding:0 10px;border:1px solid #16a34a;border-radius:4px;background:#16a34a;color:#fff;cursor:pointer;font-size:12px;font-weight:500">导出</button>' +
       '</div>';
 
     Object.assign(panel.style, {
-      position: "fixed",
-      bottom: "16px",
-      left: "50%",
-      transform: "translateX(-50%)",
-      zIndex: "99999",
-      background: "#fff",
-      border: "1px solid #e4e4e7",
-      borderRadius: "10px",
-      padding: "8px 12px",
-      boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
-      display: "flex",
-      userSelect: "none",
+      position: "fixed", bottom: "16px", left: "50%", transform: "translateX(-50%)",
+      zIndex: "99999", background: "#fff", border: "1px solid #e4e4e7",
+      borderRadius: "10px", padding: "8px 12px",
+      boxShadow: "0 4px 24px rgba(0,0,0,0.12)", display: "flex", userSelect: "none",
     });
     document.body.appendChild(panel);
 
     // 填充颜色按钮
-    var textColorsContainer = panel.querySelector("[data-em-editor=text-colors]");
-    var bgColorsContainer = panel.querySelector("[data-em-editor=bg-colors]");
+    var tc = panel.querySelector("[data-em-editor=text-colors]");
+    var bc = panel.querySelector("[data-em-editor=bg-colors]");
     for (var ci = 0; ci < TEXT_COLORS.length; ci++) {
-      makeColorBtn(textColorsContainer, TEXT_COLORS[ci], TEXT_COLORS[ci], "字色");
+      makeColorBtn(tc, TEXT_COLORS[ci], TEXT_COLORS[ci], "字色");
     }
     for (var bi = 0; bi < BG_COLORS.length; bi++) {
       var item = BG_COLORS[bi];
-      makeColorBtn(bgColorsContainer, item.value, item.label, "底色");
+      makeColorBtn(bc, item.value, item.label, "底色");
     }
 
-    // 存储 undo/redo 按钮引用，供 refreshHistoryButtons 更新状态
     panel._undoBtn = panel.querySelector("#em-btn-undo");
     panel._redoBtn = panel.querySelector("#em-btn-redo");
-
     return panel;
   }
 
@@ -320,83 +396,325 @@
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 7. 编辑器主类
+  // 8. HTML 转换引擎
+  // ═══════════════════════════════════════════════════════════
+
+  function convertToCanvas() {
+    var canvas = document.createElement("div");
+    canvas.setAttribute("data-em-editor", "canvas");
+    canvas.id = "em-canvas";
+    canvas.style.position = "relative";
+    canvas.style.margin = "0";
+    canvas.style.padding = "0";
+    canvas.style.minHeight = window.innerHeight + "px";
+
+    // 收集 body 的所有直接子元素
+    var children = [];
+    // 先收集为静态数组，避免 live NodeList 在移动元素时被修改导致跳过
+    var bodyChildren = [];
+    var rawChildren = document.body.childNodes;
+    for (var ri = 0; ri < rawChildren.length; ri++) bodyChildren.push(rawChildren[ri]);
+    for (var i = 0; i < bodyChildren.length; i++) {
+      var node = bodyChildren[i];
+      // 跳过编辑 UI、文本节点、脚本、样式
+      if (isEditorUI(node)) continue;
+      if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) continue;
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      var tag = node.tagName.toLowerCase();
+      if (tag === "script" || tag === "style" || tag === "link" || tag === "meta" || tag === "noscript") continue;
+      children.push(node);
+    }
+
+    // 计算 canvas 尺寸：取所有子元素的最大覆盖范围
+    var maxBottom = 0;
+    var maxRight = 0;
+
+    for (var j = 0; j < children.length; j++) {
+      var child = children[j];
+      var rect = child.getBoundingClientRect();
+      var scrollX = window.scrollX || window.pageXOffset || 0;
+      var scrollY = window.scrollY || window.pageYOffset || 0;
+
+      // 文档坐标 = 视口坐标 + 滚动偏移
+      var docLeft = rect.left + scrollX;
+      var docTop = rect.top + scrollY;
+      var docRight = docLeft + rect.width;
+      var docBottom = docTop + rect.height;
+
+      if (docRight > maxRight) maxRight = docRight;
+      if (docBottom > maxBottom) maxBottom = docBottom;
+
+      // 转为绝对定位（保留原始宽高和位置）
+      child.style.position = "absolute";
+      child.style.left = docLeft + "px";
+      child.style.top = docTop + "px";
+      child.style.width = rect.width + "px";
+      child.style.height = rect.height + "px";
+      child.style.margin = "0";
+      // 保留原始 box-sizing 行为
+      if (!child.style.boxSizing) {
+        var cs = getComputedStyle(child);
+        if (cs.boxSizing === "border-box") child.style.boxSizing = "border-box";
+      }
+
+      canvas.appendChild(child);
+    }
+
+    canvas.style.width = Math.max(maxRight, window.innerWidth) + "px";
+    canvas.style.height = Math.max(maxBottom, window.innerHeight) + "px";
+
+    // 替换 body 内容
+    document.body.innerHTML = "";
+    document.body.appendChild(canvas);
+
+    return canvas;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 9. 编辑器主类
   // ═══════════════════════════════════════════════════════════
 
   var editor = null;
 
   function refreshHistoryButtons() {
     if (!editor || !editor.panel) return;
-    var undoBtn = editor.panel._undoBtn;
-    var redoBtn = editor.panel._redoBtn;
-    if (undoBtn) undoBtn.disabled = !editor.history.canUndo();
-    if (redoBtn) redoBtn.disabled = !editor.history.canRedo();
+    var ub = editor.panel._undoBtn;
+    var rb = editor.panel._redoBtn;
+    if (ub) ub.disabled = !editor.history.canUndo();
+    if (rb) rb.disabled = !editor.history.canRedo();
   }
 
-  /** 颜色操作记录 patch */
   function recordColorPatch(el, prop, color) {
     if (!editor) return;
     var before = el.style[prop] || getComputedStyle(el)[prop];
     el.style[prop] = color;
-    editor.history.record(el, prop, before, color);
+    editor.history.record("style", el, before, color, { prop: prop });
     refreshHistoryButtons();
+  }
+
+  /** 同步 outline + frame 位置 */
+  function syncAll(el) {
+    if (!editor) return;
+    updateOutline(editor.outline, el);
+    updateFramePosition(editor.frame, el);
   }
 
   window.EMEditor = {
     start: function () {
       if (editor) return;
 
+      // 1. 转换 HTML 为画布模式
+      var canvas = convertToCanvas();
+
+      // 2. 创建 UI 元素
       var outline = createOutline();
+      var frame = createEditorFrame();
       var panel = createPanel();
       var history = createHistory();
 
       editor = {
+        canvas: canvas,
         outline: outline,
+        frame: frame,
         panel: panel,
         history: history,
         selected: null,
         hoverOutline: null,
+        _dragging: null,    // { type: "move"|"resize", handle, startX, startY, startL, startT, startW, startH }
+        _editingText: null,  // contentEditable 目标元素
       };
 
-      // 选中方法
       function selectElement(el) {
         editor.selected = el;
-        updateOutline(outline, el);
+        syncAll(el);
+        // 取消文字编辑
+        if (editor._editingText && editor._editingText !== el) {
+          editor._editingText.contentEditable = "false";
+          editor._editingText = null;
+        }
       }
 
-      // hover 高亮
+      // ── hover 高亮 ──
       var hoverOutline = document.createElement("div");
       hoverOutline.setAttribute("data-em-editor", "hover-outline");
       Object.assign(hoverOutline.style, {
         position: "fixed", pointerEvents: "none", zIndex: "99997",
-        border: "1px dashed rgba(22,163,74,0.35)", borderRadius: "4px",
+        border: "1px dashed rgba(22,163,74,0.40)", borderRadius: "2px",
         backgroundColor: "rgba(22,163,74,0.04)", display: "none",
       });
       document.body.appendChild(hoverOutline);
       editor.hoverOutline = hoverOutline;
 
-      // ── 事件: mousemove ──
+      // ── mousemove ──
       function onMouseMove(e) {
+        // 拖动/resize 中
+        if (editor._dragging) {
+          var d = editor._dragging;
+          var dx = e.clientX - d.startX;
+          var dy = e.clientY - d.startY;
+
+          if (d.type === "move") {
+            var newL = d.startL + dx;
+            var newT = d.startT + dy;
+            // Ctrl 吸附 10px
+            if (e.ctrlKey || e.metaKey) { newL = Math.round(newL / 10) * 10; newT = Math.round(newT / 10) * 10; }
+            editor.selected.style.left = newL + "px";
+            editor.selected.style.top = Math.max(0, newT) + "px";
+          } else if (d.type === "resize") {
+            var newW, newH, newL, newT;
+            var minW = 10, minH = 10;
+            var handle = d.handle;
+
+            if (handle === "se") {
+              newW = Math.max(minW, d.startW + dx); newH = Math.max(minH, d.startH + dy);
+              newL = d.startL; newT = d.startT;
+            } else if (handle === "sw") {
+              newW = Math.max(minW, d.startW - dx); newH = Math.max(minH, d.startH + dy);
+              newL = d.startL + (d.startW - newW); newT = d.startT;
+            } else if (handle === "ne") {
+              newW = Math.max(minW, d.startW + dx); newH = Math.max(minH, d.startH - dy);
+              newL = d.startL; newT = d.startT + (d.startH - newH);
+            } else if (handle === "nw") {
+              newW = Math.max(minW, d.startW - dx); newH = Math.max(minH, d.startH - dy);
+              newL = d.startL + (d.startW - newW); newT = d.startT + (d.startH - newH);
+            }
+
+            if (e.shiftKey) {
+              // 保持宽高比
+              var ratio = d.startW / d.startH;
+              if (Math.abs(newW / newH - ratio) > 0.01) {
+                newH = newW / ratio;
+              }
+            }
+
+            editor.selected.style.width = newW + "px";
+            editor.selected.style.height = newH + "px";
+            editor.selected.style.left = newL + "px";
+            editor.selected.style.top = Math.max(0, newT) + "px";
+          }
+          syncAll(editor.selected);
+          return;
+        }
+
         if (isEditorUI(e.target)) { hoverOutline.style.display = "none"; return; }
         var target = resolveTarget(e.target);
         if (!target) { hoverOutline.style.display = "none"; return; }
         var r = target.getBoundingClientRect();
         hoverOutline.style.display = "block";
-        Object.assign(hoverOutline.style, {
-          left: r.left + "px", top: r.top + "px",
-          width: r.width + "px", height: r.height + "px",
-        });
+        hoverOutline.style.left = r.left + "px";
+        hoverOutline.style.top = r.top + "px";
+        hoverOutline.style.width = r.width + "px";
+        hoverOutline.style.height = r.height + "px";
       }
 
-      // ── 事件: mousedown（选中 / 取消选中）──
+      // ── mousedown ──
       function onMouseDown(e) {
+        // 拖动把手
+        if (e.target.closest("[data-em-editor=frame-drag-handle]") && editor.selected) {
+          e.preventDefault();
+          var r = editor.selected.getBoundingClientRect();
+          editor._dragging = {
+            type: "move",
+            startX: e.clientX, startY: e.clientY,
+            startL: parseFloat(editor.selected.style.left) || r.left,
+            startT: parseFloat(editor.selected.style.top) || r.top,
+          };
+          return;
+        }
+        // resize 手柄
+        var resizeHandle = e.target.closest("[data-em-editor=frame-resize]");
+        if (resizeHandle && editor.selected) {
+          e.preventDefault();
+          var rr = editor.selected.getBoundingClientRect();
+          editor._dragging = {
+            type: "resize",
+            handle: resizeHandle.getAttribute("data-handle"),
+            startX: e.clientX, startY: e.clientY,
+            startL: parseFloat(editor.selected.style.left) || rr.left,
+            startT: parseFloat(editor.selected.style.top) || rr.top,
+            startW: parseFloat(editor.selected.style.width) || rr.width,
+            startH: parseFloat(editor.selected.style.height) || rr.height,
+          };
+          return;
+        }
+        // 删除按钮
+        if (e.target.closest("[data-em-editor=frame-delete-btn]")) {
+          e.preventDefault();
+          EMEditor.deleteSelected();
+          return;
+        }
+        // 编辑 UI 不选中
         if (isEditorUI(e.target)) return;
+
         var target = resolveTarget(e.target);
         if (target && target.isContentEditable) return;
         selectElement(target);
       }
 
-      // ── 事件: click（拦截页面链接/按钮跳转）──
+      // ── mouseup（拖动/resize 结束，记录 patch）──
+      function onMouseUp(e) {
+        if (!editor._dragging || !editor.selected) { editor._dragging = null; return; }
+        var d = editor._dragging;
+        var el = editor.selected;
+        var newL = parseFloat(el.style.left);
+        var newT = parseFloat(el.style.top);
+        var newW = parseFloat(el.style.width);
+        var newH = parseFloat(el.style.height);
+
+        if (d.type === "move") {
+          if (newL !== d.startL || newT !== d.startT) {
+            editor.history.record("move", el,
+              { l: d.startL, t: d.startT },
+              { l: newL, t: newT });
+            refreshHistoryButtons();
+          }
+        } else if (d.type === "resize") {
+          if (newW !== d.startW || newH !== d.startH || newL !== d.startL || newT !== d.startT) {
+            editor.history.record("resize", el,
+              { w: d.startW, h: d.startH, l: d.startL, t: d.startT },
+              { w: newW, h: newH, l: newL, t: newT });
+            refreshHistoryButtons();
+          }
+        }
+        editor._dragging = null;
+      }
+
+      // ── dblclick（文字编辑）──
+      function onDblClick(e) {
+        if (!editor.selected || isEditorUI(e.target)) return;
+        var el = editor.selected;
+        var tag = el.tagName.toLowerCase();
+        var textTags = /^(h[1-6]|span|p|li|td|th|strong|em|b|i|small|mark|code|pre|a|label|div|section|article|header|footer|nav|aside|button)$/;
+        if (!textTags.test(tag)) return;
+        if (el.querySelector && (el.querySelector("img, video, svg, canvas, iframe"))) return;
+
+        editor._editingText = el;
+        var beforeText = el.textContent;
+        el.contentEditable = "true";
+        el.focus();
+        // 选中全部文字方便替换
+        var sel = window.getSelection();
+        if (sel && el.firstChild) {
+          var range = document.createRange();
+          range.selectNodeContents(el);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+
+        var onBlur = function () {
+          el.removeEventListener("blur", onBlur);
+          el.contentEditable = "false";
+          var afterText = el.textContent;
+          if (beforeText !== afterText) {
+            editor.history.record("style", el, beforeText, afterText, { prop: "textContent" });
+            refreshHistoryButtons();
+          }
+          editor._editingText = null;
+        };
+        el.addEventListener("blur", onBlur);
+      }
+
+      // ── click 拦截（链接/按钮跳转）──
       function onClick(e) {
         if (isEditorUI(e.target)) return;
         if (e.target && (e.target.isContentEditable || e.target.closest("[contenteditable=true]"))) return;
@@ -404,38 +722,95 @@
         e.stopPropagation();
       }
 
-      // ── 事件: scroll / resize（同步 outline）──
+      // ── scroll / resize 同步 ──
       function onScrollOrResize() {
-        if (editor && editor.selected) updateOutline(outline, editor.selected);
+        syncAll(editor.selected);
       }
 
-      // ── 事件: Ctrl+Z / Ctrl+Shift+Z ──
+      // ── 键盘快捷键 ──
       function onKeyDown(e) {
-        if (!e.ctrlKey && !e.metaKey) return;
-        if (e.code === "KeyZ" && !e.shiftKey) {
+        // Ctrl+Z / Cmd+Z
+        if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ" && !e.shiftKey) {
           e.preventDefault();
           EMEditor.undo();
-        } else if (e.code === "KeyZ" && e.shiftKey) {
+          return;
+        }
+        // Ctrl+Shift+Z / Cmd+Shift+Z
+        if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ" && e.shiftKey) {
           e.preventDefault();
           EMEditor.redo();
+          return;
+        }
+        // Delete / Backspace
+        if ((e.code === "Delete" || e.code === "Backspace") && editor.selected) {
+          // 如果正在编辑文字，不拦截
+          if (e.target && (e.target.isContentEditable || e.target.closest("[contenteditable=true]"))) return;
+          if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
+          e.preventDefault();
+          EMEditor.deleteSelected();
+          return;
+        }
+        // Escape 取消选中
+        if (e.code === "Escape" && editor.selected) {
+          if (e.target && (e.target.isContentEditable || e.target.closest("[contenteditable=true]"))) return;
+          e.preventDefault();
+          selectElement(null);
+          return;
+        }
+        // 方向键微移
+        if (editor.selected && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          var step = e.shiftKey ? 10 : 1;
+          var el = editor.selected;
+          var curL = parseFloat(el.style.left) || 0;
+          var curT = parseFloat(el.style.top) || 0;
+          var moved = false;
+
+          if (e.code === "ArrowLeft") { el.style.left = (curL - step) + "px"; moved = true; }
+          else if (e.code === "ArrowRight") { el.style.left = (curL + step) + "px"; moved = true; }
+          else if (e.code === "ArrowUp") { el.style.top = (Math.max(0, curT - step)) + "px"; moved = true; }
+          else if (e.code === "ArrowDown") { el.style.top = (curT + step) + "px"; moved = true; }
+
+          if (moved) {
+            e.preventDefault();
+            syncAll(el);
+            // 方向键结束后记录 patch
+            if (!editor._arrowTimer) {
+              editor._arrowBefore = { l: curL, t: curT };
+            }
+            clearTimeout(editor._arrowTimer);
+            editor._arrowTimer = setTimeout(function () {
+              var afterL = parseFloat(el.style.left) || 0;
+              var afterT = parseFloat(el.style.top) || 0;
+              if (afterL !== editor._arrowBefore.l || afterT !== editor._arrowBefore.t) {
+                editor.history.record("move", el,
+                  { l: editor._arrowBefore.l, t: editor._arrowBefore.t },
+                  { l: afterL, t: afterT });
+                refreshHistoryButtons();
+              }
+              editor._arrowBefore = null;
+              editor._arrowTimer = null;
+            }, 300);
+          }
         }
       }
 
       document.addEventListener("mousemove", onMouseMove, false);
-      document.addEventListener("mousedown", onMouseDown, true);
+      document.addEventListener("mousedown", onMouseDown, false);
+      document.addEventListener("mouseup", onMouseUp, false);
+      document.addEventListener("dblclick", onDblClick, false);
       window.addEventListener("click", onClick, true);
       window.addEventListener("scroll", onScrollOrResize, true);
       window.addEventListener("resize", onScrollOrResize, true);
       document.addEventListener("keydown", onKeyDown, true);
 
-      // rAF 循环：丝滑跟随（补充 scroll 事件）
+      // rAF 循环
       var rafId = null;
-      (function syncOutline() {
-        rafId = requestAnimationFrame(syncOutline);
-        if (editor && editor.selected) updateOutline(outline, editor.selected);
+      (function syncLoop() {
+        rafId = requestAnimationFrame(syncLoop);
+        if (editor && editor.selected && !editor._dragging) syncAll(editor.selected);
       })();
 
-      // 面板按钮事件
+      // 面板按钮
       panel.addEventListener("click", function (e) {
         var btn = e.target.closest("[data-action]");
         if (!btn) return;
@@ -444,35 +819,27 @@
         if (action === "undo") { EMEditor.undo(); return; }
         if (action === "redo") { EMEditor.redo(); return; }
         if (action === "export") { EMEditor.export(); return; }
+        if (action === "add-text") { EMEditor.addText(); return; }
+        if (action === "add-image") { EMEditor.addImage(); return; }
 
-        // 样式操作需要选中元素
         if (!editor.selected) return;
-
         var actionFn = STYLE_ACTIONS[action];
         if (!actionFn) return;
 
-        // 1. 获取 before 值 + apply 函数
         var result = actionFn(editor.selected);
-        // 2. 应用样式
         result.apply();
-        // 3. 读取 after 值
         var after = editor.selected.style[result.prop];
         if (after === "" || after === undefined) after = getComputedStyle(editor.selected)[result.prop];
-        // 4. 记录 patch
         if (result.before !== after) {
-          editor.history.record(editor.selected, result.prop, result.before, after);
+          editor.history.record("style", editor.selected, result.before, after, { prop: result.prop });
           refreshHistoryButtons();
         }
       });
 
-      // 存储事件引用，供 stop 时移除
       editor._handlers = {
-        mousemove: onMouseMove,
-        mousedown: onMouseDown,
-        click: onClick,
-        scroll: onScrollOrResize,
-        resize: onScrollOrResize,
-        keydown: onKeyDown,
+        mousemove: onMouseMove, mousedown: onMouseDown, mouseup: onMouseUp,
+        dblclick: onDblClick, click: onClick,
+        scroll: onScrollOrResize, resize: onScrollOrResize, keydown: onKeyDown,
         rafId: rafId,
       };
 
@@ -483,11 +850,14 @@
       if (editor && editor._handlers) {
         var h = editor._handlers;
         document.removeEventListener("mousemove", h.mousemove, false);
-        document.removeEventListener("mousedown", h.mousedown, true);
+        document.removeEventListener("mousedown", h.mousedown, false);
+        document.removeEventListener("mouseup", h.mouseup, false);
+        document.removeEventListener("dblclick", h.dblclick, false);
         window.removeEventListener("click", h.click, true);
         window.removeEventListener("scroll", h.scroll, true);
         window.removeEventListener("resize", h.resize, true);
         document.removeEventListener("keydown", h.keydown, true);
+        clearTimeout(editor._arrowTimer);
         if (h.rafId) cancelAnimationFrame(h.rafId);
       }
       document.querySelectorAll("[data-em-editor]").forEach(function (el) { el.remove(); });
@@ -497,32 +867,123 @@
     undo: function () {
       if (!editor) return;
       editor.history.undo();
-      updateOutline(editor.outline, editor.selected);
+      syncAll(editor.selected);
       refreshHistoryButtons();
     },
 
     redo: function () {
       if (!editor) return;
       editor.history.redo();
-      updateOutline(editor.outline, editor.selected);
+      syncAll(editor.selected);
       refreshHistoryButtons();
     },
 
-    /** 设置文字颜色 */
+    deleteSelected: function () {
+      if (!editor || !editor.selected) return;
+      var el = editor.selected;
+      var parent = el.parentNode;
+      var nextSibling = el.nextSibling;
+      var html = el.outerHTML;
+      el.remove();
+      editor.history.record("delete", null,
+        { h: html, pEl: parent, ref: nextSibling },
+        { h: "", pEl: null, ref: null });
+      editor.selected = null;
+      syncAll(null);
+      refreshHistoryButtons();
+    },
+
+    addText: function () {
+      if (!editor) return;
+      var canvas = editor.canvas || document.getElementById("em-canvas") || document.body;
+      var div = document.createElement("div");
+      div.setAttribute("data-em-editor", "added");
+      div.textContent = "双击编辑文字";
+      Object.assign(div.style, {
+        position: "absolute",
+        left: (canvas.clientWidth / 2 - 100) + "px",
+        top: (canvas.clientHeight / 2 - 20) + "px",
+        width: "200px", minHeight: "40px",
+        padding: "12px 16px", fontSize: "16px", color: "#111",
+        background: "#fff", border: "1px dashed #16a34a",
+        borderRadius: "6px", cursor: "move", zIndex: String(Date.now() % 1000),
+        fontFamily: "system-ui, sans-serif",
+      });
+      canvas.appendChild(div);
+      editor.history.record("add", div,
+        { present: false }, { present: true },
+        { parent: canvas });
+      refreshHistoryButtons();
+      // 自动选中新元素
+      editor.selected = div;
+      syncAll(div);
+    },
+
+    addImage: function () {
+      if (!editor) return;
+      var input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.style.display = "none";
+      document.body.appendChild(input);
+      input.addEventListener("change", function () {
+        var file = input.files && input.files[0];
+        if (!file) { input.remove(); return; }
+        var reader = new FileReader();
+        reader.onload = function () {
+          var canvas = editor.canvas || document.getElementById("em-canvas") || document.body;
+          var img = document.createElement("img");
+          img.setAttribute("data-em-editor", "added");
+          img.src = reader.result;
+          Object.assign(img.style, {
+            position: "absolute",
+            left: (canvas.clientWidth / 2 - 150) + "px",
+            top: (canvas.clientHeight / 2 - 100) + "px",
+            maxWidth: "300px", maxHeight: "200px",
+            cursor: "move", zIndex: String(Date.now() % 1000),
+          });
+          canvas.appendChild(img);
+          editor.history.record("add", img,
+            { present: false }, { present: true },
+            { parent: canvas });
+          refreshHistoryButtons();
+          editor.selected = img;
+          syncAll(img);
+          input.remove();
+        };
+        reader.readAsDataURL(file);
+      });
+      input.click();
+    },
+
     setColor: function (color) {
       if (!editor || !editor.selected) return;
       recordColorPatch(editor.selected, "color", color);
     },
 
-    /** 设置背景色 */
     setBgColor: function (color) {
       if (!editor || !editor.selected) return;
       recordColorPatch(editor.selected, "backgroundColor", color);
     },
 
-    /** 导出当前 HTML */
+    /** 导出完整 HTML */
     export: function () {
-      var html = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+      var clone = document.documentElement.cloneNode(true);
+      // 移除编辑 UI
+      var uiElements = clone.querySelectorAll("[data-em-editor]");
+      for (var i = 0; i < uiElements.length; i++) {
+        uiElements[i].remove();
+      }
+      // 移除 canvas 容器，提取内容
+      var canvasEl = clone.querySelector("#em-canvas");
+      var body = clone.querySelector("body");
+      if (canvasEl && body) {
+        body.innerHTML = "";
+        while (canvasEl.firstChild) {
+          body.appendChild(canvasEl.firstChild);
+        }
+      }
+      var html = "<!DOCTYPE html>\n" + clone.outerHTML;
       try { window.parent.postMessage({ type: "em-editor-export", html: html }, "*"); } catch (e) { /* */ }
       var blob = new Blob([html], { type: "text/html" });
       var url = URL.createObjectURL(blob);
@@ -531,7 +992,6 @@
       URL.revokeObjectURL(url);
     },
 
-    /** 加载 HTML 到编辑器 */
     load: function (html) {
       document.open();
       document.write(html);
