@@ -2,26 +2,26 @@
  * EM HTML Editor — 可视化页面编辑器运行时
  *
  * 注入到预览 HTML 中，提供：点击选中元素 → 样式面板 → 导出。
- * 借鉴 ClickDeck 的选中机制和 Anchor Deck 的颜色预设。
+ * 借鉴 ClickDeck 的 patch 式撤销重做和面板设计。
  *
- * 用法：在父窗口（EM）中加载此脚本后，new EMEditor() 即可启动编辑模式。
+ * 用法：在父窗口（EM）中加载此脚本后，调用 EMEditor.start() 启动编辑。
  */
 
 (function () {
   "use strict";
 
   // ═══════════════════════════════════════════════════════════
-  // 1. 颜色预设（借鉴 Anchor Deck）
+  // 1. 颜色预设
   // ═══════════════════════════════════════════════════════════
 
-  const TEXT_COLORS = [
+  var TEXT_COLORS = [
     "#111111", "#444444", "#737373", "#a3a3a3", "#d4d4d4", "#ffffff",
     "#dc2626", "#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16",
     "#16a34a", "#14b8a6", "#06b6d4", "#0ea5e9", "#2563eb", "#4f46e5",
     "#7c3aed", "#a855f7", "#d946ef", "#ec4899", "#f43f5e", "#7f1d1d",
   ];
 
-  const BG_COLORS = [
+  var BG_COLORS = [
     { value: "transparent", label: "无背景" },
     { value: "#ffffff", label: "白色" },
     { value: "#f7f7f5", label: "浅灰" },
@@ -37,7 +37,7 @@
   ];
 
   // ═══════════════════════════════════════════════════════════
-  // 2. 选中逻辑（借鉴 ClickDeck）
+  // 2. 选中逻辑
   // ═══════════════════════════════════════════════════════════
 
   function isEditorUI(el) {
@@ -50,11 +50,9 @@
     if (isEditorUI(el)) return false;
 
     var tag = el.tagName.toLowerCase();
-    // 明确内容元素：直接可选
     var contentTags = /^(h[1-6]|span|p|li|td|th|strong|em|b|i|small|mark|code|pre|blockquote|img|video|svg|canvas|button|input|select|textarea|a|label)$/;
     if (contentTags.test(tag)) return true;
 
-    // 包含文本的 div/section 等
     for (var i = 0; i < el.childNodes.length; i++) {
       var c = el.childNodes[i];
       if (c.nodeType === Node.TEXT_NODE && c.textContent.trim()) return true;
@@ -68,13 +66,11 @@
     return (rect.width * rect.height) > viewArea * 0.4;
   }
 
-  /** 点击目标 → 解析最合适的可编辑元素 */
   function resolveTarget(target) {
     if (!target || !(target instanceof HTMLElement)) return null;
     if (isEditorUI(target)) return null;
     if (isSelectable(target)) return target;
 
-    // 大容器：钻入有意义的子元素
     if (isLargeContainer(target)) {
       for (var i = 0; i < target.children.length; i++) {
         var child = resolveTarget(target.children[i]);
@@ -85,7 +81,7 @@
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 3. Outline（高亮框）
+  // 3. Outline（高亮框）— 借鉴 ClickDeck overlay
   // ═══════════════════════════════════════════════════════════
 
   function createOutline() {
@@ -116,81 +112,111 @@
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 4. 样式操作（原子操作）
+  // 4. 样式操作 — 返回 {prop, before} 供 patch 记录
   // ═══════════════════════════════════════════════════════════
+
+  /** 读取属性的当前有效值（优先 inline，其次 computed） */
+  function readStyle(el, prop) {
+    if (el.style[prop]) return el.style[prop];
+    return getComputedStyle(el)[prop];
+  }
 
   var STYLE_ACTIONS = {
     "font+": function (el) {
       var v = parseFloat(getComputedStyle(el).fontSize);
-      el.style.fontSize = (v + 2) + "px";
+      return { prop: "fontSize", before: readStyle(el, "fontSize"), apply: function () { el.style.fontSize = (v + 2) + "px"; } };
     },
     "font-": function (el) {
       var v = parseFloat(getComputedStyle(el).fontSize);
-      el.style.fontSize = Math.max(8, v - 2) + "px";
+      return { prop: "fontSize", before: readStyle(el, "fontSize"), apply: function () { el.style.fontSize = Math.max(8, v - 2) + "px"; } };
     },
-    "align-left": function (el) { el.style.textAlign = "left"; },
-    "align-center": function (el) { el.style.textAlign = "center"; },
-    "align-right": function (el) { el.style.textAlign = "right"; },
+    "align-left": function (el) {
+      return { prop: "textAlign", before: readStyle(el, "textAlign"), apply: function () { el.style.textAlign = "left"; } };
+    },
+    "align-center": function (el) {
+      return { prop: "textAlign", before: readStyle(el, "textAlign"), apply: function () { el.style.textAlign = "center"; } };
+    },
+    "align-right": function (el) {
+      return { prop: "textAlign", before: readStyle(el, "textAlign"), apply: function () { el.style.textAlign = "right"; } };
+    },
     "bold-toggle": function (el) {
-      el.style.fontWeight = getComputedStyle(el).fontWeight === "700" ? "400" : "700";
+      return { prop: "fontWeight", before: readStyle(el, "fontWeight"), apply: function () { el.style.fontWeight = getComputedStyle(el).fontWeight === "700" ? "400" : "700"; } };
     },
     "line-height+": function (el) {
       var v = parseFloat(getComputedStyle(el).lineHeight) || 20;
-      el.style.lineHeight = (v + 4) + "px";
+      return { prop: "lineHeight", before: readStyle(el, "lineHeight"), apply: function () { el.style.lineHeight = (v + 4) + "px"; } };
     },
     "line-height-": function (el) {
       var v = parseFloat(getComputedStyle(el).lineHeight) || 20;
-      el.style.lineHeight = Math.max(12, v - 4) + "px";
+      return { prop: "lineHeight", before: readStyle(el, "lineHeight"), apply: function () { el.style.lineHeight = Math.max(12, v - 4) + "px"; } };
     },
     "padding+": function (el) {
       var v = parseFloat(getComputedStyle(el).paddingTop) || 0;
-      el.style.padding = (v + 4) + "px";
+      return { prop: "padding", before: readStyle(el, "padding"), apply: function () { el.style.padding = (v + 4) + "px"; } };
     },
     "padding-": function (el) {
       var v = parseFloat(getComputedStyle(el).paddingTop) || 0;
-      el.style.padding = Math.max(0, v - 4) + "px";
+      return { prop: "padding", before: readStyle(el, "padding"), apply: function () { el.style.padding = Math.max(0, v - 4) + "px"; } };
     },
     "radius+": function (el) {
       var v = parseFloat(getComputedStyle(el).borderRadius) || 0;
-      el.style.borderRadius = (v + 4) + "px";
+      return { prop: "borderRadius", before: readStyle(el, "borderRadius"), apply: function () { el.style.borderRadius = (v + 4) + "px"; } };
     },
     "radius-": function (el) {
       var v = parseFloat(getComputedStyle(el).borderRadius) || 0;
-      el.style.borderRadius = Math.max(0, v - 4) + "px";
+      return { prop: "borderRadius", before: readStyle(el, "borderRadius"), apply: function () { el.style.borderRadius = Math.max(0, v - 4) + "px"; } };
     },
     "text-edit": function (el) {
-      el.contentEditable = el.contentEditable === "true" ? "false" : "true";
-      if (el.contentEditable === "true") el.focus();
+      return { prop: "contentEditable", before: String(el.contentEditable), apply: function () { el.contentEditable = el.contentEditable === "true" ? "false" : "true"; if (el.contentEditable === "true") el.focus(); } };
     },
   };
 
   // ═══════════════════════════════════════════════════════════
-  // 5. 历史（Undo / Redo）
+  // 5. 历史（Patch 式 Undo / Redo）— 借鉴 ClickDeck
   // ═══════════════════════════════════════════════════════════
 
   function createHistory() {
-    var stack = [];
-    var idx = -1;
+    var undoStack = [];
+    var redoStack = [];
+
+    function applyPatch(patch, value) {
+      if (patch.el && patch.el.style) {
+        patch.el.style[patch.prop] = value;
+      }
+    }
+
     return {
-      push: function (html) {
-        stack = stack.slice(0, idx + 1);
-        stack.push(html);
-        idx = stack.length - 1;
-        if (stack.length > 50) { stack.shift(); idx--; }
+      /** 记录一次修改：先应用，再入栈，清空 redo */
+      record: function (el, prop, before, after) {
+        var patch = { el: el, prop: prop, before: before, after: after };
+        undoStack.push(patch);
+        if (undoStack.length > 100) undoStack.shift();
+        redoStack.length = 0; // 新操作清空重做栈
       },
+
       undo: function () {
-        if (idx > 0) { idx--; return stack[idx]; }
-        return null;
+        if (undoStack.length === 0) return false;
+        var patch = undoStack.pop();
+        applyPatch(patch, patch.before);
+        redoStack.push(patch);
+        return true;
       },
+
       redo: function () {
-        if (idx < stack.length - 1) { idx++; return stack[idx]; }
-        return null;
+        if (redoStack.length === 0) return false;
+        var patch = redoStack.pop();
+        applyPatch(patch, patch.after);
+        undoStack.push(patch);
+        return true;
       },
+
+      canUndo: function () { return undoStack.length > 0; },
+      canRedo: function () { return redoStack.length > 0; },
     };
   }
 
   // ═══════════════════════════════════════════════════════════
-  // 6. 浮动面板 UI
+  // 6. 面板 UI — 借鉴 ClickDeck panel，始终可见
   // ═══════════════════════════════════════════════════════════
 
   function createPanel() {
@@ -230,8 +256,8 @@
         '<span data-em-editor="bg-colors" style="display:flex;gap:2px"></span>' +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // Undo / Redo / 导出
-        '<button type="button" data-action="undo" title="撤销" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">↩</button>' +
-        '<button type="button" data-action="redo" title="重做" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">↪</button>' +
+        '<button type="button" data-action="undo" id="em-btn-undo" title="撤销 Ctrl+Z" disabled style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">↩</button>' +
+        '<button type="button" data-action="redo" id="em-btn-redo" title="重做 Ctrl+Shift+Z" disabled style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">↪</button>' +
         '<button type="button" data-action="export" title="导出 HTML" style="height:24px;padding:0 8px;border:1px solid #16a34a;border-radius:4px;background:#16a34a;color:#fff;cursor:pointer;font-size:11px;font-weight:500">导出</button>' +
       '</div>';
 
@@ -262,6 +288,10 @@
       makeColorBtn(bgColorsContainer, item.value, item.label, "底色");
     }
 
+    // 存储 undo/redo 按钮引用，供 refreshHistoryButtons 更新状态
+    panel._undoBtn = panel.querySelector("#em-btn-undo");
+    panel._redoBtn = panel.querySelector("#em-btn-redo");
+
     return panel;
   }
 
@@ -291,24 +321,46 @@
 
   var editor = null;
 
+  function refreshHistoryButtons() {
+    if (!editor || !editor.panel) return;
+    var undoBtn = editor.panel._undoBtn;
+    var redoBtn = editor.panel._redoBtn;
+    if (undoBtn) undoBtn.disabled = !editor.history.canUndo();
+    if (redoBtn) redoBtn.disabled = !editor.history.canRedo();
+  }
+
+  /** 颜色操作记录 patch */
+  function recordColorPatch(el, prop, color) {
+    if (!editor) return;
+    var before = el.style[prop] || getComputedStyle(el)[prop];
+    el.style[prop] = color;
+    editor.history.record(el, prop, before, color);
+    refreshHistoryButtons();
+  }
+
   window.EMEditor = {
-    /** 启动编辑模式 */
     start: function () {
       if (editor) return;
+
       var outline = createOutline();
       var panel = createPanel();
       var history = createHistory();
-      editor = { select: null, outline: outline, panel: panel, history: history, selected: null };
 
-      history.push(document.documentElement.outerHTML);
-
-      editor.select = function (el) {
-        editor.selected = el;
-        updateOutline(outline, el);
-        // 面板始终可见，不随选中状态切换
+      editor = {
+        outline: outline,
+        panel: panel,
+        history: history,
+        selected: null,
+        hoverOutline: null,
       };
 
-      // hover 高亮提示（借鉴 ClickDeck mouseMove）
+      // 选中方法
+      function selectElement(el) {
+        editor.selected = el;
+        updateOutline(outline, el);
+      }
+
+      // hover 高亮
       var hoverOutline = document.createElement("div");
       hoverOutline.setAttribute("data-em-editor", "hover-outline");
       Object.assign(hoverOutline.style, {
@@ -319,53 +371,65 @@
       document.body.appendChild(hoverOutline);
       editor.hoverOutline = hoverOutline;
 
-      document.addEventListener("mousemove", function (e) {
-        var target = isEditorUI(e.target) ? null : resolveTarget(e.target);
+      // ── 事件: mousemove ──
+      function onMouseMove(e) {
+        if (isEditorUI(e.target)) { hoverOutline.style.display = "none"; return; }
+        var target = resolveTarget(e.target);
         if (!target) { hoverOutline.style.display = "none"; return; }
         var r = target.getBoundingClientRect();
         hoverOutline.style.display = "block";
-        hoverOutline.style.left = r.left + "px";
-        hoverOutline.style.top = r.top + "px";
-        hoverOutline.style.width = r.width + "px";
-        hoverOutline.style.height = r.height + "px";
-      }, false);
+        Object.assign(hoverOutline.style, {
+          left: r.left + "px", top: r.top + "px",
+          width: r.width + "px", height: r.height + "px",
+        });
+      }
 
-      // 点击页面选中（mousedown 选，click 拦截跳转）
-      document.addEventListener("mousedown", function (e) {
+      // ── 事件: mousedown（选中 / 取消选中）──
+      function onMouseDown(e) {
         if (isEditorUI(e.target)) return;
         var target = resolveTarget(e.target);
         if (target && target.isContentEditable) return;
-        editor.select(target);
-      }, true);
+        selectElement(target);
+      }
 
-      // 无条件拦截所有 click（借鉴 ClickDeck：编辑模式下全页面禁止原生行为）
-      window.addEventListener("click", function (e) {
+      // ── 事件: click（拦截页面链接/按钮跳转）──
+      function onClick(e) {
         if (isEditorUI(e.target)) return;
-        // contentEditable 元素内点击保留交互（光标定位等）
         if (e.target && (e.target.isContentEditable || e.target.closest("[contenteditable=true]"))) return;
         e.preventDefault();
         e.stopPropagation();
-      }, true);
+      }
 
-      // 点击页面空白处取消选中
-      document.addEventListener("mousedown", function (e) {
-        if (isEditorUI(e.target)) return;
-        var target = resolveTarget(e.target);
-        if (!target) { editor.select(null); }
-      }, false); // 冒泡阶段，在选中逻辑之后触发
+      // ── 事件: scroll / resize（同步 outline）──
+      function onScrollOrResize() {
+        if (editor && editor.selected) updateOutline(outline, editor.selected);
+      }
 
-      // rAF 循环：每帧同步 outline 位置（滚动/动画时丝滑跟随）
+      // ── 事件: Ctrl+Z / Ctrl+Shift+Z ──
+      function onKeyDown(e) {
+        if (!e.ctrlKey && !e.metaKey) return;
+        if (e.code === "KeyZ" && !e.shiftKey) {
+          e.preventDefault();
+          EMEditor.undo();
+        } else if (e.code === "KeyZ" && e.shiftKey) {
+          e.preventDefault();
+          EMEditor.redo();
+        }
+      }
+
+      document.addEventListener("mousemove", onMouseMove, false);
+      document.addEventListener("mousedown", onMouseDown, true);
+      window.addEventListener("click", onClick, true);
+      window.addEventListener("scroll", onScrollOrResize, true);
+      window.addEventListener("resize", onScrollOrResize, true);
+      document.addEventListener("keydown", onKeyDown, true);
+
+      // rAF 循环：丝滑跟随（补充 scroll 事件）
       var rafId = null;
       (function syncOutline() {
         rafId = requestAnimationFrame(syncOutline);
         if (editor && editor.selected) updateOutline(outline, editor.selected);
       })();
-      // 停止编辑时取消循环
-      var origStop = EMEditor.stop;
-      EMEditor.stop = function () {
-        if (rafId) cancelAnimationFrame(rafId);
-        origStop();
-      };
 
       // 面板按钮事件
       panel.addEventListener("click", function (e) {
@@ -373,75 +437,89 @@
         if (!btn) return;
         var action = btn.getAttribute("data-action");
 
-        // undo/redo/export 不需要选中元素也能执行
-        if (action === "undo") {
-          var html = history.undo();
-          if (html) restoreHTML(html);
-          return;
-        }
-        if (action === "redo") {
-          var html = history.redo();
-          if (html) restoreHTML(html);
-          return;
-        }
-        if (action === "export") {
-          EMEditor.export();
-          return;
-        }
+        if (action === "undo") { EMEditor.undo(); return; }
+        if (action === "redo") { EMEditor.redo(); return; }
+        if (action === "export") { EMEditor.export(); return; }
 
         // 样式操作需要选中元素
         if (!editor.selected) return;
 
-        if (STYLE_ACTIONS[action]) {
-          STYLE_ACTIONS[action](editor.selected);
-          history.push(document.documentElement.outerHTML);
+        var actionFn = STYLE_ACTIONS[action];
+        if (!actionFn) return;
+
+        // 1. 获取 before 值 + apply 函数
+        var result = actionFn(editor.selected);
+        // 2. 应用样式
+        result.apply();
+        // 3. 读取 after 值
+        var after = editor.selected.style[result.prop];
+        if (after === "" || after === undefined) after = getComputedStyle(editor.selected)[result.prop];
+        // 4. 记录 patch
+        if (result.before !== after) {
+          editor.history.record(editor.selected, result.prop, result.before, after);
+          refreshHistoryButtons();
         }
       });
 
-      function restoreHTML(html) {
-        // 用 DOMParser 解析保存的 HTML，只替换 body 内容
-        // 避免 document.open/write/close 销毁编辑器 UI 和事件
-        var parser = new DOMParser();
-        var doc = parser.parseFromString(html, "text/html");
-        document.body.innerHTML = doc.body.innerHTML;
-        // 重新挂载编辑器 UI 元素（已被 innerHTML 清除）
-        document.body.appendChild(editor.outline);
-        document.body.appendChild(editor.panel);
-        document.body.appendChild(editor.hoverOutline);
-        editor.selected = null;
-        updateOutline(editor.outline, null);
-        // 面板保持可见，让用户可以继续撤销/重做，不必重新选中元素
-      }
+      // 存储事件引用，供 stop 时移除
+      editor._handlers = {
+        mousemove: onMouseMove,
+        mousedown: onMouseDown,
+        click: onClick,
+        scroll: onScrollOrResize,
+        resize: onScrollOrResize,
+        keydown: onKeyDown,
+        rafId: rafId,
+      };
 
       return editor;
     },
 
-    /** 停止编辑 */
     stop: function () {
+      if (editor && editor._handlers) {
+        var h = editor._handlers;
+        document.removeEventListener("mousemove", h.mousemove, false);
+        document.removeEventListener("mousedown", h.mousedown, true);
+        window.removeEventListener("click", h.click, true);
+        window.removeEventListener("scroll", h.scroll, true);
+        window.removeEventListener("resize", h.resize, true);
+        document.removeEventListener("keydown", h.keydown, true);
+        if (h.rafId) cancelAnimationFrame(h.rafId);
+      }
       document.querySelectorAll("[data-em-editor]").forEach(function (el) { el.remove(); });
       editor = null;
+    },
+
+    undo: function () {
+      if (!editor) return;
+      editor.history.undo();
+      updateOutline(editor.outline, editor.selected);
+      refreshHistoryButtons();
+    },
+
+    redo: function () {
+      if (!editor) return;
+      editor.history.redo();
+      updateOutline(editor.outline, editor.selected);
+      refreshHistoryButtons();
     },
 
     /** 设置文字颜色 */
     setColor: function (color) {
       if (!editor || !editor.selected) return;
-      editor.selected.style.color = color;
-      editor.history.push(document.documentElement.outerHTML);
+      recordColorPatch(editor.selected, "color", color);
     },
 
     /** 设置背景色 */
     setBgColor: function (color) {
       if (!editor || !editor.selected) return;
-      editor.selected.style.backgroundColor = color;
-      editor.history.push(document.documentElement.outerHTML);
+      recordColorPatch(editor.selected, "backgroundColor", color);
     },
 
     /** 导出当前 HTML */
     export: function () {
       var html = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
-      // 通过 postMessage 发送给父窗口（EM），同时触发下载
       try { window.parent.postMessage({ type: "em-editor-export", html: html }, "*"); } catch (e) { /* */ }
-      // fallback：触发下载
       var blob = new Blob([html], { type: "text/html" });
       var url = URL.createObjectURL(blob);
       var a = document.createElement("a");
