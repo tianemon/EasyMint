@@ -464,9 +464,13 @@
     canvas.style.width = Math.max(maxRight, window.innerWidth) + "px";
     canvas.style.height = Math.max(maxBottom, window.innerHeight) + "px";
 
-    // 替换 body 内容
+    // 替换 body 内容，同时重置 body 样式避免默认 margin 干扰定位
     document.body.innerHTML = "";
+    document.body.style.margin = "0";
+    document.body.style.padding = "0";
+    document.body.style.overflow = "auto";
     document.body.appendChild(canvas);
+    window.scrollTo(0, 0);
 
     return canvas;
   }
