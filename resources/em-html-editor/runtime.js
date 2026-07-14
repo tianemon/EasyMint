@@ -401,8 +401,8 @@
 
   function convertToCanvas() {
     var canvas = document.createElement("div");
-    canvas.setAttribute("data-em-editor", "canvas");
     canvas.id = "em-canvas";
+    // 注意：canvas 不能有 data-em-editor 属性，否则 isEditorUI 会把画布内所有元素排除
     canvas.style.position = "relative";
     canvas.style.margin = "0";
     canvas.style.padding = "0";
@@ -451,6 +451,7 @@
       child.style.width = rect.width + "px";
       child.style.height = rect.height + "px";
       child.style.margin = "0";
+      child.style.zIndex = String(j + 1); // 保持原始 DOM 顺序的层叠关系
       // 保留原始 box-sizing 行为
       if (!child.style.boxSizing) {
         var cs = getComputedStyle(child);
