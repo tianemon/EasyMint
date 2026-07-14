@@ -918,7 +918,6 @@
       if (!editor) return;
       var canvas = editor.canvas || document.getElementById("em-canvas") || document.body;
       var div = document.createElement("div");
-      div.setAttribute("data-em-editor", "added");
       div.textContent = "双击编辑文字";
       Object.assign(div.style, {
         position: "absolute",
@@ -945,6 +944,7 @@
       var input = document.createElement("input");
       input.type = "file";
       input.accept = "image/*";
+      input.setAttribute("data-em-editor", "file-input");
       input.style.display = "none";
       document.body.appendChild(input);
       input.addEventListener("change", function () {
@@ -954,7 +954,6 @@
         reader.onload = function () {
           var canvas = editor.canvas || document.getElementById("em-canvas") || document.body;
           var img = document.createElement("img");
-          img.setAttribute("data-em-editor", "added");
           img.src = reader.result;
           Object.assign(img.style, {
             position: "absolute",
