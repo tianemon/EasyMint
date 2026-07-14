@@ -93,7 +93,11 @@
       zIndex: "99998",
       border: "2px solid #16a34a",
       borderRadius: "4px",
-      backgroundColor: "rgba(22, 163, 74, 0.06)",
+      // 双层 box-shadow 确保在任何背景色上都可见：
+      // 内层白色环 → 绿色/深色背景上可见
+      // 外层绿色光晕 → 白色/浅色背景上可见
+      boxShadow: "0 0 0 1px rgba(255,255,255,0.85), 0 0 0 3px rgba(22,163,74,0.35)",
+      backgroundColor: "rgba(22, 163, 74, 0.05)",
       transition: "all 0.12s ease",
       display: "none",
     });
