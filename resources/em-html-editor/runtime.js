@@ -570,7 +570,7 @@
             // Ctrl 吸附 10px
             if (e.ctrlKey || e.metaKey) { newL = Math.round(newL / 10) * 10; newT = Math.round(newT / 10) * 10; }
             editor.selected.style.left = newL + "px";
-            editor.selected.style.top = Math.max(0, newT) + "px";
+            editor.selected.style.top = newT + "px";
           } else if (d.type === "resize") {
             var newW, newH, newL, newT;
             var minW = 10, minH = 10;
@@ -601,7 +601,7 @@
             editor.selected.style.width = newW + "px";
             editor.selected.style.height = newH + "px";
             editor.selected.style.left = newL + "px";
-            editor.selected.style.top = Math.max(0, newT) + "px";
+            editor.selected.style.top = newT + "px";
           }
           syncAll(editor.selected);
           return;
@@ -786,7 +786,7 @@
 
           if (e.code === "ArrowLeft") { el.style.left = (curL - step) + "px"; moved = true; }
           else if (e.code === "ArrowRight") { el.style.left = (curL + step) + "px"; moved = true; }
-          else if (e.code === "ArrowUp") { el.style.top = (Math.max(0, curT - step)) + "px"; moved = true; }
+          else if (e.code === "ArrowUp") { el.style.top = (curT - step) + "px"; moved = true; }
           else if (e.code === "ArrowDown") { el.style.top = (curT + step) + "px"; moved = true; }
 
           if (moved) {
