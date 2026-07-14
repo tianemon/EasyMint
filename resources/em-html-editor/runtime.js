@@ -177,15 +177,20 @@
         stack.push(html);
         idx = stack.length - 1;
         if (stack.length > 50) { stack.shift(); idx--; }
+        console.log("[EM-Editor] history push, stack size:", stack.length, "idx:", idx);
       },
       undo: function () {
-        if (idx > 0) { idx--; return stack[idx]; }
+        if (idx > 0) { idx--; console.log("[EM-Editor] history undo -> idx:", idx); return stack[idx]; }
+        console.log("[EM-Editor] history undo blocked, idx:", idx);
         return null;
       },
       redo: function () {
-        if (idx < stack.length - 1) { idx++; return stack[idx]; }
+        if (idx < stack.length - 1) { idx++; console.log("[EM-Editor] history redo -> idx:", idx); return stack[idx]; }
+        console.log("[EM-Editor] history redo blocked, idx:", idx, "len:", stack.length);
         return null;
       },
+      _idx: function () { return idx; },
+      _len: function () { return stack.length; },
     };
   }
 
@@ -334,6 +339,7 @@
       document.addEventListener("mousedown", function (e) {
         if (isEditorUI(e.target)) return;
         var target = resolveTarget(e.target);
+        console.log("[EM-Editor] mousedown, target found:", !!target, "editor:", !!editor);
         if (target && target.isContentEditable) return;
         editor.select(target);
       }, true);
@@ -370,29 +376,47 @@
       // 面板按钮事件
       panel.addEventListener("click", function (e) {
         var btn = e.target.closest("[data-action]");
-        if (!btn || !editor.selected) return;
+        if (!btn) return;
         var action = btn.getAttribute("data-action");
 
-        if (STYLE_ACTIONS[action]) {
-          history.push(document.documentElement.outerHTML);
-          STYLE_ACTIONS[action](editor.selected);
-        } else if (action === "undo") {
+        // undo/redo/export 不需要选中元素也能执行
+        if (action === "undo") {
+          console.log("[EM-Editor] undo clicked, history idx:", history._idx());
           var html = history.undo();
+          console.log("[EM-Editor] undo result:", !!html, "new idx:", history._idx());
           if (html) restoreHTML(html);
-        } else if (action === "redo") {
+          return;
+        }
+        if (action === "redo") {
+          console.log("[EM-Editor] redo clicked, history idx:", history._idx());
           var html = history.redo();
+          console.log("[EM-Editor] redo result:", !!html, "new idx:", history._idx());
           if (html) restoreHTML(html);
-        } else if (action === "export") {
+          return;
+        }
+        if (action === "export") {
           EMEditor.export();
+          return;
+        }
+
+        // 样式操作需要选中元素
+        if (!editor.selected) return;
+
+        if (STYLE_ACTIONS[action]) {
+          STYLE_ACTIONS[action](editor.selected);
+          history.push(document.documentElement.outerHTML);
         }
       });
 
       function restoreHTML(html) {
+        console.log("[EM-Editor] restoreHTML start, editor.selected:", !!editor.selected);
         // 用 DOMParser 解析保存的 HTML，只替换 body 内容
         // 避免 document.open/write/close 销毁编辑器 UI 和事件
         var parser = new DOMParser();
         var doc = parser.parseFromString(html, "text/html");
+        console.log("[EM-Editor] parsed doc, body has children:", doc.body.children.length);
         document.body.innerHTML = doc.body.innerHTML;
+        console.log("[EM-Editor] body.innerHTML replaced, body has children:", document.body.children.length);
         // 重新挂载编辑器 UI 元素（已被 innerHTML 清除）
         document.body.appendChild(editor.outline);
         document.body.appendChild(editor.panel);
@@ -400,6 +424,7 @@
         editor.selected = null;
         updateOutline(editor.outline, null);
         editor.panel.style.display = "none";
+        console.log("[EM-Editor] restoreHTML done, editor obj:", !!editor, "outline in doc:", document.body.contains(editor.outline));
       }
 
       return editor;
@@ -414,15 +439,15 @@
     /** 设置文字颜色 */
     setColor: function (color) {
       if (!editor || !editor.selected) return;
-      editor.history.push(document.documentElement.outerHTML);
       editor.selected.style.color = color;
+      editor.history.push(document.documentElement.outerHTML);
     },
 
     /** 设置背景色 */
     setBgColor: function (color) {
       if (!editor || !editor.selected) return;
-      editor.history.push(document.documentElement.outerHTML);
       editor.selected.style.backgroundColor = color;
+      editor.history.push(document.documentElement.outerHTML);
     },
 
     /** 导出当前 HTML */

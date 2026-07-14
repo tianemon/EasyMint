@@ -52,7 +52,7 @@
     var runtimeCode = "";  // 预加载 runtime.js 内容，后续注入 iframe
 
     // 启动时加载 runtime.js
-    fetch("runtime.js").then(function(r) { return r.text(); }).then(function(code) {
+    fetch("runtime.js?v=" + Date.now()).then(function(r) { return r.text(); }).then(function(code) {
       runtimeCode = code;
       status.textContent = "就绪 — 选择 HTML 文件开始";
     }).catch(function() {
