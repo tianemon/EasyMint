@@ -85,6 +85,8 @@
   function resolveTarget(target) {
     if (!target || !(target instanceof HTMLElement)) return null;
     if (isEditorUI(target)) return null;
+    // canvas 内的元素全部直接可选，不钻子元素（用户需要选中/拖动整个容器）
+    if (target.closest("#em-canvas")) return target;
     if (isSelectable(target)) return target;
 
     if (isLargeContainer(target)) {
