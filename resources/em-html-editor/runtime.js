@@ -623,12 +623,20 @@
         // 拖动把手
         if (e.target.closest("[data-em-editor=frame-drag-handle]") && editor.selected) {
           e.preventDefault();
-          var r = editor.selected.getBoundingClientRect();
+          var el = editor.selected;
+          var r = el.getBoundingClientRect();
+          var cs = getComputedStyle(el);
+          // 确保元素可拖动：非 absolute/fixed/relative 则设为 relative
+          if (cs.position !== "absolute" && cs.position !== "fixed" && cs.position !== "relative") {
+            el.style.position = "relative";
+            el.style.left = "0px";
+            el.style.top = "0px";
+          }
           editor._dragging = {
             type: "move",
             startX: e.clientX, startY: e.clientY,
-            startL: parseFloat(editor.selected.style.left) || r.left,
-            startT: parseFloat(editor.selected.style.top) || r.top,
+            startL: parseFloat(el.style.left) || 0,
+            startT: parseFloat(el.style.top) || 0,
           };
           return;
         }
