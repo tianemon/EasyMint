@@ -425,17 +425,17 @@
       children.push(node);
     }
 
-    // 计算 canvas 尺寸：取所有子元素的最大覆盖范围
+    // 第一遍：收集所有元素的坐标（必须在修改任何元素之前完成，
+    // 否则 position:absolute 会让后续元素在文档流中移位）
+    var snapshots = [];
     var maxBottom = 0;
     var maxRight = 0;
+    var scrollX = window.scrollX || window.pageXOffset || 0;
+    var scrollY = window.scrollY || window.pageYOffset || 0;
 
     for (var j = 0; j < children.length; j++) {
       var child = children[j];
       var rect = child.getBoundingClientRect();
-      var scrollX = window.scrollX || window.pageXOffset || 0;
-      var scrollY = window.scrollY || window.pageYOffset || 0;
-
-      // 文档坐标 = 视口坐标 + 滚动偏移
       var docLeft = rect.left + scrollX;
       var docTop = rect.top + scrollY;
       var docRight = docLeft + rect.width;
@@ -444,21 +444,27 @@
       if (docRight > maxRight) maxRight = docRight;
       if (docBottom > maxBottom) maxBottom = docBottom;
 
-      // 转为绝对定位（保留原始宽高和位置）
-      child.style.position = "absolute";
-      child.style.left = docLeft + "px";
-      child.style.top = docTop + "px";
-      child.style.width = rect.width + "px";
-      child.style.height = rect.height + "px";
-      child.style.margin = "0";
-      child.style.zIndex = String(j + 1); // 保持原始 DOM 顺序的层叠关系
-      // 保留原始 box-sizing 行为
-      if (!child.style.boxSizing) {
-        var cs = getComputedStyle(child);
-        if (cs.boxSizing === "border-box") child.style.boxSizing = "border-box";
-      }
+      var snap = {
+        el: child,
+        left: docLeft, top: docTop,
+        width: rect.width, height: rect.height,
+        boxSizing: getComputedStyle(child).boxSizing,
+      };
+      snapshots.push(snap);
+    }
 
-      canvas.appendChild(child);
+    // 第二遍：应用绝对定位并移入 canvas（此时坐标已锁定，互不影响）
+    for (var k = 0; k < snapshots.length; k++) {
+      var s = snapshots[k];
+      s.el.style.position = "absolute";
+      s.el.style.left = s.left + "px";
+      s.el.style.top = s.top + "px";
+      s.el.style.width = s.width + "px";
+      s.el.style.height = s.height + "px";
+      s.el.style.margin = "0";
+      s.el.style.zIndex = String(k + 1);
+      if (s.boxSizing === "border-box") s.el.style.boxSizing = "border-box";
+      canvas.appendChild(s.el);
     }
 
     canvas.style.width = Math.max(maxRight, window.innerWidth) + "px";
