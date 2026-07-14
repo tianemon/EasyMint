@@ -246,7 +246,7 @@
       borderRadius: "10px",
       padding: "8px 12px",
       boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
-      display: "none",
+      display: "flex",
       userSelect: "none",
     });
     document.body.appendChild(panel);
@@ -305,7 +305,7 @@
       editor.select = function (el) {
         editor.selected = el;
         updateOutline(outline, el);
-        panel.style.display = el ? "flex" : "none";
+        // 面板始终可见，不随选中状态切换
       };
 
       // hover 高亮提示（借鉴 ClickDeck mouseMove）
