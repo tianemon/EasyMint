@@ -199,27 +199,27 @@
     panel.innerHTML =
       '<div data-em-editor="panel-inner" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">' +
         // 字号
-        '<button data-action="font-" title="缩小字号" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1">A-</button>' +
-        '<button data-action="font+" title="增大字号" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1">A+</button>' +
+        '<button type="button" data-action="font-" title="缩小字号" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1">A-</button>' +
+        '<button type="button" data-action="font+" title="增大字号" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1">A+</button>' +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // 对齐
-        '<button data-action="align-left" title="左对齐" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">⬅</button>' +
-        '<button data-action="align-center" title="居中" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">⬌</button>' +
-        '<button data-action="align-right" title="右对齐" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">➡</button>' +
+        '<button type="button" data-action="align-left" title="左对齐" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">⬅</button>' +
+        '<button type="button" data-action="align-center" title="居中" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">⬌</button>' +
+        '<button type="button" data-action="align-right" title="右对齐" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">➡</button>' +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // 粗体 + 文字编辑
-        '<button data-action="bold-toggle" title="切换粗体" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-weight:700;font-size:12px">B</button>' +
-        '<button data-action="text-edit" title="编辑文字" style="height:24px;padding:0 6px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:11px">✏️</button>' +
+        '<button type="button" data-action="bold-toggle" title="切换粗体" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-weight:700;font-size:12px">B</button>' +
+        '<button type="button" data-action="text-edit" title="编辑文字" style="height:24px;padding:0 6px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:11px">✏️</button>' +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // 行高 + 边距 + 圆角
-        '<button data-action="line-height-" title="缩小行高" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">↕-</button>' +
-        '<button data-action="line-height+" title="增大行高" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">↕+</button>' +
+        '<button type="button" data-action="line-height-" title="缩小行高" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">↕-</button>' +
+        '<button type="button" data-action="line-height+" title="增大行高" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">↕+</button>' +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
-        '<button data-action="padding-" title="缩小边距" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">⬜-</button>' +
-        '<button data-action="padding+" title="增大边距" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">⬜+</button>' +
+        '<button type="button" data-action="padding-" title="缩小边距" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">⬜-</button>' +
+        '<button type="button" data-action="padding+" title="增大边距" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">⬜+</button>' +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
-        '<button data-action="radius-" title="缩小圆角" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">◯-</button>' +
-        '<button data-action="radius+" title="增大圆角" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">◯+</button>' +
+        '<button type="button" data-action="radius-" title="缩小圆角" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">◯-</button>' +
+        '<button type="button" data-action="radius+" title="增大圆角" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">◯+</button>' +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // 文本颜色
         '<span style="font-size:10px;color:#666">字色</span>' +
@@ -230,9 +230,9 @@
         '<span data-em-editor="bg-colors" style="display:flex;gap:2px"></span>' +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // Undo / Redo / 导出
-        '<button data-action="undo" title="撤销" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">↩</button>' +
-        '<button data-action="redo" title="重做" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">↪</button>' +
-        '<button data-action="export" title="导出 HTML" style="height:24px;padding:0 8px;border:1px solid #16a34a;border-radius:4px;background:#16a34a;color:#fff;cursor:pointer;font-size:11px;font-weight:500">导出</button>' +
+        '<button type="button" data-action="undo" title="撤销" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">↩</button>' +
+        '<button type="button" data-action="redo" title="重做" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">↪</button>' +
+        '<button type="button" data-action="export" title="导出 HTML" style="height:24px;padding:0 8px;border:1px solid #16a34a;border-radius:4px;background:#16a34a;color:#fff;cursor:pointer;font-size:11px;font-weight:500">导出</button>' +
       '</div>';
 
     Object.assign(panel.style, {
@@ -267,6 +267,7 @@
 
   function makeColorBtn(container, colorValue, label, type) {
     var btn = document.createElement("button");
+    btn.type = "button";
     btn.setAttribute("data-em-editor", "color-btn");
     btn.title = label;
     Object.assign(btn.style, {
@@ -316,6 +317,7 @@
         backgroundColor: "rgba(22,163,74,0.04)", display: "none",
       });
       document.body.appendChild(hoverOutline);
+      editor.hoverOutline = hoverOutline;
 
       document.addEventListener("mousemove", function (e) {
         var target = isEditorUI(e.target) ? null : resolveTarget(e.target);
@@ -386,11 +388,18 @@
       });
 
       function restoreHTML(html) {
-        document.open();
-        document.write(html);
-        document.close();
+        // 用 DOMParser 解析保存的 HTML，只替换 body 内容
+        // 避免 document.open/write/close 销毁编辑器 UI 和事件
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(html, "text/html");
+        document.body.innerHTML = doc.body.innerHTML;
+        // 重新挂载编辑器 UI 元素（已被 innerHTML 清除）
+        document.body.appendChild(editor.outline);
+        document.body.appendChild(editor.panel);
+        document.body.appendChild(editor.hoverOutline);
         editor.selected = null;
-        updateOutline(outline, null);
+        updateOutline(editor.outline, null);
+        editor.panel.style.display = "none";
       }
 
       return editor;
