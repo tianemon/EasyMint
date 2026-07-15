@@ -264,7 +264,10 @@
     function applyValue(patch, value) {
       switch (patch.type) {
         case "style":
-          if (isStyleable(patch.el)) patch.el.style[patch.prop] = value;
+          if (patch.el) {
+            if (patch.prop === "textContent") patch.el.textContent = value;
+            else if (isStyleable(patch.el)) patch.el.style[patch.prop] = value;
+          }
           break;
         case "move":
           if (isStyleable(patch.el)) { patch.el.style.left = value.l + "px"; patch.el.style.top = value.t + "px"; }
