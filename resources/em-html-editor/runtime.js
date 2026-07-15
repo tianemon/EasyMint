@@ -546,8 +546,8 @@
       canvas.appendChild(s.el);
     }
 
-    canvas.style.width = Math.max(maxRight, window.innerWidth) + "px";
-    canvas.style.height = Math.max(maxBottom, window.innerHeight) + "px";
+    canvas.style.width = maxRight + "px";
+    canvas.style.height = maxBottom + "px";
 
     // 替换 body 内容，同时重置 body 样式避免默认 margin 干扰定位
     document.body.innerHTML = "";
