@@ -1141,8 +1141,26 @@
       }
       var canvasEl = clone.querySelector("#em-canvas");
       var body = clone.querySelector("body");
+      var htmlEl = clone.querySelector("html");
+      if (htmlEl) { htmlEl.style.width = "100%"; htmlEl.style.margin = "0"; htmlEl.style.padding = "0"; }
       if (canvasEl && body) {
         canvasEl.removeAttribute("id");
+        // 重新计算 canvas 宽度（从非百分比元素的最大右边界）
+        var exportW = 0;
+        for (var ci = 0; ci < canvasEl.children.length; ci++) {
+          var c = canvasEl.children[ci];
+          var w = parseFloat(c.style.width);
+          if (isNaN(w)) continue; // 跳过 width:100% 的元素
+          var r = (parseFloat(c.style.left) || 0) + w;
+          if (r > exportW) exportW = r;
+        }
+        // 有全宽元素则用百分比，否则用固定宽度
+        var hasFullWidth = false;
+        for (var ci2 = 0; ci2 < canvasEl.children.length; ci2++) {
+          if (canvasEl.children[ci2].style.width === "100%") { hasFullWidth = true; break; }
+        }
+        canvasEl.style.width = hasFullWidth ? "100%" : ((exportW || 960) + "px");
+        body.style.width = "100%";
         body.style.margin = "0";
         body.style.padding = "0";
         body.style.overflow = "auto";
