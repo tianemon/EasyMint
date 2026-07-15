@@ -554,9 +554,6 @@
 
     canvas.style.width = hasFluid ? "100%" : (maxRight + "px");
     canvas.style.height = maxBottom + "px";
-    console.log("[canvas] width:", canvas.style.width, "height:", canvas.style.height,
-      "hasFluid:", hasFluid, "maxRight:", maxRight, "maxBottom:", maxBottom,
-      "innerWidth:", window.innerWidth, "innerHeight:", window.innerHeight);
 
     // 替换 body 内容，同时重置 body 样式避免默认 margin 干扰定位
     document.body.innerHTML = "";
@@ -787,14 +784,6 @@
             var cy = elRect.top + elRect.height / 2;
             var outside = cx < parentRect.left || cx > parentRect.right ||
                           cy < parentRect.top || cy > parentRect.bottom;
-            console.log("[detach] el:", describeElement(el),
-              "| elRect:", Math.round(elRect.left), Math.round(elRect.top), Math.round(elRect.width), Math.round(elRect.height),
-              "| center:", Math.round(cx), Math.round(cy),
-              "| parent:", describeElement(parent),
-              "| parentRect:", Math.round(parentRect.left), Math.round(parentRect.top), Math.round(parentRect.right), Math.round(parentRect.bottom),
-              "| styleL:", el.style.left, "styleT:", el.style.top,
-              "| position:", getComputedStyle(el).position,
-              "| outside:", outside);
             if (outside) {
               var sx = window.scrollX || window.pageXOffset || 0;
               var sy = window.scrollY || window.pageYOffset || 0;
@@ -810,7 +799,6 @@
                 { parent: oldParent, left: oldLeft, top: oldTop },
                 { parent: canvas, left: el.style.left, top: el.style.top });
               refreshHistoryButtons();
-              console.log("[detach] -> canvas, scrollXY:", sx, sy, "new left:", el.style.left, "new top:", el.style.top);
             }
           }
           // 归入检测：canvas 直接子元素 → 递归扫描，中心点落入最深层容器
