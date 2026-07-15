@@ -755,10 +755,12 @@
               el.style.left = elRect.left + "px";
               el.style.top = elRect.top + "px";
               canvas.appendChild(el);
+              editor._justDetached = true; // 本次 mouseup 不再归入其他容器
             }
           }
           // 归入检测：已是 canvas 直接子元素 → 扫描容器，中心点落入哪个就归属哪个
-          if (el.parentElement === canvas) {
+          // 跳过刚脱离的元素，避免同一次拖动中弹跳到其他容器
+          if (el.parentElement === canvas && !editor._justDetached) {
             var elRect2 = el.getBoundingClientRect();
             var cx2 = elRect2.left + elRect2.width / 2;
             var cy2 = elRect2.top + elRect2.height / 2;
@@ -791,6 +793,7 @@
           }
         }
         editor._dragging = null;
+        editor._justDetached = false;
       }
 
       // ── dblclick（文字编辑）──
