@@ -113,7 +113,7 @@
         'position:absolute;top:-28px;left:-2px;right:-2px;display:flex;flex-direction:column;align-items:flex-end;z-index:1' +
       '">' +
         '<button data-em-editor="frame-delete-btn" style="' +
-          'width:22px;height:20px;border:none;background:#ef4444;color:#fff;font-size:12px;' +
+          'width:18px;height:16px;border:none;background:#ef4444;color:#fff;font-size:10px;' +
           'border-radius:4px 4px 0 0;cursor:pointer;pointer-events:auto;line-height:1' +
         '" title="删除 (Delete)">×</button>' +
         '<div data-em-editor="frame-drag-handle" style="' +
