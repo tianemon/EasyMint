@@ -109,18 +109,21 @@
       display: "none",
     });
     frame.innerHTML =
-      '<div data-em-editor="frame-drag-handle" style="' +
-        'position:absolute;top:-28px;left:0;right:0;min-width:80px;min-height:24px;' +
-        'background:#16a34a;border-radius:4px 4px 0 0;' +
-        'display:flex;align-items:center;justify-content:center;gap:4px;' +
-        'cursor:grab;pointer-events:auto;color:#fff;font-size:10px;' +
-        'white-space:normal;line-height:1.3;padding:2px 6px;user-select:none' +
-      '"><span id="em-frame-label">拖动</span></div>' +
-      '<button data-em-editor="frame-delete-btn" style="' +
-        'position:absolute;top:-28px;right:0;width:20px;height:20px;z-index:1;' +
-        'border:none;background:#ef4444;color:#fff;font-size:14px;' +
-        'border-radius:3px;cursor:pointer;pointer-events:auto;line-height:1' +
-      '" title="删除 (Delete)">×</button>' +
+      '<div data-em-editor="frame-toolbar" style="' +
+        'position:absolute;top:-28px;left:-2px;right:-2px;display:flex;gap:0;z-index:1' +
+      '">' +
+        '<div data-em-editor="frame-drag-handle" style="' +
+          'flex:1;min-width:80px;min-height:24px;background:#16a34a;border-radius:4px 0 0 0;' +
+          'display:flex;align-items:center;justify-content:center;' +
+          'cursor:grab;pointer-events:auto;color:#fff;font-size:10px;' +
+          'white-space:normal;line-height:1.3;padding:2px 6px;user-select:none' +
+        '"><span id="em-frame-label">拖动</span></div>' +
+        '<button data-em-editor="frame-delete-btn" style="' +
+          'flex-shrink:0;width:20px;height:20px;border:none;background:#ef4444;' +
+          'color:#fff;font-size:14px;border-radius:0 4px 0 0;' +
+          'cursor:pointer;pointer-events:auto;line-height:1' +
+        '" title="删除 (Delete)">×</button>' +
+      '</div>' +
       // 四角 resize 手柄
       '<div data-em-editor="frame-resize" data-handle="nw" style="position:absolute;top:-6px;left:-6px;width:10px;height:10px;background:#fff;border:2px solid #16a34a;border-radius:2px;cursor:nwse-resize;pointer-events:auto"></div>' +
       '<div data-em-editor="frame-resize" data-handle="ne" style="position:absolute;top:-6px;right:-6px;width:10px;height:10px;background:#fff;border:2px solid #16a34a;border-radius:2px;cursor:nesw-resize;pointer-events:auto"></div>' +
@@ -128,6 +131,7 @@
       '<div data-em-editor="frame-resize" data-handle="se" style="position:absolute;bottom:-6px;right:-6px;width:10px;height:10px;background:#fff;border:2px solid #16a34a;border-radius:2px;cursor:nwse-resize;pointer-events:auto"></div>';
 
     document.body.appendChild(frame);
+    frame._toolbar = frame.querySelector("[data-em-editor=frame-toolbar]");
     frame._dragHandle = frame.querySelector("[data-em-editor=frame-drag-handle]");
     frame._deleteBtn = frame.querySelector("[data-em-editor=frame-delete-btn]");
     frame._resizeHandles = frame.querySelectorAll("[data-em-editor=frame-resize]");
@@ -149,16 +153,16 @@
       var path = getElementPath(el);
       if (label.textContent !== path) label.textContent = path;
     }
-    // 用 JS 直接设 style 覆盖行内样式（CSS class 优先级不够）
+    // toolbar wrapper 统一定位（handle + × 按钮由 flex 布局自然排列）
+    var tbar = frame._toolbar;
     var handle = frame._dragHandle;
-    var delBtn = frame._deleteBtn;
-    var handleH = Math.max(handle.offsetHeight, 24);
-    // × 在 handle 上方外侧
-    delBtn.style.top = (-handleH - 26) + "px"; delBtn.style.bottom = "auto";
+    var h = Math.max(handle.offsetHeight, 20);
     if (flipped) {
-      handle.style.top = "auto"; handle.style.bottom = (-handleH) + "px"; handle.style.borderRadius = "0 0 4px 4px";
+      tbar.style.top = "auto"; tbar.style.bottom = "0px";
+      handle.style.borderRadius = "0 0 0 4px";
     } else {
-      handle.style.top = (-handleH) + "px"; handle.style.bottom = "auto"; handle.style.borderRadius = "4px 4px 0 0";
+      tbar.style.top = (-h - 2) + "px"; tbar.style.bottom = "auto";
+      handle.style.borderRadius = "4px 0 0 0";
     }
   }
 
