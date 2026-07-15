@@ -117,7 +117,7 @@
           'border-radius:4px 4px 0 0;cursor:pointer;pointer-events:auto;line-height:1' +
         '" title="删除 (Delete)">×</button>' +
         '<div data-em-editor="frame-drag-handle" style="' +
-          'min-width:80px;min-height:24px;background:#16a34a;border-radius:4px 4px 4px 4px;' +
+          'min-width:80px;align-self:stretch;min-height:24px;background:#16a34a;border-radius:4px 4px 4px 4px;' +
           'display:flex;align-items:center;justify-content:center;' +
           'cursor:grab;pointer-events:auto;color:#fff;font-size:10px;' +
           'white-space:normal;line-height:1.3;padding:2px 6px;user-select:none' +
