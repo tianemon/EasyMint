@@ -175,12 +175,14 @@
     // 用 JS 直接设 style 覆盖行内样式（CSS class 优先级不够）
     var handle = frame._dragHandle;
     var delBtn = frame._deleteBtn;
+    // 根据实际高度动态偏移，避免覆盖选中框
+    var handleH = Math.max(handle.offsetHeight, 24);
     if (flipped) {
-      handle.style.top = "auto"; handle.style.bottom = "0"; handle.style.borderRadius = "0 0 4px 4px";
-      delBtn.style.top = "auto"; delBtn.style.bottom = "0";
+      handle.style.top = "auto"; handle.style.bottom = (-handleH) + "px"; handle.style.borderRadius = "0 0 4px 4px";
+      delBtn.style.top = "auto"; delBtn.style.bottom = (-handleH) + "px";
     } else {
-      handle.style.top = "-28px"; handle.style.bottom = "auto"; handle.style.borderRadius = "4px 4px 0 0";
-      delBtn.style.top = "-28px"; delBtn.style.bottom = "auto";
+      handle.style.top = (-handleH) + "px"; handle.style.bottom = "auto"; handle.style.borderRadius = "4px 4px 0 0";
+      delBtn.style.top = (-handleH) + "px"; delBtn.style.bottom = "auto";
     }
   }
 
