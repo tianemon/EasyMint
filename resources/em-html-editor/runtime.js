@@ -689,6 +689,26 @@
               { l: newL, t: newT });
             refreshHistoryButtons();
           }
+          // 边界检测：元素中心点超出父容器 → 脱离为独立 canvas 子元素
+          var parent = el.parentElement;
+          var canvas = document.getElementById("em-canvas");
+          if (parent && parent !== canvas && parent !== document.body) {
+            var elRect = el.getBoundingClientRect();
+            var parentRect = parent.getBoundingClientRect();
+            var cx = elRect.left + elRect.width / 2;
+            var cy = elRect.top + elRect.height / 2;
+            var outside = cx < parentRect.left || cx > parentRect.right ||
+                          cy < parentRect.top || cy > parentRect.bottom;
+            if (outside) {
+              // 转为 canvas 坐标系（canvas 左上角即视口左上角）
+              var canvasX = elRect.left;
+              var canvasY = elRect.top;
+              el.style.position = "absolute";
+              el.style.left = canvasX + "px";
+              el.style.top = canvasY + "px";
+              canvas.appendChild(el);
+            }
+          }
         } else if (d.type === "resize") {
           if (newW !== d.startW || newH !== d.startH || newL !== d.startL || newT !== d.startT) {
             editor.history.record("resize", el,
