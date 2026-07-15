@@ -973,10 +973,13 @@
         }
       }
 
+      // 拖出窗口松手时清理拖拽状态
+      function onMouseLeave() { if (editor._dragging) { editor._dragging = null; } }
       document.addEventListener("mousemove", onMouseMove, false);
       document.addEventListener("mousedown", onMouseDown, false);
       document.addEventListener("mouseup", onMouseUp, false);
       document.addEventListener("dblclick", onDblClick, false);
+      document.documentElement.addEventListener("mouseleave", onMouseLeave, false);
       window.addEventListener("click", onClick, true);
       window.addEventListener("scroll", onScrollOrResize, true);
       window.addEventListener("resize", onScrollOrResize, true);
@@ -991,8 +994,8 @@
 
       editor._handlers = {
         mousemove: onMouseMove, mousedown: onMouseDown, mouseup: onMouseUp,
-        dblclick: onDblClick, click: onClick,
-        scroll: onScrollOrResize, resize: onScrollOrResize, keydown: onKeyDown,
+        dblclick: onDblClick, mouseleave: onMouseLeave,
+        click: onClick, scroll: onScrollOrResize, resize: onScrollOrResize, keydown: onKeyDown,
         rafId: rafId,
       };
 
@@ -1006,6 +1009,7 @@
         document.removeEventListener("mousedown", h.mousedown, false);
         document.removeEventListener("mouseup", h.mouseup, false);
         document.removeEventListener("dblclick", h.dblclick, false);
+        document.documentElement.removeEventListener("mouseleave", h.mouseleave, false);
         window.removeEventListener("click", h.click, true);
         window.removeEventListener("scroll", h.scroll, true);
         window.removeEventListener("resize", h.resize, true);
