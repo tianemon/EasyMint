@@ -84,7 +84,6 @@
       <div class="btn-row">
         <button onclick="act('add-text')">+ 文字</button>
         <button onclick="act('add-image')">+ 图片</button>
-        <button onclick="act('add-video')">+ 视频</button>
       </div>
 
       <h3>字号</h3>
@@ -161,7 +160,6 @@
     else if (action === "export") api.export();
     else if (action === "add-text") api.addText();
     else if (action === "add-image") api.addImage();
-    else if (action === "add-video") api.addVideo();
     else api.applyStyle(action);
     refreshBtnState();
   }
@@ -176,7 +174,7 @@
     var styleBtns = document.querySelectorAll('#sidebar .btn-row button[onclick^="act"]');
     styleBtns.forEach(function(b) {
       var a = b.getAttribute("onclick").match(/'([^']+)'/);
-      if (a && !["undo","redo","export","add-text","add-image","add-video"].includes(a[1])) {
+      if (a && !["undo","redo","export","add-text","add-image"].includes(a[1])) {
         b.disabled = !s.hasSelection;
       }
     });
