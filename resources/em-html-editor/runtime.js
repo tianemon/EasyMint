@@ -157,9 +157,11 @@
     var delBtn = frame._deleteBtn;
     if (flipped) {
       tbar.style.top = "100%"; tbar.style.bottom = "auto";
+      tbar.style.flexDirection = "column-reverse";
       delBtn.style.borderRadius = "0 0 4px 4px";
     } else {
       tbar.style.top = (-tbar.offsetHeight) + "px"; tbar.style.bottom = "auto";
+      tbar.style.flexDirection = "column";
       delBtn.style.borderRadius = "4px 4px 0 0";
     }
   }
