@@ -365,8 +365,9 @@
 
     var toggle = document.createElement("span");
     toggle.className = "tree-toggle";
-    toggle.textContent = node.children.length > 0 ? "▾" : "▸";
+    toggle.textContent = node.children.length > 0 ? "▼" : "▶";
     toggle.style.visibility = node.children.length > 0 ? "visible" : "hidden";
+    toggle.style.fontSize = "8px";
     if (node.children.length > 0) {
       toggle.onclick = function(e) {
         e.stopPropagation();
@@ -374,7 +375,7 @@
         if (childContainer && childContainer.className === "tree-children") {
           var hide = childContainer.style.display !== "none";
           childContainer.style.display = hide ? "none" : "block";
-          toggle.textContent = hide ? "▸" : "▾";
+          toggle.textContent = hide ? "▶" : "▼";
         }
       };
     }
