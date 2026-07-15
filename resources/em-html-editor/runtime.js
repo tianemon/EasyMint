@@ -165,13 +165,22 @@
   function updateFramePosition(frame, el) {
     if (!el) { frame.style.display = "none"; return; }
     var r = el.getBoundingClientRect();
-    var flipped = r.top < 60; // 元素靠顶部时标签+删除按钮翻到内侧
+    var flipped = r.top < 60;
     frame.style.display = "block";
     frame.style.left = (r.left - 2) + "px";
     frame.style.top = (r.top - 2) + "px";
     frame.style.width = (r.width + 4) + "px";
     frame.style.height = (r.height + 4) + "px";
-    frame.classList.toggle("em-flipped", flipped);
+    // 用 JS 直接设 style 覆盖行内样式（CSS class 优先级不够）
+    var handle = frame._dragHandle;
+    var delBtn = frame._deleteBtn;
+    if (flipped) {
+      handle.style.top = "auto"; handle.style.bottom = "-28px"; handle.style.borderRadius = "0 0 4px 4px";
+      delBtn.style.top = "auto"; delBtn.style.bottom = "-28px";
+    } else {
+      handle.style.top = "-28px"; handle.style.bottom = "auto"; handle.style.borderRadius = "4px 4px 0 0";
+      delBtn.style.top = "-28px"; delBtn.style.bottom = "auto";
+    }
   }
 
   /** 描述元素的简短标识：tag + 关键 class */
@@ -565,15 +574,6 @@
 
       // 1. 转换 HTML 为画布模式
       var canvas = convertToCanvas();
-
-      // 注入编辑器辅助样式
-      if (!document.getElementById("em-editor-styles")) {
-        var styleEl = document.createElement("style");
-        styleEl.id = "em-editor-styles";
-        styleEl.textContent = ".em-flipped [data-em-editor=frame-drag-handle]{top:auto;bottom:-28px;border-radius:0 0 4px 4px}" +
-          ".em-flipped [data-em-editor=frame-delete-btn]{top:auto;bottom:-28px}";
-        document.head.appendChild(styleEl);
-      }
 
       // 2. 创建 UI 元素
       var outline = createOutline();
