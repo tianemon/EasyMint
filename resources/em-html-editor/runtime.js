@@ -299,9 +299,16 @@
             var dest = (value.parent && value.parent.isConnected) ? value.parent : document.body;
             if (dest) {
               dest.appendChild(patch.el);
-              patch.el.style.position = "absolute";
-              patch.el.style.left = value.left;
-              patch.el.style.top = value.top;
+              // 保持 relative 定位，无偏移时清空
+              if (value.left && value.left !== "0px") {
+                patch.el.style.position = "relative";
+                patch.el.style.left = value.left;
+                patch.el.style.top = value.top;
+              } else {
+                patch.el.style.position = "";
+                patch.el.style.left = "";
+                patch.el.style.top = "";
+              }
             }
           }
           break;
@@ -938,8 +945,8 @@
       if (!editor || !el || !newParent) return;
       var oldParent = el.parentElement;
       if (!oldParent || oldParent === newParent) return;
-      var oldLeft = el.style.left || "0px";
-      var oldTop = el.style.top || "0px";
+      var oldLeft = el.style.left || "";
+      var oldTop = el.style.top || "";
       var elR = el.getBoundingClientRect();
       var pR = newParent.getBoundingClientRect();
       el.style.position = "relative";
