@@ -62,52 +62,11 @@
     return !!(el && el.closest && el.closest("[data-em-editor]"));
   }
 
-  function isSelectable(el) {
-    if (!el || !(el instanceof HTMLElement)) return false;
-    if (el === document.documentElement || el === document.body) return false;
-    if (isEditorUI(el)) return false;
-
-    var tag = el.tagName.toLowerCase();
-    var contentTags = /^(h[1-6]|span|p|li|td|th|strong|em|b|i|small|mark|code|pre|blockquote|img|video|svg|canvas|button|input|select|textarea|a|label)$/;
-    if (contentTags.test(tag)) return true;
-
-    for (var i = 0; i < el.childNodes.length; i++) {
-      var c = el.childNodes[i];
-      if (c.nodeType === Node.TEXT_NODE && c.textContent.trim()) return true;
-    }
-    return false;
-  }
-
-  function isLargeContainer(el) {
-    var rect = el.getBoundingClientRect();
-    var viewArea = window.innerWidth * window.innerHeight;
-    return (rect.width * rect.height) > viewArea * 0.4;
-  }
-
-  /** 大容器有视觉样式（背景色/图、边框）时视为可选中，不钻子元素 */
-  function hasVisualStyling(el) {
-    var cs = getComputedStyle(el);
-    var bg = cs.backgroundColor;
-    var hasBg = bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent";
-    var hasBorder = (parseFloat(cs.borderWidth) || 0) > 0;
-    var hasBgImage = cs.backgroundImage && cs.backgroundImage !== "none";
-    return hasBg || hasBorder || hasBgImage;
-  }
-
   function resolveTarget(target) {
     if (!target || !(target instanceof HTMLElement)) return null;
     if (isEditorUI(target)) return null;
-    if (isSelectable(target)) return target;
-    // 有视觉样式（背景色/边框）的元素视为可选中视觉单元
-    if (hasVisualStyling(target)) return target;
-    // 大容器：钻入子元素
-    if (isLargeContainer(target)) {
-      for (var i = 0; i < target.children.length; i++) {
-        var child = resolveTarget(target.children[i]);
-        if (child) return child;
-      }
-    }
-    return null;
+    // 原型编辑模式下，任意可见元素都可选中
+    return target;
   }
 
   // ═══════════════════════════════════════════════════════════
