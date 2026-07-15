@@ -303,6 +303,12 @@
     if (e.data && e.data.type === "em-editor-export") {
       currentHTML = e.data.html;
       status.textContent = "已导出";
+      // 父窗口触发下载（iframe sandbox 无 allow-downloads）
+      var blob = new Blob([currentHTML], { type: "text/html" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = "edited.html"; a.click();
+      URL.revokeObjectURL(url);
     }
   });
 </script>
