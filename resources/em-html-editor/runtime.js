@@ -153,8 +153,8 @@
     var handle = frame._dragHandle;
     var delBtn = frame._deleteBtn;
     var handleH = Math.max(handle.offsetHeight, 24);
-    // × 紧贴 handle 上边界
-    delBtn.style.top = (-handleH - 2) + "px"; delBtn.style.bottom = "auto";
+    // × 在 handle 上方外侧
+    delBtn.style.top = (-handleH - 26) + "px"; delBtn.style.bottom = "auto";
     if (flipped) {
       handle.style.top = "auto"; handle.style.bottom = (-handleH) + "px"; handle.style.borderRadius = "0 0 4px 4px";
     } else {
