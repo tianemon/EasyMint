@@ -314,6 +314,7 @@
       undo: function () {
         if (undoStack.length === 0) return false;
         var patch = undoStack.pop();
+        console.log("[undo]", patch.type, "before:", JSON.stringify(patch.before), "after:", JSON.stringify(patch.after), "el:", patch.el ? describeElement(patch.el) : "none", "styleable:", isStyleable(patch.el));
         applyValue(patch, patch.before);
         redoStack.push(patch);
         return true;
