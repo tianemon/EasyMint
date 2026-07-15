@@ -993,6 +993,26 @@
       input.click();
     },
 
+    addVideo: function () {
+      if (!editor) return;
+      var src = prompt("视频 URL（支持 mp4/webm）：", "https://");
+      if (!src) return;
+      var container = EMEditor._findContainer();
+      var video = document.createElement("video");
+      video.src = src;
+      video.controls = true;
+      Object.assign(video.style, {
+        maxWidth: "100%", display: "block", cursor: "move",
+      });
+      container.appendChild(video);
+      editor.history.record("add", video,
+        { present: false }, { present: true },
+        { parent: container });
+      refreshHistoryButtons();
+      editor.selected = video;
+      syncAll(video);
+    },
+
     setColor: function (color) {
       if (!editor || !editor.selected) return;
       recordColorPatch(editor.selected, "color", color);
