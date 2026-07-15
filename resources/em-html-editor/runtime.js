@@ -266,7 +266,7 @@
           if (isStyleable(patch.el)) patch.el.style[patch.prop] = value;
           break;
         case "move":
-          if (isStyleable(patch.el)) { patch.el.style.left = value.l; patch.el.style.top = value.t; }
+          if (isStyleable(patch.el)) { patch.el.style.left = value.l + "px"; patch.el.style.top = value.t + "px"; }
           break;
         case "resize":
           if (isStyleable(patch.el)) {
