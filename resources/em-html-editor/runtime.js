@@ -84,10 +84,22 @@
     return (rect.width * rect.height) > viewArea * 0.4;
   }
 
+  /** 大容器有视觉样式（背景色/图、边框）时视为可选中，不钻子元素 */
+  function hasVisualStyling(el) {
+    var cs = getComputedStyle(el);
+    var bg = cs.backgroundColor;
+    var hasBg = bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent";
+    var hasBorder = (parseFloat(cs.borderWidth) || 0) > 0;
+    var hasBgImage = cs.backgroundImage && cs.backgroundImage !== "none";
+    return hasBg || hasBorder || hasBgImage;
+  }
+
   function resolveTarget(target) {
     if (!target || !(target instanceof HTMLElement)) return null;
     if (isEditorUI(target)) return null;
     if (isSelectable(target)) return target;
+    // 有视觉样式的大容器直接可选，不钻
+    if (isLargeContainer(target) && hasVisualStyling(target)) return target;
 
     if (isLargeContainer(target)) {
       for (var i = 0; i < target.children.length; i++) {
