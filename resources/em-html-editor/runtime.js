@@ -810,9 +810,13 @@
             function findDeepest(root) {
               var bestC = null;
               var bestA = Infinity;
+              var containerTags = /^(div|section|article|nav|header|footer|main|aside|ul|ol|li|form|fieldset|details|summary)$/;
               for (var ci = 0; ci < root.children.length; ci++) {
                 var c = root.children[ci];
-                if (c === el || isEditorUI(c) || c.tagName === "STYLE" || c.tagName === "SCRIPT") continue;
+                if (c === el || isEditorUI(c)) continue;
+                var tag = c.tagName.toLowerCase();
+                if (tag === "style" || tag === "script") continue;
+                if (!containerTags.test(tag)) continue;
                 var cr = c.getBoundingClientRect();
                 if (cx2 >= cr.left && cx2 <= cr.right && cy2 >= cr.top && cy2 <= cr.bottom) {
                   var a = cr.width * cr.height;
