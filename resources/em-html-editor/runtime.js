@@ -110,11 +110,13 @@
     });
     frame.innerHTML =
       '<div data-em-editor="frame-drag-handle" style="' +
-        'position:absolute;top:-28px;left:0;right:0;min-height:24px;' +
+        'position:absolute;top:-28px;left:50%;transform:translateX(-50%);' +
+        'min-width:120px;max-width:400px;min-height:24px;' +
         'background:#16a34a;border-radius:4px 4px 0 0;' +
         'display:flex;align-items:center;justify-content:center;gap:4px;' +
         'cursor:grab;pointer-events:auto;color:#fff;font-size:10px;' +
-        'line-height:1.3;padding:2px 6px;white-space:normal;word-break:break-all;user-select:none' +
+        'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' +
+        'line-height:1.3;padding:2px 6px;user-select:none' +
       '"><span id="em-frame-label">拖动</span></div>' +
       '<button data-em-editor="frame-delete-btn" style="' +
         'position:absolute;top:-28px;right:0;min-width:24px;min-height:24px;' +
