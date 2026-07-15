@@ -1133,7 +1133,6 @@
       for (var i = 0; i < uiElements.length; i++) {
         uiElements[i].remove();
       }
-      // 保留 canvas 作为坐标容器，去掉 id，居中适配任意窗口
       var canvasEl = clone.querySelector("#em-canvas");
       var body = clone.querySelector("body");
       if (canvasEl && body) {
@@ -1141,8 +1140,6 @@
         body.style.margin = "0";
         body.style.padding = "0";
         body.style.overflow = "auto";
-        body.style.display = "flex";
-        body.style.justifyContent = "center";
       }
       var html = "<!DOCTYPE html>\n" + clone.outerHTML;
       try { window.parent.postMessage({ type: "em-editor-export", html: html }, "*"); } catch (e) { /* */ }
