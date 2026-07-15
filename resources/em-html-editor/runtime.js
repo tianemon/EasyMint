@@ -117,7 +117,7 @@
         'white-space:normal;line-height:1.3;padding:2px 6px;user-select:none' +
       '"><span id="em-frame-label">拖动</span></div>' +
       '<button data-em-editor="frame-delete-btn" style="' +
-        'position:absolute;top:-36px;right:-2px;width:22px;height:22px;z-index:1;' +
+        'position:absolute;top:-48px;right:-2px;width:22px;height:22px;z-index:1;' +
         'border:1px solid #16a34a;background:#fff;color:#16a34a;font-size:14px;' +
         'border-radius:50%;cursor:pointer;pointer-events:auto;line-height:1' +
       '" title="删除 (Delete)">×</button>' +
@@ -152,14 +152,15 @@
     // 用 JS 直接设 style 覆盖行内样式（CSS class 优先级不够）
     var handle = frame._dragHandle;
     var delBtn = frame._deleteBtn;
-    // 根据实际高度动态偏移，避免覆盖选中框
     var handleH = Math.max(handle.offsetHeight, 24);
     if (flipped) {
       handle.style.top = "auto"; handle.style.bottom = (-handleH) + "px"; handle.style.borderRadius = "0 0 4px 4px";
-      delBtn.style.top = "auto"; delBtn.style.bottom = (-handleH) + "px";
+      // × 始终在顶部外侧
+      delBtn.style.top = "-26px"; delBtn.style.bottom = "auto";
     } else {
       handle.style.top = (-handleH) + "px"; handle.style.bottom = "auto"; handle.style.borderRadius = "4px 4px 0 0";
-      delBtn.style.top = (-handleH) + "px"; delBtn.style.bottom = "auto";
+      // × 在 handle 上方外侧
+      delBtn.style.top = (-handleH - 26) + "px"; delBtn.style.bottom = "auto";
     }
   }
 
