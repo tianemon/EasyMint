@@ -737,53 +737,6 @@
               { l: newL, t: newT });
             refreshHistoryButtons();
           }
-          // 边界检测：元素中心点超出父容器 → 脱离为独立 canvas 子元素
-          var parent = el.parentElement;
-          var canvas = document.getElementById("em-canvas");
-          if (parent && parent !== canvas && parent !== document.body) {
-            var elRect = el.getBoundingClientRect();
-            var parentRect = parent.getBoundingClientRect();
-            var cx = elRect.left + elRect.width / 2;
-            var cy = elRect.top + elRect.height / 2;
-            var outside = cx < parentRect.left || cx > parentRect.right ||
-                          cy < parentRect.top || cy > parentRect.bottom;
-            if (outside) {
-              // 冻结样式避免失父容器 CSS 上下文
-              freezeStyles(el);
-              // 转为 canvas 坐标系（canvas 左上角即视口左上角）
-              el.style.position = "absolute";
-              el.style.left = elRect.left + "px";
-              el.style.top = elRect.top + "px";
-              canvas.appendChild(el);
-              editor._justDetached = true; // 本次 mouseup 不再归入其他容器
-            }
-          }
-          // 归入检测：已是 canvas 直接子元素 → 扫描容器，中心点落入哪个就归属哪个
-          // 跳过刚脱离的元素，避免同一次拖动中弹跳到其他容器
-          if (el.parentElement === canvas && !editor._justDetached) {
-            var elRect2 = el.getBoundingClientRect();
-            var cx2 = elRect2.left + elRect2.width / 2;
-            var cy2 = elRect2.top + elRect2.height / 2;
-            var bestContainer = null;
-            var bestArea = Infinity;
-            for (var ci = 0; ci < canvas.children.length; ci++) {
-              var c = canvas.children[ci];
-              if (c === el || isEditorUI(c)) continue;
-              var cr = c.getBoundingClientRect();
-              if (cx2 >= cr.left && cx2 <= cr.right && cy2 >= cr.top && cy2 <= cr.bottom) {
-                var area = cr.width * cr.height;
-                if (area < bestArea) { bestArea = area; bestContainer = c; }
-              }
-            }
-            if (bestContainer) {
-              freezeStyles(el);
-              var br = bestContainer.getBoundingClientRect();
-              el.style.position = "absolute";
-              el.style.left = (elRect2.left - br.left) + "px";
-              el.style.top = (elRect2.top - br.top) + "px";
-              bestContainer.appendChild(el);
-            }
-          }
         } else if (d.type === "resize") {
           if (newW !== d.startW || newH !== d.startH || newL !== d.startL || newT !== d.startT) {
             editor.history.record("resize", el,
@@ -793,7 +746,6 @@
           }
         }
         editor._dragging = null;
-        editor._justDetached = false;
       }
 
       // ── dblclick（文字编辑）──
