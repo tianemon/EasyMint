@@ -139,13 +139,14 @@
     });
     frame.innerHTML =
       '<div data-em-editor="frame-drag-handle" style="' +
-        'position:absolute;top:-28px;left:0;right:0;height:24px;' +
+        'position:absolute;top:-28px;left:0;right:0;min-height:24px;' +
         'background:#16a34a;border-radius:4px 4px 0 0;' +
-        'display:flex;align-items:center;justify-content:center;gap:6px;' +
-        'cursor:grab;pointer-events:auto;color:#fff;font-size:11px;user-select:none' +
+        'display:flex;align-items:center;justify-content:center;gap:4px;' +
+        'cursor:grab;pointer-events:auto;color:#fff;font-size:10px;' +
+        'line-height:1.3;padding:2px 6px;white-space:normal;word-break:break-all;user-select:none' +
       '"><span id="em-frame-label">拖动</span></div>' +
       '<button data-em-editor="frame-delete-btn" style="' +
-        'position:absolute;top:-28px;right:0;width:24px;height:24px;' +
+        'position:absolute;top:-28px;right:0;min-width:24px;min-height:24px;' +
         'border:none;background:transparent;color:#fff;font-size:16px;' +
         'cursor:pointer;pointer-events:auto;line-height:1' +
       '" title="删除 (Delete)">×</button>' +
@@ -175,8 +176,8 @@
     var handle = frame._dragHandle;
     var delBtn = frame._deleteBtn;
     if (flipped) {
-      handle.style.top = "auto"; handle.style.bottom = "-28px"; handle.style.borderRadius = "0 0 4px 4px";
-      delBtn.style.top = "auto"; delBtn.style.bottom = "-28px";
+      handle.style.top = "auto"; handle.style.bottom = "0"; handle.style.borderRadius = "0 0 4px 4px";
+      delBtn.style.top = "auto"; delBtn.style.bottom = "0";
     } else {
       handle.style.top = "-28px"; handle.style.bottom = "auto"; handle.style.borderRadius = "4px 4px 0 0";
       delBtn.style.top = "-28px"; delBtn.style.bottom = "auto";
