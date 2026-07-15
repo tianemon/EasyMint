@@ -61,6 +61,7 @@
     .color-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px;
       border: 1px solid #d4d4d8; vertical-align: middle; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -69,6 +70,7 @@
     <span class="title">EM HTML Editor</span>
     <span class="sep"></span>
     <button onclick="loadFile()">打开 HTML</button>
+    <button onclick="selectFolder()" style="font-size:12px">选择文件夹</button>
     <span class="sep"></span>
     <button onclick="toggleEditor()" id="btn-toggle" class="primary">启动编辑</button>
     <span id="status">选择 HTML 文件开始</span>
@@ -244,33 +246,234 @@
     status.textContent = "runtime.js 加载失败，请通过 HTTP 服务打开此页面";
   });
 
-  // 拖入文件
+  // 拖入文件/文件夹/ZIP
   document.addEventListener("dragover", function(e) { e.preventDefault(); dropHint.classList.add("show"); });
   document.addEventListener("dragleave", function() { dropHint.classList.remove("show"); });
   document.addEventListener("drop", function(e) {
     e.preventDefault(); dropHint.classList.remove("show");
-    var file = e.dataTransfer.files[0];
-    if (file) readFile(file);
+    var items = e.dataTransfer.items;
+    var files = e.dataTransfer.files;
+    if (!files.length) return;
+    // 检测是否为文件夹拖入
+    if (items && items[0] && items[0].webkitGetAsEntry && items[0].webkitGetAsEntry()) {
+      var entry = items[0].webkitGetAsEntry();
+      if (entry.isDirectory) {
+        status.textContent = "读取文件夹...";
+        readFolderEntry(entry, "", function() {
+          loadFromTree();
+          status.textContent = "文件夹就绪";
+        });
+        return;
+      }
+    }
+    var file = files[0];
+    if (file.name && file.name.endsWith(".zip")) readZip(file);
+    else if (files.length > 1) readFileList(Array.from(files));
+    else readSingleHTML(file);
   });
+  });
+
+  // 虚拟文件树: { 路径: 内容字符串(Uint8Array 或文本) }
+  var fileTree = {};
 
   function loadFile() {
     var input = document.createElement("input");
-    input.type = "file"; input.accept = ".html,.htm";
-    input.onchange = function() { if (input.files[0]) readFile(input.files[0]); };
+    input.type = "file"; input.accept = ".html,.htm,.zip";
+    input.onchange = function() {
+      if (!input.files[0]) return;
+      var f = input.files[0];
+      if (f.name.endsWith(".zip")) readZip(f);
+      else readSingleHTML(f);
+    };
     input.click();
   }
 
-  function readFile(file) {
+  // 文件夹入口（通过 drop 触发，也支持手动选择）
+  function selectFolder() {
+    var input = document.createElement("input");
+    input.type = "file";
+    input.webkitdirectory = true;
+    input.onchange = function() {
+      if (!input.files.length) return;
+      var files = [];
+      for (var i = 0; i < input.files.length; i++) files.push(input.files[i]);
+      readFileList(files);
+    };
+    input.click();
+  }
+
+  function readSingleHTML(file) {
     var reader = new FileReader();
     reader.onload = function() {
-      currentHTML = reader.result;
-      loadPreview(currentHTML);
+      fileTree = { "index.html": reader.result };
+      var html = reader.result;
+      html = inlineCSS(html, fileTree);
+      currentHTML = html;
+      loadPreview(html);
       status.textContent = file.name + " · " + (file.size < 1024 ? file.size + " B" : (file.size / 1024).toFixed(1) + " KB");
       btnToggle.textContent = "启动编辑";
       btnToggle.classList.add("primary");
       editorActive = false;
     };
     reader.readAsText(file);
+  }
+
+  function readZip(file) {
+    status.textContent = "解压中...";
+    var reader = new FileReader();
+    reader.onload = function() {
+      JSZip.loadAsync(reader.result).then(function(zip) {
+        var promises = [];
+        fileTree = {};
+        zip.forEach(function(relPath, entry) {
+          if (entry.dir) return;
+          var p = relPath.replace(/\\/g, "/");
+          promises.push(entry.async("string").then(function(content) {
+            fileTree[p] = content;
+          }).catch(function() {
+            // 二进制文件跳过
+          }));
+        });
+        Promise.all(promises).then(function() {
+          loadFromTree();
+          status.textContent = file.name + " · " + (file.size < 1024 ? file.size + " B" : (file.size / 1024).toFixed(1) + " KB");
+        });
+      }).catch(function(e) {
+        status.textContent = "ZIP 解析失败: " + e.message;
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  /** 递归读取文件夹条目 */
+  function readFolderEntry(entry, basePath, callback) {
+    if (entry.isFile) {
+      entry.file(function(file) {
+        var path = basePath + file.name;
+        var r = new FileReader();
+        r.onload = function() { fileTree[path] = r.result; callback(); };
+        r.readAsText(file);
+      });
+    } else if (entry.isDirectory) {
+      var dirReader = entry.createReader();
+      var subEntries = [];
+      function readBatch() {
+        dirReader.readEntries(function(results) {
+          if (results.length === 0) {
+            var count = subEntries.length;
+            if (count === 0) { callback(); return; }
+            var done = 0;
+            subEntries.forEach(function(sub) {
+              readFolderEntry(sub, basePath + entry.name + "/", function() {
+                done++;
+                if (done === count) callback();
+              });
+            });
+            return;
+          }
+          subEntries = subEntries.concat(Array.from(results));
+          readBatch();
+        });
+      }
+      readBatch();
+    } else {
+      callback();
+    }
+  }
+
+  function readFileList(files) {
+    fileTree = {};
+    var count = 0;
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      var p = (f.webkitRelativePath || f.name).replace(/\\/g, "/");
+      if (f.type && f.type.match(/html|css|text|javascript|xml|svg|json/)) {
+        (function(file, path) {
+          var r = new FileReader();
+          r.onload = function() { fileTree[path] = r.result; count++; if (count === files.length) loadFromTree(); };
+          r.readAsText(file);
+        })(f, p);
+      } else {
+        count++;
+      }
+    }
+    if (count === files.length) loadFromTree();
+  }
+
+  function loadFromTree() {
+    var html = "";
+    // 优先 index.html
+    var keys = Object.keys(fileTree);
+    var htmlKey = keys.find(function(k) { return k.endsWith("index.html"); }) ||
+                  keys.find(function(k) { return k.endsWith(".html") || k.endsWith(".htm"); });
+    if (htmlKey) {
+      html = fileTree[htmlKey];
+      html = inlineCSS(html, fileTree);
+    } else {
+      status.textContent = "未找到 HTML 文件";
+      return;
+    }
+    currentHTML = html;
+    loadPreview(html);
+    btnToggle.textContent = "启动编辑";
+    btnToggle.classList.add("primary");
+    editorActive = false;
+  }
+
+  /** 将 HTML 中的外部 CSS 引用替换为内联 <style> */
+  function inlineCSS(html, tree) {
+    // 替换 <link rel="stylesheet" href="xxx">
+    return html.replace(/<link\b[^>]*\brel=["']?stylesheet["']?[^>]*>/gi, function(match) {
+      var href = match.match(/href=["']([^"']+)["']/i);
+      if (!href) return match;
+      var path = resolvePath(href[1]);
+      // 寻找匹配的 CSS 文件
+      var cssContent = null;
+      for (var k in tree) {
+        if (k === path || k.endsWith("/" + path) || k.endsWith("\\" + path)) {
+          cssContent = tree[k]; break;
+        }
+      }
+      if (!cssContent) {
+        // 尝试用文件名匹配
+        var basename = path.split("/").pop();
+        for (var k2 in tree) {
+          if (k2.endsWith(basename)) { cssContent = tree[k2]; break; }
+        }
+      }
+      if (cssContent) {
+        // 递归处理 @import
+        cssContent = inlineCSSImports(cssContent, tree, 0);
+        return "<style>\n" + cssContent + "\n</style>";
+      }
+      return match; // 找不到则保留原标签
+    });
+  }
+
+  function inlineCSSImports(css, tree, depth) {
+    if (depth > 3) return css;
+    return css.replace(/@import\s+(?:url\()?["']([^"')]+)["']\)?[^;]*;/gi, function(match, url) {
+      var path = resolvePath(url);
+      for (var k in tree) {
+        if (k.endsWith(path) || k.endsWith(path.split("/").pop())) {
+          var content = tree[k];
+          content = inlineCSSImports(content, tree, depth + 1);
+          return content;
+        }
+      }
+      return match;
+    });
+  }
+
+  /** 简单路径解析 */
+  function resolvePath(ref) {
+    if (!ref) return ref;
+    return ref.replace(/^\.?\//, "").replace(/\\/g, "/");
+  }
+
+  function readFile(file) {
+    // 保留旧函数兼容性，实际调用 readSingleHTML
+    readSingleHTML(file);
   }
 
   function loadPreview(html) {
