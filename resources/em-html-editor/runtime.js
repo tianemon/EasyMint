@@ -110,7 +110,7 @@
     });
     frame.innerHTML =
       '<div data-em-editor="frame-drag-handle" style="' +
-        'position:absolute;top:-28px;left:0;right:0;min-width:80px;min-height:24px;' +
+        'position:absolute;top:-28px;left:0;right:28px;min-width:80px;min-height:24px;' +
         'background:#16a34a;border-radius:4px 4px 0 0;' +
         'display:flex;align-items:center;justify-content:center;gap:4px;' +
         'cursor:grab;pointer-events:auto;color:#fff;font-size:10px;' +
