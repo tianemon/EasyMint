@@ -1130,14 +1130,14 @@
       for (var i = 0; i < uiElements.length; i++) {
         uiElements[i].remove();
       }
-      // 移除 canvas 容器，提取内容
+      // 保留 canvas 作为坐标容器，去掉 id 仅保留样式
       var canvasEl = clone.querySelector("#em-canvas");
       var body = clone.querySelector("body");
       if (canvasEl && body) {
-        body.innerHTML = "";
-        while (canvasEl.firstChild) {
-          body.appendChild(canvasEl.firstChild);
-        }
+        canvasEl.removeAttribute("id");
+        body.style.margin = "0";
+        body.style.padding = "0";
+        body.style.overflow = "auto";
       }
       var html = "<!DOCTYPE html>\n" + clone.outerHTML;
       try { window.parent.postMessage({ type: "em-editor-export", html: html }, "*"); } catch (e) { /* */ }
