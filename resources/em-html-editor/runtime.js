@@ -10,6 +10,9 @@
 (function () {
   "use strict";
 
+  // 记录脚本首次加载时的视口宽度作为设计宽度，避免后续 DevTools 等导致偏差
+  var _designWidth = window.innerWidth;
+
   // ═══════════════════════════════════════════════════════════
   // 1. 常量
   // ═══════════════════════════════════════════════════════════
@@ -477,14 +480,19 @@
   // 8. HTML 转换引擎
   // ═══════════════════════════════════════════════════════════
 
-  function convertToCanvas() {
+  function convertToCanvas(designWidth) {
+    var dw = designWidth || window.innerWidth;
+    // 临时锁定 body 宽度为设计宽度，避免 DevTools 等导致的视口压缩影响坐标采集
+    var prevBodyWidth = document.body.style.width;
+    document.body.style.width = dw + "px";
+    document.body.offsetHeight; // 强制 reflow
+
     var canvas = document.createElement("div");
     canvas.id = "em-canvas";
-    // 注意：canvas 不能有 data-em-editor 属性，否则 isEditorUI 会把画布内所有元素排除
     canvas.style.position = "relative";
     canvas.style.margin = "0";
     canvas.style.padding = "0";
-    canvas.style.minHeight = window.innerHeight + "px";
+    canvas.style.minHeight = dw + "px";
 
     // 收集 body 的所有直接子元素
     var children = [];
@@ -524,10 +532,9 @@
 
       // 判断是否撑满、是否水平居中
       var nearLeft = docLeft < 5;
-      var nearRight = (window.innerWidth - (docLeft + rect.width)) < 5;
+      var nearRight = (dw - (docLeft + rect.width)) < 5;
       var fluid = nearLeft && nearRight;
-      var vw = window.innerWidth;
-      var expectCenter = (vw - rect.width) / 2;
+      var expectCenter = (dw - rect.width) / 2;
       var centered = !fluid && docLeft > 20 && Math.abs(docLeft - expectCenter) < 10;
       var snap = {
         el: child,
@@ -539,6 +546,9 @@
       };
       snapshots.push(snap);
     }
+
+    // 恢复 body 宽度（坐标已采集完毕）
+    document.body.style.width = prevBodyWidth;
 
     // 第二遍：应用绝对定位并移入 canvas
     var hasFluid = false;
@@ -609,8 +619,8 @@
     start: function () {
       if (editor) return;
 
-      // 1. 转换 HTML 为画布模式
-      var canvas = convertToCanvas();
+      // 1. 转换 HTML 为画布模式（使用首次加载时记录的设计宽度）
+      var canvas = convertToCanvas(_designWidth);
 
       // 2. 创建 UI 元素
       var outline = createOutline();
