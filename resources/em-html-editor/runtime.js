@@ -10,8 +10,7 @@
 (function () {
   "use strict";
 
-  // 记录脚本首次加载时的视口宽度作为设计宽度，避免后续 DevTools 等导致偏差
-  var _designWidth = window.innerWidth;
+  // 编辑器直接工作在原始 DOM 上，不转换布局
 
   // ═══════════════════════════════════════════════════════════
   // 1. 常量
@@ -88,8 +87,6 @@
   function resolveTarget(target) {
     if (!target || !(target instanceof HTMLElement)) return null;
     if (isEditorUI(target)) return null;
-    // canvas 内的元素全部直接可选，不钻子元素（用户需要选中/拖动整个容器）
-    if (target.closest("#em-canvas")) return target;
     if (isSelectable(target)) return target;
 
     if (isLargeContainer(target)) {
@@ -212,16 +209,15 @@
     return tag + id + cls;
   }
 
-  /** 获取元素在 canvas 中的层级路径 */
+  /** 获取元素的 DOM 层级路径 */
   function getElementPath(el) {
     var parts = [];
     var cur = el;
-    var canvas = document.getElementById("em-canvas");
-    while (cur && cur !== canvas && cur !== document.body) {
+    while (cur && cur !== document.body && cur !== document.documentElement) {
       parts.unshift(describeElement(cur));
       cur = cur.parentElement;
     }
-    if (cur === canvas) parts.unshift("canvas");
+    if (cur === document.body) parts.unshift("body");
     return parts.join(" › ");
   }
 
@@ -323,7 +319,7 @@
           break;
         case "reparent":
           if (isStyleable(patch.el)) {
-            var dest = (value.parent && value.parent.isConnected) ? value.parent : document.getElementById("em-canvas");
+            var dest = (value.parent && value.parent.isConnected) ? value.parent : document.body;
             if (dest) {
               dest.appendChild(patch.el);
               patch.el.style.position = "absolute";
@@ -476,121 +472,6 @@
     container.appendChild(btn);
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // 8. HTML 转换引擎
-  // ═══════════════════════════════════════════════════════════
-
-  function convertToCanvas(designWidth) {
-    var dw = designWidth || window.innerWidth;
-    // 临时锁定 body 宽度为设计宽度，避免 DevTools 等导致的视口压缩影响坐标采集
-    var prevBodyWidth = document.body.style.width;
-    document.body.style.width = dw + "px";
-    document.body.offsetHeight; // 强制 reflow
-
-    var canvas = document.createElement("div");
-    canvas.id = "em-canvas";
-    canvas.style.position = "relative";
-    canvas.style.margin = "0";
-    canvas.style.padding = "0";
-    canvas.style.minHeight = window.innerHeight + "px";
-
-    // 收集 body 的所有直接子元素
-    var children = [];
-    // 先收集为静态数组，避免 live NodeList 在移动元素时被修改导致跳过
-    var bodyChildren = [];
-    var rawChildren = document.body.childNodes;
-    for (var ri = 0; ri < rawChildren.length; ri++) bodyChildren.push(rawChildren[ri]);
-    for (var i = 0; i < bodyChildren.length; i++) {
-      var node = bodyChildren[i];
-      // 跳过编辑 UI、文本节点、脚本、样式
-      if (isEditorUI(node)) continue;
-      if (node.nodeType === Node.TEXT_NODE && !node.textContent.trim()) continue;
-      if (node.nodeType !== Node.ELEMENT_NODE) continue;
-      var tag = node.tagName.toLowerCase();
-      if (tag === "script" || tag === "style" || tag === "link" || tag === "meta" || tag === "noscript") continue;
-      children.push(node);
-    }
-
-    // 第一遍：收集所有元素的坐标（必须在修改任何元素之前完成，
-    // 否则 position:absolute 会让后续元素在文档流中移位）
-    var snapshots = [];
-    var maxBottom = 0;
-    var maxRight = 0;
-    var scrollX = window.scrollX || window.pageXOffset || 0;
-    var scrollY = window.scrollY || window.pageYOffset || 0;
-
-    for (var j = 0; j < children.length; j++) {
-      var child = children[j];
-      var rect = child.getBoundingClientRect();
-      var docLeft = rect.left + scrollX;
-      var docTop = rect.top + scrollY;
-      var docRight = docLeft + rect.width;
-      var docBottom = docTop + rect.height;
-
-      if (docRight > maxRight) maxRight = docRight;
-      if (docBottom > maxBottom) maxBottom = docBottom;
-
-      // 判断是否撑满、是否水平居中
-      var nearLeft = docLeft < 5;
-      var nearRight = (dw - (docLeft + rect.width)) < 5;
-      var fluid = nearLeft && nearRight;
-      var expectCenter = (dw - rect.width) / 2;
-      var centered = !fluid && docLeft > 20 && Math.abs(docLeft - expectCenter) < 10;
-      var snap = {
-        el: child,
-        left: docLeft, top: docTop,
-        width: rect.width, height: rect.height,
-        fluid: fluid,
-        centered: centered,
-        boxSizing: getComputedStyle(child).boxSizing,
-      };
-      snapshots.push(snap);
-    }
-
-    // 恢复 body 宽度（坐标已采集完毕）
-    document.body.style.width = prevBodyWidth;
-
-    // 第二遍：应用绝对定位并移入 canvas
-    var hasFluid = false;
-    for (var k = 0; k < snapshots.length; k++) {
-      var s = snapshots[k];
-      s.el.style.position = "absolute";
-      s.el.style.top = s.top + "px";
-      s.el.style.width = s.fluid ? "100%" : (s.width + "px");
-      if (s.centered) {
-        // 水平居中的元素用 CSS 自动居中，自适应任意容器宽度
-        s.el.style.left = "50%";
-        s.el.style.transform = "translateX(-50%)";
-      } else {
-        s.el.style.left = s.left + "px";
-      }
-      s.el.style.height = s.height + "px";
-      s.el.style.margin = "0";
-      s.el.style.zIndex = String(k + 1);
-      if (s.boxSizing === "border-box") s.el.style.boxSizing = "border-box";
-      canvas.appendChild(s.el);
-      if (s.fluid) hasFluid = true;
-    }
-
-    canvas.style.width = hasFluid ? "100%" : (maxRight + "px");
-    canvas.style.height = maxBottom + "px";
-
-    // 替换 body 内容，同时重置 body 样式避免默认 margin 干扰定位
-    document.body.innerHTML = "";
-    document.body.style.margin = "0";
-    document.body.style.padding = "0";
-    document.body.style.overflow = "auto";
-    document.body.appendChild(canvas);
-    window.scrollTo(0, 0);
-
-    return canvas;
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // 9. 编辑器主类
-  // ═══════════════════════════════════════════════════════════
-
-  var editor = null;
 
   function refreshHistoryButtons() {
     if (!editor || !editor.panel) return;
@@ -619,19 +500,15 @@
     start: function () {
       if (editor) return;
 
-      // 1. 转换 HTML 为画布模式（使用首次加载时记录的设计宽度）
-      var canvas = convertToCanvas(_designWidth);
-
-      // 2. 创建 UI 元素
+      // 编辑器直接工作在原始 DOM 上，不转换布局
       var outline = createOutline();
       var frame = createEditorFrame();
       var history = createHistory();
 
       editor = {
-        canvas: canvas,
         outline: outline,
         frame: frame,
-        panel: null, // 面板已移至 index.html 右侧栏
+        panel: null,
         history: history,
         selected: null,
         hoverOutline: null,
@@ -793,76 +670,6 @@
               { l: d.startL, t: d.startT },
               { l: newL, t: newT });
             refreshHistoryButtons();
-          }
-          // 脱离检测：元素中心点超出父容器 → 脱离为独立 canvas 子元素
-          var parent = el.parentElement;
-          var canvas = document.getElementById("em-canvas");
-          if (parent && parent !== canvas && parent !== document.body) {
-            var elRect = el.getBoundingClientRect();
-            var parentRect = parent.getBoundingClientRect();
-            var cx = elRect.left + elRect.width / 2;
-            var cy = elRect.top + elRect.height / 2;
-            var outside = cx < parentRect.left || cx > parentRect.right ||
-                          cy < parentRect.top || cy > parentRect.bottom;
-            if (outside) {
-              var sx = window.scrollX || window.pageXOffset || 0;
-              var sy = window.scrollY || window.pageYOffset || 0;
-              var oldParent = parent;
-              var oldLeft = el.style.left;
-              var oldTop = el.style.top;
-              freezeStyles(el);
-              el.style.position = "absolute";
-              el.style.left = (elRect.left + sx) + "px";
-              el.style.top = (elRect.top + sy) + "px";
-              canvas.appendChild(el);
-              editor.history.record("reparent", el,
-                { parent: oldParent, left: oldLeft, top: oldTop },
-                { parent: canvas, left: el.style.left, top: el.style.top });
-              refreshHistoryButtons();
-            }
-          }
-          // 归入检测：canvas 直接子元素 → 递归扫描，中心点落入最深层容器
-          var canvas2 = document.getElementById("em-canvas");
-          if (el.parentElement === canvas2) {
-            var elR2 = el.getBoundingClientRect();
-            var cx2 = elR2.left + elR2.width / 2;
-            var cy2 = elR2.top + elR2.height / 2;
-
-            function findDeepest(root) {
-              var bestC = null;
-              var bestA = Infinity;
-              var containerTags = /^(div|section|article|nav|header|footer|main|aside|ul|ol|li|form|fieldset|details|summary)$/;
-              for (var ci = 0; ci < root.children.length; ci++) {
-                var c = root.children[ci];
-                if (c === el || isEditorUI(c)) continue;
-                var tag = c.tagName.toLowerCase();
-                if (tag === "style" || tag === "script") continue;
-                if (!containerTags.test(tag)) continue;
-                var cr = c.getBoundingClientRect();
-                if (cx2 >= cr.left && cx2 <= cr.right && cy2 >= cr.top && cy2 <= cr.bottom) {
-                  var a = cr.width * cr.height;
-                  if (a < bestA) { bestA = a; bestC = c; }
-                }
-              }
-              if (bestC) { var d = findDeepest(bestC); return d || bestC; }
-              return null;
-            }
-
-            var best = findDeepest(canvas2);
-            if (best) {
-              var oldLeft2 = el.style.left;
-              var oldTop2 = el.style.top;
-              freezeStyles(el);
-              var br = best.getBoundingClientRect();
-              el.style.position = "absolute";
-              el.style.left = (elR2.left - br.left) + "px";
-              el.style.top = (elR2.top - br.top) + "px";
-              best.appendChild(el);
-              editor.history.record("reparent", el,
-                { parent: canvas2, left: oldLeft2, top: oldTop2 },
-                { parent: best, left: el.style.left, top: el.style.top });
-              refreshHistoryButtons();
-            }
           }
         } else if (d.type === "resize") {
           if (newW !== d.startW || newH !== d.startH || newL !== d.startL || newT !== d.startT) {
@@ -1069,23 +876,24 @@
 
     addText: function () {
       if (!editor) return;
-      var canvas = editor.canvas || document.getElementById("em-canvas") || document.body;
       var div = document.createElement("div");
       div.textContent = "双击编辑文字";
+      var bw = Math.max(document.body.clientWidth || window.innerWidth, 400);
+      var bh = Math.max(document.body.clientHeight || window.innerHeight, 200);
       Object.assign(div.style, {
         position: "absolute",
-        left: (canvas.clientWidth / 2 - 100) + "px",
-        top: (canvas.clientHeight / 2 - 20) + "px",
+        left: (bw / 2 - 100) + "px",
+        top: (bh / 2 - 20) + "px",
         width: "200px", minHeight: "40px",
         padding: "12px 16px", fontSize: "16px", color: "#111",
         background: "#fff", border: "1px dashed #16a34a",
         borderRadius: "6px", cursor: "move", zIndex: String(Date.now() % 1000),
         fontFamily: "system-ui, sans-serif",
       });
-      canvas.appendChild(div);
+      document.body.appendChild(div);
       editor.history.record("add", div,
         { present: false }, { present: true },
-        { parent: canvas });
+        { parent: document.body });
       refreshHistoryButtons();
       // 自动选中新元素
       editor.selected = div;
@@ -1105,20 +913,21 @@
         if (!file) { input.remove(); return; }
         var reader = new FileReader();
         reader.onload = function () {
-          var canvas = editor.canvas || document.getElementById("em-canvas") || document.body;
+          var bw = Math.max(document.body.clientWidth || window.innerWidth, 400);
+          var bh = Math.max(document.body.clientHeight || window.innerHeight, 200);
           var img = document.createElement("img");
           img.src = reader.result;
           Object.assign(img.style, {
             position: "absolute",
-            left: (canvas.clientWidth / 2 - 150) + "px",
-            top: (canvas.clientHeight / 2 - 100) + "px",
+            left: (bw / 2 - 150) + "px",
+            top: (bh / 2 - 100) + "px",
             maxWidth: "300px", maxHeight: "200px",
             cursor: "move", zIndex: String(Date.now() % 1000),
           });
-          canvas.appendChild(img);
+          document.body.appendChild(img);
           editor.history.record("add", img,
             { present: false }, { present: true },
-            { parent: canvas });
+            { parent: document.body });
           refreshHistoryButtons();
           editor.selected = img;
           syncAll(img);
@@ -1146,32 +955,6 @@
       var uiElements = clone.querySelectorAll("[data-em-editor]");
       for (var i = 0; i < uiElements.length; i++) {
         uiElements[i].remove();
-      }
-      var canvasEl = clone.querySelector("#em-canvas");
-      var body = clone.querySelector("body");
-      var htmlEl = clone.querySelector("html");
-      if (htmlEl) { htmlEl.style.width = "100%"; htmlEl.style.margin = "0"; htmlEl.style.padding = "0"; }
-      if (canvasEl && body) {
-        canvasEl.removeAttribute("id");
-        // 重新计算 canvas 宽度（从非百分比元素的最大右边界）
-        var exportW = 0;
-        for (var ci = 0; ci < canvasEl.children.length; ci++) {
-          var c = canvasEl.children[ci];
-          var w = parseFloat(c.style.width);
-          if (isNaN(w)) continue; // 跳过 width:100% 的元素
-          var r = (parseFloat(c.style.left) || 0) + w;
-          if (r > exportW) exportW = r;
-        }
-        // 有全宽元素则用百分比，否则用固定宽度
-        var hasFullWidth = false;
-        for (var ci2 = 0; ci2 < canvasEl.children.length; ci2++) {
-          if (canvasEl.children[ci2].style.width === "100%") { hasFullWidth = true; break; }
-        }
-        canvasEl.style.width = hasFullWidth ? "100%" : ((exportW || 960) + "px");
-        body.style.width = "100%";
-        body.style.margin = "0";
-        body.style.padding = "0";
-        body.style.overflow = "auto";
       }
       var html = "<!DOCTYPE html>\n" + clone.outerHTML;
       try { window.parent.postMessage({ type: "em-editor-export", html: html }, "*"); } catch (e) { /* */ }
