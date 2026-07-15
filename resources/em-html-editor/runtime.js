@@ -141,9 +141,9 @@
       '<div data-em-editor="frame-drag-handle" style="' +
         'position:absolute;top:-28px;left:0;right:0;height:24px;' +
         'background:#16a34a;border-radius:4px 4px 0 0;' +
-        'display:flex;align-items:center;justify-content:center;' +
+        'display:flex;align-items:center;justify-content:center;gap:6px;' +
         'cursor:grab;pointer-events:auto;color:#fff;font-size:11px;user-select:none' +
-      '">拖动</div>' +
+      '"><span id="em-frame-label">拖动</span></div>' +
       '<button data-em-editor="frame-delete-btn" style="' +
         'position:absolute;top:-28px;right:0;width:24px;height:24px;' +
         'border:none;background:transparent;color:#fff;font-size:16px;' +
@@ -170,6 +170,36 @@
     frame.style.top = (r.top - 2) + "px";
     frame.style.width = (r.width + 4) + "px";
     frame.style.height = (r.height + 4) + "px";
+  }
+
+  /** 描述元素的简短标识：tag + 关键 class */
+  function describeElement(el) {
+    if (!el) return "(空)";
+    var tag = el.tagName.toLowerCase();
+    var cls = "";
+    if (el.classList && el.classList.length) {
+      // 取前两个最可能语义化的 class
+      var parts = [];
+      for (var ci = 0; ci < Math.min(el.classList.length, 2); ci++) {
+        parts.push(el.classList[ci]);
+      }
+      cls = "." + parts.join(".");
+    }
+    var id = el.id ? "#" + el.id : "";
+    return tag + id + cls;
+  }
+
+  /** 获取元素在 canvas 中的层级路径 */
+  function getElementPath(el) {
+    var parts = [];
+    var cur = el;
+    var canvas = document.getElementById("em-canvas");
+    while (cur && cur !== canvas && cur !== document.body) {
+      parts.unshift(describeElement(cur));
+      cur = cur.parentElement;
+    }
+    if (cur === canvas) parts.unshift("canvas");
+    return parts.join(" › ");
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -555,6 +585,9 @@
       function selectElement(el) {
         editor.selected = el;
         syncAll(el);
+        // 更新 frame 标签显示元素信息
+        var label = document.getElementById("em-frame-label");
+        if (label) label.textContent = el ? getElementPath(el) : "拖动";
         // 取消文字编辑
         if (editor._editingText && editor._editingText !== el) {
           editor._editingText.contentEditable = "false";
