@@ -551,6 +551,9 @@
 
     canvas.style.width = hasFluid ? "100%" : (maxRight + "px");
     canvas.style.height = maxBottom + "px";
+    console.log("[canvas] width:", canvas.style.width, "height:", canvas.style.height,
+      "hasFluid:", hasFluid, "maxRight:", maxRight, "maxBottom:", maxBottom,
+      "innerWidth:", window.innerWidth, "innerHeight:", window.innerHeight);
 
     // 替换 body 内容，同时重置 body 样式避免默认 margin 干扰定位
     document.body.innerHTML = "";
