@@ -65,7 +65,7 @@
   function resolveTarget(target) {
     if (!target || !(target instanceof HTMLElement)) return null;
     if (isEditorUI(target)) return null;
-    // 原型编辑模式下，任意可见元素都可选中
+    if (target.style.visibility === "hidden") return null;
     return target;
   }
 
@@ -298,6 +298,12 @@
               patch.el.style.left = value.left;
               patch.el.style.top = value.top;
             }
+          }
+          break;
+        case "hide":
+          if (patch.el && patch.el.style) {
+            patch.el.style.visibility = value.visibility;
+            patch.el.style.pointerEvents = value.pointerEvents;
           }
           break;
       }
@@ -845,13 +851,12 @@
     deleteSelected: function () {
       if (!editor || !editor.selected) return;
       var el = editor.selected;
-      var parent = el.parentNode;
-      var nextSibling = el.nextSibling;
-      var html = el.outerHTML;
-      el.remove();
-      editor.history.record("delete", null,
-        { h: html, pEl: parent, ref: nextSibling },
-        { h: "", pEl: null, ref: null });
+      var prevVis = el.style.visibility || "visible";
+      el.style.visibility = "hidden";
+      el.style.pointerEvents = "none";
+      editor.history.record("hide", el,
+        { visibility: prevVis, pointerEvents: "auto" },
+        { visibility: "hidden", pointerEvents: "none" });
       editor.selected = null;
       syncAll(null);
       refreshHistoryButtons();
