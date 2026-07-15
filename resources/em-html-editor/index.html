@@ -49,6 +49,16 @@
     .color-btn:hover { transform: scale(1.2); box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
     .color-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px;
       border: 1px solid #d4d4d8; vertical-align: middle; }
+    /* 元素树 */
+    #tree-panel { max-height: 200px; overflow-y: auto; background: #fff; border: 1px solid #e4e4e7;
+      border-radius: 6px; padding: 4px 0; font-size: 11px; margin-bottom: 4px; }
+    #tree-panel .tree-node { padding: 1px 6px; cursor: pointer; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; border-left: 2px solid transparent; }
+    #tree-panel .tree-node:hover { background: #f0fdf4; }
+    #tree-panel .tree-node.selected { background: #dcfce7; border-left-color: #16a34a; }
+    #tree-panel .tree-node .tag { color: #16a34a; font-weight: 500; }
+    #tree-panel .tree-node .cls { color: #a1a1aa; }
+    #tree-panel .tree-toggle { display: inline-block; width: 12px; cursor: pointer; color: #a1a1aa; }
   </style>
 </head>
 <body>
@@ -73,6 +83,8 @@
 
     <!-- 右侧编辑面板 -->
     <div id="sidebar">
+      <h3>元素结构 <button onclick="refreshTree()" style="font-size:10px;float:right;border:1px solid #d4d4d8;border-radius:3px;background:#fff;cursor:pointer">刷新</button></h3>
+      <div id="tree-panel"></div>
       <h3>历史</h3>
       <div class="btn-row">
         <button onclick="act('undo')" id="btn-undo" title="撤销 Ctrl+Z" disabled>↩ 撤销</button>
@@ -311,6 +323,89 @@
       URL.revokeObjectURL(url);
     }
   });
+
+  // ── 元素结构树 ──
+  function refreshTree() {
+    var api = em();
+    if (!api) return;
+    var tree = api.getTree();
+    var panel = document.getElementById("tree-panel");
+    if (!panel) return;
+    panel.innerHTML = "";
+    renderTreeNode(panel, tree, 0);
+    // 高亮当前选中元素
+    if (tree && tree.ref) highlightTreeRef(tree.ref);
+  }
+
+  function renderTreeNode(container, node, depth) {
+    if (!node) return;
+    var div = document.createElement("div");
+    div.className = "tree-node";
+    div.style.paddingLeft = (6 + depth * 12) + "px";
+    div.title = node.tag + (node.id ? "#" + node.id : "") + (node.cls ? "." + node.cls : "");
+
+    var label = "<span class='tag'>" + node.tag + "</span>";
+    if (node.id) label += "<span class='cls'>#" + node.id + "</span>";
+    if (node.cls) label += "<span class='cls'>." + node.cls + "</span>";
+
+    if (node.children.length > 0) {
+      var toggle = document.createElement("span");
+      toggle.className = "tree-toggle";
+      toggle.textContent = "▾";
+      toggle.onclick = function(e) {
+        e.stopPropagation();
+        var childContainer = div.nextElementSibling;
+        if (childContainer && childContainer.className === "tree-children") {
+          var hide = childContainer.style.display !== "none";
+          childContainer.style.display = hide ? "none" : "block";
+          toggle.textContent = hide ? "▸" : "▾";
+        }
+      };
+      div.appendChild(toggle);
+    } else {
+      div.innerHTML += '<span class="tree-toggle" style="visibility:hidden">▸</span>';
+    }
+    div._elRef = node.ref;
+    div.innerHTML += label;
+    div.onclick = function() {
+      var api = em();
+      if (api && node.ref) api.selectByRef(node.ref);
+      highlightTreeRef(node.ref);
+    };
+    container.appendChild(div);
+
+    if (node.children.length > 0) {
+      var childContainer = document.createElement("div");
+      childContainer.className = "tree-children";
+      for (var i = 0; i < node.children.length; i++) {
+        renderTreeNode(childContainer, node.children[i], depth + 1);
+      }
+      container.appendChild(childContainer);
+    }
+  }
+
+  function highlightTreeRef(ref) {
+    var nodes = document.querySelectorAll("#tree-panel .tree-node");
+    nodes.forEach(function(n) { n.classList.remove("selected"); });
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i]._elRef === ref) { nodes[i].classList.add("selected"); break; }
+    }
+  }
+
+  // 编辑启动/停止时刷新树，选中变化时更新高亮
+  var origToggle = toggleEditor;
+  toggleEditor = function() {
+    origToggle();
+    setTimeout(refreshTree, 500);
+  };
+  setInterval(function() {
+    var api = em();
+    if (!api) return;
+    var s = api.getState();
+    if (s && s.selectedRef) {
+      highlightTreeRef(s.selectedRef);
+    }
+  }, 800);
 </script>
 </body>
 </html>

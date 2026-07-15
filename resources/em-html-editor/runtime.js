@@ -1041,6 +1041,7 @@
         canUndo: editor ? editor.history.canUndo() : false,
         canRedo: editor ? editor.history.canRedo() : false,
         hasSelection: editor ? !!editor.selected : false,
+        selectedRef: editor ? editor.selected : null,
       };
     },
 
@@ -1048,6 +1049,34 @@
       document.open();
       document.write(html);
       document.close();
+    },
+    /** 获取元素树结构，供侧栏树形面板展示 */
+    getTree: function () {
+      function buildTree(el, depth) {
+        if (depth > 20 || !el || isEditorUI(el)) return null;
+        var node = {
+          tag: el.tagName ? el.tagName.toLowerCase() : "#text",
+          id: el.id || "",
+          cls: el.classList ? Array.from(el.classList).slice(0, 2).join(".") : "",
+          ref: el,
+          children: [],
+        };
+        if (el.children) {
+          for (var i = 0; i < el.children.length; i++) {
+            var child = buildTree(el.children[i], depth + 1);
+            if (child) node.children.push(child);
+          }
+        }
+        return node;
+      }
+      return buildTree(document.body, 0);
+    },
+
+    /** 根据元素引用选中 */
+    selectByRef: function (el) {
+      if (!editor || !el) return;
+      editor.selected = el;
+      syncAll(el);
     },
   };
 })();
