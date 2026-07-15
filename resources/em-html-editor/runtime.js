@@ -709,6 +709,30 @@
               canvas.appendChild(el);
             }
           }
+          // 归入检测：已是 canvas 直接子元素 → 扫描容器，中心点落入哪个就归属哪个
+          if (el.parentElement === canvas) {
+            var elRect2 = el.getBoundingClientRect();
+            var cx2 = elRect2.left + elRect2.width / 2;
+            var cy2 = elRect2.top + elRect2.height / 2;
+            var bestContainer = null;
+            var bestArea = Infinity;
+            for (var ci = 0; ci < canvas.children.length; ci++) {
+              var c = canvas.children[ci];
+              if (c === el || isEditorUI(c)) continue;
+              var cr = c.getBoundingClientRect();
+              if (cx2 >= cr.left && cx2 <= cr.right && cy2 >= cr.top && cy2 <= cr.bottom) {
+                var area = cr.width * cr.height;
+                if (area < bestArea) { bestArea = area; bestContainer = c; }
+              }
+            }
+            if (bestContainer) {
+              var br = bestContainer.getBoundingClientRect();
+              el.style.position = "absolute";
+              el.style.left = (elRect2.left - br.left) + "px";
+              el.style.top = (elRect2.top - br.top) + "px";
+              bestContainer.appendChild(el);
+            }
+          }
         } else if (d.type === "resize") {
           if (newW !== d.startW || newH !== d.startH || newL !== d.startL || newT !== d.startT) {
             editor.history.record("resize", el,
