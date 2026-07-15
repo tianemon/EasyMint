@@ -642,15 +642,22 @@
         var resizeHandle = e.target.closest("[data-em-editor=frame-resize]");
         if (resizeHandle && editor.selected) {
           e.preventDefault();
-          var rr = editor.selected.getBoundingClientRect();
+          var el2 = editor.selected;
+          var cs2 = getComputedStyle(el2);
+          if (cs2.position === "static") {
+            el2.style.position = "relative";
+            el2.style.left = "0px";
+            el2.style.top = "0px";
+          }
+          var rr = el2.getBoundingClientRect();
           editor._dragging = {
             type: "resize",
             handle: resizeHandle.getAttribute("data-handle"),
             startX: e.clientX, startY: e.clientY,
-            startL: parseFloat(editor.selected.style.left) || rr.left,
-            startT: parseFloat(editor.selected.style.top) || rr.top,
-            startW: parseFloat(editor.selected.style.width) || rr.width,
-            startH: parseFloat(editor.selected.style.height) || rr.height,
+            startL: parseFloat(el2.style.left) || 0,
+            startT: parseFloat(el2.style.top) || 0,
+            startW: parseFloat(el2.style.width) || rr.width,
+            startH: parseFloat(el2.style.height) || rr.height,
           };
           return;
         }
