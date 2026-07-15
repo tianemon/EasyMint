@@ -116,9 +116,19 @@
       </div>
 
       <h3>文字颜色</h3>
+      <div class="btn-row" style="margin-bottom:4px">
+        <input type="color" id="text-color-picker" value="#111111"
+          style="width:28px;height:28px;border:1px solid #d4d4d8;border-radius:4px;cursor:pointer;padding:1px"
+          onchange="var api=em();if(api)api.setColor(this.value)">
+      </div>
       <div class="btn-row" id="text-colors"></div>
 
       <h3>背景颜色</h3>
+      <div class="btn-row" style="margin-bottom:4px">
+        <input type="color" id="bg-color-picker" value="#ffffff"
+          style="width:28px;height:28px;border:1px solid #d4d4d8;border-radius:4px;cursor:pointer;padding:1px"
+          onchange="var api=em();if(api)api.setBgColor(this.value)">
+      </div>
       <div class="btn-row" id="bg-colors"></div>
     </div>
   </div>
