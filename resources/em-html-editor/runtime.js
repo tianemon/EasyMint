@@ -522,15 +522,19 @@
       if (docRight > maxRight) maxRight = docRight;
       if (docBottom > maxBottom) maxBottom = docBottom;
 
-      // 判断是否撑满页面宽度：左右边缘都贴近视口边界
+      // 判断是否撑满、是否水平居中
       var nearLeft = docLeft < 5;
       var nearRight = (window.innerWidth - (docLeft + rect.width)) < 5;
       var fluid = nearLeft && nearRight;
+      var vw = window.innerWidth;
+      var expectCenter = (vw - rect.width) / 2;
+      var centered = !fluid && docLeft > 20 && Math.abs(docLeft - expectCenter) < 10;
       var snap = {
         el: child,
         left: docLeft, top: docTop,
         width: rect.width, height: rect.height,
         fluid: fluid,
+        centered: centered,
         boxSizing: getComputedStyle(child).boxSizing,
       };
       snapshots.push(snap);
@@ -541,9 +545,15 @@
     for (var k = 0; k < snapshots.length; k++) {
       var s = snapshots[k];
       s.el.style.position = "absolute";
-      s.el.style.left = s.left + "px";
       s.el.style.top = s.top + "px";
       s.el.style.width = s.fluid ? "100%" : (s.width + "px");
+      if (s.centered) {
+        // 水平居中的元素用 CSS 自动居中，自适应任意容器宽度
+        s.el.style.left = "50%";
+        s.el.style.transform = "translateX(-50%)";
+      } else {
+        s.el.style.left = s.left + "px";
+      }
       s.el.style.height = s.height + "px";
       s.el.style.margin = "0";
       s.el.style.zIndex = String(k + 1);
