@@ -953,30 +953,25 @@
       input.click();
     },
 
-    /** 将元素移入新父容器（由树拖放调用） */
+    /** 将元素移入新父容器（由树拖放调用），自动居中 */
     reparent: function (el, newParent) {
       if (!editor || !el || !newParent) return;
       var oldParent = el.parentElement;
       if (!oldParent || oldParent === newParent) return;
       var oldLeft = el.style.left || "";
       var oldTop = el.style.top || "";
+      // 先移入，归零偏移，测量居中位置
+      el.style.position = "relative";
+      el.style.left = "0px";
+      el.style.top = "0px";
+      newParent.appendChild(el);
       var elR = el.getBoundingClientRect();
       var pR = newParent.getBoundingClientRect();
-      el.style.position = "relative";
-      el.style.left = (elR.left - pR.left) + "px";
-      el.style.top = (elR.top - pR.top) + "px";
-      newParent.appendChild(el);
-      // 换容器后强制边界吸附
-      var afterR = el.getBoundingClientRect();
-      var npR = newParent.getBoundingClientRect();
-      var adjL = parseFloat(el.style.left) || 0;
-      var adjT = parseFloat(el.style.top) || 0;
-      if (afterR.left < npR.left) adjL += npR.left - afterR.left;
-      if (afterR.right > npR.right) adjL -= afterR.right - npR.right;
-      if (afterR.top < npR.top) adjT += npR.top - afterR.top;
-      if (afterR.bottom > npR.bottom) adjT -= afterR.bottom - npR.bottom;
-      el.style.left = adjL + "px";
-      el.style.top = adjT + "px";
+      // 计算使元素居中的偏移量
+      var centerL = (pR.width - elR.width) / 2 + (pR.left - elR.left);
+      var centerT = (pR.height - elR.height) / 2 + (pR.top - elR.top);
+      el.style.left = centerL + "px";
+      el.style.top = Math.max(0, centerT) + "px";
       editor.history.record("reparent", el,
         { parent: oldParent, left: oldLeft, top: oldTop },
         { parent: newParent, left: el.style.left, top: el.style.top });
