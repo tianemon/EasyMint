@@ -545,10 +545,23 @@
           if (d.type === "move") {
             var newL = d.startL + dx;
             var newT = d.startT + dy;
-            // Ctrl 吸附 10px
             if (e.ctrlKey || e.metaKey) { newL = Math.round(newL / 10) * 10; newT = Math.round(newT / 10) * 10; }
             editor.selected.style.left = newL + "px";
             editor.selected.style.top = newT + "px";
+            // 边界吸附：限制在父容器内
+            var par = editor.selected.parentElement;
+            if (par && par !== document.body && par !== document.documentElement) {
+              var elR = editor.selected.getBoundingClientRect();
+              var pR = par.getBoundingClientRect();
+              var adjL = parseFloat(editor.selected.style.left) || 0;
+              var adjT = parseFloat(editor.selected.style.top) || 0;
+              if (elR.left < pR.left) adjL += pR.left - elR.left;
+              if (elR.right > pR.right) adjL -= elR.right - pR.right;
+              if (elR.top < pR.top) adjT += pR.top - elR.top;
+              if (elR.bottom > pR.bottom) adjT -= elR.bottom - pR.bottom;
+              editor.selected.style.left = adjL + "px";
+              editor.selected.style.top = adjT + "px";
+            }
           } else if (d.type === "resize") {
             var newW, newH, newL, newT;
             var minW = 10, minH = 10;

@@ -330,6 +330,16 @@
   });
 
   // ── 元素结构树 ──
+  var CONTAINER_TAGS = /^(div|section|article|nav|header|footer|main|aside|ul|ol|li|form|fieldset|details|summary|table|tbody|thead|tfoot|tr)$/;
+  function canDropInto(target, el) {
+    if (!target || !el || target === el) return false;
+    // 不能拖入自身后代
+    var p = target;
+    while (p) { if (p === el) return false; p = p.parentElement; }
+    // 只能拖入容器类元素
+    return CONTAINER_TAGS.test(target.tagName.toLowerCase());
+  }
+
   function refreshTree() {
     var api = em();
     if (!api) return;
@@ -353,10 +363,11 @@
     if (node.id) label += "<span class='cls'>#" + node.id + "</span>";
     if (node.cls) label += "<span class='cls'>." + node.cls + "</span>";
 
+    var toggle = document.createElement("span");
+    toggle.className = "tree-toggle";
+    toggle.textContent = node.children.length > 0 ? "▾" : "▸";
+    toggle.style.visibility = node.children.length > 0 ? "visible" : "hidden";
     if (node.children.length > 0) {
-      var toggle = document.createElement("span");
-      toggle.className = "tree-toggle";
-      toggle.textContent = "▾";
       toggle.onclick = function(e) {
         e.stopPropagation();
         var childContainer = div.nextElementSibling;
@@ -366,12 +377,13 @@
           toggle.textContent = hide ? "▸" : "▾";
         }
       };
-      div.appendChild(toggle);
-    } else {
-      div.innerHTML += '<span class="tree-toggle" style="visibility:hidden">▸</span>';
     }
+    div.appendChild(toggle);
+    // 用 span 追加标签文字，避免 innerHTML+= 破坏 toggle
+    var labelSpan = document.createElement("span");
+    labelSpan.innerHTML = label;
+    div.appendChild(labelSpan);
     div._elRef = node.ref;
-    div.innerHTML += label;
     div.draggable = true;
     div.ondragstart = function(e) {
       e.dataTransfer.setData("text/plain", "");
@@ -380,16 +392,19 @@
     };
     div.ondragend = function() { window._dragEl = null; };
     div.ondragover = function(e) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      div.style.background = "#dcfce7";
+      // 只允许拖入容器类元素
+      if (node.ref && canDropInto(node.ref, window._dragEl)) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        div.style.background = "#dcfce7";
+      }
     };
     div.ondragleave = function() { div.style.background = ""; };
     div.ondrop = function(e) {
       e.preventDefault();
       div.style.background = "";
       var api = em();
-      if (api && window._dragEl && node.ref && node.ref !== window._dragEl) {
+      if (api && window._dragEl && node.ref && canDropInto(node.ref, window._dragEl)) {
         api.reparent(window._dragEl, node.ref);
         setTimeout(refreshTree, 300);
       }
