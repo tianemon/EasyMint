@@ -867,34 +867,41 @@
       refreshHistoryButtons();
     },
 
+    /** 找合适的容器来添加元素：选中元素是容器则用它，否则用 body */
+    _findContainer: function () {
+      if (editor && editor.selected) {
+        var tag = editor.selected.tagName.toLowerCase();
+        if (/^(div|section|article|nav|header|footer|main|aside|li|form|fieldset)$/.test(tag)) {
+          return editor.selected;
+        }
+      }
+      return document.body;
+    },
+
     addText: function () {
       if (!editor) return;
+      var container = EMEditor._findContainer();
       var div = document.createElement("div");
       div.textContent = "双击编辑文字";
-      var bw = Math.max(document.body.clientWidth || window.innerWidth, 400);
-      var bh = Math.max(document.body.clientHeight || window.innerHeight, 200);
       Object.assign(div.style, {
-        position: "absolute",
-        left: (bw / 2 - 100) + "px",
-        top: (bh / 2 - 20) + "px",
-        width: "200px", minHeight: "40px",
         padding: "12px 16px", fontSize: "16px", color: "#111",
         background: "#fff", border: "1px dashed #16a34a",
-        borderRadius: "6px", cursor: "move", zIndex: String(Date.now() % 1000),
+        borderRadius: "6px", cursor: "move",
         fontFamily: "system-ui, sans-serif",
+        display: "inline-block",
       });
-      document.body.appendChild(div);
+      container.appendChild(div);
       editor.history.record("add", div,
         { present: false }, { present: true },
-        { parent: document.body });
+        { parent: container });
       refreshHistoryButtons();
-      // 自动选中新元素
       editor.selected = div;
       syncAll(div);
     },
 
     addImage: function () {
       if (!editor) return;
+      var container = EMEditor._findContainer();
       var input = document.createElement("input");
       input.type = "file";
       input.accept = "image/*";
@@ -906,21 +913,16 @@
         if (!file) { input.remove(); return; }
         var reader = new FileReader();
         reader.onload = function () {
-          var bw = Math.max(document.body.clientWidth || window.innerWidth, 400);
-          var bh = Math.max(document.body.clientHeight || window.innerHeight, 200);
           var img = document.createElement("img");
           img.src = reader.result;
           Object.assign(img.style, {
-            position: "absolute",
-            left: (bw / 2 - 150) + "px",
-            top: (bh / 2 - 100) + "px",
             maxWidth: "300px", maxHeight: "200px",
-            cursor: "move", zIndex: String(Date.now() % 1000),
+            cursor: "move", display: "block",
           });
-          document.body.appendChild(img);
+          container.appendChild(img);
           editor.history.record("add", img,
             { present: false }, { present: true },
-            { parent: document.body });
+            { parent: container });
           refreshHistoryButtons();
           editor.selected = img;
           syncAll(img);
