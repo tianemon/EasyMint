@@ -110,17 +110,16 @@
     });
     frame.innerHTML =
       '<div data-em-editor="frame-drag-handle" style="' +
-        'position:absolute;top:-28px;left:50%;transform:translateX(-50%);' +
-        'min-width:80px;max-width:400px;min-height:24px;' +
+        'position:absolute;top:-28px;left:0;right:0;min-width:80px;min-height:24px;' +
         'background:#16a34a;border-radius:4px 4px 0 0;' +
         'display:flex;align-items:center;justify-content:center;gap:4px;' +
         'cursor:grab;pointer-events:auto;color:#fff;font-size:10px;' +
         'white-space:normal;line-height:1.3;padding:2px 6px;user-select:none' +
       '"><span id="em-frame-label">拖动</span></div>' +
       '<button data-em-editor="frame-delete-btn" style="' +
-        'position:absolute;top:-28px;right:0;min-width:24px;min-height:24px;' +
-        'border:none;background:transparent;color:#fff;font-size:16px;' +
-        'cursor:pointer;pointer-events:auto;line-height:1' +
+        'position:absolute;top:-28px;right:0;width:24px;height:24px;z-index:1;' +
+        'border:none;background:rgba(0,0,0,0.25);color:#fff;font-size:16px;' +
+        'border-radius:0 4px 0 0;cursor:pointer;pointer-events:auto;line-height:1' +
       '" title="删除 (Delete)">×</button>' +
       // 四角 resize 手柄
       '<div data-em-editor="frame-resize" data-handle="nw" style="position:absolute;top:-6px;left:-6px;width:10px;height:10px;background:#fff;border:2px solid #16a34a;border-radius:2px;cursor:nwse-resize;pointer-events:auto"></div>' +
