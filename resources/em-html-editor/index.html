@@ -392,11 +392,15 @@
     };
     div.ondragend = function() { window._dragEl = null; };
     div.ondragover = function(e) {
-      // 只允许拖入容器类元素
       if (node.ref && canDropInto(node.ref, window._dragEl)) {
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
         div.style.background = "#dcfce7";
+      } else {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "none";
+        div.style.background = "#fee2e2";
+      }
       }
     };
     div.ondragleave = function() { div.style.background = ""; };
