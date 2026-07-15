@@ -314,8 +314,9 @@
       undo: function () {
         if (undoStack.length === 0) return false;
         var patch = undoStack.pop();
-        console.log("[undo]", patch.type, "before:", JSON.stringify(patch.before), "after:", JSON.stringify(patch.after), "el:", patch.el ? describeElement(patch.el) : "none", "styleable:", isStyleable(patch.el));
         applyValue(patch, patch.before);
+        // 强制 reflow，确保连续 undo 每次都即时渲染
+        if (patch.el && patch.el.offsetHeight !== undefined) { var _ = patch.el.offsetHeight; }
         redoStack.push(patch);
         return true;
       },
