@@ -301,6 +301,21 @@
     };
   }
 
+  /** 将元素的关键计算样式冻结为行内样式，避免更换父容器后样式丢失 */
+  function freezeStyles(el) {
+    var cs = getComputedStyle(el);
+    var props = ["color","backgroundColor","fontSize","fontWeight","fontFamily",
+      "fontStyle","textAlign","lineHeight","padding","margin","borderRadius",
+      "boxSizing","display","opacity","letterSpacing"];
+    for (var pi = 0; pi < props.length; pi++) {
+      var p = props[pi];
+      var v = cs[p];
+      // 不覆盖已有的行内样式（保留用户手动设置的）
+      if (el.style[p] && el.style[p] !== "") continue;
+      el.style[p] = v;
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════
   // 7. 面板 UI
   // ═══════════════════════════════════════════════════════════
@@ -700,12 +715,12 @@
             var outside = cx < parentRect.left || cx > parentRect.right ||
                           cy < parentRect.top || cy > parentRect.bottom;
             if (outside) {
+              // 冻结样式避免失父容器 CSS 上下文
+              freezeStyles(el);
               // 转为 canvas 坐标系（canvas 左上角即视口左上角）
-              var canvasX = elRect.left;
-              var canvasY = elRect.top;
               el.style.position = "absolute";
-              el.style.left = canvasX + "px";
-              el.style.top = canvasY + "px";
+              el.style.left = elRect.left + "px";
+              el.style.top = elRect.top + "px";
               canvas.appendChild(el);
             }
           }
@@ -726,6 +741,7 @@
               }
             }
             if (bestContainer) {
+              freezeStyles(el);
               var br = bestContainer.getBoundingClientRect();
               el.style.position = "absolute";
               el.style.left = (elRect2.left - br.left) + "px";
