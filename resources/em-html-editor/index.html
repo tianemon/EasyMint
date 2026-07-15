@@ -6,31 +6,54 @@
   <title>EM HTML Editor</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: #f5f5f5; overflow: hidden; }
-    #toolbar {
-      height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
-      background: #fff; border-bottom: 1px solid #e4e4e7; flex-shrink: 0;
-    }
-    #toolbar button {
-      height: 30px; padding: 0 12px; border: 1px solid #d4d4d8; border-radius: 6px;
-      background: #fff; font-size: 13px; cursor: pointer; white-space: nowrap;
-    }
+    html, body { height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+    #app { display: flex; flex-direction: column; height: 100%; }
+
+    /* 顶部工具栏 */
+    #toolbar { height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+      background: #fff; border-bottom: 1px solid #e4e4e7; flex-shrink: 0; }
+    #toolbar button { height: 28px; padding: 0 12px; border: 1px solid #d4d4d8; border-radius: 6px;
+      background: #fff; font-size: 13px; cursor: pointer; white-space: nowrap; }
     #toolbar button:hover { background: #f4f4f5; }
     #toolbar button.primary { background: #16a34a; color: #fff; border-color: #16a34a; }
     #toolbar button.primary:hover { background: #15803d; }
     #toolbar .sep { width: 1px; height: 20px; background: #e4e4e7; margin: 0 4px; }
-    #toolbar .title { font-size: 13px; color: #52525b; margin-left: 4px; }
+    #toolbar .title { font-size: 13px; font-weight: 600; color: #52525b; }
     #toolbar #status { font-size: 11px; color: #a1a1aa; margin-left: auto; }
-    iframe { width: 100%; height: calc(100vh - 44px); border: none; }
-    #drop-hint {
-      position: fixed; inset: 0; background: rgba(37,99,235,0.08); display: none;
-      align-items: center; justify-content: center; z-index: 1000; pointer-events: none;
-    }
+
+    /* 主体区 */
+    #main { display: flex; flex: 1; overflow: hidden; }
+    #preview-area { flex: 1; background: #f5f5f5; position: relative; }
+    iframe { width: 100%; height: 100%; border: none; }
+    #drop-hint { position: absolute; inset: 0; background: rgba(22,163,74,0.06); display: none;
+      align-items: center; justify-content: center; z-index: 10; pointer-events: none; }
     #drop-hint.show { display: flex; }
     #drop-hint span { font-size: 20px; color: #16a34a; font-weight: 600; }
+
+    /* 右侧面板 */
+    #sidebar { width: 220px; background: #fafafa; border-left: 1px solid #e4e4e7;
+      display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0; padding: 10px 8px; gap: 10px; }
+    #sidebar h3 { font-size: 11px; color: #8a8a8a; text-transform: uppercase; letter-spacing: 0.05em;
+      margin: 0 0 4px 0; padding-bottom: 4px; border-bottom: 1px solid #e4e4e7; }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 4px; }
+    .btn-row button, .btn-row .color-btn { height: 26px; padding: 0 6px; border: 1px solid #d4d4d8;
+      border-radius: 5px; background: #fff; cursor: pointer; font-size: 12px; white-space: nowrap; }
+    .btn-row button:hover:not(:disabled) { background: #f4f4f5; }
+    .btn-row button:disabled { opacity: 0.4; cursor: default; }
+    .btn-row button.primary { background: #16a34a; color: #fff; border-color: #16a34a; }
+    .btn-row button.primary:hover:not(:disabled) { background: #15803d; }
+    .btn-row button.icon-btn { width: 28px; text-align: center; }
+    .btn-row button.active { background: #dcfce7; border-color: #16a34a; }
+    .color-btn { width: 18px !important; height: 18px !important; padding: 0 !important; border-radius: 3px !important;
+      border: 1px solid #d4d4d8; cursor: pointer; flex-shrink: 0; }
+    .color-btn:hover { transform: scale(1.2); box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
+    .color-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px;
+      border: 1px solid #d4d4d8; vertical-align: middle; }
   </style>
 </head>
 <body>
+<div id="app">
+  <!-- 顶部工具栏 -->
   <div id="toolbar">
     <span class="title">EM HTML Editor</span>
     <span class="sep"></span>
@@ -39,109 +62,239 @@
     <button onclick="toggleEditor()" id="btn-toggle" class="primary">启动编辑</button>
     <span id="status">选择 HTML 文件开始</span>
   </div>
-  <iframe id="preview" sandbox="allow-same-origin allow-scripts"></iframe>
-  <div id="drop-hint"><span>拖入 HTML 文件</span></div>
 
-  <script>
-    var editorActive = false;
-    var currentHTML = "";
-    var iframe = document.getElementById("preview");
-    var btnToggle = document.getElementById("btn-toggle");
-    var status = document.getElementById("status");
-    var dropHint = document.getElementById("drop-hint");
-    var runtimeCode = "";  // 预加载 runtime.js 内容，后续注入 iframe
+  <!-- 主体 -->
+  <div id="main">
+    <!-- 左侧预览区 -->
+    <div id="preview-area">
+      <iframe id="preview" sandbox="allow-same-origin allow-scripts"></iframe>
+      <div id="drop-hint"><span>拖入 HTML 文件</span></div>
+    </div>
 
-    // 启动时加载 runtime.js
-    fetch("runtime.js?v=" + Date.now()).then(function(r) { return r.text(); }).then(function(code) {
-      runtimeCode = code;
-      status.textContent = "就绪 — 选择 HTML 文件开始";
-    }).catch(function() {
-      status.textContent = "runtime.js 加载失败，请通过 HTTP 服务打开此页面";
-    });
+    <!-- 右侧编辑面板 -->
+    <div id="sidebar">
+      <h3>历史</h3>
+      <div class="btn-row">
+        <button onclick="act('undo')" id="btn-undo" title="撤销 Ctrl+Z" disabled>↩ 撤销</button>
+        <button onclick="act('redo')" id="btn-redo" title="重做 Ctrl+Shift+Z" disabled>↪ 重做</button>
+        <button onclick="act('export')" style="font-size:11px">导出</button>
+      </div>
 
-    // 拖入文件
-    document.addEventListener("dragover", function (e) { e.preventDefault(); dropHint.classList.add("show"); });
-    document.addEventListener("dragleave", function () { dropHint.classList.remove("show"); });
-    document.addEventListener("drop", function (e) {
-      e.preventDefault(); dropHint.classList.remove("show");
-      var file = e.dataTransfer.files[0];
-      if (file) readFile(file);
-    });
+      <h3>添加</h3>
+      <div class="btn-row">
+        <button onclick="act('add-text')">+ 文字</button>
+        <button onclick="act('add-image')">+ 图片</button>
+      </div>
 
-    // 打开文件
-    function loadFile() {
-      var input = document.createElement("input");
-      input.type = "file"; input.accept = ".html,.htm";
-      input.onchange = function () { if (input.files[0]) readFile(input.files[0]); };
-      input.click();
-    }
+      <h3>字号</h3>
+      <div class="btn-row">
+        <button onclick="act('font-')" class="icon-btn" title="缩小">A-</button>
+        <button onclick="act('font+')" class="icon-btn" title="增大">A+</button>
+      </div>
 
-    function readFile(file) {
-      var reader = new FileReader();
-      reader.onload = function () {
-        currentHTML = reader.result;
-        loadPreview(currentHTML);
-        status.textContent = file.name + " · " + formatSize(file.size);
-        btnToggle.textContent = "启动编辑";
-        btnToggle.classList.add("primary");
-        editorActive = false;
-      };
-      reader.readAsText(file);
-    }
+      <h3>对齐</h3>
+      <div class="btn-row">
+        <button onclick="act('align-left')" class="icon-btn" title="左对齐">⬅</button>
+        <button onclick="act('align-center')" class="icon-btn" title="居中">⬌</button>
+        <button onclick="act('align-right')" class="icon-btn" title="右对齐">➡</button>
+      </div>
 
-    function loadPreview(html) {
-      var blob = new Blob([html], { type: "text/html" });
-      var url = URL.createObjectURL(blob);
-      iframe.onload = function () {
-        URL.revokeObjectURL(url);
-        injectRuntime();
-      };
-      iframe.src = url;
-    }
+      <h3>文字样式</h3>
+      <div class="btn-row">
+        <button onclick="act('bold-toggle')" class="icon-btn" title="粗体" style="font-weight:700">B</button>
+        <button onclick="act('italic-toggle')" class="icon-btn" title="斜体" style="font-style:italic">I</button>
+      </div>
 
-    function injectRuntime() {
-      try {
-        var doc = iframe.contentDocument || iframe.contentWindow.document;
-        if (!doc || !runtimeCode) return;
-        var script = doc.createElement("script");
-        script.textContent = runtimeCode;
-        doc.head.appendChild(script);
-      } catch (e) { /* cross-origin blocked */ }
-    }
+      <h3>间距</h3>
+      <div class="btn-row">
+        <button onclick="act('line-height-')" class="icon-btn" title="缩小行高">↕-</button>
+        <button onclick="act('line-height+')" class="icon-btn" title="增大行高">↕+</button>
+        <button onclick="act('padding-')" class="icon-btn" title="缩小边距">⬜-</button>
+        <button onclick="act('padding+')" class="icon-btn" title="增大边距">⬜+</button>
+        <button onclick="act('radius-')" class="icon-btn" title="缩小圆角">◯-</button>
+        <button onclick="act('radius+')" class="icon-btn" title="增大圆角">◯+</button>
+      </div>
 
-    // 启动/停止编辑
-    function toggleEditor() {
-      try {
-        var win = iframe.contentWindow;
-        if (!win || !win.EMEditor) { status.textContent = "runtime 未加载"; return; }
+      <h3>文字颜色</h3>
+      <div class="btn-row" id="text-colors"></div>
 
-        if (!editorActive) {
-          win.EMEditor.start();
-          btnToggle.textContent = "停止编辑";
-          btnToggle.classList.remove("primary");
-          status.textContent = "编辑中 — 点击元素开始修改";
-        } else {
-          win.EMEditor.stop();
-          btnToggle.textContent = "启动编辑";
-          btnToggle.classList.add("primary");
-          status.textContent = "已停止编辑";
-        }
-        editorActive = !editorActive;
-      } catch (e) { status.textContent = "错误: " + e.message; }
-    }
+      <h3>背景颜色</h3>
+      <div class="btn-row" id="bg-colors"></div>
+    </div>
+  </div>
+</div>
 
-    // 监听编辑器的导出事件
-    window.addEventListener("message", function (e) {
-      if (e.data && e.data.type === "em-editor-export") {
-        currentHTML = e.data.html;
-        status.textContent = "已导出 · 自动下载中";
+<script>
+  var editorActive = false;
+  var currentHTML = "";
+  var iframe = document.getElementById("preview");
+  var btnToggle = document.getElementById("btn-toggle");
+  var status = document.getElementById("status");
+  var dropHint = document.getElementById("drop-hint");
+  var runtimeCode = "";
+
+  // 获取 iframe 内的 EMEditor
+  function em() {
+    try {
+      var win = iframe.contentWindow;
+      return win && win.EMEditor ? win.EMEditor : null;
+    } catch(e) { return null; }
+  }
+
+  // 面板按钮动作分发
+  function act(action) {
+    var api = em();
+    if (!api) return;
+    if (action === "undo") api.undo();
+    else if (action === "redo") api.redo();
+    else if (action === "export") api.export();
+    else if (action === "add-text") api.addText();
+    else if (action === "add-image") api.addImage();
+    else api.applyStyle(action);
+    refreshBtnState();
+  }
+
+  // 同步按钮状态
+  function refreshBtnState() {
+    var api = em();
+    var s = api ? api.getState() : { canUndo: false, canRedo: false, hasSelection: false };
+    document.getElementById("btn-undo").disabled = !s.canUndo;
+    document.getElementById("btn-redo").disabled = !s.canRedo;
+    // 样式按钮根据是否有选中来 disabled
+    var styleBtns = document.querySelectorAll('#sidebar .btn-row button[onclick^="act"]');
+    styleBtns.forEach(function(b) {
+      var a = b.getAttribute("onclick").match(/'([^']+)'/);
+      if (a && !["undo","redo","export","add-text","add-image"].includes(a[1])) {
+        b.disabled = !s.hasSelection;
       }
     });
+  }
 
-    function formatSize(bytes) {
-      if (bytes < 1024) return bytes + " B";
-      return (bytes / 1024).toFixed(1) + " KB";
+  // 定时同步
+  setInterval(refreshBtnState, 300);
+
+  // 颜色预设
+  var TEXT_COLORS = [
+    "#111111","#444444","#737373","#a3a3a3","#d4d4d4","#ffffff",
+    "#dc2626","#ef4444","#f97316","#f59e0b","#eab308","#84cc16",
+    "#16a34a","#14b8a6","#06b6d4","#0ea5e9","#2563eb","#4f46e5",
+    "#7c3aed","#a855f7","#d946ef","#ec4899","#f43f5e","#7f1d1d",
+    "#78350f","#365314","#064e3b","#0f172a","#312e81","#581c87"
+  ];
+  var BG_COLORS = [
+    "transparent","#ffffff","#f7f7f5","#e5e7eb","#d4d4d4","#111111",
+    "#fff2b8","#fde68a","#ffd6e7","#fecdd3","#d9f99d","#bbf7d0",
+    "#99f6e4","#bfdbfe","#bae6fd","#c4b5fd","#fed7aa","#fca5a5",
+    "#ff3d8b","#f97316","#eab308","#22c55e","#14b8a6","#0ea5e9",
+    "#1f2be0","#7c3aed","#0f172a"
+  ];
+
+  function makeColorBtn(container, color, label) {
+    var btn = document.createElement("button");
+    btn.className = "color-btn";
+    btn.title = label;
+    btn.style.background = color === "transparent"
+      ? "linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%)"
+      : color;
+    btn.onclick = function() { var api = em(); if (api) { api.setColor(color); refreshBtnState(); } };
+    container.appendChild(btn);
+  }
+  function makeBgBtn(container, color, label) {
+    var btn = document.createElement("button");
+    btn.className = "color-btn";
+    btn.title = label;
+    btn.style.background = color === "transparent"
+      ? "linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%)"
+      : color;
+    btn.onclick = function() { var api = em(); if (api) { api.setBgColor(color); refreshBtnState(); } };
+    container.appendChild(btn);
+  }
+
+  var tc = document.getElementById("text-colors");
+  var bc = document.getElementById("bg-colors");
+  TEXT_COLORS.forEach(function(c) { makeColorBtn(tc, c, c); });
+  BG_COLORS.forEach(function(c) { makeBgBtn(bc, c, c); });
+
+  // 加载 runtime.js
+  fetch("runtime.js?v=" + Date.now()).then(function(r) { return r.text(); }).then(function(code) {
+    runtimeCode = code;
+    status.textContent = "就绪 — 选择 HTML 文件开始";
+  }).catch(function() {
+    status.textContent = "runtime.js 加载失败，请通过 HTTP 服务打开此页面";
+  });
+
+  // 拖入文件
+  document.addEventListener("dragover", function(e) { e.preventDefault(); dropHint.classList.add("show"); });
+  document.addEventListener("dragleave", function() { dropHint.classList.remove("show"); });
+  document.addEventListener("drop", function(e) {
+    e.preventDefault(); dropHint.classList.remove("show");
+    var file = e.dataTransfer.files[0];
+    if (file) readFile(file);
+  });
+
+  function loadFile() {
+    var input = document.createElement("input");
+    input.type = "file"; input.accept = ".html,.htm";
+    input.onchange = function() { if (input.files[0]) readFile(input.files[0]); };
+    input.click();
+  }
+
+  function readFile(file) {
+    var reader = new FileReader();
+    reader.onload = function() {
+      currentHTML = reader.result;
+      loadPreview(currentHTML);
+      status.textContent = file.name + " · " + (file.size < 1024 ? file.size + " B" : (file.size / 1024).toFixed(1) + " KB");
+      btnToggle.textContent = "启动编辑";
+      btnToggle.classList.add("primary");
+      editorActive = false;
+    };
+    reader.readAsText(file);
+  }
+
+  function loadPreview(html) {
+    var blob = new Blob([html], { type: "text/html" });
+    var url = URL.createObjectURL(blob);
+    iframe.onload = function() { URL.revokeObjectURL(url); injectRuntime(); };
+    iframe.src = url;
+  }
+
+  function injectRuntime() {
+    try {
+      var doc = iframe.contentDocument || iframe.contentWindow.document;
+      if (!doc || !runtimeCode) return;
+      var script = doc.createElement("script");
+      script.textContent = runtimeCode;
+      doc.head.appendChild(script);
+    } catch(e) { /* */ }
+  }
+
+  function toggleEditor() {
+    try {
+      var api = em();
+      if (!api) { status.textContent = "runtime 未加载"; return; }
+      if (!editorActive) {
+        api.start();
+        btnToggle.textContent = "停止编辑";
+        btnToggle.classList.remove("primary");
+        status.textContent = "编辑中 — 点击元素开始修改";
+      } else {
+        api.stop();
+        btnToggle.textContent = "启动编辑";
+        btnToggle.classList.add("primary");
+        status.textContent = "已停止编辑";
+      }
+      editorActive = !editorActive;
+      refreshBtnState();
+    } catch(e) { status.textContent = "错误: " + e.message; }
+  }
+
+  window.addEventListener("message", function(e) {
+    if (e.data && e.data.type === "em-editor-export") {
+      currentHTML = e.data.html;
+      status.textContent = "已导出";
     }
-  </script>
+  });
+</script>
 </body>
 </html>

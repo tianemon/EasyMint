@@ -578,19 +578,18 @@
       // 2. 创建 UI 元素
       var outline = createOutline();
       var frame = createEditorFrame();
-      var panel = createPanel();
       var history = createHistory();
 
       editor = {
         canvas: canvas,
         outline: outline,
         frame: frame,
-        panel: panel,
+        panel: null, // 面板已移至 index.html 右侧栏
         history: history,
         selected: null,
         hoverOutline: null,
-        _dragging: null,    // { type: "move"|"resize", handle, startX, startY, startL, startT, startW, startH }
-        _editingText: null,  // contentEditable 目标元素
+        _dragging: null,
+        _editingText: null,
       };
 
       function selectElement(el) {
@@ -919,32 +918,6 @@
         rafId = requestAnimationFrame(syncLoop);
         if (editor && editor.selected && !editor._dragging) syncAll(editor.selected);
       })();
-
-      // 面板按钮
-      panel.addEventListener("click", function (e) {
-        var btn = e.target.closest("[data-action]");
-        if (!btn) return;
-        var action = btn.getAttribute("data-action");
-
-        if (action === "undo") { EMEditor.undo(); return; }
-        if (action === "redo") { EMEditor.redo(); return; }
-        if (action === "export") { EMEditor.export(); return; }
-        if (action === "add-text") { EMEditor.addText(); return; }
-        if (action === "add-image") { EMEditor.addImage(); return; }
-
-        if (!editor.selected) return;
-        var actionFn = STYLE_ACTIONS[action];
-        if (!actionFn) return;
-
-        var result = actionFn(editor.selected);
-        result.apply();
-        var after = editor.selected.style[result.prop];
-        if (after === "" || after === undefined) after = getComputedStyle(editor.selected)[result.prop];
-        if (result.before !== after) {
-          editor.history.record("style", editor.selected, result.before, after, { prop: result.prop });
-          refreshHistoryButtons();
-        }
-      });
 
       editor._handlers = {
         mousemove: onMouseMove, mousedown: onMouseDown, mouseup: onMouseUp,
