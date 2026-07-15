@@ -156,7 +156,7 @@
     var tbar = frame._toolbar;
     var delBtn = frame._deleteBtn;
     if (flipped) {
-      tbar.style.top = "auto"; tbar.style.bottom = "0px";
+      tbar.style.top = "100%"; tbar.style.bottom = "auto";
       delBtn.style.borderRadius = "0 0 4px 4px";
     } else {
       tbar.style.top = (-tbar.offsetHeight) + "px"; tbar.style.bottom = "auto";
