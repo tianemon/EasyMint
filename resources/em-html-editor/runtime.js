@@ -17,41 +17,21 @@
   // ═══════════════════════════════════════════════════════════
 
   var TEXT_COLORS = [
-    "#111111", "#444444", "#737373", "#a3a3a3", "#d4d4d4", "#ffffff",
-    "#dc2626", "#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16",
-    "#16a34a", "#14b8a6", "#06b6d4", "#0ea5e9", "#2563eb", "#4f46e5",
-    "#7c3aed", "#a855f7", "#d946ef", "#ec4899", "#f43f5e", "#7f1d1d",
-    "#78350f", "#365314", "#064e3b", "#0f172a", "#312e81", "#581c87"
+    "#111111", "#444444", "#888888", "#aaaaaa", "#cccccc", "#ffffff",
+    "#dc2626", "#f59e0b", "#eab308", "#16a34a", "#2563eb", "#7c3aed"
   ];
 
   var BG_COLORS = [
-    { value: "transparent", label: "无背景" },
-    { value: "#ffffff", label: "白色" },
-    { value: "#f7f7f5", label: "浅灰" },
-    { value: "#e5e7eb", label: "灰色" },
-    { value: "#d4d4d4", label: "中灰" },
-    { value: "#111111", label: "黑色" },
-    { value: "#fff2b8", label: "浅黄" },
-    { value: "#fde68a", label: "暖黄" },
-    { value: "#ffd6e7", label: "浅粉" },
-    { value: "#fecdd3", label: "玫瑰粉" },
-    { value: "#d9f99d", label: "浅绿" },
-    { value: "#bbf7d0", label: "薄荷绿" },
-    { value: "#99f6e4", label: "青绿" },
-    { value: "#bfdbfe", label: "浅蓝" },
-    { value: "#bae6fd", label: "天蓝" },
-    { value: "#c4b5fd", label: "浅紫" },
-    { value: "#fed7aa", label: "浅橙" },
-    { value: "#fca5a5", label: "浅红" },
-    { value: "#ff3d8b", label: "洋红" },
-    { value: "#f97316", label: "橙色" },
-    { value: "#eab308", label: "黄色" },
-    { value: "#22c55e", label: "绿色" },
-    { value: "#14b8a6", label: "青色" },
-    { value: "#0ea5e9", label: "亮蓝" },
-    { value: "#1f2be0", label: "蓝色" },
-    { value: "#7c3aed", label: "紫色" },
-    { value: "#0f172a", label: "深蓝灰" }
+    { value: "transparent", label: "无" },
+    { value: "#ffffff", label: "白" },
+    { value: "#f5f5f5", label: "浅灰" },
+    { value: "#111111", label: "黑" },
+    { value: "#fecaca", label: "红" },
+    { value: "#fed7aa", label: "橙" },
+    { value: "#fef08a", label: "黄" },
+    { value: "#bbf7d0", label: "绿" },
+    { value: "#bfdbfe", label: "蓝" },
+    { value: "#e9d5ff", label: "紫" }
   ];
 
   // ═══════════════════════════════════════════════════════════
