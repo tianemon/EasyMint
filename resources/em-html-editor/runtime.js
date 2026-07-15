@@ -276,8 +276,8 @@
           break;
         case "resize":
           if (isStyleable(patch.el)) {
-            patch.el.style.width = value.w; patch.el.style.height = value.h;
-            patch.el.style.left = value.l; patch.el.style.top = value.t;
+            patch.el.style.width = value.w + "px"; patch.el.style.height = value.h + "px";
+            patch.el.style.left = value.l + "px"; patch.el.style.top = value.t + "px";
           }
           break;
         case "delete":
