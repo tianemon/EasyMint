@@ -756,12 +756,15 @@
               "| position:", getComputedStyle(el).position,
               "| outside:", outside);
             if (outside) {
+              // 视口坐标 → canvas 坐标（canvas 是 position:relative 在 document 原点）
+              var sx = window.scrollX || window.pageXOffset || 0;
+              var sy = window.scrollY || window.pageYOffset || 0;
               freezeStyles(el);
               el.style.position = "absolute";
-              el.style.left = elRect.left + "px";
-              el.style.top = elRect.top + "px";
+              el.style.left = (elRect.left + sx) + "px";
+              el.style.top = (elRect.top + sy) + "px";
               canvas.appendChild(el);
-              console.log("[detach] -> canvas, new left:", el.style.left, "new top:", el.style.top);
+              console.log("[detach] -> canvas, scrollXY:", sx, sy, "new left:", el.style.left, "new top:", el.style.top);
             }
           }
         } else if (d.type === "resize") {
