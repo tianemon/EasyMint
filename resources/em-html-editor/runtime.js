@@ -737,6 +737,33 @@
               { l: newL, t: newT });
             refreshHistoryButtons();
           }
+          // 脱离检测：元素中心点超出父容器 → 脱离为独立 canvas 子元素
+          var parent = el.parentElement;
+          var canvas = document.getElementById("em-canvas");
+          if (parent && parent !== canvas && parent !== document.body) {
+            var elRect = el.getBoundingClientRect();
+            var parentRect = parent.getBoundingClientRect();
+            var cx = elRect.left + elRect.width / 2;
+            var cy = elRect.top + elRect.height / 2;
+            var outside = cx < parentRect.left || cx > parentRect.right ||
+                          cy < parentRect.top || cy > parentRect.bottom;
+            console.log("[detach] el:", describeElement(el),
+              "| elRect:", Math.round(elRect.left), Math.round(elRect.top), Math.round(elRect.width), Math.round(elRect.height),
+              "| center:", Math.round(cx), Math.round(cy),
+              "| parent:", describeElement(parent),
+              "| parentRect:", Math.round(parentRect.left), Math.round(parentRect.top), Math.round(parentRect.right), Math.round(parentRect.bottom),
+              "| styleL:", el.style.left, "styleT:", el.style.top,
+              "| position:", getComputedStyle(el).position,
+              "| outside:", outside);
+            if (outside) {
+              freezeStyles(el);
+              el.style.position = "absolute";
+              el.style.left = elRect.left + "px";
+              el.style.top = elRect.top + "px";
+              canvas.appendChild(el);
+              console.log("[detach] -> canvas, new left:", el.style.left, "new top:", el.style.top);
+            }
+          }
         } else if (d.type === "resize") {
           if (newW !== d.startW || newH !== d.startH || newL !== d.startL || newT !== d.startT) {
             editor.history.record("resize", el,
