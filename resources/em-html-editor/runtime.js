@@ -522,12 +522,15 @@
       if (docRight > maxRight) maxRight = docRight;
       if (docBottom > maxBottom) maxBottom = docBottom;
 
-      var vw = window.innerWidth;
+      // 判断是否撑满页面宽度：左右边缘都贴近视口边界
+      var nearLeft = docLeft < 5;
+      var nearRight = (window.innerWidth - (docLeft + rect.width)) < 5;
+      var fluid = nearLeft && nearRight;
       var snap = {
         el: child,
         left: docLeft, top: docTop,
         width: rect.width, height: rect.height,
-        fluid: rect.width > vw * 0.9, // 接近全宽的元素用百分比，避免被视口宽度冻结
+        fluid: fluid,
         boxSizing: getComputedStyle(child).boxSizing,
       };
       snapshots.push(snap);
