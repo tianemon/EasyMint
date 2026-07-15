@@ -289,22 +289,22 @@
     var undoStack = [];
     var redoStack = [];
 
+    function isStyleable(el) { return el && el instanceof HTMLElement && el.style; }
     function applyValue(patch, value) {
       switch (patch.type) {
         case "style":
-          if (patch.el && patch.el.style) patch.el.style[patch.prop] = value;
+          if (isStyleable(patch.el)) patch.el.style[patch.prop] = value;
           break;
         case "move":
-          if (patch.el && patch.el.style) { patch.el.style.left = value.l; patch.el.style.top = value.t; }
+          if (isStyleable(patch.el)) { patch.el.style.left = value.l; patch.el.style.top = value.t; }
           break;
         case "resize":
-          if (patch.el && patch.el.style) {
+          if (isStyleable(patch.el)) {
             patch.el.style.width = value.w; patch.el.style.height = value.h;
             patch.el.style.left = value.l; patch.el.style.top = value.t;
           }
           break;
         case "delete":
-          // value.html contains the element's outerHTML; value.pEl is parent; value.ref is nextSibling
           var tmp = document.createElement("div");
           tmp.innerHTML = value.h;
           var restored = tmp.firstChild;
@@ -319,8 +319,7 @@
           if (patch.el && patch.el.parentNode) patch.el.remove();
           break;
         case "reparent":
-          if (patch.el && patch.el.style) {
-            // 兜底：目标父容器不存在时挂到 canvas
+          if (isStyleable(patch.el)) {
             var dest = (value.parent && value.parent.isConnected) ? value.parent : document.getElementById("em-canvas");
             if (dest) {
               dest.appendChild(patch.el);
