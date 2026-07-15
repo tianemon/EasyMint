@@ -473,6 +473,8 @@
   }
 
 
+  var editor = null;
+
   function refreshHistoryButtons() {
     if (!editor || !editor.panel) return;
     var ub = editor.panel._undoBtn;
