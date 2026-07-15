@@ -800,23 +800,30 @@
               console.log("[detach] -> canvas, scrollXY:", sx, sy, "new left:", el.style.left, "new top:", el.style.top);
             }
           }
-          // 归入检测：canvas 直接子元素 → 扫描容器，中心点落入哪个就归属哪个
+          // 归入检测：canvas 直接子元素 → 递归扫描，中心点落入最深层容器
           var canvas2 = document.getElementById("em-canvas");
           if (el.parentElement === canvas2) {
             var elR2 = el.getBoundingClientRect();
             var cx2 = elR2.left + elR2.width / 2;
             var cy2 = elR2.top + elR2.height / 2;
-            var best = null;
-            var bestArea = Infinity;
-            for (var ci = 0; ci < canvas2.children.length; ci++) {
-              var c = canvas2.children[ci];
-              if (c === el || isEditorUI(c) || c.tagName === "STYLE" || c.tagName === "SCRIPT") continue;
-              var cr = c.getBoundingClientRect();
-              if (cx2 >= cr.left && cx2 <= cr.right && cy2 >= cr.top && cy2 <= cr.bottom) {
-                var area = cr.width * cr.height;
-                if (area < bestArea) { bestArea = area; best = c; }
+
+            function findDeepest(root) {
+              var bestC = null;
+              var bestA = Infinity;
+              for (var ci = 0; ci < root.children.length; ci++) {
+                var c = root.children[ci];
+                if (c === el || isEditorUI(c) || c.tagName === "STYLE" || c.tagName === "SCRIPT") continue;
+                var cr = c.getBoundingClientRect();
+                if (cx2 >= cr.left && cx2 <= cr.right && cy2 >= cr.top && cy2 <= cr.bottom) {
+                  var a = cr.width * cr.height;
+                  if (a < bestA) { bestA = a; bestC = c; }
+                }
               }
+              if (bestC) { var d = findDeepest(bestC); return d || bestC; }
+              return null;
             }
+
+            var best = findDeepest(canvas2);
             if (best) {
               var oldLeft2 = el.style.left;
               var oldTop2 = el.style.top;
