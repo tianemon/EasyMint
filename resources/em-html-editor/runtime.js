@@ -318,6 +318,14 @@
         case "add":
           if (patch.el && patch.el.parentNode) patch.el.remove();
           break;
+        case "reparent":
+          if (patch.el && patch.el.style) {
+            value.parent.appendChild(patch.el);
+            patch.el.style.position = "absolute";
+            patch.el.style.left = value.left;
+            patch.el.style.top = value.top;
+          }
+          break;
       }
     }
 
@@ -775,14 +783,20 @@
               "| position:", getComputedStyle(el).position,
               "| outside:", outside);
             if (outside) {
-              // 视口坐标 → canvas 坐标（canvas 是 position:relative 在 document 原点）
               var sx = window.scrollX || window.pageXOffset || 0;
               var sy = window.scrollY || window.pageYOffset || 0;
+              var oldParent = parent;
+              var oldLeft = el.style.left;
+              var oldTop = el.style.top;
               freezeStyles(el);
               el.style.position = "absolute";
               el.style.left = (elRect.left + sx) + "px";
               el.style.top = (elRect.top + sy) + "px";
               canvas.appendChild(el);
+              editor.history.record("reparent", el,
+                { parent: oldParent, left: oldLeft, top: oldTop },
+                { parent: canvas, left: el.style.left, top: el.style.top });
+              refreshHistoryButtons();
               console.log("[detach] -> canvas, scrollXY:", sx, sy, "new left:", el.style.left, "new top:", el.style.top);
             }
           }
@@ -804,13 +818,18 @@
               }
             }
             if (best) {
+              var oldLeft2 = el.style.left;
+              var oldTop2 = el.style.top;
               freezeStyles(el);
               var br = best.getBoundingClientRect();
               el.style.position = "absolute";
-              // 容器内坐标 = 视口坐标差（scroll 在差值中抵消）
               el.style.left = (elR2.left - br.left) + "px";
               el.style.top = (elR2.top - br.top) + "px";
               best.appendChild(el);
+              editor.history.record("reparent", el,
+                { parent: canvas2, left: oldLeft2, top: oldTop2 },
+                { parent: best, left: el.style.left, top: el.style.top });
+              refreshHistoryButtons();
             }
           }
         } else if (d.type === "resize") {
