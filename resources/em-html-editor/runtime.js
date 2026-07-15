@@ -966,6 +966,17 @@
       el.style.left = (elR.left - pR.left) + "px";
       el.style.top = (elR.top - pR.top) + "px";
       newParent.appendChild(el);
+      // 换容器后强制边界吸附
+      var afterR = el.getBoundingClientRect();
+      var npR = newParent.getBoundingClientRect();
+      var adjL = parseFloat(el.style.left) || 0;
+      var adjT = parseFloat(el.style.top) || 0;
+      if (afterR.left < npR.left) adjL += npR.left - afterR.left;
+      if (afterR.right > npR.right) adjL -= afterR.right - npR.right;
+      if (afterR.top < npR.top) adjT += npR.top - afterR.top;
+      if (afterR.bottom > npR.bottom) adjT -= afterR.bottom - npR.bottom;
+      el.style.left = adjL + "px";
+      el.style.top = adjT + "px";
       editor.history.record("reparent", el,
         { parent: oldParent, left: oldLeft, top: oldTop },
         { parent: newParent, left: el.style.left, top: el.style.top });
