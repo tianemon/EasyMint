@@ -98,9 +98,9 @@
     if (!target || !(target instanceof HTMLElement)) return null;
     if (isEditorUI(target)) return null;
     if (isSelectable(target)) return target;
-    // 有视觉样式的大容器直接可选，不钻
-    if (isLargeContainer(target) && hasVisualStyling(target)) return target;
-
+    // 有视觉样式（背景色/边框）的元素视为可选中视觉单元
+    if (hasVisualStyling(target)) return target;
+    // 大容器：钻入子元素
     if (isLargeContainer(target)) {
       for (var i = 0; i < target.children.length; i++) {
         var child = resolveTarget(target.children[i]);
