@@ -172,6 +172,12 @@
     frame.style.top = (r.top - 2) + "px";
     frame.style.width = (r.width + 4) + "px";
     frame.style.height = (r.height + 4) + "px";
+    // 实时更新层级标签
+    var label = document.getElementById("em-frame-label");
+    if (label) {
+      var path = getElementPath(el);
+      if (label.textContent !== path) label.textContent = path;
+    }
     // 用 JS 直接设 style 覆盖行内样式（CSS class 优先级不够）
     var handle = frame._dragHandle;
     var delBtn = frame._deleteBtn;
