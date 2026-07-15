@@ -665,6 +665,66 @@
               { l: newL, t: newT });
             refreshHistoryButtons();
           }
+          // 脱离检测：中心点超出父容器 → 挂到上层
+          var parent = el.parentElement;
+          if (parent && parent !== document.body && parent !== document.documentElement) {
+            var elR = el.getBoundingClientRect();
+            var pR = parent.getBoundingClientRect();
+            var cx = elR.left + elR.width / 2;
+            var cy = elR.top + elR.height / 2;
+            if (cx < pR.left || cx > pR.right || cy < pR.top || cy > pR.bottom) {
+              var oldParent = parent;
+              var oldLeft = el.style.left;
+              var oldTop = el.style.top;
+              var grand = parent.parentElement || document.body;
+              var gR = grand.getBoundingClientRect();
+              el.style.position = "relative";
+              el.style.left = (elR.left - gR.left) + "px";
+              el.style.top = (elR.top - gR.top) + "px";
+              grand.appendChild(el);
+              editor.history.record("reparent", el,
+                { parent: oldParent, left: oldLeft, top: oldTop },
+                { parent: grand, left: el.style.left, top: el.style.top });
+              refreshHistoryButtons();
+            }
+          }
+          // 归入检测：body 直接子元素 → 扫描最深层容器
+          if (el.parentElement === document.body) {
+            var elR2 = el.getBoundingClientRect();
+            var cx2 = elR2.left + elR2.width / 2;
+            var cy2 = elR2.top + elR2.height / 2;
+            function findDeepest(root) {
+              var best = null, bestA = Infinity;
+              var ct = /^(div|section|article|nav|header|footer|main|aside|ul|ol|li|form|fieldset|details|summary)$/;
+              for (var ci = 0; ci < root.children.length; ci++) {
+                var c = root.children[ci];
+                if (c === el || isEditorUI(c) || c.style.visibility === "hidden") continue;
+                if (!ct.test(c.tagName.toLowerCase())) continue;
+                var cr = c.getBoundingClientRect();
+                if (cx2 >= cr.left && cx2 <= cr.right && cy2 >= cr.top && cy2 <= cr.bottom) {
+                  var a = cr.width * cr.height;
+                  if (a < bestA) { bestA = a; best = c; }
+                }
+              }
+              if (best) { var d2 = findDeepest(best); return d2 || best; }
+              return null;
+            }
+            var target = findDeepest(document.body);
+            if (target) {
+              var oldParent2 = document.body;
+              var oldLeft2 = el.style.left;
+              var oldTop2 = el.style.top;
+              var tR = target.getBoundingClientRect();
+              el.style.position = "relative";
+              el.style.left = (elR2.left - tR.left) + "px";
+              el.style.top = (elR2.top - tR.top) + "px";
+              target.appendChild(el);
+              editor.history.record("reparent", el,
+                { parent: oldParent2, left: oldLeft2, top: oldTop2 },
+                { parent: target, left: el.style.left, top: el.style.top });
+              refreshHistoryButtons();
+            }
+          }
         } else if (d.type === "resize") {
           if (newW !== d.startW || newH !== d.startH || newL !== d.startL || newT !== d.startT) {
             editor.history.record("resize", el,
