@@ -305,8 +305,8 @@
   function freezeStyles(el) {
     var cs = getComputedStyle(el);
     var props = ["color","backgroundColor","fontSize","fontWeight","fontFamily",
-      "fontStyle","textAlign","lineHeight","padding","margin","borderRadius",
-      "boxSizing","display","opacity","letterSpacing"];
+      "fontStyle","textAlign","lineHeight","borderRadius",
+      "boxSizing","opacity","letterSpacing"];
     for (var pi = 0; pi < props.length; pi++) {
       var p = props[pi];
       var v = cs[p];
