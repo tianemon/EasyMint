@@ -492,7 +492,7 @@
     canvas.style.position = "relative";
     canvas.style.margin = "0";
     canvas.style.padding = "0";
-    canvas.style.minHeight = dw + "px";
+    canvas.style.minHeight = window.innerHeight + "px";
 
     // 收集 body 的所有直接子元素
     var children = [];
