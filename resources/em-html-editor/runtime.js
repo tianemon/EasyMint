@@ -320,10 +320,14 @@
           break;
         case "reparent":
           if (patch.el && patch.el.style) {
-            value.parent.appendChild(patch.el);
-            patch.el.style.position = "absolute";
-            patch.el.style.left = value.left;
-            patch.el.style.top = value.top;
+            // 兜底：目标父容器不存在时挂到 canvas
+            var dest = (value.parent && value.parent.isConnected) ? value.parent : document.getElementById("em-canvas");
+            if (dest) {
+              dest.appendChild(patch.el);
+              patch.el.style.position = "absolute";
+              patch.el.style.left = value.left;
+              patch.el.style.top = value.top;
+            }
           }
           break;
       }
