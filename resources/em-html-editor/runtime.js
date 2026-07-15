@@ -165,7 +165,7 @@
   function updateFramePosition(frame, el) {
     if (!el) { frame.style.display = "none"; return; }
     var r = el.getBoundingClientRect();
-    var flipped = r.top < 32; // 元素靠顶部时标签翻到内侧
+    var flipped = r.top < 40; // 元素靠顶部时标签+删除按钮翻到内侧
     frame.style.display = "block";
     frame.style.left = (r.left - 2) + "px";
     frame.style.top = (r.top - 2) + "px";
