@@ -523,30 +523,34 @@
       if (docRight > maxRight) maxRight = docRight;
       if (docBottom > maxBottom) maxBottom = docBottom;
 
+      var vw = window.innerWidth;
       var snap = {
         el: child,
         left: docLeft, top: docTop,
         width: rect.width, height: rect.height,
+        fluid: rect.width > vw * 0.9, // 接近全宽的元素用百分比，避免被视口宽度冻结
         boxSizing: getComputedStyle(child).boxSizing,
       };
       snapshots.push(snap);
     }
 
-    // 第二遍：应用绝对定位并移入 canvas（此时坐标已锁定，互不影响）
+    // 第二遍：应用绝对定位并移入 canvas
+    var hasFluid = false;
     for (var k = 0; k < snapshots.length; k++) {
       var s = snapshots[k];
       s.el.style.position = "absolute";
       s.el.style.left = s.left + "px";
       s.el.style.top = s.top + "px";
-      s.el.style.width = s.width + "px";
+      s.el.style.width = s.fluid ? "100%" : (s.width + "px");
       s.el.style.height = s.height + "px";
       s.el.style.margin = "0";
       s.el.style.zIndex = String(k + 1);
       if (s.boxSizing === "border-box") s.el.style.boxSizing = "border-box";
       canvas.appendChild(s.el);
+      if (s.fluid) hasFluid = true;
     }
 
-    canvas.style.width = maxRight + "px";
+    canvas.style.width = hasFluid ? "100%" : (maxRight + "px");
     canvas.style.height = maxBottom + "px";
 
     // 替换 body 内容，同时重置 body 样式避免默认 margin 干扰定位
