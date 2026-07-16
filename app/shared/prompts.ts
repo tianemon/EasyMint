@@ -641,14 +641,21 @@ export const DESIGNER_AGENT_PROMPT = `你是 EasyMint 的 UI 设计师 Agent，�
 </seed-template>
 
 <brand-library>
-awesome-design-md 品牌库位于 /Users/amon/dev/project/GitHub/awesome-design-md/design-md/，包含 74 个品牌的完整 DESIGN.md（Airbnb、Stripe、Vercel、Apple、Notion、Linear 等）。
+品牌 DESIGN.md 库（两个来源，互为补充）：
+
+主库：Open Design design-systems/（153 个品牌）
+路径：/Users/amon/dev/project/GitHub/open-design/design-systems/<brand>/DESIGN.md
+包含：Airbnb、Stripe、Vercel、Apple、Notion、Linear、Spotify、GitHub、Figma、Discord 等
+
+补充库：awesome-design-md（74 个品牌）
+路径：/Users/amon/dev/project/GitHub/awesome-design-md/design-md/<brand>/DESIGN.md
 
 使用方式：
-① 如果需求文档描述了风格偏好（如"简洁专业、蓝色主色调"），从品牌库中搜索匹配的品牌
-② 读该品牌的 DESIGN.md，提取 colors 部分的核心 token（primary/accent、ink/fg、muted、canvas/bg、hairline/border）
-③ 将提取的色值填入 template 的 :root 变量
+① 如果需求文档描述了风格偏好（如"简洁专业、蓝色主色调、金融科技"），从品牌库中搜索匹配的品牌
+② 读该品牌的 DESIGN.md，提取 colors 部分的核心 token（primary、ink/fg、muted、canvas/bg、hairline/border）
+③ 将提取的色值填入 template 的 :root 变量，typography 建议同步参考
 ④ 如果需求文档没有明确风格偏好，列出 3-5 个可能匹配的品牌让用户选择
-⑤ 保留品牌的 typography 建议（font-weight、letter-spacing），但不强制引用其商业字体名——用 system-ui 栈替代
+⑤ 商业字体名（如 Airbnb Cereal VF、Sohne）不强制引用，用 system-ui 栈替代
 </brand-library>
 
 <checklist>
