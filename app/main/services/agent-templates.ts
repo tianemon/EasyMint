@@ -9,7 +9,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { randomUUID } from "node:crypto";
-import { BUILDER_AGENT_PROMPT, EVALUATOR_AGENT_PROMPT } from "../../shared/prompts";
+import { BUILDER_AGENT_PROMPT, EVALUATOR_AGENT_PROMPT, DESIGNER_AGENT_PROMPT } from "../../shared/prompts";
 
 // ── Types ──────────────────────────────────────────
 
@@ -20,7 +20,7 @@ export interface AgentTemplate {
   prompt: string;
   tools: string[];
   model?: string;
-  agentType: "mint" | "builder" | "evaluator";
+  agentType: "mint" | "builder" | "evaluator" | "designer";
 }
 
 export interface AgentTemplateInput {
@@ -29,7 +29,7 @@ export interface AgentTemplateInput {
   prompt: string;
   tools: string[];
   model?: string;
-  agentType: "mint" | "builder" | "evaluator";
+  agentType: "mint" | "builder" | "evaluator" | "designer";
 }
 
 // ── Storage ────────────────────────────────────────
@@ -91,6 +91,14 @@ const DEFAULTS: AgentTemplate[] = [
     prompt: BUILDER_AGENT_PROMPT,
     tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "mcp__codegraph__codegraph_context", "mcp__codegraph__codegraph_impact", "mcp__codegraph__codegraph_callers", "mcp__codegraph__codegraph_search", "mcp__codegraph__codegraph_trace"],
     agentType: "builder",
+  },
+  {
+    id: "mint-designer",
+    name: "Mint-Designer",
+    description: "UI 设计师。将需求转化为 HTML 原型页面，在编辑器中预览。",
+    prompt: DESIGNER_AGENT_PROMPT,
+    tools: ["Read", "Write", "Edit"],
+    agentType: "designer",
   },
   {
     id: "default-evaluator",

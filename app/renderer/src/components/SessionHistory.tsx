@@ -162,7 +162,14 @@ export function SessionHistory({
       <div className="px-3 py-2 shrink-0">
         <button
           className="w-full py-1.5 border border-accent text-accent text-sm rounded-lg hover:bg-accent-subtle transition-colors"
-          onClick={filterType === "project" ? onNewSession : undefined}
+          onClick={filterType === "design"
+            ? () => {
+                if (projectPath) {
+                  window.electronAPI.agent.spawnAgentChat(projectPath, "mint-designer", "帮我设计一个页面");
+                }
+              }
+            : onNewSession
+          }
         >
           + 新建{filterType === "design" ? "设计" : "会话"}
         </button>

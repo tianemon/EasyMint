@@ -104,7 +104,7 @@ interface ActiveChat {
   query: QueryObj | null;
   projectPath: string;
   currentModel?: string;
-  agentType?: "mint" | "builder" | "evaluator";
+  agentType?: "mint" | "builder" | "evaluator" | "designer";
   /** SDK status: "requesting" | "compacting" | "idle" — tracks if agent is actively processing */
   status: string;
   /** Context rotation state: normal | summarizing | rotated */
