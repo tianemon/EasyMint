@@ -165,7 +165,7 @@ export function SessionHistory({
           onClick={filterType === "design"
             ? () => {
                 if (projectPath) {
-                  window.electronAPI.agent.spawnAgentChat(projectPath, "mint-designer", "帮我设计一个页面");
+                  window.electronAPI.agent.spawnAgentChat(projectPath, "mint-designer", "请先阅读 docs/需求文档.md 了解项目需求，然后根据需求确认 UI 风格并开始设计原型。");
                 }
               }
             : onNewSession
