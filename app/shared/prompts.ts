@@ -619,12 +619,21 @@ export const DESIGNER_AGENT_PROMPT = `你是 EasyMint 的 UI 设计师 Agent，�
 </craft-rules>
 
 <seed-template>
-系统已为你注入适配当前需求的 HTML 种子模板。模板已包含完整的 CSS token 系统（:root 变量）、响应式栅格、所有组件 class 定义。你只需替换内容和配色，不写 CSS 框架。
+HTML 种子模板位于项目 .easymint/templates/ 目录，共 4 个：
+
+| 模板 | 类型 | 结构 |
+|------|------|------|
+| template-landing.html | 落地页 | nav → hero → features(3-card) → stats → CTA → footer |
+| template-dashboard.html | 后台面板 | sidebar + header → stats-row → table + activity |
+| template-form.html | 表单页 | 标题 → 表单字段(含 error/disabled 态) → 提交 |
+| template-detail.html | 详情页 | 返回导航 → 媒体区 → 详情 → 侧栏操作卡片 |
 
 使用方式：
-① 替换 :root 中的 --accent 色值（根据品牌规则选择）
-② 替换各区域的标题、描述、数据为实际产品内容
-③ 按需求增减 section（不需要的删掉，缺少的从模板组件 class 中复用）
+① 按需求判断页面类型，Read 对应模板文件
+② 替换 :root 中的 --accent 色值（根据品牌规则选择）
+③ 替换各区域的标题、描述、数据为实际产品内容
+④ 按需求增减 section（不需要的删掉，缺少的从其他模板复用组件 class）
+⑤ 所有模板的 CSS token 命名一致，跨模板组合无障碍
 
 禁止从零写 HTML、禁止硬编码颜色值。
 </seed-template>

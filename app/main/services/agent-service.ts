@@ -592,25 +592,22 @@ export class AgentService {
     const mode: PermissionMode = "bypassPermissions";
     const options = buildQueryOptions(projectPath, this.store, false, mode);
 
-    // 设计师 Agent：注入种子 HTML 模板内容
+    // 设计师 Agent：将模板文件复制到项目目录，Agent 按需读取
     let fullPrompt = template.prompt;
-    if (template.agentType === "designer") {
-      const templateDir = path.join(__dirname, "..", "..", "..", "resources", "em-html-editor");
+    if (template.agentType === "designer" && projectPath) {
+      const srcDir = path.join(__dirname, "..", "..", "..", "resources", "em-html-editor");
+      const destDir = path.join(resolveHome(projectPath), ".easymint", "templates");
       const templateFiles = [
         "template-landing.html", "template-dashboard.html",
         "template-form.html", "template-detail.html",
       ];
-      const templates: string[] = [];
-      for (const f of templateFiles) {
-        const p = path.join(templateDir, f);
-        if (fs.existsSync(p)) templates.push(fs.readFileSync(p, "utf-8"));
-      }
-      if (templates.length > 0) {
-        const templateSection = "\n\n<injected-templates>\n以下是可供使用的 HTML 种子模板。每个模板已包含完整的 CSS token 系统（:root 变量）、响应式栅格和组件 class 定义。\n\n" +
-          templates.map((t, i) => `### 模板 ${i + 1}：${templateFiles[i]}\n\`\`\`html\n${t.slice(0, 8000)}\n\`\`\``).join("\n\n") +
-          "\n</injected-templates>";
-        fullPrompt = templateSection + "\n\n" + fullPrompt;
-      }
+      try {
+        fs.mkdirSync(destDir, { recursive: true });
+        for (const f of templateFiles) {
+          const src = path.join(srcDir, f);
+          if (fs.existsSync(src)) fs.copyFileSync(src, path.join(destDir, f));
+        }
+      } catch { /* 非关键路径，失败不阻塞 */ }
     }
 
     // Replace the system prompt with the template's prompt
