@@ -200,73 +200,49 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                   </div>
                   {/* 端口状态 */}
                   {port && (
-                    <div className="mt-1">
-                      <div className="flex items-center gap-1.5 text-[10px]">
-                        <span className="text-text-muted font-mono">[{port}]</span>
-                        <span className="text-text-muted">·</span>
-                        {ps ? (ps.free
-                          ? <span className="text-success">空闲</span>
-                          : <>
-                              <span className="text-danger">占用</span>
-                              <span
-                                className="text-danger underline cursor-pointer"
-                                onClick={function() {
-                                  setShowDetail(function(prev) {
-                                    var next: Record<string, boolean> = {};
-                                    for (var k in prev) next[k] = prev[k];
-                                    next[r.id] = !prev[r.id];
-                                    return next;
-                                  });
-                                }}
-                              >详情</span>
-                              {showDetail[r.id] && (
-                                <span className="text-[9px] text-text-muted bg-surface-hover px-1 py-0.5 rounded">
-                                  {ps.name || "PID " + ps.pid}
-                                </span>
-                              )}
-                              <input
-                                className="w-12 text-[9px] px-1 py-0.5 rounded border border-border bg-surface text-text-primary"
-                                value={customPorts[r.id] || String(port)}
-                                onChange={function(e) {
-                                  var val = e.target.value.replace(/\D/g, "");
-                                  setCustomPorts(function(prev) {
-                                    var next: Record<string, string> = {};
-                                    for (var k in prev) next[k] = prev[k];
-                                    next[r.id] = val;
-                                    return next;
-                                  });
-                                  var newPort = parseInt(val);
-                                  if (newPort && newPort > 0) {
-                                    checkPortStatus(r.id, "http://localhost:" + newPort);
-                                  }
-                                }}
-                              />
-                              <button
-                                className="text-[9px] px-1.5 py-0.5 rounded bg-danger-soft text-danger hover:bg-danger-bg"
-                                onClick={function() { handleKillPort(r.id, r.url); }}
-                              >释放</button>
-                            </>
-                        ) : <span className="text-text-muted">检测中</span>}
-                        {ps && ps.free && (
-                          <input
-                            className="w-12 text-[9px] px-1 py-0.5 rounded border border-border bg-surface text-text-primary"
-                            value={customPorts[r.id] || String(port)}
-                            onChange={function(e) {
-                              var val = e.target.value.replace(/\D/g, "");
-                              setCustomPorts(function(prev) {
-                                var next: Record<string, string> = {};
-                                for (var k in prev) next[k] = prev[k];
-                                next[r.id] = val;
-                                return next;
-                              });
-                              var newPort = parseInt(val);
-                              if (newPort && newPort > 0) {
-                                checkPortStatus(r.id, "http://localhost:" + newPort);
-                              }
-                            }}
-                          />
-                        )}
-                      </div>
+                    <div className="mt-1 flex items-center gap-1.5 text-[10px] flex-wrap">
+                      <input
+                        className="w-14 text-[10px] px-1 py-0.5 rounded border border-border bg-surface text-text-primary font-mono text-center"
+                        value={customPorts[r.id] || String(port)}
+                        onChange={function(e) {
+                          var val = e.target.value.replace(/\D/g, "");
+                          setCustomPorts(function(prev) {
+                            var next: Record<string, string> = {};
+                            for (var k in prev) next[k] = prev[k];
+                            next[r.id] = val;
+                            return next;
+                          });
+                          var newPort = parseInt(val);
+                          if (newPort && newPort > 0) checkPortStatus(r.id, "http://localhost:" + newPort);
+                        }}
+                      />
+                      <span className="text-text-muted">·</span>
+                      {ps ? (ps.free
+                        ? <span className="text-success">空闲</span>
+                        : <>
+                            <span className="text-danger">占用</span>
+                            <span
+                              className="text-danger underline cursor-pointer"
+                              onClick={function() {
+                                setShowDetail(function(prev) {
+                                  var next: Record<string, boolean> = {};
+                                  for (var k in prev) next[k] = prev[k];
+                                  next[r.id] = !prev[r.id];
+                                  return next;
+                                });
+                              }}
+                            >详情</span>
+                            {showDetail[r.id] && (
+                              <span className="text-[9px] text-text-muted bg-surface-hover px-1 py-0.5 rounded">
+                                {ps.name || "PID " + ps.pid}
+                              </span>
+                            )}
+                            <button
+                              className="text-[9px] px-1.5 py-0.5 rounded bg-danger-soft text-danger hover:bg-danger-bg"
+                              onClick={function() { handleKillPort(r.id, r.url); }}
+                            >释放</button>
+                          </>
+                      ) : <span className="text-text-muted">检测中</span>}
                     </div>
                   )}
                   <div className="flex items-center gap-1 mt-1.5">
