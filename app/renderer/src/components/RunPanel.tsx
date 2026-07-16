@@ -184,8 +184,20 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                         PID {st.pid}
                       </span>
                     )}
+                    {st.running && r.url && (
+                      <button
+                        className="text-[9px] px-1.5 py-0.5 rounded border border-border text-text-secondary hover:text-accent hover:border-accent transition-colors"
+                        onClick={() => { navigator.clipboard.writeText(r.url!); }}
+                        title="复制 URL"
+                      >复制</button>
+                    )}
                   </div>
-                  <p className="text-[10px] text-text-muted font-mono mt-0.5 truncate">{r.run_command}</p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <p className="text-[10px] text-text-muted font-mono truncate flex-1">{r.run_command}</p>
+                    {st.running && r.url && (
+                      <span className="text-[9px] text-accent font-mono truncate shrink-0">{r.url}</span>
+                    )}
+                  </div>
                   {/* 端口状态 */}
                   {port && (
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
