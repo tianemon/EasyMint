@@ -39,21 +39,7 @@ export function LeftPanel({
     <div className="flex flex-col min-w-0 bg-surface">
       {/* Panel header */}
       <div className="h-9 flex items-center justify-between px-3 border-b border-border shrink-0">
-        {isFiles ? (
-          <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">{title}</span>
-        ) : (
-          /* 会话分类切换 — 药丸形状 */
-          <div className="flex items-center bg-surface-hover rounded-full p-0.5">
-            <button
-              className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium transition-colors ${sessionTab === "project" ? "bg-surface text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
-              onClick={() => setSessionTab("project")}
-            >项目会话</button>
-            <button
-              className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium transition-colors ${sessionTab === "design" ? "bg-surface text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
-              onClick={() => setSessionTab("design")}
-            >UI 设计</button>
-          </div>
-        )}
+        <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">{title}</span>
         <div className="flex items-center gap-1">
           {isFiles && (
             <button
@@ -86,11 +72,12 @@ export function LeftPanel({
           <SessionHistory
             projectPath={projectPath}
             onSessionClick={onSessionClick}
-            onNewSession={sessionTab === "project" ? onNewSession : undefined}
+            onNewSession={onNewSession}
             onSessionDelete={onSessionDelete}
             activeSessionId={activeSessionId}
             refreshKey={sessionRefreshKey}
             filterType={sessionTab}
+            onFilterChange={setSessionTab}
           />
         )}
       </div>

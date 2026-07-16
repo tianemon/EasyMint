@@ -21,6 +21,7 @@ interface SessionHistoryProps {
   onSessionDelete?: (sessionId: string) => void;
   refreshKey?: number;
   filterType?: "project" | "design";
+  onFilterChange?: (tab: "project" | "design") => void;
 }
 
 interface ContextMenuState {
@@ -40,6 +41,7 @@ export function SessionHistory({
   onSessionDelete,
   refreshKey,
   filterType,
+  onFilterChange,
 }: SessionHistoryProps): JSX.Element {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -154,12 +156,25 @@ export function SessionHistory({
 
   return (
     <div className="flex flex-col h-full">
+      {/* 会话分类切换 */}
+      <div className="px-3 pt-2 shrink-0">
+        <div className="flex items-center bg-surface-hover rounded-full p-0.5">
+          <button
+            className={`flex-1 px-2 py-1 rounded-full text-[10px] font-medium transition-colors ${filterType !== "design" ? "bg-surface text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
+            onClick={() => onFilterChange?.("project")}
+          >项目会话</button>
+          <button
+            className={`flex-1 px-2 py-1 rounded-full text-[10px] font-medium transition-colors ${filterType === "design" ? "bg-surface text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
+            onClick={() => onFilterChange?.("design")}
+          >UI 设计</button>
+        </div>
+      </div>
       <div className="px-3 py-2 shrink-0">
         <button
           className="w-full py-1.5 border border-accent text-accent text-sm rounded-lg hover:bg-accent-subtle transition-colors"
-          onClick={onNewSession}
+          onClick={filterType === "project" ? onNewSession : undefined}
         >
-          + 新建会话
+          + 新建{filterType === "design" ? "设计" : "会话"}
         </button>
       </div>
 
