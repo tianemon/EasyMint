@@ -144,16 +144,6 @@ export function SessionHistory({
   const archived = sessions.filter((s) => s.archivedAt);
   const unpinned = sessions.filter((s) => !s.pinnedAt && !s.archivedAt);
 
-  if (filterType === "design") {
-    return (
-      <div className="flex flex-col h-full items-center justify-center text-text-secondary text-sm gap-3 px-4 text-center">
-        <svg className="w-10 h-10 text-accent opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>
-        <p>UI 设计对话即将推出</p>
-        <p className="text-[11px]">在这里可以创建独立的设计对话，生成 HTML 原型并在编辑器中预览。</p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full">
       {/* 会话分类切换 */}
@@ -178,7 +168,13 @@ export function SessionHistory({
         </button>
       </div>
 
-      {loading ? (
+      {filterType === "design" ? (
+        <div className="flex-1 flex items-center justify-center text-text-secondary text-sm gap-3 px-4 text-center flex-col">
+          <svg className="w-10 h-10 text-accent opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>
+          <p>UI 设计对话即将推出</p>
+          <p className="text-[11px]">在这里可以创建独立的设计对话，生成 HTML 原型并在编辑器中预览。</p>
+        </div>
+      ) : loading ? (
         <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">加载中...</div>
       ) : error ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2">
