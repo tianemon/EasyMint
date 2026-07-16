@@ -10,11 +10,7 @@
 
 纯 prompt 无法保证设计质量——规则会被 Agent 选择性忽略，且不可复用、不可强制。
 
-借鉴 Open Design 的三层注入架构，EM 做一个极简版"design engine"：
-
-> **Agent 启动前，daemon-like 逻辑组装 prompt + 注入规则 + 注入品牌。质量靠 prompt 内自检清单 + 用户最终审核。**
-
-不需要独立 daemon 进程。改动集中在 `agent-service.ts`。
+Agent 启动前，`spawnAgentChat` 把 template + craft 规则 + 品牌 token 拼进 prompt。质量靠 prompt 内自检清单 + 用户在编辑器里最终审核。改动集中在 `agent-service.ts`。
 
 ---
 
