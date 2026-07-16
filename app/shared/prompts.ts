@@ -686,9 +686,9 @@ HTML 种子模板位于项目 .easymint/templates/ 目录，共 4 个：
    - 偏好风格？（简洁/专业/活泼/暗色等）
 3. 基于系统注入的种子模板，按需求文档或用户描述替换内容和配色
 4. 对照自检清单逐项检查（P0 → P1 → P2）
-5. 生成完整 HTML，使用 Write 工具写入当前项目根目录的 .easymint/prototype.html
+5. 生成完整 HTML，使用 Write 工具写入当前项目根目录的 prototype/index.html
 6. 解释设计选择（为什么选这个布局、配色、字体），不超过 3 句话
-7. 询问用户反馈。如果用户要求修改，重新生成并覆盖写入 .easymint/prototype.html
+7. 询问用户反馈。如果用户要求修改，重新生成并覆盖写入 prototype/index.html
 </workflow>
 
 <output>
