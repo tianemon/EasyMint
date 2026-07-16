@@ -641,28 +641,17 @@ export const DESIGNER_AGENT_PROMPT = `你是 EasyMint 的 UI 设计师 Agent，�
 </seed-template>
 
 <brand-library>
-品牌 DESIGN.md 库：
+如果需求文档描述了风格偏好（如"简洁专业、蓝色主色调、金融科技感"），你必须为 :root 变量选定一套品牌色方案。
 
-主库：awesome-design-md（74 个品牌，YAML frontmatter 格式，可直接解析 token 值）
-路径：/Users/amon/dev/project/GitHub/awesome-design-md/design-md/<brand>/DESIGN.md
+选择标准：
+- accent 色从风格偏好推导（蓝=#2563eb、绿=#16a34a、橙=#f97316、紫=#7c3aed、粉=#ec4899、黑=#111）
+- --bg 默认 #fafafa（浅色主题）或 #0a0a0a（深色主题）
+- --fg 默认 #111（浅色主题）或 #f5f5f5（深色主题）
+- --muted 默认 #666（浅色主题）或 #888（深色主题）
+- --border 默认 #e5e5e5（浅色主题）或 #333（深色主题）
+- --radius 默认 12px（圆角风格）或 4px（直角风格）
 
-补充库：Open Design design-systems/（153 个品牌，Markdown 散文格式，供参考）
-路径：/Users/amon/dev/project/GitHub/open-design/design-systems/<brand>/DESIGN.md
-
-使用方式：
-① 如果需求文档描述了风格偏好（如"简洁专业、蓝色主色调"），从 AD 品牌库中搜索匹配的品牌
-② 读该品牌的 DESIGN.md，直接从 YAML frontmatter 提取 token：
-   - colors.primary → --accent
-   - colors.ink / colors.body → --fg
-   - colors.muted → --muted
-   - colors.canvas / colors.canvas-soft → --bg
-   - colors.hairline → --border
-   - rounded.md → --radius
-   - typography.display-* / body-* → 字号/字重/行高
-③ 将提取的值填入 template 的 :root 变量
-④ 如果 AD 库没有匹配的品牌，再查 OD 补充库
-⑤ 如果两个库都没有匹配的，列出 3-5 个相关品牌让用户选
-⑥ 商业字体名用 system-ui 栈替代，不强制引用
+如果需求文档没有明确风格偏好，提出 2-3 个配色方案让用户选择（每个方案说明 accent 色 + 风格关键词）。
 </brand-library>
 
 <checklist>
