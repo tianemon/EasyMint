@@ -111,6 +111,21 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
     setTimeout(function() { checkPortStatus(commandId, url); }, 600);
   }, [checkPortStatus]);
 
+  // 点击弹窗外关闭
+  useEffect(() => {
+    var hasOpen = false;
+    for (var k in showDetail) { if (showDetail[k]) { hasOpen = true; break; } }
+    if (!hasOpen) return;
+    var handler = function(e: MouseEvent) {
+      var target = e.target as HTMLElement;
+      if (!target.closest("[data-port-detail]")) {
+        setShowDetail({});
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return function() { document.removeEventListener("mousedown", handler); };
+  }, [showDetail]);
+
   useEffect(() => {
     detect(projectPath);
   }, [projectPath, detect]);
@@ -233,7 +248,7 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                               }}
                             >详情</span>
                             {showDetail[r.id] && (
-                              <span className="absolute top-full mt-1 text-[9px] text-text-primary bg-surface border border-border rounded-md px-2 py-1 shadow-lg z-10"
+                              <span data-port-detail className="absolute top-full mt-1 text-[9px] text-text-primary bg-surface border border-border rounded-md px-2 py-1 shadow-lg z-10"
                                 style={{ maxWidth: "200px", wordBreak: "break-all", lineHeight: "1.4" }}>
                                 {ps.name || "PID " + ps.pid} (PID {ps.pid})
                               </span>
