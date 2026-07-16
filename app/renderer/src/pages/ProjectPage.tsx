@@ -137,25 +137,19 @@ export function ProjectPage(): JSX.Element {
 
   // Listen for real-time task status updates from set_task_status MCP tool
   useEffect(() => {
-    const unsub = window.electronAPI.agent.onTaskStatus(({ taskId, status, projectPath: eventPath }) => {
+    const unsub = window.electronAPI.agent.onTaskStatus(({ status, projectPath: eventPath }) => {
       if (eventPath && projectPath && eventPath !== projectPath) return;
-      var ts = useTaskStore.getState();
-      var existing = ts.tasks.find(function(t) { return t.id === taskId; });
-      if (!existing) {
-        // 新任务不在本地 store → 从 task.json 重新加载
-        if (projectPath) {
-          window.electronAPI.task.read(projectPath).then(function(r) {
-            r.tasks.filter(function(t) { return !t.title.includes("{{"); }).forEach(function(t) {
-              var exist = useTaskStore.getState().tasks.find(function(x) { return x.id === t.id; });
-              if (!exist) useTaskStore.getState().addTask({ id: t.id, title: t.title, description: t.description, command: t.command, status: (t.status || "pending") as TaskStatus });
-            });
+      if (projectPath) {
+        window.electronAPI.task.read(projectPath).then(function(r) {
+          var ts = useTaskStore.getState();
+          ts.clearTasks();
+          r.tasks.filter(function(t) { return !t.title.includes("{{"); }).forEach(function(t) {
+            ts.addTask({ id: t.id, title: t.title, description: t.description, command: t.command, status: (t.status || "pending") as TaskStatus });
           });
-        }
-        return;
+          useProjectStatusStore.getState().refreshAll(projectPath);
+          if (status === "done") useProcessStore.getState().detect(projectPath);
+        });
       }
-      ts.updateTask(taskId, { status: status as TaskStatus });
-      if (projectPath) useProjectStatusStore.getState().refreshAll(projectPath);
-      if (status === "done" && projectPath) useProcessStore.getState().detect(projectPath);
     });
     return () => unsub();
   }, [projectPath]);
