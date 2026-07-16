@@ -138,12 +138,23 @@ export function ProjectPage(): JSX.Element {
   // Listen for real-time task status updates from set_task_status MCP tool
   useEffect(() => {
     const unsub = window.electronAPI.agent.onTaskStatus(({ taskId, status, projectPath: eventPath }) => {
-      // 守卫：只处理当前项目的事件
       if (eventPath && projectPath && eventPath !== projectPath) return;
-      useTaskStore.getState().updateTask(taskId, { status: status as TaskStatus });
-      // 同步刷新 project-status-store（doneCount / stage / Fishbone stepper）
+      var ts = useTaskStore.getState();
+      var existing = ts.tasks.find(function(t) { return t.id === taskId; });
+      if (!existing) {
+        // 新任务不在本地 store → 从 task.json 重新加载
+        if (projectPath) {
+          window.electronAPI.task.read(projectPath).then(function(r) {
+            r.tasks.filter(function(t) { return !t.title.includes("{{"); }).forEach(function(t) {
+              var exist = useTaskStore.getState().tasks.find(function(x) { return x.id === t.id; });
+              if (!exist) useTaskStore.getState().addTask({ id: t.id, title: t.title, description: t.description, command: t.command, status: (t.status || "pending") as TaskStatus });
+            });
+          });
+        }
+        return;
+      }
+      ts.updateTask(taskId, { status: status as TaskStatus });
       if (projectPath) useProjectStatusStore.getState().refreshAll(projectPath);
-      // Mint 开发完（task done）自动刷新运行程序检测
       if (status === "done" && projectPath) useProcessStore.getState().detect(projectPath);
     });
     return () => unsub();
