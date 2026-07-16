@@ -233,7 +233,8 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                               }}
                             >详情</span>
                             {showDetail[r.id] && (
-                              <span className="absolute bottom-full mb-1 whitespace-nowrap text-[9px] text-text-primary bg-surface border border-border rounded-md px-2 py-1 shadow-lg z-10">
+                              <span className="absolute top-full mt-1 text-[9px] text-text-primary bg-surface border border-border rounded-md px-2 py-1 shadow-lg z-10"
+                                style={{ maxWidth: "200px", wordBreak: "break-all", lineHeight: "1.4" }}>
                                 {ps.name || "PID " + ps.pid} (PID {ps.pid})
                               </span>
                             )}
