@@ -226,6 +226,22 @@ ipcMain.handle("window:new", () => {
   createWindow("/");
 });
 
+ipcMain.handle("editor:open", () => {
+  const editorPath = path.join(__dirname, "..", "..", "..", "resources", "em-html-editor", "index.html");
+  const editorWin = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    minWidth: 800,
+    minHeight: 500,
+    title: "EM HTML Editor",
+    webPreferences: {
+      sandbox: false,
+    },
+  });
+  editorWin.loadFile(editorPath);
+  editorWin.setMenuBarVisibility(false);
+});
+
 ipcMain.handle("settings:set-last-project", (_e, { projectId }) => {
   if (sharedServices) sharedServices.store.setLastProjectId(projectId);
 });

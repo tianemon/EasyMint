@@ -25,6 +25,20 @@ const TOOLS: ToolDef[] = [
   },
 ];
 
+function EditorButton(): JSX.Element {
+  return (
+    <button
+      className="w-8 h-8 rounded-md flex items-center justify-center text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+      data-tooltip="HTML 编辑器"
+      onClick={() => window.electronAPI.editor.open()}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-[17px] h-[17px]">
+        <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+      </svg>
+    </button>
+  );
+}
+
 interface LeftToolbarProps {
   activePanel: ActivePanel;
   onSelect: (panel: ActivePanel) => void;
@@ -220,6 +234,9 @@ export function LeftToolbar({ activePanel, onSelect, onSettings, onShowUpdate, o
           </button>
         ))}
       </div>
+
+      {/* Editor button */}
+      <EditorButton />
 
       {/* Theme + Settings — pinned to bottom */}
       <div className="mt-auto" />

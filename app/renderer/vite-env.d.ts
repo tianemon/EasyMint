@@ -50,6 +50,9 @@ interface ElectronAPI {
     openProject: (projectId: string, sessionId?: string, init?: boolean) => Promise<void>;
     newWindow: () => Promise<void>;
   };
+  editor: {
+    open: () => Promise<void>;
+  };
   dialog: {
     openDirectory: () => Promise<string | null>;
   };
