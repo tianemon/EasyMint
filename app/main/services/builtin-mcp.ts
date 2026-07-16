@@ -346,6 +346,22 @@ export function buildBuiltinMcpServers(projectPath?: string): Record<string, unk
           }
         },
       ),
+      tool(
+        "refresh_tasks",
+        "通知前端重新加载 task.json。Mint 新增/删除/修改任务后调用，确保任务列表实时更新。",
+        {},
+        async () => {
+          if (!projectPath) {
+            return { content: [{ type: "text", text: "当前无项目路径" }] };
+          }
+          BrowserWindow.getAllWindows().forEach((win) => {
+            if (!win.isDestroyed()) {
+              win.webContents.send("agent:task-status", { taskId: "", status: "pending", projectPath });
+            }
+          });
+          return { content: [{ type: "text", text: "已通知前端刷新任务列表" }] };
+        },
+      ),
     ],
   });
 

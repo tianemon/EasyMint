@@ -5,6 +5,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     openProject: (projectId: string, sessionId?: string, init?: boolean) => ipcRenderer.invoke("window:open-project", { projectId, sessionId, init }),
     newWindow: () => ipcRenderer.invoke("window:new"),
   },
+  editor: {
+    open: () => ipcRenderer.invoke("editor:open"),
+  },
   dialog: {
     openDirectory: () => ipcRenderer.invoke("dialog:openDirectory"),
   },
