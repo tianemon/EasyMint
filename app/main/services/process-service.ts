@@ -181,3 +181,46 @@ export function getStatus(commandId: string): ProcessStatus {
 export function getRunningIds(): string[] {
   return Array.from(processes.keys());
 }
+
+/** 检测端口占用状态 */
+export function checkPort(port: number): { free: boolean; pid?: number; name?: string } {
+  try {
+    const { execSync } = require("child_process");
+    let output = "";
+    if (process.platform === "win32") {
+      output = execSync(`netstat -ano | findstr :${port}`, { encoding: "utf-8", timeout: 3000 });
+    } else {
+      output = execSync(`lsof -i :${port} -P -n -t`, { encoding: "utf-8", timeout: 3000 });
+    }
+    const pid = parseInt(output.trim().split("\n")[0]);
+    if (!pid) return { free: true };
+    // 获取进程名
+    try {
+      const name = process.platform === "win32"
+        ? execSync(`tasklist /FI "PID eq ${pid}" /FO CSV /NH`, { encoding: "utf-8", timeout: 2000 }).split(",")[0]?.replace(/"/g, "")
+        : execSync(`ps -p ${pid} -o comm=`, { encoding: "utf-8", timeout: 2000 }).trim();
+      return { free: false, pid, name };
+    } catch {
+      return { free: false, pid };
+    }
+  } catch {
+    return { free: true };
+  }
+}
+
+/** 释放端口（kill 占用进程） */
+export function killPort(port: number): boolean {
+  try {
+    const { execSync } = require("child_process");
+    if (process.platform === "win32") {
+      const out = execSync(`netstat -ano | findstr :${port}`, { encoding: "utf-8" });
+      const pid = out.trim().split(/\s+/).pop();
+      if (pid) execSync(`taskkill /PID ${pid} /F`, { timeout: 5000 });
+    } else {
+      execSync(`lsof -i :${port} -P -n -t | xargs kill -9`, { timeout: 5000 });
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}

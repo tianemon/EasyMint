@@ -1,10 +1,23 @@
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useProcessStore, type RunPlatform } from "../stores/process-store";
 import { LogOverlay } from "./LogOverlay";
 
 interface RunPanelProps {
   projectPath: string;
   onCollapse: () => void;
+}
+
+interface PortStatus {
+  free: boolean;
+  pid?: number;
+  name?: string;
+}
+
+/** 从 url 中提取端口号 */
+function extractPort(url?: string): number | null {
+  if (!url) return null;
+  var m = url.match(/:(\d+)/);
+  return m ? parseInt(m[1]) : null;
 }
 
 const PLATFORM_LABEL: Record<RunPlatform, string> = {
@@ -71,24 +84,55 @@ function platformColor(p: string): string {
 
 export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Element {
   const { runnables, cmdStates, activeLogId, detect, start, stop, restart, openLog, appendLog, setRunning, loadStatus } = useProcessStore();
+  const [portStatuses, setPortStatuses] = useState<Record<string, PortStatus>>({});
+  const [customPorts, setCustomPorts] = useState<Record<string, string>>({});
+
+  // 检测单个端口
+  const checkPortStatus = useCallback(async (commandId: string, url?: string) => {
+    var port = extractPort(url);
+    if (!port) return;
+    try {
+      var st = await window.electronAPI.process.checkPort(port);
+      setPortStatuses(function(prev) {
+        var next: Record<string, PortStatus> = {};
+        for (var k in prev) next[k] = prev[k];
+        next[commandId] = st;
+        return next;
+      });
+    } catch { /* */ }
+  }, []);
+
+  // 释放端口
+  const handleKillPort = useCallback(async (commandId: string, url?: string) => {
+    var port = extractPort(url);
+    if (!port) return;
+    await window.electronAPI.process.killPort(port);
+    // 等一小会重新检测
+    setTimeout(function() { checkPortStatus(commandId, url); }, 600);
+  }, [checkPortStatus]);
 
   useEffect(() => {
     detect(projectPath);
   }, [projectPath, detect]);
 
+  // 启动时检测所有端口
+  useEffect(() => {
+    runnables.forEach(function(r) { checkPortStatus(r.id, r.url); });
+  }, [runnables, checkPortStatus]);
+
   // 监听进程输出
   useEffect(() => {
-    const off = window.electronAPI?.process?.onOutput?.((data) => {
+    var off = window.electronAPI?.process?.onOutput?.((data) => {
       appendLog(data.commandId, data.line);
     });
     return () => { off?.(); };
   }, [appendLog]);
 
-  // 监听状态变更（进程退出立即更新）
+  // 监听状态变更
   useEffect(() => {
-    const off = window.electronAPI?.process?.onStatusChanged?.((data) => {
+    var off = window.electronAPI?.process?.onStatusChanged?.((data) => {
       setRunning(data.commandId, data.running);
-      if (!data.running) loadStatus(data.commandId); // 拉一次确保同步
+      if (!data.running) loadStatus(data.commandId);
     });
     return () => { off?.(); };
   }, [setRunning, loadStatus]);
@@ -124,7 +168,11 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
         ) : (
           <div className="space-y-1.5">
             {runnables.map((r) => {
-              const st = cmdStates[r.id] || { running: false, logs: [] };
+              var st = cmdStates[r.id] || { running: false, logs: [] };
+              var ps = portStatuses[r.id];
+              var port = extractPort(r.url);
+              var portBusy = ps && !ps.free;
+              var canStart = !st.running && !portBusy;
               return (
                 <div key={r.id} className={`rounded-lg border px-2.5 py-2 transition-colors ${st.running ? "border-success-border bg-success-soft" : "border-border"}`}>
                   <div className="flex items-center gap-1.5">
@@ -138,7 +186,46 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                     )}
                   </div>
                   <p className="text-[10px] text-text-muted font-mono mt-0.5 truncate">{r.run_command}</p>
-
+                  {/* 端口状态 */}
+                  {port && (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className={`w-1.5 h-1.5 rounded-full ${ps ? (ps.free ? "bg-success" : "bg-danger") : "bg-gray-300"}`} />
+                      <span className="text-[10px] text-text-muted">:{port}</span>
+                      {ps && (
+                        ps.free
+                          ? <span className="text-[10px] text-success">空闲</span>
+                          : <span className="text-[10px] text-danger">被 {ps.name || ("PID " + ps.pid)} 占用</span>
+                      )}
+                      {portBusy && (
+                        <>
+                          <button
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-danger-soft text-danger hover:bg-danger-bg"
+                            onClick={() => handleKillPort(r.id, r.url)}
+                          >释放</button>
+                          <input
+                            className="w-14 text-[9px] px-1 py-0.5 rounded border border-border bg-surface text-text-primary"
+                            placeholder="端口"
+                            value={customPorts[r.id] || ""}
+                            onChange={function(e) {
+                              var val = e.target.value.replace(/\D/g, "");
+                              setCustomPorts(function(prev) {
+                                var next: Record<string, string> = {};
+                                for (var k in prev) next[k] = prev[k];
+                                next[r.id] = val;
+                                return next;
+                              });
+                            }}
+                            onKeyDown={function(e) {
+                              if (e.key === "Enter" && customPorts[r.id]) {
+                                var newPort = parseInt(customPorts[r.id]);
+                                if (newPort) checkPortStatus(r.id, "http://localhost:" + newPort);
+                              }
+                            }}
+                          />
+                        </>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-center gap-1 mt-1.5">
                     {st.running ? (
                       <>
@@ -160,8 +247,10 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                       </>
                     ) : (
                       <button
-                        className="flex-1 px-2 py-1 rounded bg-accent-soft text-accent text-[10px] font-medium hover:bg-accent-bg transition-colors"
-                        onClick={() => start(projectPath, r.id)}
+                        className={`flex-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${canStart ? "bg-accent-soft text-accent hover:bg-accent-bg" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
+                        onClick={() => canStart && start(projectPath, r.id)}
+                        disabled={!canStart}
+                        title={portBusy ? "端口被占用，请先释放或更换端口" : ""}
                       >启动</button>
                     )}
                     {st.running && r.url && (
