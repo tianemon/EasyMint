@@ -183,47 +183,28 @@ export const CRAFT_RULES: CraftRule[] = [
 
 ## 5. 品牌 Token 系统
 
-### 5.1 文件：`.easymint/design.json`（用户可编辑）
+### 5.1 品牌库位置
 
-```json
-{
-  "brand": "stripe",
-  "colors": {
-    "accent": "#533afd",
-    "accent-hover": "#4434d4",
-    "bg": "#fafafa",
-    "surface": "#ffffff",
-    "fg": "#0d253d",
-    "muted": "#64748d",
-    "border": "#e3e8ee"
-  },
-  "typography": {
-    "font": "'Inter', system-ui, sans-serif",
-    "weight-display": "300",
-    "weight-body": "400",
-    "weight-button": "500"
-  },
-  "radius": "12px",
-  "style": "editorial"  // 风格方向
-}
+awesome-design-md 的 74 个品牌 DESIGN.md 位于本地路径：
+
+```
+/Users/amon/dev/project/GitHub/awesome-design-md/design-md/<brand>/DESIGN.md
 ```
 
-### 5.2 品牌库
+每个 DESIGN.md 包含该品牌的完整 token：colors（20-30 色值）、typography（15-20 级）、rounded（5-8 档）、spacing（8-10 档）、components（20-30 个组件规范）。
 
-从 awesome-design-md 的 74 个品牌中精选 8 个常用品牌，提供预置 token 值：
+### 5.2 Agent 使用方式
 
-| 品牌 | 风格 | accent |
-|------|------|------|
-| Stripe | 金融科技，thin weight editorial | #533afd |
-| Airbnb | 消费市场，摄影主导 | #ff385c |
-| Vercel | 开发者平台，黑墨极简 | #171717 |
-| Linear | 工具产品，暗色专注 | #5e6ad2 |
-| Notion | 文档协作，中性留白 | #000000 |
-| Claude | AI 助手，暖橙人文 | #d97706 |
-| Spotify | 音乐流媒体，深色霓虹 | #1ed760 |
-| Apple | 硬件零售，冷调灰阶 | #0071e3 |
+Agent prompt 中告知此路径。Agent 在生成 HTML 前：
+① 读需求文档中的风格偏好描述
+② 从品牌库中搜索匹配的品牌（按名称、行业、风格关键词）
+③ 提取该品牌的 --accent、--bg、--fg、--muted、--border、--radius 等核心 token 值
+④ 写入 template 的 :root 变量
+⑤ 如果需求文档没有明确风格偏好，列出 3-5 个可能匹配的品牌让用户选
 
-用户在「UI 设计」面板可选品牌，写入 `.easymint/design.json`。
+### 5.3 本地品牌缓存（可选后续迭代）
+
+如果希望脱机使用或加快加载，可预提取常用品牌的核心 token 到 `.easymint/brands/` 目录。当前不阻塞，直接读 AD 源文件。
 
 ---
 

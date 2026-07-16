@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>EM Dashboard</title>
+  <style>
+    /* ═══════════════════════════════════════════════════════
+       Design Token System — 与 template-landing.html 共用
+       ═══════════════════════════════════════════════════════ */
+    :root {
+      --bg: #fafafa;
+      --surface: #ffffff;
+      --fg: #111111;
+      --muted: #666666;
+      --border: #e5e5e5;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --danger: #dc2626;
+      --success: #16a34a;
+      --warning: #f59e0b;
+      --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+      --text-xs: 0.75rem; --text-sm: 0.875rem; --text-base: 1rem;
+      --text-lg: 1.125rem; --text-xl: 1.25rem; --text-2xl: 1.5rem;
+      --leading-tight: 1.2; --leading-normal: 1.5;
+      --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem; --space-4: 1rem;
+      --space-6: 1.5rem; --space-8: 2rem; --space-12: 3rem;
+      --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px; --radius-full: 9999px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-md: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); font-size: var(--text-sm); color: var(--fg); background: var(--bg); }
+    h1, h2, h3 { line-height: var(--leading-tight); font-weight: 700; }
+    h1 { font-size: var(--text-2xl); } h2 { font-size: var(--text-xl); } h3 { font-size: var(--text-base); }
+    p { color: var(--muted); line-height: var(--leading-normal); }
+
+    /* Layout */
+    .app { display: flex; min-height: 100vh; }
+    .sidebar { width: 240px; background: var(--surface); border-right: 1px solid var(--border); padding: var(--space-6) var(--space-4); flex-shrink: 0; }
+    .sidebar-brand { font-weight: 800; font-size: var(--text-lg); margin-bottom: var(--space-8); }
+    .sidebar-nav { display: flex; flex-direction: column; gap: var(--space-1); }
+    .sidebar-item { padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); font-size: var(--text-sm); font-weight: 500; color: var(--muted); cursor: pointer; transition: background 0.15s; }
+    .sidebar-item:hover { background: var(--bg); color: var(--fg); }
+    .sidebar-item.active { background: var(--accent); color: #fff; }
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+    /* Header */
+    .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: var(--space-4) var(--space-6); display: flex; align-items: center; justify-content: space-between; }
+    .header-title { font-weight: 700; }
+    .header-actions { display: flex; gap: var(--space-2); }
+
+    /* Stats */
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); padding: var(--space-6); }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-6); }
+    .stat-value { font-size: var(--text-2xl); font-weight: 800; }
+    .stat-label { font-size: var(--text-xs); color: var(--muted); margin-top: var(--space-1); }
+    .stat-change { font-size: var(--text-xs); margin-top: var(--space-2); }
+    .stat-up { color: var(--success); } .stat-down { color: var(--danger); }
+
+    /* Content */
+    .content { flex: 1; padding: var(--space-6); display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-6); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-6); }
+    .card-header { font-weight: 700; margin-bottom: var(--space-4); display: flex; justify-content: space-between; align-items: center; }
+    .card-header a { font-size: var(--text-xs); color: var(--accent); }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: var(--text-xs); font-weight: 600; color: var(--muted); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.06em; }
+    td { padding: var(--space-3); border-bottom: 1px solid var(--border); font-size: var(--text-sm); }
+    tr:hover td { background: var(--bg); }
+
+    /* Activity */
+    .activity-item { display: flex; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--border); }
+    .activity-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-top: 5px; flex-shrink: 0; }
+    .activity-text { font-size: var(--text-sm); } .activity-time { font-size: var(--text-xs); color: var(--muted); margin-top: var(--space-1); }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 8px 16px; border: none; border-radius: var(--radius-sm); font-family: var(--font); font-size: var(--text-sm); font-weight: 600; cursor: pointer; transition: all 0.15s ease; }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary { background: var(--surface); color: var(--fg); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--bg); }
+
+    @media (max-width: 768px) {
+      .app { flex-direction: column; }
+      .sidebar { width: 100%; }
+      .stats-row { grid-template-columns: 1fr 1fr; }
+      .content { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">LOGO</div>
+    <nav class="sidebar-nav">
+      <a class="sidebar-item active">概览</a>
+      <a class="sidebar-item">用户</a>
+      <a class="sidebar-item">订单</a>
+      <a class="sidebar-item">产品</a>
+      <a class="sidebar-item">设置</a>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <!-- Header -->
+    <header class="header">
+      <h1 class="header-title">概览</h1>
+      <div class="header-actions">
+        <button class="btn btn-secondary">导出</button>
+        <button class="btn btn-primary">新建</button>
+      </div>
+    </header>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-value">1,234</div>
+        <div class="stat-label">总用户</div>
+        <div class="stat-change stat-up">↑ 12%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">567</div>
+        <div class="stat-label">活跃用户</div>
+        <div class="stat-change stat-up">↑ 8%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">89</div>
+        <div class="stat-label">今日订单</div>
+        <div class="stat-change stat-down">↓ 3%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">$12.4K</div>
+        <div class="stat-label">收入</div>
+        <div class="stat-change stat-up">↑ 22%</div>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <div class="card">
+        <div class="card-header"><span>最近订单</span><a href="#">查看全部 →</a></div>
+        <table>
+          <thead><tr><th>订单号</th><th>客户</th><th>金额</th><th>状态</th></tr></thead>
+          <tbody>
+            <tr><td>#1001</td><td>张三</td><td>$240.00</td><td>已完成</td></tr>
+            <tr><td>#1002</td><td>李四</td><td>$180.00</td><td>处理中</td></tr>
+            <tr><td>#1003</td><td>王五</td><td>$320.00</td><td>已完成</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-header">最近活动</div>
+        <div class="activity-item"><div class="activity-dot"></div><div><div class="activity-text">新用户注册</div><div class="activity-time">2 分钟前</div></div></div>
+        <div class="activity-item"><div class="activity-dot"></div><div><div class="activity-text">订单 #1003 已完成</div><div class="activity-time">15 分钟前</div></div></div>
+        <div class="activity-item"><div class="activity-dot"></div><div><div class="activity-text">系统更新完成</div><div class="activity-time">1 小时前</div></div></div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
