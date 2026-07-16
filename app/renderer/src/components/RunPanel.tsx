@@ -200,7 +200,7 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                   </div>
                   {/* 端口状态 */}
                   {port && (
-                    <div className="mt-1 flex items-center gap-1.5 text-[10px] flex-wrap">
+                    <div className="relative mt-1 flex items-center gap-1.5 text-[10px] flex-wrap">
                       <input
                         className="w-14 text-[10px] px-1 py-0.5 rounded border border-border bg-surface text-text-primary font-mono text-center"
                         value={customPorts[r.id] !== undefined ? customPorts[r.id] : String(port)}
@@ -233,10 +233,8 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                               }}
                             >详情</span>
                             {showDetail[r.id] && (
-                              <span className="relative">
-                                <span className="absolute bottom-full left-0 mb-1 whitespace-nowrap text-[9px] text-text-primary bg-surface border border-border rounded-md px-2 py-1 shadow-lg z-10">
-                                  {ps.name || "PID " + ps.pid} (PID {ps.pid})
-                                </span>
+                              <span className="absolute bottom-full mb-1 whitespace-nowrap text-[9px] text-text-primary bg-surface border border-border rounded-md px-2 py-1 shadow-lg z-10">
+                                {ps.name || "PID " + ps.pid} (PID {ps.pid})
                               </span>
                             )}
                             <button
