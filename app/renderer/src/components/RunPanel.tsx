@@ -188,42 +188,42 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                   <p className="text-[10px] text-text-muted font-mono mt-0.5 truncate">{r.run_command}</p>
                   {/* 端口状态 */}
                   {port && (
-                    <div className="flex items-center gap-1.5 mt-1">
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       <span className={`w-1.5 h-1.5 rounded-full ${ps ? (ps.free ? "bg-success" : "bg-danger") : "bg-gray-300"}`} />
                       <span className="text-[10px] text-text-muted">:{port}</span>
-                      {ps && (
-                        ps.free
-                          ? <span className="text-[10px] text-success">空闲</span>
-                          : <span className="text-[10px] text-danger">被 {ps.name || ("PID " + ps.pid)} 占用</span>
+                      {ps ? (ps.free
+                        ? <span className="text-[10px] text-success">空闲</span>
+                        : <>
+                            <span className="text-[10px] text-danger">占用</span>
+                            <span className="text-[10px] text-danger underline decoration-dotted cursor-help" title={ps.name ? (ps.name + " (PID " + ps.pid + ")") : ("PID " + ps.pid)}>详情</span>
+                          </>
+                      ) : <span className="text-[10px] text-text-muted">检测中</span>}
+                      {ps && !ps.free && (
+                        <button
+                          className="text-[9px] px-1.5 py-0.5 rounded bg-danger-soft text-danger hover:bg-danger-bg"
+                          onClick={() => handleKillPort(r.id, r.url)}
+                        >释放</button>
                       )}
-                      {portBusy && (
-                        <>
-                          <button
-                            className="text-[9px] px-1.5 py-0.5 rounded bg-danger-soft text-danger hover:bg-danger-bg"
-                            onClick={() => handleKillPort(r.id, r.url)}
-                          >释放</button>
-                          <input
-                            className="w-14 text-[9px] px-1 py-0.5 rounded border border-border bg-surface text-text-primary"
-                            placeholder="端口"
-                            value={customPorts[r.id] || ""}
-                            onChange={function(e) {
-                              var val = e.target.value.replace(/\D/g, "");
-                              setCustomPorts(function(prev) {
-                                var next: Record<string, string> = {};
-                                for (var k in prev) next[k] = prev[k];
-                                next[r.id] = val;
-                                return next;
-                              });
-                            }}
-                            onKeyDown={function(e) {
-                              if (e.key === "Enter" && customPorts[r.id]) {
-                                var newPort = parseInt(customPorts[r.id]);
-                                if (newPort) checkPortStatus(r.id, "http://localhost:" + newPort);
-                              }
-                            }}
-                          />
-                        </>
-                      )}
+                      <input
+                        className="w-12 text-[9px] px-1 py-0.5 rounded border border-border bg-surface text-text-primary"
+                        placeholder="换端口"
+                        value={customPorts[r.id] || ""}
+                        onChange={function(e) {
+                          var val = e.target.value.replace(/\D/g, "");
+                          setCustomPorts(function(prev) {
+                            var next: Record<string, string> = {};
+                            for (var k in prev) next[k] = prev[k];
+                            next[r.id] = val;
+                            return next;
+                          });
+                        }}
+                        onKeyDown={function(e) {
+                          if (e.key === "Enter" && customPorts[r.id]) {
+                            var newPort = parseInt(customPorts[r.id]);
+                            if (newPort) checkPortStatus(r.id, "http://localhost:" + newPort);
+                          }
+                        }}
+                      />
                     </div>
                   )}
                   <div className="flex items-center gap-1 mt-1.5">
