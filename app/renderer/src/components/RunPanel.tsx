@@ -248,7 +248,11 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                     ) : (
                       <button
                         className={`flex-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${canStart ? "bg-accent-soft text-accent hover:bg-accent-bg" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
-                        onClick={() => canStart && start(projectPath, r.id)}
+                        onClick={() => {
+                          var cp = customPorts[r.id];
+                          var p = cp ? parseInt(cp) : undefined;
+                          canStart && start(projectPath, r.id, p);
+                        }}
                         disabled={!canStart}
                         title={portBusy ? "端口被占用，请先释放或更换端口" : ""}
                       >启动</button>

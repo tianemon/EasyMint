@@ -143,7 +143,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   process: {
     detect: (projectPath: string) => ipcRenderer.invoke("process:detect", { projectPath }),
-    start: (projectPath: string, commandId: string) => ipcRenderer.invoke("process:start", { projectPath, commandId }),
+    start: (projectPath: string, commandId: string, port?: number) => ipcRenderer.invoke("process:start", { projectPath, commandId, port }),
     stop: (commandId: string) => ipcRenderer.invoke("process:stop", { commandId }),
     restart: (projectPath: string, commandId: string) => ipcRenderer.invoke("process:restart", { projectPath, commandId }),
     status: (commandId: string) => ipcRenderer.invoke("process:status", { commandId }),

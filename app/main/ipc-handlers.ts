@@ -204,7 +204,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
 
   // process:* - 项目运行进程管理（按 commandId）
   ipcMain.handle("process:detect", (_e, { projectPath }) => detectRunnable(projectPath));
-  ipcMain.handle("process:start", (_e, { projectPath, commandId }) => startProcess(projectPath, commandId));
+  ipcMain.handle("process:start", (_e, { projectPath, commandId, port }) => startProcess(projectPath, commandId, port));
   ipcMain.handle("process:stop", (_e, { commandId }) => stopProcess(commandId));
   ipcMain.handle("process:restart", (_e, { projectPath, commandId }) => restartProcess(projectPath, commandId));
   ipcMain.handle("process:status", (_e, { commandId }) => getStatus(commandId));

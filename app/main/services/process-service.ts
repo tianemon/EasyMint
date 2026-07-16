@@ -103,7 +103,7 @@ export function detectRunnable(projectPath: string): Runnable[] {
 }
 
 /** 启动进程 */
-export function startProcess(projectPath: string, commandId: string): void {
+export function startProcess(projectPath: string, commandId: string, port?: number): void {
   const resolved = resolveHome(projectPath);
   if (processes.has(commandId)) return;
 
@@ -115,9 +115,12 @@ export function startProcess(projectPath: string, commandId: string): void {
   const shell = isWin ? "cmd.exe" : "bash";
   const shellArgs = isWin ? ["/c", run_command] : ["-c", run_command];
 
+  const env = buildEnv();
+  if (port) env.PORT = String(port);
+
   const proc = spawn(shell, shellArgs, {
     cwd,
-    env: buildEnv(),
+    env,
     detached: !isWin,
     shell: false,
   });

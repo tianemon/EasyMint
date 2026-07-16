@@ -28,7 +28,7 @@ interface ProcessState {
   cmdStates: Record<string, CmdState>; // key = commandId
   activeLogId: string | null;          // 当前打开的日志 Overlay 对应的 commandId
   detect: (projectPath: string) => Promise<void>;
-  start: (projectPath: string, commandId: string) => Promise<void>;
+  start: (projectPath: string, commandId: string, port?: number) => Promise<void>;
   stop: (commandId: string) => Promise<void>;
   restart: (projectPath: string, commandId: string) => Promise<void>;
   loadStatus: (commandId: string) => Promise<void>;
@@ -66,11 +66,11 @@ export const useProcessStore = create<ProcessState>((set) => ({
     } catch { /* ignore */ }
   },
 
-  start: async (projectPath, commandId) => {
-    await window.electronAPI.process.start(projectPath, commandId);
+  start: async (projectPath, commandId, port) => {
+    await window.electronAPI.process.start(projectPath, commandId, port);
     set((s) => ({
       cmdStates: { ...s.cmdStates, [commandId]: { running: true, logs: [] } },
-      activeLogId: commandId, // 启动后自动弹日志
+      activeLogId: commandId,
     }));
   },
 
