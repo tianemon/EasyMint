@@ -16,6 +16,8 @@ interface LeftPanelProps {
   sessionRefreshKey?: number;
 }
 
+type SessionTab = "project" | "design";
+
 export function LeftPanel({
   activePanel,
   projectPath,
@@ -31,23 +33,36 @@ export function LeftPanel({
   const isFiles = activePanel === "files" || activePanel === "editor";
   const title = isFiles ? "项目文件" : "会话";
   const [collapseAllKey, setCollapseAllKey] = useState(0);
+  const [sessionTab, setSessionTab] = useState<SessionTab>("project");
 
   return (
     <div className="flex flex-col min-w-0 bg-surface">
       {/* Panel header */}
       <div className="h-9 flex items-center justify-between px-3 border-b border-border shrink-0">
-        <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">{title}</span>
+        {isFiles ? (
+          <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">{title}</span>
+        ) : (
+          /* 会话分类切换 — 药丸形状 */
+          <div className="flex items-center bg-surface-hover rounded-full p-0.5">
+            <button
+              className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium transition-colors ${sessionTab === "project" ? "bg-surface text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setSessionTab("project")}
+            >项目会话</button>
+            <button
+              className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium transition-colors ${sessionTab === "design" ? "bg-surface text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setSessionTab("design")}
+            >UI 设计</button>
+          </div>
+        )}
         <div className="flex items-center gap-1">
           {isFiles && (
-            <>
-              <button
-                className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors text-xs"
-                onClick={() => setCollapseAllKey((k) => k + 1)}
-                title="折叠全部"
-              >
-                ⊟
-              </button>
-            </>
+            <button
+              className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors text-xs"
+              onClick={() => setCollapseAllKey((k) => k + 1)}
+              title="折叠全部"
+            >
+              ⊟
+            </button>
           )}
           <button
             className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors text-xs"
@@ -71,10 +86,11 @@ export function LeftPanel({
           <SessionHistory
             projectPath={projectPath}
             onSessionClick={onSessionClick}
-            onNewSession={onNewSession}
+            onNewSession={sessionTab === "project" ? onNewSession : undefined}
             onSessionDelete={onSessionDelete}
             activeSessionId={activeSessionId}
             refreshKey={sessionRefreshKey}
+            filterType={sessionTab}
           />
         )}
       </div>
