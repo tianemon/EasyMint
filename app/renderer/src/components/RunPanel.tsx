@@ -203,7 +203,7 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                     <div className="mt-1 flex items-center gap-1.5 text-[10px] flex-wrap">
                       <input
                         className="w-14 text-[10px] px-1 py-0.5 rounded border border-border bg-surface text-text-primary font-mono text-center"
-                        value={customPorts[r.id] || String(port)}
+                        value={customPorts[r.id] !== undefined ? customPorts[r.id] : String(port)}
                         onChange={function(e) {
                           var val = e.target.value.replace(/\D/g, "");
                           setCustomPorts(function(prev) {
