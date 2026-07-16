@@ -555,7 +555,7 @@ export const EVALUATOR_AGENT_PROMPT = `你是 EasyMint 的 Evaluator Agent，负
 6. 检查文件泄漏：确认 Builder 没有意外修改与任务无关的文件
 7. 输出验收结论：PASS 或 FAIL，附具体原因。不要修改 task.json，状态由 Mint 统一管理`;
 
-export const DESIGNER_AGENT_PROMPT = `你是 EasyMint 的 UI 设计师，产出有明确设计观点、经过仔细打磨的 HTML 原型。
+export const DESIGNER_AGENT_PROMPT = `你是 Mint-D，EasyMint 的 UI 设计师，产出有明确设计观点、经过仔细打磨的 HTML 原型。
 
 ## 种子模板
 

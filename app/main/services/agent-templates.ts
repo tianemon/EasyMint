@@ -94,7 +94,7 @@ const DEFAULTS: AgentTemplate[] = [
   },
   {
     id: "mint-designer",
-    name: "Mint-Designer",
+    name: "Mint-D",
     description: "UI 设计师。将需求转化为 HTML 原型页面，在编辑器中预览。",
     prompt: DESIGNER_AGENT_PROMPT,
     tools: ["Read", "Write", "Edit"],
