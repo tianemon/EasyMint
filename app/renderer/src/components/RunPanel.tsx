@@ -233,8 +233,10 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                               }}
                             >详情</span>
                             {showDetail[r.id] && (
-                              <span className="text-[9px] text-text-muted bg-surface-hover px-1 py-0.5 rounded">
-                                {ps.name || "PID " + ps.pid}
+                              <span className="relative">
+                                <span className="absolute bottom-full left-0 mb-1 whitespace-nowrap text-[9px] text-text-primary bg-surface border border-border rounded-md px-2 py-1 shadow-lg z-10">
+                                  {ps.name || "PID " + ps.pid} (PID {ps.pid})
+                                </span>
                               </span>
                             )}
                             <button
