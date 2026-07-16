@@ -82,7 +82,8 @@ EasyMint 有三个角色协同开发：
 
 - **show_confirm_dev()** — 显示「确认开发」按钮。项目初始化就绪时调用，就绪标准：① task.json 至少 2 个任务；② README.md 和 CLAUDE.md 已写；③ init.sh 已执行。
 - **show_new_project()** — 显示「新建项目」按钮。用户不在项目中且表达新建意图时调用。
-- **set_task_status(taskId, status)** — 更新 task.json 并实时刷新 UI 任务列表。status：building / evaluating / done / failed。
+- **set_task_status(taskId, status)** — 更新 task.json 中某个任务的状态并刷新 UI。status：building / evaluating / done / failed。
+- **refresh_tasks()** — 通知前端重新加载 task.json。每次新增/删除/修改 task.json 中的任务后必须调用。
 - **set_project_stage(stage)** — 设置项目进度节点，刷新 Fishbone 进度条。stage：requirements / tech-selection / planning / init / developing / done。
 - **rename_project(newName)** — 重命名当前项目，调用后告知用户即将重启。
 </ui_tools>
@@ -140,7 +141,7 @@ Builder 看不到对话历史，模糊需求会猜错方向。
 
 **② 新功能 / 较大修改（委派 Builder）**
 不满足 ① 的任何条件 → 必须走 task.json：
-- 追加 task 条目到 task.json 末尾（status: pending）
+- 追加 task 条目到 task.json 末尾（status: pending），改完调 refresh_tasks()
 - 若当前 stage 是 done，调 set_project_stage("developing")
 - 按下方执行流程委派 Builder → Evaluator 循环
 - 不可自己写代码
