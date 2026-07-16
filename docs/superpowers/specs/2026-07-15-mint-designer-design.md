@@ -12,9 +12,9 @@
 
 借鉴 Open Design 的三层注入架构，EM 做一个极简版"design engine"：
 
-> **Agent 启动前，daemon-like 逻辑组装 prompt + 注入规则 + 注入品牌。Agent 输出后，MCP 工具做 P0 自检。**
+> **Agent 启动前，daemon-like 逻辑组装 prompt + 注入规则 + 注入品牌。质量靠 prompt 内自检清单 + 用户最终审核。**
 
-不需要独立 daemon 进程，不需要 lint 服务。改动集中在 `agent-service.ts` 的 `spawnAgentChat` 和 `builtin-mcp.ts`。
+不需要独立 daemon 进程。改动集中在 `agent-service.ts`。
 
 ---
 
@@ -177,9 +177,11 @@ export const CRAFT_RULES: CraftRule[] = [
 
 ### 4.2 使用方式
 
-**Agent 启动时**：agent-service.ts 将全部 P0 + P1 规则拼入 prompt（作为 `system prompt append`）
+**Agent 启动时**：agent-service.ts 将全部 P0 + P1 规则拼入 prompt。P0 规则标注为"必须遵守"，P1 标注为"尽力遵守"。
 
-**Agent 输出时**：show_prototype MCP 工具读取 `CRAFT_RULES`，对 P0 规则跑 `lintPattern`。违规项返回 Agent 要求修正。
+**Agent 输出前**：自检清单要求 Agent 逐项对照 P0/P1 规则自查。未通过的不得调 `show_prototype`。
+
+**用户审核**：在编辑器中预览原型，发现问题回到设计对话要求修改。
 
 ---
 
@@ -285,27 +287,16 @@ spawnAgentChat(projectPath, templateId, initialMessage) {
 
 ## 7. show_prototype MCP 工具
 
-### 7.1 功能
+单一职责：保存 HTML + 打开编辑器预览。
 
 ```
 show_prototype(name, html)
-  ↓
-① P0 lint 自动检查（CRAFT_RULES 中 level: "P0" 的规则逐一跑 lintPattern）
-  ↓
-② 通过 → 写 .easymint/prototypes/<name>.html
-       → broadcast "editor:open" 事件
-       → 前端收到 → 打开 EM HTML Editor 加载该文件
-  ↓
-③ 不通过 → 返回违规项列表
-         → "以下 P0 规则未通过，请修正后重试：\n- 渐变标题 (line 42)\n- emoji 图标 (line 108)"
+  → 写 .easymint/prototypes/<name>.html
+  → broadcast 通知前端
+  → 前端打开 EM HTML Editor 加载该文件
 ```
 
-### 7.2 Prompt 引用
-
-Agent 知道：
-- 生成 HTML 后必须调 `show_prototype(name, html)` 提交
-- 如果返回 P0 违规，必须修正后重新提交
-- 最多重试 3 次
+P0 质量检查不在此工具中——由 Agent 的 prompt 自检清单负责，由用户在编辑器里最终审核。
 
 ---
 
