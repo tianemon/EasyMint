@@ -592,11 +592,32 @@ export class AgentService {
     const mode: PermissionMode = "bypassPermissions";
     const options = buildQueryOptions(projectPath, this.store, false, mode);
 
+    // 设计师 Agent：注入种子 HTML 模板内容
+    let fullPrompt = template.prompt;
+    if (template.agentType === "designer") {
+      const templateDir = path.join(__dirname, "..", "..", "..", "resources", "em-html-editor");
+      const templateFiles = [
+        "template-landing.html", "template-dashboard.html",
+        "template-form.html", "template-detail.html",
+      ];
+      const templates: string[] = [];
+      for (const f of templateFiles) {
+        const p = path.join(templateDir, f);
+        if (fs.existsSync(p)) templates.push(fs.readFileSync(p, "utf-8"));
+      }
+      if (templates.length > 0) {
+        const templateSection = "\n\n<injected-templates>\n以下是可供使用的 HTML 种子模板。每个模板已包含完整的 CSS token 系统（:root 变量）、响应式栅格和组件 class 定义。\n\n" +
+          templates.map((t, i) => `### 模板 ${i + 1}：${templateFiles[i]}\n\`\`\`html\n${t.slice(0, 8000)}\n\`\`\``).join("\n\n") +
+          "\n</injected-templates>";
+        fullPrompt = templateSection + "\n\n" + fullPrompt;
+      }
+    }
+
     // Replace the system prompt with the template's prompt
     options.systemPrompt = {
       type: "preset" as const,
       preset: "claude_code" as const,
-      append: template.prompt,
+      append: fullPrompt,
     };
     if (template.model) options.model = template.model;
 

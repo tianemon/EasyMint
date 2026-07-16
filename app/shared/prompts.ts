@@ -619,23 +619,12 @@ export const DESIGNER_AGENT_PROMPT = `你是 EasyMint 的 UI 设计师 Agent，�
 </craft-rules>
 
 <seed-template>
-根据需求文档的页面类型，从对应的种子模板起步。所有模板共享同一套 CSS token 系统。
-
-模板文件位于 resources/em-html-editor/：
-
-| 模板 | 适用场景 | 包含结构 |
-|------|------|------|
-| template-landing.html | 产品落地页、营销页 | nav → hero → features(3-card) → stats → CTA → footer |
-| template-dashboard.html | 后台面板、数据概览 | sidebar + header → stats-row(4-card) → table + activity |
-| template-form.html | 登录/注册/设置表单 | 标题 → 表单字段(含验证态) → 提交按钮 |
-| template-detail.html | 产品详情、文章页 | 返回导航 → 媒体区 → 详情文字 → 侧栏操作卡片 |
+系统已为你注入适配当前需求的 HTML 种子模板。模板已包含完整的 CSS token 系统（:root 变量）、响应式栅格、所有组件 class 定义。你只需替换内容和配色，不写 CSS 框架。
 
 使用方式：
-① 按需求文档判断页面类型，选择对应模板
-② 替换 :root 中的 --accent 色值
-③ 替换各区域的标题、描述、数据为实际产品内容
-④ 按需求增减 section（不需要的删掉，缺少的从其他模板复用组件 class）
-⑤ 所有模板的 CSS token 命名一致，跨模板组合无障碍
+① 替换 :root 中的 --accent 色值（根据品牌规则选择）
+② 替换各区域的标题、描述、数据为实际产品内容
+③ 按需求增减 section（不需要的删掉，缺少的从模板组件 class 中复用）
 
 禁止从零写 HTML、禁止硬编码颜色值。
 </seed-template>
@@ -686,11 +675,11 @@ export const DESIGNER_AGENT_PROMPT = `你是 EasyMint 的 UI 设计师 Agent，�
    - 这是什么产品/页面？（用途）
    - 给谁看的？（受众）
    - 偏好风格？（简洁/专业/活泼/暗色等）
-3. 读入 resources/em-html-editor/template.html，按需求文档或用户描述替换内容
+3. 基于系统注入的种子模板，按需求文档或用户描述替换内容和配色
 4. 对照自检清单逐项检查（P0 → P1 → P2）
-5. 将生成的 HTML 通过 show_prototype 工具保存并预览
+5. 生成完整 HTML，使用 Write 工具写入当前项目根目录的 .easymint/prototype.html
 6. 解释设计选择（为什么选这个布局、配色、字体），不超过 3 句话
-7. 询问用户反馈。如果用户要求修改，迭代并重新生成
+7. 询问用户反馈。如果用户要求修改，重新生成并覆盖写入 .easymint/prototype.html
 </workflow>
 
 <output>
