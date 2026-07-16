@@ -118,7 +118,7 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
     if (!hasOpen) return;
     var handler = function(e: MouseEvent) {
       var target = e.target as HTMLElement;
-      if (!target.closest("[data-port-detail]")) {
+      if (!target.closest("[data-port-detail]") && !target.closest("[data-port-toggle]")) {
         setShowDetail({});
       }
     };
@@ -237,8 +237,9 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                         : <>
                             <span className="text-danger">占用</span>
                             <span
-                              className="text-danger underline cursor-pointer"
-                              onClick={function() {
+                              data-port-toggle
+                              className="text-danger underline cursor-pointer select-none"
+                              onClick={function(e) { e.stopPropagation();
                                 setShowDetail(function(prev) {
                                   var next: Record<string, boolean> = {};
                                   for (var k in prev) next[k] = prev[k];
@@ -254,7 +255,7 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                               </span>
                             )}
                             <button
-                              className="text-[9px] px-1.5 py-0.5 rounded bg-danger-soft text-danger hover:bg-danger-bg"
+                              className="text-[9px] px-1.5 py-0.5 rounded bg-danger-soft text-danger hover:bg-danger-bg active:scale-95 transition-all duration-100"
                               onClick={function() { handleKillPort(r.id, r.url); }}
                             >释放</button>
                           </>
