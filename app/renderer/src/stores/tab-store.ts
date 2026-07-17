@@ -10,6 +10,7 @@ export interface Tab {
   sessionId?: string;
   isNewProject?: boolean;
   dirty?: boolean;
+  agentTemplate?: string;  // 设计会话："mint-designer"
 }
 
 interface TabState {

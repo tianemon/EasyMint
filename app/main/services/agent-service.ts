@@ -320,7 +320,7 @@ export class AgentService {
    * the message is enqueued into the live channel; otherwise a new long-lived
    * query is started.
    */
-  sendMessage(projectPath: string, message: string, resumeSessionId: string | null, permissionMode: string | undefined, mainWindow: BrowserWindow, model?: string): { chatId: string } {
+  sendMessage(projectPath: string, message: string, resumeSessionId: string | null, permissionMode: string | undefined, mainWindow: BrowserWindow, model?: string, agentTemplate?: string): { chatId: string } {
     // Existing session → enqueue into live channel
     if (resumeSessionId) {
       const existing = this.findActiveChat(resumeSessionId);
@@ -370,6 +370,24 @@ export class AgentService {
       } else if (typeof options.systemPrompt === "object" && "append" in options.systemPrompt) {
         const sp = options.systemPrompt as { append?: string };
         sp.append = (sp.append || "") + "\n\n" + appendText;
+      }
+    }
+
+    // 设计会话：替换系统提示词为模板 prompt
+    if (agentTemplate) {
+      const tpl = getTemplate(agentTemplate);
+      if (tpl) {
+        chat.agentType = tpl.agentType;
+        let tplPrompt = tpl.prompt;
+        // 注入种子模板
+        const srcDir = path.join(__dirname, "..", "..", "..", "resources", "em-html-editor");
+        ["template-landing.html", "template-dashboard.html", "template-form.html", "template-detail.html"].forEach((f) => {
+          const p = path.join(srcDir, f);
+          if (fs.existsSync(p)) {
+            tplPrompt += "\n\n<!-- 种子模板 " + f + " -->\n" + fs.readFileSync(p, "utf-8").slice(0, 6000);
+          }
+        });
+        options.systemPrompt = { type: "preset" as const, preset: "claude_code" as const, append: tplPrompt };
       }
     }
 

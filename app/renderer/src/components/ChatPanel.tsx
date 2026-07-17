@@ -517,7 +517,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       currentChatRef.current = null;
       // sendText 是 fire-and-forget，直接调 sendMessage 拿 chatId。
       // chatId 必须立即可得，否则 onStream 过滤器 currentChatRef 为 null 会拦截所有事件
-      const result = await window.electronAPI.agent.sendMessage(projectPath, agentText, { sessionId: existingSid ?? null, permissionMode });
+      const tab = useTabStore.getState().tabs.find(function(t) { return t.sessionId === sessionId || (!t.sessionId && !existingSid); });
+      const result = await window.electronAPI.agent.sendMessage(projectPath, agentText, { sessionId: existingSid ?? null, permissionMode, agentTemplate: tab?.agentTemplate });
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
     } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; }
   }, [busy, attaches, projectPath, permissionMode]);

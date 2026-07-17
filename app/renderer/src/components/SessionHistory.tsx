@@ -172,12 +172,8 @@ export function SessionHistory({
           className="w-full py-1.5 border border-accent text-accent text-sm rounded-lg hover:bg-accent-subtle transition-colors"
           onClick={filterType === "design"
             ? () => {
-                if (projectPath) {
-                  window.electronAPI.agent.spawnAgentChat(projectPath, "mint-designer", "").then(function() {
-                    // 等 SDK 返回 session_id 并写入映射后再刷新
-                    setTimeout(function() { load(); }, 1500);
-                  });
-                }
+                // 和普通会话一样创建 tab，标记 agentTemplate 让 ChatPanel 使用设计提示词
+                useTabStore.getState().openTab({ id: "design-" + Date.now(), type: "chat", title: "新建设计", agentTemplate: "mint-designer" });
               }
             : onNewSession
           }
