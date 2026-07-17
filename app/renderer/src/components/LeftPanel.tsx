@@ -77,7 +77,6 @@ export function LeftPanel({
             activeSessionId={activeSessionId}
             refreshKey={sessionRefreshKey}
             filterType={sessionTab}
-            onFilterChange={setSessionTab}
           />
         )}
       </div>

@@ -21,7 +21,6 @@ interface SessionHistoryProps {
   onSessionDelete?: (sessionId: string) => void;
   refreshKey?: number;
   filterType?: "project" | "design";
-  onFilterChange?: (tab: "project" | "design") => void;
 }
 
 interface ContextMenuState {
@@ -41,7 +40,6 @@ export function SessionHistory({
   onSessionDelete,
   refreshKey,
   filterType,
-  onFilterChange,
 }: SessionHistoryProps): JSX.Element {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,19 +68,11 @@ export function SessionHistory({
     const path = projectPath || getWorkspaceDir();
     if (!initialLoadDone.current) setLoading(true);
     setError(null);
-    Promise.all([
-      window.electronAPI.conv.list(path),
-      window.electronAPI.conv.designSessions().catch(() => [] as string[]),
-    ]).then(([data, designIds]) => {
-      const designSet = new Set(designIds);
-      const filtered = filterType === "design"
-        ? data.filter((s: SessionItem) => designSet.has(s.sessionId))
-        : data.filter((s: SessionItem) => !designSet.has(s.sessionId));
-      setSessions(filtered);
-      initialLoadDone.current = true;
-    }).catch((e: unknown) => setError(e instanceof Error ? e.message : "加载失败"))
+    window.electronAPI.conv.list(path)
+      .then((data) => { setSessions(data); initialLoadDone.current = true; })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "加载失败"))
       .finally(() => setLoading(false));
-  }, [projectPath, filterType]);
+  }, [projectPath]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (refreshKey) load(); }, [refreshKey, load]);
@@ -171,10 +161,7 @@ export function SessionHistory({
         <button
           className="w-full py-1.5 border border-accent text-accent text-sm rounded-lg hover:bg-accent-subtle transition-colors"
           onClick={filterType === "design"
-            ? () => {
-                // 和普通会话一样创建 tab，标记 agentTemplate 让 ChatPanel 使用设计提示词
-                useTabStore.getState().openTab({ id: "design-" + Date.now(), type: "chat", title: "新建设计", agentTemplate: "mint-designer" });
-              }
+            ? () => window.electronAPI.agent.spawnAgentChat(projectPath, "mint-designer", "")
             : onNewSession
           }
         >

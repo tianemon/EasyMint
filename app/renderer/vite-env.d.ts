@@ -78,7 +78,7 @@ interface ElectronAPI {
   };
   agent: {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; agentTemplate?: string }) => Promise<{ chatId: string }>;
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string }) => Promise<{ chatId: string }>;
     abort: (runId: string) => void;
     setModel: (sessionId: string, model: string) => Promise<void>;
     notifySession: (sessionId: string, message: string) => void;
