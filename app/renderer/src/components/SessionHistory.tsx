@@ -21,6 +21,7 @@ interface SessionHistoryProps {
   onSessionDelete?: (sessionId: string) => void;
   refreshKey?: number;
   filterType?: "project" | "design";
+  onFilterChange?: (tab: "project" | "design") => void;
 }
 
 interface ContextMenuState {
@@ -40,6 +41,7 @@ export function SessionHistory({
   onSessionDelete,
   refreshKey,
   filterType,
+  onFilterChange,
 }: SessionHistoryProps): JSX.Element {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(true);
