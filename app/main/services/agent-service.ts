@@ -645,7 +645,7 @@ export class AgentService {
     };
     this.activeChats.set(chatId, chat);
 
-    channel.enqueue(buildUserMessage(initialMessage, ""));
+    if (initialMessage) { channel.enqueue(buildUserMessage(initialMessage, "")); }
     this.startChatLoop(chat, options);
 
     return { chatId };
