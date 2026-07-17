@@ -223,7 +223,29 @@ function buildUserMessage(message: string, sessionId: string): SDKUserMessage {
 }
 
 /** 记录各 session 的 agent 类型，供会话列表按类型筛选 */
-const sessionAgentTypes = new Map<string, string>();
+const SESSION_TYPES_PATH = path.join(os.homedir(), ".easymint", "session-types.json");
+
+function loadSessionTypes(): Map<string, string> {
+  try {
+    if (fs.existsSync(SESSION_TYPES_PATH)) {
+      const data = JSON.parse(fs.readFileSync(SESSION_TYPES_PATH, "utf-8"));
+      return new Map(Object.entries(data));
+    }
+  } catch { /* ignore */ }
+  return new Map();
+}
+
+function saveSessionTypes(map: Map<string, string>): void {
+  try {
+    const dir = path.dirname(SESSION_TYPES_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const obj: Record<string, string> = {};
+    for (const [k, v] of map) obj[k] = v;
+    fs.writeFileSync(SESSION_TYPES_PATH, JSON.stringify(obj), "utf-8");
+  } catch { /* ignore */ }
+}
+
+const sessionAgentTypes = loadSessionTypes();
 
 export function getSessionAgentType(sessionId: string): string | undefined {
   return sessionAgentTypes.get(sessionId);
@@ -407,7 +429,7 @@ export class AgentService {
           if (!capturedSid && sdkSid) {
             capturedSid = sdkSid;
             chat.sessionId = sdkSid;
-            if (chat.agentType) sessionAgentTypes.set(sdkSid, chat.agentType);
+            if (chat.agentType) { sessionAgentTypes.set(sdkSid, chat.agentType); saveSessionTypes(sessionAgentTypes); }
             broadcast("agent:chat-session", { chatId: chat.chatId, sessionId: sdkSid });
           }
 
