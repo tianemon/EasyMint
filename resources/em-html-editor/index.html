@@ -492,6 +492,37 @@
     } catch(e) { /* */ }
   }
 
+  /** 由 EM 主进程注入调用：自动加载文件并启动编辑 */
+  function autoLoad(html, filename) {
+    currentHTML = html;
+    status.textContent = filename + " · " + (html.length < 1024 ? html.length + " B" : (html.length / 1024).toFixed(1) + " KB");
+    btnToggle.textContent = "启动编辑";
+    btnToggle.classList.add("primary");
+    editorActive = false;
+    var blob = new Blob([html], { type: "text/html" });
+    var url = URL.createObjectURL(blob);
+    iframe.onload = function() {
+      URL.revokeObjectURL(url);
+      injectRuntime();
+      // 等 runtime 就绪后自动启动编辑
+      var checkReady = setInterval(function() {
+        try {
+          var win = iframe.contentWindow;
+          if (win && win.EMEditor) {
+            clearInterval(checkReady);
+            win.EMEditor.start();
+            btnToggle.textContent = "停止编辑";
+            btnToggle.classList.remove("primary");
+            status.textContent = "编辑中 — 点击元素开始修改";
+            editorActive = true;
+            refreshBtnState();
+          }
+        } catch(e) { /* */ }
+      }, 200);
+    };
+    iframe.src = url;
+  }
+
   function toggleEditor() {
     try {
       var api = em();

@@ -6,7 +6,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
     newWindow: () => ipcRenderer.invoke("window:new"),
   },
   editor: {
-    open: () => ipcRenderer.invoke("editor:open"),
+    open: (filePath?: string) => ipcRenderer.invoke("editor:open", filePath),
+    onOpenPrototype: (callback: (data: { projectPath: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { projectPath: string }) => callback(data);
+      ipcRenderer.on("editor:open-prototype", handler);
+      return () => ipcRenderer.removeListener("editor:open-prototype", handler);
+    },
   },
   dialog: {
     openDirectory: () => ipcRenderer.invoke("dialog:openDirectory"),

@@ -226,7 +226,7 @@ ipcMain.handle("window:new", () => {
   createWindow("/");
 });
 
-ipcMain.handle("editor:open", () => {
+ipcMain.handle("editor:open", (_e, filePath?: string) => {
   const editorPath = path.join(__dirname, "..", "..", "..", "resources", "em-html-editor", "index.html");
   const editorWin = new BrowserWindow({
     width: 1400,
@@ -238,7 +238,18 @@ ipcMain.handle("editor:open", () => {
       sandbox: false,
     },
   });
-  editorWin.loadFile(editorPath);
+  if (filePath && fs.existsSync(filePath)) {
+    editorWin.loadFile(editorPath);
+    editorWin.webContents.on("did-finish-load", () => {
+      const content = fs.readFileSync(filePath, "utf-8");
+      const name = path.basename(filePath);
+      editorWin.webContents.executeJavaScript(
+        `(function(){var c=${JSON.stringify(content)};var n=${JSON.stringify(name)};if(typeof autoLoad==="function")autoLoad(c,n);})()`
+      ).catch(() => {});
+    });
+  } else {
+    editorWin.loadFile(editorPath);
+  }
   editorWin.setMenuBarVisibility(false);
 });
 

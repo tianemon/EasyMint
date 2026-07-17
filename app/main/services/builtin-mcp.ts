@@ -362,6 +362,22 @@ export function buildBuiltinMcpServers(projectPath?: string): Record<string, unk
           return { content: [{ type: "text", text: "已通知前端刷新任务列表" }] };
         },
       ),
+      tool(
+        "show_prototype",
+        "通知前端打开 EM HTML 编辑器并自动加载 prototype/index.html。Mint-D 生成原型后调用。",
+        {},
+        async () => {
+          if (!projectPath) {
+            return { content: [{ type: "text", text: "当前无项目路径" }] };
+          }
+          BrowserWindow.getAllWindows().forEach((win) => {
+            if (!win.isDestroyed()) {
+              win.webContents.send("editor:open-prototype", { projectPath });
+            }
+          });
+          return { content: [{ type: "text", text: "原型已生成，编辑器窗口即将打开。" }] };
+        },
+      ),
     ],
   });
 

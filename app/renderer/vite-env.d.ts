@@ -51,7 +51,8 @@ interface ElectronAPI {
     newWindow: () => Promise<void>;
   };
   editor: {
-    open: () => Promise<void>;
+    open: (filePath?: string) => Promise<void>;
+    onOpenPrototype: (callback: (data: { projectPath: string }) => void) => () => void;
   };
   dialog: {
     openDirectory: () => Promise<string | null>;

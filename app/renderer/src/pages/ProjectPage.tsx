@@ -159,6 +159,16 @@ export function ProjectPage(): JSX.Element {
     if (projectPath) useProcessStore.getState().detect(projectPath);
   }, [projectPath]);
 
+  // Mint-D 生成原型后自动打开编辑器
+  useEffect(() => {
+    const unsub = window.electronAPI.editor.onOpenPrototype(({ projectPath: eventPath }) => {
+      if (!eventPath) return;
+      const filePath = eventPath + "/prototype/index.html";
+      window.electronAPI.editor.open(filePath);
+    });
+    return () => unsub();
+  }, []);
+
   // Listen for real-time project stage updates from set_project_stage MCP tool
   useEffect(() => {
     const unsub = window.electronAPI.agent.onProjectStage(({ stage, projectPath: eventPath }) => {
