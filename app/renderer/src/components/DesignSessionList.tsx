@@ -13,11 +13,11 @@ interface SessionItem {
   archivedAt?: number;
 }
 
-interface SessionHistoryProps {
+interface DesignSessionListProps {
   projectPath: string;
   activeSessionId?: string;
   onSessionClick?: (sessionId: string) => void;
-  onNewSession?: () => void;
+  onNewDesignSession?: () => void;
   onSessionDelete?: (sessionId: string) => void;
   refreshKey?: number;
 }
@@ -31,14 +31,14 @@ interface ContextMenuState {
   pinned: boolean;
 }
 
-export function SessionHistory({
+export function DesignSessionList({
   projectPath,
   activeSessionId,
   onSessionClick,
-  onNewSession,
+  onNewDesignSession,
   onSessionDelete,
   refreshKey,
-}: SessionHistoryProps): JSX.Element {
+}: DesignSessionListProps): JSX.Element {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +66,7 @@ export function SessionHistory({
     const path = projectPath || getWorkspaceDir();
     if (!initialLoadDone.current) setLoading(true);
     setError(null);
-    window.electronAPI.conv.list(path)
+    window.electronAPI.conv.listDesign(path)
       .then((data) => { setSessions(data); initialLoadDone.current = true; })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "加载失败"))
       .finally(() => setLoading(false));
@@ -74,7 +74,6 @@ export function SessionHistory({
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (refreshKey) load(); }, [refreshKey, load]);
-  // 允许其他组件（如 askWorkspace 后台删会话）触发本列表刷新
   useEffect(() => {
     sessionListActions.register(load);
     return () => sessionListActions.unregister();
@@ -128,7 +127,6 @@ export function SessionHistory({
       const path = projectPath || getWorkspaceDir();
       await window.electronAPI.conv.rename(editingId, title, path);
       setSessions((prev) => prev.map((s) => (s.sessionId === editingId ? { ...s, title } : s)));
-      // 同步更新已打开的 Tab 标题
       const ts = useTabStore.getState();
       const tab = ts.tabs.find((t) => t.sessionId === editingId);
       if (tab) ts.updateTab(tab.id, { title });
@@ -145,9 +143,9 @@ export function SessionHistory({
       <div className="px-3 py-2 shrink-0">
         <button
           className="w-full py-1.5 border border-accent text-accent text-sm rounded-lg hover:bg-accent-subtle transition-colors"
-          onClick={onNewSession}
+          onClick={onNewDesignSession}
         >
-          + 新建会话
+          + 新建设计
         </button>
       </div>
 
@@ -159,7 +157,7 @@ export function SessionHistory({
           <button className="px-3 py-1 text-xs bg-accent text-text-inverse rounded hover:bg-accent-hover transition-colors" onClick={load}>重试</button>
         </div>
       ) : sessions.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">暂无对话记录</div>
+        <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">暂无设计对话</div>
       ) : (
         <div className="flex-1 overflow-y-auto mx-3 rounded-xl bg-accent-subtle border border-accent-border-light">
           {pinned.length > 0 && (

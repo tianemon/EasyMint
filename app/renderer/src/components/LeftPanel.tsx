@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { FileTreePanel } from "./FileTreePanel";
 import { SessionHistory } from "./SessionHistory";
+import { DesignSessionList } from "./DesignSessionList";
 import type { ActivePanel } from "../pages/ProjectPage";
 
 interface LeftPanelProps {
@@ -11,6 +12,7 @@ interface LeftPanelProps {
   onFileClick?: (filePath: string, fileName: string) => void;
   onSessionClick?: (sessionId: string) => void;
   onNewSession?: () => void;
+  onNewDesignSession?: () => void;
   onSessionDelete?: (convId: string) => void;
   activeSessionId?: string;
   sessionRefreshKey?: number;
@@ -26,6 +28,7 @@ export function LeftPanel({
   onFileClick,
   onSessionClick,
   onNewSession,
+  onNewDesignSession,
   onSessionDelete,
   activeSessionId,
   sessionRefreshKey,
@@ -69,16 +72,41 @@ export function LeftPanel({
             collapseAllKey={collapseAllKey}
           />
         ) : (
-          <SessionHistory
-            projectPath={projectPath}
-            onSessionClick={onSessionClick}
-            onNewSession={onNewSession}
-            onSessionDelete={onSessionDelete}
-            activeSessionId={activeSessionId}
-            refreshKey={sessionRefreshKey}
-            filterType={sessionTab}
-            onFilterChange={setSessionTab}
-          />
+          <>
+            {/* 会话分类切换 */}
+            <div className="px-3 pt-2 shrink-0">
+              <div className="flex items-center bg-surface-hover rounded-full p-0.5">
+                <button
+                  className={`flex-1 px-2 py-1 rounded-full text-[10px] font-medium transition-colors ${sessionTab === "project" ? "bg-surface text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
+                  onClick={() => setSessionTab("project")}
+                >项目会话</button>
+                <button
+                  className={`flex-1 px-2 py-1 rounded-full text-[10px] font-medium transition-colors ${sessionTab === "design" ? "bg-surface text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
+                  onClick={() => setSessionTab("design")}
+                >UI 设计</button>
+              </div>
+            </div>
+
+            {sessionTab === "project" ? (
+              <SessionHistory
+                projectPath={projectPath}
+                onSessionClick={onSessionClick}
+                onNewSession={onNewSession}
+                onSessionDelete={onSessionDelete}
+                activeSessionId={activeSessionId}
+                refreshKey={sessionRefreshKey}
+              />
+            ) : (
+              <DesignSessionList
+                projectPath={projectPath}
+                onSessionClick={onSessionClick}
+                onNewDesignSession={onNewDesignSession}
+                onSessionDelete={onSessionDelete}
+                activeSessionId={activeSessionId}
+                refreshKey={sessionRefreshKey}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

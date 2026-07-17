@@ -73,6 +73,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   conv: {
     list: (projectPath: string) => ipcRenderer.invoke("conv:list", { projectPath }),
+    listDesign: (projectPath: string) => ipcRenderer.invoke("conv:listDesign", { projectPath }) as Promise<Array<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number; archivedAt?: number }>>,
     get: (id: string, projectPath: string) => ipcRenderer.invoke("conv:get", { id, projectPath }),
     messages: (id: string, projectPath: string) => ipcRenderer.invoke("conv:messages", { id, projectPath }),
     rename: (id: string, title: string, projectPath: string) => ipcRenderer.invoke("conv:rename", { id, title, projectPath }),

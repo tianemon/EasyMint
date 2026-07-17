@@ -46,6 +46,7 @@ import {
 } from "./services/upload-cache";
 import {
   listSessions,
+  listDesignSessions,
   getSessionMessages,
   renameSession,
   deleteSession,
@@ -212,6 +213,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("process:checkPort", (_e, { port }) => checkPort(port));
   ipcMain.handle("process:killPort", (_e, { port }) => killPort(port));
   ipcMain.handle("conv:list", (_e, { projectPath }) => listSessions(projectPath));
+  ipcMain.handle("conv:listDesign", (_e, { projectPath }) => listDesignSessions(projectPath));
   ipcMain.handle("conv:get", (_e, { id, projectPath }) => getSessionInfo(id, projectPath));
   ipcMain.handle("conv:agent-type", (_e, { sessionId }) => getSessionAgentType(sessionId));
   ipcMain.handle("conv:design-sessions", () => getDesignSessionIds());

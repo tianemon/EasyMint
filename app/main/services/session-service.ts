@@ -15,6 +15,7 @@ import { deleteCache } from "./session-cache";
 const DATA_DIR = path.join(os.homedir(), ".easymint");
 const PINNED_PATH = path.join(DATA_DIR, "pinned-sessions.json");
 const ARCHIVED_PATH = path.join(DATA_DIR, "archived-sessions.json");
+const SESSION_TYPES_PATH = path.join(DATA_DIR, "session-types.json");
 
 /** Normalize a directory path for SDK session APIs — expand ~, resolve to absolute, strip trailing slash, use forward slashes. */
 function normalizeDir(dir: string): string {
@@ -118,13 +119,56 @@ export interface SessionListItem {
   archivedAt?: number;
 }
 
+function getDesignSessionIds(): Set<string> {
+  try {
+    if (existsSync(SESSION_TYPES_PATH)) {
+      const data = JSON.parse(readFileSync(SESSION_TYPES_PATH, "utf-8"));
+      return new Set(
+        Object.entries(data)
+          .filter(([, type]) => type === "designer")
+          .map(([id]) => id)
+      );
+    }
+  } catch { /* ignore */ }
+  return new Set();
+}
+
 export async function listSessions(projectPath: string): Promise<SessionListItem[]> {
   const { listSessions: ls } = await sdk();
   const sessions = await ls({ dir: normalizeDir(projectPath) });
   const pinned = readPinned();
   const archived = readArchived();
+  const designIds = getDesignSessionIds();
 
   return sessions
+    .filter((s: SDKSessionInfo) => !designIds.has(s.sessionId))
+    .map((s: SDKSessionInfo) => ({
+      sessionId: s.sessionId,
+      title: s.customTitle || s.summary || s.firstPrompt || "新会话",
+      createdAt: s.createdAt ?? s.lastModified,
+      updatedAt: s.lastModified,
+      pinnedAt: pinned[s.sessionId] || undefined,
+      archivedAt: archived[s.sessionId] || undefined,
+    }))
+    .sort((a, b) => {
+      const ap = a.pinnedAt || 0;
+      const bp = b.pinnedAt || 0;
+      if (ap && bp) return bp - ap;
+      if (ap) return -1;
+      if (bp) return 1;
+      return b.updatedAt - a.updatedAt;
+    });
+}
+
+export async function listDesignSessions(projectPath: string): Promise<SessionListItem[]> {
+  const { listSessions: ls } = await sdk();
+  const sessions = await ls({ dir: normalizeDir(projectPath) });
+  const pinned = readPinned();
+  const archived = readArchived();
+  const designIds = getDesignSessionIds();
+
+  return sessions
+    .filter((s: SDKSessionInfo) => designIds.has(s.sessionId))
     .map((s: SDKSessionInfo) => ({
       sessionId: s.sessionId,
       title: s.customTitle || s.summary || s.firstPrompt || "新会话",

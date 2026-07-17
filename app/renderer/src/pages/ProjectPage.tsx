@@ -212,6 +212,11 @@ export function ProjectPage(): JSX.Element {
     openTab({ id: tabId, type: "chat" as const, title: "新会话" });
   }, [openTab]);
 
+  const handleNewDesignSession = useCallback(() => {
+    const tabId = `design-${Date.now()}`;
+    openTab({ id: tabId, type: "chat" as const, title: "新建设计", agentTemplate: "mint-designer" });
+  }, [openTab]);
+
   const handleSessionDelete = useCallback((sessionId: string) => {
     if (activeSessionId === sessionId) setActiveSessionId(undefined);
     // Close any tab that holds this session (match by sessionId, not tab id)
@@ -381,7 +386,7 @@ export function ProjectPage(): JSX.Element {
         />
 
         {collapsedLeft ? <div /> : (
-          <LeftPanel activePanel={activePanel} projectPath={projectPath} projectId={projectId!} onCollapse={toggleLeft} onFileClick={handleFileClick} onSessionClick={handleSessionClick} onNewSession={handleNewSession} onSessionDelete={handleSessionDelete} activeSessionId={activeSessionId} sessionRefreshKey={sessionRefreshKey} />
+          <LeftPanel activePanel={activePanel} projectPath={projectPath} projectId={projectId!} onCollapse={toggleLeft} onFileClick={handleFileClick} onSessionClick={handleSessionClick} onNewSession={handleNewSession} onNewDesignSession={handleNewDesignSession} onSessionDelete={handleSessionDelete} activeSessionId={activeSessionId} sessionRefreshKey={sessionRefreshKey} />
         )}
 
         <div className="flex flex-col min-w-0 overflow-hidden relative">

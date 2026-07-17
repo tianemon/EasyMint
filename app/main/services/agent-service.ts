@@ -361,7 +361,26 @@ export class AgentService {
 
     if (agentTemplate) {
       const tpl = getTemplate(agentTemplate);
-      if (tpl) { chat.agentType = tpl.agentType; options.systemPrompt = { type: "preset" as const, preset: "claude_code" as const, append: tpl.prompt }; }
+      if (tpl) {
+        chat.agentType = tpl.agentType;
+        options.systemPrompt = { type: "preset" as const, preset: "claude_code" as const, append: tpl.prompt };
+        // 设计师 Agent：复制 HTML 种子模板到项目目录
+        if (tpl.agentType === "designer" && projectPath) {
+          const srcDir = path.join(__dirname, "..", "..", "..", "resources", "em-html-editor");
+          const destDir = path.join(resolveHome(projectPath), ".easymint", "templates");
+          const templateFiles = [
+            "template-landing.html", "template-dashboard.html",
+            "template-form.html", "template-detail.html",
+          ];
+          try {
+            fs.mkdirSync(destDir, { recursive: true });
+            for (const f of templateFiles) {
+              const src = path.join(srcDir, f);
+              if (fs.existsSync(src)) fs.copyFileSync(src, path.join(destDir, f));
+            }
+          } catch { /* 非关键路径，失败不阻塞 */ }
+        }
+      }
     }
 
     // For resume: inject session identity + latest EM prompt into the first turn.
