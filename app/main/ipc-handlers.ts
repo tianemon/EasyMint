@@ -151,8 +151,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:spawnAgentChat", (_e, { projectPath, templateId, message }) => {
     return agentService.spawnAgentChat(projectPath, templateId, message);
   });
-  ipcMain.handle("agent:sendMessage", (_e, { projectPath, message, sessionId, permissionMode, model }) => {
-    return agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model);
+  ipcMain.handle("agent:sendMessage", (_e, { projectPath, message, sessionId, permissionMode, model, agentTemplate }) => {
+    return agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, agentTemplate);
   });
   ipcMain.handle("agent:peekUsage", async (_e, { projectPath, sessionId }) => {
     await agentService.peekUsage(projectPath, sessionId);

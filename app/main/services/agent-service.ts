@@ -320,7 +320,7 @@ export class AgentService {
    * the message is enqueued into the live channel; otherwise a new long-lived
    * query is started.
    */
-  sendMessage(projectPath: string, message: string, resumeSessionId: string | null, permissionMode: string | undefined, mainWindow: BrowserWindow, model?: string): { chatId: string } {
+  sendMessage(projectPath: string, message: string, resumeSessionId: string | null, permissionMode: string | undefined, mainWindow: BrowserWindow, model?: string, agentTemplate?: string): { chatId: string } {
     // Existing session → enqueue into live channel
     if (resumeSessionId) {
       const existing = this.findActiveChat(resumeSessionId);
@@ -358,6 +358,11 @@ export class AgentService {
       mcpNeedsRefresh: isResume,  // resume 会话从磁盘加载，工具清单可能过期，需刷新一次
     };
     this.activeChats.set(chatId, chat);
+
+    if (agentTemplate) {
+      const tpl = getTemplate(agentTemplate);
+      if (tpl) { chat.agentType = tpl.agentType; options.systemPrompt = { type: "preset" as const, preset: "claude_code" as const, append: tpl.prompt }; }
+    }
 
     // For resume: inject session identity + latest EM prompt into the first turn.
     // SDK resumes with the on-disk system prompt snapshot; appending the current

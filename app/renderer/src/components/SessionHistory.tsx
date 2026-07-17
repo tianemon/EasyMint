@@ -163,7 +163,7 @@ export function SessionHistory({
         <button
           className="w-full py-1.5 border border-accent text-accent text-sm rounded-lg hover:bg-accent-subtle transition-colors"
           onClick={filterType === "design"
-            ? () => window.electronAPI.agent.spawnAgentChat(projectPath, "mint-designer", "请先阅读 docs/需求文档.md 了解项目需求，然后等待用户下一步指令。")
+            ? () => useTabStore.getState().openTab({ id: "design-" + Date.now(), type: "chat", title: "新建设计", agentTemplate: "mint-designer" })
             : onNewSession
           }
         >
