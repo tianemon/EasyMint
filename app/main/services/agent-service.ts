@@ -222,6 +222,21 @@ function buildUserMessage(message: string, sessionId: string): SDKUserMessage {
   } as SDKUserMessage;
 }
 
+/** 记录各 session 的 agent 类型，供会话列表按类型筛选 */
+const sessionAgentTypes = new Map<string, string>();
+
+export function getSessionAgentType(sessionId: string): string | undefined {
+  return sessionAgentTypes.get(sessionId);
+}
+
+export function getDesignSessionIds(): string[] {
+  const ids: string[] = [];
+  for (const [id, type] of sessionAgentTypes) {
+    if (type === "designer") ids.push(id);
+  }
+  return ids;
+}
+
 export class AgentService {
   constructor(private store: Store) {}
   private activeRuns: Map<string, ActiveRun> = new Map();
@@ -392,6 +407,7 @@ export class AgentService {
           if (!capturedSid && sdkSid) {
             capturedSid = sdkSid;
             chat.sessionId = sdkSid;
+            if (chat.agentType) sessionAgentTypes.set(sdkSid, chat.agentType);
             broadcast("agent:chat-session", { chatId: chat.chatId, sessionId: sdkSid });
           }
 

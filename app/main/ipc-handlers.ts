@@ -4,7 +4,7 @@ import fs from "fs";
 import os from "os";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
-import { AgentService } from "./services/agent-service";
+import { AgentService, getSessionAgentType, getDesignSessionIds } from "./services/agent-service";
 import { Store } from "./services/store";
 import { detectClaude } from "./utils/claude-detector";
 import { detectGit } from "./utils/git-detector";
@@ -213,6 +213,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("process:killPort", (_e, { port }) => killPort(port));
   ipcMain.handle("conv:list", (_e, { projectPath }) => listSessions(projectPath));
   ipcMain.handle("conv:get", (_e, { id, projectPath }) => getSessionInfo(id, projectPath));
+  ipcMain.handle("conv:agent-type", (_e, { sessionId }) => getSessionAgentType(sessionId));
+  ipcMain.handle("conv:design-sessions", () => getDesignSessionIds());
   ipcMain.handle("conv:messages", (_e, { id, projectPath }) => getSessionMessages(id, projectPath));
   ipcMain.handle("conv:rename", (_e, { id, title, projectPath }) => {
     agentService.onSessionRenamed(id);

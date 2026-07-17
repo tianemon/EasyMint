@@ -70,11 +70,19 @@ export function SessionHistory({
     const path = projectPath || getWorkspaceDir();
     if (!initialLoadDone.current) setLoading(true);
     setError(null);
-    window.electronAPI.conv.list(path)
-      .then((data) => { setSessions(data); initialLoadDone.current = true; })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "加载失败"))
+    Promise.all([
+      window.electronAPI.conv.list(path),
+      window.electronAPI.conv.designSessions().catch(() => [] as string[]),
+    ]).then(([data, designIds]) => {
+      const designSet = new Set(designIds);
+      const filtered = filterType === "design"
+        ? data.filter((s: SessionItem) => designSet.has(s.sessionId))
+        : data.filter((s: SessionItem) => !designSet.has(s.sessionId));
+      setSessions(filtered);
+      initialLoadDone.current = true;
+    }).catch((e: unknown) => setError(e instanceof Error ? e.message : "加载失败"))
       .finally(() => setLoading(false));
-  }, [projectPath]);
+  }, [projectPath, filterType]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (refreshKey) load(); }, [refreshKey, load]);
@@ -164,13 +172,8 @@ export function SessionHistory({
           className="w-full py-1.5 border border-accent text-accent text-sm rounded-lg hover:bg-accent-subtle transition-colors"
           onClick={filterType === "design"
             ? () => {
-                console.log("[SessionHistory] new design clicked, projectPath:", projectPath, "hasAPI:", !!window.electronAPI?.agent?.spawnAgentChat);
                 if (projectPath) {
-                  window.electronAPI.agent.spawnAgentChat(projectPath, "mint-designer", "请先阅读 docs/需求文档.md 了解项目需求，然后根据需求确认 UI 风格并开始设计原型。").then(function(r) {
-                    console.log("[SessionHistory] spawnAgentChat result:", r);
-                  }).catch(function(e) {
-                    console.error("[SessionHistory] spawnAgentChat error:", e);
-                  });
+                  window.electronAPI.agent.spawnAgentChat(projectPath, "mint-designer", "");
                 }
               }
             : onNewSession
