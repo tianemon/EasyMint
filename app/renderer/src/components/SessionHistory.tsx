@@ -173,7 +173,10 @@ export function SessionHistory({
           onClick={filterType === "design"
             ? () => {
                 if (projectPath) {
-                  window.electronAPI.agent.spawnAgentChat(projectPath, "mint-designer", "");
+                  window.electronAPI.agent.spawnAgentChat(projectPath, "mint-designer", "").then(function() {
+                    // 等 SDK 返回 session_id 并写入映射后再刷新
+                    setTimeout(function() { load(); }, 1500);
+                  });
                 }
               }
             : onNewSession
