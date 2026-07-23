@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { normalizeEvent } from "./StreamPanel";
 import type { StreamEntry } from "./StreamPanel";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { chatActions } from "../stores/chat-actions";
@@ -27,6 +26,40 @@ interface ChatMessage {
   attaches?: AttachItem[];
   entries?: StreamEntry[];
   timestamp: number;
+}
+
+/** Pi 事件中的 blocks → StreamEntry 格式（兼容现有渲染） */
+function piBlocksToEntries(blocks: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; content?: unknown }>): StreamEntry[] {
+  const ts = Date.now();
+  const result: StreamEntry[] = [];
+  for (const b of blocks) {
+    if (b.type === "text" && b.text) {
+      result.push({ kind: "text", text: b.text, timestamp: ts });
+    } else if (b.type === "tool_use") {
+      result.push({ kind: "tool_use", id: b.id || "", name: b.name || "?", input: b.input || {}, timestamp: ts, collapsed: false, source: "chat" });
+    } else if (b.type === "tool_result") {
+      result.push({ kind: "tool_result", toolUseId: b.id || "", content: String(b.content ?? ""), isError: false, timestamp: ts, source: "chat" });
+    }
+  }
+  return result;
+}
+
+/** PiChatEvent → StreamEntry[] */
+function piEventToEntries(ev: { type: string; blocks?: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown> }> }): StreamEntry[] {
+  if (ev.type === "message" && Array.isArray(ev.blocks)) {
+    return piBlocksToEntries(ev.blocks);
+  }
+  return [];
+}
+
+/** 工具名 → 中文标签 */
+function displayToolLabel(name: string): string {
+  const map: Record<string, string> = {
+    "Read": "读取文件", "Write": "写入文件", "Edit": "编辑文件",
+    "Bash": "执行命令", "Grep": "搜索内容", "Glob": "查找文件",
+    "Task": "调度 Agent", "WebSearch": "网页搜索", "WebFetch": "抓取网页",
+  };
+  return map[name] || name;
 }
 
 function mapSessionMessages(msgs: Array<{ type: string; message: unknown }>): ChatMessage[] {
@@ -132,7 +165,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const lastStatusRef = useRef("");
 
   /** 从流事件更新状态栏——Effect A（缓冲补放）和 Effect B（实时 onStream）共用 */
-  const updateStreamStatus = useCallback((event: StreamEvent, setBusyFn: (v: boolean) => void) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _updateStreamStatus = useCallback((event: any, setBusyFn: (v: boolean) => void) => {
     if (!busyRef.current) { busyRef.current = true; setBusyFn(true); }
     if (event.type === "status") {
       const st = typeof event.data.text === "string" ? event.data.text : "处理中...";
@@ -259,8 +293,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   /** 输入框变化处理：检测开头 / 触发命令面板（仅在输入框纯命令上下文下，不影响代码片段） */
   const autoScrollRef = useRef(true);
-  // 已处理事件 seq 集合：缓冲补放（Effect A）与实时 onStream 共享，避免同一事件被两条路径双写
-  const processedSeqRef = useRef<Set<number>>(new Set());
+  // Pi 事件无需 seq 去重（message_update 是累计全文，不是 delta）
   const sidRef = useRef<string>(initialSid);
   useEffect(() => { if (existingSid) { sidRef.current = existingSid; setSid(existingSid); } }, [existingSid]);
   const runningSessions = useTabStore((s) => s.runningSessions);
@@ -348,15 +381,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     (async () => {
         const buffered = await window.electronAPI.agent.getBufferedStream(existingSid);
         if (!cancelled && buffered.length > 0) {
-          let _cur = 0;
           for (const raw of buffered) {
-            const ev = raw as StreamEvent;
-            if (typeof ev.seq === "number" && processedSeqRef.current.has(ev.seq)) continue;
-            updateStreamStatus(ev, setBusy);
-            const entry = normalizeEvent(ev); if (!entry) continue;
-            if (entry.kind === "thinking" && !showThinkingRef.current) continue;
-            if (typeof ev.seq === "number") processedSeqRef.current.add(ev.seq);
-            _cur = useChatStore.getState().appendAiEntry(sidRef.current, entry);
+            const ev = raw as any;
+            const entries = piEventToEntries(ev);
+            if (entries.length > 0) {
+              if (ev.partial) {
+                useChatStore.getState().replaceAiEntries(sidRef.current, entries);
+              } else {
+                useChatStore.getState().replaceAiEntries(sidRef.current, entries);
+              }
+            }
           }
         }
       if (cancelled) return; const snapshot = msgIdRef.current;
@@ -386,38 +420,46 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   useEffect(() => {
     let _curAi = 0;
-    const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
-      if (event.source !== "chat") return;
-      // Filter by chatId when known; for existing sessions where chat was started
-      // externally (e.g. project init), fall back to sessionId match.
+    const unsub = window.electronAPI.agent.onStream((event: any) => {
+      if (event.source === "worker") return;
+      // Filter by chatId when known
       if (currentChatRef.current) {
-        if (!event.runId || event.runId !== currentChatRef.current) return;
+        if (!event.runId && !event.chatId) return;
+        if (event.runId && event.runId !== currentChatRef.current && event.chatId !== currentChatRef.current) return;
       } else if (existingSid) {
-        // Existing session from outside — accept events matching our sessionId
         if (!event.sessionId || event.sessionId !== existingSid) return;
-      } else {
-        // 新标签页，还没获取到真实 sessionId —— 先收着不拦截（sidRef 很快会被更新）
-        return;
       }
       if (stoppedRef.current) return;
-      if (!currentChatRef.current) { currentChatRef.current = event.runId; setCurrentRunId(event.runId); }
-      // 状态栏更新（setBusy/setText）——与 Effect A 缓冲补放共用同一逻辑
-      updateStreamStatus(event, setBusy);
-      // Task subagent completion → refresh project status
-      if (event.type === "tool_result" && (event.data as { tool_use_id?: string }).tool_use_id) {
-        onActivity?.();
+      if (!currentChatRef.current) {
+        const cid = event.chatId || event.runId;
+        if (cid) { currentChatRef.current = cid; setCurrentRunId(cid); }
       }
-      const entry = normalizeEvent(event); if (!entry) return;
-      if (entry.kind === "thinking" && !showThinkingRef.current) return;
-      // seq 去重：缓冲补放（Effect A）可能已处理过该事件，跳过避免双写
-      if (typeof event.seq === "number") {
-        if (processedSeqRef.current.has(event.seq)) return;
-        processedSeqRef.current.add(event.seq);
+      setBusy(true);
+      // message event: full blocks replacement (Pi sends cumulative full text)
+      if (event.type === "message" && Array.isArray(event.blocks)) {
+        const entries = piBlocksToEntries(event.blocks);
+        if (entries.length > 0) {
+          _curAi = useChatStore.getState().replaceAiEntries(sidRef.current, entries);
+          scrollToBottom();
+        }
       }
-      _curAi = useChatStore.getState().appendAiEntry(sidRef.current, entry);
-      scrollToBottom();
+      // tool progress
+      if (event.type === "tool_progress" && event.toolName) {
+        useStatusStore.getState().setText(displayToolLabel(event.toolName));
+      }
+      // compaction UI
+      if (event.type === "compacting") {
+        useStatusStore.getState().setSummarizing(true);
+      }
+      if (event.type === "compacted") {
+        useStatusStore.getState().setSummarizing(false);
+      }
+      // error
+      if (event.type === "error") {
+        useStatusStore.getState().setText(event.message || "出错了");
+      }
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; _curAi = 0; busyRef.current = false; lastStatusRef.current = ""; setBusy(false); useStatusStore.getState().setText(""); onActivity?.(); });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; _curAi = 0; busyRef.current = false; lastStatusRef.current = ""; setBusy(false); useStatusStore.getState().setText(""); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;

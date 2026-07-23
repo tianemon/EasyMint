@@ -10,6 +10,7 @@ interface ChatState {
   loadSession: (sessionId: string, messages: StoredMessage[]) => void;
   evictSession: (sessionId: string) => void;
   appendUserMsg: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai" }) => void;
+  replaceAiEntries: (sessionId: string, entries: Record<string, any>[]) => number;
   appendAiEntry: (sessionId: string, entry: Record<string, any>) => number;
   nextMsgId: (sessionId: string) => number;
 }
@@ -54,6 +55,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
         [sessionId]: [...(s.messagesBySession[sessionId] || []), { ...msg, id }],
       },
     }));
+  },
+
+  replaceAiEntries: (sessionId: string, entries: Record<string, any>[]) => {
+    const msgs = get().messagesBySession[sessionId] || [];
+    const last = msgs[msgs.length - 1];
+    if (last && last.role === "ai") {
+      set((s) => ({
+        messagesBySession: {
+          ...s.messagesBySession,
+          [sessionId]: (s.messagesBySession[sessionId] || []).map((m) =>
+            m.id === last.id ? { ...m, entries } : m
+          ),
+        },
+      }));
+      return last.id;
+    }
+    const msgId = get().nextMsgId(sessionId);
+    set((s) => ({
+      messagesBySession: {
+        ...s.messagesBySession,
+        [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries, timestamp: Date.now() }],
+      },
+    }));
+    return msgId;
   },
 
   appendAiEntry: (sessionId, entry) => {

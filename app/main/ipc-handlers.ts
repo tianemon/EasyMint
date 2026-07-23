@@ -223,10 +223,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     return renameSession(id, title, projectPath);
   });
   ipcMain.handle("conv:delete", async (_e, { id, projectPath }) => {
-    // Step 1: gracefully interrupt and kill the chat so the SDK
-    //   subprocess terminates and flushes all pending writes.
+    // Step 1: gracefully interrupt and kill the chat
     const chat = agentService.findActiveChat(id);
-    if (chat?.query) await chat.query.interrupt().catch(() => {});
     if (chat) agentService.killChat(chat.chatId);
     // Step 2: brief delay for OS to reap the CLI subprocess, then
     //   delete the session file. Without the delay the SDK may
