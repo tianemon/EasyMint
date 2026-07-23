@@ -1,0 +1,696 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* Tailwind 4 主题：注册设计 token。
+   :root 里的同名 CSS 变量会覆盖这里的编译期默认值，实现运行时换肤。 */
+@theme {
+  --color-surface: #f5faf7;
+  --color-surface-alt: #ecf5f0;
+  --color-surface-hover: #e0f0e8;
+  --color-surface-elevated: #fff;
+  --color-overlay: rgb(0 0 0 / 0.5);
+  --color-tooltip-bg: #1a1a1a;
+  --color-tooltip-text: #fff;
+  --color-text-primary: #0d1f17;
+  --color-text-secondary: #5a7a6a;
+  --color-text-inverse: #fff;
+  --color-text-muted: #a0aec0;
+  --color-border: #c8ddd2;
+  --color-border-light: #e2e8f0;
+  --color-border-strong: #94a3b8;
+  --color-border-light: #e2e8f0;
+  --color-accent: #16a34a;
+  --color-accent-hover: #15803d;
+  --color-accent-light: #86efac;
+  --color-accent-soft: #16a34a1f;
+  --color-accent-bg: #16a34a1a;
+  --color-accent-subtle: #16a34a0d;
+  --color-accent-high: #16a34a33;
+  --color-accent-border: #16a34a33;
+  --color-accent-border-light: #16a34a1a;
+  --color-accent-border-strong: #16a34a4d;
+  --color-success: #17a34a;
+  --color-success-bg: #f0fdf4;
+  --color-success-border: #bbf7d0;
+  --color-warning: #d97706;
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+  --color-danger: #dc2626;
+  --color-danger-bg: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-danger-soft: #dc26261a;
+  --color-success-soft: #17a34a1a;
+  --color-info: #0891b2;
+  --color-info-bg: #0891b21f;
+  --color-dot-gray: #718096;
+  --color-dot-green: #16a34a;
+  --color-dot-amber: #d97706;
+  --color-dot-red: #dc2626;
+  --color-dot-blue: #3b82f6;
+  --color-editor-bg: #f8faf8;
+  --color-editor-gutter-bg: #f5faf7;
+  --color-editor-line-highlight: #e8f5ee;
+  --color-terminal-bg: #0d1f17;
+  --color-terminal-text: #e0f0e8;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  --ease-mint-ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/*
+ * EasyMint — Theme system
+ *
+ * Every visual property lives under :root as a CSS variable.
+ * To create a new theme, copy the :root block and change values.
+ */
+
+:root {
+  /* ── Surface ─────────────────────── */
+  --color-surface: #f5faf7;
+  --color-surface-alt: #ecf5f0;
+  --color-surface-hover: #e0f0e8;
+  --color-surface-elevated: #ffffff;
+  --color-overlay: rgba(0, 0, 0, 0.5);
+  --color-tooltip-bg: #1a1a1a;
+  --color-tooltip-text: #ffffff;
+
+  /* ── Text ────────────────────────── */
+  --color-text-primary: #0d1f17;
+  --color-text-secondary: #5a7a6a;
+  --color-text-inverse: #ffffff;
+  --color-text-muted: #a0aec0;
+
+  /* ── Border ──────────────────────── */
+  --color-border: #c8ddd2;
+  --color-border-light: #e2e8f0;
+
+  /* ── Brand / Accent ──────────────── */
+  --color-accent: #16a34a;
+  --color-accent-hover: #15803d;
+  --color-accent-light: #86efac;
+
+  /* ── Chat bubbles ───────────────── */
+  --color-user-bubble: var(--color-accent);
+  --color-user-bubble-text: var(--color-text-inverse);
+  --color-accent-soft: color-mix(in oklab, var(--color-accent) 12%, transparent);
+  --color-accent-bg: color-mix(in oklab, var(--color-accent) 10%, transparent);
+  --color-accent-subtle: color-mix(in oklab, var(--color-accent) 5%, transparent);
+  --color-accent-border: color-mix(in oklab, var(--color-accent) 20%, transparent);
+  --color-accent-border-light: color-mix(in oklab, var(--color-accent) 10%, transparent);
+  --color-accent-border-strong: color-mix(in oklab, var(--color-accent) 30%, transparent);
+
+  /* ── Semantic ────────────────────── */
+  --color-success: #17a34a;
+  --color-success-bg: #f0fdf4;
+  --color-success-border: #bbf7d0;
+  --color-warning: #d97706;
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+  --color-danger: #dc2626;
+  --color-danger-bg: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-info: #0891b2;
+  --color-info-bg: color-mix(in oklab, var(--color-info) 12%, transparent);
+
+  /* ── Border extras ──────────────── */
+  --color-border-strong: #94a3b8;
+
+  /* ── File type icons ────────────── */
+  --color-file-doc-bg: #fef2f2;
+  --color-file-doc-stroke: #ef4444;
+  --color-file-code-bg: #f0fdf4;
+  --color-file-code-stroke: #22c55e;
+  --color-file-data-bg: #eff6ff;
+  --color-file-data-stroke: #3b82f6;
+  --color-file-config-bg: #f5f3ff;
+  --color-file-config-stroke: #8b5cf6;
+  --color-file-other-bg: #fafaf9;
+  --color-file-other-stroke: #78716c;
+
+  /* ── Status dots ─────────────────── */
+  --color-dot-gray: #c8ccd4;
+  --color-dot-green: #16a34a;
+  --color-dot-amber: #d97706;
+  --color-dot-red: #dc2626;
+  --color-dot-blue: #3b82f6;
+
+  /* ── Code highlight ──────────────── */
+  --color-code-kw: #8250df;
+  --color-code-str: #16a34a;
+  --color-code-fn: #cf222e;
+  --color-code-cm: #5a7a6a;
+
+  /* ── Editor ─────────────────────── */
+  --color-editor-bg: #fafbfc;
+  --color-editor-gutter-bg: #f1f3f5;
+  --color-editor-line-highlight: #e2e8f0;
+
+  /* ── Monaco ─────────────────────── */
+  --color-monaco-bg: #ecf5f0;
+  --color-monaco-fg: #374151;
+  --color-monaco-line-highlight: #dcfce7;
+  --color-monaco-selection: #bbf7d0;
+  --color-monaco-inactive-selection: #dcfce7;
+  --color-monaco-gutter-bg: #e6f0ea;
+  --color-monaco-widget-bg: #ffffff;
+  --color-monaco-widget-border: #d1d5db;
+  --color-monaco-focus: var(--color-accent);
+  --color-monaco-cursor: var(--color-accent);
+  --color-monaco-line-number: #9CA3AF;
+  --color-monaco-line-number-active: var(--color-accent);
+
+  /* ── Terminal ────────────────────── */
+  --color-terminal-bg: #1a2e1f;
+  --color-terminal-text: #86efac;
+
+  /* ── Code block ────────────────── */
+  --color-code-block-bg: #f5f5f5;
+  --color-code-block-header: #e8e8e8;
+
+  /* ── Radius ──────────────────────── */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
+
+  /* ── Shadow ──────────────────────── */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+  --shadow-xl: 0 12px 40px rgba(0,0,0,0.16);
+
+  /* ── Font ────────────────────────── */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+
+
+  /* ── Animation ───────────────────── */
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --anim-fast: 150ms;
+  --anim-normal: 200ms;
+  --anim-slow: 250ms;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Dark theme
+   Override only color variables — radius/shadow/font/anim stay.
+   ═══════════════════════════════════════════════════════ */
+
+[data-theme="dark"] {
+  /* ── Surface — 外深内浅，4 级嵌套 ── */
+  --color-surface: #0d0d0d;            /* 最外层底色（标题栏、工具栏） */
+  --color-surface-alt: #161616;        /* 面板背景（聊天区、文件、任务面板） */
+  --color-surface-hover: #202020;      /* hover 态 */
+  --color-surface-elevated: #2a2a2a;   /* 弹窗/卡片（最内层，最亮） */
+
+  --color-overlay: rgba(0, 0, 0, 0.85);
+  --color-tooltip-bg: #cccccc;
+  --color-tooltip-text: #050505;
+
+  /* ── Text ────────────────────────── */
+  --color-text-primary: #cccccc;
+  --color-text-secondary: #888888;
+  --color-text-inverse: #0d0d0d;
+  --color-text-muted: #666666;
+
+  /* ── Border — 外深内浅，3 级嵌套 ── */
+  --color-border: #333333;             /* 常规分割线 */
+  --color-border-light: #282828;       /* 内部浅分割线 */
+  --color-border-strong: #444444;      /* 外框深分割线（最外层） */
+
+  /* ── Accent — 白/灰按钮系 ───────── */
+  --color-accent: #cccccc;
+  --color-accent-hover: #dddddd;
+  --color-accent-light: #aaaaaa;
+  --color-accent-soft: #1a1a1a;
+  --color-accent-bg: #1e1e1e;
+  --color-accent-subtle: #141414;
+  --color-accent-high: #2a2a2a;
+  --color-accent-border-strong: #3a3a3a;
+
+  /* ── Chat bubbles ───────────────── */
+  --color-user-bubble: #222222;
+  --color-user-bubble-text: #cccccc;
+
+  /* ── Semantic — 仅 success 保留绿 ── */
+  --color-success: #22c55e;
+  --color-success-bg: #0a2e14;
+  --color-success-border: #166534;
+  --color-warning: #888888;
+  --color-warning-bg: #161616;
+  --color-warning-border: #2a2a2a;
+  --color-danger: #ef4444;
+  --color-danger-bg: #2e0a0a;
+  --color-danger-border: #7f1d1d;
+  --color-danger-soft: #3a0a0a;
+  --color-success-soft: #0a1e0e;
+  --color-info: #888888;
+  --color-info-bg: #161616;
+
+  /* ── Status dots — 仅 green + red 有色 ─── */
+  --color-dot-gray: #3a3a3a;
+  --color-dot-green: #22c55e;
+  --color-dot-amber: #555555;
+  --color-dot-red: #ef4444;
+  --color-dot-blue: #555555;
+
+  /* ── Code highlight — 灰度 ───────── */
+  --color-code-kw: #aaaaaa;
+  --color-code-str: #999999;
+  --color-code-fn: #cccccc;
+  --color-code-cm: #666666;
+
+  /* ── Editor ─────────────────────── */
+  --color-editor-bg: #0d0d0d;
+  --color-editor-gutter-bg: #161616;
+  --color-editor-line-highlight: #2a2a2a;
+
+  /* ── Monaco ─────────────────────── */
+  --color-monaco-bg: #0d0d0e;
+  --color-monaco-fg: #cccccd;
+  --color-monaco-line-highlight: #2a2a2b;
+  --color-monaco-selection: #333334;
+  --color-monaco-inactive-selection: #161617;
+  --color-monaco-gutter-bg: #161617;
+  --color-monaco-widget-bg: #363637;
+  --color-monaco-widget-border: #2a2a2b;
+  --color-monaco-focus: var(--color-accent);
+  --color-monaco-cursor: var(--color-accent);
+  --color-monaco-line-number: #555556;
+  --color-monaco-line-number-active: var(--color-accent);
+
+  /* ── Terminal ────────────────────── */
+  --color-terminal-bg: #0d0d0d;
+  --color-terminal-text: #cccccc;
+
+  /* ── File type icons — 灰度区分 ──── */
+  --color-file-doc-bg: #161616;
+  --color-file-doc-stroke: #999999;
+  --color-file-code-bg: #161616;
+  --color-file-code-stroke: #aaaaaa;
+  --color-file-data-bg: #161616;
+  --color-file-data-stroke: #999999;
+  --color-file-config-bg: #161616;
+  --color-file-config-stroke: #aaaaaa;
+  --color-file-other-bg: #161616;
+  --color-file-other-stroke: #777777;
+
+  /* ── Code block ────────────────── */
+  --color-code-block-bg: #2a2a2a;
+  --color-code-block-header: #363636;
+}
+
+/* ── Dark mode overrides ──────────────────────────────── */
+
+
+/* ── Focus ring ──────────────────────────────────── */
+*:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-accent) 40%, transparent);
+  border-radius: 3px;
+}
+
+/* ── Base ─────────────────────────────────────────── */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  overflow: hidden;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+#app-shell {
+  width: 100%;
+  height: 100vh;
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+/* ── Smooth transitions ───────────────────────────── */
+
+button, a, select, .transition-all {
+  transition: all var(--anim-slow) var(--ease-smooth);
+}
+
+/* ── Scrollbar ────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-secondary); }
+
+/* ── Form inputs ──────────────────────────────────── */
+
+.input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  outline: none;
+  font-size: var(--font-size-sm);
+}
+.chat-input:focus {
+  --tw-ring-color: color-mix(in oklab, var(--color-accent) 30%, transparent);
+}
+
+.input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+.input::placeholder {
+  color: var(--color-text-secondary);
+}
+
+select.input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 12 12' fill='none' stroke='%23999' stroke-width='1.2' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M3 5l3 3 3-3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 2rem;
+  cursor: pointer;
+}
+
+/* ── Tooltip ──────────────────────────────────────── */
+
+.tip { position: relative; }
+.tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-tooltip-bg);
+  color: var(--color-tooltip-text);
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+  z-index: 100;
+}
+.tip:hover::after { opacity: 1; }
+
+/* ── Sidebar tooltip ──────────────────────────────── */
+
+[data-tooltip] { position: relative; }
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 110%;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--color-text-primary);
+  color: var(--color-surface);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+
+  pointer-events: none;
+  z-index: 50;
+}
+
+/* ── Inline tooltip (looks like native macOS) ─────── */
+
+[data-tip] { position: relative; }
+[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--color-tooltip-bg);
+  color: var(--color-tooltip-text);
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* ── Drag handle ──────────────────────────────────── */
+
+.drag-handle {
+  width: 1px;
+  height: 100%;
+  cursor: col-resize;
+  background: var(--color-border);
+  position: relative;
+  flex-shrink: 0;
+  transition: transform 150ms var(--ease-smooth);
+}
+.drag-handle:hover, .drag-handle.dragging {
+  transform: scaleX(3);
+  background: var(--color-accent);
+}
+.drag-handle::before {
+  content: '';
+  position: absolute;
+  left: -2px; right: -2px;
+  top: 0; bottom: 0;
+  z-index: 0;
+  transition: left 150ms var(--ease-smooth), right 150ms var(--ease-smooth);
+}
+.drag-handle:hover::before, .drag-handle.dragging::before {
+  left: -7px; right: -7px;
+}
+
+/* ── Panel peek ───────────────────────────────────── */
+
+.panel-peek {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px; height: 48px;
+  display: flex;
+  align-items: center; justify-content: center;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all var(--anim-slow) var(--ease-smooth);
+  z-index: 10;
+}
+.panel-peek-left  { left: 44px; border-left: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.panel-peek-right { right: 0;   border-right: 0; border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.panel-peek:hover { background: var(--color-accent); color: var(--color-text-inverse); }
+
+/* ── Grid transition ──────────────────────────────── */
+
+.grid-panels {
+  transition: grid-template-columns var(--anim-normal) var(--ease-smooth);
+}
+
+/* ── Dropdown animation ───────────────────────────── */
+
+.dropdown-menu {
+  animation: dropdownIn var(--anim-fast) var(--ease-smooth);
+}
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateX(-4px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Message entry ────────────────────────────────── */
+
+.msg-in { animation: msgIn var(--anim-normal) var(--ease-smooth); }
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Task pulse ───────────────────────────────────── */
+
+@keyframes taskPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+.task-pulse { animation: taskPulse 1.5s ease-in-out infinite; }
+
+/* ── Code syntax ──────────────────────────────────── */
+
+.kw  { color: var(--color-code-kw); }
+.str { color: var(--color-code-str); }
+.fn  { color: var(--color-code-fn); }
+.cm  { color: var(--color-code-cm); font-style: italic; }
+
+.tabbar-scroll { scrollbar-width: none; }
+.tabbar-scroll::-webkit-scrollbar { display: none; }
+
+/* ── Modal ────────────────────────────────────────── */
+
+.modal-overlay { animation: fadeIn var(--anim-fast) var(--ease-smooth); }
+.modal-card    { animation: modalIn var(--anim-normal) var(--ease-smooth); }
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes progressIndeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
+.animate-progress-indeterminate {
+  animation: progressIndeterminate 2s ease-in-out infinite;
+}
+
+/* ── Scan / Onboarding ────────────────────────────── */
+
+.scan-area {
+  transition: border-color var(--anim-normal) var(--ease-smooth),
+              background-color var(--anim-normal) var(--ease-smooth);
+}
+@keyframes scanIconSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.scan-icon-spin { animation: scanIconSpin 1s linear infinite; }
+
+.terminal-output {
+  background: var(--color-terminal-bg);
+  color: var(--color-terminal-text);
+  min-height: 100px;
+  position: relative;
+}
+@keyframes terminalLineIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.terminal-line { animation: terminalLineIn var(--anim-fast) var(--ease-smooth); }
+
+@keyframes terminalCursorBlink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+.terminal-cursor {
+  display: inline-block;
+  width: 8px; height: 14px;
+  background: var(--color-accent);
+  vertical-align: middle;
+  margin-left: 2px;
+  animation: terminalCursorBlink 0.8s ease-in-out infinite;
+}
+
+/* ── SVG fill/stroke utilities ────────────────────────── */
+
+.fill-success  { fill: var(--color-success); }
+.fill-warning  { fill: var(--color-warning); }
+.fill-danger   { fill: var(--color-danger); }
+.fill-accent   { fill: var(--color-accent); }
+.fill-inverse  { fill: var(--color-text-inverse); }
+.fill-none     { fill: none; }
+.stroke-success { stroke: var(--color-success); }
+.stroke-warning { stroke: var(--color-warning); }
+.stroke-danger  { stroke: var(--color-danger); }
+.stroke-accent  { stroke: var(--color-accent); }
+.stroke-accent-light { stroke: var(--color-accent-light); }
+.stroke-muted   { stroke: var(--color-border-strong); }
+.stroke-inverse { stroke: var(--color-text-inverse); }
+.stroke-none    { stroke: none; }
+
+/* ── File type icon fills ─────────────────────────── */
+.fill-file-doc    { fill: var(--color-file-doc-stroke); }
+.fill-file-code   { fill: var(--color-file-code-stroke); }
+.fill-file-data   { fill: var(--color-file-data-stroke); }
+.fill-file-config { fill: var(--color-file-config-stroke); }
+.fill-file-other  { fill: var(--color-file-other-stroke); }
+.stroke-file-doc    { stroke: var(--color-file-doc-stroke); }
+.stroke-file-code   { stroke: var(--color-file-code-stroke); }
+.stroke-file-data   { stroke: var(--color-file-data-stroke); }
+.stroke-file-config { stroke: var(--color-file-config-stroke); }
+.stroke-file-other  { stroke: var(--color-file-other-stroke); }
+
+/* ── Mint button shimmer ──────────────────────────────── */
+
+/* Mint 签名字体 — 11 款可选，取消注释切换 */
+@font-face { font-family: 'Mint'; src: url('/fonts/Pacifico.ttf') format('truetype'); font-display: swap; }       /* 圆润可爱 */
+/* @font-face { font-family: 'Mint'; src: url('/fonts/KaushanScript.ttf') format('truetype'); font-display: swap; } *//* 大胆奔放 */
+/* @font-face { font-family: 'Mint'; src: url('/fonts/MarckScript.ttf') format('truetype'); font-display: swap; } 马克笔触 */
+/* @font-face { font-family: 'Mint'; src: url('/fonts/DancingScript.ttf') format('truetype'); font-weight: 400 700; font-display: swap; }  活泼手写 */
+/* @font-face { font-family: 'Mint'; src: url('/fonts/GreatVibes.ttf') format('truetype'); font-display: swap; } */  /* 优雅斜体 */
+/* @font-face { font-family: 'Mint'; src: url('/fonts/Caveat.ttf') format('truetype'); font-weight: 400 700; font-display: swap; } */       /* 自然手写 */
+/* @font-face { font-family: 'Mint'; src: url('/fonts/Qwigley.ttf') format('truetype'); font-display: swap; } */     /* 极细铜版 */
+/* @font-face { font-family: 'Mint'; src: url('/fonts/Tangerine.ttf') format('truetype'); font-display: swap; } */   /* 纤细典雅 */
+/* @font-face { font-family: 'Mint'; src: url('/fonts/AlexBrush.ttf') format('truetype'); font-display: swap; }   经典书法 */
+/* @font-face { font-family: 'Mint'; src: url('/fonts/Sacramento.ttf') format('truetype'); font-display: swap; } */  /* 清秀手帐 */
+
+/* ── Shimmer gradient — 双主题色系 ──────────── */
+:root  { --shimmer-1: #16a34a; --shimmer-2: #22c55e; --shimmer-3: #eab308; --shimmer-4: #facc15; --shimmer-5: #4ade80; }
+[data-theme="dark"] { --shimmer-1: #818cf8; --shimmer-2: #a78bfa; --shimmer-3: #f472b6; --shimmer-4: #c084fc; --shimmer-5: #6366f1; }
+
+/* 暗色模式下 prose Markdown 渲染：覆盖 typography 默认深色字体 */
+[data-theme="dark"] .prose {
+  --tw-prose-body: #d1d5db;
+  --tw-prose-headings: #f3f4f6;
+  --tw-prose-lead: #d1d5db;
+  --tw-prose-links: #60a5fa;
+  --tw-prose-bold: #f3f4f6;
+  --tw-prose-counters: #9ca3af;
+  --tw-prose-bullets: #6b7280;
+  --tw-prose-hr: #374151;
+  --tw-prose-quotes: #d1d5db;
+  --tw-prose-quote-borders: #374151;
+  --tw-prose-captions: #9ca3af;
+  --tw-prose-code: #f3f4f6;
+  --tw-prose-pre-code: #d1d5db;
+  --tw-prose-pre-bg: #1f2937;
+  --tw-prose-th-borders: #4b5563;
+  --tw-prose-td-borders: #374151;
+}
+
+@keyframes shimmerSweep {
+  0%   { background-position: 300% 0; }
+  100% { background-position: -300% 0; }
+}
+
+.mint-shimmer {
+  font-family: 'Mint', 'Snell Roundhand', 'Apple Chancery', 'Brush Script MT', 'Segoe Script', cursive;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  animation: shimmerSweep 6s linear infinite;
+  background: linear-gradient(
+    90deg,
+    var(--shimmer-1) 0%,
+    var(--shimmer-2) 15%,
+    var(--shimmer-3) 35%,
+    var(--shimmer-4) 50%,
+    var(--shimmer-5) 65%,
+    var(--shimmer-2) 85%,
+    var(--shimmer-1) 100%
+  );
+  background-size: 300% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── xterm overrides ──────────────────────────────── */
+
+.xterm { padding: 8px; }

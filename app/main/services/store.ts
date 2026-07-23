@@ -1,0 +1,260 @@
+import fs from "fs";
+import path from "path";
+import os from "os";
+import type { ProviderConfig, ApiProvidersData } from "../../shared/platform-presets";
+import { resolveHome } from "../utils/paths";
+
+export const DATA_DIR = path.join(os.homedir(), ".easymint");
+
+// ── 多平台 API 供应商配置 ──────────────────────
+// 类型定义见 app/shared/platform-presets.ts
+
+export type { ProviderConfig, ApiProvidersData };
+
+// ───────────────────────────────────────────────
+
+interface Project {
+  id: string;
+  name: string;
+  path: string;
+  createdAt: string;
+  lastOpenedAt: string;
+  status: "setup" | "development" | "completed";
+  description: string;
+}
+
+interface Session {
+  id: string;
+  projectId: string;
+  title: string;
+  createdAt: string;
+  lastActiveAt: string;
+  claudeSessionId: string;
+  status: "active" | "completed";
+}
+
+interface Settings {
+  defaultProjectDir: string;
+  claudePath: string;
+  terminalFontSize: number;
+  evaluateMode?: boolean;
+  apiBaseUrl?: string;
+  apiKey?: string;
+  model?: string;
+  availableModels?: string[];
+  apiKeys?: Record<string, string>;
+  builtinTools?: Record<string, boolean>;
+  lastProjectId?: string;
+  setupComplete?: boolean;
+  contextThreshold?: number;
+  context1M?: boolean;
+  showThinking?: boolean;
+  showToolUse?: boolean;
+  apiProviders?: ApiProvidersData;
+}
+
+const EM_DEFAULTS = {
+  setupComplete: false,
+  defaultProjectDir: "~/EasyMintProject",
+  claudePath: "",
+  terminalFontSize: 14,
+  contextThreshold: 65,
+  context1M: false,
+};
+
+export class Store {
+  private dataDir: string;
+  private projectsPath: string;
+  private emSettingsPath: string;
+  private sdkSettingsPath: string;
+
+  constructor(baseDir?: string) {
+    this.dataDir = baseDir ?? DATA_DIR;
+    fs.mkdirSync(this.dataDir, { recursive: true });
+    this.projectsPath = path.join(this.dataDir, "projects.json");
+    this.emSettingsPath = path.join(this.dataDir, "em-settings.json");
+    this.sdkSettingsPath = path.join(this.dataDir, "settings.json");
+    this.ensureFiles();
+  }
+
+  private ensureFiles(): void {
+    if (!fs.existsSync(this.projectsPath)) {
+      fs.writeFileSync(this.projectsPath, JSON.stringify({ projects: [] }, null, 2));
+    }
+    // EM settings
+    if (!fs.existsSync(this.emSettingsPath)) {
+      fs.writeFileSync(this.emSettingsPath, JSON.stringify(EM_DEFAULTS, null, 2));
+    }
+    // SDK settings (don't touch if SDK already created it; only create minimal if missing)
+    if (!fs.existsSync(this.sdkSettingsPath)) {
+      const dir = path.dirname(this.sdkSettingsPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(this.sdkSettingsPath, JSON.stringify({}, null, 2));
+    }
+  }
+
+  getProjects(): Project[] {
+    const raw = fs.readFileSync(this.projectsPath, "utf-8");
+    return JSON.parse(raw).projects;
+  }
+
+  saveProjects(projects: Project[]): void {
+    fs.writeFileSync(this.projectsPath, JSON.stringify({ projects }, null, 2));
+  }
+
+  updateProject(id: string, patch: { name?: string; path?: string }): Project | undefined {
+    const projects = this.getProjects();
+    const idx = projects.findIndex((p) => p.id === id);
+    if (idx === -1) return undefined;
+    projects[idx] = { ...projects[idx], ...patch, lastOpenedAt: new Date().toISOString() };
+    this.saveProjects(projects);
+    return projects[idx];
+  }
+
+  getSettings(): Settings {
+    // Read EM-specific settings
+    let emData: Record<string, unknown> = {};
+    if (fs.existsSync(this.emSettingsPath)) {
+      emData = JSON.parse(fs.readFileSync(this.emSettingsPath, "utf-8"));
+    }
+
+    // Read SDK settings (for apiKey, apiBaseUrl)
+    let sdkData: Record<string, unknown> = {};
+    if (fs.existsSync(this.sdkSettingsPath)) {
+      sdkData = JSON.parse(fs.readFileSync(this.sdkSettingsPath, "utf-8"));
+    }
+    const env = (sdkData.env as Record<string, string>) || {};
+
+    return {
+      defaultProjectDir: resolveHome((emData.defaultProjectDir as string) || EM_DEFAULTS.defaultProjectDir),
+      claudePath: (emData.claudePath as string) || "",
+      terminalFontSize: (emData.terminalFontSize as number) || EM_DEFAULTS.terminalFontSize,
+      evaluateMode: emData.evaluateMode as boolean | undefined,
+      apiBaseUrl: env.ANTHROPIC_BASE_URL || (sdkData.apiBaseUrl as string),
+      apiKey: env.ANTHROPIC_AUTH_TOKEN || (sdkData.apiKey as string),
+      model: (emData.model as string) || undefined,
+      availableModels: (emData.availableModels as string[]) || undefined,
+      apiKeys: (emData.apiKeys as Record<string, string>) || undefined,
+      builtinTools: (emData.builtinTools as Record<string, boolean>) || undefined,
+      setupComplete: emData.setupComplete as boolean | undefined,
+      lastProjectId: emData.lastProjectId as string | undefined,
+      contextThreshold: (emData.contextThreshold as number) ?? EM_DEFAULTS.contextThreshold,
+      context1M: (emData.context1M as boolean) ?? false,
+      showThinking: emData.showThinking as boolean | undefined,
+      showToolUse: emData.showToolUse as boolean | undefined,
+      apiProviders: (emData.apiProviders as ApiProvidersData) || undefined,
+    };
+  }
+
+  getLastProjectId(): string | null {
+    return this.getSettings().lastProjectId ?? null;
+  }
+
+  setLastProjectId(projectId: string): void {
+    const s = this.getSettings();
+    s.lastProjectId = projectId;
+    this.writeEmSettings(s);
+  }
+
+  /** Write EM-only fields to ~/.easymint/settings.json */
+  private writeEmSettings(settings: Settings): void {
+    const dir = path.dirname(this.emSettingsPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const data: Record<string, unknown> = {};
+    if (fs.existsSync(this.emSettingsPath)) {
+      Object.assign(data, JSON.parse(fs.readFileSync(this.emSettingsPath, "utf-8")));
+    }
+    data.defaultProjectDir = settings.defaultProjectDir;
+    data.claudePath = settings.claudePath;
+    data.terminalFontSize = settings.terminalFontSize;
+    data.evaluateMode = settings.evaluateMode;
+    data.lastProjectId = settings.lastProjectId;
+    data.setupComplete = settings.setupComplete;
+    // 同步激活供应商的模型列表到旧字段（ChatPanel 下拉引用）
+    const providers = settings.apiProviders;
+    const activeId = providers?.current;
+    const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
+    if (activeCfg) {
+      if (activeCfg.model) data.model = activeCfg.model;
+      if (activeCfg.models.length > 0) data.availableModels = activeCfg.models;
+    } else {
+      if (settings.model) data.model = settings.model;
+      if (settings.availableModels) data.availableModels = settings.availableModels;
+    }
+    if (settings.apiKeys) data.apiKeys = settings.apiKeys;
+    if (settings.builtinTools) data.builtinTools = settings.builtinTools;
+    if (settings.contextThreshold !== undefined) data.contextThreshold = settings.contextThreshold;
+    if (settings.context1M !== undefined) data.context1M = settings.context1M;
+    if (settings.showThinking !== undefined) data.showThinking = settings.showThinking;
+    if (settings.showToolUse !== undefined) data.showToolUse = settings.showToolUse;
+    if (settings.apiProviders) data.apiProviders = settings.apiProviders;
+    fs.writeFileSync(this.emSettingsPath, JSON.stringify(data, null, 2));
+  }
+
+  /** Write SDK fields (apiKey, apiBaseUrl) to ~/.easymint/settings.json */
+  private writeSdkSettings(settings: Settings): void {
+    const dir = path.dirname(this.sdkSettingsPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const data: Record<string, unknown> = {};
+    if (fs.existsSync(this.sdkSettingsPath)) {
+      Object.assign(data, JSON.parse(fs.readFileSync(this.sdkSettingsPath, "utf-8")));
+    }
+    // 优先从激活的供应商配置读取，fallback 到旧字段
+    const providers = settings.apiProviders;
+    const activeId = providers?.current;
+    const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
+    const env = (data.env as Record<string, string>) || {};
+    if (activeCfg) {
+      env.ANTHROPIC_AUTH_TOKEN = activeCfg.apiKey;
+      if (activeCfg.baseUrl) env.ANTHROPIC_BASE_URL = activeCfg.baseUrl;
+    } else {
+      if (settings.apiKey) env.ANTHROPIC_AUTH_TOKEN = settings.apiKey;
+      if (settings.apiBaseUrl) env.ANTHROPIC_BASE_URL = settings.apiBaseUrl;
+    }
+    data.env = env;
+    fs.writeFileSync(this.sdkSettingsPath, JSON.stringify(data, null, 2));
+  }
+
+  saveSettings(settings: Settings): void {
+    this.writeEmSettings(settings);
+    this.writeSdkSettings(settings);
+  }
+
+  getSessionsDir(projectId: string): string {
+    const dir = path.join(this.dataDir, "sessions", projectId);
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+
+  listSessions(projectId: string): Session[] {
+    const sessionsFile = path.join(this.getSessionsDir(projectId), "sessions.json");
+    if (!fs.existsSync(sessionsFile)) return [];
+    return JSON.parse(fs.readFileSync(sessionsFile, "utf-8")).sessions;
+  }
+
+  saveSessions(projectId: string, sessions: Session[]): void {
+    const sessionsFile = path.join(this.getSessionsDir(projectId), "sessions.json");
+    fs.writeFileSync(sessionsFile, JSON.stringify({ sessions }, null, 2));
+  }
+
+  deleteSession(projectId: string, sessionId: string): void {
+    const sessionsFile = path.join(this.getSessionsDir(projectId), "sessions.json");
+    if (!fs.existsSync(sessionsFile)) return;
+    const data = JSON.parse(fs.readFileSync(sessionsFile, "utf-8"));
+    data.sessions = data.sessions.filter((s: Session) => s.id !== sessionId);
+    fs.writeFileSync(sessionsFile, JSON.stringify(data, null, 2));
+  }
+
+  /** SDK 命令缓存读写（commands.json）— 启动时即使没活跃 query 也能展示列表 */
+  getCommandsCache(): Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> {
+    const file = path.join(this.dataDir, "commands.json");
+    if (!fs.existsSync(file)) return [];
+    const data = JSON.parse(fs.readFileSync(file, "utf-8"));
+    return Array.isArray(data?.commands) ? data.commands : [];
+  }
+
+  setCommandsCache(commands: Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }>): void {
+    const file = path.join(this.dataDir, "commands.json");
+    fs.writeFileSync(file, JSON.stringify({ commands, updatedAt: Date.now() }, null, 2));
+  }
+}

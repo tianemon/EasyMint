@@ -1,0 +1,17 @@
+{
+  "project": "{{PROJECT_NAME}}",
+  "description": "{{PROJECT_DESCRIPTION}}",
+  "tasks": [
+    {
+      "id": 1,
+      "title": "{{TASK_TITLE}}",
+      "description": "{{TASK_DESCRIPTION}}",
+      "steps": [
+        "{{STEP_1}}",
+        "{{STEP_2}}",
+        "{{STEP_3}}"
+      ],
+      "passes": false
+    }
+  ]
+}

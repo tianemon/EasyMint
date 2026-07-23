@@ -1,0 +1,7 @@
+node_modules/
+.env
+.env.local
+temp/
+.playwright-mcp/
+.vite/
+.DS_Store

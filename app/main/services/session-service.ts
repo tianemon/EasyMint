@@ -1,0 +1,266 @@
+/**
+ * Session Service — thin wrapper around SDK session APIs.
+ *
+ * SDK handles all session storage and lifecycle. We only add:
+ *   - pinned status (~/.easymint/pinned-sessions.json)
+ */
+
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync } from "node:fs";
+import path from "node:path";
+import os from "node:os";
+// TODO: 步骤四 - 替换为 Pi SessionManager
+// import type { SDKSessionInfo, SessionMessage } from "@anthropic-ai/claude-agent-sdk";
+type SDKSessionInfo = Record<string, unknown>;
+type SessionMessage = Record<string, unknown>;
+import { resolveHome } from "../utils/paths";
+import { deleteCache } from "./session-cache";
+
+const DATA_DIR = path.join(os.homedir(), ".easymint");
+const PINNED_PATH = path.join(DATA_DIR, "pinned-sessions.json");
+const ARCHIVED_PATH = path.join(DATA_DIR, "archived-sessions.json");
+const SESSION_TYPES_PATH = path.join(DATA_DIR, "session-types.json");
+
+/** Normalize a directory path for SDK session APIs — expand ~, resolve to absolute, strip trailing slash, use forward slashes. */
+function normalizeDir(dir: string): string {
+  const resolved = path.resolve(resolveHome(dir));
+  return resolved.replace(/\\/g, "/");
+}
+
+function ensureDir(): void {
+  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// ── Pinned storage ─────────────────────────────────
+
+function readPinned(): Record<string, number> {
+  if (!existsSync(PINNED_PATH)) return {};
+  return JSON.parse(readFileSync(PINNED_PATH, "utf-8"));
+}
+
+function writePinned(data: Record<string, number>): void {
+  ensureDir();
+  writeFileSync(PINNED_PATH, JSON.stringify(data, null, 2));
+}
+
+function readArchived(): Record<string, number> {
+  if (!existsSync(ARCHIVED_PATH)) return {};
+  return JSON.parse(readFileSync(ARCHIVED_PATH, "utf-8"));
+}
+
+function writeArchived(data: Record<string, number>): void {
+  ensureDir();
+  writeFileSync(ARCHIVED_PATH, JSON.stringify(data, null, 2));
+}
+
+// ── SDK satellite cleanup ─────────────────────────
+
+/**
+ * SDK stores runtime data across multiple directories. When we delete a session,
+ * we need to clean up all satellite data, not just the .jsonl under projects/.
+ *
+ * Both ~/.easymint/ and ~/.claude/ are checked because:
+ *   - EasyMint sets CLAUDE_CONFIG_DIR=~/.easymint/, so SDK writes project data there
+ *   - Some SDK runtime data always goes to ~/.claude/ regardless of env
+ */
+function cleanupSessionSatellites(sessionId: string): void {
+  const configDirs = [
+    path.join(os.homedir(), ".easymint"),
+    path.join(os.homedir(), ".claude"),
+  ];
+
+  for (const base of configDirs) {
+    // Directories named with this session ID
+    for (const sub of ["session-env", "tasks", "file-history"]) {
+      const dir = path.join(base, sub, sessionId);
+      if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
+    }
+
+    // telemetry/ files that start with or contain this session ID
+    const teleDir = path.join(base, "telemetry");
+    if (existsSync(teleDir)) {
+      for (const f of readdirSync(teleDir)) {
+        if (f.includes(sessionId)) {
+          rmSync(path.join(teleDir, f), { force: true });
+        }
+      }
+    }
+  }
+}
+
+// ── SDK wrappers ───────────────────────────────────
+
+// TODO: 步骤四 - 替换为 Pi SessionManager
+// type ListSessionsFn = typeof import("@anthropic-ai/claude-agent-sdk").listSessions;
+// ...
+// let _listSessions, _getSessionMessages, _renameSession, _deleteSession, _getSessionInfo;
+
+async function sdk() {
+  throw new Error("Session service not yet migrated to Pi SDK — 步骤四待实现");
+}
+
+export interface SessionListItem {
+  sessionId: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  pinnedAt?: number;
+  archivedAt?: number;
+}
+
+function getDesignSessionIds(): Set<string> {
+  try {
+    if (existsSync(SESSION_TYPES_PATH)) {
+      const data = JSON.parse(readFileSync(SESSION_TYPES_PATH, "utf-8"));
+      return new Set(
+        Object.entries(data)
+          .filter(([, type]) => type === "designer")
+          .map(([id]) => id)
+      );
+    }
+  } catch { /* ignore */ }
+  return new Set();
+}
+
+export async function listSessions(projectPath: string): Promise<SessionListItem[]> {
+  const { listSessions: ls } = await sdk();
+  const sessions = await ls({ dir: normalizeDir(projectPath) });
+  const pinned = readPinned();
+  const archived = readArchived();
+  const designIds = getDesignSessionIds();
+
+  return sessions
+    .filter((s: SDKSessionInfo) => !designIds.has(s.sessionId))
+    .map((s: SDKSessionInfo) => ({
+      sessionId: s.sessionId,
+      title: s.customTitle || s.summary || s.firstPrompt || "新会话",
+      createdAt: s.createdAt ?? s.lastModified,
+      updatedAt: s.lastModified,
+      pinnedAt: pinned[s.sessionId] || undefined,
+      archivedAt: archived[s.sessionId] || undefined,
+    }))
+    .sort((a, b) => {
+      const ap = a.pinnedAt || 0;
+      const bp = b.pinnedAt || 0;
+      if (ap && bp) return bp - ap;
+      if (ap) return -1;
+      if (bp) return 1;
+      return b.updatedAt - a.updatedAt;
+    });
+}
+
+export async function listDesignSessions(projectPath: string): Promise<SessionListItem[]> {
+  const { listSessions: ls } = await sdk();
+  const sessions = await ls({ dir: normalizeDir(projectPath) });
+  const pinned = readPinned();
+  const archived = readArchived();
+  const designIds = getDesignSessionIds();
+
+  return sessions
+    .filter((s: SDKSessionInfo) => designIds.has(s.sessionId))
+    .map((s: SDKSessionInfo) => ({
+      sessionId: s.sessionId,
+      title: s.customTitle || s.summary || s.firstPrompt || "新会话",
+      createdAt: s.createdAt ?? s.lastModified,
+      updatedAt: s.lastModified,
+      pinnedAt: pinned[s.sessionId] || undefined,
+      archivedAt: archived[s.sessionId] || undefined,
+    }))
+    .sort((a, b) => {
+      const ap = a.pinnedAt || 0;
+      const bp = b.pinnedAt || 0;
+      if (ap && bp) return bp - ap;
+      if (ap) return -1;
+      if (bp) return 1;
+      return b.updatedAt - a.updatedAt;
+    });
+}
+
+export function getSessionMessages(sessionId: string, projectPath: string): SessionMessage[] {
+  const resolved = path.resolve(resolveHome(projectPath));
+  const slug = resolved.replace(/\//g, "-");
+  const filePath = path.join(DATA_DIR, "projects", slug, `${sessionId}.jsonl`);
+  if (!existsSync(filePath)) return [];
+
+  const raw = readFileSync(filePath, "utf-8");
+  const messages: SessionMessage[] = [];
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const m = JSON.parse(trimmed) as Record<string, unknown>;
+      if (m.type !== "user" && m.type !== "assistant") continue;
+      if (m.isMeta) continue;
+      messages.push({
+        type: m.type as "user" | "assistant",
+        uuid: (m.uuid as string) || "",
+        session_id: (m.sessionId as string) || sessionId,
+        message: m.message,
+        parent_tool_use_id: (m.parentUuid as string) || null,
+      });
+    } catch { /* skip malformed lines */ }
+  }
+  return messages;
+}
+
+export async function renameSession(sessionId: string, title: string, projectPath: string): Promise<void> {
+  const { renameSession: rs } = await sdk();
+  await rs(sessionId, title, { dir: normalizeDir(projectPath) });
+}
+
+export async function deleteSession(sessionId: string, projectPath: string): Promise<void> {
+  const { deleteSession: ds } = await sdk();
+  await ds(sessionId, { dir: normalizeDir(projectPath) });
+  const pinned = readPinned();
+  delete pinned[sessionId];
+  writePinned(pinned);
+  deleteCache(sessionId);
+  // Clean up SDK satellite directories (session-env, tasks, file-history, telemetry)
+  cleanupSessionSatellites(sessionId);
+}
+
+export async function getSessionInfo(sessionId: string, projectPath: string): Promise<SessionListItem | null> {
+  const { getSessionInfo: gsi } = await sdk();
+  const info = await gsi(sessionId, { dir: normalizeDir(projectPath) });
+  if (!info) return null;
+  const pinned = readPinned();
+  return {
+    sessionId: info.sessionId,
+    title: info.customTitle || info.summary || info.firstPrompt || "新会话",
+    createdAt: info.createdAt ?? info.lastModified,
+    updatedAt: info.lastModified,
+    pinnedAt: pinned[info.sessionId] || undefined,
+  };
+}
+
+/** 检查 SDK 记录中是否有 customTitle（用户手动命名过） */
+export async function hasCustomTitle(sessionId: string, projectPath: string): Promise<boolean> {
+  const { getSessionInfo: gsi } = await sdk();
+  const info = await gsi(sessionId, { dir: normalizeDir(projectPath) });
+  return !!info?.customTitle;
+}
+
+export function togglePin(sessionId: string): boolean {
+  const pinned = readPinned();
+  const currently = !!pinned[sessionId];
+  if (currently) {
+    delete pinned[sessionId];
+  } else {
+    pinned[sessionId] = Date.now();
+  }
+  writePinned(pinned);
+  return !currently;
+}
+
+/** Archive a session — marks it with a timestamp. Archived sessions get a clock icon. */
+export function archiveSession(sessionId: string): void {
+  const archived = readArchived();
+  archived[sessionId] = Date.now();
+  writeArchived(archived);
+}
+
+/** Unarchive — remove from archive list (back to normal active state). */
+export function unarchiveSession(sessionId: string): void {
+  const archived = readArchived();
+  delete archived[sessionId];
+  writeArchived(archived);
+}

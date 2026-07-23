@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EM HTML Editor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+    #app { display: flex; flex-direction: column; height: 100%; }
+
+    /* 顶部工具栏 */
+    #toolbar { height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+      background: #fff; border-bottom: 1px solid #e4e4e7; flex-shrink: 0; }
+    #toolbar button { height: 28px; padding: 0 12px; border: 1px solid #d4d4d8; border-radius: 6px;
+      background: #fff; font-size: 13px; cursor: pointer; white-space: nowrap; }
+    #toolbar button:hover { background: #f4f4f5; }
+    #toolbar button.primary { background: #16a34a; color: #fff; border-color: #16a34a; }
+    #toolbar button.primary:hover { background: #15803d; }
+    #toolbar .sep { width: 1px; height: 20px; background: #e4e4e7; margin: 0 4px; }
+    #toolbar .title { font-size: 13px; font-weight: 600; color: #52525b; }
+    #toolbar #status { font-size: 11px; color: #a1a1aa; margin-left: auto; }
+
+    /* 主体区 */
+    #main { display: flex; flex: 1; overflow: hidden; }
+    #tree-panel { width: 180px; background: #fafafa; border-right: 1px solid #e4e4e7;
+      overflow-y: auto; flex-shrink: 0; padding: 6px 0; font-size: 12px; }
+    #tree-panel h3 { font-size: 11px; color: #8a8a8a; text-transform: uppercase; letter-spacing: 0.05em;
+      padding: 4px 8px; margin: 0; }
+    #tree-panel .tree-node { padding: 1px 6px; cursor: pointer; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; border-left: 2px solid transparent; }
+    #tree-panel .tree-node:hover { background: #f0fdf4; }
+    #tree-panel .tree-node.selected { background: #dcfce7; border-left-color: #16a34a; }
+    #tree-panel .tree-node .tag { color: #16a34a; font-weight: 500; }
+    #tree-panel .tree-node .cls { color: #a1a1aa; }
+    #tree-panel .tree-toggle { display: inline-block; width: 12px; cursor: pointer; color: #a1a1aa; }
+    #preview-area { flex: 1; background: #f5f5f5; position: relative; }
+    iframe { width: 100%; height: 100%; border: none; }
+    #drop-hint { position: absolute; inset: 0; background: rgba(22,163,74,0.06); display: none;
+      align-items: center; justify-content: center; z-index: 10; pointer-events: none; }
+    #drop-hint.show { display: flex; }
+    #drop-hint span { font-size: 20px; color: #16a34a; font-weight: 600; }
+
+    /* 右侧面板 */
+    #sidebar { width: 220px; background: #fafafa; border-left: 1px solid #e4e4e7;
+      display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0; padding: 10px 8px; gap: 10px; }
+    #sidebar h3 { font-size: 11px; color: #8a8a8a; text-transform: uppercase; letter-spacing: 0.05em;
+      margin: 0 0 4px 0; padding-bottom: 4px; border-bottom: 1px solid #e4e4e7; }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 4px; }
+    .btn-row button, .btn-row .color-btn { height: 26px; padding: 0 6px; border: 1px solid #d4d4d8;
+      border-radius: 5px; background: #fff; cursor: pointer; font-size: 12px; white-space: nowrap; }
+    .btn-row button:hover:not(:disabled) { background: #f4f4f5; }
+    .btn-row button:disabled { opacity: 0.4; cursor: default; }
+    .btn-row button.primary { background: #16a34a; color: #fff; border-color: #16a34a; }
+    .btn-row button.primary:hover:not(:disabled) { background: #15803d; }
+    .btn-row button.icon-btn { width: 28px; text-align: center; }
+    .btn-row button.active { background: #dcfce7; border-color: #16a34a; }
+    .color-btn { width: 18px !important; height: 18px !important; padding: 0 !important; border-radius: 3px !important;
+      border: 1px solid #d4d4d8; cursor: pointer; flex-shrink: 0; }
+    .color-btn:hover { transform: scale(1.2); box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
+    .color-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px;
+      border: 1px solid #d4d4d8; vertical-align: middle; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+</head>
+<body>
+<div id="app">
+  <!-- 顶部工具栏 -->
+  <div id="toolbar">
+    <span class="title">EM HTML Editor</span>
+    <span class="sep"></span>
+    <button onclick="loadFile()">打开 HTML</button>
+    <button onclick="selectFolder()" style="font-size:12px">选择文件夹</button>
+    <span class="sep"></span>
+    <button onclick="toggleEditor()" id="btn-toggle" class="primary">启动编辑</button>
+    <span id="status">选择 HTML 文件开始</span>
+  </div>
+
+  <!-- 主体 -->
+  <div id="main">
+    <!-- 左侧元素树 -->
+    <div id="tree-panel">
+      <h3>元素结构</h3>
+      <div id="tree-content"></div>
+    </div>
+
+    <!-- 中间预览区 -->
+    <div id="preview-area">
+      <iframe id="preview" sandbox="allow-same-origin allow-scripts"></iframe>
+      <div id="drop-hint"><span>拖入 HTML 文件</span></div>
+    </div>
+
+    <!-- 右侧编辑面板 -->
+    <div id="sidebar">
+      <h3>历史</h3>
+      <div class="btn-row">
+        <button onclick="act('undo')" id="btn-undo" title="撤销 Ctrl+Z" disabled>↩ 撤销</button>
+        <button onclick="act('redo')" id="btn-redo" title="重做 Ctrl+Shift+Z" disabled>↪ 重做</button>
+        <button onclick="act('export')" style="font-size:11px">导出</button>
+      </div>
+
+      <h3>添加</h3>
+      <div class="btn-row">
+        <button onclick="act('add-text')">+ 文字</button>
+        <button onclick="act('add-image')">+ 图片</button>
+      </div>
+
+      <h3>字号</h3>
+      <div class="btn-row">
+        <button onclick="act('font-')" class="icon-btn" title="缩小">A-</button>
+        <button onclick="act('font+')" class="icon-btn" title="增大">A+</button>
+      </div>
+
+      <h3>对齐</h3>
+      <div class="btn-row">
+        <button onclick="act('align-left')" class="icon-btn" title="左对齐">⬅</button>
+        <button onclick="act('align-center')" class="icon-btn" title="居中">⬌</button>
+        <button onclick="act('align-right')" class="icon-btn" title="右对齐">➡</button>
+      </div>
+
+      <h3>文字样式</h3>
+      <div class="btn-row">
+        <button onclick="act('bold-toggle')" class="icon-btn" title="粗体" style="font-weight:700">B</button>
+        <button onclick="act('italic-toggle')" class="icon-btn" title="斜体" style="font-style:italic">I</button>
+      </div>
+
+      <h3>间距</h3>
+      <div class="btn-row">
+        <button onclick="act('line-height-')" class="icon-btn" title="缩小行高">↕-</button>
+        <button onclick="act('line-height+')" class="icon-btn" title="增大行高">↕+</button>
+        <button onclick="act('padding-')" class="icon-btn" title="缩小边距">⬜-</button>
+        <button onclick="act('padding+')" class="icon-btn" title="增大边距">⬜+</button>
+        <button onclick="act('radius-')" class="icon-btn" title="缩小圆角">◯-</button>
+        <button onclick="act('radius+')" class="icon-btn" title="增大圆角">◯+</button>
+      </div>
+
+      <h3>文字颜色</h3>
+      <div class="btn-row" style="margin-bottom:4px">
+        <input type="color" id="text-color-picker" value="#111111"
+          style="width:28px;height:28px;border:1px solid #d4d4d8;border-radius:4px;cursor:pointer;padding:1px"
+          onchange="var api=em();if(api)api.setColor(this.value)">
+      </div>
+      <div class="btn-row" id="text-colors"></div>
+
+      <h3>背景颜色</h3>
+      <div class="btn-row" style="margin-bottom:4px">
+        <input type="color" id="bg-color-picker" value="#ffffff"
+          style="width:28px;height:28px;border:1px solid #d4d4d8;border-radius:4px;cursor:pointer;padding:1px"
+          onchange="var api=em();if(api)api.setBgColor(this.value)">
+      </div>
+      <div class="btn-row" id="bg-colors"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  var editorActive = false;
+  var currentHTML = "";
+  var iframe = document.getElementById("preview");
+  var btnToggle = document.getElementById("btn-toggle");
+  var status = document.getElementById("status");
+  var dropHint = document.getElementById("drop-hint");
+  var runtimeCode = "";
+
+  // 获取 iframe 内的 EMEditor
+  function em() {
+    try {
+      var win = iframe.contentWindow;
+      return win && win.EMEditor ? win.EMEditor : null;
+    } catch(e) { return null; }
+  }
+
+  // 面板按钮动作分发
+  function act(action) {
+    var api = em();
+    if (!api) return;
+    if (action === "undo") api.undo();
+    else if (action === "redo") api.redo();
+    else if (action === "export") api.export();
+    else if (action === "add-text") api.addText();
+    else if (action === "add-image") api.addImage();
+    else api.applyStyle(action);
+    refreshBtnState();
+  }
+
+  // 同步按钮状态
+  function refreshBtnState() {
+    var api = em();
+    var s = api ? api.getState() : { canUndo: false, canRedo: false, hasSelection: false };
+    document.getElementById("btn-undo").disabled = !s.canUndo;
+    document.getElementById("btn-redo").disabled = !s.canRedo;
+    // 样式按钮根据是否有选中来 disabled
+    var styleBtns = document.querySelectorAll('#sidebar .btn-row button[onclick^="act"]');
+    styleBtns.forEach(function(b) {
+      var a = b.getAttribute("onclick").match(/'([^']+)'/);
+      if (a && !["undo","redo","export","add-text","add-image"].includes(a[1])) {
+        b.disabled = !s.hasSelection;
+      }
+    });
+  }
+
+  // 定时同步
+  setInterval(refreshBtnState, 300);
+
+  // 颜色预设
+  var TEXT_COLORS = [
+    "#111111","#444444","#888888","#aaaaaa","#cccccc","#ffffff",
+    "#dc2626","#f59e0b","#eab308","#16a34a","#2563eb","#7c3aed"
+  ];
+  var BG_COLORS = [
+    "transparent","#ffffff","#f5f5f5","#111111",
+    "#fecaca","#fed7aa","#fef08a","#bbf7d0","#bfdbfe","#e9d5ff"
+  ];
+
+  function makeColorBtn(container, color, label) {
+    var btn = document.createElement("button");
+    btn.className = "color-btn";
+    btn.title = label;
+    btn.style.background = color === "transparent"
+      ? "linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%)"
+      : color;
+    btn.onclick = function() { var api = em(); if (api) { api.setColor(color); refreshBtnState(); } };
+    container.appendChild(btn);
+  }
+  function makeBgBtn(container, color, label) {
+    var btn = document.createElement("button");
+    btn.className = "color-btn";
+    btn.title = label;
+    btn.style.background = color === "transparent"
+      ? "linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%)"
+      : color;
+    btn.onclick = function() { var api = em(); if (api) { api.setBgColor(color); refreshBtnState(); } };
+    container.appendChild(btn);
+  }
+
+  var tc = document.getElementById("text-colors");
+  var bc = document.getElementById("bg-colors");
+  TEXT_COLORS.forEach(function(c) { makeColorBtn(tc, c, c); });
+  BG_COLORS.forEach(function(c) { makeBgBtn(bc, c, c); });
+
+  // 加载 runtime.js
+  fetch("runtime.js?v=" + Date.now()).then(function(r) { return r.text(); }).then(function(code) {
+    runtimeCode = code;
+    status.textContent = "就绪 — 选择 HTML 文件开始";
+  }).catch(function() {
+    status.textContent = "runtime.js 加载失败，请通过 HTTP 服务打开此页面";
+  });
+
+  // 拖入文件/文件夹/ZIP
+  document.addEventListener("dragover", function(e) { e.preventDefault(); dropHint.classList.add("show"); });
+  document.addEventListener("dragleave", function() { dropHint.classList.remove("show"); });
+  document.addEventListener("drop", function(e) {
+    e.preventDefault(); dropHint.classList.remove("show");
+    var items = e.dataTransfer.items;
+    var files = e.dataTransfer.files;
+    if (!files.length) return;
+    // 检测是否为文件夹拖入
+    if (items && items[0] && items[0].webkitGetAsEntry && items[0].webkitGetAsEntry()) {
+      var entry = items[0].webkitGetAsEntry();
+      if (entry.isDirectory) {
+        status.textContent = "读取文件夹...";
+        readFolderEntry(entry, "", function() {
+          loadFromTree();
+          status.textContent = "文件夹就绪";
+        });
+        return;
+      }
+    }
+    var file = files[0];
+    if (file.name && file.name.endsWith(".zip")) readZip(file);
+    else if (files.length > 1) readFileList(Array.from(files));
+    else readSingleHTML(file);
+  });
+
+  // 虚拟文件树: { 路径: 内容字符串(Uint8Array 或文本) }
+  var fileTree = {};
+
+  function loadFile() {
+    var input = document.createElement("input");
+    input.type = "file"; input.accept = ".html,.htm,.zip";
+    input.onchange = function() {
+      if (!input.files[0]) return;
+      var f = input.files[0];
+      if (f.name.endsWith(".zip")) readZip(f);
+      else readSingleHTML(f);
+    };
+    input.click();
+  }
+
+  // 文件夹入口（通过 drop 触发，也支持手动选择）
+  function selectFolder() {
+    var input = document.createElement("input");
+    input.type = "file";
+    input.webkitdirectory = true;
+    input.onchange = function() {
+      if (!input.files.length) return;
+      var files = [];
+      for (var i = 0; i < input.files.length; i++) files.push(input.files[i]);
+      readFileList(files);
+    };
+    input.click();
+  }
+
+  function readSingleHTML(file) {
+    var reader = new FileReader();
+    reader.onload = function() {
+      fileTree = { "index.html": reader.result };
+      var html = reader.result;
+      html = inlineCSS(html, fileTree);
+      currentHTML = html;
+      loadPreview(html);
+      status.textContent = file.name + " · " + (file.size < 1024 ? file.size + " B" : (file.size / 1024).toFixed(1) + " KB");
+      btnToggle.textContent = "启动编辑";
+      btnToggle.classList.add("primary");
+      editorActive = false;
+    };
+    reader.readAsText(file);
+  }
+
+  function readZip(file) {
+    status.textContent = "解压中...";
+    var reader = new FileReader();
+    reader.onload = function() {
+      JSZip.loadAsync(reader.result).then(function(zip) {
+        var promises = [];
+        fileTree = {};
+        zip.forEach(function(relPath, entry) {
+          if (entry.dir) return;
+          var p = relPath.replace(/\\/g, "/");
+          promises.push(entry.async("string").then(function(content) {
+            fileTree[p] = content;
+          }).catch(function() {
+            // 二进制文件跳过
+          }));
+        });
+        Promise.all(promises).then(function() {
+          loadFromTree();
+          status.textContent = file.name + " · " + (file.size < 1024 ? file.size + " B" : (file.size / 1024).toFixed(1) + " KB");
+        });
+      }).catch(function(e) {
+        status.textContent = "ZIP 解析失败: " + e.message;
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  /** 递归读取文件夹条目 */
+  function readFolderEntry(entry, basePath, callback) {
+    if (entry.isFile) {
+      entry.file(function(file) {
+        var path = basePath + file.name;
+        var r = new FileReader();
+        r.onload = function() { fileTree[path] = r.result; callback(); };
+        r.readAsText(file);
+      });
+    } else if (entry.isDirectory) {
+      var dirReader = entry.createReader();
+      var subEntries = [];
+      function readBatch() {
+        dirReader.readEntries(function(results) {
+          if (results.length === 0) {
+            var count = subEntries.length;
+            if (count === 0) { callback(); return; }
+            var done = 0;
+            subEntries.forEach(function(sub) {
+              readFolderEntry(sub, basePath + entry.name + "/", function() {
+                done++;
+                if (done === count) callback();
+              });
+            });
+            return;
+          }
+          subEntries = subEntries.concat(Array.from(results));
+          readBatch();
+        });
+      }
+      readBatch();
+    } else {
+      callback();
+    }
+  }
+
+  function readFileList(files) {
+    fileTree = {};
+    var count = 0;
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      var p = (f.webkitRelativePath || f.name).replace(/\\/g, "/");
+      if (f.type && f.type.match(/html|css|text|javascript|xml|svg|json/)) {
+        (function(file, path) {
+          var r = new FileReader();
+          r.onload = function() { fileTree[path] = r.result; count++; if (count === files.length) loadFromTree(); };
+          r.readAsText(file);
+        })(f, p);
+      } else {
+        count++;
+      }
+    }
+    if (count === files.length) loadFromTree();
+  }
+
+  function loadFromTree() {
+    var html = "";
+    // 优先 index.html
+    var keys = Object.keys(fileTree);
+    var htmlKey = keys.find(function(k) { return k.endsWith("index.html"); }) ||
+                  keys.find(function(k) { return k.endsWith(".html") || k.endsWith(".htm"); });
+    if (htmlKey) {
+      html = fileTree[htmlKey];
+      html = inlineCSS(html, fileTree);
+    } else {
+      status.textContent = "未找到 HTML 文件";
+      return;
+    }
+    currentHTML = html;
+    loadPreview(html);
+    btnToggle.textContent = "启动编辑";
+    btnToggle.classList.add("primary");
+    editorActive = false;
+  }
+
+  /** 将 HTML 中的外部 CSS 引用替换为内联 <style> */
+  function inlineCSS(html, tree) {
+    // 替换 <link rel="stylesheet" href="xxx">
+    return html.replace(/<link\b[^>]*\brel=["']?stylesheet["']?[^>]*>/gi, function(match) {
+      var href = match.match(/href=["']([^"']+)["']/i);
+      if (!href) return match;
+      var path = resolvePath(href[1]);
+      // 寻找匹配的 CSS 文件
+      var cssContent = null;
+      for (var k in tree) {
+        if (k === path || k.endsWith("/" + path) || k.endsWith("\\" + path)) {
+          cssContent = tree[k]; break;
+        }
+      }
+      if (!cssContent) {
+        // 尝试用文件名匹配
+        var basename = path.split("/").pop();
+        for (var k2 in tree) {
+          if (k2.endsWith(basename)) { cssContent = tree[k2]; break; }
+        }
+      }
+      if (cssContent) {
+        // 递归处理 @import
+        cssContent = inlineCSSImports(cssContent, tree, 0);
+        return "<style>\n" + cssContent + "\n</style>";
+      }
+      return match; // 找不到则保留原标签
+    });
+  }
+
+  function inlineCSSImports(css, tree, depth) {
+    if (depth > 3) return css;
+    return css.replace(/@import\s+(?:url\()?["']([^"')]+)["']\)?[^;]*;/gi, function(match, url) {
+      var path = resolvePath(url);
+      for (var k in tree) {
+        if (k.endsWith(path) || k.endsWith(path.split("/").pop())) {
+          var content = tree[k];
+          content = inlineCSSImports(content, tree, depth + 1);
+          return content;
+        }
+      }
+      return match;
+    });
+  }
+
+  /** 简单路径解析 */
+  function resolvePath(ref) {
+    if (!ref) return ref;
+    return ref.replace(/^\.?\//, "").replace(/\\/g, "/");
+  }
+
+  function readFile(file) {
+    // 保留旧函数兼容性，实际调用 readSingleHTML
+    readSingleHTML(file);
+  }
+
+  function loadPreview(html) {
+    var blob = new Blob([html], { type: "text/html" });
+    var url = URL.createObjectURL(blob);
+    iframe.onload = function() { URL.revokeObjectURL(url); injectRuntime(); };
+    iframe.src = url;
+  }
+
+  function injectRuntime() {
+    try {
+      var doc = iframe.contentDocument || iframe.contentWindow.document;
+      if (!doc || !runtimeCode) return;
+      var script = doc.createElement("script");
+      script.textContent = runtimeCode;
+      doc.head.appendChild(script);
+    } catch(e) { /* */ }
+  }
+
+  /** 由 EM 主进程注入调用：自动加载文件并启动编辑 */
+  function autoLoad(html, filename) {
+    currentHTML = html;
+    status.textContent = filename + " · " + (html.length < 1024 ? html.length + " B" : (html.length / 1024).toFixed(1) + " KB");
+    btnToggle.textContent = "启动编辑";
+    btnToggle.classList.add("primary");
+    editorActive = false;
+    var blob = new Blob([html], { type: "text/html" });
+    var url = URL.createObjectURL(blob);
+    iframe.onload = function() {
+      URL.revokeObjectURL(url);
+      injectRuntime();
+      // 等 runtime 就绪后自动启动编辑
+      var checkReady = setInterval(function() {
+        try {
+          var win = iframe.contentWindow;
+          if (win && win.EMEditor) {
+            clearInterval(checkReady);
+            win.EMEditor.start();
+            btnToggle.textContent = "停止编辑";
+            btnToggle.classList.remove("primary");
+            status.textContent = "编辑中 — 点击元素开始修改";
+            editorActive = true;
+            refreshBtnState();
+          }
+        } catch(e) { /* */ }
+      }, 200);
+    };
+    iframe.src = url;
+  }
+
+  function toggleEditor() {
+    try {
+      var api = em();
+      if (!api) { status.textContent = "runtime 未加载"; return; }
+      if (!editorActive) {
+        api.start();
+        btnToggle.textContent = "停止编辑";
+        btnToggle.classList.remove("primary");
+        status.textContent = "编辑中 — 点击元素开始修改";
+      } else {
+        api.stop();
+        btnToggle.textContent = "启动编辑";
+        btnToggle.classList.add("primary");
+        status.textContent = "已停止编辑";
+      }
+      editorActive = !editorActive;
+      refreshBtnState();
+    } catch(e) { status.textContent = "错误: " + e.message; }
+  }
+
+  window.addEventListener("message", function(e) {
+    if (e.data && e.data.type === "em-editor-export") {
+      currentHTML = e.data.html;
+      status.textContent = "已导出";
+      // 父窗口触发下载（iframe sandbox 无 allow-downloads）
+      var blob = new Blob([currentHTML], { type: "text/html" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = "edited.html"; a.click();
+      URL.revokeObjectURL(url);
+    }
+  });
+
+  // ── 元素结构树 ──
+  var CONTAINER_TAGS = /^(div|section|article|nav|header|footer|main|aside|ul|ol|li|form|fieldset|details|summary|table|tbody|thead|tfoot|tr)$/;
+  function canDropInto(target, el) {
+    if (!target || !el || target === el) return false;
+    // 不能拖入自身后代
+    var p = target;
+    while (p) { if (p === el) return false; p = p.parentElement; }
+    // 只能拖入容器类元素
+    return CONTAINER_TAGS.test(target.tagName.toLowerCase());
+  }
+
+  function refreshTree() {
+    var api = em();
+    if (!api) return;
+    var tree = api.getTree();
+    var panel = document.getElementById("tree-content");
+    if (!panel) return;
+    panel.innerHTML = "";
+    renderTreeNode(panel, tree, 0);
+    // 高亮当前选中元素
+    if (tree && tree.ref) highlightTreeRef(tree.ref);
+  }
+
+  function renderTreeNode(container, node, depth) {
+    if (!node) return;
+    var div = document.createElement("div");
+    div.className = "tree-node";
+    div.style.paddingLeft = (6 + depth * 12) + "px";
+    div.title = node.tag + (node.id ? "#" + node.id : "") + (node.cls ? "." + node.cls : "");
+
+    var label = "<span class='tag'>" + node.tag + "</span>";
+    if (node.id) label += "<span class='cls'>#" + node.id + "</span>";
+    if (node.cls) label += "<span class='cls'>." + node.cls + "</span>";
+
+    var toggle = document.createElement("span");
+    toggle.className = "tree-toggle";
+    toggle.textContent = node.children.length > 0 ? "▼" : "▶";
+    toggle.style.visibility = node.children.length > 0 ? "visible" : "hidden";
+    toggle.style.fontSize = "8px";
+    if (node.children.length > 0) {
+      toggle.onclick = function(e) {
+        e.stopPropagation();
+        var childContainer = div.nextElementSibling;
+        if (childContainer && childContainer.className === "tree-children") {
+          var hide = childContainer.style.display !== "none";
+          childContainer.style.display = hide ? "none" : "block";
+          toggle.textContent = hide ? "▶" : "▼";
+        }
+      };
+    }
+    div.appendChild(toggle);
+    // 用 span 追加标签文字，避免 innerHTML+= 破坏 toggle
+    var labelSpan = document.createElement("span");
+    labelSpan.innerHTML = label;
+    div.appendChild(labelSpan);
+    div._elRef = node.ref;
+    div.draggable = true;
+    div.ondragstart = function(e) {
+      e.dataTransfer.setData("text/plain", "");
+      e.dataTransfer.effectAllowed = "move";
+      window._dragEl = node.ref;
+    };
+    div.ondragend = function() { window._dragEl = null; };
+    div.ondragover = function(e) {
+      if (node.ref && canDropInto(node.ref, window._dragEl)) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        div.style.background = "#dcfce7";
+      } else {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "none";
+        div.style.background = "#fee2e2";
+      }
+    };
+    div.ondragleave = function() { div.style.background = ""; };
+    div.ondrop = function(e) {
+      e.preventDefault();
+      div.style.background = "";
+      var api = em();
+      if (api && window._dragEl && node.ref && canDropInto(node.ref, window._dragEl)) {
+        api.reparent(window._dragEl, node.ref);
+        setTimeout(refreshTree, 300);
+      }
+      window._dragEl = null;
+    };
+    div.onclick = function() {
+      var api = em();
+      if (api && node.ref) api.selectByRef(node.ref);
+      highlightTreeRef(node.ref);
+    };
+    container.appendChild(div);
+
+    if (node.children.length > 0) {
+      var childContainer = document.createElement("div");
+      childContainer.className = "tree-children";
+      for (var i = 0; i < node.children.length; i++) {
+        renderTreeNode(childContainer, node.children[i], depth + 1);
+      }
+      container.appendChild(childContainer);
+    }
+  }
+
+  function highlightTreeRef(ref) {
+    var nodes = document.querySelectorAll("#tree-panel .tree-node");
+    nodes.forEach(function(n) { n.classList.remove("selected"); });
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i]._elRef === ref) { nodes[i].classList.add("selected"); break; }
+    }
+  }
+
+  // 编辑启动/停止时刷新树，选中变化时更新高亮
+  var origToggle = toggleEditor;
+  toggleEditor = function() {
+    origToggle();
+    setTimeout(refreshTree, 500);
+  };
+  setInterval(function() {
+    var api = em();
+    if (!api) return;
+    var s = api.getState();
+    if (s && s.selectedRef) {
+      highlightTreeRef(s.selectedRef);
+    }
+  }, 800);
+</script>
+</body>
+</html>
