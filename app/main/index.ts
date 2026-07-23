@@ -13,9 +13,9 @@ import {
   openUpdateCacheDir,
 } from "./services/auto-updater";
 
-process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint").replace(/\\/g, "/");
+process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint_pi_core").replace(/\\/g, "/");
 // Redirect Electron userData to our directory so all data lives in one place
-app.setPath("userData", path.join(os.homedir(), ".easymint", "electron"));
+app.setPath("userData", path.join(os.homedir(), ".easymint_pi_core", "electron"));
 
 import { registerIpcHandlers } from "./ipc-handlers";
 import { ProjectService } from "./services/project-service";
@@ -86,7 +86,7 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     // Seed bundled skills (~/.claude/skills/) — only if not already installed
     const { seedBundledSkills } = require("./services/skill-service");
     seedBundledSkills();
-    // Seed default MCP configs (~/.easymint/.claude.json)
+    // Seed default MCP configs (~/.easymint_pi_core/.claude.json)
     const { seedDefaultMcp } = require("./services/mcp-service");
     seedDefaultMcp();
     // TODO: 步骤四 — 替换为 Pi SessionManager.list()
@@ -127,7 +127,7 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     // with a proper session detection/management UI in a future update.
 
     // Process pending rename cleanup tasks (from project:rename-exec)
-    const cleanFile = path.join(os.homedir(), ".easymint", ".cleanup-pending.json");
+    const cleanFile = path.join(os.homedir(), ".easymint_pi_core", ".cleanup-pending.json");
     if (fs.existsSync(cleanFile)) {
       try {
         const tasks = JSON.parse(fs.readFileSync(cleanFile, "utf-8")) as Array<{

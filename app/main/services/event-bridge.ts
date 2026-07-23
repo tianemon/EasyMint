@@ -4,6 +4,7 @@
  * 参考：Proma pi-agent-adapter.ts subscribe 回调 + pi-streaming-control.ts 50ms 合并
  */
 
+// type-only import — esbuild erases this, no runtime require()
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
 // ── 前端事件格式 ─────────────────────────────────────

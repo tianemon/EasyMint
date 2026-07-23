@@ -37,7 +37,7 @@ function projectSkillsDir(projectPath: string): string {
 
 // ── Disabled skills list ───────────────────────────
 
-const DISABLED_FILE = path.join(os.homedir(), ".easymint", "em-settings.json");
+const DISABLED_FILE = path.join(os.homedir(), ".easymint_pi_core", "em-settings.json");
 
 function getHiddenSkills(): string[] {
   if (!existsSync(DISABLED_FILE)) return [];

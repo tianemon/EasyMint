@@ -1,7 +1,7 @@
 /**
  * 项目运行进程管理 - 多命令独立启停、内存日志
  *
- * 检测入口：只读 <project>/.easymint/run.json（Mint 开发完生成）。
+ * 检测入口：只读 <project>/.easymint_pi_core/run.json（Mint 开发完生成）。
  */
 
 import { spawn, type ChildProcess } from "child_process";
@@ -68,7 +68,7 @@ function broadcastStatus(commandId: string, running: boolean): void {
 
 /** 读 run.json，返回所有命令配置 */
 function readRunJson(projectPath: string): Runnable[] {
-  const runJson = join(resolveHome(projectPath), ".easymint", "run.json");
+  const runJson = join(resolveHome(projectPath), ".easymint_pi_core", "run.json");
   if (!existsSync(runJson)) return [];
   try {
     const data = JSON.parse(readFileSync(runJson, "utf-8"));

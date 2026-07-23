@@ -24,9 +24,10 @@ import {
   convertPiAssistantMessage,
   type PiChatEvent,
 } from "./event-bridge";
-import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import type { AgentSession, AgentSessionEvent } from "./pi-sdk";
 import type { Model } from "@earendil-works/pi-ai";
 import type { AssistantMessage } from "@earendil-works/pi-ai/compat";
+// type-only imports — esbuild erases, no runtime require()
 import { randomUUID } from "node:crypto";
 
 // ── 类型 ────────────────────────────────────────────
@@ -55,7 +56,7 @@ interface ActiveChat {
 
 /** 记录各 session 的 agent 类型 */
 const sessionAgentTypes = new Map<string, string>();
-const SESSION_TYPES_PATH = path.join(os.homedir(), ".easymint", "session-types.json");
+const SESSION_TYPES_PATH = path.join(os.homedir(), ".easymint_pi_core", "session-types.json");
 
 function loadSessionTypes(): Map<string, string> {
   try {
@@ -114,7 +115,7 @@ export class AgentService {
   // ── 内部辅助 ──────────────────────────────────────
 
   private getAgentDir(): string {
-    return path.join(os.homedir(), ".easymint", "pi");
+    return path.join(os.homedir(), ".easymint_pi_core", "pi");
   }
 
   private async getModel(store: Store): Promise<Model<any> | null> {
@@ -327,7 +328,7 @@ export class AgentService {
 
     const session: AgentSession = await (async () => {
       if (resumeSessionId) {
-        const sessionDir = path.join(resolvedPath, ".easymint", "pi-sessions");
+        const sessionDir = path.join(resolvedPath, ".easymint_pi_core", "pi-sessions");
         const sessions = await listPiSessions(resolvedPath);
         const info = sessions.find((s) => s.id === resumeSessionId);
         if (info) {
@@ -369,7 +370,7 @@ export class AgentService {
         chat.agentType = tpl.agentType;
         if (tpl.agentType === "designer" && resolvedPath) {
           const srcDir = path.join(__dirname, "..", "..", "..", "resources", "em-html-editor");
-          const destDir = path.join(resolveHome(resolvedPath), ".easymint", "templates");
+          const destDir = path.join(resolveHome(resolvedPath), ".easymint_pi_core", "templates");
           const templateFiles = [
             "template-landing.html", "template-dashboard.html",
             "template-form.html", "template-detail.html",

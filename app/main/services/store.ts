@@ -4,7 +4,7 @@ import os from "os";
 import type { ProviderConfig, ApiProvidersData } from "../../shared/platform-presets";
 import { resolveHome } from "../utils/paths";
 
-export const DATA_DIR = path.join(os.homedir(), ".easymint");
+export const DATA_DIR = path.join(os.homedir(), ".easymint_pi_core");
 
 // ── 多平台 API 供应商配置 ──────────────────────
 // 类型定义见 app/shared/platform-presets.ts

@@ -2,7 +2,7 @@
  * 系统提示词管理服务（CRUD）
  *
  * 管理 Chat 模式的系统提示词 CRUD。
- * 存储在 ~/.easymint/system-prompts.json
+ * 存储在 ~/.easymint_pi_core/system-prompts.json
  *
  * 提示词内容统一从 app/shared/prompts.ts 引入。
  */
@@ -55,7 +55,7 @@ export const BUILTIN_DEFAULT_PROMPT: SystemPrompt = {
 
 // ── Paths ──────────────────────────────────────────
 
-const DATA_DIR = path.join(os.homedir(), ".easymint");
+const DATA_DIR = path.join(os.homedir(), ".easymint_pi_core");
 const CONFIG_PATH = path.join(DATA_DIR, "system-prompts.json");
 
 function ensureDir(): void {

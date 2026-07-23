@@ -38,7 +38,7 @@ function claudeCodeMcpPath(): string {
 
 // ── Disabled list ──────────────────────────────────
 
-const EM_SETTINGS = path.join(os.homedir(), ".easymint", "em-settings.json");
+const EM_SETTINGS = path.join(os.homedir(), ".easymint_pi_core", "em-settings.json");
 
 function getHiddenMcpServers(): string[] {
   if (!existsSync(EM_SETTINGS)) return [];

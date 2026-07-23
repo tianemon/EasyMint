@@ -1,7 +1,7 @@
 /**
  * Upload cache service — track, scan, cleanup uploaded files.
  *
- * Files stored in ~/.easymint/uploads/, metadata in .meta.json.
+ * Files stored in ~/.easymint_pi_core/uploads/, metadata in .meta.json.
  * Auto-cleanup runs at startup: 60-day age or 10GB cap.
  */
 
@@ -32,7 +32,7 @@ export interface UploadStats {
 
 // ── Paths ──────────────────────────────────────────
 
-const UPLOAD_DIR = path.join(os.homedir(), ".easymint", "uploads");
+const UPLOAD_DIR = path.join(os.homedir(), ".easymint_pi_core", "uploads");
 const META_FILE = path.join(UPLOAD_DIR, ".meta.json");
 
 function ensureDir(): void {

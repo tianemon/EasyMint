@@ -4,14 +4,14 @@
  * Stores non-conversation UI state (permission mode, model, context usage, etc.)
  * keyed by SDK sessionId. Survives app restarts and tab switches.
  *
- * Path: ~/.easymint/session-cache/<sessionId>.json
+ * Path: ~/.easymint_pi_core/session-cache/<sessionId>.json
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-const CACHE_DIR = path.join(os.homedir(), ".easymint", "session-cache");
+const CACHE_DIR = path.join(os.homedir(), ".easymint_pi_core", "session-cache");
 
 export interface SessionCache {
   permissionMode: string;
