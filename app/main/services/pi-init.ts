@@ -72,9 +72,8 @@ function strip1M(model: string): string {
   return model.endsWith("[1M]") ? model.slice(0, -4) : model;
 }
 
-function inferApiType(baseUrl: string | undefined): string {
-  if (!baseUrl) return "anthropic-messages";
-  return "anthropic-messages";
+function inferApiType(preset: PlatformPreset): string {
+  return preset.apiType || "anthropic-messages";
 }
 
 function getPresetBaseUrl(preset: PlatformPreset): string | undefined {
@@ -92,6 +91,9 @@ interface ModelDefaults {
 
 function resolveModelDefaults(_modelId: string, preset: PlatformPreset): ModelDefaults {
   if (preset.id === "deepseek") {
+    return { contextWindow: 200000, maxTokens: 32000 };
+  }
+  if (preset.id === "anthropic") {
     return { contextWindow: 200000, maxTokens: 32000 };
   }
   return { contextWindow: 128000, maxTokens: 16000 };
@@ -115,8 +117,10 @@ async function createModelRuntime(
     if (!baseUrl) continue;
 
     const modelId = strip1M(config.model || getDefaultModelId(preset));
-    const api = inferApiType(baseUrl);
+    const api = inferApiType(preset);
     const defaults = resolveModelDefaults(modelId, preset);
+    const is1M = config.context1M === true;
+    const contextWindow = is1M ? 1_000_000 : defaults.contextWindow;
 
     runtime.registerProvider(providerName, {
       name: config.name || preset.name,
@@ -131,7 +135,7 @@ async function createModelRuntime(
           api: api as any,
           baseUrl,
           cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-          contextWindow: defaults.contextWindow,
+          contextWindow,
           maxTokens: defaults.maxTokens,
           input: ["text" as const, "image" as const],
           compat: { supportsDeveloperRole: false },

@@ -11,6 +11,10 @@ interface ChatState {
   evictSession: (sessionId: string) => void;
   appendUserMsg: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai" }) => void;
   replaceAiEntries: (sessionId: string, entries: Record<string, any>[]) => number;
+  /** 替换最后一条 AI 消息中 fromIdx 之后的 entries（保留 fromIdx 之前的旧 turn 内容） */
+  replaceAiEntriesFrom: (sessionId: string, fromIdx: number, entries: Record<string, any>[]) => number;
+  /** Pi 新 turn 开始时调用，强制创建新的空 AI 消息（防止跨 turn 覆盖） */
+  startAiMessage: (sessionId: string) => number;
   appendAiEntry: (sessionId: string, entry: Record<string, any>) => number;
   nextMsgId: (sessionId: string) => number;
 }
@@ -81,20 +85,65 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return msgId;
   },
 
+  replaceAiEntriesFrom: (sessionId: string, fromIdx: number, entries: Record<string, any>[]) => {
+    const msgs = get().messagesBySession[sessionId] || [];
+    const last = msgs[msgs.length - 1];
+    if (last && last.role === "ai") {
+      const existing: Record<string, any>[] = last.entries || [];
+      // 保留 fromIdx 之前的旧 turn 内容，替换 fromIdx 之后的内容
+      const merged = [...existing.slice(0, fromIdx), ...entries];
+      set((s) => ({
+        messagesBySession: {
+          ...s.messagesBySession,
+          [sessionId]: (s.messagesBySession[sessionId] || []).map((m) =>
+            m.id === last.id ? { ...m, entries: merged } : m
+          ),
+        },
+      }));
+      return last.id;
+    }
+    // 没有 AI 消息 → 新建
+    const msgId = get().nextMsgId(sessionId);
+    set((s) => ({
+      messagesBySession: {
+        ...s.messagesBySession,
+        [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries, timestamp: Date.now() }],
+      },
+    }));
+    return msgId;
+  },
+
   appendAiEntry: (sessionId, entry) => {
     const msgs = get().messagesBySession[sessionId] || [];
     const last = msgs[msgs.length - 1];
     let msgId: number;
     if (last && last.role === "ai") {
-      // Append to last AI message — streaming deltas accumulate in one bubble
       msgId = last.id;
       set((s) => {
         const cur = s.messagesBySession[sessionId];
         if (!cur) return {};
+        const existing = last.entries || [];
+        // 文本条目：拼接到已有文本，不重复创建
+        if (entry.kind === "text") {
+          const textIdx = existing.findIndex((e: Record<string, any>) => e.kind === "text");
+          const updated = [...existing];
+          if (textIdx >= 0) {
+            updated[textIdx] = { ...updated[textIdx], text: (updated[textIdx].text || "") + (entry.text || "") };
+          } else {
+            updated.push(entry);
+          }
+          return {
+            messagesBySession: {
+              ...s.messagesBySession,
+              [sessionId]: cur.map((m) => (m.id === msgId ? { ...m, entries: updated } : m)),
+            },
+          };
+        }
+        // 非文本条目：直接追加
         return {
           messagesBySession: {
             ...s.messagesBySession,
-            [sessionId]: cur.map((m) => (m.id === msgId ? { ...m, entries: [...(m.entries || []), entry] } : m)),
+            [sessionId]: cur.map((m) => (m.id === msgId ? { ...m, entries: [...existing, entry] } : m)),
           },
         };
       });
@@ -107,6 +156,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         },
       }));
     }
+    return msgId;
+  },
+
+  startAiMessage: (sessionId) => {
+    const msgId = get().nextMsgId(sessionId);
+    set((s) => ({
+      messagesBySession: {
+        ...s.messagesBySession,
+        [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries: [] as Record<string, any>[], timestamp: Date.now() }],
+      },
+    }));
     return msgId;
   },
 

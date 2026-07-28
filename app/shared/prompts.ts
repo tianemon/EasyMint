@@ -6,7 +6,7 @@
  */
 
 /*
- * .easymint/state.json 格式 — writeState 是合并写入，不会清掉已有字段。
+ * .easymint_pi_core/state.json 格式 — writeState 是合并写入，不会清掉已有字段。
  * 关键字段由 MCP 工具直写，运行时通过 broadcast 事件即时推送到前端。
  * 冷启动时 refreshAll 读此文件还原状态。
 {
@@ -204,7 +204,7 @@ task.json 有未完成任务 + 用户说「继续」「执行」「开始」等�
 
 // ── 维度定义 ──────────────────────────────────────────
 
-export type ProductType = "web" | "desktop" | "mobile" | "cli" | "backend" | "library";
+export type ProductType = "web" | "desktop" | "mobile" | "cli" | "backend" | "library" | "miniprogram";
 export type DeployMode = "local" | "cloud" | "hybrid";
 export type ComplexityLevel = "minimal" | "simple" | "medium" | "platform";
 export type AIIntegration = "none" | "assistant" | "agent" | "multi-agent";
@@ -274,6 +274,13 @@ const BASE_PROFILES: Record<ProductType, ProjectProfile> = {
     platformSpec: `## 库/SDK 开发规范\n- API 设计：简洁直观，命名一致\n- 向后兼容：不随意 breaking change\n- 类型安全：导出类型定义\n- 错误处理：抛出有意义的错误信息\n- 文档：每个公开 API 有 JSDoc/docstring\n- 测试：核心 API 需有单元测试覆盖`,
     evaluatorHint: `库/SDK 项目：运行测试，读代码对照需求文档，验证导出接口和 README 示例`,
     suggestedStack: ["TypeScript"],
+  },
+  miniprogram: {
+    id: "miniprogram", label: "微信小程序",
+    initSteps: `项目为微信小程序。\n- docs/技术架构.md 关注页面栈、组件通信、云开发配置\n- 注意分包加载限制（主包 ≤ 2MB，总包 ≤ 20MB）\n- 每个页面需在 app.json 中注册`,
+    platformSpec: `## 微信小程序开发规范\n- 页面生命周期：onLoad → onShow → onReady → onHide → onUnload\n- 组件通信：父传子 properties，子传父 triggerEvent，跨组件用 globalData 或 eventBus\n- WXML 模板语法：wx:if 条件渲染、wx:for 列表渲染、{{}} 数据绑定\n- 样式：rpx 响应式单位（1rpx = 屏幕宽度/750），推荐 flex 布局\n- API 调用：wx.request 发网络请求，wx.setStorage/getStorage 本地存储\n- 用户授权：wx.getUserProfile / wx.authorize，首次调用需弹窗\n- 审核规范：不得包含隐藏功能、诱导分享、强制登录后才能浏览核心功能`,
+    evaluatorHint: `小程序项目：用微信开发者工具打开编译检查，代码审查对照需求文档逐项验证，检查 app.json 注册和分包配置`,
+    suggestedStack: ["微信开发者工具", "JavaScript/TypeScript"],
   },
 };
 
@@ -374,11 +381,12 @@ export function composeProfile(dims: ProjectDimensions): ProjectProfile {
 function inferDimensions(targets: string[]): ProjectDimensions {
   const set = new Set(targets.map((t) => t.toLowerCase()));
   let product: ProductType = "web";
+  // 按优先级匹配：CLI > 小程序 > 移动端 > 桌面 > 库 > 后端 > Web（默认）
   if (set.has("cli")) product = "cli";
-  else if (set.has("flutter") || set.has("mobile") || set.has("react-native")) product = "mobile";
+  else if (set.has("wechat-miniprogram")) product = "miniprogram";
+  else if (set.has("ios-mobile") || set.has("android-mobile") || set.has("mobile") || set.has("flutter") || set.has("react-native")) product = "mobile";
   else if (set.has("library") || set.has("sdk")) product = "library";
-  else if (set.has("desktop") || set.has("electron") || set.has("tauri")) product = "desktop";
-  else if (set.has("api") && (set.has("web") || set.has("frontend"))) product = "web";
+  else if (set.has("windows-desktop") || set.has("macos-desktop") || set.has("linux-desktop") || set.has("desktop") || set.has("electron") || set.has("tauri")) product = "desktop";
   else if (set.has("api") || set.has("backend") || set.has("server")) product = "backend";
   return {
     product,
@@ -559,7 +567,7 @@ export const DESIGNER_AGENT_PROMPT = `你是 Mint-D，EasyMint 的 UI 设计师�
 
 ## 种子模板
 
-项目 .easymint/templates/ 目录下有 4 个 HTML 模板。Read 适合当前需求的模板作为起点。
+项目 .easymint_pi_core/templates/ 目录下有 4 个 HTML 模板。Read 适合当前需求的模板作为起点。
 
 | 模板 | 类型 | 结构 |
 |------|------|------|

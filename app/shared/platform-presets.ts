@@ -29,15 +29,11 @@ export interface PlatformPreset {
   category: "official" | "cn_official";
   websiteUrl: string;          // 获取 API Key 的链接
   apiKeyUrl?: string;          // 直达 Key 管理页
+  /** Pi SDK API 类型（默认 anthropic-messages） */
+  apiType?: string;
   env: {
     ANTHROPIC_BASE_URL?: string;     // undefined = SDK 默认
-    ANTHROPIC_AUTH_TOKEN: string;    // 永远为空字符串，用户填
-    ANTHROPIC_MODEL?: string;
-    ANTHROPIC_DEFAULT_HAIKU_MODEL?: string;
-    ANTHROPIC_DEFAULT_SONNET_MODEL?: string;
-    ANTHROPIC_DEFAULT_OPUS_MODEL?: string;
-    API_TIMEOUT_MS?: string;        // 超时设置
-    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC?: number;
+    ANTHROPIC_MODEL?: string;        // 默认模型 ID
   };
   models: string[];            // 默认模型列表
   keyPlaceholder: string;      // API Key 占位文本
@@ -56,7 +52,6 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
     websiteUrl: "https://www.anthropic.com/claude-code",
     env: {
       ANTHROPIC_BASE_URL: "https://api.anthropic.com",
-      ANTHROPIC_AUTH_TOKEN: "",
     },
     models: [],
     keyPlaceholder: "sk-ant-...",
@@ -72,11 +67,7 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
     websiteUrl: "https://platform.deepseek.com",
     env: {
       ANTHROPIC_BASE_URL: "https://api.deepseek.com/anthropic",
-      ANTHROPIC_AUTH_TOKEN: "",
       ANTHROPIC_MODEL: "deepseek-v4-pro",
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: "deepseek-v4-flash",
-      ANTHROPIC_DEFAULT_SONNET_MODEL: "deepseek-v4-pro",
-      ANTHROPIC_DEFAULT_OPUS_MODEL: "deepseek-v4-pro",
     },
     models: [],
     keyPlaceholder: "sk-...",
@@ -93,11 +84,7 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
     websiteUrl: "https://platform.moonshot.cn/console",
     env: {
       ANTHROPIC_BASE_URL: "https://api.moonshot.cn/anthropic",
-      ANTHROPIC_AUTH_TOKEN: "",
       ANTHROPIC_MODEL: "kimi-k2.6",
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: "kimi-k2.6",
-      ANTHROPIC_DEFAULT_SONNET_MODEL: "kimi-k2.6",
-      ANTHROPIC_DEFAULT_OPUS_MODEL: "kimi-k2.6",
     },
     models: [],
     keyPlaceholder: "sk-...",
@@ -113,8 +100,7 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
     category: "cn_official",
     websiteUrl: "https://www.kimi.com/code/docs/",
     env: {
-      ANTHROPIC_BASE_URL: "https://api.kimi.com/coding/",
-      ANTHROPIC_AUTH_TOKEN: "",
+      ANTHROPIC_BASE_URL: "https://api.kimi.com/coding",
     },
     models: [],
     keyPlaceholder: "sk-...",
@@ -132,13 +118,7 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
     apiKeyUrl: "https://platform.minimaxi.com/subscribe/coding-plan",
     env: {
       ANTHROPIC_BASE_URL: "https://api.minimaxi.com/anthropic",
-      ANTHROPIC_AUTH_TOKEN: "",
-      API_TIMEOUT_MS: "3000000",
-      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1,
       ANTHROPIC_MODEL: "MiniMax-M2.7",
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: "MiniMax-M2.7",
-      ANTHROPIC_DEFAULT_SONNET_MODEL: "MiniMax-M2.7",
-      ANTHROPIC_DEFAULT_OPUS_MODEL: "MiniMax-M2.7",
     },
     models: [],
     keyPlaceholder: "sk-...",
@@ -156,11 +136,7 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
     apiKeyUrl: "https://platform.xiaomimimo.com/#/console/api-keys",
     env: {
       ANTHROPIC_BASE_URL: "https://api.xiaomimimo.com/anthropic",
-      ANTHROPIC_AUTH_TOKEN: "",
       ANTHROPIC_MODEL: "mimo-v2.5-pro",
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: "mimo-v2.5-pro",
-      ANTHROPIC_DEFAULT_SONNET_MODEL: "mimo-v2.5-pro",
-      ANTHROPIC_DEFAULT_OPUS_MODEL: "mimo-v2.5-pro",
     },
     models: [],
     keyPlaceholder: "sk-...",
@@ -178,11 +154,7 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
     apiKeyUrl: "https://platform.xiaomimimo.com/#/console/plan-manage",
     env: {
       ANTHROPIC_BASE_URL: "https://token-plan-cn.xiaomimimo.com/anthropic",
-      ANTHROPIC_AUTH_TOKEN: "",
       ANTHROPIC_MODEL: "mimo-v2.5-pro",
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: "mimo-v2.5-pro",
-      ANTHROPIC_DEFAULT_SONNET_MODEL: "mimo-v2.5-pro",
-      ANTHROPIC_DEFAULT_OPUS_MODEL: "mimo-v2.5-pro",
     },
     models: [],
     keyPlaceholder: "sk-...",
@@ -200,11 +172,7 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
     apiKeyUrl: "https://www.bigmodel.cn/claude-code?ic=RRVJPB5SII",
     env: {
       ANTHROPIC_BASE_URL: "https://open.bigmodel.cn/api/anthropic",
-      ANTHROPIC_AUTH_TOKEN: "",
       ANTHROPIC_MODEL: "glm-5.1",
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: "glm-5.1",
-      ANTHROPIC_DEFAULT_SONNET_MODEL: "glm-5.1",
-      ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.1",
     },
     models: [],
     keyPlaceholder: "sk-...",
@@ -213,27 +181,6 @@ export const PLATFORM_PRESETS: PlatformPreset[] = [
     supportsContext1M: false,
   },
 
-  // ── Zhipu GLM ────────────────────────────────
-  {
-    id: "zhipu-glm",
-    name: "Zhipu GLM",
-    category: "cn_official",
-    websiteUrl: "https://open.bigmodel.cn",
-    apiKeyUrl: "https://www.bigmodel.cn/claude-code?ic=RRVJPB5SII",
-    env: {
-      ANTHROPIC_BASE_URL: "https://open.bigmodel.cn/api/anthropic",
-      ANTHROPIC_AUTH_TOKEN: "",
-      ANTHROPIC_MODEL: "glm-5.1",
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: "glm-5.1",
-      ANTHROPIC_DEFAULT_SONNET_MODEL: "glm-5.1",
-      ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.1",
-    },
-    models: [],
-    keyPlaceholder: "sk-...",
-    supportsModelList: true,
-    modelsUrl: "https://open.bigmodel.cn/api/paas/v4/models",
-    supportsContext1M: false,
-  },
 ];
 
 /** 按 category 分组 */

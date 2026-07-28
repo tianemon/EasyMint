@@ -36,10 +36,16 @@ export class ProjectService {
   }
 
   list(): Array<Project & { exists: boolean }> {
-    return this.store.getProjects().map((p) => ({
-      ...p,
-      exists: fs.existsSync(p.path),
-    }));
+    // 系统 workspace 目录不是用户项目，过滤掉防止误删
+    const settings = this.store.getSettings();
+    const base = resolveHome(settings.defaultProjectDir || "~/EasyMintProject");
+    const workspaceDir = path.resolve(base, "workspace");
+    return this.store.getProjects()
+      .filter((p) => path.resolve(p.path) !== workspaceDir)
+      .map((p) => ({
+        ...p,
+        exists: fs.existsSync(p.path),
+      }));
   }
 
   create(opts: { name: string; path: string }): Project {

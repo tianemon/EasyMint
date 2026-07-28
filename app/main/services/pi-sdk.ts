@@ -26,28 +26,10 @@ export type {
 // ── 懒加载实例 ──────────────────────────────────────
 
 let _sdk: typeof import("@earendil-works/pi-coding-agent") | null = null;
-let _piAi: typeof import("@earendil-works/pi-ai") | null = null;
-let _piAiCompat: typeof import("@earendil-works/pi-ai/compat") | null = null;
-let _piAgentCore: typeof import("@earendil-works/pi-agent-core") | null = null;
 
 async function getSdk() {
   if (!_sdk) _sdk = await import("@earendil-works/pi-coding-agent");
   return _sdk;
-}
-
-async function getPiAi() {
-  if (!_piAi) _piAi = await import("@earendil-works/pi-ai");
-  return _piAi;
-}
-
-async function getPiAiCompat() {
-  if (!_piAiCompat) _piAiCompat = await import("@earendil-works/pi-ai/compat");
-  return _piAiCompat;
-}
-
-async function getPiAgentCore() {
-  if (!_piAgentCore) _piAgentCore = await import("@earendil-works/pi-agent-core");
-  return _piAgentCore;
 }
 
 // ── 导出的异步工厂函数 ──────────────────────────────
@@ -101,24 +83,7 @@ export async function getCreateReadOnlyTools(): Promise<
   return sdk.createReadOnlyTools;
 }
 
-export async function getDefineTool(): Promise<
-  typeof import("@earendil-works/pi-coding-agent").defineTool
-> {
+export async function getDefineToolFn() {
   const sdk = await getSdk();
   return sdk.defineTool;
-}
-
-export async function getPiAiModelType(): Promise<
-  typeof import("@earendil-works/pi-ai").Model
-> {
-  const ai = await getPiAi();
-  return ai.Model;
-}
-
-export async function getPiAiCompatModule() {
-  return getPiAiCompat();
-}
-
-export async function getPiAgentCoreTypes() {
-  return getPiAgentCore();
 }

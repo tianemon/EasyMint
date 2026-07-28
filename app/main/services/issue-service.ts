@@ -1,5 +1,5 @@
 /**
- * Issue 记录服务 - 纯本地记录，存 <project>/.easymint_pi_core/issues.json
+ * Issue 记录服务 - 纯本地记录，存 <project>/.easymint/issues.json
  * Mint 通过 easymint-ui MCP 的 list_issues 工具读取。
  */
 
@@ -25,7 +25,7 @@ export interface Issue {
 }
 
 function issuesPath(projectPath: string): string {
-  return join(projectPath, ".easymint_pi_core", "issues.json");
+  return join(projectPath, ".easymint", "issues.json");
 }
 
 /** 兼容旧格式：resolved -> status，followup -> notes */
@@ -59,7 +59,7 @@ function readIssues(projectPath: string): Issue[] {
 }
 
 function writeIssues(projectPath: string, issues: Issue[]): void {
-  const dir = join(projectPath, ".easymint_pi_core");
+  const dir = join(projectPath, ".easymint");
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   const p = issuesPath(projectPath);
   const tmp = p + ".tmp";

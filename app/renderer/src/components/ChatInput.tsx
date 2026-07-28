@@ -21,6 +21,8 @@ interface ChatInputProps {
   onPermissionModeChange: (v: string) => void;
   chatModel: string;
   onModelChange: (m: string) => void;
+  thinkingLevel: string;
+  onThinkingLevelChange: (v: string) => void;
 }
 
 function AttachPreview_({ attaches, setAttaches }: { attaches: AttachItem[]; setAttaches: (a: AttachItem[] | ((prev: AttachItem[]) => AttachItem[])) => void }): JSX.Element {
@@ -49,6 +51,7 @@ export const ChatInput = memo(function ChatInput({
   busy, attaches, setAttaches, onSend, onStop, onPaste,
   imgInputRef, docInputRef, onImgChange, onDocChange,
   permissionMode, onPermissionModeChange, chatModel, onModelChange,
+  thinkingLevel, onThinkingLevelChange,
 }: ChatInputProps): JSX.Element {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -78,11 +81,12 @@ export const ChatInput = memo(function ChatInput({
 
   const handleInputChange = useCallback((value: string) => {
     setInput(value);
-    if (value.startsWith("/") && !value.includes("\n") && !value.includes(" ")) {
-      setPaletteQuery(value);
-    } else {
-      setPaletteQuery(null);
-    }
+    // 快捷命令已屏蔽，后续适配 Pi 命令后再开放
+    // if (value.startsWith("/") && !value.includes("\n") && !value.includes(" ")) {
+    //   setPaletteQuery(value);
+    // } else {
+    //   setPaletteQuery(null);
+    // }
   }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -110,6 +114,7 @@ export const ChatInput = memo(function ChatInput({
       }
     } else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
+      if (busy || inputDisabled) return;
       if (input.trim() || attaches.length > 0) {
         // 存历史
         const msg = input.trim();
@@ -122,7 +127,7 @@ export const ChatInput = memo(function ChatInput({
         onSend(input); setInput(""); textareaRef.current?.focus();
       }
     }
-  }, [paletteQuery, input, attaches, onSend]);
+  }, [paletteQuery, input, attaches, onSend, busy, inputDisabled]);
 
   return (
     <>
@@ -136,18 +141,27 @@ export const ChatInput = memo(function ChatInput({
         <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-accent transition-colors" title="上传文档" onClick={() => docInputRef.current?.click()}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M3 2h7l4 4v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M10 2v4h4M6 9h4M6 12h4"/></svg>
         </button>
-        <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-accent transition-colors" title="快捷命令（输入 / 也能触发）" onClick={() => setPaletteQuery("")}>
+        {/* 快捷命令按钮暂时屏蔽，后续适配 Pi 命令后再开放 */}
+        {/* <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-accent transition-colors" title="快捷命令（输入 / 也能触发）" onClick={() => setPaletteQuery("")}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M2.5 4l3 4-3 4"/><path d="M7 12h6.5"/></svg>
-        </button>
+        </button> */}
         <div className="flex-1" />
+        <span className="text-[10px] text-text-secondary">AI权限</span>
         <select value={permissionMode} onChange={(e) => onPermissionModeChange(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer">
           <option value="auto">智能判断</option><option value="plan">只读</option><option value="acceptEdits">手动确认</option><option value="bypassPermissions">完全自主</option>
         </select>
-        <span className="text-[10px] text-text-secondary hidden sm:inline">权限</span>
+        <span className="text-[10px] text-text-secondary">模型</span>
         <select value={chatModel} onChange={(e) => onModelChange(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer max-w-[200px]" title="切换模型">
+          {availableModels.length === 0 && <option value="">暂无可选模型</option>}
           {availableModels.map((m) => (<option key={m} value={m}>{m}</option>))}
         </select>
+        <span className="text-[10px] text-text-secondary">思考等级</span>
+        <select value={thinkingLevel} onChange={(e) => onThinkingLevelChange(e.target.value)} className="text-[11px] px-2 py-1 rounded-md bg-surface border border-border text-text-primary outline-none focus:border-accent cursor-pointer" title="思考深度">
+          <option value="low">低</option><option value="medium">中</option><option value="high">高</option>
+        </select>
+        <span className="text-[10px] text-text-secondary">余额</span>
         {balanceText && <span className="text-[10px] text-text-secondary cursor-pointer hover:text-accent transition-colors" onClick={refreshBalance} title="账户余额，点击刷新">{balanceText}</span>}
+        <span className="text-[10px] text-text-secondary">上下文</span>
         <span className="text-[10px] text-text-secondary" title="上下文使用率，可设置阈值">{ctxPct}%</span>
       </div>
 

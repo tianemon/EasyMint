@@ -12,23 +12,33 @@ import path from "node:path";
 import fs from "node:fs";
 import { BrowserWindow } from "electron";
 import { resolveHome } from "../utils/paths";
+import { broadcast } from "./ipc-broadcast";
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { getTemplate } from "./agent-templates";
 import { buildSkillsPrompt } from "./skill-service";
-import { getActiveModel, resetModelRuntime } from "./pi-init";
-import { createPiSession, resumePiSession, listPiSessions } from "./pi-session";
+import { getActiveModel, getModelRuntime, resetModelRuntime } from "./pi-init";
+import { createPiSession, resumePiSession, listPiSessions, getPiSessionDir } from "./pi-session";
+import { createTaskTool } from "./task/tool";
+import { createProductTools } from "./builtin-mcp";
+import { loadMcpTools } from "./omp/mcp/mcp-adapter";
+import { permissionService } from "./omp/permission/agent-permission-service";
+import { wrapToolWithPermission } from "./omp/permission/wrap-tool";
+import {
+  SAFE_TOOLS,
+  isSafeBashCommand,
+  isDangerousCommand,
+  hasDangerousStructure,
+} from "./omp/permission/permission-rules";
 import {
   bridgeSessionEvents,
-  createPartialCoalescer,
-  convertPiAssistantMessage,
   type PiChatEvent,
 } from "./event-bridge";
 import type { AgentSession, AgentSessionEvent } from "./pi-sdk";
 import type { Model } from "@earendil-works/pi-ai";
-import type { AssistantMessage } from "@earendil-works/pi-ai/compat";
-// type-only imports — esbuild erases, no runtime require()
 import { randomUUID } from "node:crypto";
+import { archiveSession, renameSession, hasCustomTitle } from "./session-service";
+import { CONTEXT_SUMMARY_INSTRUCTION } from "../../shared/prompts";
 
 // ── 类型 ────────────────────────────────────────────
 
@@ -48,11 +58,20 @@ interface ActiveChat {
   agentType?: "mint" | "builder" | "evaluator" | "designer";
   status: string;
   firstUserMessage: string;
-  /** 当前 assistant 消息的 uuid */
   assistantUuid: string;
-  /** PiChatEvent buffer（供 late-connecting 前端获取） */
   eventBuffer: PiChatEvent[];
+  /** 本会话已 compact 次数。超过 MAX_COMPACT 触发轮转归档 */
+  compactCount: number;
+  /** 上下文状态：normal | summarizing | rotated */
+  contextStatus: "normal" | "summarizing" | "rotated";
+  /** 轮转时积累的摘要文本 */
+  summaryBuffer: string;
+  /** 轮转后新会话的 handoff 信息 */
+  rotationContinuation: string;
 }
+
+/** 单会话最大 compact 次数，超过则归档旧会话、开启新会话 */
+const MAX_COMPACT = 3;
 
 /** 记录各 session 的 agent 类型 */
 const sessionAgentTypes = new Map<string, string>();
@@ -68,7 +87,7 @@ function loadSessionTypes(): Map<string, string> {
       }
       return map;
     }
-  } catch { /* ignore */ }
+  } catch (e) { console.warn("[agent] 读取 session-types.json 失败:", (e as Error).message); }
   return new Map();
 }
 
@@ -77,7 +96,7 @@ function saveSessionTypes(map: Map<string, string>): void {
     const dir = path.dirname(SESSION_TYPES_PATH);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(SESSION_TYPES_PATH, JSON.stringify(Object.fromEntries(map), null, 2));
-  } catch { /* ignore */ }
+  } catch (e) { console.warn("[agent] 保存 session-types.json 失败:", (e as Error).message); }
 }
 
 // 初始化时加载已有记录
@@ -97,9 +116,6 @@ export function getDesignSessionIds(): string[] {
 }
 
 // ── 上下文压缩 ──────────────────────────────────────
-
-/** 触发 compact 的上下文使用率默认阈值（百分比） */
-const DEFAULT_COMPACT_THRESHOLD = 65;
 
 // ── AgentService ────────────────────────────────────
 
@@ -123,16 +139,52 @@ export class AgentService {
     return m ?? null;
   }
 
+  private async buildExtraTools(projectPath: string, sessionId: string): Promise<import("./pi-sdk").ToolDefinition[]> {
+    try {
+      const taskTool = await createTaskTool({
+        cwd: projectPath,
+        agentDir: this.getAgentDir(),
+        store: this.store,
+      });
+      const productTools = await createProductTools(projectPath);
+      const mcpTools = await loadMcpTools();
+      const allTools = [taskTool, ...productTools, ...mcpTools];
+
+      // 权限包装：使用 permissionService 做智能分类（按 sessionId 隔离白名单）
+      const pendingPerms = new Map<string, { resolve: (r: any) => void; request: any }>();
+      const canUseTool = permissionService.createCanUseTool(
+        sessionId,
+        (request) => { broadcast("agent:permission-request", request); },
+        undefined,
+        (askRequest) => { broadcast("agent:permission-request", { ...askRequest, type: "ask" }); },
+      );
+
+      const wrapped = allTools.map((tool) =>
+        wrapToolWithPermission(tool as any, { canUseTool: canUseTool as any }),
+      );
+
+      console.log(`[agent] tools: 1 task + ${productTools.length} product + ${mcpTools.length} mcp (permission: enabled)`);
+      return wrapped as any[];
+    } catch (e) {
+      console.error("[agent] tool creation failed:", e);
+      return [];
+    }
+  }
+
   private buildSystemPrompt(projectPath: string, agentTemplate?: string): string {
     const parts: string[] = [];
 
     if (agentTemplate) {
       const tpl = getTemplate(agentTemplate);
-      if (tpl) parts.push(tpl.prompt);
+      if (tpl) {
+        // 选了角色模板 → 用模板 prompt 替代默认 Mint prompt
+        parts.push(tpl.prompt);
+      }
+    } else {
+      // 无模板 → 用默认 Mint prompt
+      const effective = resolveEffectivePrompt();
+      if (effective) parts.push(effective);
     }
-
-    const effective = resolveEffectivePrompt();
-    if (effective) parts.push(effective);
 
     const skills = buildSkillsPrompt(projectPath);
     if (skills) parts.push(skills);
@@ -140,57 +192,43 @@ export class AgentService {
     return parts.join("\n\n");
   }
 
-  /** 处理 prompt → 广播错误到前端 */
+  /** 处理 prompt → 广播流事件到前端，含压缩追踪和轮转 */
   private async promptAndBridge(
     session: AgentSession,
     sessionId: string,
     chatId: string,
     text: string,
+    chat?: ActiveChat,
+    images?: Array<{ type: "image"; data: string; mimeType: string }>,
   ): Promise<void> {
-    const coalescer = createPartialCoalescer(({ message, uuid }) => {
-      const ev = convertPiAssistantMessage(message, sessionId, {
-        final: false,
-        uuid,
-      });
-      if (ev) {
-        ev.chatId = chatId;
-        broadcast("agent:stream", ev);
-        this.bufferEvent(sessionId, ev);
-      }
-    });
-
-    let lastPartialAssistant: AssistantMessage | null = null;
-    let assistantUuid = randomUUID();
     let pendingResult: PiChatEvent | null = null;
 
     const unsub = session.subscribe((event: AgentSessionEvent) => {
       try {
-        bridgeSessionEvents(
-          event,
-          {
-            onEvent: (ev) => {
-              ev.sessionId = sessionId;
-              ev.chatId = chatId;
-              broadcast("agent:stream", ev);
-              this.bufferEvent(sessionId, ev);
-            },
-            getAssistantUuid: () => assistantUuid,
-            setPendingResult: (ev: PiChatEvent) => { pendingResult = ev as PiChatEvent; },
+        bridgeSessionEvents(event, {
+          onEvent: (ev) => {
+            ev.sessionId = sessionId;
+            ev.chatId = chatId;
+            broadcast("agent:stream", ev);
+            this.bufferEvent(sessionId, ev);
           },
-          {
-            coalescer,
-            lastPartialAssistant: lastPartialAssistant as any,
-          },
-        );
+          getSession: () => session,
+          setPendingResult: (ev: PiChatEvent) => { pendingResult = ev; },
+        });
 
-        // 跟踪 partial 状态
-        if (event.type === "message_update") {
-          const msg = event.message as any;
-          if (msg.role === "assistant") lastPartialAssistant = msg;
-        }
-        if (event.type === "message_end") {
-          lastPartialAssistant = null;
-          assistantUuid = randomUUID();
+        // ── 压缩追踪 ──
+        if (chat && event.type === "compaction_end") {
+          if (!event.aborted && !event.willRetry) {
+            chat.compactCount++;
+            console.log(`[agent] compact #${chat.compactCount}: chatId=${chatId}`);
+
+            if (chat.compactCount >= MAX_COMPACT && chat.contextStatus === "normal") {
+              // 达到阈值 → 触发轮转（下一轮 prompt 前注入总结指令）
+              chat.contextStatus = "summarizing";
+              chat.summaryBuffer = "";
+              console.log(`[agent] rotation triggered: chatId=${chatId}`);
+            }
+          }
         }
       } catch (e) {
         console.error("[agent] bridge error:", e);
@@ -198,9 +236,12 @@ export class AgentService {
     });
 
     try {
-      await session.prompt(text);
+      // 10 分钟超时保护，防止网络挂起无限阻塞
+      await Promise.race([
+        session.prompt(text, images ? { images } : undefined),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("请求超时（10分钟）")), 600_000)),
+      ]);
 
-      // agent_end 后的 pending result
       const pr = pendingResult as PiChatEvent | null;
       if (pr) {
         pr.sessionId = sessionId;
@@ -209,29 +250,124 @@ export class AgentService {
         this.bufferEvent(sessionId, pr);
         broadcast("agent:exit", { runId: chatId, code: 0 });
 
-        // 上下文检测（简化版 — 步骤五用 Pi 原生 compact 替代）
+        // 上报真实上下文使用率
         setTimeout(() => {
-          broadcast("agent:context-usage", {
-            chatId,
-            percentage: 0,
-            totalTokens: 0,
-            maxTokens: 200000,
-          });
+          const usage = session.getContextUsage();
+          if (usage) {
+            broadcast("agent:context-usage", {
+              chatId,
+              percentage: usage.percent ?? 0,
+              totalTokens: usage.tokens ?? 0,
+              maxTokens: usage.contextWindow,
+            });
+          }
         }, 500);
+
+        // ── 自动标题：新会话首轮完成后生成中文标题 ──
+        if (chat && chat.firstUserMessage) {
+          const firstMsg = chat.firstUserMessage;
+          chat.firstUserMessage = "";
+          if (firstMsg.startsWith("[系统消息]")) {
+            // 系统消息不生成标题
+          } else {
+            const isNamed = await hasCustomTitle(sessionId, chat.projectPath);
+            if (!isNamed) {
+              const title = firstMsg.length > 15 ? firstMsg.slice(0, 15) + "…" : firstMsg;
+              renameSession(sessionId, title, chat.projectPath).catch(() => {});
+              broadcast("agent:session-renamed", { sessionId, title });
+            }
+          }
+        }
+
+        // ── 轮转收尾：summarizing 完成 → 归档 + 新会话 ──
+        if (chat && chat.contextStatus === "summarizing") {
+          await this.finishRotation(chat, session, sessionId);
+          return; // 轮转完成，不继续
+        }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      broadcast("agent:stream", {
-        type: "error",
-        sessionId,
-        chatId,
-        message: msg,
-        canRetry: false,
-      });
+      broadcast("agent:stream", { type: "error", sessionId, chatId, message: msg, canRetry: false });
       broadcast("agent:exit", { runId: chatId, code: -1 });
     } finally {
-      coalescer.flush();
       unsub();
+    }
+  }
+
+  /** 轮转：归档旧会话 → 创建新会话 → 注入摘要 → 继续 */
+  private async finishRotation(
+    chat: ActiveChat,
+    oldSession: AgentSession,
+    oldSessionId: string,
+  ): Promise<void> {
+    const summary = chat.summaryBuffer;
+    if (!summary) {
+      console.log("[agent] rotation: no summary, skipping");
+      chat.contextStatus = "normal";
+      chat.compactCount = 0;
+      return;
+    }
+
+    chat.contextStatus = "rotated";
+    broadcast("agent:context-summary", { chatId: chat.chatId, summary });
+
+    // 归档旧会话
+    try {
+      archiveSession(oldSessionId);
+      console.log(`[agent] rotation: archived ${oldSessionId}`);
+    } catch (e) {
+      console.error("[agent] rotation: archive failed", e);
+    }
+
+    // 创建新 Pi 会话
+    const model = await this.getModel(this.store);
+    if (!model) {
+      broadcast("agent:stream", {
+        type: "error", sessionId: oldSessionId, chatId: chat.chatId,
+        message: "上下文轮转失败：未配置 AI 模型", canRetry: false,
+      });
+      return;
+    }
+
+    try {
+      const continuation = chat.rotationContinuation || "继续推进项目";
+      const handoffPrompt = `[系统消息] 这是从上一轮会话迁移过来的项目上下文。请从这个断点继续工作。
+
+<previous_session_summary>
+${summary}
+</previous_session_summary>
+
+请检查项目当前状态，然后用自然的语气对用户说一句话作为开场，告诉用户会话已整理完毕，接下来继续做什么。开场白以"${continuation}"结尾。`;
+
+      const newSession = await createPiSession({
+        cwd: chat.projectPath,
+        agentDir: this.getAgentDir(),
+        model,
+        store: this.store,
+        systemPrompt: this.buildSystemPrompt(chat.projectPath, chat.agentType),
+        extraTools: await this.buildExtraTools(chat.projectPath, chat.sessionId),
+      });
+
+      // 更新 chat 引用
+      oldSession.dispose();
+      chat.session = newSession;
+      chat.sessionId = newSession.sessionId;
+      chat.compactCount = 0;
+      chat.contextStatus = "normal";
+      chat.summaryBuffer = "";
+      chat.rotationContinuation = "";
+
+      broadcast("agent:chat-session", { chatId: chat.chatId, sessionId: newSession.sessionId });
+      broadcast("agent:context-rotated", { chatId: chat.chatId, sessionId: newSession.sessionId });
+
+      // 在新会话中发送 handoff
+      await this.promptAndBridge(newSession, newSession.sessionId, chat.chatId, handoffPrompt, chat);
+    } catch (e) {
+      console.error("[agent] rotation: new session creation failed", e);
+      broadcast("agent:stream", {
+        type: "error", sessionId: oldSessionId, chatId: chat.chatId,
+        message: `上下文轮转失败: ${(e as Error).message}`, canRetry: false,
+      });
     }
   }
 
@@ -258,6 +394,7 @@ export class AgentService {
           return;
         }
 
+        const extraTools = await this.buildExtraTools(resolvedPath, runId);
         const session = await createPiSession({
           cwd: resolvedPath,
           agentDir: this.getAgentDir(),
@@ -265,10 +402,11 @@ export class AgentService {
           thinkingLevel: "medium",
           store: this.store,
           systemPrompt: this.buildSystemPrompt(resolvedPath),
+          extraTools,
         });
         run.session = session;
 
-        await this.promptAndBridge(session, "", runId, prompt);
+        await this.promptAndBridge(session, "", runId, prompt); // worker 无 chat
 
         broadcast("agent:exit", { runId, code: 0 });
         if (this.onWorkerComplete) this.onWorkerComplete(projectPath);
@@ -279,7 +417,9 @@ export class AgentService {
       } finally {
         this.activeRuns.delete(runId);
       }
-    })();
+    })().catch((e) => {
+      console.error("[agent] runWorker 未预期错误:", (e as Error).message);
+    });
 
     return { runId };
   }
@@ -307,6 +447,8 @@ export class AgentService {
     mainWindow: BrowserWindow,
     model?: string,
     agentTemplate?: string,
+    images?: Array<{ type: "image"; data: string; mimeType: string }>,
+    thinkingLevel?: string,
   ): Promise<{ chatId: string }> {
     const resolvedPath = path.resolve(resolveHome(projectPath));
 
@@ -314,7 +456,7 @@ export class AgentService {
     if (resumeSessionId) {
       const existing = this.findActiveChat(resumeSessionId);
       if (existing && existing.session) {
-        this.promptAndBridge(existing.session, resumeSessionId, existing.chatId, message);
+        this.promptAndBridge(existing.session, resumeSessionId, existing.chatId, message, existing, images);
         return { chatId: existing.chatId };
       }
     }
@@ -326,9 +468,14 @@ export class AgentService {
       throw new Error("未配置 AI 模型，请在设置中配置 API");
     }
 
+    // 验证 API Key 已配置
+    if (!this.store.getActiveApiKey()) {
+      console.warn("[agent] 未检测到有效的 API Key，请求可能失败");
+    }
+
     const session: AgentSession = await (async () => {
       if (resumeSessionId) {
-        const sessionDir = path.join(resolvedPath, ".easymint_pi_core", "pi-sessions");
+        const sessionDir = getPiSessionDir(resolvedPath);
         const sessions = await listPiSessions(resolvedPath);
         const info = sessions.find((s) => s.id === resumeSessionId);
         if (info) {
@@ -342,12 +489,16 @@ export class AgentService {
           });
         }
       }
+      // 新会话：用临时 ID，真实 sessionId 在 createPiSession 返回后更新
+      const newSessionId = randomUUID();
+      const extraTools = resumeSessionId ? [] : await this.buildExtraTools(resolvedPath, newSessionId);
       return createPiSession({
         cwd: resolvedPath,
         agentDir: this.getAgentDir(),
         model: piModel,
         store: this.store,
         systemPrompt: this.buildSystemPrompt(resolvedPath, agentTemplate),
+        extraTools,
       });
     })();
 
@@ -362,6 +513,10 @@ export class AgentService {
       firstUserMessage: message,
       assistantUuid: randomUUID(),
       eventBuffer: [],
+      compactCount: 0,
+      contextStatus: "normal",
+      summaryBuffer: "",
+      rotationContinuation: "",
     };
 
     if (agentTemplate) {
@@ -370,7 +525,7 @@ export class AgentService {
         chat.agentType = tpl.agentType;
         if (tpl.agentType === "designer" && resolvedPath) {
           const srcDir = path.join(__dirname, "..", "..", "..", "resources", "em-html-editor");
-          const destDir = path.join(resolveHome(resolvedPath), ".easymint_pi_core", "templates");
+          const destDir = path.join(resolveHome(resolvedPath), ".easymint", "templates");
           const templateFiles = [
             "template-landing.html", "template-dashboard.html",
             "template-form.html", "template-detail.html",
@@ -381,7 +536,7 @@ export class AgentService {
               const src = path.join(srcDir, f);
               if (fs.existsSync(src)) fs.copyFileSync(src, path.join(destDir, f));
             }
-          } catch { /* 非关键路径 */ }
+          } catch (e) { console.warn("[agent] 复制模板文件失败:", (e as Error).message); }
         }
       }
     }
@@ -399,8 +554,14 @@ export class AgentService {
       broadcast("agent:chat-session", { chatId, sessionId: chat.sessionId });
     }
 
+    // 设置思考级别（在 prompt 前同步设置，避免竞态）
+    if (thinkingLevel) {
+      try { session.setThinkingLevel(thinkingLevel as any); }
+      catch (e) { console.warn("[agent] setThinkingLevel 失败:", (e as Error).message); }
+    }
+
     // 发起第一轮对话
-    this.promptAndBridge(session, chat.sessionId, chatId, message);
+    this.promptAndBridge(session, chat.sessionId, chatId, message, chat, images);
 
     return { chatId };
   }
@@ -453,10 +614,16 @@ export class AgentService {
     return this.store.getCommandsCache();
   }
 
-  async setModel(sessionId: string, model: string): Promise<void> {
+  async setModel(sessionId: string, modelName: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
-    if (chat?.session) {
-      chat.currentModel = model;
+    if (!chat?.session) return;
+    // Pi 原生热切换模型
+    const model = await getActiveModel(this.store);
+    if (model && model.id === modelName) {
+      await chat.session.setModel(model);
+      chat.currentModel = modelName;
+    } else {
+      // 模型在 Pi 运行时中不存在，需要重建
       resetModelRuntime();
     }
   }
@@ -480,7 +647,7 @@ export class AgentService {
     message: string,
   ): Promise<{ chatId: string }> {
     return this.sendMessage(projectPath, message, null, "auto",
-      BrowserWindow.getAllWindows()[0]!,
+      _mainWindow!,
       undefined, templateId);
   }
 
@@ -490,6 +657,8 @@ export class AgentService {
       chat.abortController.abort();
       chat.session?.abort().catch(() => {});
       chat.session?.dispose();
+      permissionService.clearSessionWhitelist(chat.sessionId);
+      permissionService.clearSessionPending(chat.sessionId);
       this.activeChats.delete(chatId);
     }
   }
@@ -509,12 +678,66 @@ export class AgentService {
   }
 
   async peekUsage(_projectPath: string, sessionId: string): Promise<void> {
-    broadcast("agent:context-usage", {
-      chatId: sessionId,
-      percentage: 0,
-      totalTokens: 0,
-      maxTokens: 200000,
-    });
+    const chat = this.findActiveChat(sessionId);
+    if (chat?.session) {
+      const usage = chat.session.getContextUsage();
+      if (usage) {
+        broadcast("agent:context-usage", {
+          chatId: sessionId,
+          percentage: usage.percent ?? 0,
+          totalTokens: usage.tokens ?? 0,
+          maxTokens: usage.contextWindow,
+        });
+        return;
+      }
+    }
+    broadcast("agent:context-usage", { chatId: sessionId, percentage: 0, totalTokens: 0, maxTokens: 0 });
+  }
+
+  // ── Pi 原生支持的操作 ─────────────────────────────
+
+  /** 注入引导消息（中断当前回合并插话） */
+  async steer(sessionId: string, text: string): Promise<void> {
+    const chat = this.findActiveChat(sessionId);
+    await chat?.session?.steer(text);
+  }
+
+  /** 注入跟进消息（当前回合结束后发送） */
+  async followUp(sessionId: string, text: string): Promise<void> {
+    const chat = this.findActiveChat(sessionId);
+    await chat?.session?.followUp(text);
+  }
+
+  /** 手动压缩上下文 */
+  async compact(sessionId: string, instructions?: string): Promise<void> {
+    const chat = this.findActiveChat(sessionId);
+    if (chat?.session) {
+      broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "manual" });
+      await chat.session.compact(instructions);
+    }
+  }
+
+  /** 切换思考级别 */
+  setThinkingLevel(sessionId: string, level: string): void {
+    const chat = this.findActiveChat(sessionId);
+    chat?.session?.setThinkingLevel(level as any);
+  }
+
+  /** 循环切换模型 */
+  async cycleModel(sessionId: string, direction: "forward" | "backward" = "forward"): Promise<void> {
+    const chat = this.findActiveChat(sessionId);
+    if (!chat?.session) return;
+    const result = await chat.session.cycleModel(direction);
+    if (result) {
+      chat.currentModel = result.model.id;
+      broadcast("agent:model-changed", { sessionId, model: result.model.id });
+    }
+  }
+
+  /** 运行时切换活跃工具集 */
+  setActiveTools(sessionId: string, toolNames: string[]): void {
+    const chat = this.findActiveChat(sessionId);
+    chat?.session?.setActiveToolsByName(toolNames);
   }
 
   shutdown(): void {
@@ -522,6 +745,8 @@ export class AgentService {
       chat.abortController.abort();
       chat.session?.abort().catch(() => {});
       chat.session?.dispose();
+      permissionService.clearSessionWhitelist(chat.sessionId);
+      permissionService.clearSessionPending(chat.sessionId);
       broadcast("agent:exit", { runId: id, code: -1 });
     }
     this.activeChats.clear();
@@ -541,12 +766,3 @@ export function setMainWindow(win?: BrowserWindow): void {
   if (win) _mainWindow = win;
 }
 
-// ── broadcast helper ───────────────────────────────
-
-function broadcast(channel: string, data: unknown): void {
-  BrowserWindow.getAllWindows().forEach((win) => {
-    if (!win.isDestroyed()) {
-      win.webContents.send(channel, data);
-    }
-  });
-}

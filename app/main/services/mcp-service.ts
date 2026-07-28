@@ -50,8 +50,13 @@ function getHiddenMcpServers(): string[] {
 
 function readMcpServersFrom(filePath: string): Record<string, McpServerConfig> {
   if (!existsSync(filePath)) return {};
-  const data = JSON.parse(readFileSync(filePath, "utf-8"));
-  return (data.mcpServers as Record<string, McpServerConfig>) || {};
+  try {
+    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+    return (data.mcpServers as Record<string, McpServerConfig>) || {};
+  } catch (e) {
+    console.error(`[mcp] 解析 MCP 配置失败 (${filePath}):`, (e as Error).message);
+    return {};
+  }
 }
 
 /** Scan CC's MCP config (shared with EM) for the settings panel display */
@@ -110,8 +115,7 @@ export function buildMcpServersOption(): Record<string, McpServerConfig> | undef
   return Object.keys(result).length > 0 ? result : undefined;
 }
 
-/** Discover which env vars each MCP server needs, with their current values.
- *  Checks MCP config env first, then apiKeys from em-settings.json. */
+/** Discover which env vars each MCP server needs. 只返回状态（已配置/未配置），不泄露实际值。 */
 export function getMcpRequiredKeys(): Record<string, Record<string, string>> {
   const servers = readMcpServersFrom(claudeCodeMcpPath());
   const apiKeys = getApiKeys();
@@ -120,30 +124,30 @@ export function getMcpRequiredKeys(): Record<string, Record<string, string>> {
   for (const [name, cfg] of Object.entries(servers)) {
     const keys: Record<string, string> = {};
 
-    // Keys from MCP config env vars (already configured via claude mcp add -e)
+    // Keys from MCP config env vars
     if (cfg.env) {
       for (const [k, v] of Object.entries(cfg.env)) {
-        keys[k] = v || apiKeys[k] || "";
+        keys[k] = (v || apiKeys[k]) ? "已配置" : "未配置";
       }
     }
 
-    // Keys from apiKeys that match patterns for this server but aren't in MCP env
+    // Keys from apiKeys matching this server
     const upper = name.toUpperCase().replace(/-/g, "_");
     for (const [k, v] of Object.entries(apiKeys)) {
       if (k.includes(upper) || upper.includes(k.replace(/_API_KEY$/, ""))) {
-        if (!(k in keys)) keys[k] = v;
+        if (!(k in keys)) keys[k] = v ? "已配置" : "未配置";
       }
     }
 
     if (Object.keys(keys).length > 0) result[name] = keys;
   }
 
-  // Built-in MCP servers — not in config files, keys from apiKeys only
+  // Built-in MCP servers
   if (apiKeys.VISION_API_KEY) {
-    result["easymint-vision"] = { VISION_API_KEY: apiKeys.VISION_API_KEY };
+    result["easymint-vision"] = { VISION_API_KEY: "已配置" };
   }
   if (apiKeys.TAVILY_API_KEY) {
-    result["easymint-web-fetch"] = { TAVILY_API_KEY: apiKeys.TAVILY_API_KEY };
+    result["easymint-web-fetch"] = { TAVILY_API_KEY: "已配置" };
   }
 
   return result;

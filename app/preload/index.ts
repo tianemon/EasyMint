@@ -56,9 +56,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     delete: (projectId: string, sessionId: string) =>
       ipcRenderer.invoke("session:delete", { projectId, sessionId }),
   },
-  claude: {
-    detect: () => ipcRenderer.invoke("claude:detect"),
-  },
   git: {
     detect: () => ipcRenderer.invoke("git:detect"),
   },
@@ -194,8 +191,27 @@ contextBridge.exposeInMainWorld("electronAPI", {
   agent: {
     runWorker: (projectPath: string, prompt: string) =>
       ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string }) =>
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; agentTemplate?: string; images?: Array<{ type: "image"; data: string; mimeType: string }> }) =>
       ipcRenderer.invoke("agent:sendMessage", { projectPath, message, ...opts }),
+    steer: (sessionId: string, text: string) =>
+      ipcRenderer.invoke("agent:steer", { sessionId, text }),
+    followUp: (sessionId: string, text: string) =>
+      ipcRenderer.invoke("agent:followUp", { sessionId, text }),
+    compact: (sessionId: string, instructions?: string) =>
+      ipcRenderer.invoke("agent:compact", { sessionId, instructions }),
+    setThinkingLevel: (sessionId: string, level: string) =>
+      ipcRenderer.invoke("agent:setThinkingLevel", { sessionId, level }),
+    cycleModel: (sessionId: string, direction?: "forward" | "backward") =>
+      ipcRenderer.invoke("agent:cycleModel", { sessionId, direction }),
+    setActiveTools: (sessionId: string, toolNames: string[]) =>
+      ipcRenderer.invoke("agent:setActiveTools", { sessionId, toolNames }),
+    respondPermission: (requestId: string, behavior: "allow" | "deny", alwaysAllow?: boolean) =>
+      ipcRenderer.invoke("agent:permission-response", { requestId, behavior, alwaysAllow }),
+    onPermissionRequest: (callback: (data: any) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+      ipcRenderer.on("agent:permission-request", handler);
+      return () => ipcRenderer.removeListener("agent:permission-request", handler);
+    },
     abort: (runId: string) => ipcRenderer.invoke("agent:abort", { runId }),
     setModel: (sessionId: string, model: string) => ipcRenderer.invoke("agent:setModel", { sessionId, model }) as Promise<void>,
     notifySession: (sessionId: string, message: string) => ipcRenderer.invoke("agent:notifySession", { sessionId, message }),

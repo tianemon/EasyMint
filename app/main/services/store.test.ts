@@ -120,7 +120,7 @@ describe("Store", () => {
           title: "测试会话",
           createdAt: "2026-01-01",
           lastActiveAt: "2026-01-02",
-          claudeSessionId: "claude-1",
+          sessionId: "claude-1",
           status: "active" as const,
         },
       ];
@@ -136,7 +136,7 @@ describe("Store", () => {
           title: "会话一",
           createdAt: "2026-01-01",
           lastActiveAt: "2026-01-02",
-          claudeSessionId: "claude-1",
+          sessionId: "claude-1",
           status: "active" as const,
         },
         {
@@ -145,7 +145,7 @@ describe("Store", () => {
           title: "会话二",
           createdAt: "2026-02-01",
           lastActiveAt: "2026-02-02",
-          claudeSessionId: "claude-2",
+          sessionId: "claude-2",
           status: "completed" as const,
         },
       ];

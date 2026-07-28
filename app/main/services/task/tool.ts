@@ -1,0 +1,165 @@
+/**
+ * task 工具 — Mint 的子 Agent 执行引擎
+ *
+ * 对标 Claude Code 的 Task 工具。Mint 自主决定子 Agent 的任务描述和工具范围，
+ * 不依赖预定义模板。agent-templates.ts 中的模板（如 builder）是可选捷径。
+ */
+
+import type { ToolDefinition } from "../pi-sdk";
+import { getDefineToolFn } from "../pi-sdk";
+import { Store } from "../store";
+import { getTemplate } from "../agent-templates";
+import { runSubagents } from "./executor";
+import type { TaskItem } from "./types";
+
+export interface TaskToolContext {
+  cwd: string;
+  agentDir: string;
+  store: Store;
+}
+
+export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefinition> {
+  const defineTool = await getDefineToolFn();
+
+  return defineTool({
+    name: "task",
+    label: "委派子 Agent",
+    description:
+      "创建一个独立的子 Agent 来完成指定任务。子 Agent 拥有独立的会话上下文和工具集，"
+      + "执行完毕后返回结果。"
+      + "使用场景：① 实现功能模块 ② 修复 bug ③ 重构代码 ④ 验收变更 ⑤ 研究技术方案。"
+      + "支持同时委派多个子 Agent 并行执行（tasks 数组）。"
+      + "如需使用预设模板（如 builder），将 agent 参数设为模板名。",
+    parameters: {
+      type: "object" as const,
+      properties: {
+        agent: {
+          type: "string" as const,
+          description: "可选的 Agent 模板名（如 builder、evaluator），省略则 Mint 自己描述任务",
+        },
+        description: {
+          type: "string" as const,
+          description: "任务简述（单任务模式），如「实现用户注册功能」",
+        },
+        prompt: {
+          type: "string" as const,
+          description: "详细任务指令（单任务模式），相当于子 Agent 的 system prompt 追加内容",
+        },
+        outputSchema: {
+          type: "object" as const,
+          description: "子 Agent 结构化输出格式，如 { files_changed: [\"string\"], test_results: \"string\" }。子 Agent 必须调 yield 工具按此格式返回结果",
+        },
+        tasks: {
+          type: "array" as const,
+          items: {
+            type: "object" as const,
+            properties: {
+              description: { type: "string" as const },
+              prompt: { type: "string" as const },
+              agent: { type: "string" as const },
+              outputSchema: { type: "object" as const },
+            },
+            required: ["description"],
+          },
+          description: "批量任务列表（批量模式），每个任务可指定不同的 Agent 模板和详细指令",
+        },
+        readOnly: {
+          type: "boolean" as const,
+          description: "是否为只读模式（用于验收/审查场景），默认 false",
+        },
+        concurrency: {
+          type: "number" as const,
+          description: "批量模式的并发数，默认 4",
+        },
+      },
+    },
+    async execute(
+      _toolCallId: string,
+      params: Record<string, unknown>,
+      _signal: any,
+      _onUpdate: any,
+      _ctx: any,
+    ) {
+      const readOnly = params.readOnly === true;
+      const tasks: TaskItem[] = [];
+
+      if (Array.isArray(params.tasks) && params.tasks.length > 0) {
+        for (const t of params.tasks as Array<Record<string, unknown>>) {
+          const agentName = (t.agent as string) || params.agent as string || undefined;
+          const prompt = buildPrompt(
+            (t.description as string) || "",
+            (t.prompt as string) || "",
+            agentName,
+          );
+          tasks.push({
+            agent: agentName,
+            task: prompt,
+            readOnly,
+            outputSchema: (t.outputSchema as unknown) || undefined,
+          });
+        }
+      } else {
+        const desc = (params.description as string) || (params.prompt as string) || "";
+        if (!desc) {
+          return { content: [{ type: "text" as const, text: "请提供 description 或 prompt 描述子 Agent 的任务" }] };
+        }
+        tasks.push({
+          agent: params.agent as string | undefined,
+          task: buildPrompt(desc, (params.prompt as string) || "", params.agent as string | undefined),
+          readOnly,
+          outputSchema: (params.outputSchema as unknown) || undefined,
+        });
+      }
+
+      try {
+        const result = await runSubagents({
+          cwd: ctx.cwd,
+          agentDir: ctx.agentDir,
+          store: ctx.store,
+          tasks,
+          concurrency: (params.concurrency as number) || undefined,
+        });
+
+        const lines: string[] = [];
+        for (const r of result.results) {
+          const status = r.error ? "✗ 失败" : "✓ 完成";
+          lines.push(`## ${status}: ${r.task.slice(0, 80)}`);
+          if (r.error) lines.push(`错误: ${r.error}`);
+          if (r.output) lines.push(r.output.slice(0, 3000));
+          if (r.truncated) lines.push("\n(输出已截断)");
+          lines.push("");
+        }
+
+        if (result.aborted) lines.push("(部分任务被取消)");
+
+        // 合并多结果
+        if (result.results.length > 1) {
+          const ok = result.results.filter((r) => !r.error).length;
+          lines.unshift(`共 ${result.results.length} 个子任务: ${ok} 成功, ${result.results.length - ok} 失败\n`);
+        }
+
+        return { content: [{ type: "text" as const, text: lines.join("\n") || "(无输出)" }] };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return { content: [{ type: "text" as const, text: `子 Agent 执行失败: ${msg}` }] };
+      }
+    },
+  } as any) as ToolDefinition;
+}
+
+function buildPrompt(description: string, prompt: string, agentName: string | undefined): string {
+  const parts: string[] = [];
+  if (agentName) {
+    const tpl = getTemplate(agentName);
+    if (tpl) {
+      parts.push(tpl.prompt);
+      parts.push("");
+    }
+  }
+  parts.push(`## 任务: ${description}`);
+  if (prompt) {
+    parts.push("");
+    parts.push(prompt);
+  }
+  return parts.join("\n");
+}

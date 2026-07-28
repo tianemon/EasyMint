@@ -28,6 +28,9 @@ export function App(): JSX.Element {
   useEffect(() => {
     const restore = async () => {
       try {
+        // 新窗口不恢复旧窗口的标签页（URL 参数 fresh=1 标记）
+        const hashQuery = window.location.hash.split("?")[1] || "";
+        if (new URLSearchParams(hashQuery).get("fresh") === "1") return;
         const backup = await window.electronAPI?.tab?.restore?.();
         if (backup?.tabs?.length) {
           const store = useTabStore.getState();

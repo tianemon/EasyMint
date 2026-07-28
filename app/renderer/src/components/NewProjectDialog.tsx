@@ -35,6 +35,7 @@ interface ProjectFormData {
 
 const TARGET_OPTIONS = [
   { value: "web", label: "Web 网页", desc: "浏览器访问，不限设备" },
+  { value: "wechat-miniprogram", label: "微信小程序", desc: "微信内运行，即用即走" },
   { value: "ios-mobile", label: "iOS 移动 App", desc: "iPhone / iPad 原生应用" },
   { value: "android-mobile", label: "Android 移动 App", desc: "Android 手机/平板原生应用" },
   { value: "windows-desktop", label: "Windows 桌面应用", desc: "Windows 原生桌面应用" },
@@ -171,9 +172,11 @@ function buildContext(data: ProjectFormData, step?: number): string {
     push(`预算「${data.techBudget}」`);
   }
 
-  // Step 4: include deploy
+  // Step 4: include deploy + AI
   if (!step || step >= 4) {
     push(`部署「${data.deployPlatform}」`);
+    const aiLabel = data.aiIntegration === "none" ? "无" : data.aiIntegration === "assistant" ? "AI 辅助" : data.aiIntegration === "agent" ? "Agent 自主决策" : "多 Agent 协作";
+    push(`AI 集成「${aiLabel}」`);
   }
 
   return `项目信息：${parts.join("。")}。`;

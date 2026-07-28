@@ -6,7 +6,8 @@ import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
 import { AgentService, getSessionAgentType, getDesignSessionIds } from "./services/agent-service";
 import { Store } from "./services/store";
-import { detectClaude } from "./utils/claude-detector";
+import { broadcast } from "./services/ipc-broadcast";
+import { permissionService } from "./services/omp/permission/agent-permission-service";
 import { detectGit } from "./utils/git-detector";
 import { detectNode } from "./utils/node-detector";
 import { detectNpx } from "./utils/npx-detector";
@@ -152,8 +153,35 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:spawnAgentChat", (_e, { projectPath, templateId, message }) => {
     return agentService.spawnAgentChat(projectPath, templateId, message);
   });
-  ipcMain.handle("agent:sendMessage", (_e, { projectPath, message, sessionId, permissionMode, model, agentTemplate }) => {
-    return agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, agentTemplate);
+  ipcMain.handle("agent:sendMessage", async (_e, { projectPath, message, sessionId, permissionMode, model, agentTemplate, images, thinkingLevel }) => {
+    try {
+      return await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, agentTemplate, images, thinkingLevel);
+    } catch (e) {
+      console.error("[ipc] sendMessage 失败:", (e as Error).message);
+      throw e;
+    }
+  });
+  ipcMain.handle("agent:steer", (_e, { sessionId, text }) => {
+    agentService.steer(sessionId, text);
+  });
+  ipcMain.handle("agent:followUp", (_e, { sessionId, text }) => {
+    agentService.followUp(sessionId, text);
+  });
+  ipcMain.handle("agent:compact", async (_e, { sessionId, instructions }) => {
+    await agentService.compact(sessionId, instructions);
+  });
+  ipcMain.handle("agent:setThinkingLevel", (_e, { sessionId, level }) => {
+    agentService.setThinkingLevel(sessionId, level);
+  });
+  ipcMain.handle("agent:cycleModel", async (_e, { sessionId, direction }) => {
+    await agentService.cycleModel(sessionId, direction);
+  });
+  ipcMain.handle("agent:setActiveTools", (_e, { sessionId, toolNames }) => {
+    agentService.setActiveTools(sessionId, toolNames);
+  });
+  ipcMain.handle("agent:permission-response", (_e, { requestId, behavior, alwaysAllow }) => {
+    const sid = permissionService.respondToPermission(requestId, behavior, alwaysAllow);
+    if (sid) broadcast("agent:permission-resolved", { requestId, sessionId: sid, behavior });
   });
   ipcMain.handle("agent:peekUsage", async (_e, { projectPath, sessionId }) => {
     await agentService.peekUsage(projectPath, sessionId);
@@ -239,8 +267,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("session-cache:write", (_e, { sessionId, data }) => { writeCache(sessionId, data); });
   ipcMain.handle("session-cache:delete", (_e, { sessionId }) => { deleteCache(sessionId); });
 
-  // claude:*
-  ipcMain.handle("claude:detect", () => detectClaude());
   ipcMain.handle("git:detect", () => detectGit());
   ipcMain.handle("node:detect", () => detectNode());
   ipcMain.handle("npx:detect", () => detectNpx());
@@ -254,17 +280,14 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     store.saveSettings(settings);
   });
   ipcMain.handle("settings:fetchModels", async (_e, modelsUrl?: string, apiKey?: string) => {
-    const settings = store.getSettings();
-    const providers = settings.apiProviders;
-    const activeId = providers?.current;
-    const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
-    const key = apiKey || activeCfg?.apiKey || settings.apiKey;
+    const key = apiKey || store.getActiveApiKey();
     if (!key) throw new Error("请先配置 API Key");
     if (!modelsUrl) throw new Error("该平台未配置模型列表地址");
 
     const resp = await fetch(modelsUrl, { headers: { Authorization: `Bearer ${key}` } });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const json = await resp.json() as { data?: { id: string }[] };
+    let json: { data?: { id: string }[] };
+    try { json = await resp.json() as any; } catch (e) { throw new Error("模型列表返回格式错误"); }
     const models: string[] = [];
     if (json.data) {
       for (const m of json.data) {
@@ -275,14 +298,19 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   });
   ipcMain.handle("settings:fetchBalance", async () => {
     const settings = store.getSettings();
-    const rawUrl = settings.apiBaseUrl || "https://api.deepseek.com";
-    const apiKey = settings.apiKey;
+    const providers = settings.apiProviders;
+    const activeId = providers?.current;
+    const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
+    const rawUrl = activeCfg?.baseUrl || "https://api.deepseek.com";
+    const apiKey = store.getActiveApiKey();
     if (!apiKey) throw new Error("请先配置 API Key");
-    const origin = new URL(rawUrl).origin;
+    let origin: string;
+    try { origin = new URL(rawUrl).origin; } catch (e) { throw new Error("API 地址格式错误"); }
     const url = `${origin}/user/balance`;
     const resp = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const json = await resp.json() as { balance_infos?: { currency: string; total_balance: string; granted_balance: string; topped_up_balance: string }[] };
+    let json: Record<string, unknown>;
+    try { json = await resp.json() as any; } catch (e) { throw new Error("余额查询返回格式错误"); }
     return json;
   });
 
@@ -314,7 +342,7 @@ const filePath = p.join(projectPath, "init.sh");
 
   });
 
-  // project:readState — read .easymint_pi_core/state.json in project
+  // project:readState — read .easymint/state.json in project
   ipcMain.handle("project:readState", (_e, { projectPath }) => {
     
 const filePath = p.join(projectPath, ".easymint_pi_core", "state.json");
@@ -323,7 +351,7 @@ const filePath = p.join(projectPath, ".easymint_pi_core", "state.json");
 
   });
 
-  // project:writeState — merge-write .easymint_pi_core/state.json in project
+  // project:writeState — merge-write .easymint/state.json in project
   ipcMain.handle("project:writeState", (_e, { projectPath, state }) => {
     
 const dir = p.join(projectPath, ".easymint_pi_core");

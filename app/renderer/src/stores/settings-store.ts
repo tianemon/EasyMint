@@ -84,15 +84,12 @@ function translateCommands(cmds: SlashCommandInfo[]): SlashCommandInfo[] {
 interface SettingsState {
   evaluateMode: boolean;
   defaultProjectDir: string;
-  claudePath: string;
-  claudeVersion: string;
   apiBaseUrl: string;
   apiKey: string;
   apiKeys: Record<string, string>;
   model: string;
   availableModels: string[];
   setupComplete: boolean;
-  thinkingBudget: number;
   contextThreshold: number;
   context1M: boolean;
   showThinking: boolean;
@@ -105,7 +102,6 @@ interface SettingsState {
   setApiKey: (key: string) => void;
   setModel: (model: string) => void;
   setAvailableModels: (models: string[]) => void;
-  setThinkingBudget: (budget: number) => void;
   setContextThreshold: (pct: number) => void;
   setContext1M: (enabled: boolean) => void;
   setShowThinking: (enabled: boolean) => void;
@@ -120,8 +116,6 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   evaluateMode: false,
   defaultProjectDir: "~/EasyMintProject",
-  claudePath: "",
-  claudeVersion: "",
   apiBaseUrl: "",
   apiKey: "",
   apiKeys: {},
@@ -131,7 +125,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   availableCommands: [],
 
   setupComplete: false,
-  thinkingBudget: 0,
   contextThreshold: 65,
   context1M: false,
   showThinking: false,
@@ -164,8 +157,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setApiKey: (key) => {
     set({ apiKey: key });
     window.electronAPI?.settings?.set?.("apiKey", key);
-  },
-  setThinkingBudget: (_budget) => {
   },
   setContextThreshold: (pct: number) => {
     set({ contextThreshold: pct });
@@ -232,7 +223,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           apiKeys: settings.apiKeys ?? {},
           model: settings.model ?? "",
           availableModels: settings.availableModels ?? [],
-          thinkingBudget: 0,
           contextThreshold: settings.contextThreshold ?? 65,
           context1M: settings.context1M ?? false,
           showThinking: settings.showThinking ?? false,
@@ -242,13 +232,5 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         });
       }
     } catch { /* electronAPI unavailable */ }
-    try {
-      if (window.electronAPI?.claude?.detect) {
-        const result = await window.electronAPI.claude.detect();
-        if (result.found) {
-          set({ claudePath: result.path ?? "", claudeVersion: result.version ?? "" });
-        }
-      }
-    } catch { /* best-effort */ }
   },
 }));

@@ -50,16 +50,17 @@ export function postToAgent(opts: PostAgentOptions, text: string): Promise<PostA
       unsubExit = null;
     };
 
-    unsubStream = window.electronAPI.agent.onStream((event: StreamEvent) => {
-      if (event.source !== "chat") return;
-      // 仅收本次 chat 的流（chatId 在 sendMessage 返回后赋值）
-      if (chatId && (!event.runId || event.runId !== chatId)) return;
-      // result 事件：本轮最终文本（subtype=success 时 toStreamEvent 转成 system 事件携带 result）
-      if (event.type === "system" && event.data.subtype === "success") {
-        const r = event.data.result;
-        if (typeof r === "string") replyText = r;
+    unsubStream = window.electronAPI.agent.onStream((event: any) => {
+    // 仅收本次 chat 的流（chatId 在 sendMessage 返回后赋值）
+    if (chatId && event.chatId && event.chatId !== chatId) return;
+    if (chatId && event.runId && event.runId !== chatId) return;
+    // 收集 message 事件中的文本
+    if (event.type === "message" && Array.isArray(event.blocks)) {
+      for (const b of event.blocks) {
+        if (b.type === "text" && b.text) replyText = b.text;
       }
-    });
+    }
+  });
 
     unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => {
       if (chatId && runId !== chatId) return;

@@ -18,7 +18,7 @@ import path from "node:path";
 import os from "node:os";
 import { resolveHome } from "../utils/paths";
 import { deleteCache } from "./session-cache";
-import { listPiSessions } from "./pi-session";
+import { listPiSessions, getPiSessionDir } from "./pi-session";
 import { getSessionManagerClass } from "./pi-sdk";
 
 const DATA_DIR = path.join(os.homedir(), ".easymint_pi_core");
@@ -114,7 +114,7 @@ function toListItem(
 ): SessionListItem {
   return {
     sessionId: info.id,
-    title: titles[info.id] || info.name || info.firstMessage?.slice(0, 30) || "新会话",
+    title: info.name || titles[info.id] || info.firstMessage?.slice(0, 30) || "新会话",
     createdAt: info.created.getTime(),
     updatedAt: info.modified.getTime(),
     messageCount: info.messageCount,
@@ -179,7 +179,7 @@ export async function getSessionMessages(
 
   try {
     const SM = await getSessionManagerClass();
-    const mgr = SM.open(info.path, path.join(resolved, ".easymint_pi_core", "pi-sessions"), resolved);
+    const mgr = SM.open(info.path, getPiSessionDir(resolved), resolved);
     const entries = mgr.getEntries();
 
     const messages: SessionMessage[] = [];
@@ -222,8 +222,20 @@ export async function getSessionInfo(
 export async function renameSession(
   sessionId: string,
   title: string,
-  _projectPath: string,
+  projectPath: string,
 ): Promise<void> {
+  const resolved = path.resolve(resolveHome(projectPath));
+  try {
+    const sessions = await listPiSessions(resolved);
+    const info = sessions.find((s) => s.id === sessionId);
+    if (info) {
+      const SM = await getSessionManagerClass();
+      const mgr = SM.open(info.path, getPiSessionDir(resolved), resolved);
+      mgr.appendSessionInfo(title); // Pi 原生写入 session_info 条目
+      return;
+    }
+  } catch { /* 回退到 metadata 文件 */ }
+  // 找不到 Pi session 文件时回退
   const titles = readTitles();
   titles[sessionId] = title;
   writeTitles(titles);
@@ -281,7 +293,18 @@ export function unarchiveSession(sessionId: string): void {
   writeArchived(archived);
 }
 
-export function hasCustomTitle(sessionId: string): boolean {
+export async function hasCustomTitle(sessionId: string, projectPath?: string): Promise<boolean> {
+  // 检查 Pi 原生 session_info 条目
   const titles = readTitles();
-  return sessionId in titles;
+  if (sessionId in titles) return true;
+  // 检查 Pi SessionInfo.name（来自 session_info 条目）
+  if (projectPath) {
+    const resolved = path.resolve(resolveHome(projectPath));
+    try {
+      const sessions = await listPiSessions(resolved);
+      const info = sessions.find((s) => s.id === sessionId);
+      if (info?.name) return true;
+    } catch { /* ignore */ }
+  }
+  return false;
 }

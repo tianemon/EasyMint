@@ -1,10 +1,10 @@
 /**
  * 项目运行进程管理 - 多命令独立启停、内存日志
  *
- * 检测入口：只读 <project>/.easymint_pi_core/run.json（Mint 开发完生成）。
+ * 检测入口：只读 <project>/.easymint/run.json（Mint 开发完生成）。
  */
 
-import { spawn, type ChildProcess } from "child_process";
+import { spawn, execSync, type ChildProcess } from "child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { BrowserWindow } from "electron";
@@ -68,7 +68,7 @@ function broadcastStatus(commandId: string, running: boolean): void {
 
 /** 读 run.json，返回所有命令配置 */
 function readRunJson(projectPath: string): Runnable[] {
-  const runJson = join(resolveHome(projectPath), ".easymint_pi_core", "run.json");
+  const runJson = join(resolveHome(projectPath), ".easymint", "run.json");
   if (!existsSync(runJson)) return [];
   try {
     const data = JSON.parse(readFileSync(runJson, "utf-8"));
@@ -125,7 +125,7 @@ export function startProcess(projectPath: string, commandId: string, port?: numb
     shell: false,
   });
 
-  const info: ProcessInfo = { proc, pid: proc.pid!, run_command, output: [] };
+  const info: ProcessInfo = { proc, pid: proc.pid ?? -1, run_command, output: [] };
   processes.set(commandId, info);
 
   const pushLog = (line: string, stream: "stdout" | "stderr") => {
@@ -187,8 +187,10 @@ export function getRunningIds(): string[] {
 
 /** 检测端口占用状态 */
 export function checkPort(port: number): { free: boolean; pid?: number; name?: string } {
+  if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
+    return { free: true };
+  }
   try {
-    const { execSync } = require("child_process");
     let output = "";
     if (process.platform === "win32") {
       output = execSync(`netstat -ano | findstr :${port}`, { encoding: "utf-8", timeout: 3000 });
@@ -213,8 +215,10 @@ export function checkPort(port: number): { free: boolean; pid?: number; name?: s
 
 /** 释放端口（kill 占用进程） */
 export function killPort(port: number): boolean {
+  if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
+    return false;
+  }
   try {
-    const { execSync } = require("child_process");
     if (process.platform === "win32") {
       const out = execSync(`netstat -ano | findstr :${port}`, { encoding: "utf-8" });
       const pid = out.trim().split(/\s+/).pop();

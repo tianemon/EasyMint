@@ -5,7 +5,7 @@
  */
 
 import * as path from "node:path";
-import type { AgentSession, CreateAgentSessionOptions } from "./pi-sdk";
+import type { AgentSession, CreateAgentSessionOptions, ToolDefinition } from "./pi-sdk";
 import {
   createAgentSession,
   getSessionManagerClass,
@@ -28,6 +28,8 @@ export interface PiSessionOptions {
   resumeSessionFile?: string;
   systemPrompt?: string;
   isDesigner?: boolean;
+  /** 额外的工具（task 等）。createPiSession 会自动追加基础 coding 工具 */
+  extraTools?: ToolDefinition[];
 }
 
 // ── 工厂函数 ────────────────────────────────────────
@@ -50,7 +52,8 @@ async function buildSession(
   });
   await resourceLoader.reload();
 
-  const tools = createTools(opts.cwd);
+  const codingTools = createTools(opts.cwd);
+  const tools = opts.extraTools ? [...opts.extraTools, ...codingTools] : codingTools;
 
   const sessionOpts: CreateAgentSessionOptions = {
     cwd: opts.cwd,
@@ -70,7 +73,7 @@ async function buildSession(
 }
 
 export async function createPiSession(opts: PiSessionOptions): Promise<AgentSession> {
-  const sessionDir = getSessionDir(opts.cwd);
+  const sessionDir = getPiSessionDir(opts.cwd);
   const SM = await getSessionManagerClass();
   const sessionManager = SM.create(opts.cwd, sessionDir);
   return buildSession(opts, sessionManager as any);
@@ -80,7 +83,7 @@ export async function resumePiSession(opts: PiSessionOptions): Promise<AgentSess
   if (!opts.resumeSessionFile) {
     throw new Error("resumeSessionFile is required for resume");
   }
-  const sessionDir = getSessionDir(opts.cwd);
+  const sessionDir = getPiSessionDir(opts.cwd);
   const SM = await getSessionManagerClass();
   const sessionManager = SM.open(opts.resumeSessionFile, sessionDir, opts.cwd);
   return buildSession(opts, sessionManager as any);
@@ -88,12 +91,17 @@ export async function resumePiSession(opts: PiSessionOptions): Promise<AgentSess
 
 // ── 辅助 ────────────────────────────────────────────
 
-function getSessionDir(cwd: string): string {
-  return path.join(cwd, ".easymint_pi_core", "pi-sessions");
+const os = require("node:os");
+
+/** 全局会话目录：~/.easymint_pi_core/sessions/<项目路径编码>/ */
+export function getPiSessionDir(cwd: string): string {
+  const base = path.join(os.homedir(), ".easymint_pi_core", "sessions");
+  const encoded = cwd.replace(/[:/\\]/g, "-");
+  return path.join(base, encoded);
 }
 
 export async function listPiSessions(cwd: string) {
   const SM = await getSessionManagerClass();
-  const sessionDir = getSessionDir(cwd);
+  const sessionDir = getPiSessionDir(cwd);
   return SM.list(cwd, sessionDir);
 }

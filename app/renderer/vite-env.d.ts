@@ -30,11 +30,11 @@ interface Session {
   title: string;
   createdAt: string;
   lastActiveAt: string;
-  claudeSessionId: string;
+  sessionId: string;
   status: "active" | "completed";
 }
 
-// JSONL stream event types from Claude --output-format stream-json
+// Pi SDK agent event stream types
 interface StreamEvent {
   seq: number;           // 全局单调递增，前端去重用
   runId: string;
@@ -78,7 +78,15 @@ interface ElectronAPI {
   };
   agent: {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; agentTemplate?: string }) => Promise<{ chatId: string }>;
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; agentTemplate?: string; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string }) => Promise<{ chatId: string }>;
+    steer: (sessionId: string, text: string) => Promise<void>;
+    followUp: (sessionId: string, text: string) => Promise<void>;
+    compact: (sessionId: string, instructions?: string) => Promise<void>;
+    setThinkingLevel: (sessionId: string, level: string) => Promise<void>;
+    cycleModel: (sessionId: string, direction?: "forward" | "backward") => Promise<void>;
+    setActiveTools: (sessionId: string, toolNames: string[]) => Promise<void>;
+    respondPermission: (requestId: string, behavior: "allow" | "deny", alwaysAllow?: boolean) => Promise<void>;
+    onPermissionRequest: (callback: (data: any) => void) => () => void;
     abort: (runId: string) => void;
     setModel: (sessionId: string, model: string) => Promise<void>;
     notifySession: (sessionId: string, message: string) => void;
@@ -155,9 +163,6 @@ interface ElectronAPI {
     isEnabled: () => Promise<boolean>;
     setEnabled: (enabled: boolean) => Promise<void>;
   };
-  claude: {
-    detect: () => Promise<{ found: boolean; path?: string; version?: string }>;
-  };
   git: {
     detect: () => Promise<{ found: boolean; version?: string }>;
   };
@@ -219,6 +224,7 @@ interface ElectronAPI {
     setLastProject: (projectId: string) => Promise<void>;
     fetchModels: (modelsUrl: string, apiKey: string) => Promise<string[]>;
     fetchBalance: () => Promise<{ balance_infos?: { currency: string; total_balance: string; granted_balance: string }[] }>;
+    revealApiKey: (providerId: string) => Promise<string>;
   };
   agentTemplates: {
     list: () => Promise<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; agentType: string }[]>;

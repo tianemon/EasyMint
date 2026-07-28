@@ -178,7 +178,7 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
         {runnables.length === 0 ? (
           <div className="flex items-center justify-center h-full text-[11px] text-text-muted text-center px-4">
-            未检测到启动配置<br />Mint 开发完会生成 .easymint/run.json
+            未检测到启动配置<br />Mint 开发完会生成 .easymint_pi_core/run.json
           </div>
         ) : (
           <div className="space-y-1.5">

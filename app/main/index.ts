@@ -13,16 +13,17 @@ import {
   openUpdateCacheDir,
 } from "./services/auto-updater";
 
-process.env.CLAUDE_CONFIG_DIR = path.join(os.homedir(), ".easymint_pi_core").replace(/\\/g, "/");
+// 统一配置目录：所有 Pi SDK 和 EM 数据都在 ~/.easymint_pi_core/ 下
+const EM_HOME = path.join(os.homedir(), ".easymint_pi_core");
+process.env.PI_CODING_AGENT_DIR = path.join(EM_HOME, "pi-agent");
 // Redirect Electron userData to our directory so all data lives in one place
-app.setPath("userData", path.join(os.homedir(), ".easymint_pi_core", "electron"));
+app.setPath("userData", path.join(EM_HOME, "electron"));
 
 import { registerIpcHandlers } from "./ipc-handlers";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
 import { AgentService, setMainWindow } from "./services/agent-service";
 import { Store } from "./services/store";
-import { detectClaude } from "./utils/claude-detector";
 import { trackProjectWindow } from "./services/window-manager";
 
 const isDev = !app.isPackaged;
@@ -32,16 +33,14 @@ function loadApp(window: BrowserWindow, hash = ""): void {
     ? "http://localhost:5173"
     : `file://${path.join(__dirname, "..", "..", "renderer", "dist", "index.html")}`;
 
-  window.loadURL(baseUrl);
+  // 将 hash 直接拼入 URL，确保 React 初始化时就拿到完整路由
+  const hashPart = hash ? `#${hash}` : "";
+  window.loadURL(baseUrl + hashPart);
   if (isDev) window.webContents.openDevTools({ mode: "detach" });
-
-  // Navigate to hash route after page loads (more reliable than passing hash to loadURL)
-  if (hash) {
-    window.webContents.once("did-finish-load", () => {
-      window.webContents.executeJavaScript(`window.location.hash = "#${hash}"`).catch(() => {});
-    });
-  }
 }
+
+// Tab 状态备份（macOS 合盖崩溃恢复），新建窗口时需清空防止跨窗口污染
+let tabBackup: { tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string }>; activeTabId: string | null } | null = null;
 
 let sharedServices: {
   store: Store;
@@ -70,8 +69,6 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
   // additional windows reuse the same services via the preload bridge.
   if (!sharedServices) {
     const store = new Store();
-    // 启动时同步当前供应商配置到 SDK settings.json
-    store.saveSettings(store.getSettings());
     sharedServices = {
       store,
       projectService: new ProjectService(store),
@@ -79,21 +76,17 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
       agentService: new AgentService(store),
     };
     setMainWindow(window);
-    detectClaude();
     // Seed default Agent templates on first launch
     const { seedDefaults } = require("./services/agent-templates");
     seedDefaults();
     // Seed bundled skills (~/.claude/skills/) — only if not already installed
     const { seedBundledSkills } = require("./services/skill-service");
     seedBundledSkills();
-    // Seed default MCP configs (~/.easymint_pi_core/.claude.json)
+    // Seed default MCP configs (~/.claude/.claude.json, shared with Claude Code)
     const { seedDefaultMcp } = require("./services/mcp-service");
     seedDefaultMcp();
-    // TODO: 步骤四 — 替换为 Pi SessionManager.list()
-    // Clean up orphaned session caches (disabled — Pi migration in progress)
-    // const { listSessions } = require("@anthropic-ai/claude-agent-sdk");
-    // const { purgeOrphanedCaches } = require("./services/session-cache");
-    // listSessions().then(...)
+    // NOTE: Orphan session cleanup — Pi SDK manages sessions via its own SessionManager
+    // No automatic cleanup needed; old Claude SDK cache cleanup removed
     // Auto-cleanup old uploads (60 days / 10GB)
     const { autoClean } = require("./services/upload-cache");
     autoClean();
@@ -119,7 +112,6 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     ipcMain.handle("app:open-update-cache", () => { openUpdateCacheDir(); });
 
     // tab 状态主进程备份（macOS 合盖 GPU 恢复时渲染进程 localStorage 不可靠）
-    let tabBackup: { tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string }>; activeTabId: string | null } | null = null;
     ipcMain.handle("tab:save", (_e, data) => { tabBackup = data; });
     ipcMain.handle("tab:restore", () => tabBackup);
 
@@ -185,7 +177,7 @@ app.whenReady().then(() => {
           {
             label: "New Window",
             accelerator: "Cmd+N",
-            click: () => createWindow("/"),
+            click: () => createWindow("/?fresh=1"),
           },
           { type: "separator" as const },
           { role: "close" as const },
@@ -214,6 +206,7 @@ ipcMain.handle("window:open-project", async (_e, { projectId, sessionId, init })
   const params = new URLSearchParams();
   if (sessionId) params.set("session", sessionId);
   if (init) params.set("init", "1");
+  params.set("fresh", "1"); // 标记为新窗口，App.tsx 跳过 tab 恢复
   const qs = params.toString();
   const hash = qs ? `/project/${projectId}?${qs}` : `/project/${projectId}`;
   if (sharedServices) sharedServices.store.setLastProjectId(projectId);
@@ -222,7 +215,7 @@ ipcMain.handle("window:open-project", async (_e, { projectId, sessionId, init })
 });
 
 ipcMain.handle("window:new", () => {
-  createWindow("/");
+  createWindow("/?fresh=1");
 });
 
 ipcMain.handle("editor:open", (_e, filePath?: string) => {

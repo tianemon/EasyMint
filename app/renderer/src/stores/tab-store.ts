@@ -33,6 +33,13 @@ function genId(): string {
   return `tab-${Date.now()}-${nextTabIdx}`;
 }
 
+// 新窗口标记检测（同步执行，React 渲染前即可用）
+function isFreshWindow(): boolean {
+  if (typeof window === "undefined") return false;
+  const hashQuery = window.location.hash.split("?")[1] || "";
+  return new URLSearchParams(hashQuery).get("fresh") === "1";
+}
+
 export const useTabStore = create<TabState>()(
   persist(
     (set, get) => ({
@@ -100,8 +107,9 @@ export const useTabStore = create<TabState>()(
     {
       name: "easymint-tabs",
       storage: createJSONStorage(() => localStorage),
-      // 只持久化 tabs + activeTabId；runningSessions 不持久化（reload 后从主进程重新查）
       partialize: (state) => ({ tabs: state.tabs, activeTabId: state.activeTabId }),
+      // 新窗口不恢复 localStorage 中的旧标签页（防止跨窗口泄漏）
+      skipHydration: () => isFreshWindow(),
     }
   )
 );

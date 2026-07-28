@@ -1,5 +1,6 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, shell } from "electron";
 import { autoUpdater } from "electron-updater";
+import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -138,7 +139,7 @@ export function installUpdate(): void {
   const scriptPath = path.join(os.tmpdir(), "easymint-update.sh");
   fs.writeFileSync(scriptPath, script, { mode: 0o755 });
 
-  const { spawn } = require("child_process");
+  // spawn imported from top-level
   spawn("bash", [scriptPath], { detached: true, stdio: "ignore" }).unref();
 
   app.quit();
@@ -201,6 +202,6 @@ export function getUpdateCacheSize(): number {
 /** 打开更新缓存目录 */
 export function openUpdateCacheDir(): void {
   const dir = fs.existsSync(updaterCacheDir()) ? updaterCacheDir() : os.tmpdir();
-  const { shell } = require("electron");
+  // shell imported from top-level
   shell.openPath(dir);
 }

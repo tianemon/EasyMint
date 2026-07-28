@@ -61,6 +61,19 @@ export function ProjectPage(): JSX.Element {
     });
   }, []);
 
+  // 监听新会话的 sessionId → 更新 Tab，使历史列表点击能复用而非重复打开
+  useEffect(() => {
+    return window.electronAPI.agent.onChatSession(({ sessionId }) => {
+      const ts = useTabStore.getState();
+      // 找到第一个没有 sessionId 的 chat tab（最近新建的）
+      const tab = ts.tabs.find((t) => t.type === "chat" && !t.sessionId);
+      if (tab) {
+        ts.updateTab(tab.id, { sessionId });
+        setActiveSessionId(sessionId);
+      }
+    });
+  }, []);
+
   const {
     collapsedLeft,
     collapsedRight,

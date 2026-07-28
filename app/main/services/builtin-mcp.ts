@@ -1,175 +1,196 @@
 /**
- * Built-in MCP tools — registered via SDK's createSdkMcpServer, no config files,
- * no external processes. Keys come from em-settings.json.apiKeys.
+ * EM 产品工具 — set_task_status / set_project_stage / show_confirm_dev 等
  *
- * Tools:
- *   describe_image — call Qwen vision model, return text description
- *   web_fetch     — fetch URL content via Tavily Extract or direct HTTP
+ * 工具执行逻辑在此定义，API 客户端在 api-clients.ts。
  */
 
-// TODO: 步骤五 - 替换为 Pi defineTool()
-// import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
-import { z } from "zod";
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
-import { basename, extname, join } from "node:path";
-import { homedir } from "node:os";
-import { resolveHome, IMAGE_MIME } from "../utils/paths";
-import { BrowserWindow, app } from "electron";
+import { join } from "node:path";
+import { app } from "electron";
+import { broadcast } from "./ipc-broadcast";
+import { describeImage, webFetch, isToolEnabled } from "./api-clients";
+import { validateTaskStatus, validateProjectDone } from "./hooks";
+import type { ToolDefinition } from "./pi-sdk";
+import { getDefineToolFn } from "./pi-sdk";
 
-// ── Config ──────────────────────────────────────────
+type TaskRec = { id: number | string; status?: string; title?: string };
 
-const VISION_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
-const VISION_MODEL = "qwen3.6-flash";
+// ── 无参工具工厂 ────────────────────────────────────
 
-// ── Helpers ─────────────────────────────────────────
-
-function readEmSettings(): Record<string, unknown> {
-  const p = `${homedir()}/.easymint_pi_core/em-settings.json`;
-  try {
-    if (!existsSync(p)) return {};
-    return JSON.parse(readFileSync(p, "utf-8"));
-  } catch {
-    return {};
-  }
-}
-
-function readApiKeys(): Record<string, string> {
-  return (readEmSettings().apiKeys as Record<string, string>) || {};
-}
-
-/** Check if a built-in tool is explicitly enabled AND its API key is set */
-function isToolEnabled(name: "vision" | "webFetch"): boolean {
-  const settings = readEmSettings();
-  const builtin = (settings.builtinTools as Record<string, boolean>) || {};
-  const keys = readApiKeys();
-  if (name === "vision") return builtin.vision === true && !!keys.VISION_API_KEY;
-  return builtin.webFetch === true && !!keys.TAVILY_API_KEY;
-}
-
-// ── Vision ──────────────────────────────────────────
-
-async function describeImage(args: { path: string; prompt?: string }): Promise<string> {
-  const keys = readApiKeys();
-  const key = keys.VISION_API_KEY;
-  if (!key) return "VISION_API_KEY 未配置，请在设置中填写 DashScope API Key。";
-
-  const src = resolveHome(args.path);
-  let imageContent: Record<string, unknown>;
-
-  if (src.startsWith("http://") || src.startsWith("https://")) {
-    imageContent = { type: "image_url", image_url: { url: src } };
-  } else {
-    if (!existsSync(src)) return `文件不存在: ${src}`;
-    const ext = extname(basename(src)).toLowerCase();
-    const mime = IMAGE_MIME[ext] || "image/png";
-    const data = readFileSync(src).toString("base64");
-    imageContent = { type: "image_url", image_url: { url: `data:${mime};base64,${data}` } };
-  }
-
-  const body = {
-    model: VISION_MODEL,
-    messages: [{
-      role: "user",
-      content: [
-        { type: "text", text: args.prompt || "Describe this image in detail." },
-        imageContent,
-      ],
-    }],
-    max_tokens: 1024,
-  };
-
-  const resp = await fetch(`${VISION_BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
+function noArgTool(name: string, label: string, desc: string, fn: () => void | string | { content: Array<{ type: "text"; text: string }> }): any {
+  return {
+    name, label, description: desc,
+    parameters: { type: "object" as const, properties: {} },
+    async execute() {
+      const r = fn();
+      if (typeof r === "string") return { content: [{ type: "text" as const, text: r }] };
+      if (r && typeof r === "object" && "content" in r) return r;
+      return { content: [{ type: "text" as const, text: "ok" }] };
     },
-    body: JSON.stringify(body),
-  });
-
-  if (!resp.ok) {
-    const err = await resp.text().catch(() => "");
-    return `视觉 API 请求失败 (${resp.status}): ${err.slice(0, 300)}`;
-  }
-
-  const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }> };
-  return data.choices?.[0]?.message?.content || "(无描述)";
+  };
 }
 
-// ── Web Fetch ───────────────────────────────────────
+// ── 产品工具列表 ────────────────────────────────────
 
-async function webFetch(args: { url: string; prompt?: string }): Promise<string> {
-  const keys = readApiKeys();
-  const tavilyKey = keys.TAVILY_API_KEY;
+export async function createProductTools(projectPath?: string): Promise<ToolDefinition[]> {
+  const defineTool = await getDefineToolFn();
+  const tools: ToolDefinition[] = [];
 
-  // Try Tavily Extract first (handles JS-rendered pages, has SSRF protection)
-  if (tavilyKey) {
-    try {
-      const resp = await fetch("https://api.tavily.com/extract", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          api_key: tavilyKey,
-          urls: [args.url],
-          extract_depth: "basic",
-          format: "markdown",
-        }),
-      });
-      if (resp.ok) {
-        const data = await resp.json() as {
-          results?: Array<{ raw_content?: string; url?: string }>;
-        };
-        const content = data.results?.[0]?.raw_content;
-        if (content) {
-          let result = `[Web Fetch: ${args.url}]\n${content}`;
-          if (args.prompt) result += `\n\n---\n${args.prompt}`;
-          return result.slice(0, 50000); // cap at ~50k chars
-        }
+  // UI 控制工具（始终注册）
+  tools.push(defineTool(noArgTool("show_confirm_dev", "确认开发", "通知前端显示「确认开发」按钮。", () => broadcast("agent:confirm-dev", {}))) as any);
+  tools.push(defineTool(noArgTool("show_new_project", "新建项目", "通知前端显示「新建项目」按钮。", () => broadcast("agent:new-project", {}))) as any);
+  tools.push(defineTool(noArgTool("refresh_tasks", "刷新任务列表", "通知前端重新加载 task.json。", () => {
+    if (!projectPath) return "当前无项目路径";
+    broadcast("agent:task-status", { taskId: "", status: "pending", projectPath });
+    return "已通知前端刷新任务列表";
+  })) as any);
+  tools.push(defineTool(noArgTool("show_prototype", "显示原型", "通知前端打开 EM HTML 编辑器。", () => {
+    if (!projectPath) return "当前无项目路径";
+    broadcast("editor:open-prototype", { projectPath });
+    return "原型已生成，编辑器窗口即将打开。";
+  })) as any);
+
+  // set_task_status
+  tools.push(defineTool({
+    name: "set_task_status", label: "更新任务状态",
+    description: "更新 task.json 中某任务的运行时状态并实时刷新 UI。① 调 Builder 前 → building; ② 调 Evaluator 前 → evaluating; ③ 验收通过 → done; ④ 验收失败 → failed。",
+    parameters: {
+      type: "object" as const,
+      properties: {
+        taskId: { type: "string" as const },
+        status: { type: "string" as const, enum: ["pending", "building", "evaluating", "done", "failed"] },
+      },
+      required: ["taskId", "status"],
+    },
+    async execute(_tid: any, params: any) {
+      if (!projectPath) return { content: [{ type: "text" as const, text: "当前无项目路径" }] };
+      const err = validateTaskStatus(projectPath, params.taskId, params.status);
+      if (err) return { content: [{ type: "text" as const, text: err }] };
+      const fp = join(projectPath, "task.json");
+      if (!existsSync(fp)) return { content: [{ type: "text" as const, text: "task.json 不存在" }] };
+      try {
+        const data = JSON.parse(readFileSync(fp, "utf-8"));
+        const task = (data.tasks || []).find((t: TaskRec) => String(t.id) === String(params.taskId));
+        if (!task) return { content: [{ type: "text" as const, text: `未找到 id=${params.taskId} 的任务` }] };
+        task.status = params.status;
+        const tmp = fp + ".tmp";
+        writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
+        renameSync(tmp, fp);
+        broadcast("agent:task-status", { taskId: String(params.taskId), status: params.status, projectPath });
+        return { content: [{ type: "text" as const, text: `任务 ${params.taskId} 状态已更新为 ${params.status}` }] };
+      } catch (e) { return { content: [{ type: "text" as const, text: `更新失败: ${(e as Error).message}` }] }; }
+    },
+  } as any) as any);
+
+  // set_project_stage
+  tools.push(defineTool({
+    name: "set_project_stage", label: "设置项目阶段",
+    description: "设置项目进度节点，刷新 Fishbone 进度条。取值: requirements / tech-selection / init / planning / developing / done。",
+    parameters: {
+      type: "object" as const,
+      properties: { stage: { type: "string" as const, enum: ["requirements", "tech-selection", "init", "planning", "developing", "done"] } },
+      required: ["stage"],
+    },
+    async execute(_tid: any, params: any) {
+      if (!projectPath) return { content: [{ type: "text" as const, text: "当前无项目路径" }] };
+      if (params.stage === "done") {
+        const err = validateProjectDone(projectPath);
+        if (err) return { content: [{ type: "text" as const, text: err }] };
       }
-    } catch { /* fall through to direct fetch */ }
+      try {
+        const sd = join(projectPath, ".easymint");
+        const sp = join(sd, "state.json");
+        let existing: Record<string, unknown> = {};
+        if (existsSync(sp)) { try { existing = JSON.parse(readFileSync(sp, "utf-8")); } catch { /* overwrite */ } }
+        else if (!existsSync(sd)) mkdirSync(sd, { recursive: true });
+        writeFileSync(sp, JSON.stringify({ ...existing, stage: params.stage }, null, 2), "utf-8");
+        broadcast("agent:project-stage", { stage: params.stage, projectPath });
+        return { content: [{ type: "text" as const, text: `项目进度已更新为 ${params.stage}` }] };
+      } catch (e) { return { content: [{ type: "text" as const, text: `设置进度失败: ${(e as Error).message}` }] }; }
+    },
+  } as any) as any);
+
+  // list_issues
+  tools.push(defineTool(noArgTool("list_issues", "列出 Issue", "读取项目 Issue 面板记录的问题清单。", () => {
+    if (!projectPath) return "当前无项目路径";
+    const p = join(projectPath, ".easymint", "issues.json");
+    if (!existsSync(p)) return "暂无记录的 Issue";
+    try {
+      const data = JSON.parse(readFileSync(p, "utf-8"));
+      const raw = (data.issues as Array<Record<string, unknown>>) || [];
+      if (raw.length === 0) return "暂无记录的 Issue";
+      const lines = raw.map((i, idx) => {
+        const st = i.status === "fixed" ? "已修复" : (i.resolved ? "已修复" : "未修复");
+        return `${idx + 1}. [${st}] ${i.title as string}`;
+      });
+      const open = raw.filter((i) => !(i.status === "fixed" || i.resolved)).length;
+      return `共 ${raw.length} 条，${open} 条未修复：\n\n${lines.join("\n")}`;
+    } catch (e) { return `读取失败: ${(e as Error).message}`; }
+  })) as any);
+
+  // rename_project
+  tools.push(defineTool({
+    name: "rename_project", label: "重命名项目",
+    description: "重命名当前项目。调用后告知用户即将重启。仅打包版本可用。",
+    parameters: {
+      type: "object" as const,
+      properties: { newName: { type: "string" as const } },
+      required: ["newName"],
+    },
+    async execute(_tid: any, params: any) {
+      if (!projectPath) return { content: [{ type: "text" as const, text: "当前无项目" }] };
+      if (!app.isPackaged) return { content: [{ type: "text" as const, text: "重命名功能仅在打包版本中可用" }] };
+      const { ProjectService } = await import("./project-service");
+      const { Store } = await import("./store");
+      const r = await new ProjectService(new Store()).rename(projectPath, params.newName);
+      if (!r.ok) return { content: [{ type: "text" as const, text: r.error || "重命名失败" }] };
+      app.relaunch(); app.quit();
+      return { content: [{ type: "text" as const, text: `项目已复制为「${params.newName}」，即将重启。` }] };
+    },
+  } as any) as any);
+
+  // describe_image（按开关）
+  if (isToolEnabled("vision")) {
+    tools.push(defineTool({
+      name: "describe_image", label: "描述图片",
+      description: "描述图片内容。支持本地路径或 URL。",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          path: { type: "string" as const },
+          prompt: { type: "string" as const },
+        },
+        required: ["path"],
+      },
+      async execute(_tid: any, params: any) {
+        try { const t = await describeImage(params); return { content: [{ type: "text" as const, text: t }] }; }
+        catch (e) { return { content: [{ type: "text" as const, text: `describe_image 失败: ${(e as Error).message}` }] }; }
+      },
+    } as any) as any);
   }
 
-  // Fallback: direct HTTP fetch
-  try {
-    const url = args.url;
-    // SSRF guard: only http/https
-    if (!/^https?:\/\//i.test(url)) return "只支持 http/https URL";
-
-    const resp = await fetch(url, {
-      headers: { "User-Agent": "EasyMint/1.0" },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!resp.ok) return `抓取失败 (${resp.status})`;
-
-    const ct = resp.headers.get("content-type") || "";
-    if (!ct.includes("text/") && !ct.includes("application/json")) {
-      return `不支持的内容类型: ${ct}`;
-    }
-
-    const text = await resp.text();
-    // Strip HTML tags for non-HTML responses
-    const result = ct.includes("text/html")
-      ? text.replace(/<script[\s\S]*?<\/script>/gi, "")
-            .replace(/<style[\s\S]*?<\/style>/gi, "")
-            .replace(/<[^>]+>/g, " ")
-            .replace(/\s{2,}/g, "\n")
-            .trim()
-      : text;
-    return `[Web Fetch: ${args.url}]\n${result.slice(0, 50000)}`;
-  } catch (e) {
-    return `抓取失败: ${(e as Error).message}`;
+  // web_fetch（按开关）
+  if (isToolEnabled("webFetch")) {
+    tools.push(defineTool({
+      name: "web_fetch", label: "抓取网页",
+      description: "抓取网页内容。支持各类网页，返回提取后的文本。",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          url: { type: "string" as const },
+          prompt: { type: "string" as const },
+        },
+        required: ["url"],
+      },
+      async execute(_tid: any, params: any) {
+        try { const t = await webFetch(params); return { content: [{ type: "text" as const, text: t }] }; }
+        catch (e) { return { content: [{ type: "text" as const, text: `web_fetch 失败: ${(e as Error).message}` }] }; }
+      },
+    } as any) as any);
   }
+
+  return tools.filter(Boolean) as ToolDefinition[];
 }
 
-// ── MCP Server ──────────────────────────────────────
-
-/** Build built-in MCP servers. TODO: 步骤五 — 用 Pi defineTool() 重建所有工具 */
-export function buildBuiltinMcpServers(_projectPath?: string): Record<string, unknown> {
-  // TODO: 步骤五 - 替换为 Pi defineTool()
-  return {};
-}
-
-// 旧代码已删除。步骤五用 Pi defineTool() 重新实现。
-// 原工具：show_confirm_dev, show_new_project, set_task_status, rename_project,
-//         list_issues, set_project_stage, refresh_tasks, show_prototype,
-//         describe_image, web_fetch
+/** 兼容旧接口 */
+export function buildBuiltinMcpServers(_p?: string): Record<string, unknown> { return {}; }

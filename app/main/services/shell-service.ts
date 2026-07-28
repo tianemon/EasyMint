@@ -11,6 +11,13 @@ export interface ShellExecResult {
  * Execute a shell command in the given working directory.
  * Streams stdout/stderr lines via callbacks, resolves with final result.
  */
+/** 检测命令中是否包含注入模式（命令替换等） */
+function hasInjectionPattern(command: string): boolean {
+  // $(...) / `...` 命令替换
+  if (/\$\(/.test(command) || /`[^`]*`/.test(command)) return true;
+  return false;
+}
+
 export function execShell(
   projectPath: string,
   command: string,
@@ -18,6 +25,11 @@ export function execShell(
   onStderr: (line: string) => void,
 ): Promise<ShellExecResult> {
   return new Promise((resolve) => {
+    if (hasInjectionPattern(command)) {
+      resolve({ code: -1, stdout: "", stderr: "命令包含不安全的注入模式" });
+      return;
+    }
+
     const cwd = resolveHome(projectPath);
 
     const proc = spawn("bash", ["-c", command], {

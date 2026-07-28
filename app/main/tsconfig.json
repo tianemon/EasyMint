@@ -11,5 +11,6 @@
     "rootDir": "..",
     "resolveJsonModule": true
   },
-  "include": ["./**/*.ts", "../shared/**/*.ts"]
+  "include": ["./**/*.ts", "../shared/**/*.ts"],
+  "exclude": ["vendor/**"]
 }

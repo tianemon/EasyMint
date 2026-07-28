@@ -9,6 +9,7 @@ import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
 
 import { useStatusStore } from "../stores/status-store";
 import { StatusBar } from "./StatusBar";
+import { PermissionPrompt } from "./PermissionPrompt";
 import { ChatInput } from "./ChatInput";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 
@@ -29,12 +30,14 @@ interface ChatMessage {
 }
 
 /** Pi 事件中的 blocks → StreamEntry 格式（兼容现有渲染） */
-function piBlocksToEntries(blocks: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; content?: unknown }>): StreamEntry[] {
+function piBlocksToEntries(blocks: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; content?: unknown; thinking?: string }>): StreamEntry[] {
   const ts = Date.now();
   const result: StreamEntry[] = [];
   for (const b of blocks) {
     if (b.type === "text" && b.text) {
       result.push({ kind: "text", text: b.text, timestamp: ts });
+    } else if (b.type === "thinking" && (b.thinking || b.text)) {
+      result.push({ kind: "thinking", text: (b.thinking || b.text)!, timestamp: ts });
     } else if (b.type === "tool_use") {
       result.push({ kind: "tool_use", id: b.id || "", name: b.name || "?", input: b.input || {}, timestamp: ts, collapsed: false, source: "chat" });
     } else if (b.type === "tool_result") {
@@ -164,87 +167,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const busyRef = useRef(false);
   const lastStatusRef = useRef("");
 
-  /** 从流事件更新状态栏——Effect A（缓冲补放）和 Effect B（实时 onStream）共用 */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _updateStreamStatus = useCallback((event: any, setBusyFn: (v: boolean) => void) => {
-    if (!busyRef.current) { busyRef.current = true; setBusyFn(true); }
-    if (event.type === "status") {
-      const st = typeof event.data.text === "string" ? event.data.text : "处理中...";
-      if (lastStatusRef.current !== st) { lastStatusRef.current = st; useStatusStore.getState().setText(st); }
-      // compact_boundary → compact 完成，清除标志
-      if (st.includes("上下文已压缩")) { useStatusStore.getState().setSummarizing(false); useStatusStore.getState().setCompacting(false); }
-      return;
-    }
-    if (event.type === "assistant" && typeof event.data.delta === "string") {
-      const st = "正在思考...";
-      if (lastStatusRef.current !== st) { lastStatusRef.current = st; useStatusStore.getState().setText(st); }
-      return;
-    }
-    if (event.type === "tool_use") {
-      const name = typeof event.data.name === "string" ? event.data.name : "";
-      const input = event.data.input as Record<string, unknown> | undefined;
-      // SDK 0.3.179+ tool_use_meta 提供显示名，有则直接用
-      const displayName = typeof event.data.displayName === "string" ? event.data.displayName : "";
-      if (displayName) {
-        if (lastStatusRef.current !== displayName) { lastStatusRef.current = displayName; useStatusStore.getState().setText(displayName); }
-        return;
-      }
-      let label = "";
-      const ctx = (input?.file_path || input?.filePath || input?.query || input?.pattern || input?.target_file) as string | undefined;
-      const fname = (ctx && typeof ctx === "string") ? ctx.split("/").pop() || "" : "";
-      const ext = fname.split(".").pop()?.toLowerCase() || "";
-
-      // Skill / MCP 特殊处理
-      const skillInInput = input?.skill as string | undefined;
-      if (skillInInput) {
-        label = `调用 Skill: ${skillInInput}`;
-      } else if (name.startsWith("Skill__")) {
-        label = `调用 Skill: ${name.slice(7)}`;
-      } else if (name.startsWith("mcp__")) {
-        label = `调用 MCP: ${name.split("__")[1] || "工具"}`;
-      } else if (name === "Read" || name === "Glob") {
-        const isConfig = /json|toml|yaml|yml|env|ini|config|cfg|rc$/i.test(ext) || /package\.json|tsconfig|eslint|prettier/i.test(fname);
-        const isDoc = /md|markdown|rst|txt|readme/i.test(ext) || /README|CLAUDE|CHANGELOG|LICENSE/i.test(fname);
-        const isSource = /tsx?|jsx?|py|rs|go|java|c|h|cpp|swift|kt|rb|php|vue|svelte|css|scss|html$/i.test(ext);
-        const isTest = /test|spec|__test__/i.test(fname);
-        if (isConfig) label = fname ? `加载配置: ${fname}` : "读取项目配置";
-        else if (isTest) label = fname ? `查看测试: ${fname}` : "查看测试文件";
-        else if (isDoc) label = fname ? `阅读文档: ${fname}` : "查阅文档";
-        else if (isSource) label = fname ? `检查代码: ${fname}` : "分析源代码";
-        else if (name === "Glob") label = fname ? `搜索文件: ${fname}` : "查找文件";
-        else label = fname ? `读取: ${fname}` : "读取文件";
-      } else if (name === "Write") {
-        if (ext === "json" || /package\.json|tsconfig/i.test(fname)) label = fname ? `更新配置: ${fname}` : "写入配置文件";
-        else if (ext === "md" || /README|CLAUDE|CHANGELOG/i.test(fname)) label = fname ? `撰写文档: ${fname}` : "输出文档";
-        else if (/tsx?|jsx?|py|rs|go|css/.test(ext)) label = fname ? `编写代码: ${fname}` : "创建源文件";
-        else label = fname ? `写入: ${fname}` : "写入文件";
-      } else if (name === "Edit") {
-        label = fname ? `修改: ${fname}` : "编辑文件";
-      } else if (name === "Grep") {
-        label = ctx ? `搜索内容` : "查找代码";
-      } else if (name === "Bash") {
-        const cmd = (input?.command as string) || "";
-        const short = cmd.length > 40 ? cmd.slice(0, 40) + "…" : cmd;
-        label = `执行: ${short}`;
-      } else if (name === "Task") {
-        const agent = input?.subagent_type as string | undefined;
-        if (agent === "builder") label = "委托 Builder 编码";
-        else if (agent === "evaluator") label = "委托 Evaluator 验收";
-        else label = agent ? `调度 Agent: ${agent}` : "调度 Agent";
-      } else if (name === "WebFetch") {
-        const url = ctx || "";
-        const domain = url ? (() => { try { return new URL(url).hostname; } catch { return url.slice(0, 40); } })() : "";
-        label = domain ? `获取网页: ${domain}` : "抓取网页内容";
-      } else if (name === "WebSearch") {
-        const query = (input?.query as string) || ctx || "";
-        label = query ? `搜索: ${query.slice(0, 30)}` : "联网搜索";
-      } else {
-        label = "执行任务";
-      }
-
-      if (label && lastStatusRef.current !== label) { lastStatusRef.current = label; useStatusStore.getState().setText(label); }
-    }
-  }, []);
   // 状态栏独立存储 → 密集更新时只重渲染 StatusBar，不牵连 ChatPanel/消息列表
   // 注意：ChatPanel 不读 s.text，否则每次 statusText 变化都会重渲染整个组件
   const summarizing = useStatusStore((s) => s.summarizing);
@@ -268,18 +190,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const storeModel = useSettingsStore((s) => s.model);
   const setStoreModel = useSettingsStore((s) => s.setModel);
   const showThinking = useSettingsStore((s) => s.showThinking);
-  const showThinkingRef = useRef(showThinking);
-  showThinkingRef.current = showThinking;
+
+
   const showToolUse = useSettingsStore((s) => s.showToolUse);
   const [chatModel, setChatModel] = useState("");
 
-  // 启动时拉取一次命令缓存 + 订阅 SDK 推送的命令变化
+  // 快捷命令已屏蔽，暂停加载以减少 IPC 开销
+  // 恢复时取消注释：useEffect(() => { ... }, []);
   useEffect(() => {
-    useSettingsStore.getState().loadCommands();
-    const unsub = window.electronAPI?.agent?.onCommandsChanged?.(({ commands }) => {
-      useSettingsStore.getState().setAvailableCommands(commands);
-    });
-    return () => { unsub?.(); };
+    // useSettingsStore.getState().loadCommands();
+    // const unsub = window.electronAPI?.agent?.onCommandsChanged?.(({ commands }) => {
+    //   useSettingsStore.getState().setAvailableCommands(commands);
+    // });
+    // return () => { unsub?.(); };
   }, []);
 
   const handleModelChange = useCallback(async (m: string) => {
@@ -287,6 +210,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     const sid = sidRef.current;
     if (sid) { window.electronAPI.agent.setModel(sid, m).catch(() => {}); }
   }, [setStoreModel]);
+  const [thinkingLevel, setThinkingLevel] = useState("medium");
+  const handleThinkingLevelChange = useCallback((level: string) => {
+    setThinkingLevel(level);
+    const sid = sidRef.current;
+    if (sid) window.electronAPI.agent.setThinkingLevel(sid, level).catch(() => {});
+  }, []);
 
   const msgIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -294,8 +223,34 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   /** 输入框变化处理：检测开头 / 触发命令面板（仅在输入框纯命令上下文下，不影响代码片段） */
   const autoScrollRef = useRef(true);
   // Pi 事件无需 seq 去重（message_update 是累计全文，不是 delta）
+  // turn 边界追踪：同一条用户消息内可能有多轮 AI 回复（tool call → 继续回复），
+  // 用 turnEntryIdxRef 标记当前 turn 在 AI 消息 entries 中的起始位置
+  const turnEntryIdxRef = useRef(0);
   const sidRef = useRef<string>(initialSid);
-  useEffect(() => { if (existingSid) { sidRef.current = existingSid; setSid(existingSid); } }, [existingSid]);
+  useEffect(() => {
+    if (existingSid && sidRef.current !== existingSid) {
+      // 新建会话：临时 key → 真实 sessionId，迁移已存入的消息
+      const oldKey = sidRef.current;
+      const newKey = existingSid;
+      sidRef.current = newKey;
+      setSid(newKey);
+      // 直接迁移（同一个 microtask 内完成，早于下一次渲染）
+      const store = useChatStore.getState();
+      const oldMsgs = store.messagesBySession[oldKey];
+      if (oldMsgs && oldMsgs.length > 0) {
+        useChatStore.setState((s) => {
+          const next = { ...s.messagesBySession };
+          next[newKey] = [...(next[newKey] || []), ...oldMsgs];
+          delete next[oldKey];
+          const nextId = { ...s.msgIdBySession };
+          const maxId = oldMsgs.reduce((max: number, m: { id: number }) => Math.max(max, m.id), 0);
+          nextId[newKey] = Math.max(nextId[newKey] || 0, maxId);
+          delete nextId[oldKey];
+          return { messagesBySession: next, msgIdBySession: nextId };
+        });
+      }
+    }
+  }, [existingSid]);
   const runningSessions = useTabStore((s) => s.runningSessions);
   const busy = runningSessions.has(sidRef.current);
   const setBusy = (v: boolean) => { useTabStore.getState().setSessionRunning(sidRef.current, v); };
@@ -418,6 +373,21 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     return () => { cancelled = true; };
   }, [existingSid, projectPath]);
 
+  // showThinking / showToolUse 切换时重新从磁盘加载，使过滤生效
+  useEffect(() => {
+    if (!existingSid) return;
+    const projectDir = projectPath || getWorkspaceDir();
+    let cancelled = false;
+    (async () => {
+      const msgs = await window.electronAPI.conv.messages(existingSid, projectDir);
+      if (!cancelled && msgs.length > 0) {
+        const mapped = mapSessionMessages(msgs);
+        if (mapped.length > 0) useChatStore.getState().loadSession(sidRef.current, mapped);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showThinking, showToolUse]);
+
   useEffect(() => {
     let _curAi = 0;
     const unsub = window.electronAPI.agent.onStream((event: any) => {
@@ -425,9 +395,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // Filter by chatId when known
       if (currentChatRef.current) {
         if (!event.runId && !event.chatId) return;
-        if (event.runId && event.runId !== currentChatRef.current && event.chatId !== currentChatRef.current) return;
+        if (event.runId && event.runId !== currentChatRef.current) return;
+        if (event.chatId && event.chatId !== currentChatRef.current) return;
       } else if (existingSid) {
         if (!event.sessionId || event.sessionId !== existingSid) return;
+      } else {
+        // 没有活跃 chat，也没有已知 session → 拒绝所有外部事件，防止跨窗口污染
+        return;
       }
       if (stoppedRef.current) return;
       if (!currentChatRef.current) {
@@ -435,17 +409,49 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         if (cid) { currentChatRef.current = cid; setCurrentRunId(cid); }
       }
       setBusy(true);
-      // message event: full blocks replacement (Pi sends cumulative full text)
+      // Pi 新 assistant turn 开始 → 记录 turn 边界（entries 从此处开始替换，保留旧 turn 内容）
+      if (event.type === "message_start") {
+        const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
+        const lastAi = msgs.filter((m: any) => m.role === "ai").pop();
+        turnEntryIdxRef.current = lastAi ? (lastAi.entries || []).length : 0;
+        // 如果附带内容块（如 done/error 直接出完整消息），用 replaceAiEntriesFrom
+        if (Array.isArray(event.blocks) && event.blocks.length > 0) {
+          const entries = piBlocksToEntries(event.blocks);
+          if (entries.length > 0) {
+            _curAi = useChatStore.getState().replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
+            scrollToBottom();
+          }
+        }
+      }
+      // Pi SDK message_update 携带累计全文，替换当前 turn 的 entries（保留之前 turn 的内容）
       if (event.type === "message" && Array.isArray(event.blocks)) {
         const entries = piBlocksToEntries(event.blocks);
         if (entries.length > 0) {
-          _curAi = useChatStore.getState().replaceAiEntries(sidRef.current, entries);
+          _curAi = useChatStore.getState().replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
           scrollToBottom();
+        }
+        // 纯文本（无工具调用）到达 → 清除过渡状态（"正在请求..." 或旧工具标签）
+        // 有工具调用时不急着清，因为 tool_progress 马上会更新
+        const hasText = entries.some((e: StreamEntry) => e.kind === "text");
+        const hasTool = entries.some((e: StreamEntry) => e.kind === "tool_use");
+        if (hasText && !hasTool) {
+          const cur = useStatusStore.getState().text;
+          if (cur && cur !== "出错了") useStatusStore.getState().setText("");
+        }
+      }
+      // thinking delta
+      if (event.type === "thinking" && Array.isArray(event.blocks) && showThinking) {
+        for (const b of event.blocks) {
+          if (b.type === "text" && b.text) {
+            useChatStore.getState().appendAiEntry(sidRef.current, { kind: "thinking", text: b.text, timestamp: Date.now() });
+          }
         }
       }
       // tool progress
       if (event.type === "tool_progress" && event.toolName) {
-        useStatusStore.getState().setText(displayToolLabel(event.toolName));
+        const label = displayToolLabel(event.toolName);
+        useStatusStore.getState().setText(label);
+        lastStatusRef.current = label;
       }
       // compaction UI
       if (event.type === "compacting") {
@@ -458,8 +464,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (event.type === "error") {
         useStatusStore.getState().setText(event.message || "出错了");
       }
+      // context usage update
+      if (event.type === "context_usage") {
+        useStatusStore.getState().setCtxPct(event.percentage || 0);
+      }
     });
     const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; _curAi = 0; busyRef.current = false; lastStatusRef.current = ""; setBusy(false); useStatusStore.getState().setText(""); onActivity?.(); });
+    const unsubCtx = window.electronAPI.agent.onContextUsage(({ percentage }) => { useStatusStore.getState().setCtxPct(percentage); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;
@@ -500,7 +511,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (!summarizing) return;
     const timer = setTimeout(() => {
       useStatusStore.getState().setSummarizing(false);
-      useStatusStore.getState().setText("正在请求...");
+      useStatusStore.getState().setText("摘要超时，将开新会话继续");
       console.error("[ChatPanel] summarization timed out after 120s");
     }, 120_000);
     return () => clearTimeout(timer);
@@ -557,12 +568,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
     try {
       currentChatRef.current = null;
-      // sendText 是 fire-and-forget，直接调 sendMessage 拿 chatId。
-      // chatId 必须立即可得，否则 onStream 过滤器 currentChatRef 为 null 会拦截所有事件
+      // 编码图片附件为 Pi ImageContent 格式
+      const images: Array<{ type: "image"; data: string; mimeType: string }> = [];
+      for (const a of attaches) {
+        if (a.kind === "image" && a.dataUrl) {
+          const m = a.dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
+          if (m) images.push({ type: "image" as const, data: m[2]!, mimeType: m[1]! });
+        }
+      }
       const tab = useTabStore.getState().tabs.find(function(t) { return t.sessionId === sid || (!t.sessionId && !existingSid); });
-      const result = await window.electronAPI.agent.sendMessage(projectPath, agentText, { sessionId: existingSid ?? null, permissionMode, agentTemplate: tab?.agentTemplate });
+      const effectivePath = projectPath || getWorkspaceDir();
+      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "auto", agentTemplate: tab?.agentTemplate, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium" });
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
-    } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; }
+    } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; useStatusStore.getState().setText("发送失败，请检查网络后重试"); }
   }, [busy, attaches, projectPath, permissionMode]);
 
   useEffect(() => { chatActions.register((t: string) => sendText(t)); return () => chatActions.unregister(); }, [sendText]);
@@ -574,8 +592,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     ? messages.filter((m) => m.role === "ai" && m.entries).pop()?.entries ?? []
     : [];
   const lastToolUses = lastAiEntries.filter((e) => e.kind === "tool_use");
-  const showConfirmDev = !busy && lastToolUses.some((e) => (e as { name?: string }).name === "mcp__easymint-ui__show_confirm_dev");
-  const showNewProjectBtn = onNewProject && !busy && lastToolUses.some((e) => (e as { name?: string }).name === "mcp__easymint-ui__show_new_project");
+  const showConfirmDev = !busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_confirm_dev");
+  const showNewProjectBtn = onNewProject && !busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_new_project");
 
   // ── Attach preview (shared between both positions) ─
   function AttachPreview(): JSX.Element {
@@ -719,6 +737,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       </div>
 
       <StatusBar sessionId={sidRef.current} />
+      <PermissionPrompt />
 
       {/* Attach preview — above thinking when busy */}
       {busy && attaches.length > 0 && (
@@ -740,6 +759,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         onPermissionModeChange={setPermissionMode}
         chatModel={chatModel || storeModel}
         onModelChange={handleModelChange}
+        thinkingLevel={thinkingLevel}
+        onThinkingLevelChange={handleThinkingLevelChange}
       />
       {/* Image lightbox */}
       {previewImage && (

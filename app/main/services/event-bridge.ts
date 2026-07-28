@@ -1,35 +1,28 @@
 /**
  * Pi 事件 → 前端 PiChatEvent 格式转换
  *
- * 参考：Proma pi-agent-adapter.ts subscribe 回调 + pi-streaming-control.ts 50ms 合并
+ * 核心思路：Pi SDK 的 session.getLastAssistantText() 维护累计全文，
+ * message_update 触发时直接读取，不需要手动累加。
  */
 
-// type-only import — esbuild erases this, no runtime require()
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-
-// ── 前端事件格式 ─────────────────────────────────────
 
 export interface PiChatEvent {
   type: string;
   sessionId: string;
   chatId?: string;
-  // message 事件
   blocks?: ChatBlock[];
   partial?: boolean;
-  // turn_end 事件
-  usage?: ChatUsage;
-  // tool_progress 事件
   toolCallId?: string;
   toolName?: string;
-  // compacting/compacted
-  summary?: string;
-  // error
   message?: string;
   canRetry?: boolean;
+  summary?: string;
+  usage?: { inputTokens: number; outputTokens: number };
 }
 
 export interface ChatBlock {
-  type: "text" | "tool_use" | "tool_result";
+  type: "text" | "tool_use" | "tool_result" | "thinking";
   text?: string;
   id?: string;
   name?: string;
@@ -37,23 +30,22 @@ export interface ChatBlock {
   content?: unknown;
 }
 
-export interface ChatUsage {
-  inputTokens: number;
-  outputTokens: number;
-}
-
-// ── 类型辅助 ─────────────────────────────────────────
-
 interface AssistantMessageLike {
   role: "assistant";
-  content: Array<{
-    type: string;
-    text?: string;
-    id?: string;
-    name?: string;
-    input?: Record<string, unknown>;
-  }>;
-  usage?: { inputTokens: number; outputTokens: number };
+  content: Array<{ type: string; text?: string; id?: string; name?: string; input?: Record<string, unknown>; thinking?: string; content?: unknown }>;
+}
+
+function messageToBlocks(msg: AssistantMessageLike): ChatBlock[] {
+  const blocks: ChatBlock[] = [];
+  for (const b of msg.content) {
+    if (b.type === "text" && b.text) blocks.push({ type: "text" as const, text: b.text });
+    else if (b.type === "toolCall") blocks.push({ type: "tool_use" as const, id: b.id, name: b.name, input: b.input });
+    else if (b.type === "thinking") {
+      const t = (b as any).thinking ?? "";
+      if (t) blocks.push({ type: "thinking" as any, text: t });
+    }
+  }
+  return blocks;
 }
 
 function isAssistantMessage(msg: unknown): msg is AssistantMessageLike {
@@ -62,189 +54,86 @@ function isAssistantMessage(msg: unknown): msg is AssistantMessageLike {
   return m.role === "assistant" && Array.isArray(m.content);
 }
 
-// ── Partial 合并 ─────────────────────────────────────
-
-const COALESCE_INTERVAL_MS = 50;
-
-interface CoalesceEntry {
-  message: AssistantMessageLike;
-  uuid: string;
-}
-
-/**
- * 50ms 合并器 — Pi 的 message_update 每秒可能触发数十次（每 token），
- * 每次都全文替换前端消息会造成大量无效渲染。收集 50ms 窗口内的更新，
- * 只发最后一帧。
- */
-export function createPartialCoalescer(
-  onFlush: (entry: { message: AssistantMessageLike; uuid: string }) => void,
-  intervalMs: number = COALESCE_INTERVAL_MS,
-) {
-  let pending: CoalesceEntry | null = null;
-  let timer: ReturnType<typeof setTimeout> | null = null;
-
-  return {
-    schedule(entry: CoalesceEntry): void {
-      pending = entry;
-      if (timer !== null) return;
-      timer = setTimeout(() => {
-        timer = null;
-        if (pending) {
-          onFlush(pending);
-          pending = null;
-        }
-      }, intervalMs);
-    },
-    flush(): void {
-      if (timer !== null) {
-        clearTimeout(timer);
-        timer = null;
-      }
-      if (pending) {
-        onFlush(pending);
-        pending = null;
-      }
-    },
-  };
-}
-
-// ── 消息转换 ─────────────────────────────────────────
-
-interface ConvertOptions {
-  final: boolean;
-  uuid: string;
-  model?: string;
-}
-
-export function convertPiAssistantMessage(
-  msg: AssistantMessageLike,
-  sessionId: string,
-  opts: ConvertOptions,
-): PiChatEvent | null {
-  const blocks: ChatBlock[] = [];
-
-  for (const block of msg.content) {
-    if (block.type === "text") {
-      blocks.push({ type: "text", text: block.text ?? "" });
-    } else if (block.type === "tool_use") {
-      blocks.push({
-        type: "tool_use",
-        id: block.id,
-        name: block.name,
-        input: block.input,
-      });
-    }
-  }
-
-  if (blocks.length === 0) return null;
-
-  return {
-    type: "message",
-    sessionId,
-    blocks,
-    partial: !opts.final,
-  };
-}
-
-// ── 事件订阅桥接 ─────────────────────────────────────
-
 export interface BridgeCallbacks {
-  /** 发送事件到前端（通过 IPC）*/
   onEvent: (event: PiChatEvent) => void;
-  /** 获取 assistant message 的 uuid */
-  getAssistantUuid: () => string;
-  /** 设置 agent_end 的 pending result */
+  getSession: () => { getLastAssistantText(): string | undefined } | null;
   setPendingResult: (result: PiChatEvent) => void;
 }
 
-/**
- * 订阅 AgentSession 事件并转换为 PiChatEvent
- *
- * 返回 unsubscribe 函数
- */
 export function bridgeSessionEvents(
   event: AgentSessionEvent,
   callbacks: BridgeCallbacks,
-  state: {
-    coalescer: ReturnType<typeof createPartialCoalescer>;
-    lastPartialAssistant: AssistantMessageLike | null;
-  },
 ): void {
   switch (event.type) {
+    case "message_start": {
+      // Pi 新 assistant turn 开始的信号 — 告知前端创建新 AI 消息
+      const msg = event.message;
+      if (!isAssistantMessage(msg)) break;
+
+      // 对于 done/error (无 streaming) 的情况，message_start 携带完整内容
+      // 此时直接当 message 事件处理
+      const blocks = messageToBlocks(msg);
+      if (blocks.length > 0) {
+        callbacks.onEvent({ type: "message_start", sessionId: "", blocks });
+      } else {
+        // 空内容 → 纯信号，告知前端开始新 turn
+        callbacks.onEvent({ type: "message_start", sessionId: "" });
+      }
+      break;
+    }
+
     case "message_update": {
-      if (!isAssistantMessage(event.message)) break;
-      state.lastPartialAssistant = event.message;
-      state.coalescer.schedule({
-        message: event.message,
-        uuid: callbacks.getAssistantUuid(),
-      });
+      // Pi 的 message_update 携带完整的累计 AssistantMessage
+      // 直接取 event.message.content（全部内容块），不做增量逻辑
+      const msg = event.message;
+      if (!isAssistantMessage(msg)) break;
+      const blocks = messageToBlocks(msg);
+      if (blocks.length > 0) {
+        callbacks.onEvent({ type: "message" as const, sessionId: "", blocks, partial: true });
+      }
       break;
     }
 
     case "message_end": {
-      state.coalescer.flush();
       const msg = event.message;
       if (!isAssistantMessage(msg)) break;
-
-      const converted = convertPiAssistantMessage(msg, "", {
-        final: true,
-        uuid: callbacks.getAssistantUuid(),
-      });
-      if (converted) {
-        converted.sessionId = ""; // 由 agent-service 填入
-        callbacks.onEvent(converted);
+      const blocks = messageToBlocks(msg);
+      if (blocks.length > 0) {
+        callbacks.onEvent({ type: "message" as const, sessionId: "", blocks, partial: false });
       }
-      state.lastPartialAssistant = null;
       break;
     }
 
     case "agent_end": {
-      // Pi 的 AgentMessage 无 usage 字段 — 使用默认值
-      const resultEvent: PiChatEvent = {
-        type: "turn_end",
-        sessionId: "", // 由 agent-service 填入
-        usage: { inputTokens: 0, outputTokens: 0 },
-      };
-      callbacks.setPendingResult(resultEvent);
+      callbacks.setPendingResult({ type: "turn_end", sessionId: "", usage: { inputTokens: 0, outputTokens: 0 } });
+      break;
+    }
+
+    case "tool_execution_start": {
+      // 工具开始执行 → 状态栏显示工具名
+      callbacks.onEvent({ type: "tool_progress", sessionId: "", toolCallId: event.toolCallId, toolName: event.toolName });
       break;
     }
 
     case "tool_execution_update": {
-      callbacks.onEvent({
-        type: "tool_progress",
-        sessionId: "", // 由 agent-service 填入
-        toolCallId: event.toolCallId,
-        toolName: event.toolName,
-      });
+      callbacks.onEvent({ type: "tool_progress", sessionId: "", toolCallId: event.toolCallId, toolName: event.toolName });
       break;
     }
 
     case "compaction_start": {
-      callbacks.onEvent({
-        type: "compacting",
-        sessionId: "", // 由 agent-service 填入
-      });
+      callbacks.onEvent({ type: "compacting", sessionId: "" });
       break;
     }
 
     case "compaction_end": {
       if (!event.aborted && event.result) {
-        callbacks.onEvent({
-          type: "compacted",
-          sessionId: "", // 由 agent-service 填入
-          summary: event.result.summary,
-        });
+        callbacks.onEvent({ type: "compacted", sessionId: "", summary: event.result.summary });
       }
       break;
     }
 
     case "auto_retry_start": {
-      callbacks.onEvent({
-        type: "error",
-        sessionId: "", // 由 agent-service 填入
-        message: event.errorMessage,
-        canRetry: true,
-      });
+      callbacks.onEvent({ type: "error", sessionId: "", message: event.errorMessage, canRetry: true });
       break;
     }
   }
