@@ -843,6 +843,20 @@ interface MemoChatMessageProps {
 }
 
 const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showToolUse, busy, userBubble }: MemoChatMessageProps) {
+  const visible = useMemo(() => {
+    if (!msg.entries) return [];
+    return msg.entries.filter((e) => {
+      if (e.kind === "text") return true;
+      if (e.kind === "thinking") return showThinking;
+      return showToolUse;
+    });
+  }, [msg.entries, showThinking, showToolUse]);
+
+  const blocks = useMemo(() =>
+    visible.length > 0 ? buildBlocks(visible, String(msg.id)) : [],
+    [visible, msg.id],
+  );
+
   if (msg.role === "user") {
     return (
       <div className="msg-in">
@@ -853,23 +867,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
     );
   }
 
-  if (!msg.entries) return null;
-
-  const visible = useMemo(() => {
-    if (!msg.entries) return [];
-    return msg.entries.filter((e) => {
-      if (e.kind === "text") return true;
-      if (e.kind === "thinking") return showThinking;
-      return showToolUse;
-    });
-  }, [msg.entries, showThinking, showToolUse]);
-
   if (visible.length === 0) return null;
-
-  const blocks = useMemo(() =>
-    buildBlocks(visible, String(msg.id)),
-    [visible, msg.id],
-  );
 
   return (
     <div className="msg-in">
