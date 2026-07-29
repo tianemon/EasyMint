@@ -600,6 +600,11 @@ select.input {
 }
 .scan-icon-spin { animation: scanIconSpin 1s linear infinite; }
 
+@keyframes spinIcon {
+  to { transform: rotate(360deg); }
+}
+.spin-icon { animation: spinIcon 0.8s linear infinite; }
+
 .terminal-output {
   background: var(--color-terminal-bg);
   color: var(--color-terminal-text);
