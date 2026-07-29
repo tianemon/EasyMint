@@ -4,21 +4,18 @@ interface RightSidebarProps {
   hasRunnable?: boolean;
 }
 
-/** 写字板内嵌字母图标 */
-function PadIcon({ letter }: { letter: string }): JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="w-[17px] h-[17px]">
-      <rect x="5" y="3.5" width="14" height="17.5" rx="2" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M9.5 3.5V2.5h5v1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      <text x="12" y="16.5" textAnchor="middle" fill="currentColor" stroke="none" fontSize="9" fontWeight="700" fontFamily="system-ui">{letter}</text>
-    </svg>
-  );
-}
-
 export function RightSidebar({ active, onSelect, hasRunnable }: RightSidebarProps): JSX.Element {
   const items: { id: "task" | "issue" | "run"; label: string; icon: JSX.Element; disabled?: boolean }[] = [
-    { id: "task", label: "任务进度", icon: <PadIcon letter="T" /> },
-    { id: "issue", label: "问题记录", icon: <PadIcon letter="I" /> },
+    { id: "task", label: "任务进度", icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+        <rect x="4" y="4" width="16" height="6" rx="1" /><line x1="4" y1="14" x2="20" y2="14" /><line x1="4" y1="18" x2="16" y2="18" />
+      </svg>
+    ) },
+    { id: "issue", label: "问题记录", icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+        <circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="13" /><circle cx="12" cy="16.5" r="1" fill="currentColor" stroke="none" />
+      </svg>
+    ) },
     { id: "run", label: hasRunnable ? "运行" : "无运行程序", icon: (
       <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
         <path d="M8 5.5v13l11-6.5z" />
