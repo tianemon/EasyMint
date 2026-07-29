@@ -650,10 +650,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const hasMessages = messages.length > 0;
 
   // Tool-call driven UI actions — Mint calls show_* tools, frontend detects tool_use entries
-  const lastAiEntries = messages.length > 0
-    ? messages.filter((m) => m.role === "ai" && m.entries).pop()?.entries ?? []
-    : [];
-  const lastToolUses = lastAiEntries.filter((e) => e.kind === "tool_use");
+  const lastToolUses = useMemo(() => {
+    if (messages.length === 0) return [];
+    const lastAi = messages.filter((m) => m.role === "ai" && m.entries).pop();
+    if (!lastAi?.entries) return [];
+    return lastAi.entries.filter((e) => e.kind === "tool_use");
+  }, [messages]);
   const showConfirmDev = !busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_confirm_dev");
   const showNewProjectBtn = onNewProject && !busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_new_project");
 

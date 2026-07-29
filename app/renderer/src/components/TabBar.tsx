@@ -5,7 +5,11 @@ function isTabRunning(tab: { type: string; sessionId?: string }, runningSessions
 }
 
 export function TabBar(): JSX.Element {
-  const { tabs, activeTabId, setActiveTab, closeTab, runningSessions } = useTabStore();
+  const tabs = useTabStore((s) => s.tabs);
+  const activeTabId = useTabStore((s) => s.activeTabId);
+  const setActiveTab = useTabStore((s) => s.setActiveTab);
+  const closeTab = useTabStore((s) => s.closeTab);
+  const runningSessions = useTabStore((s) => s.runningSessions);
 
   return (
     <div className="flex items-center h-9 bg-surface-alt border-b border-border shrink-0">

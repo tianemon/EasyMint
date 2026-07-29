@@ -74,18 +74,19 @@ export function ProjectPage(): JSX.Element {
     });
   }, []);
 
-  const {
-    collapsedLeft,
-    collapsedRight,
-    leftWidth,
-    rightWidth,
-    toggleLeft,
-    toggleRight,
-    setLeftWidth,
-    setRightWidth,
-  } = useWorkspaceStore();
+  const collapsedLeft = useWorkspaceStore((s) => s.collapsedLeft);
+  const collapsedRight = useWorkspaceStore((s) => s.collapsedRight);
+  const leftWidth = useWorkspaceStore((s) => s.leftWidth);
+  const rightWidth = useWorkspaceStore((s) => s.rightWidth);
+  const toggleLeft = useWorkspaceStore((s) => s.toggleLeft);
+  const toggleRight = useWorkspaceStore((s) => s.toggleRight);
+  const setLeftWidth = useWorkspaceStore((s) => s.setLeftWidth);
+  const setRightWidth = useWorkspaceStore((s) => s.setRightWidth);
 
-  const { tabs, activeTabId, openTab, closeTab } = useTabStore();
+  const tabs = useTabStore((s) => s.tabs);
+  const activeTabId = useTabStore((s) => s.activeTabId);
+  const openTab = useTabStore((s) => s.openTab);
+  const closeTab = useTabStore((s) => s.closeTab);
 
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
   const [sessionRefreshKey, setSessionRefreshKey] = useState(0);
