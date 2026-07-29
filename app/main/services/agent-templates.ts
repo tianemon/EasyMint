@@ -1,7 +1,7 @@
 /**
  * Agent Template Service — CRUD for user-defined Agent templates.
  *
- * Templates are stored in ~/.easymint_pi_core/agent-templates.json
+ * Templates are stored in ~/.easymint/agent-templates.json
  * Injected into SDK's options.agents when a session starts.
  */
 
@@ -34,7 +34,7 @@ export interface AgentTemplateInput {
 
 // ── Storage ────────────────────────────────────────
 
-const DATA_DIR = path.join(os.homedir(), ".easymint_pi_core");
+const DATA_DIR = path.join(os.homedir(), ".easymint");
 const STORE_PATH = path.join(DATA_DIR, "agent-templates.json");
 
 function ensureDir(): void {
@@ -147,7 +147,7 @@ export function seedDefaults(): void {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Escalation file format (.easymint_pi_core/escalation.json).
+ * Escalation file format (.easymint/escalation.json).
  * Builder/Evaluator write this when blocked. Mint reads it and reports to user.
  */
 export interface Escalation {
@@ -161,7 +161,7 @@ export interface Escalation {
 }
 
 /**
- * Decision file format (.easymint_pi_core/decision.json).
+ * Decision file format (.easymint/decision.json).
  * Mint writes this after user makes a decision, then Mint continues task execution.
  */
 export interface Decision {

@@ -12,7 +12,7 @@ const ALLOWED_ROOTS = new Set<string>();
 
 function homeEasymint(): string {
   const os = require("node:os");
-  return path.join(os.homedir(), ".easymint_pi_core");
+  return path.join(os.homedir(), ".easymint");
 }
 
 /**

@@ -36,7 +36,7 @@ EasyMint 是一个面向零基础用户的 AI 编程助手桌面应用，核心�
 
 **Loop Engineering** -- 采用多 Agent 协作循环：主会话 Mint（PM/架构师）理解需求、拆解任务、委派 Builder 编码、交给 Evaluator 验收，自动循环直到任务完成。任务进度通过鱼骨图实时可见，做到哪了一目了然。
 
-**数据主权** -- 项目文件和会话数据全部存储在你本地电脑（`~/.easymint_pi_core/` + 项目目录下的 `.easymint/`），不上传任何云服务。你可以随时用 VS Code、Cursor 或其他工具继续开发，EasyMint 不会锁定你的项目。
+**数据主权** -- 项目文件和会话数据全部存储在你本地电脑（`~/.easymint/` + 项目目录下的 `.easymint/`），不上传任何云服务。你可以随时用 VS Code、Cursor 或其他工具继续开发，EasyMint 不会锁定你的项目。
 
 ## 三 Agent 协作
 

@@ -23,9 +23,9 @@ function noArgTool(name: string, label: string, desc: string, fn: () => void | s
     parameters: { type: "object" as const, properties: {} },
     async execute() {
       const r = fn();
-      if (typeof r === "string") return { content: [{ type: "text" as const, text: r }] };
-      if (r && typeof r === "object" && "content" in r) return r;
-      return { content: [{ type: "text" as const, text: "ok" }] };
+      if (typeof r === "string") return { content: [{ type: "text" as const, text: r }], details: {} };
+      if (r && typeof r === "object" && "content" in r) return { ...r, details: (r as any).details ?? {} };
+      return { content: [{ type: "text" as const, text: "ok" }], details: {} };
     },
   };
 }

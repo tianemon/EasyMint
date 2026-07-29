@@ -6,7 +6,7 @@
  *  - 会话消息加载
  *  - 重命名 / 删除 / 置顶 / 归档
  *
- * 元数据文件（~/.easymint_pi_core/）：
+ * 元数据文件（~/.easymint/）：
  *  - pinned-sessions.json   → { sessionId: timestamp }
  *  - archived-sessions.json  → { sessionId: timestamp }
  *  - session-titles.json     → { sessionId: title }
@@ -21,7 +21,7 @@ import { deleteCache } from "./session-cache";
 import { listPiSessions, getPiSessionDir } from "./pi-session";
 import { getSessionManagerClass } from "./pi-sdk";
 
-const DATA_DIR = path.join(os.homedir(), ".easymint_pi_core");
+const DATA_DIR = path.join(os.homedir(), ".easymint");
 const PINNED_PATH = path.join(DATA_DIR, "pinned-sessions.json");
 const ARCHIVED_PATH = path.join(DATA_DIR, "archived-sessions.json");
 const TITLES_PATH = path.join(DATA_DIR, "session-titles.json");

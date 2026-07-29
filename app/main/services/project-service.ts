@@ -80,7 +80,7 @@ export class ProjectService {
         await shell.trashItem(project.path);
       }
       // Clean up SDK session directory
-      const sdkProjectsDir = path.join(os.homedir(), ".easymint_pi_core", "projects");
+      const sdkProjectsDir = path.join(os.homedir(), ".easymint", "projects");
       const encodedPath = project.path.replace(/[:/\\]/g, "-");
       const sdkDir = path.join(sdkProjectsDir, encodedPath);
       if (fs.existsSync(sdkDir)) fs.rmSync(sdkDir, { recursive: true, force: true });
@@ -106,7 +106,7 @@ export class ProjectService {
 
     // 路径变更 → 迁移 SDK session 目录
     if (patch.path && patch.path !== project.path) {
-      const sdkDir = path.join(os.homedir(), ".easymint_pi_core", "projects");
+      const sdkDir = path.join(os.homedir(), ".easymint", "projects");
       const oldEncoded = project.path.replace(/[:/\\]/g, "-");
       const newEncoded = patch.path.replace(/[:/\\]/g, "-");
       const oldDir = path.join(sdkDir, oldEncoded);
@@ -160,7 +160,7 @@ export class ProjectService {
     if (fs.existsSync(newDir)) return { ok: false, error: `目标目录已存在: ${newDir}` };
     if (!fs.existsSync(oldDir)) return { ok: false, error: `项目目录不存在: ${oldDir}` };
 
-    const newSessDir = path.join(os.homedir(), ".easymint_pi_core", "projects",
+    const newSessDir = path.join(os.homedir(), ".easymint", "projects",
       newDir.replace(/[:\\/]/g, "-"));
 
     // 失败时清理半成品
@@ -176,14 +176,14 @@ export class ProjectService {
       await cp(oldDir, newDir, { recursive: true });
 
       // 复制 SDK session
-      const oldSessDir = path.join(os.homedir(), ".easymint_pi_core", "projects",
+      const oldSessDir = path.join(os.homedir(), ".easymint", "projects",
         oldDir.replace(/[:\\/]/g, "-"));
       if (fs.existsSync(oldSessDir)) {
         await cp(oldSessDir, newSessDir, { recursive: true });
       }
 
       // 更新 projects.json
-      const projectsPath = path.join(os.homedir(), ".easymint_pi_core", "projects.json");
+      const projectsPath = path.join(os.homedir(), ".easymint", "projects.json");
       if (fs.existsSync(projectsPath)) {
         const data = JSON.parse(fs.readFileSync(projectsPath, "utf-8"));
         const found = (data.projects as Array<Record<string, unknown>>).find((prj) => {
@@ -212,7 +212,7 @@ export class ProjectService {
       }
 
       // 写清理任务
-      const cleanFile = path.join(os.homedir(), ".easymint_pi_core", ".cleanup-pending.json");
+      const cleanFile = path.join(os.homedir(), ".easymint", ".cleanup-pending.json");
       const cleanTask = { oldDir, oldSessionDir: oldSessDir, timestamp: Date.now() };
       const cleanTasks = fs.existsSync(cleanFile)
         ? (() => { try { return JSON.parse(fs.readFileSync(cleanFile, "utf-8")); } catch { return []; } })()

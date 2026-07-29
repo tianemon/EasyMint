@@ -17,7 +17,7 @@ const VISION_MODEL = "qwen3.6-flash";
 // ── Settings helpers ────────────────────────────────
 
 function readEmSettings(): Record<string, unknown> {
-  const p = `${homedir()}/.easymint_pi_core/em-settings.json`;
+  const p = `${homedir()}/.easymint/em-settings.json`;
   try {
     if (!existsSync(p)) return {};
     return JSON.parse(readFileSync(p, "utf-8"));

@@ -21,15 +21,15 @@ import { getActiveModel, getModelRuntime, resetModelRuntime } from "./pi-init";
 import { createPiSession, resumePiSession, listPiSessions, getPiSessionDir } from "./pi-session";
 import { createTaskTool } from "./task/tool";
 import { createProductTools } from "./builtin-mcp";
-import { loadMcpTools } from "./omp/mcp/mcp-adapter";
-import { permissionService } from "./omp/permission/agent-permission-service";
-import { wrapToolWithPermission } from "./omp/permission/wrap-tool";
+import { loadMcpTools } from "./permission/mcp-adapter";
+import { permissionService } from "./permission/agent-permission-service";
+import { wrapToolWithPermission } from "./permission/wrap-tool";
 import {
   SAFE_TOOLS,
   isSafeBashCommand,
   isDangerousCommand,
   hasDangerousStructure,
-} from "./omp/permission/permission-rules";
+} from "./permission/permission-rules";
 import {
   bridgeSessionEvents,
   type PiChatEvent,
@@ -75,7 +75,7 @@ const MAX_COMPACT = 3;
 
 /** 记录各 session 的 agent 类型 */
 const sessionAgentTypes = new Map<string, string>();
-const SESSION_TYPES_PATH = path.join(os.homedir(), ".easymint_pi_core", "session-types.json");
+const SESSION_TYPES_PATH = path.join(os.homedir(), ".easymint", "session-types.json");
 
 function loadSessionTypes(): Map<string, string> {
   try {
@@ -131,7 +131,7 @@ export class AgentService {
   // ── 内部辅助 ──────────────────────────────────────
 
   private getAgentDir(): string {
-    return path.join(os.homedir(), ".easymint_pi_core", "pi");
+    return path.join(os.homedir(), ".easymint", "pi");
   }
 
   private async getModel(store: Store): Promise<Model<any> | null> {

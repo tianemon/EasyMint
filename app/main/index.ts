@@ -13,8 +13,8 @@ import {
   openUpdateCacheDir,
 } from "./services/auto-updater";
 
-// 统一配置目录：所有 Pi SDK 和 EM 数据都在 ~/.easymint_pi_core/ 下
-const EM_HOME = path.join(os.homedir(), ".easymint_pi_core");
+// 统一配置目录：所有 Pi SDK 和 EM 数据都在 ~/.easymint/ 下
+const EM_HOME = path.join(os.homedir(), ".easymint");
 process.env.PI_CODING_AGENT_DIR = path.join(EM_HOME, "pi-agent");
 // Redirect Electron userData to our directory so all data lives in one place
 app.setPath("userData", path.join(EM_HOME, "electron"));
@@ -119,7 +119,7 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     // with a proper session detection/management UI in a future update.
 
     // Process pending rename cleanup tasks (from project:rename-exec)
-    const cleanFile = path.join(os.homedir(), ".easymint_pi_core", ".cleanup-pending.json");
+    const cleanFile = path.join(os.homedir(), ".easymint", ".cleanup-pending.json");
     if (fs.existsSync(cleanFile)) {
       try {
         const tasks = JSON.parse(fs.readFileSync(cleanFile, "utf-8")) as Array<{

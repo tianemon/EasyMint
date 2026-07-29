@@ -9,10 +9,10 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import type { ToolDefinition } from "../../pi-sdk";
-import { getDefineToolFn } from "../../pi-sdk";
-import { scanMcpServers } from "../../mcp-service";
-import type { McpServerConfig } from "../../mcp-service";
+import type { ToolDefinition } from "../pi-sdk";
+import { getDefineToolFn } from "../pi-sdk";
+import { scanMcpServers } from "../mcp-service";
+import type { McpServerConfig } from "../mcp-service";
 
 const clients = new Map<string, Client>();
 let toolsCache: ToolDefinition[] | null = null;
@@ -34,7 +34,7 @@ async function connect(name: string, cfg: McpServerConfig): Promise<Client> {
   }
 
   if (cfg.type === "http") {
-    const transport = new StreamableHTTPClientTransport(cfg.url!, {
+    const transport = new StreamableHTTPClientTransport(new URL(cfg.url as string), {
       requestInit: cfg.headers ? { headers: cfg.headers } : undefined,
     });
     await client.connect(transport);
@@ -78,7 +78,7 @@ export async function loadMcpTools(): Promise<ToolDefinition[]> {
             const result = await client!.callTool({ name: t.name, arguments: params as Record<string, unknown> });
             const content = result.content as any;
             const text = Array.isArray(content) ? content.map((c: any) => c.text || "").join("\n") : String(content || "");
-            return { content: [{ type: "text" as const, text: text || "(无输出)" }] };
+            return { content: [{ type: "text" as const, text: text || "(无输出)" }], details: {} };
           },
         }) as any as ToolDefinition);
       }

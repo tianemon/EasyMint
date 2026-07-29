@@ -11,11 +11,11 @@ import { getActiveModel } from "../pi-init";
 import { Store } from "../store";
 import { resolveHome } from "../../utils/paths";
 import { mapWithConcurrencyLimit, type ParallelResult } from "./parallel";
-import { assembleYieldResult } from "../omp/tools/yield-assembly";
-import { buildOutputValidator, summarizeValidationFailure } from "../omp/tools/output-schema-validator";
+// yield-assembly not ported — structured output is a future feature
+// import { assembleYieldResult } from "../../vendor/omp/task/yield-assembly";
 import { getDefineToolFn } from "../pi-sdk";
-import { wrapToolWithPermission } from "../omp/permission/wrap-tool";
-import { SAFE_TOOLS, isSafeBashCommand } from "../omp/permission/permission-rules";
+import { wrapToolWithPermission } from "../permission/wrap-tool";
+import { SAFE_TOOLS, isSafeBashCommand } from "../permission/permission-rules";
 import type {
   SingleResult,
   AgentProgress,
@@ -297,25 +297,10 @@ async function executeAndCollect(
   // 结构化输出验证
   let structuredOutput: SingleResult["structuredOutput"] = undefined;
   if (outputSchema && yieldItems.length > 0) {
-    const assembled = assembleYieldResult(yieldItems as any, rawOutput || undefined);
-    if (assembled) {
-      const { validator, error: buildError } = buildOutputValidator(outputSchema);
-      if (validator) {
-        const validationResult = validator.validate(assembled.data);
-        structuredOutput = {
-          status: validationResult.success ? "valid" : "invalid",
-          data: assembled.data,
-          error: validationResult.success ? undefined
-            : summarizeValidationFailure(validationResult, assembled.data, validator.requiredFields).message,
-        };
-      } else if (buildError) {
-        structuredOutput = { status: "unavailable", error: buildError };
-      } else {
-        structuredOutput = { status: "valid", data: assembled.data };
-      }
-    } else {
-      structuredOutput = { status: "unavailable", error: "子 Agent 未调用 yield 工具" };
-    }
+    // yield-assembly / output-schema-validator not ported yet — fall back to raw output
+    structuredOutput = { status: "unavailable", error: "structured output not yet supported" };
+  } else {
+    structuredOutput = undefined;
   }
 
   progress.status = "completed";

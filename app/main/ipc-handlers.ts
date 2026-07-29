@@ -7,7 +7,7 @@ import { FileService } from "./services/file-service";
 import { AgentService, getSessionAgentType, getDesignSessionIds } from "./services/agent-service";
 import { Store } from "./services/store";
 import { broadcast } from "./services/ipc-broadcast";
-import { permissionService } from "./services/omp/permission/agent-permission-service";
+import { permissionService } from "./services/permission/agent-permission-service";
 import { detectGit } from "./utils/git-detector";
 import { detectNode } from "./utils/node-detector";
 import { detectNpx } from "./utils/npx-detector";
@@ -219,7 +219,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("upload:clean", (_e, { filenames }: { filenames: string[] }) => cleanFiles(filenames));
   ipcMain.handle("upload:cleanAll", () => cleanAll());
   ipcMain.handle("upload:openDir", () => {
-    const dir = p.join(os.homedir(), ".easymint_pi_core", "uploads");
+    const dir = p.join(os.homedir(), ".easymint", "uploads");
     shell.openPath(dir);
   });
 
@@ -345,7 +345,7 @@ const filePath = p.join(projectPath, "init.sh");
   // project:readState — read .easymint/state.json in project
   ipcMain.handle("project:readState", (_e, { projectPath }) => {
     
-const filePath = p.join(projectPath, ".easymint_pi_core", "state.json");
+const filePath = p.join(projectPath, ".easymint", "state.json");
       if (!fs.existsSync(filePath)) return null;
       return JSON.parse(fs.readFileSync(filePath, "utf-8"));
 
@@ -354,7 +354,7 @@ const filePath = p.join(projectPath, ".easymint_pi_core", "state.json");
   // project:writeState — merge-write .easymint/state.json in project
   ipcMain.handle("project:writeState", (_e, { projectPath, state }) => {
     
-const dir = p.join(projectPath, ".easymint_pi_core");
+const dir = p.join(projectPath, ".easymint");
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       const filePath = p.join(dir, "state.json");
       let existing: Record<string, unknown> = {};
@@ -382,9 +382,9 @@ const filePath = p.join(projectPath, "task.json");
       })) };
   });
 
-  // file:saveUpload — save uploaded image to ~/.easymint_pi_core/uploads/
+  // file:saveUpload — save uploaded image to ~/.easymint/uploads/
   ipcMain.handle("file:saveUpload", async (_e, { name, data }: { name: string; data: number[] }) => {
-    const uploadDir = p.join(os.homedir(), ".easymint_pi_core", "uploads");
+    const uploadDir = p.join(os.homedir(), ".easymint", "uploads");
     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
     const timestamp = Date.now();
     const safeName = `${timestamp}-${name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
@@ -400,8 +400,8 @@ const filePath = p.join(projectPath, "task.json");
 
   // file:readUpload — read an uploaded file and return as data URL (for history restore)
   ipcMain.handle("file:readUpload", async (_e, { filePath }: { filePath: string }) => {
-    // Security: only allow files under ~/.easymint_pi_core/uploads/
-    const allowedDir = p.resolve(p.join(os.homedir(), ".easymint_pi_core", "uploads"));
+    // Security: only allow files under ~/.easymint/uploads/
+    const allowedDir = p.resolve(p.join(os.homedir(), ".easymint", "uploads"));
     if (!p.resolve(filePath).startsWith(allowedDir)) return null;
     if (!fs.existsSync(filePath)) return null;
     const buf = fs.readFileSync(filePath);

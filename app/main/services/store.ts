@@ -4,7 +4,7 @@ import os from "os";
 import type { ProviderConfig, ApiProvidersData } from "../../shared/platform-presets";
 import { resolveHome } from "../utils/paths";
 
-export const DATA_DIR = path.join(os.homedir(), ".easymint_pi_core");
+export const DATA_DIR = path.join(os.homedir(), ".easymint");
 
 // ── 多平台 API 供应商配置 ──────────────────────
 // 类型定义见 app/shared/platform-presets.ts
@@ -155,7 +155,7 @@ export class Store {
     this.writeEmSettings(s);
   }
 
-  /** Write EM-only fields to ~/.easymint_pi_core/settings.json */
+  /** Write EM-only fields to ~/.easymint/settings.json */
   private writeEmSettings(settings: Settings): void {
     const dir = path.dirname(this.emSettingsPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });

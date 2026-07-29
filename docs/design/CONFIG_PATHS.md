@@ -1,11 +1,11 @@
 # EasyMint 配置文件与路径
 
-## 全局目录 `~/.easymint_pi_core/`
+## 全局目录 `~/.easymint/`
 
 所有 EasyMint 和 Pi SDK 的全局数据都存放在此目录。
 
 ```
-~/.easymint_pi_core/
+~/.easymint/
 ├── em-settings.json          EasyMint 应用设置
 ├── projects.json             项目列表与记录
 ├── settings.json             Pi SDK 配置（API key / 模型 / 权限）
@@ -48,7 +48,7 @@ EasyMint 专属设置，不与 SDK 混淆。
 | `context1M` | 是否启用 1M 上下文（旧字段，新配置优先用 `apiProviders`） |
 | `apiProviders` | 多平台 API 供应商配置（见下方说明） |
 
-> **注意**：API Key 等认证信息由 Pi SDK 的 `ModelRuntime` 管理，存储于 `~/.easymint_pi_core/pi/auth.json`。EasyMint 通过 `store.getActiveApiKey()` 读取，`pi-init.ts` 中的 `ModelRuntime` 负责配置注入。
+> **注意**：API Key 等认证信息由 Pi SDK 的 `ModelRuntime` 管理，存储于 `~/.easymint/pi/auth.json`。EasyMint 通过 `store.getActiveApiKey()` 读取，`pi-init.ts` 中的 `ModelRuntime` 负责配置注入。
 
 ### `apiProviders` 结构
 
@@ -111,7 +111,7 @@ EasyMint 维护的项目记录。
 
 ## `settings.json`（Pi SDK）
 
-Pi SDK 自行管理的配置文件（`~/.easymint_pi_core/settings.json`）。EasyMint 通过 `SettingsManager` 接口读写，不直接操作文件。
+Pi SDK 自行管理的配置文件（`~/.easymint/settings.json`）。EasyMint 通过 `SettingsManager` 接口读写，不直接操作文件。
 
 ---
 
@@ -174,10 +174,10 @@ template/
 
 ## Skill 目录
 
-EasyMint 内置 Skill 存放在 `resources/skills/`，启动时 seed 到 `~/.easymint_pi_core/skills/` 全局目录。Pi SDK 通过 `resourceLoader` 加载并注入 system prompt。
+EasyMint 内置 Skill 存放在 `resources/skills/`，启动时 seed 到 `~/.easymint/skills/` 全局目录。Pi SDK 通过 `resourceLoader` 加载并注入 system prompt。
 
 ```
-~/.easymint_pi_core/skills/    ← 全局 Skill（所有项目可用）
+~/.easymint/skills/    ← 全局 Skill（所有项目可用）
   <skill-name>/
     SKILL.md                   ← YAML frontmatter + Markdown body
     references/                ← 可选，按需加载的文档
@@ -189,12 +189,12 @@ Pi SDK 的 MCP 服务器通过 `mcp-service.ts` 和 `omp/mcp/` 模块管理，�
 
 ## SDK session 项目隔离机制
 
-Pi SDK 以**项目绝对路径**作为项目身份。路径编码后作为 `~/.easymint_pi_core/sessions/` 下的子目录名。
+Pi SDK 以**项目绝对路径**作为项目身份。路径编码后作为 `~/.easymint/sessions/` 下的子目录名。
 
 ```
 项目路径:  /Users/amon/EasyMintProject/helloworld
 编码结果:  -Users-amon-EasyMintProject-helloworld
-存储目录:  ~/.easymint_pi_core/sessions/-Users-amon-EasyMintProject-helloworld/
+存储目录:  ~/.easymint/sessions/-Users-amon-EasyMintProject-helloworld/
 ```
 
 **关键特性**：

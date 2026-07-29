@@ -17,7 +17,7 @@ interface PortStatus {
 function extractPort(url?: string): number | null {
   if (!url) return null;
   var m = url.match(/:(\d+)/);
-  return m ? parseInt(m[1]) : null;
+  return m?.[1] ? parseInt(m[1]) : null;
 }
 
 const PLATFORM_LABEL: Record<RunPlatform, string> = {
@@ -96,8 +96,8 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
       var st = await window.electronAPI.process.checkPort(port);
       setPortStatuses(function(prev) {
         var next: Record<string, PortStatus> = {};
-        for (var k in prev) next[k] = prev[k];
-        next[commandId] = st;
+        for (var k in prev) next[k] = prev[k]!;
+        next[commandId] = st!;
         return next;
       });
     } catch { /* */ }
@@ -178,7 +178,7 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
         {runnables.length === 0 ? (
           <div className="flex items-center justify-center h-full text-[11px] text-text-muted text-center px-4">
-            未检测到启动配置<br />Mint 开发完会生成 .easymint_pi_core/run.json
+            未检测到启动配置<br />Mint 开发完会生成 .easymint/run.json
           </div>
         ) : (
           <div className="space-y-1.5">
@@ -223,7 +223,7 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                           var val = e.target.value.replace(/\D/g, "");
                           setCustomPorts(function(prev) {
                             var next: Record<string, string> = {};
-                            for (var k in prev) next[k] = prev[k];
+                            for (var k in prev) next[k] = prev[k]!;
                             next[r.id] = val;
                             return next;
                           });
@@ -242,7 +242,7 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
                               onClick={function(e) { e.stopPropagation();
                                 setShowDetail(function(prev) {
                                   var next: Record<string, boolean> = {};
-                                  for (var k in prev) next[k] = prev[k];
+                                  for (var k in prev) next[k] = prev[k]!;
                                   next[r.id] = !prev[r.id];
                                   return next;
                                 });

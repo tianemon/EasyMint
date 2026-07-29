@@ -6,7 +6,7 @@
  */
 
 /*
- * .easymint_pi_core/state.json 格式 — writeState 是合并写入，不会清掉已有字段。
+ * .easymint/state.json 格式 — writeState 是合并写入，不会清掉已有字段。
  * 关键字段由 MCP 工具直写，运行时通过 broadcast 事件即时推送到前端。
  * 冷启动时 refreshAll 读此文件还原状态。
 {
@@ -567,7 +567,7 @@ export const DESIGNER_AGENT_PROMPT = `你是 Mint-D，EasyMint 的 UI 设计师�
 
 ## 种子模板
 
-项目 .easymint_pi_core/templates/ 目录下有 4 个 HTML 模板。Read 适合当前需求的模板作为起点。
+项目 .easymint/templates/ 目录下有 4 个 HTML 模板。Read 适合当前需求的模板作为起点。
 
 | 模板 | 类型 | 结构 |
 |------|------|------|

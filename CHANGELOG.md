@@ -10,8 +10,8 @@ Claude SDK (`@anthropic-ai/claude-agent-sdk`) → Pi SDK (`@earendil-works/pi-co
 - `event-bridge.ts`：Pi 的 `AgentSessionEvent` → 前端 `PiChatEvent` 格式转换，`messageToBlocks` 统一处理 text/toolCall/thinking
 - `pi-sdk.ts`：ESM-only 动态 import 懒加载 wrapper
 - `pi-session.ts`：`createPiSession` / `resumePiSession` 工厂函数，`customTools` + `codingTools` 组装
-- 全局配置路径：`~/.easymint/` → `~/.easymint_pi_core/`
-- 会话存储：`~/.easymint_pi_core/sessions/<编码路径>/`
+- 全局配置路径：`~/.easymint/` → `~/.easymint/`
+- 会话存储：`~/.easymint/sessions/<编码路径>/`
 - 删除：`claude-detector.ts`、`notify.ts`、`pi-chat-event.ts`、Claude SDK 依赖
 
 ### 🔧 流式输出修复
@@ -35,12 +35,12 @@ Pi SDK 的 `message_update` 携带累计全文，但原 `replaceAiEntries` 在�
 
 ### 📁 路径修正
 
-项目级 `.easymint/` 被批量错写为全局 `.easymint_pi_core/`：
+项目级 `.easymint/` 被批量错写为全局 `.easymint/`：
 
 | 文件 | 错误 | 修正 |
 |------|------|------|
-| `process-service.ts` | `<project>/.easymint_pi_core/run.json` | `<project>/.easymint/run.json` |
-| `issue-service.ts` | `<project>/.easymint_pi_core/issues.json` | `<project>/.easymint/issues.json` |
+| `process-service.ts` | `<project>/.easymint/run.json` | `<project>/.easymint/run.json` |
+| `issue-service.ts` | `<project>/.easymint/issues.json` | `<project>/.easymint/issues.json` |
 
 ### 🚦 状态栏优化
 

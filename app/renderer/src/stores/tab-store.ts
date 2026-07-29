@@ -109,7 +109,7 @@ export const useTabStore = create<TabState>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ tabs: state.tabs, activeTabId: state.activeTabId }),
       // 新窗口不恢复 localStorage 中的旧标签页（防止跨窗口泄漏）
-      skipHydration: () => isFreshWindow(),
+      skipHydration: isFreshWindow(),
     }
   )
 );

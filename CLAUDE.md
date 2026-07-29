@@ -10,10 +10,9 @@
 | 了解功能规格 | `docs/需求文档.md` | 页面结构、功能清单、设计风格 |
 | 了解当前进度 | `docs/开发进度.md` | 任务完成状态、增量变更记录 |
 | 了解 Agent 系统 | `docs/design/AGENT_SYSTEM.md` | 多 Agent 协作、模板系统、Pi SDK 集成 |
-| 了解配置路径 | `docs/design/CONFIG_PATHS.md` | `~/.easymint_pi_core/` 全局目录、em-settings 字段、Skill/MCP 位置 |
+| 了解配置路径 | `docs/design/CONFIG_PATHS.md` | `~/.easymint/` 全局目录、em-settings 字段、Skill/MCP 位置 |
 | 了解需求设计方法论 | `docs/design/AI驱动开发需求设计原则.md` | 11 条 AORD 原则，任务拆解规范 |
-| 了解 SDK API | `docs/reference/SDK_REFERENCE.md` | `createAgentSession()`、会话管理、权限模式 |
-| 了解未来规划 | `docs/planning/Cognitive Workspace Engine.md` | 动态认知工作区引擎设计 + 需求规格 |
+| 了解 SDK API | `docs/reference/Pi-SDK-API参考.md` | `createAgentSession()`、会话管理、权限模式 |
 | 修改系统提示词 | `app/shared/prompts.ts` | Mint 身份定义、阶段指令、万能按钮前缀 |
 | 看懂构建流程 | `package.json` scripts + `scripts/build.sh` | dev/build/pack 命令 |
 
@@ -21,7 +20,7 @@
 - **AI 引擎**：`pi-coding-agent`，`createAgentSession()` 长生命周期 + subscribe 事件流，非 CLI spawn
 - **主进程服务**：agent-service / project-service / file-service / skill-service / mcp-service / upload-cache / agent-templates / system-prompt-manager
 - **前端 stores**：project-status / task / tab / settings / workspace / chat-actions
-- **数据存储**：`~/.easymint_pi_core/` 全局 + `<project>/.easymint/` 项目级
+- **数据存储**：`~/.easymint/` 全局 + `<project>/.easymint/` 项目级
 
 ---
 

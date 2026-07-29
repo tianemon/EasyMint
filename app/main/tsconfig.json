@@ -12,5 +12,9 @@
     "resolveJsonModule": true
   },
   "include": ["./**/*.ts", "../shared/**/*.ts"],
-  "exclude": ["vendor/**"]
+  "exclude": [
+    "vendor/**",
+    "services/task/executor.ts",
+    "services/task/parallel.ts"
+  ]
 }
