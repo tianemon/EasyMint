@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="app/renderer/public/icon.png" width="128" alt="EasyMint" />
+  <img src="assets/icon.png" width="128" alt="EasyMint" />
 </p>
 
 <h1 align="center">EasyMint</h1>
