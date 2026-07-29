@@ -78,7 +78,7 @@ interface ElectronAPI {
   };
   agent: {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; agentTemplate?: string; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string }) => Promise<{ chatId: string }>;
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string }) => Promise<{ chatId: string }>;
     steer: (sessionId: string, text: string) => Promise<void>;
     followUp: (sessionId: string, text: string) => Promise<void>;
     compact: (sessionId: string, instructions?: string) => Promise<void>;

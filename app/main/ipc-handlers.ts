@@ -153,9 +153,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:spawnAgentChat", (_e, { projectPath, templateId, message }) => {
     return agentService.spawnAgentChat(projectPath, templateId, message);
   });
-  ipcMain.handle("agent:sendMessage", async (_e, { projectPath, message, sessionId, permissionMode, model, agentTemplate, images, thinkingLevel }) => {
+  ipcMain.handle("agent:sendMessage", async (_e, { projectPath, message, sessionId, permissionMode, model, isDesigner, images, thinkingLevel }) => {
     try {
-      return await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, agentTemplate, images, thinkingLevel);
+      return await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, isDesigner, images, thinkingLevel);
     } catch (e) {
       console.error("[ipc] sendMessage 失败:", (e as Error).message);
       throw e;

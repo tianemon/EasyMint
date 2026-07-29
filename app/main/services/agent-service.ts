@@ -15,7 +15,6 @@ import { resolveHome } from "../utils/paths";
 import { broadcast } from "./ipc-broadcast";
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
-import { getTemplate } from "./agent-templates";
 import { buildSkillsPrompt } from "./skill-service";
 import { getActiveModel, getModelRuntime, resetModelRuntime } from "./pi-init";
 import { createPiSession, resumePiSession, listPiSessions, getPiSessionDir } from "./pi-session";
@@ -38,7 +37,7 @@ import type { AgentSession, AgentSessionEvent } from "./pi-sdk";
 import type { Model } from "@earendil-works/pi-ai";
 import { randomUUID } from "node:crypto";
 import { archiveSession, renameSession, hasCustomTitle } from "./session-service";
-import { CONTEXT_SUMMARY_INSTRUCTION } from "../../shared/prompts";
+import { CONTEXT_SUMMARY_INSTRUCTION, DESIGNER_AGENT_PROMPT } from "../../shared/prompts";
 
 // ── 类型 ────────────────────────────────────────────
 
@@ -171,17 +170,12 @@ export class AgentService {
     }
   }
 
-  private buildSystemPrompt(projectPath: string, agentTemplate?: string): string {
+  private buildSystemPrompt(projectPath: string, isDesigner?: boolean): string {
     const parts: string[] = [];
 
-    if (agentTemplate) {
-      const tpl = getTemplate(agentTemplate);
-      if (tpl) {
-        // 选了角色模板 → 用模板 prompt 替代默认 Mint prompt
-        parts.push(tpl.prompt);
-      }
+    if (isDesigner) {
+      parts.push(DESIGNER_AGENT_PROMPT);
     } else {
-      // 无模板 → 用默认 Mint prompt
       const effective = resolveEffectivePrompt();
       if (effective) parts.push(effective);
     }
@@ -344,7 +338,7 @@ ${summary}
         agentDir: this.getAgentDir(),
         model,
         store: this.store,
-        systemPrompt: this.buildSystemPrompt(chat.projectPath, chat.agentType),
+        systemPrompt: this.buildSystemPrompt(chat.projectPath, chat.agentType === "designer"),
         extraTools: await this.buildExtraTools(chat.projectPath, chat.sessionId),
       });
 
@@ -446,7 +440,7 @@ ${summary}
     permissionMode: string | undefined,
     mainWindow: BrowserWindow,
     model?: string,
-    agentTemplate?: string,
+    isDesigner?: boolean,
     images?: Array<{ type: "image"; data: string; mimeType: string }>,
     thinkingLevel?: string,
   ): Promise<{ chatId: string }> {
@@ -473,6 +467,9 @@ ${summary}
       console.warn("[agent] 未检测到有效的 API Key，请求可能失败");
     }
 
+    // 恢复会话时补全 isDesigner：tab 恢复不会带此标记，从持久化的 session 类型中读取
+    const designer = isDesigner || sessionAgentTypes.get(resumeSessionId ?? "") === "designer";
+
     const session: AgentSession = await (async () => {
       if (resumeSessionId) {
         const sessionDir = getPiSessionDir(resolvedPath);
@@ -485,7 +482,7 @@ ${summary}
             model: piModel,
             store: this.store,
             resumeSessionFile: info.path,
-            systemPrompt: this.buildSystemPrompt(resolvedPath, agentTemplate),
+            systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
           });
         }
       }
@@ -497,7 +494,7 @@ ${summary}
         agentDir: this.getAgentDir(),
         model: piModel,
         store: this.store,
-        systemPrompt: this.buildSystemPrompt(resolvedPath, agentTemplate),
+        systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
         extraTools,
       });
     })();
@@ -519,32 +516,28 @@ ${summary}
       rotationContinuation: "",
     };
 
-    if (agentTemplate) {
-      const tpl = getTemplate(agentTemplate);
-      if (tpl) {
-        chat.agentType = tpl.agentType;
-        if (tpl.agentType === "designer" && resolvedPath) {
-          const resourcesDir = path.join(__dirname, "..", "..", "..", "resources");
-          const templateDir = path.join(resourcesDir, "em-html-editor");
-          const brandDir = path.join(resourcesDir, "brand-tokens");
-          const destTemplateDir = path.join(resolveHome(resolvedPath), ".easymint", "templates");
-          const destBrandDir = path.join(resolveHome(resolvedPath), ".easymint", "brand-tokens");
-          const templateFiles = [
-            "template-landing.html", "template-dashboard.html",
-            "template-form.html", "template-detail.html",
-          ];
-          try {
-            fs.mkdirSync(destTemplateDir, { recursive: true });
-            for (const f of templateFiles) {
-              const src = path.join(templateDir, f);
-              if (fs.existsSync(src)) fs.copyFileSync(src, path.join(destTemplateDir, f));
-            }
-            // 复制品牌 DESIGN.md 库
-            if (fs.existsSync(brandDir)) {
-              fs.cpSync(brandDir, destBrandDir, { recursive: true });
-            }
-          } catch (e) { console.warn("[agent] 复制模板/品牌文件失败:", (e as Error).message); }
-        }
+    if (isDesigner) {
+      chat.agentType = "designer";
+      if (resolvedPath) {
+        const resourcesDir = path.join(__dirname, "..", "..", "..", "resources");
+        const templateDir = path.join(resourcesDir, "em-html-editor");
+        const brandDir = path.join(resourcesDir, "brand-tokens");
+        const destTemplateDir = path.join(resolveHome(resolvedPath), ".easymint", "templates");
+        const destBrandDir = path.join(resolveHome(resolvedPath), ".easymint", "brand-tokens");
+        const templateFiles = [
+          "template-landing.html", "template-dashboard.html",
+          "template-form.html", "template-detail.html",
+        ];
+        try {
+          fs.mkdirSync(destTemplateDir, { recursive: true });
+          for (const f of templateFiles) {
+            const src = path.join(templateDir, f);
+            if (fs.existsSync(src)) fs.copyFileSync(src, path.join(destTemplateDir, f));
+          }
+          if (fs.existsSync(brandDir)) {
+            fs.cpSync(brandDir, destBrandDir, { recursive: true });
+          }
+        } catch (e) { console.warn("[agent] 复制模板/品牌文件失败:", (e as Error).message); }
       }
     }
 
@@ -655,7 +648,7 @@ ${summary}
   ): Promise<{ chatId: string }> {
     return this.sendMessage(projectPath, message, null, "auto",
       _mainWindow!,
-      undefined, templateId);
+      undefined, false);
   }
 
   killChat(chatId: string): void {

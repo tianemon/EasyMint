@@ -227,7 +227,7 @@ export function ProjectPage(): JSX.Element {
 
   const handleNewDesignSession = useCallback(() => {
     const tabId = `design-${Date.now()}`;
-    openTab({ id: tabId, type: "chat" as const, title: "新建设计", agentTemplate: "mint-designer" });
+    openTab({ id: tabId, type: "chat" as const, title: "新建设计", isDesigner: true });
   }, [openTab]);
 
   const handleSessionDelete = useCallback((sessionId: string) => {

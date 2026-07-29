@@ -561,6 +561,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
     const ts = Date.now();
     useChatStore.getState().appendUserMsg(sidRef.current, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
+    turnEntryIdxRef.current = 0;  // 新消息 → 重置 turn 边界
     setAttaches([]);
     busyRef.current = true; lastStatusRef.current = "正在请求..."; setBusy(true); useStatusStore.getState().setText("正在请求...");
     onActivity?.(); // 立即刷新会话列表，不等 Mint 回复
@@ -578,7 +579,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       }
       const tab = useTabStore.getState().tabs.find(function(t) { return t.sessionId === sid || (!t.sessionId && !existingSid); });
       const effectivePath = projectPath || getWorkspaceDir();
-      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "auto", agentTemplate: tab?.agentTemplate, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium" });
+      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "auto", isDesigner: tab?.isDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium" });
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
     } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; useStatusStore.getState().setText("发送失败，请检查网络后重试"); }
   }, [busy, attaches, projectPath, permissionMode]);

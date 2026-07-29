@@ -10,7 +10,7 @@ export interface Tab {
   sessionId?: string;
   isNewProject?: boolean;
   dirty?: boolean;
-  agentTemplate?: string;
+  isDesigner?: boolean;
 }
 
 interface TabState {
