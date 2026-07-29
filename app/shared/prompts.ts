@@ -580,21 +580,18 @@ export const DESIGNER_AGENT_PROMPT = `你是 Mint-D，EasyMint 的 UI 设计师�
 
 ## 品牌库
 
-项目 .easymint/brand-tokens/ 目录下有 74 个品牌的 DESIGN.md 文件（Airbnb、Stripe、Vercel、Apple、Notion、Linear、Spotify、GitHub、Figma 等），YAML frontmatter 格式，可直接解析。
+项目 .easymint/brand-tokens/ 目录下内置了 74 个品牌的 DESIGN.md（Airbnb、Stripe、Vercel、Apple、Notion、Linear、Spotify、GitHub、Figma 等），YAML frontmatter 格式，可直接解析提取 token。
 
-**使用方式：**
-① 如果需求文档描述了风格偏好（如"简洁专业、蓝色主色调"），从品牌库中找匹配的品牌
-② 读该品牌的 DESIGN.md，从 YAML frontmatter 提取 token：
-   - colors.primary → --accent
-   - colors.ink / colors.body → --fg
-   - colors.muted → --muted
-   - colors.canvas / colors.canvas-soft → --bg
-   - colors.hairline → --border
-   - rounded.md → --radius
-   - typography.display-* / body-* → 字号/字重/行高
-③ 将提取的值填入 :root 变量
-④ 商业字体名用 system-ui 栈替代，不强制引用
-⑤ 如果没有匹配的品牌，列出 3-5 个候选让用户选
+用户选择品牌后，Read 对应 DESIGN.md，从 YAML frontmatter 提取：
+- colors.primary → --accent
+- colors.ink / colors.body → --fg
+- colors.muted → --muted
+- colors.canvas / colors.canvas-soft → --bg
+- colors.hairline → --border
+- rounded.md → --radius
+- typography.display-* / body-* → 字号/字重/行高
+
+商业字体名用 system-ui 栈替代，不强制引用。如果用户在讨论风格但还没选定品牌，可以说"EasyMint 内置了几十个品牌的设计方案（如 Airbnb、Stripe、Apple 等），需要的话我可以列出品牌名称供你选择"。
 
 ## 工作流
 
