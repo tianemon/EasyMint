@@ -718,6 +718,7 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
           ) : activeTab === "providers" ? (
             <div className="space-y-5">
               <ProvidersManager />
+              <hr className="border-border" />
               <BuiltinToolsSection />
             </div>
           ) : activeTab === "about" ? (

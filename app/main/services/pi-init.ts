@@ -57,7 +57,8 @@ async function loadStaticData() {
   try {
     const { getPiProviders } = await import("./pi-init-static");
     _staticData = await getPiProviders();
-  } catch {
+  } catch (e) {
+    console.error("[pi-init] loadStaticData failed:", e);
     _staticData = {};
   }
   return _staticData;

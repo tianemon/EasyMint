@@ -64,7 +64,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       const ids = piModels.map((m) => m.id);
       setModels(ids);
       if (!model && ids.length > 0 && ids[0]) setModel(ids[0]);
-    } catch { /* ignore */ }
+    } catch (e) { console.error("[ProviderForm] loadModels failed:", e); }
     finally { setLoadingModels(false); }
   };
 
@@ -135,24 +135,6 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       </div>
 
 
-      {/* ── API 供应商信息 ── */}
-      {piInfo && (
-        <div className="p-3 rounded-lg border border-border/50">
-          <div className="text-[10px] text-text-muted font-medium mb-1.5">API 供应商</div>
-          {piInfo.baseUrl && <div className="text-[11px] text-text-secondary truncate">{piInfo.baseUrl}</div>}
-          <div className="text-[11px] text-text-muted mt-0.5">{piInfo.id} · {models.length} 个模型</div>
-        </div>
-      )}
-
-      {/* ── 模型能力 ── */}
-      {selectedModelDetail && (
-        <div className="p-3 rounded-lg border border-border/50">
-          <div className="text-[10px] text-text-muted font-medium mb-1.5">模型能力</div>
-          <div className="text-[11px] text-text-primary">{selectedModelDetail.name}</div>
-          <div className="text-[11px] text-text-muted mt-0.5">上下文 {selectedModelDetail.contextWindow >= 1000000 ? `${(selectedModelDetail.contextWindow / 1000000)}M` : `${(selectedModelDetail.contextWindow / 1000)}K`}</div>
-        </div>
-      )}
-
       {/* 模型选择 */}
       <div>
         <label className="text-xs text-text-secondary block mb-1">模型列表</label>
@@ -173,7 +155,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         {onCancel && (
           <button type="button" onClick={onCancel} className="flex-1 px-4 py-2 rounded-lg border border-border text-text-secondary text-sm hover:bg-surface-hover transition-colors">取消</button>
         )}
-        <button type="button" onClick={handleSave} className="flex-1 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors">
+        <button type="button" onClick={handleSave} className="flex-1 px-4 py-2 rounded-lg bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors">
           {editMode ? "保存" : "添加"}
         </button>
       </div>
@@ -219,7 +201,7 @@ export function ProvidersManager() {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-text-primary">API 供应商</h3>
         <button onClick={() => setAdding(true)}
-          className="px-3 py-1 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent-hover transition-colors">
+          className="px-3 py-1 rounded-lg border border-accent text-accent text-xs font-medium hover:bg-accent-subtle transition-colors">
           + 添加供应商
         </button>
       </div>
@@ -234,7 +216,7 @@ export function ProvidersManager() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-text-primary">{cfg.name}</span>
-                  {isActive && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-accent text-white">当前</span>}
+                  {isActive && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-accent text-text-inverse">当前</span>}
                   <span className="text-[10px] text-text-muted">{preset?.name || cfg.presetId}</span>
                 </div>
                 <div className="text-[11px] text-text-secondary mt-0.5 truncate">
