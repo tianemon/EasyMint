@@ -15,6 +15,7 @@ export interface PiChatEvent {
   partial?: boolean;
   toolCallId?: string;
   toolName?: string;
+  toolArgs?: Record<string, unknown>;
   message?: string;
   canRetry?: boolean;
   summary?: string;
@@ -111,12 +112,12 @@ export function bridgeSessionEvents(
 
     case "tool_execution_start": {
       // 工具开始执行 → 状态栏显示工具名
-      callbacks.onEvent({ type: "tool_progress", sessionId: "", toolCallId: event.toolCallId, toolName: event.toolName });
+      callbacks.onEvent({ type: "tool_progress", sessionId: "", toolCallId: event.toolCallId, toolName: event.toolName, toolArgs: event.args });
       break;
     }
 
     case "tool_execution_update": {
-      callbacks.onEvent({ type: "tool_progress", sessionId: "", toolCallId: event.toolCallId, toolName: event.toolName });
+      callbacks.onEvent({ type: "tool_progress", sessionId: "", toolCallId: event.toolCallId, toolName: event.toolName, toolArgs: event.args });
       break;
     }
 

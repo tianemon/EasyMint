@@ -56,13 +56,66 @@ function piEventToEntries(ev: { type: string; blocks?: Array<{ type: string; tex
 }
 
 /** 工具名 → 中文标签 */
-function displayToolLabel(name: string): string {
-  const map: Record<string, string> = {
-    "Read": "读取文件", "Write": "写入文件", "Edit": "编辑文件",
-    "Bash": "执行命令", "Grep": "搜索内容", "Glob": "查找文件",
-    "Task": "调度 Agent", "WebSearch": "网页搜索", "WebFetch": "抓取网页",
-  };
-  return map[name] || name;
+function displayToolLabel(name: string, args?: Record<string, unknown>): string {
+  const ctx = (args?.file_path || args?.filePath || args?.query || args?.pattern || args?.target_file) as string | undefined;
+  const fname = (ctx && typeof ctx === "string") ? ctx.split("/").pop() || "" : "";
+  const ext = fname.split(".").pop()?.toLowerCase() || "";
+
+  // Skill / MCP 特殊处理
+  const skillInInput = args?.skill as string | undefined;
+  if (skillInInput) return `调用 Skill: ${skillInInput}`;
+  if (name.startsWith("Skill__")) return `调用 Skill: ${name.slice(7)}`;
+  if (name.startsWith("mcp__")) return `调用 MCP: ${name.split("__")[1] || "工具"}`;
+
+  if (name === "Read" || name === "Glob") {
+    const isConfig = /json|toml|yaml|yml|env|ini|config|cfg|rc$/i.test(ext) || /package\.json|tsconfig|eslint|prettier/i.test(fname);
+    const isDoc = /md|markdown|rst|txt|readme/i.test(ext) || /README|CLAUDE|CHANGELOG|LICENSE/i.test(fname);
+    const isSource = /tsx?|jsx?|py|rs|go|java|c|h|cpp|swift|kt|rb|php|vue|svelte|css|scss|html$/i.test(ext);
+    const isTest = /test|spec|__test__/i.test(fname);
+    if (isConfig) return fname ? `加载配置: ${fname}` : "读取项目配置";
+    if (isTest) return fname ? `查看测试: ${fname}` : "查看测试文件";
+    if (isDoc) return fname ? `阅读文档: ${fname}` : "查阅文档";
+    if (isSource) return fname ? `检查代码: ${fname}` : "分析源代码";
+    if (name === "Glob") return fname ? `搜索文件: ${fname}` : "查找文件";
+    return fname ? `读取: ${fname}` : "读取文件";
+  }
+
+  if (name === "Write") {
+    if (ext === "json" || /package\.json|tsconfig/i.test(fname)) return fname ? `更新配置: ${fname}` : "写入配置文件";
+    if (ext === "md" || /README|CLAUDE|CHANGELOG/i.test(fname)) return fname ? `撰写文档: ${fname}` : "输出文档";
+    if (/tsx?|jsx?|py|rs|go|css/.test(ext)) return fname ? `编写代码: ${fname}` : "创建源文件";
+    return fname ? `写入: ${fname}` : "写入文件";
+  }
+
+  if (name === "Edit") return fname ? `修改: ${fname}` : "编辑文件";
+
+  if (name === "Grep") return ctx ? "搜索内容" : "查找代码";
+
+  if (name === "Bash") {
+    const cmd = (args?.command as string) || "";
+    const short = cmd.length > 40 ? cmd.slice(0, 40) + "…" : cmd;
+    return short ? `执行: ${short}` : "执行命令";
+  }
+
+  if (name === "Task") {
+    const agent = args?.subagent_type as string | undefined;
+    if (agent === "builder") return "委托 Builder 编码";
+    if (agent === "evaluator") return "委托 Evaluator 验收";
+    return agent ? `调度 Agent: ${agent}` : "调度 Agent";
+  }
+
+  if (name === "WebFetch") {
+    const url = ctx || "";
+    const domain = url ? (() => { try { return new URL(url).hostname; } catch { return url.slice(0, 40); } })() : "";
+    return domain ? `获取网页: ${domain}` : "抓取网页内容";
+  }
+
+  if (name === "WebSearch") {
+    const query = (args?.query as string) || ctx || "";
+    return query ? `搜索: ${query.slice(0, 30)}` : "联网搜索";
+  }
+
+  return name;
 }
 
 function mapSessionMessages(msgs: Array<{ type: string; message: unknown }>): ChatMessage[] {
@@ -457,7 +510,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       }
       // tool progress
       if (event.type === "tool_progress" && event.toolName) {
-        const label = displayToolLabel(event.toolName);
+        const label = displayToolLabel(event.toolName, (event as any).toolArgs);
         useStatusStore.getState().setText(label);
         lastStatusRef.current = label;
       }
