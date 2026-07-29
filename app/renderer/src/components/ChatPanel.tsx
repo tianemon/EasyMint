@@ -258,7 +258,15 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const scrollToBottom = useCallback((force = false) => {
     if (!containerRef.current) return;
     if (force || autoScrollRef.current) {
-      requestAnimationFrame(() => { if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight; });
+      const el = containerRef.current;
+      requestAnimationFrame(() => {
+        if (!el) return;
+        if (force) {
+          el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+        } else {
+          el.scrollTop = el.scrollHeight;
+        }
+      });
     }
   }, []);
 

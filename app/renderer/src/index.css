@@ -332,6 +332,11 @@ body {
   overflow: hidden;
   background: var(--color-surface);
   color: var(--color-text-primary);
+  scroll-behavior: smooth;
+}
+
+.chat-scroll {
+  scroll-behavior: smooth;
 }
 
 #root {
@@ -527,6 +532,14 @@ select.input {
 @keyframes msgIn {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Session list item ─────────────────────────────── */
+
+.session-item { animation: sessionIn var(--anim-normal) var(--ease-smooth); }
+@keyframes sessionIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 /* ── Task pulse ───────────────────────────────────── */
