@@ -52,7 +52,8 @@ export const ChatInput = memo(function ChatInput({
   imgInputRef, docInputRef, onImgChange, onDocChange,
   permissionMode, onPermissionModeChange, chatModel, onModelChange,
   thinkingLevel, onThinkingLevelChange,
-}: ChatInputProps): JSX.Element {
+  sessionId, onStatsClick,
+}: ChatInputProps & { sessionId: string; onStatsClick: () => void }): JSX.Element {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [paletteQuery, setPaletteQuery] = useState<string | null>(null);
@@ -141,6 +142,11 @@ export const ChatInput = memo(function ChatInput({
         <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-accent transition-colors" title="上传文档" onClick={() => docInputRef.current?.click()}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M3 2h7l4 4v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M10 2v4h4M6 9h4M6 12h4"/></svg>
         </button>
+        {sessionId && !sessionId.startsWith("__new_") && (
+          <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-accent transition-colors" title="会话统计" onClick={onStatsClick}>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="1.5" y="1.5" width="13" height="13" rx="2"/><path d="M5 11V7M8 11V5M11 11V9"/></svg>
+          </button>
+        )}
         {/* 快捷命令按钮暂时屏蔽，后续适配 Pi 命令后再开放 */}
         {/* <button className="w-7 h-7 rounded-md flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-accent transition-colors" title="快捷命令（输入 / 也能触发）" onClick={() => setPaletteQuery("")}>
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M2.5 4l3 4-3 4"/><path d="M7 12h6.5"/></svg>

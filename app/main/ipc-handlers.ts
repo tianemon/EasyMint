@@ -183,6 +183,20 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     const sid = permissionService.respondToPermission(requestId, behavior, alwaysAllow);
     if (sid) broadcast("agent:permission-resolved", { requestId, sessionId: sid, behavior });
   });
+  ipcMain.handle("agent:getPiProviders", async () => {
+    const { getPiProviders } = await import("./services/pi-init");
+    return await getPiProviders();
+  });
+  ipcMain.handle("agent:getPiModels", async (_e, { providerName }) => {
+    const { getPiModels } = await import("./services/pi-init");
+    return getPiModels(providerName);
+  });
+  ipcMain.handle("agent:isStreaming", (_e, { sessionId }) => {
+    return agentService.isStreaming(sessionId);
+  });
+  ipcMain.handle("agent:sessionStats", async (_e, { sessionId, projectPath }) => {
+    return agentService.getSessionStats(sessionId, projectPath);
+  });
   ipcMain.handle("agent:peekUsage", async (_e, { projectPath, sessionId }) => {
     await agentService.peekUsage(projectPath, sessionId);
   });
@@ -301,9 +315,16 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     const providers = settings.apiProviders;
     const activeId = providers?.current;
     const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
-    const rawUrl = activeCfg?.baseUrl || "https://api.deepseek.com";
     const apiKey = store.getActiveApiKey();
     if (!apiKey) throw new Error("请先配置 API Key");
+    // Pi 内置 provider — 从 Pi 拿 baseUrl
+    let rawUrl = "https://api.deepseek.com";
+    if (activeCfg?.presetId) {
+      const { getPiProviders } = await import("./services/pi-init");
+      const providers = await getPiProviders();
+      const pi = providers.find((p) => p.id === activeCfg.presetId);
+      if (pi?.baseUrl) rawUrl = pi.baseUrl;
+    }
     let origin: string;
     try { origin = new URL(rawUrl).origin; } catch (e) { throw new Error("API 地址格式错误"); }
     const url = `${origin}/user/balance`;

@@ -92,6 +92,10 @@ interface ElectronAPI {
     notifySession: (sessionId: string, message: string) => void;
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => Promise<{ chatId: string }>;
     chatStatus: (sessionId: string) => Promise<string | null>;
+    getPiProviders: () => Promise<Array<{ id: string; name: string; baseUrl?: string }>>;
+    getPiModels: (providerName: string) => Promise<Array<{ id: string; name: string; contextWindow: number }>>;
+    isStreaming: (sessionId: string) => Promise<boolean>;
+    sessionStats: (sessionId: string, projectPath?: string) => Promise<Record<string, unknown> | null>;
     getBufferedStream: (sessionId: string) => Promise<unknown[]>;
     listCommands: () => Promise<Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }>>;
     killChat: (chatId: string) => Promise<void>;

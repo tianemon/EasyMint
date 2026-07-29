@@ -11,6 +11,7 @@ import { useStatusStore } from "../stores/status-store";
 import { StatusBar } from "./StatusBar";
 import { PermissionPrompt } from "./PermissionPrompt";
 import { ChatInput } from "./ChatInput";
+import { SessionStatsPopup } from "./SessionStatsPopup";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 
 interface AttachItem {
@@ -265,6 +266,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (sid) { window.electronAPI.agent.setModel(sid, m).catch(() => {}); }
   }, [setStoreModel]);
   const [thinkingLevel, setThinkingLevel] = useState("medium");
+  const [showStats, setShowStats] = useState(false);
   const handleThinkingLevelChange = useCallback((level: string) => {
     setThinkingLevel(level);
     const sid = sidRef.current;
@@ -280,6 +282,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   // turn 边界追踪：同一条用户消息内可能有多轮 AI 回复（tool call → 继续回复），
   // 用 turnEntryIdxRef 标记当前 turn 在 AI 消息 entries 中的起始位置
   const turnEntryIdxRef = useRef(0);
+  // steer 打断标记：steer 时记录打断点，message_start 不再覆盖 turnEntryIdxRef
+  const steeringRef = useRef(false);
   const sidRef = useRef<string>(initialSid);
   useEffect(() => {
     if (existingSid && sidRef.current !== existingSid) {
@@ -475,7 +479,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (event.type === "message_start") {
         const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
         const lastAi = msgs.filter((m: any) => m.role === "ai").pop();
-        turnEntryIdxRef.current = lastAi ? (lastAi.entries || []).length : 0;
+        // steer 打断时保持打断点，不被 message_start 覆盖
+        if (!steeringRef.current) {
+          turnEntryIdxRef.current = lastAi ? (lastAi.entries || []).length : 0;
+        }
         // 如果附带内容块（如 done/error 直接出完整消息），用 replaceAiEntriesFrom
         if (Array.isArray(event.blocks) && event.blocks.length > 0) {
           const entries = piBlocksToEntries(event.blocks);
@@ -571,6 +578,22 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     return () => clearTimeout(timer);
   }, [summarizing]);
 
+  // Busy 卡住兜底：30s 无事件时，用 session.isStreaming 核实
+  useEffect(() => {
+    if (!busy || !existingSid) return;
+    const interval = setInterval(async () => {
+      try {
+        const streaming = await window.electronAPI.agent.isStreaming(sidRef.current);
+        if (!streaming) {
+          console.log("[ChatPanel] session.isStreaming=false, 清除 busy");
+          setBusy(false);
+          useStatusStore.getState().setText("");
+        }
+      } catch { /* 网络错误忽略 */ }
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [busy, existingSid]);
+
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
   // ── Session cache ────────────────────────────────
@@ -602,7 +625,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const sendText = useCallback(async (text: string) => {
     const msg = text.trim();
     if (!msg && attaches.length === 0) return;
-    if (busy) return;
 
     // Build agent message with numbered markers
     const parts: string[] = [];
@@ -617,9 +639,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     useChatStore.getState().appendUserMsg(sidRef.current, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
     turnEntryIdxRef.current = 0;  // 新消息 → 重置 turn 边界
     setAttaches([]);
-    busyRef.current = true; lastStatusRef.current = "正在请求..."; setBusy(true); useStatusStore.getState().setText("正在请求...");
-    onActivity?.(); // 立即刷新会话列表，不等 Mint 回复
+    onActivity?.();
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
+
+    // Mint 输出期间发送消息 → steer 插话，不需新建会话
+    if (busy && currentChatRef.current && existingSid) {
+      steeringRef.current = true;
+      try {
+        await window.electronAPI.agent.steer(existingSid, agentText);
+      } catch { /* steer 失败不影响 UI */ }
+      return;
+    }
+
+    busyRef.current = true; lastStatusRef.current = "正在请求..."; setBusy(true); useStatusStore.getState().setText("正在请求...");
 
     try {
       currentChatRef.current = null;
@@ -806,7 +838,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         onModelChange={handleModelChange}
         thinkingLevel={thinkingLevel}
         onThinkingLevelChange={handleThinkingLevelChange}
+        sessionId={sidRef.current}
+        onStatsClick={() => setShowStats(true)}
       />
+      {showStats && (
+        <SessionStatsPopup
+          sessionId={sidRef.current}
+          projectPath={projectPath || getWorkspaceDir()}
+          onClose={() => setShowStats(false)}
+        />
+      )}
       {/* Image lightbox */}
       {previewImage && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center outline-none"

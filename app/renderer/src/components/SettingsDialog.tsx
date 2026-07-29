@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
-import { ProviderSettings } from "./settings/ProviderSettings";
+import { ProviderForm, ProvidersManager } from "./settings/ProviderSettings";
 
 export type SettingsTab = "general" | "plugins" | "providers" | "about";
 
@@ -717,7 +717,7 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
             </div>
           ) : activeTab === "providers" ? (
             <div className="space-y-5">
-              <ProviderSettings />
+              <ProvidersManager />
               <BuiltinToolsSection />
             </div>
           ) : activeTab === "about" ? (

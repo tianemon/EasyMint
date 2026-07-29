@@ -123,7 +123,7 @@ export function OnboardingPage(): JSX.Element {
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-high text-accent shrink-0">使用中</span>
                     </div>
                     <div className="text-[11px] text-text-muted mt-0.5">
-                      {savedCfg.baseUrl || "API 地址已设置"} · 模型 {savedCfg.models.length} 个
+                      模型 {savedCfg.models.length} 个 · {savedCfg.model}
                     </div>
                   </div>
                 </div>

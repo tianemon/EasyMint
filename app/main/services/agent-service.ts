@@ -677,6 +677,80 @@ ${summary}
     if (chat) chat.firstUserMessage = "";
   }
 
+  /** 查询 session 真实流状态——前端 busy 卡住时的兜底 */
+  isStreaming(sessionId: string): boolean {
+    const chat = this.findActiveChat(sessionId);
+    return chat?.session?.isStreaming ?? false;
+  }
+
+  /** 获取会话统计（token 消耗、费用等）——活跃会话走内存，磁盘会话直接读 JSONL */
+  async getSessionStats(sessionId: string, projectPath?: string): Promise<Record<string, unknown> | null> {
+    // 1. 活跃会话：直接用 Pi 的 getSessionStats
+    const chat = this.findActiveChat(sessionId);
+    if (chat?.session) {
+      try {
+        const stats = chat.session.getSessionStats();
+        return {
+          sessionId: stats.sessionId, sessionFile: stats.sessionFile,
+          userMessages: stats.userMessages, assistantMessages: stats.assistantMessages,
+          toolCalls: stats.toolCalls, totalMessages: stats.totalMessages,
+          tokens: stats.tokens, cost: stats.cost, contextUsage: stats.contextUsage,
+        };
+      } catch { /* fall through to disk read */ }
+    }
+
+    // 2. 磁盘会话：直接读 JSONL 统计
+    if (!projectPath) return null;
+    try {
+      const { listPiSessions, getPiSessionDir } = await import("./pi-session");
+      const { getSessionManagerClass } = await import("./pi-sdk");
+      const resolved = path.resolve(resolveHome(projectPath));
+      const sessions = await listPiSessions(resolved);
+      const info = sessions.find((s) => s.id === sessionId);
+      if (!info) return null;
+
+      const SM = await getSessionManagerClass();
+      const mgr = SM.open(info.path, getPiSessionDir(resolved), resolved);
+      const entries = mgr.getEntries();
+
+      let userMessages = 0, assistantMessages = 0, toolCalls = 0, totalMessages = 0;
+      let inputTokens = 0, outputTokens = 0, cacheRead = 0, cacheWrite = 0;
+
+      for (const entry of entries) {
+        if (entry.type !== "message") continue;
+        totalMessages++;
+        const msg = entry.message as unknown as Record<string, unknown>;
+        if (msg.role === "user") userMessages++;
+        else if (msg.role === "assistant") {
+          assistantMessages++;
+          const usage = (msg as any).usage;
+          if (usage) {
+            inputTokens += usage.input ?? 0;
+            outputTokens += usage.output ?? 0;
+            cacheRead += usage.cacheRead ?? usage.cacheCreation?.[""] ?? 0;
+            cacheWrite += usage.cacheWrite ?? 0;
+          }
+          const content = msg.content as Array<{ type: string }> | undefined;
+          if (content) {
+            for (const block of content) {
+              if (block.type === "toolCall") toolCalls++;
+            }
+          }
+        }
+      }
+
+      return {
+        sessionId, sessionFile: info.path,
+        userMessages, assistantMessages, toolCalls, totalMessages,
+        tokens: { input: inputTokens, output: outputTokens, cacheRead, cacheWrite, total: inputTokens + outputTokens + cacheRead + cacheWrite },
+        cost: 0, // 磁盘统计不计算费用（需模型定价信息）
+      };
+    } catch (e) {
+      console.error("[agent] getSessionStats disk read failed:", e);
+      return null;
+    }
+  }
+
   async peekUsage(_projectPath: string, sessionId: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
     if (chat?.session) {
