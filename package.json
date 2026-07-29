@@ -91,6 +91,14 @@
       {
         "from": "resources/skills",
         "to": "skills"
+      },
+      {
+        "from": "resources/em-html-editor",
+        "to": "em-html-editor"
+      },
+      {
+        "from": "resources/brand-tokens",
+        "to": "brand-tokens"
       }
     ],
     "mac": {

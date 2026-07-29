@@ -524,19 +524,26 @@ ${summary}
       if (tpl) {
         chat.agentType = tpl.agentType;
         if (tpl.agentType === "designer" && resolvedPath) {
-          const srcDir = path.join(__dirname, "..", "..", "..", "resources", "em-html-editor");
-          const destDir = path.join(resolveHome(resolvedPath), ".easymint", "templates");
+          const resourcesDir = path.join(__dirname, "..", "..", "..", "resources");
+          const templateDir = path.join(resourcesDir, "em-html-editor");
+          const brandDir = path.join(resourcesDir, "brand-tokens");
+          const destTemplateDir = path.join(resolveHome(resolvedPath), ".easymint", "templates");
+          const destBrandDir = path.join(resolveHome(resolvedPath), ".easymint", "brand-tokens");
           const templateFiles = [
             "template-landing.html", "template-dashboard.html",
             "template-form.html", "template-detail.html",
           ];
           try {
-            fs.mkdirSync(destDir, { recursive: true });
+            fs.mkdirSync(destTemplateDir, { recursive: true });
             for (const f of templateFiles) {
-              const src = path.join(srcDir, f);
-              if (fs.existsSync(src)) fs.copyFileSync(src, path.join(destDir, f));
+              const src = path.join(templateDir, f);
+              if (fs.existsSync(src)) fs.copyFileSync(src, path.join(destTemplateDir, f));
             }
-          } catch (e) { console.warn("[agent] 复制模板文件失败:", (e as Error).message); }
+            // 复制品牌 DESIGN.md 库
+            if (fs.existsSync(brandDir)) {
+              fs.cpSync(brandDir, destBrandDir, { recursive: true });
+            }
+          } catch (e) { console.warn("[agent] 复制模板/品牌文件失败:", (e as Error).message); }
         }
       }
     }
