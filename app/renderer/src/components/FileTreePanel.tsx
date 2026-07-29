@@ -83,7 +83,7 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
   };
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="h-full overflow-y-auto flex flex-col">
       {error ? (
         <div className="p-4 text-center">
           <p className="text-danger text-sm mb-2">{error}</p>
@@ -99,7 +99,9 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
           <p className="text-xs text-text-secondary">暂无项目文件</p>
         </div>
       ) : (
-        renderTree(files)
+        <div className="flex-1 overflow-y-auto mx-3 mb-3 rounded-xl bg-accent-subtle border border-accent-border-light py-1">
+          {renderTree(files)}
+        </div>
       )}
     </div>
   );
