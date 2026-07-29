@@ -112,8 +112,12 @@
   --color-danger: #dc2626;
   --color-danger-bg: #fef2f2;
   --color-danger-border: #fecaca;
+  --color-danger-soft: color-mix(in oklab, var(--color-danger) 12%, transparent);
+  --color-success-soft: color-mix(in oklab, var(--color-success) 10%, transparent);
+  --color-warning-soft: color-mix(in oklab, var(--color-warning) 10%, transparent);
   --color-info: #0891b2;
   --color-info-bg: color-mix(in oklab, var(--color-info) 12%, transparent);
+  --color-info-soft: color-mix(in oklab, var(--color-info) 8%, transparent);
 
   /* ── Border extras ──────────────── */
   --color-border-strong: #94a3b8;
@@ -243,23 +247,23 @@
   --color-success: #22c55e;
   --color-success-bg: #0a2e14;
   --color-success-border: #166534;
-  --color-warning: #888888;
-  --color-warning-bg: #161616;
-  --color-warning-border: #2a2a2a;
+  --color-warning: #f59e0b;
+  --color-warning-bg: #1a1400;
+  --color-warning-border: #78350f;
   --color-danger: #ef4444;
   --color-danger-bg: #2e0a0a;
   --color-danger-border: #7f1d1d;
   --color-danger-soft: #3a0a0a;
   --color-success-soft: #0a1e0e;
-  --color-info: #888888;
-  --color-info-bg: #161616;
+  --color-info: #22d3ee;
+  --color-info-bg: #0a1a1e;
 
   /* ── Status dots — 仅 green + red 有色 ─── */
   --color-dot-gray: #3a3a3a;
   --color-dot-green: #22c55e;
-  --color-dot-amber: #555555;
+  --color-dot-amber: #f59e0b;
   --color-dot-red: #ef4444;
-  --color-dot-blue: #555555;
+  --color-dot-blue: #3b82f6;
 
   /* ── Code highlight — 灰度 ───────── */
   --color-code-kw: #aaaaaa;
@@ -344,8 +348,12 @@ body {
 
 /* ── Smooth transitions ───────────────────────────── */
 
-button, a, select, .transition-all {
-  transition: all var(--anim-slow) var(--ease-smooth);
+button, a, select {
+  transition: background-color var(--anim-fast) var(--ease-smooth),
+              color var(--anim-fast) var(--ease-smooth),
+              border-color var(--anim-fast) var(--ease-smooth),
+              opacity var(--anim-fast) var(--ease-smooth),
+              transform var(--anim-fast) var(--ease-smooth);
 }
 
 /* ── Scrollbar ────────────────────────────────────── */
@@ -528,6 +536,12 @@ select.input {
   50%      { opacity: 0.5; }
 }
 .task-pulse { animation: taskPulse 1.5s ease-in-out infinite; }
+
+/* ── Status text fade ──────────────────────────────── */
+
+.status-text-fade {
+  transition: opacity var(--anim-normal) var(--ease-smooth);
+}
 
 /* ── Code syntax ──────────────────────────────────── */
 

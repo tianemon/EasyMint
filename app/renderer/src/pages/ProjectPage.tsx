@@ -346,7 +346,7 @@ export function ProjectPage(): JSX.Element {
           const isActive = tab.id === activeTabId;
           if (tab.type === "chat") {
             return (
-              <div key={tab.id} className="absolute inset-0" style={{ display: isActive ? undefined : "none" }}>
+              <div key={tab.id} className="absolute inset-0 transition-opacity duration-200" style={{ opacity: isActive ? 1 : 0, pointerEvents: isActive ? "auto" : "none" }}>
                 <ChatPanel
                   projectPath={projectPath}
                   sessionId={tab.sessionId}
@@ -363,7 +363,7 @@ export function ProjectPage(): JSX.Element {
           }
           if (tab.type === "file") {
             return (
-              <div key={tab.id} className="absolute inset-0" style={{ display: isActive ? undefined : "none" }}>
+              <div key={tab.id} className="absolute inset-0 transition-opacity duration-200" style={{ opacity: isActive ? 1 : 0, pointerEvents: isActive ? "auto" : "none" }}>
                 <EditorPanel filePath={tab.filePath} fileName={tab.title} />
               </div>
             );

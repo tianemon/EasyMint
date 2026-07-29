@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import type { StreamEntry } from "./StreamPanel";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { chatActions } from "../stores/chat-actions";
@@ -661,32 +661,15 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           <div className="flex items-center justify-center h-full"><p className="text-sm text-text-secondary">开始对话，让 Mint 帮你开发项目。</p></div>
         ) : (
           <div className="p-4 space-y-3">
-            {messages.map((msg) => {
-              return (
-                <div key={msg.id} className="msg-in">
-                  {msg.role === "user" ? (
-                    <div className="flex justify-end"><UserBubble msg={msg} /></div>
-                  ) : msg.entries ? (
-                    (() => {
-                      const visible = msg.entries.filter((e) => {
-                        if (e.kind === "text") return true;
-                        if (e.kind === "thinking") return showThinking;
-                        return showToolUse;
-                      });
-                      if (visible.length === 0) return null;
-                      const blocks = buildBlocks(visible, String(msg.id)).map((block, i) => <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} />);
-                      return (
-                        <div className="flex flex-col max-w-[75%] w-fit">
-                          <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
-                            {blocks}
-                          </div>
-                        </div>
-                      );
-                    })()
-                  ) : null}
-                </div>
-              );
-            })}
+            {messages.map((msg) => (
+              <MemoChatMessage
+                key={msg.id}
+                msg={msg}
+                showThinking={showThinking}
+                showToolUse={showToolUse}
+                busy={busy}
+              />
+            ))}
             {showNewProjectBtn && (
               <div className="flex justify-center pb-3">
                 <button
@@ -780,3 +763,54 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     </div>
   );
 }
+
+// ── Memo message item: avoids re-rendering all messages on each stream event ──
+
+interface MemoChatMessageProps {
+  msg: ChatMessage;
+  showThinking: boolean;
+  showToolUse: boolean;
+  busy: boolean;
+}
+
+const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showToolUse, busy }: MemoChatMessageProps) {
+  if (msg.role === "user") {
+    return (
+      <div className="msg-in">
+        <div className="flex justify-end">
+          <UserBubble msg={msg} />
+        </div>
+      </div>
+    );
+  }
+
+  if (!msg.entries) return null;
+
+  const visible = useMemo(() => {
+    if (!msg.entries) return [];
+    return msg.entries.filter((e) => {
+      if (e.kind === "text") return true;
+      if (e.kind === "thinking") return showThinking;
+      return showToolUse;
+    });
+  }, [msg.entries, showThinking, showToolUse]);
+
+  if (visible.length === 0) return null;
+
+  const blocks = useMemo(() =>
+    buildBlocks(visible, String(msg.id)),
+    [visible, msg.id],
+  );
+
+  return (
+    <div className="msg-in">
+      <div className="flex flex-col max-w-[75%] w-fit">
+        <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
+          {blocks.map((block, i) => (
+            <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+});
