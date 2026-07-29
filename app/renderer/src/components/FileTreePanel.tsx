@@ -83,7 +83,7 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-accent-subtle">
+    <div className="h-full overflow-y-auto bg-surface-alt">
       {error ? (
         <div className="p-4 text-center">
           <p className="text-danger text-sm mb-2">{error}</p>
