@@ -9,12 +9,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/tianemon/EasyMint/releases"><img src="https://img.shields.io/github/v/release/tianemon/EasyMint?style=flat-square&color=16a34a" alt="Version" /></a>
+  <a href="https://github.com/tianemon/EasyMint-Pi-Core/releases"><img src="https://img.shields.io/github/v/release/tianemon/EasyMint-Pi-Core?style=flat-square&color=16a34a" alt="Version" /></a>
   <img src="https://img.shields.io/badge/Electron-42.3-47848f?style=flat-square&logo=electron&logoColor=white" alt="Electron" />
   <img src="https://img.shields.io/badge/TypeScript-6.0-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/React-19.2-61dafb?style=flat-square&logo=react&logoColor=white" alt="React" />
   <img src="https://img.shields.io/badge/platform-macOS%20|%20Windows-lightgrey?style=flat-square" alt="Platform" />
-  <img src="https://img.shields.io/badge/Claude%20Agent%20SDK-0.3.186-blue?style=flat-square" alt="Claude Agent SDK" />
+  <img src="https://img.shields.io/badge/Pi%20Coding%20Agent-0.82-blue?style=flat-square" alt="Pi Coding Agent" />
   <img src="https://img.shields.io/badge/license-AGPL--3.0-green?style=flat-square" alt="License" />
 </p>
 
@@ -24,9 +24,9 @@
 
 EasyMint 是一个面向零基础用户的 AI 编程助手桌面应用，核心理念是让不懂技术的人也能掌握 Vibe Coding。
 
-打开软件不是面对一个空项目发呆 -- 项目创建向导会一步步引导你填写需求，不知道怎么描述？直接点 AI 推荐，你只需要说出自己想要的功能。底层基于 claude-agent-sdk，跟 Claude Code 同款 AI 能力，不用担心专业性。内置提示词针对新手做了大量优化，全程中文引导，不会抛出一堆看不懂的技术术语。
+打开软件不是面对一个空项目发呆 -- 项目创建向导会一步步引导你填写需求，不知道怎么描述？直接点 AI 推荐，你只需要说出自己想要的功能。底层基于 pi-coding-agent，提供企业级 AI 编程能力，不用担心专业性。内置提示词针对新手做了大量优化，全程中文引导，不会抛出一堆看不懂的技术术语。
 
-记不住 Claude Code 的各种命令也没关系，界面里把命令用法都列出来了，点击选择即可。内置了实用 Skill 和 MCP 工具，装好就能用。会话聊久了上下文太多导致模型能力下降？EasyMint 设计了自动总结压缩机制 -- 达到阈值自动整理，关键信息不丢失，上下文无缝衔接，对话越长越聪明。
+记不住 AI 编程工具的各种命令也没关系，界面里把命令用法都列出来了，点击选择即可。内置了实用 Skill 和 MCP 工具，装好就能用。会话聊久了上下文太多导致模型能力下降？EasyMint 设计了自动总结压缩机制 -- 达到阈值自动整理，关键信息不丢失，上下文无缝衔接，对话越长越聪明。
 
 你的项目文件存在自己电脑上，不属于任何云服务。随时可以离开 EasyMint，用其他工具继续开发。
 
@@ -36,7 +36,7 @@ EasyMint 是一个面向零基础用户的 AI 编程助手桌面应用，核心�
 
 **Loop Engineering** -- 采用多 Agent 协作循环：主会话 Mint（PM/架构师）理解需求、拆解任务、委派 Builder 编码、交给 Evaluator 验收，自动循环直到任务完成。任务进度通过鱼骨图实时可见，做到哪了一目了然。
 
-**数据主权** -- 项目文件和会话数据全部存储在你本地电脑（`~/.easymint/` + 项目目录下的 `.easymint/`），不上传任何云服务。你可以随时用 VS Code、Cursor 或其他工具继续开发，EasyMint 不会锁定你的项目。
+**数据主权** -- 项目文件和会话数据全部存储在你本地电脑（`~/.easymint_pi_core/` + 项目目录下的 `.easymint/`），不上传任何云服务。你可以随时用 VS Code、Cursor 或其他工具继续开发，EasyMint 不会锁定你的项目。
 
 ## 三 Agent 协作
 
@@ -58,7 +58,7 @@ EasyMint 内置了三个 AI Agent，各司其职，自动协同：
 
 对话体验：
 - 提示词针对零基础用户做了大量优化，AI 会主动用通俗语言跟你沟通
-- 界面直接列出 Claude Code 各种命令的中文说明和用法，点击选择即可，不需要特意去记
+- 界面直接列出快捷命令的中文说明和用法，点击选择即可，不需要特意去记
 - 内置实用 Skill（如 Ponytail 简化方案）和 MCP 工具，开箱即用
 - 思考过程、工具调用可选择显示/隐藏，想看细节就打开，喜欢干净界面就关掉
 
@@ -82,10 +82,10 @@ EasyMint 内置了三个 AI Agent，各司其职，自动协同：
 | Ponytail Audit | 全项目扫描臃肿代码，给出精简建议 |
 | UI Sync | 用户提出新需求时自动触发，同步任务列表和进度条 |
 
-Skill 分三级管理：EM 内置（仅 EasyMint 可用）、全局级（与 Claude Code 共用）、项目级（跟随项目）。可从设置面板启用/禁用。
+Skill 分三级管理：EM 内置（仅 EasyMint 可用）、全局级、项目级（跟随项目）。可从设置面板启用/禁用。
 
 **MCP 工具集成**
-EasyMint 内置了 easymint-ui MCP Server，为 AI Agent 提供 UI 交互能力：确认开发按钮、新建项目按钮、更新任务状态、切换项目阶段、项目重命名。同时与 Claude Code 共享 MCP 配置，你在终端 `claude mcp add` 添加的服务器在 EasyMint 中同样可用。
+EasyMint 内置了 easymint-ui MCP Server，为 AI Agent 提供 UI 交互能力：确认开发按钮、新建项目按钮、刷新任务列表、显示原型编辑器、更新任务状态、切换项目阶段、查看 Issue 清单、项目重命名。支持 CodeGraph、Playwright、Image Vision 等 MCP 工具集成。
 
 **AI 供应商管理**
 内置 DeepSeek、Kimi、MiniMax、Xiaomi MiMo、智谱等国内主流 AI 平台预设，选择平台、填 API Key 即可使用。支持一键获取模型列表、自定义模型、1M 上下文。可同时配置多个供应商，随时切换激活。
@@ -119,7 +119,7 @@ Mint、Builder、Evaluator 各有独立的 Agent 模板（系统提示词 + 工�
 
 ## 怎么装
 
-去 [Releases 页面](https://github.com/tianemon/EasyMint/releases) 下载最新安装包：
+去 [Releases 页面](https://github.com/tianemon/EasyMint-Pi-Core/releases) 下载最新安装包：
 
 - **macOS**：下载 `.dmg` 文件，拖进 Applications
 - **Windows**：下载 `.exe` 安装包运行
@@ -135,13 +135,13 @@ Mint、Builder、Evaluator 各有独立的 Agent 模板（系统提示词 + 工�
 | UI | Tailwind CSS 4 + Radix UI |
 | 状态管理 | Zustand 5 |
 | 代码编辑器 | Monaco Editor |
-| AI 引擎 | claude-agent-sdk 0.3.186 |
+| AI 引擎 | pi-coding-agent 0.82 |
 | 终端 | xterm + node-pty |
 
 ## 本地开发
 
 ```bash
-git clone https://github.com/tianemon/EasyMint.git
+git clone https://github.com/tianemon/EasyMint-Pi-Core.git
 cd EasyMint
 npm install
 npm run dev          # 启动 Vite dev server + Electron
@@ -150,7 +150,7 @@ npm run lint         # ESLint + TypeScript 类型检查
 npm run test         # 运行单元测试
 ```
 
-需要 Node.js 环境。项目同时依赖 claude-agent-sdk 的原生二进制包（`@anthropic-ai/claude-agent-sdk-darwin-arm64` 等），首次 `npm install` 会自动下载对应平台的二进制。
+需要 Node.js 环境。首次 `npm install` 会自动安装所有依赖。
 
 ---
 

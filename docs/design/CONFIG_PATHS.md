@@ -1,34 +1,26 @@
 # EasyMint 配置文件与路径
 
-## 全局目录 `~/.easymint/`
+## 全局目录 `~/.easymint_pi_core/`
 
-所有 EasyMint 和 SDK 的全局数据都存放在此目录，无子目录嵌套。
+所有 EasyMint 和 Pi SDK 的全局数据都存放在此目录。
 
 ```
-~/.easymint/
+~/.easymint_pi_core/
 ├── em-settings.json          EasyMint 应用设置
 ├── projects.json             项目列表与记录
-├── settings.json             SDK 配置（API key / 模型 / 权限 / 插件）
-├── .claude.json              SDK 内部元数据（迁移状态 / 用户 ID）
-├── .last-cleanup             SDK 维护时间戳
+├── settings.json             Pi SDK 配置（API key / 模型 / 权限）
 ├── pinned-sessions.json      置顶会话记录
-├── projects/                 SDK session 数据（按项目路径编码隔离）
+├── agent-templates.json      用户自定义 Agent 模板
+├── system-prompts.json       系统提示词 CRUD
+├── sessions/                 Pi SDK 会话数据（按项目路径编码隔离）
 │   └── <编码路径>/             例如 -Users-amon-EasyMintProject-helloworld
-│       ├── <sessionId>.jsonl 会话完整对话记录
-│       ├── <sessionId>/       会话产物（子代理 / 工具结果 / 工作流）
-│       └── memory/            项目持久化记忆
-├── sessions/                 SDK 运行时活跃会话（以进程 PID 命名）
-├── session-env/              SDK 会话运行时环境数据
-├── tasks/                    SDK 后台任务输出
-├── history.jsonl             SDK 全局提示词历史
-├── telemetry/                SDK 遥测
-├── plugins/                  SDK 插件
-│   ├── data/                 插件数据
-│   ├── installed_plugins.json
-│   ├── known_marketplaces.json
-│   └── marketplaces/          插件市场
-├── shell-snapshots/          SDK Shell 快照
-└── backups/                  SDK 备份
+│       └── <sessionId>.jsonl 会话完整对话记录
+├── session-cache/            前端 per-session 缓存
+├── skills/                   全局 Skill
+├── pi/                       Pi SDK agent 运行时数据
+│   ├── auth.json
+│   └── models.json
+└── uploads/                  上传文件缓存
 ```
 
 ---
@@ -40,7 +32,6 @@ EasyMint 专属设置，不与 SDK 混淆。
 | 字段 | 说明 |
 |------|------|
 | `defaultProjectDir` | 新建项目的默认父目录 |
-| `claudePath` | Claude CLI 路径（预留） |
 | `terminalFontSize` | 内置终端字号 |
 | `evaluateMode` | 是否开启评估模式 |
 | `tddMode` | 是否开启 TDD 模式 |
@@ -57,7 +48,7 @@ EasyMint 专属设置，不与 SDK 混淆。
 | `context1M` | 是否启用 1M 上下文（旧字段，新配置优先用 `apiProviders`） |
 | `apiProviders` | 多平台 API 供应商配置（见下方说明） |
 
-> **注意**：`apiKey` 和 `apiBaseUrl` 属于 SDK 的 `settings.json`（`env.ANTHROPIC_AUTH_TOKEN` / `env.ANTHROPIC_BASE_URL`）。EasyMint 通过 `saveSettings()` 在 `writeSdkSettings()` 中自动同步激活的供应商配置到 SDK 文件。
+> **注意**：API Key 等认证信息由 Pi SDK 的 `ModelRuntime` 管理，存储于 `~/.easymint_pi_core/pi/auth.json`。EasyMint 通过 `store.getActiveApiKey()` 读取，`pi-init.ts` 中的 `ModelRuntime` 负责配置注入。
 
 ### `apiProviders` 结构
 
@@ -118,17 +109,9 @@ EasyMint 维护的项目记录。
 
 ---
 
-## `settings.json`（SDK）
+## `settings.json`（Pi SDK）
 
-SDK 自行管理的配置文件。EasyMint 仅通过接口写入以下字段：
-
-| 路径 | 说明 |
-|------|------|
-| `env.ANTHROPIC_AUTH_TOKEN` | API Key |
-| `env.ANTHROPIC_BASE_URL` | API 地址 |
-| `env.ANTHROPIC_MODEL` | 默认模型 |
-
-其余所有字段（`permissions`、`plugins`、`enabledPlugins` 等）由 SDK 自行管理，EasyMint 不干涉。
+Pi SDK 自行管理的配置文件（`~/.easymint_pi_core/settings.json`）。EasyMint 通过 `SettingsManager` 接口读写，不直接操作文件。
 
 ---
 
@@ -138,27 +121,32 @@ SDK 自行管理的配置文件。EasyMint 仅通过接口写入以下字段：
 
 ```
 <项目>/.easymint/
-├── state.json    项目开发阶段状态
-└── ...            预留扩展
+├── state.json    项目开发阶段状态（Mint 通过 set_project_stage 写入）
+├── run.json      项目运行命令配置（Mint 开发完成时生成）
+├── issues.json   项目 Issue 记录（Mint 通过 list_issues 读取）
+└── escalation.json  Builder/Evaluator 阻塞时写入的升级报告
 ```
 
 ### `state.json`
 
-`project-status-store` 的持久化文件。
-
 ```json
 {
-  "initPhase": "pending | running | done",
-  "allocPhase": "pending | running | done",
-  "execPhase": "pending | ready | done"
+  "stage": "requirements | tech-selection | planning | init | developing | done",
+  "stageTimes": {}
 }
 ```
 
-| 阶段 | 含义 |
-|------|------|
-| `initPhase` | 环境初始化是否完成 |
-| `allocPhase` | 开发任务是否已分配 |
-| `execPhase` | 执行阶段（预留） |
+### `run.json`
+
+Mint 在项目完成时生成，`process-service.ts` 读取并展示可执行命令：
+
+```json
+{
+  "commands": [
+    { "platform": "react", "label": "前端", "cwd": "./client", "run_command": "npm run dev", "url": "http://localhost:5173" }
+  ]
+}
+```
 
 ---
 
@@ -186,36 +174,30 @@ template/
 
 ## Skill 目录
 
-与 Claude Code 共享，EasyMint 的 `seedDefaultSkills` 会在启动时补全内置 Skill。
+EasyMint 内置 Skill 存放在 `resources/skills/`，启动时 seed 到 `~/.easymint_pi_core/skills/` 全局目录。Pi SDK 通过 `resourceLoader` 加载并注入 system prompt。
 
 ```
-~/.claude/skills/              ← 全局 Skill（所有项目可用）
+~/.easymint_pi_core/skills/    ← 全局 Skill（所有项目可用）
   <skill-name>/
     SKILL.md                   ← YAML frontmatter + Markdown body
     references/                ← 可选，按需加载的文档
-
-<project>/.claude/skills/      ← 项目级 Skill（仅当前项目）
 ```
 
 ## MCP 配置
 
-与 Claude Code 共享 `.claude.json` 中的 `mcpServers` 字段。EasyMint 扫描该文件 + `em-settings.json` 的 `hiddenMcpServers` 来决定注入哪些 MCP 服务器到 SDK 会话。
-
-`.claude.json` 位置：`~/.claude/.claude.json`（Claude Code 主配置）或 `~/.easymint/.claude.json`（SDK 配置，由 CLAUDE_CONFIG_DIR 决定）。
+Pi SDK 的 MCP 服务器通过 `mcp-service.ts` 和 `omp/mcp/` 模块管理，配置存储在 Pi SDK 自有配置中，不与 Claude Code 共享。
 
 ## SDK session 项目隔离机制
 
-SDK 以**项目绝对路径**作为项目身份。路径中的 `/` 替换为 `-` 后作为 `~/.easymint/projects/` 下的子目录名。
+Pi SDK 以**项目绝对路径**作为项目身份。路径编码后作为 `~/.easymint_pi_core/sessions/` 下的子目录名。
 
 ```
 项目路径:  /Users/amon/EasyMintProject/helloworld
 编码结果:  -Users-amon-EasyMintProject-helloworld
-存储目录:  ~/.easymint/projects/-Users-amon-EasyMintProject-helloworld/
+存储目录:  ~/.easymint_pi_core/sessions/-Users-amon-EasyMintProject-helloworld/
 ```
 
 **关键特性**：
 - 没有项目 UUID，路径即身份
 - 删除后在同路径重建项目 → 旧会话自动可见
 - 移动项目到新路径 → 旧会话不再可见（编码路径变了）
-- 删除项目时 EasyMint 同步清理对应 SDK 目录
-- 启动时 EasyMint 清理对应项目的 SDK 孤儿目录

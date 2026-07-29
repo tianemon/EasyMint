@@ -6,13 +6,13 @@
 Layer 3  产品层   预设模板库 · 文档生成 · 报表 · 最佳实践建议（预留）
 Layer 2  协同层   Builder/Evaluator 协作 · Task 调度 · 升级机制
 Layer 1  核心层   Agent 模板系统 · 模板注入 · notifySession · spawnAgentChat · 设置 UI
-Layer 0  地基     多 ActiveChat 并存 · 消息通道 · query 封装 · SDK 集成
+Layer 0  地基     多 ActiveChat 并存 · 消息通道 · createAgentSession 封装 · Pi SDK 集成
                  ✅ 全部完成
 ```
 
 ## 会话层级
 
-Mint 作为主会话（唯一），内部通过 SDK 的 Task 工具驱动 Builder/Evaluator Subagent。Subagent 用完即销毁，不积累上下文。
+Mint 作为主会话（唯一），内部通过 Pi SDK 的 Task 工具驱动 Builder/Evaluator Subagent。Subagent 用完即销毁，不积累上下文。
 
 ```
 独立会话
@@ -44,9 +44,9 @@ Agent 系统
 │   └─ 1.2.3 spawnAgentChat：从模板创建独立 ActiveChat
 │
 ├─ 1.3 Agent 间通信
-│   ├─ 1.3.1 notifySession(targetId, msg) — channel enqueue 即时通信
+│   ├─ 1.3.1 notifySession(targetId, msg) — 即时通信
 │   ├─ 1.3.2 Session 身份标记（ActiveChat.agentType）
-│   └─ 1.3.3 notify.ts 脚本（供 Bash 工具调用）
+│   └─ 1.3.3 session.sendCustomMessage() — Pi SDK 原生消息发送
 │
 ├─ 1.4 任务执行（Layer 2）
 │   ├─ 1.4.1 读 task.json 获取待执行任务列表
