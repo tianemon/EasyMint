@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/tianemon/EasyMint-Pi-Core/releases"><img src="https://img.shields.io/github/v/release/tianemon/EasyMint-Pi-Core?style=flat-square&color=16a34a" alt="Version" /></a>
+  <a href="https://github.com/tianemon/EasyMint/releases"><img src="https://img.shields.io/github/v/release/tianemon/EasyMint?style=flat-square&color=16a34a" alt="Version" /></a>
   <img src="https://img.shields.io/badge/Electron-42.3-47848f?style=flat-square&logo=electron&logoColor=white" alt="Electron" />
   <img src="https://img.shields.io/badge/TypeScript-6.0-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/React-19.2-61dafb?style=flat-square&logo=react&logoColor=white" alt="React" />
@@ -119,7 +119,7 @@ Mint、Builder、Evaluator 各有独立的 Agent 模板（系统提示词 + 工�
 
 ## 怎么装
 
-去 [Releases 页面](https://github.com/tianemon/EasyMint-Pi-Core/releases) 下载最新安装包：
+去 [Releases 页面](https://github.com/tianemon/EasyMint/releases) 下载最新安装包：
 
 - **macOS**：下载 `.dmg` 文件，拖进 Applications
 - **Windows**：下载 `.exe` 安装包运行
@@ -141,7 +141,7 @@ Mint、Builder、Evaluator 各有独立的 Agent 模板（系统提示词 + 工�
 ## 本地开发
 
 ```bash
-git clone https://github.com/tianemon/EasyMint-Pi-Core.git
+git clone https://github.com/tianemon/EasyMint.git
 cd EasyMint
 npm install
 npm run dev          # 启动 Vite dev server + Electron
