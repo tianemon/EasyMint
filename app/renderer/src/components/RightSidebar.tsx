@@ -19,7 +19,11 @@ export function RightSidebar({ active, onSelect, hasRunnable }: RightSidebarProp
   const items: { id: "task" | "issue" | "run"; label: string; icon: JSX.Element; disabled?: boolean }[] = [
     { id: "task", label: "任务进度", icon: <PadIcon letter="T" /> },
     { id: "issue", label: "问题记录", icon: <PadIcon letter="I" /> },
-    { id: "run", label: hasRunnable ? "运行" : "无运行程序", icon: <PadIcon letter="R" />, disabled: !hasRunnable },
+    { id: "run", label: hasRunnable ? "运行" : "无运行程序", icon: (
+      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+        <path d="M8 5.5v13l11-6.5z" />
+      </svg>
+    ), disabled: !hasRunnable },
   ];
 
   return (
