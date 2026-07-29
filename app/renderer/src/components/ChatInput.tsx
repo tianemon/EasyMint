@@ -62,14 +62,11 @@ export const ChatInput = memo(function ChatInput({
   const compacting = useStatusStore((s) => s.compacting);
   const inputDisabled = summarizing || compacting;
   const [balanceText, setBalanceText] = useState("");
-  const [balanceSpinning, setBalanceSpinning] = useState(false);
   const refreshBalance = useCallback(async () => {
-    setBalanceSpinning(true);
     try {
       const data = await window.electronAPI.settings.fetchBalance();
       if (data?.balance_infos?.length) setBalanceText(data.balance_infos[0]!.total_balance);
     } catch { /* ignore */ }
-    setTimeout(() => setBalanceSpinning(false), 600);
   }, []);
 
   useEffect(() => { refreshBalance(); const t = setInterval(refreshBalance, 5 * 60 * 1000); return () => clearInterval(t); }, [refreshBalance]);
@@ -163,10 +160,7 @@ export const ChatInput = memo(function ChatInput({
           <option value="low">低</option><option value="medium">中</option><option value="high">高</option>
         </select>
         <span className="text-[10px] text-text-secondary">余额</span>
-        {balanceText && <span className="text-[10px] text-text-secondary cursor-pointer hover:text-accent transition-colors flex items-center gap-1" onClick={refreshBalance} title="账户余额，点击刷新">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={`w-3 h-3 ${balanceSpinning ? "animate-spin" : ""}`}><path d="M2 8a6 6 0 0111.2-2.8M14 8a6 6 0 01-11.2 2.8" /><polyline points="13,3 14,2 14,5 11,5" /><polyline points="3,13 2,14 5,14 5,11" /></svg>
-          {balanceText}
-        </span>}
+        {balanceText && <span className="text-[10px] text-text-secondary">{balanceText}</span>}
         <span className="text-[10px] text-text-secondary">上下文</span>
         <span className="text-[10px] text-text-secondary" title="上下文使用率，可设置阈值">{ctxPct}%</span>
       </div>
