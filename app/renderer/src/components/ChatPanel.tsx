@@ -492,14 +492,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           _curAi = useChatStore.getState().replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
           scrollToBottom();
         }
-        // 纯文本（无工具调用）到达 → 清除过渡状态（"正在请求..." 或旧工具标签）
-        // 有工具调用时不急着清，因为 tool_progress 马上会更新
-        const hasText = entries.some((e: StreamEntry) => e.kind === "text");
-        const hasTool = entries.some((e: StreamEntry) => e.kind === "tool_use");
-        if (hasText && !hasTool) {
-          const cur = useStatusStore.getState().text;
-          if (cur && cur !== "出错了") useStatusStore.getState().setText("");
-        }
       }
       // thinking delta
       if (event.type === "thinking" && Array.isArray(event.blocks) && showThinking) {
@@ -511,7 +503,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       }
       // tool progress
       if (event.type === "tool_progress" && event.toolName) {
-        console.log("[tool_progress]", event.toolName, (event as any).toolArgs);
         const label = displayToolLabel(event.toolName, (event as any).toolArgs);
         useStatusStore.getState().setText(label);
         lastStatusRef.current = label;
