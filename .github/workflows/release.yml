@@ -32,6 +32,7 @@ jobs:
             dist-electron/*.dmg
             dist-electron/*.zip
             dist-electron/*.blockmap
+            dist-electron/latest-mac.yml
 
   build-windows:
     runs-on: windows-latest
@@ -55,3 +56,4 @@ jobs:
           files: |
             dist-electron/*.exe
             dist-electron/*.blockmap
+            dist-electron/latest.yml
