@@ -18,7 +18,8 @@ export function RightSidebar({ active, onSelect, hasRunnable }: RightSidebarProp
     ) },
     { id: "run", label: hasRunnable ? "运行" : "无运行程序", icon: (
       <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-        <path d="M8 5.5v13l11-6.5z" />
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M10 8l5 4-5 4z" />
       </svg>
     ), disabled: !hasRunnable },
   ];
