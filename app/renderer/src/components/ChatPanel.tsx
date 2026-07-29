@@ -654,6 +654,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     );
   }
 
+  const userBubble = useCallback((msg: ChatMessage) => (
+    <UserBubble msg={msg} />
+  ), []);
+
   return (
     <div className="absolute inset-0 flex flex-col">
       <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden pb-2">
@@ -668,6 +672,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 showThinking={showThinking}
                 showToolUse={showToolUse}
                 busy={busy}
+                userBubble={userBubble}
               />
             ))}
             {showNewProjectBtn && (
@@ -771,14 +776,15 @@ interface MemoChatMessageProps {
   showThinking: boolean;
   showToolUse: boolean;
   busy: boolean;
+  userBubble: (msg: ChatMessage) => JSX.Element;
 }
 
-const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showToolUse, busy }: MemoChatMessageProps) {
+const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showToolUse, busy, userBubble }: MemoChatMessageProps) {
   if (msg.role === "user") {
     return (
       <div className="msg-in">
         <div className="flex justify-end">
-          <UserBubble msg={msg} />
+          {userBubble(msg)}
         </div>
       </div>
     );
