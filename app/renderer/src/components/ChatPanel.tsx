@@ -494,9 +494,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (event.type === "message" && Array.isArray(event.blocks)) {
         const rawEntries = piBlocksToEntries(event.blocks);
         if (rawEntries.length > 0) {
-          // 合并连续 text entry 为一个，Pi 偶发拆成多 block 导致残留
           const entries = mergeConsecutiveText(rawEntries);
-          _curAi = useChatStore.getState().replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
+          const st = useChatStore.getState();
+          const msgs = st.messagesBySession[sidRef.current] || [];
+          const la = msgs.filter((m: any) => m.role === "ai").pop();
+          const prev = la?.entries?.length || 0;
+          const textKinds = entries.map((e: any) => e.kind === "text" ? "T" : e.kind?.charAt(0)).join("");
+          _curAi = st.replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
+          const st2 = useChatStore.getState();
+          const msgs2 = st2.messagesBySession[sidRef.current] || [];
+          const la2 = msgs2.filter((m: any) => m.role === "ai").pop();
+          const after = la2?.entries?.length || 0;
+          const allKinds = (la2?.entries || []).map((e: any) => e.kind === "text" ? "T" : e.kind?.charAt(0)).join("");
+          console.log("[replace]", "fromIdx=", turnEntryIdxRef.current, "in=", entries.length, "(" + textKinds + ")", "prev=", prev, "after=", after, "all=", allKinds);
           scrollToBottom();
         }
       }
