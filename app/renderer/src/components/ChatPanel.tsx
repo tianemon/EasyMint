@@ -405,10 +405,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     (async () => {
         const buffered = await window.electronAPI.agent.getBufferedStream(existingSid);
         if (!cancelled && buffered.length > 0) {
+          console.log("[buffer-replay]", "events#=", buffered.length);
           for (const raw of buffered) {
             const ev = raw as any;
             const entries = piEventToEntries(ev);
             if (entries.length > 0) {
+              console.log("[buffer-replay]", "type=", ev.type, "entries#=", entries.length, "text=", entries.map((e: any) => e.text?.slice(0, 40)).join("|"));
               if (ev.partial) {
                 useChatStore.getState().replaceAiEntries(sidRef.current, entries);
               } else {
@@ -491,6 +493,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         if (Array.isArray(event.blocks) && event.blocks.length > 0) {
           const entries = piBlocksToEntries(event.blocks);
           if (entries.length > 0) {
+            console.log("[replace-ms]", "fromIdx=", turnEntryIdxRef.current, "entries#=", entries.length, "text=", entries.map((e: any) => e.text?.slice(0, 40)).join("|"));
             _curAi = useChatStore.getState().replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
             scrollToBottom();
           }
@@ -508,6 +511,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             const la = msgs2.filter((m: any) => m.role === "ai").pop();
             turnEntryIdxRef.current = la ? (la.entries || []).length : 0;
           }
+          console.log("[replace-msg]", "fromIdx=", turnEntryIdxRef.current, "entries#=", entries.length, "text=", entries.map((e: any) => e.text?.slice(0, 40)).join("|"));
           _curAi = useChatStore.getState().replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
           scrollToBottom();
         }
