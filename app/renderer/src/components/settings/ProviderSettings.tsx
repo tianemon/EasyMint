@@ -15,9 +15,10 @@ export interface ProviderFormProps {
   onSave: (cfg: ProviderConfig) => void;
   onCancel?: () => void;
   initial?: ProviderConfig | null;
+  readOnlyModels?: boolean;
 }
 
-export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
+export function ProviderForm({ onSave, onCancel, initial, readOnlyModels }: ProviderFormProps) {
   const editMode = initial != null;
   const [presetId, setPresetId] = useState<string>(initial?.presetId || "");
   const preset = getPreset(presetId);
@@ -135,19 +136,31 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       </div>
 
 
-      {/* 模型选择 */}
+      {/* 模型展示 */}
       <div>
-        <label className="text-xs text-text-secondary block mb-1">模型列表</label>
-        <div className="space-y-1 mb-2 max-h-40 overflow-y-auto">
-          {models.map((m) => (
-            <button key={m} type="button"
-              className={`block w-full px-2 py-1.5 rounded text-xs text-left transition-colors ${m === model ? "bg-accent-subtle text-accent font-medium" : "bg-surface border border-border text-text-primary hover:border-accent-border-strong"}`}
-              onClick={() => setModel(m)}>
-              {m}
-              {m === model && <span className="text-[10px] ml-1.5">✓ 默认</span>}
-            </button>
-          ))}
-        </div>
+        <label className="text-xs text-text-secondary block mb-1">可用模型</label>
+        {loadingModels ? (
+          <p className="text-xs text-text-muted py-2">加载中…</p>
+        ) : readOnlyModels ? (
+          <div className="flex flex-wrap gap-1.5">
+            {models.map((m) => (
+              <span key={m} className="px-2 py-1 rounded text-[11px] bg-surface-alt border border-border-light text-text-secondary">
+                {m}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-1 mb-2 max-h-40 overflow-y-auto">
+            {models.map((m) => (
+              <button key={m} type="button"
+                className={`block w-full px-2 py-1.5 rounded text-xs text-left transition-colors ${m === model ? "bg-accent-subtle text-accent font-medium" : "bg-surface border border-border text-text-primary hover:border-accent-border-strong"}`}
+                onClick={() => setModel(m)}>
+                {m}
+                {m === model && <span className="text-[10px] ml-1.5">✓ 默认</span>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 保存 */}
