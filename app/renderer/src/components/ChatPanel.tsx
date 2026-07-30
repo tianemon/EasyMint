@@ -509,7 +509,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       }
       // tool progress
       if (event.type === "tool_progress" && event.toolName) {
-        const label = displayToolLabel(event.toolName, (event as any).toolArgs);
+        const label = displayToolLabel(event.toolName, event.toolArgs);
         useStatusStore.getState().setText(label);
         lastStatusRef.current = label;
       }

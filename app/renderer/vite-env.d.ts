@@ -39,8 +39,19 @@ interface StreamEvent {
   seq: number;           // 全局单调递增，前端去重用
   runId: string;
   sessionId?: string;
-  type: "assistant" | "message_delta" | "tool_use" | "tool_result" | "user_message" | "system" | "error" | "status";
-  data: Record<string, unknown>;
+  type: "message_start" | "message" | "turn_start" | "turn_end" | "thinking"
+      | "tool_progress" | "compacting" | "compacted" | "error" | "context_usage" | "status";
+  blocks?: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; thinking?: string }>;
+  partial?: boolean;
+  toolName?: string;
+  toolArgs?: Record<string, unknown>;
+  toolCallId?: string;
+  message?: string;
+  canRetry?: boolean;
+  summary?: string;
+  usage?: { inputTokens: number; outputTokens: number };
+  percentage?: number;
+  data?: Record<string, unknown>;
   timestamp: number;
   source?: "worker" | "evaluator" | "chat";
 }
