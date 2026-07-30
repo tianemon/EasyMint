@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.4.1 (2026-07-30) — UI 细节优化 & Mint-D 增强
+
+### 🎨 UI 细节优化
+
+- **动画**：Tab 切换淡入淡出、按钮 transition 收窄（仅 colors/opacity/transform）、聊天平滑滚动、session 列表入场动画
+- **色彩**：语义色补充 soft 层（danger/success/warning-soft）、暗色模式 warning/info 恢复语义色、文件树背景改为 bg-surface-alt
+- **图标**：右侧栏图标全部换为语义化 SVG（看板/感叹号/播放圆圈）、README 图标路径修正
+- **性能**：ChatPanel 消息 memo、zustand selector 细粒度化（避免 runningSessions 变化触发整页重渲染）、lastToolUses 用 useMemo 缓存
+
+### 🤖 Mint-D 增强
+
+- **品牌库**：内置 74 个品牌的 DESIGN.md（Airbnb、Stripe、Apple 等），创建设计会话时自动复制到 `.easymint/brand-tokens/`
+- **品牌库被动参考**：Mint-D 知道品牌库存在但不主动读取，用户需要时列出候选品牌
+
+### 🔧 修复
+
+- **状态栏**：工具操作详情恢复（"检查代码: ChatPanel.tsx"、"执行: npm build"），不再被文本消息清空
+- **MemoChatMessage**：hooks 顺序修复（React 严格模式报错）
+- **displayToolLabel**：适配 Pi 小写工具名（read → 读取文件）
+- **运行面板**：刷新按钮点击旋转动画
+- **引导页**：图标路径修正
+
+### ⚙️ 工程
+
+- **Provider 重构**：适配 Pi 内置 Provider，使用静态 JSON 数据，去掉自定义路径/registerProvider
+- **引导页**：图标路径修正、与设置页供应商表单保持一致
+
 ## v0.4.0 (2026-07-29) — Pi SDK 迁移
 
 ### 🏗️ AI 引擎迁移
