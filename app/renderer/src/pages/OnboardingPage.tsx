@@ -133,7 +133,7 @@ export function OnboardingPage(): JSX.Element {
                 >重新配置</button>
               </div>
             ) : (
-              <ProviderForm onSave={handleProviderSave} readOnlyModels />
+              <ProviderForm onSave={handleProviderSave} />
             )}
           </div>
         )}

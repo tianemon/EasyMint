@@ -15,10 +15,9 @@ export interface ProviderFormProps {
   onSave: (cfg: ProviderConfig) => void;
   onCancel?: () => void;
   initial?: ProviderConfig | null;
-  readOnlyModels?: boolean;
 }
 
-export function ProviderForm({ onSave, onCancel, initial, readOnlyModels }: ProviderFormProps) {
+export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   const editMode = initial != null;
   const [presetId, setPresetId] = useState<string>(initial?.presetId || "");
   const preset = getPreset(presetId);
@@ -136,19 +135,11 @@ export function ProviderForm({ onSave, onCancel, initial, readOnlyModels }: Prov
       </div>
 
 
-      {/* 模型展示 */}
+      {/* 模型选择 */}
       <div>
-        <label className="text-xs text-text-secondary block mb-1">可用模型</label>
+        <label className="text-xs text-text-secondary block mb-1">模型列表</label>
         {loadingModels ? (
           <p className="text-xs text-text-muted py-2">加载中…</p>
-        ) : readOnlyModels ? (
-          <div className="flex flex-wrap gap-1.5">
-            {models.map((m) => (
-              <span key={m} className="px-2 py-1 rounded text-[11px] bg-surface-alt border border-border-light text-text-secondary">
-                {m}
-              </span>
-            ))}
-          </div>
         ) : (
           <div className="space-y-1 mb-2 max-h-40 overflow-y-auto">
             {models.map((m) => (
