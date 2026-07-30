@@ -282,6 +282,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   // turn 边界追踪：同一条用户消息内可能有多轮 AI 回复（tool call → 继续回复），
   // 用 turnEntryIdxRef 标记当前 turn 在 AI 消息 entries 中的起始位置
   const turnEntryIdxRef = useRef(0);
+  // turn epoch 计数器：message 事件检测 epoch 变化时自动重置 fromIdx，防止 message 先于 message_start 到达导致竞态
+  const turnEpochRef = useRef(0);
+  const lastMsgEpochRef = useRef(0);
   // steer 打断标记：steer 时记录打断点，message_start 不再覆盖 turnEntryIdxRef
   const steeringRef = useRef(false);
   const sidRef = useRef<string>(initialSid);
@@ -477,6 +480,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       setBusy(true);
       // Pi 新 assistant turn 开始 → 记录 turn 边界（entries 从此处开始替换，保留旧 turn 内容）
       if (event.type === "message_start") {
+        turnEpochRef.current++;
         const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
         const lastAi = msgs.filter((m: any) => m.role === "ai").pop();
         // steer 打断时保持打断点，不被 message_start 覆盖
@@ -496,9 +500,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (event.type === "message" && Array.isArray(event.blocks)) {
         const entries = piBlocksToEntries(event.blocks);
         if (entries.length > 0) {
-          const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
-          const lastAi = msgs.filter((m: any) => m.role === "ai").pop();
-          console.log("[replace]", "fromIdx=", turnEntryIdxRef.current, "entries#=", entries.length, "lastAiEntries#=", lastAi?.entries?.length || 0, "text=", entries.map((e: any) => e.text?.slice(0, 30)).join("|"));
+          // epoch 检测：message 先于 message_start 到达时，turnEntryIdxRef 是旧值导致追加而非替换
+          // 直接从 store 取当前边界做兜底
+          if (turnEpochRef.current !== lastMsgEpochRef.current) {
+            lastMsgEpochRef.current = turnEpochRef.current;
+            const msgs2 = useChatStore.getState().messagesBySession[sidRef.current] || [];
+            const la = msgs2.filter((m: any) => m.role === "ai").pop();
+            turnEntryIdxRef.current = la ? (la.entries || []).length : 0;
+          }
           _curAi = useChatStore.getState().replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
           scrollToBottom();
         }

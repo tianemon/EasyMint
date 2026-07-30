@@ -91,7 +91,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (last && last.role === "ai") {
       const existing: Record<string, any>[] = last.entries || [];
       // 保留 fromIdx 之前的旧 turn 内容，替换 fromIdx 之后的内容
-      const merged = [...existing.slice(0, fromIdx), ...entries];
+      // fromIdx 可能因竞态超出 existing 长度，cap 住防止旧内容泄露
+      const safeIdx = Math.min(fromIdx, existing.length);
+      const merged = [...existing.slice(0, safeIdx), ...entries];
       set((s) => ({
         messagesBySession: {
           ...s.messagesBySession,
