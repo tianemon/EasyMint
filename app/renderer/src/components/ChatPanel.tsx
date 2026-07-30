@@ -495,18 +495,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         const rawEntries = piBlocksToEntries(event.blocks);
         if (rawEntries.length > 0) {
           const entries = mergeConsecutiveText(rawEntries);
-          const st = useChatStore.getState();
-          const msgs = st.messagesBySession[sidRef.current] || [];
-          const la = msgs.filter((m: any) => m.role === "ai").pop();
-          const prev = la?.entries?.length || 0;
-          const textKinds = entries.map((e: any) => e.kind === "text" ? "T" : e.kind?.charAt(0)).join("");
-          _curAi = st.replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
-          const st2 = useChatStore.getState();
-          const msgs2 = st2.messagesBySession[sidRef.current] || [];
-          const la2 = msgs2.filter((m: any) => m.role === "ai").pop();
-          const after = la2?.entries?.length || 0;
-          const allKinds = (la2?.entries || []).map((e: any) => e.kind === "text" ? "T" : e.kind?.charAt(0)).join("");
-          console.log("[replace]", "fromIdx=", turnEntryIdxRef.current, "in=", entries.length, "(" + textKinds + ")", "prev=", prev, "after=", after, "all=", allKinds);
+          _curAi = useChatStore.getState().replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
           scrollToBottom();
         }
       }
@@ -896,12 +885,10 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
     });
   }, [msg.entries, showThinking, showToolUse]);
 
-  const blocks = useMemo(() => {
-    const b = visible.length > 0 ? buildBlocks(visible, String(msg.id)) : [];
-    const texts = visible.filter((e: any) => e.kind === "text").map((e: any) => (e.text || "").slice(0, 50));
-    if (texts.length > 0) console.log("[render]", "entries#=", visible.length, "blocks#=", b.length, "texts=", texts.join(" | "));
-    return b;
-  }, [visible, msg.id]);
+  const blocks = useMemo(() =>
+    visible.length > 0 ? buildBlocks(visible, String(msg.id)) : [],
+    [visible, msg.id],
+  );
 
   if (msg.role === "user") {
     return (
