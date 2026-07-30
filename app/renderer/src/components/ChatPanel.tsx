@@ -279,13 +279,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   /** 输入框变化处理：检测开头 / 触发命令面板（仅在输入框纯命令上下文下，不影响代码片段） */
   const autoScrollRef = useRef(true);
   // Pi 事件无需 seq 去重（message_update 是累计全文，不是 delta）
-  // turn 边界追踪：同一条用户消息内可能有多轮 AI 回复（tool call → 继续回复），
-  // 用 turnEntryIdxRef 标记当前 turn 在 AI 消息 entries 中的起始位置
-  const turnEntryIdxRef = useRef(0);
-  // turn epoch 计数器：message 事件检测 epoch 变化时自动重置 fromIdx，防止 message 先于 message_start 到达导致竞态
-  const turnEpochRef = useRef(0);
-  const lastMsgEpochRef = useRef(0);
-  // steer 打断标记：steer 时记录打断点，message_start 不再覆盖 turnEntryIdxRef
+  // steer 打断标记
   const steeringRef = useRef(false);
   const sidRef = useRef<string>(initialSid);
   useEffect(() => {
@@ -405,17 +399,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     (async () => {
         const buffered = await window.electronAPI.agent.getBufferedStream(existingSid);
         if (!cancelled && buffered.length > 0) {
-          console.log("[buffer-replay]", "events#=", buffered.length);
           for (const raw of buffered) {
             const ev = raw as any;
             const entries = piEventToEntries(ev);
             if (entries.length > 0) {
-              console.log("[buffer-replay]", "type=", ev.type, "entries#=", entries.length, "text=", entries.map((e: any) => e.text?.slice(0, 40)).join("|"));
-              if (ev.partial) {
-                useChatStore.getState().replaceAiEntries(sidRef.current, entries);
-              } else {
-                useChatStore.getState().replaceAiEntries(sidRef.current, entries);
-              }
+              useChatStore.getState().replaceAiEntries(sidRef.current, entries);
             }
           }
         }
@@ -482,37 +470,15 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       setBusy(true);
       // Pi 新 assistant turn 开始 → 记录 turn 边界（entries 从此处开始替换，保留旧 turn 内容）
       if (event.type === "message_start") {
-        turnEpochRef.current++;
-        const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
-        const lastAi = msgs.filter((m: any) => m.role === "ai").pop();
-        // steer 打断时保持打断点，不被 message_start 覆盖
-        if (!steeringRef.current) {
-          turnEntryIdxRef.current = lastAi ? (lastAi.entries || []).length : 0;
-        }
-        // 如果附带内容块（如 done/error 直接出完整消息），用 replaceAiEntriesFrom
-        if (Array.isArray(event.blocks) && event.blocks.length > 0) {
-          const entries = piBlocksToEntries(event.blocks);
-          if (entries.length > 0) {
-            console.log("[replace-ms]", "fromIdx=", turnEntryIdxRef.current, "entries#=", entries.length, "text=", entries.map((e: any) => e.text?.slice(0, 40)).join("|"));
-            _curAi = useChatStore.getState().replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
-            scrollToBottom();
-          }
-        }
+        // 每个新 turn 创建独立 AI 消息，避免跨 turn 覆盖和 fromIdx 竞态
+        _curAi = useChatStore.getState().startAiMessage(sidRef.current);
+        steeringRef.current = false;
       }
-      // Pi SDK message_update 携带累计全文，替换当前 turn 的 entries（保留之前 turn 的内容）
+      // Pi SDK message_update 携带累计全文，直接替换当前最后一条 AI 消息的全部 entries
       if (event.type === "message" && Array.isArray(event.blocks)) {
         const entries = piBlocksToEntries(event.blocks);
         if (entries.length > 0) {
-          // epoch 检测：message 先于 message_start 到达时，turnEntryIdxRef 是旧值导致追加而非替换
-          // 直接从 store 取当前边界做兜底
-          if (turnEpochRef.current !== lastMsgEpochRef.current) {
-            lastMsgEpochRef.current = turnEpochRef.current;
-            const msgs2 = useChatStore.getState().messagesBySession[sidRef.current] || [];
-            const la = msgs2.filter((m: any) => m.role === "ai").pop();
-            turnEntryIdxRef.current = la ? (la.entries || []).length : 0;
-          }
-          console.log("[replace-msg]", "fromIdx=", turnEntryIdxRef.current, "entries#=", entries.length, "text=", entries.map((e: any) => e.text?.slice(0, 40)).join("|"));
-          _curAi = useChatStore.getState().replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
+          _curAi = useChatStore.getState().replaceAiEntries(sidRef.current, entries);
           scrollToBottom();
         }
       }
@@ -653,7 +619,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
     const ts = Date.now();
     useChatStore.getState().appendUserMsg(sidRef.current, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
-    turnEntryIdxRef.current = 0;  // 新消息 → 重置 turn 边界
     setAttaches([]);
     onActivity?.();
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
