@@ -48,6 +48,19 @@ function piBlocksToEntries(blocks: Array<{ type: string; text?: string; name?: s
   return result;
 }
 
+/** 合并连续 text entry（Pi 偶发拆成多 block） */
+function mergeConsecutiveText(entries: StreamEntry[]): StreamEntry[] {
+  const result: StreamEntry[] = [];
+  for (const e of entries) {
+    if (e.kind === "text" && result.length > 0 && result[result.length - 1]!.kind === "text") {
+      result[result.length - 1]!.text = (result[result.length - 1]!.text || "") + (e.text || "");
+    } else {
+      result.push({ ...e });
+    }
+  }
+  return result;
+}
+
 /** PiChatEvent → StreamEntry[] */
 function piEventToEntries(ev: { type: string; blocks?: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown> }> }): StreamEntry[] {
   if (ev.type === "message" && Array.isArray(ev.blocks)) {
@@ -279,6 +292,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   /** 输入框变化处理：检测开头 / 触发命令面板（仅在输入框纯命令上下文下，不影响代码片段） */
   const autoScrollRef = useRef(true);
   // Pi 事件无需 seq 去重（message_update 是累计全文，不是 delta）
+  // turn 边界：message_start 记录当前 turn 在最后一条 AI 消息 entries 中的起始位置
+  const turnEntryIdxRef = useRef(0);
   // steer 打断标记
   const steeringRef = useRef(false);
   const sidRef = useRef<string>(initialSid);
@@ -401,7 +416,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         if (!cancelled && buffered.length > 0) {
           for (const raw of buffered) {
             const ev = raw as any;
-            const entries = piEventToEntries(ev);
+            const entries = mergeConsecutiveText(piEventToEntries(ev));
             if (entries.length > 0) {
               useChatStore.getState().replaceAiEntries(sidRef.current, entries);
             }
@@ -470,15 +485,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       setBusy(true);
       // Pi 新 assistant turn 开始 → 记录 turn 边界（entries 从此处开始替换，保留旧 turn 内容）
       if (event.type === "message_start") {
-        // 每个新 turn 创建独立 AI 消息，避免跨 turn 覆盖和 fromIdx 竞态
-        _curAi = useChatStore.getState().startAiMessage(sidRef.current);
+        const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
+        const lastAi = msgs.filter((m: any) => m.role === "ai").pop();
+        turnEntryIdxRef.current = lastAi ? (lastAi.entries || []).length : 0;
         steeringRef.current = false;
       }
-      // Pi SDK message_update 携带累计全文，直接替换当前最后一条 AI 消息的全部 entries
+      // Pi SDK message_update 携带累计全文，替换当前 turn 的 entries（保留之前 turn 的内容）
       if (event.type === "message" && Array.isArray(event.blocks)) {
-        const entries = piBlocksToEntries(event.blocks);
-        if (entries.length > 0) {
-          _curAi = useChatStore.getState().replaceAiEntries(sidRef.current, entries);
+        const rawEntries = piBlocksToEntries(event.blocks);
+        if (rawEntries.length > 0) {
+          // 合并连续 text entry 为一个，Pi 偶发拆成多 block 导致残留
+          const entries = mergeConsecutiveText(rawEntries);
+          _curAi = useChatStore.getState().replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
           scrollToBottom();
         }
       }
@@ -619,6 +637,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
     const ts = Date.now();
     useChatStore.getState().appendUserMsg(sidRef.current, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
+    turnEntryIdxRef.current = 0;  // 新用户消息 → 重置 turn 边界
     setAttaches([]);
     onActivity?.();
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
