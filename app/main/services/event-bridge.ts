@@ -66,6 +66,12 @@ export function bridgeSessionEvents(
   callbacks: BridgeCallbacks,
 ): void {
   switch (event.type) {
+    case "turn_start": {
+      // Pi 新一轮 assistant 回复开始 — 比 message_start 更可靠的分界信号
+      callbacks.onEvent({ type: "turn_start", sessionId: "" });
+      break;
+    }
+
     case "message_start": {
       // Pi 新 assistant turn 开始的信号 — 告知前端创建新 AI 消息
       const msg = event.message;

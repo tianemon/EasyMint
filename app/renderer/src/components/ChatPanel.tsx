@@ -292,7 +292,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   /** 输入框变化处理：检测开头 / 触发命令面板（仅在输入框纯命令上下文下，不影响代码片段） */
   const autoScrollRef = useRef(true);
   // Pi 事件无需 seq 去重（message_update 是累计全文，不是 delta）
-  // turn 边界：message_start 记录当前 turn 在最后一条 AI 消息 entries 中的起始位置
+  // turn 边界：turn_start 记录当前 turn 在最后一条 AI 消息 entries 中的起始位置
   const turnEntryIdxRef = useRef(0);
   // steer 打断标记
   const steeringRef = useRef(false);
@@ -484,7 +484,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       }
       setBusy(true);
       // Pi 新 assistant turn 开始 → 记录 turn 边界（entries 从此处开始替换，保留旧 turn 内容）
-      if (event.type === "message_start") {
+      if (event.type === "turn_start") {
         const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
         const lastAi = msgs.filter((m: any) => m.role === "ai").pop();
         turnEntryIdxRef.current = lastAi ? (lastAi.entries || []).length : 0;
