@@ -496,6 +496,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (event.type === "message" && Array.isArray(event.blocks)) {
         const entries = piBlocksToEntries(event.blocks);
         if (entries.length > 0) {
+          const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
+          const lastAi = msgs.filter((m: any) => m.role === "ai").pop();
+          console.log("[replace]", "fromIdx=", turnEntryIdxRef.current, "entries#=", entries.length, "lastAiEntries#=", lastAi?.entries?.length || 0, "text=", entries.map((e: any) => e.text?.slice(0, 30)).join("|"));
           _curAi = useChatStore.getState().replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
           scrollToBottom();
         }
