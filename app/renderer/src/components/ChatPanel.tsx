@@ -896,10 +896,12 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
     });
   }, [msg.entries, showThinking, showToolUse]);
 
-  const blocks = useMemo(() =>
-    visible.length > 0 ? buildBlocks(visible, String(msg.id)) : [],
-    [visible, msg.id],
-  );
+  const blocks = useMemo(() => {
+    const b = visible.length > 0 ? buildBlocks(visible, String(msg.id)) : [];
+    const texts = visible.filter((e: any) => e.kind === "text").map((e: any) => (e.text || "").slice(0, 50));
+    if (texts.length > 0) console.log("[render]", "entries#=", visible.length, "blocks#=", b.length, "texts=", texts.join(" | "));
+    return b;
+  }, [visible, msg.id]);
 
   if (msg.role === "user") {
     return (
