@@ -168,13 +168,13 @@
   --color-editor-gutter-bg: #f1f3f5;
   --color-editor-line-highlight: #e2e8f0;
 
-  /* ── Monaco ─────────────────────── */
-  --color-monaco-bg: #ecf5f0;
+  /* ── Monaco（中性，对齐 editor-*）── */
+  --color-monaco-bg: #fafbfc;
   --color-monaco-fg: #374151;
-  --color-monaco-line-highlight: #dcfce7;
-  --color-monaco-selection: #bbf7d0;
-  --color-monaco-inactive-selection: #dcfce7;
-  --color-monaco-gutter-bg: #e6f0ea;
+  --color-monaco-line-highlight: #f0f0ee;
+  --color-monaco-selection: #bfdbfe;
+  --color-monaco-inactive-selection: #e5e7eb;
+  --color-monaco-gutter-bg: #f1f3f5;
   --color-monaco-widget-bg: #ffffff;
   --color-monaco-widget-border: #d1d5db;
   --color-monaco-focus: var(--color-accent);

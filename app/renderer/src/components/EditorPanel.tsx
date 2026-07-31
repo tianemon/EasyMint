@@ -83,6 +83,19 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const dirtyRef = useRef(false);
 
+  // 主题切换时重建 Monaco 主题（buildMonacoTheme 只在挂载时构建一次，
+  // data-theme 变化后需重新 defineTheme + setTheme 才生效）
+  useEffect(() => {
+    const root = document.documentElement;
+    const rebuild = () => {
+      monaco.editor.defineTheme("easymint", buildMonacoTheme());
+      monaco.editor.setTheme("easymint");
+    };
+    const observer = new MutationObserver(rebuild);
+    observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
+
   // Load file content
   useEffect(() => {
     if (!filePath) { setContent(""); setError(null); dirtyRef.current = false; return; }
