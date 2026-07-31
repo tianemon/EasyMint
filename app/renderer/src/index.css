@@ -641,6 +641,48 @@
 }
 .stop-btn:hover { background: var(--color-danger); color: var(--color-text-inverse); }
 
+/* ── Settings Overlay ────────────────────────── */
+.settings-overlay-v3 {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s var(--ease-smooth);
+}
+.settings-overlay-v3.open { opacity: 1; pointer-events: auto; }
+.settings-panel-v3 {
+  display: flex; flex-direction: column;
+  width: 760px; height: 600px;
+  background: var(--color-card); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); overflow: hidden;
+  transform: scale(0);
+  transform-origin: center center;
+  transition: transform 0.45s cubic-bezier(0.175,0.885,0.32,1.275);
+}
+.settings-overlay-v3.open .settings-panel-v3 { transform: scale(1); }
+.settings-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--s4) var(--s6);
+  flex-shrink: 0;
+}
+.settings-header-tabs { display: flex; gap: var(--s1); }
+.settings-header-tab {
+  padding: var(--s1) var(--s4);
+  font-size: var(--text-sm); font-weight: 500;
+  color: var(--color-text-muted); cursor: pointer;
+  border: none; background: transparent; border-radius: var(--radius-sm);
+  transition: all 120ms var(--ease-smooth);
+}
+.settings-header-tab:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); }
+.settings-header-tab.active { color: var(--color-text-primary); background: var(--color-sidebar-active); box-shadow: var(--shadow-xs); }
+.settings-close {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm); border: none; background: transparent;
+  color: var(--color-text-muted); cursor: pointer; font-size: var(--text-base);
+  transition: all 120ms var(--ease-smooth);
+}
+.settings-close:hover { background: var(--color-sidebar-hover); color: var(--color-text-primary); }
+
 /* ═══════════════════════════════════════════════════════
    End v3 Layout
    ═══════════════════════════════════════════════════════ */

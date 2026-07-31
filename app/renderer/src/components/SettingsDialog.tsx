@@ -602,41 +602,37 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay">
-      <div className="bg-surface rounded-2xl border border-border-light shadow-xl overflow-hidden modal-card flex flex-col" style={{ width: 800, height: 700 }}>
+    <div className={`settings-overlay-v3 ${open ? "open" : ""}`}>
+      <div className="settings-panel-v3 flex flex-col" style={{ width: 760, height: 600 }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-5 pb-0 border-b border-border bg-surface-alt">
-          <div className="flex gap-0">
+        <div className="settings-header">
+          <div className="settings-header-tabs">
             <button
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "general" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              className={`settings-header-tab ${activeTab === "general" ? "active" : ""}`}
               onClick={() => setActiveTab("general")}
             >
               通用
             </button>
             <button
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "providers" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              className={`settings-header-tab ${activeTab === "providers" ? "active" : ""}`}
               onClick={() => setActiveTab("providers")}
             >
               模型
             </button>
             <button
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "plugins" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              className={`settings-header-tab ${activeTab === "plugins" ? "active" : ""}`}
               onClick={() => setActiveTab("plugins")}
             >
               插件
             </button>
             <button
-              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeTab === "about" ? "border-accent text-accent" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              className={`settings-header-tab ${activeTab === "about" ? "active" : ""}`}
               onClick={() => setActiveTab("about")}
             >
               关于
             </button>
           </div>
-          <button
-            className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors"
-            onClick={handleClose}
-          >
-            ✕
+          <button className="settings-close" onClick={handleClose}>✕
           </button>
         </div>
 
