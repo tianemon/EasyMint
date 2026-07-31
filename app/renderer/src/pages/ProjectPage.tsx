@@ -352,8 +352,6 @@ export function ProjectPage(): JSX.Element {
         onSettings={() => { setSettingsTab(undefined); setShowSettings(true); }}
       />
 
-      <div className="divider-line" />
-
       <main className="main-area">
         <TabBar />
         <div className="flex-1 min-h-0 relative">{renderTabContent()}</div>

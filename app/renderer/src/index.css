@@ -4,21 +4,21 @@
 /* Tailwind 4 主题：注册设计 token。
    :root 里的同名 CSS 变量会覆盖这里的编译期默认值，实现运行时换肤。 */
 @theme {
-  --color-surface: #f5faf7;
-  --color-surface-alt: #ecf5f0;
-  --color-surface-hover: #e0f0e8;
-  --color-surface-elevated: #fff;
+  --color-surface: var(--color-canvas);
+  --color-surface-alt: var(--color-sidebar);
+  --color-surface-hover: var(--color-sidebar-hover);
+  --color-surface-elevated: var(--color-card);
   --color-overlay: rgb(0 0 0 / 0.5);
   --color-tooltip-bg: #1a1a1a;
   --color-tooltip-text: #fff;
-  --color-text-primary: #0d1f17;
-  --color-text-secondary: #5a7a6a;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #555555;
   --color-text-inverse: #fff;
-  --color-text-muted: #a0aec0;
-  --color-border: #c8ddd2;
-  --color-border-light: #e2e8f0;
-  --color-border-strong: #94a3b8;
-  --color-border-light: #e2e8f0;
+  --color-text-muted: #999999;
+  --color-border: #e0e0db;
+  --color-border-light: #e6e6e0;
+  --color-border-strong: #a3a3a0;
+  --color-border-light: #e6e6e0;
   --color-accent: #16a34a;
   --color-accent-hover: #15803d;
   --color-accent-light: #86efac;
@@ -85,24 +85,24 @@
  */
 
 :root {
-  /* ── Surface ─────────────────────── */
-  --color-surface: #f5faf7;
-  --color-surface-alt: #ecf5f0;
-  --color-surface-hover: #e0f0e8;
-  --color-surface-elevated: #ffffff;
+  /* ── Surface（v3 对齐层级色，去绿色调）────────────── */
+  --color-surface: var(--color-canvas);
+  --color-surface-alt: var(--color-sidebar);
+  --color-surface-hover: var(--color-sidebar-hover);
+  --color-surface-elevated: var(--color-card);
   --color-overlay: rgba(0, 0, 0, 0.5);
   --color-tooltip-bg: #1a1a1a;
   --color-tooltip-text: #ffffff;
 
-  /* ── Text ────────────────────────── */
-  --color-text-primary: #0d1f17;
-  --color-text-secondary: #5a7a6a;
+  /* ── Text（中性灰，对齐原型 --fg 系列）────────────── */
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #555555;
   --color-text-inverse: #ffffff;
-  --color-text-muted: #a0aec0;
+  --color-text-muted: #999999;
 
-  /* ── Border ──────────────────────── */
-  --color-border: #c8ddd2;
-  --color-border-light: #e2e8f0;
+  /* ── Border（暖灰，对齐原型 --divider）────────────── */
+  --color-border: #e0e0db;
+  --color-border-light: #e6e6e0;
 
   /* ── Brand / Accent ──────────────── */
   --color-accent: #16a34a;
@@ -786,8 +786,9 @@ button, a, select {
   outline: none;
   font-size: var(--font-size-sm);
 }
-.chat-input:focus {
-  --tw-ring-color: color-mix(in oklab, var(--color-accent) 30%, transparent);
+.chat-input:focus,
+.chat-input:focus-visible {
+  box-shadow: none; /* 输入框聚焦仅保留光标，去掉全局 focus ring */
 }
 
 .input:focus {
@@ -934,7 +935,11 @@ select.input {
 
 /* ── Message entry ────────────────────────────────── */
 
-.msg-in { animation: msgIn var(--anim-normal) var(--ease-smooth); }
+.msg-in {
+  animation: msgIn var(--anim-normal) var(--ease-smooth);
+  /* 对齐原型 .msg padding: 0 var(--s8)——外层 32px + 此处 32px = 64px，与输入卡片 margin 对齐 */
+  padding: 0 var(--s8);
+}
 
 /* 消息头像 + 来源标签（对齐原型 .msg-avatar / .msg-from） */
 .msg-avatar {

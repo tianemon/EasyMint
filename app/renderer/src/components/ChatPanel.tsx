@@ -712,7 +712,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   function UserBubble({ msg }: { msg: ChatMessage }): JSX.Element {
     return (
-      <div className="flex flex-col items-end max-w-[75%] w-fit">
+      <div className="flex gap-4 items-start max-w-[75%] w-fit">
         <div className="rounded-[10px] rounded-br-[4px] px-[14px] py-1.5 text-sm leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]" style={{ background: 'var(--color-accent)', color: 'var(--color-text-inverse)', boxShadow: 'var(--msg-user-shadow)' }}>
           {msg.attaches && msg.attaches.length > 0 && (
             <div className="flex gap-1.5 mb-2 flex-wrap">
@@ -758,7 +758,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             <p className="chat-empty-desc">描述你想做什么，Mint 会帮你完成。</p>
           </div>
         ) : (
-          <div className="p-4 space-y-3">
+          <div className="px-8 py-4 space-y-3">
             {messages.map((msg) => (
               <MemoChatMessage
                 key={msg.id}
