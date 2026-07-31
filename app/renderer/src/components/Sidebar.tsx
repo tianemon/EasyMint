@@ -41,7 +41,6 @@ export function Sidebar({
   const [plusOpen, setPlusOpen] = useState(false);
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
   const [hasUpdate, setHasUpdate] = useState(false);
-  const [fileRefreshKey, setFileRefreshKey] = useState(0);
   const plusWrapRef = useRef<HTMLDivElement>(null);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -83,42 +82,6 @@ export function Sidebar({
     useThemeStore.getState().toggle();
   }, []);
 
-  // 新建文件/文件夹（在项目根目录下创建，成功后刷新文件树）
-  const handleNewFile = useCallback(() => {
-    setPlusOpen(false);
-    if (!projectPath) return;
-    const name = window.prompt("输入文件名（含扩展名，如 about.md）：");
-    if (!name || !name.trim()) return;
-    const trimmed = name.trim();
-    if (trimmed.includes("/") || trimmed.includes("\\")) {
-      alert("文件名不能包含路径分隔符");
-      return;
-    }
-    const target = projectPath.endsWith("/") || projectPath.endsWith("\\")
-      ? projectPath + trimmed
-      : `${projectPath}/${trimmed}`;
-    window.electronAPI.file.createFile(target)
-      .then(() => setFileRefreshKey((k) => k + 1))
-      .catch((e: unknown) => alert(e instanceof Error ? e.message : "创建失败"));
-  }, [projectPath]);
-
-  const handleNewFolder = useCallback(() => {
-    setPlusOpen(false);
-    if (!projectPath) return;
-    const name = window.prompt("输入文件夹名称：");
-    if (!name || !name.trim()) return;
-    const trimmed = name.trim();
-    if (trimmed.includes("/") || trimmed.includes("\\")) {
-      alert("文件夹名称不能包含路径分隔符");
-      return;
-    }
-    const target = projectPath.endsWith("/") || projectPath.endsWith("\\")
-      ? projectPath + trimmed
-      : `${projectPath}/${trimmed}`;
-    window.electronAPI.file.createFolder(target)
-      .then(() => setFileRefreshKey((k) => k + 1))
-      .catch((e: unknown) => alert(e instanceof Error ? e.message : "创建失败"));
-  }, [projectPath]);
 
   const toggleDrawer = useCallback((tab: DrawerTab) => {
     if (drawerTab === tab && drawerOpen) {
@@ -156,14 +119,6 @@ export function Sidebar({
               <button className="sb-dropdown-item" onClick={() => { setPlusOpen(false); onRenameProject?.(); }}>
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M14.5 1.5l-3 3-1.5-1.5 3-3"/><path d="M11 4.5l-9 9v1.5H3.5l9-9"/></svg>
                 重命名项目
-              </button>
-              <button className="sb-dropdown-item" onClick={handleNewFile}>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M10 2H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5l-3-3z"/><path d="M10 2v3h3"/></svg>
-                新建文件
-              </button>
-              <button className="sb-dropdown-item" onClick={handleNewFolder}>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M2 4a1 1 0 011-1h3l1.5 2H13a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/></svg>
-                新建文件夹
               </button>
               <div className="sb-dropdown-div" />
               <button className="sb-dropdown-item" onClick={() => { setPlusOpen(false); window.electronAPI?.window?.newWindow?.(); }}>
@@ -209,7 +164,6 @@ export function Sidebar({
           <FileTreePanel
             projectPath={projectPath}
             onFileClick={onFileClick}
-            refreshKey={fileRefreshKey}
           />
         )}
       </div>
