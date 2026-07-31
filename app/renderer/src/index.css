@@ -570,6 +570,10 @@
   color: var(--color-text-muted);
 }
 .tab-close-v3:hover { background: var(--color-sidebar-hover); }
+/* 未选中 tab 底是 tab-active，与 sidebar-hover 几乎同色，需更深一档的 hover 反馈 */
+.tab-v3:not(.active) .tab-close-v3:hover {
+  background: color-mix(in oklab, var(--color-tab-active) 60%, var(--color-text-muted));
+}
 .tab-text-v3 {
   flex: 1; min-width: 0;
   overflow: hidden; /* 文字独立裁剪区，溢出内容不进入 × 区域 */
