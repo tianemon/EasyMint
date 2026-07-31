@@ -21,6 +21,7 @@ interface SessionHistoryProps {
   onSessionDelete?: (sessionId: string) => void;
   refreshKey?: number;
   hideNewButton?: boolean;
+  hideEmptyState?: boolean;
 }
 
 interface ContextMenuState {
@@ -40,6 +41,7 @@ export function SessionHistory({
   onSessionDelete,
   refreshKey,
   hideNewButton,
+  hideEmptyState,
 }: SessionHistoryProps): JSX.Element {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -162,7 +164,7 @@ export function SessionHistory({
           <p className="text-danger text-sm">{error}</p>
           <button className="px-3 py-1 text-xs bg-accent text-text-inverse rounded hover:bg-accent-hover transition-colors" onClick={load}>重试</button>
         </div>
-      ) : sessions.length === 0 ? (
+      ) : hideEmptyState ? null : sessions.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">暂无对话记录</div>
       ) : (
         <div className="flex-1 overflow-y-auto">
