@@ -155,11 +155,13 @@
   --color-dot-red: #dc2626;
   --color-dot-blue: #3b82f6;
 
-  /* ── Code highlight ──────────────── */
-  --color-code-kw: #8250df;
-  --color-code-str: #16a34a;
-  --color-code-fn: #cf222e;
-  --color-code-cm: #5a7a6a;
+  /* ── Code highlight（GitHub Light 中性色板）── */
+  --color-code-kw: #cf222e;
+  --color-code-str: #0a3069;
+  --color-code-fn: #8250df;
+  --color-code-cm: #6e7781;
+  --color-code-num: #0550ae;
+  --color-code-type: #8250df;
 
   /* ── Editor ─────────────────────── */
   --color-editor-bg: #fafbfc;
@@ -305,6 +307,8 @@
   --color-code-str: #999999;
   --color-code-fn: #cccccc;
   --color-code-cm: #666666;
+  --color-code-num: #999999;
+  --color-code-type: #aaaaaa;
 
   /* ── Editor ─────────────────────── */
   --color-editor-bg: #0d0d0d;

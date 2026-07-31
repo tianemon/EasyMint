@@ -25,13 +25,14 @@ function buildMonacoTheme(): editor.IStandaloneThemeData {
   return {
     base: isDark ? "vs-dark" : "vs",
     inherit: true,
+    // 语法高亮走 --color-code-* 语义变量（亮暗两套自动适配，与代码块统一）
     rules: [
-      { token: "comment", foreground: "#6B7280", fontStyle: "italic" },
-      { token: "keyword", foreground: "#7C3AED" },
-      { token: "string", foreground: "#059669" },
-      { token: "number", foreground: "#D97706" },
-      { token: "type", foreground: "#2563EB" },
-      { token: "function", foreground: "#DC2626" },
+      { token: "comment", foreground: readCSS("--color-code-cm"), fontStyle: "italic" },
+      { token: "keyword", foreground: readCSS("--color-code-kw") },
+      { token: "string", foreground: readCSS("--color-code-str") },
+      { token: "number", foreground: readCSS("--color-code-num") },
+      { token: "type", foreground: readCSS("--color-code-type") },
+      { token: "function", foreground: readCSS("--color-code-fn") },
     ],
     colors: {
       "editor.background": readCSS("--color-monaco-bg"),
