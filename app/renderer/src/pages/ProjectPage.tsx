@@ -10,7 +10,6 @@ import { useProcessStore } from "../stores/process-store";
 import { useTabStore } from "../stores/tab-store";
 import { useTaskStore, type TaskStatus } from "../stores/task-store";
 import { useProjectStatusStore, type ProjectStage } from "../stores/project-status-store";
-import { chatActions } from "../stores/chat-actions";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 
 export type ActivePanel = "editor" | "files" | "sessions" | "chat";
@@ -104,23 +103,21 @@ export function ProjectPage(): JSX.Element {
     }
   }, [projectId]);
 
-  // Listen for context rotation: old session archived → new tab with handoff
+  // Listen for context rotation: old session archived → open new tab bound to new session.
+  // 接力消息（handoffPrompt）已由主进程 promptAndBridge 直接发送到新会话，
+  // 这里只需打开 tab，ChatPanel 挂载时自动加载新会话历史。
   useEffect(() => {
-    const unsub = window.electronAPI.agent.onRotateCreate(({ oldSessionId, handoffPrompt }) => {
-      // Close old tab
+    const unsub = window.electronAPI.agent.onContextRotated(({ sessionId }) => {
       const ts = useTabStore.getState();
-      const oldTab = ts.tabs.find((t) => t.type === "chat" && t.sessionId === oldSessionId);
-      if (oldTab) ts.closeTab(oldTab.id);
+      // 关闭当前激活的 chat tab（轮转发生在当前会话）
+      const activeTab = ts.tabs.find((t) => t.type === "chat" && t.id === ts.activeTabId);
+      if (activeTab) ts.closeTab(activeTab.id);
 
-      // Create new tab — sessionId undefined so ChatPanel treats as brand-new
+      // 打开绑定新会话的 tab
       const tabId = `rotate-${Date.now()}`;
-      ts.openTab({ id: tabId, type: "chat" as const, title: "新会话" });
+      ts.openTab({ id: tabId, type: "chat" as const, title: "新会话", sessionId });
       ts.setActiveTab(tabId);
-
-      // Auto-send the handoff prompt after ChatPanel mounts
-      setTimeout(() => {
-        chatActions.send(handoffPrompt);
-      }, 400);
+      setActiveSessionId(sessionId);
     });
     return () => unsub();
   }, [projectId]);
