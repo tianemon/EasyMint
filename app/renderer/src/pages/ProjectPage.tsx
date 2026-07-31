@@ -94,8 +94,6 @@ export function ProjectPage(): JSX.Element {
           const isNewProject = params.get("init") === "1";
           if (urlSessionId) {
             setActiveSessionId(urlSessionId);
-            // 切换到聊天面板并打开此会话 tab
-            setActivePanel("chat");
             openTab({ id: urlSessionId, type: "chat", title: "新项目", sessionId: urlSessionId, isNewProject });
           }
         }
@@ -185,7 +183,6 @@ export function ProjectPage(): JSX.Element {
       const existing = ts.tabs.find((t) => t.type === "chat" && t.sessionId === sessionId);
       if (existing) {
         ts.setActiveTab(existing.id);
-        setActivePanel("chat");
         return;
       }
       window.electronAPI.conv.get(sessionId, projectPath || getWorkspaceDir()).then((info) => {

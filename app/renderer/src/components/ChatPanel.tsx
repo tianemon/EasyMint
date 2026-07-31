@@ -905,7 +905,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
   return (
     <div className="msg-in">
       <div className="flex flex-col max-w-[75%] w-fit">
-        <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
+        <div className="rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden" style={{ background: 'var(--color-card-agent)', border: '1px solid var(--color-border-light)', boxShadow: 'var(--msg-agent-shadow)' }}>
           {blocks.map((block, i) => (
             <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} />
           ))}
