@@ -31,8 +31,8 @@ describe("Store", () => {
       expect(fs.existsSync(path.join(TEST_DIR, "projects.json"))).toBe(true);
     });
 
-    it("应初始化 settings.json 文件", () => {
-      expect(fs.existsSync(path.join(TEST_DIR, "settings.json"))).toBe(true);
+    it("应初始化 em-settings.json 文件", () => {
+      expect(fs.existsSync(path.join(TEST_DIR, "em-settings.json"))).toBe(true);
     });
   });
 
