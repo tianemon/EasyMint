@@ -20,6 +20,7 @@ interface SessionHistoryProps {
   onNewSession?: () => void;
   onSessionDelete?: (sessionId: string) => void;
   refreshKey?: number;
+  hideNewButton?: boolean;
 }
 
 interface ContextMenuState {
@@ -38,6 +39,7 @@ export function SessionHistory({
   onNewSession,
   onSessionDelete,
   refreshKey,
+  hideNewButton,
 }: SessionHistoryProps): JSX.Element {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,14 +144,16 @@ export function SessionHistory({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-3 py-2 shrink-0">
-        <button
-          className="w-full py-1.5 border border-accent text-accent text-sm rounded-lg hover:bg-accent-subtle transition-colors"
-          onClick={onNewSession}
-        >
-          + 新建会话
-        </button>
-      </div>
+      {!hideNewButton && (
+        <div className="px-3 py-2 shrink-0">
+          <button
+            className="w-full py-1.5 border border-accent text-accent text-sm rounded-lg hover:bg-accent-subtle transition-colors"
+            onClick={onNewSession}
+          >
+            + 新建会话
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">加载中...</div>

@@ -139,6 +139,7 @@ export function Sidebar({
               onSessionDelete={onSessionDelete}
               activeSessionId={activeSessionId}
               refreshKey={sessionRefreshKey}
+              hideNewButton
             />
             <DesignSessionList
               projectPath={projectPath}
@@ -147,6 +148,7 @@ export function Sidebar({
               onSessionDelete={onSessionDelete}
               activeSessionId={activeSessionId}
               refreshKey={sessionRefreshKey}
+              hideNewButton
             />
           </div>
         ) : (
