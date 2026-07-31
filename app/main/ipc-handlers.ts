@@ -115,6 +115,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("file:readTree", (_e, { dirPath }) => fileService.readTree(dirPath));
   ipcMain.handle("file:readContent", (_e, { filePath }) => fileService.readContent(filePath));
   ipcMain.handle("file:writeContent", (_e, { filePath, content }) => fileService.writeContent(filePath, content));
+  ipcMain.handle("file:createFile", (_e, { filePath, content }) => fileService.createFile(filePath, content ?? ""));
+  ipcMain.handle("file:createFolder", (_e, { dirPath }) => fileService.createFolder(dirPath));
 
   // session:*
   ipcMain.handle("session:list", (_e, { projectId }) => {

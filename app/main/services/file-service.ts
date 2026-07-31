@@ -66,4 +66,29 @@ export class FileService {
     fs.mkdirSync(path.dirname(expanded), { recursive: true });
     fs.writeFileSync(expanded, content, "utf-8");
   }
+
+  /** 新建文件（已存在时抛错，不覆盖） */
+  createFile(filePath: string, content = ""): void {
+    if (!filePath || !this.isPathSafe(filePath)) {
+      throw new Error("无效的文件路径");
+    }
+    const expanded = this.expand(filePath);
+    if (fs.existsSync(expanded)) {
+      throw new Error("文件已存在");
+    }
+    fs.mkdirSync(path.dirname(expanded), { recursive: true });
+    fs.writeFileSync(expanded, content, "utf-8");
+  }
+
+  /** 新建文件夹（已存在时抛错，不覆盖） */
+  createFolder(dirPath: string): void {
+    if (!dirPath || !this.isPathSafe(dirPath)) {
+      throw new Error("无效的目录路径");
+    }
+    const expanded = this.expand(dirPath);
+    if (fs.existsSync(expanded)) {
+      throw new Error("文件夹已存在");
+    }
+    fs.mkdirSync(expanded, { recursive: true });
+  }
 }

@@ -4,9 +4,10 @@ interface FileTreePanelProps {
   projectPath: string;
   onFileClick?: (filePath: string, fileName: string) => void;
   collapseAllKey?: number;
+  refreshKey?: number;
 }
 
-export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: FileTreePanelProps): JSX.Element {
+export function FileTreePanel({ projectPath, onFileClick, collapseAllKey, refreshKey }: FileTreePanelProps): JSX.Element {
   const [files, setFiles] = useState<FileNode[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -32,6 +33,10 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
       setExpanded(new Set());
     }
   }, [collapseAllKey]);
+
+  useEffect(() => {
+    if (refreshKey && refreshKey > 0) loadTree();
+  }, [refreshKey, loadTree]);
 
   const toggleExpand = (path: string) => {
     setExpanded((prev) => {

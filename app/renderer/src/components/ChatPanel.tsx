@@ -737,6 +737,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           )}
           {msg.text ? <div className="whitespace-pre-wrap [overflow-wrap:anywhere] min-w-0">{msg.text}</div> : null}
         </div>
+        <div className="msg-avatar user">U</div>
       </div>
     );
   }
@@ -800,9 +801,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
               });
               return visible.length === 0;
             })() && (
-              <div className="flex flex-col max-w-[75%] w-fit">
-                <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 animate-pulse">
-                  <span className="text-sm text-text-secondary">...</span>
+              <div className="flex gap-4 items-start max-w-[75%]">
+                <div className="msg-avatar agent">M</div>
+                <div className="min-w-0">
+                  <div className="msg-from">Mint</div>
+                  <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 animate-pulse">
+                    <span className="text-sm text-text-secondary">...</span>
+                  </div>
                 </div>
               </div>
             )}
@@ -912,11 +917,15 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
 
   return (
     <div className="msg-in">
-      <div className="flex flex-col max-w-[75%] w-fit">
-        <div className="rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden" style={{ background: 'var(--color-card-agent)', border: '1px solid var(--color-border-light)', boxShadow: 'var(--msg-agent-shadow)' }}>
-          {blocks.map((block, i) => (
-            <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} />
-          ))}
+      <div className="flex gap-4 items-start max-w-[75%]">
+        <div className="msg-avatar agent">M</div>
+        <div className="min-w-0">
+          <div className="msg-from">Mint</div>
+          <div className="rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden" style={{ background: 'var(--color-card-agent)', border: '1px solid var(--color-border-light)', boxShadow: 'var(--msg-agent-shadow)' }}>
+            {blocks.map((block, i) => (
+              <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} />
+            ))}
+          </div>
         </div>
       </div>
     </div>

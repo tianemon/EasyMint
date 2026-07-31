@@ -84,6 +84,8 @@ interface ElectronAPI {
     readTree: (dirPath: string) => Promise<FileNode[]>;
     readContent: (filePath: string) => Promise<string>;
     writeContent: (filePath: string, content: string) => Promise<void>;
+    createFile: (filePath: string, content?: string) => Promise<void>;
+    createFolder: (dirPath: string) => Promise<void>;
     saveUpload: (name: string, data: Uint8Array) => Promise<{ path: string; dataUrl: string }>;
     readUpload: (filePath: string) => Promise<string | null>;
   };

@@ -1,8 +1,8 @@
-import { memo, useRef, useState, useCallback, useEffect } from "react";
+import { memo, useRef, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { useStatusStore } from "../stores/status-store";
 import { CommandPalette } from "./CommandPalette";
-import { QuickPrompts } from "./QuickPrompts";
+// import { QuickPrompts } from "./QuickPrompts";  // v3 隐藏快捷指令按钮
 
 interface AttachItem { name: string; path: string; dataUrl?: string; kind: "image" | "doc"; }
 
@@ -62,15 +62,15 @@ export const ChatInput = memo(function ChatInput({
   const summarizing = useStatusStore((s) => s.summarizing);
   const compacting = useStatusStore((s) => s.compacting);
   const inputDisabled = summarizing || compacting;
-  const [balanceText, setBalanceText] = useState("");
-  const refreshBalance = useCallback(async () => {
-    try {
-      const data = await window.electronAPI.settings.fetchBalance();
-      if (data?.balance_infos?.length) setBalanceText(data.balance_infos[0]!.total_balance);
-    } catch { /* ignore */ }
-  }, []);
-
-  useEffect(() => { refreshBalance(); const t = setInterval(refreshBalance, 5 * 60 * 1000); return () => clearInterval(t); }, [refreshBalance]);
+  // 余额显示 v3 已隐藏（原型未展示），代码保留注释不删除
+  // const [balanceText, setBalanceText] = useState("");
+  // const refreshBalance = useCallback(async () => {
+  //   try {
+  //     const data = await window.electronAPI.settings.fetchBalance();
+  //     if (data?.balance_infos?.length) setBalanceText(data.balance_infos[0]!.total_balance);
+  //   } catch { /* ignore */ }
+  // }, []);
+  // useEffect(() => { refreshBalance(); const t = setInterval(refreshBalance, 5 * 60 * 1000); return () => clearInterval(t); }, [refreshBalance]);
 
   // 输入历史导航
   const HISTORY_KEY = "easymint_input_history";
@@ -189,7 +189,8 @@ export const ChatInput = memo(function ChatInput({
         <select value={thinkingLevel} onChange={(e) => onThinkingLevelChange(e.target.value)} className="inp-sel" title="思考深度">
           <option value="low">低</option><option value="medium">中</option><option value="high">高</option>
         </select>
-        <span className="inp-val">{balanceText}</span>
+        {/* 余额显示原型未展示，隐藏不删除（v3 原则 2） */}
+        {/* <span className="inp-val">{balanceText}</span> */}
         <div className="ctx-ring" title="上下文使用率">
           <svg width="20" height="20" viewBox="0 0 20 20">
             <circle className="ctx-ring-track" cx="10" cy="10" r="8"/>
@@ -198,9 +199,10 @@ export const ChatInput = memo(function ChatInput({
           </svg>
           <span className="ctx-ring-pct">{Math.round(ctxPct)}%</span>
         </div>
-        {!inputDisabled && (
+        {/* 快捷指令按钮原型未展示，隐藏不删除（v3 原则 2） */}
+        {/* {!inputDisabled && (
           <QuickPrompts onFill={(text) => { setInput(text); textareaRef.current?.focus(); }} />
-        )}
+        )} */}
         {inputDisabled ? (
           <button className="send-btn" disabled><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg></button>
         ) : busy ? (

@@ -33,6 +33,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     readContent: (filePath: string) => ipcRenderer.invoke("file:readContent", { filePath }),
     writeContent: (filePath: string, content: string) =>
       ipcRenderer.invoke("file:writeContent", { filePath, content }),
+    createFile: (filePath: string, content?: string) =>
+      ipcRenderer.invoke("file:createFile", { filePath, content: content ?? "" }),
+    createFolder: (dirPath: string) =>
+      ipcRenderer.invoke("file:createFolder", { dirPath }),
     saveUpload: (name: string, data: Uint8Array) => ipcRenderer.invoke("file:saveUpload", { name, data: Array.from(data) }) as Promise<{ path: string; dataUrl: string }>,
     readUpload: (filePath: string) => ipcRenderer.invoke("file:readUpload", { filePath }) as Promise<string | null>,
   },
