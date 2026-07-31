@@ -190,6 +190,10 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
             fontFamily: "'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace",
             lineHeight: 22,
             lineNumbersMinChars: 5,
+            // 行号与代码间距 = lineDecorationsWidth(默认10) + folding(16) = 26px
+            // 收紧：装饰区 0 + 隐藏折叠箭头（折叠功能保留，快捷键可用）
+            lineDecorationsWidth: 0,
+            showFoldingControls: "never",
             minimap: { enabled: false },
             scrollBeyondLastLine: false,
             wordWrap: "on",
