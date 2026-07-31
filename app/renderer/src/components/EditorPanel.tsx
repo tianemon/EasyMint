@@ -189,7 +189,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
             fontSize: 13,
             fontFamily: "'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace",
             lineHeight: 22,
-            lineNumbersMinChars: 1,
+            lineNumbersMinChars: 5,
             minimap: { enabled: false },
             scrollBeyondLastLine: false,
             wordWrap: "on",
