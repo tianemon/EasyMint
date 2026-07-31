@@ -388,6 +388,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     getScrollElement: () => scrollEl,
     estimateSize: () => 100,
     overscan: 8,
+    // measureElement 在 React commit 阶段触发 onChange，默认的 flushSync 会
+    // 报 "flushSync was called from inside a lifecycle method"——改走普通调度
+    useFlushSync: false,
   });
   // 容器变化时兜底重新测量（HMR 重挂后旧测量数据失效）
   useEffect(() => {
@@ -640,17 +643,15 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
-  // 打开会话（0 → N 条）：instant 强制贴底。
-  // 不用 smooth：滚动动画中途 handleScroll 会把 autoScrollRef 置 false，
-  // 导致测量完成后的校正滚动被跳过（停在距底部几条的位置）。
+  // 打开会话（0 → N 条）：scrollToIndex 贴底——库官方 API，
+  // 内部处理动态测量，比手动 scrollTop/scrollHeight 可靠。
   const prevMsgCountRef = useRef(0);
   useEffect(() => {
     if (messages.length > 0 && prevMsgCountRef.current === 0) {
-      const el = containerRef.current;
-      if (el) el.scrollTop = el.scrollHeight;
+      virtualizer.scrollToIndex(messages.length - 1, { align: "end" });
     }
     prevMsgCountRef.current = messages.length;
-  }, [messages]);
+  }, [messages, virtualizer]);
 
   // 虚拟化测量是异步的：messages 加载后的首次滚动发生在 totalSize 还是估算值时，
   // 测量完成后需再贴底一次（流式增长时总高度变大）
