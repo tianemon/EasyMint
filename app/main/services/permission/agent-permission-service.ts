@@ -20,8 +20,6 @@ import {
 
 // ── 本地类型（替代 @proma/shared） ─────────────────
 
-type PromaPermissionMode = 'auto' | 'plan' | 'acceptEdits' | 'bypassPermissions'
-
 type DangerLevel = 'safe' | 'normal' | 'dangerous'
 
 interface PermissionRequest {

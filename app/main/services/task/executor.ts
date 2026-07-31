@@ -13,7 +13,6 @@ import { resolveHome } from "../../utils/paths";
 import { mapWithConcurrencyLimit, type ParallelResult } from "./parallel";
 // yield-assembly not ported — structured output is a future feature
 // import { assembleYieldResult } from "../../vendor/omp/task/yield-assembly";
-import { getDefineToolFn } from "../pi-sdk";
 import { wrapToolWithPermission } from "../permission/wrap-tool";
 import { SAFE_TOOLS, isSafeBashCommand } from "../permission/permission-rules";
 import type {
@@ -21,19 +20,12 @@ import type {
   AgentProgress,
   TaskItem,
   BatchResult,
-  AgentDefinition,
 } from "./types";
 import { MAX_OUTPUT_BYTES, MAX_OUTPUT_LINES } from "./types";
 
 // ── 配置 ────────────────────────────────────────────
 
 const DEFAULT_CONCURRENCY = 4;
-
-// ── 默认 System Prompt ──────────────────────────────
-
-const DEFAULT_SYSTEM_PROMPT =
-  "You are a coding agent. Write high-quality, well-tested code following the project's conventions."
-  + " After completing your work, summarize what you changed and why.";
 
 // ── 输出截断 ────────────────────────────────────────
 
@@ -120,7 +112,6 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
   const extraTools = [...wrappedTools];
 
   if (opts.outputSchema) {
-    const defineTool = await getDefineToolFn();
     const yieldTool: any = {
       name: "yield",
       label: "返回结构化结果",

@@ -36,7 +36,6 @@ export function wrapToolWithPermission<T extends { name: string; label?: string;
   const { canUseTool } = options;
   if (!canUseTool) return definition;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const originalExecute = definition.execute as (...args: any[]) => any;
 
   return {

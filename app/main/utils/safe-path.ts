@@ -7,9 +7,6 @@
 import * as path from "node:path";
 import { resolveHome } from "./paths";
 
-/** 允许的基础目录（文件操作不能穿越出这些目录） */
-const ALLOWED_ROOTS = new Set<string>();
-
 function homeEasymint(): string {
   const os = require("node:os");
   return path.join(os.homedir(), ".easymint");

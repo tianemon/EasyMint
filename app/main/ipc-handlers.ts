@@ -303,7 +303,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     const resp = await fetch(modelsUrl, { headers: { Authorization: `Bearer ${key}` } });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     let json: { data?: { id: string }[] };
-    try { json = await resp.json() as any; } catch (e) { throw new Error("模型列表返回格式错误"); }
+    try { json = await resp.json() as any; } catch { throw new Error("模型列表返回格式错误"); }
     const models: string[] = [];
     if (json.data) {
       for (const m of json.data) {
@@ -328,12 +328,12 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       if (pi?.baseUrl) rawUrl = pi.baseUrl;
     }
     let origin: string;
-    try { origin = new URL(rawUrl).origin; } catch (e) { throw new Error("API 地址格式错误"); }
+    try { origin = new URL(rawUrl).origin; } catch { throw new Error("API 地址格式错误"); }
     const url = `${origin}/user/balance`;
     const resp = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     let json: Record<string, unknown>;
-    try { json = await resp.json() as any; } catch (e) { throw new Error("余额查询返回格式错误"); }
+    try { json = await resp.json() as any; } catch { throw new Error("余额查询返回格式错误"); }
     return json;
   });
 

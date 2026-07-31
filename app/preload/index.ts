@@ -40,20 +40,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     saveUpload: (name: string, data: Uint8Array) => ipcRenderer.invoke("file:saveUpload", { name, data: Array.from(data) }) as Promise<{ path: string; dataUrl: string }>,
     readUpload: (filePath: string) => ipcRenderer.invoke("file:readUpload", { filePath }) as Promise<string | null>,
   },
-  terminal: {
-    create: (cwd: string) => ipcRenderer.invoke("terminal:create", { cwd }),
-    write: (terminalId: string, data: string) =>
-      ipcRenderer.send("terminal:write", { terminalId, data }),
-    resize: (terminalId: string, cols: number, rows: number) =>
-      ipcRenderer.send("terminal:resize", { terminalId, cols, rows }),
-    destroy: (terminalId: string) => ipcRenderer.send("terminal:destroy", { terminalId }),
-    onData: (callback: (data: { terminalId: string; data: string }) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: { terminalId: string; data: string }) =>
-        callback(data);
-      ipcRenderer.on("terminal:onData", handler);
-      return () => ipcRenderer.removeListener("terminal:onData", handler);
-    },
-  },
   session: {
     list: (projectId: string) => ipcRenderer.invoke("session:list", { projectId }),
     resume: (sessionId: string) => ipcRenderer.send("session:resume", { sessionId }),
