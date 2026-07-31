@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { app } from "electron";
 import { broadcast } from "./ipc-broadcast";
 import { describeImage, webFetch, isToolEnabled } from "./api-clients";
-import { validateTaskStatus, validateProjectDone } from "./hooks";
+import { validateTaskStatus } from "./hooks";
 import type { ToolDefinition } from "./pi-sdk";
 import { getDefineToolFn } from "./pi-sdk";
 
@@ -79,34 +79,6 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
         broadcast("agent:task-status", { taskId: String(params.taskId), status: params.status, projectPath });
         return { content: [{ type: "text" as const, text: `任务 ${params.taskId} 状态已更新为 ${params.status}` }] };
       } catch (e) { return { content: [{ type: "text" as const, text: `更新失败: ${(e as Error).message}` }] }; }
-    },
-  } as any) as any);
-
-  // set_project_stage
-  tools.push(defineTool({
-    name: "set_project_stage", label: "设置项目阶段",
-    description: "设置项目进度节点，刷新 Fishbone 进度条。取值: requirements / tech-selection / init / planning / developing / done。",
-    parameters: {
-      type: "object" as const,
-      properties: { stage: { type: "string" as const, enum: ["requirements", "tech-selection", "init", "planning", "developing", "done"] } },
-      required: ["stage"],
-    },
-    async execute(_tid: any, params: any) {
-      if (!projectPath) return { content: [{ type: "text" as const, text: "当前无项目路径" }] };
-      if (params.stage === "done") {
-        const err = validateProjectDone(projectPath);
-        if (err) return { content: [{ type: "text" as const, text: err }] };
-      }
-      try {
-        const sd = join(projectPath, ".easymint");
-        const sp = join(sd, "state.json");
-        let existing: Record<string, unknown> = {};
-        if (existsSync(sp)) { try { existing = JSON.parse(readFileSync(sp, "utf-8")); } catch { /* overwrite */ } }
-        else if (!existsSync(sd)) mkdirSync(sd, { recursive: true });
-        writeFileSync(sp, JSON.stringify({ ...existing, stage: params.stage }, null, 2), "utf-8");
-        broadcast("agent:project-stage", { stage: params.stage, projectPath });
-        return { content: [{ type: "text" as const, text: `项目进度已更新为 ${params.stage}` }] };
-      } catch (e) { return { content: [{ type: "text" as const, text: `设置进度失败: ${(e as Error).message}` }] }; }
     },
   } as any) as any);
 

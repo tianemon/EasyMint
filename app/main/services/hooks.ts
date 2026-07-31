@@ -40,14 +40,3 @@ export function validateTaskStatus(projectPath: string | undefined, taskId: stri
   return null;
 }
 
-/** 规则 ②: stage=done 时所有任务必须 done 或 failed */
-export function validateProjectDone(projectPath: string | undefined): string | null {
-  if (!projectPath) return null;
-  const tasks = readTasks(projectPath);
-  const pending = tasks.filter((t) => t.status && t.status !== "done" && t.status !== "failed");
-  if (pending.length > 0) {
-    const ids = pending.map((t) => `#${t.id}（${t.status}）`).join("、");
-    return `还有 ${pending.length} 个任务未完成: ${ids}。请先完成或标记为 failed 后再将项目标记为 done。`;
-  }
-  return null;
-}

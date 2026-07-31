@@ -103,7 +103,6 @@ interface ElectronAPI {
     onPermissionRequest: (callback: (data: any) => void) => () => void;
     abort: (runId: string) => void;
     setModel: (sessionId: string, model: string) => Promise<void>;
-    notifySession: (sessionId: string, message: string) => void;
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => Promise<{ chatId: string }>;
     chatStatus: (sessionId: string) => Promise<string | null>;
     getPiProviders: () => Promise<Array<{ id: string; name: string; baseUrl?: string }>>;
@@ -123,7 +122,6 @@ interface ElectronAPI {
     onContextRotated: (callback: (data: { chatId: string; sessionId: string }) => void) => () => void;
     onContextUsage: (callback: (data: { chatId: string; percentage: number; totalTokens: number; maxTokens: number }) => void) => () => void;
     onTaskStatus: (callback: (data: { taskId: string; status: string; projectPath: string }) => void) => () => void;
-    onProjectStage: (callback: (data: { stage: string; projectPath: string }) => void) => () => void;
     onCommandsChanged: (callback: (data: { commands: Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> }) => void) => () => void;
     onRenameProgress: (callback: (data: { phase: string }) => void) => () => void;
     onSessionRenamed: (callback: (data: { sessionId: string; title: string }) => void) => () => void;

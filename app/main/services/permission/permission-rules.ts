@@ -20,7 +20,6 @@ export const SAFE_TOOLS: readonly string[] = [
   'refresh_tasks',
   'show_prototype',
   'set_task_status',
-  'set_project_stage',
   'list_issues',
   'rename_project',
   'describe_image',

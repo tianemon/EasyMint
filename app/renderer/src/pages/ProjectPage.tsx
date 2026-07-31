@@ -9,7 +9,7 @@ import { NewProjectDialog } from "../components/NewProjectDialog";
 import { useProcessStore } from "../stores/process-store";
 import { useTabStore } from "../stores/tab-store";
 import { useTaskStore, type TaskStatus } from "../stores/task-store";
-import { useProjectStatusStore, type ProjectStage } from "../stores/project-status-store";
+import { useProjectStatusStore } from "../stores/project-status-store";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 
 export type ActivePanel = "editor" | "files" | "sessions" | "chat";
@@ -155,16 +155,6 @@ export function ProjectPage(): JSX.Element {
     });
     return () => unsub();
   }, []);
-
-  // Listen for real-time project stage updates from set_project_stage MCP tool
-  useEffect(() => {
-    const unsub = window.electronAPI.agent.onProjectStage(({ stage, projectPath: eventPath }) => {
-      // 守卫：只处理当前项目的事件
-      if (eventPath && projectPath && eventPath !== projectPath) return;
-      useProjectStatusStore.getState().setStage(stage as ProjectStage);
-    });
-    return () => unsub();
-  }, [projectPath]);
 
   const handleFileClick = useCallback(
     (filePath: string, fileName: string) => {

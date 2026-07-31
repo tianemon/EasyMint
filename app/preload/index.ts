@@ -204,7 +204,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     },
     abort: (runId: string) => ipcRenderer.invoke("agent:abort", { runId }),
     setModel: (sessionId: string, model: string) => ipcRenderer.invoke("agent:setModel", { sessionId, model }) as Promise<void>,
-    notifySession: (sessionId: string, message: string) => ipcRenderer.invoke("agent:notifySession", { sessionId, message }),
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => ipcRenderer.invoke("agent:spawnAgentChat", { projectPath, templateId, message }) as Promise<{ chatId: string }>,
     chatStatus: (sessionId: string) => ipcRenderer.invoke("agent:chatStatus", { sessionId }),
     getBufferedStream: (sessionId: string) => ipcRenderer.invoke("agent:getBufferedStream", { sessionId }) as Promise<unknown[]>,
@@ -261,11 +260,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
       const handler = (_event: Electron.IpcRendererEvent, data: { taskId: string; status: string; projectPath: string }) => callback(data);
       ipcRenderer.on("agent:task-status", handler);
       return () => ipcRenderer.removeListener("agent:task-status", handler);
-    },
-    onProjectStage: (callback: (data: { stage: string; projectPath: string }) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: { stage: string; projectPath: string }) => callback(data);
-      ipcRenderer.on("agent:project-stage", handler);
-      return () => ipcRenderer.removeListener("agent:project-stage", handler);
     },
     onCommandsChanged: (callback: (data: { commands: Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { commands: Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> }) => callback(data);

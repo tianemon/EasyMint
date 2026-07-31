@@ -536,18 +536,6 @@ export class AgentService {
     }
   }
 
-  notifySession(sessionId: string, message: string): void {
-    const chat = this.findActiveChat(sessionId);
-    if (chat?.session) {
-      broadcast("agent:stream", {
-        type: "message",
-        sessionId,
-        chatId: chat.chatId,
-        blocks: [{ type: "text", text: message }],
-        partial: false,
-      });
-    }
-  }
 
   async spawnAgentChat(
     projectPath: string,
