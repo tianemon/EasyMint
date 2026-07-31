@@ -324,29 +324,36 @@ CustomEntry              ← 扩展自定义数据
 
 ## 十、EasyMint 使用情况对照
 
+> 更新于 2026-07-31：核对 agent-service / pi-session / session-service 实际代码。
+
 | Pi API | EM 已用 | 备注 |
 |--------|---------|------|
 | `createAgentSession` | ✅ | pi-session.ts |
-| `session.prompt()` | ✅ | agent-service.ts |
-| `session.subscribe()` | ✅ | agent-service.ts |
-| `session.abort()` | ✅ | killChat |
+| `session.prompt()` | ✅ | agent-service.ts（10 分钟超时保护） |
+| `session.subscribe()` | ✅ | agent-service.ts → event-bridge |
+| `session.abort()` | ✅ | killChat / agent:abort |
 | `session.dispose()` | ✅ | killChat |
-| `session.getContextUsage()` | ✅ | context-usage 广播 |
-| `session.setModel()` | ⚠️ | 刚修复，之前用 resetModelRuntime |
-| `session.setSessionName()` | ⚠️ | 刚修复，之前用 session-titles.json |
-| `session.setActiveToolsByName()` | ❌ | 未使用，可运行时切换工具 |
-| `session.steer()` | ❌ | 可用于中轮打断注入指令 |
-| `session.followUp()` | ❌ | 可用于轮转后自动接续 |
-| `session.compact()` | ❌ | 可用于手动 /compact |
-| `session.setThinkingLevel()` | ❌ | 前端下拉框可接 |
-| `session.cycleModel()` | ❌ | Ctrl+P 可接 |
-| `session.sendUserMessage()` | ❌ | 程序化发送 |
-| `session.getActiveToolNames()` | ❌ | 调试用 |
-| `SessionManager.appendSessionInfo()` | ✅ | 刚修复重命名 |
-| `SessionManager.list()` | ✅ | 会话列表 |
-| `SessionManager.open()` | ✅ | 恢复会话 |
+| `session.getContextUsage()` | ✅ | context-usage 广播 + ctx-ring 显示 |
+| `session.getSessionStats()` | ✅ | agent:sessionStats |
+| `session.setModel()` | ✅ | agent:setModel（热切换） |
+| `session.cycleModel()` | ✅ | agent:cycleModel |
+| `session.setThinkingLevel()` | ✅ | agent:setThinkingLevel（前端思考下拉） |
+| `session.setActiveToolsByName()` | ✅ | agent:setActiveTools |
+| `session.steer()` | ✅ | agent:steer（中轮打断注入） |
+| `session.followUp()` | ✅ | agent:followUp |
+| `session.compact()` | ✅ | agent:compact（手动）+ 自动压缩追踪（compaction_end 计数） |
+| `SessionManager.appendSessionInfo()` | ✅ | session-service 重命名（等价 setSessionName） |
+| `SessionManager.list()` | ✅ | 会话列表（listPiSessions） |
+| `SessionManager.open()` | ✅ | 恢复会话（resumePiSession） |
 | `SettingsManager.inMemory()` | ✅ | pi-init.ts |
 | `DefaultResourceLoader` | ✅ | pi-session.ts |
 | `defineTool()` | ✅ | builtin-mcp.ts, task/tool.ts |
 
-**遗漏（有价值但未实现）：** 运行时切换工具集、steer/followUp 消息注入、手动 compact、thinkingLevel 切换、cycleModel。
+**未使用（EM 无对应需求）：** `sendUserMessage`/`sendCustomMessage`（steer/followUp 已覆盖）、`setAutoCompactionEnabled`（Pi 默认自动压缩）、`reload`/`exportToHtml`/`waitForIdle`、`cycleThinkingLevel`/`getAvailableThinkingLevels`/`supportsThinking`、`getActiveToolNames`/`getAllTools`/`getToolDefinition`。
+
+**EM 自定义实现（Pi 无原生等价物，2026-07-31 核对）：**
+- **权限系统**：`permissionService` + `wrapToolWithPermission` + 前端 PermissionPrompt——Pi SDK 无 permissionMode（仅有 `tools`/`excludeTools` 工具开关），"智能判断/手动确认/完全自主"需自行实现
+- **上下文轮转**：compact 计数达 3 次 → 归档旧会话 + 新建会话 + handoff 接力（用原生 compact 摘要 + SessionManager 归档实现）
+- **自动标题**：首条用户消息生成中文标题
+- **事件桥接**：`event-bridge.ts`（Pi 事件 → 前端格式）
+- **流缓存**：bufferedStream（断线恢复）
