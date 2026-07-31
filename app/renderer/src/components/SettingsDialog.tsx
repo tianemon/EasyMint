@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
-import { ProviderForm, ProvidersManager } from "./settings/ProviderSettings";
+import { ProvidersManager } from "./settings/ProviderSettings";
 
 export type SettingsTab = "general" | "plugins" | "providers" | "about";
 

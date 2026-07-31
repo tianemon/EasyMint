@@ -555,7 +555,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       }
     });
     const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; _curAi = 0; busyRef.current = false; lastStatusRef.current = ""; setBusy(false); useStatusStore.getState().setText(""); onActivity?.(); });
-    const unsubCtx = window.electronAPI.agent.onContextUsage(({ percentage }) => { useStatusStore.getState().setCtxPct(percentage); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;

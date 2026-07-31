@@ -109,9 +109,6 @@
   --color-accent-hover: #15803d;
   --color-accent-light: #86efac;
 
-  /* ── Chat bubbles ───────────────── */
-  --color-user-bubble: var(--color-accent);
-  --color-user-bubble-text: var(--color-text-inverse);
   --color-accent-soft: color-mix(in oklab, var(--color-accent) 12%, transparent);
   --color-accent-bg: color-mix(in oklab, var(--color-accent) 10%, transparent);
   --color-accent-subtle: color-mix(in oklab, var(--color-accent) 5%, transparent);
@@ -281,10 +278,6 @@
   --color-accent-high: #2a2a2a;
   --color-accent-border-strong: #3a3a3a;
 
-  /* ── Chat bubbles ───────────────── */
-  --color-user-bubble: #222222;
-  --color-user-bubble-text: #cccccc;
-
   /* ── Semantic — 仅 success 保留绿 ── */
   --color-success: #22c55e;
   --color-success-bg: #0a2e14;
@@ -404,8 +397,6 @@
   font-weight: 600; font-size: var(--text-sm); color: var(--color-text-primary);
   padding: var(--s1) var(--s2); border-radius: var(--radius-sm);
 }
-.sb-proj-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-accent); }
-
 .sb-plus-wrap { position: relative; -webkit-app-region: no-drag; }
 .sb-plus-btn {
   width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
@@ -534,7 +525,6 @@
 .sb-seg-label { font-size: 11px; }
 
 /* ── Divider line ─────────────────────────────── */
-.divider-line { width: 1px; flex-shrink: 0; background: var(--color-divider); }
 
 /* ── Main Area ────────────────────────────────── */
 .main-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--color-content); }

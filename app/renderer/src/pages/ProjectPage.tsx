@@ -11,7 +11,6 @@ import { useTabStore } from "../stores/tab-store";
 import { useTaskStore, type TaskStatus } from "../stores/task-store";
 import { useProjectStatusStore, type ProjectStage } from "../stores/project-status-store";
 import { chatActions } from "../stores/chat-actions";
-import { CONTINUE_NEXT_STEP } from "../../../shared/prompts";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 
 export type ActivePanel = "editor" | "files" | "sessions" | "chat";
@@ -248,20 +247,6 @@ export function ProjectPage(): JSX.Element {
     await window.electronAPI.project.delete(projectIdToDelete);
     setOpenProjectList((prev) => prev.filter((p) => p.id !== projectIdToDelete));
   }, []);
-
-  const handleRelocate = useCallback(async () => {
-    const dir = await window.electronAPI.dialog.openDirectory();
-    if (!dir || !projectId) return;
-    const updated = await window.electronAPI.project.update(projectId, { path: dir });
-    if (updated) {
-      setProjectPath(updated.path);
-      setProjectName(updated.name);
-      setProjectExists(updated.exists ?? false);
-      document.title = `${updated.name} — EasyMint`;
-      window.electronAPI.settings.setLastProject(projectId);
-      refreshAll(updated.path);
-    }
-  }, [projectId, refreshAll]);
 
   const handleBrowseFolder = useCallback(async () => {
     const dir = await window.electronAPI.dialog.openDirectory();

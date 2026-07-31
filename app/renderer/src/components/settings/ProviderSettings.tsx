@@ -1,11 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useSettingsStore } from "../../stores/settings-store";
 import { PLATFORM_PRESETS, getPreset } from "@shared/platform-presets";
 import type { ProviderConfig } from "@shared/platform-presets";
-
-interface PiProviderInfo {
-  id: string; name: string; baseUrl?: string;
-}
 
 interface PiModelInfo {
   id: string; name: string; contextWindow: number;
@@ -28,18 +24,12 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   const [models, setModels] = useState<string[]>(initial?.models || []);
   const [showKey, setShowKey] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
-  const [piModelDetails, setPiModelDetails] = useState<PiModelInfo[]>([]);
-  const [piInfo, setPiInfo] = useState<PiProviderInfo | null>(null);
   const [loadedProvider, setLoadedProvider] = useState<string>("");
 
   // 初始化：编辑已有供应商时自动加载模型列表
   useEffect(() => {
     if (presetId && presetId !== loadedProvider) {
       setLoadedProvider(presetId);
-      window.electronAPI.agent.getPiProviders().then((all) => {
-        const info = all.find((x) => x.id === presetId);
-        if (info) setPiInfo(info);
-      }).catch(() => {});
       loadModels(presetId);
     }
   }, [presetId]);
@@ -48,11 +38,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
     setPresetId(id);
     const p = getPreset(id);
     if (!p) return;
-    // 异步加载 Pi provider 信息和模型列表
-    window.electronAPI.agent.getPiProviders().then((all) => {
-      const info = all.find((x) => x.id === id);
-      if (info) setPiInfo(info);
-    }).catch(() => {});
+    // 异步加载模型列表
     loadModels(id);
   };
 
@@ -60,7 +46,6 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
     setLoadingModels(true);
     try {
       const piModels: PiModelInfo[] = await window.electronAPI.agent.getPiModels(providerId);
-      setPiModelDetails(piModels);
       const ids = piModels.map((m) => m.id);
       setModels(ids);
       if (!model && ids.length > 0 && ids[0]) setModel(ids[0]);
@@ -68,7 +53,6 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
     finally { setLoadingModels(false); }
   };
 
-  const selectedModelDetail = piModelDetails.find((m) => m.id === model);
 
   const handleSave = () => {
     if (!presetId) { alert("请选择平台"); return; }
