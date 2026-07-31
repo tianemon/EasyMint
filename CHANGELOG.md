@@ -1,5 +1,48 @@
 # Changelog
 
+## v0.5.0 (2026-07-31) — v3 UI 全面改版 & 上下文压缩增强
+
+### 🎨 v3 UI 改版
+
+- **布局**：三栏合并为双栏——250px 固定侧边栏 + 主区，纯色差分层（无分割线）
+- **Layer 色彩体系**：L0-L4 层级色（canvas/sidebar/content/card/elevated），阴影代替边框区分
+- **侧边栏**：项目名+菜单（新建/打开/重命名项目/新建窗口）、会话|文件 tabs、底部抽屉（任务/Issue/运行，点击外部关闭）、主题三模式切换
+- **TabBar**：固定宽度、常显关闭按钮、flex 压缩（至 60px 下限）、marquee 滚动（标题超出时）
+- **消息区**：M/U 头像+来源标签、悬浮复制按钮、气泡对齐原型（去边框、阴影分层）
+- **会话列表**：今天/之前/更早分组（7 天边界）、时间移到标题右侧、项目会话圆点/设计会话菱形点
+- **主题切换**：View Transitions 扩散动画（亮→暗左下角圆形揭开，暗→亮右上角）
+- **编辑器**：暖乳白色系（去冷灰/绿）、Monaco 语法高亮 CSS 变量化、markdown 标题标准 token 修正
+- **文件树**：folder/folder-open/file 图标（Lucide），展开状态视觉切换
+
+### 🤖 上下文压缩增强
+
+- **主动压缩**：上下文使用率达到阈值（默认 75%，设置可调）提前触发 compact——不等 Pi 自动压缩（近 100% 时性能已下降）
+- **压缩状态机修复**：type 值不匹配（manual/compact）、compacting 永不清除（会锁死输入框）
+- **轮转链路修复**：前端事件断链（rotate-create 从未广播）、Pi 原生摘要未接入 summaryBuffer（轮转从未真正执行）
+- **轮转进度提示**：归档+新会话期间显示"正在整理并开启新会话..."
+
+### ⚡ 性能
+
+- **消息列表虚拟化**（@tanstack/react-virtual）：长对话 DOM 从数千节点降到 ~30，动态测量
+- **busy 穿透优化**：回合切换时全量重渲染从 N 条降到 1 条
+- **虚拟化 HMR 防御**：容器 state 驱动 + measure 兜底，开发模式热更新不丢状态
+
+### 🔧 修复
+
+- **会话置顶无效**：togglePin 返回 void 导致前端状态未更新
+- **用户气泡布局**：flex 压缩导致逐字换行/位置乱飘（中文 min-content 陷阱）
+- **打开会话不在底部**：虚拟化测量异步 + smooth 动画中断 autoScroll 误判
+- **编辑器绿色调**：monaco 变量亮色全绿 + 主题切换不更新
+- **md 标题红色**：Monaco 内置 markdown 标题 token 是 keyword（已修正为标准 markup.heading）
+- **flushSync 报错**：虚拟化 measureElement 在 commit 阶段触发（useFlushSync: false）
+
+### 🧹 工程
+
+- **死代码清理 4 轮**（-2500+ 行）：v2 遗留组件/页面、快捷命令死链路、safe-path、terminal 死链
+- **lint 全绿**：no-var 26 处、tsc 既有错误、any 类型化
+- **模块拆分**：chat-utils.ts（纯函数层）、rotation.ts（轮转状态机，依赖注入）
+- **Pi SDK 对照表更新**：按实际代码核对，标注自定义实现清单
+
 ## v0.4.1 (2026-07-30) — UI 细节优化 & Mint-D 增强
 
 ### 🎨 UI 细节优化
