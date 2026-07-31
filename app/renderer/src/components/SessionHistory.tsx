@@ -274,7 +274,7 @@ function SessionItemRow({ session, active, editingId, editTitle, onSelect, onCon
       )}
       <div className="flex-1 min-w-0">
         <div className="text-sm truncate">{session.title}</div>
-        <div className="text-xs text-text-secondary mt-0.5">{fmtDate(session.updatedAt)}</div>
+        <div className="sb-item-meta">{fmtDate(session.updatedAt)}</div>
       </div>
       {session.pinnedAt && !isArchived && (
         <svg className="w-3 h-3 text-warning shrink-0 ml-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 3h-2v6h2l-3 3-3-3h2V5H9l3-3z"/></svg>

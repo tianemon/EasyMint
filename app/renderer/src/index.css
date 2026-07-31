@@ -459,6 +459,17 @@
   transition: color 120ms;
 }
 .sb-label-btn:hover { color: var(--color-accent); }
+.sb-item {
+  display: flex; align-items: center; gap: var(--s2);
+  padding: var(--s2) var(--s3); border-radius: var(--radius-sm);
+  font-size: var(--text-sm); color: var(--color-text-secondary); cursor: pointer;
+  transition: all 120ms var(--ease-smooth);
+  border: none; background: transparent; width: 100%; text-align: left;
+}
+.sb-item:hover { background: var(--color-sidebar-hover); color: var(--color-text-primary); }
+.sb-item.active { background: var(--color-sidebar-active); color: var(--color-text-primary); box-shadow: var(--shadow-xs); }
+.sb-item-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.sb-item-meta { font-size: 10px; color: var(--color-text-muted); margin-left: auto; flex-shrink: 0; }
 
 /* ── Drawer ───────────────────────────────────── */
 .sb-drawer {
