@@ -265,14 +265,18 @@ export async function deleteSession(
   }
 }
 
-export function togglePin(id: string): void {
+export function togglePin(id: string): boolean {
   const pinned = readPinned();
+  let nowPinned: boolean;
   if (pinned[id]) {
     delete pinned[id];
+    nowPinned = false;
   } else {
     pinned[id] = Date.now();
+    nowPinned = true;
   }
   writePinned(pinned);
+  return nowPinned;
 }
 
 export function archiveSession(sessionId: string): void {
