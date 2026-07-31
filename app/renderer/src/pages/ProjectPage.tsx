@@ -6,6 +6,7 @@ import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
 import { NewProjectDialog } from "../components/NewProjectDialog";
+import { useProcessStore } from "../stores/process-store";
 import { useTabStore } from "../stores/tab-store";
 import { useTaskStore, type TaskStatus } from "../stores/task-store";
 import { useProjectStatusStore, type ProjectStage } from "../stores/project-status-store";
