@@ -44,6 +44,7 @@ export function SessionHistory({
   hideEmptyState,
 }: SessionHistoryProps): JSX.Element {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
+  const [designIds, setDesignIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -74,6 +75,10 @@ export function SessionHistory({
       .then((data) => { setSessions(data); initialLoadDone.current = true; })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "加载失败"))
       .finally(() => setLoading(false));
+    // 设计会话 ID 集合（区分圆点/菱形点）
+    window.electronAPI.conv.designSessions()
+      .then((ids) => setDesignIds(new Set(ids)))
+      .catch(() => {});
   }, [projectPath]);
 
   useEffect(() => { load(); }, [load]);
@@ -179,7 +184,7 @@ export function SessionHistory({
             <div>
               <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium">置顶</div>
               {pinned.map((s) => (
-                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
+                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
             </div>
           )}
@@ -187,7 +192,7 @@ export function SessionHistory({
             <div>
               <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium">今天</div>
               {today.map((s) => (
-                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
+                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
             </div>
           )}
@@ -195,7 +200,7 @@ export function SessionHistory({
             <div>
               <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium">之前</div>
               {recent.map((s) => (
-                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
+                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
             </div>
           )}
@@ -203,7 +208,7 @@ export function SessionHistory({
             <div>
               <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium">更早</div>
               {older.map((s) => (
-                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
+                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
             </div>
           )}
@@ -222,7 +227,7 @@ export function SessionHistory({
           {showArchive && (
             <div className="absolute bottom-full left-3 right-3 mb-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-surface-elevated shadow-lg">
               {archived.map((s) => (
-                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={(sid) => { onSessionClick?.(sid); setShowArchive(false); }} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
+                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} editingId={editingId} editTitle={editTitle} onSelect={(sid) => { onSessionClick?.(sid); setShowArchive(false); }} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
             </div>
           )}
@@ -264,6 +269,7 @@ export function SessionHistory({
 interface RowProps {
   session: SessionItem;
   active: boolean;
+  isDesign?: boolean;
   editingId: string | null;
   editTitle: string;
   onSelect?: (sessionId: string) => void;
@@ -273,7 +279,7 @@ interface RowProps {
   onCancelEdit: () => void;
 }
 
-function SessionItemRow({ session, active, editingId, editTitle, onSelect, onContextMenu, onEditTitle, onCommitRename, onCancelEdit }: RowProps): JSX.Element {
+function SessionItemRow({ session, active, isDesign, editingId, editTitle, onSelect, onContextMenu, onEditTitle, onCommitRename, onCancelEdit }: RowProps): JSX.Element {
   if (editingId === session.sessionId) {
     return (
       <div className="px-3 py-1 flex gap-1">
@@ -300,7 +306,7 @@ function SessionItemRow({ session, active, editingId, editTitle, onSelect, onCon
       {isArchived ? (
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-3.5 h-3.5 shrink-0 mr-2 text-text-muted"><circle cx="8" cy="8" r="6"/><path d="M8 4v5M8 8l2.5 2.5" strokeLinecap="round"/></svg>
       ) : (
-        <span className={`w-[6px] h-[6px] rounded-full shrink-0 mr-[-2px] ${session.pinnedAt ? "bg-warning" : "bg-accent"}`} />
+        <span className={`w-[6px] h-[6px] shrink-0 mr-[-2px] ${session.pinnedAt ? "bg-warning" : "bg-accent"} ${isDesign ? "rotate-45" : "rounded-full"}`} />
       )}
       <span className="flex-1 min-w-0 truncate text-sm">{session.title}</span>
       <span className="sb-item-meta">{fmtDate(session.updatedAt)}</span>
