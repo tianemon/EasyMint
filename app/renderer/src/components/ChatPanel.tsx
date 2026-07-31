@@ -376,12 +376,23 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   }, []);
 
   // 消息列表虚拟化：只渲染可视区 ± overscan 的消息，长对话时 DOM 从数千节点降到 ~30
+  // HMR 防御：容器元素用 state 驱动（而非 ref）——DOM 重建时 ref 回调触发 setState，
+  // 强制重渲染让 virtualizer 的 _willUpdate 检测到 scrollElement 变化并重新绑定 observer
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  const attachScrollRef = useCallback((el: HTMLDivElement | null) => {
+    containerRef.current = el;
+    setScrollEl(el);
+  }, []);
   const virtualizer = useVirtualizer({
     count: messages.length,
-    getScrollElement: () => containerRef.current,
+    getScrollElement: () => scrollEl,
     estimateSize: () => 100,
     overscan: 8,
   });
+  // 容器变化时兜底重新测量（HMR 重挂后旧测量数据失效）
+  useEffect(() => {
+    if (scrollEl) virtualizer.measure();
+  }, [scrollEl, virtualizer]);
 
   // ── Upload helpers ─────────────────────────────────
 
@@ -784,7 +795,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   return (
     <div className="absolute inset-0 flex flex-col">
-      <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden pb-2">
+      <div ref={attachScrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden pb-2">
         {!hasMessages ? (
           <div className="chat-empty">
             <div className="chat-empty-icon">
