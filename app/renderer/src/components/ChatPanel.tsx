@@ -749,7 +749,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     <div className="absolute inset-0 flex flex-col">
       <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden pb-2">
         {!hasMessages ? (
-          <div className="flex items-center justify-center h-full"><p className="text-sm text-text-secondary">开始对话，让 Mint 帮你开发项目。</p></div>
+          <div className="chat-empty">
+            <div className="chat-empty-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M8 9h8M8 13h6"/></svg>
+            </div>
+            <h1 className="chat-empty-title">开始对话</h1>
+            <p className="chat-empty-desc">描述你想做什么，Mint 会帮你完成。</p>
+          </div>
         ) : (
           <div className="p-4 space-y-3">
             {messages.map((msg) => (

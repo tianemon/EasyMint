@@ -683,6 +683,26 @@
 }
 .settings-close:hover { background: var(--color-sidebar-hover); color: var(--color-text-primary); }
 
+/* ── Chat Empty ─────────────────────────────── */
+.chat-empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: var(--s6);
+  padding: var(--s12) var(--s8);
+}
+.chat-empty-icon {
+  width: 44px; height: 44px; border-radius: var(--radius-md);
+  background: var(--color-card-agent); display: flex;
+  align-items: center; justify-content: center; color: var(--color-accent);
+}
+.chat-empty-title {
+  font-size: var(--text-xl); font-weight: 700; color: var(--color-text-primary);
+  text-align: center; line-height: 1.2;
+}
+.chat-empty-desc {
+  font-size: var(--text-base); color: var(--color-text-muted);
+  text-align: center; max-width: 440px;
+}
+
 /* ═══════════════════════════════════════════════════════
    End v3 Layout
    ═══════════════════════════════════════════════════════ */
