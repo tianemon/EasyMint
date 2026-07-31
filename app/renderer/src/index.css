@@ -500,7 +500,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 0; }
 .sb-foot-btn {
   display: flex; align-items: center; justify-content: center;
   padding: var(--s2); border-radius: var(--radius-sm);
-  font-size: var(--text-xs); color: var(--color-text-muted); cursor: pointer;
+  font-size: var(--text-xs); color: var(--color-text-secondary); cursor: pointer;
   transition: all 120ms var(--ease-smooth);
   border: none; background: transparent; min-height: 32px; position: relative;
 }
@@ -508,7 +508,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 0; }
   content: ""; position: absolute; top: 4px; right: 4px;
   width: 5px; height: 5px; border-radius: 50%; background: var(--color-danger);
 }
-.sb-foot-btn:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); }
+.sb-foot-btn:hover { color: var(--color-text-primary); background: var(--color-sidebar-hover); }
 
 .sb-seg-control {
   display: flex; flex: 1;
