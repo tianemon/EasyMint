@@ -144,11 +144,8 @@ export async function listSessions(projectPath: string): Promise<SessionListItem
   const pinned = readPinned();
   const archived = readArchived();
   const titles = readTitles();
-  const designIds = getDesignSessionIds();
-
   return sortSessions(
     sessions
-      .filter((s) => !designIds.has(s.id))
       .map((s) => toListItem(s, pinned, archived, titles))
   );
 }

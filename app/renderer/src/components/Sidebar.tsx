@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
 import { SessionHistory } from "./SessionHistory";
-import { DesignSessionList } from "./DesignSessionList";
 import { FileTreePanel } from "./FileTreePanel";
 import { TaskPanel } from "./TaskPanel";
 import { IssuePanel } from "./IssuePanel";
@@ -125,17 +124,6 @@ export function Sidebar({
               activeSessionId={activeSessionId}
               refreshKey={sessionRefreshKey}
               hideNewButton
-              hideEmptyState
-            />
-            <DesignSessionList
-              projectPath={projectPath}
-              onSessionClick={onSessionClick}
-              onNewDesignSession={onNewDesignSession}
-              onSessionDelete={onSessionDelete}
-              activeSessionId={activeSessionId}
-              refreshKey={sessionRefreshKey}
-              hideNewButton
-              hideEmptyState
             />
           </div>
         ) : (
