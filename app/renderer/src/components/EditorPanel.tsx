@@ -3,6 +3,7 @@ import Editor, { loader, type OnMount } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import type { editor } from "monaco-editor";
 import { useTabStore } from "../stores/tab-store";
+import { conf as mdConf, language as mdLanguage } from "../lib/markdown-monarch";
 
 // Load Monaco from local bundle, not CDN.
 // Worker loading handled by @dvaji/vite-plugin-monaco-editor
@@ -18,33 +19,6 @@ function readCSS(name: string): string {
   // Monaco 不接受 3 位 hex（如 #ccc），自动展开为 6 位
   const m = /^#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$/.exec(raw);
   return m ? `#${m[1]}${m[1]}${m[2]}${m[2]}${m[3]}${m[3]}` : raw;
-}
-
-/**
- * 修正 Monaco 内置 markdown 的标题 token（标准做法）：
- * 内置 monarch 语法把标题映射为 keyword（markdown.js:58），非标准。
- * 导入内置定义后把标题规则的 keyword 改为 markup.heading，
- * 主题里给 markup.heading 单独上正文色——标题、keyword 各归各色。
- */
-function fixMarkdownHeadingTokens(): void {
-  // @ts-expect-error monaco 内置语言定义无类型声明
-  import("monaco-editor/esm/vs/languages/definitions/markdown/markdown.js").then(({ conf, language }) => {
-    const fixed = {
-      ...language,
-      tokenizer: {
-        ...language.tokenizer,
-        root: language.tokenizer.root.map((rule: unknown) => {
-          // 标题规则特征：数组且含 keyword token（唯一的数组规则）
-          if (Array.isArray(rule) && Array.isArray(rule[1]) && rule[1].includes("keyword")) {
-            return [rule[0], rule[1].map((t: string) => (t === "keyword" ? "markup.heading" : t))];
-          }
-          return rule;
-        }),
-      },
-    };
-    monaco.languages.setMonarchTokensProvider("markdown", fixed);
-    monaco.languages.setLanguageConfiguration("markdown", conf);
-  });
 }
 
 function buildMonacoTheme(): editor.IStandaloneThemeData {
@@ -203,7 +177,9 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
           value={content}
           loading={<div className="flex items-center justify-center h-full text-text-secondary text-sm">加载中…</div>}
           beforeMount={(monaco) => {
-            fixMarkdownHeadingTokens();
+            // 使用本地修正版 markdown 定义（标题 token = markup.heading）
+            monaco.languages.setMonarchTokensProvider("markdown", mdLanguage);
+            monaco.languages.setLanguageConfiguration("markdown", mdConf);
             monaco.editor.defineTheme("easymint", buildMonacoTheme());
           }}
           onMount={handleMount}
