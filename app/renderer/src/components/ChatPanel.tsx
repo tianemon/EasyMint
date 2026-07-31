@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { StreamEntry, TextEntry } from "./StreamPanel";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { chatActions } from "../stores/chat-actions";
@@ -374,6 +375,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     autoScrollRef.current = distFromBottom < 8;
   }, []);
 
+  // 消息列表虚拟化：只渲染可视区 ± overscan 的消息，长对话时 DOM 从数千节点降到 ~30
+  const virtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => 100,
+    overscan: 8,
+  });
+
   // ── Upload helpers ─────────────────────────────────
 
   const uploadFiles = useCallback(async (files: FileList | File[], kind: "image" | "doc") => {
@@ -737,7 +746,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   function UserBubble({ msg }: { msg: ChatMessage }): JSX.Element {
     return (
-      <div className="flex gap-4 items-start max-w-[75%] w-fit">
+      /* 宽度钳制由外层 relative（shrink-0 max-w-[75%]）负责；
+         此处不再设 max-w/w-fit，避免相对 fit-content 层的循环依赖导致短文本被压窄 */
+      <div className="flex gap-4 items-start">
         <div className="rounded-[10px] rounded-br-[4px] px-[14px] py-1.5 text-sm leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]" style={{ background: 'var(--color-accent)', color: 'var(--color-text-inverse)', boxShadow: 'var(--msg-user-shadow)' }}>
           {msg.attaches && msg.attaches.length > 0 && (
             <div className="flex gap-1.5 mb-2 flex-wrap">
@@ -783,17 +794,30 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             <p className="chat-empty-desc">描述你想做什么，Mint 会帮你完成。</p>
           </div>
         ) : (
-          <div className="px-8 py-4 space-y-3">
-            {messages.map((msg) => (
-              <MemoChatMessage
-                key={msg.id}
-                msg={msg}
-                showThinking={showThinking}
-                showToolUse={showToolUse}
-                busy={busy}
-                userBubble={userBubble}
-              />
-            ))}
+          <div className="px-8 py-4">
+            {/* 虚拟化消息列表：absolute 定位 + translateY，测量高度撑起滚动空间 */}
+            <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+              {virtualizer.getVirtualItems().map((vi) => {
+                const msg = messages[vi.index]!;
+                return (
+                  <div
+                    key={vi.key}
+                    data-index={vi.index}
+                    ref={virtualizer.measureElement}
+                    style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vi.start}px)` }}
+                    className="pb-3"
+                  >
+                    <MemoChatMessage
+                      msg={msg}
+                      showThinking={showThinking}
+                      showToolUse={showToolUse}
+                      busy={vi.index === messages.length - 1 && busy}
+                      userBubble={userBubble}
+                    />
+                  </div>
+                );
+              })}
+            </div>
             {showNewProjectBtn && (
               <div className="flex justify-center pb-3">
                 <button
@@ -939,7 +963,9 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
     return (
       <div className="msg-in group">
         <div className="flex justify-end">
-          <div className="relative">
+          {/* shrink-0：flex 子项不被压缩（中文 min-content 是单字，压缩会逐字换行）；
+             max-w-[75%]：超长文本钳制宽度后由内部 overflow-wrap 换行 */}
+          <div className="relative shrink-0 max-w-[75%] min-w-0">
             {userBubble(msg)}
             <CopyBubbleBtn text={copyText} />
           </div>

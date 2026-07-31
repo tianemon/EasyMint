@@ -27,6 +27,7 @@
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@monaco-editor/react": "^4.7.0",
     "@oh-my-pi/pi-natives": "^17.1.7",
+    "@tanstack/react-virtual": "^3.14.9",
     "electron-updater": "^6.8.9",
     "marked": "^18.0.7",
     "react": "^19.2.8",
