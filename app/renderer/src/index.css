@@ -526,7 +526,10 @@
   display: flex; align-items: center; justify-content: center; gap: 4px;
 }
 .sb-seg-btn:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); }
+.sb-seg-btn:hover svg { transform: scale(1.12); }
+.sb-seg-btn svg { transition: transform 120ms var(--ease-smooth); }
 .sb-seg-btn.active { color: var(--color-text-primary); background: var(--color-sidebar-active); box-shadow: var(--shadow-xs); }
+.sb-seg-btn.active svg { stroke-width: 2.4; } /* 选中态图标加粗 */
 .sb-seg-btn + .sb-seg-btn { border-left: 1px solid var(--color-border); }
 .sb-seg-label { font-size: 11px; }
 
@@ -734,6 +737,44 @@
 /* ═══════════════════════════════════════════════════════
    End v3 Layout
    ═══════════════════════════════════════════════════════ */
+
+/* ── Theme transition ────────────────────────────── */
+/* 主题切换瞬间由 theme-store 临时添加，250ms 内颜色平滑过渡，平时无开销 */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color 250ms ease, color 250ms ease, border-color 250ms ease,
+    fill 250ms ease, stroke 250ms ease, box-shadow 250ms ease;
+}
+
+/* View Transitions 扩散动画：切换期间冻结元素自身 transition，保证快照为纯新主题 */
+.theme-vt-freeze *,
+.theme-vt-freeze *::before,
+.theme-vt-freeze *::after {
+  transition: none !important;
+}
+::view-transition-old(root) {
+  animation: none;
+  mix-blend-mode: normal; /* 覆盖默认 plus-lighter，避免全像素混合开销 */
+}
+/* clip-path 圆形揭开式扩散；mix-blend-mode: normal 去掉昂贵混合 */
+::view-transition-new(root) {
+  animation: theme-wipe-left 450ms cubic-bezier(0.4, 0, 0.2, 1);
+  mix-blend-mode: normal;
+}
+/* 新主题为亮色 → 从右上角展开（暗色从左下角收回） */
+html[data-theme="light"]::view-transition-new(root) {
+  animation: theme-wipe-right 450ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes theme-wipe-left {
+  from { clip-path: circle(0% at 0% 100%); }
+  to   { clip-path: circle(150% at 0% 100%); }
+}
+@keyframes theme-wipe-right {
+  from { clip-path: circle(0% at 100% 0%); }
+  to   { clip-path: circle(150% at 100% 0%); }
+}
 
 /* ── Focus ring ──────────────────────────────────── */
 *:focus-visible {

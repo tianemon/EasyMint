@@ -23,6 +23,31 @@ function applyDataTheme(mode: ThemeMode): void {
   document.documentElement.setAttribute("data-theme", resolveEffective(mode));
 }
 
+// 主题切换扩散动画（View Transitions）：
+//  - 切换前冻结元素自身的 transition，保证快照捕获的是纯新主题画面
+//  - startViewTransition 捕获新旧快照，新画面 clip-path 从角落扩散
+//  - 无 startViewTransition 支持时兜底为颜色平滑过渡
+function switchTheme(mode: ThemeMode): void {
+  const root = document.documentElement;
+  const apply = () => applyDataTheme(mode);
+  const svt = (document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } }).startViewTransition;
+  if (typeof svt === "function") {
+    root.classList.add("theme-vt-freeze");
+    const vt = svt.call(document, apply);
+    if (vt?.finished) {
+      vt.finished.then(() => root.classList.remove("theme-vt-freeze")).catch(() => root.classList.remove("theme-vt-freeze"));
+    } else {
+      // 无 finished promise（理论不发生），直接移除
+      root.classList.remove("theme-vt-freeze");
+    }
+  } else {
+    // 兜底：无 View Transitions 时用颜色过渡
+    root.classList.add("theme-transition");
+    apply();
+    window.setTimeout(() => root.classList.remove("theme-transition"), 300);
+  }
+}
+
 interface ThemeState {
   mode: ThemeMode;
   effective: "light" | "dark";
@@ -43,7 +68,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
   setMode: (m: ThemeMode) => {
     try { localStorage.setItem(STORAGE_KEY, m); } catch { /* */ }
-    applyDataTheme(m);
+    switchTheme(m);
     set({ mode: m, effective: resolveEffective(m) });
   },
 }));
@@ -59,7 +84,7 @@ export function initTheme(): void {
   mq.addEventListener("change", () => {
     const s = useThemeStore.getState();
     if (s.mode === "auto") {
-      applyDataTheme("auto");
+      switchTheme("auto");
       useThemeStore.setState({ effective: resolveEffective("auto") });
     }
   });
@@ -68,7 +93,7 @@ export function initTheme(): void {
   window.addEventListener("storage", (e) => {
     if (e.key === STORAGE_KEY) {
       const m = (e.newValue || "auto") as ThemeMode;
-      applyDataTheme(m);
+      switchTheme(m);
       useThemeStore.setState({ mode: m, effective: resolveEffective(m) });
     }
   });
