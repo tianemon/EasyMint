@@ -394,11 +394,6 @@
   user-select: none; -webkit-user-select: none;
 }
 .sb-drag-strip { height: 50px; flex-shrink: 0; position: relative; }
-.sb-traffic-lights { position: absolute; top: 18px; left: 14px; display: flex; gap: 8px; -webkit-app-region: no-drag; }
-.sb-tl { width: 12px; height: 12px; border-radius: 50%; display: block; }
-.sb-tl-close { background: #ed6a5e; }
-.sb-tl-min { background: #f5bd4f; }
-.sb-tl-max { background: #61c454; }
 
 .sb-project-area {
   display: flex; align-items: center; justify-content: space-between;

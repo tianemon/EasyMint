@@ -60,14 +60,8 @@ export function Sidebar({
 
   return (
     <aside className="sidebar">
-      {/* Drag strip + macOS traffic lights */}
-      <div className="sb-drag-strip">
-        <div className="sb-traffic-lights">
-          <span className="sb-tl sb-tl-close" />
-          <span className="sb-tl sb-tl-min" />
-          <span className="sb-tl sb-tl-max" />
-        </div>
-      </div>
+      {/* Drag strip — macOS 窗口按钮由系统渲染，此处仅占位 */}
+      <div className="sb-drag-strip" />
 
       {/* Project name + actions */}
       <div className="sb-project-area">
