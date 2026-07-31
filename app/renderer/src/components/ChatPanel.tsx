@@ -640,8 +640,20 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
+  // 打开会话（0 → N 条）：instant 强制贴底。
+  // 不用 smooth：滚动动画中途 handleScroll 会把 autoScrollRef 置 false，
+  // 导致测量完成后的校正滚动被跳过（停在距底部几条的位置）。
+  const prevMsgCountRef = useRef(0);
+  useEffect(() => {
+    if (messages.length > 0 && prevMsgCountRef.current === 0) {
+      const el = containerRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    }
+    prevMsgCountRef.current = messages.length;
+  }, [messages]);
+
   // 虚拟化测量是异步的：messages 加载后的首次滚动发生在 totalSize 还是估算值时，
-  // 测量完成后需再贴底一次（打开会话/流式增长时总高度变大）
+  // 测量完成后需再贴底一次（流式增长时总高度变大）
   useEffect(() => {
     if (autoScrollRef.current) scrollToBottom();
   }, [virtualizer.getTotalSize(), scrollToBottom]);
