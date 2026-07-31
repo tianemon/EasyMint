@@ -192,7 +192,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
             lineNumbersMinChars: 5,
             // 行号与代码间距 = lineDecorationsWidth(默认10) + folding(16) = 26px
             // 收紧：装饰区 0（折叠箭头保留，间距 16px）
-            lineDecorationsWidth: 0,
+            lineDecorationsWidth: 6,
             minimap: { enabled: false },
             scrollBeyondLastLine: false,
             wordWrap: "on",
