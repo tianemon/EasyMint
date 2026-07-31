@@ -58,6 +58,7 @@ interface StreamEvent {
 }
 
 interface ElectronAPI {
+  platform: string;
   window: {
     openProject: (projectId: string, sessionId?: string, init?: boolean) => Promise<void>;
     newWindow: () => Promise<void>;

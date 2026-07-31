@@ -391,6 +391,8 @@
   user-select: none; -webkit-user-select: none;
 }
 .sb-drag-strip { height: 50px; flex-shrink: 0; position: relative; }
+/* Windows 有系统标题栏（titleBarStyle 仅 macOS 生效），拖拽区高度归零 */
+html[data-platform="win32"] .sb-drag-strip { height: 0; }
 
 .sb-project-area {
   display: flex; align-items: center; justify-content: space-between;
