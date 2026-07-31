@@ -229,6 +229,14 @@
   --color-divider: #e5e5e0;
   --color-accent-ring: rgba(22,163,74,0.22);
 
+  /* ── Typography v3 ───────────────── */
+  --text-2xs: 0.625rem; --text-xs: 0.75rem; --text-sm: 0.8125rem;
+  --text-base: 0.9375rem; --text-lg: 1.125rem; --text-xl: 1.5rem;
+  --leading-tight: 1.2; --leading-normal: 1.55;
+
+  /* ── Spacing (4px grid) ──────────── */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s6: 24px; --s8: 32px; --s12: 48px; --s16: 64px;
+
   /* ── Animation ───────────────────── */
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
   --anim-fast: 150ms;
