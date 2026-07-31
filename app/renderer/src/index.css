@@ -549,10 +549,11 @@
   overflow: hidden; white-space: nowrap;
   font-size: var(--text-xs); font-weight: 500; color: var(--color-text-muted);
   cursor: pointer; border: none; background: var(--color-tab-active);
+  border-radius: var(--radius-sm); /* 选中/未选中圆角统一 */
   transition: color 120ms var(--ease-smooth);
   -webkit-app-region: no-drag;
 }
-.tab-v3:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); border-radius: var(--radius-sm); }
+.tab-v3:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); }
 .tab-v3.active {
   color: var(--color-text-primary); font-weight: 600;
   background: transparent;
