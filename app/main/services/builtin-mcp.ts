@@ -4,7 +4,7 @@
  * 工具执行逻辑在此定义，API 客户端在 api-clients.ts。
  */
 
-import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { app } from "electron";
 import { broadcast } from "./ipc-broadcast";
