@@ -33,6 +33,8 @@ function buildMonacoTheme(): editor.IStandaloneThemeData {
       { token: "number", foreground: readCSS("--color-code-num") },
       { token: "type", foreground: readCSS("--color-code-type") },
       { token: "function", foreground: readCSS("--color-code-fn") },
+      // Markdown 标题不继承 keyword 红——用正文色（GitHub 风格）
+      { token: "markup.heading", foreground: readCSS("--color-text-primary") },
     ],
     colors: {
       "editor.background": readCSS("--color-monaco-bg"),
