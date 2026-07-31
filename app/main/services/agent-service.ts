@@ -30,7 +30,8 @@ import {
 import type { AgentSession, AgentSessionEvent } from "./pi-sdk";
 import type { Model } from "@earendil-works/pi-ai";
 import { randomUUID } from "node:crypto";
-import { archiveSession, renameSession, hasCustomTitle } from "./session-service";
+import { renameSession, hasCustomTitle } from "./session-service";
+import { MAX_COMPACT, finishRotation, type RotationState } from "./rotation";
 import { DESIGNER_AGENT_PROMPT } from "../../shared/prompts";
 
 // ── 类型 ────────────────────────────────────────────
@@ -41,7 +42,7 @@ interface ActiveRun {
   abortController: AbortController;
 }
 
-interface ActiveChat {
+export interface ActiveChat extends RotationState {
   chatId: string;
   sessionId: string;
   session: AgentSession | null;
@@ -53,18 +54,7 @@ interface ActiveChat {
   firstUserMessage: string;
   assistantUuid: string;
   eventBuffer: PiChatEvent[];
-  /** 本会话已 compact 次数。超过 MAX_COMPACT 触发轮转归档 */
-  compactCount: number;
-  /** 上下文状态：normal | summarizing | rotated */
-  contextStatus: "normal" | "summarizing" | "rotated";
-  /** 轮转时积累的摘要文本 */
-  summaryBuffer: string;
-  /** 轮转后新会话的 handoff 信息 */
-  rotationContinuation: string;
 }
-
-/** 单会话最大 compact 次数，超过则归档旧会话、开启新会话 */
-const MAX_COMPACT = 3;
 
 /** 记录各 session 的 agent 类型 */
 const sessionAgentTypes = new Map<string, string>();
@@ -268,7 +258,14 @@ export class AgentService {
 
         // ── 轮转收尾：summarizing 完成 → 归档 + 新会话 ──
         if (chat && chat.contextStatus === "summarizing") {
-          await this.finishRotation(chat, session, sessionId);
+          await finishRotation(chat, session, sessionId, {
+            store: this.store,
+            getModel: () => this.getModel(this.store),
+            getAgentDir: () => this.getAgentDir(),
+            buildSystemPrompt: (p, d) => this.buildSystemPrompt(p, d),
+            buildExtraTools: (p, s) => this.buildExtraTools(p, s),
+            promptAndBridge: (sess, sid, cid, text, c) => this.promptAndBridge(sess, sid, cid, text, c),
+          });
           return; // 轮转完成，不继续
         }
       }
@@ -278,88 +275,6 @@ export class AgentService {
       broadcast("agent:exit", { runId: chatId, code: -1 });
     } finally {
       unsub();
-    }
-  }
-
-  /** 轮转：归档旧会话 → 创建新会话 → 注入摘要 → 继续 */
-  private async finishRotation(
-    chat: ActiveChat,
-    oldSession: AgentSession,
-    oldSessionId: string,
-  ): Promise<void> {
-    const summary = chat.summaryBuffer;
-    if (!summary) {
-      console.log("[agent] rotation: no summary, skipping");
-      chat.contextStatus = "normal";
-      chat.compactCount = 0;
-      return;
-    }
-
-    // 轮转进度提示（归档+建新会话约 1-2s，避免用户误以为卡死）
-    broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "summarizing" });
-
-    chat.contextStatus = "rotated";
-    broadcast("agent:context-summary", { chatId: chat.chatId, summary });
-
-    // 归档旧会话
-    try {
-      archiveSession(oldSessionId);
-      console.log(`[agent] rotation: archived ${oldSessionId}`);
-    } catch (e) {
-      console.error("[agent] rotation: archive failed", e);
-    }
-
-    // 创建新 Pi 会话
-    const model = await this.getModel(this.store);
-    if (!model) {
-      broadcast("agent:stream", {
-        type: "error", sessionId: oldSessionId, chatId: chat.chatId,
-        message: "上下文轮转失败：未配置 AI 模型", canRetry: false,
-      });
-      return;
-    }
-
-    try {
-      const continuation = chat.rotationContinuation || "继续推进项目";
-      const handoffPrompt = `[系统消息] 这是从上一轮会话迁移过来的项目上下文。请从这个断点继续工作。
-
-<previous_session_summary>
-${summary}
-</previous_session_summary>
-
-请检查项目当前状态，然后用自然的语气对用户说一句话作为开场，告诉用户会话已整理完毕，接下来继续做什么。开场白以"${continuation}"结尾。`;
-
-      const newSession = await createPiSession({
-        cwd: chat.projectPath,
-        agentDir: this.getAgentDir(),
-        model,
-        store: this.store,
-        systemPrompt: this.buildSystemPrompt(chat.projectPath, chat.agentType === "designer"),
-        extraTools: await this.buildExtraTools(chat.projectPath, chat.sessionId),
-      });
-
-      // 更新 chat 引用
-      oldSession.dispose();
-      chat.session = newSession;
-      chat.sessionId = newSession.sessionId;
-      chat.compactCount = 0;
-      chat.contextStatus = "normal";
-      chat.summaryBuffer = "";
-      chat.rotationContinuation = "";
-
-      broadcast("agent:chat-session", { chatId: chat.chatId, sessionId: newSession.sessionId });
-      broadcast("agent:context-rotated", { chatId: chat.chatId, sessionId: newSession.sessionId });
-
-      // 在新会话中发送 handoff
-      await this.promptAndBridge(newSession, newSession.sessionId, chat.chatId, handoffPrompt, chat);
-    } catch (e) {
-      console.error("[agent] rotation: new session creation failed", e);
-      // 失败时清除轮转提示，避免状态卡住
-      broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "done" });
-      broadcast("agent:stream", {
-        type: "error", sessionId: oldSessionId, chatId: chat.chatId,
-        message: `上下文轮转失败: ${(e as Error).message}`, canRetry: false,
-      });
     }
   }
 
