@@ -590,7 +590,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "auto", isDesigner: tab?.isDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium" });
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
     } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; useStatusStore.getState().setText("发送失败，请检查网络后重试"); }
-  }, [busy, attaches, projectPath, permissionMode]);
+  }, [busy, attaches, projectPath, permissionMode, thinkingLevel]);
 
   useEffect(() => { chatActions.register((t: string) => sendText(t)); return () => chatActions.unregister(); }, [sendText]);
 
