@@ -563,11 +563,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         useStatusStore.getState().setText(label);
         lastStatusRef.current = label;
       }
-      // compaction UI
+      // compaction UI — compacting 事件 = 压缩进行中（显示"正在整理会话..."）
       if (event.type === "compacting") {
-        useStatusStore.getState().setSummarizing(true);
+        useStatusStore.getState().setCompacting(true);
       }
+      // compacted = 压缩完成：清除 compacting（触发"会话已整理完毕"提示），
+      // 并兜底清除 summarizing（防御轮转总结路径的残留）
       if (event.type === "compacted") {
+        useStatusStore.getState().setCompacting(false);
         useStatusStore.getState().setSummarizing(false);
       }
       // error

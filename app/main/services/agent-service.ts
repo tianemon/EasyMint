@@ -782,7 +782,7 @@ ${summary}
   async compact(sessionId: string, instructions?: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
     if (chat?.session) {
-      broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "manual" });
+      broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "compact" });
       await chat.session.compact(instructions);
     }
   }
