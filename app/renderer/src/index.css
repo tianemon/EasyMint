@@ -52,9 +52,26 @@
   --color-editor-line-highlight: #e8f5ee;
   --color-terminal-bg: #0d1f17;
   --color-terminal-text: #e0f0e8;
+  /* ── v3 Layer tokens（Tailwind 编译期默认值，:root 覆盖）── */
+  --color-canvas: #e8e8e4;
+  --color-sidebar: #ededeb;
+  --color-sidebar-hover: #e5e5e1;
+  --color-sidebar-active: #f6f6f3;
+  --color-content: #fafaf8;
+  --color-card: #ffffff;
+  --color-card-agent: #f3f6f3;
+  --color-elevated: #ffffff;
+  --color-input-field: #f5f5f2;
+  --color-tab-active: #f1f1ee;
+  --color-divider: #e5e5e0;
+  --color-accent-ring: rgba(22,163,74,0.22);
   --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 14px rgba(0,0,0,0.07);
+  --shadow-lg: 0 8px 28px rgba(0,0,0,0.10);
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
   --ease-mint-ease: cubic-bezier(0.4, 0, 0.2, 1);
@@ -181,10 +198,13 @@
   --radius-full: 9999px;
 
   /* ── Shadow ──────────────────────── */
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
-  --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 14px rgba(0,0,0,0.07);
+  --shadow-lg: 0 8px 28px rgba(0,0,0,0.10);
   --shadow-xl: 0 12px 40px rgba(0,0,0,0.16);
+  --msg-agent-shadow: 0 1px 4px rgba(0,0,0,0.07),0 0 0 1px rgba(0,0,0,0.03);
+  --msg-user-shadow: 0 2px 8px rgba(0,0,0,0.12),0 0 0 1px rgba(0,0,0,0.04);
 
   /* ── Font ────────────────────────── */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -194,6 +214,20 @@
   --font-size-base: 1rem;
   --font-size-lg: 1.125rem;
 
+
+  /* ── v3 Layer tokens ─────────────── */
+  --color-canvas: #e8e8e4;
+  --color-sidebar: #ededeb;
+  --color-sidebar-hover: #e5e5e1;
+  --color-sidebar-active: #f6f6f3;
+  --color-content: #fafaf8;
+  --color-card: #ffffff;
+  --color-card-agent: #f3f6f3;
+  --color-elevated: #ffffff;
+  --color-input-field: #f5f5f2;
+  --color-tab-active: #f1f1ee;
+  --color-divider: #e5e5e0;
+  --color-accent-ring: rgba(22,163,74,0.22);
 
   /* ── Animation ───────────────────── */
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
@@ -309,6 +343,28 @@
   /* ── Code block ────────────────── */
   --color-code-block-bg: #2a2a2a;
   --color-code-block-header: #363636;
+
+  /* ── v3 Layer tokens（暗色反向：L0 最暗 → L4 最亮）── */
+  --color-canvas: #0a0a0a;
+  --color-sidebar: #0f0f0f;
+  --color-sidebar-hover: #181818;
+  --color-sidebar-active: #1c1c1c;
+  --color-content: #0c0c0c;
+  --color-card: #141414;
+  --color-card-agent: #161616;
+  --color-elevated: #1c1c1c;
+  --color-input-field: #131313;
+  --color-tab-active: #1c1c1c;
+  --color-divider: #1e1e1e;
+
+  /* 暗色阴影补偿 — inset 顶高光 */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
+  --shadow-md: 0 4px 18px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
+  --shadow-lg: 0 12px 36px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.08);
+  --shadow-xl: 0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+  --msg-agent-shadow: 0 1px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
+  --msg-user-shadow: 0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
 /* ── Dark mode overrides ──────────────────────────────── */
