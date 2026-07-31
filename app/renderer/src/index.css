@@ -168,18 +168,18 @@
   --color-editor-gutter-bg: #f1f3f5;
   --color-editor-line-highlight: #e2e8f0;
 
-  /* ── Monaco（中性，对齐 editor-*）── */
-  --color-monaco-bg: #fafbfc;
+  /* ── Monaco（暖乳白色系，对齐 v3 层级）── */
+  --color-monaco-bg: #fafaf8;
   --color-monaco-fg: #374151;
-  --color-monaco-line-highlight: #f0f0ee;
+  --color-monaco-line-highlight: #f0f0ec;
   --color-monaco-selection: #bfdbfe;
-  --color-monaco-inactive-selection: #e5e7eb;
-  --color-monaco-gutter-bg: #f1f3f5;
+  --color-monaco-inactive-selection: #e5e5e0;
+  --color-monaco-gutter-bg: #f4f4f0;
   --color-monaco-widget-bg: #ffffff;
   --color-monaco-widget-border: #d1d5db;
   --color-monaco-focus: var(--color-accent);
   --color-monaco-cursor: var(--color-accent);
-  --color-monaco-line-number: #9CA3AF;
+  --color-monaco-line-number: #a3a39d;
   --color-monaco-line-number-active: var(--color-accent);
 
   /* ── Terminal ────────────────────── */
