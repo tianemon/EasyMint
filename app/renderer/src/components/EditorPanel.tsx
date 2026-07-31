@@ -20,7 +20,12 @@ function readCSS(name: string): string {
   return m ? `#${m[1]}${m[1]}${m[2]}${m[2]}${m[3]}${m[3]}` : raw;
 }
 
-function buildMonacoTheme(): editor.IStandaloneThemeData {
+/**
+ * 构建 Monaco 主题。Monaco 内置 markdown 的标题 token 就是 keyword
+ * （markup.heading 规则不匹配），所以 md 文件用 keywordOverride 主题，
+ * 让标题显示正文色而非代码 keyword 色。
+ */
+function buildMonacoTheme(keywordOverride?: string): editor.IStandaloneThemeData {
   const isDark = document.documentElement.getAttribute("data-theme") === "dark";
   return {
     base: isDark ? "vs-dark" : "vs",
@@ -28,13 +33,11 @@ function buildMonacoTheme(): editor.IStandaloneThemeData {
     // 语法高亮走 --color-code-* 语义变量（亮暗两套自动适配，与代码块统一）
     rules: [
       { token: "comment", foreground: readCSS("--color-code-cm"), fontStyle: "italic" },
-      { token: "keyword", foreground: readCSS("--color-code-kw") },
+      { token: "keyword", foreground: keywordOverride ?? readCSS("--color-code-kw") },
       { token: "string", foreground: readCSS("--color-code-str") },
       { token: "number", foreground: readCSS("--color-code-num") },
       { token: "type", foreground: readCSS("--color-code-type") },
       { token: "function", foreground: readCSS("--color-code-fn") },
-      // Markdown 标题不继承 keyword 红——用正文色（GitHub 风格）
-      { token: "markup.heading", foreground: readCSS("--color-text-primary") },
     ],
     colors: {
       "editor.background": readCSS("--color-monaco-bg"),
@@ -84,6 +87,8 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
   const [saved, setSaved] = useState(false);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const dirtyRef = useRef(false);
+  // md 文档用独立主题（标题显示正文色，Monaco 内置 md 标题 token 是 keyword）
+  const isMd = !!fileName && /\.mdx?$/i.test(fileName);
 
   // 主题切换时重建 Monaco 主题（buildMonacoTheme 只在挂载时构建一次，
   // data-theme 变化后需重新 defineTheme + setTheme 才生效）
@@ -91,12 +96,13 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
     const root = document.documentElement;
     const rebuild = () => {
       monaco.editor.defineTheme("easymint", buildMonacoTheme());
-      monaco.editor.setTheme("easymint");
+      monaco.editor.defineTheme("easymint-md", buildMonacoTheme(readCSS("--color-text-primary")));
+      monaco.editor.setTheme(isMd ? "easymint-md" : "easymint");
     };
     const observer = new MutationObserver(rebuild);
     observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
     return () => observer.disconnect();
-  }, []);
+  }, [isMd]);
 
   // Load file content
   useEffect(() => {
@@ -170,10 +176,11 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
           loading={<div className="flex items-center justify-center h-full text-text-secondary text-sm">加载中…</div>}
           beforeMount={(monaco) => {
             monaco.editor.defineTheme("easymint", buildMonacoTheme());
+            monaco.editor.defineTheme("easymint-md", buildMonacoTheme(readCSS("--color-text-primary")));
           }}
           onMount={handleMount}
           onChange={handleChange}
-          theme="easymint"
+          theme={isMd ? "easymint-md" : "easymint"}
           options={{
             fontSize: 13,
             fontFamily: "'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace",
