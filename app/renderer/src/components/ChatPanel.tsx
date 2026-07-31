@@ -285,7 +285,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         const buffered = await window.electronAPI.agent.getBufferedStream(existingSid);
         if (!cancelled && buffered.length > 0) {
           for (const raw of buffered) {
-            const ev = raw as any;
+            const ev = raw as StreamEvent;
             const entries = mergeConsecutiveText(piEventToEntries(ev));
             if (entries.length > 0) {
               useChatStore.getState().replaceAiEntries(sidRef.current, entries);
@@ -334,7 +334,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   useEffect(() => {
     let _curAi = 0;
-    const unsub = window.electronAPI.agent.onStream((event: any) => {
+    const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       if (event.source === "worker") return;
       // Filter by chatId when known
       if (currentChatRef.current) {
@@ -356,7 +356,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // Pi 新 assistant turn 开始 → 记录 turn 边界（entries 从此处开始替换，保留旧 turn 内容）
       if (event.type === "turn_start") {
         const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
-        const lastAi = msgs.filter((m: any) => m.role === "ai").pop();
+        const lastAi = msgs.filter((m) => m.role === "ai").pop();
         turnEntryIdxRef.current = lastAi ? (lastAi.entries || []).length : 0;
         steeringRef.current = false;
       }
@@ -732,7 +732,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
               const last = messages[messages.length - 1]!;
               if (last.role === "user") return true;
               if (last.role !== "ai" || !last.entries) return false;
-              const visible = last.entries.filter((e: any) => {
+              const visible = last.entries.filter((e) => {
                 if (e.kind === "text") return true;
                 if (e.kind === "thinking") return showThinking;
                 return showToolUse;
