@@ -446,8 +446,7 @@
 .sb-tab:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); }
 .sb-tab.active { color: var(--color-text-primary); background: var(--color-sidebar-active); box-shadow: var(--shadow-xs); }
 
-.sb-content { flex: 1; overflow-y: auto; scrollbar-gutter: stable; padding: 0 var(--s3); display: flex; flex-direction: column; gap: 1px; -webkit-app-region: no-drag; }
-.sb-session-lists { display: contents; }
+.sb-content { flex: 1; overflow-y: auto; scrollbar-gutter: stable; padding: 0 var(--s3); -webkit-app-region: no-drag; }
 
 .sb-label {
   position: relative;

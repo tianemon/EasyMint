@@ -104,7 +104,7 @@ export function Sidebar({
       {/* Content */}
       <div className="sb-content">
         {activeTab === "sessions" ? (
-          <div className="sb-session-lists">
+          <div className="sb-session-lists flex flex-col min-h-0 flex-1">
             <div className="sb-label">
               会话
               <div style={{ position: "relative" }}>
