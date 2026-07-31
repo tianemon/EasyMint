@@ -25,8 +25,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     import: (dirPath: string) => ipcRenderer.invoke("project:import", { dirPath }),
     renameExec: (oldPath: string, newName: string) => ipcRenderer.invoke("project:rename-exec", { oldPath, newName }) as Promise<{ ok: boolean; error?: string }>,
     checkInitStatus: (projectPath: string) => ipcRenderer.invoke("project:checkInitStatus", { projectPath }),
-    readState: (projectPath: string) => ipcRenderer.invoke("project:readState", { projectPath }),
-    writeState: (projectPath: string, state: unknown) => ipcRenderer.invoke("project:writeState", { projectPath, state }),
   },
   file: {
     readTree: (dirPath: string) => ipcRenderer.invoke("file:readTree", { dirPath }),

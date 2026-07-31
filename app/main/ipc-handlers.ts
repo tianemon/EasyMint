@@ -355,30 +355,6 @@ const filePath = p.join(projectPath, "init.sh");
 
   });
 
-  // project:readState — read .easymint/state.json in project
-  ipcMain.handle("project:readState", (_e, { projectPath }) => {
-    
-const filePath = p.join(projectPath, ".easymint", "state.json");
-      if (!fs.existsSync(filePath)) return null;
-      return JSON.parse(fs.readFileSync(filePath, "utf-8"));
-
-  });
-
-  // project:writeState — merge-write .easymint/state.json in project
-  ipcMain.handle("project:writeState", (_e, { projectPath, state }) => {
-    
-const dir = p.join(projectPath, ".easymint");
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      const filePath = p.join(dir, "state.json");
-      let existing: Record<string, unknown> = {};
-      if (fs.existsSync(filePath)) {
-        existing = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-      }
-      const merged = { ...existing, ...(state as Record<string, unknown>) };
-      fs.writeFileSync(filePath, JSON.stringify(merged, null, 2));
-      return true;
-  });
-
   // task:read — read task.json and return tasks
   ipcMain.handle("task:read", (_e, { projectPath }) => {
     

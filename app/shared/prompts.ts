@@ -5,14 +5,6 @@
  * main 和 renderer 直接 import，不需要 IPC。
  */
 
-/*
- * .easymint/state.json 格式 — writeState 是合并写入，不会清掉已有字段。
- * 关键字段由 MCP 工具直写，运行时通过 broadcast 事件即时推送到前端。
- * 冷启动时 refreshAll 读此文件还原状态。
-{
-  lastSummary: string,      // 一句话：当前在做什么（可选）
-}
-*/
 
 // ── 系统身份提示词 ──────────────────────────────────
 

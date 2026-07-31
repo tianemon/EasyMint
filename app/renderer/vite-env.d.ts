@@ -78,8 +78,6 @@ interface ElectronAPI {
     import: (dirPath: string) => Promise<Project & { isNew: boolean }>;
     renameExec: (oldPath: string, newName: string) => Promise<{ ok: boolean; error?: string }>;
     checkInitStatus: (projectPath: string) => Promise<{ done: boolean; reason: string }>;
-    readState: (projectPath: string) => Promise<Record<string, string> | null>;
-    writeState: (projectPath: string, state: unknown) => Promise<boolean>;
   };
   file: {
     readTree: (dirPath: string) => Promise<FileNode[]>;
