@@ -261,6 +261,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const stoppedRef = useRef(false);
   const busyRef = useRef(false);
   const ctxThresholdFiredRef = useRef(0); // 已按阈值触发过主动压缩（防止同轮重复触发）
+  const programmaticScrollRef = useRef(false); // 程序性滚动中（handleScroll 跳过 autoScroll 更新）
   const lastStatusRef = useRef("");
 
   // 状态栏独立存储 → 密集更新时只重渲染 StatusBar，不牵连 ChatPanel/消息列表
@@ -357,6 +358,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (!containerRef.current) return;
     if (force || autoScrollRef.current) {
       const el = containerRef.current;
+      // 程序性滚动标记：滚动动画期间 handleScroll 不更新 autoScroll
+      programmaticScrollRef.current = true;
       requestAnimationFrame(() => {
         if (!el) return;
         if (force) {
@@ -364,11 +367,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         } else {
           el.scrollTop = el.scrollHeight;
         }
+        setTimeout(() => { programmaticScrollRef.current = false; }, 600);
       });
     }
   }, []);
 
   const handleScroll = useCallback(() => {
+    // 程序性滚动（贴底/流式跟随）动画期间不更新 autoScroll——
+    // 动画中途 distFromBottom 必然 >8，会误判为"用户离开底部"，
+    // 导致测量完成后的校正贴底被跳过（打开会话停在半路）。
+    if (programmaticScrollRef.current) return;
     const el = containerRef.current; if (!el) return;
     // 用户主动滚动：一旦离开底部就立即停止自动跟随（阈值小，轻滑即可解锁），
     // 避免 onStream 的 scrollToBottom 把用户拉回底部导致"滑不动"。
@@ -684,7 +692,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const prevMsgCountRef = useRef(0);
   useEffect(() => {
     if (messages.length > 0 && prevMsgCountRef.current === 0) {
+      // 程序性滚动标记：scrollToIndex 动画期间不污染 autoScroll
+      programmaticScrollRef.current = true;
       virtualizer.scrollToIndex(messages.length - 1, { align: "end" });
+      setTimeout(() => { programmaticScrollRef.current = false; }, 600);
     }
     prevMsgCountRef.current = messages.length;
   }, [messages, virtualizer]);
