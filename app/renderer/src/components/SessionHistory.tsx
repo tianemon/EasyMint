@@ -165,7 +165,7 @@ export function SessionHistory({
       ) : sessions.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">暂无对话记录</div>
       ) : (
-        <div className="flex-1 overflow-y-auto mx-3 rounded-xl bg-accent-subtle border border-accent-border-light">
+        <div className="flex-1 overflow-y-auto">
           {pinned.length > 0 && (
             <div>
               <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium">置顶</div>
@@ -263,7 +263,7 @@ function SessionItemRow({ session, active, editingId, editTitle, onSelect, onCon
 
   return (
     <div
-      className={`session-item group flex items-center w-full text-left px-3 py-2 hover:bg-accent-subtle transition-colors cursor-pointer ${active ? "bg-accent-bg" : ""} ${isArchived ? "opacity-70" : ""}`}
+      className={`sb-item session-item ${active ? "active" : ""} ${isArchived ? "opacity-70" : ""}`}
       onClick={() => onSelect?.(session.sessionId)}
       onContextMenu={(e) => onContextMenu(e, session)}
     >
