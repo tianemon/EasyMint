@@ -96,10 +96,6 @@ function saveSessionTypes(map: Map<string, string>): void {
 const loaded = loadSessionTypes();
 for (const [k, v] of loaded) sessionAgentTypes.set(k, v);
 
-export function getSessionAgentType(sessionId: string): string | undefined {
-  return sessionAgentTypes.get(sessionId);
-}
-
 export function getDesignSessionIds(): string[] {
   const ids: string[] = [];
   for (const [id, type] of sessionAgentTypes) {

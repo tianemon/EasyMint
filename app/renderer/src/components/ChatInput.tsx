@@ -1,7 +1,6 @@
 import { memo, useRef, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { useStatusStore } from "../stores/status-store";
-// import { QuickPrompts } from "./QuickPrompts";  // v3 隐藏快捷指令按钮
 
 interface AttachItem { name: string; path: string; dataUrl?: string; kind: "image" | "doc"; }
 

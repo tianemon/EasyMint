@@ -4,7 +4,7 @@ import fs from "fs";
 import os from "os";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
-import { AgentService, getSessionAgentType, getDesignSessionIds } from "./services/agent-service";
+import { AgentService, getDesignSessionIds } from "./services/agent-service";
 import { Store } from "./services/store";
 import { broadcast } from "./services/ipc-broadcast";
 import { permissionService } from "./services/permission/agent-permission-service";
@@ -202,9 +202,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:killChat", (_e, { chatId }) => {
     agentService.killChat(chatId);
   });
-  ipcMain.handle("agent:stopChat", (_e, { chatId }) => {
-    agentService.stopChat(chatId);
-  });
 
   ipcMain.handle("agent:scheduleIdleTimeout", (_e, { sessionId, delayMs }) => {
     agentService.scheduleIdleTimeout(sessionId, delayMs);
@@ -256,7 +253,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("conv:list", (_e, { projectPath }) => listSessions(projectPath));
   ipcMain.handle("conv:listDesign", (_e, { projectPath }) => listDesignSessions(projectPath));
   ipcMain.handle("conv:get", (_e, { id, projectPath }) => getSessionInfo(id, projectPath));
-  ipcMain.handle("conv:agent-type", (_e, { sessionId }) => getSessionAgentType(sessionId));
   ipcMain.handle("conv:design-sessions", () => getDesignSessionIds());
   ipcMain.handle("conv:messages", (_e, { id, projectPath }) => getSessionMessages(id, projectPath));
   ipcMain.handle("conv:rename", (_e, { id, title, projectPath }) => {
