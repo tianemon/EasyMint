@@ -695,7 +695,7 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
                     />
                     <span className="text-sm text-text-primary font-medium w-10 text-right">{contextThreshold}%</span>
                   </div>
-                  <p className="text-[11px] text-text-secondary mt-1">达到阈值时优先原地压缩（同会话无感），压缩 3 次后自动开启新会话。建议 65%。</p>
+                  <p className="text-[11px] text-text-secondary mt-1">达到阈值时优先原地压缩（同会话无感），压缩 3 次后自动开启新会话。建议 75%。</p>
                 </div>
               </section>
 

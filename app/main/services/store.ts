@@ -56,7 +56,7 @@ const EM_DEFAULTS = {
   setupComplete: false,
   defaultProjectDir: "~/EasyMintProject",
   terminalFontSize: 14,
-  contextThreshold: 65,
+  contextThreshold: 75,
   context1M: false,
 };
 

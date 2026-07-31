@@ -125,7 +125,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   availableCommands: [],
 
   setupComplete: false,
-  contextThreshold: 65,
+  contextThreshold: 75,
   context1M: false,
   showThinking: false,
   showToolUse: false,
