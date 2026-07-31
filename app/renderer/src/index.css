@@ -464,7 +464,7 @@
 
 /* ── Drawer ───────────────────────────────────── */
 .sb-drawer {
-  position: absolute; left: var(--s2); right: var(--s2); bottom: 84px;
+  position: absolute; left: var(--s2); right: var(--s2); bottom: 86px;
   z-index: 50;
   max-height: 0;
   transform-origin: bottom center;

@@ -260,6 +260,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const currentChatRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
   const busyRef = useRef(false);
+  const ctxThresholdFiredRef = useRef(0); // 已按阈值触发过主动压缩（防止同轮重复触发）
   const lastStatusRef = useRef("");
 
   // 状态栏独立存储 → 密集更新时只重渲染 StatusBar，不牵连 ChatPanel/消息列表
@@ -610,6 +611,22 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (sidRef.current) {
         window.electronAPI.sessionCache.write(sidRef.current, { contextUsage: pct }).catch(() => {});
       }
+      // 主动压缩：使用率达到设置阈值（默认 65%）就提前 compact——
+      // 等 Pi 自动压缩时已接近 100%，模型性能在 75% 后明显下降。
+      const threshold = useSettingsStore.getState().contextThreshold || 65;
+      const st = useStatusStore.getState();
+      if (
+        pct >= threshold &&
+        !st.compacting && !st.summarizing &&
+        ctxThresholdFiredRef.current !== threshold &&
+        currentChatRef.current
+      ) {
+        ctxThresholdFiredRef.current = threshold;
+        console.log(`[ChatPanel] ctx ${pct}% ≥ ${threshold}% → 主动压缩`);
+        window.electronAPI.agent.compact(sidRef.current).catch(() => {});
+      }
+      // 使用率显著回落（压缩完成）后允许再次触发
+      if (pct < threshold - 20) ctxThresholdFiredRef.current = 0;
     });
     return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(); };
   }, []);

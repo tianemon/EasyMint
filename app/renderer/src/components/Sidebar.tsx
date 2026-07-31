@@ -144,7 +144,7 @@ export function Sidebar({
               会话
               <button className="sb-label-btn" onClick={() => setSessionMenuOpen(!sessionMenuOpen)}>+ 新建</button>
               {sessionMenuOpen && (
-                <div className="sb-dropdown open" style={{ position: "absolute", left: "auto", right: 0, top: "28px", width: "max-content", minWidth: 0, zIndex: 10, padding: 2 }}>
+                <div className="sb-dropdown open" style={{ position: "absolute", left: "auto", right: -8, top: "28px", width: "max-content", minWidth: 0, zIndex: 10, padding: 2 }}>
                   <button className="sb-dropdown-item" style={{ padding: "4px 10px" }} onClick={() => { setSessionMenuOpen(false); onNewSession?.(); }}>开发会话</button>
                   <button className="sb-dropdown-item" style={{ padding: "4px 10px" }} onClick={() => { setSessionMenuOpen(false); onNewDesignSession?.(); }}>设计会话</button>
                 </div>
