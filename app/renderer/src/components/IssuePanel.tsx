@@ -110,7 +110,7 @@ function IssueRow({ issue, projectPath }: { issue: IssueItem; projectPath: strin
   );
 }
 
-export function IssuePanel({ projectPath, onCollapse }: IssuePanelProps): JSX.Element {
+export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
   const { issues, load, add } = useIssueStore();
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
@@ -132,15 +132,11 @@ export function IssuePanel({ projectPath, onCollapse }: IssuePanelProps): JSX.El
   const openCount = issues.filter((i) => i.status !== "fixed").length;
 
   return (
-    <div className="h-full flex flex-col bg-surface">
+    <div className="h-full flex flex-col bg-sidebar-active">
       {/* Header */}
       <div className="flex items-center gap-2 h-9 px-3 border-b border-border shrink-0">
         <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">问题记录</span>
         {issues.length > 0 && <span className="text-[10px] text-text-muted">{openCount} 待处理</span>}
-        <div className="flex-1" />
-        <button className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors text-xs" onClick={onCollapse} title="收起面板">
-          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3"><path d="M4.5 3l3 3-3 3" /></svg>
-        </button>
       </div>
 
       {/* 记录按钮 / 表单 */}

@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTaskStore } from "../stores/task-store";
 import { useProjectStatusStore } from "../stores/project-status-store";
-import type { StageEntry } from "../stores/project-status-store";
 
 interface TaskPanelProps {
   onCollapse: () => void;
@@ -15,118 +14,6 @@ const STATUS_ICON: Record<string, JSX.Element> = {
   pending: <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0"><circle cx="6" cy="6" r="5" className="fill-none stroke-muted" strokeWidth="1"/></svg>,
 };
 
-// ── Fishbone Stepper (leaf vein style) ──────────────
-//
-//  Layout: center spine with branches alternating up/down.
-//  Each branch: diagonal → horizontal → dot + label.
-//
-//  Tunable parameters (all in SVG px units):
-//    H, w         — SVG viewBox 尺寸
-//    spineY       — 脊柱线 y 坐标
-//    branchY_up   — 上方分支 y 坐标
-//    branchY_down — 下方分支 y 坐标
-//    sx spacing   — 脊柱节点 x 间距 (12 + i * 42)
-//    elbowX       — 拐点 x = sx + 偏移 (调整斜线陡峭度)
-//    dotX         — 圆点 x = elbowX + 偏移 (调整横线长度)
-//    r            — 圆点半径 (done/pending/current 三种)
-//    spine stroke — 脊柱线颜色 + strokeWidth (line 39)
-//    branch stroke— 分支线颜色 + strokeWidth (line 58)
-//    text fontSize— 标签字号 (line 68)
-//    text y offset— branchY - 5 / branchY + 14 (line 68, 标签与圆点间距)
-
-function Fishbone({ timeline, hovered, onHover }: { timeline: StageEntry[]; hovered: string | null; onHover: (s: string) => void }): JSX.Element {
-  // ── SVG 画布 ──
-  const H = 90;            // 画布高度
-  const spineY = 45;       // 脊柱线 y 位置
-  const w = 300;           // 画布宽度
-  const branchY_up = 17;   // 上分支 y 位置
-  const branchY_down = 72; // 下分支 y 位置
-
-  const hasCurrent = timeline.some((e) => e.status === "current");
-  const allDone = timeline.length > 0 && timeline.every((e) => e.status === "done");
-
-  return (
-    <svg viewBox={`0 0 ${w} ${H}`} className="block w-full" style={{ aspectRatio: `${w}/${H}` }}
-      onMouseLeave={() => onHover("")}>
-      <defs>
-        <linearGradient id="fishbone-current" gradientUnits="userSpaceOnUse" x1="-300" y1="0" x2="0" y2="0">
-          <stop offset="0%" stopColor="var(--shimmer-2)" />
-          <stop offset="25%" stopColor="var(--shimmer-3)" />
-          <stop offset="50%" stopColor="var(--shimmer-4)" />
-          <stop offset="75%" stopColor="var(--shimmer-5)" />
-          <stop offset="100%" stopColor="var(--shimmer-2)" />
-          <animate attributeName="x1" values="-300;300" dur="6s" repeatCount="indefinite" />
-          <animate attributeName="x2" values="0;600" dur="6s" repeatCount="indefinite" />
-        </linearGradient>
-      </defs>
-      {/* ── 脊柱横线 ── */}
-      <polyline
-        points={timeline.map((_, i) => `${12 + i * 56},${spineY}`).join(" ")}
-        fill="none"
-        stroke={hasCurrent || allDone ? "url(#fishbone-current)" : "var(--color-dot-gray)"}
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* ── 分支 + 圆点 + 标签 ── */}
-      {timeline.map((entry, i) => {
-        const sx = 20 + i * 40;       // 脊柱节点 x
-        const branchY = i % 2 === 0 ? branchY_up : branchY_down;
-        const elbowX = sx + 22;       // 拐点 x（斜线 → 横线的转折点）
-        const dotX = elbowX + 30;     // 圆点 x（横线末端）
-
-        // 状态判断
-        // 兜底：无 current 且非全部完成 → 第一个节点作为默认聚焦（初始状态）
-        const isCurrent = hovered ? entry.stage === hovered
-          : entry.status === "current" || (!hasCurrent && !allDone && i === 0);
-        const isDone = entry.status === "done";
-
-        // ── 圆点样式 ──
-        const r = isCurrent ? 5 : isDone ? 4 : 4;
-        const fill = isDone ? "var(--color-success)" : isCurrent ? "var(--color-accent)" : "none";
-        const stroke = isDone ? "var(--color-success)" : isCurrent ? "var(--color-accent)" : "var(--color-border-strong)";
-
-        return (
-          <g key={entry.stage} onMouseEnter={() => onHover(entry.stage)} className="cursor-pointer">
-            {/* ── 分支折线：脊柱 → 拐点 → 圆点 ── */}
-            <polyline
-              points={`${sx},${spineY} ${elbowX},${branchY} ${dotX},${branchY}`}
-              fill="none"
-              stroke={isDone || isCurrent ? "url(#fishbone-current)" : "var(--color-dot-gray)"}
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            {/* ── 圆点 ── */}
-            {isDone ? (
-              <>
-                <circle cx={dotX} cy={branchY} r={r} fill={fill} stroke={stroke} strokeWidth="1.5" />
-                <path d={`M${dotX - 3},${branchY} L${dotX - 1},${branchY + 2.5} L${dotX + 3},${branchY - 2.5}`} className="stroke-inverse" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-              </>
-            ) : (
-              <circle cx={dotX} cy={branchY} r={r} fill={fill} stroke={stroke} strokeWidth="1.5" className={isCurrent ? "animate-pulse" : ""} />
-            )}
-            {/* ── 标签（仅当前阶段显示） ── */}
-            {isCurrent && (
-              <text
-                x={dotX}
-                y={branchY < spineY ? branchY - 7 : branchY + 13}  // 上方-5 / 下方+14
-                textAnchor="middle"
-                fill="var(--color-accent)"
-                fontSize="10"             // 标签字号
-                fontWeight="600"
-                fontFamily="system-ui, sans-serif"
-              >
-                {entry.label}
-              </text>
-            )}
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
 // ── Task Row (hover to expand) ──────────────────────
 
 function TaskRow({ task }: { task: { id: string; title: string; description?: string; status: string; completedAt?: number } }): JSX.Element {
@@ -135,7 +22,7 @@ function TaskRow({ task }: { task: { id: string; title: string; description?: st
 
   return (
     <div
-      className={`border-b border-accent-border-light last:border-0 transition-colors ${(task.status === "building" || task.status === "evaluating") ? "bg-accent-bg" : task.status === "failed" ? "bg-danger-soft" : "hover:bg-accent-subtle"}`}
+      className={`border-b border-border last:border-0 transition-colors ${(task.status === "building" || task.status === "evaluating") ? "bg-accent-bg" : task.status === "failed" ? "bg-danger-soft" : "hover:bg-accent-subtle"}`}
       onMouseEnter={() => hasDesc && setExpanded(true)}
       onMouseLeave={() => setExpanded(false)}
     >
@@ -156,10 +43,9 @@ function TaskRow({ task }: { task: { id: string; title: string; description?: st
 
 // ── Main Panel ──────────────────────────────────────
 
-export function TaskPanel({ onCollapse }: TaskPanelProps): JSX.Element {
+export function TaskPanel(_props: TaskPanelProps): JSX.Element {
   const { tasks } = useTaskStore();
-  const { timeline, doneCount, taskCount } = useProjectStatusStore();
-  const [hovered, setHovered] = useState<string | null>(null);
+  const { doneCount, taskCount } = useProjectStatusStore();
   const listRef = useRef<HTMLDivElement>(null);
   const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [userScrolled, setUserScrolled] = useState(false);
@@ -190,31 +76,16 @@ export function TaskPanel({ onCollapse }: TaskPanelProps): JSX.Element {
   }, [centerRunning]);
 
   return (
-    <div className="h-full flex flex-col bg-surface">
+    <div className="h-full flex flex-col bg-sidebar-active">
       {/* Header */}
       <div className="flex items-center gap-2 h-9 px-3 border-b border-border shrink-0">
-        <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">项目进度</span>
-        <div className="flex-1" />
-        <button className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors text-xs"
-          onClick={onCollapse} title="收起面板">
-          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
-            <path d="M4.5 3l3 3-3 3" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Fishbone stepper */}
-      <div className="shrink-0 px-3 pt-2" onMouseLeave={() => setHovered(null)}>
-        <div className="rounded-xl bg-accent-subtle border border-accent-border-light overflow-hidden">
-          <Fishbone timeline={timeline} hovered={hovered} onHover={setHovered} />
-        </div>
+        <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">任务</span>
       </div>
 
       {/* Task list — mint container always visible, fixed area */}
       <div className="flex-1 min-h-0 flex flex-col px-3 py-1.5">
-        <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-accent-subtle border border-accent-border-light">
-          <div className="flex items-center justify-between px-3 pt-2 pb-1">
-            <span className="text-[10px] text-text-secondary">开发任务</span>
+        <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto">
+          <div className="flex items-center justify-end px-3 pt-1 pb-1">
             {taskCount > 0 && <span className="text-[10px] text-text-secondary">{doneCount}/{taskCount} 完成</span>}
           </div>
           {tasks.length > 0 ? (

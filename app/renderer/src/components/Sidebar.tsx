@@ -44,6 +44,8 @@ export function Sidebar({
   const [fileRefreshKey, setFileRefreshKey] = useState(0);
   const plusWrapRef = useRef<HTMLDivElement>(null);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const segRef = useRef<HTMLDivElement>(null);
 
   // 检测是否有可用更新
   useEffect(() => {
@@ -63,6 +65,20 @@ export function Sidebar({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // 点击面板/seg 按钮以外区域 → 收起抽屉
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const handler = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (drawerRef.current && drawerRef.current.contains(t)) return;
+      if (segRef.current && segRef.current.contains(t)) return;
+      setDrawerOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [drawerOpen]);
+
+  const mode = useThemeStore((s) => s.mode);
   const toggleTheme = useCallback(() => {
     useThemeStore.getState().toggle();
   }, []);
@@ -122,8 +138,7 @@ export function Sidebar({
 
       {/* Project name + actions */}
       <div className="sb-project-area">
-        <div className="sb-project-name" onClick={onOpenProject}>
-          <span className="sb-proj-dot" />
+        <div className="sb-project-name">
           <span>{projectDeleted ? projectName + "（已删除）" : projectName}</span>
         </div>
         <div className="sb-plus-wrap" ref={plusWrapRef}>
@@ -200,7 +215,7 @@ export function Sidebar({
       </div>
 
       {/* Drawer — Task / Issue / Run panels */}
-      <div className={`sb-drawer ${drawerOpen ? "open" : ""} ${drawerTab === "tasks" ? "ptr-left" : drawerTab === "issues" ? "ptr-mid" : "ptr-right"}`}>
+      <div ref={drawerRef} className={`sb-drawer ${drawerOpen ? "open" : ""} ${drawerTab === "tasks" ? "ptr-left" : drawerTab === "issues" ? "ptr-mid" : "ptr-right"}`}>
         <div className="sb-drawer-body-wrap">
           <div className="sb-drawer-body">
             {drawerTab === "tasks" && <TaskPanel projectPath={projectPath} onCollapse={() => setDrawerOpen(false)} />}
@@ -214,7 +229,7 @@ export function Sidebar({
       {/* Footer */}
       <div className="sb-foot">
         <div className="sb-foot-row">
-          <div className="sb-seg-control">
+          <div className="sb-seg-control" ref={segRef}>
             <button className={`sb-seg-btn ${drawerTab === "tasks" && drawerOpen ? "active" : ""} ${drawerTab === "tasks" ? "on" : ""}`} onClick={() => toggleDrawer("tasks")}>
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 3h10v2H3zM3 7h7v2H3zM3 11h5v2H3z"/><circle cx="13" cy="6" r="2"/></svg>
               <span className="sb-seg-label">任务</span>
@@ -233,8 +248,14 @@ export function Sidebar({
           <button className={`sb-foot-btn ${hasUpdate ? "has-dot" : ""}`} onClick={onSettings} title="设置">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
           </button>
-          <button className="sb-foot-btn" onClick={toggleTheme} title="切换主题">
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="8" r="3"/><path d="M8 1v1M8 14v1M2.8 2.8l.7.7M12.5 12.5l.7.7M1 8h1M14 8h1"/></svg>
+          <button className="sb-foot-btn" onClick={toggleTheme} title={mode === "light" ? "亮色" : mode === "dark" ? "暗色" : "自动"}>
+            {mode === "light" ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            ) : mode === "dark" ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9"/><text x="12" y="16" textAnchor="middle" fill="currentColor" stroke="none" fontSize="11" fontWeight="700" fontFamily="system-ui">A</text></svg>
+            )}
           </button>
         </div>
       </div>

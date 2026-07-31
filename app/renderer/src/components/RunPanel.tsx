@@ -82,7 +82,7 @@ function platformColor(p: string): string {
   return PLATFORM_COLOR[p as RunPlatform] || DEFAULT_COLOR;
 }
 
-export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Element {
+export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
   const { runnables, cmdStates, activeLogId, detect, start, stop, restart, openLog, appendLog, setRunning, loadStatus } = useProcessStore();
   const [detectSpinning, setDetectSpinning] = useState(false);
   const [portStatuses, setPortStatuses] = useState<Record<string, PortStatus>>({});
@@ -154,7 +154,7 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
   }, [setRunning, loadStatus]);
 
   return (
-    <div className="h-full flex flex-col bg-surface">
+    <div className="h-full flex flex-col bg-sidebar-active">
       {/* Header */}
       <div className="flex items-center gap-2 h-9 px-3 border-b border-border shrink-0">
         <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">运行</span>
@@ -169,13 +169,6 @@ export function RunPanel({ projectPath, onCollapse }: RunPanelProps): JSX.Elemen
           title="刷新检测"
         >
           <svg className={`w-3.5 h-3.5 ${detectSpinning ? "animate-spin" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-        </button>
-        <button
-          className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors text-xs"
-          onClick={onCollapse}
-          title="收起面板"
-        >
-          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3"><path d="M4.5 3l3 3-3 3" /></svg>
         </button>
       </div>
 

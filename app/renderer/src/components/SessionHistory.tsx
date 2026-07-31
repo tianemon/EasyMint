@@ -144,6 +144,13 @@ export function SessionHistory({
   const archived = sessions.filter((s) => s.archivedAt);
   const unpinned = sessions.filter((s) => !s.pinnedAt && !s.archivedAt);
 
+  // 日期分组：今天 / 之前（7 天内）/ 更早（7 天前）
+  const todayStart = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const today = unpinned.filter((s) => s.updatedAt >= todayStart);
+  const recent = unpinned.filter((s) => s.updatedAt < todayStart && s.updatedAt >= weekAgo);
+  const older = unpinned.filter((s) => s.updatedAt < weekAgo);
+
   return (
     <div className="flex flex-col h-full">
       {!hideNewButton && (
@@ -176,9 +183,30 @@ export function SessionHistory({
               ))}
             </div>
           )}
-          {unpinned.map((s) => (
-            <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
-          ))}
+          {today.length > 0 && (
+            <div>
+              <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium">今天</div>
+              {today.map((s) => (
+                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
+              ))}
+            </div>
+          )}
+          {recent.length > 0 && (
+            <div>
+              <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium">之前</div>
+              {recent.map((s) => (
+                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
+              ))}
+            </div>
+          )}
+          {older.length > 0 && (
+            <div>
+              <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium">更早</div>
+              {older.map((s) => (
+                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -272,12 +300,10 @@ function SessionItemRow({ session, active, editingId, editTitle, onSelect, onCon
       {isArchived ? (
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-3.5 h-3.5 shrink-0 mr-2 text-text-muted"><circle cx="8" cy="8" r="6"/><path d="M8 4v5M8 8l2.5 2.5" strokeLinecap="round"/></svg>
       ) : (
-        <span className={`w-2 h-2 rounded-full shrink-0 mr-2.5 ${session.pinnedAt ? "bg-warning" : "bg-accent"}`} />
+        <span className={`w-[6px] h-[6px] rounded-full shrink-0 mr-[-2px] ${session.pinnedAt ? "bg-warning" : "bg-accent"}`} />
       )}
-      <div className="flex-1 min-w-0">
-        <div className="text-sm truncate">{session.title}</div>
-        <div className="sb-item-meta">{fmtDate(session.updatedAt)}</div>
-      </div>
+      <span className="flex-1 min-w-0 truncate text-sm">{session.title}</span>
+      <span className="sb-item-meta">{fmtDate(session.updatedAt)}</span>
       {session.pinnedAt && !isArchived && (
         <svg className="w-3 h-3 text-warning shrink-0 ml-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 3h-2v6h2l-3 3-3-3h2V5H9l3-3z"/></svg>
       )}
@@ -291,7 +317,8 @@ function fmtDate(ts: number): string {
   const d = new Date(ts);
   const now = new Date();
   if (d.toDateString() === now.toDateString()) {
-    return `今天 ${d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`;
+    // 今天组内直接显示时分
+    return d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
   }
   return `${d.getMonth() + 1}月${d.getDate()}日`;
 }

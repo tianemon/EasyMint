@@ -14,6 +14,31 @@ import { ChatInput } from "./ChatInput";
 import { SessionStatsPopup } from "./SessionStatsPopup";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 
+/** 气泡复制按钮：悬浮气泡时显示在气泡下方，复制整条文本 */
+function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      title="复制消息"
+      className="absolute top-full left-0 mt-1 flex items-center justify-center w-6 h-6 rounded-md text-text-secondary opacity-0 group-hover:opacity-100 hover:text-text-primary transition-opacity duration-150"
+      style={{ background: "var(--color-card)", boxShadow: "var(--shadow-sm)" }}
+    >
+      {copied ? (
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5l3.5 3.5L13 5.5"/></svg>
+      ) : (
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 00-1-1h-6a1 1 0 00-1 1v6a1 1 0 001 1h2"/></svg>
+      )}
+    </button>
+  );
+}
+
 interface AttachItem {
   name: string;
   path: string;
@@ -903,11 +928,21 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
     [visible, msg.id],
   );
 
+  // 气泡全文：所有 text entry 合并（不含思考/工具）
+  const copyText = useMemo(() => {
+    if (msg.role === "user") return msg.text || "";
+    if (!msg.entries) return "";
+    return msg.entries.filter((e) => e.kind === "text").map((e) => e.text).join("\n");
+  }, [msg]);
+
   if (msg.role === "user") {
     return (
-      <div className="msg-in">
+      <div className="msg-in group">
         <div className="flex justify-end">
-          {userBubble(msg)}
+          <div className="relative">
+            {userBubble(msg)}
+            <CopyBubbleBtn text={copyText} />
+          </div>
         </div>
       </div>
     );
@@ -916,16 +951,17 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
   if (visible.length === 0) return null;
 
   return (
-    <div className="msg-in">
+    <div className="msg-in group">
       <div className="flex gap-4 items-start max-w-[75%]">
         <div className="msg-avatar agent">M</div>
-        <div className="min-w-0">
+        <div className="min-w-0 relative">
           <div className="msg-from">Mint</div>
-          <div className="rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden" style={{ background: 'var(--color-card-agent)', border: '1px solid var(--color-border-light)', boxShadow: 'var(--msg-agent-shadow)' }}>
+          <div className="rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden" style={{ background: 'var(--color-card-agent)', boxShadow: 'var(--msg-agent-shadow)' }}>
             {blocks.map((block, i) => (
               <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} />
             ))}
           </div>
+          <CopyBubbleBtn text={copyText} />
         </div>
       </div>
     </div>

@@ -18,7 +18,7 @@ export function TabBar(): JSX.Element {
       {tabs.map((tab, i) => {
         const isActive = tab.id === activeTabId;
         return (
-          <div key={tab.id} className="flex items-center">
+          <div key={tab.id} className="flex items-center min-w-0">
             {i > 0 && <div className="tab-divider-v3" />}
             <button
               onClick={() => setActiveTab(tab.id)}
@@ -28,7 +28,7 @@ export function TabBar(): JSX.Element {
               {(tab as { dirty?: boolean }).dirty && (
                 <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0 mr-1.5" />
               )}
-              <span className="tab-text-v3">{tab.title}</span>
+              <span className="tab-text-v3"><span className="tab-text-inner">{tab.title}</span></span>
               <span
                 className="tab-close-v3"
                 onClick={(e) => {
