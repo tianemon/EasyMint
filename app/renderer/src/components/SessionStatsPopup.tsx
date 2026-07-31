@@ -13,6 +13,7 @@ interface SessionStats {
 export function SessionStatsPopup({ sessionId, projectPath, onClose }: { sessionId: string; projectPath: string; onClose: () => void }) {
   const [stats, setStats] = useState<SessionStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [balance, setBalance] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -23,6 +24,11 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose }: { session
       }
       setLoading(false);
     }).catch(() => setLoading(false));
+    // 账户余额（与统计并行获取，失败静默隐藏）
+    window.electronAPI.settings.fetchBalance().then((data) => {
+      if (cancelled) return;
+      if (data?.balance_infos?.length) setBalance(data.balance_infos[0]!.total_balance);
+    }).catch(() => {});
     return () => { cancelled = true; };
   }, [sessionId, projectPath]);
 
@@ -94,6 +100,13 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose }: { session
               <span className="text-text-secondary">估算费用</span>
               <span className="text-accent font-medium text-sm tabular-nums">{fmtCost(stats.cost)}</span>
             </div>
+
+            {balance !== null && (
+              <div className="border-t border-border pt-3 flex justify-between items-center">
+                <span className="text-text-secondary">账户余额</span>
+                <span className="text-text-primary font-medium text-sm tabular-nums">{balance}</span>
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-xs text-text-secondary py-4 text-center">暂无数据</div>
