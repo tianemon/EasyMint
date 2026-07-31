@@ -42,6 +42,15 @@
 - **lint 全绿**：no-var 26 处、tsc 既有错误、any 类型化
 - **模块拆分**：chat-utils.ts（纯函数层）、rotation.ts（轮转状态机，依赖注入）
 - **Pi SDK 对照表更新**：按实际代码核对，标注自定义实现清单
+- **Mint 项目进度链路清理**：set_project_stage 工具全链路删除（提示词 12 处引用、builtin-mcp、hooks 校验、白名单、前端监听、store 残留）——Mint 不再更新鱼骨图面板
+- **MintButton 残留**：agent:notifySession 死链删除（前端 0 调用）
+- **state.json 死链**：stage 体系删除后 readState/writeState IPC/preload/类型/提示词注释全清理
+- **打包签名修复**：brand-tokens/linear.app 被 codesign 误判为 bundle（mac.signIgnore）
+- **测试修复**：store 测试文件名（settings.json → em-settings.json，历史改名遗留）
+
+### 📄 文档
+
+- **CHANGELOG/README/开发进度**：v0.5.0 全量记录、README 鱼骨图描述更新、开发进度新增第 9 章
 
 ## v0.4.1 (2026-07-30) — UI 细节优化 & Mint-D 增强
 
