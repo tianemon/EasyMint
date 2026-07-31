@@ -299,6 +299,9 @@ export class AgentService {
       return;
     }
 
+    // 轮转进度提示（归档+建新会话约 1-2s，避免用户误以为卡死）
+    broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "summarizing" });
+
     chat.contextStatus = "rotated";
     broadcast("agent:context-summary", { chatId: chat.chatId, summary });
 
@@ -355,6 +358,8 @@ ${summary}
       await this.promptAndBridge(newSession, newSession.sessionId, chat.chatId, handoffPrompt, chat);
     } catch (e) {
       console.error("[agent] rotation: new session creation failed", e);
+      // 失败时清除轮转提示，避免状态卡住
+      broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "done" });
       broadcast("agent:stream", {
         type: "error", sessionId: oldSessionId, chatId: chat.chatId,
         message: `上下文轮转失败: ${(e as Error).message}`, canRetry: false,

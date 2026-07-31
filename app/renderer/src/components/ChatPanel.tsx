@@ -605,7 +605,23 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       }
     });
     // Context rotation events — filter by chatId
-    const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(({ chatId: ctxChatId, type }: { chatId: string; type?: string }) => { if (!currentChatRef.current) return; if (ctxChatId !== currentChatRef.current) return; useStatusStore.getState().setText("正在整理会话..."); if (type === "compact") { useTabStore.getState().setSessionRunning(sidRef.current, true); useStatusStore.getState().setCompacting(true); } else { useStatusStore.getState().setSummarizing(true); } });
+    const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(({ chatId: ctxChatId, type }: { chatId: string; type?: string }) => {
+      if (!currentChatRef.current) return;
+      if (ctxChatId !== currentChatRef.current) return;
+      if (type === "done") {
+        // 轮转失败兜底：清除总结状态
+        useStatusStore.getState().setSummarizing(false);
+        useStatusStore.getState().setText("");
+        return;
+      }
+      useStatusStore.getState().setText(type === "compact" ? "正在整理会话..." : "正在整理并开启新会话...");
+      if (type === "compact") {
+        useTabStore.getState().setSessionRunning(sidRef.current, true);
+        useStatusStore.getState().setCompacting(true);
+      } else {
+        useStatusStore.getState().setSummarizing(true);
+      }
+    });
     const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ chatId: ctxChatId, percentage }) => {
       if (!currentChatRef.current) return;
       if (ctxChatId !== currentChatRef.current) return;
