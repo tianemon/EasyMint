@@ -11,31 +11,26 @@ export function TabBar(): JSX.Element {
   const closeTab = useTabStore((s) => s.closeTab);
   const runningSessions = useTabStore((s) => s.runningSessions);
 
+  if (tabs.length === 0) return null;
+
   return (
-    <div className="flex items-center h-9 bg-surface-alt border-b border-border shrink-0">
-      {/* Tabs — compress until min-width, then scroll without scrollbar */}
-      <div className="flex-1 flex items-center h-full min-w-0 overflow-x-auto tabbar-scroll">
-        {tabs.map((tab) => {
-          const isActive = tab.id === activeTabId;
-          return (
-            <div
-              key={tab.id}
+    <div className="tabbar-v3">
+      {tabs.map((tab, i) => {
+        const isActive = tab.id === activeTabId;
+        return (
+          <div key={tab.id} className="flex items-center">
+            {i > 0 && <div className="tab-divider-v3" />}
+            <button
               onClick={() => setActiveTab(tab.id)}
-              className={`group flex items-center gap-1.5 h-full px-2.5 text-xs cursor-pointer select-none border-r border-border transition-colors ${
-                isActive
-                  ? "bg-surface-elevated text-text-primary"
-                  : "bg-transparent text-text-secondary hover:bg-surface-hover"
-              }`}
-              style={{ minWidth: 60, maxWidth: 180, width: 180 }}
+              className={`tab-v3 ${isActive ? "active" : ""}`}
+              title={tab.title}
             >
-              {/* Dot — only for dirty (unsaved) files */}
               {(tab as { dirty?: boolean }).dirty && (
-                <span className="w-2 h-2 rounded-full bg-accent shrink-0" />
+                <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0 mr-1.5" />
               )}
-              {/* Title — truncates when compressed */}
-              <span className="truncate flex-1 min-w-0">{tab.title}</span>
-              {/* Close button — never compressed */}
-              <button
+              <span className="tab-text-v3">{tab.title}</span>
+              <span
+                className="tab-close-v3"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (isTabRunning(tab, runningSessions)) {
@@ -43,14 +38,13 @@ export function TabBar(): JSX.Element {
                   }
                   closeTab(tab.id);
                 }}
-                className="ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-surface-hover transition-opacity text-text-secondary leading-none shrink-0"
               >
-                ✕
-              </button>
-            </div>
-          );
-        })}
-      </div>
+                ×
+              </span>
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }

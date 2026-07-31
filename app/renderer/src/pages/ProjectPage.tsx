@@ -1,21 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { LeftToolbar } from "../components/LeftToolbar";
-import { LeftPanel } from "../components/LeftPanel";
-import { TaskPanel } from "../components/TaskPanel";
-import { IssuePanel } from "../components/IssuePanel";
-import { RunPanel } from "../components/RunPanel";
-import { RightSidebar } from "../components/RightSidebar";
-import { MintButton } from "../components/MintButton";
-import { useProcessStore } from "../stores/process-store";
+import { Sidebar } from "../components/Sidebar";
 import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
 import { NewProjectDialog } from "../components/NewProjectDialog";
-import { TabBar } from "../components/TabBar";
-import { DragHandle } from "../components/DragHandle";
-import { TitleBar } from "../components/TitleBar";
-import { useWorkspaceStore } from "../stores/workspace-store";
 import { useTabStore } from "../stores/tab-store";
 import { useTaskStore, type TaskStatus } from "../stores/task-store";
 import { useProjectStatusStore, type ProjectStage } from "../stores/project-status-store";
@@ -29,9 +18,6 @@ export function ProjectPage(): JSX.Element {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const [activePanel, setActivePanel] = useState<ActivePanel>("sessions");
-  const [rightPanel, setRightPanel] = useState<"task" | "issue" | "run">("task");
-  const hasRunnable = useProcessStore((s) => s.runnables.length > 0);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab | undefined>(undefined);
   const [showNewProject, setShowNewProject] = useState(false);
@@ -73,15 +59,6 @@ export function ProjectPage(): JSX.Element {
       }
     });
   }, []);
-
-  const collapsedLeft = useWorkspaceStore((s) => s.collapsedLeft);
-  const collapsedRight = useWorkspaceStore((s) => s.collapsedRight);
-  const leftWidth = useWorkspaceStore((s) => s.leftWidth);
-  const rightWidth = useWorkspaceStore((s) => s.rightWidth);
-  const toggleLeft = useWorkspaceStore((s) => s.toggleLeft);
-  const toggleRight = useWorkspaceStore((s) => s.toggleRight);
-  const setLeftWidth = useWorkspaceStore((s) => s.setLeftWidth);
-  const setRightWidth = useWorkspaceStore((s) => s.setRightWidth);
 
   const tabs = useTabStore((s) => s.tabs);
   const activeTabId = useTabStore((s) => s.activeTabId);
@@ -320,25 +297,6 @@ export function ProjectPage(): JSX.Element {
     });
   }, [renameNewName, projectName, projectPath]);
 
-  const handleLeftDrag = useCallback(
-    (delta: number) => setLeftWidth(leftWidth + delta),
-    [leftWidth, setLeftWidth]
-  );
-
-  const handleRightDrag = useCallback(
-    (delta: number) => setRightWidth(rightWidth - delta),
-    [rightWidth, setRightWidth]
-  );
-
-  const gridColumns = [
-    "44px",
-    collapsedLeft ? "0px" : `${leftWidth}px`,
-    "1fr",
-    collapsedRight ? "0px" : `${rightWidth}px`,
-  ].join(" ");
-
-  const _activeTab = tabs.find((t) => t.id === activeTabId);
-
   const renderTabContent = () => {
     return (
       <>
@@ -376,110 +334,31 @@ export function ProjectPage(): JSX.Element {
   };
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Title bar — 40px macOS-style */}
-      <TitleBar
+    <div className="shell-v3">
+      <Sidebar
+        projectPath={projectPath}
+        projectId={projectId!}
         projectName={projectName}
-        projectDeleted={!projectExists && !!projectId}
-        onRelocate={!projectExists && !!projectId ? handleRelocate : undefined}
+        projectExists={projectExists}
+        activeSessionId={activeSessionId}
+        sessionRefreshKey={sessionRefreshKey}
+        onNewSession={handleNewSession}
+        onNewDesignSession={handleNewDesignSession}
+        onSessionClick={handleSessionClick}
+        onSessionDelete={handleSessionDelete}
+        onFileClick={handleFileClick}
+        onNewProject={() => setShowNewProject(true)}
+        onOpenProject={handleOpenProject}
+        onRenameProject={projectId && projectExists ? handleRenameProject : undefined}
+        onSettings={() => { setSettingsTab(undefined); setShowSettings(true); }}
       />
 
-      {/* Grid + floating handles */}
-      <div
-        className="flex-1 min-h-0 grid-panels overflow-hidden relative"
-        style={{ display: "grid", gridTemplateColumns: gridColumns, gridTemplateRows: "100%", gap: 0, background: "var(--color-surface)" }}
-      >
-        <LeftToolbar
-          activePanel={activePanel}
-          onSelect={setActivePanel}
-          onSettings={() => { setSettingsTab(undefined); setShowSettings(true); }}
-          onShowUpdate={() => { setSettingsTab("about"); setShowSettings(true); }}
-          onNewProject={() => setShowNewProject(true)}
-          onOpenProject={handleOpenProject}
-          onRenameProject={projectId && projectExists ? handleRenameProject : undefined}
-        />
+      <div className="divider-line" />
 
-        {collapsedLeft ? <div /> : (
-          <LeftPanel activePanel={activePanel} projectPath={projectPath} projectId={projectId!} onCollapse={toggleLeft} onFileClick={handleFileClick} onSessionClick={handleSessionClick} onNewSession={handleNewSession} onNewDesignSession={handleNewDesignSession} onSessionDelete={handleSessionDelete} activeSessionId={activeSessionId} sessionRefreshKey={sessionRefreshKey} />
-        )}
-
-        <div className="flex flex-col min-w-0 overflow-hidden relative">
-          {collapsedLeft && (
-            <button className="absolute -left-px top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-r-md bg-surface-alt border border-border text-text-secondary hover:text-accent transition-colors flex items-center justify-center" onClick={toggleLeft} title="展开文件面板">
-          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3"><path d="M4.5 3l3 3-3 3"/></svg>
-        </button>
-          )}
-          <TabBar />
-          <div className="flex-1 min-h-0 relative">{renderTabContent()}</div>
-          {collapsedRight && (
-            <button className="absolute -right-px top-1/2 -translate-y-1/2 z-10 w-5 h-12 rounded-l-md bg-surface-alt border border-border text-text-secondary hover:text-accent transition-colors flex items-center justify-center" onClick={toggleRight} title="展开任务面板">
-          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3"><path d="M7.5 3l-3 3 3 3"/></svg>
-        </button>
-          )}
-        </div>
-
-        {collapsedRight ? <div /> : (
-          <div className="h-full flex bg-surface">
-            <div className="flex-1 min-w-0 flex flex-col">
-              <div className="flex-1 min-h-0 min-w-0">
-                {rightPanel === "task" ? (
-                  <TaskPanel onCollapse={toggleRight} />
-                ) : rightPanel === "issue" ? (
-                  <IssuePanel projectPath={projectPath} onCollapse={toggleRight} />
-                ) : (
-                  <RunPanel projectPath={projectPath} onCollapse={toggleRight} />
-                )}
-              </div>
-              <MintButton projectPath={projectPath} onClick={async () => {
-              // 无项目 -> 打开新建项目弹窗
-              if (!projectPath) {
-                setShowNewProject(true);
-                return;
-              }
-              const ts = useTabStore.getState();
-
-              // 优先：已有 Mint 会话 Tab -> 激活
-              const existingChat = ts.tabs.find((t) => t.type === "chat" && t.sessionId);
-              if (existingChat) {
-                ts.setActiveTab(existingChat.id);
-                setActivePanel("chat");
-                setTimeout(() => chatActions.send(CONTINUE_NEXT_STEP), 200);
-                return;
-              }
-
-              // 其次：从会话列表中拉取第一个会话
-              const sessions = await window.electronAPI.conv.list(projectPath || getWorkspaceDir());
-              if (sessions.length > 0) {
-                const first = sessions[0]!;
-                ts.openTab({ id: "", type: "chat" as const, title: first.title, sessionId: first.sessionId });
-                ts.setActiveTab(ts.tabs[ts.tabs.length - 1]!.id);
-                setActivePanel("chat");
-                return;
-              }
-
-              // 最后：全新会话
-              const tabId = `mint-${Date.now()}`;
-              ts.openTab({ id: tabId, type: "chat" as const, title: "新会话" });
-              setActivePanel("chat");
-              setTimeout(() => chatActions.send(CONTINUE_NEXT_STEP), 200);
-            }} />
-            </div>
-            <RightSidebar active={rightPanel} onSelect={setRightPanel} hasRunnable={hasRunnable} />
-          </div>
-        )}
-
-        {/* Handles — grid container level, absolute over all panels */}
-        {!collapsedLeft && (
-          <div className="absolute top-0 bottom-0 z-10" style={{ left: `calc(44px + ${leftWidth}px)` }}>
-            <DragHandle onDrag={handleLeftDrag} />
-          </div>
-        )}
-        {!collapsedRight && (
-          <div className="absolute top-0 bottom-0 z-10" style={{ right: `${rightWidth}px` }}>
-            <DragHandle onDrag={handleRightDrag} />
-          </div>
-        )}
-      </div>
+      <main className="main-area">
+        <TabBar />
+        <div className="flex-1 min-h-0 relative">{renderTabContent()}</div>
+      </main>
 
       <SettingsDialog open={showSettings} onClose={() => { setShowSettings(false); setSettingsTab(undefined); }} initialTab={settingsTab} />
 
