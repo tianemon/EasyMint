@@ -1,5 +1,5 @@
 /**
- * EM 产品工具 — set_task_status / set_project_stage / show_confirm_dev 等
+ * EM 产品工具 — set_task_status / show_confirm_dev 等
  *
  * 工具执行逻辑在此定义，API 客户端在 api-clients.ts。
  */

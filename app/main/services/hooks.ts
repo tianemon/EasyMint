@@ -1,5 +1,5 @@
 /**
- * 工具执行前校验 — set_task_status / set_project_stage 的状态一致性规则
+ * 工具执行前校验 — set_task_status 的状态一致性规则
  *
  * 原版 EM 通过 Claude SDK 的 PreToolUse hook 实现。Pi 不支持 hooks，
  * 改为在工具 execute 内调用校验函数。校验逻辑集中在此文件。

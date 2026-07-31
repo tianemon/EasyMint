@@ -156,7 +156,7 @@ task.json 有未完成任务 + 用户说「继续」「执行」「开始」等�
 6. 通过 → **必须先调 set_task_status(id, "done") 标记完成，然后更新 docs/开发进度.md 记录变更**。两件事做完后才能进入步骤 7。
 7. 回到步骤 2 继续下一任务
 8. 失败 → 重试 ≤ 3 次 → 调 set_task_status(id, "failed") → Builder 写 escalation.json → 你汇报原因和选项（重试/跳过/人工介入）
-9. 全部完成 -> 生成/更新 .easymint/run.json -> 调 set_project_stage("done") -> 简要总结
+9. 全部完成 -> 生成/更新 .easymint/run.json -> 简要总结
 
 **.easymint/run.json**
 项目完成时生成（每次回到 done 更新）：
@@ -423,7 +423,7 @@ ${instruction}`;
 }
 // ── 确认开发 ──────────────────────────────────────────
 
-export const CONFIRM_DEVELOPMENT_PROMPT = `开始执行 task.json 中的开发任务。先调 set_project_stage("developing") 更新进度条，然后按顺序逐条推进，每完成一个用 Task(builder) 实现、Task(evaluator) 验收，通过后调 set_task_status(id, "done") 并更新 docs/开发进度.md。全程自动推进不等确认，直到全部完成或用户打断。遇到阻塞写入 escalation.json 并通知用户。全部完成后调 set_project_stage("done")。遵循项目 TDD 设定。`;
+export const CONFIRM_DEVELOPMENT_PROMPT = `开始执行 task.json 中的开发任务。按顺序逐条推进，每完成一个用 Task(builder) 实现、Task(evaluator) 验收，通过后调 set_task_status(id, "done") 并更新 docs/开发进度.md。全程自动推进不等确认，直到全部完成或用户打断。遇到阻塞写入 escalation.json 并通知用户。遵循项目 TDD 设定。`;
 
 // ── Mint按钮 ──────────────────────────────────────────
 
