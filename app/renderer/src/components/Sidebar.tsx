@@ -92,16 +92,7 @@ export function Sidebar({
                 重命名项目
               </button>
               <div className="sb-dropdown-div" />
-              <button className="sb-dropdown-item" onClick={() => setPlusOpen(false)}>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M10 2H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5l-3-3z"/><path d="M10 2v3h3"/></svg>
-                新建文件
-              </button>
-              <button className="sb-dropdown-item" onClick={() => setPlusOpen(false)}>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M2 4a1 1 0 011-1h3l1.5 2H13a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/></svg>
-                新建文件夹
-              </button>
-              <div className="sb-dropdown-div" />
-              <button className="sb-dropdown-item" onClick={() => setPlusOpen(false)}>
+              <button className="sb-dropdown-item" onClick={() => { setPlusOpen(false); window.electronAPI?.window?.newWindow?.(); }}>
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="3" width="10" height="10" rx="3"/><path d="M8 4v8M4 8h8"/></svg>
                 新建窗口
               </button>
