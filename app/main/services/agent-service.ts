@@ -16,19 +16,13 @@ import { broadcast } from "./ipc-broadcast";
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { buildSkillsPrompt } from "./skill-service";
-import { getActiveModel, getModelRuntime, resetModelRuntime } from "./pi-init";
-import { createPiSession, resumePiSession, listPiSessions, getPiSessionDir } from "./pi-session";
+import { getActiveModel, resetModelRuntime } from "./pi-init";
+import { createPiSession, resumePiSession, listPiSessions } from "./pi-session";
 import { createTaskTool } from "./task/tool";
 import { createProductTools } from "./builtin-mcp";
 import { loadMcpTools } from "./permission/mcp-adapter";
 import { permissionService } from "./permission/agent-permission-service";
 import { wrapToolWithPermission } from "./permission/wrap-tool";
-import {
-  SAFE_TOOLS,
-  isSafeBashCommand,
-  isDangerousCommand,
-  hasDangerousStructure,
-} from "./permission/permission-rules";
 import {
   bridgeSessionEvents,
   type PiChatEvent,
@@ -37,7 +31,7 @@ import type { AgentSession, AgentSessionEvent } from "./pi-sdk";
 import type { Model } from "@earendil-works/pi-ai";
 import { randomUUID } from "node:crypto";
 import { archiveSession, renameSession, hasCustomTitle } from "./session-service";
-import { CONTEXT_SUMMARY_INSTRUCTION, DESIGNER_AGENT_PROMPT } from "../../shared/prompts";
+import { DESIGNER_AGENT_PROMPT } from "../../shared/prompts";
 
 // ── 类型 ────────────────────────────────────────────
 
@@ -150,7 +144,6 @@ export class AgentService {
       const allTools = [taskTool, ...productTools, ...mcpTools];
 
       // 权限包装：使用 permissionService 做智能分类（按 sessionId 隔离白名单）
-      const pendingPerms = new Map<string, { resolve: (r: any) => void; request: any }>();
       const canUseTool = permissionService.createCanUseTool(
         sessionId,
         (request) => { broadcast("agent:permission-request", request); },
@@ -472,7 +465,6 @@ ${summary}
 
     const session: AgentSession = await (async () => {
       if (resumeSessionId) {
-        const sessionDir = getPiSessionDir(resolvedPath);
         const sessions = await listPiSessions(resolvedPath);
         const info = sessions.find((s) => s.id === resumeSessionId);
         if (info) {
@@ -663,7 +655,7 @@ ${summary}
     }
   }
 
-  scheduleIdleTimeout(sessionId: string, _delayMs: number): void {
+  scheduleIdleTimeout(_sessionId: string, _delayMs: number): void {
     // Pi 会话不同于 Claude SDK 的 query 进程，无需 idle timeout
     // 保留接口兼容性
   }
