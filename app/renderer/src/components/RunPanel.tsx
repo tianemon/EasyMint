@@ -16,7 +16,7 @@ interface PortStatus {
 /** 从 url 中提取端口号 */
 function extractPort(url?: string): number | null {
   if (!url) return null;
-  var m = url.match(/:(\d+)/);
+  const m = url.match(/:(\d+)/);
   return m?.[1] ? parseInt(m[1]) : null;
 }
 
@@ -91,13 +91,13 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
 
   // 检测单个端口
   const checkPortStatus = useCallback(async (commandId: string, url?: string) => {
-    var port = extractPort(url);
+    const port = extractPort(url);
     if (!port) return;
     try {
-      var st = await window.electronAPI.process.checkPort(port);
+      const st = await window.electronAPI.process.checkPort(port);
       setPortStatuses(function(prev) {
-        var next: Record<string, PortStatus> = {};
-        for (var k in prev) next[k] = prev[k]!;
+        const next: Record<string, PortStatus> = {};
+        for (const k in prev) next[k] = prev[k]!;
         next[commandId] = st!;
         return next;
       });
@@ -106,7 +106,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
 
   // 释放端口
   const handleKillPort = useCallback(async (commandId: string, url?: string) => {
-    var port = extractPort(url);
+    const port = extractPort(url);
     if (!port) return;
     await window.electronAPI.process.killPort(port);
     setTimeout(function() { checkPortStatus(commandId, url); }, 600);
@@ -114,11 +114,11 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
 
   // 点击弹窗外关闭
   useEffect(() => {
-    var hasOpen = false;
-    for (var k in showDetail) { if (showDetail[k]) { hasOpen = true; break; } }
+    let hasOpen = false;
+    for (const k in showDetail) { if (showDetail[k]) { hasOpen = true; break; } }
     if (!hasOpen) return;
-    var handler = function(e: MouseEvent) {
-      var target = e.target as HTMLElement;
+    const handler = function(e: MouseEvent) {
+      const target = e.target as HTMLElement;
       if (!target.closest("[data-port-detail]") && !target.closest("[data-port-toggle]")) {
         setShowDetail({});
       }
@@ -138,7 +138,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
 
   // 监听进程输出
   useEffect(() => {
-    var off = window.electronAPI?.process?.onOutput?.((data) => {
+    const off = window.electronAPI?.process?.onOutput?.((data) => {
       appendLog(data.commandId, data.line);
     });
     return () => { off?.(); };
@@ -146,7 +146,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
 
   // 监听状态变更
   useEffect(() => {
-    var off = window.electronAPI?.process?.onStatusChanged?.((data) => {
+    const off = window.electronAPI?.process?.onStatusChanged?.((data) => {
       setRunning(data.commandId, data.running);
       if (!data.running) loadStatus(data.commandId);
     });
@@ -181,11 +181,11 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
         ) : (
           <div className="space-y-1.5">
             {runnables.map((r) => {
-              var st = cmdStates[r.id] || { running: false, logs: [] };
-              var ps = portStatuses[r.id];
-              var port = extractPort(r.url);
-              var portBusy = ps && !ps.free;
-              var canStart = !st.running && !portBusy;
+              const st = cmdStates[r.id] || { running: false, logs: [] };
+              const ps = portStatuses[r.id];
+              const port = extractPort(r.url);
+              const portBusy = ps && !ps.free;
+              const canStart = !st.running && !portBusy;
               return (
                 <div key={r.id} className={`rounded-lg border px-2.5 py-2 transition-colors ${st.running ? "border-success-border bg-success-soft" : "border-border"}`}>
                   <div className="flex items-center gap-1.5">
@@ -218,14 +218,14 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                         className="w-14 text-[10px] px-1 py-0.5 rounded border border-border bg-surface text-text-primary font-mono text-center"
                         value={customPorts[r.id] !== undefined ? customPorts[r.id] : String(port)}
                         onChange={function(e) {
-                          var val = e.target.value.replace(/\D/g, "");
+                          const val = e.target.value.replace(/\D/g, "");
                           setCustomPorts(function(prev) {
-                            var next: Record<string, string> = {};
-                            for (var k in prev) next[k] = prev[k]!;
+                            const next: Record<string, string> = {};
+                            for (const k in prev) next[k] = prev[k]!;
                             next[r.id] = val;
                             return next;
                           });
-                          var newPort = parseInt(val);
+                          const newPort = parseInt(val);
                           if (newPort && newPort > 0) checkPortStatus(r.id, "http://localhost:" + newPort);
                         }}
                       />
@@ -239,8 +239,8 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                               className="text-danger underline cursor-pointer select-none"
                               onClick={function(e) { e.stopPropagation();
                                 setShowDetail(function(prev) {
-                                  var next: Record<string, boolean> = {};
-                                  for (var k in prev) next[k] = prev[k]!;
+                                  const next: Record<string, boolean> = {};
+                                  for (const k in prev) next[k] = prev[k]!;
                                   next[r.id] = !prev[r.id];
                                   return next;
                                 });
@@ -283,8 +283,8 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                       <button
                         className={`flex-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${canStart ? "bg-accent-soft text-accent hover:bg-accent-bg" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
                         onClick={() => {
-                          var cp = customPorts[r.id];
-                          var p = cp ? parseInt(cp) : undefined;
+                          const cp = customPorts[r.id];
+                          const p = cp ? parseInt(cp) : undefined;
                           canStart && start(projectPath, r.id, p);
                         }}
                         disabled={!canStart}

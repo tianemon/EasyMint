@@ -172,7 +172,7 @@ export function Sidebar({
       <div ref={drawerRef} className={`sb-drawer ${drawerOpen ? "open" : ""} ${drawerTab === "tasks" ? "ptr-left" : drawerTab === "issues" ? "ptr-mid" : "ptr-right"}`}>
         <div className="sb-drawer-body-wrap">
           <div className="sb-drawer-body">
-            {drawerTab === "tasks" && <TaskPanel projectPath={projectPath} onCollapse={() => setDrawerOpen(false)} />}
+            {drawerTab === "tasks" && <TaskPanel onCollapse={() => setDrawerOpen(false)} />}
             {drawerTab === "issues" && <IssuePanel projectPath={projectPath} onCollapse={() => setDrawerOpen(false)} />}
             {drawerTab === "runs" && <RunPanel projectPath={projectPath} onCollapse={() => setDrawerOpen(false)} />}
           </div>

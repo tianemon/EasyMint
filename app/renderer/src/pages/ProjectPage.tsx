@@ -131,7 +131,7 @@ export function ProjectPage(): JSX.Element {
       if (eventPath && projectPath && eventPath !== projectPath) return;
       if (projectPath) {
         window.electronAPI.task.read(projectPath).then(function(r) {
-          var ts = useTaskStore.getState();
+          const ts = useTaskStore.getState();
           ts.clearTasks();
           r.tasks.filter(function(t) { return !t.title.includes("{{"); }).forEach(function(t) {
             ts.addTask({ id: t.id, title: t.title, description: t.description, command: t.command, status: (t.status || "pending") as TaskStatus });

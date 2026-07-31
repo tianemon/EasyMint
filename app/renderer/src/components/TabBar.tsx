@@ -4,7 +4,7 @@ function isTabRunning(tab: { type: string; sessionId?: string }, runningSessions
   return tab.type === "chat" && !!tab.sessionId && runningSessions.has(tab.sessionId);
 }
 
-export function TabBar(): JSX.Element {
+export function TabBar(): JSX.Element | null {
   const tabs = useTabStore((s) => s.tabs);
   const activeTabId = useTabStore((s) => s.activeTabId);
   const setActiveTab = useTabStore((s) => s.setActiveTab);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
-import type { StreamEntry } from "./StreamPanel";
+import type { StreamEntry, TextEntry } from "./StreamPanel";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { chatActions } from "../stores/chat-actions";
 import { useSettingsStore } from "../stores/settings-store";
@@ -78,7 +78,8 @@ function mergeConsecutiveText(entries: StreamEntry[]): StreamEntry[] {
   const result: StreamEntry[] = [];
   for (const e of entries) {
     if (e.kind === "text" && result.length > 0 && result[result.length - 1]!.kind === "text") {
-      result[result.length - 1]!.text = (result[result.length - 1]!.text || "") + (e.text || "");
+      const last = result[result.length - 1] as TextEntry;
+      last.text = (last.text || "") + (e.text || "");
     } else {
       result.push({ ...e });
     }
