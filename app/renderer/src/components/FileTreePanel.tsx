@@ -66,13 +66,19 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
               }
             }}
           >
-            <span
-              className={`inline-block w-3.5 text-[10px] text-text-secondary shrink-0 transition-transform duration-150 ${
-                isExpanded ? "rotate-90" : ""
-              }`}
-            >
-              {node.isDirectory ? <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><path d="M3.5 2l3 3-3 3"/></svg> : null}
-            </span>
+            {node.isDirectory ? (
+              /* 文件夹：收起 = folder，展开 = folder-open（Lucide） */
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0 text-text-secondary">
+                {isExpanded
+                  ? <path d="m6 14 1.5-2.9A2 2 0 019.24 10H20a2 2 0 011.94 2.5l-1.54 6a2 2 0 01-1.95 1.5H4a2 2 0 01-2-2V7c0-1.1.9-2 2-2h2"/>
+                  : <path d="M20 20a2 2 0 002-2V8a2 2 0 00-2-2h-7.9a2 2 0 01-1.69-.9L9.6 3.9A2 2 0 007.93 3H4a2 2 0 00-2 2v13a2 2 0 002 2z"/>}
+              </svg>
+            ) : (
+              /* 文件：file 图标（颜色跟随文本，modified 时随 accent） */
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0 text-text-muted">
+                <path d="M15 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7z"/><path d="M15 2v5h5"/>
+              </svg>
+            )}
             <span className="truncate">{node.name}</span>
             {node.modified && <span className="text-accent text-[10px] font-medium shrink-0 ml-0.5">M</span>}
           </button>
