@@ -90,8 +90,14 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
   // md 文档用独立主题（标题显示正文色，Monaco 内置 md 标题 token 是 keyword）
   const isMd = !!fileName && /\.mdx?$/i.test(fileName);
 
-  // 主题切换时重建 Monaco 主题（buildMonacoTheme 只在挂载时构建一次，
-  // data-theme 变化后需重新 defineTheme + setTheme 才生效）
+  // 主题是全局的（monaco.setTheme），多个文件 tab 的 EditorPanel 实例共存时
+  // 会互相覆盖——只有当前激活的实例才设置主题（切 tab 激活变化触发）。
+  // data-theme 变化时同样重建（亮暗自适应）。
+  const tabs = useTabStore((s) => s.tabs);
+  const activeTabId = useTabStore((s) => s.activeTabId);
+  const myTabId = tabs.find((t) => t.type === "file" && t.filePath === filePath)?.id;
+  const isActive = myTabId !== undefined && myTabId === activeTabId;
+
   useEffect(() => {
     const root = document.documentElement;
     const rebuild = () => {
@@ -101,8 +107,9 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
     };
     const observer = new MutationObserver(rebuild);
     observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    if (isActive) rebuild();
     return () => observer.disconnect();
-  }, [isMd]);
+  }, [isMd, isActive, myTabId]);
 
   // Load file content
   useEffect(() => {
