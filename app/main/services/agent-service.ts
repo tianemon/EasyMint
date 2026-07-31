@@ -209,10 +209,14 @@ export class AgentService {
             chat.compactCount++;
             console.log(`[agent] compact #${chat.compactCount}: chatId=${chatId}`);
 
+            // Pi 原生 compact 自带摘要（result.summary），保存供轮转交接。
+            // 迁移时遗漏的填充逻辑——此前 summaryBuffer 恒为空，轮转从未真正执行。
+            const nativeSummary = (event as { result?: { summary?: string } }).result?.summary;
+            if (nativeSummary) chat.summaryBuffer = nativeSummary;
+
             if (chat.compactCount >= MAX_COMPACT && chat.contextStatus === "normal") {
-              // 达到阈值 → 触发轮转（下一轮 prompt 前注入总结指令）
+              // 达到阈值 → 触发轮转（用 Pi 原生摘要交接）
               chat.contextStatus = "summarizing";
-              chat.summaryBuffer = "";
               console.log(`[agent] rotation triggered: chatId=${chatId}`);
             }
           }
