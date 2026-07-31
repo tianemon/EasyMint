@@ -1,7 +1,6 @@
 import { memo, useRef, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { useStatusStore } from "../stores/status-store";
-import { CommandPalette } from "./CommandPalette";
 // import { QuickPrompts } from "./QuickPrompts";  // v3 隐藏快捷指令按钮
 
 interface AttachItem { name: string; path: string; dataUrl?: string; kind: "image" | "doc"; }
@@ -56,7 +55,6 @@ export const ChatInput = memo(function ChatInput({
 }: ChatInputProps & { sessionId: string; onStatsClick: () => void }): JSX.Element {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [paletteQuery, setPaletteQuery] = useState<string | null>(null);
   const availableModels = useSettingsStore((s) => s.availableModels);
   const ctxPct = useStatusStore((s) => s.ctxPct);
   const summarizing = useStatusStore((s) => s.summarizing);
@@ -82,16 +80,9 @@ export const ChatInput = memo(function ChatInput({
 
   const handleInputChange = useCallback((value: string) => {
     setInput(value);
-    // 快捷命令已屏蔽，后续适配 Pi 命令后再开放
-    // if (value.startsWith("/") && !value.includes("\n") && !value.includes(" ")) {
-    //   setPaletteQuery(value);
-    // } else {
-    //   setPaletteQuery(null);
-    // }
   }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (paletteQuery !== null && (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Enter" || e.key === "Escape")) return;
     // ↑↓ 历史导航
     if (e.key === "ArrowUp" && !e.shiftKey) {
       e.preventDefault();
@@ -128,7 +119,7 @@ export const ChatInput = memo(function ChatInput({
         onSend(input); setInput(""); textareaRef.current?.focus();
       }
     }
-  }, [paletteQuery, input, attaches, onSend, busy, inputDisabled]);
+  }, [input, attaches, onSend, busy, inputDisabled]);
 
   return (
     <div className="input-card">
@@ -137,13 +128,6 @@ export const ChatInput = memo(function ChatInput({
         <div className="absolute inset-0 z-10 rounded-[10px] bg-surface/70 backdrop-blur-[2px] flex items-center justify-center">
           <span className="text-sm text-text-secondary font-medium">Mint 正在总结对话，请稍后…</span>
         </div>
-      )}
-      {paletteQuery !== null && (
-        <CommandPalette
-          initialQuery={paletteQuery}
-          onClose={() => setPaletteQuery(null)}
-          onPick={(text) => { setInput(text); setPaletteQuery(null); textareaRef.current?.focus(); }}
-        />
       )}
       {/* 上半：输入框 */}
       <div className="input-top">

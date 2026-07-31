@@ -292,16 +292,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const showToolUse = useSettingsStore((s) => s.showToolUse);
   const [chatModel, setChatModel] = useState("");
 
-  // 快捷命令已屏蔽，暂停加载以减少 IPC 开销
-  // 恢复时取消注释：useEffect(() => { ... }, []);
-  useEffect(() => {
-    // useSettingsStore.getState().loadCommands();
-    // const unsub = window.electronAPI?.agent?.onCommandsChanged?.(({ commands }) => {
-    //   useSettingsStore.getState().setAvailableCommands(commands);
-    // });
-    // return () => { unsub?.(); };
-  }, []);
-
   const handleModelChange = useCallback(async (m: string) => {
     setChatModel(m); setStoreModel(m);
     const sid = sidRef.current;

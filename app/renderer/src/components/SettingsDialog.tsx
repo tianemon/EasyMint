@@ -560,7 +560,7 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
   const [updateStatus, setUpdateStatus] = useState<{ status: string; version?: string; percent?: number; transferred?: number; totalSize?: number }>({ status: "idle" });
   const [checking, setChecking] = useState(false);
 
-  // 外部指定 initialTab 时同步（如 LeftToolbar 点「有新版本」→ 跳到关于页）
+  // 外部指定 initialTab 时同步（如点「有新版本」→ 跳到关于页）
   useEffect(() => { if (initialTab) setActiveTab(initialTab); }, [initialTab]);
 
   useEffect(() => {

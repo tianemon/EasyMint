@@ -611,10 +611,6 @@ ${summary}
     return events;
   }
 
-  listCommands(): Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> {
-    return this.store.getCommandsCache();
-  }
-
   async setModel(sessionId: string, modelName: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session) return;

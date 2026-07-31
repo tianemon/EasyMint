@@ -143,9 +143,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:getBufferedStream", (_e, { sessionId }) => {
     return agentService.getBufferedStream(sessionId);
   });
-  ipcMain.handle("agent:listCommands", () => {
-    return agentService.listCommands();
-  });
   ipcMain.handle("agent:setModel", (_e, { sessionId, model }) => {
     return agentService.setModel(sessionId, model);
   });

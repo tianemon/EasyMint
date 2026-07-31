@@ -236,21 +236,4 @@ export class Store {
     fs.writeFileSync(sessionsFile, JSON.stringify(data, null, 2));
   }
 
-  /** SDK 命令缓存读写（commands.json）— 启动时即使没活跃 query 也能展示列表 */
-  getCommandsCache(): Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> {
-    const file = path.join(this.dataDir, "commands.json");
-    if (!fs.existsSync(file)) return [];
-    try {
-      const data = JSON.parse(fs.readFileSync(file, "utf-8"));
-      return Array.isArray(data?.commands) ? data.commands : [];
-    } catch (e) {
-      console.error("[store] 解析 commands.json 失败:", (e as Error).message);
-      return [];
-    }
-  }
-
-  setCommandsCache(commands: Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }>): void {
-    const file = path.join(this.dataDir, "commands.json");
-    fs.writeFileSync(file, JSON.stringify({ commands, updatedAt: Date.now() }, null, 2));
-  }
 }
