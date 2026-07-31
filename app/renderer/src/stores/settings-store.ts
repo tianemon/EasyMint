@@ -223,7 +223,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           apiKeys: settings.apiKeys ?? {},
           model: settings.model ?? "",
           availableModels: settings.availableModels ?? [],
-          contextThreshold: settings.contextThreshold ?? 65,
+          contextThreshold: settings.contextThreshold ?? 75,
           context1M: settings.context1M ?? false,
           showThinking: settings.showThinking ?? false,
           showToolUse: settings.showToolUse ?? false,

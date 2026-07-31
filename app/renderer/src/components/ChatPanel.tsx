@@ -632,7 +632,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       }
       // 主动压缩：使用率达到设置阈值（默认 65%）就提前 compact——
       // 等 Pi 自动压缩时已接近 100%，模型性能在 75% 后明显下降。
-      const threshold = useSettingsStore.getState().contextThreshold || 65;
+      const threshold = useSettingsStore.getState().contextThreshold || 75;
       const st = useStatusStore.getState();
       if (
         pct >= threshold &&
