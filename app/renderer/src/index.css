@@ -580,12 +580,66 @@
 }
 
 /* ── Chat Input Card ─────────────────────────── */
-.chat-input-area { flex-shrink: 0; padding: var(--s3) 0 var(--s4); }
+.chat-input-area { flex-shrink: 0; padding: var(--s3) 0 var(--s4); position: relative; }
 .input-card {
   background: var(--color-card); border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm); overflow: hidden;
   margin: 0 var(--s16);
 }
+.input-top { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s3) var(--s4); }
+.chat-input {
+  flex: 1; border: none; background: transparent;
+  font-size: var(--text-base); color: var(--color-text-primary);
+  resize: none; outline: none; min-height: 22px; max-height: 150px;
+  line-height: var(--leading-normal);
+}
+.chat-input::placeholder { color: var(--color-text-muted); }
+.input-bar {
+  display: flex; align-items: center; gap: var(--s2);
+  padding: var(--s2) var(--s4); flex-wrap: wrap;
+}
+.inp-icon-btn {
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm); border: none; background: transparent;
+  color: var(--color-text-muted); transition: all 120ms var(--ease-smooth);
+}
+.inp-icon-btn:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); }
+.inp-lbl { font-size: 10px; color: var(--color-text-muted); }
+.inp-sel {
+  font-size: var(--text-xs); padding: 3px 6px; border-radius: var(--radius-sm);
+  background: var(--color-input-field); border: none;
+  color: var(--color-text-secondary); outline: none;
+  transition: box-shadow 120ms;
+}
+.inp-sel:focus { box-shadow: 0 0 0 2px var(--color-accent-ring); }
+.inp-gap { flex: 1; }
+.inp-val { font-size: 10px; color: var(--color-text-muted); white-space: nowrap; }
+/* ── Context Ring ──────────────────────────── */
+.ctx-ring { position: relative; width: 20px; height: 20px; flex-shrink: 0; }
+.ctx-ring svg { transform: rotate(-90deg); }
+.ctx-ring-track { fill: none; stroke: var(--color-sidebar-hover); stroke-width: 2.5; }
+.ctx-ring-fill { fill: none; stroke: var(--color-accent); stroke-width: 2.5; stroke-linecap: round; transition: stroke-dashoffset 200ms var(--ease-smooth); }
+.ctx-ring-pct {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 8px; font-weight: 600; color: var(--color-text-muted); opacity: 0;
+  transition: opacity 120ms;
+}
+.ctx-ring:hover .ctx-ring-pct { opacity: 1; }
+.send-btn {
+  width: 32px; height: 32px; border-radius: var(--radius-sm); flex-shrink: 0;
+  border: none; background: var(--color-accent); color: var(--color-text-inverse);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 120ms var(--ease-smooth);
+}
+.send-btn:hover { background: var(--color-accent-hover); }
+.send-btn:active { transform: scale(0.95); }
+.send-btn:disabled { opacity: 0.4; pointer-events: none; }
+.stop-btn {
+  width: 32px; height: 32px; border-radius: var(--radius-sm); flex-shrink: 0;
+  border: none; background: var(--color-danger-bg); color: var(--color-danger);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.stop-btn:hover { background: var(--color-danger); color: var(--color-text-inverse); }
 
 /* ═══════════════════════════════════════════════════════
    End v3 Layout

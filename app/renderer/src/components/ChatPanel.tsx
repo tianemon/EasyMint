@@ -713,7 +713,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   function UserBubble({ msg }: { msg: ChatMessage }): JSX.Element {
     return (
       <div className="flex flex-col items-end max-w-[75%] w-fit">
-        <div className="rounded-[10px] rounded-br-[4px] px-[14px] py-1.5 text-sm leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]" style={{ background: 'var(--color-user-bubble)', color: 'var(--color-user-bubble-text)' }}>
+        <div className="rounded-[10px] rounded-br-[4px] px-[14px] py-1.5 text-sm leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]" style={{ background: 'var(--color-accent)', color: 'var(--color-text-inverse)', boxShadow: 'var(--msg-user-shadow)' }}>
           {msg.attaches && msg.attaches.length > 0 && (
             <div className="flex gap-1.5 mb-2 flex-wrap">
               {msg.attaches.map((a, i) => (
@@ -776,7 +776,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
               <div className="flex justify-center pb-3">
                 <button
                   onClick={() => sendText(CONFIRM_DEVELOPMENT_PROMPT)}
-                  className="px-6 py-2.5 rounded-xl bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors shadow-sm"
+                  className="px-6 py-2.5 rounded-[10px] bg-accent text-text-inverse text-sm font-semibold border-none cursor-pointer transition-all duration-200 hover:bg-accent-hover hover:-translate-y-px active:translate-y-0"
                 >
                   确认开发
                 </button>
