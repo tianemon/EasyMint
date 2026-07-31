@@ -182,10 +182,6 @@ export const ChatInput = memo(function ChatInput({
           </svg>
           <span className="ctx-ring-pct">{Math.round(ctxPct)}%</span>
         </div>
-        {/* 快捷指令按钮原型未展示，隐藏不删除（v3 原则 2） */}
-        {/* {!inputDisabled && (
-          <QuickPrompts onFill={(text) => { setInput(text); textareaRef.current?.focus(); }} />
-        )} */}
         {inputDisabled ? (
           <button className="send-btn" disabled><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg></button>
         ) : busy ? (
