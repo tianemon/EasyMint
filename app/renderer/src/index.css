@@ -560,6 +560,14 @@
   80%,100% { transform: translateX(calc(-100% + 12em)); }
 }
 
+/* ── Chat Input Card ─────────────────────────── */
+.chat-input-area { flex-shrink: 0; padding: var(--s3) 0 var(--s4); }
+.input-card {
+  background: var(--color-card); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm); overflow: hidden;
+  margin: 0 var(--s16);
+}
+
 /* ═══════════════════════════════════════════════════════
    End v3 Layout
    ═══════════════════════════════════════════════════════ */
