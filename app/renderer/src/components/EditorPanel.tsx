@@ -189,7 +189,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
             fontSize: 13,
             fontFamily: "'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace",
             lineHeight: 22,
-            lineNumbersMinChars: 5,
+            lineNumbersMinChars: 4,
             // 行号与代码间距 = lineDecorationsWidth(默认10) + folding(16) = 26px
             // 收紧：装饰区 0（折叠箭头保留，间距 16px）
             lineDecorationsWidth: 10,
