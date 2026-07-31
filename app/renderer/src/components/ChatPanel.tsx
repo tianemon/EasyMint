@@ -640,6 +640,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
+  // 虚拟化测量是异步的：messages 加载后的首次滚动发生在 totalSize 还是估算值时，
+  // 测量完成后需再贴底一次（打开会话/流式增长时总高度变大）
+  useEffect(() => {
+    if (autoScrollRef.current) scrollToBottom();
+  }, [virtualizer.getTotalSize(), scrollToBottom]);
+
   // ── Session cache ────────────────────────────────
   useEffect(() => {
     if (!existingSid) return;
