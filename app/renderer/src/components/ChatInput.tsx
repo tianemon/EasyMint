@@ -137,7 +137,7 @@ export const ChatInput = memo(function ChatInput({
           onChange={(e) => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={onPaste}
-          placeholder={compacting ? "Mint正在总结对话，请稍后" : summarizing ? "正在进行会话摘要..." : "描述你想做什么… Enter 发送，Shift+Enter 换行，可粘贴或拖入图片"}
+          placeholder={compacting ? "Mint正在总结对话，请稍后" : summarizing ? "正在进行会话摘要..." : "Enter 发送，Shift+Enter 换行，可粘贴或拖入图片"}
           rows={4}
           disabled={inputDisabled}
           className="chat-input"
