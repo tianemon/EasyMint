@@ -440,6 +440,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           useChatStore.getState().loadSession(realSid, tempMsgs);
           useChatStore.getState().evictSession(sidRef.current);
         }
+        // 便签跟随迁移（临时 sid → 真实 sid）；须在 sidRef.current 更新前调用
+        usePinStore.getState().migrateSession(sidRef.current, realSid);
         setSid(realSid);
         sidRef.current = realSid;
         useTabStore.getState().setSessionRunning(realSid, true);
