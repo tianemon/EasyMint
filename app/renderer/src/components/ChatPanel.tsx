@@ -19,7 +19,7 @@ import { PinLayer, PinIcon } from "./PinLayer";
 import { usePinStore } from "../stores/pin-store";
 import { ContextMenu, type ContextMenuData, type ContextMenuItem } from "./ContextMenu";
 
-/** 气泡复制按钮：常驻显示在气泡下方，复制整条文本 */
+/** 气泡复制按钮：复制整条文本 */
 function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
@@ -32,7 +32,7 @@ function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
     <button
       onClick={handleCopy}
       title="复制消息"
-      className="copy-btn absolute top-full left-0 mt-1 flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text-primary"
+      className="copy-btn flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text-primary"
     >
       {copied ? (
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5l3.5 3.5L13 5.5"/></svg>
@@ -43,7 +43,7 @@ function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
   );
 }
 
-/** 气泡钉住按钮：常驻显示在复制按钮右侧，把整条文本钉为便签；
+/** 气泡钉住按钮：把整条文本钉为便签；
     已钉状态由 store 驱动（同内容便签存在即显示勾，任何入口钉住/删除都联动） */
 function PinBubbleBtn({ text, onPin, sid }: { text: string; onPin: (text: string) => void; sid: string }): JSX.Element {
   const pinned = usePinStore((s) => (s.pinsBySession[sid] || []).some((p) => p.content === text));
@@ -55,7 +55,7 @@ function PinBubbleBtn({ text, onPin, sid }: { text: string; onPin: (text: string
     <button
       onClick={handlePin}
       title={pinned ? "已钉为便签" : "钉为便签"}
-      className="copy-btn absolute top-full left-6 mt-1 flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text-primary"
+      className="copy-btn flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text-primary"
     >
       {pinned ? (
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5l3.5 3.5L13 5.5"/></svg>
@@ -63,6 +63,16 @@ function PinBubbleBtn({ text, onPin, sid }: { text: string; onPin: (text: string
         <PinIcon className="w-[11px] h-[11px]" />
       )}
     </button>
+  );
+}
+
+/** 气泡操作容器：复制 + 钉住按钮统一挂在气泡下方，间距由容器管理 */
+function BubbleActions({ text, onPin, sid }: { text: string; onPin: (text: string) => void; sid: string }): JSX.Element {
+  return (
+    <div className="absolute top-full left-0 mt-1 flex items-center">
+      <CopyBubbleBtn text={text} />
+      <PinBubbleBtn text={text} onPin={onPin} sid={sid} />
+    </div>
   );
 }
 
@@ -950,8 +960,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
              max-w-[75%]：超长文本钳制宽度后由内部 overflow-wrap 换行 */}
           <div className="relative shrink-0 max-w-[75%] min-w-0">
             {userBubble(msg)}
-            <CopyBubbleBtn text={copyText} />
-            <PinBubbleBtn text={copyText} onPin={onPin} sid={sid} />
+            <BubbleActions text={copyText} onPin={onPin} sid={sid} />
           </div>
         </div>
       </div>
@@ -971,8 +980,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
               <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} />
             ))}
           </div>
-          <CopyBubbleBtn text={copyText} />
-          <PinBubbleBtn text={copyText} onPin={onPin} sid={sid} />
+          <BubbleActions text={copyText} onPin={onPin} sid={sid} />
         </div>
       </div>
     </div>
