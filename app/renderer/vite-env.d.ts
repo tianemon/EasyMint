@@ -34,6 +34,15 @@ interface Session {
   status: "active" | "completed";
 }
 
+interface Pin {
+  id: string;
+  content: string;
+  title: string;
+  x: number;
+  y: number;
+  createdAt: number;
+}
+
 // Pi SDK agent event stream types
 interface StreamEvent {
   seq: number;           // 全局单调递增，前端去重用
@@ -200,6 +209,10 @@ interface ElectronAPI {
     togglePin: (id: string) => Promise<boolean>;
     archiveSession: (sessionId: string) => Promise<void>;
     unarchiveSession: (sessionId: string) => Promise<void>;
+  };
+  pin: {
+    get: (sessionId: string) => Promise<Pin[]>;
+    set: (sessionId: string, pins: Pin[]) => Promise<void>;
   };
   session: {
     list: (projectId: string) => Promise<Session[]>;

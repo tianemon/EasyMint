@@ -58,6 +58,7 @@ import {
 } from "./services/session-service";
 import { readCache, writeCache, deleteCache } from "./services/session-cache";
 import { listIssues, addIssue, setStatus, appendNote, deleteIssue } from "./services/issue-service";
+import { getPins, setPins } from "./services/pin-service";
 import type { IssueStatus } from "./services/issue-service";
 import { detectRunnable, startProcess, stopProcess, restartProcess, getStatus, getRunningIds, checkPort, killPort } from "./services/process-service";
 
@@ -269,6 +270,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("conv:togglePin", (_e, { id }) => togglePin(id));
   ipcMain.handle("conv:archiveSession", (_e, { sessionId }) => { archiveSession(sessionId); });
   ipcMain.handle("conv:unarchiveSession", (_e, { sessionId }) => { unarchiveSession(sessionId); });
+  ipcMain.handle("pin:get", (_e, { sessionId }) => getPins(sessionId));
+  ipcMain.handle("pin:set", (_e, { sessionId, pins }) => { setPins(sessionId, pins); });
   ipcMain.handle("session-cache:read", (_e, { sessionId }) => readCache(sessionId));
   ipcMain.handle("session-cache:write", (_e, { sessionId, data }) => { writeCache(sessionId, data); });
   ipcMain.handle("session-cache:delete", (_e, { sessionId }) => { deleteCache(sessionId); });

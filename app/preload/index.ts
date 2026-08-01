@@ -69,6 +69,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     archiveSession: (sessionId: string) => ipcRenderer.invoke("conv:archiveSession", { sessionId }),
     unarchiveSession: (sessionId: string) => ipcRenderer.invoke("conv:unarchiveSession", { sessionId }),
   },
+  pin: {
+    get: (sessionId: string) => ipcRenderer.invoke("pin:get", { sessionId }) as Promise<Array<{ id: string; content: string; title: string; x: number; y: number; createdAt: number }>>,
+    set: (sessionId: string, pins: Array<{ id: string; content: string; title: string; x: number; y: number; createdAt: number }>) => ipcRenderer.invoke("pin:set", { sessionId, pins }),
+  },
   sessionCache: {
     read: (sessionId: string) => ipcRenderer.invoke("session-cache:read", { sessionId }),
     write: (sessionId: string, data: Record<string, unknown>) => ipcRenderer.invoke("session-cache:write", { sessionId, data }),
