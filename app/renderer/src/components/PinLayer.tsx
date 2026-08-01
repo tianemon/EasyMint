@@ -5,6 +5,19 @@ import { TextBlockView } from "./ChatBlocks";
 const CARD_W = 320;
 const EMPTY_PINS: Pin[] = [];
 
+type ResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+
+const RESIZE_STYLES: Record<ResizeDir, string> = {
+  n: "top-0 left-4 right-4 h-1.5 cursor-n-resize",
+  s: "bottom-0 left-4 right-4 h-1.5 cursor-s-resize",
+  e: "right-0 top-4 bottom-4 w-1.5 cursor-e-resize",
+  w: "left-0 top-4 bottom-4 w-1.5 cursor-w-resize",
+  ne: "top-0 right-0 w-4 h-4 cursor-ne-resize",
+  nw: "top-0 left-0 w-4 h-4 cursor-nw-resize",
+  se: "bottom-0 right-0 w-4 h-4 cursor-se-resize",
+  sw: "bottom-0 left-0 w-4 h-4 cursor-sw-resize",
+};
+
 interface PinLayerProps {
   sessionId: string;
 }
@@ -69,23 +82,55 @@ function PinCard({ pin, sessionId, layerRef }: PinCardProps): JSX.Element {
     [pin.id, pin.x, pin.y, sessionId, layerRef],
   );
 
-  // resize：右下角手柄拖动，delta 方式；宽 clamp 240-560，高 clamp 100-容器 80%
-  const onResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+  // 四周/拐角 resize：按方向计算新几何（西/北含坐标移动），delta 方式；宽 clamp 240-560、高 clamp 100-容器 80%
+  const onResizeStart = useCallback((dir: ResizeDir) => (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     const target = e.currentTarget;
     target.setPointerCapture(e.pointerId);
     const startClientX = e.clientX;
     const startClientY = e.clientY;
+    const startX = pin.x;
+    const startY = pin.y;
     const startW = pin.width || CARD_W;
     const startH = pin.height || 200;
 
     const onMove = (ev: PointerEvent) => {
       const layerEl = layerRef.current;
-      const maxH = layerEl ? Math.max(100, layerEl.clientHeight * 0.8) : Infinity;
-      const nw = Math.min(Math.max(240, startW + (ev.clientX - startClientX)), 560);
-      const nh = Math.min(Math.max(100, startH + (ev.clientY - startClientY)), maxH);
-      usePinStore.getState().resizePin(sessionId, pin.id, nw, nh);
+      if (!layerEl) return;
+      const dx = ev.clientX - startClientX;
+      const dy = ev.clientY - startClientY;
+      const maxW = Math.min(560, layerEl.clientWidth);
+      const maxH = Math.max(100, layerEl.clientHeight * 0.8);
+
+      let nx = startX;
+      let ny = startY;
+      let nw = startW;
+      let nh = startH;
+
+      if (dir.includes("e")) nw = startW + dx;
+      if (dir.includes("s")) nh = startH + dy;
+      if (dir.includes("w")) {
+        // 西拖：右边界固定，左边界 clamp 保证宽度 ≥ 240
+        nw = startW - dx;
+        nx = Math.min(Math.max(0, startX + dx), startX + startW - 240);
+        nw = Math.min(Math.max(240, nw), startX + startW - nx, maxW);
+      } else {
+        nw = Math.min(Math.max(240, nw), maxW);
+        if (dir.includes("e")) nw = Math.min(nw, layerEl.clientWidth - startX);
+      }
+      if (dir.includes("n")) {
+        // 北拖：底边界固定，顶边界 clamp 保证高度 ≥ 100
+        nh = startH - dy;
+        ny = Math.min(Math.max(0, startY + dy), startY + startH - 100);
+        nh = Math.min(Math.max(100, nh), startY + startH - ny, maxH);
+      } else {
+        nh = Math.min(Math.max(100, nh), maxH);
+      }
+
+      const store = usePinStore.getState();
+      if (dir.includes("w") || dir.includes("n")) store.movePin(sessionId, pin.id, nx, ny);
+      store.resizePin(sessionId, pin.id, nw, nh);
     };
     const onUp = () => {
       target.removeEventListener("pointermove", onMove);
@@ -96,7 +141,7 @@ function PinCard({ pin, sessionId, layerRef }: PinCardProps): JSX.Element {
     target.addEventListener("pointermove", onMove);
     target.addEventListener("pointerup", onUp);
     target.addEventListener("pointercancel", onUp);
-  }, [pin.id, pin.width, pin.height, sessionId, layerRef]);
+  }, [pin.id, pin.x, pin.y, pin.width, pin.height, sessionId, layerRef]);
 
   return (
     <div
@@ -124,14 +169,15 @@ function PinCard({ pin, sessionId, layerRef }: PinCardProps): JSX.Element {
       <div className="px-3 py-2 overflow-y-auto" style={pin.height ? { height: pin.height } : { maxHeight: layer ? layer.clientHeight * 0.4 : "40vh" }}>
         <TextBlockView block={{ kind: "text", text: pin.content }} />
       </div>
-      {/* resize 手柄：右下角拖动调整大小 */}
-      <div
-        className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize flex items-center justify-center text-text-muted hover:text-text-secondary transition-colors"
-        onPointerDown={onResizeStart}
-        title="调整大小"
-      >
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" className="w-2.5 h-2.5"><path d="M12 12L4 4M12 12V8M12 12H8" /></svg>
-      </div>
+      {/* 四周/拐角 resize 拖拽区（透明，hover 显示光标） */}
+      {(Object.keys(RESIZE_STYLES) as ResizeDir[]).map((dir) => (
+        <div
+          key={dir}
+          className={`absolute ${RESIZE_STYLES[dir]} z-10`}
+          onPointerDown={onResizeStart(dir)}
+          title="调整大小"
+        />
+      ))}
     </div>
   );
 }
