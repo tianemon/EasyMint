@@ -102,9 +102,9 @@ export function OnboardingPage(): JSX.Element {
                 </p>
               </div>
               <div className="px-4 py-3 rounded-lg bg-surface-alt text-left">
-                <p className="text-sm font-medium text-text-primary">多平台支持</p>
+                <p className="text-sm font-medium text-text-primary">多供应商 API 支持</p>
                 <p className="text-xs text-text-muted mt-0.5">
-                  内置 Anthropic、DeepSeek、MiMo、MiniMax 等平台
+                  内置 Anthropic、DeepSeek、MiMo、MiniMax 等供应商
                 </p>
               </div>
             </div>
