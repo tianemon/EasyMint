@@ -269,8 +269,7 @@ EasyMint 是 Electron 桌面应用，让不懂技术的用户通过图形界面�
 1. **Windows 窗口自绘**：win32 titleBarStyle hidden → WindowControls 自绘按钮（IPC 链路 + 主题跟随 + 最大化联动）；移除默认菜单栏
 2. **跨平台布局对齐**：拖拽区 35px、TabBar 空态可拖、项目名称固定 180px + marquee、中文字体回退栈 + 小字号
 3. **UI 精致化**：右键菜单自适应/圆角裁剪、删除确认弹窗、拖放上传、Lucide 图标、Onboarding v3 风格对齐
-4. **局域网开发流**：git bare 仓库中转（~/easymint-lan.git）+ SSH 免密（win 公钥已入 authorized_keys）；mac/win 双端同步测试
-5. **发布 v0.5.2**：合并 main、版本号、CHANGELOG、tag 推送 → GitHub Actions 自动 Release
+4. **发布 v0.5.2**：合并 main、版本号、CHANGELOG、tag 推送 → GitHub Actions 自动 Release
 
 ## 接下来安排
 
