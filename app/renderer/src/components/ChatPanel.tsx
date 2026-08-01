@@ -14,6 +14,8 @@ import { PermissionPrompt } from "./PermissionPrompt";
 import { ChatInput } from "./ChatInput";
 import { SessionStatsPopup } from "./SessionStatsPopup";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
+import { PinLayer } from "./PinLayer";
+import { usePinStore } from "../stores/pin-store";
 
 /** 气泡复制按钮：悬浮气泡时显示在气泡下方，复制整条文本 */
 function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
@@ -34,6 +36,30 @@ function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5l3.5 3.5L13 5.5"/></svg>
       ) : (
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 00-1-1h-6a1 1 0 00-1 1v6a1 1 0 001 1h2"/></svg>
+      )}
+    </button>
+  );
+}
+
+/** 气泡钉住按钮：悬浮气泡时显示在复制按钮右侧，把整条文本钉为便签 */
+function PinBubbleBtn({ text, onPin }: { text: string; onPin: (text: string) => void }): JSX.Element {
+  const [pinned, setPinned] = useState(false);
+  const handlePin = () => {
+    if (!text.trim()) return;
+    onPin(text);
+    setPinned(true);
+    setTimeout(() => setPinned(false), 2000);
+  };
+  return (
+    <button
+      onClick={handlePin}
+      title="钉为便签"
+      className="absolute top-full left-6 mt-1 flex items-center justify-center w-6 h-6 rounded-md text-text-secondary opacity-0 group-hover:opacity-100 hover:text-text-primary transition-opacity duration-150"
+    >
+      {pinned ? (
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5l3.5 3.5L13 5.5"/></svg>
+      ) : (
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M9.8 1.7a1.5 1.5 0 012.1 0l2.4 2.4a1.5 1.5 0 010 2.1l-1.1 1.1-4.5-4.5 1.1-1.1z"/><path d="M8.7 5.4L4 6.1l-.7 4.7L8.7 5.4z"/><path d="M1.5 14.5l3.8-3.8"/></svg>
       )}
     </button>
   );
@@ -160,6 +186,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           return { messagesBySession: next, msgIdBySession: nextId };
         });
       }
+      usePinStore.getState().migrateSession(oldKey, newKey);
     }
   }, [existingSid]);
   const runningSessions = useTabStore((s) => s.runningSessions);
@@ -671,6 +698,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     <UserBubble msg={msg} />
   ), []);
 
+  const handlePin = useCallback((text: string) => {
+    usePinStore.getState().addPin(sidRef.current, text);
+  }, []);
+
   return (
     <div className="absolute inset-0 flex flex-col">
       <div ref={attachScrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden pb-2">
@@ -702,6 +733,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                       showToolUse={showToolUse}
                       busy={vi.index === messages.length - 1 && busy}
                       userBubble={userBubble}
+                      onPin={handlePin}
                     />
                   </div>
                 );
@@ -798,6 +830,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           onClose={() => setShowStats(false)}
         />
       )}
+      {/* 内容便签悬浮层：仅当前会话可见，随 tab 显隐 */}
+      <PinLayer sessionId={sid} scrollRef={containerRef} />
       {/* Image lightbox */}
       {previewImage && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center outline-none"
@@ -824,9 +858,10 @@ interface MemoChatMessageProps {
   showToolUse: boolean;
   busy: boolean;
   userBubble: (msg: ChatMessage) => JSX.Element;
+  onPin: (text: string) => void;
 }
 
-const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showToolUse, busy, userBubble }: MemoChatMessageProps) {
+const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showToolUse, busy, userBubble, onPin }: MemoChatMessageProps) {
   const visible = useMemo(() => {
     if (!msg.entries) return [];
     return msg.entries.filter((e) => {
@@ -857,6 +892,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
           <div className="relative shrink-0 max-w-[75%] min-w-0">
             {userBubble(msg)}
             <CopyBubbleBtn text={copyText} />
+            <PinBubbleBtn text={copyText} onPin={onPin} />
           </div>
         </div>
       </div>
@@ -877,6 +913,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
             ))}
           </div>
           <CopyBubbleBtn text={copyText} />
+          <PinBubbleBtn text={copyText} onPin={onPin} />
         </div>
       </div>
     </div>
