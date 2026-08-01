@@ -125,6 +125,15 @@ describe("pin-store", () => {
     expect(pins[1]!.colorIdx).toBe(0);
   });
 
+  it("pickColorIdx 旧数据（无 colorIdx）按位置占色，新便签避开", () => {
+    usePinStore.getState().loadPins("s1", [
+      { id: "old1", content: "a", title: "a", x: -1, y: -1, createdAt: 1 },
+      { id: "old2", content: "b", title: "b", x: -1, y: -1, createdAt: 2 },
+    ]);
+    usePinStore.getState().addPin("s1", "c");
+    expect(usePinStore.getState().pinsBySession["s1"]![2]!.colorIdx).toBe(2);
+  });
+
   it("minimizePin 折叠为贴纸并清除坐标", () => {
     usePinStore.getState().addPin("s1", "a");
     const id = usePinStore.getState().pinsBySession["s1"]![0]!.id;

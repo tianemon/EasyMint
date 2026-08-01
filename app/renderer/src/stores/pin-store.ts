@@ -21,9 +21,9 @@ function makeTitle(content: string): string {
   return clean.slice(0, 20) || "便签";
 }
 
-/** 分配调色板索引：现存便签中未使用的最小索引（0-7），用尽则数量取模兜底 */
+/** 分配调色板索引：现存便签中未使用的最小索引（0-7），用尽则数量取模兜底；无 colorIdx 的旧数据按位置 index%8 视为已占用（与渲染层兜底一致） */
 function pickColorIdx(existing: Pin[]): number {
-  const used = new Set(existing.map((p) => p.colorIdx).filter((i): i is number => i !== undefined));
+  const used = new Set(existing.map((p, i) => p.colorIdx ?? (i % 8)));
   for (let i = 0; i < 8; i++) if (!used.has(i)) return i;
   return existing.length % 8;
 }

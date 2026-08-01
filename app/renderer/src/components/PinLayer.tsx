@@ -49,9 +49,10 @@ interface PinCardProps {
   sessionId: string;
   layerRef: React.RefObject<HTMLDivElement | null>;
   onMinimize: () => void;
+  colorIdx: number;
 }
 
-function PinCard({ pin, sessionId, layerRef, onMinimize }: PinCardProps): JSX.Element {
+function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProps): JSX.Element {
   // 渲染 clamp：窗口缩小后便签不丢失（只影响显示，不改持久化坐标）
   const layer = layerRef.current;
   const maxX = layer ? Math.max(0, layer.clientWidth - (pin.width || CARD_W)) : pin.x;
@@ -168,7 +169,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize }: PinCardProps): JSX.El
       onPointerDown={() => usePinStore.getState().bringToFront(sessionId, pin.id)}
     >
       {/* 颜色标识条 */}
-      <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${CARD_COLORS[pin.colorIdx ?? 0]}`} />
+      <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${CARD_COLORS[colorIdx]}`} />
       {/* 标题栏（拖动把手） */}
       <div
         className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-alt border-b border-border cursor-grab active:cursor-grabbing select-none"
@@ -218,10 +219,11 @@ interface PinTabProps {
   layerRef: React.RefObject<HTMLDivElement | null>;
   /** 堆叠槽位 y（未单独定位时由 PinLayer 计算传入）；未传则用 pin.y */
   slotY?: number;
+  colorIdx: number;
 }
 
 /** 书签贴纸：吸附在容器左右边缘的竖条，同边默认堆叠，可沿边缘拖动单独吸附，点击展开 */
-function PinTab({ pin, sessionId, layerRef, slotY }: PinTabProps): JSX.Element {
+function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX.Element {
   const edge = pin.edge || "right";
   const layer = layerRef.current;
   const x = edge === "right" ? (layer ? layer.clientWidth - TAB_W - 4 : 0) : 4;
@@ -268,7 +270,7 @@ function PinTab({ pin, sessionId, layerRef, slotY }: PinTabProps): JSX.Element {
 
   return (
     <div
-      className={`absolute ${TAB_COLORS[pin.colorIdx ?? 0]} rounded-lg shadow-md cursor-pointer flex items-center justify-center hover:brightness-110 transition-[filter]`}
+      className={`absolute ${TAB_COLORS[colorIdx]} rounded-lg shadow-md cursor-pointer flex items-center justify-center hover:brightness-110 transition-[filter]`}
       style={{ left: x, top: y, width: TAB_W, height: TAB_H }}
       title={pin.title}
       onPointerDown={onDragStart}
@@ -340,15 +342,18 @@ export function PinLayer({ sessionId }: PinLayerProps): JSX.Element {
 
   return (
     <div ref={layerRef} className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
-      {pins.map((pin) => (
-        <div key={pin.id} className="pointer-events-auto contents">
-          {pin.minimized ? (
-            <PinTab pin={pin} sessionId={sessionId} layerRef={layerRef} slotY={tabSlots[pin.id]} />
-          ) : (
-            <PinCard pin={pin} sessionId={sessionId} layerRef={layerRef} onMinimize={() => handleMinimize(pin.id)} />
-          )}
-        </div>
-      ))}
+      {pins.map((pin, i) => {
+        const colorIdx = pin.colorIdx ?? (i % 8);
+        return (
+          <div key={pin.id} className="pointer-events-auto contents">
+            {pin.minimized ? (
+              <PinTab pin={pin} sessionId={sessionId} layerRef={layerRef} slotY={tabSlots[pin.id]} colorIdx={colorIdx} />
+            ) : (
+              <PinCard pin={pin} sessionId={sessionId} layerRef={layerRef} onMinimize={() => handleMinimize(pin.id)} colorIdx={colorIdx} />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
