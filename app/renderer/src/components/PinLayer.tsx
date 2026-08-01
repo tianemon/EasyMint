@@ -289,7 +289,7 @@ function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX
 
   return (
     <div
-      className={`absolute ${TAB_COLORS[colorIdx]} ${edge === "right" ? "rounded-l-md" : "rounded-r-md"} shadow-md cursor-pointer overflow-hidden animate-[tab-in_200ms_ease-out]`}
+      className={`absolute ${TAB_COLORS[colorIdx]} ${edge === "right" ? "rounded-l-sm" : "rounded-r-sm"} shadow-md cursor-pointer overflow-hidden animate-[tab-in_200ms_ease-out]`}
       style={{
         left: x,
         top: y,
