@@ -23,7 +23,7 @@ export function WindowControls(): JSX.Element | null {
   if (!isWin) return null;
 
   // 注意：hover 背景类不能放公共字符串里拼接覆盖（Tailwind 按自身排序决定生效者，会导致关闭按钮的 hover:bg-danger 被 surface-hover 覆盖）
-  const btnCls = "w-10 h-8 flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors";
+  const btnCls = "w-10 h-7 flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors";
   const btnHover = "hover:bg-surface-hover";
   return (
     <div
