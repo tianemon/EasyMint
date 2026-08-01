@@ -1,4 +1,5 @@
 import { useTabStore } from "../stores/tab-store";
+import { WindowControls } from "./WindowControls";
 
 function isTabRunning(tab: { type: string; sessionId?: string }, runningSessions: Set<string>): boolean {
   return tab.type === "chat" && !!tab.sessionId && runningSessions.has(tab.sessionId);
@@ -12,10 +13,15 @@ export function TabBar(): JSX.Element | null {
   const runningSessions = useTabStore((s) => s.runningSessions);
 
   // 空 tab 时仍渲染空拖拽条（min-height 40px）：窗口顶部需要可拖拽区域
-  if (tabs.length === 0) return <div className="tabbar-v3" />;
+  if (tabs.length === 0) return (
+    <div className="tabbar-v3">
+      <WindowControls />
+    </div>
+  );
 
   return (
     <div className="tabbar-v3">
+      <WindowControls />
       {tabs.map((tab, i) => {
         const isActive = tab.id === activeTabId;
         return (

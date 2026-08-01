@@ -544,6 +544,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 
 /* ── TabBar v3 ────────────────────────────────── */
 .tabbar-v3 {
+  position: relative;
   display: flex; align-items: stretch;
   padding: var(--s1) var(--s2) 0;
   gap: 4px; overflow-x: auto; flex-shrink: 0;

@@ -27,7 +27,7 @@ export function WindowControls(): JSX.Element | null {
   const btnHover = "hover:bg-surface-hover";
   return (
     <div
-      className="window-controls fixed top-0 right-0 z-50 flex select-none"
+      className="window-controls absolute top-0 right-0 z-10 flex select-none"
     >
       <button type="button" className={`${btnCls} ${btnHover}`} title="最小化" onClick={() => { window.electronAPI.win.minimize(); }}>
         <svg width="12" height="12" viewBox="0 0 12 12"><rect x="1" y="5.5" width="10" height="1" fill="currentColor" /></svg>
