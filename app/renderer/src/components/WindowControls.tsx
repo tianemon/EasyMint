@@ -11,7 +11,9 @@ export function WindowControls(): JSX.Element | null {
   useEffect(() => {
     if (!isWin) return;
     let alive = true;
-    window.electronAPI.win.isMaximized().then((m) => { if (alive) setIsMaximized(m); });
+    window.electronAPI.win.isMaximized()
+      .then((m) => { if (alive) setIsMaximized(m); })
+      .catch((e: unknown) => console.error("[window] isMaximized failed", e));
     const unsub = window.electronAPI.win.onMaximizedChanged((m) => {
       setIsMaximized((prev) => (prev === m ? prev : m));
     });

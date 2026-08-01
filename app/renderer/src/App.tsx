@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route } from "react-router-dom";
 import { ProjectPage } from "./pages/ProjectPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { WindowControls } from "./components/WindowControls";
 import { useSettingsStore } from "./stores/settings-store";
 import { useTabStore } from "./stores/tab-store";
 
@@ -52,6 +53,8 @@ export function App(): JSX.Element {
 
   return (
     <ErrorBoundary>
+      {/* Windows 自绘窗口按钮（仅 win32 渲染，fixed 定位）——所有路由之上，任何页面均可用 */}
+      <WindowControls />
       <div id="app-shell">
         <HashRouter>
           {!setupComplete ? (
