@@ -22,16 +22,18 @@ export function WindowControls(): JSX.Element | null {
 
   if (!isWin) return null;
 
-  const btnCls = "w-11 h-10 flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors";
+  // 注意：hover 背景类不能放公共字符串里拼接覆盖（Tailwind 按自身排序决定生效者，会导致关闭按钮的 hover:bg-danger 被 surface-hover 覆盖）
+  const btnCls = "w-11 h-10 flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors";
+  const btnHover = "hover:bg-surface-hover";
   return (
     <div
       className="fixed top-0 right-0 z-50 flex select-none"
       style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
     >
-      <button type="button" className={btnCls} title="最小化" onClick={() => { window.electronAPI.win.minimize(); }}>
+      <button type="button" className={`${btnCls} ${btnHover}`} title="最小化" onClick={() => { window.electronAPI.win.minimize(); }}>
         <svg width="12" height="12" viewBox="0 0 12 12"><rect x="1" y="5.5" width="10" height="1" fill="currentColor" /></svg>
       </button>
-      <button type="button" className={btnCls} title={isMaximized ? "还原" : "最大化"} onClick={() => { window.electronAPI.win.maximize(); }}>
+      <button type="button" className={`${btnCls} ${btnHover}`} title={isMaximized ? "还原" : "最大化"} onClick={() => { window.electronAPI.win.maximize(); }}>
         {isMaximized ? (
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="3.5" y="3.5" width="6" height="6" /><path d="M4.5 3.5v-1h5v5h-1" /></svg>
         ) : (
