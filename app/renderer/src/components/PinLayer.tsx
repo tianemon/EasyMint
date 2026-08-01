@@ -5,6 +5,14 @@ import { TextBlockView } from "./ChatBlocks";
 const CARD_W = 320;
 const EMPTY_PINS: Pin[] = [];
 
+/** 便签调色板（Tailwind 内置色，全量类名映射防 purge）：索引 = colorIdx */
+const TAB_COLORS = ["bg-sky-500", "bg-emerald-500", "bg-amber-500", "bg-purple-500", "bg-rose-500", "bg-teal-500", "bg-orange-500", "bg-indigo-500"] as const;
+const CARD_COLORS = ["bg-sky-500", "bg-emerald-500", "bg-amber-500", "bg-purple-500", "bg-rose-500", "bg-teal-500", "bg-orange-500", "bg-indigo-500"] as const;
+
+const TAB_W = 28;
+const TAB_H = 40;
+const TAB_GAP = 6;
+
 type ResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
 const RESIZE_STYLES: Record<ResizeDir, string> = {
@@ -40,9 +48,10 @@ interface PinCardProps {
   pin: Pin;
   sessionId: string;
   layerRef: React.RefObject<HTMLDivElement | null>;
+  onMinimize: () => void;
 }
 
-function PinCard({ pin, sessionId, layerRef }: PinCardProps): JSX.Element {
+function PinCard({ pin, sessionId, layerRef, onMinimize }: PinCardProps): JSX.Element {
   // 渲染 clamp：窗口缩小后便签不丢失（只影响显示，不改持久化坐标）
   const layer = layerRef.current;
   const maxX = layer ? Math.max(0, layer.clientWidth - (pin.width || CARD_W)) : pin.x;
@@ -63,11 +72,19 @@ function PinCard({ pin, sessionId, layerRef }: PinCardProps): JSX.Element {
 
       const onMove = (ev: PointerEvent) => {
         const layerEl = layerRef.current;
+        if (!layerEl) return;
         const mx = layerEl ? Math.max(0, layerEl.clientWidth - (pin.width || CARD_W)) : Infinity;
         const my = layerEl ? Math.max(0, layerEl.clientHeight - 100) : Infinity;
         const nx = Math.min(Math.max(0, startPinX + (ev.clientX - startClientX)), mx);
         const ny = Math.min(Math.max(0, startPinY + (ev.clientY - startClientY)), my);
-        usePinStore.getState().movePin(sessionId, pin.id, nx, ny);
+        // 拖到边缘 → 自动吸附折叠成贴纸
+        if (nx <= 8) {
+          usePinStore.getState().minimizePin(sessionId, pin.id, "left");
+        } else if (nx + (pin.width || CARD_W) >= layerEl.clientWidth - 8) {
+          usePinStore.getState().minimizePin(sessionId, pin.id, "right");
+        } else {
+          usePinStore.getState().movePin(sessionId, pin.id, nx, ny);
+        }
       };
       const onUp = () => {
         // onUp 幂等：pointerup / pointercancel 复用同一清理函数
@@ -150,6 +167,8 @@ function PinCard({ pin, sessionId, layerRef }: PinCardProps): JSX.Element {
       style={{ left: x, top: y, width: pin.width || CARD_W }}
       onPointerDown={() => usePinStore.getState().bringToFront(sessionId, pin.id)}
     >
+      {/* 颜色标识条 */}
+      <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${CARD_COLORS[pin.colorIdx ?? 0]}`} />
       {/* 标题栏（拖动把手） */}
       <div
         className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-alt border-b border-border cursor-grab active:cursor-grabbing select-none"
@@ -157,6 +176,14 @@ function PinCard({ pin, sessionId, layerRef }: PinCardProps): JSX.Element {
       >
         <PinIcon className="w-3 h-3 text-text-secondary shrink-0" />
         <span className="flex-1 text-xs font-medium text-text-primary truncate">{pin.title}</span>
+        <button
+          className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
+          title="折叠为贴纸"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onMinimize}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="w-3 h-3"><path d="M3 8h10" /></svg>
+        </button>
         <button
           className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
           title="移除便签"
@@ -218,11 +245,22 @@ export function PinLayer({ sessionId }: PinLayerProps): JSX.Element {
     store.persistPins(sessionId);
   }, [pins, sessionId]);
 
+  // 折叠为贴纸：吸附到最近边缘（左右距近者）
+  const handleMinimize = useCallback((pinId: string) => {
+    const el = layerRef.current;
+    if (!el) return;
+    const pin = usePinStore.getState().pinsBySession[sessionId]?.find((p) => p.id === pinId);
+    if (!pin) return;
+    const cardW = pin.width || CARD_W;
+    const edge: "left" | "right" = pin.x < el.clientWidth - pin.x - cardW ? "left" : "right";
+    usePinStore.getState().minimizePin(sessionId, pinId, edge);
+  }, [sessionId]);
+
   return (
     <div ref={layerRef} className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
       {pins.map((pin) => (
         <div key={pin.id} className="pointer-events-auto contents">
-          <PinCard pin={pin} sessionId={sessionId} layerRef={layerRef} />
+          <PinCard pin={pin} sessionId={sessionId} layerRef={layerRef} onMinimize={() => handleMinimize(pin.id)} />
         </div>
       ))}
     </div>
