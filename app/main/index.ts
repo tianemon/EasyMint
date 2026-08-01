@@ -56,9 +56,8 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     minWidth: 1024,
     minHeight: 700,
     titleBarStyle: "hiddenInset",
-    // Windows：titleBarOverlay 把系统窗口按钮（最小化/最大化/关闭）叠加到自定义标题栏右侧，
-    // 保持原生行为（点击/拖拽/双击）；macOS 忽略此配置，hiddenInset 行为不变
-    ...(process.platform === "win32" ? { titleBarOverlay: { color: "#1f1f1f", symbolColor: "#cccccc", height: 50 } } : {}),
+    // Windows：隐藏系统标题栏（保留窗口框架/Snap/缩放），窗口按钮由 renderer 自绘（WindowControls）
+    ...(process.platform === "win32" ? { titleBarStyle: "hidden" as const } : {}),
     ...(isDev ? {} : { icon: path.join(__dirname, "..", "..", "..", "assets", "icon.icns") }),
     webPreferences: {
       preload: path.join(__dirname, "..", "..", "preload", "dist", "preload.cjs"),
@@ -67,6 +66,12 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
       sandbox: false,
     },
   });
+
+  // Windows 自绘按钮需要最大化状态：主进程监听并广播
+  if (process.platform === "win32") {
+    window.on("maximize", () => window.webContents.send("win:maximized-changed", true));
+    window.on("unmaximize", () => window.webContents.send("win:maximized-changed", false));
+  }
 
   // Initialize shared services once. IPC handlers are registered only for the main window;
   // additional windows reuse the same services via the preload bridge.

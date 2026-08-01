@@ -80,6 +80,16 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     return result.canceled ? null : result.filePaths[0] ?? null;
   });
 
+  // win:* — Windows 自绘窗口按钮控制
+  ipcMain.handle("win:minimize", (e) => { BrowserWindow.fromWebContents(e.sender)?.minimize(); });
+  ipcMain.handle("win:maximize", (e) => {
+    const w = BrowserWindow.fromWebContents(e.sender);
+    if (!w) return;
+    if (w.isMaximized()) w.unmaximize(); else w.maximize();
+  });
+  ipcMain.handle("win:close", (e) => { BrowserWindow.fromWebContents(e.sender)?.close(); });
+  ipcMain.handle("win:isMaximized", (e) => BrowserWindow.fromWebContents(e.sender)?.isMaximized() ?? false);
+
   // project:*
   ipcMain.handle("project:list", () => projectService.list());
   ipcMain.handle("project:create", (_e, opts) => projectService.create(opts));
