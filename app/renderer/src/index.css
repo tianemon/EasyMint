@@ -412,8 +412,8 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
   /* flex 子项可收缩（默认 min-width:auto 按内容撑开，长名称会把 + 按钮顶出区域） */
   min-width: 0;
 }
-/* 项目名称超长处理：裁剪层 + 滚动层（参照 tab-marquee 模式） */
-.sb-project-name-clip { flex: 1; min-width: 0; overflow: hidden; }
+/* 项目名称超长处理：固定宽度裁剪层 + 滚动层（参照 tab-marquee 模式） */
+.sb-project-name-clip { width: 150px; flex: none; min-width: 0; overflow: hidden; }
 .sb-project-name-inner { display: inline-block; white-space: nowrap; }
 .sb-project-name:hover .sb-project-name-inner { animation: sb-marquee 4s linear infinite; }
 @keyframes sb-marquee {
