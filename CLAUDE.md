@@ -225,3 +225,47 @@ npm run test             # 运行单元测试
 | 需求文档 | `docs/需求文档.md` | 需求拆解、功能清单 |
 | 技术架构 | `docs/技术架构.md` | 技术选型、架构设计、关键决策 |
 | 开发进度 | `docs/开发进度.md` | 功能实现状态、每次开发的增量记录 |
+
+---
+
+# 会话交接区
+
+> **规则**：上下文快满或会话结束时，将交接信息**整体替换**本区内容（保留规则说明）。
+> **新会话启动时必须阅读本区**，了解项目状态与待办，再开始工作。
+
+## 项目背景
+
+EasyMint 是 Electron 桌面应用，让不懂技术的用户通过图形界面创建项目、采集需求，与 AI 对话驱动开发（Mint 调度 Builder/Evaluator 多 Agent 协作）。底层基于 pi-coding-agent（Pi SDK）。已发布 v0.5.0（v3 UI 改版 + 上下文压缩增强）。
+
+## 必读文档
+
+| 文档 | 场景 |
+|------|------|
+| `CLAUDE.md` | 行为准则、编码规范、色彩体系（先读本文件头部） |
+| `docs/开发进度.md` 第 9 章 | v3 UI 改版完整记录（布局/压缩轮转/性能/清理） |
+| `docs/技术架构.md` | 架构、数据模型、IPC |
+| `docs/reference/Pi-SDK-API参考.md` | Pi SDK 能力对照（含 EM 自定义实现清单） |
+| `CHANGELOG.md` v0.5.0 | 本次版本全量变更 |
+
+## 最近工作（v3 迭代收尾，约 20 轮对话）
+
+1. **发版 v0.5.0**：80 提交合并 main、tag 推送、v3 分支清理（本地+远程）
+2. **Mint 提示词与工具对齐**：set_project_stage 全链路删除（提示词 12 处 + 工具 + 校验 + 白名单 + 前端监听 + store 残留）、state.json 死链、MintButton notifySession
+3. **文档最终更新**：CHANGELOG v0.5.0、README 过时内容（快捷命令面板/进度条/工具列表/Electron 43）、开发进度 9.6
+4. **发布后修复**（main 未 push）：Windows 拖拽区归零（titleBarStyle 仅 macOS 生效 → data-platform 标记）、底部按钮颜色加深
+5. **代码质量**：chat-utils.ts/rotation.ts 拆分、ChatPanel any 类型化、md 标题标准 token（markdown-monarch.ts）、编辑器暖乳白
+6. **压缩/轮转链路**：主动压缩 75% 阈值、状态机修复（type 匹配/compacting 清除）、轮转断链 + summaryBuffer + 进度提示
+
+## 接下来安排
+
+1. **push main**（发布后 3 个提交未推：77303e0 Windows 拖拽区、e2d0fdd 按钮颜色 等）
+2. **Release 上传**：`ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npx electron-builder` → gh release create v0.5.0（签名修复已提交）
+3. **轮转端到端实测**：压缩 3 次触发归档+新会话（修复后未完整验证，使用中确认）
+4. **Windows 验证**：拖拽区修复效果
+
+## 其他细节
+
+- 项目规范：先分析方案再动手、删除列清单确认、增量更新文档、commit 不自动 push、禁 any、时序用 ref、色彩走 CSS 变量语义层（禁 Tailwind 透明度语法用于主题色）
+- `claude-legacy` 分支保留（Claude SDK 历史，勿删）
+- 数据存储：`~/.easymint/` 全局 + `<project>/.easymint/` 项目级（勿操作 `~/.easymint/` 用户数据）
+- 编码规范"新功能独立封装、图标优先 SVG"等见文件头部
