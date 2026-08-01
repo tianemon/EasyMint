@@ -668,7 +668,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       /* 宽度钳制由外层 relative（shrink-0 max-w-[75%]）负责；
          此处不再设 max-w/w-fit，避免相对 fit-content 层的循环依赖导致短文本被压窄 */
       <div className="flex gap-4 items-start">
-        <div className="msg-bubble-user rounded-[10px] rounded-br-[4px] px-[14px] py-1.5 text-sm leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]">
+        <div className="min-w-0">
+          <div className="msg-from text-right">USER</div>
+          <div className="msg-bubble-user rounded-[10px] rounded-br-[4px] px-[14px] py-1.5 text-sm leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]">
           {msg.attaches && msg.attaches.length > 0 && (
             <div className="flex gap-1.5 mb-2 flex-wrap">
               {msg.attaches.map((a, i) => (
@@ -691,6 +693,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
             </div>
           )}
           {msg.text ? <div className="whitespace-pre-wrap [overflow-wrap:anywhere] min-w-0">{msg.text}</div> : null}
+          </div>
         </div>
         <div className="msg-avatar user">U</div>
       </div>
