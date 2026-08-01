@@ -31,12 +31,13 @@ export function ContextMenu({ menu, onClose }: { menu: ContextMenuData | null; o
   }, [menu, onClose]);
 
   if (!menu) return null;
-  const left = Math.min(menu.x, window.innerWidth - 150);
+  // 宽度由内容自适应（w-max），右缘 clamp 按菜单典型宽度预留
+  const left = Math.min(menu.x, window.innerWidth - 200);
   const top = Math.min(menu.y, window.innerHeight - 140);
   return (
     <div
       data-context-menu
-      className="fixed z-50 min-w-[140px] py-1 rounded-lg border border-border bg-surface-elevated shadow-xl"
+      className="fixed z-50 w-max min-w-[96px] py-1 rounded-lg border border-border bg-surface-elevated shadow-xl"
       style={{ left, top }}
       onContextMenu={(e) => e.preventDefault()}
     >

@@ -102,7 +102,9 @@ export function Sidebar({
       {/* Project name + actions */}
       <div className="sb-project-area">
         <div className="sb-project-name">
-          <span>{projectDeleted ? projectName + "（已删除）" : projectName}</span>
+          <span className="sb-project-name-clip">
+            <span className="sb-project-name-inner">{projectDeleted ? projectName + "（已删除）" : projectName}</span>
+          </span>
         </div>
         <div className="sb-plus-wrap" ref={plusWrapRef}>
           <button className="sb-plus-btn" title="新建…" onClick={() => setPlusOpen(!plusOpen)}>+</button>
