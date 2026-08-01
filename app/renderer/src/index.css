@@ -396,8 +396,8 @@ html[data-platform="win32"] {
   user-select: none; -webkit-user-select: none;
 }
 .sb-drag-strip { height: 50px; flex-shrink: 0; position: relative; }
-/* Windows 有系统标题栏（titleBarStyle 仅 macOS 生效），拖拽区高度归零 */
-html[data-platform="win32"] .sb-drag-strip { height: 0; }
+/* Windows 用 titleBarOverlay（系统按钮叠加），拖拽区恢复与 macOS 一致的高度，保证布局观感统一 */
+html[data-platform="win32"] .sb-drag-strip { height: 50px; }
 
 .sb-project-area {
   display: flex; align-items: center; justify-content: space-between;

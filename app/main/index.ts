@@ -58,7 +58,7 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     titleBarStyle: "hiddenInset",
     // Windows：titleBarOverlay 把系统窗口按钮（最小化/最大化/关闭）叠加到自定义标题栏右侧，
     // 保持原生行为（点击/拖拽/双击）；macOS 忽略此配置，hiddenInset 行为不变
-    ...(process.platform === "win32" ? { titleBarOverlay: { color: "#1f1f1f", symbolColor: "#cccccc", height: 44 } } : {}),
+    ...(process.platform === "win32" ? { titleBarOverlay: { color: "#1f1f1f", symbolColor: "#cccccc", height: 50 } } : {}),
     ...(isDev ? {} : { icon: path.join(__dirname, "..", "..", "..", "assets", "icon.icns") }),
     webPreferences: {
       preload: path.join(__dirname, "..", "..", "preload", "dist", "preload.cjs"),
