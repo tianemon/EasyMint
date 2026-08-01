@@ -37,7 +37,7 @@ export function ContextMenu({ menu, onClose }: { menu: ContextMenuData | null; o
   return (
     <div
       data-context-menu
-      className="fixed z-50 w-max min-w-[96px] py-1 rounded-lg border border-border bg-surface-elevated shadow-xl"
+      className="fixed z-50 w-max py-1 rounded-lg border border-border bg-surface-elevated shadow-xl"
       style={{ left, top }}
       onContextMenu={(e) => e.preventDefault()}
     >
