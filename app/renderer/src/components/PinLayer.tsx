@@ -31,7 +31,7 @@ interface PinCardProps {
 function PinCard({ pin, sessionId, layerRef }: PinCardProps): JSX.Element {
   // 渲染 clamp：窗口缩小后便签不丢失（只影响显示，不改持久化坐标）
   const layer = layerRef.current;
-  const maxX = layer ? Math.max(0, layer.clientWidth - CARD_W) : pin.x;
+  const maxX = layer ? Math.max(0, layer.clientWidth - (pin.width || CARD_W)) : pin.x;
   const maxY = layer ? Math.max(0, layer.clientHeight - 100) : pin.y;
   const x = Math.min(Math.max(0, pin.x), maxX);
   const y = Math.min(Math.max(0, pin.y), maxY);
@@ -49,7 +49,7 @@ function PinCard({ pin, sessionId, layerRef }: PinCardProps): JSX.Element {
 
       const onMove = (ev: PointerEvent) => {
         const layerEl = layerRef.current;
-        const mx = layerEl ? Math.max(0, layerEl.clientWidth - CARD_W) : Infinity;
+        const mx = layerEl ? Math.max(0, layerEl.clientWidth - (pin.width || CARD_W)) : Infinity;
         const my = layerEl ? Math.max(0, layerEl.clientHeight - 100) : Infinity;
         const nx = Math.min(Math.max(0, startPinX + (ev.clientX - startClientX)), mx);
         const ny = Math.min(Math.max(0, startPinY + (ev.clientY - startClientY)), my);
@@ -69,10 +69,39 @@ function PinCard({ pin, sessionId, layerRef }: PinCardProps): JSX.Element {
     [pin.id, pin.x, pin.y, sessionId, layerRef],
   );
 
+  // resize：右下角手柄拖动，delta 方式；宽 clamp 240-560，高 clamp 100-容器 80%
+  const onResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const startW = pin.width || CARD_W;
+    const startH = pin.height || 200;
+
+    const onMove = (ev: PointerEvent) => {
+      const layerEl = layerRef.current;
+      const maxH = layerEl ? Math.max(100, layerEl.clientHeight * 0.8) : Infinity;
+      const nw = Math.min(Math.max(240, startW + (ev.clientX - startClientX)), 560);
+      const nh = Math.min(Math.max(100, startH + (ev.clientY - startClientY)), maxH);
+      usePinStore.getState().resizePin(sessionId, pin.id, nw, nh);
+    };
+    const onUp = () => {
+      target.removeEventListener("pointermove", onMove);
+      target.removeEventListener("pointerup", onUp);
+      target.removeEventListener("pointercancel", onUp);
+      usePinStore.getState().persistPins(sessionId);
+    };
+    target.addEventListener("pointermove", onMove);
+    target.addEventListener("pointerup", onUp);
+    target.addEventListener("pointercancel", onUp);
+  }, [pin.id, pin.width, pin.height, sessionId, layerRef]);
+
   return (
     <div
       className="absolute rounded-xl border border-border bg-surface-elevated shadow-xl overflow-hidden"
-      style={{ left: x, top: y, width: CARD_W }}
+      style={{ left: x, top: y, width: pin.width || CARD_W }}
       onPointerDown={() => usePinStore.getState().bringToFront(sessionId, pin.id)}
     >
       {/* 标题栏（拖动把手） */}
@@ -92,8 +121,16 @@ function PinCard({ pin, sessionId, layerRef }: PinCardProps): JSX.Element {
         </button>
       </div>
       {/* 内容区：Markdown 快照，超高滚动 */}
-      <div className="px-3 py-2 overflow-y-auto" style={{ maxHeight: layer ? layer.clientHeight * 0.4 : "40vh" }}>
+      <div className="px-3 py-2 overflow-y-auto" style={pin.height ? { height: pin.height } : { maxHeight: layer ? layer.clientHeight * 0.4 : "40vh" }}>
         <TextBlockView block={{ kind: "text", text: pin.content }} />
+      </div>
+      {/* resize 手柄：右下角拖动调整大小 */}
+      <div
+        className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize flex items-center justify-center text-text-muted hover:text-text-secondary transition-colors"
+        onPointerDown={onResizeStart}
+        title="调整大小"
+      >
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" className="w-2.5 h-2.5"><path d="M12 12L4 4M12 12V8M12 12H8" /></svg>
       </div>
     </div>
   );
