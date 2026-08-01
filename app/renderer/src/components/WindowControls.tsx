@@ -23,11 +23,11 @@ export function WindowControls(): JSX.Element | null {
   if (!isWin) return null;
 
   // 注意：hover 背景类不能放公共字符串里拼接覆盖（Tailwind 按自身排序决定生效者，会导致关闭按钮的 hover:bg-danger 被 surface-hover 覆盖）
-  const btnCls = "w-11 h-10 flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors";
+  const btnCls = "w-10 h-8 flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors";
   const btnHover = "hover:bg-surface-hover";
   return (
     <div
-      className="window-controls absolute top-0 right-0 z-10 flex select-none"
+      className="window-controls absolute top-1 right-0 z-10 flex select-none"
     >
       <button type="button" className={`${btnCls} ${btnHover}`} title="最小化" onClick={() => { window.electronAPI.win.minimize(); }}>
         <svg width="12" height="12" viewBox="0 0 12 12"><rect x="1" y="5.5" width="10" height="1" fill="currentColor" /></svg>

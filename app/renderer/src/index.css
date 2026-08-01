@@ -553,7 +553,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
   -webkit-app-region: drag;
 }
 /* Windows：右侧预留自绘窗口按钮空间（最小化/最大化/关闭 3×44px） */
-html[data-platform="win32"] .tabbar-v3 { padding-right: 132px; }
+html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 .tabbar-v3::-webkit-scrollbar { display: none; }
 .tab-v3 {
   display: flex; align-items: center; /* flex 布局：× 与文字同行不换行 */
