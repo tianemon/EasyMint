@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
-import { AttachItem, ChatMessage, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolLabel, mapSessionMessages } from "./chat-utils";
+import { AttachItem, ChatMessage, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolLabel, mapSessionMessages, getMsgCopyText } from "./chat-utils";
 import { chatActions } from "../stores/chat-actions";
 import { useSettingsStore } from "../stores/settings-store";
 import { useTabStore } from "../stores/tab-store";
@@ -14,8 +14,10 @@ import { PermissionPrompt } from "./PermissionPrompt";
 import { ChatInput } from "./ChatInput";
 import { SessionStatsPopup } from "./SessionStatsPopup";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
+import { blocksToMarkdown, selectionToBlocks } from "../lib/selection-to-markdown";
 import { PinLayer, PinIcon } from "./PinLayer";
 import { usePinStore } from "../stores/pin-store";
+import { ContextMenu, type ContextMenuData, type ContextMenuItem } from "./ContextMenu";
 
 /** 气泡复制按钮：悬浮气泡时显示在气泡下方，复制整条文本 */
 function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
@@ -30,7 +32,7 @@ function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
     <button
       onClick={handleCopy}
       title="复制消息"
-      className="copy-btn absolute top-full left-0 mt-1 flex items-center justify-center w-6 h-6 rounded-md text-text-secondary opacity-0 group-hover:opacity-100 hover:text-text-primary transition-opacity duration-150"
+      className="copy-btn absolute top-full left-0 mt-1 flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text-primary"
     >
       {copied ? (
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5l3.5 3.5L13 5.5"/></svg>
@@ -54,7 +56,7 @@ function PinBubbleBtn({ text, onPin }: { text: string; onPin: (text: string) => 
     <button
       onClick={handlePin}
       title="钉为便签"
-      className="copy-btn absolute top-full left-6 mt-1 flex items-center justify-center w-6 h-6 rounded-md text-text-secondary opacity-0 group-hover:opacity-100 hover:text-text-primary transition-opacity duration-150"
+      className="copy-btn absolute top-full left-6 mt-1 flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text-primary"
     >
       {pinned ? (
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5l3.5 3.5L13 5.5"/></svg>
@@ -704,6 +706,42 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     usePinStore.getState().addPin(sidRef.current, text);
   }, []);
 
+  const [ctxMenu, setCtxMenu] = useState<ContextMenuData | null>(null);
+
+  // 消息右键菜单：有选区时复制/钉住选区（markdown 还原），无选区时复制/钉住全文
+  const handleMsgContextMenu = useCallback((msg: ChatMessage, e: React.MouseEvent) => {
+    e.preventDefault();
+    const container = e.currentTarget as HTMLElement;
+    const sel = window.getSelection();
+    const hasSel = !!sel && !sel.isCollapsed && !!sel.toString().trim();
+    const selInMsg = hasSel && sel.rangeCount > 0 && container.contains(sel.getRangeAt(0).commonAncestorContainer);
+    const selText = selInMsg ? sel!.toString() : "";
+    const copyText = getMsgCopyText(msg);
+
+    const items: ContextMenuItem[] = [
+      { label: "复制", onClick: () => { navigator.clipboard.writeText(selInMsg ? selText : copyText).catch((err: unknown) => console.error("[copy]", err)); } },
+      { label: "全选", onClick: () => {
+        const bubbleEl = container.querySelector(".msg-bubble-agent, .msg-bubble-user");
+        if (!bubbleEl) return;
+        const range = document.createRange();
+        range.selectNodeContents(bubbleEl);
+        const s = window.getSelection();
+        s?.removeAllRanges();
+        s?.addRange(range);
+      } },
+      { label: "钉住", onClick: () => {
+        if (selInMsg) {
+          const md = blocksToMarkdown(selectionToBlocks(sel.getRangeAt(0)));
+          usePinStore.getState().addPin(sidRef.current, md);
+          sel.removeAllRanges();
+        } else {
+          usePinStore.getState().addPin(sidRef.current, copyText);
+        }
+      } },
+    ];
+    setCtxMenu({ x: e.clientX, y: e.clientY, items });
+  }, []);
+
   return (
     <div className="absolute inset-0 flex flex-col">
       <div ref={attachScrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden pb-2">
@@ -736,6 +774,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                       busy={vi.index === messages.length - 1 && busy}
                       userBubble={userBubble}
                       onPin={handlePin}
+                      onContextMenu={handleMsgContextMenu}
                     />
                   </div>
                 );
@@ -833,7 +872,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         />
       )}
       {/* 内容便签悬浮层：仅当前会话可见，随 tab 显隐 */}
-      <PinLayer sessionId={sid} scrollRef={containerRef} />
+      <PinLayer sessionId={sid} />
+      <ContextMenu menu={ctxMenu} onClose={() => setCtxMenu(null)} />
       {/* Image lightbox */}
       {previewImage && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center outline-none"
@@ -861,9 +901,10 @@ interface MemoChatMessageProps {
   busy: boolean;
   userBubble: (msg: ChatMessage) => JSX.Element;
   onPin: (text: string) => void;
+  onContextMenu: (msg: ChatMessage, e: React.MouseEvent) => void;
 }
 
-const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showToolUse, busy, userBubble, onPin }: MemoChatMessageProps) {
+const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showToolUse, busy, userBubble, onPin, onContextMenu }: MemoChatMessageProps) {
   const visible = useMemo(() => {
     if (!msg.entries) return [];
     return msg.entries.filter((e) => {
@@ -879,15 +920,11 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
   );
 
   // 气泡全文：所有 text entry 合并（不含思考/工具）
-  const copyText = useMemo(() => {
-    if (msg.role === "user") return msg.text || "";
-    if (!msg.entries) return "";
-    return msg.entries.filter((e) => e.kind === "text").map((e) => e.text).join("\n");
-  }, [msg]);
+  const copyText = useMemo(() => getMsgCopyText(msg), [msg]);
 
   if (msg.role === "user") {
     return (
-      <div className="msg-in group">
+      <div className="msg-in group" onContextMenu={(e) => onContextMenu(msg, e)}>
         <div className="flex justify-end">
           {/* shrink-0：flex 子项不被压缩（中文 min-content 是单字，压缩会逐字换行）；
              max-w-[75%]：超长文本钳制宽度后由内部 overflow-wrap 换行 */}
@@ -904,7 +941,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
   if (visible.length === 0) return null;
 
   return (
-    <div className="msg-in group">
+    <div className="msg-in group" onContextMenu={(e) => onContextMenu(msg, e)}>
       <div className="flex gap-4 items-start max-w-[75%]">
         <div className="msg-avatar agent">M</div>
         <div className="min-w-0 relative">

@@ -180,3 +180,10 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
   }
   return mapped;
 }
+
+/** 消息可复制全文：user 取 text，ai 取全部 text entries 合并 */
+export function getMsgCopyText(msg: ChatMessage): string {
+  if (msg.role === "user") return msg.text || "";
+  if (!msg.entries) return "";
+  return msg.entries.filter((e) => e.kind === "text").map((e) => e.text).join("\n");
+}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { usePinStore, type Pin } from "../stores/pin-store";
 import { TextBlockView } from "./ChatBlocks";
 
@@ -7,8 +7,6 @@ const EMPTY_PINS: Pin[] = [];
 
 interface PinLayerProps {
   sessionId: string;
-  /** 消息滚动容器（选区监听挂载点） */
-  scrollRef: React.RefObject<HTMLDivElement | null>;
 }
 
 /** 图钉图标 */
@@ -103,10 +101,9 @@ function PinCard({ pin, sessionId, layerRef }: PinCardProps): JSX.Element {
 
 // ── 悬浮层 ───────────────────────────────────────────
 
-export function PinLayer({ sessionId, scrollRef }: PinLayerProps): JSX.Element {
+export function PinLayer({ sessionId }: PinLayerProps): JSX.Element {
   const pins = usePinStore((s) => s.pinsBySession[sessionId]) || EMPTY_PINS;
   const layerRef = useRef<HTMLDivElement>(null);
-  const [selBtn, setSelBtn] = useState<{ x: number; y: number; text: string } | null>(null);
 
   // 挂载 / 切会话时加载便签
   useEffect(() => {
@@ -137,42 +134,6 @@ export function PinLayer({ sessionId, scrollRef }: PinLayerProps): JSX.Element {
     store.persistPins(sessionId);
   }, [pins, sessionId]);
 
-  // 选区钉住：消息区选中文字 → 选区附近浮出"钉住"按钮
-  useEffect(() => {
-    const container = scrollRef.current;
-    if (!container) return;
-    const onMouseUp = () => {
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !sel.toString().trim()) { setSelBtn(null); return; }
-      const range = sel.getRangeAt(0);
-      if (!container.contains(range.commonAncestorContainer)) { setSelBtn(null); return; }
-      const rect = range.getBoundingClientRect();
-      const layerRect = layerRef.current?.getBoundingClientRect();
-      if (!layerRect) return;
-      setSelBtn({ x: rect.right - layerRect.left + 4, y: rect.bottom - layerRect.top + 4, text: sel.toString() });
-    };
-    const onMouseDown = (e: MouseEvent) => {
-      // 点击浮动按钮本身不隐藏（交给按钮 onClick）
-      if ((e.target as HTMLElement).closest("[data-pin-sel-btn]")) return;
-      setSelBtn(null);
-    };
-    container.addEventListener("mouseup", onMouseUp);
-    document.addEventListener("mousedown", onMouseDown);
-    return () => {
-      container.removeEventListener("mouseup", onMouseUp);
-      document.removeEventListener("mousedown", onMouseDown);
-    };
-  }, [scrollRef]);
-
-  const handleSelPin = useCallback(() => {
-    // 副作用移出 setState updater：StrictMode 下 updater 会被 double-invoke，updater 内的 addPin 会执行两次
-    if (selBtn) {
-      usePinStore.getState().addPin(sessionId, selBtn.text);
-      window.getSelection()?.removeAllRanges();
-      setSelBtn(null);
-    }
-  }, [sessionId, selBtn]);
-
   return (
     <div ref={layerRef} className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
       {pins.map((pin) => (
@@ -180,17 +141,6 @@ export function PinLayer({ sessionId, scrollRef }: PinLayerProps): JSX.Element {
           <PinCard pin={pin} sessionId={sessionId} layerRef={layerRef} />
         </div>
       ))}
-      {selBtn && (
-        <button
-          data-pin-sel-btn
-          className="absolute pointer-events-auto flex items-center gap-1 px-2 py-1 rounded-md bg-surface-elevated border border-border shadow-lg text-xs text-text-primary hover:bg-surface-hover transition-colors"
-          style={{ left: selBtn.x, top: selBtn.y }}
-          onClick={handleSelPin}
-        >
-          <PinIcon className="w-3 h-3" />
-          钉住
-        </button>
-      )}
     </div>
   );
 }
