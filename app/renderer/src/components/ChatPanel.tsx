@@ -14,7 +14,7 @@ import { PermissionPrompt } from "./PermissionPrompt";
 import { ChatInput } from "./ChatInput";
 import { SessionStatsPopup } from "./SessionStatsPopup";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
-import { PinLayer } from "./PinLayer";
+import { PinLayer, PinIcon } from "./PinLayer";
 import { usePinStore } from "../stores/pin-store";
 
 /** 气泡复制按钮：悬浮气泡时显示在气泡下方，复制整条文本 */
@@ -54,12 +54,12 @@ function PinBubbleBtn({ text, onPin }: { text: string; onPin: (text: string) => 
     <button
       onClick={handlePin}
       title="钉为便签"
-      className="absolute top-full left-6 mt-1 flex items-center justify-center w-6 h-6 rounded-md text-text-secondary opacity-0 group-hover:opacity-100 hover:text-text-primary transition-opacity duration-150"
+      className="copy-btn absolute top-full left-6 mt-1 flex items-center justify-center w-6 h-6 rounded-md text-text-secondary opacity-0 group-hover:opacity-100 hover:text-text-primary transition-opacity duration-150"
     >
       {pinned ? (
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5l3.5 3.5L13 5.5"/></svg>
       ) : (
-        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M9.8 1.7a1.5 1.5 0 012.1 0l2.4 2.4a1.5 1.5 0 010 2.1l-1.1 1.1-4.5-4.5 1.1-1.1z"/><path d="M8.7 5.4L4 6.1l-.7 4.7L8.7 5.4z"/><path d="M1.5 14.5l3.8-3.8"/></svg>
+        <PinIcon className="w-[11px] h-[11px]" />
       )}
     </button>
   );

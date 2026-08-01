@@ -12,7 +12,7 @@ interface PinLayerProps {
 }
 
 /** 图钉图标 */
-function PinIcon({ className }: { className?: string }): JSX.Element {
+export function PinIcon({ className }: { className?: string }): JSX.Element {
   return (
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M9.8 1.7a1.5 1.5 0 012.1 0l2.4 2.4a1.5 1.5 0 010 2.1l-1.1 1.1-4.5-4.5 1.1-1.1z" />
