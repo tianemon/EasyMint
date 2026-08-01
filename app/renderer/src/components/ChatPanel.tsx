@@ -19,7 +19,7 @@ import { PinLayer, PinIcon } from "./PinLayer";
 import { usePinStore } from "../stores/pin-store";
 import { ContextMenu, type ContextMenuData, type ContextMenuItem } from "./ContextMenu";
 
-/** 气泡复制按钮：悬浮气泡时显示在气泡下方，复制整条文本 */
+/** 气泡复制按钮：常驻显示在气泡下方，复制整条文本 */
 function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
@@ -43,7 +43,7 @@ function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
   );
 }
 
-/** 气泡钉住按钮：悬浮气泡时显示在复制按钮右侧，把整条文本钉为便签 */
+/** 气泡钉住按钮：常驻显示在复制按钮右侧，把整条文本钉为便签 */
 function PinBubbleBtn({ text, onPin }: { text: string; onPin: (text: string) => void }): JSX.Element {
   const [pinned, setPinned] = useState(false);
   const handlePin = () => {
@@ -707,6 +707,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   }, []);
 
   const [ctxMenu, setCtxMenu] = useState<ContextMenuData | null>(null);
+  const closeMenu = useCallback(() => setCtxMenu(null), []);
 
   // 消息右键菜单：有选区时复制/钉住选区（markdown 还原），无选区时复制/钉住全文
   const handleMsgContextMenu = useCallback((msg: ChatMessage, e: React.MouseEvent) => {
@@ -717,6 +718,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     const selInMsg = hasSel && sel.rangeCount > 0 && container.contains(sel.getRangeAt(0).commonAncestorContainer);
     const selText = selInMsg ? sel!.toString() : "";
     const copyText = getMsgCopyText(msg);
+    // 选区快照：菜单打开期间用户可能改变选区（如 Ctrl+A），钉住用快照而非重读 live Selection
+    const pinRange = selInMsg ? sel.getRangeAt(0).cloneRange() : null;
 
     const items: ContextMenuItem[] = [
       { label: "复制", onClick: () => { navigator.clipboard.writeText(selInMsg ? selText : copyText).catch((err: unknown) => console.error("[copy]", err)); } },
@@ -730,10 +733,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         s?.addRange(range);
       } },
       { label: "钉住", onClick: () => {
-        if (selInMsg) {
-          const md = blocksToMarkdown(selectionToBlocks(sel.getRangeAt(0)));
+        if (pinRange) {
+          const md = blocksToMarkdown(selectionToBlocks(pinRange));
           usePinStore.getState().addPin(sidRef.current, md);
-          sel.removeAllRanges();
+          window.getSelection()?.removeAllRanges();
         } else {
           usePinStore.getState().addPin(sidRef.current, copyText);
         }
@@ -765,7 +768,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                     data-index={vi.index}
                     ref={virtualizer.measureElement}
                     style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vi.start}px)` }}
-                    className="pb-3"
+                    className="pb-8"
                   >
                     <MemoChatMessage
                       msg={msg}
@@ -873,7 +876,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       )}
       {/* 内容便签悬浮层：仅当前会话可见，随 tab 显隐 */}
       <PinLayer sessionId={sid} />
-      <ContextMenu menu={ctxMenu} onClose={() => setCtxMenu(null)} />
+      <ContextMenu menu={ctxMenu} onClose={closeMenu} />
       {/* Image lightbox */}
       {previewImage && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center outline-none"
@@ -924,7 +927,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
 
   if (msg.role === "user") {
     return (
-      <div className="msg-in group" onContextMenu={(e) => onContextMenu(msg, e)}>
+      <div className="msg-in" onContextMenu={(e) => onContextMenu(msg, e)}>
         <div className="flex justify-end">
           {/* shrink-0：flex 子项不被压缩（中文 min-content 是单字，压缩会逐字换行）；
              max-w-[75%]：超长文本钳制宽度后由内部 overflow-wrap 换行 */}
@@ -941,7 +944,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
   if (visible.length === 0) return null;
 
   return (
-    <div className="msg-in group" onContextMenu={(e) => onContextMenu(msg, e)}>
+    <div className="msg-in" onContextMenu={(e) => onContextMenu(msg, e)}>
       <div className="flex gap-4 items-start max-w-[75%]">
         <div className="msg-avatar agent">M</div>
         <div className="min-w-0 relative">
