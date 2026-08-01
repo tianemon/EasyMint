@@ -56,6 +56,9 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     minWidth: 1024,
     minHeight: 700,
     titleBarStyle: "hiddenInset",
+    // Windows：titleBarOverlay 把系统窗口按钮（最小化/最大化/关闭）叠加到自定义标题栏右侧，
+    // 保持原生行为（点击/拖拽/双击）；macOS 忽略此配置，hiddenInset 行为不变
+    ...(process.platform === "win32" ? { titleBarOverlay: { color: "#1f1f1f", symbolColor: "#cccccc", height: 44 } } : {}),
     ...(isDev ? {} : { icon: path.join(__dirname, "..", "..", "..", "assets", "icon.icns") }),
     webPreferences: {
       preload: path.join(__dirname, "..", "..", "preload", "dist", "preload.cjs"),
@@ -187,6 +190,9 @@ app.whenReady().then(() => {
       { label: "View", submenu: [{ role: "reload" as const }, { role: "toggleDevTools" as const }, { type: "separator" as const }, { role: "zoomIn" as const }, { role: "zoomOut" as const }, { role: "resetZoom" as const }] },
     ];
     Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  } else {
+    // Windows/Linux：移除 Electron 默认菜单栏（File/Edit/View/Window/Help），与 macOS 观感一致
+    Menu.setApplicationMenu(null);
   }
 });
 
