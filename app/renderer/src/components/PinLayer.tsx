@@ -22,13 +22,14 @@ interface PinLayerProps {
   sessionId: string;
 }
 
-/** 图钉图标 */
+/** 图钉图标（Lucide pin 风格：帽沿收腰 + 贯穿针） */
 export function PinIcon({ className }: { className?: string }): JSX.Element {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M9.8 1.7a1.5 1.5 0 012.1 0l2.4 2.4a1.5 1.5 0 010 2.1l-1.1 1.1-4.5-4.5 1.1-1.1z" />
-      <path d="M8.7 5.4L4 6.1l-.7 4.7L8.7 5.4z" />
-      <path d="M1.5 14.5l3.8-3.8" />
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      {/* 针：从钉帽底部中心向下贯穿 */}
+      <path d="M8 11.3V15" />
+      {/* 钉帽：顶部锚沿 → 收腰 → 底部斜收，外接弧线圆润 */}
+      <path d="M6 7.2a1.33 1.33 0 0 1-.74 1.19l-1.19.6A1.33 1.33 0 0 0 3.33 10.16v.51a.67.67 0 0 0 .67.67h8a.67.67 0 0 0 .67-.67v-.51a1.33 1.33 0 0 0-.74-1.2l-1.19-.6a1.33 1.33 0 0 1-.74-1.2V4.67a.67.67 0 0 1 .67-.67 1.33 1.33 0 0 0 0-2.67H5.33a1.33 1.33 0 0 0 0 2.67.67.67 0 0 1 .67.67z" />
     </svg>
   );
 }
