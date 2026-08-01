@@ -774,7 +774,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             </div>
             <h1 className="chat-empty-title">开始对话</h1>
-            <p className="chat-empty-desc">描述你想做什么，Mint 会帮你完成。</p>
+            <p className="chat-empty-desc">描述你想做什么，Mint 会帮你完成</p>
           </div>
         ) : (
           <div className="px-8 py-4">
