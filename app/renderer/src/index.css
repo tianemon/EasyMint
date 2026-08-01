@@ -396,6 +396,8 @@ html[data-platform="win32"] {
   user-select: none; -webkit-user-select: none;
 }
 .sb-drag-strip { height: 35px; flex-shrink: 0; position: relative; }
+/* 自绘窗口按钮容器：显式 no-drag（CSS 类比内联 style 更可靠，防止被下方拖拽区拦截点击） */
+.window-controls { -webkit-app-region: no-drag; }
 /* Windows 自绘窗口按钮方案：拖拽区恢复与 macOS 一致的高度，保证布局观感统一 */
 html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 
