@@ -21,17 +21,20 @@ function makeTitle(content: string): string {
   return clean.slice(0, 20) || "便签";
 }
 
-/** 分配调色板索引：现存便签中未使用的最小索引（0-7），用尽则数量取模兜底；无 colorIdx 的旧数据按位置 index%8 视为已占用（与渲染层兜底一致） */
+/** 分配调色板索引：从现存便签未使用的颜色中随机选（保持不重复），用尽则数量取模兜底；无 colorIdx 的旧数据按位置 index%8 视为已占用（与渲染层兜底一致） */
 function pickColorIdx(existing: Pin[]): number {
   const used = new Set(existing.map((p, i) => p.colorIdx ?? (i % 8)));
-  for (let i = 0; i < 8; i++) if (!used.has(i)) return i;
+  const free: number[] = [];
+  for (let i = 0; i < 8; i++) if (!used.has(i)) free.push(i);
+  if (free.length > 0) return free[Math.floor(Math.random() * free.length)]!;
   return existing.length % 8;
 }
 
 interface PinState {
   pinsBySession: Record<string, Pin[]>;
   loadPins: (sessionId: string, pins: Pin[]) => void;
-  addPin: (sessionId: string, content: string) => void;
+  /** 钉住；返回是否成功（同会话已有相同内容则拒绝返回 false） */
+  addPin: (sessionId: string, content: string) => boolean;
   removePin: (sessionId: string, pinId: string) => void;
   movePin: (sessionId: string, pinId: string, x: number, y: number) => void;
   resizePin: (sessionId: string, pinId: string, width: number, height: number) => void;
@@ -52,19 +55,23 @@ export const usePinStore = create<PinState>((set, get) => ({
     set((s) => ({ pinsBySession: { ...s.pinsBySession, [sessionId]: pins } })),
 
   addPin: (sessionId, content) => {
+    // 重复检查：同会话已有相同内容便签则拒绝
+    const existing = get().pinsBySession[sessionId] || [];
+    if (existing.some((p) => p.content === content)) return false;
     const pin: Pin = {
       id: `pin_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       content,
       title: makeTitle(content),
       x: -1,
       y: -1,
-      colorIdx: pickColorIdx(get().pinsBySession[sessionId] || []),
+      colorIdx: pickColorIdx(existing),
       createdAt: Date.now(),
     };
     set((s) => ({
       pinsBySession: { ...s.pinsBySession, [sessionId]: [...(s.pinsBySession[sessionId] || []), pin] },
     }));
     get().persistPins(sessionId);
+    return true;
   },
 
   removePin: (sessionId, pinId) => {

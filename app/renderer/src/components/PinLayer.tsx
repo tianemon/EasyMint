@@ -9,7 +9,7 @@ const EMPTY_PINS: Pin[] = [];
 const TAB_COLORS = ["bg-sky-500", "bg-emerald-500", "bg-amber-500", "bg-purple-500", "bg-rose-500", "bg-teal-500", "bg-orange-500", "bg-indigo-500"] as const;
 const CARD_COLORS = ["bg-sky-500", "bg-emerald-500", "bg-amber-500", "bg-purple-500", "bg-rose-500", "bg-teal-500", "bg-orange-500", "bg-indigo-500"] as const;
 
-const TAB_W = 26;
+const TAB_W = 20;
 const TAB_H = 40;
 const EXT_W = 160;
 
@@ -304,7 +304,7 @@ function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX
       onPointerLeave={() => setHovered(false)}
     >
       <div className="flex items-center gap-1.5 h-full px-1.5">
-        <PinIcon className="w-3 h-3 text-white shrink-0" />
+        <PinIcon className={`w-3 h-3 text-white shrink-0 transition-opacity duration-200 ${hovered ? "opacity-100" : "opacity-0"}`} />
         <span className={`text-[11px] text-white truncate min-w-0 transition-opacity duration-200 ${hovered ? "opacity-100" : "opacity-0"}`}>{pin.title}</span>
       </div>
     </div>

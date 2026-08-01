@@ -107,31 +107,48 @@ describe("pin-store", () => {
     expect(pin.height).toBe(300);
   });
 
-  it("addPin 自动分配颜色索引（现存不重复）", () => {
+  it("addPin 随机分配颜色索引（现存不重复）", () => {
     usePinStore.getState().addPin("s1", "a");
     usePinStore.getState().addPin("s1", "b");
     const pins = usePinStore.getState().pinsBySession["s1"]!;
-    expect(pins[0]!.colorIdx).toBe(0);
-    expect(pins[1]!.colorIdx).toBe(1);
+    expect(pins[0]!.colorIdx).toBeGreaterThanOrEqual(0);
+    expect(pins[0]!.colorIdx).toBeLessThan(8);
+    expect(pins[1]!.colorIdx).not.toBe(pins[0]!.colorIdx);
   });
 
-  it("addPin 颜色索引复用已释放的色号", () => {
+  it("addPin 重复内容拒绝并返回 false", () => {
+    const first = usePinStore.getState().addPin("s1", "## 重复内容");
+    const second = usePinStore.getState().addPin("s1", "## 重复内容");
+    expect(first).toBe(true);
+    expect(second).toBe(false);
+    expect(usePinStore.getState().pinsBySession["s1"]).toHaveLength(1);
+  });
+
+  it("addPin 不同内容正常添加", () => {
+    usePinStore.getState().addPin("s1", "内容甲");
+    const ok = usePinStore.getState().addPin("s1", "内容乙");
+    expect(ok).toBe(true);
+    expect(usePinStore.getState().pinsBySession["s1"]).toHaveLength(2);
+  });
+
+  it("addPin 颜色索引不与现存便签重复", () => {
     usePinStore.getState().addPin("s1", "a");
     usePinStore.getState().addPin("s1", "b");
+    const bColor = usePinStore.getState().pinsBySession["s1"]![1]!.colorIdx;
     usePinStore.getState().removePin("s1", usePinStore.getState().pinsBySession["s1"]![0]!.id);
     usePinStore.getState().addPin("s1", "c");
     const pins = usePinStore.getState().pinsBySession["s1"]!;
     expect(pins).toHaveLength(2);
-    expect(pins[1]!.colorIdx).toBe(0);
+    expect(pins[1]!.colorIdx).not.toBe(bColor);
   });
 
-  it("pickColorIdx 旧数据（无 colorIdx）按位置占色，新便签避开", () => {
+  it("pickColorIdx 旧数据（无 colorIdx）按位置占色，新便签从剩余颜色中随机", () => {
     usePinStore.getState().loadPins("s1", [
       { id: "old1", content: "a", title: "a", x: -1, y: -1, createdAt: 1 },
       { id: "old2", content: "b", title: "b", x: -1, y: -1, createdAt: 2 },
     ]);
     usePinStore.getState().addPin("s1", "c");
-    expect(usePinStore.getState().pinsBySession["s1"]![2]!.colorIdx).toBe(2);
+    expect(usePinStore.getState().pinsBySession["s1"]![2]!.colorIdx).toBeGreaterThanOrEqual(2);
   });
 
   it("minimizePin 折叠为贴纸并清除坐标", () => {

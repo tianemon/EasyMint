@@ -43,19 +43,18 @@ function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
   );
 }
 
-/** 气泡钉住按钮：常驻显示在复制按钮右侧，把整条文本钉为便签 */
-function PinBubbleBtn({ text, onPin }: { text: string; onPin: (text: string) => void }): JSX.Element {
-  const [pinned, setPinned] = useState(false);
+/** 气泡钉住按钮：常驻显示在复制按钮右侧，把整条文本钉为便签；
+    已钉状态由 store 驱动（同内容便签存在即显示勾，任何入口钉住/删除都联动） */
+function PinBubbleBtn({ text, onPin, sid }: { text: string; onPin: (text: string) => void; sid: string }): JSX.Element {
+  const pinned = usePinStore((s) => (s.pinsBySession[sid] || []).some((p) => p.content === text));
   const handlePin = () => {
     if (!text.trim()) return;
     onPin(text);
-    setPinned(true);
-    setTimeout(() => setPinned(false), 2000);
   };
   return (
     <button
       onClick={handlePin}
-      title="钉为便签"
+      title={pinned ? "已钉为便签" : "钉为便签"}
       className="copy-btn absolute top-full left-6 mt-1 flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text-primary"
     >
       {pinned ? (
@@ -708,6 +707,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   const [ctxMenu, setCtxMenu] = useState<ContextMenuData | null>(null);
   const closeMenu = useCallback(() => setCtxMenu(null), []);
+  // 钉住重复提示（2 秒自动消失）
+  const [pinToast, setPinToast] = useState<string | null>(null);
+  const showPinToast = useCallback((text: string) => {
+    setPinToast(text);
+    setTimeout(() => setPinToast(null), 2000);
+  }, []);
 
   // 消息右键菜单：有选区时复制/钉住选区（markdown 还原），无选区时复制/钉住全文
   const handleMsgContextMenu = useCallback((msg: ChatMessage, e: React.MouseEvent) => {
@@ -733,13 +738,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         s?.addRange(range);
       } },
       { label: "钉住", onClick: () => {
+        let ok: boolean;
         if (pinRange) {
-          const md = blocksToMarkdown(selectionToBlocks(pinRange));
-          usePinStore.getState().addPin(sidRef.current, md);
+          ok = usePinStore.getState().addPin(sidRef.current, blocksToMarkdown(selectionToBlocks(pinRange)));
           window.getSelection()?.removeAllRanges();
         } else {
-          usePinStore.getState().addPin(sidRef.current, copyText);
+          ok = usePinStore.getState().addPin(sidRef.current, copyText);
         }
+        if (!ok) showPinToast("该内容已钉为便签");
       } },
     ];
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
@@ -778,6 +784,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                       userBubble={userBubble}
                       onPin={handlePin}
                       onContextMenu={handleMsgContextMenu}
+                      sid={sid}
                     />
                   </div>
                 );
@@ -877,6 +884,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       {/* 内容便签悬浮层：仅当前会话可见，随 tab 显隐 */}
       <PinLayer sessionId={sid} />
       <ContextMenu menu={ctxMenu} onClose={closeMenu} />
+      {/* 钉住提示 */}
+      {pinToast && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-lg bg-surface-elevated border border-border shadow-lg text-xs text-text-primary pointer-events-none">
+          {pinToast}
+        </div>
+      )}
       {/* Image lightbox */}
       {previewImage && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center outline-none"
@@ -905,9 +918,10 @@ interface MemoChatMessageProps {
   userBubble: (msg: ChatMessage) => JSX.Element;
   onPin: (text: string) => void;
   onContextMenu: (msg: ChatMessage, e: React.MouseEvent) => void;
+  sid: string;
 }
 
-const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showToolUse, busy, userBubble, onPin, onContextMenu }: MemoChatMessageProps) {
+const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showToolUse, busy, userBubble, onPin, onContextMenu, sid }: MemoChatMessageProps) {
   const visible = useMemo(() => {
     if (!msg.entries) return [];
     return msg.entries.filter((e) => {
@@ -934,7 +948,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
           <div className="relative shrink-0 max-w-[75%] min-w-0">
             {userBubble(msg)}
             <CopyBubbleBtn text={copyText} />
-            <PinBubbleBtn text={copyText} onPin={onPin} />
+            <PinBubbleBtn text={copyText} onPin={onPin} sid={sid} />
           </div>
         </div>
       </div>
@@ -955,7 +969,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
             ))}
           </div>
           <CopyBubbleBtn text={copyText} />
-          <PinBubbleBtn text={copyText} onPin={onPin} />
+          <PinBubbleBtn text={copyText} onPin={onPin} sid={sid} />
         </div>
       </div>
     </div>
