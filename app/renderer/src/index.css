@@ -746,8 +746,8 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   flex: 1; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: var(--s6);
   padding: var(--s12) var(--s8);
-  /* 图标与文字整体下移 20px（视觉重心调整） */
-  margin-top: 20px;
+  /* 图标与文字整体下移 40px（视觉重心调整） */
+  margin-top: 40px;
 }
 .chat-empty-icon {
   width: 44px; height: 44px; border-radius: var(--radius-md);
