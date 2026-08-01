@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import { usePinStore, type Pin } from "../stores/pin-store";
 import { TextBlockView } from "./ChatBlocks";
 
@@ -97,7 +97,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize }: PinCardProps): JSX.El
       target.addEventListener("pointerup", onUp);
       target.addEventListener("pointercancel", onUp);
     },
-    [pin.id, pin.x, pin.y, sessionId, layerRef],
+    [pin.id, pin.x, pin.y, pin.width, sessionId, layerRef],
   );
 
   // 四周/拐角 resize：按方向计算新几何（西/北含坐标移动），delta 方式；宽 clamp 240-560、高 clamp 100-容器 80%
@@ -210,11 +210,93 @@ function PinCard({ pin, sessionId, layerRef, onMinimize }: PinCardProps): JSX.El
   );
 }
 
+// ── 书签贴纸 ─────────────────────────────────────────
+
+interface PinTabProps {
+  pin: Pin;
+  sessionId: string;
+  layerRef: React.RefObject<HTMLDivElement | null>;
+  /** 堆叠槽位 y（未单独定位时由 PinLayer 计算传入）；未传则用 pin.y */
+  slotY?: number;
+}
+
+/** 书签贴纸：吸附在容器左右边缘的竖条，同边默认堆叠，可沿边缘拖动单独吸附，点击展开 */
+function PinTab({ pin, sessionId, layerRef, slotY }: PinTabProps): JSX.Element {
+  const edge = pin.edge || "right";
+  const layer = layerRef.current;
+  const x = edge === "right" ? (layer ? layer.clientWidth - TAB_W - 4 : 0) : 4;
+  const y = slotY ?? (pin.y < 0 || !layer ? 16 : Math.min(Math.max(0, pin.y), Math.max(0, layer.clientHeight - TAB_H - 4)));
+
+  // 贴纸拖动：只改 y（沿边缘滑动），位移 > 3px 视为拖动，否则视为点击展开
+  const onDragStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+    const startClientY = e.clientY;
+    const startPinY = pin.y < 0 ? 16 : pin.y;
+    let moved = false;
+
+    const onMove = (ev: PointerEvent) => {
+      const layerEl = layerRef.current;
+      if (!layerEl) return;
+      const dy = ev.clientY - startClientY;
+      if (Math.abs(dy) > 3) moved = true;
+      const ny = Math.min(Math.max(0, startPinY + dy), Math.max(0, layerEl.clientHeight - TAB_H - 4));
+      const nx = edge === "left" ? 4 : layerEl.clientWidth - TAB_W - 4;
+      usePinStore.getState().movePin(sessionId, pin.id, nx, ny);
+    };
+    const onUp = () => {
+      target.removeEventListener("pointermove", onMove);
+      target.removeEventListener("pointerup", onUp);
+      target.removeEventListener("pointercancel", onUp);
+      if (moved) {
+        usePinStore.getState().persistPins(sessionId);
+      } else {
+        // 无位移 → 点击展开：卡片出现在贴纸边内侧
+        const layerEl = layerRef.current;
+        const cardW = pin.width || CARD_W;
+        const ex = edge === "right" ? (layerEl ? Math.max(16, layerEl.clientWidth - cardW - 16) : 16) : 16;
+        const ey = pin.y < 0 ? 16 : pin.y;
+        usePinStore.getState().expandPin(sessionId, pin.id, ex, ey);
+      }
+    };
+    target.addEventListener("pointermove", onMove);
+    target.addEventListener("pointerup", onUp);
+    target.addEventListener("pointercancel", onUp);
+  }, [pin.id, pin.y, pin.width, sessionId, edge, layerRef]);
+
+  return (
+    <div
+      className={`absolute ${TAB_COLORS[pin.colorIdx ?? 0]} rounded-lg shadow-md cursor-pointer flex items-center justify-center hover:brightness-110 transition-[filter]`}
+      style={{ left: x, top: y, width: TAB_W, height: TAB_H }}
+      title={pin.title}
+      onPointerDown={onDragStart}
+    >
+      <PinIcon className="w-3 h-3 text-white" />
+    </div>
+  );
+}
+
 // ── 悬浮层 ───────────────────────────────────────────
 
 export function PinLayer({ sessionId }: PinLayerProps): JSX.Element {
   const pins = usePinStore((s) => s.pinsBySession[sessionId]) || EMPTY_PINS;
   const layerRef = useRef<HTMLDivElement>(null);
+
+  // 贴纸堆叠槽位：同边未单独定位（y<0）的贴纸按数组顺序排列
+  const tabSlots = useMemo(() => {
+    const slots: Record<string, number> = {};
+    const counts: Record<string, number> = {};
+    for (const p of pins) {
+      if (!p.minimized) continue;
+      const edge = p.edge || "right";
+      const c = counts[edge] || 0;
+      if (p.y < 0) slots[p.id] = 16 + c * (TAB_H + TAB_GAP);
+      counts[edge] = c + 1;
+    }
+    return slots;
+  }, [pins]);
 
   // 挂载 / 切会话时加载便签
   useEffect(() => {
@@ -260,7 +342,11 @@ export function PinLayer({ sessionId }: PinLayerProps): JSX.Element {
     <div ref={layerRef} className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
       {pins.map((pin) => (
         <div key={pin.id} className="pointer-events-auto contents">
-          <PinCard pin={pin} sessionId={sessionId} layerRef={layerRef} onMinimize={() => handleMinimize(pin.id)} />
+          {pin.minimized ? (
+            <PinTab pin={pin} sessionId={sessionId} layerRef={layerRef} slotY={tabSlots[pin.id]} />
+          ) : (
+            <PinCard pin={pin} sessionId={sessionId} layerRef={layerRef} onMinimize={() => handleMinimize(pin.id)} />
+          )}
         </div>
       ))}
     </div>
