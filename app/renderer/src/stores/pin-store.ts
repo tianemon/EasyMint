@@ -8,6 +8,9 @@ export interface Pin {
   y: number;
   width?: number;  // 缺省 320
   height?: number; // 缺省 auto（内容撑开）
+  colorIdx?: number;    // 调色板索引 0-7
+  minimized?: boolean;  // true = 贴纸态
+  edge?: "left" | "right"; // 吸附边（minimized 时有效）
   createdAt: number;
 }
 
@@ -18,6 +21,13 @@ function makeTitle(content: string): string {
   return clean.slice(0, 20) || "便签";
 }
 
+/** 分配调色板索引：现存便签中未使用的最小索引（0-7），用尽则数量取模兜底 */
+function pickColorIdx(existing: Pin[]): number {
+  const used = new Set(existing.map((p) => p.colorIdx).filter((i): i is number => i !== undefined));
+  for (let i = 0; i < 8; i++) if (!used.has(i)) return i;
+  return existing.length % 8;
+}
+
 interface PinState {
   pinsBySession: Record<string, Pin[]>;
   loadPins: (sessionId: string, pins: Pin[]) => void;
@@ -26,6 +36,10 @@ interface PinState {
   movePin: (sessionId: string, pinId: string, x: number, y: number) => void;
   resizePin: (sessionId: string, pinId: string, width: number, height: number) => void;
   bringToFront: (sessionId: string, pinId: string) => void;
+  /** 折叠为贴纸：minimized + edge，y=-1 表示未单独定位（渲染层按堆叠槽位） */
+  minimizePin: (sessionId: string, pinId: string, edge: "left" | "right") => void;
+  /** 展开为卡片：minimized 清除，edge 清除，设置卡片位置 */
+  expandPin: (sessionId: string, pinId: string, x: number, y: number) => void;
   migrateSession: (oldSid: string, newSid: string) => void;
   /** 全量持久化到磁盘（拖动结束 / 默认定位后显式调用） */
   persistPins: (sessionId: string) => void;
@@ -44,6 +58,7 @@ export const usePinStore = create<PinState>((set, get) => ({
       title: makeTitle(content),
       x: -1,
       y: -1,
+      colorIdx: pickColorIdx(get().pinsBySession[sessionId] || []),
       createdAt: Date.now(),
     };
     set((s) => ({
@@ -91,6 +106,30 @@ export const usePinStore = create<PinState>((set, get) => ({
         pinsBySession: { ...s.pinsBySession, [sessionId]: [...pins.filter((p) => p.id !== pinId), pin] },
       };
     });
+    get().persistPins(sessionId);
+  },
+
+  minimizePin: (sessionId, pinId, edge) => {
+    set((s) => ({
+      pinsBySession: {
+        ...s.pinsBySession,
+        [sessionId]: (s.pinsBySession[sessionId] || []).map((p) =>
+          p.id === pinId ? { ...p, minimized: true, edge, y: -1 } : p
+        ),
+      },
+    }));
+    get().persistPins(sessionId);
+  },
+
+  expandPin: (sessionId, pinId, x, y) => {
+    set((s) => ({
+      pinsBySession: {
+        ...s.pinsBySession,
+        [sessionId]: (s.pinsBySession[sessionId] || []).map((p) =>
+          p.id === pinId ? { ...p, minimized: false, edge: undefined, x, y } : p
+        ),
+      },
+    }));
     get().persistPins(sessionId);
   },
 

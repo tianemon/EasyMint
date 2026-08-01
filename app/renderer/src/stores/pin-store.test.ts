@@ -106,4 +106,44 @@ describe("pin-store", () => {
     expect(pin.width).toBe(400);
     expect(pin.height).toBe(300);
   });
+
+  it("addPin 自动分配颜色索引（现存不重复）", () => {
+    usePinStore.getState().addPin("s1", "a");
+    usePinStore.getState().addPin("s1", "b");
+    const pins = usePinStore.getState().pinsBySession["s1"]!;
+    expect(pins[0]!.colorIdx).toBe(0);
+    expect(pins[1]!.colorIdx).toBe(1);
+  });
+
+  it("addPin 颜色索引复用已释放的色号", () => {
+    usePinStore.getState().addPin("s1", "a");
+    usePinStore.getState().addPin("s1", "b");
+    usePinStore.getState().removePin("s1", usePinStore.getState().pinsBySession["s1"]![0]!.id);
+    usePinStore.getState().addPin("s1", "c");
+    const pins = usePinStore.getState().pinsBySession["s1"]!;
+    expect(pins).toHaveLength(2);
+    expect(pins[1]!.colorIdx).toBe(0);
+  });
+
+  it("minimizePin 折叠为贴纸并清除坐标", () => {
+    usePinStore.getState().addPin("s1", "a");
+    const id = usePinStore.getState().pinsBySession["s1"]![0]!.id;
+    usePinStore.getState().minimizePin("s1", id, "right");
+    const pin = usePinStore.getState().pinsBySession["s1"]![0]!;
+    expect(pin.minimized).toBe(true);
+    expect(pin.edge).toBe("right");
+    expect(pin.y).toBe(-1);
+  });
+
+  it("expandPin 展开为卡片并设置位置", () => {
+    usePinStore.getState().addPin("s1", "a");
+    const id = usePinStore.getState().pinsBySession["s1"]![0]!.id;
+    usePinStore.getState().minimizePin("s1", id, "right");
+    usePinStore.getState().expandPin("s1", id, 100, 50);
+    const pin = usePinStore.getState().pinsBySession["s1"]![0]!;
+    expect(pin.minimized).toBe(false);
+    expect(pin.edge).toBeUndefined();
+    expect(pin.x).toBe(100);
+    expect(pin.y).toBe(50);
+  });
 });

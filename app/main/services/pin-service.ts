@@ -20,6 +20,9 @@ export interface Pin {
   y: number;
   width?: number;  // 缺省 320
   height?: number; // 缺省 auto（内容撑开）
+  colorIdx?: number;    // 调色板索引 0-7
+  minimized?: boolean;  // true = 贴纸态
+  edge?: "left" | "right"; // 吸附边（minimized 时有效）
   createdAt: number;
 }
 

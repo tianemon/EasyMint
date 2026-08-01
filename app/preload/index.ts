@@ -70,8 +70,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     unarchiveSession: (sessionId: string) => ipcRenderer.invoke("conv:unarchiveSession", { sessionId }),
   },
   pin: {
-    get: (sessionId: string) => ipcRenderer.invoke("pin:get", { sessionId }) as Promise<Array<{ id: string; content: string; title: string; x: number; y: number; width?: number; height?: number; createdAt: number }>>,
-    set: (sessionId: string, pins: Array<{ id: string; content: string; title: string; x: number; y: number; width?: number; height?: number; createdAt: number }>) => ipcRenderer.invoke("pin:set", { sessionId, pins }),
+    get: (sessionId: string) => ipcRenderer.invoke("pin:get", { sessionId }) as Promise<Array<{ id: string; content: string; title: string; x: number; y: number; width?: number; height?: number; colorIdx?: number; minimized?: boolean; edge?: "left" | "right"; createdAt: number }>>,
+    set: (sessionId: string, pins: Array<{ id: string; content: string; title: string; x: number; y: number; width?: number; height?: number; colorIdx?: number; minimized?: boolean; edge?: "left" | "right"; createdAt: number }>) => ipcRenderer.invoke("pin:set", { sessionId, pins }),
   },
   sessionCache: {
     read: (sessionId: string) => ipcRenderer.invoke("session-cache:read", { sessionId }),
