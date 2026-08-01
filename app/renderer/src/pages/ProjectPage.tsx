@@ -229,23 +229,31 @@ export function ProjectPage(): JSX.Element {
     setShowOpenProject(true);
   }, []);
 
-  const handleDeleteProject = useCallback(async (e: React.MouseEvent, projectIdToDelete: string) => {
+  // 删除确认弹窗：项目会移到系统回收站/废纸篓（主进程 shell.trashItem）
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string } | null>(null);
+  const handleDeleteProject = useCallback((e: React.MouseEvent, projectIdToDelete: string) => {
     e.stopPropagation();
-    // 删除前确认：项目会移到系统回收站/废纸篓（主进程 shell.trashItem）
-    const trashName = window.electronAPI?.platform === "darwin" ? "废纸篓" : "回收站";
-    const ok = window.confirm(`确认删除该项目吗？\n（移动到${trashName}）`);
-    if (!ok) return;
-    await window.electronAPI.project.delete(projectIdToDelete);
-    setOpenProjectList((prev) => prev.filter((p) => p.id !== projectIdToDelete));
+    setDeleteTarget({ id: projectIdToDelete });
   }, []);
+  const confirmDeleteProject = useCallback(async () => {
+    if (!deleteTarget) return;
+    await window.electronAPI.project.delete(deleteTarget.id);
+    setOpenProjectList((prev) => prev.filter((p) => p.id !== deleteTarget!.id));
+    setDeleteTarget(null);
+  }, [deleteTarget]);
 
   const handleBrowseFolder = useCallback(async () => {
     const dir = await window.electronAPI.dialog.openDirectory();
     if (!dir) return;
     const imported = await window.electronAPI.project.import(dir);
     setShowOpenProject(false);
-    navigate(`/project/${imported.id}`);
-  }, [navigate]);
+    // 与列表点击一致：当前已打开项目时提示窗口选择
+    if (projectId && projectId !== imported.id) {
+      setWindowChoiceTarget({ id: imported.id });
+    } else {
+      navigate(`/project/${imported.id}`);
+    }
+  }, [navigate, projectId]);
 
   const handleRenameProject = useCallback(() => {
     setRenameNewName(projectName);
@@ -497,6 +505,30 @@ export function ProjectPage(): JSX.Element {
                 }}
               >
                 在当前窗口打开
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 删除项目确认弹窗：与窗口选择弹窗同风格 */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
+          <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl p-6 w-[400px] flex flex-col gap-4">
+            <p className="text-sm text-text-primary font-medium">确认删除该项目吗？</p>
+            <p className="text-xs text-text-secondary">（移动到{window.electronAPI?.platform === "darwin" ? "废纸篓" : "回收站"}）</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-5 py-2 rounded-lg border border-border text-text-secondary text-sm hover:bg-surface-hover transition-colors"
+                onClick={() => setDeleteTarget(null)}
+              >
+                取消
+              </button>
+              <button
+                className="px-5 py-2 rounded-lg bg-danger text-white text-sm hover:opacity-90 transition-opacity font-medium"
+                onClick={confirmDeleteProject}
+              >
+                删除
               </button>
             </div>
           </div>
