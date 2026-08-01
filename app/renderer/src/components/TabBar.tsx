@@ -11,7 +11,8 @@ export function TabBar(): JSX.Element | null {
   const closeTab = useTabStore((s) => s.closeTab);
   const runningSessions = useTabStore((s) => s.runningSessions);
 
-  if (tabs.length === 0) return null;
+  // 空 tab 时仍渲染空拖拽条（min-height 40px）：窗口顶部需要可拖拽区域
+  if (tabs.length === 0) return <div className="tabbar-v3" />;
 
   return (
     <div className="tabbar-v3">
