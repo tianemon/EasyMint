@@ -56,7 +56,7 @@ export function OnboardingPage(): JSX.Element {
                 i < currentStep
                   ? "bg-accent"
                   : i === currentStep
-                    ? "bg-accent ring-2 ring-accent/30"
+                    ? "bg-accent ring-2 ring-accent-border"
                     : "bg-border"
               }`}
             />
@@ -76,8 +76,10 @@ export function OnboardingPage(): JSX.Element {
         {currentStep === 0 ? (
           /* ── Step 1: Welcome ── */
           <div className="w-full max-w-[480px] flex flex-col items-center text-center">
-            {/* Logo */}
-            <img src="icon.png" className="w-24 h-24 mb-6" />
+            {/* Logo：卡片容器 + 阴影，与主界面元素风格一致 */}
+            <div className="w-24 h-24 mb-6 rounded-[20px] bg-surface-elevated border border-border shadow-md flex items-center justify-center overflow-hidden">
+              <img src="icon.png" className="w-16 h-16" />
+            </div>
 
             <h1 className="text-2xl font-bold text-text-primary mb-2">EasyMint</h1>
             <p className="text-sm text-text-secondary mb-1">
@@ -89,19 +91,19 @@ export function OnboardingPage(): JSX.Element {
             </p>
 
             <div className="flex flex-col gap-3 w-full">
-              <div className="px-4 py-3 rounded-lg bg-surface-alt text-left">
+              <div className="px-4 py-3 rounded-lg bg-surface-elevated border border-border shadow-sm text-left">
                 <p className="text-sm font-medium text-text-primary">AI 项目管理</p>
                 <p className="text-xs text-text-muted mt-0.5">
                   Mint 自动分析需求、拆分任务、跟进进度
                 </p>
               </div>
-              <div className="px-4 py-3 rounded-lg bg-surface-alt text-left">
+              <div className="px-4 py-3 rounded-lg bg-surface-elevated border border-border shadow-sm text-left">
                 <p className="text-sm font-medium text-text-primary">自动开发执行</p>
                 <p className="text-xs text-text-muted mt-0.5">
                   Builder 编码 → Evaluator 验收，全自动循环
                 </p>
               </div>
-              <div className="px-4 py-3 rounded-lg bg-surface-alt text-left">
+              <div className="px-4 py-3 rounded-lg bg-surface-elevated border border-border shadow-sm text-left">
                 <p className="text-sm font-medium text-text-primary">多供应商 API 支持</p>
                 <p className="text-xs text-text-muted mt-0.5">
                   内置 Anthropic、DeepSeek、MiMo、MiniMax 等供应商
