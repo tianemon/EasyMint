@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSettingsStore } from "../stores/settings-store";
 import { ProviderForm } from "../components/settings/ProviderSettings";
+import { WindowControls } from "../components/WindowControls";
 import type { ProviderConfig, ApiProvidersData } from "@shared/platform-presets";
 
 const STEPS = [
@@ -42,6 +43,10 @@ export function OnboardingPage(): JSX.Element {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Windows 自绘窗口按钮 + 顶部拖拽区（无 TabBar 的页面单独提供） */}
+      <div className="relative h-[35px] shrink-0" style={{ WebkitAppRegion: "drag" } as React.CSSProperties}>
+        <WindowControls />
+      </div>
       {/* Step indicator */}
       <div className="flex justify-center gap-3 pt-12 pb-2">
         {STEPS.map((step, i) => (

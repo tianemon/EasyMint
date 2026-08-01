@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 /** Windows 自绘窗口按钮（最小化/最大化/关闭）——仅 win32 渲染，主题跟随 CSS 变量；
-    位置与 TabBar 右侧预留（padding-right 132px）对齐 */
+    位置与 TabBar 右侧预留（padding-right 120px）对齐 */
 export function WindowControls(): JSX.Element | null {
   const isWin = window.electronAPI?.platform === "win32";
   const [isMaximized, setIsMaximized] = useState(false);
