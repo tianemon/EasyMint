@@ -101,7 +101,7 @@ function CodeBlock({ language, children }: { language?: string; children: string
   );
 }
 
-function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
+export function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
   const html = useMemo(() => {
     // Extract fenced code blocks before html rendering, handle them separately
     const parts: Array<{ type: "html" | "code"; content: string; lang?: string }> = [];
