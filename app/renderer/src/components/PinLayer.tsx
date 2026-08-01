@@ -58,12 +58,15 @@ function PinCard({ pin, sessionId, layerRef }: PinCardProps): JSX.Element {
         usePinStore.getState().movePin(sessionId, pin.id, nx, ny);
       };
       const onUp = () => {
+        // onUp 幂等：pointerup / pointercancel 复用同一清理函数
         target.removeEventListener("pointermove", onMove);
         target.removeEventListener("pointerup", onUp);
+        target.removeEventListener("pointercancel", onUp);
         usePinStore.getState().persistPins(sessionId);
       };
       target.addEventListener("pointermove", onMove);
       target.addEventListener("pointerup", onUp);
+      target.addEventListener("pointercancel", onUp);
     },
     [pin.id, pin.x, pin.y, sessionId, layerRef],
   );
@@ -108,6 +111,8 @@ export function PinLayer({ sessionId, scrollRef }: PinLayerProps): JSX.Element {
   // 挂载 / 切会话时加载便签
   useEffect(() => {
     let cancelled = false;
+    // dev server 等无 electronAPI 环境直接跳过（与 pin-store.persistPins 守卫一致）
+    if (typeof window === "undefined" || !window.electronAPI?.pin?.get) return;
     window.electronAPI.pin.get(sessionId).then((loaded) => {
       if (!cancelled) usePinStore.getState().loadPins(sessionId, loaded);
     }).catch((e: unknown) => {
