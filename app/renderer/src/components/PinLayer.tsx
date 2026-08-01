@@ -160,14 +160,13 @@ export function PinLayer({ sessionId, scrollRef }: PinLayerProps): JSX.Element {
   }, [scrollRef]);
 
   const handleSelPin = useCallback(() => {
-    setSelBtn((cur) => {
-      if (cur) {
-        usePinStore.getState().addPin(sessionId, cur.text);
-        window.getSelection()?.removeAllRanges();
-      }
-      return null;
-    });
-  }, [sessionId]);
+    // 副作用移出 setState updater：StrictMode 下 updater 会被 double-invoke，updater 内的 addPin 会执行两次
+    if (selBtn) {
+      usePinStore.getState().addPin(sessionId, selBtn.text);
+      window.getSelection()?.removeAllRanges();
+      setSelBtn(null);
+    }
+  }, [sessionId, selBtn]);
 
   return (
     <div ref={layerRef} className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
