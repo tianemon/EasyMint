@@ -231,6 +231,10 @@ export function ProjectPage(): JSX.Element {
 
   const handleDeleteProject = useCallback(async (e: React.MouseEvent, projectIdToDelete: string) => {
     e.stopPropagation();
+    // 删除前确认：项目会移到系统回收站/废纸篓（主进程 shell.trashItem）
+    const trashName = window.electronAPI?.platform === "darwin" ? "废纸篓" : "回收站";
+    const ok = window.confirm(`确认删除该项目吗？\n（移动到${trashName}）`);
+    if (!ok) return;
     await window.electronAPI.project.delete(projectIdToDelete);
     setOpenProjectList((prev) => prev.filter((p) => p.id !== projectIdToDelete));
   }, []);
