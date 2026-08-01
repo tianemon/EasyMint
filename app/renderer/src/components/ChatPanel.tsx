@@ -32,7 +32,7 @@ function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
     <button
       onClick={handleCopy}
       title="复制消息"
-      className="copy-btn flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text-primary"
+      className="flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
     >
       {copied ? (
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5l3.5 3.5L13 5.5"/></svg>
@@ -55,7 +55,7 @@ function PinBubbleBtn({ text, onPin, sid }: { text: string; onPin: (text: string
     <button
       onClick={handlePin}
       title={pinned ? "已钉为便签" : "钉为便签"}
-      className="copy-btn flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text-primary"
+      className="flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
     >
       {pinned ? (
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5l3.5 3.5L13 5.5"/></svg>
@@ -66,10 +66,10 @@ function PinBubbleBtn({ text, onPin, sid }: { text: string; onPin: (text: string
   );
 }
 
-/** 气泡操作容器：复制 + 钉住按钮统一挂在气泡下方，间距由容器管理 */
+/** 气泡操作容器：复制 + 钉住按钮统一挂在一体化工具条中，整体视觉（背景/边框由容器承载，按钮 hover 高亮） */
 function BubbleActions({ text, onPin, sid }: { text: string; onPin: (text: string) => void; sid: string }): JSX.Element {
   return (
-    <div className="absolute top-full left-0 mt-1 flex items-center">
+    <div className="absolute top-full left-0 mt-1 flex items-center rounded-md border border-border bg-surface-elevated shadow-sm overflow-hidden">
       <CopyBubbleBtn text={text} />
       <PinBubbleBtn text={text} onPin={onPin} sid={sid} />
     </div>
