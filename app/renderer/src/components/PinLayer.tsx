@@ -164,7 +164,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
 
   return (
     <div
-      className="absolute rounded-xl border border-border bg-surface-elevated shadow-xl overflow-hidden"
+      className="absolute rounded-xl border border-border bg-surface-elevated shadow-xl overflow-hidden animate-[card-in_200ms_ease-out]"
       style={{ left: x, top: y, width: pin.width || CARD_W }}
       onPointerDown={() => usePinStore.getState().bringToFront(sessionId, pin.id)}
     >
@@ -272,7 +272,7 @@ function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX
 
   return (
     <div
-      className={`absolute ${TAB_COLORS[colorIdx]} rounded-none shadow-md cursor-pointer overflow-hidden`}
+      className={`absolute ${TAB_COLORS[colorIdx]} rounded-none shadow-md cursor-pointer overflow-hidden animate-[tab-in_200ms_ease-out]`}
       style={{
         left: x,
         top: y,

@@ -1222,3 +1222,15 @@ select.input {
 /* ── xterm overrides ──────────────────────────────── */
 
 .xterm { padding: 8px; }
+
+/* ── 便签动画 ───────────────────────────── */
+/* 贴纸出现：从容器内侧 8px 滑入 + 淡入 */
+@keyframes tab-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+/* 卡片展开：淡入 + 微缩放 */
+@keyframes card-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
