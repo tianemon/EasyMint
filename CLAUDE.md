@@ -235,37 +235,45 @@ npm run test             # 运行单元测试
 
 ## 项目背景
 
-EasyMint 是 Electron 桌面应用，让不懂技术的用户通过图形界面创建项目、采集需求，与 AI 对话驱动开发（Mint 调度 Builder/Evaluator 多 Agent 协作）。底层基于 pi-coding-agent（Pi SDK）。已发布 v0.5.0（v3 UI 改版 + 上下文压缩增强）。
+EasyMint 是 Electron 桌面应用，让不懂技术的用户通过图形界面创建项目、采集需求，与 AI 对话驱动开发（Mint 调度 Builder/Evaluator 多 Agent 协作）。底层基于 pi-coding-agent（Pi SDK）。已发布 v0.5.1（内容便签）。
 
 ## 必读文档
 
 | 文档 | 场景 |
 |------|------|
 | `CLAUDE.md` | 行为准则、编码规范、色彩体系（先读本文件头部） |
-| `docs/开发进度.md` 第 9 章 | v3 UI 改版完整记录（布局/压缩轮转/性能/清理） |
+| `docs/开发进度.md` 第 9 章 | v3 UI 改版 + 内容便签（9.7）完整记录 |
 | `docs/技术架构.md` | 架构、数据模型、IPC |
 | `docs/reference/Pi-SDK-API参考.md` | Pi SDK 能力对照（含 EM 自定义实现清单） |
-| `CHANGELOG.md` v0.5.0 | 本次版本全量变更 |
+| `CHANGELOG.md` v0.5.1 | 本次版本全量变更 |
 
-## 最近工作（v3 迭代收尾，约 20 轮对话）
+## 发布与部署（重要）
 
-1. **发版 v0.5.0**：80 提交合并 main、tag 推送、v3 分支清理（本地+远程）
-2. **Mint 提示词与工具对齐**：set_project_stage 全链路删除（提示词 12 处 + 工具 + 校验 + 白名单 + 前端监听 + store 残留）、state.json 死链、MintButton notifySession
-3. **文档最终更新**：CHANGELOG v0.5.0、README 过时内容（快捷命令面板/进度条/工具列表/Electron 43）、开发进度 9.6
-4. **发布后修复**（main 未 push）：Windows 拖拽区归零（titleBarStyle 仅 macOS 生效 → data-platform 标记）、底部按钮颜色加深
-5. **代码质量**：chat-utils.ts/rotation.ts 拆分、ChatPanel any 类型化、md 标题标准 token（markdown-monarch.ts）、编辑器暖乳白
-6. **压缩/轮转链路**：主动压缩 75% 阈值、状态机修复（type 匹配/compacting 清除）、轮转断链 + summaryBuffer + 进度提示
+- **GitHub Actions 自动 Release 已配置**（`.github/workflows/release.yml`）：推送版本 tag（如 `v0.5.1`）后自动构建并发布 GitHub Release——**无需手动打包/上传**
+- **发版流程**：① 更新 `package.json` 版本号 + `CHANGELOG.md` 条目 → ② `git tag vX.Y.Z` → ③ `git push origin main --tags` → ④ 等 Actions 跑完（约 4 分钟），Release 自动生成
+- 首次发版时确认远端 tag 存在（`git ls-remote --tags origin`）
+
+## 最近工作（内容便签 v1–v5 + 0.5.1 发布，本会话）
+
+1. **内容便签功能**（46 提交合并 main，全部通过双阶段审查）：
+   - v1：悬浮便签卡片（双钉住入口、会话级持久化、拖动/默认定位）
+   - v2：右键菜单（复制/全选/钉住）、选区 Markdown 还原、气泡按钮常驻、四周/拐角 resize
+   - v3：书签式贴纸（边缘吸附/最小化折叠/8 色自动分配/层叠/沿边拖动）
+   - v4：矩形贴纸、层叠可见（10px 露出）、hover 抽出横条、吸附动画
+   - v5：贴纸 20px、最小化隐藏图标、颜色随机、重复钉住检查、按钮已钉状态 store 联动、选区还原增强
+2. **发布 v0.5.1**：版本号 + CHANGELOG → tag → 推送 → GitHub Actions 自动 Release
+3. **UI 微调**：用户头像与 Mint 同风格（34px）、USER 名称标签、气泡操作条一体化（hover 显示 1s 缓冲）
 
 ## 接下来安排
 
-1. **push main**（发布后 3 个提交未推：77303e0 Windows 拖拽区、e2d0fdd 按钮颜色 等）
-2. **Release 上传**：`ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npx electron-builder` → gh release create v0.5.0（签名修复已提交）
-3. **轮转端到端实测**：压缩 3 次触发归档+新会话（修复后未完整验证，使用中确认）
-4. **Windows 验证**：拖拽区修复效果
+1. **轮转端到端实测**：压缩 3 次触发归档+新会话接力（使用中确认）
+2. **Windows 验证**：拖拽区修复效果（v0.5.0 发布后修复项）
+3. **便签 UAT**：真实使用中验证贴纸吸附/层叠/hover 横条/动画手感
 
 ## 其他细节
 
 - 项目规范：先分析方案再动手、删除列清单确认、增量更新文档、commit 不自动 push、禁 any、时序用 ref、色彩走 CSS 变量语义层（禁 Tailwind 透明度语法用于主题色）
+- 便签架构：`pin-store`（zustand）+ `PinLayer`（悬浮层）+ `pin-service`（`~/.easymint/session-pins.json`）；设计文档 `docs/design/内容便签设计.md`（§1–12 迭代记录）
 - `claude-legacy` 分支保留（Claude SDK 历史，勿删）
 - 数据存储：`~/.easymint/` 全局 + `<project>/.easymint/` 项目级（勿操作 `~/.easymint/` 用户数据）
 - 编码规范"新功能独立封装、图标优先 SVG"等见文件头部
