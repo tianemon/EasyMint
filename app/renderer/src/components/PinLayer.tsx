@@ -11,6 +11,7 @@ const CARD_COLORS = ["bg-sky-500", "bg-emerald-500", "bg-amber-500", "bg-purple-
 
 const TAB_W = 28;
 const TAB_H = 40;
+const EXT_W = 160;
 
 type ResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
@@ -229,7 +230,6 @@ function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX
   const x = edge === "right" ? (layer ? layer.clientWidth - TAB_W - 4 : 0) : 4;
   const y = slotY ?? (pin.y < 0 || !layer ? 16 : Math.min(Math.max(0, pin.y), Math.max(0, layer.clientHeight - TAB_H - 4)));
   const [hovered, setHovered] = useState(false);
-  const EXT_W = 160;
 
   // 贴纸拖动：只改 y（沿边缘滑动），位移 > 3px 视为拖动，否则视为点击展开
   const onDragStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -273,7 +273,14 @@ function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX
   return (
     <div
       className={`absolute ${TAB_COLORS[colorIdx]} rounded-none shadow-md cursor-pointer overflow-hidden`}
-      style={{ left: x, top: y, height: TAB_H, width: hovered ? EXT_W : TAB_W, transition: "width 200ms ease-out" }}
+      style={{
+        left: x,
+        top: y,
+        height: TAB_H,
+        width: hovered ? EXT_W : TAB_W,
+        transform: hovered && edge === "right" ? `translateX(-${EXT_W - TAB_W}px)` : "none",
+        transition: "width 200ms ease-out, transform 200ms ease-out",
+      }}
       title={pin.title}
       onPointerDown={onDragStart}
       onPointerEnter={() => setHovered(true)}
