@@ -418,8 +418,8 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 .sb-project-name:hover .sb-project-name-inner { animation: sb-marquee 4s linear infinite; }
 @keyframes sb-marquee {
   0%, 15% { transform: translateX(0); }
-  /* min() 钳制：文字未超出可视区（180px）时不滚动 */
-  80%, 100% { transform: translateX(min(0px, calc(180px - 100%))); }
+  /* min() 钳制：文字未超出可视区（150px）时不滚动 */
+  80%, 100% { transform: translateX(min(0px, calc(150px - 100%))); }
 }
 .sb-plus-wrap { position: relative; -webkit-app-region: no-drag; }
 .sb-plus-btn {
