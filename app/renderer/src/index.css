@@ -545,6 +545,8 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
   display: flex; align-items: stretch;
   padding: var(--s1) var(--s2) 0;
   gap: 4px; overflow-x: auto; flex-shrink: 0;
+  /* 空 tab 时也有可拖拽高度（拖拽区需要实际元素面积） */
+  min-height: 40px;
   -webkit-app-region: drag;
 }
 /* Windows：右侧预留自绘窗口按钮空间（最小化/最大化/关闭 3×44px） */
