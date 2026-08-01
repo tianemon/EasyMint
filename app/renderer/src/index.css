@@ -396,7 +396,7 @@ html[data-platform="win32"] {
   user-select: none; -webkit-user-select: none;
 }
 .sb-drag-strip { height: 50px; flex-shrink: 0; position: relative; }
-/* Windows 用 titleBarOverlay（系统按钮叠加），拖拽区恢复与 macOS 一致的高度，保证布局观感统一 */
+/* Windows 自绘窗口按钮方案：拖拽区恢复与 macOS 一致的高度，保证布局观感统一 */
 html[data-platform="win32"] .sb-drag-strip { height: 50px; }
 
 .sb-project-area {
