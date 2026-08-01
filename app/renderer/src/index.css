@@ -413,13 +413,13 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
   min-width: 0;
 }
 /* 项目名称超长处理：固定宽度裁剪层 + 滚动层（参照 tab-marquee 模式） */
-.sb-project-name-clip { width: 150px; flex: none; min-width: 0; overflow: hidden; }
+.sb-project-name-clip { width: 180px; flex: none; min-width: 0; overflow: hidden; }
 .sb-project-name-inner { display: inline-block; white-space: nowrap; }
 .sb-project-name:hover .sb-project-name-inner { animation: sb-marquee 4s linear infinite; }
 @keyframes sb-marquee {
   0%, 15% { transform: translateX(0); }
-  /* min() 钳制：文字未超出可视区（150px）时不滚动 */
-  80%, 100% { transform: translateX(min(0px, calc(150px - 100%))); }
+  /* min() 钳制：文字未超出可视区（180px）时不滚动 */
+  80%, 100% { transform: translateX(min(0px, calc(180px - 100%))); }
 }
 .sb-plus-wrap { position: relative; -webkit-app-region: no-drag; }
 .sb-plus-btn {
