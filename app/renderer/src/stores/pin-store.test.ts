@@ -90,4 +90,20 @@ describe("pin-store", () => {
     expect(usePinStore.getState().pinsBySession["s2"]).toHaveLength(1);
     expect(usePinStore.getState().pinsBySession["s1"]![0]!.content).toBe("aaa");
   });
+
+  it("addPin 默认不含宽高（渲染层用默认 320/auto）", () => {
+    usePinStore.getState().addPin("s1", "aaa");
+    const pin = usePinStore.getState().pinsBySession["s1"]![0]!;
+    expect(pin.width).toBeUndefined();
+    expect(pin.height).toBeUndefined();
+  });
+
+  it("resizePin 更新宽高", () => {
+    usePinStore.getState().addPin("s1", "aaa");
+    const id = usePinStore.getState().pinsBySession["s1"]![0]!.id;
+    usePinStore.getState().resizePin("s1", id, 400, 300);
+    const pin = usePinStore.getState().pinsBySession["s1"]![0]!;
+    expect(pin.width).toBe(400);
+    expect(pin.height).toBe(300);
+  });
 });

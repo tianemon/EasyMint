@@ -6,6 +6,8 @@ export interface Pin {
   title: string;
   x: number; // -1 = 未定位（PinLayer 测量容器后分配默认位置）
   y: number;
+  width?: number;  // 缺省 320
+  height?: number; // 缺省 auto（内容撑开）
   createdAt: number;
 }
 
@@ -22,6 +24,7 @@ interface PinState {
   addPin: (sessionId: string, content: string) => void;
   removePin: (sessionId: string, pinId: string) => void;
   movePin: (sessionId: string, pinId: string, x: number, y: number) => void;
+  resizePin: (sessionId: string, pinId: string, width: number, height: number) => void;
   bringToFront: (sessionId: string, pinId: string) => void;
   migrateSession: (oldSid: string, newSid: string) => void;
   /** 全量持久化到磁盘（拖动结束 / 默认定位后显式调用） */
@@ -65,6 +68,16 @@ export const usePinStore = create<PinState>((set, get) => ({
         ...s.pinsBySession,
         [sessionId]: (s.pinsBySession[sessionId] || []).map((p) =>
           p.id === pinId ? { ...p, x, y } : p
+        ),
+      },
+    })),
+
+  resizePin: (sessionId, pinId, width, height) =>
+    set((s) => ({
+      pinsBySession: {
+        ...s.pinsBySession,
+        [sessionId]: (s.pinsBySession[sessionId] || []).map((p) =>
+          p.id === pinId ? { ...p, width, height } : p
         ),
       },
     })),

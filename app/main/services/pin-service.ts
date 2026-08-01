@@ -18,6 +18,8 @@ export interface Pin {
   title: string;
   x: number; // -1 = 未定位（渲染层分配默认位置）
   y: number;
+  width?: number;  // 缺省 320
+  height?: number; // 缺省 auto（内容撑开）
   createdAt: number;
 }
 

@@ -40,6 +40,8 @@ interface Pin {
   title: string;
   x: number;
   y: number;
+  width?: number;  // 缺省 320
+  height?: number; // 缺省 auto（内容撑开）
   createdAt: number;
 }
 
