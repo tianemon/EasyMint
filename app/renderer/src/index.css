@@ -395,9 +395,9 @@ html[data-platform="win32"] {
   -webkit-app-region: drag;
   user-select: none; -webkit-user-select: none;
 }
-.sb-drag-strip { height: 50px; flex-shrink: 0; position: relative; }
+.sb-drag-strip { height: 30px; flex-shrink: 0; position: relative; }
 /* Windows 自绘窗口按钮方案：拖拽区恢复与 macOS 一致的高度，保证布局观感统一 */
-html[data-platform="win32"] .sb-drag-strip { height: 50px; }
+html[data-platform="win32"] .sb-drag-strip { height: 30px; }
 
 .sb-project-area {
   display: flex; align-items: center; justify-content: space-between;
