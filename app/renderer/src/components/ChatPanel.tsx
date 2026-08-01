@@ -771,7 +771,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         {!hasMessages ? (
           <div className="chat-empty">
             <div className="chat-empty-icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M8 9h8M8 13h6"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
             </div>
             <h1 className="chat-empty-title">开始对话</h1>
             <p className="chat-empty-desc">描述你想做什么，Mint 会帮你完成。</p>
