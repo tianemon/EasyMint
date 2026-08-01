@@ -82,6 +82,7 @@ export const usePinStore = create<PinState>((set, get) => ({
   },
 
   migrateSession: (oldSid, newSid) => {
+    if (oldSid === newSid) return;
     const old = get().pinsBySession[oldSid];
     if (!old || old.length === 0) return;
     set((s) => {
@@ -96,7 +97,8 @@ export const usePinStore = create<PinState>((set, get) => ({
   persistPins: (sessionId) => {
     // vitest 为 node 环境（window 未声明）；浏览器中 electronAPI 可能不存在（dev server），可选链容错
     if (typeof window !== "undefined") {
-      window.electronAPI?.pin?.set(sessionId, get().pinsBySession[sessionId] || []);
+      window.electronAPI?.pin?.set(sessionId, get().pinsBySession[sessionId] || [])
+        .catch((e: unknown) => console.error("[pin-store] 持久化失败", e));
     }
   },
 }));
