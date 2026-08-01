@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useMemo } from "react";
+import { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import { usePinStore, type Pin } from "../stores/pin-store";
 import { TextBlockView } from "./ChatBlocks";
 
@@ -11,7 +11,6 @@ const CARD_COLORS = ["bg-sky-500", "bg-emerald-500", "bg-amber-500", "bg-purple-
 
 const TAB_W = 28;
 const TAB_H = 40;
-const TAB_GAP = 6;
 
 type ResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
@@ -217,17 +216,20 @@ interface PinTabProps {
   pin: Pin;
   sessionId: string;
   layerRef: React.RefObject<HTMLDivElement | null>;
-  /** 堆叠槽位 y（未单独定位时由 PinLayer 计算传入）；未传则用 pin.y */
+  /** 层叠偏移 y（同边未单独定位时由 PinLayer 计算传入）；未传则用 pin.y */
   slotY?: number;
   colorIdx: number;
 }
 
-/** 书签贴纸：吸附在容器左右边缘的竖条，同边默认堆叠，可沿边缘拖动单独吸附，点击展开 */
+/** 书签贴纸：吸附在容器左右边缘的矩形贴纸；同边默认层叠（露出 10px 下缘），
+    可沿边缘拖动单独吸附；hover 向容器内侧平滑抽出横条显示标题；点击展开 */
 function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX.Element {
   const edge = pin.edge || "right";
   const layer = layerRef.current;
   const x = edge === "right" ? (layer ? layer.clientWidth - TAB_W - 4 : 0) : 4;
   const y = slotY ?? (pin.y < 0 || !layer ? 16 : Math.min(Math.max(0, pin.y), Math.max(0, layer.clientHeight - TAB_H - 4)));
+  const [hovered, setHovered] = useState(false);
+  const EXT_W = 160;
 
   // 贴纸拖动：只改 y（沿边缘滑动），位移 > 3px 视为拖动，否则视为点击展开
   const onDragStart = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -270,12 +272,17 @@ function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX
 
   return (
     <div
-      className={`absolute ${TAB_COLORS[colorIdx]} rounded-lg shadow-md cursor-pointer flex items-center justify-center hover:brightness-110 transition-[filter]`}
-      style={{ left: x, top: y, width: TAB_W, height: TAB_H }}
+      className={`absolute ${TAB_COLORS[colorIdx]} rounded-none shadow-md cursor-pointer overflow-hidden`}
+      style={{ left: x, top: y, height: TAB_H, width: hovered ? EXT_W : TAB_W, transition: "width 200ms ease-out" }}
       title={pin.title}
       onPointerDown={onDragStart}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
     >
-      <PinIcon className="w-3 h-3 text-white" />
+      <div className="flex items-center gap-1.5 h-full px-1.5">
+        <PinIcon className="w-3 h-3 text-white shrink-0" />
+        <span className={`text-[11px] text-white truncate min-w-0 transition-opacity duration-200 ${hovered ? "opacity-100" : "opacity-0"}`}>{pin.title}</span>
+      </div>
     </div>
   );
 }
@@ -286,7 +293,7 @@ export function PinLayer({ sessionId }: PinLayerProps): JSX.Element {
   const pins = usePinStore((s) => s.pinsBySession[sessionId]) || EMPTY_PINS;
   const layerRef = useRef<HTMLDivElement>(null);
 
-  // 贴纸堆叠槽位：同边未单独定位（y<0）的贴纸按数组顺序排列
+  // 贴纸层叠偏移：同边未单独定位（y<0）的贴纸层叠在同一锚点，第 c 张露出 10px 下缘
   const tabSlots = useMemo(() => {
     const slots: Record<string, number> = {};
     const counts: Record<string, number> = {};
@@ -294,7 +301,7 @@ export function PinLayer({ sessionId }: PinLayerProps): JSX.Element {
       if (!p.minimized) continue;
       const edge = p.edge || "right";
       const c = counts[edge] || 0;
-      if (p.y < 0) slots[p.id] = 16 + c * (TAB_H + TAB_GAP);
+      if (p.y < 0) slots[p.id] = 16 + c * 10;
       counts[edge] = c + 1;
     }
     return slots;
