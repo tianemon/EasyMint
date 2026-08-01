@@ -234,7 +234,7 @@ function PinTab({ pin, sessionId, layerRef, slotY }: PinTabProps): JSX.Element {
     const target = e.currentTarget;
     target.setPointerCapture(e.pointerId);
     const startClientY = e.clientY;
-    const startPinY = pin.y < 0 ? 16 : pin.y;
+    const startPinY = y;
     let moved = false;
 
     const onMove = (ev: PointerEvent) => {
@@ -264,7 +264,7 @@ function PinTab({ pin, sessionId, layerRef, slotY }: PinTabProps): JSX.Element {
     target.addEventListener("pointermove", onMove);
     target.addEventListener("pointerup", onUp);
     target.addEventListener("pointercancel", onUp);
-  }, [pin.id, pin.y, pin.width, sessionId, edge, layerRef]);
+  }, [pin.id, y, pin.width, sessionId, edge, layerRef]);
 
   return (
     <div
