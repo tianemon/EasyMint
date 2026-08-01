@@ -66,10 +66,11 @@ function PinBubbleBtn({ text, onPin, sid }: { text: string; onPin: (text: string
   );
 }
 
-/** 气泡操作容器：复制 + 钉住按钮统一挂在一体化工具条中，整体视觉（背景/边框由容器承载，按钮 hover 高亮） */
-function BubbleActions({ text, onPin, sid }: { text: string; onPin: (text: string) => void; sid: string }): JSX.Element {
+/** 气泡操作容器：复制 + 钉住按钮统一挂在一体化工具条中；
+    默认隐藏，由消息 hover 状态驱动显隐（visible），隐藏时不可交互 */
+function BubbleActions({ text, onPin, sid, visible }: { text: string; onPin: (text: string) => void; sid: string; visible: boolean }): JSX.Element {
   return (
-    <div className="absolute top-full left-0 mt-1 flex items-center rounded-md border border-border bg-surface-elevated shadow-sm overflow-hidden">
+    <div className={`absolute top-full left-0 mt-1 flex items-center rounded-md border border-border bg-surface-elevated shadow-sm overflow-hidden transition-opacity duration-150 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
       <CopyBubbleBtn text={text} />
       <PinBubbleBtn text={text} onPin={onPin} sid={sid} />
     </div>
@@ -952,15 +953,28 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
   // 气泡全文：所有 text entry 合并（不含思考/工具）
   const copyText = useMemo(() => getMsgCopyText(msg), [msg]);
 
+  // 操作条显隐：hover 消息立即显示；离开消息后 1s 缓冲（期间鼠标移到按钮上则继续显示）
+  const [actionsVisible, setActionsVisible] = useState(false);
+  const hideTimerRef = useRef<number | null>(null);
+  const showActions = useCallback(() => {
+    if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+    setActionsVisible(true);
+  }, []);
+  const scheduleHideActions = useCallback(() => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = window.setTimeout(() => setActionsVisible(false), 1000);
+  }, []);
+  useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }, []);
+
   if (msg.role === "user") {
     return (
-      <div className="msg-in" onContextMenu={(e) => onContextMenu(msg, e)}>
+      <div className="msg-in" onMouseEnter={showActions} onMouseLeave={scheduleHideActions} onContextMenu={(e) => onContextMenu(msg, e)}>
         <div className="flex justify-end">
           {/* shrink-0：flex 子项不被压缩（中文 min-content 是单字，压缩会逐字换行）；
              max-w-[75%]：超长文本钳制宽度后由内部 overflow-wrap 换行 */}
           <div className="relative shrink-0 max-w-[75%] min-w-0">
             {userBubble(msg)}
-            <BubbleActions text={copyText} onPin={onPin} sid={sid} />
+            <BubbleActions text={copyText} onPin={onPin} sid={sid} visible={actionsVisible} />
           </div>
         </div>
       </div>
@@ -970,7 +984,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
   if (visible.length === 0) return null;
 
   return (
-    <div className="msg-in" onContextMenu={(e) => onContextMenu(msg, e)}>
+    <div className="msg-in" onMouseEnter={showActions} onMouseLeave={scheduleHideActions} onContextMenu={(e) => onContextMenu(msg, e)}>
       <div className="flex gap-4 items-start max-w-[75%]">
         <div className="msg-avatar agent">M</div>
         <div className="min-w-0 relative">
@@ -980,7 +994,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
               <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} />
             ))}
           </div>
-          <BubbleActions text={copyText} onPin={onPin} sid={sid} />
+          <BubbleActions text={copyText} onPin={onPin} sid={sid} visible={actionsVisible} />
         </div>
       </div>
     </div>
