@@ -9,7 +9,7 @@ const EMPTY_PINS: Pin[] = [];
 const TAB_COLORS = ["bg-sky-500", "bg-emerald-500", "bg-amber-500", "bg-purple-500", "bg-rose-500", "bg-teal-500", "bg-orange-500", "bg-indigo-500"] as const;
 const CARD_COLORS = ["bg-sky-500", "bg-emerald-500", "bg-amber-500", "bg-purple-500", "bg-rose-500", "bg-teal-500", "bg-orange-500", "bg-indigo-500"] as const;
 
-const TAB_W = 28;
+const TAB_W = 26;
 const TAB_H = 40;
 const EXT_W = 160;
 
