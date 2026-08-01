@@ -73,6 +73,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
     get: (sessionId: string) => ipcRenderer.invoke("pin:get", { sessionId }) as Promise<Array<{ id: string; content: string; title: string; x: number; y: number; width?: number; height?: number; colorIdx?: number; minimized?: boolean; edge?: "left" | "right"; createdAt: number }>>,
     set: (sessionId: string, pins: Array<{ id: string; content: string; title: string; x: number; y: number; width?: number; height?: number; colorIdx?: number; minimized?: boolean; edge?: "left" | "right"; createdAt: number }>) => ipcRenderer.invoke("pin:set", { sessionId, pins }),
   },
+  win: {
+    minimize: () => ipcRenderer.invoke("win:minimize"),
+    maximize: () => ipcRenderer.invoke("win:maximize"),
+    close: () => ipcRenderer.invoke("win:close"),
+    isMaximized: () => ipcRenderer.invoke("win:isMaximized") as Promise<boolean>,
+    onMaximizedChanged: (callback: (maximized: boolean) => void) => {
+      const listener = (_e: unknown, maximized: boolean) => callback(maximized);
+      ipcRenderer.on("win:maximized-changed", listener);
+      return () => ipcRenderer.removeListener("win:maximized-changed", listener);
+    },
+  },
   sessionCache: {
     read: (sessionId: string) => ipcRenderer.invoke("session-cache:read", { sessionId }),
     write: (sessionId: string, data: Record<string, unknown>) => ipcRenderer.invoke("session-cache:write", { sessionId, data }),

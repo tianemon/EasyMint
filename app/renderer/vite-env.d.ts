@@ -219,6 +219,13 @@ interface ElectronAPI {
     get: (sessionId: string) => Promise<Pin[]>;
     set: (sessionId: string, pins: Pin[]) => Promise<void>;
   };
+  win: {
+    minimize: () => Promise<void>;
+    maximize: () => Promise<void>;
+    close: () => Promise<void>;
+    isMaximized: () => Promise<boolean>;
+    onMaximizedChanged: (callback: (maximized: boolean) => void) => () => void;
+  };
   session: {
     list: (projectId: string) => Promise<Session[]>;
     resume: (sessionId: string) => void;
