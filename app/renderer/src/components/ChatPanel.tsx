@@ -302,6 +302,20 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (docs.length > 0) uploadFiles(docs, "doc");
   }, [uploadFiles]);
 
+  // 拖放上传：阻止系统默认行为（否则拖入文件会触发系统打开文件），提取文件走 uploadFiles
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+  }, []);
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+    const images = files.filter((f) => f.type.startsWith("image/"));
+    const docs = files.filter((f) => !f.type.startsWith("image/"));
+    if (images.length > 0) uploadFiles(images, "image");
+    if (docs.length > 0) uploadFiles(docs, "doc");
+  }, [uploadFiles]);
+
   // ── File inputs ────────────────────────────────────
 
   const handleImgChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -766,7 +780,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   }, []);
 
   return (
-    <div className="absolute inset-0 flex flex-col">
+    <div className="absolute inset-0 flex flex-col" onDragOver={handleDragOver} onDrop={handleDrop}>
       <div ref={attachScrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overflow-x-hidden pb-2">
         {!hasMessages ? (
           <div className="chat-empty">
