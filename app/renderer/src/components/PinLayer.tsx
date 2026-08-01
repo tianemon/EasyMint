@@ -227,7 +227,7 @@ interface PinTabProps {
 function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX.Element {
   const edge = pin.edge || "right";
   const layer = layerRef.current;
-  const x = edge === "right" ? (layer ? layer.clientWidth - TAB_W - 4 : 0) : 4;
+  const x = edge === "right" ? (layer ? layer.clientWidth - TAB_W : 0) : 0;
   const y = slotY ?? (pin.y < 0 || !layer ? 16 : Math.min(Math.max(0, pin.y), Math.max(0, layer.clientHeight - TAB_H - 4)));
   const [hovered, setHovered] = useState(false);
 
@@ -247,7 +247,7 @@ function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX
       const dy = ev.clientY - startClientY;
       if (Math.abs(dy) > 3) moved = true;
       const ny = Math.min(Math.max(0, startPinY + dy), Math.max(0, layerEl.clientHeight - TAB_H - 4));
-      const nx = edge === "left" ? 4 : layerEl.clientWidth - TAB_W - 4;
+      const nx = edge === "left" ? 0 : layerEl.clientWidth - TAB_W;
       usePinStore.getState().movePin(sessionId, pin.id, nx, ny);
     };
     const onUp = () => {
@@ -255,7 +255,24 @@ function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX
       target.removeEventListener("pointerup", onUp);
       target.removeEventListener("pointercancel", onUp);
       if (moved) {
-        usePinStore.getState().persistPins(sessionId);
+        const store = usePinStore.getState();
+        const cur = store.pinsBySession[sessionId]?.find((p) => p.id === pin.id);
+        // 手动叠放自动错开：与同边已定位贴纸重叠（<10px）时下移 10px
+        let finalY = cur?.y ?? 16;
+        for (let i = 0; i < 8; i++) {
+          const clash = (store.pinsBySession[sessionId] || []).find(
+            (p) => p.minimized && (p.edge || "right") === edge && p.id !== pin.id && p.y >= 0 && Math.abs(p.y - finalY) < 10
+          );
+          if (!clash) break;
+          finalY = clash.y + 10;
+        }
+        const layerEl = layerRef.current;
+        if (layerEl && finalY !== cur?.y) {
+          // finalY clamp 容器（movePin 不做 clamp）
+          finalY = Math.min(Math.max(0, finalY), Math.max(0, layerEl.clientHeight - TAB_H - 4));
+          store.movePin(sessionId, pin.id, edge === "left" ? 0 : layerEl.clientWidth - TAB_W, finalY);
+        }
+        store.persistPins(sessionId);
       } else {
         // 无位移 → 点击展开：卡片出现在贴纸边内侧
         const layerEl = layerRef.current;
@@ -272,7 +289,7 @@ function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX
 
   return (
     <div
-      className={`absolute ${TAB_COLORS[colorIdx]} rounded-none shadow-md cursor-pointer overflow-hidden animate-[tab-in_200ms_ease-out]`}
+      className={`absolute ${TAB_COLORS[colorIdx]} ${edge === "right" ? "rounded-l-lg" : "rounded-r-lg"} shadow-md cursor-pointer overflow-hidden animate-[tab-in_200ms_ease-out]`}
       style={{
         left: x,
         top: y,
