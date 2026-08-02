@@ -15,6 +15,7 @@ import { createPiSession } from "./pi-session";
 import { archiveSession } from "./session-service";
 import { broadcast } from "./ipc-broadcast";
 import type { ActiveChat, CanUseToolFn } from "./agent-service";
+import { systemMessage, type SystemMessagePayload } from "../../shared/prompts";
 
 /** 单会话最大 compact 次数，超过则归档旧会话、开启新会话 */
 export const MAX_COMPACT = 3;
@@ -38,7 +39,7 @@ export interface RotationDeps {
   getAgentDir: () => string;
   buildSystemPrompt: (projectPath: string, isDesigner?: boolean) => string;
   buildExtraTools: (projectPath: string, sessionId: string) => Promise<{ tools: ToolDefinition[]; canUseTool: CanUseToolFn }>;
-  promptAndBridge: (session: AgentSession, sessionId: string, chatId: string, text: string, chat: ActiveChat) => Promise<void>;
+  promptAndBridge: (session: AgentSession, sessionId: string, chatId: string, text: string, chat: ActiveChat, images?: Array<{ type: "image"; data: string; mimeType: string }>, systemPayload?: SystemMessagePayload) => Promise<void>;
 }
 
 /** 轮转：归档旧会话 → 创建新会话 → 注入摘要 → 继续 */
@@ -113,8 +114,9 @@ ${summary}
     broadcast("agent:chat-session", { chatId: chat.chatId, sessionId: newSession.sessionId });
     broadcast("agent:context-rotated", { chatId: chat.chatId, sessionId: newSession.sessionId });
 
-    // 在新会话中发送 handoff
-    await deps.promptAndBridge(newSession, newSession.sessionId, chat.chatId, handoffPrompt, chat);
+    // 在新会话中发送 handoff(系统消息结构化,前端按 kind: handoff 渲染)
+    const handoffPayload = systemMessage("handoff", handoffPrompt);
+    await deps.promptAndBridge(newSession, newSession.sessionId, chat.chatId, "", chat, undefined, handoffPayload);
   } catch (e) {
     console.error("[agent] rotation: new session creation failed", e);
     // 失败时清除轮转提示，避免状态卡住

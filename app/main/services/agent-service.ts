@@ -267,18 +267,15 @@ export class AgentService {
         }, 500);
 
         // ── 自动标题：新会话首轮完成后生成中文标题 ──
+        // (系统消息作为首条时 firstUserMessage 已置空,不生成标题)
         if (chat && chat.firstUserMessage) {
           const firstMsg = chat.firstUserMessage;
           chat.firstUserMessage = "";
-          if (firstMsg.startsWith("[系统消息]")) {
-            // 系统消息不生成标题
-          } else {
-            const isNamed = await hasCustomTitle(sessionId, chat.projectPath);
-            if (!isNamed) {
-              const title = firstMsg.length > 15 ? firstMsg.slice(0, 15) + "…" : firstMsg;
-              renameSession(sessionId, title, chat.projectPath).catch(() => {});
-              broadcast("agent:session-renamed", { sessionId, title });
-            }
+          const isNamed = await hasCustomTitle(sessionId, chat.projectPath);
+          if (!isNamed) {
+            const title = firstMsg.length > 15 ? firstMsg.slice(0, 15) + "…" : firstMsg;
+            renameSession(sessionId, title, chat.projectPath).catch(() => {});
+            broadcast("agent:session-renamed", { sessionId, title });
           }
         }
 
@@ -290,7 +287,7 @@ export class AgentService {
             getAgentDir: () => this.getAgentDir(),
             buildSystemPrompt: (p, d) => this.buildSystemPrompt(p, d),
             buildExtraTools: (p, s) => this.buildExtraTools(p, s),
-            promptAndBridge: (sess, sid, cid, text, c) => this.promptAndBridge(sess, sid, cid, text, c),
+            promptAndBridge: (sess, sid, cid, text, c, images, payload) => this.promptAndBridge(sess, sid, cid, text, c, images, payload),
           });
           return; // 轮转完成，不继续
         }
@@ -483,7 +480,8 @@ export class AgentService {
       projectPath: resolvedPath,
       agentType: undefined,
       status: "idle",
-      firstUserMessage: message,
+      // 系统消息(custom payload)作为首条时不生成标题(标题逻辑判断 firstUserMessage 非空)
+      firstUserMessage: systemPayload ? "" : message,
       assistantUuid: randomUUID(),
       eventBuffer: [],
       compactCount: 0,
