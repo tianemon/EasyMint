@@ -144,7 +144,6 @@ export class AgentService {
         agentDir: this.getAgentDir(),
         store: this.store,
         parentSessionId: sessionId,
-        onComplete: (sid, text) => this.injectToSession(sid, text),
       });
       const productTools = await createProductTools(projectPath);
       const mcpTools = await loadMcpTools();
@@ -690,16 +689,10 @@ export class AgentService {
   /** 注入引导消息（中断当前回合并插话） */
   async steer(sessionId: string, text: string): Promise<void> {
     // 用户插话 = 打断当前动作：中止该会话运行中的子 Agent 委派
-    abortDelegations(sessionId);
+    // 委派记录的 parentSessionId 是工具创建时绑定的 ID（新会话=tempSessionId，恢复=sessionId）
     const chat = this.findActiveChat(sessionId);
+    if (chat) abortDelegations(chat.tempSessionId ?? chat.sessionId);
     await chat?.session?.steer(text);
-  }
-
-  /** 向主会话注入子 Agent 委派结果（steer 排队，不打断进行中的回合） */
-  injectToSession(sessionId: string, text: string): void {
-    const chat = this.findActiveChat(sessionId);
-    if (!chat?.session) return;
-    chat.session.steer(`[系统消息] 子 Agent 委派完成，结果如下：\n${text}`).catch(() => {});
   }
 
   /** 注入跟进消息（当前回合结束后发送） */

@@ -17,10 +17,8 @@ export interface TaskToolContext {
   cwd: string;
   agentDir: string;
   store: Store;
-  /** 发起委派的主会话 ID（buildExtraTools 创建工具时绑定） */
+  /** 发起委派的主会话 ID（buildExtraTools 创建工具时绑定；steer 打断时按它 abort） */
   parentSessionId: string;
-  /** 委派完成回调：向主会话注入结果（agent-service 提供） */
-  onComplete?: (parentSessionId: string, text: string) => void;
 }
 
 /** BatchResult → 注入主会话的文本 */
@@ -138,7 +136,8 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         });
       }
 
-      // 异步委派：创建记录 → 后台执行 → 立即返回（不阻塞 Mint 模型循环）
+      // 同步委派（对齐 cc/omp Task 语义）：等待子 Agent 完成，结果作为工具结果返回；
+      // 用户插话（steer）会 abort 委派 → completion 立即 resolve(aborted) → 不阻塞
       const record = createDelegation(ctx.parentSessionId, tasks);
 
       runSubagents(record, {
@@ -148,14 +147,9 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         concurrency: (params.concurrency as number) || undefined,
       }).catch(() => {});
 
-      // 完成回调：结果注入主会话（agent-service 提供 onComplete → steer/prompt）
-      record.completion.then((result) => {
-        ctx.onComplete?.(record.parentSessionId, formatDelegationResult(result));
-      }).catch(() => {});
-
-      const n = tasks.length;
+      const result = await record.completion;
       return {
-        content: [{ type: "text" as const, text: `已启动 ${n} 个子 Agent 执行任务，完成后结果将自动注入当前会话。` }],
+        content: [{ type: "text" as const, text: formatDelegationResult(result) }],
       };
     },
   } as any) as ToolDefinition;
