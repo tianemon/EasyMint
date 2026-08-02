@@ -33,14 +33,15 @@ export interface ChatBlock {
 
 interface AssistantMessageLike {
   role: "assistant";
-  content: Array<{ type: string; text?: string; id?: string; name?: string; input?: Record<string, unknown>; thinking?: string; content?: unknown }>;
+  content: Array<{ type: string; text?: string; id?: string; name?: string; input?: Record<string, unknown>; arguments?: Record<string, unknown>; thinking?: string; content?: unknown }>;
 }
 
 function messageToBlocks(msg: AssistantMessageLike): ChatBlock[] {
   const blocks: ChatBlock[] = [];
   for (const b of msg.content) {
     if (b.type === "text" && b.text) blocks.push({ type: "text" as const, text: b.text });
-    else if (b.type === "toolCall") blocks.push({ type: "tool_use" as const, id: b.id, name: b.name, input: b.input });
+    // Pi 的 toolCall 块参数字段是 arguments（磁盘数据实证）；兼容 input 双格式
+    else if (b.type === "toolCall") blocks.push({ type: "tool_use" as const, id: b.id, name: b.name, input: b.input ?? b.arguments });
     else if (b.type === "thinking") {
       const t = (b as any).thinking ?? "";
       if (t) blocks.push({ type: "thinking" as any, text: t });
