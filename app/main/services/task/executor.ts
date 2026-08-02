@@ -210,6 +210,14 @@ async function executeAndCollect(
 
   let activeModel = progress.resolvedModel;
 
+  // 中止传播：signal abort 时立即中止子会话（不能只依赖事件回调——
+  // 子 Agent 等待模型输出时无事件到达，回调永远不会执行）
+  const onAbort = () => { session.abort().catch(() => {}); };
+  if (opts.signal) {
+    if (opts.signal.aborted) onAbort();
+    else opts.signal.addEventListener("abort", onAbort, { once: true });
+  }
+
   const unsub = session.subscribe((event: AgentSessionEvent) => {
     if (opts.signal?.aborted) { session.abort().catch(() => {}); return; }
 
@@ -273,6 +281,7 @@ async function executeAndCollect(
     await session.prompt(task);
   } finally {
     unsub();
+    opts.signal?.removeEventListener("abort", onAbort);
   }
 
   const rawOutput = collector.getText();

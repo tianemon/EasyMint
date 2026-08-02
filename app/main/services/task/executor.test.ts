@@ -85,6 +85,19 @@ describe("executor 后台委派执行", () => {
     await done;
   });
 
+  it("signal abort 时立即中止子会话(等待模型输出期间也生效)", async () => {
+    const session = fakeSession([]);
+    (mocks.createPiSession as any).mockResolvedValue(session);
+    const record = createDelegation("mint", [{ task: "T1" }]);
+    const done = runSubagents(record, runtime);
+    // 子 Agent 等待模型输出期间(无事件),用户点打断 → signal abort → session.abort 立即被调用
+    record.abort();
+    await record.completion;
+    expect(session.abort).toHaveBeenCalled();
+    expect(record.status).toBe("aborted");
+    await done;
+  });
+
   it("无 outputSchema 时不创建 yield 工具", async () => {
     (mocks.createPiSession as any).mockResolvedValue(fakeSession([]));
     const record = createDelegation("mint", [{ task: "T1" }]);

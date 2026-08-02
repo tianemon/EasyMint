@@ -349,7 +349,13 @@ export class AgentService {
       this.activeRuns.delete(runId);
     }
     // chat 会话：打断当前回合（含子 Agent 委派），保留会话供继续使用
-    const chat = this.findActiveChat(runId);
+    // runId 可能是 chatId（前端打断按钮）或 sessionId（steer/其他）——先按 sessionId 查，再按 chatId 兜底
+    let chat = this.findActiveChat(runId);
+    if (!chat) {
+      for (const [, c] of this.activeChats) {
+        if (c.chatId === runId) { chat = c; break; }
+      }
+    }
     if (chat) {
       abortDelegations(chat.tempSessionId ?? chat.sessionId);
       chat.abortController.abort();
