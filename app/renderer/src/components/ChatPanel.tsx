@@ -129,6 +129,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   // 注意：ChatPanel 不读 s.text，否则每次 statusText 变化都会重渲染整个组件
   const summarizing = useStatusStore((s) => s.summarizing);
   const compacting = useStatusStore((s) => s.compacting);
+  const statusText = useStatusStore((s) => s.text);
   const [compactDone, setCompactDone] = useState(false);
   const prevCompacting = useRef(compacting);
   useEffect(() => {
@@ -908,7 +909,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 <div className="min-w-0">
                   <div className="msg-from">Mint</div>
                   <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 animate-pulse">
-                    <span className="text-sm text-text-secondary">...</span>
+                    {/* 复用状态栏文本(useStatusStore.text 单一来源):派发任务后显示「调度 Agent 执行中」 */}
+                    <span className="text-sm text-text-secondary">{statusText || "..."}</span>
                   </div>
                 </div>
               </div>
