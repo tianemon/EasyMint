@@ -161,8 +161,11 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
             entries.push({ kind: "text", text: b.text, timestamp: ts });
           } else if (b.type === "thinking" && b.thinking) {
             entries.push({ kind: "thinking", text: b.thinking, timestamp: ts });
-          } else if (b.type === "tool_use") {
-            entries.push({ kind: "tool_use", id: (b as { id?: string }).id || "", name: b.name || "?", input: b.input || {}, timestamp: ts, collapsed: false, source: "chat" });
+          } else if (b.type === "tool_use" || b.type === "toolCall") {
+            // 磁盘消息的 tool 块是 Pi 原生格式 toolCall（字段 arguments）；
+            // 流式路径经 event-bridge 转成 tool_use（字段 input）——两种都兼容
+            const args = b.input ?? (b as { arguments?: unknown }).arguments;
+            entries.push({ kind: "tool_use", id: (b as { id?: string }).id || "", name: b.name || "?", input: args || {}, timestamp: ts, collapsed: false, source: "chat" });
           } else if (b.type === "tool_result") {
             entries.push({ kind: "tool_result", toolUseId: b.tool_use_id || "", content: String(b.content ?? ""), isError: !!b.is_error, timestamp: ts, source: "chat" });
           }
