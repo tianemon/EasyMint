@@ -113,6 +113,8 @@ export class AgentService {
   private chatCounter = 0;
   onWorkerComplete: ((projectPath: string) => void) | null = null;
   private streamBuffer: Map<string, PiChatEvent[]> = new Map();
+  /** 委派打断时积压的用户消息：回合结束后以新回合发送（Pi steering 队列回合 abort 后不消费） */
+  private pendingSteerMessages: Map<string, string> = new Map();
 
   // ── 内部辅助 ──────────────────────────────────────
 
@@ -227,6 +229,13 @@ export class AgentService {
         session.prompt(text, images ? { images } : undefined),
         new Promise((_, reject) => setTimeout(() => reject(new Error("请求超时（10分钟）")), 600_000)),
       ]);
+
+      // 委派打断期间积压的用户消息：回合已结束,立即开新回合发送
+      const pendingSteer = this.pendingSteerMessages.get(sessionId);
+      if (pendingSteer) {
+        this.pendingSteerMessages.delete(sessionId);
+        await session.prompt(pendingSteer).catch(() => {});
+      }
 
       const pr = pendingResult as PiChatEvent | null;
       if (pr) {
@@ -698,11 +707,16 @@ export class AgentService {
 
   /** 注入引导消息（中断当前回合并插话） */
   async steer(sessionId: string, text: string): Promise<void> {
-    // 用户插话 = 打断当前动作：中止该会话运行中的子 Agent 委派
-    // 委派记录的 parentSessionId 是工具创建时绑定的 ID（新会话=tempSessionId，恢复=sessionId）
     const chat = this.findActiveChat(sessionId);
-    if (chat) abortDelegations(chat.tempSessionId ?? chat.sessionId);
-    await chat?.session?.steer(text);
+    if (!chat) return;
+    // 有运行中的委派 → 打断子 Agent,消息转入 pending:Pi 的 steering 队列只在回合
+    // 开始消费一次,工具执行挂起期间入队的消息在回合 abort 后会永久滞留(Mint 永不回复)
+    const n = abortDelegations(chat.tempSessionId ?? chat.sessionId);
+    if (n > 0) {
+      this.pendingSteerMessages.set(sessionId, text);
+      return;
+    }
+    await chat.session?.steer(text);
   }
 
   /** 注入跟进消息（当前回合结束后发送） */
