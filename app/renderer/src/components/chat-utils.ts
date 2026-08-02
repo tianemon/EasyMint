@@ -141,7 +141,8 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
   let nextId = 0;
   const mapped: ChatMessage[] = [];
   for (const m of msgs) {
-    const ts = (m.message as { created_at?: number })?.created_at ?? Date.now();
+    // 磁盘消息对象时间字段是 timestamp(毫秒),无 created_at(磁盘实证)
+    const ts = (m.message as { timestamp?: number })?.timestamp ?? Date.now();
     if (m.type === "user") {
       const content = (m.message as { content?: string | unknown[] })?.content;
       const text = typeof content === "string" ? content : Array.isArray(content)

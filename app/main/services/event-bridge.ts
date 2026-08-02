@@ -18,7 +18,7 @@ export interface PiChatEvent {
   toolArgs?: Record<string, unknown>;
   /** user 消息文本(user_message 事件) */
   text?: string;
-  /** user 消息落盘时间(委派完成通知等,前端按时间戳有序插入) */
+  /** user 消息落盘时间戳(毫秒,磁盘字段实证为 timestamp 而非 created_at) */
   timestamp?: number;
   message?: string;
   canRetry?: boolean;
@@ -114,7 +114,8 @@ export function bridgeSessionEvents(
             type: "user_message",
             sessionId: "",
             text,
-            timestamp: (msg as { created_at?: number }).created_at,
+            // Pi user 消息对象时间字段是 timestamp(毫秒)(磁盘 JSONL 实证)
+            timestamp: (msg as { timestamp?: number }).timestamp,
           });
         }
       }
