@@ -1062,21 +1062,22 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
       return (
         <div className="flex gap-4 items-start" style={{ padding: "0 var(--s8)" }}>
           <div style={{ width: 34, flexShrink: 0 }} />
-          <div className="w-fit max-w-[75%] my-1 rounded-[10px] rounded-bl-[4px] border border-success/30 bg-success-soft px-[14px] py-1.5 text-xs">
+          {/* 普通气泡样式(text-sm 与其他消息一致),状态用圆点颜色区分:绿=完成,黄=人为打断,红=意外中断 */}
+          <div className="w-fit max-w-[75%] my-1 rounded-[10px] rounded-bl-[4px] border border-border bg-surface-elevated px-[14px] py-1.5 text-sm leading-[1.55]">
             {rows.map((row, i) => {
               const m = row.match(/^● (.+?) — (完成|失败|中止)(?: · (\d+)s)?$/);
-              const isFail = row.includes("— 失败") || row.includes("— 中止");
+              // 中止=人为打断(黄),失败=意外中断(红),完成=绿
+              const status = m?.[2];
+              const dotColor = status === "中止" ? "text-warning" : status === "失败" ? "text-danger" : "text-success";
               return (
                 <div key={i} className="flex items-center gap-2 py-0.5">
-                  <svg className="shrink-0" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke={isFail ? "currentColor" : "#22c55e"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    {isFail
-                      ? <path d="M6 6l4 4M10 6l-4 4" />
-                      : <path d="M5 8l2 2 4-4" />}
+                  <svg className={`shrink-0 ${dotColor}`} width="9" height="9" viewBox="0 0 16 16">
+                    <circle cx="8" cy="8" r="5.5" fill="currentColor" />
                   </svg>
                   {m ? (
                     <>
-                      <span className={isFail ? "text-danger" : "text-success"}>{m[1]}</span>
-                      <span className="text-text-secondary">— {m[2]}</span>
+                      <span className="text-text-primary">{m[1]}</span>
+                      <span className={`${dotColor}`}>— {m[2]}</span>
                       {m[3] && <span className="text-text-secondary/70 tabular-nums">· {m[3]}s</span>}
                     </>
                   ) : (

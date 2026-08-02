@@ -1,14 +1,22 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDelegationStore, type RunningTaskInfo } from "../stores/delegation-store";
 
 /**
  * 后台进程条:显示 agent·N(绿色) / shell·N(蓝色),点击 agent 展开任务列表,
  * 每个任务可单独停止(中止该子 Agent,通知同步主会话)
  */
-export function ProcessBar(): JSX.Element {
+export function ProcessBar(): JSX.Element | null {
   const agentTasks = useDelegationStore((s) => s.agentTasks);
   const shellCount = useDelegationStore((s) => s.shellCount);
   const [expanded, setExpanded] = useState(false);
+
+  // 任务全部结束时收起浮层,避免下次展开时残留(hooks 须在条件 return 前)
+  useEffect(() => {
+    if (agentTasks.length === 0) setExpanded(false);
+  }, [agentTasks.length]);
+
+  // 无任何后台活动时不占位——否则空行会把状态栏顶离输入卡片
+  if (agentTasks.length === 0 && shellCount === 0) return null;
 
   const stopTask = (task: RunningTaskInfo): void => {
     window.electronAPI.agent.stopDelegation(task.delegationId, task.index).catch(() => {});
