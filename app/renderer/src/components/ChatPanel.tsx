@@ -476,8 +476,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // Pi 新 assistant turn 开始 → 创建空 AI 消息作为本 turn 锚点，
       // 后续 message/thinking 帧按 id 全量替换（每次 turn 一条消息，与磁盘落盘结构一致）
       if (event.type === "turn_start") {
-        // 流式开始 → 请求信号结束
-        useStatusStore.getState().popSignal("request");
+        // 回合开始 → 请求转「正在思考」(同 id 更新,不 pop——Mint 思考阶段状态栏保持显示,
+        // 直到首个输出帧/工具调用才结束,否则「正在请求」一闪而过)
+        useStatusStore.getState().pushSignal("request", "正在思考...");
         curAiMsgIdRef.current = useChatStore.getState().startAiMessage(sidRef.current);
         steeringRef.current = false;
       }
@@ -485,6 +486,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (event.type === "message" && Array.isArray(event.blocks)) {
         const rawEntries = piBlocksToEntries(event.blocks);
         if (rawEntries.length > 0) {
+          // Mint 开始输出 → 思考信号结束
+          useStatusStore.getState().popSignal("request");
           const entries = mergeConsecutiveText(rawEntries);
           if (!curAiMsgIdRef.current) {
             curAiMsgIdRef.current = useChatStore.getState().startAiMessage(sidRef.current);
@@ -496,6 +499,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // tool progress
       if (event.type === "tool_progress" && event.toolName) {
         const label = displayToolLabel(event.toolName, event.toolArgs);
+        // 开始执行工具 → 思考信号结束(否则 tool pop 后回退显示「正在思考」)
+        useStatusStore.getState().popSignal("request");
         useStatusStore.getState().pushSignal("tool", label);
         useDelegationStore.getState().setShellCount(useDelegationStore.getState().shellCount + 1);
       }
@@ -521,8 +526,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // 系统注入的 user 消息（委派完成通知等）→ 渲染为消息(带 streaming 标记,
       // loadSession 时被磁盘版本替代,不重复)
       if (event.type === "user_message" && event.text) {
-        useChatStore.getState().appendUserMsg(sidRef.current, {
-          role: "user", text: event.text, timestamp: Date.now(), streaming: true,
+        // 按落盘时间戳有序插入——通知发生在过去时刻,append 会跑到之后新消息后面,
+        // 与磁盘顺序(重载后位置)不一致
+        useChatStore.getState().insertUserMsgAt(sidRef.current, {
+          role: "user", text: event.text, timestamp: event.timestamp ?? Date.now(), streaming: true,
         });
         scrollToBottom();
       }

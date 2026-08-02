@@ -17,22 +17,15 @@ export function ProcessBar(): JSX.Element {
   return (
     <div className="relative" style={{ margin: "0 var(--s16)" }}>
       <div className="flex items-center gap-1 py-0.5 text-[11px]">
-        {/* agent 计数:点击展开/收起任务列表 */}
+        {/* agent 计数:圆角胶囊,点击展开/收起任务列表 */}
         {agentTasks.length > 0 && (
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="flex items-center gap-1 text-success cursor-pointer hover:underline"
+            className="rounded-[8px] bg-success-soft px-2 py-0.5 font-semibold text-success cursor-pointer hover:bg-success-high"
             title="运行中的子 Agent"
           >
-            <svg className="shrink-0" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="8" cy="4.5" r="2.5" />
-              <path d="M3 13.5c0-2.5 2.2-4 5-4s5 1.5 5 4" />
-            </svg>
-            <span>agent·{agentTasks.length}</span>
-            <svg className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 3.5l3 3 3-3" />
-            </svg>
+            Agent·{agentTasks.length}
           </button>
         )}
         {/* shell 计数(主会话工具执行中) */}

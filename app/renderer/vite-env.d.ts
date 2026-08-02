@@ -78,13 +78,14 @@ interface StreamEvent {
   toolCallId?: string;
   /** user 消息文本(user_message 事件) */
   text?: string;
+  /** user 消息落盘时间(委派完成通知等,前端按时间戳有序插入) */
+  timestamp?: number;
   message?: string;
   canRetry?: boolean;
   summary?: string;
   usage?: { inputTokens: number; outputTokens: number };
   percentage?: number;
   data?: Record<string, unknown>;
-  timestamp: number;
   source?: "worker" | "evaluator" | "chat";
 }
 

@@ -56,6 +56,35 @@ describe("chat-store 流式消息锚定", () => {
     expect(msgs[msgs.length - 1]!.streaming).toBe(true);
   });
 
+  it("insertUserMsgAt 按时间戳插入:通知发生在过去时刻,插到其后新消息之前", () => {
+    useChatStore.getState().loadSession("s1", [
+      { id: 1, role: "user", text: "问题", timestamp: 100 },
+      { id: 2, role: "ai", entries: [{ kind: "text", text: "回答A" }], timestamp: 200 },
+    ]);
+    // 委派完成通知(时间点 250)在后续消息(300)之前落盘 → 应插到 id=3 之前
+    useChatStore.getState().appendUserMsg("s1", { role: "user", text: "继续", timestamp: 300 });
+    useChatStore.getState().insertUserMsgAt("s1", {
+      role: "user", text: "[系统消息]-[Agent执行结果] T1 完成", timestamp: 250, streaming: true,
+    });
+
+    const msgs = useChatStore.getState().messagesBySession["s1"]!;
+    expect(msgs).toHaveLength(4);
+    expect(msgs[2]!.text).toContain("T1 完成");
+    expect(msgs[3]!.text).toBe("继续");
+  });
+
+  it("insertUserMsgAt 时间戳晚于所有消息时追加到末尾", () => {
+    useChatStore.getState().loadSession("s1", [
+      { id: 1, role: "user", text: "问题", timestamp: 100 },
+    ]);
+    useChatStore.getState().insertUserMsgAt("s1", {
+      role: "user", text: "[系统消息] 通知", timestamp: 999, streaming: true,
+    });
+    const msgs = useChatStore.getState().messagesBySession["s1"]!;
+    expect(msgs).toHaveLength(2);
+    expect(msgs[1]!.text).toContain("通知");
+  });
+
   it("loadSession 合并排除 streaming 临时消息（磁盘数据是真相源）", () => {
     const id = useChatStore.getState().startAiMessage("s1");
     useChatStore.getState().replaceAiEntriesById("s1", id, [{ kind: "text", text: "流式中的临时内容" }]);

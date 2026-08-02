@@ -18,6 +18,8 @@ export interface PiChatEvent {
   toolArgs?: Record<string, unknown>;
   /** user 消息文本(user_message 事件) */
   text?: string;
+  /** user 消息落盘时间(委派完成通知等,前端按时间戳有序插入) */
+  timestamp?: number;
   message?: string;
   canRetry?: boolean;
   summary?: string;
@@ -108,7 +110,12 @@ export function bridgeSessionEvents(
         // 转发它们会导致重复渲染 / 错误显示为 USER 气泡
         const text = extractUserText(msg);
         if (text.startsWith("[系统消息]")) {
-          callbacks.onEvent({ type: "user_message", sessionId: "", text });
+          callbacks.onEvent({
+            type: "user_message",
+            sessionId: "",
+            text,
+            timestamp: (msg as { created_at?: number }).created_at,
+          });
         }
       }
       break;
