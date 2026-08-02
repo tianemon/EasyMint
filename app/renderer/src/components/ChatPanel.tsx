@@ -864,7 +864,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                     />
                     {/* 委派进度卡片：固定附着在触发消息气泡下方(左对齐气泡) */}
                     {delegation && delegation.triggerMsgId === msg.id && (
-                      <div className="flex gap-4 items-start">
+                      <div className="flex gap-4 items-start" style={{ padding: "0 var(--s8)" }}>
                         <div style={{ width: 34, flexShrink: 0 }} />
                         <DelegationProgress delegation={delegation} />
                       </div>

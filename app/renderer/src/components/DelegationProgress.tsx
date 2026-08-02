@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 /** 委派任务 UI 态（与 AgentProgress 对应,裁剪为渲染所需字段） */
 export interface DelegationTaskUi {
   index: number;
@@ -73,20 +75,34 @@ export function DelegationProgress({ delegation }: { delegation: DelegationUiSta
           </>
         )}
       </div>
-      {/* 任务列表（仅标题） */}
+      {/* 任务列表（仅标题；hover 展开显示完整标题） */}
       <div className="divide-y divide-border/60">
         {delegation.tasks.map((t) => (
-          <div key={t.index} className="flex items-center gap-2 px-3 py-1.5">
-            <StatusIcon status={t.status} />
-            <span
-              title={t.task}
-              className={`truncate max-w-[52ch] cursor-default ${t.status === "completed" ? "text-text-secondary" : "text-text-primary"}`}
-            >
-              {t.task.slice(0, 60)}
-            </span>
-          </div>
+          <TitleRow key={t.index} task={t} />
         ))}
       </div>
+    </div>
+  );
+}
+
+/** 任务标题行：默认截断,hover 时展开为完整标题(换行显示) */
+function TitleRow({ task }: { task: DelegationTaskUi }): JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div
+      className="flex items-center gap-2 px-3 py-1.5"
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
+    >
+      <StatusIcon status={task.status} />
+      <span
+        title={task.task}
+        className={`cursor-default ${task.status === "completed" ? "text-text-secondary" : "text-text-primary"} ${
+          expanded ? "whitespace-pre-wrap break-words" : "truncate max-w-[52ch]"
+        }`}
+      >
+        {task.task.slice(0, 120)}
+      </span>
     </div>
   );
 }
