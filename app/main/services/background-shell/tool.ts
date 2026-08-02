@@ -16,6 +16,18 @@ export interface EnhancedBashOptions {
   onExit?: (shell: BackgroundShell) => void;
 }
 
+/** 后台命令退出 → 注入主会话的文本(● 摘要行对齐委派通知渲染,前端按状态着色) */
+export function formatShellResult(shell: BackgroundShell): string {
+  const status = shell.stopped ? "中止" : (shell.exitCode === 0 ? "完成" : "失败");
+  const dur = Math.max(0, Math.round((Date.now() - shell.startedAt) / 1000));
+  const summary = `● 后台命令 — ${status}${dur > 0 ? ` · ${dur}s` : ""}`;
+  const head = `命令: ${shell.command}\n退出码: ${shell.exitCode ?? "?"}`;
+  const output = shell.output.trim()
+    ? `输出:\n${shell.output.trim()}`
+    : "(无输出)";
+  return `${summary}\n${head}\n${output}`;
+}
+
 export async function createEnhancedBashTool(
   cwd: string,
   options?: EnhancedBashOptions,

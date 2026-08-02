@@ -20,6 +20,8 @@ export interface BackgroundShell {
   output: string;
   /** 退出码(null = 尚未退出) */
   exitCode: number | null;
+  /** 被 stop() 主动停止(true 时格式化结果标记「中止」,与自然失败区分) */
+  stopped: boolean;
   /** 进程退出回调(自然结束或被停止),exitCode 已写入 */
   onExit?: (shell: BackgroundShell) => void;
 }
@@ -33,7 +35,7 @@ class BackgroundShellRegistry {
     // detached: 独立进程组,stop 时 kill(-pid) 可杀整个进程树(含孙进程)
     const child = spawn(command, { shell: true, cwd, detached: true });
     const shell: BackgroundShell = {
-      id, command, startedAt: Date.now(), child, output: "", exitCode: null, onExit,
+      id, command, startedAt: Date.now(), child, output: "", exitCode: null, stopped: false, onExit,
     };
     this.shells.set(id, shell);
 
@@ -62,6 +64,7 @@ class BackgroundShellRegistry {
   stop(id: string): boolean {
     const shell = this.shells.get(id);
     if (!shell) return false;
+    shell.stopped = true;
     try {
       if (process.platform === "win32") {
         spawn("taskkill", ["/pid", String(shell.child.pid), "/T", "/F"]);

@@ -13,6 +13,7 @@ import {
   getCreateCodingTools,
 } from "./pi-sdk";
 import { createEnhancedBashTool } from "./background-shell/tool";
+import type { BackgroundShell } from "./background-shell/registry";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
 import { getSettingsManager, getModelRuntime } from "./pi-init";
@@ -37,6 +38,8 @@ export interface PiSessionOptions {
   extraTools?: ToolDefinition[];
   /** 权限回调：对所有工具（含基础 coding 工具）生效；缺省不包装 */
   canUseTool?: (toolName: string, input: Record<string, unknown>, options: CanUseToolOptions) => Promise<PermissionResult>;
+  /** 后台 shell 进程退出回调（主会话传入,结果注入主会话；缺省不通知） */
+  onShellExit?: (shell: BackgroundShell) => void;
 }
 
 // ── 工厂函数 ────────────────────────────────────────
@@ -62,7 +65,7 @@ async function buildSession(
   const codingTools = createTools(opts.cwd);
   // bash 用增强版替换(原生 + background 参数):同名工具后者覆盖前者(agent-session Map.set)
   // 放在最后,确保覆盖 codingTools 中的原生 bash
-  const enhancedBash = await createEnhancedBashTool(opts.cwd);
+  const enhancedBash = await createEnhancedBashTool(opts.cwd, { onExit: opts.onShellExit });
   const codingToolsReplaced = codingTools.filter((t) => t.name !== "bash");
   // 统一权限包装：extraTools 与基础 coding 工具（Read/Write/Edit/Bash 等）全部生效
   const wrapAll = (tools: ToolDefinition[]): ToolDefinition[] =>

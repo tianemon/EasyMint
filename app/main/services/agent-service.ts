@@ -19,7 +19,9 @@ import { buildSkillsPrompt } from "./skill-service";
 import { getActiveModel, resetModelRuntime } from "./pi-init";
 import { createPiSession, resumePiSession, listPiSessions } from "./pi-session";
 import { createTaskTool } from "./task/tool";
-import { registerSessionIdMapping, abortTask, getRunningSummary } from "./task/registry";
+import { registerSessionIdMapping, abortTask, getRunningSummary, resolveParentSessionId } from "./task/registry";
+import { formatShellResult } from "./background-shell/tool";
+import { backgroundShellRegistry, type BackgroundShell } from "./background-shell/registry";
 import { createProductTools } from "./builtin-mcp";
 import { loadMcpTools } from "./permission/mcp-adapter";
 import { permissionService } from "./permission/agent-permission-service";
@@ -425,6 +427,12 @@ export class AgentService {
       chatId,
     );
 
+    // 后台 shell 退出 → 结果注入主会话(临时 ID 解析为真实 ID,同 task 委派)
+    const shellExitInject = (shell: BackgroundShell): void => {
+      const sid = resolveParentSessionId(resumeSessionId ?? newSessionId);
+      this.injectSystemMessage(sid, formatShellResult(shell));
+    };
+
     const session: AgentSession = await (async () => {
       if (resumeSessionId) {
         const sessions = await listPiSessions(resolvedPath);
@@ -439,6 +447,7 @@ export class AgentService {
             systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
             extraTools,
             canUseTool,
+            onShellExit: shellExitInject,
           });
         }
       }
@@ -450,6 +459,7 @@ export class AgentService {
         systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
         extraTools,
         canUseTool,
+        onShellExit: shellExitInject,
       });
     })();
 
@@ -784,6 +794,8 @@ export class AgentService {
       broadcast("agent:exit", { runId: id, code: -1 });
     }
     this.activeRuns.clear();
+    // 清理全部后台 shell 进程(杀进程树,防孤儿进程)
+    backgroundShellRegistry.stopAll();
   }
 }
 
