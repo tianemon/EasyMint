@@ -16,6 +16,8 @@ export interface PiChatEvent {
   toolCallId?: string;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
+  /** user 消息文本(user_message 事件) */
+  text?: string;
   message?: string;
   canRetry?: boolean;
   summary?: string;
