@@ -334,46 +334,51 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   // ── 子 Agent 委派进度卡片 ─────────────────────────
   const [delegation, setDelegation] = useState<DelegationUiState | null>(null);
+  // 事件回调内跟踪当前委派状态(副作用必须移出 useState updater——
+  // updater 渲染期间执行,调用其他 store 会触发跨组件更新警告)
+  const delegationRef = useRef<DelegationUiState | null>(null);
 
   useEffect(() => {
     const unsub = window.electronAPI.agent.onDelegationProgress((data: DelegationProgressEvent) => {
       // 过滤：只显示当前窗口 chat 的委派
       if (data.chatId && currentChatRef.current && data.chatId !== currentChatRef.current) return;
-      setDelegation((prev) => {
-        const task: DelegationTaskUi = {
-          index: data.progress.index,
-          agent: data.progress.agent,
-          task: data.progress.task,
-          status: data.progress.status,
-        };
-        // 首次收到:捕获触发委派的消息 id(最后一条 AI 消息,含 task 工具调用),
-        // 卡片固定附着在该消息下方;同时滚动到底让卡片完整可见
-        let triggerMsgId: number | undefined;
-        if (!prev) {
-          const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
-          const lastAi = msgs.filter((m) => m.role === "ai").pop();
-          triggerMsgId = lastAi?.id;
-          scrollToBottom(true);
-          // 委派开始 → 状态栏常驻「调用 Agent」信号
-          useStatusStore.getState().pushSignal("agent", "调用 Agent");
-        }
-        const tasks = prev && prev.delegationId === data.delegationId ? [...prev.tasks] : [];
-        const idx = tasks.findIndex((t) => t.index === task.index);
-        if (idx >= 0) tasks[idx] = task; else tasks.push(task);
-        const finished = tasks.length > 0 && tasks.every((t) =>
-          t.status === "completed" || t.status === "failed" || t.status === "aborted");
-        // 委派结束 → 清除「调用 Agent」信号(回退次新活跃信号)
-        if (finished && (!prev || !prev.finished)) {
-          useStatusStore.getState().popSignal("agent");
-        }
-        return {
-          delegationId: data.delegationId,
-          chatId: data.chatId,
-          triggerMsgId: prev?.triggerMsgId ?? triggerMsgId,
-          tasks,
-          finished,
-        };
-      });
+      const prev = delegationRef.current;
+      const task: DelegationTaskUi = {
+        index: data.progress.index,
+        agent: data.progress.agent,
+        task: data.progress.task,
+        status: data.progress.status,
+      };
+      // 首次收到:捕获触发委派的消息 id(最后一条 AI 消息,含 task 工具调用),
+      // 卡片固定附着在该消息下方;同时滚动到底让卡片完整可见
+      let triggerMsgId: number | undefined;
+      if (!prev) {
+        const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
+        const lastAi = msgs.filter((m) => m.role === "ai").pop();
+        triggerMsgId = lastAi?.id;
+        scrollToBottom(true);
+      }
+      const tasks = prev && prev.delegationId === data.delegationId ? [...prev.tasks] : [];
+      const idx = tasks.findIndex((t) => t.index === task.index);
+      if (idx >= 0) tasks[idx] = task; else tasks.push(task);
+      const finished = tasks.length > 0 && tasks.every((t) =>
+        t.status === "completed" || t.status === "failed" || t.status === "aborted");
+      const next: DelegationUiState = {
+        delegationId: data.delegationId,
+        chatId: data.chatId,
+        triggerMsgId: prev?.triggerMsgId ?? triggerMsgId,
+        tasks,
+        finished,
+      };
+      delegationRef.current = next;
+      // 副作用(事件回调内,合法):委派开始 → 常驻「调用 Agent」;结束 → 清除
+      if (!prev) {
+        useStatusStore.getState().pushSignal("agent", "调用 Agent");
+      }
+      if (finished && (!prev || !prev.finished)) {
+        useStatusStore.getState().popSignal("agent");
+      }
+      setDelegation(next);
     });
     return unsub;
   }, []);
