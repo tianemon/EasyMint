@@ -185,8 +185,8 @@ export class AgentService {
           onEvent: (ev) => {
             ev.sessionId = sessionId;
             ev.chatId = chatId;
-            // [临时调试] 流事件结构验证：type/seq/blocks（text 长度判断累积 vs delta）
-            console.log("[stream-main]", ev.type, "seq=" + ev.seq, (ev as { blocks?: Array<{ type: string; text?: string }> }).blocks?.map((b) => `${b.type}:${(b.text || "").length}`).join("|") || "-");
+            // [临时调试] 流事件结构验证：type/blocks（text 长度判断累积 vs delta）
+            console.log("[stream-main]", ev.type, (ev as { blocks?: Array<{ type: string; text?: string }> }).blocks?.map((b) => `${b.type}:${(b.text || "").length}`).join("|") || "-");
             broadcast("agent:stream", ev);
             this.bufferEvent(sessionId, ev);
           },
