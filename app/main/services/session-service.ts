@@ -13,7 +13,7 @@
  *  - session-types.json      → { sessionId: "mint"|"designer" }
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { resolveHome } from "../utils/paths";
@@ -308,4 +308,58 @@ export async function hasCustomTitle(sessionId: string, projectPath?: string): P
     } catch { /* ignore */ }
   }
   return false;
+}
+
+// ── 委派摘要（子 Agent 会话历史持久化展示） ─────────────
+
+export interface DelegationSummary {
+  /** 子会话文件名（不含 .jsonl） */
+  id: string;
+  /** 最后一条 assistant 消息文本（前 300 字） */
+  summary: string;
+  /** 子会话文件最后修改时间 */
+  timestamp: number;
+}
+
+/** 读取某主会话的委派摘要：扫描 <主会话ID>/subagents/*.jsonl,取每个子会话的最后 assistant 文本 */
+export async function getDelegationSummaries(
+  sessionId: string,
+  projectPath: string,
+): Promise<DelegationSummary[]> {
+  const resolved = path.resolve(resolveHome(projectPath));
+  const dir = path.join(getPiSessionDir(resolved), sessionId, "subagents");
+  if (!existsSync(dir)) return [];
+
+  const out: DelegationSummary[] = [];
+  let files: string[] = [];
+  try { files = readdirSync(dir).sort(); } catch { return []; }
+  for (const file of files) {
+    if (!file.endsWith(".jsonl")) continue;
+    const fp = path.join(dir, file);
+    let text = "";
+    try {
+      const lines = readFileSync(fp, "utf-8").trim().split("\n");
+      // 从尾部向前找最后一条非空 assistant 文本
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const obj = JSON.parse(lines[i]!);
+        const msg = obj.message as { role?: string; content?: Array<{ type?: string; text?: string }> } | undefined;
+        if (msg?.role === "assistant" && Array.isArray(msg.content)) {
+          const parts = msg.content
+            .filter((b) => b.type === "text" && b.text)
+            .map((b) => b.text!.trim())
+            .filter(Boolean);
+          if (parts.length > 0) { text = parts.join("\n"); break; }
+        }
+      }
+    } catch { /* 单文件损坏不影响其他 */ }
+    if (!text) continue;
+    let mtime = 0;
+    try { mtime = statSync(fp).mtimeMs; } catch { /* ignore */ }
+    out.push({
+      id: file.slice(0, -6),
+      summary: text.slice(0, 300),
+      timestamp: mtime,
+    });
+  }
+  return out;
 }

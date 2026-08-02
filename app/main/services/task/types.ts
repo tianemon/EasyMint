@@ -106,8 +106,10 @@ export type DelegationStatus = "running" | "completed" | "failed" | "aborted";
 /** 委派记录（异步执行的核心：execute 立即返回，后台执行完成后 resolve completion） */
 export interface DelegationRecord {
   delegationId: string;
-  /** 主会话 ID（发起委派的 Mint 会话） */
+  /** 主会话 ID（发起委派的 Mint 会话；新建会话时可能是临时 ID,createPiSession 后回填真实 ID） */
   parentSessionId: string;
+  /** 创建时的原始 ID（新建会话 = EM 临时 UUID；steer/abort 双匹配用） */
+  tempParentSessionId?: string;
   /** 子会话 ID 列表（批量时多个） */
   childSessionIds: string[];
   status: DelegationStatus;

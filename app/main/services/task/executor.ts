@@ -333,7 +333,12 @@ export async function runSubagents(
 ): Promise<void> {
   const startMs = Date.now();
   const concurrency = runtime.concurrency ?? DEFAULT_CONCURRENCY;
-  const sessionDir = path.join(getPiSessionDir(path.resolve(runtime.cwd)), "subagents");
+  // 目录分级（对齐 cc/omp）：<项目会话目录>/<主会话ID>/subagents/ —— 子会话归属清晰
+  const sessionDir = path.join(
+    getPiSessionDir(path.resolve(runtime.cwd)),
+    record.parentSessionId,
+    "subagents",
+  );
 
   const runOpts = record.tasks.map((task: TaskItem, index) => ({
     subagentOpts: {

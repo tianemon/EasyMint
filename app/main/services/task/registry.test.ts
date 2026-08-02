@@ -5,6 +5,7 @@ import {
   getRunningDelegations,
   abortDelegations,
   finishDelegation,
+  updateParentSessionId,
   resetRegistry,
 } from "./registry";
 import type { BatchResult } from "./types";
@@ -50,6 +51,20 @@ describe("task registry 委派记录表", () => {
     expect(r1.abortController.signal.aborted).toBe(true);
     expect(r2.abortController.signal.aborted).toBe(true);
     expect(getRunningDelegations("mint-B")).toHaveLength(1);
+  });
+
+  it("updateParentSessionId 回填真实 ID,双匹配仍生效", () => {
+    const r = createDelegation("temp-uuid", tasks);
+    expect(r.tempParentSessionId).toBe("temp-uuid");
+    updateParentSessionId("temp-uuid", "019f-real-id");
+    expect(r.parentSessionId).toBe("019f-real-id");
+    expect(r.tempParentSessionId).toBe("temp-uuid");
+    // 双匹配:真实 ID 和临时 ID 都能找到
+    expect(getRunningDelegations("019f-real-id")).toHaveLength(1);
+    expect(getRunningDelegations("temp-uuid")).toHaveLength(1);
+    // 回填后 abort 仍能命中
+    abortDelegations("temp-uuid");
+    expect(r.abortController.signal.aborted).toBe(true);
   });
 
   it("finishDelegation 幂等(已完成不可重复 resolve)", async () => {

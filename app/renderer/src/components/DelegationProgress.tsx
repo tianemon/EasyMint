@@ -1,3 +1,10 @@
+/** 历史委派摘要（从磁盘读取,持久展示） */
+export interface DelegationHistoryItem {
+  id: string;
+  summary: string;
+  timestamp: number;
+}
+
 /** 委派任务 UI 态（与 AgentProgress 对应,裁剪为渲染所需字段） */
 export interface DelegationTaskUi {
   index: number;
@@ -65,6 +72,31 @@ const STATUS_LABEL: Record<string, string> = {
   failed: "失败",
   aborted: "已中止",
 };
+
+/** 历史委派摘要卡片（持久展示,会话页加载时从磁盘读取） */
+export function DelegationHistory({ items }: { items: DelegationHistoryItem[] }): JSX.Element | null {
+  if (items.length === 0) return null;
+  return (
+    <div className="mx-auto max-w-[75%] my-2 rounded-[10px] border border-border bg-surface-elevated overflow-hidden text-xs">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-accent-bg">
+        <svg className="text-text-secondary shrink-0" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 2h7l4 4v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" /><path d="M10 2v4h4" />
+        </svg>
+        <span className="font-medium text-text-primary">委派记录（{items.length}）</span>
+      </div>
+      <div className="divide-y divide-border/60">
+        {items.map((item) => (
+          <div key={item.id} className="px-3 py-2">
+            <div className="text-text-primary leading-relaxed whitespace-pre-wrap">{item.summary}</div>
+            <div className="mt-1 text-[10px] text-text-secondary/70">
+              {new Date(item.timestamp).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /** 子 Agent 委派进度卡片：标题行 + 每个任务一行（对齐 cc TUI 的任务进度列表） */
 export function DelegationProgress({ delegation }: { delegation: DelegationUiState }): JSX.Element | null {

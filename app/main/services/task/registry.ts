@@ -11,6 +11,9 @@
 import { randomUUID } from "node:crypto";
 import type { BatchResult, DelegationRecord, DelegationStatus, TaskItem } from "./types";
 
+/** 主会话的 EM 临时 ID（新建会话时 task 工具绑定的 ID;真实 ID 回填后保留作双匹配） */
+export const TEMP_ID_FIELD = "tempParentSessionId";
+
 const delegations = new Map<string, DelegationRecord>();
 
 /** 保留最近 N 条已完成记录（供查询/调试），超出清理 */
@@ -28,6 +31,7 @@ export function createDelegation(
   const record: DelegationRecord = {
     delegationId: randomUUID(),
     parentSessionId,
+    tempParentSessionId: parentSessionId,
     childSessionIds: [],
     status: "running",
     tasks,
@@ -51,11 +55,25 @@ export function getDelegation(delegationId: string): DelegationRecord | undefine
   return delegations.get(delegationId);
 }
 
-/** 某主会话名下所有运行中的委派（用户 steer 打断时用） */
-export function getRunningDelegations(parentSessionId: string): DelegationRecord[] {
+/**
+ * 回填真实主会话 ID：createPiSession 返回后调用（临时 ID → Pi 真实 ID），
+ * executor 按真实 ID 建子会话目录；tempParentSessionId 保留作 steer/abort 双匹配
+ */
+export function updateParentSessionId(tempId: string, realId: string): void {
+  if (tempId === realId) return;
+  for (const r of delegations.values()) {
+    if (r.parentSessionId === tempId && r.tempParentSessionId === tempId) {
+      r.parentSessionId = realId;
+    }
+  }
+}
+
+/** 某主会话名下所有运行中的委派（用户 steer 打断时用；临时/真实 ID 双匹配） */
+export function getRunningDelegations(sessionId: string): DelegationRecord[] {
   const out: DelegationRecord[] = [];
   for (const r of delegations.values()) {
-    if (r.parentSessionId === parentSessionId && r.status === "running") out.push(r);
+    if (r.status !== "running") continue;
+    if (r.parentSessionId === sessionId || r.tempParentSessionId === sessionId) out.push(r);
   }
   return out;
 }
