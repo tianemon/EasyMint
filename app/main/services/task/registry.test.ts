@@ -5,7 +5,8 @@ import {
   getRunningDelegations,
   abortDelegations,
   finishDelegation,
-  updateParentSessionId,
+  registerSessionIdMapping,
+  resolveParentSessionId,
   resetRegistry,
 } from "./registry";
 import type { BatchResult } from "./types";
@@ -53,18 +54,21 @@ describe("task registry 委派记录表", () => {
     expect(getRunningDelegations("mint-B")).toHaveLength(1);
   });
 
-  it("updateParentSessionId 回填真实 ID,双匹配仍生效", () => {
-    const r = createDelegation("temp-uuid", tasks);
-    expect(r.tempParentSessionId).toBe("temp-uuid");
-    updateParentSessionId("temp-uuid", "019f-real-id");
+  it("registerSessionIdMapping + resolveParentSessionId:委派创建时解析为真实 ID", () => {
+    // 委派在 createPiSession 之后创建(回填映射已注册)→ 创建时解析
+    registerSessionIdMapping("temp-uuid", "019f-real-id");
+    const r = createDelegation(resolveParentSessionId("temp-uuid"), tasks, "temp-uuid");
     expect(r.parentSessionId).toBe("019f-real-id");
     expect(r.tempParentSessionId).toBe("temp-uuid");
-    // 双匹配:真实 ID 和临时 ID 都能找到
+    // 双匹配:真实 ID 和临时 ID 都能 abort
     expect(getRunningDelegations("019f-real-id")).toHaveLength(1);
     expect(getRunningDelegations("temp-uuid")).toHaveLength(1);
-    // 回填后 abort 仍能命中
     abortDelegations("temp-uuid");
     expect(r.abortController.signal.aborted).toBe(true);
+  });
+
+  it("resolveParentSessionId 无映射时原样返回(恢复会话直接是真实 ID)", () => {
+    expect(resolveParentSessionId("019f-direct")).toBe("019f-direct");
   });
 
   it("finishDelegation 幂等(已完成不可重复 resolve)", async () => {

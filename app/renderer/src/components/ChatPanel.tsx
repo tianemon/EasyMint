@@ -17,7 +17,7 @@ import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 import { blocksToMarkdown, selectionToBlocks } from "../lib/selection-to-markdown";
 import { PinLayer, PinIcon } from "./PinLayer";
 import { usePinStore } from "../stores/pin-store";
-import { DelegationProgress, DelegationHistory, type DelegationUiState, type DelegationTaskUi, type DelegationHistoryItem } from "./DelegationProgress";
+import { DelegationProgress, type DelegationUiState, type DelegationTaskUi } from "./DelegationProgress";
 import { ContextMenu, type ContextMenuData, type ContextMenuItem } from "./ContextMenu";
 
 /** 气泡复制按钮：复制整条文本 */
@@ -346,9 +346,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           agent: data.progress.agent,
           task: data.progress.task,
           status: data.progress.status,
-          currentTool: data.progress.currentTool,
-          toolCount: data.progress.toolCount,
-          durationMs: data.progress.durationMs,
         };
         const tasks = prev && prev.delegationId === data.delegationId ? [...prev.tasks] : [];
         const idx = tasks.findIndex((t) => t.index === task.index);
@@ -367,19 +364,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     const t = setTimeout(() => setDelegation(null), 3000);
     return () => clearTimeout(t);
   }, [delegation?.finished]);
-
-  // ── 委派历史摘要（会话打开时从磁盘加载,持久展示） ─────
-  const [delegationHistory, setDelegationHistory] = useState<DelegationHistoryItem[]>([]);
-
-  useEffect(() => {
-    if (!existingSid) { setDelegationHistory([]); return; }
-    const projectDir = projectPath || getWorkspaceDir();
-    let cancelled = false;
-    window.electronAPI.conv.delegationSummaries(existingSid, projectDir)
-      .then((items) => { if (!cancelled) setDelegationHistory(items); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [existingSid, projectPath]);
 
   useEffect(() => {
     if (!existingSid) return; let cancelled = false;
@@ -923,8 +907,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
       {/* 子 Agent 委派进度卡片（消息区下方、输入框上方） */}
       {delegation && <DelegationProgress delegation={delegation} />}
-      {/* 委派历史摘要（持久,从磁盘读取） */}
-      {delegationHistory.length > 0 && <DelegationHistory items={delegationHistory} />}
 
       <StatusBar sessionId={sidRef.current} />
       <PermissionPrompt />

@@ -10,7 +10,7 @@ import { getDefineToolFn } from "../pi-sdk";
 import { Store } from "../store";
 import { getTemplate } from "../agent-templates";
 import { runSubagents } from "./executor";
-import { createDelegation } from "./registry";
+import { createDelegation, resolveParentSessionId } from "./registry";
 import { broadcast } from "../ipc-broadcast";
 import type { TaskItem, BatchResult, AgentProgress } from "./types";
 
@@ -141,7 +141,13 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
 
       // 同步委派（对齐 cc/omp Task 语义）：等待子 Agent 完成，结果作为工具结果返回；
       // 用户插话（steer）会 abort 委派 → completion 立即 resolve(aborted) → 不阻塞
-      const record = createDelegation(ctx.parentSessionId, tasks);
+      // 新会话工具绑定的可能是临时 UUID——解析为 Pi 真实 ID,子会话目录按真实 ID 分级;
+      // rawParentSessionId 保留原始 ID(steer/abort 双匹配)
+      const record = createDelegation(
+        resolveParentSessionId(ctx.parentSessionId),
+        tasks,
+        ctx.parentSessionId,
+      );
 
       // 用户点打断（Pi abort 当前回合）→ 中止子 Agent 委派 → completion resolve(aborted) → execute 立即返回
       if (signal && !signal.aborted) {

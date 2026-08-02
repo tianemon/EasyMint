@@ -62,7 +62,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     listDesign: (projectPath: string) => ipcRenderer.invoke("conv:listDesign", { projectPath }) as Promise<Array<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number; archivedAt?: number }>>,
     get: (id: string, projectPath: string) => ipcRenderer.invoke("conv:get", { id, projectPath }),
     messages: (id: string, projectPath: string) => ipcRenderer.invoke("conv:messages", { id, projectPath }),
-    delegationSummaries: (id: string, projectPath: string) => ipcRenderer.invoke("conv:delegation-summaries", { id, projectPath }),
     rename: (id: string, title: string, projectPath: string) => ipcRenderer.invoke("conv:rename", { id, title, projectPath }),
     designSessions: () => ipcRenderer.invoke("conv:design-sessions") as Promise<string[]>,
     delete: (id: string, projectPath: string) => ipcRenderer.invoke("conv:delete", { id, projectPath }),

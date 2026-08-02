@@ -49,7 +49,6 @@ import {
   listSessions,
   listDesignSessions,
   getSessionMessages,
-  getDelegationSummaries,
   renameSession,
   deleteSession,
   getSessionInfo,
@@ -263,7 +262,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("conv:get", (_e, { id, projectPath }) => getSessionInfo(id, projectPath));
   ipcMain.handle("conv:design-sessions", () => getDesignSessionIds());
   ipcMain.handle("conv:messages", (_e, { id, projectPath }) => getSessionMessages(id, projectPath));
-  ipcMain.handle("conv:delegation-summaries", (_e, { id, projectPath }) => getDelegationSummaries(id, projectPath));
   ipcMain.handle("conv:rename", (_e, { id, title, projectPath }) => {
     agentService.onSessionRenamed(id);
     return renameSession(id, title, projectPath);

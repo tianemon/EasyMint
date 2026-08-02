@@ -19,7 +19,7 @@ import { buildSkillsPrompt } from "./skill-service";
 import { getActiveModel, resetModelRuntime } from "./pi-init";
 import { createPiSession, resumePiSession, listPiSessions } from "./pi-session";
 import { createTaskTool } from "./task/tool";
-import { abortDelegations, updateParentSessionId } from "./task/registry";
+import { abortDelegations, registerSessionIdMapping } from "./task/registry";
 import { createProductTools } from "./builtin-mcp";
 import { loadMcpTools } from "./permission/mcp-adapter";
 import { permissionService } from "./permission/agent-permission-service";
@@ -444,9 +444,9 @@ export class AgentService {
       });
     })();
 
-    // 回填真实主会话 ID：task 委派按真实 ID 建子会话目录（<主会话ID>/subagents/）
+    // 注册临时 ID → 真实 ID 映射：task 委派创建时解析,按真实 ID 建子会话目录
     if (!resumeSessionId) {
-      updateParentSessionId(newSessionId, session.sessionId);
+      registerSessionIdMapping(newSessionId, session.sessionId);
     }
 
     const chat: ActiveChat = {

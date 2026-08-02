@@ -23,6 +23,8 @@ const MAX_KEEP = 50;
 export function createDelegation(
   parentSessionId: string,
   tasks: TaskItem[],
+  /** 原始 ID（新会话 = 临时 UUID;缺省同 parentSessionId）。steer/abort 按它双匹配 */
+  rawParentSessionId?: string,
 ): DelegationRecord {
   const abortController = new AbortController();
   let resolveCompletion!: (result: BatchResult) => void;
@@ -31,7 +33,7 @@ export function createDelegation(
   const record: DelegationRecord = {
     delegationId: randomUUID(),
     parentSessionId,
-    tempParentSessionId: parentSessionId,
+    tempParentSessionId: rawParentSessionId ?? parentSessionId,
     childSessionIds: [],
     status: "running",
     tasks,
@@ -55,17 +57,18 @@ export function getDelegation(delegationId: string): DelegationRecord | undefine
   return delegations.get(delegationId);
 }
 
-/**
- * 回填真实主会话 ID：createPiSession 返回后调用（临时 ID → Pi 真实 ID），
- * executor 按真实 ID 建子会话目录；tempParentSessionId 保留作 steer/abort 双匹配
- */
-export function updateParentSessionId(tempId: string, realId: string): void {
+/** 临时 ID → 真实 ID 映射（createPiSession 返回后注册；委派创建时解析） */
+const tempIdToRealId = new Map<string, string>();
+
+/** createPiSession 返回后注册映射（新会话:临时 UUID → Pi 真实 ID） */
+export function registerSessionIdMapping(tempId: string, realId: string): void {
   if (tempId === realId) return;
-  for (const r of delegations.values()) {
-    if (r.parentSessionId === tempId && r.tempParentSessionId === tempId) {
-      r.parentSessionId = realId;
-    }
-  }
+  tempIdToRealId.set(tempId, realId);
+}
+
+/** 解析为真实主会话 ID（无映射则原样返回,如恢复会话直接是真实 ID） */
+export function resolveParentSessionId(id: string): string {
+  return tempIdToRealId.get(id) ?? id;
 }
 
 /** 某主会话名下所有运行中的委派（用户 steer 打断时用；临时/真实 ID 双匹配） */
