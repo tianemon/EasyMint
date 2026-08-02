@@ -12,6 +12,7 @@ import {
   getDefaultResourceLoaderClass,
   getCreateCodingTools,
 } from "./pi-sdk";
+import { createEnhancedBashTool } from "./background-shell/tool";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
 import { getSettingsManager, getModelRuntime } from "./pi-init";
@@ -59,10 +60,14 @@ async function buildSession(
   await resourceLoader.reload();
 
   const codingTools = createTools(opts.cwd);
+  // bash 用增强版替换(原生 + background 参数):同名工具后者覆盖前者(agent-session Map.set)
+  // 放在最后,确保覆盖 codingTools 中的原生 bash
+  const enhancedBash = await createEnhancedBashTool(opts.cwd);
+  const codingToolsReplaced = codingTools.filter((t) => t.name !== "bash");
   // 统一权限包装：extraTools 与基础 coding 工具（Read/Write/Edit/Bash 等）全部生效
   const wrapAll = (tools: ToolDefinition[]): ToolDefinition[] =>
     opts.canUseTool ? tools.map((t) => wrapToolWithPermission(t, { canUseTool: opts.canUseTool })) : tools;
-  const tools = [...wrapAll(opts.extraTools ?? []), ...wrapAll(codingTools)];
+  const tools = [...wrapAll(opts.extraTools ?? []), ...wrapAll(codingToolsReplaced), ...wrapAll([enhancedBash])];
 
   const sessionOpts: CreateAgentSessionOptions = {
     cwd: opts.cwd,
