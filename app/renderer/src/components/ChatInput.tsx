@@ -106,7 +106,8 @@ export const ChatInput = memo(function ChatInput({
       }
     } else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
-      if (busy || inputDisabled) return;
+      // busy 时允许发送 = 插话打断（走 steer,对齐 cc interrupt 语义）；仅 inputDisabled 拦截
+      if (inputDisabled) return;
       if (input.trim() || attaches.length > 0) {
         // 存历史
         const msg = input.trim();
@@ -202,7 +203,8 @@ export const ChatInput = memo(function ChatInput({
         </div>
         {inputDisabled ? (
           <button className="send-btn" disabled><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg></button>
-        ) : busy ? (
+        ) : busy && !input.trim() && attaches.length === 0 ? (
+          // 忙碌且无输入 → 打断按钮；有输入 → 发送按钮（插话打断）
           <button onClick={onStop} className="stop-btn"><svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="1"/></svg></button>
         ) : (
           <button
