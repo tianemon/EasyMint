@@ -415,9 +415,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // Pi 新 assistant turn 开始 → 记录 turn 边界（entries 从此处开始替换，保留旧 turn 内容）
       if (event.type === "turn_start") {
         const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
-        // 排除 streaming 临时消息：turnIdx 只基于磁盘/真实消息计算，
-        // 否则 buffered 临时消息会把 turnIdx 推高导致后续 message 追加而非替换
-        const lastAi = msgs.filter((m) => m.role === "ai" && !m.streaming).pop();
+        // turnIdx 必须基于"replaceAiEntriesFrom 将操作的最后一条 AI 消息"（含 streaming）——
+        // 两者不一致会导致 fromIdx 与 existing 长度不匹配、text 帧被追加而非替换
+        const lastAi = msgs.filter((m) => m.role === "ai").pop();
         turnEntryIdxRef.current = lastAi ? (lastAi.entries || []).length : 0;
         steeringRef.current = false;
       }
