@@ -7,9 +7,17 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
+import { broadcast } from "../ipc-broadcast";
 
 /** 保留输出尾部上限(超出截断,防止内存膨胀) */
 const MAX_OUTPUT_BYTES = 4096;
+
+/** 前端 shell 列表数据(启动/退出时广播 agent:shell-count) */
+export interface ShellSummary {
+  id: string;
+  command: string;
+  startedAt: number;
+}
 
 export interface BackgroundShell {
   id: string;
@@ -29,6 +37,13 @@ export interface BackgroundShell {
 class BackgroundShellRegistry {
   private shells = new Map<string, BackgroundShell>();
 
+  /** 广播当前 shell 列表给前端(ShellBar 显示/展开) */
+  private broadcastCount(): void {
+    broadcast("agent:shell-count", this.list().map((s) => ({
+      id: s.id, command: s.command, startedAt: s.startedAt,
+    })));
+  }
+
   /** 启动后台命令,立即返回 id;进程退出时自动注销并回调 onExit */
   start(command: string, cwd: string, onExit?: (shell: BackgroundShell) => void): string {
     const id = `shell-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -38,6 +53,7 @@ class BackgroundShellRegistry {
       id, command, startedAt: Date.now(), child, output: "", exitCode: null, stopped: false, onExit,
     };
     this.shells.set(id, shell);
+    this.broadcastCount();
 
     const collect = (chunk: Buffer): void => {
       shell.output = (shell.output + chunk.toString()).slice(-MAX_OUTPUT_BYTES);
@@ -48,6 +64,7 @@ class BackgroundShellRegistry {
       shell.exitCode = code;
       this.shells.delete(id);
       shell.onExit?.(shell);
+      this.broadcastCount();
     });
     child.on("error", () => {
       // spawn 失败(如 shell 不存在)——同 exit 路径注销,避免悬挂
@@ -55,6 +72,7 @@ class BackgroundShellRegistry {
         shell.exitCode = -1;
         this.shells.delete(id);
         shell.onExit?.(shell);
+        this.broadcastCount();
       }
     });
     return id;

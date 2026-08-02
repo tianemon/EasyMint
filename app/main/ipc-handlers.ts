@@ -14,6 +14,7 @@ import { detectNpx } from "./utils/npx-detector";
 import { detectCodegraph } from "./utils/codegraph-detector";
 import { IMAGE_MIME } from "./utils/paths";
 import { execShell } from "./services/shell-service";
+import { backgroundShellRegistry } from "./services/background-shell/registry";
 import { closeProjectWindows } from "./services/window-manager";
 import {
   getSystemPromptConfig,
@@ -170,6 +171,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:stop-delegation", (_e, { delegationId, taskIndex }) =>
     agentService.stopDelegationTask(delegationId, taskIndex),
   );
+  ipcMain.handle("agent:stop-shell", (_e, { shellId }) => {
+    backgroundShellRegistry.stop(String(shellId ?? ""));
+  });
   ipcMain.handle("agent:steer", (_e, { sessionId, text }) => {
     agentService.steer(sessionId, text);
   });

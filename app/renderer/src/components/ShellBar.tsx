@@ -1,20 +1,76 @@
+import { useEffect, useRef, useState } from "react";
 import { useDelegationStore } from "../stores/delegation-store";
 
 /**
- * shell 胶囊:主会话工具执行中显示 shell·N(蓝色),无活动时不占位
- * (与 AgentBar 同款胶囊样式,由父容器按出现顺序排列)
+ * shell 胶囊:显示 shell·N(后台运行中的命令数),点击展开命令列表,
+ * 每个命令可单独停止;点击胶囊外部区域收起(与 AgentBar 同款交互)
  */
 export function ShellBar(): JSX.Element | null {
-  const shellCount = useDelegationStore((s) => s.shellCount);
+  const shellTasks = useDelegationStore((s) => s.shellTasks);
+  const [expanded, setExpanded] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  if (shellCount === 0) return null;
+  // 全部结束时收起浮层
+  useEffect(() => {
+    if (shellTasks.length === 0) setExpanded(false);
+  }, [shellTasks.length]);
+
+  // 点击胶囊外部区域收起(点击穿透正常)
+  useEffect(() => {
+    if (!expanded) return;
+    const handler = (e: MouseEvent): void => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setExpanded(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [expanded]);
+
+  if (shellTasks.length === 0) return null;
+
+  const stopShell = (id: string): void => {
+    window.electronAPI.agent.stopShell(id).catch(() => {});
+  };
 
   return (
-    <span
-      className="rounded-[8px] bg-info-soft px-2 py-0.5 text-[11px] font-semibold text-info"
-      title="主会话工具执行中"
-    >
-      shell·{shellCount}
-    </span>
+    <div ref={containerRef} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="rounded-[8px] bg-info-soft px-2 py-0.5 text-[11px] font-semibold text-info cursor-pointer"
+        title="运行中的后台命令"
+      >
+        shell·{shellTasks.length}
+      </button>
+
+      {/* 命令列表浮层(向上展开,覆盖输入卡片上方) */}
+      {expanded && (
+        <div className="absolute bottom-full left-0 mb-1 w-80 max-h-64 overflow-y-auto rounded-[8px] border border-border bg-surface-elevated shadow-xl z-50 text-xs">
+          <div className="px-3 py-1.5 border-b border-border bg-accent-bg text-text-secondary font-medium">
+            运行中的后台命令({shellTasks.length})
+          </div>
+          <div className="divide-y divide-border/60">
+            {shellTasks.map((task) => (
+              <div key={task.id} className="flex items-center gap-2 px-3 py-2">
+                <svg className="animate-spin text-accent shrink-0" width="11" height="11" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+                  <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <span className="truncate flex-1 text-text-primary font-mono" title={task.command}>{task.command}</span>
+                <button
+                  type="button"
+                  onClick={() => stopShell(task.id)}
+                  className="shrink-0 px-2 py-0.5 rounded-[6px] border border-danger/40 text-danger hover:bg-danger-soft transition-colors"
+                  title="停止该命令"
+                >
+                  停止
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

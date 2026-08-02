@@ -124,8 +124,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const busyRef = useRef(false);
   const ctxThresholdFiredRef = useRef(0); // 已按阈值触发过主动压缩（防止同轮重复触发）
   const programmaticScrollRef = useRef(false); // 程序性滚动中（handleScroll 跳过 autoScroll 更新）
-  /** 活跃工具 toolCallId 集合：tool_execution_update 多帧去重,shell 计数只 +1 一次 */
-  const activeToolIdsRef = useRef<Set<string>>(new Set());
 
   // 状态栏独立存储 → 密集更新时只重渲染 StatusBar，不牵连 ChatPanel/消息列表
   // 注意：ChatPanel 不读 s.text，否则每次 statusText 变化都会重渲染整个组件
@@ -392,6 +390,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     return unsubCount;
   }, []);
 
+  // 后台 shell 列表订阅(ShellBar 胶囊显示 + 命令列表)
+  useEffect(() => {
+    const unsubShell = window.electronAPI.agent.onShellCount((data) => {
+      useDelegationStore.getState().setShellTasks(data);
+    });
+    return unsubShell;
+  }, []);
+
   // 委派全部完成 3 秒后自动收起卡片
   useEffect(() => {
     if (!delegation?.finished) return;
@@ -497,31 +503,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           scrollToBottom();
         }
       }
-      // tool progress — Pi 对同一工具每段输出都会发一帧(update),shell 计数按 toolCallId 去重
+      // tool progress — 状态栏工具信号;shell 计数由后台命令事件驱动(agent:shell-count),
+      // 不再按工具事件累加(前台瞬时工具不计入 shell·N)
       if (event.type === "tool_progress" && event.toolName) {
         const label = displayToolLabel(event.toolName, event.toolArgs);
         // 开始执行工具 → 思考信号结束(否则 tool pop 后回退显示「正在思考」)
         useStatusStore.getState().popSignal("request");
         useStatusStore.getState().pushSignal("tool", label);
-        if (event.toolCallId) {
-          if (!activeToolIdsRef.current.has(event.toolCallId)) {
-            activeToolIdsRef.current.add(event.toolCallId);
-            useDelegationStore.getState().setShellCount(useDelegationStore.getState().shellCount + 1);
-          }
-        } else {
-          useDelegationStore.getState().setShellCount(useDelegationStore.getState().shellCount + 1);
-        }
       }
       // tool done — 工具执行结束,pop 工具信号(回退显示「调用 Agent」等次新活跃信号)
       if (event.type === "tool_done") {
         useStatusStore.getState().popSignal("tool");
-        if (event.toolCallId) {
-          if (activeToolIdsRef.current.delete(event.toolCallId)) {
-            useDelegationStore.getState().setShellCount(Math.max(0, useDelegationStore.getState().shellCount - 1));
-          }
-        } else {
-          useDelegationStore.getState().setShellCount(Math.max(0, useDelegationStore.getState().shellCount - 1));
-        }
       }
       // compaction UI — compacting 事件 = 压缩进行中（显示"正在整理会话..."）
       if (event.type === "compacting") {
@@ -552,7 +544,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         useStatusStore.getState().setCtxPct(event.percentage || 0);
       }
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; curAiMsgIdRef.current = 0; busyRef.current = false; setBusy(false); useStatusStore.getState().popSignal("request"); useStatusStore.getState().popSignal("tool"); activeToolIdsRef.current.clear(); useDelegationStore.getState().setShellCount(0); onActivity?.(); });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; curAiMsgIdRef.current = 0; busyRef.current = false; setBusy(false); useStatusStore.getState().popSignal("request"); useStatusStore.getState().popSignal("tool"); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;

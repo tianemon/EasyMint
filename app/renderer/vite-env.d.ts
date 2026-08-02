@@ -126,6 +126,7 @@ interface ElectronAPI {
     sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string }) => Promise<{ chatId: string }>;
     steer: (sessionId: string, text: string) => Promise<void>;
     stopDelegation: (delegationId: string, taskIndex: number) => Promise<void>;
+    stopShell: (shellId: string) => Promise<void>;
     followUp: (sessionId: string, text: string) => Promise<void>;
     compact: (sessionId: string, instructions?: string) => Promise<void>;
     setThinkingLevel: (sessionId: string, level: string) => Promise<void>;
@@ -150,6 +151,7 @@ interface ElectronAPI {
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
     onDelegationProgress: (callback: (data: DelegationProgressEvent) => void) => () => void;
     onDelegationCount: (callback: (data: { count: number; tasks: { delegationId: string; index: number; title: string }[] }) => void) => () => void;
+    onShellCount: (callback: (data: { id: string; command: string; startedAt: number }[]) => void) => () => void;
     onChatSession: (callback: (data: { chatId: string; sessionId: string }) => void) => () => void;
     onContextSummarizing: (callback: (data: { chatId: string }) => void) => () => void;
     onContextSummary: (callback: (data: { chatId: string; summary: string }) => void) => () => void;

@@ -3,22 +3,29 @@ import { create } from "zustand";
 /** 输入卡片内的后台指示器(agent 胶囊 / shell 胶囊) */
 export type IndicatorKey = "agent" | "shell";
 
-/** 后台进程计数(输入卡片显示):agent·N / shell·N */
+/** 运行中的子 Agent 任务(点击展开显示,可单个停止) */
 export interface RunningTaskInfo {
   delegationId: string;
   index: number;
   title: string;
 }
 
+/** 运行中的后台 shell 命令(点击展开显示,可单个停止) */
+export interface ShellTaskInfo {
+  id: string;
+  command: string;
+  startedAt: number;
+}
+
 interface DelegationState {
-  /** 运行中的子 Agent 任务列表(点击展开显示,可单个停止) */
+  /** 运行中的子 Agent 任务列表 */
   agentTasks: RunningTaskInfo[];
-  /** 主会话正在执行的工具数(shell 等) */
-  shellCount: number;
+  /** 后台 shell 命令列表(主进程 agent:shell-count 广播驱动) */
+  shellTasks: ShellTaskInfo[];
   /** 活跃顺序:谁先出现谁在左,后出现的自动排右边(消失时移除) */
   order: IndicatorKey[];
   setAgentTasks: (tasks: RunningTaskInfo[]) => void;
-  setShellCount: (n: number) => void;
+  setShellTasks: (tasks: ShellTaskInfo[]) => void;
   reset: () => void;
 }
 
@@ -30,17 +37,17 @@ function updateOrder(order: IndicatorKey[], key: IndicatorKey, active: boolean):
 
 export const useDelegationStore = create<DelegationState>((set) => ({
   agentTasks: [],
-  shellCount: 0,
+  shellTasks: [],
   order: [],
   setAgentTasks: (tasks) =>
     set((s) => ({
       agentTasks: tasks,
       order: updateOrder(s.order, "agent", tasks.length > 0),
     })),
-  setShellCount: (n) =>
+  setShellTasks: (tasks) =>
     set((s) => ({
-      shellCount: n,
-      order: updateOrder(s.order, "shell", n > 0),
+      shellTasks: tasks,
+      order: updateOrder(s.order, "shell", tasks.length > 0),
     })),
-  reset: () => set({ agentTasks: [], shellCount: 0, order: [] }),
+  reset: () => set({ agentTasks: [], shellTasks: [], order: [] }),
 }));
