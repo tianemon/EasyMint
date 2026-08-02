@@ -347,12 +347,27 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           task: data.progress.task,
           status: data.progress.status,
         };
+        // 首次收到:捕获触发委派的消息 id(最后一条 AI 消息,含 task 工具调用),
+        // 卡片固定附着在该消息下方;同时滚动到底让卡片完整可见
+        let triggerMsgId: number | undefined;
+        if (!prev) {
+          const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
+          const lastAi = msgs.filter((m) => m.role === "ai").pop();
+          triggerMsgId = lastAi?.id;
+          scrollToBottom(true);
+        }
         const tasks = prev && prev.delegationId === data.delegationId ? [...prev.tasks] : [];
         const idx = tasks.findIndex((t) => t.index === task.index);
         if (idx >= 0) tasks[idx] = task; else tasks.push(task);
         const finished = tasks.length > 0 && tasks.every((t) =>
           t.status === "completed" || t.status === "failed" || t.status === "aborted");
-        return { delegationId: data.delegationId, chatId: data.chatId, tasks, finished };
+        return {
+          delegationId: data.delegationId,
+          chatId: data.chatId,
+          triggerMsgId: prev?.triggerMsgId ?? triggerMsgId,
+          tasks,
+          finished,
+        };
       });
     });
     return unsub;
@@ -847,12 +862,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                       onContextMenu={handleMsgContextMenu}
                       sid={sid}
                     />
+                    {/* 委派进度卡片：固定附着在触发消息气泡下方(左对齐气泡) */}
+                    {delegation && delegation.triggerMsgId === msg.id && (
+                      <div className="flex gap-4 items-start">
+                        <div style={{ width: 34, flexShrink: 0 }} />
+                        <DelegationProgress delegation={delegation} />
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
-            {/* 子 Agent 委派进度卡片：紧贴最后一条消息,随消息滚动 */}
-            {delegation && <DelegationProgress delegation={delegation} />}
             {showNewProjectBtn && (
               <div className="flex justify-center pb-3">
                 <button

@@ -9,6 +9,8 @@ export interface DelegationTaskUi {
 export interface DelegationUiState {
   delegationId: string;
   chatId?: string;
+  /** 触发委派的消息 id（卡片固定附着在该消息气泡下方,不随新消息移动） */
+  triggerMsgId?: number;
   tasks: DelegationTaskUi[];
   /** 全部任务进入终态 */
   finished: boolean;
@@ -76,7 +78,10 @@ export function DelegationProgress({ delegation }: { delegation: DelegationUiSta
         {delegation.tasks.map((t) => (
           <div key={t.index} className="flex items-center gap-2 px-3 py-1.5">
             <StatusIcon status={t.status} />
-            <span className={`truncate max-w-[52ch] ${t.status === "completed" ? "text-text-secondary" : "text-text-primary"}`}>
+            <span
+              title={t.task}
+              className={`truncate max-w-[52ch] cursor-default ${t.status === "completed" ? "text-text-secondary" : "text-text-primary"}`}
+            >
               {t.task.slice(0, 60)}
             </span>
           </div>
