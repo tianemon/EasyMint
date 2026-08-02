@@ -504,6 +504,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (event.type === "error") {
         useStatusStore.getState().pushSignal("error", event.message || "出错了", 8000);
       }
+      // 系统注入的 user 消息（委派完成通知等）→ 渲染为消息(带 streaming 标记,
+      // loadSession 时被磁盘版本替代,不重复)
+      if (event.type === "user_message" && event.text) {
+        useChatStore.getState().appendUserMsg(sidRef.current, {
+          role: "user", text: event.text, timestamp: Date.now(), streaming: true,
+        });
+        scrollToBottom();
+      }
       // context usage update
       if (event.type === "context_usage") {
         useStatusStore.getState().setCtxPct(event.percentage || 0);

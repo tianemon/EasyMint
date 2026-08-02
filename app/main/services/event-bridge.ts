@@ -56,6 +56,20 @@ function isAssistantMessage(msg: unknown): msg is AssistantMessageLike {
   return m.role === "assistant" && Array.isArray(m.content);
 }
 
+/** user 消息文本(系统注入的委派完成通知等) */
+function extractUserText(msg: unknown): string {
+  if (!msg || typeof msg !== "object") return "";
+  const m = msg as { content?: unknown };
+  if (typeof m.content === "string") return m.content;
+  if (Array.isArray(m.content)) {
+    return m.content
+      .filter((b): b is { type?: string; text?: string } => typeof b === "object" && b !== null)
+      .map((b) => (b.type === "text" && b.text ? b.text : ""))
+      .join("");
+  }
+  return "";
+}
+
 export interface BridgeCallbacks {
   onEvent: (event: PiChatEvent) => void;
   getSession: () => { getLastAssistantText(): string | undefined } | null;
@@ -76,16 +90,22 @@ export function bridgeSessionEvents(
     case "message_start": {
       // Pi 新 assistant turn 开始的信号 — 告知前端创建新 AI 消息
       const msg = event.message;
-      if (!isAssistantMessage(msg)) break;
-
-      // 对于 done/error (无 streaming) 的情况，message_start 携带完整内容
-      // 此时直接当 message 事件处理
-      const blocks = messageToBlocks(msg);
-      if (blocks.length > 0) {
-        callbacks.onEvent({ type: "message_start", sessionId: "", blocks });
+      if (isAssistantMessage(msg)) {
+        // 对于 done/error (无 streaming) 的情况，message_start 携带完整内容
+        // 此时直接当 message 事件处理
+        const blocks = messageToBlocks(msg);
+        if (blocks.length > 0) {
+          callbacks.onEvent({ type: "message_start", sessionId: "", blocks });
+        } else {
+          // 空内容 → 纯信号，告知前端开始新 turn
+          callbacks.onEvent({ type: "message_start", sessionId: "" });
+        }
       } else {
-        // 空内容 → 纯信号，告知前端开始新 turn
-        callbacks.onEvent({ type: "message_start", sessionId: "" });
+        // user 消息(系统注入的委派完成通知等)→ 转发文本供前端渲染
+        const text = extractUserText(msg);
+        if (text) {
+          callbacks.onEvent({ type: "user_message", sessionId: "", text });
+        }
       }
       break;
     }

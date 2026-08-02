@@ -46,6 +46,8 @@ export const useStatusStore = create<StatusState>((set, get) => ({
   ctxPct: 0,
 
   pushSignal: (id, text, ttlMs) => {
+    // [临时调试] 信号入栈
+    console.log("[status-signal] push", id, JSON.stringify(text));
     const cur = get().signals;
     let signals: StatusSignal[];
     if (cur.some((s) => s.id === id)) {
@@ -64,6 +66,8 @@ export const useStatusStore = create<StatusState>((set, get) => ({
   },
 
   popSignal: (id) => {
+    // [临时调试] 信号出栈
+    console.log("[status-signal] pop", id);
     const signals = get().signals.filter((s) => s.id !== id);
     const old = timers.get(id);
     if (old) { clearTimeout(old); timers.delete(id); }
