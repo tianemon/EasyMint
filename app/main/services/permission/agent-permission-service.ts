@@ -17,6 +17,7 @@ import {
   isDangerousCommand,
   hasDangerousStructure,
 } from './permission-rules'
+import { readCache } from '../session-cache'
 
 // ── 本地类型（替代 @proma/shared） ─────────────────
 
@@ -145,13 +146,29 @@ export class AgentPermissionService {
     sendAskUserToRenderer?: (request: AskUserRequest) => void,
   ): (toolName: string, input: Record<string, unknown>, options: CanUseToolOptions) => Promise<PermissionResult> {
     return async (toolName, input, options) => {
-      // AskUserQuestion 拦截：委托给交互式问答服务
+      // 权限模式：从会话缓存实时读取（模式切换即时生效）
+      const mode = readCache(sessionId)?.permissionMode || 'auto'
+
+      const allow = (): PermissionResult => ({ behavior: 'allow' as const, updatedInput: input })
+
+      // plan 只读模式：AskUserQuestion 与写操作全部拒绝，仅只读工具放行
+      if (mode === 'plan') {
+        if (toolName === 'AskUserQuestion') {
+          return { behavior: 'deny' as const, message: '只读模式：无法提问' }
+        }
+        if (this.isReadOnlyTool(toolName, input)) return allow()
+        return { behavior: 'deny' as const, message: '只读模式：仅允许读取文件' }
+      }
+
+      // AskUserQuestion 拦截：委托给交互式问答服务（非只读模式保留）
       if (toolName === 'AskUserQuestion' && askUserHandler && sendAskUserToRenderer) {
         return askUserHandler(sessionId, input, options.signal, sendAskUserToRenderer)
       }
 
-      const allow = (): PermissionResult => ({ behavior: 'allow' as const, updatedInput: input })
+      // auto（智能判断）/ bypassPermissions（完全自主）：完全放行，不弹确认
+      if (mode === 'auto' || mode === 'bypassPermissions') return allow()
 
+      // ── 以下为 acceptEdits（手动确认）现状逻辑：子代理白名单、只读放行、其余弹确认 ──
       // Worker（子代理）的工具调用：只读操作自动批准，写操作需检查白名单
       if (options.agentID) {
         if (this.isReadOnlyTool(toolName, input)) return allow()
