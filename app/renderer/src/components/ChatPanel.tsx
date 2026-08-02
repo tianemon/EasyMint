@@ -1034,8 +1034,41 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
   useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }, []);
 
   if (msg.role === "user") {
-    // 系统消息（子 Agent 委派完成通知）：居中灰字胶囊,非用户气泡
+    // 系统消息：子 Agent 委派完成 → 绿色结果气泡;通用系统消息 → 居中灰字胶囊
     const text = typeof msg.text === "string" ? msg.text : "";
+    if (text.startsWith("[系统消息]-[Agent执行结果]")) {
+      const body = text.replace(/^\[系统消息\]-\[Agent执行结果\]\s*/, "");
+      const rows = body.split("\n").filter((l) => l.startsWith("● "));
+      return (
+        <div className="flex gap-4 items-start" style={{ padding: "0 var(--s8)" }}>
+          <div style={{ width: 34, flexShrink: 0 }} />
+          <div className="w-fit max-w-[75%] my-1 rounded-[10px] rounded-bl-[4px] border border-success/30 bg-success-soft px-[14px] py-1.5 text-xs">
+            {rows.map((row, i) => {
+              const m = row.match(/^● (.+?) — (完成|失败|中止)(?: · (\d+)s)?$/);
+              const isFail = row.includes("— 失败") || row.includes("— 中止");
+              return (
+                <div key={i} className="flex items-center gap-2 py-0.5">
+                  <svg className="shrink-0" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke={isFail ? "currentColor" : "#22c55e"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    {isFail
+                      ? <path d="M6 6l4 4M10 6l-4 4" />
+                      : <path d="M5 8l2 2 4-4" />}
+                  </svg>
+                  {m ? (
+                    <>
+                      <span className={isFail ? "text-danger" : "text-success"}>{m[1]}</span>
+                      <span className="text-text-secondary">— {m[2]}</span>
+                      {m[3] && <span className="text-text-secondary/70 tabular-nums">· {m[3]}s</span>}
+                    </>
+                  ) : (
+                    <span className="text-text-secondary">{row.slice(2)}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
     if (text.startsWith("[系统消息]")) {
       return (
         <div className="flex justify-center py-1.5">

@@ -8,6 +8,8 @@ export interface SingleResult {
   id: string;
   agent: string;
   task: string;
+  /** 任务标题(description 摘要,UI 显示用) */
+  title?: string;
   assignment?: string;
   exitCode: number;
   output: string;
@@ -78,6 +80,8 @@ export interface TaskItem {
   name?: string;
   agent?: string;
   task: string;
+  /** 任务标题(description 摘要,UI 显示用;缺省取 task 前 40 字) */
+  title?: string;
   readOnly?: boolean;
   outputSchema?: unknown;
   isolated?: boolean;

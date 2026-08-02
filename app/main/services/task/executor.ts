@@ -58,6 +58,8 @@ export interface SubagentOptions {
   readOnly?: boolean;
   outputSchema?: unknown;
   onProgress?: (progress: AgentProgress) => void;
+  /** 任务标题(description 摘要,结果注入显示用) */
+  title?: string;
 }
 
 /** 执行单个子 Agent（后台，不阻塞调用方） */
@@ -183,7 +185,7 @@ async function executeAndCollect(
   session: Awaited<ReturnType<typeof createPiSession>>,
   task: string,
   yieldItems: YieldItem[],
-  opts: { signal?: AbortSignal; onProgress?: (p: AgentProgress) => void },
+  opts: { signal?: AbortSignal; onProgress?: (p: AgentProgress) => void; title?: string },
   progress: AgentProgress,
   id: string,
   agentLabel: string,
@@ -299,7 +301,7 @@ async function executeAndCollect(
   opts.onProgress?.(progress);
 
   return {
-    index: progress.index, id, agent: agentLabel, task,
+    index: progress.index, id, agent: agentLabel, task, title: opts.title,
     exitCode: aborted ? 1 : 0, output: text, stderr: "", truncated,
     durationMs: progress.durationMs,
     structuredOutput,
@@ -347,6 +349,7 @@ export async function runSubagents(
       store: runtime.store,
       sessionDir,
       task: task.task,
+      title: task.title,
       index,
       signal: record.abortController.signal,
       readOnly: task.readOnly,

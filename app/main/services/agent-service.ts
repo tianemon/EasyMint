@@ -717,7 +717,7 @@ export class AgentService {
   injectSystemMessage(sessionId: string, text: string): void {
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session) return;
-    const content = `[系统消息] 子 Agent 委派完成:\n${text}`;
+    const content = `[系统消息]-[Agent执行结果]\n${text}`;
     if (chat.status === "idle") {
       this.promptAndBridge(chat.session, sessionId, chat.chatId, content, chat);
     } else {

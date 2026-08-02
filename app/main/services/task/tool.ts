@@ -28,24 +28,32 @@ export interface TaskToolContext {
 
 /** BatchResult → 注入主会话的文本 */
 function formatDelegationResult(result: BatchResult): string {
-  const lines: string[] = [];
-  if (result.aborted) lines.push("(委派被中止)");
+  // 摘要段:每任务一行(● 标题 — 状态 · 耗时),前端按此渲染绿色结果气泡
+  const summary: string[] = [];
+  if (result.aborted) summary.push("(委派被中止)");
   for (const r of result.results) {
-    const status = r.error ? "✗ 失败" : (r.aborted ? "⏹ 中止" : "✓ 完成");
-    lines.push(`## ${status}: ${r.task.slice(0, 80)}`);
-    if (r.error) lines.push(`错误: ${r.error}`);
-    if (r.structuredOutput?.status === "valid" && r.structuredOutput.data) {
-      lines.push(`结构化结果: ${JSON.stringify(r.structuredOutput.data)}`);
-    }
-    if (r.output) lines.push(r.output.slice(0, 3000));
-    if (r.truncated) lines.push("\n(输出已截断)");
-    lines.push("");
+    const status = r.error ? "失败" : (r.aborted ? "中止" : "完成");
+    const title = r.title || r.task.slice(0, 40);
+    const dur = r.durationMs ? ` · ${Math.round(r.durationMs / 1000)}s` : "";
+    summary.push(`● ${title} — ${status}${dur}`);
   }
   if (result.results.length > 1) {
     const ok = result.results.filter((r) => !r.error && !r.aborted).length;
-    lines.unshift(`共 ${result.results.length} 个子任务: ${ok} 成功, ${result.results.length - ok} 失败\n`);
+    summary.unshift(`共 ${result.results.length} 个子任务: ${ok} 成功, ${result.results.length - ok} 失败`);
   }
-  return lines.join("\n").trim() || "(无输出)";
+  // 详细段:Mint 汇报用(前端只渲染 ● 摘要行)
+  const detail: string[] = [];
+  for (const r of result.results) {
+    const title = r.title || r.task.slice(0, 40);
+    if (r.error) detail.push(`${title}: 错误 ${r.error}`);
+    if (r.output) detail.push(`${title}:\n${r.output.slice(0, 2000)}`);
+    if (r.structuredOutput?.status === "valid" && r.structuredOutput.data) {
+      detail.push(`结构化结果: ${JSON.stringify(r.structuredOutput.data)}`);
+    }
+  }
+  const parts = [summary.join("\n")];
+  if (detail.length > 0) parts.push("详细结果:", detail.join("\n---\n"));
+  return parts.join("\n").trim() || "(无输出)";
 }
 
 export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefinition> {
@@ -124,6 +132,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
           tasks.push({
             agent: agentName,
             task: prompt,
+            title: (t.description as string) || undefined,
             readOnly,
             outputSchema: (t.outputSchema as unknown) || undefined,
           });
@@ -136,6 +145,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         tasks.push({
           agent: params.agent as string | undefined,
           task: buildPrompt(desc, (params.prompt as string) || "", params.agent as string | undefined),
+          title: desc,
           readOnly,
           outputSchema: (params.outputSchema as unknown) || undefined,
         });
