@@ -851,6 +851,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 );
               })}
             </div>
+            {/* 子 Agent 委派进度卡片：紧贴最后一条消息,随消息滚动 */}
+            {delegation && <DelegationProgress delegation={delegation} />}
             {showNewProjectBtn && (
               <div className="flex justify-center pb-3">
                 <button
@@ -904,9 +906,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           </div>
         )}
       </div>
-
-      {/* 子 Agent 委派进度卡片（消息区下方、输入框上方） */}
-      {delegation && <DelegationProgress delegation={delegation} />}
 
       <StatusBar sessionId={sidRef.current} />
       <PermissionPrompt />

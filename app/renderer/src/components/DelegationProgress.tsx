@@ -56,7 +56,7 @@ export function DelegationProgress({ delegation }: { delegation: DelegationUiSta
   const running = delegation.tasks.filter((t) => t.status === "running").length;
 
   return (
-    <div className="max-w-[75%] my-1 rounded-[10px] border border-border bg-surface-elevated overflow-hidden text-xs">
+    <div className="w-fit max-w-[75%] my-2 rounded-[10px] border border-border bg-surface-elevated overflow-hidden text-xs">
       {/* 标题行 */}
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-accent-bg">
         {delegation.finished ? (
@@ -76,7 +76,7 @@ export function DelegationProgress({ delegation }: { delegation: DelegationUiSta
         {delegation.tasks.map((t) => (
           <div key={t.index} className="flex items-center gap-2 px-3 py-1.5">
             <StatusIcon status={t.status} />
-            <span className={`truncate flex-1 ${t.status === "completed" ? "text-text-secondary" : "text-text-primary"}`}>
+            <span className={`truncate max-w-[52ch] ${t.status === "completed" ? "text-text-secondary" : "text-text-primary"}`}>
               {t.task.slice(0, 60)}
             </span>
           </div>
