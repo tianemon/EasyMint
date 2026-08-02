@@ -337,28 +337,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     (async () => {
         const buffered = await window.electronAPI.agent.getBufferedStream(existingSid);
         if (!cancelled && buffered.length > 0) {
-          // 缓冲事件走与 live handler 相同的处理管道（turn_start / message / thinking），
-          // 统一用 replaceAiEntriesFrom 避免与 live 事件重叠时条目重复
+          // 缓冲事件：仅全量替换临时显示（streaming 标记），不处理 turn_start——
+          // turnIdx 只应由 live 事件基于磁盘消息计算；缓冲内容随后被 conv.messages 覆盖
           for (const raw of buffered) {
             const ev = raw as StreamEvent;
-            if (ev.type === "turn_start") {
-              const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
-              const lastAi = msgs.filter((m: any) => m.role === "ai").pop();
-              turnEntryIdxRef.current = lastAi ? (lastAi.entries || []).length : 0;
-            }
-            if (ev.type === "message" && Array.isArray(ev.blocks)) {
-              const rawEntries = piBlocksToEntries(ev.blocks);
-              if (rawEntries.length > 0) {
-                const entries = mergeConsecutiveText(rawEntries);
-                useChatStore.getState().replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
-              }
-            }
-            if (ev.type === "thinking" && Array.isArray(ev.blocks) && showThinking) {
-              for (const b of ev.blocks) {
-                if (b.type === "text" && b.text) {
-                  useChatStore.getState().appendAiEntry(sidRef.current, { kind: "thinking", text: b.text, timestamp: Date.now() });
-                }
-              }
+            const entries = mergeConsecutiveText(piEventToEntries(ev));
+            if (entries.length > 0) {
+              useChatStore.getState().replaceAiEntries(sidRef.current, entries);
             }
           }
         }
@@ -428,7 +413,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // Pi 新 assistant turn 开始 → 记录 turn 边界（entries 从此处开始替换，保留旧 turn 内容）
       if (event.type === "turn_start") {
         const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
-        const lastAi = msgs.filter((m) => m.role === "ai").pop();
+        // 排除 streaming 临时消息：turnIdx 只基于磁盘/真实消息计算，
+        // 否则 buffered 临时消息会把 turnIdx 推高导致后续 message 追加而非替换
+        const lastAi = msgs.filter((m) => m.role === "ai" && !m.streaming).pop();
         turnEntryIdxRef.current = lastAi ? (lastAi.entries || []).length : 0;
         steeringRef.current = false;
       }
