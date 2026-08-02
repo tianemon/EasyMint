@@ -903,7 +903,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
               });
               return visible.length === 0;
             })() && (
-              <div className="flex gap-4 items-start max-w-[75%]">
+              <div className="flex gap-4 items-start max-w-[75%]" style={{ padding: "0 var(--s8)" }}>
                 <div className="msg-avatar agent">M</div>
                 <div className="min-w-0">
                   <div className="msg-from">Mint</div>
