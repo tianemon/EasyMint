@@ -50,14 +50,22 @@ Mint: bash(command="npm run dev", background=true)
 
 ## 完成通知格式
 
+以 Pi `sendCustomMessage` 结构化发送(custom 消息角色迁移后):
+
 ```
-[系统消息]-[Agent执行结果]
+customType: "system_message"
+details: { kind: "shell" }        ← 前端按 kind 渲染(委派为 delegation)
+content: "[系统消息]-[Agent执行结果]
 ● 后台命令 — 完成 · 12s      ← 前端按状态着色(红绿灯三色:完成绿/中止黄/失败红)
 命令: npm run dev
 退出码: 0
 输出:
-Ready on http://localhost:3000
+Ready on http://localhost:3000"
 ```
+
+content 保留 `[系统消息]` 前缀(convertToLlm 映射 custom→user,模型侧规则识别);
+结构身份(customType/kind)走 JSONL/事件/前端,不再依赖文本前缀。
+迁移背景与全量清单见 `docs/开发进度.md` 第 12 章。
 
 ## 文件清单
 

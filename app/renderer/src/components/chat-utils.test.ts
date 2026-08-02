@@ -61,3 +61,33 @@ describe("mapSessionMessages 磁盘消息映射", () => {
     expect(e.text).toBe("思考中");
   });
 });
+
+describe("mapSessionMessages custom_message 加载", () => {
+  it("custom_message 条目映射为 user 消息并透传 customType/details", () => {
+    const mapped = mapSessionMessages([
+      {
+        type: "user",
+        message: {
+          role: "user",
+          content: [{ type: "text", text: "[系统消息]-[Agent执行结果]\n● T1 — 完成" }],
+          customType: "system_message",
+          details: { kind: "delegation" },
+          timestamp: 1000,
+        },
+      },
+    ]);
+    expect(mapped).toHaveLength(1);
+    expect(mapped[0]!.role).toBe("user");
+    expect(mapped[0]!.customType).toBe("system_message");
+    expect(mapped[0]!.details).toEqual({ kind: "delegation" });
+    expect(mapped[0]!.timestamp).toBe(1000);
+  });
+
+  it("普通 user 消息不带 customType", () => {
+    const mapped = mapSessionMessages([
+      { type: "user", message: { role: "user", content: "普通消息", timestamp: 2000 } },
+    ]);
+    expect(mapped[0]!.customType).toBeUndefined();
+    expect(mapped[0]!.text).toBe("普通消息");
+  });
+});
