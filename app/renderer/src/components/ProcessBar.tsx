@@ -15,8 +15,8 @@ export function ProcessBar(): JSX.Element {
   };
 
   return (
-    <div className="relative">
-      <div className="flex items-center gap-1 px-2 py-0.5 text-[11px]">
+    <div className="relative" style={{ margin: "0 var(--s16)" }}>
+      <div className="flex items-center gap-1 py-0.5 text-[11px]">
         {/* agent 计数:点击展开/收起任务列表 */}
         {agentTasks.length > 0 && (
           <button
@@ -49,7 +49,7 @@ export function ProcessBar(): JSX.Element {
 
       {/* agent 任务列表浮层 */}
       {expanded && agentTasks.length > 0 && (
-        <div className="absolute bottom-full left-2 mb-1 w-72 max-h-64 overflow-y-auto rounded-[8px] border border-border bg-surface-elevated shadow-xl z-50 text-xs">
+        <div className="absolute bottom-full left-0 mb-1 w-72 max-h-64 overflow-y-auto rounded-[8px] border border-border bg-surface-elevated shadow-xl z-50 text-xs">
           <div className="px-3 py-1.5 border-b border-border bg-accent-bg text-text-secondary font-medium">
             运行中的子 Agent({agentTasks.length})
           </div>

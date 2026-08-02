@@ -103,9 +103,11 @@ export function bridgeSessionEvents(
           callbacks.onEvent({ type: "message_start", sessionId: "" });
         }
       } else {
-        // user 消息(系统注入的委派完成通知等)→ 转发文本供前端渲染
+        // 仅转发系统注入的 user 消息([系统消息] 开头,如委派完成通知)——
+        // 用户自己发送的消息由前端 sendText append,工具结果(toolResult)不渲染,
+        // 转发它们会导致重复渲染 / 错误显示为 USER 气泡
         const text = extractUserText(msg);
-        if (text) {
+        if (text.startsWith("[系统消息]")) {
           callbacks.onEvent({ type: "user_message", sessionId: "", text });
         }
       }
