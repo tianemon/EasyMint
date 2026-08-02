@@ -35,6 +35,9 @@
   --color-warning: #d97706;
   --color-warning-bg: #fffbeb;
   --color-warning-border: #fde68a;
+  /* 打断(用户中止):正黄,与 warning 橙区分 */
+  --color-interrupt: #eab308;
+  --color-interrupt-soft: #eab3081a;
   --color-danger: #dc2626;
   --color-danger-bg: #fef2f2;
   --color-danger-border: #fecaca;
@@ -128,6 +131,9 @@ html[data-platform="win32"] {
   --color-warning: #d97706;
   --color-warning-bg: #fffbeb;
   --color-warning-border: #fde68a;
+  /* 打断(用户中止):正黄,与 warning 橙区分 */
+  --color-interrupt: #eab308;
+  --color-interrupt-soft: #eab3081a;
   --color-danger: #dc2626;
   --color-danger-bg: #fef2f2;
   --color-danger-border: #fecaca;
@@ -292,6 +298,9 @@ html[data-platform="win32"] {
   --color-warning: #f59e0b;
   --color-warning-bg: #1a1400;
   --color-warning-border: #78350f;
+  /* 打断(用户中止):暗色下更亮的正黄 */
+  --color-interrupt: #facc15;
+  --color-interrupt-soft: color-mix(in oklab, var(--color-interrupt) 10%, transparent);
   --color-danger: #ef4444;
   --color-danger-bg: #2e0a0a;
   --color-danger-border: #7f1d1d;

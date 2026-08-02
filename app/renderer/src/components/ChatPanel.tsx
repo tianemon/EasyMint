@@ -1058,13 +1058,13 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
       return (
         <div className="flex gap-4 items-start" style={{ padding: "0 var(--s8)" }}>
           <div style={{ width: 34, flexShrink: 0 }} />
-          {/* 普通气泡样式(text-sm 与其他消息一致),状态用圆点颜色区分:绿=完成,黄=人为打断,红=意外中断 */}
-          <div className="w-fit max-w-[75%] my-1 rounded-[10px] rounded-bl-[4px] border border-border bg-surface-elevated px-[14px] py-1.5 text-sm leading-[1.55]">
+          {/* Mint 消息气泡同款样式,状态用圆点颜色区分:绿=完成,黄(正黄)=人为打断,红=意外中断 */}
+          <div className="msg-bubble-agent w-fit max-w-[75%] my-1 rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 text-sm leading-[1.55]">
             {rows.map((row, i) => {
               const m = row.match(/^● (.+?) — (完成|失败|中止)(?: · (\d+)s)?$/);
-              // 中止=人为打断(黄),失败=意外中断(红),完成=绿
+              // 中止=人为打断(interrupt 正黄),失败=意外中断(红),完成=绿
               const status = m?.[2];
-              const dotColor = status === "中止" ? "text-warning" : status === "失败" ? "text-danger" : "text-success";
+              const dotColor = status === "中止" ? "text-interrupt" : status === "失败" ? "text-danger" : "text-success";
               return (
                 <div key={i} className="flex items-center gap-2 py-0.5">
                   <svg className={`shrink-0 ${dotColor}`} width="9" height="9" viewBox="0 0 16 16">
