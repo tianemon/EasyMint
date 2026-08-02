@@ -909,8 +909,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 <div className="min-w-0">
                   <div className="msg-from">Mint</div>
                   <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 animate-pulse">
-                    {/* 复用状态栏文本(useStatusStore.text 单一来源):派发任务后显示「调度 Agent 执行中」 */}
-                    <span className="text-sm text-text-secondary">{statusText || "..."}</span>
+                    {/* 复用状态栏文本(useStatusStore.text 单一来源);「正在请求...」是通用等待,
+                        状态栏已显示,等待泡不再重复,仅显示有信息量的状态(调度 Agent/工具名等) */}
+                    <span className="text-sm text-text-secondary">
+                      {statusText && statusText !== "正在请求..." ? statusText : "..."}
+                    </span>
                   </div>
                 </div>
               </div>
