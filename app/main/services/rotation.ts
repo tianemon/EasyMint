@@ -14,7 +14,7 @@ import type { Store } from "./store";
 import { createPiSession } from "./pi-session";
 import { archiveSession } from "./session-service";
 import { broadcast } from "./ipc-broadcast";
-import type { ActiveChat } from "./agent-service";
+import type { ActiveChat, CanUseToolFn } from "./agent-service";
 
 /** 单会话最大 compact 次数，超过则归档旧会话、开启新会话 */
 export const MAX_COMPACT = 3;
@@ -37,7 +37,7 @@ export interface RotationDeps {
   getModel: () => Promise<Model<any> | null>;
   getAgentDir: () => string;
   buildSystemPrompt: (projectPath: string, isDesigner?: boolean) => string;
-  buildExtraTools: (projectPath: string, sessionId: string) => Promise<ToolDefinition[]>;
+  buildExtraTools: (projectPath: string, sessionId: string) => Promise<{ tools: ToolDefinition[]; canUseTool: CanUseToolFn }>;
   promptAndBridge: (session: AgentSession, sessionId: string, chatId: string, text: string, chat: ActiveChat) => Promise<void>;
 }
 
@@ -90,13 +90,15 @@ ${summary}
 
 请检查项目当前状态，然后用自然的语气对用户说一句话作为开场，告诉用户会话已整理完毕，接下来继续做什么。开场白以"${continuation}"结尾。`;
 
+    const { tools: extraTools, canUseTool } = await deps.buildExtraTools(chat.projectPath, chat.sessionId);
     const newSession = await createPiSession({
       cwd: chat.projectPath,
       agentDir: deps.getAgentDir(),
       model,
       store: deps.store,
       systemPrompt: deps.buildSystemPrompt(chat.projectPath, chat.agentType === "designer"),
-      extraTools: await deps.buildExtraTools(chat.projectPath, chat.sessionId),
+      extraTools,
+      canUseTool,
     });
 
     // 更新 chat 引用

@@ -16,6 +16,8 @@ import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
 import { getSettingsManager, getModelRuntime } from "./pi-init";
 import { Store } from "./store";
+import { wrapToolWithPermission } from "./permission/wrap-tool";
+import type { CanUseToolOptions, PermissionResult } from "./permission/agent-permission-service";
 
 // ── 类型 ────────────────────────────────────────────
 
@@ -30,6 +32,8 @@ export interface PiSessionOptions {
   isDesigner?: boolean;
   /** 额外的工具（task 等）。createPiSession 会自动追加基础 coding 工具 */
   extraTools?: ToolDefinition[];
+  /** 权限回调：对所有工具（含基础 coding 工具）生效；缺省不包装 */
+  canUseTool?: (toolName: string, input: Record<string, unknown>, options: CanUseToolOptions) => Promise<PermissionResult>;
 }
 
 // ── 工厂函数 ────────────────────────────────────────
@@ -53,7 +57,10 @@ async function buildSession(
   await resourceLoader.reload();
 
   const codingTools = createTools(opts.cwd);
-  const tools = opts.extraTools ? [...opts.extraTools, ...codingTools] : codingTools;
+  // 统一权限包装：extraTools 与基础 coding 工具（Read/Write/Edit/Bash 等）全部生效
+  const wrapAll = (tools: ToolDefinition[]): ToolDefinition[] =>
+    opts.canUseTool ? tools.map((t) => wrapToolWithPermission(t, { canUseTool: opts.canUseTool })) : tools;
+  const tools = [...wrapAll(opts.extraTools ?? []), ...wrapAll(codingTools)];
 
   const sessionOpts: CreateAgentSessionOptions = {
     cwd: opts.cwd,

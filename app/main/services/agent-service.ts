@@ -22,12 +22,12 @@ import { createTaskTool } from "./task/tool";
 import { createProductTools } from "./builtin-mcp";
 import { loadMcpTools } from "./permission/mcp-adapter";
 import { permissionService } from "./permission/agent-permission-service";
-import { wrapToolWithPermission } from "./permission/wrap-tool";
+import type { CanUseToolOptions, PermissionResult } from "./permission/agent-permission-service";
 import {
   bridgeSessionEvents,
   type PiChatEvent,
 } from "./event-bridge";
-import type { AgentSession, AgentSessionEvent } from "./pi-sdk";
+import type { AgentSession, AgentSessionEvent, ToolDefinition } from "./pi-sdk";
 import type { Model } from "@earendil-works/pi-ai";
 import { randomUUID } from "node:crypto";
 import { renameSession, hasCustomTitle } from "./session-service";
@@ -35,6 +35,9 @@ import { MAX_COMPACT, finishRotation, type RotationState } from "./rotation";
 import { DESIGNER_AGENT_PROMPT } from "../../shared/prompts";
 
 // ── 类型 ────────────────────────────────────────────
+
+/** 权限回调签名（与 permissionService.createCanUseTool 返回一致） */
+export type CanUseToolFn = (toolName: string, input: Record<string, unknown>, options: CanUseToolOptions) => Promise<PermissionResult>;
 
 interface ActiveRun {
   runId: string;
@@ -118,7 +121,19 @@ export class AgentService {
     return m ?? null;
   }
 
-  private async buildExtraTools(projectPath: string, sessionId: string): Promise<import("./pi-sdk").ToolDefinition[]> {
+  private async buildExtraTools(projectPath: string, sessionId: string): Promise<{
+    tools: ToolDefinition[];
+    canUseTool: CanUseToolFn;
+  }> {
+    // 权限回调：按 sessionId 隔离白名单，由 createPiSession 统一包装所有工具（含基础 coding 工具）
+    // 放在 try 外——工具创建失败时同样返回回调，避免调用方 undefined（plan 只读仍生效）
+    const canUseTool = permissionService.createCanUseTool(
+      sessionId,
+      (request) => { broadcast("agent:permission-request", request); },
+      undefined,
+      (askRequest) => { broadcast("agent:permission-request", { ...askRequest, type: "ask" }); },
+    );
+
     try {
       const taskTool = await createTaskTool({
         cwd: projectPath,
@@ -129,23 +144,11 @@ export class AgentService {
       const mcpTools = await loadMcpTools();
       const allTools = [taskTool, ...productTools, ...mcpTools];
 
-      // 权限包装：使用 permissionService 做智能分类（按 sessionId 隔离白名单）
-      const canUseTool = permissionService.createCanUseTool(
-        sessionId,
-        (request) => { broadcast("agent:permission-request", request); },
-        undefined,
-        (askRequest) => { broadcast("agent:permission-request", { ...askRequest, type: "ask" }); },
-      );
-
-      const wrapped = allTools.map((tool) =>
-        wrapToolWithPermission(tool as any, { canUseTool: canUseTool as any }),
-      );
-
       console.log(`[agent] tools: 1 task + ${productTools.length} product + ${mcpTools.length} mcp (permission: enabled)`);
-      return wrapped as any[];
+      return { tools: allTools, canUseTool };
     } catch (e) {
       console.error("[agent] tool creation failed:", e);
-      return [];
+      return { tools: [], canUseTool };
     }
   }
 
@@ -301,7 +304,7 @@ export class AgentService {
           return;
         }
 
-        const extraTools = await this.buildExtraTools(resolvedPath, runId);
+        const { tools: extraTools, canUseTool } = await this.buildExtraTools(resolvedPath, runId);
         const session = await createPiSession({
           cwd: resolvedPath,
           agentDir: this.getAgentDir(),
@@ -310,6 +313,7 @@ export class AgentService {
           store: this.store,
           systemPrompt: this.buildSystemPrompt(resolvedPath),
           extraTools,
+          canUseTool,
         });
         run.session = session;
 
@@ -400,7 +404,9 @@ export class AgentService {
       }
       // 新会话：用临时 ID，真实 sessionId 在 createPiSession 返回后更新
       const newSessionId = randomUUID();
-      const extraTools = resumeSessionId ? [] : await this.buildExtraTools(resolvedPath, newSessionId);
+      const { tools: extraTools, canUseTool } = resumeSessionId
+        ? { tools: [] as ToolDefinition[], canUseTool: undefined }
+        : await this.buildExtraTools(resolvedPath, newSessionId);
       return createPiSession({
         cwd: resolvedPath,
         agentDir: this.getAgentDir(),
@@ -408,6 +414,7 @@ export class AgentService {
         store: this.store,
         systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
         extraTools,
+        canUseTool,
       });
     })();
 
