@@ -128,6 +128,8 @@ export interface DelegationRecord {
   /** 统一中止所有子会话（用户 steer 时调用） */
   abort: () => void;
   abortController: AbortController;
+  /** 每个任务的独立中止控制器(ProcessBar 单任务停止用) */
+  taskAbortControllers: AbortController[];
 }
 
 // ── 常量 ────────────────────────────────────────────

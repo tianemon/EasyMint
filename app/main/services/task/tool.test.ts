@@ -15,6 +15,9 @@ vi.mock("./executor", () => ({
 vi.mock("../agent-templates", () => ({
   getTemplate: () => undefined,
 }));
+vi.mock("../ipc-broadcast", () => ({
+  broadcast: vi.fn(),
+}));
 
 import { createTaskTool } from "./tool";
 import { resetRegistry, finishDelegation } from "./registry";

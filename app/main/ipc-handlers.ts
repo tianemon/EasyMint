@@ -167,6 +167,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       throw e;
     }
   });
+  ipcMain.handle("agent:stop-delegation", (_e, { delegationId, taskIndex }) =>
+    agentService.stopDelegationTask(delegationId, taskIndex),
+  );
   ipcMain.handle("agent:steer", (_e, { sessionId, text }) => {
     agentService.steer(sessionId, text);
   });

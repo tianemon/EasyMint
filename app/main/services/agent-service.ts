@@ -19,7 +19,7 @@ import { buildSkillsPrompt } from "./skill-service";
 import { getActiveModel, resetModelRuntime } from "./pi-init";
 import { createPiSession, resumePiSession, listPiSessions } from "./pi-session";
 import { createTaskTool } from "./task/tool";
-import { abortDelegations, registerSessionIdMapping } from "./task/registry";
+import { registerSessionIdMapping, abortTask, getRunningSummary } from "./task/registry";
 import { createProductTools } from "./builtin-mcp";
 import { loadMcpTools } from "./permission/mcp-adapter";
 import { permissionService } from "./permission/agent-permission-service";
@@ -358,7 +358,7 @@ export class AgentService {
       run.session?.abort().catch(() => {});
       this.activeRuns.delete(runId);
     }
-    // chat 会话：打断当前回合（含子 Agent 委派），保留会话供继续使用
+    // chat 会话：打断按钮只停主会话回合,子 Agent 继续后台执行(用户通过 ProcessBar 单独停止)
     // runId 可能是 chatId（前端打断按钮）或 sessionId（steer/其他）——先按 sessionId 查，再按 chatId 兜底
     let chat = this.findActiveChat(runId);
     if (!chat) {
@@ -367,7 +367,6 @@ export class AgentService {
       }
     }
     if (chat) {
-      abortDelegations(chat.tempSessionId ?? chat.sessionId);
       chat.abortController.abort();
       chat.session?.abort().catch(() => {});
     }
@@ -707,6 +706,12 @@ export class AgentService {
   // ── Pi 原生支持的操作 ─────────────────────────────
 
   /** 注入引导消息（中断当前回合并插话） */
+  /** 停止委派中的单个任务(ProcessBar 点击停止) */
+  async stopDelegationTask(delegationId: string, taskIndex: number): Promise<void> {
+    abortTask(delegationId, taskIndex);
+    broadcast("agent:delegation-count", getRunningSummary());
+  }
+
   async steer(sessionId: string, text: string): Promise<void> {
     // 插话 = 软打断：Mint 响应新消息,运行中的子 Agent 继续后台执行（对齐 cc 实测行为）
     const chat = this.findActiveChat(sessionId);

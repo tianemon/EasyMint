@@ -10,7 +10,7 @@ import { getDefineToolFn } from "../pi-sdk";
 import { Store } from "../store";
 import { getTemplate } from "../agent-templates";
 import { runSubagents } from "./executor";
-import { createDelegation, resolveParentSessionId } from "./registry";
+import { createDelegation, resolveParentSessionId, getRunningSummary } from "./registry";
 import { broadcast } from "../ipc-broadcast";
 import type { TaskItem, BatchResult, AgentProgress } from "./types";
 
@@ -187,6 +187,13 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
       record.completion.then((result) => {
         ctx.onComplete?.(record.parentSessionId, formatDelegationResult(result));
       }).catch(() => {});
+
+      // 委派计数广播(ProcessBar 显示 agent·N)——创建和结束时各广播一次
+      const broadcastCount = (): void => {
+        broadcast("agent:delegation-count", getRunningSummary());
+      };
+      broadcastCount();
+      record.completion.then(broadcastCount).catch(() => {});
 
       const n = tasks.length;
       return {

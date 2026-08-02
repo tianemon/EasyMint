@@ -30,6 +30,8 @@ export function createDelegation(
   let resolveCompletion!: (result: BatchResult) => void;
   const completion = new Promise<BatchResult>((resolve) => { resolveCompletion = resolve; });
 
+  const taskAbortControllers = tasks.map(() => new AbortController());
+
   const record: DelegationRecord = {
     delegationId: randomUUID(),
     parentSessionId,
@@ -41,9 +43,11 @@ export function createDelegation(
     completion,
     resolveCompletion,
     abortController,
+    taskAbortControllers,
     abort: () => {
       if (record.status !== "running") return;
       abortController.abort();
+      taskAbortControllers.forEach((c) => c.abort());
       // 等执行器把 status 更新为 aborted 并 resolve
     },
   };
@@ -86,6 +90,38 @@ export function abortDelegations(parentSessionId: string): number {
   const running = getRunningDelegations(parentSessionId);
   for (const r of running) r.abort();
   return running.length;
+}
+
+/** 中止委派中的单个任务(ProcessBar 单任务停止) */
+export function abortTask(delegationId: string, taskIndex: number): void {
+  const record = delegations.get(delegationId);
+  if (!record || record.status !== "running") return;
+  record.taskAbortControllers[taskIndex]?.abort();
+}
+
+/** 运行中委派摘要(ProcessBar 显示 + 停止用) */
+export interface RunningTaskInfo {
+  delegationId: string;
+  index: number;
+  title: string;
+}
+
+export function getRunningSummary(): { count: number; tasks: RunningTaskInfo[] } {
+  const tasks: RunningTaskInfo[] = [];
+  let count = 0;
+  for (const r of delegations.values()) {
+    if (r.status !== "running") continue;
+    count++;
+    for (let i = 0; i < r.tasks.length; i++) {
+      const t = r.tasks[i]!;
+      tasks.push({
+        delegationId: r.delegationId,
+        index: i,
+        title: t.title || t.task.slice(0, 40),
+      });
+    }
+  }
+  return { count, tasks };
 }
 
 /** 执行器完成时调用：更新状态并 resolve completion */

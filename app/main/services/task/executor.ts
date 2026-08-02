@@ -351,7 +351,8 @@ export async function runSubagents(
       task: task.task,
       title: task.title,
       index,
-      signal: record.abortController.signal,
+      // 单任务独立中止控制器(ProcessBar 单独停止);整体 abort 时 record.abort 会 abort 全部
+      signal: record.taskAbortControllers[index]?.signal ?? record.abortController.signal,
       readOnly: task.readOnly,
       outputSchema: task.outputSchema,
       onProgress: runtime.onProgress,

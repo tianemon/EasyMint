@@ -10,6 +10,8 @@ import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
 
 import { useStatusStore } from "../stores/status-store";
 import { StatusBar } from "./StatusBar";
+import { ProcessBar } from "./ProcessBar";
+import { useDelegationStore } from "../stores/delegation-store";
 import { PermissionPrompt } from "./PermissionPrompt";
 import { ChatInput } from "./ChatInput";
 import { SessionStatsPopup } from "./SessionStatsPopup";
@@ -123,7 +125,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const busyRef = useRef(false);
   const ctxThresholdFiredRef = useRef(0); // 已按阈值触发过主动压缩（防止同轮重复触发）
   const programmaticScrollRef = useRef(false); // 程序性滚动中（handleScroll 跳过 autoScroll 更新）
-  const lastStatusRef = useRef("");
 
   // 状态栏独立存储 → 密集更新时只重渲染 StatusBar，不牵连 ChatPanel/消息列表
   // 注意：ChatPanel 不读 s.text，否则每次 statusText 变化都会重渲染整个组件
@@ -377,6 +378,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     return unsub;
   }, []);
 
+  // 委派计数订阅(ProcessBar agent·N 显示 + 任务列表)
+  useEffect(() => {
+    const unsubCount = window.electronAPI.agent.onDelegationCount((data) => {
+      useDelegationStore.getState().setAgentTasks(data.tasks);
+    });
+    return unsubCount;
+  }, []);
+
   // 委派全部完成 3 秒后自动收起卡片
   useEffect(() => {
     if (!delegation?.finished) return;
@@ -483,12 +492,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (event.type === "tool_progress" && event.toolName) {
         const label = displayToolLabel(event.toolName, event.toolArgs);
         useStatusStore.getState().pushSignal("tool", label);
-        lastStatusRef.current = label;
+        useDelegationStore.getState().setShellCount(useDelegationStore.getState().shellCount + 1);
       }
       // tool done — 工具执行结束,pop 工具信号(回退显示「调用 Agent」等次新活跃信号)
       if (event.type === "tool_done") {
         useStatusStore.getState().popSignal("tool");
-        lastStatusRef.current = "";
+        useDelegationStore.getState().setShellCount(Math.max(0, useDelegationStore.getState().shellCount - 1));
       }
       // compaction UI — compacting 事件 = 压缩进行中（显示"正在整理会话..."）
       if (event.type === "compacting") {
@@ -517,7 +526,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         useStatusStore.getState().setCtxPct(event.percentage || 0);
       }
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; curAiMsgIdRef.current = 0; busyRef.current = false; lastStatusRef.current = ""; setBusy(false); useStatusStore.getState().popSignal("request"); useStatusStore.getState().popSignal("tool"); onActivity?.(); });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; curAiMsgIdRef.current = 0; busyRef.current = false; setBusy(false); useStatusStore.getState().popSignal("request"); useStatusStore.getState().popSignal("tool"); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;
@@ -694,7 +703,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       return;
     }
 
-    busyRef.current = true; lastStatusRef.current = "正在请求..."; setBusy(true); useStatusStore.getState().pushSignal("request", "正在请求...");
+    busyRef.current = true; setBusy(true); useStatusStore.getState().pushSignal("request", "正在请求...");
 
     try {
       currentChatRef.current = null;
@@ -922,6 +931,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         )}
       </div>
 
+      {/* 后台进程条:agent·N / shell·N(状态栏上方) */}
+      <ProcessBar />
       <StatusBar sessionId={sidRef.current} />
       <PermissionPrompt />
 

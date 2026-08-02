@@ -199,6 +199,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("agent:sendMessage", { projectPath, message, ...opts }),
     steer: (sessionId: string, text: string) =>
       ipcRenderer.invoke("agent:steer", { sessionId, text }),
+      stopDelegation: (delegationId: string, taskIndex: number) =>
+        ipcRenderer.invoke("agent:stop-delegation", { delegationId, taskIndex }),
     followUp: (sessionId: string, text: string) =>
       ipcRenderer.invoke("agent:followUp", { sessionId, text }),
     compact: (sessionId: string, instructions?: string) =>
@@ -248,6 +250,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on("agent:delegation-progress", handler);
       return () => ipcRenderer.removeListener("agent:delegation-progress", handler);
+    },
+    onDelegationCount: (callback: (data: unknown) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
+      ipcRenderer.on("agent:delegation-count", handler);
+      return () => ipcRenderer.removeListener("agent:delegation-count", handler);
     },
     onChatSession: (callback: (data: { chatId: string; sessionId: string }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { chatId: string; sessionId: string }) =>
