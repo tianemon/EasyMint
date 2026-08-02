@@ -337,11 +337,28 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     (async () => {
         const buffered = await window.electronAPI.agent.getBufferedStream(existingSid);
         if (!cancelled && buffered.length > 0) {
+          // 缓冲事件走与 live handler 相同的处理管道（turn_start / message / thinking），
+          // 统一用 replaceAiEntriesFrom 避免与 live 事件重叠时条目重复
           for (const raw of buffered) {
             const ev = raw as StreamEvent;
-            const entries = mergeConsecutiveText(piEventToEntries(ev));
-            if (entries.length > 0) {
-              useChatStore.getState().replaceAiEntries(sidRef.current, entries);
+            if (ev.type === "turn_start") {
+              const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
+              const lastAi = msgs.filter((m: any) => m.role === "ai").pop();
+              turnEntryIdxRef.current = lastAi ? (lastAi.entries || []).length : 0;
+            }
+            if (ev.type === "message" && Array.isArray(ev.blocks)) {
+              const rawEntries = piBlocksToEntries(ev.blocks);
+              if (rawEntries.length > 0) {
+                const entries = mergeConsecutiveText(rawEntries);
+                useChatStore.getState().replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
+              }
+            }
+            if (ev.type === "thinking" && Array.isArray(ev.blocks) && showThinking) {
+              for (const b of ev.blocks) {
+                if (b.type === "text" && b.text) {
+                  useChatStore.getState().appendAiEntry(sidRef.current, { kind: "thinking", text: b.text, timestamp: Date.now() });
+                }
+              }
             }
           }
         }
