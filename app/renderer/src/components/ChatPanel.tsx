@@ -954,28 +954,26 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         <div className="px-4 py-2 bg-surface-alt/30 border-t border-border/50 shrink-0"><AttachPreview /></div>
       )}
 
-      <div className="chat-input-area">
-        <ChatInput
-          busy={busy}
-          attaches={attaches}
-          setAttaches={setAttaches}
-          onSend={sendText}
-          onStop={() => { stoppedRef.current = true; busyRef.current = false; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
-          onPaste={handlePaste}
-          imgInputRef={imgInputRef}
-          docInputRef={docInputRef}
-          onImgChange={handleImgChange}
-          onDocChange={handleDocChange}
-          permissionMode={permissionMode}
-          onPermissionModeChange={setPermissionMode}
-          chatModel={chatModel || storeModel}
-          onModelChange={handleModelChange}
-          thinkingLevel={thinkingLevel}
-          onThinkingLevelChange={handleThinkingLevelChange}
-          sessionId={sidRef.current}
-          onStatsClick={() => setShowStats(true)}
-        />
-      </div>
+      <ChatInput
+        busy={busy}
+        attaches={attaches}
+        setAttaches={setAttaches}
+        onSend={sendText}
+        onStop={() => { stoppedRef.current = true; busyRef.current = false; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
+        onPaste={handlePaste}
+        imgInputRef={imgInputRef}
+        docInputRef={docInputRef}
+        onImgChange={handleImgChange}
+        onDocChange={handleDocChange}
+        permissionMode={permissionMode}
+        onPermissionModeChange={setPermissionMode}
+        chatModel={chatModel || storeModel}
+        onModelChange={handleModelChange}
+        thinkingLevel={thinkingLevel}
+        onThinkingLevelChange={handleThinkingLevelChange}
+        sessionId={sidRef.current}
+        onStatsClick={() => setShowStats(true)}
+      />
       {showStats && (
         <SessionStatsPopup
           sessionId={sidRef.current}

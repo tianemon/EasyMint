@@ -638,12 +638,12 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 }
 
 /* ── Chat Input Card ─────────────────────────── */
-/* 顶部 0:容器与白色卡片同尺寸,状态栏上方间距由消息区 pb 提供;底部保留窗口边距 */
-.chat-input-area { flex-shrink: 0; padding: 0 0 var(--s4); position: relative; }
 .input-card {
   background: var(--color-card); border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm); overflow: hidden;
-  margin: 0 var(--s16);
+  /* position: 遮罩锚点;flex-shrink 0: 防压缩;底部 16px: 窗口边距(原 chat-input-area 职责) */
+  position: relative; flex-shrink: 0;
+  margin: 0 var(--s16) var(--s4);
 }
 .input-top { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2) var(--s4) 0; }
 .chat-input {
