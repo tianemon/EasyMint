@@ -440,6 +440,38 @@ export const CONTEXT_SUMMARY_INSTRUCTION = `[系统消息] 当前会话上下文
 4. 以自然段落形式输出，不要用列表格式，像在给同事交接工作一样
 5. 最后以一句"我们继续推进xxx吧"结尾，xxx是下一步要做的事情`;
 
+// ── 系统消息结构化(对齐 Pi sendCustomMessage)──────
+
+/** 系统消息细分类型:JSONL/事件/前端按此识别渲染 */
+export type SystemMessageKind =
+  | "delegation"   // 子 Agent 委派完成/中止/失败
+  | "shell"        // 后台 shell 退出通知
+  | "project-created" // 项目已创建完毕(初始化触发)
+  | "flow"         // 流程指令(翻译/功能清单/技术方案等)
+  | "handoff"      // 上下文轮转迁移
+  | "summary";     // 上下文摘要指令
+
+export interface SystemMessagePayload {
+  customType: "system_message";
+  content: string;
+  display: true;
+  details: { kind: SystemMessageKind } & Record<string, unknown>;
+}
+
+/**
+ * 构造 sendCustomMessage 参数。customType 统一 system_message(对齐 cc promptSource: "system"),
+ * 细分类型放 details.kind——details 不进 LLM,仅 JSONL/事件/前端使用。
+ * 注意:content 必须保留 [系统消息] 前缀——Pi 的 convertToLlm 把 custom 映射为 user 角色,
+ * 模型侧看不到 customType,Mint 的系统消息规则(见 MINT_SYSTEM_PROMPT)靠内容前缀识别。
+ */
+export function systemMessage(
+  kind: SystemMessageKind,
+  content: string,
+  extra?: Record<string, unknown>,
+): SystemMessagePayload {
+  return { customType: "system_message", content, display: true, details: { kind, ...extra } };
+}
+
 // ── 业务 Prompt 构建函数 ────────────────────────────
 
 /** 项目创建时的需求收集 */
