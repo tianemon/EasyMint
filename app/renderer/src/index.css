@@ -638,7 +638,8 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 }
 
 /* ── Chat Input Card ─────────────────────────── */
-.chat-input-area { flex-shrink: 0; padding: var(--s3) 0 var(--s4); position: relative; }
+/* 内边距 0:容器与白色卡片同尺寸,间距由消息区 pb 与状态栏自身提供 */
+.chat-input-area { flex-shrink: 0; padding: 0; position: relative; }
 .input-card {
   background: var(--color-card); border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm); overflow: hidden;

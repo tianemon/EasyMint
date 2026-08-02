@@ -943,8 +943,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         )}
       </div>
 
-      {/* 后台进程条:agent·N / shell·N(状态栏上方) */}
+      {/* 后台进程条:agent·N / shell·N */}
       <ProcessBar />
+      {/* 状态栏:独立于输入区,渲染在输入容器上方 */}
+      <StatusBar sessionId={sidRef.current} />
       <PermissionPrompt />
 
       {/* Attach preview — above thinking when busy */}
@@ -953,8 +955,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       )}
 
       <div className="chat-input-area">
-        {/* 状态栏:输入区内部、卡片正上方——紧贴输入卡片,不留 chat-input-area 顶部 12px 缝隙 */}
-        <StatusBar sessionId={sidRef.current} />
         <ChatInput
           busy={busy}
           attaches={attaches}
