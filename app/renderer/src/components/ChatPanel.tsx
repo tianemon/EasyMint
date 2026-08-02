@@ -431,6 +431,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         useStatusStore.getState().setText(label);
         lastStatusRef.current = label;
       }
+      // tool done — 工具执行结束，清除状态栏工具名（避免残留「调用中」）
+      if (event.type === "tool_done") {
+        useStatusStore.getState().setText("");
+        lastStatusRef.current = "";
+      }
       // compaction UI — compacting 事件 = 压缩进行中（显示"正在整理会话..."）
       if (event.type === "compacting") {
         useStatusStore.getState().setCompacting(true);

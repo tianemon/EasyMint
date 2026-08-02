@@ -55,7 +55,7 @@ interface StreamEvent {
   sessionId?: string;
   chatId?: string;       // event-bridge 注入（agent:stream 广播时设置）
   type: "message_start" | "message" | "turn_start" | "turn_end" | "thinking"
-      | "tool_progress" | "compacting" | "compacted" | "error" | "context_usage" | "status";
+      | "tool_progress" | "tool_done" | "compacting" | "compacted" | "error" | "context_usage" | "status";
   blocks?: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; thinking?: string }>;
   partial?: boolean;
   toolName?: string;

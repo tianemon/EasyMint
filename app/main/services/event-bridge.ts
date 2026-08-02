@@ -127,6 +127,12 @@ export function bridgeSessionEvents(
       break;
     }
 
+    case "tool_execution_end": {
+      // 工具执行结束 → 通知前端清除状态栏工具名（否则残留「调用中」直到下个事件覆盖）
+      callbacks.onEvent({ type: "tool_done", sessionId: "", toolCallId: event.toolCallId, toolName: event.toolName });
+      break;
+    }
+
     case "compaction_start": {
       callbacks.onEvent({ type: "compacting", sessionId: "" });
       break;
