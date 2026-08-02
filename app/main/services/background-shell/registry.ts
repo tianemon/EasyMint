@@ -54,6 +54,7 @@ class BackgroundShellRegistry {
     };
     this.shells.set(id, shell);
     this.broadcastCount();
+    console.log(`[bg-shell] started ${id}: ${command.slice(0, 80)}`);
 
     const collect = (chunk: Buffer): void => {
       shell.output = (shell.output + chunk.toString()).slice(-MAX_OUTPUT_BYTES);
@@ -63,14 +64,16 @@ class BackgroundShellRegistry {
     child.on("exit", (code) => {
       shell.exitCode = code;
       this.shells.delete(id);
+      console.log(`[bg-shell] exit ${id}: code=${code} stopped=${shell.stopped}`);
       shell.onExit?.(shell);
       this.broadcastCount();
     });
-    child.on("error", () => {
+    child.on("error", (err) => {
       // spawn 失败(如 shell 不存在)——同 exit 路径注销,避免悬挂
       if (this.shells.has(id)) {
         shell.exitCode = -1;
         this.shells.delete(id);
+        console.log(`[bg-shell] spawn error ${id}: ${err.message}`);
         shell.onExit?.(shell);
         this.broadcastCount();
       }
@@ -83,6 +86,7 @@ class BackgroundShellRegistry {
     const shell = this.shells.get(id);
     if (!shell) return false;
     shell.stopped = true;
+    console.log(`[bg-shell] stop ${id}: ${shell.command.slice(0, 80)}`);
     try {
       if (process.platform === "win32") {
         spawn("taskkill", ["/pid", String(shell.child.pid), "/T", "/F"]);
