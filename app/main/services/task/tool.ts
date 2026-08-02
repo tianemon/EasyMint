@@ -22,6 +22,8 @@ export interface TaskToolContext {
   parentSessionId: string;
   /** 会话 chatId（进度广播按它过滤,前端只显示当前窗口的委派） */
   chatId?: string;
+  /** 委派完成回调：结果注入主会话（agent-service 提供） */
+  onComplete?: (parentSessionId: string, text: string) => void;
 }
 
 /** BatchResult → 注入主会话的文本 */
@@ -139,8 +141,8 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         });
       }
 
-      // 同步委派（对齐 cc/omp Task 语义）：等待子 Agent 完成，结果作为工具结果返回；
-      // 用户插话（steer）会 abort 委派 → completion 立即 resolve(aborted) → 不阻塞
+      // 异步委派（对齐 cc 实测行为）：execute 立即返回,子 Agent 后台执行,
+      // 完成结果经 onComplete 回调注入主会话(agent-service → injectSystemMessage)
       // 新会话工具绑定的可能是临时 UUID——解析为 Pi 真实 ID,子会话目录按真实 ID 分级;
       // rawParentSessionId 保留原始 ID(steer/abort 双匹配)
       const record = createDelegation(
@@ -149,7 +151,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         ctx.parentSessionId,
       );
 
-      // 用户点打断（Pi abort 当前回合）→ 中止子 Agent 委派 → completion resolve(aborted) → execute 立即返回
+      // 用户点打断（Pi abort 当前回合）→ 中止子 Agent 委派 → completion resolve(aborted)
       if (signal && !signal.aborted) {
         signal.addEventListener("abort", () => record.abort(), { once: true });
       }
@@ -171,9 +173,14 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         onProgress: broadcastProgress,
       }).catch(() => {});
 
-      const result = await record.completion;
+      // 完成回调：结果注入主会话(不阻塞本工具)
+      record.completion.then((result) => {
+        ctx.onComplete?.(record.parentSessionId, formatDelegationResult(result));
+      }).catch(() => {});
+
+      const n = tasks.length;
       return {
-        content: [{ type: "text" as const, text: formatDelegationResult(result) }],
+        content: [{ type: "text" as const, text: `已启动 ${n} 个子 Agent 执行，完成后结果将注入会话。` }],
       };
     },
   } as any) as ToolDefinition;

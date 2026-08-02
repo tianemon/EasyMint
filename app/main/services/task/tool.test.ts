@@ -31,7 +31,7 @@ async function createExecute(ctx?: Partial<Parameters<typeof createTaskTool>[0]>
   return tool.execute!;
 }
 
-describe("task tool 同步委派（cc/omp Task 语义）", () => {
+describe("task tool 异步委派（对齐 cc 实测行为）", () => {
   beforeEach(() => {
     resetRegistry();
     vi.clearAllMocks();
@@ -39,18 +39,8 @@ describe("task tool 同步委派（cc/omp Task 语义）", () => {
     mocks.runSubagents.mockReset();
   });
 
-  it("execute 等待子 Agent 完成,返回结果文本作为工具结果", async () => {
-    mocks.runSubagents.mockImplementation((record: any) => {
-      // 模拟后台执行完成
-      finishDelegation(record, "completed", {
-        result: {
-          results: [{ index: 0, id: "s1", agent: "coder", task: "T1", exitCode: 0, output: "最终完整结果", stderr: "", truncated: false, durationMs: 5, tokens: 0, requests: 0 }],
-          totalDurationMs: 5,
-          aborted: false,
-        },
-      });
-      return Promise.resolve();
-    });
+  it("execute 立即返回「已启动」,不等待子 Agent 完成", async () => {
+    mocks.runSubagents.mockImplementation(async () => { /* 后台执行,不 resolve */ });
     const execute = await createExecute();
     const ret = await (execute as any)("tc1", {
       description: "T1: 实现登录",
@@ -58,35 +48,21 @@ describe("task tool 同步委派（cc/omp Task 语义）", () => {
       agent: "builder",
     });
     const text = (ret.content[0] as { text: string }).text;
-    expect(text).toContain("✓ 完成");
-    expect(text).toContain("最终完整结果");
+    expect(text).toContain("已启动 1 个子 Agent");
     const recordArg = mocks.runSubagents.mock.calls[0]![0] as any;
     expect(recordArg.parentSessionId).toBe("session-mint");
     expect(recordArg.tasks).toHaveLength(1);
     expect(recordArg.tasks[0].agent).toBe("builder");
   });
 
-  it("被 abort 时返回中止结果,不阻塞调用方", async () => {
-    mocks.runSubagents.mockImplementation((record: any) => {
-      // 模拟用户插话中止:先 abort,再 finish
-      finishDelegation(record, "aborted", {
-        result: { results: [], totalDurationMs: 3, aborted: true },
-      });
-      return Promise.resolve();
-    });
-    const execute = await createExecute();
-    const ret = await (execute as any)("tc1", { description: "T1", prompt: "任务" });
-    const text = (ret.content[0] as { text: string }).text;
-    expect(text).toContain("中止");
-  });
-
-  it("结构化输出字段进入结果文本", async () => {
+  it("子 Agent 完成后 onComplete 收到格式化结果(含结构化字段)", async () => {
+    const onComplete = vi.fn();
     mocks.runSubagents.mockImplementation((record: any) => {
       finishDelegation(record, "completed", {
         result: {
           results: [{
             index: 0, id: "s1", agent: "coder", task: "T1", exitCode: 0,
-            output: "完成", stderr: "", truncated: false, durationMs: 5, tokens: 0, requests: 0,
+            output: "最终完整结果", stderr: "", truncated: false, durationMs: 5, tokens: 0, requests: 0,
             structuredOutput: { status: "valid", data: { message: "收到", note: "ok" } },
           }],
           totalDurationMs: 5,
@@ -95,20 +71,21 @@ describe("task tool 同步委派（cc/omp Task 语义）", () => {
       });
       return Promise.resolve();
     });
-    const execute = await createExecute();
-    const ret = await (execute as any)("tc1", {
-      description: "T1",
-      prompt: "任务",
-      outputSchema: { message: "string", note: "string" },
-    });
-    const text = (ret.content[0] as { text: string }).text;
+    const execute = await createExecute({ onComplete });
+    await (execute as any)("tc1", { description: "T1", prompt: "任务" });
+
+    await vi.waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
+    expect(onComplete.mock.calls[0]![0]).toBe("session-mint");
+    const text = onComplete.mock.calls[0]![1] as string;
+    expect(text).toContain("✓ 完成");
+    expect(text).toContain("最终完整结果");
     expect(text).toContain('"message":"收到"');
   });
 
-  it("Pi abort signal → 中止委派(打断按钮链路)", async () => {
+  it("Pi abort signal → 中止委派(打断按钮链路),完成回调收 aborted 结果", async () => {
     const abortController = new AbortController();
+    const onComplete = vi.fn();
     mocks.runSubagents.mockImplementation((record: any) => {
-      // 模拟:signal abort 触发 record.abort → 执行器响应后 finish(aborted)
       abortController.signal.addEventListener("abort", () => {
         finishDelegation(record, "aborted", {
           result: { results: [], totalDurationMs: 1, aborted: true },
@@ -116,12 +93,12 @@ describe("task tool 同步委派（cc/omp Task 语义）", () => {
       });
       return Promise.resolve();
     });
-    const execute = await createExecute();
-    const promise = (execute as any)("tc1", { description: "T1", prompt: "任务" }, abortController.signal);
+    const execute = await createExecute({ onComplete });
+    await (execute as any)("tc1", { description: "T1", prompt: "任务" }, abortController.signal);
     abortController.abort(); // 用户点打断
-    const ret = await promise;
-    const text = (ret.content[0] as { text: string }).text;
-    expect(text).toContain("中止");
+
+    await vi.waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
+    expect(onComplete.mock.calls[0]![1]).toContain("中止");
   });
 
   it("空参数返回错误提示,不创建委派", async () => {

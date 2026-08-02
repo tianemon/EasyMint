@@ -1034,6 +1034,17 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
   useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }, []);
 
   if (msg.role === "user") {
+    // 系统消息（子 Agent 委派完成通知）：居中灰字胶囊,非用户气泡
+    const text = typeof msg.text === "string" ? msg.text : "";
+    if (text.startsWith("[系统消息]")) {
+      return (
+        <div className="flex justify-center py-1.5">
+          <span className="text-[11px] text-text-secondary bg-surface-alt px-3 py-1 rounded-full border border-border/50 max-w-[80%] text-center whitespace-pre-wrap [overflow-wrap:anywhere]">
+            {text.replace(/^\[系统消息\]\s*/, "")}
+          </span>
+        </div>
+      );
+    }
     return (
       <div className="msg-in" onMouseEnter={showActions} onMouseLeave={scheduleHideActions} onContextMenu={(e) => onContextMenu(msg, e)}>
         <div className="flex justify-end">
