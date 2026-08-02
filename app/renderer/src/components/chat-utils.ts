@@ -168,7 +168,7 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
           }
         }
         if (entries.length === 0) continue;
-        // Merge consecutive AI messages — same as appendAiEntry does during streaming
+        // 相邻 AI 消息合并到同一条（Pi 落盘的消息逐条独立，此处仅用于磁盘→UI 映射）
         const last = mapped[mapped.length - 1];
         if (last && last.role === "ai") {
           last.entries!.push(...entries);

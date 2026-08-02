@@ -425,17 +425,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           scrollToBottom();
         }
       }
-      // thinking delta（Pi 每帧发累积全文 → 替换已有 thinking 条目）
-      if (event.type === "thinking" && Array.isArray(event.blocks) && showThinking) {
-        for (const b of event.blocks) {
-          if (b.type === "text" && b.text) {
-            if (!curAiMsgIdRef.current) {
-              curAiMsgIdRef.current = useChatStore.getState().startAiMessage(sidRef.current);
-            }
-            useChatStore.getState().appendAiEntryById(sidRef.current, curAiMsgIdRef.current, { kind: "thinking", text: b.text, timestamp: Date.now() });
-          }
-        }
-      }
       // tool progress
       if (event.type === "tool_progress" && event.toolName) {
         const label = displayToolLabel(event.toolName, event.toolArgs);

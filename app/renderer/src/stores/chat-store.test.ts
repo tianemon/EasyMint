@@ -30,17 +30,15 @@ describe("chat-store 流式消息锚定", () => {
     expect(msgs.find((m) => m.id === 2)!.entries).toHaveLength(2);
   });
 
-  it("同一 turn 内 message 帧全量替换：thinking 先到、text 帧后到不叠加", () => {
+  it("message 帧全量替换：blocks 含 thinking + text 时整体替换不叠加", () => {
     const msgId = useChatStore.getState().startAiMessage("s1");
-    // thinking 事件先到
-    useChatStore.getState().appendAiEntryById("s1", msgId, { kind: "thinking", text: "思考中", timestamp: 1 });
-    // message 帧（blocks 含 thinking + text 完整快照）→ 全量替换
+    // 帧 1：只含 thinking（Pi 先出思考块）
+    useChatStore.getState().replaceAiEntriesById("s1", msgId, [{ kind: "thinking", text: "思考中", timestamp: 2 }]);
+    // 帧 2：完整快照（thinking 完整版 + text）
     useChatStore.getState().replaceAiEntriesById("s1", msgId, [
-      { kind: "thinking", text: "思考中", timestamp: 2 },
-      { kind: "text", text: "最终回答", timestamp: 2 },
+      { kind: "thinking", text: "思考完毕", timestamp: 3 },
+      { kind: "text", text: "最终回答", timestamp: 3 },
     ]);
-    // 再来的 thinking 累积全文 → 替换已有 thinking 条目
-    useChatStore.getState().appendAiEntryById("s1", msgId, { kind: "thinking", text: "思考完毕", timestamp: 3 });
 
     const msgs = useChatStore.getState().messagesBySession["s1"]!;
     const ai = msgs[msgs.length - 1]!;
@@ -56,15 +54,6 @@ describe("chat-store 流式消息锚定", () => {
     expect(msgs[msgs.length - 1]!.id).toBe(id);
     expect(msgs[msgs.length - 1]!.entries).toEqual([{ kind: "text", text: "回复" }]);
     expect(msgs[msgs.length - 1]!.streaming).toBe(true);
-  });
-
-  it("appendAiEntry 兜底（无锚点路径）：文本拼接不重复创建条目", () => {
-    const id = useChatStore.getState().appendAiEntry("s1", { kind: "text", text: "第一段", timestamp: 1 });
-    useChatStore.getState().appendAiEntryById("s1", id, { kind: "text", text: "第二段", timestamp: 2 });
-    const msgs = useChatStore.getState().messagesBySession["s1"]!;
-    const ai = msgs.find((m) => m.id === id)!;
-    expect(ai.entries).toHaveLength(1);
-    expect(ai.entries![0]!.text).toBe("第一段第二段");
   });
 
   it("loadSession 合并排除 streaming 临时消息（磁盘数据是真相源）", () => {
