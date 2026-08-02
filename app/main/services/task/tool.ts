@@ -10,12 +10,39 @@ import { getDefineToolFn } from "../pi-sdk";
 import { Store } from "../store";
 import { getTemplate } from "../agent-templates";
 import { runSubagents } from "./executor";
-import type { TaskItem } from "./types";
+import { createDelegation } from "./registry";
+import type { TaskItem, BatchResult } from "./types";
 
 export interface TaskToolContext {
   cwd: string;
   agentDir: string;
   store: Store;
+  /** 发起委派的主会话 ID（buildExtraTools 创建工具时绑定） */
+  parentSessionId: string;
+  /** 委派完成回调：向主会话注入结果（agent-service 提供） */
+  onComplete?: (parentSessionId: string, text: string) => void;
+}
+
+/** BatchResult → 注入主会话的文本 */
+function formatDelegationResult(result: BatchResult): string {
+  const lines: string[] = [];
+  if (result.aborted) lines.push("(委派被中止)");
+  for (const r of result.results) {
+    const status = r.error ? "✗ 失败" : (r.aborted ? "⏹ 中止" : "✓ 完成");
+    lines.push(`## ${status}: ${r.task.slice(0, 80)}`);
+    if (r.error) lines.push(`错误: ${r.error}`);
+    if (r.structuredOutput?.status === "valid" && r.structuredOutput.data) {
+      lines.push(`结构化结果: ${JSON.stringify(r.structuredOutput.data)}`);
+    }
+    if (r.output) lines.push(r.output.slice(0, 3000));
+    if (r.truncated) lines.push("\n(输出已截断)");
+    lines.push("");
+  }
+  if (result.results.length > 1) {
+    const ok = result.results.filter((r) => !r.error && !r.aborted).length;
+    lines.unshift(`共 ${result.results.length} 个子任务: ${ok} 成功, ${result.results.length - ok} 失败\n`);
+  }
+  return lines.join("\n").trim() || "(无输出)";
 }
 
 export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefinition> {
@@ -111,38 +138,25 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         });
       }
 
-      try {
-        const result = await runSubagents({
-          cwd: ctx.cwd,
-          agentDir: ctx.agentDir,
-          store: ctx.store,
-          tasks,
-          concurrency: (params.concurrency as number) || undefined,
-        });
+      // 异步委派：创建记录 → 后台执行 → 立即返回（不阻塞 Mint 模型循环）
+      const record = createDelegation(ctx.parentSessionId, tasks);
 
-        const lines: string[] = [];
-        for (const r of result.results) {
-          const status = r.error ? "✗ 失败" : "✓ 完成";
-          lines.push(`## ${status}: ${r.task.slice(0, 80)}`);
-          if (r.error) lines.push(`错误: ${r.error}`);
-          if (r.output) lines.push(r.output.slice(0, 3000));
-          if (r.truncated) lines.push("\n(输出已截断)");
-          lines.push("");
-        }
+      runSubagents(record, {
+        cwd: ctx.cwd,
+        agentDir: ctx.agentDir,
+        store: ctx.store,
+        concurrency: (params.concurrency as number) || undefined,
+      }).catch(() => {});
 
-        if (result.aborted) lines.push("(部分任务被取消)");
+      // 完成回调：结果注入主会话（agent-service 提供 onComplete → steer/prompt）
+      record.completion.then((result) => {
+        ctx.onComplete?.(record.parentSessionId, formatDelegationResult(result));
+      }).catch(() => {});
 
-        // 合并多结果
-        if (result.results.length > 1) {
-          const ok = result.results.filter((r) => !r.error).length;
-          lines.unshift(`共 ${result.results.length} 个子任务: ${ok} 成功, ${result.results.length - ok} 失败\n`);
-        }
-
-        return { content: [{ type: "text" as const, text: lines.join("\n") || "(无输出)" }] };
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        return { content: [{ type: "text" as const, text: `子 Agent 执行失败: ${msg}` }] };
-      }
+      const n = tasks.length;
+      return {
+        content: [{ type: "text" as const, text: `已启动 ${n} 个子 Agent 执行任务，完成后结果将自动注入当前会话。` }],
+      };
     },
   } as any) as ToolDefinition;
 }

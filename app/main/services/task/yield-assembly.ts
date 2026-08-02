@@ -8,9 +8,6 @@
  * `session-manager`, the TUI tool renderers). It has no side effects and
  * depends only on the yield type and the output-schema validator.
  */
-import { dereferenceJsonSchema } from "@oh-my-pi/pi-ai/utils/schema";
-import { isRecord } from "@oh-my-pi/pi-utils";
-import { buildOutputValidator } from "../tools/output-schema-validator";
 import type { YieldItem } from "./types";
 
 /** Outcome of folding a run's yield calls into one payload, with provenance flags. */
@@ -102,19 +99,21 @@ function isArrayTypedSchema(value: unknown): boolean {
  */
 export function arrayValuedLabels(outputSchema: unknown): ReadonlySet<string> {
 	const labels = new Set<string>();
-	// Use the JTD-converted JSON Schema (matches what validation runs against):
-	// JTD `optionalProperties.findings.elements` becomes `properties.findings`
-	// with `type: "array"`, which raw `normalizeSchema` would not expose.
-	const { jsonSchema } = buildOutputValidator(outputSchema);
-	if (jsonSchema === undefined) return labels;
-	const dereferenced = dereferenceJsonSchema(jsonSchema);
-	const labelSchema = isRecord(dereferenced) ? dereferenced : jsonSchema;
-	const properties = labelSchema.properties;
+	// 等价替换：原 omp 实现经 JTD validator + $ref 展开后取 properties；
+	// EM 的 outputSchema 是字段说明对象（如 { files_created: ["string"], summary: "string" }），
+	// 直接遍历顶层 properties，数组类型（type: "array" 或数组简写）记为增量标签。
+	const schema = isRecord(outputSchema) ? outputSchema : undefined;
+	const properties = schema?.properties;
 	if (!isRecord(properties)) return labels;
 	for (const key in properties) {
-		if (isArrayTypedSchema(properties[key])) labels.add(key);
+		// 简写形式 { files_created: ["string"] }：值本身是数组
+		if (Array.isArray(properties[key]) || isArrayTypedSchema(properties[key])) labels.add(key);
 	}
 	return labels;
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+	return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
 /**

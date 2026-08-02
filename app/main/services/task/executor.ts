@@ -1,25 +1,30 @@
 /**
- * 子 Agent 执行器 — createPiSession → prompt → 收集事件 → 结构化输出 → 返回结果
+ * 子 Agent 执行器 — 后台异步执行
+ *
+ * tool.execute 创建委派记录后立即返回；本模块在后台执行子 Agent：
+ * createPiSession(落盘到 subagents/ 子目录) → prompt → collector 收集 → 结构化输出，
+ * 完成后 finishDelegation 唤醒 completion（agent-service 订阅注入主会话）。
  */
 
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { AgentSessionEvent } from "../pi-sdk";
-import { createPiSession } from "../pi-session";
+import { createPiSession, getPiSessionDir } from "../pi-session";
 import { getBaseTools, getReadOnlyTools } from "../tool-registry";
 import { getActiveModel } from "../pi-init";
 import { Store } from "../store";
 import { resolveHome } from "../../utils/paths";
-import { mapWithConcurrencyLimit, type ParallelResult } from "./parallel";
-// yield-assembly not ported — structured output is a future feature
-// import { assembleYieldResult } from "../../vendor/omp/task/yield-assembly";
+import { mapWithConcurrencyLimit } from "./parallel";
+import { ResultCollector } from "./collector";
+import { finishDelegation } from "./registry";
 import { wrapToolWithPermission } from "../permission/wrap-tool";
 import { SAFE_TOOLS, isSafeBashCommand } from "../permission/permission-rules";
 import type {
   SingleResult,
   AgentProgress,
   TaskItem,
-  BatchResult,
+  DelegationRecord,
+  YieldItem,
 } from "./types";
 import { MAX_OUTPUT_BYTES, MAX_OUTPUT_LINES } from "./types";
 
@@ -45,6 +50,8 @@ export interface SubagentOptions {
   cwd: string;
   agentDir: string;
   store: Store;
+  /** 子会话落盘目录（subagents/ 子目录，避免与主会话平级出现在列表） */
+  sessionDir: string;
   task: string;
   index: number;
   signal?: AbortSignal;
@@ -53,7 +60,7 @@ export interface SubagentOptions {
   onProgress?: (progress: AgentProgress) => void;
 }
 
-/** 执行单个子 Agent */
+/** 执行单个子 Agent（后台，不阻塞调用方） */
 async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
   const id = randomUUID();
   const startMs = Date.now();
@@ -108,7 +115,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
   );
 
   // 结构化输出：创建 yield 工具 + schema 提示
-  const yieldItems: Array<{ data?: unknown; type?: string | string[]; status?: string }> = [];
+  const yieldItems: YieldItem[] = [];
   const extraTools = [...wrappedTools];
 
   if (opts.outputSchema) {
@@ -139,6 +146,8 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
     const session2 = await createPiSession({
       cwd: resolvedPath, agentDir: opts.agentDir, model, thinkingLevel: "medium",
       store: opts.store, systemPrompt: fullPrompt, extraTools,
+      sessionDir: opts.sessionDir,
+      canUseTool: undefined,
     });
     const result2 = await executeAndCollect(session2, opts.task, yieldItems, opts, progress, id, agentLabel, startMs, opts.outputSchema);
     return result2;
@@ -150,6 +159,8 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
     const session = await createPiSession({
       cwd: resolvedPath, agentDir: opts.agentDir, model, thinkingLevel: "medium",
       store: opts.store, systemPrompt, extraTools,
+      sessionDir: opts.sessionDir,
+      canUseTool: undefined,
     });
     const result = await executeAndCollect(session, opts.task, yieldItems, opts, progress, id, agentLabel, startMs);
     return result;
@@ -167,11 +178,11 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
   }
 }
 
-/** 执行 session.prompt() + 收集文本 + 结构化验证 */
+/** 执行 session.prompt() + ResultCollector 收集 + 结构化验证 */
 async function executeAndCollect(
   session: Awaited<ReturnType<typeof createPiSession>>,
   task: string,
-  yieldItems: Array<{ data?: unknown; type?: string | string[]; status?: string }>,
+  yieldItems: YieldItem[],
   opts: { signal?: AbortSignal; onProgress?: (p: AgentProgress) => void },
   progress: AgentProgress,
   id: string,
@@ -179,7 +190,7 @@ async function executeAndCollect(
   startMs: number,
   outputSchema?: unknown,
 ): Promise<SingleResult> {
-  const collectedText: string[] = [];
+  const collector = new ResultCollector();
   const scheduleProgress = (() => {
     let pending = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -254,55 +265,36 @@ async function executeAndCollect(
       scheduleProgress(false);
     }
 
-    // ── 消息收集 ──
-    if (event.type === "message_update" || event.type === "message_end") {
-      const msg = event.message as { role?: string; content?: Array<{ type: string; text?: string }> };
-      if (msg.role === "assistant" && Array.isArray(msg.content)) {
-        for (const block of msg.content) {
-          if (block.type === "text" && block.text) collectedText.push(block.text);
-        }
-      }
-    }
-
-    // ── agent_end: 收集最终输出 ──
-    if (event.type === "agent_end" && event.messages) {
-      for (const msg2 of event.messages) {
-        const m = msg2 as { role?: string; content?: Array<{ type?: string; text?: string }> };
-        if (m.role !== "assistant" || !Array.isArray(m.content)) continue;
-        for (const block of m.content) {
-          if (block.type === "text" && block.text && !collectedText.includes(block.text)) {
-            collectedText.push(block.text);
-          }
-        }
-      }
-      scheduleProgress(true);
-    }
+    // ── 消息收集（按消息 id 替换，杜绝累积快照拼接重复）──
+    collector.onEvent(event);
   });
 
-  await session.prompt(task);
-  unsub();
-
-  const rawOutput = collectedText.join("\n");
-  const { text, truncated } = truncateOutput(rawOutput);
-
-  // 结构化输出验证
-  let structuredOutput: SingleResult["structuredOutput"] = undefined;
-  if (outputSchema && yieldItems.length > 0) {
-    // yield-assembly / output-schema-validator not ported yet — fall back to raw output
-    structuredOutput = { status: "unavailable", error: "structured output not yet supported" };
-  } else {
-    structuredOutput = undefined;
+  try {
+    await session.prompt(task);
+  } finally {
+    unsub();
   }
 
-  progress.status = "completed";
+  const rawOutput = collector.getText();
+  const { text, truncated } = truncateOutput(rawOutput);
+
+  // 结构化输出验证（yield 组装）
+  let structuredOutput: SingleResult["structuredOutput"] = undefined;
+  if (outputSchema && yieldItems.length > 0) {
+    structuredOutput = collector.buildStructuredOutput(yieldItems, outputSchema);
+  }
+
+  const aborted = opts.signal?.aborted ?? false;
+  progress.status = aborted ? "aborted" : "completed";
   progress.durationMs = Date.now() - startMs;
   opts.onProgress?.(progress);
 
   return {
-    index: opts.onProgress ? (progress as any).index : 0, id, agent: agentLabel, task,
-    exitCode: 0, output: text, stderr: "", truncated,
+    index: progress.index, id, agent: agentLabel, task,
+    exitCode: aborted ? 1 : 0, output: text, stderr: "", truncated,
     durationMs: progress.durationMs,
     structuredOutput,
+    aborted,
     tokens: progress.tokens,
     requests: progress.requests,
     contextTokens: progress.contextTokens,
@@ -314,47 +306,66 @@ async function executeAndCollect(
 
 // ── 公开 API ─────────────────────────────────────────
 
-export interface RunOptions {
+export interface DelegationRuntime {
   cwd: string;
   agentDir: string;
   store: Store;
-  tasks: TaskItem[];
   concurrency?: number;
-  signal?: AbortSignal;
-  defaultAgent?: string;
   onProgress?: (progress: AgentProgress) => void;
 }
 
-export async function runSubagents(opts: RunOptions): Promise<BatchResult> {
+/**
+ * 后台执行委派：并行运行所有子 Agent，完成后 finishDelegation。
+ * 不阻塞调用方（tool.execute 启动后立即返回）。
+ */
+export async function runSubagents(
+  record: DelegationRecord,
+  runtime: DelegationRuntime,
+): Promise<void> {
   const startMs = Date.now();
-  const concurrency = opts.concurrency ?? DEFAULT_CONCURRENCY;
+  const concurrency = runtime.concurrency ?? DEFAULT_CONCURRENCY;
+  const sessionDir = path.join(getPiSessionDir(path.resolve(runtime.cwd)), "subagents");
 
-  const runOpts = opts.tasks.map((task, index) => ({
+  const runOpts = record.tasks.map((task: TaskItem, index) => ({
     subagentOpts: {
-      cwd: opts.cwd,
-      agentDir: opts.agentDir,
-      store: opts.store,
+      cwd: runtime.cwd,
+      agentDir: runtime.agentDir,
+      store: runtime.store,
+      sessionDir,
       task: task.task,
       index,
-      signal: opts.signal,
+      signal: record.abortController.signal,
       readOnly: task.readOnly,
       outputSchema: task.outputSchema,
-      onProgress: opts.onProgress,
+      onProgress: runtime.onProgress,
     },
   }));
 
-  const parallelResult: ParallelResult<SingleResult> = await mapWithConcurrencyLimit(
+  const parallelResult = await mapWithConcurrencyLimit(
     runOpts,
     concurrency,
     async (o) => runSingleSubagent(o.subagentOpts),
-    opts.signal,
+    record.abortController.signal,
   );
 
   const results = parallelResult.results.filter((r): r is SingleResult => r !== undefined);
 
-  return {
-    results,
-    totalDurationMs: Date.now() - startMs,
-    aborted: parallelResult.aborted,
-  };
+  if (record.abortController.signal.aborted) {
+    finishDelegation(record, "aborted", {
+      result: {
+        results,
+        totalDurationMs: Date.now() - startMs,
+        aborted: true,
+      },
+    });
+    return;
+  }
+
+  finishDelegation(record, "completed", {
+    result: {
+      results,
+      totalDurationMs: Date.now() - startMs,
+      aborted: false,
+    },
+  });
 }

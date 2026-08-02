@@ -19,6 +19,7 @@ import { buildSkillsPrompt } from "./skill-service";
 import { getActiveModel, resetModelRuntime } from "./pi-init";
 import { createPiSession, resumePiSession, listPiSessions } from "./pi-session";
 import { createTaskTool } from "./task/tool";
+import { abortDelegations } from "./task/registry";
 import { createProductTools } from "./builtin-mcp";
 import { loadMcpTools } from "./permission/mcp-adapter";
 import { permissionService } from "./permission/agent-permission-service";
@@ -139,6 +140,8 @@ export class AgentService {
         cwd: projectPath,
         agentDir: this.getAgentDir(),
         store: this.store,
+        parentSessionId: sessionId,
+        onComplete: (sid, text) => this.injectToSession(sid, text),
       });
       const productTools = await createProductTools(projectPath);
       const mcpTools = await loadMcpTools();
@@ -675,8 +678,17 @@ export class AgentService {
 
   /** 注入引导消息（中断当前回合并插话） */
   async steer(sessionId: string, text: string): Promise<void> {
+    // 用户插话 = 打断当前动作：中止该会话运行中的子 Agent 委派
+    abortDelegations(sessionId);
     const chat = this.findActiveChat(sessionId);
     await chat?.session?.steer(text);
+  }
+
+  /** 向主会话注入子 Agent 委派结果（steer 排队，不打断进行中的回合） */
+  injectToSession(sessionId: string, text: string): void {
+    const chat = this.findActiveChat(sessionId);
+    if (!chat?.session) return;
+    chat.session.steer(`[系统消息] 子 Agent 委派完成，结果如下：\n${text}`).catch(() => {});
   }
 
   /** 注入跟进消息（当前回合结束后发送） */

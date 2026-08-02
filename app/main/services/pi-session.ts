@@ -28,6 +28,8 @@ export interface PiSessionOptions {
   thinkingLevel?: ThinkingLevel;
   store: Store;
   resumeSessionFile?: string;
+  /** 会话落盘目录（缺省 getPiSessionDir(cwd)）；子 Agent 传 subagents/ 子目录避免平级出现在列表 */
+  sessionDir?: string;
   systemPrompt?: string;
   isDesigner?: boolean;
   /** 额外的工具（task 等）。createPiSession 会自动追加基础 coding 工具 */
@@ -80,7 +82,7 @@ async function buildSession(
 }
 
 export async function createPiSession(opts: PiSessionOptions): Promise<AgentSession> {
-  const sessionDir = getPiSessionDir(opts.cwd);
+  const sessionDir = opts.sessionDir ?? getPiSessionDir(opts.cwd);
   const SM = await getSessionManagerClass();
   const sessionManager = SM.create(opts.cwd, sessionDir);
   return buildSession(opts, sessionManager as any);

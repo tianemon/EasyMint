@@ -100,6 +100,30 @@ export interface BatchResult {
   aborted: boolean;
 }
 
+/** 委派状态 */
+export type DelegationStatus = "running" | "completed" | "failed" | "aborted";
+
+/** 委派记录（异步执行的核心：execute 立即返回，后台执行完成后 resolve completion） */
+export interface DelegationRecord {
+  delegationId: string;
+  /** 主会话 ID（发起委派的 Mint 会话） */
+  parentSessionId: string;
+  /** 子会话 ID 列表（批量时多个） */
+  childSessionIds: string[];
+  status: DelegationStatus;
+  tasks: TaskItem[];
+  startedAt: number;
+  completedAt?: number;
+  result?: BatchResult;
+  error?: string;
+  /** 完成时 resolve；agent-service 订阅它向主会话注入结果 */
+  completion: Promise<BatchResult>;
+  resolveCompletion: (result: BatchResult) => void;
+  /** 统一中止所有子会话（用户 steer 时调用） */
+  abort: () => void;
+  abortController: AbortController;
+}
+
 // ── 常量 ────────────────────────────────────────────
 
 export const MAX_OUTPUT_BYTES = 500_000;
