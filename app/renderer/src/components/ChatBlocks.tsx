@@ -94,7 +94,7 @@ function CodeBlock({ language, children }: { language?: string; children: string
           {copied ? "已复制" : "复制"}
         </button>
       </div>
-      <pre className="px-4 py-3 overflow-x-auto text-xs leading-relaxed font-mono text-text-primary whitespace-pre" style={{ background: 'var(--color-code-block-bg)' }}>
+      <pre className="px-4 py-3 overflow-x-auto text-[13px] leading-relaxed font-mono text-text-primary whitespace-pre" style={{ background: 'var(--color-code-block-bg)' }}>
         <code>{children}</code>
       </pre>
     </div>
@@ -122,7 +122,7 @@ export function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
   }, [block.text]);
 
   return (
-    <div className="text-sm leading-relaxed prose prose-sm max-w-none break-words [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-a:text-accent prose-li:text-text-primary">
+    <div className="text-sm leading-relaxed prose prose-sm max-w-none break-words [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_code]:text-[13px] prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-a:text-accent prose-li:text-text-primary">
       {html.map((part, i) => {
         const k = `${block.keyPrefix || "md"}-${i}`;
         if (part.type === "code") {
