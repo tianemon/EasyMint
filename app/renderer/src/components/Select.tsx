@@ -79,7 +79,7 @@ export function Select({ value, onChange, options, title, className }: SelectPro
       {open && pos && (
         <div
           ref={panelRef}
-          className="fixed z-50 w-max py-0 overflow-hidden rounded-md border border-border bg-surface-elevated shadow-xl"
+          className="fixed z-50 w-max py-0 overflow-hidden rounded-[8px] border border-border bg-surface-elevated shadow-xl"
           style={{ left: pos.left, top: pos.top, minWidth: pos.minWidth, maxHeight: MAX_PANEL_H }}
         >
           <div className="max-h-full overflow-y-auto">
