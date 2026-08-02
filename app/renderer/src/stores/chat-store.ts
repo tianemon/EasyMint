@@ -3,6 +3,34 @@ import { create } from "zustand";
 export type StoredMessage = Record<string, any> & { id: number; role: "user" | "ai" };
 
 
+/**
+ * 流式条目合并：text 拼接到已有文本、thinking 替换为最新帧（Pi 每帧发累积全文）、其余追加。
+ * 仅用于增量单条 entry（thinking 事件）；message 帧走全量替换（replaceAiEntriesById），不走这里。
+ */
+function mergeEntry(existing: Record<string, any>[], entry: Record<string, any>): Record<string, any>[] {
+  if (entry.kind === "text") {
+    const textIdx = existing.findIndex((e) => e.kind === "text");
+    const updated = [...existing];
+    if (textIdx >= 0) {
+      updated[textIdx] = { ...updated[textIdx]!, text: (updated[textIdx]!.text || "") + (entry.text || "") };
+    } else {
+      updated.push(entry);
+    }
+    return updated;
+  }
+  if (entry.kind === "thinking") {
+    const thinkIdx = existing.findIndex((e) => e.kind === "thinking");
+    const updated = [...existing];
+    if (thinkIdx >= 0) {
+      updated[thinkIdx] = { ...updated[thinkIdx], text: entry.text || "" };
+    } else {
+      updated.push(entry);
+    }
+    return updated;
+  }
+  return [...existing, entry];
+}
+
 interface ChatState {
   messagesBySession: Record<string, any[]>;
   msgIdBySession: Record<string, number>;
@@ -11,11 +39,13 @@ interface ChatState {
   evictSession: (sessionId: string) => void;
   appendUserMsg: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai" }) => void;
   replaceAiEntries: (sessionId: string, entries: Record<string, any>[]) => number;
-  /** 替换最后一条 AI 消息中 fromIdx 之后的 entries（保留 fromIdx 之前的旧 turn 内容） */
-  replaceAiEntriesFrom: (sessionId: string, fromIdx: number, entries: Record<string, any>[]) => number;
-  /** Pi 新 turn 开始时调用，强制创建新的空 AI 消息（防止跨 turn 覆盖） */
+  /** 按消息 id 全量替换 entries（Pi 帧是累计全文快照，替换而非拼接——见 Proma uuid 方案） */
+  replaceAiEntriesById: (sessionId: string, msgId: number, entries: Record<string, any>[]) => number;
+  /** Pi 新 turn 开始时调用，创建新的空 AI 消息作为本 turn 的锚点 */
   startAiMessage: (sessionId: string) => number;
   appendAiEntry: (sessionId: string, entry: Record<string, any>) => number;
+  /** 按消息 id 追加/替换单条 entry（text 拼接、thinking 替换累积全文） */
+  appendAiEntryById: (sessionId: string, msgId: number, entry: Record<string, any>) => number;
   nextMsgId: (sessionId: string) => number;
 }
 
@@ -86,96 +116,65 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return msgId;
   },
 
-  replaceAiEntriesFrom: (sessionId: string, fromIdx: number, entries: Record<string, any>[]) => {
+  replaceAiEntriesById: (sessionId: string, msgId: number, entries: Record<string, any>[]) => {
     const msgs = get().messagesBySession[sessionId] || [];
-    const last = msgs[msgs.length - 1];
-    if (last && last.role === "ai") {
-      const existing: Record<string, any>[] = last.entries || [];
-      // 保留 fromIdx 之前的旧 turn 内容，替换 fromIdx 之后的内容
-      // fromIdx 可能因竞态超出 existing 长度，cap 住防止旧内容泄露
-      const safeIdx = Math.min(fromIdx, existing.length);
-      const merged = [...existing.slice(0, safeIdx), ...entries];
+    const target = msgs.find((m) => m.id === msgId);
+    if (target && target.role === "ai") {
       set((s) => ({
         messagesBySession: {
           ...s.messagesBySession,
           [sessionId]: (s.messagesBySession[sessionId] || []).map((m) =>
-            m.id === last.id ? { ...m, entries: merged } : m
+            m.id === msgId ? { ...m, entries } : m
           ),
         },
       }));
-      return last.id;
+      return msgId;
     }
-    // 没有 AI 消息 → 新建
-    const msgId = get().nextMsgId(sessionId);
-    set((s) => ({
-      messagesBySession: {
-        ...s.messagesBySession,
-        [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries, timestamp: Date.now(), streaming: true }],
-      },
-    }));
-    return msgId;
+    // 消息不存在（会话重载等竞态）→ 回退：替换最后一条 AI 或新建
+    return get().replaceAiEntries(sessionId, entries);
   },
 
   appendAiEntry: (sessionId, entry) => {
     const msgs = get().messagesBySession[sessionId] || [];
     const last = msgs[msgs.length - 1];
-    let msgId: number;
     if (last && last.role === "ai") {
-      msgId = last.id;
-      set((s) => {
-        const cur = s.messagesBySession[sessionId];
-        if (!cur) return {};
-        const existing = last.entries || [];
-        // 文本条目：拼接到已有文本，不重复创建
-        if (entry.kind === "text") {
-          const textIdx = existing.findIndex((e: Record<string, any>) => e.kind === "text");
-          const updated = [...existing];
-          if (textIdx >= 0) {
-            updated[textIdx] = { ...updated[textIdx], text: (updated[textIdx].text || "") + (entry.text || "") };
-          } else {
-            updated.push(entry);
-          }
-          return {
-            messagesBySession: {
-              ...s.messagesBySession,
-              [sessionId]: cur.map((m) => (m.id === msgId ? { ...m, entries: updated } : m)),
-            },
-          };
-        }
-        // 思考条目：Pi SDK 每帧发累积全文，替换已有思考文本，不重复创建
-        if (entry.kind === "thinking") {
-          const thinkIdx = existing.findIndex((e: Record<string, any>) => e.kind === "thinking");
-          const updated = [...existing];
-          if (thinkIdx >= 0) {
-            updated[thinkIdx] = { ...updated[thinkIdx], text: entry.text || "" };
-          } else {
-            updated.push(entry);
-          }
-          return {
-            messagesBySession: {
-              ...s.messagesBySession,
-              [sessionId]: cur.map((m) => (m.id === msgId ? { ...m, entries: updated } : m)),
-            },
-          };
-        }
-        // 非文本条目：直接追加
-        return {
-          messagesBySession: {
-            ...s.messagesBySession,
-            [sessionId]: cur.map((m) => (m.id === msgId ? { ...m, entries: [...existing, entry] } : m)),
-          },
-        };
-      });
-    } else {
-      msgId = get().nextMsgId(sessionId);
+      const entries = mergeEntry(last.entries || [], entry);
       set((s) => ({
         messagesBySession: {
           ...s.messagesBySession,
-          [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries: [entry], timestamp: entry.timestamp || Date.now(), streaming: true }],
+          [sessionId]: (s.messagesBySession[sessionId] || []).map((m) =>
+            m.id === last.id ? { ...m, entries } : m
+          ),
         },
       }));
+      return last.id;
     }
+    const msgId = get().nextMsgId(sessionId);
+    set((s) => ({
+      messagesBySession: {
+        ...s.messagesBySession,
+        [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries: [entry], timestamp: entry.timestamp || Date.now(), streaming: true }],
+      },
+    }));
     return msgId;
+  },
+
+  appendAiEntryById: (sessionId, msgId, entry) => {
+    const msgs = get().messagesBySession[sessionId] || [];
+    const target = msgs.find((m) => m.id === msgId);
+    if (target && target.role === "ai") {
+      const entries = mergeEntry(target.entries || [], entry);
+      set((s) => ({
+        messagesBySession: {
+          ...s.messagesBySession,
+          [sessionId]: (s.messagesBySession[sessionId] || []).map((m) =>
+            m.id === msgId ? { ...m, entries } : m
+          ),
+        },
+      }));
+      return msgId;
+    }
+    return get().appendAiEntry(sessionId, entry);
   },
 
   startAiMessage: (sessionId) => {

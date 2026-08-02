@@ -171,8 +171,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   /** 输入框变化处理：检测开头 / 触发命令面板（仅在输入框纯命令上下文下，不影响代码片段） */
   const autoScrollRef = useRef(true);
   // Pi 事件无需 seq 去重（message_update 是累计全文，不是 delta）
-  // turn 边界：turn_start 记录当前 turn 在最后一条 AI 消息 entries 中的起始位置
-  const turnEntryIdxRef = useRef(0);
+  // 当前 turn 的 AI 消息锚点：turn_start 创建空消息并记录 id，message/thinking 帧按 id 全量替换——
+  // 与 Proma 的 uuid 方案同思想（帧是完整快照，替换而非拼接），杜绝 fromIdx 不匹配导致的重复
+  const curAiMsgIdRef = useRef(0);
   // steer 打断标记
   const steeringRef = useRef(false);
   const sidRef = useRef<string>(initialSid);
@@ -337,10 +338,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     (async () => {
         const buffered = await window.electronAPI.agent.getBufferedStream(existingSid);
         if (!cancelled && buffered.length > 0) {
-          // [临时调试] 确认 buffered 事件数与 live 是否重叠
-          console.log("[stream-buffer]", "count=" + buffered.length, buffered.slice(0, 3).map((r: any) => (r as StreamEvent).type));
-          // 缓冲事件：仅全量替换临时显示（streaming 标记），不处理 turn_start——
-          // turnIdx 只应由 live 事件基于磁盘消息计算；缓冲内容随后被 conv.messages 覆盖
+          // 缓冲事件：仅全量替换临时显示（streaming 标记）；缓冲内容随后被 conv.messages 覆盖
           for (const raw of buffered) {
             const ev = raw as StreamEvent;
             const entries = mergeConsecutiveText(piEventToEntries(ev));
@@ -390,10 +388,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   }, [showThinking, showToolUse]);
 
   useEffect(() => {
-    let _curAi = 0;
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
-      // [临时调试] 渲染进程收到的事件流：type/seq/blocks 结构
-      console.log("[stream-render]", event.type, "seq=" + event.seq, event.blocks?.map((b) => `${b.type}:${(b.text || "").length}`).join("|") || "-");
       if (event.source === "worker") return;
       // Filter by chatId when known
       if (currentChatRef.current) {
@@ -412,29 +407,32 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         if (cid) { currentChatRef.current = cid; setCurrentRunId(cid); }
       }
       setBusy(true);
-      // Pi 新 assistant turn 开始 → 记录 turn 边界（entries 从此处开始替换，保留旧 turn 内容）
+      // Pi 新 assistant turn 开始 → 创建空 AI 消息作为本 turn 锚点，
+      // 后续 message/thinking 帧按 id 全量替换（每次 turn 一条消息，与磁盘落盘结构一致）
       if (event.type === "turn_start") {
-        const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
-        // turnIdx 必须基于"replaceAiEntriesFrom 将操作的最后一条 AI 消息"（含 streaming）——
-        // 两者不一致会导致 fromIdx 与 existing 长度不匹配、text 帧被追加而非替换
-        const lastAi = msgs.filter((m) => m.role === "ai").pop();
-        turnEntryIdxRef.current = lastAi ? (lastAi.entries || []).length : 0;
+        curAiMsgIdRef.current = useChatStore.getState().startAiMessage(sidRef.current);
         steeringRef.current = false;
       }
-      // Pi SDK message_update 携带累计全文，替换当前 turn 的 entries（保留之前 turn 的内容）
+      // Pi SDK message_update 携带累计全文快照，按锚点 id 全量替换当前 turn 的消息（不拼接）
       if (event.type === "message" && Array.isArray(event.blocks)) {
         const rawEntries = piBlocksToEntries(event.blocks);
         if (rawEntries.length > 0) {
           const entries = mergeConsecutiveText(rawEntries);
-          _curAi = useChatStore.getState().replaceAiEntriesFrom(sidRef.current, turnEntryIdxRef.current, entries);
+          if (!curAiMsgIdRef.current) {
+            curAiMsgIdRef.current = useChatStore.getState().startAiMessage(sidRef.current);
+          }
+          useChatStore.getState().replaceAiEntriesById(sidRef.current, curAiMsgIdRef.current, entries);
           scrollToBottom();
         }
       }
-      // thinking delta
+      // thinking delta（Pi 每帧发累积全文 → 替换已有 thinking 条目）
       if (event.type === "thinking" && Array.isArray(event.blocks) && showThinking) {
         for (const b of event.blocks) {
           if (b.type === "text" && b.text) {
-            useChatStore.getState().appendAiEntry(sidRef.current, { kind: "thinking", text: b.text, timestamp: Date.now() });
+            if (!curAiMsgIdRef.current) {
+              curAiMsgIdRef.current = useChatStore.getState().startAiMessage(sidRef.current);
+            }
+            useChatStore.getState().appendAiEntryById(sidRef.current, curAiMsgIdRef.current, { kind: "thinking", text: b.text, timestamp: Date.now() });
           }
         }
       }
@@ -463,7 +461,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         useStatusStore.getState().setCtxPct(event.percentage || 0);
       }
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; _curAi = 0; busyRef.current = false; lastStatusRef.current = ""; setBusy(false); useStatusStore.getState().setText(""); onActivity?.(); });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; curAiMsgIdRef.current = 0; busyRef.current = false; lastStatusRef.current = ""; setBusy(false); useStatusStore.getState().setText(""); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;
@@ -622,7 +620,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
     const ts = Date.now();
     useChatStore.getState().appendUserMsg(sidRef.current, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
-    turnEntryIdxRef.current = 0;  // 新用户消息 → 重置 turn 边界
+    curAiMsgIdRef.current = 0;  // 新用户消息 → 下一帧新建消息锚点（steer 插话不触发 turn_start 时兜底）
     setAttaches([]);
     onActivity?.();
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
