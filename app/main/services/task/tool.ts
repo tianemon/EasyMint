@@ -104,7 +104,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
     async execute(
       _toolCallId: string,
       params: Record<string, unknown>,
-      _signal: any,
+      signal: AbortSignal | undefined,
       _onUpdate: any,
       _ctx: any,
     ) {
@@ -142,6 +142,11 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
       // 同步委派（对齐 cc/omp Task 语义）：等待子 Agent 完成，结果作为工具结果返回；
       // 用户插话（steer）会 abort 委派 → completion 立即 resolve(aborted) → 不阻塞
       const record = createDelegation(ctx.parentSessionId, tasks);
+
+      // 用户点打断（Pi abort 当前回合）→ 中止子 Agent 委派 → completion resolve(aborted) → execute 立即返回
+      if (signal && !signal.aborted) {
+        signal.addEventListener("abort", () => record.abort(), { once: true });
+      }
 
       // 进度广播：executor 每 200ms 节流回调 → 前端委派进度卡片实时更新
       const broadcastProgress = (progress: AgentProgress): void => {

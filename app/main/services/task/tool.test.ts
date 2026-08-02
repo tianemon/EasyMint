@@ -105,6 +105,25 @@ describe("task tool 同步委派（cc/omp Task 语义）", () => {
     expect(text).toContain('"message":"收到"');
   });
 
+  it("Pi abort signal → 中止委派(打断按钮链路)", async () => {
+    const abortController = new AbortController();
+    mocks.runSubagents.mockImplementation((record: any) => {
+      // 模拟:signal abort 触发 record.abort → 执行器响应后 finish(aborted)
+      abortController.signal.addEventListener("abort", () => {
+        finishDelegation(record, "aborted", {
+          result: { results: [], totalDurationMs: 1, aborted: true },
+        });
+      });
+      return Promise.resolve();
+    });
+    const execute = await createExecute();
+    const promise = (execute as any)("tc1", { description: "T1", prompt: "任务" }, abortController.signal);
+    abortController.abort(); // 用户点打断
+    const ret = await promise;
+    const text = (ret.content[0] as { text: string }).text;
+    expect(text).toContain("中止");
+  });
+
   it("空参数返回错误提示,不创建委派", async () => {
     const execute = await createExecute();
     const ret = await (execute as any)("tc1", {});

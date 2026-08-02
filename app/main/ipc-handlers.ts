@@ -144,8 +144,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     agentService.runWorker(projectPath, prompt, mainWindow)
   );
   ipcMain.handle("agent:abort", (_e, { runId }) => {
-    // Try chat first (chat uses chatId), fall back to worker runs
-    agentService.stopChat(runId);
+    // 打断（chat 与 worker 统一处理）：abort 当前回合，保留会话/run 注册表
     agentService.abort(runId);
   });
   ipcMain.handle("agent:chatStatus", (_e, { sessionId }) => {

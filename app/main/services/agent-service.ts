@@ -348,6 +348,13 @@ export class AgentService {
       run.session?.abort().catch(() => {});
       this.activeRuns.delete(runId);
     }
+    // chat 会话：打断当前回合（含子 Agent 委派），保留会话供继续使用
+    const chat = this.findActiveChat(runId);
+    if (chat) {
+      abortDelegations(chat.tempSessionId ?? chat.sessionId);
+      chat.abortController.abort();
+      chat.session?.abort().catch(() => {});
+    }
   }
 
   // ── Chat（长生命周期会话） ─────────────────────────
@@ -505,16 +512,6 @@ export class AgentService {
       if (chat.sessionId === sessionId || chat.tempSessionId === sessionId) return chat;
     }
     return undefined;
-  }
-
-  stopChat(runId: string): void {
-    this.abort(runId);
-    const chat = this.findActiveChat(runId);
-    if (chat) {
-      chat.abortController.abort();
-      chat.session?.abort().catch(() => {});
-      this.activeChats.delete(chat.chatId);
-    }
   }
 
   getChatStatus(sessionId: string): string {
