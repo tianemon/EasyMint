@@ -337,6 +337,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     (async () => {
         const buffered = await window.electronAPI.agent.getBufferedStream(existingSid);
         if (!cancelled && buffered.length > 0) {
+          // [临时调试] 确认 buffered 事件数与 live 是否重叠
+          console.log("[stream-buffer]", "count=" + buffered.length, buffered.slice(0, 3).map((r: any) => (r as StreamEvent).type));
           // 缓冲事件：仅全量替换临时显示（streaming 标记），不处理 turn_start——
           // turnIdx 只应由 live 事件基于磁盘消息计算；缓冲内容随后被 conv.messages 覆盖
           for (const raw of buffered) {
