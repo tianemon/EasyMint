@@ -48,7 +48,10 @@ interface ActiveRun {
 
 export interface ActiveChat extends RotationState {
   chatId: string;
+  /** 对外 sessionId（Pi 真实 ID；前端迁移/权限/统计都用它） */
   sessionId: string;
+  /** 新建会话时的 EM 临时 ID（task 工具绑定此 ID，findActiveChat 双键匹配） */
+  tempSessionId?: string;
   session: AgentSession | null;
   abortController: AbortController;
   projectPath: string;
@@ -390,6 +393,15 @@ export class AgentService {
     // 恢复会话时补全 isDesigner：tab 恢复不会带此标记，从持久化的 session 类型中读取
     const designer = isDesigner || sessionAgentTypes.get(resumeSessionId ?? "") === "designer";
 
+    // 新会话用临时 ID（task 工具绑定它），真实 sessionId 在 createPiSession 返回后更新
+    const newSessionId = randomUUID();
+
+    // 新建与恢复会话统一注入工具（历史实现恢复分支留空 → 恢复会话无 task/产品工具、无权限控制）
+    const { tools: extraTools, canUseTool } = await this.buildExtraTools(
+      resolvedPath,
+      resumeSessionId ?? newSessionId,
+    );
+
     const session: AgentSession = await (async () => {
       if (resumeSessionId) {
         const sessions = await listPiSessions(resolvedPath);
@@ -402,14 +414,11 @@ export class AgentService {
             store: this.store,
             resumeSessionFile: info.path,
             systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
+            extraTools,
+            canUseTool,
           });
         }
       }
-      // 新会话：用临时 ID，真实 sessionId 在 createPiSession 返回后更新
-      const newSessionId = randomUUID();
-      const { tools: extraTools, canUseTool } = resumeSessionId
-        ? { tools: [] as ToolDefinition[], canUseTool: undefined }
-        : await this.buildExtraTools(resolvedPath, newSessionId);
       return createPiSession({
         cwd: resolvedPath,
         agentDir: this.getAgentDir(),
@@ -424,6 +433,7 @@ export class AgentService {
     const chat: ActiveChat = {
       chatId,
       sessionId: resumeSessionId ?? session.sessionId,
+      tempSessionId: resumeSessionId ? undefined : newSessionId,
       session,
       abortController: new AbortController(),
       projectPath: resolvedPath,
@@ -490,7 +500,8 @@ export class AgentService {
 
   findActiveChat(sessionId: string): ActiveChat | undefined {
     for (const [, chat] of this.activeChats) {
-      if (chat.sessionId === sessionId) return chat;
+      // 双键匹配：task 工具绑定的 EM 临时 ID（tempSessionId）与对外 Pi 真实 ID（sessionId）
+      if (chat.sessionId === sessionId || chat.tempSessionId === sessionId) return chat;
     }
     return undefined;
   }
