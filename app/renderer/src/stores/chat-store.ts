@@ -141,6 +141,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
             },
           };
         }
+        // 思考条目：Pi SDK 每帧发累积全文，替换已有思考文本，不重复创建
+        if (entry.kind === "thinking") {
+          const thinkIdx = existing.findIndex((e: Record<string, any>) => e.kind === "thinking");
+          const updated = [...existing];
+          if (thinkIdx >= 0) {
+            updated[thinkIdx] = { ...updated[thinkIdx], text: entry.text || "" };
+          } else {
+            updated.push(entry);
+          }
+          return {
+            messagesBySession: {
+              ...s.messagesBySession,
+              [sessionId]: cur.map((m) => (m.id === msgId ? { ...m, entries: updated } : m)),
+            },
+          };
+        }
         // 非文本条目：直接追加
         return {
           messagesBySession: {
