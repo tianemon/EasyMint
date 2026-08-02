@@ -1,6 +1,7 @@
 import { memo, useRef, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { useStatusStore } from "../stores/status-store";
+import { Select } from "./Select";
 
 interface AttachItem { name: string; path: string; dataUrl?: string; kind: "image" | "doc"; }
 
@@ -160,18 +161,35 @@ export const ChatInput = memo(function ChatInput({
         )}
         <span className="inp-gap" />
         <span className="inp-lbl">权限</span>
-        <select value={permissionMode} onChange={(e) => onPermissionModeChange(e.target.value)} className="inp-sel">
-          <option value="auto">智能判断</option><option value="plan">只读</option><option value="acceptEdits">手动确认</option><option value="bypassPermissions">完全自主</option>
-        </select>
+        <Select
+          value={permissionMode}
+          onChange={onPermissionModeChange}
+          title="权限模式"
+          options={[
+            { value: "auto", label: "智能判断" },
+            { value: "plan", label: "只读" },
+            { value: "acceptEdits", label: "手动确认" },
+            { value: "bypassPermissions", label: "完全自主" },
+          ]}
+        />
         <span className="inp-lbl">模型</span>
-        <select value={chatModel} onChange={(e) => onModelChange(e.target.value)} className="inp-sel" title="切换模型">
-          {availableModels.length === 0 && <option value="">暂无可选模型</option>}
-          {availableModels.map((m) => (<option key={m} value={m}>{m}</option>))}
-        </select>
+        <Select
+          value={chatModel}
+          onChange={onModelChange}
+          title="切换模型"
+          options={availableModels.length > 0 ? availableModels.map((m) => ({ value: m, label: m })) : [{ value: "", label: "暂无可选模型" }]}
+        />
         <span className="inp-lbl">思考</span>
-        <select value={thinkingLevel} onChange={(e) => onThinkingLevelChange(e.target.value)} className="inp-sel" title="思考深度">
-          <option value="low">低</option><option value="medium">中</option><option value="high">高</option>
-        </select>
+        <Select
+          value={thinkingLevel}
+          onChange={onThinkingLevelChange}
+          title="思考深度"
+          options={[
+            { value: "low", label: "低" },
+            { value: "medium", label: "中" },
+            { value: "high", label: "高" },
+          ]}
+        />
         {/* 余额显示原型未展示，隐藏不删除（v3 原则 2） */}
         {/* <span className="inp-val">{balanceText}</span> */}
         <div className="ctx-ring" title="上下文使用率">
