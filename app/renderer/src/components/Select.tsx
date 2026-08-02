@@ -13,24 +13,37 @@ interface SelectProps {
   className?: string;
 }
 
+const MAX_PANEL_H = 280;
+
 /** 自绘下拉选择：触发器 + fixed 面板（与 ContextMenu 同风格），点击外部/Escape/失焦关闭 */
 export function Select({ value, onChange, options, title, className }: SelectProps): JSX.Element {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; minWidth: number } | null>(null);
 
   const close = () => { setOpen(false); setPos(null); };
 
-  // 打开时计算 fixed 坐标（面板脱离 overflow:hidden 容器）；右缘 clamp 防溢出
+  // 打开时计算 fixed 坐标：右缘 clamp；minWidth 用触发器宽度（fixed 元素 min-w-full 会解析为视口宽度）
   const toggle = () => {
     setOpen((o) => {
       if (!o && ref.current) {
         const r = ref.current.getBoundingClientRect();
-        setPos({ left: Math.min(r.left, window.innerWidth - 200), top: r.bottom + 4 });
+        setPos({ left: Math.min(r.left, window.innerWidth - 200), top: r.bottom + 4, minWidth: r.width });
       }
       return !o;
     });
   };
+
+  // 面板渲染后测量高度：底部空间不足时向上弹出（菜单在窗口底部工具栏，向下会被截断）
+  useEffect(() => {
+    if (!open || !pos || !panelRef.current) return;
+    const h = panelRef.current.getBoundingClientRect().height;
+    if (pos.top + h > window.innerHeight) {
+      const r = ref.current?.getBoundingClientRect();
+      if (r) setPos((p) => (p ? { ...p, top: Math.max(4, r.top - h - 4) } : p));
+    }
+  }, [open, pos]);
 
   // 点击外部 / Escape / 失焦关闭
   useEffect(() => {
@@ -65,23 +78,26 @@ export function Select({ value, onChange, options, title, className }: SelectPro
       </button>
       {open && pos && (
         <div
-          className="fixed z-50 w-max min-w-full py-0 overflow-hidden rounded-lg border border-border bg-surface-elevated shadow-xl"
-          style={{ left: pos.left, top: pos.top }}
+          ref={panelRef}
+          className="fixed z-50 w-max py-0 overflow-hidden rounded-lg border border-border bg-surface-elevated shadow-xl"
+          style={{ left: pos.left, top: pos.top, minWidth: pos.minWidth, maxHeight: MAX_PANEL_H }}
         >
-          {options.map((o) => (
-            <button
-              key={o.value}
-              type="button"
-              className={`w-full flex items-center px-3 py-1.5 text-xs text-left transition-colors ${
-                o.value === value
-                  ? "bg-accent-bg text-accent font-medium"
-                  : "text-text-primary hover:bg-surface-hover"
-              }`}
-              onClick={() => { onChange(o.value); close(); }}
-            >
-              {o.label}
-            </button>
-          ))}
+          <div className="max-h-full overflow-y-auto">
+            {options.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                className={`w-full flex items-center px-3 py-1.5 text-xs text-left transition-colors ${
+                  o.value === value
+                    ? "bg-accent-bg text-accent font-medium"
+                    : "text-text-primary hover:bg-surface-hover"
+                }`}
+                onClick={() => { onChange(o.value); close(); }}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
