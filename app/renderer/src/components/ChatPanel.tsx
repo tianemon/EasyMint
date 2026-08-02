@@ -405,6 +405,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   useEffect(() => {
     let _curAi = 0;
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
+      // [临时调试] 渲染进程收到的事件流：type/seq/blocks 结构
+      console.log("[stream-render]", event.type, "seq=" + event.seq, event.blocks?.map((b) => `${b.type}:${(b.text || "").length}`).join("|") || "-");
       if (event.source === "worker") return;
       // Filter by chatId when known
       if (currentChatRef.current) {
