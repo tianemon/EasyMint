@@ -17,6 +17,7 @@ import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 import { blocksToMarkdown, selectionToBlocks } from "../lib/selection-to-markdown";
 import { PinLayer, PinIcon } from "./PinLayer";
 import { usePinStore } from "../stores/pin-store";
+import { DelegationProgress, type DelegationUiState, type DelegationTaskUi } from "./DelegationProgress";
 import { ContextMenu, type ContextMenuData, type ContextMenuItem } from "./ContextMenu";
 
 /** 气泡复制按钮：复制整条文本 */
@@ -331,6 +332,41 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   // 新挂载时重置残留状态（防止窗口切换/重开后状态栏显示旧文本）
   useEffect(() => { useStatusStore.getState().reset(); }, []);
+
+  // ── 子 Agent 委派进度卡片 ─────────────────────────
+  const [delegation, setDelegation] = useState<DelegationUiState | null>(null);
+
+  useEffect(() => {
+    const unsub = window.electronAPI.agent.onDelegationProgress((data: DelegationProgressEvent) => {
+      // 过滤：只显示当前窗口 chat 的委派
+      if (data.chatId && currentChatRef.current && data.chatId !== currentChatRef.current) return;
+      setDelegation((prev) => {
+        const task: DelegationTaskUi = {
+          index: data.progress.index,
+          agent: data.progress.agent,
+          task: data.progress.task,
+          status: data.progress.status,
+          currentTool: data.progress.currentTool,
+          toolCount: data.progress.toolCount,
+          durationMs: data.progress.durationMs,
+        };
+        const tasks = prev && prev.delegationId === data.delegationId ? [...prev.tasks] : [];
+        const idx = tasks.findIndex((t) => t.index === task.index);
+        if (idx >= 0) tasks[idx] = task; else tasks.push(task);
+        const finished = tasks.length > 0 && tasks.every((t) =>
+          t.status === "completed" || t.status === "failed" || t.status === "aborted");
+        return { delegationId: data.delegationId, chatId: data.chatId, tasks, finished };
+      });
+    });
+    return unsub;
+  }, []);
+
+  // 委派全部完成 3 秒后自动收起卡片
+  useEffect(() => {
+    if (!delegation?.finished) return;
+    const t = setTimeout(() => setDelegation(null), 3000);
+    return () => clearTimeout(t);
+  }, [delegation?.finished]);
 
   useEffect(() => {
     if (!existingSid) return; let cancelled = false;
@@ -871,6 +907,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           </div>
         )}
       </div>
+
+      {/* 子 Agent 委派进度卡片（消息区下方、输入框上方） */}
+      {delegation && <DelegationProgress delegation={delegation} />}
 
       <StatusBar sessionId={sidRef.current} />
       <PermissionPrompt />

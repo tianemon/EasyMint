@@ -244,6 +244,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:exit", handler);
       return () => ipcRenderer.removeListener("agent:exit", handler);
     },
+    onDelegationProgress: (callback: (data: unknown) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
+      ipcRenderer.on("agent:delegation-progress", handler);
+      return () => ipcRenderer.removeListener("agent:delegation-progress", handler);
+    },
     onChatSession: (callback: (data: { chatId: string; sessionId: string }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { chatId: string; sessionId: string }) =>
         callback(data);

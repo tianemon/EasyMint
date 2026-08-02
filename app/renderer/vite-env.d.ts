@@ -49,6 +49,21 @@ interface Pin {
 }
 
 // Pi SDK agent event stream types
+/** 委派进度广播（agent:delegation-progress） */
+interface DelegationProgressEvent {
+  chatId?: string;
+  delegationId: string;
+  progress: {
+    index: number;
+    agent: string;
+    status: "pending" | "running" | "completed" | "failed" | "aborted";
+    task: string;
+    currentTool?: string;
+    toolCount: number;
+    durationMs: number;
+  };
+}
+
 interface StreamEvent {
   seq: number;           // 全局单调递增，前端去重用
   runId: string;
@@ -129,6 +144,7 @@ interface ElectronAPI {
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
+    onDelegationProgress: (callback: (data: DelegationProgressEvent) => void) => () => void;
     onChatSession: (callback: (data: { chatId: string; sessionId: string }) => void) => () => void;
     onContextSummarizing: (callback: (data: { chatId: string }) => void) => () => void;
     onContextSummary: (callback: (data: { chatId: string; summary: string }) => void) => () => void;

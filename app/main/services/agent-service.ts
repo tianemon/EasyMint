@@ -125,7 +125,7 @@ export class AgentService {
     return m ?? null;
   }
 
-  private async buildExtraTools(projectPath: string, sessionId: string): Promise<{
+  private async buildExtraTools(projectPath: string, sessionId: string, chatId?: string): Promise<{
     tools: ToolDefinition[];
     canUseTool: CanUseToolFn;
   }> {
@@ -144,6 +144,7 @@ export class AgentService {
         agentDir: this.getAgentDir(),
         store: this.store,
         parentSessionId: sessionId,
+        chatId,
       });
       const productTools = await createProductTools(projectPath);
       const mcpTools = await loadMcpTools();
@@ -399,6 +400,7 @@ export class AgentService {
     const { tools: extraTools, canUseTool } = await this.buildExtraTools(
       resolvedPath,
       resumeSessionId ?? newSessionId,
+      chatId,
     );
 
     const session: AgentSession = await (async () => {

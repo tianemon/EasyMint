@@ -11,7 +11,8 @@ import { Store } from "../store";
 import { getTemplate } from "../agent-templates";
 import { runSubagents } from "./executor";
 import { createDelegation } from "./registry";
-import type { TaskItem, BatchResult } from "./types";
+import { broadcast } from "../ipc-broadcast";
+import type { TaskItem, BatchResult, AgentProgress } from "./types";
 
 export interface TaskToolContext {
   cwd: string;
@@ -19,6 +20,8 @@ export interface TaskToolContext {
   store: Store;
   /** 发起委派的主会话 ID（buildExtraTools 创建工具时绑定；steer 打断时按它 abort） */
   parentSessionId: string;
+  /** 会话 chatId（进度广播按它过滤,前端只显示当前窗口的委派） */
+  chatId?: string;
 }
 
 /** BatchResult → 注入主会话的文本 */
@@ -140,11 +143,21 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
       // 用户插话（steer）会 abort 委派 → completion 立即 resolve(aborted) → 不阻塞
       const record = createDelegation(ctx.parentSessionId, tasks);
 
+      // 进度广播：executor 每 200ms 节流回调 → 前端委派进度卡片实时更新
+      const broadcastProgress = (progress: AgentProgress): void => {
+        broadcast("agent:delegation-progress", {
+          chatId: ctx.chatId,
+          delegationId: record.delegationId,
+          progress,
+        });
+      };
+
       runSubagents(record, {
         cwd: ctx.cwd,
         agentDir: ctx.agentDir,
         store: ctx.store,
         concurrency: (params.concurrency as number) || undefined,
+        onProgress: broadcastProgress,
       }).catch(() => {});
 
       const result = await record.completion;
