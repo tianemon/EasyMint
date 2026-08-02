@@ -10,7 +10,6 @@ import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
 
 import { useStatusStore } from "../stores/status-store";
 import { StatusBar } from "./StatusBar";
-import { ProcessBar } from "./ProcessBar";
 import { useDelegationStore } from "../stores/delegation-store";
 import { PermissionPrompt } from "./PermissionPrompt";
 import { ChatInput } from "./ChatInput";
@@ -383,7 +382,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     return unsub;
   }, []);
 
-  // 委派计数订阅(ProcessBar agent·N 显示 + 任务列表)
+  // 委派计数订阅(AgentBar 胶囊显示 + 任务列表)
   useEffect(() => {
     const unsubCount = window.electronAPI.agent.onDelegationCount((data) => {
       useDelegationStore.getState().setAgentTasks(data.tasks);
@@ -943,8 +942,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         )}
       </div>
 
-      {/* 后台进程条:agent·N / shell·N */}
-      <ProcessBar />
       {/* 状态栏:独立于输入区,渲染在输入容器上方 */}
       <StatusBar sessionId={sidRef.current} />
       <PermissionPrompt />

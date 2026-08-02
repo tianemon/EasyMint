@@ -1,8 +1,10 @@
 import { memo, useRef, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { useStatusStore } from "../stores/status-store";
+import { useDelegationStore } from "../stores/delegation-store";
 import { Select } from "./Select";
 import { AgentBar } from "./AgentBar";
+import { ShellBar } from "./ShellBar";
 
 interface AttachItem { name: string; path: string; dataUrl?: string; kind: "image" | "doc"; }
 
@@ -57,6 +59,7 @@ export const ChatInput = memo(function ChatInput({
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const availableModels = useSettingsStore((s) => s.availableModels);
+  const indicatorOrder = useDelegationStore((s) => s.order);
   const ctxPct = useStatusStore((s) => s.ctxPct);
   const summarizing = useStatusStore((s) => s.summarizing);
   const compacting = useStatusStore((s) => s.compacting);
@@ -161,8 +164,10 @@ export const ChatInput = memo(function ChatInput({
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="2"/><path d="M5 11V7M8 11V5M11 11V9"/></svg>
           </button>
         )}
-        {/* Agent 胶囊:运行中的子 Agent 列表,仅在有 agent 时显示 */}
-        <AgentBar />
+        {/* 后台指示器胶囊:agent/shell 按出现顺序排列,谁先出现谁靠左 */}
+        <div className="flex items-center gap-2 shrink-0">
+          {indicatorOrder.map((k) => (k === "agent" ? <AgentBar key="agent" /> : <ShellBar key="shell" />))}
+        </div>
         <span className="inp-gap" />
         <span className="inp-lbl">权限</span>
         <Select
