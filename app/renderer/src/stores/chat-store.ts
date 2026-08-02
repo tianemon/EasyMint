@@ -33,8 +33,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         };
       }
       // Merge: prepend store-only messages (e.g. init prompt pre-written by handleCreate)
+      // 排除 streaming 标记的流式临时消息——磁盘数据是最终真相，加载后流式消息被替代（否则重复显示）
       const existingIds = new Set(messages.map((m: { id: number }) => m.id));
-      const storeOnly = existing.filter((m: { id: number }) => !existingIds.has(m.id));
+      const storeOnly = existing.filter((m: { id: number; streaming?: boolean }) => !existingIds.has(m.id) && !m.streaming);
       const merged = [...storeOnly, ...messages].sort((a: { id: number }, b: { id: number }) => a.id - b.id);
       return {
         messagesBySession: { ...s.messagesBySession, [sessionId]: merged },
@@ -79,7 +80,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((s) => ({
       messagesBySession: {
         ...s.messagesBySession,
-        [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries, timestamp: Date.now() }],
+        [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries, timestamp: Date.now(), streaming: true }],
       },
     }));
     return msgId;
@@ -109,7 +110,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((s) => ({
       messagesBySession: {
         ...s.messagesBySession,
-        [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries, timestamp: Date.now() }],
+        [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries, timestamp: Date.now(), streaming: true }],
       },
     }));
     return msgId;
@@ -170,7 +171,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set((s) => ({
         messagesBySession: {
           ...s.messagesBySession,
-          [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries: [entry], timestamp: entry.timestamp || Date.now() }],
+          [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries: [entry], timestamp: entry.timestamp || Date.now(), streaming: true }],
         },
       }));
     }
@@ -182,7 +183,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((s) => ({
       messagesBySession: {
         ...s.messagesBySession,
-        [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries: [] as Record<string, any>[], timestamp: Date.now() }],
+        [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries: [] as Record<string, any>[], timestamp: Date.now(), streaming: true }],
       },
     }));
     return msgId;
