@@ -644,8 +644,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   box-shadow: var(--shadow-sm); overflow: hidden;
   margin: 0 var(--s16);
 }
-/* 上边距 0:卡片实际边界 = 肉眼看到的输入框边界(状态栏紧贴输入框) */
-.input-top { display: flex; flex-direction: column; gap: var(--s2); padding: 0 var(--s4); }
+.input-top { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2) var(--s4) 0; }
 .chat-input {
   flex: 1; border: none; background: transparent;
   font-size: var(--text-base); color: var(--color-text-primary);
