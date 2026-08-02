@@ -24,24 +24,35 @@ export function Select({ value, onChange, options, title, className }: SelectPro
 
   const close = () => { setOpen(false); setPos(null); };
 
-  // 打开时计算 fixed 坐标：右缘 clamp；minWidth 用触发器宽度（fixed 元素 min-w-full 会解析为视口宽度）
+  // 打开时计算 fixed 坐标：先按触发器左缘定位；minWidth 用触发器宽度（fixed 元素 min-w-full 会解析为视口宽度）
   const toggle = () => {
     setOpen((o) => {
       if (!o && ref.current) {
         const r = ref.current.getBoundingClientRect();
-        setPos({ left: Math.min(r.left, window.innerWidth - 200), top: r.bottom + 4, minWidth: r.width });
+        setPos({ left: r.left, top: r.bottom + 4, minWidth: r.width });
       }
       return !o;
     });
   };
 
-  // 面板渲染后测量高度：底部空间不足时向上弹出（菜单在窗口底部工具栏，向下会被截断）
+  // 面板渲染后测量实际尺寸修正位置：
+  // ① 右缘超出视口 → 左移（保持右缘贴边，且与按钮左缘脱开最少）
+  // ② 底部空间不足 → 向上弹出（菜单在窗口底部工具栏，向下会被截断）
   useEffect(() => {
     if (!open || !pos || !panelRef.current) return;
-    const h = panelRef.current.getBoundingClientRect().height;
-    if (pos.top + h > window.innerHeight) {
-      const r = ref.current?.getBoundingClientRect();
-      if (r) setPos((p) => (p ? { ...p, top: Math.max(4, r.top - h - 4) } : p));
+    const rect = panelRef.current.getBoundingClientRect();
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return;
+    let nextLeft = pos.left;
+    let nextTop = pos.top;
+    if (rect.right > window.innerWidth - 8) {
+      nextLeft = window.innerWidth - rect.width - 8;
+    }
+    if (rect.bottom > window.innerHeight) {
+      nextTop = Math.max(4, r.top - rect.height - 4);
+    }
+    if (nextLeft !== pos.left || nextTop !== pos.top) {
+      setPos({ ...pos, left: nextLeft, top: nextTop });
     }
   }, [open, pos]);
 
