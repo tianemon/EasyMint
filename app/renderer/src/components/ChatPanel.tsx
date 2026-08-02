@@ -129,7 +129,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   // 注意：ChatPanel 不读 s.text，否则每次 statusText 变化都会重渲染整个组件
   const summarizing = useStatusStore((s) => s.summarizing);
   const compacting = useStatusStore((s) => s.compacting);
-  const statusText = useStatusStore((s) => s.text);
   const [compactDone, setCompactDone] = useState(false);
   const prevCompacting = useRef(compacting);
   useEffect(() => {
@@ -354,12 +353,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           const lastAi = msgs.filter((m) => m.role === "ai").pop();
           triggerMsgId = lastAi?.id;
           scrollToBottom(true);
+          // 委派开始 → 状态栏常驻「调用 Agent」信号
+          useStatusStore.getState().pushSignal("agent", "调用 Agent");
         }
         const tasks = prev && prev.delegationId === data.delegationId ? [...prev.tasks] : [];
         const idx = tasks.findIndex((t) => t.index === task.index);
         if (idx >= 0) tasks[idx] = task; else tasks.push(task);
         const finished = tasks.length > 0 && tasks.every((t) =>
           t.status === "completed" || t.status === "failed" || t.status === "aborted");
+        // 委派结束 → 清除「调用 Agent」信号(回退次新活跃信号)
+        if (finished && (!prev || !prev.finished)) {
+          useStatusStore.getState().popSignal("agent");
+        }
         return {
           delegationId: data.delegationId,
           chatId: data.chatId,
@@ -457,6 +462,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // Pi 新 assistant turn 开始 → 创建空 AI 消息作为本 turn 锚点，
       // 后续 message/thinking 帧按 id 全量替换（每次 turn 一条消息，与磁盘落盘结构一致）
       if (event.type === "turn_start") {
+        // 流式开始 → 请求信号结束
+        useStatusStore.getState().popSignal("request");
         curAiMsgIdRef.current = useChatStore.getState().startAiMessage(sidRef.current);
         steeringRef.current = false;
       }
@@ -475,12 +482,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // tool progress
       if (event.type === "tool_progress" && event.toolName) {
         const label = displayToolLabel(event.toolName, event.toolArgs);
-        useStatusStore.getState().setText(label);
+        useStatusStore.getState().pushSignal("tool", label);
         lastStatusRef.current = label;
       }
-      // tool done — 工具执行结束，清除状态栏工具名（避免残留「调用中」）
+      // tool done — 工具执行结束,pop 工具信号(回退显示「调用 Agent」等次新活跃信号)
       if (event.type === "tool_done") {
-        useStatusStore.getState().setText("");
+        useStatusStore.getState().popSignal("tool");
         lastStatusRef.current = "";
       }
       // compaction UI — compacting 事件 = 压缩进行中（显示"正在整理会话..."）
@@ -493,16 +500,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         useStatusStore.getState().setCompacting(false);
         useStatusStore.getState().setSummarizing(false);
       }
-      // error
+      // error — 插播错误信号,8s 后自动消失(回退次新活跃信号)
       if (event.type === "error") {
-        useStatusStore.getState().setText(event.message || "出错了");
+        useStatusStore.getState().pushSignal("error", event.message || "出错了", 8000);
       }
       // context usage update
       if (event.type === "context_usage") {
         useStatusStore.getState().setCtxPct(event.percentage || 0);
       }
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; curAiMsgIdRef.current = 0; busyRef.current = false; lastStatusRef.current = ""; setBusy(false); useStatusStore.getState().setText(""); onActivity?.(); });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; curAiMsgIdRef.current = 0; busyRef.current = false; lastStatusRef.current = ""; setBusy(false); useStatusStore.getState().popSignal("request"); useStatusStore.getState().popSignal("tool"); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;
@@ -533,10 +540,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (type === "done") {
         // 轮转失败兜底：清除总结状态
         useStatusStore.getState().setSummarizing(false);
-        useStatusStore.getState().setText("");
+        useStatusStore.getState().popSignal("summary");
+        useStatusStore.getState().popSignal("compact");
         return;
       }
-      useStatusStore.getState().setText(type === "compact" ? "正在整理会话..." : "正在整理并开启新会话...");
+      useStatusStore.getState().pushSignal(type === "compact" ? "compact" : "summary",
+        type === "compact" ? "正在整理会话..." : "正在整理并开启新会话...");
       if (type === "compact") {
         useTabStore.getState().setSessionRunning(sidRef.current, true);
         useStatusStore.getState().setCompacting(true);
@@ -577,7 +586,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     if (!summarizing) return;
     const timer = setTimeout(() => {
       useStatusStore.getState().setSummarizing(false);
-      useStatusStore.getState().setText("摘要超时，将开新会话继续");
+      useStatusStore.getState().popSignal("summary");
+      useStatusStore.getState().pushSignal("error", "摘要超时，将开新会话继续", 8000);
       console.error("[ChatPanel] summarization timed out after 120s");
     }, 120_000);
     return () => clearTimeout(timer);
@@ -592,7 +602,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         if (!streaming) {
           console.log("[ChatPanel] session.isStreaming=false, 清除 busy");
           setBusy(false);
-          useStatusStore.getState().setText("");
+          useStatusStore.getState().popSignal("request");
+          useStatusStore.getState().popSignal("tool");
         }
       } catch { /* 网络错误忽略 */ }
     }, 30_000);
@@ -675,7 +686,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       return;
     }
 
-    busyRef.current = true; lastStatusRef.current = "正在请求..."; setBusy(true); useStatusStore.getState().setText("正在请求...");
+    busyRef.current = true; lastStatusRef.current = "正在请求..."; setBusy(true); useStatusStore.getState().pushSignal("request", "正在请求...");
 
     try {
       currentChatRef.current = null;
@@ -691,7 +702,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       const effectivePath = projectPath || getWorkspaceDir();
       const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "auto", isDesigner: tab?.isDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium" });
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
-    } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; useStatusStore.getState().setText("发送失败，请检查网络后重试"); }
+    } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; useStatusStore.getState().pushSignal("error", "发送失败，请检查网络后重试", 8000); }
   }, [busy, attaches, projectPath, permissionMode, thinkingLevel]);
 
   useEffect(() => { chatActions.register((t: string) => sendText(t)); return () => chatActions.unregister(); }, [sendText]);
@@ -892,33 +903,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
                 </button>
               </div>
             )}
-            {/* 等待 AI 回复的加载占位泡：无可见 AI 内容时显示 */}
-            {busy && messages.length > 0 && (() => {
-              const last = messages[messages.length - 1]!;
-              if (last.role === "user") return true;
-              if (last.role !== "ai" || !last.entries) return false;
-              const visible = last.entries.filter((e) => {
-                if (e.kind === "text") return true;
-                if (e.kind === "thinking") return showThinking;
-                return showToolUse;
-              });
-              return visible.length === 0;
-            })() && (
-              <div className="flex gap-4 items-start max-w-[75%]" style={{ padding: "0 var(--s8)" }}>
-                <div className="msg-avatar agent">M</div>
-                <div className="min-w-0">
-                  <div className="msg-from">Mint</div>
-                  <div className="bg-accent-subtle border border-border rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 animate-pulse">
-                    {/* 复用状态栏文本(useStatusStore.text 单一来源);「正在请求...」是通用等待,
-                        状态栏已显示,等待泡不再重复,仅显示有信息量的状态(调度 Agent/工具名等) */}
-                    <span className="text-sm text-text-secondary">
-                      {statusText && statusText !== "正在请求..." ? statusText : "..."}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Compact 完成提示 */}
             {compactDone && (
               <div className="flex justify-center py-3">
