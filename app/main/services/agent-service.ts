@@ -22,6 +22,7 @@ import { createTaskTool } from "./task/tool";
 import { registerSessionIdMapping, abortTask, getRunningSummary, resolveParentSessionId } from "./task/registry";
 import { formatShellResult } from "./background-shell/tool";
 import { backgroundShellRegistry, type BackgroundShell } from "./background-shell/registry";
+import { systemMessage, type SystemMessageKind, type SystemMessagePayload } from "../../shared/prompts";
 import { createProductTools } from "./builtin-mcp";
 import { loadMcpTools } from "./permission/mcp-adapter";
 import { permissionService } from "./permission/agent-permission-service";
@@ -116,7 +117,7 @@ export class AgentService {
   onWorkerComplete: ((projectPath: string) => void) | null = null;
   private streamBuffer: Map<string, PiChatEvent[]> = new Map();
   /** 委派完成通知积压：Mint 忙碌时记下,回合结束后以新回合发送 */
-  private pendingSystemMessages: Map<string, string> = new Map();
+  private pendingSystemMessages: Map<string, SystemMessagePayload> = new Map();
 
   // ── 内部辅助 ──────────────────────────────────────
 
@@ -187,6 +188,7 @@ export class AgentService {
     text: string,
     chat?: ActiveChat,
     images?: Array<{ type: "image"; data: string; mimeType: string }>,
+    systemPayload?: SystemMessagePayload,
   ): Promise<void> {
     let pendingResult: PiChatEvent | null = null;
 
@@ -228,16 +230,19 @@ export class AgentService {
 
     try {
       // 10 分钟超时保护，防止网络挂起无限阻塞
+      const send = systemPayload
+        ? session.sendCustomMessage(systemPayload, { triggerTurn: true })
+        : session.prompt(text, images ? { images } : undefined);
       await Promise.race([
-        session.prompt(text, images ? { images } : undefined),
+        send,
         new Promise((_, reject) => setTimeout(() => reject(new Error("请求超时（10分钟）")), 600_000)),
       ]);
 
-      // 委派完成通知积压：回合已结束,立即开新回合发送
+      // 系统消息积压：回合已结束,立即开新回合发送(custom 消息结构化)
       const pendingSys = this.pendingSystemMessages.get(sessionId);
       if (pendingSys) {
         this.pendingSystemMessages.delete(sessionId);
-        await session.prompt(pendingSys).catch(() => {});
+        await session.sendCustomMessage(pendingSys, { triggerTurn: true }).catch(() => {});
       }
 
       const pr = pendingResult as PiChatEvent | null;
@@ -430,7 +435,7 @@ export class AgentService {
     // 后台 shell 退出 → 结果注入主会话(临时 ID 解析为真实 ID,同 task 委派)
     const shellExitInject = (shell: BackgroundShell): void => {
       const sid = resolveParentSessionId(resumeSessionId ?? newSessionId);
-      this.injectSystemMessage(sid, formatShellResult(shell));
+      this.injectSystemMessage(sid, formatShellResult(shell), "shell");
     };
 
     const session: AgentSession = await (async () => {
@@ -728,15 +733,16 @@ export class AgentService {
     await chat?.session?.steer(text);
   }
 
-  /** 注入系统消息（子 Agent 委派完成通知）:Mint 空闲 → 自动开新回合;忙碌 → 记 pending 回合结束 flush */
-  injectSystemMessage(sessionId: string, text: string): void {
+  /** 注入系统消息（委派完成/后台 shell 通知）:Mint 空闲 → 自动开新回合;忙碌 → 记 pending 回合结束 flush */
+  injectSystemMessage(sessionId: string, text: string, kind: SystemMessageKind = "delegation"): void {
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session) return;
-    const content = `[系统消息]-[Agent执行结果]\n${text}`;
+    // content 保留 [系统消息] 前缀(模型侧识别);结构身份走 customType/kind(JSONL/事件/前端)
+    const payload = systemMessage(kind, `[系统消息]-[Agent执行结果]\n${text}`);
     if (chat.status === "idle") {
-      this.promptAndBridge(chat.session, sessionId, chat.chatId, content, chat);
+      this.promptAndBridge(chat.session, sessionId, chat.chatId, "", chat, undefined, payload);
     } else {
-      this.pendingSystemMessages.set(sessionId, content);
+      this.pendingSystemMessages.set(sessionId, payload);
     }
   }
 
