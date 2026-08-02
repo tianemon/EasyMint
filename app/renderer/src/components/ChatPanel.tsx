@@ -215,11 +215,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       programmaticScrollRef.current = true;
       requestAnimationFrame(() => {
         if (!el) return;
-        if (force) {
-          el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-        } else {
-          el.scrollTop = el.scrollHeight;
-        }
+        // 统一瞬时滚动：smooth 动画期间内容持续移动,鼠标相对位置变化
+        // 会误触发消息 hover(复制/钉住按钮闪现)
+        el.scrollTop = el.scrollHeight;
         setTimeout(() => { programmaticScrollRef.current = false; }, 600);
       });
     }
