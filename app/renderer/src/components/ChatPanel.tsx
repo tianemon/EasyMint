@@ -1067,7 +1067,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
               const dotColor = status === "中止" ? "text-interrupt" : status === "失败" ? "text-fail" : "text-done";
               return (
                 <div key={i} className="flex items-center gap-2 py-0.5">
-                  <svg className={`shrink-0 ${dotColor}`} width="9" height="9" viewBox="0 0 16 16">
+                  <svg className={`shrink-0 ${dotColor}`} width="12" height="12" viewBox="0 0 16 16">
                     <circle cx="8" cy="8" r="5.5" fill="currentColor" />
                   </svg>
                   {m ? (
