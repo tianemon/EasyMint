@@ -15,6 +15,9 @@ export interface ChatMessage {
   attaches?: AttachItem[];
   entries?: StreamEntry[];
   timestamp: number;
+  /** 系统消息类型(customType: system_message)——按 details.kind 分支渲染 */
+  customType?: string;
+  details?: Record<string, unknown>;
 }
 
 /** Pi 事件中的 blocks → StreamEntry 格式（兼容现有渲染） */
@@ -150,7 +153,13 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
         : "";
       if (text) {
         const { attaches, cleanText } = parseAttachMarkers(text);
-        mapped.push({ id: ++nextId, role: "user", text: cleanText, attaches: attaches.length > 0 ? attaches : undefined, timestamp: ts });
+        const msgObj = m.message as { customType?: string; details?: Record<string, unknown> };
+        mapped.push({
+          id: ++nextId, role: "user", text: cleanText,
+          attaches: attaches.length > 0 ? attaches : undefined, timestamp: ts,
+          // 系统消息结构身份(custom_message 条目):前端按 customType/kind 渲染
+          customType: msgObj.customType, details: msgObj.details,
+        });
       }
     } else if (m.type === "assistant") {
       const content = (m.message as { content?: unknown[] })?.content;

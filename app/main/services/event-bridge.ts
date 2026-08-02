@@ -20,6 +20,10 @@ export interface PiChatEvent {
   text?: string;
   /** user 消息落盘时间戳(毫秒,磁盘字段实证为 timestamp 而非 created_at) */
   timestamp?: number;
+  /** custom 消息类型(custom_event 事件:system_message 等) */
+  customType?: string;
+  /** custom 消息元数据(custom_event 事件:kind 细分等,不进 LLM) */
+  details?: Record<string, unknown>;
   message?: string;
   canRetry?: boolean;
   summary?: string;
@@ -105,17 +109,20 @@ export function bridgeSessionEvents(
           callbacks.onEvent({ type: "message_start", sessionId: "" });
         }
       } else {
-        // 仅转发系统注入的 user 消息([系统消息] 开头,如委派完成通知)——
-        // 用户自己发送的消息由前端 sendText append,工具结果(toolResult)不渲染,
-        // 转发它们会导致重复渲染 / 错误显示为 USER 气泡
-        const text = extractUserText(msg);
-        if (text.startsWith("[系统消息]")) {
+        // custom 消息(系统消息,role: "custom" + customType: system_message)
+        // → 转发 custom_event(结构身份,不依赖文本前缀);
+        // 普通 user 消息不转发——用户自己发送的消息由前端 sendText append,
+        // 工具结果(toolResult)不渲染,转发会导致重复渲染
+        const customType = (msg as { customType?: string }).customType;
+        if (customType === "system_message") {
           callbacks.onEvent({
-            type: "user_message",
+            type: "custom_event",
             sessionId: "",
-            text,
-            // Pi user 消息对象时间字段是 timestamp(毫秒)(磁盘 JSONL 实证)
+            text: extractUserText(msg),
+            // Pi 消息对象时间字段是 timestamp(毫秒)(磁盘 JSONL 实证)
             timestamp: (msg as { timestamp?: number }).timestamp,
+            customType,
+            details: (msg as { details?: Record<string, unknown> }).details,
           });
         }
       }

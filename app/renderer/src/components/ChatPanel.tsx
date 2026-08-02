@@ -529,13 +529,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (event.type === "error") {
         useStatusStore.getState().pushSignal("error", event.message || "出错了", 8000);
       }
-      // 系统注入的 user 消息（委派完成通知等）→ 渲染为消息(带 streaming 标记,
+      // custom 系统消息(委派完成/后台 shell/流程指令)→ 渲染为消息(带 streaming 标记,
       // loadSession 时被磁盘版本替代,不重复)
-      if (event.type === "user_message" && event.text) {
+      if (event.type === "custom_event" && event.text) {
         // 按落盘时间戳有序插入——通知发生在过去时刻,append 会跑到之后新消息后面,
         // 与磁盘顺序(重载后位置)不一致
         useChatStore.getState().insertUserMsgAt(sidRef.current, {
           role: "user", text: event.text, timestamp: event.timestamp ?? Date.now(), streaming: true,
+          customType: event.customType, details: event.details,
         });
         scrollToBottom();
       }
@@ -1057,9 +1058,11 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
   useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }, []);
 
   if (msg.role === "user") {
-    // 系统消息：子 Agent 委派完成 → 绿色结果气泡;通用系统消息 → 居中灰字胶囊
+    // 系统消息：委派完成/后台 shell(kind: delegation/shell) → 绿色结果气泡;
+    // 其他系统消息(kind: flow/project-created 等) → 居中灰字胶囊
     const text = typeof msg.text === "string" ? msg.text : "";
-    if (text.startsWith("[系统消息]-[Agent执行结果]")) {
+    const kind = msg.customType === "system_message" ? (msg.details as { kind?: string } | undefined)?.kind : undefined;
+    if (kind === "delegation" || kind === "shell") {
       const body = text.replace(/^\[系统消息\]-\[Agent执行结果\]\s*/, "");
       const rows = body.split("\n").filter((l) => l.startsWith("● "));
       return (
@@ -1093,7 +1096,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
         </div>
       );
     }
-    if (text.startsWith("[系统消息]")) {
+    if (kind) {
       return (
         <div className="flex justify-center py-1.5">
           <span className="text-[11px] text-text-secondary bg-surface-alt px-3 py-1 rounded-full border border-border/50 max-w-[80%] text-center whitespace-pre-wrap [overflow-wrap:anywhere]">

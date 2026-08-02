@@ -70,7 +70,7 @@ interface StreamEvent {
   sessionId?: string;
   chatId?: string;       // event-bridge 注入（agent:stream 广播时设置）
   type: "message_start" | "message" | "turn_start" | "turn_end" | "thinking"
-      | "tool_progress" | "tool_done" | "compacting" | "compacted" | "error" | "context_usage" | "status" | "user_message";
+      | "tool_progress" | "tool_done" | "compacting" | "compacted" | "error" | "context_usage" | "status" | "user_message" | "custom_event";
   blocks?: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; thinking?: string }>;
   partial?: boolean;
   toolName?: string;
@@ -80,6 +80,10 @@ interface StreamEvent {
   text?: string;
   /** user 消息落盘时间(委派完成通知等,前端按时间戳有序插入) */
   timestamp?: number;
+  /** custom 消息类型(custom_event:system_message) */
+  customType?: string;
+  /** custom 消息元数据(custom_event:kind 细分) */
+  details?: Record<string, unknown>;
   message?: string;
   canRetry?: boolean;
   summary?: string;
