@@ -20,6 +20,8 @@ export interface PostAgentOptions {
   sessionId: string | null;
   permissionMode?: string;
   model?: string;
+  /** 系统消息 payload(customType: system_message):有则主进程走 sendCustomMessage,不按用户消息发送 */
+  systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> };
 }
 
 export interface PostAgentResult {
@@ -73,6 +75,7 @@ export function postToAgent(opts: PostAgentOptions, text: string): Promise<PostA
         sessionId: opts.sessionId,
         permissionMode: opts.permissionMode,
         model: opts.model,
+        systemPayload: opts.systemPayload,
       })
       .then((result: { chatId: string }) => {
         chatId = result.chatId;

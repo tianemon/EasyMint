@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildTechRecommendPrompt, buildInitTriggerPrompt, buildDirectoryTranslationPrompt, buildInitInstruction, detectProfile, composeProfile } from "../../../shared/prompts";
+import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildTechRecommendPrompt, buildInitTriggerPrompt, buildDirectoryTranslationPrompt, buildInitInstruction, detectProfile, composeProfile, systemMessage, type SystemMessagePayload } from "../../../shared/prompts";
 import type { ProjectDimensions, DeployMode, AIIntegration } from "../../../shared/prompts";
 import { useSettingsStore } from "../stores/settings-store";
 import { postToAgent } from "../lib/agent-stream";
@@ -591,15 +591,15 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
     return pathRef.current || WORKSPACE_DIR;
   }, [pathRef]);
 
-  /** Send a prompt and wait for the full response. Uses sidRef for session reuse. */
-  const ask = useCallback((prompt: string, opts?: { forceNewSession?: boolean }): Promise<string> => {
+  /** Send a prompt (or system message payload) and wait for the full response. Uses sidRef for session reuse. */
+  const ask = useCallback((prompt: string, opts?: { forceNewSession?: boolean; systemPayload?: SystemMessagePayload }): Promise<string> => {
     const cwd = getCwd();
     const sessionId = opts?.forceNewSession ? null : sidRef.current;
     // 捕获本次会话的真实 sessionId（新会话首消息携带），更新 sidRef 供后续复用
     const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }: { sessionId: string }) => {
       if (sid) sidRef.current = sid;
     });
-    return postToAgent({ cwd, sessionId }, prompt)
+    return postToAgent({ cwd, sessionId, systemPayload: opts?.systemPayload }, prompt)
       .then((r) => r.replyText)
       .catch(() => "")
       .finally(() => { unsubSession(); });
@@ -613,13 +613,13 @@ function useMintChat(pathRef: React.RefObject<string | null>) {
    * → 延迟确保 flush 完成 → deleteSession（删文件） → 刷新会话列表。
    * killChat 必须在 delete 之前，否则 SDK 内部状态在 chat 销毁时重新写回元数据到磁盘。
    */
-  const askWorkspace = useCallback((prompt: string): Promise<string> => {
+  const askWorkspace = useCallback((prompt: string, systemPayload?: SystemMessagePayload): Promise<string> => {
     let capturedSessionId = "";
     let capturedChatId = "";
     const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => {
       if (sid) capturedSessionId = sid;
     });
-    return postToAgent({ cwd: WORKSPACE_DIR, sessionId: null, model: "deepseek-v4-flash" }, prompt)
+    return postToAgent({ cwd: WORKSPACE_DIR, sessionId: null, model: "deepseek-v4-flash", systemPayload }, prompt)
       .then(async (r) => { capturedChatId = r.chatId; return await r.replyText; })
       .catch(() => "")
       .finally(() => {
@@ -690,7 +690,8 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
         if (/[^\x00-\x7F]/.test(dirName)) {
           try {
             const translated = await askWorkspace(
-              buildDirectoryTranslationPrompt(dirName)
+              buildDirectoryTranslationPrompt(dirName),
+              systemMessage("flow", buildDirectoryTranslationPrompt(dirName))
             );
             if (translated && /^[a-z0-9-]+$/.test(translated.trim())) {
               dirName = translated.trim();
@@ -706,7 +707,8 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
         setCreateError(null);
 
         // Step 1c: Force a new session under the project path (not workspace)
-        await ask(buildProjectCreatedPrompt(buildContext(data, 1)), { forceNewSession: true });
+        const createdPrompt = buildProjectCreatedPrompt(buildContext(data, 1));
+        await ask(createdPrompt, { forceNewSession: true, systemPayload: systemMessage("flow", createdPrompt) });
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "创建项目失败";
         setCreateError(msg);
@@ -723,7 +725,8 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   const handleRecommendFeatures = async () => {
     setLoadingRec("features");
     const ctx = `项目名称：${data.name}，${buildContext(data, 1)}`;
-    const resp = await ask(buildFeatureRecommendPrompt(ctx));
+    const featurePrompt = buildFeatureRecommendPrompt(ctx);
+    const resp = await ask(featurePrompt, { systemPayload: systemMessage("flow", featurePrompt) });
     setLoadingRec(null);
     if (resp) {
       // Extract the first contiguous block of bullet-point lines only.
@@ -752,7 +755,8 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   const handleRecommend = async () => {
     setLoadingRec("tech");
     const info = `项目名称：${data.name}，${buildContext(data, 4)}`;
-    const resp = await ask(buildTechRecommendPrompt(info, data.techNotes));
+    const techPrompt = buildTechRecommendPrompt(info, data.techNotes);
+    const resp = await ask(techPrompt, { systemPayload: systemMessage("flow", techPrompt) });
     setLoadingRec(null);
     if (resp) {
       const text = resp.trim();
@@ -787,20 +791,15 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
         };
         const profile = composeProfile(dims);
         const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), buildInitInstruction(profile), data.targets);
-        ask(initPrompt).catch(() => {});
-        // 轮询 session 文件，等 "[系统消息]" 落盘后再跳转
+        ask(initPrompt, { systemPayload: systemMessage("project-created", initPrompt) }).catch(() => {});
+        // 轮询 session 文件，等 custom_message(project-created) 落盘后再跳转
         for (let i = 0; i < 100; i++) {
           await new Promise((r) => setTimeout(r, 100));
           const sid = sidRef.current;
           if (!sid) continue;
           try {
             const msgs: any[] = await window.electronAPI.conv.messages(sid, createdProject.path);
-            if (msgs.some((m: any) => {
-              if (m.type !== "user") return false;
-              const c = m.message?.content;
-              const text = typeof c === "string" ? c : Array.isArray(c) ? c.map((b: any) => b?.text ?? "").join("") : "";
-              return text.includes("[系统消息] 项目已创建完毕");
-            })) break;
+            if (msgs.some((m: any) => m.message?.customType === "system_message" && m.message?.details?.kind === "project-created")) break;
           } catch { /* SDK not ready yet */ }
         }
         const sid = sidRef.current;

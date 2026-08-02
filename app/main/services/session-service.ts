@@ -181,19 +181,43 @@ export async function getSessionMessages(
 
     const messages: SessionMessage[] = [];
     for (const entry of entries) {
-      if (entry.type !== "message") continue;
-      const msg = entry.message as unknown as Record<string, unknown>;
-      const role = msg.role as string;
-      if (role !== "user" && role !== "assistant") continue;
+      if (entry.type === "message") {
+        const msg = entry.message as unknown as Record<string, unknown>;
+        const role = msg.role as string;
+        if (role !== "user" && role !== "assistant") continue;
 
-      messages.push({
-        type: role,
-        uuid: entry.id,
-        session_id: sessionId,
-        message: msg,
-        parent_tool_use_id: null,
-        created_at: (msg.created_at as number) ?? new Date(entry.timestamp).getTime(),
-      });
+        messages.push({
+          type: role,
+          uuid: entry.id,
+          session_id: sessionId,
+          message: msg,
+          parent_tool_use_id: null,
+          created_at: (msg.created_at as number) ?? new Date(entry.timestamp).getTime(),
+        });
+      } else if (entry.type === "custom_message") {
+        // 系统消息(customType: system_message):以 user 形态返回,
+        // 前端按 customType/details 渲染;customType/details 透传供识别
+        const custom = entry as unknown as {
+          customType?: string;
+          content?: unknown;
+          details?: Record<string, unknown>;
+          timestamp?: string;
+        };
+        messages.push({
+          type: "user",
+          uuid: entry.id,
+          session_id: sessionId,
+          message: {
+            role: "user",
+            content: custom.content ?? [],
+            customType: custom.customType,
+            details: custom.details,
+            timestamp: new Date(custom.timestamp ?? entry.timestamp).getTime(),
+          },
+          parent_tool_use_id: null,
+          created_at: new Date(custom.timestamp ?? entry.timestamp).getTime(),
+        });
+      }
     }
     return messages;
   } catch {

@@ -395,6 +395,7 @@ export class AgentService {
     isDesigner?: boolean,
     images?: Array<{ type: "image"; data: string; mimeType: string }>,
     thinkingLevel?: string,
+    systemPayload?: SystemMessagePayload,
   ): Promise<{ chatId: string }> {
     const resolvedPath = path.resolve(resolveHome(projectPath));
 
@@ -402,7 +403,7 @@ export class AgentService {
     if (resumeSessionId) {
       const existing = this.findActiveChat(resumeSessionId);
       if (existing && existing.session) {
-        this.promptAndBridge(existing.session, resumeSessionId, existing.chatId, message, existing, images);
+        this.promptAndBridge(existing.session, resumeSessionId, existing.chatId, message, existing, images, systemPayload);
         return { chatId: existing.chatId };
       }
     }
@@ -536,7 +537,7 @@ export class AgentService {
     }
 
     // 发起第一轮对话
-    this.promptAndBridge(session, chat.sessionId, chatId, message, chat, images);
+    this.promptAndBridge(session, chat.sessionId, chatId, message, chat, images, systemPayload);
 
     return { chatId };
   }

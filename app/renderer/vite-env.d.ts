@@ -123,7 +123,7 @@ interface ElectronAPI {
   };
   agent: {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string }) => Promise<{ chatId: string }>;
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> } }) => Promise<{ chatId: string }>;
     steer: (sessionId: string, text: string) => Promise<void>;
     stopDelegation: (delegationId: string, taskIndex: number) => Promise<void>;
     stopShell: (shellId: string) => Promise<void>;
