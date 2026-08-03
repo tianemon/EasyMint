@@ -10,8 +10,6 @@ interface ChatState {
   loadSession: (sessionId: string, messages: StoredMessage[]) => void;
   evictSession: (sessionId: string) => void;
   appendUserMsg: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai" }) => void;
-  /** 按 timestamp 有序插入（委派完成通知等系统消息——实时路径与磁盘落盘顺序一致） */
-  insertUserMsgAt: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai" }) => void;
   replaceAiEntries: (sessionId: string, entries: Record<string, any>[]) => number;
   /** 按消息 id 全量替换 entries（Pi 帧是累计全文快照，替换而非拼接——见 Proma uuid 方案） */
   replaceAiEntriesById: (sessionId: string, msgId: number, entries: Record<string, any>[]) => number;
@@ -61,21 +59,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         [sessionId]: [...(s.messagesBySession[sessionId] || []), { ...msg, id }],
       },
     }));
-  },
-
-  insertUserMsgAt: (sessionId, msg) => {
-    const id = get().nextMsgId(sessionId);
-    const ts = msg.timestamp ?? Date.now();
-    return set((s) => {
-      const msgs = s.messagesBySession[sessionId] || [];
-      // 找到第一条时间戳更晚的消息,插入其前(委派完成通知发生在过去时刻,
-      // 尾部追加会跑到之后新消息的后面,与磁盘顺序不一致)
-      const idx = msgs.findIndex((m) => (m.timestamp ?? 0) > ts);
-      const next = idx >= 0
-        ? [...msgs.slice(0, idx), { ...msg, id }, ...msgs.slice(idx)]
-        : [...msgs, { ...msg, id }];
-      return { messagesBySession: { ...s.messagesBySession, [sessionId]: next } };
-    });
   },
 
   replaceAiEntries: (sessionId: string, entries: Record<string, any>[]) => {

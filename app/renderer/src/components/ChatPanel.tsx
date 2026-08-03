@@ -566,14 +566,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // custom 系统消息(委派完成/后台 shell/流程指令)→ 渲染为消息(带 streaming 标记,
       // loadSession 时被磁盘版本替代,不重复)
       if (event.type === "custom_event" && event.text) {
-        console.log(`[chat] custom_event ts=${event.timestamp} text=${event.text.slice(0, 24).replace(/\n/g, " ")}`);
-        // 按落盘时间戳有序插入——通知发生在过去时刻,append 会跑到之后新消息后面,
-        // 与磁盘顺序(重载后位置)不一致
-        useChatStore.getState().insertUserMsgAt(sidRef.current, {
-          role: "user", text: event.text, timestamp: event.timestamp ?? Date.now(), streaming: true,
+        // 按到达顺序追加:串行化后事件流顺序 = 注入顺序 = 落盘顺序;
+        // 之前按 timestamp 排序会因主进程/前端两个时钟的毫秒级差异,
+        // 导致通知插在 Mint 回合消息前/后不稳定(一个回合出一个)
+        useChatStore.getState().appendUserMsg(sidRef.current, {
+          role: "user", text: event.text, timestamp: Date.now(), streaming: true,
           customType: event.customType, details: event.details,
         });
-        console.log(`[chat] after insert: ${useChatStore.getState().messagesBySession[sidRef.current]?.length ?? 0} msgs`);
         scrollToBottom();
       }
       // context usage update
