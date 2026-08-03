@@ -132,6 +132,11 @@ export class AgentService {
   /** 串行发送器进行中标记:同一会话同时只允许一个 promptAndBridge,
    *  防并发 subscribe 导致同一事件被广播两次(重复渲染) */
   private systemMessageDraining = new Set<string>();
+  /** 合并窗口定时器:短时间内的多条通知(并发完成/中止)合并一次注入,避免一个回合一条 */
+  private drainTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  /** 通知合并窗口(ms):窗口内到达的通知合并成一条注入 */
+  private static readonly MERGE_WINDOW_MS = 400;
 
   // ── 内部辅助 ──────────────────────────────────────
 
@@ -757,7 +762,16 @@ export class AgentService {
     const list = this.pendingSystemMessages.get(sessionId);
     if (list) list.push(payload);
     else this.pendingSystemMessages.set(sessionId, [payload]);
-    this.drainSystemMessages(sessionId);
+    this.scheduleDrain(sessionId);
+  }
+
+  /** 合并窗口调度:固定窗口(不重置),窗口内到达的通知合并,窗口结束一次注入 */
+  private scheduleDrain(sessionId: string): void {
+    if (this.drainTimers.has(sessionId)) return;
+    this.drainTimers.set(sessionId, setTimeout(() => {
+      this.drainTimers.delete(sessionId);
+      this.drainSystemMessages(sessionId);
+    }, AgentService.MERGE_WINDOW_MS));
   }
 
   /** 串行发送器:逐个取队列开回合,一次只发一条(多条合并),回合结束取下一条 */
