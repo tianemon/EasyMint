@@ -61,8 +61,6 @@
   --color-sidebar: #ededeb;
   --color-sidebar-hover: #e5e5e1;
   --color-sidebar-active: #f6f6f3;
-  /* 新建会话菜单背景(亮色与侧边栏同色,暗色提亮一档) */
-  --color-menu-bg: var(--color-sidebar);
   --color-content: #fafaf8;
   --color-card: #fdfdfd;
   --color-card-agent: #f3f6f3;
@@ -242,8 +240,6 @@ html[data-platform="win32"] {
   --color-sidebar: #ededeb;
   --color-sidebar-hover: #e5e5e1;
   --color-sidebar-active: #f6f6f3;
-  /* 新建会话菜单背景(亮色与侧边栏同色,暗色提亮一档) */
-  --color-menu-bg: var(--color-sidebar);
   --color-content: #fafaf8;
   --color-card: #fdfdfd;
   --color-card-agent: #f3f6f3;
@@ -389,8 +385,6 @@ html[data-platform="win32"] {
   --color-sidebar: #0f0f0f;
   --color-sidebar-hover: #181818;
   --color-sidebar-active: #1c1c1c;
-  /* 新建会话菜单背景:暗色提亮一档(浮起层) */
-  --color-menu-bg: #1c1c1c;
   --color-content: #0c0c0c;
   --color-card: #141414;
   --color-card-agent: #161616;
@@ -465,7 +459,8 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 .sb-plus-btn:hover { border-color: var(--color-accent); color: var(--color-accent); background: var(--color-accent-soft); }
 .sb-dropdown {
   position: absolute; top: 100%; left: 0; margin-top: var(--s1);
-  min-width: 160px; background: var(--color-menu-bg);
+  min-width: 160px; background: var(--color-sidebar);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md); box-shadow: var(--shadow-menu);
   padding: var(--s1); z-index: 100; display: none; flex-direction: column;
 }
