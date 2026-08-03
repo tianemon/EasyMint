@@ -179,6 +179,9 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         signal.addEventListener("abort", () => record.abort(), { once: true });
       }
 
+      // 终态通知去重:节流定时器二次触发时 progress 已是终态,防重复注入
+      const notifiedTerminal = new Set<string>();
+
       // 进度广播：executor 每 200ms 节流回调 → 前端委派进度卡片实时更新
       const broadcastProgress = (progress: AgentProgress): void => {
         // 回写任务状态(AgentBar 列表按 running 过滤——停止后立即消失)
@@ -187,17 +190,25 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         if (progress.status !== "running") broadcastCount();
         // 单任务被用户停止(非整体中止)→ 立即注入中止通知,不等委派收尾
         if (progress.status === "aborted" && !record.abortController.signal.aborted) {
-          const title = record.tasks[progress.index]?.title || progress.task.slice(0, 40);
-          const dur = Math.max(0, Math.round(progress.durationMs / 1000));
-          ctx.onTaskAborted?.(record.parentSessionId, `● ${title} — 中止${dur > 0 ? ` · ${dur}s` : ""}`);
+          const key = `${progress.index}-aborted`;
+          if (!notifiedTerminal.has(key)) {
+            notifiedTerminal.add(key);
+            const title = record.tasks[progress.index]?.title || progress.task.slice(0, 40);
+            const dur = Math.max(0, Math.round(progress.durationMs / 1000));
+            ctx.onTaskAborted?.(record.parentSessionId, `● ${title} — 中止${dur > 0 ? ` · ${dur}s` : ""}`);
+          }
         }
         // 单任务提前完成(委派还有任务在跑)→ 立即注入完成通知,Mint 判断继续等待
         if (progress.status === "completed" && !record.abortController.signal.aborted) {
           const stillRunning = record.taskStatuses.some((s) => s === "running" || s === "pending");
           if (stillRunning) {
-            const title = record.tasks[progress.index]?.title || progress.task.slice(0, 40);
-            const dur = Math.max(0, Math.round(progress.durationMs / 1000));
-            ctx.onTaskCompleted?.(record.parentSessionId, `● ${title} — 完成${dur > 0 ? ` · ${dur}s` : ""}`);
+            const key = `${progress.index}-completed`;
+            if (!notifiedTerminal.has(key)) {
+              notifiedTerminal.add(key);
+              const title = record.tasks[progress.index]?.title || progress.task.slice(0, 40);
+              const dur = Math.max(0, Math.round(progress.durationMs / 1000));
+              ctx.onTaskCompleted?.(record.parentSessionId, `● ${title} — 完成${dur > 0 ? ` · ${dur}s` : ""}`);
+            }
           }
         }
         broadcast("agent:delegation-progress", {
