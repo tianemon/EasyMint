@@ -110,6 +110,16 @@ interface ChatPanelProps {
   onNewProject?: () => void;
 }
 
+/** 系统消息 kind → 头部标签(系统卡片统一形态的辨识信息) */
+const SYSTEM_KIND_LABELS: Record<string, string> = {
+  delegation: "子 Agent 委派",
+  shell: "后台命令",
+  "project-created": "项目初始化",
+  flow: "流程指令",
+  handoff: "会话交接",
+  summary: "上下文摘要",
+};
+
 export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreated, onActivity, onNewProject }: ChatPanelProps): JSX.Element {
   const tempSidRef = useRef<string | null>(null);
   if (!existingSid && !tempSidRef.current) tempSidRef.current = `__new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -1058,50 +1068,60 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
   useEffect(() => () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); }, []);
 
   if (msg.role === "user") {
-    // 系统消息：委派完成/后台 shell(kind: delegation/shell) → 绿色结果气泡;
-    // 其他系统消息(kind: flow/project-created 等) → 居中灰字胶囊
+    // 系统消息:统一左侧系统卡片(系统图标 + kind 标签 + 内容),
+    // 区别于 assistant(Mint 头像气泡)与 user(右侧气泡)
     const text = typeof msg.text === "string" ? msg.text : "";
     const kind = msg.customType === "system_message" ? (msg.details as { kind?: string } | undefined)?.kind : undefined;
-    if (kind === "delegation" || kind === "shell") {
-      const body = text.replace(/^\[系统消息\]-\[Agent执行结果\]\s*/, "");
-      const rows = body.split("\n").filter((l) => l.startsWith("● "));
+    if (kind) {
+      const body = text
+        .replace(/^\[系统消息\]-\[Agent执行结果\]\s*/, "")
+        .replace(/^\[系统消息\]\s*/, "");
+      // 委派/后台 shell 结果:解析 ● 摘要行(红绿灯三色圆点);其他 kind:纯文本
+      const isResult = kind === "delegation" || kind === "shell";
+      const rows = isResult ? body.split("\n").filter((l) => l.startsWith("● ")) : [];
       return (
         <div className="flex gap-4 items-start" style={{ padding: "0 var(--s8)" }}>
           <div style={{ width: 34, flexShrink: 0 }} />
-          {/* Mint 消息气泡同款样式,状态圆点对标 macOS 红绿灯三色:绿=完成,黄=人为打断,红=意外中断 */}
-          <div className="msg-bubble-agent w-fit max-w-[75%] my-1 rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 text-sm leading-[1.55]">
-            {rows.map((row, i) => {
-              const m = row.match(/^● (.+?) — (完成|失败|中止)(?: · (\d+)s)?$/);
-              // 中止=人为打断(黄),失败=意外中断(红),完成=绿
-              const status = m?.[2];
-              const dotColor = status === "中止" ? "text-interrupt" : status === "失败" ? "text-fail" : "text-done";
-              return (
-                <div key={i} className="flex items-center gap-2 py-0.5">
-                  <svg className={`shrink-0 ${dotColor}`} width="12" height="12" viewBox="0 0 16 16">
-                    <circle cx="8" cy="8" r="5.5" fill="currentColor" />
-                  </svg>
-                  {m ? (
-                    <>
-                      <span className="text-text-primary">{m[1]}</span>
-                      <span className={`${dotColor}`}>— {m[2]}</span>
-                      {m[3] && <span className="text-text-secondary/70 tabular-nums">· {m[3]}s</span>}
-                    </>
-                  ) : (
-                    <span className="text-text-secondary">{row.slice(2)}</span>
-                  )}
-                </div>
-              );
-            })}
+          <div className="w-fit max-w-[75%] my-1 rounded-[10px] rounded-bl-[4px] border border-border bg-surface-elevated overflow-hidden">
+            {/* 头部:系统图标 + kind 标签(区别于 assistant 的 Mint 头像气泡) */}
+            <div className="flex items-center gap-1.5 px-[14px] pt-1.5 text-[11px] text-text-secondary">
+              <svg className="shrink-0 text-info" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                <circle cx="8" cy="8" r="6.5" />
+                <path d="M8 7.5V11" />
+                <path d="M8 5h.01" />
+              </svg>
+              <span>{SYSTEM_KIND_LABELS[kind] ?? "系统消息"}</span>
+            </div>
+            {/* 内容区 */}
+            <div className="px-[14px] pb-1.5 text-sm leading-[1.55]">
+              {isResult ? (
+                rows.map((row, i) => {
+                  const m = row.match(/^● (.+?) — (完成|失败|中止)(?: · (\d+)s)?$/);
+                  // 中止=人为打断(黄),失败=意外中断(红),完成=绿
+                  const status = m?.[2];
+                  const dotColor = status === "中止" ? "text-interrupt" : status === "失败" ? "text-fail" : "text-done";
+                  return (
+                    <div key={i} className="flex items-center gap-2 py-0.5">
+                      <svg className={`shrink-0 ${dotColor}`} width="12" height="12" viewBox="0 0 16 16">
+                        <circle cx="8" cy="8" r="5.5" fill="currentColor" />
+                      </svg>
+                      {m ? (
+                        <>
+                          <span className="text-text-primary">{m[1]}</span>
+                          <span className={`${dotColor}`}>— {m[2]}</span>
+                          {m[3] && <span className="text-text-secondary/70 tabular-nums">· {m[3]}s</span>}
+                        </>
+                      ) : (
+                        <span className="text-text-secondary">{row.slice(2)}</span>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="whitespace-pre-wrap [overflow-wrap:anywhere] text-text-primary">{body}</div>
+              )}
+            </div>
           </div>
-        </div>
-      );
-    }
-    if (kind) {
-      return (
-        <div className="flex justify-center py-1.5">
-          <span className="text-[11px] text-text-secondary bg-surface-alt px-3 py-1 rounded-full border border-border/50 max-w-[80%] text-center whitespace-pre-wrap [overflow-wrap:anywhere]">
-            {text.replace(/^\[系统消息\]\s*/, "")}
-          </span>
         </div>
       );
     }
