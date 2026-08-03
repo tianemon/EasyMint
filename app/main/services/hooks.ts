@@ -17,23 +17,23 @@ function readTasks(projectPath: string): TaskRecord[] {
   catch { return []; }
 }
 
-/** 规则 ①③④: building / evaluating / failed 状态变更校验 */
+/** 状态变更校验(并行友好 + 终态自动维护) */
 export function validateTaskStatus(projectPath: string | undefined, taskId: string, newStatus: string): string | null {
   if (!projectPath) return null;
   const tasks = readTasks(projectPath);
   const target = tasks.find((t) => String(t.id) === String(taskId));
   if (!target) return `未找到 id=${taskId} 的任务`;
 
-  // ① building: 不能有其他任务在 building 或 evaluating
-  if (newStatus === "building") {
-    const stuck = tasks.find((t) => String(t.id) !== String(taskId) && (t.status === "building" || t.status === "evaluating"));
-    if (stuck) return `不能同时有两个进行中的任务。请先把任务 ${stuck.id}（${stuck.title || ""}）标记为 done 或 failed。`;
+  // done: 由委派执行结果自动回写,不手动标记
+  if (newStatus === "done") {
+    return `任务 ${taskId} 的 done 状态由委派执行结果自动回写,无需手动标记。`;
   }
-  // ③ evaluating: 目标必须 building
+  // building: 支持并行(多个任务可同时进行中,契合批量委派)
+  // evaluating: 目标必须 building
   if (newStatus === "evaluating" && target.status !== "building") {
     return `任务 ${taskId} 必须先标记为 building 才能进入 evaluating，当前状态: ${target.status}。`;
   }
-  // ④ failed: 目标必须 building 或 evaluating
+  // failed: 目标必须 building 或 evaluating(或由委派结果自动回写)
   if (newStatus === "failed" && target.status !== "building" && target.status !== "evaluating") {
     return `只能将 building/evaluating 状态的任务标记为 failed，当前状态: ${target.status}。`;
   }
