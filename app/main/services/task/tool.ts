@@ -87,6 +87,10 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
           type: "string" as const,
           description: "详细任务指令（单任务模式），相当于子 Agent 的 system prompt 追加内容",
         },
+        taskId: {
+          type: "string" as const,
+          description: "关联的 task.json 任务 id——委派完成/中止时自动回写该任务状态(done/failed),任务面板实时同步",
+        },
         outputSchema: {
           type: "object" as const,
           description: "子 Agent 结构化输出格式，如 { files_changed: [\"string\"], test_results: \"string\" }。子 Agent 必须调 yield 工具按此格式返回结果",
@@ -99,6 +103,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
               description: { type: "string" as const },
               prompt: { type: "string" as const },
               agent: { type: "string" as const },
+              taskId: { type: "string" as const, description: "关联的 task.json 任务 id(完成/中止自动回写状态)" },
               outputSchema: { type: "object" as const },
             },
             required: ["description"],
@@ -139,6 +144,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
             agent: taskAgent,
             task: prompt,
             title: (t.description as string) || undefined,
+            taskId: (t.taskId as string) || undefined,
             readOnly,
             outputSchema: (t.outputSchema as unknown) || undefined,
           });
@@ -152,6 +158,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
           agent: agentName,
           task: buildPrompt(desc, (params.prompt as string) || "", agentName),
           title: desc,
+          taskId: (params.taskId as string) || undefined,
           readOnly,
           outputSchema: (params.outputSchema as unknown) || undefined,
         });

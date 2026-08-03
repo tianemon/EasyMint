@@ -82,6 +82,8 @@ export interface TaskItem {
   task: string;
   /** 任务标题(description 摘要,UI 显示用;缺省取 task 前 40 字) */
   title?: string;
+  /** 关联的 task.json 任务 id:委派完成/中止时自动回写状态(done/failed) */
+  taskId?: string;
   readOnly?: boolean;
   outputSchema?: unknown;
   isolated?: boolean;
