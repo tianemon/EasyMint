@@ -26,6 +26,8 @@ export interface TaskToolContext {
   onComplete?: (parentSessionId: string, text: string) => void;
   /** 单任务被用户停止回调：立即注入中止通知（不等整个委派完成） */
   onTaskAborted?: (parentSessionId: string, text: string) => void;
+  /** 单任务提前完成回调：委派还有任务在跑时立即注入完成通知(对齐 cc 逐个通知) */
+  onTaskCompleted?: (parentSessionId: string, text: string) => void;
 }
 
 /** BatchResult → 注入主会话的文本 */
@@ -179,6 +181,15 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
           const title = record.tasks[progress.index]?.title || progress.task.slice(0, 40);
           const dur = Math.max(0, Math.round(progress.durationMs / 1000));
           ctx.onTaskAborted?.(record.parentSessionId, `● ${title} — 中止${dur > 0 ? ` · ${dur}s` : ""}`);
+        }
+        // 单任务提前完成(委派还有任务在跑)→ 立即注入完成通知,Mint 判断继续等待
+        if (progress.status === "completed" && !record.abortController.signal.aborted) {
+          const stillRunning = record.taskStatuses.some((s) => s === "running" || s === "pending");
+          if (stillRunning) {
+            const title = record.tasks[progress.index]?.title || progress.task.slice(0, 40);
+            const dur = Math.max(0, Math.round(progress.durationMs / 1000));
+            ctx.onTaskCompleted?.(record.parentSessionId, `● ${title} — 完成${dur > 0 ? ` · ${dur}s` : ""}`);
+          }
         }
         broadcast("agent:delegation-progress", {
           chatId: ctx.chatId,

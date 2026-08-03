@@ -366,10 +366,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         task: data.progress.task,
         status: data.progress.status,
       };
-      // 首次收到:捕获触发委派的消息 id(最后一条 AI 消息,含 task 工具调用),
-      // 卡片固定附着在该消息下方;同时滚动到底让卡片完整可见
+      // 新委派(首次或 delegationId 变化):捕获触发委派的消息 id
+      // (最后一条 AI 消息,含 task 工具调用),卡片固定附着在该消息下方;
+      // 同一委派的进度更新沿用原 triggerMsgId(不随新气泡移动)
+      const isNewDelegation = !prev || prev.delegationId !== data.delegationId;
       let triggerMsgId: number | undefined;
-      if (!prev) {
+      if (isNewDelegation) {
         const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
         const lastAi = msgs.filter((m) => m.role === "ai").pop();
         triggerMsgId = lastAi?.id;
@@ -383,7 +385,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       const next: DelegationUiState = {
         delegationId: data.delegationId,
         chatId: data.chatId,
-        triggerMsgId: prev?.triggerMsgId ?? triggerMsgId,
+        triggerMsgId: isNewDelegation ? triggerMsgId : prev?.triggerMsgId,
         tasks,
         finished,
       };

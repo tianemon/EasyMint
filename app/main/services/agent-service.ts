@@ -163,6 +163,8 @@ export class AgentService {
         onComplete: (sid, text) => this.injectSystemMessage(sid, text),
         // 单任务被用户停止 → 立即注入中止通知(kind: delegation,绿色气泡 ● 行)
         onTaskAborted: (sid, text) => this.injectSystemMessage(sid, text, "delegation"),
+        // 单任务提前完成 → 立即注入完成通知,Mint 输出判断继续等待(对齐 cc)
+        onTaskCompleted: (sid, text) => this.injectSystemMessage(sid, text, "delegation"),
       });
       const productTools = await createProductTools(projectPath);
       const mcpTools = await loadMcpTools();
