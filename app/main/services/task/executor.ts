@@ -168,6 +168,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
     return result;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    console.log(`[task] runSingleSubagent catch idx=${opts.index}: ${msg.slice(0, 120)}`);
     progress.status = "failed";
     progress.durationMs = Date.now() - startMs;
     opts.onProgress?.(progress);
@@ -284,6 +285,11 @@ async function executeAndCollect(
 
   try {
     await session.prompt(task);
+    console.log(`[task] subagent prompt resolved idx=${progress.index} aborted=${opts.signal?.aborted ?? false}`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.log(`[task] subagent prompt threw idx=${progress.index}: ${msg.slice(0, 120)}`);
+    throw e;
   } finally {
     unsub();
     opts.signal?.removeEventListener("abort", onAbort);
