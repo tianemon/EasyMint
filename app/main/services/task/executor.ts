@@ -214,7 +214,10 @@ async function executeAndCollect(
 
   // 中止传播：signal abort 时立即中止子会话（不能只依赖事件回调——
   // 子 Agent 等待模型输出时无事件到达，回调永远不会执行）
-  const onAbort = () => { session.abort().catch(() => {}); };
+  const onAbort = () => {
+    console.log(`[task] subagent abort triggered idx=${progress.index}`);
+    session.abort().catch(() => {});
+  };
   if (opts.signal) {
     if (opts.signal.aborted) onAbort();
     else opts.signal.addEventListener("abort", onAbort, { once: true });

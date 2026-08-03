@@ -95,7 +95,9 @@ export function abortDelegations(parentSessionId: string): number {
 /** 中止委派中的单个任务(ProcessBar 单任务停止) */
 export function abortTask(delegationId: string, taskIndex: number): void {
   const record = delegations.get(delegationId);
-  if (!record || record.status !== "running") return;
+  if (!record) { console.warn(`[task] abortTask: delegation not found ${delegationId} idx=${taskIndex}`); return; }
+  if (record.status !== "running") { console.warn(`[task] abortTask: delegation not running ${delegationId} idx=${taskIndex} status=${record.status}`); return; }
+  console.log(`[task] abortTask ${delegationId} idx=${taskIndex} controllers=${record.taskAbortControllers.length} tasks=${record.tasks.length}`);
   record.taskAbortControllers[taskIndex]?.abort();
 }
 

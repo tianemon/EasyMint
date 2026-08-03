@@ -669,7 +669,9 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 .input-card {
   /* 最高浮起层:亮色纯白(elevated),与 menu(card) 区分 */
   background: var(--color-elevated); border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm); overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  /* overflow visible:AgentBar/ShellBar 浮层向上展开不被裁剪(compact 蒙版自带圆角) */
+  overflow: visible;
   /* position: 遮罩锚点;flex-shrink 0: 防压缩;底部 16px: 窗口边距(原 chat-input-area 职责) */
   position: relative; flex-shrink: 0;
   margin: 0 var(--s16) var(--s4);

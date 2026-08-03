@@ -134,6 +134,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const busyRef = useRef(false);
   const ctxThresholdFiredRef = useRef(0); // 已按阈值触发过主动压缩（防止同轮重复触发）
   const programmaticScrollRef = useRef(false); // 程序性滚动中（handleScroll 跳过 autoScroll 更新）
+  const scrollTimeoutRef = useRef<number | null>(null); // 虚拟化测量兜底的延迟贴底定时器
 
   // 状态栏独立存储 → 密集更新时只重渲染 StatusBar，不牵连 ChatPanel/消息列表
   // 注意：ChatPanel 不读 s.text，否则每次 statusText 变化都会重渲染整个组件
@@ -228,7 +229,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         // 统一瞬时滚动：smooth 动画期间内容持续移动,鼠标相对位置变化
         // 会误触发消息 hover(复制/钉住按钮闪现)
         el.scrollTop = el.scrollHeight;
-        setTimeout(() => { programmaticScrollRef.current = false; }, 600);
+        // 虚拟化测量兜底：消息高度异步重测(ResizeObserver),内容更新后总高度
+        // 变化,立即贴底会落后——延迟二次贴底(防抖:连续帧只保留最后一次)
+        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = window.setTimeout(() => {
+          scrollTimeoutRef.current = null;
+          if (el && (force || autoScrollRef.current)) el.scrollTop = el.scrollHeight;
+          programmaticScrollRef.current = false;
+        }, 80);
       });
     }
   }, []);
