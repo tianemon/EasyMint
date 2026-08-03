@@ -456,7 +456,6 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 .sb-dropdown {
   position: absolute; top: 100%; left: 0; margin-top: var(--s1);
   min-width: 160px; background: var(--color-sidebar);
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-md); box-shadow: var(--shadow-xl);
   padding: var(--s1); z-index: 100; display: none; flex-direction: column;
 }
