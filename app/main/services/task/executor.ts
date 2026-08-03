@@ -14,7 +14,7 @@ import { getBaseTools, getReadOnlyTools } from "../tool-registry";
 import { getActiveModel } from "../pi-init";
 import { Store } from "../store";
 import { resolveHome } from "../../utils/paths";
-import { mapWithConcurrencyLimit } from "./parallel";
+import { mapWithConcurrencyLimit, type ParallelResult } from "./parallel";
 import { ResultCollector } from "./collector";
 import { finishDelegation } from "./registry";
 import { wrapToolWithPermission } from "../permission/wrap-tool";
@@ -368,12 +368,33 @@ export async function runSubagents(
     },
   }));
 
-  const parallelResult = await mapWithConcurrencyLimit(
-    runOpts,
-    concurrency,
-    async (o) => runSingleSubagent(o.subagentOpts),
-    record.abortController.signal,
-  );
+  let parallelResult: ParallelResult<SingleResult>;
+  try {
+    parallelResult = await mapWithConcurrencyLimit(
+      runOpts,
+      concurrency,
+      async (o) => runSingleSubagent(o.subagentOpts),
+      record.abortController.signal,
+    );
+  } catch (e) {
+    // 单个子 Agent 抛异常(网络/会话创建失败等)会传播到这里——
+    // 必须收尾委派,否则 completion 永不 resolve、统一通知丢失、卡片永久 running
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`[task] runSubagents threw: ${msg.slice(0, 200)}`);
+    finishDelegation(record, "failed", {
+      result: {
+        results: [{
+          index: 0, id: "", agent: "delegation", task: "委派执行异常",
+          exitCode: 1, output: "", stderr: msg, truncated: false,
+          durationMs: Date.now() - startMs, error: msg,
+          tokens: 0, requests: 0,
+        }],
+        totalDurationMs: Date.now() - startMs,
+        aborted: false,
+      },
+    });
+    return;
+  }
 
   const results = parallelResult.results.filter((r): r is SingleResult => r !== undefined);
 

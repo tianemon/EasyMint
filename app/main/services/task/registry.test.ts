@@ -3,8 +3,10 @@ import {
   createDelegation,
   getDelegation,
   getRunningDelegations,
+  getRunningSummary,
   abortDelegations,
   finishDelegation,
+  setTaskStatus,
   registerSessionIdMapping,
   resolveParentSessionId,
   resetRegistry,
@@ -77,5 +79,37 @@ describe("task registry 委派记录表", () => {
     finishDelegation(r, "failed", { error: "不该生效" });
     expect(r.status).toBe("completed");
     await expect(r.completion).resolves.toMatchObject({ totalDurationMs: 1 });
+  });
+});
+
+describe("task registry 任务级状态与列表过滤", () => {
+  beforeEach(() => { resetRegistry(); });
+
+  it("setTaskStatus 回写状态,getRunningSummary 只返回运行中的任务", () => {
+    const record = createDelegation("parent-1", [
+      { task: "T1", title: "任务一" },
+      { task: "T2", title: "任务二" },
+    ]);
+    // 任务 0 中止 → 列表只留任务 1
+    setTaskStatus(record.delegationId, 0, "aborted");
+    const summary = getRunningSummary();
+    expect(summary.tasks).toHaveLength(1);
+    expect(summary.tasks[0]!.index).toBe(1);
+    expect(summary.tasks[0]!.title).toBe("任务二");
+  });
+
+  it("全部任务终态后委派不再出现在运行摘要", () => {
+    const record = createDelegation("parent-1", [{ task: "T1" }]);
+    setTaskStatus(record.delegationId, 0, "completed");
+    finishDelegation(record, "completed", {
+      result: { results: [], totalDurationMs: 1, aborted: false },
+    });
+    expect(getRunningSummary().count).toBe(0);
+  });
+
+  it("setTaskStatus 越界 index 安全忽略", () => {
+    const record = createDelegation("parent-1", [{ task: "T1" }]);
+    setTaskStatus(record.delegationId, 5, "aborted");
+    expect(getRunningSummary().tasks).toHaveLength(1);
   });
 });

@@ -127,7 +127,8 @@ export class AgentService {
   onWorkerComplete: ((projectPath: string) => void) | null = null;
   private streamBuffer: Map<string, PiChatEvent[]> = new Map();
   /** 委派完成通知积压：Mint 忙碌时记下,回合结束后以新回合发送 */
-  private pendingSystemMessages: Map<string, SystemMessagePayload> = new Map();
+  /** 系统消息积压队列(并发完成/中止通知密集到达时防覆盖丢消息) */
+  private pendingSystemMessages: Map<string, SystemMessagePayload[]> = new Map();
 
   // ── 内部辅助 ──────────────────────────────────────
 
@@ -253,10 +254,19 @@ export class AgentService {
       ]);
 
       // 系统消息积压：回合已结束,立即开新回合发送(custom 消息结构化)
-      const pendingSys = this.pendingSystemMessages.get(sessionId);
-      if (pendingSys) {
+      const pendingList = this.pendingSystemMessages.get(sessionId);
+      if (pendingList && pendingList.length > 0) {
         this.pendingSystemMessages.delete(sessionId);
-        await session.sendCustomMessage(pendingSys, { triggerTurn: true }).catch(() => {});
+        if (pendingList.length === 1) {
+          await session.sendCustomMessage(pendingList[0]!, { triggerTurn: true }).catch(() => {});
+        } else {
+          // 多条积压(并发完成/中止密集到达)→ 合并成一条,一个回合一次汇报
+          const merged = systemMessage(
+            pendingList[0]!.details.kind,
+            pendingList.map((p) => p.content).join("\n"),
+          );
+          await session.sendCustomMessage(merged, { triggerTurn: true }).catch(() => {});
+        }
       }
 
       const pr = pendingResult as PiChatEvent | null;
@@ -758,7 +768,10 @@ export class AgentService {
     if (chat.status === "idle") {
       this.promptAndBridge(chat.session, sessionId, chat.chatId, "", chat, undefined, payload);
     } else {
-      this.pendingSystemMessages.set(sessionId, payload);
+      // 积压队列:多条通知密集到达时不覆盖(后到的追加,回合结束合并 flush)
+      const list = this.pendingSystemMessages.get(sessionId);
+      if (list) list.push(payload);
+      else this.pendingSystemMessages.set(sessionId, [payload]);
     }
   }
 
