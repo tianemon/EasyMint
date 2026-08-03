@@ -1106,53 +1106,61 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
       const body = text
         .replace(/^\[系统消息\]-\[Agent执行结果\]\s*/, "")
         .replace(/^\[系统消息\]\s*/, "");
-      // 委派/后台 shell 结果:解析 ● 摘要行(红绿灯三色圆点);其他 kind:纯文本
+      // 委派/后台 shell 结果:解析 ● 摘要行(红绿灯三色 ⏺);其他 kind:纯文本
       const isResult = kind === "delegation" || kind === "shell";
       const rows = isResult ? body.split("\n").filter((l) => l.startsWith("● ")) : [];
       return (
-        <div className="flex gap-4 items-start" style={{ padding: "0 var(--s8)" }}>
+        <div
+          className="flex gap-4 items-start"
+          style={{ padding: "0 var(--s8)" }}
+          onMouseEnter={showActions}
+          onMouseLeave={scheduleHideActions}
+          onContextMenu={(e) => onContextMenu(msg, e)}
+        >
           <div style={{ width: 34, flexShrink: 0 }} />
-          <div className="w-fit max-w-[75%] my-1 rounded-[10px] rounded-bl-[4px] border border-border bg-surface-elevated overflow-hidden">
-            {/* 头部:系统图标 + kind 标签(区别于 assistant 的 Mint 头像气泡) */}
-            <div className="flex items-center gap-1.5 px-[14px] pt-1.5 text-[11px] text-text-secondary">
-              <svg className="shrink-0 text-info" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-                <circle cx="8" cy="8" r="6.5" />
-                <path d="M8 7.5V11" />
-                <path d="M8 5h.01" />
-              </svg>
-              <span>{SYSTEM_KIND_LABELS[kind] ?? "系统消息"}</span>
+          <div className="relative w-fit max-w-[75%] min-w-0 my-1">
+            <div className="rounded-[10px] rounded-bl-[4px] border border-border bg-surface-elevated overflow-hidden">
+              {/* 头部:系统图标 + kind 标签(区别于 assistant 的 Mint 头像气泡) */}
+              <div className="flex items-center gap-1.5 px-[14px] pt-1.5 text-[11px] text-text-secondary">
+                <svg className="shrink-0 text-info" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                  <circle cx="8" cy="8" r="6.5" />
+                  <path d="M8 7.5V11" />
+                  <path d="M8 5h.01" />
+                </svg>
+                <span>{SYSTEM_KIND_LABELS[kind] ?? "系统消息"}</span>
+              </div>
+              {/* 内容区 */}
+              <div className="px-[14px] pb-1.5 text-sm leading-[1.55]">
+                {isResult ? (
+                  rows.map((row, i) => {
+                    const m = row.match(/^● (.+?) — (完成|失败|中止)(?: · (\d+)s)?$/);
+                    // 排查:● 行正则未匹配时打印原始文本(定位换行/字符差异)
+                    if (!m) console.log(`[chat] system row unmatch: ${JSON.stringify(row)}`);
+                    // 中止=人为打断(黄),失败=意外中断(红),完成=绿——原生 ⏺ 字符
+                    const status = m?.[2];
+                    const dotColor = status === "中止" ? "text-interrupt" : status === "失败" ? "text-fail" : "text-done";
+                    return (
+                      <div key={i} className="flex items-center gap-2 py-0.5">
+                        <span className={`${dotColor} shrink-0 text-[10px] leading-none`}>⏺</span>
+                        {m ? (
+                          <>
+                            <span className="text-text-primary">{m[1]}</span>
+                            <span className={`${dotColor}`}>— {m[2]}</span>
+                            {m[3] && <span className="text-text-secondary/70 tabular-nums">· {m[3]}s</span>}
+                          </>
+                        ) : (
+                          <span className="text-text-secondary">{row.slice(2)}</span>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="whitespace-pre-wrap [overflow-wrap:anywhere] text-text-primary">{body}</div>
+                )}
+              </div>
             </div>
-            {/* 内容区 */}
-            <div className="px-[14px] pb-1.5 text-sm leading-[1.55]">
-              {isResult ? (
-                rows.map((row, i) => {
-                  const m = row.match(/^● (.+?) — (完成|失败|中止)(?: · (\d+)s)?$/);
-                  // 排查:● 行正则未匹配时打印原始文本(定位换行/字符差异)
-                  if (!m) console.log(`[chat] system row unmatch: ${JSON.stringify(row)}`);
-                  // 中止=人为打断(黄),失败=意外中断(红),完成=绿
-                  const status = m?.[2];
-                  const dotColor = status === "中止" ? "text-interrupt" : status === "失败" ? "text-fail" : "text-done";
-                  return (
-                    <div key={i} className="flex items-center gap-2 py-0.5">
-                      <svg className={`shrink-0 ${dotColor}`} width="12" height="12" viewBox="0 0 16 16">
-                        <circle cx="8" cy="8" r="5.5" fill="currentColor" />
-                      </svg>
-                      {m ? (
-                        <>
-                          <span className="text-text-primary">{m[1]}</span>
-                          <span className={`${dotColor}`}>— {m[2]}</span>
-                          {m[3] && <span className="text-text-secondary/70 tabular-nums">· {m[3]}s</span>}
-                        </>
-                      ) : (
-                        <span className="text-text-secondary">{row.slice(2)}</span>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="whitespace-pre-wrap [overflow-wrap:anywhere] text-text-primary">{body}</div>
-              )}
-            </div>
+            {/* 与其他气泡一致:复制完整文本 + 钉住(悬停显示) */}
+            <BubbleActions text={body} onPin={onPin} sid={sid} visible={actionsVisible} />
           </div>
         </div>
       );
