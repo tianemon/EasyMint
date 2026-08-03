@@ -43,6 +43,16 @@ import { DESIGNER_AGENT_PROMPT } from "../../shared/prompts";
 /** 权限回调签名（与 permissionService.createCanUseTool 返回一致） */
 export type CanUseToolFn = (toolName: string, input: Record<string, unknown>, options: CanUseToolOptions) => Promise<PermissionResult>;
 
+/** 系统消息 kind → 首条会话标题(SDK 列表优先读 session_info.name,custom 首条时兜底) */
+const SYSTEM_KIND_TITLES: Record<string, string> = {
+  "project-created": "项目初始化",
+  flow: "流程指令",
+  handoff: "会话交接",
+  summary: "上下文摘要",
+  delegation: "子 Agent 委派",
+  shell: "后台命令",
+};
+
 interface ActiveRun {
   runId: string;
   session: AgentSession | null;
@@ -480,8 +490,11 @@ export class AgentService {
       projectPath: resolvedPath,
       agentType: undefined,
       status: "idle",
-      // 系统消息(custom payload)作为首条时不生成标题(标题逻辑判断 firstUserMessage 非空)
-      firstUserMessage: systemPayload ? "" : message,
+      // 系统消息(custom payload)作为首条时,用 kind 中文标签作标题——
+      // SDK 的 buildSessionInfo 过滤 custom 角色消息,不兜底会显示 "(no messages)"
+      firstUserMessage: systemPayload
+        ? (SYSTEM_KIND_TITLES[systemPayload.details.kind as string] ?? "系统消息")
+        : message,
       assistantUuid: randomUUID(),
       eventBuffer: [],
       compactCount: 0,
