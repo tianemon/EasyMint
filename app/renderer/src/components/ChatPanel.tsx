@@ -1107,8 +1107,9 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
         .replace(/^\[系统消息\]-\[Agent执行结果\]\s*/, "")
         .replace(/^\[系统消息\]\s*/, "");
       // 委派/后台 shell 结果:解析 ⏺ 摘要行(红绿灯三色);其他 kind:纯文本
+      // 兼容旧版 ● 文本(主进程未重启/历史落盘)
       const isResult = kind === "delegation" || kind === "shell";
-      const rows = isResult ? body.split("\n").filter((l) => l.startsWith("⏺ ")) : [];
+      const rows = isResult ? body.split("\n").filter((l) => l.startsWith("⏺ ") || l.startsWith("● ")) : [];
       return (
         <div
           className="flex gap-4 items-start"
@@ -1133,7 +1134,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
               <div className="px-[14px] pb-1.5 text-sm leading-[1.55]">
                 {isResult ? (
                   rows.map((row, i) => {
-                    const m = row.match(/^⏺ (.+?) — (完成|失败|中止)(?: · (\d+)s)?$/);
+                    const m = row.match(/^[⏺●] (.+?) — (完成|失败|中止)(?: · (\d+)s)?$/);
                     // 排查:⏺ 行正则未匹配时打印原始文本(定位换行/字符差异)
                     if (!m) console.log(`[chat] system row unmatch: ${JSON.stringify(row)}`);
                     // 中止=人为打断(黄),失败=意外中断(红),完成=绿——原生 ⏺ 字符
