@@ -15,7 +15,6 @@ import { getActiveModel } from "../pi-init";
 import { Store } from "../store";
 import { resolveHome } from "../../utils/paths";
 import { mapWithConcurrencyLimit, type ParallelResult } from "./parallel";
-import { writeTaskStatus } from "./task-file";
 import { ResultCollector } from "./collector";
 import { finishDelegation } from "./registry";
 import { wrapToolWithPermission } from "../permission/wrap-tool";
@@ -403,13 +402,8 @@ export async function runSubagents(
 
   const results = parallelResult.results.filter((r): r is SingleResult => r !== undefined);
 
-  // 自动回写 task.json:关联了 taskId 的任务,按执行结果更新 done/failed
-  // (完成且无错误/重试失败/中止 → done;其余 → failed)
-  for (const r of results) {
-    if (!r.taskId) continue;
-    const ok = r.exitCode === 0 && !r.error && !r.retryFailure && !r.aborted;
-    writeTaskStatus(runtime.cwd, r.taskId, ok ? "done" : "failed");
-  }
+  // (task.json 回写已下沉到单任务终态——见 tool.ts broadcastProgress,
+  // 逐任务即时 done/failed,不再等委派整体收尾)
 
   if (record.abortController.signal.aborted) {
     finishDelegation(record, "aborted", {

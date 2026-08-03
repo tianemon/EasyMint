@@ -11,6 +11,7 @@ import { Store } from "../store";
 import { getTemplate } from "../agent-templates";
 import { runSubagents } from "./executor";
 import { createDelegation, resolveParentSessionId, getRunningSummary, setTaskStatus } from "./registry";
+import { writeTaskStatus } from "./task-file";
 import { broadcast } from "../ipc-broadcast";
 import type { TaskItem, BatchResult, AgentProgress } from "./types";
 
@@ -186,6 +187,12 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
       const broadcastProgress = (progress: AgentProgress): void => {
         // 回写任务状态(AgentBar 列表按 running 过滤——停止后立即消失)
         setTaskStatus(record.delegationId, progress.index, progress.status);
+        // 逐任务即时回写 task.json:任务一进入终态立即 done/failed,
+        // 不等委派整体收尾(TaskPanel 单行即时变绿)
+        if (progress.taskId && progress.status !== "running" && progress.status !== "pending") {
+          const ok = progress.status === "completed" && !progress.retryFailure;
+          writeTaskStatus(ctx.cwd, progress.taskId, ok ? "done" : "failed");
+        }
         // 任务离开 running(完成/中止/失败)→ 同步刷新 AgentBar 运行中列表
         if (progress.status !== "running") broadcastCount();
         // 单任务被用户停止(非整体中止)→ 立即注入中止通知,不等委派收尾
