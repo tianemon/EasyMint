@@ -9,7 +9,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { BatchResult, DelegationRecord, DelegationStatus, TaskItem } from "./types";
+import type { BatchResult, DelegationRecord, DelegationStatus, TaskItem, TaskStatus } from "./types";
 
 /** 主会话的 EM 临时 ID（新建会话时 task 工具绑定的 ID;真实 ID 回填后保留作双匹配） */
 export const TEMP_ID_FIELD = "tempParentSessionId";
@@ -44,6 +44,7 @@ export function createDelegation(
     resolveCompletion,
     abortController,
     taskAbortControllers,
+    taskStatuses: tasks.map(() => "pending" as const),
     abort: () => {
       if (record.status !== "running") return;
       abortController.abort();
@@ -108,6 +109,15 @@ export interface RunningTaskInfo {
   title: string;
 }
 
+/** 回写任务状态(executor 进度回调;AgentBar 按 running 过滤) */
+export function setTaskStatus(delegationId: string, index: number, status: TaskStatus): void {
+  const record = delegations.get(delegationId);
+  if (!record) return;
+  if (index >= 0 && index < record.taskStatuses.length) {
+    record.taskStatuses[index] = status;
+  }
+}
+
 export function getRunningSummary(): { count: number; tasks: RunningTaskInfo[] } {
   const tasks: RunningTaskInfo[] = [];
   let count = 0;
@@ -115,6 +125,8 @@ export function getRunningSummary(): { count: number; tasks: RunningTaskInfo[] }
     if (r.status !== "running") continue;
     count++;
     for (let i = 0; i < r.tasks.length; i++) {
+      // 仅显示仍运行的任务——中止/完成的任务已不在列表(停止后立即消失)
+      if (r.taskStatuses[i] !== "running" && r.taskStatuses[i] !== "pending") continue;
       const t = r.tasks[i]!;
       tasks.push({
         delegationId: r.delegationId,

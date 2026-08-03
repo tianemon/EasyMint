@@ -10,7 +10,7 @@ import { getDefineToolFn } from "../pi-sdk";
 import { Store } from "../store";
 import { getTemplate } from "../agent-templates";
 import { runSubagents } from "./executor";
-import { createDelegation, resolveParentSessionId, getRunningSummary } from "./registry";
+import { createDelegation, resolveParentSessionId, getRunningSummary, setTaskStatus } from "./registry";
 import { broadcast } from "../ipc-broadcast";
 import type { TaskItem, BatchResult, AgentProgress } from "./types";
 
@@ -168,6 +168,10 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
 
       // 进度广播：executor 每 200ms 节流回调 → 前端委派进度卡片实时更新
       const broadcastProgress = (progress: AgentProgress): void => {
+        // 回写任务状态(AgentBar 列表按 running 过滤——停止后立即消失)
+        setTaskStatus(record.delegationId, progress.index, progress.status);
+        // 任务离开 running(完成/中止/失败)→ 同步刷新 AgentBar 运行中列表
+        if (progress.status !== "running") broadcastCount();
         broadcast("agent:delegation-progress", {
           chatId: ctx.chatId,
           delegationId: record.delegationId,

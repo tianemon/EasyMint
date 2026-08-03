@@ -130,7 +130,12 @@ export interface DelegationRecord {
   abortController: AbortController;
   /** 每个任务的独立中止控制器(ProcessBar 单任务停止用) */
   taskAbortControllers: AbortController[];
+  /** 每任务状态(executor 进度回写;AgentBar 列表按此过滤运行中的任务) */
+  taskStatuses: TaskStatus[];
 }
+
+/** 单个子 Agent 任务的实时状态 */
+export type TaskStatus = "pending" | "running" | "completed" | "failed" | "aborted";
 
 // ── 常量 ────────────────────────────────────────────
 
