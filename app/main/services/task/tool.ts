@@ -123,18 +123,20 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
       _ctx: any,
     ) {
       const readOnly = params.readOnly === true;
+      // agent 模板名;兼容旧提示词的 subagent_type 别名(双保险)
+      const agentName = (params.agent as string) || (params.subagent_type as string) || undefined;
       const tasks: TaskItem[] = [];
 
       if (Array.isArray(params.tasks) && params.tasks.length > 0) {
         for (const t of params.tasks as Array<Record<string, unknown>>) {
-          const agentName = (t.agent as string) || params.agent as string || undefined;
+          const taskAgent = (t.agent as string) || agentName;
           const prompt = buildPrompt(
             (t.description as string) || "",
             (t.prompt as string) || "",
-            agentName,
+            taskAgent,
           );
           tasks.push({
-            agent: agentName,
+            agent: taskAgent,
             task: prompt,
             title: (t.description as string) || undefined,
             readOnly,
@@ -147,8 +149,8 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
           return { content: [{ type: "text" as const, text: "请提供 description 或 prompt 描述子 Agent 的任务" }] };
         }
         tasks.push({
-          agent: params.agent as string | undefined,
-          task: buildPrompt(desc, (params.prompt as string) || "", params.agent as string | undefined),
+          agent: agentName,
+          task: buildPrompt(desc, (params.prompt as string) || "", agentName),
           title: desc,
           readOnly,
           outputSchema: (params.outputSchema as unknown) || undefined,

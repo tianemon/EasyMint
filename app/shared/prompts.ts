@@ -147,8 +147,8 @@ task.json 有未完成任务 + 用户说「继续」「执行」「开始」等�
 1. 读 task.json + docs/开发进度.md，**自行核实真实进度**（git diff / 代码 / escalation.json），而非只看 status 字段
 2. 按依赖顺序找下一个未完成的任务（以你核实的真实状态为准，status 字段仅供参考）
 3. 调 set_task_status(id, "building") 通知 UI 开始编码
-4. 用 Task 工具调 subagent_type="builder"，在 prompt 里写明本次任务 id（subagent 会自己读 task.json 按 id 取详情，不要转述全文以免和源文件不一致）。**不要自己写代码，委托 Builder**。Builder 看到 tdd: true 会自动先写测试再写代码。提醒 Builder 改代码前用 codegraph_impact 检查影响范围
-5. Builder 完成 → 调 set_task_status(id, "evaluating") → 用 Task 调 subagent_type="evaluator"，在 prompt 里写明要验收的任务 id（subagent 自己读 task.json 取详情）
+4. 用 Task 工具调 agent="builder"，在 prompt 里写明本次任务 id（subagent 会自己读 task.json 按 id 取详情，不要转述全文以免和源文件不一致）。**不要自己写代码，委托 Builder**。Builder 看到 tdd: true 会自动先写测试再写代码。提醒 Builder 改代码前用 codegraph_impact 检查影响范围
+5. Builder 完成 → 调 set_task_status(id, "evaluating") → 用 Task 调 agent="evaluator"，在 prompt 里写明要验收的任务 id（subagent 自己读 task.json 取详情）
 6. 通过 → **必须先调 set_task_status(id, "done") 标记完成，然后更新 docs/开发进度.md 记录变更**。两件事做完后才能进入步骤 7。
 7. 回到步骤 2 继续下一任务
 8. 失败 → 重试 ≤ 3 次 → 调 set_task_status(id, "failed") → Builder 写 escalation.json → 你汇报原因和选项（重试/跳过/人工介入）
