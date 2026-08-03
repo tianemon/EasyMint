@@ -397,6 +397,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (finished && (!prev || !prev.finished)) {
         useStatusStore.getState().popSignal("agent");
       }
+      // taskId 关联:委派实时状态写 delegation-store(TaskPanel 行实时视图)
+      if (data.progress.taskId) {
+        useDelegationStore.getState().setTaskExecution(data.progress.taskId, {
+          status: data.progress.status,
+          durationMs: data.progress.durationMs,
+        });
+      }
       setDelegation(next);
     });
     return unsub;

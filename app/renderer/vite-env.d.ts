@@ -58,6 +58,7 @@ interface DelegationProgressEvent {
     agent: string;
     status: "pending" | "running" | "completed" | "failed" | "aborted";
     task: string;
+    taskId?: string;
     currentTool?: string;
     toolCount: number;
     durationMs: number;

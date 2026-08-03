@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTaskStore } from "../stores/task-store";
 import { useProjectStatusStore } from "../stores/project-status-store";
+import { useDelegationStore } from "../stores/delegation-store";
 
 interface TaskPanelProps {
   onCollapse: () => void;
@@ -16,20 +17,29 @@ const STATUS_ICON: Record<string, JSX.Element> = {
 
 // ── Task Row (hover to expand) ──────────────────────
 
-function TaskRow({ task }: { task: { id: string; title: string; description?: string; status: string; completedAt?: number } }): JSX.Element {
+function TaskRow({ task, runningExec }: { task: { id: string; title: string; description?: string; status: string; completedAt?: number }; runningExec?: { status: string; durationMs: number } }): JSX.Element {
   const [expanded, setExpanded] = useState(false);
   const hasDesc = !!task.description;
+  // 委派实时执行覆盖静态 building/evaluating 心跳:显示「运行中 · Ns」
+  const isRunning = runningExec?.status === "running";
+  const displayStatus = isRunning ? "running" : task.status;
+  const durText = isRunning ? `运行中 · ${Math.max(1, Math.round(runningExec.durationMs / 1000))}s` : undefined;
 
   return (
     <div
-      className={`border-b border-border last:border-0 transition-colors ${(task.status === "building" || task.status === "evaluating") ? "bg-accent-bg" : task.status === "failed" ? "bg-danger-soft" : "hover:bg-accent-subtle"}`}
+      className={`border-b border-border last:border-0 transition-colors ${displayStatus === "building" || displayStatus === "running" || displayStatus === "evaluating" ? "bg-accent-bg" : displayStatus === "failed" ? "bg-danger-soft" : "hover:bg-accent-subtle"}`}
       onMouseEnter={() => hasDesc && setExpanded(true)}
       onMouseLeave={() => setExpanded(false)}
     >
       <div className="flex items-center gap-2 px-3 py-1.5">
-        {STATUS_ICON[task.status]}
-        <span className={`text-[11px] truncate flex-1 ${task.status === "done" ? "text-text-secondary" : (task.status === "building" || task.status === "evaluating") ? "text-text-primary font-medium" : task.status === "failed" ? "text-danger" : "text-text-secondary"}`}>
+        {isRunning ? (
+          <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0 animate-spin text-accent"><circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" opacity="0.3"/><path d="M11 6a5 5 0 00-5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+        ) : (
+          STATUS_ICON[task.status]
+        )}
+        <span className={`text-[11px] truncate flex-1 ${displayStatus === "done" ? "text-text-secondary" : (displayStatus === "building" || displayStatus === "running" || displayStatus === "evaluating") ? "text-text-primary font-medium" : displayStatus === "failed" ? "text-danger" : "text-text-secondary"}`}>
           {task.title}
+          {durText && <span className="ml-1.5 text-[10px] text-accent tabular-nums">{durText}</span>}
         </span>
       </div>
       {expanded && hasDesc && (
@@ -46,6 +56,7 @@ function TaskRow({ task }: { task: { id: string; title: string; description?: st
 export function TaskPanel(_props: TaskPanelProps): JSX.Element {
   const { tasks } = useTaskStore();
   const { doneCount, taskCount } = useProjectStatusStore();
+  const taskExecutions = useDelegationStore((s) => s.taskExecutions);
   const listRef = useRef<HTMLDivElement>(null);
   const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [userScrolled, setUserScrolled] = useState(false);
@@ -90,7 +101,7 @@ export function TaskPanel(_props: TaskPanelProps): JSX.Element {
           </div>
           {tasks.length > 0 ? (
             tasks.map((task) => (
-              <TaskRow key={task.id} task={task} />
+              <TaskRow key={task.id} task={task} runningExec={taskExecutions[task.id]} />
             ))
           ) : (
             <div className="flex items-center justify-center flex-1 py-8 text-[10px] text-text-secondary">暂无任务</div>

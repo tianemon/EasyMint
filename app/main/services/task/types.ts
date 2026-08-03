@@ -54,6 +54,8 @@ export interface AgentProgress {
   agent: string;
   status: "pending" | "running" | "completed" | "failed" | "aborted";
   task: string;
+  /** 关联的 task.json 任务 id(TaskPanel 实时执行视图用) */
+  taskId?: string;
   currentTool?: string;
   toolCount: number;
   durationMs: number;

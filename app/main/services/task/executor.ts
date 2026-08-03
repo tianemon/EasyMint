@@ -77,6 +77,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
     agent: agentLabel,
     status: "running",
     task: opts.task.slice(0, 100),
+    taskId: opts.taskId,
     toolCount: 0,
     durationMs: 0,
     requests: 0,
