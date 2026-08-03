@@ -128,6 +128,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const emptyArr = useRef<ChatMessage[]>([]);
   const rawMsgs = useChatStore((s) => s.messagesBySession[sid]);
   const messages: ChatMessage[] = rawMsgs || (emptyArr.current as ChatMessage[]);
+
+  // 渲染侧日志:消息列表变化时打印尾部(排查同批通知只渲染一条)
+  useEffect(() => {
+    if (messages.length > 0 && (messages[messages.length - 1]!.customType || messages[messages.length - 2]?.customType)) {
+      console.log(`[chat] render tail: ${messages.slice(-3).map((m) => `${m.id}:${m.role}:${m.customType ?? "text"}:${(m.text ?? "").slice(0, 12).replace(/\n/g, " ")}`).join(" | ")}`);
+    }
+  }, [messages]);
   const [_currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentChatRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
