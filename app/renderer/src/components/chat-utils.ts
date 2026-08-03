@@ -18,6 +18,8 @@ export interface ChatMessage {
   /** 系统消息类型(customType: system_message)——按 details.kind 分支渲染 */
   customType?: string;
   details?: Record<string, unknown>;
+  /** Pi 落盘时间戳(系统消息去重用:多 ChatPanel 实例重复 append 时幂等) */
+  sysTs?: number;
 }
 
 /** Pi 事件中的 blocks → StreamEntry 格式（兼容现有渲染） */

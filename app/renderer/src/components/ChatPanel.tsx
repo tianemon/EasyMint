@@ -567,13 +567,21 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // triggerTurn: false 注入,按完成时序到达,不挂靠回合(带 streaming 标记,
       // loadSession 时被磁盘版本替代,不重复)
       if (event.type === "custom_event" && event.text) {
-        // 通知不开回合:仅当没有进行中的回合(无锚点)时恢复 idle——
-        // 回合内到达的通知(用户消息触发的回合)保持 busy 不打断
-        if (!curAiMsgIdRef.current) setBusy(false);
-        useChatStore.getState().appendUserMsg(sidRef.current, {
-          role: "user" as const, text: event.text, timestamp: Date.now(), streaming: true,
-          customType: event.customType, details: event.details,
-        });
+        // 幂等:多 tab 的 ChatPanel 同时挂载都处理此事件——同一条通知
+        // (同 Pi 落盘时间戳 + 同文本)只 append 一次,防重复渲染
+        const sysTs = event.timestamp ?? Date.now();
+        const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
+        const last = msgs[msgs.length - 1];
+        const dup = last?.customType === event.customType && last?.text === event.text && last?.sysTs === sysTs;
+        if (!dup) {
+          // 通知不开回合:仅当没有进行中的回合(无锚点)时恢复 idle——
+          // 回合内到达的通知(用户消息触发的回合)保持 busy 不打断
+          if (!curAiMsgIdRef.current) setBusy(false);
+          useChatStore.getState().appendUserMsg(sidRef.current, {
+            role: "user" as const, text: event.text, timestamp: Date.now(), streaming: true,
+            customType: event.customType, details: event.details, sysTs,
+          });
+        }
         scrollToBottom();
       }
       // context usage update
