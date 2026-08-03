@@ -1127,6 +1127,8 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
               {isResult ? (
                 rows.map((row, i) => {
                   const m = row.match(/^● (.+?) — (完成|失败|中止)(?: · (\d+)s)?$/);
+                  // 排查:● 行正则未匹配时打印原始文本(定位换行/字符差异)
+                  if (!m) console.log(`[chat] system row unmatch: ${JSON.stringify(row)}`);
                   // 中止=人为打断(黄),失败=意外中断(红),完成=绿
                   const status = m?.[2];
                   const dotColor = status === "中止" ? "text-interrupt" : status === "失败" ? "text-fail" : "text-done";
