@@ -127,16 +127,6 @@ export class AgentService {
   onWorkerComplete: ((projectPath: string) => void) | null = null;
   private streamBuffer: Map<string, PiChatEvent[]> = new Map();
   /** 委派完成通知积压：Mint 忙碌时记下,回合结束后以新回合发送 */
-  /** 系统消息积压队列(并发完成/中止通知密集到达时防覆盖丢消息) */
-  private pendingSystemMessages: Map<string, SystemMessagePayload[]> = new Map();
-  /** 串行发送器进行中标记:同一会话同时只允许一个 promptAndBridge,
-   *  防并发 subscribe 导致同一事件被广播两次(重复渲染) */
-  private systemMessageDraining = new Set<string>();
-  /** 合并窗口定时器:短时间内的多条通知(并发完成/中止)合并一次注入,避免一个回合一条 */
-  private drainTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-  /** 通知合并窗口(ms):窗口内到达的通知合并成一条注入 */
-  private static readonly MERGE_WINDOW_MS = 400;
 
   // ── 内部辅助 ──────────────────────────────────────
 
@@ -261,7 +251,7 @@ export class AgentService {
         new Promise((_, reject) => setTimeout(() => reject(new Error("请求超时（10分钟）")), 600_000)),
       ]);
 
-      // (积压消息由 drainSystemMessages 串行发送,此处不再 flush——避免双路径)
+      // (系统消息通知走 injectSystemMessage 的 triggerTurn: false 路径,不经此回合)
       const pr = pendingResult as PiChatEvent | null;
       if (pr) {
         pr.sessionId = sessionId;
@@ -752,49 +742,38 @@ export class AgentService {
     await chat?.session?.steer(text);
   }
 
-  /** 注入系统消息（委派完成/后台 shell 通知）:统一入队,串行发送器逐个开回合 */
+  /**
+   * 注入系统消息（委派完成/后台 shell 通知）
+   * triggerTurn: false——立即落盘 + 立即 message_start/end 事件,不开回合。
+   * 通知独立即时显示(按完成时序),不等待回合、不挂靠消息;Mint 回合由
+   * 后续消息/活动驱动,通知已在上下文中自然读到。
+   */
   injectSystemMessage(sessionId: string, text: string, kind: SystemMessageKind = "delegation"): void {
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session) return;
     // content 保留 [系统消息] 前缀(模型侧识别);结构身份走 customType/kind(JSONL/事件/前端)
     const payload = systemMessage(kind, `[系统消息]-[Agent执行结果]\n${text}`);
-    // 积压队列:并发通知不覆盖、不并发发送(防重复 subscribe 广播)
-    const list = this.pendingSystemMessages.get(sessionId);
-    if (list) list.push(payload);
-    else this.pendingSystemMessages.set(sessionId, [payload]);
-    this.scheduleDrain(sessionId);
-  }
-
-  /** 合并窗口调度:固定窗口(不重置),窗口内到达的通知合并,窗口结束一次注入 */
-  private scheduleDrain(sessionId: string): void {
-    if (this.drainTimers.has(sessionId)) return;
-    this.drainTimers.set(sessionId, setTimeout(() => {
-      this.drainTimers.delete(sessionId);
-      this.drainSystemMessages(sessionId);
-    }, AgentService.MERGE_WINDOW_MS));
-  }
-
-  /** 串行发送器:逐个取队列开回合,一次只发一条(多条合并),回合结束取下一条 */
-  private async drainSystemMessages(sessionId: string): Promise<void> {
-    if (this.systemMessageDraining.has(sessionId)) return;
-    const chat = this.findActiveChat(sessionId);
-    if (!chat?.session) return;
-    this.systemMessageDraining.add(sessionId);
-    try {
-      while (true) {
-        const list = this.pendingSystemMessages.get(sessionId);
-        if (!list || list.length === 0) break;
-        this.pendingSystemMessages.delete(sessionId);
-        const payload = list.length === 1
-          ? list[0]!
-          : systemMessage(list[0]!.details.kind, list.map((p) => p.content).join("\n"));
-        await this.promptAndBridge(chat.session, sessionId, chat.chatId, "", chat, undefined, payload);
+    // 一次性事件桥:sendCustomMessage 的 message_start/end 事件同步触发,
+    // 广播到前端(custom_event);无回合,广播完即退订
+    const unsub = chat.session.subscribe((event: AgentSessionEvent) => {
+      try {
+        bridgeSessionEvents(event, {
+          onEvent: (ev) => {
+            ev.sessionId = sessionId;
+            ev.chatId = chat.chatId;
+            broadcast("agent:stream", ev);
+            this.bufferEvent(sessionId, ev);
+          },
+          getSession: () => chat.session,
+          setPendingResult: () => {},
+        });
+      } catch (e) {
+        console.error("[agent] system message bridge error:", e);
       }
-    } catch (e) {
-      console.error("[agent] drainSystemMessages failed:", (e as Error).message);
-    } finally {
-      this.systemMessageDraining.delete(sessionId);
-    }
+    });
+    chat.session.sendCustomMessage(payload).catch((e) => {
+      console.error("[agent] sendCustomMessage failed:", (e as Error).message);
+    }).finally(() => unsub());
   }
 
   /** 注入跟进消息（当前回合结束后发送） */

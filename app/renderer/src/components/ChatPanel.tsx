@@ -563,21 +563,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (event.type === "error") {
         useStatusStore.getState().pushSignal("error", event.message || "出错了", 8000);
       }
-      // custom 系统消息(委派完成/后台 shell/流程指令)→ 渲染为消息(带 streaming 标记,
+      // custom 系统消息(委派完成/后台 shell/流程指令)→ 独立即时显示:
+      // triggerTurn: false 注入,按完成时序到达,不挂靠回合(带 streaming 标记,
       // loadSession 时被磁盘版本替代,不重复)
       if (event.type === "custom_event" && event.text) {
-        const msg = {
+        // 通知不开回合:仅当没有进行中的回合(无锚点)时恢复 idle——
+        // 回合内到达的通知(用户消息触发的回合)保持 busy 不打断
+        if (!curAiMsgIdRef.current) setBusy(false);
+        useChatStore.getState().appendUserMsg(sidRef.current, {
           role: "user" as const, text: event.text, timestamp: Date.now(), streaming: true,
           customType: event.customType, details: event.details,
-        };
-        // Pi 事件顺序:turn_start 先于 message_start(custom)——当前回合锚点已创建,
-        // 通知插到锚点之前(通知是其触发的回合的前置上下文,不能 append 到回合后)
-        const anchorId = curAiMsgIdRef.current;
-        if (anchorId) {
-          useChatStore.getState().insertUserMsgBefore(sidRef.current, anchorId, msg);
-        } else {
-          useChatStore.getState().appendUserMsg(sidRef.current, msg);
-        }
+        });
         scrollToBottom();
       }
       // context usage update
