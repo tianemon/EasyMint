@@ -15,6 +15,7 @@ import { getActiveModel } from "../pi-init";
 import { Store } from "../store";
 import { resolveHome } from "../../utils/paths";
 import { mapWithConcurrencyLimit, type ParallelResult } from "./parallel";
+import { writeTaskStatus } from "./task-file";
 import { ResultCollector } from "./collector";
 import { finishDelegation } from "./registry";
 import { wrapToolWithPermission } from "../permission/wrap-tool";
@@ -60,6 +61,8 @@ export interface SubagentOptions {
   onProgress?: (progress: AgentProgress) => void;
   /** 任务标题(description 摘要,结果注入显示用) */
   title?: string;
+  /** 关联的 task.json 任务 id(完成/中止自动回写) */
+  taskId?: string;
 }
 
 /** 执行单个子 Agent（后台，不阻塞调用方） */
@@ -87,7 +90,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
   const model = await getActiveModel(opts.store);
   if (!model) {
     return {
-      index: opts.index, id, agent: agentLabel, task: opts.task,
+      index: opts.index, id, agent: agentLabel, task: opts.task, taskId: opts.taskId,
       exitCode: 1, output: "", stderr: "未配置 AI 模型", truncated: false,
       durationMs: Date.now() - startMs, error: "未配置 AI 模型",
       tokens: 0, requests: 0,
@@ -173,7 +176,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
     progress.durationMs = Date.now() - startMs;
     opts.onProgress?.(progress);
     return {
-      index: opts.index, id, agent: agentLabel, task: opts.task,
+      index: opts.index, id, agent: agentLabel, task: opts.task, taskId: opts.taskId,
       exitCode: 1, output: "", stderr: msg, truncated: false,
       durationMs: progress.durationMs, error: msg,
       tokens: progress.tokens, requests: progress.requests,
@@ -186,7 +189,7 @@ async function executeAndCollect(
   session: Awaited<ReturnType<typeof createPiSession>>,
   task: string,
   yieldItems: YieldItem[],
-  opts: { signal?: AbortSignal; onProgress?: (p: AgentProgress) => void; title?: string },
+  opts: { signal?: AbortSignal; onProgress?: (p: AgentProgress) => void; title?: string; taskId?: string },
   progress: AgentProgress,
   id: string,
   agentLabel: string,
@@ -310,7 +313,7 @@ async function executeAndCollect(
   opts.onProgress?.(progress);
 
   return {
-    index: progress.index, id, agent: agentLabel, task, title: opts.title,
+    index: progress.index, id, agent: agentLabel, task, title: opts.title, taskId: opts.taskId,
     exitCode: aborted ? 1 : 0, output: text, stderr: "", truncated,
     durationMs: progress.durationMs,
     structuredOutput,
@@ -359,6 +362,7 @@ export async function runSubagents(
       sessionDir,
       task: task.task,
       title: task.title,
+      taskId: task.taskId,
       index,
       // 单任务独立中止控制器(ProcessBar 单独停止);整体 abort 时 record.abort 会 abort 全部
       signal: record.taskAbortControllers[index]?.signal ?? record.abortController.signal,
@@ -397,6 +401,14 @@ export async function runSubagents(
   }
 
   const results = parallelResult.results.filter((r): r is SingleResult => r !== undefined);
+
+  // 自动回写 task.json:关联了 taskId 的任务,按执行结果更新 done/failed
+  // (完成且无错误/重试失败/中止 → done;其余 → failed)
+  for (const r of results) {
+    if (!r.taskId) continue;
+    const ok = r.exitCode === 0 && !r.error && !r.retryFailure && !r.aborted;
+    writeTaskStatus(runtime.cwd, r.taskId, ok ? "done" : "failed");
+  }
 
   if (record.abortController.signal.aborted) {
     finishDelegation(record, "aborted", {

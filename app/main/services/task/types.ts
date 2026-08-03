@@ -10,6 +10,8 @@ export interface SingleResult {
   task: string;
   /** 任务标题(description 摘要,UI 显示用) */
   title?: string;
+  /** 关联的 task.json 任务 id(完成/中止自动回写状态) */
+  taskId?: string;
   assignment?: string;
   exitCode: number;
   output: string;
