@@ -129,6 +129,9 @@ export class AgentService {
   /** 委派完成通知积压：Mint 忙碌时记下,回合结束后以新回合发送 */
   /** 系统消息积压队列(并发完成/中止通知密集到达时防覆盖丢消息) */
   private pendingSystemMessages: Map<string, SystemMessagePayload[]> = new Map();
+  /** 串行发送器进行中标记:同一会话同时只允许一个 promptAndBridge,
+   *  防并发 subscribe 导致同一事件被广播两次(重复渲染) */
+  private systemMessageDraining = new Set<string>();
 
   // ── 内部辅助 ──────────────────────────────────────
 
@@ -253,22 +256,7 @@ export class AgentService {
         new Promise((_, reject) => setTimeout(() => reject(new Error("请求超时（10分钟）")), 600_000)),
       ]);
 
-      // 系统消息积压：回合已结束,立即开新回合发送(custom 消息结构化)
-      const pendingList = this.pendingSystemMessages.get(sessionId);
-      if (pendingList && pendingList.length > 0) {
-        this.pendingSystemMessages.delete(sessionId);
-        if (pendingList.length === 1) {
-          await session.sendCustomMessage(pendingList[0]!, { triggerTurn: true }).catch(() => {});
-        } else {
-          // 多条积压(并发完成/中止密集到达)→ 合并成一条,一个回合一次汇报
-          const merged = systemMessage(
-            pendingList[0]!.details.kind,
-            pendingList.map((p) => p.content).join("\n"),
-          );
-          await session.sendCustomMessage(merged, { triggerTurn: true }).catch(() => {});
-        }
-      }
-
+      // (积压消息由 drainSystemMessages 串行发送,此处不再 flush——避免双路径)
       const pr = pendingResult as PiChatEvent | null;
       if (pr) {
         pr.sessionId = sessionId;
@@ -759,19 +747,39 @@ export class AgentService {
     await chat?.session?.steer(text);
   }
 
-  /** 注入系统消息（委派完成/后台 shell 通知）:Mint 空闲 → 自动开新回合;忙碌 → 记 pending 回合结束 flush */
+  /** 注入系统消息（委派完成/后台 shell 通知）:统一入队,串行发送器逐个开回合 */
   injectSystemMessage(sessionId: string, text: string, kind: SystemMessageKind = "delegation"): void {
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session) return;
     // content 保留 [系统消息] 前缀(模型侧识别);结构身份走 customType/kind(JSONL/事件/前端)
     const payload = systemMessage(kind, `[系统消息]-[Agent执行结果]\n${text}`);
-    if (chat.status === "idle") {
-      this.promptAndBridge(chat.session, sessionId, chat.chatId, "", chat, undefined, payload);
-    } else {
-      // 积压队列:多条通知密集到达时不覆盖(后到的追加,回合结束合并 flush)
-      const list = this.pendingSystemMessages.get(sessionId);
-      if (list) list.push(payload);
-      else this.pendingSystemMessages.set(sessionId, [payload]);
+    // 积压队列:并发通知不覆盖、不并发发送(防重复 subscribe 广播)
+    const list = this.pendingSystemMessages.get(sessionId);
+    if (list) list.push(payload);
+    else this.pendingSystemMessages.set(sessionId, [payload]);
+    this.drainSystemMessages(sessionId);
+  }
+
+  /** 串行发送器:逐个取队列开回合,一次只发一条(多条合并),回合结束取下一条 */
+  private async drainSystemMessages(sessionId: string): Promise<void> {
+    if (this.systemMessageDraining.has(sessionId)) return;
+    const chat = this.findActiveChat(sessionId);
+    if (!chat?.session) return;
+    this.systemMessageDraining.add(sessionId);
+    try {
+      while (true) {
+        const list = this.pendingSystemMessages.get(sessionId);
+        if (!list || list.length === 0) break;
+        this.pendingSystemMessages.delete(sessionId);
+        const payload = list.length === 1
+          ? list[0]!
+          : systemMessage(list[0]!.details.kind, list.map((p) => p.content).join("\n"));
+        await this.promptAndBridge(chat.session, sessionId, chat.chatId, "", chat, undefined, payload);
+      }
+    } catch (e) {
+      console.error("[agent] drainSystemMessages failed:", (e as Error).message);
+    } finally {
+      this.systemMessageDraining.delete(sessionId);
     }
   }
 
