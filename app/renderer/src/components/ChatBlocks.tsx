@@ -144,17 +144,18 @@ export function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
 function ThinkingBlockView({ block }: { block: ThinkingBlock }): JSX.Element {
   const [open, setOpen] = useState(false);
   const preview = block.text.slice(0, 140);
+  // 双主题变量:亮色淡绿(EM 品牌绿系),暗色保留紫——见 index.css --thinking-*
   return (
-    <div className="my-1 rounded-md border border-purple-500/20 bg-purple-500/[0.04]">
+    <div className="my-1 rounded-md border border-[var(--thinking-border)] bg-[var(--thinking-bg)]">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-purple-500/[0.06] transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-[var(--thinking-hover)] transition-colors"
       >
-        <span className="text-[11px] text-purple-300/80 uppercase tracking-wider font-semibold">思考过程</span>
+        <span className="text-[11px] text-[var(--thinking-label)] uppercase tracking-wider font-semibold">思考过程</span>
         <span className="text-[11px] text-text-secondary italic truncate flex-1">{open ? "" : preview}{!open && block.text.length > 140 ? "…" : ""}</span>
         <span className="text-[10px] text-text-secondary">{open ? "▲" : "▼"}</span>
       </button>
-      {open && <pre className="px-3 pb-2 text-[11px] text-text-secondary font-mono whitespace-pre-wrap leading-relaxed border-t border-purple-500/10">{block.text}</pre>}
+      {open && <pre className="px-3 pb-2 text-[11px] text-text-secondary font-mono whitespace-pre-wrap leading-relaxed border-t border-[var(--thinking-border)]">{block.text}</pre>}
     </div>
   );
 }

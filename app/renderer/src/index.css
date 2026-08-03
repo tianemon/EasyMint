@@ -168,6 +168,12 @@ html[data-platform="win32"] {
   --color-dot-red: #dc2626;
   --color-dot-blue: #3b82f6;
 
+  /* ── Thinking 折叠块(亮色:淡绿,暗色保留紫)── */
+  --thinking-border: #16a34a33;
+  --thinking-bg: #16a34a0a;
+  --thinking-hover: #16a34a0f;
+  --thinking-label: #15803d;
+
   /* ── Code highlight（GitHub Light 中性色板）── */
   --color-code-kw: #cf222e;
   --color-code-str: #0a3069;
@@ -318,6 +324,12 @@ html[data-platform="win32"] {
   --color-dot-amber: #f59e0b;
   --color-dot-red: #ef4444;
   --color-dot-blue: #3b82f6;
+
+  /* ── Thinking 折叠块(暗色保留紫)── */
+  --thinking-border: #a855f733;
+  --thinking-bg: #a855f70a;
+  --thinking-hover: #a855f70f;
+  --thinking-label: #c084fc;
 
   /* ── Code highlight — 灰度 ───────── */
   --color-code-kw: #aaaaaa;
