@@ -10,11 +10,12 @@ interface ChatState {
   loadSession: (sessionId: string, messages: StoredMessage[]) => void;
   evictSession: (sessionId: string) => void;
   appendUserMsg: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai" }) => void;
+  /** 按 Pi 落盘时间戳有序插入——插到第一条 piTs 更大的消息之前,否则追加尾部。
+   *  实时渲染顺序 = jsonl 落盘顺序(广播到达顺序 ≠ 落盘顺序,不能按到达顺序追加) */
+  insertUserMsgAt: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai"; piTs?: number }, piTs: number) => number;
   replaceAiEntries: (sessionId: string, entries: Record<string, any>[]) => number;
   /** 按消息 id 全量替换 entries（Pi 帧是累计全文快照，替换而非拼接——见 Proma uuid 方案） */
   replaceAiEntriesById: (sessionId: string, msgId: number, entries: Record<string, any>[]) => number;
-  /** Pi 新 turn 开始时调用，创建新的空 AI 消息作为本 turn 的锚点 */
-  startAiMessage: (sessionId: string) => number;
   nextMsgId: (sessionId: string) => number;
 }
 
@@ -61,6 +62,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
   },
 
+  insertUserMsgAt: (sessionId, msg, piTs) => {
+    const id = get().nextMsgId(sessionId);
+    set((s) => {
+      const list = s.messagesBySession[sessionId] || [];
+      // 无 piTs 的历史消息视为 -Infinity(已加载的磁盘消息位置固定,新消息只在其后插入)
+      const idx = list.findIndex((m) => (m.piTs ?? -Infinity) > piTs);
+      const next = idx === -1
+        ? [...list, { ...msg, piTs, id }]
+        : [...list.slice(0, idx), { ...msg, piTs, id }, ...list.slice(idx)];
+      return { messagesBySession: { ...s.messagesBySession, [sessionId]: next } };
+    });
+    return id;
+  },
+
   replaceAiEntries: (sessionId: string, entries: Record<string, any>[]) => {
     const msgs = get().messagesBySession[sessionId] || [];
     const last = msgs[msgs.length - 1];
@@ -101,17 +116,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
     // 消息不存在（会话重载等竞态）→ 回退：替换最后一条 AI 或新建
     return get().replaceAiEntries(sessionId, entries);
-  },
-
-  startAiMessage: (sessionId) => {
-    const msgId = get().nextMsgId(sessionId);
-    set((s) => ({
-      messagesBySession: {
-        ...s.messagesBySession,
-        [sessionId]: [...(s.messagesBySession[sessionId] || []), { id: msgId, role: "ai" as const, entries: [] as Record<string, any>[], timestamp: Date.now(), streaming: true }],
-      },
-    }));
-    return msgId;
   },
 
   nextMsgId: (sessionId) => {

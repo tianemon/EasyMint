@@ -23,6 +23,8 @@ interface StatusState {
   ctxPct: number;
   pushSignal: (id: string, text: string, ttlMs?: number) => void;
   popSignal: (id: string) => void;
+  /** 按 id 前缀清理(回合结束时清除全部 tool:* 信号) */
+  popSignalsByPrefix: (prefix: string) => void;
   setSummarizing: (v: boolean) => void;
   setCompacting: (v: boolean) => void;
   setCtxPct: (p: number) => void;
@@ -67,6 +69,17 @@ export const useStatusStore = create<StatusState>((set, get) => ({
     const signals = get().signals.filter((s) => s.id !== id);
     const old = timers.get(id);
     if (old) { clearTimeout(old); timers.delete(id); }
+    set({ signals, text: deriveText(signals) });
+  },
+
+  popSignalsByPrefix: (prefix) => {
+    const signals = get().signals.filter((s) => !s.id.startsWith(prefix));
+    for (const s of get().signals) {
+      if (s.id.startsWith(prefix)) {
+        const old = timers.get(s.id);
+        if (old) { clearTimeout(old); timers.delete(s.id); }
+      }
+    }
     set({ signals, text: deriveText(signals) });
   },
 

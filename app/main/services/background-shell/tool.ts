@@ -16,16 +16,21 @@ export interface EnhancedBashOptions {
   onExit?: (shell: BackgroundShell) => void;
 }
 
+/** 输出尾部预览行数(通知精简:完整输出落盘,会话内只带尾部几行) */
+const PREVIEW_TAIL_LINES = 10;
+
 /** 后台命令退出 → 注入主会话的文本(⏺ 摘要行对齐委派通知渲染,前端按状态着色) */
 export function formatShellResult(shell: BackgroundShell): string {
   const status = shell.stopped ? "中止" : (shell.exitCode === 0 ? "完成" : "失败");
   const dur = Math.max(0, Math.round((Date.now() - shell.startedAt) / 1000));
   const summary = `⏺ 后台命令 — ${status}${dur > 0 ? ` · ${dur}s` : ""}`;
   const head = `命令: ${shell.command}\n退出码: ${shell.exitCode ?? "?"}`;
-  const output = shell.output.trim()
-    ? `输出:\n${shell.output.trim()}`
+  const tail = shell.output.trim().split("\n").slice(-PREVIEW_TAIL_LINES).join("\n").trim();
+  const output = tail
+    ? `输出(尾部 ${PREVIEW_TAIL_LINES} 行):\n${tail}`
     : "(无输出)";
-  return `${summary}\n${head}\n${output}`;
+  const logHint = `完整输出: ${shell.logPath}`;
+  return `${summary}\n${head}\n${output}\n${logHint}`;
 }
 
 export async function createEnhancedBashTool(
@@ -81,11 +86,13 @@ export async function createEnhancedBashTool(
       }
 
       // 后台:spawn + 注册,立即返回
-      const id = backgroundShellRegistry.start(command, cwd, options?.onExit);
+      // 返回信息带输出文件路径(对齐 cc run_in_background)——模型从启动时就知道
+      // 去哪读输出,运行中可随时 read,不必等退出通知
+      const { id, logPath } = backgroundShellRegistry.start(command, cwd, options?.onExit);
       return {
         content: [{
           type: "text" as const,
-          text: `已后台启动: ${command}\n后台 ID: ${id},命令退出后结果将自动注入会话。`,
+          text: `已后台启动: ${command}\n后台 ID: ${id}\n输出文件: ${logPath}\n命令退出后结果将自动注入会话。`,
         }],
       };
     },

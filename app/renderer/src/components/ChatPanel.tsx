@@ -129,17 +129,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const rawMsgs = useChatStore((s) => s.messagesBySession[sid]);
   const messages: ChatMessage[] = rawMsgs || (emptyArr.current as ChatMessage[]);
 
-  // 渲染侧日志:消息列表变化时打印尾部(排查同批通知只渲染一条)
-  useEffect(() => {
-    if (messages.length > 0 && (messages[messages.length - 1]!.customType || messages[messages.length - 2]?.customType)) {
-      console.log(`[chat] render tail: ${messages.slice(-3).map((m) => `${m.id}:${m.role}:${m.customType ?? "text"}:${(m.text ?? "").slice(0, 12).replace(/\n/g, " ")}`).join(" | ")}`);
-    }
-  }, [messages]);
   const [_currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentChatRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
   const busyRef = useRef(false);
   const ctxThresholdFiredRef = useRef(0); // 已按阈值触发过主动压缩（防止同轮重复触发）
+  // 当前输出段块(assistant 消息)id:Pi 每条输出段消息有独立 message_start/update/end
+  // 生命周期(磁盘逐条落盘);块 piTs = 消息对象创建时间戳,通知按 ts 插到块之间
+  // → UI 顺序 = jsonl 顺序(不依赖广播到达顺序)
   const programmaticScrollRef = useRef(false); // 程序性滚动中（handleScroll 跳过 autoScroll 更新）
   const scrollTimeoutRef = useRef<number | null>(null); // 虚拟化测量兜底的延迟贴底定时器
 
@@ -189,10 +186,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   /** 输入框变化处理：检测开头 / 触发命令面板（仅在输入框纯命令上下文下，不影响代码片段） */
   const autoScrollRef = useRef(true);
-  // Pi 事件无需 seq 去重（message_update 是累计全文，不是 delta）
-  // 当前 turn 的 AI 消息锚点：turn_start 创建空消息并记录 id，message/thinking 帧按 id 全量替换——
-  // 与 Proma 的 uuid 方案同思想（帧是完整快照，替换而非拼接），杜绝 fromIdx 不匹配导致的重复
-  const curAiMsgIdRef = useRef(0);
+  // 最新回合输出块 id:thinking/tool 块归入目标(不做文本 diff,流式临时内容)
+  const latestAiIdRef = useRef(0);
   // steer 打断标记
   const steeringRef = useRef(false);
   const sidRef = useRef<string>(initialSid);
@@ -411,6 +406,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           durationMs: data.progress.durationMs,
         });
       }
+      // 子会话 jsonl 路径回填(AgentBar 查看过程弹层定位;onDelegationCount 广播不含此字段)
+      if (data.progress.sessionFile) {
+        useDelegationStore.getState().setSessionFile(data.delegationId, data.progress.index, data.progress.sessionFile);
+      }
       setDelegation(next);
     });
     return unsub;
@@ -508,46 +507,75 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         // 没有活跃 chat，也没有已知 session → 拒绝所有外部事件，防止跨窗口污染
         return;
       }
-      if (stoppedRef.current) return;
+      // 打断后:只丢弃被打断回合的残留内容帧;通知(新注入)正常渲染,
+      // 新回合(turn_start,如打断后的 Mint 总结)开始 → 恢复渲染。
+      // (原实现 return 丢弃一切——打断通知/总结回合全被吞,磁盘有而 UI 无)
+      if (stoppedRef.current) {
+        if (event.type === "turn_start") {
+          stoppedRef.current = false;
+        } else if (event.type !== "custom_event") {
+          return;
+        }
+      }
       if (!currentChatRef.current) {
         const cid = event.chatId || event.runId;
         if (cid) { currentChatRef.current = cid; setCurrentRunId(cid); }
       }
       setBusy(true);
-      // Pi 新 assistant turn 开始 → 创建空 AI 消息作为本 turn 锚点，
-      // 后续 message/thinking 帧按 id 全量替换（每次 turn 一条消息，与磁盘落盘结构一致）
+      // 输出段块(assistant 消息)内容帧处理:无当前块 → 按消息对象创建时间戳插入新块,
+      // 有当前块 → 全量替换内容(帧是累计全文快照)。块 piTs 固定于创建时刻,通知按
+      // 各自 ts 插到块之间,UI 顺序 = jsonl 落盘顺序(不依赖广播到达顺序)
+      const handleBlocks = (blocks: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; content?: unknown; thinking?: string }>, frameTs: number) => {
+        const rawEntries = piBlocksToEntries(blocks);
+        if (rawEntries.length === 0) return;
+        // Mint 开始输出 → 思考信号结束
+        useStatusStore.getState().popSignal("request");
+        const entries = mergeConsecutiveText(rawEntries);
+        if (latestAiIdRef.current) {
+          useChatStore.getState().replaceAiEntriesById(sidRef.current, latestAiIdRef.current, entries);
+        } else {
+          latestAiIdRef.current = useChatStore.getState().insertUserMsgAt(sidRef.current, {
+            role: "ai" as const, entries, timestamp: Date.now(), streaming: true,
+          }, frameTs);
+        }
+        scrollToBottom();
+      };
+      // Pi 新 assistant turn 开始 → 重置输出段块状态
+      // (turn_start 不创建消息——磁盘上无空消息;首个内容帧才创建块)
       if (event.type === "turn_start") {
         // 回合开始 → 请求转「正在思考」(同 id 更新,不 pop——Mint 思考阶段状态栏保持显示,
         // 直到首个输出帧/工具调用才结束,否则「正在请求」一闪而过)
         useStatusStore.getState().pushSignal("request", "正在思考...");
-        curAiMsgIdRef.current = useChatStore.getState().startAiMessage(sidRef.current);
+        latestAiIdRef.current = 0;
         steeringRef.current = false;
       }
-      // Pi SDK message_update 携带累计全文快照，按锚点 id 全量替换当前 turn 的消息（不拼接）
-      if (event.type === "message" && Array.isArray(event.blocks)) {
-        const rawEntries = piBlocksToEntries(event.blocks);
-        if (rawEntries.length > 0) {
-          // Mint 开始输出 → 思考信号结束
-          useStatusStore.getState().popSignal("request");
-          const entries = mergeConsecutiveText(rawEntries);
-          if (!curAiMsgIdRef.current) {
-            curAiMsgIdRef.current = useChatStore.getState().startAiMessage(sidRef.current);
-          }
-          useChatStore.getState().replaceAiEntriesById(sidRef.current, curAiMsgIdRef.current, entries);
-          scrollToBottom();
+      // message_start = 新输出段消息(磁盘逐条 assistant)开始:下个内容帧创建新块;
+      // 非流式消息(message_start 携带完整内容)直接渲染
+      if (event.type === "message_start") {
+        latestAiIdRef.current = 0;
+        if (Array.isArray(event.blocks) && event.blocks.length > 0) {
+          handleBlocks(event.blocks, event.timestamp ?? Date.now());
         }
+      }
+      // Pi SDK message_update/end:帧 = 当前输出段消息的累计全文快照(替换不拼接)。
+      // 块 piTs = 消息对象创建时间戳 → 通知按 ts 插到块之间,UI 顺序 = jsonl 顺序
+      if (event.type === "message" && Array.isArray(event.blocks)) {
+        handleBlocks(event.blocks, event.timestamp ?? Date.now());
       }
       // tool progress — 状态栏工具信号;shell 计数由后台命令事件驱动(agent:shell-count),
       // 不再按工具事件累加(前台瞬时工具不计入 shell·N)
       if (event.type === "tool_progress" && event.toolName) {
         const label = displayToolLabel(event.toolName, event.toolArgs);
-        // 开始执行工具 → 思考信号结束(否则 tool pop 后回退显示「正在思考」)
+        // 开始执行工具 → 思考信号结束(否则 tool pop 后回退显示「正在思考」);
+        // 按 toolCallId 区分信号——连续工具互不干扰(前一个 tool_done 不误 pop 后一个)
         useStatusStore.getState().popSignal("request");
-        useStatusStore.getState().pushSignal("tool", label);
+        useStatusStore.getState().pushSignal(`tool:${event.toolCallId ?? "?"}`, label);
       }
-      // tool done — 工具执行结束,pop 工具信号(回退显示「调用 Agent」等次新活跃信号)
+      // tool done — 工具执行结束,pop 自己的工具信号;
+      // 回合仍在 → 恢复「正在思考」,消除工具执行完到下一步输出之间的状态栏空档
       if (event.type === "tool_done") {
-        useStatusStore.getState().popSignal("tool");
+        useStatusStore.getState().popSignal(`tool:${event.toolCallId ?? "?"}`);
+        if (busyRef.current) useStatusStore.getState().pushSignal("request", "正在思考...");
       }
       // compaction UI — compacting 事件 = 压缩进行中（显示"正在整理会话..."）
       if (event.type === "compacting") {
@@ -558,29 +586,32 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (event.type === "compacted") {
         useStatusStore.getState().setCompacting(false);
         useStatusStore.getState().setSummarizing(false);
+        // 压缩后 Pi 重发的帧是摘要内容 → 作为新输出段块处理
+        latestAiIdRef.current = 0;
       }
       // error — 插播错误信号,8s 后自动消失(回退次新活跃信号)
       if (event.type === "error") {
         useStatusStore.getState().pushSignal("error", event.message || "出错了", 8000);
       }
       // custom 系统消息(委派完成/后台 shell/流程指令)→ 独立即时显示:
-      // triggerTurn: false 注入,按完成时序到达,不挂靠回合(带 streaming 标记,
+      // triggerTurn: false 注入,立即落盘 + 立即事件(带 streaming 标记,
       // loadSession 时被磁盘版本替代,不重复)
       if (event.type === "custom_event" && event.text) {
         // 幂等:多 tab 的 ChatPanel 同时挂载都处理此事件——同一条通知
-        // (同 Pi 落盘时间戳 + 同文本)只 append 一次,防重复渲染
+        // (同 Pi 落盘时间戳 + 同文本)只插入一次,防重复渲染
         const sysTs = event.timestamp ?? Date.now();
         const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
-        const last = msgs[msgs.length - 1];
-        const dup = last?.customType === event.customType && last?.text === event.text && last?.sysTs === sysTs;
+        const dup = msgs.some((m) => m.customType === event.customType && m.text === event.text && m.sysTs === sysTs);
         if (!dup) {
-          // 通知不开回合:仅当没有进行中的回合(无锚点)时恢复 idle——
+          // 通知不开回合:仅当没有进行中的回合(无输出块)时恢复 idle——
           // 回合内到达的通知(用户消息触发的回合)保持 busy 不打断
-          if (!curAiMsgIdRef.current) setBusy(false);
-          useChatStore.getState().appendUserMsg(sidRef.current, {
+          if (!latestAiIdRef.current) setBusy(false);
+          // 按 Pi 落盘时间戳有序插入:通知插到其时间点之后的第一条消息前,
+          // 与 jsonl 落盘顺序一致(广播到达顺序 ≠ 落盘顺序,不能 append)
+          useChatStore.getState().insertUserMsgAt(sidRef.current, {
             role: "user" as const, text: event.text, timestamp: Date.now(), streaming: true,
             customType: event.customType, details: event.details, sysTs,
-          });
+          }, sysTs);
         }
         scrollToBottom();
       }
@@ -589,7 +620,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         useStatusStore.getState().setCtxPct(event.percentage || 0);
       }
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; curAiMsgIdRef.current = 0; busyRef.current = false; setBusy(false); useStatusStore.getState().popSignal("request"); useStatusStore.getState().popSignal("tool"); onActivity?.(); });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; latestAiIdRef.current = 0; busyRef.current = false; setBusy(false); useStatusStore.getState().popSignal("request"); useStatusStore.getState().popSignalsByPrefix("tool:"); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;
@@ -680,7 +711,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       try {
         const streaming = await window.electronAPI.agent.isStreaming(sidRef.current);
         if (!streaming) {
-          console.log("[ChatPanel] session.isStreaming=false, 清除 busy");
           setBusy(false);
           useStatusStore.getState().popSignal("request");
           useStatusStore.getState().popSignal("tool");
@@ -752,7 +782,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
     const ts = Date.now();
     useChatStore.getState().appendUserMsg(sidRef.current, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
-    curAiMsgIdRef.current = 0;  // 新用户消息 → 下一帧新建消息锚点（steer 插话不触发 turn_start 时兜底）
+    // 新用户消息 → 重置输出段块状态(steer 插话不触发 turn_start 时兜底)
+    latestAiIdRef.current = 0;
     setAttaches([]);
     onActivity?.();
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
@@ -1008,7 +1039,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         attaches={attaches}
         setAttaches={setAttaches}
         onSend={sendText}
-        onStop={() => { stoppedRef.current = true; busyRef.current = false; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
+        onStop={() => { stoppedRef.current = true; busyRef.current = false; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); /* 仅停当前回合残留帧;打断通知/总结回合在 onStream 中按 turn_start 恢复渲染 */ }}
         onPaste={handlePaste}
         imgInputRef={imgInputRef}
         docInputRef={docInputRef}
@@ -1138,8 +1169,6 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
                 {isResult ? (
                   rows.map((row, i) => {
                     const m = row.match(/^⏺ (.+?) — (完成|失败|中止)(?: · (\d+)s)?$/);
-                    // 排查:⏺ 行正则未匹配时打印原始文本(定位换行/字符差异)
-                    if (!m) console.log(`[chat] system row unmatch: ${JSON.stringify(row)}`);
                     // 中止=人为打断(黄),失败=意外中断(红),完成=绿——原生 ⏺ 字符
                     const status = m?.[2];
                     const dotColor = status === "中止" ? "text-interrupt" : status === "失败" ? "text-fail" : "text-done";

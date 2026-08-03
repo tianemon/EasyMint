@@ -159,7 +159,9 @@ export class AgentService {
         store: this.store,
         parentSessionId: sessionId,
         chatId,
-        onComplete: (sid, text) => this.injectSystemMessage(sid, text),
+        // 委派收尾汇总 → 开回合让 Mint 自动响应总结(最后一条通知,无后续排队;
+        // 委派过程的即时通知走 triggerTurn: false 路径不打断)
+        onComplete: (sid, text) => this.injectSystemMessage(sid, text, "delegation", { triggerTurn: true }),
         // 单任务被用户停止 → 立即注入中止通知(kind: delegation,绿色气泡 ● 行)
         onTaskAborted: (sid, text) => this.injectSystemMessage(sid, text, "delegation"),
         // 单任务提前完成 → 立即注入完成通知,Mint 输出判断继续等待(对齐 cc)
@@ -438,9 +440,12 @@ export class AgentService {
     );
 
     // 后台 shell 退出 → 结果注入主会话(临时 ID 解析为真实 ID,同 task 委派)
+    // 每条 shell 通知都开回合让 Mint 回应:shell 命令是独立工作(无批次关联),
+    // 退出通知 = 该工作的最终通知,对应 agent 单任务委派=汇总必回应的原则
+    // (命令跑得久,退出时回合已结束;不开回合则 Mint 永远不会读到并回应)
     const shellExitInject = (shell: BackgroundShell): void => {
       const sid = resolveParentSessionId(resumeSessionId ?? newSessionId);
-      this.injectSystemMessage(sid, formatShellResult(shell), "shell");
+      this.injectSystemMessage(sid, formatShellResult(shell), "shell", { triggerTurn: true });
     };
 
     const session: AgentSession = await (async () => {
@@ -744,11 +749,13 @@ export class AgentService {
 
   /**
    * 注入系统消息（委派完成/后台 shell 通知）
-   * triggerTurn: false——立即落盘 + 立即 message_start/end 事件,不开回合。
+   * 默认 triggerTurn: false——立即落盘 + 立即 message_start/end 事件,不开回合。
    * 通知独立即时显示(按完成时序),不等待回合、不挂靠消息;Mint 回合由
    * 后续消息/活动驱动,通知已在上下文中自然读到。
+   * opts.triggerTurn: true 用于委派收尾的汇总通知——开回合让 Mint 自动响应总结
+   * (最后一条通知,无后续排队;委派过程通知保持 false 即时显示不打断)。
    */
-  injectSystemMessage(sessionId: string, text: string, kind: SystemMessageKind = "delegation"): void {
+  injectSystemMessage(sessionId: string, text: string, kind: SystemMessageKind = "delegation", opts?: { triggerTurn?: boolean }): void {
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session) return;
     // content 保留 [系统消息] 前缀(模型侧识别);结构身份走 customType/kind(JSONL/事件/前端)
@@ -761,18 +768,23 @@ export class AgentService {
           onEvent: (ev) => {
             ev.sessionId = sessionId;
             ev.chatId = chat.chatId;
-            console.log(`[agent] system bridge broadcast: ${ev.type} ts=${ev.timestamp} text=${(ev.text ?? "").slice(0, 30).replace(/\n/g, " ")}`);
             broadcast("agent:stream", ev);
             this.bufferEvent(sessionId, ev);
           },
           getSession: () => chat.session,
-          setPendingResult: () => {},
+          // triggerTurn: true 的汇总回合结束(agent_end → turn_end)时广播 agent:exit——
+          // 否则前端 busy 残留(打断按钮卡住),且后续消息误走 steer 路径发送失败
+          setPendingResult: (ev) => {
+            if (ev.type === "turn_end") {
+              broadcast("agent:exit", { runId: chat.chatId, code: 0 });
+            }
+          },
         });
       } catch (e) {
         console.error("[agent] system message bridge error:", e);
       }
     });
-    chat.session.sendCustomMessage(payload).catch((e) => {
+    chat.session.sendCustomMessage(payload, opts?.triggerTurn ? { triggerTurn: true } : undefined).catch((e) => {
       console.error("[agent] sendCustomMessage failed:", (e as Error).message);
     }).finally(() => unsub());
   }

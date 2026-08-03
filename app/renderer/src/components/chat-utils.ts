@@ -20,6 +20,10 @@ export interface ChatMessage {
   details?: Record<string, unknown>;
   /** Pi 落盘时间戳(系统消息去重用:多 ChatPanel 实例重复 append 时幂等) */
   sysTs?: number;
+  /** Pi 落盘时间戳——实时渲染按此有序插入,保证 UI 顺序 = jsonl 落盘顺序(广播顺序 ≠ 落盘顺序) */
+  piTs?: number;
+  /** 流式标记:实时渲染临时消息(重载/加载磁盘时被替代或合并) */
+  streaming?: boolean;
 }
 
 /** Pi 事件中的 blocks → StreamEntry 格式（兼容现有渲染） */

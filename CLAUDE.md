@@ -9,7 +9,6 @@
 | 了解整体架构 | `docs/技术架构.md` | 系统架构、数据模型、IPC 通道 |
 | 了解功能规格 | `docs/需求文档.md` | 页面结构、功能清单、设计风格 |
 | 了解当前进度 | `docs/开发进度.md` | 任务完成状态、增量变更记录 |
-| 了解 Agent 系统 | `docs/design/AGENT_SYSTEM.md` | 多 Agent 协作、模板系统、Pi SDK 集成 |
 | 了解配置路径 | `docs/design/CONFIG_PATHS.md` | `~/.easymint/` 全局目录、em-settings 字段、Skill/MCP 位置 |
 | 了解需求设计方法论 | `docs/design/AI驱动开发需求设计原则.md` | 11 条 AORD 原则，任务拆解规范 |
 | 了解 SDK API | `docs/reference/Pi-SDK-API参考.md` | `createAgentSession()`、会话管理、权限模式 |
@@ -40,6 +39,7 @@
 6. **深思熟虑**：提供解决方案前必须深思熟虑。禁止急功近利地套用通用模板或"看起来相关"的方案。必须先充分理解当前项目的实际代码结构、数据流和已有逻辑，结合用户的具体场景推导方案的可行性，而不是从知识库中找到类似答案就直接搬过来。如果对方案的可行性没有把握，必须先说明不确定性，和用户讨论后再动手
 7. **删除要列清单**：删除文件前必须列出清单，逐项说明原因，等用户明确确认后再动手。禁止直接 `rm -f`
 8. **发现潜在问题**：提醒用户，不擅自修改。
+9. **用户命令先检查再执行**：用户（尤其是非程序员）给的 shell 命令/代码可能随意不严谨。执行前先检查语法、变量解析（如 `$i行` 需写成 `${i}行` 否则中文被吞）、编码、危险操作，发现问题先指出修正版再执行，不要照原样闷头跑。
 
 ### 自我约束
 
@@ -158,7 +158,6 @@ try/catch 仅在存在有意义的错误处理逻辑时使用：
 npm run dev              # 启动 Vite dev server + Electron（开发模式）
 npm run build            # 生产构建（Vite + Electron）
 npm run lint             # ESLint + TypeScript 类型检查
-npm run test             # 运行单元测试
 ```
 
 ## 4.3 文件组织
@@ -189,7 +188,6 @@ npm run test             # 运行单元测试
 - zustand store 按领域拆分（project、agent、settings）
 - IPC 通道统一前缀（project:、file:、agent:、evaluator:、settings:）
 - 主进程服务通过依赖注入获取 store 实例
-- 为新功能编写测试
 - 前端改动需通过评估器验证（Playwright 测 Vite dev server DOM，不启动 Electron）
 
 ### 代码规范
@@ -213,8 +211,8 @@ npm run test             # 运行单元测试
 | 场景 | 文档 | 原因 |
 |------|------|------|
 | 分析用户需求、设计功能、拆分开发任务 | `docs/AI驱动开发需求设计原则.md` | 11 条原则，决定任务粒度和结构 |
-| 新增/修改配置文件、调整存储路径、处理 SDK 数据 | `docs/CONFIG_PATHS.md` | 全局和项目级的所有配置路径 |
-| 使用 SDK API、会话管理、工具调用 | `docs/SDK_REFERENCE.md` | SDK 完整方法列表和类型 |
+| 新增/修改配置文件、调整存储路径、处理 SDK 数据 | `docs/design/CONFIG_PATHS.md` | 全局和项目级的所有配置路径 |
+| 使用 SDK API、会话管理、工具调用 | `docs/reference/Pi-SDK-API参考.md` | SDK 完整方法列表和类型 |
 
 ## 4.5 关联文档
 
@@ -280,7 +278,7 @@ EasyMint 是 Electron 桌面应用，让不懂技术的用户通过图形界面�
 ## 其他细节
 
 - 项目规范：先分析方案再动手、删除列清单确认、增量更新文档、commit 不自动 push、禁 any、时序用 ref、色彩走 CSS 变量语义层（禁 Tailwind 透明度语法用于主题色）
-- 便签架构：`pin-store`（zustand）+ `PinLayer`（悬浮层）+ `pin-service`（`~/.easymint/session-pins.json`）；设计文档 `docs/design/内容便签设计.md`（§1–12 迭代记录）
+- 便签架构：`pin-store`（zustand）+ `PinLayer`（悬浮层）+ `pin-service`（`~/.easymint/session-pins.json`）
 - `claude-legacy` 分支保留（Claude SDK 历史，勿删）
 - 数据存储：`~/.easymint/` 全局 + `<project>/.easymint/` 项目级（勿操作 `~/.easymint/` 用户数据）
 - 编码规范"新功能独立封装、图标优先 SVG"等见文件头部

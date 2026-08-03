@@ -207,6 +207,18 @@ app.on("before-quit", () => {
   if (sharedServices) sharedServices.agentService.shutdown();
 });
 
+// 异常退出兜底:dev 模式 Ctrl+C(SIGINT)/进程被 SIGTERM 时不触发 before-quit,
+// 后台 shell 会变孤儿进程——显式挂信号监听调 shutdown 后退出。
+// 注意:注册监听会替换 Node 默认行为,必须显式 app.quit()(shutdown 幂等,重复执行无害)
+process.on("SIGINT", () => {
+  if (sharedServices) sharedServices.agentService.shutdown();
+  app.quit();
+});
+process.on("SIGTERM", () => {
+  if (sharedServices) sharedServices.agentService.shutdown();
+  app.quit();
+});
+
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });

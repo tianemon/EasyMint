@@ -111,6 +111,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   task: {
     read: (projectPath: string) => ipcRenderer.invoke("task:read", { projectPath }),
+    getSubagentMessages: (sessionFile: string) =>
+      ipcRenderer.invoke("task:get-subagent-messages", { sessionFile }),
   },
   shell: {
     exec: (projectPath: string, command: string) => ipcRenderer.invoke("shell:exec", { projectPath, command }),
@@ -124,6 +126,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("shell:stderr", handler);
       return () => ipcRenderer.removeListener("shell:stderr", handler);
     },
+    readLog: (logPath: string) => ipcRenderer.invoke("shell:read-log", { logPath }),
   },
   skill: {
     list: (projectPath?: string) => ipcRenderer.invoke("skill:list", { projectPath }),
@@ -253,6 +256,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:delegation-progress", handler);
       return () => ipcRenderer.removeListener("agent:delegation-progress", handler);
     },
+    onSubagentStream: (callback: (data: unknown) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
+      ipcRenderer.on("agent:subagent-stream", handler);
+      return () => ipcRenderer.removeListener("agent:subagent-stream", handler);
+    },
     onDelegationCount: (callback: (data: unknown) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on("agent:delegation-count", handler);
@@ -262,6 +270,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on("agent:shell-count", handler);
       return () => ipcRenderer.removeListener("agent:shell-count", handler);
+    },
+    onShellOutput: (callback: (data: unknown) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
+      ipcRenderer.on("agent:shell-output", handler);
+      return () => ipcRenderer.removeListener("agent:shell-output", handler);
     },
     onChatSession: (callback: (data: { chatId: string; sessionId: string }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { chatId: string; sessionId: string }) =>

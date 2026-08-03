@@ -173,53 +173,81 @@ export async function getSessionMessages(
   const sessions = await listPiSessions(resolved);
   const info = sessions.find((s) => s.id === sessionId);
   if (!info) return [];
-
   try {
     const SM = await getSessionManagerClass();
     const mgr = SM.open(info.path, getPiSessionDir(resolved), resolved);
-    const entries = mgr.getEntries();
+    return parseEntriesToMessages(mgr, sessionId);
+  } catch {
+    return [];
+  }
+}
 
-    const messages: SessionMessage[] = [];
-    for (const entry of entries) {
-      if (entry.type === "message") {
-        const msg = entry.message as unknown as Record<string, unknown>;
-        const role = msg.role as string;
-        if (role !== "user" && role !== "assistant") continue;
+/** SessionManager entries → SessionMessage[](getSessionMessages / getSubagentMessages 共用) */
+async function parseEntriesToMessages(mgr: { getEntries(): unknown[] }, sessionId: string): Promise<SessionMessage[]> {
+  const entries = mgr.getEntries() as Array<{
+    type: string;
+    id: string;
+    timestamp: string;
+    message?: unknown;
+    customType?: string;
+    content?: unknown;
+    details?: Record<string, unknown>;
+  }>;
+  const messages: SessionMessage[] = [];
+  for (const entry of entries) {
+    if (entry.type === "message") {
+      const msg = entry.message as unknown as Record<string, unknown>;
+      const role = msg.role as string;
+      if (role !== "user" && role !== "assistant") continue;
 
-        messages.push({
-          type: role,
-          uuid: entry.id,
-          session_id: sessionId,
-          message: msg,
-          parent_tool_use_id: null,
-          created_at: (msg.created_at as number) ?? new Date(entry.timestamp).getTime(),
-        });
-      } else if (entry.type === "custom_message") {
-        // 系统消息(customType: system_message):以 user 形态返回,
-        // 前端按 customType/details 渲染;customType/details 透传供识别
-        const custom = entry as unknown as {
-          customType?: string;
-          content?: unknown;
-          details?: Record<string, unknown>;
-          timestamp?: string;
-        };
-        messages.push({
-          type: "user",
-          uuid: entry.id,
-          session_id: sessionId,
-          message: {
-            role: "user",
-            content: custom.content ?? [],
-            customType: custom.customType,
-            details: custom.details,
-            timestamp: new Date(custom.timestamp ?? entry.timestamp).getTime(),
-          },
-          parent_tool_use_id: null,
-          created_at: new Date(custom.timestamp ?? entry.timestamp).getTime(),
-        });
-      }
+      messages.push({
+        type: role,
+        uuid: entry.id,
+        session_id: sessionId,
+        message: msg,
+        parent_tool_use_id: null,
+        created_at: (msg.created_at as number) ?? new Date(entry.timestamp).getTime(),
+      });
+    } else if (entry.type === "custom_message") {
+      // 系统消息(customType: system_message):以 user 形态返回,
+      // 前端按 customType/details 渲染;customType/details 透传供识别
+      const custom = entry as unknown as {
+        customType?: string;
+        content?: unknown;
+        details?: Record<string, unknown>;
+        timestamp?: string;
+      };
+      messages.push({
+        type: "user",
+        uuid: entry.id,
+        session_id: sessionId,
+        message: {
+          role: "user",
+          content: custom.content ?? [],
+          customType: custom.customType,
+          details: custom.details,
+          timestamp: new Date(custom.timestamp ?? entry.timestamp).getTime(),
+        },
+        parent_tool_use_id: null,
+        created_at: new Date(custom.timestamp ?? entry.timestamp).getTime(),
+      });
     }
-    return messages;
+  }
+  return messages;
+}
+
+/** 读取子 Agent 会话消息(前端查看 Agent 过程用)。
+ *  sessionFile: 子会话 jsonl 绝对路径(executor 记录,委派进度透传)。
+ *  SM.open 只传文件路径——SDK 从文件 header 的 session 条目自动读 cwd/sessionDir,
+ *  无需外部传 projectPath(子会话不在 listPiSessions 可见范围)。
+ *  会话 ID 从文件名尾段提取(<时间戳>_<sessionId>.jsonl)。 */
+export async function getSubagentMessages(sessionFile: string): Promise<SessionMessage[]> {
+  if (!sessionFile) return [];
+  const sid = path.basename(sessionFile).replace(/\.[^.]+$/, "").split("_").pop() || sessionFile;
+  try {
+    const SM = await getSessionManagerClass();
+    const mgr = SM.open(sessionFile);
+    return parseEntriesToMessages(mgr, sid);
   } catch {
     return [];
   }

@@ -37,6 +37,7 @@ export function createDelegation(
     parentSessionId,
     tempParentSessionId: rawParentSessionId ?? parentSessionId,
     childSessionIds: [],
+    childSessionFiles: [],
     status: "running",
     tasks,
     startedAt: Date.now(),

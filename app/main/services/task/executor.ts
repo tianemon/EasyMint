@@ -19,6 +19,8 @@ import { ResultCollector } from "./collector";
 import { finishDelegation } from "./registry";
 import { wrapToolWithPermission } from "../permission/wrap-tool";
 import { SAFE_TOOLS, isSafeBashCommand } from "../permission/permission-rules";
+import { bridgeSessionEvents } from "../event-bridge";
+import { broadcast } from "../ipc-broadcast";
 import type {
   SingleResult,
   AgentProgress,
@@ -62,6 +64,10 @@ export interface SubagentOptions {
   title?: string;
   /** 关联的 task.json 任务 id(完成/中止自动回写) */
   taskId?: string;
+  /** 委派 ID(实时流广播 agent:subagent-stream 标识,前端按 delegationId+index 过滤) */
+  delegationId: string;
+  /** 子会话 jsonl 路径记录(按 index 写入;前端查看 Agent 过程定位文件) */
+  childSessionFiles: string[];
 }
 
 /** 执行单个子 Agent（后台，不阻塞调用方） */
@@ -154,6 +160,9 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
       sessionDir: opts.sessionDir,
       canUseTool: undefined,
     });
+    // 记录子会话 jsonl 路径(前端查看 Agent 过程用)
+    opts.childSessionFiles[opts.index] = session2.sessionFile ?? "";
+    progress.sessionFile = opts.childSessionFiles[opts.index] || undefined;
     const result2 = await executeAndCollect(session2, opts.task, yieldItems, opts, progress, id, agentLabel, startMs, opts.outputSchema);
     return result2;
   }
@@ -167,6 +176,9 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
       sessionDir: opts.sessionDir,
       canUseTool: undefined,
     });
+    // 记录子会话 jsonl 路径(前端查看 Agent 过程用)
+    opts.childSessionFiles[opts.index] = session.sessionFile ?? "";
+    progress.sessionFile = opts.childSessionFiles[opts.index] || undefined;
     const result = await executeAndCollect(session, opts.task, yieldItems, opts, progress, id, agentLabel, startMs);
     return result;
   } catch (e) {
@@ -189,7 +201,7 @@ async function executeAndCollect(
   session: Awaited<ReturnType<typeof createPiSession>>,
   task: string,
   yieldItems: YieldItem[],
-  opts: { signal?: AbortSignal; onProgress?: (p: AgentProgress) => void; title?: string; taskId?: string },
+  opts: SubagentOptions,
   progress: AgentProgress,
   id: string,
   agentLabel: string,
@@ -229,6 +241,24 @@ async function executeAndCollect(
 
   const unsub = session.subscribe((event: AgentSessionEvent) => {
     if (opts.signal?.aborted) { session.abort().catch(() => {}); return; }
+
+    // ── 实时流转发:子 Agent 过程在前端弹层实时展示 ──
+    // 用 bridgeSessionEvents 转成 EM 统一格式(与主会话事件同构),前端复用 piEventToEntries。
+    // 只转发携带内容的 message 帧即可;getSession/setPendingResult 子会话用不上,占位。
+    try {
+      bridgeSessionEvents(event, {
+        onEvent: (ev) => {
+          broadcast("agent:subagent-stream", {
+            delegationId: opts.delegationId,
+            index: progress.index,
+            sessionFile: opts.childSessionFiles[progress.index] ?? "",
+            ev,
+          });
+        },
+        getSession: () => null,
+        setPendingResult: () => {},
+      });
+    } catch { /* 转发失败不影响子 Agent 执行 */ }
 
     if (event.type === "tool_execution_start") {
       progress.currentTool = event.toolName;
@@ -369,6 +399,8 @@ export async function runSubagents(
       readOnly: task.readOnly,
       outputSchema: task.outputSchema,
       onProgress: runtime.onProgress,
+      delegationId: record.delegationId,
+      childSessionFiles: record.childSessionFiles,
     },
   }));
 

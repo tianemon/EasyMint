@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useDelegationStore } from "../stores/delegation-store";
+import { ShellProcessView } from "./ShellProcessView";
 
 /**
  * shell 胶囊:显示 shell·N(后台运行中的命令数),点击展开命令列表,
- * 每个命令可单独停止;点击胶囊外部区域收起(与 AgentBar 同款交互)
+ * 每个命令可点击查看输出(弹层)、单独停止;点击胶囊外部区域收起(与 AgentBar 同款交互)
  */
 export function ShellBar(): JSX.Element | null {
   const shellTasks = useDelegationStore((s) => s.shellTasks);
   const [expanded, setExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  // 查看中的后台命令(弹层;命令结束后弹层保持,running 转 false)
+  const [viewing, setViewing] = useState<{ id: string; command: string; logPath: string } | null>(null);
 
   // 全部结束时收起浮层
   useEffect(() => {
@@ -32,16 +35,17 @@ export function ShellBar(): JSX.Element | null {
   const stopShell = (id: string): void => {
     window.electronAPI.agent.stopShell(id).catch(() => {});
   };
+  const viewingRunning = viewing ? shellTasks.some((t) => t.id === viewing.id) : false;
 
   return (
     <div ref={containerRef} className="relative shrink-0">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="rounded-[8px] bg-info-soft px-2 py-0.5 text-[11px] font-semibold text-info cursor-pointer"
+        className="rounded-[8px] bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info cursor-pointer hover:bg-info-high"
         title="运行中的后台命令"
       >
-        shell·{shellTasks.length}
+        Shell·{shellTasks.length}
       </button>
 
       {/* 命令列表浮层(向上展开,覆盖输入卡片上方) */}
@@ -57,19 +61,42 @@ export function ShellBar(): JSX.Element | null {
                   <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
                   <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
-                <span className="truncate flex-1 text-text-primary font-mono" title={task.command}>{task.command}</span>
                 <button
                   type="button"
-                  onClick={() => stopShell(task.id)}
-                  className="shrink-0 px-2 py-0.5 rounded-[6px] border border-danger/40 text-danger hover:bg-danger-soft transition-colors"
-                  title="停止该命令"
+                  onClick={() => { setViewing({ id: task.id, command: task.command, logPath: task.logPath }); setExpanded(false); }}
+                  className="truncate flex-1 text-left font-mono text-text-primary hover:text-info transition-colors cursor-pointer"
+                  title={`查看「${task.command}」输出`}
                 >
-                  停止
+                  {task.command}
                 </button>
+                {task.status === "stopping" ? (
+                  // 已点停止:杀进程中,按钮禁用避免重复触发
+                  <span className="shrink-0 px-2 py-0.5 rounded-[6px] text-text-secondary text-[11px]">停止中…</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => stopShell(task.id)}
+                    className="shrink-0 px-2 py-0.5 rounded-[6px] border border-danger/40 text-danger hover:bg-danger-soft transition-colors"
+                    title="停止该命令"
+                  >
+                    停止
+                  </button>
+                )}
               </div>
             ))}
           </div>
         </div>
+      )}
+
+      {/* 后台命令输出查看弹层 */}
+      {viewing && (
+        <ShellProcessView
+          id={viewing.id}
+          command={viewing.command}
+          logPath={viewing.logPath}
+          running={viewingRunning}
+          onClose={() => setViewing(null)}
+        />
       )}
     </div>
   );

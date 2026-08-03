@@ -653,17 +653,6 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   color: var(--color-text-muted); min-height: 26px; flex-shrink: 0;
   margin: 0 var(--s16);
 }
-.status-shimmer {
-  background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-accent) 40%, var(--color-text-muted) 50%, var(--color-accent) 60%, var(--color-accent) 100%);
-  background-size: 200% 100%;
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: shimmer-sweep 3s linear infinite;
-}
-@keyframes shimmer-sweep {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
 
 /* ── Chat Input Card ─────────────────────────── */
 .input-card {
@@ -1229,7 +1218,8 @@ select.input {
 /* @font-face { font-family: 'Mint'; src: url('/fonts/AlexBrush.ttf') format('truetype'); font-display: swap; }   经典书法 */
 /* @font-face { font-family: 'Mint'; src: url('/fonts/Sacramento.ttf') format('truetype'); font-display: swap; } */  /* 清秀手帐 */
 
-/* ── Shimmer gradient — 双主题色系 ──────────── */
+/* ── Shimmer gradient — 双主题色系(状态栏流光) ──
+   恢复 claude-legacy 版本:亮色 绿金 / 暗色 蓝紫粉(低对比,视觉舒缓) */
 :root  { --shimmer-1: #16a34a; --shimmer-2: #22c55e; --shimmer-3: #eab308; --shimmer-4: #facc15; --shimmer-5: #4ade80; }
 [data-theme="dark"] { --shimmer-1: #818cf8; --shimmer-2: #a78bfa; --shimmer-3: #f472b6; --shimmer-4: #c084fc; --shimmer-5: #6366f1; }
 
@@ -1256,27 +1246,6 @@ select.input {
 @keyframes shimmerSweep {
   0%   { background-position: 300% 0; }
   100% { background-position: -300% 0; }
-}
-
-.mint-shimmer {
-  font-family: 'Mint', 'Snell Roundhand', 'Apple Chancery', 'Brush Script MT', 'Segoe Script', cursive;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  animation: shimmerSweep 6s linear infinite;
-  background: linear-gradient(
-    90deg,
-    var(--shimmer-1) 0%,
-    var(--shimmer-2) 15%,
-    var(--shimmer-3) 35%,
-    var(--shimmer-4) 50%,
-    var(--shimmer-5) 65%,
-    var(--shimmer-2) 85%,
-    var(--shimmer-1) 100%
-  );
-  background-size: 300% 100%;
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
 }
 
 /* ── xterm overrides ──────────────────────────────── */

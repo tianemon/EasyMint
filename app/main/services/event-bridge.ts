@@ -103,7 +103,11 @@ export function bridgeSessionEvents(
         // 此时直接当 message 事件处理
         const blocks = messageToBlocks(msg);
         if (blocks.length > 0) {
-          callbacks.onEvent({ type: "message_start", sessionId: "", blocks });
+          callbacks.onEvent({
+            type: "message_start", sessionId: "", blocks,
+            // Pi 落盘时间戳——前端按此拆分/排序回合输出块(与磁盘逐条 assistant 对齐)
+            timestamp: (msg as { timestamp?: number }).timestamp,
+          });
         } else {
           // 空内容 → 纯信号，告知前端开始新 turn
           callbacks.onEvent({ type: "message_start", sessionId: "" });
@@ -136,7 +140,11 @@ export function bridgeSessionEvents(
       if (!isAssistantMessage(msg)) break;
       const blocks = messageToBlocks(msg);
       if (blocks.length > 0) {
-        callbacks.onEvent({ type: "message" as const, sessionId: "", blocks, partial: true });
+        callbacks.onEvent({
+          type: "message" as const, sessionId: "", blocks, partial: true,
+          // Pi 落盘时间戳——前端按此拆分/排序回合输出块(与磁盘逐条 assistant 对齐)
+          timestamp: (msg as { timestamp?: number }).timestamp,
+        });
       }
       break;
     }
@@ -146,7 +154,11 @@ export function bridgeSessionEvents(
       if (!isAssistantMessage(msg)) break;
       const blocks = messageToBlocks(msg);
       if (blocks.length > 0) {
-        callbacks.onEvent({ type: "message" as const, sessionId: "", blocks, partial: false });
+        callbacks.onEvent({
+          type: "message" as const, sessionId: "", blocks, partial: false,
+          // Pi 落盘时间戳——前端按此拆分/排序回合输出块(与磁盘逐条 assistant 对齐)
+          timestamp: (msg as { timestamp?: number }).timestamp,
+        });
       }
       break;
     }

@@ -59,6 +59,8 @@ export interface AgentProgress {
   currentTool?: string;
   toolCount: number;
   durationMs: number;
+  /** 子会话 jsonl 文件路径(前端查看 Agent 过程用;createPiSession 后回填) */
+  sessionFile?: string;
   // omp 移植的生产字段
   requests: number;
   tokens: number;
@@ -122,6 +124,8 @@ export interface DelegationRecord {
   tempParentSessionId?: string;
   /** 子会话 ID 列表（批量时多个） */
   childSessionIds: string[];
+  /** 子会话 jsonl 文件路径列表(按 index 对齐;前端查看 Agent 过程用) */
+  childSessionFiles: string[];
   status: DelegationStatus;
   tasks: TaskItem[];
   startedAt: number;

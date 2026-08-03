@@ -62,7 +62,23 @@ interface DelegationProgressEvent {
     currentTool?: string;
     toolCount: number;
     durationMs: number;
+    /** 子会话 jsonl 文件路径(查看 Agent 过程弹层定位用) */
+    sessionFile?: string;
   };
+}
+
+/** 子 Agent 实时流广播(agent:subagent-stream)——executor 转发子会话事件,弹层实时展示 */
+interface SubagentStreamEvent {
+  delegationId: string;
+  index: number;
+  sessionFile: string;
+  ev: StreamEvent;
+}
+
+/** 后台 shell 实时输出广播(agent:shell-output)——registry 节流合并 chunk,查看弹层追加 */
+interface ShellOutputEvent {
+  id: string;
+  chunk: string;
 }
 
 interface StreamEvent {
@@ -155,8 +171,10 @@ interface ElectronAPI {
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
     onDelegationProgress: (callback: (data: DelegationProgressEvent) => void) => () => void;
+    onSubagentStream: (callback: (data: SubagentStreamEvent) => void) => () => void;
     onDelegationCount: (callback: (data: { count: number; tasks: { delegationId: string; index: number; title: string }[] }) => void) => () => void;
-    onShellCount: (callback: (data: { id: string; command: string; startedAt: number }[]) => void) => () => void;
+    onShellCount: (callback: (data: { id: string; command: string; startedAt: number; status: "running" | "stopping"; logPath: string }[]) => void) => () => void;
+    onShellOutput: (callback: (data: ShellOutputEvent) => void) => () => void;
     onChatSession: (callback: (data: { chatId: string; sessionId: string }) => void) => () => void;
     onContextSummarizing: (callback: (data: { chatId: string }) => void) => () => void;
     onContextSummary: (callback: (data: { chatId: string; summary: string }) => void) => () => void;
@@ -169,11 +187,13 @@ interface ElectronAPI {
   };
   task: {
     read: (projectPath: string) => Promise<{ tasks: { id: string; title: string; description: string; command: string; status: string; attempts: number }[] }>;
+    getSubagentMessages: (sessionFile: string) => Promise<{ type: string; message: unknown }[]>;
   };
   shell: {
     exec: (projectPath: string, command: string) => Promise<{ code: number | null }>;
     onStdout: (callback: (data: { line: string }) => void) => () => void;
     onStderr: (callback: (data: { line: string }) => void) => () => void;
+    readLog: (logPath: string) => Promise<{ content: string; truncated: boolean }>;
   };
   skill: {
     list: (projectPath?: string) => Promise<{ name: string; description: string; path: string; level: "builtin" | "global" | "project"; enabled: boolean }[]>;

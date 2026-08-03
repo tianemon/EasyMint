@@ -50,6 +50,7 @@ import {
   listSessions,
   listDesignSessions,
   getSessionMessages,
+  getSubagentMessages,
   renameSession,
   deleteSession,
   getSessionInfo,
@@ -269,6 +270,30 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("conv:get", (_e, { id, projectPath }) => getSessionInfo(id, projectPath));
   ipcMain.handle("conv:design-sessions", () => getDesignSessionIds());
   ipcMain.handle("conv:messages", (_e, { id, projectPath }) => getSessionMessages(id, projectPath));
+  // 子 Agent 会话消息(按 jsonl 路径读;前端查看 Agent 过程)
+  ipcMain.handle("task:get-subagent-messages", (_e, { sessionFile }) =>
+    getSubagentMessages(sessionFile));
+
+  // shell:read-log — 读取后台命令输出日志(尾部 100KB 截断,弹层展示最近输出)
+  ipcMain.handle("shell:read-log", (_e, { logPath }) => {
+    try {
+      if (!logPath || !fs.existsSync(logPath)) return { content: "", truncated: false };
+      const stat = fs.statSync(logPath);
+      if (stat.size <= 100 * 1024) {
+        return { content: fs.readFileSync(logPath, "utf-8"), truncated: false };
+      }
+      const buf = Buffer.alloc(100 * 1024);
+      const fd = fs.openSync(logPath, "r");
+      try {
+        fs.readSync(fd, buf, 0, 100 * 1024, stat.size - 100 * 1024);
+      } finally {
+        fs.closeSync(fd);
+      }
+      return { content: buf.toString("utf-8"), truncated: true };
+    } catch {
+      return { content: "", truncated: false };
+    }
+  });
   ipcMain.handle("conv:rename", (_e, { id, title, projectPath }) => {
     agentService.onSessionRenamed(id);
     return renameSession(id, title, projectPath);
@@ -376,7 +401,7 @@ const filePath = p.join(projectPath, "init.sh");
 
   // task:read — read task.json and return tasks
   ipcMain.handle("task:read", (_e, { projectPath }) => {
-    
+
 const filePath = p.join(projectPath, "task.json");
       if (!fs.existsSync(filePath)) return { tasks: [] };
       const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));

@@ -143,7 +143,6 @@ npm install
 npm run dev          # 启动 Vite dev server + Electron
 npm run build        # 生产构建
 npm run lint         # ESLint + TypeScript 类型检查
-npm run test         # 运行单元测试
 ```
 
 需要 Node.js 环境。首次 `npm install` 会自动安装所有依赖。
