@@ -221,6 +221,8 @@ html[data-platform="win32"] {
   --shadow-md: 0 4px 14px rgba(0,0,0,0.07);
   --shadow-lg: 0 8px 28px rgba(0,0,0,0.10);
   --shadow-xl: 0 12px 40px rgba(0,0,0,0.16);
+  /* 菜单阴影:暗色下不带 inset 顶高光(与 shadow-xl 区分) */
+  --shadow-menu: 0 12px 40px rgba(0,0,0,0.16);
   --msg-agent-shadow: 0 1px 4px rgba(0,0,0,0.07),0 0 0 1px rgba(0,0,0,0.03);
   --msg-user-shadow: 0 2px 8px rgba(0,0,0,0.12),0 0 0 1px rgba(0,0,0,0.04);
 
@@ -397,6 +399,8 @@ html[data-platform="win32"] {
   --shadow-md: 0 4px 18px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
   --shadow-lg: 0 12px 36px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.08);
   --shadow-xl: 0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+  /* 菜单阴影(暗色):无 inset 顶高光 */
+  --shadow-menu: 0 12px 40px rgba(0,0,0,0.5);
   --msg-agent-shadow: 0 1px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
   --msg-user-shadow: 0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
 }
@@ -456,7 +460,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 .sb-dropdown {
   position: absolute; top: 100%; left: 0; margin-top: var(--s1);
   min-width: 160px; background: var(--color-sidebar);
-  border-radius: var(--radius-md); box-shadow: var(--shadow-xl);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-menu);
   padding: var(--s1); z-index: 100; display: none; flex-direction: column;
 }
 .sb-dropdown.open { display: flex; }
