@@ -559,12 +559,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // custom 系统消息(委派完成/后台 shell/流程指令)→ 渲染为消息(带 streaming 标记,
       // loadSession 时被磁盘版本替代,不重复)
       if (event.type === "custom_event" && event.text) {
+        console.log(`[chat] custom_event ts=${event.timestamp} text=${event.text.slice(0, 24).replace(/\n/g, " ")}`);
         // 按落盘时间戳有序插入——通知发生在过去时刻,append 会跑到之后新消息后面,
         // 与磁盘顺序(重载后位置)不一致
         useChatStore.getState().insertUserMsgAt(sidRef.current, {
           role: "user", text: event.text, timestamp: event.timestamp ?? Date.now(), streaming: true,
           customType: event.customType, details: event.details,
         });
+        console.log(`[chat] after insert: ${useChatStore.getState().messagesBySession[sidRef.current]?.length ?? 0} msgs`);
         scrollToBottom();
       }
       // context usage update
