@@ -228,7 +228,13 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
 
       // 完成回调：结果注入主会话(不阻塞本工具)
       record.completion.then((result) => {
-        ctx.onComplete?.(record.parentSessionId, formatDelegationResult(result));
+        // 单任务委派被用户停止:即时中止通知已发,汇总无增量信息,跳过(避免重复)
+        const singleTaskAborted = record.tasks.length === 1
+          && result.results[0]?.aborted
+          && !record.abortController.signal.aborted; // 整体中止无即时通知,汇总必须发
+        if (!singleTaskAborted) {
+          ctx.onComplete?.(record.parentSessionId, formatDelegationResult(result));
+        }
       }).catch(() => {});
 
       // 委派计数广播(ProcessBar 显示 agent·N)——创建和结束时各广播一次
