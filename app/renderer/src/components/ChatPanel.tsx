@@ -566,13 +566,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       // custom 系统消息(委派完成/后台 shell/流程指令)→ 渲染为消息(带 streaming 标记,
       // loadSession 时被磁盘版本替代,不重复)
       if (event.type === "custom_event" && event.text) {
-        // 按到达顺序追加:串行化后事件流顺序 = 注入顺序 = 落盘顺序;
-        // 之前按 timestamp 排序会因主进程/前端两个时钟的毫秒级差异,
-        // 导致通知插在 Mint 回合消息前/后不稳定(一个回合出一个)
-        useChatStore.getState().appendUserMsg(sidRef.current, {
-          role: "user", text: event.text, timestamp: Date.now(), streaming: true,
+        const msg = {
+          role: "user" as const, text: event.text, timestamp: Date.now(), streaming: true,
           customType: event.customType, details: event.details,
-        });
+        };
+        // Pi 事件顺序:turn_start 先于 message_start(custom)——当前回合锚点已创建,
+        // 通知插到锚点之前(通知是其触发的回合的前置上下文,不能 append 到回合后)
+        const anchorId = curAiMsgIdRef.current;
+        if (anchorId) {
+          useChatStore.getState().insertUserMsgBefore(sidRef.current, anchorId, msg);
+        } else {
+          useChatStore.getState().appendUserMsg(sidRef.current, msg);
+        }
         scrollToBottom();
       }
       // context usage update

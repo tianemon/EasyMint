@@ -10,6 +10,8 @@ interface ChatState {
   loadSession: (sessionId: string, messages: StoredMessage[]) => void;
   evictSession: (sessionId: string) => void;
   appendUserMsg: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai" }) => void;
+  /** 插到指定消息之前(系统通知插到其触发的回合锚点前——Pi turn_start 先于 message_start) */
+  insertUserMsgBefore: (sessionId: string, anchorId: number, msg: Record<string, any> & { role: "user" | "ai" }) => void;
   replaceAiEntries: (sessionId: string, entries: Record<string, any>[]) => number;
   /** 按消息 id 全量替换 entries（Pi 帧是累计全文快照，替换而非拼接——见 Proma uuid 方案） */
   replaceAiEntriesById: (sessionId: string, msgId: number, entries: Record<string, any>[]) => number;
@@ -59,6 +61,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         [sessionId]: [...(s.messagesBySession[sessionId] || []), { ...msg, id }],
       },
     }));
+  },
+
+  insertUserMsgBefore: (sessionId, anchorId, msg) => {
+    const id = get().nextMsgId(sessionId);
+    return set((s) => {
+      const msgs = s.messagesBySession[sessionId] || [];
+      const idx = msgs.findIndex((m) => m.id === anchorId);
+      const next = idx >= 0
+        ? [...msgs.slice(0, idx), { ...msg, id }, ...msgs.slice(idx)]
+        : [...msgs, { ...msg, id }];
+      return { messagesBySession: { ...s.messagesBySession, [sessionId]: next } };
+    });
   },
 
   replaceAiEntries: (sessionId: string, entries: Record<string, any>[]) => {
