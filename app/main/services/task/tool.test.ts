@@ -80,7 +80,7 @@ describe("task tool 异步委派（对齐 cc 实测行为）", () => {
     await vi.waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
     expect(onComplete.mock.calls[0]![0]).toBe("session-mint");
     const text = onComplete.mock.calls[0]![1] as string;
-    expect(text).toContain("● T1 — 完成");  // 摘要行(前端绿色气泡渲染用)
+    expect(text).toContain("⏺ T1 — 完成");  // 摘要行(前端绿色气泡渲染用)
     expect(text).toContain("最终完整结果");  // 详细段(Mint 汇报用)
     expect(text).toContain('"message":"收到"');
   });

@@ -40,7 +40,7 @@ function formatDelegationResult(result: BatchResult): string {
     const status = r.error ? "失败" : (r.aborted ? "中止" : "完成");
     const title = r.title || r.task.slice(0, 40);
     const dur = r.durationMs ? ` · ${Math.round(r.durationMs / 1000)}s` : "";
-    summary.push(`● ${title} — ${status}${dur}`);
+    summary.push(`⏺ ${title} — ${status}${dur}`);
   }
   if (result.results.length > 1) {
     const ok = result.results.filter((r) => !r.error && !r.aborted).length;
@@ -202,7 +202,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
             notifiedTerminal.add(key);
             const title = record.tasks[progress.index]?.title || progress.task.slice(0, 40);
             const dur = Math.max(0, Math.round(progress.durationMs / 1000));
-            ctx.onTaskAborted?.(record.parentSessionId, `● ${title} — 中止${dur > 0 ? ` · ${dur}s` : ""}`);
+            ctx.onTaskAborted?.(record.parentSessionId, `⏺ ${title} — 中止${dur > 0 ? ` · ${dur}s` : ""}`);
           }
         }
         // 单任务提前完成(委派还有任务在跑)→ 立即注入完成通知,Mint 判断继续等待
@@ -214,7 +214,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
               notifiedTerminal.add(key);
               const title = record.tasks[progress.index]?.title || progress.task.slice(0, 40);
               const dur = Math.max(0, Math.round(progress.durationMs / 1000));
-              ctx.onTaskCompleted?.(record.parentSessionId, `● ${title} — 完成${dur > 0 ? ` · ${dur}s` : ""}`);
+              ctx.onTaskCompleted?.(record.parentSessionId, `⏺ ${title} — 完成${dur > 0 ? ` · ${dur}s` : ""}`);
             }
           }
         }
