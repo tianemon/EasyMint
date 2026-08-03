@@ -62,7 +62,7 @@
   --color-sidebar-hover: #e5e5e1;
   --color-sidebar-active: #f6f6f3;
   --color-content: #fafaf8;
-  --color-card: #ffffff;
+  --color-card: #fdfdfd;
   --color-card-agent: #f3f6f3;
   --color-elevated: #ffffff;
   --color-input-field: #f5f5f2;
@@ -239,7 +239,7 @@ html[data-platform="win32"] {
   --color-sidebar-hover: #e5e5e1;
   --color-sidebar-active: #f6f6f3;
   --color-content: #fafaf8;
-  --color-card: #ffffff;
+  --color-card: #fdfdfd;
   --color-card-agent: #f3f6f3;
   --color-elevated: #ffffff;
   --color-input-field: #f5f5f2;
