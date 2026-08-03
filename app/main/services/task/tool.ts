@@ -24,6 +24,8 @@ export interface TaskToolContext {
   chatId?: string;
   /** 委派完成回调：结果注入主会话（agent-service 提供） */
   onComplete?: (parentSessionId: string, text: string) => void;
+  /** 单任务被用户停止回调：立即注入中止通知（不等整个委派完成） */
+  onTaskAborted?: (parentSessionId: string, text: string) => void;
 }
 
 /** BatchResult → 注入主会话的文本 */
@@ -172,6 +174,12 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         setTaskStatus(record.delegationId, progress.index, progress.status);
         // 任务离开 running(完成/中止/失败)→ 同步刷新 AgentBar 运行中列表
         if (progress.status !== "running") broadcastCount();
+        // 单任务被用户停止(非整体中止)→ 立即注入中止通知,不等委派收尾
+        if (progress.status === "aborted" && !record.abortController.signal.aborted) {
+          const title = record.tasks[progress.index]?.title || progress.task.slice(0, 40);
+          const dur = Math.max(0, Math.round(progress.durationMs / 1000));
+          ctx.onTaskAborted?.(record.parentSessionId, `● ${title} — 中止${dur > 0 ? ` · ${dur}s` : ""}`);
+        }
         broadcast("agent:delegation-progress", {
           chatId: ctx.chatId,
           delegationId: record.delegationId,

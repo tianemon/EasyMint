@@ -161,6 +161,8 @@ export class AgentService {
         parentSessionId: sessionId,
         chatId,
         onComplete: (sid, text) => this.injectSystemMessage(sid, text),
+        // 单任务被用户停止 → 立即注入中止通知(kind: delegation,绿色气泡 ● 行)
+        onTaskAborted: (sid, text) => this.injectSystemMessage(sid, text, "delegation"),
       });
       const productTools = await createProductTools(projectPath);
       const mcpTools = await loadMcpTools();
