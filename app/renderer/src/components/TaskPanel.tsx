@@ -88,17 +88,17 @@ export function TaskPanel(_props: TaskPanelProps): JSX.Element {
 
   return (
     <div className="h-full flex flex-col bg-sidebar-active">
-      {/* Header */}
+      {/* Header:标题 + 任务数量同行 */}
       <div className="flex items-center gap-2 h-9 px-3 border-b border-border shrink-0">
         <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">任务</span>
+        {taskCount > 0 && (
+          <span className="ml-auto text-[10px] text-text-secondary tabular-nums">{doneCount}/{taskCount} 完成</span>
+        )}
       </div>
 
       {/* Task list — mint container always visible, fixed area */}
       <div className="flex-1 min-h-0 flex flex-col px-3 py-1.5">
         <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto">
-          <div className="flex items-center justify-end px-3 pt-1 pb-1">
-            {taskCount > 0 && <span className="text-[10px] text-text-secondary">{doneCount}/{taskCount} 完成</span>}
-          </div>
           {tasks.length > 0 ? (
             tasks.map((task) => (
               <TaskRow key={task.id} task={task} runningExec={taskExecutions[task.id]} />
