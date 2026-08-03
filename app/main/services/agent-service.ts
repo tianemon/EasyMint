@@ -761,6 +761,7 @@ export class AgentService {
           onEvent: (ev) => {
             ev.sessionId = sessionId;
             ev.chatId = chat.chatId;
+            console.log(`[agent] system bridge broadcast: ${ev.type} ts=${ev.timestamp} text=${(ev.text ?? "").slice(0, 30).replace(/\n/g, " ")}`);
             broadcast("agent:stream", ev);
             this.bufferEvent(sessionId, ev);
           },

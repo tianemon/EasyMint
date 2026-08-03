@@ -10,7 +10,7 @@
       "id": 2,
       "title": "测试B:子Agent输出一句话(将被手动停止)",
       "description": "验证中止自动回写 failed",
-      "status": "done"
+      "status": "failed"
     },
     {
       "id": 3,
