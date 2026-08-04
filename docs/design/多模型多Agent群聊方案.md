@@ -46,11 +46,10 @@ Pi SDK(`@earendil-works/pi-coding-agent`):
 ### 4.1 Settings(`app/main/services/store.ts`)
 
 ```ts
-// 需求 1 默认/兜底:2026-08-04 起移入每条供应商配置
-// (ProviderConfig.defaultModel/fallbackModel),全局不再有 defaultProvider 等字段。
-// 当前激活供应商的 defaultModel 为默认,fallbackModel 为兜底。
-// 需求 2:子 Agent 默认模型(格式 "provider:model")
-subagentDefaultModel?: string;
+// 需求 1/2 默认、兜底、子 Agent 默认模型:2026-08-04 起全部移入每条供应商配置
+// (ProviderConfig.model/fallbackModel/subagentDefaultModel),全局不再有
+// defaultProvider/defaultModel/fallbackProvider/fallbackModel/subagentDefaultModel 字段。
+// 当前激活供应商的 model 为默认,fallbackModel 为兜底,subagentDefaultModel 为 task 子 Agent 默认。
 // 需求 4:群聊配置
 maxGroupAgents?: number;              // 最大 Agent 数(默认 3)
 groupForwardStrategy?: "all" | "conclusion";  // 转发策略(默认 conclusion 只转结论)
@@ -59,13 +58,14 @@ maxForwardDepth?: number;             // 最大转发深度(默认 3,防环)
 groupPresets?: GroupPreset[];         // 预设组合(内置 + 用户自定义)
 ```
 
-供应商配置(`app/shared/platform-presets.ts` ProviderConfig)新增:
+供应商配置(`app/shared/platform-presets.ts` ProviderConfig):
 
 ```ts
 export interface ProviderConfig {
-  // ...现有(id/presetId/name/apiKey/model/models/createdAt)
-  defaultModel?: string;   // 该供应商的默认模型(激活时优先使用,从 models 选)
-  fallbackModel?: string;  // 该供应商的兜底模型(默认模型不可用时降级,从 models 选)
+  // ...现有(id/presetId/name/apiKey/models/createdAt)
+  model: string;                     // 该供应商的默认模型(激活时优先使用)
+  fallbackModel?: string;            // 该供应商的兜底模型(默认模型不可用时降级,从 models 选)
+  subagentDefaultModel?: string;     // 该供应商的 task 工具子 Agent 默认模型(委派子 Agent 未指定时用,从 models 选)
 }
 ```
 
@@ -105,17 +105,18 @@ interface SessionCache {
 
 | 设置项 | 位置 | 默认 | 阶段 |
 |--------|------|------|------|
-| 默认模型(每条供应商) | 供应商详情页(编辑) | 留空=当前模型 | 1 |
+| 模型(默认)(每条供应商) | 供应商详情页(编辑) | 无 | 1 |
 | 兜底模型(每条供应商) | 供应商详情页(编辑) | 无 | 1 |
-| 子 Agent 默认模型 | 设置→模型(底部) | 同默认 | 2 |
-| 群聊最大 Agent 数 | 设置→群聊 | 3 | 4 |
-| 群聊转发策略 | 设置→群聊 | conclusion | 4 |
-| 群聊注入方式 | 设置→群聊 | followUp | 4 |
-| 群聊最大转发深度 | 设置→群聊 | 3 | 4 |
-| 群聊预设组合 | 设置→群聊 | 开发三人组/设计协作 | 4 |
+| 子 Agent 默认模型(每条供应商) | 供应商详情页(编辑) | 同模型 | 2 |
+| 群聊最大 Agent 数 | 设置→Agent | 3 | 4 |
+| 群聊转发策略 | 设置→Agent | conclusion | 4 |
+| 群聊注入方式 | 设置→Agent | followUp | 4 |
+| 群聊最大转发深度 | 设置→Agent | 3 | 4 |
+| 群聊预设组合 | 设置→Agent | 开发三人组/设计协作 | 4 |
+| Agent 模板(占位) | 设置→Agent | 内置模板 | 4 |
 | AgentTemplate 供应商+模型 | 模板编辑(UI 待做) | 无(用默认) | 2 |
 
-> 默认/兜底模型为 **per-provider 配置**(2026-08-04 起):每条供应商在详情页配自己的 defaultModel/fallbackModel,从该供应商模型列表选。全局不再有"默认供应商"概念——默认/兜底从**当前激活供应商**读取。
+> 默认/兜底/子 Agent 默认模型均为 **per-provider 配置**(2026-08-04 起):每条供应商在详情页配自己的 model/fallbackModel/subagentDefaultModel,从该供应商模型列表选。全局不再有相关字段——默认/兜底从**当前激活供应商**读取。
 
 ## 6. 主进程设计
 
@@ -132,7 +133,9 @@ interface SessionCache {
 
 ### 6.2 executor resolveSubagentModel(需求 2/3)
 
-优先级:委派指定(provider+model) → AgentTemplate → 子 Agent 默认模型(`subagentDefaultModel` "provider:model") → 全局默认(getActiveModel)。
+优先级:委派指定(provider+model) → AgentTemplate(模板的 provider/model)→ 当前激活供应商的 `subagentDefaultModel` → 全局默认(活跃供应商 model,getActiveModel 降级)。
+
+**群聊 Agent 模型解析**:模板配了 provider/model 用模板(优先级最高);否则走 getActiveModel(与主会话一致,当前活跃供应商 model → fallbackModel)。
 
 ### 6.3 会话绑供应商(需求 5)
 

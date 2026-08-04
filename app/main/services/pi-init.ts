@@ -45,13 +45,10 @@ export async function getActiveModel(store: Store): Promise<Model<any> | null> {
   if (!activeCfg?.presetId) return null;
   const runtime = await getModelRuntime(store);
 
-  // 候选模型列表(按优先级:当前激活供应商的 默认模型 → 活跃模型 → 兜底模型)。
-  // 默认/兜底由每条供应商配置自己的 defaultModel/fallbackModel 定义(需求 1 重定义)。
+  // 候选模型列表(按优先级:当前激活供应商的 模型(默认) → 兜底模型)。
+  // 默认/兜底由每条供应商配置自己的 model/fallbackModel 定义(需求 1 重定义)。
   // 模型不存在或无凭据时跳到下一个(降级)。
   const candidates: Array<{ provider: string; modelId: string }> = [];
-  if (activeCfg.defaultModel) {
-    candidates.push({ provider: activeCfg.presetId, modelId: activeCfg.defaultModel.replace(/\[1M\]$/, "") });
-  }
   if (activeCfg.model) {
     candidates.push({ provider: activeCfg.presetId, modelId: activeCfg.model.replace(/\[1M\]$/, "") });
   }

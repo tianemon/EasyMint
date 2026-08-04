@@ -314,7 +314,6 @@ interface ElectronAPI {
       apiKey?: string; apiKeys?: Record<string, string>; builtinTools?: Record<string, boolean>; model?: string;
       availableModels?: string[]; contextThreshold?: number; context1M?: boolean;
       showThinking?: boolean; showToolUse?: boolean;
-      subagentDefaultModel?: string;
       maxGroupAgents?: number;
       groupForwardStrategy?: "all" | "conclusion";
       groupInjectMode?: "steer" | "followUp";

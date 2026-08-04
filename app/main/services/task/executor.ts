@@ -95,16 +95,14 @@ async function resolveSubagentModel(opts: SubagentOptions): Promise<Awaited<Retu
       if (m2) return m2;
     }
   }
-  // 3. 子 agent 默认模型(settings.subagentDefaultModel,格式 "provider:model")
-  const subDefault = opts.store.getSettings().subagentDefaultModel;
-  if (subDefault) {
-    const i = subDefault.indexOf(":");
-    if (i > 0) {
-      const m3 = tryGet(subDefault.slice(0, i), subDefault.slice(i + 1));
-      if (m3) return m3;
-    }
+  // 3. 子 agent 默认模型(当前激活供应商配置的 subagentDefaultModel,task 委派用)
+  const providers = opts.store.getSettings().apiProviders;
+  const activeCfg = providers?.current ? providers.configs?.[providers.current] : undefined;
+  if (activeCfg?.presetId && activeCfg.subagentDefaultModel) {
+    const m3 = tryGet(activeCfg.presetId, activeCfg.subagentDefaultModel.replace(/\[1M\]$/, ""));
+    if (m3) return m3;
   }
-  // 4. 全局默认(默认/兜底降级在 getActiveModel 内处理)
+  // 4. 全局默认(当前激活供应商的 model,默认/兜底降级在 getActiveModel 内处理)
   return getActiveModel(opts.store);
 }
 

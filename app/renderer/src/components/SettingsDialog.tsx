@@ -1,10 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { ProvidersManager } from "./settings/ProviderSettings";
-import { ModelDefaultsSettings } from "./settings/ProviderSettings";
 import { GroupSettingsSection } from "./GroupSettingsSection";
 
-export type SettingsTab = "general" | "plugins" | "providers" | "group" | "about";
+export type SettingsTab = "general" | "plugins" | "providers" | "agent" | "about";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -628,10 +627,10 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
               插件
             </button>
             <button
-              className={`settings-header-tab ${activeTab === "group" ? "active" : ""}`}
-              onClick={() => setActiveTab("group")}
+              className={`settings-header-tab ${activeTab === "agent" ? "active" : ""}`}
+              onClick={() => setActiveTab("agent")}
             >
-              群聊
+              Agent
             </button>
             <button
               className={`settings-header-tab ${activeTab === "about" ? "active" : ""}`}
@@ -719,15 +718,22 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
               <hr className="border-border" />
               <McpTab />
             </div>
-          ) : activeTab === "group" ? (
+          ) : activeTab === "agent" ? (
             <div className="space-y-5">
               <GroupSettingsSection />
+              <hr className="border-border" />
+              {/* Agent 模板占位:后续版本提供模板编辑与角色配置 */}
+              <section>
+                <h3 className="text-sm font-medium text-text-secondary mb-2">Agent 模板</h3>
+                <div className="rounded-lg border border-border bg-surface-elevated px-4 py-3 text-xs text-text-secondary/70 leading-relaxed">
+                  模板编辑与角色配置功能规划中,将在后续版本提供。当前群聊角色复用内置模板(Mint / Builder / Evaluator / Mint-D);
+                  群聊 Agent 可在模板中单独配置供应商和模型,默认与主会话一致。
+                </div>
+              </section>
             </div>
           ) : activeTab === "providers" ? (
             <div className="space-y-5">
               <ProvidersManager />
-              <hr className="border-border" />
-              <ModelDefaultsSettings />
               <hr className="border-border" />
               <BuiltinToolsSection />
             </div>

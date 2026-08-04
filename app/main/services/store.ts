@@ -50,8 +50,6 @@ interface Settings {
   showThinking?: boolean;
   showToolUse?: boolean;
   apiProviders?: ApiProvidersData;
-  /** 子 Agent 默认模型(需求 2,委派未指定时用;格式 "provider:model") */
-  subagentDefaultModel?: string;
   // ── 需求 4:群聊配置 ──
   /** 群聊最大 agent 数(默认 3) */
   maxGroupAgents?: number;
@@ -160,7 +158,6 @@ export class Store {
       showThinking: emData.showThinking as boolean | undefined,
       showToolUse: emData.showToolUse as boolean | undefined,
       apiProviders: (emData.apiProviders as ApiProvidersData) || undefined,
-      subagentDefaultModel: emData.subagentDefaultModel as string | undefined,
       maxGroupAgents: (emData.maxGroupAgents as number) ?? 3,
       groupForwardStrategy: (emData.groupForwardStrategy as "all" | "conclusion") ?? "conclusion",
       groupInjectMode: (emData.groupInjectMode as "steer" | "followUp") ?? "followUp",
@@ -230,9 +227,7 @@ export class Store {
     if (settings.apiProviders) {
       data.apiProviders = settings.apiProviders;
     }
-    // 子 Agent 默认模型(需求 2;默认/兜底已移入每条供应商配置,见 platform-presets ProviderConfig)
-    if (settings.subagentDefaultModel) data.subagentDefaultModel = settings.subagentDefaultModel;
-    // 群聊配置(需求 4)
+    // 群聊配置(需求 4;子 Agent 默认模型已移入供应商配置 subagentDefaultModel)
     if (settings.maxGroupAgents !== undefined) data.maxGroupAgents = settings.maxGroupAgents;
     if (settings.groupForwardStrategy) data.groupForwardStrategy = settings.groupForwardStrategy;
     if (settings.groupInjectMode) data.groupInjectMode = settings.groupInjectMode;

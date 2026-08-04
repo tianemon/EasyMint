@@ -15,7 +15,6 @@ interface SettingsState {
   showThinking: boolean;
   showToolUse: boolean;
   apiProviders: ApiProvidersData | null;
-  subagentDefaultModel: string;
   // ── 需求 4:群聊配置 ──
   maxGroupAgents: number;
   groupForwardStrategy: "all" | "conclusion";
@@ -34,7 +33,6 @@ interface SettingsState {
   setShowToolUse: (enabled: boolean) => void;
   setApiProviders: (data: ApiProvidersData) => void;
   activateProvider: (providerId: string) => void;
-  setSubagentDefaultModel: (v: string) => void;
   setMaxGroupAgents: (v: number) => void;
   setGroupForwardStrategy: (v: "all" | "conclusion") => void;
   setGroupInjectMode: (v: "steer" | "followUp") => void;
@@ -58,7 +56,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   context1M: false,
   showThinking: false,
   showToolUse: false,
-  subagentDefaultModel: "",
   maxGroupAgents: 3,
   groupForwardStrategy: "conclusion",
   groupInjectMode: "followUp",
@@ -112,7 +109,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ showToolUse: enabled });
     window.electronAPI?.settings?.set?.("showToolUse", enabled);
   },
-  setSubagentDefaultModel: (v: string) => { set({ subagentDefaultModel: v }); window.electronAPI?.settings?.set?.("subagentDefaultModel", v); },
   setMaxGroupAgents: (v: number) => { set({ maxGroupAgents: v }); window.electronAPI?.settings?.set?.("maxGroupAgents", v); },
   setGroupForwardStrategy: (v: "all" | "conclusion") => { set({ groupForwardStrategy: v }); window.electronAPI?.settings?.set?.("groupForwardStrategy", v); },
   setGroupInjectMode: (v: "steer" | "followUp") => { set({ groupInjectMode: v }); window.electronAPI?.settings?.set?.("groupInjectMode", v); },
@@ -164,7 +160,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           showToolUse: settings.showToolUse ?? false,
           setupComplete: settings.setupComplete ?? false,
           apiProviders: (settings.apiProviders as ApiProvidersData) ?? null,
-          subagentDefaultModel: settings.subagentDefaultModel ?? "",
           maxGroupAgents: settings.maxGroupAgents ?? 3,
           groupForwardStrategy: settings.groupForwardStrategy ?? "conclusion",
           groupInjectMode: settings.groupInjectMode ?? "followUp",

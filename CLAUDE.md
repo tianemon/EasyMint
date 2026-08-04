@@ -276,12 +276,12 @@ EasyMint 是 Electron 桌面应用，让不懂技术的用户通过图形界面�
 > 完整方案已落盘:`docs/design/多模型多Agent群聊方案.md`(唯一真相源,含设计/实现/修复/待办)。本段仅摘要。
 
 1. **需求调研 + 4 阶段设计**：①默认+兜底模型 ②Agent 指定模型/供应商 ③不同会话不同供应商 ④多 Agent 群聊(应用层消息转发,方案 B)
-2. **阶段 1 默认+兜底**(2026-08-04 重构为 per-provider)：默认/兜底模型移入每条供应商配置(ProviderConfig.defaultModel/fallbackModel,供应商详情页配);`getActiveModel` 从当前激活供应商读 默认→活跃→兜底;切换供应商自动清模型缓存
+2. **阶段 1/2 模型配置 per-provider**(2026-08-04)：每条供应商配 model(默认)/fallbackModel(兜底)/subagentDefaultModel(task 子 Agent 默认);`getActiveModel` 读当前激活供应商 模型→兜底;`resolveSubagentModel` 委派指定>模板>活跃供应商子Agent默认;切换供应商清模型缓存
 3. **阶段 2 Agent 指定**：AgentTemplate.provider + SubagentOptions.model/provider + executor `resolveSubagentModel`
 4. **阶段 3 会话绑供应商**：session-cache.provider → `sendMessage(preferredProvider)` → `getModel(provider, model)`;UI 切换入口待做
 5. **阶段 4 群聊(核心)**：
    - 主进程 `group-session.ts`：GroupSessionManager(多 Pi session 聚合/消息路由 @提及/结论转发/防环三层/失败离线/group-sessions.json 持久化)
-   - 前端：tab type `group` + ChatPanel 群聊模式(角色气泡+转发标记)+ Sidebar 群聊入口 + GroupComposerDialog(预设/自由组合)+ 设置→群聊 tab(4 参数+预设管理)
+   - 前端：tab type `group` + ChatPanel 群聊模式(角色气泡+转发标记)+ Sidebar 群聊入口 + GroupComposerDialog(预设/自由组合)+ 设置→Agent 页(群聊 4 参数+预设 + Agent 模板占位)
    - 供应商 11 品牌(带 logo)精简 + Select 组件 Portal 定位修复 + 状态栏符号动画
 
 ## 接下来安排

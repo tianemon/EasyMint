@@ -10,13 +10,13 @@ export interface ProviderConfig {
   presetId: string;        // Pi Provider.id
   name: string;            // 用户自定义名称
   apiKey: string;
-  model: string;
+  model: string;           // 该供应商的默认模型(激活时优先使用)
   models: string[];        // 缓存：上次获取的模型列表
   createdAt: number;
-  /** 该供应商的默认模型(激活时优先使用,从 models 选) */
-  defaultModel?: string;
   /** 该供应商的兜底模型(默认模型不可用时降级,从 models 选) */
   fallbackModel?: string;
+  /** 该供应商的 task 工具子 Agent 默认模型(委派子 Agent 未指定时用,从 models 选) */
+  subagentDefaultModel?: string;
 }
 
 export interface ApiProvidersData {
