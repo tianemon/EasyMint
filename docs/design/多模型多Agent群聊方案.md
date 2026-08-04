@@ -1,7 +1,8 @@
 # 多模型 / 多供应商 / 多 Agent 群聊方案
 
 > 本文档是 5 条需求(默认模型、Agent 指定模型/供应商、会话绑供应商、多 Agent 群聊)的**唯一真相源**。
-> 设计定稿于 2026-08-03,实现完成于 2026-08-03/04。任何会话改此功能前必读本文件。
+> 设计定稿于 2026-08-03,群聊交互重设计 2026-08-04。任何会话改此功能前必读本文件。
+> 本次重设计基于 Pi SDK 源码调研(`@earendil-works/pi-coding-agent`)和 cc 源码分析(`/Users/amon/dev/project/GitHub/claude-code-analysis`)。
 
 ## 1. 背景与需求
 
@@ -17,29 +18,61 @@
 
 需求 4 的取舍:能共享上下文最好,不能则将一方消息转发给其他 Agent,**至少在表面上像同一个会话(群聊)**。用户选方案 B(应用层转发)。
 
-## 2. SDK 能力边界调研(关键技术结论)
+## 2. SDK 能力边界调研(关键技术结论,2026-08-04 更新)
 
 Pi SDK(`@earendil-works/pi-coding-agent`):
 
-- `createAgentSession({ model })` 创建**单模型** session;`session.setModel(model)` 可热切换(跨 provider 需已 `setRuntimeApiKey`)
-- **无"多 Agent 共享上下文"能力**——每个 session 独立 jsonl/上下文 → 群聊必须应用层实现
-- API key 通过 `setRuntimeApiKey(providerId, key)` 作为基础配置存储;模型信息(端点/格式/成本)嵌入 Model 对象,请求时按 `model.provider` 组合
-- `getModel(provider, id)` **精确查找**(无 fallback 概念,需自己实现降级);`getProviderAuthStatus(providerId)` 返回 `{configured}`
-- 关键方法:`prompt(text)`、`steer(text)`(打断)、`followUp(text)`(当前回合结束后发)、`getLastAssistantText()`(累计全文)、`sendCustomMessage(payload, {triggerTurn})`
+### 消息注入(群聊核心)
 
-**结论**:需求 1/2/3/5 用 SDK 能力 + 应用层配置实现;需求 4 需完整应用层群聊容器。
+| 方法 | 行为 | 触发回合? |
+|------|------|----------|
+| `prompt(text, options?)` | 发消息。options:`{images?, streamingBehavior?: "steer"|"followUp"}` | ✅ |
+| `sendCustomMessage(msg, {triggerTurn?, deliverAs?})` | custom 消息;**triggerTurn:false 只注入上下文不回话,true 开回合** | 可选 |
+| `steer(text)` | 中断当前回合注入消息 | ✅ |
+| `followUp(text)` | 当前回合结束后注入 | ✅ |
+
+**关键发现**:`sendCustomMessage` 的 `triggerTurn` 是群聊背景注入 vs 激活的核心开关——false 只进上下文+落盘+广播事件,不开回合;true 开回合回话。`deliverAs: "nextTurn"` 可排队到下一回合。`prompt` 的 `streamingBehavior` 选项统一了 steer/followUp 的底层语义。
+
+### 上下文机制
+
+- **上下文 = `AgentState.messages`**:包含 user + assistant + toolResult 消息。`defaultConvertToLlm` **只按 role 过滤**(user/assistant/toolResult),**不裁剪 content**。thinking、toolCall、toolResult 完整进 LLM 上下文
+- **工具输出完整进上下文**:Read 读到的代码源码作为 toolResult 进入上下文 + 完整落 jsonl。**无回合间清理机制**(cc 有 microcompact 清空旧工具结果,Pi 没有)
+- **省 token 靠 prompt caching**:API 层对 system prompt + 工具定义 + 对话历史打 `cache_control`,重复前缀命中缓存(cache read ≈ 1/10 价),而非裁剪内容
+- **压缩:compaction**:阈值/溢出触发,摘要替换旧消息(被动,非回合间)。EM 还有 contextThreshold 主动压缩
+
+### Session 创建方式
+
+| 方法 | 场景 | 群聊用途 |
+|------|------|---------|
+| `SessionManager.create(cwd)` | 全新会话 | 每个 Agent 独立空会话 |
+| `SessionManager.open(sessionFile)` | 恢复历史 | 重启恢复 Agent 会话 |
+| `SessionManager.forkFrom(sourcePath, cwd)` | **复制源全部历史到新会话**(header.parentSession 指向源) | 新 Agent 继承群聊历史 |
+| `SessionManager.inMemory(cwd)` | 不落盘 | 临时 Agent(如 evaluator 一次性检查) |
+| `SessionManager.continueRecent(cwd)` | 恢复最近 | — |
+
+### 扩展性
+
+- **AgentSession 不可继承**(大量 private 状态,重写脆弱)
+- **组合/依赖注入是正道**:`createAgentSession` 接受自定义 `sessionManager`/`modelRuntime`/`settingsManager`/`resourceLoader`
+- **Agent 类可完全自定义**:构造选项注入 `convertToLlm`/`transformContext`/`streamFn`/`prepareNextTurn`/`shouldStopAfterTurn`/`beforeToolCall`/`afterToolCall` 等 hook
+- **`CustomMessageEntry`**:进 jsonl + 进上下文(转为 user 角色),`CustomEntry` 只客 jsonl 不进上下文
 
 ## 3. 总体架构
 
 ```
-用户消息 → 群聊容器(GroupSessionManager) → 路由(@提及/主Agent) → 目标 Pi session
-                                                          → turn_end 提取结论 → 转发给其他 Agent
-                                                          → 事件广播(注入 groupId + agentRole) → 前端群聊视图
+群聊 = 多个 Pi session 的虚拟聚合 + 全量背景注入 + 显式激活回合。
+
+用户消息 / Agent 结论
+  → sendCustomMessage forward_message triggerTurn:false 注入所有其他 Agent(背景同步,不回话)
+  → 用户 @ / Agent 调用 assign_to_agent({target}) → 目标 prompt() 或 sendCustomMessage(triggerTurn:true) 开回合
 ```
 
-- **群聊 = 多个 Pi session 的虚拟聚合**:每个参与 Agent 一个独立 session(独立 jsonl/上下文)
-- 前端按 `groupId` 过滤事件,按 `agentRole` 标注消息来源
-- 持久化:项目级 `.easymint/group-sessions.json`(结构元数据)
+核心原则:
+- **背景注入(triggerTurn:false)**:每条消息全量注入所有 Agent 上下文——确保任一 Agent 被激活时上下文完整
+- **显式激活**:用户 `@`(前端路由)或 Agent 调 `assign_to_agent` MCP 工具 → 目标开回合
+- **激活不携带内容**:内容已由背景注入同步,激活只是"现在轮到你回话了"
+- **防环天然**:背景注入不回话,显式激活按需触发,无隐式转发链
+- **记录文件**:独立 `groupId.json`(纯结论+角色+piTs),不进任何 agent 上下文,UI 显示用
 
 ## 4. 数据模型扩展
 
@@ -163,7 +196,14 @@ interface SessionCache {
 | 会话绑供应商 | ChatPanel.tsx | chatProvider → preferredProvider(切换 UI 待做) |
 | tab 品牌图标 | TabBar.tsx | 待做 |
 
-## 8. 群聊交互设计(7 点,全部定稿)
+## 8. 群聊交互设计(2026-08-04 重设计,已定稿全部细节)
+
+### 8.0 核心原则
+
+- **背景注入(triggerTurn:false)**:每条消息全量注入所有 Agent 上下文(不含代码/toolResult,只有 user 文本 + 各 agent 结论文本)
+- **显式激活**:用户 `@`或 Agent 调用 `assign_to_agent` 工具 → 应用层对目标 agent 调用 `prompt()` 或 `sendCustomMessage(triggerTurn:true)` 开回合
+- **激活不携带任务**:内容已由背景注入同步,激活只是"轮到你回话了"
+- **上下文独立**:各 Agent 上下文 ≈ 完整群聊对话(全量注入的结论),但 **没有其他 agent 的代码/toolResult/thinking**
 
 ### 8.1 发起群聊
 
@@ -172,54 +212,90 @@ interface SessionCache {
 - 内置预设:开发三人组(Mint+Builder+Evaluator)、设计协作(Mint+Mint-D)
 - 现有单 Agent 会话不受影响(群聊是独立模式)
 
-### 8.2 用户消息路由
+### 8.2 消息同步(全量背景注入)
 
-- 默认发给主 Agent(第一个角色)
-- `@角色名` 切换目标;不广播(避免并发请求风暴 + 上下文污染)
+| 消息源 | 注入范围 | 机制 |
+|--------|---------|------|
+| 用户消息 | 所有 Agent | `sendCustomMessage(forward_message, triggerTurn: false)` |
+| Agent 结论(turn_end) | 除自己外所有 Agent | 同上 |
+| agent 工具过程/代码 | **不注入**(只在自己 jsonl) | — |
 
-### 8.3 Agent 间转发显示
+**设计约束**:只注入 `getLastAssistantText()`(纯结论正文),**不注入** toolResult/thinking/toolCall——代码长在干活 agent 自己的上下文和 jsonl 里,不灌入其他 agent。
+
+### 8.3 回合激活(显式)
+
+| 方式 | 触发 | 目标 |
+|------|------|------|
+| **用户 `@`** | 前端文本解析 `@角色名` → 主进程 sendGroupMessage 路由 | 匹配的 Agent |
+| **Agent `assign_to_agent` 工具** | Agent 回复中调用 `assign_to_agent({ target: "角色名" })` → 应用层拦截 tool_use | 指定的 Agent |
+| **兜底语法解析** | Agent 回复中含 `【转交@角色名】` 但没调工具 | 指定的 Agent |
+
+**激活实现**:`sendCustomMessage(forward_message, triggerTurn: true)`(custom 类型,不污染 user 消息流;`details` 带 `from` 角色,前端渲染"`[X → Y]`";content 带"你被 @ 了,基于上下文回复")。另一种等价:直接 `prompt(text)`。
+
+**`assign_to_agent` MCP 工具**:
+- 参数:`{ target: string }`(目标角色名)。不需要 task 参数(内容已背景注入)
+- 注入群聊所有 Agent(内置工具,群聊创建时自动注入到所有 agent 的工具集)
+- 应用层拦截 tool_use → 对目标 `prompt("你被 @ 了…")` → 前端渲染"`[Mint → Builder]`"
+
+### 8.4 Agent 间显示
 
 - 每条消息标注 Agent 身份:角色头像(固定色)+ 名称
-- 转发消息显示来源标记:`[来自 X 的消息]` 文本前缀 + 前端"· 来自 {X}"
+- 激活消息显示来源标记:`[Mint → Builder]`(tool_use 事件 / forward_message customType 驱动)
 - 时间线交错排列(按 piTs 有序插入)
 
-### 8.4 持久化与恢复
+### 8.5 防环(天然成立)
 
-- 项目级 `.easymint/group-sessions.json`(groupId/agents/sessionId/provider/model)
-- 各 Agent 消息在各自 Pi jsonl
-- **恢复(resume)未实现**(见待办)——group-sessions.json 已存结构,无 resumePiSession 路径
+背景注入 triggerTurn:false 不产生新回合,激活是显式的(user @ 或 agent 调工具 → 应用层只开一次目标回合),**不存在隐式链式转发** → 无需深度/ID 去重。旧"结论转发触发链"设计废弃。
 
-### 8.5 防环机制(三层)
-
-① 消息 ID 去重(forwardSeen)——**已废弃**(深度递增链 ID 每次都不同,去重失效;防环实际靠 ②③)
-② 最大转发深度(默认 3):`depth+1 > maxForwardDepth` 停止
-③ 结论才转发:只转 turn 结束的文本结论,不转工具过程/thinking → 自然不形成实时循环
-
-### 8.6 Agent 失败处理
+### 8.6 Agent 失败处理(保留)
 
 | 场景 | 处理 |
 |------|------|
-| 503/网络 | 重试 ≤3 次(循环重试);重试前 `trySwitchFallback` 切兜底 |
+| 503/网络 | 重试 ≤3 次;重试前 `trySwitchFallback` 切兜底 |
 | 仍有失败 | 标记 offline,跳过(不阻塞其他 Agent);状态栏提示 |
-| 硬错误(配置/权限) | 同上(统一走重试计数) |
-| 整群聊 | 不停——其他 Agent 继续;离线 Agent 无法自动恢复 |
+| 整群聊 | 不停——其他 Agent 继续 |
 
-### 8.7 上下文轮转
+### 8.7 上下文轮转(保留)
 
 - 各 Agent 独立 compact(Pi 原生)
-- 群聊整体不 compact(无"群聊级上下文")
-- EM 层主动压缩(contextThreshold)/轮转追踪**未接入群聊**(靠 Pi 自动)
+- EM 层主动压缩/轮转追踪**未接入群聊**(靠 Pi 自动)
 
-## 9. 工程层面(3 点)
+### 8.8 群聊记录文件(UI 显示专用)
+
+项目级 `.easymint/group-sessions/<groupId>.json`(独立 JSON,不进任何 agent 上下文,不经过 SDK 解析):
+```json
+{
+  "groupId": "group-xxx",
+  "messages": [
+    { "agentRole": "user", "text": "帮我分析项目", "piTs": 123 },
+    { "agentRole": "Builder", "text": "分析结论...", "piTs": 456, "forwardedFrom": "Mint" }
+  ]
+}
+```
+- **写入时机**:用户消息/agent turn_end 时,广播同步后立即写入
+- **内容粒度**:只写结论文本(与背景注入内容一致),不含工具过程
+- **前端加载**:群聊 ChatPanel 挂载 → 读文件 → 按 piTs 排序 → loadSession → 角色头像渲染
+- **价值**:重启后可看历史(解决"重启丢消息"),排序天然正确,免合并三个 jsonl
+
+### 8.9 持久化与恢复
+
+- 项目级 `.easymint/group-sessions.json`(元数据:groupId, agents, sessionId, provider/model, presetId)
+- 各 Agent 消息各自 Pi jsonl(完整,含工具/thinking)
+- 群聊记录文件(8.8)作为 UI 显示的权威源
+- **恢复(resume,本期不做)**:重启后群聊 tab 可看历史(记录文件),但不能继续对话(内存态 group 清空)——resume 留待后续,需从 group-sessions.json 读 meta + 各 agent resumePiSession
+
+## 9. 工程层面
 
 | 数据 | 位置 | 说明 |
 |------|------|------|
-| 群聊结构 | 项目级 `.easymint/group-sessions.json` | 持久化,恢复用 |
-| 各 Agent 消息 | 各自 Pi jsonl | Pi 原生 |
-| 转发记录/排队 | 运行时内存 | 不持久化 |
+| 群聊元数据 | 项目级 `.easymint/group-sessions.json` | 持久化,恢复用 |
+| 各 Agent 消息 | 各自 Pi jsonl | Pi 原生,含工具/代码/thinking |
+| 群聊记录(UI 显示) | 项目级 `.easymint/group-sessions/<groupId>.json` | 纯结论+角色+piTs,不进上下文 |
+| 群聊预设 | settings(groupPresets) | 全局 |
 
-- **并发控制**:maxGroupAgents 限制;回合天然串行(转发结论触发);不做额外限流
-- **权限模式**:群聊各 Agent 写 session-cache(permissionMode),`createCanUseTool` 实时读取;创建弹窗可选 auto/plan/acceptEdits/bypass
+- **并发控制**:maxGroupAgents 限制;回合显式激活(非自动转发链)
+- **权限模式**:群聊各 Agent 写 session-cache(permissionMode),`createCanUseTool` 实时读取
+- **assign_to_agent MCP 工具**:群聊创建时自动注入所有 agent 的工具集,应用层拦截 tool_use 激活目标回合
 
 ## 10. 分阶段执行计划(4 阶段)
 
@@ -239,19 +315,21 @@ interface SessionCache {
 
 ## 12. 已知缺陷与待办
 
-1. **群聊跨重启恢复未实现**:group-session 为内存态;重启后 tab 恢复但 group 清空,发送报"群聊不存在";group-sessions.json 已存结构,无 resume 路径
-2. **群聊历史聚合加载未实现**:重启后前端不加载各 Agent jsonl 历史(只读展示)
-3. **模板编辑 UI 未实现**:provider/model 无法在 UI 配置(IPC CRUD 已通)
-4. **tab 品牌图标 + 会话切换供应商 UI 未实现**
-5. **群聊 Agent 用 task 工具断链**:若模板声明 task,委派完成通知 `injectSystemMessage(tempSessionId)` 找不到 activeChat 被吞(默认模板无 task 已规避)
+1. **群聊跨重启恢复未实现**:group-session 内存态;重启后 tab 可看历史(记录文件),但不能继续对话。需从 group-sessions.json 读 meta + 各 agent resumePiSession
+2. **全量背景注入上下文累积** ⚠️:triggerTurn:false 注入仍进目标上下文占 token。需监控长对话成本
+3. **assign_to_agent MCP 工具未实现**:需自定义工具定义 + 群聊创建时注入 + 应用层拦截 tool_use
+4. **模板编辑 UI 未实现**:provider/model 无法在 UI 配置(IPC CRUD 已通)
+5. **tab 品牌图标 + 会话切换供应商 UI 未实现**
 6. **群聊 Agent 无 product 工具**:`buildGroupTools` 按模板 tools,默认模板不含 show_*/set_task_status 等
-7. **forwardSeen 已删**:防环靠 maxForwardDepth + 结论才转发(每跳都是新结论,无同内容循环)
 
-## 13. 关键实现决策(重要信息)
+## 13. 关键实现决策(重要信息,2026-08-04 更新)
 
-- **群聊回合天然串行**:转发是"结论才触发 + 目标忙则排队",各 Agent 回合串行 → 前端复用单 `latestAiIdRef`,无需按角色分块跟踪
-- **群聊事件不广播 agent:exit**:前端靠群聊 turn_end 清 busy(onExit 是单会话信号)
-- **用户消息本地 append**:主进程 `sendGroupMessage` 不广播 user_message,前端(含创建弹窗)本地写 chat-store(groupId 为 key),防重复
-- **busy 排队不触发转发链**:`injectQueued` 挂临时 subscribe 只广播,回合输出不转发,防 busy 队列链式爆炸
-- **模型解析统一入口**:`getModel(preferredProvider, preferredModel)`(会话/群聊指定)→ 无指定走 `getActiveModel`(默认→活跃→兜底)
-- **模板 tools 语义**:基础 coding 工具(Read/Write/Edit/Bash 等)由 createPiSession 强制追加,无法按模板裁剪;模板 tools 只控制 task/MCP 等 extraTools
+- **全量背景注入 + 显式激活**:背景注入不回话,激活只触发回合不带内容——防环天然,上下文可控
+- **转发粒度=纯结论**:只注 `getLastAssistantText()` 正文,不注 toolResult/thinking/toolCall——代码留在干活 agent 上下文,协作方不污染
+- **上下文 ≠ jsonl**:上下文包含 user+assistant+toolResult 全量,无回合间清理;jsonl 包含更多(compaction/custom/model_change)。转发不跨 session 命中缓存
+- **缓存不是共享**:prompt cache 按请求前缀匹配,跨 session 只有 system prompt+工具定义可命中,转发内容不共享缓存
+- **Pi 省 token 靠缓存不靠裁剪**:与 cc 不同,Pi 无 microcompact(回合间清旧工具结果),省 token 靠 prompt caching(重复前缀按 1/10 计费)
+- **`sendCustomMessage` 是核心调度原语**:triggerTurn 控制回话与否,deliverAs 控制排队,forward_message customType 区分转发
+- **群聊回合天然串行**:显式激活(非自动转发链)→ 复用单 `latestAiIdRef`,无需按角色分块跟踪
+- **群聊事件不广播 agent:exit**:前端靠 turn_end 清 busy,激活回合的 turn_end 由 onAgentTurnEnd 广播
+- **模板 tools 语义**:基础 coding 工具(Read/Write/Edit/Bash)由 createPiSession 强制追加,task/MCP 等 extraTools 按模板 tools 声明过滤

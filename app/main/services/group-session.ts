@@ -329,6 +329,14 @@ export class GroupSessionManager {
             getSession: () => session,
             setPendingResult: (ev) => {
               if (ev.type === "turn_end") {
+                // 广播 turn_end(带群聊标识)——前端据此清 busy(群聊不广播 agent:exit)
+                ev.sessionId = agent.meta.sessionId;
+                ev.chatId = group.chatId;
+                (ev as any).groupId = group.meta.groupId;
+                (ev as any).agentRole = agent.meta.role;
+                (ev as any).forwarded = opts.forwarded;
+                (ev as any).forwardedFrom = opts.fromRole;
+                this.deps.broadcast("agent:stream", ev);
                 // 回合结束 → 提取累计全文结论 → 转发给其他 Agent
                 const conclusion = (session as any).getLastAssistantText?.() ?? "";
                 this.onAgentTurnEnd(group, idx, String(conclusion || ""), opts);
@@ -340,14 +348,11 @@ export class GroupSessionManager {
         }
       });
 
-      const send = opts.forwarded
-        ? (() => {
-            const mode = this.deps.store.getSettings().groupInjectMode ?? "followUp";
-            // 转发消息带来源标记——目标 Agent 上下文能识别消息来处,前端据此显示 [A → B]
-            const body = opts.fromRole ? `[来自 ${opts.fromRole} 的消息]\n${text}` : text;
-            return mode === "steer" ? session.steer(body) : session.followUp(body);
-          })()
-        : session.prompt(text);
+      // 转发/用户消息统一用 prompt 开启新回合——followUp/steer 需 session 有活动回合,
+      // 群聊 Agent(新建 session)首次收到转发时无 active turn,用 followUp 不会产生输出
+      // (busy 目标的排队注入走 injectQueued 的 followUp,那是有活动回合的场景)
+      const body = opts.forwarded && opts.fromRole ? `[来自 ${opts.fromRole} 的消息]\n${text}` : text;
+      const send = session.prompt(body);
       send.then(() => { unsub(); resolve(); }, (err) => { unsub(); reject(err); });
     });
   }
@@ -435,13 +440,27 @@ export class GroupSessionManager {
             this.deps.broadcast("agent:stream", ev);
           },
           getSession: () => session,
-          setPendingResult: () => { /* 排队回合不转发链 */ },
+          setPendingResult: (ev) => {
+            if (ev.type === "turn_end") {
+              // 排队回合结束同样广播 turn_end,前端清 busy(不触发转发链)
+              ev.sessionId = agent.meta.sessionId;
+              ev.chatId = group.chatId;
+              (ev as any).groupId = group.meta.groupId;
+              (ev as any).agentRole = agent.meta.role;
+              (ev as any).forwarded = true;
+              (ev as any).forwardedFrom = fromRole;
+              this.deps.broadcast("agent:stream", ev);
+            }
+          },
         });
       } catch (e) {
         console.error("[group] queued bridge error:", e);
       }
     });
-    session.followUp(body).catch((e) => {
+    const send = this.deps.store.getSettings().groupInjectMode === "steer"
+      ? session.steer(body)      // 打断当前回合
+      : session.followUp(body);  // 排队等空闲
+    send.catch((e) => {
       console.error(`[group] ${agent.meta.role} queued followUp failed:`, (e as Error).message);
     }).finally(() => unsub());
   }
