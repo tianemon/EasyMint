@@ -72,7 +72,7 @@ export interface GroupServiceDeps {
     tools: ToolDefinition[];
     canUseTool: (toolName: string, input: Record<string, unknown>, options: CanUseToolOptions) => Promise<PermissionResult>;
   }>;
-  buildSystemPrompt: (projectPath: string, templatePrompt: string) => string;
+  buildSystemPrompt: (projectPath: string, templatePrompt: string, role?: string, members?: string) => string;
   resolveModel: (provider?: string, model?: string) => Promise<Model<any> | null>;
   broadcast: (channel: string, data: unknown) => void;
   injectSystemMessage: (sessionId: string, text: string, kind: SystemMessageKind, opts?: { triggerTurn?: boolean }) => void;
@@ -147,6 +147,14 @@ export class GroupSessionManager {
     const groupId = `group-${randomUUID().slice(0, 8)}`;
     const chatId = `group-chat-${++this.counter}`;
 
+    // 先收集所有角色名(供 system prompt 的 {members} 占位符)
+    const allRoles: string[] = [];
+    for (let i = 0; i < templateIds.length; i++) {
+      const template = getTemplate(templateIds[i]!);
+      allRoles.push(`${template?.name ?? `Agent${i + 1}`}`);
+    }
+    const membersStr = allRoles.join(" / ");
+
     const agents: ActiveGroupAgent[] = [];
     for (let i = 0; i < templateIds.length; i++) {
       const template = getTemplate(templateIds[i]!);
@@ -164,7 +172,8 @@ export class GroupSessionManager {
       const { tools: extraTools, canUseTool } = await this.deps.buildGroupTools(
         resolvedPath, tempSessionId, agentChatId, template?.tools ?? [],
       );
-      const systemPrompt = this.deps.buildSystemPrompt(resolvedPath, template?.prompt ?? "");
+      // 群聊 system prompt:模板 prompt + 协作规则 + 成员列表 + 角色标注
+      const systemPrompt = this.deps.buildSystemPrompt(resolvedPath, template?.prompt ?? "", role, membersStr);
 
       const session = await createPiSession({
         cwd: resolvedPath,

@@ -57,11 +57,24 @@ const SYSTEM_KIND_TITLES: Record<string, string> = {
 };
 
 /** 群聊协作规则:注入每个群聊 Agent 的 system prompt(需求 4) */
+/** 群聊协作规则(注入每个群聊 Agent 的 system prompt)。{members} 和 {role} 由 createGroup 时替换。 */
 const GROUP_COLLABORATION_RULE = `[群聊协作规则]
-你正在一个多 Agent 群聊会话中协作,群聊会把你与其他角色的回复汇总在同一会话中展示。
-- 你会收到来自其他成员的消息,请只针对消息内容本身回应,不要臆测你未读到的对话。
-- 你的每次回复会被其他成员看到;请保持结论清晰、独立可读。
-- 若你认为某部分工作更适合其他成员处理,在回复末尾用单独一行写明:【转交@角色名】...`;
+你正在一个多 Agent 群聊会话中协作。群聊成员: {members}
+
+你会持续收到共享上下文(其他成员的发言和结论)——这些是累积的历史记录,你不需要逐条回复。
+
+核心规则:
+1. 只有被 @ 或收到"群聊激活"系统消息时才回话。
+   回话时,优先响应当前最新指令,不要纠结于历史对话。
+2. 当某部分工作更适合其他成员处理时,调用 assign_to_agent({target:"<角色名>"}) 工具,
+   指定目标角色即可,不要硬编角色名称。
+   无需重复说明任务——对方上下文里已有全部信息。
+3. 你的回复结论会自动同步给所有成员作为背景上下文。
+   请保持结论清晰、独立可读,不引用其他成员未提供的代码或信息。
+
+禁止事项:
+- 不要在每条背景消息后都回话——只在被显式激活(@ 或系统激活消息)时才回话`;
+
 
 interface ActiveRun {
   runId: string;
@@ -135,7 +148,7 @@ export class AgentService {
       store,
       getAgentDir: () => this.getAgentDir(),
       buildGroupTools: (p, s, c, t) => this.buildGroupTools(p, s, c, t),
-      buildSystemPrompt: (p, t) => this.groupSystemPrompt(p, t),
+      buildSystemPrompt: (p, t, role, members) => this.groupSystemPrompt(p, t, role, members),
       resolveModel: (prov, mod) => this.getModel(this.store, prov, mod),
       broadcast: (ch, d) => broadcast(ch, d),
       injectSystemMessage: (sid, text, kind, opts) => this.injectSystemMessage(sid, text, kind, opts),
@@ -277,7 +290,7 @@ export class AgentService {
   }
 
   /** 群聊 Agent 系统提示词:模板 prompt(替代默认 Mint prompt)+ 群聊协作规则 + 动态 section */
-  private groupSystemPrompt(projectPath: string, templatePrompt: string): string {
+  private groupSystemPrompt(projectPath: string, templatePrompt: string, role?: string, members?: string): string {
     const parts: string[] = [];
     if (templatePrompt) {
       parts.push(templatePrompt);
@@ -285,7 +298,11 @@ export class AgentService {
       const effective = resolveEffectivePrompt();
       if (effective) parts.push(effective);
     }
-    parts.push(GROUP_COLLABORATION_RULE);
+    // 替换协作规则占位符({members} 和 {role})
+    const rule = GROUP_COLLABORATION_RULE
+      .replace("{members}", members ?? "群聊成员(见上下文)")
+      .replace("{role}", role ?? "成员");
+    parts.push(rule);
 
     const skills = buildSkillsPrompt(projectPath);
     if (skills) parts.push(skills);
