@@ -63,18 +63,19 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
     if (!presetId) { alert("请选择平台"); return; }
     if (!name.trim()) { alert("请输入名称"); return; }
     if (!apiKey.trim()) { alert("请输入 API Key"); return; }
-    onSave({
+    const cfg: ProviderConfig = {
       id: initial?.id || `${presetId}-${Date.now()}`,
       presetId,
       name: name.trim(),
       apiKey: apiKey.trim(),
       model: model || (models[0] ?? ""),
       models,
-      // 兜底/子 Agent 与主模型相同时不冗余存储(等价于留空)
-      fallbackModel: fallbackModel && fallbackModel !== model ? fallbackModel : undefined,
-      subagentDefaultModel: subagentDefaultModel && subagentDefaultModel !== model ? subagentDefaultModel : undefined,
+      // 用户显式选择的兜底/子 Agent 模型一律保存(即使与主模型相同)
+      fallbackModel: fallbackModel || undefined,
+      subagentDefaultModel: subagentDefaultModel || undefined,
       createdAt: initial?.createdAt || Date.now(),
-    });
+    };
+    onSave(cfg);
   };
 
   return (
