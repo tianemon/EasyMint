@@ -7,6 +7,7 @@ import { FileService } from "./services/file-service";
 import { AgentService, getDesignSessionIds } from "./services/agent-service";
 import { Store } from "./services/store";
 import { broadcast } from "./services/ipc-broadcast";
+import { resetModelRuntime } from "./services/pi-init";
 import { permissionService } from "./services/permission/agent-permission-service";
 import { detectGit } from "./utils/git-detector";
 import { detectNode } from "./utils/node-detector";
@@ -341,6 +342,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     const settings = store.getSettings();
     (settings as unknown as Record<string, unknown>)[key] = value;
     store.saveSettings(settings);
+    // 供应商配置/激活变更 → 重置模型缓存,切换供应商后新会话立即用新供应商的默认/兜底模型
+    if (key === "apiProviders") {
+      resetModelRuntime();
+    }
   });
   ipcMain.handle("settings:fetchModels", async (_e, modelsUrl?: string, apiKey?: string) => {
     const key = apiKey || store.getActiveApiKey();

@@ -50,15 +50,6 @@ interface Settings {
   showThinking?: boolean;
   showToolUse?: boolean;
   apiProviders?: ApiProvidersData;
-  // ── 需求 1:默认 + 兜底模型 ──
-  /** 默认供应商 piId(会话未指定时用) */
-  defaultProvider?: string;
-  /** 默认模型 id */
-  defaultModel?: string;
-  /** 兜底供应商 piId(主模型失败/无 auth 时降级) */
-  fallbackProvider?: string;
-  /** 兜底模型 id */
-  fallbackModel?: string;
   /** 子 Agent 默认模型(需求 2,委派未指定时用;格式 "provider:model") */
   subagentDefaultModel?: string;
   // ── 需求 4:群聊配置 ──
@@ -169,10 +160,6 @@ export class Store {
       showThinking: emData.showThinking as boolean | undefined,
       showToolUse: emData.showToolUse as boolean | undefined,
       apiProviders: (emData.apiProviders as ApiProvidersData) || undefined,
-      defaultProvider: emData.defaultProvider as string | undefined,
-      defaultModel: emData.defaultModel as string | undefined,
-      fallbackProvider: emData.fallbackProvider as string | undefined,
-      fallbackModel: emData.fallbackModel as string | undefined,
       subagentDefaultModel: emData.subagentDefaultModel as string | undefined,
       maxGroupAgents: (emData.maxGroupAgents as number) ?? 3,
       groupForwardStrategy: (emData.groupForwardStrategy as "all" | "conclusion") ?? "conclusion",
@@ -243,11 +230,7 @@ export class Store {
     if (settings.apiProviders) {
       data.apiProviders = settings.apiProviders;
     }
-    // 默认 + 兜底模型(需求 1)
-    if (settings.defaultProvider) data.defaultProvider = settings.defaultProvider;
-    if (settings.defaultModel) data.defaultModel = settings.defaultModel;
-    if (settings.fallbackProvider) data.fallbackProvider = settings.fallbackProvider;
-    if (settings.fallbackModel) data.fallbackModel = settings.fallbackModel;
+    // 子 Agent 默认模型(需求 2;默认/兜底已移入每条供应商配置,见 platform-presets ProviderConfig)
     if (settings.subagentDefaultModel) data.subagentDefaultModel = settings.subagentDefaultModel;
     // 群聊配置(需求 4)
     if (settings.maxGroupAgents !== undefined) data.maxGroupAgents = settings.maxGroupAgents;

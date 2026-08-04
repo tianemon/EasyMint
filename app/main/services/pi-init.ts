@@ -41,20 +41,22 @@ export async function getActiveModel(store: Store): Promise<Model<any> | null> {
   const settings = store.getSettings();
   const providers = settings.apiProviders;
   if (!providers?.current) return null;
+  const activeCfg = providers.configs?.[providers.current];
+  if (!activeCfg?.presetId) return null;
   const runtime = await getModelRuntime(store);
 
-  // 候选模型列表(按优先级:默认配置 → 当前活跃 → 兜底),依次尝试。
-  // 模型不存在或无凭据时跳到下一个(需求 1:默认 + 兜底降级)
+  // 候选模型列表(按优先级:当前激活供应商的 默认模型 → 活跃模型 → 兜底模型)。
+  // 默认/兜底由每条供应商配置自己的 defaultModel/fallbackModel 定义(需求 1 重定义)。
+  // 模型不存在或无凭据时跳到下一个(降级)。
   const candidates: Array<{ provider: string; modelId: string }> = [];
-  if (settings.defaultProvider && settings.defaultModel) {
-    candidates.push({ provider: settings.defaultProvider, modelId: settings.defaultModel });
+  if (activeCfg.defaultModel) {
+    candidates.push({ provider: activeCfg.presetId, modelId: activeCfg.defaultModel.replace(/\[1M\]$/, "") });
   }
-  const activeCfg = providers.configs?.[providers.current];
-  if (activeCfg?.presetId && activeCfg.model) {
+  if (activeCfg.model) {
     candidates.push({ provider: activeCfg.presetId, modelId: activeCfg.model.replace(/\[1M\]$/, "") });
   }
-  if (settings.fallbackProvider && settings.fallbackModel) {
-    candidates.push({ provider: settings.fallbackProvider, modelId: settings.fallbackModel });
+  if (activeCfg.fallbackModel) {
+    candidates.push({ provider: activeCfg.presetId, modelId: activeCfg.fallbackModel.replace(/\[1M\]$/, "") });
   }
 
   for (const c of candidates) {

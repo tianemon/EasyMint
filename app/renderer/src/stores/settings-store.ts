@@ -15,11 +15,6 @@ interface SettingsState {
   showThinking: boolean;
   showToolUse: boolean;
   apiProviders: ApiProvidersData | null;
-  // ── 需求 1:默认 + 兜底模型 ──
-  defaultProvider: string;
-  defaultModel: string;
-  fallbackProvider: string;
-  fallbackModel: string;
   subagentDefaultModel: string;
   // ── 需求 4:群聊配置 ──
   maxGroupAgents: number;
@@ -39,10 +34,6 @@ interface SettingsState {
   setShowToolUse: (enabled: boolean) => void;
   setApiProviders: (data: ApiProvidersData) => void;
   activateProvider: (providerId: string) => void;
-  setDefaultProvider: (v: string) => void;
-  setDefaultModel: (v: string) => void;
-  setFallbackProvider: (v: string) => void;
-  setFallbackModel: (v: string) => void;
   setSubagentDefaultModel: (v: string) => void;
   setMaxGroupAgents: (v: number) => void;
   setGroupForwardStrategy: (v: "all" | "conclusion") => void;
@@ -67,10 +58,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   context1M: false,
   showThinking: false,
   showToolUse: false,
-  defaultProvider: "",
-  defaultModel: "",
-  fallbackProvider: "",
-  fallbackModel: "",
   subagentDefaultModel: "",
   maxGroupAgents: 3,
   groupForwardStrategy: "conclusion",
@@ -125,10 +112,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ showToolUse: enabled });
     window.electronAPI?.settings?.set?.("showToolUse", enabled);
   },
-  setDefaultProvider: (v: string) => { set({ defaultProvider: v }); window.electronAPI?.settings?.set?.("defaultProvider", v); },
-  setDefaultModel: (v: string) => { set({ defaultModel: v }); window.electronAPI?.settings?.set?.("defaultModel", v); },
-  setFallbackProvider: (v: string) => { set({ fallbackProvider: v }); window.electronAPI?.settings?.set?.("fallbackProvider", v); },
-  setFallbackModel: (v: string) => { set({ fallbackModel: v }); window.electronAPI?.settings?.set?.("fallbackModel", v); },
   setSubagentDefaultModel: (v: string) => { set({ subagentDefaultModel: v }); window.electronAPI?.settings?.set?.("subagentDefaultModel", v); },
   setMaxGroupAgents: (v: number) => { set({ maxGroupAgents: v }); window.electronAPI?.settings?.set?.("maxGroupAgents", v); },
   setGroupForwardStrategy: (v: "all" | "conclusion") => { set({ groupForwardStrategy: v }); window.electronAPI?.settings?.set?.("groupForwardStrategy", v); },
@@ -181,10 +164,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           showToolUse: settings.showToolUse ?? false,
           setupComplete: settings.setupComplete ?? false,
           apiProviders: (settings.apiProviders as ApiProvidersData) ?? null,
-          defaultProvider: settings.defaultProvider ?? "",
-          defaultModel: settings.defaultModel ?? "",
-          fallbackProvider: settings.fallbackProvider ?? "",
-          fallbackModel: settings.fallbackModel ?? "",
           subagentDefaultModel: settings.subagentDefaultModel ?? "",
           maxGroupAgents: settings.maxGroupAgents ?? 3,
           groupForwardStrategy: settings.groupForwardStrategy ?? "conclusion",

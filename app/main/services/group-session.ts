@@ -352,13 +352,16 @@ export class GroupSessionManager {
     });
   }
 
-  /** 失败重试前尝试切兜底模型(settings.fallbackProvider/fallbackModel) */
+  /** 失败重试前尝试切兜底模型(当前激活供应商配置的 fallbackModel) */
   private async trySwitchFallback(agent: ActiveGroupAgent): Promise<boolean> {
     const settings = this.deps.store.getSettings();
-    if (!settings.fallbackProvider || !settings.fallbackModel) return false;
+    const activeCfg = settings.apiProviders?.current
+      ? settings.apiProviders.configs?.[settings.apiProviders.current]
+      : undefined;
+    if (!activeCfg?.presetId || !activeCfg.fallbackModel) return false;
     const { getModelRuntime } = await import("./pi-init");
     const runtime = await getModelRuntime(this.deps.store);
-    const fb = runtime.getModel(settings.fallbackProvider, settings.fallbackModel);
+    const fb = runtime.getModel(activeCfg.presetId, activeCfg.fallbackModel.replace(/\[1M\]$/, ""));
     if (!fb) return false;
     try {
       await agent.session.setModel(fb);

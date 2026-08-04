@@ -46,11 +46,9 @@ Pi SDK(`@earendil-works/pi-coding-agent`):
 ### 4.1 Settings(`app/main/services/store.ts`)
 
 ```ts
-// 需求 1:默认 + 兜底
-defaultProvider?: string;      // 默认供应商 piId
-defaultModel?: string;         // 默认模型 id
-fallbackProvider?: string;     // 兜底供应商(主模型失败/无 auth 时降级)
-fallbackModel?: string;        // 兜底模型 id
+// 需求 1 默认/兜底:2026-08-04 起移入每条供应商配置
+// (ProviderConfig.defaultModel/fallbackModel),全局不再有 defaultProvider 等字段。
+// 当前激活供应商的 defaultModel 为默认,fallbackModel 为兜底。
 // 需求 2:子 Agent 默认模型(格式 "provider:model")
 subagentDefaultModel?: string;
 // 需求 4:群聊配置
@@ -59,6 +57,16 @@ groupForwardStrategy?: "all" | "conclusion";  // 转发策略(默认 conclusion 
 groupInjectMode?: "steer" | "followUp";       // 注入方式(默认 followUp 等空闲)
 maxForwardDepth?: number;             // 最大转发深度(默认 3,防环)
 groupPresets?: GroupPreset[];         // 预设组合(内置 + 用户自定义)
+```
+
+供应商配置(`app/shared/platform-presets.ts` ProviderConfig)新增:
+
+```ts
+export interface ProviderConfig {
+  // ...现有(id/presetId/name/apiKey/model/models/createdAt)
+  defaultModel?: string;   // 该供应商的默认模型(激活时优先使用,从 models 选)
+  fallbackModel?: string;  // 该供应商的兜底模型(默认模型不可用时降级,从 models 选)
+}
 ```
 
 ### 4.2 AgentTemplate(扩展)
@@ -97,11 +105,9 @@ interface SessionCache {
 
 | 设置项 | 位置 | 默认 | 阶段 |
 |--------|------|------|------|
-| 默认供应商 | 设置→模型 | current | 1 |
-| 默认模型 | 设置→模型 | current model | 1 |
-| 兜底供应商 | 设置→模型 | 无 | 1 |
-| 兜底模型 | 设置→模型 | 无 | 1 |
-| 子 Agent 默认模型 | 设置→模型 | 同默认 | 2 |
+| 默认模型(每条供应商) | 供应商详情页(编辑) | 留空=当前模型 | 1 |
+| 兜底模型(每条供应商) | 供应商详情页(编辑) | 无 | 1 |
+| 子 Agent 默认模型 | 设置→模型(底部) | 同默认 | 2 |
 | 群聊最大 Agent 数 | 设置→群聊 | 3 | 4 |
 | 群聊转发策略 | 设置→群聊 | conclusion | 4 |
 | 群聊注入方式 | 设置→群聊 | followUp | 4 |
@@ -109,14 +115,18 @@ interface SessionCache {
 | 群聊预设组合 | 设置→群聊 | 开发三人组/设计协作 | 4 |
 | AgentTemplate 供应商+模型 | 模板编辑(UI 待做) | 无(用默认) | 2 |
 
+> 默认/兜底模型为 **per-provider 配置**(2026-08-04 起):每条供应商在详情页配自己的 defaultModel/fallbackModel,从该供应商模型列表选。全局不再有"默认供应商"概念——默认/兜底从**当前激活供应商**读取。
+
 ## 6. 主进程设计
 
 ### 6.1 getActiveModel 降级(需求 1)
 
-候选优先级(依次尝试,模型不存在或无 auth 跳过):
-1. `defaultProvider + defaultModel`(若配置)
-2. `apiProviders.current` 活跃配置
-3. `fallbackProvider + fallbackModel`
+候选优先级(取**当前激活供应商** config,依次尝试,模型不存在或无 auth 跳过):
+1. `defaultModel`(该供应商默认模型,若配置)
+2. `model`(活跃模型)
+3. `fallbackModel`(该供应商兜底模型,若配置)
+
+> 切换供应商时 `settings:set(apiProviders)` → `resetModelRuntime()` 清模型缓存,新会话立即用新供应商的默认/兜底。
 
 命中兜底时 `broadcast("agent:fallback-used")` → 前端状态栏提示 8s。
 

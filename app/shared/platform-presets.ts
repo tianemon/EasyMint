@@ -13,6 +13,10 @@ export interface ProviderConfig {
   model: string;
   models: string[];        // 缓存：上次获取的模型列表
   createdAt: number;
+  /** 该供应商的默认模型(激活时优先使用,从 models 选) */
+  defaultModel?: string;
+  /** 该供应商的兜底模型(默认模型不可用时降级,从 models 选) */
+  fallbackModel?: string;
 }
 
 export interface ApiProvidersData {
