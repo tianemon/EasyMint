@@ -18,6 +18,7 @@ import path from "node:path";
 import { resolveHome } from "../utils/paths";
 import type { AgentSession, ToolDefinition } from "./pi-sdk";
 import { createPiSession } from "./pi-session";
+import { getDefineToolFn } from "./pi-sdk";
 import { getTemplate } from "./agent-templates";
 import { bridgeSessionEvents } from "./event-bridge";
 import type { Model } from "@earendil-works/pi-ai";
@@ -220,6 +221,9 @@ export class GroupSessionManager {
       const { tools: extraTools, canUseTool } = await this.deps.buildGroupTools(
         resolvedPath, tempSessionId, agentChatId, template?.tools ?? [],
       );
+      // 阶段C:assign_to_agent 工具注入所有群聊 Agent(显式激活通道)
+      const assignTool = await this.createAssignTool(groupId);
+      extraTools.push(assignTool);
       // 群聊 system prompt:模板 prompt + 协作规则 + 成员列表 + 角色标注
       const systemPrompt = this.deps.buildSystemPrompt(resolvedPath, template?.prompt ?? "", role, membersStr);
 
@@ -359,6 +363,37 @@ export class GroupSessionManager {
     this.groups.delete(groupId);
   }
 
+  /** 创建 assign_to_agent 工具(阶段C):Agent 调它激活指定目标,不携带任务(内容已背景注入) */
+  private async createAssignTool(groupId: string): Promise<ToolDefinition> {
+    const defineTool = await getDefineToolFn();
+    const manager = this; // eslint-disable-line @typescript-eslint/no-this-alias
+    return defineTool({
+      name: "assign_to_agent",
+      label: "指派给其他 Agent",
+      description: "将当前任务指派给群聊中的另一个 Agent。调用后该 Agent 会被激活回话——它的上下文里已有全部群聊信息,无需在参数中重复任务内容。目标名必须是群聊成员之一。",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          target: { type: "string" as const, description: "目标 Agent 角色名,如 Builder / Evaluator" },
+        },
+        required: ["target"],
+      },
+      async execute(_tid: any, params: any): Promise<{ content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }> {
+        const group = manager.groups.get(groupId);
+        if (!group) return { content: [{ type: "text" as const, text: "群聊不存在或已关闭" }], details: {} };
+        const targetRole = String(params?.target ?? "");
+        const idx = group.agents.findIndex((a) => a.meta.role === targetRole);
+        if (idx === -1) {
+          const roles = group.agents.map((a) => a.meta.role).join(" / ");
+          return { content: [{ type: "text" as const, text: `目标 ${targetRole} 不存在,可用成员: ${roles}` }], details: {} };
+        }
+        // 异步激活,不阻塞当前回合收尾
+        void manager.activateAgent(group, idx, "Agent");
+        return { content: [{ type: "text" as const, text: `已指派给 ${targetRole}` }], details: {} };
+      },
+    }) as any;
+  }
+
   // ── 回合驱动 + 转发 ───────────────────────────────
 
   private async promptAgent(
@@ -470,6 +505,17 @@ export class GroupSessionManager {
                       });
                     } catch (e) {
                       console.error(`[group] ${other.meta.role} 结论背景注入异常:`, (e as Error).message);
+                    }
+                  }
+
+                  // 阶段C兜底语法:结论含【转交@X】且未调 assign_to_agent 工具时,解析激活目标
+                  // (主通道是工具调用;语法兜底防"模型漏调工具直接写转交")
+                  const assignMatch = c.match(/【转交\s*@([^\s】]+)】/);
+                  if (assignMatch?.[1]) {
+                    const tIdx = group.agents.findIndex((a) => a.meta.role === assignMatch[1]);
+                    if (tIdx !== -1 && tIdx !== group.agents.indexOf(agent)) {
+                      console.log(`[group] 兜底语法转交: ${agent.meta.role} → ${assignMatch[1]}`);
+                      void this.activateAgent(group, tIdx, agent.meta.role);
                     }
                   }
                 }
