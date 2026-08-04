@@ -80,6 +80,14 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
           type: "string" as const,
           description: "可选的 Agent 模板名（如 builder、evaluator），省略则 Mint 自己描述任务",
         },
+        model: {
+          type: "string" as const,
+          description: "可选的模型 id(如 deepseek-v4-flash),委派子 Agent 用此模型(优先于模板/默认)",
+        },
+        provider: {
+          type: "string" as const,
+          description: "可选的供应商 piId(如 deepseek),与 model 搭配指定",
+        },
         description: {
           type: "string" as const,
           description: "任务简述（单任务模式），如「实现用户注册功能」",
@@ -104,6 +112,8 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
               description: { type: "string" as const },
               prompt: { type: "string" as const },
               agent: { type: "string" as const },
+              model: { type: "string" as const, description: "可选模型 id" },
+              provider: { type: "string" as const, description: "可选供应商 piId" },
               taskId: { type: "string" as const, description: "关联的 task.json 任务 id(完成/中止自动回写状态)" },
               outputSchema: { type: "object" as const },
             },
@@ -148,6 +158,8 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
             taskId: (t.taskId as string) || undefined,
             readOnly,
             outputSchema: (t.outputSchema as unknown) || undefined,
+            model: (t.model as string) || undefined,
+            provider: (t.provider as string) || undefined,
           });
         }
       } else {
@@ -162,6 +174,8 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
           taskId: (params.taskId as string) || undefined,
           readOnly,
           outputSchema: (params.outputSchema as unknown) || undefined,
+          model: (params.model as string) || undefined,
+          provider: (params.provider as string) || undefined,
         });
       }
 

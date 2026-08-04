@@ -108,6 +108,12 @@ interface StreamEvent {
   percentage?: number;
   data?: Record<string, unknown>;
   source?: "worker" | "evaluator" | "chat";
+  /** 群聊消息的 Agent 角色(群聊视图标注来源;user 为用户消息) */
+  agentRole?: string;
+  /** 群聊转发消息标记(该回合由其他 Agent 转发触发) */
+  forwarded?: boolean;
+  /** 群聊会话 ID(前端群聊 ChatPanel 按此过滤事件) */
+  groupId?: string;
 }
 
 interface ElectronAPI {
@@ -145,7 +151,7 @@ interface ElectronAPI {
   };
   agent: {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> } }) => Promise<{ chatId: string }>;
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string }) => Promise<{ chatId: string }>;
     steer: (sessionId: string, text: string) => Promise<void>;
     stopDelegation: (delegationId: string, taskIndex: number) => Promise<void>;
     stopShell: (shellId: string) => Promise<void>;
@@ -186,6 +192,12 @@ interface ElectronAPI {
     onRenameProgress: (callback: (data: { phase: string }) => void) => () => void;
     onSessionRenamed: (callback: (data: { sessionId: string; title: string }) => void) => () => void;
   };
+  group: {
+    create: (projectPath: string, templateIds: string[], opts?: { presetId?: string; message?: string }) => Promise<{ groupId: string; chatId: string }>;
+    send: (groupId: string, text: string) => Promise<void>;
+    list: (projectPath: string) => Promise<Array<{ groupId: string; projectId: string; presetId?: string; createdAt: number; agents: Array<{ role: string; templateId: string; provider?: string; model?: string; sessionId: string }> }>>;
+    close: (groupId: string) => Promise<void>;
+  };
   task: {
     read: (projectPath: string) => Promise<{ tasks: { id: string; title: string; description: string; command: string; status: string; attempts: number }[] }>;
     getSubagentMessages: (sessionFile: string) => Promise<{ type: string; message: unknown }[]>;
@@ -221,8 +233,8 @@ interface ElectronAPI {
     delete: (projectPath: string, id: string) => Promise<void>;
   };
   tab: {
-    save: (data: { tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string }>; activeTabId: string | null }) => Promise<void>;
-    restore: () => Promise<{ tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string }>; activeTabId: string | null } | null>;
+    save: (data: { tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string; groupId?: string }>; activeTabId: string | null }) => Promise<void>;
+    restore: () => Promise<{ tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string; groupId?: string }>; activeTabId: string | null } | null>;
   };
   process: {
     detect: (projectPath: string) => Promise<Array<{ id: string; platform: string; label: string; run_command: string; cwd?: string; install_command?: string; url?: string }>>;
@@ -282,7 +294,7 @@ interface ElectronAPI {
     delete: (projectId: string, sessionId: string) => Promise<void>;
   };
   sessionCache: {
-    read: (sessionId: string) => Promise<{ permissionMode: string; model?: string; contextUsage: number; updatedAt: number } | null>;
+    read: (sessionId: string) => Promise<{ permissionMode: string; model?: string; provider?: string; contextUsage: number; updatedAt: number } | null>;
     write: (sessionId: string, data: Record<string, unknown>) => Promise<void>;
     delete: (sessionId: string) => Promise<void>;
   };
@@ -299,6 +311,13 @@ interface ElectronAPI {
       apiKey?: string; apiKeys?: Record<string, string>; builtinTools?: Record<string, boolean>; model?: string;
       availableModels?: string[]; contextThreshold?: number; context1M?: boolean;
       showThinking?: boolean; showToolUse?: boolean;
+      defaultProvider?: string; defaultModel?: string; fallbackProvider?: string; fallbackModel?: string;
+      subagentDefaultModel?: string;
+      maxGroupAgents?: number;
+      groupForwardStrategy?: "all" | "conclusion";
+      groupInjectMode?: "steer" | "followUp";
+      maxForwardDepth?: number;
+      groupPresets?: Array<{ id: string; name: string; templateIds: string[] }>;
       apiProviders?: {
         current: string | null;
         configs: Record<string, {

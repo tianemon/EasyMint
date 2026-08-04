@@ -81,6 +81,14 @@ function BubbleActions({ text, onPin, sid, visible }: { text: string; onPin: (te
 }
 
 
+// ── 群聊角色头像色板(同一角色固定颜色,需求 4) ─────
+const GROUP_AVATAR_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16"];
+function roleColor(role: string): string {
+  let h = 0;
+  for (let i = 0; i < role.length; i++) h = (h * 31 + role.charCodeAt(i)) >>> 0;
+  return GROUP_AVATAR_COLORS[h % GROUP_AVATAR_COLORS.length]!;
+}
+
 // ── Doc Icon ────────────────────────────────────────
 function DocIcon({ name }: { name: string }): JSX.Element {
   const ext = name.split(".").pop()?.toLowerCase() || "";
@@ -106,6 +114,8 @@ function DocIcon({ name }: { name: string }): JSX.Element {
 interface ChatPanelProps {
   projectPath: string;
   sessionId?: string;
+  /** 群聊会话 ID(需求 4:多 Agent 同一会话,type === "group" 的 tab 传入) */
+  groupId?: string;
   onSessionCreated?: (sessionId: string) => void;
   onActivity?: () => void;
   onNewProject?: () => void;
@@ -121,10 +131,13 @@ const SYSTEM_KIND_LABELS: Record<string, string> = {
   summary: "上下文摘要",
 };
 
-export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreated, onActivity, onNewProject }: ChatPanelProps): JSX.Element {
+export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSessionCreated, onActivity, onNewProject }: ChatPanelProps): JSX.Element {
+  // 群聊模式:消息以 groupId 为存储 key(各 Agent 事件注入 agentRole 标注来源),
+  // 不做临时→真实 sessionId 迁移、不加载 conv 历史(群聊由 group-sessions.json 管理)
+  const isGroup = !!groupId;
   const tempSidRef = useRef<string | null>(null);
-  if (!existingSid && !tempSidRef.current) tempSidRef.current = `__new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-  const initialSid = existingSid ?? tempSidRef.current!;
+  if (!existingSid && !groupId && !tempSidRef.current) tempSidRef.current = `__new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const initialSid = groupId ?? existingSid ?? tempSidRef.current!;
   const [sid, setSid] = useState<string>(initialSid);
   const emptyArr = useRef<ChatMessage[]>([]);
   const rawMsgs = useChatStore((s) => s.messagesBySession[sid]);
@@ -168,6 +181,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
 
   const showToolUse = useSettingsStore((s) => s.showToolUse);
   const [chatModel, setChatModel] = useState("");
+  // 会话绑定的供应商 piId(需求 5:不同会话不同供应商)
+  const [chatProvider, setChatProvider] = useState<string>("");
 
   const handleModelChange = useCallback(async (m: string) => {
     setChatModel(m); setStoreModel(m);
@@ -193,6 +208,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   const steeringRef = useRef(false);
   const sidRef = useRef<string>(initialSid);
   useEffect(() => {
+    if (isGroup) return; // 群聊无临时→真实 sessionId 迁移
     if (existingSid && sidRef.current !== existingSid) {
       // 新建会话：临时 key → 真实 sessionId，迁移已存入的消息
       const oldKey = sidRef.current;
@@ -497,8 +513,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
   useEffect(() => {
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       if (event.source === "worker") return;
-      // Filter by chatId when known
-      if (currentChatRef.current) {
+      // 群聊模式:按 groupId 过滤(所有 Agent 事件注入统一 groupId)
+      if (groupId) {
+        if (event.groupId !== groupId) return;
+      } else if (currentChatRef.current) {
+        // Filter by chatId when known
         if (!event.runId && !event.chatId) return;
         if (event.runId && event.runId !== currentChatRef.current) return;
         if (event.chatId && event.chatId !== currentChatRef.current) return;
@@ -518,7 +537,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
           return;
         }
       }
-      if (!currentChatRef.current) {
+      if (!currentChatRef.current && !groupId) {
         const cid = event.chatId || event.runId;
         if (cid) { currentChatRef.current = cid; setCurrentRunId(cid); }
       }
@@ -537,6 +556,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         } else {
           latestAiIdRef.current = useChatStore.getState().insertUserMsgAt(sidRef.current, {
             role: "ai" as const, entries, timestamp: Date.now(), streaming: true,
+            agentRole: event.agentRole, forwarded: event.forwarded,
           }, frameTs);
         }
         scrollToBottom();
@@ -589,6 +609,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         useStatusStore.getState().setSummarizing(false);
         // 压缩后 Pi 重发的帧是摘要内容 → 作为新输出段块处理
         latestAiIdRef.current = 0;
+      }
+      // 群聊回合结束 → 清 busy(群聊不广播 agent:exit,不能靠 onExit 清;
+      // 若触发转发,下一 Agent 回合 turn_start 会重新 setBusy)
+      if (event.type === "turn_end" && groupId) {
+        latestAiIdRef.current = 0;
+        busyRef.current = false; setBusy(false);
+        useStatusStore.getState().popSignal("request");
+        useStatusStore.getState().popSignalsByPrefix("tool:");
       }
       // error — 插播错误信号,8s 后自动消失(回退次新活跃信号)
       if (event.type === "error") {
@@ -692,7 +720,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (pct < threshold - 20) ctxThresholdFiredRef.current = 0;
     });
     return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(); };
-  }, []);
+  }, [groupId]);
 
   // Summarizing timeout — 120s safety net
   useEffect(() => {
@@ -750,6 +778,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       if (cache) {
         if (cache.permissionMode) setPermissionMode(cache.permissionMode);
         if (cache.model) setChatModel(cache.model);
+        if (cache.provider) setChatProvider(cache.provider);
         if (cache.contextUsage > 0) useStatusStore.getState().setCtxPct(cache.contextUsage);
       }
     }).catch(() => {});
@@ -802,6 +831,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
     busyRef.current = true; setBusy(true); useStatusStore.getState().pushSignal("request", "正在请求...");
 
     try {
+      // 群聊发送:主进程 @提及路由到目标 Agent;事件按 groupId 过滤回显
+      if (groupId) {
+        await window.electronAPI.group.send(groupId, agentText);
+        return;
+      }
       currentChatRef.current = null;
       // 编码图片附件为 Pi ImageContent 格式
       const images: Array<{ type: "image"; data: string; mimeType: string }> = [];
@@ -813,10 +847,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       }
       const tab = useTabStore.getState().tabs.find(function(t) { return t.sessionId === sid || (!t.sessionId && !existingSid); });
       const effectivePath = projectPath || getWorkspaceDir();
-      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "auto", isDesigner: tab?.isDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium" });
+      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "auto", isDesigner: tab?.isDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium", preferredProvider: chatProvider || undefined });
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
     } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; useStatusStore.getState().pushSignal("error", "发送失败，请检查网络后重试", 8000); }
-  }, [busy, attaches, projectPath, permissionMode, thinkingLevel]);
+  }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatProvider, groupId]);
 
   useEffect(() => { chatActions.register((t: string) => sendText(t)); return () => chatActions.unregister(); }, [sendText]);
 
@@ -1216,12 +1250,20 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
 
   if (visible.length === 0) return null;
 
+  // 群聊消息:按 agentRole 标注角色(头像首字符 + 角色名 + 转发来源标记)
+  const role = msg.agentRole;
+  const avatarChar = role ? role.charAt(0).toUpperCase() : "M";
+  const displayName = role ?? "Mint";
+
   return (
     <div className="msg-in" onMouseEnter={showActions} onMouseLeave={scheduleHideActions} onContextMenu={(e) => onContextMenu(msg, e)}>
       <div className="flex gap-4 items-start max-w-[75%]">
-        <div className="msg-avatar agent">M</div>
+        <div className="msg-avatar agent" style={role ? { backgroundColor: roleColor(role), color: "#fff" } : undefined}>{avatarChar}</div>
         <div className="min-w-0 relative">
-          <div className="msg-from">Mint</div>
+          <div className="msg-from">
+            {displayName}
+            {role && msg.forwarded && <span className="text-text-secondary/60 ml-1.5 text-[10px] font-normal">· 来自转发</span>}
+          </div>
           <div className="msg-bubble-agent rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
             {blocks.map((block, i) => (
               <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} />

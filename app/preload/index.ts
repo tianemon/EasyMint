@@ -199,7 +199,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   agent: {
     runWorker: (projectPath: string, prompt: string) =>
       ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> } }) =>
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string }) =>
       ipcRenderer.invoke("agent:sendMessage", { projectPath, message, ...opts }),
     steer: (sessionId: string, text: string) =>
       ipcRenderer.invoke("agent:steer", { sessionId, text }),
@@ -323,5 +323,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:session-renamed", handler);
       return () => ipcRenderer.removeListener("agent:session-renamed", handler);
     },
+  },
+  group: {
+    create: (projectPath: string, templateIds: string[], opts?: { presetId?: string; message?: string }) =>
+      ipcRenderer.invoke("group:create", { projectPath, templateIds, presetId: opts?.presetId, message: opts?.message }) as Promise<{ groupId: string; chatId: string }>,
+    send: (groupId: string, text: string) => ipcRenderer.invoke("group:send", { groupId, text }) as Promise<void>,
+    list: (projectPath: string) => ipcRenderer.invoke("group:list", { projectPath }) as Promise<Array<{ groupId: string; projectId: string; presetId?: string; createdAt: number; agents: Array<{ role: string; templateId: string; provider?: string; model?: string; sessionId: string }> }>>,
+    close: (groupId: string) => ipcRenderer.invoke("group:close", { groupId }) as Promise<void>,
   },
 });

@@ -16,6 +16,8 @@ const CACHE_DIR = path.join(os.homedir(), ".easymint", "session-cache");
 export interface SessionCache {
   permissionMode: string;
   model?: string;
+  /** 会话绑定的供应商 piId(需求 5:不同会话不同供应商) */
+  provider?: string;
   contextUsage: number;
   updatedAt: number;
 }

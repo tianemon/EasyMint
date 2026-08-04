@@ -50,7 +50,42 @@ interface Settings {
   showThinking?: boolean;
   showToolUse?: boolean;
   apiProviders?: ApiProvidersData;
+  // ── 需求 1:默认 + 兜底模型 ──
+  /** 默认供应商 piId(会话未指定时用) */
+  defaultProvider?: string;
+  /** 默认模型 id */
+  defaultModel?: string;
+  /** 兜底供应商 piId(主模型失败/无 auth 时降级) */
+  fallbackProvider?: string;
+  /** 兜底模型 id */
+  fallbackModel?: string;
+  /** 子 Agent 默认模型(需求 2,委派未指定时用;格式 "provider:model") */
+  subagentDefaultModel?: string;
+  // ── 需求 4:群聊配置 ──
+  /** 群聊最大 agent 数(默认 3) */
+  maxGroupAgents?: number;
+  /** 转发策略:all 全广播 / conclusion 只转发结论(默认) */
+  groupForwardStrategy?: "all" | "conclusion";
+  /** 注入方式:steer 打断 / followUp 等空闲(默认) */
+  groupInjectMode?: "steer" | "followUp";
+  /** 群聊最大转发深度(防环,默认 3) */
+  maxForwardDepth?: number;
+  /** 群聊预设角色组合(内置 + 用户自定义) */
+  groupPresets?: GroupPreset[];
 }
+
+/** 群聊预设组合:一组角色模板的命名组合 */
+export interface GroupPreset {
+  id: string;
+  name: string;
+  templateIds: string[];
+}
+
+/** 内置群聊预设(首次读取时种子写入) */
+export const BUILTIN_GROUP_PRESETS: GroupPreset[] = [
+  { id: "dev-trio", name: "开发三人组", templateIds: ["mint", "default-builder", "default-evaluator"] },
+  { id: "design-duo", name: "设计协作", templateIds: ["mint", "mint-designer"] },
+];
 
 const EM_DEFAULTS = {
   setupComplete: false,
@@ -134,6 +169,16 @@ export class Store {
       showThinking: emData.showThinking as boolean | undefined,
       showToolUse: emData.showToolUse as boolean | undefined,
       apiProviders: (emData.apiProviders as ApiProvidersData) || undefined,
+      defaultProvider: emData.defaultProvider as string | undefined,
+      defaultModel: emData.defaultModel as string | undefined,
+      fallbackProvider: emData.fallbackProvider as string | undefined,
+      fallbackModel: emData.fallbackModel as string | undefined,
+      subagentDefaultModel: emData.subagentDefaultModel as string | undefined,
+      maxGroupAgents: (emData.maxGroupAgents as number) ?? 3,
+      groupForwardStrategy: (emData.groupForwardStrategy as "all" | "conclusion") ?? "conclusion",
+      groupInjectMode: (emData.groupInjectMode as "steer" | "followUp") ?? "followUp",
+      maxForwardDepth: (emData.maxForwardDepth as number) ?? 3,
+      groupPresets: (emData.groupPresets as GroupPreset[]) ?? BUILTIN_GROUP_PRESETS,
     };
   }
 
@@ -198,6 +243,18 @@ export class Store {
     if (settings.apiProviders) {
       data.apiProviders = settings.apiProviders;
     }
+    // 默认 + 兜底模型(需求 1)
+    if (settings.defaultProvider) data.defaultProvider = settings.defaultProvider;
+    if (settings.defaultModel) data.defaultModel = settings.defaultModel;
+    if (settings.fallbackProvider) data.fallbackProvider = settings.fallbackProvider;
+    if (settings.fallbackModel) data.fallbackModel = settings.fallbackModel;
+    if (settings.subagentDefaultModel) data.subagentDefaultModel = settings.subagentDefaultModel;
+    // 群聊配置(需求 4)
+    if (settings.maxGroupAgents !== undefined) data.maxGroupAgents = settings.maxGroupAgents;
+    if (settings.groupForwardStrategy) data.groupForwardStrategy = settings.groupForwardStrategy;
+    if (settings.groupInjectMode) data.groupInjectMode = settings.groupInjectMode;
+    if (settings.maxForwardDepth !== undefined) data.maxForwardDepth = settings.maxForwardDepth;
+    if (settings.groupPresets) data.groupPresets = settings.groupPresets;
     fs.writeFileSync(this.emSettingsPath, JSON.stringify(data, null, 2));
   }
 

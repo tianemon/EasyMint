@@ -24,6 +24,10 @@ export interface ChatMessage {
   piTs?: number;
   /** 流式标记:实时渲染临时消息(重载/加载磁盘时被替代或合并) */
   streaming?: boolean;
+  /** 群聊消息的 Agent 角色(群聊视图标注来源;无 = 普通会话) */
+  agentRole?: string;
+  /** 群聊转发消息标记(该回合由其他 Agent 转发触发,显示来源标签) */
+  forwarded?: boolean;
 }
 
 /** Pi 事件中的 blocks → StreamEntry 格式（兼容现有渲染） */

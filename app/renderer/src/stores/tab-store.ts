@@ -4,10 +4,12 @@ import { useChatStore } from "./chat-store";
 
 export interface Tab {
   id: string;
-  type: "file" | "chat";
+  type: "file" | "chat" | "group";
   title: string;
   filePath?: string;
   sessionId?: string;
+  /** 群聊会话 ID(需求 4:type === "group" 时有效) */
+  groupId?: string;
   isNewProject?: boolean;
   dirty?: boolean;
   isDesigner?: boolean;
@@ -52,6 +54,8 @@ export const useTabStore = create<TabState>()(
         const existing = tabs.find(
           (t) =>
             (tab.type === "file" && t.type === "file" && t.filePath === tab.filePath) ||
+            // 群聊按 groupId 去重(需求 4)
+            (tab.type === "group" && t.type === "group" && tab.groupId && t.groupId === tab.groupId) ||
             // Only dedup by sessionId if it's a real SDK session (not undefined=new)
             (tab.type === "chat" && t.type === "chat" && tab.sessionId && t.sessionId === tab.sessionId)
         );
@@ -122,7 +126,7 @@ useTabStore.subscribe((state) => {
   synced = true;
   try {
     window.electronAPI?.tab?.save?.({
-      tabs: state.tabs.map((t) => ({ id: t.id, type: t.type, title: t.title, filePath: t.filePath, sessionId: t.sessionId })),
+      tabs: state.tabs.map((t) => ({ id: t.id, type: t.type, title: t.title, filePath: t.filePath, sessionId: t.sessionId, groupId: t.groupId })),
       activeTabId: state.activeTabId,
     });
   } catch { /* ignore */ }

@@ -18,6 +18,7 @@ interface SidebarProps {
   sessionRefreshKey?: number;
   onNewSession?: () => void;
   onNewDesignSession?: () => void;
+  onNewGroupSession?: () => void;
   onSessionClick?: (sessionId: string) => void;
   onSessionDelete?: (sessionId: string) => void;
   onFileClick?: (filePath: string, fileName: string) => void;
@@ -31,7 +32,7 @@ interface SidebarProps {
 export function Sidebar({
   projectPath, projectId, projectName, projectExists,
   activeSessionId, sessionRefreshKey,
-  onNewSession, onNewDesignSession, onSessionClick, onSessionDelete,
+  onNewSession, onNewDesignSession, onNewGroupSession, onSessionClick, onSessionDelete,
   onFileClick, onNewProject, onOpenProject, onRenameProject,
   onSettings,
 }: SidebarProps): JSX.Element {
@@ -149,6 +150,7 @@ export function Sidebar({
                 <div className="sb-dropdown open" style={{ position: "absolute", left: "auto", right: -8, top: "28px", width: "max-content", minWidth: 0, zIndex: 10, padding: 2 }}>
                   <button className="sb-dropdown-item" style={{ padding: "4px 10px" }} onClick={() => { setSessionMenuOpen(false); onNewSession?.(); }}>开发会话</button>
                   <button className="sb-dropdown-item" style={{ padding: "4px 10px" }} onClick={() => { setSessionMenuOpen(false); onNewDesignSession?.(); }}>设计会话</button>
+                  <button className="sb-dropdown-item" style={{ padding: "4px 10px" }} onClick={() => { setSessionMenuOpen(false); onNewGroupSession?.(); }}>群聊会话</button>
                 </div>
               )}
             </div>

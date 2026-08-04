@@ -40,13 +40,35 @@ export async function getActiveModel(store: Store): Promise<Model<any> | null> {
   const settings = store.getSettings();
   const providers = settings.apiProviders;
   if (!providers?.current) return null;
-  const config = providers.configs?.[providers.current];
-  if (!config) return null;
   const runtime = await getModelRuntime(store);
-  const modelId = config.model?.replace(/\[1M\]$/, "") || "";
-  const model = runtime.getModel(config.presetId, modelId);
-  if (model) _activeModel = model as any;
-  return (model ?? null) as Model<any> | null;
+
+  // 候选模型列表(按优先级:默认配置 → 当前活跃 → 兜底),依次尝试。
+  // 模型不存在或无凭据时跳到下一个(需求 1:默认 + 兜底降级)
+  const candidates: Array<{ provider: string; modelId: string }> = [];
+  if (settings.defaultProvider && settings.defaultModel) {
+    candidates.push({ provider: settings.defaultProvider, modelId: settings.defaultModel });
+  }
+  const activeCfg = providers.configs?.[providers.current];
+  if (activeCfg?.presetId && activeCfg.model) {
+    candidates.push({ provider: activeCfg.presetId, modelId: activeCfg.model.replace(/\[1M\]$/, "") });
+  }
+  if (settings.fallbackProvider && settings.fallbackModel) {
+    candidates.push({ provider: settings.fallbackProvider, modelId: settings.fallbackModel });
+  }
+
+  for (const c of candidates) {
+    const model = runtime.getModel(c.provider, c.modelId);
+    if (!model) continue;
+    // 该 provider 未配置凭据(无 API key)→ 跳过,尝试兜底
+    const auth = runtime.getProviderAuthStatus(c.provider);
+    if (auth && !auth.configured) continue;
+    if (c !== candidates[0]) {
+      console.log(`[pi-init] 使用兜底模型: ${c.provider}/${c.modelId}`);
+    }
+    _activeModel = model as any;
+    return model as any;
+  }
+  return null;
 }
 
 // Provider 和模型列表来自静态 JSON，不需要 runtime

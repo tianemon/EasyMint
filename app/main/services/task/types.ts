@@ -93,6 +93,10 @@ export interface TaskItem {
   readOnly?: boolean;
   outputSchema?: unknown;
   isolated?: boolean;
+  /** 委派指定模型(可选;优先于模板/子agent默认/全局) */
+  model?: string;
+  /** 委派指定供应商(可选;与 model 搭配指定) */
+  provider?: string;
 }
 
 /** yield 工具输出项 */

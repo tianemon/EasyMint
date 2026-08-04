@@ -6,6 +6,7 @@ import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
 import { NewProjectDialog } from "../components/NewProjectDialog";
+import { GroupComposerDialog } from "../components/GroupComposerDialog";
 import { useProcessStore } from "../stores/process-store";
 import { useTabStore } from "../stores/tab-store";
 import { useTaskStore, type TaskStatus } from "../stores/task-store";
@@ -24,6 +25,7 @@ export function ProjectPage(): JSX.Element {
   const [projectPath, setProjectPath] = useState("");
   const [projectName, setProjectName] = useState("");
   const [showOpenProject, setShowOpenProject] = useState(false);
+  const [showGroupComposer, setShowGroupComposer] = useState(false);
   const [openProjectList, setOpenProjectList] = useState<Array<{ id: string; name: string; path: string; exists?: boolean }>>([]);
   const [windowChoiceTarget, setWindowChoiceTarget] = useState<{ id: string; sid?: string | null; init?: boolean } | null>(null);
   const [projectExists, setProjectExists] = useState(true);
@@ -193,6 +195,16 @@ export function ProjectPage(): JSX.Element {
     openTab({ id: tabId, type: "chat" as const, title: "新建设计", isDesigner: true });
   }, [openTab]);
 
+  // 群聊会话(需求 4):打开群聊创建弹窗
+  const handleNewGroupSession = useCallback(() => {
+    setShowGroupComposer(true);
+  }, []);
+
+  const handleGroupCreated = useCallback((g: { groupId: string; chatId: string; title: string }) => {
+    setShowGroupComposer(false);
+    openTab({ id: `group-${Date.now()}`, type: "group" as const, groupId: g.groupId, title: g.title });
+  }, [openTab]);
+
   const handleSessionDelete = useCallback((sessionId: string) => {
     if (activeSessionId === sessionId) setActiveSessionId(undefined);
     // Close any tab that holds this session (match by sessionId, not tab id)
@@ -303,6 +315,17 @@ export function ProjectPage(): JSX.Element {
               </div>
             );
           }
+          if (tab.type === "group") {
+            return (
+              <div key={tab.id} className="absolute inset-0 transition-opacity duration-200" style={{ opacity: isActive ? 1 : 0, pointerEvents: isActive ? "auto" : "none" }}>
+                <ChatPanel
+                  projectPath={projectPath}
+                  groupId={tab.groupId}
+                  onActivity={() => { setSessionRefreshKey((k) => k + 1); }}
+                />
+              </div>
+            );
+          }
           if (tab.type === "file") {
             return (
               <div key={tab.id} className="absolute inset-0 transition-opacity duration-200" style={{ opacity: isActive ? 1 : 0, pointerEvents: isActive ? "auto" : "none" }}>
@@ -327,6 +350,7 @@ export function ProjectPage(): JSX.Element {
         sessionRefreshKey={sessionRefreshKey}
         onNewSession={handleNewSession}
         onNewDesignSession={handleNewDesignSession}
+        onNewGroupSession={handleNewGroupSession}
         onSessionClick={handleSessionClick}
         onSessionDelete={handleSessionDelete}
         onFileClick={handleFileClick}
@@ -549,6 +573,14 @@ export function ProjectPage(): JSX.Element {
               navigate(`/project/${project.id}?${params.toString()}`);
             }
           }}
+        />
+      )}
+
+      {showGroupComposer && (
+        <GroupComposerDialog
+          projectPath={projectPath}
+          onClose={() => setShowGroupComposer(false)}
+          onCreated={handleGroupCreated}
         />
       )}
     </div>

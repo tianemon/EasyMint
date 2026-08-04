@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { ProvidersManager } from "./settings/ProviderSettings";
+import { ModelDefaultsSettings } from "./settings/ProviderSettings";
+import { GroupSettingsSection } from "./GroupSettingsSection";
 
-export type SettingsTab = "general" | "plugins" | "providers" | "about";
+export type SettingsTab = "general" | "plugins" | "providers" | "group" | "about";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -626,6 +628,12 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
               插件
             </button>
             <button
+              className={`settings-header-tab ${activeTab === "group" ? "active" : ""}`}
+              onClick={() => setActiveTab("group")}
+            >
+              群聊
+            </button>
+            <button
               className={`settings-header-tab ${activeTab === "about" ? "active" : ""}`}
               onClick={() => setActiveTab("about")}
             >
@@ -711,8 +719,14 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
               <hr className="border-border" />
               <McpTab />
             </div>
+          ) : activeTab === "group" ? (
+            <div className="space-y-5">
+              <GroupSettingsSection />
+            </div>
           ) : activeTab === "providers" ? (
             <div className="space-y-5">
+              <ModelDefaultsSettings />
+              <hr className="border-border" />
               <ProvidersManager />
               <hr className="border-border" />
               <BuiltinToolsSection />

@@ -269,11 +269,25 @@ EasyMint 是 Electron 桌面应用，让不懂技术的用户通过图形界面�
 3. **UI 精致化**：右键菜单自适应/圆角裁剪、删除确认弹窗、拖放上传、Lucide 图标、Onboarding v3 风格对齐
 4. **发布 v0.5.2**：合并 main、版本号、CHANGELOG、tag 推送 → GitHub Actions 自动 Release
 
+## 最近工作（多模型/多 Agent 4 阶段，2026-08-03/04）
+
+1. **需求调研 + 4 阶段设计**：①默认+兜底模型 ②Agent 指定模型/供应商 ③不同会话不同供应商 ④多 Agent 群聊(应用层消息转发,方案 B)
+2. **阶段 1 默认+兜底**：Settings 加 default/fallback provider+model;`getActiveModel` 候选降级
+3. **阶段 2 Agent 指定**：AgentTemplate.provider + SubagentOptions.model/provider + executor `resolveSubagentModel`
+4. **阶段 3 会话绑供应商**：session-cache.provider → `sendMessage(preferredProvider)` → `getModel(provider, model)`;UI 切换入口待做
+5. **阶段 4 群聊(核心)**：
+   - 主进程 `group-session.ts`：GroupSessionManager(多 Pi session 聚合/消息路由 @提及/结论转发/防环三层/失败离线/group-sessions.json 持久化)
+   - 前端：tab type `group` + ChatPanel 群聊模式(角色气泡+转发标记)+ Sidebar 群聊入口 + GroupComposerDialog(预设/自由组合)+ 设置→群聊 tab(4 参数+预设管理)
+   - 供应商 11 品牌(带 logo)精简 + Select 组件 Portal 定位修复 + 状态栏符号动画
+
 ## 接下来安排
 
-1. **轮转端到端实测**：压缩 3 次触发归档+新会话接力（使用中确认）
-2. **Windows 验证**：拖拽区修复效果（v0.5.0 发布后修复项）
-3. **便签 UAT**：真实使用中验证贴纸吸附/层叠/hover 横条/动画手感
+1. **群聊实测**：创建→@提及路由→结论转发→防环收敛(深度 3 停止);群聊 Agent 交互手感
+2. **阶段 3 UI 增强**：会话内切换供应商入口 + tab 品牌图标显示
+3. **群聊待办**：①群聊 Agent 用 task 工具的委派完成通知不注入回群聊 Agent(断链) ②重启后群聊 tab 恢复但主进程 group 清空(内存态,发送报"群聊不存在") ③群聊历史聚合加载(重启后只读)
+4. **轮转端到端实测**：压缩 3 次触发归档+新会话接力(使用中确认)
+5. **Windows 验证**：拖拽区修复效果
+6. **便签 UAT**：真实使用中验证贴纸吸附/层叠/hover 横条/动画手感
 
 ## 其他细节
 

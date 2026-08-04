@@ -39,6 +39,7 @@ import { renameSession, hasCustomTitle } from "./session-service";
 import { MAX_COMPACT, finishRotation, type RotationState } from "./rotation";
 import { buildProjectEnvSection, buildProjectProfileSection, readProjectProfile } from "./prompt-sections";
 import { DESIGNER_AGENT_PROMPT } from "../../shared/prompts";
+import { GroupSessionManager, type GroupSessionMeta } from "./group-session";
 
 // ── 类型 ────────────────────────────────────────────
 
@@ -54,6 +55,13 @@ const SYSTEM_KIND_TITLES: Record<string, string> = {
   delegation: "子 Agent 委派",
   shell: "后台命令",
 };
+
+/** 群聊协作规则:注入每个群聊 Agent 的 system prompt(需求 4) */
+const GROUP_COLLABORATION_RULE = `[群聊协作规则]
+你正在一个多 Agent 群聊会话中协作,群聊会把你与其他角色的回复汇总在同一会话中展示。
+- 你会收到来自其他成员的消息,请只针对消息内容本身回应,不要臆测你未读到的对话。
+- 你的每次回复会被其他成员看到;请保持结论清晰、独立可读。
+- 若你认为某部分工作更适合其他成员处理,在回复末尾用单独一行写明:【转交@角色名】...`;
 
 interface ActiveRun {
   runId: string;
@@ -121,7 +129,18 @@ export function getDesignSessionIds(): string[] {
 // ── AgentService ────────────────────────────────────
 
 export class AgentService {
-  constructor(private store: Store) {}
+  private groupSessions: GroupSessionManager;
+  constructor(private store: Store) {
+    this.groupSessions = new GroupSessionManager({
+      store,
+      getAgentDir: () => this.getAgentDir(),
+      buildTools: (p, s, c) => this.buildExtraTools(p, s, c),
+      buildSystemPrompt: (p, t) => this.groupSystemPrompt(p, t),
+      resolveModel: (prov, mod) => this.getModel(this.store, prov, mod),
+      broadcast: (ch, d) => broadcast(ch, d),
+      injectSystemMessage: (sid, text, kind, opts) => this.injectSystemMessage(sid, text, kind, opts),
+    });
+  }
   private activeRuns: Map<string, ActiveRun> = new Map();
   private activeChats: Map<string, ActiveChat> = new Map();
   private runCounter = 0;
@@ -136,9 +155,16 @@ export class AgentService {
     return path.join(os.homedir(), ".easymint", "pi");
   }
 
-  private async getModel(store: Store): Promise<Model<any> | null> {
-    const m = await getActiveModel(store);
-    return m ?? null;
+  private async getModel(store: Store, preferredProvider?: string, preferredModel?: string): Promise<Model<any> | null> {
+    // 会话指定供应商+模型(需求 3/5)→ 优先用该供应商的模型
+    if (preferredProvider && preferredModel) {
+      const { getModelRuntime } = await import("./pi-init");
+      const runtime = await getModelRuntime(store);
+      const m = runtime.getModel(preferredProvider, preferredModel);
+      if (m) return m as any;
+    }
+    // 默认/兜底降级(getActiveModel 内处理)
+    return getActiveModel(store) ?? null;
   }
 
   private async buildExtraTools(projectPath: string, sessionId: string, chatId?: string): Promise<{
@@ -200,6 +226,26 @@ export class AgentService {
     const profile = buildProjectProfileSection(readProjectProfile(projectPath));
     if (profile) parts.push(profile);
 
+    return parts.join("\n\n");
+  }
+
+  /** 群聊 Agent 系统提示词:模板 prompt(替代默认 Mint prompt)+ 群聊协作规则 + 动态 section */
+  private groupSystemPrompt(projectPath: string, templatePrompt: string): string {
+    const parts: string[] = [];
+    if (templatePrompt) {
+      parts.push(templatePrompt);
+    } else {
+      const effective = resolveEffectivePrompt();
+      if (effective) parts.push(effective);
+    }
+    parts.push(GROUP_COLLABORATION_RULE);
+
+    const skills = buildSkillsPrompt(projectPath);
+    if (skills) parts.push(skills);
+    const env = buildProjectEnvSection(projectPath);
+    if (env) parts.push(env);
+    const profile = buildProjectProfileSection(readProjectProfile(projectPath));
+    if (profile) parts.push(profile);
     return parts.join("\n\n");
   }
 
@@ -414,6 +460,8 @@ export class AgentService {
     images?: Array<{ type: "image"; data: string; mimeType: string }>,
     thinkingLevel?: string,
     systemPayload?: SystemMessagePayload,
+    /** 会话指定供应商(需求 5:不同会话不同供应商;与 model 搭配创建会话) */
+    preferredProvider?: string,
   ): Promise<{ chatId: string }> {
     const resolvedPath = path.resolve(resolveHome(projectPath));
 
@@ -428,7 +476,7 @@ export class AgentService {
 
     // 新会话
     const chatId = `chat-${++this.chatCounter}`;
-    const piModel = await this.getModel(this.store);
+    const piModel = await this.getModel(this.store, preferredProvider, model);
     if (!piModel) {
       throw new Error("未配置 AI 模型，请在设置中配置 API");
     }
@@ -629,6 +677,32 @@ export class AgentService {
     return this.sendMessage(projectPath, message, null, "auto",
       _mainWindow!,
       undefined, false);
+  }
+
+  // ── 群聊会话(需求 4:多 Agent 同一会话,应用层消息转发) ──
+
+  /** 创建群聊:每个模板建独立 Pi session,首条消息发主 Agent */
+  createGroupChat(
+    projectPath: string,
+    templateIds: string[],
+    opts?: { presetId?: string; message?: string },
+  ): Promise<{ groupId: string; chatId: string }> {
+    return this.groupSessions.createGroup(projectPath, templateIds, opts);
+  }
+
+  /** 群聊发消息:@提及路由到目标 Agent,否则主 Agent */
+  sendGroupMessage(groupId: string, text: string): Promise<void> {
+    return this.groupSessions.sendGroupMessage(groupId, text);
+  }
+
+  /** 项目群聊列表(持久化 meta) */
+  listGroupChats(projectPath: string): GroupSessionMeta[] {
+    return this.groupSessions.listGroups(projectPath);
+  }
+
+  /** 关闭群聊(释放所有 Agent 会话) */
+  closeGroupChat(groupId: string): void {
+    this.groupSessions.closeGroup(groupId);
   }
 
   killChat(chatId: string): void {

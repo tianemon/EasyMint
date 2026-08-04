@@ -20,6 +20,8 @@ export interface AgentTemplate {
   prompt: string;
   tools: string[];
   model?: string;
+  /** 供应商 piId(需求 3:模板指定供应商,与 model 搭配) */
+  provider?: string;
   agentType: "mint" | "builder" | "evaluator" | "designer";
 }
 
@@ -29,6 +31,7 @@ export interface AgentTemplateInput {
   prompt: string;
   tools: string[];
   model?: string;
+  provider?: string;
   agentType: "mint" | "builder" | "evaluator" | "designer";
 }
 

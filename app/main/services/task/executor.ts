@@ -11,7 +11,8 @@ import { randomUUID } from "node:crypto";
 import type { AgentSessionEvent } from "../pi-sdk";
 import { createPiSession, getPiSessionDir } from "../pi-session";
 import { getBaseTools, getReadOnlyTools } from "../tool-registry";
-import { getActiveModel } from "../pi-init";
+import { getActiveModel, getModelRuntime } from "../pi-init";
+import { getTemplate } from "../agent-templates";
 import { Store } from "../store";
 import { resolveHome } from "../../utils/paths";
 import { mapWithConcurrencyLimit, type ParallelResult } from "./parallel";
@@ -68,6 +69,43 @@ export interface SubagentOptions {
   delegationId: string;
   /** 子会话 jsonl 路径记录(按 index 写入;前端查看 Agent 过程定位文件) */
   childSessionFiles: string[];
+  /** Agent 模板名(如 builder/evaluator;查模板的 model/provider 作为默认) */
+  agent?: string;
+  /** 委派指定模型(优先于模板/子agent默认/全局) */
+  model?: string;
+  /** 委派指定供应商(与 model 搭配) */
+  provider?: string;
+}
+
+/** 解析子 Agent 模型:委派指定 > AgentTemplate > 子agent默认(settings) > 全局(需求 2/3) */
+async function resolveSubagentModel(opts: SubagentOptions): Promise<Awaited<ReturnType<typeof getActiveModel>>> {
+  const runtime = await getModelRuntime(opts.store);
+  const tryGet = (provider?: string, model?: string): Awaited<ReturnType<typeof getActiveModel>> => {
+    if (!provider || !model) return null;
+    return runtime.getModel(provider, model) ?? null;
+  };
+  // 1. 委派指定(provider + model)
+  const m1 = tryGet(opts.provider, opts.model);
+  if (m1) return m1;
+  // 2. AgentTemplate(按 agent 名,模板的 provider/model)
+  if (opts.agent) {
+    const tpl = getTemplate(opts.agent);
+    if (tpl) {
+      const m2 = tryGet(tpl.provider, tpl.model);
+      if (m2) return m2;
+    }
+  }
+  // 3. 子 agent 默认模型(settings.subagentDefaultModel,格式 "provider:model")
+  const subDefault = opts.store.getSettings().subagentDefaultModel;
+  if (subDefault) {
+    const i = subDefault.indexOf(":");
+    if (i > 0) {
+      const m3 = tryGet(subDefault.slice(0, i), subDefault.slice(i + 1));
+      if (m3) return m3;
+    }
+  }
+  // 4. 全局默认(默认/兜底降级在 getActiveModel 内处理)
+  return getActiveModel(opts.store);
 }
 
 /** 执行单个子 Agent（后台，不阻塞调用方） */
@@ -93,7 +131,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
 
   const resolvedPath = path.resolve(resolveHome(opts.cwd));
 
-  const model = await getActiveModel(opts.store);
+  const model = await resolveSubagentModel(opts);
   if (!model) {
     return {
       index: opts.index, id, agent: agentLabel, task: opts.task, taskId: opts.taskId,
@@ -401,6 +439,9 @@ export async function runSubagents(
       onProgress: runtime.onProgress,
       delegationId: record.delegationId,
       childSessionFiles: record.childSessionFiles,
+      agent: task.agent,
+      model: task.model,
+      provider: task.provider,
     },
   }));
 
