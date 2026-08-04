@@ -270,6 +270,19 @@ export class GroupSessionManager {
     this.groups.set(groupId, group);
     this.persist(group);
 
+    // 8.0a:创建完成后注入初始化消息(triggerTurn:false,只进上下文不回话,UI 不显示)
+    const initMsg = `[群聊已创建] 参与成员: ${membersStr}。群聊规则: 被 @ 或收到"群聊激活"系统消息时才回话;不要重复回应历史消息(之前的回复已处理);需要指派他人时调用 assign_to_agent({target:"角色名"});回话时优先响应当前最新指令;你的回复结论会自动同步给所有成员。`;
+    for (const a of agents) {
+      a.session.sendCustomMessage({
+        customType: "forward_message",
+        content: initMsg,
+        display: false,
+        details: { kind: "group_init" },
+      }, { triggerTurn: false }).catch((e) => {
+        console.error(`[group] ${a.meta.role} 初始化消息注入失败:`, (e as Error).message);
+      });
+    }
+
     if (opts?.message) {
       await this.sendGroupMessage(groupId, opts.message);
     }
@@ -278,7 +291,7 @@ export class GroupSessionManager {
 
   // ── 消息路由 ──────────────────────────────────────
 
-  /** 发送用户消息:@提及路由到目标 Agent,否则发给主 Agent(第一个) */
+  /** 发送用户消息(阶段B:全量背景注入 + @ 显式激活) */
   async sendGroupMessage(groupId: string, text: string): Promise<void> {
     const group = this.groups.get(groupId);
     if (!group) throw new Error("群聊不存在或已关闭");
@@ -288,10 +301,43 @@ export class GroupSessionManager {
       agentRole: "user", text, piTs: Date.now(),
     });
 
-    // 用户消息由前端本地 append(与单会话一致),这里不广播 user_message 防重复
+    // 阶段B:用户消息注入所有 Agent(triggerTurn:false,只进上下文不回话)→ "共享上下文"感受
+    // 只注入 user 文本,不含附件/代码
+    this.broadcastBackground(group, { agentRole: "user", text, piTs: Date.now() });
+
+    // @ 定位目标 → 激活回合(用户消息由前端本地 append,这里不广播 user_message 防重复)
     const targetIdx = this.resolveMention(group, text);
-    const cleanText = stripMention(text);
-    await this.promptAgent(group, targetIdx, cleanText, { depth: 0, forwarded: false });
+    await this.activateAgent(group, targetIdx, "user");
+  }
+
+  /** 背景注入:把一条群聊消息 triggerTurn:false 注入所有 Agent(不回话,只同步上下文) */
+  private broadcastBackground(group: ActiveGroup, msg: { agentRole: string; text: string; piTs: number; forwardedFrom?: string }): void {
+    for (const a of group.agents) {
+      try {
+        a.session.sendCustomMessage({
+          customType: "forward_message",
+          content: msg.agentRole === "user" ? msg.text : `[群聊背景] ${msg.agentRole} 的结论: ${msg.text}`,
+          display: false,
+          details: { kind: "forward_message", from: msg.agentRole, forwardedFrom: msg.forwardedFrom },
+        }, { triggerTurn: false }).catch((e) => {
+          console.error(`[group] ${a.meta.role} 背景注入失败:`, (e as Error).message);
+        });
+      } catch (e) {
+        console.error(`[group] ${a.meta.role} 背景注入异常:`, (e as Error).message);
+      }
+    }
+  }
+
+  /** 显式激活一个 Agent 开回合(不带内容,内容已由背景注入同步) */
+  private async activateAgent(group: ActiveGroup, idx: number, fromRole: string): Promise<void> {
+    const agent = group.agents[idx];
+    if (!agent || agent.status === "offline") return;
+    if (agent.busy) {
+      console.log(`[group] ${agent.meta.role} busy, 激活跳过`);
+      return;
+    }
+    // 激活消息:custom 类型,triggerTurn:true 开回合;content 提示基于上下文回复
+    await this.promptAgent(group, idx, `[群聊激活] ${fromRole} 激活了你,请基于群聊上下文回复。`, { depth: 0, forwarded: true, fromRole });
   }
 
   private resolveMention(group: ActiveGroup, text: string): number {
@@ -409,9 +455,24 @@ export class GroupSessionManager {
                     piTs: Date.now(),
                     forwardedFrom: opts.fromRole,
                   });
+                  // 阶段B:结论背景注入除自己外所有 Agent(triggerTurn:false,不回话)
+                  // 不含代码/toolResult/thinking——只转纯结论
+                  for (const other of group.agents) {
+                    if (other === agent) continue;
+                    try {
+                      other.session.sendCustomMessage({
+                        customType: "forward_message",
+                        content: `[群聊背景] ${agent.meta.role} 的结论: ${c}`,
+                        display: false,
+                        details: { kind: "forward_message", from: agent.meta.role, forwardedFrom: opts.fromRole },
+                      }, { triggerTurn: false }).catch((e) => {
+                        console.error(`[group] ${other.meta.role} 结论背景注入失败:`, (e as Error).message);
+                      });
+                    } catch (e) {
+                      console.error(`[group] ${other.meta.role} 结论背景注入异常:`, (e as Error).message);
+                    }
+                  }
                 }
-                // 转发给其他 Agent(旧转发链,阶段 B 将替换为背景注入+显式激活)
-                this.onAgentTurnEnd(group, idx, c, opts);
               }
             },
           });
@@ -420,11 +481,9 @@ export class GroupSessionManager {
         }
       });
 
-      // 转发/用户消息统一用 prompt 开启新回合——followUp/steer 需 session 有活动回合,
-      // 群聊 Agent(新建 session)首次收到转发时无 active turn,用 followUp 不会产生输出
-      // (busy 目标的排队注入走 injectQueued 的 followUp,那是有活动回合的场景)
-      const body = opts.forwarded && opts.fromRole ? `[来自 ${opts.fromRole} 的消息]\n${text}` : text;
-      const send = session.prompt(body);
+      // 阶段B:激活/用户消息都用 prompt 开回合。内容(用户消息/背景)已由 triggerTurn:false 注入,
+      // 这里 prompt 的 text 只是"激活提示"——模型读上下文里的完整消息后回复
+      const send = session.prompt(text);
       send.then(() => { unsub(); resolve(); }, (err) => { unsub(); reject(err); });
     });
   }
@@ -447,98 +506,4 @@ export class GroupSessionManager {
       return false;
     }
   }
-
-  /** 回合结束 → 结论转发给其他 Agent(防环:maxForwardDepth + 只转结论) */
-  private onAgentTurnEnd(
-    group: ActiveGroup,
-    fromIdx: number,
-    conclusion: string,
-    opts: { depth: number; forwarded: boolean; fromRole?: string },
-  ): void {
-    if (!conclusion.trim()) return;
-    const settings = this.deps.store.getSettings();
-    const strategy = settings.groupForwardStrategy ?? "conclusion";
-    const maxDepth = settings.maxForwardDepth ?? 3;
-    const fromAgent = group.agents[fromIdx];
-
-    // 只转发"结论"(turn 结束的最终文本)。过程流(工具/thinking)已实时广播给前端展示,
-    // 不注入其他 Agent 上下文(避免膨胀);all 策略此处与 conclusion 相同,留作未来全量转发
-    if (strategy !== "conclusion" && strategy !== "all") return;
-
-    const nextDepth = (opts.depth ?? 0) + 1;
-    if (nextDepth > maxDepth) {
-      this.deps.broadcast("agent:stream", {
-        type: "status", sessionId: fromAgent.meta.sessionId, chatId: group.chatId,
-        agentRole: fromAgent.meta.role, message: `已达最大转发链(${maxDepth}),停止自动转发`,
-      });
-      return;
-    }
-
-    const fromRole = fromAgent.meta.role;
-    for (let i = 0; i < group.agents.length; i++) {
-      if (i === fromIdx) continue;
-      const target = group.agents[i];
-      if (target.status === "offline") continue;
-      if (target.busy) {
-        // 目标忙碌 → 排队注入(followUp 等空闲后发出),不阻塞当前收尾;
-        // 排队回合不触发转发链(避免 busy 队列链式爆炸),输出仅展示
-        console.log(`[group] ${target.meta.role} busy, 排队注入`);
-        this.injectQueued(group, i, conclusion, fromRole);
-        continue;
-      }
-      console.log(`[group] forward ${fromRole} → ${target.meta.role} depth=${nextDepth}`);
-      // 异步触发,不阻塞当前回合收尾
-      void this.promptAgent(group, i, conclusion, { depth: nextDepth, forwarded: true, fromRole });
-    }
-  }
-
-  /** 目标 Agent 忙碌时的排队注入:挂临时 subscribe 只广播事件,turn_end 后退订;
-      不设 busy 标志、不触发转发链——由目标自身回合接管后续 */
-  private injectQueued(group: ActiveGroup, idx: number, text: string, fromRole?: string): void {
-    const agent = group.agents[idx];
-    if (!agent || agent.status === "offline") return;
-    const body = fromRole ? `[来自 ${fromRole} 的消息]\n${text}` : text;
-    const session = agent.session;
-    const unsub = session.subscribe((event) => {
-      try {
-        bridgeSessionEvents(event, {
-          onEvent: (ev) => {
-            ev.sessionId = agent.meta.sessionId;
-            ev.chatId = group.chatId;
-            (ev as any).groupId = group.meta.groupId;
-            (ev as any).agentRole = agent.meta.role;
-            (ev as any).forwarded = true;
-            (ev as any).forwardedFrom = fromRole;
-            this.deps.broadcast("agent:stream", ev);
-          },
-          getSession: () => session,
-          setPendingResult: (ev) => {
-            if (ev.type === "turn_end") {
-              // 排队回合结束同样广播 turn_end,前端清 busy(不触发转发链)
-              ev.sessionId = agent.meta.sessionId;
-              ev.chatId = group.chatId;
-              (ev as any).groupId = group.meta.groupId;
-              (ev as any).agentRole = agent.meta.role;
-              (ev as any).forwarded = true;
-              (ev as any).forwardedFrom = fromRole;
-              this.deps.broadcast("agent:stream", ev);
-            }
-          },
-        });
-      } catch (e) {
-        console.error("[group] queued bridge error:", e);
-      }
-    });
-    const send = this.deps.store.getSettings().groupInjectMode === "steer"
-      ? session.steer(body)      // 打断当前回合
-      : session.followUp(body);  // 排队等空闲
-    send.catch((e) => {
-      console.error(`[group] ${agent.meta.role} queued followUp failed:`, (e as Error).message);
-    }).finally(() => unsub());
-  }
-}
-
-/** 解析 @提及:移除消息开头/任意位置的 "@角色名" 前缀,返回纯净文本 */
-function stripMention(text: string): string {
-  return text.replace(/^\s*@[^\s:：，。,]+[:：]?\s*/, "").trim();
 }
