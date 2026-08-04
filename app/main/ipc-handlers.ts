@@ -172,6 +172,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("group:list", (_e, { projectPath }) => {
     return agentService.listGroupChats(projectPath);
   });
+  ipcMain.handle("group:messages", (_e, { projectPath, groupId }) => {
+    return agentService.getGroupRecord(projectPath, groupId);
+  });
   ipcMain.handle("group:close", (_e, { groupId }) => {
     agentService.closeGroupChat(groupId);
   });

@@ -495,6 +495,33 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
     return () => { cancelled = true; };
   }, [existingSid, projectPath]);
 
+  // 群聊模式:从群聊记录文件加载历史(8.8,按 piTs 排序,角色头像渲染)
+  useEffect(() => {
+    if (!groupId || !projectPath) return;
+    let cancelled = false;
+    const projectDir = projectPath || getWorkspaceDir();
+    (async () => {
+      const rec = await window.electronAPI.group.messages(projectDir, groupId);
+      if (cancelled || !rec?.messages?.length) return;
+      const mapped = rec.messages
+        .slice()
+        .sort((a, b) => a.piTs - b.piTs)
+        .map((m, i) => ({
+          id: i + 1,
+          role: m.agentRole === "user" ? ("user" as const) : ("ai" as const),
+          text: m.text,
+          timestamp: m.piTs,
+          piTs: m.piTs,
+          agentRole: m.agentRole,
+          forwardedFrom: m.forwardedFrom,
+          // ai 消息渲染依赖 entries,把纯结论包成 text entry
+          entries: m.agentRole === "user" ? undefined : [{ kind: "text" as const, text: m.text, timestamp: m.piTs }],
+        }));
+      if (mapped.length > 0) useChatStore.getState().loadSession(groupId, mapped);
+    })();
+    return () => { cancelled = true; };
+  }, [groupId, projectPath]);
+
   // showThinking / showToolUse 切换时重新从磁盘加载，使过滤生效
   useEffect(() => {
     if (!existingSid) return;

@@ -334,6 +334,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("group:create", { projectPath, templateIds, presetId: opts?.presetId, message: opts?.message, permissionMode: opts?.permissionMode, thinkingLevel: opts?.thinkingLevel }) as Promise<{ groupId: string; chatId: string }>,
     send: (groupId: string, text: string) => ipcRenderer.invoke("group:send", { groupId, text }) as Promise<void>,
     list: (projectPath: string) => ipcRenderer.invoke("group:list", { projectPath }) as Promise<Array<{ groupId: string; projectId: string; presetId?: string; createdAt: number; agents: Array<{ role: string; templateId: string; provider?: string; model?: string; sessionId: string }> }>>,
+    messages: (projectPath: string, groupId: string) => ipcRenderer.invoke("group:messages", { projectPath, groupId }) as Promise<{ groupId: string; messages: Array<{ agentRole: string; text: string; piTs: number; forwardedFrom?: string }> }>,
     close: (groupId: string) => ipcRenderer.invoke("group:close", { groupId }) as Promise<void>,
   },
 });

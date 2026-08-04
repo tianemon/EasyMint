@@ -199,6 +199,7 @@ interface ElectronAPI {
     create: (projectPath: string, templateIds: string[], opts?: { presetId?: string; message?: string; permissionMode?: string; thinkingLevel?: string }) => Promise<{ groupId: string; chatId: string }>;
     send: (groupId: string, text: string) => Promise<void>;
     list: (projectPath: string) => Promise<Array<{ groupId: string; projectId: string; presetId?: string; createdAt: number; agents: Array<{ role: string; templateId: string; provider?: string; model?: string; sessionId: string }> }>>;
+    messages: (projectPath: string, groupId: string) => Promise<{ groupId: string; messages: Array<{ agentRole: string; text: string; piTs: number; forwardedFrom?: string }> }>;
     close: (groupId: string) => Promise<void>;
   };
   task: {

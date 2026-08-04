@@ -45,6 +45,20 @@ export interface GroupSessionMeta {
   agents: GroupAgentMeta[];
 }
 
+/** 群聊记录文件消息(UI 显示专用,不进任何 agent 上下文) */
+export interface GroupRecordMessage {
+  agentRole: string;
+  text: string;
+  piTs: number;
+  forwardedFrom?: string;
+}
+
+/** 群聊记录文件结构(8.8:纯结论+角色+piTs,UI 显示专用) */
+export interface GroupRecord {
+  groupId: string;
+  messages: GroupRecordMessage[];
+}
+
 // ── 运行时类型 ──────────────────────────────────────
 
 interface ActiveGroupAgent {
@@ -92,6 +106,40 @@ export class GroupSessionManager {
 
   private storePath(projectPath: string): string {
     return path.join(resolveHome(projectPath), ".easymint", "group-sessions.json");
+  }
+
+  /** 群聊记录文件路径(8.8:UI 显示专用) */
+  private recordPath(projectPath: string, groupId: string): string {
+    return path.join(resolveHome(projectPath), ".easymint", "group-sessions", `${groupId}.json`);
+  }
+
+  private readRecord(projectPath: string, groupId: string): GroupRecord {
+    const p = this.recordPath(projectPath, groupId);
+    if (!existsSync(p)) return { groupId, messages: [] };
+    try {
+      return JSON.parse(readFileSync(p, "utf-8")) as GroupRecord;
+    } catch (e) {
+      console.error("[group] 解析群聊记录失败:", (e as Error).message);
+      return { groupId, messages: [] };
+    }
+  }
+
+  /** 追加一条群聊记录(UI 显示,不进上下文)。写入失败不影响主流程。 */
+  private appendRecord(projectPath: string, groupId: string, msg: GroupRecordMessage): void {
+    try {
+      const p = this.recordPath(projectPath, groupId);
+      mkdirSync(path.dirname(p), { recursive: true });
+      const rec = this.readRecord(projectPath, groupId);
+      rec.messages.push(msg);
+      writeFileSync(p, JSON.stringify(rec, null, 2));
+    } catch (e) {
+      console.error("[group] 追加群聊记录失败:", (e as Error).message);
+    }
+  }
+
+  /** 读取群聊记录(前端历史加载用) */
+  getRecord(projectPath: string, groupId: string): GroupRecord {
+    return this.readRecord(projectPath, groupId);
   }
 
   private readGroups(projectPath: string): GroupSessionMeta[] {
@@ -235,6 +283,11 @@ export class GroupSessionManager {
     const group = this.groups.get(groupId);
     if (!group) throw new Error("群聊不存在或已关闭");
 
+    // 用户消息写入群聊记录(UI 显示;前端也本地 append,重启后靠记录文件恢复)
+    this.appendRecord(group.meta.projectId, groupId, {
+      agentRole: "user", text, piTs: Date.now(),
+    });
+
     // 用户消息由前端本地 append(与单会话一致),这里不广播 user_message 防重复
     const targetIdx = this.resolveMention(group, text);
     const cleanText = stripMention(text);
@@ -346,9 +399,19 @@ export class GroupSessionManager {
                 (ev as any).forwarded = opts.forwarded;
                 (ev as any).forwardedFrom = opts.fromRole;
                 this.deps.broadcast("agent:stream", ev);
-                // 回合结束 → 提取累计全文结论 → 转发给其他 Agent
+                // 回合结束 → 提取累计全文结论 → 写入群聊记录(UI 显示)
                 const conclusion = (session as any).getLastAssistantText?.() ?? "";
-                this.onAgentTurnEnd(group, idx, String(conclusion || ""), opts);
+                const c = String(conclusion || "");
+                if (c.trim()) {
+                  this.appendRecord(group.meta.projectId, group.meta.groupId, {
+                    agentRole: agent.meta.role,
+                    text: c,
+                    piTs: Date.now(),
+                    forwardedFrom: opts.fromRole,
+                  });
+                }
+                // 转发给其他 Agent(旧转发链,阶段 B 将替换为背景注入+显式激活)
+                this.onAgentTurnEnd(group, idx, c, opts);
               }
             },
           });

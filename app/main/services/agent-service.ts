@@ -39,7 +39,7 @@ import { renameSession, hasCustomTitle } from "./session-service";
 import { MAX_COMPACT, finishRotation, type RotationState } from "./rotation";
 import { buildProjectEnvSection, buildProjectProfileSection, readProjectProfile } from "./prompt-sections";
 import { DESIGNER_AGENT_PROMPT } from "../../shared/prompts";
-import { GroupSessionManager, type GroupSessionMeta } from "./group-session";
+import { GroupSessionManager, type GroupSessionMeta, type GroupRecord } from "./group-session";
 
 // ── 类型 ────────────────────────────────────────────
 
@@ -762,6 +762,11 @@ export class AgentService {
   /** 项目群聊列表(持久化 meta) */
   listGroupChats(projectPath: string): GroupSessionMeta[] {
     return this.groupSessions.listGroups(projectPath);
+  }
+
+  /** 读取群聊记录(UI 显示历史) */
+  getGroupRecord(projectPath: string, groupId: string): GroupRecord {
+    return this.groupSessions.getRecord(projectPath, groupId);
   }
 
   /** 关闭群聊(释放所有 Agent 会话) */
