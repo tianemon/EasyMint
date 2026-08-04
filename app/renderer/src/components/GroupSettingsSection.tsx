@@ -63,7 +63,7 @@ export function GroupSettingsSection(): JSX.Element {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-xs text-text-primary">转发策略</div>
-              <div className="text-[11px] text-text-secondary/70">conclusion=只转发结论(防环);全广播=转发完整输出(上下文膨胀快)</div>
+              <div className="text-[11px] text-text-secondary/70">已由"显式激活"取代:背景注入不回话,只有 @ / assign_to_agent 才回话</div>
             </div>
             <select
               value={groupForwardStrategy}
@@ -78,7 +78,7 @@ export function GroupSettingsSection(): JSX.Element {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-xs text-text-primary">注入方式</div>
-              <div className="text-[11px] text-text-secondary/70">followUp=等对方空闲再发;steer=直接打断插入</div>
+              <div className="text-[11px] text-text-secondary/70">已由"显式激活"取代:目标空闲时直接开回合,不排队不打断</div>
             </div>
             <select
               value={groupInjectMode}
@@ -93,7 +93,7 @@ export function GroupSettingsSection(): JSX.Element {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-xs text-text-primary">最大转发深度</div>
-              <div className="text-[11px] text-text-secondary/70">转发链最长跳数,防止 A→B→C→A 死循环</div>
+              <div className="text-[11px] text-text-secondary/70">已由"显式激活"取代:无自动转发链,无需深度限制</div>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => setMaxForwardDepth(Math.max(1, maxForwardDepth - 1))} className="w-7 h-7 rounded-md border border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover">−</button>

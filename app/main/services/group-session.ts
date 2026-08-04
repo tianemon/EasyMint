@@ -340,7 +340,7 @@ export class GroupSessionManager {
       console.log(`[group] ${agent.meta.role} busy, 激活跳过`);
       return;
     }
-    // 激活消息:custom 类型,triggerTurn:true 开回合;content 提示基于上下文回复
+    // 走 promptAgent:回合订阅/重试/离线逻辑复用;text 为激活提示,模型读上下文回复
     await this.promptAgent(group, idx, `[群聊激活] ${fromRole} 激活了你,请基于群聊上下文回复。`, { depth: 0, forwarded: true, fromRole });
   }
 
@@ -467,6 +467,8 @@ export class GroupSessionManager {
               (ev as any).agentRole = agent.meta.role;
               (ev as any).forwarded = opts.forwarded;
               (ev as any).forwardedFrom = opts.fromRole;
+              // 激活回合:前端渲染 [X → Y] 激活标记(不占正常回复流)
+              (ev as any).activation = opts.forwarded;
               this.deps.broadcast("agent:stream", ev);
             },
             getSession: () => session,
