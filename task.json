@@ -4,7 +4,7 @@
       "id": 1,
       "title": "测试A:子Agent输出一句话",
       "description": "验证委派完成自动回写 done",
-      "status": "done"
+      "status": "failed"
     },
     {
       "id": 2,

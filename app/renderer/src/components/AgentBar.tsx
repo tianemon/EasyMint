@@ -3,7 +3,7 @@ import { useDelegationStore, type RunningTaskInfo } from "../stores/delegation-s
 import { SubagentProcessView } from "./SubagentProcessView";
 
 /**
- * Agent 胶囊:显示 Agent·N(输入卡片会话统计右侧),点击展开运行中的子 Agent 任务列表,
+ * Agent 胶囊:显示 Agent•N(输入卡片会话统计右侧),点击展开运行中的子 Agent 任务列表,
  * 每个任务可点击查看执行过程(弹层)、单独停止;点击胶囊外部区域收起菜单(document 级 mousedown 判断)
  */
 export function AgentBar(): JSX.Element | null {
@@ -48,7 +48,7 @@ export function AgentBar(): JSX.Element | null {
         className="rounded-[8px] bg-success-soft px-2 py-0.5 text-[11px] font-bold text-success cursor-pointer hover:bg-success-high"
         title="运行中的子 Agent"
       >
-        Agent·{agentTasks.length}
+        Agent•{agentTasks.length}
       </button>
 
       {/* 任务列表浮层(向上展开,覆盖输入卡片上方;最多显示 5 行,超出滚动) */}

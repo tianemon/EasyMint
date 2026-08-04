@@ -4,7 +4,7 @@ import { useTabStore } from "../stores/tab-store";
 import { useDelegationStore } from "../stores/delegation-store";
 
 /** 过渡符号动画序列(顺序播放 → 端点停顿 → 倒序播放 → 端点停顿,循环) */
-const SYMBOLS = ["☘", "✢", "✻", "✳", "❋"];
+const SYMBOLS = ["·", "✢", "✻", "✳", "❋"];
 /** 符号切换间隔(ms) */
 const TICK_MS = 150;
 /** 端点停顿(ms)——正程播完顿一下再反向 */
@@ -77,8 +77,9 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
     <>
       {showBar && (
         <div className="statusbar">
-          {/* 常驻过渡动画(符号往返切换,流光覆盖) */}
-          <span className="text-xs font-bold shrink-0 select-none" style={shimmerStyle}>{symbol}</span>
+          {/* 常驻过渡动画(符号往返切换,流光覆盖)。固定宽度 + 居中:
+              符号宽窄不一(☘ vs ✢),不固定会挤压右侧状态文本来回横跳 */}
+          <span className="w-[1.25em] inline-flex items-center justify-center text-xs font-bold shrink-0 select-none" style={shimmerStyle}>{symbol}</span>
           {/* 有状态文本时并存显示(回合内信号:正在思考/执行工具等) */}
           {busy && text && (
             <span className="text-xs font-medium" style={shimmerStyle}>{text}</span>

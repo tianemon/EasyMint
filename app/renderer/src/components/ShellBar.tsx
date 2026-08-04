@@ -3,7 +3,7 @@ import { useDelegationStore } from "../stores/delegation-store";
 import { ShellProcessView } from "./ShellProcessView";
 
 /**
- * shell 胶囊:显示 shell·N(后台运行中的命令数),点击展开命令列表,
+ * Shell 胶囊:显示 Shell•N(后台运行中的命令数),点击展开命令列表,
  * 每个命令可点击查看输出(弹层)、单独停止;点击胶囊外部区域收起(与 AgentBar 同款交互)
  */
 export function ShellBar(): JSX.Element | null {
@@ -45,7 +45,7 @@ export function ShellBar(): JSX.Element | null {
         className="rounded-[8px] bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info cursor-pointer hover:bg-info-high"
         title="运行中的后台命令"
       >
-        Shell·{shellTasks.length}
+        Shell•{shellTasks.length}
       </button>
 
       {/* 命令列表浮层(向上展开,覆盖输入卡片上方) */}

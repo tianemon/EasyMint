@@ -23,6 +23,7 @@ import { registerSessionIdMapping, abortTask, getRunningSummary, resolveParentSe
 import { formatShellResult } from "./background-shell/tool";
 import { backgroundShellRegistry, type BackgroundShell } from "./background-shell/registry";
 import { systemMessage, type SystemMessageKind, type SystemMessagePayload } from "../../shared/prompts";
+import { normalizeApiError } from "../../shared/api-errors";
 import { createProductTools } from "./builtin-mcp";
 import { loadMcpTools } from "./permission/mcp-adapter";
 import { permissionService } from "./permission/agent-permission-service";
@@ -36,6 +37,7 @@ import type { Model } from "@earendil-works/pi-ai";
 import { randomUUID } from "node:crypto";
 import { renameSession, hasCustomTitle } from "./session-service";
 import { MAX_COMPACT, finishRotation, type RotationState } from "./rotation";
+import { buildProjectEnvSection, buildProjectProfileSection, readProjectProfile } from "./prompt-sections";
 import { DESIGNER_AGENT_PROMPT } from "../../shared/prompts";
 
 // ── 类型 ────────────────────────────────────────────
@@ -192,6 +194,12 @@ export class AgentService {
     const skills = buildSkillsPrompt(projectPath);
     if (skills) parts.push(skills);
 
+    // 动态 section(借鉴 cc section 组装):项目环境 + 项目类型规范
+    const env = buildProjectEnvSection(projectPath);
+    if (env) parts.push(env);
+    const profile = buildProjectProfileSection(readProjectProfile(projectPath));
+    if (profile) parts.push(profile);
+
     return parts.join("\n\n");
   }
 
@@ -244,6 +252,7 @@ export class AgentService {
     });
 
     try {
+      console.log(`[agent] prompt start: chatId=${chatId} len=${text.length} payload=${!!systemPayload}`);
       // 10 分钟超时保护，防止网络挂起无限阻塞
       const send = systemPayload
         ? session.sendCustomMessage(systemPayload, { triggerTurn: true })
@@ -252,6 +261,7 @@ export class AgentService {
         send,
         new Promise((_, reject) => setTimeout(() => reject(new Error("请求超时（10分钟）")), 600_000)),
       ]);
+      console.log(`[agent] prompt done: chatId=${chatId}`);
 
       // (系统消息通知走 injectSystemMessage 的 triggerTurn: false 路径,不经此回合)
       const pr = pendingResult as PiChatEvent | null;
@@ -302,7 +312,8 @@ export class AgentService {
         }
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = normalizeApiError(err);
+      console.error(`[agent] prompt error: chatId=${chatId}`, err instanceof Error ? err.message : String(err));
       broadcast("agent:stream", { type: "error", sessionId, chatId, message: msg, canRetry: false });
       broadcast("agent:exit", { runId: chatId, code: -1 });
     } finally {
@@ -385,7 +396,8 @@ export class AgentService {
     }
   }
 
-  // ── Chat（长生命周期会话） ─────────────────────────
+
+// ── Chat（长生命周期会话） ─────────────────────────
 
   /**
    * 发送聊天消息。如果 resumeSessionId 对应的会话已活跃 → 继续在该 session 上 prompt；
@@ -450,9 +462,11 @@ export class AgentService {
 
     const session: AgentSession = await (async () => {
       if (resumeSessionId) {
+        console.log(`[agent] sendMessage resume: sessionId=${resumeSessionId} project=${resolvedPath}`);
         const sessions = await listPiSessions(resolvedPath);
         const info = sessions.find((s) => s.id === resumeSessionId);
         if (info) {
+          console.log(`[agent] resume found, resuming: ${info.path}`);
           return resumePiSession({
             cwd: resolvedPath,
             agentDir: this.getAgentDir(),
@@ -465,6 +479,7 @@ export class AgentService {
             onShellExit: shellExitInject,
           });
         }
+        console.warn(`[agent] resume NOT found: ${resumeSessionId} (共 ${sessions.length} 个会话)——将新建会话`);
       }
       return createPiSession({
         cwd: resolvedPath,
@@ -477,6 +492,7 @@ export class AgentService {
         onShellExit: shellExitInject,
       });
     })();
+    console.log(`[agent] session ready: chatId=${chatId} realSessionId=${session.sessionId}`);
 
     // 注册临时 ID → 真实 ID 映射：task 委派创建时解析,按真实 ID 建子会话目录
     if (!resumeSessionId) {

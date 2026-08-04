@@ -391,12 +391,27 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
 
   // project:checkInitStatus — check if init.sh has been filled
   ipcMain.handle("project:checkInitStatus", (_e, { projectPath }) => {
-    
+
 const filePath = p.join(projectPath, "init.sh");
       if (!fs.existsSync(filePath)) return { done: false, reason: "init.sh not found" };
       const content = fs.readFileSync(filePath, "utf-8");
       return { done: !content.includes("{{PROJECT_DIR}}"), reason: content.includes("{{PROJECT_DIR}}") ? "still template" : "filled" };
 
+  });
+
+  // project:saveProfile — 持久化项目产品类型规范(NewProjectDialog 创建时写入,
+  // 主进程 buildSystemPrompt 读取注入 Mint 提示词)
+  ipcMain.handle("project:saveProfile", (_e, { projectPath, platformSpec }) => {
+    try {
+      if (!projectPath || !platformSpec) return { ok: false, error: "缺少参数" };
+      const dir = p.join(projectPath, ".easymint");
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(p.join(dir, "project-profile.json"),
+        JSON.stringify({ platformSpec, savedAt: Date.now() }, null, 2), "utf-8");
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
   });
 
   // task:read — read task.json and return tasks

@@ -9,6 +9,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { spawnSync } from "node:child_process";
 import type { ToolDefinition } from "../pi-sdk";
 import { getDefineToolFn } from "../pi-sdk";
 import { scanMcpServers } from "../mcp-service";
@@ -17,6 +18,33 @@ import type { McpServerConfig } from "../mcp-service";
 const clients = new Map<string, Client>();
 let toolsCache: ToolDefinition[] | null = null;
 
+/** 连接/拉取超时(ms)——冷启动首连 MCP 时,任一挂起不阻塞发送链路 */
+const MCP_CONNECT_TIMEOUT_MS = 8000;
+const MCP_LIST_TIMEOUT_MS = 5000;
+
+/** Promise.race 超时包装:MCP 服务器挂起时抛错由调用方跳过,不阻塞 loadMcpTools */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`${label} 超时(${ms}ms)`)), ms)),
+  ]);
+}
+
+/** 检查命令是否存在(unix: command -v / win: where)。不存在的命令不 spawn,
+ *  避免 Windows 下子进程输出 GBK 报错导致日志乱码。 */
+function commandExists(command: string): boolean {
+  try {
+    const probe = spawnSync(
+      process.platform === "win32" ? "where" : "command",
+      process.platform === "win32" ? [command] : ["-v", command],
+      { stdio: "ignore", shell: true, timeout: 3000 },
+    );
+    return probe.status === 0;
+  } catch {
+    return false;
+  }
+}
+
 async function connect(name: string, cfg: McpServerConfig): Promise<Client> {
   const client = new Client(
     { name: "easymint", version: "1.0.0" },
@@ -24,6 +52,10 @@ async function connect(name: string, cfg: McpServerConfig): Promise<Client> {
   );
 
   if (cfg.type === "stdio") {
+    // 命令不存在则不 spawn:避免 Windows 下子进程 GBK 报错 → 日志乱码
+    if (cfg.command && !commandExists(cfg.command)) {
+      throw new Error(`未找到命令 "${cfg.command}"——请检查 MCP 配置,确认已安装`);
+    }
     const transport = new StdioClientTransport({
       command: cfg.command!,
       args: cfg.args,
@@ -63,11 +95,14 @@ export async function loadMcpTools(): Promise<ToolDefinition[]> {
     const cfg: McpServerConfig = { type: s.type, command: s.command, args: s.args, url: s.url };
     let client = clients.get(s.name);
     if (!client) {
-      try { client = await connect(s.name, cfg); clients.set(s.name, client); }
-      catch (e) { console.warn(`[mcp] ${s.name} 连接失败:`, (e as Error).message); continue; }
+      try {
+        // 超时保护:冷启动首连挂起的 MCP 直接跳过,不让 loadMcpTools 阻塞发送链路
+        client = await withTimeout(connect(s.name, cfg), MCP_CONNECT_TIMEOUT_MS, `MCP ${s.name} 连接`);
+        clients.set(s.name, client);
+      } catch (e) { console.warn(`[mcp] ${s.name} 连接失败/超时:`, (e as Error).message); continue; }
     }
     try {
-      const response = await client.listTools();
+      const response = await withTimeout(client.listTools(), MCP_LIST_TIMEOUT_MS, `MCP ${s.name} listTools`);
       for (const t of response.tools) {
         tools.push(defineTool({
           name: `mcp__${s.name}__${t.name}`,

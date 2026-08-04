@@ -790,6 +790,8 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
           needsPayment: false,
         };
         const profile = composeProfile(dims);
+        // 持久化项目产品类型规范,供后续 Mint 会话 buildSystemPrompt 注入(阶段二)
+        window.electronAPI.project.saveProfile(createdProject.path, profile.platformSpec).catch(() => {});
         const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), buildInitInstruction(profile), data.targets);
         ask(initPrompt, { systemPayload: systemMessage("project-created", initPrompt) }).catch(() => {});
         // 轮询 session 文件，等 custom_message(project-created) 落盘后再跳转

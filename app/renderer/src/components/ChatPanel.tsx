@@ -11,6 +11,7 @@ import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
 import { useStatusStore } from "../stores/status-store";
 import { StatusBar } from "./StatusBar";
 import { useDelegationStore } from "../stores/delegation-store";
+import { normalizeApiError } from "../../../shared/api-errors";
 import { PermissionPrompt } from "./PermissionPrompt";
 import { ChatInput } from "./ChatInput";
 import { SessionStatsPopup } from "./SessionStatsPopup";
@@ -563,7 +564,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
         handleBlocks(event.blocks, event.timestamp ?? Date.now());
       }
       // tool progress — 状态栏工具信号;shell 计数由后台命令事件驱动(agent:shell-count),
-      // 不再按工具事件累加(前台瞬时工具不计入 shell·N)
+      // 不再按工具事件累加(前台瞬时工具不计入 shell•N)
       if (event.type === "tool_progress" && event.toolName) {
         const label = displayToolLabel(event.toolName, event.toolArgs);
         // 开始执行工具 → 思考信号结束(否则 tool pop 后回退显示「正在思考」);
@@ -591,7 +592,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, onSessionCreate
       }
       // error — 插播错误信号,8s 后自动消失(回退次新活跃信号)
       if (event.type === "error") {
-        useStatusStore.getState().pushSignal("error", event.message || "出错了", 8000);
+        // 归一化上游错误(503/429/超时)为友好提示,状态栏不显示原始 JSON
+        useStatusStore.getState().pushSignal("error", normalizeApiError(event.message) || "出错了", 8000);
       }
       // custom 系统消息(委派完成/后台 shell/流程指令)→ 独立即时显示:
       // triggerTurn: false 注入,立即落盘 + 立即事件(带 streaming 标记,

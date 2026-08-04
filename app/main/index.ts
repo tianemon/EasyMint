@@ -93,6 +93,10 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     // Seed default MCP configs (~/.claude/.claude.json, shared with Claude Code)
     const { seedDefaultMcp } = require("./services/mcp-service");
     seedDefaultMcp();
+    // 冷启动预热(后台,不阻塞窗口):预加载 Pi SDK/model runtime/MCP 工具,
+    // 让首条消息发送不现场初始化(仅首次进程执行一次)
+    const { prewarm } = require("./services/prewarm");
+    prewarm(store).catch(() => {});
     // NOTE: Orphan session cleanup — Pi SDK manages sessions via its own SessionManager
     // No automatic cleanup needed; old Claude SDK cache cleanup removed
     // Auto-cleanup old uploads (60 days / 10GB)
