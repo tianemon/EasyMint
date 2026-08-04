@@ -67,7 +67,8 @@ interface ActiveGroup {
 export interface GroupServiceDeps {
   store: Store;
   getAgentDir: () => string;
-  buildTools: (projectPath: string, sessionId: string, chatId?: string) => Promise<{
+  /** 按模板 tools 声明构建群聊 Agent 工具集(基础 coding 工具由 createPiSession 强制追加) */
+  buildGroupTools: (projectPath: string, sessionId: string, chatId: string | undefined, templateTools: string[]) => Promise<{
     tools: ToolDefinition[];
     canUseTool: (toolName: string, input: Record<string, unknown>, options: CanUseToolOptions) => Promise<PermissionResult>;
   }>;
@@ -132,7 +133,7 @@ export class GroupSessionManager {
   async createGroup(
     projectPath: string,
     templateIds: string[],
-    opts?: { presetId?: string; message?: string },
+    opts?: { presetId?: string; message?: string; permissionMode?: string; thinkingLevel?: string },
   ): Promise<{ groupId: string; chatId: string }> {
     const resolvedPath = path.resolve(resolveHome(projectPath));
     const settings = this.deps.store.getSettings();
@@ -159,18 +160,28 @@ export class GroupSessionManager {
       // 临时 sessionId 绑定工具(与主会话相同模式);真实 sessionId 由 Pi 生成
       const tempSessionId = randomUUID();
       const agentChatId = `${groupId}-a${i}`;
-      const { tools: extraTools, canUseTool } = await this.deps.buildTools(resolvedPath, tempSessionId, agentChatId);
+      // 工具集由模板 tools 声明驱动(需求 4:AgentTemplate.tools 定义角色能力边界)
+      const { tools: extraTools, canUseTool } = await this.deps.buildGroupTools(
+        resolvedPath, tempSessionId, agentChatId, template?.tools ?? [],
+      );
       const systemPrompt = this.deps.buildSystemPrompt(resolvedPath, template?.prompt ?? "");
 
       const session = await createPiSession({
         cwd: resolvedPath,
         agentDir: this.deps.getAgentDir(),
         model,
+        thinkingLevel: (opts?.thinkingLevel as any) ?? "medium",
         store: this.deps.store,
         systemPrompt,
         extraTools,
         canUseTool,
       });
+
+      // 权限模式写入 session-cache(createCanUseTool 实时读取,auto/plan/acceptEdits)
+      if (opts?.permissionMode) {
+        const { writeCache } = await import("./session-cache");
+        writeCache(session.sessionId, { permissionMode: opts.permissionMode });
+      }
 
       agents.push({
         meta: {
@@ -257,70 +268,103 @@ export class GroupSessionManager {
     agent.busy = true;
     agent.status = "busy";
 
-    const session = agent.session;
-    const unsub = session.subscribe((event) => {
+    // 失败处理:重试 ≤MAX_RETRIES 次,重试前尝试切兜底模型(需求 1 联动);
+    // 全部失败 → 标记 offline 跳过(不阻塞其他 Agent)
+    let done = false;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        bridgeSessionEvents(event, {
-          onEvent: (ev) => {
-            // 注入群聊标识:统一 chatId + groupId(前端过滤)+ agentRole(标注来源)
-            ev.sessionId = agent.meta.sessionId;
-            ev.chatId = group.chatId;
-            (ev as any).groupId = group.meta.groupId;
-            (ev as any).agentRole = agent.meta.role;
-            (ev as any).forwarded = opts.forwarded;
-            (ev as any).forwardedFrom = opts.fromRole;
-            this.deps.broadcast("agent:stream", ev);
-          },
-          getSession: () => session,
-          setPendingResult: (ev) => {
-            if (ev.type === "turn_end") {
-              // 回合结束 → 提取累计全文结论 → 转发给其他 Agent
-              const conclusion = (session as any).getLastAssistantText?.() ?? "";
-              this.onAgentTurnEnd(group, idx, String(conclusion || ""), opts);
-            }
-          },
-        });
-      } catch (e) {
-        console.error("[group] bridge error:", e);
-      }
-    });
-
-    try {
-      if (opts.forwarded) {
-        const mode = this.deps.store.getSettings().groupInjectMode ?? "followUp";
-        // 转发消息带来源标记——目标 Agent 上下文能识别消息来处,前端据此显示 [A → B]
-        const body = opts.fromRole ? `[来自 ${opts.fromRole} 的消息]\n${text}` : text;
-        if (mode === "steer") {
-          await session.steer(body);
-        } else {
-          await session.followUp(body);
-        }
-      } else {
-        await session.prompt(text);
-      }
-      // 回合成功 → 重置连续失败计数(否则零星失败累计也误判 offline)
-      agent.retries = 0;
-    } catch (err) {
-      const msg = normalizeApiError(err);
-      console.error(`[group] ${agent.meta.role} prompt error:`, err instanceof Error ? err.message : String(err));
-      this.deps.broadcast("agent:stream", {
-        type: "error", sessionId: agent.meta.sessionId, chatId: group.chatId,
-        agentRole: agent.meta.role, message: msg,
-      });
-      // 失败处理:503/网络 → 重试 ≤3 → 标记 offline 跳过
-      agent.retries += 1;
-      if (agent.retries >= MAX_RETRIES) {
-        agent.status = "offline";
-        agent.offlineReason = `连续 ${MAX_RETRIES} 次失败`;
+        await this.runTurn(group, idx, text, opts);
+        agent.retries = 0; // 成功 → 重置连续失败计数
+        done = true;
+        break;
+      } catch (err) {
+        agent.retries = attempt;
+        console.error(`[group] ${agent.meta.role} prompt error (attempt ${attempt}/${MAX_RETRIES}):`, err instanceof Error ? err.message : String(err));
         this.deps.broadcast("agent:stream", {
-          type: "status", sessionId: agent.meta.sessionId, chatId: group.chatId,
-          agentRole: agent.meta.role, message: `${agent.meta.role} 已离线(连续失败),其他 Agent 不受影响`,
+          type: "error", sessionId: agent.meta.sessionId, chatId: group.chatId,
+          agentRole: agent.meta.role, message: normalizeApiError(err),
         });
+        if (attempt < MAX_RETRIES) {
+          const switched = await this.trySwitchFallback(agent);
+          if (switched) console.log(`[group] ${agent.meta.role} 已切兜底模型,重试`);
+        }
       }
-    } finally {
-      unsub();
-      agent.busy = false;
-      if (agent.status === "busy") agent.status = "idle";
+    }
+
+    if (!done) {
+      agent.status = "offline";
+      agent.offlineReason = `连续 ${MAX_RETRIES} 次失败`;
+      this.deps.broadcast("agent:stream", {
+        type: "status", sessionId: agent.meta.sessionId, chatId: group.chatId,
+        agentRole: agent.meta.role, message: `${agent.meta.role} 已离线(连续失败),其他 Agent 不受影响`,
+      });
+    }
+    agent.busy = false;
+    if (agent.status === "busy") agent.status = "idle";
+  }
+
+  /** 单次回合:挂 subscribe 广播事件 + prompt/steer/followUp;回合结束触发转发 */
+  private runTurn(
+    group: ActiveGroup,
+    idx: number,
+    text: string,
+    opts: { depth: number; forwarded: boolean; fromRole?: string },
+  ): Promise<void> {
+    const agent = group.agents[idx];
+    const session = agent.session;
+    return new Promise((resolve, reject) => {
+      const unsub = session.subscribe((event) => {
+        try {
+          bridgeSessionEvents(event, {
+            onEvent: (ev) => {
+              // 注入群聊标识:统一 chatId + groupId(前端过滤)+ agentRole(标注来源)
+              ev.sessionId = agent.meta.sessionId;
+              ev.chatId = group.chatId;
+              (ev as any).groupId = group.meta.groupId;
+              (ev as any).agentRole = agent.meta.role;
+              (ev as any).forwarded = opts.forwarded;
+              (ev as any).forwardedFrom = opts.fromRole;
+              this.deps.broadcast("agent:stream", ev);
+            },
+            getSession: () => session,
+            setPendingResult: (ev) => {
+              if (ev.type === "turn_end") {
+                // 回合结束 → 提取累计全文结论 → 转发给其他 Agent
+                const conclusion = (session as any).getLastAssistantText?.() ?? "";
+                this.onAgentTurnEnd(group, idx, String(conclusion || ""), opts);
+              }
+            },
+          });
+        } catch (e) {
+          console.error("[group] bridge error:", e);
+        }
+      });
+
+      const send = opts.forwarded
+        ? (() => {
+            const mode = this.deps.store.getSettings().groupInjectMode ?? "followUp";
+            // 转发消息带来源标记——目标 Agent 上下文能识别消息来处,前端据此显示 [A → B]
+            const body = opts.fromRole ? `[来自 ${opts.fromRole} 的消息]\n${text}` : text;
+            return mode === "steer" ? session.steer(body) : session.followUp(body);
+          })()
+        : session.prompt(text);
+      send.then(() => { unsub(); resolve(); }, (err) => { unsub(); reject(err); });
+    });
+  }
+
+  /** 失败重试前尝试切兜底模型(settings.fallbackProvider/fallbackModel) */
+  private async trySwitchFallback(agent: ActiveGroupAgent): Promise<boolean> {
+    const settings = this.deps.store.getSettings();
+    if (!settings.fallbackProvider || !settings.fallbackModel) return false;
+    const { getModelRuntime } = await import("./pi-init");
+    const runtime = await getModelRuntime(this.deps.store);
+    const fb = runtime.getModel(settings.fallbackProvider, settings.fallbackModel);
+    if (!fb) return false;
+    try {
+      await agent.session.setModel(fb);
+      return true;
+    } catch {
+      return false;
     }
   }
 

@@ -23,6 +23,7 @@ export function GroupComposerDialog({ projectPath, onClose, onCreated }: GroupCo
   const [selected, setSelected] = useState<string[]>([]);
   const [activePreset, setActivePreset] = useState<string | undefined>();
   const [firstMessage, setFirstMessage] = useState("");
+  const [permissionMode, setPermissionMode] = useState("auto");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +62,7 @@ export function GroupComposerDialog({ projectPath, onClose, onCreated }: GroupCo
       const res = await window.electronAPI.group.create(projectPath, selected, {
         presetId: activePreset,
         message: firstMessage.trim() || undefined,
+        permissionMode: permissionMode || undefined,
       });
       // 首条消息主进程不广播 user_message(与单会话一致靠前端本地 append),
       // 这里按 groupId 预写,群聊 ChatPanel 挂载即显示
@@ -144,6 +146,21 @@ export function GroupComposerDialog({ projectPath, onClose, onCreated }: GroupCo
               rows={2}
               className="w-full resize-none rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary placeholder:text-text-secondary/50 outline-none focus:border-accent/50"
             />
+          </div>
+
+          {/* 权限模式 */}
+          <div>
+            <div className="text-[11px] text-text-secondary mb-1.5">权限模式(群聊所有 Agent 生效)</div>
+            <select
+              value={permissionMode}
+              onChange={(e) => setPermissionMode(e.target.value)}
+              className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+            >
+              <option value="auto">自动(auto)——智能判断,推荐</option>
+              <option value="plan">只读(plan)——仅允许读取文件</option>
+              <option value="acceptEdits">手动确认(acceptEdits)——写操作需审批</option>
+              <option value="bypassPermissions">完全自主(bypass)——不确认</option>
+            </select>
           </div>
 
           {error && <div className="text-xs text-fail">{error}</div>}

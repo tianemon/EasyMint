@@ -162,8 +162,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     return agentService.spawnAgentChat(projectPath, templateId, message);
   });
   // ── 群聊会话(需求 4:多 Agent 同一会话,应用层消息转发) ──
-  ipcMain.handle("group:create", (_e, { projectPath, templateIds, presetId, message }) => {
-    return agentService.createGroupChat(projectPath, templateIds, { presetId, message });
+  ipcMain.handle("group:create", (_e, { projectPath, templateIds, presetId, message, permissionMode, thinkingLevel }) => {
+    return agentService.createGroupChat(projectPath, templateIds, { presetId, message, permissionMode, thinkingLevel });
   });
   ipcMain.handle("group:send", (_e, { groupId, text }) => {
     return agentService.sendGroupMessage(groupId, text);

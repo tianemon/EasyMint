@@ -196,7 +196,7 @@ interface ElectronAPI {
     onSessionRenamed: (callback: (data: { sessionId: string; title: string }) => void) => () => void;
   };
   group: {
-    create: (projectPath: string, templateIds: string[], opts?: { presetId?: string; message?: string }) => Promise<{ groupId: string; chatId: string }>;
+    create: (projectPath: string, templateIds: string[], opts?: { presetId?: string; message?: string; permissionMode?: string; thinkingLevel?: string }) => Promise<{ groupId: string; chatId: string }>;
     send: (groupId: string, text: string) => Promise<void>;
     list: (projectPath: string) => Promise<Array<{ groupId: string; projectId: string; presetId?: string; createdAt: number; agents: Array<{ role: string; templateId: string; provider?: string; model?: string; sessionId: string }> }>>;
     close: (groupId: string) => Promise<void>;

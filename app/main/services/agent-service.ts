@@ -134,7 +134,7 @@ export class AgentService {
     this.groupSessions = new GroupSessionManager({
       store,
       getAgentDir: () => this.getAgentDir(),
-      buildTools: (p, s, c) => this.buildExtraTools(p, s, c),
+      buildGroupTools: (p, s, c, t) => this.buildGroupTools(p, s, c, t),
       buildSystemPrompt: (p, t) => this.groupSystemPrompt(p, t),
       resolveModel: (prov, mod) => this.getModel(this.store, prov, mod),
       broadcast: (ch, d) => broadcast(ch, d),
@@ -203,6 +203,53 @@ export class AgentService {
       return { tools: allTools, canUseTool };
     } catch (e) {
       console.error("[agent] tool creation failed:", e);
+      return { tools: [], canUseTool };
+    }
+  }
+
+  /** 群聊 Agent 工具集:由 AgentTemplate.tools 声明驱动(需求 4)。
+      基础 coding 工具(Read/Write/Edit/Bash 等)由 createPiSession 强制追加;
+      此处只注入模板声明的 task 委派工具与 MCP 工具。 */
+  private async buildGroupTools(projectPath: string, sessionId: string, chatId: string | undefined, templateTools: string[]): Promise<{
+    tools: ToolDefinition[];
+    canUseTool: CanUseToolFn;
+  }> {
+    const canUseTool = permissionService.createCanUseTool(
+      sessionId,
+      (request) => { broadcast("agent:permission-request", request); },
+      undefined,
+      (askRequest) => { broadcast("agent:permission-request", { ...askRequest, type: "ask" }); },
+    );
+    try {
+      const declared = new Set(templateTools ?? []);
+      const tools: ToolDefinition[] = [];
+
+      // task 委派工具:仅模板声明 task 时注入(群聊 Agent 默认无委派需求)
+      if (declared.has("task")) {
+        const taskTool = await createTaskTool({
+          cwd: projectPath,
+          agentDir: this.getAgentDir(),
+          store: this.store,
+          parentSessionId: sessionId,
+          chatId,
+          onComplete: (sid, text) => this.injectSystemMessage(sid, text, "delegation", { triggerTurn: true }),
+          onTaskAborted: (sid, text) => this.injectSystemMessage(sid, text, "delegation"),
+          onTaskCompleted: (sid, text) => this.injectSystemMessage(sid, text, "delegation"),
+        });
+        tools.push(taskTool);
+      }
+
+      // MCP 工具:按模板声明的 mcp__* 过滤(如 mcp__codegraph__*)
+      const declaredMcp = [...declared].filter((t) => t.startsWith("mcp__"));
+      if (declaredMcp.length > 0) {
+        const mcpTools = await loadMcpTools();
+        tools.push(...mcpTools.filter((m) => declaredMcp.includes(m.name)));
+      }
+
+      console.log(`[group] 工具集(模板声明): task=${declared.has("task")} mcp=${declaredMcp.length}`);
+      return { tools, canUseTool };
+    } catch (e) {
+      console.error("[group] 工具创建失败:", e);
       return { tools: [], canUseTool };
     }
   }
@@ -685,7 +732,7 @@ export class AgentService {
   createGroupChat(
     projectPath: string,
     templateIds: string[],
-    opts?: { presetId?: string; message?: string },
+    opts?: { presetId?: string; message?: string; permissionMode?: string; thinkingLevel?: string },
   ): Promise<{ groupId: string; chatId: string }> {
     return this.groupSessions.createGroup(projectPath, templateIds, opts);
   }
