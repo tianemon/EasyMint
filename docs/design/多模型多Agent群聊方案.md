@@ -351,13 +351,17 @@ interface SessionCache {
 - **2026-08-03/04 阶段 4**:group-session.ts + 前端群聊视图 + GroupComposerDialog + GroupSettingsSection + 设置→群聊 tab
 - **2026-08-04 审查修复 5 项**(commit 4a35e1e):补 mint 模板、群聊首条消息显示、转发来源标记、busy 排队(injectQueued)、retries 归零、删 forwardSeen、兜底状态栏提示
 - **2026-08-04 方案差距补齐**(commit ec062bd):失败真重试+切兜底、群聊权限模式、模板 tools 驱动工具集(buildGroupTools)、thinkingLevel
+- **2026-08-04 群聊重设计实现 A-D 阶段**:
+  - A(eeeb36d)群聊记录文件:appendRecord + IPC group:messages + 前端历史加载
+  - B(f6b44d0)全量背景注入(triggerTurn:false)+ @ 显式激活;删旧自动转发链
+  - C(40bb90f)assign_to_agent 工具注入 + 兜底语法【转交@X】解析
+  - D(a4fbe78)设置项标注"已由显式激活取代" + activation 标记
 
 ## 12. 已知缺陷与待办
 
 1. **群聊跨重启恢复未实现**:group-session 内存态;重启后 tab 可看历史(记录文件),但不能继续对话。需从 group-sessions.json 读 meta + 各 agent resumePiSession
 2. **全量背景注入上下文累积** ⚠️:triggerTurn:false 注入仍进目标上下文占 token。需监控长对话成本
-3. **assign_to_agent MCP 工具未实现**:需自定义工具定义 + 群聊创建时注入 + 应用层拦截 tool_use
-4. **模板编辑 UI 未实现**:provider/model 无法在 UI 配置(IPC CRUD 已通)
+3. **模板编辑 UI 未实现**:provider/model 无法在 UI 配置(IPC CRUD 已通)
 5. **tab 品牌图标 + 会话切换供应商 UI 未实现**
 6. **群聊 Agent 无 product 工具**:`buildGroupTools` 按模板 tools,默认模板不含 show_*/set_task_status 等
 
