@@ -3,7 +3,7 @@ import { useSettingsStore } from "../../stores/settings-store";
 import { getPreset } from "@shared/platform-presets";
 import type { ProviderConfig } from "@shared/platform-presets";
 import { Select } from "../Select";
-import { brandDisplayName, BRAND_BY_PI_ID, providerSelectOptions } from "../../lib/provider-brands";
+import { BRAND_BY_PI_ID, providerSelectOptions } from "../../lib/provider-brands";
 
 interface PiModelInfo {
   id: string; name: string; contextWindow: number;
@@ -238,19 +238,10 @@ export function ProvidersManager() {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-text-primary truncate">{cfg.name}</span>
                   {isActive && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-accent text-text-inverse shrink-0">当前</span>}
-                  <span className="text-[10px] text-text-muted shrink-0">{brand ? brandDisplayName(brand) : cfg.presetId}</span>
                 </div>
                 <div className="text-[11px] text-text-secondary mt-0.5 truncate">
                   <span className="font-mono">{cfg.model}</span>
-                  <span className="text-text-muted mx-1.5">·</span>
-                  <span>Key {cfg.apiKey.slice(0, 8)}…</span>
                 </div>
-                {(cfg.fallbackModel || cfg.subagentDefaultModel) && (
-                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                    {cfg.fallbackModel && <span className="text-[9px] px-1.5 py-px rounded bg-accent-subtle text-accent shrink-0">兜底 {cfg.fallbackModel}</span>}
-                    {cfg.subagentDefaultModel && <span className="text-[9px] px-1.5 py-px rounded bg-surface text-text-muted shrink-0">子Agent {cfg.subagentDefaultModel}</span>}
-                  </div>
-                )}
               </div>
               <div className="flex gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
                 {!isActive && (
