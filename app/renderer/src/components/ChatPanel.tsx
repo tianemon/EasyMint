@@ -556,7 +556,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
         } else {
           latestAiIdRef.current = useChatStore.getState().insertUserMsgAt(sidRef.current, {
             role: "ai" as const, entries, timestamp: Date.now(), streaming: true,
-            agentRole: event.agentRole, forwarded: event.forwarded,
+            agentRole: event.agentRole, forwarded: event.forwarded, forwardedFrom: event.forwardedFrom,
           }, frameTs);
         }
         scrollToBottom();
@@ -674,6 +674,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
         onSessionCreated?.(realSid);
       }
     });
+    // 兜底模型降级提示(需求 1):主模型不可用切换兜底时,状态栏 8s 提示
+    const unsubFallback = window.electronAPI.agent.onFallbackUsed(() => {
+      useStatusStore.getState().pushSignal("error", "⚠ 主模型不可用，已切换兜底模型", 8000);
+    });
     // Context rotation events — filter by chatId
     const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(({ chatId: ctxChatId, type }: { chatId: string; type?: string }) => {
       if (!currentChatRef.current) return;
@@ -719,7 +723,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
       // 使用率显著回落（压缩完成）后允许再次触发
       if (pct < threshold - 20) ctxThresholdFiredRef.current = 0;
     });
-    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(); };
+    return () => { unsub(); unsubExit(); unsubSid(); unsubFallback(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(); };
   }, [groupId]);
 
   // Summarizing timeout — 120s safety net
@@ -1262,7 +1266,9 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
         <div className="min-w-0 relative">
           <div className="msg-from">
             {displayName}
-            {role && msg.forwarded && <span className="text-text-secondary/60 ml-1.5 text-[10px] font-normal">· 来自转发</span>}
+            {role && msg.forwarded && (
+              <span className="text-text-secondary/60 ml-1.5 text-[10px] font-normal">· {msg.forwardedFrom ? `来自 ${msg.forwardedFrom}` : "来自转发"}</span>
+            )}
           </div>
           <div className="msg-bubble-agent rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
             {blocks.map((block, i) => (

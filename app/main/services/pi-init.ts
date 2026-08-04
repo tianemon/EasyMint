@@ -4,6 +4,7 @@
  */
 
 import { Store } from "./store";
+import { broadcast } from "./ipc-broadcast";
 import {
   getModelRuntimeClass,
   getSettingsManagerClass,
@@ -64,6 +65,8 @@ export async function getActiveModel(store: Store): Promise<Model<any> | null> {
     if (auth && !auth.configured) continue;
     if (c !== candidates[0]) {
       console.log(`[pi-init] 使用兜底模型: ${c.provider}/${c.modelId}`);
+      // 前端状态栏提示(需求 1:兜底触发时告知用户,8s 自动消失)
+      broadcast("agent:fallback-used", { provider: c.provider, modelId: c.modelId });
     }
     _activeModel = model as any;
     return model as any;

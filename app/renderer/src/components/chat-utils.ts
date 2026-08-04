@@ -28,6 +28,8 @@ export interface ChatMessage {
   agentRole?: string;
   /** 群聊转发消息标记(该回合由其他 Agent 转发触发,显示来源标签) */
   forwarded?: boolean;
+  /** 群聊转发来源 Agent 角色(转发标记下显示 [A → B]) */
+  forwardedFrom?: string;
 }
 
 /** Pi 事件中的 blocks → StreamEntry 格式（兼容现有渲染） */

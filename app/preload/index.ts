@@ -246,6 +246,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:stderr", handler);
       return () => ipcRenderer.removeListener("agent:stderr", handler);
     },
+    onFallbackUsed: (callback: (data: { provider: string; modelId: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { provider: string; modelId: string }) => callback(data);
+      ipcRenderer.on("agent:fallback-used", handler);
+      return () => ipcRenderer.removeListener("agent:fallback-used", handler);
+    },
     onExit: (callback: (data: { runId: string; code: number }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { runId: string; code: number }) =>
         callback(data);

@@ -9,7 +9,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { randomUUID } from "node:crypto";
-import { BUILDER_AGENT_PROMPT, EVALUATOR_AGENT_PROMPT, DESIGNER_AGENT_PROMPT } from "../../shared/prompts";
+import { BUILDER_AGENT_PROMPT, EVALUATOR_AGENT_PROMPT, DESIGNER_AGENT_PROMPT, MINT_SYSTEM_PROMPT } from "../../shared/prompts";
 
 // ── Types ──────────────────────────────────────────
 
@@ -87,6 +87,15 @@ export function deleteTemplate(id: string): void {
 }
 
 const DEFAULTS: AgentTemplate[] = [
+  {
+    id: "mint",
+    name: "Mint",
+    description: "总调度 Agent(PM)。统筹分析需求、规划任务、协调 Builder/Evaluator 完成开发。",
+    prompt: MINT_SYSTEM_PROMPT,
+    tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep",
+      "mcp__codegraph__codegraph_context", "mcp__codegraph__codegraph_impact", "mcp__codegraph__codegraph_callers", "mcp__codegraph__codegraph_search", "mcp__codegraph__codegraph_trace"],
+    agentType: "mint",
+  },
   {
     id: "default-builder",
     name: "Builder",

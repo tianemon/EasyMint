@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSettingsStore } from "../stores/settings-store";
+import { useChatStore } from "../stores/chat-store";
 
 interface GroupComposerDialogProps {
   projectPath: string;
@@ -61,6 +62,12 @@ export function GroupComposerDialog({ projectPath, onClose, onCreated }: GroupCo
         presetId: activePreset,
         message: firstMessage.trim() || undefined,
       });
+      // 首条消息主进程不广播 user_message(与单会话一致靠前端本地 append),
+      // 这里按 groupId 预写,群聊 ChatPanel 挂载即显示
+      const firstMsg = firstMessage.trim();
+      if (firstMsg) {
+        useChatStore.getState().appendUserMsg(res.groupId, { role: "user", text: firstMsg, timestamp: Date.now() });
+      }
       const names = templates.filter((t) => selected.includes(t.id)).map((t) => t.name).join(" + ");
       onCreated({ groupId: res.groupId, chatId: res.chatId, title: names ? `${names} 群聊` : "群聊会话" });
     } catch (e) {

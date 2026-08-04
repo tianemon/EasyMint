@@ -4,9 +4,8 @@
  * 每个群聊 = 多个 Pi session 的虚拟聚合:
  * - 每个参与 Agent 一个独立 Pi session(独立 jsonl / 独立上下文)
  * - 用户消息 @提及路由到目标 Agent(默认主 Agent=第一个)
- * - Agent 回合结束 → 提取结论文本 → 转发给其他空闲 Agent(默认 conclusion 策略)
- * - 防环三层:① 消息 ID 去重(forwardSeen) ② 最大转发深度(maxForwardDepth)
- *   ③ 结论才转发(不转发工具过程/thinking)
+ * - Agent 回合结束 → 提取结论文本 → 转发给其他 Agent(默认 conclusion 策略)
+ * - 防环:最大转发深度(maxForwardDepth)+ 结论才转发(不转工具过程/thinking)
  * - 失败处理:回合异常 → 重试 ≤3 → 标记 offline 跳过(不阻塞其他 Agent)
  * - 持久化:项目级 .easymint/group-sessions.json(结构元数据,恢复用)
  *
@@ -63,8 +62,6 @@ interface ActiveGroup {
   /** 群聊统一 chatId——所有 Agent 事件注入它,前端群聊视图按此关联 */
   chatId: string;
   agents: ActiveGroupAgent[];
-  /** 转发消息 ID 去重(防环①) */
-  forwardSeen: Set<string>;
 }
 
 export interface GroupServiceDeps {
@@ -201,7 +198,6 @@ export class GroupSessionManager {
       },
       chatId,
       agents,
-      forwardSeen: new Set(),
     };
     this.groups.set(groupId, group);
     this.persist(group);
@@ -222,7 +218,7 @@ export class GroupSessionManager {
     // 用户消息由前端本地 append(与单会话一致),这里不广播 user_message 防重复
     const targetIdx = this.resolveMention(group, text);
     const cleanText = stripMention(text);
-    await this.promptAgent(group, targetIdx, cleanText, { depth: 0, messageId: `u-${randomUUID()}`, forwarded: false });
+    await this.promptAgent(group, targetIdx, cleanText, { depth: 0, forwarded: false });
   }
 
   private resolveMention(group: ActiveGroup, text: string): number {
@@ -250,7 +246,7 @@ export class GroupSessionManager {
     group: ActiveGroup,
     idx: number,
     text: string,
-    opts: { depth: number; messageId: string; forwarded: boolean },
+    opts: { depth: number; forwarded: boolean; fromRole?: string },
   ): Promise<void> {
     const agent = group.agents[idx];
     if (!agent || agent.status === "offline") return;
@@ -272,6 +268,7 @@ export class GroupSessionManager {
             (ev as any).groupId = group.meta.groupId;
             (ev as any).agentRole = agent.meta.role;
             (ev as any).forwarded = opts.forwarded;
+            (ev as any).forwardedFrom = opts.fromRole;
             this.deps.broadcast("agent:stream", ev);
           },
           getSession: () => session,
@@ -291,14 +288,18 @@ export class GroupSessionManager {
     try {
       if (opts.forwarded) {
         const mode = this.deps.store.getSettings().groupInjectMode ?? "followUp";
+        // 转发消息带来源标记——目标 Agent 上下文能识别消息来处,前端据此显示 [A → B]
+        const body = opts.fromRole ? `[来自 ${opts.fromRole} 的消息]\n${text}` : text;
         if (mode === "steer") {
-          await session.steer(text);
+          await session.steer(body);
         } else {
-          await session.followUp(text);
+          await session.followUp(body);
         }
       } else {
         await session.prompt(text);
       }
+      // 回合成功 → 重置连续失败计数(否则零星失败累计也误判 offline)
+      agent.retries = 0;
     } catch (err) {
       const msg = normalizeApiError(err);
       console.error(`[group] ${agent.meta.role} prompt error:`, err instanceof Error ? err.message : String(err));
@@ -323,12 +324,12 @@ export class GroupSessionManager {
     }
   }
 
-  /** 回合结束 → 结论转发给其他空闲 Agent(防环 + 深度控制) */
+  /** 回合结束 → 结论转发给其他 Agent(防环:maxForwardDepth + 只转结论) */
   private onAgentTurnEnd(
     group: ActiveGroup,
     fromIdx: number,
     conclusion: string,
-    opts: { depth: number; messageId: string; forwarded: boolean },
+    opts: { depth: number; forwarded: boolean; fromRole?: string },
   ): void {
     if (!conclusion.trim()) return;
     const settings = this.deps.store.getSettings();
@@ -349,24 +350,53 @@ export class GroupSessionManager {
       return;
     }
 
-    // 防环①:消息 ID 去重(深度递增构成唯一链 ID)
-    const msgId = `${opts.messageId}-${nextDepth}`;
-    if (group.forwardSeen.has(msgId)) return;
-    group.forwardSeen.add(msgId);
-
     const fromRole = fromAgent.meta.role;
     for (let i = 0; i < group.agents.length; i++) {
       if (i === fromIdx) continue;
       const target = group.agents[i];
       if (target.status === "offline") continue;
       if (target.busy) {
-        console.log(`[group] ${target.meta.role} busy, 转发跳过(下条再转)`);
+        // 目标忙碌 → 排队注入(followUp 等空闲后发出),不阻塞当前收尾;
+        // 排队回合不触发转发链(避免 busy 队列链式爆炸),输出仅展示
+        console.log(`[group] ${target.meta.role} busy, 排队注入`);
+        this.injectQueued(group, i, conclusion, fromRole);
         continue;
       }
       console.log(`[group] forward ${fromRole} → ${target.meta.role} depth=${nextDepth}`);
       // 异步触发,不阻塞当前回合收尾
-      void this.promptAgent(group, i, conclusion, { depth: nextDepth, messageId: msgId, forwarded: true });
+      void this.promptAgent(group, i, conclusion, { depth: nextDepth, forwarded: true, fromRole });
     }
+  }
+
+  /** 目标 Agent 忙碌时的排队注入:挂临时 subscribe 只广播事件,turn_end 后退订;
+      不设 busy 标志、不触发转发链——由目标自身回合接管后续 */
+  private injectQueued(group: ActiveGroup, idx: number, text: string, fromRole?: string): void {
+    const agent = group.agents[idx];
+    if (!agent || agent.status === "offline") return;
+    const body = fromRole ? `[来自 ${fromRole} 的消息]\n${text}` : text;
+    const session = agent.session;
+    const unsub = session.subscribe((event) => {
+      try {
+        bridgeSessionEvents(event, {
+          onEvent: (ev) => {
+            ev.sessionId = agent.meta.sessionId;
+            ev.chatId = group.chatId;
+            (ev as any).groupId = group.meta.groupId;
+            (ev as any).agentRole = agent.meta.role;
+            (ev as any).forwarded = true;
+            (ev as any).forwardedFrom = fromRole;
+            this.deps.broadcast("agent:stream", ev);
+          },
+          getSession: () => session,
+          setPendingResult: () => { /* 排队回合不转发链 */ },
+        });
+      } catch (e) {
+        console.error("[group] queued bridge error:", e);
+      }
+    });
+    session.followUp(body).catch((e) => {
+      console.error(`[group] ${agent.meta.role} queued followUp failed:`, (e as Error).message);
+    }).finally(() => unsub());
   }
 }
 

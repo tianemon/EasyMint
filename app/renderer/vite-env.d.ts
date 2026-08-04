@@ -112,6 +112,8 @@ interface StreamEvent {
   agentRole?: string;
   /** 群聊转发消息标记(该回合由其他 Agent 转发触发) */
   forwarded?: boolean;
+  /** 群聊转发来源 Agent 角色(前端显示 [A → B]) */
+  forwardedFrom?: string;
   /** 群聊会话 ID(前端群聊 ChatPanel 按此过滤事件) */
   groupId?: string;
 }
@@ -176,6 +178,7 @@ interface ElectronAPI {
     peekUsage: (projectPath: string, sessionId: string) => Promise<void>;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
+    onFallbackUsed: (callback: (data: { provider: string; modelId: string }) => void) => () => void;
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
     onDelegationProgress: (callback: (data: DelegationProgressEvent) => void) => () => void;
     onSubagentStream: (callback: (data: SubagentStreamEvent) => void) => () => void;
