@@ -1,77 +1,46 @@
 # Changelog
 
-## v0.6.1 (2026-08-05) — 供应商/模板体验优化 & Agent 模板模块
+## v0.6.1 (2026-08-05) — Agent 模板 & 自定义供应商
 
-### 🧩 Agent 模板模块
+### Added（新增）
 
-- **AgentTemplate 扩展**：agentType 放开为任意自定义角色,新增 thinkingLevel;executor 用模板 prompt 作为子 agent system prompt
-- **task 工具动态清单**：agent 参数由 listTemplates() 实时生成(名称+职责+模型),Mint 可见可选
-- **模板编辑 UI**：设置→Agent 页,列表+表单(新建/编辑/删除);Mint 建模板工具 `create_agent_template` 一句话创建模板
-- **Mint 模板只读预览**：始终强制官方提示词;其余内置模板(Builder/Mint-D/Evaluator)可编辑且持久(重启不重置)
-- **task 默认白板确认**：不指定 agent = 标准子 Agent(无模板人设),查资料/读代码/分析用白板,写代码/验收指定 builder/evaluator
-- **工具集配置移除**：模板 tools 字段删除(从未生效),子 Agent 固定全量工具集
+- **Agent 模板**：设置→Agent 页可新建/编辑自定义模板（名称、职责提示词、供应商、模型、思考级别），task 委派时可选用；Mint 也能一句话创建模板
+- **自定义供应商**：支持自定义 Base URL、API 协议与模型列表的供应商，模型/兜底/子 Agent 默认模型可分别配置
+- **全局思考等级**：设置→模型组可配置新聊天会话的默认思考等级
+- **思考等级扩展为 7 档**：关闭 / 极简 / 低 / 中 / 高 / 超高 / 最大
 
-### 🏷️ 供应商
+### Changed（变更）
 
-- **自定义供应商入口**：Base URL + API 协议(Anthropic/OpenAI)+ 模型列表,自动 registerProvider 注册
-- 供应商配置支持默认/兜底/子Agent默认模型三个选择
-- **OpenCode 品牌**：官网图标(250×250 透明 PNG),不再借用 deepseek
-- 删除火山引擎(Pi 无此 provider);供应商下拉只显示 Pi 内置名称
+- 内置模板（Builder / Mint-D / Evaluator）支持编辑且持久生效；Mint 模板保持官方提示词只读
+- task 委派不指定模板时使用标准子 Agent（适用于查资料、读代码等通用任务），写代码/验收时指定 builder / evaluator
+- 供应商列表与模型下拉显示官方名称与图标（OpenCode 等品牌更新）
 
-### 🧠 思考等级
+### Fixed（修复）
 
-- 补全 Pi 完整 7 档：off / minimal / low / medium / high / xhigh / max,聊天页与模板页统一中文(英文)
-- **全局思考等级**（设置→模型组）：仅作新聊天会话初始默认,聊天下拉临时切换不持久化
-- 启动竞态加固：store 异步加载完成前新会话正确拿到全局值
-
-### 🔧 工具可见性与清理
-
-- task/create_agent_template/productTools/MCP 工具补 promptSnippet → 进 Pi 提示词 Available tools 清单
-- task/建模板补 promptGuidelines → 进 Guidelines 节
-- 系统提示词补"Task 委派分工总则"(白板 vs 模板)
-- 移除 `[1M]` 后缀清洗(Pi 用 contextWindow 表达 1M,模型名无后缀)
-- pi-session/pi-sdk 类型收紧(去 as any)
+- 修复应用启动瞬间，新聊天会话可能未应用全局思考等级的问题
 
 ## v0.6.0 (2026-08-03) — 后台 Shell 可视化 & Agent 过程查看
 
-### 🔧 后台 Shell 完整链路
+### Added（新增）
 
-- **增强 bash 工具**：`background: true` 后台执行不阻塞回合(对齐 cc run_in_background),启动返回输出文件路径,Mint 可随时读完整输出
-- **Shell 输出可视化**：ShellBar 点击命令 → 弹层实时查看输出(历史日志尾部 100KB + 实时流追加 + 自动滚动)
-- **通知闭环**：每条命令退出开回合让 Mint 自动回应;输出精简为尾部 10 行 + 日志路径
-- **停止闭环**：停止即时反馈(停止中…状态)+ 5s SIGTERM 未响应强制 SIGKILL 兜底
-- **输出落盘**：完整日志存项目级 `.easymint/shell-logs/`,保留 7 天自动清理
-- **异常退出兜底**：SIGINT/SIGTERM 监听调 shutdown 杀后台进程,防孤儿进程
+- **后台命令**：bash 工具支持后台执行（不阻塞对话），完成自动通知；ShellBar 点击命令可实时查看输出（历史 + 实时流），完整日志落盘项目级 `.easymint/shell-logs/`（保留 7 天），支持随时停止
+- **Agent 过程查看**：任务面板点击任务可查看子 Agent 完整执行过程（思考/文本/工具调用），历史 + 实时流追加
+- **任务面板实时执行视图**：委派进度事件驱动任务行状态，任务计数移到标题行
+- **task 关联 task.json**：委派可绑定任务 id，完成/中止自动回写状态（done/failed），无需手动标记
 
-### 🤖 Agent 过程查看
+### Changed（变更）
 
-- AgentBar 点击任务标题 → 弹层查看子 Agent 执行过程:已落盘历史 + 实时流追加 + 3s 兜底刷新
-- 思考/文本/工具调用全量显示,纯只读查看
+- 系统消息改为结构化系统卡片（不再伪装成 AI 文本消息），完成/中止通知即时显示
+- 单任务提前完成/被停止时立即通知（不等全部委派收尾）
 
-### 💬 通知与系统消息
+### Fixed（修复）
 
-- **系统消息重构**：全部走 Pi `sendCustomMessage` 结构化落盘(customType + details.kind),统一系统卡片形态,不再依赖文本前缀识别
-- **通知即时显示**：`triggerTurn: false` 独立即时显示不挂靠回合;委派收尾汇总开回合自动响应
-- **实时渲染时序修复**：回合输出拆块 + 按 Pi 落盘时间戳有序插入——实时 UI 顺序 = jsonl 落盘顺序
-- **通知幂等**：多 tab 重复 append 防重
-
-### 📋 task 协作增强
-
-- task 工具支持 `taskId` 参数,完成/中止自动回写 task.json(done/failed)
-- TaskPanel 实时执行视图(委派进度驱动行状态)+ 任务计数移到标题行
-- 单任务提前完成/被停止即时通知
-
-### 🎨 状态栏
-
-- 常驻过渡符号动画 `☘✢✻✳❋`(150ms 切换、端点停顿、正程↔回程循环),回合/子Agent/后台shell任一活跃即显示
-- 符号与状态文本统一流光覆盖(亮:绿金 / 暗:蓝紫粉)
-- 状态栏独立 store,密集更新不牵连消息列表
-
-### 📦 依赖与清理
-
-- Pi SDK 升级 0.82.1 → 0.83.0
-- 移除 `@oh-my-pi/pi-natives` 冗余依赖
-- 清理:测试代码全部移除(验证走实测驱动)、过期文档精简(docs 保留 6 个现行文档)、CLAUDE.md 规范更新
+- 修复委派结果注入失败（临时会话 ID 与真实 ID 不匹配）、恢复会话后工具缺失的问题
+- 修复多条并发通知被吞、同批通知重复显示、通知插错回合位置的问题
+- 修复打断按钮失效（front 传 chatId 而主进程只匹配 sessionId）、task 执行期间发消息无响应的问题
+- 修复流式消息重复（turn 锚定消息全量替换）、思考过程逐词重复的问题
+- 修复状态栏残留"调用中"（工具执行完未清）、等待泡偏离的问题
+- 修复系统消息导致会话标题为"无消息"的问题
 
 ## v0.5.2 (2026-08-02) — Windows 窗口自绘 & UI 精致化
 
@@ -153,15 +122,8 @@
 
 ### 🧹 工程
 
-- **死代码清理 4 轮**（-2500+ 行）：v2 遗留组件/页面、快捷命令死链路、safe-path、terminal 死链
-- **lint 全绿**：no-var 26 处、tsc 既有错误、any 类型化
-- **模块拆分**：chat-utils.ts（纯函数层）、rotation.ts（轮转状态机，依赖注入）
-- **Pi SDK 对照表更新**：按实际代码核对，标注自定义实现清单
-- **Mint 项目进度链路清理**：set_project_stage 工具全链路删除（提示词 12 处引用、builtin-mcp、hooks 校验、白名单、前端监听、store 残留）——Mint 不再更新鱼骨图面板
-- **MintButton 残留**：agent:notifySession 死链删除（前端 0 调用）
-- **state.json 死链**：stage 体系删除后 readState/writeState IPC/preload/类型/提示词注释全清理
-- **打包签名修复**：brand-tokens/linear.app 被 codesign 误判为 bundle（mac.signIgnore）
-- **测试修复**：store 测试文件名（settings.json → em-settings.json，历史改名遗留）
+- **打包签名修复**：brand-tokens/linear.app 被 codesign 误判为 bundle（mac.signIgnore）——macOS 打包不再失败
+- **Mint 项目进度链路清理**：删除已废弃的"项目进度鱼骨图"更新链路（set_project_stage 全链路）——Mint 不再更新鱼骨图面板
 
 ### 📄 文档
 
@@ -191,8 +153,7 @@
 
 ### ⚙️ 工程
 
-- **Provider 重构**：适配 Pi 内置 Provider，使用静态 JSON 数据，去掉自定义路径/registerProvider
-- **引导页**：图标路径修正、与设置页供应商表单保持一致
+- **供应商配置对齐 Pi 内置**：供应商列表直接读取 Pi 内置 Provider（静态 JSON 数据），与设置页供应商表单一致
 
 ## v0.4.0 (2026-07-29) — Pi SDK 迁移
 
@@ -200,71 +161,55 @@
 
 Claude SDK (`@anthropic-ai/claude-agent-sdk`) → Pi SDK (`@earendil-works/pi-coding-agent` v0.82.1)：
 
-- `agent-service.ts`：`query()` + message channel → `createAgentSession()` + `session.subscribe()` + `session.prompt()`
-- `event-bridge.ts`：Pi 的 `AgentSessionEvent` → 前端 `PiChatEvent` 格式转换，`messageToBlocks` 统一处理 text/toolCall/thinking
-- `pi-sdk.ts`：ESM-only 动态 import 懒加载 wrapper
-- `pi-session.ts`：`createPiSession` / `resumePiSession` 工厂函数，`customTools` + `codingTools` 组装
-- 全局配置路径：`~/.easymint/` → `~/.easymint/`
-- 会话存储：`~/.easymint/sessions/<编码路径>/`
-- 删除：`claude-detector.ts`、`notify.ts`、`pi-chat-event.ts`、Claude SDK 依赖
-
-### 🔧 流式输出修复
-
-Pi SDK 的 `message_update` 携带累计全文，但原 `replaceAiEntries` 在多轮工具调用时互相覆盖：
-
-- `chat-store.ts`：新增 `replaceAiEntriesFrom(sid, fromIdx, entries)`，按 turn 边界保留旧内容
-- `ChatPanel.tsx`：`turnEntryIdxRef` 追踪 turn 边界，`message_start` 作为新 turn 信号
-- `event-bridge.ts`：新增 `message_start` 处理，`messageToBlocks` 统一转换 `toolCall` → `tool_use`
+- 底层会话模型：`query()` + message channel → `createAgentSession()` + 事件流订阅 + `prompt()` 长生命周期会话
+- 会话持久化：每会话独立 JSONL 落盘，支持中断恢复
+- 流式输出：`message_update` 累计全文 → 按 turn 边界保留旧内容（多轮工具调用不再互相覆盖）
+- 事件桥接：Pi `AgentSessionEvent` → 前端统一事件格式（text/toolCall/thinking 同处理）
 
 ### 🛡️ 权限系统修复
 
-- `wrap-tool.ts`：`displayToolName` 变形（如 `Bash(echo hello)`）导致 `canUseTool` 匹配全失效，改为原始名匹配 + displayName 分离
-- `permission-rules.ts`：10 个内置 easymint-ui MCP 工具加入 `SAFE_TOOLS` 白名单（Pi SDK `customTools` 无 `mcp__` 前缀）
-- `ChatPanel.tsx`：修正 `show_confirm_dev` / `show_new_project` 按钮检测的工具名
-- `event-bridge.ts`：新增 `tool_execution_start` 处理，所有工具执行时状态栏显示工具名
+- 修复工具权限匹配失效（工具名变形导致 `canUseTool` 全不匹配）——权限控制恢复正常
+- 内置 UI 工具加入安全白名单，不再频繁弹确认
+- 工具执行时状态栏正确显示工具名
 
 ### 🎭 角色模板修复
 
-- `agent-service.ts`：选模板时用模板 prompt **替代**默认 Mint prompt，不再叠加两套身份（Mint 架构师 vs Mint-D 设计师 平行独立）
+- 选择模板时用模板提示词**替代**默认 Mint 提示词（不再叠加两套身份）——设计师/Builder 角色独立生效
 
 ### 📁 路径修正
 
-项目级 `.easymint/` 被批量错写为全局 `.easymint/`：
-
-| 文件 | 错误 | 修正 |
-|------|------|------|
-| `process-service.ts` | `<project>/.easymint/run.json` | `<project>/.easymint/run.json` |
-| `issue-service.ts` | `<project>/.easymint/issues.json` | `<project>/.easymint/issues.json` |
-
-### 🚦 状态栏优化
-
-- 纯文本到达时自动清除"正在请求..."和旧工具标签
-- 工具完成后 LLM 继续返回文本时，状态栏不再显示已完成的工具名
+- 修复项目级 `.easymint/` 被批量错写为全局路径的问题（run.json、issues.json 等）
 
 ### 🔒 多 Tab 事件隔离
 
-- `ChatPanel.tsx`：`event.runId` 在 `PiChatEvent` 中永远为 `undefined`，导致 `&&` 短路 → `chatId` 过滤失效。改为 `runId`/`chatId` 独立判断
+- 修复多个聊天标签页事件串扰（runId 判断失效导致事件过滤失灵）
+
+### 🚦 状态栏优化
+
+- 文本到达时正确清除"正在请求..."与旧工具标签
 
 ### 📝 文档更新
 
-- `docs/开发进度.md`：新增 v0.4.0 条目
-- `docs/技术架构.md`：SDK 名、路径、MCP 工具清单补全、Hook → canUseTool
-- `docs/design/CONFIG_PATHS.md`：全局目录树重建、settings.json 重写、项目目录补全
-- `docs/design/AGENT_SYSTEM.md`：Layer 0 描述、Agent 通信方式更新
-- `CLAUDE.md`：AI 引擎、存储路径、SDK API 描述
-- `README.md`：徽章、链接、技术栈全部更新至新仓库
+- 技术架构、配置路径、SDK 使用对照、README、CLAUDE.md 全量更新至 Pi SDK
 
 ### 🤖 CI/CD
 
-- `.github/workflows/release.yml`：tag push (`v*`) 触发 macOS + Windows 双平台自动构建发布
-- 新仓库 `tianemon/EasyMint-Pi-Core`
+- 新增 GitHub Actions 自动发布：推送 tag（v*）自动构建 macOS + Windows 双平台 Release
 
 ---
 
 ## v0.3.0 (2026-06-25)
 
-- Skill 注入机制改造（两层分级：EM_SKILLS vs BUNDLED_SKILLS）
-- Hook 校验系统（PreToolUse 状态一致性校验）
-- Compact 体验优化（状态显示 + 输入框蒙版）
-- 会话历史直读 JSONL（不受 compact parentUuid 链限制）
-- 多个 Bug 修复（新建项目跳转、会话删除复活、MCP 热刷新等）
+### Added（新增）
+
+- **Skill 分级注入**：内置 Skill 与全局 Skill 两层分级管理
+- **Hook 校验系统**：工具调用前状态一致性校验，防止异常状态执行
+
+### Changed（变更）
+
+- **Compact 体验优化**：压缩状态显示 + 输入框蒙版（压缩期间不可输入）
+- **会话历史直读 JSONL**：不再受 compact 压缩链（parentUuid）限制，历史完整可查
+
+### Fixed（修复）
+
+- 新建项目跳转、会话删除后复活、MCP 配置热刷新等多个 Bug
