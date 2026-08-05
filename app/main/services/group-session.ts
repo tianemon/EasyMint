@@ -70,6 +70,9 @@ interface ActiveGroupAgent {
   offlineReason?: string;
   /** 连续失败次数(达到阈值 → offline) */
   retries: number;
+  /** 背景注入暂存队列:目标流式中(回合进行中)时,Pi 的 sendCustomMessage 会 steer 触发回话,
+      违反"背景不回话"设计。故忙时入队,回合结束(turn_end)后再 triggerTurn:false 纯注入 */
+  pendingBackground: Array<{ content: string; details: Record<string, unknown> }>;
 }
 
 interface ActiveGroup {
@@ -256,6 +259,7 @@ export class GroupSessionManager {
         busy: false,
         status: "idle",
         retries: 0,
+        pendingBackground: [],
       });
       console.log(`[group] ${groupId} agent#${i} ready: role=${role} sessionId=${session.sessionId}`);
     }
@@ -314,21 +318,44 @@ export class GroupSessionManager {
     await this.activateAgent(group, targetIdx, "user");
   }
 
-  /** 背景注入:把一条群聊消息 triggerTurn:false 注入所有 Agent(不回话,只同步上下文) */
+  /** 背景注入:把一条群聊消息注入所有 Agent(不回话,只同步上下文)。
+      目标忙(流式中)时 Pi 的 sendCustomMessage 会默认 steer 触发回话,违反设计——
+      故忙时入队,回合结束(turn_end)后由 flushPendingBackground 纯注入 */
   private broadcastBackground(group: ActiveGroup, msg: { agentRole: string; text: string; piTs: number; forwardedFrom?: string }): void {
+    const content = msg.agentRole === "user" ? msg.text : `[群聊背景] ${msg.agentRole} 的结论: ${msg.text}`;
+    const details = { kind: "forward_message", from: msg.agentRole, forwardedFrom: msg.forwardedFrom };
     for (const a of group.agents) {
-      try {
-        a.session.sendCustomMessage({
-          customType: "forward_message",
-          content: msg.agentRole === "user" ? msg.text : `[群聊背景] ${msg.agentRole} 的结论: ${msg.text}`,
-          display: false,
-          details: { kind: "forward_message", from: msg.agentRole, forwardedFrom: msg.forwardedFrom },
-        }, { triggerTurn: false }).catch((e) => {
-          console.error(`[group] ${a.meta.role} 背景注入失败:`, (e as Error).message);
-        });
-      } catch (e) {
-        console.error(`[group] ${a.meta.role} 背景注入异常:`, (e as Error).message);
-      }
+      this.injectBackground(a, content, details);
+    }
+  }
+
+  /** 注入一条背景消息:目标忙 → 入队;空闲 → triggerTurn:false 纯注入 */
+  private injectBackground(agent: ActiveGroupAgent, content: string, details: Record<string, unknown>): void {
+    if (agent.busy || agent.status === "busy") {
+      agent.pendingBackground.push({ content, details });
+      return;
+    }
+    try {
+      agent.session.sendCustomMessage({
+        customType: "forward_message",
+        content,
+        display: false,
+        details,
+      }, { triggerTurn: false }).catch((e) => {
+        console.error(`[group] ${agent.meta.role} 背景注入失败:`, (e as Error).message);
+      });
+    } catch (e) {
+      console.error(`[group] ${agent.meta.role} 背景注入异常:`, (e as Error).message);
+    }
+  }
+
+  /** 回合结束后 flush 暂存队列:把忙时积压的背景消息纯注入(triggerTurn:false) */
+  private flushPendingBackground(agent: ActiveGroupAgent): void {
+    if (agent.pendingBackground.length === 0) return;
+    const queued = agent.pendingBackground;
+    agent.pendingBackground = [];
+    for (const bg of queued) {
+      this.injectBackground(agent, bg.content, bg.details);
     }
   }
 
@@ -340,8 +367,9 @@ export class GroupSessionManager {
       console.log(`[group] ${agent.meta.role} busy, 激活跳过`);
       return;
     }
-    // 走 promptAgent:回合订阅/重试/离线逻辑复用;text 为激活提示,模型读上下文回复
-    await this.promptAgent(group, idx, `[群聊激活] ${fromRole} 激活了你,请基于群聊上下文回复。`, { depth: 0, forwarded: true, fromRole });
+    // 走 promptAgent:回合订阅/重试/离线逻辑复用;text 为激活提示,模型读上下文回复。
+    // 提示用强指令语气:必须现在回话(防止模型把激活当背景消息忽略)
+    await this.promptAgent(group, idx, `[群聊激活] ${fromRole} 要求你现在回话。请基于群聊上下文,用一句与之前不同的、有价值的话回应。`, { depth: 0, forwarded: true, fromRole });
   }
 
   private resolveMention(group: ActiveGroup, text: string): number {
@@ -387,8 +415,9 @@ export class GroupSessionManager {
           const roles = group.agents.map((a) => a.meta.role).join(" / ");
           return { content: [{ type: "text" as const, text: `目标 ${targetRole} 不存在,可用成员: ${roles}` }], details: {} };
         }
-        // 异步激活,不阻塞当前回合收尾
-        void manager.activateAgent(group, idx, "Agent");
+        // 异步激活,不阻塞当前回合收尾。来源用"成员"(工具执行无法定位调用者角色,
+        // 但调用者上下文里已有"已指派给 X"的 toolResult,目标通过群聊背景知道是谁)
+        void manager.activateAgent(group, idx, "群聊成员");
         return { content: [{ type: "text" as const, text: `已指派给 ${targetRole}` }], details: {} };
       },
     }) as any;
@@ -444,6 +473,8 @@ export class GroupSessionManager {
     }
     agent.busy = false;
     if (agent.status === "busy") agent.status = "idle";
+    // 回合彻底结束后 flush 忙时积压的背景队列(纯注入,不触发回话)
+    this.flushPendingBackground(agent);
   }
 
   /** 单次回合:挂 subscribe 广播事件 + prompt/steer/followUp;回合结束触发转发 */
@@ -492,22 +523,13 @@ export class GroupSessionManager {
                     piTs: Date.now(),
                     forwardedFrom: opts.fromRole,
                   });
-                  // 阶段B:结论背景注入除自己外所有 Agent(triggerTurn:false,不回话)
+                  // 阶段B:结论背景注入除自己外所有 Agent(不回话;忙时入队等回合结束)
                   // 不含代码/toolResult/thinking——只转纯结论
                   for (const other of group.agents) {
                     if (other === agent) continue;
-                    try {
-                      other.session.sendCustomMessage({
-                        customType: "forward_message",
-                        content: `[群聊背景] ${agent.meta.role} 的结论: ${c}`,
-                        display: false,
-                        details: { kind: "forward_message", from: agent.meta.role, forwardedFrom: opts.fromRole },
-                      }, { triggerTurn: false }).catch((e) => {
-                        console.error(`[group] ${other.meta.role} 结论背景注入失败:`, (e as Error).message);
-                      });
-                    } catch (e) {
-                      console.error(`[group] ${other.meta.role} 结论背景注入异常:`, (e as Error).message);
-                    }
+                    this.injectBackground(other, `[群聊背景] ${agent.meta.role} 的结论: ${c}`, {
+                      kind: "forward_message", from: agent.meta.role, forwardedFrom: opts.fromRole,
+                    });
                   }
 
                   // 阶段C兜底语法:结论含【转交@X】且未调 assign_to_agent 工具时,解析激活目标
