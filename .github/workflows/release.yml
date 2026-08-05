@@ -9,7 +9,33 @@ permissions:
   contents: write
 
 jobs:
+  prepare-notes:
+    runs-on: ubuntu-latest
+    outputs:
+      notes: ${{ steps.extract.outputs.notes }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Extract changelog for tag
+        id: extract
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+          # v0.6.1 → 0.6.1（CHANGELOG 标题格式 ## v0.6.1）
+          VERSION="${TAG#v}"
+          NOTES=$(awk -v v="$VERSION" '
+            $0 ~ "^## v" v " " { found=1; next }
+            found && $0 ~ "^## v" { exit }
+            found { print }
+          ' CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            NOTES="Release $TAG"
+          fi
+          echo "notes<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$NOTES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
   build-macos:
+    needs: prepare-notes
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
@@ -28,6 +54,7 @@ jobs:
       - name: Upload artifacts
         uses: softprops/action-gh-release@v2
         with:
+          body: ${{ needs.prepare-notes.outputs.notes }}
           files: |
             dist-electron/*.dmg
             dist-electron/*.zip
@@ -35,6 +62,7 @@ jobs:
             dist-electron/latest-mac.yml
 
   build-windows:
+    needs: prepare-notes
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -53,6 +81,7 @@ jobs:
       - name: Upload artifacts
         uses: softprops/action-gh-release@v2
         with:
+          body: ${{ needs.prepare-notes.outputs.notes }}
           files: |
             dist-electron/*.exe
             dist-electron/*.blockmap
