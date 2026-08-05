@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.6.1 (2026-08-05) — 供应商/模板体验优化 & Agent 模板模块
+
+### 🧩 Agent 模板模块
+
+- **AgentTemplate 扩展**：agentType 放开为任意自定义角色,新增 thinkingLevel;executor 用模板 prompt 作为子 agent system prompt
+- **task 工具动态清单**：agent 参数由 listTemplates() 实时生成(名称+职责+模型),Mint 可见可选
+- **模板编辑 UI**：设置→Agent 页,列表+表单(新建/编辑/删除);Mint 建模板工具 `create_agent_template` 一句话创建模板
+- **Mint 模板只读预览**：始终强制官方提示词;其余内置模板(Builder/Mint-D/Evaluator)可编辑且持久(重启不重置)
+- **task 默认白板确认**：不指定 agent = 标准子 Agent(无模板人设),查资料/读代码/分析用白板,写代码/验收指定 builder/evaluator
+- **工具集配置移除**：模板 tools 字段删除(从未生效),子 Agent 固定全量工具集
+
+### 🏷️ 供应商
+
+- **自定义供应商入口**：Base URL + API 协议(Anthropic/OpenAI)+ 模型列表,自动 registerProvider 注册
+- 供应商配置支持默认/兜底/子Agent默认模型三个选择
+- **OpenCode 品牌**：官网图标(250×250 透明 PNG),不再借用 deepseek
+- 删除火山引擎(Pi 无此 provider);供应商下拉只显示 Pi 内置名称
+
+### 🧠 思考等级
+
+- 补全 Pi 完整 7 档：off / minimal / low / medium / high / xhigh / max,聊天页与模板页统一中文(英文)
+- **全局思考等级**（设置→模型组）：仅作新聊天会话初始默认,聊天下拉临时切换不持久化
+- 启动竞态加固：store 异步加载完成前新会话正确拿到全局值
+
+### 🔧 工具可见性与清理
+
+- task/create_agent_template/productTools/MCP 工具补 promptSnippet → 进 Pi 提示词 Available tools 清单
+- task/建模板补 promptGuidelines → 进 Guidelines 节
+- 系统提示词补"Task 委派分工总则"(白板 vs 模板)
+- 移除 `[1M]` 后缀清洗(Pi 用 contextWindow 表达 1M,模型名无后缀)
+- pi-session/pi-sdk 类型收紧(去 as any)
+
 ## v0.6.0 (2026-08-03) — 后台 Shell 可视化 & Agent 过程查看
 
 ### 🔧 后台 Shell 完整链路
