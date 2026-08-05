@@ -19,6 +19,8 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   const editMode = initial != null;
   const [presetId, setPresetId] = useState<string>(initial?.presetId || "");
   const preset = getPreset(presetId);
+  const isCustom = presetId === "custom" || initial?.presetId === "custom";
+  const brand = BRAND_BY_PI_ID.get(presetId);
 
   const [name, setName] = useState(initial?.name || "");
   const [apiKey, setApiKey] = useState(initial?.apiKey || "");
@@ -27,13 +29,16 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   // 该供应商自己的兜底模型 / task 子 Agent 默认模型(per-provider)
   const [fallbackModel, setFallbackModel] = useState<string>(initial?.fallbackModel || "");
   const [subagentDefaultModel, setSubagentDefaultModel] = useState<string>(initial?.subagentDefaultModel || "");
+  // 自定义供应商字段
+  const [baseUrl, setBaseUrl] = useState<string>((initial as any)?.baseUrl || "");
+  const [apiType, setApiType] = useState<string>((initial as any)?.apiType || "anthropic-messages");
   const [showKey, setShowKey] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const [loadedProvider, setLoadedProvider] = useState<string>("");
 
   // 初始化：编辑已有供应商时自动加载模型列表
   useEffect(() => {
-    if (presetId && presetId !== loadedProvider) {
+    if (presetId && presetId !== loadedProvider && presetId !== "custom") {
       setLoadedProvider(presetId);
       loadModels(presetId);
     }
@@ -41,8 +46,8 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
 
   const handlePresetSelect = async (id: string) => {
     setPresetId(id);
+    if (id === "custom") return;  // 自定义供应商不拉模型列表
     // 自动填名称(用户未填写时);加载模型列表
-    const brand = BRAND_BY_PI_ID.get(id);
     if (brand && !name.trim()) setName(brand.name);
     loadModels(id);
   };
@@ -60,12 +65,12 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
 
 
   const handleSave = () => {
-    if (!presetId) { alert("请选择平台"); return; }
     if (!name.trim()) { alert("请输入名称"); return; }
     if (!apiKey.trim()) { alert("请输入 API Key"); return; }
+    if (isCustom && !baseUrl.trim()) { alert("自定义供应商需填写 Base URL"); return; }
     const cfg: ProviderConfig = {
-      id: initial?.id || `${presetId}-${Date.now()}`,
-      presetId,
+      id: initial?.id || `${(presetId || "custom")}-${Date.now()}`,
+      presetId: isCustom ? "custom" : presetId,
       name: name.trim(),
       apiKey: apiKey.trim(),
       model: model || (models[0] ?? ""),
@@ -74,21 +79,26 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       fallbackModel: fallbackModel || undefined,
       subagentDefaultModel: subagentDefaultModel || undefined,
       createdAt: initial?.createdAt || Date.now(),
+      baseUrl: isCustom ? baseUrl.trim() || undefined : undefined,
+      apiType: isCustom ? apiType : undefined,
     };
     onSave(cfg);
   };
 
+  const SELF_PROVIDER = { value: "custom", label: "自定义供应商", icon: "" };
+  const SELF_PROVIDER_OPTIONS = [...providerSelectOptions(), SELF_PROVIDER];
+
   return (
     <div className="space-y-4">
-      {/* 平台选择:下拉展示全部品牌及其接入方式(图标 + 中文名) */}
+      {/* 平台选择:下拉展示全部品牌及其接入方式(图标 + 中文名) + 自定义 */}
       <div>
         <label className="text-xs text-text-secondary block mb-1.5">选择平台</label>
         <Select
           block
-          placeholder="请选择供应商"
+          placeholder="请选择供应商或选自定义"
           value={presetId}
           onChange={handlePresetSelect}
-          options={providerSelectOptions()}
+          options={SELF_PROVIDER_OPTIONS}
           title="选择供应商"
         />
       </div>
@@ -120,6 +130,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       </div>
 
       {/* 模型选择:该供应商的默认模型(下拉,替代按钮列表,更紧凑) */}
+      {!isCustom ? (<>
       <div>
         <label className="text-xs text-text-secondary block mb-1.5">模型(默认)</label>
         <Select
@@ -168,6 +179,30 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
           title="选择子 Agent 默认模型"
         />
       </div>
+      </>) : (<>
+      {/* 自定义供应商:Base URL + API 类型 */}
+      <div>
+        <label className="text-xs text-text-secondary block mb-1.5">Base URL *</label>
+        <input
+          className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+          placeholder="https://api.example.com/v1"
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="text-xs text-text-secondary block mb-1.5">API 协议</label>
+        <select
+          value={apiType}
+          onChange={(e) => setApiType(e.target.value)}
+          className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+        >
+          <option value="anthropic-messages">Anthropic Messages</option>
+          <option value="openai-completions">OpenAI Completions</option>
+          <option value="openai-responses">OpenAI Responses</option>
+        </select>
+      </div>
+      </>)}
 
       {/* 保存 */}
       <div className="flex gap-2 pt-2">

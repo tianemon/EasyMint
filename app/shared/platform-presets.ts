@@ -7,12 +7,16 @@
 
 export interface ProviderConfig {
   id: string;              // 用户配置 ID
-  presetId: string;        // Pi Provider.id
+  presetId: string;        // Pi Provider.id,自定义供应商用 "custom"
   name: string;            // 用户自定义名称
   apiKey: string;
   model: string;           // 该供应商的默认模型(激活时优先使用)
   models: string[];        // 缓存：上次获取的模型列表
   createdAt: number;
+  /** 自定义供应商 API 端点(仅 presetId==="custom" 时有效) */
+  baseUrl?: string;
+  /** 自定义供应商 API 类型(如 anthropic-messages,仅 presetId==="custom" 时有效) */
+  apiType?: string;
   /** 该供应商的兜底模型(默认模型不可用时降级,从 models 选) */
   fallbackModel?: string;
   /** 该供应商的 task 工具子 Agent 默认模型(委派子 Agent 未指定时用,从 models 选) */
