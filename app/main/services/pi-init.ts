@@ -120,13 +120,13 @@ async function syncProviders(store: Store) {
   const settings = store.getSettings();
   const providers = settings.apiProviders;
   if (!providers) return;
+  // 先注册火山引擎 provider(setRuntimeApiKey 需要 provider 已存在)
+  registerVolcengineProvider(store);
   for (const [, config] of Object.entries(providers.configs ?? {})) {
     if (config.apiKey) {
       await _modelRuntime.setRuntimeApiKey(config.presetId, config.apiKey);
     }
   }
-  // 注册火山引擎 provider(内嵌在 Pi 中不可见,需要 EM 注册)
-  registerVolcengineProvider(store);
 }
 
 /** 注册火山引擎 provider(Plan 模型,name:volcengine) */
