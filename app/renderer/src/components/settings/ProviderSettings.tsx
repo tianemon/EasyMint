@@ -32,6 +32,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   // 自定义供应商字段
   const [baseUrl, setBaseUrl] = useState<string>((initial as any)?.baseUrl || "");
   const [apiType, setApiType] = useState<string>((initial as any)?.apiType || "anthropic-messages");
+  const [customModelsText, setCustomModelsText] = useState<string>(initial?.models?.join("\n") || "");
   const [showKey, setShowKey] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const [loadedProvider, setLoadedProvider] = useState<string>("");
@@ -68,14 +69,14 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
     if (!name.trim()) { alert("请输入名称"); return; }
     if (!apiKey.trim()) { alert("请输入 API Key"); return; }
     if (isCustom && !baseUrl.trim()) { alert("自定义供应商需填写 Base URL"); return; }
+    const modelList = isCustom ? customModelsText.split("\n").map((s) => s.trim()).filter(Boolean) : models;
     const cfg: ProviderConfig = {
       id: initial?.id || `${(presetId || "custom")}-${Date.now()}`,
       presetId: isCustom ? "custom" : presetId,
       name: name.trim(),
       apiKey: apiKey.trim(),
-      model: model || (models[0] ?? ""),
-      models,
-      // 用户显式选择的兜底/子 Agent 模型一律保存(即使与主模型相同)
+      model: model || (modelList[0] ?? ""),
+      models: modelList,
       fallbackModel: fallbackModel || undefined,
       subagentDefaultModel: subagentDefaultModel || undefined,
       createdAt: initial?.createdAt || Date.now(),
@@ -201,6 +202,17 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
           <option value="openai-completions">OpenAI Completions</option>
           <option value="openai-responses">OpenAI Responses</option>
         </select>
+      </div>
+      <div>
+        <label className="text-xs text-text-secondary block mb-1.5">模型列表(每行一个模型 ID)</label>
+        <textarea
+          className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent/50 resize-none"
+          rows={5}
+          placeholder={"doubao-seed-2.0-lite\nglm-5.2\nkimi-k2.7-code"}
+          value={customModelsText}
+          onChange={(e) => setCustomModelsText(e.target.value)}
+        />
+        <p className="text-[10px] text-text-muted mt-1">这些模型将注册为自定义供应商的可用模型,保存后在模型下拉中可选。</p>
       </div>
       </>)}
 
