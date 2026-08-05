@@ -46,6 +46,8 @@ export function createDelegation(
     abortController,
     taskAbortControllers,
     taskStatuses: tasks.map(() => "pending" as const),
+    taskCurrentTools: tasks.map(() => undefined),
+    taskToolCounts: tasks.map(() => 0),
     abort: () => {
       if (record.status !== "running") return;
       abortController.abort();
@@ -110,12 +112,14 @@ export interface RunningTaskInfo {
   title: string;
 }
 
-/** 回写任务状态(executor 进度回调;AgentBar 按 running 过滤) */
-export function setTaskStatus(delegationId: string, index: number, status: TaskStatus): void {
+/** 回写任务状态(executor 进度回调;AgentBar 按 running 过滤;currentTool/toolCount 供 list_agents 运行中实时状态) */
+export function setTaskStatus(delegationId: string, index: number, status: TaskStatus, currentTool?: string, toolCount?: number): void {
   const record = delegations.get(delegationId);
   if (!record) return;
   if (index >= 0 && index < record.taskStatuses.length) {
     record.taskStatuses[index] = status;
+    if (currentTool !== undefined) record.taskCurrentTools[index] = currentTool;
+    if (toolCount !== undefined) record.taskToolCounts[index] = toolCount;
   }
 }
 

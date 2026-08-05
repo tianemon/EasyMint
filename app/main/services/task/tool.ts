@@ -237,8 +237,9 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
 
       // 进度广播：executor 每 200ms 节流回调 → 前端委派进度卡片实时更新
       const broadcastProgress = (progress: AgentProgress): void => {
-        // 回写任务状态(AgentBar 列表按 running 过滤——停止后立即消失)
-        setTaskStatus(record.delegationId, progress.index, progress.status);
+        // 回写任务状态(AgentBar 列表按 running 过滤——停止后立即消失);
+        // currentTool/toolCount 实时回写(list_agents 运行中显示"当前工具")
+        setTaskStatus(record.delegationId, progress.index, progress.status, progress.currentTool, progress.toolCount);
         // 逐任务即时回写 task.json:任务一进入终态立即 done/failed,
         // 不等委派整体收尾(TaskPanel 单行即时变绿)
         if (progress.taskId && progress.status !== "running" && progress.status !== "pending") {
@@ -254,8 +255,9 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
             notifiedTerminal.add(key);
             const title = record.tasks[progress.index]?.title || progress.task.slice(0, 40);
             const dur = Math.max(0, Math.round(progress.durationMs / 1000));
-            // 单任务委派被停止:无后续通知,开回合让 Mint 回应;批量中停止单个不开回合
-            ctx.onTaskAborted?.(record.parentSessionId, `⏺ ${title} — 中止${dur > 0 ? ` · ${dur}s` : ""}`, record.tasks.length === 1);
+            // 单任务委派被停止:无后续通知,开回合让 Mint 回应;批量中停止单个不开回合。
+            // 文本明确「用户中断」——Mint 不要误判为意外失败自动重启
+            ctx.onTaskAborted?.(record.parentSessionId, `⏺ ${title} — 已由用户中断${dur > 0 ? ` · ${dur}s` : ""}`, record.tasks.length === 1);
           }
         }
         // 单任务提前完成(委派还有任务在跑)→ 立即注入完成通知,Mint 判断继续等待

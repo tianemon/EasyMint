@@ -154,6 +154,10 @@ export interface DelegationRecord {
   taskAbortControllers: AbortController[];
   /** 每任务状态(executor 进度回写;AgentBar 列表按此过滤运行中的任务) */
   taskStatuses: TaskStatus[];
+  /** 每任务当前工具(executor progress 实时回写;运行中实时状态,jsonl 不落盘时唯一可靠信息) */
+  taskCurrentTools: (string | undefined)[];
+  /** 每任务已调工具数(executor progress 实时回写) */
+  taskToolCounts: number[];
 }
 
 /** 单个子 Agent 任务的实时状态 */

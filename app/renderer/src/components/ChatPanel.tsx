@@ -1290,12 +1290,10 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
         <div
           className="flex gap-4 items-start"
           style={{ padding: "0 var(--s8)" }}
-          onMouseEnter={showActions}
-          onMouseLeave={scheduleHideActions}
           onContextMenu={(e) => onContextMenu(msg, e)}
         >
           <div style={{ width: 34, flexShrink: 0 }} />
-          <div className="relative w-fit max-w-[75%] min-w-0 my-1">
+          <div className="relative w-fit max-w-[75%] min-w-0 my-1" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
             <div className="rounded-[10px] rounded-bl-[4px] border border-border bg-surface-elevated overflow-hidden">
               {/* 头部:系统图标 + kind 标签(区别于 assistant 的 Mint 头像气泡) */}
               <div className="flex items-center gap-1.5 px-[14px] pt-1.5 text-[11px] text-text-secondary">
@@ -1341,11 +1339,11 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
       );
     }
     return (
-      <div className="msg-in" onMouseEnter={showActions} onMouseLeave={scheduleHideActions} onContextMenu={(e) => onContextMenu(msg, e)}>
+      <div className="msg-in" onContextMenu={(e) => onContextMenu(msg, e)}>
         <div className="flex justify-end">
           {/* shrink-0：flex 子项不被压缩（中文 min-content 是单字，压缩会逐字换行）；
              max-w-[75%]：超长文本钳制宽度后由内部 overflow-wrap 换行 */}
-          <div className="relative shrink-0 max-w-[75%] min-w-0">
+          <div className="relative shrink-0 max-w-[75%] min-w-0" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
             {userBubble(msg)}
             <BubbleActions text={copyText} onPin={onPin} sid={sid} visible={actionsVisible} />
           </div>
@@ -1362,10 +1360,10 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
   const displayName = role ?? "Mint";
 
   return (
-    <div className="msg-in" onMouseEnter={showActions} onMouseLeave={scheduleHideActions} onContextMenu={(e) => onContextMenu(msg, e)}>
+    <div className="msg-in" onContextMenu={(e) => onContextMenu(msg, e)}>
       <div className="flex gap-4 items-start max-w-[75%]">
         <div className="msg-avatar agent" style={role ? { backgroundColor: roleColor(role), color: "#fff" } : undefined}>{avatarChar}</div>
-        <div className="min-w-0 relative">
+        <div className="min-w-0 relative" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
           <div className="msg-from">
             {displayName}
             {role && msg.forwarded && (

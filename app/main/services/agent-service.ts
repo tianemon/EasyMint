@@ -34,6 +34,7 @@ import {
   type PiChatEvent,
 } from "./event-bridge";
 import type { AgentSession, AgentSessionEvent, ToolDefinition } from "./pi-sdk";
+import { getDefineToolFn } from "./pi-sdk";
 import type { Model } from "@earendil-works/pi-ai";
 import { randomUUID } from "node:crypto";
 import { renameSession, hasCustomTitle } from "./session-service";
@@ -142,6 +143,233 @@ export function getDesignSessionIds(): string[] {
 
 // ── AgentService ────────────────────────────────────
 
+/** Mint 主动停止委派工具:停止当前会话运行中的子 Agent(委派)。
+    与用户点打断按钮等价,但由 Mint 自主决策(如发现子 Agent 方向错了/卡住)。
+    支持精确停止单个任务(delegation_id + index,配合 list_agents 查看),缺省停全部 */
+async function createStopAgentTool(sessionId: string): Promise<ToolDefinition> {
+  const defineTool = await getDefineToolFn();
+  return defineTool({
+    name: "stop_agent",
+    label: "停止子 Agent",
+    description:
+      "停止当前会话正在运行中的子 Agent(委派任务)。子 Agent 会被中止,任务状态回写 aborted。"
+      + "指定 delegation_id + index 只停止该任务(先用 list_agents 查看);不指定则停止全部。"
+      + "使用场景:① 发现子 Agent 方向错了,要重新委派 ② 子 Agent 卡住/超时 ③ 用户要求停下。",
+    promptSnippet: "停止运行中的子 Agent(可精确停单个,缺省停全部)",
+    promptGuidelines: [
+      "子 Agent 偏离任务方向、卡住或用户要求停时,用此工具停止而不是等待",
+      "批量委派时先 list_agents 查看,再用 delegation_id+index 精确停止跑偏的任务,保留正常的",
+      "停止后任务状态自动回写 aborted,可重新委派修正后的任务",
+    ],
+    parameters: {
+      type: "object" as const,
+      properties: {
+        delegation_id: { type: "string" as const, description: "可选:委派 ID(list_agents 返回),指定后只停该委派" },
+        index: { type: "number" as const, description: "可选:任务序号(list_agents 返回),与 delegation_id 搭配精确停止单个任务" },
+        reason: { type: "string" as const, description: "可选:停止原因(便于记录)" },
+      },
+    },
+    async execute(_tid: string, params: Record<string, unknown>) {
+      const { abortDelegations, abortTask } = await import("./task/registry");
+      const reason = params.reason ? String(params.reason) : "Mint 主动停止";
+      // 精确停止:delegation_id(+index) 指定单个
+      if (params.delegation_id) {
+        const did = String(params.delegation_id);
+        // 前缀匹配:list_agents 返回完整 id,但兼容旧版短 id / 用户手输前缀
+        const { getRunningDelegations } = await import("./task/registry");
+        const match = getRunningDelegations(sessionId).find((r) => r.delegationId.startsWith(did));
+        if (!match) return { content: [{ type: "text" as const, text: `委派 ${did} 未在运行中` }] };
+        if (typeof params.index === "number") {
+          abortTask(match.delegationId, params.index);
+          return { content: [{ type: "text" as const, text: `已停止任务 ${match.delegationId} 的 #${params.index}${reason ? `(${reason})` : ""}` }] };
+        }
+        match.abort();
+        return { content: [{ type: "text" as const, text: `已停止委派 ${match.delegationId}${reason ? `(${reason})` : ""}` }] };
+      }
+      const count = abortDelegations(sessionId);
+      const text = count > 0
+        ? `已停止 ${count} 个运行中的子 Agent${reason ? `(${reason})` : ""}`
+        : "当前没有运行中的子 Agent";
+      return { content: [{ type: "text" as const, text }] };
+    },
+  } as any) as ToolDefinition;
+}
+
+/** Mint 查看委派进度工具:返回当前会话运行中的委派任务状态清单,
+    配合 stop_agent 精确停止用(先看再决定) */
+async function createListAgentsTool(sessionId: string): Promise<ToolDefinition> {
+  const defineTool = await getDefineToolFn();
+  return defineTool({
+    name: "list_agents",
+    label: "查看子 Agent",
+    description:
+      "查看当前会话正在运行中的子 Agent(委派任务)清单:每个委派的任务状态、已耗时、任务简述。"
+      + "用于判断:① 还有哪些任务在跑 ② 哪个任务跑偏了/卡住了(配合 stop_agent 精确停止)。",
+    promptSnippet: "查看运行中的子 Agent 状态(任务、状态、耗时)",
+    promptGuidelines: [
+      "委派进行中想了解进度/决定是否停止时,先 list_agents 查看",
+      "返回的 delegation_id 和任务序号,可用于 stop_agent 精确停止",
+    ],
+    parameters: {
+      type: "object" as const,
+      properties: {},
+    },
+    async execute() {
+      const { getRunningDelegations } = await import("./task/registry");
+      const running = getRunningDelegations(sessionId);
+      if (running.length === 0) return { content: [{ type: "text" as const, text: "当前没有运行中的子 Agent" }] };
+      const lines: string[] = [];
+      for (const r of running) {
+        const elapsed = Math.max(0, Math.round((Date.now() - r.startedAt) / 1000));
+        lines.push(`委派 ${r.delegationId} (已运行 ${elapsed}s, 共 ${r.tasks.length} 任务):`);
+        for (let i = 0; i < r.tasks.length; i++) {
+          const t = r.tasks[i]!;
+          const status = r.taskStatuses[i] || "pending";
+          const title = t.title || t.description || t.task.slice(0, 40);
+          // 运行中实时状态:当前工具 + 已调工具数(jsonl 运行中不落盘,这是唯一实时信息)
+          const currentTool = r.taskCurrentTools[i];
+          const toolCount = r.taskToolCounts[i] ?? 0;
+          const extra = status === "running"
+            ? (currentTool ? ` — 当前工具: ${currentTool}` : "") + (toolCount > 0 ? ` (已调 ${toolCount} 个工具)` : "")
+            : "";
+          lines.push(`  任务 ${i}: [${status}] ${title}${extra}`);
+        }
+      }
+      return { content: [{ type: "text" as const, text: lines.join("\n") }] };
+    },
+  } as any) as ToolDefinition;
+}
+
+/** Mint 查看子 Agent 执行过程工具(阶梯式):
+    level=1 最新输出总结(默认,够判断就停);level=2 工具执行清单;level=3 全量思考+工具+输出(排查用) */
+async function createReadAgentLogTool(sessionId: string): Promise<ToolDefinition> {
+  const defineTool = await getDefineToolFn();
+  return defineTool({
+    name: "read_agent_log",
+    label: "查看子 Agent 执行过程",
+    description:
+      "查看子 Agent 的执行过程(已落盘的思考/工具调用/输出)。"
+      + "参数: delegation_id(list_agents 返回)+ index(任务序号)。"
+      + "level=1(默认)只返回最新一条输出总结;level=2 返回工具执行清单;level=3 返回全量过程(慎用,消耗大)。"
+      + "阶梯式使用:先 level=1 看结论,能判断就不深入;判断不了再升 level。",
+    promptSnippet: "查看子 Agent 执行过程(默认最新总结,可逐级深入)",
+    promptGuidelines: [
+      "运行中:jsonl 不实时落盘,read_agent_log 读不到工具调用——用 list_agents 看当前工具/已调工具数",
+      "完成后:jsonl 完整,read_agent_log 可靠(看结论/过程/复盘中止原因)",
+      "先 level=1 看最新输出总结,能得出结论就不必看过程",
+      "level=2 看工具执行清单(判断做了什么/卡在哪),level=3 全量仅排查用",
+      "子 Agent 正常运行时不要查看过程(等完成通知);卡住/结果异常/用户询问时才看",
+    ],
+    parameters: {
+      type: "object" as const,
+      properties: {
+        delegation_id: { type: "string" as const, description: "委派 ID(list_agents 返回)" },
+        index: { type: "number" as const, description: "任务序号(list_agents 返回)" },
+        level: { type: "number" as const, description: "可选:1=最新输出总结(默认) 2=工具执行清单 3=全量过程" },
+        tool_index: { type: "number" as const, description: "可选:与 level=2 搭配,查看第 N 次工具调用的输入输出(1 起)" },
+      },
+      required: ["delegation_id", "index"],
+    },
+    async execute(_tid: string, params: Record<string, unknown>) {
+      // 查委派(含完成的):read_agent_log 要能回溯已完成的过程——不能只查 running
+      const { getRunningDelegations, getDelegation } = await import("./task/registry");
+      const did = String(params.delegation_id || "");
+      const idx = Number(params.index);
+      const level = Number(params.level) || 1;
+      // 先查运行中(实时),再查全部(含完成)——前缀匹配
+      const running = getRunningDelegations(sessionId).find((r) => r.delegationId.startsWith(did));
+      let match = running;
+      if (!match) {
+        const rec = getDelegation(did);
+        if (rec && (rec.parentSessionId === sessionId || rec.tempParentSessionId === sessionId)) match = rec;
+      }
+      if (!match) return { content: [{ type: "text" as const, text: `委派 ${did} 不存在或不属于当前会话` }] };
+      const file = match.childSessionFiles[idx];
+      if (!file) return { content: [{ type: "text" as const, text: `任务 ${idx} 尚未创建会话(jsonl 未生成)` }] };
+      const { getSubagentMessages } = await import("./session-service");
+      const msgs = await getSubagentMessages(file);
+      if (msgs.length === 0) return { content: [{ type: "text" as const, text: "暂无已落盘的执行内容" }] };
+
+      // 解析消息 content 块(text/thinking/toolCall——jsonl 实际用 toolCall 非 tool_use)
+      // toolResult 是独立消息(role=toolResult):解析时把 toolCall 与紧随的 toolResult 合并,
+      // 得到带输入输出的「工具事件」(tool_use 块带 result)
+      const blocks: Array<{ type: string; text?: string; name?: string; input?: unknown; result?: string }> = [];
+      for (const m of msgs) {
+        const msg = m.message as Record<string, unknown>;
+        const role = msg.role;
+        const content = msg.content;
+        if (!Array.isArray(content)) continue;
+        for (const b of content as Array<Record<string, unknown>>) {
+          if (typeof b?.type !== "string") continue;
+          const isTool = b.type === "toolCall" || b.type === "tool_use";
+          if (isTool) {
+            // jsonl 的参数在 arguments 字段(兼容 input)
+            const args = (b.arguments !== undefined ? b.arguments : b.input) as unknown;
+            blocks.push({ type: "tool_use", name: typeof b.name === "string" ? b.name : undefined, input: args });
+          } else if (role === "toolResult" && b.type === "text") {
+            // 工具结果:合并到最近一个无 result 的 tool_use 块
+            const last = [...blocks].reverse().find((x) => x.type === "tool_use" && x.result === undefined);
+            if (last) last.result = typeof b.text === "string" ? b.text : (b.content as string) ?? "";
+            else blocks.push({ type: "tool_result_text", text: typeof b.text === "string" ? b.text : "" });
+          } else {
+            blocks.push({
+              type: b.type,
+              text: typeof b.text === "string" ? b.text : (b.thinking as string) ?? undefined,
+              name: typeof b.name === "string" ? b.name : undefined,
+              input: b.input,
+            });
+          }
+        }
+      }
+      if (blocks.length === 0) return { content: [{ type: "text" as const, text: "已落盘但无解析内容" }] };
+
+      if (level <= 1) {
+        // level 1: 最新一条文本输出
+        const lastText = [...blocks].reverse().find((b) => b.type === "text" && b.text?.trim());
+        const text = lastText?.text?.trim() || "(暂无文本输出)";
+        return { content: [{ type: "text" as const, text: `最新输出:\n${text.slice(0, 1000)}` }] };
+      }
+
+      const toolIndex = Number(params.tool_index);
+      if (level === 2) {
+        const tools = blocks.filter((b) => b.type === "tool_use");
+        // tool_index 指定:查看第 N 次工具调用的完整输入输出
+        if (toolIndex >= 1 && toolIndex <= tools.length) {
+          const t = tools[toolIndex - 1]!;
+          const inputStr = t.input !== undefined ? JSON.stringify(t.input) : "(无参数)";
+          const resultStr = t.result ? t.result.slice(0, 2000) : "(运行中未落盘结果,完成后可查看)";
+          return { content: [{ type: "text" as const, text: `第 ${toolIndex} 次工具调用:\n[${t.name || "?"}] 输入: ${inputStr}\n输出: ${resultStr}` }] };
+        }
+        // 默认:工具执行清单(序号 + 名 + 参数截断 + 结果首行)
+        const lines: string[] = [];
+        tools.forEach((t, i) => {
+          if (i >= 20) return;
+          const inputStr = t.input !== undefined ? JSON.stringify(t.input) : "";
+          const resultHead = t.result ? ` → ${t.result.split("\n")[0]?.slice(0, 60) ?? ""}` : " → (结果未落盘)";
+          lines.push(`${i + 1}. [${t.name || "?"}]${inputStr ? ` ${inputStr.slice(0, 120)}` : ""}${resultHead}`);
+        });
+        if (lines.length === 0) lines.push("(暂无工具调用)");
+        return { content: [{ type: "text" as const, text: `工具执行(${tools.length} 条):\n${lines.join("\n")}\n\n提示: 指定 tool_index=N 查看第 N 次的完整输入输出` }] };
+      }
+
+      // level 3: 全量(思考+工具+输出)
+      const lines: string[] = [];
+      for (const b of blocks) {
+        if (b.type === "thinking") lines.push(`[思考] ${(b.text || "").slice(0, 500)}`);
+        else if (b.type === "tool_use") {
+          // input 可能缺失(无参工具)→ JSON.stringify(undefined) 返回 undefined,需兜底
+          const inputStr = b.input !== undefined ? JSON.stringify(b.input) : "";
+          const resultStr = b.result ? `\n  输出: ${b.result.slice(0, 300)}` : "";
+          lines.push(`[工具] ${b.name}: ${(inputStr || "").slice(0, 300)}${resultStr}`);
+        }
+        else if (b.type === "text" && b.text?.trim()) lines.push(`[输出] ${b.text.trim().slice(0, 500)}`);
+      }
+      const body = lines.join("\n").slice(0, 6000);
+      return { content: [{ type: "text" as const, text: `执行过程:\n${body}` }] };
+    },
+  } as any) as ToolDefinition;
+}
+
 export class AgentService {
   private groupSessions: GroupSessionManager;
   constructor(private store: Store) {
@@ -213,7 +441,10 @@ export class AgentService {
       const productTools = await createProductTools(projectPath);
       const mcpTools = await loadMcpTools();
       const agentTemplateTool = await createAgentTemplateTool();
-      const allTools = [taskTool, agentTemplateTool, ...productTools, ...mcpTools];
+      const stopAgentTool = await createStopAgentTool(sessionId);
+      const listAgentsTool = await createListAgentsTool(sessionId);
+      const readAgentLogTool = await createReadAgentLogTool(sessionId);
+      const allTools = [taskTool, agentTemplateTool, stopAgentTool, listAgentsTool, readAgentLogTool, ...productTools, ...mcpTools];
 
       console.log(`[agent] tools: 1 task + ${productTools.length} product + ${mcpTools.length} mcp (permission: enabled)`);
       return { tools: allTools, canUseTool };

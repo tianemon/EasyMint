@@ -373,7 +373,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     const activeId = providers?.current;
     const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
     const apiKey = store.getActiveApiKey();
-    if (!apiKey) throw new Error("请先配置 API Key");
+    // 仅 DeepSeek 支持余额查询 API(/user/balance);其他供应商返回 null(前端不显示)
+    if (activeCfg?.presetId && activeCfg.presetId !== "deepseek") return null;
+    if (!apiKey) return null;
     // Pi 内置 provider — 从 Pi 拿 baseUrl
     let rawUrl = "https://api.deepseek.com";
     if (activeCfg?.presetId) {
@@ -383,13 +385,14 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       if (pi?.baseUrl) rawUrl = pi.baseUrl;
     }
     let origin: string;
-    try { origin = new URL(rawUrl).origin; } catch { throw new Error("API 地址格式错误"); }
-    const url = `${origin}/user/balance`;
-    const resp = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    let json: Record<string, unknown>;
-    try { json = await resp.json() as any; } catch { throw new Error("余额查询返回格式错误"); }
-    return json;
+    try { origin = new URL(rawUrl).origin; } catch { return null; }
+    try {
+      const url = `${origin}/user/balance`;
+      const resp = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+      if (!resp.ok) return null;
+      const json = await resp.json() as Record<string, unknown>;
+      return json;
+    } catch { return null; }
   });
 
   // evaluator:*

@@ -42,7 +42,7 @@ export interface SessionListItem {
 }
 
 export interface SessionMessage {
-  type: "user" | "assistant";
+  type: "user" | "assistant" | "toolResult";
   uuid: string;
   session_id: string;
   message: unknown;
@@ -182,8 +182,9 @@ export async function getSessionMessages(
   }
 }
 
-/** SessionManager entries → SessionMessage[](getSessionMessages / getSubagentMessages 共用) */
-async function parseEntriesToMessages(mgr: { getEntries(): unknown[] }, sessionId: string): Promise<SessionMessage[]> {
+/** SessionManager entries → SessionMessage[](getSessionMessages / getSubagentMessages 共用)
+    includeToolResult: 子 Agent 过程读取需要 toolResult(工具输出),主会话历史不需要 */
+async function parseEntriesToMessages(mgr: { getEntries(): unknown[] }, sessionId: string, includeToolResult = false): Promise<SessionMessage[]> {
   const entries = mgr.getEntries() as Array<{
     type: string;
     id: string;
@@ -198,7 +199,9 @@ async function parseEntriesToMessages(mgr: { getEntries(): unknown[] }, sessionI
     if (entry.type === "message") {
       const msg = entry.message as unknown as Record<string, unknown>;
       const role = msg.role as string;
-      if (role !== "user" && role !== "assistant") continue;
+      if (role !== "user" && role !== "assistant") {
+        if (!(includeToolResult && role === "toolResult")) continue;
+      }
 
       messages.push({
         type: role,
@@ -247,7 +250,8 @@ export async function getSubagentMessages(sessionFile: string): Promise<SessionM
   try {
     const SM = await getSessionManagerClass();
     const mgr = SM.open(sessionFile);
-    return parseEntriesToMessages(mgr, sid);
+    // 子 Agent 过程读取需要 toolResult 消息(工具输出)——主会话历史(getSessionMessages)不需要
+    return parseEntriesToMessages(mgr, sid, true);
   } catch {
     return [];
   }

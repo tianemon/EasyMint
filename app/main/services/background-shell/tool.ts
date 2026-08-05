@@ -19,9 +19,10 @@ export interface EnhancedBashOptions {
 /** 输出尾部预览行数(通知精简:完整输出落盘,会话内只带尾部几行) */
 const PREVIEW_TAIL_LINES = 10;
 
-/** 后台命令退出 → 注入主会话的文本(⏺ 摘要行对齐委派通知渲染,前端按状态着色) */
+/** 后台命令退出 → 注入主会话的文本(⏺ 摘要行对齐委派通知渲染,前端按状态着色)。
+    stopped = 用户/Mint 主动停止——明确「已由用户中断」,避免 Mint 误判为意外失败自动重启 */
 export function formatShellResult(shell: BackgroundShell): string {
-  const status = shell.stopped ? "中止" : (shell.exitCode === 0 ? "完成" : "失败");
+  const status = shell.stopped ? "已由用户中断" : (shell.exitCode === 0 ? "完成" : "失败");
   const dur = Math.max(0, Math.round((Date.now() - shell.startedAt) / 1000));
   const summary = `⏺ 后台命令 — ${status}${dur > 0 ? ` · ${dur}s` : ""}`;
   const head = `命令: ${shell.command}\n退出码: ${shell.exitCode ?? "?"}`;
