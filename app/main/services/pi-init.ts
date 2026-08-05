@@ -114,13 +114,16 @@ async function syncProviders(store: Store) {
     // 用户自定义 provider:调 registerProvider 动态注册
     if (config.presetId === "custom" && config.apiKey && config.baseUrl) {
       try {
-        // 用户配置的模型列表(em-settings 中的 models 字段),有模型才注册
+        // 用户配置的模型列表(em-settings 中的 models 字段)
         _modelRuntime.registerProvider(config.id, {
           name: config.name,
           apiKey: config.apiKey,
           baseUrl: config.baseUrl,
           api: (config as any).apiType || "anthropic-messages",
-          models: (config.models || []).map((m: string) => ({ id: m, name: m, reasoning: true, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 })),
+          models: (config.models || []).map((m: string) => {
+            const id = typeof m === "string" ? m : (m as any).id || String(m);
+            return { id, name: id, reasoning: true, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 };
+          }),
         } as any);
         if (config.apiKey) {
           await _modelRuntime.setRuntimeApiKey(config.id, config.apiKey);
