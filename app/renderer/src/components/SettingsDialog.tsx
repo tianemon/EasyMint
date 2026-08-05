@@ -3,6 +3,7 @@ import { useSettingsStore } from "../stores/settings-store";
 import { ProvidersManager } from "./settings/ProviderSettings";
 import { GroupSettingsSection } from "./GroupSettingsSection";
 import { AgentTemplateSettings } from "./AgentTemplateSettings";
+import { Select } from "./Select";
 
 export type SettingsTab = "general" | "plugins" | "providers" | "agent" | "about";
 
@@ -307,6 +308,40 @@ function SkillsTab(): JSX.Element {
         </p>
       )}
     </div>
+  );
+}
+
+// ── Chat Thinking Level Section (used in Providers tab) ────────────────────────
+
+const CHAT_THINKING_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "off", label: "关闭(off)" },
+  { value: "minimal", label: "极简(minimal)" },
+  { value: "low", label: "低(low)" },
+  { value: "medium", label: "中(medium)" },
+  { value: "high", label: "高(high)" },
+  { value: "xhigh", label: "超高(xhigh)" },
+  { value: "max", label: "最大(max)" },
+];
+
+/** 全局聊天思考等级:仅作为新聊天会话的初始默认,不控制 agent/task 委派 */
+function ChatThinkingLevelSection(): JSX.Element {
+  const chatThinkingLevel = useSettingsStore((s) => s.chatThinkingLevel);
+  const setChatThinkingLevel = useSettingsStore((s) => s.setChatThinkingLevel);
+
+  return (
+    <section>
+      <h3 className="text-sm font-medium text-text-primary mb-2">全局思考等级(聊天)</h3>
+      <div className="bg-surface-alt rounded-lg border border-border px-4 py-3">
+        <Select
+          block
+          value={chatThinkingLevel}
+          onChange={setChatThinkingLevel}
+          options={CHAT_THINKING_OPTIONS}
+          title="全局思考等级"
+        />
+        <p className="text-[10px] text-text-secondary mt-1.5">仅作为新聊天会话的初始默认值，不控制 Agent 模板与 task 委派；已打开的聊天可在输入栏临时切换。</p>
+      </div>
+    </section>
   );
 }
 
@@ -728,6 +763,8 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
           ) : activeTab === "providers" ? (
             <div className="space-y-5">
               <ProvidersManager />
+              <hr className="border-border" />
+              <ChatThinkingLevelSection />
               <hr className="border-border" />
               <BuiltinToolsSection />
             </div>

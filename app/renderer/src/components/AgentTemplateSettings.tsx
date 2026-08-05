@@ -3,17 +3,23 @@ import { Select } from "./Select";
 import { useSettingsStore } from "../stores/settings-store";
 
 interface Template {
-  id: string; name: string; description: string; prompt: string; tools: string[];
-  model?: string; provider?: string; agentType: string; default?: boolean; thinkingLevel?: string;
+  id: string; name: string; description: string; prompt: string;
+  model?: string; provider?: string; agentType: string; thinkingLevel?: string;
 }
 
-const COMMON_TOOLS = ["Read","Write","Edit","Bash","Glob","Grep",
-  "mcp__codegraph__codegraph_context","mcp__codegraph__codegraph_impact","mcp__codegraph__codegraph_callers","mcp__codegraph__codegraph_search","mcp__codegraph__codegraph_trace",
-  "mcp__playwright__browser_navigate","mcp__playwright__browser_take_screenshot","mcp__playwright__browser_snapshot",
-  "mcp__playwright__browser_click","mcp__playwright__browser_type","mcp__playwright__browser_evaluate",
+const THINKING_LEVELS: Array<{ value: string; label: string }> = [
+  { value: "off", label: "关闭(off)" },
+  { value: "minimal", label: "极简(minimal)" },
+  { value: "low", label: "低(low)" },
+  { value: "medium", label: "中(medium)" },
+  { value: "high", label: "高(high)" },
+  { value: "xhigh", label: "超高(xhigh)" },
+  { value: "max", label: "最大(max)" },
 ];
 
-const THINKING_LEVELS = ["off","minimal","low","medium","high"];
+/** Mint 系统内置且不可修改(始终强制官方提示词);其余内置模板可编辑 */
+const MINT_ID = "mint";
+const BUILTIN_IDS = new Set(["mint", "default-builder", "mint-designer", "default-evaluator"]);
 
 function useProviderOptions(): Array<{ value: string; label: string }> {
   const apiProviders = useSettingsStore((s) => s.apiProviders);
@@ -28,6 +34,7 @@ function useProviderOptions(): Array<{ value: string; label: string }> {
 export function AgentTemplateSettings(): JSX.Element {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [editing, setEditing] = useState<Template | null>(null);
+  const [previewing, setPreviewing] = useState<Template | null>(null);
   const [adding, setAdding] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -39,7 +46,7 @@ export function AgentTemplateSettings(): JSX.Element {
   useEffect(() => { load(); }, []);
 
   const handleSave = async (data: {
-    name: string; description: string; prompt: string; tools: string[];
+    name: string; description: string; prompt: string;
     provider?: string; model?: string; thinkingLevel?: string;
   }) => {
     if (!data.name.trim() || !data.prompt.trim()) return;
@@ -58,11 +65,6 @@ export function AgentTemplateSettings(): JSX.Element {
     load();
   };
 
-  const handleSetDefault = async (id: string) => {
-    await window.electronAPI.agentTemplates.setDefault(id);
-    load();
-  };
-
   const providerOptions = useProviderOptions();
 
   if (adding || editing) {
@@ -75,7 +77,7 @@ export function AgentTemplateSettings(): JSX.Element {
         <div>
           <h3 className="text-sm font-medium text-text-primary">Agent 模板</h3>
           <p className="text-[11px] text-text-secondary/70 mt-0.5">
-            task 委派时可选模板;默认模板为不指定 agent 时的委派目标。
+            task 委派时可选模板;省略则不指定模板,创建标准子 Agent(无模板人设)。Mint 为系统内置不可修改,其余内置模板可编辑。
           </p>
         </div>
         <button onClick={() => setAdding(true)}
@@ -89,11 +91,11 @@ export function AgentTemplateSettings(): JSX.Element {
         <div className="text-xs text-text-secondary/60 py-4 text-center">暂无自定义模板</div>
       ) : (
         templates.map((tpl) => (
-          <div key={tpl.id} className={`group flex items-start gap-3 p-3 rounded-lg border transition-colors ${tpl.default ? "border-accent/50 bg-accent-bg" : "border-border bg-surface hover:border-accent/30"}`}>
+          <div key={tpl.id} className="group flex items-start gap-3 p-3 rounded-lg border border-border bg-surface hover:border-accent/30 transition-colors">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-text-primary">{tpl.name}</span>
-                {tpl.default && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-accent text-text-inverse shrink-0">默认</span>}
+                {BUILTIN_IDS.has(tpl.id) && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-accent-subtle text-accent shrink-0">内置</span>}
                 <span className="text-[10px] text-text-muted shrink-0">{tpl.agentType}</span>
               </div>
               <div className="text-[11px] text-text-secondary mt-0.5">{tpl.description}</div>
@@ -101,23 +103,37 @@ export function AgentTemplateSettings(): JSX.Element {
                 {tpl.provider && <span>供应商:{tpl.provider}</span>}
                 {tpl.model && <span>模型:{tpl.model}</span>}
                 {tpl.thinkingLevel && <span>思考:{tpl.thinkingLevel}</span>}
-                <span>工具:{tpl.tools?.length || 0}</span>
               </div>
             </div>
             <div className="flex gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
-              {!tpl.default && (
-                <button onClick={() => handleSetDefault(tpl.id)}
-                  className="px-2 py-1 text-[10px] rounded bg-surface border border-border text-text-secondary hover:text-accent hover:border-accent/50 transition-colors">默认</button>
-              )}
-              <button onClick={() => setEditing(tpl)}
-                className="px-2 py-1 text-[10px] rounded bg-surface border border-border text-text-secondary hover:text-text-primary transition-colors">编辑</button>
-              {tpl.agentType === "custom" && (
-                <button onClick={() => handleDelete(tpl.id)}
-                  className="px-2 py-1 text-[10px] rounded bg-surface border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors">删除</button>
+              {tpl.id === MINT_ID ? (
+                <button onClick={() => setPreviewing(tpl)}
+                  className="px-2 py-1 text-[10px] rounded bg-surface border border-border text-text-secondary hover:text-text-primary transition-colors">预览</button>
+              ) : (
+                <>
+                  <button onClick={() => setEditing(tpl)}
+                    className="px-2 py-1 text-[10px] rounded bg-surface border border-border text-text-secondary hover:text-text-primary transition-colors">编辑</button>
+                  {!BUILTIN_IDS.has(tpl.id) && (
+                    <button onClick={() => handleDelete(tpl.id)}
+                      className="px-2 py-1 text-[10px] rounded bg-surface border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors">删除</button>
+                  )}
+                </>
               )}
             </div>
           </div>
         ))
+      )}
+      {previewing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setPreviewing(null)}>
+          <div className="w-[640px] max-h-[80vh] flex flex-col rounded-xl bg-bg border border-border shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h3 className="text-sm font-medium text-text-primary">{previewing.name} · 内置模板</h3>
+              <button onClick={() => setPreviewing(null)} className="text-[11px] text-text-secondary hover:text-text-primary">关闭</button>
+            </div>
+            <div className="px-4 py-2 text-[11px] text-text-secondary border-b border-border">系统内置提示词,不可修改</div>
+            <pre className="flex-1 overflow-auto px-4 py-3 text-xs text-text-secondary whitespace-pre-wrap font-mono leading-relaxed">{previewing.prompt}</pre>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -126,7 +142,7 @@ export function AgentTemplateSettings(): JSX.Element {
 /** 模板编辑/新建表单 */
 function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
   initial: Template | null;
-  onSave: (data: { name: string; description: string; prompt: string; tools: string[]; provider?: string; model?: string; thinkingLevel?: string }) => void;
+  onSave: (data: { name: string; description: string; prompt: string; provider?: string; model?: string; thinkingLevel?: string }) => void;
   onCancel: () => void;
   providerOptions: Array<{ value: string; label: string }>;
 }): JSX.Element {
@@ -137,11 +153,6 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
   const [provider, setProvider] = useState(initial?.provider || "");
   const [model, setModel] = useState(initial?.model || "");
   const [thinkingLevel, setThinkingLevel] = useState(initial?.thinkingLevel || "medium");
-  const [tools, setTools] = useState<string[]>(initial?.tools || []);
-
-  const toggleTool = (name: string) => {
-    setTools((prev) => prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name]);
-  };
 
   // 供应商切换→加载该供应商的模型列表
   const [providerModels, setProviderModels] = useState<string[]>([]);
@@ -166,7 +177,7 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
 
   const handleSave = () => {
     if (!name.trim() || !prompt.trim()) return;
-    onSave({ name: name.trim(), description: desc.trim(), prompt: prompt.trim(), tools, provider: provider || undefined, model: model || undefined, thinkingLevel: thinkingLevel || undefined });
+    onSave({ name: name.trim(), description: desc.trim(), prompt: prompt.trim(), provider: provider || undefined, model: model || undefined, thinkingLevel: thinkingLevel || undefined });
   };
 
   return (
@@ -211,21 +222,7 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
       <div>
         <label className="text-[11px] text-text-secondary block mb-1">思考级别</label>
         <Select block value={thinkingLevel} onChange={setThinkingLevel}
-          options={THINKING_LEVELS.map((v) => ({ value: v, label: v }))} title="思考级别" />
-      </div>
-      <div>
-        <label className="text-[11px] text-text-secondary block mb-1">工具集(已选 {tools.length})</label>
-        <div className="flex flex-wrap gap-1">
-          {COMMON_TOOLS.map((t) => {
-            const on = tools.includes(t);
-            return (
-              <button key={t} onClick={() => toggleTool(t)}
-                className={`px-2 py-0.5 rounded-md border text-[10px] transition-colors ${on ? "border-accent text-accent bg-accent-soft" : "border-border text-text-secondary hover:border-accent/40"}`}>
-                {t}
-              </button>
-            );
-          })}
-        </div>
+          options={THINKING_LEVELS} title="思考级别" />
       </div>
       <div className="flex justify-end gap-2 pt-1">
         <button onClick={onCancel} className="px-3 py-1.5 rounded-md text-xs text-text-secondary hover:bg-surface-hover">取消</button>

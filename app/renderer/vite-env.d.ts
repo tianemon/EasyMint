@@ -315,6 +315,7 @@ interface ElectronAPI {
       apiKey?: string; apiKeys?: Record<string, string>; builtinTools?: Record<string, boolean>; model?: string;
       availableModels?: string[]; contextThreshold?: number; context1M?: boolean;
       showThinking?: boolean; showToolUse?: boolean;
+      chatThinkingLevel?: string;
       maxGroupAgents?: number;
       groupForwardStrategy?: "all" | "conclusion";
       groupInjectMode?: "steer" | "followUp";
@@ -336,11 +337,10 @@ interface ElectronAPI {
     revealApiKey: (providerId: string) => Promise<string>;
   };
   agentTemplates: {
-    list: () => Promise<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; provider?: string; agentType: string; default?: boolean; thinkingLevel?: string }[]>;
-    create: (input: { name: string; description: string; prompt: string; tools: string[]; model?: string; provider?: string; agentType?: string; thinkingLevel?: string }) => Promise<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; provider?: string; agentType: string; default?: boolean; thinkingLevel?: string }>;
-    update: (id: string, input: { name?: string; description?: string; prompt?: string; tools?: string[]; model?: string; provider?: string; agentType?: string; thinkingLevel?: string }) => Promise<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; provider?: string; agentType: string; default?: boolean; thinkingLevel?: string }>;
+    list: () => Promise<{ id: string; name: string; description: string; prompt: string; model?: string; provider?: string; agentType: string; thinkingLevel?: string }[]>;
+    create: (input: { name: string; description: string; prompt: string; model?: string; provider?: string; agentType?: string; thinkingLevel?: string }) => Promise<{ id: string; name: string; description: string; prompt: string; model?: string; provider?: string; agentType: string; thinkingLevel?: string }>;
+    update: (id: string, input: { name?: string; description?: string; prompt?: string; model?: string; provider?: string; agentType?: string; thinkingLevel?: string }) => Promise<{ id: string; name: string; description: string; prompt: string; model?: string; provider?: string; agentType: string; thinkingLevel?: string }>;
     delete: (id: string) => Promise<void>;
-    setDefault: (id: string) => Promise<void>;
   };
   app: {
     getVersion: () => Promise<string>;

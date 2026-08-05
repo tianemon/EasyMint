@@ -194,9 +194,13 @@ export const ChatInput = memo(function ChatInput({
           onChange={onThinkingLevelChange}
           title="思考深度"
           options={[
-            { value: "low", label: "低" },
-            { value: "medium", label: "中" },
-            { value: "high", label: "高" },
+            { value: "off", label: "关闭(off)" },
+            { value: "minimal", label: "极简(minimal)" },
+            { value: "low", label: "低(low)" },
+            { value: "medium", label: "中(medium)" },
+            { value: "high", label: "高(high)" },
+            { value: "xhigh", label: "超高(xhigh)" },
+            { value: "max", label: "最大(max)" },
           ]}
         />
         {/* 余额显示原型未展示，隐藏不删除（v3 原则 2） */}

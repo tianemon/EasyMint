@@ -69,10 +69,9 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
   const agentDesc = templates.length > 0
     ? "可选 Agent 模板:\n" + templates.map((t) => {
         const modelInfo = t.model ? `(${t.model})` : t.provider ? `(供应商:${t.provider})` : "";
-        const def = t.default ? "【默认】" : "";
-        return `  - ${t.id}: ${t.name}——${t.description}${def} ${modelInfo}`.trim();
+        return `  - ${t.id}: ${t.name}——${t.description}${modelInfo ? " " + modelInfo : ""}`.trim();
       }).join("\n")
-        + "\n选择适合任务的模板;省略则用默认模板(builder)。"
+        + "\n选择适合任务的模板;省略则不指定模板,创建标准子 Agent(无模板人设)。"
     : "可选模板名: builder(编码)、evaluator(验收)。";
 
   return defineTool({
@@ -84,12 +83,18 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
       + "使用场景：① 实现功能模块 ② 修复 bug ③ 重构代码 ④ 验收变更 ⑤ 研究技术方案。"
       + "支持同时委派多个子 Agent 并行执行（tasks 数组）。"
       + agentDesc,
+    promptSnippet: "委派子 Agent 执行任务（默认无模板白板，可指定 builder/evaluator 等模板）",
+    promptGuidelines: [
+      "需要子 Agent 干活（写代码/验收/查资料/研究）时用 task 委派，不要自己动手（决策树 ① 的极简情况除外）",
+      "通用任务（查资料、读代码、分析）省略 agent 参数，用默认白板子 Agent；特定角色（写代码→builder、验收→evaluator、UI 设计→mint-designer 等）才指定 agent",
+      "开发类任务用 taskId 关联 task.json 任务，完成/失败自动回写状态，不要手动标记",
+    ],
     parameters: {
       type: "object" as const,
       properties: {
         agent: {
           type: "string" as const,
-          description: "可选的 Agent 模板名(如 builder、evaluator),省略则用默认模板",
+          description: "可选的 Agent 模板名(如 builder、evaluator),省略则创建标准子 Agent(无模板人设)",
         },
         model: {
           type: "string" as const,
@@ -292,9 +297,14 @@ export async function createAgentTemplateTool(): Promise<ToolDefinition> {
     name: "create_agent_template",
     label: "创建 Agent 模板",
     description:
-      "创建自定义的子 Agent 模板,指定名称/职责/人格 prompt/供应商+模型/工具集/思考级别。"
+      "创建自定义的子 Agent 模板,指定名称/职责/人格 prompt/供应商+模型/思考级别。"
       + "创建后 Mint 可用 task 工具的 agent 参数选择该模板进行委派。"
       + "示例:\"Mint-D\"用于设计,\"测试员\"跑测试,\"审查员\"只读代码审查。",
+    promptSnippet: "创建可复用的子 Agent 模板（名字+职责+人设，供 task 委派选用）",
+    promptGuidelines: [
+      "需要反复委派同一类任务（写测试、UI 设计、代码审查等）时，先建模板再委派",
+      "模板的 prompt 是子 Agent 的系统提示词，定义它的行为方式与专业领域",
+    ],
     parameters: {
       type: "object" as const,
       properties: {
@@ -303,8 +313,7 @@ export async function createAgentTemplateTool(): Promise<ToolDefinition> {
         prompt: { type: "string" as const, description: "人格/职责 prompt(注入子 Agent system prompt,定义它的行为方式)" },
         provider: { type: "string" as const, description: "可选供应商 piId(如 deepseek),省略则用全局默认" },
         model: { type: "string" as const, description: "可选模型 id(如 deepseek-v4-flash),与 provider 搭配" },
-        tools: { type: "array" as const, items: { type: "string" as const }, description: "可选工具名列表(如 Read、Write、Bash),省略则用基础工具集" },
-        thinkingLevel: { type: "string" as const, description: "可选思考级别(off/minimal/low/medium/high),默认 medium" },
+        thinkingLevel: { type: "string" as const, description: "可选思考级别(off/minimal/low/medium/high/xhigh/max),默认 medium" },
       },
       required: ["name", "description", "prompt"],
     },
@@ -315,7 +324,6 @@ export async function createAgentTemplateTool(): Promise<ToolDefinition> {
           name: String(params.name || ""),
           description: String(params.description || ""),
           prompt: String(params.prompt || ""),
-          tools: Array.isArray(params.tools) ? params.tools.map(String) : [],
           model: params.model ? String(params.model) : undefined,
           provider: params.provider ? String(params.provider) : undefined,
           agentType: "custom",

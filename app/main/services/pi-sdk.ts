@@ -12,6 +12,10 @@ import type {
   CreateAgentSessionOptions,
   CreateAgentSessionResult,
   ToolDefinition,
+  ModelRuntime,
+  SessionManager,
+  SettingsManager,
+  DefaultResourceLoader,
 } from "@earendil-works/pi-coding-agent";
 
 // 重新导出类型（type-only 不影响运行时，esbuild 会擦除）
@@ -21,6 +25,10 @@ export type {
   CreateAgentSessionOptions,
   CreateAgentSessionResult,
   ToolDefinition,
+  ModelRuntime,
+  SessionManager,
+  SettingsManager,
+  DefaultResourceLoader,
 };
 
 // ── 懒加载实例 ──────────────────────────────────────
@@ -41,30 +49,22 @@ export async function createAgentSession(
   return sdk.createAgentSession(options);
 }
 
-export async function getModelRuntimeClass(): Promise<
-  typeof import("@earendil-works/pi-coding-agent").ModelRuntime
-> {
+export async function getModelRuntimeClass(): Promise<typeof ModelRuntime> {
   const sdk = await getSdk();
   return sdk.ModelRuntime;
 }
 
-export async function getSessionManagerClass(): Promise<
-  typeof import("@earendil-works/pi-coding-agent").SessionManager
-> {
+export async function getSessionManagerClass(): Promise<typeof SessionManager> {
   const sdk = await getSdk();
   return sdk.SessionManager;
 }
 
-export async function getSettingsManagerClass(): Promise<
-  typeof import("@earendil-works/pi-coding-agent").SettingsManager
-> {
+export async function getSettingsManagerClass(): Promise<typeof SettingsManager> {
   const sdk = await getSdk();
   return sdk.SettingsManager;
 }
 
-export async function getDefaultResourceLoaderClass(): Promise<
-  typeof import("@earendil-works/pi-coding-agent").DefaultResourceLoader
-> {
+export async function getDefaultResourceLoaderClass(): Promise<typeof DefaultResourceLoader> {
   const sdk = await getSdk();
   return sdk.DefaultResourceLoader;
 }

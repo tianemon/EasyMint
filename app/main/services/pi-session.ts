@@ -5,7 +5,12 @@
  */
 
 import * as path from "node:path";
-import type { AgentSession, CreateAgentSessionOptions, ToolDefinition } from "./pi-sdk";
+import type {
+  AgentSession,
+  CreateAgentSessionOptions,
+  ToolDefinition,
+  SessionManager,
+} from "./pi-sdk";
 import {
   createAgentSession,
   getSessionManagerClass,
@@ -46,7 +51,7 @@ export interface PiSessionOptions {
 
 async function buildSession(
   opts: PiSessionOptions,
-  sessionManager: Awaited<ReturnType<typeof getSessionManagerClass>>["prototype"],
+  sessionManager: SessionManager,
 ): Promise<AgentSession> {
   const settingsMgr = await getSettingsManager();
   const modelRuntime = await getModelRuntime(opts.store);
@@ -93,7 +98,7 @@ export async function createPiSession(opts: PiSessionOptions): Promise<AgentSess
   const sessionDir = opts.sessionDir ?? getPiSessionDir(opts.cwd);
   const SM = await getSessionManagerClass();
   const sessionManager = SM.create(opts.cwd, sessionDir);
-  return buildSession(opts, sessionManager as any);
+  return buildSession(opts, sessionManager);
 }
 
 export async function resumePiSession(opts: PiSessionOptions): Promise<AgentSession> {
@@ -103,7 +108,7 @@ export async function resumePiSession(opts: PiSessionOptions): Promise<AgentSess
   const sessionDir = getPiSessionDir(opts.cwd);
   const SM = await getSessionManagerClass();
   const sessionManager = SM.open(opts.resumeSessionFile, sessionDir, opts.cwd);
-  return buildSession(opts, sessionManager as any);
+  return buildSession(opts, sessionManager);
 }
 
 // ── 辅助 ────────────────────────────────────────────

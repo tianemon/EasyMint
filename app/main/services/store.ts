@@ -49,6 +49,8 @@ interface Settings {
   context1M?: boolean;
   showThinking?: boolean;
   showToolUse?: boolean;
+  /** 全局聊天思考等级(仅作为新聊天会话的初始默认,不控制 agent/task) */
+  chatThinkingLevel?: string;
   apiProviders?: ApiProvidersData;
   // ── 需求 4:群聊配置 ──
   /** 群聊最大 agent 数(默认 3) */
@@ -157,6 +159,7 @@ export class Store {
       context1M: (emData.context1M as boolean) ?? false,
       showThinking: emData.showThinking as boolean | undefined,
       showToolUse: emData.showToolUse as boolean | undefined,
+      chatThinkingLevel: (emData.chatThinkingLevel as string) ?? "medium",
       apiProviders: (emData.apiProviders as ApiProvidersData) || undefined,
       maxGroupAgents: (emData.maxGroupAgents as number) ?? 3,
       groupForwardStrategy: (emData.groupForwardStrategy as "all" | "conclusion") ?? "conclusion",
@@ -224,6 +227,7 @@ export class Store {
     if (settings.context1M !== undefined) data.context1M = settings.context1M;
     if (settings.showThinking !== undefined) data.showThinking = settings.showThinking;
     if (settings.showToolUse !== undefined) data.showToolUse = settings.showToolUse;
+    if (settings.chatThinkingLevel) data.chatThinkingLevel = settings.chatThinkingLevel;
     if (settings.apiProviders) {
       data.apiProviders = settings.apiProviders;
     }

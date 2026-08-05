@@ -15,6 +15,7 @@ import minimaxIcon from "../assets/providers/minimax.png";
 import qwenIcon from "../assets/providers/qwen.png";
 import xiaomiIcon from "../assets/providers/xiaomi.png";
 import grokIcon from "../assets/providers/grok.png";
+import opencodeIcon from "../assets/providers/opencode.png";
 
 /** 品牌的单个接入方式(一个 Pi provider) */
 export interface ProviderAccess {
@@ -31,8 +32,8 @@ export interface ProviderBrand {
   name: string;
   /** 中文名(有则显示在括号) */
   cnName?: string;
-  /** 品牌图标 */
-  icon: string;
+  /** 品牌图标(无则 UI 不渲染图片,空白占位) */
+  icon?: string;
   /** 该品牌的所有接入方式(每个 Pi provider 一项) */
   accesses: ProviderAccess[];
 }
@@ -58,39 +59,39 @@ export const PROVIDER_BRANDS: ProviderBrand[] = [
   {
     key: "kimi", name: "Kimi", cnName: "月之暗面", icon: moonshotIcon,
     accesses: [
-      { id: "kimi-coding", label: "Kimi Coding Plan" },
-      { id: "moonshotai", label: "Moonshot API" },
-      { id: "moonshotai-cn", label: "Moonshot API(国内)" },
+      { id: "kimi-coding", label: "Kimi Coding" },
+      { id: "moonshotai", label: "Moonshot AI" },
+      { id: "moonshotai-cn", label: "Moonshot AI CN" },
     ],
   },
   {
     key: "zai", name: "智谱", cnName: "Z.AI", icon: zhipuIcon,
     accesses: [
-      { id: "zai", label: "Z.AI API" },
-      { id: "zai-coding-cn", label: "智谱 Coding Plan" },
+      { id: "zai", label: "Z.AI" },
+      { id: "zai-coding-cn", label: "Z.AI Coding CN" },
     ],
   },
   {
     key: "minimax", name: "MiniMax", cnName: "稀宇科技", icon: minimaxIcon,
     accesses: [
       { id: "minimax", label: "MiniMax" },
-      { id: "minimax-cn", label: "MiniMax(国内)" },
+      { id: "minimax-cn", label: "MiniMax CN" },
     ],
   },
   {
     key: "qwen", name: "通义千问", cnName: "阿里云", icon: qwenIcon,
     accesses: [
-      { id: "qwen-token-plan", label: "通义千问 Token Plan" },
-      { id: "qwen-token-plan-cn", label: "通义千问 Token Plan(国内)" },
+      { id: "qwen-token-plan", label: "Qwen Token Plan" },
+      { id: "qwen-token-plan-cn", label: "Qwen Token Plan CN" },
     ],
   },
   {
     key: "xiaomi", name: "小米 MiMo", cnName: "小米", icon: xiaomiIcon,
     accesses: [
-      { id: "xiaomi", label: "小米 MiMo" },
-      { id: "xiaomi-token-plan-cn", label: "MiMo Token Plan(国内)" },
-      { id: "xiaomi-token-plan-sgp", label: "MiMo Token Plan(新加坡)" },
-      { id: "xiaomi-token-plan-ams", label: "MiMo Token Plan(欧洲)" },
+      { id: "xiaomi", label: "Xiaomi MiMo" },
+      { id: "xiaomi-token-plan-cn", label: "MiMo Token Plan CN" },
+      { id: "xiaomi-token-plan-sgp", label: "MiMo Token Plan SGP" },
+      { id: "xiaomi-token-plan-ams", label: "MiMo Token Plan AMS" },
     ],
   },
   {
@@ -102,16 +103,10 @@ export const PROVIDER_BRANDS: ProviderBrand[] = [
     accesses: [{ id: "openai-codex", label: "OpenAI Codex" }],
   },
   {
-    key: "opencode", name: "OpenCode", cnName: "中转", icon: deepseekIcon,
+    key: "opencode", name: "OpenCode", cnName: "中转", icon: opencodeIcon,
     accesses: [
       { id: "opencode", label: "OpenCode" },
       { id: "opencode-go", label: "OpenCode Go" },
-    ],
-  },
-  {
-    key: "volcengine", name: "火山引擎", cnName: "Doubao", icon: deepseekIcon,
-    accesses: [
-      { id: "volcengine", label: "火山引擎" },
     ],
   },
 ];
@@ -121,18 +116,12 @@ export const BRAND_BY_PI_ID: Map<string, ProviderBrand> = new Map(
   PROVIDER_BRANDS.flatMap((b) => b.accesses.map((a) => [a.id, b] as [string, ProviderBrand])),
 );
 
-/** 品牌显示名(含中文括号):如 "DeepSeek(深度求索)" */
-export function brandDisplayName(b: ProviderBrand): string {
-  return b.cnName ? `${b.name}(${b.cnName})` : b.name;
-}
-
-/** 下拉选项:展开所有品牌的全部接入方式,value = pi id,label = 品牌 + 接入方式 */
-export function providerSelectOptions(): Array<{ value: string; label: string; icon: string }> {
+/** 下拉选项:value = pi id,label = Pi 内置原名称(与 pi-init-static.ts 一致) */
+export function providerSelectOptions(): Array<{ value: string; label: string; icon?: string }> {
   return PROVIDER_BRANDS.flatMap((b) =>
     b.accesses.map((a) => ({
       value: a.id,
-      // 单接入方式只显示品牌名+中文;多接入方式加 (接入方式) 区分
-      label: b.accesses.length > 1 ? `${brandDisplayName(b)}(${a.label})` : brandDisplayName(b),
+      label: a.label,
       icon: b.icon,
     })),
   );

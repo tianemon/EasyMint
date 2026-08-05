@@ -20,6 +20,8 @@ type TaskRec = { id: number | string; status?: string; title?: string };
 function noArgTool(name: string, label: string, desc: string, fn: () => void | string | { content: Array<{ type: "text"; text: string }> }): any {
   return {
     name, label, description: desc,
+    // 默认 snippet = 描述首句（去掉句号），让工具出现在提示词 Available tools 清单
+    promptSnippet: desc.split("。")[0],
     parameters: { type: "object" as const, properties: {} },
     async execute() {
       const r = fn();
@@ -54,6 +56,7 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
   tools.push(defineTool({
     name: "set_task_status", label: "更新任务状态",
     description: "标记 task.json 任务的开始状态并实时刷新 UI。只在两个时机调用：① 调 Builder 前 → building；② Builder 完成、调 Evaluator 前 → evaluating。done / failed 由委派执行结果自动回写，不要手动标记。",
+    promptSnippet: "更新 task.json 任务状态并刷新 UI（building/evaluating）",
     parameters: {
       type: "object" as const,
       properties: {
@@ -104,6 +107,7 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
   tools.push(defineTool({
     name: "rename_project", label: "重命名项目",
     description: "重命名当前项目。调用后告知用户即将重启。仅打包版本可用。",
+    promptSnippet: "重命名当前项目（将重启应用）",
     parameters: {
       type: "object" as const,
       properties: { newName: { type: "string" as const } },
@@ -126,6 +130,7 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
     tools.push(defineTool({
       name: "describe_image", label: "描述图片",
       description: "描述图片内容。支持本地路径或 URL。",
+      promptSnippet: "用视觉模型描述图片内容（本地路径或 URL）",
       parameters: {
         type: "object" as const,
         properties: {
@@ -146,6 +151,7 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
     tools.push(defineTool({
       name: "web_fetch", label: "抓取网页",
       description: "抓取网页内容。支持各类网页，返回提取后的文本。",
+      promptSnippet: "抓取网页内容并提取文本",
       parameters: {
         type: "object" as const,
         properties: {

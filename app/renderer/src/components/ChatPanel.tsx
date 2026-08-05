@@ -177,7 +177,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
   const storeModel = useSettingsStore((s) => s.model);
   const setStoreModel = useSettingsStore((s) => s.setModel);
   const showThinking = useSettingsStore((s) => s.showThinking);
-
+  // 全局聊天思考等级:仅作为新会话的初始默认(方案 B,聊天下拉可临时改)
+  const globalThinkingLevel = useSettingsStore((s) => s.chatThinkingLevel);
+  const [thinkingLevel, setThinkingLevel] = useState(globalThinkingLevel || "medium");
 
   const showToolUse = useSettingsStore((s) => s.showToolUse);
   const [chatModel, setChatModel] = useState("");
@@ -189,7 +191,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
     const sid = sidRef.current;
     if (sid) { window.electronAPI.agent.setModel(sid, m).catch(() => {}); }
   }, [setStoreModel]);
-  const [thinkingLevel, setThinkingLevel] = useState("medium");
   const [showStats, setShowStats] = useState(false);
   const handleThinkingLevelChange = useCallback((level: string) => {
     setThinkingLevel(level);

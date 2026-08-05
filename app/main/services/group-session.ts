@@ -226,9 +226,9 @@ export class GroupSessionManager {
       // 临时 sessionId 绑定工具(与主会话相同模式);真实 sessionId 由 Pi 生成
       const tempSessionId = randomUUID();
       const agentChatId = `${groupId}-a${i}`;
-      // 工具集由模板 tools 声明驱动(需求 4:AgentTemplate.tools 定义角色能力边界)
+      // 工具集:不再由模板声明(需求 8:不留工具集配置),统一全量工具
       const { tools: extraTools, canUseTool } = await this.deps.buildGroupTools(
-        resolvedPath, tempSessionId, agentChatId, template?.tools ?? [],
+        resolvedPath, tempSessionId, agentChatId, [],
       );
       // 阶段C:assign_to_agent 工具注入所有群聊 Agent(显式激活通道)
       const assignTool = await this.createAssignTool(groupId);

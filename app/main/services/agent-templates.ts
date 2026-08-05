@@ -18,14 +18,11 @@ export interface AgentTemplate {
   name: string;
   description: string;
   prompt: string;
-  tools: string[];
   model?: string;
   /** 供应商 piId(需求 3:模板指定供应商,与 model 搭配) */
   provider?: string;
   /** 任意自定义角色类型(原限定 mint|builder|evaluator|designer,现已放开) */
   agentType: string;
-  /** 是否为默认模板(task 工具不指定 agent 时用它)。全局唯一默认。 */
-  default?: boolean;
   /** 子 Agent 思考级别(默认 medium,executor 按此创建子 session) */
   thinkingLevel?: string;
 }
@@ -34,7 +31,6 @@ export interface AgentTemplateInput {
   name: string;
   description: string;
   prompt: string;
-  tools: string[];
   model?: string;
   provider?: string;
   agentType?: string;
@@ -93,31 +89,12 @@ export function deleteTemplate(id: string): void {
   writeAll(templates);
 }
 
-/** 设置默认模板:取消已有默认,标记指定 id 为默认(task 工具不指定 agent 时用它) */
-export function setDefaultTemplate(id: string): AgentTemplate {
-  const templates = readAll();
-  const target = templates.find((t) => t.id === id);
-  if (!target) throw new Error(`模板不存在: ${id}`);
-  // 取消已有的 default
-  for (const t of templates) t.default = false;
-  target.default = true;
-  writeAll(templates);
-  return target;
-}
-
-/** 获取默认模板(全局唯一,用于 task 工具不指定 agent 时的默认委派目标) */
-export function getDefaultTemplate(): AgentTemplate | undefined {
-  return readAll().find((t) => t.default) ?? readAll().find((t) => t.agentType === "builder");
-}
-
 const DEFAULTS: AgentTemplate[] = [
   {
     id: "mint",
     name: "Mint",
     description: "总调度 Agent(PM)。统筹分析需求、规划任务、协调 Builder/Evaluator 完成开发。",
     prompt: MINT_SYSTEM_PROMPT,
-    tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep",
-      "mcp__codegraph__codegraph_context", "mcp__codegraph__codegraph_impact", "mcp__codegraph__codegraph_callers", "mcp__codegraph__codegraph_search", "mcp__codegraph__codegraph_trace"],
     agentType: "mint",
   },
   {
@@ -125,16 +102,13 @@ const DEFAULTS: AgentTemplate[] = [
     name: "Builder",
     description: "实现代码任务。当需要实现开发任务时使用此 Agent。",
     prompt: BUILDER_AGENT_PROMPT,
-    tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "mcp__codegraph__codegraph_context", "mcp__codegraph__codegraph_impact", "mcp__codegraph__codegraph_callers", "mcp__codegraph__codegraph_search", "mcp__codegraph__codegraph_trace"],
     agentType: "builder",
-    default: true,
   },
   {
     id: "mint-designer",
     name: "Mint-D",
     description: "UI 设计师。将需求转化为 HTML 原型页面，在编辑器中预览。",
     prompt: DESIGNER_AGENT_PROMPT,
-    tools: ["Read", "Write", "Edit"],
     agentType: "designer",
   },
   {
@@ -142,14 +116,6 @@ const DEFAULTS: AgentTemplate[] = [
     name: "Evaluator",
     description: "验收代码变更。当需要验证 Builder 的工作成果时使用此 Agent。",
     prompt: EVALUATOR_AGENT_PROMPT,
-    tools: ["Read", "Bash", "Glob", "Grep", "Write",
-      "mcp__codegraph__codegraph_context", "mcp__codegraph__codegraph_impact", "mcp__codegraph__codegraph_callers", "mcp__codegraph__codegraph_search",
-      "mcp__playwright__browser_navigate", "mcp__playwright__browser_take_screenshot", "mcp__playwright__browser_snapshot",
-      "mcp__playwright__browser_click", "mcp__playwright__browser_type", "mcp__playwright__browser_evaluate",
-      "mcp__playwright__browser_console_messages", "mcp__playwright__browser_wait_for",
-      "mcp__playwright__browser_fill_form", "mcp__playwright__browser_select_option",
-      "mcp__playwright__browser_hover", "mcp__playwright__browser_press_key",
-      "mcp__playwright__browser_resize", "mcp__playwright__browser_navigate_back"],
     agentType: "evaluator",
   },
 ];
@@ -159,9 +125,12 @@ const DEFAULTS: AgentTemplate[] = [
  *  On seed, these are purged from the user's local store. */
 const REMOVED_DEFAULT_IDS = new Set(["default-orchestrator"]);
 
+/** 系统内置模板 id:Mint 始终强制内置(不可修改),其余内置模板用户可编辑(编辑版持久) */
+export const MINT_TEMPLATE_ID = "mint";
+
 export function seedDefaults(): void {
   const current = readAll();
-  // Purge removed defaults + keep user templates
+  // Purge removed defaults + keep user templates(含用户编辑过的内置模板)
   const keepers = current.filter((t) =>
     !REMOVED_DEFAULT_IDS.has(t.id) && !DEFAULTS.some((d) => d.id === t.id)
   );
@@ -169,8 +138,13 @@ export function seedDefaults(): void {
 
   for (const d of DEFAULTS) {
     const existing = current.find((t) => t.id === d.id);
-    if (existing && existing.prompt === d.prompt && existing.description === d.description) {
-      synced.push(existing);
+    if (existing) {
+      // Mint 始终强制内置提示词;其他内置模板保留用户编辑版本
+      if (d.id === MINT_TEMPLATE_ID) {
+        synced.push({ ...existing, prompt: d.prompt, description: d.description });
+      } else {
+        synced.push(existing);
+      }
     } else {
       synced.push({ ...d });
     }

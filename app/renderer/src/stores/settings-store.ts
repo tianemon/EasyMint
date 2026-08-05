@@ -14,6 +14,8 @@ interface SettingsState {
   context1M: boolean;
   showThinking: boolean;
   showToolUse: boolean;
+  /** 全局聊天思考等级(新聊天会话初始默认,不控制 agent/task) */
+  chatThinkingLevel: string;
   apiProviders: ApiProvidersData | null;
   // ── 需求 4:群聊配置 ──
   maxGroupAgents: number;
@@ -31,6 +33,7 @@ interface SettingsState {
   setContext1M: (enabled: boolean) => void;
   setShowThinking: (enabled: boolean) => void;
   setShowToolUse: (enabled: boolean) => void;
+  setChatThinkingLevel: (level: string) => void;
   setApiProviders: (data: ApiProvidersData) => void;
   activateProvider: (providerId: string) => void;
   setMaxGroupAgents: (v: number) => void;
@@ -56,6 +59,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   context1M: false,
   showThinking: false,
   showToolUse: false,
+  chatThinkingLevel: "medium",
   maxGroupAgents: 3,
   groupForwardStrategy: "conclusion",
   groupInjectMode: "followUp",
@@ -109,6 +113,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ showToolUse: enabled });
     window.electronAPI?.settings?.set?.("showToolUse", enabled);
   },
+  setChatThinkingLevel: (level: string) => {
+    set({ chatThinkingLevel: level });
+    window.electronAPI?.settings?.set?.("chatThinkingLevel", level);
+  },
   setMaxGroupAgents: (v: number) => { set({ maxGroupAgents: v }); window.electronAPI?.settings?.set?.("maxGroupAgents", v); },
   setGroupForwardStrategy: (v: "all" | "conclusion") => { set({ groupForwardStrategy: v }); window.electronAPI?.settings?.set?.("groupForwardStrategy", v); },
   setGroupInjectMode: (v: "steer" | "followUp") => { set({ groupInjectMode: v }); window.electronAPI?.settings?.set?.("groupInjectMode", v); },
@@ -158,6 +166,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           context1M: settings.context1M ?? false,
           showThinking: settings.showThinking ?? false,
           showToolUse: settings.showToolUse ?? false,
+          chatThinkingLevel: settings.chatThinkingLevel ?? "medium",
           setupComplete: settings.setupComplete ?? false,
           apiProviders: (settings.apiProviders as ApiProvidersData) ?? null,
           maxGroupAgents: settings.maxGroupAgents ?? 3,          groupForwardStrategy: settings.groupForwardStrategy ?? "conclusion",

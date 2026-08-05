@@ -134,19 +134,57 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         </div>
       </div>
 
-      {/* 模型选择:该供应商的默认模型(下拉,替代按钮列表,更紧凑) */}
+      {/* 模型(默认):该供应商的默认模型(下拉,替代按钮列表,更紧凑) */}
+      {!isCustom && (
+        <div>
+          <label className="text-xs text-text-secondary block mb-1.5">模型(默认)</label>
+          <Select
+            block
+            placeholder={loadingModels ? "加载中…" : (availableModels.length === 0 ? "无可用模型" : "选择模型")}
+            value={model}
+            onChange={(v: string) => setModel(v)}
+            options={availableModels.map((m) => ({ value: m, label: m }))}
+            title="选择模型"
+          />
+          {availableModels.length > 0 && <p className="text-[10px] text-text-muted mt-1">共 {availableModels.length} 个模型可选</p>}
+        </div>
+      )}
+
+      {isCustom && (<>
+      {/* 自定义供应商:Base URL + API 类型 + 模型列表 */}
       <div>
-        <label className="text-xs text-text-secondary block mb-1.5">模型(默认)</label>
-        <Select
-          block
-          placeholder={loadingModels ? "加载中…" : (availableModels.length === 0 ? "无可用模型" : "选择模型")}
-          value={model}
-          onChange={(v: string) => setModel(v)}
-          options={availableModels.map((m) => ({ value: m, label: m }))}
-          title="选择模型"
+        <label className="text-xs text-text-secondary block mb-1.5">Base URL *</label>
+        <input
+          className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+          placeholder="https://api.example.com/v1"
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
         />
-        {availableModels.length > 0 && <p className="text-[10px] text-text-muted mt-1">共 {availableModels.length} 个模型可选</p>}
       </div>
+      <div>
+        <label className="text-xs text-text-secondary block mb-1.5">API 协议</label>
+        <select
+          value={apiType}
+          onChange={(e) => setApiType(e.target.value)}
+          className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+        >
+          <option value="anthropic-messages">Anthropic Messages</option>
+          <option value="openai-completions">OpenAI Completions</option>
+          <option value="openai-responses">OpenAI Responses</option>
+        </select>
+      </div>
+      <div>
+        <label className="text-xs text-text-secondary block mb-1.5">模型列表(每行一个模型 ID)</label>
+        <textarea
+          className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent/50 resize-none"
+          rows={5}
+          placeholder={"model-1\nmodel-2\nmodel-3"}
+          value={customModelsText}
+          onChange={(e) => setCustomModelsText(e.target.value)}
+        />
+        <p className="text-[10px] text-text-muted mt-1">这些模型将注册为自定义供应商的可用模型,保存后在模型下拉中可选。</p>
+      </div>
+      </>)}
 
       {/* 兜底模型:模型(默认)不可用时降级(per-provider 配置) */}
       <div>
@@ -184,41 +222,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         />
       </div>
 
-      {isCustom && (<>
-      {/* 自定义供应商:Base URL + API 类型 + 模型列表 */}
-      <div>
-        <label className="text-xs text-text-secondary block mb-1.5">Base URL *</label>
-        <input
-          className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
-          placeholder="https://api.example.com/v1"
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
-        />
-      </div>
-      <div>
-        <label className="text-xs text-text-secondary block mb-1.5">API 协议</label>
-        <select
-          value={apiType}
-          onChange={(e) => setApiType(e.target.value)}
-          className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
-        >
-          <option value="anthropic-messages">Anthropic Messages</option>
-          <option value="openai-completions">OpenAI Completions</option>
-          <option value="openai-responses">OpenAI Responses</option>
-        </select>
-      </div>
-      <div>
-        <label className="text-xs text-text-secondary block mb-1.5">模型列表(每行一个模型 ID)</label>
-        <textarea
-          className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent/50 resize-none"
-          rows={5}
-          placeholder={"doubao-seed-2.0-lite\nglm-5.2\nkimi-k2.7-code"}
-          value={customModelsText}
-          onChange={(e) => setCustomModelsText(e.target.value)}
-        />
-        <p className="text-[10px] text-text-muted mt-1">这些模型将注册为自定义供应商的可用模型,保存后在模型下拉中可选。</p>
-      </div>
-      </>)}
+      {/* 保存 */}
 
       {/* 保存 */}
       <div className="flex gap-2 pt-2">
