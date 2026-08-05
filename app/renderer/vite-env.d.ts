@@ -336,10 +336,11 @@ interface ElectronAPI {
     revealApiKey: (providerId: string) => Promise<string>;
   };
   agentTemplates: {
-    list: () => Promise<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; agentType: string }[]>;
-    create: (input: { name: string; description: string; prompt: string; tools: string[]; model?: string; agentType: string }) => Promise<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; agentType: string }>;
-    update: (id: string, input: { name?: string; description?: string; prompt?: string; tools?: string[]; model?: string; agentType?: string }) => Promise<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; agentType: string }>;
+    list: () => Promise<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; provider?: string; agentType: string; default?: boolean; thinkingLevel?: string }[]>;
+    create: (input: { name: string; description: string; prompt: string; tools: string[]; model?: string; provider?: string; agentType?: string; thinkingLevel?: string }) => Promise<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; provider?: string; agentType: string; default?: boolean; thinkingLevel?: string }>;
+    update: (id: string, input: { name?: string; description?: string; prompt?: string; tools?: string[]; model?: string; provider?: string; agentType?: string; thinkingLevel?: string }) => Promise<{ id: string; name: string; description: string; prompt: string; tools: string[]; model?: string; provider?: string; agentType: string; default?: boolean; thinkingLevel?: string }>;
     delete: (id: string) => Promise<void>;
+    setDefault: (id: string) => Promise<void>;
   };
   app: {
     getVersion: () => Promise<string>;

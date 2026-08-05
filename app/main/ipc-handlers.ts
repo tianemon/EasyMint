@@ -29,6 +29,7 @@ import {
   createTemplate,
   updateTemplate,
   deleteTemplate,
+  setDefaultTemplate,
 } from "./services/agent-templates";
 import {
   scanSkills,
@@ -244,6 +245,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent-template:create", (_e, { input }) => createTemplate(input));
   ipcMain.handle("agent-template:update", (_e, { id, input }) => updateTemplate(id, input));
   ipcMain.handle("agent-template:delete", (_e, { id }) => { deleteTemplate(id); });
+  ipcMain.handle("agent-template:set-default", (_e, { id }) => setDefaultTemplate(id));
 
   // skill:*
   ipcMain.handle("skill:list", (_e, { projectPath }: { projectPath?: string }) => scanSkills(projectPath));

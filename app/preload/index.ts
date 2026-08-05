@@ -106,9 +106,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   agentTemplates: {
     list: () => ipcRenderer.invoke("agent-template:list"),
-    create: (input: { name: string; description: string; prompt: string; tools: string[]; model?: string; agentType: string }) => ipcRenderer.invoke("agent-template:create", { input }),
-    update: (id: string, input: { name?: string; description?: string; prompt?: string; tools?: string[]; model?: string; agentType?: string }) => ipcRenderer.invoke("agent-template:update", { id, input }),
+    create: (input: { name: string; description: string; prompt: string; tools: string[]; model?: string; provider?: string; agentType?: string; thinkingLevel?: string }) => ipcRenderer.invoke("agent-template:create", { input }),
+    update: (id: string, input: { name?: string; description?: string; prompt?: string; tools?: string[]; model?: string; provider?: string; agentType?: string; thinkingLevel?: string }) => ipcRenderer.invoke("agent-template:update", { id, input }),
     delete: (id: string) => ipcRenderer.invoke("agent-template:delete", { id }),
+    setDefault: (id: string) => ipcRenderer.invoke("agent-template:set-default", { id }),
   },
   task: {
     read: (projectPath: string) => ipcRenderer.invoke("task:read", { projectPath }),

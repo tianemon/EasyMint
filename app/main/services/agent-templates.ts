@@ -22,7 +22,12 @@ export interface AgentTemplate {
   model?: string;
   /** 供应商 piId(需求 3:模板指定供应商,与 model 搭配) */
   provider?: string;
-  agentType: "mint" | "builder" | "evaluator" | "designer";
+  /** 任意自定义角色类型(原限定 mint|builder|evaluator|designer,现已放开) */
+  agentType: string;
+  /** 是否为默认模板(task 工具不指定 agent 时用它)。全局唯一默认。 */
+  default?: boolean;
+  /** 子 Agent 思考级别(默认 medium,executor 按此创建子 session) */
+  thinkingLevel?: string;
 }
 
 export interface AgentTemplateInput {
@@ -32,7 +37,9 @@ export interface AgentTemplateInput {
   tools: string[];
   model?: string;
   provider?: string;
-  agentType: "mint" | "builder" | "evaluator" | "designer";
+  agentType?: string;
+  /** 可选:子 Agent 思考级别 */
+  thinkingLevel?: string;
 }
 
 // ── Storage ────────────────────────────────────────
@@ -66,7 +73,7 @@ export function getTemplate(id: string): AgentTemplate | undefined {
 
 export function createTemplate(input: AgentTemplateInput): AgentTemplate {
   const templates = readAll();
-  const t: AgentTemplate = { id: randomUUID(), ...input };
+  const t: AgentTemplate = { id: randomUUID(), agentType: "custom", ...input };
   templates.push(t);
   writeAll(templates);
   return t;
@@ -86,6 +93,23 @@ export function deleteTemplate(id: string): void {
   writeAll(templates);
 }
 
+/** 设置默认模板:取消已有默认,标记指定 id 为默认(task 工具不指定 agent 时用它) */
+export function setDefaultTemplate(id: string): AgentTemplate {
+  const templates = readAll();
+  const target = templates.find((t) => t.id === id);
+  if (!target) throw new Error(`模板不存在: ${id}`);
+  // 取消已有的 default
+  for (const t of templates) t.default = false;
+  target.default = true;
+  writeAll(templates);
+  return target;
+}
+
+/** 获取默认模板(全局唯一,用于 task 工具不指定 agent 时的默认委派目标) */
+export function getDefaultTemplate(): AgentTemplate | undefined {
+  return readAll().find((t) => t.default) ?? readAll().find((t) => t.agentType === "builder");
+}
+
 const DEFAULTS: AgentTemplate[] = [
   {
     id: "mint",
@@ -99,10 +123,11 @@ const DEFAULTS: AgentTemplate[] = [
   {
     id: "default-builder",
     name: "Builder",
-    description: "实现代码任务。当需要实现 task.json 中的开发任务时使用此 Agent。",
+    description: "实现代码任务。当需要实现开发任务时使用此 Agent。",
     prompt: BUILDER_AGENT_PROMPT,
     tools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "mcp__codegraph__codegraph_context", "mcp__codegraph__codegraph_impact", "mcp__codegraph__codegraph_callers", "mcp__codegraph__codegraph_search", "mcp__codegraph__codegraph_trace"],
     agentType: "builder",
+    default: true,
   },
   {
     id: "mint-designer",
