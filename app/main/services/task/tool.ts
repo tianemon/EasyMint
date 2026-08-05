@@ -8,7 +8,7 @@
 import type { ToolDefinition } from "../pi-sdk";
 import { getDefineToolFn } from "../pi-sdk";
 import { Store } from "../store";
-import { getTemplate } from "../agent-templates";
+import { getTemplate, listTemplates } from "../agent-templates";
 import { runSubagents } from "./executor";
 import { createDelegation, resolveParentSessionId, getRunningSummary, setTaskStatus } from "./registry";
 import { writeTaskStatus } from "./task-file";
@@ -64,6 +64,17 @@ function formatDelegationResult(result: BatchResult): string {
 export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefinition> {
   const defineTool = await getDefineToolFn();
 
+  // 动态生成 agent 参数描述:列出所有可用模板(名称+职责+模型),Mint 可见可选
+  const templates = listTemplates();
+  const agentDesc = templates.length > 0
+    ? "可选 Agent 模板:\n" + templates.map((t) => {
+        const modelInfo = t.model ? `(${t.model})` : t.provider ? `(供应商:${t.provider})` : "";
+        const def = t.default ? "【默认】" : "";
+        return `  - ${t.id}: ${t.name}——${t.description}${def} ${modelInfo}`.trim();
+      }).join("\n")
+        + "\n选择适合任务的模板;省略则用默认模板(builder)。"
+    : "可选模板名: builder(编码)、evaluator(验收)。";
+
   return defineTool({
     name: "task",
     label: "委派子 Agent",
@@ -72,13 +83,13 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
       + "执行完毕后返回结果。"
       + "使用场景：① 实现功能模块 ② 修复 bug ③ 重构代码 ④ 验收变更 ⑤ 研究技术方案。"
       + "支持同时委派多个子 Agent 并行执行（tasks 数组）。"
-      + "如需使用预设模板（如 builder），将 agent 参数设为模板名。",
+      + agentDesc,
     parameters: {
       type: "object" as const,
       properties: {
         agent: {
           type: "string" as const,
-          description: "可选的 Agent 模板名（如 builder、evaluator），省略则 Mint 自己描述任务",
+          description: "可选的 Agent 模板名(如 builder、evaluator),省略则用默认模板",
         },
         model: {
           type: "string" as const,

@@ -203,11 +203,16 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
     return result2;
   }
 
-  const systemPrompt = opts.task + "\n\n在你完成所有工作后，请在最后一条消息中输出你的工作总结。";
+  // 解析模板 prompt/thinkingLevel:委派指定 agent → 用模板 prompt 作为子 agent system prompt
+  const tpl = opts.agent ? getTemplate(opts.agent) : undefined;
+  const tplPrompt = tpl?.prompt;
+  const tplThinkingLevel = tpl?.thinkingLevel;
+  const systemPrompt = (tplPrompt ? tplPrompt + "\n\n" : "") + opts.task + "\n\n在你完成所有工作后，请在最后一条消息中输出你的工作总结。";
 
   try {
     const session = await createPiSession({
-      cwd: resolvedPath, agentDir: opts.agentDir, model, thinkingLevel: "medium",
+      cwd: resolvedPath, agentDir: opts.agentDir, model,
+      thinkingLevel: (tplThinkingLevel as any) ?? "medium",
       store: opts.store, systemPrompt, extraTools,
       sessionDir: opts.sessionDir,
       canUseTool: undefined,
