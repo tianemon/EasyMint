@@ -44,6 +44,9 @@ export function GroupSettingsSection(): JSX.Element {
 
   return (
     <div className="space-y-5">
+      <div className="rounded-md border border-info/30 bg-info-bg/10 px-3 py-2 text-[11px] text-text-secondary/80 leading-relaxed">
+        群聊为实验性功能,后续将由 Agent 模板模块 + task 动态委派替代。当前参数仅对群聊模式生效。
+      </div>
       {/* 基础参数 */}
       <section>
         <h3 className="text-sm font-medium text-text-secondary mb-2">群聊基础参数</h3>
