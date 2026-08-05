@@ -11,6 +11,21 @@ import {
 } from "./pi-sdk";
 import type { Model } from "@earendil-works/pi-ai";
 
+// ── 火山引擎模型定义(临时,ProviderConfigInput 类型未从打包产物导出) ──
+const VOLCENGINE_MODELS: Array<Record<string, unknown>> = [
+  { id: "doubao-seed-2.0-lite", name: "Doubao Seed 2.0 Lite", reasoning: true, input: ["text","image"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 },
+  { id: "doubao-seed-2.0-mini", name: "Doubao Seed 2.0 Mini", reasoning: true, input: ["text","image"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 },
+  { id: "glm-5.2", name: "GLM-5.2", reasoning: true, input: ["text","image"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 },
+  { id: "kimi-k2.7-code", name: "Kimi K2.7 Code", reasoning: true, input: ["text","image"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 },
+  { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", reasoning: true, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 },
+  { id: "minimax-m3", name: "MiniMax-M3", reasoning: true, input: ["text","image"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 },
+  { id: "doubao-seed-evolving", name: "Doubao Seed Evolving", reasoning: true, input: ["text","image"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 },
+  { id: "kimi-k3", name: "Kimi K3", reasoning: true, input: ["text","image"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 },
+  { id: "doubao-seed-2.1-turbo", name: "Doubao Seed 2.1 Turbo", reasoning: true, input: ["text","image"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 },
+  { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash", reasoning: true, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 },
+  { id: "ark-code-latest", name: "ARK Code Latest", reasoning: true, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 },
+];
+
 let _modelRuntime: Awaited<ReturnType<typeof getModelRuntimeClass>>["prototype"] | null = null;
 let _settingsManager: Awaited<ReturnType<typeof getSettingsManagerClass>>["prototype"] | null = null;
 let _activeModel: Model<any> | null = null;
@@ -109,5 +124,26 @@ async function syncProviders(store: Store) {
     if (config.apiKey) {
       await _modelRuntime.setRuntimeApiKey(config.presetId, config.apiKey);
     }
+  }
+  // 注册火山引擎 provider(内嵌在 Pi 中不可见,需要 EM 注册)
+  registerVolcengineProvider(store);
+}
+
+/** 注册火山引擎 provider(Plan 模型,name:volcengine) */
+function registerVolcengineProvider(store: Store): void {
+  if (!_modelRuntime) return;
+  const settings = store.getSettings();
+  const config = settings.apiProviders?.configs?.["volcengine"];
+  if (!config?.apiKey) return;
+  try {
+    _modelRuntime.registerProvider("volcengine", {
+      apiKey: config.apiKey,
+      api: "anthropic-messages",
+      name: "火山引擎(Plan)",
+      baseUrl: "https://ark.cn-beijing.volces.com/api/plan",
+      models: VOLCENGINE_MODELS,
+    } as any);
+  } catch (e) {
+    console.warn("[pi-init] 火山引擎注册失败:", (e as Error).message);
   }
 }

@@ -108,6 +108,12 @@ export const PROVIDER_BRANDS: ProviderBrand[] = [
       { id: "opencode-go", label: "OpenCode Go" },
     ],
   },
+  {
+    key: "volcengine", name: "火山引擎", cnName: "Doubao", icon: deepseekIcon,
+    accesses: [
+      { id: "volcengine", label: "火山引擎" },
+    ],
+  },
 ];
 
 /** pi provider id → 品牌(查找用) */
