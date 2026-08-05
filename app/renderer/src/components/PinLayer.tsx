@@ -53,12 +53,15 @@ interface PinCardProps {
 }
 
 function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProps): JSX.Element {
-  // 渲染 clamp：窗口缩小后便签不丢失（只影响显示，不改持久化坐标）
+  // 渲染 clamp：窗口缩小后便签不丢失（只影响显示，不改持久化坐标）。
+  // 左右放开——允许移出边缘隐藏(露出 20px 可拖回)；上锁死不出界(y≥0)；下贴底(现状)
   const layer = layerRef.current;
-  const maxX = layer ? Math.max(0, layer.clientWidth - (pin.width || CARD_W)) : pin.x;
-  const maxY = layer ? Math.max(0, layer.clientHeight - 100) : pin.y;
-  const x = Math.min(Math.max(0, pin.x), maxX);
-  const y = Math.min(Math.max(0, pin.y), maxY);
+  const HIDDEN_SLIVER = 20;
+  const cardW = pin.width || CARD_W;
+  const x = layer
+    ? Math.min(Math.max(-(cardW - HIDDEN_SLIVER), pin.x), layer.clientWidth - HIDDEN_SLIVER)
+    : pin.x;
+  const y = layer ? Math.min(Math.max(0, pin.y), Math.max(0, layer.clientHeight - 100)) : pin.y;
 
   // 拖动：delta 方式（起点 + 位移），与坐标系无关；pointer capture 保证拖出卡片不丢
   const onDragStart = useCallback(
@@ -74,29 +77,40 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
       const onMove = (ev: PointerEvent) => {
         const layerEl = layerRef.current;
         if (!layerEl) return;
-        const mx = layerEl ? Math.max(0, layerEl.clientWidth - (pin.width || CARD_W)) : Infinity;
+        // 左右可移出窗口边缘隐藏(露出 HIDDEN_SLIVER 可拖回)；上锁死不出界(y≥0)；下贴底(现状)
+        const HIDDEN_SLIVER = 20;
+        const cardW = pin.width || CARD_W;
+        const mx = layerEl ? Math.max(0, layerEl.clientWidth - HIDDEN_SLIVER) : Infinity;
         const my = layerEl ? Math.max(0, layerEl.clientHeight - 100) : Infinity;
-        const nx = Math.min(Math.max(0, startPinX + (ev.clientX - startClientX)), mx);
+        const nx = Math.min(Math.max(-(cardW - HIDDEN_SLIVER), startPinX + (ev.clientX - startClientX)), mx);
         const ny = Math.min(Math.max(0, startPinY + (ev.clientY - startClientY)), my);
-        // 拖到边缘 → 自动吸附折叠成贴纸
-        if (nx <= 8) {
+        // 鼠标指针碰到窗口左/右边缘(8px) 且当前帧朝边缘外移动 → 收起成贴纸。
+        // 用瞬时移动方向(ev.movementX):便签常在边缘附近,整体方向判断会把
+        // 抖动/回拉误判成朝外移动——只有当前帧真正朝窗外移才收起
+        const layerRect = layerEl.getBoundingClientRect();
+        const pointerX = ev.clientX - layerRect.left;
+        if (pointerX <= 8 && ev.movementX < 0) {
           usePinStore.getState().minimizePin(sessionId, pin.id, "left");
-        } else if (nx + (pin.width || CARD_W) >= layerEl.clientWidth - 8) {
+        } else if (pointerX >= layerRect.width - 8 && ev.movementX > 0) {
           usePinStore.getState().minimizePin(sessionId, pin.id, "right");
         } else {
           usePinStore.getState().movePin(sessionId, pin.id, nx, ny);
         }
       };
       const onUp = () => {
-        // onUp 幂等：pointerup / pointercancel 复用同一清理函数
+        if (released) return;
+        released = true;
         target.removeEventListener("pointermove", onMove);
         target.removeEventListener("pointerup", onUp);
         target.removeEventListener("pointercancel", onUp);
+        window.removeEventListener("pointerup", onUp);
         usePinStore.getState().persistPins(sessionId);
       };
+      let released = false;
       target.addEventListener("pointermove", onMove);
       target.addEventListener("pointerup", onUp);
       target.addEventListener("pointercancel", onUp);
+      window.addEventListener("pointerup", onUp);
     },
     [pin.id, pin.x, pin.y, pin.width, sessionId, layerRef],
   );
@@ -113,6 +127,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
     const startY = pin.y;
     const startW = pin.width || CARD_W;
     const startH = pin.height || 200;
+    let released = false;
 
     const onMove = (ev: PointerEvent) => {
       const layerEl = layerRef.current;
@@ -131,21 +146,27 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
       if (dir.includes("e")) nw = startW + dx;
       if (dir.includes("s")) nh = startH + dy;
       if (dir.includes("w")) {
-        // 西拖：右边界固定，左边界 clamp 保证宽度 ≥ 240；
-        // 上限取 startX+startW-maxW——宽度到上限后左边界锁定(不再整体平移)
-        nw = startW - dx;
-        nx = Math.min(Math.max(0, startX + dx), startX + startW - maxW);
-        nw = Math.min(Math.max(240, nw), startX + startW - nx, maxW);
+        // 西拖：右边界固定，只动左边界。
+        // 先 clamp 左边界(保证 ≥ 0、宽度 ≥ 240)，宽度 = 右边界 - 左边界；
+        // 宽度触上限时左边界锁定，右边界保持——右边界恒 = startX+startW 不变
+        nx = Math.min(Math.max(0, startX + dx), startX + startW - 240);
+        nw = startX + startW - nx;
+        if (nw > maxW) {
+          nw = maxW;
+          nx = startX + startW - maxW;
+        }
       } else {
         nw = Math.min(Math.max(240, nw), maxW);
         if (dir.includes("e")) nw = Math.min(nw, layerEl.clientWidth - startX);
       }
       if (dir.includes("n")) {
-        // 北拖：底边界固定，顶边界 clamp 保证高度 ≥ 100；
-        // 上限取 startY+startH-maxH——高度到上限后顶边界锁定(不再整体平移)
-        nh = startH - dy;
-        ny = Math.min(Math.max(0, startY + dy), startY + startH - maxH);
-        nh = Math.min(Math.max(100, nh), startY + startH - ny, maxH);
+        // 北拖：底边界固定，只动顶边界（与西拖对称）
+        ny = Math.min(Math.max(0, startY + dy), startY + startH - 100);
+        nh = startY + startH - ny;
+        if (nh > maxH) {
+          nh = maxH;
+          ny = startY + startH - maxH;
+        }
       } else {
         nh = Math.min(Math.max(100, nh), maxH);
       }
@@ -154,15 +175,21 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
       if (dir.includes("w") || dir.includes("n")) store.movePin(sessionId, pin.id, nx, ny);
       store.resizePin(sessionId, pin.id, nw, nh);
     };
+    // onUp 幂等:拖动中 re-render 可能换函数/重建 DOM 导致 capture 丢失,
+    // pointerup 不到 target——window 兜底监听保证任何情况都释放
     const onUp = () => {
+      if (released) return;
+      released = true;
       target.removeEventListener("pointermove", onMove);
       target.removeEventListener("pointerup", onUp);
       target.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("pointerup", onUp);
       usePinStore.getState().persistPins(sessionId);
     };
     target.addEventListener("pointermove", onMove);
     target.addEventListener("pointerup", onUp);
     target.addEventListener("pointercancel", onUp);
+    window.addEventListener("pointerup", onUp);
   }, [pin.id, pin.x, pin.y, pin.width, pin.height, sessionId, layerRef]);
 
   return (
@@ -348,11 +375,12 @@ export function PinLayer({ sessionId }: PinLayerProps): JSX.Element {
     return () => { cancelled = true; };
   }, [sessionId]);
 
-  // 新便签（x<0 未定位）分配默认位置：右上角错开堆叠，分配后持久化
+  // 新便签（x==-1 && y==-1 未定位标记）分配默认位置：右上角错开堆叠，分配后持久化。
+  // 注意:不能只用 x<0 判断——便签拖出左边缘隐藏时 x 也为负,会被误当成新便签拉回右上角
   useEffect(() => {
     const el = layerRef.current;
     if (!el) return;
-    const unpositioned = pins.filter((p) => p.x < 0);
+    const unpositioned = pins.filter((p) => p.x === -1 && p.y === -1);
     if (unpositioned.length === 0) return;
     const store = usePinStore.getState();
     const positionedCount = pins.length - unpositioned.length;

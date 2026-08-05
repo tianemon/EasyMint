@@ -521,14 +521,14 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 .sb-drawer {
   position: absolute; left: var(--s2); right: var(--s2); bottom: 86px;
   z-index: 50;
-  max-height: 0;
   transform-origin: bottom center;
-  transform: scaleY(0); opacity: 0;
-  transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1),
-              transform 0.35s cubic-bezier(0.4,0,0.2,1),
+  transform: scaleY(0);
+  pointer-events: none;
+  opacity: 0;
+  transition: transform 0.35s cubic-bezier(0.4,0,0.2,1),
               opacity 0.2s cubic-bezier(0.4,0,0.2,1);
 }
-.sb-drawer.open { max-height: 340px; transform: scaleY(1); opacity: 1; }
+.sb-drawer.open { transform: scaleY(1); pointer-events: auto; opacity: 1; }
 .sb-drawer-body-wrap { background: var(--color-sidebar-active); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); overflow: hidden; }
 .sb-drawer-arrow {
   position: absolute; bottom: -6px;
@@ -540,7 +540,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 .sb-drawer.ptr-left .sb-drawer-arrow { left: 12%; }
 .sb-drawer.ptr-mid .sb-drawer-arrow { left: 46%; }
 .sb-drawer.ptr-right .sb-drawer-arrow { left: 80%; }
-.sb-drawer-body { max-height: 260px; }
+.sb-drawer-body { height: 360px; overflow: hidden; }
 
 /* ── Footer ───────────────────────────────────── */
 .sb-foot { padding: var(--s2) var(--s4); display: flex; flex-direction: column; gap: var(--s1); -webkit-app-region: no-drag; }

@@ -58,6 +58,8 @@ interface DelegationProgressEvent {
     agent: string;
     status: "pending" | "running" | "completed" | "failed" | "aborted";
     task: string;
+    description?: string;
+    prompt?: string;
     taskId?: string;
     currentTool?: string;
     toolCount: number;
@@ -181,6 +183,19 @@ interface ElectronAPI {
     onFallbackUsed: (callback: (data: { provider: string; modelId: string }) => void) => () => void;
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
     onDelegationProgress: (callback: (data: DelegationProgressEvent) => void) => () => void;
+    onDelegationInit: (callback: (data: {
+      chatId?: string;
+      delegationId: string;
+      tasks: Array<{
+        index: number;
+        agent: string;
+        status: "pending" | "running" | "completed" | "failed" | "aborted";
+        task: string;
+        title?: string;
+        description?: string;
+        prompt?: string;
+      }>;
+    }) => void) => () => void;
     onSubagentStream: (callback: (data: SubagentStreamEvent) => void) => () => void;
     onDelegationCount: (callback: (data: { count: number; tasks: { delegationId: string; index: number; title: string }[] }) => void) => () => void;
     onShellCount: (callback: (data: { id: string; command: string; startedAt: number; status: "running" | "stopping"; logPath: string }[]) => void) => () => void;

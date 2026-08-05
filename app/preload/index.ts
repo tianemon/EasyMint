@@ -262,6 +262,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:delegation-progress", handler);
       return () => ipcRenderer.removeListener("agent:delegation-progress", handler);
     },
+    onDelegationInit: (callback: (data: unknown) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
+      ipcRenderer.on("agent:delegation-init", handler);
+      return () => ipcRenderer.removeListener("agent:delegation-init", handler);
+    },
     onSubagentStream: (callback: (data: unknown) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on("agent:subagent-stream", handler);

@@ -204,8 +204,9 @@ export class AgentService {
         // 委派收尾汇总 → 开回合让 Mint 自动响应总结(最后一条通知,无后续排队;
         // 委派过程的即时通知走 triggerTurn: false 路径不打断)
         onComplete: (sid, text) => this.injectSystemMessage(sid, text, "delegation", { triggerTurn: true }),
-        // 单任务被用户停止 → 立即注入中止通知(kind: delegation,绿色气泡 ● 行)
-        onTaskAborted: (sid, text) => this.injectSystemMessage(sid, text, "delegation"),
+        // 单任务被用户停止 → 立即注入中止通知(kind: delegation,绿色气泡 ● 行);
+        // 单任务委派被停止时 triggerTurn: true——无后续通知,开回合让 Mint 回应
+        onTaskAborted: (sid, text, triggerTurn) => this.injectSystemMessage(sid, text, "delegation", triggerTurn ? { triggerTurn: true } : undefined),
         // 单任务提前完成 → 立即注入完成通知,Mint 输出判断继续等待(对齐 cc)
         onTaskCompleted: (sid, text) => this.injectSystemMessage(sid, text, "delegation"),
       });
@@ -248,7 +249,7 @@ export class AgentService {
           parentSessionId: sessionId,
           chatId,
           onComplete: (sid, text) => this.injectSystemMessage(sid, text, "delegation", { triggerTurn: true }),
-          onTaskAborted: (sid, text) => this.injectSystemMessage(sid, text, "delegation"),
+          onTaskAborted: (sid, text, triggerTurn) => this.injectSystemMessage(sid, text, "delegation", triggerTurn ? { triggerTurn: true } : undefined),
           onTaskCompleted: (sid, text) => this.injectSystemMessage(sid, text, "delegation"),
         });
         tools.push(taskTool);

@@ -54,6 +54,10 @@ export interface AgentProgress {
   agent: string;
   status: "pending" | "running" | "completed" | "failed" | "aborted";
   task: string;
+  /** 委派任务简述(原始 description,前端折叠行显示用) */
+  description?: string;
+  /** 委派任务详情(原始 prompt,前端展开显示用) */
+  prompt?: string;
   /** 关联的 task.json 任务 id(TaskPanel 实时执行视图用) */
   taskId?: string;
   currentTool?: string;
@@ -88,6 +92,10 @@ export interface TaskItem {
   task: string;
   /** 任务标题(description 摘要,UI 显示用;缺省取 task 前 40 字) */
   title?: string;
+  /** 委派任务简述(原始 description 参数,前端折叠行显示用) */
+  description?: string;
+  /** 委派任务详情(原始 prompt 参数,前端展开显示用) */
+  prompt?: string;
   /** 关联的 task.json 任务 id:委派完成/中止时自动回写状态(done/failed) */
   taskId?: string;
   readOnly?: boolean;

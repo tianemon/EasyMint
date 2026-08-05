@@ -63,6 +63,10 @@ export interface SubagentOptions {
   onProgress?: (progress: AgentProgress) => void;
   /** 任务标题(description 摘要,结果注入显示用) */
   title?: string;
+  /** 委派任务简述(原始 description,进度广播带往前端) */
+  description?: string;
+  /** 委派任务详情(原始 prompt,进度广播带往前端) */
+  prompt?: string;
   /** 关联的 task.json 任务 id(完成/中止自动回写) */
   taskId?: string;
   /** 委派 ID(实时流广播 agent:subagent-stream 标识,前端按 delegationId+index 过滤) */
@@ -118,6 +122,8 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
     agent: agentLabel,
     status: "running",
     task: opts.task.slice(0, 100),
+    description: opts.description,
+    prompt: opts.prompt,
     taskId: opts.taskId,
     toolCount: 0,
     durationMs: 0,
@@ -433,6 +439,8 @@ export async function runSubagents(
       sessionDir,
       task: task.task,
       title: task.title,
+      description: task.description,
+      prompt: task.prompt,
       taskId: task.taskId,
       index,
       // 单任务独立中止控制器(ProcessBar 单独停止);整体 abort 时 record.abort 会 abort 全部

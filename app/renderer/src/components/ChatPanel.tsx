@@ -386,6 +386,45 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
   // updater 渲染期间执行,调用其他 store 会触发跨组件更新警告)
   const delegationRef = useRef<DelegationUiState | null>(null);
 
+  // 委派任务清单订阅：委派创建即初始化全部任务行(pending,含并发排队未启动的)
+  useEffect(() => {
+    const unsubInit = window.electronAPI.agent.onDelegationInit((data: {
+      chatId?: string;
+      delegationId: string;
+      tasks: Array<{
+        index: number;
+        agent: string;
+        status: "pending" | "running" | "completed" | "failed" | "aborted";
+        task: string;
+        title?: string;
+        description?: string;
+        prompt?: string;
+      }>;
+    }) => {
+      if (data.chatId && currentChatRef.current && data.chatId !== currentChatRef.current) return;
+      // 初始化:delegationId 对应的全部任务行(pending);后续 progress 事件按 index 更新
+      const tasks: DelegationTaskUi[] = data.tasks.map((t) => ({
+        index: t.index,
+        agent: t.agent,
+        task: t.task,
+        title: t.description || t.title,
+        detail: t.prompt,
+        status: "pending",
+      }));
+      const next: DelegationUiState = {
+        delegationId: data.delegationId,
+        chatId: data.chatId,
+        triggerMsgId: undefined,
+        tasks,
+        finished: false,
+        startedAt: Date.now(),
+      };
+      delegationRef.current = next;
+      setDelegation(next);
+    });
+    return unsubInit;
+  }, []);
+
   useEffect(() => {
     const unsub = window.electronAPI.agent.onDelegationProgress((data: DelegationProgressEvent) => {
       // 过滤：只显示当前窗口 chat 的委派
@@ -395,18 +434,24 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
         index: data.progress.index,
         agent: data.progress.agent,
         task: data.progress.task,
+        // 折叠行显示原始 description(缺失回退 task 首行),展开显示原始 prompt
+        title: data.progress.description || (data.progress.task.split("\n")[0] ?? "").replace(/^##\s*任务[:：]\s*/, "").slice(0, 60),
+        detail: data.progress.prompt,
         status: data.progress.status,
       };
       // 新委派(首次或 delegationId 变化):捕获触发委派的消息 id
       // (最后一条 AI 消息,含 task 工具调用),卡片固定附着在该消息下方;
       // 同一委派的进度更新沿用原 triggerMsgId(不随新气泡移动)
       const isNewDelegation = !prev || prev.delegationId !== data.delegationId;
+      // triggerMsgId 缺失时补捕获(init 预初始化未设,首次 progress 补上附着点)。
+      // 委派由 Mint 主动发起时消息可能未落盘——由下方 effect 监听消息流补捕获固定
+      const needTriggerMsg = isNewDelegation || !prev?.triggerMsgId;
       let triggerMsgId: number | undefined;
-      if (isNewDelegation) {
+      if (needTriggerMsg) {
         const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
         const lastAi = msgs.filter((m) => m.role === "ai").pop();
         triggerMsgId = lastAi?.id;
-        scrollToBottom(true);
+        if (isNewDelegation) scrollToBottom(true);
       }
       const tasks = prev && prev.delegationId === data.delegationId ? [...prev.tasks] : [];
       const idx = tasks.findIndex((t) => t.index === task.index);
@@ -419,6 +464,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
         triggerMsgId: isNewDelegation ? triggerMsgId : prev?.triggerMsgId,
         tasks,
         finished,
+        // 委派开始时间:首次事件记录,卡片计时用(同一委派沿用)
+        startedAt: isNewDelegation ? Date.now() : prev?.startedAt ?? Date.now(),
       };
       delegationRef.current = next;
       // 副作用(事件回调内,合法):委派开始 → 常驻「调用 Agent」;结束 → 清除
@@ -459,6 +506,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
     });
     return unsubShell;
   }, []);
+
+  // 委派触发消息落盘后固定附着点：Mint 主动发起时回合未结束消息未落盘,
+  // progress 事件捕获不到 triggerMsgId——消息流更新后补捕获并固定,
+  // 卡片不再随"最后一条 AI 消息"漂移(委派完成/打断时 Mint 输出会追加新消息)
+  useEffect(() => {
+    if (!delegation || delegation.triggerMsgId || delegation.finished) return;
+    const aiMsgs = messages.filter((m) => m.role === "ai");
+    const lastAi = aiMsgs[aiMsgs.length - 1];
+    if (!lastAi?.id) return;
+    const fixed: DelegationUiState = { ...delegation, triggerMsgId: lastAi.id };
+    delegationRef.current = fixed;
+    setDelegation(fixed);
+  }, [messages, delegation]);
 
   // 委派全部完成 3 秒后自动收起卡片
   useEffect(() => {
@@ -1062,13 +1122,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
                       onContextMenu={handleMsgContextMenu}
                       sid={sid}
                     />
-                    {/* 委派进度卡片：固定附着在触发消息气泡下方(左对齐气泡) */}
-                    {delegation && delegation.triggerMsgId === msg.id && (
+                    {/* 委派进度卡片：固定附着在触发消息气泡下方(左对齐气泡)；
+                        triggerMsgId 缺失(委派由 Mint 主动发起,消息未落盘时捕获不到)时
+                        挂在最后一条 AI 消息下兜底 */}
+                    {(delegation && delegation.triggerMsgId === msg.id) ||
+                      (delegation && !delegation.triggerMsgId && vi.index === messages.length - 1 && msg.role === "ai") ? (
                       <div className="flex gap-4 items-start" style={{ padding: "0 var(--s8)" }}>
                         <div style={{ width: 34, flexShrink: 0 }} />
                         <DelegationProgress delegation={delegation} />
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 );
               })}

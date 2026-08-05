@@ -27,23 +27,31 @@ function TaskRow({ task, runningExec }: { task: { id: string; title: string; des
 
   return (
     <div
-      className={`border-b border-border last:border-0 transition-colors ${displayStatus === "building" || displayStatus === "running" || displayStatus === "evaluating" ? "bg-accent-bg" : displayStatus === "failed" ? "bg-danger-soft" : "hover:bg-accent-subtle"}`}
-      onMouseEnter={() => hasDesc && setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
+      className={`group rounded-lg transition-colors ${displayStatus === "building" || displayStatus === "running" || displayStatus === "evaluating" ? "bg-accent-bg" : displayStatus === "failed" ? "bg-danger-soft" : "hover:bg-accent-subtle"} ${displayStatus === "done" ? "opacity-60" : ""}`}
     >
-      <div className="flex items-center gap-2 px-3 py-1.5">
+      <div
+        className={`flex items-center gap-2.5 px-2.5 py-2 ${hasDesc ? "cursor-pointer" : "cursor-default"}`}
+        onClick={() => hasDesc && setExpanded(!expanded)}
+        title={hasDesc ? (expanded ? "收起描述" : "查看描述") : undefined}
+      >
         {isRunning ? (
-          <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3 shrink-0 animate-spin text-accent"><circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" opacity="0.3"/><path d="M11 6a5 5 0 00-5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          <svg viewBox="0 0 12 12" fill="none" className="w-3.5 h-3.5 shrink-0 animate-spin text-accent"><circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" opacity="0.3"/><path d="M11 6a5 5 0 00-5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
         ) : (
-          STATUS_ICON[task.status]
+          <span className="shrink-0">{STATUS_ICON[task.status]}</span>
         )}
-        <span className={`text-[11px] truncate flex-1 ${displayStatus === "done" ? "text-text-secondary" : (displayStatus === "building" || displayStatus === "running" || displayStatus === "evaluating") ? "text-text-primary font-medium" : displayStatus === "failed" ? "text-danger" : "text-text-secondary"}`}>
+        <span className={`text-[11px] truncate flex-1 leading-snug ${displayStatus === "done" ? "text-text-secondary" : (displayStatus === "building" || displayStatus === "running" || displayStatus === "evaluating") ? "text-text-primary font-medium" : displayStatus === "failed" ? "text-danger" : "text-text-secondary"}`}>
           {task.title}
           {durText && <span className="ml-1.5 text-[10px] text-accent tabular-nums">{durText}</span>}
         </span>
+        {hasDesc && (
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+            className={`w-3 h-3 shrink-0 text-text-muted transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}>
+            <path d="M4 6l4 4 4-4" />
+          </svg>
+        )}
       </div>
       {expanded && hasDesc && (
-        <div className="px-3 pb-2 pl-8">
+        <div className="px-2.5 pb-2 pl-8">
           <p className="text-[10px] text-text-secondary leading-relaxed">{task.description}</p>
         </div>
       )}
@@ -88,7 +96,7 @@ export function TaskPanel(_props: TaskPanelProps): JSX.Element {
 
   return (
     <div className="h-full flex flex-col bg-sidebar-active">
-      {/* Header:标题 + 任务数量同行 */}
+      {/* Header:标题 + 进度条 */}
       <div className="flex items-center gap-2 h-9 px-3 border-b border-border shrink-0">
         <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">任务</span>
         {taskCount > 0 && (
@@ -96,9 +104,18 @@ export function TaskPanel(_props: TaskPanelProps): JSX.Element {
         )}
       </div>
 
+      {/* 进度条 */}
+      {taskCount > 0 && (
+        <div className="px-3 pt-2 shrink-0">
+          <div className="h-1 rounded-full bg-surface-hover overflow-hidden">
+            <div className="h-full bg-accent rounded-full transition-all duration-300" style={{ width: `${taskCount > 0 ? (doneCount / taskCount) * 100 : 0}%` }} />
+          </div>
+        </div>
+      )}
+
       {/* Task list — mint container always visible, fixed area */}
-      <div className="flex-1 min-h-0 flex flex-col px-3 py-1.5">
-        <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 flex flex-col px-2 py-2">
+        <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto space-y-0.5">
           {tasks.length > 0 ? (
             tasks.map((task) => (
               <TaskRow key={task.id} task={task} runningExec={taskExecutions[task.id]} />

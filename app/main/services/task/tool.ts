@@ -25,8 +25,9 @@ export interface TaskToolContext {
   chatId?: string;
   /** 委派完成回调：结果注入主会话（agent-service 提供） */
   onComplete?: (parentSessionId: string, text: string) => void;
-  /** 单任务被用户停止回调：立即注入中止通知（不等整个委派完成） */
-  onTaskAborted?: (parentSessionId: string, text: string) => void;
+  /** 单任务被用户停止回调：立即注入中止通知（不等整个委派完成）。
+      triggerTurn: 单任务委派被停止时 true(无后续,开回合让 Mint 回应);批量中停止单个 false */
+  onTaskAborted?: (parentSessionId: string, text: string, triggerTurn?: boolean) => void;
   /** 单任务提前完成回调：委派还有任务在跑时立即注入完成通知(对齐 cc 逐个通知) */
   onTaskCompleted?: (parentSessionId: string, text: string) => void;
 }
@@ -171,6 +172,8 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
             agent: taskAgent,
             task: prompt,
             title: (t.description as string) || undefined,
+            description: (t.description as string) || undefined,
+            prompt: (t.prompt as string) || undefined,
             taskId: (t.taskId as string) || undefined,
             readOnly,
             outputSchema: (t.outputSchema as unknown) || undefined,
@@ -187,6 +190,8 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
           agent: agentName,
           task: buildPrompt(desc, (params.prompt as string) || "", agentName),
           title: desc,
+          description: desc,
+          prompt: (params.prompt as string) || undefined,
           taskId: (params.taskId as string) || undefined,
           readOnly,
           outputSchema: (params.outputSchema as unknown) || undefined,
@@ -204,6 +209,23 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         tasks,
         ctx.parentSessionId,
       );
+
+      // 委派创建即广播任务清单(全部任务,含并发排队中未启动的):
+      // 前端进度卡片按此初始化全部行(pending),后续 progress 按 index 更新状态——
+      // 否则并发受限(默认 4)时初始只显示前 N 个,排队的任务要等启动才出现
+      broadcast("agent:delegation-init", {
+        chatId: ctx.chatId,
+        delegationId: record.delegationId,
+        tasks: record.tasks.map((t, i) => ({
+          index: i,
+          agent: t.agent || "coder",
+          status: "pending" as const,
+          task: t.task,
+          title: t.title || (t.task.split("\n")[0] ?? "").replace(/^##\s*任务[:：]\s*/, "").slice(0, 60),
+          description: t.description,
+          prompt: t.prompt,
+        })),
+      });
 
       // 用户点打断（Pi abort 当前回合）→ 中止子 Agent 委派 → completion resolve(aborted)
       if (signal && !signal.aborted) {
@@ -232,7 +254,8 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
             notifiedTerminal.add(key);
             const title = record.tasks[progress.index]?.title || progress.task.slice(0, 40);
             const dur = Math.max(0, Math.round(progress.durationMs / 1000));
-            ctx.onTaskAborted?.(record.parentSessionId, `⏺ ${title} — 中止${dur > 0 ? ` · ${dur}s` : ""}`);
+            // 单任务委派被停止:无后续通知,开回合让 Mint 回应;批量中停止单个不开回合
+            ctx.onTaskAborted?.(record.parentSessionId, `⏺ ${title} — 中止${dur > 0 ? ` · ${dur}s` : ""}`, record.tasks.length === 1);
           }
         }
         // 单任务提前完成(委派还有任务在跑)→ 立即注入完成通知,Mint 判断继续等待
