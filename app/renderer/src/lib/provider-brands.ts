@@ -101,6 +101,13 @@ export const PROVIDER_BRANDS: ProviderBrand[] = [
     key: "codex", name: "OpenAI Codex", icon: openaiIcon,
     accesses: [{ id: "openai-codex", label: "OpenAI Codex" }],
   },
+  {
+    key: "opencode", name: "OpenCode", cnName: "中转", icon: deepseekIcon,
+    accesses: [
+      { id: "opencode", label: "OpenCode" },
+      { id: "opencode-go", label: "OpenCode Go" },
+    ],
+  },
 ];
 
 /** pi provider id → 品牌(查找用) */
