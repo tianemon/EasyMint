@@ -19,6 +19,10 @@ interface ToolItem {
   name: string;
   input: unknown;
   id?: string;
+  /** 工具执行结果(由 tool_result 事件按 toolUseId 关联;edit 的返回含 diff) */
+  result?: string;
+  /** 结果是否错误(tool_result 的 is_error) */
+  resultError?: boolean;
 }
 
 interface ToolGroupBlock {
@@ -52,7 +56,14 @@ export function buildBlocks(entries: StreamEntry[], keyPrefix = ""): Block[] {
     else if (e.kind === "thinking") { flushText(); flushTool(); flushSys(); thinkBuf += (thinkBuf ? "\n" : "") + e.text; }
     else if (e.kind === "system") { flushText(); flushThink(); flushTool(); sysBuf += (sysBuf ? "\n" : "") + e.message; }
     else if (e.kind === "tool_use") { flushText(); flushThink(); flushSys(); toolBuf.push({ name: e.name, input: e.input, id: e.id }); }
-    else if (e.kind === "tool_result") { /* skip, results are attached inline */ }
+    else if (e.kind === "tool_result") {
+      // 按 toolUseId 关联结果到对应工具调用块(无匹配则忽略)
+      const target = [...toolBuf].reverse().find((t) => t.id === e.toolUseId);
+      if (target) {
+        target.result = e.content;
+        target.resultError = e.isError;
+      }
+    }
     else if (e.kind === "error") { flushText(); flushThink(); flushTool(); blocks.push({ kind: "system", message: e.data }); }
     else if (e.kind === "exit") { flushAll(); /* suppress — user doesn't need to see process exit code */ }
     else { flushAll(); }
@@ -196,9 +207,33 @@ function ToolGroupView({ block }: { block: ToolGroupBlock }): JSX.Element {
   );
 }
 
+/** diff 行渲染:以 - 开头的行红、+ 开头绿、@@/上下文中性 */
+function DiffLine({ line }: { line: string }): JSX.Element {
+  if (line.startsWith("+")) {
+    return <div className="bg-[color-mix(in_oklab,var(--color-success)_12%,transparent)] text-[color-mix(in_oklab,var(--color-success)_85%,transparent)] px-2 -mx-2">{line}</div>;
+  }
+  if (line.startsWith("-")) {
+    return <div className="bg-[color-mix(in_oklab,var(--color-danger)_12%,transparent)] text-[color-mix(in_oklab,var(--color-danger)_85%,transparent)] px-2 -mx-2">{line}</div>;
+  }
+  if (line.startsWith("@@")) {
+    return <div className="text-text-muted px-2 -mx-2">{line}</div>;
+  }
+  return <div className="px-2 -mx-2">{line}</div>;
+}
+
+function DiffView({ text }: { text: string }): JSX.Element {
+  const lines = text.split("\n");
+  return (
+    <div className="font-mono text-[11px] leading-relaxed">
+      {lines.map((l, i) => <DiffLine key={i} line={l} />)}
+    </div>
+  );
+}
+
 function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }): JSX.Element {
   const [showInput, setShowInput] = useState(false);
   const inputStr = typeof item.input === "string" ? item.input : JSON.stringify(item.input, null, 2);
+  const isDiffResult = !!item.result && item.result.includes("变更内容:");
   return (
     <div className={compact ? "text-[11px]" : "border border-border rounded-md overflow-hidden"}>
       <button
@@ -209,11 +244,27 @@ function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }
         <span className="text-[10px]">{showInput ? "▼" : "▶"}</span>
         <span>{item.name}</span>
         {compact && <span className="text-text-secondary truncate text-[10px]">{inputStr.slice(0, 60)}</span>}
+        {item.result && !compact && (
+          <span className={`ml-auto text-[10px] shrink-0 ${item.resultError ? "text-danger" : "text-text-muted"}`}>
+            {item.resultError ? "失败" : "完成"}
+          </span>
+        )}
       </button>
       {showInput && (
-        <pre className="text-text-secondary font-mono overflow-x-auto bg-surface border-t border-border" style={{ fontSize: "var(--chat-detail-size)" }}>
-          {inputStr}
-        </pre>
+        <div className="bg-surface border-t border-border">
+          {/* 输入参数 */}
+          <pre className="text-text-secondary font-mono overflow-x-auto px-3 py-2 border-b border-border/50" style={{ fontSize: "var(--chat-detail-size)" }}>
+            {inputStr}
+          </pre>
+          {/* 工具结果(edit 的 diff 走 DiffView 带颜色) */}
+          {item.result && (
+            isDiffResult ? <DiffView text={item.result} /> : (
+              <pre className={`text-text-secondary font-mono overflow-x-auto px-3 py-2 whitespace-pre-wrap ${item.resultError ? "text-danger" : ""}`} style={{ fontSize: "var(--chat-detail-size)" }}>
+                {item.result}
+              </pre>
+            )
+          )}
+        </div>
       )}
     </div>
   );
