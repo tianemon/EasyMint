@@ -271,23 +271,19 @@ EasyMint 是 Electron 桌面应用，让不懂技术的用户通过图形界面�
 3. **UI 精致化**：右键菜单自适应/圆角裁剪、删除确认弹窗、拖放上传、Lucide 图标、Onboarding v3 风格对齐
 4. **发布 v0.5.2**：合并 main、版本号、CHANGELOG、tag 推送 → GitHub Actions 自动 Release
 
-## 最近工作（多模型/多 Agent 4 阶段，2026-08-03/04）
+## 最近工作（Agent 模板模块 + 动态委派，2026-08-05）
 
-> 完整方案已落盘:`docs/design/多模型多Agent群聊方案.md`(唯一真相源,含设计/实现/修复/待办)。本段仅摘要。
+> 方案已落盘:`docs/design/多模型多Agent群聊方案.md`(唯一真相源)。本段仅摘要。
 
-1. **需求调研 + 4 阶段设计**：①默认+兜底模型 ②Agent 指定模型/供应商 ③不同会话不同供应商 ④多 Agent 群聊(应用层消息转发,方案 B)
-2. **阶段 1/2 模型配置 per-provider**(2026-08-04)：每条供应商配 model(默认)/fallbackModel(兜底)/subagentDefaultModel(task 子 Agent 默认);`getActiveModel` 读当前激活供应商 模型→兜底;`resolveSubagentModel` 委派指定>模板>活跃供应商子Agent默认;切换供应商清模型缓存
-3. **阶段 2 Agent 指定**：AgentTemplate.provider + SubagentOptions.model/provider + executor `resolveSubagentModel`
-4. **阶段 3 会话绑供应商**：session-cache.provider → `sendMessage(preferredProvider)` → `getModel(provider, model)`;UI 切换入口待做
-5. **阶段 4 群聊(核心)**：
-   - 主进程 `group-session.ts`：GroupSessionManager(多 Pi session 聚合/消息路由 @提及/结论转发/防环三层/失败离线/group-sessions.json 持久化)
-   - 前端：tab type `group` + ChatPanel 群聊模式(角色气泡+转发标记)+ Sidebar 群聊入口 + GroupComposerDialog(预设/自由组合)+ 设置→Agent 页(群聊 4 参数+预设 + Agent 模板占位)
-   - 供应商 11 品牌(带 logo)精简 + Select 组件 Portal 定位修复 + 状态栏符号动画
+**方案收敛结论**:task 工具已完整支持 subAgent 单独配置 model/provider(阶段 2)。
+群聊的"多 agent 长期会话 + 全量背景注入"过度复杂;收敛为**"主会话(Mint)+ task 工具动态委派 + Agent 模板模块"**——复用 executor 创建一次性子 session,用完即弃,上下文不膨胀。
+
+**14 章设计**:AgentTemplate 扩展(agentType→string,+default+thinkingLevel)、task 工具 agent 参数动态清单(模板名称+职责+模型实时可见)、executor 用模板 prompt 作为子 agent system prompt、模板编辑 UI、Mint 建模板工具、群聊代码降级(保留实验性)
 
 ## 接下来安排
 
-1. **群聊实测**：创建→@提及路由→结论转发→防环收敛(深度 3 停止);群聊 Agent 交互手感
-2. **阶段 2/3 配套 UI**：模板编辑 UI(provider/model 选择)、tab 品牌图标 + 会话内切换供应商入口
+1. **Agent 模板模块实现**(5 阶段):A 模板扩展 B task 动态清单+executor prompt C 模板 UI D Mint 建模板工具 E 群聊降级
+2. **群聊代码降级**:保留实验性,不继续投入;assign_to_agent/兜底语法转为 task 轻封装
 3. **群聊待办**：①群聊 Agent 若模板声明 task 工具,委派完成通知不注入回群聊 Agent(断链;默认模板无 task 已规避) ②重启后群聊 tab 恢复但主进程 group 清空(内存态,发送报"群聊不存在",group-sessions.json 已存结构无 resume 路径) ③群聊历史聚合加载(重启后只读) ④群聊用 `buildGroupTools`(模板 tools 驱动),无 product 工具(show_* 等)——如需可补
 4. **轮转端到端实测**：压缩 3 次触发归档+新会话接力(使用中确认)
 5. **Windows 验证**：拖拽区修复效果

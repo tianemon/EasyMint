@@ -395,3 +395,104 @@ Builder 结论 → 应用层注入回 Mint(作为背景,triggerTurn:false)
 - **群聊回合天然串行**:显式激活(非自动转发链)→ 复用单 `latestAiIdRef`,无需按角色分块跟踪
 - **群聊事件不广播 agent:exit**:前端靠 turn_end 清 busy,激活回合的 turn_end 由 onAgentTurnEnd 广播
 - **模板 tools 语义**:基础 coding 工具(Read/Write/Edit/Bash)由 createPiSession 强制追加,task/MCP 等 extraTools 按模板 tools 声明过滤
+
+## 14. Agent 模板模块 + 动态委派(2026-08-05 收敛,替代群聊方案)
+
+> 核心结论:task 委派已支持 model/provider 指定;群聊的"多 agent 长期会话 + 全量背景注入"过度复杂。
+> 收敛为**"主会话(Mint)+ task 工具动态委派 + Agent 模板模块"**——复用 executor,改动小。
+
+### 14.0 设计原理
+
+```
+用户跟 Mint 正常对话(贵模型,上下文完整)
+  → Mint 调 task 工具(template 参数) 委派给指定模板
+  → executor 用模板的 systemPrompt/provider/model/tools 创建一次性子 session
+  → 子 agent(性价比模型)执行结果 injectSystemMessage 回 Mint
+  → 子 session 用完即弃,不长期保留——上下文不膨胀
+```
+
+**对比群聊方案**:
+| | 群聊(已实现) | 动态委派(收敛后) |
+|---|---|---|
+| agent 生命周期 | 长期 session(持续对话) | **一次性**(用完即弃) |
+| 上下文成本 | N 份全量复制 | 仅子 agent 单次任务(token 少) |
+| UI | 多 jsonl 聚合(复杂) | **Mint 主会话 + 委派进度条**(已有) |
+| 模型指定 | 模板 provider/model | **同理**(executor resolveSubagentModel) |
+| 工具集 | 模板 tools | **同理**(buildGroupTools) |
+| system prompt | 模板 prompt + 协作规则 | **模板 prompt 直接作为子 agent system prompt** |
+| 实现 | 群聊容器 ~600 行 | **复用 executor + 小幅扩展** |
+
+### 14.1 AgentTemplate 扩展
+
+现有 `AgentTemplate`:id/name/description/prompt/tools/model/provider/agentType
+
+需要扩展:
+- **`agentType`**:从 `"mint"|"builder"|"evaluator"|"designer"` 改为 **`string`**(放开为自定义类型,用户创建任意角色)
+- **`default`**:新增字段,标记该模板为"默认模板"(task 工具不指定 agent 时用它)
+- **`thinkingLevel`**:可选,子 agent 思考级别(默认 medium)
+- **创建/删除/编辑**:IPC CRUD 已有,需加 `default` 管理
+
+**内置模板**(DEFAULTS):
+| id | name | 说明 | provider/model |
+|----|------|------|---------------|
+| `default-builder` | Builder | 编码实现 | 默认走全局,用户可配 |
+| `default-evaluator` | Evaluator | 验收 | 同上 |
+| `mint` | Mint | 调度/方案 | 同上 |
+| `mint-designer` | Mint-D | UI 设计 | 同上 |
+
+### 14.2 模板模块功能
+
+| 功能 | 说明 |
+|------|------|
+| **默认模板** | 标记一个模板为"默认",task 不指定 agent 时用它 |
+| **自定义模板** | 用户自由创建:名称/描述/人格 prompt/供应商+模型/上下文/工具集/思考级别 |
+| **模板编辑 UI** | 设置→Agent 页:列表 + 表单(增删改,设默认) |
+| **Mint 建模板工具** | `create_agent_template({name, description, prompt, provider?, model?, tools?})`——一句话让 Mint 创建模板 |
+| **模板可见性** | task 工具的 `agent` 参数描述动态注入模板清单(名称+一句话职责+模型) |
+
+### 14.3 task 工具改造
+
+**agent 参数描述动态化**:
+```
+"可选 Agent 模板:
+  - default-builder: 编码实现(默认,DeepSeek flash)
+  - test-writer: 测试员(自定义,DeepSeek pro)
+  选择适合任务的模板;省略则用默认模板"
+```
+由 `listTemplates()` 动态生成,每次 task 工具创建时更新。
+
+**子 agent system prompt**:executor 改用模板的 `prompt` 字段作为子 agent 的 system prompt(目前用 `opts.task`),描述/指令作为首条 user 消息。
+
+### 14.4 executor 改造
+
+现有 `resolveSubagentModel` 正确(委派指定 > 模板 > 子默认 > 全局),需要补:
+- **system prompt**:模板的 `prompt` + `opts.task`(作为首条 user 消息)替代当前 `opts.task` 作为 system prompt
+- **tools**:已有 `buildGroupTools`(按模板 tools)——但**需放开车加 task 工具**(子 agent 可递归委派,或禁用,由模板 tools 声明)
+- **thinkingLevel**:读模板的 `thinkingLevel`(默认 medium)
+
+### 14.5 设置→Agent 页
+
+| 区域 | 内容 |
+|------|------|
+| **群聊设置**(保留,但简化) | 最大 Agent 数/转发策略/注入方式/深度——标注"群聊实验性,后续移除" |
+| **Agent 模板列表**(新增) | 模板卡片(名称/描述/默认模型/默认标记)+ 编辑/删除/设为默认 |
+| **新建/编辑模板表单** | 名称/描述/人格 prompt/供应商+模型/上下文大小/工具勾选/思考级别 |
+| **预设组合**(保留) | 开发三人组等——可用于批量委派 |
+
+### 14.6 群聊代码处置
+
+群聊容器(`group-session.ts`、`GroupComposerDialog`、`GroupSettingsSection`)降级规划:
+- **保留但标记实验性**:不继续投入开发
+- **记录文件**(.easymint/group-sessions/)保留作为群聊历史(UI 显示)
+- **assign_to_agent 工具 + 兜底语法**:保留(可转为 task 工具的轻封装)
+- **未来评估**:如果"多 agent 长期会话协作"成为刚需,再从群聊方案升级;目前收敛
+
+### 14.7 实现阶段
+
+| 阶段 | 内容 | 文件 | 风险 |
+|------|------|------|------|
+| **A** | AgentTemplate 扩展(agentType→string,+default+thinkingLevel,+default 管理) | agent-templates.ts, store.ts | 低 |
+| **B** | task 工具 agent 参数动态清单(读模板列表拼接) + executor 用模板 prompt | task/tool.ts, executor.ts | 低 |
+| **C** | 模板编辑 UI(列表+表单,取代占位),默认模板设置 | GroupSettingsSection.tsx 或新组件 | 中 |
+| **D** | Mint 建模板工具(`create_agent_template`) | task/tool.ts 或独立 | 低 |
+| **E** | 群聊代码降级标注(UI/注释) | group-session.ts 等 | 低 |
