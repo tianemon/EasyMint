@@ -36,6 +36,10 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   const [showKey, setShowKey] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const [loadedProvider, setLoadedProvider] = useState<string>("");
+  // 可选的模型列表:内置供应商从 Pi 加载,自定义从 textarea 解析
+  const availableModels = isCustom
+    ? customModelsText.split("\n").map((s) => s.trim()).filter(Boolean)
+    : models;
 
   // 初始化：编辑已有供应商时自动加载模型列表
   useEffect(() => {
@@ -131,18 +135,17 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       </div>
 
       {/* 模型选择:该供应商的默认模型(下拉,替代按钮列表,更紧凑) */}
-      {!isCustom ? (<>
       <div>
         <label className="text-xs text-text-secondary block mb-1.5">模型(默认)</label>
         <Select
           block
-          placeholder={loadingModels ? "加载中…" : (models.length === 0 ? "无可用模型" : "选择模型")}
+          placeholder={loadingModels ? "加载中…" : (availableModels.length === 0 ? "无可用模型" : "选择模型")}
           value={model}
           onChange={(v: string) => setModel(v)}
-          options={models.map((m) => ({ value: m, label: m }))}
+          options={availableModels.map((m) => ({ value: m, label: m }))}
           title="选择模型"
         />
-        {models.length > 0 && <p className="text-[10px] text-text-muted mt-1">共 {models.length} 个模型可选</p>}
+        {availableModels.length > 0 && <p className="text-[10px] text-text-muted mt-1">共 {availableModels.length} 个模型可选</p>}
       </div>
 
       {/* 兜底模型:模型(默认)不可用时降级(per-provider 配置) */}
@@ -155,10 +158,10 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         </div>
         <Select
           block
-          placeholder={models.length === 0 ? "无可用模型" : "可选"}
+          placeholder={availableModels.length === 0 ? "无可用模型" : "可选"}
           value={fallbackModel}
           onChange={(v: string) => setFallbackModel(v)}
-          options={models.map((m) => ({ value: m, label: m }))}
+          options={availableModels.map((m) => ({ value: m, label: m }))}
           title="选择兜底模型"
         />
       </div>
@@ -173,15 +176,16 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         </div>
         <Select
           block
-          placeholder={models.length === 0 ? "无可用模型" : "可选"}
+          placeholder={availableModels.length === 0 ? "无可用模型" : "可选"}
           value={subagentDefaultModel}
           onChange={(v: string) => setSubagentDefaultModel(v)}
-          options={models.map((m) => ({ value: m, label: m }))}
+          options={availableModels.map((m) => ({ value: m, label: m }))}
           title="选择子 Agent 默认模型"
         />
       </div>
-      </>) : (<>
-      {/* 自定义供应商:Base URL + API 类型 */}
+
+      {isCustom && (<>
+      {/* 自定义供应商:Base URL + API 类型 + 模型列表 */}
       <div>
         <label className="text-xs text-text-secondary block mb-1.5">Base URL *</label>
         <input
