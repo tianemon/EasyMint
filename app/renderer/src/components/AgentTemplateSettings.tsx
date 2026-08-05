@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Select } from "./Select";
-import { providerSelectOptions } from "../lib/provider-brands";
+import { useSettingsStore } from "../stores/settings-store";
 
 interface Template {
   id: string; name: string; description: string; prompt: string; tools: string[];
@@ -14,6 +14,15 @@ const COMMON_TOOLS = ["Read","Write","Edit","Bash","Glob","Grep",
 ];
 
 const THINKING_LEVELS = ["off","minimal","low","medium","high"];
+
+function useProviderOptions(): Array<{ value: string; label: string }> {
+  const apiProviders = useSettingsStore((s) => s.apiProviders);
+  if (!apiProviders) return [];
+  return Object.values(apiProviders.configs ?? {}).map((cfg) => ({
+    value: cfg.presetId === "custom" ? cfg.id : cfg.presetId,
+    label: `${cfg.name}${cfg.presetId === "custom" ? "" : ""}`,
+  }));
+}
 
 /** Agent 模板设置(列表+编辑表单) */
 export function AgentTemplateSettings(): JSX.Element {
@@ -54,8 +63,10 @@ export function AgentTemplateSettings(): JSX.Element {
     load();
   };
 
+  const providerOptions = useProviderOptions();
+
   if (adding || editing) {
-    return <TemplateForm initial={editing} onSave={handleSave} onCancel={() => { setEditing(null); setAdding(false); }} />;
+    return <TemplateForm initial={editing} onSave={handleSave} providerOptions={providerOptions} onCancel={() => { setEditing(null); setAdding(false); }} />;
   }
 
   return (
@@ -113,10 +124,11 @@ export function AgentTemplateSettings(): JSX.Element {
 }
 
 /** 模板编辑/新建表单 */
-function TemplateForm({ initial, onSave, onCancel }: {
+function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
   initial: Template | null;
   onSave: (data: { name: string; description: string; prompt: string; tools: string[]; provider?: string; model?: string; thinkingLevel?: string }) => void;
   onCancel: () => void;
+  providerOptions: Array<{ value: string; label: string }>;
 }): JSX.Element {
   const editMode = initial != null;
   const [name, setName] = useState(initial?.name || "");
@@ -162,7 +174,7 @@ function TemplateForm({ initial, onSave, onCancel }: {
         <div>
           <label className="text-[11px] text-text-secondary block mb-1">供应商(可选)</label>
           <Select block placeholder="留空用全局默认" value={provider} onChange={setProvider}
-            options={providerSelectOptions()} title="选择供应商" />
+            options={providerOptions} title="选择供应商" />
         </div>
         <div>
           <label className="text-[11px] text-text-secondary block mb-1">模型 id(可选)</label>
