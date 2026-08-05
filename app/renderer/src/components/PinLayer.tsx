@@ -101,7 +101,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
     [pin.id, pin.x, pin.y, pin.width, sessionId, layerRef],
   );
 
-  // 四周/拐角 resize：按方向计算新几何（西/北含坐标移动），delta 方式；宽 clamp 240-560、高 clamp 100-容器 80%
+  // 四周/拐角 resize：按方向计算新几何（西/北含坐标移动），delta 方式；宽 clamp 240-容器 80%、高 clamp 100-容器 80%
   const onResizeStart = useCallback((dir: ResizeDir) => (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -119,7 +119,8 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
       if (!layerEl) return;
       const dx = ev.clientX - startClientX;
       const dy = ev.clientY - startClientY;
-      const maxW = Math.min(560, layerEl.clientWidth);
+      // 宽高上限自适应容器(80%)——放大窗口便签可更大
+      const maxW = Math.min(layerEl.clientWidth * 0.8, layerEl.clientWidth);
       const maxH = Math.max(100, layerEl.clientHeight * 0.8);
 
       let nx = startX;
@@ -130,18 +131,20 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
       if (dir.includes("e")) nw = startW + dx;
       if (dir.includes("s")) nh = startH + dy;
       if (dir.includes("w")) {
-        // 西拖：右边界固定，左边界 clamp 保证宽度 ≥ 240
+        // 西拖：右边界固定，左边界 clamp 保证宽度 ≥ 240；
+        // 上限取 startX+startW-maxW——宽度到上限后左边界锁定(不再整体平移)
         nw = startW - dx;
-        nx = Math.min(Math.max(0, startX + dx), startX + startW - 240);
+        nx = Math.min(Math.max(0, startX + dx), startX + startW - maxW);
         nw = Math.min(Math.max(240, nw), startX + startW - nx, maxW);
       } else {
         nw = Math.min(Math.max(240, nw), maxW);
         if (dir.includes("e")) nw = Math.min(nw, layerEl.clientWidth - startX);
       }
       if (dir.includes("n")) {
-        // 北拖：底边界固定，顶边界 clamp 保证高度 ≥ 100
+        // 北拖：底边界固定，顶边界 clamp 保证高度 ≥ 100；
+        // 上限取 startY+startH-maxH——高度到上限后顶边界锁定(不再整体平移)
         nh = startH - dy;
-        ny = Math.min(Math.max(0, startY + dy), startY + startH - 100);
+        ny = Math.min(Math.max(0, startY + dy), startY + startH - maxH);
         nh = Math.min(Math.max(100, nh), startY + startH - ny, maxH);
       } else {
         nh = Math.min(Math.max(100, nh), maxH);
