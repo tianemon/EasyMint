@@ -198,12 +198,15 @@ interface SessionCache {
 
 ## 8. 群聊交互设计(2026-08-04 重设计,已定稿全部细节)
 
-### 8.0 核心原则
+### 8.0 核心原则(2026-08-05 收敛:交接摘要式指派,替代全量背景注入)
 
-- **背景注入(triggerTurn:false)**:每条消息全量注入所有 Agent 上下文(不含代码/toolResult,只有 user 文本 + 各 agent 结论文本)
-- **显式激活**:用户 `@`或 Agent 调用 `assign_to_agent` 工具 → 应用层对目标 agent 调用 `prompt()` 或 `sendCustomMessage(triggerTurn:true)` 开回合
-- **激活不携带任务**:内容已由背景注入同步,激活只是"轮到你回话了"
-- **上下文独立**:各 Agent 上下文 ≈ 完整群聊对话(全量注入的结论),但 **没有其他 agent 的代码/toolResult/thinking**
+- **按需交接,不共享上下文**:用户只跟主 agent(Mint)正常对话,上下文完整在 Mint;
+  需要执行时 `@` 指派,应用层让 Mint 生成**交接摘要**,连用户原文注入目标 agent
+- **显式激活**:用户 `@`或 Agent 调用 `assign_to_agent` 工具 → 目标 agent 开回合
+- **交接摘要(B)**:指派时,主 agent 针对当前指令**现场生成任务交接摘要**(一次额外 LLM 调用,
+  用性价比模型执行时成本可接受),保证转发信息足够丰富
+- **上下文成本**:N 份全量复制 → 仅目标 1 份摘要 + 原文,不膨胀
+- **模型分工**:贵模型规划(上下文完整)→ 便宜模型执行(摘要驱动)
 
 ### 8.0a 创建群聊时的上下文注入(初始化消息)
 
@@ -211,12 +214,9 @@ interface SessionCache {
 
 ```
 [群聊已创建] 参与成员: Mint / Builder / Evaluator。
-群聊规则:
-  1. 被 @ 或收到"群聊激活"系统消息时才回话
-  2. 不要重复回应历史消息(之前的回复已处理)
-  3. 需要指派他人时调用 assign_to_agent({target:"角色名"})
-  4. 回话时优先响应当前最新指令,不纠结历史对话
-  5. 你的回复结论会自动同步给所有成员
+协作模式: 用户只与 Mint 对话;被 @ 或收到"群聊激活"系统消息时才回话;
+Mint 负责理解用户意图并指派(assign_to_agent);被指派者基于交接摘要+用户原文执行;
+你的回复结论会作为背景注入群聊记录(UI 显示)。
 ```
 
 ### 8.0b 群聊 system prompt(注入每个 agent)
@@ -227,19 +227,20 @@ interface SessionCache {
 [群聊协作规则]
 你正在一个多 Agent 群聊会话中协作。群聊成员: {members}
 
-你会持续收到共享上下文(其他成员的发言和结论)——这些是累积的历史记录,你不需要逐条回复。
+协作模式: 用户主要与 {role}(你)或主 Agent 对话;被 @ 或收到"群聊激活"系统消息时才回话。
 
 核心规则:
 1. 只有被 @ 或收到"群聊激活"系统消息时才回话。
    回话时,优先响应当前最新指令,不要纠结于历史对话。
-2. 当某部分工作更适合其他成员处理时,调用 assign_to_agent({target:"<角色名>"}) 工具,
-   指定目标角色即可,不要硬编角色名称。
-   无需重复说明任务——对方上下文里已有全部信息。
-3. 你的回复结论会自动同步给所有成员作为背景上下文。
-   请保持结论清晰、独立可读,不引用其他成员未提供的代码或信息。
+2. 当你(Mint/主 Agent)认为某部分工作更适合其他成员处理时,
+   调用 assign_to_agent({target:"<角色名>"}) 工具指派。
+   指派后,对方会收到你生成的交接摘要 + 用户原文,基于这些执行。
+3. 被指派者:基于交接摘要 + 用户原文执行,结论保持清晰、独立可读。
+4. 用户只发指令,不转述长上下文——你的结论会作为背景记录在群聊(UI 显示)。
 
 禁止事项:
-- 不要在每条背景消息后都回话——只在被显式激活(@ 或系统激活消息)时才回话
+- 不要在非激活情况下主动回话
+- 不要臆测其他成员未提供的代码或信息(用交接摘要为准)
 ```
 
 各 agent 的 system prompt 组装:`模板 prompt` + `@{role}(你): 负责{任务说明}` + `协作规则` + `skills` + `项目环境` + `项目类型规范`。
@@ -251,40 +252,51 @@ interface SessionCache {
 - 内置预设:开发三人组(Mint+Builder+Evaluator)、设计协作(Mint+Mint-D)
 - 现有单 Agent 会话不受影响(群聊是独立模式)
 
-### 8.2 消息同步(全量背景注入)
+### 8.2 消息流(按需交接,无全量背景注入)
 
-| 消息源 | 注入范围 | 机制 |
-|--------|---------|------|
-| 用户消息 | 所有 Agent | `sendCustomMessage(forward_message, triggerTurn: false)` |
-| Agent 结论(turn_end) | 除自己外所有 Agent | 同上 |
-| agent 工具过程/代码 | **不注入**(只在自己 jsonl) | — |
+```
+用户消息(不 @) → 只激活主 Agent(Mint),上下文完整在 Mint
+用户消息(@Builder 按方案做) → 应用层:
+    ① 让 Mint 生成"交接摘要"(针对当前指令,一次额外 LLM 调用)
+    ② 注入 Builder: [交接摘要] + [用户原文]
+    ③ 激活 Builder 开回合执行
+Builder 结论 → 应用层注入回 Mint(作为背景,triggerTurn:false)
+  → 用户 @Mint 时, Mint 看到 Builder 成果,继续规划/验收
+```
 
-**设计约束**:只注入 `getLastAssistantText()`(纯结论正文),**不注入** toolResult/thinking/toolCall——代码长在干活 agent 自己的上下文和 jsonl 里,不灌入其他 agent。
+**设计约束**:
+- 不注入工具过程/代码——代码长在干活 agent 自己的上下文和 jsonl
+- 用户消息不广播所有 agent,只发目标(避免 N 份全量复制)
+- 交接摘要由主 agent 生成(保证信息足够丰富),一次额外 LLM 调用可接受
 
-### 8.3 回合激活(显式)
+### 8.3 回合激活(显式 + 交接摘要)
 
 | 方式 | 触发 | 目标 |
 |------|------|------|
-| **用户 `@`** | 前端文本解析 `@角色名` → 主进程 sendGroupMessage 路由 | 匹配的 Agent |
-| **Agent `assign_to_agent` 工具** | Agent 回复中调用 `assign_to_agent({ target: "角色名" })` → 应用层拦截 tool_use | 指定的 Agent |
-| **兜底语法解析** | Agent 回复中含 `【转交@角色名】` 但没调工具 | 指定的 Agent |
+| **用户 `@`** | 前端文本解析 `@角色名` → 主进程路由 | 匹配的 Agent |
+| **Agent `assign_to_agent` 工具** | Agent 回复中调用 `assign_to_agent({ target })` → 应用层拦截 | 指定的 Agent |
+| **兜底语法解析** | Agent 回复含 `【转交@角色名】` 但没调工具 | 指定的 Agent |
 
-**激活实现**:`sendCustomMessage(forward_message, triggerTurn: true)`(custom 类型,不污染 user 消息流;`details` 带 `from` 角色,前端渲染"`[X → Y]`";content 带"你被 @ 了,基于上下文回复")。另一种等价:直接 `prompt(text)`。
+**激活实现**(交接摘要式):
+1. 用户 @ 目标(非主 agent)或 Mint 调 assign 工具 → 应用层
+2. **生成交接摘要**:调用主 agent(Mint)session `prompt("生成任务交接摘要…")` 或复用 `compact` 摘要机制(指定目标指令)
+3. **注入目标**:`sendCustomMessage(forward_message, triggerTurn:true)`,content = `[交接摘要]...\n[用户原文]...`
+4. 目标 agent 基于摘要+原文执行
 
 **`assign_to_agent` MCP 工具**:
-- 参数:`{ target: string }`(目标角色名)。不需要 task 参数(内容已背景注入)
-- 注入群聊所有 Agent(内置工具,群聊创建时自动注入到所有 agent 的工具集)
-- 应用层拦截 tool_use → 对目标 `prompt("你被 @ 了…")` → 前端渲染"`[Mint → Builder]`"
+- 参数:`{ target: string }`(目标角色名)。不携带任务(交接摘要由应用层生成)
+- 注入群聊所有 Agent;应用层拦截 tool_use → 生成摘要 → 注入目标 → 前端渲染"`[Mint → Builder]`"
 
 ### 8.4 Agent 间显示
 
 - 每条消息标注 Agent 身份:角色头像(固定色)+ 名称
 - 激活消息显示来源标记:`[Mint → Builder]`(tool_use 事件 / forward_message customType 驱动)
+- 交接摘要/用户原文在目标 agent 回复中可见(角色气泡)
 - 时间线交错排列(按 piTs 有序插入)
 
 ### 8.5 防环(天然成立)
 
-背景注入 triggerTurn:false 不产生新回合,激活是显式的(user @ 或 agent 调工具 → 应用层只开一次目标回合),**不存在隐式链式转发** → 无需深度/ID 去重。旧"结论转发触发链"设计废弃。
+无自动转发链:激活是显式的(用户 @ 或 Mint 调 assign 工具 → 应用层只开一次目标回合)。无隐式链式转发 → 无需深度/ID 去重。Mint 调 assign 由 system prompt 约束(不滥用),应用层可加"每回合最多 N 次指派"兜底。
 
 ### 8.6 Agent 失败处理(保留)
 
@@ -356,11 +368,18 @@ interface SessionCache {
   - B(f6b44d0)全量背景注入(triggerTurn:false)+ @ 显式激活;删旧自动转发链
   - C(40bb90f)assign_to_agent 工具注入 + 兜底语法【转交@X】解析
   - D(a4fbe78)设置项标注"已由显式激活取代" + activation 标记
+- **2026-08-05 方案收敛(交接摘要式指派)**:全量背景注入 → 按需交接。
+  核心:用户只跟 Mint 对话,指派时让 Mint 生成交接摘要 + 用户原文注入目标。
+  背景注入相关代码需重构(见 12 章待办)
 
 ## 12. 已知缺陷与待办
 
 1. **群聊跨重启恢复未实现**:group-session 内存态;重启后 tab 可看历史(记录文件),但不能继续对话。需从 group-sessions.json 读 meta + 各 agent resumePiSession
-2. **全量背景注入上下文累积** ⚠️:triggerTurn:false 注入仍进目标上下文占 token。需监控长对话成本
+2. **【收敛中】全量背景注入待重构为交接摘要式**:现有代码是全量背景注入(每消息注入所有 agent);
+   方案已收敛为"用户只跟 Mint 对话,指派时交接摘要+原文注入目标"。需改:
+   - sendGroupMessage:用户消息不再广播所有 agent,只激活主 agent(或 @ 目标)
+   - turn_end:结论注入回主 agent(triggerTurn:false)供其掌握
+   - activateAgent:非主 agent 被激活时,生成 Mint 交接摘要(compact/现场 prompt)+ 注入目标
 3. **模板编辑 UI 未实现**:provider/model 无法在 UI 配置(IPC CRUD 已通)
 5. **tab 品牌图标 + 会话切换供应商 UI 未实现**
 6. **群聊 Agent 无 product 工具**:`buildGroupTools` 按模板 tools,默认模板不含 show_*/set_task_status 等
