@@ -284,6 +284,51 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
   } as any) as ToolDefinition;
 }
 
+/** Mint 建模板工具:一句话创建 Agent 模板(阶段D)。
+    注入到主会话工具集,Mint 可用它动态创建子 Agent 模板 */
+export async function createAgentTemplateTool(): Promise<ToolDefinition> {
+  const defineTool = await getDefineToolFn();
+  return defineTool({
+    name: "create_agent_template",
+    label: "创建 Agent 模板",
+    description:
+      "创建自定义的子 Agent 模板,指定名称/职责/人格 prompt/供应商+模型/工具集/思考级别。"
+      + "创建后 Mint 可用 task 工具的 agent 参数选择该模板进行委派。"
+      + "示例:\"Mint-D\"用于设计,\"测试员\"跑测试,\"审查员\"只读代码审查。",
+    parameters: {
+      type: "object" as const,
+      properties: {
+        name: { type: "string" as const, description: "模板显示名(如 测试员、代码审查员)" },
+        description: { type: "string" as const, description: "一句话描述(如 专门写测试用)" },
+        prompt: { type: "string" as const, description: "人格/职责 prompt(注入子 Agent system prompt,定义它的行为方式)" },
+        provider: { type: "string" as const, description: "可选供应商 piId(如 deepseek),省略则用全局默认" },
+        model: { type: "string" as const, description: "可选模型 id(如 deepseek-v4-flash),与 provider 搭配" },
+        tools: { type: "array" as const, items: { type: "string" as const }, description: "可选工具名列表(如 Read、Write、Bash),省略则用基础工具集" },
+        thinkingLevel: { type: "string" as const, description: "可选思考级别(off/minimal/low/medium/high),默认 medium" },
+      },
+      required: ["name", "description", "prompt"],
+    },
+    async execute(_tid: string, params: Record<string, unknown>) {
+      const { createTemplate } = await import("../agent-templates");
+      try {
+        const tpl = createTemplate({
+          name: String(params.name || ""),
+          description: String(params.description || ""),
+          prompt: String(params.prompt || ""),
+          tools: Array.isArray(params.tools) ? params.tools.map(String) : [],
+          model: params.model ? String(params.model) : undefined,
+          provider: params.provider ? String(params.provider) : undefined,
+          agentType: "custom",
+          thinkingLevel: params.thinkingLevel ? String(params.thinkingLevel) : undefined,
+        });
+        return { content: [{ type: "text" as const, text: `Agent 模板已创建: ${tpl.id}\\n名称: ${tpl.name}\\n可通过 task 工具 agent="${tpl.id}" 选用。` }] };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: `创建失败: ${(e as Error).message}` }] };
+      }
+    },
+  } as any) as ToolDefinition;
+}
+
 function buildPrompt(description: string, prompt: string, agentName: string | undefined): string {
   const parts: string[] = [];
   if (agentName) {

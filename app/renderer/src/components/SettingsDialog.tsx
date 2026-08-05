@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { ProvidersManager } from "./settings/ProviderSettings";
 import { GroupSettingsSection } from "./GroupSettingsSection";
+import { AgentTemplateSettings } from "./AgentTemplateSettings";
 
 export type SettingsTab = "general" | "plugins" | "providers" | "agent" | "about";
 
@@ -720,16 +721,9 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
             </div>
           ) : activeTab === "agent" ? (
             <div className="space-y-5">
-              <GroupSettingsSection />
+              <AgentTemplateSettings />
               <hr className="border-border" />
-              {/* Agent 模板占位:后续版本提供模板编辑与角色配置 */}
-              <section>
-                <h3 className="text-sm font-medium text-text-secondary mb-2">Agent 模板</h3>
-                <div className="rounded-lg border border-border bg-surface-elevated px-4 py-3 text-xs text-text-secondary/70 leading-relaxed">
-                  模板编辑与角色配置功能规划中,将在后续版本提供。当前群聊角色复用内置模板(Mint / Builder / Evaluator / Mint-D);
-                  群聊 Agent 可在模板中单独配置供应商和模型,默认与主会话一致。
-                </div>
-              </section>
+              <GroupSettingsSection />
             </div>
           ) : activeTab === "providers" ? (
             <div className="space-y-5">

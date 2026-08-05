@@ -19,6 +19,7 @@ import { buildSkillsPrompt } from "./skill-service";
 import { getActiveModel, resetModelRuntime } from "./pi-init";
 import { createPiSession, resumePiSession, listPiSessions } from "./pi-session";
 import { createTaskTool } from "./task/tool";
+import { createAgentTemplateTool } from "./task/tool";
 import { registerSessionIdMapping, abortTask, getRunningSummary, resolveParentSessionId } from "./task/registry";
 import { formatShellResult } from "./background-shell/tool";
 import { backgroundShellRegistry, type BackgroundShell } from "./background-shell/registry";
@@ -210,7 +211,8 @@ export class AgentService {
       });
       const productTools = await createProductTools(projectPath);
       const mcpTools = await loadMcpTools();
-      const allTools = [taskTool, ...productTools, ...mcpTools];
+      const agentTemplateTool = await createAgentTemplateTool();
+      const allTools = [taskTool, agentTemplateTool, ...productTools, ...mcpTools];
 
       console.log(`[agent] tools: 1 task + ${productTools.length} product + ${mcpTools.length} mcp (permission: enabled)`);
       return { tools: allTools, canUseTool };
