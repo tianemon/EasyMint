@@ -331,6 +331,7 @@ interface ElectronAPI {
       availableModels?: string[]; contextThreshold?: number; context1M?: boolean;
       showThinking?: boolean; showToolUse?: boolean;
       chatThinkingLevel?: string;
+      chatFontLevel?: number;
       maxGroupAgents?: number;
       groupForwardStrategy?: "all" | "conclusion";
       groupInjectMode?: "steer" | "followUp";

@@ -64,15 +64,6 @@ export const ChatInput = memo(function ChatInput({
   const summarizing = useStatusStore((s) => s.summarizing);
   const compacting = useStatusStore((s) => s.compacting);
   const inputDisabled = summarizing || compacting;
-  // 余额显示 v3 已隐藏（原型未展示），代码保留注释不删除
-  // const [balanceText, setBalanceText] = useState("");
-  // const refreshBalance = useCallback(async () => {
-  //   try {
-  //     const data = await window.electronAPI.settings.fetchBalance();
-  //     if (data?.balance_infos?.length) setBalanceText(data.balance_infos[0]!.total_balance);
-  //   } catch { /* ignore */ }
-  // }, []);
-  // useEffect(() => { refreshBalance(); const t = setInterval(refreshBalance, 5 * 60 * 1000); return () => clearInterval(t); }, [refreshBalance]);
 
   // 输入历史导航
   const HISTORY_KEY = "easymint_input_history";
@@ -203,8 +194,6 @@ export const ChatInput = memo(function ChatInput({
             { value: "max", label: "最大(max)" },
           ]}
         />
-        {/* 余额显示原型未展示，隐藏不删除（v3 原则 2） */}
-        {/* <span className="inp-val">{balanceText}</span> */}
         <div className="ctx-ring" title="上下文使用率">
           <svg width="20" height="20" viewBox="0 0 20 20">
             <circle className="ctx-ring-track" cx="10" cy="10" r="8"/>

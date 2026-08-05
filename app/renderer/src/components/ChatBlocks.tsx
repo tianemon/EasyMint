@@ -122,7 +122,7 @@ export function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
   }, [block.text]);
 
   return (
-    <div className="text-sm leading-relaxed prose prose-sm max-w-none break-words [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_code]:text-[13px] prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-a:text-accent prose-li:text-text-primary">
+    <div className="leading-relaxed prose prose-sm max-w-none break-words [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_code]:text-[13px] prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-a:text-accent prose-li:text-text-primary">
       {html.map((part, i) => {
         const k = `${block.keyPrefix || "md"}-${i}`;
         if (part.type === "code") {
@@ -152,10 +152,10 @@ function ThinkingBlockView({ block }: { block: ThinkingBlock }): JSX.Element {
         className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-[var(--thinking-hover)] transition-colors"
       >
         <span className="text-[11px] text-[var(--thinking-label)] uppercase tracking-wider font-semibold">思考过程</span>
-        <span className="text-[11px] text-text-secondary italic truncate flex-1">{open ? "" : preview}{!open && block.text.length > 140 ? "…" : ""}</span>
+        <span className="text-text-secondary italic truncate flex-1" style={{ fontSize: "var(--chat-detail-size)" }}>{open ? "" : preview}{!open && block.text.length > 140 ? "…" : ""}</span>
         <span className="text-[10px] text-text-secondary">{open ? "▲" : "▼"}</span>
       </button>
-      {open && <pre className="px-3 pb-2 text-[11px] text-text-secondary font-mono whitespace-pre-wrap leading-relaxed border-t border-[var(--thinking-border)]">{block.text}</pre>}
+      {open && <pre className="px-3 pb-2 text-text-secondary font-mono whitespace-pre-wrap leading-relaxed border-t border-[var(--thinking-border)]" style={{ fontSize: "var(--chat-detail-size)" }}>{block.text}</pre>}
     </div>
   );
 }
@@ -203,14 +203,15 @@ function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }
     <div className={compact ? "text-[11px]" : "border border-border rounded-md overflow-hidden"}>
       <button
         onClick={() => setShowInput((o) => !o)}
-        className={`flex items-center gap-1.5 text-text-secondary hover:text-text-primary transition-colors ${compact ? "py-0.5" : "w-full px-3 py-1.5 bg-surface-alt hover:bg-surface-hover text-xs"}`}
+        className={`flex items-center gap-1.5 text-text-secondary hover:text-text-primary transition-colors ${compact ? "py-0.5" : "w-full px-3 py-1.5 bg-surface-alt hover:bg-surface-hover"}`}
+        style={{ fontSize: "var(--chat-detail-size)" }}
       >
         <span className="text-[10px]">{showInput ? "▼" : "▶"}</span>
         <span>{item.name}</span>
         {compact && <span className="text-text-secondary truncate text-[10px]">{inputStr.slice(0, 60)}</span>}
       </button>
       {showInput && (
-        <pre className={`text-[10px] text-text-secondary font-mono overflow-x-auto bg-surface border-t border-border ${compact ? "px-3 py-1" : "px-3 py-2"}`}>
+        <pre className="text-text-secondary font-mono overflow-x-auto bg-surface border-t border-border" style={{ fontSize: "var(--chat-detail-size)" }}>
           {inputStr}
         </pre>
       )}

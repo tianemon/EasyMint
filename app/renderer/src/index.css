@@ -94,6 +94,10 @@ html[data-platform="win32"] {
  */
 
 :root {
+  /* ── 聊天字号(px):由设置→界面 的级别滑杆(1-6,默认3)映射设置 ── */
+  --chat-list-size: 14px;    /* 会话列表(默认级别3) */
+  --chat-bubble-size: 14px;  /* 聊天气泡正文(默认级别3) */
+  --chat-detail-size: 13px;  /* 思考过程/工具调用(默认级别2=基准-1级) */
   /* ── Surface（v3 对齐层级色，去绿色调）────────────── */
   --color-surface: var(--color-canvas);
   --color-surface-alt: var(--color-sidebar);
@@ -456,7 +460,8 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
   background: transparent; color: var(--color-text-muted); font-size: 18px; line-height: 1;
   transition: all 120ms var(--ease-smooth);
 }
-.sb-plus-btn:hover { border-color: var(--color-accent); color: var(--color-accent); background: var(--color-accent-soft); }
+/* hover 统一中性色(与 SessionBar 归档/新建一致,非绿) */
+.sb-plus-btn:hover { border-color: var(--color-text-secondary); color: var(--color-text-primary); background: var(--color-surface-hover); }
 .sb-dropdown {
   position: absolute; top: 100%; left: 0; margin-top: var(--s1);
   min-width: 160px; background: var(--color-sidebar);
@@ -508,14 +513,14 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 .sb-item {
   display: flex; align-items: center; gap: var(--s2);
   padding: var(--s2) var(--s3); border-radius: var(--radius-sm);
-  font-size: var(--text-sm); color: var(--color-text-secondary); cursor: pointer;
+  font-size: var(--chat-list-size); color: var(--color-text-secondary); cursor: pointer;
   transition: all 120ms var(--ease-smooth);
   border: none; background: transparent; width: 100%; text-align: left;
 }
 .sb-item:hover { background: var(--color-sidebar-hover); color: var(--color-text-primary); }
 .sb-item.active { background: var(--color-sidebar-active); color: var(--color-text-primary); box-shadow: var(--shadow-xs); }
 .sb-item-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
-.sb-item-meta { font-size: 10px; color: var(--color-text-muted); margin-left: auto; flex-shrink: 0; }
+.sb-item-meta { font-size: calc(var(--chat-list-size) - 4px); color: var(--color-text-muted); margin-left: auto; flex-shrink: 0; }
 
 /* ── Drawer ───────────────────────────────────── */
 .sb-drawer {
@@ -1222,6 +1227,11 @@ select.input {
    恢复 claude-legacy 版本:亮色 绿金 / 暗色 蓝紫粉(低对比,视觉舒缓) */
 :root  { --shimmer-1: #16a34a; --shimmer-2: #22c55e; --shimmer-3: #eab308; --shimmer-4: #facc15; --shimmer-5: #4ade80; }
 [data-theme="dark"] { --shimmer-1: #818cf8; --shimmer-2: #a78bfa; --shimmer-3: #f472b6; --shimmer-4: #c084fc; --shimmer-5: #6366f1; }
+
+/* 聊天区 Markdown(prose)正文跟随聊天气泡字号设置——覆盖 typography 插件的 prose-sm 固定字号 */
+.chat-messages .prose {
+  font-size: var(--chat-bubble-size);
+}
 
 /* 暗色模式下 prose Markdown 渲染：覆盖 typography 默认深色字体 */
 [data-theme="dark"] .prose {

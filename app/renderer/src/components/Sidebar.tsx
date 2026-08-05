@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { SessionHistory } from "./SessionHistory";
+import { SessionBar } from "./SessionBar";
 import { FileTreePanel } from "./FileTreePanel";
 import { TaskPanel } from "./TaskPanel";
 import { IssuePanel } from "./IssuePanel";
@@ -40,10 +41,8 @@ export function Sidebar({
   const [drawerTab, setDrawerTab] = useState<DrawerTab>("tasks");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
-  const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
   const [hasUpdate, setHasUpdate] = useState(false);
   const plusWrapRef = useRef<HTMLDivElement>(null);
-  const sessionMenuRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const segRef = useRef<HTMLDivElement>(null);
 
@@ -59,7 +58,6 @@ export function Sidebar({
     const handler = (e: MouseEvent) => {
       const t = e.target as Node;
       if (plusWrapRef.current && !plusWrapRef.current.contains(t)) setPlusOpen(false);
-      if (sessionMenuRef.current && !sessionMenuRef.current.contains(t)) setSessionMenuOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -108,7 +106,12 @@ export function Sidebar({
           </span>
         </div>
         <div className="sb-plus-wrap" ref={plusWrapRef}>
-          <button className="sb-plus-btn" title="新建…" onClick={() => setPlusOpen(!plusOpen)}>+</button>
+          <button className="sb-plus-btn" title="新建…" onClick={() => setPlusOpen(!plusOpen)}>
+            {/* SVG 加号:精确居中(替代文字 + 的基线偏移) */}
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="w-3.5 h-3.5">
+              <path d="M8 3.5v9M3.5 8h9" />
+            </svg>
+          </button>
           {plusOpen && (
             <div className="sb-dropdown open">
               <button className="sb-dropdown-item" onClick={() => { setPlusOpen(false); onNewProject?.(); }}>
@@ -143,25 +146,20 @@ export function Sidebar({
       <div className="sb-content">
         {activeTab === "sessions" ? (
           <div className="sb-session-lists flex flex-col min-h-0 flex-1">
-            <div className="sb-label" ref={sessionMenuRef}>
-              会话
-              <button className="sb-label-btn" onClick={() => setSessionMenuOpen(!sessionMenuOpen)}>+ 新建</button>
-              {sessionMenuOpen && (
-                <div className="sb-dropdown open" style={{ position: "absolute", left: "auto", right: -8, top: "28px", width: "max-content", minWidth: 0, zIndex: 10, padding: 2 }}>
-                  <button className="sb-dropdown-item" style={{ padding: "4px 10px" }} onClick={() => { setSessionMenuOpen(false); onNewSession?.(); }}>开发会话</button>
-                  <button className="sb-dropdown-item" style={{ padding: "4px 10px" }} onClick={() => { setSessionMenuOpen(false); onNewDesignSession?.(); }}>设计会话</button>
-                  <button className="sb-dropdown-item" style={{ padding: "4px 10px" }} onClick={() => { setSessionMenuOpen(false); onNewGroupSession?.(); }}>群聊会话</button>
-                </div>
-              )}
-            </div>
-            <SessionHistory
+            <SessionBar
               projectPath={projectPath}
               onSessionClick={onSessionClick}
               onNewSession={onNewSession}
+              onNewDesignSession={onNewDesignSession}
+              onNewGroupSession={onNewGroupSession}
+              refreshKey={sessionRefreshKey}
+            />
+            <SessionHistory
+              projectPath={projectPath}
+              onSessionClick={onSessionClick}
               onSessionDelete={onSessionDelete}
               activeSessionId={activeSessionId}
               refreshKey={sessionRefreshKey}
-              hideNewButton
             />
           </div>
         ) : (

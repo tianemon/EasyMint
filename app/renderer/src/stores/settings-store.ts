@@ -16,6 +16,8 @@ interface SettingsState {
   showToolUse: boolean;
   /** 全局聊天思考等级(新聊天会话初始默认,不控制 agent/task) */
   chatThinkingLevel: string;
+  /** 聊天字号级别(1-6,默认 3):整体控制会话列表/气泡/思考工具的字体大小 */
+  chatFontLevel: number;
   apiProviders: ApiProvidersData | null;
   // ── 需求 4:群聊配置 ──
   maxGroupAgents: number;
@@ -34,6 +36,7 @@ interface SettingsState {
   setShowThinking: (enabled: boolean) => void;
   setShowToolUse: (enabled: boolean) => void;
   setChatThinkingLevel: (level: string) => void;
+  setChatFontLevel: (level: number) => void;
   setApiProviders: (data: ApiProvidersData) => void;
   activateProvider: (providerId: string) => void;
   setMaxGroupAgents: (v: number) => void;
@@ -60,6 +63,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   showThinking: false,
   showToolUse: false,
   chatThinkingLevel: "medium",
+  chatFontLevel: 3,
   maxGroupAgents: 3,
   groupForwardStrategy: "conclusion",
   groupInjectMode: "followUp",
@@ -117,6 +121,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ chatThinkingLevel: level });
     window.electronAPI?.settings?.set?.("chatThinkingLevel", level);
   },
+  setChatFontLevel: (level: number) => {
+    set({ chatFontLevel: level });
+    window.electronAPI?.settings?.set?.("chatFontLevel", level);
+    // 级别表:1-6 → 基准 px(连续,默认第3级=14px);会话列表/气泡 = 基准,思考/工具 = 基准减 1 级
+    const SCALE = [12, 13, 14, 15, 16, 17];
+    const idx = Math.max(0, Math.min(5, level - 1));
+    const base = SCALE[idx] ?? 14;
+    const detail = SCALE[Math.max(0, idx - 1)] ?? 12;
+    document.documentElement.style.setProperty("--chat-list-size", `${base}px`);
+    document.documentElement.style.setProperty("--chat-bubble-size", `${base}px`);
+    document.documentElement.style.setProperty("--chat-detail-size", `${detail}px`);
+  },
   setMaxGroupAgents: (v: number) => { set({ maxGroupAgents: v }); window.electronAPI?.settings?.set?.("maxGroupAgents", v); },
   setGroupForwardStrategy: (v: "all" | "conclusion") => { set({ groupForwardStrategy: v }); window.electronAPI?.settings?.set?.("groupForwardStrategy", v); },
   setGroupInjectMode: (v: "steer" | "followUp") => { set({ groupInjectMode: v }); window.electronAPI?.settings?.set?.("groupInjectMode", v); },
@@ -167,6 +183,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           showThinking: settings.showThinking ?? false,
           showToolUse: settings.showToolUse ?? false,
           chatThinkingLevel: settings.chatThinkingLevel ?? "medium",
+          chatFontLevel: settings.chatFontLevel ?? 3,
           setupComplete: settings.setupComplete ?? false,
           apiProviders: (settings.apiProviders as ApiProvidersData) ?? null,
           maxGroupAgents: settings.maxGroupAgents ?? 3,          groupForwardStrategy: settings.groupForwardStrategy ?? "conclusion",

@@ -17,11 +17,8 @@ interface SessionHistoryProps {
   projectPath: string;
   activeSessionId?: string;
   onSessionClick?: (sessionId: string) => void;
-  onNewSession?: () => void;
   onSessionDelete?: (sessionId: string) => void;
   refreshKey?: number;
-  hideNewButton?: boolean;
-  hideEmptyState?: boolean;
 }
 
 interface ContextMenuState {
@@ -37,11 +34,8 @@ export function SessionHistory({
   projectPath,
   activeSessionId,
   onSessionClick,
-  onNewSession,
   onSessionDelete,
   refreshKey,
-  hideNewButton,
-  hideEmptyState,
 }: SessionHistoryProps): JSX.Element {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [designIds, setDesignIds] = useState<Set<string>>(new Set());
@@ -50,20 +44,6 @@ export function SessionHistory({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [menu, setMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, sessionId: "", title: "", pinned: false });
-  const [showArchive, setShowArchive] = useState(false);
-  const archiveRef = useRef<HTMLDivElement>(null);
-
-  // Close archive popup on click outside
-  useEffect(() => {
-    if (!showArchive) return;
-    const handler = (e: MouseEvent) => {
-      if (archiveRef.current && !archiveRef.current.contains(e.target as Node)) {
-        setShowArchive(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [showArchive]);
 
   const initialLoadDone = useRef(false);
 
@@ -146,7 +126,6 @@ export function SessionHistory({
   };
 
   const pinned = sessions.filter((s) => s.pinnedAt && !s.archivedAt);
-  const archived = sessions.filter((s) => s.archivedAt);
   const unpinned = sessions.filter((s) => !s.pinnedAt && !s.archivedAt);
 
   // 日期分组：今天 / 之前（7 天内）/ 更早（7 天前）
@@ -158,17 +137,6 @@ export function SessionHistory({
 
   return (
     <div className="flex flex-col h-full">
-      {!hideNewButton && (
-        <div className="px-3 py-2 shrink-0">
-          <button
-            className="w-full py-1.5 border border-accent text-accent text-sm rounded-lg hover:bg-accent-subtle transition-colors"
-            onClick={onNewSession}
-          >
-            + 新建会话
-          </button>
-        </div>
-      )}
-
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">加载中...</div>
       ) : error ? (
@@ -176,7 +144,7 @@ export function SessionHistory({
           <p className="text-danger text-sm">{error}</p>
           <button className="px-3 py-1 text-xs bg-accent text-text-inverse rounded hover:bg-accent-hover transition-colors" onClick={load}>重试</button>
         </div>
-      ) : hideEmptyState ? null : sessions.length === 0 ? (
+      ) : sessions.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">暂无对话记录</div>
       ) : (
         <div className="flex-1 overflow-y-auto">
@@ -209,25 +177,6 @@ export function SessionHistory({
               <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium">更早</div>
               {older.map((s) => (
                 <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Archive clock button */}
-      {archived.length > 0 && (
-        <div className="shrink-0 px-3 pb-2 relative" ref={archiveRef}>
-          <button
-            className={`w-8 h-8 mx-auto rounded-md flex items-center justify-center transition-colors ${showArchive ? "bg-accent-bg text-accent" : "text-text-secondary hover:text-text-primary"}`}
-            onClick={() => setShowArchive(!showArchive)}
-          >
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-4 h-4"><circle cx="8" cy="8" r="6"/><path d="M8 4v5M8 7.5l2.5 1.5" strokeLinecap="round"/></svg>
-          </button>
-          {showArchive && (
-            <div className="absolute bottom-full left-3 right-3 mb-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-surface-elevated shadow-lg">
-              {archived.map((s) => (
-                <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} editingId={editingId} editTitle={editTitle} onSelect={(sid) => { onSessionClick?.(sid); setShowArchive(false); }} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
             </div>
           )}
@@ -308,7 +257,7 @@ function SessionItemRow({ session, active, isDesign, editingId, editTitle, onSel
       ) : (
         <span className={`w-[6px] h-[6px] shrink-0 mr-[-2px] ${session.pinnedAt ? "bg-warning" : "bg-accent"} ${isDesign ? "rotate-45" : "rounded-full"}`} />
       )}
-      <span className="flex-1 min-w-0 truncate text-sm">{session.title}</span>
+      <span className="flex-1 min-w-0 truncate">{session.title}</span>
       <span className="sb-item-meta">{fmtDate(session.updatedAt)}</span>
     </div>
   );

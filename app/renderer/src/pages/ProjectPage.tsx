@@ -120,6 +120,9 @@ export function ProjectPage(): JSX.Element {
       ts.openTab({ id: tabId, type: "chat" as const, title: "新会话", sessionId });
       ts.setActiveTab(tabId);
       setActiveSessionId(sessionId);
+
+      // 刷新会话列表:旧会话已被归档,应出现在"已归档"分组
+      setSessionRefreshKey((k) => k + 1);
     });
     return () => unsub();
   }, [projectId]);
