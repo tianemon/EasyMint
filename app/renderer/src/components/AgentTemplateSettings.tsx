@@ -143,6 +143,27 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
     setTools((prev) => prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name]);
   };
 
+  // 供应商切换→加载该供应商的模型列表
+  const [providerModels, setProviderModels] = useState<string[]>([]);
+  const [loadingProviderModels, setLoadingProviderModels] = useState(false);
+  useEffect(() => {
+    if (!provider) { setProviderModels([]); return; }
+    // 自定义供应商(presetId==="custom")的 Pi provider id = config.id,用户输入;内置供应商直接查
+    const apiProviders = useSettingsStore.getState().apiProviders;
+    const cfg = apiProviders?.configs?.[provider];
+    const piProvider = cfg?.presetId === "custom" ? cfg.id : provider;
+    // 如果配置里有缓存的模型列表,直接用
+    if (cfg?.models?.length) {
+      setProviderModels(cfg.models);
+      return;
+    }
+    // 否则从 Pi 拉取
+    setLoadingProviderModels(true);
+    window.electronAPI.agent.getPiModels(piProvider).then((ms) => {
+      setProviderModels(ms.map((m) => m.id));
+    }).catch(() => setProviderModels([])).finally(() => setLoadingProviderModels(false));
+  }, [provider]);
+
   const handleSave = () => {
     if (!name.trim() || !prompt.trim()) return;
     onSave({ name: name.trim(), description: desc.trim(), prompt: prompt.trim(), tools, provider: provider || undefined, model: model || undefined, thinkingLevel: thinkingLevel || undefined });
@@ -178,8 +199,13 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
         </div>
         <div>
           <label className="text-[11px] text-text-secondary block mb-1">模型 id(可选)</label>
-          <input className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
-            placeholder="如 deepseek-v4-flash" value={model} onChange={(e) => setModel(e.target.value)} />
+          {providerModels.length > 0 ? (
+            <Select block placeholder={loadingProviderModels ? "加载中…" : "选择模型"} value={model} onChange={setModel}
+              options={providerModels.map((m) => ({ value: m, label: m }))} title="选择模型" />
+          ) : (
+            <input className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+              placeholder="如 deepseek-v4-flash" value={model} onChange={(e) => setModel(e.target.value)} />
+          )}
         </div>
       </div>
       <div>
