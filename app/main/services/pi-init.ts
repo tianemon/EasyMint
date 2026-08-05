@@ -46,14 +46,15 @@ export async function getActiveModel(store: Store): Promise<Model<any> | null> {
   const runtime = await getModelRuntime(store);
 
   // 候选模型列表(按优先级:当前激活供应商的 模型(默认) → 兜底模型)。
-  // 默认/兜底由每条供应商配置自己的 model/fallbackModel 定义(需求 1 重定义)。
-  // 模型不存在或无凭据时跳到下一个(降级)。
+  // 默认/兜底由每条供应商配置自己的 model/fallbackModel 定义(需求 1)。
+  // 自定义供应商(presetId="custom")的 provider 注册 id = config.id(非 "custom")。
+  const activeProvider = activeCfg.presetId === "custom" ? providers.current : activeCfg.presetId;
   const candidates: Array<{ provider: string; modelId: string }> = [];
   if (activeCfg.model) {
-    candidates.push({ provider: activeCfg.presetId, modelId: activeCfg.model.replace(/\[1M\]$/, "") });
+    candidates.push({ provider: activeProvider, modelId: activeCfg.model.replace(/\[1M\]$/, "") });
   }
   if (activeCfg.fallbackModel) {
-    candidates.push({ provider: activeCfg.presetId, modelId: activeCfg.fallbackModel.replace(/\[1M\]$/, "") });
+    candidates.push({ provider: activeProvider, modelId: activeCfg.fallbackModel.replace(/\[1M\]$/, "") });
   }
 
   for (const c of candidates) {
@@ -113,12 +114,13 @@ async function syncProviders(store: Store) {
     // 用户自定义 provider:调 registerProvider 动态注册
     if (config.presetId === "custom" && config.apiKey && config.baseUrl) {
       try {
+        // 用户配置的模型列表(em-settings 中的 models 字段),有模型才注册
         _modelRuntime.registerProvider(config.id, {
           name: config.name,
           apiKey: config.apiKey,
           baseUrl: config.baseUrl,
           api: (config as any).apiType || "anthropic-messages",
-          models: [],
+          models: (config.models || []).map((m: string) => ({ id: m, name: m, reasoning: true, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 })),
         } as any);
         if (config.apiKey) {
           await _modelRuntime.setRuntimeApiKey(config.id, config.apiKey);
