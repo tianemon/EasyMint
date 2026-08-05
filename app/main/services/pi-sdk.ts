@@ -83,6 +83,13 @@ export async function getCreateBashToolDefinition(): Promise<
   return sdk.createBashToolDefinition;
 }
 
+export async function getCreateEditToolDefinition(): Promise<
+  typeof import("@earendil-works/pi-coding-agent").createEditToolDefinition
+> {
+  const sdk = await getSdk();
+  return sdk.createEditToolDefinition;
+}
+
 export async function getCreateReadOnlyTools(): Promise<
   typeof import("@earendil-works/pi-coding-agent").createReadOnlyTools
 > {

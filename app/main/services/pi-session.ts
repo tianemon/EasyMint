@@ -18,6 +18,7 @@ import {
   getCreateCodingTools,
 } from "./pi-sdk";
 import { createEnhancedBashTool } from "./background-shell/tool";
+import { createEnhancedEditTool } from "./enhanced-edit";
 import type { BackgroundShell } from "./background-shell/registry";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
@@ -71,11 +72,13 @@ async function buildSession(
   // bash 用增强版替换(原生 + background 参数):同名工具后者覆盖前者(agent-session Map.set)
   // 放在最后,确保覆盖 codingTools 中的原生 bash
   const enhancedBash = await createEnhancedBashTool(opts.cwd, { onExit: opts.onShellExit });
-  const codingToolsReplaced = codingTools.filter((t) => t.name !== "bash");
+  // edit 用增强版替换(原生 + diff 注入返回文本):Mint 可见变更内容
+  const enhancedEdit = await createEnhancedEditTool(opts.cwd);
+  const codingToolsReplaced = codingTools.filter((t) => t.name !== "bash" && t.name !== "edit");
   // 统一权限包装：extraTools 与基础 coding 工具（Read/Write/Edit/Bash 等）全部生效
   const wrapAll = (tools: ToolDefinition[]): ToolDefinition[] =>
     opts.canUseTool ? tools.map((t) => wrapToolWithPermission(t, { canUseTool: opts.canUseTool })) : tools;
-  const tools = [...wrapAll(opts.extraTools ?? []), ...wrapAll(codingToolsReplaced), ...wrapAll([enhancedBash])];
+  const tools = [...wrapAll(opts.extraTools ?? []), ...wrapAll(codingToolsReplaced), ...wrapAll([enhancedBash, enhancedEdit])];
 
   const sessionOpts: CreateAgentSessionOptions = {
     cwd: opts.cwd,
