@@ -104,10 +104,14 @@ export async function loadMcpTools(): Promise<ToolDefinition[]> {
     try {
       const response = await withTimeout(client.listTools(), MCP_LIST_TIMEOUT_MS, `MCP ${s.name} listTools`);
       for (const t of response.tools) {
+        // snippet 取描述首行(截断 80 字符),让 MCP 工具出现在提示词 Available tools 清单
+        const desc = t.description || `MCP 工具: ${s.name}/${t.name}`;
+        const snippet = desc.split("\n")[0].slice(0, 80);
         tools.push(defineTool({
           name: `mcp__${s.name}__${t.name}`,
           label: `MCP: ${s.name}/${t.name}`,
-          description: t.description || `MCP 工具: ${s.name}/${t.name}`,
+          description: desc,
+          promptSnippet: snippet,
           parameters: t.inputSchema || { type: "object" as const, properties: {} },
           async execute(_tid: any, params: any, _sig: any, _upd: any, _ctx: any) {
             const result = await client!.callTool({ name: t.name, arguments: params as Record<string, unknown> });

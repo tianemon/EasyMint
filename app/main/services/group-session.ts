@@ -573,7 +573,7 @@ export class GroupSessionManager {
     if (!activeCfg?.presetId || !activeCfg.fallbackModel) return false;
     const { getModelRuntime } = await import("./pi-init");
     const runtime = await getModelRuntime(this.deps.store);
-    const fb = runtime.getModel(activeCfg.presetId, activeCfg.fallbackModel.replace(/\[1M\]$/, ""));
+    const fb = runtime.getModel(activeCfg.presetId, activeCfg.fallbackModel);
     if (!fb) return false;
     try {
       await agent.session.setModel(fb);

@@ -51,10 +51,10 @@ export async function getActiveModel(store: Store): Promise<Model<any> | null> {
   const activeProvider = activeCfg.presetId === "custom" ? providers.current : activeCfg.presetId;
   const candidates: Array<{ provider: string; modelId: string }> = [];
   if (activeCfg.model) {
-    candidates.push({ provider: activeProvider, modelId: activeCfg.model.replace(/\[1M\]$/, "") });
+    candidates.push({ provider: activeProvider, modelId: activeCfg.model });
   }
   if (activeCfg.fallbackModel) {
-    candidates.push({ provider: activeProvider, modelId: activeCfg.fallbackModel.replace(/\[1M\]$/, "") });
+    candidates.push({ provider: activeProvider, modelId: activeCfg.fallbackModel });
   }
 
   for (const c of candidates) {

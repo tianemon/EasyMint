@@ -99,7 +99,7 @@ async function resolveSubagentModel(opts: SubagentOptions): Promise<Awaited<Retu
   const providers = opts.store.getSettings().apiProviders;
   const activeCfg = providers?.current ? providers.configs?.[providers.current] : undefined;
   if (activeCfg?.presetId && activeCfg.subagentDefaultModel) {
-    const m3 = tryGet(activeCfg.presetId, activeCfg.subagentDefaultModel.replace(/\[1M\]$/, ""));
+    const m3 = tryGet(activeCfg.presetId, activeCfg.subagentDefaultModel);
     if (m3) return m3;
   }
   // 4. 全局默认(当前激活供应商的 model,默认/兜底降级在 getActiveModel 内处理)

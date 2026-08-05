@@ -180,6 +180,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
   // 全局聊天思考等级:仅作为新会话的初始默认(方案 B,聊天下拉可临时改)
   const globalThinkingLevel = useSettingsStore((s) => s.chatThinkingLevel);
   const [thinkingLevel, setThinkingLevel] = useState(globalThinkingLevel || "medium");
+  // 用户是否手动切过思考等级:手动切过后不再跟随全局变化(方案 B)
+  const userChangedThinkingRef = useRef(false);
 
   const showToolUse = useSettingsStore((s) => s.showToolUse);
   const [chatModel, setChatModel] = useState("");
@@ -193,10 +195,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
   }, [setStoreModel]);
   const [showStats, setShowStats] = useState(false);
   const handleThinkingLevelChange = useCallback((level: string) => {
+    userChangedThinkingRef.current = true;
     setThinkingLevel(level);
     const sid = sidRef.current;
     if (sid) window.electronAPI.agent.setThinkingLevel(sid, level).catch(() => {});
   }, []);
+
+  // 加固(启动竞态):store 异步加载完成前,新会话可能拿到默认 medium。
+  // 全局值变化且用户未手动切过时,同步本地值;手动切过后不再跟随(方案 B)。
+  useEffect(() => {
+    if (globalThinkingLevel && !userChangedThinkingRef.current) {
+      setThinkingLevel(globalThinkingLevel);
+    }
+  }, [globalThinkingLevel]);
 
   const msgIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
