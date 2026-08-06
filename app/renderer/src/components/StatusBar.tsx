@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useStatusStore } from "../stores/status-store";
 import { useTabStore } from "../stores/tab-store";
-import { useDelegationStore } from "../stores/delegation-store";
 
 /** 过渡符号动画序列(顺序播放 → 端点停顿 → 倒序播放 → 端点停顿,循环) */
 const SYMBOLS = ["·", "✢", "✻", "✳", "❋"];
@@ -22,8 +21,8 @@ const shimmerStyle: CSSProperties = {
 /**
  * 独立的状态栏——从 status-store 读取，密集更新时只重渲染自己，不牵连 ChatPanel/消息列表。
  * busy 从 tab-store 读取（主会话的 runningSessions）。
- * 常驻过渡符号动画:回合进行 / 子 Agent 运行 / 后台 shell 运行任一活跃即显示;
- * 有状态文本时与文本并存(动画常驻,不绑定回合)。
+ * 常驻活跃动画已移至输入卡片流光环绕(input-card-glow);
+ * 符号动画与状态文本同现同消:有状态信号(busy && text)时符号+文本一起出现,信号结束一起消失。
  */
 export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | null {
   // 按会话读状态信号(多 tab 各自显示自己的状态,不穿透)
@@ -31,21 +30,14 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
   const text = session?.signals ? [...session.signals].sort((a, b) => b.seq - a.seq)[0]?.text ?? "" : "";
   const summarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
   const busy = useTabStore((s) => s.runningSessions.has(sessionId));
-  // 子 Agent / 后台 shell 活跃度按发起会话过滤——委派/后台命令是主会话发起的,
-  // 其他会话 tab 的 StatusBar 不显示这些动画(否则跨会话状态污染)
-  const agentActive = useDelegationStore((s) => s.agentTasks.some((t) => !t.sessionId || t.sessionId === sessionId));
-  const shellActive = useDelegationStore((s) => s.shellTasks.some((t) => !t.sessionId || t.sessionId === sessionId));
 
-  // 动画活跃:回合进行 ∪ 子 Agent 运行 ∪ 后台 shell 运行(摘要走独立横幅)
-  const showBar = busy || agentActive || shellActive;
-
-  // 符号动画状态机:正程(·→✻)→ 端点停顿 → 回程(✻→·)→ 端点停顿 → 循环。
-  // 用 ref 持有时序状态 + setTimeout 递归,避免闭包过期;停顿期间符号停留端点。
+  // 符号动画只在有状态文本时运行(与文本同现同消)——text 空则不显示不运行
+  const showSymbols = busy && !!text;
   const [symIdx, setSymIdx] = useState(0);
   const idxRef = useRef(0);
   const dirRef = useRef(1);
   useEffect(() => {
-    if (!showBar) { setSymIdx(0); return; }
+    if (!showSymbols) { setSymIdx(0); return; }
     idxRef.current = 0;
     dirRef.current = 1;
     setSymIdx(0);
@@ -55,13 +47,11 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
       const d = dirRef.current;
       const next = i + d;
       if (next > SYMBOLS.length - 1) {
-        // 正程到头:方向反转,端点停顿
         dirRef.current = -1;
         timer = setTimeout(tick, PAUSE_MS);
         return;
       }
       if (next < 0) {
-        // 回程到头:方向反转,端点停顿
         dirRef.current = 1;
         timer = setTimeout(tick, PAUSE_MS);
         return;
@@ -72,22 +62,18 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
     };
     timer = setTimeout(tick, TICK_MS);
     return () => clearTimeout(timer);
-  }, [showBar]);
+  }, [showSymbols]);
   const symbol = SYMBOLS[symIdx];
 
-  if (!showBar && !summarizing) return null;
+  if (!showSymbols && !summarizing) return null;
 
   return (
     <>
-      {showBar && (
+      {showSymbols && (
         <div className="statusbar">
-          {/* 常驻过渡动画(符号往返切换,流光覆盖)。固定宽度 + 居中:
-              符号宽窄不一(☘ vs ✢),不固定会挤压右侧状态文本来回横跳 */}
+          {/* 符号(固定宽度,防挤压文本横跳)+ 状态文本,一同出现一同消失 */}
           <span className="w-[1.25em] inline-flex items-center justify-center text-xs font-bold shrink-0 select-none" style={shimmerStyle}>{symbol}</span>
-          {/* 有状态文本时并存显示(回合内信号:正在思考/执行工具等) */}
-          {busy && text && (
-            <span className="text-xs font-medium" style={shimmerStyle}>{text}</span>
-          )}
+          <span className="text-xs font-medium" style={shimmerStyle}>{text}</span>
         </div>
       )}
       {summarizing && (

@@ -670,6 +670,31 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   position: relative; flex-shrink: 0;
   margin: 0 var(--s16) var(--s4);
 }
+/* 流光环绕:活跃时沿输入卡片边缘旋转流动(替代状态栏常驻符号动画)。
+   用 @property 注册角度变量,conic-gradient 引用它实现真旋转(transform 旋转矩形会出界) */
+@property --glow-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.input-card-glow {
+  position: absolute; inset: -2px;
+  border-radius: calc(var(--radius-md) + 2px);
+  padding: 2px;
+  background: conic-gradient(from var(--glow-angle),
+    transparent 0deg, transparent 200deg, var(--color-accent) 260deg, transparent 320deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: glowSpin 3s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+@keyframes glowSpin {
+  from { --glow-angle: 0deg; }
+  to { --glow-angle: 360deg; }
+}
 .input-top { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s2) var(--s4) 0; }
 .chat-input {
   flex: 1; border: none; background: transparent;

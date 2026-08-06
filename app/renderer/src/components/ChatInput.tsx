@@ -64,6 +64,10 @@ export const ChatInput = memo(function ChatInput({
   const summarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
   const compacting = useStatusStore((s) => s.bySession[sessionId]?.compacting ?? false);
   const inputDisabled = summarizing || compacting;
+  // 流光环绕动画活跃:回合进行 ∪ 子 Agent 运行 ∪ 后台 shell 运行(替代状态栏常驻符号动画)
+  const agentActive = useDelegationStore((s) => s.agentTasks.some((t) => !t.sessionId || t.sessionId === sessionId));
+  const shellActive = useDelegationStore((s) => s.shellTasks.some((t) => !t.sessionId || t.sessionId === sessionId));
+  const glowActive = busy || agentActive || shellActive;
 
   // 输入历史导航
   const HISTORY_KEY = "easymint_input_history";
@@ -119,6 +123,8 @@ export const ChatInput = memo(function ChatInput({
 
   return (
     <div className="input-card">
+      {/* 流光环绕动画:活跃时环绕输入卡片流动(替代状态栏常驻符号动画) */}
+      {glowActive && <div className="input-card-glow" aria-hidden="true" />}
       {/* Compact 蒙版 */}
       {compacting && (
         <div className="absolute inset-0 z-10 rounded-[10px] bg-surface/70 backdrop-blur-[2px] flex items-center justify-center">
