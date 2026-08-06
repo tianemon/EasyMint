@@ -69,8 +69,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
 
   // 状态栏独立存储 → 密集更新时只重渲染 StatusBar，不牵连 ChatPanel/消息列表
   // 注意：ChatPanel 不读 s.text，否则每次 statusText 变化都会重渲染整个组件
-  const summarizing = useStatusStore((s) => s.summarizing);
-  const compacting = useStatusStore((s) => s.compacting);
+  // 按会话读(多 tab 各自显示自己的压缩/摘要状态)
+  const summarizing = useStatusStore((s) => s.bySession[sidRef.current]?.summarizing ?? false);
+  const compacting = useStatusStore((s) => s.bySession[sidRef.current]?.compacting ?? false);
   const [compactDone, setCompactDone] = useState(false);
   const prevCompacting = useRef(compacting);
   useEffect(() => {
@@ -173,13 +174,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
         // 统一瞬时滚动：smooth 动画期间内容持续移动,鼠标相对位置变化
         // 会误触发消息 hover(复制/钉住按钮闪现)
         el.scrollTop = el.scrollHeight;
+        // 贴底完成后立即复位标记——防抖只用于二次贴底,不复位标记
+        // (否则流式高频更新时 setTimeout 持续重置,programmaticScrollRef 卡 true,
+        //  handleScroll 永远被跳过 → autoScrollRef 永不变 false → 滚动被锁定)
+        programmaticScrollRef.current = false;
         // 虚拟化测量兜底：消息高度异步重测(ResizeObserver),内容更新后总高度
         // 变化,立即贴底会落后——延迟二次贴底(防抖:连续帧只保留最后一次)
         if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
         scrollTimeoutRef.current = window.setTimeout(() => {
           scrollTimeoutRef.current = null;
           if (el && (force || autoScrollRef.current)) el.scrollTop = el.scrollHeight;
-          programmaticScrollRef.current = false;
         }, 80);
       });
     }
@@ -290,8 +294,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
 
   // ── History / stream ───────────────────────────────
 
-  // 新挂载时重置残留状态（防止窗口切换/重开后状态栏显示旧文本）
-  useEffect(() => { useStatusStore.getState().reset(); }, []);
+  // 新挂载时重置本会话残留状态(防止窗口切换/重开后状态栏显示旧文本;按会话隔离,不影响其他 tab)
+  useEffect(() => { useStatusStore.getState().reset(sidRef.current); }, []);
 
   // ── 子 Agent 委派进度卡片 ─────────────────────────
   const [delegation, setDelegation] = useState<DelegationUiState | null>(null);
@@ -314,7 +318,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
         prompt?: string;
       }>;
     }) => {
-      if (data.chatId && currentChatRef.current && data.chatId !== currentChatRef.current) return;
+      if (!currentChatRef.current) return;
+      if (data.chatId && data.chatId !== currentChatRef.current) return;
       // 初始化:delegationId 对应的全部任务行(pending);后续 progress 事件按 index 更新
       const tasks: DelegationTaskUi[] = data.tasks.map((t) => ({
         index: t.index,
@@ -340,8 +345,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
 
   useEffect(() => {
     const unsub = window.electronAPI.agent.onDelegationProgress((data: DelegationProgressEvent) => {
-      // 过滤：只显示当前窗口 chat 的委派
-      if (data.chatId && currentChatRef.current && data.chatId !== currentChatRef.current) return;
+      // 过滤:仅显示当前窗口 chat 的委派;currentChatRef 未初始化(非主会话 tab)→ 拒绝,
+      // 否则 A 会话的委派进度穿透到所有打开的会话 tab(后台任务通知跨会话显示)
+      if (!currentChatRef.current) return;
+      if (data.chatId && data.chatId !== currentChatRef.current) return;
       const prev = delegationRef.current;
       const task: DelegationTaskUi = {
         index: data.progress.index,
@@ -383,10 +390,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
       delegationRef.current = next;
       // 副作用(事件回调内,合法):委派开始 → 常驻「调用 Agent」;结束 → 清除
       if (!prev) {
-        useStatusStore.getState().pushSignal("agent", "调用 Agent");
+        useStatusStore.getState().pushSignal(sidRef.current, "agent", "调用 Agent");
       }
       if (finished && (!prev || !prev.finished)) {
-        useStatusStore.getState().popSignal("agent");
+        useStatusStore.getState().popSignal(sidRef.current, "agent");
       }
       // taskId 关联:委派实时状态写 delegation-store(TaskPanel 行实时视图)
       if (data.progress.taskId) {
@@ -404,17 +411,21 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
     return unsub;
   }, []);
 
-  // 委派计数订阅(AgentBar 胶囊显示 + 任务列表)
+  // 委派计数订阅(AgentBar 胶囊显示 + 任务列表)——非主会话 tab 拒绝,
+  // 否则委派状态穿透到所有会话 tab(跨会话污染)
   useEffect(() => {
     const unsubCount = window.electronAPI.agent.onDelegationCount((data) => {
+      if (!currentChatRef.current) return;
       useDelegationStore.getState().setAgentTasks(data.tasks);
     });
     return unsubCount;
   }, []);
 
-  // 后台 shell 列表订阅(ShellBar 胶囊显示 + 命令列表)
+  // 后台 shell 列表订阅(ShellBar 胶囊显示 + 命令列表)——非主会话 tab 拒绝,
+  // 否则后台命令状态穿透到所有会话 tab(跨会话污染)
   useEffect(() => {
     const unsubShell = window.electronAPI.agent.onShellCount((data) => {
+      if (!currentChatRef.current) return;
       useDelegationStore.getState().setShellTasks(data);
     });
     return unsubShell;
@@ -560,8 +571,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
       const handleBlocks = (blocks: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; content?: unknown; thinking?: string }>, frameTs: number) => {
         const rawEntries = piBlocksToEntries(blocks);
         if (rawEntries.length === 0) return;
-        // Mint 开始输出 → 思考信号结束
-        useStatusStore.getState().popSignal("request");
+        // 仅实际文本输出时结束「思考中」——thinking 块是思考内容,不代表输出开始,
+        // pop 后状态栏空白但 Mint 仍在思考(问题:thinking 流式帧把「思考中」误 pop)
+        const hasText = rawEntries.some((e) => e.kind === "text");
+        if (hasText) useStatusStore.getState().popSignal(sidRef.current, "request");
         const entries = mergeConsecutiveText(rawEntries);
         if (latestAiIdRef.current) {
           useChatStore.getState().replaceAiEntriesById(sidRef.current, latestAiIdRef.current, entries);
@@ -578,7 +591,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
       if (event.type === "turn_start") {
         // 回合开始 → 请求转「正在思考」(同 id 更新,不 pop——Mint 思考阶段状态栏保持显示,
         // 直到首个输出帧/工具调用才结束,否则「正在请求」一闪而过)
-        useStatusStore.getState().pushSignal("request", "正在思考...");
+        useStatusStore.getState().pushSignal(sidRef.current, "request", "正在思考...");
         latestAiIdRef.current = 0;
         steeringRef.current = false;
       }
@@ -601,14 +614,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
         const label = displayToolLabel(event.toolName, event.toolArgs);
         // 开始执行工具 → 思考信号结束(否则 tool pop 后回退显示「正在思考」);
         // 按 toolCallId 区分信号——连续工具互不干扰(前一个 tool_done 不误 pop 后一个)
-        useStatusStore.getState().popSignal("request");
-        useStatusStore.getState().pushSignal(`tool:${event.toolCallId ?? "?"}`, label);
+        useStatusStore.getState().popSignal(sidRef.current, "request");
+        useStatusStore.getState().pushSignal(sidRef.current, `tool:${event.toolCallId ?? "?"}`, label);
       }
       // tool done — 工具执行结束,pop 自己的工具信号;
       // 回合仍在 → 恢复「正在思考」,消除工具执行完到下一步输出之间的状态栏空档
       if (event.type === "tool_done") {
-        useStatusStore.getState().popSignal(`tool:${event.toolCallId ?? "?"}`);
-        if (busyRef.current) useStatusStore.getState().pushSignal("request", "正在思考...");
+        useStatusStore.getState().popSignal(sidRef.current, `tool:${event.toolCallId ?? "?"}`);
+        if (busyRef.current) useStatusStore.getState().pushSignal(sidRef.current, "request", "正在思考...");
       }
       // tool_result — 工具执行结果(主进程 event-bridge 转发 toolResult 消息):
       // 按 toolCallId 追加 tool_result entry,渲染时关联到对应工具块显示结果
@@ -634,13 +647,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
       }
       // compaction UI — compacting 事件 = 压缩进行中（显示"正在整理会话..."）
       if (event.type === "compacting") {
-        useStatusStore.getState().setCompacting(true);
+        useStatusStore.getState().setCompacting(sidRef.current, true);
       }
       // compacted = 压缩完成：清除 compacting（触发"会话已整理完毕"提示），
       // 并兜底清除 summarizing（防御轮转总结路径的残留）
       if (event.type === "compacted") {
-        useStatusStore.getState().setCompacting(false);
-        useStatusStore.getState().setSummarizing(false);
+        useStatusStore.getState().setCompacting(sidRef.current, false);
+        useStatusStore.getState().setSummarizing(sidRef.current, false);
         // 压缩后 Pi 重发的帧是摘要内容 → 作为新输出段块处理
         latestAiIdRef.current = 0;
       }
@@ -649,13 +662,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
       if (event.type === "turn_end" && groupId) {
         latestAiIdRef.current = 0;
         busyRef.current = false; setBusy(false);
-        useStatusStore.getState().popSignal("request");
-        useStatusStore.getState().popSignalsByPrefix("tool:");
+        useStatusStore.getState().popSignal(sidRef.current, "request");
+        useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:");
       }
       // error — 插播错误信号,8s 后自动消失(回退次新活跃信号)
       if (event.type === "error") {
         // 归一化上游错误(503/429/超时)为友好提示,状态栏不显示原始 JSON
-        useStatusStore.getState().pushSignal("error", normalizeApiError(event.message) || "出错了", 8000);
+        useStatusStore.getState().pushSignal(sidRef.current, "error", normalizeApiError(event.message) || "出错了", 8000);
       }
       // custom 系统消息(委派完成/后台 shell/流程指令)→ 独立即时显示:
       // triggerTurn: false 注入,立即落盘 + 立即事件(带 streaming 标记,
@@ -681,10 +694,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
       }
       // context usage update
       if (event.type === "context_usage") {
-        useStatusStore.getState().setCtxPct(event.percentage || 0);
+        useStatusStore.getState().setCtxPct(sidRef.current, event.percentage || 0);
       }
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; latestAiIdRef.current = 0; busyRef.current = false; setBusy(false); useStatusStore.getState().popSignal("request"); useStatusStore.getState().popSignalsByPrefix("tool:"); onActivity?.(); });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; latestAiIdRef.current = 0; busyRef.current = false; setBusy(false); useStatusStore.getState().popSignal(sidRef.current, "request"); useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:"); onActivity?.(); });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;
@@ -710,7 +723,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
     });
     // 兜底模型降级提示(需求 1):主模型不可用切换兜底时,状态栏 8s 提示
     const unsubFallback = window.electronAPI.agent.onFallbackUsed(() => {
-      useStatusStore.getState().pushSignal("error", "⚠ 主模型不可用，已切换兜底模型", 8000);
+      useStatusStore.getState().pushSignal(sidRef.current, "error", "⚠ 主模型不可用，已切换兜底模型", 8000);
     });
     // Context rotation events — filter by chatId
     const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(({ chatId: ctxChatId, type }: { chatId: string; type?: string }) => {
@@ -718,35 +731,36 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
       if (ctxChatId !== currentChatRef.current) return;
       if (type === "done") {
         // 轮转失败兜底：清除总结状态
-        useStatusStore.getState().setSummarizing(false);
-        useStatusStore.getState().popSignal("summary");
-        useStatusStore.getState().popSignal("compact");
+        useStatusStore.getState().setSummarizing(sidRef.current, false);
+        useStatusStore.getState().popSignal(sidRef.current, "summary");
+        useStatusStore.getState().popSignal(sidRef.current, "compact");
         return;
       }
-      useStatusStore.getState().pushSignal(type === "compact" ? "compact" : "summary",
+      useStatusStore.getState().pushSignal(sidRef.current, type === "compact" ? "compact" : "summary",
         type === "compact" ? "正在整理会话..." : "正在整理并开启新会话...");
       if (type === "compact") {
         useTabStore.getState().setSessionRunning(sidRef.current, true);
-        useStatusStore.getState().setCompacting(true);
+        useStatusStore.getState().setCompacting(sidRef.current, true);
       } else {
-        useStatusStore.getState().setSummarizing(true);
+        useStatusStore.getState().setSummarizing(sidRef.current, true);
       }
     });
     const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ chatId: ctxChatId, percentage }) => {
       if (!currentChatRef.current) return;
       if (ctxChatId !== currentChatRef.current) return;
       const pct = Math.round(percentage);
-      useStatusStore.getState().setCtxPct(pct);
+      useStatusStore.getState().setCtxPct(sidRef.current, pct);
       if (sidRef.current) {
         window.electronAPI.sessionCache.write(sidRef.current, { contextUsage: pct }).catch(() => {});
       }
       // 主动压缩：使用率达到设置阈值（默认 65%）就提前 compact——
       // 等 Pi 自动压缩时已接近 100%，模型性能在 75% 后明显下降。
       const threshold = useSettingsStore.getState().contextThreshold || 75;
-      const st = useStatusStore.getState();
+      const sid = sidRef.current;
+      const st = useStatusStore.getState().bySession[sid];
       if (
         pct >= threshold &&
-        !st.compacting && !st.summarizing &&
+        !st?.compacting && !st?.summarizing &&
         ctxThresholdFiredRef.current !== threshold &&
         currentChatRef.current
       ) {
@@ -757,16 +771,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
       // 使用率显著回落（压缩完成）后允许再次触发
       if (pct < threshold - 20) ctxThresholdFiredRef.current = 0;
     });
-    return () => { unsub(); unsubExit(); unsubSid(); unsubFallback(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(); };
+    return () => { unsub(); unsubExit(); unsubSid(); unsubFallback(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(sidRef.current); };
   }, [groupId]);
 
   // Summarizing timeout — 120s safety net
   useEffect(() => {
     if (!summarizing) return;
     const timer = setTimeout(() => {
-      useStatusStore.getState().setSummarizing(false);
-      useStatusStore.getState().popSignal("summary");
-      useStatusStore.getState().pushSignal("error", "摘要超时，将开新会话继续", 8000);
+      useStatusStore.getState().setSummarizing(sidRef.current, false);
+      useStatusStore.getState().popSignal(sidRef.current, "summary");
+      useStatusStore.getState().pushSignal(sidRef.current, "error", "摘要超时，将开新会话继续", 8000);
       console.error("[ChatPanel] summarization timed out after 120s");
     }, 120_000);
     return () => clearTimeout(timer);
@@ -780,8 +794,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
         const streaming = await window.electronAPI.agent.isStreaming(sidRef.current);
         if (!streaming) {
           setBusy(false);
-          useStatusStore.getState().popSignal("request");
-          useStatusStore.getState().popSignal("tool");
+          useStatusStore.getState().popSignal(sidRef.current, "request");
+          useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:");
         }
       } catch { /* 网络错误忽略 */ }
     }, 30_000);
@@ -817,7 +831,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
         if (cache.permissionMode) setPermissionMode(cache.permissionMode);
         if (cache.model) setChatModel(cache.model);
         if (cache.provider) setChatProvider(cache.provider);
-        if (cache.contextUsage > 0) useStatusStore.getState().setCtxPct(cache.contextUsage);
+        if (cache.contextUsage > 0) useStatusStore.getState().setCtxPct(sidRef.current, cache.contextUsage);
       }
     }).catch(() => {});
   }, [existingSid]);
@@ -866,7 +880,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
       return;
     }
 
-    busyRef.current = true; setBusy(true); useStatusStore.getState().pushSignal("request", "正在请求...");
+    busyRef.current = true; setBusy(true); useStatusStore.getState().pushSignal(sidRef.current, "request", "正在请求...");
 
     try {
       // 群聊发送:主进程 @提及路由到目标 Agent;事件按 groupId 过滤回显
@@ -887,7 +901,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
       const effectivePath = projectPath || getWorkspaceDir();
       const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "auto", isDesigner: tab?.isDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium", preferredProvider: chatProvider || undefined });
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
-    } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; useStatusStore.getState().pushSignal("error", "发送失败，请检查网络后重试", 8000); }
+    } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; useStatusStore.getState().pushSignal(sidRef.current, "error", "发送失败，请检查网络后重试", 8000); }
   }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatProvider, groupId]);
 
   useEffect(() => { chatActions.register((t: string) => sendText(t)); return () => chatActions.unregister(); }, [sendText]);

@@ -6,8 +6,9 @@ import { SubagentProcessView } from "./SubagentProcessView";
  * Agent 胶囊:显示 Agent•N(输入卡片会话统计右侧),点击展开运行中的子 Agent 任务列表,
  * 每个任务可点击查看执行过程(弹层)、单独停止;点击胶囊外部区域收起菜单(document 级 mousedown 判断)
  */
-export function AgentBar(): JSX.Element | null {
-  const agentTasks = useDelegationStore((s) => s.agentTasks);
+export function AgentBar({ sessionId }: { sessionId?: string }): JSX.Element | null {
+  // 按发起会话过滤——委派是主会话发起的,其他会话 tab 不显示委派胶囊(跨会话污染)
+  const agentTasks = useDelegationStore((s) => s.agentTasks.filter((t) => !t.sessionId || t.sessionId === sessionId));
   const [expanded, setExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   // 查看中的子 Agent(弹层;任务从列表移除后弹层保持打开,running 转 false)

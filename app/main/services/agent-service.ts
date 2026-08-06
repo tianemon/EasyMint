@@ -1052,6 +1052,8 @@ export class AgentService {
           userMessages: stats.userMessages, assistantMessages: stats.assistantMessages,
           toolCalls: stats.toolCalls, totalMessages: stats.totalMessages,
           tokens: stats.tokens, cost: stats.cost, contextUsage: stats.contextUsage,
+          // 当前模型(前端按 provider 判断 cost 币种:DeepSeek=¥, 其他=$)
+          model: chat.currentModel ?? undefined,
         };
       } catch { /* fall through to disk read */ }
     }

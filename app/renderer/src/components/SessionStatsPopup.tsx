@@ -8,6 +8,8 @@ interface SessionStats {
   tokens: { input: number; output: number; cacheRead: number; cacheWrite: number; total: number };
   cost: number;
   contextUsage?: { percent: number; tokens: number; contextWindow: number };
+  /** 当前模型(判断 cost 币种:DeepSeek=¥, 其他=$) */
+  model?: string;
 }
 
 export function SessionStatsPopup({ sessionId, projectPath, onClose }: { sessionId: string; projectPath: string; onClose: () => void }) {
@@ -33,7 +35,14 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose }: { session
   }, [sessionId, projectPath]);
 
   const fmtTokens = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
-  const fmtCost = (c: number) => c > 0 ? `¥${(c * 7.2).toFixed(4)}` : "—";
+  // Pi 的 usage.cost 币种随模型:DeepSeek 官方定价为人民币(¥),其他(Anthropic 等)为美元($)。
+  // 按 model 判断:DeepSeek 直接显示 ¥;其他乘 7.2(近似汇率)换算为 ¥。
+  const fmtCost = (c: number) => {
+    if (c <= 0) return "—";
+    const isDeepSeek = (stats?.model ?? "").toLowerCase().includes("deepseek");
+    const v = isDeepSeek ? c : c * 7.2;
+    return `¥${v.toFixed(4)}`;
+  };
   const fmtPct = (p: number) => p > 0 ? `${p.toFixed(2)}%` : "<0.01%";
 
   return (

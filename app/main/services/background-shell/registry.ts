@@ -35,6 +35,8 @@ export interface ShellSummary {
   status: "running" | "stopping";
   /** 完整输出日志文件路径(前端查看输出弹层定位) */
   logPath: string;
+  /** 发起会话(前端按会话过滤:后台命令状态只显示在发起会话的 tab) */
+  sessionId?: string;
 }
 
 export interface BackgroundShell {
@@ -42,6 +44,8 @@ export interface BackgroundShell {
   command: string;
   startedAt: number;
   child: ChildProcess;
+  /** 发起会话(前端按会话过滤:后台命令状态只显示在发起会话的 tab) */
+  sessionId?: string;
   /** 累积输出(内存尾部截断,通知预览) */
   output: string;
   /** 完整输出日志文件路径(通知携带,用户可自行查看) */
@@ -138,6 +142,7 @@ class BackgroundShellRegistry {
   private broadcastCount(): void {
     broadcast("agent:shell-count", this.list().map((s) => ({
       id: s.id, command: s.command, startedAt: s.startedAt, status: s.status, logPath: s.logPath,
+      sessionId: s.sessionId,
     })));
   }
 
@@ -151,7 +156,7 @@ class BackgroundShellRegistry {
   }
 
   /** 启动后台命令,立即返回 id + 输出文件路径;进程退出时自动注销并回调 onExit */
-  start(command: string, cwd: string, onExit?: (shell: BackgroundShell) => void): { id: string; logPath: string } {
+  start(command: string, cwd: string, onExit?: (shell: BackgroundShell) => void, sessionId?: string): { id: string; logPath: string } {
     const id = `shell-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     // 完整输出落盘项目级 .easymint/shell-logs/(持久可回看);
     // 启动时顺带清理超过保留期的旧日志,防积累
@@ -179,6 +184,7 @@ class BackgroundShellRegistry {
       const shell: BackgroundShell = {
         id, command, startedAt: Date.now(), child: null as unknown as ChildProcess, output: error, logPath,
         exitCode: -1, stopped: false, status: "running", streamBuf: "", flushTimer: null, onExit,
+        sessionId,
       };
       this.shells.set(id, shell);
       this.broadcastCount();
@@ -198,6 +204,7 @@ class BackgroundShellRegistry {
     const shell: BackgroundShell = {
       id, command, startedAt: Date.now(), child, output: "", logPath,
       exitCode: null, stopped: false, status: "running", streamBuf: "", flushTimer: null, onExit,
+      sessionId,
     };
     this.shells.set(id, shell);
     this.broadcastCount();

@@ -60,9 +60,9 @@ export const ChatInput = memo(function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const availableModels = useSettingsStore((s) => s.availableModels);
   const indicatorOrder = useDelegationStore((s) => s.order);
-  const ctxPct = useStatusStore((s) => s.ctxPct);
-  const summarizing = useStatusStore((s) => s.summarizing);
-  const compacting = useStatusStore((s) => s.compacting);
+  const ctxPct = useStatusStore((s) => s.bySession[sessionId]?.ctxPct ?? 0);
+  const summarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
+  const compacting = useStatusStore((s) => s.bySession[sessionId]?.compacting ?? false);
   const inputDisabled = summarizing || compacting;
 
   // 输入历史导航
@@ -155,9 +155,9 @@ export const ChatInput = memo(function ChatInput({
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="2"/><path d="M5 11V7M8 11V5M11 11V9"/></svg>
           </button>
         )}
-        {/* 后台指示器胶囊:agent/shell 按出现顺序排列,谁先出现谁靠左 */}
+        {/* 后台指示器胶囊:agent/shell 按出现顺序排列,谁先出现谁靠左;按会话过滤(委派是主会话发起的) */}
         <div className="flex items-center gap-2 shrink-0">
-          {indicatorOrder.map((k) => (k === "agent" ? <AgentBar key="agent" /> : <ShellBar key="shell" />))}
+          {indicatorOrder.map((k) => (k === "agent" ? <AgentBar key="agent" sessionId={sessionId} /> : <ShellBar key="shell" sessionId={sessionId} />))}
         </div>
         <span className="inp-gap" />
         <span className="inp-lbl">权限</span>

@@ -110,6 +110,8 @@ export interface RunningTaskInfo {
   delegationId: string;
   index: number;
   title: string;
+  /** 发起会话(前端按会话过滤:委派状态只显示在发起会话的 tab) */
+  sessionId?: string;
 }
 
 /** 回写任务状态(executor 进度回调;AgentBar 按 running 过滤;currentTool/toolCount 供 list_agents 运行中实时状态) */
@@ -137,6 +139,8 @@ export function getRunningSummary(): { count: number; tasks: RunningTaskInfo[] }
         delegationId: r.delegationId,
         index: i,
         title: t.title || t.task.slice(0, 40),
+        // 发起会话(前端按会话过滤:委派状态只显示在发起会话的 tab)
+        sessionId: r.parentSessionId,
       });
     }
   }

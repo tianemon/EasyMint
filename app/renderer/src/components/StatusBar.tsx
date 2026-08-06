@@ -26,11 +26,15 @@ const shimmerStyle: CSSProperties = {
  * 有状态文本时与文本并存(动画常驻,不绑定回合)。
  */
 export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | null {
-  const text = useStatusStore((s) => s.text);
-  const summarizing = useStatusStore((s) => s.summarizing);
+  // 按会话读状态信号(多 tab 各自显示自己的状态,不穿透)
+  const session = useStatusStore((s) => s.bySession[sessionId]);
+  const text = session?.signals ? [...session.signals].sort((a, b) => b.seq - a.seq)[0]?.text ?? "" : "";
+  const summarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
   const busy = useTabStore((s) => s.runningSessions.has(sessionId));
-  const agentActive = useDelegationStore((s) => s.agentTasks.length > 0);
-  const shellActive = useDelegationStore((s) => s.shellTasks.length > 0);
+  // 子 Agent / 后台 shell 活跃度按发起会话过滤——委派/后台命令是主会话发起的,
+  // 其他会话 tab 的 StatusBar 不显示这些动画(否则跨会话状态污染)
+  const agentActive = useDelegationStore((s) => s.agentTasks.some((t) => !t.sessionId || t.sessionId === sessionId));
+  const shellActive = useDelegationStore((s) => s.shellTasks.some((t) => !t.sessionId || t.sessionId === sessionId));
 
   // 动画活跃:回合进行 ∪ 子 Agent 运行 ∪ 后台 shell 运行(摘要走独立横幅)
   const showBar = busy || agentActive || shellActive;

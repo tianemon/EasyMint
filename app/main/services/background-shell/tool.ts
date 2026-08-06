@@ -169,7 +169,9 @@ export async function createEnhancedBashTool(
       // 后台:spawn + 注册,立即返回
       // 返回信息带输出文件路径(对齐 cc run_in_background)——模型从启动时就知道
       // 去哪读输出,运行中可随时 read,不必等退出通知
-      const { id, logPath } = backgroundShellRegistry.start(command, cwd, options?.onExit);
+      let shellSessionId: string | undefined;
+      try { shellSessionId = ctx?.sessionManager?.getSessionId?.(); } catch { /* 会话信息不可用 */ }
+      const { id, logPath } = backgroundShellRegistry.start(command, cwd, options?.onExit, shellSessionId);
       return {
         content: [{
           type: "text" as const,

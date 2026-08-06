@@ -10,6 +10,8 @@ export interface RunningTaskInfo {
   title: string;
   /** 子会话 jsonl 路径(查看 Agent 过程弹层定位;由委派进度 progress.sessionFile 透传) */
   sessionFile?: string;
+  /** 发起会话(状态栏按会话过滤动画) */
+  sessionId?: string;
 }
 
 /** 运行中的后台 shell 命令(点击展开显示,可单个停止) */
@@ -21,6 +23,8 @@ export interface ShellTaskInfo {
   status: "running" | "stopping";
   /** 完整输出日志文件路径(查看输出弹层定位) */
   logPath: string;
+  /** 发起会话(状态栏按会话过滤动画) */
+  sessionId?: string;
 }
 
 interface DelegationState {

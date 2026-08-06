@@ -6,8 +6,9 @@ import { ShellProcessView } from "./ShellProcessView";
  * Shell 胶囊:显示 Shell•N(后台运行中的命令数),点击展开命令列表,
  * 每个命令可点击查看输出(弹层)、单独停止;点击胶囊外部区域收起(与 AgentBar 同款交互)
  */
-export function ShellBar(): JSX.Element | null {
-  const shellTasks = useDelegationStore((s) => s.shellTasks);
+export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | null {
+  // 按发起会话过滤——后台命令是主会话发起的,其他会话 tab 不显示 shell 胶囊(跨会话污染)
+  const shellTasks = useDelegationStore((s) => s.shellTasks.filter((t) => !t.sessionId || t.sessionId === sessionId));
   const [expanded, setExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   // 查看中的后台命令(弹层;命令结束后弹层保持,running 转 false)
