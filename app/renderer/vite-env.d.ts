@@ -1,5 +1,15 @@
 /// <reference types="vite/client" />
 
+// monaco 语言 register 模块为副作用导入,无类型声明
+declare module "monaco-editor/languages/definitions/*/register.js" {
+  const _default: unknown;
+  export default _default;
+}
+declare module "monaco-editor/languages/features/*/register.js" {
+  const _default: unknown;
+  export default _default;
+}
+
 // React 19 将 JSX namespace 移入模块作用域，此处补回全局声明
 declare namespace JSX {
   type Element = import("react").ReactElement;
@@ -89,12 +99,18 @@ interface StreamEvent {
   sessionId?: string;
   chatId?: string;       // event-bridge 注入（agent:stream 广播时设置）
   type: "message_start" | "message" | "turn_start" | "turn_end" | "thinking"
-      | "tool_progress" | "tool_done" | "compacting" | "compacted" | "error" | "context_usage" | "status" | "user_message" | "custom_event";
+      | "tool_progress" | "tool_done" | "tool_result" | "compacting" | "compacted" | "error" | "context_usage" | "status" | "user_message" | "custom_event";
   blocks?: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; thinking?: string }>;
   partial?: boolean;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
   toolCallId?: string;
+  /** tool_result 是否错误(toolResult 消息 isError) */
+  isError?: boolean;
+  /** tool_result 内容(主进程 event-bridge 转发,与 text 冗余兼容) */
+  content?: string;
+  /** tool_result 工具名(event-bridge 转发 toolName) */
+  toolName?: string;
   /** user 消息文本(user_message 事件) */
   text?: string;
   /** user 消息落盘时间(委派完成通知等,前端按时间戳有序插入) */
