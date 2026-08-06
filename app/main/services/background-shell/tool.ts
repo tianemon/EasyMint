@@ -10,6 +10,67 @@
 import type { ToolDefinition } from "../pi-sdk";
 import { getCreateBashToolDefinition } from "../pi-sdk";
 import { backgroundShellRegistry, type BackgroundShell } from "./registry";
+import { resolveSpawn } from "./registry";
+import { spawn } from "node:child_process";
+import { createCodingAwareDecoder } from "./encoding";
+
+/** 前台 bash 执行(spawn + 编码容错解码,对齐 Pi 行为:同步 + 超时 + 截断提示) */
+async function executeForeground(
+  command: string,
+  cwd: string,
+  signal: AbortSignal | undefined,
+  timeoutSec?: number,
+): Promise<{ content: Array<{ type: string; text: string }> }> {
+  return new Promise((resolve, reject) => {
+    const { file, args, opts, error } = resolveSpawn(command, cwd);
+    if (error) {
+      resolve({ content: [{ type: "text", text: error }] });
+      return;
+    }
+    const child = spawn(file, args, opts);
+    const outDec = createCodingAwareDecoder();
+    const errDec = createCodingAwareDecoder();
+    let output = "";
+    let errOutput = "";
+    let timedOut = false;
+    const timer = timeoutSec
+      ? setTimeout(() => {
+          timedOut = true;
+          try { if (child.pid) process.kill(-child.pid, "SIGKILL"); } catch { child.kill(); }
+        }, timeoutSec * 1000)
+      : null;
+    const killTree = () => {
+      try { if (child.pid) process.kill(-child.pid, "SIGKILL"); } catch { child.kill(); }
+    };
+    child.stdout?.on("data", (c: Buffer) => { output += outDec.feed(c); });
+    child.stderr?.on("data", (c: Buffer) => { errOutput += errDec.feed(c); });
+    child.on("error", (err) => {
+      if (timer) clearTimeout(timer);
+      reject(new Error(`bash 执行失败: ${err.message}`));
+    });
+    child.on("exit", (code) => {
+      if (timer) clearTimeout(timer);
+      output += outDec.finish();
+      errOutput += errDec.finish();
+      const text = [output, errOutput].filter(Boolean).join("\n") || "(无输出)";
+      if (timedOut) {
+        resolve({ content: [{ type: "text", text: `${text}\n\n(命令超时,已终止)` }] });
+        return;
+      }
+      // 输出截断提示(对齐 Pi:超过 8KB 仅显示尾部)
+      if (Buffer.byteLength(text, "utf-8") > 8192) {
+        const tail = text.slice(-6000);
+        resolve({ content: [{ type: "text", text: `${tail}\n\n[输出过长,仅显示尾部。完整输出见日志]` }] });
+        return;
+      }
+      resolve({ content: [{ type: "text", text: code === 0 ? text : `${text}\n\n(退出码: ${code})` }] });
+    });
+    if (signal) {
+      if (signal.aborted) killTree();
+      else signal.addEventListener("abort", killTree, { once: true });
+    }
+  });
+}
 
 export interface EnhancedBashOptions {
   /** 进程退出回调(agent-service 注入结果到主会话;缺省仅后台跑不通知) */
@@ -67,23 +128,18 @@ export async function createEnhancedBashTool(
       _toolCallId: string,
       params: Record<string, unknown>,
       signal: AbortSignal | undefined,
-      onUpdate: any,
-      ctx: any,
+      _onUpdate: any,
+      _ctx: any,
     ) {
       const command = String(params.command || "");
       if (!command) {
         return { content: [{ type: "text" as const, text: "请提供 command" }] };
       }
 
-      // 前台:委托 Pi 原生实现(同步执行 + 流式输出,行为零改动)
+      // 前台:EM 自己 spawn + 编码容错解码(Windows 下 Pi 的 OutputAccumulator 固定 UTF-8,
+      // 解 GBK 字节必乱码;EM 侧按 UTF-8/GBK 自动判定)。行为对齐 Pi:同步执行 + 超时 + 截断提示。
       if (params.background !== true) {
-        return native.execute(
-          _toolCallId,
-          { command, timeout: typeof params.timeout === "number" ? params.timeout : undefined },
-          signal,
-          onUpdate,
-          ctx,
-        ) as unknown as Promise<{ content: unknown[] }>;
+        return executeForeground(command, cwd, signal, typeof params.timeout === "number" ? params.timeout : undefined);
       }
 
       // 后台:spawn + 注册,立即返回

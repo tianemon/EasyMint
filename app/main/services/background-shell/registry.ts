@@ -101,8 +101,9 @@ function findBashOnWindows(): string | null {
 
 /** 后台命令的 spawn 配置:Windows 用 Git Bash -c(对齐 Pi 工具,支持 cd /c/... 和管道 tail);
  *  Windows 无 Git Bash → 报错(错误信息进入工具结果,Mint 读到后自行调整策略);
- *  Unix 保持 shell:true(行为不变) */
-function resolveSpawn(command: string, cwd: string): { file: string; args: string[]; opts: Parameters<typeof spawn>[2]; error?: string } {
+ *  Unix 保持 shell:true(行为不变)。
+ *  前台 bash(tool.ts)复用此配置。 */
+export function resolveSpawn(command: string, cwd: string): { file: string; args: string[]; opts: Parameters<typeof spawn>[2]; error?: string } {
   if (process.platform === "win32") {
     const bash = findBashOnWindows();
     if (bash) {
