@@ -201,18 +201,35 @@ class BackgroundShellRegistry {
     this.broadcastCount();
     console.log(`[bg-shell] started ${id}: ${command.slice(0, 80)}`);
 
-    // 流式 UTF-8 解码:防止多字节字符跨 chunk 边界截断产生乱码(对齐 Pi OutputAccumulator);
-    // stdout/stderr 各自独立 decoder,避免双流交错时解码状态错配
-    const outDecoder = new TextDecoder();
-    const errDecoder = new TextDecoder();
-    const collect = (chunk: Buffer, decoder: TextDecoder): void => {
-      const text = decoder.decode(chunk, { stream: true });
-      shell.output = (shell.output + text).slice(-MAX_OUTPUT_BYTES);
-      // 输出缓冲 + 100ms 节流广播(高频输出合并,防 IPC 风暴)
-      shell.streamBuf += text;
-      if (!shell.flushTimer) {
-        shell.flushTimer = setTimeout(() => this.flushStream(shell), STREAM_THROTTLE_MS);
+    // 编码容错:Git Bash 自身输出 UTF-8,但其调用的原生程序按系统代码页(GBK)输出——
+    // 单用 UTF-8 解 GBK 字节必乱码。缓冲原始字节,整段解码 UTF-8 优先,含 replacement char(�)切 GBK。
+    const outBuf = { bytes: Buffer.alloc(0) };
+    const errBuf = { bytes: Buffer.alloc(0) };
+    /** 编码判定解码:每段累积原始字节,判定编码后一次性输出——
+     *  1. ≤3 字节:可能是不完整序列,保留等待
+     *  2. fatal UTF-8 解全量成功 → UTF-8,输出清空
+     *  3. 去尾 1-3 字节的任一前缀 fatal 成功 → 未完成 UTF-8 前缀,保留等待
+     *  4. 其余 → GBK,输出清空
+     *  (GBK 双字节字符去尾前缀必失败,不会误判未完成;UTF-8 跨 chunk 截断能正确等待) */
+    const decodeSeg = (bytes: Buffer): { text: string; rest: Buffer } => {
+      if (bytes.length <= 3) return { text: "", rest: bytes };
+      const fatal = (b: Buffer) => new TextDecoder("utf-8", { fatal: true }).decode(b);
+      try {
+        return { text: fatal(bytes), rest: Buffer.alloc(0) };
+      } catch {
+        for (const cut of [1, 2, 3]) {
+          if (bytes.length - cut <= 0) continue;
+          try {
+            fatal(bytes.subarray(0, bytes.length - cut));
+            return { text: "", rest: bytes }; // 未完成前缀,继续等
+          } catch { /* 继续尝试更小 cut */ }
+        }
+        // 全失败 → GBK
+        return { text: new TextDecoder("gbk").decode(bytes), rest: Buffer.alloc(0) };
       }
+    };
+    const collect = (chunk: Buffer, holder: { bytes: Buffer }): void => {
+      // 原始字节入日志(日志保持原始字节,查看时用文本)
       if (logStream && logBytes < MAX_LOG_BYTES) {
         logBytes += chunk.length;
         if (logBytes <= MAX_LOG_BYTES) {
@@ -223,13 +240,40 @@ class BackgroundShellRegistry {
           logStream = null;
         }
       }
+      // 统一解码:字节全部喂入 decodeSeg,由它判定编码(UTF-8 完整/未完成前缀/GBK)并返回输出 + 待续 rest
+      holder.bytes = Buffer.concat([holder.bytes, chunk]);
+      const { text, rest } = decodeSeg(holder.bytes);
+      holder.bytes = rest;
+      if (text) {
+        shell.output = (shell.output + text).slice(-MAX_OUTPUT_BYTES);
+        shell.streamBuf += text;
+      }
+      if (shell.streamBuf && !shell.flushTimer) {
+        shell.flushTimer = setTimeout(() => this.flushStream(shell), STREAM_THROTTLE_MS);
+      }
     };
-    child.stdout?.on("data", (c) => collect(c, outDecoder));
-    child.stderr?.on("data", (c) => collect(c, errDecoder));
+    child.stdout?.on("data", (c) => collect(c, outBuf));
+    child.stderr?.on("data", (c) => collect(c, errBuf));
     child.on("exit", (code) => {
-      // 退出时强制刷出剩余缓冲(防尾部丢失)+ 冲掉解码器残留
-      outDecoder.decode();
-      errDecoder.decode();
+      // 冲掉残留缓冲(终局解码:不再等待未完成序列,UTF-8 尝试失败则 GBK)
+      const finalDecode = (bytes: Buffer): string => {
+        if (bytes.length === 0) return "";
+        try {
+          return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+        } catch {
+          return new TextDecoder("gbk").decode(bytes);
+        }
+      };
+      const outTail = finalDecode(outBuf.bytes);
+      const errTail = finalDecode(errBuf.bytes);
+      outBuf.bytes = Buffer.alloc(0);
+      errBuf.bytes = Buffer.alloc(0);
+      const tail = outTail + errTail;
+      if (tail) {
+        shell.output = (shell.output + tail).slice(-MAX_OUTPUT_BYTES);
+        shell.streamBuf += tail;
+      }
+      // 强制刷出剩余缓冲(防尾部丢失)
       this.flushStream(shell);
       shell.exitCode = code;
       this.shells.delete(id);
