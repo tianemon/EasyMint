@@ -110,7 +110,8 @@ function resolveSpawn(command: string, cwd: string): { file: string; args: strin
         file: bash,
         args: ["-c", command],
         // Windows 不 detached(会导致 stdout/stderr 管道收不到数据);进程树清理走 taskkill /T
-        opts: { cwd, windowsHide: true },
+        // 强制 UTF-8 locale:Windows 默认 GBK 控制台,子进程按 GBK 输出会导致 node 按 UTF-8 解码乱码
+        opts: { cwd, windowsHide: true, env: { ...process.env, LANG: "C.UTF-8", LC_ALL: "C.UTF-8" } },
       };
     }
     return {
@@ -200,10 +201,15 @@ class BackgroundShellRegistry {
     this.broadcastCount();
     console.log(`[bg-shell] started ${id}: ${command.slice(0, 80)}`);
 
-    const collect = (chunk: Buffer): void => {
-      shell.output = (shell.output + chunk.toString()).slice(-MAX_OUTPUT_BYTES);
+    // 流式 UTF-8 解码:防止多字节字符跨 chunk 边界截断产生乱码(对齐 Pi OutputAccumulator);
+    // stdout/stderr 各自独立 decoder,避免双流交错时解码状态错配
+    const outDecoder = new TextDecoder();
+    const errDecoder = new TextDecoder();
+    const collect = (chunk: Buffer, decoder: TextDecoder): void => {
+      const text = decoder.decode(chunk, { stream: true });
+      shell.output = (shell.output + text).slice(-MAX_OUTPUT_BYTES);
       // 输出缓冲 + 100ms 节流广播(高频输出合并,防 IPC 风暴)
-      shell.streamBuf += chunk.toString();
+      shell.streamBuf += text;
       if (!shell.flushTimer) {
         shell.flushTimer = setTimeout(() => this.flushStream(shell), STREAM_THROTTLE_MS);
       }
@@ -218,10 +224,12 @@ class BackgroundShellRegistry {
         }
       }
     };
-    child.stdout?.on("data", collect);
-    child.stderr?.on("data", collect);
+    child.stdout?.on("data", (c) => collect(c, outDecoder));
+    child.stderr?.on("data", (c) => collect(c, errDecoder));
     child.on("exit", (code) => {
-      // 退出时强制刷出剩余缓冲(防尾部丢失)
+      // 退出时强制刷出剩余缓冲(防尾部丢失)+ 冲掉解码器残留
+      outDecoder.decode();
+      errDecoder.decode();
       this.flushStream(shell);
       shell.exitCode = code;
       this.shells.delete(id);
