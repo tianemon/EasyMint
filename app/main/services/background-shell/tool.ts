@@ -14,18 +14,36 @@ import { resolveSpawn } from "./registry";
 import { spawn } from "node:child_process";
 import { createCodingAwareDecoder } from "./encoding";
 
-/** 前台 bash 执行(spawn + 编码容错解码,对齐 Pi 行为:同步 + 超时 + 截断提示) */
+/** 前台 bash 执行(spawn + 编码容错解码,对齐 Pi 行为:同步 + 超时 + 截断提示 + PI_* 环境注入) */
 async function executeForeground(
   command: string,
   cwd: string,
   signal: AbortSignal | undefined,
   timeoutSec?: number,
+  ctx?: { model?: { provider?: string; id?: string }; thinkingLevel?: string; sessionManager?: { getSessionId(): string; getSessionFile?(): string } },
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
   return new Promise((resolve, reject) => {
     const { file, args, opts, error } = resolveSpawn(command, cwd);
     if (error) {
       resolve({ content: [{ type: "text", text: error }] });
       return;
+    }
+    // 注入 PI_* 环境变量(对齐 Pi resolveSpawnContext):脚本可读当前会话/模型信息
+    if (ctx && opts.env === undefined) {
+      const env: Record<string, string> = { ...process.env as Record<string, string> };
+      try {
+        if (ctx.sessionManager) {
+          env.PI_SESSION_ID = ctx.sessionManager.getSessionId();
+          const sf = ctx.sessionManager.getSessionFile?.();
+          if (sf) env.PI_SESSION_FILE = sf;
+        }
+        if (ctx.model) {
+          if (ctx.model.provider) env.PI_PROVIDER = ctx.model.provider;
+          if (ctx.model.id) env.PI_MODEL = ctx.model.id;
+        }
+        if (ctx.thinkingLevel) env.PI_REASONING_LEVEL = ctx.thinkingLevel;
+      } catch { /* 会话信息不可用时跳过注入 */ }
+      (opts as { env?: Record<string, string> }).env = env;
     }
     const child = spawn(file, args, opts);
     const outDec = createCodingAwareDecoder();
@@ -36,11 +54,17 @@ async function executeForeground(
     const timer = timeoutSec
       ? setTimeout(() => {
           timedOut = true;
-          try { if (child.pid) process.kill(-child.pid, "SIGKILL"); } catch { child.kill(); }
+          killTree();
         }, timeoutSec * 1000)
       : null;
     const killTree = () => {
-      try { if (child.pid) process.kill(-child.pid, "SIGKILL"); } catch { child.kill(); }
+      try {
+        if (process.platform === "win32" && child.pid) {
+          spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"]);
+        } else if (child.pid) {
+          process.kill(-child.pid, "SIGKILL");
+        }
+      } catch { child.kill(); }
     };
     child.stdout?.on("data", (c: Buffer) => { output += outDec.feed(c); });
     child.stderr?.on("data", (c: Buffer) => { errOutput += errDec.feed(c); });
@@ -129,7 +153,7 @@ export async function createEnhancedBashTool(
       params: Record<string, unknown>,
       signal: AbortSignal | undefined,
       _onUpdate: any,
-      _ctx: any,
+      ctx: any,
     ) {
       const command = String(params.command || "");
       if (!command) {
@@ -137,9 +161,9 @@ export async function createEnhancedBashTool(
       }
 
       // 前台:EM 自己 spawn + 编码容错解码(Windows 下 Pi 的 OutputAccumulator 固定 UTF-8,
-      // 解 GBK 字节必乱码;EM 侧按 UTF-8/GBK 自动判定)。行为对齐 Pi:同步执行 + 超时 + 截断提示。
+      // 解 GBK 字节必乱码;EM 侧按 UTF-8/GBK 自动判定)。行为对齐 Pi:同步 + 超时 + 截断 + PI_* 注入。
       if (params.background !== true) {
-        return executeForeground(command, cwd, signal, typeof params.timeout === "number" ? params.timeout : undefined);
+        return executeForeground(command, cwd, signal, typeof params.timeout === "number" ? params.timeout : undefined, ctx);
       }
 
       // 后台:spawn + 注册,立即返回
