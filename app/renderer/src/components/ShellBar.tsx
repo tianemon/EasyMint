@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDelegationStore } from "../stores/delegation-store";
 import { ShellProcessView } from "./ShellProcessView";
 
@@ -7,8 +7,13 @@ import { ShellProcessView } from "./ShellProcessView";
  * 每个命令可点击查看输出(弹层)、单独停止;点击胶囊外部区域收起(与 AgentBar 同款交互)
  */
 export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | null {
+  // selector 返回原始数组(稳定引用)——filter 产生新数组会导致 zustand 无限重渲染
+  const allShellTasks = useDelegationStore((s) => s.shellTasks);
   // 按发起会话过滤——后台命令是主会话发起的,其他会话 tab 不显示 shell 胶囊(跨会话污染)
-  const shellTasks = useDelegationStore((s) => s.shellTasks.filter((t) => !t.sessionId || t.sessionId === sessionId));
+  const shellTasks = useMemo(
+    () => allShellTasks.filter((t) => !t.sessionId || t.sessionId === sessionId),
+    [allShellTasks, sessionId],
+  );
   const [expanded, setExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   // 查看中的后台命令(弹层;命令结束后弹层保持,running 转 false)

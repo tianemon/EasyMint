@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDelegationStore, type RunningTaskInfo } from "../stores/delegation-store";
 import { SubagentProcessView } from "./SubagentProcessView";
 
@@ -7,8 +7,13 @@ import { SubagentProcessView } from "./SubagentProcessView";
  * 每个任务可点击查看执行过程(弹层)、单独停止;点击胶囊外部区域收起菜单(document 级 mousedown 判断)
  */
 export function AgentBar({ sessionId }: { sessionId?: string }): JSX.Element | null {
+  // selector 返回原始数组(稳定引用)——filter 产生新数组会导致 zustand 无限重渲染
+  const allTasks = useDelegationStore((s) => s.agentTasks);
   // 按发起会话过滤——委派是主会话发起的,其他会话 tab 不显示委派胶囊(跨会话污染)
-  const agentTasks = useDelegationStore((s) => s.agentTasks.filter((t) => !t.sessionId || t.sessionId === sessionId));
+  const agentTasks = useMemo(
+    () => allTasks.filter((t) => !t.sessionId || t.sessionId === sessionId),
+    [allTasks, sessionId],
+  );
   const [expanded, setExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   // 查看中的子 Agent(弹层;任务从列表移除后弹层保持打开,running 转 false)
