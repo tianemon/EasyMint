@@ -282,12 +282,34 @@ EasyMint 是 Electron 桌面应用，让不懂技术的用户通过图形界面�
 
 ## 接下来安排
 
+0. **状态指示光效实现**（方案已落盘 `docs/design/状态指示光效方案.md`）：①settings-store 字段+持久化 ②CSS 3 预设(orbit 现状/slide 顶部滑动/breathe 呼吸灯) ③ChatInput 接入(预设 class+--glow-color 按 data-theme 注入) ④StatusBar 接入(solid 单色/shimmer 流光+色彩组合) ⑤AppearanceTab UI(预设卡片单选+原生 color input+拖拽排序)。输入卡片流光已实现(input-card-glow,conic-gradient+@property --glow-angle);状态栏符号动画已改"与状态文本同现同消"
 1. **Agent 模板模块实现**(5 阶段):A 模板扩展 B task 动态清单+executor prompt C 模板 UI D Mint 建模板工具 E 群聊降级
 2. **群聊代码降级**:保留实验性,不继续投入;assign_to_agent/兜底语法转为 task 轻封装
 3. **群聊待办**：①群聊 Agent 若模板声明 task 工具,委派完成通知不注入回群聊 Agent(断链;默认模板无 task 已规避) ②重启后群聊 tab 恢复但主进程 group 清空(内存态,发送报"群聊不存在",group-sessions.json 已存结构无 resume 路径) ③群聊历史聚合加载(重启后只读) ④群聊用 `buildGroupTools`(模板 tools 驱动),无 product 工具(show_* 等)——如需可补
 4. **轮转端到端实测**：压缩 3 次触发归档+新会话接力(使用中确认)
 5. **Windows 验证**：拖拽区修复效果
 6. **便签 UAT**：真实使用中验证贴纸吸附/层叠/hover 横条/动画手感
+
+## 最近工作（v0.6.4 发布 + 乱码/会话隔离修复 + 状态指示光效，2026-08-06）
+
+> 本会话已完成并推送 mac（`mac/main`），origin 未同步（v0.6.4 后 8+ 提交待处理）。
+
+**发布 v0.6.4**：diff 语法高亮（monaco tokenize 零依赖）+ 工具结果展示 + Windows 后台命令修复，已 tag 推送 GitHub Release。
+
+**已修复的问题**（全部 lint 通过，已提交 mac）：
+1. **diff 语法高亮**：`lib/diff-highlight.ts`（17 语言）+ ChatBlocks 渲染（行号列、批量 tokenize、红绿背景+语法色）；Pi edit 工具注入 `变更内容:` diff（主会话+子 Agent）
+2. **Windows bash 乱码**：根因=Pi OutputAccumulator 固定 UTF-8 解 GBK；修复=前台 bash 自执行（`background-shell/tool.ts` executeForeground）+ `encoding.ts`（UTF-8/GBK 自动判定：全量 UTF-8→去尾前缀→GBK）；后台 shell 同用；清理重复实现+删无效 LANG/LC_ALL
+3. **Windows 后台 shell**：Git Bash 执行（cd /c/、tail 管道）、不 detached（管道收不到输出）、无 Git Bash 明确报错、进程树 taskkill /T
+4. **会话隔离**（核心架构修复）：status-store 从全局单例改为按 sessionId 隔离（信号栈/摘要/压缩/ctxPct）；委派/shell 广播带 sessionId；StatusBar/AgentBar/ShellBar 按会话过滤；onDelegationCount/onShellCount 加 currentChatRef 过滤
+5. **滚动锁定**：scrollToBottom 的 programmaticScrollRef 贴底后立即复位（原 80ms 防抖流式高频卡 true）
+6. **思考中消失**：thinking 帧误 pop「思考中」→ 仅 text 块 pop + thinking 帧保持信号
+7. **费用单位**：Pi cost 币种随模型（DeepSeek=¥/Anthropic=$），主进程返回 model，前端按 provider 判断
+8. **TDZ 崩溃**：summarizing/compacting 读取移到 sidRef 声明后
+9. **zustand 无限重渲染**：AgentBar/ShellBar selector 的 filter 返回新数组 → 改原始数组 + useMemo
+
+**动画改造**：状态栏符号动画从常驻改为「与状态文本同现同消」；新增输入卡片流光环绕（`input-card-glow`，conic-gradient + @property --glow-angle 旋转，活跃=bussy||agentActive||shellActive）
+
+**关键代码位置**：`encoding.ts`（解码容错）、`status-store.ts`（会话隔离）、`input-card-glow`（index.css）、`ChatPanel.tsx`（状态信号）、`ChatInput.tsx`（流光）、`StatusBar.tsx`（符号+文本）
 
 ## 其他细节
 
