@@ -67,22 +67,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
   const programmaticScrollRef = useRef(false); // 程序性滚动中（handleScroll 跳过 autoScroll 更新）
   const scrollTimeoutRef = useRef<number | null>(null); // 虚拟化测量兜底的延迟贴底定时器
 
-  // 状态栏独立存储 → 密集更新时只重渲染 StatusBar，不牵连 ChatPanel/消息列表
-  // 注意：ChatPanel 不读 s.text，否则每次 statusText 变化都会重渲染整个组件
-  // 按会话读(多 tab 各自显示自己的压缩/摘要状态)
-  const summarizing = useStatusStore((s) => s.bySession[sidRef.current]?.summarizing ?? false);
-  const compacting = useStatusStore((s) => s.bySession[sidRef.current]?.compacting ?? false);
-  const [compactDone, setCompactDone] = useState(false);
-  const prevCompacting = useRef(compacting);
-  useEffect(() => {
-    if (prevCompacting.current && !compacting) setCompactDone(true);
-    prevCompacting.current = compacting;
-  }, [compacting]);
-  useEffect(() => {
-    if (!compactDone) return;
-    const t = setTimeout(() => setCompactDone(false), 3000);
-    return () => clearTimeout(t);
-  }, [compactDone]);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const [attaches, setAttaches] = useState<AttachItem[]>([]);
@@ -133,6 +117,20 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
   // steer 打断标记
   const steeringRef = useRef(false);
   const sidRef = useRef<string>(initialSid);
+  // 按会话读压缩/摘要状态(须在 sidRef 声明后——useStatusStore selector 渲染期执行)
+  const summarizing = useStatusStore((s) => s.bySession[sidRef.current]?.summarizing ?? false);
+  const compacting = useStatusStore((s) => s.bySession[sidRef.current]?.compacting ?? false);
+  const [compactDone, setCompactDone] = useState(false);
+  const prevCompacting = useRef(false);
+  useEffect(() => {
+    if (prevCompacting.current && !compacting) setCompactDone(true);
+    prevCompacting.current = compacting;
+  }, [compacting]);
+  useEffect(() => {
+    if (!compactDone) return;
+    const t = setTimeout(() => setCompactDone(false), 3000);
+    return () => clearTimeout(t);
+  }, [compactDone]);
   useEffect(() => {
     if (isGroup) return; // 群聊无临时→真实 sessionId 迁移
     if (existingSid && sidRef.current !== existingSid) {
