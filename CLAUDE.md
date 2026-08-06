@@ -282,7 +282,14 @@ EasyMint 是 Electron 桌面应用，让不懂技术的用户通过图形界面�
 
 ## 接下来安排
 
-0. **状态指示光效实现**（方案已落盘 `docs/design/状态指示光效方案.md`）：①settings-store 字段+持久化 ②CSS 3 预设(orbit 现状/slide 顶部滑动/breathe 呼吸灯) ③ChatInput 接入(预设 class+--glow-color 按 data-theme 注入) ④StatusBar 接入(solid 单色/shimmer 流光+色彩组合) ⑤AppearanceTab UI(预设卡片单选+原生 color input+拖拽排序)。输入卡片流光已实现(input-card-glow,conic-gradient+@property --glow-angle);状态栏符号动画已改"与状态文本同现同消"
+0. **状态指示光效 v2 需求调整**（已实现 v1 提交 `5de8d0f`，待改）：
+   - ①输入卡片光效 / Mint 状态文本**两套独立配置**，各自选颜色
+   - ②亮色/暗色**两套配置**，UI 用按钮切换编辑（当前是并排两个 color input）
+   - ③Mint 状态文本**单色模式要有颜色选择**；流光色彩「添加」要自定义色（当前固定绿色）
+   - ④slide 预设**只上边框**来回摆动
+   - ⑤breathe 预设做**发散效果**（参考 orbit 的 conic 渐变，光晕向外发散）
+   - v1 现状：settings 5 字段(glowEffect/glowColorLight/glowColorDark/statusTextStyle/statusTextColors)，CSS 3 预设，ChatInput 注入 --glow-color，StatusBar solid/shimmer，AppearanceTab 卡片单选+color input+拖拽
+   - 关键文件：settings-store.ts / store.ts(主进程透传) / index.css(input-card-glow+.glow-orbit/.glow-slide/.glow-breathe) / ChatInput.tsx / StatusBar.tsx / AppearanceTab.tsx
 1. **Agent 模板模块实现**(5 阶段):A 模板扩展 B task 动态清单+executor prompt C 模板 UI D Mint 建模板工具 E 群聊降级
 2. **群聊代码降级**:保留实验性,不继续投入;assign_to_agent/兜底语法转为 task 轻封装
 3. **群聊待办**：①群聊 Agent 若模板声明 task 工具,委派完成通知不注入回群聊 Agent(断链;默认模板无 task 已规避) ②重启后群聊 tab 恢复但主进程 group 清空(内存态,发送报"群聊不存在",group-sessions.json 已存结构无 resume 路径) ③群聊历史聚合加载(重启后只读) ④群聊用 `buildGroupTools`(模板 tools 驱动),无 product 工具(show_* 等)——如需可补
