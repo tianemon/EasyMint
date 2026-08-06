@@ -11,6 +11,8 @@ export interface AttachItem {
 export interface ChatMessage {
   id: number;
   role: "user" | "ai";
+  /** 磁盘 uuid(若有):SubagentProcessView 用它做稳定 React key(重载不重复) */
+  keyId?: string;
   text?: string;
   attaches?: AttachItem[];
   entries?: StreamEntry[];
@@ -44,7 +46,7 @@ export function piBlocksToEntries(blocks: Array<{ type: string; text?: string; n
     } else if (b.type === "tool_use") {
       result.push({ kind: "tool_use", id: b.id || "", name: b.name || "?", input: b.input || {}, timestamp: ts, collapsed: false, source: "chat" });
     } else if (b.type === "tool_result") {
-      result.push({ kind: "tool_result", toolUseId: b.id || "", content: String(b.content ?? ""), isError: false, timestamp: ts, source: "chat" });
+      result.push({ kind: "tool_result", toolUseId: b.id || "", name: (b as { name?: string }).name, content: String(b.content ?? ""), isError: false, timestamp: ts, source: "chat" });
     }
   }
   return result;
@@ -158,6 +160,9 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
   for (const m of msgs) {
     // 磁盘消息对象时间字段是 timestamp(毫秒),无 created_at(磁盘实证)
     const ts = (m.message as { timestamp?: number })?.timestamp ?? Date.now();
+    // Pi entry id 是 uuidv7 后 8 位(仅实例内查重,跨实例可能碰撞)→ keyId 在 push 时用 ++nextId 序号,
+    // 与 id 完全同步,保证 keyId 唯一(即使 uuid 碰撞,序号也区分)
+    const uuid = (m as { uuid?: string }).uuid;
     if (m.type === "user") {
       const content = (m.message as { content?: string | unknown[] })?.content;
       const text = typeof content === "string" ? content : Array.isArray(content)
@@ -166,8 +171,9 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
       if (text) {
         const { attaches, cleanText } = parseAttachMarkers(text);
         const msgObj = m.message as { customType?: string; details?: Record<string, unknown> };
+        const id = ++nextId;
         mapped.push({
-          id: ++nextId, role: "user", text: cleanText,
+          id, role: "user", text: cleanText, keyId: uuid ? `d-${uuid}-${id}` : undefined,
           attaches: attaches.length > 0 ? attaches : undefined, timestamp: ts,
           // 系统消息结构身份(custom_message 条目):前端按 customType/kind 渲染
           customType: msgObj.customType, details: msgObj.details,
@@ -189,7 +195,7 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
             const args = b.input ?? (b as { arguments?: unknown }).arguments;
             entries.push({ kind: "tool_use", id: (b as { id?: string }).id || "", name: b.name || "?", input: args || {}, timestamp: ts, collapsed: false, source: "chat" });
           } else if (b.type === "tool_result") {
-            entries.push({ kind: "tool_result", toolUseId: b.tool_use_id || "", content: String(b.content ?? ""), isError: !!b.is_error, timestamp: ts, source: "chat" });
+            entries.push({ kind: "tool_result", toolUseId: b.tool_use_id || "", name: (b as { name?: string }).name, content: String(b.content ?? ""), isError: !!b.is_error, timestamp: ts, source: "chat" });
           }
         }
         if (entries.length === 0) continue;
@@ -198,7 +204,44 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
         if (last && last.role === "ai") {
           last.entries!.push(...entries);
         } else {
-          mapped.push({ id: ++nextId, role: "ai", entries, timestamp: ts });
+          const id = ++nextId;
+          mapped.push({ id, role: "ai", entries, timestamp: ts, keyId: uuid ? `d-${uuid}-${id}` : undefined });
+        }
+      }
+    } else if (m.type === "toolResult") {
+      // 独立 toolResult 消息(磁盘):按 toolCallId 关联到 AI 消息的 tool_use;无匹配则追加到最近 AI 消息(独立结果)
+      const tm = m.message as { toolCallId?: string; toolName?: string; content?: unknown; isError?: boolean };
+      const content = Array.isArray(tm.content)
+        ? tm.content.map((b: unknown) => (b as { text?: string })?.text ?? "").join("")
+        : String(tm.content ?? "");
+      const resultEntry: StreamEntry = {
+        kind: "tool_result", toolUseId: tm.toolCallId || "", name: tm.toolName, content, isError: !!tm.isError, timestamp: ts, source: "chat",
+      };
+      // 先找含匹配 tool_use 的 AI 消息;无匹配则追加到最近 AI 消息
+      let matched = false;
+      for (let i = mapped.length - 1; i >= 0; i--) {
+        const msg = mapped[i]!;
+        if (msg.role !== "ai" || !msg.entries) continue;
+        const hasMatch = msg.entries.some((e) => e.kind === "tool_use" && e.id === tm.toolCallId);
+        if (hasMatch) {
+          msg.entries!.push(resultEntry);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        // 无匹配:追加到最近 AI 消息(独立显示),没有 AI 消息则新建
+        for (let i = mapped.length - 1; i >= 0; i--) {
+          const msg = mapped[i]!;
+          if (msg.role === "ai" && msg.entries) {
+            msg.entries.push(resultEntry);
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) {
+          const id = ++nextId;
+          mapped.push({ id, role: "ai", entries: [resultEntry], timestamp: ts, keyId: uuid ? `d-${uuid}-${id}` : undefined });
         }
       }
     }

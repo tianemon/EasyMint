@@ -22,6 +22,8 @@ interface ToolUseEntry {
 interface ToolResultEntry {
   kind: "tool_result";
   toolUseId: string;
+  /** 工具名(独立结果块标签用;edit → "编辑") */
+  name?: string;
   content: string;
   isError: boolean;
   timestamp: number;

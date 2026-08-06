@@ -176,7 +176,8 @@ export async function getSessionMessages(
   try {
     const SM = await getSessionManagerClass();
     const mgr = SM.open(info.path, getPiSessionDir(resolved), resolved);
-    return parseEntriesToMessages(mgr, sessionId);
+    // includeToolResult: 主会话历史也带工具结果(前端 mapSessionMessages 按 toolCallId 关联显示)
+    return parseEntriesToMessages(mgr, sessionId, true);
   } catch {
     return [];
   }

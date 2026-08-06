@@ -18,6 +18,10 @@ export interface PiChatEvent {
   toolArgs?: Record<string, unknown>;
   /** user 消息文本(user_message 事件) */
   text?: string;
+  /** tool_result 内容(toolResult 消息转发) */
+  content?: string;
+  /** tool_result 是否错误 */
+  isError?: boolean;
   /** user 消息落盘时间戳(毫秒,磁盘字段实证为 timestamp 而非 created_at) */
   timestamp?: number;
   /** custom 消息类型(custom_event 事件:system_message 等) */
@@ -115,19 +119,31 @@ export function bridgeSessionEvents(
       } else {
         // custom 消息(系统消息,role: "custom" + customType: system_message)
         // → 转发 custom_event(结构身份,不依赖文本前缀);
-        // 普通 user 消息不转发——用户自己发送的消息由前端 sendText append,
-        // 工具结果(toolResult)不渲染,转发会导致重复渲染
-        const customType = (msg as { customType?: string }).customType;
-        if (customType === "system_message") {
+        // 普通 user 消息不转发——用户自己发送的消息由前端 sendText append;
+        // 工具结果(toolResult)转发为 tool_result 事件(前端按 toolCallId 关联到工具块显示)
+        const role = (msg as { role?: string }).role;
+        if (role === "toolResult") {
           callbacks.onEvent({
-            type: "custom_event",
+            type: "tool_result",
             sessionId: "",
-            text: extractUserText(msg),
-            // Pi 消息对象时间字段是 timestamp(毫秒)(磁盘 JSONL 实证)
-            timestamp: (msg as { timestamp?: number }).timestamp,
-            customType,
-            details: (msg as { details?: Record<string, unknown> }).details,
+            toolCallId: (msg as { toolCallId?: string }).toolCallId,
+            toolName: (msg as { toolName?: string }).toolName,
+            content: extractUserText(msg),
+            isError: !!(msg as { isError?: boolean }).isError,
           });
+        } else {
+          const customType = (msg as { customType?: string }).customType;
+          if (customType === "system_message") {
+            callbacks.onEvent({
+              type: "custom_event",
+              sessionId: "",
+              text: extractUserText(msg),
+              // Pi 消息对象时间字段是 timestamp(毫秒)(磁盘 JSONL 实证)
+              timestamp: (msg as { timestamp?: number }).timestamp,
+              customType,
+              details: (msg as { details?: Record<string, unknown> }).details,
+            });
+          }
         }
       }
       break;

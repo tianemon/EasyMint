@@ -610,6 +610,28 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
         useStatusStore.getState().popSignal(`tool:${event.toolCallId ?? "?"}`);
         if (busyRef.current) useStatusStore.getState().pushSignal("request", "正在思考...");
       }
+      // tool_result — 工具执行结果(主进程 event-bridge 转发 toolResult 消息):
+      // 按 toolCallId 追加 tool_result entry,渲染时关联到对应工具块显示结果
+      if (event.type === "tool_result" && event.toolCallId) {
+        const resultEntry = {
+          kind: "tool_result" as const,
+          toolUseId: event.toolCallId,
+          name: event.toolName,
+          content: event.content ?? "",          isError: event.isError ?? false,
+          timestamp: event.timestamp ?? Date.now(),
+          source: "chat" as const,
+        };
+        const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
+        const target = msgs.find((m) => m.id === latestAiIdRef.current);
+        if (target && target.role === "ai") {
+          // 幂等:同 toolUseId 已存在则替换(防重复到达导致重复追加)
+          const existingIdx = target.entries.findIndex((e: { kind: string; toolUseId?: string }) => e.kind === "tool_result" && e.toolUseId === event.toolCallId);
+          const merged = existingIdx >= 0
+            ? target.entries.map((e: { kind: string; toolUseId?: string }, i: number) => i === existingIdx ? resultEntry : e)
+            : [...target.entries, resultEntry];
+          useChatStore.getState().replaceAiEntriesById(sidRef.current, target.id, merged);
+        }
+      }
       // compaction UI — compacting 事件 = 压缩进行中（显示"正在整理会话..."）
       if (event.type === "compacting") {
         useStatusStore.getState().setCompacting(true);
@@ -1162,13 +1184,27 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
     return msg.entries.filter((e) => {
       if (e.kind === "text") return true;
       if (e.kind === "thinking") return showThinking;
+      // 工具结果(edit diff 等)始终显示——即使隐藏工具调用,结果仍可见
+      if (e.kind === "tool_result") return true;
       return showToolUse;
     });
   }, [msg.entries, showThinking, showToolUse]);
 
+  // 工具 input 查找表(toolUseId → input):隐藏工具调用时,tool-result-only 块仍能取 file_path 做语言高亮
+  const toolInputs = useMemo(() => {
+    const m = new Map<string, Record<string, unknown>>();
+    for (const e of msg.entries ?? []) {
+      if (e.kind === "tool_use" && e.id) {
+        const input = typeof e.input === "object" && e.input !== null ? e.input as Record<string, unknown> : undefined;
+        if (input) m.set(e.id, input);
+      }
+    }
+    return m;
+  }, [msg.entries]);
+
   const blocks = useMemo(() =>
-    visible.length > 0 ? buildBlocks(visible, String(msg.id)) : [],
-    [visible, msg.id],
+    visible.length > 0 ? buildBlocks(visible, String(msg.id), toolInputs) : [],
+    [visible, msg.id, toolInputs],
   );
 
   // 气泡全文：所有 text entry 合并（不含思考/工具）
