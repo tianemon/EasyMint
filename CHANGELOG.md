@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.6.4 (2026-08-06) — diff 语法高亮 & 工具结果展示 & Windows 后台命令修复
+
+### Added（新增）
+
+- **聊天区 diff 语法高亮**：edit 工具变更内容按语言级着色（关键词/字符串/注释/数字，17 种语言，零新依赖复用 monaco tokenizer）；红绿只做背景，文字保持语法色
+- **cc 风格 diff 渲染**：行号列右对齐、`+ code`/`- code` 格式、批量 tokenize 消除首屏闪烁
+- **edit 工具返回注入 diff**：执行后把变更内容追加进返回文本，Mint 可看到改了哪些行（主会话 + 子 Agent 会话）
+- **工具结果进聊天区**：toolResult 消息按 toolCallId 关联到工具块显示，关闭"显示工具调用"时结果仍可见
+- **Agent 过程弹层显示开关**：思考过程/工具调用默认隐藏（多选框样式），展开后带标签分层显示；子 Agent 的 edit 结果也显示红绿 diff
+
+### Changed（变更）
+
+- 工具卡片精简：edit/write/read 只显示路径（不再打印 edits/content 大段），标题右侧 `+N · -N` 变更统计，工具名统一 `edit`
+- 失败工具调用红边框（打开/关闭开关显示一致）
+
+### Fixed（修复）
+
+- 修复 Windows 后台命令输出丢失（detached 导致 stdout/stderr 管道收不到数据）
+- 修复 Windows 后台命令不支持 Git Bash 语法（`cd /c/`、`tail` 管道）——改用 Git Bash 执行，无 Git Bash 时明确报错
+- 修复 Agent 过程弹层 React key 重复警告（keyId 与消息序号同步）
+
 ## v0.6.3 (2026-08-06) — 聊天字体调节 & 会话功能条 & UI 重构
 
 ### Added（新增）
