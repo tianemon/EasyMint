@@ -10,8 +10,8 @@
  * - stop() 立即置 stopping 并广播(前端即时反馈),5s 未退出 SIGKILL 兜底
  */
 
-import { spawn, type ChildProcess } from "node:child_process";
-import { createWriteStream, mkdirSync, readdirSync, rmSync, statSync, type WriteStream } from "node:fs";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { createWriteStream, existsSync, mkdirSync, readdirSync, rmSync, statSync, type WriteStream } from "node:fs";
 import path from "node:path";
 import { broadcast } from "../ipc-broadcast";
 
@@ -73,6 +73,61 @@ function cleanupOldLogs(logDir: string): void {
   } catch { /* 目录不存在等,忽略 */ }
 }
 
+/**
+ * Windows 解析 bash 可执行文件(对齐 Pi getShellConfig):
+ * 1. ProgramFiles\Git\bin\bash.exe(64 位 Git)
+ * 2. ProgramFiles(x86)\Git\bin\bash.exe(32 位 Git)
+ * 3. PATH 上的 bash.exe(Cygwin/MSYS2/WSL)
+ * 找不到返回 null(调用方回退 shell:true → cmd.exe)
+ */
+function findBashOnWindows(): string | null {
+  const candidates: string[] = [];
+  const pf = process.env.ProgramFiles;
+  const pf86 = process.env["ProgramFiles(x86)"];
+  if (pf) candidates.push(`${pf}\\Git\\bin\\bash.exe`);
+  if (pf86) candidates.push(`${pf86}\\Git\\bin\\bash.exe`);
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+  }
+  try {
+    const r = spawnSync("where", ["bash.exe"], { encoding: "utf-8", timeout: 5000, windowsHide: true });
+    if (r.status === 0 && r.stdout) {
+      const m = r.stdout.trim().split(/\r?\n/)[0];
+      if (m && existsSync(m)) return m;
+    }
+  } catch { /* where 不可用等,忽略 */ }
+  return null;
+}
+
+/** 后台命令的 spawn 配置:Windows 用 Git Bash -c(对齐 Pi 工具,支持 cd /c/... 和管道 tail);
+ *  Windows 无 Git Bash → 报错(错误信息进入工具结果,Mint 读到后自行调整策略);
+ *  Unix 保持 shell:true(行为不变) */
+function resolveSpawn(command: string, cwd: string): { file: string; args: string[]; opts: Parameters<typeof spawn>[2]; error?: string } {
+  if (process.platform === "win32") {
+    const bash = findBashOnWindows();
+    if (bash) {
+      return {
+        file: bash,
+        args: ["-c", command],
+        // Windows 不 detached(会导致 stdout/stderr 管道收不到数据);进程树清理走 taskkill /T
+        opts: { cwd, windowsHide: true },
+      };
+    }
+    return {
+      file: "cmd.exe",
+      args: ["/c", "exit 1"],
+      opts: { cwd, windowsHide: true },
+      error: "需要 Git Bash 才能执行后台命令。请安装 Git for Windows(https://git-scm.com/download/win),或改用不含 Git Bash 语法的命令。",
+    };
+  }
+  // Unix:shell:true + detached(独立进程组,kill(-pid) 杀树);此分支仅非 win32 可达
+  return {
+    file: command,
+    args: [],
+    opts: { shell: true, cwd, detached: true },
+  };
+}
+
 class BackgroundShellRegistry {
   private shells = new Map<string, BackgroundShell>();
 
@@ -111,8 +166,32 @@ class BackgroundShellRegistry {
       console.warn(`[bg-shell] log open failed ${id}:`, (e as Error).message);
     }
 
-    // detached: 独立进程组,stop 时 kill(-pid) 可杀整个进程树(含孙进程)
-    const child = spawn(command, { shell: true, cwd, detached: true });
+    // Windows 用 Git Bash -c 执行(对齐 Pi 工具:支持 Git Bash 语法/cd /c/.../管道 tail);
+    // Windows 无 Git Bash → 报错注入结果,不 spawn(错误信息让 Mint 读到后自行调整);
+    // Unix 保持 shell:true + detached(独立进程组,kill(-pid) 杀树)
+    const { file, args, opts, error } = resolveSpawn(command, cwd);
+    if (error) {
+      // 构造已失败 shell:输出=错误信息,立即走退出注销路径(结果注入主会话,Mint 读到后自行调整)
+      logStream?.write(error);
+      const shell: BackgroundShell = {
+        id, command, startedAt: Date.now(), child: null as unknown as ChildProcess, output: error, logPath,
+        exitCode: -1, stopped: false, status: "running", streamBuf: "", flushTimer: null, onExit,
+      };
+      this.shells.set(id, shell);
+      this.broadcastCount();
+      console.warn(`[bg-shell] no bash on windows ${id}: ${error.slice(0, 80)}`);
+      setTimeout(() => {
+        if (this.shells.has(id)) {
+          shell.exitCode = -1;
+          this.shells.delete(id);
+          logStream?.end();
+          shell.onExit?.(shell);
+          this.broadcastCount();
+        }
+      }, 0);
+      return { id, logPath };
+    }
+    const child = spawn(file, args, opts);
     const shell: BackgroundShell = {
       id, command, startedAt: Date.now(), child, output: "", logPath,
       exitCode: null, stopped: false, status: "running", streamBuf: "", flushTimer: null, onExit,

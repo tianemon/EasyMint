@@ -11,6 +11,7 @@ import { randomUUID } from "node:crypto";
 import type { AgentSessionEvent } from "../pi-sdk";
 import { createPiSession, getPiSessionDir } from "../pi-session";
 import { getBaseTools, getReadOnlyTools } from "../tool-registry";
+import { createEnhancedEditTool } from "../enhanced-edit";
 import { getActiveModel, getModelRuntime } from "../pi-init";
 import { getTemplate } from "../agent-templates";
 import { Store } from "../store";
@@ -152,7 +153,12 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
 
   const tools = opts.readOnly
     ? await getReadOnlyTools(resolvedPath)
-    : await getBaseTools(resolvedPath);
+    : await (async () => {
+        const base = await getBaseTools(resolvedPath);
+        // 子 Agent 的 edit 也用增强版:执行后把 details.diff 注入返回文本(弹层/模型可见变更内容)
+        const enhanced = await createEnhancedEditTool(resolvedPath);
+        return base.map((t) => (t.name === "edit" ? enhanced : t));
+      })();
 
   // 子 Agent 权限包装：只读操作自动放行，写操作需白名单
   const subCanUseTool = (toolName: string, input: Record<string, unknown>) => {
