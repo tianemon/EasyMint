@@ -571,10 +571,15 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
       const handleBlocks = (blocks: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; content?: unknown; thinking?: string }>, frameTs: number) => {
         const rawEntries = piBlocksToEntries(blocks);
         if (rawEntries.length === 0) return;
-        // 仅实际文本输出时结束「思考中」——thinking 块是思考内容,不代表输出开始,
-        // pop 后状态栏空白但 Mint 仍在思考(问题:thinking 流式帧把「思考中」误 pop)
         const hasText = rawEntries.some((e) => e.kind === "text");
-        if (hasText) useStatusStore.getState().popSignal(sidRef.current, "request");
+        const hasThinking = rawEntries.some((e) => e.kind === "thinking");
+        // 仅实际文本输出时结束「思考中」;thinking 流式帧保持「思考中」活跃——
+        // 思考块还在增长说明 Mint 仍在思考,若信号曾被 tool 等路径 pop,这里恢复
+        if (hasText) {
+          useStatusStore.getState().popSignal(sidRef.current, "request");
+        } else if (hasThinking && busyRef.current) {
+          useStatusStore.getState().pushSignal(sidRef.current, "request", "正在思考...");
+        }
         const entries = mergeConsecutiveText(rawEntries);
         if (latestAiIdRef.current) {
           useChatStore.getState().replaceAiEntriesById(sidRef.current, latestAiIdRef.current, entries);
