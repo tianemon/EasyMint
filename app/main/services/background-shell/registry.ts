@@ -14,6 +14,7 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createWriteStream, existsSync, mkdirSync, readdirSync, rmSync, statSync, type WriteStream } from "node:fs";
 import path from "node:path";
 import { broadcast } from "../ipc-broadcast";
+import { decodeSeg, finalDecode } from "./encoding";
 
 /** 保留输出尾部上限(内存,通知预览;超出截断,防止内存膨胀) */
 const MAX_OUTPUT_BYTES = 4096;
@@ -111,8 +112,8 @@ export function resolveSpawn(command: string, cwd: string): { file: string; args
         file: bash,
         args: ["-c", command],
         // Windows 不 detached(会导致 stdout/stderr 管道收不到数据);进程树清理走 taskkill /T
-        // 强制 UTF-8 locale:Windows 默认 GBK 控制台,子进程按 GBK 输出会导致 node 按 UTF-8 解码乱码
-        opts: { cwd, windowsHide: true, env: { ...process.env, LANG: "C.UTF-8", LC_ALL: "C.UTF-8" } },
+        // 注:LANG/LC_ALL 对 Windows 原生程序无效(编码由系统代码页决定),乱码由 encoding.ts 解码容错解决
+        opts: { cwd, windowsHide: true },
       };
     }
     return {
@@ -204,31 +205,9 @@ class BackgroundShellRegistry {
 
     // 编码容错:Git Bash 自身输出 UTF-8,但其调用的原生程序按系统代码页(GBK)输出——
     // 单用 UTF-8 解 GBK 字节必乱码。缓冲原始字节,整段解码 UTF-8 优先,含 replacement char(�)切 GBK。
+    // (decodeSeg/finalDecode 见 encoding.ts 共享模块,前台 bash 同用)
     const outBuf = { bytes: Buffer.alloc(0) };
     const errBuf = { bytes: Buffer.alloc(0) };
-    /** 编码判定解码:每段累积原始字节,判定编码后一次性输出——
-     *  1. ≤3 字节:可能是不完整序列,保留等待
-     *  2. fatal UTF-8 解全量成功 → UTF-8,输出清空
-     *  3. 去尾 1-3 字节的任一前缀 fatal 成功 → 未完成 UTF-8 前缀,保留等待
-     *  4. 其余 → GBK,输出清空
-     *  (GBK 双字节字符去尾前缀必失败,不会误判未完成;UTF-8 跨 chunk 截断能正确等待) */
-    const decodeSeg = (bytes: Buffer): { text: string; rest: Buffer } => {
-      if (bytes.length <= 3) return { text: "", rest: bytes };
-      const fatal = (b: Buffer) => new TextDecoder("utf-8", { fatal: true }).decode(b);
-      try {
-        return { text: fatal(bytes), rest: Buffer.alloc(0) };
-      } catch {
-        for (const cut of [1, 2, 3]) {
-          if (bytes.length - cut <= 0) continue;
-          try {
-            fatal(bytes.subarray(0, bytes.length - cut));
-            return { text: "", rest: bytes }; // 未完成前缀,继续等
-          } catch { /* 继续尝试更小 cut */ }
-        }
-        // 全失败 → GBK
-        return { text: new TextDecoder("gbk").decode(bytes), rest: Buffer.alloc(0) };
-      }
-    };
     const collect = (chunk: Buffer, holder: { bytes: Buffer }): void => {
       // 原始字节入日志(日志保持原始字节,查看时用文本)
       if (logStream && logBytes < MAX_LOG_BYTES) {
@@ -257,14 +236,6 @@ class BackgroundShellRegistry {
     child.stderr?.on("data", (c) => collect(c, errBuf));
     child.on("exit", (code) => {
       // 冲掉残留缓冲(终局解码:不再等待未完成序列,UTF-8 尝试失败则 GBK)
-      const finalDecode = (bytes: Buffer): string => {
-        if (bytes.length === 0) return "";
-        try {
-          return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-        } catch {
-          return new TextDecoder("gbk").decode(bytes);
-        }
-      };
       const outTail = finalDecode(outBuf.bytes);
       const errTail = finalDecode(errBuf.bytes);
       outBuf.bytes = Buffer.alloc(0);
