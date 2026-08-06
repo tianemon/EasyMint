@@ -53,6 +53,13 @@ interface Settings {
   chatThinkingLevel?: string;
   /** 聊天字号级别(1-6,默认 3) */
   chatFontLevel?: number;
+  /** 状态指示光效:输入卡片光效预设 */
+  glowEffect?: "orbit" | "slide" | "breathe" | "off";
+  glowColorLight?: string;
+  glowColorDark?: string;
+  /** Mint 状态文本样式:单色/流光 */
+  statusTextStyle?: "solid" | "shimmer";
+  statusTextColors?: string[];
   apiProviders?: ApiProvidersData;
   // ── 需求 4:群聊配置 ──
   /** 群聊最大 agent 数(默认 3) */
@@ -163,6 +170,11 @@ export class Store {
       showToolUse: emData.showToolUse as boolean | undefined,
       chatThinkingLevel: (emData.chatThinkingLevel as string) ?? "medium",
       chatFontLevel: (emData.chatFontLevel as number) ?? 3,
+      glowEffect: (emData.glowEffect as "orbit" | "slide" | "breathe" | "off") ?? "orbit",
+      glowColorLight: (emData.glowColorLight as string) ?? "#16a34a",
+      glowColorDark: (emData.glowColorDark as string) ?? "#4ade80",
+      statusTextStyle: (emData.statusTextStyle as "solid" | "shimmer") ?? "shimmer",
+      statusTextColors: (emData.statusTextColors as string[]) ?? ["#22c55e", "#3b82f6", "#a855f7"],
       apiProviders: (emData.apiProviders as ApiProvidersData) || undefined,
       maxGroupAgents: (emData.maxGroupAgents as number) ?? 3,
       groupForwardStrategy: (emData.groupForwardStrategy as "all" | "conclusion") ?? "conclusion",
@@ -232,6 +244,11 @@ export class Store {
     if (settings.showToolUse !== undefined) data.showToolUse = settings.showToolUse;
     if (settings.chatThinkingLevel) data.chatThinkingLevel = settings.chatThinkingLevel;
     if (settings.chatFontLevel !== undefined) data.chatFontLevel = settings.chatFontLevel;
+    if (settings.glowEffect) data.glowEffect = settings.glowEffect;
+    if (settings.glowColorLight) data.glowColorLight = settings.glowColorLight;
+    if (settings.glowColorDark) data.glowColorDark = settings.glowColorDark;
+    if (settings.statusTextStyle) data.statusTextStyle = settings.statusTextStyle;
+    if (settings.statusTextColors) data.statusTextColors = settings.statusTextColors;
     if (settings.apiProviders) {
       data.apiProviders = settings.apiProviders;
     }

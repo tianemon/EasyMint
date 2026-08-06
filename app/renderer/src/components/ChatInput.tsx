@@ -2,6 +2,7 @@ import { memo, useRef, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { useStatusStore } from "../stores/status-store";
 import { useDelegationStore } from "../stores/delegation-store";
+import { useThemeStore } from "../stores/theme-store";
 import { Select } from "./Select";
 import { AgentBar } from "./AgentBar";
 import { ShellBar } from "./ShellBar";
@@ -64,10 +65,17 @@ export const ChatInput = memo(function ChatInput({
   const summarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
   const compacting = useStatusStore((s) => s.bySession[sessionId]?.compacting ?? false);
   const inputDisabled = summarizing || compacting;
+  // 状态指示光效配置
+  const glowEffect = useSettingsStore((s) => s.glowEffect);
+  const glowColorLight = useSettingsStore((s) => s.glowColorLight);
+  const glowColorDark = useSettingsStore((s) => s.glowColorDark);
   // 流光环绕动画活跃:回合进行 ∪ 子 Agent 运行 ∪ 后台 shell 运行(替代状态栏常驻符号动画)
   const agentActive = useDelegationStore((s) => s.agentTasks.some((t) => !t.sessionId || t.sessionId === sessionId));
   const shellActive = useDelegationStore((s) => s.shellTasks.some((t) => !t.sessionId || t.sessionId === sessionId));
   const glowActive = busy || agentActive || shellActive;
+  // 按主题注入 --glow-color(亮/暗模式分别配置的颜色;订阅 effective 主题切换时重渲染)
+  const isDark = useThemeStore((s) => s.effective) === "dark";
+  const glowColor = isDark ? glowColorDark : glowColorLight;
 
   // 输入历史导航
   const HISTORY_KEY = "easymint_input_history";
@@ -123,8 +131,14 @@ export const ChatInput = memo(function ChatInput({
 
   return (
     <div className="input-card">
-      {/* 流光环绕动画:活跃时环绕输入卡片流动(替代状态栏常驻符号动画) */}
-      {glowActive && <div className="input-card-glow" aria-hidden="true" />}
+      {/* 状态指示光效:按预设 class + 注入 --glow-color(活跃=bussy||agentActive||shellActive) */}
+      {glowActive && glowEffect !== "off" && (
+        <div
+          className={`input-card-glow glow-${glowEffect}`}
+          style={{ ["--glow-color" as string]: glowColor }}
+          aria-hidden="true"
+        />
+      )}
       {/* Compact 蒙版 */}
       {compacting && (
         <div className="absolute inset-0 z-10 rounded-[10px] bg-surface/70 backdrop-blur-[2px] flex items-center justify-center">

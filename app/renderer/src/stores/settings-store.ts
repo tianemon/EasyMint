@@ -18,6 +18,16 @@ interface SettingsState {
   chatThinkingLevel: string;
   /** 聊天字号级别(1-6,默认 3):整体控制会话列表/气泡/思考工具的字体大小 */
   chatFontLevel: number;
+  /** 状态指示光效:输入卡片光效预设 */
+  glowEffect: "orbit" | "slide" | "breathe" | "off";
+  /** 光效颜色(亮色模式) */
+  glowColorLight: string;
+  /** 光效颜色(暗色模式) */
+  glowColorDark: string;
+  /** Mint 状态文本样式:单色/流光 */
+  statusTextStyle: "solid" | "shimmer";
+  /** 流光色彩组合(有序) */
+  statusTextColors: string[];
   apiProviders: ApiProvidersData | null;
   // ── 需求 4:群聊配置 ──
   maxGroupAgents: number;
@@ -37,6 +47,11 @@ interface SettingsState {
   setShowToolUse: (enabled: boolean) => void;
   setChatThinkingLevel: (level: string) => void;
   setChatFontLevel: (level: number) => void;
+  setGlowEffect: (v: "orbit" | "slide" | "breathe" | "off") => void;
+  setGlowColorLight: (v: string) => void;
+  setGlowColorDark: (v: string) => void;
+  setStatusTextStyle: (v: "solid" | "shimmer") => void;
+  setStatusTextColors: (v: string[]) => void;
   setApiProviders: (data: ApiProvidersData) => void;
   activateProvider: (providerId: string) => void;
   setMaxGroupAgents: (v: number) => void;
@@ -64,6 +79,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   showToolUse: false,
   chatThinkingLevel: "medium",
   chatFontLevel: 3,
+  glowEffect: "orbit",
+  glowColorLight: "#16a34a",
+  glowColorDark: "#4ade80",
+  statusTextStyle: "shimmer",
+  statusTextColors: ["#22c55e", "#3b82f6", "#a855f7"],
   maxGroupAgents: 3,
   groupForwardStrategy: "conclusion",
   groupInjectMode: "followUp",
@@ -133,6 +153,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     document.documentElement.style.setProperty("--chat-bubble-size", `${base}px`);
     document.documentElement.style.setProperty("--chat-detail-size", `${detail}px`);
   },
+  setGlowEffect: (v) => { set({ glowEffect: v }); window.electronAPI?.settings?.set?.("glowEffect", v); },
+  setGlowColorLight: (v) => { set({ glowColorLight: v }); window.electronAPI?.settings?.set?.("glowColorLight", v); },
+  setGlowColorDark: (v) => { set({ glowColorDark: v }); window.electronAPI?.settings?.set?.("glowColorDark", v); },
+  setStatusTextStyle: (v) => { set({ statusTextStyle: v }); window.electronAPI?.settings?.set?.("statusTextStyle", v); },
+  setStatusTextColors: (v) => { set({ statusTextColors: v }); window.electronAPI?.settings?.set?.("statusTextColors", v); },
   setMaxGroupAgents: (v: number) => { set({ maxGroupAgents: v }); window.electronAPI?.settings?.set?.("maxGroupAgents", v); },
   setGroupForwardStrategy: (v: "all" | "conclusion") => { set({ groupForwardStrategy: v }); window.electronAPI?.settings?.set?.("groupForwardStrategy", v); },
   setGroupInjectMode: (v: "steer" | "followUp") => { set({ groupInjectMode: v }); window.electronAPI?.settings?.set?.("groupInjectMode", v); },
@@ -184,6 +209,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           showToolUse: settings.showToolUse ?? false,
           chatThinkingLevel: settings.chatThinkingLevel ?? "medium",
           chatFontLevel: settings.chatFontLevel ?? 3,
+          glowEffect: (settings.glowEffect as "orbit" | "slide" | "breathe" | "off") ?? "orbit",
+          glowColorLight: settings.glowColorLight ?? "#16a34a",
+          glowColorDark: settings.glowColorDark ?? "#4ade80",
+          statusTextStyle: (settings.statusTextStyle as "solid" | "shimmer") ?? "shimmer",
+          statusTextColors: settings.statusTextColors ?? ["#22c55e", "#3b82f6", "#a855f7"],
           setupComplete: settings.setupComplete ?? false,
           apiProviders: (settings.apiProviders as ApiProvidersData) ?? null,
           maxGroupAgents: settings.maxGroupAgents ?? 3,          groupForwardStrategy: settings.groupForwardStrategy ?? "conclusion",

@@ -348,6 +348,11 @@ interface ElectronAPI {
       showThinking?: boolean; showToolUse?: boolean;
       chatThinkingLevel?: string;
       chatFontLevel?: number;
+      glowEffect?: "orbit" | "slide" | "breathe" | "off";
+      glowColorLight?: string;
+      glowColorDark?: string;
+      statusTextStyle?: "solid" | "shimmer";
+      statusTextColors?: string[];
       maxGroupAgents?: number;
       groupForwardStrategy?: "all" | "conclusion";
       groupInjectMode?: "steer" | "followUp";
