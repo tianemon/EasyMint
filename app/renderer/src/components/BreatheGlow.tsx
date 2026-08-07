@@ -110,7 +110,6 @@ export function BreatheGlow({ colors }: BreatheGlowProps): JSX.Element {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       for (let L = 0; L < BLOOM_LAYERS; L++) {
         const a = bloomAlpha * (1 - (L + 0.5) / BLOOM_LAYERS); // 层中点 alpha(内→外递减)
-        const r1 = (bloomR * L) / BLOOM_LAYERS;
         const r2 = (bloomR * (L + 1)) / BLOOM_LAYERS;
         octx.clearRect(0, 0, cssW, cssH);
         let li = 0;
@@ -123,12 +122,12 @@ export function BreatheGlow({ colors }: BreatheGlowProps): JSX.Element {
             const p1 = pathAt(seg.end + OVERLAP, w, h, r);
             const c0 = colorAtLoop(rgbList, seg.start / P + flow);
             const c1 = colorAtLoop(rgbList, seg.end / P + flow);
-            // 内边 = 卡片边缘(路径 - 法线×half)+ 法线×r1——光晕从卡片边缘开始(旧版从光带外边缘
-            // 即卡片外 t px 处开始,与卡片有缝隙,肉眼可见不贴合)
-            const i0x = p0.x + outset + p0.nx * (r1 - half);
-            const i0y = p0.y + outset + p0.ny * (r1 - half);
-            const i1x = p1.x + outset + p1.nx * (r1 - half);
-            const i1y = p1.y + outset + p1.ny * (r1 - half);
+            // 内边固定卡片边缘(路径 - 法线×half):层画实心环 [卡片边缘, r2],主 canvas 上叠加
+            // ——旧版窄环带 [r1,r2] 宽 0.1~0.6px 小于 AA 边缘,弧段曲率损失大→圆角明显比直线淡
+            const i0x = p0.x + outset + p0.nx * -half;
+            const i0y = p0.y + outset + p0.ny * -half;
+            const i1x = p1.x + outset + p1.nx * -half;
+            const i1y = p1.y + outset + p1.ny * -half;
             const o0x = p0.x + outset + p0.nx * (r2 - half);
             const o0y = p0.y + outset + p0.ny * (r2 - half);
             const o1x = p1.x + outset + p1.nx * (r2 - half);
@@ -163,7 +162,7 @@ export function BreatheGlow({ colors }: BreatheGlowProps): JSX.Element {
             octx.fillStyle = g;
             octx.beginPath();
             octx.arc(cx, cy, r - half + r2, a0, a1); // 层外弧(从卡片边缘 r-half 向外)
-            octx.arc(cx, cy, r - half + r1, a1, a0, true); // 层内弧反向
+            octx.arc(cx, cy, r - half, a1, a0, true); // 层内弧固定卡片边缘(实心环,同直线段)
             octx.closePath();
             octx.fill();
           }
