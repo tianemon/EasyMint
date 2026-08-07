@@ -151,10 +151,11 @@ export function AppearanceTab(): JSX.Element {
                   ))}
                 </div>
                 {glowColorMode === "solid" ? (
-                  <label className="flex items-center gap-2 text-xs text-text-secondary">
+                  // 不用 label 包裹:label 的关联触发会让点击文字/空白区域也打开取色器(触发区域大于视觉按钮)
+                  <div className="flex items-center gap-2 text-xs text-text-secondary">
                     <span>光效颜色</span>
                     <input type="color" value={glowColor} onChange={(e) => setGlowColor(e.target.value)} className="w-7 h-7 rounded cursor-pointer border border-border bg-transparent" />
-                  </label>
+                  </div>
                 ) : (
                   <GlowGroupManager groups={glowGroups} activeId={activeGlowGroup} onChangeGroups={setGlowGroups} onChangeActive={setActiveGlowGroup} />
                 )}
@@ -179,12 +180,12 @@ export function AppearanceTab(): JSX.Element {
                 </button>
               ))}
             </div>
-            {/* 单色模式:颜色选择(当前编辑模式) */}
+            {/* 单色模式:颜色选择(当前编辑模式);不用 label 包裹(触发区域问题同上) */}
             {statusTextStyle === "solid" && (
-              <label className="flex items-center gap-2 text-xs text-text-secondary mt-2">
+              <div className="flex items-center gap-2 text-xs text-text-secondary mt-2">
                 <span>文本颜色</span>
                 <input type="color" value={statusColor} onChange={(e) => setStatusColor(e.target.value)} className="w-7 h-7 rounded cursor-pointer border border-border bg-transparent" />
-              </label>
+              </div>
             )}
             {/* 流光模式:分组管理(内置「默认」不可删 + 自定义 ≤4) */}
             {statusTextStyle === "shimmer" && (
