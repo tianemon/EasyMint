@@ -53,9 +53,10 @@ export function BreatheGlow({ colors }: BreatheGlowProps): JSX.Element {
       const r = Math.min(radius + THICKNESS / 2, w / 2, h / 2);
       const P = pathPerimeter(w, h, r);
       const phase = (Math.sin((2 * Math.PI * now) / 1000 / SPEED) + 1) / 2; // 0→1→0 呼吸
-      // 光晕(由实向虚):发散半径 1→6px(呼吸幅度 5px,张弛感更强),光斑强度随呼吸
+      // 光晕(由实向虚):发散半径 1→6px(呼吸幅度 5px),光斑强度随呼吸
       const bloomR = 1 + 5 * phase;
-      const bloomAlpha = 0.8 * (0.3 + 0.7 * phase);
+      // 0.675 = 原版 0.8 与柔化 0.55 的中间值:内圈叠加 alpha ≈ 0.9(0.8≈0.97 太实,0.55≈0.85 略淡)
+      const bloomAlpha = 0.675 * (0.3 + 0.7 * phase);
       const half = THICKNESS / 2;
       const rgbList = cs.map(rgbOf);
       const flow = (now / 1000 / SPEED) % 1; // 颜色带沿路径流转偏移(一圈 = 呼吸周期,多色流动)
@@ -109,8 +110,10 @@ export function BreatheGlow({ colors }: BreatheGlowProps): JSX.Element {
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       for (let L = 0; L < BLOOM_LAYERS; L++) {
-        const a = bloomAlpha * (1 - (L + 0.5) / BLOOM_LAYERS); // 层中点 alpha(内→外递减)
-        const r2 = (bloomR * (L + 1)) / BLOOM_LAYERS;
+        // 层中点 alpha 平方衰减(内→外递减):外层更快趋近 0,视觉厚度更薄、边缘更虚
+        const a = bloomAlpha * (1 - (L + 0.5) / BLOOM_LAYERS) ** 2;
+        // 层半径 1.5 次方分布(外层更密,原版线性与平方的中间值):边缘渐变更缓更虚
+        const r2 = bloomR * ((L + 1) / BLOOM_LAYERS) ** 1.5;
         octx.clearRect(0, 0, cssW, cssH);
         let li = 0;
         let ai = 0;
