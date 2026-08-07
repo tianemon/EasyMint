@@ -1125,6 +1125,39 @@ select.input {
   font-size: var(--chat-bubble-size);
 }
 
+/* 新消息气泡:悬浮在输入卡片上方居中(anchor 容器 bottom:100% = 卡片顶部上方)。
+   busy 中=圆形箭头图标(常驻);输出结束=「新消息」胶囊带箭头 */
+.new-msg-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 12px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px; /* 垂直 6px 与圆圈同步,两形态高度一致 */
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  color: var(--color-text-primary);
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  z-index: 10;
+  transition: background 0.15s, transform 0.15s;
+}
+/* 圆圈箭头(回底部/流式中):内边距与胶囊垂直同步,两形态高度一致 */
+.new-msg-bubble--icon {
+  padding: 6px;
+  border-radius: 50%;
+}
+.new-msg-bubble:hover {
+  background: var(--color-surface-hover);
+}
+.new-msg-bubble:active {
+  transform: translateX(-50%) scale(0.95);
+}
+
 /* 暗色模式下 prose Markdown 渲染：覆盖 typography 默认深色字体 */
 [data-theme="dark"] .prose {
   --tw-prose-body: #d1d5db;

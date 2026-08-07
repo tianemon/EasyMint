@@ -64,8 +64,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
   // 当前输出段块(assistant 消息)id:Pi 每条输出段消息有独立 message_start/update/end
   // 生命周期(磁盘逐条落盘);块 piTs = 消息对象创建时间戳,通知按 ts 插到块之间
   // → UI 顺序 = jsonl 顺序(不依赖广播到达顺序)
-  const programmaticScrollRef = useRef(false); // 程序性滚动中（handleScroll 跳过 autoScroll 更新）
-  const scrollTimeoutRef = useRef<number | null>(null); // 虚拟化测量兜底的延迟贴底定时器
+  // 新消息气泡:用户滚离底部时显示(常驻)——busy 中=圆圈箭头图标;输出结束=「新消息」胶囊带箭头;
+  // 点击回底或手动滚回底部消失
+  const [showNewMsg, setShowNewMsg] = useState(false); // 输出结束且不在底部的"新消息"状态
+  const showNewMsgRef = useRef(false); // 与 state 同步(handleScroll 空依赖闭包读 ref)
+  const [awayFromBottom, setAwayFromBottom] = useState(false); // 用户是否离开底部(渲染驱动)
+  const awayFromBottomRef = useRef(false); // 跨阈值去重(滚动高频时只在边界变化时 setState)
 
   const imgInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
@@ -161,43 +165,51 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
   const busy = runningSessions.has(sidRef.current);
   const setBusy = (v: boolean) => { useTabStore.getState().setSessionRunning(sidRef.current, v); };
 
-  const scrollToBottom = useCallback((force = false) => {
-    if (!containerRef.current) return;
-    if (force || autoScrollRef.current) {
-      const el = containerRef.current;
-      // 程序性滚动标记：滚动动画期间 handleScroll 不更新 autoScroll
-      programmaticScrollRef.current = true;
-      requestAnimationFrame(() => {
-        if (!el) return;
-        // 统一瞬时滚动：smooth 动画期间内容持续移动,鼠标相对位置变化
-        // 会误触发消息 hover(复制/钉住按钮闪现)
-        el.scrollTop = el.scrollHeight;
-        // 贴底完成后立即复位标记——防抖只用于二次贴底,不复位标记
-        // (否则流式高频更新时 setTimeout 持续重置,programmaticScrollRef 卡 true,
-        //  handleScroll 永远被跳过 → autoScrollRef 永不变 false → 滚动被锁定)
-        programmaticScrollRef.current = false;
-        // 虚拟化测量兜底：消息高度异步重测(ResizeObserver),内容更新后总高度
-        // 变化,立即贴底会落后——延迟二次贴底(防抖:连续帧只保留最后一次)
-        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-        scrollTimeoutRef.current = window.setTimeout(() => {
-          scrollTimeoutRef.current = null;
-          if (el && (force || autoScrollRef.current)) el.scrollTop = el.scrollHeight;
-        }, 80);
-      });
+  // 新消息气泡触发(简化):回合输出完全结束(busy true→false)后,用户不在底部 → 「新消息」状态。
+  // 流式中(用户滚离底部)由 awayFromBottom 驱动显示圆圈箭头(常驻)
+  const prevBusyRef = useRef(false);
+  useEffect(() => {
+    if (prevBusyRef.current && !busy) {
+      if (awayFromBottomRef.current) {
+        setShowNewMsg(true);
+        showNewMsgRef.current = true;
+      }
+    }
+    prevBusyRef.current = busy;
+  }, [busy]);
+
+  // 滚动状态机(最终版:用户意图用"输入时间窗"判定):
+  // - 任何用户输入(wheel/touch/mousedown)后 500ms 内的 scroll 变化 = 用户滚动意图——
+  //   覆盖滚轮/触摸板/触屏/滚动条拖动;程序性贴底/测量增长(无用户输入)的 scroll 永不误判
+  // - autoScrollRef=false:用户滚离底部(dist>8);恢复:滚回底部(dist<8) → 跟随 + 隐藏气泡
+  const lastUserInputRef = useRef(0); // 最近一次用户输入时间(判定窗口)
+  const markUserInput = useCallback(() => { lastUserInputRef.current = Date.now(); }, []);
+  const handleScroll = useCallback(() => {
+    // 程序性贴底/测量调整(无用户输入)不参与判定——彻底消除误判,不需要保护窗口
+    if (Date.now() - lastUserInputRef.current > 500) return;
+    const el = containerRef.current; if (!el) return;
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const atBottom = distFromBottom < 8;
+    if (atBottom) {
+      autoScrollRef.current = true; // 滚回底部 → 恢复自动跟随
+      // 气泡消失(用户已看到新消息);跨阈值时更新渲染 state
+      if (showNewMsgRef.current) setShowNewMsg(false);
+      if (awayFromBottomRef.current) {
+        awayFromBottomRef.current = false;
+        setAwayFromBottom(false);
+      }
+    } else {
+      autoScrollRef.current = false; // 用户滚离底部 → 停止跟随(气泡触发条件之一)
+      if (!awayFromBottomRef.current) {
+        awayFromBottomRef.current = true;
+        setAwayFromBottom(true);
+      }
     }
   }, []);
-
-  const handleScroll = useCallback(() => {
-    // 程序性滚动（贴底/流式跟随）动画期间不更新 autoScroll——
-    // 动画中途 distFromBottom 必然 >8，会误判为"用户离开底部"，
-    // 导致测量完成后的校正贴底被跳过（打开会话停在半路）。
-    if (programmaticScrollRef.current) return;
-    const el = containerRef.current; if (!el) return;
-    // 用户主动滚动：一旦离开底部就立即停止自动跟随（阈值小，轻滑即可解锁），
-    // 避免 onStream 的 scrollToBottom 把用户拉回底部导致"滑不动"。
-    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    autoScrollRef.current = distFromBottom < 8;
-  }, []);
+  // 用户输入标记(wheel/touch/mousedown——滚动条拖动/触屏都覆盖;判定统一在 handleScroll)
+  const handleUserInput = useCallback(() => {
+    markUserInput();
+  }, [markUserInput]);
 
   // 消息列表虚拟化：只渲染可视区 ± overscan 的消息，长对话时 DOM 从数千节点降到 ~30
   // HMR 防御：容器元素用 state 驱动（而非 ref）——DOM 重建时 ref 回调触发 setState，
@@ -212,10 +224,47 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
     getScrollElement: () => scrollEl,
     estimateSize: () => 100,
     overscan: 8,
+    // 正规手段(替代手写贴底链):anchorTo: "end" 是库原生聊天列表机制——
+    // 用户在底部时内容测量变化(流式增长)自动保持贴底;用户滚动离开自动停止跟随。
+    // scrollToIndex 的 scrollState 在测量变化时持续校正对齐直到稳定(官方处理估算→实测)
+    anchorTo: "end",
     // measureElement 在 React commit 阶段触发 onChange，默认的 flushSync 会
     // 报 "flushSync was called from inside a lifecycle method"——改走普通调度
     useFlushSync: false,
   });
+  // 贴底(发送消息/气泡点击):virtualizer.scrollToIndex 官方 API。
+  // rAF 延迟:事件处理中 virtualizer 的 count 还是旧值(React 渲染时才 setOptions 更新),
+  // scrollToIndex 内部 clamp 到 count-1——发送消息同步插入用户消息后立即调用会滚到
+  // 旧最后一条(AI 消息);rAF 时 React 已重渲染,count 更新,定位到用户消息
+  const scrollToBottom = useCallback((_force = false) => {
+    const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
+    const target = msgs.length - 1;
+    if (target < 0) return;
+    autoScrollRef.current = true; // 程序性回底 = 恢复自动跟随
+    // 气泡立即消失:handleScroll 只在用户输入后 500ms 内判定,程序性贴底(点击/发送)不触发
+    if (awayFromBottomRef.current) {
+      awayFromBottomRef.current = false;
+      setAwayFromBottom(false);
+    }
+    if (showNewMsgRef.current) {
+      showNewMsgRef.current = false;
+      setShowNewMsg(false);
+    }
+    requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(target, { align: "end" });
+    });
+  }, [virtualizer]);
+
+  // 内容增长跟随:totalSize 变化(流式输出/打开会话的测量推进)时,若用户没滚离底部 → 贴底。
+  // 这是 anchorTo: "end" 的替代——库的 wasAtEnd 用 totalSize-based 距离判定,与 DOM 实际
+  // 高度有偏差(估算混合),贴底后内容增长时判定失效(实测 dist 0→125);本方案用
+  // autoScrollRef(DOM 判定 + wheel 输入)直接控制,可靠
+  useEffect(() => {
+    if (autoScrollRef.current && messages.length > 0) {
+      virtualizer.scrollToIndex(messages.length - 1, { align: "end" });
+    }
+  }, [virtualizer.getTotalSize(), messages.length, virtualizer]);
+
   // 容器变化时兜底重新测量（HMR 重挂后旧测量数据失效）
   useEffect(() => {
     if (scrollEl) virtualizer.measure();
@@ -587,7 +636,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
             agentRole: event.agentRole, forwarded: event.forwarded, forwardedFrom: event.forwardedFrom,
           }, frameTs);
         }
-        scrollToBottom();
+        // 贴底跟随由 virtualizer anchorTo: "end" 原生处理(在底部时测量变化自动保持)
       };
       // Pi 新 assistant turn 开始 → 重置输出段块状态
       // (turn_start 不创建消息——磁盘上无空消息;首个内容帧才创建块)
@@ -693,7 +742,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
             customType: event.customType, details: event.details, sysTs,
           }, sysTs);
         }
-        scrollToBottom();
+        // 贴底跟随由 virtualizer anchorTo: "end" 原生处理
       }
       // context usage update
       if (event.type === "context_usage") {
@@ -805,26 +854,22 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
     return () => clearInterval(interval);
   }, [busy, existingSid]);
 
-  useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
-
-  // 打开会话（0 → N 条）：scrollToIndex 贴底——库官方 API，
-  // 内部处理动态测量，比手动 scrollTop/scrollHeight 可靠。
+  // 打开会话（0 → N 条）贴底：virtualizer.scrollToIndex 官方 API——
+  // scrollState 在测量变化时持续校正对齐直到稳定(库原生处理估算→实测,正规手段)。
+  // 流式跟随由 anchorTo: "end" 自动处理(在底部时内容增长保持贴底),不再手动贴底。
+  // 依赖 scrollEl:首次渲染时 scrollEl 为 null,scrollToIndex 会 no-op(找不到滚动元素),
+  // 等 attachScrollRef 绑定后(state 更新触发重渲染)再贴
   const prevMsgCountRef = useRef(0);
   useEffect(() => {
-    if (messages.length > 0 && prevMsgCountRef.current === 0) {
-      // 程序性滚动标记：scrollToIndex 动画期间不污染 autoScroll
-      programmaticScrollRef.current = true;
+    if (messages.length > 0 && prevMsgCountRef.current === 0 && scrollEl) {
+      // 打开会话:先滚到估算底,后续测量推进由上方 totalSize effect 自动贴底跟进
+      // (每次 totalSize 变化都贴,测量多久都最终精确——不再等收敛/多点贴底)
+      autoScrollRef.current = true;
       virtualizer.scrollToIndex(messages.length - 1, { align: "end" });
-      setTimeout(() => { programmaticScrollRef.current = false; }, 600);
+      prevMsgCountRef.current = messages.length;
     }
-    prevMsgCountRef.current = messages.length;
-  }, [messages, virtualizer]);
-
-  // 虚拟化测量是异步的：messages 加载后的首次滚动发生在 totalSize 还是估算值时，
-  // 测量完成后需再贴底一次（流式增长时总高度变大）
-  useEffect(() => {
-    if (autoScrollRef.current) scrollToBottom();
-  }, [virtualizer.getTotalSize(), scrollToBottom]);
+    // scrollEl 未就绪时不更新 prevMsgCountRef——等就绪后 effect 重跑再贴底
+  }, [messages, virtualizer, scrollEl]);
 
   // ── Session cache ────────────────────────────────
   useEffect(() => {
@@ -1041,7 +1086,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
 
   return (
     <div className="absolute inset-0 flex flex-col" onDragOver={handleDragOver} onDrop={handleDrop}>
-      <div ref={attachScrollRef} onScroll={handleScroll} className="chat-messages flex-1 overflow-y-auto overflow-x-hidden pb-2" style={{ fontSize: "var(--chat-bubble-size)" }}>
+      <div
+        ref={attachScrollRef}
+        onScroll={handleScroll}
+        onWheel={handleUserInput}
+        onTouchStart={handleUserInput}
+        onTouchMove={handleUserInput}
+        onMouseDown={handleUserInput}
+        className="chat-messages flex-1 overflow-y-auto overflow-x-hidden pb-2"
+        style={{ fontSize: "var(--chat-bubble-size)" }}
+      >
         {!hasMessages ? (
           <div className="chat-empty">
             <div className="chat-empty-icon">
@@ -1128,26 +1182,47 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
         <div className="px-4 py-2 bg-surface-alt/30 border-t border-border/50 shrink-0"><AttachPreview /></div>
       )}
 
-      <ChatInput
-        busy={busy}
-        attaches={attaches}
-        setAttaches={setAttaches}
-        onSend={sendText}
-        onStop={() => { stoppedRef.current = true; busyRef.current = false; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); /* 仅停当前回合残留帧;打断通知/总结回合在 onStream 中按 turn_start 恢复渲染 */ }}
-        onPaste={handlePaste}
-        imgInputRef={imgInputRef}
-        docInputRef={docInputRef}
-        onImgChange={handleImgChange}
-        onDocChange={handleDocChange}
-        permissionMode={permissionMode}
-        onPermissionModeChange={setPermissionMode}
-        chatModel={chatModel || storeModel}
-        onModelChange={handleModelChange}
-        thinkingLevel={thinkingLevel}
-        onThinkingLevelChange={handleThinkingLevelChange}
-        sessionId={sidRef.current}
-        onStatsClick={() => setShowStats(true)}
-      />
+      {/* 气泡锚点容器:仅用于气泡悬浮定位(独立于输入卡片 DOM,悬浮在卡片上方) */}
+      <div className="relative shrink-0">
+        <ChatInput
+          busy={busy}
+          attaches={attaches}
+          setAttaches={setAttaches}
+          onSend={sendText}
+          onStop={() => { stoppedRef.current = true; busyRef.current = false; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); /* 仅停当前回合残留帧;打断通知/总结回合在 onStream 中按 turn_start 恢复渲染 */ }}
+          onPaste={handlePaste}
+          imgInputRef={imgInputRef}
+          docInputRef={docInputRef}
+          onImgChange={handleImgChange}
+          onDocChange={handleDocChange}
+          permissionMode={permissionMode}
+          onPermissionModeChange={setPermissionMode}
+          chatModel={chatModel || storeModel}
+          onModelChange={handleModelChange}
+          thinkingLevel={thinkingLevel}
+          onThinkingLevelChange={handleThinkingLevelChange}
+          sessionId={sidRef.current}
+          onStatsClick={() => setShowStats(true)}
+        />
+        {/* 回底/新消息气泡:悬浮在输入卡片上方居中,不属于卡片 DOM。
+            只要滚离底部就常驻显示(正常浏览历史也显示)——圆圈箭头=回底部;
+            输出结束且有新内容时=「新消息」胶囊带箭头 */}
+        {awayFromBottom && (
+          <button
+            className={`new-msg-bubble${showNewMsg ? "" : " new-msg-bubble--icon"}`}
+            onClick={() => {
+              autoScrollRef.current = true;
+              setShowNewMsg(false);
+              showNewMsgRef.current = false;
+              scrollToBottom();
+            }}
+            title={showNewMsg ? "查看最新消息" : "回到底部"}
+          >
+            {showNewMsg && <span>新消息</span>}
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v9M4.5 8.5L8 12l3.5-3.5"/></svg>
+          </button>
+        )}
+      </div>
       {showStats && (
         <SessionStatsPopup
           sessionId={sidRef.current}
