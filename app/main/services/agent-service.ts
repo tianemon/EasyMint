@@ -442,7 +442,6 @@ export class AgentService {
       const readAgentLogTool = await createReadAgentLogTool(sessionId);
       const allTools = [taskTool, agentTemplateTool, stopAgentTool, listAgentsTool, readAgentLogTool, ...productTools, ...mcpTools];
 
-      console.log(`[agent] tools: 1 task + ${productTools.length} product + ${mcpTools.length} mcp (permission: enabled)`);
       return { tools: allTools, canUseTool };
     } catch (e) {
       console.error("[agent] tool creation failed:", e);
@@ -592,7 +591,6 @@ export class AgentService {
     });
 
     try {
-      console.log(`[agent] prompt start: chatId=${chatId} len=${text.length} payload=${!!systemPayload}`);
       // 10 分钟超时保护，防止网络挂起无限阻塞
       const send = systemPayload
         ? session.sendCustomMessage(systemPayload, { triggerTurn: true })
@@ -601,7 +599,6 @@ export class AgentService {
         send,
         new Promise((_, reject) => setTimeout(() => reject(new Error("请求超时（10分钟）")), 600_000)),
       ]);
-      console.log(`[agent] prompt done: chatId=${chatId}`);
 
       // (系统消息通知走 injectSystemMessage 的 triggerTurn: false 路径,不经此回合)
       const pr = pendingResult as PiChatEvent | null;
@@ -804,11 +801,9 @@ export class AgentService {
 
     const session: AgentSession = await (async () => {
       if (resumeSessionId) {
-        console.log(`[agent] sendMessage resume: sessionId=${resumeSessionId} project=${resolvedPath}`);
         const sessions = await listPiSessions(resolvedPath);
         const info = sessions.find((s) => s.id === resumeSessionId);
         if (info) {
-          console.log(`[agent] resume found, resuming: ${info.path}`);
           return resumePiSession({
             cwd: resolvedPath,
             agentDir: this.getAgentDir(),
@@ -834,7 +829,6 @@ export class AgentService {
         onShellExit: shellExitInject,
       });
     })();
-    console.log(`[agent] session ready: chatId=${chatId} realSessionId=${session.sessionId}`);
 
     // 注册临时 ID → 真实 ID 映射：task 委派创建时解析,按真实 ID 建子会话目录
     if (!resumeSessionId) {

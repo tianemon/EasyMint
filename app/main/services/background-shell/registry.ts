@@ -208,7 +208,6 @@ class BackgroundShellRegistry {
     };
     this.shells.set(id, shell);
     this.broadcastCount();
-    console.log(`[bg-shell] started ${id}: ${command.slice(0, 80)}`);
 
     // 编码容错:Git Bash 自身输出 UTF-8,但其调用的原生程序按系统代码页(GBK)输出——
     // 单用 UTF-8 解 GBK 字节必乱码。缓冲原始字节,整段解码 UTF-8 优先,含 replacement char(�)切 GBK。
