@@ -216,11 +216,11 @@ task.json 有未完成任务 + 用户说「继续」「执行」「开始」等�
 
 // ── 维度定义 ──────────────────────────────────────────
 
-export type ProductType = "web" | "desktop" | "mobile" | "cli" | "backend" | "library" | "miniprogram";
+type ProductType = "web" | "desktop" | "mobile" | "cli" | "backend" | "library" | "miniprogram";
 export type DeployMode = "local" | "cloud" | "hybrid";
-export type ComplexityLevel = "minimal" | "simple" | "medium" | "platform";
+type ComplexityLevel = "minimal" | "simple" | "medium" | "platform";
 export type AIIntegration = "none" | "assistant" | "agent" | "multi-agent";
-export type StorageType = "sqlite" | "postgres" | "vector" | "none";
+type StorageType = "sqlite" | "postgres" | "vector" | "none";
 
 export interface ProjectDimensions {
   product: ProductType;
@@ -233,7 +233,7 @@ export interface ProjectDimensions {
   needsPayment: boolean;
 }
 
-export interface ProjectProfile {
+interface ProjectProfile {
   id: string;
   label: string;
   initSteps: string;
@@ -445,25 +445,6 @@ ${instruction}`;
 
 export const CONFIRM_DEVELOPMENT_PROMPT = `开始执行 task.json 中的开发任务。按顺序逐条推进，每完成一个用 Task(builder) 实现、Task(evaluator) 验收，通过后调 set_task_status(id, "done") 并更新 docs/开发进度.md。全程自动推进不等确认，直到全部完成或用户打断。遇到阻塞写入 escalation.json 并通知用户。遵循项目 TDD 设定。`;
 
-// ── Mint按钮 ──────────────────────────────────────────
-
-export const CONTINUE_NEXT_STEP = `[系统消息] 先读 docs/开发进度.md 了解最新进展，然后检查项目当前阶段和进度，总结当前状态，继续推进下一步工作。`;
-
-// ── 上下文轮转 ──────────────────────────────────────
-
-export const CONTEXT_SUMMARY_INSTRUCTION = `[系统消息] 当前会话上下文使用已达到阈值，将进行会话总结并切换到新会话继续工作。请按以下要求生成迁移摘要：
-
-1. 优先归纳最近 10 轮对话的核心内容（用户需求、你的决策、已完成的工作）
-2. 再回顾更早的对话，根据初次总结的价值决定是否保留，不重要的细节可以丢弃
-3. 摘要需包含以下结构化内容：
-   - 项目当前所处阶段
-   - 已完成的关键工作（列出具体成果）
-   - 正在进行中的任务
-   - 下一步计划
-   - 需要继续阅读的项目文档（需求文档.md、技术架构.md、开发进度.md 等）
-4. 以自然段落形式输出，不要用列表格式，像在给同事交接工作一样
-5. 最后以一句"我们继续推进xxx吧"结尾，xxx是下一步要做的事情`;
-
 // ── 系统消息结构化(对齐 Pi sendCustomMessage)──────
 
 /** 系统消息细分类型:JSONL/事件/前端按此识别渲染 */
@@ -516,29 +497,6 @@ export function buildTechRecommendPrompt(ctx: string, existingNote?: string): st
   return `[系统消息] 请根据以下项目信息推荐技术方案：${ctx}${note}
 
 用简洁的文本描述推荐的技术组合，格式如：前端：React + TypeScript + Tailwind CSS，后端：Node.js + Express。一句话说理由。`;
-}
-
-// ── 会话管理 ─────────────────────────────────────────
-
-/** 注入会话 ID 到 system prompt */
-export function buildSessionInfoAppend(sessionId: string): string {
-  return `<session_info>\n当前会话 ID: ${sessionId}\n</session_info>`;
-}
-
-/** 上下文轮转后的新会话 handoff prompt */
-export function buildContextHandoffPrompt(projectPath: string, summary: string, continuation: string): string {
-  return `[系统消息] 这是从上一轮会话迁移过来的项目上下文。请从这个断点继续工作。
-
-<project_context>
-项目路径: ${projectPath}
-请阅读项目中的 CLAUDE.md、docs/需求文档.md、docs/技术架构.md、docs/开发进度.md 了解项目背景、技术栈和最新进展。
-</project_context>
-
-<previous_session_summary>
-${summary}
-</previous_session_summary>
-
-请检查项目当前状态，然后用自然的语气对用户说一句话作为开场，告诉用户会话已整理完毕，接下来继续做什么。开场白以"${continuation}"结尾。`;
 }
 
 // ── 项目创建工具函数 ──────────────────────────────────

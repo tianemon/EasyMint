@@ -39,7 +39,7 @@ export interface PlatformPreset {
 }
 
 // 精选 Pi 内置 provider（过滤掉企业/边缘/不常用的）
-export const PLATFORM_PRESETS: PlatformPreset[] = [
+const PLATFORM_PRESETS: PlatformPreset[] = [
   { id: "anthropic",        name: "Anthropic",              category: "official",    websiteUrl: "https://www.anthropic.com/claude-code",                                          keyPlaceholder: "sk-ant-...", supportsContext1M: false },
   { id: "deepseek",         name: "DeepSeek",               category: "cn_official", websiteUrl: "https://platform.deepseek.com",                                                keyPlaceholder: "sk-...",     supportsContext1M: true },
   { id: "moonshotai",       name: "Kimi API (Moonshot)",    category: "cn_official", websiteUrl: "https://platform.moonshot.cn/console",                                          keyPlaceholder: "sk-...",     supportsContext1M: false },

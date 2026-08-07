@@ -28,31 +28,21 @@ function issuesPath(projectPath: string): string {
   return join(projectPath, ".easymint", "issues.json");
 }
 
-/** 兼容旧格式：resolved -> status，followup -> notes */
-function normalize(raw: Record<string, unknown>): Issue {
-  const notes: IssueNote[] = Array.isArray(raw.notes) ? raw.notes : [];
-  // 旧 followup 迁移成一条 note
-  if (typeof raw.followup === "string" && raw.followup) {
-    notes.unshift({ content: raw.followup, createdAt: raw.createdAt as number || Date.now() });
-  }
-  return {
-    id: raw.id as string,
-    title: raw.title as string,
-    module: (raw.module as string) || "",
-    symptom: (raw.symptom as string) || (raw.description as string) || "",
-    notes,
-    status: raw.status === "fixed" ? "fixed" : (raw.resolved ? "fixed" : "open"),
-    createdAt: raw.createdAt as number,
-  };
-}
-
 function readIssues(projectPath: string): Issue[] {
   const p = issuesPath(projectPath);
   if (!existsSync(p)) return [];
   try {
     const data = JSON.parse(readFileSync(p, "utf-8"));
     const issues = (data.issues as Record<string, unknown>[]) || [];
-    return issues.map(normalize);
+    return issues.filter((raw) => raw && typeof raw.id === "string").map((raw) => ({
+      id: raw.id as string,
+      title: raw.title as string,
+      module: (raw.module as string) || "",
+      symptom: (raw.symptom as string) || "",
+      notes: Array.isArray(raw.notes) ? raw.notes : [],
+      status: raw.status === "fixed" ? "fixed" : "open",
+      createdAt: raw.createdAt as number,
+    }));
   } catch {
     return [];
   }

@@ -118,7 +118,7 @@ export function displayToolLabel(name: string, args?: Record<string, unknown>): 
   }
 
   if (n === "task") {
-    const agent = args?.subagent_type as string | undefined;
+    const agent = (args?.agent as string | undefined) || (args?.subagent_type as string | undefined);
     if (agent === "builder") return "委托 Builder 编码";
     if (agent === "evaluator") return "委托 Evaluator 验收";
     return agent ? `调度 Agent: ${agent}` : "调度 Agent";
@@ -189,11 +189,9 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
             entries.push({ kind: "text", text: b.text, timestamp: ts });
           } else if (b.type === "thinking" && b.thinking) {
             entries.push({ kind: "thinking", text: b.thinking, timestamp: ts });
-          } else if (b.type === "tool_use" || b.type === "toolCall") {
-            // 磁盘消息的 tool 块是 Pi 原生格式 toolCall（字段 arguments）；
-            // 流式路径经 event-bridge 转成 tool_use（字段 input）——两种都兼容
-            const args = b.input ?? (b as { arguments?: unknown }).arguments;
-            entries.push({ kind: "tool_use", id: (b as { id?: string }).id || "", name: b.name || "?", input: args || {}, timestamp: ts, collapsed: false, source: "chat" });
+          } else if (b.type === "tool_use") {
+            // 主进程出口已统一归一化(toolCall→tool_use、arguments→input),这里只认一种格式
+            entries.push({ kind: "tool_use", id: (b as { id?: string }).id || "", name: b.name || "?", input: b.input || {}, timestamp: ts, collapsed: false, source: "chat" });
           } else if (b.type === "tool_result") {
             entries.push({ kind: "tool_result", toolUseId: b.tool_use_id || "", name: (b as { name?: string }).name, content: String(b.content ?? ""), isError: !!b.is_error, timestamp: ts, source: "chat" });
           }

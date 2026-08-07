@@ -37,7 +37,7 @@ function commandExists(command: string): boolean {
     const probe = spawnSync(
       process.platform === "win32" ? "where" : "command",
       process.platform === "win32" ? [command] : ["-v", command],
-      { stdio: "ignore", shell: true, timeout: 3000 },
+      { stdio: "ignore", timeout: 3000 },
     );
     return probe.status === 0;
   } catch {
@@ -121,7 +121,6 @@ export async function loadMcpTools(): Promise<ToolDefinition[]> {
           },
         }) as any as ToolDefinition);
       }
-      console.log(`[mcp] ${s.name}: ${response.tools.length} tools`);
     } catch (e) { console.warn(`[mcp] ${s.name} listTools 失败:`, (e as Error).message); }
   }
 

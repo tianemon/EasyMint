@@ -40,20 +40,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     saveUpload: (name: string, data: Uint8Array) => ipcRenderer.invoke("file:saveUpload", { name, data: Array.from(data) }) as Promise<{ path: string; dataUrl: string }>,
     readUpload: (filePath: string) => ipcRenderer.invoke("file:readUpload", { filePath }) as Promise<string | null>,
   },
-  session: {
-    list: (projectId: string) => ipcRenderer.invoke("session:list", { projectId }),
-    resume: (sessionId: string) => ipcRenderer.send("session:resume", { sessionId }),
-    delete: (projectId: string, sessionId: string) =>
-      ipcRenderer.invoke("session:delete", { projectId, sessionId }),
-  },
   git: {
     detect: () => ipcRenderer.invoke("git:detect"),
   },
   nodeRuntime: {
     detect: () => ipcRenderer.invoke("node:detect"),
-  },
-  npx: {
-    detect: () => ipcRenderer.invoke("npx:detect"),
   },
   codegraph: {
     detect: () => ipcRenderer.invoke("codegraph:detect"),
@@ -172,10 +163,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("process:status-changed", handler);
       return () => ipcRenderer.removeListener("process:status-changed", handler);
     },
-  },
-  evaluator: {
-    isEnabled: () => ipcRenderer.invoke("evaluator:isEnabled"),
-    setEnabled: (enabled: boolean) => ipcRenderer.invoke("evaluator:setEnabled", { enabled }),
   },
   app: {
     getVersion: () => ipcRenderer.invoke("app:get-version") as Promise<string>,

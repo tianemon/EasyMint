@@ -14,8 +14,4 @@ export const chatActions = {
   unregister(): void {
     _listener = null;
   },
-  /** 任意组件调用，发消息到当前聊天会话 */
-  send(text: string): void {
-    if (_listener) _listener(text);
-  },
 };

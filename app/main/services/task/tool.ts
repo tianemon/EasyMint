@@ -156,8 +156,8 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
       _ctx: any,
     ) {
       const readOnly = params.readOnly === true;
-      // agent 模板名;兼容旧提示词的 subagent_type 别名(双保险)
-      const agentName = (params.agent as string) || (params.subagent_type as string) || undefined;
+      // agent 模板名(task 工具参数)
+      const agentName = params.agent as string | undefined;
       const tasks: TaskItem[] = [];
 
       if (Array.isArray(params.tasks) && params.tasks.length > 0) {

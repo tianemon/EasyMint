@@ -9,14 +9,13 @@ import { Store } from "./services/store";
 import { broadcast } from "./services/ipc-broadcast";
 import { resetModelRuntime } from "./services/pi-init";
 import { permissionService } from "./services/permission/agent-permission-service";
-import { detectGit } from "./utils/git-detector";
-import { detectNode } from "./utils/node-detector";
-import { detectNpx } from "./utils/npx-detector";
-import { detectCodegraph } from "./utils/codegraph-detector";
 import { IMAGE_MIME } from "./utils/paths";
 import { execShell } from "./services/shell-service";
 import { backgroundShellRegistry } from "./services/background-shell/registry";
 import { closeProjectWindows } from "./services/window-manager";
+import { detectGit } from "./utils/git-detector";
+import { detectNode } from "./utils/node-detector";
+import { detectCodegraph } from "./utils/codegraph-detector";
 import {
   getSystemPromptConfig,
   createSystemPrompt,
@@ -131,16 +130,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("file:writeContent", (_e, { filePath, content }) => fileService.writeContent(filePath, content));
   ipcMain.handle("file:createFile", (_e, { filePath, content }) => fileService.createFile(filePath, content ?? ""));
   ipcMain.handle("file:createFolder", (_e, { dirPath }) => fileService.createFolder(dirPath));
-
-  // session:*
-  ipcMain.handle("session:list", (_e, { projectId }) => {
-    if (!projectId || typeof projectId !== "string") return [];
-    return store.listSessions(projectId);
-  });
-  ipcMain.handle("session:delete", (_e, { projectId, sessionId }) => {
-    if (!projectId || typeof projectId !== "string") return;
-    store.deleteSession(projectId, sessionId);
-  });
 
   // agent:*
   ipcMain.handle("agent:runWorker", (_e, { projectPath, prompt }) =>
@@ -336,7 +325,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
 
   ipcMain.handle("git:detect", () => detectGit());
   ipcMain.handle("node:detect", () => detectNode());
-  ipcMain.handle("npx:detect", () => detectNpx());
   ipcMain.handle("codegraph:detect", () => detectCodegraph());
 
   // settings:*
@@ -393,17 +381,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       const json = await resp.json() as Record<string, unknown>;
       return json;
     } catch { return null; }
-  });
-
-  // evaluator:*
-  ipcMain.handle("evaluator:isEnabled", () => {
-    const settings = store.getSettings();
-    return settings.evaluateMode ?? false;
-  });
-  ipcMain.handle("evaluator:setEnabled", (_e, { enabled }) => {
-    const settings = store.getSettings();
-    settings.evaluateMode = enabled;
-    store.saveSettings(settings);
   });
 
   // system-prompt:*

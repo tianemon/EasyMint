@@ -1,4 +1,4 @@
-import { memo, useRef, useState, useCallback } from "react";
+import { memo, useRef, useState, useCallback, useMemo } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { useStatusStore } from "../stores/status-store";
 import { useDelegationStore } from "../stores/delegation-store";
@@ -6,6 +6,9 @@ import { useThemeStore } from "../stores/theme-store";
 import { Select } from "./Select";
 import { AgentBar } from "./AgentBar";
 import { ShellBar } from "./ShellBar";
+import { OrbitGlow } from "./OrbitGlow";
+import { SlideGlow } from "./SlideGlow";
+import { BreatheGlow } from "./BreatheGlow";
 
 interface AttachItem { name: string; path: string; dataUrl?: string; kind: "image" | "doc"; }
 
@@ -67,15 +70,31 @@ export const ChatInput = memo(function ChatInput({
   const inputDisabled = summarizing || compacting;
   // 状态指示光效配置
   const glowEffect = useSettingsStore((s) => s.glowEffect);
+  const glowColorMode = useSettingsStore((s) => s.glowColorMode);
   const glowColorLight = useSettingsStore((s) => s.glowColorLight);
   const glowColorDark = useSettingsStore((s) => s.glowColorDark);
+  const glowGroupsLight = useSettingsStore((s) => s.glowGroupsLight);
+  const glowGroupsDark = useSettingsStore((s) => s.glowGroupsDark);
+  const activeGlowGroupLight = useSettingsStore((s) => s.activeGlowGroupLight);
+  const activeGlowGroupDark = useSettingsStore((s) => s.activeGlowGroupDark);
   // 流光环绕动画活跃:回合进行 ∪ 子 Agent 运行 ∪ 后台 shell 运行(替代状态栏常驻符号动画)
   const agentActive = useDelegationStore((s) => s.agentTasks.some((t) => !t.sessionId || t.sessionId === sessionId));
   const shellActive = useDelegationStore((s) => s.shellTasks.some((t) => !t.sessionId || t.sessionId === sessionId));
   const glowActive = busy || agentActive || shellActive;
-  // 按主题注入 --glow-color(亮/暗模式分别配置的颜色;订阅 effective 主题切换时重渲染)
+  // 按主题取亮/暗配置;单色模式用单色填满,多色模式用启用组的色彩组合
   const isDark = useThemeStore((s) => s.effective) === "dark";
-  const glowColor = isDark ? glowColorDark : glowColorLight;
+  const glowColors = useMemo(() => {
+    if (glowColorMode === "solid") {
+      const single = isDark ? glowColorDark : glowColorLight;
+      return [single || "#16a34a"];
+    }
+    const groups = isDark ? glowGroupsDark : glowGroupsLight;
+    const activeId = isDark ? activeGlowGroupDark : activeGlowGroupLight;
+    const active = groups.find((g) => g.id === activeId);
+    const colors = active?.colors && active.colors.length > 0 ? active.colors : ["#16a34a"];
+    return colors;
+  }, [glowColorMode, isDark, glowColorLight, glowColorDark, glowGroupsLight, glowGroupsDark, activeGlowGroupLight, activeGlowGroupDark]);
+
 
   // 输入历史导航
   const HISTORY_KEY = "easymint_input_history";
@@ -131,14 +150,15 @@ export const ChatInput = memo(function ChatInput({
 
   return (
     <div className="input-card">
-      {/* 状态指示光效:按预设 class + 注入 --glow-color(活跃=bussy||agentActive||shellActive) */}
-      {glowActive && glowEffect !== "off" && (
-        <div
-          className={`input-card-glow glow-${glowEffect}`}
-          style={{ ["--glow-color" as string]: glowColor }}
-          aria-hidden="true"
-        />
-      )}
+      {/* 状态指示光效(活跃=bussy||agentActive||shellActive):三预设全 canvas 绘制,组件挂载即动画;
+          参数固定(粗细/速度/拖尾为组件内部常量,仅颜色可改) */}
+      {glowActive && glowEffect !== "off" && (glowEffect === "orbit" ? (
+        <OrbitGlow colors={glowColors} />
+      ) : glowEffect === "slide" ? (
+        <SlideGlow colors={glowColors} />
+      ) : (
+        <BreatheGlow colors={glowColors} />
+      ))}
       {/* Compact 蒙版 */}
       {compacting && (
         <div className="absolute inset-0 z-10 rounded-[10px] bg-surface/70 backdrop-blur-[2px] flex items-center justify-center">
@@ -205,13 +225,13 @@ export const ChatInput = memo(function ChatInput({
           onChange={onThinkingLevelChange}
           title="思考深度"
           options={[
-            { value: "off", label: "关闭(off)" },
-            { value: "minimal", label: "极简(minimal)" },
-            { value: "low", label: "低(low)" },
-            { value: "medium", label: "中(medium)" },
-            { value: "high", label: "高(high)" },
-            { value: "xhigh", label: "超高(xhigh)" },
-            { value: "max", label: "最大(max)" },
+            { value: "off", label: "关闭" },
+            { value: "minimal", label: "极低" },
+            { value: "low", label: "轻度" },
+            { value: "medium", label: "中" },
+            { value: "high", label: "高" },
+            { value: "xhigh", label: "极高" },
+            { value: "max", label: "最高" },
           ]}
         />
         <div className="ctx-ring" title="上下文使用率">

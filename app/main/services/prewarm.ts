@@ -21,7 +21,6 @@ export async function prewarm(store: Store): Promise<void> {
     await getModelRuntime(store);
     await getActiveModel(store);
     await loadMcpTools();
-    console.log("[prewarm] 预热完成:SDK/model/MCP 已就绪");
   } catch (e) {
     // 预热失败不阻塞启动——首条消息发送时会现场加载
     console.warn("[prewarm] 预热失败(首条消息将现场加载):", (e as Error).message);

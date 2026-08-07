@@ -293,9 +293,6 @@ interface ElectronAPI {
   nodeRuntime: {
     detect: () => Promise<{ found: boolean; version?: string }>;
   };
-  npx: {
-    detect: () => Promise<{ found: boolean; version?: string }>;
-  };
   codegraph: {
     detect: () => Promise<{ found: boolean; version?: string }>;
   };
@@ -342,17 +339,27 @@ interface ElectronAPI {
   };
   settings: {
     get: () => Promise<{
-      defaultProjectDir?: string; terminalFontSize: number; evaluateMode: boolean; setupComplete?: boolean; apiBaseUrl?: string;
-      apiKey?: string; apiKeys?: Record<string, string>; builtinTools?: Record<string, boolean>; model?: string;
-      availableModels?: string[]; contextThreshold?: number; context1M?: boolean;
+      defaultProjectDir?: string; terminalFontSize: number; setupComplete?: boolean;
+      apiKeys?: Record<string, string>; builtinTools?: Record<string, boolean>; model?: string;
+      availableModels?: string[]; contextThreshold?: number;
       showThinking?: boolean; showToolUse?: boolean;
       chatThinkingLevel?: string;
       chatFontLevel?: number;
       glowEffect?: "orbit" | "slide" | "breathe" | "off";
+      glowColorMode?: "solid" | "multi";
       glowColorLight?: string;
       glowColorDark?: string;
+      glowGroupsLight?: Array<{ id: string; name: string; colors: string[]; isBuiltin?: boolean }>;
+      glowGroupsDark?: Array<{ id: string; name: string; colors: string[]; isBuiltin?: boolean }>;
+      activeGlowGroupLight?: string;
+      activeGlowGroupDark?: string;
       statusTextStyle?: "solid" | "shimmer";
-      statusTextColors?: string[];
+      statusColorLight?: string;
+      statusColorDark?: string;
+      statusTextGroupsLight?: Array<{ id: string; name: string; colors: string[]; isBuiltin?: boolean }>;
+      statusTextGroupsDark?: Array<{ id: string; name: string; colors: string[]; isBuiltin?: boolean }>;
+      activeStatusGroupLight?: string;
+      activeStatusGroupDark?: string;
       maxGroupAgents?: number;
       groupForwardStrategy?: "all" | "conclusion";
       groupInjectMode?: "steer" | "followUp";
@@ -371,7 +378,6 @@ interface ElectronAPI {
     setLastProject: (projectId: string) => Promise<void>;
     fetchModels: (modelsUrl: string, apiKey: string) => Promise<string[]>;
     fetchBalance: () => Promise<{ balance_infos?: { currency: string; total_balance: string; granted_balance: string }[] }>;
-    revealApiKey: (providerId: string) => Promise<string>;
   };
   agentTemplates: {
     list: () => Promise<{ id: string; name: string; description: string; prompt: string; model?: string; provider?: string; agentType: string; thinkingLevel?: string }[]>;

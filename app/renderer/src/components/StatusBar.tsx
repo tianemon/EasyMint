@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useStatusStore } from "../stores/status-store";
 import { useTabStore } from "../stores/tab-store";
 import { useSettingsStore } from "../stores/settings-store";
@@ -11,19 +11,22 @@ const TICK_MS = 150;
 /** 端点停顿(ms)——正程播完顿一下再反向 */
 const PAUSE_MS = 500;
 
-/** 流光渐变样式:由 --shimmer-1..5 变量驱动(JS 按 statusTextColors 注入) */
-const shimmerStyle: CSSProperties = {
-  background: `linear-gradient(90deg, var(--shimmer-1), var(--shimmer-2), var(--shimmer-3), var(--shimmer-4), var(--shimmer-5), var(--shimmer-2), var(--shimmer-1))`,
-  backgroundSize: "300% 100%",
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-  animation: "shimmerSweep 6s linear infinite",
-};
+/** 流光渐变样式:由 --shimmer-1..5 变量驱动(JS 按启用组色彩注入)。
+ *  一圈 = 颜色数 × 3s;shimmerSweep 位移 600%(2 个渐变宽度)= 2 圈 → 总时长 = 颜色数 × 6s */
+function buildShimmerStyle(durationSec: number): CSSProperties {
+  return {
+    background: `linear-gradient(90deg, var(--shimmer-1), var(--shimmer-2), var(--shimmer-3), var(--shimmer-4), var(--shimmer-5), var(--shimmer-2), var(--shimmer-1))`,
+    backgroundSize: "300% 100%",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    animation: `shimmerSweep ${durationSec}s linear infinite`,
+  };
+}
 
 /**
  * 独立的状态栏——从 status-store 读取，密集更新时只重渲染自己，不牵连 ChatPanel/消息列表。
  * busy 从 tab-store 读取（主会话的 runningSessions）。
- * 常驻活跃动画已移至输入卡片流光环绕(input-card-glow);
+ * 常驻活跃动画已移至输入卡片流光(OrbitGlow/SlideGlow/BreatheGlow canvas 组件);
  * 符号动画与状态文本同现同消:有状态信号(busy && text)时符号+文本一起出现,信号结束一起消失。
  */
 export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | null {
@@ -32,22 +35,33 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
   const text = session?.signals ? [...session.signals].sort((a, b) => b.seq - a.seq)[0]?.text ?? "" : "";
   const summarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
   const busy = useTabStore((s) => s.runningSessions.has(sessionId));
-  // 状态文本样式配置:单色(solid)/流光(shimmer,色彩组合循环注入 --shimmer-1..5)
+  // 状态文本样式配置:单色(solid,独立颜色)/流光(shimmer,启用组色彩注入 --shimmer-1..5)
   const statusTextStyle = useSettingsStore((s) => s.statusTextStyle);
-  const statusTextColors = useSettingsStore((s) => s.statusTextColors);
-  const glowColorLight = useSettingsStore((s) => s.glowColorLight);
-  const glowColorDark = useSettingsStore((s) => s.glowColorDark);
+  const statusTextGroupsLight = useSettingsStore((s) => s.statusTextGroupsLight);
+  const statusTextGroupsDark = useSettingsStore((s) => s.statusTextGroupsDark);
+  const activeStatusGroupLight = useSettingsStore((s) => s.activeStatusGroupLight);
+  const activeStatusGroupDark = useSettingsStore((s) => s.activeStatusGroupDark);
+  const statusColorLight = useSettingsStore((s) => s.statusColorLight);
+  const statusColorDark = useSettingsStore((s) => s.statusColorDark);
   const isDark = useThemeStore((s) => s.effective) === "dark";
-  const glowColor = isDark ? glowColorDark : glowColorLight;
-  // 流光色彩注入:statusTextColors 循环填充 5 个 shimmer 变量(不足 5 个重复首色)
+  const statusColor = isDark ? statusColorDark : statusColorLight;
+  // 按主题取启用组的流光色彩(不足 5 个循环填充)
+  const shimmerColors = useMemo(() => {
+    if (statusTextStyle !== "shimmer") return [];
+    const groups = isDark ? statusTextGroupsDark : statusTextGroupsLight;
+    const activeId = isDark ? activeStatusGroupDark : activeStatusGroupLight;
+    const active = groups.find((g) => g.id === activeId) ?? groups[0];
+    return active?.colors && active.colors.length > 0 ? active.colors : [];
+  }, [statusTextStyle, isDark, statusTextGroupsLight, statusTextGroupsDark, activeStatusGroupLight, activeStatusGroupDark]);
+  // 流光色彩注入:启用组循环填充 5 个 shimmer 变量(不足 5 个重复首色)
   useEffect(() => {
     if (statusTextStyle !== "shimmer") return;
-    const colors = statusTextColors.length > 0 ? statusTextColors : [glowColor];
+    const colors = shimmerColors.length > 0 ? shimmerColors : [statusColor];
     const root = document.documentElement;
     for (let i = 0; i < 5; i++) {
       root.style.setProperty(`--shimmer-${i + 1}`, colors[i % colors.length]!);
     }
-  }, [statusTextStyle, statusTextColors, glowColor]);
+  }, [statusTextStyle, shimmerColors, statusColor]);
 
   // 符号动画只在有状态文本时运行(与文本同现同消)——text 空则不显示不运行
   const showSymbols = busy && !!text;
@@ -85,9 +99,15 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
 
   if (!showSymbols && !summarizing) return null;
 
-  // 文本样式:solid 单色(glowColor)/shimmer 流光(shimmerStyle 变量驱动)
+  // 流光时长:一圈 = 颜色数 × 3s(shimmerSweep 位移 600% = 2 圈,总时长 = 颜色数 × 6s)
+  const shimmerDuration = statusTextStyle === "shimmer"
+    ? Math.max(1, (shimmerColors.length > 0 ? shimmerColors.length : 1)) * 6
+    : 6;
+  const shimmerStyle = buildShimmerStyle(shimmerDuration);
+
+  // 文本样式:solid 单色(statusColor,独立配置)/shimmer 流光(shimmerStyle 变量驱动)
   const textStyle: CSSProperties = statusTextStyle === "solid"
-    ? { color: glowColor }
+    ? { color: statusColor }
     : shimmerStyle;
 
   return (

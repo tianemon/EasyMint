@@ -183,6 +183,21 @@ export async function getSessionMessages(
   }
 }
 
+/** 磁盘消息块归一化:Pi 磁盘 jsonl 的 toolCall+arguments → 统一 tool_use+input(保留 id/name/thinking)。
+ *  流式路径已在 event-bridge 归一化,此处让磁盘历史与流式格式一致,前端只认一种。 */
+function normalizeToolCallBlocks(content: unknown): unknown {
+  if (!Array.isArray(content)) return content;
+  return content.map((b) => {
+    if (typeof b !== "object" || b === null) return b;
+    const block = b as Record<string, unknown>;
+    if (block.type === "toolCall") {
+      const { arguments: args, ...rest } = block;
+      return { ...rest, type: "tool_use", input: (block.input as Record<string, unknown>) ?? (args as Record<string, unknown>) };
+    }
+    return block;
+  });
+}
+
 /** SessionManager entries → SessionMessage[](getSessionMessages / getSubagentMessages 共用)
     includeToolResult: 子 Agent 过程读取需要 toolResult(工具输出),主会话历史不需要 */
 async function parseEntriesToMessages(mgr: { getEntries(): unknown[] }, sessionId: string, includeToolResult = false): Promise<SessionMessage[]> {
@@ -203,12 +218,16 @@ async function parseEntriesToMessages(mgr: { getEntries(): unknown[] }, sessionI
       if (role !== "user" && role !== "assistant") {
         if (!(includeToolResult && role === "toolResult")) continue;
       }
+      // 磁盘块归一化(toolCall→tool_use)后再透传,前端只认归一化格式
+      const outMsg = role === "assistant" && Array.isArray(msg.content)
+        ? { ...msg, content: normalizeToolCallBlocks(msg.content) }
+        : msg;
 
       messages.push({
         type: role,
         uuid: entry.id,
         session_id: sessionId,
-        message: msg,
+        message: outMsg,
         parent_tool_use_id: null,
         created_at: (msg.created_at as number) ?? new Date(entry.timestamp).getTime(),
       });

@@ -18,7 +18,6 @@ interface TaskState {
   tasks: TaskItem[];
   addTask: (t: Omit<TaskItem, "output" | "createdAt">) => void;
   updateTask: (id: string, patch: Partial<Pick<TaskItem, "status" | "output">>) => void;
-  appendOutput: (id: string, line: string) => void;
   clearTasks: () => void;
 }
 
@@ -45,14 +44,6 @@ export const useTaskStore = create<TaskState>((set) => ({
         }
         return updated;
       }),
-    }));
-  },
-
-  appendOutput: (id, line) => {
-    set((s) => ({
-      tasks: s.tasks.map((t) =>
-        t.id === id ? { ...t, output: [...t.output, line] } : t
-      ),
     }));
   },
 

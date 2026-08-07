@@ -1,17 +1,51 @@
 import { create } from "zustand";
 import type { ApiProvidersData } from "@shared/platform-presets";
 
+/** 多色流光分组:一组命名色彩组合 */
+export interface GlowColorGroup {
+  id: string;
+  name: string;
+  colors: string[];
+  /** 内置默认组标记(不可删除) */
+  isBuiltin?: boolean;
+}
+
+/** 内置默认组 id(亮/暗各一) */
+export const BUILTIN_GLOW_GROUP_LIGHT_ID = "glow-builtin-light";
+export const BUILTIN_GLOW_GROUP_DARK_ID = "glow-builtin-dark";
+/** 内置默认状态流光组 id(亮/暗各一) */
+export const BUILTIN_STATUS_GROUP_LIGHT_ID = "status-builtin-light";
+export const BUILTIN_STATUS_GROUP_DARK_ID = "status-builtin-dark";
+
+/** 生成分组 id(时间戳,够用且唯一) */
+export function newGlowGroupId(): string {
+  return `g${Date.now()}`;
+}
+
+/** 内置默认光效组(代码常量,不落盘;原状态栏流光配色,光效功能前方案) */
+export const BUILTIN_GLOW_GROUPS = {
+  light: { id: BUILTIN_GLOW_GROUP_LIGHT_ID, name: "默认", colors: ["#16a34a", "#22c55e", "#eab308", "#facc15", "#4ade80"], isBuiltin: true },
+  dark: { id: BUILTIN_GLOW_GROUP_DARK_ID, name: "默认", colors: ["#818cf8", "#a78bfa", "#f472b6", "#c084fc", "#6366f1"], isBuiltin: true },
+} as const satisfies Record<string, GlowColorGroup>;
+
+/** 内置默认状态流光组(代码常量,不落盘) */
+export const BUILTIN_STATUS_GROUPS = {
+  light: { id: BUILTIN_STATUS_GROUP_LIGHT_ID, name: "默认", colors: ["#16a34a", "#22c55e", "#eab308", "#facc15", "#4ade80"], isBuiltin: true },
+  dark: { id: BUILTIN_STATUS_GROUP_DARK_ID, name: "默认", colors: ["#818cf8", "#a78bfa", "#f472b6", "#c084fc", "#6366f1"], isBuiltin: true },
+} as const satisfies Record<string, GlowColorGroup>;
+
+/** 第一版环绕流光配色(自定义 1 预置组):亮=主题绿 #16a34a / 暗=浅灰 #cccccc(旧暗色 accent,黑灰科技感) */
+export const V1_GLOW_GROUPS = {
+  light: { id: "glow-custom-v1", name: "自定义 1", colors: ["#16a34a"] },
+  dark: { id: "glow-custom-v1-dark", name: "自定义 1", colors: ["#cccccc"] },
+} as const satisfies Record<string, GlowColorGroup>;
+
 interface SettingsState {
-  evaluateMode: boolean;
   defaultProjectDir: string;
-  apiBaseUrl: string;
-  apiKey: string;
-  apiKeys: Record<string, string>;
   model: string;
   availableModels: string[];
   setupComplete: boolean;
   contextThreshold: number;
-  context1M: boolean;
   showThinking: boolean;
   showToolUse: boolean;
   /** 全局聊天思考等级(新聊天会话初始默认,不控制 agent/task) */
@@ -20,14 +54,34 @@ interface SettingsState {
   chatFontLevel: number;
   /** 状态指示光效:输入卡片光效预设 */
   glowEffect: "orbit" | "slide" | "breathe" | "off";
-  /** 光效颜色(亮色模式) */
+  /** 光效颜色模式:单色(solid)/多色(multi) */
+  glowColorMode: "solid" | "multi";
+  /** 光效单色(亮色模式) */
   glowColorLight: string;
-  /** 光效颜色(暗色模式) */
+  /** 光效单色(暗色模式) */
   glowColorDark: string;
+  /** 多色流光分组(亮色模式;最多 5 组,单次启用一组) */
+  glowGroupsLight: GlowColorGroup[];
+  /** 多色流光分组(暗色模式) */
+  glowGroupsDark: GlowColorGroup[];
+  /** 当前启用的流光分组 id(亮色模式) */
+  activeGlowGroupLight: string;
+  /** 当前启用的流光分组 id(暗色模式) */
+  activeGlowGroupDark: string;
   /** Mint 状态文本样式:单色/流光 */
   statusTextStyle: "solid" | "shimmer";
-  /** 流光色彩组合(有序) */
-  statusTextColors: string[];
+  /** Mint 状态文本单色(亮色模式,与光效色独立) */
+  statusColorLight: string;
+  /** Mint 状态文本单色(暗色模式) */
+  statusColorDark: string;
+  /** 状态流光分组(亮色模式;内置「默认」不可删 + 自定义 ≤4) */
+  statusTextGroupsLight: GlowColorGroup[];
+  /** 状态流光分组(暗色模式) */
+  statusTextGroupsDark: GlowColorGroup[];
+  /** 当前启用的状态流光分组 id(亮色模式) */
+  activeStatusGroupLight: string;
+  /** 当前启用的状态流光分组 id(暗色模式) */
+  activeStatusGroupDark: string;
   apiProviders: ApiProvidersData | null;
   // ── 需求 4:群聊配置 ──
   maxGroupAgents: number;
@@ -35,23 +89,28 @@ interface SettingsState {
   groupInjectMode: "steer" | "followUp";
   maxForwardDepth: number;
   groupPresets: Array<{ id: string; name: string; templateIds: string[] }>;
-  setEvaluateMode: (enabled: boolean) => void;
   setDefaultProjectDir: (dir: string) => void;
-  setApiBaseUrl: (url: string) => void;
-  setApiKey: (key: string) => void;
   setModel: (model: string) => void;
-  setAvailableModels: (models: string[]) => void;
   setContextThreshold: (pct: number) => void;
-  setContext1M: (enabled: boolean) => void;
   setShowThinking: (enabled: boolean) => void;
   setShowToolUse: (enabled: boolean) => void;
   setChatThinkingLevel: (level: string) => void;
   setChatFontLevel: (level: number) => void;
   setGlowEffect: (v: "orbit" | "slide" | "breathe" | "off") => void;
+  setGlowColorMode: (v: "solid" | "multi") => void;
   setGlowColorLight: (v: string) => void;
   setGlowColorDark: (v: string) => void;
+  setGlowGroupsLight: (v: GlowColorGroup[]) => void;
+  setGlowGroupsDark: (v: GlowColorGroup[]) => void;
+  setActiveGlowGroupLight: (v: string) => void;
+  setActiveGlowGroupDark: (v: string) => void;
   setStatusTextStyle: (v: "solid" | "shimmer") => void;
-  setStatusTextColors: (v: string[]) => void;
+  setStatusColorLight: (v: string) => void;
+  setStatusColorDark: (v: string) => void;
+  setStatusTextGroupsLight: (v: GlowColorGroup[]) => void;
+  setStatusTextGroupsDark: (v: GlowColorGroup[]) => void;
+  setActiveStatusGroupLight: (v: string) => void;
+  setActiveStatusGroupDark: (v: string) => void;
   setApiProviders: (data: ApiProvidersData) => void;
   activateProvider: (providerId: string) => void;
   setMaxGroupAgents: (v: number) => void;
@@ -63,27 +122,32 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  evaluateMode: false,
   defaultProjectDir: "~/EasyMintProject",
-  apiBaseUrl: "",
-  apiKey: "",
-  apiKeys: {},
   model: "",
   availableModels: [],
   apiProviders: null,
 
   setupComplete: false,
   contextThreshold: 75,
-  context1M: false,
   showThinking: false,
   showToolUse: false,
   chatThinkingLevel: "medium",
   chatFontLevel: 3,
   glowEffect: "orbit",
+  glowColorMode: "multi",
   glowColorLight: "#16a34a",
   glowColorDark: "#4ade80",
+  glowGroupsLight: [BUILTIN_GLOW_GROUPS.light, V1_GLOW_GROUPS.light],
+  glowGroupsDark: [BUILTIN_GLOW_GROUPS.dark, V1_GLOW_GROUPS.dark],
+  activeGlowGroupLight: BUILTIN_GLOW_GROUP_LIGHT_ID,
+  activeGlowGroupDark: BUILTIN_GLOW_GROUP_DARK_ID,
   statusTextStyle: "shimmer",
-  statusTextColors: ["#22c55e", "#3b82f6", "#a855f7"],
+  statusColorLight: "#16a34a",
+  statusColorDark: "#4ade80",
+  statusTextGroupsLight: [BUILTIN_STATUS_GROUPS.light],
+  statusTextGroupsDark: [BUILTIN_STATUS_GROUPS.dark],
+  activeStatusGroupLight: BUILTIN_STATUS_GROUP_LIGHT_ID,
+  activeStatusGroupDark: BUILTIN_STATUS_GROUP_DARK_ID,
   maxGroupAgents: 3,
   groupForwardStrategy: "conclusion",
   groupInjectMode: "followUp",
@@ -97,37 +161,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ model });
     window.electronAPI?.settings?.set?.("model", model);
   },
-  setAvailableModels: (availableModels: string[]) => {
-    set({ availableModels });
-    window.electronAPI?.settings?.set?.("availableModels", availableModels);
-  },
-
-  setEvaluateMode: (enabled) => {
-    set({ evaluateMode: enabled });
-    window.electronAPI?.settings?.set?.("evaluateMode", enabled);
-    if (window.electronAPI?.evaluator?.setEnabled) {
-      window.electronAPI.evaluator.setEnabled(enabled);
-    }
-  },
   setDefaultProjectDir: (dir) => {
     set({ defaultProjectDir: dir });
     window.electronAPI?.settings?.set?.("defaultProjectDir", dir);
   },
-  setApiBaseUrl: (url) => {
-    set({ apiBaseUrl: url });
-    window.electronAPI?.settings?.set?.("apiBaseUrl", url);
-  },
-  setApiKey: (key) => {
-    set({ apiKey: key });
-    window.electronAPI?.settings?.set?.("apiKey", key);
-  },
   setContextThreshold: (pct: number) => {
     set({ contextThreshold: pct });
     window.electronAPI?.settings?.set?.("contextThreshold", pct);
-  },
-  setContext1M: (enabled: boolean) => {
-    set({ context1M: enabled });
-    window.electronAPI?.settings?.set?.("context1M", enabled);
   },
   setShowThinking: (enabled: boolean) => {
     set({ showThinking: enabled });
@@ -154,10 +194,20 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     document.documentElement.style.setProperty("--chat-detail-size", `${detail}px`);
   },
   setGlowEffect: (v) => { set({ glowEffect: v }); window.electronAPI?.settings?.set?.("glowEffect", v); },
+  setGlowColorMode: (v) => { set({ glowColorMode: v }); window.electronAPI?.settings?.set?.("glowColorMode", v); },
   setGlowColorLight: (v) => { set({ glowColorLight: v }); window.electronAPI?.settings?.set?.("glowColorLight", v); },
   setGlowColorDark: (v) => { set({ glowColorDark: v }); window.electronAPI?.settings?.set?.("glowColorDark", v); },
+  setGlowGroupsLight: (v) => { set({ glowGroupsLight: v }); window.electronAPI?.settings?.set?.("glowGroupsLight", v); },
+  setGlowGroupsDark: (v) => { set({ glowGroupsDark: v }); window.electronAPI?.settings?.set?.("glowGroupsDark", v); },
+  setActiveGlowGroupLight: (v) => { set({ activeGlowGroupLight: v }); window.electronAPI?.settings?.set?.("activeGlowGroupLight", v); },
+  setActiveGlowGroupDark: (v) => { set({ activeGlowGroupDark: v }); window.electronAPI?.settings?.set?.("activeGlowGroupDark", v); },
   setStatusTextStyle: (v) => { set({ statusTextStyle: v }); window.electronAPI?.settings?.set?.("statusTextStyle", v); },
-  setStatusTextColors: (v) => { set({ statusTextColors: v }); window.electronAPI?.settings?.set?.("statusTextColors", v); },
+  setStatusColorLight: (v) => { set({ statusColorLight: v }); window.electronAPI?.settings?.set?.("statusColorLight", v); },
+  setStatusColorDark: (v) => { set({ statusColorDark: v }); window.electronAPI?.settings?.set?.("statusColorDark", v); },
+  setStatusTextGroupsLight: (v) => { set({ statusTextGroupsLight: v }); window.electronAPI?.settings?.set?.("statusTextGroupsLight", v); },
+  setStatusTextGroupsDark: (v) => { set({ statusTextGroupsDark: v }); window.electronAPI?.settings?.set?.("statusTextGroupsDark", v); },
+  setActiveStatusGroupLight: (v) => { set({ activeStatusGroupLight: v }); window.electronAPI?.settings?.set?.("activeStatusGroupLight", v); },
+  setActiveStatusGroupDark: (v) => { set({ activeStatusGroupDark: v }); window.electronAPI?.settings?.set?.("activeStatusGroupDark", v); },
   setMaxGroupAgents: (v: number) => { set({ maxGroupAgents: v }); window.electronAPI?.settings?.set?.("maxGroupAgents", v); },
   setGroupForwardStrategy: (v: "all" | "conclusion") => { set({ groupForwardStrategy: v }); window.electronAPI?.settings?.set?.("groupForwardStrategy", v); },
   setGroupInjectMode: (v: "steer" | "followUp") => { set({ groupInjectMode: v }); window.electronAPI?.settings?.set?.("groupInjectMode", v); },
@@ -196,24 +246,31 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (window.electronAPI?.settings?.get) {
         const settings = await window.electronAPI.settings.get();
         set({
-          evaluateMode: settings.evaluateMode ?? false,
           defaultProjectDir: settings.defaultProjectDir || "~/EasyMintProject",
-          apiBaseUrl: settings.apiBaseUrl ?? "",
-          apiKey: settings.apiKey ?? "",
-          apiKeys: settings.apiKeys ?? {},
           model: settings.model ?? "",
           availableModels: settings.availableModels ?? [],
           contextThreshold: settings.contextThreshold ?? 75,
-          context1M: settings.context1M ?? false,
           showThinking: settings.showThinking ?? false,
           showToolUse: settings.showToolUse ?? false,
           chatThinkingLevel: settings.chatThinkingLevel ?? "medium",
           chatFontLevel: settings.chatFontLevel ?? 3,
           glowEffect: (settings.glowEffect as "orbit" | "slide" | "breathe" | "off") ?? "orbit",
+          glowColorMode: (settings.glowColorMode as "solid" | "multi") ?? "multi",
           glowColorLight: settings.glowColorLight ?? "#16a34a",
           glowColorDark: settings.glowColorDark ?? "#4ade80",
+          // 分组由主进程合并(内置常量 + 文件自定义组),空则用内置兜底
+          glowGroupsLight: settings.glowGroupsLight?.length ? settings.glowGroupsLight : [BUILTIN_GLOW_GROUPS.light, V1_GLOW_GROUPS.light],
+          glowGroupsDark: settings.glowGroupsDark?.length ? settings.glowGroupsDark : [BUILTIN_GLOW_GROUPS.dark, V1_GLOW_GROUPS.dark],
+          activeGlowGroupLight: settings.activeGlowGroupLight ?? BUILTIN_GLOW_GROUP_LIGHT_ID,
+          activeGlowGroupDark: settings.activeGlowGroupDark ?? BUILTIN_GLOW_GROUP_DARK_ID,
           statusTextStyle: (settings.statusTextStyle as "solid" | "shimmer") ?? "shimmer",
-          statusTextColors: settings.statusTextColors ?? ["#22c55e", "#3b82f6", "#a855f7"],
+          statusColorLight: settings.statusColorLight ?? "#16a34a",
+          statusColorDark: settings.statusColorDark ?? "#4ade80",
+          // 分组由主进程合并(内置常量 + 文件自定义组),空则用内置兜底
+          statusTextGroupsLight: settings.statusTextGroupsLight?.length ? settings.statusTextGroupsLight : [BUILTIN_STATUS_GROUPS.light],
+          statusTextGroupsDark: settings.statusTextGroupsDark?.length ? settings.statusTextGroupsDark : [BUILTIN_STATUS_GROUPS.dark],
+          activeStatusGroupLight: settings.activeStatusGroupLight ?? BUILTIN_STATUS_GROUP_LIGHT_ID,
+          activeStatusGroupDark: settings.activeStatusGroupDark ?? BUILTIN_STATUS_GROUP_DARK_ID,
           setupComplete: settings.setupComplete ?? false,
           apiProviders: (settings.apiProviders as ApiProvidersData) ?? null,
           maxGroupAgents: settings.maxGroupAgents ?? 3,          groupForwardStrategy: settings.groupForwardStrategy ?? "conclusion",

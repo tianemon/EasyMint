@@ -6,13 +6,13 @@ import { Select } from "../Select";
 // ── Chat Thinking Level Section ───────────────────────────────────────────────
 
 const CHAT_THINKING_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "off", label: "关闭(off)" },
-  { value: "minimal", label: "极简(minimal)" },
-  { value: "low", label: "低(low)" },
-  { value: "medium", label: "中(medium)" },
-  { value: "high", label: "高(high)" },
-  { value: "xhigh", label: "超高(xhigh)" },
-  { value: "max", label: "最大(max)" },
+  { value: "off", label: "关闭" },
+  { value: "minimal", label: "极低" },
+  { value: "low", label: "轻度" },
+  { value: "medium", label: "中" },
+  { value: "high", label: "高" },
+  { value: "xhigh", label: "极高" },
+  { value: "max", label: "最高" },
 ];
 
 /** 全局聊天思考等级:仅作为新聊天会话的初始默认,不控制 agent/task 委派 */

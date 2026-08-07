@@ -282,7 +282,14 @@ EasyMint 是 Electron 桌面应用，让不懂技术的用户通过图形界面�
 
 ## 接下来安排
 
-0. **状态指示光效 v2 需求调整**（已实现 v1 提交 `5de8d0f`，待改）：
+0. **orbit 光效 canvas 方案实现**（方案已落盘 `docs/design/状态指示光效方案.md` v3 章节，用户确认方向待实现）：
+   - 需求：orbit 彗尾渐隐段截面从矩形改**半椭圆**（底部贴边框、顶部弧线收尖）——conic 渐变做不到（截面形状由 mask 固定）
+   - 方案：新组件 `OrbitGlow.tsx`（canvas 每帧绘制，rAF），orbit 预设从 CSS 切到 canvas；slide/breathe 保持 CSS
+   - 关键点：devicePixelRatio 缩放防 Retina 模糊 / resize+主题切换重绘 / rAF 生命周期（仅 glowActive 运行）/ 圆角路径 + 半椭圆尾巴沿法线
+   - 参数联动：glowEffect/glowColors/glowThickness/glowSpeed/glowTailWidth/glowOrbitFade(渐隐角度 15)/glowOrbitBlur(0.6，可能删)
+   - 现状：CSS 版 orbit（conic + mask 环 + blur）暂为 fallback；渐隐角度/模糊滑块已做（持久化）
+   - 其余光效参数已定：slide=微光层(首色)+凸起层(多色,半椭圆,height 200%,尖端固定70) / 粗细1-3px / 速度5档(1-5s,档=6-秒,默认3) / 拖尾5档(40-200°→凸起宽×50%) / 移动距离100档(居中对称) / 临时调试开关(微光层/凸起层/动画,仅内存)
+1. **状态指示光效 v2 需求调整**（已实现 v1 提交 `5de8d0f`，待改）：
    - ①输入卡片光效 / Mint 状态文本**两套独立配置**，各自选颜色
    - ②亮色/暗色**两套配置**，UI 用按钮切换编辑（当前是并排两个 color input）
    - ③Mint 状态文本**单色模式要有颜色选择**；流光色彩「添加」要自定义色（当前固定绿色）

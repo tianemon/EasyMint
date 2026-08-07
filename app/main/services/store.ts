@@ -23,22 +23,9 @@ interface Project {
   description: string;
 }
 
-interface Session {
-  id: string;
-  projectId: string;
-  title: string;
-  createdAt: string;
-  lastActiveAt: string;
-  sessionId: string;
-  status: "active" | "completed";
-}
-
 interface Settings {
   defaultProjectDir: string;
   terminalFontSize: number;
-  evaluateMode?: boolean;
-  apiBaseUrl?: string;
-  apiKey?: string;
   model?: string;
   availableModels?: string[];
   apiKeys?: Record<string, string>;
@@ -46,7 +33,6 @@ interface Settings {
   lastProjectId?: string;
   setupComplete?: boolean;
   contextThreshold?: number;
-  context1M?: boolean;
   showThinking?: boolean;
   showToolUse?: boolean;
   /** 全局聊天思考等级(仅作为新聊天会话的初始默认,不控制 agent/task) */
@@ -55,11 +41,32 @@ interface Settings {
   chatFontLevel?: number;
   /** 状态指示光效:输入卡片光效预设 */
   glowEffect?: "orbit" | "slide" | "breathe" | "off";
+  /** 光效颜色模式:单色(solid)/多色(multi) */
+  glowColorMode?: "solid" | "multi";
+  /** 光效单色(亮色模式) */
   glowColorLight?: string;
+  /** 光效单色(暗色模式) */
   glowColorDark?: string;
+  /** 多色流光分组(亮色模式;最多 5 组,单次启用一组) */
+  glowGroupsLight?: GlowColorGroup[];
+  /** 多色流光分组(暗色模式) */
+  glowGroupsDark?: GlowColorGroup[];
+  /** 当前启用的流光分组 id(亮色模式) */
+  activeGlowGroupLight?: string;
+  /** 当前启用的流光分组 id(暗色模式) */
+  activeGlowGroupDark?: string;
   /** Mint 状态文本样式:单色/流光 */
   statusTextStyle?: "solid" | "shimmer";
-  statusTextColors?: string[];
+  statusColorLight?: string;
+  statusColorDark?: string;
+  /** 状态流光分组(亮色模式;内置「默认」不可删 + 自定义 ≤4) */
+  statusTextGroupsLight?: GlowColorGroup[];
+  /** 状态流光分组(暗色模式) */
+  statusTextGroupsDark?: GlowColorGroup[];
+  /** 当前启用的状态流光分组 id(亮色模式) */
+  activeStatusGroupLight?: string;
+  /** 当前启用的状态流光分组 id(暗色模式) */
+  activeStatusGroupDark?: string;
   apiProviders?: ApiProvidersData;
   // ── 需求 4:群聊配置 ──
   /** 群聊最大 agent 数(默认 3) */
@@ -81,6 +88,55 @@ export interface GroupPreset {
   templateIds: string[];
 }
 
+/** 多色流光分组:一组命名色彩组合 */
+export interface GlowColorGroup {
+  id: string;
+  name: string;
+  colors: string[];
+  /** 内置默认组标记(不可删除) */
+  isBuiltin?: boolean;
+}
+
+/** 内置默认组 id(亮/暗各一) */
+export const BUILTIN_GLOW_GROUP_LIGHT_ID = "glow-builtin-light";
+export const BUILTIN_GLOW_GROUP_DARK_ID = "glow-builtin-dark";
+/** 内置默认状态流光组 id(亮/暗各一) */
+export const BUILTIN_STATUS_GROUP_LIGHT_ID = "status-builtin-light";
+export const BUILTIN_STATUS_GROUP_DARK_ID = "status-builtin-dark";
+
+/** 内置默认光效组(代码常量,不落盘;原状态栏流光配色,光效功能前方案) */
+export const BUILTIN_GLOW_GROUPS = {
+  light: { id: BUILTIN_GLOW_GROUP_LIGHT_ID, name: "默认", colors: ["#16a34a", "#22c55e", "#eab308", "#facc15", "#4ade80"], isBuiltin: true },
+  dark: { id: BUILTIN_GLOW_GROUP_DARK_ID, name: "默认", colors: ["#818cf8", "#a78bfa", "#f472b6", "#c084fc", "#6366f1"], isBuiltin: true },
+} as const satisfies Record<string, GlowColorGroup>;
+
+/** 内置默认状态流光组(代码常量,不落盘) */
+export const BUILTIN_STATUS_GROUPS = {
+  light: { id: BUILTIN_STATUS_GROUP_LIGHT_ID, name: "默认", colors: ["#16a34a", "#22c55e", "#eab308", "#facc15", "#4ade80"], isBuiltin: true },
+  dark: { id: BUILTIN_STATUS_GROUP_DARK_ID, name: "默认", colors: ["#818cf8", "#a78bfa", "#f472b6", "#c084fc", "#6366f1"], isBuiltin: true },
+} as const satisfies Record<string, GlowColorGroup>;
+
+/** 第一版环绕流光配色(自定义 1 预置组):亮=主题绿 #16a34a / 暗=浅灰 #cccccc(旧暗色 accent,黑灰科技感) */
+export const V1_GLOW_GROUPS = {
+  light: { id: "glow-custom-v1", name: "自定义 1", colors: ["#16a34a"] },
+  dark: { id: "glow-custom-v1-dark", name: "自定义 1", colors: ["#cccccc"] },
+} as const satisfies Record<string, GlowColorGroup>;
+
+/**
+ * 合并分组:内置组(代码常量) + 文件自定义组。
+ * 无自定义组时可选预置 v1 组(光效专属「自定义 1」);active 失效时回退内置组。
+ */
+export function mergeGlowGroups(
+  builtin: GlowColorGroup,
+  saved: GlowColorGroup[] | undefined,
+  activeKey: string | undefined,
+  v1?: GlowColorGroup
+): { groups: GlowColorGroup[]; activeId: string } {
+  const groups = [builtin, ...(saved && saved.length > 0 ? saved : v1 ? [v1] : [])];
+  const activeId = activeKey && groups.some((g) => g.id === activeKey) ? activeKey : builtin.id;
+  return { groups, activeId };
+}
+
 /** 内置群聊预设(首次读取时种子写入) */
 export const BUILTIN_GROUP_PRESETS: GroupPreset[] = [
   { id: "dev-trio", name: "开发三人组", templateIds: ["mint", "default-builder", "default-evaluator"] },
@@ -92,7 +148,6 @@ const EM_DEFAULTS = {
   defaultProjectDir: "~/EasyMintProject",
   terminalFontSize: 14,
   contextThreshold: 75,
-  context1M: false,
 };
 
 export class Store {
@@ -155,9 +210,6 @@ export class Store {
     return {
       defaultProjectDir: resolveHome((emData.defaultProjectDir as string) || EM_DEFAULTS.defaultProjectDir),
       terminalFontSize: (emData.terminalFontSize as number) || EM_DEFAULTS.terminalFontSize,
-      evaluateMode: emData.evaluateMode as boolean | undefined,
-      apiBaseUrl: (emData.apiBaseUrl as string) || "",
-      apiKey: (emData.apiKey as string) || "",
       model: (emData.model as string) || undefined,
       availableModels: (emData.availableModels as string[]) || undefined,
       apiKeys: (emData.apiKeys as Record<string, string>) || undefined,
@@ -165,16 +217,39 @@ export class Store {
       setupComplete: emData.setupComplete as boolean | undefined,
       lastProjectId: emData.lastProjectId as string | undefined,
       contextThreshold: (emData.contextThreshold as number) ?? EM_DEFAULTS.contextThreshold,
-      context1M: (emData.context1M as boolean) ?? false,
       showThinking: emData.showThinking as boolean | undefined,
       showToolUse: emData.showToolUse as boolean | undefined,
       chatThinkingLevel: (emData.chatThinkingLevel as string) ?? "medium",
       chatFontLevel: (emData.chatFontLevel as number) ?? 3,
       glowEffect: (emData.glowEffect as "orbit" | "slide" | "breathe" | "off") ?? "orbit",
-      glowColorLight: (emData.glowColorLight as string) ?? "#16a34a",
-      glowColorDark: (emData.glowColorDark as string) ?? "#4ade80",
+      glowColorMode: (emData.glowColorMode as "solid" | "multi") ?? "multi",
+      glowColorLight: (emData.glowColorLight as string) || "#16a34a",
+      glowColorDark: (emData.glowColorDark as string) || "#4ade80",
+      // 光效分组:内置组(代码常量) + 文件自定义组(无则预置 V1「自定义 1」)
+      ...(() => {
+        const light = mergeGlowGroups(BUILTIN_GLOW_GROUPS.light, emData.glowGroupsLight as GlowColorGroup[], emData.activeGlowGroupLight as string, V1_GLOW_GROUPS.light);
+        const dark = mergeGlowGroups(BUILTIN_GLOW_GROUPS.dark, emData.glowGroupsDark as GlowColorGroup[], emData.activeGlowGroupDark as string, V1_GLOW_GROUPS.dark);
+        return {
+          glowGroupsLight: light.groups,
+          glowGroupsDark: dark.groups,
+          activeGlowGroupLight: light.activeId,
+          activeGlowGroupDark: dark.activeId,
+        };
+      })(),
       statusTextStyle: (emData.statusTextStyle as "solid" | "shimmer") ?? "shimmer",
-      statusTextColors: (emData.statusTextColors as string[]) ?? ["#22c55e", "#3b82f6", "#a855f7"],
+      statusColorLight: (emData.statusColorLight as string) || "#16a34a",
+      statusColorDark: (emData.statusColorDark as string) || "#4ade80",
+      // 状态流光分组:内置组(代码常量) + 文件自定义组
+      ...(() => {
+        const light = mergeGlowGroups(BUILTIN_STATUS_GROUPS.light, emData.statusTextGroupsLight as GlowColorGroup[], emData.activeStatusGroupLight as string);
+        const dark = mergeGlowGroups(BUILTIN_STATUS_GROUPS.dark, emData.statusTextGroupsDark as GlowColorGroup[], emData.activeStatusGroupDark as string);
+        return {
+          statusTextGroupsLight: light.groups,
+          statusTextGroupsDark: dark.groups,
+          activeStatusGroupLight: light.activeId,
+          activeStatusGroupDark: dark.activeId,
+        };
+      })(),
       apiProviders: (emData.apiProviders as ApiProvidersData) || undefined,
       maxGroupAgents: (emData.maxGroupAgents as number) ?? 3,
       groupForwardStrategy: (emData.groupForwardStrategy as "all" | "conclusion") ?? "conclusion",
@@ -189,7 +264,7 @@ export class Store {
     const settings = this.getSettings();
     const providers = settings.apiProviders;
     const activeCfg = providers?.current ? providers.configs?.[providers.current] : undefined;
-    return activeCfg?.apiKey || settings.apiKey || "";
+    return activeCfg?.apiKey || "";
   }
 
     getLastProjectId(): string | null {
@@ -212,7 +287,6 @@ export class Store {
     }
     data.defaultProjectDir = settings.defaultProjectDir;
     data.terminalFontSize = settings.terminalFontSize;
-    data.evaluateMode = settings.evaluateMode;
     data.lastProjectId = settings.lastProjectId;
     data.setupComplete = settings.setupComplete;
     // 同步激活供应商的模型列表到旧字段（ChatPanel 下拉引用）
@@ -226,29 +300,31 @@ export class Store {
       if (settings.model) data.model = settings.model;
       if (settings.availableModels) data.availableModels = settings.availableModels;
     }
-    // 如果新数据中 apiKeys 的值是占位符"••••••••"，从旧文件恢复真实值
     if (settings.apiKeys && Object.keys(settings.apiKeys).length > 0) {
-      const merged = { ...settings.apiKeys };
-      const oldKeys = (data.apiKeys || {}) as Record<string, string>;
-      for (const [k, v] of Object.entries(merged)) {
-        if (v === "••••••••" && oldKeys[k]) {
-          merged[k] = oldKeys[k];
-        }
-      }
-      data.apiKeys = merged;
+      data.apiKeys = settings.apiKeys;
     }
     if (settings.builtinTools) data.builtinTools = settings.builtinTools;
     if (settings.contextThreshold !== undefined) data.contextThreshold = settings.contextThreshold;
-    if (settings.context1M !== undefined) data.context1M = settings.context1M;
     if (settings.showThinking !== undefined) data.showThinking = settings.showThinking;
     if (settings.showToolUse !== undefined) data.showToolUse = settings.showToolUse;
     if (settings.chatThinkingLevel) data.chatThinkingLevel = settings.chatThinkingLevel;
     if (settings.chatFontLevel !== undefined) data.chatFontLevel = settings.chatFontLevel;
     if (settings.glowEffect) data.glowEffect = settings.glowEffect;
+    if (settings.glowColorMode) data.glowColorMode = settings.glowColorMode;
     if (settings.glowColorLight) data.glowColorLight = settings.glowColorLight;
     if (settings.glowColorDark) data.glowColorDark = settings.glowColorDark;
+    // 分组只写自定义组(内置组为代码常量,不落盘,防误改)
+    if (settings.glowGroupsLight?.length) data.glowGroupsLight = settings.glowGroupsLight.filter((g) => !g.isBuiltin);
+    if (settings.glowGroupsDark?.length) data.glowGroupsDark = settings.glowGroupsDark.filter((g) => !g.isBuiltin);
+    if (settings.activeGlowGroupLight) data.activeGlowGroupLight = settings.activeGlowGroupLight;
+    if (settings.activeGlowGroupDark) data.activeGlowGroupDark = settings.activeGlowGroupDark;
     if (settings.statusTextStyle) data.statusTextStyle = settings.statusTextStyle;
-    if (settings.statusTextColors) data.statusTextColors = settings.statusTextColors;
+    if (settings.statusColorLight) data.statusColorLight = settings.statusColorLight;
+    if (settings.statusColorDark) data.statusColorDark = settings.statusColorDark;
+    if (settings.statusTextGroupsLight?.length) data.statusTextGroupsLight = settings.statusTextGroupsLight.filter((g) => !g.isBuiltin);
+    if (settings.statusTextGroupsDark?.length) data.statusTextGroupsDark = settings.statusTextGroupsDark.filter((g) => !g.isBuiltin);
+    if (settings.activeStatusGroupLight) data.activeStatusGroupLight = settings.activeStatusGroupLight;
+    if (settings.activeStatusGroupDark) data.activeStatusGroupDark = settings.activeStatusGroupDark;
     if (settings.apiProviders) {
       data.apiProviders = settings.apiProviders;
     }
@@ -264,36 +340,4 @@ export class Store {
   saveSettings(settings: Settings): void {
     this.writeEmSettings(settings);
   }
-
-  getSessionsDir(projectId: string): string {
-    const dir = path.join(this.dataDir, "sessions", projectId);
-    fs.mkdirSync(dir, { recursive: true });
-    return dir;
-  }
-
-  listSessions(projectId: string): Session[] {
-    const sessionsFile = path.join(this.getSessionsDir(projectId), "sessions.json");
-    if (!fs.existsSync(sessionsFile)) return [];
-    try {
-      const data = JSON.parse(fs.readFileSync(sessionsFile, "utf-8"));
-      return Array.isArray(data.sessions) ? data.sessions : [];
-    } catch (e) {
-      console.error("[store] 解析 sessions.json 失败:", (e as Error).message);
-      return [];
-    }
-  }
-
-  saveSessions(projectId: string, sessions: Session[]): void {
-    const sessionsFile = path.join(this.getSessionsDir(projectId), "sessions.json");
-    fs.writeFileSync(sessionsFile, JSON.stringify({ sessions }, null, 2));
-  }
-
-  deleteSession(projectId: string, sessionId: string): void {
-    const sessionsFile = path.join(this.getSessionsDir(projectId), "sessions.json");
-    if (!fs.existsSync(sessionsFile)) return;
-    const data = JSON.parse(fs.readFileSync(sessionsFile, "utf-8"));
-    data.sessions = data.sessions.filter((s: Session) => s.id !== sessionId);
-    fs.writeFileSync(sessionsFile, JSON.stringify(data, null, 2));
-  }
-
 }

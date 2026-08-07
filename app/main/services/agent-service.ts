@@ -175,9 +175,8 @@ async function createStopAgentTool(sessionId: string): Promise<ToolDefinition> {
       // 精确停止:delegation_id(+index) 指定单个
       if (params.delegation_id) {
         const did = String(params.delegation_id);
-        // 前缀匹配:list_agents 返回完整 id,但兼容旧版短 id / 用户手输前缀
         const { getRunningDelegations } = await import("./task/registry");
-        const match = getRunningDelegations(sessionId).find((r) => r.delegationId.startsWith(did));
+        const match = getRunningDelegations(sessionId).find((r) => r.delegationId === did || r.delegationId.startsWith(did));
         if (!match) return { content: [{ type: "text" as const, text: `委派 ${did} 未在运行中` }] };
         if (typeof params.index === "number") {
           abortTask(match.delegationId, params.index);
@@ -290,8 +289,8 @@ async function createReadAgentLogTool(sessionId: string): Promise<ToolDefinition
       const msgs = await getSubagentMessages(file);
       if (msgs.length === 0) return { content: [{ type: "text" as const, text: "暂无已落盘的执行内容" }] };
 
-      // 解析消息 content 块(text/thinking/toolCall——jsonl 实际用 toolCall 非 tool_use)
-      // toolResult 是独立消息(role=toolResult):解析时把 toolCall 与紧随的 toolResult 合并,
+      // 解析消息 content 块(主进程出口已归一化:toolCall→tool_use、arguments→input)
+      // toolResult 是独立消息(role=toolResult):解析时把 tool_use 与紧随的 toolResult 合并,
       // 得到带输入输出的「工具事件」(tool_use 块带 result)
       const blocks: Array<{ type: string; text?: string; name?: string; input?: unknown; result?: string }> = [];
       for (const m of msgs) {
@@ -301,11 +300,8 @@ async function createReadAgentLogTool(sessionId: string): Promise<ToolDefinition
         if (!Array.isArray(content)) continue;
         for (const b of content as Array<Record<string, unknown>>) {
           if (typeof b?.type !== "string") continue;
-          const isTool = b.type === "toolCall" || b.type === "tool_use";
-          if (isTool) {
-            // jsonl 的参数在 arguments 字段(兼容 input)
-            const args = (b.arguments !== undefined ? b.arguments : b.input) as unknown;
-            blocks.push({ type: "tool_use", name: typeof b.name === "string" ? b.name : undefined, input: args });
+          if (b.type === "tool_use") {
+            blocks.push({ type: "tool_use", name: typeof b.name === "string" ? b.name : undefined, input: b.input });
           } else if (role === "toolResult" && b.type === "text") {
             // 工具结果:合并到最近一个无 result 的 tool_use 块
             const last = [...blocks].reverse().find((x) => x.type === "tool_use" && x.result === undefined);

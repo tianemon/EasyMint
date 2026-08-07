@@ -169,6 +169,3 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
 
   return tools.filter(Boolean) as ToolDefinition[];
 }
-
-/** 兼容旧接口 */
-export function buildBuiltinMcpServers(_p?: string): Record<string, unknown> { return {}; }
