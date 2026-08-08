@@ -517,9 +517,12 @@ const filePath = p.join(projectPath, "task.json");
   ipcMain.handle("migration:listIncoming", () => mig.listIncoming());
   ipcMain.handle("migration:accept", (_e, { transferId, targetPath }) => mig.acceptTransfer(transferId, targetPath));
   ipcMain.handle("migration:reject", (_e, { transferId }) => { mig.rejectTransfer(transferId); return { ok: true }; });
-  ipcMain.handle("migration:start", (_e, { projectPath, deviceId, files, sessionFile }) =>
-    mig.startTransfer(projectPath, deviceId, files, { sessionFile })
+  // 统一入口(MCP 与手动共用):扫描 + 打包 zip + 传输
+  ipcMain.handle("migration:start", (_e, { projectPath, deviceId }) =>
+    mig.prepareAndTransfer(projectPath, deviceId)
   );
+  // 前端预览清单(与 prepare_migration 同一扫描实现)
+  ipcMain.handle("migration:scan", (_e, { projectPath }) => mig.scanProject(projectPath));
   ipcMain.handle("migration:getSessionFile", (_e, { projectPath }) => {
     // 取项目最新主会话 jsonl(迁移会话用)
     const encoded = projectPath.replace(/[:/\\]/g, "-");

@@ -254,7 +254,8 @@ interface ElectronAPI {
     listIncoming: () => Promise<Array<{ transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }>>;
     accept: (transferId: string, targetPath: string) => Promise<{ ok: boolean; error?: string }>;
     reject: (transferId: string) => Promise<{ ok: boolean }>;
-    start: (opts: { projectPath: string; deviceId: string; files: Array<{ relPath: string; absPath: string }>; sessionFile?: string }) => Promise<{ ok: boolean; transferId?: string; error?: string }>;
+    start: (projectPath: string, deviceId: string) => Promise<{ ok: boolean; transferId?: string; error?: string }>;
+    scan: (projectPath: string) => Promise<{ files: Array<{ relPath: string; absPath: string }>; sessionFile?: string; totalSize: number }>;
     getSessionFile: (projectPath: string) => Promise<string | null>;
     onIncoming: (cb: (d: { transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }) => void) => () => void;
     onCompleted: (cb: (d: { projectName: string; projectPath: string; fromName: string }) => void) => () => void;

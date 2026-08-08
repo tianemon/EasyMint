@@ -278,41 +278,19 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
       required: ["projectPath"],
     },
     async execute(_tid: any, params: any) {
+      // 统一扫描实现(migration-service.scanProject,与手动入口/start_transfer 同一封装)
+      const { migrationService } = await import("./migration-service");
       const root = params.projectPath as string;
-      // 排除构建产物/缓存;.easymint 只排除可重建子项(shell-logs 运行日志/templates/brand-tokens/group-sessions),
-      // 保留项目状态 state.json/run.json/issues.json(方案:项目数据跟随迁移)
-      const DEFAULT_EXCLUDE = [
-        ".git", "node_modules", "dist", "build", "temp", ".idea", ".vscode", ".codegraph", ".DS_Store", "*.apk", "*.exe", "*.dmg", "*.zip",
-        ".easymint/shell-logs", ".easymint/templates", ".easymint/brand-tokens", ".easymint/group-sessions", ".easymint/group-sessions.json",
-      ];
-      const include = (params.include as string[] ?? []).map(normalizeSep);
-      const exclude = (params.exclude as string[] ?? []).map(normalizeSep);
-      const files: Array<{ relPath: string; absPath: string }> = [];
-      const walk = (dir: string): void => {
-        let entries: import("node:fs").Dirent[];
-        try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
-        for (const e of entries) {
-          const rel = normalizeSep(join(dir, e.name).slice(root.length + 1));
-          if (DEFAULT_EXCLUDE.some((x) => rel === x || rel.startsWith(x + "/") || (x.startsWith("*") && rel.endsWith(x.slice(1))))) {
-            if (!include.some((i) => rel === i || rel.startsWith(i + "/"))) continue;
-          }
-          if (exclude.some((x) => rel === x || rel.startsWith(x + "/"))) continue;
-          const full = join(dir, e.name);
-          if (e.isDirectory()) walk(full);
-          else if (e.isFile()) files.push({ relPath: rel, absPath: full });
-        }
-      };
-      walk(root);
-      if (files.length === 0) return { content: [{ type: "text" as const, text: "未扫描到任何可迁移文件——确认项目路径是否正确" }] };
-      const totalSize = files.reduce((s, f) => s + statSync(f.absPath).size, 0);
+      const scan = migrationService.scanProject(root);
+      if (scan.files.length === 0) return { content: [{ type: "text" as const, text: "未扫描到任何可迁移文件——确认项目路径是否正确" }] };
       const lines = [
-        `迁移清单(${files.length} 个文件, ${(totalSize / 1024 / 1024).toFixed(1)}MB):`,
-        ...files.slice(0, 30).map((f) => `  ${f.relPath}`),
-        files.length > 30 ? `  … 等 ${files.length - 30} 个文件` : "",
-        `默认已排除: ${DEFAULT_EXCLUDE.join(", ")}`,
+        `迁移清单(${scan.files.length} 个文件, ${(scan.totalSize / 1024 / 1024).toFixed(1)}MB):`,
+        ...scan.files.slice(0, 30).map((f) => `  ${f.relPath}`),
+        scan.files.length > 30 ? `  … 等 ${scan.files.length - 30} 个文件` : "",
+        scan.sessionFile ? `会话: ${scan.sessionFile}` : "无会话记录",
         "向用户确认清单后再调用 start_transfer",
       ];
-      return { content: [{ type: "text" as const, text: lines.filter(Boolean).join("\n") }], details: { files, projectPath: root } };
+      return { content: [{ type: "text" as const, text: lines.filter(Boolean).join("\n") }], details: { files: scan.files, projectPath: root } };
     },
   } as any) as any);
 
@@ -324,22 +302,14 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
       type: "object" as const,
       properties: {
         deviceId: { type: "string" as const, description: "目标设备 ID(list_devices 确认)" },
-        files: { type: "array" as const, items: { type: "object" as const, properties: { relPath: { type: "string" as const }, absPath: { type: "string" as const } }, required: ["relPath", "absPath"] }, description: "迁移清单(prepare_migration 返回)" },
         projectPath: { type: "string" as const, description: "项目绝对路径" },
       },
-      required: ["deviceId", "files", "projectPath"],
+      required: ["deviceId", "projectPath"],
     },
     async execute(_tid: any, params: any) {
       const { migrationService } = await import("./migration-service");
-      // 找最新主会话 jsonl(迁移会话用)
-      const encoded = (params.projectPath as string).replace(/[:/\\]/g, "-");
-      const dir = join(os.homedir(), ".easymint", "sessions", encoded);
-      let sessionFileRel: string | undefined;
-      try {
-        const names = readdirSync(dir).filter((f) => f.endsWith(".jsonl")).sort();
-        if (names.length > 0) sessionFileRel = names[names.length - 1];
-      } catch { /* 无会话 */ }
-      const r = await migrationService.startTransfer(params.projectPath, params.deviceId, params.files as any, { sessionFile: sessionFileRel });
+      // 统一入口:内部扫描 + 打包 zip + 传输(与手动入口同一封装)
+      const r = await migrationService.prepareAndTransfer(params.projectPath as string, params.deviceId as string);
       return { content: [{ type: "text" as const, text: r.ok ? "迁移已开始,传输完成后接收端会自动恢复并回执" : `迁移失败: ${r.error ?? "未知错误"}` }] };
     },
   } as any) as any);

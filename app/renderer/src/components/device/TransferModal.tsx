@@ -74,32 +74,11 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
     setScanning(true);
     setError(null);
     try {
-      // 借用主进程文件树扫描 + 客户端排除过滤(默认排除与 Mint 工具一致)
-      const tree = await window.electronAPI.file.readTree(projectPath.trim());
-      const out: ScanFile[] = [];
-      // 与主进程 prepare_migration 一致的排除规则(按完整相对路径前缀匹配):
-      // 构建产物/缓存 + .easymint 可重建子项(保留 state.json/run.json/issues.json 项目状态)
-      const DEFAULT_EXCLUDE = [
-        ".git", "node_modules", "dist", "build", "temp", ".idea", ".vscode", ".codegraph", ".DS_Store",
-        ".easymint/shell-logs", ".easymint/templates", ".easymint/brand-tokens", ".easymint/group-sessions", ".easymint/group-sessions.json",
-      ];
-      // 通配符排除(与主进程一致):构建产物文件 *.apk/*.exe/*.dmg/*.zip
-      const WILDCARD_EXCLUDE = [".apk", ".exe", ".dmg", ".zip"];
-      const isExcluded = (rel: string) =>
-        DEFAULT_EXCLUDE.some((x) => rel === x || rel.startsWith(x + "/")) ||
-        WILDCARD_EXCLUDE.some((ext) => rel.endsWith(ext));
-      const walk = (nodes: FileNode[], prefix: string) => {
-        for (const n of nodes) {
-          const rel = prefix ? `${prefix}/${n.name}` : n.name;
-          if (isExcluded(rel)) continue;
-          if (n.isDirectory) walk(n.children ?? [], rel);
-          else out.push({ relPath: rel, absPath: n.path });
-        }
-      };
-      walk(tree, "");
-      setFiles(out);
-      setTotalSize(out.length); // 文件数展示;大小由主进程传输时统计
-      if (out.length === 0) setError("未扫描到可迁移文件");
+      // 统一扫描(主进程 migration-service.scanProject,与 Mint 工具同一实现)
+      const scan = await window.electronAPI.migration.scan(projectPath.trim());
+      setFiles(scan.files);
+      setTotalSize(scan.totalSize);
+      if (scan.files.length === 0) setError("未扫描到可迁移文件");
     } catch (e) {
       setError(`扫描失败: ${(e as Error).message}`);
     } finally {
@@ -113,14 +92,8 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
     setError(null);
     setPhase("waiting"); // 先显示等待确认(主进程广播会覆盖)
     try {
-      // 取最新主会话 jsonl(随项目一起传输,接收端恢复会话)
-      const sessionFile = await window.electronAPI.migration.getSessionFile(projectPath.trim());
-      const r = await window.electronAPI.migration.start({
-        projectPath: projectPath.trim(),
-        deviceId,
-        files: files.map((f) => ({ relPath: f.relPath, absPath: f.absPath })),
-        sessionFile: sessionFile ?? undefined,
-      });
+      // 统一入口:主进程内部扫描 + 打包 zip + 传输(与 Mint 工具同一封装)
+      const r = await window.electronAPI.migration.start(projectPath.trim(), deviceId);
       if (!r.ok) {
         setError(r.error ?? "传输失败");
         setTransferring(false);

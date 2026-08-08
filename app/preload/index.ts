@@ -369,7 +369,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     listIncoming: () => ipcRenderer.invoke("migration:listIncoming") as Promise<Array<{ transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }>>,
     accept: (transferId: string, targetPath: string) => ipcRenderer.invoke("migration:accept", { transferId, targetPath }) as Promise<{ ok: boolean; error?: string }>,
     reject: (transferId: string) => ipcRenderer.invoke("migration:reject", { transferId }) as Promise<{ ok: boolean }>,
-    start: (opts: { projectPath: string; deviceId: string; files: Array<{ relPath: string; absPath: string }>; sessionFile?: string }) => ipcRenderer.invoke("migration:start", opts) as Promise<{ ok: boolean; transferId?: string; error?: string }>,
+    start: (projectPath: string, deviceId: string) => ipcRenderer.invoke("migration:start", { projectPath, deviceId }) as Promise<{ ok: boolean; transferId?: string; error?: string }>,
+    scan: (projectPath: string) => ipcRenderer.invoke("migration:scan", { projectPath }) as Promise<{ files: Array<{ relPath: string; absPath: string }>; sessionFile?: string; totalSize: number }>,
     getSessionFile: (projectPath: string) => ipcRenderer.invoke("migration:getSessionFile", { projectPath }) as Promise<string | null>,
     // 接收端事件(弹窗确认/完成)
     onIncoming: (cb: (d: { transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }) => void) => {
