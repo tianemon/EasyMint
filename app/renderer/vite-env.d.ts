@@ -258,6 +258,7 @@ interface ElectronAPI {
     getSessionFile: (projectPath: string) => Promise<string | null>;
     onIncoming: (cb: (d: { transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }) => void) => () => void;
     onCompleted: (cb: (d: { projectName: string; projectPath: string; fromName: string }) => void) => () => void;
+    onReceipt: (cb: (d: { ok: boolean; projectName?: string; projectPath?: string; failures?: string[] }) => void) => () => void;
   };
   task: {
     read: (projectPath: string) => Promise<{ tasks: { id: string; title: string; description: string; command: string; status: string; attempts: number }[] }>;

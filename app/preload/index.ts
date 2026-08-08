@@ -382,5 +382,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("migration:completed", h);
       return () => ipcRenderer.removeListener("migration:completed", h);
     },
+    // 发送端回执(接收端恢复完成/失败)
+    onReceipt: (cb: (d: { ok: boolean; projectName?: string; projectPath?: string; failures?: string[] }) => void) => {
+      const h = (_e: Electron.IpcRendererEvent, d: { ok: boolean; projectName?: string; projectPath?: string; failures?: string[] }) => cb(d);
+      ipcRenderer.on("migration:receipt", h);
+      return () => ipcRenderer.removeListener("migration:receipt", h);
+    },
   },
 });

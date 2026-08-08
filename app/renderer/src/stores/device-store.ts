@@ -44,6 +44,27 @@ interface DeviceState {
   refresh: () => Promise<void>;
 }
 
+/** 模块级事件订阅(只注册一次,避免每次 load 重复注册导致事件累积) */
+let subscribed = false;
+function ensureSubscribed(): void {
+  if (subscribed) return;
+  subscribed = true;
+  window.electronAPI.device.onPairRequest((req) => {
+    useDeviceStore.setState({ pairRequest: req });
+  });
+  window.electronAPI.device.onChanged(() => {
+    void useDeviceStore.getState().refresh();
+  });
+  window.electronAPI.device.onOnline((d) => {
+    const s = useDeviceStore.getState();
+    useDeviceStore.setState({ paired: s.paired.map((p) => (p.id === d.id ? { ...p, online: true } : p)) });
+  });
+  window.electronAPI.device.onOffline((d) => {
+    const s = useDeviceStore.getState();
+    useDeviceStore.setState({ paired: s.paired.map((p) => (p.id === d.id ? { ...p, online: false } : p)) });
+  });
+}
+
 export const useDeviceStore = create<DeviceState>((set, get) => ({
   self: { id: "", name: "", discoverable: false },
   paired: [],
@@ -53,6 +74,7 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
   loaded: false,
 
   load: async () => {
+    ensureSubscribed();
     const [self, paired, discovered] = await Promise.all([
       window.electronAPI.device.getSelf(),
       window.electronAPI.device.listPaired(),
@@ -64,15 +86,6 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       discovered,
       pairMode: self.discoverable,
       loaded: true,
-    });
-    // 订阅事件
-    window.electronAPI.device.onPairRequest((req) => set({ pairRequest: req }));
-    window.electronAPI.device.onChanged(() => get().refresh());
-    window.electronAPI.device.onOnline((d) => {
-      set({ paired: get().paired.map((p) => (p.id === d.id ? { ...p, online: true } : p)) });
-    });
-    window.electronAPI.device.onOffline((d) => {
-      set({ paired: get().paired.map((p) => (p.id === d.id ? { ...p, online: false } : p)) });
     });
   },
 

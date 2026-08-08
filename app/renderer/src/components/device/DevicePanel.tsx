@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useDeviceStore, type PairedDevice, type DiscoveredDevice } from "../../stores/device-store";
+import { TransferModal } from "./TransferModal";
 
 /**
  * 设备互联悬浮浮层(内嵌 absolute 覆盖主界面):
@@ -22,7 +23,7 @@ function formatLastSeen(ts: number): string {
   return `${Math.floor(diff / 86400_000)} 天前`;
 }
 
-function PairedRow({ device, onUnpair }: { device: PairedDevice; onUnpair: (id: string) => void }): JSX.Element {
+function PairedRow({ device, onUnpair, onSend }: { device: PairedDevice; onUnpair: (id: string) => void; onSend: (id: string) => void }): JSX.Element {
   return (
     <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-border bg-surface">
       <span className={`w-2 h-2 rounded-full shrink-0 ${device.online ? "bg-success" : "bg-text-muted/40"}`} />
@@ -32,6 +33,16 @@ function PairedRow({ device, onUnpair }: { device: PairedDevice; onUnpair: (id: 
           {device.online ? "在线 · 已连接" : `离线 · ${formatLastSeen(device.lastSeen)}`}
         </div>
       </div>
+      {device.online && (
+        <button
+          type="button"
+          className="text-[10px] px-2 py-1 rounded bg-accent-soft text-accent hover:bg-accent hover:text-text-inverse transition-colors shrink-0"
+          onClick={() => onSend(device.id)}
+          title="向该设备发送迁移"
+        >
+          发送
+        </button>
+      )}
       <button
         type="button"
         className="text-[10px] px-2 py-1 rounded border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors shrink-0"
@@ -75,6 +86,8 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
   const [pairError, setPairError] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
+  // 迁移对话框(目标设备)
+  const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     if (open) { load(); setPairError(null); }
@@ -172,7 +185,14 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
               <div className="text-[11px] text-text-muted px-1">尚未配对任何设备。开启可被发现，或等待其他设备开启后在此配对。</div>
             ) : (
               <div className="space-y-1.5">
-                {paired.map((d) => <PairedRow key={d.id} device={d} onUnpair={unpair} />)}
+                {paired.map((d) => (
+                  <PairedRow
+                    key={d.id}
+                    device={d}
+                    onUnpair={unpair}
+                    onSend={(id) => { const dev = paired.find((p) => p.id === id); if (dev) setTransferTarget({ id: dev.id, name: dev.name }); }}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -201,6 +221,14 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
           )}
         </div>
       </div>
+      {/* 迁移对话框(发送端手动入口) */}
+      <TransferModal
+        open={transferTarget !== null}
+        deviceId={transferTarget?.id ?? ""}
+        deviceName={transferTarget?.name ?? ""}
+        onClose={() => setTransferTarget(null)}
+        onSent={() => { /* 发送完成,留在设备面板 */ }}
+      />
     </div>
   );
 }

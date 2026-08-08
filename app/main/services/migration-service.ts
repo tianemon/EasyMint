@@ -46,6 +46,7 @@ interface PendingTransfer {
   /** 发送端设备 ID(回执/拒绝用) */
   peerId: string;
   manifest: MigrationManifest;
+  /** 分块缓存:扁平索引 = fileIndex * 该文件总块数 + 块内索引 */
   chunks: Buffer[];
   receivedBytes: number;
   /** 用户确认后的目标路径(acceptTransfer 时设置) */
@@ -77,6 +78,14 @@ class MigrationService extends EventEmitter {
         break;
       case "transfer-complete":
         await this.completeTransfer(peerId, msg);
+        break;
+      case "transfer-done":
+        // 发送端收到接收端回执:迁移完成(接收端已恢复)
+        this.emit("done", { peerId, ...msg });
+        break;
+      case "transfer-failed":
+        // 发送端收到接收端失败报告
+        this.emit("failed", { peerId, ...msg });
         break;
       default:
         this.emit("message", { peerId, msg });
@@ -200,12 +209,13 @@ class MigrationService extends EventEmitter {
     }));
   }
 
-  /** 接收分块(从 network-service 的消息事件接入) */
+  /** 接收分块(从 network-service 的消息事件接入)。扁平索引 = fileIndex×total + index,防多文件互相覆盖 */
   handleChunk(peerId: string, msg: { transferId?: string; fileIndex?: number; index?: number; total?: number; data?: string }): void {
     const t = this.pending.get(msg.transferId ?? "");
     if (!t) return;
-    t.chunks[msg.index ?? 0] = Buffer.from(msg.data ?? "", "base64");
-    t.receivedBytes += t.chunks[msg.index ?? 0]!.length;
+    const flat = (msg.fileIndex ?? 0) * (msg.total ?? 1) + (msg.index ?? 0);
+    t.chunks[flat] = Buffer.from(msg.data ?? "", "base64");
+    t.receivedBytes += t.chunks[flat]!.length;
     broadcast("migration:progress", { transferId: msg.transferId, received: t.receivedBytes });
   }
 
@@ -216,12 +226,26 @@ class MigrationService extends EventEmitter {
     if (!t) return;
     this.pending.delete(transferId);
 
-    // 校验哈希 + 落位(按 manifest 的 relPath)
+    // 校验哈希 + 落位(按 manifest 的 relPath;每文件块数 = ceil(size/CHUNK_SIZE),扁平索引拼接)
     let ok = true;
     const failures: string[] = [];
     for (let i = 0; i < t.manifest.files.length; i++) {
       const f = t.manifest.files[i]!;
-      const buf = t.chunks[i]!;
+      const totalChunks = Math.max(1, Math.ceil(f.size / CHUNK_SIZE));
+      // 缺块判定:最后一文件可能不足总块数,用 size 校验而非块数
+      const parts: Buffer[] = [];
+      let missing = false;
+      for (let c = 0; c < totalChunks; c++) {
+        const chunk = t.chunks[i * totalChunks + c];
+        if (!chunk) { missing = true; break; }
+        parts.push(chunk);
+      }
+      if (missing) {
+        ok = false;
+        failures.push(f.relPath);
+        continue;
+      }
+      const buf = Buffer.concat(parts);
       if (this.sha256(buf) !== f.sha256) {
         ok = false;
         failures.push(f.relPath);

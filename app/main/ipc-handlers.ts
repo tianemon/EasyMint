@@ -476,6 +476,13 @@ const filePath = p.join(projectPath, "task.json");
   const mig = migrationService;
   // 接收端事件 → 前端(弹窗确认/进度/完成/失败)
   mig.on("message", (e) => broadcast("migration:event", e));
+  // 发送端收到接收端回执 → 前端提示"已在对方设备恢复完成"
+  mig.on("done", (e: { projectName?: string; projectPath?: string }) => {
+    broadcast("migration:receipt", { ok: true, ...e });
+  });
+  mig.on("failed", (e: { projectName?: string; failures?: string[] }) => {
+    broadcast("migration:receipt", { ok: false, ...e });
+  });
   // 迁移完成 → 注入系统消息给本机 Mint(接收端,对齐上下文继续开发)
   mig.on("completed", (e: { projectName: string; projectPath: string; fromName: string }) => {
     broadcast("migration:completed", e);
