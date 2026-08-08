@@ -304,7 +304,6 @@ class NetworkService extends EventEmitter {
     // 重建 scanner:清 bonjour Browser 内部去重缓存(browser 按 fqdn 去重,
     // 只删 discovered 会导致对方重新广播时不触发 up 回调,自动扫描扫不出)
     // 无已配对设备 → 停广播(常态静默)
-    this.updatePairedBroadcast();
     this.emit("devices-changed");
   }
 
@@ -386,25 +385,6 @@ class NetworkService extends EventEmitter {
     this.advertiseService = null;
   }
 
-  /** 已配对可连接广播管理(对齐蓝牙手表:配对了就持续广播,直到所有已配对设备都连上)。
-      区别于"可被发现"(1 分钟限时,新设备配对用):
-      - 有已配对设备且存在未连接者 → 持续广播(对方随时能发现并重连,开销可忽略)
-      - 所有已配对都连上 / 无已配对 → 停止广播(常态静默)
-      用户主动开启的"可被发现"广播不受此管理(1 分钟超时由 startPairMode 控制) */
-  private updatePairedBroadcast(): void {
-    const hasPaired = this.paired.length > 0;
-    const hasDisconnected = this.paired.some(
-      (p) => !this.wsClients.has(p.id) && !this.inboundSockets.has(p.id)
-    );
-    if (hasPaired && hasDisconnected && !this.pairModeEnd) {
-      // 有离线已配对 → 持续广播(除非用户正在"可被发现"模式,该模式由自身超时管理)
-      this.startAdvertising();
-    } else if (!hasDisconnected && !this.pairModeEnd) {
-      // 全部连上 → 停广播(保持隐身);用户主动可被发现(pairModeEnd)不受影响
-      this.stopAdvertising();
-    }
-  }
-
   // ── 连接管理 ──
 
   /** 建立出站连接（连接已配对设备）。成功:更新缓存地址 + 停重连广播;失败:无 mDNS 回退时触发短时广播 */
@@ -434,7 +414,6 @@ class NetworkService extends EventEmitter {
             // 连接失败日志:ECONNREFUSED=防火墙拦/端口未监听,ETIMEDOUT=不可达
             console.error(`[network] 连接 ${p.name} (${address}:${port}) 失败:`, (e as Error).message);
             // 有离线已配对 → 持续广播(对方随时能发现我们并重连,蓝牙手表语义)
-            this.updatePairedBroadcast();
             reject(e);
           }
         });
@@ -487,7 +466,6 @@ class NetworkService extends EventEmitter {
           this.paired = this.paired.filter((x) => x.id !== fromId);
           this.savePaired();
           // 重建 scanner(清 browser 去重缓存,见 unpair)
-          this.updatePairedBroadcast();
           this.emit("devices-changed");
         }
         return;
@@ -519,7 +497,6 @@ class NetworkService extends EventEmitter {
       this.inboundSockets.delete(fromId);
       this.savePaired();
       // 重建 scanner(清 browser 去重缓存,见 unpair)
-      this.updatePairedBroadcast();
       this.emit("devices-changed");
     } else {
       this.handleAppMessage(peerIdRef.id, msg as { type: string; [k: string]: unknown });
@@ -549,7 +526,6 @@ class NetworkService extends EventEmitter {
       this.savePaired();
     }
     // 连接建立 → 更新广播状态(全部连上则停广播;用户主动可被发现不受影响)
-    this.updatePairedBroadcast();
     this.emit("device-online", { id });
     this.emit("devices-changed");
   }
@@ -559,10 +535,8 @@ class NetworkService extends EventEmitter {
     const p = this.paired.find((x) => x.id === id);
     if (p && p.address && p.port && !this.wsClients.has(id) && !this.inboundSockets.has(id)) {
       this.connectOutbound(p, p.address, p.port).catch(() => {
-        this.updatePairedBroadcast();
       });
     }
-    this.updatePairedBroadcast();
     this.emit("device-offline", { id });
     this.emit("devices-changed");
   }
@@ -644,7 +618,6 @@ class NetworkService extends EventEmitter {
       // 低频探测已配对设备:缓存直连 + 持续广播兜底(蓝牙手表语义——有离线已配对就一直播,
       // 对方上线即被发现;全部连上自动停)
       this.tryConnectPaired();
-      this.updatePairedBroadcast();
       // 已配对设备的"在线/离线"由 WS 连接状态驱动(markOnline/markOffline)——可靠。
       // 注意:不调 scanner.expire()——bonjour 对"无变化重播"不刷新 lastSeen(1h 才重播一次,
       // TTL 120s),expire 会误删在线设备(实测源码行为);下线靠 down 事件(goodbye 包)移除
@@ -652,7 +625,6 @@ class NetworkService extends EventEmitter {
     // 启动时:缓存地址直连已配对设备 + 有离线者持续广播(对齐 WiFi 记住网络自动连 + 蓝牙可连接广播)
     setTimeout(() => {
       this.tryConnectPaired();
-      this.updatePairedBroadcast();
     }, 1000);
   }
 }
