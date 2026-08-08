@@ -301,6 +301,8 @@ class NetworkService extends EventEmitter {
     this.wsClients.delete(id);
     this.inboundSockets.delete(id);
     this.savePaired();
+    // 无已配对设备 → 停广播(常态静默)
+    this.updatePairedBroadcast();
     this.emit("devices-changed");
   }
 
@@ -386,23 +388,25 @@ class NetworkService extends EventEmitter {
   private stopAdvertising(): void {
     try { this.advertiseService?.stop(); } catch { /* */ }
     this.advertiseService = null;
-    if (this.reconnectAdvertiseTimer) { clearTimeout(this.reconnectAdvertiseTimer); this.reconnectAdvertiseTimer = null; }
   }
 
-  /** 断线重连广播:缓存直连失败时短时广播(find 对端 + 被对端发现),连接建立后停止。
-      仅"已配对设备连不上"时触发(IP 变化/对端重启)——保持"可被发现关闭 = 隐身"的常态。
-      蓝牙同理:已配对直接连接,重连失败才需重新可发现 */
-  private reconnectAdvertiseTimer: NodeJS.Timeout | null = null;
-  private startReconnectAdvertising(): void {
-    if (this.advertiseService) return; // 已在广播(可被发现/重连广播)
-    this.startAdvertising();
-    if (this.reconnectAdvertiseTimer) clearTimeout(this.reconnectAdvertiseTimer);
-    this.reconnectAdvertiseTimer = setTimeout(() => {
-      // 60s 后若仍未连上,停止广播(等下次断线/探测再触发)
+  /** 已配对可连接广播管理(对齐蓝牙手表:配对了就持续广播,直到所有已配对设备都连上)。
+      区别于"可被发现"(1 分钟限时,新设备配对用):
+      - 有已配对设备且存在未连接者 → 持续广播(对方随时能发现并重连,开销可忽略)
+      - 所有已配对都连上 / 无已配对 → 停止广播(常态静默)
+      用户主动开启的"可被发现"广播不受此管理(1 分钟超时由 startPairMode 控制) */
+  private updatePairedBroadcast(): void {
+    const hasPaired = this.paired.length > 0;
+    const hasDisconnected = this.paired.some(
+      (p) => !this.wsClients.has(p.id) && !this.inboundSockets.has(p.id)
+    );
+    if (hasPaired && hasDisconnected && !this.pairModeEnd) {
+      // 有离线已配对 → 持续广播(除非用户正在"可被发现"模式,该模式由自身超时管理)
+      this.startAdvertising();
+    } else if (!hasDisconnected && !this.pairModeEnd) {
+      // 全部连上 → 停广播(保持隐身);用户主动可被发现(pairModeEnd)不受影响
       this.stopAdvertising();
-    }, OFFLINE_PROBE_INTERVAL);
-    // 广播启动即尝试连接(find 到的对端立即连,不等 60s 探测轮)
-    this.tryConnectPaired();
+    }
   }
 
   // ── 连接管理 ──
@@ -433,9 +437,8 @@ class NetworkService extends EventEmitter {
             settled = true;
             // 连接失败日志:ECONNREFUSED=防火墙拦/端口未监听,ETIMEDOUT=不可达
             console.error(`[network] 连接 ${p.name} (${address}:${port}) 失败:`, (e as Error).message);
-            // 连接失败:若有 mDNS 发现记录,上层会重试;否则触发短时广播让对端能发现我们
-            const disc = this.discovered.get(p.id);
-            if (!disc) this.startReconnectAdvertising();
+            // 有离线已配对 → 持续广播(对方随时能发现我们并重连,蓝牙手表语义)
+            this.updatePairedBroadcast();
             reject(e);
           }
         });
@@ -514,24 +517,21 @@ class NetworkService extends EventEmitter {
       p.lastSeen = Date.now();
       this.savePaired();
     }
-    // 连接建立 → 若处于"断线重连广播"(仅重连场景设置的 timer),停止广播;
-    // 用户主动开启的可被发现(timer 为 null)不受影响,持续到手动关闭
-    if (this.reconnectAdvertiseTimer) {
-      this.stopAdvertising();
-    }
+    // 连接建立 → 更新广播状态(全部连上则停广播;用户主动可被发现不受影响)
+    this.updatePairedBroadcast();
     this.emit("device-online", { id });
     this.emit("devices-changed");
   }
 
   private markOffline(id: string): void {
-    // 连接断开 → 尝试缓存地址重连(不广播,保持隐身);
-    // 若缓存直连失败(对端 IP 变化),由 connectOutbound 失败路径触发短时广播
+    // 连接断开 → ① 缓存地址直连重试 ② 有离线已配对 → 持续广播(蓝牙手表语义)
     const p = this.paired.find((x) => x.id === id);
     if (p && p.address && p.port && !this.wsClients.has(id) && !this.inboundSockets.has(id)) {
       this.connectOutbound(p, p.address, p.port).catch(() => {
-        this.startReconnectAdvertising();
+        this.updatePairedBroadcast();
       });
     }
+    this.updatePairedBroadcast();
     this.emit("device-offline", { id });
     this.emit("devices-changed");
   }
@@ -610,22 +610,16 @@ class NetworkService extends EventEmitter {
       }
     }, HEARTBEAT_INTERVAL);
     this.probeTimer = setInterval(() => {
-      // 低频探测已配对设备:不依赖配对模式(已配对后回到静默态,探测仍需进行)
-      // 探测前提是 mDNS 能发现对方(对方在可被发现状态或已被我们 find 到)
+      // 低频探测已配对设备:缓存直连 + 持续广播兜底(蓝牙手表语义——有离线已配对就一直播,
+      // 对方上线即被发现;全部连上自动停)
       this.tryConnectPaired();
-      // 若仍有离线已配对设备且 mDNS 无记录(对方静默)→ 周期性补发短时广播
-      // (对方也开着 EM 时会同样广播,双方互相发现→重连)。60s 广播窗口 + 每 2 轮触发,
-      // 持续到连上为止——修复"广播 60s 后永久停,重试 8 次后静默"问题
-      const hasOfflinePaired = this.paired.some(
-        (p) => !this.wsClients.has(p.id) && !this.inboundSockets.has(p.id) && !this.discovered.has(p.id)
-      );
-      if (hasOfflinePaired && !this.advertiseService) {
-        this.startReconnectAdvertising();
-      }
+      this.updatePairedBroadcast();
     }, OFFLINE_PROBE_INTERVAL);
-    // 启动时:缓存地址直连已配对设备(对齐 WiFi 记住网络自动连)。
-    // 不广播——"可被发现"关闭时保持隐身;缓存直连失败才由 connectOutbound 触发短时广播
-    setTimeout(() => this.tryConnectPaired(), 1000);
+    // 启动时:缓存地址直连已配对设备 + 有离线者持续广播(对齐 WiFi 记住网络自动连 + 蓝牙可连接广播)
+    setTimeout(() => {
+      this.tryConnectPaired();
+      this.updatePairedBroadcast();
+    }, 1000);
   }
 }
 
