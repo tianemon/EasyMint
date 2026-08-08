@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { StepIndicator } from "./StepIndicator";
+import { useSettingsStore } from "../../stores/settings-store";
 
 /**
  * 接收端迁移确认弹窗:收到迁移包 → 展示来源/项目/大小 → 用户选目标路径 → 接收/拒绝。
@@ -54,16 +55,17 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
     });
   }, [incoming]);
 
-  // 每次新请求重置状态
+  // 每次新请求:默认父文件夹 = 软件默认项目目录(可改)
+  const defaultProjectDir = useSettingsStore((s) => s.defaultProjectDir);
   useEffect(() => {
     if (incoming) {
-      setTargetPath("");
+      setTargetPath(defaultProjectDir || "~/EasyMintProject");
       setError(null);
       setAccepting(false);
       setAccepted(false);
       setProgressPct(null);
     }
-  }, [incoming]);
+  }, [incoming, defaultProjectDir]);
 
   const handleBrowse = async () => {
     setBrowsing(true);

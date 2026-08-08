@@ -23,6 +23,8 @@ interface ScanFile {
 
 export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: TransferModalProps): JSX.Element | null {
   const [projectPath, setProjectPath] = useState("");
+  // 已打开过的项目(下拉选择,免手动找路径)
+  const [projects, setProjects] = useState<Array<{ id: string; name: string; path: string }>>([]);
   const [files, setFiles] = useState<ScanFile[] | null>(null);
   const [totalSize, setTotalSize] = useState(0);
   const [scanning, setScanning] = useState(false);
@@ -49,7 +51,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
     });
   }, []);
 
-  // 重置状态
+  // 打开时:加载已打开过的项目 + 重置状态
   useEffect(() => {
     if (open) {
       setProjectPath("");
@@ -59,6 +61,9 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
       setTransferring(false);
       setPhase(null);
       setProgressPct(0);
+      window.electronAPI.project.list().then((ps) => {
+        setProjects(ps.filter((p) => p.exists).map((p) => ({ id: p.id, name: p.name, path: p.path })));
+      }).catch(() => {});
     }
   }, [open]);
 
@@ -120,14 +125,24 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
         </div>
 
         <div className="px-6 py-3 space-y-3 flex-1 overflow-y-auto">
-          {/* 项目路径 */}
+          {/* 项目:已打开的项目下拉 + 自由输入 */}
           <div>
-            <label className="text-xs text-text-secondary block mb-1">项目路径</label>
+            <label className="text-xs text-text-secondary block mb-1">选择项目</label>
+            <select
+              className="w-full px-2.5 py-1.5 rounded-lg bg-surface border border-border text-xs text-text-primary outline-none focus:border-accent mb-1.5"
+              value={projectPath}
+              onChange={(e) => { setProjectPath(e.target.value); setFiles(null); }}
+            >
+              <option value="">选择已打开的项目…</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.path}>{p.name}</option>
+              ))}
+            </select>
             <div className="flex gap-2">
               <input
                 value={projectPath}
                 onChange={(e) => { setProjectPath(e.target.value); setFiles(null); }}
-                placeholder="选择要迁移的项目目录"
+                placeholder="或直接输入/选择项目目录"
                 className="flex-1 px-2.5 py-1.5 rounded-lg bg-surface border border-border text-xs text-text-primary outline-none focus:border-accent"
               />
               <button type="button" className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:bg-surface-hover transition-colors shrink-0" onClick={browseProject}>
