@@ -127,17 +127,29 @@ class MigrationService extends EventEmitter {
 
   // ── 发送端 ──
 
-  /** 打包清单文件并传输(清单 + 全部文件分块;返回 transferId) */
+  /** 打包清单文件并传输(清单 + 全部文件分块;返回 transferId)。
+      会话文件(opts.sessionFile = 文件名)从全局 sessions 目录读取,加入传输列表——
+      否则 manifest 里有引用但文件没传,接收端 restoreSession 读不到 */
   async startTransfer(projectPath: string, deviceId: string, files: Array<{ relPath: string; absPath: string }>, opts?: {
     sessionFile?: string;
   }): Promise<{ ok: boolean; transferId?: string; error?: string }> {
     const peer = networkService.listPaired().find((p) => p.id === deviceId);
     if (!peer?.online) return { ok: false, error: "目标设备不在线" };
 
+    // 会话文件加入传输列表(relPath = 会话文件名,接收端按 manifest.sessionFile 定位)
+    const allFiles = [...files];
+    if (opts?.sessionFile) {
+      const encoded = projectPath.replace(/[:/\\]/g, "-");
+      const sessionAbs = path.join(os.homedir(), ".easymint", "sessions", encoded, opts.sessionFile);
+      if (fs.existsSync(sessionAbs)) {
+        allFiles.push({ relPath: opts.sessionFile, absPath: sessionAbs });
+      }
+    }
+
     // 计算清单(哈希)
     const manifestFiles: MigrationFile[] = [];
     let total = 0;
-    for (const f of files) {
+    for (const f of allFiles) {
       let size = 0;
       let hash = "";
       try {
@@ -181,8 +193,8 @@ class MigrationService extends EventEmitter {
     // 2. 分块传输(不一次性进内存,读一块发一块;每块广播发送进度供前端进度条)
     this.emit("send-progress", { transferId, sent: 0, total, phase: "transferring" });
     let sentBytes = 0;
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i]!;
+    for (let i = 0; i < allFiles.length; i++) {
+      const f = allFiles[i]!;
       const buf = fs.readFileSync(f.absPath);
       const totalChunks = Math.max(1, Math.ceil(buf.length / CHUNK_SIZE));
       for (let c = 0; c < totalChunks; c++) {
@@ -343,8 +355,11 @@ class MigrationService extends EventEmitter {
     // 会话恢复:改写主会话 jsonl 首行 cwd → 放入 mac 编码目录
     const targetPath = t.targetPath;
     if (t.manifest.sessionFile) {
+      const sessionInProject = path.join(targetPath, t.manifest.sessionFile);
       try {
-        this.restoreSession(path.join(targetPath, t.manifest.sessionFile), targetPath);
+        this.restoreSession(sessionInProject, targetPath);
+        // 会话已归位到全局 sessions 目录,删除项目目录里的残留(会话不属项目文件)
+        fs.rmSync(sessionInProject, { force: true });
       } catch (e) {
         console.error("[migration] 会话恢复失败:", (e as Error).message);
       }

@@ -113,10 +113,13 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
     setError(null);
     setPhase("waiting"); // 先显示等待确认(主进程广播会覆盖)
     try {
+      // 取最新主会话 jsonl(随项目一起传输,接收端恢复会话)
+      const sessionFile = await window.electronAPI.migration.getSessionFile(projectPath.trim());
       const r = await window.electronAPI.migration.start({
         projectPath: projectPath.trim(),
         deviceId,
         files: files.map((f) => ({ relPath: f.relPath, absPath: f.absPath })),
+        sessionFile: sessionFile ?? undefined,
       });
       if (!r.ok) {
         setError(r.error ?? "传输失败");
