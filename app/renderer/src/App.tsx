@@ -78,6 +78,18 @@ export function App(): JSX.Element {
     return () => { unsubReceipt(); };
   }, []);
 
+  // 接收端迁移完成订阅(本机收到迁移并恢复 → 提示落位路径)
+  useEffect(() => {
+    const unsubCompleted = window.electronAPI.migration.onCompleted((d) => {
+      setReceipt({
+        ok: true,
+        text: `迁移完成: 「${d.projectName}」已恢复到本机\n${d.projectPath}`,
+      });
+      setTimeout(() => setReceipt(null), 8000);
+    });
+    return () => { unsubCompleted(); };
+  }, []);
+
   // Windows 防火墙放行提示(设备互联,一次性,可关闭)
   const [firewallHint, setFirewallHint] = useState<number | null>(null);
   useEffect(() => {

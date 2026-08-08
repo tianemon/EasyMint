@@ -30,6 +30,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
   const [targetPath, setTargetPath] = useState("");
   const [browsing, setBrowsing] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 接收进度(接收后主进程每块广播)
   const [progressPct, setProgressPct] = useState<number | null>(null);
@@ -48,6 +49,8 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
       setTargetPath("");
       setError(null);
       setAccepting(false);
+      setAccepted(false);
+      setProgressPct(null);
     }
   }, [incoming]);
 
@@ -78,7 +81,10 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
       setError(r.error ?? "接收失败");
       return;
     }
-    onClose();
+    // 接收成功:显示落位路径,短暂停留后关闭
+    setAccepted(true);
+    setTargetPath(finalPath);
+    setTimeout(() => onClose(), 2000);
   };
 
   return (
@@ -132,6 +138,14 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
                 <div className="h-full bg-accent rounded-full transition-all duration-200" style={{ width: `${progressPct}%` }} />
               </div>
               <div className="text-[10px] text-text-secondary">接收中 {progressPct}%</div>
+            </div>
+          )}
+
+          {/* 接收成功:显示落位路径 */}
+          {accepted && (
+            <div className="flex items-center gap-2 text-xs text-accent">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              已恢复到：{targetPath}
             </div>
           )}
         </div>
