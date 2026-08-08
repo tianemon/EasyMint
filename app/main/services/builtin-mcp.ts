@@ -198,6 +198,55 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
     },
   } as any) as any);
 
+  // 设备管理工具(与手动入口同一服务)
+  tools.push(defineTool({
+    name: "toggle_discoverable", label: "可被发现开关",
+    description: "开启/关闭本机的可被发现状态(开启后其他设备能发现并配对,5 分钟自动关闭;已配对连接不受影响)。",
+    promptSnippet: "开关可被发现状态",
+    parameters: {
+      type: "object" as const,
+      properties: { on: { type: "boolean" as const, description: "true 开启 / false 关闭" } },
+      required: ["on"],
+    },
+    async execute(_tid: any, params: any) {
+      if (params.on) net.startPairMode();
+      else net.stopPairMode();
+      return { content: [{ type: "text" as const, text: params.on ? "已开启可被发现(5 分钟后自动关闭)" : "已关闭可被发现" }] };
+    },
+  } as any) as any);
+
+  tools.push(defineTool({
+    name: "unpair_device", label: "解除配对",
+    description: "解除与指定设备的配对(断开连接并删除持久化配对记录)。",
+    promptSnippet: "解除与设备的配对",
+    parameters: {
+      type: "object" as const,
+      properties: { deviceId: { type: "string" as const, description: "设备 ID(list_devices 返回)" } },
+      required: ["deviceId"],
+    },
+    async execute(_tid: any, params: any) {
+      const d = net.listPaired().find((x) => x.id === params.deviceId);
+      if (!d) return { content: [{ type: "text" as const, text: `设备 ${params.deviceId} 不在已配对列表` }] };
+      net.unpair(params.deviceId);
+      return { content: [{ type: "text" as const, text: `已解除与 ${d.name} 的配对` }] };
+    },
+  } as any) as any);
+
+  tools.push(defineTool({
+    name: "rename_device", label: "设备改名",
+    description: "修改本机设备名称(其他设备列表展示用,持久化)。",
+    promptSnippet: "修改本机设备名称",
+    parameters: {
+      type: "object" as const,
+      properties: { name: { type: "string" as const, description: "新设备名" } },
+      required: ["name"],
+    },
+    async execute(_tid: any, params: any) {
+      net.setDeviceName(params.name as string);
+      return { content: [{ type: "text" as const, text: `设备名已改为「${net.getSelf().name}」` }] };
+    },
+  } as any) as any);
+
   tools.push(defineTool({
     name: "request_pair", label: "请求配对",
     description: "向指定设备发起配对请求(需要对方开启「可被发现」)。对方设备将弹出确认窗口,用户确认后配对完成并持久化。",

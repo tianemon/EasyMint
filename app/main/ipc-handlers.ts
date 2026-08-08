@@ -477,11 +477,29 @@ const filePath = p.join(projectPath, "task.json");
   // 接收端事件 → 前端(弹窗确认/进度/完成/失败)
   mig.on("message", (e) => broadcast("migration:event", e));
   // 发送端收到接收端回执 → 前端提示"已在对方设备恢复完成"
-  mig.on("done", (e: { projectName?: string; projectPath?: string }) => {
+  mig.on("done", (e: { projectName?: string; projectPath?: string; transferId?: string }) => {
     broadcast("migration:receipt", { ok: true, ...e });
+    // 注入系统消息给发起迁移的会话(Mint 主导场景下,Mint 能看到迁移结果并衔接下一步)
+    if (e.projectPath) {
+      const text = `迁移完成: 项目已在目标设备恢复成功。\n接收端已自动完成: 解压落位、会话恢复(cwd 已改写为对方路径)、通知对端 Mint。\n你可以告知用户迁移已完成,并提示在目标设备上继续开发。`;
+      void listSessions(e.projectPath).then((sessions) => {
+        if (sessions.length > 0) {
+          agentService.injectSystemMessage(sessions[0]!.sessionId, text, "delegation");
+        }
+      });
+    }
   });
-  mig.on("failed", (e: { projectName?: string; failures?: string[] }) => {
+  mig.on("failed", (e: { projectName?: string; failures?: string[]; projectPath?: string }) => {
     broadcast("migration:receipt", { ok: false, ...e });
+    if (e.projectPath) {
+      const detail = (e.failures?.length ?? 0) > 0 ? `\n未通过校验的文件: ${e.failures!.slice(0, 5).join(", ")}${(e.failures?.length ?? 0) > 5 ? "…" : ""}` : "";
+      const text = `迁移失败: 目标设备恢复未成功${detail}。\n建议: 检查目标设备状态后重试迁移,或告知用户手动排查。`;
+      void listSessions(e.projectPath).then((sessions) => {
+        if (sessions.length > 0) {
+          agentService.injectSystemMessage(sessions[0]!.sessionId, text, "delegation");
+        }
+      });
+    }
   });
   // 迁移完成 → 注入系统消息给本机 Mint(接收端,对齐上下文继续开发)
   mig.on("completed", (e: { projectName: string; projectPath: string; fromName: string }) => {

@@ -46,6 +46,16 @@ Wait for the user to name the target device.
 - Target device is 已配对但离线 → tell the user it's offline; suggest starting EM on that device, then retry.
 - Target device is not paired → **ask the user first** ("目标设备还没配对，我会发起配对请求，对方需要确认弹窗"), then call `request_pair` with the deviceId. Wait for the user to confirm the pairing dialog was accepted (they can check 设备互联 panel). After pairing, re-run `list_devices` to confirm online.
 
+> Device management tools: `toggle_discoverable` (open/close discoverability — ask the
+> other device's user to enable it if they are not visible), `unpair_device` (remove a
+> pairing), `rename_device` (rename this device). Use them only when the user asks.
+
+### Step 5 (after receipt): report the result
+
+When the target device finishes restoring, a system message is injected into
+this session ("迁移完成…" or "迁移失败…"). Relay it to the user and suggest
+next steps (e.g. continue development on the target device).
+
 ### Step 4: Prepare the migration manifest
 
 Call `prepare_migration` with the project path. The tool returns a file list

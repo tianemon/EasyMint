@@ -58,6 +58,8 @@ const MAX_TRANSFER_SIZE = 500 * 1024 * 1024; // 单次传输上限 500MB
 
 class MigrationService extends EventEmitter {
   private pending = new Map<string, PendingTransfer>();
+  /** 发送端记录:transferId → 发起迁移的项目路径(回执到达时定位会话,注入系统消息) */
+  private sentTransfers = new Map<string, string>();
   private nextId = 0;
 
   constructor() {
@@ -81,11 +83,11 @@ class MigrationService extends EventEmitter {
         break;
       case "transfer-done":
         // 发送端收到接收端回执:迁移完成(接收端已恢复)
-        this.emit("done", { peerId, ...msg });
+        this.emit("done", { peerId, projectPath: this.sentTransfers.get(msg.transferId as string), ...msg });
         break;
       case "transfer-failed":
         // 发送端收到接收端失败报告
-        this.emit("failed", { peerId, ...msg });
+        this.emit("failed", { peerId, projectPath: this.sentTransfers.get(msg.transferId as string), ...msg });
         break;
       default:
         this.emit("message", { peerId, msg });
@@ -152,6 +154,7 @@ class MigrationService extends EventEmitter {
       }
     }
     networkService.sendToDevice(deviceId, { type: "transfer-complete", transferId });
+    this.sentTransfers.set(transferId, projectPath);
     return { ok: true, transferId };
   }
 
