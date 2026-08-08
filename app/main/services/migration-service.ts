@@ -135,7 +135,8 @@ class MigrationService extends EventEmitter {
     const ok = networkService.sendToDevice(deviceId, { type: "transfer-request", transferId, manifest });
     if (!ok) return { ok: false, error: "发送失败(连接已断开)" };
 
-    // 2. 分块传输(不一次性进内存,读一块发一块)
+    // 2. 分块传输(不一次性进内存,读一块发一块;每块广播发送进度供前端进度条)
+    let sentBytes = 0;
     for (let i = 0; i < files.length; i++) {
       const f = files[i]!;
       const buf = fs.readFileSync(f.absPath);
@@ -151,10 +152,16 @@ class MigrationService extends EventEmitter {
           data: chunk.toString("base64"),
         });
         if (!ok2) return { ok: false, error: "传输中断(连接断开)" };
+        sentBytes += chunk.length;
+        // 节流:每 ~256KB 或最后一块广播一次
+        if (c % 8 === 0 || (i === files.length - 1 && c === totalChunks - 1)) {
+          this.emit("send-progress", { transferId, sent: sentBytes, total });
+        }
       }
     }
     networkService.sendToDevice(deviceId, { type: "transfer-complete", transferId });
     this.sentTransfers.set(transferId, projectPath);
+    this.emit("send-progress", { transferId, sent: total, total, done: true });
     return { ok: true, transferId };
   }
 

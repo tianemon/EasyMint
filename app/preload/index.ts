@@ -388,5 +388,23 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("migration:receipt", h);
       return () => ipcRenderer.removeListener("migration:receipt", h);
     },
+    // 接收端传输进度(每块到达更新)
+    onProgress: (cb: (d: { transferId: string; received: number }) => void) => {
+      const h = (_e: Electron.IpcRendererEvent, d: { transferId: string; received: number }) => cb(d);
+      ipcRenderer.on("migration:progress", h);
+      return () => ipcRenderer.removeListener("migration:progress", h);
+    },
+    // 发送端传输进度(本地发送统计)
+    onSendProgress: (cb: (d: { transferId: string; sent: number; total: number; done?: boolean }) => void) => {
+      const h = (_e: Electron.IpcRendererEvent, d: { transferId: string; sent: number; total: number; done?: boolean }) => cb(d);
+      ipcRenderer.on("migration:send-progress", h);
+      return () => ipcRenderer.removeListener("migration:send-progress", h);
+    },
+  },
+  // Windows 防火墙放行提示(设备互联,一次)
+  onFirewallHint: (cb: (d: { port: number }) => void) => {
+    const h = (_e: Electron.IpcRendererEvent, d: { port: number }) => cb(d);
+    ipcRenderer.on("device:firewall-hint", h);
+    return () => ipcRenderer.removeListener("device:firewall-hint", h);
   },
 });

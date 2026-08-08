@@ -476,6 +476,8 @@ const filePath = p.join(projectPath, "task.json");
   const mig = migrationService;
   // 接收端事件 → 前端(弹窗确认/进度/完成/失败)
   mig.on("message", (e) => broadcast("migration:event", e));
+  // 发送端传输进度 → 前端(进度条)
+  mig.on("send-progress", (e) => broadcast("migration:send-progress", e));
   // 发送端收到接收端回执 → 前端提示"已在对方设备恢复完成"
   mig.on("done", (e: { projectName?: string; projectPath?: string; transferId?: string }) => {
     broadcast("migration:receipt", { ok: true, ...e });
@@ -538,6 +540,10 @@ const filePath = p.join(projectPath, "task.json");
   net.on("devices-changed", () => broadcast("device:changed", {}));
 
   ipcMain.handle("device:getSelf", () => net.getSelf());
+  // Windows 防火墙放行提示(设备互联首次启动时,一次)
+  net.once("firewall-hint", ({ port }: { port: number }) => {
+    broadcast("device:firewall-hint", { port });
+  });
   ipcMain.handle("device:listPaired", () => net.listPaired());
   ipcMain.handle("device:listDiscovered", () => net.listDiscovered());
   ipcMain.handle("device:setName", (_e, { name }) => net.setDeviceName(name));

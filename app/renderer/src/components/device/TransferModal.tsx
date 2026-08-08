@@ -27,7 +27,16 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
   const [scanning, setScanning] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [progress, setProgress] = useState<string>("");
+  const [progressPct, setProgressPct] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  // 发送端传输进度(主进程每块广播)
+  useEffect(() => {
+    return window.electronAPI.migration.onSendProgress((d) => {
+      setProgressPct(d.total > 0 ? Math.min(100, Math.round((d.sent / d.total) * 100)) : 0);
+      if (d.done) setProgress("传输完成，等待接收端恢复…");
+    });
+  }, []);
 
   // 重置状态
   useEffect(() => {
@@ -38,6 +47,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
       setError(null);
       setTransferring(false);
       setProgress("");
+      setProgressPct(0);
     }
   }, [open]);
 
@@ -167,7 +177,14 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
             </div>
           )}
 
-          {progress && <div className="text-xs text-accent">{progress}</div>}
+          {transferring && (
+            <div className="space-y-1">
+              <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                <div className="h-full bg-accent rounded-full transition-all duration-200" style={{ width: `${progressPct}%` }} />
+              </div>
+              <div className="text-[10px] text-text-secondary">{progressPct}% · {progress || "传输中…"}</div>
+            </div>
+          )}
           {error && <div className="text-[11px] text-danger">{error}</div>}
         </div>
 

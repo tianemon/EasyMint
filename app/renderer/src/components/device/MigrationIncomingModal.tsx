@@ -31,6 +31,16 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
   const [browsing, setBrowsing] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 接收进度(接收后主进程每块广播)
+  const [progressPct, setProgressPct] = useState<number | null>(null);
+
+  useEffect(() => {
+    return window.electronAPI.migration.onProgress((d) => {
+      if (incoming && d.transferId === incoming.transferId) {
+        setProgressPct(incoming.totalSize > 0 ? Math.min(100, Math.round((d.received / incoming.totalSize) * 100)) : 0);
+      }
+    });
+  }, [incoming]);
 
   // 每次新请求重置状态
   useEffect(() => {
@@ -114,6 +124,16 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
           </div>
 
           {error && <div className="text-[11px] text-danger">{error}</div>}
+
+          {/* 接收进度 */}
+          {accepting && progressPct !== null && (
+            <div className="space-y-1">
+              <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                <div className="h-full bg-accent rounded-full transition-all duration-200" style={{ width: `${progressPct}%` }} />
+              </div>
+              <div className="text-[10px] text-text-secondary">接收中 {progressPct}%</div>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border shrink-0">

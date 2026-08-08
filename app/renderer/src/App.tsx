@@ -78,6 +78,12 @@ export function App(): JSX.Element {
     return () => { unsubReceipt(); };
   }, []);
 
+  // Windows 防火墙放行提示(设备互联,一次性,可关闭)
+  const [firewallHint, setFirewallHint] = useState<number | null>(null);
+  useEffect(() => {
+    return window.electronAPI.onFirewallHint(({ port }) => setFirewallHint(port));
+  }, []);
+
   return (
     <ErrorBoundary>
       <div id="app-shell">
@@ -99,6 +105,13 @@ export function App(): JSX.Element {
         {receipt && (
           <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4 py-2.5 rounded-lg border shadow-lg text-sm modal-card ${receipt.ok ? "bg-surface-alt border-border text-text-primary" : "bg-surface-alt border-danger/50 text-danger"}`}>
             {receipt.text}
+          </div>
+        )}
+        {/* Windows 防火墙放行提示(设备互联端口,一次性) */}
+        {firewallHint !== null && (
+          <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-3 px-4 py-2.5 rounded-lg bg-surface-alt border border-border shadow-lg text-xs text-text-primary">
+            <span>设备互联需要 Windows 防火墙放行端口 {firewallHint}——首次弹窗时请勾选「专用网络」并允许访问</span>
+            <button className="text-text-secondary hover:text-text-primary shrink-0" onClick={() => setFirewallHint(null)}>✕</button>
           </div>
         )}
         {/* 接收端迁移确认弹窗(全应用层) */}

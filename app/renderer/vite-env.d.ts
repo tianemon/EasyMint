@@ -259,7 +259,10 @@ interface ElectronAPI {
     onIncoming: (cb: (d: { transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }) => void) => () => void;
     onCompleted: (cb: (d: { projectName: string; projectPath: string; fromName: string }) => void) => () => void;
     onReceipt: (cb: (d: { ok: boolean; projectName?: string; projectPath?: string; failures?: string[] }) => void) => () => void;
+    onProgress: (cb: (d: { transferId: string; received: number }) => void) => () => void;
+    onSendProgress: (cb: (d: { transferId: string; sent: number; total: number; done?: boolean }) => void) => () => void;
   };
+  onFirewallHint: (cb: (d: { port: number }) => void) => () => void;
   task: {
     read: (projectPath: string) => Promise<{ tasks: { id: string; title: string; description: string; command: string; status: string; attempts: number }[] }>;
     getSubagentMessages: (sessionFile: string) => Promise<{ type: string; message: unknown }[]>;
