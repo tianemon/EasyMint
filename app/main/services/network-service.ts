@@ -24,7 +24,6 @@ import { Bonjour } from "bonjour-service";
 const PAIR_MODE_TIMEOUT = 5 * 60 * 1000; // 配对模式 5 分钟自动退出
 const HEARTBEAT_INTERVAL = 30 * 1000; // 已连接心跳 30s
 const OFFLINE_PROBE_INTERVAL = 60 * 1000; // 离线设备探测 60s
-const MANUAL_SCAN_DURATION = 30 * 1000; // 手动扫描 30s
 const WS_PORT = 47777; // 局域网 WS 监听端口（固定，防火墙放行一次）
 const SERVICE_TYPE = "easymint"; // mDNS 服务类型
 const PAIRED_FILE = path.join(os.homedir(), ".easymint", "paired-devices.json");
@@ -84,7 +83,6 @@ class NetworkService extends EventEmitter {
   private advertiseTimer: NodeJS.Timeout | null = null;
   private pairModeEnd: number | null = null; // 配对模式截止时间
   private pairModeTimer: NodeJS.Timeout | null = null;
-  private manualScanTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private probeTimer: NodeJS.Timeout | null = null;
   private wss: WebSocketServer | null = null;
@@ -190,9 +188,10 @@ class NetworkService extends EventEmitter {
     return this.paired.map((p) => ({ ...p, online: onlineIds.has(p.id) }));
   }
 
-  /** 发现的可用设备（配对模式中） */
+  /** 发现的可用设备(不含已配对——已配对设备在"已配对设备"列表展示) */
   listDiscovered(): DiscoveredDevice[] {
-    return [...this.discovered.values()];
+    const pairedIds = new Set(this.paired.map((p) => p.id));
+    return [...this.discovered.values()].filter((d) => !pairedIds.has(d.id));
   }
 
   getDeviceName(): string { return this.deviceName; }
@@ -215,15 +214,6 @@ class NetworkService extends EventEmitter {
     this.emit("devices-changed");
     if (this.pairModeTimer) clearTimeout(this.pairModeTimer);
     this.pairModeTimer = setTimeout(() => this.stopPairMode(), PAIR_MODE_TIMEOUT);
-  }
-
-  /** 手动扫描 30s（不广播，只监听） */
-  startManualScan(): void {
-    this.emit("devices-changed");
-    if (this.manualScanTimer) clearTimeout(this.manualScanTimer);
-    this.manualScanTimer = setTimeout(() => {
-      this.emit("devices-changed");
-    }, MANUAL_SCAN_DURATION);
   }
 
   /** 停止配对模式（回到静默态:不广播自己,但扫描保持——仍能看到其他开了可被发现的设备） */
@@ -290,11 +280,12 @@ class NetworkService extends EventEmitter {
   /** 常驻扫描:启动即开始监听其他设备的通告(不依赖可被发现开关)。
       蓝牙手机随时可搜附近设备,只是自己不被搜到(不广播) */
   private scanningStarted = false;
+  private scanner: import("bonjour-service").Browser | null = null;
   private startScanning(): void {
     if (this.scanningStarted) return;
     this.scanningStarted = true;
     try {
-      this.bonjour.find({ type: SERVICE_TYPE }, (service) => {
+      this.scanner = this.bonjour.find({ type: SERVICE_TYPE }, (service) => {
         const id = (service.txt?.id as string) ?? "";
         const name = (service.txt?.name as string) ?? service.name;
         if (!id || id === this.deviceId) return;
@@ -304,6 +295,13 @@ class NetworkService extends EventEmitter {
         this.emit("devices-changed");
       });
     } catch { /* 扫描失败忽略 */ }
+  }
+
+  /** 手动重新扫描:清空当前列表 + 强制重新查询(bonjour update 重新触发 up 回调) */
+  rescan(): void {
+    this.discovered.clear();
+    try { this.scanner?.update(); } catch { /* 忽略 */ }
+    this.emit("devices-changed");
   }
 
   /** 广播自己(可被发现开关/配对模式/断线重连触发)。只 publish,不碰扫描 */
