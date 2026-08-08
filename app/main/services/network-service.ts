@@ -101,6 +101,8 @@ class NetworkService extends EventEmitter {
     this.loadIdentity();
     this.loadPaired();
     this.startWsServer();
+    // 扫描常驻:任何时刻能看到"开了可被发现"的其他设备(对齐蓝牙随时可搜)
+    this.startScanning();
   }
 
   // ── 身份 ──
@@ -224,11 +226,10 @@ class NetworkService extends EventEmitter {
     }, MANUAL_SCAN_DURATION);
   }
 
-  /** 停止配对模式（回到静默态） */
+  /** 停止配对模式（回到静默态:不广播自己,但扫描保持——仍能看到其他开了可被发现的设备） */
   stopPairMode(): void {
     this.pairModeEnd = null;
     this.stopAdvertising();
-    this.discovered.clear();
     if (this.pairModeTimer) { clearTimeout(this.pairModeTimer); this.pairModeTimer = null; }
     this.emit("devices-changed");
   }
@@ -283,21 +284,15 @@ class NetworkService extends EventEmitter {
   // ── 广播/扫描（mDNS） ──
   // 注意:mDNS 通告由协议层自动持续广播,应用只需 publish 一次——反复 publish 同名服务会报
   // "Service name is already in use on the network"(实测踩坑)。配对期 2s 的"通告间隔"由协议维护。
+  // 关键设计(对齐蓝牙):扫描(find)常驻——随时能看到"开了可被发现"的其他设备;
+  // 广播(publish)按需——只有可被发现开关/配对模式/断线重连时才发布自己。
 
-  private startAdvertising(): void {
-    if (this.advertiseService) return;
-    try {
-      // 服务名带设备名,对端可读;txt 携带设备 UUID(认 ID 不认 IP)
-      this.advertiseService = this.bonjour.publish({
-        name: `${this.deviceName} (EM)`,
-        type: SERVICE_TYPE,
-        port: this.listeningPort,
-        txt: { id: this.deviceId, name: this.deviceName },
-      });
-    } catch (e) {
-      console.error("[network] mDNS 发布失败:", (e as Error).message);
-    }
-    // 开始扫描对方通告(每次 find 都新 Browser,配对期持续监听;stop 时销毁)
+  /** 常驻扫描:启动即开始监听其他设备的通告(不依赖可被发现开关)。
+      蓝牙手机随时可搜附近设备,只是自己不被搜到(不广播) */
+  private scanningStarted = false;
+  private startScanning(): void {
+    if (this.scanningStarted) return;
+    this.scanningStarted = true;
     try {
       this.bonjour.find({ type: SERVICE_TYPE }, (service) => {
         const id = (service.txt?.id as string) ?? "";
@@ -311,14 +306,26 @@ class NetworkService extends EventEmitter {
     } catch { /* 扫描失败忽略 */ }
   }
 
+  /** 广播自己(可被发现开关/配对模式/断线重连触发)。只 publish,不碰扫描 */
+  private startAdvertising(): void {
+    if (this.advertiseService) return;
+    try {
+      // 服务名带设备名,对端可读;txt 携带设备 UUID(认 ID 不认 IP)
+      this.advertiseService = this.bonjour.publish({
+        name: `${this.deviceName} (EM)`,
+        type: SERVICE_TYPE,
+        port: this.listeningPort,
+        txt: { id: this.deviceId, name: this.deviceName },
+      });
+    } catch (e) {
+      console.error("[network] mDNS 发布失败:", (e as Error).message);
+    }
+  }
+
+  /** 停止广播(Service.stop 发送 goodbye 包,对端立即感知离线)。扫描保持运行 */
   private stopAdvertising(): void {
-    // 停止通告(Service.stop 发送 goodbye 包,对端立即感知离线)
     try { this.advertiseService?.stop(); } catch { /* */ }
     this.advertiseService = null;
-    // 销毁 Bonjour 实例(停止全部 find/广播),重建供下次使用
-    try { this.bonjour.destroy(); } catch { /* */ }
-    this.bonjour = new Bonjour();
-    this.discovered.clear();
     if (this.reconnectAdvertiseTimer) { clearTimeout(this.reconnectAdvertiseTimer); this.reconnectAdvertiseTimer = null; }
   }
 

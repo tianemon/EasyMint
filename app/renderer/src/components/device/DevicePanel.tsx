@@ -207,7 +207,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
             </div>
             {discovered.length === 0 ? (
               <div className="text-[11px] text-text-muted px-1">
-                {pairMode ? "正在发现附近的设备…" : "未开启可被发现，无法发现其他设备。"}
+                {pairMode ? "正在发现附近的设备…" : "持续扫描中——对方开启「可被发现」后会自动出现。"}
               </div>
             ) : (
               <div className="space-y-1.5">
