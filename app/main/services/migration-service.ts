@@ -570,10 +570,11 @@ class MigrationService extends EventEmitter {
     fs.mkdirSync(dir, { recursive: true });
     const dest = path.join(dir, fileName);
     fs.writeFileSync(dest, lines.join("\n") + "\n");
-    // 验证落盘 + cwd 正确
+    // 验证落盘 + cwd 正确(JSON.parse 比较——字符串 includes 会被反斜杠转义误判,
+    // Windows 路径 D:\x → 文件里是 D:\\x,includes 匹配不上 → 文件在了却报失败,实测踩坑)
     try {
-      const written = fs.readFileSync(dest, "utf-8").split("\n")[0];
-      return fs.existsSync(dest) && written.includes(`"cwd":"${projectPath}"`);
+      const written = JSON.parse(fs.readFileSync(dest, "utf-8").split("\n")[0]!);
+      return fs.existsSync(dest) && written.cwd === projectPath;
     } catch {
       return false;
     }
