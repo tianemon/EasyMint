@@ -170,7 +170,7 @@ class MigrationService extends EventEmitter {
     this.emit("send-progress", { transferId, sent: 0, total: 0, phase: "packing" });
     try {
       fs.mkdirSync(MIGRATION_CACHE_DIR, { recursive: true });
-      await this.buildZip(scan, zipPath, projectName);
+      await this.buildZip(scan, zipPath, projectName, projectPath);
     } catch (e) {
       return { ok: false, error: `打包失败: ${(e as Error).message}` };
     }
@@ -240,7 +240,7 @@ class MigrationService extends EventEmitter {
   }
 
   /** 打包 zip:项目文件(相对项目根) + 会话文件(前缀 .easymint-session/) */
-  private buildZip(scan: ScanResult, zipPath: string, projectName: string): Promise<void> {
+  private buildZip(scan: ScanResult, zipPath: string, projectName: string, projectPath: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const output = fs.createWriteStream(zipPath);
       const archive = new ZipArchive({ zlib: { level: 6 } });
@@ -252,8 +252,10 @@ class MigrationService extends EventEmitter {
         archive.file(f.absPath, { name: f.relPath });
       }
       // 会话文件:.easymint-session/ 前缀(接收端识别并恢复)
+      // 注意:编码必须用真实项目路径(与 scanProject 一致)——用 projectName 会解析成
+      // 当前工作目录下的路径,会话目录编码错误 → 文件找不到 → 没打进 zip(实测踩坑)
       if (scan.sessionFile) {
-        const encoded = path.resolve(projectName).replace(/[:/\\]/g, "-");
+        const encoded = path.resolve(projectPath).replace(/[:/\\]/g, "-");
         const sessionAbs = path.join(os.homedir(), ".easymint", "sessions", encoded, scan.sessionFile);
         if (fs.existsSync(sessionAbs)) {
           archive.file(sessionAbs, { name: `.easymint-session/${scan.sessionFile}` });
