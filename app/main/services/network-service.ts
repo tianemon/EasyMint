@@ -37,6 +37,9 @@ export interface PairedDevice {
   key: string; // 配对密钥（随机生成，持久化）
   pairedAt: number;
   lastSeen: number; // 最后在线时间戳
+  /** 最后已知地址/端口(重连优先直连,对齐蓝牙已配对设备直接连接;IP 变化时失效) */
+  address?: string;
+  port?: number;
 }
 
 export interface DiscoveredDevice {
@@ -319,39 +322,56 @@ class NetworkService extends EventEmitter {
     if (this.reconnectAdvertiseTimer) { clearTimeout(this.reconnectAdvertiseTimer); this.reconnectAdvertiseTimer = null; }
   }
 
-  /** 断线重连广播:连接断开/启动时短时广播(find 对端 + 被对端发现),连接建立后停止。
-      蓝牙同理:配对后常态静默,断线重连需重新广播——否则双方都静默时永远互相发现不了 */
+  /** 断线重连广播:缓存直连失败时短时广播(find 对端 + 被对端发现),连接建立后停止。
+      仅"已配对设备连不上"时触发(IP 变化/对端重启)——保持"可被发现关闭 = 隐身"的常态。
+      蓝牙同理:已配对直接连接,重连失败才需重新可发现 */
   private reconnectAdvertiseTimer: NodeJS.Timeout | null = null;
   private startReconnectAdvertising(): void {
     if (this.pairModeEnd && this.pairModeEnd > Date.now()) return; // 配对模式已有广播
     this.startAdvertising();
     if (this.reconnectAdvertiseTimer) clearTimeout(this.reconnectAdvertiseTimer);
     this.reconnectAdvertiseTimer = setTimeout(() => {
-      // 60s 后若仍未连上,停止广播(等下次断线/启动再触发)
+      // 60s 后若仍未连上,停止广播(等下次断线/探测再触发)
       this.stopAdvertising();
     }, OFFLINE_PROBE_INTERVAL);
+    // 广播启动即尝试连接(find 到的对端立即连,不等 60s 探测轮)
+    this.tryConnectPaired();
   }
 
   // ── 连接管理 ──
 
-  /** 建立出站连接（连接已配对设备） */
+  /** 建立出站连接（连接已配对设备）。成功:更新缓存地址 + 停重连广播;失败:无 mDNS 回退时触发短时广播 */
   private async connectOutbound(p: PairedDevice, address: string, port: number): Promise<void> {
     return new Promise((resolve, reject) => {
+      let settled = false;
       try {
         const ws = new WebSocket(`ws://${address}:${port}`);
         ws.on("open", () => {
+          // 连接成功 → 更新缓存地址(IP 可能已变),持久化
+          p.address = address;
+          p.port = port;
+          this.savePaired();
           this.wsClients.set(p.id, ws);
           ws.send(JSON.stringify({ type: "hello", fromId: this.deviceId, fromName: this.deviceName, key: p.key }));
           this.markOnline(p.id);
-          resolve();
+          if (!settled) { settled = true; resolve(); }
         });
         ws.on("close", () => {
           this.wsClients.delete(p.id);
-          this.markOffline(p.id);
+          // 仅"此前已连接"的断开才触发重连(防连接失败的 error→close 双触发成环)
+          if (settled) this.markOffline(p.id);
         });
-        ws.on("error", (e) => { this.wsClients.delete(p.id); reject(e); });
+        ws.on("error", (e) => {
+          if (!settled) {
+            settled = true;
+            // 连接失败:若有 mDNS 发现记录,上层会重试;否则触发短时广播让对端能发现我们
+            const disc = this.discovered.get(p.id);
+            if (!disc) this.startReconnectAdvertising();
+            reject(e);
+          }
+        });
         ws.on("message", (data: Buffer) => this.handleAppMessage(p.id, JSON.parse(data.toString())));
-        setTimeout(() => reject(new Error("连接超时")), 5000);
+        setTimeout(() => { if (!settled) { settled = true; reject(new Error("连接超时")); } }, 5000);
       } catch (e) {
         reject(e);
       }
@@ -424,8 +444,14 @@ class NetworkService extends EventEmitter {
   }
 
   private markOffline(id: string): void {
-    // 连接断开 → 短时广播让对端可重新发现(断线重连前提)
-    this.startReconnectAdvertising();
+    // 连接断开 → 尝试缓存地址重连(不广播,保持隐身);
+    // 若缓存直连失败(对端 IP 变化),由 connectOutbound 失败路径触发短时广播
+    const p = this.paired.find((x) => x.id === id);
+    if (p && p.address && p.port && !this.wsClients.has(id) && !this.inboundSockets.has(id)) {
+      this.connectOutbound(p, p.address, p.port).catch(() => {
+        this.startReconnectAdvertising();
+      });
+    }
     this.emit("device-offline", { id });
     this.emit("devices-changed");
   }
@@ -468,13 +494,28 @@ class NetworkService extends EventEmitter {
 
   // ── 心跳与探测（常驻） ──
 
-  /** 尝试连接已配对设备(启动时 + 离线探测共用):仅在 mDNS 能发现它时(discovered 有记录)尝试 */
+  /** 尝试连接已配对设备(启动/断线/离线探测共用)。
+      优先缓存地址直连(对齐蓝牙已配对设备直接连接,无需对方可被发现);
+      缓存地址缺失/直连失败且 mDNS 能发现时,用发现的地址连接。
+      注意:不主动广播——广播仅在 connectOutbound 失败后由调用方触发(见 markOffline) */
   private tryConnectPaired(): void {
     for (const p of this.paired) {
       if (this.wsClients.has(p.id) || this.inboundSockets.has(p.id)) continue;
-      const disc = this.discovered.get(p.id);
-      if (disc) {
-        this.connectOutbound(p, disc.address, disc.port).catch(() => { /* 连接失败,下轮再试 */ });
+      // ① 缓存地址直连(IP 未变场景,常态重连走这条)
+      if (p.address && p.port) {
+        this.connectOutbound(p, p.address, p.port).catch(() => {
+          // ② 缓存失败(IP 变化)→ 若有 mDNS 发现记录,用新地址重试
+          const disc = this.discovered.get(p.id);
+          if (disc) {
+            this.connectOutbound(p, disc.address, disc.port).catch(() => { /* 仍失败,下轮再试 */ });
+          }
+        });
+      } else {
+        // 无缓存地址 → 等 mDNS 发现(有记录才连)
+        const disc = this.discovered.get(p.id);
+        if (disc) {
+          this.connectOutbound(p, disc.address, disc.port).catch(() => { /* 失败,下轮再试 */ });
+        }
       }
     }
   }
@@ -493,8 +534,8 @@ class NetworkService extends EventEmitter {
       // 探测前提是 mDNS 能发现对方(对方在可被发现状态或已被我们 find 到)
       this.tryConnectPaired();
     }, OFFLINE_PROBE_INTERVAL);
-    // 启动时:短时广播(find 对端 + 被对端发现)+ 立即尝试连接已配对设备(对齐 WiFi 记住网络自动连)
-    this.startReconnectAdvertising();
+    // 启动时:缓存地址直连已配对设备(对齐 WiFi 记住网络自动连)。
+    // 不广播——"可被发现"关闭时保持隐身;缓存直连失败才由 connectOutbound 触发短时广播
     setTimeout(() => this.tryConnectPaired(), 1000);
   }
 }
