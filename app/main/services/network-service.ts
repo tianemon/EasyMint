@@ -613,6 +613,15 @@ class NetworkService extends EventEmitter {
       // 低频探测已配对设备:不依赖配对模式(已配对后回到静默态,探测仍需进行)
       // 探测前提是 mDNS 能发现对方(对方在可被发现状态或已被我们 find 到)
       this.tryConnectPaired();
+      // 若仍有离线已配对设备且 mDNS 无记录(对方静默)→ 周期性补发短时广播
+      // (对方也开着 EM 时会同样广播,双方互相发现→重连)。60s 广播窗口 + 每 2 轮触发,
+      // 持续到连上为止——修复"广播 60s 后永久停,重试 8 次后静默"问题
+      const hasOfflinePaired = this.paired.some(
+        (p) => !this.wsClients.has(p.id) && !this.inboundSockets.has(p.id) && !this.discovered.has(p.id)
+      );
+      if (hasOfflinePaired && !this.advertiseService) {
+        this.startReconnectAdvertising();
+      }
     }, OFFLINE_PROBE_INTERVAL);
     // 启动时:缓存地址直连已配对设备(对齐 WiFi 记住网络自动连)。
     // 不广播——"可被发现"关闭时保持隐身;缓存直连失败才由 connectOutbound 触发短时广播
