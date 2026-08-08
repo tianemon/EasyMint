@@ -449,7 +449,12 @@ class NetworkService extends EventEmitter {
             reject(e);
           }
         });
-        ws.on("message", (data: Buffer) => this.handleAppMessage(p.id, JSON.parse(data.toString())));
+        ws.on("message", (data: Buffer) => {
+          try {
+            // 出站连接也走统一协议处理(hello-ack/unpair-notify 等)——保证双向对等
+            this.handlePeerMessage("", ws, { id: p.id }, JSON.parse(data.toString()));
+          } catch { /* 非 JSON 消息忽略 */ }
+        });
         setTimeout(() => { if (!settled) { settled = true; reject(new Error("连接超时")); } }, 5000);
       } catch (e) {
         reject(e);
@@ -457,82 +462,93 @@ class NetworkService extends EventEmitter {
     });
   }
 
-  private handleInbound(ws: WebSocket, req: import("node:http").IncomingMessage): void {
-    const peerAddr = req.socket.remoteAddress ?? "";
-    let peerId = "";
-    ws.on("message", (data) => {
-      try {
-        const msg = JSON.parse(data.toString());
-        if (msg.type === "pair-request") {
-          // 对方请求配对 → 通知 UI 弹窗确认
-          this.emit("pair-request", {
-            id: msg.fromId, name: msg.fromName, address: peerAddr.replace("::ffff:", ""), port: WS_PORT,
-          });
-          ws.close();
-        } else if (msg.type === "pair-accept") {
-          // 对方接受了我们的配对请求 → 只保存配对记录(含对端地址,供重启后自动重连)。
-          // 注意:此连接是对方 sendRaw 短连接(发完即关),不能存 inboundSockets——
-          // 对方 acceptPair 会紧接着 connectOutbound 发 hello,在 hello 分支建立真正的长连接
-          const peerAddr4 = peerAddr.replace("::ffff:", "");
-          this.paired = this.paired.filter((p) => p.id !== msg.fromId);
-          this.paired.push({
-            id: msg.fromId, name: msg.fromName, key: msg.key,
-            pairedAt: Date.now(), lastSeen: Date.now(),
-            address: peerAddr4, port: WS_PORT,
-          });
-          this.savePaired();
-          this.emit("devices-changed");
-          ws.close();
-        } else if (msg.type === "hello") {
-          // 已配对设备发起连接 → 校验密钥
-          const p = this.paired.find((x) => x.id === msg.fromId);
-          if (!p || p.key !== msg.key) {
-            // 密钥不符/无记录 = 对方侧配对已失效(被解除)→ 本端同步解除,停止重试循环
-            ws.close();
-            if (p) {
-              this.paired = this.paired.filter((x) => x.id !== msg.fromId);
-              this.discovered.delete(msg.fromId);
-              this.savePaired();
-              this.updatePairedBroadcast();
-              this.emit("devices-changed");
-            }
-            return;
-          }
-          // 记录对端地址(入站连接也能拿到)——重启后自动重连用,IP 可能已变
-          const peerAddr4 = peerAddr.replace("::ffff:", "");
-          p.address = peerAddr4;
-          p.port = WS_PORT;
-          this.savePaired();
-          peerId = msg.fromId;
-          this.inboundSockets.set(msg.fromId, ws);
-          this.markOnline(msg.fromId);
-          ws.send(JSON.stringify({ type: "hello-ack" }));
-        } else if (msg.type === "hello-ack") {
-          this.markOnline(peerId);
-        } else if (msg.type === "ping") {
-          ws.send(JSON.stringify({ type: "pong" }));
-        } else if (msg.type === "pong") {
-          // 心跳响应，保活
-        } else if (msg.type === "unpair-notify") {
-          // 对方解除配对 → 本端同步解除(删除记录/连接/发现缓存,停止重连尝试)
-          this.paired = this.paired.filter((p) => p.id !== msg.fromId);
-          this.wsClients.get(msg.fromId)?.close();
-          this.inboundSockets.get(msg.fromId)?.close();
-          this.wsClients.delete(msg.fromId);
-          this.inboundSockets.delete(msg.fromId);
-          this.discovered.delete(msg.fromId);
+  /**
+   * 统一协议消息处理(入站/出站连接共用——保证双向对等,不区分谁主动连接)。
+   * peerIdRef: 出站连接是固定的 p.id,入站连接由 hello 消息确定(可变引用)。
+   */
+  private handlePeerMessage(peerAddr: string, ws: WebSocket, peerIdRef: { id: string }, msg: Record<string, unknown>): void {
+    const fromId = String(msg.fromId ?? "");
+    if (msg.type === "pair-request") {
+      // 对方请求配对 → 通知 UI 弹窗确认
+      this.emit("pair-request", {
+        id: fromId, name: String(msg.fromName ?? ""), address: peerAddr.replace("::ffff:", ""), port: WS_PORT,
+      });
+      ws.close();
+    } else if (msg.type === "pair-accept") {
+      // 对方接受了我们的配对请求 → 只保存配对记录(含对端地址,供重启后自动重连)。
+      // 注意:此连接是对方 sendRaw 短连接(发完即关),不能存 inboundSockets——
+      // 对方 acceptPair 会紧接着 connectOutbound 发 hello,在 hello 分支建立真正的长连接
+      const peerAddr4 = peerAddr.replace("::ffff:", "");
+      this.paired = this.paired.filter((p) => p.id !== fromId);
+      this.paired.push({
+        id: fromId, name: String(msg.fromName ?? ""), key: String(msg.key ?? ""),
+        pairedAt: Date.now(), lastSeen: Date.now(),
+        address: peerAddr4, port: WS_PORT,
+      });
+      this.savePaired();
+      this.emit("devices-changed");
+      ws.close();
+    } else if (msg.type === "hello") {
+      // 已配对设备发起连接 → 校验密钥
+      const p = this.paired.find((x) => x.id === fromId);
+      if (!p || p.key !== String(msg.key ?? "")) {
+        // 密钥不符/无记录 = 对方侧配对已失效(被解除)→ 本端同步解除,停止重试循环
+        ws.close();
+        if (p) {
+          this.paired = this.paired.filter((x) => x.id !== fromId);
+          this.discovered.delete(fromId);
           this.savePaired();
           this.updatePairedBroadcast();
           this.emit("devices-changed");
-        } else {
-          this.handleAppMessage(peerId, msg);
         }
+        return;
+      }
+      // 记录对端地址(连接建立时拿到)——重启后自动重连用,IP 可能已变
+      const peerAddr4 = peerAddr.replace("::ffff:", "");
+      p.address = peerAddr4;
+      p.port = WS_PORT;
+      this.savePaired();
+      peerIdRef.id = fromId;
+      // 入站连接:对端连我 → 存 inboundSockets;出站连接:我连对端 → wsClients 已有
+      if (!this.wsClients.has(fromId)) {
+        this.inboundSockets.set(fromId, ws);
+      }
+      this.markOnline(fromId);
+      ws.send(JSON.stringify({ type: "hello-ack" }));
+    } else if (msg.type === "hello-ack") {
+      if (peerIdRef.id) this.markOnline(peerIdRef.id);
+    } else if (msg.type === "ping") {
+      ws.send(JSON.stringify({ type: "pong" }));
+    } else if (msg.type === "pong") {
+      // 心跳响应，保活
+    } else if (msg.type === "unpair-notify") {
+      // 对方解除配对 → 本端同步解除(删除记录/连接/发现缓存,停止重连尝试)
+      this.paired = this.paired.filter((p) => p.id !== fromId);
+      this.wsClients.get(fromId)?.close();
+      this.inboundSockets.get(fromId)?.close();
+      this.wsClients.delete(fromId);
+      this.inboundSockets.delete(fromId);
+      this.discovered.delete(fromId);
+      this.savePaired();
+      this.updatePairedBroadcast();
+      this.emit("devices-changed");
+    } else {
+      this.handleAppMessage(peerIdRef.id, msg as { type: string; [k: string]: unknown });
+    }
+  }
+
+  private handleInbound(ws: WebSocket, req: import("node:http").IncomingMessage): void {
+    const peerAddr = req.socket.remoteAddress ?? "";
+    const peerIdRef = { id: "" };
+    ws.on("message", (data) => {
+      try {
+        this.handlePeerMessage(peerAddr, ws, peerIdRef, JSON.parse(data.toString()));
       } catch { /* 非 JSON 消息忽略 */ }
     });
     ws.on("close", () => {
-      if (peerId) {
-        this.inboundSockets.delete(peerId);
-        this.markOffline(peerId);
+      if (peerIdRef.id) {
+        this.inboundSockets.delete(peerIdRef.id);
+        this.markOffline(peerIdRef.id);
       }
     });
   }
