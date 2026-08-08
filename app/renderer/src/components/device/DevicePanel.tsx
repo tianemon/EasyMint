@@ -195,10 +195,17 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
             )}
           </div>
 
-          {/* 可用设备(配对模式/手动扫描) */}
+          {/* 可用设备(自动扫描常驻,标题旁转圈表示扫描中) */}
           <div>
             <div className="flex items-center justify-between mb-1.5 px-1">
-              <span className="text-xs font-medium text-text-secondary">可用设备</span>
+              <span className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
+                可用设备
+                {/* 自动扫描中指示:常驻转圈 */}
+                <svg className="w-3 h-3 animate-spin text-accent" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+                  <path d="M12 2a10 10 0 019.95 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                </svg>
+              </span>
               <button type="button" className="text-[10px] text-text-secondary hover:text-accent transition-colors" onClick={manualScan}>
                 重新扫描
               </button>
