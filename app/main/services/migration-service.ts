@@ -83,7 +83,9 @@ export interface MigrationManifest {
   zipName: string;           // zip 文件名
   zipSize: number;           // zip 字节数
   zipSha256: string;         // zip 哈希(接收端校验)
-  sessionFile?: string;      // 主会话 jsonl 文件名(若有)
+  /** 项目文件预期数(接收端解压后对比,完整性校验) */
+  fileCount: number;
+  sessionFile?: string;      // 主会话 jsonl 文件名(若有——接收端必须恢复成功)
   createdAt: number;
 }
 
@@ -104,8 +106,8 @@ interface PendingTransfer {
 
 class MigrationService extends EventEmitter {
   private pending = new Map<string, PendingTransfer>();
-  /** 发送端记录:transferId → 发起迁移的项目路径(回执到达时定位会话,注入系统消息) */
-  private sentTransfers = new Map<string, string>();
+  /** 发送端记录:transferId → { manifest(完整性校验), projectPath(回执定位项目注入系统消息) } */
+  private sentTransfers = new Map<string, { manifest: MigrationManifest; projectPath: string }>();
   /** 发送端两阶段握手:transferId → 等待 accept/reject 的 resolver */
   private acceptWaiters = new Map<string, { resolve: (v: "accepted" | "rejected" | "timeout") => void; timer: NodeJS.Timeout }>();
   private nextId = 0;
@@ -195,6 +197,7 @@ class MigrationService extends EventEmitter {
       zipName,
       zipSize,
       zipSha256,
+      fileCount: scan.files.length,
       sessionFile: scan.sessionFile,
       createdAt: Date.now(),
     };
@@ -242,7 +245,7 @@ class MigrationService extends EventEmitter {
     // 传输完成:发送端临时 zip 删除(接收端恢复完成后会回执)
     fs.rmSync(zipPath, { force: true });
     networkService.sendToDevice(deviceId, { type: "transfer-complete", transferId });
-    this.sentTransfers.set(transferId, projectPath);
+    this.sentTransfers.set(transferId, { manifest, projectPath });
     this.emit("send-progress", { transferId, sent: zipSize, total: zipSize, phase: "sent" });
     return { ok: true, transferId };
   }
@@ -292,11 +295,26 @@ class MigrationService extends EventEmitter {
       case "transfer-reject":
         this.resolveAccept(msg.transferId as string, "rejected");
         break;
-      case "transfer-done":
-        this.emit("done", { peerId, projectPath: this.sentTransfers.get(msg.transferId as string), ...msg });
+      case "transfer-done": {
+        // 发送端收到回执 → 完整性确认(双重确认,接收端异常会带 failed 而非 done):
+        // ① 恢复文件数 === 发送文件数 ② 会话声明了则必须恢复成功
+        const rec = this.sentTransfers.get(msg.transferId as string);
+        const m = rec?.manifest;
+        const restoredCount = Number(msg.restoredCount ?? -1);
+        const sessionRestored = Boolean(msg.sessionRestored);
+        const countOk = m ? restoredCount === m.fileCount : false;
+        const sessionOk = m ? (m.sessionFile ? sessionRestored : true) : false;
+        if (m && !(countOk && sessionOk)) {
+          // 完整性不一致 → 按失败处理
+          const why = !countOk ? `文件数不匹配(回执 ${restoredCount}/${m.fileCount})` : "会话未恢复";
+          this.emit("failed", { peerId, projectPath: rec?.projectPath, failures: [`接收端完整性校验未通过: ${why}`] });
+          break;
+        }
+        this.emit("done", { peerId, projectPath: rec?.projectPath, ...msg });
         break;
+      }
       case "transfer-failed":
-        this.emit("failed", { peerId, projectPath: this.sentTransfers.get(msg.transferId as string), ...msg });
+        this.emit("failed", { peerId, projectPath: this.sentTransfers.get(msg.transferId as string)?.projectPath, ...msg });
         break;
       default:
         this.emit("message", { peerId, msg });
@@ -431,9 +449,9 @@ class MigrationService extends EventEmitter {
     } catch (e) {
       extractFailures.push(`解压失败: ${(e as Error).message}`);
     }
-    // 完整性:项目文件 0 个(解压出的) → 解包失败(zip 里没有项目文件)
-    if (extractedCount === 0) {
-      extractFailures.push("压缩包内没有项目文件——解包失败");
+    // 完整性:解压文件数必须等于 manifest 预期数(多/少都异常)
+    if (extractedCount !== t.manifest.fileCount) {
+      extractFailures.push(`项目文件数不匹配: 预期 ${t.manifest.fileCount} 个,实际解压 ${extractedCount} 个`);
     }
 
     // 4. 会话恢复:从 zip 的 .easymint-session/ 里恢复(若 zip 内有)
@@ -467,13 +485,15 @@ class MigrationService extends EventEmitter {
       projectPath: t.targetPath,
       fromName: t.fromName,
     });
+    // 回执带完整性数据:发送端据此确认恢复成功(文件数 + 会话恢复标志)
     networkService.sendToDevice(t.peerId, {
       type: "transfer-done",
       transferId,
       projectPath: t.targetPath,
       projectName: t.manifest.projectName,
+      restoredCount: extractedCount,
+      sessionRestored,
     });
-    void sessionRestored;
   }
 
   /** 解压 zip 到目标目录(路径安全:拒绝绝对路径/../ 穿越条目)。返回解压的项目文件数 */
@@ -524,8 +544,8 @@ class MigrationService extends EventEmitter {
             entry.on("end", () => {
               try {
                 const buf = Buffer.concat(chunks);
-                this.restoreSession(buf, rel.split("/").pop()!, projectPath);
-                restored = true;
+                // 恢复成功 = 落盘 + 验证(文件存在且首行 cwd 为项目路径)——不满足不算成功
+                restored = this.restoreSession(buf, rel.split("/").pop()!, projectPath);
               } catch { /* 恢复失败 */ }
             });
           } else {
@@ -537,17 +557,26 @@ class MigrationService extends EventEmitter {
     return restored;
   }
 
-  /** 会话恢复:改写首行 cwd 为项目路径 → 写入全局 sessions 编码目录 */
-  private restoreSession(content: Buffer, fileName: string, projectPath: string): void {
+  /** 会话恢复:改写首行 cwd 为项目路径 → 写入全局 sessions 编码目录。
+      返回 true 仅当:文件成功写入 且 存在 且 首行 cwd 正确(硬性保证会话文件有) */
+  private restoreSession(content: Buffer, fileName: string, projectPath: string): boolean {
     const lines = content.toString("utf-8").split("\n").filter((l) => l.trim());
-    if (lines.length === 0) return;
+    if (lines.length === 0) return false;
     const first = JSON.parse(lines[0]!);
     first.cwd = projectPath;
     lines[0] = JSON.stringify(first);
     const encoded = projectPath.replace(/[:/\\]/g, "-");
     const dir = path.join(os.homedir(), ".easymint", "sessions", encoded);
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, fileName), lines.join("\n") + "\n");
+    const dest = path.join(dir, fileName);
+    fs.writeFileSync(dest, lines.join("\n") + "\n");
+    // 验证落盘 + cwd 正确
+    try {
+      const written = fs.readFileSync(dest, "utf-8").split("\n")[0];
+      return fs.existsSync(dest) && written.includes(`"cwd":"${projectPath}"`);
+    } catch {
+      return false;
+    }
   }
 
   // ── 辅助 ──
