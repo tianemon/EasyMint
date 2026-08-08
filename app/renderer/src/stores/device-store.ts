@@ -41,6 +41,7 @@ interface DeviceState {
   acceptPair: (req: PairRequest) => Promise<{ ok: boolean; error?: string }>;
   rejectPair: () => void;
   unpair: (id: string) => Promise<void>;
+  connect: (id: string) => Promise<{ ok: boolean; error?: string }>;
   refresh: () => Promise<void>;
 }
 
@@ -129,6 +130,12 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
   unpair: async (id) => {
     await window.electronAPI.device.unpair(id);
     await get().refresh();
+  },
+
+  connect: async (id) => {
+    const r = await window.electronAPI.device.connect(id);
+    await get().refresh();
+    return r;
   },
 
   refresh: async () => {

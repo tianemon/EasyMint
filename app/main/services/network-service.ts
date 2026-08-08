@@ -22,8 +22,7 @@ import { generateKeyPair, deriveSharedKey, encrypt, decrypt, makeChallenge } fro
 
 // ── 常量（频率对齐蓝牙指导值，见方案文档频率参数表） ──
 // 注:mDNS 通告间隔由协议层维护(蓝牙 2s 阈值的对应物),应用侧无需定时发布
-const HEARTBEAT_INTERVAL = 30 * 1000; // 已连接心跳 30s
-const OFFLINE_PROBE_INTERVAL = 60 * 1000; // 离线设备探测 60s
+const HEARTBEAT_INTERVAL = 30 * 1000; // 已连接心跳 30s(完全手动连接——仅保活,无自动重连)
 const WS_PORT = 47777; // 局域网 WS 监听端口（固定，防火墙放行一次）
 const DISCOVERABLE_TIMEOUT = 60 * 1000; // 可被发现持续 1 分钟自动停止(用户定稿)
 const SERVICE_TYPE = "easymint"; // mDNS 服务类型
@@ -121,7 +120,6 @@ class NetworkService extends EventEmitter {
   private pairModeEnd: number | null = null; // 可被发现截止时间
   private pairModeTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
-  private probeTimer: NodeJS.Timeout | null = null;
   private wss: WebSocketServer | null = null;
   private wsClients = new Map<string, WebSocket>(); // 对方设备 ID → 出站连接
   private inboundSockets = new Map<string, WebSocket>(); // 对方设备 ID → 入站连接
@@ -311,6 +309,20 @@ class NetworkService extends EventEmitter {
     } catch (e) {
       this.pendingOwnKeys.delete(peer.id);
       return { ok: false, error: (e as Error).message };
+    }
+  }
+
+  /** 手动连接已配对设备(完全手动模式):用缓存地址直连。已在连接则跳过 */
+  async connectToDevice(id: string): Promise<{ ok: boolean; error?: string }> {
+    const p = this.paired.find((x) => x.id === id);
+    if (!p) return { ok: false, error: "设备不在已配对列表" };
+    if (this.wsClients.has(id) || this.inboundSockets.has(id)) return { ok: true };
+    if (!p.address || !p.port) return { ok: false, error: "没有该设备的地址——请先扫描配对" };
+    try {
+      await this.connectOutbound(p, p.address, p.port);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: `连接失败: ${(e as Error).message}` };
     }
   }
 
@@ -580,12 +592,7 @@ class NetworkService extends EventEmitter {
   }
 
   private markOffline(id: string): void {
-    // 连接断开 → ① 缓存地址直连重试 ② 有离线已配对 → 持续广播(蓝牙手表语义)
-    const p = this.paired.find((x) => x.id === id);
-    if (p && p.address && p.port && !this.wsClients.has(id) && !this.inboundSockets.has(id)) {
-      this.connectOutbound(p, p.address, p.port).catch(() => {
-      });
-    }
+    // 完全手动连接:断开即离线,不自动重连(用户操作时再连)
     this.emit("device-offline", { id });
     this.emit("devices-changed");
   }
@@ -635,34 +642,10 @@ class NetworkService extends EventEmitter {
     return true;
   }
 
-  // ── 心跳与探测（常驻） ──
+  // ── 心跳（常驻,仅保活已连接设备） ──
 
-  /** 尝试连接已配对设备(启动/断线/离线探测共用)。
-      优先缓存地址直连(对齐蓝牙已配对设备直接连接,无需对方可被发现);
-      缓存地址缺失/直连失败且 mDNS 能发现时,用发现的地址连接。
-      注意:不主动广播——广播仅在 connectOutbound 失败后由调用方触发(见 markOffline) */
-  private tryConnectPaired(): void {
-    for (const p of this.paired) {
-      if (this.wsClients.has(p.id) || this.inboundSockets.has(p.id)) continue;
-      // ① 缓存地址直连(IP 未变场景,常态重连走这条)
-      if (p.address && p.port) {
-        this.connectOutbound(p, p.address, p.port).catch(() => {
-          // ② 缓存失败(IP 变化)→ 若有 mDNS 发现记录,用新地址重试
-          const disc = this.discovered.get(p.id);
-          if (disc) {
-            this.connectOutbound(p, disc.address, disc.port).catch(() => { /* 仍失败,下轮再试 */ });
-          }
-        });
-      } else {
-        // 无缓存地址 → 等 mDNS 发现(有记录才连)
-        const disc = this.discovered.get(p.id);
-        if (disc) {
-          this.connectOutbound(p, disc.address, disc.port).catch(() => { /* 失败,下轮再试 */ });
-        }
-      }
-    }
-  }
-
+  /** 完全手动连接(用户定稿):无自动重连/启动连接——连接只由用户操作触发
+      (配对 acceptPair / 手动连接)。此方法仅维护已连接设备的心跳保活。 */
   startKeepalive(): void {
     if (this.heartbeatTimer) return;
     this.heartbeatTimer = setInterval(() => {
@@ -672,18 +655,6 @@ class NetworkService extends EventEmitter {
         }
       }
     }, HEARTBEAT_INTERVAL);
-    this.probeTimer = setInterval(() => {
-      // 低频探测已配对设备:缓存直连 + 持续广播兜底(蓝牙手表语义——有离线已配对就一直播,
-      // 对方上线即被发现;全部连上自动停)
-      this.tryConnectPaired();
-      // 已配对设备的"在线/离线"由 WS 连接状态驱动(markOnline/markOffline)——可靠。
-      // 注意:不调 scanner.expire()——bonjour 对"无变化重播"不刷新 lastSeen(1h 才重播一次,
-      // TTL 120s),expire 会误删在线设备(实测源码行为);下线靠 down 事件(goodbye 包)移除
-    }, OFFLINE_PROBE_INTERVAL);
-    // 启动时:缓存地址直连已配对设备 + 有离线者持续广播(对齐 WiFi 记住网络自动连 + 蓝牙可连接广播)
-    setTimeout(() => {
-      this.tryConnectPaired();
-    }, 1000);
   }
 }
 

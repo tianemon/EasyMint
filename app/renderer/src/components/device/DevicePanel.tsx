@@ -23,7 +23,7 @@ function formatLastSeen(ts: number): string {
   return `${Math.floor(diff / 86400_000)} 天前`;
 }
 
-function PairedRow({ device, onUnpair, onSend }: { device: PairedDevice; onUnpair: (id: string) => void; onSend: (id: string) => void }): JSX.Element {
+function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevice; onUnpair: (id: string) => void; onSend: (id: string) => void; onConnect: (id: string) => void }): JSX.Element {
   return (
     <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-border bg-surface">
       <span className={`w-2 h-2 rounded-full shrink-0 ${device.online ? "bg-success" : "bg-text-muted/40"}`} />
@@ -33,6 +33,16 @@ function PairedRow({ device, onUnpair, onSend }: { device: PairedDevice; onUnpai
           {device.online ? "在线 · 已连接" : `离线 · ${formatLastSeen(device.lastSeen)}`}
         </div>
       </div>
+      {!device.online && (
+        <button
+          type="button"
+          className="text-[10px] px-2 py-1 rounded bg-accent-soft text-accent hover:bg-accent hover:text-text-inverse transition-colors shrink-0"
+          onClick={() => onConnect(device.id)}
+          title="手动连接该设备"
+        >
+          连接
+        </button>
+      )}
       {device.online && (
         <button
           type="button"
@@ -81,7 +91,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
   const ref = useRef<HTMLDivElement>(null);
   const {
     self, paired, discovered, pairMode,
-    load, startPair, stopPair, manualScan, requestPair, unpair,
+    load, startPair, stopPair, manualScan, requestPair, unpair, connect,
   } = useDeviceStore();
   const [pairError, setPairError] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
@@ -190,6 +200,9 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                     key={d.id}
                     device={d}
                     onUnpair={unpair}
+                    onConnect={(id) => {
+                      void connect(id).then((r) => { if (!r.ok) setPairError(r.error ?? "连接失败"); });
+                    }}
                     onSend={(id) => { const dev = paired.find((p) => p.id === id); if (dev) setTransferTarget({ id: dev.id, name: dev.name }); }}
                   />
                 ))}

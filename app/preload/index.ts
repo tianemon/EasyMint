@@ -341,6 +341,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     requestPair: (peer: { id: string; name: string; address: string; port: number }) => ipcRenderer.invoke("device:requestPair", { peer }) as Promise<{ ok: boolean; error?: string }>,
     acceptPair: (peer: { id: string; name: string; address: string; port: number }) => ipcRenderer.invoke("device:acceptPair", { peer }) as Promise<{ ok: boolean; error?: string }>,
     unpair: (id: string) => ipcRenderer.invoke("device:unpair", { id }),
+    connect: (id: string) => ipcRenderer.invoke("device:connect", { id }) as Promise<{ ok: boolean; error?: string }>,
     sendMessage: (id: string, message: Record<string, unknown>) => ipcRenderer.invoke("device:sendMessage", { id, message }) as Promise<{ ok: boolean }>,
     // 事件订阅
     onPairRequest: (cb: (req: { id: string; name: string; address: string; port: number }) => void) => {

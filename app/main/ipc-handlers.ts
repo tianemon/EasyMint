@@ -556,6 +556,7 @@ const filePath = p.join(projectPath, "task.json");
   ipcMain.handle("device:requestPair", (_e, { peer }) => net.requestPair(peer));
   ipcMain.handle("device:acceptPair", (_e, { peer }) => net.acceptPair(peer));
   ipcMain.handle("device:unpair", (_e, { id }) => { net.unpair(id); return { ok: true }; });
+  ipcMain.handle("device:connect", (_e, { id }) => net.connectToDevice(id));
   // 预留:会话/项目迁移通道（网络层就绪,迁移逻辑后续实现）
   ipcMain.handle("device:sendMessage", (_e, { id, message }) => ({ ok: net.sendToDevice(id, message) }));
 

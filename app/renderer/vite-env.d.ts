@@ -244,6 +244,7 @@ interface ElectronAPI {
     requestPair: (peer: { id: string; name: string; address: string; port: number }) => Promise<{ ok: boolean; error?: string }>;
     acceptPair: (peer: { id: string; name: string; address: string; port: number }) => Promise<{ ok: boolean; error?: string }>;
     unpair: (id: string) => Promise<void>;
+    connect: (id: string) => Promise<{ ok: boolean; error?: string }>;
     sendMessage: (id: string, message: Record<string, unknown>) => Promise<{ ok: boolean }>;
     onPairRequest: (cb: (req: { id: string; name: string; address: string; port: number }) => void) => () => void;
     onChanged: (cb: () => void) => () => void;
