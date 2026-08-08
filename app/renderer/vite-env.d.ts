@@ -252,12 +252,10 @@ interface ElectronAPI {
     onOffline: (cb: (d: { id: string }) => void) => () => void;
   };
   migration: {
-    listIncoming: () => Promise<Array<{ transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }>>;
     accept: (transferId: string, targetPath: string) => Promise<{ ok: boolean; error?: string }>;
     reject: (transferId: string) => Promise<{ ok: boolean }>;
     start: (projectPath: string, deviceId: string) => Promise<{ ok: boolean; transferId?: string; error?: string }>;
     scan: (projectPath: string) => Promise<{ files: Array<{ relPath: string; absPath: string }>; sessionFile?: string; totalSize: number }>;
-    getSessionFile: (projectPath: string) => Promise<string | null>;
     onIncoming: (cb: (d: { transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }) => void) => () => void;
     onCompleted: (cb: (d: { projectName: string; projectPath: string; originPath: string; fromName: string }) => void) => () => void;
     onReceipt: (cb: (d: { ok: boolean; projectName?: string; projectPath?: string; failures?: string[] }) => void) => () => void;

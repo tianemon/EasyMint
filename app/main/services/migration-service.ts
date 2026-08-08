@@ -387,17 +387,6 @@ class MigrationService extends EventEmitter {
     this.pending.delete(transferId);
   }
 
-  /** 待确认的迁移请求列表(前端弹窗恢复用) */
-  listIncoming(): Array<{ transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }> {
-    return [...this.pending.values()].map((t) => ({
-      transferId: t.transferId,
-      fromName: t.fromName,
-      projectName: t.manifest.projectName,
-      fileCount: 1,
-      totalSize: t.manifest.zipSize,
-    }));
-  }
-
   handleChunk(peerId: string, msg: { transferId?: string; index?: number; data?: string }): void {
     const t = this.pending.get(msg.transferId ?? "");
     if (!t) return;

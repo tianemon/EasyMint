@@ -509,25 +509,12 @@ const filePath = p.join(projectPath, "task.json");
   mig.on("completed", (e: { projectName: string; projectPath: string; originPath: string; fromName: string }) => {
     broadcast("migration:completed", e);
   });
-  ipcMain.handle("migration:listIncoming", () => mig.listIncoming());
-  ipcMain.handle("migration:accept", (_e, { transferId, targetPath }) => mig.acceptTransfer(transferId, targetPath));
-  ipcMain.handle("migration:reject", (_e, { transferId }) => { mig.rejectTransfer(transferId); return { ok: true }; });
-  // 统一入口(MCP 与手动共用):扫描 + 打包 zip + 传输
+  // 统一入口(纯手动):扫描 + 打包 zip + 传输
   ipcMain.handle("migration:start", (_e, { projectPath, deviceId }) =>
     mig.prepareAndTransfer(projectPath, deviceId)
   );
-  // 前端预览清单(与 prepare_migration 同一扫描实现)
+  // 前端预览清单(与传输内部同一扫描实现)
   ipcMain.handle("migration:scan", (_e, { projectPath }) => mig.scanProject(projectPath));
-  ipcMain.handle("migration:getSessionFile", (_e, { projectPath }) => {
-    // 取项目最新主会话 jsonl(迁移会话用)
-    const encoded = projectPath.replace(/[:/\\]/g, "-");
-    const dir = p.join(os.homedir(), ".easymint", "sessions", encoded);
-    if (!fs.existsSync(dir)) return null;
-    const files = fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl") && !f.startsWith("."));
-    if (files.length === 0) return null;
-    files.sort();
-    return files[files.length - 1]!; // 最新
-  });
 
   // ── device:* — 设备互联（mDNS 发现 + WS 配对连接） ──
   const net = networkService;

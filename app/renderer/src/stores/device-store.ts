@@ -31,7 +31,6 @@ interface DeviceState {
   discovered: DiscoveredDevice[];
   pairRequest: PairRequest | null;
   pairMode: boolean;
-  loaded: boolean;
   load: () => Promise<void>;
   setName: (name: string) => Promise<void>;
   startPair: () => Promise<void>;
@@ -72,7 +71,6 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
   discovered: [],
   pairRequest: null,
   pairMode: false,
-  loaded: false,
 
   load: async () => {
     ensureSubscribed();
@@ -86,7 +84,6 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
       paired,
       discovered,
       pairMode: self.discoverable,
-      loaded: true,
     });
   },
 

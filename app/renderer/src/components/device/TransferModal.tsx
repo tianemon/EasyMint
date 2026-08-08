@@ -151,7 +151,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
           {files && (
             <div className="bg-surface rounded-lg border border-border px-3 py-2.5">
               <div className="text-xs font-medium text-text-primary mb-1.5">
-                待迁移 {files.length} 个文件
+                待迁移 {files.length} 个文件 · {(totalSize / 1024 / 1024).toFixed(1)}MB
                 <span className="text-[10px] text-text-muted ml-2">已排除 .git/node_modules/dist/build 等</span>
               </div>
               <div className="max-h-32 overflow-y-auto space-y-0.5">
