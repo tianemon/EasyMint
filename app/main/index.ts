@@ -19,6 +19,12 @@ process.env.PI_CODING_AGENT_DIR = path.join(EM_HOME, "pi-agent");
 // Redirect Electron userData to our directory so all data lives in one place
 app.setPath("userData", path.join(EM_HOME, "electron"));
 
+// 禁用磁盘缓存:win 上 userData/GPUCache 目录常因残留/杀软占用创建失败
+// ("Unable to move the cache: 拒绝访问 0x5")——失败自动降级内存缓存,功能无影响,但刷屏
+// 报错。禁用后缓存走内存,消除日志噪音(需在 ready 前设置)
+app.commandLine.appendSwitch("disable-gpu-shader-disk-cache"); // GPU shader 缓存
+app.commandLine.appendSwitch("disk-cache-size", "0"); // HTTP 磁盘缓存(net/disk_cache 报错源)
+
 import { registerIpcHandlers } from "./ipc-handlers";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
