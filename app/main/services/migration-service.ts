@@ -232,14 +232,18 @@ class MigrationService extends EventEmitter {
     });
   }
 
-  /** 前端弹窗:用户确认接收 + 目标路径 */
-  async acceptTransfer(transferId: string, targetPath: string): Promise<{ ok: boolean; error?: string }> {
+  /** 前端弹窗:用户确认接收 + 选择项目父文件夹。
+      落位路径 = 父文件夹 + 项目名(自动创建项目文件夹)——发送端传的是项目内容(相对项目根) */
+  async acceptTransfer(transferId: string, parentPath: string): Promise<{ ok: boolean; error?: string }> {
     const t = this.pending.get(transferId);
     if (!t) return { ok: false, error: "迁移请求不存在或已过期" };
+    // 项目名做路径安全处理(防路径穿越/非法字符)
+    const safeName = t.manifest.projectName.replace(/[\\/:*?"<>|]/g, "_").trim() || "migrated-project";
+    const targetPath = path.join(parentPath, safeName);
     try {
       fs.mkdirSync(targetPath, { recursive: true });
     } catch (e) {
-      return { ok: false, error: `无法创建目标目录: ${(e as Error).message}` };
+      return { ok: false, error: `无法创建项目目录: ${(e as Error).message}` };
     }
     t.targetPath = targetPath;
     // 通知发送端开始传数据(两阶段握手)

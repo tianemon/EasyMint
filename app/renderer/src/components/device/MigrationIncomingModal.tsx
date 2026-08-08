@@ -67,10 +67,10 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
   if (!incoming) return null;
 
   const handleAccept = async () => {
-    // 目标路径为空 → 选择父目录,子目录用项目名
+    // 父文件夹为空 → 提示
     let finalPath = targetPath.trim();
     if (!finalPath) {
-      setError("请选择或输入目标路径");
+      setError("请选择或输入项目父文件夹");
       return;
     }
     setAccepting(true);
@@ -107,14 +107,14 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
             </div>
           </div>
 
-          {/* 目标路径 */}
+          {/* 项目父文件夹 */}
           <div>
-            <label className="text-xs text-text-secondary block mb-1">目标路径</label>
+            <label className="text-xs text-text-secondary block mb-1">项目父文件夹</label>
             <div className="flex gap-2">
               <input
                 value={targetPath}
                 onChange={(e) => setTargetPath(e.target.value)}
-                placeholder="选择或输入项目落位目录"
+                placeholder="选择项目要放到的父文件夹"
                 className="flex-1 px-2.5 py-1.5 rounded-lg bg-surface border border-border text-xs text-text-primary outline-none focus:border-accent"
               />
               <button
@@ -126,7 +126,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
                 {browsing ? "…" : "浏览"}
               </button>
             </div>
-            <p className="text-[10px] text-text-muted mt-1">项目文件将解压到该目录；会话会自动恢复到本机项目（以该路径为身份）</p>
+            <p className="text-[10px] text-text-muted mt-1">将在此文件夹下创建「{incoming.projectName}」项目文件夹并恢复；会话会自动恢复到本机项目（以新路径为身份）</p>
           </div>
 
           {error && <div className="text-[11px] text-danger">{error}</div>}
@@ -145,7 +145,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
           {accepted && (
             <div className="flex items-center gap-2 text-xs text-accent">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              已恢复到：{targetPath}
+              已恢复到：{targetPath}/{incoming.projectName.replace(/[\\/:*?"<>|]/g, "_").trim() || "migrated-project"}
             </div>
           )}
         </div>
