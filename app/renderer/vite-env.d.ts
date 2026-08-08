@@ -260,7 +260,7 @@ interface ElectronAPI {
     onCompleted: (cb: (d: { projectName: string; projectPath: string; fromName: string }) => void) => () => void;
     onReceipt: (cb: (d: { ok: boolean; projectName?: string; projectPath?: string; failures?: string[] }) => void) => () => void;
     onProgress: (cb: (d: { transferId: string; received: number }) => void) => () => void;
-    onSendProgress: (cb: (d: { transferId: string; sent: number; total: number; done?: boolean }) => void) => () => void;
+    onSendProgress: (cb: (d: { transferId: string; sent: number; total: number; phase?: "waiting" | "transferring" | "sent" | "rejected" | "timeout" }) => void) => () => void;
   };
   onFirewallHint: (cb: (d: { port: number }) => void) => () => void;
   task: {

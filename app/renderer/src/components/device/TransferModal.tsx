@@ -26,15 +26,22 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
   const [totalSize, setTotalSize] = useState(0);
   const [scanning, setScanning] = useState(false);
   const [transferring, setTransferring] = useState(false);
-  const [progress, setProgress] = useState<string>("");
+  const [phase, setPhase] = useState<"waiting" | "transferring" | "sent" | "rejected" | "timeout" | null>(null);
   const [progressPct, setProgressPct] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  // 发送端传输进度(主进程每块广播)
+  // 发送端传输进度(主进程广播阶段:等待确认 → 传输中 → 已发送/被拒/超时)
   useEffect(() => {
     return window.electronAPI.migration.onSendProgress((d) => {
+      setPhase(d.phase ?? "transferring");
       setProgressPct(d.total > 0 ? Math.min(100, Math.round((d.sent / d.total) * 100)) : 0);
-      if (d.done) setProgress("传输完成，等待接收端恢复…");
+      if (d.phase === "rejected") {
+        setError("对方拒绝了迁移");
+        setTransferring(false);
+      } else if (d.phase === "timeout") {
+        setError("等待对方确认超时(30s)——对方可能不在线或未响应");
+        setTransferring(false);
+      }
     });
   }, []);
 
@@ -46,7 +53,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
       setTotalSize(0);
       setError(null);
       setTransferring(false);
-      setProgress("");
+      setPhase(null);
       setProgressPct(0);
     }
   }, [open]);
@@ -104,7 +111,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
     if (!files || files.length === 0) return;
     setTransferring(true);
     setError(null);
-    setProgress("打包并传输中…");
+    setPhase("waiting"); // 先显示等待确认(主进程广播会覆盖)
     try {
       const r = await window.electronAPI.migration.start({
         projectPath: projectPath.trim(),
@@ -116,9 +123,8 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
         setTransferring(false);
         return;
       }
-      setProgress("传输完成，等待接收端恢复…");
-      // 短暂展示后关闭
-      setTimeout(() => { onSent(); onClose(); }, 1200);
+      // 传输成功(数据已全部发出);接收端恢复完成会经回执提示(App 层),此处停留展示
+      setPhase("sent");
     } catch (e) {
       setError(`传输失败: ${(e as Error).message}`);
       setTransferring(false);
@@ -177,12 +183,24 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
             </div>
           )}
 
-          {transferring && (
+          {transferring && phase === "waiting" && (
+            <div className="flex items-center gap-2 text-xs text-text-secondary">
+              <svg className="w-3.5 h-3.5 animate-spin text-accent" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3"/><path d="M12 2a10 10 0 019.95 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
+              已发送请求，等待 {deviceName} 确认接收…
+            </div>
+          )}
+          {transferring && phase === "transferring" && (
             <div className="space-y-1">
               <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
                 <div className="h-full bg-accent rounded-full transition-all duration-200" style={{ width: `${progressPct}%` }} />
               </div>
-              <div className="text-[10px] text-text-secondary">{progressPct}% · {progress || "传输中…"}</div>
+              <div className="text-[10px] text-text-secondary">传输中 {progressPct}%</div>
+            </div>
+          )}
+          {transferring && phase === "sent" && (
+            <div className="flex items-center gap-2 text-xs text-accent">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              传输完成，等待接收端恢复（恢复结果会另行提示）
             </div>
           )}
           {error && <div className="text-[11px] text-danger">{error}</div>}

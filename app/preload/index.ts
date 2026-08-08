@@ -394,9 +394,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("migration:progress", h);
       return () => ipcRenderer.removeListener("migration:progress", h);
     },
-    // 发送端传输进度(本地发送统计)
-    onSendProgress: (cb: (d: { transferId: string; sent: number; total: number; done?: boolean }) => void) => {
-      const h = (_e: Electron.IpcRendererEvent, d: { transferId: string; sent: number; total: number; done?: boolean }) => cb(d);
+    // 发送端传输进度(本地发送统计;phase: waiting 等待确认 / transferring 传输中 / sent 已发送 / rejected 被拒 / timeout 超时)
+    onSendProgress: (cb: (d: { transferId: string; sent: number; total: number; phase?: "waiting" | "transferring" | "sent" | "rejected" | "timeout" }) => void) => {
+      const h = (_e: Electron.IpcRendererEvent, d: { transferId: string; sent: number; total: number; phase?: "waiting" | "transferring" | "sent" | "rejected" | "timeout" }) => cb(d);
       ipcRenderer.on("migration:send-progress", h);
       return () => ipcRenderer.removeListener("migration:send-progress", h);
     },

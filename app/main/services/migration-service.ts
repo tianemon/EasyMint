@@ -166,12 +166,20 @@ class MigrationService extends EventEmitter {
     const ok = networkService.sendToDevice(deviceId, { type: "transfer-request", transferId, manifest });
     if (!ok) return { ok: false, error: "发送失败(连接已断开)" };
 
-    // 等待接收端 transfer-accept(30s 超时;拒绝则取消)
+    // 等待接收端 transfer-accept(30s 超时;拒绝则取消)——广播"等待确认"供前端展示
+    this.emit("send-progress", { transferId, sent: 0, total, phase: "waiting" });
     const accepted = await this.waitAccept(transferId);
-    if (accepted === "rejected") return { ok: false, error: "对方拒绝了迁移" };
-    if (accepted !== "accepted") return { ok: false, error: "等待对方确认超时" };
+    if (accepted === "rejected") {
+      this.emit("send-progress", { transferId, sent: 0, total, phase: "rejected" });
+      return { ok: false, error: "对方拒绝了迁移" };
+    }
+    if (accepted !== "accepted") {
+      this.emit("send-progress", { transferId, sent: 0, total, phase: "timeout" });
+      return { ok: false, error: "等待对方确认超时" };
+    }
 
     // 2. 分块传输(不一次性进内存,读一块发一块;每块广播发送进度供前端进度条)
+    this.emit("send-progress", { transferId, sent: 0, total, phase: "transferring" });
     let sentBytes = 0;
     for (let i = 0; i < files.length; i++) {
       const f = files[i]!;
@@ -191,13 +199,13 @@ class MigrationService extends EventEmitter {
         sentBytes += chunk.length;
         // 节流:每 ~256KB 或最后一块广播一次
         if (c % 8 === 0 || (i === files.length - 1 && c === totalChunks - 1)) {
-          this.emit("send-progress", { transferId, sent: sentBytes, total });
+          this.emit("send-progress", { transferId, sent: sentBytes, total, phase: "transferring" });
         }
       }
     }
     networkService.sendToDevice(deviceId, { type: "transfer-complete", transferId });
     this.sentTransfers.set(transferId, projectPath);
-    this.emit("send-progress", { transferId, sent: total, total, done: true });
+    this.emit("send-progress", { transferId, sent: total, total, phase: "sent" });
     return { ok: true, transferId };
   }
 
