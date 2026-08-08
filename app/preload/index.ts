@@ -379,8 +379,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("migration:incoming", h);
       return () => ipcRenderer.removeListener("migration:incoming", h);
     },
-    onCompleted: (cb: (d: { projectName: string; projectPath: string; fromName: string }) => void) => {
-      const h = (_e: Electron.IpcRendererEvent, d: { projectName: string; projectPath: string; fromName: string }) => cb(d);
+    onCompleted: (cb: (d: { projectName: string; projectPath: string; originPath: string; fromName: string }) => void) => {
+      const h = (_e: Electron.IpcRendererEvent, d: { projectName: string; projectPath: string; originPath: string; fromName: string }) => cb(d);
       ipcRenderer.on("migration:completed", h);
       return () => ipcRenderer.removeListener("migration:completed", h);
     },

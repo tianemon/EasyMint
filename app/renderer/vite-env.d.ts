@@ -259,7 +259,7 @@ interface ElectronAPI {
     scan: (projectPath: string) => Promise<{ files: Array<{ relPath: string; absPath: string }>; sessionFile?: string; totalSize: number }>;
     getSessionFile: (projectPath: string) => Promise<string | null>;
     onIncoming: (cb: (d: { transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }) => void) => () => void;
-    onCompleted: (cb: (d: { projectName: string; projectPath: string; fromName: string }) => void) => () => void;
+    onCompleted: (cb: (d: { projectName: string; projectPath: string; originPath: string; fromName: string }) => void) => () => void;
     onReceipt: (cb: (d: { ok: boolean; projectName?: string; projectPath?: string; failures?: string[] }) => void) => () => void;
     onProgress: (cb: (d: { transferId: string; received: number }) => void) => () => void;
     onSendProgress: (cb: (d: { transferId: string; sent: number; total: number; phase?: "scanning" | "packing" | "waiting" | "transferring" | "sent" | "rejected" | "timeout" }) => void) => () => void;

@@ -80,6 +80,8 @@ export interface ScanResult {
 export interface MigrationManifest {
   fromName: string;          // 发送端设备名
   projectName: string;       // 项目名
+  /** 发送端项目绝对路径(迁移通知模板引用旧路径) */
+  originPath: string;
   zipName: string;           // zip 文件名
   zipSize: number;           // zip 字节数
   zipSha256: string;         // zip 哈希(接收端校验)
@@ -194,6 +196,7 @@ class MigrationService extends EventEmitter {
     const manifest: MigrationManifest = {
       fromName: networkService.getSelf().name,
       projectName,
+      originPath: path.resolve(projectPath),
       zipName,
       zipSize,
       zipSha256,
@@ -478,11 +481,12 @@ class MigrationService extends EventEmitter {
     fs.rmSync(cacheZip, { force: true });
     broadcast("migration:stage", { transferId, stage: "done" });
 
-    // 6. 注入系统消息给本机 Mint + 回执
+    // 6. 通知前端(展示迁移完成卡片 + 复制模板文案) + 回执
     this.emit("completed", {
       transferId,
       projectName: t.manifest.projectName,
       projectPath: t.targetPath,
+      originPath: t.manifest.originPath,
       fromName: t.fromName,
     });
     // 回执带完整性数据:发送端据此确认恢复成功(文件数 + 会话恢复标志)

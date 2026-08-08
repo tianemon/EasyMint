@@ -504,15 +504,10 @@ const filePath = p.join(projectPath, "task.json");
     }
   });
   // 迁移完成 → 注入系统消息给本机 Mint(接收端,对齐上下文继续开发)
-  mig.on("completed", (e: { projectName: string; projectPath: string; fromName: string }) => {
+  // 迁移完成 → 前端展示完成卡片 + 模板文案(用户复制发送给 Mint——迁移会话未打开,
+  // 无法直接注入;由用户粘贴到会话即可对齐上下文)
+  mig.on("completed", (e: { projectName: string; projectPath: string; originPath: string; fromName: string }) => {
     broadcast("migration:completed", e);
-    // 找到该项目下最活跃的会话,注入迁移完成系统消息
-    const text = `迁移完成: 来自 ${e.fromName} 的「${e.projectName}」已恢复到本机。\n注意事项:\n1. 项目路径已变更为 ${e.projectPath}——记忆中的旧路径已失效,读写以新路径为准\n2. 原 git 仓库未迁移,需重新 git init;如有远程仓库(GitHub 等),重新配置 remote origin\n3. 任务进度以 task.json 为唯一真相,重新核对(历史对话中的进度快照仅供参考)\n4. 平台差异:换行符/可执行权限/包管理器/工具链按本机环境\n5. 建议主动读一遍项目结构确认环境`;
-    void listSessions(e.projectPath).then((sessions) => {
-      if (sessions.length > 0) {
-        agentService.injectSystemMessage(sessions[0]!.sessionId, text, "delegation", { triggerTurn: true });
-      }
-    });
   });
   ipcMain.handle("migration:listIncoming", () => mig.listIncoming());
   ipcMain.handle("migration:accept", (_e, { transferId, targetPath }) => mig.acceptTransfer(transferId, targetPath));
