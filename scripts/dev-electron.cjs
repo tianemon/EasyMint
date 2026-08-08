@@ -23,6 +23,8 @@ const EXTERNALS = [
   "@modelcontextprotocol/sdk",
   "@modelcontextprotocol/sdk/*",
   "electron-updater",
+  // unzipper 的可选 S3 支持(运行时才 require,未安装——external 避免 bundle 失败)
+  "@aws-sdk/*",
 ];
 
 async function main() {
