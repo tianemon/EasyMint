@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { StepIndicator } from "./StepIndicator";
 
 /**
  * 接收端迁移确认弹窗:收到迁移包 → 展示来源/项目/大小 → 用户选目标路径 → 接收/拒绝。
@@ -34,11 +35,21 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
   const [error, setError] = useState<string | null>(null);
   // 接收进度(接收后主进程每块广播)
   const [progressPct, setProgressPct] = useState<number | null>(null);
+  // 接收端阶段(接收中 → 校验 → 解压 → 会话恢复 → 完成)
+  const [stage, setStage] = useState<"receiving" | "verify" | "extract" | "session" | "done">("receiving");
 
   useEffect(() => {
     return window.electronAPI.migration.onProgress((d) => {
       if (incoming && d.transferId === incoming.transferId) {
         setProgressPct(incoming.totalSize > 0 ? Math.min(100, Math.round((d.received / incoming.totalSize) * 100)) : 0);
+      }
+    });
+  }, [incoming]);
+
+  useEffect(() => {
+    return window.electronAPI.migration.onStage((d) => {
+      if (incoming && d.transferId === incoming.transferId) {
+        setStage(d.stage);
       }
     });
   }, [incoming]);
@@ -83,6 +94,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
     }
     // 接收成功:显示落位路径,短暂停留后关闭
     setAccepted(true);
+    setStage("done");
     setTargetPath(finalPath);
     setTimeout(() => onClose(), 2000);
   };
@@ -131,13 +143,27 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
 
           {error && <div className="text-[11px] text-danger">{error}</div>}
 
-          {/* 接收进度 */}
-          {accepting && progressPct !== null && (
-            <div className="space-y-1">
-              <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                <div className="h-full bg-accent rounded-full transition-all duration-200" style={{ width: `${progressPct}%` }} />
-              </div>
-              <div className="text-[10px] text-text-secondary">接收中 {progressPct}%</div>
+          {/* 接收端步骤条:接收 → 校验 → 解压 → 会话恢复 → 完成 */}
+          {(accepting || accepted) && (
+            <div className="space-y-2">
+              <StepIndicator
+                steps={[
+                  { id: "receiving", label: "接收" },
+                  { id: "verify", label: "校验" },
+                  { id: "extract", label: "解压" },
+                  { id: "session", label: "会话恢复" },
+                  { id: "done", label: "完成" },
+                ]}
+                current={stage}
+              />
+              {stage === "receiving" && progressPct !== null && (
+                <div className="space-y-1">
+                  <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                    <div className="h-full bg-accent rounded-full transition-all duration-200" style={{ width: `${progressPct}%` }} />
+                  </div>
+                  <div className="text-[10px] text-text-secondary">接收中 {progressPct}%</div>
+                </div>
+              )}
             </div>
           )}
 

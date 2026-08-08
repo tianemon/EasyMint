@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { StepIndicator } from "./StepIndicator";
 
 /**
  * 迁移对话框(发送端,用户直接触发入口):
@@ -26,7 +27,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
   const [totalSize, setTotalSize] = useState(0);
   const [scanning, setScanning] = useState(false);
   const [transferring, setTransferring] = useState(false);
-  const [phase, setPhase] = useState<"waiting" | "transferring" | "sent" | "rejected" | "timeout" | null>(null);
+  const [phase, setPhase] = useState<"scanning" | "packing" | "waiting" | "transferring" | "sent" | "rejected" | "timeout" | null>(null);
   const [progressPct, setProgressPct] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -159,24 +160,30 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
             </div>
           )}
 
-          {transferring && phase === "waiting" && (
-            <div className="flex items-center gap-2 text-xs text-text-secondary">
-              <svg className="w-3.5 h-3.5 animate-spin text-accent" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3"/><path d="M12 2a10 10 0 019.95 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
-              已发送请求，等待 {deviceName} 确认接收…
-            </div>
-          )}
-          {transferring && phase === "transferring" && (
-            <div className="space-y-1">
-              <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                <div className="h-full bg-accent rounded-full transition-all duration-200" style={{ width: `${progressPct}%` }} />
-              </div>
-              <div className="text-[10px] text-text-secondary">传输中 {progressPct}%</div>
-            </div>
-          )}
-          {transferring && phase === "sent" && (
-            <div className="flex items-center gap-2 text-xs text-accent">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              传输完成，等待接收端恢复（恢复结果会另行提示）
+          {/* 发送端步骤条:扫描 → 打包 → 等待确认 → 传输 → 已发送 */}
+          {transferring && (
+            <div className="space-y-2">
+              <StepIndicator
+                steps={[
+                  { id: "scanning", label: "扫描" },
+                  { id: "packing", label: "打包" },
+                  { id: "waiting", label: "等待确认" },
+                  { id: "transferring", label: "传输" },
+                  { id: "sent", label: "已发送" },
+                ]}
+                current={phase ?? "scanning"}
+              />
+              {phase === "transferring" && (
+                <div className="space-y-1">
+                  <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                    <div className="h-full bg-accent rounded-full transition-all duration-200" style={{ width: `${progressPct}%` }} />
+                  </div>
+                  <div className="text-[10px] text-text-secondary">传输中 {progressPct}%</div>
+                </div>
+              )}
+              {phase === "sent" && (
+                <div className="text-[10px] text-text-secondary">传输完成，等待接收端恢复（恢复结果会另行提示）</div>
+              )}
             </div>
           )}
           {error && <div className="text-[11px] text-danger">{error}</div>}

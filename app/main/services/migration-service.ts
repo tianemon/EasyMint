@@ -158,6 +158,7 @@ class MigrationService extends EventEmitter {
     if (!peer?.online) return { ok: false, error: "目标设备不在线" };
 
     // 1. 统一扫描
+    this.emit("send-progress", { transferId: "", sent: 0, total: 0, phase: "scanning" });
     const scan = this.scanProject(projectPath);
     if (scan.files.length === 0) return { ok: false, error: "未扫描到可迁移文件" };
 
@@ -166,6 +167,7 @@ class MigrationService extends EventEmitter {
     const projectName = path.basename(path.resolve(projectPath));
     const zipName = `${projectName}-${transferId}.zip`;
     const zipPath = path.join(MIGRATION_CACHE_DIR, zipName);
+    this.emit("send-progress", { transferId, sent: 0, total: 0, phase: "packing" });
     try {
       fs.mkdirSync(MIGRATION_CACHE_DIR, { recursive: true });
       await this.buildZip(scan, zipPath, projectName);
@@ -391,6 +393,7 @@ class MigrationService extends EventEmitter {
     this.pending.delete(transferId);
 
     // 1. 拼接 zip 分块 + 校验哈希
+    broadcast("migration:stage", { transferId, stage: "verify" });
     const zipBuf = Buffer.concat(t.chunks.filter(Boolean));
     if (this.sha256(zipBuf) !== t.manifest.zipSha256) {
       broadcast("migration:failed", { transferId, failures: ["zip 校验失败"] });
@@ -410,6 +413,7 @@ class MigrationService extends EventEmitter {
     }
 
     // 3. 解压到项目目录(zip 内部路径安全:跳过绝对路径/穿越条目)
+    broadcast("migration:stage", { transferId, stage: "extract" });
     const extractFailures: string[] = [];
     try {
       await this.extractZip(cacheZip, t.targetPath, extractFailures);
@@ -418,6 +422,7 @@ class MigrationService extends EventEmitter {
     }
 
     // 4. 会话恢复:从 zip 的 .easymint-session/ 里恢复(若 zip 内有)
+    broadcast("migration:stage", { transferId, stage: "session" });
     let sessionRestored = false;
     try {
       sessionRestored = await this.restoreSessionFromZip(cacheZip, t.targetPath);
@@ -434,6 +439,7 @@ class MigrationService extends EventEmitter {
 
     // 5. 全部成功 → 删除缓存 zip
     fs.rmSync(cacheZip, { force: true });
+    broadcast("migration:stage", { transferId, stage: "done" });
 
     // 6. 注入系统消息给本机 Mint + 回执
     this.emit("completed", {

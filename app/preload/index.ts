@@ -395,11 +395,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("migration:progress", h);
       return () => ipcRenderer.removeListener("migration:progress", h);
     },
-    // 发送端传输进度(本地发送统计;phase: waiting 等待确认 / transferring 传输中 / sent 已发送 / rejected 被拒 / timeout 超时)
-    onSendProgress: (cb: (d: { transferId: string; sent: number; total: number; phase?: "waiting" | "transferring" | "sent" | "rejected" | "timeout" }) => void) => {
-      const h = (_e: Electron.IpcRendererEvent, d: { transferId: string; sent: number; total: number; phase?: "waiting" | "transferring" | "sent" | "rejected" | "timeout" }) => cb(d);
+    // 发送端传输进度(本地发送统计;phase: scanning 扫描 / packing 打包 / waiting 等待确认 / transferring 传输中 / sent 已发送 / rejected 被拒 / timeout 超时)
+    onSendProgress: (cb: (d: { transferId: string; sent: number; total: number; phase?: "scanning" | "packing" | "waiting" | "transferring" | "sent" | "rejected" | "timeout" }) => void) => {
+      const h = (_e: Electron.IpcRendererEvent, d: { transferId: string; sent: number; total: number; phase?: "scanning" | "packing" | "waiting" | "transferring" | "sent" | "rejected" | "timeout" }) => cb(d);
       ipcRenderer.on("migration:send-progress", h);
       return () => ipcRenderer.removeListener("migration:send-progress", h);
+    },
+    // 接收端阶段(verify 校验 / extract 解压 / session 会话恢复 / done 完成)
+    onStage: (cb: (d: { transferId: string; stage: "verify" | "extract" | "session" | "done" }) => void) => {
+      const h = (_e: Electron.IpcRendererEvent, d: { transferId: string; stage: "verify" | "extract" | "session" | "done" }) => cb(d);
+      ipcRenderer.on("migration:stage", h);
+      return () => ipcRenderer.removeListener("migration:stage", h);
     },
   },
   // Windows 防火墙放行提示(设备互联,一次)
