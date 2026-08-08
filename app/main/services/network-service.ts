@@ -18,6 +18,7 @@ import * as crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { WebSocketServer, WebSocket } from "ws";
 import { Bonjour } from "bonjour-service";
+import { generateKeyPair, deriveSharedKey, encrypt, decrypt, makeChallenge } from "./device-crypto";
 
 // ── 常量（频率对齐蓝牙指导值，见方案文档频率参数表） ──
 // 注:mDNS 通告间隔由协议层维护(蓝牙 2s 阈值的对应物),应用侧无需定时发布
@@ -33,13 +34,17 @@ const DEVICE_ID_FILE = path.join(os.homedir(), ".easymint", "device-id.json");
 export interface PairedDevice {
   id: string; // 对方设备 UUID
   name: string; // 对方设备名
-  key: string; // 配对密钥（随机生成，持久化）
+  /** 共享密钥(ECDH 派生,base64)——双方各自算出,永不传输;用于连接认证 + 传输加密 */
+  key: string;
   pairedAt: number;
   lastSeen: number; // 最后在线时间戳
   /** 最后已知地址/端口(重连优先直连,对齐蓝牙已配对设备直接连接;IP 变化时失效) */
   address?: string;
   port?: number;
 }
+
+/** 配对中暂存:对方设备 ID → 其 ECDH 公钥(base64)——acceptPair 时派生共享密钥 */
+type PendingPairKey = string;
 
 export interface DiscoveredDevice {
   id: string;
@@ -122,6 +127,10 @@ class NetworkService extends EventEmitter {
   private inboundSockets = new Map<string, WebSocket>(); // 对方设备 ID → 入站连接
   private discovered = new Map<string, DiscoveredDevice>();
   private paired: PairedDevice[] = [];
+  /** 配对中暂存(发起方 A):对方设备 ID → 自己的 ECDH 私钥(等对方公钥派生共享密钥) */
+  private pendingOwnKeys = new Map<string, crypto.ECDH>();
+  /** 配对中暂存(接收方 B):对方设备 ID → 对方 ECDH 公钥(base64) */
+  private pendingPeerKeys = new Map<string, string>();
   private deviceId = "";
   private deviceName = "";
   private listeningPort = WS_PORT;
@@ -255,20 +264,27 @@ class NetworkService extends EventEmitter {
     this.emit("devices-changed");
   }
 
-  /** 响应配对请求（B 端用户确认后，双向建立连接） */
+  /** 响应配对请求（B 端用户确认后，双向建立连接）。
+      ECDH: A 公钥随 pair-request 到达(暂存 pendingPeerKeys);B 生成自己密钥对,
+      用 A 公钥派生共享密钥(持久化),把 B 公钥随 pair-accept 发 A——密钥永不传输 */
   async acceptPair(peer: DiscoveredDevice): Promise<{ ok: boolean; error?: string }> {
     try {
-      const key = crypto.randomBytes(32).toString("hex");
-      // 1. 发 pair-accept(短连接):发送端收到后保存配对记录(密钥一致,后续 hello 校验通过)
-      const msg = JSON.stringify({ type: "pair-accept", fromId: this.deviceId, fromName: this.deviceName, key });
+      const aPublicKeyB64 = this.pendingPeerKeys.get(peer.id);
+      if (!aPublicKeyB64) return { ok: false, error: "未找到配对请求(请让对方重新发起配对)" };
+      // B 生成密钥对 → 用 A 公钥派生共享密钥
+      const { privateKey, publicKey } = generateKeyPair();
+      const sharedKey = deriveSharedKey(privateKey, aPublicKeyB64);
+      const keyB64 = sharedKey.toString("base64");
+      // 1. 发 pair-accept(短连接):携带 B 公钥,发送端(A)用它派生同一共享密钥
+      const msg = JSON.stringify({ type: "pair-accept", fromId: this.deviceId, fromName: this.deviceName, publicKey });
       const sent = await this.sendRaw(peer.address, peer.port, msg);
       if (!sent) return { ok: false, error: "无法连接对方设备" };
-      // 2. 本端保存配对记录
+      // 2. 本端保存配对记录(共享密钥)
       this.paired = this.paired.filter((p) => p.id !== peer.id);
-      this.paired.push({ id: peer.id, name: peer.name, key, pairedAt: Date.now(), lastSeen: Date.now() });
+      this.paired.push({ id: peer.id, name: peer.name, key: keyB64, pairedAt: Date.now(), lastSeen: Date.now() });
       this.savePaired();
-      // 3. 建立持久出站连接(携带密钥,发送端校验后记录入站)——不能只靠 sendRaw(短连接发完即关)
-      await this.connectOutbound({ id: peer.id, name: peer.name, key, pairedAt: 0, lastSeen: Date.now() }, peer.address, peer.port);
+      // 3. 建立持久出站连接(携带共享密钥,发送端校验后记录入站)
+      await this.connectOutbound({ id: peer.id, name: peer.name, key: keyB64, pairedAt: 0, lastSeen: Date.now() }, peer.address, peer.port);
       this.emit("devices-changed");
       return { ok: true };
     } catch (e) {
@@ -279,14 +295,21 @@ class NetworkService extends EventEmitter {
     }
   }
 
-  /** 主动发起配对（A 端点选设备后）——发送配对请求给对方确认 */
+  /** 主动发起配对（A 端点选设备后）——发送配对请求给对方确认。
+      A 生成密钥对,公钥随请求发出;暂存私钥等 B 的公钥派生共享密钥 */
   async requestPair(peer: DiscoveredDevice): Promise<{ ok: boolean; error?: string }> {
     try {
-      const msg = JSON.stringify({ type: "pair-request", fromId: this.deviceId, fromName: this.deviceName });
+      const { privateKey, publicKey } = generateKeyPair();
+      this.pendingOwnKeys.set(peer.id, privateKey);
+      const msg = JSON.stringify({ type: "pair-request", fromId: this.deviceId, fromName: this.deviceName, publicKey });
       const ok = await this.sendRaw(peer.address, peer.port, msg);
-      if (!ok) return { ok: false, error: "无法连接对方设备（可能未开启可被发现）" };
+      if (!ok) {
+        this.pendingOwnKeys.delete(peer.id);
+        return { ok: false, error: "无法连接对方设备（可能未开启可被发现）" };
+      }
       return { ok: true };
     } catch (e) {
+      this.pendingOwnKeys.delete(peer.id);
       return { ok: false, error: (e as Error).message };
     }
   }
@@ -399,7 +422,13 @@ class NetworkService extends EventEmitter {
           p.port = port;
           this.savePaired();
           this.wsClients.set(p.id, ws);
-          ws.send(JSON.stringify({ type: "hello", fromId: this.deviceId, fromName: this.deviceName, key: p.key }));
+          // challenge 认证:共享密钥加密的随机串,对方解密成功 = 持有密钥(不传明文 key)
+          ws.send(JSON.stringify({
+            type: "hello",
+            fromId: this.deviceId,
+            fromName: this.deviceName,
+            challenge: makeChallenge(Buffer.from(p.key, "base64")),
+          }));
           this.markOnline(p.id);
           if (!settled) { settled = true; resolve(); }
         });
@@ -437,19 +466,30 @@ class NetworkService extends EventEmitter {
   private handlePeerMessage(peerAddr: string, ws: WebSocket, peerIdRef: { id: string }, msg: Record<string, unknown>): void {
     const fromId = String(msg.fromId ?? "");
     if (msg.type === "pair-request") {
-      // 对方请求配对 → 通知 UI 弹窗确认
+      // 对方请求配对 → 暂存对方公钥(acceptPair 派生共享密钥用) + 通知 UI 弹窗确认
+      const pub = String(msg.publicKey ?? "");
+      if (pub) this.pendingPeerKeys.set(fromId, pub);
       this.emit("pair-request", {
         id: fromId, name: String(msg.fromName ?? ""), address: peerAddr.replace("::ffff:", ""), port: WS_PORT,
       });
       ws.close();
     } else if (msg.type === "pair-accept") {
-      // 对方接受了我们的配对请求 → 只保存配对记录(含对端地址,供重启后自动重连)。
+      // 对方接受了我们的配对请求(A 端):用暂存私钥 + 对方公钥派生共享密钥。
       // 注意:此连接是对方 sendRaw 短连接(发完即关),不能存 inboundSockets——
       // 对方 acceptPair 会紧接着 connectOutbound 发 hello,在 hello 分支建立真正的长连接
+      const myPrivate = this.pendingOwnKeys.get(fromId);
+      const peerPub = String(msg.publicKey ?? "");
+      if (!myPrivate || !peerPub) {
+        ws.close();
+        return;
+      }
+      const sharedKey = deriveSharedKey(myPrivate, peerPub);
+      const keyB64 = sharedKey.toString("base64");
+      this.pendingOwnKeys.delete(fromId);
       const peerAddr4 = peerAddr.replace("::ffff:", "");
       this.paired = this.paired.filter((p) => p.id !== fromId);
       this.paired.push({
-        id: fromId, name: String(msg.fromName ?? ""), key: String(msg.key ?? ""),
+        id: fromId, name: String(msg.fromName ?? ""), key: keyB64,
         pairedAt: Date.now(), lastSeen: Date.now(),
         address: peerAddr4, port: WS_PORT,
       });
@@ -457,15 +497,16 @@ class NetworkService extends EventEmitter {
       this.emit("devices-changed");
       ws.close();
     } else if (msg.type === "hello") {
-      // 已配对设备发起连接 → 校验密钥
+      // 已配对设备发起连接 → challenge 认证:解密成功 = 持有共享密钥(不再明文传 key)
       const p = this.paired.find((x) => x.id === fromId);
-      if (!p || p.key !== String(msg.key ?? "")) {
-        // 密钥不符/无记录 = 对方侧配对已失效(被解除)→ 本端同步解除,停止重试循环
+      const challenge = msg.challenge as { iv: string; tag: string; data: string } | undefined;
+      const okAuth = p && challenge && decrypt(Buffer.from(p.key, "base64"), challenge) !== null;
+      if (!okAuth) {
+        // 认证失败/无记录 = 对方侧配对已失效(被解除)或密钥不符 → 拒绝
         ws.close();
         if (p) {
           this.paired = this.paired.filter((x) => x.id !== fromId);
           this.savePaired();
-          // 重建 scanner(清 browser 去重缓存,见 unpair)
           this.emit("devices-changed");
         }
         return;
@@ -496,8 +537,16 @@ class NetworkService extends EventEmitter {
       this.wsClients.delete(fromId);
       this.inboundSockets.delete(fromId);
       this.savePaired();
-      // 重建 scanner(清 browser 去重缓存,见 unpair)
       this.emit("devices-changed");
+    } else if (msg.type === "encrypted") {
+      // 加密的应用消息(迁移数据等):用共享密钥解密后转发
+      const p = this.paired.find((x) => x.id === peerIdRef.id || x.id === fromId);
+      if (!p) return;
+      const dec = decrypt(Buffer.from(p.key, "base64"), msg as { iv: string; tag: string; data: string });
+      if (!dec) return;
+      try {
+        this.handleAppMessage(peerIdRef.id, JSON.parse(dec) as { type: string; [k: string]: unknown });
+      } catch { /* 解密后非 JSON 忽略 */ }
     } else {
       this.handleAppMessage(peerIdRef.id, msg as { type: string; [k: string]: unknown });
     }
@@ -570,10 +619,19 @@ class NetworkService extends EventEmitter {
   }
 
   /** 向已配对设备发送应用消息（预留：会话/项目迁移） */
+  /** 向已配对设备发送消息。协议控制消息(心跳/解除等)明文;应用消息(迁移数据)加密 */
   sendToDevice(id: string, message: Record<string, unknown>): boolean {
     const ws = this.wsClients.get(id) ?? this.inboundSockets.get(id);
     if (!ws || ws.readyState !== WebSocket.OPEN) return false;
-    ws.send(JSON.stringify(message));
+    const p = this.paired.find((x) => x.id === id);
+    // 明文协议消息:unpair-notify/ping 等(无敏感数据);其余(迁移 transfer-*)加密
+    const isPlain = message.type === "unpair-notify" || message.type === "ping";
+    if (!isPlain && p) {
+      const enc = encrypt(Buffer.from(p.key, "base64"), JSON.stringify(message));
+      ws.send(JSON.stringify({ type: "encrypted", ...enc }));
+    } else {
+      ws.send(JSON.stringify(message));
+    }
     return true;
   }
 
