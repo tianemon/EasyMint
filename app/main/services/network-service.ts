@@ -25,6 +25,7 @@ const PAIR_MODE_TIMEOUT = 5 * 60 * 1000; // 配对模式 5 分钟自动退出
 const HEARTBEAT_INTERVAL = 30 * 1000; // 已连接心跳 30s
 const OFFLINE_PROBE_INTERVAL = 60 * 1000; // 离线设备探测 60s
 const WS_PORT = 47777; // 局域网 WS 监听端口（固定，防火墙放行一次）
+const DISCOVERABLE_TIMEOUT = 60 * 1000; // 可被发现持续 1 分钟自动停止(用户定稿)
 const SERVICE_TYPE = "easymint"; // mDNS 服务类型
 const PAIRED_FILE = path.join(os.homedir(), ".easymint", "paired-devices.json");
 const DEVICE_ID_FILE = path.join(os.homedir(), ".easymint", "device-id.json");
@@ -81,6 +82,8 @@ class NetworkService extends EventEmitter {
   private bonjour = new Bonjour();
   private advertiseService: import("bonjour-service").Service | null = null;
   private advertiseTimer: NodeJS.Timeout | null = null;
+  private pairModeEnd: number | null = null; // 可被发现截止时间
+  private pairModeTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private probeTimer: NodeJS.Timeout | null = null;
   private wss: WebSocketServer | null = null;
@@ -200,21 +203,25 @@ class NetworkService extends EventEmitter {
     this.saveIdentity();
   }
 
-  /** 当前是否可被发现（广播中）——由开关直接控制,持续到手动关闭 */
+  /** 当前是否可被发现（广播中） */
   isDiscoverable(): boolean {
-    return this.advertiseService !== null;
+    return this.pairModeEnd !== null && this.pairModeEnd > Date.now();
   }
 
-  /** 开启可被发现:持续广播(无超时,手动关闭才停)。
-      扫描已常驻,无需配对模式概念——蓝牙语义:可发现=被搜到,持续到关闭 */
+  /** 开启可被发现:广播 1 分钟自动停止(用户定稿);扫描常驻不受影响 */
   startPairMode(): void {
+    this.pairModeEnd = Date.now() + DISCOVERABLE_TIMEOUT;
     this.startAdvertising();
     this.emit("devices-changed");
+    if (this.pairModeTimer) clearTimeout(this.pairModeTimer);
+    this.pairModeTimer = setTimeout(() => this.stopPairMode(), DISCOVERABLE_TIMEOUT);
   }
 
   /** 关闭可被发现:停止广播(扫描保持) */
   stopPairMode(): void {
+    this.pairModeEnd = null;
     this.stopAdvertising();
+    if (this.pairModeTimer) { clearTimeout(this.pairModeTimer); this.pairModeTimer = null; }
     this.emit("devices-changed");
   }
 

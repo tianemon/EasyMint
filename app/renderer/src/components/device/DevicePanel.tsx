@@ -101,6 +101,19 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  // 可被发现 1 分钟倒计时(主进程到时自动停广播,前端只展示)
+  const [pairCountdown, setPairCountdown] = useState<number | null>(null);
+  useEffect(() => {
+    if (!pairMode) { setPairCountdown(null); return; }
+    const end = Date.now() + 60_000;
+    const t = setInterval(() => {
+      const left = Math.max(0, end - Date.now());
+      setPairCountdown(Math.ceil(left / 1000));
+      if (left <= 0) setPairCountdown(null);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [pairMode]);
+
   if (!open) return null;
 
   const handlePair = async (d: DiscoveredDevice) => {
@@ -153,11 +166,14 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                 type="button"
                 onClick={() => (pairMode ? stopPair() : startPair())}
                 className={`w-9 h-5 rounded-full transition-colors relative ${pairMode ? "bg-accent" : "bg-border"}`}
-                title={pairMode ? "关闭可被发现" : "开启可被发现(持续广播,手动关闭才停)"}
+                title={pairMode ? "关闭可被发现" : "开启可被发现(1 分钟后自动关闭)"}
               >
                 <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${pairMode ? "left-4" : "left-0.5"}`} />
               </button>
             </div>
+            {pairMode && pairCountdown !== null && (
+              <div className="mt-2 text-[10px] text-text-secondary">广播中 · {pairCountdown}s 后自动停止</div>
+            )}
           </div>
 
           {/* 已配对设备 */}
