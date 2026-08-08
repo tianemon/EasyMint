@@ -329,4 +329,58 @@ contextBridge.exposeInMainWorld("electronAPI", {
     messages: (projectPath: string, groupId: string) => ipcRenderer.invoke("group:messages", { projectPath, groupId }) as Promise<{ groupId: string; messages: Array<{ agentRole: string; text: string; piTs: number; forwardedFrom?: string }> }>,
     close: (groupId: string) => ipcRenderer.invoke("group:close", { groupId }) as Promise<void>,
   },
+  // ── 设备互联（mDNS 发现 + WS 配对连接） ──
+  device: {
+    getSelf: () => ipcRenderer.invoke("device:getSelf") as Promise<{ id: string; name: string; discoverable: boolean }>,
+    listPaired: () => ipcRenderer.invoke("device:listPaired") as Promise<Array<{ id: string; name: string; key: string; pairedAt: number; lastSeen: number; online: boolean }>>,
+    listDiscovered: () => ipcRenderer.invoke("device:listDiscovered") as Promise<Array<{ id: string; name: string; address: string; port: number }>>,
+    setName: (name: string) => ipcRenderer.invoke("device:setName", { name }),
+    startPair: () => ipcRenderer.invoke("device:startPair"),
+    stopPair: () => ipcRenderer.invoke("device:stopPair"),
+    manualScan: () => ipcRenderer.invoke("device:manualScan"),
+    requestPair: (peer: { id: string; name: string; address: string; port: number }) => ipcRenderer.invoke("device:requestPair", { peer }) as Promise<{ ok: boolean; error?: string }>,
+    acceptPair: (peer: { id: string; name: string; address: string; port: number }) => ipcRenderer.invoke("device:acceptPair", { peer }) as Promise<{ ok: boolean; error?: string }>,
+    unpair: (id: string) => ipcRenderer.invoke("device:unpair", { id }),
+    sendMessage: (id: string, message: Record<string, unknown>) => ipcRenderer.invoke("device:sendMessage", { id, message }) as Promise<{ ok: boolean }>,
+    // 事件订阅
+    onPairRequest: (cb: (req: { id: string; name: string; address: string; port: number }) => void) => {
+      const h = (_e: Electron.IpcRendererEvent, d: { id: string; name: string; address: string; port: number }) => cb(d);
+      ipcRenderer.on("device:pair-request", h);
+      return () => ipcRenderer.removeListener("device:pair-request", h);
+    },
+    onChanged: (cb: () => void) => {
+      const h = () => cb();
+      ipcRenderer.on("device:changed", h);
+      return () => ipcRenderer.removeListener("device:changed", h);
+    },
+    onOnline: (cb: (d: { id: string }) => void) => {
+      const h = (_e: Electron.IpcRendererEvent, d: { id: string }) => cb(d);
+      ipcRenderer.on("device:online", h);
+      return () => ipcRenderer.removeListener("device:online", h);
+    },
+    onOffline: (cb: (d: { id: string }) => void) => {
+      const h = (_e: Electron.IpcRendererEvent, d: { id: string }) => cb(d);
+      ipcRenderer.on("device:offline", h);
+      return () => ipcRenderer.removeListener("device:offline", h);
+    },
+  },
+  // ── 项目/会话迁移（发送端打包传输 + 接收端恢复） ──
+  migration: {
+    listIncoming: () => ipcRenderer.invoke("migration:listIncoming") as Promise<Array<{ transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }>>,
+    accept: (transferId: string, targetPath: string) => ipcRenderer.invoke("migration:accept", { transferId, targetPath }) as Promise<{ ok: boolean; error?: string }>,
+    reject: (transferId: string) => ipcRenderer.invoke("migration:reject", { transferId }) as Promise<{ ok: boolean }>,
+    start: (opts: { projectPath: string; deviceId: string; files: Array<{ relPath: string; absPath: string }>; sessionFile?: string }) => ipcRenderer.invoke("migration:start", opts) as Promise<{ ok: boolean; transferId?: string; error?: string }>,
+    getSessionFile: (projectPath: string) => ipcRenderer.invoke("migration:getSessionFile", { projectPath }) as Promise<string | null>,
+    // 接收端事件(弹窗确认/完成)
+    onIncoming: (cb: (d: { transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }) => void) => {
+      const h = (_e: Electron.IpcRendererEvent, d: { transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }) => cb(d);
+      ipcRenderer.on("migration:incoming", h);
+      return () => ipcRenderer.removeListener("migration:incoming", h);
+    },
+    onCompleted: (cb: (d: { projectName: string; projectPath: string; fromName: string }) => void) => {
+      const h = (_e: Electron.IpcRendererEvent, d: { projectName: string; projectPath: string; fromName: string }) => cb(d);
+      ipcRenderer.on("migration:completed", h);
+      return () => ipcRenderer.removeListener("migration:completed", h);
+    },
+  },
 });

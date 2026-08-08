@@ -5,6 +5,8 @@ import { FileTreePanel } from "./FileTreePanel";
 import { TaskPanel } from "./TaskPanel";
 import { IssuePanel } from "./IssuePanel";
 import { RunPanel } from "./RunPanel";
+import { ToolboxPanel } from "./toolbox/ToolboxPanel";
+import { DevicePanel } from "./device/DevicePanel";
 import { useThemeStore } from "../stores/theme-store";
 
 type SidebarTab = "sessions" | "files";
@@ -42,6 +44,8 @@ export function Sidebar({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [hasUpdate, setHasUpdate] = useState(false);
+  const [toolboxOpen, setToolboxOpen] = useState(false);
+  const [devicePanelOpen, setDevicePanelOpen] = useState(false);
   const plusWrapRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const segRef = useRef<HTMLDivElement>(null);
@@ -213,8 +217,24 @@ export function Sidebar({
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9"/><text x="12" y="16" textAnchor="middle" fill="currentColor" stroke="none" fontSize="11" fontWeight="700" fontFamily="system-ui">A</text></svg>
             )}
           </button>
+          {/* 工具箱按钮:与设置首尾对称(方案 B) */}
+          <button
+            className={`sb-foot-btn ${toolboxOpen ? "bg-surface-hover" : ""}`}
+            onClick={() => setToolboxOpen((v) => !v)}
+            title="工具箱"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          </button>
         </div>
       </div>
+      {/* 工具箱弹层:相对 sidebar 定位(底部按钮上方弹出,不受按钮容器尺寸影响) */}
+      <ToolboxPanel
+        open={toolboxOpen}
+        onClose={() => setToolboxOpen(false)}
+        onOpenDevicePanel={() => setDevicePanelOpen(true)}
+      />
+      {/* 设备互联浮层:fixed 覆盖整个视口 */}
+      <DevicePanel open={devicePanelOpen} onClose={() => setDevicePanelOpen(false)} />
     </aside>
   );
 }

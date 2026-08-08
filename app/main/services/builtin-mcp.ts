@@ -4,16 +4,23 @@
  * 工具执行逻辑在此定义，API 客户端在 api-clients.ts。
  */
 
-import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, writeFileSync, renameSync, readdirSync, statSync } from "node:fs";
+import { join, sep } from "node:path";
+import * as os from "node:os";
 import { app } from "electron";
 import { broadcast } from "./ipc-broadcast";
 import { describeImage, webFetch, isToolEnabled } from "./api-clients";
 import { validateTaskStatus } from "./hooks";
 import type { ToolDefinition } from "./pi-sdk";
 import { getDefineToolFn } from "./pi-sdk";
+import { networkService } from "./network-service";
 
 type TaskRec = { id: number | string; status?: string; title?: string };
+
+/** 路径分隔符归一(win/mac 对比用):反斜杠 → 正斜杠 */
+function normalizeSep(p: string): string {
+  return p.split(sep).join("/");
+}
 
 // ── 无参工具工厂 ────────────────────────────────────
 
@@ -166,6 +173,122 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
       },
     } as any) as any);
   }
+
+  // ── 设备互联 + 项目迁移工具（Mint 掌控迁移流程） ──
+  // 发送端:list_devices → request_pair → prepare_migration → start_transfer
+  // 接收端恢复由系统执行,不需要 Mint 工具（方案见 docs/design/跨设备会话迁移与设备互联方案.md 第四章）
+  const net = networkService;
+
+  tools.push(defineTool({
+    name: "list_devices", label: "列出设备",
+    description: "列出已配对设备（含在线/离线状态）与可发现的可用设备。迁移项目前先调用,让用户确认目标设备。",
+    promptSnippet: "列出已配对与可发现的设备",
+    parameters: { type: "object" as const, properties: {} },
+    async execute() {
+      const paired = net.listPaired();
+      const discovered = net.listDiscovered();
+      const lines: string[] = [];
+      lines.push("已配对设备:");
+      if (paired.length === 0) lines.push("  (无)");
+      for (const p of paired) lines.push(`  ${p.name} [${p.online ? "在线" : "离线"}] id=${p.id}`);
+      lines.push("可用设备(需配对):");
+      if (discovered.length === 0) lines.push("  (无——让对方开启「可被发现」后重新扫描)");
+      for (const d of discovered) lines.push(`  ${d.name} id=${d.id}`);
+      return { content: [{ type: "text" as const, text: lines.join("\n") }] };
+    },
+  } as any) as any);
+
+  tools.push(defineTool({
+    name: "request_pair", label: "请求配对",
+    description: "向指定设备发起配对请求(需要对方开启「可被发现」)。对方设备将弹出确认窗口,用户确认后配对完成并持久化。",
+    promptSnippet: "与指定设备配对(弹窗确认)",
+    parameters: {
+      type: "object" as const,
+      properties: { deviceId: { type: "string" as const, description: "设备 ID(list_devices 返回)" } },
+      required: ["deviceId"],
+    },
+    async execute(_tid: any, params: any) {
+      const d = net.listDiscovered().find((x) => x.id === params.deviceId);
+      if (!d) return { content: [{ type: "text" as const, text: `设备 ${params.deviceId} 未在可用列表——请让对方开启「可被发现」后调用 list_devices 重新确认` }] };
+      const r = await net.requestPair(d);
+      return { content: [{ type: "text" as const, text: r.ok ? `已向 ${d.name} 发起配对请求,等待对方确认…` : `配对失败: ${r.error ?? "未知错误"}` }] };
+    },
+  } as any) as any);
+
+  tools.push(defineTool({
+    name: "prepare_migration", label: "准备迁移",
+    description: "扫描项目,生成迁移清单(排除 .git/node_modules/dist/build 等构建产物与缓存,可自行增删)。返回待传文件清单,展示给用户确认后再 start_transfer。",
+    promptSnippet: "生成项目迁移清单(排除构建产物)",
+    parameters: {
+      type: "object" as const,
+      properties: {
+        projectPath: { type: "string" as const, description: "项目绝对路径" },
+        include: { type: "array" as const, items: { type: "string" as const }, description: "额外包含的路径(相对项目根,默认排除项之外的)" },
+        exclude: { type: "array" as const, items: { type: "string" as const }, description: "额外排除的路径(相对项目根)" },
+      },
+      required: ["projectPath"],
+    },
+    async execute(_tid: any, params: any) {
+      const root = params.projectPath as string;
+      const DEFAULT_EXCLUDE = [".git", "node_modules", "dist", "build", ".easymint", "temp", ".idea", ".vscode", "*.apk", "*.exe", "*.dmg", "*.zip"];
+      const include = (params.include as string[] ?? []).map(normalizeSep);
+      const exclude = (params.exclude as string[] ?? []).map(normalizeSep);
+      const files: Array<{ relPath: string; absPath: string }> = [];
+      const walk = (dir: string): void => {
+        let entries: import("node:fs").Dirent[];
+        try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+        for (const e of entries) {
+          const rel = normalizeSep(join(dir, e.name).slice(root.length + 1));
+          if (DEFAULT_EXCLUDE.some((x) => rel === x || rel.startsWith(x + "/") || (x.startsWith("*") && rel.endsWith(x.slice(1))))) {
+            if (!include.some((i) => rel === i || rel.startsWith(i + "/"))) continue;
+          }
+          if (exclude.some((x) => rel === x || rel.startsWith(x + "/"))) continue;
+          const full = join(dir, e.name);
+          if (e.isDirectory()) walk(full);
+          else if (e.isFile()) files.push({ relPath: rel, absPath: full });
+        }
+      };
+      walk(root);
+      if (files.length === 0) return { content: [{ type: "text" as const, text: "未扫描到任何可迁移文件——确认项目路径是否正确" }] };
+      const totalSize = files.reduce((s, f) => s + statSync(f.absPath).size, 0);
+      const lines = [
+        `迁移清单(${files.length} 个文件, ${(totalSize / 1024 / 1024).toFixed(1)}MB):`,
+        ...files.slice(0, 30).map((f) => `  ${f.relPath}`),
+        files.length > 30 ? `  … 等 ${files.length - 30} 个文件` : "",
+        `默认已排除: ${DEFAULT_EXCLUDE.join(", ")}`,
+        "向用户确认清单后再调用 start_transfer",
+      ];
+      return { content: [{ type: "text" as const, text: lines.filter(Boolean).join("\n") }], details: { files, projectPath: root } };
+    },
+  } as any) as any);
+
+  tools.push(defineTool({
+    name: "start_transfer", label: "开始迁移",
+    description: "按清单打包传输项目(含最新主会话)到目标设备。发送端职责止于「传输完成」——接收端恢复与回执由系统处理。",
+    promptSnippet: "打包并传输项目到目标设备",
+    parameters: {
+      type: "object" as const,
+      properties: {
+        deviceId: { type: "string" as const, description: "目标设备 ID(list_devices 确认)" },
+        files: { type: "array" as const, items: { type: "object" as const, properties: { relPath: { type: "string" as const }, absPath: { type: "string" as const } }, required: ["relPath", "absPath"] }, description: "迁移清单(prepare_migration 返回)" },
+        projectPath: { type: "string" as const, description: "项目绝对路径" },
+      },
+      required: ["deviceId", "files", "projectPath"],
+    },
+    async execute(_tid: any, params: any) {
+      const { migrationService } = await import("./migration-service");
+      // 找最新主会话 jsonl(迁移会话用)
+      const encoded = (params.projectPath as string).replace(/[:/\\]/g, "-");
+      const dir = join(os.homedir(), ".easymint", "sessions", encoded);
+      let sessionFileRel: string | undefined;
+      try {
+        const names = readdirSync(dir).filter((f) => f.endsWith(".jsonl")).sort();
+        if (names.length > 0) sessionFileRel = names[names.length - 1];
+      } catch { /* 无会话 */ }
+      const r = await migrationService.startTransfer(params.projectPath, params.deviceId, params.files as any, { sessionFile: sessionFileRel });
+      return { content: [{ type: "text" as const, text: r.ok ? "迁移已开始,传输完成后接收端会自动恢复并回执" : `迁移失败: ${r.error ?? "未知错误"}` }] };
+    },
+  } as any) as any);
 
   return tools.filter(Boolean) as ToolDefinition[];
 }

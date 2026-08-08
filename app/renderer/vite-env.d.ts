@@ -233,6 +233,32 @@ interface ElectronAPI {
     messages: (projectPath: string, groupId: string) => Promise<{ groupId: string; messages: Array<{ agentRole: string; text: string; piTs: number; forwardedFrom?: string }> }>;
     close: (groupId: string) => Promise<void>;
   };
+  device: {
+    getSelf: () => Promise<{ id: string; name: string; discoverable: boolean }>;
+    listPaired: () => Promise<Array<{ id: string; name: string; key: string; pairedAt: number; lastSeen: number; online: boolean }>>;
+    listDiscovered: () => Promise<Array<{ id: string; name: string; address: string; port: number }>>;
+    setName: (name: string) => Promise<void>;
+    startPair: () => Promise<void>;
+    stopPair: () => Promise<void>;
+    manualScan: () => Promise<void>;
+    requestPair: (peer: { id: string; name: string; address: string; port: number }) => Promise<{ ok: boolean; error?: string }>;
+    acceptPair: (peer: { id: string; name: string; address: string; port: number }) => Promise<{ ok: boolean; error?: string }>;
+    unpair: (id: string) => Promise<void>;
+    sendMessage: (id: string, message: Record<string, unknown>) => Promise<{ ok: boolean }>;
+    onPairRequest: (cb: (req: { id: string; name: string; address: string; port: number }) => void) => () => void;
+    onChanged: (cb: () => void) => () => void;
+    onOnline: (cb: (d: { id: string }) => void) => () => void;
+    onOffline: (cb: (d: { id: string }) => void) => () => void;
+  };
+  migration: {
+    listIncoming: () => Promise<Array<{ transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }>>;
+    accept: (transferId: string, targetPath: string) => Promise<{ ok: boolean; error?: string }>;
+    reject: (transferId: string) => Promise<{ ok: boolean }>;
+    start: (opts: { projectPath: string; deviceId: string; files: Array<{ relPath: string; absPath: string }>; sessionFile?: string }) => Promise<{ ok: boolean; transferId?: string; error?: string }>;
+    getSessionFile: (projectPath: string) => Promise<string | null>;
+    onIncoming: (cb: (d: { transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }) => void) => () => void;
+    onCompleted: (cb: (d: { projectName: string; projectPath: string; fromName: string }) => void) => () => void;
+  };
   task: {
     read: (projectPath: string) => Promise<{ tasks: { id: string; title: string; description: string; command: string; status: string; attempts: number }[] }>;
     getSubagentMessages: (sessionFile: string) => Promise<{ type: string; message: unknown }[]>;

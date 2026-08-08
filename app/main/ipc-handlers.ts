@@ -63,6 +63,8 @@ import { listIssues, addIssue, setStatus, appendNote, deleteIssue } from "./serv
 import { getPins, setPins } from "./services/pin-service";
 import type { IssueStatus } from "./services/issue-service";
 import { detectRunnable, startProcess, stopProcess, restartProcess, getStatus, getRunningIds, checkPort, killPort } from "./services/process-service";
+import { networkService } from "./services/network-service";
+import { migrationService } from "./services/migration-service";
 
 interface Services {
   mainWindow: BrowserWindow;
@@ -469,5 +471,61 @@ const filePath = p.join(projectPath, "task.json");
     );
     return { code: result.code };
   });
+
+  // ── migration:* — 项目/会话迁移（发送端打包传输 + 接收端恢复） ──
+  const mig = migrationService;
+  // 接收端事件 → 前端(弹窗确认/进度/完成/失败)
+  mig.on("message", (e) => broadcast("migration:event", e));
+  // 迁移完成 → 注入系统消息给本机 Mint(接收端,对齐上下文继续开发)
+  mig.on("completed", (e: { projectName: string; projectPath: string; fromName: string }) => {
+    broadcast("migration:completed", e);
+    // 找到该项目下最活跃的会话,注入迁移完成系统消息
+    const text = `迁移完成: 来自 ${e.fromName} 的「${e.projectName}」已恢复到本机。\n注意事项:\n1. 项目路径已变更为 ${e.projectPath}——记忆中的旧路径已失效,读写以新路径为准\n2. 原 git 仓库未迁移,需重新 git init;如有远程仓库(GitHub 等),重新配置 remote origin\n3. 任务进度以 task.json 为唯一真相,重新核对(历史对话中的进度快照仅供参考)\n4. 平台差异:换行符/可执行权限/包管理器/工具链按本机环境\n5. 建议主动读一遍项目结构确认环境`;
+    void listSessions(e.projectPath).then((sessions) => {
+      if (sessions.length > 0) {
+        agentService.injectSystemMessage(sessions[0]!.sessionId, text, "delegation", { triggerTurn: true });
+      }
+    });
+  });
+  ipcMain.handle("migration:listIncoming", () => mig.listIncoming());
+  ipcMain.handle("migration:accept", (_e, { transferId, targetPath }) => mig.acceptTransfer(transferId, targetPath));
+  ipcMain.handle("migration:reject", (_e, { transferId }) => { mig.rejectTransfer(transferId); return { ok: true }; });
+  ipcMain.handle("migration:start", (_e, { projectPath, deviceId, files, sessionFile }) =>
+    mig.startTransfer(projectPath, deviceId, files, { sessionFile })
+  );
+  ipcMain.handle("migration:getSessionFile", (_e, { projectPath }) => {
+    // 取项目最新主会话 jsonl(迁移会话用)
+    const encoded = projectPath.replace(/[:/\\]/g, "-");
+    const dir = p.join(os.homedir(), ".easymint", "sessions", encoded);
+    if (!fs.existsSync(dir)) return null;
+    const files = fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl") && !f.startsWith("."));
+    if (files.length === 0) return null;
+    files.sort();
+    return files[files.length - 1]!; // 最新
+  });
+
+  // ── device:* — 设备互联（mDNS 发现 + WS 配对连接） ──
+  const net = networkService;
+  // 事件 → 前端广播（devices-changed 由各前端轮询或推送;配对请求/上下线推送）
+  net.on("pair-request", (req) => broadcast("device:pair-request", req));
+  net.on("device-online", (d) => broadcast("device:online", d));
+  net.on("device-offline", (d) => broadcast("device:offline", d));
+  net.on("devices-changed", () => broadcast("device:changed", {}));
+
+  ipcMain.handle("device:getSelf", () => net.getSelf());
+  ipcMain.handle("device:listPaired", () => net.listPaired());
+  ipcMain.handle("device:listDiscovered", () => net.listDiscovered());
+  ipcMain.handle("device:setName", (_e, { name }) => net.setDeviceName(name));
+  ipcMain.handle("device:startPair", () => { net.startPairMode(); return { ok: true }; });
+  ipcMain.handle("device:stopPair", () => { net.stopPairMode(); return { ok: true }; });
+  ipcMain.handle("device:manualScan", () => { net.startManualScan(); return { ok: true }; });
+  ipcMain.handle("device:requestPair", (_e, { peer }) => net.requestPair(peer));
+  ipcMain.handle("device:acceptPair", (_e, { peer }) => net.acceptPair(peer));
+  ipcMain.handle("device:unpair", (_e, { id }) => { net.unpair(id); return { ok: true }; });
+  // 预留:会话/项目迁移通道（网络层就绪,迁移逻辑后续实现）
+  ipcMain.handle("device:sendMessage", (_e, { id, message }) => ({ ok: net.sendToDevice(id, message) }));
+
+  // 启动时:已配对设备自动连接（保持常驻心跳）
+  net.startKeepalive();
 
 }
