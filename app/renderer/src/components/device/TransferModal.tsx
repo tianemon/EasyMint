@@ -4,7 +4,7 @@ import { StepIndicator } from "./StepIndicator";
 /**
  * 迁移对话框(发送端,用户直接触发入口):
  * ① 选项目(浏览目录) → ② 系统扫描生成清单(默认排除构建产物) → ③ 确认 → ④ 传输进度
- * Mint 入口走 MCP 工具(list_devices/prepare_migration/start_transfer),此 UI 是手动入口。
+ * 手动迁移入口(纯手动模式):选项目 → 扫描清单 → 确认 → 传输。
  */
 
 interface TransferModalProps {
@@ -78,7 +78,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
     setScanning(true);
     setError(null);
     try {
-      // 统一扫描(主进程 migration-service.scanProject,与 Mint 工具同一实现)
+      // 统一扫描(主进程 migration-service.scanProject,单一实现)
       const scan = await window.electronAPI.migration.scan(projectPath.trim());
       setFiles(scan.files);
       setTotalSize(scan.totalSize);
@@ -96,7 +96,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
     setError(null);
     setPhase("waiting"); // 先显示等待确认(主进程广播会覆盖)
     try {
-      // 统一入口:主进程内部扫描 + 打包 zip + 传输(与 Mint 工具同一封装)
+      // 统一入口:主进程内部扫描 + 打包 zip + 传输
       const r = await window.electronAPI.migration.start(projectPath.trim(), deviceId);
       if (!r.ok) {
         setError(r.error ?? "传输失败");

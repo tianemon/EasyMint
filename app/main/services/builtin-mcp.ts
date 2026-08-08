@@ -4,8 +4,8 @@
  * 工具执行逻辑在此定义，API 客户端在 api-clients.ts。
  */
 
-import { existsSync, readFileSync, writeFileSync, renameSync, readdirSync, statSync } from "node:fs";
-import { join, sep } from "node:path";
+import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { join } from "node:path";
 import * as os from "node:os";
 import { app } from "electron";
 import { broadcast } from "./ipc-broadcast";
@@ -16,11 +16,6 @@ import { getDefineToolFn } from "./pi-sdk";
 import { networkService } from "./network-service";
 
 type TaskRec = { id: number | string; status?: string; title?: string };
-
-/** 路径分隔符归一(win/mac 对比用):反斜杠 → 正斜杠 */
-function normalizeSep(p: string): string {
-  return p.split(sep).join("/");
-}
 
 // ── 无参工具工厂 ────────────────────────────────────
 
@@ -175,7 +170,7 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
   }
 
   // ── 设备互联 + 项目迁移工具（Mint 掌控迁移流程） ──
-  // 发送端:list_devices → request_pair → prepare_migration → start_transfer
+  // 设备互联工具(纯手动迁移——Mint 仅保留设备管理能力)
   // 接收端恢复由系统执行,不需要 Mint 工具（方案见 docs/design/跨设备会话迁移与设备互联方案.md 第四章）
   const net = networkService;
 
@@ -261,56 +256,6 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
       if (!d) return { content: [{ type: "text" as const, text: `设备 ${params.deviceId} 未在可用列表——请让对方开启「可被发现」后调用 list_devices 重新确认` }] };
       const r = await net.requestPair(d);
       return { content: [{ type: "text" as const, text: r.ok ? `已向 ${d.name} 发起配对请求,等待对方确认…` : `配对失败: ${r.error ?? "未知错误"}` }] };
-    },
-  } as any) as any);
-
-  tools.push(defineTool({
-    name: "prepare_migration", label: "准备迁移",
-    description: "扫描项目,生成迁移清单(排除 .git/node_modules/dist/build 等构建产物与缓存,可自行增删)。返回待传文件清单,展示给用户确认后再 start_transfer。",
-    promptSnippet: "生成项目迁移清单(排除构建产物)",
-    parameters: {
-      type: "object" as const,
-      properties: {
-        projectPath: { type: "string" as const, description: "项目绝对路径" },
-        include: { type: "array" as const, items: { type: "string" as const }, description: "额外包含的路径(相对项目根,默认排除项之外的)" },
-        exclude: { type: "array" as const, items: { type: "string" as const }, description: "额外排除的路径(相对项目根)" },
-      },
-      required: ["projectPath"],
-    },
-    async execute(_tid: any, params: any) {
-      // 统一扫描实现(migration-service.scanProject,与手动入口/start_transfer 同一封装)
-      const { migrationService } = await import("./migration-service");
-      const root = params.projectPath as string;
-      const scan = migrationService.scanProject(root);
-      if (scan.files.length === 0) return { content: [{ type: "text" as const, text: "未扫描到任何可迁移文件——确认项目路径是否正确" }] };
-      const lines = [
-        `迁移清单(${scan.files.length} 个文件, ${(scan.totalSize / 1024 / 1024).toFixed(1)}MB):`,
-        ...scan.files.slice(0, 30).map((f) => `  ${f.relPath}`),
-        scan.files.length > 30 ? `  … 等 ${scan.files.length - 30} 个文件` : "",
-        scan.sessionFile ? `会话: ${scan.sessionFile}` : "无会话记录",
-        "向用户确认清单后再调用 start_transfer",
-      ];
-      return { content: [{ type: "text" as const, text: lines.filter(Boolean).join("\n") }], details: { files: scan.files, projectPath: root } };
-    },
-  } as any) as any);
-
-  tools.push(defineTool({
-    name: "start_transfer", label: "开始迁移",
-    description: "按清单打包传输项目(含最新主会话)到目标设备。发送端职责止于「传输完成」——接收端恢复与回执由系统处理。",
-    promptSnippet: "打包并传输项目到目标设备",
-    parameters: {
-      type: "object" as const,
-      properties: {
-        deviceId: { type: "string" as const, description: "目标设备 ID(list_devices 确认)" },
-        projectPath: { type: "string" as const, description: "项目绝对路径" },
-      },
-      required: ["deviceId", "projectPath"],
-    },
-    async execute(_tid: any, params: any) {
-      const { migrationService } = await import("./migration-service");
-      // 统一入口:内部扫描 + 打包 zip + 传输(与手动入口同一封装)
-      const r = await migrationService.prepareAndTransfer(params.projectPath as string, params.deviceId as string);
-      return { content: [{ type: "text" as const, text: r.ok ? "迁移已开始,传输完成后接收端会自动恢复并回执" : `迁移失败: ${r.error ?? "未知错误"}` }] };
     },
   } as any) as any);
 
