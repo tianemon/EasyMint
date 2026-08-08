@@ -193,7 +193,7 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
       for (const p of paired) lines.push(`  ${p.name} [${p.online ? "在线" : "离线"}] id=${p.id}`);
       lines.push("可用设备(需配对):");
       if (discovered.length === 0) lines.push("  (无——让对方开启「可被发现」后重新扫描)");
-      for (const d of discovered) lines.push(`  ${d.name} id=${d.id}`);
+      for (const d of discovered) lines.push(`  ${d.name} id=${d.id} ip=${d.address}:${d.port}`);
       return { content: [{ type: "text" as const, text: lines.join("\n") }] };
     },
   } as any) as any);

@@ -378,6 +378,8 @@ class NetworkService extends EventEmitter {
         ws.on("error", (e) => {
           if (!settled) {
             settled = true;
+            // 连接失败日志:ECONNREFUSED=防火墙拦/端口未监听,ETIMEDOUT=不可达
+            console.error(`[network] 连接 ${p.name} (${address}:${port}) 失败:`, (e as Error).message);
             // 连接失败:若有 mDNS 发现记录,上层会重试;否则触发短时广播让对端能发现我们
             const disc = this.discovered.get(p.id);
             if (!disc) this.startReconnectAdvertising();

@@ -63,7 +63,7 @@ function DiscoveredRow({ device, onPair }: { device: DiscoveredDevice; onPair: (
       </span>
       <div className="flex-1 min-w-0">
         <div className="text-xs text-text-primary truncate">{device.name}</div>
-        <div className="text-[10px] text-text-muted">通过局域网发现</div>
+        <div className="text-[10px] text-text-muted">通过局域网发现 · {device.address}:{device.port}</div>
       </div>
       <button
         type="button"

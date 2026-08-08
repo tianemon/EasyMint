@@ -37,6 +37,7 @@ export function PairRequestModal(): JSX.Element | null {
             <div>
               <div className="text-sm font-medium text-text-primary">{pairRequest.name}</div>
               <div className="text-xs text-text-secondary mt-0.5">请求与这台设备配对连接</div>
+              <div className="text-[10px] text-text-muted mt-0.5">{pairRequest.address}:{pairRequest.port}</div>
             </div>
           </div>
           {error && <div className="text-[11px] text-danger mt-3">{error}</div>}
