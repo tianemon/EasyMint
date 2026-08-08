@@ -509,6 +509,9 @@ const filePath = p.join(projectPath, "task.json");
   mig.on("completed", (e: { projectName: string; projectPath: string; originPath: string; fromName: string }) => {
     broadcast("migration:completed", e);
   });
+  // 接收端确认/拒绝(弹窗)
+  ipcMain.handle("migration:accept", (_e, { transferId, targetPath }) => mig.acceptTransfer(transferId, targetPath));
+  ipcMain.handle("migration:reject", (_e, { transferId }) => { mig.rejectTransfer(transferId); return { ok: true }; });
   // 统一入口(纯手动):扫描 + 打包 zip + 传输
   ipcMain.handle("migration:start", (_e, { projectPath, deviceId }) =>
     mig.prepareAndTransfer(projectPath, deviceId)
