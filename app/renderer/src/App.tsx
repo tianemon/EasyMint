@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route } from "react-router-dom";
 import { ProjectPage } from "./pages/ProjectPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { MigrationIncomingModal } from "./components/device/MigrationIncomingModal";
 import { useSettingsStore } from "./stores/settings-store";
 import { useTabStore } from "./stores/tab-store";
 
@@ -10,6 +11,8 @@ export function App(): JSX.Element {
   const [setupComplete, setSetupComplete] = useState(
     localStorage.getItem("easymint_setup_complete") === "true"
   );
+  // 接收端迁移弹窗(全局监听,不依赖具体项目页)
+  const [incomingTransfer, setIncomingTransfer] = useState<{ transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number } | null>(null);
 
   // Restore persisted settings (model list, API keys, etc.) on startup.
   // Also fall back to main-process setupComplete if localStorage was lost
@@ -50,6 +53,14 @@ export function App(): JSX.Element {
     return () => window.removeEventListener("easymint-setup-complete", handler);
   }, []);
 
+  // 接收端迁移弹窗事件订阅
+  useEffect(() => {
+    const unsubIncoming = window.electronAPI.migration.onIncoming((d) => {
+      setIncomingTransfer(d);
+    });
+    return () => { unsubIncoming(); };
+  }, []);
+
   return (
     <ErrorBoundary>
       <div id="app-shell">
@@ -65,6 +76,19 @@ export function App(): JSX.Element {
             </Routes>
           )}
         </HashRouter>
+        {/* 接收端迁移确认弹窗(全应用层) */}
+        <MigrationIncomingModal
+          incoming={incomingTransfer}
+          onClose={() => setIncomingTransfer(null)}
+          onAccept={async (transferId, targetPath) => {
+            const r = await window.electronAPI.migration.accept(transferId, targetPath);
+            return r;
+          }}
+          onReject={async (transferId) => {
+            await window.electronAPI.migration.reject(transferId);
+            setIncomingTransfer(null);
+          }}
+        />
       </div>
     </ErrorBoundary>
   );
