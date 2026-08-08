@@ -339,6 +339,13 @@ class NetworkService extends EventEmitter {
         this.discovered.set(id, { id, name, address: addr, port: service.port ?? WS_PORT });
         this.emit("devices-changed");
       });
+      // 设备下线(goodbye 包:对方关闭可被发现/stop 广播)→ 从列表移除
+      this.scanner.on("down", (service: import("bonjour-service").Service) => {
+        const id = (service.txt?.id as string) ?? "";
+        if (id && this.discovered.delete(id)) {
+          this.emit("devices-changed");
+        }
+      });
     } catch { /* 扫描失败忽略 */ }
   }
 
@@ -665,6 +672,9 @@ class NetworkService extends EventEmitter {
       // 对方上线即被发现;全部连上自动停)
       this.tryConnectPaired();
       this.updatePairedBroadcast();
+      // 已配对设备的"在线/离线"由 WS 连接状态驱动(markOnline/markOffline)——可靠。
+      // 注意:不调 scanner.expire()——bonjour 对"无变化重播"不刷新 lastSeen(1h 才重播一次,
+      // TTL 120s),expire 会误删在线设备(实测源码行为);下线靠 down 事件(goodbye 包)移除
     }, OFFLINE_PROBE_INTERVAL);
     // 启动时:缓存地址直连已配对设备 + 有离线者持续广播(对齐 WiFi 记住网络自动连 + 蓝牙可连接广播)
     setTimeout(() => {
