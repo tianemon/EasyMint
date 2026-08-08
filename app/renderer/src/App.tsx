@@ -71,9 +71,9 @@ export function App(): JSX.Element {
         ok: d.ok,
         text: d.ok
           ? `迁移完成: 已在目标设备恢复「${d.projectName ?? ""}」(${d.projectPath ?? ""})`
-          : `迁移失败: ${(d.failures?.length ?? 0) > 0 ? `${d.failures!.length} 个文件校验未通过` : "接收端恢复失败"}`,
+          : `迁移失败: ${(d.failures && d.failures.length > 0 ? d.failures.join("；") : "接收端恢复失败")}`,
       });
-      setTimeout(() => setReceipt(null), 5000);
+      setTimeout(() => setReceipt(null), 8000);
     });
     return () => { unsubReceipt(); };
   }, []);
