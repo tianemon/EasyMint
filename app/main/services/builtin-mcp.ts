@@ -279,7 +279,12 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
     },
     async execute(_tid: any, params: any) {
       const root = params.projectPath as string;
-      const DEFAULT_EXCLUDE = [".git", "node_modules", "dist", "build", ".easymint", "temp", ".idea", ".vscode", "*.apk", "*.exe", "*.dmg", "*.zip"];
+      // 排除构建产物/缓存;.easymint 只排除可重建子项(shell-logs 运行日志/templates/brand-tokens/group-sessions),
+      // 保留项目状态 state.json/run.json/issues.json(方案:项目数据跟随迁移)
+      const DEFAULT_EXCLUDE = [
+        ".git", "node_modules", "dist", "build", "temp", ".idea", ".vscode", ".DS_Store", "*.apk", "*.exe", "*.dmg", "*.zip",
+        ".easymint/shell-logs", ".easymint/templates", ".easymint/brand-tokens", ".easymint/group-sessions", ".easymint/group-sessions.json",
+      ];
       const include = (params.include as string[] ?? []).map(normalizeSep);
       const exclude = (params.exclude as string[] ?? []).map(normalizeSep);
       const files: Array<{ relPath: string; absPath: string }> = [];

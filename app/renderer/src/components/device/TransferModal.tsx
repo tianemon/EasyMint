@@ -60,11 +60,21 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
       // 借用主进程文件树扫描 + 客户端排除过滤(默认排除与 Mint 工具一致)
       const tree = await window.electronAPI.file.readTree(projectPath.trim());
       const out: ScanFile[] = [];
-      const DEFAULT_EXCLUDE = new Set([".git", "node_modules", "dist", "build", ".easymint", "temp", ".idea", ".vscode"]);
+      // 与主进程 prepare_migration 一致的排除规则(按完整相对路径前缀匹配):
+      // 构建产物/缓存 + .easymint 可重建子项(保留 state.json/run.json/issues.json 项目状态)
+      const DEFAULT_EXCLUDE = [
+        ".git", "node_modules", "dist", "build", "temp", ".idea", ".vscode", ".DS_Store",
+        ".easymint/shell-logs", ".easymint/templates", ".easymint/brand-tokens", ".easymint/group-sessions", ".easymint/group-sessions.json",
+      ];
+      // 通配符排除(与主进程一致):构建产物文件 *.apk/*.exe/*.dmg/*.zip
+      const WILDCARD_EXCLUDE = [".apk", ".exe", ".dmg", ".zip"];
+      const isExcluded = (rel: string) =>
+        DEFAULT_EXCLUDE.some((x) => rel === x || rel.startsWith(x + "/")) ||
+        WILDCARD_EXCLUDE.some((ext) => rel.endsWith(ext));
       const walk = (nodes: FileNode[], prefix: string) => {
         for (const n of nodes) {
           const rel = prefix ? `${prefix}/${n.name}` : n.name;
-          if (DEFAULT_EXCLUDE.has(n.name)) continue;
+          if (isExcluded(rel)) continue;
           if (n.isDirectory) walk(n.children ?? [], rel);
           else out.push({ relPath: rel, absPath: n.path });
         }
