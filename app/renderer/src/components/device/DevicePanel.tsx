@@ -219,12 +219,12 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                   void manualScan().finally(() => setTimeout(() => setScanning(false), 3000));
                 }}
               >
-                {scanning ? "扫描中…" : "重新扫描"}
+                {scanning ? "扫描中…" : "扫描"}
               </button>
             </div>
             {discovered.length === 0 ? (
               <div className="text-[11px] text-text-muted px-1">
-                {scanning ? "正在发现附近的设备…" : "点击「重新扫描」发现附近的设备（对方需开启「可被发现」）。"}
+                {scanning ? "正在发现附近的设备…" : "点击「扫描」发现附近的设备（对方需开启「可被发现」）。"}
               </div>
             ) : (
               <div className="space-y-1.5">
