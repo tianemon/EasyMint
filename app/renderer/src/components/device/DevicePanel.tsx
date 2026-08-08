@@ -150,7 +150,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                 onClick={() => { editingName ? (self.name !== nameDraft.trim() && useDeviceStore.getState().setName(nameDraft.trim()), setEditingName(false)) : (setNameDraft(self.name), setEditingName(true)); }}
                 className="text-[10px] text-text-secondary hover:text-text-primary shrink-0"
               >
-                {editingName ? "保存" : "改名"}
+                {editingName ? "保存" : "重命名"}
               </button>
             </div>
             {editingName && (
