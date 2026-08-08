@@ -131,8 +131,7 @@ class NetworkService extends EventEmitter {
     this.loadIdentity();
     this.loadPaired();
     this.startWsServer();
-    // 扫描常驻:任何时刻能看到"开了可被发现"的其他设备(对齐蓝牙随时可搜)
-    this.startScanning();
+    // 无自动扫描(用户定稿)——仅手动扫描,设备互联低频场景
   }
 
   // ── 身份 ──
@@ -304,7 +303,6 @@ class NetworkService extends EventEmitter {
     this.savePaired();
     // 重建 scanner:清 bonjour Browser 内部去重缓存(browser 按 fqdn 去重,
     // 只删 discovered 会导致对方重新广播时不触发 up 回调,自动扫描扫不出)
-    this.rebuildScanner(true);
     // 无已配对设备 → 停广播(常态静默)
     this.updatePairedBroadcast();
     this.emit("devices-changed");
@@ -313,22 +311,15 @@ class NetworkService extends EventEmitter {
   // ── 广播/扫描（mDNS） ──
   // 注意:mDNS 通告由协议层自动持续广播,应用只需 publish 一次——反复 publish 同名服务会报
   // "Service name is already in use on the network"(实测踩坑)。配对期 2s 的"通告间隔"由协议维护。
-  // 关键设计(对齐蓝牙):扫描(find)常驻——随时能看到"开了可被发现"的其他设备;
-  // 广播(publish)按需——只有可被发现开关/配对模式/断线重连时才发布自己。
+  // 扫描策略(用户定稿):无自动扫描,仅手动——设备互联场景低频,需要时点一次
+  // 手动扫描 = 3s 收集窗口(browser 持续监听,窗口后 stop),结束后列表不再自动更新。
 
-  /** 常驻扫描:启动即开始监听其他设备的通告(不依赖可被发现开关)。
-      蓝牙手机随时可搜附近设备,只是自己不被搜到(不广播)。
-      注意:browser 内部按 fqdn 去重——已发现服务不会重复触发 up 回调,
-      手动重扫需销毁重建 browser(仅 update() 无法重新触发 up,实测踩坑) */
-  private scanningStarted = false;
+  /** 手动扫描:清空列表 → 3s 收集窗口 → 停止。
+      不常驻监听(设备互联低频场景);已配对设备在线/离线仍由 WS 连接状态驱动 */
   private scanner: import("bonjour-service").Browser | null = null;
-  private startScanning(): void {
-    if (this.scanningStarted) return;
-    this.scanningStarted = true;
-    this.createScanner();
-  }
-
-  private createScanner(): void {
+  rescan(): void {
+    this.discovered.clear();
+    try { this.scanner?.stop(); } catch { /* 忽略 */ }
     try {
       this.scanner = this.bonjour.find({ type: SERVICE_TYPE }, (service) => {
         const id = (service.txt?.id as string) ?? "";
@@ -339,29 +330,13 @@ class NetworkService extends EventEmitter {
         this.discovered.set(id, { id, name, address: addr, port: service.port ?? WS_PORT });
         this.emit("devices-changed");
       });
-      // 设备下线(goodbye 包:对方关闭可被发现/stop 广播)→ 从列表移除
-      this.scanner.on("down", (service: import("bonjour-service").Service) => {
-        const id = (service.txt?.id as string) ?? "";
-        if (id && this.discovered.delete(id)) {
-          this.emit("devices-changed");
-        }
-      });
     } catch { /* 扫描失败忽略 */ }
-  }
-
-  /** 手动重新扫描:清空列表 + 销毁重建 browser(旧 browser 内部去重,无法重新触发 up) */
-  /** 重建 scanner(清 bonjour Browser 内部去重缓存)。keepExisting: 保留当前 discovered
-      (unpair 场景——被删设备已手动移除,其他设备不用闪烁);手动 rescan 传 false 全清 */
-  private rebuildScanner(keepExisting: boolean): void {
-    if (!keepExisting) this.discovered.clear();
-    try { this.scanner?.stop(); } catch { /* 忽略 */ }
-    this.scanner = null;
-    this.createScanner();
-    this.emit("devices-changed");
-  }
-
-  rescan(): void {
-    this.rebuildScanner(false);
+    // 3s 收集窗口后停止(扫描结束,列表定格)
+    setTimeout(() => {
+      try { this.scanner?.stop(); } catch { /* 忽略 */ }
+      this.scanner = null;
+      this.emit("devices-changed");
+    }, 3000);
   }
 
   /** 本机真实局域网 IPv4(排除回环/APIPA/虚拟网卡段 172.16-31)——广播 host 用 */
@@ -512,7 +487,6 @@ class NetworkService extends EventEmitter {
           this.paired = this.paired.filter((x) => x.id !== fromId);
           this.savePaired();
           // 重建 scanner(清 browser 去重缓存,见 unpair)
-          this.rebuildScanner(true);
           this.updatePairedBroadcast();
           this.emit("devices-changed");
         }
@@ -545,7 +519,6 @@ class NetworkService extends EventEmitter {
       this.inboundSockets.delete(fromId);
       this.savePaired();
       // 重建 scanner(清 browser 去重缓存,见 unpair)
-      this.rebuildScanner(true);
       this.updatePairedBroadcast();
       this.emit("devices-changed");
     } else {
