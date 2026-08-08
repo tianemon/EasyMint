@@ -62,11 +62,15 @@ const MAX_TRANSFER_SIZE = 500 * 1024 * 1024; // 单次传输上限 500MB
 const MIGRATION_CACHE_DIR = path.join(os.homedir(), ".easymint", "migration-cache");
 
 /** 迁移清单排除规则(单一实现,MCP 与手动入口共用):
-    .easymint 只排除可重建子项,保留 state/run/issues 项目状态 */
+    .easymint 只排除可重建子项,保留 state/run/issues 项目状态。
+    Flutter 项目(实测): build/.dart_tool/ephemeral/local.properties/.iml 等构建与
+    本机环境产物必须排除(windows/ 平台工程本身保留,仅排 ephemeral 缓存) */
 const DEFAULT_EXCLUDE = [
   ".git", "node_modules", "dist", "build", "temp", ".idea", ".vscode", ".codegraph", ".DS_Store",
   ".easymint/shell-logs", ".easymint/templates", ".easymint/brand-tokens", ".easymint/group-sessions", ".easymint/group-sessions.json",
-  ".apk", ".exe", ".dmg", ".zip",
+  ".apk", ".exe", ".dmg", ".zip", ".iml",
+  // Flutter 构建产物与本机环境(win 实测:约 3.6G 可删)
+  ".dart_tool", "windows/flutter/ephemeral", "android/local.properties", ".flutter-plugins-dependencies",
 ];
 
 /** 扫描结果:待传文件(相对路径 + 绝对路径) + 最新主会话文件名(若有) */
