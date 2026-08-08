@@ -51,6 +51,8 @@ interface PendingTransfer {
   receivedBytes: number;
   /** 用户确认后的目标路径(acceptTransfer 时设置) */
   targetPath: string;
+  /** transfer-complete 已到达但用户尚未确认(两阶段握手:等 accept 时落位) */
+  completeArrived?: boolean;
 }
 
 const CHUNK_SIZE = 256 * 1024; // 256KB/块
@@ -60,7 +62,20 @@ class MigrationService extends EventEmitter {
   private pending = new Map<string, PendingTransfer>();
   /** 发送端记录:transferId → 发起迁移的项目路径(回执到达时定位会话,注入系统消息) */
   private sentTransfers = new Map<string, string>();
+  /** 发送端两阶段握手:transferId → 等待 accept/reject 的 resolver */
+  private acceptWaiters = new Map<string, { resolve: (v: "accepted" | "rejected" | "timeout") => void; timer: NodeJS.Timeout }>();
   private nextId = 0;
+
+  /** 等待接收端确认(两阶段握手)。30s 超时;收到 transfer-accept → accepted,transfer-reject → rejected */
+  private waitAccept(transferId: string): Promise<"accepted" | "rejected" | "timeout"> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.acceptWaiters.delete(transferId);
+        resolve("timeout");
+      }, 30_000);
+      this.acceptWaiters.set(transferId, { resolve, timer });
+    });
+  }
 
   constructor() {
     super();
@@ -68,6 +83,14 @@ class MigrationService extends EventEmitter {
     networkService.on("migration-message", (req: { peerId: string; msg: Record<string, unknown> }) => {
       void this.handleProtocolMessage(req.peerId, req.msg);
     });
+  }
+
+  private resolveAccept(transferId: string, result: "accepted" | "rejected"): void {
+    const w = this.acceptWaiters.get(transferId);
+    if (!w) return;
+    clearTimeout(w.timer);
+    this.acceptWaiters.delete(transferId);
+    w.resolve(result);
   }
 
   private async handleProtocolMessage(peerId: string, msg: Record<string, unknown>): Promise<void> {
@@ -80,6 +103,14 @@ class MigrationService extends EventEmitter {
         break;
       case "transfer-complete":
         await this.completeTransfer(peerId, msg);
+        break;
+      case "transfer-accept":
+        // 发送端:接收端确认接收 → 解除等待,开始传数据
+        this.resolveAccept(msg.transferId as string, "accepted");
+        break;
+      case "transfer-reject":
+        // 发送端:接收端拒绝 → 取消
+        this.resolveAccept(msg.transferId as string, "rejected");
         break;
       case "transfer-done":
         // 发送端收到接收端回执:迁移完成(接收端已恢复)
@@ -131,9 +162,14 @@ class MigrationService extends EventEmitter {
       createdAt: Date.now(),
     };
 
-    // 1. 发 manifest
+    // 1. 发 manifest(两阶段握手:等接收端确认 + 目标路径后才开始传数据)
     const ok = networkService.sendToDevice(deviceId, { type: "transfer-request", transferId, manifest });
     if (!ok) return { ok: false, error: "发送失败(连接已断开)" };
+
+    // 等待接收端 transfer-accept(30s 超时;拒绝则取消)
+    const accepted = await this.waitAccept(transferId);
+    if (accepted === "rejected") return { ok: false, error: "对方拒绝了迁移" };
+    if (accepted !== "accepted") return { ok: false, error: "等待对方确认超时" };
 
     // 2. 分块传输(不一次性进内存,读一块发一块;每块广播发送进度供前端进度条)
     let sentBytes = 0;
@@ -198,7 +234,12 @@ class MigrationService extends EventEmitter {
       return { ok: false, error: `无法创建目标目录: ${(e as Error).message}` };
     }
     t.targetPath = targetPath;
+    // 通知发送端开始传数据(两阶段握手)
     networkService.sendToDevice(t.peerId, { type: "transfer-accept", transferId, targetPath });
+    // 若数据已全部到达(complete 先于确认):立即落位
+    if (t.completeArrived) {
+      await this.restoreTransfer(t);
+    }
     return { ok: true };
   }
 
@@ -229,11 +270,22 @@ class MigrationService extends EventEmitter {
     broadcast("migration:progress", { transferId: msg.transferId, received: t.receivedBytes });
   }
 
-  /** 传输完成 → 解压落位 + 校验 + 会话恢复 + 注入系统消息 + 回执 */
+  /** 传输完成 → 解压落位 + 校验 + 会话恢复 + 注入系统消息 + 回执。
+      若用户尚未确认接收(targetPath 空):标记 completeArrived,等 acceptTransfer 时落位(两阶段握手) */
   async completeTransfer(peerId: string, msg: { transferId?: string }): Promise<void> {
     const transferId = msg.transferId ?? "";
     const t = this.pending.get(transferId);
     if (!t) return;
+    if (!t.targetPath) {
+      t.completeArrived = true;
+      return; // 用户还没确认,等 acceptTransfer 时落位
+    }
+    await this.restoreTransfer(t);
+  }
+
+  /** 落位执行:校验哈希 + 写文件 + 会话恢复 + 注入系统消息 + 回执(complete 或 accept 触发) */
+  private async restoreTransfer(t: PendingTransfer): Promise<void> {
+    const transferId = t.transferId;
     this.pending.delete(transferId);
 
     // 校验哈希 + 落位(按 manifest 的 relPath;每文件块数 = ceil(size/CHUNK_SIZE),扁平索引拼接)
@@ -272,7 +324,7 @@ class MigrationService extends EventEmitter {
     }
     if (!ok) {
       broadcast("migration:failed", { transferId, failures });
-      networkService.sendToDevice(peerId, { type: "transfer-failed", transferId, failures });
+      networkService.sendToDevice(t.peerId, { type: "transfer-failed", transferId, failures });
       return;
     }
 
@@ -295,7 +347,7 @@ class MigrationService extends EventEmitter {
     });
 
     // 回执给发送端
-    networkService.sendToDevice(peerId, {
+    networkService.sendToDevice(t.peerId, {
       type: "transfer-done",
       transferId,
       projectPath: targetPath,
