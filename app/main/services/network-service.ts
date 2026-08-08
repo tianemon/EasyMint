@@ -295,11 +295,14 @@ class NetworkService extends EventEmitter {
 
   /** 删除配对 */
   unpair(id: string): void {
+    // 先通知对方(双向解除——否则对方还当已配对,持续重连+广播,形成抖动循环)
+    this.sendToDevice(id, { type: "unpair-notify", fromId: this.deviceId });
     this.paired = this.paired.filter((p) => p.id !== id);
     this.wsClients.get(id)?.close();
     this.inboundSockets.get(id)?.close();
     this.wsClients.delete(id);
     this.inboundSockets.delete(id);
+    this.discovered.delete(id);
     this.savePaired();
     // 无已配对设备 → 停广播(常态静默)
     this.updatePairedBroadcast();
@@ -371,12 +374,16 @@ class NetworkService extends EventEmitter {
       // 服务名带设备名,对端可读;txt 携带设备 UUID(认 ID 不认 IP)。
       // host 指定本机真实局域网 IP——否则 win 多网卡(Hyper-V/WSL)会连虚拟网卡地址一起上报,
       // 对端取到 172.x 连不上(实测踩坑)
+      // probe: false——跳过冲突探测。反复 stop/start(断线重连)时旧服务未注销完,
+      // probe 探测同名冲突 → bonjour 内部 console.log 报错刷屏(无法捕获);跳过探测直接
+      // announce,单设备固定服务名冲突概率低且无害
       const realIp = this.getRealIPv4();
       this.advertiseService = this.bonjour.publish({
         name: `${this.deviceName} (EM)`,
         type: SERVICE_TYPE,
         port: this.listeningPort,
         host: realIp,
+        probe: false,
         txt: { id: this.deviceId, name: this.deviceName },
       });
     } catch (e) {
@@ -480,7 +487,15 @@ class NetworkService extends EventEmitter {
           // 已配对设备发起连接 → 校验密钥
           const p = this.paired.find((x) => x.id === msg.fromId);
           if (!p || p.key !== msg.key) {
+            // 密钥不符/无记录 = 对方侧配对已失效(被解除)→ 本端同步解除,停止重试循环
             ws.close();
+            if (p) {
+              this.paired = this.paired.filter((x) => x.id !== msg.fromId);
+              this.discovered.delete(msg.fromId);
+              this.savePaired();
+              this.updatePairedBroadcast();
+              this.emit("devices-changed");
+            }
             return;
           }
           // 记录对端地址(入站连接也能拿到)——重启后自动重连用,IP 可能已变
@@ -498,6 +513,17 @@ class NetworkService extends EventEmitter {
           ws.send(JSON.stringify({ type: "pong" }));
         } else if (msg.type === "pong") {
           // 心跳响应，保活
+        } else if (msg.type === "unpair-notify") {
+          // 对方解除配对 → 本端同步解除(删除记录/连接/发现缓存,停止重连尝试)
+          this.paired = this.paired.filter((p) => p.id !== msg.fromId);
+          this.wsClients.get(msg.fromId)?.close();
+          this.inboundSockets.get(msg.fromId)?.close();
+          this.wsClients.delete(msg.fromId);
+          this.inboundSockets.delete(msg.fromId);
+          this.discovered.delete(msg.fromId);
+          this.savePaired();
+          this.updatePairedBroadcast();
+          this.emit("devices-changed");
         } else {
           this.handleAppMessage(peerId, msg);
         }
