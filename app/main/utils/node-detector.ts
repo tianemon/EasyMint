@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 import fs from "fs";
 
 export interface DetectResult {
@@ -24,8 +24,11 @@ export function detectNode(): DetectResult {
   for (const p of NODE_PATHS) {
     try {
       if (fs.existsSync(p) || p === "node") {
-        const version = execSync(`"${p}" --version`, { encoding: "utf-8", timeout: 5000 }).trim();
-        return { found: true, version };
+        // spawnSync 不走 cmd shell——win 上找不到命令时 cmd 输出 GBK 报错会透传控制台成乱码
+        const r = spawnSync(p, ["--version"], { encoding: "utf-8", timeout: 5000, stdio: "pipe", windowsHide: true });
+        if (r.status === 0 && r.stdout) {
+          return { found: true, version: r.stdout.trim() };
+        }
       }
     } catch { /* try next */ }
   }

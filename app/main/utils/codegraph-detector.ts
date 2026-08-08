@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 import fs from "fs";
 
 export interface DetectResult {
@@ -29,8 +29,15 @@ export function detectCodegraph(): DetectResult {
   for (const p of CG_PATHS) {
     try {
       if (fs.existsSync(p) || p === "codegraph" || p === "codegraph.cmd") {
-        const version = execSync(`"${p}" --version`, { encoding: "utf-8", timeout: 5000, env: ENV }).trim();
-        return { found: true, version };
+        // 用 spawnSync 直接执行(不走 cmd shell)——execSync 在 win 上找不到命令时
+        // cmd.exe 输出 GBK 报错("不是内部或外部命令")透传到控制台成乱码
+        const r = spawnSync(p, ["--version"], {
+          encoding: "utf-8", timeout: 5000, env: ENV,
+          stdio: "pipe", windowsHide: true,
+        });
+        if (r.status === 0 && r.stdout) {
+          return { found: true, version: r.stdout.trim() };
+        }
       }
     } catch { /* try next */ }
   }
