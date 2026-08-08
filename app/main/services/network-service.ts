@@ -81,8 +81,6 @@ class NetworkService extends EventEmitter {
   private bonjour = new Bonjour();
   private advertiseService: import("bonjour-service").Service | null = null;
   private advertiseTimer: NodeJS.Timeout | null = null;
-  private pairModeEnd: number | null = null; // 配对模式截止时间
-  private pairModeTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private probeTimer: NodeJS.Timeout | null = null;
   private wss: WebSocketServer | null = null;
@@ -202,25 +200,21 @@ class NetworkService extends EventEmitter {
     this.saveIdentity();
   }
 
-  /** 当前是否处于配对模式（广播+扫描中） */
+  /** 当前是否可被发现（广播中）——由开关直接控制,持续到手动关闭 */
   isDiscoverable(): boolean {
-    return this.pairModeEnd !== null && this.pairModeEnd > Date.now();
+    return this.advertiseService !== null;
   }
 
-  /** 开启配对模式（广播 + 扫描，5 分钟自动退出；已配对设备在列则不清空） */
+  /** 开启可被发现:持续广播(无超时,手动关闭才停)。
+      扫描已常驻,无需配对模式概念——蓝牙语义:可发现=被搜到,持续到关闭 */
   startPairMode(): void {
-    this.pairModeEnd = Date.now() + PAIR_MODE_TIMEOUT;
     this.startAdvertising();
     this.emit("devices-changed");
-    if (this.pairModeTimer) clearTimeout(this.pairModeTimer);
-    this.pairModeTimer = setTimeout(() => this.stopPairMode(), PAIR_MODE_TIMEOUT);
   }
 
-  /** 停止配对模式（回到静默态:不广播自己,但扫描保持——仍能看到其他开了可被发现的设备） */
+  /** 关闭可被发现:停止广播(扫描保持) */
   stopPairMode(): void {
-    this.pairModeEnd = null;
     this.stopAdvertising();
-    if (this.pairModeTimer) { clearTimeout(this.pairModeTimer); this.pairModeTimer = null; }
     this.emit("devices-changed");
   }
 
@@ -278,12 +272,18 @@ class NetworkService extends EventEmitter {
   // 广播(publish)按需——只有可被发现开关/配对模式/断线重连时才发布自己。
 
   /** 常驻扫描:启动即开始监听其他设备的通告(不依赖可被发现开关)。
-      蓝牙手机随时可搜附近设备,只是自己不被搜到(不广播) */
+      蓝牙手机随时可搜附近设备,只是自己不被搜到(不广播)。
+      注意:browser 内部按 fqdn 去重——已发现服务不会重复触发 up 回调,
+      手动重扫需销毁重建 browser(仅 update() 无法重新触发 up,实测踩坑) */
   private scanningStarted = false;
   private scanner: import("bonjour-service").Browser | null = null;
   private startScanning(): void {
     if (this.scanningStarted) return;
     this.scanningStarted = true;
+    this.createScanner();
+  }
+
+  private createScanner(): void {
     try {
       this.scanner = this.bonjour.find({ type: SERVICE_TYPE }, (service) => {
         const id = (service.txt?.id as string) ?? "";
@@ -297,10 +297,12 @@ class NetworkService extends EventEmitter {
     } catch { /* 扫描失败忽略 */ }
   }
 
-  /** 手动重新扫描:清空当前列表 + 强制重新查询(bonjour update 重新触发 up 回调) */
+  /** 手动重新扫描:清空列表 + 销毁重建 browser(旧 browser 内部去重,无法重新触发 up) */
   rescan(): void {
     this.discovered.clear();
-    try { this.scanner?.update(); } catch { /* 忽略 */ }
+    try { this.scanner?.stop(); } catch { /* 忽略 */ }
+    this.scanner = null;
+    this.createScanner();
     this.emit("devices-changed");
   }
 
@@ -332,7 +334,7 @@ class NetworkService extends EventEmitter {
       蓝牙同理:已配对直接连接,重连失败才需重新可发现 */
   private reconnectAdvertiseTimer: NodeJS.Timeout | null = null;
   private startReconnectAdvertising(): void {
-    if (this.pairModeEnd && this.pairModeEnd > Date.now()) return; // 配对模式已有广播
+    if (this.advertiseService) return; // 已在广播(可被发现/重连广播)
     this.startAdvertising();
     if (this.reconnectAdvertiseTimer) clearTimeout(this.reconnectAdvertiseTimer);
     this.reconnectAdvertiseTimer = setTimeout(() => {
@@ -440,8 +442,9 @@ class NetworkService extends EventEmitter {
       p.lastSeen = Date.now();
       this.savePaired();
     }
-    // 连接建立 → 停止"断线重连广播"(仅重连场景;配对模式的广播由配对超时自身管理,不在此停)
-    if (this.reconnectAdvertiseTimer && !(this.pairModeEnd && this.pairModeEnd > Date.now())) {
+    // 连接建立 → 若处于"断线重连广播"(仅重连场景设置的 timer),停止广播;
+    // 用户主动开启的可被发现(timer 为 null)不受影响,持续到手动关闭
+    if (this.reconnectAdvertiseTimer) {
       this.stopAdvertising();
     }
     this.emit("device-online", { id });

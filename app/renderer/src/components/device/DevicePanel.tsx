@@ -101,19 +101,6 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  // 配对模式倒计时展示（主进程 5 分钟自动退出,前端只展示）
-  const [pairCountdown, setPairCountdown] = useState<number | null>(null);
-  useEffect(() => {
-    if (!pairMode) { setPairCountdown(null); return; }
-    const end = Date.now() + 5 * 60_000;
-    const t = setInterval(() => {
-      const left = Math.max(0, end - Date.now());
-      setPairCountdown(Math.ceil(left / 1000));
-      if (left <= 0) setPairCountdown(null);
-    }, 1000);
-    return () => clearInterval(t);
-  }, [pairMode]);
-
   if (!open) return null;
 
   const handlePair = async (d: DiscoveredDevice) => {
@@ -121,8 +108,6 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
     const r = await requestPair(d);
     if (!r.ok) setPairError(r.error ?? "配对失败");
   };
-
-  const fmtCountdown = (s: number): string => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-end bg-black/20" onMouseDown={onClose}>
@@ -168,14 +153,11 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                 type="button"
                 onClick={() => (pairMode ? stopPair() : startPair())}
                 className={`w-9 h-5 rounded-full transition-colors relative ${pairMode ? "bg-accent" : "bg-border"}`}
-                title={pairMode ? "关闭可被发现" : "开启可被发现(5 分钟后自动关闭)"}
+                title={pairMode ? "关闭可被发现" : "开启可被发现(持续广播,手动关闭才停)"}
               >
                 <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${pairMode ? "left-4" : "left-0.5"}`} />
               </button>
             </div>
-            {pairMode && pairCountdown !== null && (
-              <div className="mt-2 text-[10px] text-text-secondary">发现中 · {fmtCountdown(pairCountdown)} 后自动停止</div>
-            )}
           </div>
 
           {/* 已配对设备 */}
