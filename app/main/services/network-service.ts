@@ -230,16 +230,23 @@ class NetworkService extends EventEmitter {
   async acceptPair(peer: DiscoveredDevice): Promise<{ ok: boolean; error?: string }> {
     try {
       const key = crypto.randomBytes(32).toString("hex");
+      // 1. 发 pair-accept(短连接):发送端收到后保存配对记录(密钥一致,后续 hello 校验通过)
       const msg = JSON.stringify({ type: "pair-accept", fromId: this.deviceId, fromName: this.deviceName, key });
-      const ok = await this.sendRaw(peer.address, peer.port, msg);
-      if (!ok) return { ok: false, error: "连接失败" };
+      const sent = await this.sendRaw(peer.address, peer.port, msg);
+      if (!sent) return { ok: false, error: "无法连接对方设备" };
+      // 2. 本端保存配对记录
       this.paired = this.paired.filter((p) => p.id !== peer.id);
       this.paired.push({ id: peer.id, name: peer.name, key, pairedAt: Date.now(), lastSeen: Date.now() });
       this.savePaired();
+      // 3. 建立持久出站连接(携带密钥,发送端校验后记录入站)——不能只靠 sendRaw(短连接发完即关)
+      await this.connectOutbound({ id: peer.id, name: peer.name, key, pairedAt: 0, lastSeen: Date.now() }, peer.address, peer.port);
       this.emit("devices-changed");
       return { ok: true };
     } catch (e) {
-      return { ok: false, error: (e as Error).message };
+      // 连接失败:回滚配对记录,让用户重试
+      this.paired = this.paired.filter((p) => p.id !== peer.id);
+      this.savePaired();
+      return { ok: false, error: `连接失败: ${(e as Error).message}` };
     }
   }
 
@@ -305,6 +312,20 @@ class NetworkService extends EventEmitter {
     try { this.bonjour.destroy(); } catch { /* */ }
     this.bonjour = new Bonjour();
     this.discovered.clear();
+    if (this.reconnectAdvertiseTimer) { clearTimeout(this.reconnectAdvertiseTimer); this.reconnectAdvertiseTimer = null; }
+  }
+
+  /** 断线重连广播:连接断开/启动时短时广播(find 对端 + 被对端发现),连接建立后停止。
+      蓝牙同理:配对后常态静默,断线重连需重新广播——否则双方都静默时永远互相发现不了 */
+  private reconnectAdvertiseTimer: NodeJS.Timeout | null = null;
+  private startReconnectAdvertising(): void {
+    if (this.pairModeEnd && this.pairModeEnd > Date.now()) return; // 配对模式已有广播
+    this.startAdvertising();
+    if (this.reconnectAdvertiseTimer) clearTimeout(this.reconnectAdvertiseTimer);
+    this.reconnectAdvertiseTimer = setTimeout(() => {
+      // 60s 后若仍未连上,停止广播(等下次断线/启动再触发)
+      this.stopAdvertising();
+    }, OFFLINE_PROBE_INTERVAL);
   }
 
   // ── 连接管理 ──
@@ -346,14 +367,14 @@ class NetworkService extends EventEmitter {
           });
           ws.close();
         } else if (msg.type === "pair-accept") {
-          // 对方接受了我们的配对请求 → 保存配对 + 建立连接
+          // 对方接受了我们的配对请求 → 只保存配对记录。
+          // 注意:此连接是对方 sendRaw 短连接(发完即关),不能存 inboundSockets——
+          // 对方 acceptPair 会紧接着 connectOutbound 发 hello,在 hello 分支建立真正的长连接
           this.paired = this.paired.filter((p) => p.id !== msg.fromId);
           this.paired.push({ id: msg.fromId, name: msg.fromName, key: msg.key, pairedAt: Date.now(), lastSeen: Date.now() });
           this.savePaired();
           this.emit("devices-changed");
-          peerId = msg.fromId;
-          this.inboundSockets.set(msg.fromId, ws);
-          this.markOnline(msg.fromId);
+          ws.close();
         } else if (msg.type === "hello") {
           // 已配对设备发起连接 → 校验密钥
           const p = this.paired.find((x) => x.id === msg.fromId);
@@ -390,11 +411,17 @@ class NetworkService extends EventEmitter {
       p.lastSeen = Date.now();
       this.savePaired();
     }
+    // 连接建立 → 停止"断线重连广播"(仅重连场景;配对模式的广播由配对超时自身管理,不在此停)
+    if (this.reconnectAdvertiseTimer && !(this.pairModeEnd && this.pairModeEnd > Date.now())) {
+      this.stopAdvertising();
+    }
     this.emit("device-online", { id });
     this.emit("devices-changed");
   }
 
   private markOffline(id: string): void {
+    // 连接断开 → 短时广播让对端可重新发现(断线重连前提)
+    this.startReconnectAdvertising();
     this.emit("device-offline", { id });
     this.emit("devices-changed");
   }
@@ -437,6 +464,17 @@ class NetworkService extends EventEmitter {
 
   // ── 心跳与探测（常驻） ──
 
+  /** 尝试连接已配对设备(启动时 + 离线探测共用):仅在 mDNS 能发现它时(discovered 有记录)尝试 */
+  private tryConnectPaired(): void {
+    for (const p of this.paired) {
+      if (this.wsClients.has(p.id) || this.inboundSockets.has(p.id)) continue;
+      const disc = this.discovered.get(p.id);
+      if (disc) {
+        this.connectOutbound(p, disc.address, disc.port).catch(() => { /* 连接失败,下轮再试 */ });
+      }
+    }
+  }
+
   startKeepalive(): void {
     if (this.heartbeatTimer) return;
     this.heartbeatTimer = setInterval(() => {
@@ -447,16 +485,13 @@ class NetworkService extends EventEmitter {
       }
     }, HEARTBEAT_INTERVAL);
     this.probeTimer = setInterval(() => {
-      // 低频探测已配对离线设备：仅当在配对模式/手动扫描时可发现时尝试
-      if (!this.isDiscoverable()) return;
-      for (const p of this.paired) {
-        if (this.wsClients.has(p.id) || this.inboundSockets.has(p.id)) continue;
-        const disc = this.discovered.get(p.id);
-        if (disc) {
-          this.connectOutbound(p, disc.address, disc.port).catch(() => { /* 连接失败,下轮再试 */ });
-        }
-      }
+      // 低频探测已配对设备:不依赖配对模式(已配对后回到静默态,探测仍需进行)
+      // 探测前提是 mDNS 能发现对方(对方在可被发现状态或已被我们 find 到)
+      this.tryConnectPaired();
     }, OFFLINE_PROBE_INTERVAL);
+    // 启动时:短时广播(find 对端 + 被对端发现)+ 立即尝试连接已配对设备(对齐 WiFi 记住网络自动连)
+    this.startReconnectAdvertising();
+    setTimeout(() => this.tryConnectPaired(), 1000);
   }
 }
 
