@@ -25,6 +25,9 @@ const EXTERNALS = [
   "electron-updater",
   // unzipper 的可选 S3 支持(运行时才 require,未安装——external 避免 bundle 失败)
   "@aws-sdk/*",
+  // archiver 8.0 是纯 ESM 包,esbuild CJS bundle 跨平台解析不稳定——运行时 require
+  "archiver",
+  "unzipper",
 ];
 
 async function main() {

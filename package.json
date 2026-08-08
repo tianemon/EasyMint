@@ -15,7 +15,7 @@
     "build:mac": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --mac && rm -rf dist-electron/mac* dist-electron/*.zip*",
     "build:ci": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --publish never",
     "build:renderer": "vite build --config app/renderer/vite.config.ts",
-    "build:main": "esbuild app/main/index.ts --bundle --platform=node --format=cjs --outfile=app/main/dist/main.cjs --external:electron --external:@earendil-works/pi-coding-agent --external:@earendil-works/pi-agent-core --external:@earendil-works/pi-ai --external:@earendil-works/pi-ai/compat --external:@modelcontextprotocol/sdk --external:@modelcontextprotocol/sdk/* --external:electron-updater --external:@aws-sdk/*",
+    "build:main": "esbuild app/main/index.ts --bundle --platform=node --format=cjs --outfile=app/main/dist/main.cjs --external:electron --external:@earendil-works/pi-coding-agent --external:@earendil-works/pi-agent-core --external:@earendil-works/pi-ai --external:@earendil-works/pi-ai/compat --external:@modelcontextprotocol/sdk --external:@modelcontextprotocol/sdk/* --external:electron-updater --external:@aws-sdk/* --external:archiver --external:unzipper",
     "build:preload": "esbuild app/preload/index.ts --bundle --platform=node --format=cjs --outfile=app/preload/dist/preload.cjs --external:electron",
     "lint": "eslint app/ && tsc --noEmit -p app/main/tsconfig.json && tsc --noEmit -p app/preload/tsconfig.json && tsc --noEmit -p app/renderer/tsconfig.json",
     "typecheck": "tsc --noEmit -p app/main/tsconfig.json && tsc --noEmit -p app/preload/tsconfig.json && tsc --noEmit -p app/renderer/tsconfig.json",
@@ -36,7 +36,8 @@
     "react-router-dom": "^7.18.1",
     "xterm": "^5.3.0",
     "xterm-addon-fit": "^0.8.0",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "unzipper": "^0.12.5"
   },
   "devDependencies": {
     "@dvaji/vite-plugin-monaco-editor": "^2.0.0",
@@ -79,7 +80,9 @@
       "package.json",
       "node_modules/@earendil-works/**/*",
       "node_modules/@oh-my-pi/**/*",
-      "node_modules/electron-updater/**/*"
+      "node_modules/electron-updater/**/*",
+      "node_modules/archiver/**/*",
+      "node_modules/unzipper/**/*"
     ],
     "asarUnpack": [
       "node_modules/@earendil-works/**",
