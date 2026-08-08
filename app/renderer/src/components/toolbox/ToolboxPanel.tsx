@@ -55,7 +55,10 @@ export function ToolboxPanel({ open, onClose, onOpenDevicePanel }: ToolboxPanelP
             <path d="M9 13h6M9 17h6M9 9h1" />
           </svg>
           <span className="min-w-0">
-            <span className="block text-xs text-text-primary leading-tight">HTML 原型编辑器</span>
+            <span className="block text-xs text-text-primary leading-tight">
+              HTML 原型编辑器
+              <span className="ml-1.5 text-[9px] px-1 py-px rounded bg-accent-soft text-accent align-middle">实验</span>
+            </span>
             <span className="block text-[10px] text-text-muted leading-tight">可视化编辑页面原型</span>
           </span>
         </button>
@@ -70,7 +73,10 @@ export function ToolboxPanel({ open, onClose, onOpenDevicePanel }: ToolboxPanelP
             <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
           </svg>
           <span className="min-w-0">
-            <span className="block text-xs text-text-primary leading-tight">设备互联</span>
+            <span className="block text-xs text-text-primary leading-tight">
+              设备互联
+              <span className="ml-1.5 text-[9px] px-1 py-px rounded bg-accent-soft text-accent align-middle">实验</span>
+            </span>
             <span className="block text-[10px] text-text-muted leading-tight">跨设备迁移会话与项目</span>
           </span>
         </button>
