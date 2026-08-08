@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "concurrently --kill-others \"npm run dev:renderer\" \"npm run dev:electron\"",
     "dev:renderer": "node node_modules/vite/bin/vite.js --config app/renderer/vite.config.ts",
-    "dev:electron": "npm run build:main && npm run build:preload && node -e \"require('electron')\" .",
+    "dev:electron": "npm run build:main && npm run build:preload && node node_modules/electron/cli.js .",
     "build": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder",
     "build:mac": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --mac && rm -rf dist-electron/mac* dist-electron/*.zip*",
     "build:ci": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --publish never",
