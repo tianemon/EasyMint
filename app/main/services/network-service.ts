@@ -460,11 +460,16 @@ class NetworkService extends EventEmitter {
           });
           ws.close();
         } else if (msg.type === "pair-accept") {
-          // 对方接受了我们的配对请求 → 只保存配对记录。
+          // 对方接受了我们的配对请求 → 只保存配对记录(含对端地址,供重启后自动重连)。
           // 注意:此连接是对方 sendRaw 短连接(发完即关),不能存 inboundSockets——
           // 对方 acceptPair 会紧接着 connectOutbound 发 hello,在 hello 分支建立真正的长连接
+          const peerAddr4 = peerAddr.replace("::ffff:", "");
           this.paired = this.paired.filter((p) => p.id !== msg.fromId);
-          this.paired.push({ id: msg.fromId, name: msg.fromName, key: msg.key, pairedAt: Date.now(), lastSeen: Date.now() });
+          this.paired.push({
+            id: msg.fromId, name: msg.fromName, key: msg.key,
+            pairedAt: Date.now(), lastSeen: Date.now(),
+            address: peerAddr4, port: WS_PORT,
+          });
           this.savePaired();
           this.emit("devices-changed");
           ws.close();
@@ -475,6 +480,11 @@ class NetworkService extends EventEmitter {
             ws.close();
             return;
           }
+          // 记录对端地址(入站连接也能拿到)——重启后自动重连用,IP 可能已变
+          const peerAddr4 = peerAddr.replace("::ffff:", "");
+          p.address = peerAddr4;
+          p.port = WS_PORT;
+          this.savePaired();
           peerId = msg.fromId;
           this.inboundSockets.set(msg.fromId, ws);
           this.markOnline(msg.fromId);

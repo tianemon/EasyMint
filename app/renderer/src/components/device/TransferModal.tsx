@@ -80,7 +80,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
       // 与主进程 prepare_migration 一致的排除规则(按完整相对路径前缀匹配):
       // 构建产物/缓存 + .easymint 可重建子项(保留 state.json/run.json/issues.json 项目状态)
       const DEFAULT_EXCLUDE = [
-        ".git", "node_modules", "dist", "build", "temp", ".idea", ".vscode", ".DS_Store",
+        ".git", "node_modules", "dist", "build", "temp", ".idea", ".vscode", ".codegraph", ".DS_Store",
         ".easymint/shell-logs", ".easymint/templates", ".easymint/brand-tokens", ".easymint/group-sessions", ".easymint/group-sessions.json",
       ];
       // 通配符排除(与主进程一致):构建产物文件 *.apk/*.exe/*.dmg/*.zip

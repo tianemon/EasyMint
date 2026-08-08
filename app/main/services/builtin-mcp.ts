@@ -282,7 +282,7 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
       // 排除构建产物/缓存;.easymint 只排除可重建子项(shell-logs 运行日志/templates/brand-tokens/group-sessions),
       // 保留项目状态 state.json/run.json/issues.json(方案:项目数据跟随迁移)
       const DEFAULT_EXCLUDE = [
-        ".git", "node_modules", "dist", "build", "temp", ".idea", ".vscode", ".DS_Store", "*.apk", "*.exe", "*.dmg", "*.zip",
+        ".git", "node_modules", "dist", "build", "temp", ".idea", ".vscode", ".codegraph", ".DS_Store", "*.apk", "*.exe", "*.dmg", "*.zip",
         ".easymint/shell-logs", ".easymint/templates", ".easymint/brand-tokens", ".easymint/group-sessions", ".easymint/group-sessions.json",
       ];
       const include = (params.include as string[] ?? []).map(normalizeSep);
