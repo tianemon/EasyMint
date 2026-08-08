@@ -21,7 +21,6 @@ import { Bonjour } from "bonjour-service";
 
 // ── 常量（频率对齐蓝牙指导值，见方案文档频率参数表） ──
 // 注:mDNS 通告间隔由协议层维护(蓝牙 2s 阈值的对应物),应用侧无需定时发布
-const PAIR_MODE_TIMEOUT = 5 * 60 * 1000; // 配对模式 5 分钟自动退出
 const HEARTBEAT_INTERVAL = 30 * 1000; // 已连接心跳 30s
 const OFFLINE_PROBE_INTERVAL = 60 * 1000; // 离线设备探测 60s
 const WS_PORT = 47777; // 局域网 WS 监听端口（固定，防火墙放行一次）
@@ -302,8 +301,10 @@ class NetworkService extends EventEmitter {
     this.inboundSockets.get(id)?.close();
     this.wsClients.delete(id);
     this.inboundSockets.delete(id);
-    this.discovered.delete(id);
     this.savePaired();
+    // 重建 scanner:清 bonjour Browser 内部去重缓存(browser 按 fqdn 去重,
+    // 只删 discovered 会导致对方重新广播时不触发 up 回调,自动扫描扫不出)
+    this.rebuildScanner(true);
     // 无已配对设备 → 停广播(常态静默)
     this.updatePairedBroadcast();
     this.emit("devices-changed");
@@ -342,12 +343,18 @@ class NetworkService extends EventEmitter {
   }
 
   /** 手动重新扫描:清空列表 + 销毁重建 browser(旧 browser 内部去重,无法重新触发 up) */
-  rescan(): void {
-    this.discovered.clear();
+  /** 重建 scanner(清 bonjour Browser 内部去重缓存)。keepExisting: 保留当前 discovered
+      (unpair 场景——被删设备已手动移除,其他设备不用闪烁);手动 rescan 传 false 全清 */
+  private rebuildScanner(keepExisting: boolean): void {
+    if (!keepExisting) this.discovered.clear();
     try { this.scanner?.stop(); } catch { /* 忽略 */ }
     this.scanner = null;
     this.createScanner();
     this.emit("devices-changed");
+  }
+
+  rescan(): void {
+    this.rebuildScanner(false);
   }
 
   /** 本机真实局域网 IPv4(排除回环/APIPA/虚拟网卡段 172.16-31)——广播 host 用 */
@@ -496,8 +503,9 @@ class NetworkService extends EventEmitter {
         ws.close();
         if (p) {
           this.paired = this.paired.filter((x) => x.id !== fromId);
-          this.discovered.delete(fromId);
           this.savePaired();
+          // 重建 scanner(清 browser 去重缓存,见 unpair)
+          this.rebuildScanner(true);
           this.updatePairedBroadcast();
           this.emit("devices-changed");
         }
@@ -528,8 +536,9 @@ class NetworkService extends EventEmitter {
       this.inboundSockets.get(fromId)?.close();
       this.wsClients.delete(fromId);
       this.inboundSockets.delete(fromId);
-      this.discovered.delete(fromId);
       this.savePaired();
+      // 重建 scanner(清 browser 去重缓存,见 unpair)
+      this.rebuildScanner(true);
       this.updatePairedBroadcast();
       this.emit("devices-changed");
     } else {
