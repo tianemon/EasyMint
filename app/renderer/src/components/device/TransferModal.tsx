@@ -42,6 +42,9 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
       } else if (d.phase === "timeout") {
         setError("等待对方确认超时(30s)——对方可能不在线或未响应");
         setTransferring(false);
+      } else if (d.phase === "sent") {
+        // 传输完成 → 解除禁用,可关闭(恢复结果由回执另行提示)
+        setTransferring(false);
       }
     });
   }, []);

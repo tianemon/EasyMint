@@ -157,16 +157,24 @@ class MigrationService extends EventEmitter {
     const peer = networkService.listPaired().find((p) => p.id === deviceId);
     if (!peer?.online) return { ok: false, error: "目标设备不在线" };
 
-    // 1. 统一扫描
+    // 1. 统一扫描 + 完整性校验(项目文件存在,会话存在——缺少则打包失败)
     this.emit("send-progress", { transferId: "", sent: 0, total: 0, phase: "scanning" });
     const scan = this.scanProject(projectPath);
-    if (scan.files.length === 0) return { ok: false, error: "未扫描到可迁移文件" };
+    if (scan.files.length === 0) return { ok: false, error: "未扫描到可迁移文件——请确认项目路径" };
 
     // 2. 打包 zip(含会话文件,前缀 .easymint-session/ 区分,接收端识别)
     const transferId = `t${Date.now()}-${this.nextId++}`;
     const projectName = path.basename(path.resolve(projectPath));
     const zipName = `${projectName}-${transferId}.zip`;
     const zipPath = path.join(MIGRATION_CACHE_DIR, zipName);
+    // 完整性校验:会话已声明但文件缺失 → 打包失败(不静默跳过)
+    if (scan.sessionFile) {
+      const encoded = path.resolve(projectPath).replace(/[:/\\]/g, "-");
+      const sessionAbs = path.join(os.homedir(), ".easymint", "sessions", encoded, scan.sessionFile);
+      if (!fs.existsSync(sessionAbs)) {
+        return { ok: false, error: `会话文件缺失: ${scan.sessionFile}——打包失败` };
+      }
+    }
     this.emit("send-progress", { transferId, sent: 0, total: 0, phase: "packing" });
     try {
       fs.mkdirSync(MIGRATION_CACHE_DIR, { recursive: true });
@@ -417,10 +425,15 @@ class MigrationService extends EventEmitter {
     // 3. 解压到项目目录(zip 内部路径安全:跳过绝对路径/穿越条目)
     broadcast("migration:stage", { transferId, stage: "extract" });
     const extractFailures: string[] = [];
+    let extractedCount = 0;
     try {
-      await this.extractZip(cacheZip, t.targetPath, extractFailures);
+      extractedCount = await this.extractZip(cacheZip, t.targetPath, extractFailures);
     } catch (e) {
       extractFailures.push(`解压失败: ${(e as Error).message}`);
+    }
+    // 完整性:项目文件 0 个(解压出的) → 解包失败(zip 里没有项目文件)
+    if (extractedCount === 0) {
+      extractFailures.push("压缩包内没有项目文件——解包失败");
     }
 
     // 4. 会话恢复:从 zip 的 .easymint-session/ 里恢复(若 zip 内有)
@@ -430,6 +443,10 @@ class MigrationService extends EventEmitter {
       sessionRestored = await this.restoreSessionFromZip(cacheZip, t.targetPath);
     } catch (e) {
       console.error("[migration] 会话恢复失败:", (e as Error).message);
+    }
+    // 完整性:zip 里声明了会话但恢复失败 → 解包失败
+    if (t.manifest.sessionFile && !sessionRestored) {
+      extractFailures.push(`会话恢复失败: ${t.manifest.sessionFile}`);
     }
 
     if (extractFailures.length > 0) {
@@ -459,8 +476,9 @@ class MigrationService extends EventEmitter {
     void sessionRestored;
   }
 
-  /** 解压 zip 到目标目录(路径安全:拒绝绝对路径/../ 穿越条目) */
-  private async extractZip(zipPath: string, targetDir: string, failures: string[]): Promise<void> {
+  /** 解压 zip 到目标目录(路径安全:拒绝绝对路径/../ 穿越条目)。返回解压的项目文件数 */
+  private async extractZip(zipPath: string, targetDir: string, failures: string[]): Promise<number> {
+    let fileCount = 0;
     await new Promise<void>((resolve, reject) => {
       fs.createReadStream(zipPath)
         .pipe(unzipper.Parse())
@@ -482,12 +500,14 @@ class MigrationService extends EventEmitter {
             entry.autodrain();
             return;
           }
+          fileCount++;
           fs.mkdirSync(path.dirname(dest), { recursive: true });
           entry.pipe(fs.createWriteStream(dest));
         })
         .on("error", (e) => reject(e))
         .on("close", () => resolve());
     });
+    return fileCount;
   }
 
   /** 从 zip 恢复会话:读取 .easymint-session/xxx.jsonl → 改写 cwd → 放入全局 sessions 目录 */
