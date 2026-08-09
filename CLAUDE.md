@@ -234,98 +234,57 @@ npm run lint             # ESLint + TypeScript 类型检查
 
 ## 项目背景
 
-EasyMint 是 Electron 桌面应用，让不懂技术的用户通过图形界面创建项目、采集需求，与 AI 对话驱动开发（Mint 调度 Builder/Evaluator 多 Agent 协作）。底层基于 pi-coding-agent（Pi SDK）。已发布 v0.5.2（Windows 窗口自绘 & UI 精致化）。
+EasyMint 是 Electron 桌面应用，让不懂技术的用户通过图形界面创建项目、采集需求，与 AI 对话驱动开发（Mint 调度 Builder/Evaluator 多 Agent 协作）。底层基于 pi-coding-agent（Pi SDK）。当前版本 **v0.6.6**（2026-08-08 发布：设备互联 & 跨设备项目迁移）。
 
 ## 必读文档
 
 | 文档 | 场景 |
 |------|------|
 | `CLAUDE.md` | 行为准则、编码规范、色彩体系（先读本文件头部） |
-| `docs/design/多模型多Agent群聊方案.md` | 多模型/供应商/群聊完整设计（唯一真相源，改此功能必读） |
-| `docs/开发进度.md` 第 9 章 | v3 UI 改版 + 内容便签（9.7）完整记录 |
-| `docs/技术架构.md` | 架构、数据模型、IPC |
+| `docs/开发进度.md` | 功能实现状态、增量记录（最新 17/18 章 = v0.6.5/v0.6.6） |
+| `docs/技术架构.md` | 架构、数据模型、IPC（含设备互联/迁移/会话隔离章节） |
+| `docs/待办事项.md` | 未实施/缓做清单（状态栏/光效 orbit/rewind/群聊降级） |
 | `docs/reference/Pi-SDK-API参考.md` | Pi SDK 能力对照（含 EM 自定义实现清单） |
-| `CHANGELOG.md` v0.5.1 | 本次版本全量变更 |
+| `CHANGELOG.md` | 版本全量变更（最新 v0.6.6） |
+| `docs/archive/` | 已实现方案决策档案（diff 高亮/Agent 过程/UI 重构/设备互联迁移） |
 
 ## 发布与部署（重要）
 
-- **GitHub Actions 自动 Release 已配置**（`.github/workflows/release.yml`）：推送版本 tag（如 `v0.5.1`）后自动构建并发布 GitHub Release——**无需手动打包/上传**
+- **GitHub Actions 自动 Release 已配置**（`.github/workflows/release.yml`）：推送版本 tag（如 `v0.6.6`）后自动构建并发布 GitHub Release——无需手动打包/上传
 - **发版流程**：① 更新 `package.json` 版本号 + `CHANGELOG.md` 条目 → ② `git tag vX.Y.Z` → ③ `git push origin main --tags` → ④ 等 Actions 跑完（约 4 分钟），Release 自动生成
+- v0.6.6 已验证 CI npm ci 修复（release.yml 用 env 覆盖官方源，避开 npmmirror 海外 runner 卡死）
 - 首次发版时确认远端 tag 存在（`git ls-remote --tags origin`）
 
-## 最近工作（内容便签 v1–v5 + 0.5.1 发布，本会话）
+## 最近工作（v0.6.5 / v0.6.6，2026-08-07/08）
 
-1. **内容便签功能**（46 提交合并 main，全部通过双阶段审查）：
-   - v1：悬浮便签卡片（双钉住入口、会话级持久化、拖动/默认定位）
-   - v2：右键菜单（复制/全选/钉住）、选区 Markdown 还原、气泡按钮常驻、四周/拐角 resize
-   - v3：书签式贴纸（边缘吸附/最小化折叠/8 色自动分配/层叠/沿边拖动）
-   - v4：矩形贴纸、层叠可见（10px 露出）、hover 抽出横条、吸附动画
-   - v5：贴纸 20px、最小化隐藏图标、颜色随机、重复钉住检查、按钮已钉状态 store 联动、选区还原增强
-2. **发布 v0.5.1**：版本号 + CHANGELOG → tag → 推送 → GitHub Actions 自动 Release
-3. **UI 微调**：用户头像与 Mint 同风格（34px）、USER 名称标签、气泡操作条一体化（hover 显示 1s 缓冲）
+**v0.6.5**（状态指示光效 & 聊天滚动 & 会话隔离）：
+- 光效三预设 canvas 化（orbit 环绕流光 / slide 顶部滑动 / breathe 发散柔光）+ 参数固定模式（仅颜色可调）+ 亮暗两套配置 + Mint 状态文本样式（单色/流光）
+- 聊天回底/新消息气泡 + 滚动状态机（输入时间窗判定用户意图，程序性滚动不误判）
+- 会话隔离架构级修复：status-store 按 sessionId 分片（信号栈/摘要/压缩/ctxPct），StatusBar/AgentBar/ShellBar 按会话过滤
 
-## 最近工作（0.5.2：Windows 优化 + UI 微调，本会话后续）
-
-1. **Windows 窗口自绘**：win32 titleBarStyle hidden → WindowControls 自绘按钮（IPC 链路 + 主题跟随 + 最大化联动）；移除默认菜单栏
-2. **跨平台布局对齐**：拖拽区 35px、TabBar 空态可拖、项目名称固定 180px + marquee、中文字体回退栈 + 小字号
-3. **UI 精致化**：右键菜单自适应/圆角裁剪、删除确认弹窗、拖放上传、Lucide 图标、Onboarding v3 风格对齐
-4. **发布 v0.5.2**：合并 main、版本号、CHANGELOG、tag 推送 → GitHub Actions 自动 Release
-
-## 最近工作（Agent 模板模块 + 动态委派，2026-08-05）
-
-> 方案已落盘:`docs/design/多模型多Agent群聊方案.md`(唯一真相源)。本段仅摘要。
-
-**方案收敛结论**:task 工具已完整支持 subAgent 单独配置 model/provider(阶段 2)。
-群聊的"多 agent 长期会话 + 全量背景注入"过度复杂;收敛为**"主会话(Mint)+ task 工具动态委派 + Agent 模板模块"**——复用 executor 创建一次性子 session,用完即弃,上下文不膨胀。
-
-**14 章设计**:AgentTemplate 扩展(agentType→string,+default+thinkingLevel)、task 工具 agent 参数动态清单(模板名称+职责+模型实时可见)、executor 用模板 prompt 作为子 agent system prompt、模板编辑 UI、Mint 建模板工具、群聊代码降级(保留实验性)
+**v0.6.6**（设备互联 & 跨设备项目迁移，54 提交）：
+- 设备互联（实验性）：mDNS 手动扫描（3s 窗口）+ 蓝牙式配对（ECDH P-256 + AES-256-GCM）+ WS 连接 + 心跳 30s，**完全手动**（广播 60s / 无自动重连）
+- 跨设备迁移（纯手动）：统一扫描（排除 Electron+Flutter 构建产物）→ zip 打包（archiver 8.0）→ 两阶段握手 → 完整性校验（sha256 + 文件数 + 会话落盘验证）→ 缓存目录恢复完毕才删包；完成卡片模板
+- 纯手动定稿：移除 Mint 迁移 skill + MCP 迁移工具（保留设备管理工具）；工具箱「实验」标签
+- Windows 修复：GBK 乱码（spawnSync + `encoding.ts` 判定）、GPU 缓存刷屏、虚拟网卡地址（同网段优先）、archiver ESM 跨平台（external 运行时 require）
+- 已推送 origin（tag v0.6.6）+ mac 存档仓库
 
 ## 接下来安排
 
-0. **orbit 光效 canvas 方案实现**（方案已落盘 `docs/design/状态指示光效方案.md` v3 章节，用户确认方向待实现）：
-   - 需求：orbit 彗尾渐隐段截面从矩形改**半椭圆**（底部贴边框、顶部弧线收尖）——conic 渐变做不到（截面形状由 mask 固定）
-   - 方案：新组件 `OrbitGlow.tsx`（canvas 每帧绘制，rAF），orbit 预设从 CSS 切到 canvas；slide/breathe 保持 CSS
-   - 关键点：devicePixelRatio 缩放防 Retina 模糊 / resize+主题切换重绘 / rAF 生命周期（仅 glowActive 运行）/ 圆角路径 + 半椭圆尾巴沿法线
-   - 参数联动：glowEffect/glowColors/glowThickness/glowSpeed/glowTailWidth/glowOrbitFade(渐隐角度 15)/glowOrbitBlur(0.6，可能删)
-   - 现状：CSS 版 orbit（conic + mask 环 + blur）暂为 fallback；渐隐角度/模糊滑块已做（持久化）
-   - 其余光效参数已定：slide=微光层(首色)+凸起层(多色,半椭圆,height 200%,尖端固定70) / 粗细1-3px / 速度5档(1-5s,档=6-秒,默认3) / 拖尾5档(40-200°→凸起宽×50%) / 移动距离100档(居中对称) / 临时调试开关(微光层/凸起层/动画,仅内存)
-1. **状态指示光效 v2 需求调整**（已实现 v1 提交 `5de8d0f`，待改）：
-   - ①输入卡片光效 / Mint 状态文本**两套独立配置**，各自选颜色
-   - ②亮色/暗色**两套配置**，UI 用按钮切换编辑（当前是并排两个 color input）
-   - ③Mint 状态文本**单色模式要有颜色选择**；流光色彩「添加」要自定义色（当前固定绿色）
-   - ④slide 预设**只上边框**来回摆动
-   - ⑤breathe 预设做**发散效果**（参考 orbit 的 conic 渐变，光晕向外发散）
-   - v1 现状：settings 5 字段(glowEffect/glowColorLight/glowColorDark/statusTextStyle/statusTextColors)，CSS 3 预设，ChatInput 注入 --glow-color，StatusBar solid/shimmer，AppearanceTab 卡片单选+color input+拖拽
-   - 关键文件：settings-store.ts / store.ts(主进程透传) / index.css(input-card-glow+.glow-orbit/.glow-slide/.glow-breathe) / ChatInput.tsx / StatusBar.tsx / AppearanceTab.tsx
-1. **Agent 模板模块实现**(5 阶段):A 模板扩展 B task 动态清单+executor prompt C 模板 UI D Mint 建模板工具 E 群聊降级
-2. **群聊代码降级**:保留实验性,不继续投入;assign_to_agent/兜底语法转为 task 轻封装
-3. **群聊待办**：①群聊 Agent 若模板声明 task 工具,委派完成通知不注入回群聊 Agent(断链;默认模板无 task 已规避) ②重启后群聊 tab 恢复但主进程 group 清空(内存态,发送报"群聊不存在",group-sessions.json 已存结构无 resume 路径) ③群聊历史聚合加载(重启后只读) ④群聊用 `buildGroupTools`(模板 tools 驱动),无 product 工具(show_* 等)——如需可补
-4. **轮转端到端实测**：压缩 3 次触发归档+新会话接力(使用中确认)
-5. **Windows 验证**：拖拽区修复效果
-6. **便签 UAT**：真实使用中验证贴纸吸附/层叠/hover 横条/动画手感
-
-## 最近工作（v0.6.4 发布 + 乱码/会话隔离修复 + 状态指示光效，2026-08-06）
-
-> 本会话已完成并推送 mac（`mac/main`），origin 未同步（v0.6.4 后 8+ 提交待处理）。
-
-**发布 v0.6.4**：diff 语法高亮（monaco tokenize 零依赖）+ 工具结果展示 + Windows 后台命令修复，已 tag 推送 GitHub Release。
-
-**已修复的问题**（全部 lint 通过，已提交 mac）：
-1. **diff 语法高亮**：`lib/diff-highlight.ts`（17 语言）+ ChatBlocks 渲染（行号列、批量 tokenize、红绿背景+语法色）；Pi edit 工具注入 `变更内容:` diff（主会话+子 Agent）
-2. **Windows bash 乱码**：根因=Pi OutputAccumulator 固定 UTF-8 解 GBK；修复=前台 bash 自执行（`background-shell/tool.ts` executeForeground）+ `encoding.ts`（UTF-8/GBK 自动判定：全量 UTF-8→去尾前缀→GBK）；后台 shell 同用；清理重复实现+删无效 LANG/LC_ALL
-3. **Windows 后台 shell**：Git Bash 执行（cd /c/、tail 管道）、不 detached（管道收不到输出）、无 Git Bash 明确报错、进程树 taskkill /T
-4. **会话隔离**（核心架构修复）：status-store 从全局单例改为按 sessionId 隔离（信号栈/摘要/压缩/ctxPct）；委派/shell 广播带 sessionId；StatusBar/AgentBar/ShellBar 按会话过滤；onDelegationCount/onShellCount 加 currentChatRef 过滤
-5. **滚动锁定**：scrollToBottom 的 programmaticScrollRef 贴底后立即复位（原 80ms 防抖流式高频卡 true）
-6. **思考中消失**：thinking 帧误 pop「思考中」→ 仅 text 块 pop + thinking 帧保持信号
-7. **费用单位**：Pi cost 币种随模型（DeepSeek=¥/Anthropic=$），主进程返回 model，前端按 provider 判断
-8. **TDZ 崩溃**：summarizing/compacting 读取移到 sidRef 声明后
-9. **zustand 无限重渲染**：AgentBar/ShellBar selector 的 filter 返回新数组 → 改原始数组 + useMemo
-
-**动画改造**：状态栏符号动画从常驻改为「与状态文本同现同消」；新增输入卡片流光环绕（`input-card-glow`，conic-gradient + @property --glow-angle 旋转，活跃=bussy||agentActive||shellActive）
-
-**关键代码位置**：`encoding.ts`（解码容错）、`status-store.ts`（会话隔离）、`input-card-glow`（index.css）、`ChatPanel.tsx`（状态信号）、`ChatInput.tsx`（流光）、`StatusBar.tsx`（符号+文本）
+1. **确认 v0.6.6 CI/Release**：run 31254443897 触发时 in_progress，Release 生成未确认
+2. **orbit 光效 canvas 化**（方案落盘 `docs/design/状态指示光效方案.md` v3，方向已确认待实现）——彗尾半椭圆收尖，CSS conic 渐变做不到
+3. **会话回退 rewind**（调研落盘 `docs/design/会话回退机制调研-cc-rewind与pi-fork对比.md`，推荐 cc 模型 + 孤儿分支 GC，未实施）
+4. **群聊代码降级**（`docs/待办事项.md` 第 4 条：assign_to_agent 转 task 轻封装等 5 项 + 已知缺陷 5 项）
+5. **状态栏信息密度**（`docs/待办事项.md` 第 1 条，缓做：耗时/token/模型名显示）
+6. **轮转端到端实测**：压缩 3 次触发归档+新会话接力（使用中确认）
 
 ## 其他细节
+
+- 项目规范：先分析方案再动手、删除列清单确认、增量更新文档、commit 不自动 push、禁 any、时序用 ref、色彩走 CSS 变量语义层（禁 Tailwind 透明度语法用于主题色）
+- 便签架构：`pin-store`（zustand）+ `PinLayer`（悬浮层）+ `pin-service`（`~/.easymint/session-pins.json`）
+- `claude-legacy` 分支保留（Claude SDK 历史，勿删）
+- 数据存储：`~/.easymint/` 全局 + `<project>/.easymint/` 项目级（勿操作 `~/.easymint/` 用户数据）
+- 编码规范"新功能独立封装、图标优先 SVG"等见文件头部
 
 - 项目规范：先分析方案再动手、删除列清单确认、增量更新文档、commit 不自动 push、禁 any、时序用 ref、色彩走 CSS 变量语义层（禁 Tailwind 透明度语法用于主题色）
 - 便签架构：`pin-store`（zustand）+ `PinLayer`（悬浮层）+ `pin-service`（`~/.easymint/session-pins.json`）

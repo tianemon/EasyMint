@@ -1,5 +1,6 @@
 # 多模型 / 多供应商 / 多 Agent 群聊方案
 
+> **状态：✅ 主体已实现**——Agent 模板 + task 动态委派（2026-08-05 收敛方案）已落地；群聊保留实验性，降级待办见 `docs/待办事项.md` 第 4 条。
 > 本文档是 5 条需求(默认模型、Agent 指定模型/供应商、会话绑供应商、多 Agent 群聊)的**唯一真相源**。
 > 设计定稿于 2026-08-03,群聊交互重设计 2026-08-04。任何会话改此功能前必读本文件。
 > 本次重设计基于 Pi SDK 源码调研(`@earendil-works/pi-coding-agent`)和 cc 源码分析(`/Users/amon/dev/project/GitHub/claude-code-analysis`)。

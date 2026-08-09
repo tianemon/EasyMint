@@ -1,5 +1,6 @@
 # 会话回退机制调研：cc rewind vs pi fork
 
+> **状态：📝 仅调研，未实施**（EM rewind 功能待实现，待办见 `docs/待办事项.md` 第 3 条）。
 > 背景：2026-08-06 用户在 cc 长会话（~1M 上下文）中手动 `/compact` 触发 `API Error 400: This model's maximum context length is 1048576 tokens. However, you requested 1055684 tokens`。随后使用 `/rewind` 恢复会话节点后继续工作。本调研回答三个问题：① cc 的 rewind 机制如何设计、如何实现节点选择；② 与 pi（pi-coding-agent）对比，哪个设计更合理、各有什么优缺点；③ 400 报错的根因与 cc 的防御机制。
 >
 > 结论摘要：**cc 是「单时间线 + 原地重来」（undo 哲学），pi 是「多时间线 + 分支文件」（git 哲学）。** 日常使用 cc 更优（瞬时、无损、体验连续），结构清晰与可探索性 pi 更优（物理隔离、双向导航）。cc 的明显缺陷是孤儿分支永留、无 GC、单向不可回切。若为 EM 设计，推荐 cc 模型 + 孤儿分支 GC + 树导航。

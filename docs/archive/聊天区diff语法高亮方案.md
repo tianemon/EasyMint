@@ -1,5 +1,6 @@
 # 聊天区 diff 语法高亮方案
 
+> **状态：✅ 已实现（v0.6.4）**。
 > 2026-08-06 定稿并实现。目标：给聊天区工具结果里的 diff（edit 的 `变更内容:`）加 token 级语法高亮，
 > 对齐 cc 的 diff 渲染质感（关键词/字符串/注释/数字各有着色），零新增依赖。
 > 复用 monaco-editor 现成的 Monarch tokenizer（已随 EditorPanel 进入依赖树）。
