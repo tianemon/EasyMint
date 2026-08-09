@@ -945,13 +945,21 @@ export class AgentService {
   async setModel(sessionId: string, modelName: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session) return;
-    // Pi 原生热切换模型
-    const model = await getActiveModel(this.store);
-    if (model && model.id === modelName) {
-      await chat.session.setModel(model);
+    // 按用户选的模型名直接找 Model 对象热切（不依赖"当前供应商默认模型"比较——
+    // 原实现选非默认模型时 id 不匹配走 resetModelRuntime，实际没切到所选模型）
+    const { getModelRuntime } = await import("./pi-init");
+    const runtime = await getModelRuntime(this.store);
+    const settings = this.store.getSettings();
+    const providers = settings.apiProviders;
+    const activeCfg = providers?.configs?.[providers?.current ?? ""];
+    if (!activeCfg || !providers?.current) return;
+    const provider = activeCfg.presetId === "custom" ? providers.current : activeCfg.presetId;
+    const model = runtime.getModel(provider, modelName);
+    if (model) {
+      await chat.session.setModel(model as any);
       chat.currentModel = modelName;
     } else {
-      // 模型在 Pi 运行时中不存在，需要重建
+      // 模型不在运行时（新供应商 apiKey 未注册）→ 重建运行时（重建时全量 sync 配置）
       resetModelRuntime();
     }
   }

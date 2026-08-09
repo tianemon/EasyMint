@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { HashRouter, Routes, Route } from "react-router-dom";
 import { ProjectPage } from "./pages/ProjectPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
@@ -29,6 +29,26 @@ export function App(): JSX.Element {
       }
     });
   }, []);
+
+  // 切换供应商 → 活跃会话自动热切到新供应商默认模型。
+  // resume 未激活会话不在主进程 activeChats(setModel 无效)但首次发送时自动用新供应商,无需处理。
+  const currentProvider = useSettingsStore((s) => s.apiProviders?.current);
+  const prevProviderRef = useRef(currentProvider);
+  useEffect(() => {
+    const prev = prevProviderRef.current;
+    if (prev && currentProvider && prev !== currentProvider) {
+      const cfg = useSettingsStore.getState().apiProviders?.configs?.[currentProvider];
+      const newModel = cfg?.model || cfg?.models?.[0];
+      if (newModel) {
+        for (const t of useTabStore.getState().tabs) {
+          if (t.type === "chat" && t.sessionId) {
+            window.electronAPI.agent.setModel(t.sessionId, newModel).catch(() => {});
+          }
+        }
+      }
+    }
+    prevProviderRef.current = currentProvider;
+  }, [currentProvider]);
 
   // 从主进程恢复 tab 状态（macOS 合盖 GPU 恢复时 localStorage 不可靠）
   useEffect(() => {
