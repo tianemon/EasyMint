@@ -221,19 +221,19 @@ export function SessionHistory({
               el.style.bottom = `${window.innerHeight - menu.y}px`;
             }
           }}>
-          <button className="w-full text-left px-2.5 py-1.5 text-sm text-text-primary hover:bg-surface-hover rounded-md transition-colors flex items-center gap-1.5" onClick={handlePin}>
+          <button className="w-full text-left px-2 py-1 text-sm text-text-primary hover:bg-surface-hover rounded-md transition-colors flex items-center gap-1.5" onClick={handlePin}>
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="16" x2="12" y2="2"/><polyline points="6 8 12 2 18 8"/></svg>
             {menu.pinned ? "取消置顶" : "置顶"}
           </button>
-          <button className="w-full text-left px-2.5 py-1.5 text-sm text-text-primary hover:bg-surface-hover rounded-md transition-colors flex items-center gap-1.5" onClick={handleRename}>
+          <button className="w-full text-left px-2 py-1 text-sm text-text-primary hover:bg-surface-hover rounded-md transition-colors flex items-center gap-1.5" onClick={handleRename}>
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             重命名
           </button>
-          <button className="w-full text-left px-2.5 py-1.5 text-sm text-text-primary hover:bg-surface-hover rounded-md transition-colors flex items-center gap-1.5" onClick={handleKillSession}>
-            <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <button className="w-full text-left px-2 py-1 text-sm text-text-primary hover:bg-surface-hover rounded-md transition-colors flex items-center gap-1.5" onClick={handleKillSession}>
+            <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
             结束会话
           </button>
-          <button className="w-full text-left px-2.5 py-1.5 text-sm text-danger hover:bg-danger-bg rounded-md transition-colors flex items-center gap-1.5" onClick={handleDelete}>
+          <button className="w-full text-left px-2 py-1 text-sm text-danger hover:bg-danger-bg rounded-md transition-colors flex items-center gap-1.5" onClick={handleDelete}>
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
             删除
           </button>
