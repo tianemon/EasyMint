@@ -197,6 +197,8 @@ export function seedDefaultMcp(): void {
   if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true });
 
   let data: Record<string, unknown> = {};
+  // 迁移导入也算"需要写"——否则迁移的服务器覆盖全部默认服务器时 changed 恒 false,文件不落盘
+  let changed = false;
   if (existsSync(configPath)) {
     data = JSON.parse(readFileSync(configPath, "utf-8"));
   } else {
@@ -208,6 +210,7 @@ export function seedDefaultMcp(): void {
         const servers = (legacy.mcpServers as Record<string, McpServerConfig>) || {};
         if (Object.keys(servers).length > 0) {
           data.mcpServers = servers;
+          changed = true;
           console.log(`[mcp] 已迁移 ${Object.keys(servers).length} 个 MCP 服务器配置到 ~/.easymint/mcp.json`);
         }
       } catch (e) {
@@ -218,7 +221,6 @@ export function seedDefaultMcp(): void {
 
   const existing: Record<string, McpServerConfig> =
     (data.mcpServers as Record<string, McpServerConfig>) || {};
-  let changed = false;
 
   // Standard servers — just write config entries
   for (const [name, cfg] of Object.entries(DEFAULT_MCP_SERVERS)) {

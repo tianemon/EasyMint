@@ -85,6 +85,8 @@ async function connect(name: string, cfg: McpServerConfig): Promise<Client> {
 export async function loadMcpTools(): Promise<ToolDefinition[]> {
   // 工具列表不变，缓存避免重复扫描
   if (toolsCache) return toolsCache;
+  // 注意:空结果不缓存(置 null)——某次全部连接失败时 toolsCache 曾永久为 [],
+  // 后续所有会话都拿不到 MCP 工具直到重启;失败应下次重试
 
   const defineTool = await getDefineToolFn();
   const servers = scanMcpServers();
@@ -124,6 +126,6 @@ export async function loadMcpTools(): Promise<ToolDefinition[]> {
     } catch (e) { console.warn(`[mcp] ${s.name} listTools 失败:`, (e as Error).message); }
   }
 
-  toolsCache = tools;
+  toolsCache = tools.length > 0 ? tools : null;
   return tools;
 }
