@@ -1,8 +1,32 @@
 import { useTabStore } from "../stores/tab-store";
+import { useDelegationStore } from "../stores/delegation-store";
 import { WindowControls } from "./WindowControls";
 
-function isTabRunning(tab: { type: string; sessionId?: string }, runningSessions: Set<string>): boolean {
-  return tab.type === "chat" && !!tab.sessionId && runningSessions.has(tab.sessionId);
+/** 关闭提醒判定:回合流式 ∪ 委派运行中 ∪ 后台 shell 运行中(按 sessionId 过滤) */
+function isTabRunning(
+  tab: { type: string; sessionId?: string },
+  runningSessions: Set<string>,
+  agentTasks: Array<{ sessionId?: string }>,
+  shellTasks: Array<{ sessionId?: string }>,
+): boolean {
+  if (tab.type !== "chat" || !tab.sessionId) return false;
+  const sid = tab.sessionId;
+  return runningSessions.has(sid)
+    || agentTasks.some((t) => !t.sessionId || t.sessionId === sid)
+    || shellTasks.some((t) => !t.sessionId || t.sessionId === sid);
+}
+
+/** 提醒文案:按当前活跃事件区分 */
+function runningHint(
+  sid: string,
+  runningSessions: Set<string>,
+  agentTasks: Array<{ sessionId?: string }>,
+  shellTasks: Array<{ sessionId?: string }>,
+): string {
+  if (runningSessions.has(sid)) return "Mint 正在思考中，确认关闭吗？";
+  if (agentTasks.some((t) => !t.sessionId || t.sessionId === sid)) return "子 Agent 正在执行任务，关闭将中断委派，确认关闭吗？";
+  if (shellTasks.some((t) => !t.sessionId || t.sessionId === sid)) return "后台命令正在运行，关闭后结果将无法注入会话，确认关闭吗？";
+  return "确认关闭吗？";
 }
 
 export function TabBar(): JSX.Element | null {
@@ -11,6 +35,9 @@ export function TabBar(): JSX.Element | null {
   const setActiveTab = useTabStore((s) => s.setActiveTab);
   const closeTab = useTabStore((s) => s.closeTab);
   const runningSessions = useTabStore((s) => s.runningSessions);
+  // 委派/后台 shell 实时状态(关闭提醒用:委派运行中回合可能已结束,runningSessions 覆盖不到)
+  const agentTasks = useDelegationStore((s) => s.agentTasks);
+  const shellTasks = useDelegationStore((s) => s.shellTasks);
 
   // 空 tab 时仍渲染空拖拽条（min-height 40px）：窗口顶部需要可拖拽区域
   if (tabs.length === 0) return (
@@ -40,8 +67,8 @@ export function TabBar(): JSX.Element | null {
                 className="tab-close-v3"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (isTabRunning(tab, runningSessions)) {
-                    if (!confirm("Mint 正在思考中，确认关闭吗？")) return;
+                  if (tab.type === "chat" && tab.sessionId && isTabRunning(tab, runningSessions, agentTasks, shellTasks)) {
+                    if (!confirm(runningHint(tab.sessionId, runningSessions, agentTasks, shellTasks))) return;
                   }
                   closeTab(tab.id);
                 }}
