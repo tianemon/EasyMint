@@ -460,21 +460,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
     return unsub;
   }, []);
 
-  // 委派计数订阅(AgentBar 胶囊显示 + 任务列表)——非主会话 tab 拒绝,
-  // 否则委派状态穿透到所有会话 tab(跨会话污染)
+  // 委派计数订阅(AgentBar 胶囊显示 + 任务列表)——store 存全量(带 sessionId),组件按会话过滤。
+  // 不能加 currentChatRef 门槛:tab 重开时 currentChatRef 为 null,会拒绝更新导致 store 残留
+  // 旧委派/shell 状态(光效/胶囊一直显示活跃,实际已结束)
   useEffect(() => {
     const unsubCount = window.electronAPI.agent.onDelegationCount((data) => {
-      if (!currentChatRef.current) return;
       useDelegationStore.getState().setAgentTasks(data.tasks);
     });
     return unsubCount;
   }, []);
 
-  // 后台 shell 列表订阅(ShellBar 胶囊显示 + 命令列表)——非主会话 tab 拒绝,
-  // 否则后台命令状态穿透到所有会话 tab(跨会话污染)
+  // 后台 shell 列表订阅(ShellBar 胶囊显示 + 命令列表)——同上,store 全量 + 组件过滤
   useEffect(() => {
     const unsubShell = window.electronAPI.agent.onShellCount((data) => {
-      if (!currentChatRef.current) return;
       useDelegationStore.getState().setShellTasks(data);
     });
     return unsubShell;
