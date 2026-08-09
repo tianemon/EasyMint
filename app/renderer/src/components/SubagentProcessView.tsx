@@ -119,7 +119,7 @@ export function SubagentProcessView({
               <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
               <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
-            <span className="text-sm font-medium text-text-primary truncate flex-1">{title || "子 Agent"}</span>
+            <span className="text-sm font-medium text-text-primary truncate flex-1">{title || "AI 助手"}</span>
             <span className={`text-[11px] shrink-0 flex items-center gap-1 ${running ? "text-success" : "text-text-muted"}`}>
               {running && <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />}
               {running ? "运行中" : "已结束"}
@@ -169,7 +169,7 @@ export function SubagentProcessView({
         {/* 消息区(思考/工具调用按开关显示,默认只显示文本) */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-[var(--color-sidebar)]/40">
           {!loaded && !sessionFile && (
-            <div className="text-center text-xs text-text-secondary py-8">等待子 Agent 会话创建…</div>
+            <div className="text-center text-xs text-text-secondary py-8">正在准备任务…</div>
           )}
           {!loaded && sessionFile && (
             <div className="text-center text-xs text-text-secondary py-8">加载中…</div>

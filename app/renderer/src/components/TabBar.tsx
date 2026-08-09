@@ -16,7 +16,7 @@ function isTabRunning(
     || shellTasks.some((t) => !t.sessionId || t.sessionId === sid);
 }
 
-/** 提醒文案:按当前活跃事件区分 */
+/** 提醒文案:按当前活跃事件区分(用户友好话术,不用开发术语) */
 function runningHint(
   sid: string,
   runningSessions: Set<string>,
@@ -24,8 +24,8 @@ function runningHint(
   shellTasks: Array<{ sessionId?: string }>,
 ): string {
   if (runningSessions.has(sid)) return "Mint 正在思考中，确认关闭吗？";
-  if (agentTasks.some((t) => !t.sessionId || t.sessionId === sid)) return "子 Agent 正在执行任务，关闭将中断委派，确认关闭吗？";
-  if (shellTasks.some((t) => !t.sessionId || t.sessionId === sid)) return "后台命令正在运行，关闭后结果将无法注入会话，确认关闭吗？";
+  if (agentTasks.some((t) => !t.sessionId || t.sessionId === sid)) return "还有开发任务正在进行，关闭会中断任务，确认关闭吗？";
+  if (shellTasks.some((t) => !t.sessionId || t.sessionId === sid)) return "后台命令还在运行，关闭后命令结果将无法显示在对话里，确认关闭吗？";
   return "确认关闭吗？";
 }
 
