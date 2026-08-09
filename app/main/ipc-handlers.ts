@@ -225,6 +225,13 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:killChat", (_e, { chatId }) => {
     agentService.killChat(chatId);
   });
+  // 关闭 tab 回收:空闲即 kill / 运行中延迟回收(重开时 cancel)
+  ipcMain.handle("agent:reclaim-chat", (_e, { sessionId }) => {
+    agentService.reclaimChat(sessionId);
+  });
+  ipcMain.handle("agent:cancel-reclaim", (_e, { sessionId }) => {
+    agentService.cancelReclaim(sessionId);
+  });
 
   ipcMain.handle("agent:scheduleIdleTimeout", (_e, { sessionId, delayMs }) => {
     agentService.scheduleIdleTimeout(sessionId, delayMs);

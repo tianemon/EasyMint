@@ -1018,6 +1018,48 @@ export class AgentService {
     }
   }
 
+  /** 关闭 tab 后的会话回收记录(按 sessionId 防重复) */
+  private reclaims = new Map<string, { timer: ReturnType<typeof setInterval>; deadline: ReturnType<typeof setTimeout> }>();
+
+  /**
+   * 关闭 tab → 空闲即回收 / 运行中延迟回收:
+   * 忙碌判定 = 回合流式(isStreaming) ∪ 委派运行中 ∪ 后台 shell 运行中;
+   * 忙碌时 2s 轮询等待,空闲后 killChat;5 分钟超时兜底强制回收(用户长时间不回来,接受中断)。
+   * 重开 tab 时前端调 cancelReclaim 取消回收(会话继续用)。
+   */
+  reclaimChat(sessionId: string): void {
+    const chat = this.findActiveChat(sessionId);
+    if (!chat?.session) return;
+    if (this.reclaims.has(sessionId)) return;
+    const check = () => {
+      const streaming = chat.session?.isStreaming ?? false; // getter 属性
+      const { getRunningDelegations } = require("./task/registry") as typeof import("./task/registry");
+      const delegating = getRunningDelegations(sessionId).some((d) => d.status === "running");
+      const shelling = backgroundShellRegistry.list().some((s) => s.sessionId === sessionId && s.status === "running");
+      if (streaming || delegating || shelling) return; // 忙,继续等
+      this.finishReclaim(sessionId);
+    };
+    const timer = setInterval(check, 2000);
+    const deadline = setTimeout(() => this.finishReclaim(sessionId), 5 * 60 * 1000);
+    this.reclaims.set(sessionId, { timer, deadline });
+    check();
+  }
+
+  cancelReclaim(sessionId: string): void {
+    const r = this.reclaims.get(sessionId);
+    if (r) {
+      clearInterval(r.timer);
+      clearTimeout(r.deadline);
+      this.reclaims.delete(sessionId);
+    }
+  }
+
+  private finishReclaim(sessionId: string): void {
+    this.cancelReclaim(sessionId);
+    const chat = this.findActiveChat(sessionId);
+    if (chat) this.killChat(chat.chatId);
+  }
+
   scheduleIdleTimeout(_sessionId: string, _delayMs: number): void {
     // Pi 会话不同于 Claude SDK 的 query 进程，无需 idle timeout
     // 保留接口兼容性

@@ -59,6 +59,10 @@ export const useTabStore = create<TabState>()(
             // Only dedup by sessionId if it's a real SDK session (not undefined=new)
             (tab.type === "chat" && t.type === "chat" && tab.sessionId && t.sessionId === tab.sessionId)
         );
+        // 重新打开会话 → 取消关闭 tab 时的延迟回收(会话继续用内存态)
+        if (tab.type === "chat" && tab.sessionId) {
+          window.electronAPI?.agent?.cancelReclaim?.(tab.sessionId).catch(() => {});
+        }
         if (existing) {
           set({ activeTabId: existing.id });
           return;
@@ -72,6 +76,10 @@ export const useTabStore = create<TabState>()(
         const tab = get().tabs.find((t) => t.id === id);
         if (tab?.sessionId) {
           useChatStore.getState().evictSession(tab.sessionId);
+          // 关闭 tab → 主进程回收:空闲即 kill / 运行中延迟(委派/shell/回合结束后 kill,5 分钟超时兜底)
+          if (tab.type === "chat") {
+            window.electronAPI?.agent?.reclaimChat?.(tab.sessionId).catch(() => {});
+          }
         }
         set((s) => {
           const idx = s.tabs.findIndex((t) => t.id === id);
