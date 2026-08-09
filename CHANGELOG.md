@@ -1,5 +1,12 @@
 # Changelog
 
+> 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/) 规范：只记录 release 的**用户可见变更**。
+> 日常变更先记入下方 `[Unreleased]`，发版时整理成版本条目；内部开发记录（项目变动/用户决策/实现过程）见 `docs/开发进度.md`。
+
+## [Unreleased]
+
+（暂无——日常变更先记此处，发版时移入版本条目）
+
 ## v0.6.6 (2026-08-08) — 设备互联 & 跨设备项目迁移
 
 ### Added（新增）
