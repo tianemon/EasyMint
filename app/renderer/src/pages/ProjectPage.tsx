@@ -105,6 +105,18 @@ export function ProjectPage(): JSX.Element {
     }
   }, [projectId]);
 
+  // tab 切换 → 会话列表选中态跟随:当前 tab 是哪个会话,列表选中哪个;
+  // 非会话 tab / 新会话 tab(无 sessionId)→ 都不选中
+  useEffect(() => {
+    const ts = useTabStore.getState();
+    const activeTab = ts.tabs.find((t) => t.id === ts.activeTabId);
+    if (activeTab?.type === "chat" && activeTab.sessionId) {
+      setActiveSessionId(activeTab.sessionId);
+    } else {
+      setActiveSessionId(undefined);
+    }
+  }, [activeTabId]);
+
   // Listen for context rotation: old session archived → open new tab bound to new session.
   // 接力消息（handoffPrompt）已由主进程 promptAndBridge 直接发送到新会话，
   // 这里只需打开 tab，ChatPanel 挂载时自动加载新会话历史。
