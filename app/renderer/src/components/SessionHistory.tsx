@@ -229,7 +229,7 @@ export function SessionHistory({
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             重命名
           </button>
-          <button className="w-full text-left px-2 py-1 text-sm text-text-primary hover:bg-surface-hover rounded-md transition-colors flex items-center gap-1.5" onClick={handleKillSession}>
+          <button className="w-full text-left px-2 py-1 text-sm text-danger hover:bg-danger-bg rounded-md transition-colors flex items-center gap-1.5" onClick={handleKillSession}>
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
             结束会话
           </button>
