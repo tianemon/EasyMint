@@ -212,7 +212,7 @@ export function SessionHistory({
 
       {/* Context menu —— hover 项内缩圆角(圆角外不露尖角),无分隔线 */}
       {menu.visible && (
-        <div className="fixed z-[100] bg-surface-elevated border border-border rounded-lg shadow-xl py-1 px-1 min-w-[108px]" style={{ left: menu.x, top: menu.y }}
+        <div className="fixed z-[100] bg-surface-elevated border border-border rounded-lg shadow-xl py-1 px-1 min-w-[100px]" style={{ left: menu.x, top: menu.y }}
           ref={(el) => {
             if (!el) return;
             const h = el.offsetHeight;
