@@ -7,6 +7,7 @@ import { MigrationIncomingModal } from "./components/device/MigrationIncomingMod
 import { PairRequestModal } from "./components/device/PairRequestModal";
 import { useSettingsStore } from "./stores/settings-store";
 import { useTabStore } from "./stores/tab-store";
+import { useDelegationStore } from "./stores/delegation-store";
 
 export function App(): JSX.Element {
   const [setupComplete, setSetupComplete] = useState(
@@ -49,6 +50,19 @@ export function App(): JSX.Element {
     }
     prevProviderRef.current = currentProvider;
   }, [currentProvider]);
+
+  // 委派/shell 状态全局订阅(App 常驻)——不能只在 ChatPanel 订阅:
+  // 所有 tab 关闭时无订阅者,广播无人接收,store 残留旧状态,重开 tab 显示假活跃。
+  // store 存全量(带 sessionId),组件按会话过滤。
+  useEffect(() => {
+    const off1 = window.electronAPI.agent.onDelegationCount((data) => {
+      useDelegationStore.getState().setAgentTasks(data.tasks);
+    });
+    const off2 = window.electronAPI.agent.onShellCount((data) => {
+      useDelegationStore.getState().setShellTasks(data);
+    });
+    return () => { off1(); off2(); };
+  }, []);
 
   // 从主进程恢复 tab 状态（macOS 合盖 GPU 恢复时 localStorage 不可靠）
   useEffect(() => {

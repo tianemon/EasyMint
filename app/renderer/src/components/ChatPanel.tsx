@@ -460,23 +460,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
     return unsub;
   }, []);
 
-  // 委派计数订阅(AgentBar 胶囊显示 + 任务列表)——store 存全量(带 sessionId),组件按会话过滤。
-  // 不能加 currentChatRef 门槛:tab 重开时 currentChatRef 为 null,会拒绝更新导致 store 残留
-  // 旧委派/shell 状态(光效/胶囊一直显示活跃,实际已结束)
-  useEffect(() => {
-    const unsubCount = window.electronAPI.agent.onDelegationCount((data) => {
-      useDelegationStore.getState().setAgentTasks(data.tasks);
-    });
-    return unsubCount;
-  }, []);
-
-  // 后台 shell 列表订阅(ShellBar 胶囊显示 + 命令列表)——同上,store 全量 + 组件过滤
-  useEffect(() => {
-    const unsubShell = window.electronAPI.agent.onShellCount((data) => {
-      useDelegationStore.getState().setShellTasks(data);
-    });
-    return unsubShell;
-  }, []);
+  // 委派/shell 状态订阅已移至 App.tsx 全局常驻(所有 tab 关闭时也要保持 store 新鲜);
+  // 此处组件直接读 useDelegationStore 按会话过滤显示
 
   // 委派触发消息落盘后固定附着点：Mint 主动发起时回合未结束消息未落盘,
   // progress 事件捕获不到 triggerMsgId——消息流更新后补捕获并固定,

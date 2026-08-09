@@ -119,10 +119,13 @@ export function SessionHistory({
 
   const handleDelete = async () => {
     if (!menu.sessionId) return;
+    // 先结束内存会话(若活跃)——否则删除记录后会话还在后台跑(委派/shell 继续),列表消失无法管理
+    await window.electronAPI.agent.killSession(menu.sessionId);
     const path = projectPath || getWorkspaceDir();
     await window.electronAPI.conv.delete(menu.sessionId, path);
     onSessionDelete?.(menu.sessionId);
     setSessions((prev) => prev.filter((s) => s.sessionId !== menu.sessionId));
+    refreshActive();
     setMenu((m) => ({ ...m, visible: false }));
   };
 
