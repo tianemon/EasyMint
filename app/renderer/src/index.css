@@ -44,8 +44,15 @@
   --color-danger-border: #fecaca;
   --color-danger-soft: #dc26261a;
   --color-success-soft: #17a34a1a;
+  --color-success-high: #17a34a33;
+  /* 任务执行呼吸灯(底色明暗+外发光,Agent 执行中):亮色浅绿 */
+  --task-breath-dim: #17a34a1a;
+  --task-breath-bright: #17a34a4d;
+  --task-breath-glow: #17a34a40;
   --color-info: #0891b2;
   --color-info-bg: #0891b21f;
+  --color-info-soft: #0891b21a;
+  --color-info-high: #0891b233;
   --color-dot-gray: #718096;
   --color-dot-green: #16a34a;
   --color-dot-amber: #d97706;
@@ -144,12 +151,14 @@ html[data-platform="win32"] {
   --color-danger-border: #fecaca;
   --color-danger-soft: color-mix(in oklab, var(--color-danger) 12%, transparent);
   --color-success-soft: color-mix(in oklab, var(--color-success) 10%, transparent);
+  --color-success-high: color-mix(in oklab, var(--color-success) 20%, transparent);
   --color-warning-soft: color-mix(in oklab, var(--color-warning) 10%, transparent);
   --color-info: #0891b2;
   --color-info-bg: color-mix(in oklab, var(--color-info) 12%, transparent);
-  --color-info-soft: color-mix(in oklab, var(--color-info) 8%, transparent);
+  --color-info-soft: color-mix(in oklab, var(--color-info) 10%, transparent);
+  --color-info-high: color-mix(in oklab, var(--color-info) 20%, transparent);
 
-  /* ── Border extras ──────────────── */
+/* ── Border extras ──────────────── */
   --color-border-strong: #94a3b8;
 
   /* ── File type icons ────────────── */
@@ -320,8 +329,15 @@ html[data-platform="win32"] {
   --color-danger-border: #7f1d1d;
   --color-danger-soft: #3a0a0a;
   --color-success-soft: #0a1e0e;
+  --color-success-high: color-mix(in oklab, var(--color-success) 20%, transparent);
+  /* 任务执行呼吸灯:暗色灰白 */
+  --task-breath-dim: #1e1e1e;
+  --task-breath-bright: #cccccc33;
+  --task-breath-glow: #cccccc2e;
   --color-info: #22d3ee;
   --color-info-bg: #0a1a1e;
+  --color-info-soft: #0a1a1e;
+  --color-info-high: color-mix(in oklab, var(--color-info) 20%, transparent);
 
   /* ── Status dots — 仅 green + red 有色 ─── */
   --color-dot-gray: #3a3a3a;
@@ -568,12 +584,13 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
   transition: all 120ms var(--ease-smooth);
   display: flex; align-items: center; justify-content: center; gap: 4px;
 }
-.sb-seg-btn:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); }
-.sb-seg-btn:hover svg { transform: scale(1.12); }
+/* hover:整块亮起(与选中同色),图标放大 */
+.sb-seg-btn:hover { color: var(--color-text-primary); background: var(--color-sidebar-active); }
+.sb-seg-btn:hover svg { transform: scale(1.15); }
 .sb-seg-btn svg { transition: transform 120ms var(--ease-smooth); }
+/* active:同色 + 阴影与加粗图标区分选中态 */
 .sb-seg-btn.active { color: var(--color-text-primary); background: var(--color-sidebar-active); box-shadow: var(--shadow-xs); }
 .sb-seg-btn.active svg { stroke-width: 2.4; } /* 选中态图标加粗 */
-.sb-seg-btn + .sb-seg-btn { border-left: 1px solid var(--color-border); }
 .sb-seg-label { font-size: 11px; }
 
 /* ── Divider line ─────────────────────────────── */
@@ -1193,4 +1210,15 @@ select.input {
 @keyframes card-in {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
+}
+
+/* ── 任务执行呼吸灯(底色明暗 + 外发光,Agent 执行中) ──
+   按钮是独立元素,外发光不会被遮挡;底色 10%↔30% 明暗 + 柔和光晕,2.8s 舒缓呼吸
+   (必须放顶层——写在 :root 块内 @keyframes 会被浏览器忽略) */
+@keyframes task-breath {
+  0%, 100% { background-color: var(--task-breath-dim); box-shadow: 0 0 0 0 var(--task-breath-glow); }
+  50% { background-color: var(--task-breath-bright); box-shadow: 0 0 6px 0 var(--task-breath-glow); }
+}
+.task-breathing {
+  animation: task-breath 2.8s ease-in-out infinite;
 }

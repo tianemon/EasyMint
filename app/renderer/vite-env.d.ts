@@ -197,6 +197,8 @@ interface ElectronAPI {
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
     onFallbackUsed: (callback: (data: { provider: string; modelId: string }) => void) => () => void;
+    onConfirmDev: (callback: () => void) => () => void;
+    onNewProject: (callback: () => void) => () => void;
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
     onDelegationProgress: (callback: (data: DelegationProgressEvent) => void) => () => void;
     onDelegationInit: (callback: (data: {
@@ -313,6 +315,7 @@ interface ElectronAPI {
     killPort: (port: number) => Promise<boolean>;
     onOutput: (callback: (data: { commandId: string; line: string; stream: string }) => void) => () => void;
     onStatusChanged: (callback: (data: { commandId: string; running: boolean }) => void) => () => void;
+    onRunJsonChanged: (callback: () => void) => () => void;
   };
   evaluator: {
     isEnabled: () => Promise<boolean>;

@@ -126,7 +126,7 @@ useTabStore.subscribe((state) => {
   synced = true;
   try {
     window.electronAPI?.tab?.save?.({
-      tabs: state.tabs.map((t) => ({ id: t.id, type: t.type, title: t.title, filePath: t.filePath, sessionId: t.sessionId, groupId: t.groupId })),
+      tabs: state.tabs.map((t) => ({ id: t.id, type: t.type, title: t.title, filePath: t.filePath, sessionId: t.sessionId, groupId: t.groupId, isDesigner: t.isDesigner })),
       activeTabId: state.activeTabId,
     });
   } catch { /* ignore */ }

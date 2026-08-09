@@ -75,16 +75,34 @@ export function createTemplate(input: AgentTemplateInput): AgentTemplate {
   return t;
 }
 
+/** 完全锁定(不可修改):Mint / Mint-D */
+const LOCKED_TEMPLATE_IDS = new Set(["mint", "mint-designer"]);
+/** 受限编辑(仅供应商/模型/思考等级):Builder / Evaluator */
+const RESTRICTED_TEMPLATE_IDS = new Set(["default-builder", "default-evaluator"]);
+const BUILTIN_TEMPLATE_IDS = new Set([...LOCKED_TEMPLATE_IDS, ...RESTRICTED_TEMPLATE_IDS]);
+
 export function updateTemplate(id: string, input: Partial<AgentTemplateInput>): AgentTemplate {
   const templates = readAll();
   const idx = templates.findIndex((t) => t.id === id);
   if (idx === -1) throw new Error(`模板不存在: ${id}`);
+  // 内置模板权限:mint/mint-designer 完全不可改;builder/evaluator 仅允许 供应商/模型/思考等级
+  if (LOCKED_TEMPLATE_IDS.has(id)) {
+    throw new Error("系统内置模板(Mint/Mint-D)不可修改");
+  }
+  if (RESTRICTED_TEMPLATE_IDS.has(id)) {
+    const allowed: Partial<AgentTemplateInput> = {};
+    if (input.provider !== undefined) allowed.provider = input.provider;
+    if (input.model !== undefined) allowed.model = input.model;
+    if (input.thinkingLevel !== undefined) allowed.thinkingLevel = input.thinkingLevel;
+    input = allowed;
+  }
   templates[idx] = { ...templates[idx]!, ...input };
   writeAll(templates);
   return templates[idx]!;
 }
 
 export function deleteTemplate(id: string): void {
+  if (BUILTIN_TEMPLATE_IDS.has(id)) throw new Error("系统内置模板不可删除");
   const templates = readAll().filter((t) => t.id !== id);
   writeAll(templates);
 }
@@ -98,18 +116,18 @@ const DEFAULTS: AgentTemplate[] = [
     agentType: "mint",
   },
   {
-    id: "default-builder",
-    name: "Builder",
-    description: "实现代码任务。当需要实现开发任务时使用此 Agent。",
-    prompt: BUILDER_AGENT_PROMPT,
-    agentType: "builder",
-  },
-  {
     id: "mint-designer",
     name: "Mint-D",
     description: "UI 设计师。将需求转化为 HTML 原型页面，在编辑器中预览。",
     prompt: DESIGNER_AGENT_PROMPT,
     agentType: "designer",
+  },
+  {
+    id: "default-builder",
+    name: "Builder",
+    description: "实现代码任务。当需要实现开发任务时使用此 Agent。",
+    prompt: BUILDER_AGENT_PROMPT,
+    agentType: "builder",
   },
   {
     id: "default-evaluator",

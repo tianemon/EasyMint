@@ -5,7 +5,7 @@
  */
 
 import { spawn, execSync, type ChildProcess } from "child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, watch } from "node:fs";
 import { join } from "node:path";
 import { BrowserWindow } from "electron";
 import { resolveHome } from "../utils/paths";
@@ -102,6 +102,34 @@ export function detectRunnable(projectPath: string): Runnable[] {
   return readRunJson(projectPath);
 }
 
+/** run.json 监听器(按 resolved 路径防重注册) */
+const runJsonWatchers = new Set<string>();
+
+/**
+ * 监听 .easymint/run.json 变化 → 广播 → 前端运行面板自动重新检测。
+ * Mint 直接写文件即可(无需 MCP 工具/手动刷新),链路自动闭环。
+ */
+export function ensureRunJsonWatch(projectPath: string): void {
+  const resolved = resolveHome(projectPath);
+  if (runJsonWatchers.has(resolved)) return;
+  const dir = join(resolved, ".easymint");
+  if (!existsSync(dir)) return;
+  runJsonWatchers.add(resolved);
+  try {
+    watch(dir, (_event, filename) => {
+      if (filename !== "run.json") return;
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.webContents.send("process:run-json-changed", { projectPath });
+      }
+    }).on("error", () => {
+      // 目录被删/不可读:放弃监听,下次 detect 时重试注册
+      runJsonWatchers.delete(resolved);
+    });
+  } catch {
+    runJsonWatchers.delete(resolved);
+  }
+}
+
 /** 启动进程 */
 export function startProcess(projectPath: string, commandId: string, port?: number): void {
   const resolved = resolveHome(projectPath);
@@ -140,7 +168,7 @@ export function startProcess(projectPath: string, commandId: string, port?: numb
   proc.stderr?.on("data", (chunk: Buffer) => {
     chunk.toString().split("\n").filter(Boolean).forEach((l) => pushLog(l, "stderr"));
   });
-  proc.on("close", () => {
+  proc.on("close", (_code, _signal) => {
     if (processes.get(commandId) === info) {
       processes.delete(commandId);
       broadcast(commandId, "[进程已退出]", "stdout");

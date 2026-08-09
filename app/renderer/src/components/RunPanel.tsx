@@ -131,6 +131,12 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
     detect(projectPath);
   }, [projectPath, detect]);
 
+  // run.json 变化(Mint 直接写文件)→ 自动重新检测,无需手动刷新
+  useEffect(() => {
+    const off = window.electronAPI?.process?.onRunJsonChanged?.(() => detect(projectPath));
+    return () => { off?.(); };
+  }, [projectPath, detect]);
+
   // 启动时检测所有端口
   useEffect(() => {
     runnables.forEach(function(r) { checkPortStatus(r.id, r.url); });
@@ -268,16 +274,28 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                           onClick={() => stop(r.id)}
                         >停止</button>
                         <button
-                          className="flex-1 px-2 py-1 rounded border border-border text-text-secondary text-[10px] hover:border-accent-border-strong transition-colors"
+                          className="w-6 h-6 flex items-center justify-center rounded border border-border text-text-secondary hover:text-accent hover:border-accent-border-strong transition-colors shrink-0"
                           onClick={() => restart(projectPath, r.id)}
-                        >重启</button>
+                          title="重启"
+                        >
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                        </button>
                         <button
-                          className="w-7 h-7 flex items-center justify-center rounded border border-border text-text-secondary hover:text-accent hover:border-accent-border-strong transition-colors"
+                          className="w-6 h-6 flex items-center justify-center rounded border border-border text-text-secondary hover:text-accent hover:border-accent-border-strong transition-colors shrink-0"
                           onClick={() => openLog(r.id)}
                           title="查看日志"
                         >
                           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
+                        {r.url && (
+                          <button
+                            className="w-6 h-6 flex items-center justify-center rounded border border-border text-text-secondary hover:text-accent hover:border-accent-border-strong transition-colors shrink-0"
+                            onClick={() => window.open(r.url, "_blank")}
+                            title={`打开 ${r.url}`}
+                          >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                          </button>
+                        )}
                       </>
                     ) : (
                       <button
@@ -290,15 +308,6 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                         disabled={!canStart}
                         title={portBusy ? "端口被占用，请先释放或更换端口" : ""}
                       >启动</button>
-                    )}
-                    {st.running && r.url && (
-                      <button
-                        className="w-7 h-7 flex items-center justify-center rounded border border-border text-text-secondary hover:text-accent hover:border-accent-border-strong transition-colors ml-1"
-                        onClick={() => window.open(r.url, "_blank")}
-                        title={`打开 ${r.url}`}
-                      >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                      </button>
                     )}
                   </div>
                 </div>

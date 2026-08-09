@@ -8,6 +8,7 @@ import { RunPanel } from "./RunPanel";
 import { ToolboxPanel } from "./toolbox/ToolboxPanel";
 import { DevicePanel } from "./device/DevicePanel";
 import { useThemeStore } from "../stores/theme-store";
+import { useDelegationStore } from "../stores/delegation-store";
 
 type SidebarTab = "sessions" | "files";
 type DrawerTab = "tasks" | "issues" | "runs";
@@ -42,6 +43,9 @@ export function Sidebar({
   const [activeTab, setActiveTab] = useState<SidebarTab>("sessions");
   const [drawerTab, setDrawerTab] = useState<DrawerTab>("tasks");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // 任务按钮呼吸灯:与任务行「绿色转圈(animate-spin)」同源——委派实时执行中(taskExecutions running)才显示
+  const taskExecutions = useDelegationStore((s) => s.taskExecutions);
+  const hasActiveTask = Object.values(taskExecutions).some((e) => e.status === "running");
   const [plusOpen, setPlusOpen] = useState(false);
   const [hasUpdate, setHasUpdate] = useState(false);
   const [toolboxOpen, setToolboxOpen] = useState(false);
@@ -175,7 +179,7 @@ export function Sidebar({
       </div>
 
       {/* Drawer — Task / Issue / Run panels */}
-      <div ref={drawerRef} className={`sb-drawer ${drawerOpen ? "open" : ""} ${drawerTab === "tasks" ? "ptr-left" : drawerTab === "issues" ? "ptr-mid" : "ptr-right"}`}>
+      <div ref={drawerRef} className={`sb-drawer ${drawerOpen ? "open" : ""} ${drawerTab === "tasks" ? "ptr-left" : drawerTab === "runs" ? "ptr-mid" : "ptr-right"}`}>
         <div className="sb-drawer-body-wrap">
           <div className="sb-drawer-body">
             {drawerTab === "tasks" && <TaskPanel onCollapse={() => setDrawerOpen(false)} />}
@@ -190,17 +194,17 @@ export function Sidebar({
       <div className="sb-foot">
         <div className="sb-foot-row">
           <div className="sb-seg-control" ref={segRef}>
-            <button className={`sb-seg-btn ${drawerTab === "tasks" && drawerOpen ? "active" : ""} ${drawerTab === "tasks" ? "on" : ""}`} onClick={() => toggleDrawer("tasks")}>
+            <button className={`sb-seg-btn ${drawerTab === "tasks" && drawerOpen ? "active" : ""} ${drawerTab === "tasks" ? "on" : ""} ${hasActiveTask ? "task-breathing" : ""}`} onClick={() => toggleDrawer("tasks")}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg>
               <span className="sb-seg-label">任务</span>
-            </button>
-            <button className={`sb-seg-btn ${drawerTab === "issues" && drawerOpen ? "active" : ""}`} onClick={() => toggleDrawer("issues")}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <span className="sb-seg-label">Issue</span>
             </button>
             <button className={`sb-seg-btn ${drawerTab === "runs" && drawerOpen ? "active" : ""}`} onClick={() => toggleDrawer("runs")}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
               <span className="sb-seg-label">运行</span>
+            </button>
+            <button className={`sb-seg-btn ${drawerTab === "issues" && drawerOpen ? "active" : ""}`} onClick={() => toggleDrawer("issues")}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span className="sb-seg-label">Issue</span>
             </button>
           </div>
         </div>

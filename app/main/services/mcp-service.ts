@@ -1,9 +1,8 @@
 /**
- * MCP Service — shares MCP config with Claude Code.
+ * MCP Service — EM 独立 MCP 配置(与 Claude Code 解耦)。
  *
- * All MCP config is read from and written to ~/.claude/.claude.json.
- * EM does not maintain its own separate MCP config.
- * Enable/disable is managed at the EasyMint level via em-settings.json.
+ * 配置存 ~/.easymint/mcp.json,不再读写 ~/.claude/.claude.json。
+ * 首次启动时一次性迁移旧共享配置;Enable/disable 由 em-settings.json 管理。
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
@@ -32,8 +31,9 @@ export interface McpServerManifest {
 
 // ── Config sources ─────────────────────────────────
 
-function claudeCodeMcpPath(): string {
-  return path.join(os.homedir(), ".claude", ".claude.json");
+/** EM 独立 MCP 配置(与 Claude Code 解耦,不再读写 ~/.claude/.claude.json) */
+function emMcpPath(): string {
+  return path.join(os.homedir(), ".easymint", "mcp.json");
 }
 
 // ── Disabled list ──────────────────────────────────
@@ -59,11 +59,11 @@ function readMcpServersFrom(filePath: string): Record<string, McpServerConfig> {
   }
 }
 
-/** Scan CC's MCP config (shared with EM) for the settings panel display */
+/** Scan EM's MCP config for the settings panel display */
 export function scanMcpServers(): McpServerManifest[] {
   const disabled = getHiddenMcpServers();
 
-  const servers = readMcpServersFrom(claudeCodeMcpPath());
+  const servers = readMcpServersFrom(emMcpPath());
 
   const result: McpServerManifest[] = [];
   for (const [name, cfg] of Object.entries(servers)) {
@@ -95,8 +95,7 @@ function getApiKeys(): Record<string, string> {
 /** Build the mcpServers object for SDK's options (full config with env, apiKeys merged) */
 export function buildMcpServersOption(): Record<string, McpServerConfig> | undefined {
   const disabled = getHiddenMcpServers();
-  // Read from shared CC config only
-  const servers = readMcpServersFrom(claudeCodeMcpPath());
+  const servers = readMcpServersFrom(emMcpPath());
   const apiKeys = getApiKeys();
 
   const result: Record<string, McpServerConfig> = {};
@@ -117,7 +116,7 @@ export function buildMcpServersOption(): Record<string, McpServerConfig> | undef
 
 /** Discover which env vars each MCP server needs. 只返回状态（已配置/未配置），不泄露实际值。 */
 export function getMcpRequiredKeys(): Record<string, Record<string, string>> {
-  const servers = readMcpServersFrom(claudeCodeMcpPath());
+  const servers = readMcpServersFrom(emMcpPath());
   const apiKeys = getApiKeys();
 
   const result: Record<string, Record<string, string>> = {};
@@ -190,15 +189,31 @@ const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
 
 /** Write default MCP server configs on first launch. Merges into existing
  *  config — never overwrites servers already configured.
- *  Writes to ~/.claude/.claude.json (shared with Claude Code). */
+ *  与 Claude Code 解耦:EM 配置独立存 ~/.easymint/mcp.json。
+ *  首次启动时若旧共享配置(~/.claude/.claude.json)存在 → 一次性迁移导入,此后不再读写 CC 配置。 */
 export function seedDefaultMcp(): void {
-  const configPath = claudeCodeMcpPath();
+  const configPath = emMcpPath();
   const configDir = path.dirname(configPath);
   if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true });
 
   let data: Record<string, unknown> = {};
   if (existsSync(configPath)) {
     data = JSON.parse(readFileSync(configPath, "utf-8"));
+  } else {
+    // 一次性迁移:旧 CC 共享配置 → EM 独立配置(仅首次;CC 侧文件原样保留)
+    const legacyPath = path.join(os.homedir(), ".claude", ".claude.json");
+    if (existsSync(legacyPath)) {
+      try {
+        const legacy = JSON.parse(readFileSync(legacyPath, "utf-8"));
+        const servers = (legacy.mcpServers as Record<string, McpServerConfig>) || {};
+        if (Object.keys(servers).length > 0) {
+          data.mcpServers = servers;
+          console.log(`[mcp] 已迁移 ${Object.keys(servers).length} 个 MCP 服务器配置到 ~/.easymint/mcp.json`);
+        }
+      } catch (e) {
+        console.warn("[mcp] 迁移旧 MCP 配置失败:", (e as Error).message);
+      }
+    }
   }
 
   const existing: Record<string, McpServerConfig> =
@@ -221,4 +236,4 @@ export function seedDefaultMcp(): void {
 
 // ── Plugin marketplace seed ────────────────────────
 // Removed seedDefaultPlugins — plugin marketplace mechanism was redundant.
-// Skills are seeded by seedDefaultSkills to ~/.claude/skills/.
+// Skills are seeded by seedBundledSkills to ~/.easymint/skills/.

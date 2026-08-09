@@ -27,6 +27,8 @@ import { BubbleActions, roleColor, DocIcon } from "./ChatBubbleActions";
 interface ChatPanelProps {
   projectPath: string;
   sessionId?: string;
+  /** 设计会话标记(tab 直传,避免多新 tab 反查错配导致用错 Mint-D/Mint 模板) */
+  isDesigner?: boolean;
   /** 群聊会话 ID(需求 4:多 Agent 同一会话,type === "group" 的 tab 传入) */
   groupId?: string;
   onSessionCreated?: (sessionId: string) => void;
@@ -44,7 +46,7 @@ const SYSTEM_KIND_LABELS: Record<string, string> = {
   summary: "上下文摘要",
 };
 
-export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSessionCreated, onActivity, onNewProject }: ChatPanelProps): JSX.Element {
+export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, groupId, onSessionCreated, onActivity, onNewProject }: ChatPanelProps): JSX.Element {
   // 群聊模式:消息以 groupId 为存储 key(各 Agent 事件注入 agentRole 标注来源),
   // 不做临时→真实 sessionId 迁移、不加载 conv 历史(群聊由 group-sessions.json 管理)
   const isGroup = !!groupId;
@@ -947,7 +949,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
       }
       const tab = useTabStore.getState().tabs.find(function(t) { return t.sessionId === sid || (!t.sessionId && !existingSid); });
       const effectivePath = projectPath || getWorkspaceDir();
-      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "auto", isDesigner: tab?.isDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium", preferredProvider: chatProvider || undefined });
+      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "auto", isDesigner: isDesigner ?? tab?.isDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium", preferredProvider: chatProvider || undefined });
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
     } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; useStatusStore.getState().pushSignal(sidRef.current, "error", "发送失败，请检查网络后重试", 8000); }
   }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatProvider, groupId]);
@@ -963,8 +965,30 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
     if (!lastAi?.entries) return [];
     return lastAi.entries.filter((e) => e.kind === "tool_use");
   }, [messages]);
-  const showConfirmDev = !busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_confirm_dev");
-  const showNewProjectBtn = onNewProject && !busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_new_project");
+  // 工具广播直连:Mint 调 show_confirm_dev/show_new_project 时立即显示(不受 busy 影响);
+  // 点击按钮消费后从消息中移除 show_* 条目,推断分支不再命中(打断/回合结束不会复活)。
+  // 消息推断(lastToolUses)保留作历史恢复兜底。
+  const [confirmDevFlag, setConfirmDevFlag] = useState(false);
+  const [newProjectFlag, setNewProjectFlag] = useState(false);
+  useEffect(() => {
+    const off1 = window.electronAPI.agent.onConfirmDev(() => setConfirmDevFlag(true));
+    const off2 = window.electronAPI.agent.onNewProject(() => setNewProjectFlag(true));
+    return () => { off1(); off2(); };
+  }, []);
+  // 点击消费:清 flag + 从最后一条 AI 消息移除 show_* 工具条目(防止推断复活)
+  const consumeShowTools = () => {
+    const store = useChatStore.getState();
+    const msgs = store.messagesBySession[sidRef.current] || [];
+    const lastAi = msgs.filter((m) => m.role === "ai" && m.entries).pop();
+    if (lastAi && lastAi.id != null) {
+      const kept = (lastAi.entries as Array<{ kind?: string; name?: string }>).filter(
+        (e) => !(e.kind === "tool_use" && e.name?.startsWith("show_")),
+      );
+      store.replaceAiEntriesById(sidRef.current, lastAi.id as number, kept);
+    }
+  };
+  const showConfirmDev = confirmDevFlag || (!busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_confirm_dev"));
+  const showNewProjectBtn = onNewProject && (newProjectFlag || (!busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_new_project")));
 
   // ── Attach preview (shared between both positions) ─
   function AttachPreview(): JSX.Element {
@@ -1145,7 +1169,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
             {showNewProjectBtn && (
               <div className="flex justify-center pb-3">
                 <button
-                  onClick={onNewProject}
+                  onClick={() => { setNewProjectFlag(false); consumeShowTools(); onNewProject?.(); }}
                   className="px-6 py-2.5 rounded-xl bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors shadow-sm"
                 >
                   新建项目
@@ -1155,7 +1179,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, groupId, onSess
             {showConfirmDev && (
               <div className="flex justify-center pb-3">
                 <button
-                  onClick={() => sendText(CONFIRM_DEVELOPMENT_PROMPT)}
+                  onClick={() => { setConfirmDevFlag(false); consumeShowTools(); sendText(CONFIRM_DEVELOPMENT_PROMPT); }}
                   className="px-6 py-2.5 rounded-[10px] bg-accent text-text-inverse text-sm font-semibold border-none cursor-pointer transition-all duration-200 hover:bg-accent-hover hover:-translate-y-px active:translate-y-0"
                 >
                   确认开发

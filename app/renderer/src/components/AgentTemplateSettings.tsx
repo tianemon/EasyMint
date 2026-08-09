@@ -17,9 +17,11 @@ const THINKING_LEVELS: Array<{ value: string; label: string }> = [
   { value: "max", label: "最大(max)" },
 ];
 
-/** Mint 系统内置且不可修改(始终强制官方提示词);其余内置模板可编辑 */
-const MINT_ID = "mint";
-const BUILTIN_IDS = new Set(["mint", "default-builder", "mint-designer", "default-evaluator"]);
+/** 完全锁定(不可修改,仅预览):Mint / Mint-D */
+const LOCKED_IDS = new Set(["mint", "mint-designer"]);
+/** 受限编辑(仅供应商/模型/思考等级):Builder / Evaluator */
+const RESTRICTED_IDS = new Set(["default-builder", "default-evaluator"]);
+const BUILTIN_IDS = new Set([...LOCKED_IDS, ...RESTRICTED_IDS]);
 
 function useProviderOptions(): Array<{ value: string; label: string }> {
   const apiProviders = useSettingsStore((s) => s.apiProviders);
@@ -34,7 +36,6 @@ function useProviderOptions(): Array<{ value: string; label: string }> {
 export function AgentTemplateSettings(): JSX.Element {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [editing, setEditing] = useState<Template | null>(null);
-  const [previewing, setPreviewing] = useState<Template | null>(null);
   const [adding, setAdding] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -77,7 +78,7 @@ export function AgentTemplateSettings(): JSX.Element {
         <div>
           <h3 className="text-sm font-medium text-text-primary">Agent 模板</h3>
           <p className="text-[11px] text-text-secondary/70 mt-0.5">
-            task 委派时可选模板;省略则不指定模板,创建标准子 Agent(无模板人设)。Mint 为系统内置不可修改,其余内置模板可编辑。
+            task 委派时可选模板;省略则不指定模板,创建标准子 Agent(无模板人设)。Mint/Mint-D 为系统内置不可修改;Builder/Evaluator 仅可调整供应商模型与思考等级。
           </p>
         </div>
         <button onClick={() => setAdding(true)}
@@ -106,9 +107,10 @@ export function AgentTemplateSettings(): JSX.Element {
               </div>
             </div>
             <div className="flex gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
-              {tpl.id === MINT_ID ? (
-                <button onClick={() => setPreviewing(tpl)}
-                  className="px-2 py-1 text-[10px] rounded bg-surface border border-border text-text-secondary hover:text-text-primary transition-colors">预览</button>
+              {LOCKED_IDS.has(tpl.id) ? (
+                // Mint/Mint-D:统一进入表单页浏览(只读,不可编辑)
+                <button onClick={() => setEditing(tpl)}
+                  className="px-2 py-1 text-[10px] rounded bg-surface border border-border text-text-secondary hover:text-text-primary transition-colors">浏览</button>
               ) : (
                 <>
                   <button onClick={() => setEditing(tpl)}
@@ -123,18 +125,6 @@ export function AgentTemplateSettings(): JSX.Element {
           </div>
         ))
       )}
-      {previewing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setPreviewing(null)}>
-          <div className="w-[640px] max-h-[80vh] flex flex-col rounded-xl bg-bg border border-border shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h3 className="text-sm font-medium text-text-primary">{previewing.name} · 内置模板</h3>
-              <button onClick={() => setPreviewing(null)} className="text-[11px] text-text-secondary hover:text-text-primary">关闭</button>
-            </div>
-            <div className="px-4 py-2 text-[11px] text-text-secondary border-b border-border">系统内置提示词,不可修改</div>
-            <pre className="flex-1 overflow-auto px-4 py-3 text-xs text-text-secondary whitespace-pre-wrap font-mono leading-relaxed">{previewing.prompt}</pre>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -147,6 +137,10 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
   providerOptions: Array<{ value: string; label: string }>;
 }): JSX.Element {
   const editMode = initial != null;
+  // 完全锁定(Mint/Mint-D):整表只读浏览
+  const locked = editMode && LOCKED_IDS.has(initial.id);
+  // 受限编辑(Builder/Evaluator):只允许改 供应商/模型/思考等级,名称/描述/prompt 不可改
+  const restricted = editMode && RESTRICTED_IDS.has(initial.id);
   const [name, setName] = useState(initial?.name || "");
   const [desc, setDesc] = useState(initial?.description || "");
   const [prompt, setPrompt] = useState(initial?.prompt || "");
@@ -176,6 +170,11 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
   }, [provider]);
 
   const handleSave = () => {
+    // 受限编辑:名称/描述/prompt 保持模板原值(仅提交 供应商/模型/思考等级)
+    if (restricted) {
+      onSave({ name: initial.name, description: initial.description, prompt: initial.prompt, provider: provider || undefined, model: model || undefined, thinkingLevel: thinkingLevel || undefined });
+      return;
+    }
     if (!name.trim() || !prompt.trim()) return;
     onSave({ name: name.trim(), description: desc.trim(), prompt: prompt.trim(), provider: provider || undefined, model: model || undefined, thinkingLevel: thinkingLevel || undefined });
   };
@@ -183,54 +182,70 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-text-primary">{editMode ? "编辑模板" : "新建模板"}</h3>
-        <button onClick={onCancel} className="text-[11px] text-text-secondary hover:text-text-primary">取消</button>
+        <h3 className="text-sm font-medium text-text-primary">{editMode ? (locked ? "浏览模板" : "编辑模板") : "新建模板"}</h3>
+        <button onClick={onCancel} className="text-[11px] text-text-secondary hover:text-text-primary">{locked ? "关闭" : "取消"}</button>
       </div>
+      {locked && (
+        <div className="rounded-lg border border-accent/30 bg-accent-subtle px-3 py-2.5 text-[11px] text-text-secondary leading-relaxed">
+          内置模板「<span className="text-text-primary font-medium">{initial.name}</span>」：系统内置，仅供浏览，不可修改。
+        </div>
+      )}
+      {restricted && (
+        <div className="rounded-lg border border-accent/30 bg-accent-subtle px-3 py-2.5 text-[11px] text-text-secondary leading-relaxed">
+          内置模板「<span className="text-text-primary font-medium">{initial.name}</span>」：名称、描述与人格提示词为系统内置，不可修改。仅可调整下方供应商 / 模型 / 思考等级。
+        </div>
+      )}
       <div>
         <label className="text-[11px] text-text-secondary block mb-1">名称 *</label>
-        <input className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
-          placeholder="如 测试员" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50 disabled:opacity-60"
+          placeholder="如 测试员" value={name} onChange={(e) => setName(e.target.value)} disabled={locked || restricted} />
       </div>
       <div>
         <label className="text-[11px] text-text-secondary block mb-1">一句话描述 *</label>
-        <input className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
-          placeholder="如 专门写单元测试" value={desc} onChange={(e) => setDesc(e.target.value)} />
+        <input className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50 disabled:opacity-60"
+          placeholder="如 专门写单元测试" value={desc} onChange={(e) => setDesc(e.target.value)} disabled={locked || restricted} />
       </div>
       <div>
-        <label className="text-[11px] text-text-secondary block mb-1">人格/职责 prompt *</label>
-        <textarea className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent/50 resize-none"
+        <label className="text-[11px] text-text-secondary block mb-1">人格/职责 prompt（系统提示词）*</label>
+        <textarea className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent/50 disabled:opacity-60"
           rows={4} placeholder="定义 Agent 的行为方式、专业领域、工作风格..."
-          value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+          value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={locked || restricted} />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-[11px] text-text-secondary block mb-1">供应商(可选)</label>
-          <Select block placeholder="留空用全局默认" value={provider} onChange={setProvider}
-            options={providerOptions} title="选择供应商" />
-        </div>
-        <div>
-          <label className="text-[11px] text-text-secondary block mb-1">模型 id(可选)</label>
-          {providerModels.length > 0 ? (
-            <Select block placeholder={loadingProviderModels ? "加载中…" : "选择模型"} value={model} onChange={setModel}
-              options={providerModels.map((m) => ({ value: m, label: m }))} title="选择模型" />
-          ) : (
-            <input className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
-              placeholder="如 deepseek-v4-flash" value={model} onChange={(e) => setModel(e.target.value)} />
-          )}
-        </div>
-      </div>
-      <div>
-        <label className="text-[11px] text-text-secondary block mb-1">思考级别</label>
-        <Select block value={thinkingLevel} onChange={setThinkingLevel}
-          options={THINKING_LEVELS} title="思考级别" />
-      </div>
+      {!locked && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] text-text-secondary block mb-1">供应商(可选)</label>
+              <Select block placeholder="留空用全局默认" value={provider} onChange={setProvider}
+                options={providerOptions} title="选择供应商" />
+            </div>
+            <div>
+              <label className="text-[11px] text-text-secondary block mb-1">模型 id(可选)</label>
+              {providerModels.length > 0 ? (
+                <Select block placeholder={loadingProviderModels ? "加载中…" : "选择模型"} value={model} onChange={setModel}
+                  options={providerModels.map((m) => ({ value: m, label: m }))} title="选择模型" />
+              ) : (
+                <input className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+                  placeholder="如 deepseek-v4-flash" value={model} onChange={(e) => setModel(e.target.value)} />
+              )}
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] text-text-secondary block mb-1">思考级别</label>
+            <Select block value={thinkingLevel} onChange={setThinkingLevel}
+              options={THINKING_LEVELS} title="思考级别" />
+          </div>
+        </>
+      )}
       <div className="flex justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="px-3 py-1.5 rounded-md text-xs text-text-secondary hover:bg-surface-hover">取消</button>
-        <button onClick={handleSave}
-          disabled={!name.trim() || !prompt.trim()}
-          className={`px-4 py-1.5 rounded-md text-xs font-medium ${name.trim() && prompt.trim() ? "bg-accent text-white hover:bg-accent-high" : "opacity-40 cursor-not-allowed bg-surface text-text-secondary"}`}>
-          保存
-        </button>
+        <button onClick={onCancel} className="px-3 py-1.5 rounded-md text-xs text-text-secondary hover:bg-surface-hover">{locked ? "关闭" : "取消"}</button>
+        {!locked && (
+          <button onClick={handleSave}
+            disabled={!name.trim() || !prompt.trim()}
+            className={`px-4 py-1.5 rounded-md text-xs font-medium ${name.trim() && prompt.trim() ? "bg-accent text-white hover:bg-accent-high" : "opacity-40 cursor-not-allowed bg-surface text-text-secondary"}`}>
+            保存
+          </button>
+        )}
       </div>
     </div>
   );

@@ -62,7 +62,7 @@ import { readCache, writeCache, deleteCache } from "./services/session-cache";
 import { listIssues, addIssue, setStatus, appendNote, deleteIssue } from "./services/issue-service";
 import { getPins, setPins } from "./services/pin-service";
 import type { IssueStatus } from "./services/issue-service";
-import { detectRunnable, startProcess, stopProcess, restartProcess, getStatus, getRunningIds, checkPort, killPort } from "./services/process-service";
+import { detectRunnable, startProcess, stopProcess, restartProcess, getStatus, getRunningIds, checkPort, killPort, ensureRunJsonWatch } from "./services/process-service";
 import { networkService } from "./services/network-service";
 import { migrationService } from "./services/migration-service";
 
@@ -265,7 +265,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("issue:delete", (_e, { projectPath, id }) => deleteIssue(projectPath, id));
 
   // process:* - 项目运行进程管理（按 commandId）
-  ipcMain.handle("process:detect", (_e, { projectPath }) => detectRunnable(projectPath));
+  ipcMain.handle("process:detect", (_e, { projectPath }) => { ensureRunJsonWatch(projectPath); return detectRunnable(projectPath); });
   ipcMain.handle("process:start", (_e, { projectPath, commandId, port }) => startProcess(projectPath, commandId, port));
   ipcMain.handle("process:stop", (_e, { commandId }) => stopProcess(commandId));
   ipcMain.handle("process:restart", (_e, { projectPath, commandId }) => restartProcess(projectPath, commandId));

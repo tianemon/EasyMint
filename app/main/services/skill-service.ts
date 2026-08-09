@@ -2,10 +2,10 @@
  * Skill Service — scan, import, delete, toggle skills.
  *
  * Skills are stored as folders with SKILL.md inside:
- *   Global:  ~/.claude/skills/<name>/SKILL.md
- *   Project: <project>/.claude/skills/<name>/SKILL.md
+ *   Global:  ~/.easymint/skills/<name>/SKILL.md
+ *   Project: <project>/.easymint/skills/<name>/SKILL.md
  *
- * Shared with Claude Code — both read the same directories.
+ * 与 Claude Code 解耦:EM 用独立目录,不再读写 ~/.claude/skills/。
  * EasyMint maintains its own disabled-skills list in em-settings.json.
  */
 
@@ -29,10 +29,10 @@ export interface SkillDetail extends SkillManifest {
 
 // ── Constants ──────────────────────────────────────
 
-const GLOBAL_SKILLS_DIR = path.join(os.homedir(), ".claude", "skills");
+const GLOBAL_SKILLS_DIR = path.join(os.homedir(), ".easymint", "skills");
 
 function projectSkillsDir(projectPath: string): string {
-  return path.join(projectPath, ".claude", "skills");
+  return path.join(projectPath, ".easymint", "skills");
 }
 
 // ── Disabled skills list ───────────────────────────
@@ -229,9 +229,9 @@ function getBuiltinSkillsDir(): string {
   return path.join(__dirname, "..", "..", "..", "resources", "skills");
 }
 
-/** Seed bundled skills to ~/.claude/skills/ on first launch if missing.
+/** Seed bundled skills to ~/.easymint/skills/ on first launch if missing.
  *  Unlike the old seedDefaultSkills, this only installs BUNDLED_SKILLS
- *  (third-party, CC-compatible), not EM_SKILLS. Skips if already installed. */
+ *  (third-party, EM 独立目录), not EM_SKILLS. Skips if already installed. */
 export function seedBundledSkills(): void {
   const srcDir = getBuiltinSkillsDir();
   if (!existsSync(srcDir)) return;
@@ -262,7 +262,7 @@ const BUNDLED_SKILLS = ["ponytail", "ponytail-review", "ponytail-audit"];
  * Generate a minimal prompt block listing available skills.
  * Only the frontmatter descriptions are injected — Claude uses these
  * to decide which skill is relevant. Full SKILL.md bodies are NOT
- * injected here; they're available on disk in the project's .claude/skills/
+ * injected here; they're available on disk in the project's .easymint/skills/
  * directory and Claude can Read them as needed.
  */
 export function buildSkillsPrompt(projectPath?: string): string {

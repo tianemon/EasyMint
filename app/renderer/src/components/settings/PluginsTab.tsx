@@ -106,7 +106,7 @@ function SkillsTab(): JSX.Element {
 
       {skills.length === 0 && (
         <p className="text-text-secondary text-xs text-center py-8">
-          暂无 Skill。将 skill 放入 ~/.claude/skills/ 目录即可自动识别。
+          暂无 Skill。将 skill 放入 ~/.easymint/skills/ 目录即可自动识别。
         </p>
       )}
     </div>
@@ -197,7 +197,7 @@ function McpTab(): JSX.Element {
   const typeLabel = (t: string) => t === "stdio" ? "本地进程" : t === "http" ? "HTTP" : "SSE";
 
   // Collect all required keys across MCP servers, with their current values.
-  // MCP config env (.claude.json) takes priority, then apiKeys from em-settings.json.
+  // MCP config env (mcp.json) takes priority, then apiKeys from em-settings.json.
   const allKeys = new Map<string, string>(); // key → value
   for (const keyMap of Object.values(requiredKeys)) {
     for (const [k, v] of Object.entries(keyMap)) {
@@ -247,12 +247,12 @@ function McpTab(): JSX.Element {
       <section>
         <h3 className="text-sm font-medium text-text-primary mb-2">MCP</h3>
         <p className="text-[11px] text-text-secondary mb-3">
-          与 Claude Code 共享配置。使用 `claude mcp add/remove` 管理服务器。
+          EM 独立配置（~/.easymint/mcp.json），与 Claude Code 解耦。
         </p>
 
         {servers.length === 0 ? (
           <p className="text-text-secondary text-xs text-center py-8">
-            未检测到 MCP 服务器。在终端运行 `claude mcp add &lt;name&gt; &lt;command&gt;` 添加。
+            未检测到 MCP 服务器。可编辑 ~/.easymint/mcp.json 添加。
           </p>
         ) : (
           <div className="bg-surface-alt rounded-lg border border-border overflow-hidden max-h-[220px] overflow-y-auto divide-y divide-border/50">

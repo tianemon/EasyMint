@@ -307,6 +307,7 @@ export function ProjectPage(): JSX.Element {
                 <ChatPanel
                   projectPath={projectPath}
                   sessionId={tab.sessionId}
+                  isDesigner={tab.isDesigner}
                   onSessionCreated={(sid) => {
                     useTabStore.getState().updateTab(tab.id, { sessionId: sid, title: "新会话" });
                     setActiveSessionId(sid);

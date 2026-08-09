@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useProcessStore } from "../stores/process-store";
 import type { RunPlatform } from "../stores/process-store";
 
@@ -46,7 +47,9 @@ export function LogOverlay({ commandId }: LogOverlayProps): JSX.Element {
 
   if (!runnable) return <></>;
 
-  return (
+  // createPortal 挂 body:抽屉容器(sb-drawer)常驻 transform,会劫持 fixed 定位
+  // (fixed 相对 transform 祖先而非视口)——弹窗会被限制在抽屉内,必须脱离
+  return createPortal(
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40" onClick={closeLog}>
       <div className="bg-surface rounded-xl border border-border shadow-2xl w-[80vw] h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
@@ -89,6 +92,7 @@ export function LogOverlay({ commandId }: LogOverlayProps): JSX.Element {
           <span className="text-[10px] text-text-muted">关闭窗口不会停止运行，点眼睛图标可重新查看</span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

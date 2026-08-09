@@ -2,6 +2,7 @@ import os from "os";
 import fs from "fs";
 import { app, BrowserWindow, shell, ipcMain, Menu } from "electron";
 import path from "path";
+import { loadUserPath } from "./utils/user-path";
 import {
   startAutoUpdater,
   checkForUpdatesManually,
@@ -93,10 +94,10 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     // Seed default Agent templates on first launch
     const { seedDefaults } = require("./services/agent-templates");
     seedDefaults();
-    // Seed bundled skills (~/.claude/skills/) — only if not already installed
+    // Seed bundled skills (~/.easymint/skills/) — only if not already installed
     const { seedBundledSkills } = require("./services/skill-service");
     seedBundledSkills();
-    // Seed default MCP configs (~/.claude/.claude.json, shared with Claude Code)
+    // Seed default MCP configs (~/.easymint/mcp.json, EM 独立配置)
     const { seedDefaultMcp } = require("./services/mcp-service");
     seedDefaultMcp();
     // 冷启动预热(后台,不阻塞窗口):预加载 Pi SDK/model runtime/MCP 工具,
@@ -169,6 +170,8 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
 }
 
 app.whenReady().then(() => {
+  // GUI 环境引导:提取用户完整 PATH(zsh -lic),供 bash/init.sh/运行面板/环境检查继承
+  loadUserPath();
   // 恢复上次打开的项目（仅在 setup 完成后）
   let startHash: string | undefined;
   const tempStore = new Store();

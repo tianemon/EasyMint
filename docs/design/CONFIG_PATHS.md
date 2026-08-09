@@ -185,7 +185,8 @@ EasyMint 内置 Skill 存放在 `resources/skills/`，启动时 seed 到 `~/.eas
 
 ## MCP 配置
 
-Pi SDK 的 MCP 服务器通过 `mcp-service.ts` 和 `omp/mcp/` 模块管理，配置存储在 Pi SDK 自有配置中，不与 Claude Code 共享。
+EM 独立 MCP 配置：`~/.easymint/mcp.json`（与 Claude Code 解耦，不再读写 `~/.claude/.claude.json`）。
+首次启动时一次性迁移旧共享配置；Pi SDK 的 MCP 服务器通过 `mcp-service.ts`（`scanMcpServers`/`buildMcpServersOption`）读取该文件注入。
 
 ## SDK session 项目隔离机制
 

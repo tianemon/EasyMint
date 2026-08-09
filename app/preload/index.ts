@@ -163,6 +163,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("process:status-changed", handler);
       return () => ipcRenderer.removeListener("process:status-changed", handler);
     },
+    onRunJsonChanged: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on("process:run-json-changed", handler);
+      return () => ipcRenderer.removeListener("process:run-json-changed", handler);
+    },
   },
   app: {
     getVersion: () => ipcRenderer.invoke("app:get-version") as Promise<string>,
@@ -181,7 +186,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   tab: {
     save: (data: unknown) => ipcRenderer.invoke("tab:save", data),
-    restore: () => ipcRenderer.invoke("tab:restore") as Promise<{ tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string }>; activeTabId: string | null } | null>,
+    restore: () => ipcRenderer.invoke("tab:restore") as Promise<{ tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string; isDesigner?: boolean }>; activeTabId: string | null } | null>,
   },
   agent: {
     runWorker: (projectPath: string, prompt: string) =>
@@ -237,6 +242,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
       const handler = (_event: Electron.IpcRendererEvent, data: { provider: string; modelId: string }) => callback(data);
       ipcRenderer.on("agent:fallback-used", handler);
       return () => ipcRenderer.removeListener("agent:fallback-used", handler);
+    },
+    onConfirmDev: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on("agent:confirm-dev", handler);
+      return () => ipcRenderer.removeListener("agent:confirm-dev", handler);
+    },
+    onNewProject: (callback: () => void) => {
+      const handler = () => callback();
+      ipcRenderer.on("agent:new-project", handler);
+      return () => ipcRenderer.removeListener("agent:new-project", handler);
     },
     onExit: (callback: (data: { runId: string; code: number }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { runId: string; code: number }) =>

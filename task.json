@@ -2,8 +2,8 @@
   "tasks": [
     {
       "id": 1,
-      "title": "测试A:子Agent输出一句话",
-      "description": "验证委派完成自动回写 done",
+      "title": "测试:bash sleep 5m",
+      "description": "实际观察任务面板转圈状态(委派执行中)",
       "status": "failed"
     },
     {

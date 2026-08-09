@@ -91,9 +91,11 @@ export const useProcessStore = create<ProcessState>((set) => ({
   loadStatus: async (commandId) => {
     try {
       const st = await window.electronAPI.process.status(commandId);
-      set((s) => ({
-        cmdStates: { ...s.cmdStates, [commandId]: { running: st.running, pid: st.pid, logs: st.output } },
-      }));
+      set((s) => {
+        const cur = s.cmdStates[commandId] || { running: false, logs: [] };
+        // 主进程返回空输出(进程已退出,内存 map 已删)→ 保留前端已有日志,不覆盖成空
+        return { cmdStates: { ...s.cmdStates, [commandId]: { running: st.running, pid: st.pid, logs: st.output.length > 0 ? st.output : cur.logs } } };
+      });
     } catch { /* ignore */ }
   },
 

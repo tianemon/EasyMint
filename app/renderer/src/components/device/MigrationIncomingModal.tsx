@@ -81,7 +81,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
 
   const handleAccept = async () => {
     // 父文件夹为空 → 提示
-    let finalPath = targetPath.trim();
+    const finalPath = targetPath.trim();
     if (!finalPath) {
       setError("请选择或输入项目父文件夹");
       return;

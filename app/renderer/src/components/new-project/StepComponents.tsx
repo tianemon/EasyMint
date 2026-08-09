@@ -37,7 +37,11 @@ function Select({ value, onChange, options, placeholder }: { value: string; onCh
       }
     };
     update();
-    const handler = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false); };
+    // 点击触发器按钮不在此关闭(由 onClick 的 toggle 切换)——否则 mousedown 关闭+同步 flush+click 翻转,菜单收不回去
+    const handler = (e: MouseEvent) => {
+      if (btnRef.current?.contains(e.target as Node)) return;
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    };
     document.addEventListener("mousedown", handler);
     window.addEventListener("scroll", update, true);
     window.addEventListener("resize", update);
