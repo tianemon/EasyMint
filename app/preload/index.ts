@@ -222,8 +222,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     chatStatus: (sessionId: string) => ipcRenderer.invoke("agent:chatStatus", { sessionId }),
     getBufferedStream: (sessionId: string) => ipcRenderer.invoke("agent:getBufferedStream", { sessionId }) as Promise<unknown[]>,
     killChat: (chatId: string) => ipcRenderer.invoke("agent:killChat", { chatId }) as Promise<void>,
+    killSession: (sessionId: string) => ipcRenderer.invoke("agent:kill-session", { sessionId }) as Promise<void>,
+    activeSessions: () => ipcRenderer.invoke("agent:active-sessions") as Promise<string[]>,
     reclaimChat: (sessionId: string) => ipcRenderer.invoke("agent:reclaim-chat", { sessionId }) as Promise<void>,
     cancelReclaim: (sessionId: string) => ipcRenderer.invoke("agent:cancel-reclaim", { sessionId }) as Promise<void>,
+    onChatClosed: (callback: (data: { sessionId: string }) => void) => {
+      const handler = (_e: Electron.IpcRendererEvent, data: { sessionId: string }) => callback(data);
+      ipcRenderer.on("agent:chat-closed", handler);
+      return () => ipcRenderer.removeListener("agent:chat-closed", handler);
+    },
     isStreaming: (sessionId: string) => ipcRenderer.invoke("agent:isStreaming", { sessionId }) as Promise<boolean>,
     getPiProviders: () => ipcRenderer.invoke("agent:getPiProviders") as Promise<Array<{ id: string; name: string; baseUrl?: string }>>,
     getPiModels: (providerName: string) => ipcRenderer.invoke("agent:getPiModels", { providerName }) as Promise<Array<{ id: string; name: string; contextWindow: number }>>,

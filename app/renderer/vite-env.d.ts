@@ -192,8 +192,11 @@ interface ElectronAPI {
     sessionStats: (sessionId: string, projectPath?: string) => Promise<Record<string, unknown> | null>;
     getBufferedStream: (sessionId: string) => Promise<unknown[]>;
     killChat: (chatId: string) => Promise<void>;
+    killSession: (sessionId: string) => Promise<void>;
+    activeSessions: () => Promise<string[]>;
     reclaimChat: (sessionId: string) => Promise<void>;
     cancelReclaim: (sessionId: string) => Promise<void>;
+    onChatClosed: (callback: (data: { sessionId: string }) => void) => () => void;
     scheduleIdleTimeout: (sessionId: string, delayMs: number) => void;
     peekUsage: (projectPath: string, sessionId: string) => Promise<void>;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
