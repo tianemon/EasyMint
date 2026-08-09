@@ -7,6 +7,36 @@
 
 （暂无——日常变更先记此处，发版时移入版本条目）
 
+## v0.7.0 (2026-08-09) — 与 Claude Code 解耦 & 运行面板链路 & UI 体验优化
+
+### Added（新增）
+
+- **任务按钮呼吸灯**：Agent 实际执行任务时（任务行转圈），侧边栏「任务」按钮底色呼吸提醒（亮色浅绿/暗色灰白）
+- **运行面板 run.json 自动刷新**：Mint 写入/修改 run.json 后面板自动重新检测，无需手动刷新；提示词明确 run.json 用途与 platform 值域
+- **用户 PATH 注入**：GUI 启动时提取 shell 环境完整 PATH——运行面板的 flutter/node 等命令可直接运行（根治 GUI 最小 PATH 问题）
+- **内置模板权限体系**：Mint/Mint-D 完全锁定（只读浏览）；Builder/Evaluator 仅可调整供应商/模型/思考等级；浏览表单统一（含系统提示词只读展示）
+- **Mint 文档记录规范**：进度快照 + 按日期分文件 + 归档（用户项目文档体系，长周期 token 友好）
+- **Mint 工具指引补全**：describe_image / web_fetch / show_prototype / list_issues 调用时机
+
+### Fixed（修复）
+
+- 修复确认开发/新建项目按钮失效——Mint 回合中弹出被 busy 条件吞掉（改为广播直连，点击一次即消失，打断不复活）
+- 修复设计会话加载 Mint 模板而非 Mint-D（isDesigner 传递错配，多新 tab 场景）
+- 修复新建项目下拉框点开收不回（mousedown 未排除触发器）
+- 修复控制台弹窗被限制在运行面板内（抽屉 transform 劫持 fixed 定位，改 portal）
+- 修复快速命令结束后控制台"等待输出"（进程退出日志被覆盖清空）
+- 修复 Shell 胶囊亮色主题无背景（@theme 缺 info-soft token）
+- 修复 MCP 工具偶发永久缺失（loadMcpTools 空结果缓存）与配置迁移不落盘
+- 修复 v0.6.6 遗留 lint 错误（2 处）
+
+### Changed（变更）
+
+- **EM 与 Claude Code 彻底解耦**：MCP 配置迁移至 `~/.easymint/mcp.json`（首次启动自动迁移旧配置）；Skill 目录迁移至 `~/.easymint/skills/`（全局与项目级）；CC 侧配置原样保留
+- **开发记录按日期分文件**：`docs/开发记录.md`（快照+索引导航）+ `docs/开发记录/<日期>.md`（每天独立文件，按需读取）
+- 内置模板排序：Mint-D 移至第二位；浏览/编辑表单统一（删除独立预览弹窗）
+- 侧边栏底部按钮顺序（任务/运行/Issue）与 hover 效果
+- 运行面板按钮区布局：停止为主按钮，重启/日志/打开 URL 图标化（窄面板不再挤压）
+
 ## v0.6.6 (2026-08-08) — 设备互联 & 跨设备项目迁移
 
 ### Added（新增）
