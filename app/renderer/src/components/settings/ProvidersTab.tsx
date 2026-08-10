@@ -111,7 +111,7 @@ function BuiltinToolsSection(): JSX.Element {
                     </div>
                     <label className="text-[10px] text-text-secondary block mb-1 mt-2">
                       {isAnthropic
-                        ? "API 地址（Anthropic 兼容，默认公共 DashScope）"
+                        ? "API 地址（Anthropic 兼容，默认阿里公共DashScope，可填写带有业务空间ID的专属API）"
                         : "API 地址（OpenAI 兼容，默认阿里公共DashScope，可填写带有业务空间ID的专属API）"}
                     </label>
                     <input type="text"
