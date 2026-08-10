@@ -22,8 +22,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "^0.83.0",
-    "@earendil-works/pi-coding-agent": "^0.83.0",
+    "@earendil-works/pi-agent-core": "^0.84.1",
+    "@earendil-works/pi-coding-agent": "^0.84.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-virtual": "^3.14.9",
@@ -34,10 +34,10 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.1",
+    "unzipper": "^0.12.5",
     "xterm": "^5.3.0",
     "xterm-addon-fit": "^0.8.0",
-    "zustand": "^5.0.14",
-    "unzipper": "^0.12.5"
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@dvaji/vite-plugin-monaco-editor": "^2.0.0",
