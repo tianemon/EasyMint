@@ -580,6 +580,19 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
   width: 5px; height: 5px; border-radius: 50%; background: var(--color-danger);
 }
 .sb-foot-btn:hover { color: var(--color-text-primary); background: var(--color-sidebar-hover); }
+/* 下载完成 → 设置按钮上方「重启升级」气泡(absolute 相对按钮容器,向上弹出不裁剪) */
+.update-bubble {
+  position: absolute; bottom: calc(100% + 8px); left: 0;
+  z-index: 90;
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 10px; border-radius: 8px;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-lg);
+  font-size: 11px; font-weight: 600; color: var(--color-accent);
+  white-space: nowrap; cursor: pointer;
+}
+.update-bubble:hover { background: var(--color-surface-hover); }
 
 .sb-seg-control {
   display: flex; flex: 1;
@@ -781,6 +794,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 }
 .settings-header-tabs { display: flex; gap: var(--s1); }
 .settings-header-tab {
+  position: relative;
   padding: var(--s1) var(--s4);
   font-size: var(--text-sm); font-weight: 500;
   color: var(--color-text-muted); cursor: pointer;
@@ -789,6 +803,12 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 }
 .settings-header-tab:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); }
 .settings-header-tab.active { color: var(--color-text-primary); background: var(--color-sidebar-active); box-shadow: var(--shadow-xs); }
+/* 「关于」标题红点:有新版本未读时显示,进入关于页消失 */
+.tab-update-dot {
+  position: absolute; top: 5px; right: 6px;
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--color-danger);
+}
 .settings-close {
   width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
   border-radius: var(--radius-sm); border: none; background: transparent;

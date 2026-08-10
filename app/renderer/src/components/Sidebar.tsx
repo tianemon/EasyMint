@@ -9,6 +9,7 @@ import { ToolboxPanel } from "./toolbox/ToolboxPanel";
 import { DevicePanel } from "./device/DevicePanel";
 import { useThemeStore } from "../stores/theme-store";
 import { useDelegationStore } from "../stores/delegation-store";
+import { readVersion, markRead } from "../lib/update-notice";
 
 type SidebarTab = "sessions" | "files";
 type DrawerTab = "tasks" | "issues" | "runs";
@@ -54,12 +55,37 @@ export function Sidebar({
   const drawerRef = useRef<HTMLDivElement>(null);
   const segRef = useRef<HTMLDivElement>(null);
 
-  // 检测是否有可用更新
+  // 检测是否有可用更新(挂载查询 + 广播实时订阅)
+  // 消费式红点:有新版本显示红点(按版本记已读);下载完成升级为「重启升级」气泡
+  const [updateInfo, setUpdateInfo] = useState<{ version?: string; downloaded: boolean } | null>(null);
   useEffect(() => {
-    window.electronAPI?.app?.hasUpdate?.().then(({ hasUpdate: h }) => {
-      setHasUpdate(h);
+    window.electronAPI?.app?.hasUpdate?.().then(({ hasUpdate: h, version }) => {
+      if (h && version) setUpdateInfo({ version, downloaded: true });
     }).catch(() => {});
+    const off = window.electronAPI?.app?.onUpdateStatus?.((data: { status: string; version?: string }) => {
+      if (data.status === "available" || data.status === "downloading") {
+        setUpdateInfo({ version: data.version, downloaded: false });
+      } else if (data.status === "downloaded") {
+        setUpdateInfo({ version: data.version, downloaded: true });
+      } else if (data.status === "no-update" || data.status === "error") {
+        setUpdateInfo(null);
+      }
+    });
+    return () => { off?.(); };
   }, []);
+
+  // 已读状态(按版本):红点 = 有版本且未读;气泡显示时红点隐藏(气泡是更强的未读提示)
+  const dotUnread = updateInfo?.version != null && updateInfo.version !== readVersion("dot");
+  const bubbleUnread = updateInfo?.downloaded && updateInfo.version != null && updateInfo.version !== readVersion("bubble");
+  const showDot = !!dotUnread && !bubbleUnread;
+
+  const handleSettings = () => {
+    if (updateInfo?.version) {
+      markRead("dot", updateInfo.version);
+      markRead("bubble", updateInfo.version);
+    }
+    onSettings?.();
+  };
 
   // 点击下拉菜单以外区域 → 关闭
   useEffect(() => {
@@ -209,7 +235,8 @@ export function Sidebar({
           </div>
         </div>
         <div className="sb-foot-bottom">
-          <button className={`sb-foot-btn ${hasUpdate ? "has-dot" : ""}`} onClick={onSettings} title="设置">
+          <div className="relative">
+            <button className={`sb-foot-btn ${showDot ? "has-dot" : ""}`} onClick={handleSettings} title="设置">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
           </button>
           <button className="sb-foot-btn" onClick={toggleTheme} title={mode === "light" ? "亮色" : mode === "dark" ? "暗色" : "自动"}>
@@ -220,7 +247,19 @@ export function Sidebar({
             ) : (
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9"/><text x="12" y="16" textAnchor="middle" fill="currentColor" stroke="none" fontSize="11" fontWeight="700" fontFamily="system-ui">A</text></svg>
             )}
-          </button>
+            </button>
+            {/* 下载完成 → 按钮上方气泡「重启升级」:点击直接执行安装;点设置按钮后消失 */}
+            {bubbleUnread && (
+              <div
+                className="update-bubble"
+                onClick={() => { window.electronAPI?.app?.installUpdate?.(); }}
+                title="重启并升级"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                重启升级
+              </div>
+            )}
+          </div>
           {/* 工具箱按钮:与设置首尾对称(方案 B) */}
           <button
             className={`sb-foot-btn ${toolboxOpen ? "bg-surface-hover" : ""}`}

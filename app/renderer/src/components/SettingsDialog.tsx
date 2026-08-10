@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
+import { readVersion, markRead } from "../lib/update-notice";
 import { GeneralTab } from "./settings/GeneralTab";
 import { AppearanceTab } from "./settings/AppearanceTab";
 import { PluginsTab } from "./settings/PluginsTab";
@@ -27,9 +28,30 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
 export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProps): JSX.Element | null {
   const { loadFromElectron } = useSettingsStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || "general");
+  // 可更新版本(订阅广播):「关于」标题红点,进入关于页即已读
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
 
   // 外部指定 initialTab 时同步（如点「有新版本」→ 跳到关于页）
   useEffect(() => { if (initialTab) setActiveTab(initialTab); }, [initialTab]);
+
+  // 订阅更新状态:available/downloading/downloaded 记录版本(红点);no-update/error 清除
+  useEffect(() => {
+    const off = window.electronAPI?.app?.onUpdateStatus?.((data: { status: string; version?: string }) => {
+      if (data.status === "available" || data.status === "downloading" || data.status === "downloaded") {
+        setUpdateVersion(data.version ?? null);
+      } else if (data.status === "no-update" || data.status === "error") {
+        setUpdateVersion(null);
+      }
+    });
+    return () => { off?.(); };
+  }, []);
+
+  // 进入「关于」页 → 标题红点已读
+  useEffect(() => {
+    if (activeTab === "about" && updateVersion) markRead("tab", updateVersion);
+  }, [activeTab, updateVersion]);
+
+  const aboutDot = updateVersion != null && updateVersion !== readVersion("tab");
 
   useEffect(() => {
     if (!open) return;
@@ -58,6 +80,7 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
                 onClick={() => setActiveTab(t.id)}
               >
                 {t.label}
+                {t.id === "about" && aboutDot && <span className="tab-update-dot" />}
               </button>
             ))}
           </div>

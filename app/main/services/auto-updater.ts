@@ -35,6 +35,41 @@ const INITIAL_DELAY_MS = 10 * 1000;
 let detectedVersion: string | null = null;      // update-available 时记录的版本号
 let downloadedVersion: string | null = null;   // 已下载完成的版本号
 let downloadedFile: string | null = null;      // electron-updater 下载到本地的文件路径
+let checking = false;                          // 防重入:自动/手动检查同时触发只发一次
+
+/** 下载状态持久化路径(userData,重启后红点/气泡仍在;安装后启动时自清) */
+function persistPath(): string {
+  return path.join(app.getPath("userData"), "update-downloaded.json");
+}
+
+function loadPersistedDownload(): { version: string; file: string | null } | null {
+  try {
+    if (!fs.existsSync(persistPath())) return null;
+    const d = JSON.parse(fs.readFileSync(persistPath(), "utf-8")) as { version?: string; file?: string | null };
+    return d?.version ? { version: d.version, file: d.file ?? null } : null;
+  } catch { return null; }
+}
+
+function persistDownload(): void {
+  try {
+    fs.writeFileSync(persistPath(), JSON.stringify({ version: downloadedVersion, file: downloadedFile }));
+  } catch { /* 持久化失败不影响本次会话 */ }
+}
+
+function clearPersistedDownload(): void {
+  try { fs.rmSync(persistPath(), { force: true }); } catch { /* ignore */ }
+}
+
+// 模块加载时恢复持久化下载状态:当前运行版本 === 已下载版本 → 说明已装上新版,清除标记
+const persisted = loadPersistedDownload();
+if (persisted) {
+  if (persisted.version === app.getVersion()) {
+    clearPersistedDownload();
+  } else {
+    downloadedVersion = persisted.version;
+    downloadedFile = persisted.file;
+  }
+}
 
 function broadcast(payload: UpdateStatusPayload): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -66,6 +101,7 @@ function setupListeners(): void {
   autoUpdater.on("update-downloaded", (info) => {
     downloadedVersion = info.version ?? null;
     downloadedFile = info.downloadedFile ?? null;
+    persistDownload(); // 持久化:重启后红点/气泡仍在
     broadcast({ status: "downloaded", version: downloadedVersion ?? undefined });
   });
 
@@ -88,10 +124,12 @@ export function startAutoUpdater(): void {
   setupListeners();
 
   const checkOnce = () => {
-    if (downloadedVersion) return;
+    if (downloadedVersion) return;   // 已下载完成,不再检查
+    if (checking) return;            // 检查进行中(10s 自动与手动碰巧时只发一次)
+    checking = true;
     autoUpdater.checkForUpdates().catch(() => {
       broadcast({ status: "error", errorMessage: "检测请求失败", errorPhase: "check" });
-    });
+    }).finally(() => { checking = false; });
   };
 
   setInterval(checkOnce, CHECK_INTERVAL_MS);
@@ -107,9 +145,11 @@ export function checkForUpdatesManually(): void {
     broadcast({ status: "downloaded", version: downloadedVersion });
     return;
   }
+  if (checking) return;  // 自动检查进行中,手动点击忽略(界面已有 checking 状态)
+  checking = true;
   autoUpdater.checkForUpdates().catch(() =>
     broadcast({ status: "error", errorMessage: "检测请求失败", errorPhase: "check" })
-  );
+  ).finally(() => { checking = false; });
 }
 
 /** 安装更新（Windows 走原生 NSIS，macOS 走 shell 脚本替换） */
@@ -176,6 +216,11 @@ export function clearUpdateCache(): { cleaned: string[]; errors: string[] } {
       errors.push(`${p}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
+
+  // 用户主动清缓存 = 放弃本次更新:重置下载状态(内存 + 持久化)
+  downloadedVersion = null;
+  downloadedFile = null;
+  clearPersistedDownload();
 
   return { cleaned, errors };
 }
