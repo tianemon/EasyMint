@@ -35,13 +35,12 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose }: { session
   }, [sessionId, projectPath]);
 
   const fmtTokens = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
-  // Pi 的 usage.cost 币种随模型:DeepSeek 官方定价为人民币(¥),其他(Anthropic 等)为美元($)。
-  // 按 model 判断:DeepSeek 直接显示 ¥;其他乘 7.2(近似汇率)换算为 ¥。
+  // Pi 的 usage.cost 统一为美元(模型定价 $/M token × tokens)——不再按模型名猜币种。
+  // 汇率:USD→CNY 央行中间价(2026-08-10 为 6.7884),显示层统一换算为 ¥。
+  const USD_CNY_RATE = 6.7884;
   const fmtCost = (c: number) => {
     if (c <= 0) return "—";
-    const isDeepSeek = (stats?.model ?? "").toLowerCase().includes("deepseek");
-    const v = isDeepSeek ? c : c * 7.2;
-    return `¥${v.toFixed(4)}`;
+    return `¥${(c * USD_CNY_RATE).toFixed(4)}`;
   };
   const fmtPct = (p: number) => p > 0 ? `${p.toFixed(2)}%` : "<0.01%";
 

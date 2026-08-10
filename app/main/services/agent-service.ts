@@ -1128,6 +1128,8 @@ export class AgentService {
 
       let userMessages = 0, assistantMessages = 0, toolCalls = 0, totalMessages = 0;
       let inputTokens = 0, outputTokens = 0, cacheRead = 0, cacheWrite = 0;
+      // 费用:jsonl 每条 assistant 消息的 usage.cost 是 SDK 按模型定价算好的美元值,直接累加(与活跃分支 stats.cost 单位一致)
+      let costUsd = 0;
 
       for (const entry of entries) {
         if (entry.type !== "message") continue;
@@ -1142,6 +1144,8 @@ export class AgentService {
             outputTokens += usage.output ?? 0;
             cacheRead += usage.cacheRead ?? usage.cacheCreation?.[""] ?? 0;
             cacheWrite += usage.cacheWrite ?? 0;
+            const c = (usage as { cost?: { total?: number } }).cost;
+            if (c?.total) costUsd += c.total;
           }
           const content = msg.content as Array<{ type: string }> | undefined;
           if (content) {
@@ -1156,7 +1160,7 @@ export class AgentService {
         sessionId, sessionFile: info.path,
         userMessages, assistantMessages, toolCalls, totalMessages,
         tokens: { input: inputTokens, output: outputTokens, cacheRead, cacheWrite, total: inputTokens + outputTokens + cacheRead + cacheWrite },
-        cost: 0, // 磁盘统计不计算费用（需模型定价信息）
+        cost: costUsd,
       };
     } catch (e) {
       console.error("[agent] getSessionStats disk read failed:", e);
