@@ -650,8 +650,15 @@ export class AgentService {
       }
     } catch (err: unknown) {
       const msg = normalizeApiError(err);
-      console.error(`[agent] prompt error: chatId=${chatId}`, err instanceof Error ? err.message : String(err));
-      broadcast("agent:stream", { type: "error", sessionId, chatId, message: msg, canRetry: false });
+      const raw = err instanceof Error ? err.message : String(err);
+      console.error(`[agent] prompt error: chatId=${chatId}`, raw);
+      // Pi 压缩进行中拒绝新 prompt(user 消息不落盘,前端无响应)→ 明确提示可重试
+      const compactionBlocked = raw.toLowerCase().includes("compaction");
+      broadcast("agent:stream", {
+        type: "error", sessionId, chatId,
+        message: compactionBlocked ? "正在整理上下文，请稍候再试" : msg,
+        canRetry: compactionBlocked,
+      });
       broadcast("agent:exit", { runId: chatId, code: -1 });
     } finally {
       unsub();
@@ -760,6 +767,12 @@ export class AgentService {
     if (resumeSessionId) {
       const existing = this.findActiveChat(resumeSessionId);
       if (existing && existing.session) {
+        // 应用思考等级(prompt 前同步设置,与新建分支一致)——前端切等级不再立即 IPC,
+        // 等级统一随发送应用,消除"切等级 IPC 与发送 IPC 并发"的 SDK 竞态窗口
+        if (thinkingLevel) {
+          try { existing.session.setThinkingLevel(thinkingLevel as any); }
+          catch (e) { console.warn("[agent] setThinkingLevel 失败:", (e as Error).message); }
+        }
         this.promptAndBridge(existing.session, resumeSessionId, existing.chatId, message, existing, images, systemPayload);
         return { chatId: existing.chatId };
       }
@@ -1180,7 +1193,14 @@ export class AgentService {
   async steer(sessionId: string, text: string): Promise<void> {
     // 插话 = 软打断：Mint 响应新消息,运行中的子 Agent 继续后台执行（对齐 cc 实测行为）
     const chat = this.findActiveChat(sessionId);
-    await chat?.session?.steer(text);
+    if (!chat?.session) return;
+    // 会话实际空闲时 steer 只入队不落盘(Pi agent core 的 steering 队列仅在回合循环内消费,
+    // 空闲入队永不投递→"消息发出去了但 SDK 没落盘没响应")→ 改走正常发送路径
+    if (!chat.session.isStreaming) {
+      this.promptAndBridge(chat.session, chat.sessionId, chat.chatId, text, chat);
+      return;
+    }
+    await chat.session.steer(text);
   }
 
   /**

@@ -101,8 +101,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
   const handleThinkingLevelChange = useCallback((level: string) => {
     userChangedThinkingRef.current = true;
     setThinkingLevel(level);
-    const sid = sidRef.current;
-    if (sid) window.electronAPI.agent.setThinkingLevel(sid, level).catch(() => {});
+    // 等级随发送应用(sendMessage 带 thinkingLevel,主进程 resume 分支应用)——不再立即 IPC,
+    // 避免"切等级 IPC 与发送 IPC 并发"的 SDK 竞态窗口
   }, []);
 
   // 加固(启动竞态):store 异步加载完成前,新会话可能拿到默认 medium。
