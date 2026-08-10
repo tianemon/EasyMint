@@ -237,6 +237,9 @@ html[data-platform="win32"] {
   --shadow-menu: 0 12px 40px rgba(0,0,0,0.16);
   --msg-agent-shadow: 0 1px 4px rgba(0,0,0,0.07),0 0 0 1px rgba(0,0,0,0.03);
   --msg-user-shadow: 0 2px 8px rgba(0,0,0,0.12),0 0 0 1px rgba(0,0,0,0.04);
+  /* 用户气泡:亮色下为 accent 白(文字反色);暗色主题覆盖为深灰 */
+  --msg-user-bg: var(--color-accent);
+  --msg-user-text: var(--color-text-inverse);
 
   /* ── Font ────────────────────────── */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", Roboto, sans-serif;
@@ -422,6 +425,9 @@ html[data-platform="win32"] {
   --shadow-menu: 0 12px 40px rgba(0,0,0,0.5);
   --msg-agent-shadow: 0 1px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
   --msg-user-shadow: 0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+  /* 用户气泡:深灰(略亮于 AI 气泡 card-agent #242424 以区分),文字转亮色 */
+  --msg-user-bg: #2c2c2c;
+  --msg-user-text: var(--color-text-primary);
 }
 
 /* ── Dark mode overrides ──────────────────────────────── */
@@ -1020,8 +1026,8 @@ select.input {
 
 /* 消息气泡（替代组件内联 style，主题统一） */
 .msg-bubble-user {
-  background: var(--color-accent);
-  color: var(--color-text-inverse);
+  background: var(--msg-user-bg);
+  color: var(--msg-user-text);
   box-shadow: var(--msg-user-shadow);
 }
 .msg-bubble-agent {
