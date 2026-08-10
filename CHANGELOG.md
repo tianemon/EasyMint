@@ -7,7 +7,7 @@
 
 （暂无——日常变更先记此处，发版时移入版本条目）
 
-## v0.7.2 (2026-08-10) — Pi 配置目录体系统一 & 遗留清理
+## v0.7.2 (2026-08-10) — Pi 配置目录体系统一 & 消息可靠性 & 暗色主题
 
 ### Changed（变更）
 
@@ -16,6 +16,16 @@
 - **项目级目录统一为 `.easymint`**：启动时定制本地 SDK 包的 `piConfig.configDir`（官方定制点，幂等自检）——Mint 的项目级配置目录从 `.pi` 变为 `<项目>/.easymint/`；pi CLI/TUI 用独立 SDK 仍 `.pi`，两边彻底隔离互不干扰
 - **会话目录归 Pi 默认**：`~/.easymint/sessions/` → `~/.easymint/agent/sessions/`（Pi 默认布局，启动时自动迁移旧数据，会话列表无缝保留）
 - **清理 Claude SDK 遗留数据**：删除 Claude SDK 产生的文件与目录（`~/.easymint/.claude.json`、telemetry/、backups/、旧项目会话目录、commands.json）与空壳目录（logs/、shell-snapshots/、session-env/、旧日志）、`~/.pi/` 默认目录
+- **暗色主题整体提亮**：背景/文字/边框提亮一档，用户气泡/tab 底色/侧边栏/输入卡片配色精调统一
+
+### Added（新增）
+
+- **Qwen Token Plan Individual 供应商**：设置页可选通义千问国际版订阅（配置 `QWEN_TOKEN_PLAN_API_KEY` 即可用）；供应商展示表重构为单一权威表（新增供应商只需改一处）
+
+### Fixed（修复）
+
+- **消息发送可靠性**：会话空闲时插话消息不再"发出去了没反应"（steer 空闲改走正常发送，根治 SDK 队列永不消费问题）；切换思考等级不再有并发竞态窗口（等级统一随发送应用）；上下文整理（压缩）期间发送有明确提示"正在整理上下文，请稍候再试"
+- **Pi SDK 升级 0.83 → 0.84.1**：底层协议变更（message_update 增量）对 EM 无影响，白捡 Agent.reset() 运行中保护修复
 
 ## v0.7.1 (2026-08-09) — 会话状态管理 & 用户文案友好化
 
