@@ -580,19 +580,19 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
   width: 5px; height: 5px; border-radius: 50%; background: var(--color-danger);
 }
 .sb-foot-btn:hover { color: var(--color-text-primary); background: var(--color-sidebar-hover); }
-/* 下载完成 → 设置按钮上方「重启升级」气泡(absolute 相对按钮容器,向上弹出不裁剪) */
-.update-bubble {
-  position: absolute; bottom: calc(100% + 8px); left: 0;
-  z-index: 90;
-  display: flex; align-items: center; gap: 5px;
-  padding: 6px 10px; border-radius: 8px;
-  background: var(--color-surface-elevated);
-  border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-lg);
-  font-size: 11px; font-weight: 600; color: var(--color-accent);
-  white-space: nowrap; cursor: pointer;
+/* 下载完成 → 「重启升级」文字按钮:比背景略亮的灰底,略矮于普通 foot 按钮 */
+.update-install-btn {
+  height: 24px; padding: 0 5px;   /* 高度 26→24,左右内边距 6→5 */
+  margin-top: 3.5px; margin-left: -4px;   /* 左移 1px(-3→-4),下移 0.5px(3→3.5) */
+  border-radius: 6px;
+  border: none;
+  background: var(--color-surface-hover);   /* 比 sidebar 背景略亮 */
+  color: var(--color-text-secondary);
+  font-size: 11px; white-space: nowrap;
+  cursor: pointer;
+  transition: all 120ms var(--ease-smooth);
 }
-.update-bubble:hover { background: var(--color-surface-hover); }
+.update-install-btn:hover { background: var(--color-sidebar-active); color: var(--color-text-primary); }
 
 .sb-seg-control {
   display: flex; flex: 1;
