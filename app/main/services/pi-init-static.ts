@@ -31,6 +31,7 @@ const PROVIDER_FILES: Record<string, { name: string; file: string }> = {
   "moonshotai-cn":         { name: "Moonshot AI CN",         file: "moonshotai-cn.json" },
   "qwen-token-plan":       { name: "Qwen Token Plan",        file: "qwen-token-plan.json" },
   "qwen-token-plan-cn":    { name: "Qwen Token Plan CN",     file: "qwen-token-plan-cn.json" },
+  "qwen-token-plan-individual": { name: "Qwen Token Plan Individual", file: "qwen-token-plan-individual.json" },
   "xiaomi":                { name: "Xiaomi MiMo",            file: "xiaomi.json" },
   "xiaomi-token-plan-ams": { name: "MiMo Token Plan AMS",    file: "xiaomi-token-plan-ams.json" },
   "xiaomi-token-plan-cn":  { name: "MiMo Token Plan CN",     file: "xiaomi-token-plan-cn.json" },
@@ -59,7 +60,12 @@ const PROVIDER_FILES: Record<string, { name: string; file: string }> = {
   "openai-codex":          { name: "OpenAI Codex",           file: "openai-codex.json" },
   "azure-openai-responses":{ name: "Azure OpenAI Responses", file: "azure-openai-responses.json" },
   "google-vertex":         { name: "Google Vertex",          file: "google-vertex.json" },
+  "baseten":               { name: "Baseten",                file: "baseten.json" },
 };
+
+// 展示过滤：数据层完整（表内可查），但不在设置页供应商列表展示的供应商。
+// 当前仅 qwen-token-plan-individual 需要展示；baseten / azure-openai-responses 保留数据不展示。
+const HIDDEN_PROVIDER_IDS = new Set(["baseten", "azure-openai-responses"]);
 
 function findDataDir(): string {
   // pi-ai 在 pi-coding-agent 的 node_modules 或顶层 node_modules
@@ -99,6 +105,7 @@ export async function getPiProviders(): Promise<Record<string, StaticProvider>> 
   const result: Record<string, StaticProvider> = {};
 
   for (const [id, info] of Object.entries(PROVIDER_FILES)) {
+    if (HIDDEN_PROVIDER_IDS.has(id)) continue;
     const filePath = join(dataDir, info.file);
     if (!existsSync(filePath)) continue;
     try {
