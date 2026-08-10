@@ -207,7 +207,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       {/* 子 Agent 默认模型:task 工具委派子 Agent 未指定时用(per-provider 配置) */}
       <div>
         <div className="flex items-center justify-between mb-1.5">
-          <label className="text-xs text-text-secondary">子 Agent 默认模型(task 委派用)</label>
+          <label className="text-xs text-text-secondary">SubAgent默认模型(委派任务时使用)</label>
           {subagentDefaultModel && (
             <button type="button" onClick={() => setSubagentDefaultModel("")} className="text-[10px] text-text-secondary hover:text-text-primary transition-colors">清除</button>
           )}
