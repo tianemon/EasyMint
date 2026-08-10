@@ -405,7 +405,7 @@ html[data-platform="win32"] {
 
   /* ── v3 Layer tokens（暗色反向：L0 最暗 → L4 最亮）── */
   --color-canvas: #181818;
-  --color-sidebar: #1d1d1d;
+  --color-sidebar: #1e1e1e;  /* 与输入卡片(input-card)同色 */
   --color-sidebar-hover: #262626;
   --color-sidebar-active: #2a2a2a;
   --color-content: #141414;
