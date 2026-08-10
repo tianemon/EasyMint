@@ -767,7 +767,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 .settings-panel-v3 {
   display: flex; flex-direction: column;
   width: 760px; height: 600px;
-  background: var(--color-card); border-radius: var(--radius-lg);
+  background: var(--color-input-card); border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg); overflow: hidden;
   transform: scale(0);
   transform-origin: center center;
