@@ -110,7 +110,9 @@ function BuiltinToolsSection(): JSX.Element {
                       </label>
                     </div>
                     <label className="text-[10px] text-text-secondary block mb-1 mt-2">
-                      API 地址（{isAnthropic ? "Anthropic" : "OpenAI"} 兼容，默认公共 DashScope）
+                      {isAnthropic
+                        ? "API 地址（Anthropic 兼容，默认公共 DashScope）"
+                        : "API 地址（OpenAI 兼容，默认阿里公共DashScope，可填写带有业务空间ID的专属API）"}
                     </label>
                     <input type="text"
                       className="w-full px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
