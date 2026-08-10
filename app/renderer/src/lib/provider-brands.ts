@@ -83,6 +83,7 @@ export const PROVIDER_BRANDS: ProviderBrand[] = [
     accesses: [
       { id: "qwen-token-plan", label: "Qwen Token Plan" },
       { id: "qwen-token-plan-cn", label: "Qwen Token Plan CN" },
+      { id: "qwen-token-plan-individual", label: "Qwen Token Plan Individual" },
     ],
   },
   {
