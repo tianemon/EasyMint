@@ -119,9 +119,11 @@ EM 把 Pi SDK 的全局目录从默认的 `~/.pi/agent` 重定向到 `~/.easymin
 | `~/.pi/agent`（全局目录） | `~/.easymint/agent` | `PI_CODING_AGENT_DIR` env（`index.ts`） |
 | `agentDir`（资源加载参数） | `~/.easymint/agent` | `agent-service.ts` `getAgentDir()` |
 | `agentDir/sessions` | `~/.easymint/sessions/<编码>` | 显式 `sessionDir`（`pi-session.ts`） |
-| settings 落盘 | 不落盘（内存态） | `SM.inMemory()`（`pi-init.ts`） |
+| settings 落盘 | 磁盘模式（Pi 默认） | `SM.create(cwd, agentDir)`（`pi-init.ts`，每会话新建） |
 
-**资源发现全关**：`resourceLoader`（`pi-session.ts`）显式关闭全部 Pi 自动发现——`noSkills` / `noContextFiles`（AGENTS.md/CLAUDE.md）/ `noExtensions` / `noPromptTemplates` / `noThemes`。Mint 的上下文 100% 由 EM 自己组装（Mint 提示词 + EM skills + env/profile 动态 section），项目 CLAUDE.md、项目 `.pi/` 目录对 Mint 不再生效。旧布局 `~/.easymint/pi/`、`pi-agent/` 与 `~/.pi/` 已清理，启动时含一次性迁移（`pi-agent/models-store.json` → `agent/`）。
+**保持 Pi SDK 默认行为**：资源发现（AGENTS.md/CLAUDE.md 上下文文件、项目 `<cwd>/.pi/` 的 skills/extensions/prompts/themes、SYSTEM.md/APPEND_SYSTEM.md）**不做任何限制**——Pi 怎么读就怎么读，EM 只在之上扩展（systemPromptOverride 注入 Mint 提示词 + EM skills + env/profile 动态 section）。`settings.json` 恢复磁盘模式（全局 `agentDir/settings.json` + 项目 `<cwd>/.pi/settings.json`，trusted 时），与 `em-settings.json`（EM GUI 设置）字段无重叠、不冲突。
+
+**注意**：项目级配置目录名 `CONFIG_DIR_NAME = ".pi"` 是 Pi SDK 包级常量（读 SDK 自身 package.json 的 `piConfig.configDir`），**无法**指定为 `.easymint`；EM 创建的项目无 `.pi/`，实际零影响。旧布局 `~/.easymint/pi/`、`pi-agent/` 与 `~/.pi/` 已清理，启动时含一次性迁移（`pi-agent/models-store.json` → `agent/`）。
 
 ---
 

@@ -12,7 +12,6 @@ import {
 import type { Model } from "@earendil-works/pi-ai";
 
 let _modelRuntime: Awaited<ReturnType<typeof getModelRuntimeClass>>["prototype"] | null = null;
-let _settingsManager: Awaited<ReturnType<typeof getSettingsManagerClass>>["prototype"] | null = null;
 let _activeModel: Model<any> | null = null;
 
 export async function getModelRuntime(store: Store) {
@@ -23,12 +22,14 @@ export async function getModelRuntime(store: Store) {
   return _modelRuntime;
 }
 
-export async function getSettingsManager() {
-  if (!_settingsManager) {
-    const SM = await getSettingsManagerClass();
-    _settingsManager = SM.inMemory({ compaction: { enabled: true } });
-  }
-  return _settingsManager;
+/**
+ * 磁盘模式 SettingsManager（保持 Pi SDK 默认行为）。
+ * 每会话创建（无单例）：绑定 cwd（项目设置路径 <cwd>/.pi/settings.json）+ agentDir（全局 agentDir/settings.json），
+ * 多项目场景不可复用单例。compaction 默认即 enabled（Pi settings.compaction.enabled ?? true），无需显式传。
+ */
+export async function getSettingsManager(cwd: string, agentDir: string) {
+  const SM = await getSettingsManagerClass();
+  return SM.create(cwd, agentDir);
 }
 
 export function resetModelRuntime(): void {

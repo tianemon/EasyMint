@@ -54,23 +54,18 @@ async function buildSession(
   opts: PiSessionOptions,
   sessionManager: SessionManager,
 ): Promise<AgentSession> {
-  const settingsMgr = await getSettingsManager();
+  const settingsMgr = await getSettingsManager(opts.cwd, opts.agentDir);
   const modelRuntime = await getModelRuntime(opts.store);
   const DRL = await getDefaultResourceLoaderClass();
   const createTools = await getCreateCodingTools();
 
+  // 保持 Pi SDK 默认行为：资源发现（AGENTS.md/CLAUDE.md、项目 .pi/、SYSTEM.md 等）不做限制，
+  // 仅用 systemPromptOverride 注入 EM 的 Mint 提示词（EM 在 Pi 默认行为之上扩展）
   const resourceLoader = new DRL({
     cwd: opts.cwd,
     agentDir: opts.agentDir,
     settingsManager: settingsMgr as any,
     systemPromptOverride: opts.systemPrompt ? () => opts.systemPrompt! : undefined,
-    // Pi 资源发现全关：Mint 上下文 100% 由 EM 自己组装（Mint prompt + EM skills + env/profile section）。
-    // 关闭项：skills(原有) / context files(CLAUDE.md/AGENTS.md) / extensions / prompt templates / themes
-    noSkills: true,
-    noContextFiles: true,
-    noExtensions: true,
-    noPromptTemplates: true,
-    noThemes: true,
   });
   await resourceLoader.reload();
 
