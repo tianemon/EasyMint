@@ -410,7 +410,7 @@ html[data-platform="win32"] {
   --color-sidebar-active: #2a2a2a;
   --color-content: #141414;
   --color-card: #222222;
-  --color-card-agent: #242424;
+  --color-card-agent: #1c1c1c;  /* 与输入卡片(input-card)同色 */
   --color-elevated: #2a2a2a;
   --color-input-field: #212121;
   --color-tab-active: #2a2a2a;
