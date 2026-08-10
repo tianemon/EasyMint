@@ -11,8 +11,18 @@ import { resolveHome, IMAGE_MIME } from "../utils/paths";
 
 // ── Config ──────────────────────────────────────────
 
-const VISION_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
-const VISION_MODEL = "qwen3.7-flash";
+// 视觉模型/API 地址可配置:em-settings apiKeys 的 VISION_MODEL / VISION_BASE_URL,
+// 默认 qwen3.7-flash + 公共 DashScope(阿里云百炼免费额度可用)
+const DEFAULT_VISION_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+const DEFAULT_VISION_MODEL = "qwen3.7-flash";
+
+function readVisionConfig(): { baseUrl: string; model: string } {
+  const keys = readApiKeys();
+  return {
+    baseUrl: keys.VISION_BASE_URL || DEFAULT_VISION_BASE_URL,
+    model: keys.VISION_MODEL || DEFAULT_VISION_MODEL,
+  };
+}
 
 // ── Settings helpers ────────────────────────────────
 
@@ -56,13 +66,14 @@ export async function describeImage(args: { path: string; prompt?: string }): Pr
     imageContent = { type: "image_url", image_url: { url: `data:${mime};base64,${data}` } };
   }
 
+  const { baseUrl, model } = readVisionConfig();
   const body = {
-    model: VISION_MODEL,
+    model,
     messages: [{ role: "user", content: [{ type: "text", text: args.prompt || "Describe this image in detail." }, imageContent] }],
     max_tokens: 1024,
   };
 
-  const resp = await fetch(`${VISION_BASE_URL}/chat/completions`, {
+  const resp = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),

@@ -107,6 +107,17 @@ function BuiltinToolsSection(): JSX.Element {
                     )}
                   </button>
                 </div>
+                {key === "vision" && (
+                  <div className="mt-2">
+                    <label className="text-[10px] text-text-secondary block mb-1">模型（默认 qwen3.7-flash）</label>
+                    <input type="text"
+                      className="w-full px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
+                      defaultValue={apiKeys["VISION_MODEL"] || ""} placeholder="qwen3.7-flash"
+                      onBlur={(e) => { const v = e.target.value.trim(); if (v !== (apiKeys["VISION_MODEL"] || "")) saveKey("VISION_MODEL", v); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                    />
+                  </div>
+                )}
                 <div className="text-[10px] text-text-muted mt-1">{keyHint}</div>
               </div>
             )}
