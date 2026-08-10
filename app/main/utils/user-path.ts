@@ -26,7 +26,6 @@ export function loadUserPath(): void {
     const shellPath = lines[lines.length - 1];
     if (shellPath && !process.env.PATH?.startsWith(shellPath)) {
       process.env.PATH = `${shellPath}:${process.env.PATH ?? ""}`;
-      console.log(`[env] 已注入用户 PATH(${shellPath.split(":").length} 段)`);
     }
   } catch (e) {
     // 失败保持最小 PATH(有 buildEnv 兜底),不阻塞启动
