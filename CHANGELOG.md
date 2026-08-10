@@ -5,6 +5,10 @@
 
 ## [Unreleased]
 
+（暂无——日常变更先记此处，发版时移入版本条目）
+
+## v0.7.2 (2026-08-10) — Pi 配置目录体系统一 & 遗留清理
+
 ### Changed（变更）
 
 - **Pi 配置目录体系统一**：agentDir 双目录（`pi/` + `pi-agent/`）合并为 `~/.easymint/agent`（严格对应 Pi 默认的 `~/.pi/agent` 层级，不再有 `.easymint/pi` 子目录）；会话数据仍存 `~/.easymint/sessions/`
