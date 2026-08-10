@@ -189,7 +189,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       {/* 兜底模型:模型(默认)不可用时降级(per-provider 配置) */}
       <div>
         <div className="flex items-center justify-between mb-1.5">
-          <label className="text-xs text-text-secondary">兜底模型(降级用)</label>
+          <label className="text-xs text-text-secondary">兜底模型(所选模型不可用时调用)</label>
           {fallbackModel && (
             <button type="button" onClick={() => setFallbackModel("")} className="text-[10px] text-text-secondary hover:text-text-primary transition-colors">清除</button>
           )}
