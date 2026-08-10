@@ -240,6 +240,7 @@ html[data-platform="win32"] {
   /* 用户气泡:亮色下为 accent 白(文字反色);暗色主题覆盖为深灰 */
   --msg-user-bg: var(--color-accent);
   --msg-user-text: var(--color-text-inverse);
+  --color-input-card: var(--color-elevated);
 
   /* ── Font ────────────────────────── */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", Roboto, sans-serif;
@@ -407,7 +408,7 @@ html[data-platform="win32"] {
   --color-sidebar: #1d1d1d;
   --color-sidebar-hover: #262626;
   --color-sidebar-active: #2a2a2a;
-  --color-content: #1a1a1a;
+  --color-content: #141414;
   --color-card: #222222;
   --color-card-agent: #242424;
   --color-elevated: #2a2a2a;
@@ -428,6 +429,8 @@ html[data-platform="win32"] {
   /* 用户气泡:深灰(略亮于 AI 气泡 card-agent #242424 以区分),文字转亮色 */
   --msg-user-bg: #2c2c2c;
   --msg-user-text: var(--color-text-primary);
+  /* 输入卡片:比 elevated(#2a2a2a)深一档,独立变量避免影响弹窗等 elevated 使用者 */
+  --color-input-card: #242424;
 }
 
 /* ── Dark mode overrides ──────────────────────────────── */
@@ -676,8 +679,8 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 
 /* ── Chat Input Card ─────────────────────────── */
 .input-card {
-  /* 最高浮起层:亮色纯白(elevated),与 menu(card) 区分 */
-  background: var(--color-elevated); border-radius: var(--radius-md);
+  /* 最高浮起层:亮色纯白(elevated),与 menu(card) 区分;暗色独立变量深一档 */
+  background: var(--color-input-card); border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   /* overflow visible:AgentBar/ShellBar 浮层向上展开不被裁剪(compact 蒙版自带圆角) */
   overflow: visible;
