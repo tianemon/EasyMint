@@ -413,7 +413,7 @@ html[data-platform="win32"] {
   --color-card-agent: #1c1c1c;  /* 与输入卡片(input-card)同色 */
   --color-elevated: #2a2a2a;
   --color-input-field: #212121;
-  --color-tab-active: #2a2a2a;
+  --color-tab-active: #1c1c1c;  /* 未选中 tab 底色,与输入卡片同色 */
   --color-divider: #2c2c2c;
 
   /* 暗色阴影补偿 — inset 顶高光 */
