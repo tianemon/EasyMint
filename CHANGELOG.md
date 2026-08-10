@@ -13,6 +13,8 @@
 
 - **Pi 配置目录体系统一**：agentDir 双目录（`pi/` + `pi-agent/`）合并为 `~/.easymint/agent`（严格对应 Pi 默认的 `~/.pi/agent` 层级，不再有 `.easymint/pi` 子目录）；会话数据仍存 `~/.easymint/sessions/`
 - **保持 Pi SDK 默认行为**：资源发现（项目 CLAUDE.md/AGENTS.md、项目 `.pi/` 目录、SYSTEM.md 等）不做限制，Pi 怎么读就怎么读；settings 恢复磁盘模式（Pi 默认落盘 `agentDir/settings.json`，与 `em-settings.json` 职责分离不冲突）；EM 仅在 Pi 默认行为之上扩展（Mint 提示词 + skills + env/profile）
+- **项目级目录统一为 `.easymint`**：启动时定制本地 SDK 包的 `piConfig.configDir`（官方定制点，幂等自检）——Mint 的项目级配置目录从 `.pi` 变为 `<项目>/.easymint/`；pi CLI/TUI 用独立 SDK 仍 `.pi`，两边彻底隔离互不干扰
+- **会话目录归 Pi 默认**：`~/.easymint/sessions/` → `~/.easymint/agent/sessions/`（Pi 默认布局，启动时自动迁移旧数据，会话列表无缝保留）
 - **清理 Claude SDK 遗留数据**：删除 Claude SDK 产生的文件与目录（`~/.easymint/.claude.json`、telemetry/、backups/、旧项目会话目录、commands.json）与空壳目录（logs/、shell-snapshots/、session-env/、旧日志）、`~/.pi/` 默认目录
 
 ## v0.7.1 (2026-08-09) — 会话状态管理 & 用户文案友好化

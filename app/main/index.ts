@@ -18,12 +18,59 @@ import {
 // agentDir 用 ~/.easymint/agent（严格对应 Pi 默认的 ~/.pi/agent 层级，不再有 pi/pi-agent 子目录）
 const EM_HOME = path.join(os.homedir(), ".easymint");
 process.env.PI_CODING_AGENT_DIR = path.join(EM_HOME, "agent");
+// Pi SDK 品牌定制：项目级配置目录 .pi → .easymint（官方定制点 piConfig.configDir，幂等补写）。
+// 定位本地实际安装的 SDK 包（开发=项目 node_modules；打包=.asar.unpacked，@earendil-works 在 asarUnpack 名单）。
+// 写失败（如 mac 签名后权限）→ 降级保持 .pi 默认，功能不受影响。
+try {
+  let sdkPkgPath = path.join(app.getAppPath(), "node_modules", "@earendil-works", "pi-coding-agent", "package.json");
+  if (sdkPkgPath.includes(".asar")) sdkPkgPath = sdkPkgPath.replace(".asar", ".asar.unpacked");
+  if (fs.existsSync(sdkPkgPath)) {
+    const sdkPkg = JSON.parse(fs.readFileSync(sdkPkgPath, "utf-8")) as { piConfig?: { configDir?: string } };
+    if (sdkPkg.piConfig?.configDir !== ".easymint") {
+      sdkPkg.piConfig = { ...sdkPkg.piConfig, configDir: ".easymint" };
+      fs.writeFileSync(sdkPkgPath, JSON.stringify(sdkPkg, null, 2));
+      console.log("[pi] SDK 项目级配置目录已定制为 .easymint:", sdkPkgPath);
+    }
+  }
+} catch (e) { console.warn("[pi] SDK package.json 定制失败（保持 .pi 默认）:", (e as Error).message); }
+
 // 一次性迁移：旧布局 ~/.easymint/pi-agent/models-store.json → agent/（0.7.2 起 agentDir 统一）
 const LEGACY_PI_AGENT_STORE = path.join(EM_HOME, "pi-agent", "models-store.json");
 const NEW_AGENT_STORE = path.join(EM_HOME, "agent", "models-store.json");
 if (!fs.existsSync(NEW_AGENT_STORE) && fs.existsSync(LEGACY_PI_AGENT_STORE)) {
   fs.mkdirSync(path.dirname(NEW_AGENT_STORE), { recursive: true });
   fs.copyFileSync(LEGACY_PI_AGENT_STORE, NEW_AGENT_STORE);
+}
+// 一次性迁移：会话目录 ~/.easymint/sessions/ → agent/sessions/（Pi 默认布局，v0.7.2 起归默认）
+const OLD_SESSIONS_DIR = path.join(EM_HOME, "sessions");
+const NEW_SESSIONS_DIR = path.join(EM_HOME, "agent", "sessions");
+if (fs.existsSync(OLD_SESSIONS_DIR)) {
+  const moveSessions = (): boolean => {
+    fs.mkdirSync(path.dirname(NEW_SESSIONS_DIR), { recursive: true });
+    try {
+      fs.renameSync(OLD_SESSIONS_DIR, NEW_SESSIONS_DIR);
+      return true;
+    } catch { return false; }
+  };
+  if (!fs.existsSync(NEW_SESSIONS_DIR) || fs.readdirSync(NEW_SESSIONS_DIR).length === 0) {
+    if (fs.existsSync(NEW_SESSIONS_DIR)) fs.rmdirSync(NEW_SESSIONS_DIR);
+    if (!moveSessions()) {
+      // 跨盘/占用降级：复制后删除
+      try {
+        fs.cpSync(OLD_SESSIONS_DIR, NEW_SESSIONS_DIR, { recursive: true });
+        fs.rmSync(OLD_SESSIONS_DIR, { recursive: true, force: true });
+      } catch (e) { console.warn("[migrate] 会话目录迁移失败:", (e as Error).message); }
+    }
+  } else {
+    // 两侧都有内容（罕见）：逐个补齐缺失的项目会话目录
+    for (const item of fs.readdirSync(OLD_SESSIONS_DIR)) {
+      const src = path.join(OLD_SESSIONS_DIR, item);
+      const dst = path.join(NEW_SESSIONS_DIR, item);
+      if (!fs.existsSync(dst)) {
+        try { fs.cpSync(src, dst, { recursive: true }); } catch { /* best effort */ }
+      }
+    }
+  }
 }
 // Redirect Electron userData to our directory so all data lives in one place
 app.setPath("userData", path.join(EM_HOME, "electron"));

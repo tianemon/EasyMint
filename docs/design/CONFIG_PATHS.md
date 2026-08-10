@@ -8,16 +8,17 @@
 ~/.easymint/
 ├── agent/                    Pi SDK agentDir（对应 Pi 默认的 ~/.pi/agent，经 PI_CODING_AGENT_DIR 重定向至此）
 │   ├── auth.json             Pi 认证凭据（API key 由 EM 内存注入，磁盘为占位）
-│   └── models-store.json     Pi 模型目录缓存（路径跟随 agentDir 自动落位）
+│   ├── models-store.json     Pi 模型目录缓存（路径跟随 agentDir 自动落位）
+│   ├── settings.json         Pi 全局设置（磁盘模式，Pi 默认）
+│   └── sessions/             Pi SDK 会话数据（Pi 默认布局 agentDir/sessions，按项目路径编码隔离）
+│       └── <编码路径>/         例如 -Users-amon-EasyMintProject-helloworld
+│           └── <sessionId>.jsonl 会话完整对话记录
 ├── em-settings.json          EasyMint 应用设置
 ├── projects.json             项目列表与记录
 ├── pinned-sessions.json      置顶会话记录
 ├── agent-templates.json      用户自定义 Agent 模板
 ├── system-prompts.json       系统提示词 CRUD（首次编辑时生成）
 ├── mcp.json                  MCP 服务器配置（与 Claude Code 解耦）
-├── sessions/                 Pi SDK 会话数据（按项目路径编码隔离）
-│   └── <编码路径>/             例如 -Users-amon-EasyMintProject-helloworld
-│       └── <sessionId>.jsonl 会话完整对话记录
 ├── session-cache/            前端 per-session 缓存
 ├── skills/                   全局 Skill
 ├── migration-cache/          迁移去重标记
@@ -118,12 +119,28 @@ EM 把 Pi SDK 的全局目录从默认的 `~/.pi/agent` 重定向到 `~/.easymin
 |---|---|---|
 | `~/.pi/agent`（全局目录） | `~/.easymint/agent` | `PI_CODING_AGENT_DIR` env（`index.ts`） |
 | `agentDir`（资源加载参数） | `~/.easymint/agent` | `agent-service.ts` `getAgentDir()` |
-| `agentDir/sessions` | `~/.easymint/sessions/<编码>` | 显式 `sessionDir`（`pi-session.ts`） |
+| `agentDir/sessions` | 同左（Pi 默认布局） | `getPiSessionDir()` 指向 `~/.easymint/agent/sessions/<编码>` |
 | settings 落盘 | 磁盘模式（Pi 默认） | `SM.create(cwd, agentDir)`（`pi-init.ts`，每会话新建） |
+| 项目级 `<cwd>/.pi/` | 同左（Pi 默认，patch 后为 `<cwd>/.easymint/`） | 见下方「项目级目录定制」 |
 
 **保持 Pi SDK 默认行为**：资源发现（AGENTS.md/CLAUDE.md 上下文文件、项目 `<cwd>/.pi/` 的 skills/extensions/prompts/themes、SYSTEM.md/APPEND_SYSTEM.md）**不做任何限制**——Pi 怎么读就怎么读，EM 只在之上扩展（systemPromptOverride 注入 Mint 提示词 + EM skills + env/profile 动态 section）。`settings.json` 恢复磁盘模式（全局 `agentDir/settings.json` + 项目 `<cwd>/.pi/settings.json`，trusted 时），与 `em-settings.json`（EM GUI 设置）字段无重叠、不冲突。
 
-**注意**：项目级配置目录名 `CONFIG_DIR_NAME = ".pi"` 是 Pi SDK 包级常量（读 SDK 自身 package.json 的 `piConfig.configDir`），**无法**指定为 `.easymint`；EM 创建的项目无 `.pi/`，实际零影响。旧布局 `~/.easymint/pi/`、`pi-agent/` 与 `~/.pi/` 已清理，启动时含一次性迁移（`pi-agent/models-store.json` → `agent/`）。
+**注意**：项目级配置目录名 `CONFIG_DIR_NAME` 是 Pi SDK 包级常量（读 SDK 自身 package.json 的 `piConfig.configDir`）——EM 作为分发方在**启动时幂等定制**（见下）。
+
+### 项目级目录定制（v0.7.2）
+
+`index.ts` 启动时检查本地安装的 SDK 包 `package.json` 的 `piConfig.configDir`（开发 = 项目 `node_modules`；打包 = `.asar.unpacked`），非 `.easymint` 则补写——**每次启动自检，npm install/升级覆盖后自动恢复**；写失败（mac 签名权限）降级保持 `.pi`。
+
+效果：
+- EM Mint 项目级目录 = `<cwd>/.easymint/`（与 EM 的 state.json/run.json 同目录共存，文件名不冲突）
+- **pi CLI/TUI 用自己全局安装的独立 SDK 包 → 仍 `.pi`**——两边彻底隔离，互不干扰（Pi TUI 在项目级写的 compaction/settings 不再影响 Mint）
+- 已验证：patch 后 Pi 运行时 `CONFIG_DIR_NAME = ".easymint"`、默认 `getAgentDir() = ~/.easymint/agent`
+
+### 会话目录（v0.7.2 起归默认）
+
+会话目录走 Pi 默认布局 `agentDir/sessions/<编码cwd>/` = `~/.easymint/agent/sessions/`（`getPiSessionDir` 指向该路径，9 个调用点统一）。启动时一次性迁移旧布局 `~/.easymint/sessions/` → `agent/sessions/`（幂等，跨盘降级复制）。
+
+旧布局 `~/.easymint/pi/`、`pi-agent/` 与 `~/.pi/` 已清理，启动时含一次性迁移（`pi-agent/models-store.json` → `agent/`）。
 
 ---
 

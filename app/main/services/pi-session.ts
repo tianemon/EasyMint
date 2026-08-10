@@ -119,9 +119,9 @@ export async function resumePiSession(opts: PiSessionOptions): Promise<AgentSess
 
 const os = require("node:os");
 
-/** 全局会话目录：~/.easymint/sessions/<项目路径编码>/ */
+/** 全局会话目录：agentDir/sessions/<项目路径编码>/（Pi 默认布局；agentDir = ~/.easymint/agent，v0.7.2 起归默认） */
 export function getPiSessionDir(cwd: string): string {
-  const base = path.join(os.homedir(), ".easymint", "sessions");
+  const base = path.join(os.homedir(), ".easymint", "agent", "sessions");
   const encoded = cwd.replace(/[:/\\]/g, "-");
   return path.join(base, encoded);
 }
