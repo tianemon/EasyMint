@@ -11,16 +11,19 @@ import { resolveHome, IMAGE_MIME } from "../utils/paths";
 
 // ── Config ──────────────────────────────────────────
 
-// 视觉模型/API 地址可配置:em-settings apiKeys 的 VISION_MODEL / VISION_BASE_URL,
+// 视觉模型/API 地址可配置:em-settings apiKeys 的 VISION_MODEL / VISION_BASE_URL / VISION_MODE,
 // 默认 qwen3.7-flash + 公共 DashScope(阿里云百炼免费额度可用)
 const DEFAULT_VISION_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_VISION_MODEL = "qwen3.7-flash";
 
-function readVisionConfig(): { baseUrl: string; model: string } {
+type VisionMode = "openai" | "anthropic";
+
+function readVisionConfig(): { baseUrl: string; model: string; mode: VisionMode } {
   const keys = readApiKeys();
   return {
     baseUrl: keys.VISION_BASE_URL || DEFAULT_VISION_BASE_URL,
     model: keys.VISION_MODEL || DEFAULT_VISION_MODEL,
+    mode: keys.VISION_MODE === "anthropic" ? "anthropic" : "openai",
   };
 }
 
@@ -51,34 +54,72 @@ export function isToolEnabled(name: "vision" | "webFetch"): boolean {
 export async function describeImage(args: { path: string; prompt?: string }): Promise<string> {
   const keys = readApiKeys();
   const key = keys.VISION_API_KEY;
-  if (!key) return "VISION_API_KEY 未配置，请在设置中填写 DashScope API Key。";
+  if (!key) return "VISION_API_KEY 未配置，请在设置中填写 API Key。";
 
   const src = resolveHome(args.path);
-  let imageContent: Record<string, unknown>;
+  const promptText = args.prompt || "Describe this image in detail.";
 
+  // 图片 → base64（URL 直用 / 本地读取）
+  let imageBase64: string;
+  let isUrl = false;
   if (src.startsWith("http://") || src.startsWith("https://")) {
-    imageContent = { type: "image_url", image_url: { url: src } };
+    imageBase64 = src;
+    isUrl = true;
   } else {
     if (!existsSync(src)) return `文件不存在: ${src}`;
     const ext = extname(basename(src)).toLowerCase();
-    const mime = IMAGE_MIME[ext] || "image/png";
-    const data = readFileSync(src).toString("base64");
-    imageContent = { type: "image_url", image_url: { url: `data:${mime};base64,${data}` } };
+    imageBase64 = readFileSync(src).toString("base64");
   }
 
-  const { baseUrl, model } = readVisionConfig();
+  const { baseUrl, model, mode } = readVisionConfig();
+
+  // ── Anthropic 兼容模式(messages API:system 参数 + content 块)──
+  if (mode === "anthropic") {
+    const mime = isUrl ? undefined : (IMAGE_MIME[extname(basename(src)).toLowerCase()] || "image/png");
+    const userContent: Array<Record<string, unknown>> = [
+      { type: "text", text: promptText },
+      isUrl
+        ? { type: "image", source: { type: "url", url: imageBase64 } }
+        : { type: "image", source: { type: "base64", media_type: mime, data: imageBase64 } },
+    ];
+    const body = {
+      model,
+      max_tokens: 1024,
+      system: "You are a helpful assistant that describes images in detail.",
+      messages: [{ role: "user", content: userContent }],
+      thinking: { type: "disabled" },
+    };
+    const resp = await fetch(`${baseUrl}/v1/messages`, {
+      method: "POST",
+      headers: { "x-api-key": key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+      const err = await resp.text().catch(() => "");
+      return `视觉 API 请求失败 (${resp.status}): ${err.slice(0, 300)}`;
+    }
+    let data: Record<string, unknown>;
+    try { data = await resp.json() as any; }
+    catch { return "视觉 API 返回格式错误"; }
+    const content = data.content as Array<{ type?: string; text?: string }> | undefined;
+    const text = content?.find((b) => b.type === "text")?.text;
+    return text || "(无描述)";
+  }
+
+  // ── OpenAI 兼容模式(chat/completions:平铺 messages)──
+  const imageContent = isUrl
+    ? { type: "image_url", image_url: { url: imageBase64 } }
+    : { type: "image_url", image_url: { url: `data:${IMAGE_MIME[extname(basename(src)).toLowerCase()] || "image/png"};base64,${imageBase64}` } };
   const body = {
     model,
-    messages: [{ role: "user", content: [{ type: "text", text: args.prompt || "Describe this image in detail." }, imageContent] }],
+    messages: [{ role: "user", content: [{ type: "text", text: promptText }, imageContent] }],
     max_tokens: 1024,
   };
-
   const resp = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-
   if (!resp.ok) {
     const err = await resp.text().catch(() => "");
     return `视觉 API 请求失败 (${resp.status}): ${err.slice(0, 300)}`;
