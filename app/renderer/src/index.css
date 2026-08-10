@@ -427,7 +427,7 @@ html[data-platform="win32"] {
   --msg-agent-shadow: 0 1px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
   --msg-user-shadow: 0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
   /* 用户气泡:深灰(略亮于 AI 气泡 card-agent #242424 以区分),文字转亮色 */
-  --msg-user-bg: #2c2c2c;
+  --msg-user-bg: #323232;
   --msg-user-text: var(--color-text-primary);
   /* 输入卡片:还原 elevated 原值(独立变量保留,便于将来单独调) */
   --color-input-card: #1c1c1c;
