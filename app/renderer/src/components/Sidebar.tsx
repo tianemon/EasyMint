@@ -257,7 +257,7 @@ export function Sidebar({
             onClick={() => setToolboxOpen((v) => !v)}
             title="工具箱"
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M16 12v4"/><path d="M16 6a2 2 0 0 1 1.414.586l4 4A2 2 0 0 1 22 12v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 .586-1.414l4-4A2 2 0 0 1 8 6z"/><path d="M16 6V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><path d="M2 14h20"/><path d="M8 12v4"/></svg>
+            <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round"><rect x="24" y="72" width="208" height="128" rx="8"/><line x1="24" y1="120" x2="232" y2="120"/><line x1="72" y1="104" x2="72" y2="136"/><line x1="184" y1="104" x2="184" y2="136"/><path d="M168,72V56a16,16,0,0,0-16-16H104A16,16,0,0,0,88,56V72"/></svg>
           </button>
           <button className="sb-foot-btn" onClick={toggleTheme} title={mode === "light" ? "亮色" : mode === "dark" ? "暗色" : "自动"}>
             {mode === "light" ? (
