@@ -12,7 +12,7 @@ import { resolveHome, IMAGE_MIME } from "../utils/paths";
 // ── Config ──────────────────────────────────────────
 
 const VISION_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
-const VISION_MODEL = "qwen3.6-flash";
+const VISION_MODEL = "qwen3.7-flash";
 
 // ── Settings helpers ────────────────────────────────
 
