@@ -15,8 +15,16 @@ import {
 } from "./services/auto-updater";
 
 // 统一配置目录：所有 Pi SDK 和 EM 数据都在 ~/.easymint/ 下
+// agentDir 用 ~/.easymint/agent（严格对应 Pi 默认的 ~/.pi/agent 层级，不再有 pi/pi-agent 子目录）
 const EM_HOME = path.join(os.homedir(), ".easymint");
-process.env.PI_CODING_AGENT_DIR = path.join(EM_HOME, "pi-agent");
+process.env.PI_CODING_AGENT_DIR = path.join(EM_HOME, "agent");
+// 一次性迁移：旧布局 ~/.easymint/pi-agent/models-store.json → agent/（0.7.2 起 agentDir 统一）
+const LEGACY_PI_AGENT_STORE = path.join(EM_HOME, "pi-agent", "models-store.json");
+const NEW_AGENT_STORE = path.join(EM_HOME, "agent", "models-store.json");
+if (!fs.existsSync(NEW_AGENT_STORE) && fs.existsSync(LEGACY_PI_AGENT_STORE)) {
+  fs.mkdirSync(path.dirname(NEW_AGENT_STORE), { recursive: true });
+  fs.copyFileSync(LEGACY_PI_AGENT_STORE, NEW_AGENT_STORE);
+}
 // Redirect Electron userData to our directory so all data lives in one place
 app.setPath("userData", path.join(EM_HOME, "electron"));
 

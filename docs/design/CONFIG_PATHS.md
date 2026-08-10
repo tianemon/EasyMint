@@ -6,20 +6,21 @@
 
 ```
 ~/.easymint/
+├── agent/                    Pi SDK agentDir（对应 Pi 默认的 ~/.pi/agent，经 PI_CODING_AGENT_DIR 重定向至此）
+│   ├── auth.json             Pi 认证凭据（API key 由 EM 内存注入，磁盘为占位）
+│   └── models-store.json     Pi 模型目录缓存（路径跟随 agentDir 自动落位）
 ├── em-settings.json          EasyMint 应用设置
 ├── projects.json             项目列表与记录
-├── settings.json             Pi SDK 配置（API key / 模型 / 权限）
 ├── pinned-sessions.json      置顶会话记录
 ├── agent-templates.json      用户自定义 Agent 模板
-├── system-prompts.json       系统提示词 CRUD
+├── system-prompts.json       系统提示词 CRUD（首次编辑时生成）
+├── mcp.json                  MCP 服务器配置（与 Claude Code 解耦）
 ├── sessions/                 Pi SDK 会话数据（按项目路径编码隔离）
 │   └── <编码路径>/             例如 -Users-amon-EasyMintProject-helloworld
 │       └── <sessionId>.jsonl 会话完整对话记录
 ├── session-cache/            前端 per-session 缓存
 ├── skills/                   全局 Skill
-├── pi/                       Pi SDK agent 运行时数据
-│   ├── auth.json
-│   └── models.json
+├── migration-cache/          迁移去重标记
 └── uploads/                  上传文件缓存
 ```
 
@@ -48,7 +49,7 @@ EasyMint 专属设置，不与 SDK 混淆。
 | `context1M` | 是否启用 1M 上下文（旧字段，新配置优先用 `apiProviders`） |
 | `apiProviders` | 多平台 API 供应商配置（见下方说明） |
 
-> **注意**：API Key 等认证信息由 Pi SDK 的 `ModelRuntime` 管理，存储于 `~/.easymint/pi/auth.json`。EasyMint 通过 `store.getActiveApiKey()` 读取，`pi-init.ts` 中的 `ModelRuntime` 负责配置注入。
+> **注意**：API Key 等认证信息由 Pi SDK 的 `ModelRuntime` 管理，存储于 `~/.easymint/agent/auth.json`（磁盘占位，实际 key 通过 `setRuntimeApiKey` 内存注入）。EasyMint 通过 `store.getActiveApiKey()` 读取，`pi-init.ts` 中的 `ModelRuntime` 负责配置注入。
 
 ### `apiProviders` 结构
 
@@ -109,9 +110,18 @@ EasyMint 维护的项目记录。
 
 ---
 
-## `settings.json`（Pi SDK）
+## Pi SDK 目录映射（v0.7.2 起统一）
 
-Pi SDK 自行管理的配置文件（`~/.easymint/settings.json`）。EasyMint 通过 `SettingsManager` 接口读写，不直接操作文件。
+EM 把 Pi SDK 的全局目录从默认的 `~/.pi/agent` 重定向到 `~/.easymint/agent`，映射关系：
+
+| Pi 默认 | EM 实际 | 覆盖手段 |
+|---|---|---|
+| `~/.pi/agent`（全局目录） | `~/.easymint/agent` | `PI_CODING_AGENT_DIR` env（`index.ts`） |
+| `agentDir`（资源加载参数） | `~/.easymint/agent` | `agent-service.ts` `getAgentDir()` |
+| `agentDir/sessions` | `~/.easymint/sessions/<编码>` | 显式 `sessionDir`（`pi-session.ts`） |
+| settings 落盘 | 不落盘（内存态） | `SM.inMemory()`（`pi-init.ts`） |
+
+**资源发现全关**：`resourceLoader`（`pi-session.ts`）显式关闭全部 Pi 自动发现——`noSkills` / `noContextFiles`（AGENTS.md/CLAUDE.md）/ `noExtensions` / `noPromptTemplates` / `noThemes`。Mint 的上下文 100% 由 EM 自己组装（Mint 提示词 + EM skills + env/profile 动态 section），项目 CLAUDE.md、项目 `.pi/` 目录对 Mint 不再生效。旧布局 `~/.easymint/pi/`、`pi-agent/` 与 `~/.pi/` 已清理，启动时含一次性迁移（`pi-agent/models-store.json` → `agent/`）。
 
 ---
 

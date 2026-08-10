@@ -64,7 +64,13 @@ async function buildSession(
     agentDir: opts.agentDir,
     settingsManager: settingsMgr as any,
     systemPromptOverride: opts.systemPrompt ? () => opts.systemPrompt! : undefined,
+    // Pi 资源发现全关：Mint 上下文 100% 由 EM 自己组装（Mint prompt + EM skills + env/profile section）。
+    // 关闭项：skills(原有) / context files(CLAUDE.md/AGENTS.md) / extensions / prompt templates / themes
     noSkills: true,
+    noContextFiles: true,
+    noExtensions: true,
+    noPromptTemplates: true,
+    noThemes: true,
   });
   await resourceLoader.reload();
 

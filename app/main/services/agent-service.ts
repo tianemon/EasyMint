@@ -390,7 +390,7 @@ export class AgentService {
   // ── 内部辅助 ──────────────────────────────────────
 
   private getAgentDir(): string {
-    return path.join(os.homedir(), ".easymint", "pi");
+    return path.join(os.homedir(), ".easymint", "agent");
   }
 
   private async getModel(store: Store, preferredProvider?: string, preferredModel?: string): Promise<Model<any> | null> {

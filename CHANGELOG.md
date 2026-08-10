@@ -5,7 +5,11 @@
 
 ## [Unreleased]
 
-（暂无——日常变更先记此处，发版时移入版本条目）
+### Changed（变更）
+
+- **Pi 配置目录体系统一**：agentDir 双目录（`pi/` + `pi-agent/`）合并为 `~/.easymint/agent`（严格对应 Pi 默认的 `~/.pi/agent` 层级，不再有 `.easymint/pi` 子目录）；会话数据仍存 `~/.easymint/sessions/`
+- **Mint 上下文注入 100% 自主可控**：关闭 Pi SDK 全部资源自动发现（AGENTS.md/CLAUDE.md 上下文文件、扩展、提示词模板、主题、skills）——项目 CLAUDE.md 不再隐式影响 Mint，上下文只由 EM 提示词体系组装
+- **清理历史遗留数据**：删除 Claude SDK 遗留（`~/.easymint/.claude.json`、telemetry/、backups/、旧项目会话目录、commands.json）与空壳目录（logs/、shell-snapshots/、session-env/、旧日志）、`~/.pi/` 默认目录
 
 ## v0.7.1 (2026-08-09) — 会话状态管理 & 用户文案友好化
 
