@@ -234,7 +234,7 @@ export const ChatInput = memo(function ChatInput({
             { value: "max", label: "最高" },
           ]}
         />
-        <div className="ctx-ring" title="上下文使用率">
+        <div className="ctx-ring" title={`上下文使用率 ${Math.round(ctxPct)}%`} onClick={onStatsClick} style={{ cursor: "pointer" }}>
           <svg width="20" height="20" viewBox="0 0 20 20">
             <circle className="ctx-ring-track" cx="10" cy="10" r="8"/>
             <circle className="ctx-ring-fill" cx="10" cy="10" r="8"
