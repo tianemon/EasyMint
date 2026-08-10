@@ -283,64 +283,64 @@ html[data-platform="win32"] {
 
 [data-theme="dark"] {
   /* ── Surface — 外深内浅，4 级嵌套 ── */
-  --color-surface: #0d0d0d;            /* 最外层底色（标题栏、工具栏） */
-  --color-surface-alt: #161616;        /* 面板背景（聊天区、文件、任务面板） */
-  --color-surface-hover: #202020;      /* hover 态 */
-  --color-surface-elevated: #2a2a2a;   /* 弹窗/卡片（最内层，最亮） */
+  --color-surface: #1b1b1b;            /* 最外层底色（标题栏、工具栏） */
+  --color-surface-alt: #242424;        /* 面板背景（聊天区、文件、任务面板） */
+  --color-surface-hover: #2e2e2e;      /* hover 态 */
+  --color-surface-elevated: #383838;   /* 弹窗/卡片（最内层，最亮） */
 
   --color-overlay: rgba(0, 0, 0, 0.85);
   --color-tooltip-bg: #cccccc;
   --color-tooltip-text: #050505;
 
   /* ── Text ────────────────────────── */
-  --color-text-primary: #cccccc;
-  --color-text-secondary: #888888;
-  --color-text-inverse: #0d0d0d;
-  --color-text-muted: #666666;
+  --color-text-primary: #d4d4d4;
+  --color-text-secondary: #909090;
+  --color-text-inverse: #1b1b1b;
+  --color-text-muted: #6e6e6e;
 
   /* ── Border — 外深内浅，3 级嵌套 ── */
-  --color-border: #333333;             /* 常规分割线 */
-  --color-border-light: #282828;       /* 内部浅分割线 */
-  --color-border-strong: #444444;      /* 外框深分割线（最外层） */
+  --color-border: #414141;             /* 常规分割线 */
+  --color-border-light: #363636;       /* 内部浅分割线 */
+  --color-border-strong: #525252;      /* 外框深分割线（最外层） */
 
   /* ── Accent — 白/灰按钮系 ───────── */
-  --color-accent: #cccccc;
-  --color-accent-hover: #dddddd;
-  --color-accent-light: #aaaaaa;
-  --color-accent-soft: #1a1a1a;
-  --color-accent-bg: #1e1e1e;
-  --color-accent-subtle: #141414;
-  --color-accent-high: #2a2a2a;
-  --color-accent-border-strong: #3a3a3a;
+  --color-accent: #d4d4d4;
+  --color-accent-hover: #e5e5e5;
+  --color-accent-light: #b2b2b2;
+  --color-accent-soft: #282828;
+  --color-accent-bg: #2c2c2c;
+  --color-accent-subtle: #222222;
+  --color-accent-high: #383838;
+  --color-accent-border-strong: #484848;
 
   /* ── Semantic — 仅 success 保留绿 ── */
   --color-success: #22c55e;
-  --color-success-bg: #0a2e14;
-  --color-success-border: #166534;
+  --color-success-bg: #12361c;
+  --color-success-border: #1f743f;
   --color-warning: #f59e0b;
-  --color-warning-bg: #1a1400;
-  --color-warning-border: #78350f;
+  --color-warning-bg: #221c08;
+  --color-warning-border: #8a4414;
   /* 委派通知状态三色(对标 macOS 红绿灯:绿 #28C840 / 黄 #FEBC2E / 红 #FF5F57) */
   --color-done: #28c840;
   --color-interrupt: #febc2e;
   --color-fail: #ff5f57;
   --color-danger: #ef4444;
-  --color-danger-bg: #2e0a0a;
-  --color-danger-border: #7f1d1d;
-  --color-danger-soft: #3a0a0a;
-  --color-success-soft: #0a1e0e;
+  --color-danger-bg: #361212;
+  --color-danger-border: #8f2424;
+  --color-danger-soft: #421212;
+  --color-success-soft: #122616;
   --color-success-high: color-mix(in oklab, var(--color-success) 20%, transparent);
   /* 任务执行呼吸灯:暗色灰白 */
-  --task-breath-dim: #1e1e1e;
+  --task-breath-dim: #2c2c2c;
   --task-breath-bright: #cccccc33;
   --task-breath-glow: #cccccc2e;
   --color-info: #22d3ee;
-  --color-info-bg: #0a1a1e;
-  --color-info-soft: #0a1a1e;
+  --color-info-bg: #122226;
+  --color-info-soft: #122226;
   --color-info-high: color-mix(in oklab, var(--color-info) 20%, transparent);
 
   /* ── Status dots — 仅 green + red 有色 ─── */
-  --color-dot-gray: #3a3a3a;
+  --color-dot-gray: #444444;
   --color-dot-green: #22c55e;
   --color-dot-amber: #f59e0b;
   --color-dot-red: #ef4444;
@@ -353,64 +353,64 @@ html[data-platform="win32"] {
   --thinking-label: #c084fc;
 
   /* ── Code highlight — 灰度 ───────── */
-  --color-code-kw: #aaaaaa;
-  --color-code-str: #999999;
-  --color-code-fn: #cccccc;
-  --color-code-cm: #666666;
-  --color-code-num: #999999;
-  --color-code-type: #aaaaaa;
+  --color-code-kw: #b2b2b2;
+  --color-code-str: #a1a1a1;
+  --color-code-fn: #d4d4d4;
+  --color-code-cm: #6e6e6e;
+  --color-code-num: #a1a1a1;
+  --color-code-type: #b2b2b2;
 
   /* ── Editor ─────────────────────── */
-  --color-editor-bg: #0d0d0d;
-  --color-editor-gutter-bg: #161616;
-  --color-editor-line-highlight: #2a2a2a;
+  --color-editor-bg: #1b1b1b;
+  --color-editor-gutter-bg: #242424;
+  --color-editor-line-highlight: #383838;
 
   /* ── Monaco ─────────────────────── */
-  --color-monaco-bg: #0d0d0e;
-  --color-monaco-fg: #cccccd;
-  --color-monaco-line-highlight: #2a2a2b;
-  --color-monaco-selection: #333334;
-  --color-monaco-inactive-selection: #161617;
-  --color-monaco-gutter-bg: #161617;
-  --color-monaco-widget-bg: #363637;
-  --color-monaco-widget-border: #2a2a2b;
+  --color-monaco-bg: #1b1b1c;
+  --color-monaco-fg: #d4d4d5;
+  --color-monaco-line-highlight: #383839;
+  --color-monaco-selection: #414142;
+  --color-monaco-inactive-selection: #242425;
+  --color-monaco-gutter-bg: #242425;
+  --color-monaco-widget-bg: #444445;
+  --color-monaco-widget-border: #383839;
   --color-monaco-focus: var(--color-accent);
   --color-monaco-cursor: var(--color-accent);
-  --color-monaco-line-number: #555556;
+  --color-monaco-line-number: #636364;
   --color-monaco-line-number-active: var(--color-accent);
 
   /* ── Terminal ────────────────────── */
-  --color-terminal-bg: #0d0d0d;
-  --color-terminal-text: #cccccc;
+  --color-terminal-bg: #1b1b1b;
+  --color-terminal-text: #d4d4d4;
 
   /* ── File type icons — 灰度区分 ──── */
-  --color-file-doc-bg: #161616;
-  --color-file-doc-stroke: #999999;
-  --color-file-code-bg: #161616;
-  --color-file-code-stroke: #aaaaaa;
-  --color-file-data-bg: #161616;
-  --color-file-data-stroke: #999999;
-  --color-file-config-bg: #161616;
-  --color-file-config-stroke: #aaaaaa;
-  --color-file-other-bg: #161616;
-  --color-file-other-stroke: #777777;
+  --color-file-doc-bg: #242424;
+  --color-file-doc-stroke: #a1a1a1;
+  --color-file-code-bg: #242424;
+  --color-file-code-stroke: #b2b2b2;
+  --color-file-data-bg: #242424;
+  --color-file-data-stroke: #a1a1a1;
+  --color-file-config-bg: #242424;
+  --color-file-config-stroke: #b2b2b2;
+  --color-file-other-bg: #242424;
+  --color-file-other-stroke: #7f7f7f;
 
   /* ── Code block ────────────────── */
-  --color-code-block-bg: #2a2a2a;
-  --color-code-block-header: #363636;
+  --color-code-block-bg: #383838;
+  --color-code-block-header: #444444;
 
   /* ── v3 Layer tokens（暗色反向：L0 最暗 → L4 最亮）── */
-  --color-canvas: #0a0a0a;
-  --color-sidebar: #0f0f0f;
-  --color-sidebar-hover: #181818;
-  --color-sidebar-active: #1c1c1c;
-  --color-content: #0c0c0c;
-  --color-card: #141414;
-  --color-card-agent: #161616;
-  --color-elevated: #1c1c1c;
-  --color-input-field: #131313;
-  --color-tab-active: #1c1c1c;
-  --color-divider: #1e1e1e;
+  --color-canvas: #181818;
+  --color-sidebar: #1d1d1d;
+  --color-sidebar-hover: #262626;
+  --color-sidebar-active: #2a2a2a;
+  --color-content: #1a1a1a;
+  --color-card: #222222;
+  --color-card-agent: #242424;
+  --color-elevated: #2a2a2a;
+  --color-input-field: #212121;
+  --color-tab-active: #2a2a2a;
+  --color-divider: #2c2c2c;
 
   /* 暗色阴影补偿 — inset 顶高光 */
   --shadow-xs: 0 1px 2px rgba(0,0,0,0.4);
