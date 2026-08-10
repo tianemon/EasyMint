@@ -90,32 +90,38 @@ function BuiltinToolsSection(): JSX.Element {
             </div>
             {on && (
               <div className="mt-2">
-                {key === "vision" && (
+                {key === "vision" && (() => {
+                  const isAnthropic = apiKeys["VISION_MODE"] === "anthropic";
+                  return (
                   <div className="mb-2">
                     <label className="text-[10px] text-text-secondary block mb-1">API 模式</label>
                     <div className="flex gap-4 text-xs text-text-primary">
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <input type="radio" name="vision-mode" className="accent-[var(--color-accent)]"
-                          checked={(apiKeys["VISION_MODE"] || "openai") !== "anthropic"}
+                          checked={!isAnthropic}
                           onChange={() => saveKey("VISION_MODE", "openai")} />
                         OpenAI 兼容
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <input type="radio" name="vision-mode" className="accent-[var(--color-accent)]"
-                          checked={apiKeys["VISION_MODE"] === "anthropic"}
+                          checked={isAnthropic}
                           onChange={() => saveKey("VISION_MODE", "anthropic")} />
                         Anthropic 兼容
                       </label>
                     </div>
-                    <label className="text-[10px] text-text-secondary block mb-1 mt-2">API 地址（OpenAI 兼容，默认公共 DashScope）</label>
+                    <label className="text-[10px] text-text-secondary block mb-1 mt-2">
+                      API 地址（{isAnthropic ? "Anthropic" : "OpenAI"} 兼容，默认公共 DashScope）
+                    </label>
                     <input type="text"
                       className="w-full px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
-                      defaultValue={apiKeys["VISION_BASE_URL"] || ""} placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
+                      defaultValue={apiKeys["VISION_BASE_URL"] || ""}
+                      placeholder={isAnthropic ? "https://dashscope.aliyuncs.com/apps/anthropic" : "https://dashscope.aliyuncs.com/compatible-mode/v1"}
                       onBlur={(e) => { const v = e.target.value.trim(); if (v !== (apiKeys["VISION_BASE_URL"] || "")) saveKey("VISION_BASE_URL", v); }}
                       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                     />
                   </div>
-                )}
+                  );
+                })()}
                 <label className="text-[10px] text-text-secondary block mb-1">{keyId}</label>
                 <div className="relative">
                   <input type={showKey ? "text" : "password"}
