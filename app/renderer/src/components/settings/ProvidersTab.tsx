@@ -90,6 +90,17 @@ function BuiltinToolsSection(): JSX.Element {
             </div>
             {on && (
               <div className="mt-2">
+                {key === "vision" && (
+                  <div className="mb-2">
+                    <label className="text-[10px] text-text-secondary block mb-1">API 地址（默认公共 DashScope）</label>
+                    <input type="text"
+                      className="w-full px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
+                      defaultValue={apiKeys["VISION_BASE_URL"] || ""} placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
+                      onBlur={(e) => { const v = e.target.value.trim(); if (v !== (apiKeys["VISION_BASE_URL"] || "")) saveKey("VISION_BASE_URL", v); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                    />
+                  </div>
+                )}
                 <label className="text-[10px] text-text-secondary block mb-1">{keyId}</label>
                 <div className="relative">
                   <input type={showKey ? "text" : "password"}
@@ -108,25 +119,14 @@ function BuiltinToolsSection(): JSX.Element {
                   </button>
                 </div>
                 {key === "vision" && (
-                  <div className="mt-2 space-y-2">
-                    <div>
-                      <label className="text-[10px] text-text-secondary block mb-1">模型（默认 qwen3.7-flash）</label>
-                      <input type="text"
-                        className="w-full px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
-                        defaultValue={apiKeys["VISION_MODEL"] || ""} placeholder="qwen3.7-flash"
-                        onBlur={(e) => { const v = e.target.value.trim(); if (v !== (apiKeys["VISION_MODEL"] || "")) saveKey("VISION_MODEL", v); }}
-                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-text-secondary block mb-1">API 地址（默认公共 DashScope）</label>
-                      <input type="text"
-                        className="w-full px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
-                        defaultValue={apiKeys["VISION_BASE_URL"] || ""} placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
-                        onBlur={(e) => { const v = e.target.value.trim(); if (v !== (apiKeys["VISION_BASE_URL"] || "")) saveKey("VISION_BASE_URL", v); }}
-                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                      />
-                    </div>
+                  <div className="mt-2">
+                    <label className="text-[10px] text-text-secondary block mb-1">模型（默认 qwen3.7-flash）</label>
+                    <input type="text"
+                      className="w-full px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
+                      defaultValue={apiKeys["VISION_MODEL"] || ""} placeholder="qwen3.7-flash"
+                      onBlur={(e) => { const v = e.target.value.trim(); if (v !== (apiKeys["VISION_MODEL"] || "")) saveKey("VISION_MODEL", v); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                    />
                   </div>
                 )}
                 <div className="text-[10px] text-text-muted mt-1">{keyHint}</div>
