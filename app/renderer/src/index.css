@@ -290,7 +290,7 @@ html[data-platform="win32"] {
   --color-surface: #1b1b1b;            /* 最外层底色（标题栏、工具栏） */
   --color-surface-alt: #242424;        /* 面板背景（聊天区、文件、任务面板） */
   --color-surface-hover: #2e2e2e;      /* hover 态 */
-  --color-surface-elevated: #383838;   /* 弹窗/卡片（最内层，最亮） */
+  --color-surface-elevated: #1c1c1c;   /* 弹窗/菜单/浮层——与输入卡片同档,层次靠 border+shadow 区分 */
 
   --color-overlay: rgba(0, 0, 0, 0.85);
   --color-tooltip-bg: #cccccc;
@@ -411,7 +411,7 @@ html[data-platform="win32"] {
   --color-content: #141414;
   --color-card: #222222;
   --color-card-agent: #1c1c1c;  /* 与输入卡片(input-card)同色 */
-  --color-elevated: #2a2a2a;
+  --color-elevated: #1c1c1c;  /* 与输入卡片同档 */
   --color-input-field: #212121;
   --color-tab-active: #1c1c1c;  /* 未选中 tab 底色,与输入卡片同色 */
   --color-divider: #2c2c2c;
