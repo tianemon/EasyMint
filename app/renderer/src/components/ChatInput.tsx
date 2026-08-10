@@ -190,11 +190,6 @@ export const ChatInput = memo(function ChatInput({
         <button className="inp-icon-btn" title="上传文档" onClick={() => docInputRef.current?.click()}>
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M3 2h7l4 4v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M10 2v4h4M6 9h4M6 12h4"/></svg>
         </button>
-        {sessionId && !sessionId.startsWith("__new_") && (
-          <button className="inp-icon-btn" title="会话统计" onClick={onStatsClick}>
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="2"/><path d="M5 11V7M8 11V5M11 11V9"/></svg>
-          </button>
-        )}
         {/* 后台指示器胶囊:agent/shell 按出现顺序排列,谁先出现谁靠左;按会话过滤(委派是主会话发起的) */}
         <div className="flex items-center gap-2 shrink-0">
           {indicatorOrder.map((k) => (k === "agent" ? <AgentBar key="agent" sessionId={sessionId} /> : <ShellBar key="shell" sessionId={sessionId} />))}

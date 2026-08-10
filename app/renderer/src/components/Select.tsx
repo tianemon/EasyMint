@@ -101,7 +101,7 @@ export function Select({ value, onChange, options, title, className, block, plac
       >
         <span className={`flex items-center gap-1.5 ${block ? "min-w-0" : ""}`}>
           {current?.icon && <img src={current.icon} className="w-3.5 h-3.5 shrink-0 object-contain" alt="" />}
-          <span className={block ? "truncate" : "truncate max-w-[90px]"}>{current?.label ?? placeholder ?? value}</span>
+          <span className={block ? "truncate" : "truncate max-w-[160px]"}>{current?.label ?? placeholder ?? value}</span>
         </span>
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 text-text-secondary ${block ? "" : ""}`}><path d="M2 3.5l3 3 3-3" /></svg>
       </button>
