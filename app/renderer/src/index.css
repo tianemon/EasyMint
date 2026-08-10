@@ -405,7 +405,7 @@ html[data-platform="win32"] {
 
   /* ── v3 Layer tokens（暗色反向：L0 最暗 → L4 最亮）── */
   --color-canvas: #181818;
-  --color-sidebar: #181818;  /* 与输入卡片(input-card)同色 */
+  --color-sidebar: #1c1c1c;  /* 与输入卡片(input-card)同色 */
   --color-sidebar-hover: #262626;
   --color-sidebar-active: #2a2a2a;
   --color-content: #141414;
@@ -429,8 +429,8 @@ html[data-platform="win32"] {
   /* 用户气泡:深灰(略亮于 AI 气泡 card-agent #242424 以区分),文字转亮色 */
   --msg-user-bg: #2c2c2c;
   --msg-user-text: var(--color-text-primary);
-  /* 输入卡片:比 elevated(#2a2a2a)深两档,独立变量避免影响弹窗等 elevated 使用者 */
-  --color-input-card: #181818;
+  /* 输入卡片:还原 elevated 原值(独立变量保留,便于将来单独调) */
+  --color-input-card: #1c1c1c;
 }
 
 /* ── Dark mode overrides ──────────────────────────────── */
