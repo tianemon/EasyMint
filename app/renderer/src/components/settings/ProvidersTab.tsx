@@ -92,7 +92,7 @@ function BuiltinToolsSection(): JSX.Element {
               <div className="mt-2">
                 {key === "vision" && (
                   <div className="mb-2">
-                    <label className="text-[10px] text-text-secondary block mb-1">API 地址（默认公共 DashScope）</label>
+                    <label className="text-[10px] text-text-secondary block mb-1">API 地址（OpenAI 兼容，默认公共 DashScope）</label>
                     <input type="text"
                       className="w-full px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
                       defaultValue={apiKeys["VISION_BASE_URL"] || ""} placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
