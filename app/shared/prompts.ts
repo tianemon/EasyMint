@@ -143,7 +143,7 @@ G1 需求意图 → G2 范围（过大先切 MVP）→ G3 原型（中等以上�
 **2. 项目生命周期**
 - 自动判断项目场景（纯前端/全栈/CLI/API/移动端/库），选对应规范和验收方式
 - 接手项目先判复杂度，按项目规模决定文档和流程：
-  - 极简（单文件、无依赖、无多页面/多路由）：直接写代码，不写需求文档、技术架构、task.json
+  - 极简（单文件、无依赖、无多页面/多路由）：直接写代码，不写需求文档、技术架构、task.json。**静态 HTML 单页属于此类**——纯 HTML/CSS/JS 无需构建工具和 dev server，直接用浏览器打开 index.html 即可，不要为它引入 React/Vite 等框架或创建服务器
   - 简单（几个文件、少量依赖、功能点 ≤ 3）：写需求文档和 task.json，跳过技术架构
   - 中等及以上（多模块、有数据库/后端、功能点 > 3）：完整流程——需求文档 + 技术架构 + task.json + Builder/Evaluator 驱动
 - **快速启动模式**：用户说「直接开始」「快开始」「跳过文档」→ 跳过需求文档和技术架构，直接生成 task.json 开始开发，文档后台按需补齐
@@ -232,6 +232,7 @@ task.json 有未完成任务 + 用户说「继续」「执行」「开始」等�
 - run_command：启动命令，如 npm run dev、python main.py、flutter run
 - url：启动后访问地址，如 http://localhost:3000
 - 多入口（前后端分离、跨平台）写多条
+- **静态 HTML 页面（纯 HTML/CSS/JS，无构建工具、无 npm 依赖）不需要开发服务器**：run_command 用 open index.html（mac 直接打开）或 python3 -m http.server 8000（本地静态托管），url 对应 file:// 路径或 http://localhost:8000。不要为静态页面无谓创建 dev server 或引入框架构建
 
 中断恢复：不要只读 status 字段确认进度。读 task.json + docs/开发进度.md 快照 + docs/开发记录/ 明细 + git log/diff + escalation.json，自行判断每个任务的真实状态（代码是否已写、是否已验收），以核实结果为准推进。检查 escalation.json 优先汇报。
 需求变更：评估影响，已完成保留，更新受影响项，新增追加末尾。变重大先告知。
@@ -305,7 +306,7 @@ const BASE_PROFILES: Record<ProductType, ProjectProfile> = {
     id: "web", label: "Web 应用",
     initSteps: `项目为 Web 应用。\n- docs/技术架构.md 需包含前端架构说明`,
     platformSpec: `## Web 开发规范\n- 优先使用语义化 HTML，SEO 友好\n- 响应式设计：移动端、平板、桌面端均需适配\n- 交互反馈：按钮 hover/active 态、加载状态、空状态、错误提示\n- 表单验证：必填校验、格式校验、提交前防重复\n- 错误边界：关键 UI 区块需有 ErrorBoundary 兜底\n- 可访问性：合理的 color contrast、focus 样式、aria 标签`,
-    evaluatorHint: `Web 项目：启动 dev server → Playwright 截图验证 UI → 检查控制台无报错`,
+    evaluatorHint: `Web 项目：静态 HTML 直接用 Playwright 打开 index.html 验证；有构建工具的先启动 dev server 再截图验证`,
     suggestedStack: ["React", "Vite", "Tailwind CSS"],
   },
   desktop: {
@@ -620,8 +621,9 @@ export const EVALUATOR_AGENT_PROMPT = `你是 EasyMint 的 Evaluator Agent，负
 4. 判断项目类型，按对应方式验收：
 
 **Web 项目（有前端页面）：**
-- 启动开发服务器
-- 用 Playwright 打开对应页面，模拟用户操作流程（点击、输入、导航）
+- 静态 HTML（无构建工具、无 npm 依赖）：直接用 Playwright 打开 index.html 验证，无需启动 dev server
+- 有构建工具的应用（React/Vue 等）：先启动开发服务器，再用 Playwright 打开页面
+- 用 Playwright 模拟用户操作流程（点击、输入、导航）
 - 截图分析 UI 是否正确：布局、颜色、间距、文案是否符合规格
 - 验证交互逻辑：点击有响应、表单能提交、状态切换正确、表单验证生效
 - 检查控制台无 JS 报错
