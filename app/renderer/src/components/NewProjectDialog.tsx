@@ -1,16 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildTechRecommendPrompt, buildInitTriggerPrompt, buildDirectoryTranslationPrompt, buildDirectCreatePrompt, buildInitInstruction, detectProfile, composeProfile, systemMessage } from "../../../shared/prompts";
+import { buildProjectCreatedPrompt, buildDirectoryTranslationPrompt, buildDirectCreatePrompt, buildInitTriggerPrompt, buildInitInstruction, detectProfile, composeProfile, systemMessage } from "../../../shared/prompts";
 import type { ProjectDimensions, DeployMode } from "../../../shared/prompts";
-import { StepDots, Step1Form, Step2Form, Step3Form, Step4Form } from "./new-project/StepComponents";
-import { ALL_STEPS, DEFAULT_DATA, TARGET_OPTIONS, type ProjectFormData, type FeatureItem } from "./new-project/ProjectFormTypes";
+import { StepDots, Step1Form, Step2Form } from "./new-project/StepComponents";
+import { ALL_STEPS, DEFAULT_DATA, TARGET_OPTIONS, type ProjectFormData } from "./new-project/ProjectFormTypes";
 import { useMintChat } from "./new-project/useMintChat";
 
 // ---- Helpers ----
-
-function getVisibleSteps(targets: string[]) {
-  if (targets.length === 1 && targets[0] === "cli") return ALL_STEPS.filter((s) => s.number !== 3);
-  return ALL_STEPS;
-}
 
 function actualStepNumber(visibleSteps: typeof ALL_STEPS, currentIndex: number): number {
   return visibleSteps[currentIndex]?.number ?? 1;
@@ -22,30 +17,14 @@ function buildContext(data: ProjectFormData, step?: number): string {
   const push = (s: string) => parts.push(s);
 
   // Step 1: always include basics
-  push(`名称「${data.name}」，项目形式「${targets}」，描述「${data.description}」，目标用户「${data.targetUsers}」，完成度「${data.completeness}」`);
+  push(`名称「${data.name}」，项目形式「${targets}」，完成度「${data.completeness}」`);
 
-  // Step 2+: include features
+  // Step 2+: include deploy + AI + budget
   if (!step || step >= 2) {
-    const features = data.features.map((f) => f.name).join("；");
-    push(`功能清单：「${features || "无"}"」`);
-  }
-
-  // Step 3+: include UI style
-  if (!step || step >= 3) {
-    push(`UI 风格「${data.uiStyle || "未指定"}」`);
-  }
-
-  // Step 4+: include tech stack
-  if (!step || step >= 4) {
-    if (data.techNotes) push(`技术偏好「${data.techNotes}」`);
-    push(`预算「${data.techBudget}」`);
-  }
-
-  // Step 4: include deploy + AI
-  if (!step || step >= 4) {
     push(`部署「${data.deployPlatform}」`);
     const aiLabel = data.aiIntegration === "none" ? "无" : data.aiIntegration === "assistant" ? "AI 辅助" : data.aiIntegration === "agent" ? "Agent 自主决策" : "多 Agent 协作";
     push(`AI 集成「${aiLabel}」`);
+    push(`预算「${data.techBudget}」`);
   }
 
   return `项目信息：${parts.join("。")}。`;
@@ -67,19 +46,17 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const pathRef = useRef<string | null>(null);
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
-  const [loadingRec, setLoadingRec] = useState<string | null>(null);
   const { ask, askWorkspace, sidRef } = useMintChat(pathRef);
 
   const updateData = useCallback((patch: Partial<ProjectFormData>) => setData((prev) => ({ ...prev, ...patch })), []);
 
-  const visibleSteps = getVisibleSteps(data.targets);
+  const visibleSteps = ALL_STEPS;
 
   useEffect(() => {
     if (currentStep >= visibleSteps.length) setCurrentStep(visibleSteps.length - 1);
   }, [visibleSteps.length, currentStep]);
 
   const stepNumber = actualStepNumber(visibleSteps, currentStep);
-  const stepInfo = ALL_STEPS[stepNumber - 1];
   const isLastStep = currentStep === visibleSteps.length - 1;
 
   const canNext = () => {
@@ -130,48 +107,6 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     }
   };
 
-  const handleRecommendFeatures = async () => {
-    setLoadingRec("features");
-    const ctx = `项目名称：${data.name}，${buildContext(data, 1)}`;
-    const featurePrompt = buildFeatureRecommendPrompt(ctx);
-    const resp = await ask(featurePrompt, { systemPayload: systemMessage("flow", featurePrompt) });
-    setLoadingRec(null);
-    if (resp) {
-      // Extract the first contiguous block of bullet-point lines only.
-      // Stop at the first non-bullet line to avoid mixing in analysis text.
-      const parsed: FeatureItem[] = [];
-      for (const raw of resp.split("\n")) {
-        const line = raw.trim();
-        if (/^[-•*]\s/.test(line)) {
-          const name = line.replace(/^[-•*]\s*/, "");
-          if (name) parsed.push({ name });
-        } else if (parsed.length > 0) {
-          break; // end of bullet block — skip commentary below
-        }
-      }
-      if (parsed.length > 0) {
-        const current = data.features;
-        if (current.length === 0) {
-          updateData({ features: parsed });
-        } else {
-          updateData({ features: [...current, ...parsed] });
-        }
-      }
-    }
-  };
-
-  const handleRecommend = async () => {
-    setLoadingRec("tech");
-    const info = `项目名称：${data.name}，${buildContext(data, 4)}`;
-    const techPrompt = buildTechRecommendPrompt(info, data.techNotes);
-    const resp = await ask(techPrompt, { systemPayload: systemMessage("flow", techPrompt) });
-    setLoadingRec(null);
-    if (resp) {
-      const text = resp.trim();
-      updateData({ techNotes: text });
-    }
-  };
-
   const handleCancel = async () => {
     if (createdProject) {
       await window.electronAPI.project.delete(createdProject.id).catch(() => {});
@@ -190,7 +125,8 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
         const dims: ProjectDimensions = {
           product: detectProfile(data.targets).id as any,
           deploy: (data.deployPlatform === "云端" ? "cloud" : data.deployPlatform === "混合" ? "hybrid" : "local") as DeployMode,
-          complexity: "medium",
+          // 完成度映射流程深度:完整版→中等(full 流程) / MVP→简单(需求+task.json) / 演示版→极简(跳过文档)
+          complexity: data.completeness === "full" ? "medium" : data.completeness === "mvp" ? "simple" : "minimal",
           ai: data.aiIntegration,
           storage: data.deployPlatform === "云端" ? "postgres" : "sqlite",
           productUsesAI: data.aiIntegration !== "none",
@@ -267,9 +203,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   const renderStepContent = () => {
     switch (stepNumber) {
       case 1: return <Step1Form data={data} onChange={updateData} />;
-      case 2: return <Step2Form data={data} onChange={updateData} onRecommendFeatures={handleRecommendFeatures} loadingRec={loadingRec} />;
-      case 3: return <Step3Form data={data} onChange={updateData} />;
-      case 4: return <Step4Form data={data} onChange={updateData} onRecommend={handleRecommend} loadingRec={loadingRec} />;
+      case 2: return <Step2Form data={data} onChange={updateData} />;
       default: return null;
     }
   };
@@ -286,11 +220,6 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
 
         <div className="px-6 pb-1 shrink-0">
           <p className="text-[11px] text-text-muted">填完表单后，Mint 会带你经历：需求确认 → 界面原型 → 开发 → 完成</p>
-        </div>
-
-        <div className="px-6 pb-1 shrink-0">
-          <p className="text-xs text-text-secondary">Step {stepNumber}/{ALL_STEPS.length} · {stepInfo?.title}</p>
-          <p className="text-sm text-text-secondary mt-0.5">{stepInfo?.desc}</p>
         </div>
 
         <div className="px-6 py-4 overflow-y-auto flex-1">{renderStepContent()}</div>
@@ -316,9 +245,9 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
               {initializing ? "创建中..." : "创建项目"}
             </button>
           )}
+          </div>
         </div>
       </div>
-    </div>
     </div>
   );
 }

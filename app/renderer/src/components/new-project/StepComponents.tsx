@@ -1,9 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
-  TARGET_OPTIONS, COMPLETENESS_OPTIONS, UI_STYLE_OPTIONS, BUDGET_OPTIONS,
-  FRONTEND_LANG_OPTIONS, FRONTEND_FRAMEWORK_OPTIONS, BACKEND_LANG_OPTIONS,
-  BACKEND_FRAMEWORK_OPTIONS, CROSS_PLATFORM_OPTIONS,
-  type TechOption, type FeatureItem, type ProjectFormData, type BudgetChoice,
+  TARGET_OPTIONS, COMPLETENESS_OPTIONS, BUDGET_OPTIONS,
+  type ProjectFormData, type BudgetChoice,
 } from "./ProjectFormTypes";
 import type { AIIntegration } from "../../../../shared/prompts";
 
@@ -84,27 +82,7 @@ function Select({ value, onChange, options, placeholder }: { value: string; onCh
   );
 }
 
-function ChipGroup({ label, options, onSelect }: { label: string; options: TechOption[]; onSelect: (label: string) => void }): JSX.Element {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-text-secondary mb-1">{label}</label>
-      <div className="flex flex-wrap gap-1">
-        {options.map((o) => (
-          <button
-            key={o.value}
-            className="tip px-2 py-1 rounded border border-border text-xs text-text-secondary hover:border-accent/40 hover:text-text-primary transition-colors"
-            onClick={() => onSelect(o.label)}
-            data-tip={o.desc}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ---- Step 1: Overview ----
+// ---- Step 1: 基本信息 ----
 
 function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void }): JSX.Element {
   const updateTarget = (i: number, value: string) => {
@@ -128,11 +106,6 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
         <p className="text-[11px] text-text-secondary mt-1">作为文件夹名，中文可能导致路径兼容问题</p>
       </div>
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">项目描述 <span className="text-text-muted text-xs font-normal">（可选，AI 帮你定）</span></label>
-        <textarea className="input min-h-[60px] resize-y" value={data.description} onChange={(e) => onChange({ description: e.target.value })} placeholder="简单描述这个项目是做什么的..." />
-        <p className="text-[11px] text-text-secondary mt-1">例如：我想做一个记录每天花销的记账软件，给自己用</p>
-      </div>
-      <div>
         <label className="block text-sm font-medium text-text-primary mb-2">项目目录 <span className="text-danger">*</span></label>
         <button
           className="w-full px-3 py-2 rounded-lg bg-surface-alt border border-border text-left text-sm hover:bg-surface-hover transition-colors"
@@ -141,11 +114,6 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
           <span className="text-text-secondary">{data.dir || "点击选择目录..."}</span>
         </button>
         <p className="text-[10px] text-text-secondary mt-1">默认路径可在设置中修改。不选则使用默认路径</p>
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">目标用户 <span className="text-text-muted text-xs font-normal">（可选）</span></label>
-        <input className="input" value={data.targetUsers} onChange={(e) => onChange({ targetUsers: e.target.value })} placeholder="例如：个人用户、小团队、企业内部..." />
-        <p className="text-[11px] text-text-secondary mt-1">例如：我本人、我的家人、我的客户</p>
       </div>
 
       <div>
@@ -190,129 +158,11 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
   );
 }
 
-// ---- Step 2: Features ----
+// ---- Step 2: 交付方式 ----
 
-function Step2Form({
-  data, onChange, onRecommendFeatures, loadingRec,
-}: {
-  data: ProjectFormData;
-  onChange: (p: Partial<ProjectFormData>) => void;
-  onRecommendFeatures: () => void;
-  loadingRec: string | null;
-}): JSX.Element {
-  const addFeature = () => {
-    onChange({ features: [...data.features, { name: "" }] });
-  };
-
-  const updateFeature = (idx: number, f: Partial<FeatureItem>) => {
-    const next = [...data.features];
-    next[idx] = { ...next[idx]!, ...f };
-    onChange({ features: next });
-  };
-
-  const removeFeature = (idx: number) => {
-    onChange({ features: data.features.filter((_, i) => i !== idx) });
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between mb-2">
-        <label className="block text-sm font-medium text-text-primary">功能清单 <span className="text-text-muted text-xs font-normal">（可选，可让 Mint 推荐）</span></label>
-        <div className="flex gap-2">
-          <button className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors disabled:opacity-40" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
-            {loadingRec === "features" ? "Mint 思考中..." : "Mint 推荐"}
-          </button>
-          <button className="px-3 py-1.5 rounded-lg border border-accent-border-strong text-accent text-xs hover:border-accent hover:bg-accent-bg transition-colors" onClick={addFeature}>+ 添加功能</button>
-        </div>
-      </div>
-      {data.features.length === 0 && !loadingRec && (
-        <p className="text-xs text-text-secondary py-3 text-center">暂无功能，点击"+ 添加功能"或"Mint 推荐"开始。</p>
-      )}
-      {loadingRec === "features" && (
-        <p className="text-xs text-text-secondary py-3 text-center animate-pulse">Mint 正在根据项目信息推荐功能...</p>
-      )}
-      {data.features.map((f, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <input
-            className="flex-1 input"
-            value={f.name}
-            onChange={(e) => updateFeature(i, { name: e.target.value })}
-            placeholder={`功能 ${i + 1}`}
-          />
-          <button className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-danger transition-colors text-xs shrink-0" onClick={() => removeFeature(i)}>✕</button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ---- Step 3: Visual Style ----
-
-function Step3Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void }): JSX.Element {
-  const selectedOption = UI_STYLE_OPTIONS.find((o) => o.value === data.uiStyle);
-  const isCustom = !selectedOption && data.uiStyle !== "";
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">想要什么 UI 风格？ <span className="text-text-muted text-xs font-normal">（可选，让 Mint 推荐）</span></label>
-        <input
-          className="input"
-          value={isCustom ? data.uiStyle : ""}
-          onChange={(e) => onChange({ uiStyle: e.target.value })}
-          placeholder="自定义风格描述，例如：赛博朋克+极简主义混搭..."
-        />
-      </div>
-      <div>
-        <label className="block text-xs text-text-secondary mb-1.5">或者从经典风格中选择：</label>
-        <Select
-          value={isCustom ? "" : data.uiStyle}
-          onChange={(v) => onChange({ uiStyle: v })}
-          options={UI_STYLE_OPTIONS}
-          placeholder="— 不限，让 Mint 推荐 —"
-        />
-      </div>
-    </div>
-  );
-}
-
-// ---- Step 4: Tech with Mint recommendation ----
-
-function Step4Form({
-  data, onChange, onRecommend, loadingRec,
-}: {
-  data: ProjectFormData;
-  onChange: (p: Partial<ProjectFormData>) => void;
-  onRecommend: () => void;
-  loadingRec: string | null;
-}): JSX.Element {
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const canRecommend = !loadingRec && data.techBudget !== undefined;
-
-  const appendToNotes = (label: string) => {
-    const current = data.techNotes.trim();
-    const toAdd = current ? `，${label}` : label;
-    onChange({ techNotes: current + toAdd });
-  };
-
+function Step2Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void }): JSX.Element {
   return (
     <div className="space-y-5">
-
-      {/* Budget */}
-      <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">开发运维成本 <span className="text-text-muted text-xs font-normal">（可选，AI 帮你定）</span></label>
-        <div className="flex gap-2">
-          {BUDGET_OPTIONS.map((opt) => {
-            const active = data.techBudget === opt.value;
-            return (
-              <button key={opt.value} className={`flex-1 p-3 rounded-lg border transition-colors text-left ${active ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`} onClick={() => onChange({ techBudget: opt.value as BudgetChoice })}>
-                <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
-                <div className="text-xs text-text-secondary mt-0.5">{opt.desc}</div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
 
       {/* AI 集成 */}
       <div>
@@ -365,51 +215,23 @@ function Step4Form({
         </div>
       </div>
 
-      {/* Tech notes textarea + Mint recommend */}
+      {/* Budget */}
       <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="block text-sm font-medium text-text-primary">技术偏好 <span className="text-text-muted text-xs font-normal">（可选，让 Mint 推荐）</span></label>
-          <button
-            className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            onClick={onRecommend}
-            disabled={!canRecommend}
-          >
-            {loadingRec === "tech" ? "Mint 思考中..." : "Mint 推荐"}
-          </button>
+        <label className="block text-sm font-medium text-text-primary mb-2">开发运维成本 <span className="text-text-muted text-xs font-normal">（可选，AI 帮你定）</span></label>
+        <div className="flex gap-2">
+          {BUDGET_OPTIONS.map((opt) => {
+            const active = data.techBudget === opt.value;
+            return (
+              <button key={opt.value} className={`flex-1 p-3 rounded-lg border transition-colors text-left ${active ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`} onClick={() => onChange({ techBudget: opt.value as BudgetChoice })}>
+                <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
+                <div className="text-xs text-text-secondary mt-0.5">{opt.desc}</div>
+              </button>
+            );
+          })}
         </div>
-        {!canRecommend && (
-          <p className="text-[10px] text-text-secondary mb-1">选择成本后可使用 Mint 推荐</p>
-        )}
-        <textarea
-          className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent resize-none"
-          rows={3}
-          placeholder="让 Mint 帮你推荐，或者自己写，例如：前端用 React + TypeScript，后端用 Node.js"
-          value={data.techNotes}
-          onChange={(e) => onChange({ techNotes: e.target.value })}
-        />
-      </div>
-
-      {/* Advanced: tech chip quick-select, collapsed by default */}
-      <div>
-        <button
-          className="text-xs text-text-secondary hover:text-text-primary transition-colors flex items-center gap-1.5"
-          onClick={() => setShowAdvanced(!showAdvanced)}
-        >
-          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" className={`w-2.5 h-2.5 transition-transform ${showAdvanced ? "rotate-90" : ""}`}><path d="M4 2l4 4-4 4"/></svg>
-          有技术偏好吗？展开参考选项
-        </button>
-        {showAdvanced && (
-          <div className="mt-3 space-y-3 pl-4 border-l-2 border-border">
-            <ChipGroup label="前端语言" options={FRONTEND_LANG_OPTIONS} onSelect={appendToNotes} />
-            <ChipGroup label="前端框架" options={FRONTEND_FRAMEWORK_OPTIONS} onSelect={appendToNotes} />
-            <ChipGroup label="后端语言" options={BACKEND_LANG_OPTIONS} onSelect={appendToNotes} />
-            <ChipGroup label="后端框架" options={BACKEND_FRAMEWORK_OPTIONS} onSelect={appendToNotes} />
-            <ChipGroup label="多平台框架" options={CROSS_PLATFORM_OPTIONS} onSelect={appendToNotes} />
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
-export { StepDots, Step1Form, Step2Form, Step3Form, Step4Form };
+export { StepDots, Step1Form, Step2Form };
