@@ -283,6 +283,10 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
         <StepDots total={visibleSteps.length} current={currentStep} />
 
         <div className="px-6 pb-1 shrink-0">
+          <p className="text-[11px] text-text-muted">填完表单后，Mint 会带你经历：需求确认 → 界面原型 → 开发 → 完成</p>
+        </div>
+
+        <div className="px-6 pb-1 shrink-0">
           <p className="text-xs text-text-secondary">Step {stepNumber}/{ALL_STEPS.length} · {stepInfo?.title}</p>
           <p className="text-sm text-text-secondary mt-0.5">{stepInfo?.desc}</p>
         </div>

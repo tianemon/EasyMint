@@ -128,8 +128,9 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
         <p className="text-[11px] text-text-secondary mt-1">作为文件夹名，中文可能导致路径兼容问题</p>
       </div>
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">项目描述</label>
+        <label className="block text-sm font-medium text-text-primary mb-2">项目描述 <span className="text-text-muted text-xs font-normal">（可选，AI 帮你定）</span></label>
         <textarea className="input min-h-[60px] resize-y" value={data.description} onChange={(e) => onChange({ description: e.target.value })} placeholder="简单描述这个项目是做什么的..." />
+        <p className="text-[11px] text-text-secondary mt-1">例如：我想做一个记录每天花销的记账软件，给自己用</p>
       </div>
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">项目目录 <span className="text-danger">*</span></label>
@@ -142,8 +143,9 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
         <p className="text-[10px] text-text-secondary mt-1">默认路径可在设置中修改。不选则使用默认路径</p>
       </div>
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">目标用户</label>
+        <label className="block text-sm font-medium text-text-primary mb-2">目标用户 <span className="text-text-muted text-xs font-normal">（可选）</span></label>
         <input className="input" value={data.targetUsers} onChange={(e) => onChange({ targetUsers: e.target.value })} placeholder="例如：个人用户、小团队、企业内部..." />
+        <p className="text-[11px] text-text-secondary mt-1">例如：我本人、我的家人、我的客户</p>
       </div>
 
       <div>
@@ -167,7 +169,7 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">完成度</label>
+        <label className="block text-sm font-medium text-text-primary mb-2">完成度 <span className="text-text-muted text-xs font-normal">（可选，AI 帮你定）</span></label>
         <div className="flex gap-2">
           {COMPLETENESS_OPTIONS.map((opt) => {
             const active = data.completeness === opt.value;
@@ -215,7 +217,7 @@ function Step2Form({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between mb-2">
-        <label className="block text-sm font-medium text-text-primary">功能清单</label>
+        <label className="block text-sm font-medium text-text-primary">功能清单 <span className="text-text-muted text-xs font-normal">（可选，可让 Mint 推荐）</span></label>
         <div className="flex gap-2">
           <button className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors disabled:opacity-40" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
             {loadingRec === "features" ? "Mint 思考中..." : "Mint 推荐"}
@@ -253,7 +255,7 @@ function Step3Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">想要什么 UI 风格？</label>
+        <label className="block text-sm font-medium text-text-primary mb-2">想要什么 UI 风格？ <span className="text-text-muted text-xs font-normal">（可选，让 Mint 推荐）</span></label>
         <input
           className="input"
           value={isCustom ? data.uiStyle : ""}
@@ -298,7 +300,7 @@ function Step4Form({
 
       {/* Budget */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">开发运维成本</label>
+        <label className="block text-sm font-medium text-text-primary mb-2">开发运维成本 <span className="text-text-muted text-xs font-normal">（可选，AI 帮你定）</span></label>
         <div className="flex gap-2">
           {BUDGET_OPTIONS.map((opt) => {
             const active = data.techBudget === opt.value;
@@ -314,8 +316,9 @@ function Step4Form({
 
       {/* AI 集成 */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">AI 能力集成</label>
+        <label className="block text-sm font-medium text-text-primary mb-2">AI 能力集成 <span className="text-text-muted text-xs font-normal">（可选）</span></label>
         <p className="text-xs text-text-secondary mb-2">你的产品是否需要 AI 能力？这会影响技术架构。</p>
+        <p className="text-[11px] text-text-secondary mb-2">提示：AI 辅助 / Agent 需要接入大模型 API，按用量计费（轻量使用每月几块钱起；部分厂商有免费额度，但有时效性）。</p>
         <div className="flex gap-2">
           {[
             { value: "none", label: "不需要", desc: "无 AI" },
@@ -335,7 +338,7 @@ function Step4Form({
 
       {/* 部署方式 */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">部署方式</label>
+        <label className="block text-sm font-medium text-text-primary mb-2">部署方式 <span className="text-text-muted text-xs font-normal">（可选，AI 帮你定）</span></label>
         <p className="text-xs text-text-secondary mb-2">Mint 会根据此选择推荐合适的技术方案。</p>
         <div className="flex gap-2">
           <button
@@ -365,7 +368,7 @@ function Step4Form({
       {/* Tech notes textarea + Mint recommend */}
       <div>
         <div className="flex items-center justify-between mb-1.5">
-          <label className="block text-sm font-medium text-text-primary">技术偏好</label>
+          <label className="block text-sm font-medium text-text-primary">技术偏好 <span className="text-text-muted text-xs font-normal">（可选，让 Mint 推荐）</span></label>
           <button
             className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={onRecommend}
