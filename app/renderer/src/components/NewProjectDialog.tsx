@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildTechRecommendPrompt, buildInitTriggerPrompt, buildDirectoryTranslationPrompt, buildInitInstruction, detectProfile, composeProfile, systemMessage } from "../../../shared/prompts";
+import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildTechRecommendPrompt, buildInitTriggerPrompt, buildDirectoryTranslationPrompt, buildDirectCreatePrompt, buildInitInstruction, detectProfile, composeProfile, systemMessage } from "../../../shared/prompts";
 import type { ProjectDimensions, DeployMode } from "../../../shared/prompts";
 import { StepDots, Step1Form, Step2Form, Step3Form, Step4Form } from "./new-project/StepComponents";
 import { ALL_STEPS, DEFAULT_DATA, TARGET_OPTIONS, type ProjectFormData, type FeatureItem } from "./new-project/ProjectFormTypes";
@@ -221,6 +221,47 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     }
   };
 
+  /** 直接创建：跳过表单后续步骤,创建项目 + 发 direct-create 消息触发 Mint 对话引导补全信息 */
+  const handleDirectCreate = async () => {
+    if (creatingRef.current) return;
+    if (!data.name.trim()) { setCreateError("请先填写项目名称"); return; }
+    creatingRef.current = true;
+    setInitializing(true);
+    try {
+      // 确保项目已创建（若 step1 尚未走过,复用目录名翻译 + 创建逻辑）
+      if (!createdProject) {
+        let dirName = data.name.trim();
+        if (/[^\x00-\x7F]/.test(dirName)) {
+          try {
+            const translated = await askWorkspace(
+              buildDirectoryTranslationPrompt(dirName),
+              systemMessage("flow", buildDirectoryTranslationPrompt(dirName))
+            );
+            if (translated && /^[a-z0-9-]+$/.test(translated.trim())) dirName = translated.trim();
+          } catch { /* keep original name */ }
+        }
+        const project = await window.electronAPI.project.create({ name: dirName, path: data.dir.trim() });
+        setProjectPath(project.path);
+        pathRef.current = project.path;
+        setCreatedProject(project);
+        setCreateError(null);
+      }
+      // 发 direct-create 系统消息（携带项目名 + 已采集结构化信息快照）,Mint 开回合按 creation_flow 引导
+      const directPrompt = buildDirectCreatePrompt(data.name, buildContext(data));
+      await ask(directPrompt, { forceNewSession: true, systemPayload: systemMessage("direct-create", directPrompt) });
+      // 打开项目窗口与对话
+      const sid = sidRef.current;
+      onCreated(createdProject!, sid);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "创建项目失败";
+      setCreateError(msg);
+      console.error("[NewProjectDialog] direct create failed:", e);
+    } finally {
+      setInitializing(false);
+      creatingRef.current = false;
+    }
+  };
+
   const renderStepContent = () => {
     switch (stepNumber) {
       case 1: return <Step1Form data={data} onChange={updateData} />;
@@ -252,6 +293,9 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
           <button className="px-4 py-2 rounded-lg text-text-secondary text-sm hover:bg-surface-hover transition-colors disabled:opacity-30" disabled={currentStep === 0 || creating} onClick={goPrev}>上一步</button>
           <div className="flex gap-2">
             <button className="px-5 py-1.5 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={handleCancel}>取消项目</button>
+            <button className="px-5 py-1.5 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm disabled:opacity-50" disabled={initializing || creating} onClick={handleDirectCreate} title="跳过表单，让 Mint 在对话里引导你补全信息">
+              {initializing ? "创建中..." : "直接创建"}
+            </button>
             {!isLastStep ? (
             <button className="px-6 py-2 rounded-lg bg-accent text-text-inverse text-sm hover:bg-accent-hover transition-colors font-medium disabled:opacity-50" disabled={!canNext() || creating} onClick={goNext}>
               {creating ? (
