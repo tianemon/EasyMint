@@ -229,7 +229,9 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     setInitializing(true);
     try {
       // 确保项目已创建（若 step1 尚未走过,复用目录名翻译 + 创建逻辑）
-      if (!createdProject) {
+      // 用局部变量 project 保存,避免依赖尚未更新的 state（createdProject 为 null）
+      let project = createdProject;
+      if (!project) {
         let dirName = data.name.trim();
         if (/[^\x00-\x7F]/.test(dirName)) {
           try {
@@ -240,7 +242,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
             if (translated && /^[a-z0-9-]+$/.test(translated.trim())) dirName = translated.trim();
           } catch { /* keep original name */ }
         }
-        const project = await window.electronAPI.project.create({ name: dirName, path: data.dir.trim() });
+        project = await window.electronAPI.project.create({ name: dirName, path: data.dir.trim() });
         setProjectPath(project.path);
         pathRef.current = project.path;
         setCreatedProject(project);
@@ -251,7 +253,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
       await ask(directPrompt, { forceNewSession: true, systemPayload: systemMessage("direct-create", directPrompt) });
       // 打开项目窗口与对话
       const sid = sidRef.current;
-      onCreated(createdProject!, sid);
+      onCreated(project, sid);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "创建项目失败";
       setCreateError(msg);
