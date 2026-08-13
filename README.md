@@ -5,16 +5,16 @@
 <h1 align="center">EasyMint</h1>
 
 <p align="center">
-  <strong>不用懂代码，用 AI 造出自己的软件。</strong>
+  <strong>围绕 Pi Coding Agent 构建的通用 AI Agent 桌面软件，为不懂编程的人优化了「从想法到成品」的引导流程。</strong>
 </p>
 
 <p align="center">
   <a href="https://github.com/tianemon/EasyMint/releases"><img src="https://img.shields.io/github/v/release/tianemon/EasyMint?style=flat-square&color=16a34a" alt="Version" /></a>
+  <img src="https://img.shields.io/badge/Pi%20Coding%20Agent-0.84-blue?style=flat-square" alt="Pi Coding Agent" />
   <img src="https://img.shields.io/badge/Electron-43.2-47848f?style=flat-square&logo=electron&logoColor=white" alt="Electron" />
   <img src="https://img.shields.io/badge/TypeScript-6.0-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/React-19.2-61dafb?style=flat-square&logo=react&logoColor=white" alt="React" />
   <img src="https://img.shields.io/badge/platform-macOS%20|%20Windows-lightgrey?style=flat-square" alt="Platform" />
-  <img src="https://img.shields.io/badge/Pi%20Coding%20Agent-0.82-blue?style=flat-square" alt="Pi Coding Agent" />
   <img src="https://img.shields.io/badge/license-AGPL--3.0-green?style=flat-square" alt="License" />
 </p>
 
@@ -22,130 +22,110 @@
 
 ## 这是什么
 
-EasyMint 是一个面向零基础用户的 AI 编程助手桌面应用，核心理念是让不懂技术的人也能掌握 Vibe Coding。
+EasyMint 是一个**通用 AI Agent 桌面软件**，底层是 [Pi Coding Agent](https://github.com/pi-ai-engineering/pi-coding-agent) —— 企业级 AI 编程引擎。它不锁定任何项目形态，无论是新建项目、导入已有目录、还是打开任意代码库，都能用多 Agent 协作完成开发。
 
-打开软件不是面对一个空项目发呆 -- 项目创建向导会一步步引导你填写需求，不知道怎么描述？直接点 AI 推荐，你只需要说出自己想要的功能。底层基于 pi-coding-agent，提供企业级 AI 编程能力，不用担心专业性。内置提示词针对新手做了大量优化，全程中文引导，不会抛出一堆看不懂的技术术语。
+在此之上，EasyMint 针对一个具体痛点做了大量投入：**不懂编程的人，怎么从「一个模糊的想法」走到「一个能跑的软件」？** 为此它内置了完整的项目引导流程 —— 全中文表单 + 对话引导 + 原型确认，AI 帮你补全需求、出界面原型、定技术方案，你只需要点选、确认、提意见，全程不抛技术术语。
 
-内置了实用 Skill 和 MCP 工具，装好就能用。会话聊久了上下文太多导致模型能力下降？EasyMint 设计了自动总结压缩机制 -- 达到阈值自动整理，关键信息不丢失，上下文无缝衔接，对话越长越聪明。
+> 换句话说：EasyMint 对程序员是一个能用的通用 Agent 工作台；对编程小白，它把「造软件」这件事变得像填表和聊天一样简单。
 
-你的项目文件存在自己电脑上，不属于任何云服务。随时可以离开 EasyMint，用其他工具继续开发。
+## 核心特性
 
-## 设计理念
+- **对话式项目引导** —— 表单 + 直接创建双路径。表单采结构化信息（名称/场景/功能/风格/交付），直接创建则让 AI 从头引导；「场景定流程、认知定表达」双因子自动判断该问多细，7 道 Gate 把关，不遗漏不越界
+- **原型先行** —— 中等以上项目先出可交互 HTML 原型（内置 UI 设计师 Mint-D），你确认了才进入开发，避免「做出来的不是想要的」
+- **多 Agent 协作** —— Mint（项目经理）拆需求、Builder 写代码、Evaluator 验收、Mint-D 出原型，自动循环直到完成
+- **上下文自管理** —— 达到阈值自动压缩整理、失败自动轮转开新会话，长对话不「失忆」
+- **数据主权** —— 项目文件和会话数据全存本地（`~/.easymint/` + 项目 `.easymint/`），不上云、不锁定，随时用 VS Code/Cursor 继续
 
-**Harness Engineering** -- 软件本身只提供编排层和约束层，不替你写代码，而是调度 AI Agent 去完成实际工作。EasyMint 的角色是「项目经理的经理」：管好任务状态、校验流程合规、自动压缩上下文、确保 Agent 按规矩办事。
+## 项目引导流程（为新手设计）
 
-**Loop Engineering** -- 采用多 Agent 协作循环：主会话 Mint（PM/架构师）理解需求、拆解任务、委派 Builder 编码、交给 Evaluator 验收，自动循环直到任务完成。任务进度在侧边栏任务面板实时可见（进行中/已完成/失败），做到哪了一目了然。
+这是 EasyMint 最花心思的部分。你不用一次性想清楚所有事，AI 会带着你一步步把想法变成可开发的项目：
 
-**数据主权** -- 项目文件和会话数据全部存储在你本地电脑（`~/.easymint/` + 项目目录下的 `.easymint/`），不上传任何云服务。你可以随时用 VS Code、Cursor 或其他工具继续开发，EasyMint 不会锁定你的项目。
+```
+① 意图采集 → ② 功能共创 → ③ 设备与成本 → ④ 快速原型 → ⑤ 实现
+```
+
+- **表单帮你搭基本盘**：填名称、一句描述、选「这个项目你打算怎么用」（自己用/做成产品/验证想法/做着玩/学习/技术实验…）、勾功能（点「AI 推荐」让 Mint 帮你列）、选 UI 风格、定完成度/部署/AI/预算
+- **对话帮你补开放信息**：细节功能、成本取舍、原型确认这些「没有标准答案」的事，边聊边定
+- **能繁能简**：商业交付走完整流程，做着玩就快速出成果；你懂技术就少解释，说大白话就零术语
+- **7 道 Gate 硬约束**：需求意图 → 范围（过大切 MVP）→ 原型 → 确认原型 → 技术方案 → 开发 → 对照原型验证，每一步没通过不往下走
 
 ## 多 Agent 协作
 
-EasyMint 内置了多个 AI Agent，各司其职，自动协同：
+- **Mint（AI 项目经理）** —— 跟你对话，理解需求，拆解成 task.json 任务清单，调度其他 Agent。报错也翻译成大白话
+- **Builder（编码 Agent）** —— 写代码、跑测试、修 Bug，支持 TDD 测试驱动开发
+- **Evaluator（验收 Agent）** —— 检查代码能不能跑、功能符不符合需求，不合格退回 Builder
+- **Mint-D（UI 设计师）** —— 出 HTML 原型，内置品牌库和设计规范
 
-- **Mint（AI 项目经理）** -- 跟你对话，理解需求，拆解成可执行的任务清单（task.json），调度其他 Agent。全程用中文跟你沟通，报错也会翻译成大白话。
-- **Builder（编码 Agent）** -- 自动写代码、跑测试、修 Bug。支持 TDD（测试驱动开发）模式，先写测试再写实现。
-- **Evaluator（验收 Agent）** -- Builder 写完后自动检查：代码能不能跑、功能是否符合需求、测试是否通过。不合格退回 Builder 重做。
+你只跟 Mint 聊天，其他 Agent 在后台自动配合。任务进度在面板实时展示。
 
-除了这三个内置 Agent，你还可以在设置中**创建自己的 Agent 模板**（比如"测试员""UI 设计师""代码审查员"），Mint 会按你的要求调度它们。
-
-你只需要跟 Mint 聊天，其他 Agent 在后台自动配合。任务进度在任务面板实时展示，每个任务的状态（等待中/开发中/验收中/已完成/失败）一目了然。
-
-**委派分工**：查资料、读代码、分析问题等通用任务，Mint 用标准子 Agent（无模板人设）完成；写代码、验收等特定角色任务，Mint 指定对应模板。
+**委派分工**：查资料、读代码、分析问题等通用任务，Mint 用标准子 Agent 完成；写代码、验收、UI 设计等角色任务，指定对应模板。
 
 ## 新手友好
 
-项目创建向导：
-- 全中文表单，填写项目名称、描述、目标用户、功能清单
-- 不知道怎么选技术方案？点 AI 推荐，AI 根据你的项目类型自动选择合适的技术栈和验收策略
-- 支持 Web / 移动端 / 桌面端 / CLI / API / 库等多种项目场景
-- 快速启动：说「直接开始」跳过文档阶段，立即进入开发
-
-对话体验：
-- 提示词针对零基础用户做了大量优化，AI 会主动用通俗语言跟你沟通
-- 内置实用 Skill（如 Ponytail 简化方案）和 MCP 工具，开箱即用
-- 思考过程、工具调用可选择显示/隐藏，想看细节就打开，喜欢干净界面就关掉
-- 思考等级 7 档可调（关闭/极简/低/中/高/超高/最大），可设全局默认，聊天中随时临时切换
-
-上下文管理：
-- 自动检测上下文用量，达到阈值自动触发压缩
-- 压缩时保留关键信息，不会丢失对话中的重要决策和需求
-- 输入框显示「正在整理会话」提示，整理完毕弹出通知
-- 压缩失败时自动兜底轮转，开启新会话继续工作
-- 会话历史完整存储在本地 JSONL 文件中，不受压缩影响，随时可回溯
+- 全中文对话，AI 主动用通俗语言沟通，技术报错翻译成人话
+- 技术选型 AI 代选并告诉你理由，不让你在技术选项间纠结
+- 输入模糊时 AI 先拆解复述、给你大白话方案再确认，不瞎猜
+- 思考过程 / 工具调用可显示/隐藏；思考等级 7 档可调
 
 ## 内建工具和集成
 
-**Skill 系统**
-| Skill | 用途 |
-|-------|------|
-| Ponytail | 强制 AI 用最简单的方式实现，拒绝过度设计 |
-| Ponytail Review | 审查代码变更中是否存在不必要的复杂度 |
-| Ponytail Audit | 全项目扫描臃肿代码，给出精简建议 |
-| UI Sync | 用户提出新需求时自动触发，同步任务列表 |
-
-Skill 分三级管理：EM 内置（仅 EasyMint 可用）、全局级、项目级（跟随项目）。可从设置面板启用/禁用。
+**Skill 系统**（三级管理：EM 内置 / 全局 / 项目级，可从设置启用/禁用）
+- 创建项目引导（creation-guide + 5 个流程子 Skill）
+- UI Sync（新需求自动同步任务列表）
+- 运行面板配置、项目文档规范
+- Ponytail 系列（强制最简单方案、审查/审计过度设计）
 
 **MCP 工具集成**
-EasyMint 内置产品工具（确认开发按钮、新建项目按钮、刷新任务列表、显示原型编辑器、更新任务状态、查看 Issue 清单、项目重命名），与外部 MCP 服务器无缝集成——自动读取并连接已配置的 MCP 服务器（与 Claude Code 共用配置），支持 CodeGraph（代码符号图谱分析）、Playwright（浏览器自动化，用于验收测试）、Image Vision（图片识别）等，装好就能用。
+内置产品工具（确认开发/新建项目/刷新任务/显示原型/更新任务状态/查看 Issue/重命名），自动连接已配置的 MCP 服务器（与 Claude Code 共用配置），支持 CodeGraph、Playwright、Image Vision 等。
 
 **AI 供应商管理**
-内置 DeepSeek、Kimi、MiniMax、Xiaomi MiMo、智谱、OpenCode 等主流 AI 平台预设，选择平台、填 API Key 即可使用。也支持**自定义供应商**：填写 Base URL、API 协议（Anthropic / OpenAI 兼容）和模型列表，任何兼容 API 的服务都能接入。可同时配置多个供应商，随时切换激活；每个供应商可单独设置默认模型、兜底模型和子 Agent 默认模型。
+内置 DeepSeek、Kimi、MiniMax、智谱等主流平台预设，填 API Key 即用；支持自定义供应商（Base URL + Anthropic/OpenAI 兼容协议）；可同时配置多个、随时切换。
 
-推荐组合：DeepSeek V4 Pro（主引擎）+ Qwen 3.6 Flash（识图）+ Tavily API（网页抓取），在设置中填入对应 API Key 即可自动识别。
+**视觉识别（可选，可配置）**
+DeepSeek 等纯文本模型没有识图能力。EasyMint 内置了独立的视觉模型配置——默认阿里 qwen3.7-flash（公共 DashScope 端点，有免费额度），**不限于此**：只要提供 OpenAI 兼容（`/chat/completions`）或 Anthropic 兼容（`/v1/messages`）接口的视觉模型都能接入，在设置里填 API 地址 + 模型名 + Key 即可。配置后 Mint 就能看图、核对界面截图。
 
 **Agent 模板系统**
-Mint、Builder、Evaluator 各有内置模板（系统提示词），可在设置→Agent 页查看。内置模板除 Mint 外均可**编辑并持久生效**（重启不丢失）；你还能**新建自定义模板**——指定名称、职责提示词、供应商、模型和思考级别，Mint 委派时可选用。甚至可以让 Mint 在对话中**一句话创建模板**。
-
-## 内容便签
-
-AI 总结的重要内容，可以**钉成悬浮便签**固定在聊天区：
-
-- **一键钉住**：消息气泡上的图钉按钮钉住整条内容；选中文字右键钉住，自动还原 Markdown 格式
-- **可调大小**：拖动便签边缘自由调整尺寸，位置和大小自动保存
-- **书签式贴纸**：拖到屏幕边缘自动吸附成彩色贴纸（8 色随机分配），点击展开回卡片；多张贴纸自动层叠，鼠标悬停抽出标题
-- **会话级持久化**：切换会话、重启软件都不丢失
+Mint / Builder / Evaluator / Mint-D 各有内置模板，除 Mint 外可编辑；可新建自定义模板，指定职责、供应商、模型、思考级别。
 
 ## 项目管理
 
-完整的项目工作台：
-- 文件树面板 + Monaco 代码编辑器，语法高亮和智能提示
-- 多 Tab 会话，同一个项目可开多个独立对话
-- 多窗口协作，同项目可开多个窗口
-- 终端面板（xterm），直接在当前项目目录执行命令
-- 项目重命名 -- 自动迁移所有会话数据，不丢失历史
-- 项目重新定位 -- 文件夹在 Finder 中被移动后，重新指向新路径
-- 导入已有目录 -- 把外部项目纳管到 EasyMint
-- Git 集成（检测 Git 安装状态，可在终端中使用）
+- 文件树 + Monaco 编辑器（语法高亮、智能提示）
+- 多 Tab 会话、多窗口协作
+- 终端面板（xterm）
+- 项目重命名（自动迁移会话数据）/ 重新定位 / 导入已有目录
+- Git 集成
+- 设备互联（跨设备迁移项目与会话，实验功能）
+
+## 内容便签
+
+AI 总结的重要内容可钉成悬浮便签固定在聊天区：一键钉住、可调大小、吸附成彩色贴纸、会话级持久化。
 
 ## 怎么用
 
-**第一步**：点击「新建项目」，用中文填写表单，描述你想做的软件。不知道怎么填？点 AI 推荐，说你想要什么就行。
-
-**第二步**：AI 项目经理（Mint）会跟你聊天，帮你明确需求、梳理功能点，然后自动进入开发循环。
-
-**第三步**：Mint 调度 Builder 写代码、Evaluator 验收，你只需要看着进度条跑完，或者中途随时提修改意见。
-
-**第四步**：开发完成，你的项目文件都在自己电脑上。想继续改？继续跟 Mint 聊天就行。
+1. **新建项目** —— 点「新建项目」填中文表单，或点「直接创建」让 AI 从头引导
+2. **对话引导** —— Mint 帮你明确需求、出原型、定方案
+3. **自动开发** —— Mint 调度 Builder/Evaluator 循环开发，你看着进度，随时提修改
+4. **持续迭代** —— 完成后想改，继续跟 Mint 聊就行
 
 ## 怎么装
 
-去 [Releases 页面](https://github.com/tianemon/EasyMint/releases) 下载最新安装包：
+去 [Releases 页面](https://github.com/tianemon/EasyMint/releases) 下载安装包：
 
-- **macOS**：下载 `.dmg` 文件，拖进 Applications
-- **Windows**：下载 `.exe` 安装包运行
+- **macOS**：`.dmg` 拖进 Applications
+- **Windows**：`.exe` 运行
 
-首次启动会引导你选择 AI 供应商（推荐 DeepSeek），填好 API Key 即可开始使用。
+首次启动引导选择 AI 供应商（推荐 DeepSeek），填 API Key 即可。
 
 ## 技术栈
 
 | 层 | 技术 |
 |----|------|
 | 桌面框架 | Electron 43 |
-| 前端 | React 19 + Vite 8 + TypeScript 6 |
+| 前端 | React 19 + Vite + TypeScript 6 |
 | UI | Tailwind CSS 4 + Radix UI |
 | 状态管理 | Zustand 5 |
 | 代码编辑器 | Monaco Editor |
-| AI 引擎 | pi-coding-agent 0.82 |
+| AI 引擎 | Pi Coding Agent 0.84 |
 | 终端 | xterm + node-pty |
 
 ## 本地开发
@@ -159,8 +139,8 @@ npm run build        # 生产构建
 npm run lint         # ESLint + TypeScript 类型检查
 ```
 
-需要 Node.js 环境。首次 `npm install` 会自动安装所有依赖。
+需要 Node.js 环境。
 
 ---
 
-EasyMint 不替你写「最好的代码」，它让你**不用懂代码也能做出自己的软件**。
+EasyMint 既专业又新手友好 —— 底层是企业级 Pi Coding Agent 引擎，提供完整的 Agent 编排、多角色协作、上下文管理能力；上层把复杂度藏进引导流程，让不懂代码的人也能做出自己的软件，让懂代码的人有一个顺手的 Agent 工作台。

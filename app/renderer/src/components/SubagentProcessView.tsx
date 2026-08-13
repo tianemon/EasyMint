@@ -29,6 +29,19 @@ export function SubagentProcessView({
   const [loaded, setLoaded] = useState(false);
   const nextIdRef = useRef(1);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const autoScrollRef = useRef(true); // 流式输出是否自动贴底(用户滚动时停止)
+  const lastUserInputRef = useRef(0); // 最近一次用户输入时间(滚动意图判定窗口)
+
+  // 用户输入(wheel/touch/mousedown)标记——500ms 内的 scroll 变化视为用户滚动意图
+  const markUserInput = (): void => { lastUserInputRef.current = Date.now(); };
+  const handleUserInput = (): void => markUserInput();
+  const handleScroll = (): void => {
+    // 程序性贴底(无用户输入)不参与判定
+    if (Date.now() - lastUserInputRef.current > 500) return;
+    const el = scrollRef.current; if (!el) return;
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    autoScrollRef.current = distFromBottom < 8; // 滚回底部恢复跟随,滚离底部停止
+  };
   // 显示开关:默认都隐藏(只看文本);思考过程/工具调用点击展开
   const [showThinking, setShowThinking] = useState(false);
   const [showToolUse, setShowToolUse] = useState(false);
@@ -100,8 +113,9 @@ export function SubagentProcessView({
     return () => clearInterval(timer);
   }, [running, sessionFile]);
 
-  // 滚动贴底
+  // 滚动贴底(仅用户没滚离底部时跟随——流式输出时用户可自由滚动查看历史)
   useEffect(() => {
+    if (!autoScrollRef.current) return;
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [msgs]);
@@ -167,7 +181,7 @@ export function SubagentProcessView({
         </div>
 
         {/* 消息区(思考/工具调用按开关显示,默认只显示文本) */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-[var(--color-sidebar)]/40">
+        <div ref={scrollRef} onScroll={handleScroll} onWheel={handleUserInput} onTouchStart={handleUserInput} onMouseDown={handleUserInput} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-[var(--color-sidebar)]/40">
           {!loaded && !sessionFile && (
             <div className="text-center text-xs text-text-secondary py-8">正在准备任务…</div>
           )}
