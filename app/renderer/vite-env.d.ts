@@ -157,7 +157,6 @@ interface ElectronAPI {
     update: (id: string, patch: { name?: string; path?: string }) => Promise<Project | undefined>;
     import: (dirPath: string) => Promise<Project & { isNew: boolean }>;
     renameExec: (oldPath: string, newName: string) => Promise<{ ok: boolean; error?: string }>;
-    checkInitStatus: (projectPath: string) => Promise<{ done: boolean; reason: string }>;
     saveProfile: (projectPath: string, platformSpec: string) => Promise<{ ok: boolean; error?: string }>;
   };
   file: {

@@ -404,16 +404,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("system-prompt:delete", (_e, { id }) => { deleteSystemPrompt(id); });
   ipcMain.handle("system-prompt:set-default", (_e, { id }) => { setDefaultPrompt(id); });
 
-  // project:checkInitStatus — check if init.sh has been filled
-  ipcMain.handle("project:checkInitStatus", (_e, { projectPath }) => {
-
-const filePath = p.join(projectPath, "init.sh");
-      if (!fs.existsSync(filePath)) return { done: false, reason: "init.sh not found" };
-      const content = fs.readFileSync(filePath, "utf-8");
-      return { done: !content.includes("{{PROJECT_DIR}}"), reason: content.includes("{{PROJECT_DIR}}") ? "still template" : "filled" };
-
-  });
-
   // project:saveProfile — 持久化项目产品类型规范(NewProjectDialog 创建时写入,
   // 主进程 buildSystemPrompt 读取注入 Mint 提示词)
   ipcMain.handle("project:saveProfile", (_e, { projectPath, platformSpec }) => {

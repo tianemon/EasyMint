@@ -156,7 +156,6 @@ CodeGraph 用于**结构性**问题——谁调了谁、改动会影响什么、
 - **根目录** — harness 文件：
   - `CLAUDE.md` — 项目通用上下文
   - `task.json` — 任务定义（唯一真相源，含 `passes` 和 `evaluated` 字段）
-  - `init.sh` — 环境初始化脚本
   - `README.md`、`.gitignore`
 
 ## 4.4 项目专属规则

@@ -188,14 +188,7 @@ template/
 ├── .gitignore
 ├── CLAUDE.md         (Mint 初始化时更新)
 ├── README.md         (Mint 初始化时填充)
-├── WORKER.md
-├── EVALUATOR.md
-├── evaluate.sh
-├── run-automation.sh
-├── init.sh           (Mint 初始化时填充并执行)
 ├── task.json         (Mint 分配任务时覆盖)
-├── progress.txt
-├── docs/
 └── temp/
 ```
 

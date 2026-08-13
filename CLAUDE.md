@@ -177,7 +177,6 @@ npm run lint             # ESLint + TypeScript 类型检查
 - **根目录** — harness 文件：
   - `CLAUDE.md` — 项目通用上下文
   - `task.json` — 任务定义（唯一真相源，含 `status` 字段：pending/building/evaluating/done/failed）
-  - `init.sh` — 环境初始化脚本
   - `README.md`、`.gitignore`
 
 ## 4.4 项目专属规则
