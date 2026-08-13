@@ -440,27 +440,43 @@ function editFilePath(item: ToolItem): string | undefined {
   return undefined;
 }
 
+/** 技术日志结果截断:超过 maxLines 只显示尾部 keep 行(完整输出见日志)——读文件等长输出是噪音,不铺给用户 */
+function truncateResult(text: string, maxLines = 30, keep = 20): string {
+  const lines = text.split("\n");
+  if (lines.length <= maxLines) return text;
+  return lines.slice(-keep).join("\n") + `\n\n[输出过长，仅显示尾部 ${keep} 行。完整输出见日志]`;
+}
+
 function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }): JSX.Element {
-  // 有结果(如 edit 的 diff)时默认展开——用户不用点开就能看到
-  const [showInput, setShowInput] = useState(!!item.result);
-  // 路径类工具(edit/write/read):input 只显示路径(content/edits 与结果重复,省略)
+  // 默认折叠——虚拟化重挂时不再因"已有结果"误展开
+  const [showInput, setShowInput] = useState(false);
+  // edit diff / 失败结果 → 自动展开(可理解的结果必显、需看到的问题醒目)
+  useEffect(() => {
+    if (item.result && (item.result.includes("变更内容:") || item.resultError)) {
+      setShowInput(true);
+    }
+  }, [item.result]);
+
   const isPathTool = item.name === "edit" || item.name === "write" || item.name === "read";
-  const inputStr = isPathTool
-    ? editFilePath(item) ?? ""
-    : typeof item.input === "string" ? item.input : JSON.stringify(item.input, null, 2);
   const isDiffResult = !!item.result && item.result.includes("变更内容:");
-  // edit diff 显示变更统计(+N -N),其他工具显示 完成/失败
   const diffStats_ = isDiffResult ? diffCount(item.result!) : null;
+  // 人话摘要(标题行):bash→命令,文件工具→路径;用户只看"AI 在做什么",技术参数/JSON 不展示
+  const summary = item.name === "bash"
+    ? (typeof item.input === "string" ? item.input : ((item.input as Record<string, unknown>)?.command as string | undefined))
+    : isPathTool ? editFilePath(item)
+    : undefined;
+  const label = item.name === "edit" ? "编辑" : item.name === "read" ? "读取" : item.name === "write" ? "写入" : item.name;
+
   return (
     <div className={compact ? "text-[11px]" : `border rounded-md overflow-hidden ${item.resultError ? "border-danger/40" : "border-border"}`}>
       <button
         onClick={() => setShowInput((o) => !o)}
-        className={`flex items-center gap-1.5 text-text-secondary hover:text-text-primary transition-colors ${compact ? "py-0.5" : "w-full px-3 py-1.5 bg-surface-alt hover:bg-surface-hover"}`}
+        className={`flex items-center gap-1.5 ${item.resultError ? "text-danger hover:text-danger" : "text-text-secondary hover:text-text-primary"} transition-colors ${compact ? "py-0.5" : "w-full px-3 py-1.5 bg-surface-alt hover:bg-surface-hover"}`}
         style={{ fontSize: "var(--chat-detail-size)" }}
       >
         <span className="text-[10px]">{showInput ? "▼" : "▶"}</span>
-        <span>{item.name}</span>
-        {compact && <span className="text-text-secondary truncate text-[10px]">{inputStr.slice(0, 60)}</span>}
+        <span>{label}</span>
+        {summary && <span className="text-text-secondary truncate font-mono">{summary}</span>}
         {item.result && !compact && (
           diffStats_ && (diffStats_.added > 0 || diffStats_.removed > 0) ? (
             <span className={`ml-auto text-[10px] shrink-0 normal-case tracking-normal ${item.resultError ? "text-danger" : "text-text-muted"}`}>
@@ -475,21 +491,14 @@ function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }
           )
         )}
       </button>
-      {showInput && (
+      {showInput && item.result && (
         <div className="bg-surface border-t border-border">
-          {/* 输入参数(edit 只显示路径) */}
-          <pre className="text-text-secondary font-mono overflow-x-auto px-3 py-2 border-b border-border/50" style={{ fontSize: "var(--chat-detail-size)" }}>
-            {inputStr}
-          </pre>
-          {/* 工具结果(edit 的 diff 走 DiffView 带颜色) */}
-          {item.result && (
-            isDiffResult ? (
-              <DiffView text={item.result} filePath={editFilePath(item)} />
-            ) : (
-              <pre className={`text-text-secondary font-mono overflow-x-auto px-3 py-2 whitespace-pre-wrap ${item.resultError ? "text-danger" : ""}`} style={{ fontSize: "var(--chat-detail-size)" }}>
-                {item.result}
-              </pre>
-            )
+          {isDiffResult ? (
+            <div className="px-3 py-2"><DiffView text={item.result} filePath={editFilePath(item)} /></div>
+          ) : (
+            <pre className={`text-text-secondary font-mono overflow-x-auto px-3 py-2 whitespace-pre-wrap ${item.resultError ? "text-danger" : ""}`} style={{ fontSize: "var(--chat-detail-size)" }}>
+              {truncateResult(item.result)}
+            </pre>
           )}
         </div>
       )}
@@ -543,7 +552,7 @@ function ToolResultOnlyView({ block }: { block: ToolResultOnlyBlock }): JSX.Elem
       )}
       {!isDiff && !summary && (
         <div className="bg-surface px-3 py-2">
-          <pre className={`text-text-secondary font-mono whitespace-pre-wrap text-[11px] ${block.isError ? "text-danger" : ""}`}>{block.content}</pre>
+          <pre className={`text-text-secondary font-mono whitespace-pre-wrap text-[11px] ${block.isError ? "text-danger" : ""}`}>{truncateResult(block.content)}</pre>
         </div>
       )}
     </div>
