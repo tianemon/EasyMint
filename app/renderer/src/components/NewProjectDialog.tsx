@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { buildProjectCreatedPrompt, buildDirectoryTranslationPrompt, buildDirectCreatePrompt, buildInitTriggerPrompt, buildInitInstruction, detectProfile, composeProfile, systemMessage } from "../../../shared/prompts";
+import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildDirectoryTranslationPrompt, buildDirectCreatePrompt, buildInitTriggerPrompt, buildInitInstruction, detectProfile, composeProfile, systemMessage } from "../../../shared/prompts";
 import type { ProjectDimensions, DeployMode } from "../../../shared/prompts";
-import { StepDots, Step1Form, Step2Form } from "./new-project/StepComponents";
-import { ALL_STEPS, DEFAULT_DATA, TARGET_OPTIONS, type ProjectFormData } from "./new-project/ProjectFormTypes";
+import { StepDots, Step1Form, Step2Form, Step3Form, Step4Form } from "./new-project/StepComponents";
+import { ALL_STEPS, DEFAULT_DATA, SCENE_OPTIONS, TARGET_OPTIONS, type ProjectFormData, type FeatureItem } from "./new-project/ProjectFormTypes";
 import { useMintChat } from "./new-project/useMintChat";
 
 // ---- Helpers ----
@@ -13,14 +13,29 @@ function actualStepNumber(visibleSteps: typeof ALL_STEPS, currentIndex: number):
 
 function buildContext(data: ProjectFormData, step?: number): string {
   const targets = data.targets.map((v) => TARGET_OPTIONS.find((o) => o.value === v)?.label || v).join("、");
+  const sceneLabel = SCENE_OPTIONS.find((o) => o.value === data.scene)?.label || data.scene;
   const parts: string[] = [];
   const push = (s: string) => parts.push(s);
 
-  // Step 1: always include basics
+  // Step 1: basics
   push(`名称「${data.name}」，项目形式「${targets}」，完成度「${data.completeness}」`);
+  if (data.description) push(`描述「${data.description}」`);
+  if (data.scene && data.scene !== "unknown") push(`项目场景「${sceneLabel}」`);
+  if (data.targetUsers) push(`目标用户「${data.targetUsers}」`);
 
-  // Step 2+: include deploy + AI + budget
+  // Step 2+: features
   if (!step || step >= 2) {
+    const features = data.features.map((f) => f.name).join("；");
+    push(`功能清单：「${features || "无"}」`);
+  }
+
+  // Step 3+: UI style
+  if (!step || step >= 3) {
+    push(`UI 风格「${data.uiStyle || "未指定"}」`);
+  }
+
+  // Step 4+: deploy + AI + budget
+  if (!step || step >= 4) {
     push(`部署「${data.deployPlatform}」`);
     const aiLabel = data.aiIntegration === "none" ? "无" : data.aiIntegration === "assistant" ? "AI 辅助" : data.aiIntegration === "agent" ? "Agent 自主决策" : "多 Agent 协作";
     push(`AI 集成「${aiLabel}」`);
@@ -46,6 +61,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const pathRef = useRef<string | null>(null);
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
+  const [loadingRec, setLoadingRec] = useState<string | null>(null);
   const { ask, askWorkspace, sidRef } = useMintChat(pathRef);
 
   const updateData = useCallback((patch: Partial<ProjectFormData>) => setData((prev) => ({ ...prev, ...patch })), []);
@@ -107,6 +123,35 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     }
   };
 
+  const handleRecommendFeatures = async () => {
+    setLoadingRec("features");
+    const ctx = `项目名称：${data.name}，${buildContext(data, 1)}`;
+    const featurePrompt = buildFeatureRecommendPrompt(ctx);
+    const resp = await ask(featurePrompt, { systemPayload: systemMessage("flow", featurePrompt) });
+    setLoadingRec(null);
+    if (resp) {
+      // Extract the first contiguous block of bullet-point lines only.
+      const parsed: FeatureItem[] = [];
+      for (const raw of resp.split("\n")) {
+        const line = raw.trim();
+        if (/^[-•*]\s/.test(line)) {
+          const name = line.replace(/^[-•*]\s*/, "");
+          if (name) parsed.push({ name });
+        } else if (parsed.length > 0) {
+          break; // end of bullet block — skip commentary below
+        }
+      }
+      if (parsed.length > 0) {
+        const current = data.features;
+        if (current.length === 0) {
+          updateData({ features: parsed });
+        } else {
+          updateData({ features: [...current, ...parsed] });
+        }
+      }
+    }
+  };
+
   const handleCancel = async () => {
     if (createdProject) {
       await window.electronAPI.project.delete(createdProject.id).catch(() => {});
@@ -122,11 +167,15 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     setInitializing(true);
     try {
       if (createdProject) {
+        // 场景 → 流程深度:商业/实际=完整,兴趣/验证/学习=轻,技术实验=极简;未选时按完成度兜底
+        const sceneComplexity = data.scene === "practical" || data.scene === "commercial" ? "medium"
+          : data.scene === "interest" || data.scene === "validation" || data.scene === "learning" ? "simple"
+          : data.scene === "experiment" ? "minimal"
+          : (data.completeness === "full" ? "medium" : data.completeness === "mvp" ? "simple" : "minimal");
         const dims: ProjectDimensions = {
           product: detectProfile(data.targets).id as any,
           deploy: (data.deployPlatform === "云端" ? "cloud" : data.deployPlatform === "混合" ? "hybrid" : "local") as DeployMode,
-          // 完成度映射流程深度:完整版→中等(full 流程) / MVP→简单(需求+task.json) / 演示版→极简(跳过文档)
-          complexity: data.completeness === "full" ? "medium" : data.completeness === "mvp" ? "simple" : "minimal",
+          complexity: sceneComplexity,
           ai: data.aiIntegration,
           storage: data.deployPlatform === "云端" ? "postgres" : "sqlite",
           productUsesAI: data.aiIntegration !== "none",
@@ -134,7 +183,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
           needsPayment: false,
         };
         const profile = composeProfile(dims);
-        // 持久化项目产品类型规范,供后续 Mint 会话 buildSystemPrompt 注入(阶段二)
+        // 持久化项目产品类型规范,供后续 Mint 会话 buildSystemPrompt 注入
         window.electronAPI.project.saveProfile(createdProject.path, profile.platformSpec).catch(() => {});
         const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), buildInitInstruction(profile), data.targets);
         ask(initPrompt, { systemPayload: systemMessage("project-created", initPrompt) }).catch(() => {});
@@ -165,7 +214,6 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     setInitializing(true);
     try {
       // 确保项目已创建（若 step1 尚未走过,复用目录名翻译 + 创建逻辑）
-      // 用局部变量 project 保存,避免依赖尚未更新的 state（createdProject 为 null）
       let project = createdProject;
       if (!project) {
         let dirName = data.name.trim();
@@ -187,7 +235,6 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
       // 发 direct-create 系统消息（携带项目名 + 已采集结构化信息快照）,Mint 开回合按 creation_flow 引导
       const directPrompt = buildDirectCreatePrompt(data.name, buildContext(data));
       await ask(directPrompt, { forceNewSession: true, systemPayload: systemMessage("direct-create", directPrompt) });
-      // 打开项目窗口与对话
       const sid = sidRef.current;
       onCreated(project, sid);
     } catch (e: unknown) {
@@ -203,7 +250,9 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   const renderStepContent = () => {
     switch (stepNumber) {
       case 1: return <Step1Form data={data} onChange={updateData} />;
-      case 2: return <Step2Form data={data} onChange={updateData} />;
+      case 2: return <Step2Form data={data} onChange={updateData} onRecommendFeatures={handleRecommendFeatures} loadingRec={loadingRec} />;
+      case 3: return <Step3Form data={data} onChange={updateData} />;
+      case 4: return <Step4Form data={data} onChange={updateData} />;
       default: return null;
     }
   };
@@ -219,7 +268,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
         <StepDots total={visibleSteps.length} current={currentStep} />
 
         <div className="px-6 pb-1 shrink-0">
-          <p className="text-[11px] text-text-muted">填完表单后，Mint 会带你经历：需求确认 → 界面原型 → 开发 → 完成</p>
+          <p className="text-[11px] text-text-muted">初步信息采集，简单填写自己的需求，帮助 AI 掌握你的偏好</p>
         </div>
 
         <div className="px-6 py-4 overflow-y-auto flex-1">{renderStepContent()}</div>

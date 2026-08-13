@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
-  TARGET_OPTIONS, COMPLETENESS_OPTIONS, BUDGET_OPTIONS,
-  type ProjectFormData, type BudgetChoice,
+  TARGET_OPTIONS, SCENE_OPTIONS, COMPLETENESS_OPTIONS, UI_STYLE_OPTIONS, BUDGET_OPTIONS,
+  type ProjectFormData, type FeatureItem, type BudgetChoice, type SceneChoice,
 } from "./ProjectFormTypes";
 import type { AIIntegration } from "../../../../shared/prompts";
 
@@ -102,8 +102,7 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
     <div className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">项目名称 <span className="text-danger">*</span></label>
-        <input className="input" value={data.name} onChange={(e) => onChange({ name: e.target.value })} placeholder="建议英文，如 my-blog" />
-        <p className="text-[11px] text-text-secondary mt-1">作为文件夹名，中文可能导致路径兼容问题</p>
+        <input className="input" value={data.name} onChange={(e) => onChange({ name: e.target.value })} placeholder="中英文都可以，AI会自动翻译成英文" />
       </div>
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">项目目录 <span className="text-danger">*</span></label>
@@ -113,12 +112,25 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
         >
           <span className="text-text-secondary">{data.dir || "点击选择目录..."}</span>
         </button>
-        <p className="text-[10px] text-text-secondary mt-1">默认路径可在设置中修改。不选则使用默认路径</p>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-text-primary mb-2">项目描述 <span className="text-text-muted text-xs font-normal">（可选，一句话说清楚想做什么）</span></label>
+        <textarea className="input min-h-[60px] resize-y" value={data.description} onChange={(e) => onChange({ description: e.target.value })} placeholder="例如：记录每天花销的记账软件，给自己用" />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-text-primary mb-2">这个项目你打算怎么用？ <span className="text-text-muted text-xs font-normal">（决定流程深度，可让 Mint 判断）</span></label>
+        <Select value={data.scene} onChange={(v) => onChange({ scene: v as SceneChoice })} options={SCENE_OPTIONS} placeholder="没想好，由AI自己判断" />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-text-primary mb-2">目标用户 <span className="text-text-muted text-xs font-normal">（可选）</span></label>
+        <input className="input" value={data.targetUsers} onChange={(e) => onChange({ targetUsers: e.target.value })} placeholder="例如：我本人、我的家人、我的客户" />
       </div>
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-sm font-medium text-text-primary">项目形式</label>
+          <label className="text-sm font-medium text-text-primary">项目形式 <span className="text-text-muted text-xs font-normal">（选择项目的运行平台和交付形式，可添加多个）</span></label>
           <button className="px-2 py-0.5 rounded border border-accent-border-strong text-accent text-xs hover:border-accent hover:bg-accent-subtle transition-colors" onClick={addTarget}>+ 添加</button>
         </div>
         <div className="space-y-2">
@@ -133,11 +145,111 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-text-secondary mt-1.5">选择项目的运行平台和交付形式，可添加多个</p>
       </div>
+    </div>
+  );
+}
 
+// ---- Step 2: 功能清单 ----
+
+function Step2Form({
+  data, onChange, onRecommendFeatures, loadingRec,
+}: {
+  data: ProjectFormData;
+  onChange: (p: Partial<ProjectFormData>) => void;
+  onRecommendFeatures: () => void;
+  loadingRec: string | null;
+}): JSX.Element {
+  const addFeature = () => {
+    onChange({ features: [...data.features, { name: "" }] });
+  };
+
+  const updateFeature = (idx: number, f: Partial<FeatureItem>) => {
+    const next = [...data.features];
+    next[idx] = { ...next[idx]!, ...f };
+    onChange({ features: next });
+  };
+
+  const removeFeature = (idx: number) => {
+    onChange({ features: data.features.filter((_, i) => i !== idx) });
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between mb-2">
+        <label className="block text-sm font-medium text-text-primary">功能清单 <span className="text-text-muted text-xs font-normal">（可选，可让 Mint 推荐）</span></label>
+        <div className="flex gap-2">
+          <button className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors disabled:opacity-40" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
+            {loadingRec === "features" ? "Mint 思考中..." : "Mint 推荐"}
+          </button>
+          <button className="px-3 py-1.5 rounded-lg border border-accent-border-strong text-accent text-xs hover:border-accent hover:bg-accent-bg transition-colors" onClick={addFeature}>+ 添加功能</button>
+        </div>
+      </div>
+      {data.features.length === 0 && !loadingRec && (
+        <p className="text-xs text-text-secondary py-3 text-center">暂无功能，点"+ 添加功能"或"Mint 推荐"开始。</p>
+      )}
+      {loadingRec === "features" && (
+        <p className="text-xs text-text-secondary py-3 text-center animate-pulse">Mint 正在根据项目信息推荐功能...</p>
+      )}
+      {data.features.map((f, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input
+            className="flex-1 input"
+            value={f.name}
+            onChange={(e) => updateFeature(i, { name: e.target.value })}
+            placeholder={`功能 ${i + 1}`}
+          />
+          <button className="w-6 h-6 flex items-center justify-center rounded text-text-secondary hover:text-danger transition-colors text-xs shrink-0" onClick={() => removeFeature(i)}>✕</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---- Step 3: UI 风格 ----
+
+function Step3Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void }): JSX.Element {
+  const isCustom = data.uiStyle === "custom";
+
+  return (
+    <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">完成度 <span className="text-text-muted text-xs font-normal">（可选，AI 帮你定）</span></label>
+        <label className="block text-sm font-medium text-text-primary mb-2">想要什么 UI 风格？ <span className="text-text-muted text-xs font-normal">（可选，让 Mint 推荐）</span></label>
+        <div className="flex flex-wrap gap-1.5">
+          {UI_STYLE_OPTIONS.map((opt) => {
+            const active = data.uiStyle === opt.value;
+            return (
+              <button
+                key={opt.value}
+                className={`px-3 py-1.5 rounded-lg border text-xs transition-colors ${active ? "bg-accent-high border-accent text-accent" : "border-border text-text-secondary hover:border-accent-border-strong"}`}
+                onClick={() => onChange({ uiStyle: opt.value })}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-text-secondary mt-1">不选就让 Mint 推荐。选了仅作初步方向，原型阶段可再调。</p>
+      </div>
+      {isCustom && (
+        <div>
+          <label className="block text-sm font-medium text-text-primary mb-2">自定义风格描述</label>
+          <textarea className="input min-h-[60px] resize-y" value={data.uiStyle === "custom" ? "" : data.uiStyle} onChange={(e) => onChange({ uiStyle: e.target.value })} placeholder="例如：赛博朋克 + 极简主义混搭..." />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Step 4: 交付方式 ----
+
+function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void }): JSX.Element {
+  return (
+    <div className="space-y-5">
+
+      {/* 完成度 */}
+      <div>
+        <label className="block text-sm font-medium text-text-primary mb-2">先做到什么程度？ <span className="text-text-muted text-xs font-normal">（可选，AI 帮你定）</span></label>
         <div className="flex gap-2">
           {COMPLETENESS_OPTIONS.map((opt) => {
             const active = data.completeness === opt.value;
@@ -154,20 +266,10 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
           })}
         </div>
       </div>
-    </div>
-  );
-}
-
-// ---- Step 2: 交付方式 ----
-
-function Step2Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void }): JSX.Element {
-  return (
-    <div className="space-y-5">
 
       {/* AI 集成 */}
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">AI 能力集成 <span className="text-text-muted text-xs font-normal">（可选）</span></label>
-        <p className="text-xs text-text-secondary mb-2">你的产品是否需要 AI 能力？这会影响技术架构。</p>
         <p className="text-[11px] text-text-secondary mb-2">提示：AI 辅助 / Agent 需要接入大模型 API，按用量计费（轻量使用每月几块钱起；部分厂商有免费额度，但有时效性）。</p>
         <div className="flex gap-2">
           {[
@@ -215,7 +317,7 @@ function Step2Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
         </div>
       </div>
 
-      {/* Budget */}
+      {/* 预算 */}
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">开发运维成本 <span className="text-text-muted text-xs font-normal">（可选，AI 帮你定）</span></label>
         <div className="flex gap-2">
@@ -234,4 +336,4 @@ function Step2Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
   );
 }
 
-export { StepDots, Step1Form, Step2Form };
+export { StepDots, Step1Form, Step2Form, Step3Form, Step4Form };
