@@ -14,7 +14,6 @@ export interface ProjectFormData {
   name: string;
   description: string;
   scene: SceneChoice;
-  targetUsers: string;
   targets: string[];
   dir: string;
   completeness: CompletenessChoice;
@@ -53,10 +52,23 @@ export const COMPLETENESS_OPTIONS = [
 ] as const;
 
 export const UI_STYLE_OPTIONS = [
-  { value: "modern", label: "现代简约", desc: "白底卡片，干净直接" },
-  { value: "colorful", label: "活力彩色", desc: "鲜艳渐变，年轻有活力" },
-  { value: "business", label: "商务专业", desc: "深色克制，稳重" },
-  { value: "tech", label: "科技感", desc: "暗色光效，未来感" },
+  { value: "minimalism", label: "极简主义", desc: "大留白、干净直接，主流百搭（现代简约）" },
+  { value: "flat", label: "扁平化", desc: "纯色块、清晰直观，SaaS/后台打底" },
+  { value: "glass", label: "玻璃拟态", desc: "半透明磨砂、通透高级，适合浮层弹窗" },
+  { value: "liquid-glass", label: "液态玻璃", desc: "动态折射光影，iOS 26 最新潮" },
+  { value: "material", label: "Material Design", desc: "Google 设计语言，纸张层叠、阴影动效" },
+  { value: "neumorphism", label: "新拟态", desc: "同色系柔和立体，开关/卡片适用" },
+  { value: "claymorphism", label: "粘土拟态", desc: "圆润果冻、粉彩配色，可爱 Q 版" },
+  { value: "skeuomorphism", label: "拟物化", desc: "模仿真实材质，熟悉亲切（皮革/金属/纸）" },
+  { value: "business", label: "商务专业", desc: "白底蓝调、整齐栅格，B2B/企业标配" },
+  { value: "luxury", label: "奢华高级", desc: "黑白金配色、极细线条，高端质感" },
+  { value: "bento", label: "Bento 网格", desc: "圆角卡片模块化，信息面板/仪表盘" },
+  { value: "colorful", label: "活力彩色", desc: "高饱和鲜艳、多巴胺，年轻有活力" },
+  { value: "retro", label: "复古个性", desc: "复古撞色粗边框（Y2K/新野兽派），大胆有态度" },
+  { value: "soft", label: "柔和治愈", desc: "低饱和大地色，温柔平静低焦虑" },
+  { value: "editorial", label: "杂志编辑风", desc: "大标题大图、大胆留白，媒体/时尚" },
+  { value: "dark", label: "暗黑酷炫", desc: "深色背景，沉浸有氛围" },
+  { value: "tech", label: "科技感", desc: "暗色光效、3D 空间，未来感" },
   { value: "custom", label: "自定义", desc: "自己描述想要的样子" },
 ] as const;
 
@@ -77,7 +89,6 @@ export const DEFAULT_DATA: ProjectFormData = {
   name: "",
   description: "",
   scene: "unknown",
-  targetUsers: "",
   targets: ["web"],
   dir: useSettingsStore.getState().defaultProjectDir || "~/EasyMintProject",
   completeness: "mvp",

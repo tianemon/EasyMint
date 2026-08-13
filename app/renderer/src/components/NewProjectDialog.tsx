@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildDirectoryTranslationPrompt, buildDirectCreatePrompt, buildInitTriggerPrompt, buildInitInstruction, detectProfile, composeProfile, systemMessage } from "../../../shared/prompts";
 import type { ProjectDimensions, DeployMode } from "../../../shared/prompts";
 import { StepDots, Step1Form, Step2Form, Step3Form, Step4Form } from "./new-project/StepComponents";
-import { ALL_STEPS, DEFAULT_DATA, SCENE_OPTIONS, TARGET_OPTIONS, type ProjectFormData, type FeatureItem } from "./new-project/ProjectFormTypes";
+import { ALL_STEPS, DEFAULT_DATA, SCENE_OPTIONS, TARGET_OPTIONS, UI_STYLE_OPTIONS, type ProjectFormData, type FeatureItem } from "./new-project/ProjectFormTypes";
 import { useMintChat } from "./new-project/useMintChat";
 
 // ---- Helpers ----
@@ -21,7 +21,6 @@ function buildContext(data: ProjectFormData, step?: number): string {
   push(`名称「${data.name}」，项目形式「${targets}」，完成度「${data.completeness}」`);
   if (data.description) push(`描述「${data.description}」`);
   if (data.scene && data.scene !== "unknown") push(`项目场景「${sceneLabel}」`);
-  if (data.targetUsers) push(`目标用户「${data.targetUsers}」`);
 
   // Step 2+: features
   if (!step || step >= 2) {
@@ -31,7 +30,8 @@ function buildContext(data: ProjectFormData, step?: number): string {
 
   // Step 3+: UI style
   if (!step || step >= 3) {
-    push(`UI 风格「${data.uiStyle || "未指定"}」`);
+    const uiLabel = UI_STYLE_OPTIONS.find((o) => o.value === data.uiStyle)?.label || data.uiStyle;
+    push(`UI 风格「${uiLabel || "未指定"}」`);
   }
 
   // Step 4+: deploy + AI + budget
@@ -43,6 +43,19 @@ function buildContext(data: ProjectFormData, step?: number): string {
   }
 
   return `项目信息：${parts.join("。")}。`;
+}
+
+/** 直接创建快照：只传用户主动填的信息（名称/形式/描述/场景），不传默认值——
+ *  完成度/功能/UI/部署/AI/预算等未确认项留空，让 Mint 对话引导补全。 */
+function buildDirectCreateContext(data: ProjectFormData): string {
+  const targets = data.targets.map((v) => TARGET_OPTIONS.find((o) => o.value === v)?.label || v).join("、");
+  const sceneLabel = SCENE_OPTIONS.find((o) => o.value === data.scene)?.label || data.scene;
+  const parts: string[] = [];
+  if (data.name) parts.push(`名称「${data.name}」`);
+  parts.push(`项目形式「${targets}」`);
+  if (data.description) parts.push(`描述「${data.description}」`);
+  if (data.scene && data.scene !== "unknown") parts.push(`项目场景「${sceneLabel}」`);
+  return parts.join("。");
 }
 
 // ---- Main Component ----
@@ -232,8 +245,8 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
         setCreatedProject(project);
         setCreateError(null);
       }
-      // 发 direct-create 系统消息（携带项目名 + 已采集结构化信息快照）,Mint 开回合按 creation_flow 引导
-      const directPrompt = buildDirectCreatePrompt(data.name, buildContext(data));
+      // 发 direct-create 系统消息（携带项目名 + 用户已填信息快照）,Mint 开回合按 creation_flow 引导
+      const directPrompt = buildDirectCreatePrompt(data.name, buildDirectCreateContext(data));
       await ask(directPrompt, { forceNewSession: true, systemPayload: systemMessage("direct-create", directPrompt) });
       const sid = sidRef.current;
       onCreated(project, sid);
@@ -275,11 +288,13 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
 
         <div className="flex items-center justify-between px-6 pb-5 pt-2 shrink-0">
           <button className="px-4 py-2 rounded-lg text-text-secondary text-sm hover:bg-surface-hover transition-colors disabled:opacity-30" disabled={currentStep === 0 || creating} onClick={goPrev}>上一步</button>
-          <div className="flex gap-2">
-            <button className="px-5 py-1.5 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={handleCancel}>取消项目</button>
-            <button className="px-5 py-1.5 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm disabled:opacity-50" disabled={initializing || creating} onClick={handleDirectCreate} title="跳过表单，让 Mint 在对话里引导你补全信息">
-              {initializing ? "创建中..." : "直接创建"}
-            </button>
+          <div className="flex gap-3">
+            <div className="flex gap-2">
+              <button className="ml-0.5 px-2 py-0 rounded-lg text-danger hover:bg-surface-hover transition-colors text-sm" onClick={handleCancel}>取消项目</button>
+              <button className="px-2 py-0 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm disabled:opacity-50" disabled={initializing || creating} onClick={handleDirectCreate} title="跳过表单，让 Mint 在对话里引导你补全信息">
+                {initializing ? "创建中..." : "直接创建"}
+              </button>
+            </div>
             {!isLastStep ? (
             <button className="px-6 py-2 rounded-lg bg-accent text-text-inverse text-sm hover:bg-accent-hover transition-colors font-medium disabled:opacity-50" disabled={!canNext() || creating} onClick={goNext}>
               {creating ? (

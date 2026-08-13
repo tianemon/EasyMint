@@ -124,11 +124,6 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">目标用户 <span className="text-text-muted text-xs font-normal">（可选）</span></label>
-        <input className="input" value={data.targetUsers} onChange={(e) => onChange({ targetUsers: e.target.value })} placeholder="例如：我本人、我的家人、我的客户" />
-      </div>
-
-      <div>
         <div className="flex items-center justify-between mb-2">
           <label className="text-sm font-medium text-text-primary">项目形式 <span className="text-text-muted text-xs font-normal">（选择项目的运行平台和交付形式，可添加多个）</span></label>
           <button className="px-2 py-0.5 rounded border border-accent-border-strong text-accent text-xs hover:border-accent hover:bg-accent-subtle transition-colors" onClick={addTarget}>+ 添加</button>
@@ -209,29 +204,22 @@ function Step2Form({
 // ---- Step 3: UI 风格 ----
 
 function Step3Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void }): JSX.Element {
-  const isCustom = data.uiStyle === "custom";
+  const predefined = UI_STYLE_OPTIONS.find((o) => o.value === data.uiStyle);
+  const isCustomText = data.uiStyle === "custom" || (!predefined && data.uiStyle !== "");
 
   return (
     <div className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">想要什么 UI 风格？ <span className="text-text-muted text-xs font-normal">（可选，让 Mint 推荐）</span></label>
-        <div className="flex flex-wrap gap-1.5">
-          {UI_STYLE_OPTIONS.map((opt) => {
-            const active = data.uiStyle === opt.value;
-            return (
-              <button
-                key={opt.value}
-                className={`px-3 py-1.5 rounded-lg border text-xs transition-colors ${active ? "bg-accent-high border-accent text-accent" : "border-border text-text-secondary hover:border-accent-border-strong"}`}
-                onClick={() => onChange({ uiStyle: opt.value })}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
-        <p className="text-[11px] text-text-secondary mt-1">不选就让 Mint 推荐。选了仅作初步方向，原型阶段可再调。</p>
+        <Select
+          value={predefined ? data.uiStyle : "custom"}
+          onChange={(v) => onChange({ uiStyle: v })}
+          options={UI_STYLE_OPTIONS}
+          placeholder="让 Mint 推荐"
+        />
+        <p className="text-[11px] text-text-secondary mt-1">选了仅作初步方向，原型阶段可再调。</p>
       </div>
-      {isCustom && (
+      {isCustomText && (
         <div>
           <label className="block text-sm font-medium text-text-primary mb-2">自定义风格描述</label>
           <textarea className="input min-h-[60px] resize-y" value={data.uiStyle === "custom" ? "" : data.uiStyle} onChange={(e) => onChange({ uiStyle: e.target.value })} placeholder="例如：赛博朋克 + 极简主义混搭..." />
