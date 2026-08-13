@@ -556,7 +556,7 @@ export function buildProjectCreatedPrompt(ctx: string): string {
  *  系统消息只传动态信息(项目名+已采集快照),固定引导流程内置于 creation_flow,不重复塞进消息。 */
 export function buildDirectCreatePrompt(projectName: string, ctx: string): string {
   const collected = ctx ? `已采集的结构化信息：${ctx}` : "已采集的结构化信息：无（用户未填写表单，全部信息需在对话中收集）";
-  return `[系统消息] 用户点击了「直接创建」项目，跳过表单。请按 creation_flow 引导用户补全信息，直到足够开始开发。
+  return `[系统消息] 用户点击了「直接创建」项目，跳过表单。请按内置流程引导用户补全信息，直到足够开始开发。
 
 项目名：${projectName}
 ${collected}`;
