@@ -13,7 +13,7 @@
  *  - session-types.json      → { sessionId: "mint"|"designer" }
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { resolveHome } from "../utils/paths";
@@ -384,4 +384,44 @@ export async function hasCustomTitle(sessionId: string, projectPath?: string): P
     } catch { /* ignore */ }
   }
   return false;
+}
+
+/** 收集项目会话目录中所有 sessionId，清理对应元数据（cache/pinned/archived/titles），返回 sid 列表。
+ *  供删除项目时调用；会话目录本身由调用方移废纸篓，session-types 由 agent-service 的 removeSessionTypes 清理。 */
+export function cleanupProjectSessions(projectPath: string): string[] {
+  const resolved = path.resolve(resolveHome(projectPath));
+  const sessionDir = getPiSessionDir(resolved);
+  if (!existsSync(sessionDir)) return [];
+
+  const sids = new Set<string>();
+  const collect = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) collect(p);
+      else if (entry.name.endsWith(".jsonl")) {
+        const m = entry.name.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/);
+        if (m) sids.add(m[0]);
+      }
+    }
+  };
+  collect(sessionDir);
+
+  const list = [...sids];
+  for (const sid of list) deleteCache(sid);
+
+  const pinned = readPinned();
+  const archived = readArchived();
+  const titles = readTitles();
+  let changed = false;
+  for (const sid of list) {
+    if (sid in pinned) { delete pinned[sid]; changed = true; }
+    if (sid in archived) { delete archived[sid]; changed = true; }
+    if (sid in titles) { delete titles[sid]; changed = true; }
+  }
+  if (changed) {
+    writePinned(pinned);
+    writeArchived(archived);
+    writeTitles(titles);
+  }
+  return list;
 }

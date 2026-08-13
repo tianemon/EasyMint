@@ -139,6 +139,15 @@ export function getDesignSessionIds(): string[] {
   return ids;
 }
 
+/** 删除项目时清除其会话的 agent 类型记录（内存 + 磁盘） */
+export function removeSessionTypes(sids: string[]): void {
+  let changed = false;
+  for (const sid of sids) {
+    if (sessionAgentTypes.delete(sid)) changed = true;
+  }
+  if (changed) saveSessionTypes(sessionAgentTypes);
+}
+
 // ── 上下文压缩 ──────────────────────────────────────
 
 // ── AgentService ────────────────────────────────────

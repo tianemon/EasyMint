@@ -79,11 +79,24 @@ export class ProjectService {
       if (fs.existsSync(project.path)) {
         await shell.trashItem(project.path);
       }
-      // Clean up SDK session directory
+      // 清理 Pi 会话元数据（cache/pinned/archived/titles）→ session-types
+      const { cleanupProjectSessions } = await import("./session-service");
+      const sids = cleanupProjectSessions(project.path);
+      if (sids.length > 0) {
+        const { removeSessionTypes } = await import("./agent-service");
+        removeSessionTypes(sids);
+      }
+      // Pi 会话目录 → 废纸篓
+      const { getPiSessionDir } = await import("./pi-session");
+      const sessionDir = getPiSessionDir(project.path);
+      if (fs.existsSync(sessionDir)) {
+        await shell.trashItem(sessionDir);
+      }
+      // 旧 Claude SDK 遗留目录（v0.7.2 起不再产生，兜底清理）
       const sdkProjectsDir = path.join(os.homedir(), ".easymint", "projects");
       const encodedPath = project.path.replace(/[:/\\]/g, "-");
       const sdkDir = path.join(sdkProjectsDir, encodedPath);
-      if (fs.existsSync(sdkDir)) fs.rmSync(sdkDir, { recursive: true, force: true });
+      if (fs.existsSync(sdkDir)) await shell.trashItem(sdkDir);
     }
     const projects = this.store.getProjects().filter((p) => p.id !== id);
     this.store.saveProjects(projects);
