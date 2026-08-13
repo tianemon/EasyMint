@@ -1101,7 +1101,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
         onTouchMove={handleUserInput}
         onMouseDown={handleUserInput}
         className="chat-messages flex-1 overflow-y-auto overflow-x-hidden pb-2"
-        style={{ fontSize: "var(--chat-bubble-size)" }}
+        style={{ fontSize: "var(--text-body)" }}
       >
         {!hasMessages ? (
           <div className="chat-empty">

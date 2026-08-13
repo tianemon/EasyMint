@@ -102,8 +102,13 @@ html[data-platform="win32"] {
 :root {
   /* ── 聊天字号(px):由设置→界面 的级别滑杆(1-6,默认3)映射设置 ── */
   --chat-list-size: 14px;    /* 会话列表(默认级别3) */
-  --chat-bubble-size: 14px;  /* 聊天气泡正文(默认级别3) */
-  --chat-detail-size: 13px;  /* 思考过程/工具调用(默认级别2=基准-1级) */
+  /* 语义字号(气泡折叠块与 markdown 正文共用):
+     body/detail 由设置滑杆驱动(基准/基准-1级),caption/code/meta 为固定档位 */
+  --text-body: 14px;    /* markdown 正文(默认级别3=基准) */
+  --text-detail: 13px;  /* 折叠块正文/摘要(默认级别2=基准-1级) */
+  --text-caption: 12px; /* 标题栏/标签/工具名 */
+  --text-code: 11px;    /* diff / 紧凑代码视图 */
+  --text-meta: 10px;    /* 箭头/状态/图标 */
   /* ── Surface（v3 对齐层级色，去绿色调）────────────── */
   --color-surface: var(--color-canvas);
   --color-surface-alt: var(--color-sidebar);
@@ -219,7 +224,7 @@ html[data-platform="win32"] {
 
   /* ── Code block ────────────────── */
   --color-code-block-bg: #f5f5f5;
-  --color-code-block-header: #e8e8e8;
+  --color-code-block-header: #dedede;
 
   /* ── Radius ──────────────────────── */
   --radius-sm: 6px;
@@ -401,7 +406,7 @@ html[data-platform="win32"] {
 
   /* ── Code block ────────────────── */
   --color-code-block-bg: #383838;
-  --color-code-block-header: #444444;
+  --color-code-block-header: #4e4e4e;
 
   /* ── v3 Layer tokens（暗色反向：L0 最暗 → L4 最亮）── */
   --color-canvas: #181818;
@@ -1168,7 +1173,7 @@ select.input {
 
 /* 聊天区 Markdown(prose)正文跟随聊天气泡字号设置——覆盖 typography 插件的 prose-sm 固定字号 */
 .chat-messages .prose {
-  font-size: var(--chat-bubble-size);
+  font-size: var(--text-body);
 }
 
 /* 新消息气泡:悬浮在输入卡片上方居中(anchor 容器 bottom:100% = 卡片顶部上方)。

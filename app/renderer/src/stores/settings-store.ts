@@ -190,8 +190,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const base = SCALE[idx] ?? 14;
     const detail = SCALE[Math.max(0, idx - 1)] ?? 12;
     document.documentElement.style.setProperty("--chat-list-size", `${base}px`);
-    document.documentElement.style.setProperty("--chat-bubble-size", `${base}px`);
-    document.documentElement.style.setProperty("--chat-detail-size", `${detail}px`);
+    document.documentElement.style.setProperty("--text-body", `${base}px`);
+    document.documentElement.style.setProperty("--text-detail", `${detail}px`);
   },
   setGlowEffect: (v) => { set({ glowEffect: v }); window.electronAPI?.settings?.set?.("glowEffect", v); },
   setGlowColorMode: (v) => { set({ glowColorMode: v }); window.electronAPI?.settings?.set?.("glowColorMode", v); },

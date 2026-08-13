@@ -118,6 +118,30 @@ function toolFamily(name: string): string {
 
 const FAMILY_LABELS: Record<string, string> = { file: "文件操作", bash: "命令执行", search: "搜索", web: "网络", other: "工具" };
 
+/** 代码块语言 → 准确显示名;不在表内/无法准确识别 → TEXT */
+const LANG_LABELS: Record<string, string> = {
+  js: "JavaScript", javascript: "JavaScript", jsx: "JSX",
+  ts: "TypeScript", typescript: "TypeScript", tsx: "TSX",
+  py: "Python", python: "Python",
+  sh: "Shell", shell: "Shell", bash: "Bash", zsh: "Zsh",
+  dart: "Dart",
+  html: "HTML", htm: "HTML", css: "CSS", scss: "SCSS", sass: "Sass", less: "Less",
+  json: "JSON", yaml: "YAML", yml: "YAML", toml: "TOML", xml: "XML", ini: "INI",
+  c: "C", cpp: "C++", "c++": "C++", "c#": "C#", cs: "C#", "objective-c": "Objective-C",
+  go: "Go", golang: "Go",
+  java: "Java",
+  kotlin: "Kotlin", kt: "Kotlin",
+  swift: "Swift",
+  rust: "Rust", rs: "Rust",
+  ruby: "Ruby", rb: "Ruby",
+  php: "PHP",
+  sql: "SQL",
+  markdown: "Markdown", md: "Markdown",
+  vue: "Vue", svelte: "Svelte",
+  dockerfile: "Dockerfile", makefile: "Makefile",
+  plaintext: "Plain Text", text: "Text",
+};
+
 // ── Block rendering ──────────────────────────────────
 
 function CodeBlock({ language, children }: { language?: string; children: string }): JSX.Element {
@@ -129,14 +153,14 @@ function CodeBlock({ language, children }: { language?: string; children: string
     }).catch(() => {});
   };
   return (
-    <div className="my-3 rounded-lg border border-border overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border" style={{ background: 'var(--color-code-block-header)' }}>
-        <span className="text-[10px] text-text-muted uppercase tracking-wider">{language || "code"}</span>
-        <button onClick={handleCopy} className="text-[10px] text-text-secondary hover:text-text-primary transition-colors">
+    <div className="not-prose mt-1.5 mb-1 rounded-lg border border-border overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-1 border-b border-border" style={{ background: 'var(--color-code-block-header)' }}>
+        <span className="text-text-muted tracking-wider" style={{ fontSize: "var(--text-caption)" }}>{language || "TEXT"}</span>
+        <button onClick={handleCopy} className="text-text-secondary hover:text-text-primary transition-colors" style={{ fontSize: "var(--text-caption)" }}>
           {copied ? "已复制" : "复制"}
         </button>
       </div>
-      <pre className="px-4 py-3 overflow-x-auto text-[13px] leading-relaxed font-mono text-text-primary whitespace-pre" style={{ background: 'var(--color-code-block-bg)' }}>
+      <pre className="m-0 px-3 py-2 overflow-x-auto leading-relaxed font-mono text-text-primary whitespace-pre" style={{ background: 'var(--color-code-block-bg)', fontSize: "var(--text-detail)" }}>
         <code>{children}</code>
       </pre>
     </div>
@@ -147,14 +171,19 @@ export function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
   const html = useMemo(() => {
     // Extract fenced code blocks before html rendering, handle them separately
     const parts: Array<{ type: "html" | "code"; content: string; lang?: string }> = [];
-    const codeRegex = /```(\w*)\n([\s\S]*?)```/g;
+    const codeRegex = /```([\w+#-]*)\n([\s\S]*?)```/g;
     let lastIdx = 0;
     let match: RegExpExecArray | null;
     while ((match = codeRegex.exec(block.text)) !== null) {
       if (match.index > lastIdx) {
         parts.push({ type: "html", content: block.text.slice(lastIdx, match.index) });
       }
-      parts.push({ type: "code", lang: match[1] || undefined, content: match[2]!.replace(/\n$/, "") });
+      // 语言:映射表能准确识别 → 标准名称;未知/无法识别 → TEXT;代码块内容 trim 首尾换行(避免 pre 顶部/底部空行空隙)
+      parts.push({
+        type: "code",
+        lang: match[1] ? (LANG_LABELS[match[1]] || "TEXT") : "TEXT",
+        content: match[2]!.replace(/^\n+/, "").replace(/\n+$/, ""),
+      });
       lastIdx = match.index + match[0].length;
     }
     if (lastIdx < block.text.length) {
@@ -164,7 +193,7 @@ export function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
   }, [block.text]);
 
   return (
-    <div className="leading-relaxed prose prose-sm max-w-none break-words [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_code]:text-[13px] prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-a:text-accent prose-li:text-text-primary">
+    <div className="leading-relaxed prose prose-sm max-w-none break-words [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_h1]:[font-size:1.5em] [&_code]:[font-size:var(--text-detail)] prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-a:text-accent prose-li:text-text-primary">
       {html.map((part, i) => {
         const k = `${block.keyPrefix || "md"}-${i}`;
         if (part.type === "code") {
@@ -188,23 +217,29 @@ function ThinkingBlockView({ block }: { block: ThinkingBlock }): JSX.Element {
   const preview = block.text.slice(0, 140);
   // 双主题变量:亮色淡绿(EM 品牌绿系),暗色保留紫——见 index.css --thinking-*
   return (
-    <div className="my-1 rounded-md border border-[var(--thinking-border)] bg-[var(--thinking-bg)]">
+    <div className="mt-1.5 mb-1 rounded-md border border-[var(--thinking-border)] bg-[var(--thinking-bg)]">
       <button
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-[var(--thinking-hover)] transition-colors"
       >
-        <span className="text-[11px] text-[var(--thinking-label)] uppercase tracking-wider font-semibold">思考过程</span>
-        <span className="text-text-secondary italic truncate flex-1" style={{ fontSize: "var(--chat-detail-size)" }}>{open ? "" : preview}{!open && block.text.length > 140 ? "…" : ""}</span>
-        <span className="text-[10px] text-text-secondary">{open ? "▲" : "▼"}</span>
+        <span className="text-[var(--thinking-label)] uppercase tracking-wider font-semibold" style={{ fontSize: "var(--text-caption)" }}>思考过程</span>
+        <span className="text-text-secondary italic truncate flex-1" style={{ fontSize: "var(--text-detail)" }}>{open ? "" : preview}{!open && block.text.length > 140 ? "…" : ""}</span>
+        <span className="text-text-secondary" style={{ fontSize: "var(--text-meta)" }}>{open ? "▲" : "▼"}</span>
       </button>
-      {open && <pre className="px-3 pb-2 text-text-secondary font-mono whitespace-pre-wrap leading-relaxed border-t border-[var(--thinking-border)]" style={{ fontSize: "var(--chat-detail-size)" }}>{block.text}</pre>}
+      {open && <pre className="px-3 py-2 text-text-secondary font-mono whitespace-pre-wrap leading-relaxed border-t border-[var(--thinking-border)]" style={{ fontSize: "var(--text-detail)" }}>{block.text}</pre>}
     </div>
   );
 }
 
 function ToolGroupView({ block }: { block: ToolGroupBlock }): JSX.Element {
-  const [open, setOpen] = useState(false);
   const items = block.items;
+  // 组内含 diff(edit 结果)时默认展开——diff 是可读结果,不随组折叠隐藏(与关工具调用开关时 diff 全显保持一致)
+  const hasDiff = items.some((it) => it.result?.includes("变更内容:"));
+  const [open, setOpen] = useState(hasDiff);
+  // 流式后到时结果补上:有 diff 则展开(幂等,用户手动折叠不受影响——依赖不变不重跑)
+  useEffect(() => {
+    if (hasDiff) setOpen(true);
+  }, [hasDiff]);
   if (items.length === 1) {
     return <SingleToolCard item={items[0]!} />;
   }
@@ -214,20 +249,20 @@ function ToolGroupView({ block }: { block: ToolGroupBlock }): JSX.Element {
   const summary = Array.from(families.entries()).map(([f, c]) => `${FAMILY_LABELS[f] || f} ×${c}`).join(", ");
 
   return (
-    <div className="my-1 border border-border rounded-md overflow-hidden">
+    <div className="mt-1.5 mb-1 border border-border rounded-md overflow-hidden">
       <button
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-2 px-3 py-1.5 bg-surface-alt hover:bg-surface-hover transition-colors text-left"
       >
-        <span className="text-[10px]">{open
+        <span style={{ fontSize: "var(--text-meta)" }}>{open
           ? <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><path d="M2 3.5l3 3 3-3"/></svg>
           : <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><path d="M3.5 2l3 3-3 3"/></svg>
         }</span>
-        <span className="text-xs text-text-secondary">{summary}</span>
+        <span className="text-text-secondary" style={{ fontSize: "var(--text-caption)" }}>{summary}</span>
       </button>
       <div className={`grid transition-all ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
         <div className="overflow-hidden">
-          <div className="border-t border-border px-3 py-1.5 space-y-1">
+          <div className="border-t border-border px-3 py-2 space-y-1">
             {items.map((item, i) => (
               <SingleToolCard key={i} item={item} compact />
             ))}
@@ -399,7 +434,7 @@ export function DiffView({ text, filePath: fp }: { text: string; filePath?: stri
 
   let lineIdx = 0;
   return (
-    <div className="font-mono text-[11px] leading-relaxed">
+    <div className="font-mono leading-relaxed" style={{ fontSize: "var(--text-code)" }}>
       {renderUnits.map((u, i) => (
         <div key={i}>
           {i > 0 && u.sep && <div className="px-2 -mx-2 text-text-muted">...</div>}
@@ -448,9 +483,10 @@ function truncateResult(text: string, maxLines = 30, keep = 20): string {
 }
 
 function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }): JSX.Element {
-  // 默认折叠——虚拟化重挂时不再因"已有结果"误展开
-  const [showInput, setShowInput] = useState(false);
-  // edit diff / 失败结果 → 自动展开(可理解的结果必显、需看到的问题醒目)
+  const isDiffResult = !!item.result && item.result.includes("变更内容:");
+  // diff 结果默认展开(可读结果必显),用户可手动收起;bash 等普通结果默认折叠
+  const [showInput, setShowInput] = useState(isDiffResult);
+  // 流式后到时结果补上:diff 自动展开(幂等,用户手动收起后依赖不变不重跑)
   useEffect(() => {
     if (item.result && (item.result.includes("变更内容:") || item.resultError)) {
       setShowInput(true);
@@ -458,7 +494,6 @@ function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }
   }, [item.result]);
 
   const isPathTool = item.name === "edit" || item.name === "write" || item.name === "read";
-  const isDiffResult = !!item.result && item.result.includes("变更内容:");
   const diffStats_ = isDiffResult ? diffCount(item.result!) : null;
   // 人话摘要(标题行):bash→命令,文件工具→路径;用户只看"AI 在做什么",技术参数/JSON 不展示
   const summary = item.name === "bash"
@@ -468,24 +503,24 @@ function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }
   const label = item.name === "edit" ? "编辑" : item.name === "read" ? "读取" : item.name === "write" ? "写入" : item.name;
 
   return (
-    <div className={compact ? "text-[11px]" : `border rounded-md overflow-hidden ${item.resultError ? "border-danger/40" : "border-border"}`}>
+    <div className={compact ? "" : `mt-1.5 mb-1 border rounded-md overflow-hidden ${item.resultError ? "border-danger/40" : "border-border"}`} style={compact ? { fontSize: "var(--text-code)" } : undefined}>
       <button
         onClick={() => setShowInput((o) => !o)}
         className={`flex items-center gap-1.5 ${item.resultError ? "text-danger hover:text-danger" : "text-text-secondary hover:text-text-primary"} transition-colors ${compact ? "py-0.5" : "w-full px-3 py-1.5 bg-surface-alt hover:bg-surface-hover"}`}
-        style={{ fontSize: "var(--chat-detail-size)" }}
+        style={{ fontSize: "var(--text-caption)" }}
       >
-        <span className="text-[10px]">{showInput ? "▼" : "▶"}</span>
+        <span style={{ fontSize: "var(--text-meta)" }}>{showInput ? "▼" : "▶"}</span>
         <span>{label}</span>
-        {summary && <span className="text-text-secondary truncate font-mono">{summary}</span>}
+        {summary && <span className="text-text-secondary truncate font-mono" style={{ fontSize: "var(--text-detail)" }}>{summary}</span>}
         {item.result && !compact && (
           diffStats_ && (diffStats_.added > 0 || diffStats_.removed > 0) ? (
-            <span className={`ml-auto text-[10px] shrink-0 normal-case tracking-normal ${item.resultError ? "text-danger" : "text-text-muted"}`}>
+            <span className={`ml-auto shrink-0 normal-case tracking-normal ${item.resultError ? "text-danger" : "text-text-muted"}`} style={{ fontSize: "var(--text-meta)" }}>
               {diffStats_.added > 0 && <span className="text-success">+{diffStats_.added}</span>}
               {diffStats_.added > 0 && diffStats_.removed > 0 && " · "}
               {diffStats_.removed > 0 && <span className="text-danger">-{diffStats_.removed}</span>}
             </span>
           ) : (
-            <span className={`ml-auto text-[10px] shrink-0 ${item.resultError ? "text-danger" : "text-text-muted"}`}>
+            <span className={`ml-auto shrink-0 ${item.resultError ? "text-danger" : "text-text-muted"}`} style={{ fontSize: "var(--text-meta)" }}>
               {item.resultError ? "失败" : "完成"}
             </span>
           )
@@ -496,7 +531,7 @@ function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }
           {isDiffResult ? (
             <div className="px-3 py-2"><DiffView text={item.result} filePath={editFilePath(item)} /></div>
           ) : (
-            <pre className={`text-text-secondary font-mono overflow-x-auto px-3 py-2 whitespace-pre-wrap ${item.resultError ? "text-danger" : ""}`} style={{ fontSize: "var(--chat-detail-size)" }}>
+            <pre className={`text-text-secondary font-mono overflow-x-auto px-3 py-2 whitespace-pre-wrap ${item.resultError ? "text-danger" : ""}`} style={{ fontSize: "var(--text-detail)" }}>
               {truncateResult(item.result)}
             </pre>
           )}
@@ -531,8 +566,8 @@ function ToolResultOnlyView({ block }: { block: ToolResultOnlyBlock }): JSX.Elem
     : block.name === "bash" && typeof inp?.command === "string" ? inp.command
     : undefined;
   return (
-    <div className={`my-1 rounded-md border overflow-hidden ${block.isError ? "border-danger/40" : "border-border"}`}>
-      <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-surface-alt text-[10px] text-text-muted uppercase tracking-wider font-semibold border-b border-border">
+    <div className={`mt-1.5 mb-1 rounded-md border overflow-hidden ${block.isError ? "border-danger/40" : "border-border"}`}>
+      <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-surface-alt text-text-muted uppercase tracking-wider font-semibold border-b border-border" style={{ fontSize: "var(--text-caption)" }}>
         <span className="shrink-0">{label}</span>
         {summary && (
           <span className="normal-case tracking-normal font-normal text-text-secondary font-mono truncate">{summary}</span>
@@ -552,7 +587,7 @@ function ToolResultOnlyView({ block }: { block: ToolResultOnlyBlock }): JSX.Elem
       )}
       {!isDiff && !summary && (
         <div className="bg-surface px-3 py-2">
-          <pre className={`text-text-secondary font-mono whitespace-pre-wrap text-[11px] ${block.isError ? "text-danger" : ""}`}>{truncateResult(block.content)}</pre>
+          <pre className={`text-text-secondary font-mono whitespace-pre-wrap ${block.isError ? "text-danger" : ""}`} style={{ fontSize: "var(--text-detail)" }}>{truncateResult(block.content)}</pre>
         </div>
       )}
     </div>
