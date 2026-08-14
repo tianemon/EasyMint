@@ -170,7 +170,7 @@ interface ElectronAPI {
   };
   agent: {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string }) => Promise<{ chatId: string }>;
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string; tabId?: string }) => Promise<{ chatId: string }>;
     steer: (sessionId: string, text: string) => Promise<void>;
     stopDelegation: (delegationId: string, taskIndex: number) => Promise<void>;
     stopShell: (shellId: string) => Promise<void>;
@@ -200,7 +200,6 @@ interface ElectronAPI {
     peekUsage: (projectPath: string, sessionId: string) => Promise<void>;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
-    onFallbackUsed: (callback: (data: { provider: string; modelId: string }) => void) => () => void;
     onConfirmDev: (callback: () => void) => () => void;
     onNewProject: (callback: () => void) => () => void;
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
@@ -222,7 +221,7 @@ interface ElectronAPI {
     onDelegationCount: (callback: (data: { count: number; tasks: { delegationId: string; index: number; title: string }[] }) => void) => () => void;
     onShellCount: (callback: (data: { id: string; command: string; startedAt: number; status: "running" | "stopping"; logPath: string }[]) => void) => () => void;
     onShellOutput: (callback: (data: ShellOutputEvent) => void) => () => void;
-    onChatSession: (callback: (data: { chatId: string; sessionId: string }) => void) => () => void;
+    onChatSession: (callback: (data: { chatId: string; sessionId: string; tabId?: string }) => void) => () => void;
     onContextSummarizing: (callback: (data: { chatId: string }) => void) => () => void;
     onContextSummary: (callback: (data: { chatId: string; summary: string }) => void) => () => void;
     onContextRotated: (callback: (data: { chatId: string; sessionId: string }) => void) => () => void;
@@ -231,13 +230,6 @@ interface ElectronAPI {
     onCommandsChanged: (callback: (data: { commands: Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> }) => void) => () => void;
     onRenameProgress: (callback: (data: { phase: string }) => void) => () => void;
     onSessionRenamed: (callback: (data: { sessionId: string; title: string }) => void) => () => void;
-  };
-  group: {
-    create: (projectPath: string, templateIds: string[], opts?: { presetId?: string; message?: string; permissionMode?: string; thinkingLevel?: string }) => Promise<{ groupId: string; chatId: string }>;
-    send: (groupId: string, text: string) => Promise<void>;
-    list: (projectPath: string) => Promise<Array<{ groupId: string; projectId: string; presetId?: string; createdAt: number; agents: Array<{ role: string; templateId: string; provider?: string; model?: string; sessionId: string }> }>>;
-    messages: (projectPath: string, groupId: string) => Promise<{ groupId: string; messages: Array<{ agentRole: string; text: string; piTs: number; forwardedFrom?: string }> }>;
-    close: (groupId: string) => Promise<void>;
   };
   device: {
     getSelf: () => Promise<{ id: string; name: string; discoverable: boolean }>;
@@ -398,11 +390,6 @@ interface ElectronAPI {
       statusTextGroupsDark?: Array<{ id: string; name: string; colors: string[]; isBuiltin?: boolean }>;
       activeStatusGroupLight?: string;
       activeStatusGroupDark?: string;
-      maxGroupAgents?: number;
-      groupForwardStrategy?: "all" | "conclusion";
-      groupInjectMode?: "steer" | "followUp";
-      maxForwardDepth?: number;
-      groupPresets?: Array<{ id: string; name: string; templateIds: string[] }>;
       apiProviders?: {
         current: string | null;
         configs: Record<string, {

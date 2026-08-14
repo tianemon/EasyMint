@@ -6,7 +6,6 @@
 
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
-import * as os from "node:os";
 import { app } from "electron";
 import { broadcast } from "./ipc-broadcast";
 import { describeImage, webFetch, isToolEnabled } from "./api-clients";

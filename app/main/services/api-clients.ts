@@ -67,7 +67,6 @@ export async function describeImage(args: { path: string; prompt?: string }): Pr
     isUrl = true;
   } else {
     if (!existsSync(src)) return `文件不存在: ${src}`;
-    const ext = extname(basename(src)).toLowerCase();
     imageBase64 = readFileSync(src).toString("base64");
   }
 

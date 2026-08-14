@@ -83,12 +83,6 @@ interface SettingsState {
   /** 当前启用的状态流光分组 id(暗色模式) */
   activeStatusGroupDark: string;
   apiProviders: ApiProvidersData | null;
-  // ── 需求 4:群聊配置 ──
-  maxGroupAgents: number;
-  groupForwardStrategy: "all" | "conclusion";
-  groupInjectMode: "steer" | "followUp";
-  maxForwardDepth: number;
-  groupPresets: Array<{ id: string; name: string; templateIds: string[] }>;
   setDefaultProjectDir: (dir: string) => void;
   setModel: (model: string) => void;
   setContextThreshold: (pct: number) => void;
@@ -113,11 +107,6 @@ interface SettingsState {
   setActiveStatusGroupDark: (v: string) => void;
   setApiProviders: (data: ApiProvidersData) => void;
   activateProvider: (providerId: string) => void;
-  setMaxGroupAgents: (v: number) => void;
-  setGroupForwardStrategy: (v: "all" | "conclusion") => void;
-  setGroupInjectMode: (v: "steer" | "followUp") => void;
-  setMaxForwardDepth: (v: number) => void;
-  setGroupPresets: (v: Array<{ id: string; name: string; templateIds: string[] }>) => void;
   loadFromElectron: () => Promise<void>;
 }
 
@@ -148,14 +137,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   statusTextGroupsDark: [BUILTIN_STATUS_GROUPS.dark],
   activeStatusGroupLight: BUILTIN_STATUS_GROUP_LIGHT_ID,
   activeStatusGroupDark: BUILTIN_STATUS_GROUP_DARK_ID,
-  maxGroupAgents: 3,
-  groupForwardStrategy: "conclusion",
-  groupInjectMode: "followUp",
-  maxForwardDepth: 3,
-  groupPresets: [
-    { id: "dev-trio", name: "开发三人组", templateIds: ["mint", "default-builder", "default-evaluator"] },
-    { id: "design-duo", name: "设计协作", templateIds: ["mint", "mint-designer"] },
-  ],
 
   setModel: (model: string) => {
     set({ model });
@@ -208,11 +189,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setStatusTextGroupsDark: (v) => { set({ statusTextGroupsDark: v }); window.electronAPI?.settings?.set?.("statusTextGroupsDark", v); },
   setActiveStatusGroupLight: (v) => { set({ activeStatusGroupLight: v }); window.electronAPI?.settings?.set?.("activeStatusGroupLight", v); },
   setActiveStatusGroupDark: (v) => { set({ activeStatusGroupDark: v }); window.electronAPI?.settings?.set?.("activeStatusGroupDark", v); },
-  setMaxGroupAgents: (v: number) => { set({ maxGroupAgents: v }); window.electronAPI?.settings?.set?.("maxGroupAgents", v); },
-  setGroupForwardStrategy: (v: "all" | "conclusion") => { set({ groupForwardStrategy: v }); window.electronAPI?.settings?.set?.("groupForwardStrategy", v); },
-  setGroupInjectMode: (v: "steer" | "followUp") => { set({ groupInjectMode: v }); window.electronAPI?.settings?.set?.("groupInjectMode", v); },
-  setMaxForwardDepth: (v: number) => { set({ maxForwardDepth: v }); window.electronAPI?.settings?.set?.("maxForwardDepth", v); },
-  setGroupPresets: (v: Array<{ id: string; name: string; templateIds: string[] }>) => { set({ groupPresets: v }); window.electronAPI?.settings?.set?.("groupPresets", v); },
 
   setApiProviders: (data: ApiProvidersData) => {
     // 同步激活供应商的模型信息到旧字段（ChatPanel 下拉引用）
@@ -273,10 +249,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           activeStatusGroupDark: settings.activeStatusGroupDark ?? BUILTIN_STATUS_GROUP_DARK_ID,
           setupComplete: settings.setupComplete ?? false,
           apiProviders: (settings.apiProviders as ApiProvidersData) ?? null,
-          maxGroupAgents: settings.maxGroupAgents ?? 3,          groupForwardStrategy: settings.groupForwardStrategy ?? "conclusion",
-          groupInjectMode: settings.groupInjectMode ?? "followUp",
-          maxForwardDepth: settings.maxForwardDepth ?? 3,
-          groupPresets: settings.groupPresets ?? [],
         });
       }
     } catch { /* electronAPI unavailable */ }

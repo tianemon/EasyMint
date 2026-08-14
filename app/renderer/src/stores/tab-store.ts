@@ -4,12 +4,10 @@ import { useChatStore } from "./chat-store";
 
 export interface Tab {
   id: string;
-  type: "file" | "chat" | "group";
+  type: "file" | "chat";
   title: string;
   filePath?: string;
   sessionId?: string;
-  /** 群聊会话 ID(需求 4:type === "group" 时有效) */
-  groupId?: string;
   isNewProject?: boolean;
   dirty?: boolean;
   isDesigner?: boolean;
@@ -20,12 +18,18 @@ interface TabState {
   activeTabId: string | null;
   runningSessions: Set<string>;
   openTab: (tab: Tab) => void;
-  closeTab: (id: string) => void;
+  closeTab: (id: string, suppressDefaultTab?: boolean) => void;
   setActiveTab: (id: string) => void;
   clearTabs: () => void;
   setDirty: (id: string, dirty: boolean) => void;
   updateTab: (id: string, patch: Partial<Omit<Tab, "id">>) => void;
   setSessionRunning: (sessionId: string, running: boolean) => void;
+  /** 是否有真实 tab(chat 已有 sessionId 或 file)——TabBar 显隐与新建会话可用性统一判断 */
+  hasRealTabs: () => boolean;
+  /** 关闭空会话 tab(chat 无 sessionId);不存在则无操作——切到真实会话时统一清理 */
+  closeEmptyTab: () => void;
+  /** 打开会话:关闭空 tab → 已有则激活,否则新建 tab。会话列表与 TabBar 联动入口 */
+  openSession: (sessionId: string, title?: string) => void;
 }
 
 let nextTabIdx = 0;
@@ -54,8 +58,6 @@ export const useTabStore = create<TabState>()(
         const existing = tabs.find(
           (t) =>
             (tab.type === "file" && t.type === "file" && t.filePath === tab.filePath) ||
-            // 群聊按 groupId 去重(需求 4)
-            (tab.type === "group" && t.type === "group" && tab.groupId && t.groupId === tab.groupId) ||
             // Only dedup by sessionId if it's a real SDK session (not undefined=new)
             (tab.type === "chat" && t.type === "chat" && tab.sessionId && t.sessionId === tab.sessionId)
         );
@@ -71,7 +73,7 @@ export const useTabStore = create<TabState>()(
         set((s) => ({ tabs: [...s.tabs, newTab], activeTabId: newTab.id }));
       },
 
-      closeTab: (id) => {
+      closeTab: (id, suppressDefaultTab = false) => {
         // Evict chat messages from memory when tab is closed
         const tab = get().tabs.find((t) => t.id === id);
         if (tab?.sessionId) {
@@ -84,6 +86,12 @@ export const useTabStore = create<TabState>()(
         set((s) => {
           const idx = s.tabs.findIndex((t) => t.id === id);
           const nextTabs = s.tabs.filter((t) => t.id !== id);
+          // 关闭所有 tab → 自动回到默认页面(补建空会话 tab,输入卡片居中);
+          // suppressDefaultTab=true(如 closeEmptyTab 联动清理)时不补建
+          if (nextTabs.length === 0 && !suppressDefaultTab) {
+            const defaultTab: Tab = { id: genId(), type: "chat", title: "新会话" };
+            return { tabs: [defaultTab], activeTabId: defaultTab.id };
+          }
           let nextActiveId = s.activeTabId;
           if (s.activeTabId === id) {
             if (nextTabs.length === 0) {
@@ -115,6 +123,26 @@ export const useTabStore = create<TabState>()(
         else next.delete(sessionId);
         return { runningSessions: next };
       }),
+
+      hasRealTabs: () => get().tabs.some((t) => (t.type === "chat" && t.sessionId) || t.type === "file"),
+
+      closeEmptyTab: () => {
+        const empty = get().tabs.find((t) => t.type === "chat" && !t.sessionId);
+        // suppressDefaultTab:联动清理(切真实会话)时关闭空 tab,不触发默认页补建
+        if (empty) get().closeTab(empty.id, true);
+      },
+
+      openSession: (sessionId, title) => {
+        get().closeEmptyTab();
+        // 已有同 session 的 tab → 激活并同步标题(会话列表点击带真实标题,覆盖"对话"占位)
+        const existing = get().tabs.find((t) => t.type === "chat" && t.sessionId === sessionId);
+        if (existing) {
+          if (title && existing.title !== title) get().updateTab(existing.id, { title });
+          set({ activeTabId: existing.id });
+          return;
+        }
+        get().openTab({ id: "", type: "chat", title: title || "对话", sessionId });
+      },
     }),
     {
       name: "easymint-tabs",
@@ -134,7 +162,7 @@ useTabStore.subscribe((state) => {
   synced = true;
   try {
     window.electronAPI?.tab?.save?.({
-      tabs: state.tabs.map((t) => ({ id: t.id, type: t.type, title: t.title, filePath: t.filePath, sessionId: t.sessionId, groupId: t.groupId, isDesigner: t.isDesigner })),
+      tabs: state.tabs.map((t) => ({ id: t.id, type: t.type, title: t.title, filePath: t.filePath, sessionId: t.sessionId, isDesigner: t.isDesigner })),
       activeTabId: state.activeTabId,
     });
   } catch { /* ignore */ }

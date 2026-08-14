@@ -190,7 +190,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   agent: {
     runWorker: (projectPath: string, prompt: string) =>
       ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string }) =>
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string; tabId?: string }) =>
       ipcRenderer.invoke("agent:sendMessage", { projectPath, message, ...opts }),
     steer: (sessionId: string, text: string) =>
       ipcRenderer.invoke("agent:steer", { sessionId, text }),
@@ -246,11 +246,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:stderr", handler);
       return () => ipcRenderer.removeListener("agent:stderr", handler);
     },
-    onFallbackUsed: (callback: (data: { provider: string; modelId: string }) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: { provider: string; modelId: string }) => callback(data);
-      ipcRenderer.on("agent:fallback-used", handler);
-      return () => ipcRenderer.removeListener("agent:fallback-used", handler);
-    },
     onConfirmDev: (callback: () => void) => {
       const handler = () => callback();
       ipcRenderer.on("agent:confirm-dev", handler);
@@ -297,7 +292,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:shell-output", handler);
       return () => ipcRenderer.removeListener("agent:shell-output", handler);
     },
-    onChatSession: (callback: (data: { chatId: string; sessionId: string }) => void) => {
+    onChatSession: (callback: (data: { chatId: string; sessionId: string; tabId?: string }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { chatId: string; sessionId: string }) =>
         callback(data);
       ipcRenderer.on("agent:chat-session", handler);
@@ -343,14 +338,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:session-renamed", handler);
       return () => ipcRenderer.removeListener("agent:session-renamed", handler);
     },
-  },
-  group: {
-    create: (projectPath: string, templateIds: string[], opts?: { presetId?: string; message?: string; permissionMode?: string; thinkingLevel?: string }) =>
-      ipcRenderer.invoke("group:create", { projectPath, templateIds, presetId: opts?.presetId, message: opts?.message, permissionMode: opts?.permissionMode, thinkingLevel: opts?.thinkingLevel }) as Promise<{ groupId: string; chatId: string }>,
-    send: (groupId: string, text: string) => ipcRenderer.invoke("group:send", { groupId, text }) as Promise<void>,
-    list: (projectPath: string) => ipcRenderer.invoke("group:list", { projectPath }) as Promise<Array<{ groupId: string; projectId: string; presetId?: string; createdAt: number; agents: Array<{ role: string; templateId: string; provider?: string; model?: string; sessionId: string }> }>>,
-    messages: (projectPath: string, groupId: string) => ipcRenderer.invoke("group:messages", { projectPath, groupId }) as Promise<{ groupId: string; messages: Array<{ agentRole: string; text: string; piTs: number; forwardedFrom?: string }> }>,
-    close: (groupId: string) => ipcRenderer.invoke("group:close", { groupId }) as Promise<void>,
   },
   // ── 设备互联（mDNS 发现 + WS 配对连接） ──
   device: {

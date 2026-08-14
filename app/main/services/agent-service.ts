@@ -40,8 +40,7 @@ import { randomUUID } from "node:crypto";
 import { renameSession, hasCustomTitle } from "./session-service";
 import { MAX_COMPACT, finishRotation, type RotationState } from "./rotation";
 import { buildProjectEnvSection, buildProjectProfileSection, readProjectProfile } from "./prompt-sections";
-import { DESIGNER_AGENT_PROMPT } from "../../shared/prompts";
-import { GroupSessionManager, type GroupSessionMeta, type GroupRecord } from "./group-session";
+import { MINT_DESIGN_BOOST } from "../../shared/prompts";
 
 // ── 类型 ────────────────────────────────────────────
 
@@ -57,26 +56,6 @@ const SYSTEM_KIND_TITLES: Record<string, string> = {
   delegation: "子 Agent 委派",
   shell: "后台命令",
 };
-
-/** 群聊协作规则:注入每个群聊 Agent 的 system prompt(需求 4) */
-/** 群聊协作规则(注入每个群聊 Agent 的 system prompt)。{members} 和 {role} 由 createGroup 时替换。 */
-const GROUP_COLLABORATION_RULE = `[群聊协作规则]
-你正在一个多 Agent 群聊会话中协作。群聊成员: {members}
-
-你会持续收到共享上下文(其他成员的发言和结论)——这些是累积的历史记录,你不需要逐条回复。
-
-核心规则:
-1. 只有被 @ 或收到"群聊激活"系统消息时才回话。
-   回话时,优先响应当前最新指令,不要纠结于历史对话。
-2. 当某部分工作更适合其他成员处理时,调用 assign_to_agent({target:"<角色名>"}) 工具,
-   指定目标角色即可,不要硬编角色名称。
-   无需重复说明任务——对方上下文里已有全部信息。
-3. 你的回复结论会自动同步给所有成员作为背景上下文。
-   请保持结论清晰、独立可读,不引用其他成员未提供的代码或信息。
-
-禁止事项:
-- 不要在每条背景消息后都回话——只在被显式激活(@ 或系统激活消息)时才回话`;
-
 
 interface ActiveRun {
   runId: string;
@@ -376,17 +355,7 @@ async function createReadAgentLogTool(sessionId: string): Promise<ToolDefinition
 }
 
 export class AgentService {
-  private groupSessions: GroupSessionManager;
   constructor(private store: Store) {
-    this.groupSessions = new GroupSessionManager({
-      store,
-      getAgentDir: () => this.getAgentDir(),
-      buildGroupTools: (p, s, c, t) => this.buildGroupTools(p, s, c, t),
-      buildSystemPrompt: (p, t, role, members) => this.groupSystemPrompt(p, t, role, members),
-      resolveModel: (prov, mod) => this.getModel(this.store, prov, mod),
-      broadcast: (ch, d) => broadcast(ch, d),
-      injectSystemMessage: (sid, text, kind, opts) => this.injectSystemMessage(sid, text, kind, opts),
-    });
   }
   private activeRuns: Map<string, ActiveRun> = new Map();
   private activeChats: Map<string, ActiveChat> = new Map();
@@ -410,7 +379,7 @@ export class AgentService {
       const m = runtime.getModel(preferredProvider, preferredModel);
       if (m) return m as any;
     }
-    // 默认/兜底降级(getActiveModel 内处理)
+    // 默认模型(无兜底降级;模型不可用时返回 null,由 SDK/上层按默认行为处理)
     return getActiveModel(store) ?? null;
   }
 
@@ -458,61 +427,15 @@ export class AgentService {
     }
   }
 
-  /** 群聊 Agent 工具集:由 AgentTemplate.tools 声明驱动(需求 4)。
-      基础 coding 工具(Read/Write/Edit/Bash 等)由 createPiSession 强制追加;
-      此处只注入模板声明的 task 委派工具与 MCP 工具。 */
-  private async buildGroupTools(projectPath: string, sessionId: string, chatId: string | undefined, templateTools: string[]): Promise<{
-    tools: ToolDefinition[];
-    canUseTool: CanUseToolFn;
-  }> {
-    const canUseTool = permissionService.createCanUseTool(
-      sessionId,
-      (request) => { broadcast("agent:permission-request", request); },
-      undefined,
-      (askRequest) => { broadcast("agent:permission-request", { ...askRequest, type: "ask" }); },
-    );
-    try {
-      const declared = new Set(templateTools ?? []);
-      const tools: ToolDefinition[] = [];
-
-      // task 委派工具:仅模板声明 task 时注入(群聊 Agent 默认无委派需求)
-      if (declared.has("task")) {
-        const taskTool = await createTaskTool({
-          cwd: projectPath,
-          agentDir: this.getAgentDir(),
-          store: this.store,
-          parentSessionId: sessionId,
-          chatId,
-          onComplete: (sid, text) => this.injectSystemMessage(sid, text, "delegation", { triggerTurn: true }),
-          onTaskAborted: (sid, text, triggerTurn) => this.injectSystemMessage(sid, text, "delegation", triggerTurn ? { triggerTurn: true } : undefined),
-          onTaskCompleted: (sid, text) => this.injectSystemMessage(sid, text, "delegation"),
-        });
-        tools.push(taskTool);
-      }
-
-      // MCP 工具:按模板声明的 mcp__* 过滤(如 mcp__codegraph__*)
-      const declaredMcp = [...declared].filter((t) => t.startsWith("mcp__"));
-      if (declaredMcp.length > 0) {
-        const mcpTools = await loadMcpTools();
-        tools.push(...mcpTools.filter((m) => declaredMcp.includes(m.name)));
-      }
-
-      console.log(`[group] 工具集(模板声明): task=${declared.has("task")} mcp=${declaredMcp.length}`);
-      return { tools, canUseTool };
-    } catch (e) {
-      console.error("[group] 工具创建失败:", e);
-      return { tools: [], canUseTool };
-    }
-  }
-
   private buildSystemPrompt(projectPath: string, isDesigner?: boolean): string {
     const parts: string[] = [];
 
+    // Mint-D 主会话 = 基础 Mint prompt(或用户自定义) + 设计能力增强段(附加不替换)
+    const effective = resolveEffectivePrompt();
+    if (effective) parts.push(effective);
     if (isDesigner) {
-      parts.push(DESIGNER_AGENT_PROMPT);
-    } else {
-      const effective = resolveEffectivePrompt();
-      if (effective) parts.push(effective);
+      const boost = MINT_DESIGN_BOOST;
+      if (boost) parts.push(boost);
     }
 
     const skills = buildSkillsPrompt(projectPath);
@@ -524,30 +447,6 @@ export class AgentService {
     const profile = buildProjectProfileSection(readProjectProfile(projectPath));
     if (profile) parts.push(profile);
 
-    return parts.join("\n\n");
-  }
-
-  /** 群聊 Agent 系统提示词:模板 prompt(替代默认 Mint prompt)+ 群聊协作规则 + 动态 section */
-  private groupSystemPrompt(projectPath: string, templatePrompt: string, role?: string, members?: string): string {
-    const parts: string[] = [];
-    if (templatePrompt) {
-      parts.push(templatePrompt);
-    } else {
-      const effective = resolveEffectivePrompt();
-      if (effective) parts.push(effective);
-    }
-    // 替换协作规则占位符({members} 和 {role})
-    const rule = GROUP_COLLABORATION_RULE
-      .replace("{members}", members ?? "群聊成员(见上下文)")
-      .replace("{role}", role ?? "成员");
-    parts.push(rule);
-
-    const skills = buildSkillsPrompt(projectPath);
-    if (skills) parts.push(skills);
-    const env = buildProjectEnvSection(projectPath);
-    if (env) parts.push(env);
-    const profile = buildProjectProfileSection(readProjectProfile(projectPath));
-    if (profile) parts.push(profile);
     return parts.join("\n\n");
   }
 
@@ -769,8 +668,12 @@ export class AgentService {
     systemPayload?: SystemMessagePayload,
     /** 会话指定供应商(需求 5:不同会话不同供应商;与 model 搭配创建会话) */
     preferredProvider?: string,
+    /** 前端发起发送的 tab id(透传回 chat-session 广播,前端精确绑定 tab,防多新 tab 错配) */
+    tabId?: string,
   ): Promise<{ chatId: string }> {
     const resolvedPath = path.resolve(resolveHome(projectPath));
+    // 无项目时 cwd 是 workspace 兜底目录——确保存在(不存在则 Pi 会话创建失败)
+    if (!fs.existsSync(resolvedPath)) fs.mkdirSync(resolvedPath, { recursive: true });
 
     // 已有活跃会话 → 直接用
     if (resumeSessionId) {
@@ -914,7 +817,7 @@ export class AgentService {
 
     // 广播 session_id（前端需要）
     if (chat.sessionId) {
-      broadcast("agent:chat-session", { chatId, sessionId: chat.sessionId });
+      broadcast("agent:chat-session", { chatId, sessionId: chat.sessionId, tabId });
     }
 
     // 设置思考级别（在 prompt 前同步设置，避免竞态）
@@ -995,37 +898,6 @@ export class AgentService {
     return this.sendMessage(projectPath, message, null, "auto",
       _mainWindow!,
       undefined, false);
-  }
-
-  // ── 群聊会话(需求 4:多 Agent 同一会话,应用层消息转发) ──
-
-  /** 创建群聊:每个模板建独立 Pi session,首条消息发主 Agent */
-  createGroupChat(
-    projectPath: string,
-    templateIds: string[],
-    opts?: { presetId?: string; message?: string; permissionMode?: string; thinkingLevel?: string },
-  ): Promise<{ groupId: string; chatId: string }> {
-    return this.groupSessions.createGroup(projectPath, templateIds, opts);
-  }
-
-  /** 群聊发消息:@提及路由到目标 Agent,否则主 Agent */
-  sendGroupMessage(groupId: string, text: string): Promise<void> {
-    return this.groupSessions.sendGroupMessage(groupId, text);
-  }
-
-  /** 项目群聊列表(持久化 meta) */
-  listGroupChats(projectPath: string): GroupSessionMeta[] {
-    return this.groupSessions.listGroups(projectPath);
-  }
-
-  /** 读取群聊记录(UI 显示历史) */
-  getGroupRecord(projectPath: string, groupId: string): GroupRecord {
-    return this.groupSessions.getRecord(projectPath, groupId);
-  }
-
-  /** 关闭群聊(释放所有 Agent 会话) */
-  closeGroupChat(groupId: string): void {
-    this.groupSessions.closeGroup(groupId);
   }
 
   killChat(chatId: string): void {

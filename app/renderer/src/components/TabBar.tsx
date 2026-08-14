@@ -39,8 +39,11 @@ export function TabBar(): JSX.Element | null {
   const agentTasks = useDelegationStore((s) => s.agentTasks);
   const shellTasks = useDelegationStore((s) => s.shellTasks);
 
+  // 无"真实 tab"(chat 已有 sessionId 或 file tab)时隐藏 tab 条:
+  // 初始空会话 tab(无 sessionId)不显示,发送后 sessionId 绑定自动出现。
   // 空 tab 时仍渲染空拖拽条（min-height 40px）：窗口顶部需要可拖拽区域
-  if (tabs.length === 0) return (
+  const hasRealTabs = useTabStore((s) => s.tabs.some((t) => (t.type === "chat" && t.sessionId) || t.type === "file"));
+  if (!hasRealTabs) return (
     <div className="tabbar-v3">
       <WindowControls />
     </div>
@@ -55,7 +58,13 @@ export function TabBar(): JSX.Element | null {
           <div key={tab.id} className="flex items-center min-w-0">
             {i > 0 && <div className="tab-divider-v3" />}
             <button
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                // 切到真实会话 tab → 关闭空会话 tab(与点击会话列表行为一致)
+                if (tab.type === "chat" && tab.sessionId) {
+                  useTabStore.getState().closeEmptyTab();
+                }
+                setActiveTab(tab.id);
+              }}
               className={`tab-v3 ${isActive ? "active" : ""}`}
               title={tab.title}
             >

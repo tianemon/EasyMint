@@ -26,7 +26,6 @@ import * as path from "node:path";
 import * as os from "node:os";
 import * as crypto from "node:crypto";
 // archiver 8.0 是 ESM 风格导出 class(ZipArchive)——主进程是 CJS bundle,用 require 取运行时
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { ZipArchive } = require("archiver") as {
   ZipArchive: new (opts?: Record<string, unknown>) => {
     pipe: (w: NodeJS.WritableStream) => void;
@@ -43,7 +42,6 @@ interface ZipEntry {
   pipe: (w: NodeJS.WritableStream) => void;
   on: (e: string, cb: (d: Buffer) => void) => void;
 }
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const unzipper = require("unzipper") as {
   Parse: () => NodeJS.ReadWriteStream & {
     on(e: "entry", cb: (entry: ZipEntry) => void): NodeJS.ReadWriteStream;
@@ -67,7 +65,7 @@ const MIGRATION_CACHE_DIR = path.join(os.homedir(), ".easymint", "migration-cach
     本机环境产物必须排除(windows/ 平台工程本身保留,仅排 ephemeral 缓存) */
 const DEFAULT_EXCLUDE = [
   ".git", "node_modules", "dist", "build", "temp", ".idea", ".vscode", ".codegraph", ".DS_Store",
-  ".easymint/shell-logs", ".easymint/templates", ".easymint/brand-tokens", ".easymint/group-sessions", ".easymint/group-sessions.json",
+  ".easymint/shell-logs", ".easymint/templates", ".easymint/brand-tokens",
   ".apk", ".exe", ".dmg", ".zip", ".iml",
   // Flutter 构建产物与本机环境(win 实测:约 3.6G 可删)
   ".dart_tool", "windows/flutter/ephemeral", "android/local.properties", ".flutter-plugins-dependencies",

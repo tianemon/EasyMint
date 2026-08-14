@@ -29,8 +29,8 @@ interface ChatPanelProps {
   sessionId?: string;
   /** 设计会话标记(tab 直传,避免多新 tab 反查错配导致用错 Mint-D/Mint 模板) */
   isDesigner?: boolean;
-  /** 群聊会话 ID(需求 4:多 Agent 同一会话,type === "group" 的 tab 传入) */
-  groupId?: string;
+  /** 所在 tab id(sendMessage 透传,onChatSession 回绑时精确锚定,防发送中切 tab/关 tab 错配) */
+  tabId?: string;
   onSessionCreated?: (sessionId: string) => void;
   onActivity?: () => void;
   onNewProject?: () => void;
@@ -46,13 +46,10 @@ const SYSTEM_KIND_LABELS: Record<string, string> = {
   summary: "上下文摘要",
 };
 
-export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, groupId, onSessionCreated, onActivity, onNewProject }: ChatPanelProps): JSX.Element {
-  // 群聊模式:消息以 groupId 为存储 key(各 Agent 事件注入 agentRole 标注来源),
-  // 不做临时→真实 sessionId 迁移、不加载 conv 历史(群聊由 group-sessions.json 管理)
-  const isGroup = !!groupId;
+export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesigner, onSessionCreated, onActivity, onNewProject }: ChatPanelProps): JSX.Element {
   const tempSidRef = useRef<string | null>(null);
-  if (!existingSid && !groupId && !tempSidRef.current) tempSidRef.current = `__new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-  const initialSid = groupId ?? existingSid ?? tempSidRef.current!;
+  if (!existingSid && !tempSidRef.current) tempSidRef.current = `__new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const initialSid = existingSid ?? tempSidRef.current!;
   const [sid, setSid] = useState<string>(initialSid);
   const emptyArr = useRef<ChatMessage[]>([]);
   const rawMsgs = useChatStore((s) => s.messagesBySession[sid]);
@@ -86,6 +83,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
   const [thinkingLevel, setThinkingLevel] = useState(globalThinkingLevel || "medium");
   // 用户是否手动切过思考等级:手动切过后不再跟随全局变化(方案 B)
   const userChangedThinkingRef = useRef(false);
+  // 新会话角色模板:发送首条消息前可选(Mint 默认 / Mint-D 设计模式),发送后不再显示
+  const [chatRole, setChatRole] = useState<"mint" | "mint-d">("mint");
+  // 输入卡片下移动画:发送首条消息时先触发下移过渡,结束后切换消息列表
+  const [leavingStartCard, setLeavingStartCard] = useState(false);
+  // 动画定时器 ref:unmount 清理(tab 关闭时对已卸载组件 setState)
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current); }, []);
 
   const showToolUse = useSettingsStore((s) => s.showToolUse);
   const [chatModel, setChatModel] = useState("");
@@ -137,8 +141,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
     const t = setTimeout(() => setCompactDone(false), 3000);
     return () => clearTimeout(t);
   }, [compactDone]);
+  // 防御性兜底:临时 sid → 真实 sessionId 的常规迁移已由 onChatSession(698 行)同步完成,
+  // 此处仅防 prop 直变(existingSid 从 undefined 一步到位)的遗漏场景,正常路径恒不命中
   useEffect(() => {
-    if (isGroup) return; // 群聊无临时→真实 sessionId 迁移
     if (existingSid && sidRef.current !== existingSid) {
       // 新建会话：临时 key → 真实 sessionId，迁移已存入的消息
       const oldKey = sidRef.current;
@@ -523,33 +528,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
     return () => { cancelled = true; };
   }, [existingSid, projectPath]);
 
-  // 群聊模式:从群聊记录文件加载历史(8.8,按 piTs 排序,角色头像渲染)
-  useEffect(() => {
-    if (!groupId || !projectPath) return;
-    let cancelled = false;
-    const projectDir = projectPath || getWorkspaceDir();
-    (async () => {
-      const rec = await window.electronAPI.group.messages(projectDir, groupId);
-      if (cancelled || !rec?.messages?.length) return;
-      const mapped = rec.messages
-        .slice()
-        .sort((a, b) => a.piTs - b.piTs)
-        .map((m, i) => ({
-          id: i + 1,
-          role: m.agentRole === "user" ? ("user" as const) : ("ai" as const),
-          text: m.text,
-          timestamp: m.piTs,
-          piTs: m.piTs,
-          agentRole: m.agentRole,
-          forwardedFrom: m.forwardedFrom,
-          // ai 消息渲染依赖 entries,把纯结论包成 text entry
-          entries: m.agentRole === "user" ? undefined : [{ kind: "text" as const, text: m.text, timestamp: m.piTs }],
-        }));
-      if (mapped.length > 0) useChatStore.getState().loadSession(groupId, mapped);
-    })();
-    return () => { cancelled = true; };
-  }, [groupId, projectPath]);
-
   // showThinking / showToolUse 切换时重新从磁盘加载，使过滤生效
   useEffect(() => {
     if (!existingSid) return;
@@ -568,10 +546,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
   useEffect(() => {
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       if (event.source === "worker") return;
-      // 群聊模式:按 groupId 过滤(所有 Agent 事件注入统一 groupId)
-      if (groupId) {
-        if (event.groupId !== groupId) return;
-      } else if (currentChatRef.current) {
+      if (currentChatRef.current) {
         // Filter by chatId when known
         if (!event.runId && !event.chatId) return;
         if (event.runId && event.runId !== currentChatRef.current) return;
@@ -592,7 +567,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
           return;
         }
       }
-      if (!currentChatRef.current && !groupId) {
+      if (!currentChatRef.current) {
         const cid = event.chatId || event.runId;
         if (cid) { currentChatRef.current = cid; setCurrentRunId(cid); }
       }
@@ -694,14 +669,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
         // 压缩后 Pi 重发的帧是摘要内容 → 作为新输出段块处理
         latestAiIdRef.current = 0;
       }
-      // 群聊回合结束 → 清 busy(群聊不广播 agent:exit,不能靠 onExit 清;
-      // 若触发转发,下一 Agent 回合 turn_start 会重新 setBusy)
-      if (event.type === "turn_end" && groupId) {
-        latestAiIdRef.current = 0;
-        busyRef.current = false; setBusy(false);
-        useStatusStore.getState().popSignal(sidRef.current, "request");
-        useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:");
-      }
       // error — 插播错误信号,8s 后自动消失(回退次新活跃信号)
       if (event.type === "error") {
         // 归一化上游错误(503/429/超时)为友好提示,状态栏不显示原始 JSON
@@ -747,6 +714,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
         }
         // 便签跟随迁移（临时 sid → 真实 sid）；须在 sidRef.current 更新前调用
         usePinStore.getState().migrateSession(sidRef.current, realSid);
+        // 清掉临时 sid 的 busy 标记(发送时按 temp 设置),再挂到真实 sid
+        useTabStore.getState().setSessionRunning(sidRef.current, false);
         setSid(realSid);
         sidRef.current = realSid;
         useTabStore.getState().setSessionRunning(realSid, true);
@@ -757,10 +726,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
         useTabStore.getState().setSessionRunning(realSid, true);
         onSessionCreated?.(realSid);
       }
-    });
-    // 兜底模型降级提示(需求 1):主模型不可用切换兜底时,状态栏 8s 提示
-    const unsubFallback = window.electronAPI.agent.onFallbackUsed(() => {
-      useStatusStore.getState().pushSignal(sidRef.current, "error", "⚠ 主模型不可用，已切换兜底模型", 8000);
     });
     // Context rotation events — filter by chatId
     const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(({ chatId: ctxChatId, type }: { chatId: string; type?: string }) => {
@@ -808,8 +773,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
       // 使用率显著回落（压缩完成）后允许再次触发
       if (pct < threshold - 20) ctxThresholdFiredRef.current = 0;
     });
-    return () => { unsub(); unsubExit(); unsubSid(); unsubFallback(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(sidRef.current); };
-  }, [groupId]);
+    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(sidRef.current); };
+  }, []);
 
   // Summarizing timeout — 120s safety net
   useEffect(() => {
@@ -886,6 +851,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
   const sendText = useCallback(async (text: string) => {
     const msg = text.trim();
     if (!msg && attaches.length === 0) return;
+    // 重入保护:新会话首条消息在途(onChatSession 绑定真实 sid 前)时再发送 → 丢弃。
+    // 否则会再建第二个会话、首回合回复丢失;已有会话时走下方 steer 插话分支,不受影响
+    if (busyRef.current && !existingSid) return;
 
     // Build agent message with numbered markers
     const parts: string[] = [];
@@ -898,6 +866,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
 
     const ts = Date.now();
     useChatStore.getState().appendUserMsg(sidRef.current, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
+    // 首条消息:输入卡片先下移过渡(300ms),再切消息列表——视觉上"卡片落位变输入区"
+    if (!messages.length && !existingSid) {
+      setLeavingStartCard(true);
+      if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = setTimeout(() => setLeavingStartCard(false), 300);
+    }
     // 新用户消息 → 重置输出段块状态(steer 插话不触发 turn_start 时兜底)
     latestAiIdRef.current = 0;
     setAttaches([]);
@@ -916,11 +890,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
     busyRef.current = true; setBusy(true); useStatusStore.getState().pushSignal(sidRef.current, "request", "正在请求...");
 
     try {
-      // 群聊发送:主进程 @提及路由到目标 Agent;事件按 groupId 过滤回显
-      if (groupId) {
-        await window.electronAPI.group.send(groupId, agentText);
-        return;
-      }
       currentChatRef.current = null;
       // 编码图片附件为 Pi ImageContent 格式
       const images: Array<{ type: "image"; data: string; mimeType: string }> = [];
@@ -932,10 +901,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
       }
       const tab = useTabStore.getState().tabs.find(function(t) { return t.sessionId === sid || (!t.sessionId && !existingSid); });
       const effectivePath = projectPath || getWorkspaceDir();
-      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "auto", isDesigner: isDesigner ?? tab?.isDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium", preferredProvider: chatProvider || undefined });
+      // 新会话:角色取自空状态选择(chatRole);恢复会话:沿用 tab 的 isDesigner
+      const roleDesigner = existingSid ? (isDesigner ?? tab?.isDesigner) : chatRole === "mint-d";
+      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "auto", isDesigner: roleDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium", preferredProvider: chatProvider || undefined, tabId });
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
     } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; useStatusStore.getState().pushSignal(sidRef.current, "error", "发送失败，请检查网络后重试", 8000); }
-  }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatProvider, groupId]);
+  }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatProvider, chatRole, tabId]);
 
   useEffect(() => { chatActions.register((t: string) => sendText(t)); return () => chatActions.unregister(); }, [sendText]);
 
@@ -1091,6 +1062,30 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
   }, []);
 
+  // 输入卡片(空态与非空态共用同一实例,仅外层容器不同)
+  const renderChatInput = (
+    <ChatInput
+      busy={busy}
+      attaches={attaches}
+      setAttaches={setAttaches}
+      onSend={sendText}
+      onStop={() => { stoppedRef.current = true; busyRef.current = false; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
+      onPaste={handlePaste}
+      imgInputRef={imgInputRef}
+      docInputRef={docInputRef}
+      onImgChange={handleImgChange}
+      onDocChange={handleDocChange}
+      permissionMode={permissionMode}
+      onPermissionModeChange={setPermissionMode}
+      chatModel={chatModel || storeModel}
+      onModelChange={handleModelChange}
+      thinkingLevel={thinkingLevel}
+      onThinkingLevelChange={handleThinkingLevelChange}
+      sessionId={sidRef.current}
+      onStatsClick={() => setShowStats(true)}
+    />
+  );
+
   return (
     <div className="absolute inset-0 flex flex-col" onDragOver={handleDragOver} onDrop={handleDrop}>
       <div
@@ -1104,13 +1099,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
         style={{ fontSize: "var(--text-body)" }}
       >
         {!hasMessages ? (
-          <div className="chat-empty">
-            <div className="chat-empty-icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            </div>
-            <h1 className="chat-empty-title">开始对话</h1>
-            <p className="chat-empty-desc">有什么想法，跟Mint聊聊吧</p>
-          </div>
+          // 空态:消息区留白(角色选择在输入卡片左上角)
+          <div />
         ) : (
           <div className="px-8 py-4">
             {/* 虚拟化消息列表：absolute 定位 + translateY，测量高度撑起滚动空间 */}
@@ -1189,28 +1179,37 @@ export function ChatPanel({ projectPath, sessionId: existingSid, isDesigner, gro
         <div className="px-4 py-2 bg-surface-alt/30 border-t border-border/50 shrink-0"><AttachPreview /></div>
       )}
 
-      {/* 气泡锚点容器:仅用于气泡悬浮定位(独立于输入卡片 DOM,悬浮在卡片上方) */}
-      <div className="relative shrink-0">
-        <ChatInput
-          busy={busy}
-          attaches={attaches}
-          setAttaches={setAttaches}
-          onSend={sendText}
-          onStop={() => { stoppedRef.current = true; busyRef.current = false; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); /* 仅停当前回合残留帧;打断通知/总结回合在 onStream 中按 turn_start 恢复渲染 */ }}
-          onPaste={handlePaste}
-          imgInputRef={imgInputRef}
-          docInputRef={docInputRef}
-          onImgChange={handleImgChange}
-          onDocChange={handleDocChange}
-          permissionMode={permissionMode}
-          onPermissionModeChange={setPermissionMode}
-          chatModel={chatModel || storeModel}
-          onModelChange={handleModelChange}
-          thinkingLevel={thinkingLevel}
-          onThinkingLevelChange={handleThinkingLevelChange}
-          sessionId={sidRef.current}
-          onStatsClick={() => setShowStats(true)}
-        />
+      {/* 气泡锚点容器:仅用于气泡悬浮定位(独立于输入卡片 DOM,悬浮在卡片上方)。
+          空态时 flex-1 垂直居中基础上再上移 200px(视觉重心偏上),有消息后回底部(shrink-0);
+          发送首条消息时 leavingStartCard 下移过渡(卡片落位变输入区) */}
+      <div
+        className={`relative ${(!hasMessages || leavingStartCard) ? "flex-1 flex flex-col justify-center" : "shrink-0"}`}
+        style={leavingStartCard
+          ? { transform: "translateY(20px)", opacity: 0, transition: "transform 0.3s ease, opacity 0.3s ease" }
+          : (!hasMessages ? { transform: "translateY(-200px)" } : undefined)}
+      >
+        {/* 空态模块:角色选择 + 输入卡片作为整体(角色 ml-4 对齐卡片左 margin 16px)。
+            existingSid 会话(磁盘消息加载中)不显示角色选择——恢复会话沿用 tab 的 isDesigner */}
+        {!hasMessages && !existingSid && !leavingStartCard ? (
+          <div className="w-full flex flex-col gap-2">
+            <div className="flex items-center gap-2 ml-[66px]">
+              <span className="text-xs text-text-muted">Agent能力</span>
+              {(["mint", "mint-d"] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setChatRole(r)}
+                  className={`px-3 py-1 rounded-full text-xs transition-colors ${chatRole === r ? "bg-accent-soft text-text-primary font-medium" : "bg-surface-alt text-text-secondary hover:bg-surface-hover"}`}
+                >
+                  {r === "mint" ? "默认" : "增强UI设计"}
+                </button>
+              ))}
+            </div>
+            {renderChatInput}
+          </div>
+        ) : (
+          renderChatInput
+        )}
         {/* 回底/新消息气泡:悬浮在输入卡片上方居中,不属于卡片 DOM。
             只要滚离底部就常驻显示(正常浏览历史也显示)——圆圈箭头=回底部;
             输出结束且有新内容时=「新消息」胶囊带箭头 */}

@@ -21,7 +21,7 @@ interface ScanFile {
   absPath: string;
 }
 
-export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: TransferModalProps): JSX.Element | null {
+export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _onSent }: TransferModalProps): JSX.Element | null {
   const [projectPath, setProjectPath] = useState("");
   // 已打开过的项目(下拉选择,免手动找路径)
   const [projects, setProjects] = useState<Array<{ id: string; name: string; path: string }>>([]);
@@ -117,7 +117,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent }: T
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center modal-overlay" onMouseDown={(e) => { if (!transferring) onClose(); }}>
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center modal-overlay" onMouseDown={(_e) => { if (!transferring) onClose(); }}>
       <div className="bg-surface-alt rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 480 }} onMouseDown={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0">
           <h2 className="text-base font-semibold text-text-primary">迁移到 {deviceName}</h2>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useDeviceStore, type PairRequest } from "../../stores/device-store";
+import { useDeviceStore } from "../../stores/device-store";
 
 /**
  * 配对请求弹窗(接收端):对方设备发起配对 → 弹窗确认(蓝牙式双向确认)。

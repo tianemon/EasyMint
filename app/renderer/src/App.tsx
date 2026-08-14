@@ -6,7 +6,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { MigrationIncomingModal } from "./components/device/MigrationIncomingModal";
 import { PairRequestModal } from "./components/device/PairRequestModal";
 import { useSettingsStore } from "./stores/settings-store";
-import { useTabStore } from "./stores/tab-store";
+import { useTabStore, type Tab } from "./stores/tab-store";
 import { useDelegationStore } from "./stores/delegation-store";
 
 export function App(): JSX.Element {
@@ -70,19 +70,31 @@ export function App(): JSX.Element {
       try {
         // 新窗口不恢复旧窗口的标签页（URL 参数 fresh=1 标记）
         const hashQuery = window.location.hash.split("?")[1] || "";
-        if (new URLSearchParams(hashQuery).get("fresh") === "1") return;
+        if (new URLSearchParams(hashQuery).get("fresh") === "1") {
+          ensureDefaultTab();
+          return;
+        }
         const backup = await window.electronAPI?.tab?.restore?.();
         if (backup?.tabs?.length) {
           const store = useTabStore.getState();
           if (store.tabs.length === 0) {
-            backup.tabs.forEach((t) => store.openTab(t as any));
+            backup.tabs.forEach((t) => store.openTab(t as Tab));
             if (backup.activeTabId) store.setActiveTab(backup.activeTabId);
           }
         }
+        // restore 后仍无 tab → 建初始空会话 tab(打开 EM = 聊天页,tab 条隐藏,发送后显示)
+        ensureDefaultTab();
       } catch { /* ignore */ }
     };
     restore();
   }, []);
+
+  // 打开 EM 无任何 tab 时,自动建一个"新会话"空 tab(与点新建会话一致,仅 tab 条隐藏)
+  function ensureDefaultTab(): void {
+    if (useTabStore.getState().tabs.length === 0) {
+      useTabStore.getState().openTab({ id: `new-${Date.now()}`, type: "chat", title: "新会话" });
+    }
+  }
 
   useEffect(() => {
     const handler = () => setSetupComplete(true);

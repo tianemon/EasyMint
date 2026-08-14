@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Sidebar } from "../components/Sidebar";
 import { TabBar } from "../components/TabBar";
@@ -6,7 +6,6 @@ import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
 import { NewProjectDialog } from "../components/NewProjectDialog";
-import { GroupComposerDialog } from "../components/GroupComposerDialog";
 import { useProcessStore } from "../stores/process-store";
 import { useTabStore } from "../stores/tab-store";
 import { useTaskStore, type TaskStatus } from "../stores/task-store";
@@ -25,7 +24,6 @@ export function ProjectPage(): JSX.Element {
   const [projectPath, setProjectPath] = useState("");
   const [projectName, setProjectName] = useState("");
   const [showOpenProject, setShowOpenProject] = useState(false);
-  const [showGroupComposer, setShowGroupComposer] = useState(false);
   const [openProjectList, setOpenProjectList] = useState<Array<{ id: string; name: string; path: string; exists?: boolean }>>([]);
   const [windowChoiceTarget, setWindowChoiceTarget] = useState<{ id: string; sid?: string | null; init?: boolean } | null>(null);
   const [projectExists, setProjectExists] = useState(true);
@@ -51,10 +49,12 @@ export function ProjectPage(): JSX.Element {
 
   // 监听新会话的 sessionId → 更新 Tab，使历史列表点击能复用而非重复打开
   useEffect(() => {
-    return window.electronAPI.agent.onChatSession(({ sessionId }) => {
+    return window.electronAPI.agent.onChatSession(({ sessionId, tabId }) => {
       const ts = useTabStore.getState();
-      // 找到第一个没有 sessionId 的 chat tab（最近新建的）
-      const tab = ts.tabs.find((t) => t.type === "chat" && !t.sessionId);
+      // 精确锚定发送时所在的 tab；发送中用户已关掉该 tab → 丢弃(会话无处显示,不复活旧 tab)
+      const tab = tabId
+        ? ts.tabs.find((t) => t.id === tabId && t.type === "chat" && !t.sessionId)
+        : ts.tabs.find((t) => t.type === "chat" && !t.sessionId);
       if (tab) {
         ts.updateTab(tab.id, { sessionId });
         setActiveSessionId(sessionId);
@@ -73,6 +73,8 @@ export function ProjectPage(): JSX.Element {
   useEffect(() => {
     // 切换项目时清空标签页和任务
     useTabStore.getState().clearTabs();
+    // 补建空会话 tab(与打开 EM 初始态一致):切换项目后内容区不空白、新建会话按钮保持可用
+    useTabStore.getState().openTab({ id: `new-${Date.now()}`, type: "chat", title: "新会话" });
     useTaskStore.getState().clearTasks();
     useProjectStatusStore.getState().reset();
     if (projectId) {
@@ -97,6 +99,8 @@ export function ProjectPage(): JSX.Element {
           if (urlSessionId) {
             setActiveSessionId(urlSessionId);
             openTab({ id: urlSessionId, type: "chat", title: "新项目", sessionId: urlSessionId, isNewProject });
+            // URL 直达真实会话 → 关掉补建的空 tab
+            useTabStore.getState().closeEmptyTab();
           }
         }
       });
@@ -123,9 +127,9 @@ export function ProjectPage(): JSX.Element {
   useEffect(() => {
     const unsub = window.electronAPI.agent.onContextRotated(({ sessionId }) => {
       const ts = useTabStore.getState();
-      // 关闭当前激活的 chat tab（轮转发生在当前会话）
+      // 关闭当前激活的 chat tab（轮转发生在当前会话）;suppress:轮转立即开新 tab,不触发默认页补建
       const activeTab = ts.tabs.find((t) => t.type === "chat" && t.id === ts.activeTabId);
-      if (activeTab) ts.closeTab(activeTab.id);
+      if (activeTab) ts.closeTab(activeTab.id, true);
 
       // 打开绑定新会话的 tab
       const tabId = `rotate-${Date.now()}`;
@@ -180,45 +184,38 @@ export function ProjectPage(): JSX.Element {
     [openTab]
   );
 
+  // 会话点击序号:conv.get 异步期间点击了其他会话/新建 → 解析结果作废(防乱序激活)
+  const clickSeqRef = useRef(0);
   const handleSessionClick = useCallback(
     (sessionId: string) => {
       setActiveSessionId(sessionId);
-      // 若已有同 session 的 Tab，直接激活，不再重复打开
-      const ts = useTabStore.getState();
-      const existing = ts.tabs.find((t) => t.type === "chat" && t.sessionId === sessionId);
-      if (existing) {
-        ts.setActiveTab(existing.id);
-        return;
-      }
+      const seq = ++clickSeqRef.current;
+      // 先取标题再打开(openSession 统一:关闭空 tab + 激活/新建),避免"对话"占位
       window.electronAPI.conv.get(sessionId, projectPath || getWorkspaceDir()).then((info) => {
-        openTab({ id: "", type: "chat", title: info?.title || "对话", sessionId });
+        if (seq !== clickSeqRef.current) return;
+        useTabStore.getState().openSession(sessionId, info?.title);
       }).catch(() => {
-        openTab({ id: "", type: "chat", title: "对话", sessionId });
+        if (seq !== clickSeqRef.current) return;
+        useTabStore.getState().openSession(sessionId);
       });
     },
-    [openTab, projectPath]
+    [projectPath]
   );
 
   const handleNewSession = useCallback(() => {
+    const ts = useTabStore.getState();
+    // 默认页面(无真实 tab:刚打开 EM 或全关 tab)时已是新会话空 tab,再点新建无操作
+    if (!ts.hasRealTabs()) return;
+    // 已有空会话 tab(无 sessionId)→ 激活它,不重复新建
+    const emptyTab = ts.tabs.find((t) => t.type === "chat" && !t.sessionId);
+    if (emptyTab) {
+      ts.setActiveTab(emptyTab.id);
+      return;
+    }
     const tabId = `new-${Date.now()}`;
     // sessionId undefined = ChatPanel treats as brand-new session, not resume
-    openTab({ id: tabId, type: "chat" as const, title: "新会话" });
-  }, [openTab]);
-
-  const handleNewDesignSession = useCallback(() => {
-    const tabId = `design-${Date.now()}`;
-    openTab({ id: tabId, type: "chat" as const, title: "新建设计", isDesigner: true });
-  }, [openTab]);
-
-  // 群聊会话(需求 4):打开群聊创建弹窗
-  const handleNewGroupSession = useCallback(() => {
-    setShowGroupComposer(true);
+    ts.openTab({ id: tabId, type: "chat" as const, title: "新会话" });
   }, []);
-
-  const handleGroupCreated = useCallback((g: { groupId: string; chatId: string; title: string }) => {
-    setShowGroupComposer(false);
-    openTab({ id: `group-${Date.now()}`, type: "group" as const, groupId: g.groupId, title: g.title });
-  }, [openTab]);
 
   const handleSessionDelete = useCallback((sessionId: string) => {
     if (activeSessionId === sessionId) setActiveSessionId(undefined);
@@ -310,7 +307,6 @@ export function ProjectPage(): JSX.Element {
   const renderTabContent = () => {
     return (
       <>
-        {tabs.length === 0 && <EditorPanel />}
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
           if (tab.type === "chat") {
@@ -319,6 +315,7 @@ export function ProjectPage(): JSX.Element {
                 <ChatPanel
                   projectPath={projectPath}
                   sessionId={tab.sessionId}
+                  tabId={tab.id}
                   isDesigner={tab.isDesigner}
                   onSessionCreated={(sid) => {
                     useTabStore.getState().updateTab(tab.id, { sessionId: sid, title: "新会话" });
@@ -327,17 +324,6 @@ export function ProjectPage(): JSX.Element {
                   }}
                   onActivity={() => { setSessionRefreshKey((k) => k + 1); }}
                   onNewProject={() => setShowNewProject(true)}
-                />
-              </div>
-            );
-          }
-          if (tab.type === "group") {
-            return (
-              <div key={tab.id} className="absolute inset-0 transition-opacity duration-200" style={{ opacity: isActive ? 1 : 0, pointerEvents: isActive ? "auto" : "none" }}>
-                <ChatPanel
-                  projectPath={projectPath}
-                  groupId={tab.groupId}
-                  onActivity={() => { setSessionRefreshKey((k) => k + 1); }}
                 />
               </div>
             );
@@ -365,8 +351,6 @@ export function ProjectPage(): JSX.Element {
         activeSessionId={activeSessionId}
         sessionRefreshKey={sessionRefreshKey}
         onNewSession={handleNewSession}
-        onNewDesignSession={handleNewDesignSession}
-        onNewGroupSession={handleNewGroupSession}
         onSessionClick={handleSessionClick}
         onSessionDelete={handleSessionDelete}
         onFileClick={handleFileClick}
@@ -589,14 +573,6 @@ export function ProjectPage(): JSX.Element {
               navigate(`/project/${project.id}?${params.toString()}`);
             }
           }}
-        />
-      )}
-
-      {showGroupComposer && (
-        <GroupComposerDialog
-          projectPath={projectPath}
-          onClose={() => setShowGroupComposer(false)}
-          onCreated={handleGroupCreated}
         />
       )}
     </div>

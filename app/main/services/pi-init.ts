@@ -4,7 +4,6 @@
  */
 
 import { Store } from "./store";
-import { broadcast } from "./ipc-broadcast";
 import {
   getModelRuntimeClass,
   getSettingsManagerClass,
@@ -46,33 +45,17 @@ export async function getActiveModel(store: Store): Promise<Model<any> | null> {
   if (!activeCfg?.presetId) return null;
   const runtime = await getModelRuntime(store);
 
-  // 候选模型列表(按优先级:当前激活供应商的 模型(默认) → 兜底模型)。
-  // 默认/兜底由每条供应商配置自己的 model/fallbackModel 定义(需求 1)。
+  // 当前激活供应商的默认模型。模型不可用时直接返回 null,由 SDK/上层按默认行为处理(重试/报错)。
   // 自定义供应商(presetId="custom")的 provider 注册 id = config.id(非 "custom")。
   const activeProvider = activeCfg.presetId === "custom" ? providers.current : activeCfg.presetId;
-  const candidates: Array<{ provider: string; modelId: string }> = [];
-  if (activeCfg.model) {
-    candidates.push({ provider: activeProvider, modelId: activeCfg.model });
-  }
-  if (activeCfg.fallbackModel) {
-    candidates.push({ provider: activeProvider, modelId: activeCfg.fallbackModel });
-  }
-
-  for (const c of candidates) {
-    const model = runtime.getModel(c.provider, c.modelId);
-    if (!model) continue;
-    // 该 provider 未配置凭据(无 API key)→ 跳过,尝试兜底
-    const auth = runtime.getProviderAuthStatus(c.provider);
-    if (auth && !auth.configured) continue;
-    if (c !== candidates[0]) {
-      console.log(`[pi-init] 使用兜底模型: ${c.provider}/${c.modelId}`);
-      // 前端状态栏提示(需求 1:兜底触发时告知用户,8s 自动消失)
-      broadcast("agent:fallback-used", { provider: c.provider, modelId: c.modelId });
-    }
-    _activeModel = model as any;
-    return model as any;
-  }
-  return null;
+  if (!activeCfg.model) return null;
+  const model = runtime.getModel(activeProvider, activeCfg.model);
+  if (!model) return null;
+  // 该 provider 未配置凭据(无 API key)→ 返回 null
+  const auth = runtime.getProviderAuthStatus(activeProvider);
+  if (auth && !auth.configured) return null;
+  _activeModel = model as any;
+  return model as any;
 }
 
 // Provider 和模型列表来自静态 JSON，不需要 runtime

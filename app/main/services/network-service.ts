@@ -43,20 +43,12 @@ export interface PairedDevice {
 }
 
 /** 配对中暂存:对方设备 ID → 其 ECDH 公钥(base64)——acceptPair 时派生共享密钥 */
-type PendingPairKey = string;
 
 export interface DiscoveredDevice {
   id: string;
   name: string;
   address: string;
   port: number;
-}
-
-interface NetworkEvents {
-  "devices-changed": [];
-  "pair-request": [{ id: string; name: string; address: string; port: number }];
-  "device-online": [{ id: string }];
-  "device-offline": [{ id: string }];
 }
 
 /** 本机 IPv4 地址集(排除回环/APIPA/虚拟网卡段)——对端同网段匹配基准 */

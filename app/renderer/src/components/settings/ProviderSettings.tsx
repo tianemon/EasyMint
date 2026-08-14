@@ -26,8 +26,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   const [apiKey, setApiKey] = useState(initial?.apiKey || "");
   const [model, setModel] = useState(initial?.model || "");
   const [models, setModels] = useState<string[]>(initial?.models || []);
-  // 该供应商自己的兜底模型 / task 子 Agent 默认模型(per-provider)
-  const [fallbackModel, setFallbackModel] = useState<string>(initial?.fallbackModel || "");
+  // 该供应商的 task 子 Agent 默认模型(per-provider)
   const [subagentDefaultModel, setSubagentDefaultModel] = useState<string>(initial?.subagentDefaultModel || "");
   // 自定义供应商字段
   const [baseUrl, setBaseUrl] = useState<string>((initial as any)?.baseUrl || "");
@@ -81,7 +80,6 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       apiKey: apiKey.trim(),
       model: model || (modelList[0] ?? ""),
       models: modelList,
-      fallbackModel: fallbackModel || undefined,
       subagentDefaultModel: subagentDefaultModel || undefined,
       createdAt: initial?.createdAt || Date.now(),
       baseUrl: isCustom ? baseUrl.trim() || undefined : undefined,
@@ -185,24 +183,6 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         <p className="text-[10px] text-text-muted mt-1">这些模型将注册为自定义供应商的可用模型,保存后在模型下拉中可选。</p>
       </div>
       </>)}
-
-      {/* 兜底模型:模型(默认)不可用时降级(per-provider 配置) */}
-      <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="text-xs text-text-secondary">兜底模型(所选模型不可用时调用)</label>
-          {fallbackModel && (
-            <button type="button" onClick={() => setFallbackModel("")} className="text-[10px] text-text-secondary hover:text-text-primary transition-colors">清除</button>
-          )}
-        </div>
-        <Select
-          block
-          placeholder={availableModels.length === 0 ? "无可用模型" : "可选"}
-          value={fallbackModel}
-          onChange={(v: string) => setFallbackModel(v)}
-          options={availableModels.map((m) => ({ value: m, label: m }))}
-          title="选择兜底模型"
-        />
-      </div>
 
       {/* 子 Agent 默认模型:task 工具委派子 Agent 未指定时用(per-provider 配置) */}
       <div>

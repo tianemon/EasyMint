@@ -22,8 +22,6 @@ interface SidebarProps {
   activeSessionId?: string;
   sessionRefreshKey?: number;
   onNewSession?: () => void;
-  onNewDesignSession?: () => void;
-  onNewGroupSession?: () => void;
   onSessionClick?: (sessionId: string) => void;
   onSessionDelete?: (sessionId: string) => void;
   onFileClick?: (filePath: string, fileName: string) => void;
@@ -37,7 +35,7 @@ interface SidebarProps {
 export function Sidebar({
   projectPath, projectId, projectName, projectExists,
   activeSessionId, sessionRefreshKey,
-  onNewSession, onNewDesignSession, onNewGroupSession, onSessionClick, onSessionDelete,
+  onNewSession, onSessionClick, onSessionDelete,
   onFileClick, onNewProject, onOpenProject, onRenameProject,
   onSettings,
 }: SidebarProps): JSX.Element {
@@ -48,7 +46,6 @@ export function Sidebar({
   const taskExecutions = useDelegationStore((s) => s.taskExecutions);
   const hasActiveTask = Object.values(taskExecutions).some((e) => e.status === "running");
   const [plusOpen, setPlusOpen] = useState(false);
-  const [hasUpdate, setHasUpdate] = useState(false);
   const [toolboxOpen, setToolboxOpen] = useState(false);
   const [devicePanelOpen, setDevicePanelOpen] = useState(false);
   const plusWrapRef = useRef<HTMLDivElement>(null);
@@ -136,7 +133,7 @@ export function Sidebar({
       <div className="sb-project-area">
         <div className="sb-project-name">
           <span className="sb-project-name-clip">
-            <span className="sb-project-name-inner">{projectDeleted ? projectName + "（已删除）" : projectName}</span>
+            <span className="sb-project-name-inner">{!projectId ? "无工作空间" : (projectDeleted ? projectName + "（已删除）" : projectName)}</span>
           </span>
         </div>
         <div className="sb-plus-wrap" ref={plusWrapRef}>
@@ -184,8 +181,6 @@ export function Sidebar({
               projectPath={projectPath}
               onSessionClick={onSessionClick}
               onNewSession={onNewSession}
-              onNewDesignSession={onNewDesignSession}
-              onNewGroupSession={onNewGroupSession}
               refreshKey={sessionRefreshKey}
             />
             <SessionHistory

@@ -153,25 +153,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:spawnAgentChat", (_e, { projectPath, templateId, message }) => {
     return agentService.spawnAgentChat(projectPath, templateId, message);
   });
-  // ── 群聊会话(需求 4:多 Agent 同一会话,应用层消息转发) ──
-  ipcMain.handle("group:create", (_e, { projectPath, templateIds, presetId, message, permissionMode, thinkingLevel }) => {
-    return agentService.createGroupChat(projectPath, templateIds, { presetId, message, permissionMode, thinkingLevel });
-  });
-  ipcMain.handle("group:send", (_e, { groupId, text }) => {
-    return agentService.sendGroupMessage(groupId, text);
-  });
-  ipcMain.handle("group:list", (_e, { projectPath }) => {
-    return agentService.listGroupChats(projectPath);
-  });
-  ipcMain.handle("group:messages", (_e, { projectPath, groupId }) => {
-    return agentService.getGroupRecord(projectPath, groupId);
-  });
-  ipcMain.handle("group:close", (_e, { groupId }) => {
-    agentService.closeGroupChat(groupId);
-  });
-  ipcMain.handle("agent:sendMessage", async (_e, { projectPath, message, sessionId, permissionMode, model, isDesigner, images, thinkingLevel, systemPayload, preferredProvider }) => {
+  ipcMain.handle("agent:sendMessage", async (_e, { projectPath, message, sessionId, permissionMode, model, isDesigner, images, thinkingLevel, systemPayload, preferredProvider, tabId }) => {
     try {
-      return await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, isDesigner, images, thinkingLevel, systemPayload, preferredProvider);
+      return await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, isDesigner, images, thinkingLevel, systemPayload, preferredProvider, tabId);
     } catch (e) {
       console.error("[ipc] sendMessage 失败:", (e as Error).message);
       throw e;

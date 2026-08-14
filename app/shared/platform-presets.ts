@@ -18,8 +18,6 @@ export interface ProviderConfig {
   baseUrl?: string;
   /** 自定义供应商 API 类型(如 anthropic-messages,仅 presetId==="custom" 时有效) */
   apiType?: string;
-  /** 该供应商的兜底模型(默认模型不可用时降级,从 models 选) */
-  fallbackModel?: string;
   /** 该供应商的 task 工具子 Agent 默认模型(委派子 Agent 未指定时用,从 models 选) */
   subagentDefaultModel?: string;
 }

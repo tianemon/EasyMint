@@ -68,24 +68,6 @@ interface Settings {
   /** 当前启用的状态流光分组 id(暗色模式) */
   activeStatusGroupDark?: string;
   apiProviders?: ApiProvidersData;
-  // ── 需求 4:群聊配置 ──
-  /** 群聊最大 agent 数(默认 3) */
-  maxGroupAgents?: number;
-  /** 转发策略:all 全广播 / conclusion 只转发结论(默认) */
-  groupForwardStrategy?: "all" | "conclusion";
-  /** 注入方式:steer 打断 / followUp 等空闲(默认) */
-  groupInjectMode?: "steer" | "followUp";
-  /** 群聊最大转发深度(防环,默认 3) */
-  maxForwardDepth?: number;
-  /** 群聊预设角色组合(内置 + 用户自定义) */
-  groupPresets?: GroupPreset[];
-}
-
-/** 群聊预设组合:一组角色模板的命名组合 */
-export interface GroupPreset {
-  id: string;
-  name: string;
-  templateIds: string[];
 }
 
 /** 多色流光分组:一组命名色彩组合 */
@@ -136,12 +118,6 @@ export function mergeGlowGroups(
   const activeId = activeKey && groups.some((g) => g.id === activeKey) ? activeKey : builtin.id;
   return { groups, activeId };
 }
-
-/** 内置群聊预设(首次读取时种子写入) */
-export const BUILTIN_GROUP_PRESETS: GroupPreset[] = [
-  { id: "dev-trio", name: "开发三人组", templateIds: ["mint", "default-builder", "default-evaluator"] },
-  { id: "design-duo", name: "设计协作", templateIds: ["mint", "mint-designer"] },
-];
 
 const EM_DEFAULTS = {
   setupComplete: false,
@@ -251,11 +227,6 @@ export class Store {
         };
       })(),
       apiProviders: (emData.apiProviders as ApiProvidersData) || undefined,
-      maxGroupAgents: (emData.maxGroupAgents as number) ?? 3,
-      groupForwardStrategy: (emData.groupForwardStrategy as "all" | "conclusion") ?? "conclusion",
-      groupInjectMode: (emData.groupInjectMode as "steer" | "followUp") ?? "followUp",
-      maxForwardDepth: (emData.maxForwardDepth as number) ?? 3,
-      groupPresets: (emData.groupPresets as GroupPreset[]) ?? BUILTIN_GROUP_PRESETS,
     };
   }
 
@@ -328,12 +299,6 @@ export class Store {
     if (settings.apiProviders) {
       data.apiProviders = settings.apiProviders;
     }
-    // 群聊配置(需求 4;子 Agent 默认模型已移入供应商配置 subagentDefaultModel)
-    if (settings.maxGroupAgents !== undefined) data.maxGroupAgents = settings.maxGroupAgents;
-    if (settings.groupForwardStrategy) data.groupForwardStrategy = settings.groupForwardStrategy;
-    if (settings.groupInjectMode) data.groupInjectMode = settings.groupInjectMode;
-    if (settings.maxForwardDepth !== undefined) data.maxForwardDepth = settings.maxForwardDepth;
-    if (settings.groupPresets) data.groupPresets = settings.groupPresets;
     fs.writeFileSync(this.emSettingsPath, JSON.stringify(data, null, 2));
   }
 
