@@ -77,12 +77,9 @@ export function AgentTemplateSettings(): JSX.Element {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-medium text-text-primary">Agent 模板</h3>
-          <p className="text-[11px] text-text-secondary/70 mt-0.5">
-            task 委派时可选模板;省略则不指定模板,创建标准子 Agent(无模板人设)。Mint/Mint-D 为系统内置不可修改;Builder/Evaluator 仅可调整供应商模型与思考等级。
-          </p>
         </div>
         <button onClick={() => setAdding(true)}
-          className="px-3 py-1 rounded-lg border border-accent text-accent text-xs font-medium hover:bg-accent-subtle transition-colors">
+          className="shrink-0 whitespace-nowrap px-3 py-1 rounded-lg border border-accent text-accent text-xs font-medium hover:bg-accent-subtle transition-colors">
           + 新建模板
         </button>
       </div>
@@ -96,14 +93,13 @@ export function AgentTemplateSettings(): JSX.Element {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-text-primary">{tpl.name}</span>
-                {BUILTIN_IDS.has(tpl.id) && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-accent-subtle text-accent shrink-0">内置</span>}
-                <span className="text-[10px] text-text-muted shrink-0">{tpl.agentType}</span>
+                {tpl.id === "mint" && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-accent-subtle text-accent shrink-0">默认</span>}
               </div>
               <div className="text-[11px] text-text-secondary mt-0.5">{tpl.description}</div>
               <div className="flex items-center gap-2 mt-1 text-[10px] text-text-muted">
                 {tpl.provider && <span>供应商:{tpl.provider}</span>}
                 {tpl.model && <span>模型:{tpl.model}</span>}
-                {tpl.thinkingLevel && <span>思考:{tpl.thinkingLevel}</span>}
+                {tpl.thinkingLevel && tpl.thinkingLevel !== "max" && <span>思考:{tpl.thinkingLevel}</span>}
               </div>
             </div>
             <div className="flex gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">

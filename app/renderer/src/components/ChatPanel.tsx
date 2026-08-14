@@ -85,6 +85,177 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const userChangedThinkingRef = useRef(false);
   // 新会话角色模板:发送首条消息前可选(Mint 默认 / Mint-D 设计模式),发送后不再显示
   const [chatRole, setChatRole] = useState<"mint" | "mint-d">("mint");
+  // 角色滑块几何:宽度跟随选中项(不等分,JS 测量 offsetWidth/offsetLeft)
+  const roleSliderRef = useRef<HTMLDivElement>(null);
+  const roleBtnRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [sliderBox, setSliderBox] = useState<{ left: number; width: number; trackW: number } | null>(null);
+  const syncSlider = useCallback(() => {
+    const idx = chatRole === "mint" ? 0 : 1;
+    const btn = roleBtnRefs.current[idx];
+    const track = roleSliderRef.current;
+    if (btn && track) {
+      const width = btn.offsetWidth + 3; // 左右外边距 1.5px
+      // 轨道无 border——视觉层 inset-0 尺寸 = offsetWidth/offsetHeight 本身;
+      // 滑块 offsetLeft 相对轨道 padding box = 同一坐标系,无需偏移
+      const trackW = track.offsetWidth;
+      // 滑块对准选中项按钮(不做余量约束——贴边时气泡鼓出可能略越轨道,换取位置精确)
+      const left = btn.offsetLeft - 1.5;
+      setSliderBox({ left, width, trackW });
+    }
+  }, [chatRole]);
+  useEffect(() => { syncSlider(); }, [syncSlider]);
+  // 滑块鼠标弹性(参考 liquid-glass logout:elasticity 0.35):鼠标靠近时滑块方向性拉伸,
+  // 距离衰减(激活区 200px),滞后过渡出"液体"感
+  const [sliderStretch, setSliderStretch] = useState({ x: 1, y: 1 });
+  // 滑块拖拽状态机:
+  // - dragStartRef:拖拽起点(同步 ref,非 null 即拖拽中——不用异步 state 判定)
+  // - dragLeftRef:拖拽中实时位置(同步 ref;dragLeft state 仅渲染镜像,值不变不 set)
+  // - 收尾统一走 endDrag(pointerup / window 兜底共用,幂等);
+  //   pointercancel / lostpointercapture 只清理不选中(位置不可信)
+  const [dragging, setDragging] = useState(false);
+  const [dragLeft, setDragLeft] = useState<number | null>(null);
+  const [sliderPressed, setSliderPressed] = useState(false);
+  const dragStartRef = useRef<{ x: number; left: number } | null>(null);
+  const dragLeftRef = useRef<number | null>(null);
+  // window 兜底监听引用:unmount 时移除(拖拽中关 tab 会残留监听,累积泄漏)
+  const winEndRef = useRef<((ev: PointerEvent) => void) | null>(null);
+  useEffect(() => () => {
+    dragStartRef.current = null;
+    dragLeftRef.current = null;
+    if (winEndRef.current) {
+      window.removeEventListener("pointerup", winEndRef.current);
+      window.removeEventListener("pointercancel", winEndRef.current);
+      winEndRef.current = null;
+    }
+  }, []);
+
+  // 统一收尾:moved<4 视为点击(重置到当前选中项),否则按落点选中最近选项
+  const endDrag = useCallback((clientX: number) => {
+    const start = dragStartRef.current;
+    if (!start) return; // 幂等:已收尾/无拖拽
+    const moved = Math.abs(clientX - start.x);
+    dragStartRef.current = null;
+    dragLeftRef.current = null;
+    setDragging(false);
+    setDragLeft(null);
+    setSliderPressed(false);
+    if (moved < 4) { syncSlider(); return; } // 视为点击当前项:重置滑块尺寸/位置到当前选中项
+    const track = roleSliderRef.current;
+    if (!track) return;
+    const pointerX = clientX - track.getBoundingClientRect().left;
+    let nearest = 0;
+    let minDist = Infinity;
+    roleBtnRefs.current.forEach((btn, i) => {
+      if (!btn) return;
+      const d = Math.abs(pointerX - (btn.offsetLeft + btn.offsetWidth / 2));
+      if (d < minDist) { minDist = d; nearest = i; }
+    });
+    // 用落点选项的几何直接重置滑块(拖拽中 sliderBox.width 被宽度适配改过;
+    // setChatRole 同值时无 effect 触发,不重置会残留别处的宽度)
+    const btn = roleBtnRefs.current[nearest];
+    if (btn) {
+      const width = btn.offsetWidth + 3; // 左右外边距 1.5px
+      const trackW = track.offsetWidth;
+      const left = btn.offsetLeft - 1.5;
+      setSliderBox({ left, width, trackW });
+    }
+    setChatRole(nearest === 0 ? "mint" : "mint-d");
+  }, [syncSlider]);
+
+  // 仅清理不选中(pointercancel/lostpointercapture:位置不可信,不触发切换)——
+  // 但仍要归位到当前选中项:拖拽中 sliderBox.width 可能被宽度适配改过,不重置会残留
+  const abortDrag = useCallback(() => {
+    dragStartRef.current = null;
+    dragLeftRef.current = null;
+    setDragging(false);
+    setDragLeft(null);
+    setSliderPressed(false);
+    syncSlider();
+  }, [syncSlider]);
+
+  const handleSliderPointerDown = useCallback((e: React.PointerEvent) => {
+    // 重新测量,并直接用按钮几何算起始位置(不依赖异步的 sliderBox state)
+    syncSlider();
+    const idx = chatRole === "mint" ? 0 : 1;
+    const btn = roleBtnRefs.current[idx];
+    if (!btn) return;
+    const startLeft = btn.offsetLeft - 1.5;
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* capture 失败:window 兜底监听仍能收尾 */ }
+    dragStartRef.current = { x: e.clientX, left: startLeft };
+    dragLeftRef.current = startLeft;
+    setDragging(true);
+    setSliderPressed(true);
+    // window 级兜底:capture 意外丢失后 up/cancel 不再路由到滑块——补一道监听保证收尾
+    const onWinEnd = (ev: PointerEvent) => {
+      window.removeEventListener("pointerup", onWinEnd);
+      window.removeEventListener("pointercancel", onWinEnd);
+      if (winEndRef.current === onWinEnd) winEndRef.current = null;
+      endDrag(ev.clientX);
+    };
+    winEndRef.current = onWinEnd;
+    window.addEventListener("pointerup", onWinEnd);
+    window.addEventListener("pointercancel", onWinEnd);
+  }, [chatRole, syncSlider, endDrag]);
+
+  const handleSliderPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragStartRef.current || !sliderBox || !roleSliderRef.current) return;
+    const track = roleSliderRef.current;
+    const trackRect = track.getBoundingClientRect();
+    // 实时位置从 ref 读(回调不随 dragLeft 重建,闭包永远最新)
+    const curLeft = dragLeftRef.current ?? dragStartRef.current.left;
+    const sliderRight = curLeft + sliderBox.width;
+    const dir = dragStartRef.current.left > curLeft ? -1 : 1; // 拖动方向:向左 -1 / 向右 1
+    let targetWidth = sliderBox.width;
+    if (dir >= 0) {
+      let targetIdx: number | null = null;
+      roleBtnRefs.current.forEach((btn, i) => {
+        if (!btn) return;
+        if (sliderRight >= btn.offsetLeft + btn.offsetWidth - 10 - 1) targetIdx = i;
+      });
+      if (targetIdx !== null) targetWidth = roleBtnRefs.current[targetIdx]!.offsetWidth + 3; // 左右外边距 1.5px
+    } else {
+      let targetIdx: number | null = null;
+      roleBtnRefs.current.forEach((btn, i) => {
+        if (!btn) return;
+        if (curLeft <= btn.offsetLeft + 10 + 1 && targetIdx === null) targetIdx = i;
+      });
+      if (targetIdx !== null) targetWidth = roleBtnRefs.current[targetIdx]!.offsetWidth + 3;
+    }
+    if (targetWidth !== sliderBox.width) setSliderBox({ ...sliderBox, width: targetWidth });
+    // 轨道 p-1=4px 内边距,clamp 滑块不越界(滑块左边缘距轨道边缘 ≥2.5px);值不变不触发渲染
+    const raw = dragStartRef.current.left + (e.clientX - dragStartRef.current.x);
+    const next = Math.min(Math.max(raw, 2.5), trackRect.width - targetWidth - 2.5);
+    if (dragLeftRef.current !== next) {
+      dragLeftRef.current = next;
+      setDragLeft(next);
+    }
+  }, [sliderBox]);
+
+  const handleSliderPointerUp = useCallback((e: React.PointerEvent) => {
+    endDrag(e.clientX);
+  }, [endDrag]);
+  const handleTrackMove = useCallback((e: React.MouseEvent) => {
+    // 拖拽中跳过弹性(滑块被抓着,弹性无意义且每帧 setState 拖累跟手)
+    if (dragStartRef.current) return;
+    const track = roleSliderRef.current;
+    if (!track || !sliderBox) return;
+    const rect = track.getBoundingClientRect();
+    // 滑块中心(位置随滑动变化):拉伸方向与强度基于鼠标相对滑块中心的距离
+    const cx = rect.left + sliderBox.left + sliderBox.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = e.clientX - cx;
+    const dy = e.clientY - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 8) { setSliderStretch({ x: 1, y: 1 }); return; }
+    const fade = Math.max(0, 1 - dist / 200);
+    const intensity = Math.min(dist / 300, 1) * 0.35 * fade;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    setSliderStretch({
+      x: 1 + Math.abs(nx) * intensity * 0.3 - Math.abs(ny) * intensity * 0.15,
+      y: 1 + Math.abs(ny) * intensity * 0.3 - Math.abs(nx) * intensity * 0.15,
+    });
+  }, [sliderBox]);
   // 输入卡片下移动画:发送首条消息时先触发下移过渡,结束后切换消息列表
   const [leavingStartCard, setLeavingStartCard] = useState(false);
   // 动画定时器 ref:unmount 清理(tab 关闭时对已卸载组件 setState)
@@ -1062,6 +1233,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
   }, []);
 
+  // 气泡动态鼓出:与当前宽度反比(窄滑块鼓多、宽滑块鼓少),两边视觉膨胀感一致;
+  // 基准=标准按钮宽(首渲染时 ref 未绑,回退 48+3)
+  const growX = sliderBox ? (14 * ((roleBtnRefs.current[0]?.offsetWidth ?? 48) + 3)) / sliderBox.width : 14;
+
   // 输入卡片(空态与非空态共用同一实例,仅外层容器不同)
   const renderChatInput = (
     <ChatInput
@@ -1193,17 +1368,91 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         {!hasMessages && !existingSid && !leavingStartCard ? (
           <div className="w-full flex flex-col gap-2">
             <div className="flex items-center gap-2 ml-[66px]">
-              <span className="text-xs text-text-muted">Agent能力</span>
-              {(["mint", "mint-d"] as const).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setChatRole(r)}
-                  className={`px-3 py-1 rounded-full text-xs transition-colors ${chatRole === r ? "bg-accent-soft text-text-primary font-medium" : "bg-surface-alt text-text-secondary hover:bg-surface-hover"}`}
+              <span className="text-sm text-text-muted">Agent能力</span>
+              {/* 轨道(背景框):参考 liquid-glass user info card——blur 20px 雾面 + saturate 140,
+                  静止无弹性无 hover 光晕(示例 user card 无 onClick 即无 hover 效果);
+                  onMouseMove 仅作滑块弹性的鼠标跟踪源 */}
+              <div
+                ref={roleSliderRef}
+                className="group relative flex items-center rounded-full bg-glass-track border border-glass-track-border p-1 backdrop-blur-[20px] backdrop-saturate-[1.4]"
+                onMouseMove={handleTrackMove}
+                onMouseLeave={() => setSliderStretch({ x: 1, y: 1 })}
+              >
+                {/* 滑块:常态=扁平半透明椭圆;抓取(sliderPressed)=透明气泡——底色全透明、
+                    气泡壁(外亮线+内暗线)+顶弧光,四周鼓出(宽动态 + 上下5px);
+                    弹性拉伸跟随鼠标;z-20 在按钮之上,接管拖拽/点击 */}
+                <div
+                  className={`absolute z-20 rounded-full ${sliderPressed ? "-top-[5px] -bottom-[5px] border border-glass-slider-border shadow-[0_2px_12px_rgba(0,0,0,0.12),inset_0_0_0_1px_rgba(0,0,0,0.18),inset_0_1px_2px_rgba(255,255,255,0.15)]" : "top-[2.5px] bottom-[2.5px] bg-glass-slider"} cursor-grab ${dragging ? "cursor-grabbing" : ""} ${sliderBox ? "opacity-100" : "opacity-0"}`}
+                  style={{
+                    left: (dragging && dragLeft !== null ? dragLeft : (sliderBox?.left ?? 0)) - (sliderPressed ? growX / 2 : 0),
+                    width: (sliderBox?.width ?? 0) + (sliderPressed ? growX + 0.5 : 0),
+                    transform: `scaleX(${sliderStretch.x}) scaleY(${sliderStretch.y})`,
+                    // 拖拽中:left 无过渡(跟手);width 带回弹缓动(适配选项宽度时弹性质感);结束恢复滑动过渡
+                    transition: dragging
+                      ? "width 0.3s cubic-bezier(0.34,1.3,0.64,1), transform 0.2s ease-out, opacity 0.2s ease"
+                      : "left 0.3s cubic-bezier(0.34,1.3,0.64,1), width 0.3s cubic-bezier(0.34,1.3,0.64,1), opacity 0.2s ease, transform 0.2s ease-out",
+                  }}
+                  onPointerDown={handleSliderPointerDown}
+                  onPointerMove={handleSliderPointerMove}
+                  onPointerUp={handleSliderPointerUp}
+                  onPointerCancel={abortDrag}
+                  onLostPointerCapture={abortDrag}
                 >
-                  {r === "mint" ? "默认" : "增强UI设计"}
-                </button>
-              ))}
+                  {sliderPressed && (
+                    <>
+                      {/* 边框彩虹色散:细描边环(mask 只留 0.5px 环)叠在灰色边框上,
+                          低透明度渐变——玻璃边缘的彩虹折射 */}
+                      <span
+                        className="absolute inset-0 rounded-full pointer-events-none"
+                        style={{
+                          padding: 0.5,
+                          WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+                          WebkitMaskComposite: "xor",
+                          maskComposite: "exclude",
+                          background: "linear-gradient(135deg, rgba(244,63,94,0.4), rgba(245,158,11,0.4) 20%, rgba(34,197,94,0.4) 40%, rgba(59,130,246,0.4) 60%, rgba(168,85,247,0.4) 80%, rgba(244,63,94,0.4))",
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
+                {/* 文字双层:灰层(未选中)全量显示;选中层(黑/白)同布局按滑块区域 clip-path 裁剪——
+                    滑块盖住多少文字,选中色实时显示多少(半字级跟随);同字重保证两层像素对齐;
+                    pointer-events-none 穿透点击 */}
+                <div className="absolute inset-0 z-40 p-1 flex items-center pointer-events-none">
+                  {(["mint", "mint-d"] as const).map((r) => (
+                    <div key={`lbl-${r}`} className="shrink-0 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs text-role-idle">
+                      {r === "mint" ? "标准" : "增强UI设计"}
+                    </div>
+                  ))}
+                  <div
+                    className="absolute inset-0 p-1 flex items-center text-role-selected"
+                    style={{
+                      clipPath: sliderBox
+                        ? `inset(0 ${sliderBox.trackW - (dragging && dragLeft !== null ? dragLeft : sliderBox.left) - sliderBox.width}px 0 ${dragging && dragLeft !== null ? dragLeft : sliderBox.left}px)`
+                        : undefined,
+                      // 非拖拽(点击切换)时选中色随滑块平滑扫过;拖拽中直接跟随
+                      transition: dragging ? undefined : "clip-path 0.3s cubic-bezier(0.34,1.3,0.64,1)",
+                    }}
+                  >
+                    {(["mint", "mint-d"] as const).map((r) => (
+                      <div key={`sel-${r}`} className="shrink-0 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs">
+                        {r === "mint" ? "标准" : "增强UI设计"}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {(["mint", "mint-d"] as const).map((r, i) => (
+                  <button
+                    key={r}
+                    type="button"
+                    ref={(el) => { roleBtnRefs.current[i] = el; }}
+                    onClick={() => setChatRole(r)}
+                    className="relative z-10 px-2.5 py-0.5 rounded-full text-xs text-transparent cursor-pointer"
+                  >
+                    {r === "mint" ? "标准" : "增强UI设计"}
+                  </button>
+                ))}
+              </div>
             </div>
             {renderChatInput}
           </div>

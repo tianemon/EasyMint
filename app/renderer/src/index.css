@@ -9,6 +9,14 @@
   --color-surface-hover: var(--color-sidebar-hover);
   --color-surface-elevated: var(--color-card);
   --color-overlay: rgb(0 0 0 / 0.5);
+  /* 液态玻璃(角色滑动选择器材质):轨道为白玻璃;滑块亮色灰白半透明,暗色灰白玻璃 */
+  --color-glass-track: var(--color-input-card);
+  --color-glass-track-border: rgba(255, 255, 255, 0.72);
+  --color-glass-slider: rgba(220, 220, 220, 0.42);
+  --color-glass-slider-border: rgba(255, 255, 255, 0.9);
+  /* 角色选择器文字态:亮色选中=主色黑、未选中=次级灰;暗色选中=白、未选中=灰(见 dark 块覆盖) */
+  --color-role-selected: var(--color-text-primary);
+  --color-role-idle: var(--color-text-secondary);
   --color-tooltip-bg: #1a1a1a;
   --color-tooltip-text: #fff;
   --color-text-primary: #1a1a1a;
@@ -64,11 +72,11 @@
   --color-terminal-bg: #0d1f17;
   --color-terminal-text: #e0f0e8;
   /* ── v3 Layer tokens（Tailwind 编译期默认值，:root 覆盖）── */
-  --color-canvas: #e8e8e4;
+  --color-canvas: #e0e0de;
   --color-sidebar: #ededeb;
   --color-sidebar-hover: #e5e5e1;
   --color-sidebar-active: #f6f6f3;
-  --color-content: #fafaf8;
+  --color-content: #f4f4f2;
   --color-card: #fdfdfd;
   --color-card-agent: #f3f6f3;
   --color-elevated: #ffffff;
@@ -115,6 +123,14 @@ html[data-platform="win32"] {
   --color-surface-hover: var(--color-sidebar-hover);
   --color-surface-elevated: var(--color-card);
   --color-overlay: rgba(0, 0, 0, 0.5);
+  /* 液态玻璃(角色滑动选择器材质):轨道为白玻璃;滑块亮色灰白半透明,暗色灰白玻璃 */
+  --color-glass-track: var(--color-input-card);
+  --color-glass-track-border: rgba(255, 255, 255, 0.72);
+  --color-glass-slider: rgba(220, 220, 220, 0.42);
+  --color-glass-slider-border: rgba(255, 255, 255, 0.9);
+  /* 角色选择器文字态:亮色选中=主色黑、未选中=次级灰;暗色选中=白、未选中=灰(见 dark 块覆盖) */
+  --color-role-selected: var(--color-text-primary);
+  --color-role-idle: var(--color-text-secondary);
   --color-tooltip-bg: #1a1a1a;
   --color-tooltip-text: #ffffff;
 
@@ -257,11 +273,11 @@ html[data-platform="win32"] {
 
 
   /* ── v3 Layer tokens ─────────────── */
-  --color-canvas: #e8e8e4;
+  --color-canvas: #e0e0de;
   --color-sidebar: #ededeb;
   --color-sidebar-hover: #e5e5e1;
   --color-sidebar-active: #f6f6f3;
-  --color-content: #fafaf8;
+  --color-content: #f4f4f2;
   --color-card: #fdfdfd;
   --color-card-agent: #f3f6f3;
   --color-elevated: #ffffff;
@@ -298,6 +314,14 @@ html[data-platform="win32"] {
   --color-surface-elevated: #1c1c1c;   /* 弹窗/菜单/浮层——与输入卡片同档,层次靠 border+shadow 区分 */
 
   --color-overlay: rgba(0, 0, 0, 0.85);
+  /* 液态玻璃(角色滑动选择器材质):暗色玻璃透明度更低,靠高光描边塑形 */
+  --color-glass-track: rgba(255, 255, 255, 0.06);
+  --color-glass-track-border: rgba(255, 255, 255, 0.12);
+  --color-glass-slider: rgba(255, 255, 255, 0.16);
+  --color-glass-slider-border: rgba(255, 255, 255, 0.2);
+  /* 角色选择器文字态(暗色):选中=白、未选中=灰 */
+  --color-role-selected: var(--color-text-primary);
+  --color-role-idle: var(--color-text-secondary);
   --color-tooltip-bg: #cccccc;
   --color-tooltip-text: #050505;
 
