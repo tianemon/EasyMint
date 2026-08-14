@@ -8,7 +8,6 @@ import { RunPanel } from "./RunPanel";
 import { ToolboxPanel } from "./toolbox/ToolboxPanel";
 import { DevicePanel } from "./device/DevicePanel";
 import { useThemeStore } from "../stores/theme-store";
-import { useDelegationStore } from "../stores/delegation-store";
 import { readVersion, markRead } from "../lib/update-notice";
 
 type SidebarTab = "sessions" | "files";
@@ -42,9 +41,6 @@ export function Sidebar({
   const [activeTab, setActiveTab] = useState<SidebarTab>("sessions");
   const [drawerTab, setDrawerTab] = useState<DrawerTab>("tasks");
   const [drawerOpen, setDrawerOpen] = useState(false);
-  // 任务按钮呼吸灯:与任务行「绿色转圈(animate-spin)」同源——委派实时执行中(taskExecutions running)才显示
-  const taskExecutions = useDelegationStore((s) => s.taskExecutions);
-  const hasActiveTask = Object.values(taskExecutions).some((e) => e.status === "running");
   const [plusOpen, setPlusOpen] = useState(false);
   const [toolboxOpen, setToolboxOpen] = useState(false);
   const [devicePanelOpen, setDevicePanelOpen] = useState(false);
@@ -215,7 +211,7 @@ export function Sidebar({
       <div className="sb-foot">
         <div className="sb-foot-row">
           <div className="sb-seg-control" ref={segRef}>
-            <button className={`sb-seg-btn ${drawerTab === "tasks" && drawerOpen ? "active" : ""} ${drawerTab === "tasks" ? "on" : ""} ${hasActiveTask ? "task-breathing" : ""}`} onClick={() => toggleDrawer("tasks")}>
+            <button className={`sb-seg-btn ${drawerTab === "tasks" && drawerOpen ? "active" : ""} ${drawerTab === "tasks" ? "on" : ""}`} onClick={() => toggleDrawer("tasks")}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg>
               <span className="sb-seg-label">任务</span>
             </button>

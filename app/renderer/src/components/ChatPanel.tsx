@@ -772,9 +772,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // Pi 新 assistant turn 开始 → 重置输出段块状态
       // (turn_start 不创建消息——磁盘上无空消息;首个内容帧才创建块)
       if (event.type === "turn_start") {
-        // 回合开始 → 请求转「正在思考」(同 id 更新,不 pop——Mint 思考阶段状态栏保持显示,
-        // 直到首个输出帧/工具调用才结束,否则「正在请求」一闪而过)
-        useStatusStore.getState().pushSignal(sidRef.current, "request", "正在思考...");
+        // 回合开始 → 保持「正在请求」(同 id 更新)——turn_start 在 SDK 发起 API 请求前 emit,
+        // 至首个响应块到达前状态栏语义 = 等待 API 返回;收到 thinking 块才转「正在思考」
+        useStatusStore.getState().pushSignal(sidRef.current, "request", "正在请求...");
         latestAiIdRef.current = 0;
         steeringRef.current = false;
       }
@@ -801,10 +801,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useStatusStore.getState().pushSignal(sidRef.current, `tool:${event.toolCallId ?? "?"}`, label);
       }
       // tool done — 工具执行结束,pop 自己的工具信号;
-      // 回合仍在 → 恢复「正在思考」,消除工具执行完到下一步输出之间的状态栏空档
+      // 回合仍在 → 显示「正在处理」(中性等待态,消除状态栏空档;
+      // 下一步 turn_start 转「正在请求」/ thinking 帧转「正在思考」/ 文本帧 pop)
       if (event.type === "tool_done") {
         useStatusStore.getState().popSignal(sidRef.current, `tool:${event.toolCallId ?? "?"}`);
-        if (busyRef.current) useStatusStore.getState().pushSignal(sidRef.current, "request", "正在思考...");
+        if (busyRef.current) useStatusStore.getState().pushSignal(sidRef.current, "request", "正在处理...");
       }
       // tool_result — 工具执行结果(主进程 event-bridge 转发 toolResult 消息):
       // 按 toolCallId 追加 tool_result entry,渲染时关联到对应工具块显示结果
@@ -1396,7 +1397,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                   onPointerMove={handleSliderPointerMove}
                   onPointerUp={handleSliderPointerUp}
                   onPointerCancel={abortDrag}
-                  onLostPointerCapture={abortDrag}
                 >
                   {sliderPressed && (
                     <>

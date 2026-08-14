@@ -53,10 +53,10 @@
   --color-danger-soft: #dc26261a;
   --color-success-soft: #17a34a1a;
   --color-success-high: #17a34a33;
-  /* 任务执行呼吸灯(底色明暗+外发光,Agent 执行中):亮色浅绿 */
-  --task-breath-dim: #17a34a1a;
-  --task-breath-bright: #17a34a4d;
-  --task-breath-glow: #17a34a40;
+  /* 输入卡片任务按钮(AgentBar 胶囊)雾化呼吸灯:亮色绿光晕 */
+  --agent-breath-glow: #17a34a73;
+  /* 输入卡片命令胶囊(ShellBar)雾化呼吸灯:亮色蓝光晕 */
+  --shell-breath-glow: #0891b273;
   --color-info: #0891b2;
   --color-info-bg: #0891b21f;
   --color-info-soft: #0891b21a;
@@ -363,10 +363,10 @@ html[data-platform="win32"] {
   --color-danger-soft: #421212;
   --color-success-soft: #122616;
   --color-success-high: color-mix(in oklab, var(--color-success) 20%, transparent);
-  /* 任务执行呼吸灯:暗色灰白 */
-  --task-breath-dim: #2c2c2c;
-  --task-breath-bright: #cccccc33;
-  --task-breath-glow: #cccccc2e;
+  /* 输入卡片任务按钮(AgentBar 胶囊)雾化呼吸灯:暗色绿光晕(按钮字体绿同源) */
+  --agent-breath-glow: #17a34a59;
+  /* 输入卡片命令胶囊(ShellBar)雾化呼吸灯:暗色蓝光晕(按钮字体蓝同源) */
+  --shell-breath-glow: #22d3ee59;
   --color-info: #22d3ee;
   --color-info-bg: #122226;
   --color-info-soft: #122226;
@@ -929,6 +929,19 @@ body {
   background: var(--color-surface);
   color: var(--color-text-primary);
   scroll-behavior: smooth;
+  /* UI 文字防选中:按钮/胶囊/标签/侧边栏等组件文字不可拖选(拖滑块不再误选文字);
+     内容型区域(消息/输入框/代码/diff)在下方显式恢复可选 */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 内容型区域恢复可选:消息气泡整体(正文/代码/diff/思考块均在内)、输入框 */
+.chat-input,
+.msg-bubble-user,
+.msg-bubble-agent,
+.diff-view {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 
@@ -1273,10 +1286,17 @@ select.input {
 /* ── 任务执行呼吸灯(底色明暗 + 外发光,Agent 执行中) ──
    按钮是独立元素,外发光不会被遮挡;底色 10%↔30% 明暗 + 柔和光晕,2.8s 舒缓呼吸
    (必须放顶层——写在 :root 块内 @keyframes 会被浏览器忽略) */
-@keyframes task-breath {
-  0%, 100% { background-color: var(--task-breath-dim); box-shadow: 0 0 0 0 var(--task-breath-glow); }
-  50% { background-color: var(--task-breath-bright); box-shadow: 0 0 6px 0 var(--task-breath-glow); }
+/* ── 输入卡片任务按钮(AgentBar 胶囊)雾化呼吸灯 ──
+   box-shadow 绘制在按钮背景之下(不遮文字/底色),围绕按钮一圈雾化光晕随呼吸扩散;
+   按钮仅在任务执行中渲染,天然联动无需额外开关 */
+.agent-breath {
+  animation: agent-breath 2.8s ease-in-out infinite;
 }
-.task-breathing {
-  animation: task-breath 2.8s ease-in-out infinite;
+/* 命令胶囊(ShellBar)蓝色变体:覆盖光晕色为 info 蓝 */
+.agent-breath.info-glow {
+  --agent-breath-glow: var(--shell-breath-glow);
+}
+@keyframes agent-breath {
+  0%, 100% { box-shadow: 0 0 2px 0 var(--agent-breath-glow), inset 0 0 2px 0 var(--agent-breath-glow); }
+  50% { box-shadow: 0 0 2px 2px var(--agent-breath-glow), inset 0 0 2px 1px var(--agent-breath-glow); }
 }

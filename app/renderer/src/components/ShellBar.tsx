@@ -48,7 +48,7 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="rounded-[8px] bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info cursor-pointer hover:bg-info-high"
+        className="agent-breath info-glow rounded-[8px] bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info cursor-pointer hover:bg-info-high"
         title="运行中的后台命令"
       >
         命令•{shellTasks.length}

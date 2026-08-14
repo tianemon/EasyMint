@@ -71,6 +71,24 @@ export function SubagentProcessView({
     const unsub = window.electronAPI.agent.onSubagentStream((data) => {
       if (data.delegationId !== delegationId || data.index !== index) return;
       const ev = data.ev;
+      // message_start = 新输出段消息(磁盘逐条 assistant)开始:终态化当前 streaming 块,
+      // 下个内容帧创建新气泡——与主聊天 ChatPanel 一致(每条 assistant 消息独立气泡)
+      if (ev.type === "message_start") {
+        if (Array.isArray(ev.blocks) && ev.blocks.length > 0) {
+          // 非流式消息(message_start 携带完整内容)直接渲染为新气泡
+          const entries = mergeConsecutiveText(piBlocksToEntries(ev.blocks));
+          if (entries.length > 0) {
+            setMsgs((prev) => [
+              ...prev.map((m) => (m.role === "ai" && m.streaming ? { ...m, streaming: false } : m)),
+              { id: -nextIdRef.current++, role: "ai", entries, timestamp: Date.now(), streaming: true },
+            ]);
+          }
+        } else {
+          // 流式消息开始:仅终态化当前块(内容帧随后到达)
+          setMsgs((prev) => prev.map((m) => (m.role === "ai" && m.streaming ? { ...m, streaming: false } : m)));
+        }
+        return;
+      }
       if (ev.type !== "message" || !Array.isArray(ev.blocks) || ev.blocks.length === 0) return;
       const entries = mergeConsecutiveText(piBlocksToEntries(ev.blocks));
       if (entries.length === 0) return;
@@ -93,19 +111,15 @@ export function SubagentProcessView({
       const raw = await window.electronAPI.task.getSubagentMessages(sessionFile);
       const mapped = mapSessionMessages(raw as Array<{ type: string; message: unknown }>);
       setMsgs((prev) => {
-        const streamBlock = prev.find((m) => m.streaming);
+        // 只认实时产生的流式块(keyId undefined=负数 id 命名空间)——磁盘消息即使带
+        // streaming 标记也不作为流式块保留,否则新旧两批次磁盘消息共存导致 React key 冲突
+        const streamBlock = prev.find((m) => m.streaming && m.keyId === undefined);
         if (!streamBlock) return mapped;
         const lastDiskAi = [...mapped].reverse().find((m) => m.role === "ai");
         if (!lastDiskAi) return [...mapped, streamBlock];
         const d = textOf(lastDiskAi);
         const s = textOf(streamBlock);
-        if (s && d.startsWith(s)) {
-          // 磁盘已含流式块(更全)→ 用磁盘;标记最后一条 ai 为 streaming,
-          // 后续实时流帧继续替换它而非追加(否则重复显示同一段)
-          return mapped.map((m, i, arr) =>
-            i === arr.length - 1 && m.role === "ai" ? { ...m, streaming: true } : m
-          );
-        }
+        if (s && d.startsWith(s)) return mapped; // 磁盘已含流式内容(更全)→ 磁盘为准,流式块弃用(该段已落盘,无后续帧)
         if (s && s.startsWith(d)) return [...mapped.slice(0, -1), streamBlock]; // 流式比磁盘新 → 替换磁盘最后
         return [...mapped, streamBlock];
       });
@@ -209,13 +223,20 @@ function SubagentMessage({ msg, showThinking, showToolUse }: { msg: ChatMessage;
     );
   }
   const entries = msg.entries ?? [];
-  if (entries.length === 0) return <></>;
+  // 按显示开关过滤可见条目——纯思考/纯工具消息在开关关闭时无可视内容,
+  // 不渲染气泡容器(否则隐藏内容后留下空白气泡)
+  const visible = entries.filter((e) =>
+    e.kind === "text" ||
+    (e.kind === "thinking" && showThinking) ||
+    ((e.kind === "tool_use" || e.kind === "tool_result") && showToolUse)
+  );
+  if (visible.length === 0) return <></>;
   return (
     <div className="flex gap-3 items-start">
       <div className="msg-avatar agent shrink-0">M</div>
       <div className="min-w-0 flex-1">
         <div className="msg-bubble-agent rounded-[10px] rounded-bl-[4px] px-3 py-1.5 text-sm overflow-hidden">
-          {entries.map((e, i) => <SubagentEntry key={i} entry={e} showThinking={showThinking} showToolUse={showToolUse} />)}
+          {visible.map((e, i) => <SubagentEntry key={i} entry={e} showThinking={showThinking} showToolUse={showToolUse} />)}
         </div>
       </div>
     </div>
