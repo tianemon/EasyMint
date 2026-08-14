@@ -119,6 +119,14 @@ export class ProjectService {
 
     // 路径变更 → 迁移 SDK session 目录
     if (patch.path && patch.path !== project.path) {
+      // Pi SDK 会话目录(agent/sessions/<路径编码>)——v0.7.2 起会话落盘于此
+      const { getPiSessionDir } = require("./pi-session") as typeof import("./pi-session");
+      const oldPiDir = getPiSessionDir(project.path);
+      const newPiDir = getPiSessionDir(patch.path);
+      if (fs.existsSync(oldPiDir) && !fs.existsSync(newPiDir)) {
+        fs.renameSync(oldPiDir, newPiDir);
+      }
+      // 旧 Claude SDK 遗留目录(v0.7.2 起不再产生,兜底清理)
       const sdkDir = path.join(os.homedir(), ".easymint", "projects");
       const oldEncoded = project.path.replace(/[:/\\]/g, "-");
       const newEncoded = patch.path.replace(/[:/\\]/g, "-");
@@ -195,6 +203,15 @@ export class ProjectService {
         await cp(oldSessDir, newSessDir, { recursive: true });
       }
 
+      // Pi SDK 会话目录(v0.7.2 起会话落盘 ~/.easymint/agent/sessions/<路径编码>)
+      // ——必须一并迁移,否则重命名后历史会话在新路径下不可见
+      const { getPiSessionDir } = await import("./pi-session");
+      const oldPiSessDir = getPiSessionDir(oldDir);
+      const newPiSessDir = getPiSessionDir(newDir);
+      if (fs.existsSync(oldPiSessDir) && !fs.existsSync(newPiSessDir)) {
+        await cp(oldPiSessDir, newPiSessDir, { recursive: true });
+      }
+
       // 更新 projects.json
       const projectsPath = path.join(os.homedir(), ".easymint", "projects.json");
       if (fs.existsSync(projectsPath)) {
@@ -226,7 +243,7 @@ export class ProjectService {
 
       // 写清理任务
       const cleanFile = path.join(os.homedir(), ".easymint", ".cleanup-pending.json");
-      const cleanTask = { oldDir, oldSessionDir: oldSessDir, timestamp: Date.now() };
+      const cleanTask = { oldDir, oldSessionDir: oldSessDir, oldPiSessionDir: oldPiSessDir, timestamp: Date.now() };
       const cleanTasks = fs.existsSync(cleanFile)
         ? (() => { try { return JSON.parse(fs.readFileSync(cleanFile, "utf-8")); } catch { return []; } })()
         : [];

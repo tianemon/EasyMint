@@ -510,7 +510,8 @@ function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }
         style={{ fontSize: "var(--text-caption)" }}
       >
         <span style={{ fontSize: "var(--text-meta)" }}>{showInput ? "▼" : "▶"}</span>
-        <span>{label}</span>
+        {/* shrink-0:标题栏内容挤压时标签不被压缩(否则"编辑"两字会竖排) */}
+        <span className="shrink-0 whitespace-nowrap">{label}</span>
         {summary && <span className="text-text-secondary truncate font-mono" style={{ fontSize: "var(--text-detail)" }}>{summary}</span>}
         {item.result && !compact && (
           diffStats_ && (diffStats_.added > 0 || diffStats_.removed > 0) ? (

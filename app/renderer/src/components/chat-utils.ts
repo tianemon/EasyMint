@@ -197,14 +197,9 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
           }
         }
         if (entries.length === 0) continue;
-        // 相邻 AI 消息合并到同一条（Pi 落盘的消息逐条独立，此处仅用于磁盘→UI 映射）
-        const last = mapped[mapped.length - 1];
-        if (last && last.role === "ai") {
-          last.entries!.push(...entries);
-        } else {
-          const id = ++nextId;
-          mapped.push({ id, role: "ai", entries, timestamp: ts, keyId: uuid ? `d-${uuid}-${id}` : undefined });
-        }
+        // 每条 assistant 消息独立成气泡——对齐 SDK 落盘粒度(相邻消息不合并,与实时渲染一致)
+        const id = ++nextId;
+        mapped.push({ id, role: "ai", entries, timestamp: ts, keyId: uuid ? `d-${uuid}-${id}` : undefined });
       }
     } else if (m.type === "toolResult") {
       // 独立 toolResult 消息(磁盘):按 toolCallId 关联到 AI 消息的 tool_use;无匹配则追加到最近 AI 消息(独立结果)

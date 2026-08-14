@@ -2,7 +2,7 @@ import os from "os";
 import fs from "fs";
 import { app, BrowserWindow, shell, ipcMain, Menu } from "electron";
 import path from "path";
-import { loadUserPath } from "./utils/user-path";
+import { loadUserEnv } from "./utils/user-path";
 import {
   startAutoUpdater,
   checkForUpdatesManually,
@@ -197,7 +197,7 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     if (fs.existsSync(cleanFile)) {
       try {
         const tasks = JSON.parse(fs.readFileSync(cleanFile, "utf-8")) as Array<{
-          oldDir: string; oldSessionDir: string; timestamp: number;
+          oldDir: string; oldSessionDir: string; oldPiSessionDir?: string; timestamp: number;
         }>;
         for (const task of tasks) {
           try {
@@ -206,6 +206,9 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
             }
             if (task.oldSessionDir && fs.existsSync(task.oldSessionDir)) {
               fs.rmSync(task.oldSessionDir, { recursive: true, force: true });
+            }
+            if (task.oldPiSessionDir && fs.existsSync(task.oldPiSessionDir)) {
+              fs.rmSync(task.oldPiSessionDir, { recursive: true, force: true });
             }
           } catch { /* skip broken tasks */ }
         }
@@ -225,8 +228,9 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
 }
 
 app.whenReady().then(() => {
-  // GUI 环境引导:提取用户完整 PATH(zsh -lic),供 bash/init.sh/运行面板/环境检查继承
-  loadUserPath();
+  // GUI 环境引导:提取用户完整环境(zsh -lic env,含 PATH/JAVA_HOME 等),
+  // 供 bash/init.sh/运行面板/环境检查继承
+  loadUserEnv();
   // 恢复上次打开的项目（仅在 setup 完成后）
   let startHash: string | undefined;
   const tempStore = new Store();
