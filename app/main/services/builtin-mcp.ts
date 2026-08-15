@@ -97,12 +97,42 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
       if (raw.length === 0) return "暂无记录的 Issue";
       const lines = raw.map((i, idx) => {
         const st = i.status === "fixed" ? "已修复" : (i.resolved ? "已修复" : "未修复");
-        return `${idx + 1}. [${st}] ${i.title as string}`;
+        const mod = i.module ? `（${i.module as string}）` : "";
+        return `${idx + 1}. [${st}] ${i.title as string}${mod}`;
       });
       const open = raw.filter((i) => !(i.status === "fixed" || i.resolved)).length;
       return `共 ${raw.length} 条，${open} 条未修复：\n\n${lines.join("\n")}`;
     } catch (e) { return `读取失败: ${(e as Error).message}`; }
   })) as any);
+
+  // set_issue_status
+  tools.push(defineTool({
+    name: "set_issue_status", label: "更新问题状态",
+    description: "标记 Issue 面板问题的状态（未修复/已修复）。用户确认问题已解决后调用 → fixed；需要重新打开时 → open。序号与 list_issues 输出一致。",
+    promptSnippet: "更新问题记录的状态（open/fixed）",
+    parameters: {
+      type: "object" as const,
+      properties: {
+        index: { type: "number" as const, description: "list_issues 输出中的序号（从 1 开始）" },
+        status: { type: "string" as const, enum: ["open", "fixed"] },
+      },
+      required: ["index", "status"],
+    },
+    async execute(_tid: any, params: any) {
+      if (!projectPath) return { content: [{ type: "text" as const, text: "当前无项目路径" }] };
+      const p = join(projectPath, ".easymint", "issues.json");
+      if (!existsSync(p)) return { content: [{ type: "text" as const, text: "暂无记录的 Issue" }] };
+      try {
+        const data = JSON.parse(readFileSync(p, "utf-8"));
+        const issues = (data.issues as Array<Record<string, unknown>>) || [];
+        const issue = issues[Number(params.index) - 1];
+        if (!issue) return { content: [{ type: "text" as const, text: `序号 ${params.index} 不存在（共 ${issues.length} 条）` }] };
+        issue.status = params.status === "fixed" ? "fixed" : "open";
+        writeFileSync(p, JSON.stringify(data, null, 2), "utf-8");
+        return { content: [{ type: "text" as const, text: `已更新：[${params.status === "fixed" ? "已修复" : "未修复"}] ${issue.title}` }] };
+      } catch (e) { return { content: [{ type: "text" as const, text: `更新失败: ${(e as Error).message}` }] }; }
+    },
+  } as any) as any);
 
   // rename_project
   tools.push(defineTool({

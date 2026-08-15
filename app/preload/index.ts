@@ -138,9 +138,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   issue: {
     list: (projectPath: string) => ipcRenderer.invoke("issue:list", { projectPath }),
-    add: (projectPath: string, title: string, module: string, symptom: string) => ipcRenderer.invoke("issue:add", { projectPath, title, module, symptom }),
+    add: (projectPath: string, title: string, module: string) => ipcRenderer.invoke("issue:add", { projectPath, title, module }),
     setStatus: (projectPath: string, id: string, status: string) => ipcRenderer.invoke("issue:set-status", { projectPath, id, status }),
-    appendNote: (projectPath: string, id: string, content: string) => ipcRenderer.invoke("issue:append-note", { projectPath, id, content }),
+    update: (projectPath: string, id: string, patch: { title?: string; module?: string }) => ipcRenderer.invoke("issue:update", { projectPath, id, patch }),
     delete: (projectPath: string, id: string) => ipcRenderer.invoke("issue:delete", { projectPath, id }),
   },
   process: {

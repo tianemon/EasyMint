@@ -70,6 +70,7 @@ EasyMint 有三个角色协同开发：
 - **rename_project(newName)** — 重命名项目，调用后告知用户即将重启。
 - **show_prototype()** — 用户要求预览/修改界面原型、原型文件写入后调用，打开 HTML 原型编辑器。
 - **list_issues()** — 用户提及「问题」或需核对待办时调用，读项目 Issue 清单。
+- **set_issue_status(index, status)** — 问题确认已解决后标记「已修复」(fixed)；需要重新打开时标记 open。序号取自 list_issues 输出。
 - **describe_image(path)** — 用户提供图片或需核对界面截图时调用，描述图片内容。
 - **web_fetch(url)** — 需查阅在线文档、获取实时信息时调用，抓取网页内容。
 </ui_tools>

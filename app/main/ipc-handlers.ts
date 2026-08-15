@@ -59,7 +59,7 @@ import {
   unarchiveSession,
 } from "./services/session-service";
 import { readCache, writeCache, deleteCache } from "./services/session-cache";
-import { listIssues, addIssue, setStatus, appendNote, deleteIssue } from "./services/issue-service";
+import { listIssues, addIssue, setStatus, updateIssue, deleteIssue } from "./services/issue-service";
 import { getPins, setPins } from "./services/pin-service";
 import type { IssueStatus } from "./services/issue-service";
 import { detectRunnable, startProcess, stopProcess, restartProcess, getStatus, getRunningIds, checkPort, killPort, ensureRunJsonWatch } from "./services/process-service";
@@ -252,9 +252,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // conversation:* — backed by SDK session APIs
   // issue:* - 本地问题记录
   ipcMain.handle("issue:list", (_e, { projectPath }) => listIssues(projectPath));
-  ipcMain.handle("issue:add", (_e, { projectPath, title, module, symptom }) => addIssue(projectPath, title, module, symptom));
+  ipcMain.handle("issue:add", (_e, { projectPath, title, module }) => addIssue(projectPath, title, module));
   ipcMain.handle("issue:set-status", (_e, { projectPath, id, status }) => setStatus(projectPath, id, status as IssueStatus));
-  ipcMain.handle("issue:append-note", (_e, { projectPath, id, content }) => appendNote(projectPath, id, content));
+  ipcMain.handle("issue:update", (_e, { projectPath, id, patch }) => updateIssue(projectPath, id, patch));
   ipcMain.handle("issue:delete", (_e, { projectPath, id }) => deleteIssue(projectPath, id));
 
   // process:* - 项目运行进程管理（按 commandId）

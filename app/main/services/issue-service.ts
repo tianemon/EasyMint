@@ -9,17 +9,10 @@ import { randomUUID } from "node:crypto";
 
 export type IssueStatus = "open" | "fixed";
 
-export interface IssueNote {
-  content: string;
-  createdAt: number;
-}
-
 export interface Issue {
   id: string;
   title: string;
   module: string;          // 功能模块（用户手动填，如"登录页"）
-  symptom: string;         // 问题现象（用户看到的情况）
-  notes: IssueNote[];      // 后续追加内容
   status: IssueStatus;
   createdAt: number;
 }
@@ -38,8 +31,6 @@ function readIssues(projectPath: string): Issue[] {
       id: raw.id as string,
       title: raw.title as string,
       module: (raw.module as string) || "",
-      symptom: (raw.symptom as string) || "",
-      notes: Array.isArray(raw.notes) ? raw.notes : [],
       status: raw.status === "fixed" ? "fixed" : "open",
       createdAt: raw.createdAt as number,
     }));
@@ -61,14 +52,12 @@ export function listIssues(projectPath: string): Issue[] {
   return readIssues(projectPath);
 }
 
-export function addIssue(projectPath: string, title: string, module: string, symptom: string): Issue {
+export function addIssue(projectPath: string, title: string, module: string): Issue {
   const issues = readIssues(projectPath);
   const issue: Issue = {
     id: randomUUID(),
     title: title.trim(),
     module: module.trim(),
-    symptom: symptom.trim(),
-    notes: [],
     status: "open",
     createdAt: Date.now(),
   };
@@ -86,11 +75,12 @@ export function setStatus(projectPath: string, id: string, status: IssueStatus):
   }
 }
 
-export function appendNote(projectPath: string, id: string, content: string): void {
+export function updateIssue(projectPath: string, id: string, patch: { title?: string; module?: string }): void {
   const issues = readIssues(projectPath);
   const issue = issues.find((i) => i.id === id);
   if (issue) {
-    issue.notes.push({ content: content.trim(), createdAt: Date.now() });
+    if (patch.title !== undefined) issue.title = patch.title.trim();
+    if (patch.module !== undefined) issue.module = patch.module.trim();
     writeIssues(projectPath, issues);
   }
 }

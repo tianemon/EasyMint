@@ -2,17 +2,10 @@ import { create } from "zustand";
 
 export type IssueStatus = "open" | "fixed";
 
-export interface IssueNote {
-  content: string;
-  createdAt: number;
-}
-
 export interface IssueItem {
   id: string;
   title: string;
   module: string;
-  symptom: string;
-  notes: IssueNote[];
   status: IssueStatus;
   createdAt: number;
 }
@@ -20,9 +13,9 @@ export interface IssueItem {
 interface IssueState {
   issues: IssueItem[];
   load: (projectPath: string) => Promise<void>;
-  add: (projectPath: string, title: string, module: string, symptom: string) => Promise<void>;
+  add: (projectPath: string, title: string, module: string) => Promise<void>;
   setStatus: (projectPath: string, id: string, status: IssueStatus) => Promise<void>;
-  appendNote: (projectPath: string, id: string, content: string) => Promise<void>;
+  update: (projectPath: string, id: string, patch: { title?: string; module?: string }) => Promise<void>;
   remove: (projectPath: string, id: string) => Promise<void>;
 }
 
@@ -37,9 +30,9 @@ export const useIssueStore = create<IssueState>((set, get) => ({
     } catch { /* ignore */ }
   },
 
-  add: async (projectPath, title, module, symptom) => {
+  add: async (projectPath, title, module) => {
     if (!projectPath) return;
-    await window.electronAPI.issue.add(projectPath, title, module, symptom);
+    await window.electronAPI.issue.add(projectPath, title, module);
     await get().load(projectPath);
   },
 
@@ -49,9 +42,9 @@ export const useIssueStore = create<IssueState>((set, get) => ({
     await get().load(projectPath);
   },
 
-  appendNote: async (projectPath, id, content) => {
+  update: async (projectPath, id, patch) => {
     if (!projectPath) return;
-    await window.electronAPI.issue.appendNote(projectPath, id, content);
+    await window.electronAPI.issue.update(projectPath, id, patch);
     await get().load(projectPath);
   },
 

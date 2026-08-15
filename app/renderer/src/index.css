@@ -76,6 +76,8 @@
   --color-sidebar: #ededeb;
   --color-sidebar-hover: #e5e5e1;
   --color-sidebar-active: #f6f6f3;
+  /* 任务面板容器底色(比 sidebar-active 深一档,抽屉内更沉的基调) */
+  --color-drawer-panel: #efefec;
   --color-content: #f4f4f2;
   --color-card: #fdfdfd;
   --color-card-agent: #f3f6f3;
@@ -277,6 +279,8 @@ html[data-platform="win32"] {
   --color-sidebar: #ededeb;
   --color-sidebar-hover: #e5e5e1;
   --color-sidebar-active: #f6f6f3;
+  /* 任务面板容器底色(比 sidebar-active 深一档,抽屉内更沉的基调) */
+  --color-drawer-panel: #efefec;
   --color-content: #f4f4f2;
   --color-card: #fdfdfd;
   --color-card-agent: #f3f6f3;
@@ -437,6 +441,8 @@ html[data-platform="win32"] {
   --color-sidebar: #1c1c1c;  /* 与输入卡片(input-card)同色 */
   --color-sidebar-hover: #262626;
   --color-sidebar-active: #2a2a2a;
+  /* 任务面板容器底色(比 sidebar-active 深一档,抽屉内更沉的基调) */
+  --color-drawer-panel: #242424;
   --color-content: #141414;
   --color-card: #222222;
   --color-card-agent: #1c1c1c;  /* 与输入卡片(input-card)同色 */
@@ -1145,6 +1151,12 @@ select.input {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+/* 归档下拉面板入场:淡入 + 轻微下滑(展开感),收起直接消失(无需退出动画) */
+@keyframes archivePanelIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.archive-panel-in { animation: archivePanelIn 140ms ease-out; }
 @keyframes modalIn {
   from { opacity: 0; transform: translateY(12px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0) scale(1); }

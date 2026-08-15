@@ -289,10 +289,10 @@ interface ElectronAPI {
     openDir: () => Promise<void>;
   },
   issue: {
-    list: (projectPath: string) => Promise<Array<{ id: string; title: string; module: string; symptom: string; notes: Array<{ content: string; createdAt: number }>; status: "open" | "fixed"; createdAt: number }>>;
-    add: (projectPath: string, title: string, module: string, symptom: string) => Promise<{ id: string; title: string; module: string; symptom: string; notes: Array<{ content: string; createdAt: number }>; status: "open" | "fixed"; createdAt: number }>;
+    list: (projectPath: string) => Promise<Array<{ id: string; title: string; module: string; status: "open" | "fixed"; createdAt: number }>>;
+    add: (projectPath: string, title: string, module: string) => Promise<{ id: string; title: string; module: string; status: "open" | "fixed"; createdAt: number }>;
     setStatus: (projectPath: string, id: string, status: "open" | "fixed") => Promise<void>;
-    appendNote: (projectPath: string, id: string, content: string) => Promise<void>;
+    update: (projectPath: string, id: string, patch: { title?: string; module?: string }) => Promise<void>;
     delete: (projectPath: string, id: string) => Promise<void>;
   };
   tab: {

@@ -92,21 +92,20 @@ export function SessionBar(props: SessionBarProps): JSX.Element {
         </svg>
       </button>
 
-      {/* 归档列表:图标 + 标题 + 归档时间 + 右侧「恢复」按钮(悬停显示) */}
+      {/* 归档列表:浮层底色 + 行圆角块(标题 + 下方时间 + 悬停恢复) */}
       {showArchive && (
-        <div className="absolute top-full left-3 right-3 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-sidebar-active shadow-lg z-10">
+        <div className="archive-panel-in absolute top-full left-3 right-3 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-surface-elevated shadow-lg z-10 p-1.5">
           {archived.length > 0 ? (
             archived.map((s) => (
               <div
                 key={s.sessionId}
-                className="group flex items-center gap-2 px-3 py-2 hover:bg-surface-hover transition-colors cursor-pointer border-b border-border/50 last:border-0"
+                className="group flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
                 onClick={() => { onSessionClick?.(s.sessionId); setShowArchive(false); }}
                 title="打开会话"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0 text-text-secondary"><path d="M22 8l-2-4H4L2 8"/><path d="M2 8v12h20V8"/><path d="M8 13h8"/></svg>
                 <div className="flex-1 min-w-0 leading-tight">
                   <div className="text-xs text-text-primary truncate">{s.title}</div>
-                  <div className="text-[10px] text-text-secondary">{s.archivedAt ? fmtArchiveTime(s.archivedAt) : ""}</div>
+                  <div className="text-[10px] text-text-muted mt-0.5">{s.archivedAt ? fmtArchiveTime(s.archivedAt) : ""}</div>
                 </div>
                 <button
                   type="button"
