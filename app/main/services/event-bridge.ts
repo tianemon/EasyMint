@@ -207,9 +207,11 @@ export function bridgeSessionEvents(
     }
 
     case "compaction_end": {
-      if (!event.aborted && event.result) {
-        callbacks.onEvent({ type: "compacted", sessionId: "", summary: event.result.summary });
-      }
+      // 无论成功/中止都广播——前端清除压缩蒙版(aborted/无 result 时不广播会导致蒙版卡死)
+      callbacks.onEvent({
+        type: "compacted", sessionId: "",
+        summary: !event.aborted && event.result ? event.result.summary : undefined,
+      });
       break;
     }
 

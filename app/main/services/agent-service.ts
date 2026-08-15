@@ -482,6 +482,15 @@ export class AgentService {
             chat.compactCount++;
             console.log(`[agent] compact #${chat.compactCount}: chatId=${chatId}`);
           }
+          // 压缩后刷新使用率:压缩后无新回复时 getContextUsage 返回 percent null(旧 usage
+          // 不可信)→ 上报 0,UI 不再残留压缩前的旧百分比(下条回复后更新为真实值)
+          const usage = chat.session?.getContextUsage();
+          if (usage) {
+            broadcast("agent:context-usage", {
+              chatId, percentage: usage.percent ?? 0,
+              totalTokens: usage.tokens ?? 0, maxTokens: usage.contextWindow,
+            });
+          }
         }
       } catch (e) {
         console.error("[agent] bridge error:", e);
@@ -1096,9 +1105,21 @@ export class AgentService {
   /** 手动压缩上下文 */
   async compact(sessionId: string, instructions?: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
-    if (chat?.session) {
-      broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "compact" });
+    if (!chat?.session) return;
+    broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "compact" });
+    try {
       await chat.session.compact(instructions);
+      // 成功路径:SDK 内部发 compaction_end → compacted 广播清除蒙版
+    } catch (e) {
+      console.error(`[agent] compact failed: chatId=${chat.chatId}`, e);
+      // 压缩失败:compaction_end 不会到达(或带 error),蒙版会卡死——发错误提示
+      broadcast("agent:stream", {
+        type: "error", sessionId, chatId: chat.chatId,
+        message: "上下文压缩失败，请稍后重试", canRetry: true,
+      });
+    } finally {
+      // 无论成败都清除蒙版(compaction_end 的 compacted 可能因 aborted/无 result 不广播)
+      broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "done" });
     }
   }
 

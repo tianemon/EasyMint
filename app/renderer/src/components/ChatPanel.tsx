@@ -349,6 +349,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const t = setTimeout(() => setCompactDone(false), 3000);
     return () => clearTimeout(t);
   }, [compactDone]);
+  // 压缩超时兜底:SDK 压缩卡死(无 compaction_end)时 60s 后强制清除蒙版
+  useEffect(() => {
+    if (!compacting) return;
+    const t = setTimeout(() => {
+      useStatusStore.getState().setCompacting(sidRef.current, false);
+      useStatusStore.getState().setSummarizing(sidRef.current, false);
+      useStatusStore.getState().popSignal(sidRef.current, "compact");
+      useStatusStore.getState().popSignal(sidRef.current, "summary");
+    }, 60000);
+    return () => clearTimeout(t);
+  }, [compacting]);
   // 防御性兜底:临时 sid → 真实 sessionId 的常规迁移已由 onChatSession(698 行)同步完成,
   // 此处仅防 prop 直变(existingSid 从 undefined 一步到位)的遗漏场景,正常路径恒不命中
   useEffect(() => {
@@ -943,7 +954,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       if (!currentChatRef.current) return;
       if (ctxChatId !== currentChatRef.current) return;
       if (type === "done") {
-        // 轮转失败兜底：清除总结状态
+        // 压缩/总结结束兜底:清除压缩蒙版与总结状态(compacted 可能因中止不广播)
+        useStatusStore.getState().setCompacting(sidRef.current, false);
         useStatusStore.getState().setSummarizing(sidRef.current, false);
         useStatusStore.getState().popSignal(sidRef.current, "summary");
         useStatusStore.getState().popSignal(sidRef.current, "compact");

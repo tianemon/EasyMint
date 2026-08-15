@@ -1299,8 +1299,8 @@ select.input {
    按钮是独立元素,外发光不会被遮挡;底色 10%↔30% 明暗 + 柔和光晕,2.8s 舒缓呼吸
    (必须放顶层——写在 :root 块内 @keyframes 会被浏览器忽略) */
 /* ── 输入卡片任务按钮(AgentBar 胶囊)雾化呼吸灯 ──
-   box-shadow 绘制在按钮背景之下(不遮文字/底色),围绕按钮一圈雾化光晕随呼吸扩散;
-   按钮仅在任务执行中渲染,天然联动无需额外开关 */
+   box-shadow 动画:blur 1.5px 为卡顿临界点内的最锐利值(实测 1px 以下实心化
+   每帧大面积重绘卡顿,2px 以上走模糊 shader 摊薄不卡但太柔),spread 0↔1.5px 扩散呼吸 */
 .agent-breath {
   animation: agent-breath 2.8s ease-in-out infinite;
 }
@@ -1309,6 +1309,6 @@ select.input {
   --agent-breath-glow: var(--shell-breath-glow);
 }
 @keyframes agent-breath {
-  0%, 100% { box-shadow: 0 0 0.5px 0 var(--agent-breath-glow), inset 0 0 0.5px 0 var(--agent-breath-glow); }
-  50% { box-shadow: 0 0 0.5px 1.5px var(--agent-breath-glow), inset 0 0 0.5px 1px var(--agent-breath-glow); }
+  0%, 100% { box-shadow: 0 0 1.5px 0 var(--agent-breath-glow), inset 0 0 1.5px 0 var(--agent-breath-glow); }
+  50% { box-shadow: 0 0 1.5px 1.5px var(--agent-breath-glow), inset 0 0 1.5px 1px var(--agent-breath-glow); }
 }
