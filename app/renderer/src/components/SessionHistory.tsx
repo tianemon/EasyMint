@@ -18,6 +18,8 @@ interface SessionHistoryProps {
   activeSessionId?: string;
   onSessionClick?: (sessionId: string) => void;
   onSessionDelete?: (sessionId: string) => void;
+  /** 会话归档成功回调(触发归档列表刷新) */
+  onArchived?: () => void;
   refreshKey?: number;
 }
 
@@ -35,6 +37,7 @@ export function SessionHistory({
   activeSessionId,
   onSessionClick,
   onSessionDelete,
+  onArchived,
   refreshKey,
 }: SessionHistoryProps): JSX.Element {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
@@ -135,10 +138,18 @@ export function SessionHistory({
     setPendingDelete(null);
   };
 
+  // 关闭该会话的 tab(归档/结束会话时:会话从列表移除,tab 不应残留)
+  const closeTabBySession = (sessionId: string) => {
+    const ts = useTabStore.getState();
+    const tab = ts.tabs.find((t) => t.sessionId === sessionId);
+    if (tab) ts.closeTab(tab.id);
+  };
+
   // 右键「结束会话」:用户明确点击,立即 kill(不做延迟回收)
   const handleKillSession = async () => {
     if (!menu.sessionId) return;
     await window.electronAPI.agent.killSession(menu.sessionId);
+    closeTabBySession(menu.sessionId);
     refreshActive();
     setMenu((m) => ({ ...m, visible: false }));
   };
@@ -148,8 +159,10 @@ export function SessionHistory({
     if (!menu.sessionId) return;
     await window.electronAPI.conv.archiveSession(menu.sessionId);
     setSessions((prev) => prev.filter((s) => s.sessionId !== menu.sessionId));
+    closeTabBySession(menu.sessionId);
     refreshActive();
     setMenu((m) => ({ ...m, visible: false }));
+    onArchived?.();
   };
 
   const commitRename = async () => {

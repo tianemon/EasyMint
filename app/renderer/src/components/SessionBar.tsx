@@ -6,6 +6,8 @@ interface SessionBarProps {
   onSessionClick?: (sessionId: string) => void;
   onNewSession?: () => void;
   refreshKey?: number;
+  /** 归档会话恢复成功回调(触发主列表刷新) */
+  onRestored?: () => void;
 }
 
 interface ArchivedSession {
@@ -16,9 +18,24 @@ interface ArchivedSession {
   archivedAt?: number;
 }
 
+/** 归档时间显示:今天 HH:MM / 昨天 / M月D日 / YYYY年M月D日 */
+function fmtArchiveTime(ts: number): string {
+  if (!ts) return "";
+  const d = new Date(ts);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  if (startOfDay === startOfToday) {
+    return `今天 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+  if (startOfDay === startOfToday - 86400000) return "昨天";
+  if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}月${d.getDate()}日`;
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
 /** 会话功能条:归档 + 新建 平级(各自展开自己的列表) */
 export function SessionBar(props: SessionBarProps): JSX.Element {
-  const { projectPath, onNewSession, onSessionClick, refreshKey } = props;
+  const { projectPath, onNewSession, onSessionClick, refreshKey, onRestored } = props;
   const [showArchive, setShowArchive] = useState(false);
   const [archived, setArchived] = useState<ArchivedSession[]>([]);
   const barRef = useRef<HTMLDivElement>(null);
@@ -31,6 +48,13 @@ export function SessionBar(props: SessionBarProps): JSX.Element {
     }).catch(() => setArchived([]));
   };
   useEffect(() => { loadArchived(); }, [projectPath, refreshKey]);
+
+  // 恢复归档会话:取消归档标记 + 移除列表 + 通知主列表刷新
+  const handleRestore = async (sessionId: string) => {
+    await window.electronAPI.conv.unarchiveSession(sessionId);
+    setArchived((prev) => prev.filter((s) => s.sessionId !== sessionId));
+    onRestored?.();
+  };
 
   // 点击外部关闭
   useEffect(() => {
@@ -68,13 +92,30 @@ export function SessionBar(props: SessionBarProps): JSX.Element {
         </svg>
       </button>
 
-      {/* 归档列表(对齐任务面板抽屉风格:sidebar-active 底 + 圆角 + 阴影) */}
+      {/* 归档列表:图标 + 标题 + 归档时间 + 右侧「恢复」按钮(悬停显示) */}
       {showArchive && (
         <div className="absolute top-full left-3 right-3 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-sidebar-active shadow-lg z-10">
           {archived.length > 0 ? (
             archived.map((s) => (
-              <div key={s.sessionId} className="flex items-center gap-2 px-3 py-1.5 hover:bg-surface-hover transition-colors cursor-pointer text-xs border-b border-border/50 last:border-0" onClick={() => { onSessionClick?.(s.sessionId); setShowArchive(false); }}>
-                <span className="flex-1 min-w-0 truncate">{s.title}</span>
+              <div
+                key={s.sessionId}
+                className="group flex items-center gap-2 px-3 py-2 hover:bg-surface-hover transition-colors cursor-pointer border-b border-border/50 last:border-0"
+                onClick={() => { onSessionClick?.(s.sessionId); setShowArchive(false); }}
+                title="打开会话"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0 text-text-secondary"><path d="M22 8l-2-4H4L2 8"/><path d="M2 8v12h20V8"/><path d="M8 13h8"/></svg>
+                <div className="flex-1 min-w-0 leading-tight">
+                  <div className="text-xs text-text-primary truncate">{s.title}</div>
+                  <div className="text-[10px] text-text-secondary">{s.archivedAt ? fmtArchiveTime(s.archivedAt) : ""}</div>
+                </div>
+                <button
+                  type="button"
+                  className="shrink-0 px-1.5 py-0.5 rounded-md text-[11px] text-text-secondary border border-border/50 bg-surface/60 hover:text-text-primary hover:bg-surface-hover transition-all opacity-0 group-hover:opacity-100"
+                  title="恢复到会话列表"
+                  onClick={(e) => { e.stopPropagation(); handleRestore(s.sessionId); }}
+                >
+                  恢复
+                </button>
               </div>
             ))
           ) : (

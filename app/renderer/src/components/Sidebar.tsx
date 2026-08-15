@@ -44,6 +44,8 @@ export function Sidebar({
   const [plusOpen, setPlusOpen] = useState(false);
   const [toolboxOpen, setToolboxOpen] = useState(false);
   const [devicePanelOpen, setDevicePanelOpen] = useState(false);
+  // 归档恢复后自增,触发 SessionHistory 主列表刷新(受控 sessionRefreshKey 无法直接改)
+  const [archivedRefresh, setArchivedRefresh] = useState(0);
   const plusWrapRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const segRef = useRef<HTMLDivElement>(null);
@@ -177,14 +179,16 @@ export function Sidebar({
               projectPath={projectPath}
               onSessionClick={onSessionClick}
               onNewSession={onNewSession}
-              refreshKey={sessionRefreshKey}
+              refreshKey={(sessionRefreshKey ?? 0) + archivedRefresh}
+              onRestored={() => setArchivedRefresh((v) => v + 1)}
             />
             <SessionHistory
               projectPath={projectPath}
               onSessionClick={onSessionClick}
               onSessionDelete={onSessionDelete}
               activeSessionId={activeSessionId}
-              refreshKey={sessionRefreshKey}
+              refreshKey={(sessionRefreshKey ?? 0) + archivedRefresh}
+              onArchived={() => setArchivedRefresh((v) => v + 1)}
             />
           </div>
         ) : (
