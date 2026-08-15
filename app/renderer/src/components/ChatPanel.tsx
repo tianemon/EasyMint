@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { AttachItem, ChatMessage, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolLabel, mapSessionMessages, getMsgCopyText } from "./chat-utils";
@@ -15,6 +15,7 @@ import { normalizeApiError } from "../../../shared/api-errors";
 import { PermissionPrompt } from "./PermissionPrompt";
 import { ChatInput } from "./ChatInput";
 import { SessionStatsPopup } from "./SessionStatsPopup";
+import { CompactionDialog } from "./CompactionDialog";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 import { blocksToMarkdown, selectionToBlocks } from "../lib/selection-to-markdown";
 import { PinLayer } from "./PinLayer";
@@ -46,6 +47,9 @@ const SYSTEM_KIND_LABELS: Record<string, string> = {
   summary: "上下文摘要",
 };
 
+/** 压缩弹窗「写交接提示词」:让 Mint 总结当前会话,输出可复制的交接内容(不压缩) */
+const HANDOFF_PROMPT = "请总结当前会话的全部内容，并写一份交接提示词（包含项目状态、已完成的工作、当前进度、遇到的问题、下一步计划），以便在新会话中继续工作。请直接输出交接提示词内容，用中文。";
+
 export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesigner, onSessionCreated, onActivity, onNewProject }: ChatPanelProps): JSX.Element {
   const tempSidRef = useRef<string | null>(null);
   if (!existingSid && !tempSidRef.current) tempSidRef.current = `__new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -60,6 +64,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const stoppedRef = useRef(false);
   const busyRef = useRef(false);
   const ctxThresholdFiredRef = useRef(0); // 已按阈值触发过主动压缩（防止同轮重复触发）
+  // 压缩弹窗「下次回复完触发」:回复结束(agent:exit)后重置阈值防重 → 重新弹窗走同样流程
+  const rearmAfterExitRef = useRef(false);
   // 当前输出段块(assistant 消息)id:Pi 每条输出段消息有独立 message_start/update/end
   // 生命周期(磁盘逐条落盘);块 piTs = 消息对象创建时间戳,通知按 ts 插到块之间
   // → UI 顺序 = jsonl 顺序(不依赖广播到达顺序)
@@ -256,11 +262,40 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       y: 1 + Math.abs(ny) * intensity * 0.3 - Math.abs(nx) * intensity * 0.15,
     });
   }, [sliderBox]);
-  // 输入卡片下移动画:发送首条消息时先触发下移过渡,结束后切换消息列表
   const [leavingStartCard, setLeavingStartCard] = useState(false);
-  // 动画定时器 ref:unmount 清理(tab 关闭时对已卸载组件 setState)
-  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current); }, []);
+  // 首条消息发送:输入卡片从居中平滑下移到底部(FLIP + WAAPI)。
+  // 目标位置可预测:卡片贴 ChatPanel 底部(input-card margin-bottom 16px),
+  // 无需等 virtualizer 占位——useLayoutEffect 绘制前设反位移(防首帧闪烁)
+  const flipDyRef = useRef<number | null>(null);
+  const startCardLeave = useCallback(() => {
+    const wrap = inputWrapRef.current;
+    if (!wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    const targetTop = window.innerHeight - rect.height - 16; // --s4 = 16px
+    flipDyRef.current = rect.top - targetTop;
+    setLeavingStartCard(false); // 布局切换:容器回底部(shrink-0),消息列表出现
+  }, []);
+
+  // FLIP 反位移在 useLayoutEffect 设置(DOM 更新后、浏览器绘制前同步执行):
+  // 轮询/rAF 晚 1 帧——新位置已绘制,首帧闪回起点造成"抖动一下"
+  useLayoutEffect(() => {
+    if (flipDyRef.current === null) return;
+    const dy = flipDyRef.current;
+    flipDyRef.current = null;
+    const el = inputWrapRef.current;
+    if (!el || Math.abs(dy) < 1) return;
+    // 绘制前设反位移(FLIP 起点),下一帧动画滑到 0
+    el.style.willChange = "transform";
+    el.style.transform = `translateY(${dy}px)`;
+    requestAnimationFrame(() => {
+      // fill: forwards 关键——动画结束后保持终点 transform,onfinish 清理时无跳变
+      const anim = el.animate(
+        [{ transform: `translateY(${dy}px)` }, { transform: "translateY(0px)" }],
+        { duration: 700, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "forwards" },
+      );
+      anim.onfinish = () => { el.style.willChange = ""; el.style.transform = ""; };
+    });
+  });
 
   const showToolUse = useSettingsStore((s) => s.showToolUse);
   const [chatModel, setChatModel] = useState("");
@@ -273,6 +308,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     if (sid) { window.electronAPI.agent.setModel(sid, m).catch(() => {}); }
   }, [setStoreModel]);
   const [showStats, setShowStats] = useState(false);
+  // 压缩确认弹层：auto=阈值自动触发 / manual=统计弹窗按钮
+  const [compactDialog, setCompactDialog] = useState<{ source: "auto" | "manual"; threshold?: number } | null>(null);
   const handleThinkingLevelChange = useCallback((level: string) => {
     userChangedThinkingRef.current = true;
     setThinkingLevel(level);
@@ -777,6 +814,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useStatusStore.getState().pushSignal(sidRef.current, "request", "正在请求...");
         latestAiIdRef.current = 0;
         steeringRef.current = false;
+        // 用户已在弹窗打开期间继续对话 → 关闭压缩询问(选项 1/4 会 abort 新回合,不能误打断)
+        setCompactDialog(null);
       }
       // message_start = 新输出段消息(磁盘逐条 assistant)开始:下个内容帧创建新块;
       // 非流式消息(message_start 携带完整内容)直接渲染
@@ -873,7 +912,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useStatusStore.getState().setCtxPct(sidRef.current, event.percentage || 0);
       }
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; latestAiIdRef.current = 0; busyRef.current = false; setBusy(false); useStatusStore.getState().popSignal(sidRef.current, "request"); useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:"); onActivity?.(); });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; latestAiIdRef.current = 0; busyRef.current = false; setBusy(false); useStatusStore.getState().popSignal(sidRef.current, "request"); useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:"); onActivity?.(); if (rearmAfterExitRef.current) { rearmAfterExitRef.current = false; ctxThresholdFiredRef.current = 0; } });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;
@@ -927,8 +966,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       if (sidRef.current) {
         window.electronAPI.sessionCache.write(sidRef.current, { contextUsage: pct }).catch(() => {});
       }
-      // 主动压缩：使用率达到设置阈值（默认 65%）就提前 compact——
-      // 等 Pi 自动压缩时已接近 100%，模型性能在 75% 后明显下降。
+      // 主动压缩：使用率达到设置阈值就弹窗询问（不直接压缩——用户可跳过或带命令压缩）
       const threshold = useSettingsStore.getState().contextThreshold || 75;
       const sid = sidRef.current;
       const st = useStatusStore.getState().bySession[sid];
@@ -939,8 +977,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         currentChatRef.current
       ) {
         ctxThresholdFiredRef.current = threshold;
-        console.log(`[ChatPanel] ctx ${pct}% ≥ ${threshold}% → 主动压缩`);
-        window.electronAPI.agent.compact(sidRef.current).catch(() => {});
+        console.log(`[ChatPanel] ctx ${pct}% ≥ ${threshold}% → 弹窗询问压缩`);
+        setCompactDialog({ source: "auto", threshold });
       }
       // 使用率显著回落（压缩完成）后允许再次触发
       if (pct < threshold - 20) ctxThresholdFiredRef.current = 0;
@@ -1038,11 +1076,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
     const ts = Date.now();
     useChatStore.getState().appendUserMsg(sidRef.current, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
-    // 首条消息:输入卡片先下移过渡(300ms),再切消息列表——视觉上"卡片落位变输入区"
+    // 首条消息:输入卡片从居中平滑下移到底部(FLIP)
     if (!messages.length && !existingSid) {
-      setLeavingStartCard(true);
-      if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
-      leaveTimerRef.current = setTimeout(() => setLeavingStartCard(false), 300);
+      startCardLeave();
     }
     // 新用户消息 → 重置输出段块状态(steer 插话不触发 turn_start 时兜底)
     latestAiIdRef.current = 0;
@@ -1238,28 +1274,31 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 基准=标准按钮宽(首渲染时 ref 未绑,回退 48+3)
   const growX = sliderBox ? (14 * ((roleBtnRefs.current[0]?.offsetWidth ?? 48) + 3)) / sliderBox.width : 14;
 
-  // 输入卡片(空态与非空态共用同一实例,仅外层容器不同)
+  // 输入卡片(空态与非空态共用同一实例,仅外层容器不同)——包裹层做 FLIP 位移测量
+  const inputWrapRef = useRef<HTMLDivElement>(null);
   const renderChatInput = (
-    <ChatInput
-      busy={busy}
-      attaches={attaches}
-      setAttaches={setAttaches}
-      onSend={sendText}
-      onStop={() => { stoppedRef.current = true; busyRef.current = false; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
-      onPaste={handlePaste}
-      imgInputRef={imgInputRef}
-      docInputRef={docInputRef}
-      onImgChange={handleImgChange}
-      onDocChange={handleDocChange}
-      permissionMode={permissionMode}
-      onPermissionModeChange={setPermissionMode}
-      chatModel={chatModel || storeModel}
-      onModelChange={handleModelChange}
-      thinkingLevel={thinkingLevel}
-      onThinkingLevelChange={handleThinkingLevelChange}
-      sessionId={sidRef.current}
-      onStatsClick={() => setShowStats(true)}
-    />
+    <div ref={inputWrapRef}>
+      <ChatInput
+        busy={busy}
+        attaches={attaches}
+        setAttaches={setAttaches}
+        onSend={sendText}
+        onStop={() => { stoppedRef.current = true; busyRef.current = false; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
+        onPaste={handlePaste}
+        imgInputRef={imgInputRef}
+        docInputRef={docInputRef}
+        onImgChange={handleImgChange}
+        onDocChange={handleDocChange}
+        permissionMode={permissionMode}
+        onPermissionModeChange={setPermissionMode}
+        chatModel={chatModel || storeModel}
+        onModelChange={handleModelChange}
+        thinkingLevel={thinkingLevel}
+        onThinkingLevelChange={handleThinkingLevelChange}
+        sessionId={sidRef.current}
+        onStatsClick={() => setShowStats(true)}
+      />
+    </div>
   );
 
   return (
@@ -1350,19 +1389,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       <StatusBar sessionId={sidRef.current} />
       <PermissionPrompt />
 
-      {/* Attach preview — above thinking when busy */}
+      {/* Attach preview — above thinking when busy;mx-4 与输入卡片左右边距(--s16)对齐,否则条比卡片宽 */}
       {busy && attaches.length > 0 && (
-        <div className="px-4 py-2 bg-surface-alt/30 border-t border-border/50 shrink-0"><AttachPreview /></div>
+        <div className="mx-4 px-4 py-2 bg-surface-alt/30 border-t border-border/50 shrink-0"><AttachPreview /></div>
       )}
 
       {/* 气泡锚点容器:仅用于气泡悬浮定位(独立于输入卡片 DOM,悬浮在卡片上方)。
           空态时 flex-1 垂直居中基础上再上移 200px(视觉重心偏上),有消息后回底部(shrink-0);
-          发送首条消息时 leavingStartCard 下移过渡(卡片落位变输入区) */}
+          首条消息发送时输入卡片包裹层 FLIP 动画平滑下移 */}
       <div
         className={`relative ${(!hasMessages || leavingStartCard) ? "flex-1 flex flex-col justify-center" : "shrink-0"}`}
-        style={leavingStartCard
-          ? { transform: "translateY(20px)", opacity: 0, transition: "transform 0.3s ease, opacity 0.3s ease" }
-          : (!hasMessages ? { transform: "translateY(-200px)" } : undefined)}
+        style={!hasMessages && !leavingStartCard ? { transform: "translateY(-200px)" } : undefined}
       >
         {/* 空态模块:角色选择 + 输入卡片作为整体(角色 ml-4 对齐卡片左 margin 16px)。
             existingSid 会话(磁盘消息加载中)不显示角色选择——恢复会话沿用 tab 的 isDesigner */}
@@ -1483,6 +1520,32 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           sessionId={sidRef.current}
           projectPath={projectPath || getWorkspaceDir()}
           onClose={() => setShowStats(false)}
+          onCompress={() => { setShowStats(false); setCompactDialog({ source: "manual" }); }}
+        />
+      )}
+      {compactDialog && (
+        <CompactionDialog
+          title={compactDialog.source === "auto"
+            ? `当前会话已达到自动压缩阈值 ${compactDialog.threshold ?? 75}%，如何处理？`
+            : "压缩当前会话上下文"}
+          onImmediate={() => {
+            window.electronAPI.agent.compact(sidRef.current).catch(() => {});
+            setCompactDialog(null);
+          }}
+          onWithInstructions={(instructions) => {
+            window.electronAPI.agent.compact(sidRef.current, instructions || undefined).catch(() => {});
+            setCompactDialog(null);
+          }}
+          onWriteHandoff={() => {
+            sendText(HANDOFF_PROMPT);
+            setCompactDialog(null);
+          }}
+          onDefer={() => {
+            // 下次回复完(agent:exit)重置阈值防重 → 重新弹窗走同样流程
+            rearmAfterExitRef.current = true;
+            setCompactDialog(null);
+          }}
+          onClose={() => setCompactDialog(null)}
         />
       )}
       {/* 内容便签悬浮层：仅当前会话可见，随 tab 显隐 */}

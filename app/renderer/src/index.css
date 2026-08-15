@@ -1297,6 +1297,6 @@ select.input {
   --agent-breath-glow: var(--shell-breath-glow);
 }
 @keyframes agent-breath {
-  0%, 100% { box-shadow: 0 0 2px 0 var(--agent-breath-glow), inset 0 0 2px 0 var(--agent-breath-glow); }
-  50% { box-shadow: 0 0 2px 2px var(--agent-breath-glow), inset 0 0 2px 1px var(--agent-breath-glow); }
+  0%, 100% { box-shadow: 0 0 0.5px 0 var(--agent-breath-glow), inset 0 0 0.5px 0 var(--agent-breath-glow); }
+  50% { box-shadow: 0 0 0.5px 1.5px var(--agent-breath-glow), inset 0 0 0.5px 1px var(--agent-breath-glow); }
 }

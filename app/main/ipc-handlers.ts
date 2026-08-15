@@ -203,9 +203,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:sessionStats", async (_e, { sessionId, projectPath }) => {
     return agentService.getSessionStats(sessionId, projectPath);
   });
-  ipcMain.handle("agent:peekUsage", async (_e, { projectPath, sessionId }) => {
-    await agentService.peekUsage(projectPath, sessionId);
-  });
   ipcMain.handle("agent:killChat", (_e, { chatId }) => {
     agentService.killChat(chatId);
   });

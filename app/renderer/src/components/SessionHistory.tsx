@@ -117,22 +117,37 @@ export function SessionHistory({
     setMenu((m) => ({ ...m, visible: false }));
   };
 
-  const handleDelete = async () => {
+  // 删除前先弹确认(自定义弹窗,与项目弹层风格一致)——直接删除不可恢复
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const handleDelete = () => {
     if (!menu.sessionId) return;
-    // 先结束内存会话(若活跃)——否则删除记录后会话还在后台跑(委派/shell 继续),列表消失无法管理
-    await window.electronAPI.agent.killSession(menu.sessionId);
-    const path = projectPath || getWorkspaceDir();
-    await window.electronAPI.conv.delete(menu.sessionId, path);
-    onSessionDelete?.(menu.sessionId);
-    setSessions((prev) => prev.filter((s) => s.sessionId !== menu.sessionId));
-    refreshActive();
+    setPendingDelete(menu.sessionId);
     setMenu((m) => ({ ...m, visible: false }));
+  };
+  const doDelete = async (sessionId: string) => {
+    // 先结束内存会话(若活跃)——否则删除记录后会话还在后台跑(委派/shell 继续),列表消失无法管理
+    await window.electronAPI.agent.killSession(sessionId);
+    const path = projectPath || getWorkspaceDir();
+    await window.electronAPI.conv.delete(sessionId, path);
+    onSessionDelete?.(sessionId);
+    setSessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
+    refreshActive();
+    setPendingDelete(null);
   };
 
   // 右键「结束会话」:用户明确点击,立即 kill(不做延迟回收)
   const handleKillSession = async () => {
     if (!menu.sessionId) return;
     await window.electronAPI.agent.killSession(menu.sessionId);
+    refreshActive();
+    setMenu((m) => ({ ...m, visible: false }));
+  };
+
+  // 右键「归档」:从列表移除,会话文件保留(archived-sessions.json 标记,SDK 无自动清理)
+  const handleArchive = async () => {
+    if (!menu.sessionId) return;
+    await window.electronAPI.conv.archiveSession(menu.sessionId);
+    setSessions((prev) => prev.filter((s) => s.sessionId !== menu.sessionId));
     refreshActive();
     setMenu((m) => ({ ...m, visible: false }));
   };
@@ -229,14 +244,51 @@ export function SessionHistory({
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             重命名
           </button>
-          <button className="w-full text-left px-1.5 py-1 text-sm text-danger hover:bg-danger-bg rounded-md transition-colors flex items-center gap-1.5" onClick={handleKillSession}>
-            <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
-            结束会话
+          <button className="w-full text-left px-1.5 py-1 text-sm text-text-primary hover:bg-surface-hover rounded-md transition-colors flex items-center gap-1.5" onClick={handleArchive}>
+            <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 8l-2-4H4L2 8"/><path d="M2 8v12h20V8"/><path d="M8 13h8"/></svg>
+            归档
           </button>
+          {activeSessions.has(menu.sessionId) && (
+            <button className="w-full text-left px-1.5 py-1 text-sm text-danger hover:bg-danger-bg rounded-md transition-colors flex items-center gap-1.5" onClick={handleKillSession}>
+              <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+              结束会话
+            </button>
+          )}
           <button className="w-full text-left px-1.5 py-1 text-sm text-danger hover:bg-danger-bg rounded-md transition-colors flex items-center gap-1.5" onClick={handleDelete}>
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
             删除
           </button>
+        </div>
+      )}
+
+      {/* 删除确认弹窗 */}
+      {pendingDelete && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/30" onClick={() => setPendingDelete(null)}>
+          <div
+            className="bg-surface border border-border rounded-xl p-5 max-w-sm w-full shadow-2xl mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-sm font-medium text-text-primary mb-2">删除会话</div>
+            <p className="text-xs text-text-secondary mb-4">
+              确定删除「{sessions.find((s) => s.sessionId === pendingDelete)?.title ?? "该会话"}」吗？会话记录将永久删除，此操作不可恢复。
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingDelete(null)}
+                className="px-4 py-1.5 rounded-lg bg-surface-alt text-text-secondary text-xs hover:bg-surface-hover hover:text-text-primary transition-colors"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => doDelete(pendingDelete)}
+                className="px-4 py-1.5 rounded-lg bg-danger text-text-inverse text-xs font-medium hover:opacity-90 transition-colors"
+              >
+                删除
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

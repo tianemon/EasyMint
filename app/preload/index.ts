@@ -235,7 +235,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getPiModels: (providerName: string) => ipcRenderer.invoke("agent:getPiModels", { providerName }) as Promise<Array<{ id: string; name: string; contextWindow: number }>>,
     sessionStats: (sessionId: string, projectPath?: string) => ipcRenderer.invoke("agent:sessionStats", { sessionId, projectPath }) as Promise<Record<string, unknown> | null>,
     scheduleIdleTimeout: (sessionId: string, delayMs: number) => ipcRenderer.invoke("agent:scheduleIdleTimeout", { sessionId, delayMs }),
-    peekUsage: (projectPath: string, sessionId: string) => ipcRenderer.invoke("agent:peekUsage", { projectPath, sessionId }) as Promise<void>,
     onStream: (callback: (event: unknown) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on("agent:stream", handler);

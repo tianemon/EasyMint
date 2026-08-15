@@ -12,7 +12,7 @@ interface SessionStats {
   model?: string;
 }
 
-export function SessionStatsPopup({ sessionId, projectPath, onClose }: { sessionId: string; projectPath: string; onClose: () => void }) {
+export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress }: { sessionId: string; projectPath: string; onClose: () => void; onCompress?: () => void }) {
   const [stats, setStats] = useState<SessionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState<string | null>(null);
@@ -113,6 +113,19 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose }: { session
               <div className="border-t border-border pt-3 flex justify-between items-center">
                 <span className="text-text-secondary">账户余额</span>
                 <span className="text-text-primary font-medium text-sm tabular-nums">{balance}</span>
+              </div>
+            )}
+
+            {onCompress && (
+              <div className="border-t border-border pt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={onCompress}
+                  className="update-install-btn"
+                  title="整理当前会话上下文，释放上下文空间"
+                >
+                  压缩会话
+                </button>
               </div>
             )}
           </div>

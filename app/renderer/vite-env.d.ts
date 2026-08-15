@@ -197,7 +197,6 @@ interface ElectronAPI {
     cancelReclaim: (sessionId: string) => Promise<void>;
     onChatClosed: (callback: (data: { sessionId: string }) => void) => () => void;
     scheduleIdleTimeout: (sessionId: string, delayMs: number) => void;
-    peekUsage: (projectPath: string, sessionId: string) => Promise<void>;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
     onConfirmDev: (callback: () => void) => () => void;

@@ -38,7 +38,6 @@ import { getDefineToolFn } from "./pi-sdk";
 import type { Model } from "@earendil-works/pi-ai";
 import { randomUUID } from "node:crypto";
 import { renameSession, hasCustomTitle } from "./session-service";
-import { MAX_COMPACT, finishRotation, type RotationState } from "./rotation";
 import { buildProjectEnvSection, buildProjectProfileSection, readProjectProfile } from "./prompt-sections";
 import { MINT_DESIGN_BOOST } from "../../shared/prompts";
 
@@ -63,7 +62,7 @@ interface ActiveRun {
   abortController: AbortController;
 }
 
-export interface ActiveChat extends RotationState {
+export interface ActiveChat {
   chatId: string;
   /** 对外 sessionId（Pi 真实 ID；前端迁移/权限/统计都用它） */
   sessionId: string;
@@ -78,6 +77,8 @@ export interface ActiveChat extends RotationState {
   firstUserMessage: string;
   assistantUuid: string;
   eventBuffer: PiChatEvent[];
+  /** 本会话已 compact 次数（轮转取消后仅统计用） */
+  compactCount: number;
 }
 
 /** 记录各 session 的 agent 类型 */
@@ -480,17 +481,6 @@ export class AgentService {
           if (!event.aborted && !event.willRetry) {
             chat.compactCount++;
             console.log(`[agent] compact #${chat.compactCount}: chatId=${chatId}`);
-
-            // Pi 原生 compact 自带摘要（result.summary），保存供轮转交接。
-            // 迁移时遗漏的填充逻辑——此前 summaryBuffer 恒为空，轮转从未真正执行。
-            const nativeSummary = (event as { result?: { summary?: string } }).result?.summary;
-            if (nativeSummary) chat.summaryBuffer = nativeSummary;
-
-            if (chat.compactCount >= MAX_COMPACT && chat.contextStatus === "normal") {
-              // 达到阈值 → 触发轮转（用 Pi 原生摘要交接）
-              chat.contextStatus = "summarizing";
-              console.log(`[agent] rotation triggered: chatId=${chatId}`);
-            }
           }
         }
       } catch (e) {
@@ -541,19 +531,6 @@ export class AgentService {
             renameSession(sessionId, title, chat.projectPath).catch(() => {});
             broadcast("agent:session-renamed", { sessionId, title });
           }
-        }
-
-        // ── 轮转收尾：summarizing 完成 → 归档 + 新会话 ──
-        if (chat && chat.contextStatus === "summarizing") {
-          await finishRotation(chat, session, sessionId, {
-            store: this.store,
-            getModel: () => this.getModel(this.store),
-            getAgentDir: () => this.getAgentDir(),
-            buildSystemPrompt: (p, d) => this.buildSystemPrompt(p, d),
-            buildExtraTools: (p, s) => this.buildExtraTools(p, s),
-            promptAndBridge: (sess, sid, cid, text, c, images, payload) => this.promptAndBridge(sess, sid, cid, text, c, images, payload),
-          });
-          return; // 轮转完成，不继续
         }
       }
     } catch (err: unknown) {
@@ -777,9 +754,6 @@ export class AgentService {
       assistantUuid: randomUUID(),
       eventBuffer: [],
       compactCount: 0,
-      contextStatus: "normal",
-      summaryBuffer: "",
-      rotationContinuation: "",
     };
 
     if (isDesigner) {
@@ -1047,23 +1021,6 @@ export class AgentService {
       console.error("[agent] getSessionStats disk read failed:", e);
       return null;
     }
-  }
-
-  async peekUsage(_projectPath: string, sessionId: string): Promise<void> {
-    const chat = this.findActiveChat(sessionId);
-    if (chat?.session) {
-      const usage = chat.session.getContextUsage();
-      if (usage) {
-        broadcast("agent:context-usage", {
-          chatId: sessionId,
-          percentage: usage.percent ?? 0,
-          totalTokens: usage.tokens ?? 0,
-          maxTokens: usage.contextWindow,
-        });
-        return;
-      }
-    }
-    broadcast("agent:context-usage", { chatId: sessionId, percentage: 0, totalTokens: 0, maxTokens: 0 });
   }
 
   // ── Pi 原生支持的操作 ─────────────────────────────
