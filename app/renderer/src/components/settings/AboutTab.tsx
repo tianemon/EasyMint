@@ -114,7 +114,7 @@ export function AboutTab(): JSX.Element {
       </div>
       <div className="text-xs text-text-muted space-x-4">
         <span>Electron · React · TypeScript</span>
-        <span>pi-coding-agent</span>
+        <span>Pi Agent SDK</span>
       </div>
     </div>
   );
