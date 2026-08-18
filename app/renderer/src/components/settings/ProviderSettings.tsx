@@ -26,6 +26,9 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   const [apiKey, setApiKey] = useState(initial?.apiKey || "");
   const [model, setModel] = useState(initial?.model || "");
   const [models, setModels] = useState<string[]>(initial?.models || []);
+  // 用户手动补充的模型(内置供应商:SDK 模型外的自定义模型;如 glm-5.3 等新上线模型)
+  const [extraModels, setExtraModels] = useState<string[]>(initial?.extraModels || []);
+  const [extraModelInput, setExtraModelInput] = useState("");
   // 该供应商的 task 子 Agent 默认模型(per-provider)
   const [subagentDefaultModel, setSubagentDefaultModel] = useState<string>(initial?.subagentDefaultModel || "");
   // 自定义供应商字段
@@ -35,10 +38,20 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   const [showKey, setShowKey] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const [loadedProvider, setLoadedProvider] = useState<string>("");
-  // 可选的模型列表:内置供应商从 Pi 加载,自定义从 textarea 解析
+  // 可选的模型列表:内置供应商 = SDK 模型 + 用户补充(去重);自定义从 textarea 解析
   const availableModels = isCustom
     ? customModelsText.split("\n").map((s) => s.trim()).filter(Boolean)
-    : models;
+    : Array.from(new Set([...models, ...extraModels]));
+
+  // 添加补充模型:去重(与 SDK 模型及已添加的合并),重复则忽略
+  const addExtraModel = (raw: string) => {
+    const id = raw.trim();
+    if (!id) return;
+    if (availableModels.includes(id)) { setExtraModelInput(""); return; } // 已存在,忽略
+    setExtraModels((prev) => [...prev, id]);
+    setExtraModelInput("");
+    if (!model) setModel(id);
+  };
 
   // 初始化：编辑已有供应商时自动加载模型列表
   useEffect(() => {
@@ -72,7 +85,9 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
     if (!name.trim()) { alert("请输入名称"); return; }
     if (!apiKey.trim()) { alert("请输入 API Key"); return; }
     if (isCustom && !baseUrl.trim()) { alert("自定义供应商需填写 Base URL"); return; }
-    const modelList = isCustom ? customModelsText.split("\n").map((s) => s.trim()).filter(Boolean) : models;
+    const modelList = isCustom
+      ? customModelsText.split("\n").map((s) => s.trim()).filter(Boolean)
+      : Array.from(new Set([...models, ...extraModels]));
     const cfg: ProviderConfig = {
       id: initial?.id || `${(presetId || "custom")}-${Date.now()}`,
       presetId: isCustom ? "custom" : presetId,
@@ -80,6 +95,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       apiKey: apiKey.trim(),
       model: model || (modelList[0] ?? ""),
       models: modelList,
+      extraModels: isCustom ? undefined : extraModels, // 自定义供应商用 textarea,不存 extra
       subagentDefaultModel: subagentDefaultModel || undefined,
       createdAt: initial?.createdAt || Date.now(),
       baseUrl: isCustom ? baseUrl.trim() || undefined : undefined,
@@ -145,6 +161,34 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
             title="选择模型"
           />
           {availableModels.length > 0 && <p className="text-[10px] text-text-muted mt-1">共 {availableModels.length} 个模型可选</p>}
+          {/* 添加自定义模型:SDK 列表外的模型(新上线/未收录)手动补充,合并去重 */}
+          <div className="flex items-center gap-2 mt-2">
+            <input
+              className="flex-1 min-w-0 h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+              placeholder="添加模型 ID (如 glm-5.3)"
+              value={extraModelInput}
+              onChange={(e) => setExtraModelInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") addExtraModel(extraModelInput); }}
+            />
+            <button
+              type="button"
+              className="shrink-0 px-3 h-8 rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors disabled:opacity-40"
+              onClick={() => addExtraModel(extraModelInput)}
+              disabled={!extraModelInput.trim()}
+            >
+              添加
+            </button>
+          </div>
+          {extraModels.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {extraModels.map((m) => (
+                <span key={m} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent-subtle text-[10px] text-accent">
+                  {m}
+                  <button type="button" className="text-accent hover:text-danger transition-colors" onClick={() => setExtraModels((prev) => prev.filter((x) => x !== m))}>✕</button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

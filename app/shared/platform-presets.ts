@@ -14,6 +14,8 @@ export interface ProviderConfig {
   model: string;           // 该供应商的默认模型(激活时优先使用)
   models: string[];        // 缓存：上次获取的模型列表
   createdAt: number;
+  /** 用户手动补充的模型(SDK 列表外的自定义模型,如新上线;保存时与 models 合并去重) */
+  extraModels?: string[];
   /** 自定义供应商 API 端点(仅 presetId==="custom" 时有效) */
   baseUrl?: string;
   /** 自定义供应商 API 类型(如 anthropic-messages,仅 presetId==="custom" 时有效) */

@@ -1,6 +1,6 @@
 {
   "name": "easymint",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "AI 项目工作台 — 基于 Pi Agent Core 的智能编程助手，让不懂技术的人也能构建软件",
   "private": true,
   "license": "MIT",
@@ -22,8 +22,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "^0.84.1",
-    "@earendil-works/pi-coding-agent": "^0.84.1",
+    "@earendil-works/pi-agent-core": "^0.84.2",
+    "@earendil-works/pi-ai": "^0.84.2",
+    "@earendil-works/pi-coding-agent": "^0.84.2",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-virtual": "^3.14.9",
