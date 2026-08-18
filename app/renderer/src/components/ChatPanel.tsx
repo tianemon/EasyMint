@@ -1665,7 +1665,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
         >
           <div style={{ width: 34, flexShrink: 0 }} />
           <div className="relative w-fit max-w-[75%] min-w-0 my-1" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
-            <div className="rounded-[10px] rounded-bl-[4px] border border-border bg-surface-elevated overflow-hidden">
+            <div className="msg-bubble-system rounded-[10px] rounded-bl-[4px] border border-border bg-surface-elevated overflow-hidden">
               {/* 头部:系统图标 + kind 标签(区别于 assistant 的 Mint 头像气泡) */}
               <div className="flex items-center gap-1.5 px-[14px] pt-1.5 text-[11px] text-text-secondary">
                 <svg className="shrink-0 text-info" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
