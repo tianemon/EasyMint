@@ -180,15 +180,12 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     setInitializing(true);
     try {
       if (createdProject) {
-        // 场景 → 流程深度:商业/实际=完整,兴趣/验证/学习=轻,技术实验=极简;未选时按完成度兜底
-        const sceneComplexity = data.scene === "practical" || data.scene === "commercial" ? "medium"
-          : data.scene === "interest" || data.scene === "validation" || data.scene === "learning" ? "simple"
-          : data.scene === "experiment" ? "minimal"
-          : (data.completeness === "full" ? "medium" : data.completeness === "mvp" ? "simple" : "minimal");
+        // 复杂度判定权在 Mint（creation-guide skill），前端不硬编码流程深度——
+        // 这里只按中性值生成技术规范 platformSpec，原型/文档/编码流程由 Mint 判断
         const dims: ProjectDimensions = {
           product: detectProfile(data.targets).id as any,
           deploy: (data.deployPlatform === "云端" ? "cloud" : data.deployPlatform === "混合" ? "hybrid" : "local") as DeployMode,
-          complexity: sceneComplexity,
+          complexity: "medium",
           ai: data.aiIntegration,
           storage: data.deployPlatform === "云端" ? "postgres" : "sqlite",
           productUsesAI: data.aiIntegration !== "none",

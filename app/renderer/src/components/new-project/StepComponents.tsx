@@ -26,27 +26,35 @@ function Select({ value, onChange, options, placeholder }: { value: string; onCh
   const menuRef = useRef<HTMLDivElement>(null);
   const selected = options.find((o) => o.value === value);
 
+  // 定位:菜单高度已知后钳制在视口内——底部放不下则向上展开,防止弹窗底部行的下拉超出屏幕
+  const placeMenu = () => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    const width = r.width;
+    const h = menuRef.current?.offsetHeight ?? 0;
+    let top = r.bottom + 4;
+    if (h > 0 && top + h > window.innerHeight - 4) {
+      const up = r.top - h - 4;
+      top = up >= 4 ? up : Math.max(4, window.innerHeight - h - 4);
+    }
+    setPos({ top, left: r.left, width });
+  };
+
   useEffect(() => {
     if (!open) return;
-    const update = () => {
-      if (btnRef.current) {
-        const r = btnRef.current.getBoundingClientRect();
-        setPos({ top: r.bottom + 4, left: r.left, width: r.width });
-      }
-    };
-    update();
+    placeMenu();
     // 点击触发器按钮不在此关闭(由 onClick 的 toggle 切换)——否则 mousedown 关闭+同步 flush+click 翻转,菜单收不回去
     const handler = (e: MouseEvent) => {
       if (btnRef.current?.contains(e.target as Node)) return;
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", handler);
-    window.addEventListener("scroll", update, true);
-    window.addEventListener("resize", update);
+    window.addEventListener("scroll", placeMenu, true);
+    window.addEventListener("resize", placeMenu);
     return () => {
       document.removeEventListener("mousedown", handler);
-      window.removeEventListener("scroll", update, true);
-      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", placeMenu, true);
+      window.removeEventListener("resize", placeMenu);
     };
   }, [open]);
 

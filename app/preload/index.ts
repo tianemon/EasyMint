@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   editor: {
     open: (filePath?: string) => ipcRenderer.invoke("editor:open", filePath),
+    openInBrowser: (filePath?: string) => ipcRenderer.invoke("editor:open-in-browser", filePath),
     onOpenPrototype: (callback: (data: { projectPath: string }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { projectPath: string }) => callback(data);
       ipcRenderer.on("editor:open-prototype", handler);

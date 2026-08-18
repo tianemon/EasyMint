@@ -71,6 +71,7 @@
     <span class="sep"></span>
     <button onclick="loadFile()">打开 HTML</button>
     <button onclick="selectFolder()" style="font-size:12px">选择文件夹</button>
+    <button onclick="openInBrowser()" id="btn-browser" title="在系统浏览器中打开原型" disabled>在浏览器中打开</button>
     <span class="sep"></span>
     <button onclick="toggleEditor()" id="btn-toggle" class="primary">启动编辑</button>
     <span id="status">选择 HTML 文件开始</span>
@@ -156,8 +157,10 @@
 <script>
   var editorActive = false;
   var currentHTML = "";
+  var currentFilePath = "";
   var iframe = document.getElementById("preview");
   var btnToggle = document.getElementById("btn-toggle");
+  var btnBrowser = document.getElementById("btn-browser");
   var status = document.getElementById("status");
   var dropHint = document.getElementById("drop-hint");
   var runtimeCode = "";
@@ -493,8 +496,10 @@
   }
 
   /** 由 EM 主进程注入调用：自动加载文件并启动编辑 */
-  function autoLoad(html, filename) {
+  function autoLoad(html, filename, filePath) {
     currentHTML = html;
+    currentFilePath = filePath || "";
+    btnBrowser.disabled = !currentFilePath;
     status.textContent = filename + " · " + (html.length < 1024 ? html.length + " B" : (html.length / 1024).toFixed(1) + " KB");
     btnToggle.textContent = "启动编辑";
     btnToggle.classList.add("primary");
@@ -521,6 +526,16 @@
       }, 200);
     };
     iframe.src = url;
+  }
+
+  /** 在系统浏览器中打开当前原型（file:// 下相对路径基于文件目录解析，图片/样式正常） */
+  function openInBrowser() {
+    if (!currentFilePath) { status.textContent = "无原型文件路径"; return; }
+    if (window.electronAPI && window.electronAPI.editor) {
+      window.electronAPI.editor.openInBrowser(currentFilePath).catch(function() { status.textContent = "打开失败"; });
+    } else {
+      status.textContent = "浏览器打开不可用（非 EM 环境）";
+    }
   }
 
   function toggleEditor() {

@@ -132,7 +132,7 @@ EM 把 Pi SDK 的全局目录从默认的 `~/.pi/agent` 重定向到 `~/.easymin
 `index.ts` 启动时检查本地安装的 SDK 包 `package.json` 的 `piConfig.configDir`（开发 = 项目 `node_modules`；打包 = `.asar.unpacked`），非 `.easymint` 则补写——**每次启动自检，npm install/升级覆盖后自动恢复**；写失败（mac 签名权限）降级保持 `.pi`。
 
 效果：
-- EM Mint 项目级目录 = `<cwd>/.easymint/`（与 EM 的 state.json/run.json 同目录共存，文件名不冲突）
+- EM Mint 项目级目录 = `<cwd>/.easymint/`（与 EM 的 run.json/issues.json 同目录共存，文件名不冲突）
 - **pi CLI/TUI 用自己全局安装的独立 SDK 包 → 仍 `.pi`**——两边彻底隔离，互不干扰（Pi TUI 在项目级写的 compaction/settings 不再影响 Mint）
 - 已验证：patch 后 Pi 运行时 `CONFIG_DIR_NAME = ".easymint"`、默认 `getAgentDir() = ~/.easymint/agent`
 
@@ -150,19 +150,9 @@ EM 把 Pi SDK 的全局目录从默认的 `~/.pi/agent` 重定向到 `~/.easymin
 
 ```
 <项目>/.easymint/
-├── state.json    项目开发阶段状态（Mint 通过 set_project_stage 写入）
 ├── run.json      项目运行命令配置（Mint 开发完成时生成）
 ├── issues.json   项目 Issue 记录（Mint 通过 list_issues 读取）
 └── escalation.json  Builder/Evaluator 阻塞时写入的升级报告
-```
-
-### `state.json`
-
-```json
-{
-  "stage": "requirements | tech-selection | planning | init | developing | done",
-  "stageTimes": {}
-}
 ```
 
 ### `run.json`

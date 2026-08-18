@@ -2,7 +2,6 @@ import { create } from "zustand";
 
 /**
  * 项目状态 — 任务完成计数。
- * stage/timeline 体系已随鱼骨图移除（v3 UI 改版 + set_project_stage 工具清理）。
  */
 
 interface ProjectStatusState {

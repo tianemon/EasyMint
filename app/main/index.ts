@@ -323,15 +323,20 @@ ipcMain.handle("editor:open", (_e, filePath?: string) => {
     title: "EM HTML Editor",
     webPreferences: {
       sandbox: false,
+      preload: path.join(__dirname, "..", "..", "preload", "dist", "preload.cjs"),
     },
   });
   if (filePath && fs.existsSync(filePath)) {
     editorWin.loadFile(editorPath);
     editorWin.webContents.on("did-finish-load", () => {
-      const content = fs.readFileSync(filePath, "utf-8");
+      let content = fs.readFileSync(filePath, "utf-8");
       const name = path.basename(filePath);
+      // 编辑器用 blob: URL 加载原型（无目录概念），相对资源路径解析失败——
+      // 注入前改写为基于原型目录的绝对路径，图片/样式才能在预览中显示
+      const baseDir = path.dirname(filePath);
+      content = absolutizePrototypePaths(content, baseDir);
       editorWin.webContents.executeJavaScript(
-        `(function(){var c=${JSON.stringify(content)};var n=${JSON.stringify(name)};if(typeof autoLoad==="function")autoLoad(c,n);})()`
+        `(function(){var c=${JSON.stringify(content)};var n=${JSON.stringify(name)};var p=${JSON.stringify(filePath)};if(typeof autoLoad==="function")autoLoad(c,n,p);})()`
       ).catch(() => {});
     });
   } else {
@@ -339,6 +344,21 @@ ipcMain.handle("editor:open", (_e, filePath?: string) => {
   }
   editorWin.setMenuBarVisibility(false);
 });
+
+ipcMain.handle("editor:open-in-browser", (_e, filePath?: string) => {
+  if (filePath && fs.existsSync(filePath)) shell.openPath(filePath);
+});
+
+/** 原型 HTML 相对资源路径 → 基于原型目录的绝对 file:// 路径（blob 预览无目录概念，不改写则图片/样式 404）。
+ *  改写 src/href/url() 中不以协议、/、# 开头的相对路径；跳过 data: 内联与占位符。 */
+function absolutizePrototypePaths(html: string, baseDir: string): string {
+  const toFileUrl = (p: string) => "file://" + path.resolve(baseDir, p);
+  return html
+    .replace(/(src|href)=(["'])(?!([a-z]+:|data:|#|\/))([^"']*?)\2/g, (m, attr, q, _proto, p) =>
+      `${attr}=${q}${toFileUrl(p)}${q}`)
+    .replace(/url\((["']?)(?!([a-z]+:|data:|#|\/))([^"')]+?)\1\)/g, (_m, q, _proto, p) =>
+      `url(${q}${toFileUrl(p)}${q})`);
+}
 
 ipcMain.handle("settings:set-last-project", (_e, { projectId }) => {
   if (sharedServices) sharedServices.store.setLastProjectId(projectId);
