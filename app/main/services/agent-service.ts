@@ -502,10 +502,23 @@ export class AgentService {
       const send = systemPayload
         ? session.sendCustomMessage(systemPayload, { triggerTurn: true })
         : session.prompt(text, images ? { images } : undefined);
-      await Promise.race([
-        send,
-        new Promise((_, reject) => setTimeout(() => reject(new Error("请求超时（10分钟）")), 600_000)),
-      ]);
+      let timedOut = false;
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => { timedOut = true; reject(new Error("请求超时（10分钟）")); }, 600_000));
+      try {
+        await Promise.race([send, timeoutPromise]);
+      } catch (err) {
+        // 超时后必须真正取消底层 run（session.abort()）——只 reject Promise 会让 SDK 的
+        // activeRun 永久挂着（isStreaming=true），后续 prompt 抛 "Agent is already processing"，
+        // 表现为「消息发不出去、不落盘、不调 API」。abort 让 SDK 走 aborted 收尾：
+        // 消息落盘 + 状态清空 + 后续消息可再入。
+        if (timedOut) {
+          try { session.abort(); } catch { /* abort 无副作用 */ }
+          // 等 SDK 收尾完成（handleRunFailure + finishRun），避免与 catch 广播竞态
+          await send.catch(() => {});
+        }
+        throw err;
+      }
 
       // (系统消息通知走 injectSystemMessage 的 triggerTurn: false 路径,不经此回合)
       const pr = pendingResult as PiChatEvent | null;
