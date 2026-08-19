@@ -25,14 +25,11 @@ export async function getModelRuntime(store: Store) {
  * 磁盘模式 SettingsManager（保持 Pi SDK 默认行为）。
  * 每会话创建（无单例）：绑定 cwd（项目设置路径 <cwd>/.pi/settings.json）+ agentDir（全局 agentDir/settings.json），
  * 多项目场景不可复用单例。compaction 默认即 enabled（Pi settings.compaction.enabled ?? true），无需显式传。
+ * httpIdleTimeoutMs 保持 SDK 默认（5 分钟）——超时中断由会话状态自愈兜底（见 sendMessage/steer），不在此禁用。
  */
 export async function getSettingsManager(cwd: string, agentDir: string) {
   const SM = await getSettingsManagerClass();
-  const mgr = await SM.create(cwd, agentDir);
-  // SDK 默认 httpIdleTimeoutMs=5 分钟（流式响应超 5 分钟无数据即中断）——长思考会被掐断，
-  // 表现为「执行久了自动结束会话、再发不出去」。显式禁用（0 = 无超时），幂等覆盖默认。
-  mgr.setHttpIdleTimeoutMs(0);
-  return mgr;
+  return SM.create(cwd, agentDir);
 }
 
 export function resetModelRuntime(): void {

@@ -360,6 +360,8 @@ export class AgentService {
   }
   private activeRuns: Map<string, ActiveRun> = new Map();
   private activeChats: Map<string, ActiveChat> = new Map();
+  /** EM 侧正在进行的回合（promptAndBridge 进行中）——steer 区分真运行 vs isStreaming 残留 */
+  private activePromptSessions: Set<string> = new Set();
   private runCounter = 0;
   private chatCounter = 0;
   onWorkerComplete: ((projectPath: string) => void) | null = null;
@@ -462,6 +464,9 @@ export class AgentService {
     systemPayload?: SystemMessagePayload,
   ): Promise<void> {
     let pendingResult: PiChatEvent | null = null;
+    // 标记进行中回合（steer 用它区分「真在运行」vs「isStreaming 残留」——超时中断后
+    // SDK isStreaming 可能残留 true，若无此标记 steer 会把消息入队永不消费）
+    this.activePromptSessions.add(sessionId);
 
     const unsub = session.subscribe((event: AgentSessionEvent) => {
       try {
@@ -554,6 +559,7 @@ export class AgentService {
       broadcast("agent:exit", { runId: chatId, code: -1 });
     } finally {
       unsub();
+      this.activePromptSessions.delete(sessionId);
     }
   }
 
@@ -668,6 +674,13 @@ export class AgentService {
         if (thinkingLevel) {
           try { existing.session.setThinkingLevel(thinkingLevel as any); }
           catch (e) { console.warn("[agent] setThinkingLevel 失败:", (e as Error).message); }
+        }
+        // 防卡死：isStreaming 残留但 EM 无进行中回合(超时中断等)→ 强制复位再正常发送，
+        // 否则 SDK prompt() 抛 "Agent is already processing" → 消息发不出、不调 API
+        if (existing.session.isStreaming && !this.activePromptSessions.has(resumeSessionId)) {
+          console.warn(`[agent] sendMessage: session ${resumeSessionId} isStreaming 残留，强制复位`);
+          try { existing.session.abort(); } catch { /* abort 无副作用 */ }
+          await existing.session.waitForIdle().catch(() => {});
         }
         this.promptAndBridge(existing.session, resumeSessionId, existing.chatId, message, existing, images, systemPayload);
         return { chatId: existing.chatId };
@@ -1046,6 +1059,15 @@ export class AgentService {
     // 会话实际空闲时 steer 只入队不落盘(Pi agent core 的 steering 队列仅在回合循环内消费,
     // 空闲入队永不投递→"消息发出去了但 SDK 没落盘没响应")→ 改走正常发送路径
     if (!chat.session.isStreaming) {
+      this.promptAndBridge(chat.session, chat.sessionId, chat.chatId, text, chat);
+      return;
+    }
+    // isStreaming=true 但 EM 无进行中回合 → SDK 残留（如超时中断后 isStreaming 未复位，
+    // 实际回合已死）→ 强制 abort 复位，再走正常发送，避免消息入队永不消费
+    if (!this.activePromptSessions.has(sessionId)) {
+      console.warn(`[agent] steer: session ${sessionId} isStreaming 残留(无进行中回合)，强制复位`);
+      try { chat.session.abort(); } catch { /* abort 无副作用 */ }
+      await chat.session.waitForIdle().catch(() => {});
       this.promptAndBridge(chat.session, chat.sessionId, chat.chatId, text, chat);
       return;
     }
