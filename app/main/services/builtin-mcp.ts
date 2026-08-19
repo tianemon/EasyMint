@@ -40,14 +40,14 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
   const tools: ToolDefinition[] = [];
 
   // UI 控制工具（始终注册）
-  tools.push(defineTool(noArgTool("show_confirm_dev", "确认开发", "通知前端显示「确认开发」按钮。", () => broadcast("agent:confirm-dev", {}))) as any);
-  tools.push(defineTool(noArgTool("show_new_project", "新建项目", "通知前端显示「新建项目」按钮。", () => broadcast("agent:new-project", {}))) as any);
+  tools.push(defineTool(noArgTool("show_confirm_dev", "确认开发", "显示「确认开发」按钮。中等及以上项目就绪时调用。就绪标准：① task.json ≥1 个任务；② README.md 和 AGENTS.md 已写；③ 依赖已安装、环境可构建（按技术栈验证）；④ 需先完成原型并获用户确认的项目已确认（G4）。极简项目不建 task.json，直接开发不走此流程。", () => broadcast("agent:confirm-dev", {}))) as any);
+  tools.push(defineTool(noArgTool("show_new_project", "新建项目", "显示「新建项目」按钮。用户不在项目中且表达新建意图时调用。", () => broadcast("agent:new-project", {}))) as any);
   tools.push(defineTool(noArgTool("refresh_tasks", "刷新任务列表", "通知前端重新加载 task.json。", () => {
     if (!projectPath) return "当前无项目路径";
     broadcast("agent:task-status", { taskId: "", status: "pending", projectPath });
     return "已通知前端刷新任务列表";
   })) as any);
-  tools.push(defineTool(noArgTool("show_prototype", "显示原型", "通知前端打开 EM HTML 编辑器。", () => {
+  tools.push(defineTool(noArgTool("show_prototype", "显示原型", "打开 EM HTML 编辑器预览原型。**「打开/预览」≠「验证渲染」**：用户要看原型时直接打开即可，不要用 Playwright 渲染/截图/起服务器——渲染正确性审查是从代码推理的步骤，与打开给用户看是两件事。", () => {
     if (!projectPath) return "当前无项目路径";
     broadcast("editor:open-prototype", { projectPath });
     return "原型已生成，编辑器窗口即将打开。";
@@ -160,7 +160,7 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
   if (isToolEnabled("vision")) {
     tools.push(defineTool({
       name: "describe_image", label: "描述图片",
-      description: "描述图片内容。支持本地路径或 URL。",
+      description: "描述图片内容（支持本地路径或 URL）。**当模型无法直接读取图片时必用**：收到「模型不支持图片/图片被省略」之类的报错（报错信息因模型而异），不要继续尝试读图，改用本工具获取文字描述。识别失败时明确告知用户，不静默跳过。",
       promptSnippet: "用视觉模型描述图片内容（本地路径或 URL）",
       parameters: {
         type: "object" as const,
