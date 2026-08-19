@@ -256,7 +256,7 @@ export function GeneralTab(): JSX.Element {
             />
             <span className="text-sm text-text-primary font-medium w-10 text-right">{contextThreshold}%</span>
           </div>
-          <p className="text-[11px] text-text-secondary mt-1">达到阈值时询问是否压缩（可跳过或输入压缩命令），SDK 自动压缩仍兜底。范围 60%-80%，建议 75%。</p>
+          <p className="text-[11px] text-text-secondary mt-1">达到阈值时询问是否压缩（可跳过或输入压缩命令），SDK 自动压缩在接近满时兜底。范围 60%-80%，建议 75%。</p>
         </div>
       </section>
 

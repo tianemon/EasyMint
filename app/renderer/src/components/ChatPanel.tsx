@@ -66,6 +66,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const ctxThresholdFiredRef = useRef(0); // 已按阈值触发过主动压缩（防止同轮重复触发）
   // 压缩弹窗「下次回复完触发」:回复结束(agent:exit)后重置阈值防重 → 重新弹窗走同样流程
   const rearmAfterExitRef = useRef(false);
+  // 手动压缩标记(context-summarizing type=compact 已广播):compacting 事件据此区分
+  // 手动压缩 vs SDK 自动压缩(阈值/溢出)——自动压缩时给用户原因提示
+  const manualCompactingRef = useRef(false);
   // 当前输出段块(assistant 消息)id:Pi 每条输出段消息有独立 message_start/update/end
   // 生命周期(磁盘逐条落盘);块 piTs = 消息对象创建时间戳,通知按 ts 插到块之间
   // → UI 顺序 = jsonl 顺序(不依赖广播到达顺序)
@@ -880,14 +883,20 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         }
       }
       // compaction UI — compacting 事件 = 压缩进行中（显示"正在整理会话..."）
+      // 区分手动/自动：手动路径先广播 context-summarizing(type=compact) 再 compaction_start；
+      // SDK 自动压缩(阈值/溢出)只有 compaction_start——无手动标记 → 提示用户原因
       if (event.type === "compacting") {
         useStatusStore.getState().setCompacting(sidRef.current, true);
+        if (!manualCompactingRef.current) {
+          useStatusStore.getState().pushSignal(sidRef.current, "compact", "检测到上下文需整理，正在整理…");
+        }
       }
       // compacted = 压缩完成：清除 compacting（触发"会话已整理完毕"提示），
       // 并兜底清除 summarizing（防御轮转总结路径的残留）
       if (event.type === "compacted") {
         useStatusStore.getState().setCompacting(sidRef.current, false);
         useStatusStore.getState().setSummarizing(sidRef.current, false);
+        manualCompactingRef.current = false;
         // 压缩后 Pi 重发的帧是摘要内容 → 作为新输出段块处理
         latestAiIdRef.current = 0;
       }
@@ -959,8 +968,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useStatusStore.getState().setSummarizing(sidRef.current, false);
         useStatusStore.getState().popSignal(sidRef.current, "summary");
         useStatusStore.getState().popSignal(sidRef.current, "compact");
+        manualCompactingRef.current = false;
         return;
       }
+      if (type === "compact") manualCompactingRef.current = true;  // 手动压缩:先标记,compacting 事件据此区分
       useStatusStore.getState().pushSignal(sidRef.current, type === "compact" ? "compact" : "summary",
         type === "compact" ? "正在整理会话..." : "正在整理并开启新会话...");
       if (type === "compact") {

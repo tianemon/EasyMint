@@ -557,6 +557,19 @@ export class AgentService {
         canRetry: compactionBlocked,
       });
       broadcast("agent:exit", { runId: chatId, code: -1 });
+      // 错误/超时/中断回合也刷新使用率——否则 ctxPct 停留旧值,EM 弹窗可能漏触发
+      // (error 回合无 usage → getContextUsage 估算,至少让前端看到当前口径)
+      setTimeout(() => {
+        const usage = session.getContextUsage();
+        if (usage) {
+          broadcast("agent:context-usage", {
+            chatId,
+            percentage: usage.percent ?? 0,
+            totalTokens: usage.tokens ?? 0,
+            maxTokens: usage.contextWindow,
+          });
+        }
+      }, 500);
     } finally {
       unsub();
       this.activePromptSessions.delete(sessionId);
@@ -1127,6 +1140,29 @@ export class AgentService {
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session) return;
     broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "compact" });
+    // 手动压缩桥接：compact() 直接调 SDK（不经 promptAndBridge 的 subscribe），
+    // compaction_start/end 事件无人转发 → 前端收不到 compacted、压缩后使用率不刷新
+    // （ctxPct 残留旧值）。这里临时订阅，把压缩生命周期事件桥到前端并刷新 usage。
+    const unsub = chat.session.subscribe((event: AgentSessionEvent) => {
+      try {
+        if (event.type === "compaction_start") {
+          broadcast("agent:stream", { type: "compacting", sessionId, chatId: chat.chatId });
+        } else if (event.type === "compaction_end") {
+          broadcast("agent:stream", { type: "compacted", sessionId, chatId: chat.chatId });
+          // 压缩后刷新使用率:压缩后无新回复时 getContextUsage 返回 percent null(旧 usage
+          // 不可信)→ 上报 0,UI 不再残留压缩前的旧百分比(下条回复后更新为真实值)
+          const usage = chat.session?.getContextUsage();
+          if (usage) {
+            broadcast("agent:context-usage", {
+              chatId: chat.chatId, percentage: usage.percent ?? 0,
+              totalTokens: usage.tokens ?? 0, maxTokens: usage.contextWindow,
+            });
+          }
+        }
+      } catch (e) {
+        console.error("[agent] compact bridge error:", e);
+      }
+    });
     try {
       await chat.session.compact(instructions);
       // 成功路径:SDK 内部发 compaction_end → compacted 广播清除蒙版
@@ -1138,6 +1174,7 @@ export class AgentService {
         message: "上下文压缩失败，请稍后重试", canRetry: true,
       });
     } finally {
+      unsub();
       // 无论成败都清除蒙版(compaction_end 的 compacted 可能因 aborted/无 result 不广播)
       broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "done" });
     }

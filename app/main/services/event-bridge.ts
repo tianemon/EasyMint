@@ -180,6 +180,18 @@ export function bridgeSessionEvents(
     }
 
     case "agent_end": {
+      // 错误回合不静默：SDK 错误(额度用完/429/529 等)生成空 content 的 error 消息，
+      // message_end 无内容块不广播、前端静默无提示——agent_end 时检查最后一条
+      // 消息的 stopReason=error，广播 error 事件让前端提示用户
+      const endMsgs = (event as { messages?: Array<{ stopReason?: string; errorMessage?: string }> }).messages;
+      const lastMsg = endMsgs && endMsgs.length > 0 ? endMsgs[endMsgs.length - 1] : undefined;
+      if (lastMsg?.stopReason === "error") {
+        callbacks.onEvent({
+          type: "error", sessionId: "",
+          message: lastMsg.errorMessage || "API 请求失败（可能额度用完或供应商不可用）",
+          canRetry: true,
+        });
+      }
       callbacks.setPendingResult({ type: "turn_end", sessionId: "", usage: { inputTokens: 0, outputTokens: 0 } });
       break;
     }

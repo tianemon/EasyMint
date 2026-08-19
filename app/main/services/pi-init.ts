@@ -24,12 +24,18 @@ export async function getModelRuntime(store: Store) {
 /**
  * 磁盘模式 SettingsManager（保持 Pi SDK 默认行为）。
  * 每会话创建（无单例）：绑定 cwd（项目设置路径 <cwd>/.pi/settings.json）+ agentDir（全局 agentDir/settings.json），
- * 多项目场景不可复用单例。compaction 默认即 enabled（Pi settings.compaction.enabled ?? true），无需显式传。
+ * 多项目场景不可复用单例。
  * httpIdleTimeoutMs 保持 SDK 默认（5 分钟）——超时中断由会话状态自愈兜底（见 sendMessage/steer），不在此禁用。
+ * 压缩双轨：EM 弹窗（60-80% 阈值）主导 + SDK 自动压缩兜底（触发点调高到 ~98% 极端情况）——
+ * 用 applyOverrides 内存级覆盖（不落盘），SDK 只在接近满时兜底，杜绝 error 估算虚高误触发。
  */
 export async function getSettingsManager(cwd: string, agentDir: string) {
   const SM = await getSettingsManagerClass();
-  return SM.create(cwd, agentDir);
+  const mgr = await SM.create(cwd, agentDir);
+  // SDK 自动压缩保留但触发点调高（reserveTokens 默认 16384→4096，触发点 ≈ 窗口-4k ≈ 98%）：
+  // EM 弹窗（60-80%）先主导，SDK 仅极端兜底——error 估算虚高也够不到 98%，不会误触发
+  mgr.applyOverrides({ compaction: { enabled: true, reserveTokens: 4096 } });
+  return mgr;
 }
 
 export function resetModelRuntime(): void {

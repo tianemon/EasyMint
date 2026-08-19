@@ -162,7 +162,7 @@ export const ChatInput = memo(function ChatInput({
       {/* Compact 蒙版 */}
       {compacting && (
         <div className="absolute inset-0 z-10 rounded-[10px] bg-surface/70 backdrop-blur-[2px] flex items-center justify-center">
-          <span className="text-sm text-text-secondary font-medium">Mint 正在总结对话，请稍后…</span>
+          <span className="text-sm text-text-secondary font-medium">正在整理上下文，请稍候…</span>
         </div>
       )}
       {/* 上半：输入框 */}
@@ -174,7 +174,7 @@ export const ChatInput = memo(function ChatInput({
           onChange={(e) => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={onPaste}
-          placeholder={compacting ? "Mint正在总结对话，请稍后" : summarizing ? "正在进行会话摘要..." : "Enter 发送，Shift+Enter 换行，可粘贴或拖入图片"}
+          placeholder={compacting ? "正在整理上下文，请稍候" : summarizing ? "正在进行会话摘要..." : "Enter 发送，Shift+Enter 换行，可粘贴或拖入图片"}
           rows={4}
           disabled={inputDisabled}
           className="chat-input"
