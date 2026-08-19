@@ -28,7 +28,11 @@ export async function getModelRuntime(store: Store) {
  */
 export async function getSettingsManager(cwd: string, agentDir: string) {
   const SM = await getSettingsManagerClass();
-  return SM.create(cwd, agentDir);
+  const mgr = await SM.create(cwd, agentDir);
+  // SDK 默认 httpIdleTimeoutMs=5 分钟（流式响应超 5 分钟无数据即中断）——长思考会被掐断，
+  // 表现为「执行久了自动结束会话、再发不出去」。显式禁用（0 = 无超时），幂等覆盖默认。
+  mgr.setHttpIdleTimeoutMs(0);
+  return mgr;
 }
 
 export function resetModelRuntime(): void {
