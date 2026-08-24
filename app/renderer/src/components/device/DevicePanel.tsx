@@ -48,9 +48,9 @@ function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevi
           type="button"
           className="text-[10px] px-2 py-1 rounded bg-accent-soft text-accent hover:bg-accent hover:text-text-inverse transition-colors shrink-0"
           onClick={() => onSend(device.id)}
-          title="向该设备发送迁移"
+          title="向该设备迁移项目"
         >
-          发送
+          迁移
         </button>
       )}
       <button
@@ -100,10 +100,24 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
   const [transferTarget, setTransferTarget] = useState<{ id: string; name: string } | null>(null);
   // 手动扫描中(3s 收集窗口,与主进程一致)
   const [scanning, setScanning] = useState(false);
+  // 迁移忽略项(全局配置,类似 .gitignore——原始文本编辑,换行即一项,含注释)
+  const [ignoreText, setIgnoreText] = useState("");
+  const [ignoreSaved, setIgnoreSaved] = useState(false);
+  const [ignoreDirty, setIgnoreDirty] = useState(false);
 
   useEffect(() => {
     if (open) { load(); setPairError(null); }
   }, [open, load]);
+
+  // 迁移忽略项:打开面板时加载(全局配置,不依赖项目)
+  useEffect(() => {
+    if (!open) return;
+    window.electronAPI.migration.getIgnore().then((content) => {
+      setIgnoreText(content);
+      setIgnoreSaved(false);
+      setIgnoreDirty(false);
+    }).catch(() => {});
+  }, [open]);
 
   // 点击遮罩/Esc 关闭
   useEffect(() => {
@@ -134,6 +148,21 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
     if (!r.ok) setPairError(r.error ?? "配对失败");
   };
 
+  const saveIgnore = async (): Promise<void> => {
+    await window.electronAPI.migration.saveIgnore(ignoreText);
+    setIgnoreSaved(true);
+    setIgnoreDirty(false);
+  };
+
+  const resetIgnore = async (): Promise<void> => {
+    // 恢复默认模板:保存空内容会触发主进程重建默认文件——直接保存默认模板更稳,
+    // 由主进程 migration:resetIgnore 返回默认内容
+    const content = await window.electronAPI.migration.resetIgnore();
+    setIgnoreText(content);
+    setIgnoreSaved(true);
+    setIgnoreDirty(false);
+  };
+
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-end bg-black/20" onMouseDown={onClose}>
       <div
@@ -143,13 +172,13 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <span className="text-sm font-medium text-text-primary">设备互联</span>
+          <span className="text-sm font-medium text-text-primary">项目迁移</span>
           <button type="button" className="text-text-secondary hover:text-text-primary transition-colors text-sm px-1" onClick={onClose}>✕</button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        <div className="flex-1 overflow-y-auto px-3 pt-3 pb-6 space-y-4 flex flex-col">
           {/* 本机信息 + 可被发现开关 */}
-          <div className="bg-surface rounded-lg border border-border px-3.5 py-3">
+          <div className="bg-surface rounded-lg border border-border px-3.5 py-3 shrink-0">
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-xs font-medium text-text-primary truncate">{self.name}</div>
@@ -197,7 +226,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
           </div>
 
           {/* 已配对设备 */}
-          <div>
+          <div className="shrink-0">
             <div className="text-xs font-medium text-text-secondary mb-1.5 px-1">已配对设备</div>
             {paired.length === 0 ? (
               <div className="text-[11px] text-text-muted px-1">尚未配对任何设备。开启可被发现，或等待其他设备开启后在此配对。</div>
@@ -219,7 +248,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
           </div>
 
           {/* 可用设备(仅手动扫描,3s 收集窗口) */}
-          <div>
+          <div className="shrink-0">
             <div className="flex items-center justify-between mb-1.5 px-1">
               <span className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
                 可用设备
@@ -252,6 +281,44 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                 {discovered.map((d) => <DiscoveredRow key={d.id} device={d} onPair={handlePair} />)}
               </div>
             )}
+          </div>
+
+          {/* 迁移忽略项:全局配置(类似 .gitignore,文本编辑,换行即一项) */}
+          <div className="flex flex-col flex-1 min-h-[9rem]">
+            <div className="flex items-center justify-between mb-1.5 px-1">
+              <span className="text-xs font-medium text-text-secondary">迁移忽略项</span>
+            </div>
+            <div className="bg-surface rounded-lg border border-border px-3 py-2 space-y-2 flex flex-col flex-1">
+              <textarea
+                value={ignoreText}
+                onChange={(e) => { setIgnoreText(e.target.value); setIgnoreDirty(true); setIgnoreSaved(false); }}
+                spellCheck={false}
+                placeholder="# 每行一个文件/文件夹路径，# 开头为注释"
+                className="flex-1 resize-none w-full px-2.5 py-2 rounded-lg bg-surface-alt border border-border text-[10px] font-mono leading-relaxed text-text-primary outline-none focus:border-accent"
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-text-muted">
+                  {ignoreSaved ? "已保存 · 下次扫描生效" : ignoreDirty ? "有未保存修改" : ""}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="text-[10px] text-text-secondary hover:text-accent transition-colors"
+                    onClick={() => void resetIgnore()}
+                  >
+                    恢复默认
+                  </button>
+                  <button
+                    type="button"
+                    className="text-[10px] px-2.5 py-1 rounded bg-accent text-text-inverse hover:bg-accent-hover transition-colors disabled:opacity-50"
+                    disabled={!ignoreDirty}
+                    onClick={() => void saveIgnore()}
+                  >
+                    保存
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           {pairError && (

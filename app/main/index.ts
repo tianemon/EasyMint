@@ -3,6 +3,7 @@ import fs from "fs";
 import { app, BrowserWindow, shell, ipcMain, Menu } from "electron";
 import path from "path";
 import { loadUserEnv } from "./utils/user-path";
+import { getResourcesDir } from "./utils/paths";
 import {
   startAutoUpdater,
   checkForUpdatesManually,
@@ -314,7 +315,7 @@ ipcMain.handle("window:new", () => {
 });
 
 ipcMain.handle("editor:open", (_e, filePath?: string) => {
-  const editorPath = path.join(__dirname, "..", "..", "..", "resources", "em-html-editor", "index.html");
+  const editorPath = path.join(getResourcesDir(), "em-html-editor", "index.html");
   const editorWin = new BrowserWindow({
     width: 1400,
     height: 900,

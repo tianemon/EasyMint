@@ -52,6 +52,7 @@ const unzipper = require("unzipper") as {
 };
 import { networkService } from "./network-service";
 import { broadcast } from "./ipc-broadcast";
+import { getPiSessionDir } from "./pi-session";
 
 // ── 常量 ──
 const CHUNK_SIZE = 256 * 1024; // 256KB/块
@@ -59,23 +60,190 @@ const MAX_TRANSFER_SIZE = 500 * 1024 * 1024; // 单次传输上限 500MB
 /** 迁移缓存目录(接收端 zip 落位,恢复成功才删) */
 const MIGRATION_CACHE_DIR = path.join(os.homedir(), ".easymint", "migration-cache");
 
-/** 迁移清单排除规则(单一实现,MCP 与手动入口共用):
-    .easymint 只排除可重建子项,保留 state/run/issues 项目状态。
-    Flutter 项目(实测): build/.dart_tool/ephemeral/local.properties/.iml 等构建与
-    本机环境产物必须排除(windows/ 平台工程本身保留,仅排 ephemeral 缓存) */
-const DEFAULT_EXCLUDE = [
-  ".git", "node_modules", "dist", "build", "temp", ".idea", ".vscode", ".codegraph", ".DS_Store",
-  ".easymint/shell-logs", ".easymint/templates", ".easymint/brand-tokens",
-  ".apk", ".exe", ".dmg", ".zip", ".iml",
-  // Flutter 构建产物与本机环境(win 实测:约 3.6G 可删)
-  ".dart_tool", "windows/flutter/ephemeral", "android/local.properties", ".flutter-plugins-dependencies",
-];
+/** 扫描到的单个文件(带大小 + 排除标记——排除项可见但默认不勾选) */
+export interface ScanFileItem {
+  relPath: string;
+  absPath: string;
+  size: number;
+  excluded: boolean;
+}
 
-/** 扫描结果:待传文件(相对路径 + 绝对路径) + 最新主会话文件名(若有) */
+/** 主会话条目(会话名从 jsonl 的 session_info 提取,提取失败回退文件名) */
+export interface SessionItem {
+  file: string;   // jsonl 文件名
+  name: string;   // 会话显示名
+  mtime: number;  // 修改时间(ms)
+}
+
+/** 迁移忽略规则文件(全局配置,类似 .gitignore:每行一项,# 开头为注释) */
+const IGNORE_FILE = path.join(os.homedir(), ".easymint", "migration-ignore");
+
+/** 默认忽略规则模板(首次生成写入;用户可编辑内置项;恢复默认也用它)。
+    覆盖常见框架/语言排除项,按需保留或删除 */
+export const DEFAULT_IGNORE_CONTENT = `# 迁移忽略项（类似 .gitignore）：每行一个文件/文件夹路径，# 开头为注释
+# 支持 * 通配符（如 *.log 匹配任意 .log 文件）
+# 迁移扫描时默认不勾选；迁移弹窗内仍可手动勾选；修改保存后下次扫描生效
+
+# ── 通用：版本控制与工具目录 ──
+.git
+.idea
+.vscode
+.codegraph
+.DS_Store
+Thumbs.db
+
+# ── 通用：构建产物与缓存 ──
+node_modules
+dist
+build
+temp
+coverage
+.eslintcache
+*.tsbuildinfo
+
+# ── 日志与临时文件 ──
+*.log
+*.tmp
+*.swp
+*~
+
+# ── 压缩包与二进制 ──
+*.apk
+*.exe
+*.dmg
+*.zip
+*.iml
+*.rar
+*.7z
+
+# ── 敏感文件（默认不迁移，需要时手动勾选） ──
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ── 前端（React/Vue/Next/Vite 等） ──
+.next
+.nuxt
+.vite
+out
+npm-debug.log*
+
+# ── Python ──
+__pycache__
+*.pyc
+.venv
+venv
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# ── Java / JVM ──
+target
+.gradle
+out
+*.class
+
+# ── Go ──
+bin
+*.test
+
+# ── Rust ──
+target
+
+# ── Flutter / Dart ──
+.dart_tool
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+windows/flutter/ephemeral
+android/local.properties
+
+# ── 移动端（iOS/Android） ──
+Pods
+DerivedData
+*.ipa
+
+# ── EasyMint 运行时数据（本机特有/可重建，不随项目迁移；run.json/issues.json/escalation.json 等项目资产保留） ──
+.easymint/shell-logs
+.easymint/templates
+.easymint/brand-tokens
+group-sessions
+group-sessions.json
+
+# ── EasyMint 项目本身（Electron 构建产物与临时文件，均可重建） ──
+dist-electron
+temp
+`;
+
+/** 规则匹配:精确 / * 通配符(转正则) / 多段路径前缀 / 单段目录或文件任意层级(gitignore 语义) */
+function matchRule(rel: string, rule: string): boolean {
+  if (rel === rule) return true;
+  if (rule.includes("*")) {
+    const esc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`^${rule.split("*").map(esc).join(".*")}$`);
+    return re.test(rel);
+  }
+  if (rule.includes("/")) {
+    // 多段路径:目录前缀匹配(如 .easymint/shell-logs 匹配其内部全部)
+    return rel.startsWith(rule + "/") || rel.endsWith(rule);
+  }
+  // 单段:任意层级的同名目录或文件(如 dist、node_modules 出现在子目录也排除)
+  return rel.split("/").includes(rule) || rel.endsWith(rule);
+}
+
+/** 读取忽略规则文件原始内容(不存在 → 生成默认模板并写入) */
+export function readIgnoreFileRaw(): string {
+  try {
+    return fs.readFileSync(IGNORE_FILE, "utf-8");
+  } catch {
+    try {
+      fs.mkdirSync(path.dirname(IGNORE_FILE), { recursive: true });
+      fs.writeFileSync(IGNORE_FILE, DEFAULT_IGNORE_CONTENT);
+    } catch { /* 写入失败则返回模板 */ }
+    return DEFAULT_IGNORE_CONTENT;
+  }
+}
+
+/** 保存忽略规则文件(全量覆盖) */
+export function saveIgnoreFileRaw(content: string): void {
+  fs.mkdirSync(path.dirname(IGNORE_FILE), { recursive: true });
+  fs.writeFileSync(IGNORE_FILE, content.endsWith("\n") ? content : content + "\n");
+}
+
+/** 从原始内容解析规则(忽略空行/注释) */
+function parseIgnoreRules(content: string): string[] {
+  return content.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
+}
+
+/** 扫描结果:待传文件(含排除标记) + 全部主会话(不含 subagents/) */
 export interface ScanResult {
-  files: Array<{ relPath: string; absPath: string }>;
-  sessionFile?: string;
+  files: ScanFileItem[];
+  sessions: SessionItem[];
+  /** 未排除文件总大小(byte) */
   totalSize: number;
+  excludedCount: number;
+}
+
+/** 从 jsonl 提取会话名(session_info.name)——取最后一个(最近会话名)。
+    session_info 在文件中部(每次会话段开头),读前 1MB 覆盖绝大多数;找不到回退空 */
+function extractSessionName(filePath: string): string {
+  try {
+    const fd = fs.openSync(filePath, "r");
+    const buf = Buffer.alloc(1024 * 1024);
+    const n = fs.readSync(fd, buf, 0, buf.length, 0);
+    fs.closeSync(fd);
+    let last = "";
+    for (const line of buf.subarray(0, n).toString("utf-8").split("\n")) {
+      try {
+        const obj = JSON.parse(line) as { type?: string; name?: string };
+        if (obj?.type === "session_info" && typeof obj.name === "string" && obj.name) last = obj.name;
+      } catch { /* 跳过非 JSON 行 */ }
+    }
+    return last;
+  } catch { /* 提取失败,回退文件名 */ }
+  return "";
 }
 
 // ── 类型 ──
@@ -89,7 +257,8 @@ export interface MigrationManifest {
   zipSha256: string;         // zip 哈希(接收端校验)
   /** 项目文件预期数(接收端解压后对比,完整性校验) */
   fileCount: number;
-  sessionFile?: string;      // 主会话 jsonl 文件名(若有——接收端必须恢复成功)
+  /** 会话 jsonl 文件名列表(接收端必须全部恢复成功) */
+  sessionFiles: string[];
   createdAt: number;
 }
 
@@ -125,66 +294,95 @@ class MigrationService extends EventEmitter {
 
   // ── 统一扫描(单一实现,MCP 与手动入口共用) ──
 
-  /** 扫描项目:按排除规则收集待传文件 + 定位最新主会话 jsonl(全局 sessions 目录) */
+  /** 扫描项目:按全局忽略规则(内置默认 + 用户编辑)收集全部文件(带 excluded 标记) + 全部主会话 jsonl(含名称/时间,不含 subagents/) */
   scanProject(projectPath: string): ScanResult {
     const root = path.resolve(projectPath);
-    const files: Array<{ relPath: string; absPath: string }> = [];
+    const files: ScanFileItem[] = [];
+    const ignoreRules = parseIgnoreRules(readIgnoreFileRaw());
     const isExcluded = (rel: string): boolean =>
-      DEFAULT_EXCLUDE.some((x) => rel === x || rel.startsWith(x + "/") || rel.endsWith(x));
+      ignoreRules.some((x) => matchRule(rel, x));
     const walk = (dir: string, prefix: string): void => {
       let entries: fs.Dirent[];
       try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
       for (const e of entries) {
         const rel = prefix ? `${prefix}/${e.name}` : e.name;
-        if (isExcluded(rel)) continue;
+        const excluded = isExcluded(rel);
         const full = path.join(dir, e.name);
-        if (e.isDirectory()) walk(full, rel);
-        else if (e.isFile()) files.push({ relPath: rel, absPath: full });
+        if (e.isDirectory()) {
+          walk(full, rel);
+        } else if (e.isFile()) {
+          let size = 0;
+          try { size = fs.statSync(full).size; } catch { /* 跳过不可读文件 */ }
+          files.push({ relPath: rel, absPath: full, size, excluded });
+        }
       }
     };
     walk(root, "");
-    // 最新主会话(文件名)
-    let sessionFile: string | undefined;
+    // 全部主会话(编码目录根下 jsonl,不含 subagents/ 子会话)——按修改时间倒序(最新在前)
+    const sessions: SessionItem[] = [];
     try {
-      const encoded = root.replace(/[:/\\]/g, "-");
-      const dir = path.join(os.homedir(), ".easymint", "sessions", encoded);
+      const dir = getPiSessionDir(root);
       const names = fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).sort();
-      if (names.length > 0) sessionFile = names[names.length - 1];
+      for (const name of names) {
+        const abs = path.join(dir, name);
+        let mtime = 0;
+        try { mtime = fs.statSync(abs).mtimeMs; } catch { continue; }
+        sessions.push({ file: name, name: extractSessionName(abs) || name, mtime });
+      }
+      sessions.sort((a, b) => b.mtime - a.mtime);
     } catch { /* 无会话 */ }
-    const totalSize = files.reduce((s, f) => s + (fs.statSync(f.absPath).size || 0), 0);
-    return { files, sessionFile, totalSize };
+    const noneExcluded = files.filter((f) => !f.excluded);
+    return {
+      files,
+      sessions,
+      totalSize: noneExcluded.reduce((s, f) => s + f.size, 0),
+      excludedCount: files.length - noneExcluded.length,
+    };
   }
 
   // ── 发送端 ──
 
-  /** 统一入口:扫描 → 打包 zip → 两阶段握手 → 分块传输。
+  /** 统一入口:扫描 → 按选中清单打包 zip → 两阶段握手 → 分块传输。
+      selection 缺省时全量(排除规则内仍打包,保持向后兼容)。
       MCP 工具与手动入口都调此方法(不分开写) */
-  async prepareAndTransfer(projectPath: string, deviceId: string): Promise<{ ok: boolean; transferId?: string; error?: string }> {
+  async prepareAndTransfer(
+    projectPath: string,
+    deviceId: string,
+    selection?: { files: string[]; sessions: string[] },
+  ): Promise<{ ok: boolean; transferId?: string; error?: string }> {
     const peer = networkService.listPaired().find((p) => p.id === deviceId);
     if (!peer?.online) return { ok: false, error: "目标设备不在线" };
 
-    // 1. 统一扫描 + 完整性校验(项目文件存在,会话存在——缺少则打包失败)
+    // 1. 统一扫描 + 按选中清单过滤
     this.emit("send-progress", { transferId: "", sent: 0, total: 0, phase: "scanning" });
     const scan = this.scanProject(projectPath);
-    if (scan.files.length === 0) return { ok: false, error: "未扫描到可迁移文件——请确认项目路径" };
+    const selectedFiles = selection
+      ? scan.files.filter((f) => selection.files.includes(f.relPath))
+      : scan.files;
+    const selectedSessions = selection
+      ? scan.sessions.filter((s) => selection.sessions.includes(s.file))
+      : scan.sessions;
+    if (selectedFiles.length === 0) return { ok: false, error: "未选择可迁移文件——请确认勾选内容" };
 
-    // 2. 打包 zip(含会话文件,前缀 .easymint-session/ 区分,接收端识别)
+    // 2. 打包 zip(仅选中文件 + 选中会话,前缀 .easymint-session/ 区分,接收端识别)
     const transferId = `t${Date.now()}-${this.nextId++}`;
     const projectName = path.basename(path.resolve(projectPath));
-    const zipName = `${projectName}-${transferId}.zip`;
+    // win 文件系统不允许 \/:*?"<>| —— zip 文件名需 sanitize(与接收端 safeName 同一规则)
+    const safeName = projectName.replace(/[\\/:*?"<>|]/g, "_").trim() || "migrated-project";
+    const zipName = `${safeName}-${transferId}.zip`;
     const zipPath = path.join(MIGRATION_CACHE_DIR, zipName);
-    // 完整性校验:会话已声明但文件缺失 → 打包失败(不静默跳过)
-    if (scan.sessionFile) {
-      const encoded = path.resolve(projectPath).replace(/[:/\\]/g, "-");
-      const sessionAbs = path.join(os.homedir(), ".easymint", "sessions", encoded, scan.sessionFile);
-      if (!fs.existsSync(sessionAbs)) {
-        return { ok: false, error: `会话文件缺失: ${scan.sessionFile}——打包失败` };
-      }
+    // 完整性校验:选中会话已声明但文件缺失 → 打包失败(不静默跳过)
+    const missingSessions = selectedSessions.filter((s) => {
+      const sessionAbs = path.join(getPiSessionDir(path.resolve(projectPath)), s.file);
+      return !fs.existsSync(sessionAbs);
+    });
+    if (missingSessions.length > 0) {
+      return { ok: false, error: `会话文件缺失: ${missingSessions.map((s) => s.file).join(", ")}——打包失败` };
     }
     this.emit("send-progress", { transferId, sent: 0, total: 0, phase: "packing" });
     try {
       fs.mkdirSync(MIGRATION_CACHE_DIR, { recursive: true });
-      await this.buildZip(scan, zipPath, projectName, projectPath);
+      await this.buildZip(selectedFiles, selectedSessions.map((s) => s.file), zipPath, projectPath);
     } catch (e) {
       return { ok: false, error: `打包失败: ${(e as Error).message}` };
     }
@@ -202,8 +400,8 @@ class MigrationService extends EventEmitter {
       zipName,
       zipSize,
       zipSha256,
-      fileCount: scan.files.length,
-      sessionFile: scan.sessionFile,
+      fileCount: selectedFiles.length,
+      sessionFiles: selectedSessions.map((s) => s.file),
       createdAt: Date.now(),
     };
 
@@ -255,8 +453,8 @@ class MigrationService extends EventEmitter {
     return { ok: true, transferId };
   }
 
-  /** 打包 zip:项目文件(相对项目根) + 会话文件(前缀 .easymint-session/) */
-  private buildZip(scan: ScanResult, zipPath: string, projectName: string, projectPath: string): Promise<void> {
+  /** 打包 zip:选中的项目文件(相对项目根) + 选中的会话文件(前缀 .easymint-session/) */
+  private buildZip(files: ScanFileItem[], sessionFiles: string[], zipPath: string, projectPath: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const output = fs.createWriteStream(zipPath);
       const archive = new ZipArchive({ zlib: { level: 6 } });
@@ -264,17 +462,17 @@ class MigrationService extends EventEmitter {
       archive.on("error", (e?: Error) => reject(e ?? new Error("zip 打包失败")));
       archive.pipe(output);
       // 项目文件:相对项目根
-      for (const f of scan.files) {
+      for (const f of files) {
         archive.file(f.absPath, { name: f.relPath });
       }
       // 会话文件:.easymint-session/ 前缀(接收端识别并恢复)
       // 注意:编码必须用真实项目路径(与 scanProject 一致)——用 projectName 会解析成
       // 当前工作目录下的路径,会话目录编码错误 → 文件找不到 → 没打进 zip(实测踩坑)
-      if (scan.sessionFile) {
-        const encoded = path.resolve(projectPath).replace(/[:/\\]/g, "-");
-        const sessionAbs = path.join(os.homedir(), ".easymint", "sessions", encoded, scan.sessionFile);
+      const sessionDir = getPiSessionDir(path.resolve(projectPath));
+      for (const name of sessionFiles) {
+        const sessionAbs = path.join(sessionDir, name);
         if (fs.existsSync(sessionAbs)) {
-          archive.file(sessionAbs, { name: `.easymint-session/${scan.sessionFile}` });
+          archive.file(sessionAbs, { name: `.easymint-session/${name}` });
         }
       }
       void archive.finalize();
@@ -302,16 +500,16 @@ class MigrationService extends EventEmitter {
         break;
       case "transfer-done": {
         // 发送端收到回执 → 完整性确认(双重确认,接收端异常会带 failed 而非 done):
-        // ① 恢复文件数 === 发送文件数 ② 会话声明了则必须恢复成功
+        // ① 恢复文件数 === 发送文件数 ② 声明的会话必须全部恢复成功
         const rec = this.sentTransfers.get(msg.transferId as string);
         const m = rec?.manifest;
         const restoredCount = Number(msg.restoredCount ?? -1);
-        const sessionRestored = Boolean(msg.sessionRestored);
+        const sessionRestoredCount = Number(msg.sessionRestoredCount ?? -1);
         const countOk = m ? restoredCount === m.fileCount : false;
-        const sessionOk = m ? (m.sessionFile ? sessionRestored : true) : false;
+        const sessionOk = m ? (m.sessionFiles.length > 0 ? sessionRestoredCount === m.sessionFiles.length : true) : false;
         if (m && !(countOk && sessionOk)) {
           // 完整性不一致 → 按失败处理
-          const why = !countOk ? `文件数不匹配(回执 ${restoredCount}/${m.fileCount})` : "会话未恢复";
+          const why = !countOk ? `文件数不匹配(回执 ${restoredCount}/${m.fileCount})` : `会话未全部恢复(${sessionRestoredCount}/${m.sessionFiles.length})`;
           this.emit("failed", { peerId, projectPath: rec?.projectPath, failures: [`接收端完整性校验未通过: ${why}`] });
           break;
         }
@@ -361,6 +559,7 @@ class MigrationService extends EventEmitter {
       projectName: req.manifest.projectName,
       fileCount: 1, // zip 单文件
       totalSize: req.manifest.zipSize,
+      sessionCount: req.manifest.sessionFiles?.length ?? 0,
     });
   }
 
@@ -450,15 +649,15 @@ class MigrationService extends EventEmitter {
 
     // 4. 会话恢复:从 zip 的 .easymint-session/ 里恢复(若 zip 内有)
     broadcast("migration:stage", { transferId, stage: "session" });
-    let sessionRestored = false;
+    let sessionRestoredCount = 0;
     try {
-      sessionRestored = await this.restoreSessionFromZip(cacheZip, t.targetPath);
+      sessionRestoredCount = await this.restoreSessionsFromZip(cacheZip, t.targetPath);
     } catch (e) {
       console.error("[migration] 会话恢复失败:", (e as Error).message);
     }
-    // 完整性:zip 里声明了会话但恢复失败 → 解包失败
-    if (t.manifest.sessionFile && !sessionRestored) {
-      extractFailures.push(`会话恢复失败: ${t.manifest.sessionFile}`);
+    // 完整性:zip 里声明了会话但恢复数量不符 → 解包失败
+    if (t.manifest.sessionFiles.length > 0 && sessionRestoredCount !== t.manifest.sessionFiles.length) {
+      extractFailures.push(`会话恢复不完整: 预期 ${t.manifest.sessionFiles.length} 个,实际恢复 ${sessionRestoredCount} 个`);
     }
 
     if (extractFailures.length > 0) {
@@ -470,7 +669,7 @@ class MigrationService extends EventEmitter {
 
     // 5. 全部成功 → 删除缓存 zip
     fs.rmSync(cacheZip, { force: true });
-    broadcast("migration:stage", { transferId, stage: "done" });
+    broadcast("migration:stage", { transferId, stage: "done", sessionRestoredCount });
 
     // 6. 通知前端(展示迁移完成卡片 + 复制模板文案) + 回执
     this.emit("completed", {
@@ -479,15 +678,16 @@ class MigrationService extends EventEmitter {
       projectPath: t.targetPath,
       originPath: t.manifest.originPath,
       fromName: t.fromName,
+      sessionRestoredCount,
     });
-    // 回执带完整性数据:发送端据此确认恢复成功(文件数 + 会话恢复标志)
+    // 回执带完整性数据:发送端据此确认恢复成功(文件数 + 会话恢复数量)
     networkService.sendToDevice(t.peerId, {
       type: "transfer-done",
       transferId,
       projectPath: t.targetPath,
       projectName: t.manifest.projectName,
       restoredCount: extractedCount,
-      sessionRestored,
+      sessionRestoredCount,
     });
   }
 
@@ -525,9 +725,9 @@ class MigrationService extends EventEmitter {
     return fileCount;
   }
 
-  /** 从 zip 恢复会话:读取 .easymint-session/xxx.jsonl → 改写 cwd → 放入全局 sessions 目录 */
-  private async restoreSessionFromZip(zipPath: string, projectPath: string): Promise<boolean> {
-    let restored = false;
+  /** 从 zip 恢复全部会话:读取 .easymint-session/*.jsonl → 改写 cwd → 放入全局 sessions 目录。返回恢复成功数量 */
+  private async restoreSessionsFromZip(zipPath: string, projectPath: string): Promise<number> {
+    let restoredCount = 0;
     await new Promise<void>((resolve) => {
       fs.createReadStream(zipPath)
         .pipe(unzipper.Parse())
@@ -540,7 +740,7 @@ class MigrationService extends EventEmitter {
               try {
                 const buf = Buffer.concat(chunks);
                 // 恢复成功 = 落盘 + 验证(文件存在且首行 cwd 为项目路径)——不满足不算成功
-                restored = this.restoreSession(buf, rel.split("/").pop()!, projectPath);
+                if (this.restoreSession(buf, rel.split("/").pop()!, projectPath)) restoredCount++;
               } catch { /* 恢复失败 */ }
             });
           } else {
@@ -549,7 +749,7 @@ class MigrationService extends EventEmitter {
         })
         .on("close", () => resolve());
     });
-    return restored;
+    return restoredCount;
   }
 
   /** 会话恢复:改写首行 cwd 为项目路径 → 写入全局 sessions 编码目录。
@@ -560,8 +760,7 @@ class MigrationService extends EventEmitter {
     const first = JSON.parse(lines[0]!);
     first.cwd = projectPath;
     lines[0] = JSON.stringify(first);
-    const encoded = projectPath.replace(/[:/\\]/g, "-");
-    const dir = path.join(os.homedir(), ".easymint", "sessions", encoded);
+    const dir = getPiSessionDir(projectPath);
     fs.mkdirSync(dir, { recursive: true });
     const dest = path.join(dir, fileName);
     fs.writeFileSync(dest, lines.join("\n") + "\n");

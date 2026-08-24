@@ -67,14 +67,15 @@ export function ToolboxPanel({ open, onClose, onOpenDevicePanel }: ToolboxPanelP
           className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md hover:bg-surface-hover transition-colors text-left"
           onClick={() => { onClose(); onOpenDevicePanel(); }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary shrink-0">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="2" y1="12" x2="22" y2="12" />
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary shrink-0">
+            <path d="m16 3 4 4-4 4" />
+            <path d="M20 7H4" />
+            <path d="m8 21-4-4 4-4" />
+            <path d="M4 17h16" />
           </svg>
           <span className="min-w-0">
             <span className="block text-xs text-text-primary leading-tight">
-              设备互联
+              项目迁移
               <span className="ml-1.5 text-[9px] px-1 py-px rounded bg-accent-soft text-accent align-middle">实验</span>
             </span>
             <span className="block text-[10px] text-text-muted leading-tight">跨设备迁移会话与项目</span>

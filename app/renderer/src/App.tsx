@@ -14,7 +14,7 @@ export function App(): JSX.Element {
     localStorage.getItem("easymint_setup_complete") === "true"
   );
   // 接收端迁移弹窗(全局监听,不依赖具体项目页)
-  const [incomingTransfer, setIncomingTransfer] = useState<{ transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number } | null>(null);
+  const [incomingTransfer, setIncomingTransfer] = useState<{ transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number; sessionCount: number } | null>(null);
   // 发送端迁移回执提示(接收端恢复完成/失败)
   const [receipt, setReceipt] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -125,7 +125,7 @@ export function App(): JSX.Element {
   }, []);
 
   // 接收端迁移完成订阅 → 显示迁移完成卡片(模板文案 + 复制,用户粘贴发送给 Mint)
-  const [migrateDone, setMigrateDone] = useState<{ projectName: string; projectPath: string; originPath: string; fromName: string } | null>(null);
+  const [migrateDone, setMigrateDone] = useState<{ projectName: string; projectPath: string; originPath: string; fromName: string; sessionRestoredCount: number } | null>(null);
   useEffect(() => {
     const unsubCompleted = window.electronAPI.migration.onCompleted((d) => {
       setMigrateDone(d);
@@ -171,14 +171,15 @@ export function App(): JSX.Element {
                 <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setMigrateDone(null)}>✕</button>
               </div>
               <div className="px-5 py-2 text-xs text-text-secondary">
-                「{migrateDone.projectName}」已恢复到本机（{migrateDone.projectPath}）。
+                「{migrateDone.projectName}」已恢复到本机（{migrateDone.projectPath}）
+                {migrateDone.sessionRestoredCount > 0 && `，${migrateDone.sessionRestoredCount} 个会话记录已恢复`}。
                 复制下方通知，发送给本项目会话的 Mint，让它了解环境变更。
               </div>
               <div className="px-5 py-2 flex-1 overflow-y-auto">
                 <pre className="whitespace-pre-wrap text-[11px] leading-relaxed bg-surface rounded-lg border border-border p-3 text-text-primary">
 {`【环境变更通知】
 
-本项目已经迁移到另一台电脑，会话记录与项目文件已完整迁移。
+本项目已经迁移到另一台电脑，会话记录${migrateDone.sessionRestoredCount > 0 ? "（" + migrateDone.sessionRestoredCount + " 个）" : ""}与项目文件已完整迁移。
 
 原开发设备的会话历史、任务状态（task.json）、项目文件（docs/源码/配置）
 都已同步到当前这台电脑。你现在所在的这台电脑，就是迁移的目标设备。
@@ -200,7 +201,7 @@ export function App(): JSX.Element {
                   onClick={async () => {
                     const text = `【环境变更通知】
 
-本项目已经迁移到另一台电脑，会话记录与项目文件已完整迁移。
+本项目已经迁移到另一台电脑，会话记录${migrateDone.sessionRestoredCount > 0 ? "（" + migrateDone.sessionRestoredCount + " 个）" : ""}与项目文件已完整迁移。
 
 原开发设备的会话历史、任务状态（task.json）、项目文件（docs/源码/配置）
 都已同步到当前这台电脑。你现在所在的这台电脑，就是迁移的目标设备。
@@ -224,7 +225,7 @@ export function App(): JSX.Element {
         {/* Windows 防火墙放行提示(设备互联端口,一次性) */}
         {firewallHint !== null && (
           <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-3 px-4 py-2.5 rounded-lg bg-surface-alt border border-border shadow-lg text-xs text-text-primary">
-            <span>设备互联需要 Windows 防火墙放行端口 {firewallHint}——首次弹窗时请勾选「专用网络」并允许访问</span>
+            <span>项目迁移需要 Windows 防火墙放行端口 {firewallHint}——首次弹窗时请勾选「专用网络」并允许访问</span>
             <button className="text-text-secondary hover:text-text-primary shrink-0" onClick={() => setFirewallHint(null)}>✕</button>
           </div>
         )}

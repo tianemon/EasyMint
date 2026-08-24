@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { StepIndicator } from "./StepIndicator";
+import { FileTreeSelector, ScanFileItem } from "./FileTreeSelector";
 
 /**
  * 迁移对话框(发送端,用户直接触发入口):
- * ① 选项目(浏览目录) → ② 系统扫描生成清单(默认排除构建产物) → ③ 确认 → ④ 传输进度
+ * ① 选项目(浏览目录) → ② 自动扫描:文件树(默认选中未排除文件)+ 会话列表(默认选中最新)
+ * → ③ 勾选调整(树多选/会话多选) → ④ 传输进度
  * 手动迁移入口(纯手动模式):选项目 → 扫描清单 → 确认 → 传输。
  */
 
@@ -15,19 +17,43 @@ interface TransferModalProps {
   onSent: () => void;
 }
 
-/** 与主进程默认排除规则一致的客户端镜像(展示用;真正过滤在主进程 startTransfer 前的 prepare 扫描) */
-interface ScanFile {
-  relPath: string;
-  absPath: string;
+interface SessionItem {
+  file: string;
+  name: string;
+  mtime: number;
+}
+
+interface ScanResult {
+  files: ScanFileItem[];
+  sessions: SessionItem[];
+  totalSize: number;
+  excludedCount: number;
+}
+
+/** 单次传输上限(与主进程 MAX_TRANSFER_SIZE 一致) */
+const MAX_TRANSFER_SIZE = 500 * 1024 * 1024;
+
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+}
+
+function fmtTime(ms: number): string {
+  const d = new Date(ms);
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _onSent }: TransferModalProps): JSX.Element | null {
   const [projectPath, setProjectPath] = useState("");
   // 已打开过的项目(下拉选择,免手动找路径)
   const [projects, setProjects] = useState<Array<{ id: string; name: string; path: string }>>([]);
-  const [files, setFiles] = useState<ScanFile[] | null>(null);
-  const [totalSize, setTotalSize] = useState(0);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [selectedSessions, setSelectedSessions] = useState<string[]>([]);
   const [transferring, setTransferring] = useState(false);
   const [phase, setPhase] = useState<"scanning" | "packing" | "waiting" | "transferring" | "sent" | "rejected" | "timeout" | null>(null);
   const [progressPct, setProgressPct] = useState(0);
@@ -55,8 +81,9 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
   useEffect(() => {
     if (open) {
       setProjectPath("");
-      setFiles(null);
-      setTotalSize(0);
+      setScanResult(null);
+      setSelectedFiles([]);
+      setSelectedSessions([]);
       setError(null);
       setTransferring(false);
       setPhase(null);
@@ -67,42 +94,60 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
     }
   }, [open]);
 
+  // 选择项目后自动扫描(防抖 300ms,覆盖下拉/浏览/手动输入)
+  useEffect(() => {
+    const p = projectPath.trim();
+    if (!p) { setScanResult(null); return; }
+    const timer = setTimeout(() => { doScan(p); }, 300);
+    return () => clearTimeout(timer);
+  }, [projectPath]);
+
   if (!open) return null;
 
-  const browseProject = async () => {
+  /** 扫描(自动扫描与忽略项变更后共用) */
+  const doScan = (p: string): void => {
+    setScanning(true);
+    setError(null);
+    setScanResult(null);
+    window.electronAPI.migration.scan(p)
+      .then((scan) => {
+        setScanResult(scan);
+        // 默认选中:最新会话(列表已按时间倒序,第一个即最新)
+        setSelectedSessions(scan.sessions.length > 0 ? [scan.sessions[0]!.file] : []);
+        if (scan.files.length === 0) setError("未扫描到可迁移文件");
+      })
+      .catch((e: Error) => setError(`扫描失败: ${e.message}`))
+      .finally(() => setScanning(false));
+  };
+
+  const browseProject = async (): Promise<void> => {
     const dir = await window.electronAPI.dialog.openDirectory();
     if (dir) {
       setProjectPath(dir);
-      setFiles(null);
+      setScanResult(null);
       setError(null);
     }
   };
 
-  const scanProject = async () => {
-    if (!projectPath.trim()) { setError("请先选择项目目录"); return; }
-    setScanning(true);
-    setError(null);
-    try {
-      // 统一扫描(主进程 migration-service.scanProject,单一实现)
-      const scan = await window.electronAPI.migration.scan(projectPath.trim());
-      setFiles(scan.files);
-      setTotalSize(scan.totalSize);
-      if (scan.files.length === 0) setError("未扫描到可迁移文件");
-    } catch (e) {
-      setError(`扫描失败: ${(e as Error).message}`);
-    } finally {
-      setScanning(false);
-    }
+  const toggleSession = (file: string): void => {
+    setSelectedSessions((prev) => (prev.includes(file) ? prev.filter((f) => f !== file) : [...prev, file]));
   };
 
-  const startTransfer = async () => {
-    if (!files || files.length === 0) return;
+  // 选中文件总大小(500MB 上限拦截,与主进程一致)
+  const selectedTotalSize = scanResult
+    ? scanResult.files.filter((f) => selectedFiles.includes(f.relPath)).reduce((s, f) => s + f.size, 0)
+    : 0;
+  const overLimit = selectedTotalSize > MAX_TRANSFER_SIZE;
+
+  const startTransfer = async (): Promise<void> => {
+    if (!scanResult || selectedFiles.length === 0) return;
+    if (overLimit) { setError(`选中内容超过 500MB 上限（当前 ${fmtSize(selectedTotalSize)}），请取消部分文件`); return; }
     setTransferring(true);
     setError(null);
     setPhase("waiting"); // 先显示等待确认(主进程广播会覆盖)
     try {
-      // 统一入口:主进程内部扫描 + 打包 zip + 传输
-      const r = await window.electronAPI.migration.start(projectPath.trim(), deviceId);
+      // 统一入口:主进程内部扫描 + 按选中清单打包 zip + 传输
+      const r = await window.electronAPI.migration.start(projectPath.trim(), deviceId, { files: selectedFiles, sessions: selectedSessions });
       if (!r.ok) {
         setError(r.error ?? "传输失败");
         setTransferring(false);
@@ -118,7 +163,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center modal-overlay" onMouseDown={(_e) => { if (!transferring) onClose(); }}>
-      <div className="bg-surface-alt rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 480 }} onMouseDown={(e) => e.stopPropagation()}>
+      <div className="bg-surface-alt rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 520 }} onMouseDown={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0">
           <h2 className="text-base font-semibold text-text-primary">迁移到 {deviceName}</h2>
           <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} disabled={transferring}>✕</button>
@@ -131,7 +176,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
             <select
               className="w-full px-2.5 py-1.5 rounded-lg bg-surface border border-border text-xs text-text-primary outline-none focus:border-accent mb-1.5"
               value={projectPath}
-              onChange={(e) => { setProjectPath(e.target.value); setFiles(null); }}
+              onChange={(e) => { setProjectPath(e.target.value); setScanResult(null); }}
             >
               <option value="">选择已打开的项目…</option>
               {projects.map((p) => (
@@ -141,41 +186,81 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
             <div className="flex gap-2">
               <input
                 value={projectPath}
-                onChange={(e) => { setProjectPath(e.target.value); setFiles(null); }}
+                onChange={(e) => { setProjectPath(e.target.value); setScanResult(null); }}
                 placeholder="或直接输入/选择项目目录"
                 className="flex-1 px-2.5 py-1.5 rounded-lg bg-surface border border-border text-xs text-text-primary outline-none focus:border-accent"
               />
-              <button type="button" className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:bg-surface-hover transition-colors shrink-0" onClick={browseProject}>
+              <button type="button" className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:bg-surface-hover transition-colors shrink-0" onClick={() => void browseProject()}>
                 浏览
               </button>
             </div>
           </div>
 
-          {/* 扫描清单 */}
-          {projectPath && !files && (
-            <button
-              type="button"
-              className="w-full px-3 py-2 rounded-lg border border-border text-xs text-text-secondary hover:bg-surface-hover transition-colors disabled:opacity-50"
-              disabled={scanning}
-              onClick={scanProject}
-            >
-              {scanning ? "扫描中…" : "扫描迁移清单（排除构建产物）"}
-            </button>
+          {/* 扫描状态(选择项目后自动扫描,防抖 300ms) */}
+          {projectPath && !scanResult && (
+            <div className="w-full px-3 py-2 rounded-lg border border-border text-xs text-text-secondary text-center">
+              {scanning ? "扫描中…" : "正在扫描…"}
+            </div>
           )}
 
-          {files && (
-            <div className="bg-surface rounded-lg border border-border px-3 py-2.5">
-              <div className="text-xs font-medium text-text-primary mb-1.5">
-                待迁移 {files.length} 个文件 · {(totalSize / 1024 / 1024).toFixed(1)}MB
-                <span className="text-[10px] text-text-muted ml-2">已排除 .git/node_modules/dist/build 等</span>
+          {/* 扫描结果:文件树 + 会话列表 */}
+          {scanResult && (
+            <>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-text-secondary">项目文件</label>
+                  <span className="text-[10px] text-text-muted tabular-nums">
+                    已选择 {selectedFiles.length}/{scanResult.files.length} 个文件 · {fmtSize(selectedTotalSize)}
+                  </span>
+                </div>
+                <FileTreeSelector
+                  files={scanResult.files}
+                  onChange={setSelectedFiles}
+                />
               </div>
-              <div className="max-h-32 overflow-y-auto space-y-0.5">
-                {files.slice(0, 15).map((f) => (
-                  <div key={f.relPath} className="text-[10px] text-text-secondary truncate">{f.relPath}</div>
-                ))}
-                {files.length > 15 && <div className="text-[10px] text-text-muted">… 等 {files.length - 15} 个文件</div>}
+
+              {/* 会话记录:仅主会话,默认勾选最新 */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-text-secondary">会话记录</label>
+                  <span className="text-[10px] text-text-muted">已选 {selectedSessions.length}/{scanResult.sessions.length} · 仅主会话（不含子会话）</span>
+                </div>
+                {scanResult.sessions.length === 0 ? (
+                  <div className="bg-surface rounded-lg border border-border px-3 py-2.5 text-[11px] text-text-muted">
+                    该项目暂无会话记录
+                  </div>
+                ) : (
+                  <div className="bg-surface rounded-lg border border-border max-h-32 overflow-y-auto py-1">
+                    {scanResult.sessions.map((s) => (
+                      <div
+                        key={s.file}
+                        className="flex items-center gap-2 px-3 py-1.5 hover:bg-surface-hover transition-colors cursor-pointer"
+                        onClick={() => toggleSession(s.file)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedSessions.includes(s.file)}
+                          onChange={(e) => {
+                            // 阻止冒泡:避免行 onClick 再次 toggle(双重触发=状态不变)
+                            e.stopPropagation();
+                            toggleSession(s.file);
+                          }}
+                          // click 也会冒泡到行 onClick——必须一并拦截
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-3.5 h-3.5 rounded accent-accent shrink-0"
+                        />
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-text-secondary">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                        </svg>
+                        <span className="text-xs text-text-primary truncate flex-1" title={s.file}>{s.name}</span>
+                        <span className="text-[10px] text-text-muted shrink-0 tabular-nums">{fmtTime(s.mtime)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
+            </>
           )}
 
           {/* 发送端步骤条:扫描 → 打包 → 等待确认 → 传输 → 已发送 */}
@@ -213,10 +298,10 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
           </button>
           <button
             className="px-5 py-1.5 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors text-sm font-medium disabled:opacity-50"
-            disabled={!files || files.length === 0 || transferring}
-            onClick={startTransfer}
+            disabled={!scanResult || selectedFiles.length === 0 || transferring}
+            onClick={() => void startTransfer()}
           >
-            {transferring ? "传输中…" : "开始迁移"}
+            {transferring ? "传输中…" : `开始迁移${selectedFiles.length > 0 ? `（${selectedFiles.length} 个文件${selectedSessions.length > 0 ? ` · ${selectedSessions.length} 个会话` : ""}）` : ""}`}
           </button>
         </div>
       </div>

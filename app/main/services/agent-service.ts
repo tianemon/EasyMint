@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 import { BrowserWindow } from "electron";
-import { resolveHome } from "../utils/paths";
+import { resolveHome, getResourcesDir } from "../utils/paths";
 import { broadcast } from "./ipc-broadcast";
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
@@ -792,7 +792,7 @@ export class AgentService {
     if (isDesigner) {
       chat.agentType = "designer";
       if (resolvedPath) {
-        const resourcesDir = path.join(__dirname, "..", "..", "..", "resources");
+        const resourcesDir = getResourcesDir();
         const templateDir = path.join(resourcesDir, "em-html-editor");
         const brandDir = path.join(resourcesDir, "brand-tokens");
         const destTemplateDir = path.join(resolveHome(resolvedPath), ".easymint", "templates");

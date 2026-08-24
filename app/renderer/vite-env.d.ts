@@ -251,14 +251,17 @@ interface ElectronAPI {
   migration: {
     accept: (transferId: string, targetPath: string) => Promise<{ ok: boolean; error?: string }>;
     reject: (transferId: string) => Promise<{ ok: boolean }>;
-    start: (projectPath: string, deviceId: string) => Promise<{ ok: boolean; transferId?: string; error?: string }>;
-    scan: (projectPath: string) => Promise<{ files: Array<{ relPath: string; absPath: string }>; sessionFile?: string; totalSize: number }>;
-    onIncoming: (cb: (d: { transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }) => void) => () => void;
-    onCompleted: (cb: (d: { projectName: string; projectPath: string; originPath: string; fromName: string }) => void) => () => void;
+    start: (projectPath: string, deviceId: string, selection?: { files: string[]; sessions: string[] }) => Promise<{ ok: boolean; transferId?: string; error?: string }>;
+    scan: (projectPath: string) => Promise<{ files: Array<{ relPath: string; absPath: string; size: number; excluded: boolean }>; sessions: Array<{ file: string; name: string; mtime: number }>; totalSize: number; excludedCount: number }>;
+    getIgnore: () => Promise<string>;
+    saveIgnore: (content: string) => Promise<{ ok: boolean }>;
+    resetIgnore: () => Promise<string>;
+    onIncoming: (cb: (d: { transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number; sessionCount: number }) => void) => () => void;
+    onCompleted: (cb: (d: { projectName: string; projectPath: string; originPath: string; fromName: string; sessionRestoredCount: number }) => void) => () => void;
     onReceipt: (cb: (d: { ok: boolean; projectName?: string; projectPath?: string; failures?: string[] }) => void) => () => void;
     onProgress: (cb: (d: { transferId: string; received: number }) => void) => () => void;
     onSendProgress: (cb: (d: { transferId: string; sent: number; total: number; phase?: "scanning" | "packing" | "waiting" | "transferring" | "sent" | "rejected" | "timeout" }) => void) => () => void;
-    onStage: (cb: (d: { transferId: string; stage: "verify" | "extract" | "session" | "done" }) => void) => () => void;
+    onStage: (cb: (d: { transferId: string; stage: "verify" | "extract" | "session" | "done"; sessionRestoredCount?: number }) => void) => () => void;
   };
   onFirewallHint: (cb: (d: { port: number }) => void) => () => void;
   task: {

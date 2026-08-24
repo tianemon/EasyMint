@@ -379,16 +379,25 @@ contextBridge.exposeInMainWorld("electronAPI", {
   migration: {
     accept: (transferId: string, targetPath: string) => ipcRenderer.invoke("migration:accept", { transferId, targetPath }) as Promise<{ ok: boolean; error?: string }>,
     reject: (transferId: string) => ipcRenderer.invoke("migration:reject", { transferId }) as Promise<{ ok: boolean }>,
-    start: (projectPath: string, deviceId: string) => ipcRenderer.invoke("migration:start", { projectPath, deviceId }) as Promise<{ ok: boolean; transferId?: string; error?: string }>,
-    scan: (projectPath: string) => ipcRenderer.invoke("migration:scan", { projectPath }) as Promise<{ files: Array<{ relPath: string; absPath: string }>; sessionFile?: string; totalSize: number }>,
+    start: (projectPath: string, deviceId: string, selection?: { files: string[]; sessions: string[] }) =>
+      ipcRenderer.invoke("migration:start", { projectPath, deviceId, selection }) as Promise<{ ok: boolean; transferId?: string; error?: string }>,
+    scan: (projectPath: string) => ipcRenderer.invoke("migration:scan", { projectPath }) as Promise<{
+      files: Array<{ relPath: string; absPath: string; size: number; excluded: boolean }>;
+      sessions: Array<{ file: string; name: string; mtime: number }>;
+      totalSize: number;
+      excludedCount: number;
+    }>,
+    getIgnore: () => ipcRenderer.invoke("migration:getIgnore") as Promise<string>,
+    saveIgnore: (content: string) => ipcRenderer.invoke("migration:saveIgnore", { content }) as Promise<{ ok: boolean }>,
+    resetIgnore: () => ipcRenderer.invoke("migration:resetIgnore") as Promise<string>,
     // 接收端事件(弹窗确认/完成)
-    onIncoming: (cb: (d: { transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }) => void) => {
-      const h = (_e: Electron.IpcRendererEvent, d: { transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number }) => cb(d);
+    onIncoming: (cb: (d: { transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number; sessionCount: number }) => void) => {
+      const h = (_e: Electron.IpcRendererEvent, d: { transferId: string; fromName: string; projectName: string; fileCount: number; totalSize: number; sessionCount: number }) => cb(d);
       ipcRenderer.on("migration:incoming", h);
       return () => ipcRenderer.removeListener("migration:incoming", h);
     },
-    onCompleted: (cb: (d: { projectName: string; projectPath: string; originPath: string; fromName: string }) => void) => {
-      const h = (_e: Electron.IpcRendererEvent, d: { projectName: string; projectPath: string; originPath: string; fromName: string }) => cb(d);
+    onCompleted: (cb: (d: { projectName: string; projectPath: string; originPath: string; fromName: string; sessionRestoredCount: number }) => void) => {
+      const h = (_e: Electron.IpcRendererEvent, d: { projectName: string; projectPath: string; originPath: string; fromName: string; sessionRestoredCount: number }) => cb(d);
       ipcRenderer.on("migration:completed", h);
       return () => ipcRenderer.removeListener("migration:completed", h);
     },

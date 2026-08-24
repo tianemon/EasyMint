@@ -64,7 +64,7 @@ import { getPins, setPins } from "./services/pin-service";
 import type { IssueStatus } from "./services/issue-service";
 import { detectRunnable, startProcess, stopProcess, restartProcess, getStatus, getRunningIds, checkPort, killPort, ensureRunJsonWatch } from "./services/process-service";
 import { networkService } from "./services/network-service";
-import { migrationService } from "./services/migration-service";
+import { migrationService, readIgnoreFileRaw, saveIgnoreFileRaw, DEFAULT_IGNORE_CONTENT } from "./services/migration-service";
 
 interface Services {
   mainWindow: BrowserWindow;
@@ -495,12 +495,23 @@ const filePath = p.join(projectPath, "task.json");
   // 接收端确认/拒绝(弹窗)
   ipcMain.handle("migration:accept", (_e, { transferId, targetPath }) => mig.acceptTransfer(transferId, targetPath));
   ipcMain.handle("migration:reject", (_e, { transferId }) => { mig.rejectTransfer(transferId); return { ok: true }; });
-  // 统一入口(纯手动):扫描 + 打包 zip + 传输
-  ipcMain.handle("migration:start", (_e, { projectPath, deviceId }) =>
-    mig.prepareAndTransfer(projectPath, deviceId)
+  // 统一入口(纯手动):扫描 + 按选中清单打包 zip + 传输
+  ipcMain.handle("migration:start", (_e, { projectPath, deviceId, selection }: { projectPath: string; deviceId: string; selection?: { files: string[]; sessions: string[] } }) =>
+    mig.prepareAndTransfer(projectPath, deviceId, selection)
   );
   // 前端预览清单(与传输内部同一扫描实现)
   ipcMain.handle("migration:scan", (_e, { projectPath }) => mig.scanProject(projectPath));
+  // 迁移忽略项(全局配置,.easymint/migration-ignore,类似 .gitignore)——读写原始文本(含注释)
+  ipcMain.handle("migration:getIgnore", () => readIgnoreFileRaw());
+  ipcMain.handle("migration:saveIgnore", (_e, { content }: { content: string }) => {
+    saveIgnoreFileRaw(content);
+    return { ok: true };
+  });
+  // 恢复默认:重置为内置模板并返回新内容
+  ipcMain.handle("migration:resetIgnore", () => {
+    saveIgnoreFileRaw(DEFAULT_IGNORE_CONTENT);
+    return DEFAULT_IGNORE_CONTENT;
+  });
 
   // ── device:* — 设备互联（mDNS 发现 + WS 配对连接） ──
   const net = networkService;

@@ -13,6 +13,7 @@ interface IncomingTransfer {
   projectName: string;
   fileCount: number;
   totalSize: number;
+  sessionCount: number;
 }
 
 interface MigrationIncomingModalProps {
@@ -38,6 +39,8 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
   const [progressPct, setProgressPct] = useState<number | null>(null);
   // 接收端阶段(接收中 → 校验 → 解压 → 会话恢复 → 完成)
   const [stage, setStage] = useState<"receiving" | "verify" | "extract" | "session" | "done">("receiving");
+  // 完成阶段:恢复的会话数(展示「已恢复 N 个会话」)
+  const [sessionRestoredCount, setSessionRestoredCount] = useState(0);
 
   useEffect(() => {
     return window.electronAPI.migration.onProgress((d) => {
@@ -51,6 +54,9 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
     return window.electronAPI.migration.onStage((d) => {
       if (incoming && d.transferId === incoming.transferId) {
         setStage(d.stage);
+        if (d.stage === "done" && typeof d.sessionRestoredCount === "number") {
+          setSessionRestoredCount(d.sessionRestoredCount);
+        }
       }
     });
   }, [incoming]);
@@ -64,6 +70,8 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
       setAccepting(false);
       setAccepted(false);
       setProgressPct(null);
+      setSessionRestoredCount(0);
+      setStage("receiving");
     }
   }, [incoming, defaultProjectDir]);
 
@@ -117,7 +125,8 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">来自 {incoming.fromName}</span>
             </div>
             <div className="text-xs text-text-secondary">
-              {incoming.fileCount} 个文件 · {fmtSize(incoming.totalSize)}（含会话记录）
+              {incoming.fileCount} 个文件 · {fmtSize(incoming.totalSize)}
+              {incoming.sessionCount > 0 ? ` · 含 ${incoming.sessionCount} 个会话记录` : ""}
             </div>
           </div>
 
@@ -169,11 +178,18 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
             </div>
           )}
 
-          {/* 接收成功:显示落位路径 */}
+          {/* 接收成功:显示落位路径 + 会话恢复数 */}
           {accepted && (
-            <div className="flex items-center gap-2 text-xs text-accent">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              已恢复到：{targetPath}/{incoming.projectName.replace(/[\\/:*?"<>|]/g, "_").trim() || "migrated-project"}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs text-accent">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                已恢复到：{targetPath}/{incoming.projectName.replace(/[\\/:*?"<>|]/g, "_").trim() || "migrated-project"}
+              </div>
+              {sessionRestoredCount > 0 && (
+                <div className="text-[11px] text-text-secondary">
+                  已恢复 {sessionRestoredCount} 个会话记录
+                </div>
+              )}
             </div>
           )}
         </div>

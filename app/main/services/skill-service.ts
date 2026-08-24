@@ -12,6 +12,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, cpSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { getResourcesDir } from "../utils/paths";
 
 // ── Types ──────────────────────────────────────────
 
@@ -226,7 +227,7 @@ function getBuiltinSkillsDir(): string {
     }
   } catch { /* fall through */ }
   // Dev fallback: walk up from __dirname
-  return path.join(__dirname, "..", "..", "..", "resources", "skills");
+  return path.join(getResourcesDir(), "skills");
 }
 
 /** Seed bundled skills to ~/.easymint/skills/ on first launch if missing.
