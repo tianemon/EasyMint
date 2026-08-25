@@ -1,6 +1,6 @@
 {
   "name": "easymint",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "AI 项目工作台 — 基于 Pi Agent Core 的智能编程助手，让不懂技术的人也能构建软件",
   "private": true,
   "license": "MIT",
