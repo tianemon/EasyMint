@@ -882,14 +882,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           useChatStore.getState().replaceAiEntriesById(sidRef.current, target.id, merged);
         }
       }
-      // compaction UI — compacting 事件 = 压缩进行中（显示"正在整理会话..."）
-      // 区分手动/自动：手动路径先广播 context-summarizing(type=compact) 再 compaction_start；
-      // SDK 自动压缩(阈值/溢出)只有 compaction_start——无手动标记 → 提示用户原因
+      // compaction UI — compacting 事件 = SDK compaction_start = 压缩真实开始（显示蒙版）
+      // 手动/自动统一在此显示：手动路径的 type=compact 只标记来源,不预显示
       if (event.type === "compacting") {
+        useTabStore.getState().setSessionRunning(sidRef.current, true);
         useStatusStore.getState().setCompacting(sidRef.current, true);
-        if (!manualCompactingRef.current) {
-          useStatusStore.getState().pushSignal(sidRef.current, "compact", "检测到上下文需整理，正在整理…");
-        }
+        useStatusStore.getState().pushSignal(sidRef.current, "compact",
+          manualCompactingRef.current ? "正在整理会话..." : "检测到上下文需整理，正在整理…");
       }
       // compacted = 压缩完成：清除 compacting（触发"会话已整理完毕"提示），
       // 并兜底清除 summarizing（防御轮转总结路径的残留）
@@ -950,6 +949,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         setSid(realSid);
         sidRef.current = realSid;
         useTabStore.getState().setSessionRunning(realSid, true);
+        // 会话切换重置阈值防重标记(组件实例复用,不重置会残留上个会话的 threshold → 新会话不弹窗)
+        ctxThresholdFiredRef.current = 0;
         onSessionCreated?.(realSid);
       } else if (!sidRef.current) {
         sidRef.current = realSid;
@@ -969,17 +970,21 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useStatusStore.getState().popSignal(sidRef.current, "summary");
         useStatusStore.getState().popSignal(sidRef.current, "compact");
         manualCompactingRef.current = false;
+        // 压缩完成 = 新周期,重置阈值防重标记——不依赖 pct<55 兜底
+        // (压缩失败/跳过/弹窗关闭等残留都会导致 ref 卡在 threshold,75% 后不再弹窗)
+        ctxThresholdFiredRef.current = 0;
         return;
       }
-      if (type === "compact") manualCompactingRef.current = true;  // 手动压缩:先标记,compacting 事件据此区分
-      useStatusStore.getState().pushSignal(sidRef.current, type === "compact" ? "compact" : "summary",
-        type === "compact" ? "正在整理会话..." : "正在整理并开启新会话...");
       if (type === "compact") {
-        useTabStore.getState().setSessionRunning(sidRef.current, true);
-        useStatusStore.getState().setCompacting(sidRef.current, true);
-      } else {
-        useStatusStore.getState().setSummarizing(sidRef.current, true);
+        // 手动压缩:仅标记手动来源(compacting 事件据此区分文案);
+        // 不预显示蒙版——显示跟随 SDK compaction_start(compacting 事件),
+        // SDK 未真正开始压缩(如 abort 挂起)则不显示,避免误导用户
+        manualCompactingRef.current = true;
+        return;
       }
+      // summary 路径(轮转总结)
+      useStatusStore.getState().pushSignal(sidRef.current, "summary", "正在整理并开启新会话...");
+      useStatusStore.getState().setSummarizing(sidRef.current, true);
     });
     const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ chatId: ctxChatId, percentage }) => {
       if (!currentChatRef.current) return;
@@ -1022,6 +1027,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     }, 120_000);
     return () => clearTimeout(timer);
   }, [summarizing]);
+
+  // Compacting timeout — 120s safety net:压缩状态异常(summarization 调用挂起)时恢复界面。
+  // 只恢复显示,不中断 SDK 压缩(压缩可能仍在后台,完成后 compacted 事件会清状态)
+  useEffect(() => {
+    if (!compacting) return;
+    const timer = setTimeout(() => {
+      useStatusStore.getState().setCompacting(sidRef.current, false);
+      useStatusStore.getState().popSignal(sidRef.current, "compact");
+      useStatusStore.getState().pushSignal(sidRef.current, "error", "压缩状态异常，已恢复界面（压缩可能仍在后台）", 8000);
+      console.error("[ChatPanel] compaction timed out after 120s");
+    }, 120_000);
+    return () => clearTimeout(timer);
+  }, [compacting]);
 
   // Busy 卡住兜底：30s 无事件时，用 session.isStreaming 核实
   useEffect(() => {
@@ -1554,6 +1572,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
             ? `当前会话已达到自动压缩阈值 ${compactDialog.threshold ?? 75}%，如何处理？`
             : "压缩当前会话上下文"}
           onImmediate={() => {
+            // 不预置 compacting——蒙版显示完全跟随 SDK 真实状态(compacting 事件);
+            // SDK 未真正开始压缩(如 abort 挂起)则不显示,避免误导
             window.electronAPI.agent.compact(sidRef.current).catch(() => {});
             setCompactDialog(null);
           }}
@@ -1570,7 +1590,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
             rearmAfterExitRef.current = true;
             setCompactDialog(null);
           }}
-          onClose={() => setCompactDialog(null)}
+          onClose={() => {
+            // 直接关闭同「稍后」:下次回复完重置阈值防重,再涨到阈值会重新询问
+            rearmAfterExitRef.current = true;
+            setCompactDialog(null);
+          }}
         />
       )}
       {/* 内容便签悬浮层：仅当前会话可见，随 tab 显隐 */}
