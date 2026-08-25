@@ -941,12 +941,16 @@ body {
   -webkit-user-select: none;
 }
 
-/* 内容型区域恢复可选:消息气泡整体(正文/代码/diff/思考块均在内)、系统通知卡片、输入框 */
+/* 内容型区域恢复可选:消息气泡整体(正文/代码/diff/思考块均在内)、系统通知卡片、输入框、
+   输出弹层内容区(后台命令/子Agent过程/运行日志) */
 .chat-input,
 .msg-bubble-user,
 .msg-bubble-agent,
 .msg-bubble-system,
-.diff-view {
+.diff-view,
+.shell-output,
+.subagent-output,
+.log-overlay-output {
   user-select: text;
   -webkit-user-select: text;
 }

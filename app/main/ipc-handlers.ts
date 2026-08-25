@@ -295,6 +295,11 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       return { content: "", truncated: false };
     }
   });
+  // shell:reveal-in-folder — 在文件夹中显示日志文件(不打开文件)
+  ipcMain.handle("shell:reveal-in-folder", (_e, { logPath }) => {
+    if (!logPath || !fs.existsSync(logPath)) return;
+    shell.showItemInFolder(logPath);
+  });
   ipcMain.handle("conv:rename", (_e, { id, title, projectPath }) => {
     agentService.onSessionRenamed(id);
     return renameSession(id, title, projectPath);

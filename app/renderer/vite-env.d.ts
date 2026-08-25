@@ -273,6 +273,7 @@ interface ElectronAPI {
     onStdout: (callback: (data: { line: string }) => void) => () => void;
     onStderr: (callback: (data: { line: string }) => void) => () => void;
     readLog: (logPath: string) => Promise<{ content: string; truncated: boolean }>;
+    revealInFolder: (filePath: string) => Promise<void>;
   };
   skill: {
     list: (projectPath?: string) => Promise<{ name: string; description: string; path: string; level: "builtin" | "global" | "project"; enabled: boolean }[]>;

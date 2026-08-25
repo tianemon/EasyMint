@@ -133,9 +133,16 @@ export async function createEnhancedBashTool(
       "Execute a bash command in the current working directory. Returns stdout and stderr. "
       + "For long-running or service commands (dev server, watchers, background jobs), "
       + "pass background: true to run in the background without blocking the conversation — "
-      + "the result will be injected back when the command exits.",
-    promptSnippet: native.promptSnippet,
-    promptGuidelines: native.promptGuidelines,
+      + "the result will be injected back when the command exits. "
+      + "后台命令的 stdout/stderr 会被自动收集:输出面板实时显示、完整输出落盘日志文件、退出后结果自动注入会话。"
+      + "禁止在命令中手动重定向输出(如 `> file 2>&1`、`| tee`、`nohup ... &`)——重定向会绕过自动收集,"
+      + "输出面板和退出通知将无内容;需要读完整输出时,用 read 工具读系统返回的日志文件路径。",
+    promptSnippet: "执行 bash 命令(前台同步/后台长驻;后台输出自动收集,勿手动重定向)",
+    promptGuidelines: [
+      ...(Array.isArray(native.promptGuidelines) ? native.promptGuidelines : []),
+      "后台命令(background: true)的输出会被系统自动收集并落盘——不要在命令里手动重定向 `> file 2>&1` 或 `| tee`(会绕过自动收集,面板和退出通知无输出)",
+      "后台命令返回的输出文件路径(logPath)可直接用 read 工具读取完整输出",
+    ],
     parameters: {
       type: "object" as const,
       properties: {
@@ -175,7 +182,7 @@ export async function createEnhancedBashTool(
       return {
         content: [{
           type: "text" as const,
-          text: `已后台启动: ${command}\n后台 ID: ${id}\n输出文件: ${logPath}\n命令退出后结果将自动注入会话。`,
+          text: `已后台启动: ${command}\n后台 ID: ${id}\n输出自动收集(面板实时显示),完整输出落盘: ${logPath}\n命令退出后结果将自动注入会话。无需在命令中手动重定向输出——手动重定向会绕过自动收集,面板和通知将无内容。`,
         }],
       };
     },

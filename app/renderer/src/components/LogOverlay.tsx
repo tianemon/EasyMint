@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useProcessStore } from "../stores/process-store";
 import type { RunPlatform } from "../stores/process-store";
@@ -39,9 +39,32 @@ export function LogOverlay({ commandId }: LogOverlayProps): JSX.Element {
   const state = cmdStates[commandId];
   const runnable = runnables.find((r) => r.id === commandId);
   const logs = state?.logs || [];
+  // 自动贴底跟随:用户滚离底部(dist>8)停止,回底按钮恢复
+  const autoScrollRef = useRef(true);
+  const lastUserInputRef = useRef(0);
+  const [awayFromBottom, setAwayFromBottom] = useState(false);
 
-  // 自动滚底
+  // 用户输入(wheel/touch/mousedown)标记——500ms 内的 scroll 变化视为用户滚动意图
+  const markUserInput = (): void => { lastUserInputRef.current = Date.now(); };
+  const handleUserInput = (): void => markUserInput();
+  const handleScroll = (): void => {
+    if (Date.now() - lastUserInputRef.current > 500) return;
+    const el = logRef.current; if (!el) return;
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const atBottom = distFromBottom < 8;
+    autoScrollRef.current = atBottom;
+    setAwayFromBottom(!atBottom);
+  };
+  const scrollToBottom = (): void => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+    autoScrollRef.current = true;
+    setAwayFromBottom(false);
+  };
+
+  // 自动滚底(仅自动跟随态——用户滚动时可自由查看历史)
   useEffect(() => {
+    if (!autoScrollRef.current) return;
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [logs]);
 
@@ -51,7 +74,7 @@ export function LogOverlay({ commandId }: LogOverlayProps): JSX.Element {
   // (fixed 相对 transform 祖先而非视口)——弹窗会被限制在抽屉内,必须脱离
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40" onClick={closeLog}>
-      <div className="bg-surface rounded-xl border border-border shadow-2xl w-[80vw] h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="relative bg-surface rounded-xl border border-border shadow-2xl w-[80vw] h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-surface-alt shrink-0">
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-soft text-accent font-mono">[{PLATFORM_LABEL[runnable.platform as RunPlatform] || runnable.platform}]</span>
@@ -76,8 +99,8 @@ export function LogOverlay({ commandId }: LogOverlayProps): JSX.Element {
           >✕</button>
         </div>
 
-        {/* 日志区 */}
-        <div ref={logRef} className="flex-1 min-h-0 overflow-y-auto bg-[#1e1e1e] p-3 font-mono text-[11px] leading-relaxed">
+        {/* 日志区(可选中复制) */}
+        <div ref={logRef} onScroll={handleScroll} onWheel={handleUserInput} onTouchStart={handleUserInput} onMouseDown={handleUserInput} className="log-overlay-output flex-1 min-h-0 overflow-y-auto bg-[#1e1e1e] p-3 font-mono text-[11px] leading-relaxed">
           {logs.length === 0 ? (
             <span className="text-[#888]">等待输出...</span>
           ) : (
@@ -86,6 +109,18 @@ export function LogOverlay({ commandId }: LogOverlayProps): JSX.Element {
             ))
           )}
         </div>
+
+        {/* 回底按钮:滚离底部时显示,点击贴底并恢复自动跟随 */}
+        {awayFromBottom && (
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            className="absolute right-4 bottom-10 w-8 h-8 rounded-full bg-accent text-text-inverse shadow-lg flex items-center justify-center hover:bg-accent-hover transition-colors"
+            title="回到底部"
+          >
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v9M4.5 8.5L8 12l3.5-3.5"/></svg>
+          </button>
+        )}
 
         {/* 底部提示 */}
         <div className="px-4 py-1.5 border-t border-border bg-surface-alt shrink-0">

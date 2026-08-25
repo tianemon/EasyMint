@@ -148,20 +148,23 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         </div>
       </div>
 
-      {/* 模型(默认):该供应商的默认模型(下拉,替代按钮列表,更紧凑) */}
+      {/* 模型(默认):该供应商的默认模型(下拉,替代按钮列表,更紧凑;内置/自定义通用) */}
+      <div>
+        <label className="text-xs text-text-secondary block mb-1.5">模型(默认)</label>
+        <Select
+          block
+          placeholder={loadingModels ? "加载中…" : (availableModels.length === 0 ? "无可用模型" : "选择模型")}
+          value={model}
+          onChange={(v: string) => setModel(v)}
+          options={availableModels.map((m) => ({ value: m, label: m }))}
+          title="选择模型"
+        />
+        {availableModels.length > 0 && <p className="text-[10px] text-text-muted mt-1">共 {availableModels.length} 个模型可选</p>}
+      </div>
+
+      {/* 添加自定义模型:SDK 列表外的模型(新上线/未收录)手动补充,合并去重(仅内置供应商) */}
       {!isCustom && (
         <div>
-          <label className="text-xs text-text-secondary block mb-1.5">模型(默认)</label>
-          <Select
-            block
-            placeholder={loadingModels ? "加载中…" : (availableModels.length === 0 ? "无可用模型" : "选择模型")}
-            value={model}
-            onChange={(v: string) => setModel(v)}
-            options={availableModels.map((m) => ({ value: m, label: m }))}
-            title="选择模型"
-          />
-          {availableModels.length > 0 && <p className="text-[10px] text-text-muted mt-1">共 {availableModels.length} 个模型可选</p>}
-          {/* 添加自定义模型:SDK 列表外的模型(新上线/未收录)手动补充,合并去重 */}
           <div className="flex items-center gap-2 mt-2">
             <input
               className="flex-1 min-w-0 h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"

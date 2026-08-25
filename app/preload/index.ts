@@ -119,6 +119,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       return () => ipcRenderer.removeListener("shell:stderr", handler);
     },
     readLog: (logPath: string) => ipcRenderer.invoke("shell:read-log", { logPath }),
+    revealInFolder: (filePath: string) => ipcRenderer.invoke("shell:reveal-in-folder", { logPath: filePath }),
   },
   skill: {
     list: (projectPath?: string) => ipcRenderer.invoke("skill:list", { projectPath }),

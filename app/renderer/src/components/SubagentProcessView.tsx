@@ -31,6 +31,7 @@ export function SubagentProcessView({
   const scrollRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true); // 流式输出是否自动贴底(用户滚动时停止)
   const lastUserInputRef = useRef(0); // 最近一次用户输入时间(滚动意图判定窗口)
+  const [awayFromBottom, setAwayFromBottom] = useState(false); // 回底按钮显示开关
 
   // 用户输入(wheel/touch/mousedown)标记——500ms 内的 scroll 变化视为用户滚动意图
   const markUserInput = (): void => { lastUserInputRef.current = Date.now(); };
@@ -40,7 +41,15 @@ export function SubagentProcessView({
     if (Date.now() - lastUserInputRef.current > 500) return;
     const el = scrollRef.current; if (!el) return;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    autoScrollRef.current = distFromBottom < 8; // 滚回底部恢复跟随,滚离底部停止
+    const atBottom = distFromBottom < 8;
+    autoScrollRef.current = atBottom; // 滚回底部恢复跟随,滚离底部停止
+    setAwayFromBottom(!atBottom);
+  };
+  const scrollToBottom = (): void => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+    autoScrollRef.current = true;
+    setAwayFromBottom(false);
   };
   // 显示开关:默认都隐藏(只看文本);思考过程/工具调用点击展开
   const [showThinking, setShowThinking] = useState(false);
@@ -137,7 +146,7 @@ export function SubagentProcessView({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="flex flex-col w-[720px] max-w-[92vw] h-[68vh] rounded-[12px] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
+        className="relative flex flex-col w-[720px] max-w-[92vw] h-[68vh] rounded-[12px] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部:第一行 = spinner + 标题 + 状态 + 关闭;第二行 = 显示开关 */}
@@ -194,8 +203,8 @@ export function SubagentProcessView({
           </div>
         </div>
 
-        {/* 消息区(思考/工具调用按开关显示,默认只显示文本) */}
-        <div ref={scrollRef} onScroll={handleScroll} onWheel={handleUserInput} onTouchStart={handleUserInput} onMouseDown={handleUserInput} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-[var(--color-sidebar)]/40">
+        {/* 消息区(思考/工具调用按开关显示,默认只显示文本;可选中复制) */}
+        <div ref={scrollRef} onScroll={handleScroll} onWheel={handleUserInput} onTouchStart={handleUserInput} onMouseDown={handleUserInput} className="subagent-output flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-[var(--color-sidebar)]/40">
           {!loaded && !sessionFile && (
             <div className="text-center text-xs text-text-secondary py-8">正在准备任务…</div>
           )}
@@ -208,6 +217,18 @@ export function SubagentProcessView({
           {msgs.map((m) => <SubagentMessage key={m.keyId ?? m.id} msg={m} showThinking={showThinking} showToolUse={showToolUse} />)}
           {running && <div className="flex justify-center"><span className="text-[11px] text-text-secondary animate-pulse">● 运行中</span></div>}
         </div>
+
+        {/* 回底按钮:滚离底部时显示,点击贴底并恢复自动跟随 */}
+        {awayFromBottom && (
+          <button
+            type="button"
+            onClick={scrollToBottom}
+            className="absolute right-4 bottom-4 w-8 h-8 rounded-full bg-accent text-text-inverse shadow-lg flex items-center justify-center hover:bg-accent-hover transition-colors"
+            title="回到底部"
+          >
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v9M4.5 8.5L8 12l3.5-3.5"/></svg>
+          </button>
+        )}
       </div>
     </div>
   );
