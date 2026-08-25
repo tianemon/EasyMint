@@ -4,16 +4,16 @@
 
 你是 EasyMint 项目的开发会话。开始工作前，按需阅读：
 
-| 场景 | 文档 | 内容 |
-|------|------|------|
-| 了解整体架构 | `docs/技术架构.md` | 系统架构、数据模型、IPC 通道 |
-| 了解功能规格 | `docs/需求文档.md` | 页面结构、功能清单、设计风格 |
-| 了解当前进度 | `docs/开发记录.md` + `docs/开发记录/` | 头部快照=当前状态/最近工作/接下来安排；索引表=日期→日志文件（按日期分文件，按需读取） |
-| 了解配置路径 | `docs/design/CONFIG_PATHS.md` | `~/.easymint/` 全局目录、em-settings 字段、Skill/MCP 位置 |
-| 了解需求设计方法论 | `docs/design/AI驱动开发需求设计原则.md` | 11 条 AORD 原则，任务拆解规范 |
-| 了解 SDK API | `docs/reference/Pi-SDK-API参考.md` | `createAgentSession()`、会话管理、权限模式 |
-| 修改系统提示词 | `app/shared/prompts.ts` | Mint 身份定义、阶段指令、万能按钮前缀 |
-| 看懂构建流程 | `package.json` scripts + `scripts/build.sh` | dev/build/pack 命令 |
+| 场景 | 文档 |
+|------|------|
+| 了解整体架构 | `docs/技术架构.md` |
+| 了解功能规格 | `docs/需求文档.md` |
+| 了解当前进度 | `docs/开发记录.md` + `docs/开发记录/` |
+| 了解待办 | `docs/待办事项.md` |
+| 使用 SDK API | `docs/reference/Pi-SDK-API参考.md` |
+| 修改系统提示词 | `app/shared/prompts.ts` |
+| 看懂构建流程 | `package.json` scripts + `scripts/build.sh` |
+| 设计方案 / 配置路径 / 需求方法论 / 规则集 | `docs/design/`（按需阅读；新方案定稿落盘于此） |
 
 核心架构要点：
 - **AI 引擎**：`pi-coding-agent`，`createAgentSession()` 长生命周期 + subscribe 事件流，非 CLI spawn
