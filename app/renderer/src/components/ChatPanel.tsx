@@ -984,7 +984,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ chatId: ctxChatId, percentage }) => {
       if (!currentChatRef.current) return;
       if (ctxChatId !== currentChatRef.current) return;
-      const pct = Math.round(percentage);
+      // percentage 为 null = 压缩后尚无新回复,使用率未知——置 null 前端显示"—",不显示 0 误导
+      const pct = percentage === null ? null : Math.round(percentage);
       useStatusStore.getState().setCtxPct(sidRef.current, pct);
       if (sidRef.current) {
         window.electronAPI.sessionCache.write(sidRef.current, { contextUsage: pct }).catch(() => {});
@@ -994,6 +995,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       const sid = sidRef.current;
       const st = useStatusStore.getState().bySession[sid];
       if (
+        pct !== null &&
         pct >= threshold &&
         !st?.compacting && !st?.summarizing &&
         ctxThresholdFiredRef.current !== threshold &&
@@ -1004,7 +1006,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         setCompactDialog({ source: "auto", threshold });
       }
       // 使用率显著回落（压缩完成）后允许再次触发
-      if (pct < threshold - 20) ctxThresholdFiredRef.current = 0;
+      if (pct !== null && pct < threshold - 20) ctxThresholdFiredRef.current = 0;
     });
     return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(sidRef.current); };
   }, []);
@@ -1062,7 +1064,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         if (cache.permissionMode) setPermissionMode(cache.permissionMode);
         if (cache.model) setChatModel(cache.model);
         if (cache.provider) setChatProvider(cache.provider);
-        if (cache.contextUsage > 0) useStatusStore.getState().setCtxPct(sidRef.current, cache.contextUsage);
+        if (cache.contextUsage !== null && cache.contextUsage > 0) useStatusStore.getState().setCtxPct(sidRef.current, cache.contextUsage);
       }
     }).catch(() => {});
   }, [existingSid]);

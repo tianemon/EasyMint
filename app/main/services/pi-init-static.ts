@@ -5,7 +5,7 @@
  * 不需要初始化 runtime，在设置页面也可用。
  */
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 interface StaticModel {
@@ -120,4 +120,46 @@ export async function getPiProviders(): Promise<Record<string, StaticProvider>> 
   }
 
   return result;
+}
+
+/** 模型窗口规格（自定义供应商注册用：命中真实值，避免硬编码 200k 导致过早压缩） */
+export interface ModelSpec {
+  contextWindow: number;
+  maxTokens: number;
+}
+
+let _modelLookup: Map<string, ModelSpec> | null = null;
+
+/** 跨全部 provider 数据构建 模型 ID → 窗口/输出上限 查表。
+ *  同一模型在多个 provider 出现时取最大 contextWindow（保守：窗口设小会过早压缩）。
+ *  数据目录不可读时返回空表，调用方回退默认值。 */
+export function getModelSpecLookup(): Map<string, ModelSpec> {
+  if (_modelLookup) return _modelLookup;
+  const lookup = new Map<string, ModelSpec>();
+  const dataDir = findDataDir();
+  try {
+    for (const f of readdirSync(dataDir)) {
+      if (!f.endsWith(".json")) continue;
+      let data: unknown;
+      try {
+        data = JSON.parse(readFileSync(join(dataDir, f), "utf-8"));
+      } catch { continue; }
+      if (!data || typeof data !== "object") continue;
+      for (const apiGroup of Object.values(data as Record<string, unknown>)) {
+        if (!apiGroup || typeof apiGroup !== "object") continue;
+        for (const [id, m] of Object.entries(apiGroup as Record<string, any>)) {
+          if (!m || typeof m !== "object") continue;
+          const ctx = typeof m.contextWindow === "number" ? m.contextWindow : 0;
+          const max = typeof m.maxTokens === "number" ? m.maxTokens : 0;
+          if (ctx <= 0 && max <= 0) continue;
+          const prev = lookup.get(id);
+          const contextWindow = ctx > 0 && (!prev || ctx > prev.contextWindow) ? ctx : prev?.contextWindow ?? 0;
+          const maxTokens = max > 0 && (!prev || max > prev.maxTokens) ? max : prev?.maxTokens ?? 0;
+          lookup.set(id, { contextWindow, maxTokens });
+        }
+      }
+    }
+  } catch { /* 数据目录不可读:查表为空 */ }
+  _modelLookup = lookup;
+  return lookup;
 }

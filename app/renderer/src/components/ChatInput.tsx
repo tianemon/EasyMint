@@ -64,7 +64,7 @@ export const ChatInput = memo(function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const availableModels = useSettingsStore((s) => s.availableModels);
   const indicatorOrder = useDelegationStore((s) => s.order);
-  const ctxPct = useStatusStore((s) => s.bySession[sessionId]?.ctxPct ?? 0);
+  const ctxPct = useStatusStore((s) => s.bySession[sessionId]?.ctxPct ?? null);
   const summarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
   const compacting = useStatusStore((s) => s.bySession[sessionId]?.compacting ?? false);
   const inputDisabled = summarizing || compacting;
@@ -229,13 +229,13 @@ export const ChatInput = memo(function ChatInput({
             { value: "max", label: "最高" },
           ]}
         />
-        <div className="ctx-ring" title={`上下文使用率 ${Math.round(ctxPct)}%`} onClick={onStatsClick} style={{ cursor: "pointer" }}>
+        <div className="ctx-ring" title={ctxPct === null ? "上下文使用率未知（压缩后待新回复）" : `上下文使用率 ${Math.round(ctxPct)}%`} onClick={onStatsClick} style={{ cursor: "pointer" }}>
           <svg width="20" height="20" viewBox="0 0 20 20">
             <circle className="ctx-ring-track" cx="10" cy="10" r="8"/>
             <circle className="ctx-ring-fill" cx="10" cy="10" r="8"
-              strokeDasharray="50.27" strokeDashoffset={50.27 * (1 - ctxPct / 100)}/>
+              strokeDasharray="50.27" strokeDashoffset={ctxPct === null ? 50.27 : 50.27 * (1 - ctxPct / 100)}/>
           </svg>
-          <span className="ctx-ring-pct">{Math.round(ctxPct)}%</span>
+          <span className="ctx-ring-pct">{ctxPct === null ? "—" : `${Math.round(ctxPct)}%`}</span>
         </div>
         {inputDisabled ? (
           <button className="send-btn" disabled><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1l14 7-14 7 4-7-4-7z"/></svg></button>

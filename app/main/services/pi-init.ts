@@ -4,6 +4,7 @@
  */
 
 import { Store } from "./store";
+import { getModelSpecLookup } from "./pi-init-static";
 import {
   getModelRuntimeClass,
   getSettingsManagerClass,
@@ -106,6 +107,9 @@ async function syncProviders(store: Store) {
     if (config.presetId === "custom" && config.apiKey && config.baseUrl) {
       try {
         // 用户配置的模型列表(em-settings 中的 models 字段)
+        // contextWindow/maxTokens 从 SDK 全量 provider 数据查表(命中真实值)——
+        // 硬编码 200k 会导致 1M 窗口模型(kimi-k3/deepseek-v4-flash 等)过早触发压缩
+        const lookup = getModelSpecLookup();
         _modelRuntime.registerProvider(config.id, {
           name: config.name,
           apiKey: config.apiKey,
@@ -113,7 +117,13 @@ async function syncProviders(store: Store) {
           api: (config as any).apiType || "anthropic-messages",
           models: (config.models || []).map((m: string) => {
             const id = typeof m === "string" ? m : (m as any).id || String(m);
-            return { id, name: id, reasoning: true, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 4096 };
+            const spec = lookup.get(id);
+            return {
+              id, name: id, reasoning: true, input: ["text"],
+              cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+              contextWindow: spec?.contextWindow ?? 200000,
+              maxTokens: spec?.maxTokens ?? 4096,
+            };
           }),
         } as any);
         if (config.apiKey) {

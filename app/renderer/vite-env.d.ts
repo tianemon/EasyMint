@@ -224,7 +224,7 @@ interface ElectronAPI {
     onContextSummarizing: (callback: (data: { chatId: string }) => void) => () => void;
     onContextSummary: (callback: (data: { chatId: string; summary: string }) => void) => () => void;
     onContextRotated: (callback: (data: { chatId: string; sessionId: string }) => void) => () => void;
-    onContextUsage: (callback: (data: { chatId: string; percentage: number; totalTokens: number; maxTokens: number }) => void) => () => void;
+    onContextUsage: (callback: (data: { chatId: string; percentage: number | null; totalTokens: number; maxTokens: number }) => void) => () => void;
     onTaskStatus: (callback: (data: { taskId: string; status: string; projectPath: string }) => void) => () => void;
     onCommandsChanged: (callback: (data: { commands: Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> }) => void) => () => void;
     onRenameProgress: (callback: (data: { phase: string }) => void) => () => void;
@@ -359,7 +359,7 @@ interface ElectronAPI {
     delete: (projectId: string, sessionId: string) => Promise<void>;
   };
   sessionCache: {
-    read: (sessionId: string) => Promise<{ permissionMode: string; model?: string; provider?: string; contextUsage: number; updatedAt: number } | null>;
+    read: (sessionId: string) => Promise<{ permissionMode: string; model?: string; provider?: string; contextUsage: number | null; updatedAt: number } | null>;
     write: (sessionId: string, data: Record<string, unknown>) => Promise<void>;
     delete: (sessionId: string) => Promise<void>;
   };

@@ -314,7 +314,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:context-rotated", handler);
       return () => ipcRenderer.removeListener("agent:context-rotated", handler);
     },
-    onContextUsage: (callback: (data: { chatId: string; percentage: number; totalTokens: number; maxTokens: number }) => void) => {
+    onContextUsage: (callback: (data: { chatId: string; percentage: number | null; totalTokens: number; maxTokens: number }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { chatId: string; percentage: number; totalTokens: number; maxTokens: number }) => callback(data);
       ipcRenderer.on("agent:context-usage", handler);
       return () => ipcRenderer.removeListener("agent:context-usage", handler);

@@ -29,7 +29,7 @@
 - 系统提示词 + 增强 bash 工具描述/guidelines/返回文本：明确「后台命令输出自动收集（面板实时显示/落盘/退出注入），**禁止手动重定向**（`> file 2>&1`、`| tee`、`nohup ... &`）——重定向绕过自动收集；读完整输出用 read 读返回的日志路径」
 - ShellProcessView 面板兜底提示：运行中无内容时提示可能原因
 
-**防御性修复（保留）**：decodeSeg 前缀即时输出（混非 UTF-8 字节不再吞输出）；日志改同步写（openSync/writeSync）运行中实时落盘
+**防御性修复（保留）**：decodeSeg 前缀即时输出（混非 UTF-8 字节不再吞输出）。~~日志同步写~~ 已回退（非问题根因，writeSync 有阻塞风险），registry.ts 保持原状
 
 **用户决策（2026-08-25）**：不做「面板改文件轮询」和「重定向目标解析兜底」——曾评估两全方案（logPath 文件为唯一真相源 + 面板增量轮询，以及命令末尾重定向解析兜底），用户判断该功能非核心（偶尔查看），仅提示词约束即可。已知局限：提示词效力弱时 AI 重定向到非 logPath 路径，面板仍无输出（面板提示会说明可能原因）。
 
@@ -59,7 +59,7 @@
 | `app/shared/prompts.ts` | 后台命令禁止手动重定向规则 |
 | `app/main/services/background-shell/tool.ts` | 工具描述/guidelines/返回文本：输出自动收集、勿重定向 |
 | `app/main/services/background-shell/encoding.ts` | decodeSeg 前缀输出修复（防御性） |
-| `app/main/services/background-shell/registry.ts` | 日志同步写（防御性） |
+| `app/main/services/background-shell/registry.ts` | 无改动（日志同步写已回退） |
 | `app/renderer/src/index.css` | 弹层内容区 user-select 恢复 |
 | `app/renderer/src/components/ShellProcessView.tsx` | 滚动控制 + 回底按钮 + 日志路径 + 空输出提示 |
 | `app/renderer/src/components/SubagentProcessView.tsx` | 回底按钮 |

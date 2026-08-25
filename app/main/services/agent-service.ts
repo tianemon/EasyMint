@@ -468,6 +468,23 @@ export class AgentService {
     // SDK isStreaming 可能残留 true，若无此标记 steer 会把消息入队永不消费）
     this.activePromptSessions.add(sessionId);
 
+    // 回合内节流上报使用率:长工具回合(连续几十次工具调用)内上下文可能暴涨(工具结果大),
+    // 只在回合结束上报会错过 EM 弹窗阈值 → SDK 兜底(98%)直接压缩,用户感知"跳过阈值"。
+    // 5s 节流:回合内频繁流式事件不刷屏,回合结束的成功/错误路径仍各自强制上报
+    let lastCtxReport = 0;
+    const reportCtxThrottled = () => {
+      const now = Date.now();
+      if (now - lastCtxReport < 5000) return;
+      lastCtxReport = now;
+      const usage = session.getContextUsage();
+      if (usage) {
+        broadcast("agent:context-usage", {
+          chatId, percentage: usage.percent ?? null,
+          totalTokens: usage.tokens ?? 0, maxTokens: usage.contextWindow,
+        });
+      }
+    };
+
     const unsub = session.subscribe((event: AgentSessionEvent) => {
       try {
         bridgeSessionEvents(event, {
@@ -476,6 +493,7 @@ export class AgentService {
             ev.chatId = chatId;
             broadcast("agent:stream", ev);
             this.bufferEvent(sessionId, ev);
+            reportCtxThrottled();
           },
           getSession: () => session,
           setPendingResult: (ev: PiChatEvent) => { pendingResult = ev; },
@@ -492,7 +510,7 @@ export class AgentService {
           const usage = chat.session?.getContextUsage();
           if (usage) {
             broadcast("agent:context-usage", {
-              chatId, percentage: usage.percent ?? 0,
+              chatId, percentage: usage.percent ?? null,
               totalTokens: usage.tokens ?? 0, maxTokens: usage.contextWindow,
             });
           }
@@ -525,7 +543,7 @@ export class AgentService {
           if (usage) {
             broadcast("agent:context-usage", {
               chatId,
-              percentage: usage.percent ?? 0,
+              percentage: usage.percent ?? null,
               totalTokens: usage.tokens ?? 0,
               maxTokens: usage.contextWindow,
             });
@@ -564,7 +582,7 @@ export class AgentService {
         if (usage) {
           broadcast("agent:context-usage", {
             chatId,
-            percentage: usage.percent ?? 0,
+            percentage: usage.percent ?? null,
             totalTokens: usage.tokens ?? 0,
             maxTokens: usage.contextWindow,
           });
@@ -1154,7 +1172,7 @@ export class AgentService {
           const usage = chat.session?.getContextUsage();
           if (usage) {
             broadcast("agent:context-usage", {
-              chatId: chat.chatId, percentage: usage.percent ?? 0,
+              chatId: chat.chatId, percentage: usage.percent ?? null,
               totalTokens: usage.tokens ?? 0, maxTokens: usage.contextWindow,
             });
           }
