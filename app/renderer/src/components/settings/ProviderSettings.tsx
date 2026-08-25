@@ -17,7 +17,7 @@ export interface ProviderFormProps {
 
 export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   const editMode = initial != null;
-  const [presetId, setPresetId] = useState<string>(initial?.presetId || "");
+  const [presetId, setPresetId] = useState<string>(initial?.presetId || "custom");
   const preset = getPreset(presetId);
   const isCustom = presetId === "custom" || initial?.presetId === "custom";
   const brand = BRAND_BY_PI_ID.get(presetId);
@@ -105,7 +105,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   };
 
   const SELF_PROVIDER = { value: "custom", label: "自定义供应商", icon: "" };
-  const SELF_PROVIDER_OPTIONS = [...providerSelectOptions(), SELF_PROVIDER];
+  const SELF_PROVIDER_OPTIONS = [SELF_PROVIDER, ...providerSelectOptions()];
 
   return (
     <div className="space-y-4">
@@ -128,6 +128,31 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         <input className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent transition-colors"
           placeholder="如：我的DeepSeek" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
+
+      {/* 自定义供应商:Base URL + API 协议(在 API Key 前——新增默认选自定义,先填接入信息) */}
+      {isCustom && (<>
+      <div>
+        <label className="text-xs text-text-secondary block mb-1.5">Base URL *</label>
+        <input
+          className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+          placeholder="https://api.example.com/v1"
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="text-xs text-text-secondary block mb-1.5">API 协议</label>
+        <select
+          value={apiType}
+          onChange={(e) => setApiType(e.target.value)}
+          className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+        >
+          <option value="anthropic-messages">Anthropic Messages</option>
+          <option value="openai-completions">OpenAI Completions</option>
+          <option value="openai-responses">OpenAI Responses</option>
+        </select>
+      </div>
+      </>)}
 
       {/* API Key */}
       <div>
@@ -196,28 +221,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       )}
 
       {isCustom && (<>
-      {/* 自定义供应商:Base URL + API 类型 + 模型列表 */}
-      <div>
-        <label className="text-xs text-text-secondary block mb-1.5">Base URL *</label>
-        <input
-          className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
-          placeholder="https://api.example.com/v1"
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
-        />
-      </div>
-      <div>
-        <label className="text-xs text-text-secondary block mb-1.5">API 协议</label>
-        <select
-          value={apiType}
-          onChange={(e) => setApiType(e.target.value)}
-          className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
-        >
-          <option value="anthropic-messages">Anthropic Messages</option>
-          <option value="openai-completions">OpenAI Completions</option>
-          <option value="openai-responses">OpenAI Responses</option>
-        </select>
-      </div>
+      {/* 自定义供应商:模型列表 */}
       <div>
         <label className="text-xs text-text-secondary block mb-1.5">模型列表(每行一个模型 ID)</label>
         <textarea
