@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * 后台命令输出查看弹层 — 对齐 Agent 过程查看(纯文本流)。
@@ -78,7 +79,9 @@ export function ShellProcessView({
     if (el) el.scrollTop = el.scrollHeight;
   }, [content]);
 
-  return (
+  // createPortal 挂 body:弹窗渲染在输入卡片内,空态时气泡锚点容器有 transform
+  // (translateY(-200px)) 会劫持 fixed 定位——弹窗被推到窗口底部被遮挡(对齐 LogOverlay 的处理)
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
         className="relative flex flex-col w-[720px] max-w-[92vw] h-[68vh] rounded-[12px] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
@@ -154,6 +157,7 @@ export function ShellProcessView({
           </button>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
