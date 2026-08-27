@@ -79,12 +79,12 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="relative bg-surface rounded-xl border border-border shadow-2xl w-[460px] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="relative bg-surface rounded-xl border border-border shadow-2xl w-[760px] h-[600px] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-surface-alt shrink-0">
           <span className="text-sm font-medium text-text-primary">编辑脚本</span>
           <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} title="关闭">✕</button>
         </div>
-        <div className="space-y-3 px-4 py-3">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 px-4 py-3">
           <div>
             <label className="text-xs text-text-secondary block mb-1">标题</label>
             <input className={inputCls} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="如：安卓端打包" />
@@ -92,8 +92,8 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
           <div>
             <label className="text-xs text-text-secondary block mb-1">运行命令</label>
             <textarea
-              className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent/50 resize-y font-mono leading-relaxed"
-              rows={5}
+              className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent/50 resize-none font-mono leading-relaxed"
+              rows={8}
               value={runCommand}
               onChange={(e) => setRunCommand(e.target.value)}
               placeholder="如：flutter build apk 或 bash scripts/release.sh"
