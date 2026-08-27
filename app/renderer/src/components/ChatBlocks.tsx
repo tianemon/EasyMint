@@ -3,6 +3,14 @@ import { marked } from "marked";
 import type { StreamEntry } from "./StreamPanel";
 import { inferLang, tokenizeLines } from "../lib/diff-highlight";
 
+// 链接渲染:加 target="_blank" rel="noopener"——新窗口打开,
+// 主进程 setWindowOpenHandler 拦截后转系统浏览器(否则点击链接窗口内跳走,EM 界面被替换无法返回)
+const mdRenderer = new marked.Renderer();
+mdRenderer.link = ({ href, title, tokens }) => {
+  const text = tokens.map((t) => t.raw).join("");
+  return `<a href="${href}" target="_blank" rel="noopener noreferrer"${title ? ` title="${title}"` : ""}>${text}</a>`;
+};
+
 // ── Block types ──────────────────────────────────────
 
 interface TextBlock {
@@ -203,7 +211,7 @@ export function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
           <div
             key={k}
             dangerouslySetInnerHTML={{
-              __html: marked.parse(part.content, { breaks: true }) as string,
+              __html: marked.parse(part.content, { breaks: true, renderer: mdRenderer }) as string,
             }}
           />
         );

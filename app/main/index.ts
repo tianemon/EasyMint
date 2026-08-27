@@ -225,6 +225,18 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     return { action: "deny" };
   });
 
+  // 链接点击/导航拦截:站内(同 origin 或 file://)放行,外部 URL 用系统浏览器打开——
+  // 否则 Mint 回复里的链接点击后窗口内跳走,EM 界面被替换无法返回(只能重启)
+  window.webContents.on("will-navigate", (event, url) => {
+    const current = window.webContents.getURL();
+    const sameOrigin = (() => {
+      try { return new URL(url).origin === new URL(current).origin; } catch { return false; }
+    })();
+    if (sameOrigin || url.startsWith("file://")) return; // 站内(hash 路由/同源)放行
+    event.preventDefault();
+    shell.openExternal(url);
+  });
+
   return window;
 }
 
