@@ -24,10 +24,11 @@ description: >-
 ## 字段
 
 - **platform**：技术栈。合法值：react/vue/nextjs/nuxt/angular/svelte/spring/django/flask/fastapi/nodejs/rails/laravel/go/rust/dotnet/react-native/expo/flutter/electron/tauri/python/shell。mac 桌面脚本用 shell，桌面应用用 electron。
-- **label**：显示名，如"前端"、"后端"、"Android"
+- **label**：显示名，如"前端"、"后端"、"Android"（命名规则见下方「脚本标题命名」）
 - **cwd**：工作目录（相对项目根），默认 "."
-- **run_command**：启动命令，如 npm run dev、python main.py、flutter run
-- **url**：启动后访问地址，如 http://localhost:3000
+- **run_command**：运行命令，如 npm run dev、python main.py、flutter run、flutter build apk、bash deploy.sh
+- **install_command**（可选）：依赖安装命令，如 flutter pub get、npm install。面板未运行时显示安装按钮
+- **url**（可选）：启动后访问地址，如 http://localhost:3000（仅运行类脚本需要，构建/打包/安装类不填）
 
 ## 规则
 
