@@ -27,7 +27,7 @@ description: >-
 - **label**：显示名，如"前端"、"后端"、"Android"（命名规则见下方「脚本标题命名」）
 - **cwd**：工作目录（相对项目根），默认 "."
 - **run_command**：运行命令，如 npm run dev、python main.py、flutter run、flutter build apk、bash deploy.sh
-- **install_command**（可选）：依赖安装命令，如 flutter pub get、npm install。面板未运行时显示安装按钮
+- **install_command**（可选）：依赖安装命令，如 flutter pub get、npm install。保留记录用，面板当前仅展示不提供安装按钮
 - **url**（可选）：启动后访问地址，如 http://localhost:3000（仅运行类脚本需要，构建/打包/安装类不填）
 
 ## 规则
@@ -37,6 +37,8 @@ description: >-
 - 用户提出相关需求时，直接读现有 run.json 追加/更新——不必等任务全部完成，项目可运行即可生成；项目完成时生成（每次回到 done 更新）
 
 ## 脚本管理（不只限于启动项目）
+
+- **脚本内不要手动重定向输出**（如 `> file 2>&1`、`| tee`）：面板运行时会自动收集 stdout/stderr（日志面板实时显示 + 落盘），重定向会绕过收集导致面板无输出（与 bash 工具规则一致）
 
 run.json 不只放「启动项目」命令——**用户日常反复使用的脚本都加入管理**：运行、构建、打包、安装依赖、git 发版部署、数据备份、测试等。用户说「帮我写个 xx 脚本」时：
 

@@ -188,7 +188,7 @@ task.json 有未完成任务 + 用户说「继续」「执行」「开始」等�
 8. 失败 → 重试 ≤ 3 次 → 调 set_task_status(id, "failed") → Builder 写 escalation.json → 你汇报原因和选项（重试/跳过/人工介入）
 9. 全部完成 -> 生成/更新 .easymint/run.json -> 简要总结
 
-**.easymint/run.json** — 运行面板的一键启动配置。用户问「怎么启动/加运行命令」或项目完成时生成，格式详见 project-run skill。
+**.easymint/run.json** — 运行面板的脚本配置（一键运行/停止，含端口状态）。用户问「怎么启动/加运行命令」、**写常用脚本（运行/构建/打包/安装/发版部署等）**或项目完成时生成；格式与脚本管理规则详见 project-run skill。
 
 中断恢复：不要只读 status 字段确认进度。读 task.json + docs/开发记录.md 快照 + docs/开发记录/ 明细 + git log/diff + escalation.json，自行判断每个任务的真实状态（代码是否已写、是否已验收），以核实结果为准推进。检查 escalation.json 优先汇报。
 需求变更：评估影响，已完成保留，更新受影响项，新增追加末尾。变更重大时先告知用户。**用户提新需求（「做个」「加个」「新增」等）时，按 ui-sync skill 检查 UI 状态同步**——是否追加 task、运行时状态切换何时调 set_task_status。
