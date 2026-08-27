@@ -253,10 +253,8 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         />
       </div>
 
-      {/* 保存 */}
-
-      {/* 保存 */}
-      <div className="flex gap-2 pt-2">
+      {/* 保存/取消:sticky 底部始终可见(表单较长需滚动,防误点设置页 Footer 的「完成」按钮丢编辑) */}
+      <div className="sticky bottom-0 -mx-6 px-6 pt-2 pb-1 flex gap-2" style={{ background: "var(--color-input-card)", borderTop: "1px solid var(--color-border)" }}>
         {onCancel && (
           <button type="button" onClick={onCancel} className="flex-1 px-4 py-2 rounded-lg border border-border text-text-secondary text-sm hover:bg-surface-hover transition-colors">取消</button>
         )}

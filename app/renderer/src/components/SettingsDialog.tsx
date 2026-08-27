@@ -117,7 +117,7 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
             className="px-5 py-1.5 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors text-sm font-medium"
             onClick={handleClose}
           >
-            保存
+            完成
           </button>
         </div>
       </div>
