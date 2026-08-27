@@ -305,7 +305,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     });
   });
 
-  // Ctrl+A:焦点(最近点击/选择锚点)在消息气泡内时只全选该气泡内容,不全选整个页面
+  // Ctrl+A:焦点(最近点击/选择锚点)在消息气泡内时只全选该气泡内容;
+  // 空白区域也禁止全选页面(不执行任何选择);输入框/文本域保持编辑语义(全选输入内容)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "a") return;
@@ -314,9 +315,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       const anchor = sel.anchorNode;
       if (!anchor) return;
       const el = anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : (anchor as Element);
+      if (el?.closest("textarea, input, [contenteditable='true']")) return; // 输入区编辑语义
       const bubble = el?.closest(".msg-bubble-user, .msg-bubble-agent, .msg-bubble-system");
-      if (!bubble) return; // 焦点不在气泡内 → 保持默认(全选页面)
-      e.preventDefault();
+      e.preventDefault(); // 一律阻止页面全选
+      if (!bubble) return; // 空白区域:不执行任何选择
       const range = document.createRange();
       range.selectNodeContents(bubble);
       sel.removeAllRanges();
