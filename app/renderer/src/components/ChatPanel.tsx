@@ -66,6 +66,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 打断时间戳:打断后 1.5s 内的 agent:exit 是旧回合残留(abort 触发),
   // 忽略不清 busy——打断瞬间后台通知开的新回合(turn_start 已设 busy)不被误清
   const interruptAtRef = useRef(0);
+  // 回合级错误时间戳:error 后 1s 内残留事件不重新设 busy(错误回合已结束)
+  const lastErrorAtRef = useRef(0);
   const ctxThresholdFiredRef = useRef(0); // 已按阈值触发过主动压缩（防止同轮重复触发）
   // 压缩弹窗「下次回复完触发」:回复结束(agent:exit)后重置阈值防重 → 重新弹窗走同样流程
   const rearmAfterExitRef = useRef(false);
@@ -797,7 +799,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         const cid = event.chatId || event.runId;
         if (cid) { currentChatRef.current = cid; setCurrentRunId(cid); }
       }
-      setBusy(true);
+      // error 后 1s 内的残留事件(tool_result/message_end 等)不重新设 busy——
+      // error 分支已清 busy(回合结束),残留事件会把按钮打回打断态;新回合 turn_start 除外
+      if (event.type === "turn_start" || Date.now() - lastErrorAtRef.current > 1000) {
+        setBusy(true);
+      }
       // 输出段块(assistant 消息)内容帧处理:无当前块 → 按消息对象创建时间戳插入新块,
       // 有当前块 → 全量替换内容(帧是累计全文快照)。块 piTs 固定于创建时刻,通知按
       // 各自 ts 插到块之间,UI 顺序 = jsonl 落盘顺序(不依赖广播到达顺序)
@@ -907,6 +913,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // (否则 SDK 错误回合 turn_start 设的 busy 残留,如打断抛 AbortError 后 Mint 无输出、按钮卡打断态);
       // 后续新回合 turn_start 会重新设 busy。插播错误信号 8s 后自动消失
       if (event.type === "error") {
+        lastErrorAtRef.current = Date.now();
         busyRef.current = false; setBusy(false);
         useStatusStore.getState().popSignal(sidRef.current, "request");
         // 清工具信号:打断时 bash 工具执行信号("sleep 90" 等)残留栈里,
