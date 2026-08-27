@@ -91,11 +91,14 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
           </div>
           <div>
             <label className="text-xs text-text-secondary block mb-1">运行命令</label>
-            <input className={inputCls} value={runCommand} onChange={(e) => setRunCommand(e.target.value)} placeholder="如：flutter build apk 或 bash scripts/release.sh" />
+            <textarea
+              className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent/50 resize-y font-mono leading-relaxed"
+              rows={5}
+              value={runCommand}
+              onChange={(e) => setRunCommand(e.target.value)}
+              placeholder="如：flutter build apk 或 bash scripts/release.sh"
+            />
           </div>
-          {scriptPath && (
-            <p className="text-[10px] text-text-muted">检测到脚本文件：{scriptFileName}（{scriptPath}）</p>
-          )}
         </div>
         <div className="flex items-center gap-2 px-4 py-2.5 border-t border-border bg-surface-alt shrink-0">
           {scriptPath && (
