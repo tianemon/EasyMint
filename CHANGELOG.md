@@ -3,16 +3,26 @@
 > 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/) 规范：只记录 release 的**用户可见变更**。
 > **发布前必更新**：日常变更先记入下方 `[Unreleased]`，发版时整理成本版本条目；内部开发记录（项目变动/用户决策/实现过程）见 `docs/开发记录.md`（发版时同步更新头部快照与当天日志）。
 
-## v0.12.2 (2026-08-28) — 打断提示精简 & Skill 读取修复
+## v0.12.2 (2026-08-28) — 输出管线修复 & 窗口统一 & 交互优化（合并重发）
 
 ### Fixed（修复）
 
 - **打断不再显示「已停止」提示**：打断是主动操作，按钮状态变化即反馈——abort 类错误静默处理；真实错误（503/429/超时）仍提示 8s
 - **Mint 读 Skill 报 EISDIR**：skill 注入列表的路径原指向文件夹（如 `.../skills/project-run`），Mint 按提示 Read 文件夹报"illegal operation on a directory"——路径改为直接指向 `SKILL.md` 文件
+- **子进程输出乱码（U+FFFD）**：运行面板/shell 服务日志 `chunk.toString()` 直接解码，多字节中文被 chunk 边界切断产生 `��`——统一接入流式解码（decodeSeg，UTF-8 跨 chunk 等待/GBK 兜底）
+- **ANSI 转义序列残留**：彩色命令输出（flutter 构建等）的 `[0;32m` 原文显示——显示层保留 ANSI 转彩色渲染；喂模型的文本（前台 bash/后台完成通知）剥离
+- **链接点击窗口内跳走**：Mint 回复的网址点击后 EM 界面被替换无法返回——`will-navigate` 拦截外部 URL 转系统浏览器 + marked 链接加 `target="_blank"`
+- **打开已有会话体验**：输入卡片先渲染、使用率按钮加载期间填充旧进度误导——消息加载期间显示「正在加载会话…」占位，使用率延迟到加载完成恢复
+- **Ctrl+A 全选整个页面**：焦点在消息气泡内只全选该气泡；空白区域禁止页面全选；输入框保持编辑语义
+- **弹窗点击关闭误触下层**：点击运行日志窗口误关侧边栏抽屉——全局弹窗分层检测（overlay-stack），点击上层弹窗不关闭下层
+- **输出窗口拖拽选中移出边缘误关窗口**：遮罩关闭改为按下+松开双判断（onClick 公共祖先语义导致）
 
-### Changed（重构）
+### Changed（变更）
 
-- `buildSkillsPrompt` 三组 skill 输出封装为 `pushSkillGroup`；`scanSkills` builtin 归并三次遍历合并为一次（行为不变）
+- **运行日志/后台 shell 窗口合并**：统一 OutputWindow 组件（功能并集：停止按钮/日志路径/截断提示/ANSI 彩色/自动滚动/Ctrl+A/遮罩双判断）——两处入口同一弹窗；子 Agent 过程弹窗同步统一尺寸（80vw×80vh）与视觉
+- **日志面板 ANSI 彩色渲染**：One Dark 配色，日志内容先 HTML 转义防注入
+- `buildSkillsPrompt` 三组 skill 输出封装为 `pushSkillGroup`；`scanSkills` builtin 归并合并（行为不变）
+- vite.config `__dirname` → `import.meta.dirname`（Vite 8 native configLoader 兼容）
 
 ## v0.12.1 (2026-08-27) — 打断状态机修复
 
