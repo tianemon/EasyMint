@@ -917,12 +917,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         busyRef.current = false; setBusy(false);
         useStatusStore.getState().popSignal(sidRef.current, "request");
         // 清工具信号:打断时 bash 工具执行信号("sleep 90" 等)残留栈里,
-        // 不清理则「已停止」8s 消失后回退显示残留的工具信号
+        // 不清理则提示消失后回退显示残留的工具信号
         useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:");
-        // 归一化上游错误(503/429/超时/abort)为友好提示,状态栏不显示原始 JSON;
-        // 打断(abort)是主动操作,反馈短暂显示(2s),真实错误停留 8s
-        const isAbort = /abort|cancel/i.test(event.message || "");
-        useStatusStore.getState().pushSignal(sidRef.current, "error", normalizeApiError(event.message) || "出错了", isAbort ? 2000 : 8000);
+        // 打断(abort)是主动操作,按钮状态变化即反馈——不显示提示;
+        // 真实错误(503/429/超时)归一化后停留 8s
+        if (!/abort|cancel/i.test(event.message || "")) {
+          useStatusStore.getState().pushSignal(sidRef.current, "error", normalizeApiError(event.message) || "出错了", 8000);
+        }
       }
       // custom 系统消息(委派完成/后台 shell/流程指令)→ 独立即时显示:
       // triggerTurn: false 注入,立即落盘 + 立即事件(带 streaming 标记,
