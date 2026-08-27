@@ -31,6 +31,7 @@ const PLATFORM_LABEL: Record<RunPlatform, string> = {
   tauri: "tauri",
   python: "python",
   shell: "shell",
+  git: "git",
 };
 
 export function LogOverlay({ commandId }: LogOverlayProps): JSX.Element {
