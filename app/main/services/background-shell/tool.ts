@@ -12,7 +12,7 @@ import { getCreateBashToolDefinition } from "../pi-sdk";
 import { backgroundShellRegistry, type BackgroundShell } from "./registry";
 import { resolveSpawn } from "./registry";
 import { spawn } from "node:child_process";
-import { createCodingAwareDecoder, createAnsiStripper } from "./encoding";
+import { createCodingAwareDecoder, createAnsiStripper, stripAnsi } from "./encoding";
 
 /** 前台 bash 执行(spawn + 编码容错解码,对齐 Pi 行为:同步 + 超时 + 截断提示 + PI_* 环境注入) */
 async function executeForeground(
@@ -114,7 +114,8 @@ export function formatShellResult(shell: BackgroundShell): string {
   const dur = Math.max(0, Math.round((Date.now() - shell.startedAt) / 1000));
   const summary = `⏺ 后台命令 — ${status}${dur > 0 ? ` · ${dur}s` : ""}`;
   const head = `命令: ${shell.command}\n退出码: ${shell.exitCode ?? "?"}`;
-  const tail = shell.output.trim().split("\n").slice(-PREVIEW_TAIL_LINES).join("\n").trim();
+  // 注入主会话文本剥 ANSI(shell.output 保留原始供面板彩色渲染;模型/消息区要干净文本)
+  const tail = stripAnsi(shell.output.trim().split("\n").slice(-PREVIEW_TAIL_LINES).join("\n").trim());
   const output = tail
     ? `输出(尾部 ${PREVIEW_TAIL_LINES} 行):\n${tail}`
     : "(无输出)";

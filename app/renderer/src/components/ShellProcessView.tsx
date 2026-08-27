@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ansiToHtml } from "../lib/ansi-colors";
 
 /**
  * 后台命令输出查看弹层 — 对齐 Agent 过程查看(纯文本流)。
@@ -154,7 +155,7 @@ export function ShellProcessView({
             </div>
           )}
           {content ? (
-            <pre className="whitespace-pre-wrap break-words font-mono text-xs text-text-primary leading-relaxed">{content}</pre>
+            <pre className="whitespace-pre-wrap break-words font-mono text-xs text-text-primary leading-relaxed" dangerouslySetInnerHTML={{ __html: ansiToHtml(content) }} />
           ) : (
             <div>
               <span className="text-xs text-text-secondary">{running ? "等待输出…" : "(无输出)"}</span>

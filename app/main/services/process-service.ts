@@ -9,7 +9,7 @@ import { existsSync, readFileSync, writeFileSync, watch } from "node:fs";
 import { join } from "node:path";
 import { BrowserWindow } from "electron";
 import { resolveHome } from "../utils/paths";
-import { createCodingAwareDecoder, createAnsiStripper } from "./background-shell/encoding";
+import { createCodingAwareDecoder } from "./background-shell/encoding";
 
 /** 已知 platform 值（前端配色用），未列出的用默认色 */
 export type RunPlatform =
@@ -196,16 +196,15 @@ export function startProcess(projectPath: string, commandId: string, port?: numb
     broadcast(commandId, line, stream);
   };
 
-  // 流式解码（chunk 截断多字节字符不再 U+FFFD）+ 流式剥 ANSI（序列跨 chunk 切碎也能剥离）
+  // 流式解码（chunk 截断多字节字符不再 U+FFFD）；ANSI 保留原文——
+  // 前端日志渲染 ansiToHtml 转彩色（终端体验），不再剥离
   const outDec = createCodingAwareDecoder();
   const errDec = createCodingAwareDecoder();
-  const outAnsi = createAnsiStripper();
-  const errAnsi = createAnsiStripper();
   proc.stdout?.on("data", (chunk: Buffer) => {
-    outAnsi.feed(outDec.feed(chunk)).split("\n").filter(Boolean).forEach((l) => pushLog(l, "stdout"));
+    outDec.feed(chunk).split("\n").filter(Boolean).forEach((l) => pushLog(l, "stdout"));
   });
   proc.stderr?.on("data", (chunk: Buffer) => {
-    errAnsi.feed(errDec.feed(chunk)).split("\n").filter(Boolean).forEach((l) => pushLog(l, "stderr"));
+    errDec.feed(chunk).split("\n").filter(Boolean).forEach((l) => pushLog(l, "stderr"));
   });
   proc.on("close", (_code, _signal) => {
     if (processes.get(commandId) === info) {

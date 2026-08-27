@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useProcessStore } from "../stores/process-store";
 import type { RunPlatform } from "../stores/process-store";
+import { ansiToHtml } from "../lib/ansi-colors";
 
 interface LogOverlayProps {
   commandId: string;
@@ -130,7 +131,7 @@ export function LogOverlay({ commandId }: LogOverlayProps): JSX.Element {
             <span className="text-[#888]">等待输出...</span>
           ) : (
             logs.map((line, i) => (
-              <div key={i} className="text-[#d4d4d4] whitespace-pre-wrap break-all">{line}</div>
+              <div key={i} className="text-[#d4d4d4] whitespace-pre-wrap break-all" dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
             ))
           )}
         </div>
