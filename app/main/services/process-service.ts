@@ -97,28 +97,35 @@ function getCommandConfig(projectPath: string, commandId: string): Runnable | un
   return readRunJson(projectPath).find((r) => r.id === commandId);
 }
 
-/** 写 run.json（前端编辑/删除脚本后保存）。保留原文件其余字段，commands 整体替换；
- *  文件变化经 runJsonWatchers 广播 → 前端运行面板自动刷新 */
+/** 写 run.json（前端编辑/删除脚本后保存）。保留原文件其余字段与条目的未知字段
+ *  （兼容旧版/自定义扩展字段，仅覆盖已知字段）；文件变化经 runJsonWatchers 广播 → 前端自动刷新 */
 export function saveRunJson(projectPath: string, runnables: Runnable[]): void {
   const runJson = join(resolveHome(projectPath), ".easymint", "run.json");
   let extra: Record<string, unknown> = {};
+  let oldCommands: Array<Record<string, unknown>> = [];
   if (existsSync(runJson)) {
     try {
       const old = JSON.parse(readFileSync(runJson, "utf-8")) as Record<string, unknown>;
-      const { commands: _c, ...rest } = old;
+      const { commands, ...rest } = old;
       extra = rest;
+      oldCommands = Array.isArray(commands) ? (commands as Array<Record<string, unknown>>) : [];
     } catch { /* 解析失败则只写 commands */ }
   }
   const data = {
     ...extra,
-    commands: runnables.map((r) => ({
-      platform: r.platform,
-      label: r.label,
-      cwd: r.cwd || ".",
-      run_command: r.run_command,
-      url: r.url || "",
-      ...(r.install_command ? { install_command: r.install_command } : {}),
-    })),
+    commands: runnables.map((r) => {
+      // 按 id(= 旧 run_command)匹配原条目：保留未知字段，仅覆盖已知字段
+      const orig = oldCommands.find((c) => c.run_command === r.id);
+      return {
+        ...(orig ?? {}),
+        platform: r.platform,
+        label: r.label,
+        cwd: r.cwd || ".",
+        run_command: r.run_command,
+        url: r.url || "",
+        ...(r.install_command ? { install_command: r.install_command } : {}),
+      };
+    }),
   };
   writeFileSync(runJson, JSON.stringify(data, null, 2) + "\n");
 }
