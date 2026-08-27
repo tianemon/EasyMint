@@ -87,7 +87,8 @@ function platformColor(p: string): string {
 }
 
 /** 按命令首词推断平台标签（显示用）：Mint 写的 platform 可能按项目技术栈硬标，
- *  ./xx.sh 被标成 flutter 等——命令开头是什么工具就显示什么标签 */
+ *  ./xx.sh 被标成 flutter 等——命令开头是什么工具就显示什么标签；
+ *  未命中映射的小众命令直接显示命令首词本身（自适应，绝不显示无关的项目技术栈） */
 function inferPlatform(cmd: string, declared: string): string {
   const first = cmd.trim().split(/\s+/)[0]?.toLowerCase() || "";
   if (first.startsWith("flutter")) return "flutter";
@@ -101,7 +102,8 @@ function inferPlatform(cmd: string, declared: string): string {
   if (first === "go" || first.startsWith("go ")) return "go";
   if (first === "dotnet") return "dotnet";
   if (first === "docker") return "shell";
-  return declared;
+  // 未命中：显示命令首词本身（platformLabel/platformColor 对未知值有兜底）
+  return first || declared;
 }
 
 /** 标题滚动显示：文本溢出时 hover 滚动到末尾完整显示（滚动距离 JS 计算，注入 CSS 变量） */
