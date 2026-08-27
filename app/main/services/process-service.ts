@@ -9,6 +9,7 @@ import { existsSync, readFileSync, writeFileSync, watch } from "node:fs";
 import { join } from "node:path";
 import { BrowserWindow } from "electron";
 import { resolveHome } from "../utils/paths";
+import { createCodingAwareDecoder, stripAnsi } from "./background-shell/encoding";
 
 /** 已知 platform 值（前端配色用），未列出的用默认色 */
 export type RunPlatform =
@@ -195,11 +196,14 @@ export function startProcess(projectPath: string, commandId: string, port?: numb
     broadcast(commandId, line, stream);
   };
 
+  // 流式解码（chunk 截断多字节字符不再 U+FFFD）+ 剥离 ANSI（彩色输出不再原文残留）
+  const outDec = createCodingAwareDecoder();
+  const errDec = createCodingAwareDecoder();
   proc.stdout?.on("data", (chunk: Buffer) => {
-    chunk.toString().split("\n").filter(Boolean).forEach((l) => pushLog(l, "stdout"));
+    stripAnsi(outDec.feed(chunk)).split("\n").filter(Boolean).forEach((l) => pushLog(l, "stdout"));
   });
   proc.stderr?.on("data", (chunk: Buffer) => {
-    chunk.toString().split("\n").filter(Boolean).forEach((l) => pushLog(l, "stderr"));
+    stripAnsi(errDec.feed(chunk)).split("\n").filter(Boolean).forEach((l) => pushLog(l, "stderr"));
   });
   proc.on("close", (_code, _signal) => {
     if (processes.get(commandId) === info) {

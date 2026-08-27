@@ -45,6 +45,17 @@ export function finalDecode(bytes: Buffer): string {
   }
 }
 
+/** 剥离 ANSI 转义序列（CSI `\x1b[...m`、OSC `\x1b]...BEL`、字符集 `\x1b(...`），保留纯文本。
+ *  CLI 工具（flutter/打包脚本等）常输出彩色 ANSI，EM 日志为纯文本显示，需剥掉避免原文残留 */
+export function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text
+    .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "")
+    .replace(/\x1b\][^\x07]*(\x07|\x1b\\)/g, "")
+    // eslint-disable-next-line no-control-regex
+    .replace(/\x1b[()][0-9A-Za-z]/g, "");
+}
+
 /** 增量解码器:持续 feed chunk,输出解码文本(UTF-8/GBK 自动判定) */
 export function createCodingAwareDecoder(): {
   feed(chunk: Buffer): string;

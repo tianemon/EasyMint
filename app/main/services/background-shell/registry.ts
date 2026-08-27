@@ -14,7 +14,7 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createWriteStream, existsSync, mkdirSync, readdirSync, rmSync, statSync, type WriteStream } from "node:fs";
 import path from "node:path";
 import { broadcast } from "../ipc-broadcast";
-import { decodeSeg, finalDecode } from "./encoding";
+import { decodeSeg, finalDecode, stripAnsi } from "./encoding";
 
 /** 保留输出尾部上限(内存,通知预览;超出截断,防止内存膨胀) */
 const MAX_OUTPUT_BYTES = 4096;
@@ -226,13 +226,15 @@ class BackgroundShellRegistry {
           logStream = null;
         }
       }
-      // 统一解码:字节全部喂入 decodeSeg,由它判定编码(UTF-8 完整/未完成前缀/GBK)并返回输出 + 待续 rest
+      // 统一解码:字节全部喂入 decodeSeg,由它判定编码(UTF-8 完整/未完成前缀/GBK)并返回输出 + 待续 rest;
+      // 显示层剥 ANSI(彩色输出原文不残留;日志文件保持原始字节,见上方 logStream)
       holder.bytes = Buffer.concat([holder.bytes, chunk]);
       const { text, rest } = decodeSeg(holder.bytes);
       holder.bytes = rest;
       if (text) {
-        shell.output = (shell.output + text).slice(-MAX_OUTPUT_BYTES);
-        shell.streamBuf += text;
+        const clean = stripAnsi(text);
+        shell.output = (shell.output + clean).slice(-MAX_OUTPUT_BYTES);
+        shell.streamBuf += clean;
       }
       if (shell.streamBuf && !shell.flushTimer) {
         shell.flushTimer = setTimeout(() => this.flushStream(shell), STREAM_THROTTLE_MS);
@@ -242,8 +244,8 @@ class BackgroundShellRegistry {
     child.stderr?.on("data", (c) => collect(c, errBuf));
     child.on("exit", (code) => {
       // 冲掉残留缓冲(终局解码:不再等待未完成序列,UTF-8 尝试失败则 GBK)
-      const outTail = finalDecode(outBuf.bytes);
-      const errTail = finalDecode(errBuf.bytes);
+      const outTail = stripAnsi(finalDecode(outBuf.bytes));
+      const errTail = stripAnsi(finalDecode(errBuf.bytes));
       outBuf.bytes = Buffer.alloc(0);
       errBuf.bytes = Buffer.alloc(0);
       const tail = outTail + errTail;

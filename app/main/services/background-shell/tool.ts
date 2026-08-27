@@ -12,7 +12,7 @@ import { getCreateBashToolDefinition } from "../pi-sdk";
 import { backgroundShellRegistry, type BackgroundShell } from "./registry";
 import { resolveSpawn } from "./registry";
 import { spawn } from "node:child_process";
-import { createCodingAwareDecoder } from "./encoding";
+import { createCodingAwareDecoder, stripAnsi } from "./encoding";
 
 /** 前台 bash 执行(spawn + 编码容错解码,对齐 Pi 行为:同步 + 超时 + 截断提示 + PI_* 环境注入) */
 async function executeForeground(
@@ -66,16 +66,17 @@ async function executeForeground(
         }
       } catch { child.kill(); }
     };
-    child.stdout?.on("data", (c: Buffer) => { output += outDec.feed(c); });
-    child.stderr?.on("data", (c: Buffer) => { errOutput += errDec.feed(c); });
+    // 前台 bash:解码后剥 ANSI,返回给 Mint 的文本干净(彩色输出只含控制码,剥离无信息损失)
+    child.stdout?.on("data", (c: Buffer) => { output += stripAnsi(outDec.feed(c)); });
+    child.stderr?.on("data", (c: Buffer) => { errOutput += stripAnsi(errDec.feed(c)); });
     child.on("error", (err) => {
       if (timer) clearTimeout(timer);
       reject(new Error(`bash 执行失败: ${err.message}`));
     });
     child.on("exit", (code) => {
       if (timer) clearTimeout(timer);
-      output += outDec.finish();
-      errOutput += errDec.finish();
+      output += stripAnsi(outDec.finish());
+      errOutput += stripAnsi(errDec.finish());
       const text = [output, errOutput].filter(Boolean).join("\n") || "(无输出)";
       if (timedOut) {
         resolve({ content: [{ type: "text", text: `${text}\n\n(命令超时,已终止)` }] });
