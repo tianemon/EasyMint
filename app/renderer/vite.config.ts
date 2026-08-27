@@ -6,12 +6,13 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), monacoEditorPlugin({})],
-  root: __dirname,
+  root: import.meta.dirname,
   base: "./",
-  publicDir: path.resolve(__dirname, "..", "..", "assets"),
+  publicDir: path.resolve(import.meta.dirname, "..", "..", "assets"),
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    chunkSizeWarningLimit: 10000,
     rollupOptions: {
       output: {
         manualChunks(id: string) {
@@ -22,12 +23,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src"),
-      "@shared": path.resolve(__dirname, "..", "shared"),
+      "@": path.resolve(import.meta.dirname, "src"),
+      "@shared": path.resolve(import.meta.dirname, "..", "shared"),
     },
-  },
-  build: {
-    chunkSizeWarningLimit: 10000,
   },
   logLevel: "warn",
   server: {
