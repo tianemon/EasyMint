@@ -50,10 +50,6 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
   const scriptPath = extractScriptPath(runCommand, runnable.cwd, projectPath);
   const scriptFileName = scriptPath ? scriptPath.split("/").pop() || "" : "";
 
-  // createPortal 挂 body：侧边栏抽屉(sb-drawer)常驻 transform 会劫持 fixed 定位
-  // （fixed 相对 transform 祖先而非视口）——弹窗必须脱离才能在软件窗口内居中
-  return createPortal(
-
   const handleSave = async () => {
     if (!label.trim() || !runCommand.trim()) { alert("标题和运行命令必填"); return; }
     setSaving(true);
@@ -82,7 +78,9 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
 
   const inputCls = "w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50";
 
-  return (
+  // createPortal 挂 body：侧边栏抽屉(sb-drawer)常驻 transform 会劫持 fixed 定位
+  // （fixed 相对 transform 祖先而非视口）——弹窗必须脱离才能在软件窗口内居中
+  return createPortal(
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40" onClick={onClose}>
       <div className="relative bg-surface rounded-xl border border-border shadow-2xl w-[760px] h-[600px] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-surface-alt shrink-0">
