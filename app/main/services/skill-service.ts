@@ -266,42 +266,27 @@ const BUNDLED_SKILLS = ["ponytail", "ponytail-review", "ponytail-audit"];
  * injected here; they're available on disk in the project's .easymint/skills/
  * directory and Claude can Read them as needed.
  */
+/** 按分组输出 skill 列表段（空分组跳过）；path 直接指向 SKILL.md 文件，避免 Read 文件夹报 EISDIR */
+function pushSkillGroup(lines: string[], title: string, skills: SkillManifest[]): void {
+  if (skills.length === 0) return;
+  lines.push(`### ${title}`);
+  for (const s of skills) {
+    lines.push(`- **${s.name}**: ${s.description} _(path: ${s.path}/SKILL.md)_`);
+  }
+  lines.push("");
+}
+
 export function buildSkillsPrompt(projectPath?: string): string {
   const skills = scanSkills(projectPath).filter((s) => s.enabled);
   if (skills.length === 0) return "";
 
-  const builtinSkills = skills.filter((s) => s.level === "builtin");
-  const globalSkills = skills.filter((s) => s.level === "global");
-  const projectSkills = skills.filter((s) => s.level === "project");
-
   const lines: string[] = ["\n## Skills"];
   lines.push("The following skills are available. When a skill's description matches");
   lines.push("the user's request, Read the SKILL.md file at the listed path and follow it.\n");
-  // path 直接指向 SKILL.md 文件（而非所在文件夹）——避免 Read 文件夹报 EISDIR
 
-  if (builtinSkills.length > 0) {
-    lines.push("### Built-in");
-    for (const s of builtinSkills) {
-      lines.push(`- **${s.name}**: ${s.description} _(path: ${s.path}/SKILL.md)_`);
-    }
-    lines.push("");
-  }
-
-  if (globalSkills.length > 0) {
-    lines.push("### Global");
-    for (const s of globalSkills) {
-      lines.push(`- **${s.name}**: ${s.description} _(path: ${s.path}/SKILL.md)_`);
-    }
-    lines.push("");
-  }
-
-  if (projectSkills.length > 0) {
-    lines.push("### Project");
-    for (const s of projectSkills) {
-      lines.push(`- **${s.name}**: ${s.description} _(path: ${s.path}/SKILL.md)_`);
-    }
-    lines.push("");
-  }
+  pushSkillGroup(lines, "Built-in", skills.filter((s) => s.level === "builtin"));
+  pushSkillGroup(lines, "Global", skills.filter((s) => s.level === "global"));
+  pushSkillGroup(lines, "Project", skills.filter((s) => s.level === "project"));
 
   return lines.join("\n");
 }
