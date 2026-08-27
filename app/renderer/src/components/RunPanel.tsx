@@ -307,7 +307,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                         }}
                         disabled={!canStart}
                         title={portBusy ? "端口被占用，请先释放或更换端口" : ""}
-                      >启动</button>
+                      >运行</button>
                     )}
                   </div>
                 </div>
