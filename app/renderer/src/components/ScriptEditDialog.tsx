@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useTabStore } from "../stores/tab-store";
 
 interface Runnable {
@@ -48,6 +49,10 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
   // 命令引用的脚本文件（相对 cwd 解析为项目内绝对路径）
   const scriptPath = extractScriptPath(runCommand, runnable.cwd, projectPath);
   const scriptFileName = scriptPath ? scriptPath.split("/").pop() || "" : "";
+
+  // createPortal 挂 body：侧边栏抽屉(sb-drawer)常驻 transform 会劫持 fixed 定位
+  // （fixed 相对 transform 祖先而非视口）——弹窗必须脱离才能在软件窗口内居中
+  return createPortal(
 
   const handleSave = async () => {
     if (!label.trim() || !runCommand.trim()) { alert("标题和运行命令必填"); return; }
@@ -116,6 +121,7 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
