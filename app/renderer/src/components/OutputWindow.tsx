@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ansiToHtml } from "../lib/ansi-colors";
+import { registerOverlay } from "../lib/overlay-stack";
 
 /**
  * 统一输出窗口 — 运行日志 / 后台 shell 共用（此前两套独立窗口，维护双份）。
@@ -37,6 +38,9 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
   const [awayFromBottom, setAwayFromBottom] = useState(false);
   // 遮罩关闭双判断:按下是否落在遮罩本身(拖拽选中移出边缘松开不误关)
   const overlayDownRef = useRef(false);
+  // 注册到全局弹窗栈:点击本窗口不关闭下层(如侧边栏抽屉)
+  const overlayRef = useRef<HTMLDivElement>(null);
+  useEffect(() => registerOverlay(overlayRef.current), []);
 
   const markUserInput = (): void => { lastUserInputRef.current = Date.now(); };
   const handleUserInput = (): void => markUserInput();
@@ -65,6 +69,7 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
     // 遮罩关闭:仅当按下与松开都在遮罩(非窗口内容)才关闭——拖拽选中移出边缘松开不误关
     // (React onClick 的公共祖先语义:mousedown 在窗口内、mouseup 在遮罩,click 会在遮罩触发)
     <div
+      ref={overlayRef}
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40"
       onMouseDown={(e) => { overlayDownRef.current = e.target === e.currentTarget; }}
       onMouseUp={(e) => { if (overlayDownRef.current && e.target === e.currentTarget) onClose(); }}

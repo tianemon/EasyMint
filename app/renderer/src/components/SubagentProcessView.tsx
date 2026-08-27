@@ -4,6 +4,7 @@ import { ChatMessage, mapSessionMessages, piBlocksToEntries, mergeConsecutiveTex
 import type { StreamEntry } from "./StreamPanel";
 import { useDelegationStore } from "../stores/delegation-store";
 import { DiffView } from "./ChatBlocks";
+import { registerOverlay } from "../lib/overlay-stack";
 
 /**
  * 子 Agent 过程查看弹层 — 精简只读聊天视图。
@@ -33,6 +34,9 @@ export function SubagentProcessView({
   const autoScrollRef = useRef(true); // 流式输出是否自动贴底(用户滚动时停止)
   const lastUserInputRef = useRef(0); // 最近一次用户输入时间(滚动意图判定窗口)
   const [awayFromBottom, setAwayFromBottom] = useState(false); // 回底按钮显示开关
+  // 注册到全局弹窗栈:点击本窗口不关闭下层(如侧边栏抽屉)
+  const overlayRef = useRef<HTMLDivElement>(null);
+  useEffect(() => registerOverlay(overlayRef.current), []);
 
   // 用户输入(wheel/touch/mousedown)标记——500ms 内的 scroll 变化视为用户滚动意图
   const markUserInput = (): void => { lastUserInputRef.current = Date.now(); };
@@ -147,7 +151,7 @@ export function SubagentProcessView({
   // createPortal 挂 body:弹窗渲染在输入卡片内,空态时气泡锚点容器有 transform
   // (translateY(-200px)) 会劫持 fixed 定位——弹窗被推到窗口底部被遮挡(对齐 LogOverlay 的处理)
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div ref={overlayRef} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
         className="relative flex flex-col w-[80vw] h-[80vh] rounded-[12px] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}

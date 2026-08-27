@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useIssueStore, type IssueItem } from "../stores/issue-store";
+import { registerOverlay } from "../lib/overlay-stack";
 
 interface IssuePanelProps {
   projectPath: string;
@@ -99,6 +100,10 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
     setForm(null);
   };
 
+  // 注册到全局弹窗栈:点击本弹窗不关闭下层(如侧边栏抽屉)
+  const formOverlayRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (form) return registerOverlay(formOverlayRef.current); }, [form]);
+
   return (
     <div className="h-full flex flex-col bg-[var(--color-drawer-panel)]">
       {/* Header */}
@@ -128,7 +133,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
 
       {/* 记录/编辑弹层(createPortal 挂 body 脱离抽屉 transform 劫持,全窗口居中大尺寸) */}
       {form && createPortal(
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40" onClick={() => setForm(null)}>
+        <div ref={formOverlayRef} className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40" onClick={() => setForm(null)}>
           <div
             className="relative bg-surface border border-border rounded-xl w-[760px] h-[600px] flex flex-col overflow-hidden shadow-2xl"
             onClick={(e) => e.stopPropagation()}

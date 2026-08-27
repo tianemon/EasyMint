@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { isInsideOverlay } from "../lib/overlay-stack";
 import { SessionHistory } from "./SessionHistory";
 import { SessionBar } from "./SessionBar";
 import { FileTreePanel } from "./FileTreePanel";
@@ -93,12 +94,14 @@ export function Sidebar({
   }, []);
 
   // 点击面板/seg 按钮以外区域 → 收起抽屉
+  // 分层检测:点击在上层弹窗内(OutputWindow/子Agent/脚本编辑/Issue 等 portal 弹窗)不关闭抽屉
   useEffect(() => {
     if (!drawerOpen) return;
     const handler = (e: MouseEvent) => {
       const t = e.target as Node;
       if (drawerRef.current && drawerRef.current.contains(t)) return;
       if (segRef.current && segRef.current.contains(t)) return;
+      if (isInsideOverlay(t)) return; // 上层弹窗内点击不关下层
       setDrawerOpen(false);
     };
     document.addEventListener("mousedown", handler);
