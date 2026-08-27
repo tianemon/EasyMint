@@ -47,6 +47,7 @@ const PLATFORM_LABEL: Record<RunPlatform, string> = {
   python: "python",
   shell: "shell",
   git: "git",
+  java: "java",
 };
 
 const PLATFORM_COLOR: Record<RunPlatform, string> = {
@@ -74,6 +75,7 @@ const PLATFORM_COLOR: Record<RunPlatform, string> = {
   python: "bg-blue-500/15 text-blue-500",
   shell: "bg-gray-500/15 text-gray-500",
   git: "bg-orange-500/15 text-orange-500",
+  java: "bg-amber-600/15 text-amber-600",
 };
 
 function platformLabel(p: string): string {
@@ -86,22 +88,45 @@ function platformColor(p: string): string {
   return PLATFORM_COLOR[p as RunPlatform] || DEFAULT_COLOR;
 }
 
-/** 按命令首词推断平台标签（显示用）：Mint 写的 platform 可能按项目技术栈硬标，
- *  ./xx.sh 被标成 flutter 等——命令开头是什么工具就显示什么标签；
+/** 按文件扩展名推断平台（./xx.py / bash xx.sh / python xx.py 等）；未知返回 null */
+function platformByExtension(file: string): string | null {
+  const m = /\.([a-z0-9]+)$/i.exec(file);
+  if (!m) return null;
+  const map: Record<string, string> = {
+    py: "python", sh: "shell", bash: "shell", zsh: "shell",
+    js: "nodejs", mjs: "nodejs", cjs: "nodejs", ts: "nodejs",
+    java: "java", rb: "rails", go: "go", rs: "rust", dart: "flutter",
+  };
+  return map[m[1].toLowerCase()] || null;
+}
+
+/** 按命令推断平台标签（显示用）：Mint 写的 platform 可能按项目技术栈硬标，
+ *  ./xx.sh 被标成 flutter 等——按「解释器+文件扩展名」或「命令首词」判断；
  *  未命中映射的小众命令直接显示命令首词本身（自适应，绝不显示无关的项目技术栈） */
 function inferPlatform(cmd: string, declared: string): string {
-  const first = cmd.trim().split(/\s+/)[0]?.toLowerCase() || "";
+  const parts = cmd.trim().split(/\s+/);
+  const first = parts[0]?.toLowerCase() || "";
+  // 解释器 + 脚本文件参数（bash xx.sh / python xx.py / node xx.js / java xx.java）
+  if (["bash", "sh", "zsh", "python", "python3", "node", "nodejs", "java", "ruby", "go", "cargo", "dotnet"].includes(first) && parts[1] && !parts[1].startsWith("-")) {
+    const byExt = platformByExtension(parts[1]);
+    if (byExt) return byExt;
+  }
   if (first.startsWith("flutter")) return "flutter";
   if (first === "git") return "git";
   if (first.startsWith("npm") || first.startsWith("pnpm") || first.startsWith("yarn")) return "nodejs";
   if (first.startsWith("node")) return "nodejs";
   if (first.startsWith("python")) return "python";
-  if (first === "bash" || first === "sh" || first === "zsh" || first.startsWith("./") || first.endsWith(".sh")) return "shell";
-  if (first === "mvn" || first === "gradle") return "spring";
+  if (first === "bash" || first === "sh" || first === "zsh") return "shell";
+  if (first === "mvn" || first === "gradle" || first === "java") return "java";
   if (first === "cargo") return "rust";
   if (first === "go" || first.startsWith("go ")) return "go";
   if (first === "dotnet") return "dotnet";
   if (first === "docker") return "shell";
+  // 直接执行文件（./xx.py / ./xx.sh / ./xx.java）→ 按扩展名
+  if (first.startsWith("./")) {
+    const byExt = platformByExtension(first);
+    if (byExt) return byExt;
+  }
   // 未命中：显示命令首词本身（platformLabel/platformColor 对未知值有兜底）
   return first || declared;
 }

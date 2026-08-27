@@ -97,16 +97,18 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
             <p className="text-[10px] text-text-muted">检测到脚本文件：{scriptFileName}（{scriptPath}）</p>
           )}
         </div>
-        <div className="flex gap-2 px-4 py-2.5 border-t border-border bg-surface-alt shrink-0">
-          {scriptPath ? (
+        <div className="flex items-center gap-2 px-4 py-2.5 border-t border-border bg-surface-alt shrink-0">
+          {scriptPath && (
             <button onClick={handleEditScript}
-              className="px-3 py-1.5 rounded-lg border border-accent text-accent text-xs hover:bg-accent-subtle transition-colors shrink-0">
+              className="h-8 px-3 whitespace-nowrap rounded-lg border border-accent text-accent text-xs hover:bg-accent-subtle transition-colors shrink-0">
               编辑脚本文件
             </button>
-          ) : null}
-          <button onClick={onClose} className="flex-1 px-4 py-1.5 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消</button>
+          )}
+          <div className="flex-1" />
+          <button onClick={onClose}
+            className="h-8 px-4 whitespace-nowrap rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消</button>
           <button onClick={handleSave} disabled={saving}
-            className="flex-1 px-4 py-1.5 rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors disabled:opacity-40">
+            className="h-8 px-4 whitespace-nowrap rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors disabled:opacity-40 shrink-0">
             {saving ? "保存中…" : "保存"}
           </button>
         </div>
