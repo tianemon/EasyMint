@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useIssueStore, type IssueItem } from "../stores/issue-store";
 
 interface IssuePanelProps {
@@ -125,40 +126,50 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
         )}
       </div>
 
-      {/* 记录/编辑弹层(全窗口居中,输入框空间充足——面板内嵌表单太局促) */}
-      {form && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center" onClick={() => setForm(null)}>
+      {/* 记录/编辑弹层(createPortal 挂 body 脱离抽屉 transform 劫持,全窗口居中大尺寸) */}
+      {form && createPortal(
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40" onClick={() => setForm(null)}>
           <div
-            className="bg-surface border border-border rounded-xl p-4 w-[440px] max-w-[92vw] shadow-2xl"
+            className="relative bg-surface border border-border rounded-xl w-[760px] h-[600px] flex flex-col overflow-hidden shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="space-y-2">
-              <input
-                className="w-full px-3 py-2 rounded-lg bg-surface-alt border border-border text-sm text-text-primary outline-none placeholder:text-text-muted"
-                placeholder="功能模块（可选，如：登录页）"
-                value={module}
-                onChange={(e) => setModule(e.target.value)}
-                autoFocus
-              />
-              <textarea
-                className="w-full px-3 py-2 rounded-lg bg-surface-alt border border-border text-sm text-text-primary outline-none placeholder:text-text-muted resize-none"
-                placeholder="问题现象"
-                rows={4}
-                value={symptom}
-                onChange={(e) => setSymptom(e.target.value)}
-              />
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-surface-alt shrink-0">
+              <span className="text-sm font-medium text-text-primary">{form.mode === "new" ? "记录问题" : "编辑问题"}</span>
+              <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setForm(null)} title="关闭">✕</button>
             </div>
-            <div className="flex justify-end gap-2 mt-3">
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-3 px-4 py-3">
+              <div>
+                <label className="text-xs text-text-secondary block mb-1">功能模块（可选，如：登录页）</label>
+                <input
+                  className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+                  placeholder="功能模块"
+                  value={module}
+                  onChange={(e) => setModule(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary block mb-1">问题现象</label>
+                <textarea
+                  className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent/50 resize-none"
+                  placeholder="问题现象"
+                  rows={10}
+                  value={symptom}
+                  onChange={(e) => setSymptom(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-4 py-2.5 border-t border-border bg-surface-alt shrink-0">
               <button
                 type="button"
-                className="px-3 py-1 rounded-lg bg-surface-alt text-text-secondary text-xs hover:bg-surface-hover hover:text-text-primary transition-colors"
+                className="h-8 px-4 whitespace-nowrap rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0"
                 onClick={() => setForm(null)}
               >
                 取消
               </button>
               <button
                 type="button"
-                className="px-3 py-1 rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors disabled:opacity-40"
+                className="h-8 px-4 whitespace-nowrap rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors disabled:opacity-40 shrink-0"
                 onClick={handleSave}
                 disabled={!symptom.trim()}
               >
@@ -166,7 +177,8 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
