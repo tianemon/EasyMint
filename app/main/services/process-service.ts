@@ -5,7 +5,7 @@
  */
 
 import { spawn, execSync, type ChildProcess } from "child_process";
-import { existsSync, readFileSync, watch } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, watch } from "node:fs";
 import { join } from "node:path";
 import { BrowserWindow } from "electron";
 import { resolveHome } from "../utils/paths";
@@ -95,6 +95,32 @@ function readRunJson(projectPath: string): Runnable[] {
 /** 查单条命令配置 */
 function getCommandConfig(projectPath: string, commandId: string): Runnable | undefined {
   return readRunJson(projectPath).find((r) => r.id === commandId);
+}
+
+/** 写 run.json（前端编辑/删除脚本后保存）。保留原文件其余字段，commands 整体替换；
+ *  文件变化经 runJsonWatchers 广播 → 前端运行面板自动刷新 */
+export function saveRunJson(projectPath: string, runnables: Runnable[]): void {
+  const runJson = join(resolveHome(projectPath), ".easymint", "run.json");
+  let extra: Record<string, unknown> = {};
+  if (existsSync(runJson)) {
+    try {
+      const old = JSON.parse(readFileSync(runJson, "utf-8")) as Record<string, unknown>;
+      const { commands: _c, ...rest } = old;
+      extra = rest;
+    } catch { /* 解析失败则只写 commands */ }
+  }
+  const data = {
+    ...extra,
+    commands: runnables.map((r) => ({
+      platform: r.platform,
+      label: r.label,
+      cwd: r.cwd || ".",
+      run_command: r.run_command,
+      url: r.url || "",
+      ...(r.install_command ? { install_command: r.install_command } : {}),
+    })),
+  };
+  writeFileSync(runJson, JSON.stringify(data, null, 2) + "\n");
 }
 
 /** 检测启动配置 */

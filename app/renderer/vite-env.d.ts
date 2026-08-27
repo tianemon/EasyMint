@@ -305,6 +305,7 @@ interface ElectronAPI {
   };
   process: {
     detect: (projectPath: string) => Promise<Array<{ id: string; platform: string; label: string; run_command: string; cwd?: string; install_command?: string; url?: string }>>;
+    saveRunJson: (projectPath: string, runnables: Array<{ id?: string; platform: string; label: string; run_command: string; cwd?: string; install_command?: string; url?: string }>) => Promise<void>;
     start: (projectPath: string, commandId: string, port?: number) => Promise<void>;
     stop: (commandId: string) => Promise<void>;
     restart: (projectPath: string, commandId: string) => Promise<void>;

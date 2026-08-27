@@ -1,6 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
-import { useProcessStore, type RunPlatform } from "../stores/process-store";
+import { useEffect, useState, useCallback, useRef } from "react";
+import type { CSSProperties } from "react";
+import { useProcessStore, type RunPlatform, type Runnable } from "../stores/process-store";
 import { LogOverlay } from "./LogOverlay";
+import { ScriptEditDialog } from "./ScriptEditDialog";
 
 interface RunPanelProps {
   projectPath: string;
@@ -82,12 +84,36 @@ function platformColor(p: string): string {
   return PLATFORM_COLOR[p as RunPlatform] || DEFAULT_COLOR;
 }
 
+/** 标题滚动显示：文本溢出时 hover 滚动到末尾完整显示（滚动距离 JS 计算，注入 CSS 变量） */
+function TitleMarquee({ text, onClick }: { text: string; onClick: () => void }): JSX.Element {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [overflow, setOverflow] = useState(false);
+  const [dist, setDist] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ov = el.scrollWidth > el.clientWidth + 1;
+    setOverflow(ov);
+    if (ov) setDist(el.scrollWidth - el.clientWidth);
+  }, [text]);
+  return (
+    <span ref={ref} className="flex-1 min-w-0 overflow-hidden whitespace-nowrap cursor-pointer rounded px-1 -mx-1 text-xs text-text-primary font-medium hover:text-accent hover:bg-accent-subtle transition-colors"
+      onClick={onClick} title="点击编辑脚本">
+      <span className={`inline-block ${overflow ? "run-title-scroll" : ""}`} style={{ "--scroll-dist": `${dist}px` } as CSSProperties}>{text}</span>
+    </span>
+  );
+}
+
 export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
   const { runnables, cmdStates, activeLogId, detect, start, stop, restart, openLog, appendLog, setRunning, loadStatus } = useProcessStore();
   const [detectSpinning, setDetectSpinning] = useState(false);
   const [portStatuses, setPortStatuses] = useState<Record<string, PortStatus>>({});
   const [customPorts, setCustomPorts] = useState<Record<string, string>>({});
   const [showDetail, setShowDetail] = useState<Record<string, boolean>>({});
+  // 编辑弹窗目标 + 删除确认（内联）
+  const [editing, setEditing] = useState<{ r: Runnable; runnables: Runnable[] } | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // 检测单个端口
   const checkPortStatus = useCallback(async (commandId: string, url?: string) => {
@@ -103,6 +129,20 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
       });
     } catch { /* */ }
   }, []);
+
+  // 删除脚本（确认后写回 run.json，watcher 自动刷新）
+  const handleDelete = useCallback(async (r: Runnable) => {
+    setSaving(true);
+    try {
+      await window.electronAPI.process.saveRunJson(projectPath, runnables.filter((x) => x.id !== r.id));
+      setConfirmDeleteId(null);
+    } catch (e) {
+      console.error("[RunPanel] delete script failed:", e);
+      alert("删除失败，请检查 run.json 是否被占用");
+    } finally {
+      setSaving(false);
+    }
+  }, [projectPath, runnables]);
 
   // 释放端口
   const handleKillPort = useCallback(async (commandId: string, url?: string) => {
@@ -194,27 +234,23 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
               const canStart = !st.running && !portBusy;
               return (
                 <div key={r.id} className={`rounded-lg border px-2.5 py-2 transition-colors ${st.running ? "border-success-border bg-success-soft" : "border-border"}`}>
+                  {/* 第一行：标题（hover 滚动完整显示，点击编辑脚本）+ 运行状态 */}
                   <div className="flex items-center gap-1.5">
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${platformColor(r.platform)}`}>[{platformLabel(r.platform)}]</span>
-                    <span className="text-xs text-text-primary font-medium truncate flex-1">{r.label}</span>
+                    <TitleMarquee text={r.label} onClick={() => setEditing({ r, runnables })} />
                     {st.running && (
                       <span className="text-[9px] text-success flex items-center gap-1 shrink-0">
                         <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                         PID {st.pid}
                       </span>
                     )}
-                    {st.running && r.url && (
-                      <button
-                        className="text-[9px] px-1.5 py-0.5 rounded border border-border text-text-secondary hover:text-accent hover:border-accent transition-colors"
-                        onClick={() => { navigator.clipboard.writeText(r.url!); }}
-                        title="复制 URL"
-                      >复制</button>
-                    )}
                   </div>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <p className="text-[10px] text-text-muted font-mono truncate flex-1">{r.run_command}</p>
-                    {st.running && r.url && (
-                      <span className="text-[9px] text-accent font-mono truncate shrink-0">{r.url}</span>
+                  {/* 第二行：平台标签 + URL（命令不再显示，编辑弹窗中查看） */}
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono shrink-0 ${platformColor(r.platform)}`}>[{platformLabel(r.platform)}]</span>
+                    {st.running && r.url ? (
+                      <span className="text-[9px] text-accent font-mono truncate">{r.url}</span>
+                    ) : (
+                      <span className="text-[10px] text-text-muted font-mono truncate">{r.run_command}</span>
                     )}
                   </div>
                   {/* 端口状态 */}
@@ -297,17 +333,40 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                           </button>
                         )}
                       </>
+                    ) : confirmDeleteId === r.id ? (
+                      <div className="flex-1 flex items-center gap-1">
+                        <span className="flex-1 text-center text-[10px] text-danger">删除脚本？</span>
+                        <button
+                          className="shrink-0 px-2 py-1 rounded bg-danger-soft text-danger text-[10px] font-medium hover:bg-danger-bg transition-colors"
+                          onClick={() => { void handleDelete(r); }}
+                          disabled={saving}
+                        >删除</button>
+                        <button
+                          className="w-7 h-7 flex items-center justify-center rounded border border-border text-text-secondary hover:text-text-primary transition-colors shrink-0"
+                          onClick={() => setConfirmDeleteId(null)}
+                          title="取消"
+                        >✕</button>
+                      </div>
                     ) : (
-                      <button
-                        className={`flex-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${canStart ? "bg-accent-soft text-accent hover:bg-accent-bg" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
-                        onClick={() => {
-                          const cp = customPorts[r.id];
-                          const p = cp ? parseInt(cp) : undefined;
-                          canStart && start(projectPath, r.id, p);
-                        }}
-                        disabled={!canStart}
-                        title={portBusy ? "端口被占用，请先释放或更换端口" : ""}
-                      >运行</button>
+                      <>
+                        <button
+                          className={`px-3 py-1 rounded text-[10px] font-medium transition-colors ${canStart ? "bg-accent-soft text-accent hover:bg-accent-bg" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
+                          onClick={() => {
+                            const cp = customPorts[r.id];
+                            const p = cp ? parseInt(cp) : undefined;
+                            canStart && start(projectPath, r.id, p);
+                          }}
+                          disabled={!canStart}
+                          title={portBusy ? "端口被占用，请先释放或更换端口" : ""}
+                        >运行</button>
+                        <button
+                          className="w-7 h-7 flex items-center justify-center rounded border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors shrink-0"
+                          onClick={() => setConfirmDeleteId(r.id)}
+                          title="删除脚本"
+                        >
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4h12M6 4V2h4v2M4 4l.7 10h6.6L12 4M6.5 7v4M9.5 7v4"/></svg>
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -319,6 +378,15 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
 
       {/* 日志浮窗 */}
       {activeLogId && <LogOverlay commandId={activeLogId} />}
+      {/* 脚本编辑弹窗（点击卡片标题打开；保存后 run.json watcher 自动刷新面板） */}
+      {editing && (
+        <ScriptEditDialog
+          projectPath={projectPath}
+          runnable={editing.r}
+          runnables={editing.runnables}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }

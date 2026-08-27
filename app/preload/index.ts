@@ -147,6 +147,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   process: {
     detect: (projectPath: string) => ipcRenderer.invoke("process:detect", { projectPath }),
+    saveRunJson: (projectPath: string, runnables: unknown[]) => ipcRenderer.invoke("process:save-run-json", { projectPath, runnables }),
     start: (projectPath: string, commandId: string, port?: number) => ipcRenderer.invoke("process:start", { projectPath, commandId, port }),
     stop: (commandId: string) => ipcRenderer.invoke("process:stop", { commandId }),
     restart: (projectPath: string, commandId: string) => ipcRenderer.invoke("process:restart", { projectPath, commandId }),
