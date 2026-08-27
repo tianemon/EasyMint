@@ -66,6 +66,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 打断时间戳:打断后 1.5s 内的 agent:exit 是旧回合残留(abort 触发),
   // 忽略不清 busy——打断瞬间后台通知开的新回合(turn_start 已设 busy)不被误清
   const interruptAtRef = useRef(0);
+  // 会话消息加载中(打开已有会话的磁盘读取+解析耗时):显示加载提示,避免空态跳变
+  const [sessionLoading, setSessionLoading] = useState(false);
+  // 缓存恢复的使用率暂存:消息加载完成后再应用(避免加载期间输入卡片显示旧进度误导)
+  const pendingCtxRef = useRef<number | null>(null);
   // 回合级错误时间戳:error 后 1s 内残留事件不重新设 busy(错误回合已结束)
   const lastErrorAtRef = useRef(0);
   const ctxThresholdFiredRef = useRef(0); // 已按阈值触发过主动压缩（防止同轮重复触发）
@@ -744,6 +748,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
   useEffect(() => {
     if (!existingSid) return; let cancelled = false;
+    setSessionLoading(true);
     const projectDir = projectPath || getWorkspaceDir();
     (async () => {
         const buffered = await window.electronAPI.agent.getBufferedStream(existingSid);
@@ -777,7 +782,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           }
           if (loads.length > 0) await Promise.all(loads);
           if (!cancelled && mapped.length > 0) { useChatStore.getState().loadSession(sid, mapped); msgIdRef.current = Math.max(...mapped.map((m) => m.id)); }
+          // 加载完成 → 恢复会话缓存的使用率（延迟到此时：避免加载期间输入卡片显示旧进度误导）
+          if (!cancelled && pendingCtxRef.current) {
+            useStatusStore.getState().setCtxPct(sid, pendingCtxRef.current);
+            pendingCtxRef.current = null;
+          }
         }
+        if (!cancelled) setSessionLoading(false);
     })();
     return () => { cancelled = true; };
   }, [existingSid, projectPath]);
@@ -1129,7 +1140,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         if (cache.permissionMode) setPermissionMode(cache.permissionMode);
         if (cache.model) setChatModel(cache.model);
         if (cache.provider) setChatProvider(cache.provider);
-        if (cache.contextUsage !== null && cache.contextUsage > 0) useStatusStore.getState().setCtxPct(sidRef.current, cache.contextUsage);
+        if (cache.contextUsage !== null && cache.contextUsage > 0) pendingCtxRef.current = cache.contextUsage; // 暂存,消息加载完成后再应用
         // 会话绑定的供应商(设置中切供应商时写入)→ 活跃会话热切应用;
         // 未活跃时会话由重建分支用 preferredProvider 恢复,无需在此处理
         if (cache.model && cache.provider) {
@@ -1385,7 +1396,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       >
         {!hasMessages ? (
           // 空态:消息区留白(角色选择在输入卡片左上角)
-          <div />
+          sessionLoading ? (
+            <div className="flex items-center justify-center h-full text-xs text-text-muted gap-2">
+              <svg className="animate-spin text-text-muted" width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+                <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              正在加载会话…
+            </div>
+          ) : (
+            <div />
+          )
         ) : (
           <div className="px-8 py-4">
             {/* 虚拟化消息列表：absolute 定位 + translateY，测量高度撑起滚动空间 */}
