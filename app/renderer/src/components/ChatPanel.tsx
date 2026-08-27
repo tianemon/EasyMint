@@ -63,6 +63,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const currentChatRef = useRef<string | null>(null);
   const stoppedRef = useRef(false);
   const busyRef = useRef(false);
+  // 打断时间戳:打断后 1.5s 内的 agent:exit 是旧回合残留(abort 触发),
+  // 忽略不清 busy——打断瞬间后台通知开的新回合(turn_start 已设 busy)不被误清
+  const interruptAtRef = useRef(0);
   const ctxThresholdFiredRef = useRef(0); // 已按阈值触发过主动压缩（防止同轮重复触发）
   // 压缩弹窗「下次回复完触发」:回复结束(agent:exit)后重置阈值防重 → 重新弹窗走同样流程
   const rearmAfterExitRef = useRef(false);
@@ -932,7 +935,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useStatusStore.getState().setCtxPct(sidRef.current, event.percentage || 0);
       }
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; latestAiIdRef.current = 0; busyRef.current = false; setBusy(false); useStatusStore.getState().popSignal(sidRef.current, "request"); useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:"); onActivity?.(); if (rearmAfterExitRef.current) { rearmAfterExitRef.current = false; ctxThresholdFiredRef.current = 0; } });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; if (Date.now() - interruptAtRef.current < 1500) return; latestAiIdRef.current = 0; busyRef.current = false; setBusy(false); useStatusStore.getState().popSignal(sidRef.current, "request"); useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:"); onActivity?.(); if (rearmAfterExitRef.current) { rearmAfterExitRef.current = false; ctxThresholdFiredRef.current = 0; } });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;
@@ -1307,7 +1310,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         attaches={attaches}
         setAttaches={setAttaches}
         onSend={sendText}
-        onStop={() => { stoppedRef.current = true; busyRef.current = false; const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
+        onStop={() => { stoppedRef.current = true; busyRef.current = false; interruptAtRef.current = Date.now(); const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
         onPaste={handlePaste}
         imgInputRef={imgInputRef}
         docInputRef={docInputRef}
