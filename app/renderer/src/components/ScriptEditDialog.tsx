@@ -106,7 +106,7 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
         <div className="flex items-center gap-2 px-4 py-2.5 border-t border-border bg-surface-alt shrink-0">
           {scriptPath && (
             <button onClick={handleEditScript}
-              className="h-8 px-3 whitespace-nowrap rounded-lg border border-accent text-accent text-xs hover:bg-accent-subtle transition-colors shrink-0">
+              className="h-8 px-3 whitespace-nowrap rounded-lg border border-accent-border text-accent text-xs hover:bg-accent-subtle transition-colors shrink-0">
               编辑脚本文件
             </button>
           )}
