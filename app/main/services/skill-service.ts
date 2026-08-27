@@ -153,27 +153,22 @@ export function scanSkills(projectPath?: string): SkillManifest[] {
   const globalSkills = scanDir(GLOBAL_SKILLS_DIR, "global", disabled);
   const globalNames = new Set(globalSkills.map((s) => s.name));
 
-  // EM-only skills: show as builtin, skip global duplicates
+  // Builtin 归并（一次遍历按名称分类）：
+  //  - EM skills: 恒为 builtin（不随全局副本隐藏）
+  //  - Bundled skills: 全局副本优先；未装全局则 builtin 兜底
+  //  - 其他 builtin: 直接展示
   for (const s of builtin) {
     if (emBuiltinNames.has(s.name)) {
-      result.push(s); // show as builtin regardless of global
-    }
-  }
-  // Bundled skills: global wins; if not installed globally, show builtin fallback
-  for (const s of builtin) {
-    if (bundledNames.has(s.name) && !globalNames.has(s.name)) {
-      result.push(s); // no global copy → builtin fallback
+      result.push(s);
+    } else if (bundledNames.has(s.name)) {
+      if (!globalNames.has(s.name)) result.push(s);
+    } else {
+      result.push(s);
     }
   }
   // Global skills — skip EM-owned names (those already shown as builtin above)
   for (const s of globalSkills) {
     if (!emBuiltinNames.has(s.name)) result.push(s);
-  }
-  // Other builtin skills (not in EM_SKILLS or BUNDLED_SKILLS) — show as builtin
-  for (const s of builtin) {
-    if (!emBuiltinNames.has(s.name) && !bundledNames.has(s.name)) {
-      result.push(s);
-    }
   }
 
   // Project-level skills
