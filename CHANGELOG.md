@@ -3,6 +3,21 @@
 > 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/) 规范：只记录 release 的**用户可见变更**。
 > **发布前必更新**：日常变更先记入下方 `[Unreleased]`，发版时整理成本版本条目；内部开发记录（项目变动/用户决策/实现过程）见 `docs/开发记录.md`（发版时同步更新头部快照与当天日志）。
 
+## v0.12.1 (2026-08-27) — 打断状态机修复
+
+### Fixed（修复）
+
+- **打断后按钮卡在打断态（busy 残留）**：多层时序竞态修复——
+  - 打断时 SDK 抛 AbortError 被误报为英文错误 → 归一化为「已停止」（短显示 2s）
+  - SDK 错误回合（turn_start → error → exit）turn_start 设的 busy 残留 → error 事件清 busy
+  - 打断后旧回合 exit 误清新回合 busy（后台通知恰在打断时开回合）→ 打断 1.5s 窗口忽略旧 exit
+  - error 后残留事件（tool_result/message_end）把 busy 打回 → error 后 1s 内不重新设 busy
+  - 打断后「已停止」消失回退显示残留 bash 执行信号（sleep 90）→ error 清 tool 信号
+
+### Changed（变更）
+
+- vite.config.ts `__dirname` → `import.meta.dirname`（Vite 8 native configLoader 兼容）+ 合并重复 build 键
+
 ## v0.12.0 (2026-08-27) — 运行面板脚本管理
 
 ### Added（新增）
