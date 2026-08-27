@@ -903,9 +903,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         // 压缩后 Pi 重发的帧是摘要内容 → 作为新输出段块处理
         latestAiIdRef.current = 0;
       }
-      // error — 插播错误信号,8s 后自动消失(回退次新活跃信号)
+      // error — 回合级错误(agent_error / stopReason=error):回合已结束 → 清 busy
+      // (否则 SDK 错误回合 turn_start 设的 busy 残留,如打断抛 AbortError 后 Mint 无输出、按钮卡打断态);
+      // 后续新回合 turn_start 会重新设 busy。插播错误信号 8s 后自动消失
       if (event.type === "error") {
-        // 归一化上游错误(503/429/超时)为友好提示,状态栏不显示原始 JSON
+        busyRef.current = false; setBusy(false);
+        useStatusStore.getState().popSignal(sidRef.current, "request");
+        // 归一化上游错误(503/429/超时/abort)为友好提示,状态栏不显示原始 JSON
         useStatusStore.getState().pushSignal(sidRef.current, "error", normalizeApiError(event.message) || "出错了", 8000);
       }
       // custom 系统消息(委派完成/后台 shell/流程指令)→ 独立即时显示:
