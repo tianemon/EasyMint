@@ -1,6 +1,6 @@
 import { spawn } from "child_process";
 import { resolveHome } from "../utils/paths";
-import { createCodingAwareDecoder, stripAnsi } from "./background-shell/encoding";
+import { createCodingAwareDecoder, createAnsiStripper } from "./background-shell/encoding";
 
 export interface ShellExecResult {
   code: number | null;
@@ -41,19 +41,21 @@ export function execShell(
 
     let stdout = "";
     let stderr = "";
-    // 流式解码（chunk 截断不乱码）+ 剥离 ANSI
+    // 流式解码（chunk 截断不乱码）+ 流式剥 ANSI（序列跨 chunk 切碎也能剥离）
     const outDec = createCodingAwareDecoder();
     const errDec = createCodingAwareDecoder();
+    const outAnsi = createAnsiStripper();
+    const errAnsi = createAnsiStripper();
 
     proc.stdout.on("data", (chunk: Buffer) => {
-      const text = stripAnsi(outDec.feed(chunk));
+      const text = outAnsi.feed(outDec.feed(chunk));
       stdout += text;
       const lines = text.split("\n").filter(Boolean);
       for (const line of lines) onStdout(line);
     });
 
     proc.stderr.on("data", (chunk: Buffer) => {
-      const text = stripAnsi(errDec.feed(chunk));
+      const text = errAnsi.feed(errDec.feed(chunk));
       stderr += text;
       const lines = text.split("\n").filter(Boolean);
       for (const line of lines) onStderr(line);

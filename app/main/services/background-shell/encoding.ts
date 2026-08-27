@@ -56,6 +56,31 @@ export function stripAnsi(text: string): string {
     .replace(/\x1b[()][0-9A-Za-z]/g, "");
 }
 
+/** 流式 ANSI 剥离器:ANSI 序列可能被 chunk 边界切碎(如 `\x1b[0;3` 与 `2m` 分属两段),
+ *  逐段 stripAnsi 匹配不到完整序列——保留未完成的 ESC 尾部等待下一段拼合 */
+export function createAnsiStripper(): { feed(text: string): string; finish(): string } {
+  let pending = "";
+  return {
+    feed(text: string): string {
+      const combined = pending + text;
+      // 尾部是未完成的 ANSI 序列(ESC 开头、无终止字符)则保留等待;
+      // 完整序列(以字母/`\x07`/字符集结束)不匹配此正则,整段交 stripAnsi
+      const tailMatch = /(\x1b\[[0-9;?]*[ -/]*|\x1b\][^\x07]*|\x1b[()]?)$/.exec(combined);
+      if (tailMatch) {
+        pending = tailMatch[0];
+        return stripAnsi(combined.slice(0, -pending.length));
+      }
+      pending = "";
+      return stripAnsi(combined);
+    },
+    finish(): string {
+      // 流结束:未完成的 ANSI 序列无意义(可能被截断的半个转义码),直接丢弃
+      pending = "";
+      return "";
+    },
+  };
+}
+
 /** 增量解码器:持续 feed chunk,输出解码文本(UTF-8/GBK 自动判定) */
 export function createCodingAwareDecoder(): {
   feed(chunk: Buffer): string;

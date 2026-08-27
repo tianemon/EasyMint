@@ -14,7 +14,7 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createWriteStream, existsSync, mkdirSync, readdirSync, rmSync, statSync, type WriteStream } from "node:fs";
 import path from "node:path";
 import { broadcast } from "../ipc-broadcast";
-import { decodeSeg, finalDecode, stripAnsi } from "./encoding";
+import { decodeSeg, finalDecode, createAnsiStripper } from "./encoding";
 
 /** 保留输出尾部上限(内存,通知预览;超出截断,防止内存膨胀) */
 const MAX_OUTPUT_BYTES = 4096;
@@ -214,6 +214,8 @@ class BackgroundShellRegistry {
     // (decodeSeg/finalDecode 见 encoding.ts 共享模块,前台 bash 同用)
     const outBuf = { bytes: Buffer.alloc(0) };
     const errBuf = { bytes: Buffer.alloc(0) };
+    const outAnsi = createAnsiStripper();
+    const errAnsi = createAnsiStripper();
     const collect = (chunk: Buffer, holder: { bytes: Buffer }): void => {
       // 原始字节入日志(日志保持原始字节,查看时用文本)
       if (logStream && logBytes < MAX_LOG_BYTES) {
@@ -227,12 +229,12 @@ class BackgroundShellRegistry {
         }
       }
       // 统一解码:字节全部喂入 decodeSeg,由它判定编码(UTF-8 完整/未完成前缀/GBK)并返回输出 + 待续 rest;
-      // 显示层剥 ANSI(彩色输出原文不残留;日志文件保持原始字节,见上方 logStream)
+      // 显示层流式剥 ANSI(序列跨 chunk 切碎也能剥离;日志文件保持原始字节,见上方 logStream)
       holder.bytes = Buffer.concat([holder.bytes, chunk]);
       const { text, rest } = decodeSeg(holder.bytes);
       holder.bytes = rest;
       if (text) {
-        const clean = stripAnsi(text);
+        const clean = outAnsi.feed(text);
         shell.output = (shell.output + clean).slice(-MAX_OUTPUT_BYTES);
         shell.streamBuf += clean;
       }
@@ -244,8 +246,8 @@ class BackgroundShellRegistry {
     child.stderr?.on("data", (c) => collect(c, errBuf));
     child.on("exit", (code) => {
       // 冲掉残留缓冲(终局解码:不再等待未完成序列,UTF-8 尝试失败则 GBK)
-      const outTail = stripAnsi(finalDecode(outBuf.bytes));
-      const errTail = stripAnsi(finalDecode(errBuf.bytes));
+      const outTail = outAnsi.feed(finalDecode(outBuf.bytes)) + outAnsi.finish();
+      const errTail = errAnsi.feed(finalDecode(errBuf.bytes)) + errAnsi.finish();
       outBuf.bytes = Buffer.alloc(0);
       errBuf.bytes = Buffer.alloc(0);
       const tail = outTail + errTail;
