@@ -350,7 +350,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                     ) : (
                       <>
                         <button
-                          className={`px-3 py-1 rounded text-[10px] font-medium transition-colors ${canStart ? "bg-accent-soft text-accent hover:bg-accent-bg" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
+                          className={`flex-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${canStart ? "bg-accent-soft text-accent hover:bg-accent-bg" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
                           onClick={() => {
                             const cp = customPorts[r.id];
                             const p = cp ? parseInt(cp) : undefined;
@@ -360,7 +360,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                           title={portBusy ? "端口被占用，请先释放或更换端口" : ""}
                         >运行</button>
                         <button
-                          className="w-7 h-7 flex items-center justify-center rounded border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors shrink-0"
+                          className="w-9 py-1 rounded border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors shrink-0 flex items-center justify-center"
                           onClick={() => setConfirmDeleteId(r.id)}
                           title="删除脚本"
                         >
