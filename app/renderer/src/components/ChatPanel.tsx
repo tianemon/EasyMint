@@ -305,6 +305,27 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     });
   });
 
+  // Ctrl+A:焦点(最近点击/选择锚点)在消息气泡内时只全选该气泡内容,不全选整个页面
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "a") return;
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const anchor = sel.anchorNode;
+      if (!anchor) return;
+      const el = anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : (anchor as Element);
+      const bubble = el?.closest(".msg-bubble-user, .msg-bubble-agent, .msg-bubble-system");
+      if (!bubble) return; // 焦点不在气泡内 → 保持默认(全选页面)
+      e.preventDefault();
+      const range = document.createRange();
+      range.selectNodeContents(bubble);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
   const showToolUse = useSettingsStore((s) => s.showToolUse);
   const [chatModel, setChatModel] = useState("");
   // 会话绑定的供应商 piId(需求 5:不同会话不同供应商)
