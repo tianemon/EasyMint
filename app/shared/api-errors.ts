@@ -5,6 +5,10 @@
  */
 export function normalizeApiError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
+  // abort 是用户打断/主动中止的正常副作用（fetch AbortError 标准文案），非错误
+  if (/abort|aborted|cancelled|canceled|operation was aborted/i.test(msg)) {
+    return "已停止";
+  }
   if (/503|service_unavailable|Service is too busy/i.test(msg)) {
     return "AI 服务繁忙(503)，请稍后重试，或切换模型/服务商";
   }
