@@ -70,7 +70,7 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
       onMouseUp={(e) => { if (overlayDownRef.current && e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="relative flex flex-col w-[720px] max-w-[92vw] h-[68vh] rounded-[12px] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
+        className="relative flex flex-col w-[80vw] h-[80vh] rounded-[12px] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
         // Cmd/Ctrl+A 只全选输出区内容(不选整个页面)

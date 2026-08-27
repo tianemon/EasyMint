@@ -149,7 +149,7 @@ export function SubagentProcessView({
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="relative flex flex-col w-[720px] max-w-[92vw] h-[68vh] rounded-[12px] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
+        className="relative flex flex-col w-[80vw] h-[80vh] rounded-[12px] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部:第一行 = spinner + 标题 + 状态 + 关闭;第二行 = 显示开关 */}
