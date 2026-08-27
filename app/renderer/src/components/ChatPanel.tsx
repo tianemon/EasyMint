@@ -909,6 +909,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       if (event.type === "error") {
         busyRef.current = false; setBusy(false);
         useStatusStore.getState().popSignal(sidRef.current, "request");
+        // 清工具信号:打断时 bash 工具执行信号("sleep 90" 等)残留栈里,
+        // 不清理则「已停止」8s 消失后回退显示残留的工具信号
+        useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:");
         // 归一化上游错误(503/429/超时/abort)为友好提示,状态栏不显示原始 JSON
         useStatusStore.getState().pushSignal(sidRef.current, "error", normalizeApiError(event.message) || "出错了", 8000);
       }
