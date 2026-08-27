@@ -38,6 +38,8 @@ const PLATFORM_LABEL: Record<RunPlatform, string> = {
 export function LogOverlay({ commandId }: LogOverlayProps): JSX.Element {
   const { cmdStates, runnables, stop, closeLog } = useProcessStore();
   const logRef = useRef<HTMLDivElement>(null);
+  // 遮罩关闭双判断:按下是否落在遮罩本身(拖拽选中移出边缘松开不误关)
+  const overlayDownRef = useRef(false);
   const state = cmdStates[commandId];
   const runnable = runnables.find((r) => r.id === commandId);
   const logs = state?.logs || [];
@@ -75,8 +77,30 @@ export function LogOverlay({ commandId }: LogOverlayProps): JSX.Element {
   // createPortal 挂 body:抽屉容器(sb-drawer)常驻 transform,会劫持 fixed 定位
   // (fixed 相对 transform 祖先而非视口)——弹窗会被限制在抽屉内,必须脱离
   return createPortal(
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40" onClick={closeLog}>
-      <div className="relative bg-surface rounded-xl border border-border shadow-2xl w-[80vw] h-[80vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+    // 遮罩关闭:仅按下与松开都在遮罩才关闭——拖拽选中移出边缘松开不误关(onClick 公共祖先语义会误触发)
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40"
+      onMouseDown={(e) => { overlayDownRef.current = e.target === e.currentTarget; }}
+      onMouseUp={(e) => { if (overlayDownRef.current && e.target === e.currentTarget) closeLog(); }}
+    >
+      <div
+        className="relative bg-surface rounded-xl border border-border shadow-2xl w-[80vw] h-[80vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        tabIndex={-1}
+        // Cmd/Ctrl+A 只全选日志区内容(不选整个页面)
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a") {
+            e.preventDefault(); e.stopPropagation();
+            const el = logRef.current;
+            if (!el) return;
+            const sel = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            sel?.removeAllRanges();
+            sel?.addRange(range);
+          }
+        }}
+      >
         {/* Header：label 截断占主空间，其余元素 shrink-0 防挤压换行竖排 */}
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-surface-alt shrink-0">
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-soft text-accent font-mono shrink-0">[{PLATFORM_LABEL[runnable.platform as RunPlatform] || runnable.platform}]</span>
