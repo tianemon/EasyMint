@@ -892,7 +892,7 @@ export class AgentService {
     return events;
   }
 
-  async setModel(sessionId: string, modelName: string): Promise<void> {
+  async setModel(sessionId: string, modelName: string, providerId?: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session) return;
     // 按用户选的模型名直接找 Model 对象热切（不依赖"当前供应商默认模型"比较——
@@ -901,9 +901,11 @@ export class AgentService {
     const runtime = await getModelRuntime(this.store);
     const settings = this.store.getSettings();
     const providers = settings.apiProviders;
-    const activeCfg = providers?.configs?.[providers?.current ?? ""];
-    if (!activeCfg || !providers?.current) return;
-    const provider = activeCfg.presetId === "custom" ? providers.current : activeCfg.presetId;
+    // 会话级切换:指定供应商优先(设置中切供应商时联动传入);缺省用全局 current
+    const activeId = providerId || providers?.current;
+    const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
+    if (!activeCfg || !activeId) return;
+    const provider = activeCfg.presetId === "custom" ? activeId : activeCfg.presetId;
     const model = runtime.getModel(provider, modelName);
     if (model) {
       await chat.session.setModel(model as any);

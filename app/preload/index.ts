@@ -218,7 +218,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       return () => ipcRenderer.removeListener("agent:permission-request", handler);
     },
     abort: (runId: string) => ipcRenderer.invoke("agent:abort", { runId }),
-    setModel: (sessionId: string, model: string) => ipcRenderer.invoke("agent:setModel", { sessionId, model }) as Promise<void>,
+    setModel: (sessionId: string, model: string, provider?: string) => ipcRenderer.invoke("agent:setModel", { sessionId, model, provider }) as Promise<void>,
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => ipcRenderer.invoke("agent:spawnAgentChat", { projectPath, templateId, message }) as Promise<{ chatId: string }>,
     chatStatus: (sessionId: string) => ipcRenderer.invoke("agent:chatStatus", { sessionId }),
     getBufferedStream: (sessionId: string) => ipcRenderer.invoke("agent:getBufferedStream", { sessionId }) as Promise<unknown[]>,

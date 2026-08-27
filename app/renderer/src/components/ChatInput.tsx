@@ -51,7 +51,7 @@ function AttachPreview_({ attaches, setAttaches }: { attaches: AttachItem[]; set
     </div>
   );
 }
-const AttachPreview = memo(AttachPreview_);
+export const AttachPreview = memo(AttachPreview_);
 
 export const ChatInput = memo(function ChatInput({
   busy, attaches, setAttaches, onSend, onStop, onPaste,

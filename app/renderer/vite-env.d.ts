@@ -182,7 +182,7 @@ interface ElectronAPI {
     respondPermission: (requestId: string, behavior: "allow" | "deny", alwaysAllow?: boolean) => Promise<void>;
     onPermissionRequest: (callback: (data: any) => void) => () => void;
     abort: (runId: string) => void;
-    setModel: (sessionId: string, model: string) => Promise<void>;
+    setModel: (sessionId: string, model: string, provider?: string) => Promise<void>;
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => Promise<{ chatId: string }>;
     chatStatus: (sessionId: string) => Promise<string | null>;
     getPiProviders: () => Promise<Array<{ id: string; name: string; baseUrl?: string }>>;

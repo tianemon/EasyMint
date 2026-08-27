@@ -147,8 +147,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:getBufferedStream", (_e, { sessionId }) => {
     return agentService.getBufferedStream(sessionId);
   });
-  ipcMain.handle("agent:setModel", (_e, { sessionId, model }) => {
-    return agentService.setModel(sessionId, model);
+  ipcMain.handle("agent:setModel", (_e, { sessionId, model, provider }) => {
+    return agentService.setModel(sessionId, model, provider);
   });
   ipcMain.handle("agent:spawnAgentChat", (_e, { projectPath, templateId, message }) => {
     return agentService.spawnAgentChat(projectPath, templateId, message);

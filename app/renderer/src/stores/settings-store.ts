@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { ApiProvidersData } from "@shared/platform-presets";
+import { useTabStore } from "./tab-store";
 
 /** 多色流光分组:一组命名色彩组合 */
 export interface GlowColorGroup {
@@ -215,6 +216,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
     set(patch);
     window.electronAPI?.settings?.set?.("apiProviders", next);
+    // 设置中切供应商 → 当前活跃会话同步热切(会话级绑定持久化到 session-cache,
+    // 后续 resume 恢复绑定)。主进程 setModel 带 providerId 用指定供应商解析模型
+    if (activeCfg?.model) {
+      const { tabs, activeTabId } = useTabStore.getState();
+      const tab = tabs.find((t) => t.id === activeTabId && t.type === "chat" && t.sessionId);
+      if (tab?.sessionId) {
+        window.electronAPI?.agent?.setModel?.(tab.sessionId, activeCfg.model, providerId).catch(() => {});
+        window.electronAPI?.sessionCache?.write?.(tab.sessionId, { provider: providerId, model: activeCfg.model }).catch(() => {});
+      }
+    }
   },
 
   loadFromElectron: async () => {

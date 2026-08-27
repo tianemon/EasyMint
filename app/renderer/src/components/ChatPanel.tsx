@@ -13,7 +13,7 @@ import { StatusBar } from "./StatusBar";
 import { useDelegationStore } from "../stores/delegation-store";
 import { normalizeApiError } from "../../../shared/api-errors";
 import { PermissionPrompt } from "./PermissionPrompt";
-import { ChatInput } from "./ChatInput";
+import { ChatInput, AttachPreview } from "./ChatInput";
 import { SessionStatsPopup } from "./SessionStatsPopup";
 import { CompactionDialog } from "./CompactionDialog";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
@@ -515,10 +515,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       } catch (e) { console.error("[upload]", e); }
     }
     if (items.length > 0) setAttaches((prev) => [...prev, ...items]);
-  }, []);
-
-  const removeAttach = useCallback((idx: number) => {
-    setAttaches((prev) => prev.filter((_, i) => i !== idx));
   }, []);
 
   // ── Paste ──────────────────────────────────────────
@@ -1083,6 +1079,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         if (cache.model) setChatModel(cache.model);
         if (cache.provider) setChatProvider(cache.provider);
         if (cache.contextUsage !== null && cache.contextUsage > 0) useStatusStore.getState().setCtxPct(sidRef.current, cache.contextUsage);
+        // 会话绑定的供应商(设置中切供应商时写入)→ 活跃会话热切应用;
+        // 未活跃时会话由重建分支用 preferredProvider 恢复,无需在此处理
+        if (cache.model && cache.provider) {
+          window.electronAPI.agent.setModel(existingSid, cache.model, cache.provider).catch(() => {});
+        }
       }
     }).catch(() => {});
   }, [existingSid]);
@@ -1194,31 +1195,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   };
   const showConfirmDev = confirmDevFlag || (!busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_confirm_dev"));
   const showNewProjectBtn = onNewProject && (newProjectFlag || (!busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_new_project")));
-
-  // ── Attach preview (shared between both positions) ─
-  function AttachPreview(): JSX.Element {
-    return (
-      <div className="flex gap-2 flex-wrap">
-        {attaches.map((a, i) => (
-          <div key={`attach-${i}`} className={`group relative shrink-0 border border-border ${a.kind === "image" && a.dataUrl ? "w-16 h-16 rounded-lg" : "flex items-center gap-2 px-2 py-1.5 rounded-lg bg-surface max-w-[220px]"}`}>
-            {a.kind === "image" && a.dataUrl ? (
-              <img src={a.dataUrl} alt={a.name} className="w-full h-full object-cover rounded-lg" />
-            ) : (
-              <DocIcon name={a.name} />
-            )}
-            {a.kind !== "image" || !a.dataUrl ? <span className="text-xs text-text-primary truncate flex-1 min-w-0">{a.name}</span> : null}
-            <button className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500/70 flex items-center justify-center" onClick={() => removeAttach(i)}>
-              <svg viewBox="0 0 10 10" fill="none" className="stroke-inverse w-2 h-2" strokeWidth="2" strokeLinecap="round"><path d="M2 2l6 6M8 2L2 8"/></svg>
-            </button>
-          </div>
-        ))}
-        <button className="w-10 h-10 rounded-lg border border-border flex items-center justify-center text-text-secondary hover:border-accent hover:text-accent transition-colors shrink-0"
-          onClick={() => imgInputRef.current?.click()} title="添加文件">
-          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="w-4 h-4"><path d="M7 3v8M3 7h8"/></svg>
-        </button>
-      </div>
-    );
-  }
 
   // ── Render user bubble ─────────────────────────────
 
@@ -1432,9 +1408,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       <StatusBar sessionId={sidRef.current} />
       <PermissionPrompt />
 
-      {/* Attach preview — above thinking when busy;mx-4 与输入卡片左右边距(--s16)对齐,否则条比卡片宽 */}
+      {/* Attach preview — above thinking when busy;mx-4 与输入卡片左右边距(--s16)对齐,否则条比卡片宽;
+          复用 ChatInput 胶囊式组件(busy/非 busy 视觉一致,不再有 64px 放大缩略图) */}
       {busy && attaches.length > 0 && (
-        <div className="mx-4 px-4 py-2 bg-surface-alt/30 border-t border-border/50 shrink-0"><AttachPreview /></div>
+        <div className="mx-4 px-4 py-2 bg-surface-alt/30 border-t border-border/50 shrink-0"><AttachPreview attaches={attaches} setAttaches={setAttaches} /></div>
       )}
 
       {/* 气泡锚点容器:仅用于气泡悬浮定位(独立于输入卡片 DOM,悬浮在卡片上方)。
@@ -1643,8 +1620,9 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
     return msg.entries.filter((e) => {
       if (e.kind === "text") return true;
       if (e.kind === "thinking") return showThinking;
-      // 工具结果(edit diff 等)始终显示——即使隐藏工具调用,结果仍可见
-      if (e.kind === "tool_result") return true;
+      // 开发工具结果始终显示(edit diff / read/write/bash 精简摘要,原设计意图);
+      // 其余工具结果(如 mcp_tavily 搜索结果)跟随开关,关闭时不渲染
+      if (e.kind === "tool_result") return showToolUse || e.name === "edit" || e.name === "read" || e.name === "write" || e.name === "bash";
       return showToolUse;
     });
   }, [msg.entries, showThinking, showToolUse]);

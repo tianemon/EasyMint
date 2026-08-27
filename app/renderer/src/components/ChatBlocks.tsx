@@ -482,6 +482,11 @@ function truncateResult(text: string, maxLines = 30, keep = 20): string {
   return lines.slice(-keep).join("\n") + `\n\n[输出过长，仅显示尾部 ${keep} 行。完整输出见日志]`;
 }
 
+/** 带行号格式化(等宽对齐):write 内容预览用,参照 cc 的显示方式 */
+function numberLines(text: string): string {
+  return text.split("\n").map((l, i) => `${String(i + 1).padStart(4)}  ${l}`).join("\n");
+}
+
 function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }): JSX.Element {
   const isDiffResult = !!item.result && item.result.includes("变更内容:");
   // diff 结果默认展开(可读结果必显),用户可手动收起;bash 等普通结果默认折叠
@@ -554,7 +559,8 @@ export function ChatBlockView({ block, streaming: _streaming }: { block: Block; 
   }
 }
 
-/** 工具结果独立显示(工具调用隐藏时):edit 显示 diff;read/write/bash 路径/命令显示在标题行;其他显示结果 */
+/** 工具结果独立显示(工具调用隐藏时):edit 显示 diff;write 显示内容预览(参照 cc);
+ *  read/bash 路径/命令显示在标题行;其他显示结果 */
 function ToolResultOnlyView({ block }: { block: ToolResultOnlyBlock }): JSX.Element | null {
   const isDiff = block.content.includes("变更内容:");
   // 标签:工具原名(与工具卡片一致);缺省"工具结果"
@@ -562,16 +568,24 @@ function ToolResultOnlyView({ block }: { block: ToolResultOnlyBlock }): JSX.Elem
   const stats = isDiff ? diffCount(block.content) : null;
   // 精简显示:read/write → 路径;bash → 命令(显示在标题行,不占内容区)
   const inp = block.input;
+  // Pi 工具参数兼容 file_path 与 path 两种写法
+  const filePath = typeof inp?.path === "string" ? inp.path : typeof inp?.file_path === "string" ? inp.file_path : undefined;
   const summary =
-    (block.name === "read" || block.name === "write") && typeof inp?.path === "string" ? inp.path
+    (block.name === "read" || block.name === "write") && filePath ? filePath
     : block.name === "bash" && typeof inp?.command === "string" ? inp.command
     : undefined;
+  // write:从工具调用参数取写入内容渲染带行号预览——新建/整体重写无旧内容可对比,显示内容而非 diff
+  const writeContent = block.name === "write" && typeof inp?.content === "string" ? inp.content : undefined;
+  const writeLines = writeContent ? writeContent.split("\n").length : 0;
   return (
     <div className={`mt-1.5 mb-1 rounded-md border overflow-hidden ${block.isError ? "border-danger/40" : "border-border"}`}>
       <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-surface-alt text-text-muted uppercase tracking-wider font-semibold border-b border-border" style={{ fontSize: "var(--text-caption)" }}>
         <span className="shrink-0">{label}</span>
         {summary && (
           <span className="normal-case tracking-normal font-normal text-text-secondary font-mono truncate">{summary}</span>
+        )}
+        {writeLines > 0 && (
+          <span className="normal-case tracking-normal font-normal shrink-0 text-text-secondary">{writeLines} 行</span>
         )}
         {stats && (stats.added > 0 || stats.removed > 0) && (
           <span className="normal-case tracking-normal font-normal shrink-0">
@@ -586,7 +600,12 @@ function ToolResultOnlyView({ block }: { block: ToolResultOnlyBlock }): JSX.Elem
           <DiffView text={block.content} filePath={block.filePath} />
         </div>
       )}
-      {!isDiff && !summary && (
+      {writeContent !== undefined && (
+        <div className="bg-surface px-3 py-2 overflow-x-auto">
+          <pre className="text-text-secondary font-mono leading-relaxed" style={{ fontSize: "var(--text-detail)" }}>{numberLines(writeContent)}</pre>
+        </div>
+      )}
+      {!isDiff && !summary && writeContent === undefined && (
         <div className="bg-surface px-3 py-2">
           <pre className={`text-text-secondary font-mono whitespace-pre-wrap ${block.isError ? "text-danger" : ""}`} style={{ fontSize: "var(--text-detail)" }}>{truncateResult(block.content)}</pre>
         </div>
