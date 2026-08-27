@@ -310,15 +310,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "a") return;
+      // 输入区编辑语义:焦点在可编辑元素内 → 放行默认(全选输入内容)
+      const active = document.activeElement;
+      if (active && (active.tagName === "TEXTAREA" || active.tagName === "INPUT" || (active as HTMLElement).isContentEditable)) return;
+      // 非输入区:一律阻止页面全选(空白区域 selection 为空,必须提前 preventDefault)
+      e.preventDefault();
       const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
+      if (!sel || sel.rangeCount === 0) return; // 无选择锚点 → 不执行任何选择
       const anchor = sel.anchorNode;
       if (!anchor) return;
       const el = anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : (anchor as Element);
-      if (el?.closest("textarea, input, [contenteditable='true']")) return; // 输入区编辑语义
       const bubble = el?.closest(".msg-bubble-user, .msg-bubble-agent, .msg-bubble-system");
-      e.preventDefault(); // 一律阻止页面全选
-      if (!bubble) return; // 空白区域:不执行任何选择
+      if (!bubble) return; // 空白区域:不执行选择
       const range = document.createRange();
       range.selectNodeContents(bubble);
       sel.removeAllRanges();
