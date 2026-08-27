@@ -275,14 +275,14 @@ export function buildSkillsPrompt(projectPath?: string): string {
   const projectSkills = skills.filter((s) => s.level === "project");
 
   const lines: string[] = ["\n## Skills"];
-  lines.push("The following skills are available. Each skill lives in a folder");
-  lines.push("with a SKILL.md file. When a skill's description matches the user's");
-  lines.push("request, Read its SKILL.md at the listed path and follow it.\n");
+  lines.push("The following skills are available. When a skill's description matches");
+  lines.push("the user's request, Read the SKILL.md file at the listed path and follow it.\n");
+  // path 直接指向 SKILL.md 文件（而非所在文件夹）——避免 Read 文件夹报 EISDIR
 
   if (builtinSkills.length > 0) {
     lines.push("### Built-in");
     for (const s of builtinSkills) {
-      lines.push(`- **${s.name}**: ${s.description} _(path: ${s.path})_`);
+      lines.push(`- **${s.name}**: ${s.description} _(path: ${s.path}/SKILL.md)_`);
     }
     lines.push("");
   }
@@ -290,7 +290,7 @@ export function buildSkillsPrompt(projectPath?: string): string {
   if (globalSkills.length > 0) {
     lines.push("### Global");
     for (const s of globalSkills) {
-      lines.push(`- **${s.name}**: ${s.description} _(path: ${s.path})_`);
+      lines.push(`- **${s.name}**: ${s.description} _(path: ${s.path}/SKILL.md)_`);
     }
     lines.push("");
   }
@@ -298,7 +298,7 @@ export function buildSkillsPrompt(projectPath?: string): string {
   if (projectSkills.length > 0) {
     lines.push("### Project");
     for (const s of projectSkills) {
-      lines.push(`- **${s.name}**: ${s.description} _(path: ${s.path})_`);
+      lines.push(`- **${s.name}**: ${s.description} _(path: ${s.path}/SKILL.md)_`);
     }
     lines.push("");
   }
