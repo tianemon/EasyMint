@@ -304,6 +304,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const [chatModel, setChatModel] = useState("");
   // 会话绑定的供应商 piId(需求 5:不同会话不同供应商)
   const [chatProvider, setChatProvider] = useState<string>("");
+  // 全局默认模型变化(设置中切供应商联动更新 store.model)→ 主会话模型跟随,全局生效;
+  // 挂载时同步初始值;会话缓存恢复(其后执行)可覆盖为会话绑定模型
+  useEffect(() => {
+    if (storeModel) setChatModel(storeModel);
+  }, [storeModel]);
 
   const handleModelChange = useCallback(async (m: string) => {
     setChatModel(m); setStoreModel(m);
