@@ -597,7 +597,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 .sb-drawer.ptr-left .sb-drawer-arrow { left: 12%; }
 .sb-drawer.ptr-mid .sb-drawer-arrow { left: 46%; }
 .sb-drawer.ptr-right .sb-drawer-arrow { left: 80%; }
-.sb-drawer-body { height: 410px; overflow: hidden; }
+.sb-drawer-body { height: 510px; overflow: hidden; }
 
 /* 运行面板标题 hover 滚动：文本溢出时鼠标悬停滚动到末尾完整显示（滚动距离由 JS 注入 --scroll-dist） */
 .run-title-scroll { animation: run-title-scroll 5s linear infinite; }
