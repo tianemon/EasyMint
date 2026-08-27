@@ -3,6 +3,17 @@
 > 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/) 规范：只记录 release 的**用户可见变更**。
 > **发布前必更新**：日常变更先记入下方 `[Unreleased]`，发版时整理成本版本条目；内部开发记录（项目变动/用户决策/实现过程）见 `docs/开发记录.md`（发版时同步更新头部快照与当天日志）。
 
+## v0.12.2 (2026-08-28) — 打断提示精简 & Skill 读取修复
+
+### Fixed（修复）
+
+- **打断不再显示「已停止」提示**：打断是主动操作，按钮状态变化即反馈——abort 类错误静默处理；真实错误（503/429/超时）仍提示 8s
+- **Mint 读 Skill 报 EISDIR**：skill 注入列表的路径原指向文件夹（如 `.../skills/project-run`），Mint 按提示 Read 文件夹报"illegal operation on a directory"——路径改为直接指向 `SKILL.md` 文件
+
+### Changed（重构）
+
+- `buildSkillsPrompt` 三组 skill 输出封装为 `pushSkillGroup`；`scanSkills` builtin 归并三次遍历合并为一次（行为不变）
+
 ## v0.12.1 (2026-08-27) — 打断状态机修复
 
 ### Fixed（修复）
