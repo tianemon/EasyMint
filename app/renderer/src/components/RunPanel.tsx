@@ -97,7 +97,8 @@ function platformByExtension(file: string): string | null {
     js: "nodejs", mjs: "nodejs", cjs: "nodejs", ts: "nodejs",
     java: "java", rb: "rails", go: "go", rs: "rust", dart: "flutter",
   };
-  return map[m[1].toLowerCase()] || null;
+  const ext = m[1]?.toLowerCase();
+  return ext ? map[ext] || null : null;
 }
 
 /** 按命令推断平台标签（显示用）：Mint 写的 platform 可能按项目技术栈硬标，
