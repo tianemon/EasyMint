@@ -46,6 +46,7 @@ const PLATFORM_LABEL: Record<RunPlatform, string> = {
   tauri: "tauri",
   python: "python",
   shell: "shell",
+  git: "git",
 };
 
 const PLATFORM_COLOR: Record<RunPlatform, string> = {
@@ -72,6 +73,7 @@ const PLATFORM_COLOR: Record<RunPlatform, string> = {
   tauri: "bg-orange-500/15 text-orange-500",
   python: "bg-blue-500/15 text-blue-500",
   shell: "bg-gray-500/15 text-gray-500",
+  git: "bg-orange-500/15 text-orange-500",
 };
 
 function platformLabel(p: string): string {
@@ -82,6 +84,24 @@ const DEFAULT_COLOR = "bg-gray-400/15 text-gray-400";
 
 function platformColor(p: string): string {
   return PLATFORM_COLOR[p as RunPlatform] || DEFAULT_COLOR;
+}
+
+/** 按命令首词推断平台标签（显示用）：Mint 写的 platform 可能按项目技术栈硬标，
+ *  ./xx.sh 被标成 flutter 等——命令开头是什么工具就显示什么标签 */
+function inferPlatform(cmd: string, declared: string): string {
+  const first = cmd.trim().split(/\s+/)[0]?.toLowerCase() || "";
+  if (first.startsWith("flutter")) return "flutter";
+  if (first === "git") return "git";
+  if (first.startsWith("npm") || first.startsWith("pnpm") || first.startsWith("yarn")) return "nodejs";
+  if (first.startsWith("node")) return "nodejs";
+  if (first.startsWith("python")) return "python";
+  if (first === "bash" || first === "sh" || first === "zsh" || first.startsWith("./") || first.endsWith(".sh")) return "shell";
+  if (first === "mvn" || first === "gradle") return "spring";
+  if (first === "cargo") return "rust";
+  if (first === "go" || first.startsWith("go ")) return "go";
+  if (first === "dotnet") return "dotnet";
+  if (first === "docker") return "shell";
+  return declared;
 }
 
 /** 标题滚动显示：文本溢出时 hover 滚动到末尾完整显示（滚动距离 JS 计算，注入 CSS 变量） */
@@ -244,9 +264,9 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                       </span>
                     )}
                   </div>
-                  {/* 第二行：平台标签 + URL（命令不再显示，编辑弹窗中查看） */}
+                  {/* 第二行：平台标签（按命令首词推断）+ URL（命令不再显示，编辑弹窗中查看） */}
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono shrink-0 ${platformColor(r.platform)}`}>[{platformLabel(r.platform)}]</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono shrink-0 ${platformColor(inferPlatform(r.run_command, r.platform))}`}>[{platformLabel(inferPlatform(r.run_command, r.platform))}]</span>
                     {st.running && r.url ? (
                       <span className="text-[9px] text-accent font-mono truncate">{r.url}</span>
                     ) : (

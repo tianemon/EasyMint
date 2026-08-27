@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 export type RunPlatform =
   | "react" | "vue" | "nextjs" | "nuxt" | "angular" | "svelte"
-  | "spring" | "django" | "flask" | "fastapi" | "nodejs" | "rails" | "laravel" | "go" | "rust" | "dotnet"
+  | "spring" | "django" | "flask" | "fastapi" | "nodejs" | "rails" | "laravel" | "go" | "rust" | "dotnet" | "git"
   | "react-native" | "expo" | "flutter"
   | "electron" | "tauri"
   | "python" | "shell";

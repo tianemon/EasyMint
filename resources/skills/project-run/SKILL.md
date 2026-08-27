@@ -23,7 +23,7 @@ description: >-
 
 ## 字段
 
-- **platform**：技术栈。合法值：react/vue/nextjs/nuxt/angular/svelte/spring/django/flask/fastapi/nodejs/rails/laravel/go/rust/dotnet/react-native/expo/flutter/electron/tauri/python/shell。mac 桌面脚本用 shell，桌面应用用 electron。
+- **platform**：**按 run_command 的首个命令词判断，不要按项目技术栈硬标**。合法值：react/vue/nextjs/nuxt/angular/svelte/spring/django/flask/fastapi/nodejs/rails/laravel/go/rust/dotnet/react-native/expo/flutter/electron/tauri/python/shell/git。对应关系：flutter 开头→flutter、git 开头→git、npm/pnpm/yarn/node→nodejs、python→python、bash/sh/./xx.sh→shell、mvn/gradle→spring、cargo→rust、go→go、dotnet→dotnet、docker→shell。mac 桌面脚本用 shell，桌面应用用 electron。（面板显示时也会按此规则推断，写对避免跳变）
 - **label**：显示名，如"前端"、"后端"、"Android"（命名规则见下方「脚本标题命名」）
 - **cwd**：工作目录（相对项目根），默认 "."
 - **run_command**：运行命令，如 npm run dev、python main.py、flutter run、flutter build apk、bash deploy.sh
