@@ -99,7 +99,7 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
           <div>
             <label className="text-xs text-text-secondary block mb-1">运行命令</label>
             <textarea
-              className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent/50 resize-none font-mono leading-relaxed"
+              className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[length:var(--text-caption)] text-text-primary outline-none focus:border-accent/50 resize-none font-mono leading-relaxed"
               rows={8}
               value={runCommand}
               onChange={(e) => setRunCommand(e.target.value)}

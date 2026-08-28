@@ -110,12 +110,17 @@ html[data-platform="win32"] {
  */
 
 :root {
-  /* ── 聊天字号缩放系数:由设置→界面 的「聊天字体」滑杆(90%~130%,默认100%)设置 ── */
+  /* ── 阅读区字号缩放系数:由设置→界面 的「阅读字体」滑杆(90%~130%,默认100%)设置 ── */
   --chat-scale: 1;
-  /* 聊天区语义字号(消息内容,全部随 --chat-scale 缩放并保持比例) */
-  --text-body: calc(14px * var(--chat-scale));    /* markdown 正文(默认基准) */
-  --text-detail: calc(13px * var(--chat-scale));  /* 折叠块正文/摘要/代码块 */
-  --text-caption: calc(12px * var(--chat-scale)); /* 标题栏/标签/工具名 */
+  /* 阅读区语义字号:用户需要持续阅读的动态内容,全部随 --chat-scale 缩放并保持比例。
+     覆盖范围:聊天消息正文/代码块/diff/思考过程/工具调用折叠 + 代码编辑器(Monaco) +
+     Shell 输出/运行日志/子 Agent 过程输出 + 脚本编辑/提示词编辑 + 便签正文。
+     划界三问:①内容由运行时产生?②需阅读理解语义?③放大有收益?
+     三问全 YES → 本组(阅读区);否则 → 下方 UI 组(--text-3xs~2xl)。
+     与「内容型区域」白名单(下方 user-select:text 清单)同源,新增内容区两边同步。 */
+  --text-body: calc(14px * var(--chat-scale));    /* 阅读正文基准(markdown 正文/便签) */
+  --text-detail: calc(13px * var(--chat-scale));  /* 次一级正文(代码块/编辑器/折叠摘要) */
+  --text-caption: calc(12px * var(--chat-scale)); /* 内容区标题栏/标签/工具名/Shell 输出 */
   --text-code: calc(11px * var(--chat-scale));    /* diff / 紧凑代码视图 */
   --text-meta: calc(10px * var(--chat-scale));    /* 箭头/状态/图标 */
   /* ── UI 字号缩放系数:由设置→界面 的「界面字体」滑杆(90%~130%,默认100%)设置 ── */
@@ -1246,8 +1251,12 @@ select.input {
 :root  { --shimmer-1: #16a34a; --shimmer-2: #22c55e; --shimmer-3: #eab308; --shimmer-4: #facc15; --shimmer-5: #4ade80; }
 [data-theme="dark"] { --shimmer-1: #818cf8; --shimmer-2: #a78bfa; --shimmer-3: #f472b6; --shimmer-4: #c084fc; --shimmer-5: #6366f1; }
 
-/* 聊天区 Markdown(prose)正文跟随聊天气泡字号设置——覆盖 typography 插件的 prose-sm 固定字号 */
-.chat-messages .prose {
+/* 阅读区 Markdown(prose)正文跟随阅读字号设置——覆盖 typography 插件的 prose-sm 固定字号。
+   覆盖所有动态内容区:聊天区(.chat-messages)、子 Agent 输出(.subagent-output)、
+   便签等带 .selectable 的内容容器(TextBlockView 共用同一 prose 渲染)。 */
+.chat-messages .prose,
+.subagent-output .prose,
+.selectable .prose {
   font-size: var(--text-body);
 }
 

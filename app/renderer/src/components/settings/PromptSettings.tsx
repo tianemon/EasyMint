@@ -172,7 +172,7 @@ export function PromptSettings(): JSX.Element {
               placeholder="提示词名称"
             />
             <textarea
-              className="flex-1 w-full resize-none px-3 py-2 text-sm rounded-lg bg-surface border border-border text-text-primary outline-none focus:border-accent disabled:opacity-50 font-mono"
+              className="flex-1 w-full resize-none px-3 py-2 text-[length:var(--text-detail)] rounded-lg bg-surface border border-border text-text-primary outline-none focus:border-accent disabled:opacity-50 font-mono"
               value={editContent}
               onChange={(e) => { setEditContent(e.target.value); if (!selectedPrompt.isBuiltin) debounceSave(selectedPrompt.id, { content: e.target.value }); }}
               disabled={selectedPrompt.isBuiltin}

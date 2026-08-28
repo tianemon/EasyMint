@@ -34,7 +34,6 @@ EasyMint 专属设置，不与 SDK 混淆。
 | 字段 | 说明 |
 |------|------|
 | `defaultProjectDir` | 新建项目的默认父目录 |
-| `terminalFontSize` | 内置终端字号 |
 | `evaluateMode` | 是否开启评估模式 |
 | `tddMode` | 是否开启 TDD 模式 |
 | `screenshotVerification` | 是否开启截图验证 |

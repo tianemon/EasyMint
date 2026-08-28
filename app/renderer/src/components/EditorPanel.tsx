@@ -122,13 +122,13 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
     return () => observer.disconnect();
   }, [isActive, myTabId]);
 
-  // UI 字号缩放变化时同步 Monaco 编辑器字号与行高（--text-sm 随 --ui-scale 缩放;
-  // 行高保持 13px→22px 的原比例,字号放大时行距不挤压）
-  const uiFontScale = useSettingsStore((s) => s.uiFontScale);
+  // 阅读字号缩放变化时同步 Monaco 编辑器字号与行高（编辑器属阅读型内容:--text-detail
+  // 随 --chat-scale 缩放;行高保持 13px→22px 的原比例,字号放大时行距不挤压）
+  const chatFontScale = useSettingsStore((s) => s.chatFontScale);
   useEffect(() => {
-    const size = readPx("--text-sm", 13);
+    const size = readPx("--text-detail", 13);
     editorRef.current?.updateOptions({ fontSize: size, lineHeight: Math.round(size * 1.7) });
-  }, [uiFontScale]);
+  }, [chatFontScale]);
 
   // Load file content
   useEffect(() => {
@@ -210,9 +210,9 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
           onChange={handleChange}
           theme="easymint"
           options={{
-            fontSize: readPx("--text-sm", 13),
+            fontSize: readPx("--text-detail", 13), // 阅读档(13px 基准,与旧 --text-sm 等值,默认 100% 视觉不变)
             fontFamily: "'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace",
-            lineHeight: Math.round(readPx("--text-sm", 13) * 1.7), // 13px→22px 原比例,随字号缩放
+            lineHeight: Math.round(readPx("--text-detail", 13) * 1.7), // 13px→22px 原比例,随字号缩放
             lineNumbersMinChars: 4,
             // 行号与代码间距 = lineDecorationsWidth(默认10) + folding(16) = 26px
             // 收紧：装饰区 0（折叠箭头保留，间距 16px）

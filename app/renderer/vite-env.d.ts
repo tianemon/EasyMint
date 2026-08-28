@@ -373,7 +373,7 @@ interface ElectronAPI {
   };
   settings: {
     get: () => Promise<{
-      defaultProjectDir?: string; terminalFontSize: number; setupComplete?: boolean;
+      defaultProjectDir?: string; setupComplete?: boolean;
       apiKeys?: Record<string, string>; builtinTools?: Record<string, boolean>; model?: string;
       availableModels?: string[]; contextThreshold?: number;
       showThinking?: boolean; showToolUse?: boolean;

@@ -25,7 +25,6 @@ interface Project {
 
 interface Settings {
   defaultProjectDir: string;
-  terminalFontSize: number;
   model?: string;
   availableModels?: string[];
   apiKeys?: Record<string, string>;
@@ -126,7 +125,6 @@ export function mergeGlowGroups(
 const EM_DEFAULTS = {
   setupComplete: false,
   defaultProjectDir: "~/EasyMintProject",
-  terminalFontSize: 14,
   contextThreshold: 75,
 };
 
@@ -189,7 +187,6 @@ export class Store {
     const emData = this.readEmSettings();
     return {
       defaultProjectDir: resolveHome((emData.defaultProjectDir as string) || EM_DEFAULTS.defaultProjectDir),
-      terminalFontSize: (emData.terminalFontSize as number) || EM_DEFAULTS.terminalFontSize,
       model: (emData.model as string) || undefined,
       availableModels: (emData.availableModels as string[]) || undefined,
       apiKeys: (emData.apiKeys as Record<string, string>) || undefined,
@@ -265,7 +262,6 @@ export class Store {
       Object.assign(data, JSON.parse(fs.readFileSync(this.emSettingsPath, "utf-8")));
     }
     data.defaultProjectDir = settings.defaultProjectDir;
-    data.terminalFontSize = settings.terminalFontSize;
     data.lastProjectId = settings.lastProjectId;
     data.setupComplete = settings.setupComplete;
     // 同步激活供应商的模型列表到旧字段（ChatPanel 下拉引用）

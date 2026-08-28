@@ -211,15 +211,16 @@ export function SubagentProcessView({
         </div>
 
         {/* 消息区(思考/工具调用按开关显示,默认只显示文本;可选中复制) */}
-        <div ref={scrollRef} onScroll={handleScroll} onWheel={handleUserInput} onTouchStart={handleUserInput} onMouseDown={handleUserInput} className="subagent-output flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-[var(--color-sidebar)]/40">
+        {/* 阅读型内容区:字号随「阅读字体」缩放(与聊天区 .chat-messages 同思路) */}
+        <div ref={scrollRef} onScroll={handleScroll} onWheel={handleUserInput} onTouchStart={handleUserInput} onMouseDown={handleUserInput} className="subagent-output flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-[var(--color-sidebar)]/40" style={{ fontSize: "var(--text-body)" }}>
           {!loaded && !sessionFile && (
-            <div className="text-center text-xs text-text-secondary py-8">正在准备任务…</div>
+            <div className="text-center text-text-secondary py-8">正在准备任务…</div>
           )}
           {!loaded && sessionFile && (
-            <div className="text-center text-xs text-text-secondary py-8">加载中…</div>
+            <div className="text-center text-text-secondary py-8">加载中…</div>
           )}
           {loaded && msgs.length === 0 && (
-            <div className="text-center text-xs text-text-secondary py-8">暂无消息</div>
+            <div className="text-center text-text-secondary py-8">暂无消息</div>
           )}
           {msgs.map((m) => <SubagentMessage key={m.keyId ?? m.id} msg={m} showThinking={showThinking} showToolUse={showToolUse} />)}
           {running && <div className="flex justify-center"><span className="text-[length:var(--text-11)] text-text-secondary animate-pulse">● 运行中</span></div>}
@@ -247,7 +248,7 @@ function SubagentMessage({ msg, showThinking, showToolUse }: { msg: ChatMessage;
   if (msg.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="msg-bubble-user rounded-[10px] rounded-tr-[4px] px-3 py-1.5 text-sm whitespace-pre-wrap break-words max-w-[80%]">{msg.text}</div>
+        <div className="msg-bubble-user rounded-[10px] rounded-tr-[4px] px-3 py-1.5 text-[length:var(--text-detail)] whitespace-pre-wrap break-words max-w-[80%]">{msg.text}</div>
       </div>
     );
   }
@@ -264,7 +265,7 @@ function SubagentMessage({ msg, showThinking, showToolUse }: { msg: ChatMessage;
     <div className="flex gap-3 items-start">
       <div className="msg-avatar agent shrink-0">M</div>
       <div className="min-w-0 flex-1">
-        <div className="msg-bubble-agent rounded-[10px] rounded-bl-[4px] px-3 py-1.5 text-sm overflow-hidden">
+        <div className="msg-bubble-agent rounded-[10px] rounded-bl-[4px] px-3 py-1.5 text-[length:var(--text-detail)] overflow-hidden">
           {visible.map((e, i) => <SubagentEntry key={i} entry={e} showThinking={showThinking} showToolUse={showToolUse} />)}
         </div>
       </div>
@@ -282,7 +283,7 @@ function SubagentEntry({ entry, showThinking, showToolUse }: { entry: StreamEntr
     return (
       <div className="mb-1.5 flex gap-2 items-start">
         <span className="shrink-0 text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-[var(--color-sidebar-hover)] text-text-muted mt-0.5">思考</span>
-        <div className="text-xs text-[var(--color-text-secondary)] italic whitespace-pre-wrap break-words opacity-90">{entry.text}</div>
+        <div className="text-[length:var(--text-caption)] text-[var(--color-text-secondary)] italic whitespace-pre-wrap break-words opacity-90">{entry.text}</div>
       </div>
     );
   }
@@ -311,7 +312,7 @@ function SubagentEntry({ entry, showThinking, showToolUse }: { entry: StreamEntr
     }
     const short = content.length > 160 ? `${content.slice(0, 160)}…` : content;
     return (
-      <div className="mb-1.5 ml-6 text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap break-words font-mono bg-[var(--color-sidebar-hover)]/50 rounded px-2 py-1">
+      <div className="mb-1.5 ml-6 text-[length:var(--text-caption)] text-[var(--color-text-secondary)] whitespace-pre-wrap break-words font-mono bg-[var(--color-sidebar-hover)]/50 rounded px-2 py-1">
         {short}
       </div>
     );

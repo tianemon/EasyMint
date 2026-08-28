@@ -166,16 +166,16 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
           onWheel={handleUserInput}
           onTouchStart={handleUserInput}
           onMouseDown={handleUserInput}
-          className="shell-output flex-1 min-h-0 overflow-y-auto px-4 py-3 bg-[var(--color-sidebar)]/40 font-mono text-xs leading-relaxed"
+          className="shell-output flex-1 min-h-0 overflow-y-auto px-4 py-3 bg-[var(--color-sidebar)]/40 font-mono text-[length:var(--text-caption)] leading-relaxed"
         >
           {truncated && (
-            <div className="text-[length:var(--text-11)] text-warning mb-2 break-all">
+            <div className="text-[length:var(--text-code)] text-warning mb-2 break-all">
               日志较大,仅显示最近输出(完整: {logPath})
             </div>
           )}
           {logs ? (
             logs.length === 0 ? (
-              <span className="text-xs text-text-secondary">等待输出...</span>
+              <span className="text-text-secondary">等待输出...</span>
             ) : (
               logs.map((line, i) => (
                 <div key={i} className="text-text-primary whitespace-pre-wrap break-all" dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
@@ -184,7 +184,7 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
           ) : content ? (
             <pre className="whitespace-pre-wrap break-words text-text-primary leading-relaxed" dangerouslySetInnerHTML={{ __html: ansiToHtml(content) }} />
           ) : (
-            <span className="text-xs text-text-secondary">{running ? "等待输出…" : "(无输出)"}</span>
+            <span className="text-text-secondary">{running ? "等待输出…" : "(无输出)"}</span>
           )}
         </div>
 
