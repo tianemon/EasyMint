@@ -122,7 +122,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
           <div className="bg-surface rounded-lg border border-border px-4 py-3 space-y-1.5">
             <div className="flex items-center gap-2 text-sm">
               <span className="text-text-primary font-medium">{incoming.projectName}</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-soft text-accent">来自 {incoming.fromName}</span>
+              <span className="text-[length:var(--text-2xs)] px-1.5 py-0.5 rounded bg-accent-soft text-accent">来自 {incoming.fromName}</span>
             </div>
             <div className="text-xs text-text-secondary">
               {incoming.fileCount} 个文件 · {fmtSize(incoming.totalSize)}
@@ -149,10 +149,10 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
                 {browsing ? "…" : "浏览"}
               </button>
             </div>
-            <p className="text-[10px] text-text-muted mt-1">将在此文件夹下创建「{incoming.projectName}」项目文件夹并恢复；会话会自动恢复到本机项目（以新路径为身份）</p>
+            <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">将在此文件夹下创建「{incoming.projectName}」项目文件夹并恢复；会话会自动恢复到本机项目（以新路径为身份）</p>
           </div>
 
-          {error && <div className="text-[11px] text-danger">{error}</div>}
+          {error && <div className="text-[length:var(--text-11)] text-danger">{error}</div>}
 
           {/* 接收端步骤条:接收 → 校验 → 解压 → 会话恢复 → 完成 */}
           {(accepting || accepted) && (
@@ -172,7 +172,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
                   <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
                     <div className="h-full bg-accent rounded-full transition-all duration-200" style={{ width: `${progressPct}%` }} />
                   </div>
-                  <div className="text-[10px] text-text-secondary">接收中 {progressPct}%</div>
+                  <div className="text-[length:var(--text-2xs)] text-text-secondary">接收中 {progressPct}%</div>
                 </div>
               )}
             </div>
@@ -186,7 +186,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
                 已恢复到：{targetPath}/{incoming.projectName.replace(/[\\/:*?"<>|]/g, "_").trim() || "migrated-project"}
               </div>
               {sessionRestoredCount > 0 && (
-                <div className="text-[11px] text-text-secondary">
+                <div className="text-[length:var(--text-11)] text-text-secondary">
                   已恢复 {sessionRestoredCount} 个会话记录
                 </div>
               )}

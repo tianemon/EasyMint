@@ -25,7 +25,7 @@ export function StepIndicator({ steps, current }: StepIndicatorProps): JSX.Eleme
           <div key={s.id} className="flex items-center gap-1.5">
             {i > 0 && <span className="w-2.5 h-px bg-border shrink-0" />}
             <span
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] transition-colors ${
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[length:var(--text-2xs)] transition-colors ${
                 done
                   ? "bg-accent-soft text-accent"
                   : active

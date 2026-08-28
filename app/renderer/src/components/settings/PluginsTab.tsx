@@ -25,7 +25,7 @@ function SkillRow({ s, onToggle }: { s: { name: string; description: string; pat
         </button>
       </div>
       {expanded && (
-        <p className="text-[11px] text-text-secondary mt-1 leading-relaxed">{s.description}</p>
+        <p className="text-[length:var(--text-11)] text-text-secondary mt-1 leading-relaxed">{s.description}</p>
       )}
     </div>
   );
@@ -57,7 +57,7 @@ function SkillsTab(): JSX.Element {
 
       <div>
         <p className="text-sm font-medium text-text-primary">Skills</p>
-        <p className="text-[11px] text-text-secondary mt-0.5">
+        <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
           内置 Skill 仅 EasyMint 可用；通用 Skill 与 Claude Code 共用
         </p>
       </div>
@@ -133,9 +133,9 @@ function McpRow({ s, onToggle, requiredKeys, apiKeys, typeLabel }: {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
           <span className="text-xs text-text-primary truncate">{s.name}</span>
-          <span className="text-[9px] px-1 py-0.5 rounded bg-surface text-text-muted shrink-0">{typeLabel}</span>
+          <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-surface text-text-muted shrink-0">{typeLabel}</span>
           {Object.entries(requiredKeys).map(([k, v]) => (
-            <span key={k} className={`text-[9px] px-1 py-0.5 rounded shrink-0 ${v || apiKeys[k] ? "bg-accent-bg text-accent" : "bg-warning/10 text-warning"}`}>
+            <span key={k} className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded shrink-0 ${v || apiKeys[k] ? "bg-accent-bg text-accent" : "bg-warning/10 text-warning"}`}>
               {k}
             </span>
           ))}
@@ -152,7 +152,7 @@ function McpRow({ s, onToggle, requiredKeys, apiKeys, typeLabel }: {
         </button>
       </div>
       {expanded && (
-        <p className="text-[10px] text-text-secondary mt-1 truncate">
+        <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1 truncate">
           {s.type === "http" ? s.url : [s.command, ...(s.args || [])].join(" ")}
         </p>
       )}
@@ -212,7 +212,7 @@ function McpTab(): JSX.Element {
       {Array.from(allKeys.entries()).filter(([k]) => k !== "VISION_API_KEY" && k !== "TAVILY_API_KEY").length > 0 && (
         <section>
           <h3 className="text-sm font-medium text-text-primary mb-2">API Keys</h3>
-          <p className="text-[11px] text-text-secondary mb-3">
+          <p className="text-[length:var(--text-11)] text-text-secondary mb-3">
             MCP 工具所需的第三方服务密钥，会注入到对应 MCP 服务器的环境变量中。
           </p>
           <div className="bg-surface-alt rounded-lg px-4 py-3 space-y-2">
@@ -246,7 +246,7 @@ function McpTab(): JSX.Element {
       {/* MCP Servers */}
       <section>
         <h3 className="text-sm font-medium text-text-primary mb-2">MCP</h3>
-        <p className="text-[11px] text-text-secondary mb-3">
+        <p className="text-[length:var(--text-11)] text-text-secondary mb-3">
           EM 独立配置（~/.easymint/mcp.json），与 Claude Code 解耦。
         </p>
 

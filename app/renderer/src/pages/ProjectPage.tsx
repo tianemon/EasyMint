@@ -469,12 +469,12 @@ export function ProjectPage(): JSX.Element {
                     >
                       <div className="flex items-center gap-1.5">
                         <span className={`text-sm font-medium ${p.id === projectId ? "text-accent" : "text-text-primary"}`}>{p.name}</span>
-                        {p.exists === false && <span className="text-[10px] text-danger">目录已删除</span>}
+                        {p.exists === false && <span className="text-[length:var(--text-2xs)] text-danger">目录已删除</span>}
                       </div>
-                      <div className="text-[11px] text-text-secondary truncate">{p.path}</div>
+                      <div className="text-[length:var(--text-11)] text-text-secondary truncate">{p.path}</div>
                     </button>
                     <button
-                      className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-text-secondary hover:text-danger hover:bg-danger-bg transition-colors opacity-0 group-hover:opacity-100 text-[11px]"
+                      className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-text-secondary hover:text-danger hover:bg-danger-bg transition-colors opacity-0 group-hover:opacity-100 text-[length:var(--text-11)]"
                       onClick={(e) => handleDeleteProject(e, p.id)}
                       title="删除记录"
                     >

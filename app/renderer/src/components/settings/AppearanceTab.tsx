@@ -3,10 +3,12 @@ import { useSettingsStore } from "../../stores/settings-store";
 import { useThemeStore } from "../../stores/theme-store";
 import { GlowGroupManager } from "./GlowGroupManager";
 
-/** 界面设置:聊天字体分级 + 状态指示光效 */
+/** 界面设置:聊天/界面字体缩放 + 状态指示光效 */
 export function AppearanceTab(): JSX.Element {
-  const chatFontLevel = useSettingsStore((s) => s.chatFontLevel);
-  const setChatFontLevel = useSettingsStore((s) => s.setChatFontLevel);
+  const chatFontScale = useSettingsStore((s) => s.chatFontScale);
+  const setChatFontScale = useSettingsStore((s) => s.setChatFontScale);
+  const uiFontScale = useSettingsStore((s) => s.uiFontScale);
+  const setUiFontScale = useSettingsStore((s) => s.setUiFontScale);
   // 输入卡片光效配置
   const glowEffect = useSettingsStore((s) => s.glowEffect);
   const setGlowEffect = useSettingsStore((s) => s.setGlowEffect);
@@ -67,29 +69,55 @@ export function AppearanceTab(): JSX.Element {
 
   return (
     <div className="space-y-5">
-      {/* 聊天字体:分级整体控制 */}
+      {/* 聊天字体:消息内容百分比缩放 */}
       <section>
         <h3 className="text-sm font-medium text-text-secondary mb-2">聊天字体</h3>
         <div className="bg-surface-alt rounded-lg border border-border px-4 py-3">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-text-primary">字体大小</span>
-            <span className="text-xs text-text-secondary tabular-nums">{chatFontLevel}/6 级</span>
+            <span className="text-xs text-text-primary">字号缩放</span>
+            <span className="text-xs text-text-secondary tabular-nums">{Math.round(chatFontScale * 100)}%</span>
           </div>
           <input
             type="range"
-            min="1"
-            max="6"
-            step="1"
-            value={chatFontLevel}
-            onChange={(e) => setChatFontLevel(Number(e.target.value))}
+            min="0.9"
+            max="1.3"
+            step="0.05"
+            value={chatFontScale}
+            onChange={(e) => setChatFontScale(Number(e.target.value))}
             className="w-full accent-accent"
           />
-          <div className="flex justify-between text-[9px] text-text-muted mt-0.5">
+          <div className="flex justify-between text-[length:var(--text-3xs)] text-text-muted mt-0.5">
             <span>小</span>
-            <span>默认(3)</span>
+            <span>默认(100%)</span>
             <span>大</span>
           </div>
-          <p className="text-[10px] text-text-secondary mt-1">整体控制聊天界面的字体大小——会话列表、消息气泡、思考与工具调用会按层级同步缩放（默认第 3 级，可减小 2 号、放大 3 号）。</p>
+          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1">控制聊天消息内容的字号——正文、代码块、思考过程、工具调用折叠等按百分比整体缩放（界面文字由下方「界面字体」控制）。</p>
+        </div>
+      </section>
+
+      {/* 界面字体:百分比缩放统一控制 UI 骨架 */}
+      <section>
+        <h3 className="text-sm font-medium text-text-secondary mb-2">界面字体</h3>
+        <div className="bg-surface-alt rounded-lg border border-border px-4 py-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-text-primary">字号缩放</span>
+            <span className="text-xs text-text-secondary tabular-nums">{Math.round(uiFontScale * 100)}%</span>
+          </div>
+          <input
+            type="range"
+            min="0.9"
+            max="1.3"
+            step="0.05"
+            value={uiFontScale}
+            onChange={(e) => setUiFontScale(Number(e.target.value))}
+            className="w-full accent-accent"
+          />
+          <div className="flex justify-between text-[length:var(--text-3xs)] text-text-muted mt-0.5">
+            <span>小</span>
+            <span>默认(100%)</span>
+            <span>大</span>
+          </div>
+          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1">统一控制应用界面的字体大小——文件列表、侧边栏、状态栏、会话列表、输入栏、设置页等所有界面文字按百分比缩放（聊天内容字号由上方「聊天字体」控制）。</p>
         </div>
       </section>
 
@@ -129,7 +157,7 @@ export function AppearanceTab(): JSX.Element {
                   }`}
                 >
                   <span className="text-xs font-medium block">{p.label}</span>
-                  <span className="text-[10px] text-text-muted">{p.desc}</span>
+                  <span className="text-[length:var(--text-2xs)] text-text-muted">{p.desc}</span>
                 </button>
               ))}
             </div>

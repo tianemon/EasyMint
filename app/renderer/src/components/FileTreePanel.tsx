@@ -57,7 +57,7 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
             className={`w-full text-left py-1 flex items-center gap-1.5 transition-colors ${
               isSelected ? "bg-accent-high" : "hover:bg-surface-hover"
             } ${node.modified ? "text-accent" : "text-text-primary"}`}
-            style={{ paddingLeft: `${14 + depth * 16}px`, fontFamily: 'var(--font-mono)', fontSize: '12px' }}
+            style={{ paddingLeft: `${14 + depth * 16}px`, fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)' }}
             onClick={() => {
               if (node.isDirectory) {
                 toggleExpand(node.path);
@@ -80,7 +80,7 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
               </svg>
             )}
             <span className="truncate">{node.name}</span>
-            {node.modified && <span className="text-accent text-[10px] font-medium shrink-0 ml-0.5">M</span>}
+            {node.modified && <span className="text-accent text-[length:var(--text-2xs)] font-medium shrink-0 ml-0.5">M</span>}
           </button>
           {node.isDirectory && isExpanded && node.children && renderTree(node.children, depth + 1)}
         </div>

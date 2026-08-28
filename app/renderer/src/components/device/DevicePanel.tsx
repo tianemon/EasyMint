@@ -29,14 +29,14 @@ function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevi
       <span className={`w-2 h-2 rounded-full shrink-0 ${device.online ? "bg-success" : "bg-text-muted/40"}`} />
       <div className="flex-1 min-w-0">
         <div className="text-xs text-text-primary truncate">{device.name}</div>
-        <div className="text-[10px] text-text-muted">
+        <div className="text-[length:var(--text-2xs)] text-text-muted">
           {device.online ? "在线 · 已连接" : `离线 · ${formatLastSeen(device.lastSeen)}`}
         </div>
       </div>
       {!device.online && (
         <button
           type="button"
-          className="text-[10px] px-2 py-1 rounded bg-accent-soft text-accent hover:bg-accent hover:text-text-inverse transition-colors shrink-0"
+          className="text-[length:var(--text-2xs)] px-2 py-1 rounded bg-accent-soft text-accent hover:bg-accent hover:text-text-inverse transition-colors shrink-0"
           onClick={() => onConnect(device.id)}
           title="手动连接该设备"
         >
@@ -46,7 +46,7 @@ function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevi
       {device.online && (
         <button
           type="button"
-          className="text-[10px] px-2 py-1 rounded bg-accent-soft text-accent hover:bg-accent hover:text-text-inverse transition-colors shrink-0"
+          className="text-[length:var(--text-2xs)] px-2 py-1 rounded bg-accent-soft text-accent hover:bg-accent hover:text-text-inverse transition-colors shrink-0"
           onClick={() => onSend(device.id)}
           title="向该设备迁移项目"
         >
@@ -55,7 +55,7 @@ function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevi
       )}
       <button
         type="button"
-        className="text-[10px] px-2 py-1 rounded border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors shrink-0"
+        className="text-[length:var(--text-2xs)] px-2 py-1 rounded border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors shrink-0"
         onClick={() => onUnpair(device.id)}
       >
         解除配对
@@ -73,7 +73,7 @@ function DiscoveredRow({ device, onPair }: { device: DiscoveredDevice; onPair: (
       </span>
       <div className="flex-1 min-w-0">
         <div className="text-xs text-text-primary truncate">{device.name}</div>
-        <div className="text-[10px] text-text-muted">通过局域网发现 · {device.address}:{device.port}</div>
+        <div className="text-[length:var(--text-2xs)] text-text-muted">通过局域网发现 · {device.address}:{device.port}</div>
       </div>
       <button
         type="button"
@@ -182,7 +182,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-xs font-medium text-text-primary truncate">{self.name}</div>
-                <div className="text-[10px] text-text-muted mt-0.5">本机 · {self.id.slice(0, 8)}</div>
+                <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">本机 · {self.id.slice(0, 8)}</div>
               </div>
               <button
                 type="button"
@@ -195,7 +195,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                     setEditingName(true);
                   }
                 }}
-                className="text-[10px] text-text-secondary hover:text-text-primary shrink-0"
+                className="text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary shrink-0"
               >
                 {editingName ? "保存" : "重命名"}
               </button>
@@ -221,7 +221,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
               </button>
             </div>
             {pairMode && pairCountdown !== null && (
-              <div className="mt-2 text-[10px] text-text-secondary">广播中 · {pairCountdown}s 后自动停止</div>
+              <div className="mt-2 text-[length:var(--text-2xs)] text-text-secondary">广播中 · {pairCountdown}s 后自动停止</div>
             )}
           </div>
 
@@ -229,7 +229,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
           <div className="shrink-0">
             <div className="text-xs font-medium text-text-secondary mb-1.5 px-1">已配对设备</div>
             {paired.length === 0 ? (
-              <div className="text-[11px] text-text-muted px-1">尚未配对任何设备。开启可被发现，或等待其他设备开启后在此配对。</div>
+              <div className="text-[length:var(--text-11)] text-text-muted px-1">尚未配对任何设备。开启可被发现，或等待其他设备开启后在此配对。</div>
             ) : (
               <div className="space-y-1.5">
                 {paired.map((d) => (
@@ -262,7 +262,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
               </span>
               <button
                 type="button"
-                className="text-[10px] text-text-secondary hover:text-accent transition-colors disabled:opacity-50"
+                className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors disabled:opacity-50"
                 disabled={scanning}
                 onClick={() => {
                   setScanning(true);
@@ -273,7 +273,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
               </button>
             </div>
             {discovered.length === 0 ? (
-              <div className="text-[11px] text-text-muted px-1">
+              <div className="text-[length:var(--text-11)] text-text-muted px-1">
                 {scanning ? "正在发现附近的设备…" : "点击「扫描」发现附近的设备（对方需开启「可被发现」）。"}
               </div>
             ) : (
@@ -294,23 +294,23 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                 onChange={(e) => { setIgnoreText(e.target.value); setIgnoreDirty(true); setIgnoreSaved(false); }}
                 spellCheck={false}
                 placeholder="# 每行一个文件/文件夹路径，# 开头为注释"
-                className="flex-1 resize-none w-full px-2.5 py-2 rounded-lg bg-surface-alt border border-border text-[10px] font-mono leading-relaxed text-text-primary outline-none focus:border-accent"
+                className="flex-1 resize-none w-full px-2.5 py-2 rounded-lg bg-surface-alt border border-border text-[length:var(--text-2xs)] font-mono leading-relaxed text-text-primary outline-none focus:border-accent"
               />
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-text-muted">
+                <span className="text-[length:var(--text-2xs)] text-text-muted">
                   {ignoreSaved ? "已保存 · 下次扫描生效" : ignoreDirty ? "有未保存修改" : ""}
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    className="text-[10px] text-text-secondary hover:text-accent transition-colors"
+                    className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors"
                     onClick={() => void resetIgnore()}
                   >
                     恢复默认
                   </button>
                   <button
                     type="button"
-                    className="text-[10px] px-2.5 py-1 rounded bg-accent text-text-inverse hover:bg-accent-hover transition-colors disabled:opacity-50"
+                    className="text-[length:var(--text-2xs)] px-2.5 py-1 rounded bg-accent text-text-inverse hover:bg-accent-hover transition-colors disabled:opacity-50"
                     disabled={!ignoreDirty}
                     onClick={() => void saveIgnore()}
                   >
@@ -322,7 +322,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
           </div>
 
           {pairError && (
-            <div className="text-[11px] text-danger px-1">{pairError}</div>
+            <div className="text-[length:var(--text-11)] text-danger px-1">{pairError}</div>
           )}
         </div>
       </div>

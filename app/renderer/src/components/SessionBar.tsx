@@ -105,11 +105,11 @@ export function SessionBar(props: SessionBarProps): JSX.Element {
               >
                 <div className="flex-1 min-w-0 leading-tight">
                   <div className="text-xs text-text-primary truncate">{s.title}</div>
-                  <div className="text-[10px] text-text-muted mt-0.5">{s.archivedAt ? fmtArchiveTime(s.archivedAt) : ""}</div>
+                  <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{s.archivedAt ? fmtArchiveTime(s.archivedAt) : ""}</div>
                 </div>
                 <button
                   type="button"
-                  className="shrink-0 px-1.5 py-0.5 rounded-md text-[11px] text-text-secondary border border-border/50 bg-surface/60 hover:text-text-primary hover:bg-surface-hover transition-all opacity-0 group-hover:opacity-100"
+                  className="shrink-0 px-1.5 py-0.5 rounded-md text-[length:var(--text-11)] text-text-secondary border border-border/50 bg-surface/60 hover:text-text-primary hover:bg-surface-hover transition-all opacity-0 group-hover:opacity-100"
                   title="恢复到会话列表"
                   onClick={(e) => { e.stopPropagation(); handleRestore(s.sessionId); }}
                 >
@@ -118,7 +118,7 @@ export function SessionBar(props: SessionBarProps): JSX.Element {
               </div>
             ))
           ) : (
-            <div className="px-3 py-2 text-[11px] text-text-secondary text-center">暂无归档会话</div>
+            <div className="px-3 py-2 text-[length:var(--text-11)] text-text-secondary text-center">暂无归档会话</div>
           )}
         </div>
       )}

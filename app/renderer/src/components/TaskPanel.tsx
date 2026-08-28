@@ -39,9 +39,9 @@ function TaskRow({ task, runningExec }: { task: { id: string; title: string; des
         ) : (
           <span className="shrink-0">{STATUS_ICON[task.status]}</span>
         )}
-        <span className={`text-[11px] truncate flex-1 leading-snug ${displayStatus === "done" ? "text-text-secondary" : (displayStatus === "building" || displayStatus === "running" || displayStatus === "evaluating") ? "text-text-primary font-medium" : displayStatus === "failed" ? "text-danger" : "text-text-secondary"}`}>
+        <span className={`text-[length:var(--text-11)] truncate flex-1 leading-snug ${displayStatus === "done" ? "text-text-secondary" : (displayStatus === "building" || displayStatus === "running" || displayStatus === "evaluating") ? "text-text-primary font-medium" : displayStatus === "failed" ? "text-danger" : "text-text-secondary"}`}>
           {task.title}
-          {durText && <span className="ml-1.5 text-[10px] text-accent tabular-nums">{durText}</span>}
+          {durText && <span className="ml-1.5 text-[length:var(--text-2xs)] text-accent tabular-nums">{durText}</span>}
         </span>
         {hasDesc && (
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
@@ -52,7 +52,7 @@ function TaskRow({ task, runningExec }: { task: { id: string; title: string; des
       </div>
       {expanded && hasDesc && (
         <div className="px-2.5 pb-2 pl-8">
-          <p className="text-[10px] text-text-secondary leading-relaxed">{task.description}</p>
+          <p className="text-[length:var(--text-2xs)] text-text-secondary leading-relaxed">{task.description}</p>
         </div>
       )}
     </div>
@@ -98,9 +98,9 @@ export function TaskPanel(_props: TaskPanelProps): JSX.Element {
     <div className="h-full flex flex-col bg-[var(--color-drawer-panel)]">
       {/* Header:标题 + 进度条 */}
       <div className="flex items-center gap-2 h-9 px-3 border-b border-border shrink-0">
-        <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">任务</span>
+        <span className="text-[length:var(--text-11)] font-semibold tracking-[0.04em] uppercase text-text-secondary">任务</span>
         {taskCount > 0 && (
-          <span className="ml-auto text-[10px] text-text-secondary tabular-nums">{doneCount}/{taskCount} 完成</span>
+          <span className="ml-auto text-[length:var(--text-2xs)] text-text-secondary tabular-nums">{doneCount}/{taskCount} 完成</span>
         )}
       </div>
 
@@ -121,7 +121,7 @@ export function TaskPanel(_props: TaskPanelProps): JSX.Element {
               <TaskRow key={task.id} task={task} runningExec={taskExecutions[task.id]} />
             ))
           ) : (
-            <div className="flex items-center justify-center flex-1 py-8 text-[10px] text-text-secondary">暂无任务</div>
+            <div className="flex items-center justify-center flex-1 py-8 text-[length:var(--text-2xs)] text-text-secondary">暂无任务</div>
           )}
         </div>
       </div>

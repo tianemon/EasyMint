@@ -37,8 +37,12 @@ interface Settings {
   showToolUse?: boolean;
   /** 全局聊天思考等级(仅作为新聊天会话的初始默认,不控制 agent/task) */
   chatThinkingLevel?: string;
-  /** 聊天字号级别(1-6,默认 3) */
+  /** 旧版聊天字号级别(1-6,默认 3;仅兼容读取,新版本用 chatFontScale) */
   chatFontLevel?: number;
+  /** 聊天字号缩放系数(0.9-1.3,默认 1):消息内容字号 */
+  chatFontScale?: number;
+  /** UI 界面字号缩放系数(0.9-1.3,默认 1) */
+  uiFontScale?: number;
   /** 状态指示光效:输入卡片光效预设 */
   glowEffect?: "orbit" | "slide" | "breathe" | "off";
   /** 光效颜色模式:单色(solid)/多色(multi) */
@@ -197,6 +201,8 @@ export class Store {
       showToolUse: emData.showToolUse as boolean | undefined,
       chatThinkingLevel: (emData.chatThinkingLevel as string) ?? "medium",
       chatFontLevel: (emData.chatFontLevel as number) ?? 3,
+      chatFontScale: (emData.chatFontScale as number) ?? 1,
+      uiFontScale: (emData.uiFontScale as number) ?? 1,
       glowEffect: (emData.glowEffect as "orbit" | "slide" | "breathe" | "off") ?? "orbit",
       glowColorMode: (emData.glowColorMode as "solid" | "multi") ?? "multi",
       glowColorLight: (emData.glowColorLight as string) || "#16a34a",
@@ -280,6 +286,8 @@ export class Store {
     if (settings.showToolUse !== undefined) data.showToolUse = settings.showToolUse;
     if (settings.chatThinkingLevel) data.chatThinkingLevel = settings.chatThinkingLevel;
     if (settings.chatFontLevel !== undefined) data.chatFontLevel = settings.chatFontLevel;
+    if (settings.chatFontScale !== undefined) data.chatFontScale = settings.chatFontScale;
+    if (settings.uiFontScale !== undefined) data.uiFontScale = settings.uiFontScale;
     if (settings.glowEffect) data.glowEffect = settings.glowEffect;
     if (settings.glowColorMode) data.glowColorMode = settings.glowColorMode;
     if (settings.glowColorLight) data.glowColorLight = settings.glowColorLight;

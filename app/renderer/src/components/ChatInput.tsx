@@ -38,14 +38,14 @@ function AttachPreview_({ attaches, setAttaches }: { attaches: AttachItem[]; set
   return (
     <div className="flex flex-wrap gap-1.5">
       {attaches.map((a, i) => (
-        <div key={i} className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-alt border border-border text-[11px] text-text-primary">
+        <div key={i} className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-alt border border-border text-[length:var(--text-11)] text-text-primary">
           {a.kind === "image" && a.dataUrl ? (
             <img src={a.dataUrl} className="w-4 h-4 rounded object-cover" alt={a.name} />
           ) : (
-            <span className="text-[10px] text-text-secondary">📎</span>
+            <span className="text-[length:var(--text-2xs)] text-text-secondary">📎</span>
           )}
           <span className="truncate max-w-[120px]">{a.name}</span>
-          <button className="text-text-secondary hover:text-danger transition-colors text-[11px]" onClick={() => removeAttach(i)}>✕</button>
+          <button className="text-text-secondary hover:text-danger transition-colors text-[length:var(--text-11)]" onClick={() => removeAttach(i)}>✕</button>
         </div>
       ))}
     </div>

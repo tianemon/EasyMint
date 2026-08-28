@@ -205,7 +205,7 @@ export function SessionHistory({
         <div className="flex-1 overflow-y-auto">
           {pinned.length > 0 && (
             <div>
-              <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium">置顶</div>
+              <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">置顶</div>
               {pinned.map((s) => (
                 <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} activeSessions={activeSessions} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
@@ -213,7 +213,7 @@ export function SessionHistory({
           )}
           {today.length > 0 && (
             <div>
-              <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium">今天</div>
+              <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">今天</div>
               {today.map((s) => (
                 <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} activeSessions={activeSessions} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
@@ -221,7 +221,7 @@ export function SessionHistory({
           )}
           {recent.length > 0 && (
             <div>
-              <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium">之前</div>
+              <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">之前</div>
               {recent.map((s) => (
                 <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} activeSessions={activeSessions} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
@@ -229,7 +229,7 @@ export function SessionHistory({
           )}
           {older.length > 0 && (
             <div>
-              <div className="px-3 py-1.5 text-[11px] text-text-secondary font-medium">更早</div>
+              <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">更早</div>
               {older.map((s) => (
                 <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} activeSessions={activeSessions} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}

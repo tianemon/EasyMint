@@ -251,7 +251,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
     <div className="h-full flex flex-col bg-[var(--color-drawer-panel)]">
       {/* Header */}
       <div className="flex items-center gap-2 h-9 px-3 border-b border-border shrink-0">
-        <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">运行</span>
+        <span className="text-[length:var(--text-11)] font-semibold tracking-[0.04em] uppercase text-text-secondary">运行</span>
         <div className="flex-1" />
         <button
           className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors"
@@ -269,7 +269,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
       {/* 命令列表 */}
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
         {runnables.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-[11px] text-text-muted text-center px-4">
+          <div className="flex items-center justify-center h-full text-[length:var(--text-11)] text-text-muted text-center px-4">
             未检测到启动配置<br />Mint 开发完会生成 .easymint/run.json
           </div>
         ) : (
@@ -286,7 +286,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                   <div className="flex items-center gap-1.5">
                     <TitleMarquee text={r.label} onClick={() => setEditing({ r, runnables })} />
                     {st.running && (
-                      <span className="text-[9px] text-success flex items-center gap-1 shrink-0">
+                      <span className="text-[length:var(--text-3xs)] text-success flex items-center gap-1 shrink-0">
                         <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                         PID {st.pid}
                       </span>
@@ -294,18 +294,18 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                   </div>
                   {/* 第二行：平台标签（按命令首词推断）+ URL（命令不再显示，编辑弹窗中查看） */}
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono shrink-0 ${platformColor(inferPlatform(r.run_command, r.platform))}`}>[{platformLabel(inferPlatform(r.run_command, r.platform))}]</span>
+                    <span className={`text-[length:var(--text-3xs)] px-1.5 py-0.5 rounded font-mono shrink-0 ${platformColor(inferPlatform(r.run_command, r.platform))}`}>[{platformLabel(inferPlatform(r.run_command, r.platform))}]</span>
                     {st.running && r.url ? (
-                      <span className="text-[9px] text-accent font-mono truncate">{r.url}</span>
+                      <span className="text-[length:var(--text-3xs)] text-accent font-mono truncate">{r.url}</span>
                     ) : (
-                      <span className="text-[10px] text-text-muted font-mono truncate">{r.run_command}</span>
+                      <span className="text-[length:var(--text-2xs)] text-text-muted font-mono truncate">{r.run_command}</span>
                     )}
                   </div>
                   {/* 端口状态 */}
                   {port && (
-                    <div className="relative mt-1 flex items-center gap-1.5 text-[10px] flex-wrap">
+                    <div className="relative mt-1 flex items-center gap-1.5 text-[length:var(--text-2xs)] flex-wrap">
                       <input
-                        className="w-14 text-[10px] px-1 py-0.5 rounded border border-border bg-surface text-text-primary font-mono text-center"
+                        className="w-14 text-[length:var(--text-2xs)] px-1 py-0.5 rounded border border-border bg-surface text-text-primary font-mono text-center"
                         value={customPorts[r.id] !== undefined ? customPorts[r.id] : String(port)}
                         onChange={function(e) {
                           const val = e.target.value.replace(/\D/g, "");
@@ -337,13 +337,13 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                               }}
                             >详情</span>
                             {showDetail[r.id] && (
-                              <span data-port-detail className="absolute top-full mt-1 text-[9px] text-text-primary bg-surface border border-border rounded-md px-2 py-1 shadow-lg z-10"
+                              <span data-port-detail className="absolute top-full mt-1 text-[length:var(--text-3xs)] text-text-primary bg-surface border border-border rounded-md px-2 py-1 shadow-lg z-10"
                                 style={{ maxWidth: "200px", wordBreak: "break-all", lineHeight: "1.4" }}>
                                 {ps.name || "PID " + ps.pid} (PID {ps.pid})
                               </span>
                             )}
                             <button
-                              className="text-[9px] px-1.5 py-0.5 rounded bg-danger-soft text-danger hover:bg-danger-bg active:scale-95 transition-all duration-100"
+                              className="text-[length:var(--text-3xs)] px-1.5 py-0.5 rounded bg-danger-soft text-danger hover:bg-danger-bg active:scale-95 transition-all duration-100"
                               onClick={function() { handleKillPort(r.id, r.url); }}
                             >释放</button>
                           </>
@@ -354,7 +354,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                     {st.running ? (
                       <>
                         <button
-                          className="flex-1 px-2 py-1 rounded bg-danger-soft text-danger text-[10px] font-medium hover:bg-danger-bg transition-colors"
+                          className="flex-1 px-2 py-1 rounded bg-danger-soft text-danger text-[length:var(--text-2xs)] font-medium hover:bg-danger-bg transition-colors"
                           onClick={() => stop(r.id)}
                         >停止</button>
                         <button
@@ -383,9 +383,9 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                       </>
                     ) : confirmDeleteId === r.id ? (
                       <div className="flex-1 flex items-center gap-1">
-                        <span className="flex-1 text-center text-[10px] text-danger">删除脚本？</span>
+                        <span className="flex-1 text-center text-[length:var(--text-2xs)] text-danger">删除脚本？</span>
                         <button
-                          className="shrink-0 px-2 py-1 rounded bg-danger-soft text-danger text-[10px] font-medium hover:bg-danger-bg transition-colors"
+                          className="shrink-0 px-2 py-1 rounded bg-danger-soft text-danger text-[length:var(--text-2xs)] font-medium hover:bg-danger-bg transition-colors"
                           onClick={() => { void handleDelete(r); }}
                           disabled={saving}
                         >删除</button>
@@ -398,7 +398,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                     ) : (
                       <>
                         <button
-                          className={`flex-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${canStart ? "bg-accent-soft text-accent hover:bg-accent-bg" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
+                          className={`flex-1 px-2 py-1 rounded text-[length:var(--text-2xs)] font-medium transition-colors ${canStart ? "bg-accent-soft text-accent hover:bg-accent-bg" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
                           onClick={() => {
                             const cp = customPorts[r.id];
                             const p = cp ? parseInt(cp) : undefined;

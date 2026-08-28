@@ -45,7 +45,7 @@ export function GlowGroupManager({ groups, activeId, onChangeGroups, onChangeAct
           <span
             key={g.id}
             onClick={() => onChangeActive(g.id)}
-            className={`group/g relative px-1.5 py-0.5 rounded-md text-[11px] cursor-pointer border transition-colors ${
+            className={`group/g relative px-1.5 py-0.5 rounded-md text-[length:var(--text-11)] cursor-pointer border transition-colors ${
               activeGroup?.id === g.id
                 ? "border-accent bg-accent-soft text-accent font-medium"
                 : "border-border bg-surface text-text-secondary hover:bg-surface-hover"
@@ -57,7 +57,7 @@ export function GlowGroupManager({ groups, activeId, onChangeGroups, onChangeAct
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); removeGroup(g.id); }}
-                className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-surface border border-border text-text-muted hover:text-danger text-[8px] flex items-center justify-center opacity-0 group-hover/g:opacity-100 transition-opacity"
+                className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-surface border border-border text-text-muted hover:text-danger text-[length:var(--text-4xs)] flex items-center justify-center opacity-0 group-hover/g:opacity-100 transition-opacity"
                 title="删除该组"
               >✕</button>
             )}
@@ -67,7 +67,7 @@ export function GlowGroupManager({ groups, activeId, onChangeGroups, onChangeAct
           <button
             type="button"
             onClick={addGroup}
-            className="px-2 py-0.5 rounded-md border border-dashed border-border text-text-muted hover:text-text-secondary hover:border-accent text-[11px] transition-colors"
+            className="px-2 py-0.5 rounded-md border border-dashed border-border text-text-muted hover:text-text-secondary hover:border-accent text-[length:var(--text-11)] transition-colors"
             title="添加新组"
           >+ 添加</button>
         )}

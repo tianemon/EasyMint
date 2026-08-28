@@ -164,7 +164,7 @@ export function SubagentProcessView({
               <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
             <span className="text-sm font-medium text-text-primary truncate flex-1">{title || "AI 助手"}</span>
-            <span className={`text-[11px] shrink-0 flex items-center gap-1 ${running ? "text-success" : "text-text-muted"}`}>
+            <span className={`text-[length:var(--text-11)] shrink-0 flex items-center gap-1 ${running ? "text-success" : "text-text-muted"}`}>
               {running && <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />}
               {running ? "运行中" : "已结束"}
             </span>
@@ -182,7 +182,7 @@ export function SubagentProcessView({
             <button
               type="button"
               onClick={() => setShowThinking((o) => !o)}
-              className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] text-text-secondary hover:text-text-primary transition-colors bg-transparent border-none p-0"
+              className="flex items-center gap-1.5 cursor-pointer select-none text-[length:var(--text-11)] text-text-secondary hover:text-text-primary transition-colors bg-transparent border-none p-0"
             >
               <span
                 className={`w-3.5 h-3.5 rounded-[4px] border flex items-center justify-center transition-colors ${showThinking ? "bg-accent border-accent" : "border-border bg-surface"}`}
@@ -196,7 +196,7 @@ export function SubagentProcessView({
             <button
               type="button"
               onClick={() => setShowToolUse((o) => !o)}
-              className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] text-text-secondary hover:text-text-primary transition-colors bg-transparent border-none p-0"
+              className="flex items-center gap-1.5 cursor-pointer select-none text-[length:var(--text-11)] text-text-secondary hover:text-text-primary transition-colors bg-transparent border-none p-0"
             >
               <span
                 className={`w-3.5 h-3.5 rounded-[4px] border flex items-center justify-center transition-colors ${showToolUse ? "bg-accent border-accent" : "border-border bg-surface"}`}
@@ -222,7 +222,7 @@ export function SubagentProcessView({
             <div className="text-center text-xs text-text-secondary py-8">暂无消息</div>
           )}
           {msgs.map((m) => <SubagentMessage key={m.keyId ?? m.id} msg={m} showThinking={showThinking} showToolUse={showToolUse} />)}
-          {running && <div className="flex justify-center"><span className="text-[11px] text-text-secondary animate-pulse">● 运行中</span></div>}
+          {running && <div className="flex justify-center"><span className="text-[length:var(--text-11)] text-text-secondary animate-pulse">● 运行中</span></div>}
         </div>
 
         {/* 回底按钮:滚离底部时显示,点击贴底并恢复自动跟随 */}
@@ -281,7 +281,7 @@ function SubagentEntry({ entry, showThinking, showToolUse }: { entry: StreamEntr
     if (!showThinking) return <></>;
     return (
       <div className="mb-1.5 flex gap-2 items-start">
-        <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-[var(--color-sidebar-hover)] text-text-muted mt-0.5">思考</span>
+        <span className="shrink-0 text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-[var(--color-sidebar-hover)] text-text-muted mt-0.5">思考</span>
         <div className="text-xs text-[var(--color-text-secondary)] italic whitespace-pre-wrap break-words opacity-90">{entry.text}</div>
       </div>
     );
@@ -292,7 +292,7 @@ function SubagentEntry({ entry, showThinking, showToolUse }: { entry: StreamEntr
     const args = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
     return (
       <div className="mb-1.5 flex gap-2 items-center">
-        <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-[var(--color-sidebar-hover)] text-text-muted">工具</span>
+        <span className="shrink-0 text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-[var(--color-sidebar-hover)] text-text-muted">工具</span>
         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="var(--color-text-secondary)" strokeWidth="2" strokeLinecap="round" className="shrink-0"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
         <span className="text-[var(--color-accent)]">{displayToolLabel((entry as unknown as { name: string }).name, args)}</span>
       </div>

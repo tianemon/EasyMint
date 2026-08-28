@@ -37,11 +37,11 @@ function IssueRow({ issue, projectPath, onEdit }: { issue: IssueItem; projectPat
       {/* 模块(上方) + 右上时间 */}
       <div className="flex items-center gap-1.5">
         {issue.module ? (
-          <span className="flex-1 min-w-0 text-[10px] text-accent truncate">{issue.module}</span>
+          <span className="flex-1 min-w-0 text-[length:var(--text-2xs)] text-accent truncate">{issue.module}</span>
         ) : (
           <span className="flex-1" />
         )}
-        <span className="text-[9px] text-text-muted shrink-0">{formatTime(issue.createdAt)}</span>
+        <span className="text-[length:var(--text-3xs)] text-text-muted shrink-0">{formatTime(issue.createdAt)}</span>
       </div>
       {/* 问题现象(标题) */}
       <div className={`text-xs mt-0.5 leading-snug break-words selectable ${isFixed ? "line-through text-text-muted" : "text-text-primary"}`}>{issue.title}</div>
@@ -49,24 +49,24 @@ function IssueRow({ issue, projectPath, onEdit }: { issue: IssueItem; projectPat
       {/* 操作行:编辑(第一位) + 标记已修复 + 删除 */}
       <div className="flex items-center gap-1 mt-1.5">
         <button
-          className="px-1.5 py-0.5 rounded text-[10px] text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors"
+          className="px-1.5 py-0.5 rounded text-[length:var(--text-2xs)] text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors"
           onClick={() => onEdit?.(issue)}
         >
           编辑
         </button>
         <button
-          className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${isFixed ? "bg-success-soft text-success" : "text-text-muted hover:bg-surface-hover hover:text-text-primary"}`}
+          className={`px-1.5 py-0.5 rounded text-[length:var(--text-2xs)] transition-colors ${isFixed ? "bg-success-soft text-success" : "text-text-muted hover:bg-surface-hover hover:text-text-primary"}`}
           onClick={() => setStatus(projectPath, issue.id, isFixed ? "open" : "fixed")}
         >
           {isFixed ? "已修复" : "标记已修复"}
         </button>
         {confirmDelete ? (
           <>
-            <button className="px-1.5 py-0.5 rounded text-[10px] text-danger hover:bg-danger-soft transition-colors" onClick={handleDelete}>确认删除</button>
-            <button className="px-1.5 py-0.5 rounded text-[10px] text-text-muted hover:bg-surface-hover transition-colors" onClick={() => setConfirmDelete(false)}>取消</button>
+            <button className="px-1.5 py-0.5 rounded text-[length:var(--text-2xs)] text-danger hover:bg-danger-soft transition-colors" onClick={handleDelete}>确认删除</button>
+            <button className="px-1.5 py-0.5 rounded text-[length:var(--text-2xs)] text-text-muted hover:bg-surface-hover transition-colors" onClick={() => setConfirmDelete(false)}>取消</button>
           </>
         ) : (
-          <button className="px-1.5 py-0.5 rounded text-[10px] text-text-muted hover:text-danger hover:bg-danger-soft transition-colors" onClick={handleDelete}>删除</button>
+          <button className="px-1.5 py-0.5 rounded text-[length:var(--text-2xs)] text-text-muted hover:text-danger hover:bg-danger-soft transition-colors" onClick={handleDelete}>删除</button>
         )}
       </div>
     </div>
@@ -108,7 +108,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
     <div className="h-full flex flex-col bg-[var(--color-drawer-panel)]">
       {/* Header */}
       <div className="flex items-center gap-2 h-9 px-3 border-b border-border shrink-0">
-        <span className="text-[11px] font-semibold tracking-[0.04em] uppercase text-text-secondary">问题记录</span>
+        <span className="text-[length:var(--text-11)] font-semibold tracking-[0.04em] uppercase text-text-secondary">问题记录</span>
         <button
           className="ml-auto w-6 h-6 flex items-center justify-center rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
           onClick={openNew}
@@ -127,7 +127,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
             ))}
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full text-[11px] text-text-muted">暂无记录的问题</div>
+          <div className="flex items-center justify-center h-full text-[length:var(--text-11)] text-text-muted">暂无记录的问题</div>
         )}
       </div>
 

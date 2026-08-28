@@ -176,7 +176,7 @@ export function App(): JSX.Element {
                 复制下方通知，发送给本项目会话的 Mint，让它了解环境变更。
               </div>
               <div className="px-5 py-2 flex-1 overflow-y-auto">
-                <pre className="whitespace-pre-wrap text-[11px] leading-relaxed bg-surface rounded-lg border border-border p-3 text-text-primary">
+                <pre className="whitespace-pre-wrap text-[length:var(--text-11)] leading-relaxed bg-surface rounded-lg border border-border p-3 text-text-primary">
 {`【环境变更通知】
 
 本项目已经迁移到另一台电脑，会话记录${migrateDone.sessionRestoredCount > 0 ? "（" + migrateDone.sessionRestoredCount + " 个）" : ""}与项目文件已完整迁移。

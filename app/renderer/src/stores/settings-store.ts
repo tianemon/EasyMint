@@ -41,6 +41,21 @@ export const V1_GLOW_GROUPS = {
   dark: { id: "glow-custom-v1-dark", name: "自定义 1", colors: ["#cccccc"] },
 } as const satisfies Record<string, GlowColorGroup>;
 
+/** 旧版聊天字号级别(1-6)→ 百分比缩放(相对 14px 基准),仅用于老用户迁移 */
+const LEGACY_CHAT_FONT_SCALE: Record<number, number> = {
+  1: 0.86, 2: 0.93, 3: 1, 4: 1.07, 5: 1.14, 6: 1.21,
+};
+
+/** 应用聊天字号缩放系数到 CSS 变量(消息内容:正文/代码/思考/工具;由滑杆与启动加载共用) */
+function applyChatScale(scale: number): void {
+  document.documentElement.style.setProperty("--chat-scale", String(scale));
+}
+
+/** 应用 UI 字号缩放系数到 CSS 变量(UI 骨架所有文字统一缩放;由滑杆与启动加载共用) */
+function applyUiScale(scale: number): void {
+  document.documentElement.style.setProperty("--ui-scale", String(scale));
+}
+
 interface SettingsState {
   defaultProjectDir: string;
   model: string;
@@ -51,8 +66,10 @@ interface SettingsState {
   showToolUse: boolean;
   /** 全局聊天思考等级(新聊天会话初始默认,不控制 agent/task) */
   chatThinkingLevel: string;
-  /** 聊天字号级别(1-6,默认 3):整体控制会话列表/气泡/思考工具的字体大小 */
-  chatFontLevel: number;
+  /** 聊天字号缩放系数(0.9~1.3,默认 1):控制消息内容(正文/代码/思考/工具折叠)字号 */
+  chatFontScale: number;
+  /** 界面字号缩放系数(0.9~1.3,默认 1):统一控制 UI 骨架(文件列表/侧边栏/状态栏/设置页/会话列表等)文字 */
+  uiFontScale: number;
   /** 状态指示光效:输入卡片光效预设 */
   glowEffect: "orbit" | "slide" | "breathe" | "off";
   /** 光效颜色模式:单色(solid)/多色(multi) */
@@ -90,7 +107,8 @@ interface SettingsState {
   setShowThinking: (enabled: boolean) => void;
   setShowToolUse: (enabled: boolean) => void;
   setChatThinkingLevel: (level: string) => void;
-  setChatFontLevel: (level: number) => void;
+  setChatFontScale: (scale: number) => void;
+  setUiFontScale: (scale: number) => void;
   setGlowEffect: (v: "orbit" | "slide" | "breathe" | "off") => void;
   setGlowColorMode: (v: "solid" | "multi") => void;
   setGlowColorLight: (v: string) => void;
@@ -122,7 +140,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   showThinking: false,
   showToolUse: false,
   chatThinkingLevel: "medium",
-  chatFontLevel: 3,
+  chatFontScale: 1,
+  uiFontScale: 1,
   glowEffect: "orbit",
   glowColorMode: "multi",
   glowColorLight: "#16a34a",
@@ -163,17 +182,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ chatThinkingLevel: level });
     window.electronAPI?.settings?.set?.("chatThinkingLevel", level);
   },
-  setChatFontLevel: (level: number) => {
-    set({ chatFontLevel: level });
-    window.electronAPI?.settings?.set?.("chatFontLevel", level);
-    // 级别表:1-6 → 基准 px(连续,默认第3级=14px);会话列表/气泡 = 基准,思考/工具 = 基准减 1 级
-    const SCALE = [12, 13, 14, 15, 16, 17];
-    const idx = Math.max(0, Math.min(5, level - 1));
-    const base = SCALE[idx] ?? 14;
-    const detail = SCALE[Math.max(0, idx - 1)] ?? 12;
-    document.documentElement.style.setProperty("--chat-list-size", `${base}px`);
-    document.documentElement.style.setProperty("--text-body", `${base}px`);
-    document.documentElement.style.setProperty("--text-detail", `${detail}px`);
+  setChatFontScale: (scale: number) => {
+    set({ chatFontScale: scale });
+    window.electronAPI?.settings?.set?.("chatFontScale", scale);
+    applyChatScale(scale);
+  },
+  setUiFontScale: (scale: number) => {
+    set({ uiFontScale: scale });
+    window.electronAPI?.settings?.set?.("uiFontScale", scale);
+    applyUiScale(scale);
   },
   setGlowEffect: (v) => { set({ glowEffect: v }); window.electronAPI?.settings?.set?.("glowEffect", v); },
   setGlowColorMode: (v) => { set({ glowColorMode: v }); window.electronAPI?.settings?.set?.("glowColorMode", v); },
@@ -240,7 +257,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           showThinking: settings.showThinking ?? false,
           showToolUse: settings.showToolUse ?? false,
           chatThinkingLevel: settings.chatThinkingLevel ?? "medium",
-          chatFontLevel: settings.chatFontLevel ?? 3,
+          chatFontScale: settings.chatFontScale ?? LEGACY_CHAT_FONT_SCALE[settings.chatFontLevel ?? 3] ?? 1,
+          uiFontScale: settings.uiFontScale ?? 1,
           glowEffect: (settings.glowEffect as "orbit" | "slide" | "breathe" | "off") ?? "orbit",
           glowColorMode: (settings.glowColorMode as "solid" | "multi") ?? "multi",
           glowColorLight: settings.glowColorLight ?? "#16a34a",
@@ -261,6 +279,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           setupComplete: settings.setupComplete ?? false,
           apiProviders: (settings.apiProviders as ApiProvidersData) ?? null,
         });
+        // 启动时应用字号 CSS 变量——否则设置只在拖动滑杆时生效,重启后回落默认值
+        const chatScale = settings.chatFontScale ?? LEGACY_CHAT_FONT_SCALE[settings.chatFontLevel ?? 3] ?? 1;
+        applyChatScale(chatScale);
+        applyUiScale(settings.uiFontScale ?? 1);
+        // 老版本只有 chatFontLevel(1-6 级):迁移为百分比并落盘新字段
+        if (settings.chatFontScale === undefined && settings.chatFontLevel !== undefined) {
+          window.electronAPI?.settings?.set?.("chatFontScale", chatScale);
+        }
       }
     } catch { /* electronAPI unavailable */ }
   },

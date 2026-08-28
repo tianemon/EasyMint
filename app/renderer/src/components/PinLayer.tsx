@@ -345,7 +345,7 @@ function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX
     >
       <div className="flex items-center gap-1.5 h-full px-1.5">
         <PinIcon className={`w-3 h-3 text-white shrink-0 transition-opacity duration-200 ${hovered ? "opacity-100" : "opacity-0"}`} />
-        <span className={`text-[11px] text-white truncate min-w-0 transition-opacity duration-200 ${hovered ? "opacity-100" : "opacity-0"}`}>{pin.title}</span>
+        <span className={`text-[length:var(--text-11)] text-white truncate min-w-0 transition-opacity duration-200 ${hovered ? "opacity-100" : "opacity-0"}`}>{pin.title}</span>
       </div>
     </div>
   );

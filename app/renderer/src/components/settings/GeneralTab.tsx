@@ -67,15 +67,15 @@ function CodegraphRow({ info }: { info: { found: boolean; version?: string } | n
       {info && !info.found && (
         <div className="flex flex-col items-end gap-1.5">
           <div className="flex items-center gap-1">
-            <code className="text-[10px] text-text-secondary bg-surface px-2 py-0.5 rounded select-all">{cmd}</code>
+            <code className="text-[length:var(--text-2xs)] text-text-secondary bg-surface px-2 py-0.5 rounded select-all">{cmd}</code>
             <button
-              className="shrink-0 px-1.5 py-0.5 rounded text-[10px] text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors"
+              className="shrink-0 px-1.5 py-0.5 rounded text-[length:var(--text-2xs)] text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors"
               onClick={handleCopy}
             >
               {copied ? "已复制" : "复制"}
             </button>
           </div>
-          <span className="text-[10px] text-text-muted">
+          <span className="text-[length:var(--text-2xs)] text-text-muted">
             https://github.com/colbymchenry/codegraph
           </span>
         </div>
@@ -134,11 +134,11 @@ function CacheManagementSection(): JSX.Element {
           <div>
             <h4 className="text-xs font-medium text-text-primary">安装包缓存</h4>
             {updateSize === null ? (
-              <p className="text-[11px] text-text-muted">扫描中...</p>
+              <p className="text-[length:var(--text-11)] text-text-muted">扫描中...</p>
             ) : updateSize > 0 ? (
-              <p className="text-[11px] text-text-secondary">{formatMB(updateSize)}</p>
+              <p className="text-[length:var(--text-11)] text-text-secondary">{formatMB(updateSize)}</p>
             ) : (
-              <p className="text-[11px] text-text-muted">暂无缓存</p>
+              <p className="text-[length:var(--text-11)] text-text-muted">暂无缓存</p>
             )}
           </div>
           {updateSize !== null && updateSize > 0 && (
@@ -164,11 +164,11 @@ function CacheManagementSection(): JSX.Element {
           <div>
             <h4 className="text-xs font-medium text-text-primary">上传缓存</h4>
             {uploadSize === null ? (
-              <p className="text-[11px] text-text-muted">扫描中...</p>
+              <p className="text-[length:var(--text-11)] text-text-muted">扫描中...</p>
             ) : uploadSize > 0 ? (
-              <p className="text-[11px] text-text-secondary">{formatMB(uploadSize)}</p>
+              <p className="text-[length:var(--text-11)] text-text-secondary">{formatMB(uploadSize)}</p>
             ) : (
-              <p className="text-[11px] text-text-muted">暂无缓存</p>
+              <p className="text-[length:var(--text-11)] text-text-muted">暂无缓存</p>
             )}
           </div>
           {uploadSize !== null && uploadSize > 0 && (
@@ -211,7 +211,7 @@ export function GeneralTab(): JSX.Element {
             value={defaultProjectDir}
             onChange={(e) => setDefaultProjectDir(e.target.value)}
           />
-          <p className="text-[10px] text-text-secondary mt-0.5">新建项目时的默认父目录，workspace 会话也存放于此路径下</p>
+          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">新建项目时的默认父目录，workspace 会话也存放于此路径下</p>
         </div>
       </section>
 
@@ -256,7 +256,7 @@ export function GeneralTab(): JSX.Element {
             />
             <span className="text-sm text-text-primary font-medium w-10 text-right">{contextThreshold}%</span>
           </div>
-          <p className="text-[11px] text-text-secondary mt-1">达到阈值时询问是否压缩（可跳过或输入压缩命令），SDK 自动压缩在接近满时兜底。范围 60%-80%，建议 75%。</p>
+          <p className="text-[length:var(--text-11)] text-text-secondary mt-1">达到阈值时询问是否压缩（可跳过或输入压缩命令），SDK 自动压缩在接近满时兜底。范围 60%-80%，建议 75%。</p>
         </div>
       </section>
 

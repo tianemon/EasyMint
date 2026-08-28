@@ -48,7 +48,7 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="agent-breath info-glow rounded-[8px] bg-info-soft px-2 py-0.5 text-[11px] font-bold text-info cursor-pointer hover:bg-info-high"
+        className="agent-breath info-glow rounded-[8px] bg-info-soft px-2 py-0.5 text-[length:var(--text-11)] font-bold text-info cursor-pointer hover:bg-info-high"
         title="运行中的后台命令"
       >
         命令•{shellTasks.length}
@@ -77,7 +77,7 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
                 </button>
                 {task.status === "stopping" ? (
                   // 已点停止:杀进程中,按钮禁用避免重复触发
-                  <span className="shrink-0 px-2 py-0.5 rounded-[6px] text-text-secondary text-[11px]">停止中…</span>
+                  <span className="shrink-0 px-2 py-0.5 rounded-[6px] text-text-secondary text-[length:var(--text-11)]">停止中…</span>
                 ) : (
                   <button
                     type="button"

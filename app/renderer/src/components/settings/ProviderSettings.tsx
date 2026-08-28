@@ -184,7 +184,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
           options={availableModels.map((m) => ({ value: m, label: m }))}
           title="选择模型"
         />
-        {availableModels.length > 0 && <p className="text-[10px] text-text-muted mt-1">共 {availableModels.length} 个模型可选</p>}
+        {availableModels.length > 0 && <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">共 {availableModels.length} 个模型可选</p>}
       </div>
 
       {/* 添加自定义模型:SDK 列表外的模型(新上线/未收录)手动补充,合并去重(仅内置供应商) */}
@@ -210,7 +210,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
           {extraModels.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {extraModels.map((m) => (
-                <span key={m} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent-subtle text-[10px] text-accent">
+                <span key={m} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent-subtle text-[length:var(--text-2xs)] text-accent">
                   {m}
                   <button type="button" className="text-accent hover:text-danger transition-colors" onClick={() => setExtraModels((prev) => prev.filter((x) => x !== m))}>✕</button>
                 </span>
@@ -231,7 +231,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
           value={customModelsText}
           onChange={(e) => setCustomModelsText(e.target.value)}
         />
-        <p className="text-[10px] text-text-muted mt-1">这些模型将注册为自定义供应商的可用模型,保存后在模型下拉中可选。</p>
+        <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">这些模型将注册为自定义供应商的可用模型,保存后在模型下拉中可选。</p>
       </div>
       </>)}
 
@@ -240,7 +240,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         <div className="flex items-center justify-between mb-1.5">
           <label className="text-xs text-text-secondary">SubAgent默认模型(委派任务时使用)</label>
           {subagentDefaultModel && (
-            <button type="button" onClick={() => setSubagentDefaultModel("")} className="text-[10px] text-text-secondary hover:text-text-primary transition-colors">清除</button>
+            <button type="button" onClick={() => setSubagentDefaultModel("")} className="text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary transition-colors">清除</button>
           )}
         </div>
         <Select
@@ -321,21 +321,21 @@ export function ProvidersManager() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-text-primary truncate">{cfg.name}</span>
-                  {isActive && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-accent text-text-inverse shrink-0">当前</span>}
+                  {isActive && <span className="text-[length:var(--text-3xs)] px-1.5 py-0.5 rounded-full bg-accent text-text-inverse shrink-0">当前</span>}
                 </div>
-                <div className="text-[11px] text-text-secondary mt-0.5 truncate">
+                <div className="text-[length:var(--text-11)] text-text-secondary mt-0.5 truncate">
                   <span className="font-mono">{cfg.model}</span>
                 </div>
               </div>
               <div className="flex gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
                 {!isActive && (
                   <button onClick={() => setApiProviders({ ...apiProviders!, current: cfg.id, configs: apiProviders!.configs })}
-                    className="px-2 py-1 text-[10px] rounded bg-surface border border-border text-text-secondary hover:text-accent hover:border-accent-border-strong transition-colors">启用</button>
+                    className="px-2 py-1 text-[length:var(--text-2xs)] rounded bg-surface border border-border text-text-secondary hover:text-accent hover:border-accent-border-strong transition-colors">启用</button>
                 )}
                 <button onClick={() => setEditing(cfg)}
-                  className="px-2 py-1 text-[10px] rounded bg-surface border border-border text-text-secondary hover:text-text-primary hover:border-accent-border-strong transition-colors">编辑</button>
+                  className="px-2 py-1 text-[length:var(--text-2xs)] rounded bg-surface border border-border text-text-secondary hover:text-text-primary hover:border-accent-border-strong transition-colors">编辑</button>
                 <button onClick={() => handleDelete(cfg.id)}
-                  className="px-2 py-1 text-[10px] rounded bg-surface border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors">删除</button>
+                  className="px-2 py-1 text-[length:var(--text-2xs)] rounded bg-surface border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors">删除</button>
               </div>
             </div>
           );

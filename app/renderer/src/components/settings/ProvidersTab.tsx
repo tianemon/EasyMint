@@ -31,7 +31,7 @@ function ChatThinkingLevelSection(): JSX.Element {
           options={CHAT_THINKING_OPTIONS}
           title="全局思考等级"
         />
-        <p className="text-[10px] text-text-secondary mt-1.5">仅作为新聊天会话的初始默认值，不控制 Agent 模板与 task 委派；已打开的聊天可在输入栏临时切换。</p>
+        <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">仅作为新聊天会话的初始默认值，不控制 Agent 模板与 task 委派；已打开的聊天可在输入栏临时切换。</p>
       </div>
     </section>
   );
@@ -67,7 +67,7 @@ function BuiltinToolsSection(): JSX.Element {
   return (
     <section>
       <h3 className="text-sm font-medium text-text-primary mb-2">模型能力增强</h3>
-      <p className="text-[11px] text-text-secondary mb-3">
+      <p className="text-[length:var(--text-11)] text-text-secondary mb-3">
         对于非多模态模型，提供视觉识别和网页抓取能力。开启后自动注入到每次会话。
       </p>
       <div className="space-y-2">
@@ -81,7 +81,7 @@ function BuiltinToolsSection(): JSX.Element {
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0 mr-3">
                 <div className="text-xs font-medium text-text-primary">{label}</div>
-                <div className="text-[10px] text-text-muted mt-0.5">{desc}</div>
+                <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{desc}</div>
               </div>
               <button type="button" onClick={() => handleToggle(key, !on)}
                 className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${on ? "bg-accent" : "bg-border"}`}>
@@ -94,7 +94,7 @@ function BuiltinToolsSection(): JSX.Element {
                   const isAnthropic = apiKeys["VISION_MODE"] === "anthropic";
                   return (
                   <div className="mb-2">
-                    <label className="text-[10px] text-text-secondary block mb-1">API 模式</label>
+                    <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1">API 模式</label>
                     <div className="flex gap-4 text-xs text-text-primary">
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <input type="radio" name="vision-mode" className="accent-[var(--color-accent)]"
@@ -109,7 +109,7 @@ function BuiltinToolsSection(): JSX.Element {
                         Anthropic 兼容
                       </label>
                     </div>
-                    <label className="text-[10px] text-text-secondary block mb-1 mt-2">
+                    <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 mt-2">
                       {isAnthropic
                         ? "API 地址（Anthropic 兼容，默认阿里公共DashScope，可填写带有业务空间ID的专属API）"
                         : "API 地址（OpenAI 兼容，默认阿里公共DashScope，可填写带有业务空间ID的专属API）"}
@@ -124,7 +124,7 @@ function BuiltinToolsSection(): JSX.Element {
                   </div>
                   );
                 })()}
-                <label className="text-[10px] text-text-secondary block mb-1">{keyId}</label>
+                <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1">{keyId}</label>
                 <div className="relative">
                   <input type={showKey ? "text" : "password"}
                     className="w-full px-2 py-1.5 pr-7 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
@@ -143,7 +143,7 @@ function BuiltinToolsSection(): JSX.Element {
                 </div>
                 {key === "vision" && (
                   <div className="mt-2">
-                    <label className="text-[10px] text-text-secondary block mb-1">模型（默认 qwen3.7-flash）</label>
+                    <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1">模型（默认 qwen3.7-flash）</label>
                     <input type="text"
                       className="w-full px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
                       defaultValue={apiKeys["VISION_MODEL"] || ""} placeholder="qwen3.7-flash"
@@ -152,7 +152,7 @@ function BuiltinToolsSection(): JSX.Element {
                     />
                   </div>
                 )}
-                <div className="text-[10px] text-text-muted mt-1">{keyHint}</div>
+                <div className="text-[length:var(--text-2xs)] text-text-muted mt-1">{keyHint}</div>
               </div>
             )}
           </div>

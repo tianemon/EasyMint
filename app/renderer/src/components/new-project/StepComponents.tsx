@@ -225,7 +225,7 @@ function Step3Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
           options={UI_STYLE_OPTIONS}
           placeholder="让 Mint 推荐"
         />
-        <p className="text-[11px] text-text-secondary mt-1">选了仅作初步方向，原型阶段可再调。</p>
+        <p className="text-[length:var(--text-11)] text-text-secondary mt-1">选了仅作初步方向，原型阶段可再调。</p>
       </div>
       {isCustomText && (
         <div>
@@ -266,7 +266,7 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
       {/* AI 集成 */}
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">AI 能力集成 <span className="text-text-muted text-xs font-normal">（可选）</span></label>
-        <p className="text-[11px] text-text-secondary mb-2">提示：AI 辅助 / Agent 需要接入大模型 API，按用量计费（轻量使用每月几块钱起；部分厂商有免费额度，但有时效性）。</p>
+        <p className="text-[length:var(--text-11)] text-text-secondary mb-2">提示：AI 辅助 / Agent 需要接入大模型 API，按用量计费（轻量使用每月几块钱起；部分厂商有免费额度，但有时效性）。</p>
         <div className="flex gap-2">
           {[
             { value: "none", label: "不需要", desc: "无 AI" },
@@ -277,7 +277,7 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
             return (
               <button key={opt.value} className={`flex-1 p-2 rounded-lg border transition-colors text-left ${active ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`} onClick={() => onChange({ aiIntegration: opt.value as AIIntegration })}>
                 <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
-                <div className="text-[10px] text-text-secondary mt-0.5">{opt.desc}</div>
+                <div className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">{opt.desc}</div>
               </button>
             );
           })}
@@ -294,21 +294,21 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
             onClick={() => onChange({ deployPlatform: "本地" })}
           >
             <div className={`text-sm font-medium ${data.deployPlatform === "本地" ? "text-accent" : "text-text-primary"}`}>本地</div>
-            <div className="text-[10px] text-text-secondary mt-0.5">本机运行，无需云服务</div>
+            <div className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">本机运行，无需云服务</div>
           </button>
           <button
             className={`flex-1 p-2 rounded-lg border transition-colors text-left ${data.deployPlatform === "云端" ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`}
             onClick={() => onChange({ deployPlatform: "云端" })}
           >
             <div className={`text-sm font-medium ${data.deployPlatform === "云端" ? "text-accent" : "text-text-primary"}`}>云端</div>
-            <div className="text-[10px] text-text-secondary mt-0.5">可互联网访问，有服务器费用</div>
+            <div className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">可互联网访问，有服务器费用</div>
           </button>
           <button
             className={`flex-1 p-2 rounded-lg border transition-colors text-left ${data.deployPlatform === "混合" ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`}
             onClick={() => onChange({ deployPlatform: "混合" })}
           >
             <div className={`text-sm font-medium ${data.deployPlatform === "混合" ? "text-accent" : "text-text-primary"}`}>混合</div>
-            <div className="text-[10px] text-text-secondary mt-0.5">本地 UI + 云端同步</div>
+            <div className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">本地 UI + 云端同步</div>
           </button>
         </div>
       </div>

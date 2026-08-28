@@ -3,6 +3,7 @@ import Editor, { loader, type OnMount } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import type { editor } from "monaco-editor";
 import { useTabStore } from "../stores/tab-store";
+import { useSettingsStore } from "../stores/settings-store";
 import { conf as mdConf, language as mdLanguage } from "../lib/markdown-monarch";
 
 // Load Monaco from local bundle, not CDN.
@@ -19,6 +20,18 @@ function readCSS(name: string): string {
   // Monaco 不接受 3 位 hex（如 #ccc），自动展开为 6 位
   const m = /^#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$/.exec(raw);
   return m ? `#${m[1]}${m[1]}${m[2]}${m[2]}${m[3]}${m[3]}` : raw;
+}
+
+/** 读取 CSS 字号变量的计算像素值(变量可能是 calc() 表达式,需实际测量) */
+function readPx(name: string, fallback: number): number {
+  const probe = document.createElement("div");
+  probe.style.position = "absolute";
+  probe.style.visibility = "hidden";
+  probe.style.fontSize = getComputedStyle(document.documentElement).getPropertyValue(name);
+  document.body.appendChild(probe);
+  const px = Number.parseFloat(getComputedStyle(probe).fontSize);
+  probe.remove();
+  return Number.isFinite(px) && px > 0 ? px : fallback;
 }
 
 function buildMonacoTheme(): editor.IStandaloneThemeData {
@@ -106,6 +119,12 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
     return () => observer.disconnect();
   }, [isActive, myTabId]);
 
+  // UI 字号缩放变化时同步 Monaco 编辑器字号（--text-sm 随 --ui-scale 缩放）
+  const uiFontScale = useSettingsStore((s) => s.uiFontScale);
+  useEffect(() => {
+    editorRef.current?.updateOptions({ fontSize: readPx("--text-sm", 13) });
+  }, [uiFontScale]);
+
   // Load file content
   useEffect(() => {
     if (!filePath) { setContent(""); setError(null); dirtyRef.current = false; return; }
@@ -186,7 +205,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
           onChange={handleChange}
           theme="easymint"
           options={{
-            fontSize: 13,
+            fontSize: readPx("--text-sm", 13),
             fontFamily: "'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace",
             lineHeight: 22,
             lineNumbersMinChars: 4,

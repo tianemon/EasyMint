@@ -75,6 +75,10 @@
 - 每次更改完代码，必须检查代码质量，解决所有编译问题，优化所有官方不推荐的用法
 - 严格禁止写重复代码和功能，必须保证具有相同功能的代码和页面是复用的，要利用好封装思想，不要随意创建新的文件
 - 新功能尽量独立封装，现有的页面上只引用它，类似于定制化模块的方案
+- **字号必须走语义变量，禁止硬编码**（`index.css` 变量体系，见 `docs/design/UI字号统一管理方案.md`）：
+  - UI 文字用 `--text-3xs~2xl`（乘 `--ui-scale`），聊天消息内容用 `--text-body/caption/code/detail/meta`（乘 `--chat-scale`）
+  - 禁止 `text-[Npx]` / `fontSize: Npx` / `font-size: Npx` 裸值；新增字号档位先查 `index.css` Typography 段变量表，缺档位再补
+  - SVG 内文字必须 `style={{ fontSize: 'var(...)' }}`（presentation attribute 不解析 `var()`）
 
 ## 2.3 文档与文件管理
 

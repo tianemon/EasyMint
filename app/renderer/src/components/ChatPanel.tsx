@@ -1308,13 +1308,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                   ) : (
                     <div key={`doc-${i}`} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/10 max-w-[200px]">
                       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-4 h-4 shrink-0"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><circle cx="5" cy="6" r="1.3"/><path d="M1.5 11l3.5-3.5 2.5 2.5 3-4 4 5"/></svg>
-                      <span className="text-[11px] truncate">{a.name}</span>
+                      <span className="text-[length:var(--text-11)] truncate">{a.name}</span>
                     </div>
                   )
                 ) : (
                   <div key={`udoc-${i}`} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/10 max-w-[200px]">
                     <DocIcon name={a.name} />
-                    <span className="text-[11px] truncate">{a.name}</span>
+                    <span className="text-[length:var(--text-11)] truncate">{a.name}</span>
                   </div>
                 )
               ))}
@@ -1499,7 +1499,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
             {/* Compact 完成提示 */}
             {compactDone && (
               <div className="flex justify-center py-3">
-                <span className="text-[11px] text-text-secondary bg-surface-alt px-3 py-1 rounded-full border border-border/50">会话已整理完毕</span>
+                <span className="text-[length:var(--text-11)] text-text-secondary bg-surface-alt px-3 py-1 rounded-full border border-border/50">会话已整理完毕</span>
               </div>
             )}
 
@@ -1785,7 +1785,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
           <div className="relative w-fit max-w-[75%] min-w-0 my-1" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
             <div className="msg-bubble-system rounded-[10px] rounded-bl-[4px] border border-border bg-surface-elevated overflow-hidden">
               {/* 头部:系统图标 + kind 标签(区别于 assistant 的 Mint 头像气泡) */}
-              <div className="flex items-center gap-1.5 px-[14px] pt-1.5 text-[11px] text-text-secondary">
+              <div className="flex items-center gap-1.5 px-[14px] pt-1.5 text-[length:var(--text-11)] text-text-secondary">
                 <svg className="shrink-0 text-info" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
                   <circle cx="8" cy="8" r="6.5" />
                   <path d="M8 7.5V11" />
@@ -1803,7 +1803,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
                     const dotColor = status === "中止" ? "text-interrupt" : status === "失败" ? "text-fail" : "text-done";
                     return (
                       <div key={i} className="flex items-center gap-2 py-0.5">
-                        <span className={`${dotColor} shrink-0 text-[10px] leading-none`}>⏺</span>
+                        <span className={`${dotColor} shrink-0 text-[length:var(--text-2xs)] leading-none`}>⏺</span>
                         {m ? (
                           <>
                             <span className="text-text-primary">{m[1]}</span>
@@ -1856,7 +1856,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
           <div className="msg-from">
             {displayName}
             {role && msg.forwarded && (
-              <span className="text-text-secondary/60 ml-1.5 text-[10px] font-normal">· {msg.forwardedFrom ? `来自 ${msg.forwardedFrom}` : "来自转发"}</span>
+              <span className="text-text-secondary/60 ml-1.5 text-[length:var(--text-2xs)] font-normal">· {msg.forwardedFrom ? `来自 ${msg.forwardedFrom}` : "来自转发"}</span>
             )}
           </div>
           <div className="msg-bubble-agent rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">

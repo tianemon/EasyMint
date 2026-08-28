@@ -93,10 +93,10 @@ export function AgentTemplateSettings(): JSX.Element {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-text-primary">{tpl.name}</span>
-                {tpl.id === "mint" && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-accent-subtle text-accent shrink-0">默认</span>}
+                {tpl.id === "mint" && <span className="text-[length:var(--text-3xs)] px-1.5 py-0.5 rounded-full bg-accent-subtle text-accent shrink-0">默认</span>}
               </div>
-              <div className="text-[11px] text-text-secondary mt-0.5">{tpl.description}</div>
-              <div className="flex items-center gap-2 mt-1 text-[10px] text-text-muted">
+              <div className="text-[length:var(--text-11)] text-text-secondary mt-0.5">{tpl.description}</div>
+              <div className="flex items-center gap-2 mt-1 text-[length:var(--text-2xs)] text-text-muted">
                 {tpl.provider && <span>供应商:{tpl.provider}</span>}
                 {tpl.model && <span>模型:{tpl.model}</span>}
                 {tpl.thinkingLevel && tpl.thinkingLevel !== "max" && <span>思考:{tpl.thinkingLevel}</span>}
@@ -106,14 +106,14 @@ export function AgentTemplateSettings(): JSX.Element {
               {LOCKED_IDS.has(tpl.id) ? (
                 // Mint/Mint-D:统一进入表单页浏览(只读,不可编辑)
                 <button onClick={() => setEditing(tpl)}
-                  className="px-2 py-1 text-[10px] rounded bg-surface border border-border text-text-secondary hover:text-text-primary transition-colors">浏览</button>
+                  className="px-2 py-1 text-[length:var(--text-2xs)] rounded bg-surface border border-border text-text-secondary hover:text-text-primary transition-colors">浏览</button>
               ) : (
                 <>
                   <button onClick={() => setEditing(tpl)}
-                    className="px-2 py-1 text-[10px] rounded bg-surface border border-border text-text-secondary hover:text-text-primary transition-colors">编辑</button>
+                    className="px-2 py-1 text-[length:var(--text-2xs)] rounded bg-surface border border-border text-text-secondary hover:text-text-primary transition-colors">编辑</button>
                   {!BUILTIN_IDS.has(tpl.id) && (
                     <button onClick={() => handleDelete(tpl.id)}
-                      className="px-2 py-1 text-[10px] rounded bg-surface border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors">删除</button>
+                      className="px-2 py-1 text-[length:var(--text-2xs)] rounded bg-surface border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors">删除</button>
                   )}
                 </>
               )}
@@ -179,30 +179,30 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-text-primary">{editMode ? (locked ? "浏览模板" : "编辑模板") : "新建模板"}</h3>
-        <button onClick={onCancel} className="text-[11px] text-text-secondary hover:text-text-primary">{locked ? "关闭" : "取消"}</button>
+        <button onClick={onCancel} className="text-[length:var(--text-11)] text-text-secondary hover:text-text-primary">{locked ? "关闭" : "取消"}</button>
       </div>
       {locked && (
-        <div className="rounded-lg border border-accent/30 bg-accent-subtle px-3 py-2.5 text-[11px] text-text-secondary leading-relaxed">
+        <div className="rounded-lg border border-accent/30 bg-accent-subtle px-3 py-2.5 text-[length:var(--text-11)] text-text-secondary leading-relaxed">
           内置模板「<span className="text-text-primary font-medium">{initial.name}</span>」：系统内置，仅供浏览，不可修改。
         </div>
       )}
       {restricted && (
-        <div className="rounded-lg border border-accent/30 bg-accent-subtle px-3 py-2.5 text-[11px] text-text-secondary leading-relaxed">
+        <div className="rounded-lg border border-accent/30 bg-accent-subtle px-3 py-2.5 text-[length:var(--text-11)] text-text-secondary leading-relaxed">
           内置模板「<span className="text-text-primary font-medium">{initial.name}</span>」：名称、描述与人格提示词为系统内置，不可修改。仅可调整下方供应商 / 模型 / 思考等级。
         </div>
       )}
       <div>
-        <label className="text-[11px] text-text-secondary block mb-1">名称 *</label>
+        <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">名称 *</label>
         <input className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50 disabled:opacity-60"
           placeholder="如 测试员" value={name} onChange={(e) => setName(e.target.value)} disabled={locked || restricted} />
       </div>
       <div>
-        <label className="text-[11px] text-text-secondary block mb-1">一句话描述 *</label>
+        <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">一句话描述 *</label>
         <input className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50 disabled:opacity-60"
           placeholder="如 专门写单元测试" value={desc} onChange={(e) => setDesc(e.target.value)} disabled={locked || restricted} />
       </div>
       <div>
-        <label className="text-[11px] text-text-secondary block mb-1">人格/职责 prompt（系统提示词）*</label>
+        <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">人格/职责 prompt（系统提示词）*</label>
         <textarea className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent/50 disabled:opacity-60"
           rows={4} placeholder="定义 Agent 的行为方式、专业领域、工作风格..."
           value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={locked || restricted} />
@@ -211,12 +211,12 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
         <>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] text-text-secondary block mb-1">供应商(可选)</label>
+              <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">供应商(可选)</label>
               <Select block placeholder="留空用全局默认" value={provider} onChange={setProvider}
                 options={providerOptions} title="选择供应商" />
             </div>
             <div>
-              <label className="text-[11px] text-text-secondary block mb-1">模型 id(可选)</label>
+              <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">模型 id(可选)</label>
               {providerModels.length > 0 ? (
                 <Select block placeholder={loadingProviderModels ? "加载中…" : "选择模型"} value={model} onChange={setModel}
                   options={providerModels.map((m) => ({ value: m, label: m }))} title="选择模型" />
@@ -227,7 +227,7 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
             </div>
           </div>
           <div>
-            <label className="text-[11px] text-text-secondary block mb-1">思考级别</label>
+            <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">思考级别</label>
             <Select block value={thinkingLevel} onChange={setThinkingLevel}
               options={THINKING_LEVELS} title="思考级别" />
           </div>

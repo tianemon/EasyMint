@@ -126,20 +126,20 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
           )}
           <span className="text-sm font-medium text-text-primary truncate flex-1" title={label || command}>{label || command}</span>
           {label && (
-            <span className="text-[10px] text-text-muted font-mono truncate min-w-0 max-w-[25%] shrink-0">{command}</span>
+            <span className="text-[length:var(--text-2xs)] text-text-muted font-mono truncate min-w-0 max-w-[25%] shrink-0">{command}</span>
           )}
           {logPath && (
             <button
               type="button"
               onClick={() => window.electronAPI.shell.revealInFolder(logPath)}
-              className="shrink-0 flex items-center gap-1 max-w-[220px] text-[10px] font-mono text-text-muted hover:text-accent transition-colors"
+              className="shrink-0 flex items-center gap-1 max-w-[220px] text-[length:var(--text-2xs)] font-mono text-text-muted hover:text-accent transition-colors"
               title={`在文件夹中显示: ${logPath}`}
             >
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
               <span className="truncate">{logPath}</span>
             </button>
           )}
-          <span className="text-[11px] text-text-secondary shrink-0">
+          <span className="text-[length:var(--text-11)] text-text-secondary shrink-0">
             {running ? "运行中" : "已结束"}
           </span>
           {onStop && running && (
@@ -169,7 +169,7 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
           className="shell-output flex-1 min-h-0 overflow-y-auto px-4 py-3 bg-[var(--color-sidebar)]/40 font-mono text-xs leading-relaxed"
         >
           {truncated && (
-            <div className="text-[11px] text-warning mb-2 break-all">
+            <div className="text-[length:var(--text-11)] text-warning mb-2 break-all">
               日志较大,仅显示最近输出(完整: {logPath})
             </div>
           )}

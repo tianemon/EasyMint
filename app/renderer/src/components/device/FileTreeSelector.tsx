@@ -228,7 +228,7 @@ export function FileTreeSelector({ files, onChange }: FileTreeSelectorProps): JS
           <span className="text-xs truncate flex-1 text-text-primary" title={node.relPath}>
             {node.name}
           </span>
-          <span className="shrink-0 text-[10px] text-text-muted tabular-nums">
+          <span className="shrink-0 text-[length:var(--text-2xs)] text-text-muted tabular-nums">
             {isDir ? `${node.fileCount} 个文件 · ${fmtSize(node.size)}` : fmtSize(node.size)}
           </span>
         </div>
@@ -259,16 +259,16 @@ export function FileTreeSelector({ files, onChange }: FileTreeSelectorProps): JS
     <div className="bg-surface rounded-lg border border-border overflow-hidden">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-border gap-2">
         <div className="flex items-center gap-2 shrink-0">
-          <button type="button" className="text-[10px] text-text-secondary hover:text-accent transition-colors" onClick={selectAll}>全选</button>
+          <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={selectAll}>全选</button>
           <span className="text-text-muted">·</span>
-          <button type="button" className="text-[10px] text-text-secondary hover:text-accent transition-colors" onClick={selectNone}>全否</button>
+          <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={selectNone}>全否</button>
           <span className="text-text-muted">·</span>
-          <button type="button" className="text-[10px] text-text-secondary hover:text-accent transition-colors" onClick={selectDefault}>默认</button>
+          <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={selectDefault}>默认</button>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button type="button" className="text-[10px] text-text-secondary hover:text-accent transition-colors" onClick={expandAll}>展开全部</button>
+          <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={expandAll}>展开全部</button>
           <span className="text-text-muted">·</span>
-          <button type="button" className="text-[10px] text-text-secondary hover:text-accent transition-colors" onClick={collapseAll}>折叠</button>
+          <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={collapseAll}>折叠</button>
         </div>
       </div>
       <div className="max-h-56 overflow-y-auto py-1">

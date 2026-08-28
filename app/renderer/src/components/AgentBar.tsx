@@ -51,7 +51,7 @@ export function AgentBar({ sessionId }: { sessionId?: string }): JSX.Element | n
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="agent-breath rounded-[8px] bg-success-soft px-2 py-0.5 text-[11px] font-bold text-success cursor-pointer hover:bg-success-high"
+        className="agent-breath rounded-[8px] bg-success-soft px-2 py-0.5 text-[length:var(--text-11)] font-bold text-success cursor-pointer hover:bg-success-high"
         title="AI 助手正在执行任务"
       >
         任务•{agentTasks.length}

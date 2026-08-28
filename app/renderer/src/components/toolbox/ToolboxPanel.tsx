@@ -57,9 +57,9 @@ export function ToolboxPanel({ open, onClose, onOpenDevicePanel }: ToolboxPanelP
           <span className="min-w-0">
             <span className="block text-xs text-text-primary leading-tight">
               HTML 原型编辑器
-              <span className="ml-1.5 text-[9px] px-1 py-px rounded bg-accent-soft text-accent align-middle">实验</span>
+              <span className="ml-1.5 text-[length:var(--text-3xs)] px-1 py-px rounded bg-accent-soft text-accent align-middle">实验</span>
             </span>
-            <span className="block text-[10px] text-text-muted leading-tight">可视化编辑页面原型</span>
+            <span className="block text-[length:var(--text-2xs)] text-text-muted leading-tight">可视化编辑页面原型</span>
           </span>
         </button>
         <button
@@ -76,9 +76,9 @@ export function ToolboxPanel({ open, onClose, onOpenDevicePanel }: ToolboxPanelP
           <span className="min-w-0">
             <span className="block text-xs text-text-primary leading-tight">
               项目迁移
-              <span className="ml-1.5 text-[9px] px-1 py-px rounded bg-accent-soft text-accent align-middle">实验</span>
+              <span className="ml-1.5 text-[length:var(--text-3xs)] px-1 py-px rounded bg-accent-soft text-accent align-middle">实验</span>
             </span>
-            <span className="block text-[10px] text-text-muted leading-tight">跨设备迁移会话与项目</span>
+            <span className="block text-[length:var(--text-2xs)] text-text-muted leading-tight">跨设备迁移会话与项目</span>
           </span>
         </button>
       </div>

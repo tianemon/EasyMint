@@ -379,6 +379,8 @@ interface ElectronAPI {
       showThinking?: boolean; showToolUse?: boolean;
       chatThinkingLevel?: string;
       chatFontLevel?: number;
+      chatFontScale?: number;
+      uiFontScale?: number;
       glowEffect?: "orbit" | "slide" | "breathe" | "off";
       glowColorMode?: "solid" | "multi";
       glowColorLight?: string;

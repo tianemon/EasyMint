@@ -209,7 +209,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs text-text-secondary">项目文件</label>
-                  <span className="text-[10px] text-text-muted tabular-nums">
+                  <span className="text-[length:var(--text-2xs)] text-text-muted tabular-nums">
                     已选择 {selectedFiles.length}/{scanResult.files.length} 个文件 · {fmtSize(selectedTotalSize)}
                   </span>
                 </div>
@@ -223,10 +223,10 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs text-text-secondary">会话记录</label>
-                  <span className="text-[10px] text-text-muted">已选 {selectedSessions.length}/{scanResult.sessions.length} · 仅主会话（不含子会话）</span>
+                  <span className="text-[length:var(--text-2xs)] text-text-muted">已选 {selectedSessions.length}/{scanResult.sessions.length} · 仅主会话（不含子会话）</span>
                 </div>
                 {scanResult.sessions.length === 0 ? (
-                  <div className="bg-surface rounded-lg border border-border px-3 py-2.5 text-[11px] text-text-muted">
+                  <div className="bg-surface rounded-lg border border-border px-3 py-2.5 text-[length:var(--text-11)] text-text-muted">
                     该项目暂无会话记录
                   </div>
                 ) : (
@@ -254,7 +254,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
                           <polyline points="14 2 14 8 20 8" />
                         </svg>
                         <span className="text-xs text-text-primary truncate flex-1" title={s.file}>{s.name}</span>
-                        <span className="text-[10px] text-text-muted shrink-0 tabular-nums">{fmtTime(s.mtime)}</span>
+                        <span className="text-[length:var(--text-2xs)] text-text-muted shrink-0 tabular-nums">{fmtTime(s.mtime)}</span>
                       </div>
                     ))}
                   </div>
@@ -281,15 +281,15 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
                   <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
                     <div className="h-full bg-accent rounded-full transition-all duration-200" style={{ width: `${progressPct}%` }} />
                   </div>
-                  <div className="text-[10px] text-text-secondary">传输中 {progressPct}%</div>
+                  <div className="text-[length:var(--text-2xs)] text-text-secondary">传输中 {progressPct}%</div>
                 </div>
               )}
               {phase === "sent" && (
-                <div className="text-[10px] text-text-secondary">传输完成，等待接收端恢复（恢复结果会另行提示）</div>
+                <div className="text-[length:var(--text-2xs)] text-text-secondary">传输完成，等待接收端恢复（恢复结果会另行提示）</div>
               )}
             </div>
           )}
-          {error && <div className="text-[11px] text-danger">{error}</div>}
+          {error && <div className="text-[length:var(--text-11)] text-danger">{error}</div>}
         </div>
 
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border shrink-0">

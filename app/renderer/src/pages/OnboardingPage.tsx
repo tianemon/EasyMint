@@ -127,9 +127,9 @@ export function OnboardingPage(): JSX.Element {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-text-primary font-medium truncate">{savedCfg.name}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-high text-accent shrink-0">使用中</span>
+                      <span className="text-[length:var(--text-2xs)] px-1.5 py-0.5 rounded bg-accent-high text-accent shrink-0">使用中</span>
                     </div>
-                    <div className="text-[11px] text-text-muted mt-0.5">
+                    <div className="text-[length:var(--text-11)] text-text-muted mt-0.5">
                       模型 {savedCfg.models.length} 个 · {savedCfg.model}
                     </div>
                   </div>

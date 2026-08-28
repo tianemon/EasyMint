@@ -110,15 +110,18 @@ html[data-platform="win32"] {
  */
 
 :root {
-  /* ── 聊天字号(px):由设置→界面 的级别滑杆(1-6,默认3)映射设置 ── */
-  --chat-list-size: 14px;    /* 会话列表(默认级别3) */
-  /* 语义字号(气泡折叠块与 markdown 正文共用):
-     body/detail 由设置滑杆驱动(基准/基准-1级),caption/code/meta 为固定档位 */
-  --text-body: 14px;    /* markdown 正文(默认级别3=基准) */
-  --text-detail: 13px;  /* 折叠块正文/摘要(默认级别2=基准-1级) */
-  --text-caption: 12px; /* 标题栏/标签/工具名 */
-  --text-code: 11px;    /* diff / 紧凑代码视图 */
-  --text-meta: 10px;    /* 箭头/状态/图标 */
+  /* ── 聊天字号缩放系数:由设置→界面 的「聊天字体」滑杆(90%~130%,默认100%)设置 ── */
+  --chat-scale: 1;
+  /* 聊天区语义字号(消息内容,全部随 --chat-scale 缩放并保持比例) */
+  --text-body: calc(14px * var(--chat-scale));    /* markdown 正文(默认基准) */
+  --text-detail: calc(13px * var(--chat-scale));  /* 折叠块正文/摘要/代码块 */
+  --text-caption: calc(12px * var(--chat-scale)); /* 标题栏/标签/工具名 */
+  --text-code: calc(11px * var(--chat-scale));    /* diff / 紧凑代码视图 */
+  --text-meta: calc(10px * var(--chat-scale));    /* 箭头/状态/图标 */
+  /* ── UI 字号缩放系数:由设置→界面 的「界面字体」滑杆(90%~130%,默认100%)设置 ── */
+  --ui-scale: 1;
+  /* 会话列表(UI 骨架文字,随 UI 字号缩放) */
+  --chat-list-size: calc(14px * var(--ui-scale));
   /* ── Surface（v3 对齐层级色，去绿色调）────────────── */
   --color-surface: var(--color-canvas);
   --color-surface-alt: var(--color-sidebar);
@@ -268,10 +271,10 @@ html[data-platform="win32"] {
   /* ── Font ────────────────────────── */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", Roboto, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
-  --font-size-xs: 0.75rem;
-  --font-size-sm: 0.875rem;
-  --font-size-base: 1rem;
-  --font-size-lg: 1.125rem;
+  --font-size-xs: calc(0.75rem * var(--ui-scale));
+  --font-size-sm: calc(0.875rem * var(--ui-scale));
+  --font-size-base: calc(1rem * var(--ui-scale));
+  --font-size-lg: calc(1.125rem * var(--ui-scale));
 
 
   /* ── v3 Layer tokens ─────────────── */
@@ -290,9 +293,17 @@ html[data-platform="win32"] {
   --color-divider: #e5e5e0;
   --color-accent-ring: rgba(22,163,74,0.22);
 
-  /* ── Typography v3 ───────────────── */
-  --text-2xs: 0.625rem; --text-xs: 0.75rem; --text-sm: 0.8125rem;
-  --text-base: 0.9375rem; --text-lg: 1.125rem; --text-xl: 1.5rem;
+  /* ── Typography v3(px 基准,随 --ui-scale 缩放;默认 100% 与原 rem 值一致)── */
+  --text-3xs: calc(9px * var(--ui-scale));    /* 微型角标(思考/工具标签、平台标签) */
+  --text-4xs: calc(8px * var(--ui-scale));    /* 极微型(环形圈内百分比等极密空间) */
+  --text-2xs: calc(10px * var(--ui-scale));   /* 辅助信息(时间戳、标签) */
+  --text-11: calc(11px * var(--ui-scale));    /* 次级辅助(工具提示、段落标签) */
+  --text-xs: calc(12px * var(--ui-scale));    /* 小号文字(按钮、Tab、状态栏) */
+  --text-sm: calc(13px * var(--ui-scale));    /* 稍小正文 */
+  --text-base: calc(15px * var(--ui-scale));  /* 正文/列表主文本 */
+  --text-lg: calc(18px * var(--ui-scale));    /* 大标题 */
+  --text-xl: calc(24px * var(--ui-scale));    /* 特大标题 */
+  --text-2xl: calc(24px * var(--ui-scale));   /* 页面大标题(对齐 Tailwind 2xl 档) */
   --leading-tight: 1.2; --leading-normal: 1.55;
 
   /* ── Spacing (4px grid) ──────────── */
@@ -516,7 +527,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 .sb-plus-btn {
   width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
   border-radius: var(--radius-sm); border: 1px dashed var(--color-text-muted);
-  background: transparent; color: var(--color-text-muted); font-size: 18px; line-height: 1;
+  background: transparent; color: var(--color-text-muted); font-size: var(--text-lg); line-height: 1;
   transition: all 120ms var(--ease-smooth);
 }
 /* hover 统一中性色(与 SessionBar 归档/新建一致,非绿) */
@@ -558,7 +569,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 
 .sb-label {
   position: relative;
-  font-size: 10px; font-weight: 600; color: var(--color-text-muted);
+  font-size: var(--text-2xs); font-weight: 600; color: var(--color-text-muted);
   text-transform: uppercase; letter-spacing: 0.06em;
   padding: var(--s3) var(--s2) var(--s1);
   display: flex; align-items: center; justify-content: space-between;
@@ -630,7 +641,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
   border: none;
   background: var(--color-surface-hover);   /* 比 sidebar 背景略亮 */
   color: var(--color-text-secondary);
-  font-size: 11px; white-space: nowrap;
+  font-size: var(--text-11); white-space: nowrap;
   cursor: pointer;
   transition: all 120ms var(--ease-smooth);
 }
@@ -655,7 +666,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 /* active:同色 + 阴影与加粗图标区分选中态 */
 .sb-seg-btn.active { color: var(--color-text-primary); background: var(--color-sidebar-active); box-shadow: var(--shadow-xs); }
 .sb-seg-btn.active svg { stroke-width: 2.4; } /* 选中态图标加粗 */
-.sb-seg-label { font-size: 11px; }
+.sb-seg-label { font-size: var(--text-11); }
 
 /* ── Divider line ─────────────────────────────── */
 
@@ -775,7 +786,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   color: var(--color-text-muted); transition: all 120ms var(--ease-smooth);
 }
 .inp-icon-btn:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); }
-.inp-lbl { font-size: 10px; color: var(--color-text-muted); }
+.inp-lbl { font-size: var(--text-2xs); color: var(--color-text-muted); }
 .inp-sel {
   font-size: var(--text-xs); padding: 3px 6px; border-radius: var(--radius-sm);
   background: var(--color-input-field); border: none;
@@ -790,7 +801,8 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 .ctx-ring-fill { fill: none; stroke: var(--color-accent); stroke-width: 2.5; stroke-linecap: round; transition: stroke-dashoffset 200ms var(--ease-smooth); }
 .ctx-ring-pct {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-size: 8px; font-weight: 600; color: var(--color-text-muted); opacity: 0;
+  /* 圆环仅 20px,百分比文字三位数时需限幅防溢出(UI 字号放大上限) */
+  font-size: clamp(8px, var(--text-4xs), 10px); font-weight: 600; color: var(--color-text-muted); opacity: 0;
   transition: opacity 120ms;
 }
 .ctx-ring:hover .ctx-ring-pct { opacity: 1; }
@@ -1041,7 +1053,7 @@ select.input {
   border-radius: var(--radius-sm);
   background: var(--color-tooltip-bg);
   color: var(--color-tooltip-text);
-  font-size: 11px;
+  font-size: var(--text-11);
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
@@ -1061,7 +1073,7 @@ select.input {
   transform: translateY(-50%);
   background: var(--color-text-primary);
   color: var(--color-surface);
-  font-size: 11px;
+  font-size: var(--text-11);
   padding: 4px 8px;
   border-radius: 4px;
   white-space: nowrap;
@@ -1083,7 +1095,7 @@ select.input {
   border-radius: 4px;
   background: var(--color-tooltip-bg);
   color: var(--color-tooltip-text);
-  font-size: 11px;
+  font-size: var(--text-11);
   white-space: nowrap;
   pointer-events: none;
   z-index: 100;
