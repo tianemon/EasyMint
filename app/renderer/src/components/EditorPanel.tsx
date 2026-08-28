@@ -22,15 +22,18 @@ function readCSS(name: string): string {
   return m ? `#${m[1]}${m[1]}${m[2]}${m[2]}${m[3]}${m[3]}` : raw;
 }
 
-/** 读取 CSS 字号变量的计算像素值(变量可能是 calc() 表达式,需实际测量) */
+/** 读取 CSS 字号变量的计算像素值(变量可能是 calc() 表达式,需实际测量)。
+     probe 为模块级单例:复用同一隐藏元素,避免每次渲染 append/remove DOM(渲染副作用) */
+let fontProbe: HTMLDivElement | null = null;
 function readPx(name: string, fallback: number): number {
-  const probe = document.createElement("div");
-  probe.style.position = "absolute";
-  probe.style.visibility = "hidden";
-  probe.style.fontSize = getComputedStyle(document.documentElement).getPropertyValue(name);
-  document.body.appendChild(probe);
-  const px = Number.parseFloat(getComputedStyle(probe).fontSize);
-  probe.remove();
+  if (!fontProbe) {
+    fontProbe = document.createElement("div");
+    fontProbe.style.position = "absolute";
+    fontProbe.style.visibility = "hidden";
+    document.body.appendChild(fontProbe);
+  }
+  fontProbe.style.fontSize = getComputedStyle(document.documentElement).getPropertyValue(name);
+  const px = Number.parseFloat(getComputedStyle(fontProbe).fontSize);
   return Number.isFinite(px) && px > 0 ? px : fallback;
 }
 
@@ -119,10 +122,12 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
     return () => observer.disconnect();
   }, [isActive, myTabId]);
 
-  // UI 字号缩放变化时同步 Monaco 编辑器字号（--text-sm 随 --ui-scale 缩放）
+  // UI 字号缩放变化时同步 Monaco 编辑器字号与行高（--text-sm 随 --ui-scale 缩放;
+  // 行高保持 13px→22px 的原比例,字号放大时行距不挤压）
   const uiFontScale = useSettingsStore((s) => s.uiFontScale);
   useEffect(() => {
-    editorRef.current?.updateOptions({ fontSize: readPx("--text-sm", 13) });
+    const size = readPx("--text-sm", 13);
+    editorRef.current?.updateOptions({ fontSize: size, lineHeight: Math.round(size * 1.7) });
   }, [uiFontScale]);
 
   // Load file content
@@ -207,7 +212,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
           options={{
             fontSize: readPx("--text-sm", 13),
             fontFamily: "'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace",
-            lineHeight: 22,
+            lineHeight: Math.round(readPx("--text-sm", 13) * 1.7), // 13px→22px 原比例,随字号缩放
             lineNumbersMinChars: 4,
             // 行号与代码间距 = lineDecorationsWidth(默认10) + folding(16) = 26px
             // 收紧：装饰区 0（折叠箭头保留，间距 16px）

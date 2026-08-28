@@ -201,7 +201,9 @@ export class Store {
       showToolUse: emData.showToolUse as boolean | undefined,
       chatThinkingLevel: (emData.chatThinkingLevel as string) ?? "medium",
       chatFontLevel: (emData.chatFontLevel as number) ?? 3,
-      chatFontScale: (emData.chatFontScale as number) ?? 1,
+      // chatFontScale 不兜底:老用户磁盘无此字段时须返回 undefined,
+      // 前端 loadFromElectron 才能走 LEGACY_CHAT_FONT_SCALE 旧级别迁移(?? 1 会吞掉迁移)
+      chatFontScale: emData.chatFontScale as number | undefined,
       uiFontScale: (emData.uiFontScale as number) ?? 1,
       glowEffect: (emData.glowEffect as "orbit" | "slide" | "breathe" | "off") ?? "orbit",
       glowColorMode: (emData.glowColorMode as "solid" | "multi") ?? "multi",
