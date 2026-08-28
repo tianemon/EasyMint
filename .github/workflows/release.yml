@@ -20,11 +20,12 @@ jobs:
         shell: bash
         run: |
           TAG="${{ github.ref_name }}"
-          # v0.6.1 → 0.6.1（CHANGELOG 标题格式 ## v0.6.1）
+          # v0.6.1 → 0.6.1（CHANGELOG 标题兼容两种格式:## v0.6.1 与 ## [v0.6.1]。
+          # 字面 [ 用字符类 [[] 匹配——POSIX 写法,BSD/GNU awk 均支持）
           VERSION="${TAG#v}"
           NOTES=$(awk -v v="$VERSION" '
-            $0 ~ "^## v" v " " { found=1; next }
-            found && $0 ~ "^## v" { exit }
+            $0 ~ "^## v" v " " || $0 ~ "^## [[]v" v "[]] " { found=1; next }
+            found && ($0 ~ "^## v" || $0 ~ "^## [[]v") { exit }
             found { print }
           ' CHANGELOG.md)
           if [ -z "$NOTES" ]; then
