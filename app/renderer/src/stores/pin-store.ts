@@ -12,6 +12,9 @@ export interface Pin {
   minimized?: boolean;  // true = 贴纸态
   edge?: "left" | "right"; // 吸附边（minimized 时有效）
   createdAt: number;
+  /** 层叠层级：置顶 = 全组 max+1，新增同。DOM 顺序不变、z-index 决定层叠——
+      置顶不移动 DOM 节点，避免破坏正在进行的文本选择（reorder 会导致松手即取消选择） */
+  z?: number;
 }
 
 /** 标题：首个非空行去 Markdown 符号，取前 20 字 */
@@ -48,6 +51,15 @@ interface PinState {
   persistPins: (sessionId: string) => void;
 }
 
+// 置顶层级覆写(模块级,直写 DOM 用):便签上的交互式文本选择对 React 重渲染敏感——
+// 任何 setState 触发的 re-render 都会让 Chromium 回滚正在进行的交互选择(松手即取消);
+// 置顶改为直写 DOM z-index,渲染时读此覆写值,层叠一致且零 re-render
+const zOverrides = new Map<string, number>();
+
+export function getPinZ(pinId: string): number | undefined {
+  return zOverrides.get(pinId);
+}
+
 export const usePinStore = create<PinState>((set, get) => ({
   pinsBySession: {},
 
@@ -65,6 +77,7 @@ export const usePinStore = create<PinState>((set, get) => ({
       x: -1,
       y: -1,
       colorIdx: pickColorIdx(existing),
+      z: existing.reduce((m, p) => Math.max(m, p.z || 0), 0) + 1, // 新便签置顶
       createdAt: Date.now(),
     };
     set((s) => ({
@@ -105,13 +118,15 @@ export const usePinStore = create<PinState>((set, get) => ({
     })),
 
   bringToFront: (sessionId, pinId) => {
-    set((s) => {
-      const pins = s.pinsBySession[sessionId] || [];
-      const pin = pins.find((p) => p.id === pinId);
-      if (!pin) return {};
-      return {
-        pinsBySession: { ...s.pinsBySession, [sessionId]: [...pins.filter((p) => p.id !== pinId), pin] },
-      };
+    const pins = get().pinsBySession[sessionId] || [];
+    const pin = pins.find((p) => p.id === pinId);
+    if (!pin) return;
+    const maxZ = pins.reduce((m, p) => Math.max(m, zOverrides.get(p.id) ?? p.z ?? 0), 0);
+    const newZ = maxZ + 1;
+    zOverrides.set(pinId, newZ);
+    // 直写 DOM z-index,不触发 re-render——re-render 会回滚便签上的交互式文本选择
+    document.querySelectorAll(`[data-pin-id="${pinId}"]`).forEach((el) => {
+      (el as HTMLElement).style.zIndex = String(newZ);
     });
     get().persistPins(sessionId);
   },

@@ -65,6 +65,30 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
     if (outputRef.current) outputRef.current.scrollTop = outputRef.current.scrollHeight;
   }, [logs, content]);
 
+  // Ctrl+A 接管:焦点或选择锚点在窗口内时只全选输出区。聊天页有 document 级全局 Ctrl+A
+  // 拦截(只认消息气泡),焦点在窗口外时事件到不了窗口 div 的 onKeyDown,输出区无法全选;
+  // 此处按「焦点/锚点是否在 .output-window 内」判定归属,窗口内接管、窗口外让位聊天逻辑
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "a") return;
+      const target = e.target as Element | null;
+      const sel = window.getSelection();
+      const anchor = sel && sel.rangeCount > 0 ? sel.anchorNode : null;
+      const anchorEl = anchor ? (anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : (anchor as Element)) : null;
+      const inWindow = (target && target.closest(".output-window")) || (anchorEl && anchorEl.closest(".output-window"));
+      if (!inWindow) return;
+      e.preventDefault();
+      const el = outputRef.current;
+      if (!el) return;
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
   return createPortal(
     // 遮罩关闭:仅当按下与松开都在遮罩(非窗口内容)才关闭——拖拽选中移出边缘松开不误关
     // (React onClick 的公共祖先语义:mousedown 在窗口内、mouseup 在遮罩,click 会在遮罩触发)
@@ -75,7 +99,7 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
       onMouseUp={(e) => { if (overlayDownRef.current && e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="relative flex flex-col w-[80vw] h-[80vh] rounded-[12px] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
+        className="output-window relative flex flex-col w-[80vw] h-[80vh] rounded-[12px] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
         // Cmd/Ctrl+A 只全选输出区内容(不选整个页面)
@@ -142,7 +166,7 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
           onWheel={handleUserInput}
           onTouchStart={handleUserInput}
           onMouseDown={handleUserInput}
-          className="flex-1 min-h-0 overflow-y-auto px-4 py-3 bg-[var(--color-sidebar)]/40 font-mono text-xs leading-relaxed"
+          className="shell-output flex-1 min-h-0 overflow-y-auto px-4 py-3 bg-[var(--color-sidebar)]/40 font-mono text-xs leading-relaxed"
         >
           {truncated && (
             <div className="text-[11px] text-warning mb-2 break-all">

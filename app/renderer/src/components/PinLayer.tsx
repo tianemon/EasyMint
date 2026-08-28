@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from "react";
-import { usePinStore, type Pin } from "../stores/pin-store";
+import { usePinStore, getPinZ, type Pin } from "../stores/pin-store";
 import { TextBlockView } from "./ChatBlocks";
 
 const CARD_W = 320;
@@ -67,6 +67,8 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
   const onDragStart = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       e.preventDefault();
+      // 拖动即置顶(原卡片根 onPointerDown 置顶,为拖选对齐移到拖动/resize/click 触发)
+      usePinStore.getState().bringToFront(sessionId, pin.id);
       const target = e.currentTarget;
       target.setPointerCapture(e.pointerId);
       const startClientX = e.clientX;
@@ -119,6 +121,8 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
   const onResizeStart = useCallback((dir: ResizeDir) => (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    // resize 即置顶(同 onDragStart)
+    usePinStore.getState().bringToFront(sessionId, pin.id);
     const target = e.currentTarget;
     target.setPointerCapture(e.pointerId);
     const startClientX = e.clientX;
@@ -192,11 +196,15 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
     window.addEventListener("pointerup", onUp);
   }, [pin.id, pin.x, pin.y, pin.width, pin.height, sessionId, layerRef]);
 
+  // 置顶(bringToFront)在 onClick 触发而非 onPointerDown:pointerdown 时 reorder 卡片 DOM
+  // 会与浏览器建立选择锚点竞态,拖选表现为必须先点击一次才能选——挪到 click(拖选完成后)
+  // 让 mousedown 阶段 DOM 静止,与消息气泡的拖选路径一致;拖动/resize 路径仍按下即置顶
   return (
     <div
       className="absolute rounded-xl border border-border bg-surface-elevated shadow-xl overflow-hidden animate-[card-in_200ms_ease-out]"
-      style={{ left: x, top: y, width: pin.width || CARD_W }}
-      onPointerDown={() => usePinStore.getState().bringToFront(sessionId, pin.id)}
+      style={{ left: x, top: y, width: pin.width || CARD_W, zIndex: getPinZ(pin.id) ?? (pin.z || 0) }}
+      data-pin-id={pin.id}
+      onClick={() => usePinStore.getState().bringToFront(sessionId, pin.id)}
     >
       {/* 颜色标识条 */}
       <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${CARD_COLORS[colorIdx]}`} />
@@ -225,7 +233,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
         </button>
       </div>
       {/* 内容区：Markdown 快照，超高滚动 */}
-      <div className="px-3 py-2 overflow-y-auto" style={pin.height ? { height: pin.height } : { maxHeight: layer ? layer.clientHeight * 0.4 : "40vh" }}>
+      <div className="px-3 py-2 overflow-y-auto selectable" style={pin.height ? { height: pin.height } : { maxHeight: layer ? layer.clientHeight * 0.4 : "40vh" }}>
         <TextBlockView block={{ kind: "text", text: pin.content }} />
       </div>
       {/* 四周/拐角 resize 拖拽区（透明，hover 显示光标） */}
@@ -327,7 +335,9 @@ function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX
         width: hovered ? EXT_W : TAB_W,
         transform: hovered && edge === "right" ? `translateX(-${EXT_W - TAB_W}px)` : "none",
         transition: "width 200ms ease-out, transform 200ms ease-out",
+        zIndex: getPinZ(pin.id) ?? (pin.z || 0), // 与卡片共用层级,贴纸/卡片层叠顺序一致
       }}
+      data-pin-id={pin.id}
       title={pin.title}
       onPointerDown={onDragStart}
       onPointerEnter={() => setHovered(true)}

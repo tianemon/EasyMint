@@ -949,7 +949,8 @@ body {
 }
 
 /* 内容型区域恢复可选:消息气泡整体(正文/代码/diff/思考块均在内)、系统通知卡片、输入框、
-   输出弹层内容区(后台命令/子Agent过程/运行日志) */
+   输出弹层内容区(后台命令/子Agent过程/运行日志)。
+   新增内容型区域(便签正文/权限命令描述/问题标题等)统一加 selectable 类,无需逐个改选择器 */
 .chat-input,
 .msg-bubble-user,
 .msg-bubble-agent,
@@ -957,7 +958,8 @@ body {
 .diff-view,
 .shell-output,
 .subagent-output,
-.log-overlay-output {
+.log-overlay-output,
+.selectable {
   user-select: text;
   -webkit-user-select: text;
 }

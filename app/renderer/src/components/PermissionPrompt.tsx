@@ -41,7 +41,7 @@ export function PermissionPrompt(): JSX.Element | null {
             </span>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium text-text-primary break-words">{req.toolName}</div>
-              <div className="text-xs text-text-secondary mt-1">{req.description}</div>
+              <div className="text-xs text-text-secondary mt-1 selectable">{req.description}</div>
             </div>
           </div>
           <div className="flex gap-2 justify-end">

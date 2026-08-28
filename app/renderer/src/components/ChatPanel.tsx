@@ -309,8 +309,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     });
   });
 
-  // Ctrl+A:焦点(最近点击/选择锚点)在消息气泡内时只全选该气泡内容;
-  // 空白区域也禁止全选页面(不执行任何选择);输入框/文本域保持编辑语义(全选输入内容)
+  // 可选内容容器清单:与 index.css 的 user-select:text 白名单一致,新增内容型区域两边同步。
+  // 两处使用:Ctrl+A 全选目标判定 + mousedown 记忆更新
+  const CONTENT_SELECTOR = ".msg-bubble-user, .msg-bubble-agent, .msg-bubble-system, .diff-view, .shell-output, .subagent-output, .log-overlay-output, .selectable";
+  // 上次全选/点击的内容容器:点击空白处取消全选时 selection 被完全清空(无锚点),
+  // 二次 Ctrl+A 无法判定目标——回退到记忆的容器,无需再点击一次容器才恢复
+  const lastContainerRef = useRef<Element | null>(null);
+
+  // Ctrl+A:焦点(最近点击/选择锚点)落在任意可选内容容器内时只全选该容器;
+  // 锚点被点击空白清空时回退到 lastContainerRef;空白/UI 区域禁止全选页面;
+  // 输入框/文本域保持编辑语义(全选输入内容)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "a") return;
@@ -320,19 +328,42 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 非输入区:一律阻止页面全选(空白区域 selection 为空,必须提前 preventDefault)
       e.preventDefault();
       const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return; // 无选择锚点 → 不执行任何选择
-      const anchor = sel.anchorNode;
-      if (!anchor) return;
-      const el = anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : (anchor as Element);
-      const bubble = el?.closest(".msg-bubble-user, .msg-bubble-agent, .msg-bubble-system");
-      if (!bubble) return; // 空白区域:不执行选择
+      let container: Element | null = null;
+      if (sel && sel.rangeCount > 0 && sel.anchorNode) {
+        const anchor = sel.anchorNode;
+        const el = anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : (anchor as Element);
+        container = el?.closest(CONTENT_SELECTOR) || null;
+      }
+      if (!container) container = lastContainerRef.current; // 锚点被清空 → 回退记忆容器
+      if (!container) return; // 空白/UI 区域:不执行选择
+      lastContainerRef.current = container;
       const range = document.createRange();
-      range.selectNodeContents(bubble);
-      sel.removeAllRanges();
-      sel.addRange(range);
+      range.selectNodeContents(container);
+      sel?.removeAllRanges();
+      sel?.addRange(range);
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  // mousedown 捕获阶段:清除残留选择锚点,保证拖选从本次点击位置开始。Ctrl+A 编程式
+  // 全选后,浏览器点击清除只把选择折叠为 collapsed(anchorNode 残留指向旧文本),下一次
+  // 拖选从旧锚点扩展而非点击处新建——表现为必须先点击一次才能选;捕获阶段先于浏览器
+  // 默认行为(建立新锚点),清除后由默认行为重建干净起点。同时更新 lastContainerRef。
+  // 编辑区(输入框/文本域/可编辑元素)的 selection 由编辑器管理,不干预
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const t = e.target as Element | null;
+      if (!t) return;
+      const container = t.closest(CONTENT_SELECTOR);
+      if (container) lastContainerRef.current = container;
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      if (t.closest(".chat-input, textarea, input, [contenteditable]")) return;
+      sel.removeAllRanges();
+    };
+    document.addEventListener("mousedown", handler, true);
+    return () => document.removeEventListener("mousedown", handler, true);
   }, []);
 
   const showToolUse = useSettingsStore((s) => s.showToolUse);

@@ -44,7 +44,7 @@ function IssueRow({ issue, projectPath, onEdit }: { issue: IssueItem; projectPat
         <span className="text-[9px] text-text-muted shrink-0">{formatTime(issue.createdAt)}</span>
       </div>
       {/* 问题现象(标题) */}
-      <div className={`text-xs mt-0.5 leading-snug break-words ${isFixed ? "line-through text-text-muted" : "text-text-primary"}`}>{issue.title}</div>
+      <div className={`text-xs mt-0.5 leading-snug break-words selectable ${isFixed ? "line-through text-text-muted" : "text-text-primary"}`}>{issue.title}</div>
 
       {/* 操作行:编辑(第一位) + 标记已修复 + 删除 */}
       <div className="flex items-center gap-1 mt-1.5">
