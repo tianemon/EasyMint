@@ -108,6 +108,24 @@ export function Sidebar({
     return () => document.removeEventListener("mousedown", handler);
   }, [drawerOpen]);
 
+  // 抽屉底部箭头精确对齐激活按钮中心:ptr-* 类用百分比近似(按钮宽度随文字变化,
+  // 如 46% 对「运行」按钮并不居中)——打开/切换/resize 时实测按钮中心覆盖箭头 left(px)
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const align = () => {
+      const drawerEl = drawerRef.current;
+      const btn = segRef.current?.querySelector<HTMLButtonElement>(".sb-seg-btn.active, .sb-seg-btn.on");
+      const arrow = drawerEl?.querySelector<HTMLDivElement>(".sb-drawer-arrow");
+      if (!drawerEl || !btn || !arrow) return;
+      const dRect = drawerEl.getBoundingClientRect();
+      const bRect = btn.getBoundingClientRect();
+      arrow.style.left = `${bRect.left - dRect.left + bRect.width / 2 - arrow.offsetWidth / 2}px`;
+    };
+    align();
+    window.addEventListener("resize", align);
+    return () => window.removeEventListener("resize", align);
+  }, [drawerOpen, drawerTab]);
+
   const mode = useThemeStore((s) => s.mode);
   const toggleTheme = useCallback(() => {
     useThemeStore.getState().toggle();
