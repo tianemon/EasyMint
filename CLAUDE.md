@@ -283,6 +283,7 @@ EasyMint 是 Electron 桌面应用，让不懂技术的用户通过图形界面�
 
 - **GitHub Actions 自动 Release 已配置**（`.github/workflows/release.yml`）：推送版本 tag（如 `v0.6.6`）后自动构建并发布 GitHub Release——无需手动打包/上传
 - **发版流程（发布前必更新两处文档）**：① 更新 `package.json` 版本号 + `CHANGELOG.md` 条目（用户可见变更）→ ② **同步更新开发记录**：`docs/开发记录.md` 头部快照（当前版本/最近工作）+ `docs/开发记录/<日期>.md`（当天日志）→ ③ `git tag vX.Y.Z` → ④ `git push origin main --tags` → ⑤ 等 Actions 跑完（约 4 分钟），Release 自动生成
+- **发版必检（Release notes 提取）**：CHANGELOG 版本标题格式必须与 `.github/workflows/release.yml` 的 notes 提取兼容——当前兼容 `## v0.x.y` 与 `## [v0.x.y]` 两种标题（awk 用 `[[]` 匹配字面方括号）。发版后确认 Release notes 已生成 CHANGELOG 内容（而非默认「Release vX.Y.Z」文本）；改 CHANGELOG 标题格式前先本地跑一遍 awk 提取验证（教训：v0.13.0 起标题带方括号导致 v0.13.0~v0.14.1 三个版本 notes 为空）
 - v0.6.6 已验证 CI npm ci 修复（release.yml 用 env 覆盖官方源，避开 npmmirror 海外 runner 卡死）
 - 首次发版时确认远端 tag 存在（`git ls-remote --tags origin`）
 
