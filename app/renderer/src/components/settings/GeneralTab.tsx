@@ -206,7 +206,7 @@ export function GeneralTab(): JSX.Element {
         <h3 className="text-sm font-medium text-text-secondary mb-2">默认项目路径</h3>
         <div className="bg-surface-alt rounded-lg border border-border px-4 py-3">
           <input
-            className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent"
+            className="em-input w-full px-3 py-2 text-text-primary text-sm"
             placeholder="~/EasyMintProject"
             value={defaultProjectDir}
             onChange={(e) => setDefaultProjectDir(e.target.value)}

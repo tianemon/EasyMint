@@ -331,7 +331,7 @@ function SessionItemRow({ session, active, isDesign, activeSessions, editingId, 
       <div className="px-3 py-1 flex gap-1">
         <input
           autoFocus
-          className="flex-1 px-2 py-1 text-xs bg-surface border border-accent rounded outline-none text-text-primary"
+          className="flex-1 px-2 py-1 text-xs bg-surface border border-border rounded-lg outline-none text-text-primary"
           value={editTitle}
           onChange={(e) => onEditTitle(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onCommitRename(); if (e.key === "Escape") onCancelEdit(); }}

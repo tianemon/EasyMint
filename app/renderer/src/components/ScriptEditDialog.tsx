@@ -80,7 +80,7 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
     onClose();
   };
 
-  const inputCls = "w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50";
+  const inputCls = "em-input w-full h-8 px-2.5 text-xs text-text-primary";
 
   // createPortal 挂 body：侧边栏抽屉(sb-drawer)常驻 transform 会劫持 fixed 定位
   // （fixed 相对 transform 祖先而非视口）——弹窗必须脱离才能在软件窗口内居中
@@ -99,7 +99,7 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
           <div>
             <label className="text-xs text-text-secondary block mb-1">运行命令</label>
             <textarea
-              className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[length:var(--text-caption)] text-text-primary outline-none focus:border-accent/50 resize-none font-mono leading-relaxed"
+              className="em-input w-full px-2.5 py-1.5 text-[length:var(--text-caption)] text-text-primary resize-none font-mono leading-relaxed"
               rows={8}
               value={runCommand}
               onChange={(e) => setRunCommand(e.target.value)}

@@ -206,7 +206,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                 value={nameDraft}
                 onChange={(e) => setNameDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { self.name !== nameDraft.trim() && useDeviceStore.getState().setName(nameDraft.trim()); setEditingName(false); } }}
-                className="mt-2 w-full px-2 py-1.5 rounded bg-surface-alt border border-border text-xs text-text-primary outline-none focus:border-accent"
+                className="em-input mt-2 w-full px-2 py-1.5 text-xs text-text-primary"
               />
             )}
             <div className="flex items-center justify-between mt-3">
@@ -294,7 +294,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                 onChange={(e) => { setIgnoreText(e.target.value); setIgnoreDirty(true); setIgnoreSaved(false); }}
                 spellCheck={false}
                 placeholder="# 每行一个文件/文件夹路径，# 开头为注释"
-                className="flex-1 resize-none w-full px-2.5 py-2 rounded-lg bg-surface-alt border border-border text-[length:var(--text-2xs)] font-mono leading-relaxed text-text-primary outline-none focus:border-accent"
+                className="em-input flex-1 resize-none w-full px-2.5 py-2 text-[length:var(--text-2xs)] font-mono leading-relaxed text-text-primary"
               />
               <div className="flex items-center justify-between">
                 <span className="text-[length:var(--text-2xs)] text-text-muted">

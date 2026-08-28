@@ -193,17 +193,17 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
       )}
       <div>
         <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">名称 *</label>
-        <input className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50 disabled:opacity-60"
+        <input className="em-input w-full h-8 px-2.5 text-xs text-text-primary disabled:opacity-60"
           placeholder="如 测试员" value={name} onChange={(e) => setName(e.target.value)} disabled={locked || restricted} />
       </div>
       <div>
         <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">一句话描述 *</label>
-        <input className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50 disabled:opacity-60"
+        <input className="em-input w-full h-8 px-2.5 text-xs text-text-primary disabled:opacity-60"
           placeholder="如 专门写单元测试" value={desc} onChange={(e) => setDesc(e.target.value)} disabled={locked || restricted} />
       </div>
       <div>
         <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">人格/职责 prompt（系统提示词）*</label>
-        <textarea className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent/50 disabled:opacity-60"
+        <textarea className="em-input w-full px-2.5 py-1.5 text-xs text-text-primary disabled:opacity-60"
           rows={4} placeholder="定义 Agent 的行为方式、专业领域、工作风格..."
           value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={locked || restricted} />
       </div>
@@ -221,7 +221,7 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
                 <Select block placeholder={loadingProviderModels ? "加载中…" : "选择模型"} value={model} onChange={setModel}
                   options={providerModels.map((m) => ({ value: m, label: m }))} title="选择模型" />
               ) : (
-                <input className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+                <input className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
                   placeholder="如 deepseek-v4-flash" value={model} onChange={(e) => setModel(e.target.value)} />
               )}
             </div>

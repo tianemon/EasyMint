@@ -69,9 +69,10 @@ export function TaskPanel(_props: TaskPanelProps): JSX.Element {
   const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [userScrolled, setUserScrolled] = useState(false);
 
-  // 按 task.json 原始顺序（任务 1 在顶，后面的在下），active 任务居中高亮
+  // 倒序渲染:最新的任务在最前(原 task.json 顺序为任务 1 在顶)
+  const reversedTasks = [...tasks].reverse();
 
-  const runningIdx = tasks.findIndex((t) => t.status === "building" || t.status === "evaluating");
+  const runningIdx = reversedTasks.findIndex((t) => t.status === "building" || t.status === "evaluating");
 
   const centerRunning = useCallback(() => {
     if (runningIdx < 0 || !listRef.current) return;
@@ -97,27 +98,18 @@ export function TaskPanel(_props: TaskPanelProps): JSX.Element {
   return (
     <div className="h-full flex flex-col bg-[var(--color-drawer-panel)]">
       {/* Header:标题 + 进度条 */}
-      <div className="flex items-center gap-2 h-9 px-3 border-b border-border shrink-0">
+      <div className="flex items-center gap-2 h-9 px-3 shrink-0">
         <span className="text-[length:var(--text-11)] font-semibold tracking-[0.04em] uppercase text-text-secondary">任务</span>
         {taskCount > 0 && (
           <span className="ml-auto text-[length:var(--text-2xs)] text-text-secondary tabular-nums">{doneCount}/{taskCount} 完成</span>
         )}
       </div>
 
-      {/* 进度条 */}
-      {taskCount > 0 && (
-        <div className="px-3 pt-2 shrink-0">
-          <div className="h-1 rounded-full bg-surface-hover overflow-hidden">
-            <div className="h-full bg-accent rounded-full transition-all duration-300" style={{ width: `${taskCount > 0 ? (doneCount / taskCount) * 100 : 0}%` }} />
-          </div>
-        </div>
-      )}
-
       {/* Task list — mint container always visible, fixed area */}
-      <div className="flex-1 min-h-0 flex flex-col px-2 py-2">
+      <div className="flex-1 min-h-0 flex flex-col px-2 pt-[3px] pb-2">
         <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto space-y-0.5">
-          {tasks.length > 0 ? (
-            tasks.map((task) => (
+          {reversedTasks.length > 0 ? (
+            reversedTasks.map((task) => (
               <TaskRow key={task.id} task={task} runningExec={taskExecutions[task.id]} />
             ))
           ) : (

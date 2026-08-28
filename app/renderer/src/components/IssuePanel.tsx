@@ -107,7 +107,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
   return (
     <div className="h-full flex flex-col bg-[var(--color-drawer-panel)]">
       {/* Header */}
-      <div className="flex items-center gap-2 h-9 px-3 border-b border-border shrink-0">
+      <div className="flex items-center gap-2 h-9 px-3 shrink-0">
         <span className="text-[length:var(--text-11)] font-semibold tracking-[0.04em] uppercase text-text-secondary">问题记录</span>
         <button
           className="ml-auto w-6 h-6 flex items-center justify-center rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
@@ -119,7 +119,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
       </div>
 
       {/* Issue 列表 */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 pt-[3px] pb-2">
         {issues.length > 0 ? (
           <div className="space-y-1.5">
             {issues.map((issue) => (
@@ -146,7 +146,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
               <div>
                 <label className="text-xs text-text-secondary block mb-1">功能模块（可选，如：登录页）</label>
                 <input
-                  className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+                  className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
                   placeholder="功能模块"
                   value={module}
                   onChange={(e) => setModule(e.target.value)}
@@ -156,7 +156,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
               <div>
                 <label className="text-xs text-text-secondary block mb-1">问题现象</label>
                 <textarea
-                  className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent/50 resize-none"
+                  className="em-input w-full px-2.5 py-1.5 text-xs text-text-primary resize-none"
                   placeholder="问题现象"
                   rows={10}
                   value={symptom}

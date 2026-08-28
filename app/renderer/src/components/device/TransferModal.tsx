@@ -174,7 +174,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
           <div>
             <label className="text-xs text-text-secondary block mb-1">选择项目</label>
             <select
-              className="w-full px-2.5 py-1.5 rounded-lg bg-surface border border-border text-xs text-text-primary outline-none focus:border-accent mb-1.5"
+              className="em-input w-full px-2.5 py-1.5 text-xs text-text-primary mb-1.5"
               value={projectPath}
               onChange={(e) => { setProjectPath(e.target.value); setScanResult(null); }}
             >
@@ -188,7 +188,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
                 value={projectPath}
                 onChange={(e) => { setProjectPath(e.target.value); setScanResult(null); }}
                 placeholder="或直接输入/选择项目目录"
-                className="flex-1 px-2.5 py-1.5 rounded-lg bg-surface border border-border text-xs text-text-primary outline-none focus:border-accent"
+                className="em-input flex-1 px-2.5 py-1.5 text-xs text-text-primary"
               />
               <button type="button" className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:bg-surface-hover transition-colors shrink-0" onClick={() => void browseProject()}>
                 浏览

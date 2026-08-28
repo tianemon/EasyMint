@@ -138,7 +138,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
                 value={targetPath}
                 onChange={(e) => setTargetPath(e.target.value)}
                 placeholder="选择项目要放到的父文件夹"
-                className="flex-1 px-2.5 py-1.5 rounded-lg bg-surface border border-border text-xs text-text-primary outline-none focus:border-accent"
+                className="em-input flex-1 px-2.5 py-1.5 text-xs text-text-primary"
               />
               <button
                 type="button"

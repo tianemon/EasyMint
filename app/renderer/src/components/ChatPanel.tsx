@@ -22,6 +22,7 @@ import { PinLayer } from "./PinLayer";
 import { usePinStore } from "../stores/pin-store";
 import { DelegationProgress, type DelegationUiState, type DelegationTaskUi } from "./DelegationProgress";
 import { ContextMenu, type ContextMenuData, type ContextMenuItem } from "./ContextMenu";
+import { QuestionHistory } from "./QuestionHistory";
 import { BubbleActions, roleColor, DocIcon } from "./ChatBubbleActions";
 
 
@@ -85,6 +86,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 点击回底或手动滚回底部消失
   const [showNewMsg, setShowNewMsg] = useState(false); // 输出结束且不在底部的"新消息"状态
   const showNewMsgRef = useRef(false); // 与 state 同步(handleScroll 空依赖闭包读 ref)
+  // 提问记录跳转高亮:跳转后给目标消息临时 tint 1.5s 渐隐
+  const [highlightMsgId, setHighlightMsgId] = useState<number | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [awayFromBottom, setAwayFromBottom] = useState(false); // 用户是否离开底部(渲染驱动)
   const awayFromBottomRef = useRef(false); // 跨阈值去重(滚动高频时只在边界变化时 setState)
 
@@ -554,6 +558,26 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       virtualizer.scrollToIndex(target, { align: "end" });
     });
   }, [virtualizer]);
+
+  // 提问记录跳转:滚动到目标消息(顶部对齐) + 临时高亮 1.5s(重复点击重置计时)。
+  // 跳转 = 离开底部模式:autoScrollRef 置 false 防止「内容增长跟随」effect 在测量变化时弹回底部
+  // (程序性滚动不触发 handleScroll,标记不会被用户滚动逻辑清掉)。
+  // 高亮过渡限定 background-color/border-radius:transition-all 会过渡虚拟滚动的 translateY
+  // 导致滚动错乱;高亮矩形 mt-[5px] 与上方内容留间距
+  const jumpToMessage = useCallback((msgId: number) => {
+    const idx = messages.findIndex((m) => m.id === msgId);
+    if (idx < 0) return;
+    autoScrollRef.current = false;
+    if (idx < messages.length - 1) {
+      // 非末尾:显示回底按钮(用户可从历史位置一键回底);目标即末尾则保持贴底态
+      awayFromBottomRef.current = true;
+      setAwayFromBottom(true);
+    }
+    virtualizer.scrollToIndex(idx, { align: "start" });
+    setHighlightMsgId(msgId);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => setHighlightMsgId(null), 1500);
+  }, [messages, virtualizer]);
 
   // 内容增长跟随:totalSize 变化(流式输出/打开会话的测量推进)时,若用户没滚离底部 → 贴底。
   // 这是 anchorTo: "end" 的替代——库的 wasAtEnd 用 totalSize-based 距离判定,与 DOM 实际
@@ -1452,6 +1476,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vi.start}px)` }}
                     className="pb-8"
                   >
+                    {/* 跳转高亮层:常驻 absolute 不占布局(虚拟滚动测量零干扰)、opacity 过渡
+                        (圆角始终存在,消失只是淡出,无「圆角变直角」)、仅上边外扩 5px——
+                        高亮矩形上边框与消息内容(含头像)留 5px 间距,其余边贴合内容 */}
+                    <div
+                      className={`absolute -top-[5px] inset-x-[26px] bottom-0 rounded-[10px] bg-accent-bg transition-opacity duration-500 pointer-events-none ${msg.id === highlightMsgId ? "opacity-100" : "opacity-0"}`}
+                    />
                     <MemoChatMessage
                       msg={msg}
                       showThinking={showThinking}
@@ -1679,6 +1709,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       )}
       {/* 内容便签悬浮层：仅当前会话可见，随 tab 显隐 */}
       <PinLayer sessionId={sid} />
+      {/* 用户历史提问：右上角按钮 + 右侧抽屉（跳转消息顶部对齐并高亮） */}
+      <QuestionHistory sessionId={sid} messages={messages} onJump={jumpToMessage} />
       <ContextMenu menu={ctxMenu} onClose={closeMenu} />
       {/* 钉住提示 */}
       {pinToast && (

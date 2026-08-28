@@ -222,7 +222,7 @@ function McpTab(): JSX.Element {
                 <div className="relative">
                   <input
                     type={showKey ? "text" : "password"}
-                    className="w-full px-2 py-1.5 pr-7 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
+                    className="em-input w-full px-2 py-1.5 pr-7 text-text-primary text-xs"
                     defaultValue={val}
                     placeholder="未设置"
                     onBlur={(e) => { const v = e.target.value.trim(); if (v !== val) saveKey(key, v); }}

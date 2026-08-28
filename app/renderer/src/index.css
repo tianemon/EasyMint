@@ -505,6 +505,8 @@ html[data-platform="win32"] {
 .sb-drag-strip { height: 35px; flex-shrink: 0; position: relative; }
 /* 自绘窗口按钮容器：显式 no-drag（CSS 类比内联 style 更可靠，防止被下方拖拽区拦截点击） */
 .window-controls { -webkit-app-region: no-drag; }
+/* 浮层/按钮位于窗口拖拽区(drag,如 TabBar)坐标上方时声明 no-drag,保证点击交互不被拖窗口拦截 */
+.no-drag { -webkit-app-region: no-drag; }
 /* Windows 自绘窗口按钮方案：拖拽区恢复与 macOS 一致的高度，保证布局观感统一 */
 html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 
@@ -684,8 +686,10 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
   display: flex; align-items: stretch;
   padding: var(--s1) var(--s2) 0;
   gap: 4px; overflow-x: auto; flex-shrink: 0;
-  /* 空 tab 时也有可拖拽高度（拖拽区需要实际元素面积） */
-  min-height: 40px;
+  /* 高度固定 40px:min-height 在有 tab 时会被 tab 内容撑高 1-2px,导致 ChatPanel 顶部
+     在空态/会话态间漂移(历史输入按钮跟随下移)——固定高度两态严格一致 */
+  height: 40px;
+  overflow-y: hidden;
   -webkit-app-region: drag;
 }
 /* Windows：右侧预留自绘窗口按钮空间（最小化/最大化/关闭 3×44px） */
@@ -798,7 +802,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   color: var(--color-text-secondary); outline: none;
   transition: box-shadow 120ms;
 }
-.inp-sel:focus { box-shadow: 0 0 0 2px var(--color-accent-ring); }
+.inp-sel:focus { box-shadow: none; /* 与输入框一致:聚焦无 accent 光环 */ }
 .inp-gap { flex: 1; }
 .ctx-ring { position: relative; width: 20px; height: 20px; flex-shrink: 0; }
 .ctx-ring svg { transform: rotate(-90deg); }
@@ -941,7 +945,9 @@ html[data-theme="light"]::view-transition-new(root) {
 }
 
 /* ── Focus ring ──────────────────────────────────── */
-*:focus-visible {
+/* 输入框排除:用户明确要求输入框聚焦时外观完全不变(em-input/.input 已统一圆角/边框,
+   聚焦光环只保留给按钮等交互控件) */
+*:focus-visible:not(input):not(textarea) {
   outline: none;
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-accent) 40%, transparent);
   border-radius: 3px;
@@ -1013,11 +1019,36 @@ button, a, select {
 
 /* ── Form inputs ──────────────────────────────────── */
 
+/* 统一输入框外观(设置页/弹窗/新建项目/脚本编辑等,参照历史输入搜索框):
+   矩形大圆角(12px) + 柔和边框 + 聚焦时外观完全不变(无任何焦点高亮边框)。
+   组件用 className="em-input ..." 附加尺寸/内边距;ChatInput 输入卡片除外(.chat-input) */
+.em-input {
+  width: 100%;
+  /* padding 不在此定义:组件 className 自带 px/py 类(含 pr 图标留白),
+     此处定义会因优先级高于 Tailwind utilities 而覆盖它们——内边距由组件控制 */
+  border-radius: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  outline: none;
+  font-size: var(--font-size-sm);
+}
+.em-input::placeholder {
+  color: var(--color-text-secondary);
+}
+/* 覆盖全局 *:focus-visible 的 accent 光环——输入框聚焦外观完全不变 */
+.em-input:focus,
+.em-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* 兼容旧类名(NewProject 流程用 .input)——与 em-input 同外观 */
 .input {
   width: 100%;
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-elevated);
+  /* padding 由组件 className 控制(同 em-input,避免覆盖 px/pr 等) */
+  border-radius: 12px;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   color: var(--color-text-primary);
   outline: none;
@@ -1028,12 +1059,13 @@ button, a, select {
   box-shadow: none; /* 输入框聚焦仅保留光标，去掉全局 focus ring */
 }
 
-.input:focus {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-soft);
-}
 .input::placeholder {
   color: var(--color-text-secondary);
+}
+.input:focus,
+.input:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 select.input {
@@ -1328,6 +1360,11 @@ select.input {
 @keyframes card-in {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
+}
+/* 右侧抽屉滑入（历史输入等）：微滑 + 淡入（不出容器边界——大幅位移会触发父级横向滚动条抖动） */
+@keyframes drawer-in {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: none; }
 }
 
 /* ── 任务执行呼吸灯(底色明暗 + 外发光,Agent 执行中) ──

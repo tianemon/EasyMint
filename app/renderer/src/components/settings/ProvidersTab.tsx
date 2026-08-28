@@ -115,7 +115,7 @@ function BuiltinToolsSection(): JSX.Element {
                         : "API 地址（OpenAI 兼容，默认阿里公共DashScope，可填写带有业务空间ID的专属API）"}
                     </label>
                     <input type="text"
-                      className="w-full px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
+                      className="em-input w-full px-2 py-1.5 text-text-primary text-xs"
                       defaultValue={apiKeys["VISION_BASE_URL"] || ""}
                       placeholder={isAnthropic ? "https://dashscope.aliyuncs.com/apps/anthropic" : "https://dashscope.aliyuncs.com/compatible-mode/v1"}
                       onBlur={(e) => { const v = e.target.value.trim(); if (v !== (apiKeys["VISION_BASE_URL"] || "")) saveKey("VISION_BASE_URL", v); }}
@@ -127,7 +127,7 @@ function BuiltinToolsSection(): JSX.Element {
                 <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1">{keyId}</label>
                 <div className="relative">
                   <input type={showKey ? "text" : "password"}
-                    className="w-full px-2 py-1.5 pr-7 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
+                    className="em-input w-full px-2 py-1.5 pr-7 text-text-primary text-xs"
                     defaultValue={apiKeys[keyId] || ""} placeholder="未设置"
                     onBlur={(e) => { const v = e.target.value.trim(); if (v !== (apiKeys[keyId] || "")) saveKey(keyId, v); }}
                     onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
@@ -145,7 +145,7 @@ function BuiltinToolsSection(): JSX.Element {
                   <div className="mt-2">
                     <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1">模型（默认 qwen3.7-flash）</label>
                     <input type="text"
-                      className="w-full px-2 py-1.5 rounded bg-surface border border-border text-text-primary text-xs outline-none focus:border-accent"
+                      className="em-input w-full px-2 py-1.5 text-text-primary text-xs"
                       defaultValue={apiKeys["VISION_MODEL"] || ""} placeholder="qwen3.7-flash"
                       onBlur={(e) => { const v = e.target.value.trim(); if (v !== (apiKeys["VISION_MODEL"] || "")) saveKey("VISION_MODEL", v); }}
                       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}

@@ -95,7 +95,7 @@ export function Select({ value, onChange, options, title, className, block, plac
         title={title}
         disabled={disabled}
         className={block
-          ? `w-full flex items-center justify-between px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent transition-colors ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-accent-border-strong"}`
+          ? `w-full flex items-center justify-between px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none transition-colors ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-accent-border-strong"}`
           : `inp-sel flex items-center gap-1 ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
         onClick={toggle}
       >

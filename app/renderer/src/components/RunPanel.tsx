@@ -250,7 +250,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
   return (
     <div className="h-full flex flex-col bg-[var(--color-drawer-panel)]">
       {/* Header */}
-      <div className="flex items-center gap-2 h-9 px-3 border-b border-border shrink-0">
+      <div className="flex items-center gap-2 h-9 px-3 shrink-0">
         <span className="text-[length:var(--text-11)] font-semibold tracking-[0.04em] uppercase text-text-secondary">运行</span>
         <div className="flex-1" />
         <button
@@ -267,7 +267,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
       </div>
 
       {/* 命令列表 */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 pt-[3px] pb-2">
         {runnables.length === 0 ? (
           <div className="flex items-center justify-center h-full text-[length:var(--text-11)] text-text-muted text-center px-4">
             未检测到启动配置<br />Mint 开发完会生成 .easymint/run.json
@@ -305,7 +305,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                   {port && (
                     <div className="relative mt-1 flex items-center gap-1.5 text-[length:var(--text-2xs)] flex-wrap">
                       <input
-                        className="w-14 text-[length:var(--text-2xs)] px-1 py-0.5 rounded border border-border bg-surface text-text-primary font-mono text-center"
+                        className="w-14 text-[length:var(--text-2xs)] px-1 py-0.5 rounded-lg border border-border bg-surface text-text-primary font-mono text-center"
                         value={customPorts[r.id] !== undefined ? customPorts[r.id] : String(port)}
                         onChange={function(e) {
                           const val = e.target.value.replace(/\D/g, "");

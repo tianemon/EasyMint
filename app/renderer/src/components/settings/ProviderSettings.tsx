@@ -125,7 +125,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       {/* 名称 */}
       <div>
         <label className="text-xs text-text-secondary block mb-1.5">名称</label>
-        <input className="w-full px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent transition-colors"
+        <input className="em-input w-full px-3 py-2 text-text-primary text-sm transition-colors"
           placeholder="如：我的DeepSeek" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
 
@@ -134,7 +134,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       <div>
         <label className="text-xs text-text-secondary block mb-1.5">Base URL *</label>
         <input
-          className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+          className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
           placeholder="https://api.example.com/v1"
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
@@ -145,7 +145,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         <select
           value={apiType}
           onChange={(e) => setApiType(e.target.value)}
-          className="w-full h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+          className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
         >
           <option value="anthropic-messages">Anthropic Messages</option>
           <option value="openai-completions">OpenAI Completions</option>
@@ -159,7 +159,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         <label className="text-xs text-text-secondary block mb-1.5">API Key</label>
         <div className="relative">
           <input type={showKey ? "text" : "password"}
-            className="w-full px-3 py-2 pr-9 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none focus:border-accent transition-colors"
+            className="em-input w-full px-3 py-2 pr-9 text-text-primary text-sm transition-colors"
             placeholder={preset?.keyPlaceholder || "sk-..."} value={apiKey}
             onChange={(e) => setApiKey(e.target.value)} />
           <button type="button" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
@@ -192,7 +192,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         <div>
           <div className="flex items-center gap-2 mt-2">
             <input
-              className="flex-1 min-w-0 h-8 rounded-lg border border-border bg-surface px-2.5 text-xs text-text-primary outline-none focus:border-accent/50"
+              className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
               placeholder="添加模型 ID (如 glm-5.3)"
               value={extraModelInput}
               onChange={(e) => setExtraModelInput(e.target.value)}
@@ -225,7 +225,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       <div>
         <label className="text-xs text-text-secondary block mb-1.5">模型列表(每行一个模型 ID)</label>
         <textarea
-          className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent/50 resize-none"
+          className="em-input w-full px-2.5 py-1.5 text-xs text-text-primary resize-none"
           rows={5}
           placeholder={"model-1\nmodel-2\nmodel-3"}
           value={customModelsText}
