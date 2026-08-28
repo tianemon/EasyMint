@@ -945,12 +945,21 @@ html[data-theme="light"]::view-transition-new(root) {
 }
 
 /* ── Focus ring ──────────────────────────────────── */
-/* 输入框排除:用户明确要求输入框聚焦时外观完全不变(em-input/.input 已统一圆角/边框,
-   聚焦光环只保留给按钮等交互控件) */
+/* 输入框排除:用户明确要求输入框聚焦时外观完全不变(em-input/.input 已统一圆角/边框)。
+   光环只保留给按钮等自然可聚焦的交互控件。
+   不设 border-radius:光环 box-shadow 跟随元素自身圆角——强制 3px 会把
+   tabindex 容器(如 OutputWindow 窗口)聚焦时的圆角压成直角 */
 *:focus-visible:not(input):not(textarea) {
   outline: none;
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-accent) 40%, transparent);
-  border-radius: 3px;
+}
+/* 显式 tabindex 元素(弹窗/窗口容器等,不在 Tab 顺序中、只能程序化聚焦):
+   清除聚焦光环 + Chromium 默认 outline——否则 Shift 等键盘操作触发 focus-visible 时,
+   窗口 div 显示系统默认 focus outline(比 accent 光环更亮的实色边框) */
+[tabindex]:focus,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 /* ── Base ─────────────────────────────────────────── */

@@ -40,7 +40,7 @@ interface ProcessState {
 
 const MAX_LOG = 500;
 
-export const useProcessStore = create<ProcessState>((set) => ({
+export const useProcessStore = create<ProcessState>((set, get) => ({
   runnables: [],
   cmdStates: {},
   activeLogId: null,
@@ -72,6 +72,9 @@ export const useProcessStore = create<ProcessState>((set) => ({
       cmdStates: { ...s.cmdStates, [commandId]: { running: true, logs: [] } },
       activeLogId: commandId,
     }));
+    // 拉取真实 pid:start 只置 running,主进程 status 含 proc.pid——
+    // 不拉则运行面板 PID 显示 undefined(字母而非进程 id)
+    await get().loadStatus(commandId);
   },
 
   stop: async (commandId) => {
@@ -86,6 +89,8 @@ export const useProcessStore = create<ProcessState>((set) => ({
     set((s) => ({
       cmdStates: { ...s.cmdStates, [commandId]: { running: true, logs: [] } },
     }));
+    // 同 start:补拉真实 pid
+    await get().loadStatus(commandId);
   },
 
   loadStatus: async (commandId) => {
