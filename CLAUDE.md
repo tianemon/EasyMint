@@ -85,6 +85,7 @@
 - 新功能尽量独立封装，现有的页面上只引用它，类似于定制化模块的方案
 - **Git 提交与推送分离**：改动完成后及时 commit，但不要自动 push。等用户明确说「推送」「push」再推
 - **提交信息与 CHANGELOG 客观化**：客观描述「修复了什么/新增了什么/优化了什么」，禁止口语化、禁止主观评价（「好看了」「改坏了」等）、禁止按个人上下文思路写（如「因为我理解错了所以…」）——思路/排查过程/决策记录写进 `docs/开发记录/`，不进提交信息与 CHANGELOG
+- **两处提交（主仓库 + docs 本地仓库）**：`docs/` 是独立本地 git 仓库（无 remote，不推送，2026-08-29 建立）——docs 改动在 `docs/` 内提交（`cd docs && git add -A && git commit`），主仓库（代码/README/CHANGELOG）照常提交——**两处分开提交，互不混入**
 - **图标优先用 SVG**：优先使用 SVG 绘制精致图标，降低 emoji 使用率。SVG 可精确控制颜色、尺寸、动效，跨平台一致性好，emoji 在不同 OS 下渲染效果差异大
 
 ### 注释规范
@@ -261,43 +262,5 @@ npm run lint             # ESLint + TypeScript 类型检查
 
 # 会话交接区
 
-> **规则**：进度与交接的实际内容记录在 `docs/开发记录.md` 头部「当前进度快照」——会话结束时更新该快照（当前版本 / 最近工作 / 接下来安排），当天开发日志写入 `docs/开发记录/<日期>.md`。**本区只做指引，不写进度内容**。
-> **新会话启动时必须阅读本区**，了解项目状态与待办，再开始工作。
-
-## 项目背景
-
-EasyMint 是 Electron 桌面应用，让不懂技术的用户通过图形界面创建项目、采集需求，与 AI 对话驱动开发（Mint 调度 Builder/Evaluator 多 Agent 协作）。底层基于 pi-coding-agent（Pi SDK）。当前版本 **v0.6.6**（2026-08-08 发布：设备互联 & 跨设备项目迁移）。
-
-## 必读文档
-
-| 文档 | 场景 |
-|------|------|
-| `CLAUDE.md` | 行为准则、编码规范、色彩体系（先读本文件头部） |
-| `docs/开发记录.md` | **导航页**——头部快照=当前状态（交接时更新）+ 开发记录索引；日志按日期分文件存 `docs/开发记录/`（只增不改，带提交 hash） |
-| `docs/待办事项.md` | 未实施/缓做清单（含已暂停项，唯一清单源） |
-| `docs/技术架构.md` | 架构、数据模型、IPC（含设备互联/迁移/会话隔离章节） |
-| `docs/reference/Pi-SDK-API参考.md` | Pi SDK 能力对照（含 EM 自定义实现清单） |
-| `CHANGELOG.md` | **正式发布日志（Keep a Changelog）**——只记 release 用户可见变更，日常变更先记 [Unreleased] |
-| `docs/archive/` | 已实现方案决策档案（diff 高亮/Agent 过程/UI 重构/设备互联迁移） |
-
-## 发布与部署（重要）
-
-- **GitHub Actions 自动 Release 已配置**（`.github/workflows/release.yml`）：推送版本 tag（如 `v0.6.6`）后自动构建并发布 GitHub Release——无需手动打包/上传
-- **发版流程（发布前必更新两处文档）**：① 更新 `package.json` 版本号 + `CHANGELOG.md` 条目（用户可见变更）→ ② **同步更新开发记录**：`docs/开发记录.md` 头部快照（当前版本/最近工作）+ `docs/开发记录/<日期>.md`（当天日志）→ ③ `git tag vX.Y.Z` → ④ `git push origin main --tags` → ⑤ 等 Actions 跑完（约 4 分钟），Release 自动生成
-- **发版必检（Release notes 提取）**：CHANGELOG 版本标题格式必须与 `.github/workflows/release.yml` 的 notes 提取兼容——当前兼容 `## v0.x.y` 与 `## [v0.x.y]` 两种标题（awk 用 `[[]` 匹配字面方括号）。发版后确认 Release notes 已生成 CHANGELOG 内容（而非默认「Release vX.Y.Z」文本）；改 CHANGELOG 标题格式前先本地跑一遍 awk 提取验证（教训：v0.13.0 起标题带方括号导致 v0.13.0~v0.14.1 三个版本 notes 为空）
-- v0.6.6 已验证 CI npm ci 修复（release.yml 用 env 覆盖官方源，避开 npmmirror 海外 runner 卡死）
-- 首次发版时确认远端 tag 存在（`git ls-remote --tags origin`）
-
-## 其他细节
-
-- 项目规范：先分析方案再动手、删除列清单确认、增量更新文档、commit 不自动 push、禁 any、时序用 ref、色彩走 CSS 变量语义层（禁 Tailwind 透明度语法用于主题色）
-- 便签架构：`pin-store`（zustand）+ `PinLayer`（悬浮层）+ `pin-service`（`~/.easymint/session-pins.json`）
-- `claude-legacy` 分支保留（Claude SDK 历史，勿删）
-- 数据存储：`~/.easymint/` 全局 + `<project>/.easymint/` 项目级（勿操作 `~/.easymint/` 用户数据）
-- 编码规范"新功能独立封装、图标优先 SVG"等见文件头部
-
-- 项目规范：先分析方案再动手、删除列清单确认、增量更新文档、commit 不自动 push、禁 any、时序用 ref、色彩走 CSS 变量语义层（禁 Tailwind 透明度语法用于主题色）
-- 便签架构：`pin-store`（zustand）+ `PinLayer`（悬浮层）+ `pin-service`（`~/.easymint/session-pins.json`）
-- `claude-legacy` 分支保留（Claude SDK 历史，勿删）
-- 数据存储：`~/.easymint/` 全局 + `<project>/.easymint/` 项目级（勿操作 `~/.easymint/` 用户数据）
-- 编码规范"新功能独立封装、图标优先 SVG"等见文件头部
+> 项目背景、必读文档、发布与部署流程、其他细节见 **`docs/会话交接区.md`**（本地私有仓库，仅本地开发使用）。
+> 新会话启动时阅读：`docs/会话交接区.md` + `docs/开发记录.md` 头部「当前进度快照」。
