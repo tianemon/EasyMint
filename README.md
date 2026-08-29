@@ -39,9 +39,33 @@ EasyMint 是一个**开源 AI 编程 Harness**——围绕 [Pi Coding Agent](htt
 - **上下文自管理**——上下文使用率实时显示，达到阈值弹窗确认整理，压缩过程透明可中断；长对话不「失忆」
 - **Issue 闭环**——开发中的问题可记录、编辑、标记状态，Mint 读取清单并同步修复进度
 - **会话管理**——多 Tab 会话、多窗口；会话状态（思考/工具/压缩）按会话隔离互不串扰；会话可归档与恢复
+- **运行面板**——项目脚本一键检测/运行/停止/重启，端口占用实时监控，彩色日志输出窗口（ANSI 渲染），脚本可编辑与删除
+- **历史输入检索**——当前会话提问记录一键回顾（右侧抽屉 + 关键词搜索），点击跳转对应消息
 - **内容便签**——AI 输出的重要内容可一键钉成悬浮便签，调整大小、吸附固定、随会话持久化
 - **数据主权**——项目文件与会话数据全部存储本地（`~/.easymint/` 与项目内 `.easymint/`），不上云、不锁定
 - **跨设备迁移**——项目文件与历史会话可完整迁移到另一台设备，支持文件级选择、多会话迁移与忽略配置
+
+## 界面预览
+
+| 暗色主题 | 亮色主题 |
+|---|---|
+| ![主界面（暗色）](assets/screenshots/main-dark.png) | ![主界面（亮色）](assets/screenshots/main-light.png) |
+
+| 任务面板 | 运行面板 |
+|---|---|
+| ![任务面板](assets/screenshots/task-panel.png) | ![运行面板](assets/screenshots/run-panel.png) |
+
+| 历史输入抽屉 | 内容便签 |
+|---|---|
+| ![历史输入抽屉](assets/screenshots/history-drawer.png) | ![内容便签](assets/screenshots/pin-notes.png) |
+
+| 子 Agent 输出窗口 | Shell 输出窗口（ANSI 彩色） |
+|---|---|
+| ![子 Agent 输出](assets/screenshots/agent-output.png) | ![Shell 输出](assets/screenshots/shell-output.png) |
+
+| 第三方视觉模型设置 | 输入卡片（Agent / Shell 状态胶囊） |
+|---|---|
+| ![视觉模型设置](assets/screenshots/vision-model.png) | ![输入卡片](assets/screenshots/agent-capsules.png) |
 
 ## 多 Agent 协作
 
@@ -87,7 +111,7 @@ Mint / Builder / Evaluator / Mint-D 各有内置模板，除 Mint 外可编辑�
 
 ## AI 供应商
 
-内置 DeepSeek、Kimi、MiniMax、智谱等主流平台预设，填写 API Key 即可使用；支持自定义供应商（OpenAI/Anthropic 兼容协议）；支持同时配置多个供应商并随时切换。
+内置 DeepSeek、Kimi、MiniMax、智谱等主流平台预设，填写 API Key 即可使用；支持自定义供应商（OpenAI/Anthropic 兼容协议）；支持同时配置多个供应商并随时切换；**视觉模型独立配置**（图片理解/界面验证等场景可选专用模型）。
 
 ## 视觉识别
 
