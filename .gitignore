@@ -12,6 +12,7 @@ task-*.png
 .codegraph/
 *.png
 !app/renderer/src/assets/providers/*.png
+!assets/screenshots/*.png
 .easymint/
 prototype/
 
