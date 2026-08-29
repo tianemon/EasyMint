@@ -14,3 +14,9 @@ task-*.png
 !app/renderer/src/assets/providers/*.png
 .easymint/
 prototype/
+
+# 本地开发文档与数据(不开源):docs 含开发记录/设计思路/本地路径,
+# task.json 为运行数据,.npmrc 为本地 npm 源配置(CI 用 env 覆盖官方源,不受影响)
+docs/
+task.json
+.npmrc
