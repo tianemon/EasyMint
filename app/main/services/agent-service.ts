@@ -355,6 +355,139 @@ async function createReadAgentLogTool(sessionId: string): Promise<ToolDefinition
   } as any) as ToolDefinition;
 }
 
+// ── ask_user 结构化提问（Mint → 用户点选） ──────────────
+
+/** 挂起的 ask_user 请求：工具 execute 等待用户回答（回合暂停） */
+interface PendingAsk {
+  resolve: (text: string) => void;
+  sessionId: string;
+  questions: Array<{ id: string; question: string }>;
+}
+
+const pendingAsks = new Map<string, PendingAsk>();
+
+/** 响应 ask_user（IPC handler 调用）。answers 为 null/空 = 用户取消。
+ *  返回 requestId 对应 sessionId（前端按此过滤），未找到返回 null */
+export function respondAsk(requestId: string, answers: Array<{ questionId: string; values: string[] }> | null): string | null {
+  const pending = pendingAsks.get(requestId);
+  if (!pending) return null;
+  pendingAsks.delete(requestId);
+  if (!answers || answers.length === 0) {
+    pending.resolve("（用户取消了提问，未作答）");
+  } else {
+    const byId = new Map(pending.questions.map((q) => [q.id, q.question]));
+    const lines = answers.map((a) => `- ${byId.get(a.questionId) ?? a.questionId}: ${a.values.join("、")}`);
+    pending.resolve(`用户回答：\n${lines.join("\n")}`);
+  }
+  broadcast("agent:ask-closed", { requestId });
+  return pending.sessionId;
+}
+
+/** 清理某会话的全部挂起 ask（会话关闭兜底；正常路径走 abort 信号） */
+export function clearPendingAsks(sessionId: string): void {
+  for (const [id, p] of pendingAsks) {
+    if (p.sessionId !== sessionId) continue;
+    pendingAsks.delete(id);
+    p.resolve("（提问已取消：会话已关闭）");
+    broadcast("agent:ask-closed", { requestId: id });
+  }
+}
+
+/** Mint 向用户结构化提问工具：问题 + 选项点选 + 自定义输入（支持多选与级联联动）。
+ *  execute 挂起等待用户回答（run 级 signal 仅显式 abort 触发，正常回合等待安全），
+ *  用户答后结果以文本返回，Mint 据此继续推进 */
+async function createAskUserTool(sessionId: string): Promise<ToolDefinition> {
+  const defineTool = await getDefineToolFn();
+  return defineTool({
+    name: "ask_user",
+    label: "向用户提问",
+    description:
+      "向用户提出结构化选择题（可多个问题，每题单选，支持级联联动）。调用后回合暂停等待用户回答。"
+      + "适用场景：方案对比选择、范围取舍确认、让用户从候选中拍板等需要用户决策的时刻。"
+      + "选项要精炼：label 简短（≤10 字）+ 说明放选项括号里；每题 2-4 个选项为宜。",
+    promptSnippet: "向用户提问（选择题/级联）",
+    promptGuidelines: [
+      "触发场景分层：应该用——新功能设计（需求拆解、功能范围、交互/视觉选择）、方案调整（技术选型、实现方式、取舍权衡）；不应该用——修 bug（目标明确的修复直接执行）、简单确认（继续吗/这样可以吗用文本即可）",
+      "例外：修复方案存在重大分叉（两种修法路线不同）才问；选项互斥要清晰；级联问题用 depends_on 关联前置问题的选项值",
+      "调用后回合暂停等待用户回答，回答会作为工具结果返回，据此继续推进",
+      "用户跳过或取消时结果会说明，可换一种方式再问或继续推进",
+    ],
+    parameters: {
+      type: "object" as const,
+      properties: {
+        questions: {
+          type: "array" as const,
+          description: "问题数组（按顺序展示；depends_on 未满足的问题隐藏，前置选择变化时动态出现）",
+          items: {
+            type: "object" as const,
+            properties: {
+              id: { type: "string" as const, description: "问题唯一标识（答案中按此返回）" },
+              question: { type: "string" as const, description: "问题文本" },
+              options: {
+                type: "array" as const,
+                description: "选项列表（省略则仅自定义输入模式）",
+                items: {
+                  type: "object" as const,
+                  properties: {
+                    value: { type: "string" as const, description: "选项值（答案中返回）" },
+                    label: { type: "string" as const, description: "选项显示文本（简短）" },
+                    description: { type: "string" as const, description: "选项补充说明（一句）" },
+                  },
+                  required: ["value", "label"],
+                },
+              },
+              multi_select: { type: "boolean" as const, description: "是否多选（默认 false）" },
+              depends_on: {
+                type: "object" as const,
+                description: "级联条件：{前置问题id: 选项value}，前置选择匹配才显示本问题",
+                additionalProperties: { type: "string" as const },
+              },
+            },
+            required: ["id", "question"],
+          },
+        },
+        allow_custom: { type: "boolean" as const, description: "是否允许用户直接输入自定义答案（默认 true）" },
+      },
+      required: ["questions"],
+    },
+    async execute(_tid: string, params: Record<string, unknown>, signal: AbortSignal | undefined) {
+      const rawQuestions = params.questions;
+      if (!Array.isArray(rawQuestions) || rawQuestions.length === 0) {
+        return { content: [{ type: "text" as const, text: "ask_user 参数错误：questions 必须是非空数组" }] };
+      }
+      const questions = rawQuestions.map((q) => q as Record<string, unknown>);
+      if (questions.some((q) => typeof q.id !== "string" || typeof q.question !== "string")) {
+        return { content: [{ type: "text" as const, text: "ask_user 参数错误：每个问题必须含 id(string) 和 question(string)" }] };
+      }
+      const requestId = randomUUID();
+      // 新会话时工具闭包绑定的 sessionId 是临时 UUID（buildExtraTools 时尚未创建 Pi 会话），
+      // 前端 sid 已迁移为真实 ID——广播前解析为真实 ID（同委派通知机制），否则前端会话过滤不匹配
+      const realSid = resolveParentSessionId(sessionId);
+      broadcast("agent:ask-request", {
+        requestId,
+        sessionId: realSid,
+        questions,
+        allowCustom: params.allow_custom !== false,
+      });
+      const answer = await new Promise<string>((resolve) => {
+        pendingAsks.set(requestId, {
+          sessionId: realSid,
+          resolve,
+          questions: questions.map((q) => ({ id: String(q.id), question: String(q.question) })),
+        });
+        // run 级 signal：用户打断 / killChat 时 abort → 取消挂起并通知前端关闭卡片
+        signal?.addEventListener("abort", () => {
+          if (!pendingAsks.has(requestId)) return;
+          pendingAsks.delete(requestId);
+          resolve("（提问已取消）");
+          broadcast("agent:ask-closed", { requestId });
+        }, { once: true });
+      });
+      return { content: [{ type: "text" as const, text: answer }] };
+    },
+  } as any) as ToolDefinition;
+}
+
 export class AgentService {
   constructor(private store: Store) {
   }
@@ -421,7 +554,8 @@ export class AgentService {
       const stopAgentTool = await createStopAgentTool(sessionId);
       const listAgentsTool = await createListAgentsTool(sessionId);
       const readAgentLogTool = await createReadAgentLogTool(sessionId);
-      const allTools = [taskTool, agentTemplateTool, stopAgentTool, listAgentsTool, readAgentLogTool, ...productTools, ...mcpTools];
+      const askUserTool = await createAskUserTool(sessionId);
+      const allTools = [taskTool, agentTemplateTool, stopAgentTool, listAgentsTool, readAgentLogTool, askUserTool, ...productTools, ...mcpTools];
 
       return { tools: allTools, canUseTool };
     } catch (e) {
@@ -935,6 +1069,7 @@ export class AgentService {
       chat.session?.dispose();
       permissionService.clearSessionWhitelist(chat.sessionId);
       permissionService.clearSessionPending(chat.sessionId);
+      clearPendingAsks(chat.sessionId);
       this.activeChats.delete(chatId);
       this.cancelReclaim(chat.sessionId);
       // 会话关闭广播:前端会话列表状态点刷新(激活→未激活)
@@ -1230,6 +1365,7 @@ export class AgentService {
       chat.session?.dispose();
       permissionService.clearSessionWhitelist(chat.sessionId);
       permissionService.clearSessionPending(chat.sessionId);
+      clearPendingAsks(chat.sessionId);
       broadcast("agent:exit", { runId: id, code: -1 });
     }
     this.activeChats.clear();

@@ -181,6 +181,9 @@ interface ElectronAPI {
     setActiveTools: (sessionId: string, toolNames: string[]) => Promise<void>;
     respondPermission: (requestId: string, behavior: "allow" | "deny", alwaysAllow?: boolean) => Promise<void>;
     onPermissionRequest: (callback: (data: any) => void) => () => void;
+    respondAsk: (requestId: string, answers: Array<{ questionId: string; values: string[] }> | null) => Promise<unknown>;
+    onAskRequest: (callback: (data: any) => void) => () => void;
+    onAskClosed: (callback: (data: { requestId: string }) => void) => () => void;
     abort: (runId: string) => void;
     setModel: (sessionId: string, model: string, provider?: string) => Promise<void>;
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => Promise<{ chatId: string }>;

@@ -50,17 +50,14 @@ export const useProcessStore = create<ProcessState>((set, get) => ({
     try {
       const runnables = (await window.electronAPI.process.detect(projectPath)) as Runnable[];
       set({ runnables });
-      // 同步所有命令的运行状态
-      const ids = await window.electronAPI.process.runningIds();
+      // 同步所有命令的运行状态——以 status 拉取结果为准（单一真相源），
+      // 不用 runningIds 预判后硬编码 true，避免列表与拉取之间的竞态误报
       const cmdStates: Record<string, CmdState> = {};
       for (const r of runnables) {
-        const running = ids.includes(r.id);
-        if (running) {
-          const s = await window.electronAPI.process.status(r.id);
-          cmdStates[r.id] = { running: true, pid: s.pid, logs: s.output };
-        } else {
-          cmdStates[r.id] = { running: false, logs: [] };
-        }
+        const s = await window.electronAPI.process.status(r.id);
+        cmdStates[r.id] = s.running
+          ? { running: true, pid: s.pid, logs: s.output }
+          : { running: false, logs: [] };
       }
       set({ cmdStates });
     } catch { /* ignore */ }

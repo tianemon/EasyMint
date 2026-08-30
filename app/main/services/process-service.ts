@@ -41,6 +41,8 @@ interface ProcessInfo {
   pid: number;
   run_command: string;
   output: string[];
+  /** close 后存活探测轮询：bash 退出但 detached 组内进程仍在运行时挂起，组死亡后清理 */
+  monitorTimer?: NodeJS.Timeout;
 }
 
 const processes = new Map<string, ProcessInfo>(); // key = run_command
@@ -64,6 +66,18 @@ function broadcast(commandId: string, line: string, stream: "stdout" | "stderr")
 function broadcastStatus(commandId: string, running: boolean): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send("process:status-changed", { commandId, running });
+  }
+}
+
+/** 探测进程组是否存活（detached 进程组；Windows 无组概念，close 即视为退出） */
+function isGroupAlive(pid: number): boolean {
+  if (process.platform === "win32" || pid <= 0) return false;
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch (e) {
+    // EPERM：进程存在（无权限发信号）→ 视为存活；ESRCH：进程不存在
+    return (e as NodeJS.ErrnoException).code !== "ESRCH";
   }
 }
 
@@ -189,6 +203,8 @@ export function startProcess(projectPath: string, commandId: string, port?: numb
 
   const info: ProcessInfo = { proc, pid: proc.pid ?? -1, run_command, output: [] };
   processes.set(commandId, info);
+  // 启动成功即广播真实状态（此前只广播 false，前端 true 全靠自行 set + 拉取，事件错序时无自愈）
+  broadcastStatus(commandId, true);
 
   const pushLog = (line: string, stream: "stdout" | "stderr") => {
     info.output.push(line);
@@ -207,14 +223,33 @@ export function startProcess(projectPath: string, commandId: string, port?: numb
     errDec.feed(chunk).split("\n").filter(Boolean).forEach((l) => pushLog(l, "stderr"));
   });
   proc.on("close", (_code, _signal) => {
-    if (processes.get(commandId) === info) {
-      processes.delete(commandId);
-      broadcast(commandId, "[进程已退出]", "stdout");
-      broadcastStatus(commandId, false);
+    if (processes.get(commandId) !== info) return;
+    // bash 退出 ≠ 进程组死亡：detached 组内子进程（如 vite）可能仍在运行——
+    // 探测组存活，存活则保留状态（停止按钮仍可 kill 整组），挂轮询直到真正死亡
+    if (isGroupAlive(info.pid)) {
+      broadcast(commandId, "[shell 已退出，进程仍在运行，持续监控]", "stdout");
+      info.monitorTimer = setInterval(() => {
+        if (isGroupAlive(info.pid)) return;
+        clearInterval(info.monitorTimer);
+        if (processes.get(commandId) === info) {
+          processes.delete(commandId);
+          broadcast(commandId, "[进程已退出]", "stdout");
+          broadcastStatus(commandId, false);
+        }
+      }, 3000);
+      return;
     }
+    processes.delete(commandId);
+    broadcast(commandId, "[进程已退出]", "stdout");
+    broadcastStatus(commandId, false);
   });
   proc.on("error", (err) => {
     pushLog(`[启动失败] ${err.message}`, "stderr");
+    // spawn 失败：清理 Map + 广播 false（此前只写日志，Map 残留导致状态永远显示运行中）
+    if (processes.get(commandId) === info) {
+      processes.delete(commandId);
+      broadcastStatus(commandId, false);
+    }
   });
 }
 
@@ -223,6 +258,7 @@ export function startProcess(projectPath: string, commandId: string, port?: numb
 export function stopProcess(commandId: string): void {
   const info = processes.get(commandId);
   if (!info) return;
+  if (info.monitorTimer) clearInterval(info.monitorTimer);
   try {
     if (process.platform === "win32") {
       spawn("taskkill", ["/pid", String(info.pid), "/T", "/F"]);
@@ -231,12 +267,23 @@ export function stopProcess(commandId: string): void {
     }
   } catch { /* ignore */ }
   processes.delete(commandId);
+  // 停止即广播真实状态（前端 stop 自身 set false 与之幂等）
+  broadcastStatus(commandId, false);
 }
 
-/** 重启 */
-export function restartProcess(projectPath: string, commandId: string): void {
+/** 重启：停旧进程 → 等旧进程组退出（防端口未释放，最多 5s）→ 启新进程。
+ *  async 保证 IPC resolve 时新进程已就位——此前 setTimeout 500ms 窗口内
+ *  前端 loadStatus 拉到空 Map 返回 false，覆盖 true 导致重启后状态丢失 */
+export async function restartProcess(projectPath: string, commandId: string): Promise<void> {
+  const old = processes.get(commandId);
   stopProcess(commandId);
-  setTimeout(() => startProcess(projectPath, commandId), 500);
+  if (old && process.platform !== "win32") {
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline && isGroupAlive(old.pid)) {
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+  startProcess(projectPath, commandId);
 }
 
 /** 获取单条命令状态 */

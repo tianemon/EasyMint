@@ -213,6 +213,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("agent:setActiveTools", { sessionId, toolNames }),
     respondPermission: (requestId: string, behavior: "allow" | "deny", alwaysAllow?: boolean) =>
       ipcRenderer.invoke("agent:permission-response", { requestId, behavior, alwaysAllow }),
+    respondAsk: (requestId: string, answers: Array<{ questionId: string; values: string[] }> | null) =>
+      ipcRenderer.invoke("agent:ask-response", { requestId, answers }),
+    onAskRequest: (callback: (data: unknown) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
+      ipcRenderer.on("agent:ask-request", handler);
+      return () => ipcRenderer.removeListener("agent:ask-request", handler);
+    },
+    onAskClosed: (callback: (data: { requestId: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { requestId: string }) => callback(data);
+      ipcRenderer.on("agent:ask-closed", handler);
+      return () => ipcRenderer.removeListener("agent:ask-closed", handler);
+    },
     onPermissionRequest: (callback: (data: any) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
       ipcRenderer.on("agent:permission-request", handler);

@@ -24,6 +24,8 @@ import { DelegationProgress, type DelegationUiState, type DelegationTaskUi } fro
 import { ContextMenu, type ContextMenuData, type ContextMenuItem } from "./ContextMenu";
 import { QuestionHistory } from "./QuestionHistory";
 import { BubbleActions, roleColor, DocIcon } from "./ChatBubbleActions";
+import { AskUserCard } from "./AskUserCard";
+import { useAskStore } from "../stores/ask-store";
 
 
 interface ChatPanelProps {
@@ -413,6 +415,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // steer 打断标记
   const steeringRef = useRef(false);
   const sidRef = useRef<string>(initialSid);
+  // 当前会话的 pending ask（Mint 提问卡片，聊天区内嵌）
+  const pendingAsk = useAskStore((s) => Object.values(s.asks).find((a) => a.sessionId === sid)) || null;
+
+  // ask 卡片弹出时自动滚动到底部（卡片在消息列表尾部文档流，virtualizer anchorTo 不感知它，
+  // 需显式滚容器到底——否则用户停留在原位置看不到提问）
+  useEffect(() => {
+    if (!pendingAsk) return;
+    requestAnimationFrame(() => {
+      const el = containerRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+  }, [pendingAsk]);
   // 按会话读压缩/摘要状态(须在 sidRef 声明后——useStatusStore selector 渲染期执行)
   const summarizing = useStatusStore((s) => s.bySession[sidRef.current]?.summarizing ?? false);
   const compacting = useStatusStore((s) => s.bySession[sidRef.current]?.compacting ?? false);
@@ -708,6 +722,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       setDelegation(next);
     });
     return unsubInit;
+  }, []);
+
+  // Mint ask_user 提问卡片：接收广播（按会话过滤，其他会话的提问不显示）+ 关闭
+  useEffect(() => {
+    const offReq = window.electronAPI.agent.onAskRequest((data) => {
+      if (!data || data.sessionId !== sidRef.current) return;
+      useAskStore.getState().setAsk(data);
+    });
+    const offClosed = window.electronAPI.agent.onAskClosed((data) => {
+      useAskStore.getState().clearAsk(data.requestId);
+    });
+    return () => { offReq(); offClosed(); };
   }, []);
 
   useEffect(() => {
@@ -1222,6 +1248,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const sendText = useCallback(async (text: string) => {
     const msg = text.trim();
     if (!msg && attaches.length === 0) return;
+    // 用户发新消息 → 取消当前会话挂起的 ask_user（对齐 cc：发消息 = 转向，提问等待无意义）
+    const asks = useAskStore.getState().asks;
+    for (const k in asks) {
+      if (asks[k]!.sessionId === sidRef.current) {
+        window.electronAPI.agent.respondAsk(k, null);
+        useAskStore.getState().clearAsk(k);
+      }
+    }
     // 重入保护:新会话首条消息在途(onChatSession 绑定真实 sid 前)时再发送 → 丢弃。
     // 否则会再建第二个会话、首回合回复丢失;已有会话时走下方 steer 插话分支,不受影响
     if (busyRef.current && !existingSid) return;
@@ -1533,6 +1567,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
               </div>
             )}
 
+          </div>
+        )}
+        {/* Mint 提问卡片：独立于消息列表（空态也显示），渲染在滚动区尾部；宽度与输入卡片一致 */}
+        {pendingAsk && (
+          <div className="mx-[var(--s16)] pt-1 pb-2">
+            <AskUserCard request={pendingAsk} />
           </div>
         )}
       </div>
