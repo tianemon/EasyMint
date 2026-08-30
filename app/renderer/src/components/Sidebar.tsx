@@ -11,7 +11,7 @@ import { DevicePanel } from "./device/DevicePanel";
 import { useThemeStore } from "../stores/theme-store";
 import { readVersion, markRead } from "../lib/update-notice";
 
-type SidebarTab = "sessions" | "files";
+export type SidebarTab = "sessions" | "files";
 type DrawerTab = "tasks" | "issues" | "runs";
 
 interface SidebarProps {
@@ -30,6 +30,8 @@ interface SidebarProps {
   onRenameProject?: () => void;
   onSettings?: () => void;
   onShowUpdate?: () => void;
+  /** 页签切换(会话/文件)——右侧内容区据此置空或恢复 */
+  onTabChange?: (tab: SidebarTab) => void;
 }
 
 export function Sidebar({
@@ -37,7 +39,7 @@ export function Sidebar({
   activeSessionId, sessionRefreshKey,
   onNewSession, onSessionClick, onSessionDelete,
   onFileClick, onNewProject, onOpenProject, onRenameProject,
-  onSettings,
+  onSettings, onTabChange,
 }: SidebarProps): JSX.Element {
   const [activeTab, setActiveTab] = useState<SidebarTab>("sessions");
   const [drawerTab, setDrawerTab] = useState<DrawerTab>("tasks");
@@ -132,6 +134,11 @@ export function Sidebar({
   }, []);
 
 
+  const switchTab = useCallback((tab: SidebarTab) => {
+    setActiveTab(tab);
+    onTabChange?.(tab);
+  }, [onTabChange]);
+
   const toggleDrawer = useCallback((tab: DrawerTab) => {
     if (drawerTab === tab && drawerOpen) {
       setDrawerOpen(false);
@@ -188,8 +195,8 @@ export function Sidebar({
 
       {/* Tabs: 会话 | 文件 */}
       <div className="sb-tabs">
-        <button className={`sb-tab ${activeTab === "sessions" ? "active" : ""}`} onClick={() => setActiveTab("sessions")}>会话</button>
-        <button className={`sb-tab ${activeTab === "files" ? "active" : ""}`} onClick={() => setActiveTab("files")}>文件</button>
+        <button className={`sb-tab ${activeTab === "sessions" ? "active" : ""}`} onClick={() => switchTab("sessions")}>会话</button>
+        <button className={`sb-tab ${activeTab === "files" ? "active" : ""}`} onClick={() => switchTab("files")}>文件</button>
       </div>
 
       {/* Content */}

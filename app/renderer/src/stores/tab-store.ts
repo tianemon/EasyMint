@@ -17,6 +17,10 @@ interface TabState {
   tabs: Tab[];
   activeTabId: string | null;
   runningSessions: Set<string>;
+  /** 右侧内容区置空(侧边栏切到「文件」页签,等用户点文件):不改 activeTabId,切回「会话」原样恢复 */
+  contentBlanked: boolean;
+  /** 置空期间挂起的激活 tab id——切回「会话」时恢复它 */
+  suspendedActiveTabId: string | null;
   openTab: (tab: Tab) => void;
   closeTab: (id: string, suppressDefaultTab?: boolean) => void;
   setActiveTab: (id: string) => void;
@@ -30,6 +34,10 @@ interface TabState {
   closeEmptyTab: () => void;
   /** 打开会话:关闭空 tab → 已有则激活,否则新建 tab。会话列表与 TabBar 联动入口 */
   openSession: (sessionId: string, title?: string) => void;
+  /** 置空/恢复右侧内容区(侧边栏「文件」↔「会话」页签切换) */
+  setContentBlanked: (blanked: boolean) => void;
+  /** 内容区当前是否真的留白:置空态下点开文件即退出等待态(挂起点保留,切回「会话」仍能恢复) */
+  isContentBlank: () => boolean;
 }
 
 let nextTabIdx = 0;
@@ -52,6 +60,8 @@ export const useTabStore = create<TabState>()(
       tabs: [],
       activeTabId: null,
       runningSessions: new Set<string>(),
+      contentBlanked: false,
+      suspendedActiveTabId: null,
 
       openTab: (tab) => {
         const { tabs } = get();
@@ -69,6 +79,9 @@ export const useTabStore = create<TabState>()(
           set({ activeTabId: existing.id });
           return;
         }
+        // 打开 file tab 会让标签栏首次显形,首页空会话 tab 是占位而非真实 tab,
+        // 留在数组里会跟着一起露出来 —— 与 openSession 一样先清掉
+        if (tab.type === "file") get().closeEmptyTab();
         const newTab: Tab = { ...tab, id: tab.id || genId() };
         set((s) => ({ tabs: [...s.tabs, newTab], activeTabId: newTab.id }));
       },
@@ -138,10 +151,41 @@ export const useTabStore = create<TabState>()(
         const existing = get().tabs.find((t) => t.type === "chat" && t.sessionId === sessionId);
         if (existing) {
           if (title && existing.title !== title) get().updateTab(existing.id, { title });
-          set({ activeTabId: existing.id });
+          // 主动打开会话 = 结束置空等待态,挂起点一并作废(不然后续置空会恢复到这里之前的状态)
+          set({ activeTabId: existing.id, contentBlanked: false, suspendedActiveTabId: null });
           return;
         }
         get().openTab({ id: "", type: "chat", title: title || "对话", sessionId });
+      },
+
+      setContentBlanked: (blanked) => {
+        const { contentBlanked, activeTabId, suspendedActiveTabId } = get();
+        if (blanked) {
+          // 重复切到「文件」不覆盖挂起点,否则切回时会恢复到中途点开的文件 tab
+          if (contentBlanked) return;
+          set({ contentBlanked: true, suspendedActiveTabId: activeTabId });
+          return;
+        }
+        if (!contentBlanked) return;
+        // 挂起的 tab 还在 → 原样恢复;已被关掉 → 退到任一 chat tab(切回「会话」应看到聊天视图)
+        const suspended = suspendedActiveTabId && get().tabs.some((t) => t.id === suspendedActiveTabId)
+          ? suspendedActiveTabId
+          : null;
+        const restored = suspended ?? get().tabs.find((t) => t.type === "chat")?.id ?? null;
+        if (restored) {
+          set({ activeTabId: restored, contentBlanked: false, suspendedActiveTabId: null });
+          return;
+        }
+        // 一个 chat tab 都没有 → 补建首页空会话(与打开 EM 初始态一致),复用 openTab 避免重复补建逻辑
+        get().openTab({ id: "", type: "chat", title: "新会话" });
+        set({ contentBlanked: false, suspendedActiveTabId: null });
+      },
+
+      isContentBlank: () => {
+        const { contentBlanked, activeTabId, tabs } = get();
+        if (!contentBlanked) return false;
+        // 置空期间点开的文件照常显示(contentBlanked 不清除,切回「会话」才恢复挂起点)
+        return tabs.find((t) => t.id === activeTabId)?.type !== "file";
       },
     }),
     {
