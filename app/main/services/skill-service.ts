@@ -312,11 +312,10 @@ export function scanSkills(projectPath?: string): SkillManifest[] {
 
   // External skills（~/.claude/skills、~/.codex/skills、<p>/.claude/skills、<p>/.github/skills）
   // 排在 EM authored 之后：同名以 EM 自带/手写版本优先（对齐 OMP——自家 native 高于第三方）；
-  // 同名外部条目仍列出并标 shadowed（与 managed 一致——界面可见可处置，不静默吞掉）
+  // 同名外部条目（含与 EM 核心内置同名）仍列出并标 shadowed——界面可见可处置，不静默吞掉
   const takenNames = new Set(result.map((s) => s.name));
   for (const s of scanExternalSkills(projectPath, disabled, seen)) {
-    if (emBuiltinNames.has(s.name)) continue;
-    result.push(takenNames.has(s.name) ? { ...s, shadowed: true } : s);
+    result.push(takenNames.has(s.name) || emBuiltinNames.has(s.name) ? { ...s, shadowed: true } : s);
     takenNames.add(s.name);
   }
 
