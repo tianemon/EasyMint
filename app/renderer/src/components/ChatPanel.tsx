@@ -26,6 +26,8 @@ import { QuestionHistory } from "./QuestionHistory";
 import { BubbleActions, roleColor, DocIcon } from "./ChatBubbleActions";
 import { AskUserCard } from "./AskUserCard";
 import { useAskStore } from "../stores/ask-store";
+import { LearnCard } from "./LearnCard";
+import { useLearnStore } from "../stores/learn-store";
 
 
 interface ChatPanelProps {
@@ -417,6 +419,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const sidRef = useRef<string>(initialSid);
   // 当前会话的 pending ask（Mint 提问卡片，聊天区内嵌）
   const pendingAsk = useAskStore((s) => Object.values(s.asks).find((a) => a.sessionId === sid)) || null;
+  const pendingLearn = useLearnStore((s) => Object.values(s.learns).find((l) => l.sessionId === sid)) || null;
 
   // ask 卡片弹出时自动滚动到底部（卡片在消息列表尾部文档流，virtualizer anchorTo 不感知它，
   // 需显式滚容器到底——否则用户停留在原位置看不到提问）
@@ -732,6 +735,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     });
     const offClosed = window.electronAPI.agent.onAskClosed((data) => {
       useAskStore.getState().clearAsk(data.requestId);
+    });
+    return () => { offReq(); offClosed(); };
+  }, []);
+
+  // learn 沉淀审阅卡片：同 ask 模式（按会话过滤 + 关闭清理）
+  useEffect(() => {
+    const offReq = window.electronAPI.agent.onLearnRequest((data) => {
+      if (!data || data.sessionId !== sidRef.current) return;
+      useLearnStore.getState().setLearn(data);
+    });
+    const offClosed = window.electronAPI.agent.onLearnClosed((data) => {
+      useLearnStore.getState().clearLearn(data.requestId);
     });
     return () => { offReq(); offClosed(); };
   }, []);
@@ -1263,6 +1278,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useAskStore.getState().clearAsk(k);
       }
     }
+    // learn 审阅同样取消（发新消息 = 转向；未确认的沉淀不落盘）
+    const learns = useLearnStore.getState().learns;
+    for (const k in learns) {
+      if (learns[k]!.sessionId === sidRef.current) {
+        window.electronAPI.agent.respondLearn(k, { approved: false });
+        useLearnStore.getState().clearLearn(k);
+      }
+    }
     // 重入保护:新会话首条消息在途(onChatSession 绑定真实 sid 前)时再发送 → 丢弃。
     // 否则会再建第二个会话、首回合回复丢失;已有会话时走下方 steer 插话分支,不受影响
     if (busyRef.current && !existingSid) return;
@@ -1580,6 +1603,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         {pendingAsk && (
           <div className="mx-[var(--s16)] pt-1 pb-2">
             <AskUserCard request={pendingAsk} />
+          </div>
+        )}
+        {/* learn 沉淀审阅卡片：同提问卡片位置 */}
+        {pendingLearn && (
+          <div className="mx-[var(--s16)] pt-1 pb-2">
+            <LearnCard request={pendingLearn} />
           </div>
         )}
       </div>

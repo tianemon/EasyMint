@@ -31,6 +31,8 @@ interface Settings {
   builtinTools?: Record<string, boolean>;
   /** 允许 AI 在会话中写 managed skill 区（manage_skill 工具注册开关，D8 默认关闭） */
   manageSkillEnabled?: boolean;
+  /** 允许 AI 自沉淀（learn + search_experiences 工具注册开关，D8 默认关闭） */
+  learnEnabled?: boolean;
   lastProjectId?: string;
   setupComplete?: boolean;
   contextThreshold?: number;
@@ -194,6 +196,7 @@ export class Store {
       apiKeys: (emData.apiKeys as Record<string, string>) || undefined,
       builtinTools: (emData.builtinTools as Record<string, boolean>) || undefined,
       manageSkillEnabled: emData.manageSkillEnabled as boolean | undefined,
+      learnEnabled: emData.learnEnabled as boolean | undefined,
       setupComplete: emData.setupComplete as boolean | undefined,
       lastProjectId: emData.lastProjectId as string | undefined,
       contextThreshold: (emData.contextThreshold as number) ?? EM_DEFAULTS.contextThreshold,
@@ -283,6 +286,7 @@ export class Store {
     }
     if (settings.builtinTools) data.builtinTools = settings.builtinTools;
     if (settings.manageSkillEnabled !== undefined) data.manageSkillEnabled = settings.manageSkillEnabled;
+    if (settings.learnEnabled !== undefined) data.learnEnabled = settings.learnEnabled;
     if (settings.contextThreshold !== undefined) data.contextThreshold = settings.contextThreshold;
     if (settings.showThinking !== undefined) data.showThinking = settings.showThinking;
     if (settings.showToolUse !== undefined) data.showToolUse = settings.showToolUse;

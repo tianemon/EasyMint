@@ -156,6 +156,8 @@ function SkillsTab(): JSX.Element {
 
   // AI 写入开关（D8：默认关闭，界面一键开启）
   const [manageSkillEnabled, setManageSkillEnabled] = useState(false);
+  // AI 自沉淀开关（learn + search_experiences，D8：默认关闭）
+  const [learnEnabled, setLearnEnabled] = useState(false);
 
   const load = async () => {
     try {
@@ -172,7 +174,10 @@ function SkillsTab(): JSX.Element {
   useEffect(() => {
     load();
     window.electronAPI.settings.get()
-      .then((s) => setManageSkillEnabled(!!s.manageSkillEnabled))
+      .then((s) => {
+        setManageSkillEnabled(!!s.manageSkillEnabled);
+        setLearnEnabled(!!s.learnEnabled);
+      })
       .catch((e: unknown) => setLoadError(String(e)));
   }, []);
 
@@ -209,6 +214,16 @@ function SkillsTab(): JSX.Element {
     }
   };
 
+  const saveLearnEnabled = async (v: boolean) => {
+    setLearnEnabled(v);
+    try {
+      await window.electronAPI.settings.set("learnEnabled", v);
+    } catch (e: unknown) {
+      setLearnEnabled(!v);
+      setLoadError(String(e));
+    }
+  };
+
   const nameValid = SKILL_NAME_RE.test(formName);
   const bodyBytes = new TextEncoder().encode(formBody).length;
   const canSubmit = nameValid && formDesc.trim().length > 0 && formBody.trim().length > 0 && bodyBytes <= MAX_BODY_BYTES && !submitting;
@@ -240,6 +255,24 @@ function SkillsTab(): JSX.Element {
   const managedSkills = skills.filter((s) => s.source === "managed");
   const projectSkills = skills.filter((s) => s.level === "project");
   const visibleSkills = tab === "builtin" ? builtinSkills : tab === "global" ? globalSkills : managedSkills;
+
+  // 优化建议（期3）：基于 registry 统计生成纯文案建议——不自动执行、不改 authored 文件
+  const suggestions = skills
+    .map((s): { name: string; text: string } | null => {
+      const stat = stats[s.name];
+      if (!stat) return null;
+      if (stat.lastUsedAt > 0 && Date.now() - stat.lastUsedAt > 90 * 86_400_000) {
+        return { name: s.name, text: "90 天未使用——考虑删除或合并" };
+      }
+      if (stat.failCount >= 3 && stat.usageCount > 0 && stat.failCount / stat.usageCount >= 0.3) {
+        return { name: s.name, text: "失败率高——描述与内容可能不匹配，建议修正 description" };
+      }
+      if (s.source === "managed" && stat.usageCount === 0) {
+        return { name: s.name, text: "尚未被调用过——描述可能不含触发词，或内容已过时" };
+      }
+      return null;
+    })
+    .filter((x): x is { name: string; text: string } => x !== null);
 
   return (
     <div className="px-6 py-4 overflow-y-auto space-y-4">
@@ -280,6 +313,16 @@ function SkillsTab(): JSX.Element {
               </p>
             </div>
             <Toggle checked={manageSkillEnabled} onChange={saveManageEnabled} />
+          </div>
+
+          <div className="bg-surface-alt rounded-lg border border-border px-3 py-2.5 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs text-text-primary">允许 AI 自沉淀经验</p>
+              <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
+                开启后，Mint 会话中可在任务完成时用 learn 沉淀经验/创建 skill（弹审阅卡片，确认才入库），并可检索历史经验；关闭则完全由你手动维护（默认关闭）
+              </p>
+            </div>
+            <Toggle checked={learnEnabled} onChange={saveLearnEnabled} />
           </div>
 
           {showForm ? (
@@ -367,6 +410,20 @@ function SkillsTab(): JSX.Element {
           </p>
         )}
       </div>
+
+      {/* 优化建议（AI 管理页；有建议才显示） */}
+      {tab === "managed" && suggestions.length > 0 && (
+        <div>
+          <h4 className="text-xs font-medium text-text-secondary mb-2">优化建议</h4>
+          <div className="bg-surface-alt rounded-lg border border-border px-3 py-2 space-y-1">
+            {suggestions.map((sug) => (
+              <p key={sug.name} className="text-[length:var(--text-11)] text-text-secondary leading-relaxed">
+                <span className="text-text-primary font-mono">{sug.name}</span>：{sug.text}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Project skills */}
       {projectSkills.length > 0 && (

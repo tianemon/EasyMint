@@ -20,6 +20,7 @@ import { createPiSession, resumePiSession, listPiSessions } from "./pi-session";
 import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
 import { createSkillTool, createManageSkillTool } from "./tools/skill-tool";
+import { createLearnTool, createSearchExperiencesTool, type LearnResponse } from "./tools/learn-tool";
 import { registerSessionIdMapping, abortTask, getRunningSummary, resolveParentSessionId } from "./task/registry";
 import { formatShellResult } from "./background-shell/tool";
 import { backgroundShellRegistry, type BackgroundShell } from "./background-shell/registry";
@@ -54,6 +55,7 @@ const SYSTEM_KIND_TITLES: Record<string, string> = {
   summary: "上下文摘要",
   delegation: "子 Agent 委派",
   shell: "后台命令",
+  learn: "经验沉淀",
 };
 
 interface ActiveRun {
@@ -79,6 +81,10 @@ export interface ActiveChat {
   eventBuffer: PiChatEvent[];
   /** 本会话已 compact 次数（轮转取消后仅统计用） */
   compactCount: number;
+  /** learn 触发控制（期3）：工具调用累计（跨回合）+ 分级注入防重 */
+  toolCallCount: number;
+  learnHintDone: boolean;
+  learnSuggestDone: boolean;
 }
 
 /** 记录各 session 的 agent 类型 */
@@ -393,6 +399,35 @@ export function clearPendingAsks(sessionId: string): void {
   }
 }
 
+// ── learn 审阅挂起（Mint 沉淀 → 用户审阅卡片确认） ──────────
+
+interface PendingLearn {
+  resolve: (r: LearnResponse) => void;
+  sessionId: string;
+}
+
+const pendingLearns = new Map<string, PendingLearn>();
+
+/** 响应 learn 审阅（IPC learn:respond 调用）。返回 sessionId 供前端过滤，未找到返回 null */
+export function respondLearn(requestId: string, response: LearnResponse): string | null {
+  const pending = pendingLearns.get(requestId);
+  if (!pending) return null;
+  pendingLearns.delete(requestId);
+  pending.resolve(response);
+  broadcast("agent:learn-closed", { requestId });
+  return pending.sessionId;
+}
+
+/** 清理某会话的全部挂起 learn（会话关闭兜底；正常路径走 abort 信号 / 用户取消） */
+export function clearPendingLearns(sessionId: string): void {
+  for (const [id, p] of pendingLearns) {
+    if (p.sessionId !== sessionId) continue;
+    pendingLearns.delete(id);
+    p.resolve({ approved: false });
+    broadcast("agent:learn-closed", { requestId: id });
+  }
+}
+
 /** Mint 向用户结构化提问工具：问题 + 选项点选 + 自定义输入（支持多选与级联联动）。
  *  execute 挂起等待用户回答（run 级 signal 仅显式 abort 触发，正常回合等待安全），
  *  用户答后结果以文本返回，Mint 据此继续推进 */
@@ -564,6 +599,16 @@ export class AgentService {
       if (this.store.getSettings().manageSkillEnabled) {
         allTools.push(await createManageSkillTool(projectPath));
       }
+      // learn + search_experiences 受独立开关控制（D8：自沉淀默认关闭；两工具同进退）
+      if (this.store.getSettings().learnEnabled) {
+        allTools.push(
+          await createLearnTool({
+            projectPath,
+            requestReview: (payload, signal) => this.requestLearnReview(sessionId, payload, signal),
+          }),
+          await createSearchExperiencesTool(projectPath),
+        );
+      }
 
       return { tools: allTools, canUseTool };
     } catch (e) {
@@ -657,6 +702,11 @@ export class AgentService {
             });
           }
         }
+
+        // ── learn 触发计数（期3）：本会话累计工具调用（跨回合）──
+        if (chat && event.type === "tool_execution_start") {
+          chat.toolCallCount++;
+        }
       } catch (e) {
         console.error("[agent] bridge error:", e);
       }
@@ -704,6 +754,10 @@ export class AgentService {
             broadcast("agent:session-renamed", { sessionId, title });
           }
         }
+
+        // ── learn 分级触发（期3）：回合结束检查累计工具调用数。
+        //    缓存中性：系统消息为会话尾部追加，前缀不变，缓存命中不受损 ──
+        if (chat) this.maybeInjectLearnHint(chat);
       }
     } catch (err: unknown) {
       const msg = normalizeApiError(err);
@@ -947,6 +1001,9 @@ export class AgentService {
       assistantUuid: randomUUID(),
       eventBuffer: [],
       compactCount: 0,
+      toolCallCount: 0,
+      learnHintDone: false,
+      learnSuggestDone: false,
     };
 
     if (isDesigner) {
@@ -1078,6 +1135,54 @@ export class AgentService {
     return true;
   }
 
+  /** learn 审阅挂起：广播 learn-request → 等用户确认（respondLearn / abort / 会话关闭 resolve） */
+  private async requestLearnReview(
+    sessionId: string,
+    payload: { memory: string; context?: string; skill?: { action: "create" | "update"; name: string; description: string; body: string } },
+    signal: AbortSignal | undefined,
+  ): Promise<LearnResponse> {
+    const requestId = randomUUID();
+    // 工具闭包绑定的可能是 EM 临时 ID——广播前解析真实 ID（同 ask_user 机制）
+    const realSid = resolveParentSessionId(sessionId);
+    broadcast("agent:learn-request", { requestId, sessionId: realSid, ...payload });
+    return new Promise<LearnResponse>((resolve) => {
+      pendingLearns.set(requestId, { sessionId: realSid, resolve });
+      // run 级 signal：用户打断 / killChat → 取消挂起并通知前端关闭卡片
+      signal?.addEventListener("abort", () => {
+        if (!pendingLearns.has(requestId)) return;
+        pendingLearns.delete(requestId);
+        resolve({ approved: false });
+        broadcast("agent:learn-closed", { requestId });
+      }, { once: true });
+    });
+  }
+
+  /** learn 分级触发阈值：≥15 建议入库（开捕获回合）；≥5 轻提示（仅可见，下回合顺手沉淀）。
+   *  校准来源：WB 沉淀标准 15 / oh-my-pi 捕获尝试 5 / lan-notes 实测每轮中位 6.5 次调用。 */
+  private maybeInjectLearnHint(chat: ActiveChat): void {
+    // 开关关闭不注入——提示指向不存在的工具比没有提示更糟（oh-my-pi 原则：guidance 由工具实际存在驱动）
+    if (!this.store.getSettings().learnEnabled) return;
+    if (!chat.learnSuggestDone && chat.toolCallCount >= 15) {
+      chat.learnSuggestDone = true;
+      chat.learnHintDone = true;
+      this.injectSystemMessage(
+        chat.sessionId,
+        `本会话已累计 ${chat.toolCallCount} 次工具调用，满足沉淀条件。若本任务存在可复用经验（踩坑修复/验证过的方法/项目约定），调用 learn 入库（会弹审阅卡片，用户确认后落盘）`,
+        "learn",
+        { triggerTurn: true },
+      );
+      return;
+    }
+    if (!chat.learnHintDone && chat.toolCallCount >= 5) {
+      chat.learnHintDone = true;
+      this.injectSystemMessage(
+        chat.sessionId,
+        `提示：本会话工具调用已累计 ${chat.toolCallCount} 次，若有可复用经验可在收尾时用 learn 沉淀`,
+        "learn",
+      );
+    }
+  }
+
 
   async spawnAgentChat(
     projectPath: string,
@@ -1098,6 +1203,7 @@ export class AgentService {
       permissionService.clearSessionWhitelist(chat.sessionId);
       permissionService.clearSessionPending(chat.sessionId);
       clearPendingAsks(chat.sessionId);
+      clearPendingLearns(chat.sessionId);
       this.activeChats.delete(chatId);
       this.cancelReclaim(chat.sessionId);
       // 会话关闭广播:前端会话列表状态点刷新(激活→未激活)
@@ -1394,6 +1500,7 @@ export class AgentService {
       permissionService.clearSessionWhitelist(chat.sessionId);
       permissionService.clearSessionPending(chat.sessionId);
       clearPendingAsks(chat.sessionId);
+      clearPendingLearns(chat.sessionId);
       broadcast("agent:exit", { runId: id, code: -1 });
     }
     this.activeChats.clear();

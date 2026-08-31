@@ -1,0 +1,147 @@
+/**
+ * learn 工具族（期 3）——AI 自沉淀一步式入口。
+ *
+ * learn：{memory, context?, skill?} 一次调用完成「存经验 + 建/更新 managed skill」。
+ *   挂起审阅式（复用 ask_user 模式）：execute 广播 learn-request → 前端审阅卡片 →
+ *   用户确认（可携带编辑后的 memory/skillBody）才落盘；取消/abort 不落盘。
+ * search_experiences：{query} 只读检索经验库（全局 + 项目级合并），低频按需。
+ *
+ * 两者同进退：learnEnabled 开关（D8 默认关闭）控制注册。
+ */
+
+import type { ToolDefinition } from "../pi-sdk";
+import { getDefineToolFn } from "../pi-sdk";
+import { writeManagedSkill } from "../skill-service";
+import { appendExperience, searchExperiences } from "../experience-service";
+
+/** learn 挂起请求的用户响应（IPC learn:respond 传入） */
+export interface LearnResponse {
+  approved: boolean;
+  /** 卡片上编辑后的正文（未编辑则回传原文） */
+  memory?: string;
+  skillBody?: string;
+}
+
+/** 挂起状态与广播由 agent-service 持有（同 pendingAsks 模式）；工具只管协议 */
+export interface LearnToolDeps {
+  projectPath?: string;
+  /** 广播审阅请求并挂起等响应；返回用户响应（signal abort 时返回 { approved: false }） */
+  requestReview: (
+    payload: { memory: string; context?: string; skill?: { action: "create" | "update"; name: string; description: string; body: string } },
+    signal: AbortSignal | undefined,
+  ) => Promise<LearnResponse>;
+}
+
+function text(t: string): { content: Array<{ type: "text"; text: string }> } {
+  return { content: [{ type: "text" as const, text: t }] };
+}
+
+export async function createLearnTool(deps: LearnToolDeps): Promise<ToolDefinition> {
+  const defineTool = await getDefineToolFn();
+  return defineTool({
+    name: "learn",
+    label: "沉淀经验",
+    description:
+      "把本会话验证过的可复用经验沉淀入库（一次调用完成）：memory 是持久自包含的经验"
+      + "（什么情况 / 做了什么 / 为什么有效），可选 skill 参数同时创建/更新 AI 管理区的 skill"
+      + "（把经验固化为可执行工作流时用）。调用后弹出审阅卡片，用户确认才落盘。"
+      + "适用：踩坑修复（报错→根因→解法）、验证过的流程方法、跨项目通用的协作约定。",
+    promptSnippet: "沉淀经验（可选同时建 skill，审阅卡片确认）",
+    promptGuidelines: [
+      "任务完成且出现可复用经验（踩坑修复/验证过的方法/项目约定）时主动 learn 入库，不要只在回复里说一遍",
+      "memory 要自包含：换一个会话不看上下文也能看懂——写清触发条件与做法，不写一次性细节",
+      "经验偏「知识/教训」用 memory；偏「可执行步骤」追加 skill 参数固化为工作流",
+    ],
+    parameters: {
+      type: "object" as const,
+      properties: {
+        memory: { type: "string" as const, description: "必填。持久自包含的经验：什么情况 / 做了什么 / 为什么有效" },
+        context: { type: "string" as const, description: "可选。来源上下文（触发场景、报错摘要等，帮助检索）" },
+        skill: {
+          type: "object" as const,
+          description: "可选。同时沉淀为 managed skill（AI 管理区），把经验固化为可执行工作流时用",
+          properties: {
+            action: { type: "string" as const, description: "create（新建）/ update（更新已有 managed skill）" },
+            name: { type: "string" as const, description: "skill 名称，[a-z0-9][a-z0-9-]{0,63}" },
+            description: { type: "string" as const, description: "skill 描述（单行，何时用）" },
+            body: { type: "string" as const, description: "skill 正文（Markdown，不含 frontmatter）" },
+          },
+          required: ["action" as const, "name" as const, "description" as const, "body" as const],
+        },
+      },
+      required: ["memory" as const],
+    },
+    async execute(_tid: string, params: Record<string, unknown>, signal: AbortSignal | undefined) {
+      const memory = String(params.memory || "").trim();
+      const context = params.context !== undefined ? String(params.context).trim() : "";
+      if (!memory) return text("learn 参数错误：memory 不能为空");
+
+      let skill: { action: "create" | "update"; name: string; description: string; body: string } | undefined;
+      const rawSkill = params.skill as Record<string, unknown> | undefined;
+      if (rawSkill && typeof rawSkill === "object") {
+        const action = rawSkill.action === "update" ? "update" : rawSkill.action === "create" ? "create" : null;
+        const name = String(rawSkill.name || "");
+        const description = String(rawSkill.description || "");
+        const body = String(rawSkill.body || "");
+        if (!action) return text("learn 参数错误：skill.action 必须是 create/update");
+        if (!name || !description || !body) return text("learn 参数错误：skill 需同时提供 name/description/body");
+        skill = { action, name, description, body };
+      }
+
+      const response = await deps.requestReview({ memory, context: context || undefined, skill }, signal);
+      if (!response.approved) {
+        return text("用户未确认，本次未入库（可按用户反馈调整后重新 learn，或不再沉淀）");
+      }
+
+      // 落盘：经验必入（用户可能编辑过 memory）；skill 走 writeManagedSkill（期 0 约束全复用）
+      const finalMemory = (response.memory || memory).trim();
+      if (!finalMemory) return text("learn 失败：编辑后的 memory 为空，未入库");
+      appendExperience({ memory: finalMemory, context: context || undefined }, deps.projectPath);
+
+      let skillNote = "";
+      if (skill) {
+        const finalBody = response.skillBody !== undefined ? response.skillBody : skill.body;
+        const r = writeManagedSkill(
+          { action: skill.action, name: skill.name, description: skill.description, body: finalBody },
+          deps.projectPath,
+        );
+        skillNote = r.ok
+          ? `；skill「${skill.name}」已${skill.action === "create" ? "创建" : "更新"}于 AI 管理区`
+          : `；skill 未落盘：${r.error}`;
+      }
+      return text(`learn 成功：经验已入库${skillNote}`);
+    },
+  } as any) as ToolDefinition;
+}
+
+export async function createSearchExperiencesTool(projectPath?: string): Promise<ToolDefinition> {
+  const defineTool = await getDefineToolFn();
+  return defineTool({
+    name: "search_experiences",
+    label: "搜索经验",
+    description:
+      "检索历史沉淀的经验库（全局 + 当前项目），返回匹配条目。"
+      + "适用：接手任务/遇到报错时先搜一下是否踩过同样的坑；引用 learn 沉淀过的做法。",
+    promptSnippet: "搜索历史沉淀的经验（关键词）",
+    parameters: {
+      type: "object" as const,
+      properties: {
+        query: { type: "string" as const, description: "关键词（报错信息片段/技术名词/操作名）" },
+      },
+      required: ["query" as const],
+    },
+    async execute(_tid: string, params: Record<string, unknown>) {
+      const query = String(params.query || "").trim();
+      if (!query) return text("search_experiences 参数错误：query 不能为空");
+      const { hits, total } = searchExperiences(query, projectPath);
+      if (hits.length === 0) return text(`经验库中无「${query}」的匹配。可换关键词，或确认该场景未沉淀过`);
+      const lines = hits.map((e) => {
+        const date = new Date(e.createdAt).toISOString().slice(0, 10);
+        const ctx = e.context ? `\n  上下文: ${e.context.slice(0, 200)}` : "";
+        const proj = e.project ? `（项目沉淀）` : "";
+        return `- [${date}]${proj} ${e.memory}${ctx}`;
+      });
+      return text(`匹配 ${total} 条（显示前 ${hits.length} 条）：\n${lines.join("\n")}`);
+    },
+  } as any) as ToolDefinition;
+}

@@ -4,7 +4,7 @@ import fs from "fs";
 import os from "os";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
-import { AgentService, getDesignSessionIds, respondAsk } from "./services/agent-service";
+import { AgentService, getDesignSessionIds, respondAsk, respondLearn } from "./services/agent-service";
 import { Store } from "./services/store";
 import { broadcast } from "./services/ipc-broadcast";
 import { resetModelRuntime } from "./services/pi-init";
@@ -194,6 +194,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:ask-response", (_e, { requestId, answers }) => {
     // ask_user 的回答：answers 为 null/空 = 用户取消（ask-closed 由 respondAsk 广播）
     return respondAsk(requestId, answers);
+  });
+  ipcMain.handle("agent:learn-response", (_e, { requestId, response }) => {
+    // learn 审阅结果：approved=false = 用户取消；编辑过的 memory/skillBody 随 response 回传
+    return respondLearn(requestId, response);
   });
   ipcMain.handle("agent:getPiProviders", async () => {
     const { getPiProviders } = await import("./services/pi-init");

@@ -73,6 +73,8 @@ EasyMint 有三个角色协同开发：
 - **set_issue_status(index, status)** — 问题确认已解决或需重新打开时调用，序号取自 list_issues 输出。
 - **describe_image(path)** — 模型无法直接读取图片、或用户提供图片/需核对截图时调用（见工具描述）。
 - **web_fetch(url)** — 需查阅在线文档、获取实时信息时调用，抓取网页内容。
+- **learn(memory, context?, skill?)** — 自沉淀（开启后可用）：任务完成且出现可复用经验（踩坑修复/验证过的方法/项目约定）时调用，一次完成「存经验 + 可选建 skill」；调用后弹审阅卡片，用户确认才入库。工具列表中无此工具即未开启，忽略本条。
+- **search_experiences(query)** — 检索历史沉淀经验（开启后可用）：接手任务、遇到疑似踩过的坑时先搜一下；无匹配再自行排查。
 </ui_tools>
 
 <creation_flow>
@@ -512,7 +514,8 @@ export type SystemMessageKind =
   | "direct-create" // 用户点直接创建,触发 Mint 对话引导补全信息
   | "flow"         // 流程指令(翻译/功能清单/技术方案等)
   | "handoff"      // 上下文轮转迁移
-  | "summary";     // 上下文摘要指令
+  | "summary"      // 上下文摘要指令
+  | "learn";       // 经验沉淀提示/建议(期3 触发控制)
 
 export interface SystemMessagePayload {
   customType: "system_message";

@@ -231,6 +231,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:ask-closed", handler);
       return () => ipcRenderer.removeListener("agent:ask-closed", handler);
     },
+    respondLearn: (requestId: string, response: { approved: boolean; memory?: string; skillBody?: string }) =>
+      ipcRenderer.invoke("agent:learn-response", { requestId, response }),
+    onLearnRequest: (callback: (data: unknown) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
+      ipcRenderer.on("agent:learn-request", handler);
+      return () => ipcRenderer.removeListener("agent:learn-request", handler);
+    },
+    onLearnClosed: (callback: (data: { requestId: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { requestId: string }) => callback(data);
+      ipcRenderer.on("agent:learn-closed", handler);
+      return () => ipcRenderer.removeListener("agent:learn-closed", handler);
+    },
     onPermissionRequest: (callback: (data: any) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
       ipcRenderer.on("agent:permission-request", handler);
