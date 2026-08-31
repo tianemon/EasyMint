@@ -20,6 +20,10 @@ export interface McpServerConfig {
   headers?: Record<string, string>;
   /** 可选：连接超时（毫秒）；缺省走 adapter 默认（8000） */
   timeout?: number;
+  /** 远程 server 需要 OAuth 登录（浏览器授权，凭据经系统钥匙串加密存储） */
+  oauth?: boolean;
+  /** OAuth 回调端口（固定值——DCR redirect_uris 精确匹配），缺省 31173 */
+  callbackPort?: number;
 }
 
 /** 服务器名规范（对齐 CC/OMP：小写字母数字 + 连字符/下划线） */

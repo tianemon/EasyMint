@@ -24,6 +24,8 @@ interface McpServerCfg {
   url?: string;
   headers?: Record<string, string>;
   timeout?: number;
+  oauth?: boolean;
+  callbackPort?: number;
 }
 
 interface Project {

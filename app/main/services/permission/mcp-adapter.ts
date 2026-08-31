@@ -14,6 +14,8 @@ import type { ToolDefinition } from "../pi-sdk";
 import { getDefineToolFn } from "../pi-sdk";
 import { scanMcpServers, getMcpServerConfig, expandServerConfig } from "../mcp-service";
 import type { McpServerConfig, McpServerStatus } from "../mcp-service";
+import { auth } from "@modelcontextprotocol/sdk/client/auth.js";
+import { EmOAuthProvider } from "../mcp-oauth";
 
 const clients = new Map<string, Client>();
 /** 工具缓存按项目分键——多项目切换时项目级 MCP 不串台（原全局单缓存会在 B 项目看到 A 项目的工具） */
@@ -77,18 +79,50 @@ async function connect(name: string, cfg: McpServerConfig): Promise<Client> {
     return client;
   }
 
-  if (cfg.type === "http") {
-    const transport = new StreamableHTTPClientTransport(new URL(cfg.url as string), {
-      requestInit: cfg.headers ? { headers: cfg.headers } : undefined,
-    });
-    await client.connect(transport);
-    return client;
-  }
-
-  if (cfg.type === "sse") {
-    const transport = new SSEClientTransport(new URL(cfg.url!));
-    await client.connect(transport);
-    return client;
+  if (cfg.type === "http" || cfg.type === "sse") {
+    // OAuth：配置声明 oauth=true 的 http/sse server 用 SDK 的 authProvider 流程
+    // （SDK 自动带 token / 401 时走 provider 刷新与授权），静态 headers 仍可共存
+    const wantsOauth = (cfg as { oauth?: boolean }).oauth === true;
+    const authProvider = wantsOauth
+      ? new EmOAuthProvider(name, cfg.url as string, (cfg as { callbackPort?: number }).callbackPort)
+      : undefined;
+    const requestInit = cfg.headers ? { headers: cfg.headers } : undefined;
+    const transport = cfg.type === "http"
+      ? new StreamableHTTPClientTransport(new URL(cfg.url as string), {
+          requestInit,
+          authProvider: authProvider as any,
+        })
+      : new SSEClientTransport(new URL(cfg.url as string), {
+          requestInit,
+          authProvider: authProvider as any,
+        });
+    try {
+      await client.connect(transport);
+      return client;
+    } catch (e) {
+      const msg = (e as Error).message || "";
+      const needsAuth = /401|403|unauthorized|unauthorized_error/i.test(msg);
+      if (wantsOauth && needsAuth && authProvider) {
+        // 完整 OAuth 流程（SDK 驱动）：元数据发现 → DCR（如需）→ 浏览器授权 → 换 token → saveTokens
+        console.log(`[mcp-oauth] ${name} 需要 OAuth，发起浏览器授权流程…`);
+        await auth(authProvider as any, {
+          serverUrl: new URL(cfg.url as string),
+          // 授权码等待：provider 内部 loopback 监听（redirectToAuthorization 启动）
+          fetchFn: undefined,
+        }).catch((oe: Error) => {
+          (authProvider as EmOAuthProvider).stopCallbackServer();
+          throw new Error(`OAuth 授权未完成：${oe.message}`);
+        });
+        (authProvider as EmOAuthProvider).stopCallbackServer();
+        // 重新连接（此时 provider.tokens() 已有 token，transport 自动带上）
+        const retry = cfg.type === "http"
+          ? new StreamableHTTPClientTransport(new URL(cfg.url as string), { requestInit, authProvider: authProvider as any })
+          : new SSEClientTransport(new URL(cfg.url as string), { requestInit, authProvider: authProvider as any });
+        await client.connect(retry);
+        return client;
+      }
+      throw e;
+    }
   }
 
   throw new Error(`不支持的 MCP 传输类型: ${cfg.type}`);

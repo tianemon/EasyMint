@@ -529,6 +529,7 @@ function McpServerForm({
   const [envText, setEnvText] = useState(
     Object.entries(initial?.cfg.env ?? {}).map(([k, v]) => `${k}=${v}`).join("\n"),
   );
+  const [oauth, setOauth] = useState(!!initial?.cfg.oauth);
   const [err, setErr] = useState("");
   const [testResult, setTestResult] = useState<string>("");
   const [busy, setBusy] = useState(false);
@@ -543,7 +544,7 @@ function McpServerForm({
     }
     return type === "stdio"
       ? { type, command: command.trim() || undefined, args: argsText.trim() ? argsText.trim().split(/\s+/) : undefined, env: Object.keys(env).length ? env : undefined }
-      : { type, url: url.trim() || undefined, env: Object.keys(env).length ? env : undefined };
+      : { type, url: url.trim() || undefined, env: Object.keys(env).length ? env : undefined, oauth: oauth || undefined };
   };
 
   const validate = (): string | null => {
@@ -641,6 +642,17 @@ function McpServerForm({
         />
       )}
 
+      {type !== "stdio" && (
+        <div className="flex items-center justify-between gap-3 bg-surface rounded-lg px-2.5 py-2">
+          <div className="min-w-0">
+            <p className="text-[length:var(--text-11)] text-text-primary">此服务器需要 OAuth 登录</p>
+            <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
+              连接时弹出浏览器完成授权（如 GitHub / Notion 官方 MCP）。凭据经系统钥匙串加密存储
+            </p>
+          </div>
+          <Toggle checked={oauth} onChange={setOauth} />
+        </div>
+      )}
       <div>
         <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">
           环境变量（每行一条 KEY=VALUE，支持 ${"${VAR}"} 与 ${"${VAR:-默认值}"}）
