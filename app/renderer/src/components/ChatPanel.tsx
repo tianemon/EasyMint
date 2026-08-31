@@ -936,7 +936,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       }
       // error 后 1s 内的残留事件(tool_result/message_end 等)不重新设 busy——
       // error 分支已清 busy(回合结束),残留事件会把按钮打回打断态;新回合 turn_start 除外。
-      // custom_event(系统消息通知)不设 busy:通知无回合,置 busy 后无 turn_end 可清(残留"正在请求")
+      // custom_event(系统消息通知)不设 busy:通知无回合,置 busy 后无 turn_end 可清(残留"等待模型响应")
       if (event.type === "custom_event") {
         // 通知仅落气泡,不触碰 busy
       } else if (event.type === "turn_start" || Date.now() - lastErrorAtRef.current > 1000) {
@@ -971,9 +971,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // Pi 新 assistant turn 开始 → 重置输出段块状态
       // (turn_start 不创建消息——磁盘上无空消息;首个内容帧才创建块)
       if (event.type === "turn_start") {
-        // 回合开始 → 保持「正在请求」(同 id 更新)——turn_start 在 SDK 发起 API 请求前 emit,
+        // 回合开始 → 保持「等待模型响应」(同 id 更新)——turn_start 在 SDK 发起 API 请求前 emit,
         // 至首个响应块到达前状态栏语义 = 等待 API 返回;收到 thinking 块才转「正在思考」
-        useStatusStore.getState().pushSignal(sidRef.current, "request", "正在请求...");
+        useStatusStore.getState().pushSignal(sidRef.current, "request", "等待模型响应...");
         latestAiIdRef.current = 0;
         steeringRef.current = false;
         // 用户已在弹窗打开期间继续对话 → 关闭压缩询问(选项 1/4 会 abort 新回合,不能误打断)
@@ -1003,7 +1003,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       }
       // tool done — 工具执行结束,pop 自己的工具信号;
       // 回合仍在 → 显示「正在处理」(中性等待态,消除状态栏空档;
-      // 下一步 turn_start 转「正在请求」/ thinking 帧转「正在思考」/ 文本帧 pop)
+      // 下一步 turn_start 转「等待模型响应」/ thinking 帧转「正在思考」/ 文本帧 pop)
       if (event.type === "tool_done") {
         useStatusStore.getState().popSignal(sidRef.current, `tool:${event.toolCallId ?? "?"}`);
         if (busyRef.current) useStatusStore.getState().pushSignal(sidRef.current, "request", "正在处理...");
@@ -1325,7 +1325,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       return;
     }
 
-    busyRef.current = true; setBusy(true); useStatusStore.getState().pushSignal(sidRef.current, "request", "正在请求...");
+    busyRef.current = true; setBusy(true); useStatusStore.getState().pushSignal(sidRef.current, "request", "等待模型响应...");
 
     try {
       currentChatRef.current = null;

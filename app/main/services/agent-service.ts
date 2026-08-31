@@ -21,6 +21,7 @@ import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
 import { createSkillTool, createManageSkillTool } from "./tools/skill-tool";
 import { createLearnTool, createSearchExperiencesTool, type LearnResponse } from "./tools/learn-tool";
+import { evaluateLearnGate, isFixTool } from "./learn-gate";
 import { registerSessionIdMapping, abortTask, getRunningSummary, resolveParentSessionId } from "./task/registry";
 import { formatShellResult } from "./background-shell/tool";
 import { backgroundShellRegistry, type BackgroundShell } from "./background-shell/registry";
@@ -81,8 +82,12 @@ export interface ActiveChat {
   eventBuffer: PiChatEvent[];
   /** 本会话已 compact 次数（轮转取消后仅统计用） */
   compactCount: number;
-  /** learn 触发控制（期3）：工具调用累计（跨回合）+ 分级注入防重 */
+  /** learn 触发控制（期3）：本轮（单轮）信号累计 + 每会话一次防重 */
   toolCallCount: number;
+  /** 本轮是否出现过工具报错（与 learnFixAfterError 构成「错误-修复对」） */
+  learnErrorSeen: boolean;
+  /** 报错之后是否出现过修复动作（write/edit/bash 类） */
+  learnFixAfterError: boolean;
   learnSuggestDone: boolean;
   /** learn/search_experiences 是否已注册（会话创建时快照——工具集固定于创建时，触发提示按此判断） */
   learnToolInstalled: boolean;
@@ -762,16 +767,24 @@ export class AgentService {
           }
         }
 
-        // ── learn 触发计数（期3）：本轮（单轮）工具调用累计——agent_start 归零。
-        //    口径必须是「单轮」而非会话累计：WB 的「工具调用 ≥15」是单轮标准（WB·lan 每轮
-        //    调用中位 14、均值 32.4），会话累计会让 3-4 个普通轮就达标 → 触发过频（实测体感）。
+        // ── learn 硬信号采集（期3）：单轮口径——agent_start 归零。
         //    归零信号用 agent_start 而非 turn_start——源码实证（pi-agent-core/agent-loop.js
         //    runLoop 内层循环）：turn_start 在每个工具调用批次都发，用它归零计数永远到不了阈值 ──
         if (chat && event.type === "agent_start") {
           chat.toolCallCount = 0;
+          chat.learnErrorSeen = false;
+          chat.learnFixAfterError = false;
         }
         if (chat && event.type === "tool_execution_start") {
           chat.toolCallCount++;
+          // 报错之后出现写类工具 = 修复动作（构成「错误-修复对」——最高价值的沉淀信号）
+          if (chat.learnErrorSeen && isFixTool(String((event as { toolName?: string }).toolName ?? ""))) {
+            chat.learnFixAfterError = true;
+          }
+        }
+        // 工具报错（内容优先于退出码——见会话行为分析的口径，此处取 SDK 的 isError 标记）
+        if (chat && event.type === "tool_execution_end" && (event as { isError?: boolean }).isError) {
+          chat.learnErrorSeen = true;
         }
       } catch (e) {
         console.error("[agent] bridge error:", e);
@@ -1068,6 +1081,8 @@ export class AgentService {
       eventBuffer: [],
       compactCount: 0,
       toolCallCount: 0,
+      learnErrorSeen: false,
+      learnFixAfterError: false,
       learnSuggestDone: false,
       learnToolInstalled: learnInstalled,
     };
@@ -1234,22 +1249,29 @@ export class AgentService {
     });
   }
 
-  /** learn 触发：本轮（单轮）工具调用 ≥15 时才提示——WB 沉淀标准的单轮口径
-   *  （WB·lan 每轮调用中位 14；EM 侧 Pi·lan 每轮中位 4、均值 6.5→ 单轮 15 只在大轮命中）。
-   *  提示内容是「价值评估指令」而非「建议保存」：模型先按判定标准过滤，无价值必须静默跳过
-   *  （不调 learn、不弹卡片、不在回复里提沉淀）——避免无价值的打扰。
-   *  每会话最多一次（去重标记持久化 learn-state.json，重启不重放）。 */
+  /** learn 触发：单轮硬信号达到「评估门槛」时提示一次。门槛只是下限——够格被评估，
+   *  不等于值得沉淀；值不值得由模型按提示中的判定标准判断（无价值静默跳过）。
+   *  双通道（WB 标准工程化）：踩坑修复（报错→修复）价值最高，门槛 8；纯大轮门槛 15。
+   *  每会话最多一次（learn-state.json 持久化，重启不重放）。 */
   private maybeInjectLearnHint(chat: ActiveChat): void {
     // 工具存在性按会话创建时快照（learnToolInstalled）判断——活跃会话工具集固定于创建时，
     // 按实时设置判断会提示指向本会话不存在的工具（实测发生过：中途开开关 → learn not found）
-    if (!chat.learnToolInstalled) return;
-    if (chat.learnSuggestDone || chat.toolCallCount < 15) return;
+    if (!chat.learnToolInstalled || chat.learnSuggestDone) return;
+    const gate = evaluateLearnGate({
+      toolCallCount: chat.toolCallCount,
+      errorSeen: chat.learnErrorSeen,
+      fixAfterError: chat.learnFixAfterError,
+    });
+    if (!gate) return;
     chat.learnSuggestDone = true;
     saveLearnState(chat.sessionId, { suggestDone: true });
+    const headline = gate.channel === "fix"
+      ? `本轮出现「工具报错 → 修复」的过程（${chat.toolCallCount} 次工具调用），踩坑类经验复用价值最高，优先评估`
+      : `本轮工具调用 ${chat.toolCallCount} 次（达到沉淀评估门槛）`;
     // triggerTurn: true 开捕获回合——本轮上下文还热，是评估最佳时机
     this.injectSystemMessage(
       chat.sessionId,
-      `本轮工具调用 ${chat.toolCallCount} 次（达到沉淀评估门槛）。先判断本轮是否存在「值得沉淀」的内容，再决定是否调用 learn：
+      `${headline}。先判断本轮是否存在「值得沉淀」的内容，再决定是否调用 learn：
 
 【值得沉淀】踩坑修复（报错→根因→解法，下次能避坑）／验证过的方法流程（换个项目也能用）／项目约定与架构决策（删掉这条未来的你会犯错）。
 
