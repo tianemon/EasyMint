@@ -64,8 +64,15 @@ const DISABLED_FILE = path.join(os.homedir(), ".easymint", "em-settings.json");
 
 function getHiddenSkills(): string[] {
   if (!existsSync(DISABLED_FILE)) return [];
-  const data = JSON.parse(readFileSync(DISABLED_FILE, "utf-8"));
-  return (data.hiddenSkills as string[]) || [];
+  try {
+    const data = JSON.parse(readFileSync(DISABLED_FILE, "utf-8"));
+    const list = data.hiddenSkills;
+    return Array.isArray(list) ? list.filter((n): n is string => typeof n === "string") : [];
+  } catch (e) {
+    // 设置文件损坏按未隐藏处理（skill 全量展示），不阻塞扫描
+    console.warn("[skill] hiddenSkills 读取失败（按未隐藏处理）:", (e as Error).message);
+    return [];
+  }
 }
 
 function saveHiddenSkills(list: string[]): void {

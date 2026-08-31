@@ -81,6 +81,20 @@ export function displayToolLabel(name: string, args?: Record<string, unknown>): 
   const fname = (ctx && typeof ctx === "string") ? ctx.split("/").pop() || "" : "";
   const ext = fname.split(".").pop()?.toLowerCase() || "";
 
+  // EM 自定义 skill 工具族（须在下方 skillInInput 检查之前——learn 的 skill 参数是对象，
+  // 误入该分支会渲染成「调用 Skill: [object Object]」）
+  if (n === "use_skill") {
+    const sn = typeof args?.name === "string" ? args.name : "";
+    return sn ? `加载 Skill: ${sn}` : "加载 Skill";
+  }
+  if (n === "learn") return "沉淀经验（审阅中）";
+  if (n === "manage_skill") {
+    const sn = typeof args?.name === "string" ? args.name : "";
+    const action = args?.action === "create" ? "创建" : args?.action === "update" ? "更新" : "删除";
+    return sn ? `${action} Skill: ${sn}` : `${action} Skill`;
+  }
+  if (n === "search_experiences") return "搜索经验库";
+
   // Skill / MCP 特殊处理
   const skillInInput = args?.skill as string | undefined;
   if (skillInInput) return `调用 Skill: ${skillInInput}`;

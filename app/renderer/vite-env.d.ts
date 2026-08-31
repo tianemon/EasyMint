@@ -184,7 +184,7 @@ interface ElectronAPI {
     respondAsk: (requestId: string, answers: Array<{ questionId: string; values: string[] }> | null) => Promise<unknown>;
     onAskRequest: (callback: (data: any) => void) => () => void;
     onAskClosed: (callback: (data: { requestId: string }) => void) => () => void;
-    respondLearn: (requestId: string, response: { approved: boolean; memory?: string; skillBody?: string }) => Promise<string | null>;
+    respondLearn: (requestId: string, response: { approved: boolean; memory?: string; skillBody?: string; skillName?: string; skillDescription?: string }) => Promise<string | null>;
     onLearnRequest: (callback: (data: { requestId: string; sessionId: string; memory: string; context?: string; skill?: { action: "create" | "update"; name: string; description: string; body: string } }) => void) => () => void;
     onLearnClosed: (callback: (data: { requestId: string }) => void) => () => void;
     abort: (runId: string) => void;

@@ -751,6 +751,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     return () => { offReq(); offClosed(); };
   }, []);
 
+  // learn 审阅卡片出现时贴底：卡片挂在滚动区尾部，用户滚离底部时回合会挂起等一个视口外的卡片
+  useEffect(() => {
+    if (pendingLearn) scrollToBottom();
+  }, [pendingLearn, scrollToBottom]);
+
   useEffect(() => {
     const unsub = window.electronAPI.agent.onDelegationProgress((data: DelegationProgressEvent) => {
       // 过滤:仅显示当前窗口 chat 的委派;currentChatRef 未初始化(非主会话 tab)→ 拒绝,

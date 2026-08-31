@@ -256,19 +256,23 @@ function SkillsTab(): JSX.Element {
   const projectSkills = skills.filter((s) => s.level === "project");
   const visibleSkills = tab === "builtin" ? builtinSkills : tab === "global" ? globalSkills : managedSkills;
 
-  // 优化建议（期3）：基于 registry 统计生成纯文案建议——不自动执行、不改 authored 文件
+  // 优化建议（期3）：基于 registry 统计生成纯文案建议——不自动执行、不改 authored 文件。
+  // builtin 排除：不可删除，出「删除/合并」类建议无入口承接
   const suggestions = skills
+    .filter((s) => s.source !== "builtin")
     .map((s): { name: string; text: string } | null => {
       const stat = stats[s.name];
+      // 从未调用的 skill 在 registry 无条目（stat 为 undefined）——不能提前 return，
+      // managed「尚未被调用」建议正依赖此分支
+      if (s.source === "managed" && (!stat || stat.usageCount === 0)) {
+        return { name: s.name, text: "尚未被调用过——描述可能不含触发词，或内容已过时" };
+      }
       if (!stat) return null;
       if (stat.lastUsedAt > 0 && Date.now() - stat.lastUsedAt > 90 * 86_400_000) {
         return { name: s.name, text: "90 天未使用——考虑删除或合并" };
       }
       if (stat.failCount >= 3 && stat.usageCount > 0 && stat.failCount / stat.usageCount >= 0.3) {
         return { name: s.name, text: "失败率高——描述与内容可能不匹配，建议修正 description" };
-      }
-      if (s.source === "managed" && stat.usageCount === 0) {
-        return { name: s.name, text: "尚未被调用过——描述可能不含触发词，或内容已过时" };
       }
       return null;
     })

@@ -20,6 +20,9 @@ export interface LearnResponse {
   /** 卡片上编辑后的正文（未编辑则回传原文） */
   memory?: string;
   skillBody?: string;
+  /** 卡片上可编辑的 skill 元信息（撞名/修正场景，未编辑则回传原文） */
+  skillName?: string;
+  skillDescription?: string;
 }
 
 /** 挂起状态与广播由 agent-service 持有（同 pendingAsks 模式）；工具只管协议 */
@@ -93,23 +96,26 @@ export async function createLearnTool(deps: LearnToolDeps): Promise<ToolDefiniti
         return text("用户未确认，本次未入库（可按用户反馈调整后重新 learn，或不再沉淀）");
       }
 
-      // 落盘：经验必入（用户可能编辑过 memory）；skill 走 writeManagedSkill（期 0 约束全复用）
+      // 落盘原子性：先 skill 后 memory——skill 写盘失败（撞名/超限/目录异常）时整体失败返回
+      //（经验不半途入库），模型可按错误修正（如换名）后重新 learn
       const finalMemory = (response.memory || memory).trim();
       if (!finalMemory) return text("learn 失败：编辑后的 memory 为空，未入库");
-      appendExperience({ memory: finalMemory, context: context || undefined }, deps.projectPath);
-
-      let skillNote = "";
       if (skill) {
+        const finalName = (response.skillName || skill.name).trim();
+        const finalDesc = (response.skillDescription || skill.description).trim();
         const finalBody = response.skillBody !== undefined ? response.skillBody : skill.body;
         const r = writeManagedSkill(
-          { action: skill.action, name: skill.name, description: skill.description, body: finalBody },
+          { action: skill.action, name: finalName, description: finalDesc, body: finalBody },
           deps.projectPath,
         );
-        skillNote = r.ok
-          ? `；skill「${skill.name}」已${skill.action === "create" ? "创建" : "更新"}于 AI 管理区`
-          : `；skill 未落盘：${r.error}`;
+        if (!r.ok) {
+          return text(`learn 失败：skill 未落盘（${r.error}），经验未入库。请修正后重新 learn（如换 skill 名称）`);
+        }
+        appendExperience({ memory: finalMemory, context: context || undefined }, deps.projectPath);
+        return text(`learn 成功：经验已入库；skill「${finalName}」已${skill.action === "create" ? "创建" : "更新"}于 AI 管理区`);
       }
-      return text(`learn 成功：经验已入库${skillNote}`);
+      appendExperience({ memory: finalMemory, context: context || undefined }, deps.projectPath);
+      return text("learn 成功：经验已入库");
     },
   } as any) as ToolDefinition;
 }

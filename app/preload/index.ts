@@ -231,7 +231,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:ask-closed", handler);
       return () => ipcRenderer.removeListener("agent:ask-closed", handler);
     },
-    respondLearn: (requestId: string, response: { approved: boolean; memory?: string; skillBody?: string }) =>
+    respondLearn: (requestId: string, response: { approved: boolean; memory?: string; skillBody?: string; skillName?: string; skillDescription?: string }) =>
       ipcRenderer.invoke("agent:learn-response", { requestId, response }),
     onLearnRequest: (callback: (data: unknown) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);

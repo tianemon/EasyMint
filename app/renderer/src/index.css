@@ -53,6 +53,7 @@
   --color-danger-soft: #dc26261a;
   --color-success-soft: #17a34a1a;
   --color-success-high: #17a34a33;
+  --color-warning-soft: #d977061a;
   /* 输入卡片任务按钮(AgentBar 胶囊)雾化呼吸灯:亮色绿光晕 */
   --agent-breath-glow: #17a34a73;
   /* 输入卡片命令胶囊(ShellBar)雾化呼吸灯:亮色蓝光晕 */

@@ -7,12 +7,15 @@ interface Props {
 
 /**
  * learn 沉淀审阅卡片（聊天区内嵌，毛玻璃，视觉对齐 AskUserCard）：
- * - memory / skill body 可编辑（textarea），context 与 skill 元信息只读
+ * - memory / skill body / skill 名称与描述均可编辑（确认时随响应回传）；context 只读
  * - 「确认入库」携带编辑后内容回传；「取消」放弃（approved: false）
  */
 export function LearnCard({ request }: Props): JSX.Element {
   const [memory, setMemory] = useState(request.memory);
   const [skillBody, setSkillBody] = useState(request.skill?.body ?? "");
+  // skill 元信息可编辑（撞名/修正场景，确认时随响应回传）
+  const [skillName, setSkillName] = useState(request.skill?.name ?? "");
+  const [skillDescription, setSkillDescription] = useState(request.skill?.description ?? "");
   const [submitting, setSubmitting] = useState(false);
 
   const respond = (approved: boolean): void => {
@@ -22,6 +25,8 @@ export function LearnCard({ request }: Props): JSX.Element {
       approved,
       memory: approved ? memory : undefined,
       skillBody: approved && request.skill ? skillBody : undefined,
+      skillName: approved && request.skill ? skillName : undefined,
+      skillDescription: approved && request.skill ? skillDescription : undefined,
     });
     // 主进程 respondLearn 会广播 learn-closed 兜底清除；本地立即移除防广播延迟闪烁
     useLearnStore.getState().clearLearn(request.requestId);
@@ -69,15 +74,23 @@ export function LearnCard({ request }: Props): JSX.Element {
         </div>
       )}
 
-      {/* skill 草稿（name/description 只读 + body 可编辑） */}
+      {/* skill 草稿（name/description/body 均可编辑——撞名/修正场景就地改） */}
       {request.skill && (
         <div className="px-3.5 pt-2">
-          <div className="flex items-center gap-1.5 mb-1">
-            <span className="text-[length:var(--text-2xs)] text-text-muted">同时{request.skill.action === "create" ? "创建" : "更新"} skill</span>
-            <span className="text-[length:var(--text-2xs)] px-1 py-0.5 rounded bg-warning-soft text-warning font-mono">{request.skill.name}</span>
-          </div>
-          <p className="text-[length:var(--text-2xs)] text-text-secondary mb-1">{request.skill.description}</p>
-          <label className="text-[length:var(--text-2xs)] text-text-muted block mb-1">skill 正文（可修改）</label>
+          <span className="text-[length:var(--text-2xs)] text-text-muted">同时{request.skill.action === "create" ? "创建" : "更新"} skill</span>
+          <label className="text-[length:var(--text-2xs)] text-text-muted block mb-1 mt-1">名称（小写字母/数字/连字符）</label>
+          <input
+            className="em-input w-full px-2.5 py-1.5 text-xs bg-surface/50 font-mono"
+            value={skillName}
+            onChange={(e) => setSkillName(e.target.value)}
+          />
+          <label className="text-[length:var(--text-2xs)] text-text-muted block mb-1 mt-1.5">描述（何时用）</label>
+          <input
+            className="em-input w-full px-2.5 py-1.5 text-xs bg-surface/50"
+            value={skillDescription}
+            onChange={(e) => setSkillDescription(e.target.value)}
+          />
+          <label className="text-[length:var(--text-2xs)] text-text-muted block mb-1 mt-1.5">skill 正文（可修改）</label>
           <textarea
             className="em-input w-full px-2.5 py-1.5 text-xs bg-surface/50 resize-y min-h-16 leading-relaxed"
             value={skillBody}

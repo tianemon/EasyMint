@@ -409,11 +409,19 @@ interface PendingLearn {
 const pendingLearns = new Map<string, PendingLearn>();
 
 /** 响应 learn 审阅（IPC learn:respond 调用）。返回 sessionId 供前端过滤，未找到返回 null */
-export function respondLearn(requestId: string, response: LearnResponse): string | null {
+export function respondLearn(requestId: string, response: unknown): string | null {
   const pending = pendingLearns.get(requestId);
   if (!pending) return null;
+  // IPC 载荷校验：approved 必须是 boolean，编辑字段必须是 string/undefined
+  const r = response as { approved?: unknown; memory?: unknown; skillBody?: unknown; skillName?: unknown; skillDescription?: unknown };
+  if (typeof r?.approved !== "boolean") return null;
+  const clean: LearnResponse = { approved: r.approved };
+  for (const k of ["memory", "skillBody", "skillName", "skillDescription"] as const) {
+    const v = r[k];
+    if (v !== undefined && typeof v === "string") clean[k] = v;
+  }
   pendingLearns.delete(requestId);
-  pending.resolve(response);
+  pending.resolve(clean);
   broadcast("agent:learn-closed", { requestId });
   return pending.sessionId;
 }
@@ -425,6 +433,39 @@ export function clearPendingLearns(sessionId: string): void {
     pendingLearns.delete(id);
     p.resolve({ approved: false });
     broadcast("agent:learn-closed", { requestId: id });
+  }
+}
+
+// ── learn 触发状态持久化（重启后不重复提示/建议，防重复沉淀） ──────────
+
+interface LearnSessionState {
+  hintDone?: boolean;
+  suggestDone?: boolean;
+}
+
+const LEARN_STATE_PATH = path.join(os.homedir(), ".easymint", "learn-state.json");
+
+function loadLearnStates(): Record<string, LearnSessionState> {
+  try {
+    if (fs.existsSync(LEARN_STATE_PATH)) {
+      const data: unknown = JSON.parse(fs.readFileSync(LEARN_STATE_PATH, "utf-8"));
+      if (data && typeof data === "object" && !Array.isArray(data)) {
+        return data as Record<string, LearnSessionState>;
+      }
+    }
+  } catch (e) {
+    console.warn("[agent] learn-state 读取失败（按无状态处理）:", (e as Error).message);
+  }
+  return {};
+}
+
+function saveLearnState(sessionId: string, state: LearnSessionState): void {
+  try {
+    const states = loadLearnStates();
+    states[sessionId] = state;
+    fs.writeFileSync(LEARN_STATE_PATH, JSON.stringify(states, null, 2));
+  } catch (e) {
+    console.warn("[agent] learn-state 写入失败:", (e as Error).message);
   }
 }
 
@@ -505,18 +546,24 @@ async function createAskUserTool(sessionId: string): Promise<ToolDefinition> {
         allowCustom: params.allow_custom !== false,
       });
       const answer = await new Promise<string>((resolve) => {
-        pendingAsks.set(requestId, {
-          sessionId: realSid,
-          resolve,
-          questions: questions.map((q) => ({ id: String(q.id), question: String(q.question) })),
-        });
-        // run 级 signal：用户打断 / killChat 时 abort → 取消挂起并通知前端关闭卡片
-        signal?.addEventListener("abort", () => {
+        const onAbort = () => {
           if (!pendingAsks.has(requestId)) return;
           pendingAsks.delete(requestId);
           resolve("（提问已取消）");
           broadcast("agent:ask-closed", { requestId });
-        }, { once: true });
+        };
+        // 正常响应路径解除 abort 监听——长会话多次提问不累积监听器
+        const wrappedResolve = (text: string) => {
+          signal?.removeEventListener("abort", onAbort);
+          resolve(text);
+        };
+        pendingAsks.set(requestId, {
+          sessionId: realSid,
+          resolve: wrappedResolve,
+          questions: questions.map((q) => ({ id: String(q.id), question: String(q.question) })),
+        });
+        // run 级 signal：用户打断 / killChat 时 abort → 取消挂起并通知前端关闭卡片
+        signal?.addEventListener("abort", onAbort, { once: true });
       });
       return { content: [{ type: "text" as const, text: answer }] };
     },
@@ -554,7 +601,7 @@ export class AgentService {
     return getActiveModel(store) ?? null;
   }
 
-  private async buildExtraTools(projectPath: string, sessionId: string, chatId?: string): Promise<{
+  private async buildExtraTools(projectPath: string, sessionId: string, chatId?: string, opts?: { worker?: boolean }): Promise<{
     tools: ToolDefinition[];
     canUseTool: CanUseToolFn;
   }> {
@@ -589,18 +636,23 @@ export class AgentService {
       const stopAgentTool = await createStopAgentTool(sessionId);
       const listAgentsTool = await createListAgentsTool(sessionId);
       const readAgentLogTool = await createReadAgentLogTool(sessionId);
-      const askUserTool = await createAskUserTool(sessionId);
-      const skillTool = await createSkillTool(projectPath, {
-        onModelSwitch: (modelName) => this.switchModelForSkill(sessionId, modelName),
-      });
-      const allTools = [taskTool, agentTemplateTool, stopAgentTool, listAgentsTool, readAgentLogTool, askUserTool, skillTool, ...productTools, ...mcpTools];
+      const allTools = [taskTool, agentTemplateTool, stopAgentTool, listAgentsTool, readAgentLogTool, ...productTools, ...mcpTools];
+      // ask_user/skill（含 model 切换 hook）仅主会话装——worker（runWorker，无前端卡片）
+      // 调用挂起交互工具会永久挂起（无 UI 可响应）
+      if (!opts?.worker) {
+        allTools.push(await createAskUserTool(sessionId));
+        allTools.push(await createSkillTool(projectPath, {
+          onModelSwitch: (modelName) => this.switchModelForSkill(sessionId, modelName),
+        }));
+      }
       // manage_skill 受开关控制（D8：AI 写入能力默认关闭，设置→插件→Skills 一键开启；
-      // buildExtraTools 每次发消息重建工具 → 开关切换后新回合即生效）
+      // 开关状态在会话（重）创建时生效——sendMessage 每次经新建/恢复路径重建工具集）
       if (this.store.getSettings().manageSkillEnabled) {
         allTools.push(await createManageSkillTool(projectPath));
       }
-      // learn + search_experiences 受独立开关控制（D8：自沉淀默认关闭；两工具同进退）
-      if (this.store.getSettings().learnEnabled) {
+      // learn + search_experiences 受独立开关控制（D8：自沉淀默认关闭；两工具同进退）。
+      // worker 不装：learn 审阅卡片依赖前端，worker 无 UI，模型调用即永久挂起
+      if (!opts?.worker && this.store.getSettings().learnEnabled) {
         allTools.push(
           await createLearnTool({
             projectPath,
@@ -813,7 +865,7 @@ export class AgentService {
           return;
         }
 
-        const { tools: extraTools, canUseTool } = await this.buildExtraTools(resolvedPath, runId);
+        const { tools: extraTools, canUseTool } = await this.buildExtraTools(resolvedPath, runId, undefined, { worker: true });
         const session = await createPiSession({
           cwd: resolvedPath,
           agentDir: this.getAgentDir(),
@@ -1005,6 +1057,12 @@ export class AgentService {
       learnHintDone: false,
       learnSuggestDone: false,
     };
+    // learn 去重标记从磁盘恢复（重启后同一会话不重复提示/建议，防重复沉淀）
+    const learnState = loadLearnStates()[chat.sessionId];
+    if (learnState) {
+      chat.learnHintDone = !!learnState.hintDone;
+      chat.learnSuggestDone = !!learnState.suggestDone;
+    }
 
     if (isDesigner) {
       chat.agentType = "designer";
@@ -1146,35 +1204,44 @@ export class AgentService {
     const realSid = resolveParentSessionId(sessionId);
     broadcast("agent:learn-request", { requestId, sessionId: realSid, ...payload });
     return new Promise<LearnResponse>((resolve) => {
-      pendingLearns.set(requestId, { sessionId: realSid, resolve });
-      // run 级 signal：用户打断 / killChat → 取消挂起并通知前端关闭卡片
-      signal?.addEventListener("abort", () => {
+      const onAbort = () => {
         if (!pendingLearns.has(requestId)) return;
         pendingLearns.delete(requestId);
         resolve({ approved: false });
         broadcast("agent:learn-closed", { requestId });
-      }, { once: true });
+      };
+      // 正常响应路径解除 abort 监听——长会话多次 learn 不累积监听器
+      const wrappedResolve = (r: LearnResponse) => {
+        signal?.removeEventListener("abort", onAbort);
+        resolve(r);
+      };
+      pendingLearns.set(requestId, { sessionId: realSid, resolve: wrappedResolve });
+      // run 级 signal：用户打断 / killChat → 取消挂起并通知前端关闭卡片
+      signal?.addEventListener("abort", onAbort, { once: true });
     });
   }
 
-  /** learn 分级触发阈值：≥15 建议入库（开捕获回合）；≥5 轻提示（仅可见，下回合顺手沉淀）。
-   *  校准来源：WB 沉淀标准 15 / oh-my-pi 捕获尝试 5 / lan-notes 实测每轮中位 6.5 次调用。 */
+  /** learn 分级触发阈值：≥15 建议沉淀、≥5 轻提示——均 triggerTurn: false（只注入可见提示，
+   *  不自动开回合：捕获回合中模型可自由调用工具且发生在用户未输入指令时，有风险），
+   *  由模型在下回合判断是否沉淀。校准来源：WB 沉淀标准 15 / oh-my-pi 捕获尝试 5 /
+   *  lan-notes 实测每轮中位 6.5 次调用。去重标记持久化（learn-state.json），重启不重放。 */
   private maybeInjectLearnHint(chat: ActiveChat): void {
     // 开关关闭不注入——提示指向不存在的工具比没有提示更糟（oh-my-pi 原则：guidance 由工具实际存在驱动）
     if (!this.store.getSettings().learnEnabled) return;
     if (!chat.learnSuggestDone && chat.toolCallCount >= 15) {
       chat.learnSuggestDone = true;
       chat.learnHintDone = true;
+      saveLearnState(chat.sessionId, { hintDone: true, suggestDone: true });
       this.injectSystemMessage(
         chat.sessionId,
-        `本会话已累计 ${chat.toolCallCount} 次工具调用，满足沉淀条件。若本任务存在可复用经验（踩坑修复/验证过的方法/项目约定），调用 learn 入库（会弹审阅卡片，用户确认后落盘）`,
+        `本会话已累计 ${chat.toolCallCount} 次工具调用，满足沉淀条件。若存在可复用经验（踩坑修复/验证过的方法/项目约定），收尾时调用 learn 入库（会弹审阅卡片，用户确认后落盘）`,
         "learn",
-        { triggerTurn: true },
       );
       return;
     }
     if (!chat.learnHintDone && chat.toolCallCount >= 5) {
       chat.learnHintDone = true;
+      saveLearnState(chat.sessionId, { hintDone: true });
       this.injectSystemMessage(
         chat.sessionId,
         `提示：本会话工具调用已累计 ${chat.toolCallCount} 次，若有可复用经验可在收尾时用 learn 沉淀`,
@@ -1482,8 +1549,19 @@ export class AgentService {
     const result = await chat.session.cycleModel(direction);
     if (result) {
       chat.currentModel = result.model.id;
-      broadcast("agent:model-changed", { sessionId, model: result.model.id });
+      // 广播统一为 EM 注册名（activeCfg.models 列表值）——前端显示、session-cache 持久化、
+      // 重启恢复 setModel 都按注册名解析；SDK id 与注册名通常一致，防御性映射防格式漂移
+      broadcast("agent:model-changed", { sessionId, model: this.toEmModelName(result.model.id) });
     }
+  }
+
+  /** SDK 模型 id → EM 注册名（activeCfg.models 反向匹配；无匹配原样返回） */
+  private toEmModelName(sdkId: string): string {
+    const providers = this.store.getSettings().apiProviders;
+    const activeCfg = providers?.current ? providers.configs?.[providers.current] : undefined;
+    const models = activeCfg?.models ?? [];
+    if (models.includes(sdkId)) return sdkId;
+    return models.find((m) => sdkId.endsWith(m) || sdkId.includes(m)) ?? sdkId;
   }
 
   /** 运行时切换活跃工具集 */
