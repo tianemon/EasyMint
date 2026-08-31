@@ -655,6 +655,7 @@ export function importSkillFromUrl(url: string, opts?: { name?: string; overwrit
   const tmp = path.join(os.tmpdir(), "em-skill-import-" + Date.now());
   try {
     execFileSync("git", ["clone", "--depth", "1", u, tmp], { timeout: 120_000, stdio: "pipe" });
+    rmSync(path.join(tmp, ".git"), { recursive: true, force: true }); // 仓库元数据不进 skill 目录
     if (existsSync(path.join(tmp, "SKILL.md"))) {
       return importSkillFromDir(tmp, { ...opts, name: opts?.name || path.basename(u).replace(/\.git$/, "") });
     }
