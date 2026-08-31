@@ -909,7 +909,7 @@ function McpTab(): JSX.Element {
         </div>
         {!adding && !editing && (
           <p className="text-[length:var(--text-11)] text-text-secondary mb-3">
-            EM 独立配置（~/.easymint/mcp.json），与 Claude Code 解耦。添加/修改后无需重启，下次发消息即生效。
+            EM 独立配置（~/.easymint/mcp.json），与 Claude Code 解耦。添加/修改后**新会话**生效（进行中的会话保持原工具集）。
           </p>
         )}
         {actionErr && <p className="text-danger text-[length:var(--text-11)] mb-2">{actionErr}</p>}

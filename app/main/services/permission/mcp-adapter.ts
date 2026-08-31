@@ -20,8 +20,11 @@ import { EmOAuthProvider } from "../mcp-oauth";
 const clients = new Map<string, Client>();
 /** 工具缓存按项目分键——多项目切换时项目级 MCP 不串台（原全局单缓存会在 B 项目看到 A 项目的工具） */
 const toolsCache = new Map<string, ToolDefinition[]>();
-/** server 名 → 连接状态（界面状态列/诊断） */
+/** 项目维度 + server 名 → 连接状态（不同项目的同名 server 状态不串扰） */
 const statusMap = new Map<string, McpServerStatus>();
+function statusKey(projectPath: string | undefined, name: string): string {
+  return (projectPath ? "p:" + projectPath : "global") + "::" + name;
+}
 
 function cacheKey(projectPath?: string): string {
   return projectPath ? `p:${projectPath}` : "global";
@@ -114,12 +117,15 @@ async function connect(name: string, cfg: McpServerConfig): Promise<Client> {
           throw new Error(`OAuth 授权未完成：${oe.message}`);
         });
         (authProvider as EmOAuthProvider).stopCallbackServer();
-        // 重新连接（此时 provider.tokens() 已有 token，transport 自动带上）
+        // 重新连接（此时 provider.tokens() 已有 token，transport 自动带上）。
+        // 用新 Client 而非复用——首次 connect 失败后复用同一实例存在内部状态残留风险
+        const retryClient = new Client({ name: "easymint", version: "1.0.0" }, { capabilities: {} as any });
         const retry = cfg.type === "http"
           ? new StreamableHTTPClientTransport(new URL(cfg.url as string), { requestInit, authProvider: authProvider as any })
           : new SSEClientTransport(new URL(cfg.url as string), { requestInit, authProvider: authProvider as any });
-        await client.connect(retry);
-        return client;
+        await retryClient.connect(retry);
+        clients.set(name, retryClient);
+        return retryClient;
       }
       throw e;
     }
@@ -132,10 +138,11 @@ async function connect(name: string, cfg: McpServerConfig): Promise<Client> {
 async function loadOneServer(
   s: { name: string; type: McpServerConfig["type"] },
   defineTool: Awaited<ReturnType<typeof getDefineToolFn>>,
+  projectPath?: string,
 ): Promise<ToolDefinition[]> {
   const raw = getMcpServerConfig(s.name);
   if (!raw) {
-    statusMap.set(s.name, { name: s.name, state: "failed", error: "配置已不存在" });
+    statusMap.set(statusKey(projectPath, s.name), { name: s.name, state: "failed", error: "配置已不存在" });
     return [];
   }
   // 变量展开（${VAR} / ${VAR:-default}）——未定义的变量保留原样并提示
@@ -143,7 +150,7 @@ async function loadOneServer(
   if (missing.length > 0) {
     console.warn(`[mcp] ${s.name} 未设置的环境变量: ${missing.join(", ")}`);
   }
-  statusMap.set(s.name, { name: s.name, state: "connecting" });
+  statusMap.set(statusKey(projectPath, s.name), { name: s.name, state: "connecting" });
 
   let client = clients.get(s.name);
   if (!client) {
@@ -155,7 +162,7 @@ async function loadOneServer(
     } catch (e) {
       const msg = redact((e as Error).message);
       console.warn(`[mcp] ${s.name} 连接失败/超时:`, msg);
-      statusMap.set(s.name, { name: s.name, state: "failed", error: msg });
+      statusMap.set(statusKey(projectPath, s.name), { name: s.name, state: "failed", error: msg });
       return [];
     }
   }
@@ -180,12 +187,12 @@ async function loadOneServer(
         },
       }) as any as ToolDefinition);
     }
-    statusMap.set(s.name, { name: s.name, state: "connected", toolCount: tools.length });
+    statusMap.set(statusKey(projectPath, s.name), { name: s.name, state: "connected", toolCount: tools.length });
     return tools;
   } catch (e) {
     const msg = redact((e as Error).message);
     console.warn(`[mcp] ${s.name} listTools 失败:`, msg);
-    statusMap.set(s.name, { name: s.name, state: "failed", error: msg });
+    statusMap.set(statusKey(projectPath, s.name), { name: s.name, state: "failed", error: msg });
     return [];
   }
 }
@@ -204,19 +211,19 @@ export async function loadMcpTools(projectPath?: string): Promise<ToolDefinition
   // 并发连接（对齐 OMP 的 Promise.allSettled）——串行时 server 多会拖慢首条消息
   const tasks = servers.map(async (s) => {
     if (!s.enabled) {
-      statusMap.set(s.name, { name: s.name, state: "disabled" });
+      statusMap.set(statusKey(projectPath, s.name), { name: s.name, state: "disabled" });
       return [];
     }
     // 项目级（含只读兼容来源）首次使用需确认——CC 的 Pending approval 设计
     if (s.pendingApproval) {
-      statusMap.set(s.name, { name: s.name, state: "pending" as McpServerStatus["state"], error: "待确认后启用" });
+      statusMap.set(statusKey(projectPath, s.name), { name: s.name, state: "pending" as McpServerStatus["state"], error: "待确认后启用" });
       return [];
     }
     try {
-      return await loadOneServer(s, defineTool);
+      return await loadOneServer(s, defineTool, projectPath);
     } catch (e) {
       const msg = redact((e as Error).message);
-      statusMap.set(s.name, { name: s.name, state: "failed", error: msg });
+      statusMap.set(statusKey(projectPath, s.name), { name: s.name, state: "failed", error: msg });
       return [];
     }
   });
@@ -234,7 +241,7 @@ export async function loadMcpTools(projectPath?: string): Promise<ToolDefinition
 export function getMcpStatus(projectPath?: string): McpServerStatus[] {
   return scanMcpServers(projectPath).map((s) => {
     if (!s.enabled) return { name: s.name, state: "disabled" as const };
-    return statusMap.get(s.name) ?? { name: s.name, state: "connecting" as const };
+    return statusMap.get(statusKey(projectPath, s.name)) ?? { name: s.name, state: "connecting" as const };
   });
 }
 
@@ -257,13 +264,13 @@ export async function retryMcpServer(name: string, projectPath?: string): Promis
   if (!s) return { ok: false, error: `未找到服务器「${name}」` };
   if (!s.enabled) return { ok: false, error: "服务器已停用，请先启用" };
   const defineTool = await getDefineToolFn();
-  const tools = await loadOneServer(s, defineTool);
+  const tools = await loadOneServer(s, defineTool, projectPath);
   // 合并回缓存：其他 server 的工具仍有效时保留（替换掉该 server 的旧工具）
   const prefix = `mcp__${name}__`;
   const others = (prev ?? []).filter((t: ToolDefinition) => !t.name.startsWith(prefix));
   const merged = [...others, ...tools];
   if (merged.length > 0) toolsCache.set(key, merged);
-  const st = statusMap.get(name);
+  const st = statusMap.get(statusKey(projectPath, name));
   return st?.state === "connected" ? { ok: true } : { ok: false, error: st?.error || "连接失败" };
 }
 
