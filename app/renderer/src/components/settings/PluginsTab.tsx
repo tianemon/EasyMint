@@ -790,6 +790,13 @@ function McpTab(): JSX.Element {
   };
   useEffect(() => { load(); }, []);
 
+  // 存在「连接中」的服务器时轮询刷新——主进程后台探测落定后状态自动更新，全部落定即停
+  useEffect(() => {
+    if (!Object.values(statuses).some((x) => x.state === "connecting")) return;
+    const t = setTimeout(load, 2500);
+    return () => clearTimeout(t);
+  }, [statuses]);
+
   const handleToggle = async (name: string, enabled: boolean) => {
     await window.electronAPI.mcp.toggle(name, enabled);
     setServers((prev) => prev.map((s) => (s.name === name ? { ...s, enabled } : s)));
@@ -827,6 +834,7 @@ function McpTab(): JSX.Element {
     const st = statuses[name];
     if (!st || st.state === "connecting") return { text: "连接中", cls: "bg-surface text-text-muted" };
     if (st.state === "connected") return { text: `已连接${st.toolCount ? `（${st.toolCount} 工具）` : ""}`, cls: "bg-success-soft text-success" };
+    if (st.state === "pending") return { text: "待确认", cls: "bg-warning-soft text-warning" };
     return { text: "连接失败", cls: "bg-danger-soft text-danger" };
   };
 
@@ -978,20 +986,8 @@ function McpTab(): JSX.Element {
                       >
                         {s.scope === "user" ? "用户级" : s.scope === "project" ? "项目级" : "项目 .mcp.json"}
                       </span>
-                      <span
-                        className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded shrink-0 ${s.scope === "user" ? "bg-surface text-text-muted" : "bg-info-soft text-info"}`}
-                        title={s.scope === "project-compat" ? "来自项目根 .mcp.json（只读兼容 Claude Code）" : s.scope === "project" ? "项目级配置（<项目>/.easymint/mcp.json）" : "用户级配置（~/.easymint/mcp.json）"}
-                      >
-                        {s.scope === "user" ? "用户级" : s.scope === "project" ? "项目级" : "项目 .mcp.json"}
-                      </span>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      {s.pendingApproval && (
-                        <button type="button" onClick={() => handleApprove(s.name)} title="确认后启用"
-                          className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] bg-warning-soft text-warning hover:bg-warning/20 transition-colors">
-                          待确认
-                        </button>
-                      )}
                       {s.pendingApproval && (
                         <button type="button" onClick={() => handleApprove(s.name)} title="确认后启用"
                           className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] bg-warning-soft text-warning hover:bg-warning/20 transition-colors">

@@ -237,12 +237,39 @@ export async function loadMcpTools(projectPath?: string): Promise<ToolDefinition
   return tools;
 }
 
-/** 获取各 server 连接状态（界面状态列与诊断） */
+/** 获取各 server 连接状态（界面状态列与诊断）。
+ *  查找顺序：项目键 → 全局键——prewarm 以无项目路径连接（状态记全局键），
+ *  界面按项目路径查询时若会话尚未加载过，回落全局，避免永远显示「连接中」 */
 export function getMcpStatus(projectPath?: string): McpServerStatus[] {
   return scanMcpServers(projectPath).map((s) => {
     if (!s.enabled) return { name: s.name, state: "disabled" as const };
-    return statusMap.get(statusKey(projectPath, s.name)) ?? { name: s.name, state: "connecting" as const };
+    if (s.pendingApproval) return { name: s.name, state: "pending" as McpServerStatus["state"], error: "待确认后启用" };
+    return statusMap.get(statusKey(projectPath, s.name))
+      ?? statusMap.get(statusKey(undefined, s.name))
+      ?? { name: s.name, state: "connecting" as const };
   });
+}
+
+/** 界面查询状态时：对启用但尚无任何状态记录的 server 发起后台连接探测
+ *  （fire-and-forget，结果写回 statusMap；已有状态（含失败）的不重复探测，失败走界面「重试」） */
+const probing = new Set<string>();
+export function ensureStatusProbe(projectPath?: string): void {
+  for (const s of scanMcpServers(projectPath)) {
+    if (!s.enabled || s.pendingApproval) continue;
+    const key = statusKey(projectPath, s.name);
+    if (statusMap.has(key) || probing.has(key)) continue;
+    probing.add(key);
+    void (async () => {
+      try {
+        const defineTool = await getDefineToolFn();
+        await loadOneServer(s, defineTool, projectPath);
+      } catch (e) {
+        console.warn(`[mcp] ${s.name} 状态探测异常:`, redact((e as Error).message));
+      } finally {
+        probing.delete(key);
+      }
+    })();
+  }
 }
 
 /** 配置变更后调用：清工具缓存（保留已建立的连接复用），新会话创建时重新拉取工具（SDK 无热更新 API，进行中会话工具集固定） */

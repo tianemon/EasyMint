@@ -52,7 +52,7 @@ import {
   type McpServerConfig,
   type McpScope,
 } from "./services/mcp-service";
-import { getMcpStatus, reloadMcpTools, retryMcpServer, testMcpServer } from "./services/permission/mcp-adapter";
+import { getMcpStatus, ensureStatusProbe, reloadMcpTools, retryMcpServer, testMcpServer } from "./services/permission/mcp-adapter";
 import {
   trackUpload,
   getUploadStats,
@@ -288,7 +288,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   });
   ipcMain.handle("mcp:get", (_e, { name, scope, projectPath }: { name: string; scope?: McpScope; projectPath?: string }) => getMcpServerConfig(name, { scope, projectPath }));
   ipcMain.handle("mcp:configPath", () => getMcpConfigPath());
-  ipcMain.handle("mcp:status", (_e, { projectPath }: { projectPath?: string }) => getMcpStatus(projectPath));
+  ipcMain.handle("mcp:status", (_e, { projectPath }: { projectPath?: string }) => {
+    ensureStatusProbe(projectPath); // 无状态记录的后台探测，避免界面永远「连接中」
+    return getMcpStatus(projectPath);
+  });
   ipcMain.handle("mcp:test", (_e, { cfg }: { cfg: McpServerConfig }) => testMcpServer(cfg));
   ipcMain.handle("mcp:retry", (_e, { name, projectPath }: { name: string; projectPath?: string }) => retryMcpServer(name, projectPath));
   ipcMain.handle("mcp:importText", (_e, { text }: { text: string }) => {
