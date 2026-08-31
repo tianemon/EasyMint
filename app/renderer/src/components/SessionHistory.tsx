@@ -197,7 +197,7 @@ export function SessionHistory({
       ) : error ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2">
           <p className="text-danger text-sm">{error}</p>
-          <button className="px-3 py-1 text-xs bg-accent text-text-inverse rounded hover:bg-accent-hover transition-colors" onClick={load}>重试</button>
+          <button className="px-3 py-1 text-xs btn-accent rounded" onClick={load}>重试</button>
         </div>
       ) : sessions.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">暂无对话记录</div>

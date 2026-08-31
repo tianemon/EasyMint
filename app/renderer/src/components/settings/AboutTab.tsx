@@ -87,7 +87,7 @@ export function AboutTab(): JSX.Element {
         {updateStatus.status === "downloaded" && (
           <button
             type="button"
-            className="px-4 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent-hover transition-colors"
+            className="px-4 py-1.5 rounded-lg btn-accent text-xs font-medium"
             onClick={handleInstallUpdate}
           >
             重启并更新到 v{updateStatus.version}

@@ -202,7 +202,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
             拒绝
           </button>
           <button
-            className="px-5 py-1.5 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors text-sm font-medium disabled:opacity-50"
+            className="px-5 py-1.5 rounded-lg btn-accent text-sm font-medium"
             disabled={accepting}
             onClick={handleAccept}
           >

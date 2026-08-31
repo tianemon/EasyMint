@@ -33,7 +33,7 @@ function EnvRow({ label, info, installUrl }: {
           href={installUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors"
+          className="px-3 py-1.5 rounded-lg btn-accent text-xs font-medium"
         >
           点击安装 {label}
         </a>

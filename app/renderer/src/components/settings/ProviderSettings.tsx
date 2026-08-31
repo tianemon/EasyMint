@@ -200,7 +200,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
             />
             <button
               type="button"
-              className="shrink-0 px-3 h-8 rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors disabled:opacity-40"
+              className="shrink-0 px-3 h-8 rounded-lg btn-accent text-xs font-medium"
               onClick={() => addExtraModel(extraModelInput)}
               disabled={!extraModelInput.trim()}
             >
@@ -258,7 +258,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         {onCancel && (
           <button type="button" onClick={onCancel} className="flex-1 px-4 py-2 rounded-lg border border-border text-text-secondary text-sm hover:bg-surface-hover transition-colors">取消</button>
         )}
-        <button type="button" onClick={handleSave} className="flex-1 px-4 py-2 rounded-lg bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors">
+        <button type="button" onClick={handleSave} className="flex-1 px-4 py-2 rounded-lg btn-accent text-sm font-medium">
           {editMode ? "保存" : "添加"}
         </button>
       </div>

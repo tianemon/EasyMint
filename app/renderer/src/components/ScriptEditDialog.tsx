@@ -118,7 +118,7 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
           <button onClick={onClose}
             className="h-8 px-4 whitespace-nowrap rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消</button>
           <button onClick={handleSave} disabled={saving}
-            className="h-8 px-4 whitespace-nowrap rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors disabled:opacity-40 shrink-0">
+            className="h-8 px-4 whitespace-nowrap rounded-lg btn-accent text-xs font-medium shrink-0">
             {saving ? "保存中…" : "保存"}
           </button>
         </div>

@@ -398,7 +398,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                     ) : (
                       <>
                         <button
-                          className={`flex-1 px-2 py-1 rounded text-[length:var(--text-2xs)] font-medium transition-colors ${canStart ? "bg-accent-soft text-accent hover:bg-accent-bg" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
+                          className={`flex-1 px-2 py-1 rounded text-[length:var(--text-2xs)] font-medium transition-colors ${canStart ? "bg-accent-soft text-accent hover:bg-accent-bg" : "bg-surface-hover text-text-muted cursor-not-allowed"}`}
                           onClick={() => {
                             const cp = customPorts[r.id];
                             const p = cp ? parseInt(cp) : undefined;

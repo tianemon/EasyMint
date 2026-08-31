@@ -72,7 +72,7 @@ export function CompactionDialog({
           <button
             type="button"
             onClick={() => onWithInstructions(instructions.trim())}
-            className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors shrink-0"
+            className="px-3 py-1.5 rounded-lg btn-accent text-xs font-medium shrink-0"
           >
             是，输入指令
           </button>

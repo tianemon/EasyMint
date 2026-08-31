@@ -1579,7 +1579,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
               <div className="flex justify-center pb-3">
                 <button
                   onClick={() => { setNewProjectFlag(false); consumeShowTools(); onNewProject?.(); }}
-                  className="px-6 py-2.5 rounded-xl bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors shadow-sm"
+                  className="px-6 py-2.5 rounded-xl btn-accent text-sm font-medium shadow-sm"
                 >
                   新建项目
                 </button>
@@ -1589,7 +1589,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
               <div className="flex justify-center pb-3">
                 <button
                   onClick={() => { setConfirmDevFlag(false); consumeShowTools(); sendText(CONFIRM_DEVELOPMENT_PROMPT); }}
-                  className="px-6 py-2.5 rounded-[10px] bg-accent text-text-inverse text-sm font-semibold border-none cursor-pointer transition-all duration-200 hover:bg-accent-hover hover:-translate-y-px active:translate-y-0"
+                  className="px-6 py-2.5 rounded-[10px] btn-accent text-sm font-semibold border-none cursor-pointer transition-all duration-200 hover:-translate-y-px active:translate-y-0"
                 >
                   确认开发
                 </button>

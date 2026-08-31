@@ -188,7 +188,7 @@ export function SubagentProcessView({
                 className={`w-3.5 h-3.5 rounded-[4px] border flex items-center justify-center transition-colors ${showThinking ? "bg-accent border-accent" : "border-border bg-surface"}`}
               >
                 {showThinking && (
-                  <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                  <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="var(--color-text-inverse)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
                 )}
               </span>
               思考过程
@@ -202,7 +202,7 @@ export function SubagentProcessView({
                 className={`w-3.5 h-3.5 rounded-[4px] border flex items-center justify-center transition-colors ${showToolUse ? "bg-accent border-accent" : "border-border bg-surface"}`}
               >
                 {showToolUse && (
-                  <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                  <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="var(--color-text-inverse)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
                 )}
               </span>
               工具调用

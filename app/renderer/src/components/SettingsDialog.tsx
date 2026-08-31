@@ -114,7 +114,7 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
             取消
           </button>
           <button
-            className="px-5 py-1.5 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors text-sm font-medium"
+            className="px-5 py-1.5 rounded-lg btn-accent text-sm font-medium"
             onClick={handleClose}
           >
             完成

@@ -400,7 +400,7 @@ export function ProjectPage(): JSX.Element {
                 <div className="px-5 pb-4">
                   <label className="block text-xs text-text-secondary mb-1.5">新名称</label>
                   <input
-                    className="w-full input"
+                    className="w-full input px-3 py-2"
                     value={renameNewName}
                     onChange={(e) => setRenameNewName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") handleRenameConfirm(); if (e.key === "Escape") setShowRenameDialog(false); }}

@@ -94,7 +94,7 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
         <div className="p-4 text-center">
           <p className="text-danger text-sm mb-2">{error}</p>
           <button
-            className="px-3 py-1 text-xs bg-accent text-text-inverse rounded hover:bg-accent-hover transition-colors"
+            className="px-3 py-1 text-xs btn-accent rounded"
             onClick={loadTree}
           >
             重试

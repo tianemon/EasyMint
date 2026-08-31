@@ -52,13 +52,13 @@ export function PermissionPrompt(): JSX.Element | null {
               拒绝
             </button>
             <button
-              className="px-4 py-1.5 text-xs rounded-md bg-accent text-text-inverse hover:bg-accent-hover transition-colors"
+              className="px-4 py-1.5 text-xs rounded-md btn-accent"
               onClick={() => respond(req.requestId, "allow", false)}
             >
               允许
             </button>
             <button
-              className="px-4 py-1.5 text-xs rounded-md bg-accent text-text-inverse hover:bg-accent-hover transition-colors"
+              className="px-4 py-1.5 text-xs rounded-md btn-accent"
               onClick={() => respond(req.requestId, "allow", true)}
             >
               始终允许

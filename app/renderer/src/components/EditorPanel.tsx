@@ -183,7 +183,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <p className="text-danger text-sm mb-3">{error}</p>
-          <button className="px-3 py-1 text-xs bg-accent text-text-inverse rounded hover:bg-accent-hover transition-colors"
+          <button className="px-3 py-1 text-xs btn-accent rounded"
             onClick={() => { setError(null); setLoading(true); window.electronAPI.file.readContent(filePath).then((c) => { setContent(typeof c === "string" ? c : String(c)); setLoading(false); }).catch(() => { setError("重新加载失败"); setLoading(false); }); }}>
             重试</button>
         </div>

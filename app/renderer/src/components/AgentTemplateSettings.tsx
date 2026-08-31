@@ -238,7 +238,7 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
         {!locked && (
           <button onClick={handleSave}
             disabled={!name.trim() || !prompt.trim()}
-            className={`px-4 py-1.5 rounded-md text-xs font-medium ${name.trim() && prompt.trim() ? "bg-accent text-white hover:bg-accent-high" : "opacity-40 cursor-not-allowed bg-surface text-text-secondary"}`}>
+            className={`px-4 py-1.5 rounded-md text-xs font-medium ${name.trim() && prompt.trim() ? "btn-accent" : "opacity-40 cursor-not-allowed bg-surface text-text-secondary"}`}>
             保存
           </button>
         )}

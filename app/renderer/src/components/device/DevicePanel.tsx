@@ -77,7 +77,7 @@ function DiscoveredRow({ device, onPair }: { device: DiscoveredDevice; onPair: (
       </div>
       <button
         type="button"
-        className="text-xs px-3 py-1 rounded-md bg-accent text-text-inverse hover:bg-accent-hover transition-colors shrink-0 disabled:opacity-50"
+        className="text-xs px-3 py-1 rounded-md btn-accent shrink-0"
         disabled={sending}
         onClick={async () => { setSending(true); await onPair(device); setSending(false); }}
       >
@@ -310,7 +310,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                   </button>
                   <button
                     type="button"
-                    className="text-[length:var(--text-2xs)] px-2.5 py-1 rounded bg-accent text-text-inverse hover:bg-accent-hover transition-colors disabled:opacity-50"
+                    className="text-[length:var(--text-2xs)] px-2.5 py-1 rounded btn-accent"
                     disabled={!ignoreDirty}
                     onClick={() => void saveIgnore()}
                   >

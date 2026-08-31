@@ -47,7 +47,7 @@ export function LearnCard({ request }: Props): JSX.Element {
     >
       {/* 标题行 + ✕ 取消 */}
       <div className="flex items-center justify-between px-3.5 pt-2.5">
-        <span className="text-[length:var(--text-2xs)] text-text-secondary font-medium">经验沉淀 · 确认后入库</span>
+        <span className="text-[length:var(--text-2xs)] text-text-secondary font-medium">项目经验</span>
         <button
           type="button"
           onClick={() => respond(false)}
@@ -60,44 +60,38 @@ export function LearnCard({ request }: Props): JSX.Element {
 
       {/* memory（可编辑） */}
       <div className="px-3.5 pt-1.5">
-        <label className="text-[length:var(--text-2xs)] text-text-muted block mb-1">经验内容（可修改）</label>
+        <label className="text-[length:var(--text-2xs)] text-text-muted block mb-1">经验内容</label>
         <textarea
-          className="em-input w-full px-2.5 py-1.5 text-xs bg-surface/50 resize-y min-h-16 leading-relaxed"
+          className="em-input w-full px-2.5 py-1.5 text-xs bg-surface/50 resize-y min-h-36 leading-relaxed"
           value={memory}
           onChange={(e) => setMemory(e.target.value)}
         />
       </div>
 
-      {/* context（只读摘要） */}
-      {request.context && (
-        <div className="px-3.5 pt-1.5">
-          <label className="text-[length:var(--text-2xs)] text-text-muted block mb-1">来源上下文</label>
-          <p className="text-[length:var(--text-2xs)] text-text-secondary leading-relaxed max-h-16 overflow-y-auto select-text">{request.context}</p>
-        </div>
-      )}
+      {/* context 区块已移除（UI 精简：不留说明文字） */}
 
       {/* skill 草稿（create：name/description/body 均可编辑——撞名可就地改名；update：按名定位，禁改） */}
       {request.skill && (
         <div className="px-3.5 pt-2">
-          <span className="text-[length:var(--text-2xs)] text-text-muted">
-            同时{request.skill.action === "create" ? "创建" : "更新"} skill{request.skill.action === "update" ? "（按名称定位，不支持改名）" : "（撞名可就地改名）"}
-          </span>
-          <label className="text-[length:var(--text-2xs)] text-text-muted block mb-1 mt-1">名称（小写字母/数字/连字符）</label>
+          <span className="text-[length:var(--text-2xs)] text-text-muted">Skill</span>
+          <label className="text-[length:var(--text-2xs)] text-text-muted block mb-1 mt-1">名称</label>
           <input
             className="em-input w-full px-2.5 py-1.5 text-xs bg-surface/50 font-mono"
             value={skillName}
             disabled={request.skill.action === "update"}
+            placeholder="小写字母/数字/连字符"
             onChange={(e) => setSkillName(e.target.value)}
           />
-          <label className="text-[length:var(--text-2xs)] text-text-muted block mb-1 mt-1.5">描述（何时用）</label>
+          <label className="text-[length:var(--text-2xs)] text-text-muted block mb-1 mt-1.5">描述</label>
           <input
             className="em-input w-full px-2.5 py-1.5 text-xs bg-surface/50"
             value={skillDescription}
+            placeholder="何时使用"
             onChange={(e) => setSkillDescription(e.target.value)}
           />
-          <label className="text-[length:var(--text-2xs)] text-text-muted block mb-1 mt-1.5">skill 正文（可修改）</label>
+          <label className="text-[length:var(--text-2xs)] text-text-muted block mb-1 mt-1.5">正文</label>
           <textarea
-            className="em-input w-full px-2.5 py-1.5 text-xs bg-surface/50 resize-y min-h-16 leading-relaxed"
+            className="em-input w-full px-2.5 py-1.5 text-xs bg-surface/50 resize-y min-h-36 leading-relaxed"
             value={skillBody}
             onChange={(e) => setSkillBody(e.target.value)}
           />
@@ -119,11 +113,11 @@ export function LearnCard({ request }: Props): JSX.Element {
           disabled={!memoryValid || !skillBodyValid}
           className={`px-3.5 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium transition-all duration-150 ${
             memoryValid && skillBodyValid
-              ? "bg-accent text-text-inverse hover:bg-accent-hover"
+              ? "btn-accent"
               : "bg-surface-hover text-text-muted cursor-not-allowed"
           }`}
         >
-          {request.skill ? "确认入库（经验 + skill）" : "确认入库"}
+          {request.skill ? "确认入库" : "确认入库"}
         </button>
       </div>
     </div>

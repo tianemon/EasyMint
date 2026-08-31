@@ -372,7 +372,7 @@ function SkillsTab(): JSX.Element {
               <div className="flex items-center gap-2 pt-1">
                 <button
                   disabled={!canSubmit}
-                  className={`px-3 py-1 text-xs rounded-md transition-colors ${canSubmit ? "bg-accent text-white hover:bg-accent-hover" : "bg-surface-hover text-text-muted cursor-not-allowed"}`}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${canSubmit ? "btn-accent" : "bg-surface-hover text-text-muted cursor-not-allowed"}`}
                   onClick={submit}
                 >
                   {submitting ? "创建中…" : "创建"}

@@ -1277,6 +1277,22 @@ select.input {
 
 /* ── Mint button shimmer ──────────────────────────────── */
 
+/* ── accent 主按钮（设置页）：亮色 = accent 实底反色字；暗色 = 深灰底浅字 ──
+   暗色下 --color-accent 为浅灰 #d4d4d4，直接 bg-accent 会成浅灰底刺眼——
+   语义类统一处理，设置页主按钮一律用本类（输入卡片发送按钮除外） */
+.btn-accent {
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  transition: background 0.15s;
+}
+.btn-accent:hover { background: var(--color-accent-hover); }
+.btn-accent:disabled { opacity: 0.4; cursor: not-allowed; }
+[data-theme="dark"] .btn-accent {
+  background: #3a3a3a;
+  color: var(--color-accent);
+}
+[data-theme="dark"] .btn-accent:hover { background: #454545; }
+
 /* Mint 签名字体 — 11 款可选，取消注释切换 */
 @font-face { font-family: 'Mint'; src: url('/fonts/Pacifico.ttf') format('truetype'); font-display: swap; }       /* 圆润可爱 */
 /* @font-face { font-family: 'Mint'; src: url('/fonts/KaushanScript.ttf') format('truetype'); font-display: swap; } *//* 大胆奔放 */

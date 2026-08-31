@@ -62,7 +62,7 @@ function Select({ value, onChange, options, placeholder }: { value: string; onCh
     <div>
       <button
         ref={btnRef}
-        className="w-full input text-left flex items-center justify-between"
+        className="w-full input px-3 py-2 text-left flex items-center justify-between"
         onClick={() => setOpen(!open)}
       >
         <span className={selected ? "text-text-primary" : "text-text-secondary"}>
@@ -110,7 +110,7 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
     <div className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">项目名称 <span className="text-danger">*</span></label>
-        <input className="input" value={data.name} onChange={(e) => onChange({ name: e.target.value })} placeholder="中英文都可以，AI会自动翻译成英文" />
+        <input className="input px-3 py-2" value={data.name} onChange={(e) => onChange({ name: e.target.value })} placeholder="中英文都可以，AI会自动翻译成英文" />
       </div>
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">项目目录 <span className="text-danger">*</span></label>
@@ -123,7 +123,7 @@ function Step1Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
       </div>
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">项目描述 <span className="text-text-muted text-xs font-normal">（可选，一句话说清楚想做什么）</span></label>
-        <textarea className="input min-h-[60px] resize-y" value={data.description} onChange={(e) => onChange({ description: e.target.value })} placeholder="例如：记录每天花销的记账软件，给自己用" />
+        <textarea className="input px-3 py-2 min-h-[60px] resize-y" value={data.description} onChange={(e) => onChange({ description: e.target.value })} placeholder="例如：记录每天花销的记账软件，给自己用" />
       </div>
 
       <div>
@@ -182,7 +182,7 @@ function Step2Form({
       <div className="flex items-center justify-between mb-2">
         <label className="block text-sm font-medium text-text-primary">功能清单 <span className="text-text-muted text-xs font-normal">（可选，可让 Mint 推荐）</span></label>
         <div className="flex gap-2">
-          <button className="px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-sm font-medium hover:bg-accent-hover transition-colors disabled:opacity-40" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
+          <button className="px-3 py-1.5 rounded-lg btn-accent text-sm font-medium" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
             {loadingRec === "features" ? "Mint 思考中..." : "Mint 推荐"}
           </button>
           <button className="px-3 py-1.5 rounded-lg border border-accent-border-strong text-accent text-xs hover:border-accent hover:bg-accent-bg transition-colors" onClick={addFeature}>+ 添加功能</button>
@@ -197,7 +197,7 @@ function Step2Form({
       {data.features.map((f, i) => (
         <div key={i} className="flex items-center gap-2">
           <input
-            className="flex-1 input"
+            className="flex-1 input px-3 py-2"
             value={f.name}
             onChange={(e) => updateFeature(i, { name: e.target.value })}
             placeholder={`功能 ${i + 1}`}
@@ -230,7 +230,7 @@ function Step3Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
       {isCustomText && (
         <div>
           <label className="block text-sm font-medium text-text-primary mb-2">自定义风格描述</label>
-          <textarea className="input min-h-[60px] resize-y" value={data.uiStyle === "custom" ? "" : data.uiStyle} onChange={(e) => onChange({ uiStyle: e.target.value })} placeholder="例如：赛博朋克 + 极简主义混搭..." />
+          <textarea className="input px-3 py-2 min-h-[60px] resize-y" value={data.uiStyle === "custom" ? "" : data.uiStyle} onChange={(e) => onChange({ uiStyle: e.target.value })} placeholder="例如：赛博朋克 + 极简主义混搭..." />
         </div>
       )}
     </div>

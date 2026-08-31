@@ -173,7 +173,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
           onClick={draftNonEmpty ? proceedWithDraft : skip}
           className={`px-3.5 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium transition-all duration-150 ${
             draftNonEmpty
-              ? "bg-accent text-text-inverse hover:bg-accent-hover"
+              ? "btn-accent"
               : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
           }`}
         >

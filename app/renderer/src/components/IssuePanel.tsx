@@ -174,7 +174,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
               </button>
               <button
                 type="button"
-                className="h-8 px-4 whitespace-nowrap rounded-lg bg-accent text-text-inverse text-xs font-medium hover:bg-accent-hover transition-colors disabled:opacity-40 shrink-0"
+                className="h-8 px-4 whitespace-nowrap rounded-lg btn-accent text-xs font-medium shrink-0"
                 onClick={handleSave}
                 disabled={!symptom.trim()}
               >

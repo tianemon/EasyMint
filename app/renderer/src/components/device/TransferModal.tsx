@@ -297,7 +297,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
             取消
           </button>
           <button
-            className="px-5 py-1.5 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors text-sm font-medium disabled:opacity-50"
+            className="px-5 py-1.5 rounded-lg btn-accent text-sm font-medium"
             disabled={!scanResult || selectedFiles.length === 0 || transferring}
             onClick={() => void startTransfer()}
           >
