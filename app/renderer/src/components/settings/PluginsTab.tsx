@@ -340,10 +340,6 @@ function SkillsTab(): JSX.Element {
     <div className="px-6 py-4 overflow-y-auto space-y-4">
       {loadError && <p className="text-danger text-xs">{loadError}</p>}
 
-      <div>
-        <p className="text-sm font-medium text-text-primary">Skills</p>
-      </div>
-
       {/* Tab buttons — pill style */}
       <div className="inline-flex rounded-lg border border-border overflow-hidden">
         {(["builtin", "global", "managed"] as const).map((t, i) => (
@@ -921,8 +917,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
 
       {/* MCP Servers */}
       <section>
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-text-primary">MCP</h3>
+        <div className={`flex items-center mb-2 ${adding || editing || pasteMode ? "justify-start" : "justify-end"}`}>
           {!adding && !editing && !pasteMode && (
             <div className="flex gap-2">
               <button type="button" onClick={() => setPasteMode(true)}
@@ -1063,9 +1058,9 @@ export function PluginsTab({ projectPath }: { projectPath?: string }): JSX.Eleme
   const [tab, setTab] = useState<"skills" | "mcp">("skills");
   return (
     <div className="space-y-1.5">
-      <div className="px-6 pt-4">
+      <div className="flex justify-center px-6 pt-4">
         <div className="inline-flex rounded-lg border border-border overflow-hidden">
-          {([["skills", "Skill"], ["mcp", "MCP"]] as const).map(([id, label], i) => (
+          {([["skills", "Skills"], ["mcp", "MCP"]] as const).map(([id, label], i) => (
             <button
               key={id}
               type="button"
