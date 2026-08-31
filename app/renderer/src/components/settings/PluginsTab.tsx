@@ -1058,20 +1058,28 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
 }
 
 /** 插件设置:Skills + MCP（projectPath = 窗口内当前打开的项目路径，由 ProjectPage 传入） */
-/** 插件设置:Skill / MCP 胶囊切换（同屏只显示一个管理区） */
+/** 插件设置:Skill / MCP 分段切换（样式同 Skills 页筛选按钮；与标题左对齐，间距收窄 10px） */
 export function PluginsTab({ projectPath }: { projectPath?: string }): JSX.Element {
   const [tab, setTab] = useState<"skills" | "mcp">("skills");
   return (
-    <div className="space-y-4">
-      <div className="inline-flex items-center rounded-full bg-surface-hover border border-border p-0.5">
-        {([["skills", "Skill"], ["mcp", "MCP"]] as const).map(([id, label]) => (
-          <button key={id} type="button" onClick={() => setTab(id)}
-            className={`px-4 py-1 rounded-full text-[length:var(--text-2xs)] transition-colors ${
-              tab === id ? "btn-accent" : "text-text-secondary hover:text-text-primary"
-            }`}>
-            {label}
-          </button>
-        ))}
+    <div className="space-y-1.5">
+      <div className="px-6 pt-4">
+        <div className="inline-flex rounded-lg border border-border overflow-hidden">
+          {([["skills", "Skill"], ["mcp", "MCP"]] as const).map(([id, label], i) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              className={`px-4 py-1.5 text-xs font-medium transition-colors ${i > 0 ? "border-l border-border" : ""} ${
+                tab === id
+                  ? "bg-[color-mix(in_oklab,var(--color-accent)_15%,transparent)] text-accent"
+                  : "text-text-secondary hover:bg-surface-hover"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
       {tab === "skills" ? <SkillsTab /> : <McpTab projectPath={projectPath} />}
     </div>
