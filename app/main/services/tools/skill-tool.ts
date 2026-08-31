@@ -28,12 +28,11 @@ export async function createSkillTool(projectPath: string | undefined, hooks: Sk
     name: "use_skill",
     label: "加载技能",
     description:
-      "加载并执行指定 skill：读取其 SKILL.md 全文并按其中的工作流执行。"
-      + "任务匹配某个 skill 描述时必须先调用本工具，再按内容执行。",
+      "加载指定 skill：读取其 SKILL.md 全文返回，并记录使用统计；skill 声明 model 字段时会话切换到该模型。"
+      + "与直接 read SKILL.md 内容等价，加载 skill 时优先用本工具。",
     promptSnippet: "加载并执行 skill（按名字，可带参数）",
     promptGuidelines: [
-      "任务匹配某个 skill 的描述时，必须先调用 use_skill 加载它，再按其内容执行——这是硬性要求（BLOCKING REQUIREMENT）",
-      "不要绕过本工具直接用 read 读 SKILL.md",
+      "加载 skill 优先用 use_skill（记录使用统计、支持 model 字段切换），与 read SKILL.md 等价",
       "skill 内引用的相对路径，按返回的脚本根目录解析为绝对路径",
     ],
     parameters: {

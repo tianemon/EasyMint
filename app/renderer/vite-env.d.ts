@@ -282,7 +282,6 @@ interface ElectronAPI {
     list: (projectPath?: string) => Promise<{ name: string; description: string; path: string; level: "builtin" | "global" | "project"; source: "builtin" | "authored" | "imported" | "managed"; enabled: boolean; managedRoot?: string; shadowed?: boolean }[]>;
     get: (skillPath: string) => Promise<{ name: string; description: string; path: string; level: "builtin" | "global" | "project"; source: "builtin" | "authored" | "imported" | "managed"; enabled: boolean; shadowed?: boolean; body: string } | null>;
     toggle: (name: string, enabled: boolean) => Promise<void>;
-    buildPrompt: (projectPath?: string) => Promise<string>;
     createManaged: (name: string, description: string, body: string, projectPath?: string) => Promise<{ ok: boolean; error?: string; shadowed?: boolean }>;
     updateManaged: (name: string, description?: string, body?: string) => Promise<{ ok: boolean; error?: string; shadowed?: boolean }>;
     deleteManaged: (name: string) => Promise<{ ok: boolean; error?: string; shadowed?: boolean }>;

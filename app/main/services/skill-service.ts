@@ -486,38 +486,31 @@ const EM_SKILLS = ["ui-sync", "creation-guide", "creation-flow-intent", "creatio
  *  Global copy takes priority (user can customize), builtin acts as fallback. CC can use them. */
 const BUNDLED_SKILLS = ["ponytail", "ponytail-review", "ponytail-audit"];
 
-// ── Build skills prompt block for SDK injection ────
+// buildSkillsPrompt 已退役（期 1b）：skill 注入收敛到 Pi 原生 <available_skills>，
+// 四来源经 pi-session 的 skillsOverride 并入（authored/managed 不在 Pi 扫描路径）。
 
-/**
- * Generate a minimal prompt block listing available skills.
- * Only the frontmatter descriptions are injected — Claude uses these
- * to decide which skill is relevant. Full SKILL.md bodies are NOT
- * injected here; they're available on disk in the project's .easymint/skills/
- * directory and Claude can Read them as needed.
- */
-/** 按分组输出 skill 列表段（空分组跳过）。过渡期：不输出 path——加载统一走 use_skill 工具，防绕过 */
-function pushSkillGroup(lines: string[], title: string, skills: SkillManifest[]): void {
-  if (skills.length === 0) return;
-  lines.push(`### ${title}`);
-  for (const s of skills) {
-    lines.push(`- **${s.name}**: ${s.description}`);
-  }
-  lines.push("");
+/** EM SkillManifest → Pi Skill（结构化字面量满足 SDK 接口；source 标注来源便于诊断） */
+export function toPiSkill(s: SkillManifest) {
+  const filePath = path.join(s.path, "SKILL.md");
+  return {
+    name: s.name,
+    description: s.description,
+    filePath,
+    baseDir: s.path,
+    sourceInfo: {
+      path: filePath,
+      source: s.source === "managed" ? "easymint-managed" : "easymint",
+      scope: s.level === "project" ? ("project" as const) : ("user" as const),
+      origin: "top-level" as const,
+    },
+    disableModelInvocation: false,
+  };
 }
 
-export function buildSkillsPrompt(projectPath?: string): string {
-  // shadowed 的 managed 条目不注入——同名 authored/builtin 已在列表中
-  const skills = scanSkills(projectPath).filter((s) => s.enabled && !s.shadowed);
-  if (skills.length === 0) return "";
-
-  const lines: string[] = ["\n## Skills"];
-  lines.push("The following skills are available. When a task matches a skill's description,");
-  lines.push("you MUST load it with the `use_skill` tool (by name) and follow the loaded content.");
-  lines.push("Do NOT bypass the tool by reading SKILL.md files directly.\n");
-
-  pushSkillGroup(lines, "Built-in", skills.filter((s) => s.level === "builtin"));
-  pushSkillGroup(lines, "Global", skills.filter((s) => s.level === "global"));
-  pushSkillGroup(lines, "Project", skills.filter((s) => s.level === "project"));
-
-  return lines.join("\n");
+/** skillsOverride 合并体：EM 四来源（启用、非 shadow）并入 Pi 原生发现，原生同名优先 */
+export function mergeIntoPiSkills(projectPath: string | undefined, baseSkills: Array<{ name: string }>): ReturnType<typeof toPiSkill>[] {
+  const seen = new Set(baseSkills.map((s) => s.name));
+  return scanSkills(projectPath)
+    .filter((s) => s.enabled && !s.shadowed && !seen.has(s.name))
+    .map(toPiSkill);
 }

@@ -125,7 +125,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     list: (projectPath?: string) => ipcRenderer.invoke("skill:list", { projectPath }),
     get: (skillPath: string) => ipcRenderer.invoke("skill:get", { skillPath }),
     toggle: (name: string, enabled: boolean) => ipcRenderer.invoke("skill:toggle", { name, enabled }),
-    buildPrompt: (projectPath?: string) => ipcRenderer.invoke("skill:buildPrompt", { projectPath }),
     createManaged: (name: string, description: string, body: string, projectPath?: string) =>
       ipcRenderer.invoke("skill:createManaged", { name, description, body, projectPath }),
     updateManaged: (name: string, description?: string, body?: string) =>

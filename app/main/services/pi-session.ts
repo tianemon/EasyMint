@@ -26,6 +26,7 @@ import { getSettingsManager, getModelRuntime } from "./pi-init";
 import { Store } from "./store";
 import { wrapToolWithPermission } from "./permission/wrap-tool";
 import type { CanUseToolOptions, PermissionResult } from "./permission/agent-permission-service";
+import { mergeIntoPiSkills } from "./skill-service";
 
 // ── 类型 ────────────────────────────────────────────
 
@@ -60,12 +61,19 @@ async function buildSession(
   const createTools = await getCreateCodingTools();
 
   // 保持 Pi SDK 默认行为：资源发现（AGENTS.md/CLAUDE.md、项目 .pi/、SYSTEM.md 等）不做限制，
-  // 仅用 systemPromptOverride 注入 EM 的 Mint 提示词（EM 在 Pi 默认行为之上扩展）
+  // 仅用 systemPromptOverride 注入 EM 的 Mint 提示词（EM 在 Pi 默认行为之上扩展）。
+  // skill 注入收敛到 Pi 原生 <available_skills>：EM 四来源中 authored（~/.easymint/skills/、
+  // 项目 .easymint/skills/）与 managed 不在 Pi 扫描路径，经 skillsOverride 并入；
+  // 原生发现的（agent/skills 等）优先，EM 来源同名去重。
   const resourceLoader = new DRL({
     cwd: opts.cwd,
     agentDir: opts.agentDir,
     settingsManager: settingsMgr as any,
     systemPromptOverride: opts.systemPrompt ? () => opts.systemPrompt! : undefined,
+    skillsOverride: (base) => ({
+      skills: [...base.skills, ...mergeIntoPiSkills(opts.cwd, base.skills)],
+      diagnostics: base.diagnostics,
+    }),
   });
   await resourceLoader.reload();
 

@@ -15,7 +15,6 @@ import { resolveHome, getResourcesDir } from "../utils/paths";
 import { broadcast } from "./ipc-broadcast";
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
-import { buildSkillsPrompt } from "./skill-service";
 import { getActiveModel, resetModelRuntime } from "./pi-init";
 import { createPiSession, resumePiSession, listPiSessions } from "./pi-session";
 import { createTaskTool } from "./task/tool";
@@ -584,8 +583,8 @@ export class AgentService {
       if (boost) parts.push(boost);
     }
 
-    const skills = buildSkillsPrompt(projectPath);
-    if (skills) parts.push(skills);
+    // skill 注入已收敛到 Pi 原生 <available_skills>（pi-session skillsOverride 并入四来源），
+    // EM 自拼 skills 段（buildSkillsPrompt）退役——避免双重注入
 
     // 动态 section(借鉴 cc section 组装):项目环境 + 项目类型规范
     const env = buildProjectEnvSection(projectPath);
