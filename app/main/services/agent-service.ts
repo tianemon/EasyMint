@@ -83,7 +83,6 @@ export interface ActiveChat {
   compactCount: number;
   /** learn 触发控制（期3）：工具调用累计（跨回合）+ 分级注入防重 */
   toolCallCount: number;
-  learnHintDone: boolean;
   learnSuggestDone: boolean;
   /** learn/search_experiences 是否已注册（会话创建时快照——工具集固定于创建时，触发提示按此判断） */
   learnToolInstalled: boolean;
@@ -441,7 +440,6 @@ export function clearPendingLearns(sessionId: string): void {
 // ── learn 触发状态持久化（重启后不重复提示/建议，防重复沉淀） ──────────
 
 interface LearnSessionState {
-  hintDone?: boolean;
   suggestDone?: boolean;
 }
 
@@ -764,7 +762,14 @@ export class AgentService {
           }
         }
 
-        // ── learn 触发计数（期3）：本会话累计工具调用（跨回合）──
+        // ── learn 触发计数（期3）：本轮（单轮）工具调用累计——agent_start 归零。
+        //    口径必须是「单轮」而非会话累计：WB 的「工具调用 ≥15」是单轮标准（WB·lan 每轮
+        //    调用中位 14、均值 32.4），会话累计会让 3-4 个普通轮就达标 → 触发过频（实测体感）。
+        //    归零信号用 agent_start 而非 turn_start——源码实证（pi-agent-core/agent-loop.js
+        //    runLoop 内层循环）：turn_start 在每个工具调用批次都发，用它归零计数永远到不了阈值 ──
+        if (chat && event.type === "agent_start") {
+          chat.toolCallCount = 0;
+        }
         if (chat && event.type === "tool_execution_start") {
           chat.toolCallCount++;
         }
@@ -1063,14 +1068,12 @@ export class AgentService {
       eventBuffer: [],
       compactCount: 0,
       toolCallCount: 0,
-      learnHintDone: false,
       learnSuggestDone: false,
       learnToolInstalled: learnInstalled,
     };
     // learn 去重标记从磁盘恢复（重启后同一会话不重复提示/建议，防重复沉淀）
     const learnState = loadLearnStates()[chat.sessionId];
     if (learnState) {
-      chat.learnHintDone = !!learnState.hintDone;
       chat.learnSuggestDone = !!learnState.suggestDone;
     }
 
@@ -1231,36 +1234,31 @@ export class AgentService {
     });
   }
 
-  /** learn 分级触发阈值：≥15 开回合提醒（捕获回合——触发场景，模型判断是否入库，
-   *  非强制：提示文本限定该回合只做 learn 判断，不执行其他操作）；≥5 轻提示（仅可见，
-   *  不开回合，下回合顺手沉淀）。校准来源：WB 沉淀标准 15 / oh-my-pi 捕获尝试 5 /
-   *  lan-notes 实测每轮中位 6.5 次调用。去重标记持久化（learn-state.json），重启不重放。 */
+  /** learn 触发：本轮（单轮）工具调用 ≥15 时才提示——WB 沉淀标准的单轮口径
+   *  （WB·lan 每轮调用中位 14；EM 侧 Pi·lan 每轮中位 4、均值 6.5→ 单轮 15 只在大轮命中）。
+   *  提示内容是「价值评估指令」而非「建议保存」：模型先按判定标准过滤，无价值必须静默跳过
+   *  （不调 learn、不弹卡片、不在回复里提沉淀）——避免无价值的打扰。
+   *  每会话最多一次（去重标记持久化 learn-state.json，重启不重放）。 */
   private maybeInjectLearnHint(chat: ActiveChat): void {
     // 工具存在性按会话创建时快照（learnToolInstalled）判断——活跃会话工具集固定于创建时，
     // 按实时设置判断会提示指向本会话不存在的工具（实测发生过：中途开开关 → learn not found）
     if (!chat.learnToolInstalled) return;
-    if (!chat.learnSuggestDone && chat.toolCallCount >= 15) {
-      chat.learnSuggestDone = true;
-      chat.learnHintDone = true;
-      saveLearnState(chat.sessionId, { hintDone: true, suggestDone: true });
-      // triggerTurn: true 开捕获回合——提醒模型判断是否沉淀（触发场景，入库由模型+用户卡片决定）
-      this.injectSystemMessage(
-        chat.sessionId,
-        `本会话已累计 ${chat.toolCallCount} 次工具调用，满足沉淀条件。若存在可复用经验（踩坑修复/验证过的方法/项目约定），调用 learn 入库（会弹审阅卡片，用户确认后落盘）；若无经验或当前不适合沉淀，直接简要回复说明即可——不要执行其他操作`,
-        "learn",
-        { triggerTurn: true },
-      );
-      return;
-    }
-    if (!chat.learnHintDone && chat.toolCallCount >= 5) {
-      chat.learnHintDone = true;
-      saveLearnState(chat.sessionId, { hintDone: true });
-      this.injectSystemMessage(
-        chat.sessionId,
-        `提示：本会话工具调用已累计 ${chat.toolCallCount} 次，若有可复用经验可在收尾时用 learn 沉淀`,
-        "learn",
-      );
-    }
+    if (chat.learnSuggestDone || chat.toolCallCount < 15) return;
+    chat.learnSuggestDone = true;
+    saveLearnState(chat.sessionId, { suggestDone: true });
+    // triggerTurn: true 开捕获回合——本轮上下文还热，是评估最佳时机
+    this.injectSystemMessage(
+      chat.sessionId,
+      `本轮工具调用 ${chat.toolCallCount} 次（达到沉淀评估门槛）。先判断本轮是否存在「值得沉淀」的内容，再决定是否调用 learn：
+
+【值得沉淀】踩坑修复（报错→根因→解法，下次能避坑）／验证过的方法流程（换个项目也能用）／项目约定与架构决策（删掉这条未来的你会犯错）。
+
+【不值得沉淀——直接跳过】一次性操作（配环境、跑一次命令、本次专属排查）／纯信息问答（读代码讲原理，没有方法论）／已沉淀过（用 search_experiences 确认过）／项目特有细节换项目无用／含敏感信息（密钥、内网地址）。
+
+判定为不值得沉淀时：**静默跳过**——不调 learn、不弹卡片、也不要在回复里提及沉淀，继续正常汇报即可。值得沉淀时才调 learn（会弹审阅卡片，用户确认后落盘）。`,
+      "learn",
+      { triggerTurn: true },
+    );
   }
 
 
