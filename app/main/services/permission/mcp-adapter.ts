@@ -16,9 +16,14 @@ import { scanMcpServers, getMcpServerConfig, expandServerConfig } from "../mcp-s
 import type { McpServerConfig, McpServerStatus } from "../mcp-service";
 
 const clients = new Map<string, Client>();
-let toolsCache: ToolDefinition[] | null = null;
+/** 工具缓存按项目分键——多项目切换时项目级 MCP 不串台（原全局单缓存会在 B 项目看到 A 项目的工具） */
+const toolsCache = new Map<string, ToolDefinition[]>();
 /** server 名 → 连接状态（界面状态列/诊断） */
 const statusMap = new Map<string, McpServerStatus>();
+
+function cacheKey(projectPath?: string): string {
+  return projectPath ? `p:${projectPath}` : "global";
+}
 
 /** 错误信息脱敏（对齐 OMP errors.ts:45——不把密钥写进日志/界面） */
 function redact(msg: string): string {
@@ -151,19 +156,26 @@ async function loadOneServer(
   }
 }
 
-export async function loadMcpTools(): Promise<ToolDefinition[]> {
-  // 工具列表不变，缓存避免重复扫描
-  if (toolsCache) return toolsCache;
-  // 注意:空结果不缓存(置 null)——某次全部连接失败时 toolsCache 曾永久为 [],
+export async function loadMcpTools(projectPath?: string): Promise<ToolDefinition[]> {
+  // 工具列表不变，缓存避免重复扫描（按项目分键）
+  const key = cacheKey(projectPath);
+  const cached = toolsCache.get(key);
+  if (cached) return cached;
+  // 注意:空结果不缓存(不入 map)——某次全部连接失败时若缓存了 [],
   // 后续所有会话都拿不到 MCP 工具直到重启;失败应下次重试
 
   const defineTool = await getDefineToolFn();
-  const servers = scanMcpServers();
+  const servers = scanMcpServers(projectPath);
 
   // 并发连接（对齐 OMP 的 Promise.allSettled）——串行时 server 多会拖慢首条消息
   const tasks = servers.map(async (s) => {
     if (!s.enabled) {
       statusMap.set(s.name, { name: s.name, state: "disabled" });
+      return [];
+    }
+    // 项目级（含只读兼容来源）首次使用需确认——CC 的 Pending approval 设计
+    if (s.pendingApproval) {
+      statusMap.set(s.name, { name: s.name, state: "pending" as McpServerStatus["state"], error: "待确认后启用" });
       return [];
     }
     try {
@@ -180,13 +192,13 @@ export async function loadMcpTools(): Promise<ToolDefinition[]> {
     if (r.status === "fulfilled") tools.push(...r.value);
   }
 
-  toolsCache = tools.length > 0 ? tools : null;
+  if (tools.length > 0) toolsCache.set(key, tools);
   return tools;
 }
 
 /** 获取各 server 连接状态（界面状态列与诊断） */
-export function getMcpStatus(): McpServerStatus[] {
-  return scanMcpServers().map((s) => {
+export function getMcpStatus(projectPath?: string): McpServerStatus[] {
+  return scanMcpServers(projectPath).map((s) => {
     if (!s.enabled) return { name: s.name, state: "disabled" as const };
     return statusMap.get(s.name) ?? { name: s.name, state: "connecting" as const };
   });
@@ -194,19 +206,20 @@ export function getMcpStatus(): McpServerStatus[] {
 
 /** 配置变更后调用：清工具缓存（保留已建立的连接复用），下次发消息重新拉工具——免重启生效 */
 export function reloadMcpTools(): void {
-  toolsCache = null;
+  toolsCache.clear();
 }
 
 /** 单个 server 重试：断开旧连接并清缓存，立即重连一次（界面「重试连接」） */
-export async function retryMcpServer(name: string): Promise<{ ok: boolean; error?: string }> {
+export async function retryMcpServer(name: string, projectPath?: string): Promise<{ ok: boolean; error?: string }> {
   const old = clients.get(name);
   if (old) {
     clients.delete(name);
     try { await old.close(); } catch { /* 关闭失败忽略——连接可能已断开 */ }
   }
-  const prev = toolsCache;
-  toolsCache = null;
-  const s = scanMcpServers().find((x) => x.name === name);
+  const key = cacheKey(projectPath);
+  const prev = toolsCache.get(key);
+  toolsCache.delete(key);
+  const s = scanMcpServers(projectPath).find((x) => x.name === name);
   if (!s) return { ok: false, error: `未找到服务器「${name}」` };
   if (!s.enabled) return { ok: false, error: "服务器已停用，请先启用" };
   const defineTool = await getDefineToolFn();
@@ -215,7 +228,7 @@ export async function retryMcpServer(name: string): Promise<{ ok: boolean; error
   const prefix = `mcp__${name}__`;
   const others = (prev ?? []).filter((t: ToolDefinition) => !t.name.startsWith(prefix));
   const merged = [...others, ...tools];
-  toolsCache = merged.length > 0 ? merged : null;
+  if (merged.length > 0) toolsCache.set(key, merged);
   const st = statusMap.get(name);
   return st?.state === "connected" ? { ok: true } : { ok: false, error: st?.error || "连接失败" };
 }

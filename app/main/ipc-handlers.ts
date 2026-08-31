@@ -45,7 +45,9 @@ import {
   deleteMcpServer,
   getMcpServerConfig,
   getMcpConfigPath,
+  approveMcpServer,
   type McpServerConfig,
+  type McpScope,
 } from "./services/mcp-service";
 import { getMcpStatus, reloadMcpTools, retryMcpServer, testMcpServer } from "./services/permission/mcp-adapter";
 import {
@@ -267,21 +269,25 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   });
   ipcMain.handle("mcp:requiredKeys", () => getMcpRequiredKeys());
   // 配置管理（阶段A）：增删改 + 测试连接 + 状态 + 热更新
-  ipcMain.handle("mcp:save", (_e, { name, cfg }: { name: string; cfg: McpServerConfig }) => {
-    const r = saveMcpServer(name, cfg);
+  ipcMain.handle("mcp:save", (_e, { name, cfg, scope, projectPath }: { name: string; cfg: McpServerConfig; scope?: McpScope; projectPath?: string }) => {
+    const r = saveMcpServer(name, cfg, { scope, projectPath });
     if (r.ok) reloadMcpTools();
     return r;
   });
-  ipcMain.handle("mcp:delete", (_e, { name }: { name: string }) => {
-    const r = deleteMcpServer(name);
+  ipcMain.handle("mcp:delete", (_e, { name, scope, projectPath }: { name: string; scope?: McpScope; projectPath?: string }) => {
+    const r = deleteMcpServer(name, { scope, projectPath });
     if (r.ok) reloadMcpTools();
     return r;
   });
-  ipcMain.handle("mcp:get", (_e, { name }: { name: string }) => getMcpServerConfig(name));
+  ipcMain.handle("mcp:get", (_e, { name, scope, projectPath }: { name: string; scope?: McpScope; projectPath?: string }) => getMcpServerConfig(name, { scope, projectPath }));
   ipcMain.handle("mcp:configPath", () => getMcpConfigPath());
-  ipcMain.handle("mcp:status", () => getMcpStatus());
+  ipcMain.handle("mcp:status", (_e, { projectPath }: { projectPath?: string }) => getMcpStatus(projectPath));
   ipcMain.handle("mcp:test", (_e, { cfg }: { cfg: McpServerConfig }) => testMcpServer(cfg));
-  ipcMain.handle("mcp:retry", (_e, { name }: { name: string }) => retryMcpServer(name));
+  ipcMain.handle("mcp:retry", (_e, { name, projectPath }: { name: string; projectPath?: string }) => retryMcpServer(name, projectPath));
+  ipcMain.handle("mcp:approve", (_e, { name, projectPath }: { name: string; projectPath: string }) => {
+    approveMcpServer(projectPath, name);
+    reloadMcpTools();
+  });
 
   // upload:*
   ipcMain.handle("upload:stats", (_e, { sortBy }: { sortBy?: "time" | "size" }) => getUploadStats(sortBy));

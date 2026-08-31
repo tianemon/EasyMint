@@ -510,10 +510,14 @@ const MCP_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 /** MCP 服务器新增/编辑表单（类型切换显示对应字段，支持测试连接） */
 function McpServerForm({
   initial,
+  scope,
+  projectPath,
   onCancel,
   onSaved,
 }: {
   initial: { name: string; cfg: McpServerCfg } | null;
+  scope: "user" | "project";
+  projectPath: string;
   onCancel: () => void;
   onSaved: () => void;
 }): JSX.Element {
@@ -577,7 +581,7 @@ function McpServerForm({
     setBusy(true);
     setErr("");
     try {
-      const r = await window.electronAPI.mcp.save(name, buildCfg());
+      const r = await window.electronAPI.mcp.save(name, buildCfg(), scope, scope === "project" ? projectPath : undefined);
       if (!r.ok) { setErr(r.error || "保存失败"); return; }
       onSaved();
     } catch (e2) {
@@ -671,24 +675,33 @@ function McpServerForm({
 }
 
 function McpTab(): JSX.Element {
-  const [servers, setServers] = useState<{ name: string; type: string; command?: string; args?: string[]; url?: string; enabled: boolean }[]>([]);
+  const [servers, setServers] = useState<{ name: string; type: string; command?: string; args?: string[]; url?: string; enabled: boolean; scope: "user" | "project" | "project-compat"; writable: boolean; pendingApproval?: boolean }[]>([]);
+  const [projectPath, setProjectPath] = useState<string>("");
   const [requiredKeys, setRequiredKeys] = useState<Record<string, Record<string, string>>>({});
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState("");
   const [showKey, setShowKey] = useState(false);
   // 阶段A：连接状态 + 新增/编辑表单
   const [statuses, setStatuses] = useState<Record<string, { state: string; toolCount?: number; error?: string }>>({});
-  const [editing, setEditing] = useState<{ name: string; cfg: McpServerCfg } | null>(null);
+  const [editing, setEditing] = useState<{ name: string; cfg: McpServerCfg; scope: "user" | "project" } | null>(null);
   const [adding, setAdding] = useState(false);
   const [actionErr, setActionErr] = useState("");
 
   const load = async () => {
     try {
+      // 当前项目路径：lastProjectId → project.get（设置页无路由参数，取最近打开的项目）
+      const snap = await window.electronAPI.settings.get().catch(() => null) as { lastProjectId?: string } | null;
+      let curProject = "";
+      if (snap?.lastProjectId) {
+        const proj = await window.electronAPI.project.get(snap.lastProjectId).catch(() => undefined);
+        curProject = proj?.path ?? "";
+      }
+      setProjectPath(curProject);
       const [s, keys, settings, st] = await Promise.all([
-        window.electronAPI.mcp.list(),
+        window.electronAPI.mcp.list(curProject),
         window.electronAPI.mcp.requiredKeys(),
         window.electronAPI.settings.get(),
-        window.electronAPI.mcp.status(),
+        window.electronAPI.mcp.status(curProject),
       ]);
       setServers(s);
       setRequiredKeys(keys);
@@ -708,23 +721,30 @@ function McpTab(): JSX.Element {
     load();
   };
 
-  const handleDelete = async (name: string) => {
-    const r = await window.electronAPI.mcp.delete(name);
+  const handleDelete = async (name: string, scope: "user" | "project" | "project-compat") => {
+    const r = await window.electronAPI.mcp.delete(name, scope, projectPath);
     if (!r.ok) { setActionErr(r.error || "删除失败"); return; }
     setActionErr("");
     load();
   };
 
   const handleRetry = async (name: string) => {
-    const r = await window.electronAPI.mcp.retry(name);
+    const r = await window.electronAPI.mcp.retry(name, projectPath);
     if (!r.ok) setActionErr(r.error || "重连失败");
     else setActionErr("");
     load();
   };
 
-  const handleEdit = async (name: string) => {
-    const cfg = await window.electronAPI.mcp.get(name);
-    if (cfg) setEditing({ name, cfg });
+  const handleEdit = async (name: string, scope: "user" | "project" | "project-compat") => {
+    if (scope === "project-compat") { setActionErr("项目根 .mcp.json 为只读来源，请直接编辑该文件"); return; }
+    const cfg = await window.electronAPI.mcp.get(name, scope, projectPath);
+    if (cfg) setEditing({ name, cfg, scope });
+  };
+
+  const handleApprove = async (name: string) => {
+    if (!projectPath) { setActionErr("未打开项目，无法确认项目级服务器"); return; }
+    await window.electronAPI.mcp.approve(name, projectPath);
+    load();
   };
 
   const statusBadge = (name: string, enabled: boolean) => {
@@ -808,11 +828,14 @@ function McpTab(): JSX.Element {
         )}
         {actionErr && <p className="text-danger text-[length:var(--text-11)] mb-2">{actionErr}</p>}
 
-        {adding && (
-          <McpServerForm initial={null} onCancel={() => setAdding(false)} onSaved={() => { setAdding(false); load(); }} />
-        )}
-        {editing && (
-          <McpServerForm initial={editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+        {(adding || editing) && (
+          <McpServerForm
+            initial={editing ? { name: editing.name, cfg: editing.cfg } : null}
+            scope={editing?.scope ?? (projectPath ? "user" : "user")}
+            projectPath={projectPath}
+            onCancel={() => { setAdding(false); setEditing(null); }}
+            onSaved={() => { setAdding(false); setEditing(null); load(); }}
+          />
         )}
 
         {servers.length === 0 && !adding ? (
@@ -830,19 +853,43 @@ function McpTab(): JSX.Element {
                       <span className="text-xs text-text-primary truncate">{s.name}</span>
                       <span className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded shrink-0 ${badge.cls}`}>{badge.text}</span>
                       <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-surface text-text-muted shrink-0">{typeLabel(s.type)}</span>
+                      <span
+                        className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded shrink-0 ${s.scope === "user" ? "bg-surface text-text-muted" : "bg-info-soft text-info"}`}
+                        title={s.scope === "project-compat" ? "来自项目根 .mcp.json（只读兼容 Claude Code）" : s.scope === "project" ? "项目级配置（<项目>/.easymint/mcp.json）" : "用户级配置（~/.easymint/mcp.json）"}
+                      >
+                        {s.scope === "user" ? "用户级" : s.scope === "project" ? "项目级" : "项目 .mcp.json"}
+                      </span>
+                      <span
+                        className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded shrink-0 ${s.scope === "user" ? "bg-surface text-text-muted" : "bg-info-soft text-info"}`}
+                        title={s.scope === "project-compat" ? "来自项目根 .mcp.json（只读兼容 Claude Code）" : s.scope === "project" ? "项目级配置（<项目>/.easymint/mcp.json）" : "用户级配置（~/.easymint/mcp.json）"}
+                      >
+                        {s.scope === "user" ? "用户级" : s.scope === "project" ? "项目级" : "项目 .mcp.json"}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
+                      {s.pendingApproval && (
+                        <button type="button" onClick={() => handleApprove(s.name)} title="确认后启用"
+                          className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] bg-warning-soft text-warning hover:bg-warning/20 transition-colors">
+                          待确认
+                        </button>
+                      )}
+                      {s.pendingApproval && (
+                        <button type="button" onClick={() => handleApprove(s.name)} title="确认后启用"
+                          className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] bg-warning-soft text-warning hover:bg-warning/20 transition-colors">
+                          待确认
+                        </button>
+                      )}
                       {statuses[s.name]?.state === "failed" && s.enabled && (
                         <button type="button" onClick={() => handleRetry(s.name)} title="重试连接"
                           className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
                           重试
                         </button>
                       )}
-                      <button type="button" onClick={() => handleEdit(s.name)} title="编辑"
+                      <button type="button" onClick={() => handleEdit(s.name, s.scope)} title="编辑"
                         className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
                         编辑
                       </button>
-                      <button type="button" onClick={() => handleDelete(s.name)} title="删除"
+                      <button type="button" onClick={() => handleDelete(s.name, s.scope)} title="删除"
                         className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] text-text-secondary hover:text-danger hover:bg-surface-hover transition-colors">
                         删除
                       </button>

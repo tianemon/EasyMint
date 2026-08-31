@@ -304,16 +304,17 @@ interface ElectronAPI {
     getStats: () => Promise<Record<string, { usageCount: number; lastUsedAt: number; failCount: number }>>;
   },
   mcp: {
-    list: () => Promise<{ name: string; type: "stdio" | "http" | "sse"; command?: string; args?: string[]; url?: string; enabled: boolean }[]>;
+    list: (projectPath?: string) => Promise<{ name: string; type: "stdio" | "http" | "sse"; command?: string; args?: string[]; url?: string; enabled: boolean; scope: "user" | "project" | "project-compat"; writable: boolean; pendingApproval?: boolean }[]>;
     toggle: (name: string, enabled: boolean) => Promise<void>;
     requiredKeys: () => Promise<Record<string, Record<string, string>>>;
-    save: (name: string, cfg: McpServerCfg) => Promise<{ ok: boolean; error?: string; overwritten?: boolean }>;
-    delete: (name: string) => Promise<{ ok: boolean; error?: string }>;
-    get: (name: string) => Promise<McpServerCfg | null>;
+    save: (name: string, cfg: McpServerCfg, scope?: "user" | "project" | "project-compat", projectPath?: string) => Promise<{ ok: boolean; error?: string; overwritten?: boolean }>;
+    delete: (name: string, scope?: "user" | "project" | "project-compat", projectPath?: string) => Promise<{ ok: boolean; error?: string }>;
+    get: (name: string, scope?: "user" | "project" | "project-compat", projectPath?: string) => Promise<McpServerCfg | null>;
     configPath: () => Promise<string>;
-    status: () => Promise<{ name: string; state: "connected" | "connecting" | "failed" | "disabled"; toolCount?: number; error?: string }[]>;
+    status: (projectPath?: string) => Promise<{ name: string; state: "connected" | "connecting" | "failed" | "disabled" | "pending"; toolCount?: number; error?: string }[]>;
     test: (cfg: McpServerCfg) => Promise<{ ok: boolean; error?: string; toolCount?: number }>;
-    retry: (name: string) => Promise<{ ok: boolean; error?: string }>;
+    retry: (name: string, projectPath?: string) => Promise<{ ok: boolean; error?: string }>;
+    approve: (name: string, projectPath: string) => Promise<void>;
   },
   upload: {
     stats: (sortBy?: "time" | "size") => Promise<{ totalSize: number; fileCount: number; files: { name: string; size: number; created: number; isImage: boolean }[] }>;

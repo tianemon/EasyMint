@@ -638,7 +638,7 @@ export class AgentService {
         onTaskCompleted: (sid, text) => this.injectSystemMessage(sid, text, "delegation"),
       });
       const productTools = await createProductTools(projectPath);
-      const mcpTools = await loadMcpTools();
+      const mcpTools = await loadMcpTools(projectPath);
       const agentTemplateTool = await createAgentTemplateTool();
       const stopAgentTool = await createStopAgentTool(sessionId);
       const listAgentsTool = await createListAgentsTool(sessionId);
