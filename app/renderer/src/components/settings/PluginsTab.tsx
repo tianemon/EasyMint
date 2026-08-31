@@ -587,6 +587,9 @@ function McpServerForm({
   const [envText, setEnvText] = useState(
     Object.entries(initial?.cfg.env ?? {}).map(([k, v]) => `${k}=${v}`).join("\n"),
   );
+  const [headersText, setHeadersText] = useState(
+    Object.entries(initial?.cfg.headers ?? {}).map(([k, v]) => `${k}: ${v}`).join("\n"),
+  );
   const [oauth, setOauth] = useState(!!initial?.cfg.oauth);
   const [err, setErr] = useState("");
   const [testResult, setTestResult] = useState<string>("");
@@ -600,9 +603,16 @@ function McpServerForm({
       const i = t.indexOf("=");
       if (i > 0) env[t.slice(0, i).trim()] = t.slice(i + 1).trim();
     }
+    const headers: Record<string, string> = {};
+    for (const line of headersText.split("\n")) {
+      const t = line.trim();
+      if (!t) continue;
+      const i = t.indexOf(":");
+      if (i > 0) headers[t.slice(0, i).trim()] = t.slice(i + 1).trim();
+    }
     return type === "stdio"
       ? { type, command: command.trim() || undefined, args: argsText.trim() ? argsText.trim().split(/\s+/) : undefined, env: Object.keys(env).length ? env : undefined }
-      : { type, url: url.trim() || undefined, env: Object.keys(env).length ? env : undefined, oauth: oauth || undefined };
+      : { type, url: url.trim() || undefined, headers: Object.keys(headers).length ? headers : undefined, env: Object.keys(env).length ? env : undefined, oauth: oauth || undefined };
   };
 
   const validate = (): string | null => {
@@ -701,15 +711,28 @@ function McpServerForm({
       )}
 
       {type !== "stdio" && (
-        <div className="flex items-center justify-between gap-3 bg-surface rounded-lg px-2.5 py-2">
-          <div className="min-w-0">
-            <p className="text-[length:var(--text-11)] text-text-primary">此服务器需要 OAuth 登录</p>
-            <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-              连接时在浏览器完成授权（如 GitHub 官方 MCP）
-            </p>
+        <>
+          <div>
+            <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">
+              请求头（每行一条 KEY: VALUE，如 Authorization: Bearer 你的访问令牌）
+            </label>
+            <textarea
+              className="em-input w-full px-2.5 py-1.5 text-xs font-mono resize-y min-h-12"
+              placeholder={"Authorization: Bearer github_pat_xxx"}
+              value={headersText}
+              onChange={(e) => setHeadersText(e.target.value)}
+            />
           </div>
-          <Toggle checked={oauth} onChange={setOauth} />
-        </div>
+          <div className="flex items-center justify-between gap-3 bg-surface rounded-lg px-2.5 py-2">
+            <div className="min-w-0">
+              <p className="text-[length:var(--text-11)] text-text-primary">此服务器需要 OAuth 登录</p>
+              <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
+                连接时在浏览器完成授权并自动续期；仅限支持动态注册的服务器（GitHub 官方 MCP 请用上方请求头）
+              </p>
+            </div>
+            <Toggle checked={oauth} onChange={setOauth} />
+          </div>
+        </>
       )}
       <div>
         <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">
