@@ -85,6 +85,8 @@ export interface ActiveChat {
   toolCallCount: number;
   learnHintDone: boolean;
   learnSuggestDone: boolean;
+  /** learn/search_experiences 是否已注册（会话创建时快照——工具集固定于创建时，触发提示按此判断） */
+  learnToolInstalled: boolean;
 }
 
 /** 记录各 session 的 agent 类型 */
@@ -604,6 +606,8 @@ export class AgentService {
   private async buildExtraTools(projectPath: string, sessionId: string, chatId?: string, opts?: { worker?: boolean }): Promise<{
     tools: ToolDefinition[];
     canUseTool: CanUseToolFn;
+    /** learn/search_experiences 是否已注册（会话级快照——触发提示按此判断，不按实时设置） */
+    learnInstalled: boolean;
   }> {
     // 权限回调：按 sessionId 隔离白名单，由 createPiSession 统一包装所有工具（含基础 coding 工具）
     // 放在 try 外——工具创建失败时同样返回回调，避免调用方 undefined（plan 只读仍生效）
@@ -637,21 +641,25 @@ export class AgentService {
       const listAgentsTool = await createListAgentsTool(sessionId);
       const readAgentLogTool = await createReadAgentLogTool(sessionId);
       const allTools = [taskTool, agentTemplateTool, stopAgentTool, listAgentsTool, readAgentLogTool, ...productTools, ...mcpTools];
-      // ask_user/skill（含 model 切换 hook）仅主会话装——worker（runWorker，无前端卡片）
-      // 调用挂起交互工具会永久挂起（无 UI 可响应）
+      // use_skill 非挂起类（读+统计），worker 也装——提示词多处「用 use_skill 加载」在 worker 同样成立；
+      // 其 model 切换 hook 在 worker（无 chat）下降级为 false，无害
+      allTools.push(await createSkillTool(projectPath, {
+        onModelSwitch: (modelName) => this.switchModelForSkill(sessionId, modelName),
+      }));
+      // ask_user 仅主会话装——worker（runWorker，无前端卡片）调用挂起交互工具会永久挂起（无 UI 可响应）
       if (!opts?.worker) {
         allTools.push(await createAskUserTool(sessionId));
-        allTools.push(await createSkillTool(projectPath, {
-          onModelSwitch: (modelName) => this.switchModelForSkill(sessionId, modelName),
-        }));
       }
       // manage_skill 受开关控制（D8：AI 写入能力默认关闭，设置→插件→Skills 一键开启；
-      // 开关状态在会话（重）创建时生效——sendMessage 每次经新建/恢复路径重建工具集）
+      // 活跃会话工具集固定于创建时——开关对新建/重启恢复的会话生效）
       if (this.store.getSettings().manageSkillEnabled) {
         allTools.push(await createManageSkillTool(projectPath));
       }
       // learn + search_experiences 受独立开关控制（D8：自沉淀默认关闭；两工具同进退）。
-      // worker 不装：learn 审阅卡片依赖前端，worker 无 UI，模型调用即永久挂起
+      // worker 不装：learn 审阅卡片依赖前端，worker 无 UI，模型调用即永久挂起。
+      // 注册结果作为快照返回（记入 chat）——活跃会话工具集固定于创建时，触发提示必须与快照一致，
+      // 不能按实时设置判断（中途开开关会提示指向本会话不存在的工具——实测发生过）
+      let learnInstalled = false;
       if (!opts?.worker && this.store.getSettings().learnEnabled) {
         allTools.push(
           await createLearnTool({
@@ -660,12 +668,13 @@ export class AgentService {
           }),
           await createSearchExperiencesTool(projectPath),
         );
+        learnInstalled = true;
       }
 
-      return { tools: allTools, canUseTool };
+      return { tools: allTools, canUseTool, learnInstalled };
     } catch (e) {
       console.error("[agent] tool creation failed:", e);
-      return { tools: [], canUseTool };
+      return { tools: [], canUseTool, learnInstalled: false };
     }
   }
 
@@ -985,7 +994,7 @@ export class AgentService {
     const newSessionId = randomUUID();
 
     // 新建与恢复会话统一注入工具（历史实现恢复分支留空 → 恢复会话无 task/产品工具、无权限控制）
-    const { tools: extraTools, canUseTool } = await this.buildExtraTools(
+    const { tools: extraTools, canUseTool, learnInstalled } = await this.buildExtraTools(
       resolvedPath,
       resumeSessionId ?? newSessionId,
       chatId,
@@ -1056,6 +1065,7 @@ export class AgentService {
       toolCallCount: 0,
       learnHintDone: false,
       learnSuggestDone: false,
+      learnToolInstalled: learnInstalled,
     };
     // learn 去重标记从磁盘恢复（重启后同一会话不重复提示/建议，防重复沉淀）
     const learnState = loadLearnStates()[chat.sessionId];
@@ -1221,21 +1231,24 @@ export class AgentService {
     });
   }
 
-  /** learn 分级触发阈值：≥15 建议沉淀、≥5 轻提示——均 triggerTurn: false（只注入可见提示，
-   *  不自动开回合：捕获回合中模型可自由调用工具且发生在用户未输入指令时，有风险），
-   *  由模型在下回合判断是否沉淀。校准来源：WB 沉淀标准 15 / oh-my-pi 捕获尝试 5 /
+  /** learn 分级触发阈值：≥15 开回合提醒（捕获回合——触发场景，模型判断是否入库，
+   *  非强制：提示文本限定该回合只做 learn 判断，不执行其他操作）；≥5 轻提示（仅可见，
+   *  不开回合，下回合顺手沉淀）。校准来源：WB 沉淀标准 15 / oh-my-pi 捕获尝试 5 /
    *  lan-notes 实测每轮中位 6.5 次调用。去重标记持久化（learn-state.json），重启不重放。 */
   private maybeInjectLearnHint(chat: ActiveChat): void {
-    // 开关关闭不注入——提示指向不存在的工具比没有提示更糟（oh-my-pi 原则：guidance 由工具实际存在驱动）
-    if (!this.store.getSettings().learnEnabled) return;
+    // 工具存在性按会话创建时快照（learnToolInstalled）判断——活跃会话工具集固定于创建时，
+    // 按实时设置判断会提示指向本会话不存在的工具（实测发生过：中途开开关 → learn not found）
+    if (!chat.learnToolInstalled) return;
     if (!chat.learnSuggestDone && chat.toolCallCount >= 15) {
       chat.learnSuggestDone = true;
       chat.learnHintDone = true;
       saveLearnState(chat.sessionId, { hintDone: true, suggestDone: true });
+      // triggerTurn: true 开捕获回合——提醒模型判断是否沉淀（触发场景，入库由模型+用户卡片决定）
       this.injectSystemMessage(
         chat.sessionId,
-        `本会话已累计 ${chat.toolCallCount} 次工具调用，满足沉淀条件。若存在可复用经验（踩坑修复/验证过的方法/项目约定），收尾时调用 learn 入库（会弹审阅卡片，用户确认后落盘）`,
+        `本会话已累计 ${chat.toolCallCount} 次工具调用，满足沉淀条件。若存在可复用经验（踩坑修复/验证过的方法/项目约定），调用 learn 入库（会弹审阅卡片，用户确认后落盘）；若无经验或当前不适合沉淀，直接简要回复说明即可——不要执行其他操作`,
         "learn",
+        { triggerTurn: true },
       );
       return;
     }
@@ -1462,6 +1475,10 @@ export class AgentService {
       try {
         bridgeSessionEvents(event, {
           onEvent: (ev) => {
+            // 不开回合的通知注入（triggerTurn:false）：过滤回合边界事件——
+            // SDK 对 custom 消息也 emit turn_start，前端收到会 setBusy 且无 turn_end 清除
+            // （custom 注入无真实回合），导致状态栏残留「正在请求」。通知只需 custom_event 气泡
+            if (!opts?.triggerTurn && (ev.type === "turn_start" || ev.type === "turn_end")) return;
             ev.sessionId = sessionId;
             ev.chatId = chat.chatId;
             broadcast("agent:stream", ev);
@@ -1471,7 +1488,7 @@ export class AgentService {
           // triggerTurn: true 的汇总回合结束(agent_end → turn_end)时广播 agent:exit——
           // 否则前端 busy 残留(打断按钮卡住),且后续消息误走 steer 路径发送失败
           setPendingResult: (ev) => {
-            if (ev.type === "turn_end") {
+            if (ev.type === "turn_end" && opts?.triggerTurn) {
               broadcast("agent:exit", { runId: chat.chatId, code: 0 });
             }
           },

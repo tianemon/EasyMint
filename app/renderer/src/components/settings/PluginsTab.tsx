@@ -313,7 +313,7 @@ function SkillsTab(): JSX.Element {
             <div className="min-w-0">
               <p className="text-xs text-text-primary">允许 AI 创建与管理 skill</p>
               <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-                开启后，Mint 会话中可通过 manage_skill 工具在 AI 管理区创建/更新 skill；关闭则只能在此手动管理（默认关闭）
+                开启后，新建或重启后重新打开的会话中，Mint 可通过 manage_skill 工具在 AI 管理区创建/更新 skill（进行中的会话不生效）；关闭则只能在此手动管理（默认关闭）
               </p>
             </div>
             <Toggle checked={manageSkillEnabled} onChange={saveManageEnabled} />
@@ -323,7 +323,7 @@ function SkillsTab(): JSX.Element {
             <div className="min-w-0">
               <p className="text-xs text-text-primary">允许 AI 自沉淀经验</p>
               <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-                开启后，Mint 会话中可在任务完成时用 learn 沉淀经验/创建 skill（弹审阅卡片，确认才入库），并可检索历史经验；关闭则完全由你手动维护（默认关闭）
+                开启后，新建或重启后重新打开的会话中，Mint 可在任务完成时用 learn 沉淀经验/创建 skill（弹审阅卡片，确认才入库），并可检索历史经验（进行中的会话不生效）；关闭则完全由你手动维护（默认关闭）
               </p>
             </div>
             <Toggle checked={learnEnabled} onChange={saveLearnEnabled} />

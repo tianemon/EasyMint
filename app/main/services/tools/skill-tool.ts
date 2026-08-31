@@ -28,7 +28,8 @@ export async function createSkillTool(projectPath: string | undefined, hooks: Sk
     name: "use_skill",
     label: "加载技能",
     description:
-      "加载指定 skill：读取其 SKILL.md 全文返回，并记录使用统计；skill 声明 model 字段时会话切换到该模型。"
+      "加载指定 skill：读取其 SKILL.md 全文返回，并记录使用统计；skill 声明 model 字段时会话切换到该模型"
+      + "（在当前供应商下解析，跨供应商模型一律忽略并沿用当前模型）。"
       + "与直接 read SKILL.md 内容等价，加载 skill 时优先用本工具。",
     promptSnippet: "加载并执行 skill（按名字，可带参数）",
     promptGuidelines: [
@@ -126,7 +127,7 @@ export async function createManageSkillTool(projectPath: string | undefined): Pr
         return text(`manage_skill 失败（${action}「${name}」）：${r.error}${r.shadowed ? "——同名遮蔽，未写任何文件" : ""}`);
       }
       const verb = action === "create" ? "已创建" : action === "update" ? "已更新" : "已删除";
-      return text(`manage_skill 成功：${verb} AI 管理区 skill「${name}」${action === "delete" ? "" : "，下次会话的 Skills 列表即生效"}`);
+      return text(`manage_skill 成功：${verb} AI 管理区 skill「${name}」${action === "delete" ? "，已从磁盘移除" : "，当前会话即可用 use_skill 加载，重启后进入 Skills 列表"}`);
     },
   } as any) as ToolDefinition;
 }

@@ -420,16 +420,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 当前会话的 pending ask（Mint 提问卡片，聊天区内嵌）
   const pendingAsk = useAskStore((s) => Object.values(s.asks).find((a) => a.sessionId === sid)) || null;
   const pendingLearn = useLearnStore((s) => Object.values(s.learns).find((l) => l.sessionId === sid)) || null;
-
-  // ask 卡片弹出时自动滚动到底部（卡片在消息列表尾部文档流，virtualizer anchorTo 不感知它，
-  // 需显式滚容器到底——否则用户停留在原位置看不到提问）
-  useEffect(() => {
-    if (!pendingAsk) return;
-    requestAnimationFrame(() => {
-      const el = containerRef.current;
-      if (el) el.scrollTop = el.scrollHeight;
-    });
-  }, [pendingAsk]);
   // 按会话读压缩/摘要状态(须在 sidRef 声明后——useStatusStore selector 渲染期执行)
   const summarizing = useStatusStore((s) => s.bySession[sidRef.current]?.summarizing ?? false);
   const compacting = useStatusStore((s) => s.bySession[sidRef.current]?.compacting ?? false);
@@ -751,6 +741,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     return () => { offReq(); offClosed(); };
   }, []);
 
+  // 需用户即时确认的弹出（ask 提问 / learn 审阅卡片）出现时统一贴底：卡片挂在滚动区尾部
+  // 文档流、virtualizer 不感知，用户滚离底部时会等一个视口外的卡片——统一走 scrollToBottom
+  // （virtualizer.scrollToIndex 原生路径，比 DOM scrollTop 可靠：单次 rAF 会被后续测量重置）
+  useEffect(() => {
+    if (pendingAsk) scrollToBottom();
+  }, [pendingAsk, scrollToBottom]);
+
   // learn 审阅卡片出现时贴底：卡片挂在滚动区尾部，用户滚离底部时回合会挂起等一个视口外的卡片
   useEffect(() => {
     if (pendingLearn) scrollToBottom();
@@ -938,8 +935,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         if (cid) { currentChatRef.current = cid; setCurrentRunId(cid); }
       }
       // error 后 1s 内的残留事件(tool_result/message_end 等)不重新设 busy——
-      // error 分支已清 busy(回合结束),残留事件会把按钮打回打断态;新回合 turn_start 除外
-      if (event.type === "turn_start" || Date.now() - lastErrorAtRef.current > 1000) {
+      // error 分支已清 busy(回合结束),残留事件会把按钮打回打断态;新回合 turn_start 除外。
+      // custom_event(系统消息通知)不设 busy:通知无回合,置 busy 后无 turn_end 可清(残留"正在请求")
+      if (event.type === "custom_event") {
+        // 通知仅落气泡,不触碰 busy
+      } else if (event.type === "turn_start" || Date.now() - lastErrorAtRef.current > 1000) {
         setBusy(true);
       }
       // 输出段块(assistant 消息)内容帧处理:无当前块 → 按消息对象创建时间戳插入新块,

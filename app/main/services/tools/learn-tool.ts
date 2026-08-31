@@ -99,6 +99,7 @@ export async function createLearnTool(deps: LearnToolDeps): Promise<ToolDefiniti
       // 落盘原子性：先 skill 后 memory——skill 写盘失败（撞名/超限/目录异常）时整体失败返回
       //（经验不半途入库），模型可按错误修正（如换名）后重新 learn
       const finalMemory = (response.memory || memory).trim();
+      // 空编辑防线：前端已禁用空确认按钮，此处兜底 IPC 直调等非前端路径
       if (!finalMemory) return text("learn 失败：编辑后的 memory 为空，未入库");
       if (skill) {
         const finalName = (response.skillName || skill.name).trim();
@@ -111,10 +112,18 @@ export async function createLearnTool(deps: LearnToolDeps): Promise<ToolDefiniti
         if (!r.ok) {
           return text(`learn 失败：skill 未落盘（${r.error}），经验未入库。请修正后重新 learn（如换 skill 名称）`);
         }
-        appendExperience({ memory: finalMemory, context: context || undefined }, deps.projectPath);
+        try {
+          appendExperience({ memory: finalMemory, context: context || undefined }, deps.projectPath);
+        } catch (e) {
+          return text(`learn 部分成功：skill「${finalName}」已落盘，但经验写盘失败（${(e as Error).message}）。可重新 learn（不带 skill 参数）仅补存经验`);
+        }
         return text(`learn 成功：经验已入库；skill「${finalName}」已${skill.action === "create" ? "创建" : "更新"}于 AI 管理区`);
       }
-      appendExperience({ memory: finalMemory, context: context || undefined }, deps.projectPath);
+      try {
+        appendExperience({ memory: finalMemory, context: context || undefined }, deps.projectPath);
+      } catch (e) {
+        return text(`learn 失败：经验写盘失败（${(e as Error).message}）`);
+      }
       return text("learn 成功：经验已入库");
     },
   } as any) as ToolDefinition;

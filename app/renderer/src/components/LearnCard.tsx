@@ -33,6 +33,8 @@ export function LearnCard({ request }: Props): JSX.Element {
   };
 
   const memoryValid = memory.trim().length > 0;
+  // skill 正文为空会被后端拒绝（整体失败）——前端同步禁用确认
+  const skillBodyValid = !request.skill || skillBody.trim().length > 0;
 
   return (
     <div
@@ -74,14 +76,17 @@ export function LearnCard({ request }: Props): JSX.Element {
         </div>
       )}
 
-      {/* skill 草稿（name/description/body 均可编辑——撞名/修正场景就地改） */}
+      {/* skill 草稿（create：name/description/body 均可编辑——撞名可就地改名；update：按名定位，禁改） */}
       {request.skill && (
         <div className="px-3.5 pt-2">
-          <span className="text-[length:var(--text-2xs)] text-text-muted">同时{request.skill.action === "create" ? "创建" : "更新"} skill</span>
+          <span className="text-[length:var(--text-2xs)] text-text-muted">
+            同时{request.skill.action === "create" ? "创建" : "更新"} skill{request.skill.action === "update" ? "（按名称定位，不支持改名）" : "（撞名可就地改名）"}
+          </span>
           <label className="text-[length:var(--text-2xs)] text-text-muted block mb-1 mt-1">名称（小写字母/数字/连字符）</label>
           <input
             className="em-input w-full px-2.5 py-1.5 text-xs bg-surface/50 font-mono"
             value={skillName}
+            disabled={request.skill.action === "update"}
             onChange={(e) => setSkillName(e.target.value)}
           />
           <label className="text-[length:var(--text-2xs)] text-text-muted block mb-1 mt-1.5">描述（何时用）</label>
@@ -111,9 +116,9 @@ export function LearnCard({ request }: Props): JSX.Element {
         <button
           type="button"
           onClick={() => respond(true)}
-          disabled={!memoryValid}
+          disabled={!memoryValid || !skillBodyValid}
           className={`px-3.5 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium transition-all duration-150 ${
-            memoryValid
+            memoryValid && skillBodyValid
               ? "bg-accent text-text-inverse hover:bg-accent-hover"
               : "bg-surface-hover text-text-muted cursor-not-allowed"
           }`}
