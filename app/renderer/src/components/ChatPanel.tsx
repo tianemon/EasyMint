@@ -1098,6 +1098,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         onSessionCreated?.(realSid);
       }
     });
+    // 主进程侧模型切换（skill frontmatter model 字段触发）→ 会话级显示跟随；
+    // 只更新本会话 chatModel（触发既有 effect 写 session-cache 持久化），不动全局默认模型
+    const unsubModel = window.electronAPI.agent.onModelChanged(({ sessionId: modelSid, model }) => {
+      if (sidRef.current && sidRef.current !== modelSid) return;
+      if (!sidRef.current && existingSid && modelSid !== existingSid) return;
+      if (model) setChatModel((prev) => (model !== prev ? model : prev));
+    });
     // Context rotation events — filter by chatId
     const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(({ chatId: ctxChatId, type }: { chatId: string; type?: string }) => {
       if (!currentChatRef.current) return;
@@ -1152,7 +1159,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 使用率显著回落（压缩完成）后允许再次触发
       if (pct !== null && pct < threshold - 20) ctxThresholdFiredRef.current = 0;
     });
-    return () => { unsub(); unsubExit(); unsubSid(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(sidRef.current); };
+    return () => { unsub(); unsubExit(); unsubSid(); unsubModel(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(sidRef.current); };
   }, []);
 
   // Summarizing timeout — 120s safety net

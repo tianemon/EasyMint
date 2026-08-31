@@ -232,6 +232,7 @@ interface ElectronAPI {
     onCommandsChanged: (callback: (data: { commands: Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> }) => void) => () => void;
     onRenameProgress: (callback: (data: { phase: string }) => void) => () => void;
     onSessionRenamed: (callback: (data: { sessionId: string; title: string }) => void) => () => void;
+    onModelChanged: (callback: (data: { sessionId: string; model: string }) => void) => () => void;
   };
   device: {
     getSelf: () => Promise<{ id: string; name: string; discoverable: boolean }>;

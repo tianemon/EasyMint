@@ -1047,6 +1047,13 @@ export class AgentService {
     return (runtime.getModel(provider, modelName) as Model<any>) ?? null;
   }
 
+  /** 会话热切模型并广播前端（手动切换与 skill model 字段共用收口——前端 chatModel 显示与 session-cache 持久化都依赖此广播） */
+  private async applySessionModel(chat: ActiveChat, model: Model<any>, modelName: string): Promise<void> {
+    await chat.session!.setModel(model as any);
+    chat.currentModel = modelName;
+    broadcast("agent:model-changed", { sessionId: chat.sessionId, model: modelName });
+  }
+
   async setModel(sessionId: string, modelName: string, providerId?: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session) return;
@@ -1054,8 +1061,7 @@ export class AgentService {
     // 原实现选非默认模型时 id 不匹配走 resetModelRuntime，实际没切到所选模型）
     const model = await this.resolveModelByName(modelName, providerId);
     if (model) {
-      await chat.session.setModel(model as any);
-      chat.currentModel = modelName;
+      await this.applySessionModel(chat, model, modelName);
     } else {
       // 模型不在运行时（新供应商 apiKey 未注册）→ 重建运行时（重建时全量 sync 配置）
       resetModelRuntime();
@@ -1068,8 +1074,7 @@ export class AgentService {
     if (!chat?.session) return false;
     const model = await this.resolveModelByName(modelName);
     if (!model) return false;
-    await chat.session.setModel(model as any);
-    chat.currentModel = modelName;
+    await this.applySessionModel(chat, model, modelName);
     return true;
   }
 

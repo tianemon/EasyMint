@@ -358,6 +358,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:session-renamed", handler);
       return () => ipcRenderer.removeListener("agent:session-renamed", handler);
     },
+    onModelChanged: (callback: (data: { sessionId: string; model: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string; model: string }) => callback(data);
+      ipcRenderer.on("agent:model-changed", handler);
+      return () => ipcRenderer.removeListener("agent:model-changed", handler);
+    },
   },
   // ── 设备互联（mDNS 发现 + WS 配对连接） ──
   device: {
