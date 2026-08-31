@@ -30,6 +30,8 @@ export interface SkillManifest {
 
 export interface SkillDetail extends SkillManifest {
   body: string;
+  /** frontmatter 可选字段：加载该 skill 时切换到指定模型（当前供应商下解析，不存在则忽略） */
+  model?: string;
 }
 
 export interface ManagedSkillInput {
@@ -79,7 +81,7 @@ function saveHiddenSkills(list: string[]): void {
 
 // ── YAML frontmatter parser ────────────────────────
 
-function parseFrontmatter(content: string): { name?: string; description?: string; body: string } {
+function parseFrontmatter(content: string): { name?: string; description?: string; model?: string; body: string } {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!match) {
     // No frontmatter — treat entire file as body
@@ -120,6 +122,7 @@ function parseFrontmatter(content: string): { name?: string; description?: strin
   return {
     name: fields.name,
     description: fields.description,
+    model: fields.model,
     body: body.trim(),
   };
 }
@@ -269,6 +272,7 @@ export function readSkill(skillPath: string): SkillDetail | null {
     level,
     source,
     enabled: !disabled.includes(name),
+    model: fm.model,
     body: fm.body,
   };
 }
@@ -491,12 +495,12 @@ const BUNDLED_SKILLS = ["ponytail", "ponytail-review", "ponytail-audit"];
  * injected here; they're available on disk in the project's .easymint/skills/
  * directory and Claude can Read them as needed.
  */
-/** 按分组输出 skill 列表段（空分组跳过）；path 直接指向 SKILL.md 文件，避免 Read 文件夹报 EISDIR */
+/** 按分组输出 skill 列表段（空分组跳过）。过渡期：不输出 path——加载统一走 use_skill 工具，防绕过 */
 function pushSkillGroup(lines: string[], title: string, skills: SkillManifest[]): void {
   if (skills.length === 0) return;
   lines.push(`### ${title}`);
   for (const s of skills) {
-    lines.push(`- **${s.name}**: ${s.description} _(path: ${s.path}/SKILL.md)_`);
+    lines.push(`- **${s.name}**: ${s.description}`);
   }
   lines.push("");
 }
@@ -507,8 +511,9 @@ export function buildSkillsPrompt(projectPath?: string): string {
   if (skills.length === 0) return "";
 
   const lines: string[] = ["\n## Skills"];
-  lines.push("The following skills are available. When a skill's description matches");
-  lines.push("the user's request, Read the SKILL.md file at the listed path and follow it.\n");
+  lines.push("The following skills are available. When a task matches a skill's description,");
+  lines.push("you MUST load it with the `use_skill` tool (by name) and follow the loaded content.");
+  lines.push("Do NOT bypass the tool by reading SKILL.md files directly.\n");
 
   pushSkillGroup(lines, "Built-in", skills.filter((s) => s.level === "builtin"));
   pushSkillGroup(lines, "Global", skills.filter((s) => s.level === "global"));

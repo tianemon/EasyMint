@@ -20,6 +20,7 @@ import { getActiveModel, resetModelRuntime } from "./pi-init";
 import { createPiSession, resumePiSession, listPiSessions } from "./pi-session";
 import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
+import { createSkillTool, createManageSkillTool } from "./tools/skill-tool";
 import { registerSessionIdMapping, abortTask, getRunningSummary, resolveParentSessionId } from "./task/registry";
 import { formatShellResult } from "./background-shell/tool";
 import { backgroundShellRegistry, type BackgroundShell } from "./background-shell/registry";
@@ -555,7 +556,15 @@ export class AgentService {
       const listAgentsTool = await createListAgentsTool(sessionId);
       const readAgentLogTool = await createReadAgentLogTool(sessionId);
       const askUserTool = await createAskUserTool(sessionId);
-      const allTools = [taskTool, agentTemplateTool, stopAgentTool, listAgentsTool, readAgentLogTool, askUserTool, ...productTools, ...mcpTools];
+      const skillTool = await createSkillTool(projectPath, {
+        onModelSwitch: (modelName) => this.switchModelForSkill(sessionId, modelName),
+      });
+      const allTools = [taskTool, agentTemplateTool, stopAgentTool, listAgentsTool, readAgentLogTool, askUserTool, skillTool, ...productTools, ...mcpTools];
+      // manage_skill 受开关控制（D8：AI 写入能力默认关闭，设置→插件→Skills 一键开启；
+      // buildExtraTools 每次发消息重建工具 → 开关切换后新回合即生效）
+      if (this.store.getSettings().manageSkillEnabled) {
+        allTools.push(await createManageSkillTool(projectPath));
+      }
 
       return { tools: allTools, canUseTool };
     } catch (e) {
@@ -1026,21 +1035,25 @@ export class AgentService {
     return events;
   }
 
+  /** 按模型名（可选指定供应商）解析运行时 Model 对象；找不到返回 null（不触发运行时重建） */
+  private async resolveModelByName(modelName: string, providerId?: string): Promise<Model<any> | null> {
+    const { getModelRuntime } = await import("./pi-init");
+    const runtime = await getModelRuntime(this.store);
+    const providers = this.store.getSettings().apiProviders;
+    // 会话级切换:指定供应商优先(设置中切供应商时联动传入);缺省用全局 current
+    const activeId = providerId || providers?.current;
+    const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
+    if (!activeCfg || !activeId) return null;
+    const provider = activeCfg.presetId === "custom" ? activeId : activeCfg.presetId;
+    return (runtime.getModel(provider, modelName) as Model<any>) ?? null;
+  }
+
   async setModel(sessionId: string, modelName: string, providerId?: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session) return;
     // 按用户选的模型名直接找 Model 对象热切（不依赖"当前供应商默认模型"比较——
     // 原实现选非默认模型时 id 不匹配走 resetModelRuntime，实际没切到所选模型）
-    const { getModelRuntime } = await import("./pi-init");
-    const runtime = await getModelRuntime(this.store);
-    const settings = this.store.getSettings();
-    const providers = settings.apiProviders;
-    // 会话级切换:指定供应商优先(设置中切供应商时联动传入);缺省用全局 current
-    const activeId = providerId || providers?.current;
-    const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
-    if (!activeCfg || !activeId) return;
-    const provider = activeCfg.presetId === "custom" ? activeId : activeCfg.presetId;
-    const model = runtime.getModel(provider, modelName);
+    const model = await this.resolveModelByName(modelName, providerId);
     if (model) {
       await chat.session.setModel(model as any);
       chat.currentModel = modelName;
@@ -1048,6 +1061,17 @@ export class AgentService {
       // 模型不在运行时（新供应商 apiKey 未注册）→ 重建运行时（重建时全量 sync 配置）
       resetModelRuntime();
     }
+  }
+
+  /** skill frontmatter `model` 字段触发的会话级切换；模型不存在降级忽略（不重建运行时，返回 false 由调用方说明） */
+  private async switchModelForSkill(sessionId: string, modelName: string): Promise<boolean> {
+    const chat = this.findActiveChat(sessionId);
+    if (!chat?.session) return false;
+    const model = await this.resolveModelByName(modelName);
+    if (!model) return false;
+    await chat.session.setModel(model as any);
+    chat.currentModel = modelName;
+    return true;
   }
 
 
