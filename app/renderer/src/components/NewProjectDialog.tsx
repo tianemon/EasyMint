@@ -278,7 +278,6 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
         <StepDots total={visibleSteps.length} current={currentStep} />
 
         <div className="px-6 pb-1 shrink-0">
-          <p className="text-[length:var(--text-11)] text-text-muted">初步信息采集，简单填写自己的需求，帮助 AI 掌握你的偏好</p>
         </div>
 
         <div className="px-6 py-4 overflow-y-auto flex-1">{renderStepContent()}</div>
