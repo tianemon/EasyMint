@@ -68,12 +68,12 @@ function BuiltinToolsSection(): JSX.Element {
     <section>
       <h3 className="text-sm font-medium text-text-primary mb-2">模型能力增强</h3>
       <p className="text-[length:var(--text-11)] text-text-secondary mb-3">
-        对于非多模态模型，提供视觉识别和网页抓取能力。开启后自动注入到每次会话。
+        提供视觉识别与网页抓取能力（对非多模态模型），自动注入到每次会话
       </p>
       <div className="space-y-2">
         {([
-          { key: "vision", label: "图片识别", desc: "使用 Qwen 视觉模型描述图片内容，让纯文本模型也能\"看懂\"图片", keyId: "VISION_API_KEY", keyHint: "获取: dashscope.aliyun.com" },
-          { key: "webFetch", label: "网页抓取", desc: "读取网页实际内容，让模型能查阅在线文档和资料", keyId: "TAVILY_API_KEY", keyHint: "获取: tavily.com" },
+          { key: "vision", label: "图片识别", desc: "用视觉模型描述图片内容\"看懂\"图片", keyId: "VISION_API_KEY", keyHint: "获取: dashscope.aliyun.com" },
+          { key: "webFetch", label: "网页抓取", desc: "读取网页实际内容", keyId: "TAVILY_API_KEY", keyHint: "获取: tavily.com" },
         ] as const).map(({ key, label, desc, keyId, keyHint }) => {
           const on = builtinTools[key];
           return (

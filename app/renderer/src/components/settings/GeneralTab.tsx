@@ -211,7 +211,7 @@ export function GeneralTab(): JSX.Element {
             value={defaultProjectDir}
             onChange={(e) => setDefaultProjectDir(e.target.value)}
           />
-          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">新建项目时的默认父目录，workspace 会话也存放于此路径下</p>
+          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">新建项目的默认位置，workspace 会话也存于此</p>
         </div>
       </section>
 
@@ -256,7 +256,7 @@ export function GeneralTab(): JSX.Element {
             />
             <span className="text-sm text-text-primary font-medium w-10 text-right">{contextThreshold}%</span>
           </div>
-          <p className="text-[length:var(--text-11)] text-text-secondary mt-1">达到阈值时询问是否压缩（可跳过或输入压缩命令），SDK 自动压缩在接近满时兜底。范围 60%-80%，建议 75%。</p>
+          <p className="text-[length:var(--text-11)] text-text-secondary mt-1">达到阈值时询问是否压缩（可跳过）；SDK 在接近满时自动压缩。范围 60%-80%，建议 75%</p>
         </div>
       </section>
 

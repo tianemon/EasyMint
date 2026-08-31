@@ -342,9 +342,6 @@ function SkillsTab(): JSX.Element {
 
       <div>
         <p className="text-sm font-medium text-text-primary">Skills</p>
-        <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-          内置 Skill 仅 EasyMint 可用；通用 Skill 与 Claude Code 共用；AI 管理区存放 AI 会话中创建的 skill
-        </p>
       </div>
 
       {/* Tab buttons — pill style */}
@@ -369,9 +366,7 @@ function SkillsTab(): JSX.Element {
         <div className="min-w-0">
           <p className="text-xs text-text-primary">发现外部生态 skill</p>
           <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-            自动识别 Claude Code（<span className="font-mono">~/.claude/skills/</span>、项目 <span className="font-mono">.claude/skills/</span>）、
-            Codex（<span className="font-mono">~/.codex/skills/</span>）、GitHub Agent Skills（项目 <span className="font-mono">.github/skills/</span>）中的标准 skill，
-            标记为「外部」来源即可用（只读，不改动原目录；同名以 EasyMint 自带版本优先）
+            自动识别主流工具的 skill 目录（Claude Code、Codex、GitHub），标记为「外部」即可用；只读，不改动原目录
           </p>
         </div>
         <Toggle checked={importExternal} onChange={saveImportExternal} />
@@ -383,7 +378,7 @@ function SkillsTab(): JSX.Element {
           <div className="min-w-0">
             <p className="text-xs text-text-primary">导入 skill</p>
             <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-              粘贴 GitHub / GitLab / Gitee 仓库链接或本地目录路径（需含 SKILL.md），校验后拷入手写 skill 区；只拷文件，不执行仓库内任何脚本
+              粘贴仓库链接或本地目录路径（需含 SKILL.md）
             </p>
           </div>
           {!skillImportOpen && (
@@ -423,7 +418,7 @@ function SkillsTab(): JSX.Element {
             <div className="min-w-0">
               <p className="text-xs text-text-primary">允许 AI 创建与管理 skill</p>
               <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-                开启后，新建或重启后重新打开的会话中，Mint 可通过 manage_skill 工具在 AI 管理区创建/更新 skill（进行中的会话不生效）；关闭则只能在此手动管理（默认关闭）
+                开启后，Mint 可在会话中用 manage_skill 工具创建/更新 AI 管理区的 skill（进行中的会话不生效；默认关闭）
               </p>
             </div>
             <Toggle checked={manageSkillEnabled} onChange={saveManageEnabled} />
@@ -433,7 +428,7 @@ function SkillsTab(): JSX.Element {
             <div className="min-w-0">
               <p className="text-xs text-text-primary">允许 AI 自沉淀经验</p>
               <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-                开启后，新建或重启后重新打开的会话中，Mint 可在任务完成时用 learn 沉淀经验/创建 skill（弹审阅卡片，确认才入库），并可检索历史经验（进行中的会话不生效）；关闭则完全由你手动维护（默认关闭）
+                开启后，Mint 可在任务完成时用 learn 沉淀经验（弹审阅卡片，确认才入库），并可检索历史经验（进行中的会话不生效；默认关闭）
               </p>
             </div>
             <Toggle checked={learnEnabled} onChange={saveLearnEnabled} />
@@ -710,7 +705,7 @@ function McpServerForm({
           <div className="min-w-0">
             <p className="text-[length:var(--text-11)] text-text-primary">此服务器需要 OAuth 登录</p>
             <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-              连接时弹出浏览器完成授权（如 GitHub / Notion 官方 MCP）。凭据经系统钥匙串加密存储
+              连接时在浏览器完成授权（如 GitHub 官方 MCP）
             </p>
           </div>
           <Toggle checked={oauth} onChange={setOauth} />
@@ -860,7 +855,7 @@ function McpTab(): JSX.Element {
         <section>
           <h3 className="text-sm font-medium text-text-primary mb-2">API Keys</h3>
           <p className="text-[length:var(--text-11)] text-text-secondary mb-3">
-            MCP 工具所需的第三方服务密钥，会注入到对应 MCP 服务器的环境变量中。
+            第三方服务密钥，注入到对应 MCP 服务器的环境变量中
           </p>
           <div className="bg-surface-alt rounded-lg px-4 py-3 space-y-2">
             {Array.from(allKeys.entries()).filter(([k]) => k !== "VISION_API_KEY" && k !== "TAVILY_API_KEY").map(([key, val]) => (
@@ -909,7 +904,7 @@ function McpTab(): JSX.Element {
         </div>
         {!adding && !editing && (
           <p className="text-[length:var(--text-11)] text-text-secondary mb-3">
-            EM 独立配置（~/.easymint/mcp.json），与 Claude Code 解耦。添加/修改后**新会话**生效（进行中的会话保持原工具集）。
+            配置存于 ~/.easymint/mcp.json。添加/修改后**新会话**生效（进行中的会话保持原工具集）。
           </p>
         )}
         {actionErr && <p className="text-danger text-[length:var(--text-11)] mb-2">{actionErr}</p>}
@@ -917,7 +912,7 @@ function McpTab(): JSX.Element {
         {pasteMode && (
           <div className="bg-surface-alt rounded-lg border border-border px-3 py-3 space-y-2">
             <p className="text-[length:var(--text-11)] text-text-secondary">
-              粘贴 MCP 配置（README 里的 mcpServers JSON、单 server JSON、claude mcp add 命令行、或 npx/uvx 启动命令均可）：
+              粘贴配置（mcpServers JSON / claude mcp add 命令行 / npx 启动命令均可）：
             </p>
             <textarea
               className="em-input w-full px-2.5 py-1.5 text-xs font-mono resize-y min-h-20"
@@ -964,7 +959,7 @@ function McpTab(): JSX.Element {
 
         {servers.length === 0 && !adding ? (
           <p className="text-text-secondary text-xs text-center py-8">
-            还没有 MCP 服务器。点右上角「添加服务器」即可——不用手写配置文件。
+            还没有 MCP 服务器，点右上角添加。
           </p>
         ) : (
           <div className="bg-surface-alt rounded-lg border border-border overflow-hidden max-h-[260px] overflow-y-auto divide-y divide-border/50">

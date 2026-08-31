@@ -231,14 +231,14 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
           value={customModelsText}
           onChange={(e) => setCustomModelsText(e.target.value)}
         />
-        <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">这些模型将注册为自定义供应商的可用模型,保存后在模型下拉中可选。</p>
+        <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">保存后在模型下拉中可选</p>
       </div>
       </>)}
 
       {/* 子 Agent 默认模型:task 工具委派子 Agent 未指定时用(per-provider 配置) */}
       <div>
         <div className="flex items-center justify-between mb-1.5">
-          <label className="text-xs text-text-secondary">SubAgent默认模型(委派任务时使用)</label>
+          <label className="text-xs text-text-secondary">子 Agent 默认模型（委派任务时使用）</label>
           {subagentDefaultModel && (
             <button type="button" onClick={() => setSubagentDefaultModel("")} className="text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary transition-colors">清除</button>
           )}

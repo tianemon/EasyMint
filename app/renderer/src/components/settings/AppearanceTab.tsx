@@ -91,7 +91,7 @@ export function AppearanceTab(): JSX.Element {
             <span>默认(100%)</span>
             <span>大</span>
           </div>
-          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1">控制所有需要持续阅读的动态内容字号——聊天消息（正文、代码块、diff、思考过程、工具调用折叠）、代码编辑器、Shell 输出与运行日志、子 Agent 过程输出、脚本/提示词编辑区、便签正文，按百分比整体缩放（界面骨架文字由下方「界面字体」控制）。</p>
+          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1">聊天正文、代码块、代码编辑器、输出日志等阅读内容按百分比整体缩放（界面骨架文字由下方「界面字体」控制）。</p>
         </div>
       </section>
 
@@ -117,7 +117,7 @@ export function AppearanceTab(): JSX.Element {
             <span>默认(100%)</span>
             <span>大</span>
           </div>
-          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1">统一控制应用界面骨架的字体大小——文件列表、侧边栏、状态栏、会话列表、输入栏、按钮标签、弹窗标题、设置页等所有界面文字按百分比缩放（阅读内容字号由上方「阅读字体」控制）。</p>
+          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1">界面文字（文件列表、侧边栏、按钮、弹窗等）按百分比缩放；阅读内容字号由上方「阅读字体」控制</p>
         </div>
       </section>
 
