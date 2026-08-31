@@ -272,10 +272,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("mcp:list", () => scanMcpServers());
   ipcMain.handle("mcp:toggle", (_e, { name, enabled }: { name: string; enabled: boolean }) => {
     toggleMcpServer(name, enabled);
-    reloadMcpTools(); // 开关即时生效（免重启）
+    reloadMcpTools(); // 清缓存，新会话生效（进行中会话工具集固定）
   });
   ipcMain.handle("mcp:requiredKeys", () => getMcpRequiredKeys());
-  // 配置管理（阶段A）：增删改 + 测试连接 + 状态 + 热更新
+  // 配置管理（阶段A）：增删改 + 测试连接 + 状态 + 变更清缓存（新会话生效）
   ipcMain.handle("mcp:save", (_e, { name, cfg, scope, projectPath }: { name: string; cfg: McpServerConfig; scope?: McpScope; projectPath?: string }) => {
     const r = saveMcpServer(name, cfg, { scope, projectPath });
     if (r.ok) reloadMcpTools();

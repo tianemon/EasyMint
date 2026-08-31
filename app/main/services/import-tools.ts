@@ -25,7 +25,7 @@ export async function createImportTools(): Promise<ToolDefinition[]> {
     description:
       "从用户粘贴的配置文本安装 MCP 服务器。支持：完整 {\"mcpServers\":{...}} JSON、单个 server JSON、" +
       "claude mcp add/add-json 命令行、裸启动命令（npx/uvx/node 等）。解析并校验后写入用户级配置，" +
-      "下次发消息即生效（免重启）。**仅在用户提供 MCP 配置或命令时调用**；写入后告知用户已装好、可在设置→插件→MCP 查看",
+      "新会话生效（进行中的会话保持原工具集）。**仅在用户提供 MCP 配置或命令时调用**；写入后告知用户已装好、可在设置→插件→MCP 查看",
     promptSnippet: "从粘贴的配置/命令安装 MCP 服务器",
     parameters: {
       type: "object" as const,
@@ -51,7 +51,7 @@ export async function createImportTools(): Promise<ToolDefinition[]> {
       if (results.some((r) => r.startsWith("✅"))) reloadMcpTools();
       const notes = parsed.parsed.notes.length ? "\n提示：" + parsed.parsed.notes.join("；") : "";
       const text = results.join("\n") + notes
-        + (results.some((r) => r.startsWith("✅")) ? "\n已生效（下次发消息即可用，无需重启）。" + (anyOverwrite ? "注意：有同名服务器被覆盖。" : "") : "");
+        + (results.some((r) => r.startsWith("✅")) ? "\n已写入用户级配置，新会话中可用（进行中的会话保持原工具集）。" + (anyOverwrite ? "注意：有同名服务器被覆盖。" : "") : "");
       return { content: [{ type: "text" as const, text }], details: {} };
     },
   }) as any as ToolDefinition);

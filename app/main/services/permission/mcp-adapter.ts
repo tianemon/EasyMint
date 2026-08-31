@@ -245,7 +245,7 @@ export function getMcpStatus(projectPath?: string): McpServerStatus[] {
   });
 }
 
-/** 配置变更后调用：清工具缓存（保留已建立的连接复用），下次发消息重新拉工具——免重启生效 */
+/** 配置变更后调用：清工具缓存（保留已建立的连接复用），新会话创建时重新拉取工具（SDK 无热更新 API，进行中会话工具集固定） */
 export function reloadMcpTools(): void {
   toolsCache.clear();
 }
