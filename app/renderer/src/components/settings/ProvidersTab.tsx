@@ -72,7 +72,7 @@ function BuiltinToolsSection(): JSX.Element {
       </p>
       <div className="space-y-2">
         {([
-          { key: "vision", label: "图片识别", desc: "用视觉模型描述图片内容\"看懂\"图片", keyId: "VISION_API_KEY", keyHint: "获取: dashscope.aliyun.com" },
+          { key: "vision", label: "图片识别", desc: "用视觉模型描述图片内容", keyId: "VISION_API_KEY", keyHint: "获取: dashscope.aliyun.com" },
           { key: "webFetch", label: "网页抓取", desc: "读取网页实际内容", keyId: "TAVILY_API_KEY", keyHint: "获取: tavily.com" },
         ] as const).map(({ key, label, desc, keyId, keyHint }) => {
           const on = builtinTools[key];
