@@ -279,10 +279,15 @@ interface ElectronAPI {
     revealInFolder: (filePath: string) => Promise<void>;
   };
   skill: {
-    list: (projectPath?: string) => Promise<{ name: string; description: string; path: string; level: "builtin" | "global" | "project"; enabled: boolean }[]>;
-    get: (skillPath: string) => Promise<{ name: string; description: string; path: string; level: "builtin" | "global" | "project"; enabled: boolean; body: string } | null>;
+    list: (projectPath?: string) => Promise<{ name: string; description: string; path: string; level: "builtin" | "global" | "project"; source: "builtin" | "authored" | "imported" | "managed"; enabled: boolean; managedRoot?: string; shadowed?: boolean }[]>;
+    get: (skillPath: string) => Promise<{ name: string; description: string; path: string; level: "builtin" | "global" | "project"; source: "builtin" | "authored" | "imported" | "managed"; enabled: boolean; shadowed?: boolean; body: string } | null>;
     toggle: (name: string, enabled: boolean) => Promise<void>;
     buildPrompt: (projectPath?: string) => Promise<string>;
+    createManaged: (name: string, description: string, body: string, projectPath?: string) => Promise<{ ok: boolean; error?: string; shadowed?: boolean }>;
+    updateManaged: (name: string, description?: string, body?: string) => Promise<{ ok: boolean; error?: string; shadowed?: boolean }>;
+    deleteManaged: (name: string) => Promise<{ ok: boolean; error?: string; shadowed?: boolean }>;
+    delete: (skillPath: string, projectPath?: string) => Promise<{ ok: boolean; error?: string }>;
+    getStats: () => Promise<Record<string, { usageCount: number; lastUsedAt: number; failCount: number }>>;
   },
   mcp: {
     list: () => Promise<{ name: string; type: "stdio" | "http" | "sse"; command?: string; args?: string[]; url?: string; enabled: boolean }[]>;
@@ -378,6 +383,7 @@ interface ElectronAPI {
     get: () => Promise<{
       defaultProjectDir?: string; setupComplete?: boolean;
       apiKeys?: Record<string, string>; builtinTools?: Record<string, boolean>; model?: string;
+      manageSkillEnabled?: boolean;
       availableModels?: string[]; contextThreshold?: number;
       showThinking?: boolean; showToolUse?: boolean;
       chatThinkingLevel?: string;

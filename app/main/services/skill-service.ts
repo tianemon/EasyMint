@@ -1,15 +1,16 @@
 /**
- * Skill Service — scan, import, delete, toggle skills.
+ * Skill Service — scan, import, delete, toggle, managed writes.
  *
- * Skills are stored as folders with SKILL.md inside:
- *   Global:  ~/.easymint/skills/<name>/SKILL.md
- *   Project: <project>/.easymint/skills/<name>/SKILL.md
+ * Skills are stored as folders with SKILL.md inside (four sources):
+ *   Builtin:  resources/skills/                (EM 打包内置)
+ *   Authored: ~/.easymint/skills/、<project>/.easymint/skills/  (用户手写/导入)
+ *   Managed:  ~/.easymint/managed-skills/      (AI 产物，manage_skill/learn 写入)
  *
  * 与 Claude Code 解耦:EM 用独立目录,不再读写 ~/.claude/skills/。
  * EasyMint maintains its own disabled-skills list in em-settings.json.
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, cpSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, cpSync, lstatSync, rmSync, unlinkSync, renameSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { getResourcesDir } from "../utils/paths";
@@ -20,17 +21,36 @@ export interface SkillManifest {
   name: string;
   description: string;
   path: string;
-  level: "builtin" | "global" | "project";
+  level: "builtin" | "global" | "project";     // 磁盘位置
+  source: "builtin" | "authored" | "imported" | "managed"; // 写入者
   enabled: boolean;
+  managedRoot?: string;                         // managed 专属
+  shadowed?: boolean;                           // managed 被同名 authored/builtin 遮蔽
 }
 
 export interface SkillDetail extends SkillManifest {
   body: string;
 }
 
+export interface ManagedSkillInput {
+  action: "create" | "update" | "delete";
+  name: string;
+  description?: string;
+  body?: string;
+}
+
+export interface ManagedSkillResult {
+  ok: boolean;
+  error?: string;
+  shadowed?: boolean;
+}
+
 // ── Constants ──────────────────────────────────────
 
 const GLOBAL_SKILLS_DIR = path.join(os.homedir(), ".easymint", "skills");
+
+// AI 产物区（manage_skill/learn 工具写入），与用户手写区物理隔离
+const MANAGED_SKILLS_DIR = path.join(os.homedir(), ".easymint", "managed-skills");
 
 function projectSkillsDir(projectPath: string): string {
   return path.join(projectPath, ".easymint", "skills");
@@ -106,7 +126,7 @@ function parseFrontmatter(content: string): { name?: string; description?: strin
 
 // ── Scan ───────────────────────────────────────────
 
-function scanDir(dir: string, level: SkillManifest["level"], disabledList: string[]): SkillManifest[] {
+function scanDir(dir: string, level: SkillManifest["level"], disabledList: string[], source: SkillManifest["source"]): SkillManifest[] {
   if (!existsSync(dir)) return [];
   const results: SkillManifest[] = [];
   try {
@@ -122,7 +142,43 @@ function scanDir(dir: string, level: SkillManifest["level"], disabledList: strin
         description: fm.description || "(无描述)",
         path: entryPath,
         level,
+        source,
         enabled: !disabledList.includes(entry),
+      });
+    }
+  } catch {
+    // Permission errors etc. — return what we have
+  }
+  return results;
+}
+
+/** 扫 managed 根（非递归一层）。symlink 条目跳过——managed 区只认真实目录，防 escape。 */
+export function scanManagedSkills(): SkillManifest[] {
+  if (!existsSync(MANAGED_SKILLS_DIR)) return [];
+  const disabled = getHiddenSkills();
+  const results: SkillManifest[] = [];
+  try {
+    for (const entry of readdirSync(MANAGED_SKILLS_DIR)) {
+      const entryPath = path.join(MANAGED_SKILLS_DIR, entry);
+      let st: ReturnType<typeof lstatSync>;
+      try {
+        st = lstatSync(entryPath);
+      } catch {
+        continue;
+      }
+      if (!st.isDirectory()) continue;
+      const skillFile = path.join(entryPath, "SKILL.md");
+      if (!existsSync(skillFile)) continue;
+      const raw = readFileSync(skillFile, "utf-8");
+      const fm = parseFrontmatter(raw);
+      results.push({
+        name: entry,
+        description: fm.description || "(无描述)",
+        path: entryPath,
+        level: "global",
+        source: "managed",
+        enabled: !disabled.includes(entry),
+        managedRoot: MANAGED_SKILLS_DIR,
       });
     }
   } catch {
@@ -145,12 +201,12 @@ export function scanSkills(projectPath?: string): SkillManifest[] {
 
   // Builtin skills (resources/skills/)
   const builtinDir = getBuiltinSkillsDir();
-  const builtin = scanDir(builtinDir, "builtin", disabled);
+  const builtin = scanDir(builtinDir, "builtin", disabled, "builtin");
   const emBuiltinNames = new Set(EM_SKILLS);
   const bundledNames = new Set(BUNDLED_SKILLS);
 
   // Global skills
-  const globalSkills = scanDir(GLOBAL_SKILLS_DIR, "global", disabled);
+  const globalSkills = scanDir(GLOBAL_SKILLS_DIR, "global", disabled, "authored");
   const globalNames = new Set(globalSkills.map((s) => s.name));
 
   // Builtin 归并（一次遍历按名称分类）：
@@ -173,7 +229,13 @@ export function scanSkills(projectPath?: string): SkillManifest[] {
 
   // Project-level skills
   if (projectPath) {
-    result.push(...scanDir(projectSkillsDir(projectPath), "project", disabled));
+    result.push(...scanDir(projectSkillsDir(projectPath), "project", disabled, "authored"));
+  }
+
+  // Managed skills — 同名时 authored/builtin 优先（shadow 标记，仍列出供管理界面处置）
+  const existingNames = new Set(result.map((s) => s.name));
+  for (const s of scanManagedSkills()) {
+    result.push(existingNames.has(s.name) ? { ...s, shadowed: true } : s);
   }
 
   return result;
@@ -190,13 +252,22 @@ export function readSkill(skillPath: string): SkillDetail | null {
   const disabled = getHiddenSkills();
   const builtinDir = getBuiltinSkillsDir();
   let level: SkillManifest["level"] = "global";
-  if (skillPath.startsWith(builtinDir)) level = "builtin";
-  else if (!skillPath.startsWith(GLOBAL_SKILLS_DIR)) level = "project";
+  let source: SkillManifest["source"] = "authored";
+  if (skillPath.startsWith(builtinDir)) {
+    level = "builtin";
+    source = "builtin";
+  } else if (skillPath.startsWith(MANAGED_SKILLS_DIR)) {
+    level = "global";
+    source = "managed";
+  } else if (!skillPath.startsWith(GLOBAL_SKILLS_DIR)) {
+    level = "project";
+  }
   return {
     name,
     description: fm.description || "(无描述)",
     path: skillPath,
     level,
+    source,
     enabled: !disabled.includes(name),
     body: fm.body,
   };
@@ -208,6 +279,165 @@ export function toggleSkill(name: string, enabled: boolean): void {
     ? hidden.filter((n) => n !== name)
     : [...hidden, name];
   saveHiddenSkills(next);
+}
+
+// ── Managed skill writes（AI 产物区）────────────────
+
+const SKILL_NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const MAX_SKILL_FILE_BYTES = 64 * 1024;
+
+/** description 单行化：剥离控制字符/尖括号/反引号，防止 frontmatter 注入与提示词污染 */
+function sanitizeDescription(desc: string): string {
+  return desc
+    .replace(/[\x00-\x1f\x7f]/g, " ")
+    .replace(/[<>`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 500);
+}
+
+/** body 不允许自带 frontmatter（系统生成），带则剥离首部块 */
+function stripLeadingFrontmatter(body: string): string {
+  return body.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
+}
+
+/**
+ * 写 managed 区（create 独占创建 / update 覆盖 / delete 递归删目录）。
+ *
+ * 安全约束：名称白名单字符集（含路径穿越免疫）；symlink 不跟随（root 目录与
+ * SKILL.md 均校验为真实文件）；update 经临时文件 + rename 原子落盘（不截断
+ * 共享 inode）；最终文件 ≤64KB；frontmatter 系统生成。
+ *
+ * 全程同步 fs 调用——单线程事件循环下天然串行，同名录写不会交错（无需锁）。
+ */
+export function writeManagedSkill(input: ManagedSkillInput, projectPath?: string): ManagedSkillResult {
+  const { action, name } = input;
+  if (!SKILL_NAME_RE.test(name)) {
+    return { ok: false, error: "名称需匹配 [a-z0-9][a-z0-9-]{0,63}（小写字母/数字/连字符，≤64 字符）" };
+  }
+  if (lstatSafe(MANAGED_SKILLS_DIR)) {
+    if (lstatSync(MANAGED_SKILLS_DIR).isSymbolicLink()) {
+      return { ok: false, error: "managed-skills 根目录异常（symlink），拒绝写入" };
+    }
+  } else {
+    mkdirSync(MANAGED_SKILLS_DIR, { recursive: true });
+  }
+
+  const skillDir = path.join(MANAGED_SKILLS_DIR, name);
+  const skillFile = path.join(skillDir, "SKILL.md");
+
+  if (action === "delete") {
+    if (!existsSync(skillDir) && !lstatSafe(skillDir)) return { ok: false, error: `skill「${name}」不存在` };
+    const st = lstatSync(skillDir);
+    if (st.isSymbolicLink()) {
+      unlinkSync(skillDir); // 只删链接本身，不动目标
+    } else {
+      rmSync(skillDir, { recursive: true });
+    }
+    return { ok: true };
+  }
+
+  if (action === "create") {
+    // 撞 authored/builtin 同名 → shadowed，磁盘零写入
+    const clash = scanSkills(projectPath).find(
+      (s) => s.name === name && s.source !== "managed" && !s.shadowed,
+    );
+    if (clash) {
+      return { ok: false, shadowed: true, error: `与现有 ${clash.source} skill「${name}」同名，被遮蔽。请换名或删除原 skill` };
+    }
+    if (lstatSafe(skillDir)) return { ok: false, error: `skill「${name}」已存在于 managed 区` };
+    const desc = sanitizeDescription(input.description || "");
+    if (!desc) return { ok: false, error: "description 不能为空" };
+    const body = stripLeadingFrontmatter(input.body || "");
+    if (!body) return { ok: false, error: "body 不能为空" };
+    const content = renderSkillFile(name, desc, body);
+    if (Buffer.byteLength(content, "utf-8") > MAX_SKILL_FILE_BYTES) {
+      return { ok: false, error: `内容超限（>64KB），当前 ${Buffer.byteLength(content, "utf-8")} 字节` };
+    }
+    mkdirSync(skillDir);
+    writeFileSync(skillFile, content);
+    return { ok: true };
+  }
+
+  // update —— 只写 managed 区，永不触碰 authored
+  if (input.description === undefined && input.body === undefined) {
+    return { ok: false, error: "update 需至少提供 description 或 body" };
+  }
+  if (!lstatSafe(skillFile)) return { ok: false, error: `managed 区不存在 skill「${name}」（authored/builtin 不可由此更新）` };
+  const st = lstatSync(skillFile);
+  if (st.isSymbolicLink() || !st.isFile()) return { ok: false, error: "目标文件异常（symlink/非普通文件），拒绝覆盖" };
+  if (lstatSync(skillDir).isSymbolicLink()) return { ok: false, error: "目标目录异常（symlink），拒绝写入" };
+
+  const prev = parseFrontmatter(readFileSync(skillFile, "utf-8"));
+  const desc = input.description !== undefined ? sanitizeDescription(input.description) : (prev.description || "");
+  const body = input.body !== undefined ? stripLeadingFrontmatter(input.body) : prev.body;
+  if (!desc) return { ok: false, error: "description 不能为空" };
+  if (!body) return { ok: false, error: "body 不能为空" };
+  const content = renderSkillFile(name, desc, body);
+  if (Buffer.byteLength(content, "utf-8") > MAX_SKILL_FILE_BYTES) {
+    return { ok: false, error: `内容超限（>64KB），当前 ${Buffer.byteLength(content, "utf-8")} 字节` };
+  }
+  // 临时文件 + rename：原子替换目录项，不截断可能存在的硬链接共享 inode
+  const tmp = path.join(skillDir, `.SKILL.md.tmp-${Date.now()}`);
+  writeFileSync(tmp, content);
+  renameSync(tmp, skillFile);
+  return { ok: true };
+}
+
+/** existsSync 跟随 symlink；此处的"存在"以 lstat 为准（断链 symlink 也算存在，需显式处理） */
+function lstatSafe(p: string): boolean {
+  try {
+    lstatSync(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function renderSkillFile(name: string, description: string, body: string): string {
+  return `---\nname: ${name}\ndescription: ${description}\n---\n\n${body}\n`;
+}
+
+// ── Lookup（供期 1 use_skill 工具复用）──────────────
+
+/** 四来源合并查找：精确名优先，大小写不敏感兜底；project > global > builtin > managed，shadowed 排除 */
+export function findSkillByName(name: string, projectPath?: string): SkillManifest | null {
+  const all = scanSkills(projectPath).filter((s) => !s.shadowed);
+  let pool = all.filter((s) => s.name === name);
+  if (pool.length === 0) {
+    const lower = name.toLowerCase();
+    pool = all.filter((s) => s.name.toLowerCase() === lower);
+  }
+  if (pool.length === 0) return null;
+  const prio = (s: SkillManifest): number => {
+    const levelPrio = s.level === "project" ? 0 : s.level === "global" ? 1 : 2;
+    return s.source === "managed" ? 3 + levelPrio : levelPrio;
+  };
+  return pool.sort((a, b) => prio(a) - prio(b))[0] ?? null;
+}
+
+// ── Delete（管理界面；builtin 拒删）─────────────────
+
+/** 删除 skill 目录。只允许删已知 skill 根的直接子目录；内置不可删；symlink 只删链接本身。 */
+export function deleteSkill(skillPath: string, projectPath?: string): { ok: boolean; error?: string } {
+  const builtinDir = getBuiltinSkillsDir();
+  const allowedRoots = [GLOBAL_SKILLS_DIR, MANAGED_SKILLS_DIR];
+  if (projectPath) allowedRoots.push(projectSkillsDir(projectPath));
+  const root = allowedRoots.find((r) => path.dirname(skillPath) === r);
+  if (!root) {
+    if (path.dirname(skillPath) === builtinDir) return { ok: false, error: "内置 skill 不可删除" };
+    return { ok: false, error: "非 skill 目录，拒绝删除" };
+  }
+  if (!lstatSafe(skillPath)) return { ok: false, error: "目录不存在" };
+  const st = lstatSync(skillPath);
+  if (st.isSymbolicLink()) {
+    unlinkSync(skillPath);
+  } else if (st.isDirectory()) {
+    rmSync(skillPath, { recursive: true });
+  } else {
+    return { ok: false, error: "目标不是 skill 目录" };
+  }
+  return { ok: true };
 }
 
 
@@ -272,7 +502,8 @@ function pushSkillGroup(lines: string[], title: string, skills: SkillManifest[])
 }
 
 export function buildSkillsPrompt(projectPath?: string): string {
-  const skills = scanSkills(projectPath).filter((s) => s.enabled);
+  // shadowed 的 managed 条目不注入——同名 authored/builtin 已在列表中
+  const skills = scanSkills(projectPath).filter((s) => s.enabled && !s.shadowed);
   if (skills.length === 0) return "";
 
   const lines: string[] = ["\n## Skills"];

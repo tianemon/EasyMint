@@ -373,6 +373,7 @@ html[data-platform="win32"] {
   --color-warning: #f59e0b;
   --color-warning-bg: #221c08;
   --color-warning-border: #8a4414;
+  --color-warning-soft: #2a2208;
   /* 委派通知状态三色(对标 macOS 红绿灯:绿 #28C840 / 黄 #FEBC2E / 红 #FF5F57) */
   --color-done: #28c840;
   --color-interrupt: #febc2e;
