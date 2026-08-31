@@ -744,7 +744,7 @@ function McpServerForm({
   );
 }
 
-function McpTab(): JSX.Element {
+function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX.Element {
   const [servers, setServers] = useState<{ name: string; type: string; command?: string; args?: string[]; url?: string; enabled: boolean; scope: "user" | "project" | "project-compat"; writable: boolean; pendingApproval?: boolean }[]>([]);
   const [projectPath, setProjectPath] = useState<string>("");
   const [requiredKeys, setRequiredKeys] = useState<Record<string, Record<string, string>>>({});
@@ -764,12 +764,15 @@ function McpTab(): JSX.Element {
 
   const load = async () => {
     try {
-      // 当前项目路径：lastProjectId → project.get（设置页无路由参数，取最近打开的项目）
-      const snap = await window.electronAPI.settings.get().catch(() => null) as { lastProjectId?: string } | null;
-      let curProject = "";
-      if (snap?.lastProjectId) {
-        const proj = await window.electronAPI.project.get(snap.lastProjectId).catch(() => undefined);
-        curProject = proj?.path ?? "";
+      // 当前项目路径：优先用 ProjectPage 传入的（窗口内真实当前项目）；
+      // 兜底 lastProjectId → project.get（仅防御——设置弹窗只挂在项目页内，正常都走上一分支）
+      let curProject = projectPathProp ?? "";
+      if (!curProject) {
+        const snap = await window.electronAPI.settings.get().catch(() => null) as { lastProjectId?: string } | null;
+        if (snap?.lastProjectId) {
+          const proj = await window.electronAPI.project.get(snap.lastProjectId).catch(() => undefined);
+          curProject = proj?.path ?? "";
+        }
       }
       setProjectPath(curProject);
       const [s, keys, settings, st] = await Promise.all([
@@ -1031,13 +1034,13 @@ function McpTab(): JSX.Element {
   );
 }
 
-/** 插件设置:Skills + MCP */
-export function PluginsTab(): JSX.Element {
+/** 插件设置:Skills + MCP（projectPath = 窗口内当前打开的项目路径，由 ProjectPage 传入） */
+export function PluginsTab({ projectPath }: { projectPath?: string }): JSX.Element {
   return (
     <div className="space-y-5">
       <SkillsTab />
       <hr className="border-border" />
-      <McpTab />
+      <McpTab projectPath={projectPath} />
     </div>
   );
 }

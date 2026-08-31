@@ -14,6 +14,8 @@ interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
   initialTab?: SettingsTab;
+  /** 窗口内当前打开的项目路径（由 ProjectPage 传入，MCP 插件页用它查询项目级配置与状态） */
+  projectPath?: string;
 }
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
@@ -25,7 +27,7 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "about", label: "关于" },
 ];
 
-export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProps): JSX.Element | null {
+export function SettingsDialog({ open, onClose, initialTab, projectPath }: SettingsDialogProps): JSX.Element | null {
   const { loadFromElectron } = useSettingsStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || "general");
   // 可更新版本(订阅广播):「关于」标题红点,进入关于页即已读
@@ -95,7 +97,7 @@ export function SettingsDialog({ open, onClose, initialTab }: SettingsDialogProp
           ) : activeTab === "appearance" ? (
             <AppearanceTab />
           ) : activeTab === "plugins" ? (
-            <PluginsTab />
+            <PluginsTab projectPath={projectPath} />
           ) : activeTab === "agent" ? (
             <AgentTab />
           ) : activeTab === "providers" ? (

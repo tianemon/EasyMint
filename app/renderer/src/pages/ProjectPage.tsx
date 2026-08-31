@@ -379,7 +379,7 @@ export function ProjectPage(): JSX.Element {
         </div>
       </main>
 
-      <SettingsDialog open={showSettings} onClose={() => { setShowSettings(false); setSettingsTab(undefined); }} initialTab={settingsTab} />
+      <SettingsDialog open={showSettings} onClose={() => { setShowSettings(false); setSettingsTab(undefined); }} initialTab={settingsTab} projectPath={projectPath} />
 
       {/* Rename Project Dialog */}
       {showRenameDialog && (
