@@ -12,9 +12,15 @@ interface PermissionRequest {
   dangerLevel?: "safe" | "normal" | "dangerous";
 }
 
+/** MCP 工具名格式 mcp__<server>__<tool>——解析出来源服务器（对齐 OMP：审批弹窗标注来源） */
+function mcpOrigin(toolName: string): string | null {
+  if (!toolName.startsWith("mcp__")) return null;
+  const parts = toolName.split("__");
+  return parts.length >= 2 && parts[1] ? parts[1] : null;
+}
+
 export function PermissionPrompt(): JSX.Element | null {
   const [pending, setPending] = useState<PermissionRequest[]>([]);
-
   useEffect(() => {
     const unsub = window.electronAPI.agent.onPermissionRequest((data: any) => {
       console.log("[PermissionPrompt] 收到权限请求:", data.requestId, data.toolName, data.type);
@@ -33,14 +39,23 @@ export function PermissionPrompt(): JSX.Element | null {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      {pending.map((req) => (
+      {pending.map((req) => {
+        const origin = mcpOrigin(req.toolName);
+        return (
         <div key={req.requestId} className="bg-surface border border-border rounded-xl p-6 max-w-md w-full shadow-2xl mx-4">
           <div className="flex items-start gap-3 mb-4">
             <span className={`text-lg ${req.dangerLevel === "dangerous" ? "text-danger" : "text-accent"}`}>
               {req.dangerLevel === "dangerous" ? "⚠" : "?"}
             </span>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-text-primary break-words">{req.toolName}</div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-sm font-medium text-text-primary break-words">{req.toolName}</span>
+                {origin && (
+                  <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-info-soft text-info shrink-0">
+                    来自 MCP 服务器：{origin}
+                  </span>
+                )}
+              </div>
               <div className="text-xs text-text-secondary mt-1 selectable">{req.description}</div>
             </div>
           </div>
@@ -65,7 +80,8 @@ export function PermissionPrompt(): JSX.Element | null {
             </button>
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
