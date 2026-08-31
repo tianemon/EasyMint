@@ -388,6 +388,7 @@ interface ElectronAPI {
       apiKeys?: Record<string, string>; builtinTools?: Record<string, boolean>; model?: string;
       manageSkillEnabled?: boolean;
       learnEnabled?: boolean;
+      importExternalSkills?: boolean;
       availableModels?: string[]; contextThreshold?: number;
       showThinking?: boolean; showToolUse?: boolean;
       chatThinkingLevel?: string;

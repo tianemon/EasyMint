@@ -10,7 +10,7 @@
  * EasyMint maintains its own disabled-skills list in em-settings.json.
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, cpSync, lstatSync, rmSync, unlinkSync, renameSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, cpSync, lstatSync, rmSync, unlinkSync, renameSync, realpathSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { getResourcesDir } from "../utils/paths";
@@ -26,6 +26,8 @@ export interface SkillManifest {
   enabled: boolean;
   managedRoot?: string;                         // managed 专属
   shadowed?: boolean;                           // managed 被同名 authored/builtin 遮蔽
+  /** imported 专属：来源平台（claude / codex / github），用于界面徽章 */
+  importedFrom?: string;
 }
 
 export interface SkillDetail extends SkillManifest {
@@ -86,6 +88,34 @@ function saveHiddenSkills(list: string[]): void {
   writeFileSync(DISABLED_FILE, JSON.stringify(data, null, 2));
 }
 
+// ── 外部生态目录发现（imported 来源，对齐 oh-my-pi 的多 provider 思路） ────
+// 只读发现：用户装过 Claude Code / Codex 生态的 skill、或项目带 GitHub Agent Skills
+// 标准布局的 .github/skills/，EM 直接可用——零安装动作。优先级低于 EM authored 区。
+interface ExternalSkillSource {
+  resolve: (projectPath: string) => string;
+  level: "global" | "project";
+  /** 平台标识（界面徽章） */
+  platform: "claude" | "codex" | "github";
+}
+
+const EXTERNAL_SOURCES: ExternalSkillSource[] = [
+  { resolve: () => path.join(os.homedir(), ".claude", "skills"), level: "global", platform: "claude" },
+  { resolve: () => path.join(os.homedir(), ".codex", "skills"), level: "global", platform: "codex" },
+  { resolve: (p) => path.join(p, ".claude", "skills"), level: "project", platform: "claude" },
+  { resolve: (p) => path.join(p, ".github", "skills"), level: "project", platform: "github" },
+];
+
+/** 是否发现外部生态目录（默认开启——只读发现不写文件；关闭后仅用 EM 目录） */
+function isExternalDiscoveryEnabled(): boolean {
+  if (!existsSync(DISABLED_FILE)) return true;
+  try {
+    const data = JSON.parse(readFileSync(DISABLED_FILE, "utf-8")) as Record<string, unknown>;
+    return data.importExternalSkills !== false;
+  } catch {
+    return true;
+  }
+}
+
 // ── YAML frontmatter parser ────────────────────────
 
 function parseFrontmatter(content: string): { name?: string; description?: string; model?: string; body: string } {
@@ -136,7 +166,17 @@ function parseFrontmatter(content: string): { name?: string; description?: strin
 
 // ── Scan ───────────────────────────────────────────
 
-function scanDir(dir: string, level: SkillManifest["level"], disabledList: string[], source: SkillManifest["source"]): SkillManifest[] {
+/** 扫一层目录（非递归，与 Pi/OMP/CC 一致）。
+ *  seen: realpath 去重集合（跨目录软链指向同一实体时只保留一次，防重复注入）。
+ *  importedFrom: 传入即标记外部来源平台。 */
+function scanDir(
+  dir: string,
+  level: SkillManifest["level"],
+  disabledList: string[],
+  source: SkillManifest["source"],
+  seen?: Set<string>,
+  importedFrom?: string,
+): SkillManifest[] {
   if (!existsSync(dir)) return [];
   const results: SkillManifest[] = [];
   try {
@@ -145,6 +185,17 @@ function scanDir(dir: string, level: SkillManifest["level"], disabledList: strin
       if (!statSync(entryPath).isDirectory()) continue;
       const skillFile = path.join(entryPath, "SKILL.md");
       if (!existsSync(skillFile)) continue;
+      // realpath 去重：软链/硬链指向同一目录时只算一个（OMP 同为 realpath 去重）
+      let real = entryPath;
+      try {
+        real = realpathSync(entryPath);
+      } catch {
+        // 解析失败按原路径处理
+      }
+      if (seen) {
+        if (seen.has(real)) continue;
+        seen.add(real);
+      }
       const raw = readFileSync(skillFile, "utf-8");
       const fm = parseFrontmatter(raw);
       results.push({
@@ -154,10 +205,23 @@ function scanDir(dir: string, level: SkillManifest["level"], disabledList: strin
         level,
         source,
         enabled: !disabledList.includes(entry),
+        ...(importedFrom ? { importedFrom } : {}),
       });
     }
   } catch {
     // Permission errors etc. — return what we have
+  }
+  return results;
+}
+
+/** 扫外部生态目录（imported）：用户/项目级的 CC、Codex、GitHub Agent Skills 布局 */
+function scanExternalSkills(projectPath: string | undefined, disabled: string[], seen: Set<string>): SkillManifest[] {
+  if (!isExternalDiscoveryEnabled()) return [];
+  const results: SkillManifest[] = [];
+  for (const src of EXTERNAL_SOURCES) {
+    if (src.level === "project" && !projectPath) continue;
+    const dir = src.resolve(projectPath ?? "");
+    results.push(...scanDir(dir, src.level, disabled, "imported", seen, src.platform));
   }
   return results;
 }
@@ -208,16 +272,20 @@ export function scanManagedSkills(): SkillManifest[] {
 export function scanSkills(projectPath?: string): SkillManifest[] {
   const disabled = getHiddenSkills();
   const result: SkillManifest[] = [];
+  // realpath 去重：跨目录（含外部生态目录）软链同一实体只算一次
+  const seen = new Set<string>();
 
   // Builtin skills (resources/skills/)
   const builtinDir = getBuiltinSkillsDir();
-  const builtin = scanDir(builtinDir, "builtin", disabled, "builtin");
+  const builtin = scanDir(builtinDir, "builtin", disabled, "builtin", seen);
   const emBuiltinNames = new Set(EM_SKILLS);
   const bundledNames = new Set(BUNDLED_SKILLS);
 
   // Global skills
-  const globalSkills = scanDir(GLOBAL_SKILLS_DIR, "global", disabled, "authored");
+  const globalSkills = scanDir(GLOBAL_SKILLS_DIR, "global", disabled, "authored", seen);
   const globalNames = new Set(globalSkills.map((s) => s.name));
+
+  /** 外部生态目录（imported）扫描——结果按名称去重，保留首个（扫描顺序即优先级） */
 
   // Builtin 归并（一次遍历按名称分类）：
   //  - EM skills: 恒为 builtin（不随全局副本隐藏）
@@ -239,7 +307,17 @@ export function scanSkills(projectPath?: string): SkillManifest[] {
 
   // Project-level skills
   if (projectPath) {
-    result.push(...scanDir(projectSkillsDir(projectPath), "project", disabled, "authored"));
+    result.push(...scanDir(projectSkillsDir(projectPath), "project", disabled, "authored", seen));
+  }
+
+  // External skills（~/.claude/skills、~/.codex/skills、<p>/.claude/skills、<p>/.github/skills）
+  // 排在 EM authored 之后：同名以 EM 自带/手写版本优先（对齐 OMP——自家 native 高于第三方）；
+  // 同名外部条目仍列出并标 shadowed（与 managed 一致——界面可见可处置，不静默吞掉）
+  const takenNames = new Set(result.map((s) => s.name));
+  for (const s of scanExternalSkills(projectPath, disabled, seen)) {
+    if (emBuiltinNames.has(s.name)) continue;
+    result.push(takenNames.has(s.name) ? { ...s, shadowed: true } : s);
+    takenNames.add(s.name);
   }
 
   // Managed skills — 同名时 authored/builtin 优先（shadow 标记，仍列出供管理界面处置）
@@ -496,6 +574,11 @@ const BUNDLED_SKILLS = ["ponytail", "ponytail-review", "ponytail-audit"];
 // buildSkillsPrompt 已退役（期 1b）：skill 注入收敛到 Pi 原生 <available_skills>，
 // 四来源经 pi-session 的 skillsOverride 并入（authored/managed 不在 Pi 扫描路径）。
 
+/** 是否具备可用描述（无描述的不进会话 skill 列表，避免噪声） */
+function hasDescription(s: SkillManifest): boolean {
+  return !!s.description && s.description.trim().length > 0 && s.description !== "(无描述)";
+}
+
 /** EM SkillManifest → Pi Skill（结构化字面量满足 SDK 接口；source 标注来源便于诊断） */
 export function toPiSkill(s: SkillManifest) {
   const filePath = path.join(s.path, "SKILL.md");
@@ -514,10 +597,12 @@ export function toPiSkill(s: SkillManifest) {
   };
 }
 
-/** skillsOverride 合并体：EM 四来源（启用、非 shadow）并入 Pi 原生发现，原生同名优先 */
+/** skillsOverride 合并体：EM 四来源（启用、非 shadow）并入 Pi 原生发现，原生同名优先。
+ *  缺 description 的不注入——无描述模型无法判断何时用，属噪声（对齐 OMP requireDescription）；
+ *  管理界面仍列出并标注，供用户补全后自动恢复。 */
 export function mergeIntoPiSkills(projectPath: string | undefined, baseSkills: Array<{ name: string }>): ReturnType<typeof toPiSkill>[] {
   const seen = new Set(baseSkills.map((s) => s.name));
   return scanSkills(projectPath)
-    .filter((s) => s.enabled && !s.shadowed && !seen.has(s.name))
+    .filter((s) => s.enabled && !s.shadowed && !seen.has(s.name) && hasDescription(s))
     .map(toPiSkill);
 }

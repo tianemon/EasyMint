@@ -33,6 +33,8 @@ interface Settings {
   manageSkillEnabled?: boolean;
   /** 允许 AI 自沉淀（learn + search_experiences 工具注册开关，D8 默认关闭） */
   learnEnabled?: boolean;
+  /** 发现外部生态 skill 目录（~/.claude/skills、<p>/.github/skills 等，只读发现，默认开启） */
+  importExternalSkills?: boolean;
   lastProjectId?: string;
   setupComplete?: boolean;
   contextThreshold?: number;
@@ -197,6 +199,7 @@ export class Store {
       builtinTools: (emData.builtinTools as Record<string, boolean>) || undefined,
       manageSkillEnabled: emData.manageSkillEnabled as boolean | undefined,
       learnEnabled: emData.learnEnabled as boolean | undefined,
+      importExternalSkills: emData.importExternalSkills as boolean | undefined,
       setupComplete: emData.setupComplete as boolean | undefined,
       lastProjectId: emData.lastProjectId as string | undefined,
       contextThreshold: (emData.contextThreshold as number) ?? EM_DEFAULTS.contextThreshold,
@@ -287,6 +290,7 @@ export class Store {
     if (settings.builtinTools) data.builtinTools = settings.builtinTools;
     if (settings.manageSkillEnabled !== undefined) data.manageSkillEnabled = settings.manageSkillEnabled;
     if (settings.learnEnabled !== undefined) data.learnEnabled = settings.learnEnabled;
+    if (settings.importExternalSkills !== undefined) data.importExternalSkills = settings.importExternalSkills;
     if (settings.contextThreshold !== undefined) data.contextThreshold = settings.contextThreshold;
     if (settings.showThinking !== undefined) data.showThinking = settings.showThinking;
     if (settings.showToolUse !== undefined) data.showToolUse = settings.showToolUse;

@@ -10,6 +10,7 @@ interface SkillRowData {
   source: "builtin" | "authored" | "imported" | "managed";
   enabled: boolean;
   shadowed?: boolean;
+  importedFrom?: string;
 }
 
 interface SkillStatData {
@@ -74,10 +75,23 @@ function SkillRow({ s, stat, onToggle, onDelete }: {
     }
   };
 
-  const sourceLabel = s.source === "managed" ? "AI" : s.source === "builtin" ? "内置" : "手写";
-  const sourceCls = s.source === "managed" ? "bg-warning-soft text-warning" : "bg-surface text-text-muted";
+  // imported 徽章带来源平台（Claude / Codex / GitHub），便于区分外部生态导入
+  const sourceLabel = s.source === "managed"
+    ? "AI"
+    : s.source === "builtin"
+      ? "内置"
+      : s.source === "imported"
+        ? `外部·${s.importedFrom === "github" ? "GitHub" : s.importedFrom === "codex" ? "Codex" : "Claude"}`
+        : "手写";
+  const sourceCls = s.source === "managed"
+    ? "bg-warning-soft text-warning"
+    : s.source === "imported"
+      ? "bg-info-soft text-info"
+      : "bg-surface text-text-muted";
   const stale = !!stat && stat.lastUsedAt > 0 && Date.now() - stat.lastUsedAt > 90 * 86_400_000;
   const highFail = !!stat && stat.failCount >= 3 && stat.usageCount > 0 && stat.failCount / stat.usageCount >= 0.3;
+  // 缺描述：不进会话 skill 列表（模型无法判断何时用）——但仍列出供补全
+  const noDesc = !s.description || s.description === "(无描述)";
 
   return (
     <div
@@ -94,6 +108,12 @@ function SkillRow({ s, stat, onToggle, onDelete }: {
           )}
           {s.shadowed && (
             <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-warning-soft text-warning shrink-0">被遮蔽</span>
+          )}
+          {noDesc && (
+            <span
+              className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-danger-soft text-danger shrink-0"
+              title="SKILL.md 缺 description——不会出现在会话的技能列表，补全后自动恢复"
+            >缺描述</span>
           )}
           {stale && (
             <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-surface text-text-muted shrink-0">90天未用</span>
@@ -158,6 +178,8 @@ function SkillsTab(): JSX.Element {
   const [manageSkillEnabled, setManageSkillEnabled] = useState(false);
   // AI 自沉淀开关（learn + search_experiences，D8：默认关闭）
   const [learnEnabled, setLearnEnabled] = useState(false);
+  // 外部生态目录发现（~/.claude/skills 等，只读发现，默认开启）
+  const [importExternal, setImportExternal] = useState(true);
 
   const load = async () => {
     try {
@@ -177,6 +199,7 @@ function SkillsTab(): JSX.Element {
       .then((s) => {
         setManageSkillEnabled(!!s.manageSkillEnabled);
         setLearnEnabled(!!s.learnEnabled);
+        setImportExternal(s.importExternalSkills !== false);
       })
       .catch((e: unknown) => setLoadError(String(e)));
   }, []);
@@ -220,6 +243,17 @@ function SkillsTab(): JSX.Element {
       await window.electronAPI.settings.set("learnEnabled", v);
     } catch (e: unknown) {
       setLearnEnabled(!v);
+      setLoadError(String(e));
+    }
+  };
+
+  const saveImportExternal = async (v: boolean) => {
+    setImportExternal(v);
+    try {
+      await window.electronAPI.settings.set("importExternalSkills", v);
+      load(); // 开关影响扫描结果——立即重载列表
+    } catch (e: unknown) {
+      setImportExternal(!v);
       setLoadError(String(e));
     }
   };
@@ -304,6 +338,19 @@ function SkillsTab(): JSX.Element {
             {t === "builtin" ? "内置" : t === "global" ? "通用" : "AI 管理"}
           </button>
         ))}
+      </div>
+
+      {/* 外部生态发现开关（对全部页签生效——只读发现，不改动任何文件） */}
+      <div className="bg-surface-alt rounded-lg border border-border px-3 py-2.5 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs text-text-primary">发现外部生态 skill</p>
+          <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
+            自动识别 Claude Code（<span className="font-mono">~/.claude/skills/</span>、项目 <span className="font-mono">.claude/skills/</span>）、
+            Codex（<span className="font-mono">~/.codex/skills/</span>）、GitHub Agent Skills（项目 <span className="font-mono">.github/skills/</span>）中的标准 skill，
+            标记为「外部」来源即可用（只读，不改动原目录；同名以 EasyMint 自带版本优先）
+          </p>
+        </div>
+        <Toggle checked={importExternal} onChange={saveImportExternal} />
       </div>
 
       {/* AI 管理区：写入开关 + 新建表单 */}
