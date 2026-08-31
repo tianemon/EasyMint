@@ -495,3 +495,116 @@ export function seedDefaultMcp(): void {
 // ── Plugin marketplace seed ────────────────────────
 // Removed seedDefaultPlugins — plugin marketplace mechanism was redundant.
 // Skills are seeded by seedBundledSkills to ~/.easymint/skills/.
+
+// ── 粘贴导入解析（对齐 claude mcp add-json / 用户粘贴 README 片段的习惯） ────
+
+const COMMAND_HINT_RE = /^(npx|uvx|node|python3?|bunx|deno|docker)\b/i;
+
+export interface ParsedMcpImport {
+  servers: Record<string, McpServerConfig>;
+  /** 需要用户注意的提示（如同名覆盖、变量缺失） */
+  notes: string[];
+}
+
+/** 从粘贴文本解析 MCP 配置：完整 mcpServers JSON / 单 server 对象 /
+ *  claude mcp add 命令行 / 裸 npx·uvx 命令。失败返回明确错误。 */
+export function parseMcpConfig(text: string): { ok: true; parsed: ParsedMcpImport } | { ok: false; error: string } {
+  const trimmed = (text || "").trim();
+  if (!trimmed) return { ok: false, error: "内容为空" };
+  const notes: string[] = [];
+
+  // 1) claude mcp add-json name '{...}'
+  const addJson = trimmed.match(/mcp\s+add-json\s+(\S+)\s+('(.*)'|"(.*)"|(\{.*\}))/s);
+  if (addJson) {
+    const name = addJson[1]!.replace(/^['"]|['"]$/g, "");
+    const jsonRaw = addJson[3] ?? addJson[4] ?? addJson[5] ?? "";
+    try {
+      const cfg = JSON.parse(jsonRaw) as McpServerConfig;
+      const v = validateMcpServer(name, cfg);
+      if (!v.ok) return { ok: false, error: `「${name}」配置不合法：${v.error}` };
+      return { ok: true, parsed: { servers: { [name]: cfg }, notes } };
+    } catch (e) {
+      return { ok: false, error: `add-json 的 JSON 解析失败：${(e as Error).message}` };
+    }
+  }
+
+  // 2) claude mcp add [flags] name [-- cmd args...]
+  const addCmd = trimmed.match(/mcp\s+add\s+(.*)$/s);
+  if (addCmd) {
+    let rest = addCmd[1]!.trim();
+    const env: Record<string, string> = {};
+    const headers: Record<string, string> = {};
+    let type: McpServerConfig["type"] = "stdio";
+    let url: string | undefined;
+    // 提取 flags（--transport/--header/--env）
+    rest = rest.replace(/--transport\s+(\S+)/gi, (_, t) => { type = /https?:/i.test(t) || ["http", "sse"].includes(String(t).toLowerCase()) ? (String(t).toLowerCase() as McpServerConfig["type"]) : "stdio"; return ""; });
+    rest = rest.replace(/--header\s+"?([^:\s]+):\s*([^"]*)"?\s*/gi, (_, k, v) => { headers[k] = v; return ""; });
+    rest = rest.replace(/--env\s+(\S+)=("([^"]*)"|\S+)/gi, (_, k, v, q) => { env[k] = q ?? v; return ""; });
+    rest = rest.replace(/--scope\s+\S+/gi, "").replace(/--client-(id|secret)\s+\S+/gi, "").replace(/--callback-port\s+\d+/gi, "").trim();
+    // name 与命令分离：第一个非 flag token 是 name；-- 之后是命令
+    const dashIdx = rest.indexOf("--");
+    const tokens = (dashIdx >= 0 ? rest.slice(0, dashIdx) : rest).split(/\s+/).filter(Boolean);
+    let name = "mcp-server";
+    let cmdPart = dashIdx >= 0 ? rest.slice(dashIdx + 2).trim() : "";
+    if (tokens.length > 0) {
+      if (!COMMAND_HINT_RE.test(tokens[0]!)) {
+        name = tokens[0]!;
+        cmdPart = dashIdx >= 0 ? rest.slice(dashIdx + 2).trim() : tokens.slice(1).join(" ");
+      } else {
+        cmdPart = tokens.join(" ");
+      }
+    }
+    if (dashIdx < 0 && !cmdPart) cmdPart = rest;
+    if (type !== "stdio" && !url) url = cmdPart && /^https?:\/\//.test(cmdPart) ? cmdPart : undefined;
+    if (type === "stdio" && !cmdPart) return { ok: false, error: "命令行里没有找到要执行的命令" };
+    const cfg: McpServerConfig = type === "stdio"
+      ? { type, command: cmdPart.split(/\s+/)[0], args: cmdPart.split(/\s+/).slice(1).filter(Boolean), env: Object.keys(env).length ? env : undefined }
+      : { type, url: url ?? undefined, headers: Object.keys(headers).length ? headers : undefined, env: Object.keys(env).length ? env : undefined };
+    const v = validateMcpServer(name, cfg);
+    if (!v.ok) return { ok: false, error: `「${name}」配置不合法：${v.error}` };
+    if (dashIdx >= 0 && cmdPart) notes.push("已按空格拆分命令与参数（含引号的参数请导入后在界面微调）");
+    return { ok: true, parsed: { servers: { [name]: cfg }, notes } };
+  }
+
+  // 3) JSON 形态：完整 mcpServers 或单 server 对象
+  const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const data = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+      if (data.mcpServers && typeof data.mcpServers === "object") {
+        const servers: Record<string, McpServerConfig> = {};
+        for (const [name, cfg] of Object.entries(data.mcpServers as Record<string, McpServerConfig>)) {
+          const v = validateMcpServer(name, cfg);
+          if (!v.ok) return { ok: false, error: `「${name}」配置不合法：${v.error}` };
+          servers[name] = cfg;
+        }
+        if (Object.keys(servers).length === 0) return { ok: false, error: "mcpServers 为空" };
+        return { ok: true, parsed: { servers, notes } };
+      }
+      // 单 server 对象（有 type 或 command/url 之一）
+      if (data.type || data.command || data.url) {
+        const cfg = data as unknown as McpServerConfig;
+        const v = validateMcpServer("mcp-server", cfg);
+        if (!v.ok) return { ok: false, error: `配置不合法：${v.error}` };
+        notes.push("粘贴内容里没有服务器名称，默认用 mcp-server，可在导入后重命名");
+        return { ok: true, parsed: { servers: { "mcp-server": cfg }, notes } };
+      }
+    } catch { /* 非 JSON，继续尝试命令行 */ }
+  }
+
+  // 4) 裸命令（npx/uvx/node/…）
+  if (COMMAND_HINT_RE.test(trimmed)) {
+    const parts = trimmed.split(/\s+/);
+    const pkgToken = parts.find((p) => /@|mcp|server/i.test(p) && p !== parts[0]) ?? parts[1] ?? "server";
+    const name = (pkgToken.split("/").pop() ?? "mcp-server")
+      .replace(/^@/, "").replace(/[^a-z0-9_-]/gi, "-").toLowerCase().slice(0, 64)
+      .replace(/^[-_]+|[-_]+$/g, "") || "mcp-server";
+    const cfg: McpServerConfig = { type: "stdio", command: parts[0], args: parts.slice(1).filter(Boolean) };
+    const v = validateMcpServer(name, cfg);
+    if (!v.ok) return { ok: false, error: `「${name}」配置不合法：${v.error}` };
+    notes.push(`名称从包名推导为「${name}」，导入后可改`);
+    return { ok: true, parsed: { servers: { [name]: cfg }, notes } };
+  }
+
+  return { ok: false, error: "无法识别的配置格式——支持 mcpServers JSON、单 server JSON、claude mcp add 命令行、或 npx/uvx 等启动命令" };
+}

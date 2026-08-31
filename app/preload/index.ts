@@ -123,6 +123,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   skill: {
     list: (projectPath?: string) => ipcRenderer.invoke("skill:list", { projectPath }),
+    import: (source: string, name?: string, overwrite?: boolean) => ipcRenderer.invoke("skill:import", { source, name, overwrite }) as Promise<{ ok: boolean; error?: string; name?: string; path?: string }>,
+
     get: (skillPath: string) => ipcRenderer.invoke("skill:get", { skillPath }),
     toggle: (name: string, enabled: boolean) => ipcRenderer.invoke("skill:toggle", { name, enabled }),
     createManaged: (name: string, description: string, body: string, projectPath?: string) =>
@@ -149,6 +151,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     test: (cfg: { type: "stdio" | "http" | "sse"; command?: string; args?: string[]; env?: Record<string, string>; url?: string; headers?: Record<string, string>; timeout?: number; oauth?: boolean; callbackPort?: number }) => ipcRenderer.invoke("mcp:test", { cfg }) as Promise<{ ok: boolean; error?: string; toolCount?: number }>,
     retry: (name: string, projectPath?: string) => ipcRenderer.invoke("mcp:retry", { name, projectPath }) as Promise<{ ok: boolean; error?: string }>,
     approve: (name: string, projectPath: string) => ipcRenderer.invoke("mcp:approve", { name, projectPath }) as Promise<void>,
+    importText: (text: string) => ipcRenderer.invoke("mcp:importText", { text }) as Promise<{ ok: boolean; error?: string; message?: string; notes?: string[] }>,
   },
   upload: {
     stats: (sortBy?: "time" | "size") => ipcRenderer.invoke("upload:stats", { sortBy }),

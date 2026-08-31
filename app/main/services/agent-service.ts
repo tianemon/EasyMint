@@ -22,6 +22,7 @@ import { createAgentTemplateTool } from "./task/tool";
 import { createSkillTool, createManageSkillTool } from "./tools/skill-tool";
 import { createLearnTool, createSearchExperiencesTool, type LearnResponse } from "./tools/learn-tool";
 import { evaluateLearnGate, isFixTool } from "./learn-gate";
+import { createImportTools } from "./import-tools";
 import { registerSessionIdMapping, abortTask, getRunningSummary, resolveParentSessionId } from "./task/registry";
 import { formatShellResult } from "./background-shell/tool";
 import { backgroundShellRegistry, type BackgroundShell } from "./background-shell/registry";
@@ -644,6 +645,8 @@ export class AgentService {
       const listAgentsTool = await createListAgentsTool(sessionId);
       const readAgentLogTool = await createReadAgentLogTool(sessionId);
       const allTools = [taskTool, agentTemplateTool, stopAgentTool, listAgentsTool, readAgentLogTool, ...productTools, ...mcpTools];
+      // 粘贴导入工具（用户明确意图驱动，恒装——见 import-tools.ts 头注释）
+      allTools.push(...(await createImportTools()));
       // use_skill 非挂起类（读+统计），worker 也装——提示词多处「用 use_skill 加载」在 worker 同样成立；
       // 其 model 切换 hook 在 worker（无 chat）下降级为 false，无害
       allTools.push(await createSkillTool(projectPath, {

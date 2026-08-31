@@ -35,6 +35,8 @@ import {
   toggleSkill,
   writeManagedSkill,
   deleteSkill,
+  importSkillFromUrl,
+  importSkillFromDir,
 } from "./services/skill-service";
 import { getSkillStats } from "./services/skill-registry";
 import {
@@ -45,6 +47,7 @@ import {
   deleteMcpServer,
   getMcpServerConfig,
   getMcpConfigPath,
+  parseMcpConfig,
   approveMcpServer,
   type McpServerConfig,
   type McpScope,
@@ -260,6 +263,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("skill:delete", (_e, { skillPath, projectPath }: { skillPath: string; projectPath?: string }) =>
     deleteSkill(skillPath, projectPath));
   ipcMain.handle("skill:getStats", () => getSkillStats());
+  ipcMain.handle("skill:import", (_e, { source, name, overwrite }: { source: string; name?: string; overwrite?: boolean }) =>
+    /^https:\/\//i.test(source.trim())
+      ? importSkillFromUrl(source, { name, overwrite })
+      : importSkillFromDir(source, { name, overwrite }));
 
   // mcp:*
   ipcMain.handle("mcp:list", () => scanMcpServers());
@@ -284,6 +291,17 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("mcp:status", (_e, { projectPath }: { projectPath?: string }) => getMcpStatus(projectPath));
   ipcMain.handle("mcp:test", (_e, { cfg }: { cfg: McpServerConfig }) => testMcpServer(cfg));
   ipcMain.handle("mcp:retry", (_e, { name, projectPath }: { name: string; projectPath?: string }) => retryMcpServer(name, projectPath));
+  ipcMain.handle("mcp:importText", (_e, { text }: { text: string }) => {
+    const parsed = parseMcpConfig(text);
+    if (!parsed.ok) return { ok: false, error: parsed.error };
+    const results: string[] = [];
+    for (const [name, cfg] of Object.entries(parsed.parsed.servers)) {
+      const r = saveMcpServer(name, cfg);
+      results.push(r.ok ? `✅ ${name}（${cfg.type}）已添加` : `❌ ${name}：${r.error}`);
+    }
+    reloadMcpTools();
+    return { ok: results.some((r) => r.startsWith("✅")), message: results.join("\n"), notes: parsed.parsed.notes };
+  });
   ipcMain.handle("mcp:approve", (_e, { name, projectPath }: { name: string; projectPath: string }) => {
     approveMcpServer(projectPath, name);
     reloadMcpTools();

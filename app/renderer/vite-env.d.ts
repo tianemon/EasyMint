@@ -304,6 +304,7 @@ interface ElectronAPI {
     deleteManaged: (name: string) => Promise<{ ok: boolean; error?: string; shadowed?: boolean }>;
     delete: (skillPath: string, projectPath?: string) => Promise<{ ok: boolean; error?: string }>;
     getStats: () => Promise<Record<string, { usageCount: number; lastUsedAt: number; failCount: number }>>;
+    import: (source: string, name?: string, overwrite?: boolean) => Promise<{ ok: boolean; error?: string; name?: string; path?: string }>;
   },
   mcp: {
     list: (projectPath?: string) => Promise<{ name: string; type: "stdio" | "http" | "sse"; command?: string; args?: string[]; url?: string; enabled: boolean; scope: "user" | "project" | "project-compat"; writable: boolean; pendingApproval?: boolean }[]>;
@@ -317,6 +318,7 @@ interface ElectronAPI {
     test: (cfg: McpServerCfg) => Promise<{ ok: boolean; error?: string; toolCount?: number }>;
     retry: (name: string, projectPath?: string) => Promise<{ ok: boolean; error?: string }>;
     approve: (name: string, projectPath: string) => Promise<void>;
+    importText: (text: string) => Promise<{ ok: boolean; error?: string; message?: string; notes?: string[] }>;
   },
   upload: {
     stats: (sortBy?: "time" | "size") => Promise<{ totalSize: number; fileCount: number; files: { name: string; size: number; created: number; isImage: boolean }[] }>;

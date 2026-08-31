@@ -180,6 +180,30 @@ function SkillsTab(): JSX.Element {
   const [learnEnabled, setLearnEnabled] = useState(false);
   // 外部生态目录发现（~/.claude/skills 等，只读发现，默认开启）
   const [importExternal, setImportExternal] = useState(true);
+  // Skill 导入（粘贴链接/目录路径）
+  const [skillImportOpen, setSkillImportOpen] = useState(false);
+  const [skillSource, setSkillSource] = useState("");
+  const [skillImportMsg, setSkillImportMsg] = useState("");
+  const [skillImporting, setSkillImporting] = useState(false);
+
+  const handleSkillImport = async () => {
+    if (!skillSource.trim()) return;
+    setSkillImporting(true);
+    setSkillImportMsg("导入中…");
+    try {
+      const r = await window.electronAPI.skill.import(skillSource.trim());
+      if (r.ok) {
+        setSkillImportMsg(`✅ skill「${r.name}」已安装（当前会话即可用 use_skill 加载，重启后进入技能列表）`);
+        load();
+      } else {
+        setSkillImportMsg("❌ " + (r.error || "导入失败"));
+      }
+    } catch (e) {
+      setSkillImportMsg("❌ " + String(e));
+    } finally {
+      setSkillImporting(false);
+    }
+  };
 
   const load = async () => {
     try {
@@ -351,6 +375,45 @@ function SkillsTab(): JSX.Element {
           </p>
         </div>
         <Toggle checked={importExternal} onChange={saveImportExternal} />
+      </div>
+
+      {/* Skill 导入（粘贴 GitHub 链接或本地目录路径） */}
+      <div className="bg-surface-alt rounded-lg border border-border px-3 py-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs text-text-primary">导入 skill</p>
+            <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
+              粘贴 GitHub / GitLab / Gitee 仓库链接或本地目录路径（需含 SKILL.md），校验后拷入手写 skill 区；只拷文件，不执行仓库内任何脚本
+            </p>
+          </div>
+          {!skillImportOpen && (
+            <button type="button" onClick={() => setSkillImportOpen(true)}
+              className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] text-text-secondary border border-border hover:text-text-primary hover:bg-surface-hover transition-colors shrink-0">
+              导入
+            </button>
+          )}
+        </div>
+        {skillImportOpen && (
+          <div className="mt-2 space-y-2">
+            <input
+              className="em-input w-full px-2.5 py-1.5 text-xs font-mono"
+              placeholder="https://github.com/user/skill-repo 或 ~/path/to/skill-dir"
+              value={skillSource}
+              onChange={(e) => setSkillSource(e.target.value)}
+            />
+            {skillImportMsg && <p className="text-[length:var(--text-11)] whitespace-pre-line">{skillImportMsg}</p>}
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => { setSkillImportOpen(false); setSkillSource(""); setSkillImportMsg(""); }}
+                className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+                关闭
+              </button>
+              <button type="button" disabled={!skillSource.trim() || skillImporting} onClick={handleSkillImport}
+                className="px-3.5 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors disabled:opacity-50">
+                {skillImporting ? "导入中…" : "导入"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* AI 管理区：写入开关 + 新建表单 */}
@@ -698,6 +761,11 @@ function McpTab(): JSX.Element {
   const [editing, setEditing] = useState<{ name: string; cfg: McpServerCfg; scope: "user" | "project" } | null>(null);
   const [adding, setAdding] = useState(false);
   const [actionErr, setActionErr] = useState("");
+  // 粘贴导入：textarea + 解析结果消息
+  const [pasteMode, setPasteMode] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [pasteMsg, setPasteMsg] = useState("");
+  const [pasting, setPasting] = useState(false);
 
   const load = async () => {
     try {
@@ -826,11 +894,17 @@ function McpTab(): JSX.Element {
       <section>
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-medium text-text-primary">MCP</h3>
-          {!adding && !editing && (
-            <button type="button" onClick={() => setAdding(true)}
-              className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors">
-              + 添加服务器
-            </button>
+          {!adding && !editing && !pasteMode && (
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setPasteMode(true)}
+                className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] text-text-secondary border border-border hover:text-text-primary hover:bg-surface-hover transition-colors">
+                粘贴配置导入
+              </button>
+              <button type="button" onClick={() => setAdding(true)}
+                className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors">
+                + 添加服务器
+              </button>
+            </div>
           )}
         </div>
         {!adding && !editing && (
@@ -840,6 +914,44 @@ function McpTab(): JSX.Element {
         )}
         {actionErr && <p className="text-danger text-[length:var(--text-11)] mb-2">{actionErr}</p>}
 
+        {pasteMode && (
+          <div className="bg-surface-alt rounded-lg border border-border px-3 py-3 space-y-2">
+            <p className="text-[length:var(--text-11)] text-text-secondary">
+              粘贴 MCP 配置（README 里的 mcpServers JSON、单 server JSON、claude mcp add 命令行、或 npx/uvx 启动命令均可）：
+            </p>
+            <textarea
+              className="em-input w-full px-2.5 py-1.5 text-xs font-mono resize-y min-h-20"
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              placeholder={'{"mcpServers":{"github":{"type":"http","url":"https://api.githubcopilot.com/mcp/"}}}\n\n或：npx -y @modelcontextprotocol/server-filesystem /tmp'}
+            />
+            {pasteMsg && <p className="text-[length:var(--text-11)] whitespace-pre-line">{pasteMsg}</p>}
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => { setPasteMode(false); setPasteText(""); setPasteMsg(""); }}
+                className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+                关闭
+              </button>
+              <button type="button" disabled={!pasteText.trim() || pasting}
+                onClick={async () => {
+                  setPasting(true);
+                  setPasteMsg("解析中…");
+                  try {
+                    const r = await window.electronAPI.mcp.importText(pasteText);
+                    if (r.ok) {
+                      setPasteMsg((r.message || "导入成功") + (r.notes?.length ? "\n" + r.notes.join("；") : ""));
+                      load();
+                    } else {
+                      setPasteMsg("❌ " + (r.error || "导入失败"));
+                    }
+                  } catch (e2) { setPasteMsg("❌ " + String(e2)); }
+                  finally { setPasting(false); }
+                }}
+                className="px-3.5 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors disabled:opacity-50">
+                解析并导入
+              </button>
+            </div>
+          </div>
+        )}
         {(adding || editing) && (
           <McpServerForm
             initial={editing ? { name: editing.name, cfg: editing.cfg } : null}

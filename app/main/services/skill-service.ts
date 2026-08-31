@@ -606,3 +606,68 @@ export function mergeIntoPiSkills(projectPath: string | undefined, baseSkills: A
     .filter((s) => s.enabled && !s.shadowed && !seen.has(s.name) && hasDescription(s))
     .map(toPiSkill);
 }
+
+// ── Skill 导入（粘贴链接/目录 → 校验 → 拷入 authored 区） ────
+
+import { execFileSync } from "node:child_process";
+
+/** skill 目录名规范（与 managed 写入一致） */
+const SKILL_DIR_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+
+export interface SkillImportResult {
+  ok: boolean;
+  error?: string;
+  name?: string;
+  path?: string;
+}
+
+/** 从本地目录导入：校验 SKILL.md → 拷入 ~/.easymint/skills/<name>/（一层目录规范） */
+export function importSkillFromDir(sourceDir: string, opts?: { name?: string; overwrite?: boolean }): SkillImportResult {
+  const src = path.resolve(sourceDir.replace(/^~/, os.homedir()));
+  const skillFile = path.join(src, "SKILL.md");
+  if (!existsSync(skillFile)) {
+    return { ok: false, error: "目录里没有 SKILL.md：" + src + "（外部 skill 需为「目录/SKILL.md」结构）" };
+  }
+  const name = (opts?.name || path.basename(src)).trim();
+  if (!SKILL_DIR_NAME_RE.test(name)) {
+    return { ok: false, error: "skill 名称不合法：「" + name + "」（需小写字母/数字/连字符）" };
+  }
+  const dest = path.join(GLOBAL_SKILLS_DIR, name);
+  if (existsSync(dest) && !opts?.overwrite) {
+    return { ok: false, error: "skill「" + name + "」已存在（覆盖请显式确认）" };
+  }
+  try {
+    mkdirSync(dest, { recursive: true });
+    cpSync(src, dest, { recursive: true, force: true });
+    return { ok: true, name, path: dest };
+  } catch (e) {
+    return { ok: false, error: "拷贝失败：" + (e as Error).message };
+  }
+}
+
+/** 从 GitHub/GitLab/Gitee 仓库导入：--depth 1 clone 到临时目录 → 定位 SKILL.md（根或一层子目录）→ 拷入。
+ *  安全：只拷贝文件，不执行仓库内任何脚本。 */
+export function importSkillFromUrl(url: string, opts?: { name?: string; overwrite?: boolean }): SkillImportResult {
+  const u = url.trim();
+  if (!/^https:\/\/(github\.com|gitlab\.com|gitee\.com)\//i.test(u)) {
+    return { ok: false, error: "目前支持 GitHub / GitLab / Gitee 仓库链接（https）" };
+  }
+  const tmp = path.join(os.tmpdir(), "em-skill-import-" + Date.now());
+  try {
+    execFileSync("git", ["clone", "--depth", "1", u, tmp], { timeout: 120_000, stdio: "pipe" });
+    if (existsSync(path.join(tmp, "SKILL.md"))) {
+      return importSkillFromDir(tmp, { ...opts, name: opts?.name || path.basename(u).replace(/\.git$/, "") });
+    }
+    for (const entry of readdirSync(tmp)) {
+      const sub = path.join(tmp, entry);
+      if (statSync(sub).isDirectory() && existsSync(path.join(sub, "SKILL.md"))) {
+        return importSkillFromDir(sub, { ...opts, name: opts?.name || entry });
+      }
+    }
+    return { ok: false, error: "仓库里没找到 SKILL.md（根目录或一层子目录）——它可能不是标准 skill 仓库" };
+  } catch (e) {
+    return { ok: false, error: "clone 失败（检查网络/链接）：" + (e as Error).message };
+  } finally {
+    try { rmSync(tmp, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+}
