@@ -18,6 +18,68 @@ export interface McpServerConfig {
   env?: Record<string, string>;
   url?: string;
   headers?: Record<string, string>;
+  /** 可选：连接超时（毫秒）；缺省走 adapter 默认（8000） */
+  timeout?: number;
+}
+
+/** 服务器名规范（对齐 CC/OMP：小写字母数字 + 连字符/下划线） */
+export const MCP_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+
+/** MCP 连接状态（界面状态列与诊断用） */
+export interface McpServerStatus {
+  name: string;
+  state: "connected" | "connecting" | "failed" | "disabled";
+  toolCount?: number;
+  /** 脱敏后的失败原因（仅 failed 时有） */
+  error?: string;
+}
+
+// ── 环境变量展开（对齐 CC/OMP：${VAR} 与 ${VAR:-default}） ────
+
+const VAR_RE = /\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g;
+
+/** 展开字符串中的 ${VAR} / ${VAR:-default}；env 缺省取 process.env */
+export function expandEnvVars(input: string, env?: Record<string, string>): { value: string; missing: string[] } {
+  const missing: string[] = [];
+  const value = input.replace(VAR_RE, (whole, name: string, def?: string) => {
+    const raw = env?.[name] ?? process.env[name];
+    if (raw !== undefined && raw !== "") return raw;
+    if (def !== undefined) return def;
+    missing.push(name);
+    return whole; // 未定义且无默认 → 保留原样，由调用方提示
+  });
+  return { value, missing };
+}
+
+/** 展开配置中的 command/args/env/url/headers（OMP/CC 的作用域一致） */
+export function expandServerConfig(
+  cfg: McpServerConfig,
+  env?: Record<string, string>,
+): { cfg: McpServerConfig; missing: string[] } {
+  const missing = new Set<string>();
+  const one = (s: string | undefined): string | undefined => {
+    if (s === undefined) return undefined;
+    const { value, missing: m } = expandEnvVars(s, env);
+    m.forEach((x) => missing.add(x));
+    return value;
+  };
+  const map = (rec: Record<string, string> | undefined): Record<string, string> | undefined => {
+    if (!rec) return undefined;
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(rec)) out[k] = one(v) ?? v;
+    return out;
+  };
+  return {
+    cfg: {
+      ...cfg,
+      command: one(cfg.command),
+      args: cfg.args?.map((a) => one(a) ?? a),
+      url: one(cfg.url),
+      env: map(cfg.env),
+      headers: map(cfg.headers),
+    },
+    missing: [...missing],
+  };
 }
 
 export interface McpServerManifest {
@@ -150,6 +212,102 @@ export function getMcpRequiredKeys(): Record<string, Record<string, string>> {
   }
 
   return result;
+}
+
+// ── 校验与 CRUD（配置管理界面） ────────────────────
+
+export interface McpValidationResult {
+  ok: boolean;
+  error?: string;
+}
+
+/** 校验 server 配置（对齐 OMP config.ts:317-343：stdio 需 command，command 与 url 互斥） */
+export function validateMcpServer(name: string, cfg: McpServerConfig): McpValidationResult {
+  if (!MCP_NAME_RE.test(name)) {
+    return { ok: false, error: "名称需用小写字母/数字/连字符（如 my-server），长度 1-64" };
+  }
+  if (!cfg || !["stdio", "http", "sse"].includes(cfg.type)) {
+    return { ok: false, error: "传输类型必须是 stdio / http / sse" };
+  }
+  if (cfg.type === "stdio") {
+    if (!cfg.command?.trim()) return { ok: false, error: "stdio 类型必须填写启动命令（如 npx）" };
+    if (cfg.url) return { ok: false, error: "stdio 类型不能同时填写 URL" };
+  } else {
+    if (!cfg.url?.trim()) return { ok: false, error: `${cfg.type} 类型必须填写 URL` };
+    try {
+      const u = new URL(cfg.url);
+      if (!/^https?:$/.test(u.protocol)) return { ok: false, error: "URL 必须是 http/https" };
+    } catch {
+      return { ok: false, error: "URL 格式不正确" };
+    }
+  }
+  return { ok: true };
+}
+
+/** 新增/更新一个 MCP 服务器（写入 ~/.easymint/mcp.json）。同名覆盖需调用方先确认。 */
+export function saveMcpServer(name: string, cfg: McpServerConfig): { ok: boolean; error?: string; overwritten?: boolean } {
+  const v = validateMcpServer(name, cfg);
+  if (!v.ok) return { ok: false, error: v.error };
+
+  const configPath = emMcpPath();
+  const dir = path.dirname(configPath);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
+  let data: Record<string, unknown> = {};
+  if (existsSync(configPath)) {
+    try {
+      data = JSON.parse(readFileSync(configPath, "utf-8"));
+    } catch (e) {
+      return { ok: false, error: `配置文件解析失败：${(e as Error).message}` };
+    }
+  }
+  const servers = ((data.mcpServers as Record<string, McpServerConfig>) || {});
+  const overwritten = Object.prototype.hasOwnProperty.call(servers, name);
+  servers[name] = cfg;
+  data.mcpServers = servers;
+  try {
+    writeFileSync(configPath, JSON.stringify(data, null, 2), "utf-8");
+  } catch (e) {
+    return { ok: false, error: `写入失败：${(e as Error).message}` };
+  }
+  return { ok: true, overwritten };
+}
+
+/** 删除一个 MCP 服务器（同时清掉禁用名单里的残留） */
+export function deleteMcpServer(name: string): { ok: boolean; error?: string } {
+  const configPath = emMcpPath();
+  if (!existsSync(configPath)) return { ok: false, error: "配置文件不存在" };
+  try {
+    const data = JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>;
+    const servers = (data.mcpServers as Record<string, McpServerConfig>) || {};
+    if (!servers[name]) return { ok: false, error: `未找到服务器「${name}」` };
+    delete servers[name];
+    data.mcpServers = servers;
+    writeFileSync(configPath, JSON.stringify(data, null, 2), "utf-8");
+    // 清禁用名单残留，避免同名重建时被误判为停用
+    const settings: Record<string, unknown> = existsSync(EM_SETTINGS)
+      ? JSON.parse(readFileSync(EM_SETTINGS, "utf-8"))
+      : {};
+    const hidden = (settings.hiddenMcpServers as string[]) || [];
+    if (hidden.includes(name)) {
+      settings.hiddenMcpServers = hidden.filter((n) => n !== name);
+      writeFileSync(EM_SETTINGS, JSON.stringify(settings, null, 2));
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+/** 读取原始配置（供编辑表单回填；不含 apiKeys 等运行时信息） */
+export function getMcpServerConfig(name: string): McpServerConfig | null {
+  const servers = readMcpServersFrom(emMcpPath());
+  return servers[name] ?? null;
+}
+
+/** 配置文件路径（界面提示用） */
+export function getMcpConfigPath(): string {
+  return emMcpPath();
 }
 
 // ── Toggle ─────────────────────────────────────────

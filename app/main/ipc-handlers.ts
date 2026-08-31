@@ -41,7 +41,13 @@ import {
   scanMcpServers,
   toggleMcpServer,
   getMcpRequiredKeys,
+  saveMcpServer,
+  deleteMcpServer,
+  getMcpServerConfig,
+  getMcpConfigPath,
+  type McpServerConfig,
 } from "./services/mcp-service";
+import { getMcpStatus, reloadMcpTools, retryMcpServer, testMcpServer } from "./services/permission/mcp-adapter";
 import {
   trackUpload,
   getUploadStats,
@@ -255,8 +261,27 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
 
   // mcp:*
   ipcMain.handle("mcp:list", () => scanMcpServers());
-  ipcMain.handle("mcp:toggle", (_e, { name, enabled }: { name: string; enabled: boolean }) => { toggleMcpServer(name, enabled); });
+  ipcMain.handle("mcp:toggle", (_e, { name, enabled }: { name: string; enabled: boolean }) => {
+    toggleMcpServer(name, enabled);
+    reloadMcpTools(); // 开关即时生效（免重启）
+  });
   ipcMain.handle("mcp:requiredKeys", () => getMcpRequiredKeys());
+  // 配置管理（阶段A）：增删改 + 测试连接 + 状态 + 热更新
+  ipcMain.handle("mcp:save", (_e, { name, cfg }: { name: string; cfg: McpServerConfig }) => {
+    const r = saveMcpServer(name, cfg);
+    if (r.ok) reloadMcpTools();
+    return r;
+  });
+  ipcMain.handle("mcp:delete", (_e, { name }: { name: string }) => {
+    const r = deleteMcpServer(name);
+    if (r.ok) reloadMcpTools();
+    return r;
+  });
+  ipcMain.handle("mcp:get", (_e, { name }: { name: string }) => getMcpServerConfig(name));
+  ipcMain.handle("mcp:configPath", () => getMcpConfigPath());
+  ipcMain.handle("mcp:status", () => getMcpStatus());
+  ipcMain.handle("mcp:test", (_e, { cfg }: { cfg: McpServerConfig }) => testMcpServer(cfg));
+  ipcMain.handle("mcp:retry", (_e, { name }: { name: string }) => retryMcpServer(name));
 
   // upload:*
   ipcMain.handle("upload:stats", (_e, { sortBy }: { sortBy?: "time" | "size" }) => getUploadStats(sortBy));

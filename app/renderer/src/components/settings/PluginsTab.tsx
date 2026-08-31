@@ -505,38 +505,167 @@ function SkillsTab(): JSX.Element {
 
 // ── MCP Tab ───────────────────────────────────────────────────────────────────
 
-function McpRow({ s, onToggle, requiredKeys, apiKeys, typeLabel }: {
-  s: { name: string; type: string; command?: string; args?: string[]; url?: string; enabled: boolean };
-  onToggle: () => void;
-  requiredKeys: Record<string, string>;
-  apiKeys: Record<string, string>;
-  typeLabel: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
+const MCP_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+
+/** MCP 服务器新增/编辑表单（类型切换显示对应字段，支持测试连接） */
+function McpServerForm({
+  initial,
+  onCancel,
+  onSaved,
+}: {
+  initial: { name: string; cfg: McpServerCfg } | null;
+  onCancel: () => void;
+  onSaved: () => void;
+}): JSX.Element {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [type, setType] = useState<"stdio" | "http" | "sse">(initial?.cfg.type ?? "stdio");
+  const [command, setCommand] = useState(initial?.cfg.command ?? "");
+  const [argsText, setArgsText] = useState((initial?.cfg.args ?? []).join(" "));
+  const [url, setUrl] = useState(initial?.cfg.url ?? "");
+  const [envText, setEnvText] = useState(
+    Object.entries(initial?.cfg.env ?? {}).map(([k, v]) => `${k}=${v}`).join("\n"),
+  );
+  const [err, setErr] = useState("");
+  const [testResult, setTestResult] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+
+  const buildCfg = (): McpServerCfg => {
+    const env: Record<string, string> = {};
+    for (const line of envText.split("\n")) {
+      const t = line.trim();
+      if (!t) continue;
+      const i = t.indexOf("=");
+      if (i > 0) env[t.slice(0, i).trim()] = t.slice(i + 1).trim();
+    }
+    return type === "stdio"
+      ? { type, command: command.trim() || undefined, args: argsText.trim() ? argsText.trim().split(/\s+/) : undefined, env: Object.keys(env).length ? env : undefined }
+      : { type, url: url.trim() || undefined, env: Object.keys(env).length ? env : undefined };
+  };
+
+  const validate = (): string | null => {
+    if (!MCP_NAME_RE.test(name)) return "名称需用小写字母/数字/连字符（如 my-server），长度 1-64";
+    if (type === "stdio" && !command.trim()) return "本地进程类型必须填写启动命令（如 npx）";
+    if (type !== "stdio") {
+      if (!url.trim()) return `${type.toUpperCase()} 类型必须填写 URL`;
+      try {
+        const u = new URL(url.trim());
+        if (!/^https?:$/.test(u.protocol)) return "URL 必须是 http/https";
+      } catch { return "URL 格式不正确"; }
+    }
+    return null;
+  };
+
+  const test = async () => {
+    const e = validate();
+    if (e) { setErr(e); return; }
+    setBusy(true);
+    setErr("");
+    setTestResult("正在连接…");
+    try {
+      const r = await window.electronAPI.mcp.test(buildCfg());
+      setTestResult(r.ok ? `连接成功，发现 ${r.toolCount ?? 0} 个工具` : `连接失败：${r.error}`);
+    } catch (e2) {
+      setTestResult(`测试失败：${String(e2)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = async () => {
+    const e = validate();
+    if (e) { setErr(e); return; }
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await window.electronAPI.mcp.save(name, buildCfg());
+      if (!r.ok) { setErr(r.error || "保存失败"); return; }
+      onSaved();
+    } catch (e2) {
+      setErr(String(e2));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
-    <div
-      className={`px-3 py-2 transition-colors cursor-default ${s.enabled ? "hover:bg-surface-hover" : "opacity-60"}`}
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          <span className="text-xs text-text-primary truncate">{s.name}</span>
-          <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-surface text-text-muted shrink-0">{typeLabel}</span>
-          {Object.entries(requiredKeys).map(([k, v]) => (
-            <span key={k} className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded shrink-0 ${v || apiKeys[k] ? "bg-accent-bg text-accent" : "bg-warning/10 text-warning"}`}>
-              {k}
-            </span>
+    <div className="bg-surface-alt rounded-lg border border-border px-3 py-3 space-y-2.5">
+      <div className="flex items-center gap-2">
+        <input
+          className="em-input flex-1 px-2.5 py-1.5 text-xs font-mono"
+          placeholder="服务器名称（小写字母/数字/连字符）"
+          value={name}
+          disabled={!!initial}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <div className="flex rounded-[8px] border border-border overflow-hidden shrink-0">
+          {(["stdio", "http", "sse"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setType(t)}
+              className={`px-2 py-1 text-[length:var(--text-11)] transition-colors ${
+                type === t ? "bg-accent text-text-inverse" : "text-text-secondary hover:bg-surface-hover"
+              }`}
+            >
+              {t === "stdio" ? "本地进程" : t.toUpperCase()}
+            </button>
           ))}
         </div>
-        <Toggle checked={s.enabled} onChange={onToggle} />
       </div>
-      {expanded && (
-        <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1 truncate">
-          {s.type === "http" ? s.url : [s.command, ...(s.args || [])].join(" ")}
-        </p>
+
+      {type === "stdio" ? (
+        <>
+          <input
+            className="em-input w-full px-2.5 py-1.5 text-xs font-mono"
+            placeholder="启动命令，如 npx"
+            value={command}
+            onChange={(e) => setCommand(e.target.value)}
+          />
+          <input
+            className="em-input w-full px-2.5 py-1.5 text-xs font-mono"
+            placeholder="参数，空格分隔，如 -y @modelcontextprotocol/server-filesystem /tmp"
+            value={argsText}
+            onChange={(e) => setArgsText(e.target.value)}
+          />
+        </>
+      ) : (
+        <input
+          className="em-input w-full px-2.5 py-1.5 text-xs font-mono"
+          placeholder="https://example.com/mcp"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+        />
       )}
+
+      <div>
+        <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">
+          环境变量（每行一条 KEY=VALUE，支持 ${"${VAR}"} 与 ${"${VAR:-默认值}"}）
+        </label>
+        <textarea
+          className="em-input w-full px-2.5 py-1.5 text-xs font-mono resize-y min-h-12"
+          placeholder={"API_KEY=xxx\nBASE_URL=${API_BASE:-https://api.example.com}"}
+          value={envText}
+          onChange={(e) => setEnvText(e.target.value)}
+        />
+      </div>
+
+      {err && <p className="text-danger text-[length:var(--text-11)]">{err}</p>}
+      {testResult && <p className="text-text-secondary text-[length:var(--text-11)]">{testResult}</p>}
+
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={test} disabled={busy}
+          className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+          测试连接
+        </button>
+        <button type="button" onClick={onCancel}
+          className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+          取消
+        </button>
+        <button type="button" onClick={save} disabled={busy}
+          className="px-3.5 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors">
+          保存
+        </button>
+      </div>
     </div>
   );
 }
@@ -547,17 +676,26 @@ function McpTab(): JSX.Element {
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState("");
   const [showKey, setShowKey] = useState(false);
+  // 阶段A：连接状态 + 新增/编辑表单
+  const [statuses, setStatuses] = useState<Record<string, { state: string; toolCount?: number; error?: string }>>({});
+  const [editing, setEditing] = useState<{ name: string; cfg: McpServerCfg } | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [actionErr, setActionErr] = useState("");
 
   const load = async () => {
     try {
-      const [s, keys, settings] = await Promise.all([
+      const [s, keys, settings, st] = await Promise.all([
         window.electronAPI.mcp.list(),
         window.electronAPI.mcp.requiredKeys(),
         window.electronAPI.settings.get(),
+        window.electronAPI.mcp.status(),
       ]);
       setServers(s);
       setRequiredKeys(keys);
       setApiKeys(settings.apiKeys ?? {});
+      const map: Record<string, { state: string; toolCount?: number; error?: string }> = {};
+      for (const x of st) map[x.name] = x;
+      setStatuses(map);
     } catch (e: unknown) {
       setLoadError(String(e));
     }
@@ -567,6 +705,34 @@ function McpTab(): JSX.Element {
   const handleToggle = async (name: string, enabled: boolean) => {
     await window.electronAPI.mcp.toggle(name, enabled);
     setServers((prev) => prev.map((s) => (s.name === name ? { ...s, enabled } : s)));
+    load();
+  };
+
+  const handleDelete = async (name: string) => {
+    const r = await window.electronAPI.mcp.delete(name);
+    if (!r.ok) { setActionErr(r.error || "删除失败"); return; }
+    setActionErr("");
+    load();
+  };
+
+  const handleRetry = async (name: string) => {
+    const r = await window.electronAPI.mcp.retry(name);
+    if (!r.ok) setActionErr(r.error || "重连失败");
+    else setActionErr("");
+    load();
+  };
+
+  const handleEdit = async (name: string) => {
+    const cfg = await window.electronAPI.mcp.get(name);
+    if (cfg) setEditing({ name, cfg });
+  };
+
+  const statusBadge = (name: string, enabled: boolean) => {
+    if (!enabled) return { text: "已停用", cls: "bg-surface text-text-muted" };
+    const st = statuses[name];
+    if (!st || st.state === "connecting") return { text: "连接中", cls: "bg-surface text-text-muted" };
+    if (st.state === "connected") return { text: `已连接${st.toolCount ? `（${st.toolCount} 工具）` : ""}`, cls: "bg-success-soft text-success" };
+    return { text: "连接失败", cls: "bg-danger-soft text-danger" };
   };
 
   const saveKey = async (key: string, value: string) => {
@@ -626,21 +792,76 @@ function McpTab(): JSX.Element {
 
       {/* MCP Servers */}
       <section>
-        <h3 className="text-sm font-medium text-text-primary mb-2">MCP</h3>
-        <p className="text-[length:var(--text-11)] text-text-secondary mb-3">
-          EM 独立配置（~/.easymint/mcp.json），与 Claude Code 解耦。
-        </p>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-medium text-text-primary">MCP</h3>
+          {!adding && !editing && (
+            <button type="button" onClick={() => setAdding(true)}
+              className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors">
+              + 添加服务器
+            </button>
+          )}
+        </div>
+        {!adding && !editing && (
+          <p className="text-[length:var(--text-11)] text-text-secondary mb-3">
+            EM 独立配置（~/.easymint/mcp.json），与 Claude Code 解耦。添加/修改后无需重启，下次发消息即生效。
+          </p>
+        )}
+        {actionErr && <p className="text-danger text-[length:var(--text-11)] mb-2">{actionErr}</p>}
 
-        {servers.length === 0 ? (
+        {adding && (
+          <McpServerForm initial={null} onCancel={() => setAdding(false)} onSaved={() => { setAdding(false); load(); }} />
+        )}
+        {editing && (
+          <McpServerForm initial={editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+        )}
+
+        {servers.length === 0 && !adding ? (
           <p className="text-text-secondary text-xs text-center py-8">
-            未检测到 MCP 服务器。可编辑 ~/.easymint/mcp.json 添加。
+            还没有 MCP 服务器。点右上角「添加服务器」即可——不用手写配置文件。
           </p>
         ) : (
-          <div className="bg-surface-alt rounded-lg border border-border overflow-hidden max-h-[220px] overflow-y-auto divide-y divide-border/50">
-            {servers.map((s) => (
-              <McpRow key={s.name} s={s} onToggle={() => handleToggle(s.name, !s.enabled)}
-                requiredKeys={requiredKeys[s.name] || {}} apiKeys={apiKeys} typeLabel={typeLabel(s.type)} />
-            ))}
+          <div className="bg-surface-alt rounded-lg border border-border overflow-hidden max-h-[260px] overflow-y-auto divide-y divide-border/50">
+            {servers.map((s) => {
+              const badge = statusBadge(s.name, s.enabled);
+              return (
+                <div key={s.name} className="px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                      <span className="text-xs text-text-primary truncate">{s.name}</span>
+                      <span className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded shrink-0 ${badge.cls}`}>{badge.text}</span>
+                      <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-surface text-text-muted shrink-0">{typeLabel(s.type)}</span>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {statuses[s.name]?.state === "failed" && s.enabled && (
+                        <button type="button" onClick={() => handleRetry(s.name)} title="重试连接"
+                          className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+                          重试
+                        </button>
+                      )}
+                      <button type="button" onClick={() => handleEdit(s.name)} title="编辑"
+                        className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+                        编辑
+                      </button>
+                      <button type="button" onClick={() => handleDelete(s.name)} title="删除"
+                        className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] text-text-secondary hover:text-danger hover:bg-surface-hover transition-colors">
+                        删除
+                      </button>
+                      <Toggle checked={s.enabled} onChange={(v) => handleToggle(s.name, v)} />
+                    </div>
+                  </div>
+                  {statuses[s.name]?.error && (
+                    <p className="text-[length:var(--text-3xs)] text-danger mt-1 break-all">
+                      {statuses[s.name]?.error}
+                    </p>
+                  )}
+                  {Object.keys(requiredKeys[s.name] ?? {}).length > 0 && (
+                    <p className="text-[length:var(--text-3xs)] text-text-muted mt-1">
+                      需要密钥：{Object.keys(requiredKeys[s.name] ?? {}).join("、")}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </section>

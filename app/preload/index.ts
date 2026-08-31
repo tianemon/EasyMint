@@ -137,6 +137,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     list: () => ipcRenderer.invoke("mcp:list"),
     toggle: (name: string, enabled: boolean) => ipcRenderer.invoke("mcp:toggle", { name, enabled }),
     requiredKeys: () => ipcRenderer.invoke("mcp:requiredKeys") as Promise<Record<string, string[]>>,
+    // 配置管理（阶段A）：增删改 + 测试 + 状态 + 重试
+    save: (name: string, cfg: { type: "stdio" | "http" | "sse"; command?: string; args?: string[]; env?: Record<string, string>; url?: string; headers?: Record<string, string>; timeout?: number }) =>
+      ipcRenderer.invoke("mcp:save", { name, cfg }) as Promise<{ ok: boolean; error?: string; overwritten?: boolean }>,
+    delete: (name: string) => ipcRenderer.invoke("mcp:delete", { name }) as Promise<{ ok: boolean; error?: string }>,
+    get: (name: string) => ipcRenderer.invoke("mcp:get", { name }) as Promise<{ type: "stdio" | "http" | "sse"; command?: string; args?: string[]; env?: Record<string, string>; url?: string; headers?: Record<string, string>; timeout?: number } | null>,
+    configPath: () => ipcRenderer.invoke("mcp:configPath") as Promise<string>,
+    status: () => ipcRenderer.invoke("mcp:status") as Promise<Array<{ name: string; state: "connected" | "connecting" | "failed" | "disabled"; toolCount?: number; error?: string }>>,
+    test: (cfg: { type: "stdio" | "http" | "sse"; command?: string; args?: string[]; env?: Record<string, string>; url?: string; headers?: Record<string, string>; timeout?: number }) =>
+      ipcRenderer.invoke("mcp:test", { cfg }) as Promise<{ ok: boolean; error?: string; toolCount?: number }>,
+    retry: (name: string) => ipcRenderer.invoke("mcp:retry", { name }) as Promise<{ ok: boolean; error?: string }>,
   },
   upload: {
     stats: (sortBy?: "time" | "size") => ipcRenderer.invoke("upload:stats", { sortBy }),

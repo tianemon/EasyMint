@@ -15,6 +15,17 @@ declare namespace JSX {
   type Element = import("react").ReactElement;
 }
 
+/** MCP 服务器配置（与 main/services/mcp-service.ts 的 McpServerConfig 对齐） */
+interface McpServerCfg {
+  type: "stdio" | "http" | "sse";
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+  timeout?: number;
+}
+
 interface Project {
   id: string;
   name: string;
@@ -296,6 +307,13 @@ interface ElectronAPI {
     list: () => Promise<{ name: string; type: "stdio" | "http" | "sse"; command?: string; args?: string[]; url?: string; enabled: boolean }[]>;
     toggle: (name: string, enabled: boolean) => Promise<void>;
     requiredKeys: () => Promise<Record<string, Record<string, string>>>;
+    save: (name: string, cfg: McpServerCfg) => Promise<{ ok: boolean; error?: string; overwritten?: boolean }>;
+    delete: (name: string) => Promise<{ ok: boolean; error?: string }>;
+    get: (name: string) => Promise<McpServerCfg | null>;
+    configPath: () => Promise<string>;
+    status: () => Promise<{ name: string; state: "connected" | "connecting" | "failed" | "disabled"; toolCount?: number; error?: string }[]>;
+    test: (cfg: McpServerCfg) => Promise<{ ok: boolean; error?: string; toolCount?: number }>;
+    retry: (name: string) => Promise<{ ok: boolean; error?: string }>;
   },
   upload: {
     stats: (sortBy?: "time" | "size") => Promise<{ totalSize: number; fileCount: number; files: { name: string; size: number; created: number; isImage: boolean }[] }>;
