@@ -3,6 +3,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { AttachItem, ChatMessage, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolLabel, mapSessionMessages, getMsgCopyText } from "./chat-utils";
 import { chatActions } from "../stores/chat-actions";
+import { confirmDialog } from "./ui/ConfirmDialog";
+import { resolveThinkingLevel } from "@shared/thinking-levels";
 import { useSettingsStore } from "../stores/settings-store";
 import { useTabStore } from "../stores/tab-store";
 import { useChatStore } from "../stores/chat-store";
@@ -100,7 +102,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const docInputRef = useRef<HTMLInputElement>(null);
   const [attaches, setAttaches] = useState<AttachItem[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [permissionMode, setPermissionMode] = useState("auto");
+  const [permissionMode, setPermissionMode] = useState("standard");
+  // 权限模式最新值（订阅回调里引用 state 会拿到挂载时的旧闭包，用 ref 取最新）
+  const permissionModeRef = useRef("standard");
+  // 新会话首条消息窗口期：已发送、onChatSession 尚未回绑真实 sid。期间主进程广播已用真实 sid，
+  // 而 sidRef 还是 __new_xxx——ask/learn 等按会话过滤的订阅在此窗口放行，避免提问卡片丢失
+  const pendingFirstTurnRef = useRef(false);
   const storeModel = useSettingsStore((s) => s.model);
   const setStoreModel = useSettingsStore((s) => s.setModel);
   const showThinking = useSettingsStore((s) => s.showThinking);
@@ -109,6 +116,22 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const [thinkingLevel, setThinkingLevel] = useState(globalThinkingLevel || "medium");
   // 用户是否手动切过思考等级:手动切过后不再跟随全局变化(方案 B)
   const userChangedThinkingRef = useRef(false);
+  // 用户选的等级(用于与模型实际生效值比对——不一致说明被模型能力裁剪)
+  const desiredThinkingRef = useRef<string | null>(null);
+  // 当前等级(订阅回调在 [] 依赖的 effect 里,闭包拿不到最新值,用 ref 读)
+  const thinkingLevelRef = useRef(thinkingLevel);
+  useEffect(() => { thinkingLevelRef.current = thinkingLevel; }, [thinkingLevel]);
+  // 被裁剪后实际生效的等级(与所选不同时才显示提示)
+  const [cappedThinkingLevel, setCappedThinkingLevel] = useState<string | null>(null);
+  // 当前模型支持的思考等级(聊天页下拉只展示这些档位;未收到广播前显示全部)
+  const [thinkingLevels, setThinkingLevels] = useState<string[] | null>(null);
+  // 支持档位的 ref 镜像(applyLevel 在 effect 里用,闭包拿不到最新值)
+  const thinkingLevelsRef = useRef<string[] | null>(null);
+  useEffect(() => { thinkingLevelsRef.current = thinkingLevels; }, [thinkingLevels]);
+  // 新会话创建前用户选过的等级(sid 为空时写不进缓存,等 chat-session 回来补写)
+  const pendingThinkingLevelRef = useRef<string | null>(null);
+  // 手动切换时所在的会话 id:null = 会话创建前的选择(属"即将创建的新会话",不被新会话重置覆盖)
+  const manualThinkingSidRef = useRef<string | null>(null);
   // 新会话角色模板:发送首条消息前可选(Mint 默认 / Mint-D 设计模式),发送后不再显示
   const [chatRole, setChatRole] = useState<"mint" | "mint-d">("mint");
   // 角色滑块几何:宽度跟随选中项(不等分,JS 测量 offsetWidth/offsetLeft)
@@ -378,6 +401,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const [chatModel, setChatModel] = useState("");
   // 会话绑定的供应商 piId(需求 5:不同会话不同供应商)
   const [chatProvider, setChatProvider] = useState<string>("");
+  // 最新值 ref：onChatSession 订阅闭包拿不到最新 state，补写缓存/判断时用 ref
+  const chatModelRef = useRef("");
+  const chatProviderRef = useRef("");
+  useEffect(() => { chatModelRef.current = chatModel; }, [chatModel]);
+  useEffect(() => { chatProviderRef.current = chatProvider; }, [chatProvider]);
   // 全局默认模型变化(设置中切供应商联动更新 store.model)→ 主会话模型跟随,全局生效;
   // 挂载时同步初始值;会话缓存恢复(其后执行)可覆盖为会话绑定模型
   useEffect(() => {
@@ -387,25 +415,58 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const handleModelChange = useCallback(async (m: string) => {
     setChatModel(m); setStoreModel(m);
     const sid = sidRef.current;
-    if (sid) { window.electronAPI.agent.setModel(sid, m).catch(() => {}); }
-  }, [setStoreModel]);
+    // 带上会话绑定供应商——否则按全局当前供应商解析，绑定供应商不同时模型解析不到、切换静默丢失
+    if (sid) { window.electronAPI.agent.setModel(sid, m, chatProvider || undefined).catch(() => {}); }
+  }, [setStoreModel, chatProvider]);
+
+  /** 权限模式切换：标准 → 完全访问需警告确认（可访问项目外文件，但系统敏感位置仍禁止）；降级直接切 */
+  const handlePermissionModeChange = useCallback(async (mode: string) => {
+    if (mode === "full" && permissionMode !== "full") {
+      const ok = await confirmDialog({
+        title: "切换【完全访问】？",
+        message: "切换【完全访问】之后，Mint可以访问当前项目之外的文件，但禁止访问系统敏感位置。\n\n确认切换？",
+        confirmText: "确认切换",
+      });
+      if (!ok) return;
+    }
+    setPermissionMode(mode);
+  }, [permissionMode]);
   const [showStats, setShowStats] = useState(false);
   // 压缩确认弹层：auto=阈值自动触发 / manual=统计弹窗按钮
   const [compactDialog, setCompactDialog] = useState<{ source: "auto" | "manual"; threshold?: number } | null>(null);
-  const handleThinkingLevelChange = useCallback((level: string) => {
-    userChangedThinkingRef.current = true;
-    setThinkingLevel(level);
-    // 等级随发送应用(sendMessage 带 thinkingLevel,主进程 resume 分支应用)——不再立即 IPC,
-    // 避免"切等级 IPC 与发送 IPC 并发"的 SDK 竞态窗口
+  /** 按当前模型支持档位自适应后落到界面（避免选中值不在选项里 → 显示英文原名） */
+  /** 按模型支持档位自适应后落到界面（避免选中值不在选项里 → 显示英文原名）。
+   *  list 可显式传入本次查询到的档位——不传时用 thinkingLevelsRef（它滞后一帧：
+   *  查询刚回来时 ref 还是旧值，必须显式传，否则页面加载时自适应不生效）。 */
+  const applyLevel = useCallback((level: string, list?: string[] | null) => {
+    const adapted = resolveThinkingLevel(level, list !== undefined ? list : thinkingLevelsRef.current);
+    setCappedThinkingLevel(adapted === level ? null : adapted);
+    setThinkingLevel(adapted);
   }, []);
 
-  // 加固(启动竞态):store 异步加载完成前,新会话可能拿到默认 medium。
-  // 全局值变化且用户未手动切过时,同步本地值;手动切过后不再跟随(方案 B)。
-  useEffect(() => {
-    if (globalThinkingLevel && !userChangedThinkingRef.current) {
-      setThinkingLevel(globalThinkingLevel);
+  const handleThinkingLevelChange = useCallback((level: string) => {
+    userChangedThinkingRef.current = true;
+    manualThinkingSidRef.current = sidRef.current;
+    desiredThinkingRef.current = level;
+    // 持久化到会话缓存——改即写（真实会话）；新会话的真实 id 还没创建（当前是 __new_ 临时 id，
+    // 写进去不会迁移到真实会话），先暂存，等 chat-session 回来补写到真实会话
+    if (sidRef.current && !sidRef.current.startsWith("__new_")) {
+      window.electronAPI.sessionCache.write(sidRef.current, { thinkingLevel: level }).catch(() => {});
+    } else {
+      pendingThinkingLevelRef.current = level;
     }
-  }, [globalThinkingLevel]);
+    applyLevel(level);
+    // 等级随发送应用(sendMessage 带 thinkingLevel,主进程 resume 分支应用)——不再立即 IPC,
+    // 避免"切等级 IPC 与发送 IPC 并发"的 SDK 竞态窗口
+  }, [applyLevel]);
+
+  // 加固(启动竞态):store 异步加载完成前,新会话可能拿到默认 medium。
+  // 全局值变化且用户未在本会话选过时,同步本地值(并按模型能力自适应);选过则不再跟随。
+  useEffect(() => {
+    if (!globalThinkingLevel) return;
+    if (userChangedThinkingRef.current) return;
+    applyLevel(globalThinkingLevel);
+  }, [globalThinkingLevel, applyLevel]);
 
   const msgIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -720,7 +781,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // Mint ask_user 提问卡片：接收广播（按会话过滤，其他会话的提问不显示）+ 关闭
   useEffect(() => {
     const offReq = window.electronAPI.agent.onAskRequest((data) => {
-      if (!data || data.sessionId !== sidRef.current) return;
+      // 首条消息窗口期：广播已用真实 sid 而 sidRef 还是 __new_xxx——放行避免提问卡片丢失
+      if (!data || data.sessionId !== sidRef.current) {
+        if (!(pendingFirstTurnRef.current && sidRef.current?.startsWith("__new_"))) return;
+      }
       useAskStore.getState().setAsk(data);
     });
     const offClosed = window.electronAPI.agent.onAskClosed((data) => {
@@ -732,7 +796,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // learn 沉淀审阅卡片：同 ask 模式（按会话过滤 + 关闭清理）
   useEffect(() => {
     const offReq = window.electronAPI.agent.onLearnRequest((data) => {
-      if (!data || data.sessionId !== sidRef.current) return;
+      // 首条消息窗口期放行（同 ask，见上）
+      if (!data || data.sessionId !== sidRef.current) {
+        if (!(pendingFirstTurnRef.current && sidRef.current?.startsWith("__new_"))) return;
+      }
       useLearnStore.getState().setLearn(data);
     });
     const offClosed = window.electronAPI.agent.onLearnClosed((data) => {
@@ -1110,13 +1177,56 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useTabStore.getState().setSessionRunning(realSid, true);
         // 会话切换重置阈值防重标记(组件实例复用,不重置会残留上个会话的 threshold → 新会话不弹窗)
         ctxThresholdFiredRef.current = 0;
+        // 新会话创建前的等级选择(sid 为空时写不进缓存)→ 现在补写持久化
+        if (pendingThinkingLevelRef.current) {
+          window.electronAPI.sessionCache.write(realSid, { thinkingLevel: pendingThinkingLevelRef.current }).catch(() => {});
+          pendingThinkingLevelRef.current = null;
+        }
+        // 权限模式同样补写真实 sid（临时 sid 阶段切换只进了 state/临时缓存，主进程 canUseTool
+        // 按真实 sid 读——不补写则重启后恢复不到、会话内切换也读不到）
+        window.electronAPI.sessionCache.write(realSid, { permissionMode: permissionModeRef.current }).catch(() => {});
+        // 会话级模型/供应商补写（同类缺口）：首条消息前选的模型只写进了 __new_xxx 临时 key，
+        // 不补写则重启恢复会话时缓存读不到 → 回落全局默认模型，会话级模型绑定丢失
+        if (chatModelRef.current || chatProviderRef.current) {
+          const m: Record<string, unknown> = {};
+          if (chatModelRef.current) m.model = chatModelRef.current;
+          if (chatProviderRef.current) m.provider = chatProviderRef.current;
+          window.electronAPI.sessionCache.write(realSid, m).catch(() => {});
+        }
+        // 新会话重新跟随全局默认思考等级:"手动切过不再跟随"只限本会话生命周期,
+        // 否则长驻 tab 实例一旦手动改过,设置里更新全局默认永远不生效。
+        // 会话创建前的选择(manualThinkingSidRef=null)属本会话,不覆盖。
+        if (userChangedThinkingRef.current && manualThinkingSidRef.current !== null && manualThinkingSidRef.current !== realSid) {
+          userChangedThinkingRef.current = false;
+          const g = useSettingsStore.getState().chatThinkingLevel;
+          if (g) applyLevel(g);
+        }
         onSessionCreated?.(realSid);
       } else if (!sidRef.current) {
         sidRef.current = realSid;
         setSid(realSid);
         useTabStore.getState().setSessionRunning(realSid, true);
+        if (pendingThinkingLevelRef.current) {
+          window.electronAPI.sessionCache.write(realSid, { thinkingLevel: pendingThinkingLevelRef.current }).catch(() => {});
+          pendingThinkingLevelRef.current = null;
+        }
+        // 补写权限模式与会话级模型/供应商（与分支 1 对齐，防 sidRef 为空路径的同类缺口）
+        window.electronAPI.sessionCache.write(realSid, { permissionMode: permissionModeRef.current }).catch(() => {});
+        if (chatModelRef.current || chatProviderRef.current) {
+          const m2: Record<string, unknown> = {};
+          if (chatModelRef.current) m2.model = chatModelRef.current;
+          if (chatProviderRef.current) m2.provider = chatProviderRef.current;
+          window.electronAPI.sessionCache.write(realSid, m2).catch(() => {});
+        }
+        if (userChangedThinkingRef.current && manualThinkingSidRef.current !== null && manualThinkingSidRef.current !== realSid) {
+          userChangedThinkingRef.current = false;
+          const g2 = useSettingsStore.getState().chatThinkingLevel;
+          if (g2) applyLevel(g2);
+        }
         onSessionCreated?.(realSid);
       }
+      // 首条消息会话已建立 → 关闭首轮窗口（ask/learn 广播按真实 sid 过滤即可，见订阅处）
+      pendingFirstTurnRef.current = false;
     });
     // 主进程侧模型切换（skill frontmatter model 字段触发）→ 会话级显示跟随；
     // 只更新本会话 chatModel（触发既有 effect 写 session-cache 持久化），不动全局默认模型
@@ -1124,6 +1234,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       if (sidRef.current && sidRef.current !== modelSid) return;
       if (!sidRef.current && existingSid && modelSid !== existingSid) return;
       if (model) setChatModel((prev) => (model !== prev ? model : prev));
+    });
+    // 主进程回传实际生效的思考等级（切模型后 SDK 会按模型能力推导/clamp）→
+    // 界面按真实值显示，避免"下拉显示最高、实际 off"
+    const unsubLevel = window.electronAPI.agent.onThinkingLevelChanged(({ sessionId: lvlSid, level, available }) => {
+      if (sidRef.current && sidRef.current !== lvlSid) return;
+      if (!sidRef.current && existingSid && lvlSid !== existingSid) return;
+      if (!level) return;
+      if (available && available.length > 0) setThinkingLevels(available);
+      // 与用户所选不同 = 被模型能力裁剪(或按模型设置覆盖),记录实际值供界面说明
+      const desired = desiredThinkingRef.current ?? thinkingLevelRef.current;
+      setCappedThinkingLevel(level === desired ? null : level);
+      setThinkingLevel((prev) => (prev === level ? prev : level));
     });
     // Context rotation events — filter by chatId
     const unsubCtxSum = window.electronAPI.agent.onContextSummarizing(({ chatId: ctxChatId, type }: { chatId: string; type?: string }) => {
@@ -1158,7 +1280,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // percentage 为 null = 压缩后尚无新回复,使用率未知——置 null 前端显示"—",不显示 0 误导
       const pct = percentage === null ? null : Math.round(percentage);
       useStatusStore.getState().setCtxPct(sidRef.current, pct);
-      if (sidRef.current) {
+      if (sidRef.current && !sidRef.current.startsWith("__new_")) {
         window.electronAPI.sessionCache.write(sidRef.current, { contextUsage: pct }).catch(() => {});
       }
       // 主动压缩：使用率达到设置阈值就弹窗询问（不直接压缩——用户可跳过或带命令压缩）
@@ -1179,7 +1301,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 使用率显著回落（压缩完成）后允许再次触发
       if (pct !== null && pct < threshold - 20) ctxThresholdFiredRef.current = 0;
     });
-    return () => { unsub(); unsubExit(); unsubSid(); unsubModel(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(sidRef.current); };
+    return () => { unsub(); unsubExit(); unsubSid(); unsubModel(); unsubLevel(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(sidRef.current); };
   }, []);
 
   // Summarizing timeout — 120s safety net
@@ -1245,7 +1367,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     if (!existingSid) return;
     window.electronAPI.sessionCache.read(existingSid).then((cache) => {
       if (cache) {
-        if (cache.permissionMode) setPermissionMode(cache.permissionMode);
+        // 恢复权限模式（旧四档值 auto/plan/acceptEdits/bypassPermissions 归一化为两档，
+        // 避免开关拿到未知值显示异常——主进程 normalizeMode 同样映射）
+        if (cache.permissionMode) {
+          const m = cache.permissionMode;
+          setPermissionMode(m === "full" || m === "bypassPermissions" ? "full" : "standard");
+        }
         if (cache.model) setChatModel(cache.model);
         if (cache.provider) setChatProvider(cache.provider);
         if (cache.contextUsage !== null && cache.contextUsage > 0) pendingCtxRef.current = cache.contextUsage; // 暂存,消息加载完成后再应用
@@ -1254,21 +1381,59 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         if (cache.model && cache.provider) {
           window.electronAPI.agent.setModel(existingSid, cache.model, cache.provider).catch(() => {});
         }
+        // 恢复本会话持久化的思考等级:标为"已选过",全局设置不再覆盖;并按模型能力自适应显示
+        if (cache.thinkingLevel) {
+          userChangedThinkingRef.current = true;
+          desiredThinkingRef.current = cache.thinkingLevel;
+          applyLevel(cache.thinkingLevel);
+        }
       }
+    }).catch(() => {});
+    // 打开会话即同步「该模型支持的思考等级 + 当前生效等级」——广播只在切模型/发消息时触发,
+    // 只靠广播的话刚打开会话、还没发消息前下拉仍是完整 7 档
+    window.electronAPI.agent.getThinkingLevels(existingSid).then((info) => {
+      if (!info) return;
+      if (info.available && info.available.length > 0) setThinkingLevels(info.available);
+      if (info.level) setThinkingLevel((prev) => (prev === info.level ? prev : info.level!));
     }).catch(() => {});
   }, [existingSid]);
 
   useEffect(() => {
-    if (sidRef.current) {
+    permissionModeRef.current = permissionMode;
+    // 仅真实会话 id 才写缓存：新会话在发首条消息前的 sid 是 __new_xxx 临时 id，
+    // 写入临时 key 主进程读不到（真实 id 由 onChatSession 回绑时补写，见下）
+    if (sidRef.current && !sidRef.current.startsWith("__new_")) {
       window.electronAPI.sessionCache.write(sidRef.current, { permissionMode }).catch(() => {});
     }
   }, [permissionMode]);
 
+  // 按当前模型同步「支持的思考等级」——不依赖会话是否创建(会话要等首条消息才存在),
+  // 所以直接按模型 ID 查:新建会话、恢复会话、下拉切模型三种场景都能立即收敛档位列表
+  const supportModelId = chatModel || storeModel;
   useEffect(() => {
-    if (sidRef.current && chatModel) {
-      window.electronAPI.sessionCache.write(sidRef.current, { model: chatModel }).catch(() => {});
+    if (!supportModelId) return;
+    let cancelled = false;
+    window.electronAPI.agent.getModelThinkingSupport(supportModelId).then((levels) => {
+      if (cancelled) return;
+      const supported = levels && levels.length > 0 ? levels : null;
+      setThinkingLevels(supported);
+      if (!supported) return;
+      // 关键：不只收敛选项，选中值也要自适应——否则全局设了模型不支持的档位时，
+      // 下拉找不到对应中文名会直接显示英文原名（如 "minimal"）
+      // 显式传入 supported：ref 此时还是旧值，传了才能保证页面加载时就完成自适应
+      applyLevel(desiredThinkingRef.current ?? thinkingLevelRef.current, supported);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [supportModelId, applyLevel]);
+
+  useEffect(() => {
+    if (sidRef.current && !sidRef.current.startsWith("__new_") && chatModel) {
+      // provider 一并持久化——读取端按 model+provider 恢复会话绑定供应商,此前 provider 从未写入导致恢复热切永不执行
+      const data: Record<string, unknown> = { model: chatModel };
+      if (chatProvider) data.provider = chatProvider;
+      window.electronAPI.sessionCache.write(sidRef.current, data).catch(() => {});
     }
-  }, [chatModel]);
+  }, [chatModel, chatProvider]);
 
   // ── Send ───────────────────────────────────────────
 
@@ -1316,35 +1481,38 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     onActivity?.();
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
 
+    // 编码图片附件为 Pi ImageContent 格式(steer 插话与正常发送共用——steer 原先不带图,插话图片被静默丢弃)
+    const images: Array<{ type: "image"; data: string; mimeType: string }> = [];
+    for (const a of attaches) {
+      if (a.kind === "image" && a.dataUrl) {
+        const m = a.dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
+        if (m) images.push({ type: "image" as const, data: m[2]!, mimeType: m[1]! });
+      }
+    }
+
     // Mint 输出期间发送消息 → steer 插话，不需新建会话
     if (busy && currentChatRef.current && existingSid) {
       steeringRef.current = true;
       try {
-        await window.electronAPI.agent.steer(existingSid, agentText);
+        await window.electronAPI.agent.steer(existingSid, agentText, images.length > 0 ? images : undefined);
       } catch { /* steer 失败不影响 UI */ }
       return;
     }
 
     busyRef.current = true; setBusy(true); useStatusStore.getState().pushSignal(sidRef.current, "request", "等待模型响应...");
+    // 新会话首条消息窗口开启：onChatSession 回绑真实 sid 后关闭（见订阅处）
+    if (!existingSid) pendingFirstTurnRef.current = true;
 
     try {
       currentChatRef.current = null;
-      // 编码图片附件为 Pi ImageContent 格式
-      const images: Array<{ type: "image"; data: string; mimeType: string }> = [];
-      for (const a of attaches) {
-        if (a.kind === "image" && a.dataUrl) {
-          const m = a.dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
-          if (m) images.push({ type: "image" as const, data: m[2]!, mimeType: m[1]! });
-        }
-      }
       const tab = useTabStore.getState().tabs.find(function(t) { return t.sessionId === sid || (!t.sessionId && !existingSid); });
       const effectivePath = projectPath || getWorkspaceDir();
       // 新会话:角色取自空状态选择(chatRole);恢复会话:沿用 tab 的 isDesigner
       const roleDesigner = existingSid ? (isDesigner ?? tab?.isDesigner) : chatRole === "mint-d";
-      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "auto", isDesigner: roleDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium", preferredProvider: chatProvider || undefined, tabId });
+      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "standard", isDesigner: roleDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium", model: chatModel || undefined, preferredProvider: chatProvider || undefined, tabId });
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
-    } catch { busyRef.current = false; setBusy(false); currentChatRef.current = null; useStatusStore.getState().pushSignal(sidRef.current, "error", "发送失败，请检查网络后重试", 8000); }
-  }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatProvider, chatRole, tabId]);
+    } catch { pendingFirstTurnRef.current = false; busyRef.current = false; setBusy(false); currentChatRef.current = null; useStatusStore.getState().pushSignal(sidRef.current, "error", "发送失败，请检查网络后重试", 8000); }
+  }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatModel, chatProvider, chatRole, tabId]);
 
   useEffect(() => { chatActions.register((t: string) => sendText(t)); return () => chatActions.unregister(); }, [sendText]);
 
@@ -1495,10 +1663,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         onImgChange={handleImgChange}
         onDocChange={handleDocChange}
         permissionMode={permissionMode}
-        onPermissionModeChange={setPermissionMode}
+        onPermissionModeChange={handlePermissionModeChange}
         chatModel={chatModel || storeModel}
         onModelChange={handleModelChange}
         thinkingLevel={thinkingLevel}
+        thinkingCapped={cappedThinkingLevel}
+        thinkingLevels={thinkingLevels}
         onThinkingLevelChange={handleThinkingLevelChange}
         sessionId={sidRef.current}
         onStatsClick={() => setShowStats(true)}

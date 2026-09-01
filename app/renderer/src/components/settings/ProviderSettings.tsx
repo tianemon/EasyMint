@@ -4,6 +4,7 @@ import { getPreset } from "@shared/platform-presets";
 import type { ProviderConfig } from "@shared/platform-presets";
 import { Select } from "../Select";
 import { BRAND_BY_PI_ID, providerSelectOptions } from "../../lib/provider-brands";
+import { toast } from "../ui/Toast";
 
 interface PiModelInfo {
   id: string; name: string; contextWindow: number;
@@ -38,10 +39,28 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   const [showKey, setShowKey] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const [loadedProvider, setLoadedProvider] = useState<string>("");
+  // 按模型设置思考等级(存 Pi 全局设置,键 <provider>/<modelId>);空 = 跟随全局
+  const [modelLevels, setModelLevels] = useState<Record<string, string>>({});
+  const [savedModelLevels, setSavedModelLevels] = useState<Record<string, string>>({});
   // 可选的模型列表:内置供应商 = SDK 模型 + 用户补充(去重);自定义从 textarea 解析
   const availableModels = isCustom
     ? customModelsText.split("\n").map((s) => s.trim()).filter(Boolean)
     : Array.from(new Set([...models, ...extraModels]));
+
+  // 读取该供应商已保存的「按模型思考等级」
+  // 自定义供应商在运行时里按 config.id 注册,键随之(新建未保存时拿不到 id,故仅编辑态可用)
+  const levelProviderKey = isCustom ? (initial?.id || "") : presetId;
+  useEffect(() => {
+    if (!levelProviderKey) return;
+    window.electronAPI.agent.getModelThinkingLevels().then((all) => {
+      const map: Record<string, string> = {};
+      for (const [k, v] of Object.entries(all ?? {})) {
+        if (k.startsWith(`${levelProviderKey}/`)) map[k.slice(levelProviderKey.length + 1)] = v;
+      }
+      setModelLevels(map);
+      setSavedModelLevels(map);
+    }).catch(() => {});
+  }, [levelProviderKey]);
 
   // 添加补充模型:去重(与 SDK 模型及已添加的合并),重复则忽略
   const addExtraModel = (raw: string) => {
@@ -81,10 +100,10 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   };
 
 
-  const handleSave = () => {
-    if (!name.trim()) { alert("请输入名称"); return; }
-    if (!apiKey.trim()) { alert("请输入 API Key"); return; }
-    if (isCustom && !baseUrl.trim()) { alert("自定义供应商需填写 Base URL"); return; }
+  const handleSave = async () => {
+    if (!name.trim()) { toast("请输入名称"); return; }
+    if (!apiKey.trim()) { toast("请输入 API Key"); return; }
+    if (isCustom && !baseUrl.trim()) { toast("自定义供应商需填写 Base URL"); return; }
     const modelList = isCustom
       ? customModelsText.split("\n").map((s) => s.trim()).filter(Boolean)
       : Array.from(new Set([...models, ...extraModels]));
@@ -101,6 +120,17 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       baseUrl: isCustom ? baseUrl.trim() || undefined : undefined,
       apiType: isCustom ? apiType : undefined,
     };
+    // 按模型思考等级:只提交与已保存值不同的项(清空 = 删除设置,恢复跟随全局)
+    if (levelProviderKey) {
+      const keys = new Set([...Object.keys(modelLevels), ...Object.keys(savedModelLevels)]);
+      for (const k of keys) {
+        const next = modelLevels[k] || "";
+        const prev = savedModelLevels[k] || "";
+        if (next === prev) continue;
+        try { await window.electronAPI.agent.setModelThinkingLevel(levelProviderKey, k, next || null); }
+        catch { /* 单项失败不阻断保存 */ }
+      }
+    }
     onSave(cfg);
   };
 
@@ -217,6 +247,36 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* 按模型设置思考等级:不同模型支持的等级不同,全局等级会被裁到该模型支持的最近档位;
+          这里可给单个模型固定等级,优先于全局设置(自定义供应商需已保存过,要用到其供应商 id) */}
+      {(!isCustom || levelProviderKey) && availableModels.length > 0 && (
+        <div>
+          <label className="text-xs text-text-secondary block mb-1.5">按模型设置思考等级（可选）</label>
+          <div className="bg-surface-alt rounded-lg border border-border px-2.5 py-2 max-h-52 overflow-y-auto space-y-1.5">
+            {availableModels.map((m) => (
+              <div key={m} className="flex items-center gap-2">
+                <span className="flex-1 min-w-0 truncate text-[length:var(--text-2xs)] text-text-primary" title={m}>{m}</span>
+                <select
+                  className="em-input shrink-0 w-[104px] h-7 px-1.5 text-[length:var(--text-2xs)] text-text-primary"
+                  value={modelLevels[m] || ""}
+                  onChange={(e) => setModelLevels((prev) => ({ ...prev, [m]: e.target.value }))}
+                >
+                  <option value="">跟随全局</option>
+                  <option value="off">关闭</option>
+                  <option value="minimal">极简</option>
+                  <option value="low">低</option>
+                  <option value="medium">中</option>
+                  <option value="high">高</option>
+                  <option value="xhigh">超高</option>
+                  <option value="max">最高</option>
+                </select>
+              </div>
+            ))}
+          </div>
+          <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">模型不支持所选等级时，自动取最接近的可用档位</p>
         </div>
       )}
 

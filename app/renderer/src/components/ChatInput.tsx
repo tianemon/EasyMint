@@ -1,5 +1,6 @@
 import { memo, useRef, useState, useCallback, useMemo } from "react";
 import { useSettingsStore } from "../stores/settings-store";
+import { THINKING_LABELS, THINKING_ORDER } from "@shared/thinking-levels";
 import { useStatusStore } from "../stores/status-store";
 import { useDelegationStore } from "../stores/delegation-store";
 import { useThemeStore } from "../stores/theme-store";
@@ -28,24 +29,43 @@ interface ChatInputProps {
   chatModel: string;
   onModelChange: (m: string) => void;
   thinkingLevel: string;
+  /** 被模型能力裁剪后实际生效的等级（与所选不同时非空，用于向用户说明） */
+  thinkingCapped?: string | null;
+  /** 当前模型支持的思考等级（只展示这些档位；为空表示未知，展示全部） */
+  thinkingLevels?: string[] | null;
   onThinkingLevelChange: (v: string) => void;
 }
+
+// 档位名称与顺序见 @shared/thinking-levels（主进程与渲染层共用）
 
 function AttachPreview_({ attaches, setAttaches }: { attaches: AttachItem[]; setAttaches: (a: AttachItem[] | ((prev: AttachItem[]) => AttachItem[])) => void }): JSX.Element {
   const removeAttach = useCallback((idx: number) => {
     setAttaches((prev) => prev.filter((_, i) => i !== idx));
   }, [setAttaches]);
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {attaches.map((a, i) => (
-        <div key={i} className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-alt border border-border text-[length:var(--text-11)] text-text-primary">
-          {a.kind === "image" && a.dataUrl ? (
-            <img src={a.dataUrl} className="w-4 h-4 rounded object-cover" alt={a.name} />
-          ) : (
-            <span className="text-[length:var(--text-2xs)] text-text-secondary">📎</span>
-          )}
-          <span className="truncate max-w-[120px]">{a.name}</span>
-          <button className="text-text-secondary hover:text-danger transition-colors text-[length:var(--text-11)]" onClick={() => removeAttach(i)}>✕</button>
+    <div className="flex flex-wrap items-end gap-1.5">
+      {attaches.map((a, i) => a.kind === "image" && a.dataUrl ? (
+        // 图片附件:固定 64×64 容器,图片 object-contain 按最长边 64 居中显示(横图限宽/竖图限高,
+        // 纵横比保持),删除按钮贴容器右上角
+        <div key={i} className="relative shrink-0 w-16 h-16 rounded-md bg-surface-alt border border-border overflow-hidden">
+          <img src={a.dataUrl} className="w-full h-full object-contain" alt={a.name} />
+          <button
+            type="button"
+            className="absolute top-0 right-0 w-5 h-5 rounded-tr-md border-l border-b border-border bg-surface-alt/95 text-text-secondary hover:text-danger transition-colors flex items-center justify-center text-[length:var(--text-11)] leading-none"
+            onClick={() => removeAttach(i)}
+            title="移除图片"
+          >✕</button>
+        </div>
+      ) : (
+        // 文档附件:与图片同款 64×64 容器,仅显示文档名(单行截断居中,无图标)
+        <div key={i} className="relative shrink-0 w-16 h-16 rounded-md bg-surface-alt border border-border overflow-hidden flex items-center justify-center px-1">
+          <span className="truncate w-full text-center text-[length:var(--text-11)] text-text-primary leading-tight">{a.name}</span>
+          <button
+            type="button"
+            className="absolute top-0 right-0 w-5 h-5 rounded-tr-md border-l border-b border-border bg-surface-alt/95 text-text-secondary hover:text-danger transition-colors flex items-center justify-center text-[length:var(--text-11)] leading-none"
+            onClick={() => removeAttach(i)}
+            title="移除文档"
+          >✕</button>
         </div>
       ))}
     </div>
@@ -57,7 +77,7 @@ export const ChatInput = memo(function ChatInput({
   busy, attaches, setAttaches, onSend, onStop, onPaste,
   imgInputRef, docInputRef, onImgChange, onDocChange,
   permissionMode, onPermissionModeChange, chatModel, onModelChange,
-  thinkingLevel, onThinkingLevelChange,
+  thinkingLevel, thinkingCapped, thinkingLevels, onThinkingLevelChange,
   sessionId, onStatsClick,
 }: ChatInputProps & { sessionId: string; onStatsClick: () => void }): JSX.Element {
   const [input, setInput] = useState("");
@@ -196,17 +216,23 @@ export const ChatInput = memo(function ChatInput({
         </div>
         <span className="inp-gap" />
         <span className="inp-lbl">权限</span>
-        <Select
-          value={permissionMode}
-          onChange={onPermissionModeChange}
-          title="权限模式"
-          options={[
-            { value: "auto", label: "智能判断" },
-            { value: "plan", label: "只读" },
-            { value: "acceptEdits", label: "手动确认" },
-            { value: "bypassPermissions", label: "完全自主" },
-          ]}
-        />
+        <button
+          type="button"
+          role="switch"
+          aria-checked={permissionMode === "full"}
+          title={permissionMode === "full"
+            ? "完全访问：可读写当前项目之外的文件（用户目录仍禁止写入；系统核心与凭据目录禁止访问）"
+            : "标准：可读写当前项目内文件，可读取项目外普通位置（系统核心与凭据目录禁止访问，用户目录禁止写入）"}
+          onClick={() => onPermissionModeChange(permissionMode === "full" ? "standard" : "full")}
+          className="flex items-center gap-1.5 shrink-0 group"
+        >
+          <span className={`text-[length:var(--text-xs)] transition-colors ${permissionMode === "full" ? "text-[var(--color-permission-on)]" : "text-text-secondary"}`}>
+            {permissionMode === "full" ? "完全访问" : "标准"}
+          </span>
+          <span className={`relative w-8 h-[18px] rounded-full transition-colors overflow-hidden ${permissionMode === "full" ? "bg-[var(--color-permission-on)] border border-[var(--color-permission-on)]" : "bg-surface-hover border border-border"}`}>
+            <span className={`absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-surface-elevated shadow transition-all ${permissionMode === "full" ? "left-[calc(100%-16px)]" : "left-0.5"}`} />
+          </span>
+        </button>
         <span className="inp-lbl">模型</span>
         <Select
           value={chatModel}
@@ -218,16 +244,9 @@ export const ChatInput = memo(function ChatInput({
         <Select
           value={thinkingLevel}
           onChange={onThinkingLevelChange}
-          title="思考深度"
-          options={[
-            { value: "off", label: "关闭" },
-            { value: "minimal", label: "极低" },
-            { value: "low", label: "轻度" },
-            { value: "medium", label: "中" },
-            { value: "high", label: "高" },
-            { value: "xhigh", label: "极高" },
-            { value: "max", label: "最高" },
-          ]}
+          title={thinkingCapped ? `当前模型实际按「${THINKING_LABELS[thinkingCapped] ?? thinkingCapped}」运行（所选档位该模型不支持）` : "思考深度"}
+          options={(thinkingLevels && thinkingLevels.length > 0 ? THINKING_ORDER.filter((l) => thinkingLevels.includes(l)) : THINKING_ORDER)
+            .map((l) => ({ value: l, label: THINKING_LABELS[l] ?? l }))}
         />
         <div className="ctx-ring" title={ctxPct === null ? "上下文使用率未知（压缩后待新回复）" : `上下文使用率 ${Math.round(ctxPct)}%`} onClick={onStatsClick} style={{ cursor: "pointer" }}>
           <svg width="20" height="20" viewBox="0 0 20 20">

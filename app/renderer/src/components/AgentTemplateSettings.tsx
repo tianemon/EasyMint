@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Select } from "./Select";
 import { useSettingsStore } from "../stores/settings-store";
+import { confirmDialog } from "./ui/ConfirmDialog";
 
 interface Template {
   id: string; name: string; description: string; prompt: string;
@@ -61,7 +62,8 @@ export function AgentTemplateSettings(): JSX.Element {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("删除此模板？")) return;
+    const ok = await confirmDialog({ title: "删除此模板？", message: "删除后不可恢复。", confirmText: "删除", danger: true });
+    if (!ok) return;
     await window.electronAPI.agentTemplates.delete(id);
     load();
   };

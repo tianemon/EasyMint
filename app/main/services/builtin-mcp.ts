@@ -12,7 +12,6 @@ import { describeImage, webFetch, isToolEnabled } from "./api-clients";
 import { validateTaskStatus } from "./hooks";
 import type { ToolDefinition } from "./pi-sdk";
 import { getDefineToolFn } from "./pi-sdk";
-import { networkService } from "./network-service";
 
 type TaskRec = { id: number | string; status?: string; title?: string };
 
@@ -160,7 +159,7 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
   if (isToolEnabled("vision")) {
     tools.push(defineTool({
       name: "describe_image", label: "描述图片",
-      description: "描述图片内容（支持本地路径或 URL）。**当模型无法直接读取图片时必用**：收到「模型不支持图片/图片被省略」之类的报错（报错信息因模型而异），不要继续尝试读图，改用本工具获取文字描述。识别失败时明确告知用户，不静默跳过。",
+      description: "描述图片内容（支持本地路径或 URL）。作为读图的**静默回退**：优先用当前模型自身识图，仅当读图报错或图片被省略（模型不支持视觉，报错信息因模型而异）时才调用本工具。回退属正常流程，保持静默——不向用户解释「模型不支持图片」、不声明改用了工具，直接调用并按结果继续任务。仅当本工具也失败时才如实告知用户无法读图。",
       promptSnippet: "用视觉模型描述图片内容（本地路径或 URL）",
       parameters: {
         type: "object" as const,
@@ -181,7 +180,12 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
   if (isToolEnabled("webFetch")) {
     tools.push(defineTool({
       name: "web_fetch", label: "抓取网页",
-      description: "抓取网页内容。支持各类网页，返回提取后的文本。",
+      // 描述即能力契约：不写「支持各类网页」这类过宽承诺——动态渲染/需登录/纯二进制
+      // 的 URL 可能抓取失败；写明失败兜底（返回明确错误、不产生乱码），消除模型
+      // 「试了会浪费/会污染」的顾虑（对齐 read 增强的同一原则）
+      description: "抓取网页内容并提取正文文本（在线文档、博客、API 页面等静态可访问网页）。"
+        + "动态渲染、需登录、或返回非文本内容（如 PDF 文件、图片）的 URL 可能抓取失败，"
+        + "失败会返回明确的错误信息，不会产生乱码——不确定能否抓取时直接尝试。",
       promptSnippet: "抓取网页内容并提取文本",
       parameters: {
         type: "object" as const,
@@ -197,96 +201,6 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
       },
     } as any) as any);
   }
-
-  // ── 设备互联 + 项目迁移工具（Mint 掌控迁移流程） ──
-  // 设备互联工具(纯手动迁移——Mint 仅保留设备管理能力)
-  // 接收端恢复由系统执行,不需要 Mint 工具（方案见 docs/design/跨设备会话迁移与设备互联方案.md 第四章）
-  const net = networkService;
-
-  tools.push(defineTool({
-    name: "list_devices", label: "列出设备",
-    description: "列出已配对设备（含在线/离线状态）与可发现的可用设备。迁移项目前先调用,让用户确认目标设备。",
-    promptSnippet: "列出已配对与可发现的设备",
-    parameters: { type: "object" as const, properties: {} },
-    async execute() {
-      const paired = net.listPaired();
-      const discovered = net.listDiscovered();
-      const lines: string[] = [];
-      lines.push("已配对设备:");
-      if (paired.length === 0) lines.push("  (无)");
-      for (const p of paired) lines.push(`  ${p.name} [${p.online ? "在线" : "离线"}] id=${p.id}`);
-      lines.push("可用设备(需配对):");
-      if (discovered.length === 0) lines.push("  (无——让对方开启「可被发现」后重新扫描)");
-      for (const d of discovered) lines.push(`  ${d.name} id=${d.id} ip=${d.address}:${d.port}`);
-      return { content: [{ type: "text" as const, text: lines.join("\n") }] };
-    },
-  } as any) as any);
-
-  // 设备管理工具(与手动入口同一服务)
-  tools.push(defineTool({
-    name: "toggle_discoverable", label: "可被发现开关",
-    description: "开启/关闭本机的可被发现状态(开启后其他设备能发现并配对,5 分钟自动关闭;已配对连接不受影响)。",
-    promptSnippet: "开关可被发现状态",
-    parameters: {
-      type: "object" as const,
-      properties: { on: { type: "boolean" as const, description: "true 开启 / false 关闭" } },
-      required: ["on"],
-    },
-    async execute(_tid: any, params: any) {
-      if (params.on) net.startPairMode();
-      else net.stopPairMode();
-      return { content: [{ type: "text" as const, text: params.on ? "已开启可被发现(5 分钟后自动关闭)" : "已关闭可被发现" }] };
-    },
-  } as any) as any);
-
-  tools.push(defineTool({
-    name: "unpair_device", label: "解除配对",
-    description: "解除与指定设备的配对(断开连接并删除持久化配对记录)。",
-    promptSnippet: "解除与设备的配对",
-    parameters: {
-      type: "object" as const,
-      properties: { deviceId: { type: "string" as const, description: "设备 ID(list_devices 返回)" } },
-      required: ["deviceId"],
-    },
-    async execute(_tid: any, params: any) {
-      const d = net.listPaired().find((x) => x.id === params.deviceId);
-      if (!d) return { content: [{ type: "text" as const, text: `设备 ${params.deviceId} 不在已配对列表` }] };
-      net.unpair(params.deviceId);
-      return { content: [{ type: "text" as const, text: `已解除与 ${d.name} 的配对` }] };
-    },
-  } as any) as any);
-
-  tools.push(defineTool({
-    name: "rename_device", label: "设备改名",
-    description: "修改本机设备名称(其他设备列表展示用,持久化)。",
-    promptSnippet: "修改本机设备名称",
-    parameters: {
-      type: "object" as const,
-      properties: { name: { type: "string" as const, description: "新设备名" } },
-      required: ["name"],
-    },
-    async execute(_tid: any, params: any) {
-      net.setDeviceName(params.name as string);
-      return { content: [{ type: "text" as const, text: `设备名已改为「${net.getSelf().name}」` }] };
-    },
-  } as any) as any);
-
-  tools.push(defineTool({
-    name: "request_pair", label: "请求配对",
-    description: "向指定设备发起配对请求(需要对方开启「可被发现」)。对方设备将弹出确认窗口,用户确认后配对完成并持久化。",
-    promptSnippet: "与指定设备配对(弹窗确认)",
-    parameters: {
-      type: "object" as const,
-      properties: { deviceId: { type: "string" as const, description: "设备 ID(list_devices 返回)" } },
-      required: ["deviceId"],
-    },
-    async execute(_tid: any, params: any) {
-      const d = net.listDiscovered().find((x) => x.id === params.deviceId);
-      if (!d) return { content: [{ type: "text" as const, text: `设备 ${params.deviceId} 未在可用列表——请让对方开启「可被发现」后调用 list_devices 重新确认` }] };
-      const r = await net.requestPair(d);
-      return { content: [{ type: "text" as const, text: r.ok ? `已向 ${d.name} 发起配对请求,等待对方确认…` : `配对失败: ${r.error ?? "未知错误"}` }] };
-    },
-  } as any) as any);
 
   return tools.filter(Boolean) as ToolDefinition[];
 }

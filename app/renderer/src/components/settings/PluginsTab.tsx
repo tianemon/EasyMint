@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { confirmDialog } from "../ui/ConfirmDialog";
 
 // ── Skills Tab ───────────────────────────────────────────────────────────────
 
@@ -241,7 +242,13 @@ function SkillsTab(): JSX.Element {
         return;
       }
     } else {
-      if (!window.confirm(`删除 skill「${s.name}」？\n\n目录将从磁盘移除：${s.path}`)) return;
+      const ok = await confirmDialog({
+        title: `删除 skill「${s.name}」？`,
+        message: `目录将从磁盘移除：${s.path}`,
+        confirmText: "删除",
+        danger: true,
+      });
+      if (!ok) return;
       const r = await window.electronAPI.skill.delete(s.path);
       if (!r.ok) {
         setLoadError(r.error || "删除失败");
@@ -826,6 +833,17 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
   };
 
   const handleDelete = async (name: string, scope: "user" | "project" | "project-compat") => {
+    // 项目根 .mcp.json 为只读兼容来源（对齐 handleEdit 的提示）
+    if (scope === "project-compat") { setActionErr("项目根 .mcp.json 为只读来源，请直接编辑该文件删除"); return; }
+    // 删除不可逆（配置 + 凭据从磁盘永久移除），二次确认
+    const scopeText = scope === "user" ? "用户级配置（~/.easymint/mcp.json）" : "项目级配置（<项目>/.easymint/mcp.json）";
+    const ok = await confirmDialog({
+      title: `删除 MCP 服务器「${name}」？`,
+      message: `将从${scopeText}中永久移除该服务器配置（含 API Key 等凭据信息），不可恢复。`,
+      confirmText: "删除",
+      danger: true,
+    });
+    if (!ok) return;
     const r = await window.electronAPI.mcp.delete(name, scope, projectPath);
     if (!r.ok) { setActionErr(r.error || "删除失败"); return; }
     setActionErr("");

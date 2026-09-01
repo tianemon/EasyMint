@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useTabStore } from "../stores/tab-store";
 import { registerOverlay } from "../lib/overlay-stack";
+import { toast } from "./ui/Toast";
 
 interface Runnable {
   id: string;
@@ -55,7 +56,7 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
   useEffect(() => registerOverlay(overlayRef.current), []);
 
   const handleSave = async () => {
-    if (!label.trim() || !runCommand.trim()) { alert("标题和运行命令必填"); return; }
+    if (!label.trim() || !runCommand.trim()) { toast("标题和运行命令必填"); return; }
     setSaving(true);
     try {
       const updated: Runnable = {
@@ -68,7 +69,7 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
       onClose();
     } catch (e) {
       console.error("[ScriptEditDialog] save failed:", e);
-      alert("保存失败，请检查 run.json 是否被占用");
+      toast("保存失败，请检查 run.json 是否被占用");
     } finally {
       setSaving(false);
     }

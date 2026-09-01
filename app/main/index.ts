@@ -87,6 +87,8 @@ import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
 import { AgentService, setMainWindow } from "./services/agent-service";
 import { Store } from "./services/store";
+import { syncNativeModels } from "./services/pi-init";
+import { cleanupTempCaches } from "./services/session-cache";
 import { trackProjectWindow } from "./services/window-manager";
 
 const isDev = !app.isPackaged;
@@ -247,6 +249,11 @@ app.whenReady().then(() => {
   // 恢复上次打开的项目（仅在 setup 完成后）
   let startHash: string | undefined;
   const tempStore = new Store();
+  // SDK 升级后新增的内置模型合进缓存模型列表(聊天页下拉/会话页模型选择的数据源),
+  // 否则新模型必须"打开供应商配置页保存一次"才会出现
+  try { syncNativeModels(tempStore); } catch { /* 同步失败不影响启动 */ }
+  // 兜底清理历史遗留的临时会话缓存(__new_ 前缀,真实会话创建后不再被读取)——防磁盘堆积
+  try { cleanupTempCaches(); } catch { /* 清理失败不影响启动 */ }
   const settings = tempStore.getSettings();
   if (settings.setupComplete) {
     const lastId = tempStore.getLastProjectId();

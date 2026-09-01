@@ -58,3 +58,17 @@ export function readProjectProfile(projectPath: string): string | undefined {
     return undefined;
   }
 }
+
+/**
+ * 权限边界提示词段（主会话与子 Agent 共用）。
+ * 只写基本概念：绝对禁区（两模式共同、不可变）+ 两模式的定义。
+ * 不写「当前处于哪个模式」——模式会随用户切换变化，写死会过时误导；
+ * 当前模式以系统反馈为准：操作被拒时错误信息会说明原因（标准限制 / 禁区），据此应对。
+ * 保持与 permission-rules.ts 的禁区清单与拒绝措辞一致（需同步维护）。
+ */
+export const PERMISSION_RULES_PROMPT = `<permission_rules>
+权限由系统强制拦截，你无需自行判断能否执行；操作被拒时，错误信息会说明具体原因，据此应对。
+- 绝对禁止（任何模式下都不要尝试）：系统核心目录写入/删除（macOS：/etc /usr /bin /sbin /System /Library /var /cores /dev /proc /sys /private /Volumes /tmp；Windows：C:\\Windows、C:\\ProgramData 等）；凭据/敏感目录读写（~/.ssh、~/.aws、~/.gnupg、~/.kube、~/.docker、~/.npmrc、~/Library/Keychains 等）；用户目录写入（~/Desktop ~/Documents ~/Downloads ~/Library 等——读取允许）；系统级变更命令（sudo、launchctl、systemctl、mount、diskutil、reg add 等——需用户手动执行）
+- 权限模式（你当前处于哪种，以操作是否被系统拒绝为准）：标准模式——只能写入当前工作空间，写入工作空间外会被系统拒绝；完全访问——可写入所有非禁止区域。两种模式都允许：读写项目内文件、安装依赖/运行时、读取环境配置与系统信息、读取项目外普通位置与用户下载的文档
+- 操作被拒时：错误是「仅可操作工作空间内文件」→ 说明当前为标准模式，改用工作空间内路径，或告知用户「该操作需切换「完全访问」才能执行」；错误是「系统敏感位置/凭据目录/用户目录/系统级变更」→ 如实告知用户该操作不可执行，不要尝试绕过、伪装路径或换命令变体
+</permission_rules>`;

@@ -1,6 +1,7 @@
 import { useTabStore } from "../stores/tab-store";
 import { useDelegationStore } from "../stores/delegation-store";
 import { WindowControls } from "./WindowControls";
+import { confirmDialog } from "./ui/ConfirmDialog";
 
 /** 关闭提醒判定:回合流式 ∪ 委派运行中 ∪ 后台 shell 运行中(按 sessionId 过滤) */
 function isTabRunning(
@@ -76,10 +77,15 @@ export function TabBar(): JSX.Element | null {
               <span className="tab-text-v3"><span className="tab-text-inner">{tab.title}</span></span>
               <span
                 className="tab-close-v3"
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation();
                   if (tab.type === "chat" && tab.sessionId && isTabRunning(tab, runningSessions, agentTasks, shellTasks)) {
-                    if (!confirm(runningHint(tab.sessionId, runningSessions, agentTasks, shellTasks))) return;
+                    const ok = await confirmDialog({
+                      title: "关闭会话？",
+                      message: runningHint(tab.sessionId, runningSessions, agentTasks, shellTasks),
+                      confirmText: "关闭",
+                    });
+                    if (!ok) return;
                   }
                   closeTab(tab.id);
                 }}

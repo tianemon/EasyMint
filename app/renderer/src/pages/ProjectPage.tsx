@@ -6,6 +6,8 @@ import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
 import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
 import { NewProjectDialog } from "../components/NewProjectDialog";
+import { confirmDialog } from "../components/ui/ConfirmDialog";
+import { toast } from "../components/ui/Toast";
 import { useProcessStore } from "../stores/process-store";
 import { useTabStore } from "../stores/tab-store";
 import { useTaskStore, type TaskStatus } from "../stores/task-store";
@@ -298,13 +300,17 @@ export function ProjectPage(): JSX.Element {
       return;
     }
     // 二次确认：提醒用户 EM 将关闭
-    if (!window.confirm(`重命名将关闭 EasyMint。\n\n新名称: ${trimmed}\n新路径: ${projectPath.replace(/[^/]+$/, trimmed)}\n\n请确保所有工作已保存。`)) {
-      return;
-    }
+    const ok = await confirmDialog({
+      title: "重命名将关闭 EasyMint？",
+      message: `新名称: ${trimmed}\n新路径: ${projectPath.replace(/[^/]+$/, trimmed)}\n\n请确保所有工作已保存。`,
+      confirmText: "重命名",
+      danger: true,
+    });
+    if (!ok) return;
     setRenamePhase("copying");
     window.electronAPI.project.renameExec(projectPath, trimmed).then((res) => {
       if (!res.ok) {
-        alert(res.error || "重命名失败");
+        toast(res.error || "重命名失败");
         setRenamePhase("input");
       }
     });

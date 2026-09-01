@@ -31,7 +31,7 @@ function ChatThinkingLevelSection(): JSX.Element {
           options={CHAT_THINKING_OPTIONS}
           title="全局思考等级"
         />
-        <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">仅作为新聊天会话的初始默认值，不控制 Agent 模板与 task 委派；已打开的聊天可在输入栏临时切换。</p>
+        <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">仅作为新聊天会话的初始默认值，也是标准委派子 Agent 的参考；Agent 模板以模板配置为准；模型不支持所选等级时自动适配到该模型最接近的支持档位，已打开的聊天可在输入栏临时切换。</p>
       </div>
     </section>
   );
@@ -72,9 +72,9 @@ function BuiltinToolsSection(): JSX.Element {
       </p>
       <div className="space-y-2">
         {([
-          { key: "vision", label: "图片识别", desc: "用视觉模型描述图片内容", keyId: "VISION_API_KEY", keyHint: "获取: dashscope.aliyun.com" },
-          { key: "webFetch", label: "网页抓取", desc: "读取网页实际内容", keyId: "TAVILY_API_KEY", keyHint: "获取: tavily.com" },
-        ] as const).map(({ key, label, desc, keyId, keyHint }) => {
+          { key: "vision", label: "图片识别", desc: "用视觉模型描述图片内容", keyId: "VISION_API_KEY", keyUrl: "https://bailian.console.aliyun.com/cn-beijing?tab=model#/api-key" },
+          { key: "webFetch", label: "网页抓取", desc: "读取网页实际内容", keyId: "TAVILY_API_KEY", keyUrl: "https://docs.tavily.com/documentation/mcp" },
+        ] as const).map(({ key, label, desc, keyId, keyUrl }) => {
           const on = builtinTools[key];
           return (
           <div key={key} className="bg-surface-alt rounded-lg px-4 py-3">
@@ -152,7 +152,9 @@ function BuiltinToolsSection(): JSX.Element {
                     />
                   </div>
                 )}
-                <div className="text-[length:var(--text-2xs)] text-text-muted mt-1">{keyHint}</div>
+                <div className="text-[length:var(--text-2xs)] text-text-muted mt-1">
+                  获取 Key：<a href={keyUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline break-all">{keyUrl}</a>
+                </div>
               </div>
             )}
           </div>

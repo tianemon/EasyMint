@@ -8,12 +8,16 @@
 
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { AgentSessionEvent } from "../pi-sdk";
 import { createPiSession, getPiSessionDir } from "../pi-session";
 import { getBaseTools, getReadOnlyTools } from "../tool-registry";
 import { createEnhancedEditTool } from "../enhanced-edit";
 import { getActiveModel, getModelRuntime } from "../pi-init";
+import { getStaticModelSpec, supportedThinkingLevelsOfSpec } from "../pi-init-static";
 import { getTemplate } from "../agent-templates";
+import { resolveThinkingLevel } from "../../../shared/thinking-levels";
+import { PERMISSION_RULES_PROMPT } from "../prompt-sections";
 import { Store } from "../store";
 import { resolveHome } from "../../utils/paths";
 import { mapWithConcurrencyLimit, type ParallelResult } from "./parallel";
@@ -80,6 +84,25 @@ export interface SubagentOptions {
   model?: string;
   /** 委派指定供应商(与 model 搭配) */
   provider?: string;
+  /** 父会话当前生效的思考等级(标准委派跟随主会话;模板委派仅作模板未配置时的回落) */
+  parentThinkingLevel?: string;
+  /** 主会话权限回调（跟随主会话权限模式：标准/完全访问 + 绝对禁区）；缺省不拦截 */
+  canUseTool?: (toolName: string, input: Record<string, unknown>, options: any) => Promise<{ behavior: "allow" | "deny"; message?: string; updatedInput?: Record<string, unknown> }>;
+}
+
+/**
+ * 子 Agent 思考等级：基础值（模板设置 > 父会话等级 > medium）再按子 Agent 模型能力自适应——
+ * 与主会话同一套「同等级 → 向下 → 向上」规则（shared/thinking-levels.ts），
+ * 避免子 Agent 落到 SDK 默认的"向上优先"造成不一致。
+ */
+function adaptSubagentThinkingLevel(base: string, model: Awaited<ReturnType<typeof getActiveModel>>): ThinkingLevel {
+  const id = (model as any)?.id as string | undefined;
+  if (!id) return base as ThinkingLevel;
+  try {
+    const supported = supportedThinkingLevelsOfSpec(getStaticModelSpec(id));
+    if (supported) return resolveThinkingLevel(base, supported) as ThinkingLevel;
+  } catch { /* 查不到能力表按原值 */ }
+  return base as ThinkingLevel;
 }
 
 /** 解析子 Agent 模型:委派指定 > AgentTemplate > 子agent默认(settings) > 全局(需求 2/3) */
@@ -160,22 +183,28 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
         return base.map((t) => (t.name === "edit" ? enhanced : t));
       })();
 
-  // 子 Agent 权限包装：只读操作自动放行，写操作需白名单
-  const subCanUseTool = (toolName: string, input: Record<string, unknown>) => {
-    if (SAFE_TOOLS.includes(toolName)) return { behavior: "allow" as const, updatedInput: input };
-    if (toolName === "Bash") {
-      const command = typeof input.command === "string" ? input.command : "";
-      if (isSafeBashCommand(command)) return { behavior: "allow" as const, updatedInput: input };
-    }
-    return { behavior: "deny" as const, message: `子 Agent 未授权执行 ${toolName}` };
-  };
-  const wrappedTools = tools.map((t) =>
-    wrapToolWithPermission(t as any, { canUseTool: subCanUseTool as any }),
-  );
+  // 子 Agent 权限：跟随主会话（DelegationRuntime.canUseTool 传入，绑定主会话模式 standard/full
+  // + 绝对禁区）；未传入（旧调用方）则不包装。原写死的 subCanUseTool（只读放行/写一律拒）退役——
+  // 它导致标准模式下子 Agent 连工作空间内写入都被拒，与主会话行为不一致。
+  const extraTools = opts.canUseTool
+    ? tools
+    : tools.map((t) => wrapToolWithPermission(t as any, {
+        canUseTool: (toolName: string, input: Record<string, unknown>) => {
+          if (SAFE_TOOLS.some((s) => s.toLowerCase() === toolName.toLowerCase())) {
+            return Promise.resolve({ behavior: "allow" as const, updatedInput: input });
+          }
+          if (toolName.toLowerCase() === "bash") {
+            const command = typeof input.command === "string" ? input.command : "";
+            if (isSafeBashCommand(command)) {
+              return Promise.resolve({ behavior: "allow" as const, updatedInput: input });
+            }
+          }
+          return Promise.resolve({ behavior: "deny" as const, message: `子 Agent 未授权执行 ${toolName}` });
+        },
+      }));
 
-  // 结构化输出：创建 yield 工具 + schema 提示
+  // 结构化输出收集器（yield 工具写入，执行结束后统一返回）
   const yieldItems: YieldItem[] = [];
-  const extraTools = [...wrappedTools];
 
   if (opts.outputSchema) {
     const yieldTool: any = {
@@ -201,12 +230,15 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
     const schemaHint = typeof opts.outputSchema === "object"
       ? `\n\n完成工作后，必须调 yield 工具返回结果。data 对象需包含以下字段: ${JSON.stringify(opts.outputSchema)}`
       : "";
-    const fullPrompt = opts.task + schemaHint;
+    const fullPrompt = opts.task + schemaHint + "\n\n" + PERMISSION_RULES_PROMPT;
     const session2 = await createPiSession({
-      cwd: resolvedPath, agentDir: opts.agentDir, model, thinkingLevel: "medium",
+      cwd: resolvedPath, agentDir: opts.agentDir, model,
+      // 标准委派跟随主会话思考等级（父会话未选过则 medium），并按子 Agent 模型能力自适应
+      thinkingLevel: adaptSubagentThinkingLevel(opts.parentThinkingLevel ?? "medium", model),
       store: opts.store, systemPrompt: fullPrompt, extraTools,
       sessionDir: opts.sessionDir,
-      canUseTool: undefined,
+      // 跟随主会话权限（standard/full + 禁区）；pi-session 对 extraTools 统一包装
+      canUseTool: opts.canUseTool as any,
     });
     // 记录子会话 jsonl 路径(前端查看 Agent 过程用)
     opts.childSessionFiles[opts.index] = session2.sessionFile ?? "";
@@ -219,15 +251,17 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
   const tpl = opts.agent ? getTemplate(opts.agent) : undefined;
   const tplPrompt = tpl?.prompt;
   const tplThinkingLevel = tpl?.thinkingLevel;
-  const systemPrompt = (tplPrompt ? tplPrompt + "\n\n" : "") + opts.task + "\n\n在你完成所有工作后，请在最后一条消息中输出你的工作总结。";
+  const systemPrompt = (tplPrompt ? tplPrompt + "\n\n" : "") + opts.task + "\n\n在你完成所有工作后，请在最后一条消息中输出你的工作总结。\n\n" + PERMISSION_RULES_PROMPT;
 
   try {
     const session = await createPiSession({
       cwd: resolvedPath, agentDir: opts.agentDir, model,
-      thinkingLevel: (tplThinkingLevel as any) ?? "medium",
+      // 模板委派以模板设置为主；模板未配置时跟随主会话，再按子 Agent 模型能力自适应
+      thinkingLevel: adaptSubagentThinkingLevel((tplThinkingLevel as any) ?? opts.parentThinkingLevel ?? "medium", model),
       store: opts.store, systemPrompt, extraTools,
       sessionDir: opts.sessionDir,
-      canUseTool: undefined,
+      // 跟随主会话权限（standard/full + 禁区）；pi-session 对 extraTools 统一包装
+      canUseTool: opts.canUseTool as any,
     });
     // 记录子会话 jsonl 路径(前端查看 Agent 过程用)
     opts.childSessionFiles[opts.index] = session.sessionFile ?? "";
@@ -417,6 +451,10 @@ export interface DelegationRuntime {
   agentDir: string;
   store: Store;
   concurrency?: number;
+  /** 主会话当前生效的思考等级（标准委派跟随；模板委派作回落） */
+  parentThinkingLevel?: string;
+  /** 主会话权限回调（子 Agent 跟随主会话权限模式 + 绝对禁区）；缺省走旧只读包装 */
+  canUseTool?: (toolName: string, input: Record<string, unknown>, options: any) => Promise<{ behavior: "allow" | "deny"; message?: string; updatedInput?: Record<string, unknown> }>;
   onProgress?: (progress: AgentProgress) => void;
 }
 
@@ -459,6 +497,8 @@ export async function runSubagents(
       agent: task.agent,
       model: task.model,
       provider: task.provider,
+      parentThinkingLevel: runtime.parentThinkingLevel,
+      canUseTool: runtime.canUseTool,
     },
   }));
 

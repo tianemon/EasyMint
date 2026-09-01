@@ -184,7 +184,7 @@ interface ElectronAPI {
   agent: {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
     sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string; tabId?: string }) => Promise<{ chatId: string }>;
-    steer: (sessionId: string, text: string) => Promise<void>;
+    steer: (sessionId: string, text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>) => Promise<void>;
     stopDelegation: (delegationId: string, taskIndex: number) => Promise<void>;
     stopShell: (shellId: string) => Promise<void>;
     followUp: (sessionId: string, text: string) => Promise<void>;
@@ -206,6 +206,10 @@ interface ElectronAPI {
     chatStatus: (sessionId: string) => Promise<string | null>;
     getPiProviders: () => Promise<Array<{ id: string; name: string; baseUrl?: string }>>;
     getPiModels: (providerName: string) => Promise<Array<{ id: string; name: string; contextWindow: number }>>;
+    getModelThinkingLevels: () => Promise<Record<string, string>>;
+    getThinkingLevels: (sessionId: string) => Promise<{ level?: string; available?: string[] } | null>;
+    getModelThinkingSupport: (modelId: string) => Promise<string[] | null>;
+    setModelThinkingLevel: (provider: string, modelId: string, level: string | null) => Promise<void>;
     isStreaming: (sessionId: string) => Promise<boolean>;
     sessionStats: (sessionId: string, projectPath?: string) => Promise<Record<string, unknown> | null>;
     getBufferedStream: (sessionId: string) => Promise<unknown[]>;
@@ -249,6 +253,7 @@ interface ElectronAPI {
     onRenameProgress: (callback: (data: { phase: string }) => void) => () => void;
     onSessionRenamed: (callback: (data: { sessionId: string; title: string }) => void) => () => void;
     onModelChanged: (callback: (data: { sessionId: string; model: string }) => void) => () => void;
+    onThinkingLevelChanged: (callback: (data: { sessionId: string; level: string; available?: string[] }) => void) => () => void;
   };
   device: {
     getSelf: () => Promise<{ id: string; name: string; discoverable: boolean }>;
@@ -394,7 +399,7 @@ interface ElectronAPI {
     delete: (projectId: string, sessionId: string) => Promise<void>;
   };
   sessionCache: {
-    read: (sessionId: string) => Promise<{ permissionMode: string; model?: string; provider?: string; contextUsage: number | null; updatedAt: number } | null>;
+    read: (sessionId: string) => Promise<{ permissionMode: string; model?: string; provider?: string; thinkingLevel?: string; contextUsage: number | null; updatedAt: number } | null>;
     write: (sessionId: string, data: Record<string, unknown>) => Promise<void>;
     delete: (sessionId: string) => Promise<void>;
   };

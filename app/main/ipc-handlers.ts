@@ -7,7 +7,7 @@ import { FileService } from "./services/file-service";
 import { AgentService, getDesignSessionIds, respondAsk, respondLearn } from "./services/agent-service";
 import { Store } from "./services/store";
 import { broadcast } from "./services/ipc-broadcast";
-import { resetModelRuntime } from "./services/pi-init";
+import { resetModelRuntime, getGlobalSettingsManager } from "./services/pi-init";
 import { permissionService } from "./services/permission/agent-permission-service";
 import { IMAGE_MIME } from "./utils/paths";
 import { execShell } from "./services/shell-service";
@@ -160,6 +160,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:getBufferedStream", (_e, { sessionId }) => {
     return agentService.getBufferedStream(sessionId);
   });
+  ipcMain.handle("agent:getThinkingLevels", (_e, { sessionId }) => agentService.getThinkingInfo(sessionId));
+  ipcMain.handle("agent:getModelThinkingSupport", async (_e, { modelId }) => await agentService.getModelThinkingSupport(modelId));
   ipcMain.handle("agent:setModel", (_e, { sessionId, model, provider }) => {
     return agentService.setModel(sessionId, model, provider);
   });
@@ -180,8 +182,23 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:stop-shell", (_e, { shellId }) => {
     backgroundShellRegistry.stop(String(shellId ?? ""));
   });
-  ipcMain.handle("agent:steer", (_e, { sessionId, text }) => {
-    agentService.steer(sessionId, text);
+  // 按模型设置思考等级（存 Pi 全局设置 agentDir/settings.json，键 `<provider>/<modelId>`）
+  ipcMain.handle("agent:getModelThinkingLevels", async () => {
+    try {
+      const mgr = await getGlobalSettingsManager();
+      return mgr.getAllModelThinkingLevels();
+    } catch (e) {
+      console.warn("[ipc] getModelThinkingLevels 失败:", (e as Error).message);
+      return {};
+    }
+  });
+  ipcMain.handle("agent:setModelThinkingLevel", async (_e, { provider, modelId, level }: { provider: string; modelId: string; level: string | null }) => {
+    const mgr = await getGlobalSettingsManager();
+    if (level) mgr.setModelThinkingLevel(provider, modelId, level as any);
+    else mgr.removeModelThinkingLevel(provider, modelId);
+  });
+  ipcMain.handle("agent:steer", (_e, { sessionId, text, images }) => {
+    agentService.steer(sessionId, text, images);
   });
   ipcMain.handle("agent:followUp", (_e, { sessionId, text }) => {
     agentService.followUp(sessionId, text);

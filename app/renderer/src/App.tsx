@@ -5,6 +5,8 @@ import { OnboardingPage } from "./pages/OnboardingPage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { MigrationIncomingModal } from "./components/device/MigrationIncomingModal";
 import { PairRequestModal } from "./components/device/PairRequestModal";
+import { ConfirmHost } from "./components/ui/ConfirmDialog";
+import { ToastHost } from "./components/ui/Toast";
 import { useSettingsStore } from "./stores/settings-store";
 import { useTabStore, type Tab } from "./stores/tab-store";
 import { useDelegationStore } from "./stores/delegation-store";
@@ -44,6 +46,11 @@ export function App(): JSX.Element {
         for (const t of useTabStore.getState().tabs) {
           if (t.type === "chat" && t.sessionId) {
             window.electronAPI.agent.setModel(t.sessionId, newModel).catch(() => {});
+            // 持久化会话绑定供应商——否则重启后绑定丢失,恢复会话回落全局默认。
+            // 新会话 tab 的 sessionId 是 __new_xxx 临时 id（主进程按真实 sid 读缓存），跳过避免垃圾 key
+            if (!t.sessionId.startsWith("__new_")) {
+              window.electronAPI.sessionCache.write(t.sessionId, { provider: currentProvider, model: newModel }).catch(() => {});
+            }
           }
         }
       }
@@ -156,6 +163,9 @@ export function App(): JSX.Element {
         </HashRouter>
         {/* 配对请求弹窗(全局,接收端确认) */}
         <PairRequestModal />
+        {/* 全局确认框与轻提示（替换 window.confirm / window.alert 的系统弹窗） */}
+        <ConfirmHost />
+        <ToastHost />
         {/* 迁移回执提示(发送端,3-5s 自动消失) */}
         {receipt && (
           <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4 py-2.5 rounded-lg border shadow-lg text-sm modal-card ${receipt.ok ? "bg-surface-alt border-border text-text-primary" : "bg-surface-alt border-danger/50 text-danger"}`}>

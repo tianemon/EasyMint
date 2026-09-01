@@ -214,10 +214,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   agent: {
     runWorker: (projectPath: string, prompt: string) =>
       ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string; tabId?: string }) =>
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string; tabId?: string }) =>
       ipcRenderer.invoke("agent:sendMessage", { projectPath, message, ...opts }),
-    steer: (sessionId: string, text: string) =>
-      ipcRenderer.invoke("agent:steer", { sessionId, text }),
+    steer: (sessionId: string, text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>) =>
+      ipcRenderer.invoke("agent:steer", { sessionId, text, images }),
       stopDelegation: (delegationId: string, taskIndex: number) =>
         ipcRenderer.invoke("agent:stop-delegation", { delegationId, taskIndex }),
     stopShell: (shellId: string) =>
@@ -281,6 +281,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     isStreaming: (sessionId: string) => ipcRenderer.invoke("agent:isStreaming", { sessionId }) as Promise<boolean>,
     getPiProviders: () => ipcRenderer.invoke("agent:getPiProviders") as Promise<Array<{ id: string; name: string; baseUrl?: string }>>,
     getPiModels: (providerName: string) => ipcRenderer.invoke("agent:getPiModels", { providerName }) as Promise<Array<{ id: string; name: string; contextWindow: number }>>,
+    getModelThinkingLevels: () => ipcRenderer.invoke("agent:getModelThinkingLevels") as Promise<Record<string, string>>,
+    getThinkingLevels: (sessionId: string) => ipcRenderer.invoke("agent:getThinkingLevels", { sessionId }) as Promise<{ level?: string; available?: string[] } | null>,
+    getModelThinkingSupport: (modelId: string) => ipcRenderer.invoke("agent:getModelThinkingSupport", { modelId }) as Promise<string[] | null>,
+    setModelThinkingLevel: (provider: string, modelId: string, level: string | null) => ipcRenderer.invoke("agent:setModelThinkingLevel", { provider, modelId, level }) as Promise<void>,
     sessionStats: (sessionId: string, projectPath?: string) => ipcRenderer.invoke("agent:sessionStats", { sessionId, projectPath }) as Promise<Record<string, unknown> | null>,
     scheduleIdleTimeout: (sessionId: string, delayMs: number) => ipcRenderer.invoke("agent:scheduleIdleTimeout", { sessionId, delayMs }),
     onStream: (callback: (event: unknown) => void) => {
@@ -389,6 +393,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
       const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string; model: string }) => callback(data);
       ipcRenderer.on("agent:model-changed", handler);
       return () => ipcRenderer.removeListener("agent:model-changed", handler);
+    },
+    // 模型切换/思考等级被模型能力 clamp 后，主进程回传实际生效等级（界面按真实值显示）
+    onThinkingLevelChanged: (callback: (data: { sessionId: string; level: string; available?: string[] }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string; level: string; available?: string[] }) => callback(data);
+      ipcRenderer.on("agent:thinking-level-changed", handler);
+      return () => ipcRenderer.removeListener("agent:thinking-level-changed", handler);
     },
   },
   // ── 设备互联（mDNS 发现 + WS 配对连接） ──

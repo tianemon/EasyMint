@@ -128,6 +128,28 @@ export interface ModelSpec {
   maxTokens: number;
 }
 
+/** 思考等级大小关系（与 SDK EXTENDED_THINKING_LEVELS 一致） */
+const THINKING_ORDER = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+
+/**
+ * 按静态 spec 算出模型支持的思考等级（与 SDK `getSupportedThinkingLevels` 同一判定式）。
+ * 用途：打开会话时前端就要按模型收敛下拉，而此时 Pi 会话可能还没创建（要等首条消息）——
+ * 不能依赖 AgentSession，只能从模型规格直接算。
+ * 返回 null 表示该模型规格未知（调用方按"全部档位"处理）。
+ */
+export function supportedThinkingLevelsOfSpec(spec: Record<string, any> | undefined): string[] | null {
+  if (!spec) return null;
+  if (spec.reasoning === false) return ["off"];
+  const map = spec.thinkingLevelMap as Record<string, string | null> | undefined;
+  return THINKING_ORDER.filter((level) => {
+    const mapped = map ? map[level] : undefined;
+    if (mapped === null) return false;
+    // xhigh / max 必须有显式映射才可用
+    if (level === "xhigh" || level === "max") return mapped !== undefined;
+    return true;
+  });
+}
+
 let _modelLookup: Map<string, ModelSpec> | null = null;
 
 /** 跨全部 provider 数据构建 模型 ID → 窗口/输出上限 查表。
@@ -162,4 +184,62 @@ export function getModelSpecLookup(): Map<string, ModelSpec> {
   } catch { /* 数据目录不可读:查表为空 */ }
   _modelLookup = lookup;
   return lookup;
+}
+
+const _staticModelsByProvider = new Map<string, Map<string, Record<string, any>>>();
+let _staticModelById: Map<string, Record<string, any>> | null = null;
+
+/** 跨全部 provider 的 模型 ID → 完整 spec 查表。
+ *  用途：自定义供应商(第三方网关/镜像站)转售的模型继承其内在能力——
+ *  同一模型 id 在官方数据里可查时，直接用官方的 reasoning / input / thinkingLevelMap。 */
+export function getStaticModelSpec(modelId: string): Record<string, any> | undefined {
+  if (!_staticModelById) {
+    const byId = new Map<string, Record<string, any>>();
+    const dataDir = findDataDir();
+    try {
+      for (const f of readdirSync(dataDir)) {
+        if (!f.endsWith(".json")) continue;
+        let data: unknown;
+        try { data = JSON.parse(readFileSync(join(dataDir, f), "utf-8")); } catch { continue; }
+        if (!data || typeof data !== "object") continue;
+        for (const apiGroup of Object.values(data as Record<string, unknown>)) {
+          if (!apiGroup || typeof apiGroup !== "object") continue;
+          for (const [id, m] of Object.entries(apiGroup as Record<string, any>)) {
+            if (m && typeof m === "object" && !byId.has(id)) byId.set(id, m);
+          }
+        }
+      }
+    } catch { /* 数据目录不可读:查表为空 */ }
+    _staticModelById = byId;
+  }
+  return _staticModelById.get(modelId);
+}
+
+/**
+ * 取某内置供应商的完整模型 spec（按模型 id）。
+ * 用途：供应商页手动添加的模型(extraModels)注册时继承同族内置模型的能力声明
+ * (api / reasoning / thinkingLevelMap / compat / cost …)——只写 id+窗口会导致
+ * SDK 按"供应商首个模型"兜底为 reasoning=false,思考等级被 clamp 成 off。
+ */
+export function getProviderStaticModels(providerId: string): Map<string, Record<string, any>> {
+  const cached = _staticModelsByProvider.get(providerId);
+  if (cached) return cached;
+  const models = new Map<string, Record<string, any>>();
+  const file = PROVIDER_FILES[providerId]?.file;
+  if (file) {
+    const filePath = join(findDataDir(), file);
+    if (existsSync(filePath)) {
+      try {
+        const data = JSON.parse(readFileSync(filePath, "utf-8"));
+        for (const apiGroup of Object.values(data as Record<string, unknown>)) {
+          if (!apiGroup || typeof apiGroup !== "object") continue;
+          for (const [id, m] of Object.entries(apiGroup as Record<string, any>)) {
+            if (m && typeof m === "object") models.set(id, m);
+          }
+        }
+      } catch { /* 坏档 → 返回空表，调用方走保守兜底 */ }
+    }
+  }
+  _staticModelsByProvider.set(providerId, models);
+  return models;
 }

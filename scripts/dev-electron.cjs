@@ -28,6 +28,11 @@ const EXTERNALS = [
   // archiver 8.0 是纯 ESM 包,esbuild CJS bundle 跨平台解析不稳定——运行时 require
   "archiver",
   "unzipper",
+  // 文档解析器:运行时按需 require(external 不进 bundle,与 build:main 一致)
+  "pdf-parse",
+  "mammoth",
+  "xlsx",
+  "jszip",
 ];
 
 async function main() {

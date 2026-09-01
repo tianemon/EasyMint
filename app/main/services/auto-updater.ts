@@ -35,7 +35,9 @@ const INITIAL_DELAY_MS = 10 * 1000;
 let detectedVersion: string | null = null;      // update-available 时记录的版本号
 let downloadedVersion: string | null = null;   // 已下载完成的版本号
 let downloadedFile: string | null = null;      // electron-updater 下载到本地的文件路径
-let checking = false;                          // 防重入:自动/手动检查同时触发只发一次
+let checking = false;                          // 防重入:检查请求进行中(自动/手动同时触发只发一次)
+let downloading = false;                       // 防重入:发现更新后下载在途(available→downloaded,可能数分钟)
+let manualCheckDone = false;                   // 用户手动点过「检查更新」→ 取消后续自动检查
 
 /** 下载状态持久化路径(userData,重启后红点/气泡仍在;安装后启动时自清) */
 function persistPath(): string {
@@ -84,6 +86,7 @@ function setupListeners(): void {
 
   autoUpdater.on("update-available", (info) => {
     detectedVersion = info.version ?? null;
+    downloading = true; // 下载在途:后续检查请求直接忽略,避免重复触发导致界面状态闪烁
     broadcast({ status: "available", version: detectedVersion ?? undefined });
     // autoDownload: true，electron-updater 自动开始下载
   });
@@ -101,16 +104,19 @@ function setupListeners(): void {
   autoUpdater.on("update-downloaded", (info) => {
     downloadedVersion = info.version ?? null;
     downloadedFile = info.downloadedFile ?? null;
+    downloading = false;
     persistDownload(); // 持久化:重启后红点/气泡仍在
     broadcast({ status: "downloaded", version: downloadedVersion ?? undefined });
   });
 
   autoUpdater.on("update-not-available", () => {
+    downloading = false;
     broadcast({ status: "no-update" });
   });
 
   autoUpdater.on("error", (err) => {
     const message = err instanceof Error ? err.message : String(err);
+    downloading = false;
     broadcast({ status: "error", errorMessage: message, errorPhase: "check" });
   });
 
@@ -125,7 +131,8 @@ export function startAutoUpdater(): void {
 
   const checkOnce = () => {
     if (downloadedVersion) return;   // 已下载完成,不再检查
-    if (checking) return;            // 检查进行中(10s 自动与手动碰巧时只发一次)
+    if (manualCheckDone) return;     // 用户已手动点过「检查更新」→ 取消自动检查,不再打扰
+    if (checking || downloading) return; // 检查请求在途 / 下载在途 → 忽略,防重复触发界面闪烁
     checking = true;
     autoUpdater.checkForUpdates().catch(() => {
       broadcast({ status: "error", errorMessage: "检测请求失败", errorPhase: "check" });
@@ -137,6 +144,8 @@ export function startAutoUpdater(): void {
 }
 
 export function checkForUpdatesManually(): void {
+  // 用户主动检查过 → 取消后续自动检查（自动检查不再打扰）
+  manualCheckDone = true;
   if (app.isPackaged === false) {
     broadcast({ status: "no-update" });
     return;
@@ -145,7 +154,7 @@ export function checkForUpdatesManually(): void {
     broadcast({ status: "downloaded", version: downloadedVersion });
     return;
   }
-  if (checking) return;  // 自动检查进行中,手动点击忽略(界面已有 checking 状态)
+  if (checking || downloading) return;  // 检查请求/下载在途,手动点击忽略(界面已有对应状态)
   checking = true;
   autoUpdater.checkForUpdates().catch(() =>
     broadcast({ status: "error", errorMessage: "检测请求失败", errorPhase: "check" })

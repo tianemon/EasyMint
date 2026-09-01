@@ -13,7 +13,7 @@
 | 发版流程（版本号判定/发版必检/两处提交） | `docs/发版流程.md` |
 | 本机环境（查源码目录/CC 源码/局域网 git） | `docs/本机环境.md`（仅本机存在） |
 | 使用 SDK API | `docs/reference/Pi-SDK-API参考.md` |
-| 修改系统提示词 | `app/shared/prompts.ts` |
+| 修改系统提示词 | `app/shared/prompts.ts`（主提示词/规则段）；动态 section 与权限段 → `app/main/services/prompt-sections.ts` |
 | 看懂构建流程 | `package.json` scripts + `scripts/build.sh` |
 | 设计方案 / 配置路径 / 需求方法论 / 规则集 | `docs/design/`（按需阅读；新方案定稿落盘于此） |
 

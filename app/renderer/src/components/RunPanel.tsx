@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import { useProcessStore, type RunPlatform, type Runnable } from "../stores/process-store";
 import { LogOverlay } from "./LogOverlay";
 import { ScriptEditDialog } from "./ScriptEditDialog";
+import { toast } from "./ui/Toast";
 
 interface RunPanelProps {
   projectPath: string;
@@ -186,7 +187,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
       setConfirmDeleteId(null);
     } catch (e) {
       console.error("[RunPanel] delete script failed:", e);
-      alert("删除失败，请检查 run.json 是否被占用");
+      toast("删除失败，请检查 run.json 是否被占用");
     } finally {
       setSaving(false);
     }

@@ -23,6 +23,10 @@ export interface TaskToolContext {
   parentSessionId: string;
   /** 会话 chatId（进度广播按它过滤,前端只显示当前窗口的委派） */
   chatId?: string;
+  /** 懒取主会话当前生效的思考等级（标准委派跟随主会话；模板委派作回落） */
+  getParentThinkingLevel?: () => string | undefined;
+  /** 主会话权限回调（子 Agent 跟随主会话权限模式 standard/full + 绝对禁区） */
+  canUseTool?: (toolName: string, input: Record<string, unknown>, options: any) => Promise<{ behavior: "allow" | "deny"; message?: string; updatedInput?: Record<string, unknown> }>;
   /** 委派完成回调：结果注入主会话（agent-service 提供） */
   onComplete?: (parentSessionId: string, text: string) => void;
   /** 单任务被用户停止回调：立即注入中止通知（不等整个委派完成）。
@@ -285,6 +289,8 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         agentDir: ctx.agentDir,
         store: ctx.store,
         concurrency: (params.concurrency as number) || undefined,
+        parentThinkingLevel: ctx.getParentThinkingLevel?.(),
+        canUseTool: ctx.canUseTool,
         onProgress: broadcastProgress,
       }).catch(() => {});
 

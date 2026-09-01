@@ -39,13 +39,17 @@ import {
 } from "./event-bridge";
 import type { AgentSession, AgentSessionEvent, ToolDefinition } from "./pi-sdk";
 import { getDefineToolFn } from "./pi-sdk";
+import { readCache, writeCache } from "./session-cache";
 import type { Model } from "@earendil-works/pi-ai";
 import { randomUUID } from "node:crypto";
 import { renameSession, hasCustomTitle } from "./session-service";
-import { buildProjectEnvSection, buildProjectProfileSection, readProjectProfile } from "./prompt-sections";
+import { buildProjectEnvSection, buildProjectProfileSection, readProjectProfile, PERMISSION_RULES_PROMPT } from "./prompt-sections";
 import { MINT_DESIGN_BOOST } from "../../shared/prompts";
+import { resolveThinkingLevel } from "../../shared/thinking-levels";
 
 // ── 类型 ────────────────────────────────────────────
+
+// 思考等级判定见 app/shared/thinking-levels.ts（主进程与渲染层共用）
 
 /** 权限回调签名（与 permissionService.createCanUseTool 返回一致） */
 export type CanUseToolFn = (toolName: string, input: Record<string, unknown>, options: CanUseToolOptions) => Promise<PermissionResult>;
@@ -77,6 +81,10 @@ export interface ActiveChat {
   abortController: AbortController;
   projectPath: string;
   currentModel?: string;
+  /** 本会话用户选择的思考等级（切模型后由 SDK 按模型能力推导默认值，需用它恢复用户意图） */
+  thinkingLevel?: string;
+  /** 本会话使用的供应商（查「按模型思考等级」用；缺省时按模型名全局匹配） */
+  provider?: string;
   agentType?: "mint" | "builder" | "evaluator" | "designer";
   status: string;
   firstUserMessage: string;
@@ -613,12 +621,22 @@ export class AgentService {
   }
 
   private async getModel(store: Store, preferredProvider?: string, preferredModel?: string): Promise<Model<any> | null> {
-    // 会话指定供应商+模型(需求 3/5)→ 优先用该供应商的模型
-    if (preferredProvider && preferredModel) {
-      const { getModelRuntime } = await import("./pi-init");
-      const runtime = await getModelRuntime(store);
-      const m = runtime.getModel(preferredProvider, preferredModel);
-      if (m) return m as any;
+    // 会话指定模型 → 按名解析(指定供应商优先,缺省用全局 current)——原实现要求
+    // preferredProvider+preferredModel 同时存在,否则直接回落默认模型,前端选的模型被忽略
+    if (preferredModel) {
+      const m = await this.resolveModelByName(preferredModel, preferredProvider);
+      if (m) return m;
+      // 指定模型解析不到(配置里删掉了/改了模型列表)→ 退回该会话绑定供应商的默认模型,
+      // 不再跳到全局当前供应商的默认模型(跨供应商静默切换会把请求发到别的供应商)
+      const boundId = preferredProvider ?? store.getSettings().apiProviders?.current ?? undefined;
+      const boundCfg = boundId ? store.getSettings().apiProviders?.configs?.[boundId] : undefined;
+      if (boundId && boundCfg?.model) {
+        const dm = await this.resolveModelByName(boundCfg.model, boundId);
+        if (dm) {
+          console.warn(`[agent] 模型 ${preferredModel} 不可用，回落到绑定供应商默认模型 ${boundCfg.model}`);
+          return dm;
+        }
+      }
     }
     // 默认模型(无兜底降级;模型不可用时返回 null,由 SDK/上层按默认行为处理)
     return getActiveModel(store) ?? null;
@@ -630,13 +648,17 @@ export class AgentService {
     /** learn/search_experiences 是否已注册（会话级快照——触发提示按此判断，不按实时设置） */
     learnInstalled: boolean;
   }> {
-    // 权限回调：按 sessionId 隔离白名单，由 createPiSession 统一包装所有工具（含基础 coding 工具）
-    // 放在 try 外——工具创建失败时同样返回回调，避免调用方 undefined（plan 只读仍生效）
+    // 权限回调：按 sessionId 隔离白名单，由 createPiSession 统一包装所有工具（含基础 coding 工具）。
+    // cwd 用于标准（半沙盒）模式的越界写判定——只允许写当前工作空间内的文件。
     const canUseTool = permissionService.createCanUseTool(
       sessionId,
+      projectPath,
       (request) => { broadcast("agent:permission-request", request); },
       undefined,
       (askRequest) => { broadcast("agent:permission-request", { ...askRequest, type: "ask" }); },
+      // 权限缓存 key 对齐：新会话绑定的是临时 randomUUID，前端切换模式后写缓存用的是
+      // 真实 SDK sid——按临时→真实映射解析后再读 session-cache，否则会话内切「完全访问」不生效
+      resolveParentSessionId,
     );
 
     try {
@@ -646,6 +668,10 @@ export class AgentService {
         store: this.store,
         parentSessionId: sessionId,
         chatId,
+        // 标准委派跟随主会话思考等级（懒取：委派发生时读当前生效值；模板委派作回落）
+        getParentThinkingLevel: () => this.findActiveChat(sessionId)?.thinkingLevel,
+        // 子 Agent 跟随主会话权限（standard/full + 绝对禁区）——委派写操作与主会话同边界
+        canUseTool,
         // 委派收尾汇总 → 开回合让 Mint 自动响应总结(最后一条通知,无后续排队;
         // 委派过程的即时通知走 triggerTurn: false 路径不打断)
         onComplete: (sid, text) => this.injectSystemMessage(sid, text, "delegation", { triggerTurn: true }),
@@ -720,6 +746,10 @@ export class AgentService {
     if (env) parts.push(env);
     const profile = buildProjectProfileSection(readProjectProfile(projectPath));
     if (profile) parts.push(profile);
+
+    // 权限边界（两模式 + 绝对禁区）——提前告知模型边界与「被拒后如何应对」，
+    // 减少无谓的越界尝试；工具被拒时错误消息会带具体原因（见 permission-rules）
+    parts.push(PERMISSION_RULES_PROMPT);
 
     // 历史经验注入（learn 开关开启时；与工具注册同开关）：项目级优先 + 使用次数排序，
     // top-N 紧凑块作背景——「经验库里有货」这件事让模型开箱即知，不用等它想起 search
@@ -1014,8 +1044,10 @@ export class AgentService {
         // 应用思考等级(prompt 前同步设置,与新建分支一致)——前端切等级不再立即 IPC,
         // 等级统一随发送应用,消除"切等级 IPC 与发送 IPC 并发"的 SDK 竞态窗口
         if (thinkingLevel) {
-          try { existing.session.setThinkingLevel(thinkingLevel as any); }
-          catch (e) { console.warn("[agent] setThinkingLevel 失败:", (e as Error).message); }
+          // 「按模型设置」优先于全局默认/会话内选择
+          const perModel = await this.getPerModelThinkingLevel(existing.provider, existing.currentModel ?? "");
+          if (perModel) { existing.thinkingLevel = perModel; this.broadcastThinkingLevel(existing); }
+          else this.applyThinkingLevel(existing, thinkingLevel);
         }
         // 防卡死：isStreaming 残留但 EM 无进行中回合(超时中断等)→ 强制复位再正常发送，
         // 否则 SDK prompt() 抛 "Agent is already processing" → 消息发不出、不调 API
@@ -1046,6 +1078,13 @@ export class AgentService {
 
     // 新会话用临时 ID（task 工具绑定它），真实 sessionId 在 createPiSession 返回后更新
     const newSessionId = randomUUID();
+
+    // 前端权限模式 → 写入会话缓存：canUseTool 每次调用实时读 readCache(sessionId)。
+    // 前端在发首条消息前切的模式写的是 __new_xxx 临时缓存，主进程的 sessionId 是 randomUUID，
+    // 读不到 → 新会话首条消息前切的「完全访问」会被忽略（一直按标准跑）。随发送落盘修正。
+    if (permissionMode) {
+      writeCache(resumeSessionId ?? newSessionId, { permissionMode });
+    }
 
     // 新建与恢复会话统一注入工具（历史实现恢复分支留空 → 恢复会话无 task/产品工具、无权限控制）
     const { tools: extraTools, canUseTool, learnInstalled } = await this.buildExtraTools(
@@ -1097,6 +1136,15 @@ export class AgentService {
     // 注册临时 ID → 真实 ID 映射：task 委派创建时解析,按真实 ID 建子会话目录
     if (!resumeSessionId) {
       registerSessionIdMapping(newSessionId, session.sessionId);
+      // 会话缓存迁移：首条消息前 sendMessage 把权限模式/思考等级落盘在临时 key（newSessionId），
+      // 而 canUseTool 解析到真实 sid 后、前端补写前读的是真实 key——这里同步迁移，消除竞态窗口
+      const tmp = readCache(newSessionId);
+      if (tmp) {
+        const migrate: Record<string, unknown> = {};
+        if (tmp.permissionMode !== undefined) migrate.permissionMode = tmp.permissionMode;
+        if (tmp.thinkingLevel !== undefined) migrate.thinkingLevel = tmp.thinkingLevel;
+        if (Object.keys(migrate).length > 0) writeCache(session.sessionId, migrate);
+      }
     }
 
     const chat: ActiveChat = {
@@ -1116,6 +1164,8 @@ export class AgentService {
       assistantUuid: randomUUID(),
       eventBuffer: [],
       compactCount: 0,
+      // 会话绑定供应商（缺省用全局当前），供「按模型思考等级」查表
+      provider: preferredProvider || this.store.getSettings().apiProviders?.current || undefined,
       toolCallCount: 0,
       learnErrorSeen: false,
       learnFixAfterError: false,
@@ -1167,10 +1217,11 @@ export class AgentService {
       broadcast("agent:chat-session", { chatId, sessionId: chat.sessionId, tabId });
     }
 
-    // 设置思考级别（在 prompt 前同步设置，避免竞态）
+    // 设置思考级别（在 prompt 前同步设置，避免竞态）；「按模型设置」优先于全局默认
     if (thinkingLevel) {
-      try { session.setThinkingLevel(thinkingLevel as any); }
-      catch (e) { console.warn("[agent] setThinkingLevel 失败:", (e as Error).message); }
+      const perModel = await this.getPerModelThinkingLevel(chat.provider, model ?? "");
+      if (perModel) { chat.thinkingLevel = perModel; this.broadcastThinkingLevel(chat); }
+      else this.applyThinkingLevel(chat, thinkingLevel);
     }
 
     // 发起第一轮对话
@@ -1232,6 +1283,100 @@ export class AgentService {
     await chat.session!.setModel(model as any);
     chat.currentModel = modelName;
     broadcast("agent:model-changed", { sessionId: chat.sessionId, model: modelName });
+    // SDK 切模型时已按「按模型设置 → 全局默认」推导过等级(可能把 max 压成 off)。
+    // 有按模型设置时以它为准;否则用本会话用户选过的等级恢复,并回传实际生效值
+    const perModel = await this.getPerModelThinkingLevel(chat.provider, modelName);
+    if (perModel) { chat.thinkingLevel = perModel; this.broadcastThinkingLevel(chat); }
+    else if (chat.thinkingLevel) this.applyThinkingLevel(chat, chat.thinkingLevel);
+    else this.broadcastThinkingLevel(chat);
+  }
+
+  /**
+   * 查「按模型设置」的思考等级（Pi 全局设置，键 `<provider>/<modelId>`）。
+   * 配了就优先于全局默认与会话内选择——用户专门为该模型固定了等级。
+   * 未指定供应商时在全部内置供应商里找同名模型（会话绑定供应商主进程侧不总是已知）。
+   */
+  private async getPerModelThinkingLevel(providerId: string | undefined, modelId: string): Promise<string | undefined> {
+    if (!modelId) return undefined;
+    try {
+      const { getGlobalSettingsManager } = await import("./pi-init");
+      const mgr = await getGlobalSettingsManager();
+      const providers = this.store.getSettings().apiProviders;
+      const ids = providerId ? [providerId] : Object.keys(providers?.configs ?? {});
+      for (const id of ids) {
+        const cfg = providers?.configs?.[id];
+        if (!cfg?.presetId) continue;
+        // 自定义供应商在运行时里按 config.id 注册(与内置一样可被 SDK 识别),键保持一致
+        const providerKey = cfg.presetId === "custom" ? id : cfg.presetId;
+        const lv = mgr.getModelThinkingLevel(providerKey, modelId);
+        if (lv) return lv;
+      }
+    } catch { /* 读取失败按未配置处理 */ }
+    return undefined;
+  }
+
+  /**
+   * 按「原义匹配 → 向上找 → 向下找」把期望等级落到模型实际支持的档位：
+   *   1. 模型支持该档 → 直接用（原义匹配）
+   *   2. 不支持 → 向上找：第一个不低于它的可用档（选了思考档就不会落到「关闭」）
+   *   3. 向上没有（所选已超出模型能力）→ 向下找：低于它的可用档中最高的一档（顶格）
+   *   4. 都没有 → off
+   */
+  private resolveEffectiveLevel(session: AgentSession | null, requested: string): string {
+    let available: string[] = [];
+    try { available = (session as any)?.getAvailableThinkingLevels?.() ?? []; } catch { available = []; }
+    // 判定规则与渲染层共用（app/shared/thinking-levels.ts），避免两边结果不一致
+    return resolveThinkingLevel(requested, available);
+  }
+
+  /** 应用思考等级并回传实际生效值与该模型支持的档位（前端按回传值显示） */
+  private applyThinkingLevel(chat: ActiveChat, level: string): void {
+    const effective = this.resolveEffectiveLevel(chat.session, level);
+    chat.thinkingLevel = effective;
+    try { chat.session?.setThinkingLevel(effective as any); }
+    catch (e) { console.warn("[agent] setThinkingLevel 失败:", (e as Error).message); }
+    this.broadcastThinkingLevel(chat);
+  }
+
+  /** 回传生效等级 + 该模型支持的等级列表(聊天页据此只展示可用档位) */
+  private broadcastThinkingLevel(chat: ActiveChat): void {
+    try {
+      const effective = (chat.session as any)?.thinkingLevel;
+      if (!effective) return;
+      let available: string[] | undefined;
+      try { available = (chat.session as any)?.getAvailableThinkingLevels?.(); } catch { available = undefined; }
+      broadcast("agent:thinking-level-changed", {
+        sessionId: chat.sessionId, level: effective, available,
+      });
+    } catch { /* 读取失败不阻塞 */ }
+  }
+
+  /**
+   * 查询会话当前生效的思考等级 + 该模型支持的等级列表。
+   * 用途：打开已有会话时前端立即按模型收敛下拉——广播只在切模型/发消息时触发,
+   * 只靠广播的话,刚打开会话、还没发消息前下拉仍是完整 7 档。
+   */
+  /**
+   * 按模型 ID 直接算出支持的思考等级（不依赖会话是否创建）。
+   * 打开会话、新建会话、下拉切模型时都能立即收敛档位列表。
+   */
+  async getModelThinkingSupport(modelId: string): Promise<string[] | null> {
+    if (!modelId) return null;
+    try {
+      const { getStaticModelSpec, supportedThinkingLevelsOfSpec } = await import("./pi-init-static");
+      return supportedThinkingLevelsOfSpec(getStaticModelSpec(modelId));
+    } catch { return null; }
+  }
+
+  getThinkingInfo(sessionId: string): { level?: string; available?: string[] } | null {
+    const chat = this.findActiveChat(sessionId);
+    if (!chat?.session) return null;
+    try {
+      const level = (chat.session as any)?.thinkingLevel as string | undefined;
+      let available: string[] | undefined;
+      try { available = (chat.session as any)?.getAvailableThinkingLevels?.(); } catch { available = undefined; }
+      return { level, available };
+    } catch { return null; }
   }
 
   async setModel(sessionId: string, modelName: string, providerId?: string): Promise<void> {
@@ -1243,8 +1388,11 @@ export class AgentService {
     if (model) {
       await this.applySessionModel(chat, model, modelName);
     } else {
-      // 模型不在运行时（新供应商 apiKey 未注册）→ 重建运行时（重建时全量 sync 配置）
+      // 模型不在运行时（新供应商 apiKey 未注册）→ 重建运行时（重建时全量 sync 配置）后重试一次——
+      // 原实现重建后直接返回，切换静默丢失
       resetModelRuntime();
+      const retry = await this.resolveModelByName(modelName, providerId);
+      if (retry) await this.applySessionModel(chat, retry, modelName);
     }
   }
 
@@ -1341,7 +1489,7 @@ export class AgentService {
     templateId: string,
     message: string,
   ): Promise<{ chatId: string }> {
-    return this.sendMessage(projectPath, message, null, "auto",
+    return this.sendMessage(projectPath, message, null, "standard",
       _mainWindow!,
       undefined, false);
   }
@@ -1506,14 +1654,14 @@ export class AgentService {
     broadcast("agent:delegation-count", getRunningSummary());
   }
 
-  async steer(sessionId: string, text: string): Promise<void> {
+  async steer(sessionId: string, text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>): Promise<void> {
     // 插话 = 软打断：Mint 响应新消息,运行中的子 Agent 继续后台执行（对齐 cc 实测行为）
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session) return;
     // 会话实际空闲时 steer 只入队不落盘(Pi agent core 的 steering 队列仅在回合循环内消费,
     // 空闲入队永不投递→"消息发出去了但 SDK 没落盘没响应")→ 改走正常发送路径
     if (!chat.session.isStreaming) {
-      this.promptAndBridge(chat.session, chat.sessionId, chat.chatId, text, chat);
+      this.promptAndBridge(chat.session, chat.sessionId, chat.chatId, text, chat, images);
       return;
     }
     // isStreaming=true 但 EM 无进行中回合 → SDK 残留（如超时中断后 isStreaming 未复位，
@@ -1522,10 +1670,10 @@ export class AgentService {
       console.warn(`[agent] steer: session ${sessionId} isStreaming 残留(无进行中回合)，强制复位`);
       try { chat.session.abort(); } catch { /* abort 无副作用 */ }
       await chat.session.waitForIdle().catch(() => {});
-      this.promptAndBridge(chat.session, chat.sessionId, chat.chatId, text, chat);
+      this.promptAndBridge(chat.session, chat.sessionId, chat.chatId, text, chat, images);
       return;
     }
-    await chat.session.steer(text);
+    await chat.session.steer(text, images as any);
   }
 
   /**

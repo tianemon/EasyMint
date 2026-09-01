@@ -51,6 +51,8 @@
   --color-danger-bg: #fef2f2;
   --color-danger-border: #fecaca;
   --color-danger-soft: #dc26261a;
+  /* 权限开关「完全访问」轨道色（玫红；两种主题同值，语义=已放开权限需留意） */
+  --color-permission-on: #ed7482;
   --color-success-soft: #17a34a1a;
   --color-success-high: #17a34a33;
   --color-warning-soft: #d977061a;
@@ -182,6 +184,8 @@ html[data-platform="win32"] {
   --color-danger-bg: #fef2f2;
   --color-danger-border: #fecaca;
   --color-danger-soft: color-mix(in oklab, var(--color-danger) 12%, transparent);
+  /* 权限开关「完全访问」轨道色（与 light 主题同值） */
+  --color-permission-on: #ed7482;
   --color-success-soft: color-mix(in oklab, var(--color-success) 10%, transparent);
   --color-success-high: color-mix(in oklab, var(--color-success) 20%, transparent);
   --color-warning-soft: color-mix(in oklab, var(--color-warning) 10%, transparent);
@@ -797,9 +801,9 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   color: var(--color-text-muted); transition: all 120ms var(--ease-smooth);
 }
 .inp-icon-btn:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); }
-.inp-lbl { font-size: var(--text-2xs); color: var(--color-text-muted); }
+.inp-lbl { font-size: var(--text-xs); color: var(--color-text-muted); }
 .inp-sel {
-  font-size: var(--text-xs); padding: 3px 6px; border-radius: var(--radius-sm);
+  font-size: var(--text-sm); padding: 4px 8px; border-radius: var(--radius-sm);
   background: var(--color-input-field); border: none;
   color: var(--color-text-secondary); outline: none;
   transition: box-shadow 120ms;
