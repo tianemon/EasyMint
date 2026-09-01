@@ -277,6 +277,24 @@ export function reloadMcpTools(): void {
   toolsCache.clear();
 }
 
+/** 丢弃指定 server 的已建连接与状态记录（保存/删除/开关后调用）。
+ *  必要性：clients 按名复用连接——改配置（如换/清 PAT）不丢弃会一直用旧连接，
+ *  实测：删除 github 后不填令牌重加，状态仍显示「连接成功」。 */
+export async function dropMcpClient(name: string): Promise<void> {
+  const client = clients.get(name);
+  clients.delete(name);
+  for (const key of [...statusMap.keys()]) {
+    if (key.endsWith("::" + name)) statusMap.delete(key);
+  }
+  if (client) {
+    try {
+      await client.close();
+    } catch (e) {
+      console.warn(`[mcp] ${name} 旧连接关闭失败（忽略）:`, redact((e as Error).message));
+    }
+  }
+}
+
 /** 单个 server 重试：断开旧连接并清缓存，立即重连一次（界面「重试连接」） */
 export async function retryMcpServer(name: string, projectPath?: string): Promise<{ ok: boolean; error?: string }> {
   const old = clients.get(name);

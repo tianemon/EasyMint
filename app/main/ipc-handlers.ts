@@ -52,7 +52,7 @@ import {
   type McpServerConfig,
   type McpScope,
 } from "./services/mcp-service";
-import { getMcpStatus, ensureStatusProbe, reloadMcpTools, retryMcpServer, testMcpServer } from "./services/permission/mcp-adapter";
+import { getMcpStatus, ensureStatusProbe, reloadMcpTools, dropMcpClient, retryMcpServer, testMcpServer } from "./services/permission/mcp-adapter";
 import {
   trackUpload,
   getUploadStats,
@@ -271,6 +271,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // mcp:*
   ipcMain.handle("mcp:list", () => scanMcpServers());
   ipcMain.handle("mcp:toggle", (_e, { name, enabled }: { name: string; enabled: boolean }) => {
+    void dropMcpClient(name); // 开关变更丢弃旧连接，按新状态重连
     toggleMcpServer(name, enabled);
     reloadMcpTools(); // 清缓存，新会话生效（进行中会话工具集固定）
   });
@@ -278,12 +279,18 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // 配置管理（阶段A）：增删改 + 测试连接 + 状态 + 变更清缓存（新会话生效）
   ipcMain.handle("mcp:save", (_e, { name, cfg, scope, projectPath }: { name: string; cfg: McpServerConfig; scope?: McpScope; projectPath?: string }) => {
     const r = saveMcpServer(name, cfg, { scope, projectPath });
-    if (r.ok) reloadMcpTools();
+    if (r.ok) {
+      void dropMcpClient(name); // 配置变更丢弃旧连接——clients 按名复用，不丢弃会一直用旧配置的连接
+      reloadMcpTools();
+    }
     return r;
   });
   ipcMain.handle("mcp:delete", (_e, { name, scope, projectPath }: { name: string; scope?: McpScope; projectPath?: string }) => {
     const r = deleteMcpServer(name, { scope, projectPath });
-    if (r.ok) reloadMcpTools();
+    if (r.ok) {
+      void dropMcpClient(name);
+      reloadMcpTools();
+    }
     return r;
   });
   ipcMain.handle("mcp:get", (_e, { name, scope, projectPath }: { name: string; scope?: McpScope; projectPath?: string }) => getMcpServerConfig(name, { scope, projectPath }));
@@ -299,6 +306,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     if (!parsed.ok) return { ok: false, error: parsed.error };
     const results: string[] = [];
     for (const [name, cfg] of Object.entries(parsed.parsed.servers)) {
+      void dropMcpClient(name); // 同名重导入按新配置重连
       const r = saveMcpServer(name, cfg);
       results.push(r.ok ? `✅ ${name}（${cfg.type}）已添加` : `❌ ${name}：${r.error}`);
     }
