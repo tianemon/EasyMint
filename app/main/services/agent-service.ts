@@ -450,9 +450,13 @@ export function clearPendingLearns(sessionId: string): void {
 
 interface LearnSessionState {
   suggestDone?: boolean;
+  /** 最后写入时间（容量裁剪依据） */
+  savedAt?: number;
 }
 
 const LEARN_STATE_PATH = path.join(os.homedir(), ".easymint", "learn-state.json");
+/** learn-state 容量底线：超出裁剪最旧，防止文件无限增长 */
+const MAX_LEARN_STATE = 500;
 
 function loadLearnStates(): Record<string, LearnSessionState> {
   try {
@@ -471,7 +475,13 @@ function loadLearnStates(): Record<string, LearnSessionState> {
 function saveLearnState(sessionId: string, state: LearnSessionState): void {
   try {
     const states = loadLearnStates();
-    states[sessionId] = state;
+    states[sessionId] = { ...state, savedAt: Date.now() };
+    // 容量底线：超 500 会话裁剪最旧（按 savedAt），文件不随会话数无限增长
+    const keys = Object.keys(states);
+    if (keys.length > MAX_LEARN_STATE) {
+      keys.sort((a, b) => (states[a].savedAt ?? 0) - (states[b].savedAt ?? 0));
+      for (const k of keys.slice(0, keys.length - MAX_LEARN_STATE)) delete states[k];
+    }
     // 原子写（temp+rename）：崩溃半截不会让 learn-state 变损坏——
     // 损坏时 loadLearnStates 按无状态处理，会破坏「每会话一次提示」的去重
     const tmp = LEARN_STATE_PATH + ".tmp";

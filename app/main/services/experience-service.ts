@@ -77,6 +77,15 @@ export function appendExperience(input: { memory: string; context?: string }, pr
   return entry;
 }
 
+/** 只读查找：按 id 在项目级库（若有）与全局库中定位条目，未命中返回 null */
+export function findExperience(projectPath: string | undefined, id: string): ExperienceEntry | null {
+  if (projectPath) {
+    const hit = loadFile(projectExperiencesFile(projectPath)).find((e) => e.id === id);
+    if (hit) return hit;
+  }
+  return loadFile(GLOBAL_EXPERIENCES).find((e) => e.id === id) ?? null;
+}
+
 /** 更新一条已有经验（合并/纠错/补全场景）：按 id 在项目级库（若有）与全局库中查找，
  *  命中即应用 patch（memory/context 覆盖，memory 清空则忽略）并落盘。返回更新后的条目或 null。 */
 export function updateExperience(

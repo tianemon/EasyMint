@@ -12,7 +12,7 @@
 import type { ToolDefinition } from "../pi-sdk";
 import { getDefineToolFn } from "../pi-sdk";
 import { writeManagedSkill } from "../skill-service";
-import { appendExperience, searchExperiences, updateExperience } from "../experience-service";
+import { appendExperience, searchExperiences, updateExperience, findExperience } from "../experience-service";
 
 /** learn 挂起请求的用户响应（IPC learn:respond 传入） */
 export interface LearnResponse {
@@ -82,6 +82,12 @@ export async function createLearnTool(deps: LearnToolDeps): Promise<ToolDefiniti
       const context = params.context !== undefined ? String(params.context).trim() : "";
       const updateId = params.updateId !== undefined ? String(params.updateId).trim() : "";
       if (!memory) return text("learn 参数错误：memory 不能为空");
+
+      // updateId 预检：目标经验不存在就不弹审阅卡片（避免用户白确认一次；
+      // 确认后更新时仍会再校验——极端竞态（确认期间条目被容量淘汰）走 update 时兜底）
+      if (updateId && !findExperience(deps.projectPath, updateId)) {
+        return text(`learn 失败：未找到经验 ${updateId}（可能已被清理）。请去掉 updateId 重新 learn 作为新经验入库`);
+      }
 
       let skill: { action: "create" | "update"; name: string; description: string; body: string } | undefined;
       const rawSkill = params.skill as Record<string, unknown> | undefined;
