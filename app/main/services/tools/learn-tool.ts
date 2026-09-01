@@ -12,7 +12,7 @@
 import type { ToolDefinition } from "../pi-sdk";
 import { getDefineToolFn } from "../pi-sdk";
 import { writeManagedSkill } from "../skill-service";
-import { appendExperience, searchExperiences } from "../experience-service";
+import { appendExperience, searchExperiences, updateExperience } from "../experience-service";
 
 /** learn 挂起请求的用户响应（IPC learn:respond 传入） */
 export interface LearnResponse {
@@ -52,6 +52,7 @@ export async function createLearnTool(deps: LearnToolDeps): Promise<ToolDefiniti
     promptSnippet: "沉淀经验（可选同时建 skill，审阅卡片确认）",
     promptGuidelines: [
       "任务完成且出现可复用经验（踩坑修复/验证过的方法/项目约定）时主动 learn 入库，不要只在回复里说一遍",
+      "learn 前先用 search_experiences 查重：命中近似经验时优先带 updateId 更新它（补全/纠错/合并），确属新经验才不带 updateId",
       "memory 要自包含：换一个会话不看上下文也能看懂——写清触发条件与做法，不写一次性细节",
       "memory 按「问题 → 方案 → 验证」三段组织：先一句话说清场景与问题，再写做法（可执行），最后写怎么确认有效（成功标志/验证方式）——结构化的经验检索命中率更高",
       "经验偏「知识/教训」用 memory；偏「可执行步骤」追加 skill 参数固化为工作流",
@@ -61,6 +62,7 @@ export async function createLearnTool(deps: LearnToolDeps): Promise<ToolDefiniti
       properties: {
         memory: { type: "string" as const, description: "必填。持久自包含的经验：什么情况 / 做了什么 / 为什么有效" },
         context: { type: "string" as const, description: "可选。来源上下文（触发场景、报错摘要等，帮助检索）" },
+        updateId: { type: "string" as const, description: "可选。要更新的已有经验 id（search_experiences 查重命中时用，代替新增）" },
         skill: {
           type: "object" as const,
           description: "可选。同时沉淀为 managed skill（AI 管理区），把经验固化为可执行工作流时用",
@@ -78,6 +80,7 @@ export async function createLearnTool(deps: LearnToolDeps): Promise<ToolDefiniti
     async execute(_tid: string, params: Record<string, unknown>, signal: AbortSignal | undefined) {
       const memory = String(params.memory || "").trim();
       const context = params.context !== undefined ? String(params.context).trim() : "";
+      const updateId = params.updateId !== undefined ? String(params.updateId).trim() : "";
       if (!memory) return text("learn 参数错误：memory 不能为空");
 
       let skill: { action: "create" | "update"; name: string; description: string; body: string } | undefined;
@@ -102,6 +105,24 @@ export async function createLearnTool(deps: LearnToolDeps): Promise<ToolDefiniti
       const finalMemory = (response.memory || memory).trim();
       // 空编辑防线：前端已禁用空确认按钮，此处兜底 IPC 直调等非前端路径
       if (!finalMemory) return text("learn 失败：编辑后的 memory 为空，未入库");
+
+      // 更新路径：updateId 指向已有经验——用户确认后的 memory 覆盖原条目（合并/纠错/补全）
+      if (updateId) {
+        const updated = updateExperience(deps.projectPath, updateId, { memory: finalMemory, context: context || undefined });
+        if (!updated) {
+          return text(`learn 失败：未找到经验 ${updateId}（可能已被清理）。请去掉 updateId 重新 learn 作为新经验入库`);
+        }
+        if (skill) {
+          const finalName = (response.skillName || skill.name).trim();
+          const finalDesc = (response.skillDescription || skill.description).trim();
+          const finalBody = response.skillBody !== undefined ? response.skillBody : skill.body;
+          const r = writeManagedSkill({ action: skill.action, name: finalName, description: finalDesc, body: finalBody }, deps.projectPath);
+          if (!r.ok) return text(`经验已更新，但 skill 未落盘（${r.error}）。请修正后重新 learn（不带 updateId 仅重试 skill，或直接用 manage_skill）`);
+          return text(`learn 成功：经验 ${updateId} 已更新；skill「${finalName}」已${skill.action === "create" ? "创建" : "更新"}于 AI 管理区`);
+        }
+        return text(`learn 成功：经验 ${updateId} 已更新（未新增条目）`);
+      }
+
       if (skill) {
         const finalName = (response.skillName || skill.name).trim();
         const finalDesc = (response.skillDescription || skill.description).trim();
@@ -149,7 +170,7 @@ export async function createSearchExperiencesTool(projectPath?: string): Promise
     async execute(_tid: string, params: Record<string, unknown>) {
       const query = String(params.query || "").trim();
       if (!query) return text("search_experiences 参数错误：query 不能为空");
-      const { hits, total } = searchExperiences(query, projectPath);
+      const { hits, total } = searchExperiences(query, projectPath, { touch: true });
       if (hits.length === 0) return text(`经验库中无「${query}」的匹配。可换关键词，或确认该场景未沉淀过`);
       const lines = hits.map((e) => {
         const date = new Date(e.createdAt).toISOString().slice(0, 10);

@@ -9,7 +9,7 @@
  * 条目上限 200/库，超出淘汰最旧防膨胀污染检索。
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { randomUUID } from "node:crypto";
@@ -53,7 +53,11 @@ function loadFile(file: string): ExperienceEntry[] {
 function saveFile(file: string, entries: ExperienceEntry[]): void {
   const dir = path.dirname(file);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(file, JSON.stringify(entries, null, 2));
+  // 原子写：先写临时文件再 rename——进程崩溃在 writeFileSync 中途不会留下半截 JSON
+  // （loadFile 对损坏按空数组处理，非原子写会让 200 条经验在下次写入时被静默清空）
+  const tmp = file + ".tmp";
+  writeFileSync(tmp, JSON.stringify(entries, null, 2));
+  renameSync(tmp, file);
 }
 
 /** 追加一条经验；projectPath 有值写项目级、否则全局。返回带 id 的落库条目 */
@@ -114,15 +118,21 @@ export function listExperiences(projectPath?: string): ExperienceEntry[] {
 }
 
 /** 关键词检索（memory/context 不区分大小写子串匹配），按时间倒序限 10 条。
- *  命中条目记录 usageCount/lastUsedAt（模型主动检索 = 经验被用上的证据；写盘失败不影响检索结果） */
-export function searchExperiences(query: string, projectPath?: string): { hits: ExperienceEntry[]; total: number } {
+ *  opts.touch=true 时命中条目记 usageCount/lastUsedAt 并落盘——仅供模型主动检索的
+ *  search_experiences 工具使用；自动回递/注入等内部调用不 touch（防自增强反馈环）。
+ *  统计写盘失败不影响检索结果。 */
+export function searchExperiences(
+  query: string,
+  projectPath?: string,
+  opts?: { touch?: boolean },
+): { hits: ExperienceEntry[]; total: number } {
   const q = query.trim().toLowerCase();
   if (!q) return { hits: [], total: 0 };
   const all = listExperiences(projectPath)
     .filter((e) => e.memory.toLowerCase().includes(q) || (e.context ?? "").toLowerCase().includes(q))
     .sort((a, b) => b.createdAt - a.createdAt);
   const hits = all.slice(0, SEARCH_LIMIT);
-  if (hits.length > 0) touchHits(projectPath, new Set(hits.map((e) => e.id)));
+  if (hits.length > 0 && opts?.touch) touchHits(projectPath, new Set(hits.map((e) => e.id)));
   return { hits, total: all.length };
 }
 
