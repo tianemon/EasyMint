@@ -472,7 +472,11 @@ function saveLearnState(sessionId: string, state: LearnSessionState): void {
   try {
     const states = loadLearnStates();
     states[sessionId] = state;
-    fs.writeFileSync(LEARN_STATE_PATH, JSON.stringify(states, null, 2));
+    // 原子写（temp+rename）：崩溃半截不会让 learn-state 变损坏——
+    // 损坏时 loadLearnStates 按无状态处理，会破坏「每会话一次提示」的去重
+    const tmp = LEARN_STATE_PATH + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(states, null, 2));
+    fs.renameSync(tmp, LEARN_STATE_PATH);
   } catch (e) {
     console.warn("[agent] learn-state 写入失败:", (e as Error).message);
   }
