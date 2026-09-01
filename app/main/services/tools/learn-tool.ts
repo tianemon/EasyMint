@@ -53,6 +53,7 @@ export async function createLearnTool(deps: LearnToolDeps): Promise<ToolDefiniti
     promptGuidelines: [
       "任务完成且出现可复用经验（踩坑修复/验证过的方法/项目约定）时主动 learn 入库，不要只在回复里说一遍",
       "memory 要自包含：换一个会话不看上下文也能看懂——写清触发条件与做法，不写一次性细节",
+      "memory 按「问题 → 方案 → 验证」三段组织：先一句话说清场景与问题，再写做法（可执行），最后写怎么确认有效（成功标志/验证方式）——结构化的经验检索命中率更高",
       "经验偏「知识/教训」用 memory；偏「可执行步骤」追加 skill 参数固化为工作流",
     ],
     parameters: {

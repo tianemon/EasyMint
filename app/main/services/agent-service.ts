@@ -22,6 +22,7 @@ import { createAgentTemplateTool } from "./task/tool";
 import { createSkillTool, createManageSkillTool } from "./tools/skill-tool";
 import { createLearnTool, createSearchExperiencesTool, type LearnResponse } from "./tools/learn-tool";
 import { evaluateLearnGate, isFixTool } from "./learn-gate";
+import { searchExperiences, buildExperienceInjection } from "./experience-service";
 import { createImportTools } from "./import-tools";
 import { registerSessionIdMapping, abortTask, getRunningSummary, resolveParentSessionId } from "./task/registry";
 import { formatShellResult } from "./background-shell/tool";
@@ -89,6 +90,8 @@ export interface ActiveChat {
   learnErrorSeen: boolean;
   /** 报错之后是否出现过修复动作（write/edit/bash 类） */
   learnFixAfterError: boolean;
+  /** 本轮最近一次工具报错的文本摘录（≤150 字符，供经验回递检索） */
+  learnErrorText: string;
   learnSuggestDone: boolean;
   /** learn/search_experiences 是否已注册（会话创建时快照——工具集固定于创建时，触发提示按此判断） */
   learnToolInstalled: boolean;
@@ -704,6 +707,13 @@ export class AgentService {
     const profile = buildProjectProfileSection(readProjectProfile(projectPath));
     if (profile) parts.push(profile);
 
+    // 历史经验注入（learn 开关开启时；与工具注册同开关）：项目级优先 + 使用次数排序，
+    // top-N 紧凑块作背景——「经验库里有货」这件事让模型开箱即知，不用等它想起 search
+    if (this.store.getSettings().learnEnabled) {
+      const exp = buildExperienceInjection(projectPath);
+      if (exp) parts.push(exp);
+    }
+
     return parts.join("\n\n");
   }
 
@@ -777,6 +787,7 @@ export class AgentService {
           chat.toolCallCount = 0;
           chat.learnErrorSeen = false;
           chat.learnFixAfterError = false;
+          chat.learnErrorText = "";
         }
         if (chat && event.type === "tool_execution_start") {
           chat.toolCallCount++;
@@ -788,6 +799,14 @@ export class AgentService {
         // 工具报错（内容优先于退出码——见会话行为分析的口径，此处取 SDK 的 isError 标记）
         if (chat && event.type === "tool_execution_end" && (event as { isError?: boolean }).isError) {
           chat.learnErrorSeen = true;
+          // 截取报错文本摘录（与模型上下文同源；压缩空白防超长），供踩坑信号触发经验回递
+          const ev = event as { toolName?: string; result?: unknown };
+          try {
+            const raw = ev.result === undefined ? "" : typeof ev.result === "string" ? ev.result : JSON.stringify(ev.result);
+            chat.learnErrorText = ((ev.toolName ? ev.toolName + " " : "") + raw).replace(/\s+/g, " ").slice(0, 150);
+          } catch {
+            chat.learnErrorText = ev.toolName ?? "";
+          }
         }
       } catch (e) {
         console.error("[agent] bridge error:", e);
@@ -1086,6 +1105,7 @@ export class AgentService {
       toolCallCount: 0,
       learnErrorSeen: false,
       learnFixAfterError: false,
+      learnErrorText: "",
       learnSuggestDone: false,
       learnToolInstalled: learnInstalled,
     };
@@ -1271,10 +1291,25 @@ export class AgentService {
     const headline = gate.channel === "fix"
       ? `本轮出现「工具报错 → 修复」的过程（${chat.toolCallCount} 次工具调用），踩坑类经验复用价值最高，优先评估`
       : `本轮工具调用 ${chat.toolCallCount} 次（达到沉淀评估门槛）`;
+    // 经验回递：用本会话报错文本检索历史经验，命中则注入（在弹沉淀卡片之前先让模型知道
+    // 「上次遇过」——复用价值在存之前就已经兑现；检索失败/无报错文本则正常走评估提示）
+    let recallBlock = "";
+    const errQ = (chat.learnErrorText ?? "").trim();
+    if (errQ) {
+      try {
+        const { hits } = searchExperiences(errQ, chat.projectPath);
+        if (hits.length > 0) {
+          recallBlock = `\n\n【相关历史经验（已按本会话报错检索到，仅作参考；判断适用再复用，不刻意使用）】\n`
+            + hits.slice(0, 3).map((e) => `- ${e.memory.replace(/\s+/g, " ").slice(0, 240)}`).join("\n");
+        }
+      } catch (e) {
+        console.warn("[learn] 经验回递检索失败（不影响评估提示）:", (e as Error).message);
+      }
+    }
     // triggerTurn: true 开捕获回合——本轮上下文还热，是评估最佳时机
     this.injectSystemMessage(
       chat.sessionId,
-      `${headline}。先判断本轮是否存在「值得沉淀」的内容，再决定是否调用 learn：
+      `${headline}${recallBlock}。先判断本轮是否存在「值得沉淀」的内容，再决定是否调用 learn：
 
 【值得沉淀】踩坑修复（报错→根因→解法，下次能避坑）／验证过的方法流程（换个项目也能用）／项目约定与架构决策（删掉这条未来的你会犯错）。
 
