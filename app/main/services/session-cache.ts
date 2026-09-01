@@ -69,6 +69,33 @@ export function purgeOrphanedCaches(validSessionIds: Set<string>): void {
 }
 
 /**
+ * 清理孤儿会话缓存：收集 agent/sessions 下所有真实会话 id（jsonl 文件名
+ * `<时间戳>_<sid>.jsonl` 的 sid 段），缓存 key 不在集合中的 = 会话已被删除/项目已移除
+ * （会话列表不再列出、缓存永远不会被读取）→ 删除。启动时调用，防磁盘堆积。
+ * 返回删除的文件数。
+ */
+export function cleanupOrphanCaches(): number {
+  const sessionsRoot = path.join(os.homedir(), ".easymint", "agent", "sessions");
+  const valid = new Set<string>();
+  const walk = (d: string): void => {
+    let entries;
+    try { entries = readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith(".jsonl")) {
+        const m = e.name.match(/_([0-9a-f-]{36})\.jsonl$/);
+        if (m) valid.add(m[1]!);
+      }
+    }
+  };
+  walk(sessionsRoot);
+  const before = readdirSync(CACHE_DIR).filter((f) => f.endsWith(".json")).length;
+  purgeOrphanedCaches(valid);
+  return before - readdirSync(CACHE_DIR).filter((f) => f.endsWith(".json")).length;
+}
+
+/**
  * 清理临时会话缓存（__new_ 前缀）。历史版本代码会在新会话首条消息前把 UI 状态
  * （权限模式/模型/思考等级）写入临时 key，真实会话创建后这些文件永远不会再被读取
  * （读取方要么按真实 sid、要么经临时→真实映射解析）。兜底清理：仅删除 mtime 超过

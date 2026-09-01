@@ -88,7 +88,7 @@ import { FileService } from "./services/file-service";
 import { AgentService, setMainWindow } from "./services/agent-service";
 import { Store } from "./services/store";
 import { syncNativeModels } from "./services/pi-init";
-import { cleanupTempCaches } from "./services/session-cache";
+import { cleanupOrphanCaches, cleanupTempCaches } from "./services/session-cache";
 import { trackProjectWindow } from "./services/window-manager";
 
 const isDev = !app.isPackaged;
@@ -254,6 +254,8 @@ app.whenReady().then(() => {
   try { syncNativeModels(tempStore); } catch { /* 同步失败不影响启动 */ }
   // 兜底清理历史遗留的临时会话缓存(__new_ 前缀,真实会话创建后不再被读取)——防磁盘堆积
   try { cleanupTempCaches(); } catch { /* 清理失败不影响启动 */ }
+  // 清理孤儿会话缓存(会话已删除/项目已移除的残留 key)——防磁盘堆积
+  try { cleanupOrphanCaches(); } catch { /* 清理失败不影响启动 */ }
   const settings = tempStore.getSettings();
   if (settings.setupComplete) {
     const lastId = tempStore.getLastProjectId();
