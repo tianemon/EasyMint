@@ -56,11 +56,14 @@ export function deleteCache(sessionId: string): void {
   if (existsSync(p)) unlinkSync(p);
 }
 
-/** Purge cache files for sessions that no longer exist in the given list of valid IDs. */
-export function purgeOrphanedCaches(validSessionIds: Set<string>): void {
+/** Purge cache files for sessions that no longer exist in the given list of valid IDs.
+ *  skipTemp=true 时跳过 `__new_` 前缀——临时 key 的生命周期由 cleanupTempCaches 的
+ *  24h 阈值接管,此处不抢(新会话首条消息回绑真实 sid 前重启,待生效的 UI 状态才不会被清)。 */
+export function purgeOrphanedCaches(validSessionIds: Set<string>, skipTemp = false): void {
   ensureDir();
   for (const file of readdirSync(CACHE_DIR)) {
     if (!file.endsWith(".json")) continue;
+    if (skipTemp && file.startsWith("__new_")) continue;
     const sid = file.replace(".json", "");
     if (!validSessionIds.has(sid)) {
       unlinkSync(path.join(CACHE_DIR, file));
@@ -72,6 +75,8 @@ export function purgeOrphanedCaches(validSessionIds: Set<string>): void {
  * 清理孤儿会话缓存：收集 agent/sessions 下所有真实会话 id（jsonl 文件名
  * `<时间戳>_<sid>.jsonl` 的 sid 段），缓存 key 不在集合中的 = 会话已被删除/项目已移除
  * （会话列表不再列出、缓存永远不会被读取）→ 删除。启动时调用，防磁盘堆积。
+ * `__new_` 前缀的临时 key 跳过——归 cleanupTempCaches 的 24h 阈值处理,避免误伤
+ * 新建会话回绑真实 sid 前重启时待生效的权限/模型选择。
  * 返回删除的文件数。
  */
 export function cleanupOrphanCaches(): number {
@@ -90,9 +95,13 @@ export function cleanupOrphanCaches(): number {
     }
   };
   walk(sessionsRoot);
-  const before = readdirSync(CACHE_DIR).filter((f) => f.endsWith(".json")).length;
-  purgeOrphanedCaches(valid);
-  return before - readdirSync(CACHE_DIR).filter((f) => f.endsWith(".json")).length;
+  if (!existsSync(CACHE_DIR)) return 0; // 无任何缓存可清理(首次启动),不建空目录
+  // 计数与清理口径一致：只统计非临时 key
+  const countPersistent = (): number =>
+    readdirSync(CACHE_DIR).filter((f) => f.endsWith(".json") && !f.startsWith("__new_")).length;
+  const before = countPersistent();
+  purgeOrphanedCaches(valid, true);
+  return before - countPersistent();
 }
 
 /**
