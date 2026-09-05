@@ -1,15 +1,19 @@
 /**
- * 用户环境提取 — GUI 应用由 launchd 启动,只继承最小环境(/usr/bin:/bin:/usr/sbin:/sbin),
- * 不含用户 shell 配置(.zprofile/.zshrc)里的 flutter/node/java/android 等工具链路径。
+ * 用户环境提取 — GUI 应用由 launchd (macOS) 或 desktop launcher (Linux) 启动,
+ * 只继承最小环境(/usr/bin:/bin:/usr/sbin:/sbin 等),
+ * 不含用户 shell 配置(.zprofile/.zshrc/.bashrc)里的 flutter/node/java/android 等工具链路径。
  * 启动早期调用一次,把用户完整环境注入主进程,之后所有子进程
  * (bash / init.sh / 运行面板命令 / 环境检查)自动继承。
  *
- * 全量导入(zsh -lic 'env'):所有工具链变量一次到位(JAVA_HOME/ANDROID_HOME/NODE_PATH 等),
+ * 全量导入:所有工具链变量一次到位(JAVA_HOME/ANDROID_HOME/NODE_PATH 等),
  * 不用为每个新工具链手动补变量。
- * 仅 macOS 需要;Windows GUI 继承注册表用户环境变量,无此问题。
+ * Windows GUI 继承注册表用户环境变量,无此问题。
  */
 
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 let loaded = false;
 
@@ -17,13 +21,18 @@ let loaded = false;
 const SKIP_VARS = new Set(["PWD", "OLDPWD", "SHLVL", "_", "ZDOTDIR"]);
 
 export function loadUserEnv(): void {
-  if (loaded || process.platform !== "darwin") return;
+  if (loaded || process.platform === "win32") return;
   loaded = true;
   try {
-    // zsh -lc + 显式 source .zshrc:非交互模式不读 .zshrc,需手动加载;
-    // 不能用 -i(交互模式)——交互 zsh 会打开 /dev/tty 做 job control(tcsetpgrp
-    // 抢占终端前台进程组),zsh 退出后前台进程组悬空,Ctrl+C 信号发给死进程组失效
-    const out = execFileSync("/bin/zsh", ["-lc", "source ~/.zshrc >/dev/null 2>&1; env"], {
+    const userShell = process.env.SHELL || (process.platform === "darwin" ? "/bin/zsh" : "/bin/bash");
+    const homedir = os.homedir();
+    const isZsh = userShell.endsWith("zsh");
+    const rcCandidate = isZsh ? path.join(homedir, ".zshrc") : path.join(homedir, ".bashrc");
+    const sourceCmd = fs.existsSync(rcCandidate) ? `source "${rcCandidate}" >/dev/null 2>&1; ` : "";
+
+    // -lc + 显式 source rc: 非交互模式不读 rc 文件, 需手动加载;
+    // 不能用 -i(交互模式)——交互 shell 会打开 /dev/tty 做 job control, 影响终端前台进程组
+    const out = execFileSync(userShell, ["-lc", `${sourceCmd}env`], {
       encoding: "utf-8",
       timeout: 5000,
       stdio: ["ignore", "pipe", "ignore"],

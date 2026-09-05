@@ -33,7 +33,7 @@ try {
       console.log("[pi] SDK 项目级配置目录已定制为 .easymint:", sdkPkgPath);
     }
   }
-} catch (e) { console.warn("[pi] SDK package.json 定制失败（保持 .pi 默认）:", (e as Error).message); }
+} catch (e) { console.warn("[pi] SDK package.json 定制跳过（保持当前配置/只读环境）:", (e as Error).message); }
 
 // 一次性迁移：旧布局 ~/.easymint/pi-agent/models-store.json → agent/（0.7.2 起 agentDir 统一）
 const LEGACY_PI_AGENT_STORE = path.join(EM_HOME, "pi-agent", "models-store.json");

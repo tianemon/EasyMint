@@ -17,15 +17,17 @@ PLATFORMS=(
   "mac-x64|macOS (Intel)"
   "win-x64|Windows (x64)"
   "win-arm64|Windows (ARM64)"
+  "linux-x64|Linux (x64 AppImage & tar.gz)"
+  "linux-arm64|Linux (ARM64 AppImage & tar.gz)"
 )
 
 SELECTED=()
 if [ $# -gt 0 ]; then
   for arg in "$@"; do
     case "$arg" in
-      mac-arm64|mac-x64|win-x64|win-arm64) SELECTED+=("$arg") ;;
+      mac-arm64|mac-x64|win-x64|win-arm64|linux-x64|linux-arm64) SELECTED+=("$arg") ;;
       all) for p in "${PLATFORMS[@]}"; do SELECTED+=("${p%%|*}"); done ;;
-      *) echo -e "${RED}未知平台: $arg${NC}"; echo "可用: mac-arm64, mac-x64, win-x64, win-arm64, all"; exit 1 ;;
+      *) echo -e "${RED}未知平台: $arg${NC}"; echo "可用: mac-arm64, mac-x64, win-x64, win-arm64, linux-x64, linux-arm64, all"; exit 1 ;;
     esac
   done
 fi
@@ -48,7 +50,7 @@ if [ ${#SELECTED[@]} -eq 0 ]; then
   for item in $input; do
     case "$item" in
       a|A) for p in "${PLATFORMS[@]}"; do SELECTED+=("${p%%|*}"); done ;;
-      [1-4]) SELECTED+=("${PLATFORMS[$((item-1))]%%|*}") ;;
+      [1-6]) SELECTED+=("${PLATFORMS[$((item-1))]%%|*}") ;;
       *) echo -e "${RED}无效选择: $item${NC}"; exit 1 ;;
     esac
   done
@@ -103,6 +105,19 @@ for platform in "${SELECTED[@]}"; do
       echo "  dist-electron/EasyMint-windows-arm64.exe"
       echo "  dist-electron/EasyMint-windows-arm64-portable.exe"
       ;;
+    linux-x64)
+      npx electron-builder --linux --x64
+      echo -e "${GREEN}✓ Linux x64:${NC}"
+      echo "  dist-electron/EasyMint-linux-x86_64.AppImage"
+      echo "  dist-electron/EasyMint-linux-amd64.deb"
+      echo "  dist-electron/EasyMint-linux-x64.tar.gz"
+      ;;
+    linux-arm64)
+      npx electron-builder --linux --arm64
+      echo -e "${GREEN}✓ Linux ARM64:${NC}"
+      echo "  dist-electron/EasyMint-linux-arm64.AppImage"
+      echo "  dist-electron/EasyMint-linux-arm64.tar.gz"
+      ;;
   esac
 
   STEP=$((STEP + 1))
@@ -113,4 +128,4 @@ echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  打包完成！${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
-ls -lh dist-electron/*.dmg dist-electron/*.exe 2>/dev/null | awk '{printf "  %-50s %s\n", $NF, $5}'
+ls -lh dist-electron/*.dmg dist-electron/*.exe dist-electron/*.AppImage dist-electron/*.deb dist-electron/*.tar.gz 2>/dev/null | awk '{printf "  %-50s %s\n", $NF, $5}'

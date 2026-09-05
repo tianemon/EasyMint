@@ -97,3 +97,37 @@ jobs:
             dist-electron/*.exe
             dist-electron/*.blockmap
             dist-electron/latest.yml
+
+  build-linux:
+    needs: prepare-notes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      # 项目 .npmrc 指向 npmmirror(国内本地安装加速),CI runner 在海外——环境变量覆盖回官方源
+      - run: npm ci
+        env:
+          npm_config_registry: https://registry.npmjs.org/
+          npm_config_electron_mirror: https://github.com/electron/electron/releases/download/
+
+      - name: Build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+        run: npm run build:ci
+
+      - name: Upload artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ needs.prepare-notes.outputs.notes }}
+          files: |
+            dist-electron/*.AppImage
+            dist-electron/*.deb
+            dist-electron/*.tar.gz
+            dist-electron/*.blockmap
+            dist-electron/latest-linux.yml
+

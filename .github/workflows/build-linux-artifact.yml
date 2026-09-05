@@ -1,0 +1,46 @@
+name: Build Linux (Manual / Artifact)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm ci
+        env:
+          npm_config_registry: https://registry.npmjs.org/
+          npm_config_electron_mirror: https://github.com/electron/electron/releases/download/
+
+      - name: Build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+        run: npm run build:ci
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: EasyMint-Linux-AppImage
+          path: dist-electron/*.AppImage
+          if-no-files-found: error
+
+      - name: Upload DEB
+        uses: actions/upload-artifact@v4
+        with:
+          name: EasyMint-Linux-deb
+          path: dist-electron/*.deb
+          if-no-files-found: error
+
+      - name: Upload TAR.GZ
+        uses: actions/upload-artifact@v4
+        with:
+          name: EasyMint-Linux-tar-gz
+          path: dist-electron/*.tar.gz
+          if-no-files-found: error
