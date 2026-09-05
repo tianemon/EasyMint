@@ -5,7 +5,7 @@
 <h1 align="center">EasyMint</h1>
 
 <p align="center">
-  <strong>围绕 Pi Coding Agent 构建的开源 AI 编程 Harness。</strong>
+  <strong>内置 Pi Agent 的开源桌面 AI 编程平台。</strong>
 </p>
 
 <p align="center">
@@ -18,7 +18,7 @@
 
 ## 定位
 
-EasyMint 是一个**开源 AI 编程 Harness**——围绕 [Pi Coding Agent](https://github.com/pi-ai-engineering/pi-coding-agent) 构建的桌面应用。Pi Coding Agent 是开源的 AI 编程引擎，其专业能力足以支撑完整的软件开发流程；EasyMint 在其之上提供图形化界面、多 Agent 协作与项目引导，覆盖从需求采集到成品交付的完整链路。
+EasyMint 是一个**内置 Pi Agent 的开源桌面 AI 编程平台**——[Pi Coding Agent](https://github.com/pi-ai-engineering/pi-coding-agent) 作为内置的 AI 编程引擎，其专业能力足以支撑完整的软件开发流程；EasyMint 在其上提供图形化界面、多 Agent 协作与项目引导，覆盖从需求采集到成品交付的完整链路。
 
 面向两类使用场景：
 
