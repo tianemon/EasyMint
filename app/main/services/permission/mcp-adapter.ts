@@ -47,16 +47,22 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   ]);
 }
 
-/** 检查命令是否存在(unix: command -v / win: where)。不存在的命令不 spawn,
- *  避免 Windows 下子进程输出 GBK 报错导致日志乱码。 */
+/** 检查命令是否存在(Unix: which / command -v; Win: where)。不存在的命令不 spawn,
+ *  避免 Windows 下子进程输出 GBK 报错导致日志乱码，避免 Linux 下 command 内建命令导致 ENOENT。 */
 function commandExists(command: string): boolean {
   try {
-    const probe = spawnSync(
-      process.platform === "win32" ? "where" : "command",
-      process.platform === "win32" ? [command] : ["-v", command],
-      { stdio: "ignore", timeout: 3000 },
-    );
-    return probe.status === 0;
+    if (process.platform === "win32") {
+      const probe = spawnSync("where", [command], { stdio: "ignore", timeout: 3000 });
+      return probe.status === 0;
+    }
+    // Unix: 优先用 which, 若未安装 which 则通过 sh -c "command -v ..." 探测内置/外部命令
+    const whichProbe = spawnSync("which", [command], { stdio: "ignore", timeout: 3000 });
+    if (whichProbe.status === 0) return true;
+    if (whichProbe.error && (whichProbe.error as NodeJS.ErrnoException).code === "ENOENT") {
+      const shProbe = spawnSync("sh", ["-c", `command -v "$1"`, "_", command], { stdio: "ignore", timeout: 3000 });
+      return shProbe.status === 0;
+    }
+    return false;
   } catch {
     return false;
   }

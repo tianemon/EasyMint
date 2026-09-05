@@ -13,7 +13,9 @@
     "dev:electron": "npm run build:main && npm run build:preload && node node_modules/electron/cli.js .",
     "build": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder",
     "build:mac": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --mac && rm -rf dist-electron/mac* dist-electron/*.zip*",
+    "build:linux": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --linux",
     "build:ci": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --publish never",
+    "postinstall": "node scripts/patch-pi-config.cjs",
     "build:renderer": "vite build --config app/renderer/vite.config.ts",
     "build:main": "esbuild app/main/index.ts --bundle --platform=node --format=cjs --outfile=app/main/dist/main.cjs --external:electron --external:@earendil-works/pi-coding-agent --external:@earendil-works/pi-agent-core --external:@earendil-works/pi-ai --external:@earendil-works/pi-ai/compat --external:@modelcontextprotocol/sdk --external:@modelcontextprotocol/sdk/* --external:electron-updater --external:@aws-sdk/* --external:archiver --external:unzipper --external:pdf-parse --external:mammoth --external:xlsx --external:jszip",
     "build:preload": "esbuild app/preload/index.ts --bundle --platform=node --format=cjs --outfile=app/preload/dist/preload.cjs --external:electron",
@@ -145,6 +147,18 @@
     },
     "portable": {
       "artifactName": "${productName}-windows-${arch}-portable.${ext}"
+    },
+    "afterPack": "scripts/after-pack.cjs",
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "tar.gz"
+      ],
+      "maintainer": "EasyMint <dev@easymint.app>",
+      "category": "Development",
+      "icon": "assets/icon.png",
+      "artifactName": "${productName}-linux-${arch}.${ext}"
     }
   }
 }
