@@ -15,6 +15,7 @@
 ### Added（新增）
 
 - **Linux 平台支持**：构建并发布 Linux 产物（AppImage / deb / tar.gz，支持 x64 与 ARM64），发版时自动附带；修复 Linux 下运行问题（MCP 工具检测、用户环境提取、只读安装目录写入）
+- **Pi SDK 升级 0.85.1**：内置模型更新（GPT-6 Astra 等）、思考等级持久化（Anthropic 传输）、自定义工具事件流修复
 
 ### Fixed（修复）
 
