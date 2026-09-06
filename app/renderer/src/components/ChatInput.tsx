@@ -71,25 +71,21 @@ function AttachPreview_({ attaches, setAttaches, onPreview }: AttachPreviewProps
           onClick={() => { if (onPreview && a.dataUrl) onPreview(a.dataUrl, a.name); }}
         >
           <img src={a.dataUrl} className="w-full h-full object-contain transition-opacity group-hover:opacity-85" alt={a.name} />
-          <Tooltip tip="移除图片">
-            <button
-              type="button"
-              className="absolute top-0 right-0 w-5 h-5 rounded-tr-md border-l border-b border-border bg-surface-alt/95 text-text-secondary hover:text-danger transition-colors flex items-center justify-center text-[length:var(--text-11)] leading-none"
-              onClick={(e) => removeAttach(i, e)}
-            >✕</button>
-          </Tooltip>
+          <button
+            type="button"
+            className="absolute top-0 right-0 w-5 h-5 rounded-tr-md border-l border-b border-border bg-surface-alt/95 text-text-secondary hover:text-danger transition-colors flex items-center justify-center text-[length:var(--text-11)] leading-none"
+            onClick={(e) => removeAttach(i, e)}
+          >✕</button>
         </div>
       ) : (
         // 文档附件:与图片同款 64×64 容器,仅显示文档名(单行截断居中,无图标)
         <div key={i} className="relative shrink-0 w-16 h-16 rounded-md bg-surface-alt border border-border overflow-hidden flex items-center justify-center px-1">
           <span className="truncate w-full text-center text-[length:var(--text-11)] text-text-primary leading-tight">{a.name}</span>
-          <Tooltip tip="移除文档">
-            <button
-              type="button"
-              className="absolute top-0 right-0 w-5 h-5 rounded-tr-md border-l border-b border-border bg-surface-alt/95 text-text-secondary hover:text-danger transition-colors flex items-center justify-center text-[length:var(--text-11)] leading-none"
-              onClick={(e) => removeAttach(i, e)}
-            >✕</button>
-          </Tooltip>
+          <button
+            type="button"
+            className="absolute top-0 right-0 w-5 h-5 rounded-tr-md border-l border-b border-border bg-surface-alt/95 text-text-secondary hover:text-danger transition-colors flex items-center justify-center text-[length:var(--text-11)] leading-none"
+            onClick={(e) => removeAttach(i, e)}
+          >✕</button>
         </div>
       ))}
     </div>
@@ -257,16 +253,14 @@ export const ChatInput = memo(function ChatInput({
         <input ref={imgInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/svg+xml" multiple className="hidden" onChange={onImgChange} />
         <input ref={docInputRef} type="file" multiple className="hidden" onChange={onDocChange} accept=".pdf,.doc,.docx,.md,.txt,.csv,.xls,.xlsx,.ts,.tsx,.js,.jsx,.py,.java,.json,.yaml,.yml,.toml,.html,.css,.sh,.env,.cfg" />
         <div className="relative" ref={attachMenuRef}>
-          <Tooltip tip="添加附件（图片或文档）">
-            <button
-              className="inp-icon-btn"
-              aria-expanded={attachMenuOpen}
-              onClick={() => setAttachMenuOpen((v) => !v)}
-            >
+          <button
+            className="inp-icon-btn"
+            aria-expanded={attachMenuOpen}
+            onClick={() => setAttachMenuOpen((v) => !v)}
+          >
             {/* 回形针 */}
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
-            </button>
-          </Tooltip>
+          </button>
           {attachMenuOpen && (
             <div className="absolute bottom-full left-0 mb-1.5 rounded-lg border border-border bg-surface-elevated shadow-xl overflow-hidden z-40 w-max">
               {/* 列表项按钮面积 = 背景面积：容器无 padding，hover 背景与按钮同矩形，不留缝 */}
@@ -322,13 +316,11 @@ export const ChatInput = memo(function ChatInput({
           </span>
         </button>
         <span className="inp-lbl">模型</span>
-        <Tooltip tip="切换模型">
-          <Select
-            value={chatModel}
-            onChange={onModelChange}
-            options={availableModels.length > 0 ? availableModels.map((m) => ({ value: m, label: m })) : [{ value: "", label: "暂无可选模型" }]}
-          />
-        </Tooltip>
+        <Select
+          value={chatModel}
+          onChange={onModelChange}
+          options={availableModels.length > 0 ? availableModels.map((m) => ({ value: m, label: m })) : [{ value: "", label: "暂无可选模型" }]}
+        />
         <span className="inp-lbl">思考</span>
         <Select
           value={thinkingLevel}
