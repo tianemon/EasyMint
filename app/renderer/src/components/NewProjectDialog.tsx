@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { buildFeatureRecommendPrompt, buildDirectoryTranslationPrompt, buildDirectCreatePrompt, buildInitTriggerPrompt, buildInitInstruction, detectProfile, composeProfile, systemMessage } from "../../../shared/prompts";
-import type { ProjectDimensions, DeployMode } from "../../../shared/prompts";
+import type { ProjectDimensions, DeployMode, SystemMessagePayload } from "../../../shared/prompts";
 import { StepDots, Step1Form, Step2Form, Step3Form, Step4Form } from "./new-project/StepComponents";
 import { ALL_STEPS, DEFAULT_DATA, SCENE_OPTIONS, TARGET_OPTIONS, UI_STYLE_OPTIONS, type ProjectFormData, type FeatureItem } from "./new-project/ProjectFormTypes";
 import { useMintChat } from "./new-project/useMintChat";
@@ -71,6 +71,8 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   const [initializing, setInitializing] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const pathRef = useRef<string | null>(null);
+  /** 创建成功的项目记录（幂等重试用：会话启动失败后再点「创建项目」跳过建目录直接启动） */
+  const projectRef = useRef<Project | null>(null);
   const [loadingRec, setLoadingRec] = useState<string | null>(null);
   const { ask, askWorkspace, disposeWorkspaceSession, sidRef } = useMintChat(pathRef);
 
@@ -181,6 +183,20 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     return sidRef.current;
   };
 
+  /**
+   * S3 统一启动：kickoff 消息发正式会话（fire-and-forget，首回合在聊天流式进行）→ sid 就位即导航。
+   * 失败路径：ask 失败留在弹窗（createError 可见，项目已建则幂等跳过建目录再点即重试）；
+   * 导航后异常 = 项目页自然态（无会话可随时发起对话），非死胡同——无需专用重试按钮。
+   */
+  const launchSession = useCallback(async (project: Project, prompt: string, payload: SystemMessagePayload): Promise<void> => {
+    ask(prompt, { forceNewSession: true, systemPayload: payload }).catch(() => {
+      // 回合启动失败：弹窗可能已导航走（sid 先到）——聊天页空态可自然对话；未导航则 createError 由调用方展示
+      console.error("[NewProjectDialog] session kickoff failed");
+    });
+    const sid = await waitForSid();
+    onCreated(project, sid);
+  }, [ask, onCreated]);
+
   /** S2 原子创建：目录名（预热缓存/现算）→ 落盘 → 建正式会话（cwd=项目目录）→ 导航 */
   const handleCreate = async () => {
     if (creatingRef.current) return;
@@ -188,9 +204,14 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     creatingRef.current = true;
     setInitializing(true);
     try {
-      const dirName = await resolveDirName(data.name);
-      const project = await window.electronAPI.project.create({ name: dirName, path: data.dir.trim() });
-      pathRef.current = project.path;
+      // 幂等：首次创建成功但会话启动失败的重试场景——项目已在盘，跳过建目录直接启动
+      let project = projectRef.current;
+      if (!project) {
+        const dirName = await resolveDirName(data.name);
+        project = await window.electronAPI.project.create({ name: dirName, path: data.dir.trim() });
+        pathRef.current = project.path;
+        projectRef.current = project;
+      }
       setCreateError(null);
 
       // 复杂度判定权在 Mint（creation-guide skill），前端不硬编码流程深度——
@@ -209,9 +230,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
       // 持久化项目产品类型规范,供后续 Mint 会话 buildSystemPrompt 注入
       window.electronAPI.project.saveProfile(project.path, profile.platformSpec).catch(() => {});
       const initPrompt = buildInitTriggerPrompt(project.path, buildContext(data), buildInitInstruction(profile), data.targets);
-      ask(initPrompt, { forceNewSession: true, systemPayload: systemMessage("project-created", initPrompt) }).catch(() => {});
-      const sid = await waitForSid();
-      onCreated(project, sid);
+      await launchSession(project, initPrompt, systemMessage("project-created", initPrompt));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "创建项目失败";
       setCreateError(msg);
@@ -230,15 +249,17 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     setInitializing(true);
     try {
       // 与表单路径同一原子创建（目录名共享预热缓存）；kickoff 消息不同（direct-create）
-      const dirName = await resolveDirName(data.name);
-      const project = await window.electronAPI.project.create({ name: dirName, path: data.dir.trim() });
-      pathRef.current = project.path;
+      let project = projectRef.current;
+      if (!project) {
+        const dirName = await resolveDirName(data.name);
+        project = await window.electronAPI.project.create({ name: dirName, path: data.dir.trim() });
+        pathRef.current = project.path;
+        projectRef.current = project;
+      }
       setCreateError(null);
       // 发 direct-create 系统消息（携带项目名 + 用户已填信息快照）,Mint 开回合按 creation_flow 引导
       const directPrompt = buildDirectCreatePrompt(data.name, buildDirectCreateContext(data));
-      await ask(directPrompt, { forceNewSession: true, systemPayload: systemMessage("direct-create", directPrompt) });
-      const sid = sidRef.current;
-      onCreated(project, sid);
+      await launchSession(project, directPrompt, systemMessage("direct-create", directPrompt));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "创建项目失败";
       setCreateError(msg);
