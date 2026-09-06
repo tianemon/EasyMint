@@ -232,8 +232,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("agent:cycleModel", { sessionId, direction }),
     setActiveTools: (sessionId: string, toolNames: string[]) =>
       ipcRenderer.invoke("agent:setActiveTools", { sessionId, toolNames }),
-    respondPermission: (requestId: string, behavior: "allow" | "deny", alwaysAllow?: boolean) =>
-      ipcRenderer.invoke("agent:permission-response", { requestId, behavior, alwaysAllow }),
     respondAsk: (requestId: string, answers: Array<{ questionId: string; values: string[] }> | null) =>
       ipcRenderer.invoke("agent:ask-response", { requestId, answers }),
     onAskRequest: (callback: (data: unknown) => void) => {
@@ -257,11 +255,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
       const handler = (_event: Electron.IpcRendererEvent, data: { requestId: string }) => callback(data);
       ipcRenderer.on("agent:learn-closed", handler);
       return () => ipcRenderer.removeListener("agent:learn-closed", handler);
-    },
-    onPermissionRequest: (callback: (data: any) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
-      ipcRenderer.on("agent:permission-request", handler);
-      return () => ipcRenderer.removeListener("agent:permission-request", handler);
     },
     abort: (runId: string) => ipcRenderer.invoke("agent:abort", { runId }),
     setModel: (sessionId: string, model: string, provider?: string) => ipcRenderer.invoke("agent:setModel", { sessionId, model, provider }) as Promise<void>,

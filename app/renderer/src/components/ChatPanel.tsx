@@ -14,7 +14,6 @@ import { useStatusStore } from "../stores/status-store";
 import { StatusBar } from "./StatusBar";
 import { useDelegationStore } from "../stores/delegation-store";
 import { normalizeApiError } from "../../../shared/api-errors";
-import { PermissionPrompt } from "./PermissionPrompt";
 import { ChatInput, AttachPreview } from "./ChatInput";
 import { ImageViewer, type ImageViewerState } from "./ImageViewer";
 import { SessionStatsPopup } from "./SessionStatsPopup";
@@ -1793,7 +1792,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
       {/* 状态栏:独立于输入区,渲染在输入容器上方 */}
       <StatusBar sessionId={sidRef.current} />
-      <PermissionPrompt />
 
       {/* Attach preview — above thinking when busy;左右边距与输入卡片(var(--s16))一致,条与卡片同宽,内部 px-4 对齐 input-top 的 --s4 内边距;
           复用 ChatInput 胶囊式组件(busy/非 busy 视觉一致,不再有 64px 放大缩略图) */}

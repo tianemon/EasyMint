@@ -8,7 +8,6 @@ import { AgentService, getDesignSessionIds, respondAsk, respondLearn } from "./s
 import { Store } from "./services/store";
 import { broadcast } from "./services/ipc-broadcast";
 import { resetModelRuntime, getGlobalSettingsManager } from "./services/pi-init";
-import { permissionService } from "./services/permission/agent-permission-service";
 import { IMAGE_MIME } from "./utils/paths";
 import { execShell } from "./services/shell-service";
 import { backgroundShellRegistry } from "./services/background-shell/registry";
@@ -214,10 +213,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   });
   ipcMain.handle("agent:setActiveTools", (_e, { sessionId, toolNames }) => {
     agentService.setActiveTools(sessionId, toolNames);
-  });
-  ipcMain.handle("agent:permission-response", (_e, { requestId, behavior, alwaysAllow }) => {
-    const sid = permissionService.respondToPermission(requestId, behavior, alwaysAllow);
-    if (sid) broadcast("agent:permission-resolved", { requestId, sessionId: sid, behavior });
   });
   ipcMain.handle("agent:ask-response", (_e, { requestId, answers }) => {
     // ask_user 的回答：answers 为 null/空 = 用户取消（ask-closed 由 respondAsk 广播）

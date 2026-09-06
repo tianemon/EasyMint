@@ -653,9 +653,6 @@ export class AgentService {
     const canUseTool = permissionService.createCanUseTool(
       sessionId,
       projectPath,
-      (request) => { broadcast("agent:permission-request", request); },
-      undefined,
-      (askRequest) => { broadcast("agent:permission-request", { ...askRequest, type: "ask" }); },
       // 权限缓存 key 对齐：新会话绑定的是临时 randomUUID，前端切换模式后写缓存用的是
       // 真实 SDK sid——按临时→真实映射解析后再读 session-cache，否则会话内切「完全访问」不生效
       resolveParentSessionId,
@@ -1500,8 +1497,6 @@ export class AgentService {
       chat.abortController.abort();
       chat.session?.abort().catch(() => {});
       chat.session?.dispose();
-      permissionService.clearSessionWhitelist(chat.sessionId);
-      permissionService.clearSessionPending(chat.sessionId);
       clearPendingAsks(chat.sessionId);
       clearPendingLearns(chat.sessionId);
       this.activeChats.delete(chatId);
@@ -1812,8 +1807,6 @@ export class AgentService {
       chat.abortController.abort();
       chat.session?.abort().catch(() => {});
       chat.session?.dispose();
-      permissionService.clearSessionWhitelist(chat.sessionId);
-      permissionService.clearSessionPending(chat.sessionId);
       clearPendingAsks(chat.sessionId);
       clearPendingLearns(chat.sessionId);
       broadcast("agent:exit", { runId: id, code: -1 });
