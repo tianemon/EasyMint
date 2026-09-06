@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ansiToHtml } from "../lib/ansi-colors";
 import { registerOverlay } from "../lib/overlay-stack";
@@ -27,10 +27,12 @@ interface OutputWindowProps {
   logPath?: string;
   /** 内容被截断提示 */
   truncated?: boolean;
+  /** 底部附加区（如「让 Mint 修复」按钮——共用组件向后兼容的可选扩展） */
+  footer?: ReactNode;
   onClose: () => void;
 }
 
-export function OutputWindow({ command, label, running, logs, content, onStop, logPath, truncated, onClose }: OutputWindowProps): JSX.Element {
+export function OutputWindow({ command, label, running, logs, content, onStop, logPath, truncated, footer, onClose }: OutputWindowProps): JSX.Element {
   const outputRef = useRef<HTMLDivElement>(null);
   // 自动贴底跟随:用户滚离底部(dist>8)停止,回底按钮恢复
   const autoScrollRef = useRef(true);
@@ -187,6 +189,11 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
             <span className="text-text-secondary">{running ? "等待输出…" : "(无输出)"}</span>
           )}
         </div>
+
+        {/* 底部附加区（可选——LogOverlay 的修复按钮等） */}
+        {footer && (
+          <div className="shrink-0 px-4 py-2 border-t border-border bg-surface-alt/60">{footer}</div>
+        )}
 
         {/* 回底按钮:滚离底部时显示,点击贴底并恢复自动跟随 */}
         {awayFromBottom && (

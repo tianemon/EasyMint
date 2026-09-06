@@ -1655,6 +1655,20 @@ export class AgentService {
     broadcast("agent:delegation-count", getRunningSummary());
   }
 
+  /** 运行面板「让 Mint 修复」：找该项目最近注册的 Mint 主会话并注入修复请求（无匹配会话返回 false）。
+   *  失败归因交给 Mint（判断类逻辑留模型）——按钮只负责把错误上下文送达对话 */
+  steerProjectRepair(projectPath: string, text: string): boolean {
+    let target: ActiveChat | undefined;
+    for (const [, chat] of this.activeChats) {
+      if (chat.projectPath !== projectPath) continue;
+      if (chat.agentType && chat.agentType !== "mint") continue;
+      target = chat; // Map 插入序迭代，最后一个匹配 = 最近创建
+    }
+    if (!target) return false;
+    this.steer(target.sessionId, text).catch((e) => console.error("[agent] repair steer failed:", e));
+    return true;
+  }
+
   async steer(sessionId: string, text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>): Promise<void> {
     // 插话 = 软打断：Mint 响应新消息,运行中的子 Agent 继续后台执行（对齐 cc 实测行为）
     const chat = this.findActiveChat(sessionId);

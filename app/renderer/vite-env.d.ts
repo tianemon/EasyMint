@@ -356,6 +356,7 @@ interface ElectronAPI {
     stop: (commandId: string) => Promise<void>;
     restart: (projectPath: string, commandId: string) => Promise<void>;
     status: (commandId: string) => Promise<{ running: boolean; pid?: number; run_command?: string; output: string[]; ready?: boolean }>;
+    askRepair: (projectPath: string, summary: string) => Promise<boolean>;
     runningIds: () => Promise<string[]>;
     checkPort: (port: number) => Promise<{ free: boolean; pid?: number; name?: string }>;
     killPort: (port: number) => Promise<boolean>;

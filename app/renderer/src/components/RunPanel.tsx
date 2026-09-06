@@ -431,7 +431,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
       </div>
 
       {/* 日志浮窗 */}
-      {activeLogId && <LogOverlay commandId={activeLogId} />}
+      {activeLogId && <LogOverlay commandId={activeLogId} projectPath={projectPath} />}
       {/* 脚本编辑弹窗（点击卡片标题打开；保存后 run.json watcher 自动刷新面板） */}
       {editing && (
         <ScriptEditDialog
