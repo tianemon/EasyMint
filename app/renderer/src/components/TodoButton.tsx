@@ -106,8 +106,8 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
           )}
           {err && <div className="px-3 py-1.5 text-[length:var(--text-3xs)] text-danger">{err}</div>}
 
-          {/* 列表 */}
-          <div className="max-h-64 overflow-y-auto py-1">
+          {/* 列表（容器无 padding——行 hover 面积 = 行面积，不留缝） */}
+          <div className="max-h-64 overflow-y-auto">
             {todos !== null && todos.length === 0 && (
               <div className="px-3 py-3 text-xs text-text-muted text-center">暂无待办——在下方输入想法或计划</div>
             )}

@@ -245,10 +245,11 @@ export const ChatInput = memo(function ChatInput({
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
           </button>
           {attachMenuOpen && (
-            <div className="absolute bottom-full left-0 mb-1.5 min-w-36 rounded-lg border border-border bg-surface-elevated shadow-xl overflow-hidden z-40 py-1">
+            <div className="absolute bottom-full left-0 mb-1.5 rounded-lg border border-border bg-surface-elevated shadow-xl overflow-hidden z-40 w-max">
+              {/* 列表项按钮面积 = 背景面积：容器无 padding，hover 背景与按钮同矩形，不留缝 */}
               <button
                 type="button"
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors"
+                className="flex items-center gap-2.5 px-3 py-2 text-xs whitespace-nowrap text-text-primary hover:bg-surface-hover transition-colors"
                 onClick={() => { setAttachMenuOpen(false); imgInputRef.current?.click(); }}
               >
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><circle cx="5" cy="6" r="1.2"/><path d="M1.5 11l3.5-3.5 2.5 2.5 3-4 4 5"/></svg>
@@ -256,7 +257,7 @@ export const ChatInput = memo(function ChatInput({
               </button>
               <button
                 type="button"
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors"
+                className="flex items-center gap-2.5 px-3 py-2 text-xs whitespace-nowrap text-text-primary hover:bg-surface-hover transition-colors"
                 onClick={() => { setAttachMenuOpen(false); docInputRef.current?.click(); }}
               >
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M3 2h7l4 4v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M10 2v4h4M6 9h4M6 12h4"/></svg>
