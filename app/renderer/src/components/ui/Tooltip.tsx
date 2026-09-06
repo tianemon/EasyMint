@@ -3,9 +3,8 @@ import { memo, useRef, useState, type ReactNode } from "react";
 /**
  * 低延迟悬浮提示（替代原生 title——OS 延迟约 1s 不可调，本组件 hover 即显）。
  * drop-in：<Tooltip tip="说明"><按钮/></Tooltip>（原 title 移除，避免双浮层）。
- * 默认 120ms 显示 / 150ms 消失。样式全内联（背景/字号/行高不依赖类名与继承，
- * 避免被容器类覆盖或变量失效）；浮层右对齐向左展开（`right-0`，不居中——
- * 居中 translate 在窄容器/滚动区会被裁成竖条）。
+ * 默认 200ms 显示 / 200ms 消失。样式全内联（背景/字号/行高不依赖类名与继承，
+ * 避免被容器类覆盖或变量失效）；宽度 max-content 脱离包含块钳制 + 水平居中。
  * 注意：wrapper 为 inline-flex——外包时原元素的 flex 布局类（shrink-0 等）需移到 className。
  */
 interface TooltipProps {
@@ -13,13 +12,15 @@ interface TooltipProps {
   children: ReactNode;
   /** 浮层方向（相对被包元素） */
   side?: "top" | "bottom";
-  /** 显示延迟 ms（默认 120——原生 title 的 ~1s 感知对比） */
+  /** 显示延迟 ms（默认 200——原生 title 的 ~1s 感知对比） */
   delay?: number;
+  /** 消失延迟 ms（默认 200） */
+  hideDelay?: number;
   /** wrapper 附加类（外包后原元素的 flex 布局类如 shrink-0 需移到这里） */
   className?: string;
 }
 
-export const Tooltip = memo(function Tooltip({ tip, children, side = "top", delay = 120, className }: TooltipProps): JSX.Element {
+export const Tooltip = memo(function Tooltip({ tip, children, side = "top", delay = 200, hideDelay = 200, className }: TooltipProps): JSX.Element {
   const [visible, setVisible] = useState(false);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -35,7 +36,7 @@ export const Tooltip = memo(function Tooltip({ tip, children, side = "top", dela
   const leave = () => {
     if (showTimer.current) { clearTimeout(showTimer.current); showTimer.current = null; }
     if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => setVisible(false), 150);
+    hideTimer.current = setTimeout(() => setVisible(false), hideDelay);
   };
 
   return (
