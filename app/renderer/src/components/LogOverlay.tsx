@@ -45,7 +45,6 @@ export function LogOverlay({ commandId, projectPath }: LogOverlayProps): JSX.Ele
       footer={
         !state?.running ? (
           <div className="flex items-center justify-between gap-3">
-            <span className="text-[length:var(--text-3xs)] text-text-muted">进程已结束——有问题可以让 Mint 直接修复</span>
             <button
               type="button"
               onClick={handleAskRepair}
@@ -54,6 +53,7 @@ export function LogOverlay({ commandId, projectPath }: LogOverlayProps): JSX.Ele
             >
               {asking ? "发送中…" : "让 Mint 修复"}
             </button>
+            <span className="text-[length:var(--text-3xs)] text-text-muted text-right">进程已结束——有问题可以让 Mint 直接修复</span>
           </div>
         ) : undefined
       }
