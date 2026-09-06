@@ -163,6 +163,10 @@ export class AgentPermissionService {
         if (isSystemMutationCommand(cmd)) {
           return deny(`系统级变更命令（需用户手动执行，权限系统不代做系统级操作）：${cmd.slice(0, 100)}`)
         }
+        // 不可逆数据库操作（drop/truncate）：任何模式拒绝——数据销毁不可逆，先备份再人工执行
+        if (isIrreversibleDbCommand(cmd)) {
+          return deny(`不可逆数据库操作（DROP/TRUNCATE 等销毁数据，任何模式拒绝）——先备份数据，确认后请在终端手动执行或请用户确认：${cmd.slice(0, 100)}`)
+        }
         // 执行本地脚本 → 扫描脚本内容（防「Write 脚本到项目内再执行」绕过路径检查）
         const scriptPath = detectScriptExec(cmd)
         if (scriptPath) {
@@ -336,6 +340,22 @@ const SYSTEM_MUTATION_COMMANDS: readonly string[] = [
   'reg add', 'reg delete', 'reg import', 'diskpart', 'format', 'bcdedit', 'subst',
   'netsh', 'sc create', 'sc delete', 'sc config', 'wmic process call create',
 ]
+
+/** DB 客户端命令前缀（sqlite3/psql/mysql/mongosh…——只有 DB 语境才查不可逆语句，避免误伤读文档等场景） */
+const DB_CLIENT_RE = /\b(?:sqlite3|sqlite|psql|mysql|mariadb|mongosh|mongo|sqlcmd)\b/i
+
+/** 不可逆语句：DROP TABLE/DATABASE/COLLECTION、TRUNCATE、mongosh 的 .drop() */
+const IRREVERSIBLE_SQL_RE = /\b(?:drop\s+(?:table|database|collection)\b|truncate\b)|\.drop\s*\(\s*\)/i
+
+/**
+ * 不可逆数据库操作检测（任何模式拒绝——数据销毁不可逆，与系统级变更同档）。
+ * 语句可能包在引号里（sqlite3 x.db "DROP TABLE t" / psql -c 'TRUNCATE x'），提取全部引号内容再匹配。
+ */
+function isIrreversibleDbCommand(cmd: string): boolean {
+  if (!DB_CLIENT_RE.test(cmd)) return false
+  const quoted = (cmd.match(/(["'`])(?:(?!\1)[\s\S])*?\1/g) ?? []).join(' ')
+  return IRREVERSIBLE_SQL_RE.test(quoted)
+}
 
 /**
  * 递归检查内联代码（bash -c "bash -c ..." / 内联里执行脚本等嵌套形态）。
