@@ -155,8 +155,10 @@ class BackgroundShellRegistry {
     }
   }
 
-  /** 启动后台命令,立即返回 id + 输出文件路径;进程退出时自动注销并回调 onExit */
-  start(command: string, cwd: string, onExit?: (shell: BackgroundShell) => void, sessionId?: string): { id: string; logPath: string } {
+  /** 启动后台命令,立即返回 id + 输出文件路径;进程退出时自动注销并回调 onExit。
+   *  command = 实际执行内容（可能含沙盒 wrap env 前缀）；displayCommand = 面板/通知展示用（缺省 = command） */
+  start(command: string, cwd: string, onExit?: (shell: BackgroundShell) => void, sessionId?: string, displayCommand?: string): { id: string; logPath: string } {
+    const display = displayCommand ?? command;
     const id = `shell-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     // 完整输出落盘项目级 .easymint/shell-logs/(持久可回看);
     // 启动时顺带清理超过保留期的旧日志,防积累
@@ -182,7 +184,7 @@ class BackgroundShellRegistry {
       // 构造已失败 shell:输出=错误信息,立即走退出注销路径(结果注入主会话,Mint 读到后自行调整)
       logStream?.write(error);
       const shell: BackgroundShell = {
-        id, command, startedAt: Date.now(), child: null as unknown as ChildProcess, output: error, logPath,
+        id, command: display, startedAt: Date.now(), child: null as unknown as ChildProcess, output: error, logPath,
         exitCode: -1, stopped: false, status: "running", streamBuf: "", flushTimer: null, onExit,
         sessionId,
       };
@@ -202,7 +204,7 @@ class BackgroundShellRegistry {
     }
     const child = spawn(file, args, opts);
     const shell: BackgroundShell = {
-      id, command, startedAt: Date.now(), child, output: "", logPath,
+      id, command: display, startedAt: Date.now(), child, output: "", logPath,
       exitCode: null, stopped: false, status: "running", streamBuf: "", flushTimer: null, onExit,
       sessionId,
     };

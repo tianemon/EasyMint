@@ -55,7 +55,11 @@ export function wrapToolWithPermission<T extends { name: string; label?: string;
       if (permission.behavior === "deny") {
         throw new Error(permission.message || "操作被拒绝");
       }
-      return originalExecute.call(definition, toolCallId, params, signal, onUpdate, ctx);
+      // allow 可携带 updatedInput（如沙盒执行标记 sandbox: true）——合并后传给工具 execute。
+      // EM 权限在自研 wrap 层（非 SDK 机制），此处是标记的唯一传递通道。
+      const updated = (permission as { updatedInput?: Record<string, unknown> }).updatedInput;
+      const finalParams = updated ? { ...rawInput, ...updated } : params;
+      return originalExecute.call(definition, toolCallId, finalParams, signal, onUpdate, ctx);
     },
   };
 }

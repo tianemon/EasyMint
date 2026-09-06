@@ -74,6 +74,11 @@ export const DANGEROUS_COMMANDS: readonly string[] = [
   'ssh', 'scp',
 ]
 
+/** curl/wget 的文件写参形态（-o/-O/--output/--upload-file/-T + --data @ 本地文件）——
+ *  这些参数的目标路径是工具参数而非 shell 重定向，isWriteLikeCommand 的前缀匹配认不出，
+ *  需参数级检测（此前 curl -o ~/Downloads/x 会穿透用户目录写禁区，见沙盒方案设计文档「已知缺口」）。 */
+export const CURL_WRITE_PARAM_RE = /\s(-o|-O|--output|--upload-file|-T)\b|--data\s*@/;
+
 /**
  * 检测 Bash 命令是否包含危险结构
  *

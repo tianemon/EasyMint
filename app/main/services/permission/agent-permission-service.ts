@@ -23,7 +23,10 @@ import {
   isUserDirForbidden,
   extractPathsFromCommand,
   normalizePath,
+  CURL_WRITE_PARAM_RE,
 } from './permission-rules'
+import { classifyForSandbox } from '../sandbox/classify'
+import { ensureSandbox } from '../sandbox/manager'
 import { readCache } from '../session-cache'
 
 // ── 本地类型（替代 @proma/shared） ─────────────────
@@ -228,10 +231,17 @@ export class AgentPermissionService {
           const hit = checkInlineCode(inline[2] ?? '', cwd, 0)
           if (hit) return deny(`内联代码含系统敏感操作（${hit}），拒绝执行`)
         }
-        // 路径提取：含变量/命令替换 → 无法确认写入范围，保守拒绝（任何模式）
+        // 路径提取：含变量/命令替换 → 路径无法静态确认（判不了域）
+        //   标准模式 → 沙盒（沙盒内变量展开读凭据/写工作区外同样被拦，运行时兜底）；
+        //   完全访问 → 放行（用户显式信任）
         const cmdPaths = extractPathsFromCommand(cmd)
         if (cmdPaths === null) {
-          return deny(`命令含变量/命令替换，无法确认写入范围：${cmd.slice(0, 100)}（请改用显式路径）`)
+          if (mode !== 'full') {
+            const sb = await ensureSandbox(cwd)
+            if (!sb.ok) return deny(`沙盒不可用（${sb.reason}），且命令含变量/命令替换无法确认范围：${cmd.slice(0, 100)}——请切换「完全访问」`)
+            return { behavior: 'allow' as const, updatedInput: { ...input, sandbox: true } }
+          }
+          return allow()
         }
         if (isWriteLikeCommand(cmd)) {
           // 写类命令：系统核心/凭据禁写；用户目录禁写（cwd 内豁免）
@@ -244,10 +254,21 @@ export class AgentPermissionService {
           const secret = cmdPaths.find((p) => isForbiddenReadPath(p))
           if (secret) return deny(`命令涉及系统敏感位置/凭据目录（禁止读取）：${secret}`)
         }
-        // 禁区检查通过后：完全访问直接放行（可写项目外非禁止区）
+        // 禁区检查通过后：完全访问直接放行（可写项目外非禁止区；判不了域亦直跑——D3 语义）
         if (mode === 'full') return allow()
-        // ── standard 附加：危险命令、危险结构、cwd 沙盒 ──
-        if (isDangerousCommand(cmd)) return deny(`危险命令（标准模式拒绝，请切换「完全访问」并按需操作）：${cmd.slice(0, 120)}`)
+        // ── standard：判不了域 → 沙盒（运行时约束兜底：写半径=工作区、禁私网/本机）──
+        const sandboxKind = classifyForSandbox(cmd)
+        if (sandboxKind === 'network' || sandboxKind === 'inline') {
+          const sb = await ensureSandbox(cwd)
+          if (!sb.ok) return deny(`沙盒不可用（${sb.reason}）——出网/内联命令需沙盒执行，请切换「完全访问」或检查沙盒依赖`)
+          return { behavior: 'allow' as const, updatedInput: { ...input, sandbox: true } }
+        }
+        // ── 危险命令：curl/wget 回环纯读（classify null = 可判本地访问）从名单豁免继续结构检查；
+        //    其余危险命令维持拒绝 ──
+        const isLoopbackCurl = sandboxKind === null && /\b(?:curl|wget)\b/.test(cmd)
+        if (isDangerousCommand(cmd) && !isLoopbackCurl) {
+          return deny(`危险命令（标准模式拒绝，请切换「完全访问」并按需操作）：${cmd.slice(0, 120)}`)
+        }
         if (hasDangerousStructure(cmd)) {
           const redirPaths = extractRedirTargets(cmd)
           for (const p of redirPaths) {
@@ -558,10 +579,11 @@ const WRITE_COMMANDS: readonly string[] = [
   'crontab', 'launchctl', 'systemctl', 'defaults write', 'plutil -replace',
 ];
 
-/** 命令是否写类（含重定向、写命令前缀、编辑器直写） */
+/** 命令是否写类（含重定向、写命令前缀、编辑器直写、curl/wget 文件写参——后者的目标路径是工具参数非 shell 重定向） */
 function isWriteLikeCommand(cmd: string): boolean {
   const c = cmd.trim().toLowerCase()
   if (/>+/.test(c)) return true
+  if (CURL_WRITE_PARAM_RE.test(c)) return true
   return WRITE_COMMANDS.some((w) => c.startsWith(w))
 }
 
