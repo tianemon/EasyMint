@@ -251,7 +251,7 @@ interface ElectronAPI {
     onDelegationCount: (callback: (data: { count: number; tasks: { delegationId: string; index: number; title: string }[] }) => void) => () => void;
     onShellCount: (callback: (data: { id: string; command: string; startedAt: number; status: "running" | "stopping"; logPath: string }[]) => void) => () => void;
     onShellOutput: (callback: (data: ShellOutputEvent) => void) => () => void;
-    onChatSession: (callback: (data: { chatId: string; sessionId: string; tabId?: string }) => void) => () => void;
+    onChatSession: (callback: (data: { chatId: string; sessionId: string; tabId?: string; projectPath?: string }) => void) => () => void;
     onContextSummarizing: (callback: (data: { chatId: string }) => void) => () => void;
     onContextSummary: (callback: (data: { chatId: string; summary: string }) => void) => () => void;
     onContextRotated: (callback: (data: { chatId: string; sessionId: string }) => void) => () => void;

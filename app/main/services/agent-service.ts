@@ -1215,9 +1215,9 @@ export class AgentService {
       saveSessionTypes(sessionAgentTypes);
     }
 
-    // 广播 session_id（前端需要）
+    // 广播 session_id（前端需要）；projectPath 供前端校验会话归属（旁路 workspace 会话不绑项目空 tab）
     if (chat.sessionId) {
-      broadcast("agent:chat-session", { chatId, sessionId: chat.sessionId, tabId });
+      broadcast("agent:chat-session", { chatId, sessionId: chat.sessionId, tabId, projectPath: chat.projectPath });
     }
 
     // 设置思考级别（在 prompt 前同步设置，避免竞态）；「按模型设置」优先于全局默认

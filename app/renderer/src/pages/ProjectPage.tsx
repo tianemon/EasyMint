@@ -51,8 +51,11 @@ export function ProjectPage(): JSX.Element {
 
   // 监听新会话的 sessionId → 更新 Tab，使历史列表点击能复用而非重复打开
   useEffect(() => {
-    return window.electronAPI.agent.onChatSession(({ sessionId, tabId }) => {
+    return window.electronAPI.agent.onChatSession(({ sessionId, tabId, projectPath: eventPath }) => {
       const ts = useTabStore.getState();
+      // 无 tabId 的会话创建（旁路 workspace 翻译/推荐、后台子 agent 等）不能 fallback 绑到本项目的空 tab——
+      // 只有事件归属本项目才允许（tabId 精确锚定天然隔离，此处防无 tabId 误绑）
+      if (!tabId && eventPath && projectPath && eventPath !== projectPath) return;
       // 精确锚定发送时所在的 tab；发送中用户已关掉该 tab → 丢弃(会话无处显示,不复活旧 tab)
       const tab = tabId
         ? ts.tabs.find((t) => t.id === tabId && t.type === "chat" && !t.sessionId)

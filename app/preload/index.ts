@@ -356,7 +356,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:shell-output", handler);
       return () => ipcRenderer.removeListener("agent:shell-output", handler);
     },
-    onChatSession: (callback: (data: { chatId: string; sessionId: string; tabId?: string }) => void) => {
+    onChatSession: (callback: (data: { chatId: string; sessionId: string; tabId?: string; projectPath?: string }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { chatId: string; sessionId: string }) =>
         callback(data);
       ipcRenderer.on("agent:chat-session", handler);
