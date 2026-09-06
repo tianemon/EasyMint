@@ -84,6 +84,20 @@ export async function ensureSandbox(cwd: string): Promise<SandboxInitResult> {
   } catch (e) {
     _state = "failed";
     _failReason = (e as Error).message;
+    // 初始化失败诊断（Electron 环境与终端 node 差异定位用——stack + 环境探针）
+    const cfg = buildSandboxConfig(cwd);
+    console.error("[sandbox] initialize 失败:", {
+      message: (e as Error).message,
+      stack: (e as Error).stack,
+      cwd,
+      tmpdirEnv: process.env.TMPDIR ?? "(未设置)",
+      homeEnv: process.env.HOME ?? "(未设置)",
+      osTmpdir: require("node:os").tmpdir(),
+      nodeVersion: process.versions.node,
+      electronVersion: process.versions.electron ?? "(非 electron)",
+      allowWrite: cfg.filesystem?.allowWrite,
+      denyReadSample: (cfg.filesystem?.denyRead ?? []).slice(0, 3),
+    });
     return { ok: false, reason: _failReason };
   }
 }
