@@ -143,12 +143,8 @@ CodeGraph 用于**结构性**问题——谁调了谁、改动会影响什么、
 
 ## 3.2 经验法则
 
-- **直接回答，不要委托探索。** "X 是怎么工作的"这类问题 2–3 个 codegraph 调用就够了：先用 `codegraph_context`，再用一个 `codegraph_explore` 看它返回的符号源码。跟踪流程用 `codegraph_trace` from→to —— 一次调用返回全路径 —— 再用一个 `codegraph_explore` 看源码。不要手动用 `codegraph_search` + `codegraph_callers` 拼路径。CodeGraph 是预建索引，另行开子任务或 grep + Read 循环是重复劳动，成本更高
-- **信任 CodeGraph 结果。** 它们来自完整 AST 解析。不要用 grep 重新验证——更慢、更不准、浪费上下文
-- **不要先 grep。** 按名称查符号时，`codegraph_search` 一次返回 kind + 位置 + 签名
-- **不要链式调用 `codegraph_search` + `codegraph_node`。** 需要上下文时，`codegraph_context` 一次就够了
-- **不要在多个符号上循环 `codegraph_node`。** 一个 `codegraph_explore` 返回多个符号源码，单独的 node/Read 调用会重复读取上下文，成本高得多
-- **索引滞后看 banner，不要猜。** CodeGraph 返回内容开头如果出现 "⚠️ Some files referenced below were edited since the last index sync…"，列出的文件待重新索引——Read 那些文件获取最新内容。没在 banner 里的都是最新的，CodeGraph 是权威来源。`codegraph_status` 也会在 "Pending sync" 下列出待同步文件
+- **一次到位，不要拼装。** "X 怎么工作/改了影响什么"这类结构问题 1-3 个调用就够：需要上下文/看源码用 `context`/`explore` 一次拿全（可同时查多个符号，不要在单符号上循环 node/Read）；跟踪流程用 `trace` from→to 拿全路径。不要手动 `search`+`callers` 拼路径，不要先 grep 再查、不要开子任务做 CodeGraph 能直接回答的事——预建索引比这些更快更准，另行验证是重复劳动
+- **信任结果。** 索引来自完整 AST 解析——不要用 grep 重新验证（更慢更不准）；返回内容或 `status` 若提示 "edited since the last index sync"（banner/Pending sync），Read 列出的文件取最新，其余以 CodeGraph 为权威
 
 ## 3.3 如果 `.codegraph/` 不存在
 
