@@ -1653,6 +1653,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const renderChatInput = (
     <div ref={inputWrapRef}>
       <ChatInput
+        projectPath={projectPath}
         busy={busy}
         attaches={attaches}
         setAttaches={setAttaches}

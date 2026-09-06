@@ -77,6 +77,7 @@ import type { IssueStatus } from "./services/issue-service";
 import { detectRunnable, startProcess, stopProcess, restartProcess, getStatus, getRunningIds, checkPort, killPort, ensureRunJsonWatch, saveRunJson } from "./services/process-service";
 import { networkService } from "./services/network-service";
 import { migrationService, readIgnoreFileRaw, saveIgnoreFileRaw, DEFAULT_IGNORE_CONTENT } from "./services/migration-service";
+import { listTodos, addTodo, updateTodo, toggleTodo, removeTodo } from "./services/todo-service";
 
 interface Services {
   mainWindow: BrowserWindow;
@@ -144,6 +145,15 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("file:writeContent", (_e, { filePath, content }) => fileService.writeContent(filePath, content));
   ipcMain.handle("file:createFile", (_e, { filePath, content }) => fileService.createFile(filePath, content ?? ""));
   ipcMain.handle("file:createFolder", (_e, { dirPath }) => fileService.createFolder(dirPath));
+
+  // todos:* 用户待办（.easymint/todos.json——见 services/todo-service.ts）
+  ipcMain.handle("todos:list", (_e, { projectPath }: { projectPath: string }) => listTodos(projectPath));
+  ipcMain.handle("todos:add", (_e, { projectPath, title, note }: { projectPath: string; title: string; note?: string }) =>
+    addTodo(projectPath, { title, note }));
+  ipcMain.handle("todos:update", (_e, { projectPath, id, title, note }: { projectPath: string; id: number; title?: string; note?: string }) =>
+    updateTodo(projectPath, { id, title, note }));
+  ipcMain.handle("todos:toggle", (_e, { projectPath, id }: { projectPath: string; id: number }) => toggleTodo(projectPath, id));
+  ipcMain.handle("todos:remove", (_e, { projectPath, id }: { projectPath: string; id: number }) => removeTodo(projectPath, id));
 
   // agent:*
   ipcMain.handle("agent:runWorker", (_e, { projectPath, prompt }) =>

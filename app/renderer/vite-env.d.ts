@@ -181,6 +181,13 @@ interface ElectronAPI {
     saveUpload: (name: string, data: Uint8Array) => Promise<{ path: string; dataUrl: string }>;
     readUpload: (filePath: string) => Promise<string | null>;
   };
+  todos: {
+    list: (projectPath: string) => Promise<{ ok: boolean; error?: string; data?: { todos: Array<{ id: number; title: string; note?: string; status: "open" | "done"; createdAt: number; doneAt: number | null }>; migrated?: boolean; migratedCount?: number } }>;
+    add: (projectPath: string, title: string, note?: string) => Promise<{ ok: boolean; error?: string }>;
+    update: (projectPath: string, id: number, title?: string, note?: string) => Promise<{ ok: boolean; error?: string }>;
+    toggle: (projectPath: string, id: number) => Promise<{ ok: boolean; error?: string }>;
+    remove: (projectPath: string, id: number) => Promise<{ ok: boolean; error?: string }>;
+  };
   agent: {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
     sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string; tabId?: string }) => Promise<{ chatId: string }>;

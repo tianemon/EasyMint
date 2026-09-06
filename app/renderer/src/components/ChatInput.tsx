@@ -1,10 +1,11 @@
-import { memo, useRef, useState, useCallback, useMemo } from "react";
+import { memo, useRef, useState, useCallback, useMemo, useEffect } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { THINKING_LABELS, THINKING_ORDER } from "@shared/thinking-levels";
 import { useStatusStore } from "../stores/status-store";
 import { useDelegationStore } from "../stores/delegation-store";
 import { useThemeStore } from "../stores/theme-store";
 import { Select } from "./Select";
+import { TodoButton } from "./TodoButton";
 import { AgentBar } from "./AgentBar";
 import { ShellBar } from "./ShellBar";
 import { OrbitGlow } from "./OrbitGlow";
@@ -14,6 +15,7 @@ import { BreatheGlow } from "./BreatheGlow";
 interface AttachItem { name: string; path: string; dataUrl?: string; kind: "image" | "doc"; }
 
 interface ChatInputProps {
+  projectPath: string;
   busy: boolean;
   attaches: AttachItem[];
   setAttaches: (a: AttachItem[] | ((prev: AttachItem[]) => AttachItem[])) => void;
@@ -89,7 +91,7 @@ function AttachPreview_({ attaches, setAttaches, onPreview }: AttachPreviewProps
 export const AttachPreview = memo(AttachPreview_);
 
 export const ChatInput = memo(function ChatInput({
-  busy, attaches, setAttaches, onSend, onStop, onPaste,
+  projectPath, busy, attaches, setAttaches, onSend, onStop, onPaste,
   imgInputRef, docInputRef, onImgChange, onDocChange, onPreviewImage,
   permissionMode, onPermissionModeChange, chatModel, onModelChange,
   thinkingLevel, thinkingCapped, thinkingLevels, onThinkingLevelChange,
@@ -97,6 +99,19 @@ export const ChatInput = memo(function ChatInput({
 }: ChatInputProps & { sessionId: string; onStatsClick: () => void }): JSX.Element {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // 附件菜单（回形针按钮弹出：图片/文档二选一）
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const attachMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!attachMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) setAttachMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setAttachMenuOpen(false); };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => { window.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
+  }, [attachMenuOpen]);
   const availableModels = useSettingsStore((s) => s.availableModels);
   const indicatorOrder = useDelegationStore((s) => s.order);
   const ctxPct = useStatusStore((s) => s.bySession[sessionId]?.ctxPct ?? null);
@@ -219,12 +234,39 @@ export const ChatInput = memo(function ChatInput({
       <div className="input-bar">
         <input ref={imgInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/svg+xml" multiple className="hidden" onChange={onImgChange} />
         <input ref={docInputRef} type="file" multiple className="hidden" onChange={onDocChange} accept=".pdf,.doc,.docx,.md,.txt,.csv,.xls,.xlsx,.ts,.tsx,.js,.jsx,.py,.java,.json,.yaml,.yml,.toml,.html,.css,.sh,.env,.cfg" />
-        <button className="inp-icon-btn" title="上传图片" onClick={() => imgInputRef.current?.click()}>
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><circle cx="5" cy="6" r="1.2"/><path d="M1.5 11l3.5-3.5 2.5 2.5 3-4 4 5"/></svg>
-        </button>
-        <button className="inp-icon-btn" title="上传文档" onClick={() => docInputRef.current?.click()}>
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M3 2h7l4 4v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M10 2v4h4M6 9h4M6 12h4"/></svg>
-        </button>
+        <div className="relative" ref={attachMenuRef}>
+          <button
+            className="inp-icon-btn"
+            title="添加附件（图片或文档）"
+            aria-expanded={attachMenuOpen}
+            onClick={() => setAttachMenuOpen((v) => !v)}
+          >
+            {/* 回形针 */}
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+          </button>
+          {attachMenuOpen && (
+            <div className="absolute bottom-full left-0 mb-1.5 min-w-36 rounded-lg border border-border bg-surface-elevated shadow-xl overflow-hidden z-40 py-1">
+              <button
+                type="button"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors"
+                onClick={() => { setAttachMenuOpen(false); imgInputRef.current?.click(); }}
+              >
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><circle cx="5" cy="6" r="1.2"/><path d="M1.5 11l3.5-3.5 2.5 2.5 3-4 4 5"/></svg>
+                <span>图片</span>
+              </button>
+              <button
+                type="button"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-text-primary hover:bg-surface-hover transition-colors"
+                onClick={() => { setAttachMenuOpen(false); docInputRef.current?.click(); }}
+              >
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M3 2h7l4 4v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M10 2v4h4M6 9h4M6 12h4"/></svg>
+                <span>文档</span>
+              </button>
+            </div>
+          )}
+        </div>
+        {/* 用户待办：想法与计划清单（.easymint/todos.json）——与 Mint 执行追踪(session-todos)是两套 */}
+        <TodoButton projectPath={projectPath} />
         {/* 后台指示器胶囊:agent/shell 按出现顺序排列,谁先出现谁靠左;按会话过滤(委派是主会话发起的) */}
         <div className="flex items-center gap-2 shrink-0">
           {indicatorOrder.map((k) => (k === "agent" ? <AgentBar key="agent" sessionId={sessionId} /> : <ShellBar key="shell" sessionId={sessionId} />))}

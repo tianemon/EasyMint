@@ -40,6 +40,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     saveUpload: (name: string, data: Uint8Array) => ipcRenderer.invoke("file:saveUpload", { name, data: Array.from(data) }) as Promise<{ path: string; dataUrl: string }>,
     readUpload: (filePath: string) => ipcRenderer.invoke("file:readUpload", { filePath }) as Promise<string | null>,
   },
+  todos: {
+    list: (projectPath: string) => ipcRenderer.invoke("todos:list", { projectPath }),
+    add: (projectPath: string, title: string, note?: string) => ipcRenderer.invoke("todos:add", { projectPath, title, note }),
+    update: (projectPath: string, id: number, title?: string, note?: string) =>
+      ipcRenderer.invoke("todos:update", { projectPath, id, title, note }),
+    toggle: (projectPath: string, id: number) => ipcRenderer.invoke("todos:toggle", { projectPath, id }),
+    remove: (projectPath: string, id: number) => ipcRenderer.invoke("todos:remove", { projectPath, id }),
+  },
   git: {
     detect: () => ipcRenderer.invoke("git:detect"),
   },

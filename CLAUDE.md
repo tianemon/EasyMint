@@ -9,7 +9,7 @@
 | 了解整体架构 | `docs/技术架构.md` |
 | 了解功能规格 | `docs/需求文档.md` |
 | 了解当前进度 | `docs/开发记录.md` + `docs/开发记录/` |
-| 了解待办 | `docs/待办事项.md` |
+| 了解待办 | `.easymint/todos.json`（UI「待办」面板） |
 | 发版流程（版本号判定/发版必检/两处提交） | `docs/发版流程.md` |
 | 本机环境（查源码目录/CC 源码/局域网 git） | `docs/本机环境.md`（仅本机存在） |
 | 使用 SDK API | `docs/reference/Pi-SDK-API参考.md` |
@@ -290,7 +290,7 @@ npm run lint             # ESLint + TypeScript 类型检查
 | 技术架构 | `docs/技术架构.md` | 技术选型、架构设计、关键决策 |
 | 开发记录 | `docs/开发记录.md` | 头部快照 + 开发记录索引（日期→文件）；当天日志写 `docs/开发记录/日期.md` |
 | 发版流程 | `docs/发版流程.md` | 版本号判定（SemVer）、发版必检（awk notes）、两处提交、常见坑 |
-| 待办事项 | `docs/待办事项.md` | 未实施/缓做事项，唯一清单源 |
+| 用户待办 | `.easymint/todos.json` | 想法/计划清单，唯一清单源（UI「待办」面板或文件读写） |
 | 本机环境 | `docs/本机环境.md` | 查源码目录、CC 源码位置、局域网 git（仅本机，不进 GitHub） |
 
 ---
