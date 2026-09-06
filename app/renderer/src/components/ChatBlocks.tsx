@@ -175,7 +175,7 @@ function CodeBlock({ language, children }: { language?: string; children: string
   );
 }
 
-export function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
+export function TextBlockView({ block, streaming }: { block: TextBlock; streaming?: boolean }): JSX.Element {
   const html = useMemo(() => {
     // Extract fenced code blocks before html rendering, handle them separately
     const parts: Array<{ type: "html" | "code"; content: string; lang?: string }> = [];
@@ -194,11 +194,29 @@ export function TextBlockView({ block }: { block: TextBlock }): JSX.Element {
       });
       lastIdx = match.index + match[0].length;
     }
+    // 流式中未闭合的围栏(```lang\n 已出现但尚无闭合 ```):提前按代码块渲染——
+    // 否则代码打完闭合前整段按普通文本显示,闭合瞬间跳变成代码块样式(用户感知的"闪一下")
+    if (streaming && lastIdx < block.text.length) {
+      const tail = block.text.slice(lastIdx);
+      const openAt = tail.indexOf("```");
+      if (openAt !== -1) {
+        const open = tail.slice(openAt).match(/^```([\w+#-]*)\n([\s\S]*)$/);
+        if (open) {
+          if (openAt > 0) parts.push({ type: "html", content: tail.slice(0, openAt) });
+          parts.push({
+            type: "code",
+            lang: open[1] ? (LANG_LABELS[open[1]] || "TEXT") : "TEXT",
+            content: open[2]!.replace(/^\n+/, ""),
+          });
+          return parts;
+        }
+      }
+    }
     if (lastIdx < block.text.length) {
       parts.push({ type: "html", content: block.text.slice(lastIdx) });
     }
     return parts;
-  }, [block.text]);
+  }, [block.text, streaming]);
 
   return (
     <div className="leading-relaxed prose prose-sm max-w-none break-words [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_h1]:[font-size:1.5em] [&_code]:[font-size:var(--text-detail)] prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-a:text-accent prose-li:text-text-primary">
@@ -557,9 +575,9 @@ function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }
 
 // ── Exported render function ──────────────────────────
 
-export function ChatBlockView({ block, streaming: _streaming }: { block: Block; streaming?: boolean }): JSX.Element | null {
+export function ChatBlockView({ block, streaming }: { block: Block; streaming?: boolean }): JSX.Element | null {
   switch (block.kind) {
-    case "text": return <TextBlockView block={block} />;
+    case "text": return <TextBlockView block={block} streaming={streaming} />;
     case "thinking": return <ThinkingBlockView block={block} />;
     case "tool-group": return <ToolGroupView block={block} />;
     case "system": return null;
