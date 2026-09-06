@@ -16,6 +16,8 @@ interface ChatState {
   replaceAiEntries: (sessionId: string, entries: Record<string, any>[]) => number;
   /** 按消息 id 全量替换 entries（Pi 帧是累计全文快照，替换而非拼接——见 Proma uuid 方案） */
   replaceAiEntriesById: (sessionId: string, msgId: number, entries: Record<string, any>[]) => number;
+  /** 回合完成后挂 usage（message_end 事件携带的 token/缓存统计） */
+  setMessageUsage: (sessionId: string, msgId: number, usage: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number }) => void;
   nextMsgId: (sessionId: string) => number;
 }
 
@@ -116,6 +118,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
     // 消息不存在（会话重载等竞态）→ 回退：替换最后一条 AI 或新建
     return get().replaceAiEntries(sessionId, entries);
+  },
+
+  setMessageUsage: (sessionId, msgId, usage) => {
+    set((s) => ({
+      messagesBySession: {
+        ...s.messagesBySession,
+        [sessionId]: (s.messagesBySession[sessionId] || []).map((m) =>
+          m.id === msgId ? { ...m, usage } : m
+        ),
+      },
+    }));
   },
 
   nextMsgId: (sessionId) => {

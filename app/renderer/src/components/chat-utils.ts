@@ -24,6 +24,8 @@ export interface ChatMessage {
   sysTs?: number;
   /** Pi 落盘时间戳——实时渲染按此有序插入,保证 UI 顺序 = jsonl 落盘顺序(广播顺序 ≠ 落盘顺序) */
   piTs?: number;
+  /** 回合完整后的 usage（message_end 携带）——气泡下方显示 token 与缓存命中率 */
+  usage?: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number };
   /** 流式标记:实时渲染临时消息(重载/加载磁盘时被替代或合并) */
   streaming?: boolean;
   /** 群聊消息的 Agent 角色(群聊视图标注来源;无 = 普通会话) */

@@ -2,6 +2,7 @@ import { memo, useRef, useState, useCallback, useMemo, useEffect } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { THINKING_LABELS, THINKING_ORDER } from "@shared/thinking-levels";
 import { useStatusStore } from "../stores/status-store";
+import { useChatStore } from "../stores/chat-store";
 import { useDelegationStore } from "../stores/delegation-store";
 import { useThemeStore } from "../stores/theme-store";
 import { Select } from "./Select";
@@ -116,6 +117,17 @@ export const ChatInput = memo(function ChatInput({
   const indicatorOrder = useDelegationStore((s) => s.order);
   const ctxPct = useStatusStore((s) => s.bySession[sessionId]?.ctxPct ?? null);
   const summarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
+  // 本会话平均缓存命中率：全部消息 usage 累加（cacheRead / (未缓存输入 + cacheRead)）——口径同单条显示
+  const sessionMsgs = useChatStore((s) => s.messagesBySession[sessionId] || []);
+  const cacheRate = useMemo(() => {
+    let read = 0, uncached = 0;
+    for (const m of sessionMsgs) {
+      const u = m.usage;
+      if (u?.cacheReadTokens) read += u.cacheReadTokens;
+      if (u?.inputTokens) uncached += u.inputTokens;
+    }
+    return read + uncached > 0 ? Math.round((read / (read + uncached)) * 100) : null;
+  }, [sessionMsgs]);
   const compacting = useStatusStore((s) => s.bySession[sessionId]?.compacting ?? false);
   const inputDisabled = summarizing || compacting;
   // 状态指示光效配置
@@ -273,6 +285,14 @@ export const ChatInput = memo(function ChatInput({
           {indicatorOrder.map((k) => (k === "agent" ? <AgentBar key="agent" sessionId={sessionId} /> : <ShellBar key="shell" sessionId={sessionId} />))}
         </div>
         <span className="inp-gap" />
+        {cacheRate !== null && (
+          <span
+            className="text-[length:var(--text-3xs)] px-1.5 py-0.5 rounded-full bg-surface-hover text-text-secondary tabular-nums shrink-0"
+            title="本会话平均缓存命中率（缓存读 ÷ 全部输入）——供应商按命中 token 折扣计费"
+          >
+            缓存 {cacheRate}%
+          </span>
+        )}
         <span className="inp-lbl">权限</span>
         <button
           type="button"

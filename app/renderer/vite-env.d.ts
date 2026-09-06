@@ -135,7 +135,7 @@ interface StreamEvent {
   message?: string;
   canRetry?: boolean;
   summary?: string;
-  usage?: { inputTokens: number; outputTokens: number };
+  usage?: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number };
   percentage?: number;
   data?: Record<string, unknown>;
   source?: "worker" | "evaluator" | "chat";

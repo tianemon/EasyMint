@@ -31,7 +31,7 @@ export interface PiChatEvent {
   message?: string;
   canRetry?: boolean;
   summary?: string;
-  usage?: { inputTokens: number; outputTokens: number };
+  usage?: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number };
 }
 
 export interface ChatBlock {
@@ -46,6 +46,20 @@ export interface ChatBlock {
 interface AssistantMessageLike {
   role: "assistant";
   content: Array<{ type: string; text?: string; id?: string; name?: string; input?: Record<string, unknown>; arguments?: Record<string, unknown>; thinking?: string; content?: unknown }>;
+  /** Pi 归一化 usage（input 为未缓存输入；cacheRead/cacheWrite 缓存读/写——磁盘统计同源，见 getSessionStats） */
+  usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
+}
+
+/** 提取 assistant 消息的 usage（input/output/cacheRead/cacheWrite——命中率口径与 getSessionStats 一致） */
+function extractUsage(msg: AssistantMessageLike): { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number } | undefined {
+  const u = msg.usage;
+  if (!u) return undefined;
+  return {
+    inputTokens: u.input ?? 0,
+    outputTokens: u.output ?? 0,
+    cacheReadTokens: u.cacheRead ?? 0,
+    cacheWriteTokens: u.cacheWrite ?? 0,
+  };
 }
 
 function messageToBlocks(msg: AssistantMessageLike): ChatBlock[] {
@@ -174,6 +188,8 @@ export function bridgeSessionEvents(
           type: "message" as const, sessionId: "", blocks, partial: false,
           // Pi 落盘时间戳——前端按此拆分/排序回合输出块(与磁盘逐条 assistant 对齐)
           timestamp: (msg as { timestamp?: number }).timestamp,
+          // 回合完整消息携带 usage——每条回复的 token/缓存统计（前端挂消息渲染）
+          usage: extractUsage(msg),
         });
       }
       break;

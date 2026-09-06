@@ -60,6 +60,13 @@ const SYSTEM_KIND_LABELS: Record<string, string> = {
 /** 指令型系统消息（给 Mint 的行为指令，用户无需阅读正文）——默认折叠成标签条，点击展开 */
 const COLLAPSIBLE_SYSTEM_KINDS = new Set(["project-created", "direct-create", "flow", "summary", "learn"]);
 
+/** token 数格式化（显示用：1.2k / 3.4M） */
+function fmtTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k`;
+  return String(n);
+}
+
 /** 压缩弹窗「写交接提示词」:让 Mint 总结当前会话,输出可复制的交接内容(不压缩) */
 const HANDOFF_PROMPT = "请总结当前会话的全部内容，并写一份交接提示词（包含项目状态、已完成的工作、当前进度、遇到的问题、下一步计划），以便在新会话中继续工作。请直接输出交接提示词内容，用中文。";
 
@@ -1065,6 +1072,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 块 piTs = 消息对象创建时间戳 → 通知按 ts 插到块之间,UI 顺序 = jsonl 顺序
       if (event.type === "message" && Array.isArray(event.blocks)) {
         handleBlocks(event.blocks, event.timestamp ?? Date.now());
+        // 回合完整消息（message_end，partial=false）携带 usage → 挂到本回合 AI 消息
+        if (!event.partial && event.usage && latestAiIdRef.current) {
+          useChatStore.getState().setMessageUsage(sidRef.current, latestAiIdRef.current, event.usage);
+        }
       }
       // tool progress — 状态栏工具信号;shell 计数由后台命令事件驱动(agent:shell-count),
       // 不再按工具事件累加(前台瞬时工具不计入 shell•N)
@@ -2170,6 +2181,14 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
             ))}
           </div>
           <BubbleActions text={copyText} onPin={onPin} sid={sid} visible={actionsVisible} />
+          {/* 回合 usage：输入(含缓存读)/输出/缓存命中率——SDK 数据（message_end 携带）；无 usage 不显示 */}
+          {msg.usage && (
+            <div className="mt-0.5 text-[length:var(--text-3xs)] text-text-muted tabular-nums">
+              输入 {fmtTokenCount((msg.usage.inputTokens || 0) + (msg.usage.cacheReadTokens || 0))}
+              {" · "}输出 {fmtTokenCount(msg.usage.outputTokens || 0)}
+              {msg.usage.cacheReadTokens ? ` · 缓存命中 ${Math.round((msg.usage.cacheReadTokens / ((msg.usage.inputTokens || 0) + msg.usage.cacheReadTokens)) * 100)}%` : ""}
+            </div>
+          )}
         </div>
       </div>
     </div>
