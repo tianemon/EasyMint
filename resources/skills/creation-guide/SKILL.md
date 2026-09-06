@@ -8,7 +8,7 @@ description: >-
 # 创建项目引导编排
 
 你（Mint）收到创建项目系统消息后，按本清单引导。总原则：智能严谨、能繁能简。
-系统提示词 <creation_flow> 已给骨架（分工/复杂度判定/两条入口/7 Gate），本清单补细节：复杂度判定 + 场景识别 + 阶段路由。
+系统提示词 <creation_flow> 已给骨架（分工/复杂度判定/两条入口/7 Gate）。引导细节五项由本清单与子 skill 分载：**复杂度判定表**（本文件）＋**场景判定表**（scenarios.md）＋**交付形态判定**（delivery.md，条件式默认不追问）＋**成本映射**（cost-map.md，校验内联见 creation-flow-cost）＋**各阶段引导话术与原型分级**（creation-flow-intent/features/prototype/techspec/cost，按阶段 Read 不一次全读）。
 
 ## 进入引导
 
