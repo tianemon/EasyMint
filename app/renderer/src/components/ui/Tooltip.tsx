@@ -3,8 +3,9 @@ import { memo, useRef, useState, type ReactNode } from "react";
 /**
  * 低延迟悬浮提示（替代原生 title——OS 延迟约 1s 不可调，本组件 hover 即显）。
  * drop-in：<Tooltip tip="说明"><按钮/></Tooltip>（原 title 移除，避免双浮层）。
- * 默认 200ms 显示 / 200ms 消失。样式全内联（背景/字号/行高不依赖类名与继承，
- * 避免被容器类覆盖或变量失效）；宽度 max-content 脱离包含块钳制 + 水平居中。
+ * 默认 200ms 显示 / 200ms 消失；浮层淡入淡出（opacity 过渡 180ms，非硬出现）。
+ * 样式全内联（背景/字号/行高不依赖类名与继承，避免被容器类覆盖或变量失效）；
+ * 宽度 max-content 脱离包含块钳制 + 水平居中。
  * 注意：wrapper 为 inline-flex——外包时原元素的 flex 布局类（shrink-0 等）需移到 className。
  */
 interface TooltipProps {
@@ -21,7 +22,9 @@ interface TooltipProps {
 }
 
 export const Tooltip = memo(function Tooltip({ tip, children, side = "top", delay = 200, hideDelay = 200, className }: TooltipProps): JSX.Element {
-  const [visible, setVisible] = useState(false);
+  // 双状态实现淡入淡出：rendered 控制挂载（卸载前的淡出窗口），shown 驱动 opacity
+  const [rendered, setRendered] = useState(false);
+  const [shown, setShown] = useState(false);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -29,14 +32,20 @@ export const Tooltip = memo(function Tooltip({ tip, children, side = "top", dela
     if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
     if (showTimer.current) return; // 已排队显示中
     showTimer.current = setTimeout(() => {
-      setVisible(true);
+      setRendered(true);
+      // 挂载后下一帧再置可见——让 opacity 从 0 过渡（同帧设置两态会直接到终值）
+      requestAnimationFrame(() => setShown(true));
       showTimer.current = null;
     }, delay);
   };
   const leave = () => {
     if (showTimer.current) { clearTimeout(showTimer.current); showTimer.current = null; }
     if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => setVisible(false), hideDelay);
+    hideTimer.current = setTimeout(() => {
+      setShown(false);
+      // 淡出动画结束后卸载（过渡 180ms + 余量）
+      setTimeout(() => setRendered(false), 220);
+    }, hideDelay);
   };
 
   return (
@@ -48,7 +57,7 @@ export const Tooltip = memo(function Tooltip({ tip, children, side = "top", dela
       onBlur={leave}
     >
       {children}
-      {visible && (
+      {rendered && (
         <span
           role="tooltip"
           style={{
@@ -71,6 +80,8 @@ export const Tooltip = memo(function Tooltip({ tip, children, side = "top", dela
             background: "var(--color-tooltip-bg)",
             color: "var(--color-tooltip-text)",
             pointerEvents: "none",
+            opacity: shown ? 1 : 0,
+            transition: "opacity 180ms ease",
           }}
         >
           {tip}
