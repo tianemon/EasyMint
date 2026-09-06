@@ -55,7 +55,7 @@ export const Tooltip = memo(function Tooltip({ tip, children, side = "top", dela
             ...(side === "top" ? { bottom: "100%", marginBottom: 6 } : { top: "100%", marginTop: 6 }),
             right: 0,
             zIndex: 130,
-            maxWidth: 200,
+            maxWidth: 600,
             padding: "4px 8px",
             borderRadius: 6,
             fontSize: 11,
