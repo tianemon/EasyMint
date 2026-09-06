@@ -13,6 +13,7 @@ import { backgroundShellRegistry, type BackgroundShell, resolveSpawn, findBashOn
 import { spawn } from "node:child_process";
 import { createCodingAwareDecoder, createAnsiStripper, stripAnsi } from "./encoding";
 import { ensureSandbox, wrapForSandbox, annotateSandboxFailures } from "../sandbox/manager";
+import { maskSecrets } from "../../utils/secret-mask";
 
 /** 前台 bash 执行(spawn + 编码容错解码,对齐 Pi 行为:同步 + 超时 + 截断提示 + PI_* 环境注入)
  *  command: shell 命令字符串（走 resolveSpawn）或沙盒 argv 规格（Windows srt-win 两跳, shell:false + env 注入）
@@ -88,7 +89,8 @@ async function executeForeground(
       // 沙盒违规注解：seatbelt/代理产生的拦截在此转成可读说明（仅沙盒执行时）。
       // argv 形态（Windows srt-win 两跳）的违规归因 key 形态不同——留待 Windows 实机验证
       if (sandboxed && typeof command === "string") errOutput = annotateSandboxFailures(command, errOutput);
-      const text = [output, errOutput].filter(Boolean).join("\n") || "(无输出)";
+      // 凭据脱敏：agent 若违规内联密码/连接串，明文不进模型可见的输出
+      const text = maskSecrets([output, errOutput].filter(Boolean).join("\n") || "(无输出)");
       if (timedOut) {
         resolve({ content: [{ type: "text", text: `${text}\n\n(命令超时,已终止)` }] });
         return;
@@ -123,8 +125,8 @@ export function formatShellResult(shell: BackgroundShell): string {
   const dur = Math.max(0, Math.round((Date.now() - shell.startedAt) / 1000));
   const summary = `⏺ 后台命令 — ${status}${dur > 0 ? ` · ${dur}s` : ""}`;
   const head = `命令: ${shell.command}\n退出码: ${shell.exitCode ?? "?"}`;
-  // 注入主会话文本剥 ANSI(shell.output 保留原始供面板彩色渲染;模型/消息区要干净文本)
-  const tail = stripAnsi(shell.output.trim().split("\n").slice(-PREVIEW_TAIL_LINES).join("\n").trim());
+  // 注入主会话文本剥 ANSI + 凭据脱敏(shell.output 保留原始供面板彩色渲染;模型/消息区要干净文本)
+  const tail = maskSecrets(stripAnsi(shell.output.trim().split("\n").slice(-PREVIEW_TAIL_LINES).join("\n").trim()));
   const output = tail
     ? `输出(尾部 ${PREVIEW_TAIL_LINES} 行):\n${tail}`
     : "(无输出)";
