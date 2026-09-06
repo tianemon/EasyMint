@@ -51,6 +51,7 @@ export async function createLearnTool(deps: LearnToolDeps): Promise<ToolDefiniti
       + "适用：踩坑修复（报错→根因→解法）、验证过的流程方法、跨项目通用的协作约定。",
     promptSnippet: "沉淀经验（可选同时建 skill，审阅卡片确认）",
     promptGuidelines: [
+      "**不沉淀（重要）**：一次性操作（配环境、跑一次命令、本次专属排查）／纯信息问答／已沉淀过（先 search_experiences 确认）／项目特有细节／含敏感信息——这些不要调 learn，也不要在回复里提沉淀",
       "任务完成且出现可复用经验（踩坑修复/验证过的方法/项目约定）时主动 learn 入库，不要只在回复里说一遍",
       "learn 前先用 search_experiences 查重：命中近似经验时优先带 updateId 更新它（补全/纠错/合并），确属新经验才不带 updateId",
       "memory 要自包含：换一个会话不看上下文也能看懂——写清触发条件与做法，不写一次性细节",
