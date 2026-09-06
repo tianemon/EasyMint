@@ -161,14 +161,7 @@
       "maintainer": "EasyMint <dev@easymint.app>",
       "category": "Development",
       "icon": "assets/icon.png",
-      "artifactName": "${productName}-linux-${arch}.${ext}",
-      "deb": {
-        "depends": [
-          "bubblewrap",
-          "socat",
-          "ripgrep"
-        ]
-      }
+      "artifactName": "${productName}-linux-${arch}.${ext}"
     }
   }
 }
