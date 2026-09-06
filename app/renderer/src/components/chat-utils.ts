@@ -215,7 +215,12 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
         if (entries.length === 0) continue;
         // 每条 assistant 消息独立成气泡——对齐 SDK 落盘粒度(相邻消息不合并,与实时渲染一致)
         const id = ++nextId;
-        mapped.push({ id, role: "ai", entries, timestamp: ts, keyId: uuid ? `d-${uuid}-${id}` : undefined });
+        // 磁盘消息携带 Pi 归一化 usage（input 未缓存输入/cacheRead 缓存读）——历史会话也显示 token 行（显示层持久化）
+        const u = (m.message as { usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number } }).usage;
+        mapped.push({
+          id, role: "ai", entries, timestamp: ts, keyId: uuid ? `d-${uuid}-${id}` : undefined,
+          usage: u ? { inputTokens: u.input ?? 0, outputTokens: u.output ?? 0, cacheReadTokens: u.cacheRead ?? 0, cacheWriteTokens: u.cacheWrite ?? 0 } : undefined,
+        });
       }
     } else if (m.type === "toolResult") {
       // 独立 toolResult 消息(磁盘):按 toolCallId 关联到 AI 消息的 tool_use;无匹配则追加到最近 AI 消息(独立结果)
