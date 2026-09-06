@@ -16,6 +16,7 @@ import { useDelegationStore } from "../stores/delegation-store";
 import { normalizeApiError } from "../../../shared/api-errors";
 import { PermissionPrompt } from "./PermissionPrompt";
 import { ChatInput, AttachPreview } from "./ChatInput";
+import { ImageViewer, type ImageViewerState } from "./ImageViewer";
 import { SessionStatsPopup } from "./SessionStatsPopup";
 import { CompactionDialog } from "./CompactionDialog";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
@@ -101,7 +102,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const imgInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const [attaches, setAttaches] = useState<AttachItem[]>([]);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<ImageViewerState | null>(null);
+  const openViewer = useCallback((src: string, name: string) => setPreviewImage({ src, name }), []);
   const [permissionMode, setPermissionMode] = useState("standard");
   // 权限模式最新值（订阅回调里引用 state 会拿到挂载时的旧闭包，用 ref 取最新）
   const permissionModeRef = useRef("standard");
@@ -1565,7 +1567,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
               {msg.attaches.map((a, i) => (
                 a.kind === "image" ? (
                   a.dataUrl ? (
-                    <img key={`img-${i}`} src={a.dataUrl} alt={a.name} className="max-w-[260px] max-h-[220px] rounded-lg object-contain cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setPreviewImage(a.dataUrl || null)} />
+                    <img key={`img-${i}`} src={a.dataUrl} alt={a.name} className="max-w-[260px] max-h-[220px] rounded-lg object-contain cursor-zoom-in hover:opacity-90 transition-opacity" onClick={() => { if (a.dataUrl) openViewer(a.dataUrl, a.name); }} />
                   ) : (
                     <div key={`doc-${i}`} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/10 max-w-[200px]">
                       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-4 h-4 shrink-0"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><circle cx="5" cy="6" r="1.3"/><path d="M1.5 11l3.5-3.5 2.5 2.5 3-4 4 5"/></svg>
@@ -1662,6 +1664,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         docInputRef={docInputRef}
         onImgChange={handleImgChange}
         onDocChange={handleDocChange}
+        onPreviewImage={openViewer}
         permissionMode={permissionMode}
         onPermissionModeChange={handlePermissionModeChange}
         chatModel={chatModel || storeModel}
@@ -1792,10 +1795,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       <StatusBar sessionId={sidRef.current} />
       <PermissionPrompt />
 
-      {/* Attach preview — above thinking when busy;mx-4 与输入卡片左右边距(--s16)对齐,否则条比卡片宽;
+      {/* Attach preview — above thinking when busy;左右边距与输入卡片(var(--s16))一致,条与卡片同宽,内部 px-4 对齐 input-top 的 --s4 内边距;
           复用 ChatInput 胶囊式组件(busy/非 busy 视觉一致,不再有 64px 放大缩略图) */}
       {busy && attaches.length > 0 && (
-        <div className="mx-4 px-4 py-2 bg-surface-alt/30 border-t border-border/50 shrink-0"><AttachPreview attaches={attaches} setAttaches={setAttaches} /></div>
+        <div className="mx-[var(--s16)] px-4 py-2 bg-surface-alt/30 border-t border-border/50 shrink-0"><AttachPreview attaches={attaches} setAttaches={setAttaches} onPreview={openViewer} /></div>
       )}
 
       {/* 气泡锚点容器:仅用于气泡悬浮定位(独立于输入卡片 DOM,悬浮在卡片上方)。
@@ -1969,20 +1972,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           {pinToast}
         </div>
       )}
-      {/* Image lightbox */}
-      {previewImage && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center outline-none"
-          onClick={() => setPreviewImage(null)}
-          onKeyDown={(e) => { if (e.key === "Escape") setPreviewImage(null); }}
-          tabIndex={-1} ref={(el) => el?.focus()}>
-          <img src={previewImage} className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()} />
-          <button className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-10"
-            onClick={(e) => { e.stopPropagation(); setPreviewImage(null); }}>
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="w-5 h-5"><path d="M4 4l8 8M12 4L4 12"/></svg>
-          </button>
-        </div>
-      )}
+      {/* Image viewer:自实现图片浏览器(缩略图/气泡图片共用) */}
+      <ImageViewer view={previewImage} onClose={() => setPreviewImage(null)} />
     </div>
   );
 }

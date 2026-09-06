@@ -24,6 +24,8 @@ interface ChatInputProps {
   docInputRef: React.RefObject<HTMLInputElement | null>;
   onImgChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onDocChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  /** 点击附件缩略图查看原图(ImageViewer 挂在 ChatPanel 层) */
+  onPreviewImage?: (src: string, name: string) => void;
   permissionMode: string;
   onPermissionModeChange: (v: string) => void;
   chatModel: string;
@@ -38,21 +40,34 @@ interface ChatInputProps {
 
 // 档位名称与顺序见 @shared/thinking-levels（主进程与渲染层共用）
 
-function AttachPreview_({ attaches, setAttaches }: { attaches: AttachItem[]; setAttaches: (a: AttachItem[] | ((prev: AttachItem[]) => AttachItem[])) => void }): JSX.Element {
-  const removeAttach = useCallback((idx: number) => {
+interface AttachPreviewProps {
+  attaches: AttachItem[];
+  setAttaches: (a: AttachItem[] | ((prev: AttachItem[]) => AttachItem[])) => void;
+  /** 点击图片缩略图查看原图(自实现 ImageViewer,非系统预览);不传则缩略图不可点 */
+  onPreview?: (src: string, name: string) => void;
+}
+
+function AttachPreview_({ attaches, setAttaches, onPreview }: AttachPreviewProps): JSX.Element {
+  const removeAttach = useCallback((idx: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // ✕ 在缩略图点击层之上,阻止冒泡误触查看原图
     setAttaches((prev) => prev.filter((_, i) => i !== idx));
   }, [setAttaches]);
   return (
     <div className="flex flex-wrap items-end gap-1.5">
       {attaches.map((a, i) => a.kind === "image" && a.dataUrl ? (
         // 图片附件:固定 64×64 容器,图片 object-contain 按最长边 64 居中显示(横图限宽/竖图限高,
-        // 纵横比保持),删除按钮贴容器右上角
-        <div key={i} className="relative shrink-0 w-16 h-16 rounded-md bg-surface-alt border border-border overflow-hidden">
-          <img src={a.dataUrl} className="w-full h-full object-contain" alt={a.name} />
+        // 纵横比保持),删除按钮贴容器右上角;点击缩略图(✕ 除外)查看原图
+        <div
+          key={i}
+          className={`group relative shrink-0 w-16 h-16 rounded-md bg-surface-alt border border-border overflow-hidden ${onPreview ? "cursor-zoom-in" : ""}`}
+          title={onPreview ? `${a.name}（点击查看原图）` : a.name}
+          onClick={() => { if (onPreview && a.dataUrl) onPreview(a.dataUrl, a.name); }}
+        >
+          <img src={a.dataUrl} className="w-full h-full object-contain transition-opacity group-hover:opacity-85" alt={a.name} />
           <button
             type="button"
             className="absolute top-0 right-0 w-5 h-5 rounded-tr-md border-l border-b border-border bg-surface-alt/95 text-text-secondary hover:text-danger transition-colors flex items-center justify-center text-[length:var(--text-11)] leading-none"
-            onClick={() => removeAttach(i)}
+            onClick={(e) => removeAttach(i, e)}
             title="移除图片"
           >✕</button>
         </div>
@@ -63,7 +78,7 @@ function AttachPreview_({ attaches, setAttaches }: { attaches: AttachItem[]; set
           <button
             type="button"
             className="absolute top-0 right-0 w-5 h-5 rounded-tr-md border-l border-b border-border bg-surface-alt/95 text-text-secondary hover:text-danger transition-colors flex items-center justify-center text-[length:var(--text-11)] leading-none"
-            onClick={() => removeAttach(i)}
+            onClick={(e) => removeAttach(i, e)}
             title="移除文档"
           >✕</button>
         </div>
@@ -75,7 +90,7 @@ export const AttachPreview = memo(AttachPreview_);
 
 export const ChatInput = memo(function ChatInput({
   busy, attaches, setAttaches, onSend, onStop, onPaste,
-  imgInputRef, docInputRef, onImgChange, onDocChange,
+  imgInputRef, docInputRef, onImgChange, onDocChange, onPreviewImage,
   permissionMode, onPermissionModeChange, chatModel, onModelChange,
   thinkingLevel, thinkingCapped, thinkingLevels, onThinkingLevelChange,
   sessionId, onStatsClick,
@@ -187,7 +202,7 @@ export const ChatInput = memo(function ChatInput({
       )}
       {/* 上半：输入框 */}
       <div className="input-top">
-        {!busy && attaches.length > 0 && <AttachPreview attaches={attaches} setAttaches={setAttaches} />}
+        {!busy && attaches.length > 0 && <AttachPreview attaches={attaches} setAttaches={setAttaches} onPreview={onPreviewImage} />}
         <textarea
           ref={textareaRef}
           value={input}
