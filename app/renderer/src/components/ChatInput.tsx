@@ -120,18 +120,20 @@ export const ChatInput = memo(function ChatInput({
   const indicatorOrder = useDelegationStore((s) => s.order);
   const ctxPct = useStatusStore((s) => s.bySession[sessionId]?.ctxPct ?? null);
   const summarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
-  // 本会话平均缓存命中率：全部消息 usage 累加（cacheRead / (未缓存输入 + cacheRead)）——口径同单条显示。
+  // 本会话平均缓存命中率：全部消息 usage 累加（缓存读 / 全部输入 = 未缓存 + 缓存读 + 缓存写）——口径同单条显示。
   // selector 直接返回 store 引用（不建新数组——zustand 快照比较要求引用稳定，否则无限循环）
   const sessionMsgsRaw = useChatStore((s) => s.messagesBySession[sessionId]);
   const sessionMsgs = sessionMsgsRaw ?? EMPTY_MSGS;
   const cacheRate = useMemo(() => {
-    let read = 0, uncached = 0;
+    let read = 0, uncached = 0, write = 0;
     for (const m of sessionMsgs) {
       const u = m.usage;
       if (u?.cacheReadTokens) read += u.cacheReadTokens;
+      if (u?.cacheWriteTokens) write += u.cacheWriteTokens;
       if (u?.inputTokens) uncached += u.inputTokens;
     }
-    return read + uncached > 0 ? ((read / (read + uncached)) * 100).toFixed(2) : null;
+    const total = read + uncached + write;
+    return total > 0 ? ((read / total) * 100).toFixed(2) : null;
   }, [sessionMsgs]);
   const compacting = useStatusStore((s) => s.bySession[sessionId]?.compacting ?? false);
   const inputDisabled = summarizing || compacting;
