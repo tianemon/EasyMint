@@ -355,12 +355,12 @@ interface ElectronAPI {
     start: (projectPath: string, commandId: string, port?: number) => Promise<void>;
     stop: (commandId: string) => Promise<void>;
     restart: (projectPath: string, commandId: string) => Promise<void>;
-    status: (commandId: string) => Promise<{ running: boolean; pid?: number; run_command?: string; output: string[] }>;
+    status: (commandId: string) => Promise<{ running: boolean; pid?: number; run_command?: string; output: string[]; ready?: boolean }>;
     runningIds: () => Promise<string[]>;
     checkPort: (port: number) => Promise<{ free: boolean; pid?: number; name?: string }>;
     killPort: (port: number) => Promise<boolean>;
     onOutput: (callback: (data: { commandId: string; line: string; stream: string }) => void) => () => void;
-    onStatusChanged: (callback: (data: { commandId: string; running: boolean }) => void) => () => void;
+    onStatusChanged: (callback: (data: { commandId: string; running: boolean; ready?: boolean }) => void) => () => void;
     onRunJsonChanged: (callback: () => void) => () => void;
   };
   evaluator: {

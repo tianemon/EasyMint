@@ -242,7 +242,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
   // 监听状态变更
   useEffect(() => {
     const off = window.electronAPI?.process?.onStatusChanged?.((data) => {
-      setRunning(data.commandId, data.running);
+      setRunning(data.commandId, data.running, data.ready);
       if (!data.running) loadStatus(data.commandId);
     });
     return () => { off?.(); };
@@ -282,16 +282,21 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
               const portBusy = ps && !ps.free;
               const canStart = !st.running && !portBusy;
               return (
-                <div key={r.id} className={`rounded-lg border px-2.5 py-2 transition-colors ${st.running ? "border-success-border bg-success-soft" : "border-border"}`}>
-                  {/* 第一行：标题（hover 滚动完整显示，点击编辑脚本）+ 运行状态 */}
+                <div key={r.id} className={`rounded-lg border px-2.5 py-2 transition-colors ${st.running ? (r.url && !st.ready ? "border-warning-border bg-warning-soft" : "border-success-border bg-success-soft") : "border-border"}`}>
+                  {/* 第一行：标题（hover 滚动完整显示，点击编辑脚本）+ 运行状态（url 配置的服务就绪前显示「启动中」） */}
                   <div className="flex items-center gap-1.5">
                     <TitleMarquee text={r.label} onClick={() => setEditing({ r, runnables })} />
-                    {st.running && (
+                    {st.running && (r.url && !st.ready ? (
+                      <span className="text-[length:var(--text-3xs)] text-warning flex items-center gap-1 shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
+                        启动中…
+                      </span>
+                    ) : (
                       <span className="text-[length:var(--text-3xs)] text-success flex items-center gap-1 shrink-0">
                         <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                         PID {st.pid}
                       </span>
-                    )}
+                    ))}
                   </div>
                   {/* 第二行：平台标签（按命令首词推断）+ URL（命令不再显示，编辑弹窗中查看） */}
                   <div className="flex items-center gap-1.5 mt-0.5">

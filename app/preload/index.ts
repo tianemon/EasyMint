@@ -194,7 +194,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("process:output", handler);
       return () => ipcRenderer.removeListener("process:output", handler);
     },
-    onStatusChanged: (callback: (data: { commandId: string; running: boolean }) => void) => {
+    onStatusChanged: (callback: (data: { commandId: string; running: boolean; ready?: boolean }) => void) => {
       const handler = (_e: Electron.IpcRendererEvent, data: { commandId: string; running: boolean }) => callback(data);
       ipcRenderer.on("process:status-changed", handler);
       return () => ipcRenderer.removeListener("process:status-changed", handler);

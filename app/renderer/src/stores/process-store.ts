@@ -21,6 +21,8 @@ interface CmdState {
   running: boolean;
   pid?: number;
   logs: string[];
+  /** 服务就绪（有 url 配置时由主进程 HTTP 探测广播） */
+  ready?: boolean;
 }
 
 interface ProcessState {
@@ -33,7 +35,7 @@ interface ProcessState {
   restart: (projectPath: string, commandId: string) => Promise<void>;
   loadStatus: (commandId: string) => Promise<void>;
   appendLog: (commandId: string, line: string) => void;
-  setRunning: (commandId: string, running: boolean) => void;
+  setRunning: (commandId: string, running: boolean, ready?: boolean) => void;
   openLog: (commandId: string) => void;
   closeLog: () => void;
 }
@@ -96,7 +98,7 @@ export const useProcessStore = create<ProcessState>((set, get) => ({
       set((s) => {
         const cur = s.cmdStates[commandId] || { running: false, logs: [] };
         // 主进程返回空输出(进程已退出,内存 map 已删)→ 保留前端已有日志,不覆盖成空
-        return { cmdStates: { ...s.cmdStates, [commandId]: { running: st.running, pid: st.pid, logs: st.output.length > 0 ? st.output : cur.logs } } };
+        return { cmdStates: { ...s.cmdStates, [commandId]: { running: st.running, pid: st.pid, ready: st.ready, logs: st.output.length > 0 ? st.output : cur.logs } } };
       });
     } catch { /* ignore */ }
   },
@@ -108,13 +110,13 @@ export const useProcessStore = create<ProcessState>((set, get) => ({
     return { cmdStates: { ...s.cmdStates, [commandId]: { ...cur, logs } } };
   }),
 
-  setRunning: (commandId, running) => set((s) => {
+  setRunning: (commandId, running, ready) => set((s) => {
     const cur = s.cmdStates[commandId] || { running: false, logs: [] };
     if (!running) {
       // 进程退出，日志保留（用户还能看），但状态变 false
-      return { cmdStates: { ...s.cmdStates, [commandId]: { ...cur, running: false, pid: undefined } } };
+      return { cmdStates: { ...s.cmdStates, [commandId]: { ...cur, running: false, pid: undefined, ready: undefined } } };
     }
-    return { cmdStates: { ...s.cmdStates, [commandId]: { ...cur, running: true } } };
+    return { cmdStates: { ...s.cmdStates, [commandId]: { ...cur, running: true, ready } } };
   }),
 
   openLog: (commandId) => set({ activeLogId: commandId }),

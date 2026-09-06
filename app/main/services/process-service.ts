@@ -7,6 +7,7 @@
 import { spawn, execSync, type ChildProcess } from "child_process";
 import { existsSync, readFileSync, writeFileSync, watch } from "node:fs";
 import { join } from "node:path";
+import http from "node:http";
 import { BrowserWindow } from "electron";
 import { resolveHome } from "../utils/paths";
 import { createCodingAwareDecoder } from "./background-shell/encoding";
@@ -34,6 +35,8 @@ export interface ProcessStatus {
   pid?: number;
   run_command?: string;
   output: string[];
+  /** 服务就绪（有 url 配置时：HTTP 探测 2xx/3xx；无 url 的进程不参与 ready 语义） */
+  ready?: boolean;
 }
 
 interface ProcessInfo {
@@ -43,6 +46,11 @@ interface ProcessInfo {
   output: string[];
   /** close 后存活探测轮询：bash 退出但 detached 组内进程仍在运行时挂起，组死亡后清理 */
   monitorTimer?: NodeJS.Timeout;
+  /** 服务就绪探测（run.json 配置了 url 时启用）：进程在跑 ≠ 服务已起，HTTP 200 才亮绿灯 */
+  url?: string;
+  ready?: boolean;
+  readyTimer?: NodeJS.Timeout;
+  readyNotified?: boolean;
 }
 
 const processes = new Map<string, ProcessInfo>(); // key = run_command
@@ -63,9 +71,9 @@ function broadcast(commandId: string, line: string, stream: "stdout" | "stderr")
   }
 }
 
-function broadcastStatus(commandId: string, running: boolean): void {
+function broadcastStatus(commandId: string, running: boolean, ready?: boolean): void {
   for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send("process:status-changed", { commandId, running });
+    if (!win.isDestroyed()) win.webContents.send("process:status-changed", { commandId, running, ready });
   }
 }
 
@@ -214,6 +222,36 @@ export function startProcess(projectPath: string, commandId: string, port?: numb
     broadcast(commandId, line, stream);
   };
 
+  // 服务就绪探测：进程在跑 ≠ 服务已起——配置了 url 则轮询 HTTP 2xx/3xx（就绪停；
+  // 未就绪每 5s 探测直到退出——dev server 启动慢/端口冲突都靠它显性化，「成功可见」）
+  const url = config?.url?.trim();
+  if (url) {
+    info.url = url;
+    info.ready = false;
+    info.readyTimer = setInterval(() => {
+      const current = processes.get(commandId);
+      if (!current || current !== info) {
+        if (info.readyTimer) clearInterval(info.readyTimer);
+        return;
+      }
+      const req = http.get(url, { timeout: 3000 }, (res) => {
+        res.resume();
+        const ok = res.statusCode !== undefined && res.statusCode >= 200 && res.statusCode < 400;
+        if (ok) {
+          if (info.readyTimer) clearInterval(info.readyTimer);
+          info.ready = true;
+          if (!info.readyNotified) {
+            info.readyNotified = true;
+            pushLog(`[服务已就绪: ${url}]`, "stdout");
+          }
+          broadcastStatus(commandId, true, true);
+        }
+      });
+      req.on("timeout", () => req.destroy());
+      req.on("error", () => { /* 服务未起，继续探测 */ });
+    }, 5000);
+  }
+
   // 流式解码（chunk 截断多字节字符不再 U+FFFD）；ANSI 保留原文——
   // 前端日志渲染 ansiToHtml 转彩色（终端体验），不再剥离
   const outDec = createCodingAwareDecoder();
@@ -235,6 +273,7 @@ export function startProcess(projectPath: string, commandId: string, port?: numb
         clearInterval(info.monitorTimer);
         if (processes.get(commandId) === info) {
           processes.delete(commandId);
+          if (info.readyTimer) clearInterval(info.readyTimer);
           broadcast(commandId, "[进程已退出]", "stdout");
           broadcastStatus(commandId, false);
         }
@@ -242,6 +281,7 @@ export function startProcess(projectPath: string, commandId: string, port?: numb
       return;
     }
     processes.delete(commandId);
+    if (info.readyTimer) clearInterval(info.readyTimer);
     broadcast(commandId, "[进程已退出]", "stdout");
     broadcastStatus(commandId, false);
   });
@@ -250,6 +290,7 @@ export function startProcess(projectPath: string, commandId: string, port?: numb
     // spawn 失败：清理 Map + 广播 false（此前只写日志，Map 残留导致状态永远显示运行中）
     if (processes.get(commandId) === info) {
       processes.delete(commandId);
+      if (info.readyTimer) clearInterval(info.readyTimer);
       broadcastStatus(commandId, false);
     }
   });
@@ -261,6 +302,7 @@ export function stopProcess(commandId: string): void {
   const info = processes.get(commandId);
   if (!info) return;
   if (info.monitorTimer) clearInterval(info.monitorTimer);
+  if (info.readyTimer) clearInterval(info.readyTimer);
   try {
     if (process.platform === "win32") {
       spawn("taskkill", ["/pid", String(info.pid), "/T", "/F"]);
@@ -292,7 +334,7 @@ export async function restartProcess(projectPath: string, commandId: string): Pr
 export function getStatus(commandId: string): ProcessStatus {
   const info = processes.get(commandId);
   if (!info) return { running: false, output: [] };
-  return { running: true, pid: info.pid, run_command: info.run_command, output: [...info.output] };
+  return { running: true, pid: info.pid, run_command: info.run_command, output: [...info.output], ready: info.ready };
 }
 
 /** 获取所有运行中命令的 commandId */
