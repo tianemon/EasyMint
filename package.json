@@ -162,6 +162,13 @@
       "category": "Development",
       "icon": "assets/icon.png",
       "artifactName": "${productName}-linux-${arch}.${ext}"
+    },
+    "deb": {
+      "depends": [
+        "bubblewrap",
+        "socat",
+        "ripgrep"
+      ]
     }
   }
 }
