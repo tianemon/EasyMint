@@ -144,8 +144,8 @@ html[data-platform="win32"] {
   /* 角色选择器文字态:亮色选中=主色黑、未选中=次级灰;暗色选中=白、未选中=灰(见 dark 块覆盖) */
   --color-role-selected: var(--color-text-primary);
   --color-role-idle: var(--color-text-secondary);
-  --color-tooltip-bg: #1a1a1a;
-  --color-tooltip-text: #ffffff;
+  --color-tooltip-bg: #fdfdfd;
+  --color-tooltip-text: #1a1a1a;
 
   /* ── Text（中性灰，对齐原型 --fg 系列）────────────── */
   --color-text-primary: #1a1a1a;
