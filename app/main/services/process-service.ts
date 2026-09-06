@@ -102,7 +102,9 @@ function readRunJson(projectPath: string): Runnable[] {
       });
     }
     return result;
-  } catch {
+  } catch (e) {
+    // 损坏 run.json 按无脚本处理、文件保留（等待下次保存重建）——不自动删除：与 Mint 写入窗口重叠时可能误伤半截但正在落盘的文件
+    console.error(`[process] run.json 解析失败，运行面板按无脚本展示: ${runJson}`, e);
     return [];
   }
 }
