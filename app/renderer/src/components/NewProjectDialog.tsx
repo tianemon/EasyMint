@@ -7,6 +7,14 @@ import { useMintChat } from "./new-project/useMintChat";
 
 // ---- Helpers ----
 
+/** IPC 错误剥壳：invoke 抛错被 Electron 包装成 "Error invoking remote method 'x': Error: 中文"，
+ *  去掉包装只留业务文案（技术报错不展示原始堆栈） */
+function cleanIpcError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  const m = msg.match(/^Error invoking remote method '[^']+': (?:Error: )?([\s\S]+)$/);
+  return (m?.[1]?.trim() || msg).trim() || "创建项目失败";
+}
+
 function actualStepNumber(visibleSteps: typeof ALL_STEPS, currentIndex: number): number {
   return visibleSteps[currentIndex]?.number ?? 1;
 }
@@ -243,8 +251,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
       const initPrompt = buildInitTriggerPrompt(project.path, buildContext(data), buildInitInstruction(profile), data.targets);
       await launchSession(project, initPrompt, systemMessage("project-created", initPrompt));
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "创建项目失败";
-      setCreateError(msg);
+      setCreateError(cleanIpcError(e));
       console.error("[NewProjectDialog] create failed:", e);
     } finally {
       setInitializing(false);
@@ -272,8 +279,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
       const directPrompt = buildDirectCreatePrompt(data.name, buildDirectCreateContext(data));
       await launchSession(project, directPrompt, systemMessage("direct-create", directPrompt));
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "创建项目失败";
-      setCreateError(msg);
+      setCreateError(cleanIpcError(e));
       console.error("[NewProjectDialog] direct create failed:", e);
     } finally {
       setInitializing(false);
