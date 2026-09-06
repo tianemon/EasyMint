@@ -51,7 +51,17 @@ export class ProjectService {
   create(opts: { name: string; path: string }): Project {
     const projects = this.store.getProjects();
     const basePath = resolveHome(opts.path);
+    // 名称含路径分隔符会解析成嵌套目录（用户可能从翻译/粘贴带入）——先拒绝再解析
+    if (/[\\/]/.test(opts.name)) {
+      throw new Error(`项目名称不能包含路径分隔符：${opts.name}`);
+    }
     const resolvedPath = path.resolve(basePath, opts.name);
+    const targetDir = resolvedPath;
+    // 目录冲突防护：已存在且非空 = 拒绝创建——静默把模板合进既有目录会造成不可逆数据污染
+    //（曾发生：重复创建同名项目 → 旧内容混入模板；空目录已存在则允许（可复用预建目录））
+    if (fs.existsSync(targetDir) && fs.readdirSync(targetDir).length > 0) {
+      throw new Error(`目标目录已存在且非空，创建已取消：${targetDir}——请换一个项目名称或目录`);
+    }
     const project: Project = {
       id: randomUUID(),
       name: opts.name,
@@ -62,10 +72,7 @@ export class ProjectService {
       description: "",
     };
 
-    const targetDir = resolvedPath;
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
-    }
+    fs.mkdirSync(targetDir, { recursive: true });
     this.copyTemplate(targetDir);
 
     projects.push(project);
