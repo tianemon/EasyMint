@@ -122,7 +122,7 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
                   type="button"
                   onClick={onCompress}
                   className="update-install-btn"
-                  title="整理当前会话上下文，释放上下文空间"
+                 
                 >
                   压缩会话
                 </button>

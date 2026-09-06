@@ -163,7 +163,7 @@ export function Sidebar({
           </span>
         </div>
         <div className="sb-plus-wrap" ref={plusWrapRef}>
-          <button className="sb-plus-btn" title="新建…" onClick={() => setPlusOpen(!plusOpen)}>
+          <button className="sb-plus-btn" onClick={() => setPlusOpen(!plusOpen)}>
             {/* SVG 加号:精确居中(替代文字 + 的基线偏移) */}
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="w-3.5 h-3.5">
               <path d="M8 3.5v9M3.5 8h9" />
@@ -260,7 +260,7 @@ export function Sidebar({
         <div className="sb-foot-bottom">
           {/* 左组:设置 + 重启升级(下载完成后显示,同款图标按钮) */}
           <div className="relative inline-flex gap-1">
-            <button className={`sb-foot-btn ${showDot ? "has-dot" : ""}`} onClick={handleSettings} title="设置">
+            <button className={`sb-foot-btn ${showDot ? "has-dot" : ""}`} onClick={handleSettings}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
             </button>
             {/* 下载完成 → 「重启升级」文字按钮(比背景略亮的灰,略矮):点击直接执行安装;点设置按钮后消失 */}
@@ -268,7 +268,7 @@ export function Sidebar({
               <button
                 className="update-install-btn"
                 onClick={() => { window.electronAPI?.app?.installUpdate?.(); }}
-                title="重启并升级"
+               
               >
                 重启升级
               </button>
@@ -278,11 +278,11 @@ export function Sidebar({
           <button
             className={`sb-foot-btn ${toolboxOpen ? "bg-surface-hover" : ""}`}
             onClick={() => setToolboxOpen((v) => !v)}
-            title="工具箱"
+           
           >
             <svg width="17" height="17" viewBox="0 0 256 256" fill="currentColor"><path d="M224,64H176V56a24,24,0,0,0-24-24H104A24,24,0,0,0,80,56v8H32A16,16,0,0,0,16,80V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V80A16,16,0,0,0,224,64ZM96,56a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96ZM224,80v32H192v-8a8,8,0,0,0-16,0v8H80v-8a8,8,0,0,0-16,0v8H32V80Zm0,112H32V128H64v8a8,8,0,0,0,16,0v-8h96v8a8,8,0,0,0,16,0v-8h32v64Z"/></svg>
           </button>
-          <button className="sb-foot-btn" onClick={toggleTheme} title={mode === "light" ? "亮色" : mode === "dark" ? "暗色" : "自动"}>
+          <button className="sb-foot-btn" onClick={toggleTheme} >
             {mode === "light" ? (
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
             ) : mode === "dark" ? (

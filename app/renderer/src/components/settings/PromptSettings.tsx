@@ -144,7 +144,7 @@ export function PromptSettings(): JSX.Element {
                   <button
                     className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent shrink-0"
                     onClick={(e) => { e.stopPropagation(); handleSetDefault(prompt.id); }}
-                    title="设为默认"
+                   
                   >
                     默认
                   </button>

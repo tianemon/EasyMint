@@ -113,7 +113,7 @@ function SkillRow({ s, stat, onToggle, onDelete }: {
           {noDesc && (
             <span
               className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-danger-soft text-danger shrink-0"
-              title="SKILL.md 缺 description——不会出现在会话的技能列表，补全后自动恢复"
+             
             >缺描述</span>
           )}
           {stale && (
@@ -1021,29 +1021,29 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
                       <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-surface text-text-muted shrink-0">{typeLabel(s.type)}</span>
                       <span
                         className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded shrink-0 ${s.scope === "user" ? "bg-surface text-text-muted" : "bg-info-soft text-info"}`}
-                        title={s.scope === "project-compat" ? "来自项目根 .mcp.json（只读兼容 Claude Code）" : s.scope === "project" ? "项目级配置（<项目>/.easymint/mcp.json）" : "用户级配置（~/.easymint/mcp.json）"}
+                        
                       >
                         {s.scope === "user" ? "用户级" : s.scope === "project" ? "项目级" : "项目 .mcp.json"}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {s.pendingApproval && (
-                        <button type="button" onClick={() => handleApprove(s.name)} title="确认后启用"
+                        <button type="button" onClick={() => handleApprove(s.name)}
                           className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] bg-warning-soft text-warning hover:bg-warning/20 transition-colors">
                           待确认
                         </button>
                       )}
                       {statuses[s.name]?.state === "failed" && s.enabled && (
-                        <button type="button" onClick={() => handleRetry(s.name)} title="重试连接"
+                        <button type="button" onClick={() => handleRetry(s.name)}
                           className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
                           重试
                         </button>
                       )}
-                      <button type="button" onClick={() => handleEdit(s.name, s.scope)} title="编辑"
+                      <button type="button" onClick={() => handleEdit(s.name, s.scope)}
                         className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
                         编辑
                       </button>
-                      <button type="button" onClick={() => handleDelete(s.name, s.scope)} title="删除"
+                      <button type="button" onClick={() => handleDelete(s.name, s.scope)}
                         className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] text-text-secondary hover:text-danger hover:bg-surface-hover transition-colors">
                         删除
                       </button>

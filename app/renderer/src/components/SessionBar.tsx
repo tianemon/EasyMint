@@ -73,7 +73,7 @@ export function SessionBar(props: SessionBarProps): JSX.Element {
       {/* 归档按钮(仅时钟图标) */}
       <button
         className={`flex items-center justify-center w-6 h-6 rounded-md transition-colors ${showArchive ? "bg-surface-hover text-text-primary" : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"}`}
-        title="归档会话"
+       
         onClick={() => { setShowArchive(!showArchive); }}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -82,7 +82,7 @@ export function SessionBar(props: SessionBarProps): JSX.Element {
       {/* 新建按钮:直接新建会话(无菜单) */}
       <button
         className="flex items-center justify-center w-[26px] h-[26px] rounded-md text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
-        title="新建会话"
+       
         onClick={() => { onNewSession?.(); setShowArchive(false); }}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-[15px] h-[15px]">
@@ -101,7 +101,7 @@ export function SessionBar(props: SessionBarProps): JSX.Element {
                 key={s.sessionId}
                 className="group flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
                 onClick={() => { onSessionClick?.(s.sessionId); setShowArchive(false); }}
-                title="打开会话"
+               
               >
                 <div className="flex-1 min-w-0 leading-tight">
                   <div className="text-xs text-text-primary truncate">{s.title}</div>
@@ -110,7 +110,7 @@ export function SessionBar(props: SessionBarProps): JSX.Element {
                 <button
                   type="button"
                   className="shrink-0 px-1.5 py-0.5 rounded-md text-[length:var(--text-11)] text-text-secondary border border-border/50 bg-surface/60 hover:text-text-primary hover:bg-surface-hover transition-all opacity-0 group-hover:opacity-100"
-                  title="恢复到会话列表"
+                 
                   onClick={(e) => { e.stopPropagation(); handleRestore(s.sessionId); }}
                 >
                   恢复

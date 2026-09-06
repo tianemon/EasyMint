@@ -50,7 +50,7 @@ export function GlowGroupManager({ groups, activeId, onChangeGroups, onChangeAct
                 ? "border-accent bg-accent-soft text-accent font-medium"
                 : "border-border bg-surface text-text-secondary hover:bg-surface-hover"
             }`}
-            title={`点击启用「${g.name}」`}
+            
           >
             {g.name}
             {!g.isBuiltin && (
@@ -58,7 +58,7 @@ export function GlowGroupManager({ groups, activeId, onChangeGroups, onChangeAct
                 type="button"
                 onClick={(e) => { e.stopPropagation(); removeGroup(g.id); }}
                 className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-surface border border-border text-text-muted hover:text-danger text-[length:var(--text-4xs)] flex items-center justify-center opacity-0 group-hover/g:opacity-100 transition-opacity"
-                title="删除该组"
+               
               >✕</button>
             )}
           </span>
@@ -68,7 +68,7 @@ export function GlowGroupManager({ groups, activeId, onChangeGroups, onChangeAct
             type="button"
             onClick={addGroup}
             className="px-2 py-0.5 rounded-md border border-dashed border-border text-text-muted hover:text-text-secondary hover:border-accent text-[length:var(--text-11)] transition-colors"
-            title="添加新组"
+           
           >+ 添加</button>
         )}
       </div>

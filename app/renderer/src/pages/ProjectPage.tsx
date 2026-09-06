@@ -513,7 +513,7 @@ export function ProjectPage(): JSX.Element {
                       <button
                         className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-text-secondary hover:text-danger hover:bg-danger-bg transition-colors opacity-0 group-hover:opacity-100 text-[length:var(--text-11)]"
                         onClick={(e) => handleDeleteProject(e, p.id)}
-                        title={p.exists === false ? "删除记录" : "删除项目"}
+                        
                       >
                         ✕
                       </button>

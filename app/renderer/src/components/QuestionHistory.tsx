@@ -80,7 +80,7 @@ export function QuestionHistory({ sessionId, messages, onJump }: QuestionHistory
         ref={btnRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        title="提问记录"
+       
         className="no-drag absolute top-1 right-[18px] z-40 w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
       >
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
@@ -120,7 +120,7 @@ export function QuestionHistory({ sessionId, messages, onJump }: QuestionHistory
                     type="button"
                     onClick={() => setQuery("")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors"
-                    title="清空搜索"
+                   
                   >
                     <svg viewBox="0 0 14 14" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 3l8 8M11 3L3 11"/></svg>
                   </button>

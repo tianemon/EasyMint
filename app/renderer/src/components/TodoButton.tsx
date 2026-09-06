@@ -88,7 +88,7 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
       <button
         type="button"
         className="flex items-center gap-1.5 px-1.5 py-1 rounded-md text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
-        title="待办：想法与计划清单（.easymint/todos.json）"
+       
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
@@ -128,7 +128,7 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
                         ? "bg-accent border-accent text-white"
                         : "border-border hover:border-accent text-transparent"
                     }`}
-                    title={t.status === "done" ? "标记为未完成" : "标记为完成"}
+                    
                     onClick={() => toggle(t.id)}
                   >
                     <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
@@ -136,7 +136,7 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
                   <button
                     type="button"
                     className={`flex-1 min-w-0 text-left text-xs leading-relaxed break-words ${t.status === "done" ? "text-text-muted line-through" : "text-text-primary"}`}
-                    title={t.note ? "点击展开详情" : undefined}
+                    
                     onClick={() => setExpandedId((v) => (v === t.id ? null : t.id))}
                   >
                     {t.title}
@@ -144,7 +144,7 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
                   <button
                     type="button"
                     className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-danger transition-all shrink-0 mt-0.5"
-                    title="删除此待办"
+                   
                     onClick={() => remove(t.id)}
                   >
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>

@@ -144,7 +144,7 @@ function ImageViewer_({ view, onClose }: { view: ImageViewerState | null; onClos
       />
       <button
         type="button"
-        title="关闭（Esc）"
+       
         className="absolute top-4 right-4 w-9 h-9 rounded-full bg-surface-elevated/90 border border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover shadow-lg transition-colors flex items-center justify-center"
         onClick={(e) => { e.stopPropagation(); onClose(); }}
       >

@@ -353,7 +353,7 @@ function SessionItemRow({ session, active, isDesign, activeSessions, editingId, 
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-3.5 h-3.5 shrink-0 mr-2 text-text-muted"><circle cx="8" cy="8" r="6"/><path d="M8 4v5M8 8l2.5 2.5" strokeLinecap="round"/></svg>
       ) : (
         // 状态点:激活(主进程 activeChats 有该会话)=绿 / 未激活=灰白;设计会话菱形、普通圆
-        <span className={`w-[6px] h-[6px] shrink-0 mr-[-2px] ${activeSessions.has(session.sessionId) ? "bg-success" : "bg-dot-gray"} ${isDesign ? "rotate-45" : "rounded-full"}`} title={activeSessions.has(session.sessionId) ? "会话激活中" : "会话未激活"} />
+        <span className={`w-[6px] h-[6px] shrink-0 mr-[-2px] ${activeSessions.has(session.sessionId) ? "bg-success" : "bg-dot-gray"} ${isDesign ? "rotate-45" : "rounded-full"}`}  />
       )}
       <span className="flex-1 min-w-0 truncate">{session.title}</span>
       <span className="sb-item-meta">{fmtDate(session.updatedAt)}</span>

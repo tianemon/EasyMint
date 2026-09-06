@@ -52,7 +52,7 @@ export function AgentBar({ sessionId }: { sessionId?: string }): JSX.Element | n
         type="button"
         onClick={() => setExpanded((v) => !v)}
         className="agent-breath rounded-[8px] bg-success-soft px-2 py-0.5 text-[length:var(--text-11)] font-bold text-success cursor-pointer hover:bg-success-high"
-        title="AI 助手正在执行任务"
+       
       >
         任务•{agentTasks.length}
       </button>
@@ -74,7 +74,7 @@ export function AgentBar({ sessionId }: { sessionId?: string }): JSX.Element | n
                   type="button"
                   onClick={() => { setViewing({ delegationId: task.delegationId, index: task.index, title: task.title }); setExpanded(false); }}
                   className="truncate flex-1 text-left text-text-primary hover:text-accent transition-colors cursor-pointer"
-                  title={`查看「${task.title}」执行过程`}
+                  
                 >
                   {task.title}
                 </button>
@@ -82,7 +82,7 @@ export function AgentBar({ sessionId }: { sessionId?: string }): JSX.Element | n
                   type="button"
                   onClick={() => stopTask(task)}
                   className="shrink-0 px-2 py-0.5 rounded-[6px] border border-danger/40 text-danger hover:bg-danger-soft transition-colors"
-                  title="停止该任务"
+                 
                 >
                   停止
                 </button>

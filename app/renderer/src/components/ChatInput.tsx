@@ -67,7 +67,7 @@ function AttachPreview_({ attaches, setAttaches, onPreview }: AttachPreviewProps
         <div
           key={i}
           className={`group relative shrink-0 w-16 h-16 rounded-md bg-surface-alt border border-border overflow-hidden ${onPreview ? "cursor-zoom-in" : ""}`}
-          title={onPreview ? `${a.name}（点击查看原图）` : a.name}
+          
           onClick={() => { if (onPreview && a.dataUrl) onPreview(a.dataUrl, a.name); }}
         >
           <img src={a.dataUrl} className="w-full h-full object-contain transition-opacity group-hover:opacity-85" alt={a.name} />
@@ -97,7 +97,7 @@ export const ChatInput = memo(function ChatInput({
   projectPath, busy, attaches, setAttaches, onSend, onStop, onPaste,
   imgInputRef, docInputRef, onImgChange, onDocChange, onPreviewImage,
   permissionMode, onPermissionModeChange, chatModel, onModelChange,
-  thinkingLevel, thinkingCapped, thinkingLevels, onThinkingLevelChange,
+  thinkingLevel, thinkingCapped: _thinkingCapped, thinkingLevels, onThinkingLevelChange,
   sessionId, onStatsClick,
 }: ChatInputProps & { sessionId: string; onStatsClick: () => void }): JSX.Element {
   const [input, setInput] = useState("");
@@ -302,9 +302,7 @@ export const ChatInput = memo(function ChatInput({
           type="button"
           role="switch"
           aria-checked={permissionMode === "full"}
-          title={permissionMode === "full"
-            ? "完全访问：可读写当前项目之外的文件（用户目录仍禁止写入；系统核心与凭据目录禁止访问）"
-            : "标准：可读写当前项目内文件，可读取项目外普通位置（系统核心与凭据目录禁止访问，用户目录禁止写入）"}
+          
           onClick={() => onPermissionModeChange(permissionMode === "full" ? "standard" : "full")}
           className="flex items-center gap-1.5 shrink-0 group"
         >
@@ -325,11 +323,11 @@ export const ChatInput = memo(function ChatInput({
         <Select
           value={thinkingLevel}
           onChange={onThinkingLevelChange}
-          title={thinkingCapped ? `当前模型实际按「${THINKING_LABELS[thinkingCapped] ?? thinkingCapped}」运行（所选档位该模型不支持）` : "思考深度"}
+          
           options={(thinkingLevels && thinkingLevels.length > 0 ? THINKING_ORDER.filter((l) => thinkingLevels.includes(l)) : THINKING_ORDER)
             .map((l) => ({ value: l, label: THINKING_LABELS[l] ?? l }))}
         />
-        <div className="ctx-ring" title={ctxPct === null ? "上下文使用率未知（压缩后待新回复）" : `上下文使用率 ${Math.round(ctxPct)}%`} onClick={onStatsClick} style={{ cursor: "pointer" }}>
+        <div className="ctx-ring"  onClick={onStatsClick} style={{ cursor: "pointer" }}>
           <svg width="20" height="20" viewBox="0 0 20 20">
             <circle className="ctx-ring-track" cx="10" cy="10" r="8"/>
             <circle className="ctx-ring-fill" cx="10" cy="10" r="8"

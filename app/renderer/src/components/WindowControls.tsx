@@ -29,17 +29,17 @@ export function WindowControls(): JSX.Element | null {
     <div
       className="window-controls absolute top-0 right-0 z-10 flex select-none"
     >
-      <button type="button" className={`${btnCls} ${btnHover}`} title="最小化" onClick={() => { window.electronAPI.win.minimize(); }}>
+      <button type="button" className={`${btnCls} ${btnHover}`} onClick={() => { window.electronAPI.win.minimize(); }}>
         <svg width="12" height="12" viewBox="0 0 12 12"><rect x="1" y="5.5" width="10" height="1" fill="currentColor" /></svg>
       </button>
-      <button type="button" className={`${btnCls} ${btnHover}`} title={isMaximized ? "还原" : "最大化"} onClick={() => { window.electronAPI.win.maximize(); }}>
+      <button type="button" className={`${btnCls} ${btnHover}`}  onClick={() => { window.electronAPI.win.maximize(); }}>
         {isMaximized ? (
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="3.5" y="3.5" width="6" height="6" /><path d="M4.5 3.5v-1h5v5h-1" /></svg>
         ) : (
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2"><rect x="2" y="2" width="8" height="8" /></svg>
         )}
       </button>
-      <button type="button" className={`${btnCls} hover:bg-danger hover:text-white`} title="关闭" onClick={() => { window.electronAPI.win.close(); }}>
+      <button type="button" className={`${btnCls} hover:bg-danger hover:text-white`} onClick={() => { window.electronAPI.win.close(); }}>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"><path d="M2 2l8 8M10 2l-8 8" /></svg>
       </button>
     </div>

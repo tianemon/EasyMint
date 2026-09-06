@@ -225,7 +225,7 @@ export function FileTreeSelector({ files, onChange }: FileTreeSelectorProps): JS
               <polyline points="14 2 14 8 20 8" />
             </svg>
           )}
-          <span className="text-xs truncate flex-1 text-text-primary" title={node.relPath}>
+          <span className="text-xs truncate flex-1 text-text-primary" >
             {node.name}
           </span>
           <span className="shrink-0 text-[length:var(--text-2xs)] text-text-muted tabular-nums">

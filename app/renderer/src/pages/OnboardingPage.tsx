@@ -168,7 +168,7 @@ export function OnboardingPage(): JSX.Element {
             className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium disabled:opacity-40"
             disabled={!savedCfg}
             onClick={handleComplete}
-            title={!savedCfg ? "请先保存一个供应商配置" : undefined}
+            
           >
             进入工作台
           </button>

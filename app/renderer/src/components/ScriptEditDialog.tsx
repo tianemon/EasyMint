@@ -90,7 +90,7 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
       <div className="relative bg-surface rounded-xl border border-border shadow-2xl w-[760px] h-[600px] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-1.5 bg-surface-alt shrink-0">
           <span className="text-sm font-medium text-text-primary">编辑脚本</span>
-          <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} title="关闭">✕</button>
+          <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose}>✕</button>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto space-y-3 px-4 py-3">
           <div>

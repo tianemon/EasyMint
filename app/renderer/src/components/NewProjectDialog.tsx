@@ -326,7 +326,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
             <div className="flex gap-2">
               {/* S2：取消 = 丢弃草稿（落盘已移到最终创建，不再有「取消项目=删真目录」的歧义） */}
               <button className="ml-0.5 px-2 py-0 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={handleCancel}>取消</button>
-              <button className="px-2 py-0 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm disabled:opacity-50" disabled={initializing} onClick={handleDirectCreate} title="跳过表单，让 Mint 在对话里引导你补全信息">
+              <button className="px-2 py-0 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm disabled:opacity-50" disabled={initializing} onClick={handleDirectCreate}>
                 {initializing ? "创建中..." : "直接创建"}
               </button>
             </div>

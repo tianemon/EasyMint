@@ -14,7 +14,7 @@ function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
   return (
     <button
       onClick={handleCopy}
-      title="复制消息"
+     
       className="flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
     >
       {copied ? (
@@ -37,7 +37,7 @@ function PinBubbleBtn({ text, onPin, sid }: { text: string; onPin: (text: string
   return (
     <button
       onClick={handlePin}
-      title={pinned ? "已钉为便签" : "钉为便签"}
+      
       className="flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
     >
       {pinned ? (

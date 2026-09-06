@@ -1941,7 +1941,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
               showNewMsgRef.current = false;
               scrollToBottom();
             }}
-            title={showNewMsg ? "查看最新消息" : "回到底部"}
+            
           >
             {showNewMsg && <span>新消息</span>}
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v9M4.5 8.5L8 12l3.5-3.5"/></svg>
@@ -2092,7 +2092,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
                 type="button"
                 className={`flex items-center gap-1.5 px-[14px] pt-1.5 w-full text-left text-[length:var(--text-11)] text-text-secondary ${collapsible ? "hover:bg-surface-hover cursor-pointer select-none" : ""}`}
                 onClick={collapsible ? () => setSysExpanded((v) => !v) : undefined}
-                title={collapsible ? (collapsed ? "展开详情" : "收起") : undefined}
+                
               >
                 <svg className="shrink-0 text-info" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
                   <circle cx="8" cy="8" r="6.5" />

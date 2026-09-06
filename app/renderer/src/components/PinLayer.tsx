@@ -217,7 +217,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
         <span className="flex-1 text-xs font-medium text-text-primary truncate">{pin.title}</span>
         <button
           className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
-          title="折叠为贴纸"
+         
           onPointerDown={(e) => e.stopPropagation()}
           onClick={onMinimize}
         >
@@ -225,7 +225,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
         </button>
         <button
           className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
-          title="移除便签"
+         
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => usePinStore.getState().removePin(sessionId, pin.id)}
         >
@@ -242,7 +242,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
           key={dir}
           className={`absolute ${RESIZE_STYLES[dir]} z-10`}
           onPointerDown={onResizeStart(dir)}
-          title="调整大小"
+         
         />
       ))}
     </div>
@@ -338,7 +338,7 @@ function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX
         zIndex: getPinZ(pin.id) ?? (pin.z || 0), // 与卡片共用层级,贴纸/卡片层叠顺序一致
       }}
       data-pin-id={pin.id}
-      title={pin.title}
+      
       onPointerDown={onDragStart}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}

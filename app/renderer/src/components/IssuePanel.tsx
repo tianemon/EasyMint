@@ -112,7 +112,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
         <button
           className="ml-auto w-6 h-6 flex items-center justify-center rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
           onClick={openNew}
-          title="记录问题"
+         
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
         </button>
@@ -140,7 +140,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
           >
             <div className="flex items-center justify-between px-4 py-1.5 bg-surface-alt shrink-0">
               <span className="text-sm font-medium text-text-primary">{form.mode === "new" ? "记录问题" : "编辑问题"}</span>
-              <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setForm(null)} title="关闭">✕</button>
+              <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setForm(null)}>✕</button>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto space-y-3 px-4 py-3">
               <div>

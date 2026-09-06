@@ -49,7 +49,7 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
         type="button"
         onClick={() => setExpanded((v) => !v)}
         className="agent-breath info-glow rounded-[8px] bg-info-soft px-2 py-0.5 text-[length:var(--text-11)] font-bold text-info cursor-pointer hover:bg-info-high"
-        title="运行中的后台命令"
+       
       >
         命令•{shellTasks.length}
       </button>
@@ -71,7 +71,7 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
                   type="button"
                   onClick={() => { setViewing({ id: task.id, command: task.command, logPath: task.logPath }); setExpanded(false); }}
                   className="truncate flex-1 text-left font-mono text-text-primary hover:text-info transition-colors cursor-pointer"
-                  title={`查看「${task.command}」输出`}
+                  
                 >
                   {task.command}
                 </button>
@@ -83,7 +83,7 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
                     type="button"
                     onClick={() => stopShell(task.id)}
                     className="shrink-0 px-2 py-0.5 rounded-[6px] border border-danger/40 text-danger hover:bg-danger-soft transition-colors"
-                    title="停止该命令"
+                   
                   >
                     停止
                   </button>

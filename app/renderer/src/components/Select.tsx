@@ -12,7 +12,6 @@ interface SelectProps {
   value: string;
   onChange: (value: string) => void;
   options: SelectOption[];
-  title?: string;
   className?: string;
   /** block 模式:触发器撑满 + input 样式(表单字段用),否则紧凑 inp-sel */
   block?: boolean;
@@ -24,7 +23,7 @@ interface SelectProps {
 const MAX_PANEL_H = 280;
 
 /** 自绘下拉选择：触发器 + fixed 面板（与 ContextMenu 同风格），点击外部/Escape/失焦关闭 */
-export function Select({ value, onChange, options, title, className, block, placeholder, disabled }: SelectProps): JSX.Element {
+export function Select({ value, onChange, options, className, block, placeholder, disabled }: SelectProps): JSX.Element {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -92,7 +91,7 @@ export function Select({ value, onChange, options, title, className, block, plac
     <div ref={ref} className={`relative ${block ? "w-full" : "inline-block"} ${className ?? ""}`}>
       <button
         type="button"
-        title={title}
+        
         disabled={disabled}
         className={block
           ? `w-full flex items-center justify-between px-3 py-2 rounded-lg bg-surface border border-border text-text-primary text-sm outline-none transition-colors ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-accent-border-strong"}`

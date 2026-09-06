@@ -38,7 +38,7 @@ function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevi
           type="button"
           className="text-[length:var(--text-2xs)] px-2 py-1 rounded bg-accent-soft text-accent hover:bg-accent hover:text-text-inverse transition-colors shrink-0"
           onClick={() => onConnect(device.id)}
-          title="手动连接该设备"
+         
         >
           连接
         </button>
@@ -48,7 +48,7 @@ function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevi
           type="button"
           className="text-[length:var(--text-2xs)] px-2 py-1 rounded bg-accent-soft text-accent hover:bg-accent hover:text-text-inverse transition-colors shrink-0"
           onClick={() => onSend(device.id)}
-          title="向该设备迁移项目"
+         
         >
           迁移
         </button>
@@ -215,7 +215,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                 type="button"
                 onClick={() => (pairMode ? stopPair() : startPair())}
                 className={`w-9 h-5 rounded-full transition-colors relative ${pairMode ? "bg-accent" : "bg-border"}`}
-                title={pairMode ? "关闭可被发现" : "开启可被发现(1 分钟后自动关闭)"}
+                
               >
                 <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${pairMode ? "left-4" : "left-0.5"}`} />
               </button>

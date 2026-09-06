@@ -29,7 +29,7 @@ function ChatThinkingLevelSection(): JSX.Element {
           value={chatThinkingLevel}
           onChange={setChatThinkingLevel}
           options={CHAT_THINKING_OPTIONS}
-          title="全局思考等级"
+         
         />
         <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">仅作为新聊天会话的初始默认值，也是标准委派子 Agent 的参考；Agent 模板以模板配置为准；模型不支持所选等级时自动适配到该模型最接近的支持档位，已打开的聊天可在输入栏临时切换。</p>
       </div>

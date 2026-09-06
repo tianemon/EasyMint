@@ -215,13 +215,13 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
             <div>
               <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">供应商(可选)</label>
               <Select block placeholder="留空用全局默认" value={provider} onChange={setProvider}
-                options={providerOptions} title="选择供应商" />
+                options={providerOptions} />
             </div>
             <div>
               <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">模型 id(可选)</label>
               {providerModels.length > 0 ? (
                 <Select block placeholder={loadingProviderModels ? "加载中…" : "选择模型"} value={model} onChange={setModel}
-                  options={providerModels.map((m) => ({ value: m, label: m }))} title="选择模型" />
+                  options={providerModels.map((m) => ({ value: m, label: m }))} />
               ) : (
                 <input className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
                   placeholder="如 deepseek-v4-flash" value={model} onChange={(e) => setModel(e.target.value)} />
@@ -231,7 +231,7 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
           <div>
             <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">思考级别</label>
             <Select block value={thinkingLevel} onChange={setThinkingLevel}
-              options={THINKING_LEVELS} title="思考级别" />
+              options={THINKING_LEVELS} />
           </div>
         </>
       )}

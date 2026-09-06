@@ -134,7 +134,7 @@ function TitleRow({ task }: { task: DelegationTaskUi }): JSX.Element {
       <div
         className="flex items-center gap-2 px-3 py-1.5 cursor-pointer"
         onClick={() => setExpanded(!expanded)}
-        title={expanded ? "收起" : "展开完整内容"}
+        
       >
         <StatusIcon status={task.status} />
         <span className={`flex-1 min-w-0 truncate font-medium ${task.status === "completed" ? "text-text-secondary" : "text-text-primary"}`}>

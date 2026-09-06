@@ -41,7 +41,7 @@ export const TodoStrip = memo(function TodoStrip({ sessionId }: { sessionId: str
           type="button"
           onClick={() => setExpanded((v) => !v)}
           className="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-1.5 text-left"
-          title={expanded ? "收起任务进度" : "展开任务进度（Mint 当前步骤追踪）"}
+          
         >
           <span className="text-[length:var(--text-2xs)] px-1.5 py-px rounded-full bg-accent-soft text-accent leading-tight shrink-0">任务 {done}/{todos.length}</span>
           <span className={`flex-1 min-w-0 truncate text-xs ${current ? "text-text-primary" : "text-text-secondary"}`}>
@@ -53,7 +53,7 @@ export const TodoStrip = memo(function TodoStrip({ sessionId }: { sessionId: str
         <button
           type="button"
           className="shrink-0 px-1.5 py-1.5 text-text-muted hover:text-text-primary transition-colors"
-          title="关闭任务进度条（新任务开始后自动恢复）"
+         
           onClick={() => setDismissed(true)}
         >
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -61,7 +61,7 @@ export const TodoStrip = memo(function TodoStrip({ sessionId }: { sessionId: str
         <button
           type="button"
           className="shrink-0 pr-2 py-1.5 text-text-muted hover:text-text-primary transition-colors"
-          title={expanded ? "收起" : "展开"}
+          
           onClick={() => setExpanded((v) => !v)}
         >
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${expanded ? "rotate-180" : ""}`}><path d="M6 9l6 6 6-6"/></svg>

@@ -51,7 +51,7 @@ export function LearnCard({ request }: Props): JSX.Element {
         <button
           type="button"
           onClick={() => respond(false)}
-          title="取消（不入库）"
+         
           className="w-5 h-5 flex items-center justify-center rounded-md text-text-secondary hover:text-danger hover:bg-surface-hover transition-colors"
         >
           <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>

@@ -148,7 +148,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
           value={presetId}
           onChange={handlePresetSelect}
           options={SELF_PROVIDER_OPTIONS}
-          title="选择供应商"
+         
         />
       </div>
 
@@ -212,7 +212,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
           value={model}
           onChange={(v: string) => setModel(v)}
           options={availableModels.map((m) => ({ value: m, label: m }))}
-          title="选择模型"
+         
         />
         {availableModels.length > 0 && <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">共 {availableModels.length} 个模型可选</p>}
       </div>
@@ -258,7 +258,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
           <div className="bg-surface-alt rounded-lg border border-border px-2.5 py-2 max-h-52 overflow-y-auto space-y-1.5">
             {availableModels.map((m) => (
               <div key={m} className="flex items-center gap-2">
-                <span className="flex-1 min-w-0 truncate text-[length:var(--text-2xs)] text-text-primary" title={m}>{m}</span>
+                <span className="flex-1 min-w-0 truncate text-[length:var(--text-2xs)] text-text-primary" >{m}</span>
                 <select
                   className="em-input shrink-0 w-[104px] h-7 px-1.5 text-[length:var(--text-2xs)] text-text-primary"
                   value={modelLevels[m] || ""}
@@ -309,7 +309,7 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
           value={subagentDefaultModel}
           onChange={(v: string) => setSubagentDefaultModel(v)}
           options={availableModels.map((m) => ({ value: m, label: m }))}
-          title="选择子 Agent 默认模型"
+         
         />
       </div>
 

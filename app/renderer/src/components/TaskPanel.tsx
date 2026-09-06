@@ -32,7 +32,7 @@ function TaskRow({ task, runningExec }: { task: { id: string; title: string; des
       <div
         className={`flex items-center gap-2.5 px-2.5 py-2 ${hasDesc ? "cursor-pointer" : "cursor-default"}`}
         onClick={() => hasDesc && setExpanded(!expanded)}
-        title={hasDesc ? (expanded ? "收起描述" : "查看描述") : undefined}
+        
       >
         {isRunning ? (
           <svg viewBox="0 0 12 12" fill="none" className="w-3.5 h-3.5 shrink-0 animate-spin text-accent"><circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" opacity="0.3"/><path d="M11 6a5 5 0 00-5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>

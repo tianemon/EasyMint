@@ -113,7 +113,7 @@ export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readon
             key={`${c}-${i}`}
             className="w-8 h-8 rounded-lg border border-border shadow-sm"
             style={{ background: c }}
-            title={`颜色 ${i + 1}`}
+            
           />
         ))}
       </div>
@@ -151,7 +151,7 @@ export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readon
             dragIdx === i ? "opacity-50 scale-90" : "hover:scale-105"
           }`}
           style={{ background: c }}
-          title="点击改色,拖拽排序"
+         
         >
           {/* 复制色块(左上角,Lucide Copy):克隆当前色块插入右侧;拖拽中不显示 */}
           <button
@@ -160,7 +160,7 @@ export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readon
             className={`absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-surface border border-border text-text-muted hover:text-accent flex items-center justify-center opacity-0 transition-opacity ${
               dragIdx === i ? "" : "group-hover:opacity-100"
             }`}
-            title="复制此颜色"
+           
           >
             <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
           </button>
@@ -171,7 +171,7 @@ export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readon
             className={`absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-surface border border-border text-text-muted hover:text-danger flex items-center justify-center opacity-0 transition-opacity ${
               dragIdx === i ? "" : "group-hover:opacity-100"
             }`}
-            title="移除"
+           
           >
             <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
@@ -182,7 +182,7 @@ export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readon
         type="button"
         onClick={() => onChange([...colors, addColor])}
         className="w-8 h-8 rounded-lg border border-dashed border-border text-text-muted hover:text-text-secondary hover:border-accent text-lg flex items-center justify-center transition-colors"
-        title="添加颜色"
+       
       >+</button>
     </div>
   );

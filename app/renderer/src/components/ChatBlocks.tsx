@@ -8,7 +8,7 @@ import { inferLang, tokenizeLines } from "../lib/diff-highlight";
 const mdRenderer = new marked.Renderer();
 mdRenderer.link = ({ href, title, tokens }) => {
   const text = tokens.map((t) => t.raw).join("");
-  return `<a href="${href}" target="_blank" rel="noopener noreferrer"${title ? ` title="${title}"` : ""}>${text}</a>`;
+  return `<a href="${href}" target="_blank" rel="noopener noreferrer"${title ? `` : ""}>${text}</a>`;
 };
 
 // ── Block types ──────────────────────────────────────
