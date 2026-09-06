@@ -131,7 +131,7 @@ export const ChatInput = memo(function ChatInput({
       if (u?.cacheReadTokens) read += u.cacheReadTokens;
       if (u?.inputTokens) uncached += u.inputTokens;
     }
-    return read + uncached > 0 ? Math.round((read / (read + uncached)) * 100) : null;
+    return read + uncached > 0 ? ((read / (read + uncached)) * 100).toFixed(2) : null;
   }, [sessionMsgs]);
   const compacting = useStatusStore((s) => s.bySession[sessionId]?.compacting ?? false);
   const inputDisabled = summarizing || compacting;
