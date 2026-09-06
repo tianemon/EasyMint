@@ -10,10 +10,14 @@
 import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { homedir } from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import {
   SECRET_FORBIDDEN,
   USER_FORBIDDEN_WRITE,
 } from "../permission/permission-rules";
+
+/** Linux 沙盒系统依赖（EM 不代做系统安装——缺失时给安装指引，装好前自动降级） */
+const LINUX_SANDBOX_DEPS = ["bwrap", "socat", "rg"] as const;
 
 type SrtModule = typeof import("@anthropic-ai/sandbox-runtime");
 
@@ -72,6 +76,40 @@ export interface SandboxInitResult {
   reason?: string;
 }
 
+/**
+ * 平台化失败原因（区分「缺什么、怎么补」——EM 不代做系统级安装，只给指引）。
+ * - Linux：系统包 bwrap/socat/rg 缺失（deb 安装的 EM 由 apt 依赖自动装；AppImage 需手动）或 userns 内核限制
+ * - Windows：srt-sandbox 账户/WFP 未安装（需一次性管理员安装，弹 UAC）
+ * - macOS：原样返回（无系统依赖，问题属内部错误）
+ */
+async function platformFailureReason(e: Error): Promise<string | null> {
+  if (process.platform === "linux") {
+    const missing = LINUX_SANDBOX_DEPS.filter((bin) => {
+      try {
+        return spawnSync("which", [bin], { stdio: "ignore" }).status !== 0;
+      } catch {
+        return true;
+      }
+    });
+    if (missing.length > 0) {
+      return `沙盒依赖缺失：${missing.join("、")}。请安装后重试（Debian/Ubuntu: sudo apt install bubblewrap socat ripgrep；安装后重启 EasyMint；装好前网络类命令需切「完全访问」）`;
+    }
+    return `沙盒初始化失败（可能是内核 userns 限制，Ubuntu 24.04+ 需允许 unprivileged userns）：${e.message}`;
+  }
+  if (process.platform === "win32") {
+    try {
+      const srt = await getSrt();
+      const st = await srt.checkWindowsSandboxStatusAsync();
+      const userOk = String(st?.user ?? "").includes("installed");
+      if (!userOk) {
+        return `Windows 沙盒组件未安装（需一次性管理员安装，将弹出 UAC 授权）——安装指引见文档；装好前网络类命令需切「完全访问」`;
+      }
+    } catch { /* 状态探测失败按通用错误处理 */ }
+    return `Windows 沙盒初始化失败（可能是 WFP 过滤未生效）：${e.message}`;
+  }
+  return null; // macOS 无系统依赖，原样报错
+}
+
 /** 懒加载初始化（幂等）。失败原因保留供权限层 fail-closed 拒绝时展示。 */
 export async function ensureSandbox(cwd: string): Promise<SandboxInitResult> {
   if (_state === "ok") return { ok: true };
@@ -83,7 +121,8 @@ export async function ensureSandbox(cwd: string): Promise<SandboxInitResult> {
     return { ok: true };
   } catch (e) {
     _state = "failed";
-    _failReason = (e as Error).message;
+    const platformHint = await platformFailureReason(e as Error);
+    _failReason = platformHint ?? (e as Error).message;
     // 初始化失败诊断（Electron 环境与终端 node 差异定位用——stack + 环境探针）
     const cfg = buildSandboxConfig(cwd);
     console.error("[sandbox] initialize 失败:", {

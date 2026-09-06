@@ -142,6 +142,7 @@ export const SECRET_FORBIDDEN: readonly string[] = [
   '~/.npmrc',                  // 可能含 registry token
   '~/.pypirc',                 // PyPI token
   '~/.wgetrc', '~/.curlrc',    // 可能含基础认证
+  '~/.git-credentials',        // git 明文凭据（https 推送用）
   '~/Library/Keychains',       // macOS 钥匙串
   // Windows 凭据（DPAPI）
   '%APPDATA%\\Microsoft\\Credentials',

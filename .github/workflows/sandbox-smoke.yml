@@ -1,0 +1,39 @@
+name: sandbox-smoke
+
+# srt 沙盒跨平台冒烟（手动触发）：验证 Linux/Windows 上沙盒能真实初始化并执行命令。
+# Linux job 先装系统依赖（bwrap/socat/rg）；Windows job 先跑一次性安装（runner 为管理员上下文）。
+# 本地（macOS）无法验证的平台行为以此为准。
+
+on:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    name: Linux 沙盒冒烟
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 安装沙盒系统依赖
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap socat ripgrep
+      - name: 安装依赖
+        run: npm ci --ignore-scripts
+      - name: 沙盒冒烟（initialize + wrap + 执行）
+        run: node scripts/ci-sandbox-smoke.mjs
+
+  windows:
+    name: Windows 沙盒冒烟
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 安装依赖
+        run: npm ci --ignore-scripts
+      - name: 一次性安装沙盒组件（srt-sandbox 账户 + WFP 过滤）
+        run: npx --no-install @anthropic-ai/sandbox-runtime windows-install
+      - name: 沙盒冒烟（initialize + wrap + 执行）
+        run: node scripts/ci-sandbox-smoke.mjs
