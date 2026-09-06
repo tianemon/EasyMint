@@ -1682,6 +1682,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     </div>
   );
 
+  // 立即压缩：手动点选项①与 auto 倒计时到点(onExpire)共用同一动作。
+  // 不预置 compacting——蒙版显示完全跟随 SDK 真实状态(compacting 事件);
+  // SDK 未真正开始压缩(如 abort 挂起)则不显示,避免误导
+  const handleImmediateCompact = useCallback(() => {
+    window.electronAPI.agent.compact(sidRef.current).catch(() => {});
+    setCompactDialog(null);
+  }, []);
+
   return (
     <div className="absolute inset-0 flex flex-col" onDragOver={handleDragOver} onDrop={handleDrop}>
       <div
@@ -1937,12 +1945,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           title={compactDialog.source === "auto"
             ? `当前会话已达到自动压缩阈值 ${compactDialog.threshold ?? 75}%，如何处理？`
             : "压缩当前会话上下文"}
-          onImmediate={() => {
-            // 不预置 compacting——蒙版显示完全跟随 SDK 真实状态(compacting 事件);
-            // SDK 未真正开始压缩(如 abort 挂起)则不显示,避免误导
-            window.electronAPI.agent.compact(sidRef.current).catch(() => {});
-            setCompactDialog(null);
-          }}
+          countdown={compactDialog.source === "auto"
+            ? { total: 60, onExpire: handleImmediateCompact }
+            : undefined}
+          onImmediate={handleImmediateCompact}
           onWithInstructions={(instructions) => {
             window.electronAPI.agent.compact(sidRef.current, instructions || undefined).catch(() => {});
             setCompactDialog(null);

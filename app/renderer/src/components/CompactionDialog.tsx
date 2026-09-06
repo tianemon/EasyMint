@@ -1,13 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * 上下文压缩确认弹层 — 自动触发(阈值)与手动(统计弹窗按钮)共用。
  * 选项(用户定稿排序): ① 立即压缩(系统自动总结) ④ 输入指令压缩
  * ③ 写交接提示词(不压缩,Mint 总结供复制,为开启新会话做准备)
  * ② 下次回复完触发(回复结束重新询问,同样流程)
+ *
+ * countdown(仅自动触发传入): 弹窗打开即倒计时并在选项①尾部展示剩余秒数,
+ * 到 0 调 onExpire(父组件执行 compact + 置空弹窗)。手动触发不传,无倒计时。
+ * 用户点任一选项/提交指令/关闭弹窗 → 弹窗卸载 → effect cleanup 清除定时器,不残留。
  */
 export function CompactionDialog({
   title,
+  countdown,
   onImmediate,
   onWithInstructions,
   onWriteHandoff,
@@ -15,6 +20,7 @@ export function CompactionDialog({
   onClose,
 }: {
   title: string;
+  countdown?: { total: number; onExpire: () => void };
   onImmediate: () => void;
   onWithInstructions: (instructions: string) => void;
   onWriteHandoff: () => void;
@@ -22,6 +28,25 @@ export function CompactionDialog({
   onClose: () => void;
 }): JSX.Element {
   const [instructions, setInstructions] = useState("");
+  // 配置在挂载时固化一次:ChatPanel 常因消息流重渲染、每次会新建 countdown 对象,
+  // 直接依赖 prop 会把计时反复重置;弹窗每次打开都是全新挂载,卸载即清定时器。
+  const [countdownConfig] = useState(countdown);
+  const [remaining, setRemaining] = useState(() => (countdown ? countdown.total : 0));
+
+  useEffect(() => {
+    if (!countdownConfig) return;
+    let left = countdownConfig.total;
+    const timer = window.setInterval(() => {
+      left -= 1;
+      setRemaining(left);
+      if (left <= 0) {
+        window.clearInterval(timer);
+        countdownConfig.onExpire();
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [countdownConfig]);
+
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/30" onClick={onClose}>
       <div
@@ -41,7 +66,12 @@ export function CompactionDialog({
             onClick={onImmediate}
             className="w-full text-left px-3 py-2 rounded-lg hover:bg-surface-hover text-xs text-text-primary transition-colors"
           >
-            是，立即压缩（系统自动总结）
+            <span className="flex items-center justify-between gap-3">
+              <span>是，立即压缩（系统自动总结）</span>
+              {countdownConfig && remaining > 0 && (
+                <span className="text-text-secondary tabular-nums shrink-0">{remaining} 秒后自动压缩</span>
+              )}
+            </span>
           </button>
           <button
             type="button"
