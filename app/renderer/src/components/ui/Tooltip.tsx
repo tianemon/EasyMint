@@ -55,6 +55,9 @@ export const Tooltip = memo(function Tooltip({ tip, children, side = "top", dela
             ...(side === "top" ? { bottom: "100%", marginBottom: 6 } : { top: "100%", marginTop: 6 }),
             right: 0,
             zIndex: 130,
+            // width:max-content 让浮层脱离包含块（被包元素自身）的宽度钳制——
+            // 否则 absolute 宽 = min(内容, 包含块宽)，窄按钮的 tooltip 永远只有按钮宽
+            width: "max-content",
             maxWidth: 600,
             padding: "4px 8px",
             borderRadius: 6,
