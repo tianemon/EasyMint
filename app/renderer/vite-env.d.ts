@@ -187,6 +187,7 @@ interface ElectronAPI {
     update: (projectPath: string, id: number, title?: string, note?: string) => Promise<{ ok: boolean; error?: string }>;
     toggle: (projectPath: string, id: number) => Promise<{ ok: boolean; error?: string }>;
     remove: (projectPath: string, id: number) => Promise<{ ok: boolean; error?: string }>;
+    onChanged: (callback: (data: { projectPath: string }) => void) => () => void;
   };
   agent: {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;

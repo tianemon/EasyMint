@@ -47,6 +47,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("todos:update", { projectPath, id, title, note }),
     toggle: (projectPath: string, id: number) => ipcRenderer.invoke("todos:toggle", { projectPath, id }),
     remove: (projectPath: string, id: number) => ipcRenderer.invoke("todos:remove", { projectPath, id }),
+    onChanged: (callback: (data: { projectPath: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { projectPath: string }) => callback(data);
+      ipcRenderer.on("todos:changed", handler);
+      return () => ipcRenderer.removeListener("todos:changed", handler);
+    },
   },
   git: {
     detect: () => ipcRenderer.invoke("git:detect"),

@@ -698,6 +698,9 @@ export class AgentService {
         // 执行待办（todo_write）：进度条在 ChatPanel，worker 无 UI 不装
         const { createTodoWriteTool } = await import("./tools/todo-tool");
         allTools.push(await createTodoWriteTool(projectPath, sessionId));
+        // 用户待办（todo_user）：输入卡片「待办」面板同源清单，worker 无 UI 不装
+        const { createUserTodoTool } = await import("./tools/user-todo-tool");
+        allTools.push(await createUserTodoTool(projectPath));
       }
       // manage_skill 受开关控制（D8：AI 写入能力默认关闭，设置→插件→Skills 一键开启；
       // 活跃会话工具集固定于创建时——开关对新建/重启恢复的会话生效）

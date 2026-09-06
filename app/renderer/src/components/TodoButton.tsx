@@ -35,10 +35,17 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
     }
   }, [projectPath]);
 
-  // 打开时加载最新（Mint 侧可能改过文件——低频操作，打开即最新，不做 watch）
+  // 打开时加载最新；常驻订阅 Mint 侧 todo_user 工具写入（todos:changed）→ 即时同步面板
   useEffect(() => {
     if (open) load();
   }, [open, load]);
+
+  useEffect(() => {
+    const unsub = window.electronAPI.todos.onChanged((data) => {
+      if (data.projectPath === projectPath) load();
+    });
+    return unsub;
+  }, [projectPath, load]);
 
   // 点击外部 / Esc 关闭
   useEffect(() => {
