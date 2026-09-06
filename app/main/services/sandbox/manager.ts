@@ -51,7 +51,11 @@ function expandHome(p: string): string {
  *   系统目录不禁读（沙盒内进程需读系统库/可执行文件才能运行）
  * - allowRead：deny 区域内重放行工作区（cwd 建在用户目录内时开发不受阻）
  * - allowWrite：仅工作区
- * 网络：allowedDomains ['*'] 放公网——私网段/本机由 srt OS 层隔离（阶段 0 验证 ④）
+ * 网络（实测修正 2026-09-06）：srt 的 allowedDomains 语义 = 域名限制档——mac/Windows 运行时模式
+ *   下需宿主自带 HTTP/SOCKS 代理（Claude Code 集成层有，EM 无）才放行，配置即全 deny（出网也死）。
+ *   用空对象 network:{} → 不触发限制档 → macOS seatbelt `allow network*` 出网放行；
+ *   回环出站/bind 仍被隔离（allowLocalBinding=false 的 deny 规则独立生效，实测 curl/node 连 127.0.0.1 均 deny）。
+ *   Linux 有 srt 内置 bridge（initializeLinuxNetworkBridge）保留 allowedDomains 档；Windows 待实测。
  */
 export function buildSandboxConfig(cwd: string): SandboxRuntimeConfig {
   const denyRead = [
@@ -61,7 +65,10 @@ export function buildSandboxConfig(cwd: string): SandboxRuntimeConfig {
   // denyRead 内重放行工作区（如项目建在 ~/Documents 下）
   const allowRead = [cwd];
   return {
-    network: { allowedDomains: ["*"], deniedDomains: [] },
+    // darwin：allowedDomains 置 undefined 使 srt hasNetworkConfig=false（类型必填，运行时判 undefined）——见头注释
+    network: (process.platform === "darwin"
+      ? { allowedDomains: undefined, deniedDomains: [] }
+      : { allowedDomains: ["*"], deniedDomains: [] }) as unknown as SandboxRuntimeConfig["network"],
     filesystem: {
       denyRead,
       allowRead,
