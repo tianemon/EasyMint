@@ -68,12 +68,9 @@ interface NewProjectDialogProps {
 export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps): JSX.Element {
   const [currentStep, setCurrentStep] = useState(0);
   const [data, setData] = useState<ProjectFormData>(DEFAULT_DATA);
-  const [creating, setCreating] = useState(false);
   const [initializing, setInitializing] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [projectPath, setProjectPath] = useState<string | null>(null);
   const pathRef = useRef<string | null>(null);
-  const [createdProject, setCreatedProject] = useState<Project | null>(null);
   const [loadingRec, setLoadingRec] = useState<string | null>(null);
   const { ask, askWorkspace, disposeWorkspaceSession, sidRef } = useMintChat(pathRef);
 
@@ -81,6 +78,41 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
 
   // 卸载时清理流程级旁路会话（成功创建导航离开/取消/直接关闭都走这里）
   useEffect(() => () => { disposeWorkspaceSession(); }, [disposeWorkspaceSession]);
+
+  // ── S2 落盘原子化：目录名预热缓存 + Step1 路径实时预览 ──
+  const dirNameCacheRef = useRef<{ raw: string; translated: string } | null>(null);
+  const [previewDirName, setPreviewDirName] = useState<string | null>(null);
+
+  /** 解析目录名：预热缓存命中直接用；未命中时非 ASCII 现翻译（走旁路共享会话）；ASCII 用原名 */
+  const resolveDirName = useCallback(async (raw: string): Promise<string> => {
+    const name = raw.trim();
+    const cached = dirNameCacheRef.current;
+    if (cached?.raw === name) return cached.translated;
+    if (!/[^\x00-\x7F]/.test(name)) return name;
+    let translated = name;
+    try {
+      const resp = await askWorkspace(
+        buildDirectoryTranslationPrompt(name),
+        systemMessage("flow", buildDirectoryTranslationPrompt(name))
+      );
+      if (resp && /^[a-z0-9-]+$/.test(resp.trim())) translated = resp.trim();
+    } catch { /* keep original name */ }
+    dirNameCacheRef.current = { raw: name, translated };
+    return translated;
+  }, [askWorkspace]);
+
+  // 预热：name 输入停顿 1s 后悄悄翻译并缓存（最终创建零等待），预览行同步更新
+  useEffect(() => {
+    const name = data.name.trim();
+    if (!name) { setPreviewDirName(null); return; }
+    if (!/[^\x00-\x7F]/.test(name)) { setPreviewDirName(name); return; }
+    // 非 ASCII：先即时显示原名（预览不空窗），1s 停顿后翻译覆盖
+    setPreviewDirName(name);
+    const t = setTimeout(async () => {
+      setPreviewDirName(await resolveDirName(name));
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [data.name, resolveDirName]);
 
   const visibleSteps = ALL_STEPS;
 
@@ -98,42 +130,9 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
 
   const goPrev = () => setCurrentStep((s) => Math.max(s - 1, 0));
 
-  const goNext = async () => {
-    if (stepNumber === 1 && !projectPath) {
-      setCreating(true);
-      try {
-        // Step 1a: If name is non-ASCII, translate via workspace chat (fast, throwaway)
-        let dirName = data.name.trim();
-        if (/[^\x00-\x7F]/.test(dirName)) {
-          try {
-            const translated = await askWorkspace(
-              buildDirectoryTranslationPrompt(dirName),
-              systemMessage("flow", buildDirectoryTranslationPrompt(dirName))
-            );
-            if (translated && /^[a-z0-9-]+$/.test(translated.trim())) {
-              dirName = translated.trim();
-            }
-          } catch { /* keep original name */ }
-        }
-
-        // Step 1b: Create project with (possibly translated) name
-        // （S1：不再在此建预确认会话——表单期对话调用走旁路，正式会话在最终「创建项目」时创建）
-        const project = await window.electronAPI.project.create({ name: dirName, path: data.dir.trim() });
-        setProjectPath(project.path);
-        pathRef.current = project.path;
-        setCreatedProject(project);
-        setCreateError(null);
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : "创建项目失败";
-        setCreateError(msg);
-        console.error("[NewProjectDialog] create failed:", e);
-      } finally {
-        setCreating(false);
-      }
-    }
-    if (!createError) {
-      setCurrentStep((s) => Math.min(s + 1, visibleSteps.length - 1));
-    }
+  // S2：Step1 不再落盘——目录/正式会话在最终「创建项目」时原子创建；下一步仅切步骤
+  const goNext = () => {
+    setCurrentStep((s) => Math.min(s + 1, visibleSteps.length - 1));
   };
 
   const handleRecommendFeatures = async () => {
@@ -166,52 +165,57 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     }
   };
 
-  const handleCancel = async () => {
-    if (createdProject) {
-      await window.electronAPI.project.delete(createdProject.id).catch(() => {});
-    }
+  // S2：取消 = 丢弃草稿（落盘已移到最终创建，表单期无任何磁盘动作）
+  const handleCancel = () => {
     onClose();
   };
 
   const creatingRef = useRef(false);
 
+  /** 等待正式会话 sid 就位（onChatSession 回绑，毫秒级；最多 5s 兜底）——就位即导航，首消息在聊天流式出现 */
+  const waitForSid = async (): Promise<string | null> => {
+    for (let i = 0; i < 50; i++) {
+      if (sidRef.current) return sidRef.current;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return sidRef.current;
+  };
+
+  /** S2 原子创建：目录名（预热缓存/现算）→ 落盘 → 建正式会话（cwd=项目目录）→ 导航 */
   const handleCreate = async () => {
     if (creatingRef.current) return;
+    if (!data.name.trim()) { setCreateError("请先填写项目名称"); return; }
     creatingRef.current = true;
     setInitializing(true);
     try {
-      if (createdProject) {
-        // 复杂度判定权在 Mint（creation-guide skill），前端不硬编码流程深度——
-        // 这里只按中性值生成技术规范 platformSpec，原型/文档/编码流程由 Mint 判断
-        const dims: ProjectDimensions = {
-          product: detectProfile(data.targets).id as any,
-          deploy: (data.deployPlatform === "云端" ? "cloud" : data.deployPlatform === "混合" ? "hybrid" : "local") as DeployMode,
-          complexity: "medium",
-          ai: data.aiIntegration,
-          storage: data.deployPlatform === "云端" ? "postgres" : "sqlite",
-          productUsesAI: data.aiIntegration !== "none",
-          needsAuth: data.deployPlatform === "云端",
-          needsPayment: false,
-        };
-        const profile = composeProfile(dims);
-        // 持久化项目产品类型规范,供后续 Mint 会话 buildSystemPrompt 注入
-        window.electronAPI.project.saveProfile(createdProject.path, profile.platformSpec).catch(() => {});
-        const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), buildInitInstruction(profile), data.targets);
-        // S1：Step1 不再预建会话——最终创建必须 forceNewSession（cwd=项目目录，正式会话在此诞生）
-        ask(initPrompt, { forceNewSession: true, systemPayload: systemMessage("project-created", initPrompt) }).catch(() => {});
-        // 轮询 session 文件，等 custom_message(project-created) 落盘后再跳转
-        for (let i = 0; i < 100; i++) {
-          await new Promise((r) => setTimeout(r, 100));
-          const sid = sidRef.current;
-          if (!sid) continue;
-          try {
-            const msgs: any[] = await window.electronAPI.conv.messages(sid, createdProject.path);
-            if (msgs.some((m: any) => m.message?.customType === "system_message" && m.message?.details?.kind === "project-created")) break;
-          } catch { /* SDK not ready yet */ }
-        }
-        const sid = sidRef.current;
-        onCreated(createdProject, sid);
-      }
+      const dirName = await resolveDirName(data.name);
+      const project = await window.electronAPI.project.create({ name: dirName, path: data.dir.trim() });
+      pathRef.current = project.path;
+      setCreateError(null);
+
+      // 复杂度判定权在 Mint（creation-guide skill），前端不硬编码流程深度——
+      // 这里只按中性值生成技术规范 platformSpec，原型/文档/编码流程由 Mint 判断
+      const dims: ProjectDimensions = {
+        product: detectProfile(data.targets).id as any,
+        deploy: (data.deployPlatform === "云端" ? "cloud" : data.deployPlatform === "混合" ? "hybrid" : "local") as DeployMode,
+        complexity: "medium",
+        ai: data.aiIntegration,
+        storage: data.deployPlatform === "云端" ? "postgres" : "sqlite",
+        productUsesAI: data.aiIntegration !== "none",
+        needsAuth: data.deployPlatform === "云端",
+        needsPayment: false,
+      };
+      const profile = composeProfile(dims);
+      // 持久化项目产品类型规范,供后续 Mint 会话 buildSystemPrompt 注入
+      window.electronAPI.project.saveProfile(project.path, profile.platformSpec).catch(() => {});
+      const initPrompt = buildInitTriggerPrompt(project.path, buildContext(data), buildInitInstruction(profile), data.targets);
+      ask(initPrompt, { forceNewSession: true, systemPayload: systemMessage("project-created", initPrompt) }).catch(() => {});
+      const sid = await waitForSid();
+      onCreated(project, sid);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "创建项目失败";
+      setCreateError(msg);
+      console.error("[NewProjectDialog] create failed:", e);
     } finally {
       setInitializing(false);
       creatingRef.current = false;
@@ -225,25 +229,11 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     creatingRef.current = true;
     setInitializing(true);
     try {
-      // 确保项目已创建（若 step1 尚未走过,复用目录名翻译 + 创建逻辑）
-      let project = createdProject;
-      if (!project) {
-        let dirName = data.name.trim();
-        if (/[^\x00-\x7F]/.test(dirName)) {
-          try {
-            const translated = await askWorkspace(
-              buildDirectoryTranslationPrompt(dirName),
-              systemMessage("flow", buildDirectoryTranslationPrompt(dirName))
-            );
-            if (translated && /^[a-z0-9-]+$/.test(translated.trim())) dirName = translated.trim();
-          } catch { /* keep original name */ }
-        }
-        project = await window.electronAPI.project.create({ name: dirName, path: data.dir.trim() });
-        setProjectPath(project.path);
-        pathRef.current = project.path;
-        setCreatedProject(project);
-        setCreateError(null);
-      }
+      // 与表单路径同一原子创建（目录名共享预热缓存）；kickoff 消息不同（direct-create）
+      const dirName = await resolveDirName(data.name);
+      const project = await window.electronAPI.project.create({ name: dirName, path: data.dir.trim() });
+      pathRef.current = project.path;
+      setCreateError(null);
       // 发 direct-create 系统消息（携带项目名 + 用户已填信息快照）,Mint 开回合按 creation_flow 引导
       const directPrompt = buildDirectCreatePrompt(data.name, buildDirectCreateContext(data));
       await ask(directPrompt, { forceNewSession: true, systemPayload: systemMessage("direct-create", directPrompt) });
@@ -261,7 +251,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
 
   const renderStepContent = () => {
     switch (stepNumber) {
-      case 1: return <Step1Form data={data} onChange={updateData} />;
+      case 1: return <Step1Form data={data} onChange={updateData} previewDirName={previewDirName} />;
       case 2: return <Step2Form data={data} onChange={updateData} onRecommendFeatures={handleRecommendFeatures} loadingRec={loadingRec} />;
       case 3: return <Step3Form data={data} onChange={updateData} />;
       case 4: return <Step4Form data={data} onChange={updateData} />;
@@ -282,31 +272,30 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
         <div className="px-6 pb-1 shrink-0">
         </div>
 
-        <div className="px-6 py-4 overflow-y-auto flex-1">{renderStepContent()}</div>
+        <div className="px-6 py-4 overflow-y-auto flex-1">
+          {renderStepContent()}
+          {createError && (
+            <p className="mt-3 text-xs text-danger whitespace-pre-wrap break-all">{createError}</p>
+          )}
+        </div>
 
         <div className="flex items-center justify-between px-6 pb-5 pt-2 shrink-0">
-          <button className="px-4 py-2 rounded-lg text-text-secondary text-sm hover:bg-surface-hover transition-colors disabled:opacity-30" disabled={currentStep === 0 || creating} onClick={goPrev}>上一步</button>
+          <button className="px-4 py-2 rounded-lg text-text-secondary text-sm hover:bg-surface-hover transition-colors disabled:opacity-30" disabled={currentStep === 0} onClick={goPrev}>上一步</button>
           <div className="flex gap-3">
             <div className="flex gap-2">
-              <button className="ml-0.5 px-2 py-0 rounded-lg text-danger hover:bg-surface-hover transition-colors text-sm" onClick={handleCancel}>取消项目</button>
-              <button className="px-2 py-0 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm disabled:opacity-50" disabled={initializing || creating} onClick={handleDirectCreate} title="跳过表单，让 Mint 在对话里引导你补全信息">
+              {/* S2：取消 = 丢弃草稿（落盘已移到最终创建，不再有「取消项目=删真目录」的歧义） */}
+              <button className="ml-0.5 px-2 py-0 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={handleCancel}>取消</button>
+              <button className="px-2 py-0 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm disabled:opacity-50" disabled={initializing} onClick={handleDirectCreate} title="跳过表单，让 Mint 在对话里引导你补全信息">
                 {initializing ? "创建中..." : "直接创建"}
               </button>
             </div>
             {!isLastStep ? (
-            <button className="px-6 py-2 rounded-lg btn-accent text-sm font-medium" disabled={!canNext() || creating} onClick={goNext}>
-              {creating ? (
-                <span className="flex items-center gap-2">
-                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3"/><path d="M12 2a10 10 0 019.95 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
-                  初始化中...
-                </span>
-              ) : "下一步"}
-            </button>
-          ) : (
-            <button className="px-6 py-2 rounded-lg btn-accent text-sm font-medium" disabled={!canNext() || initializing} onClick={handleCreate}>
-              {initializing ? "创建中..." : "创建项目"}
-            </button>
-          )}
+              <button className="px-6 py-2 rounded-lg btn-accent text-sm font-medium" disabled={!canNext()} onClick={goNext}>下一步</button>
+            ) : (
+              <button className="px-6 py-2 rounded-lg btn-accent text-sm font-medium" disabled={!canNext() || initializing} onClick={handleCreate}>
+                {initializing ? "创建中..." : "创建项目"}
+              </button>
+            )}
           </div>
         </div>
       </div>
