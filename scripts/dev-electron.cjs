@@ -16,6 +16,9 @@ const electronCli = path.join(root, "node_modules", "electron", "cli.js");
 
 const EXTERNALS = [
   "electron",
+  // sandbox-runtime 是 ESM-only 且内部用 import.meta.url 推导路径——CJS bundle 会转成
+  // undefined 直接崩（fileURLToPath(undefined)），必须运行时加载（与 build:main 一致）
+  "@anthropic-ai/sandbox-runtime",
   "@earendil-works/pi-coding-agent",
   "@earendil-works/pi-agent-core",
   "@earendil-works/pi-ai",
