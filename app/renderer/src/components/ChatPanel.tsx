@@ -50,10 +50,15 @@ const SYSTEM_KIND_LABELS: Record<string, string> = {
   delegation: "子 Agent 委派",
   shell: "后台命令",
   "project-created": "项目初始化",
+  "direct-create": "直接创建",
   flow: "流程指令",
   handoff: "会话交接",
   summary: "上下文摘要",
+  learn: "经验沉淀",
 };
+
+/** 指令型系统消息（给 Mint 的行为指令，用户无需阅读正文）——默认折叠成标签条，点击展开 */
+const COLLAPSIBLE_SYSTEM_KINDS = new Set(["project-created", "direct-create", "flow", "summary", "learn"]);
 
 /** 压缩弹窗「写交接提示词」:让 Mint 总结当前会话,输出可复制的交接内容(不压缩) */
 const HANDOFF_PROMPT = "请总结当前会话的全部内容，并写一份交接提示词（包含项目状态、已完成的工作、当前进度、遇到的问题、下一步计划），以便在新会话中继续工作。请直接输出交接提示词内容，用中文。";
@@ -2000,6 +2005,8 @@ interface MemoChatMessageProps {
 }
 
 const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showToolUse, busy, userBubble, onPin, onContextMenu, sid }: MemoChatMessageProps) {
+  // 指令型系统消息的展开/收起（事件型不折叠——无此 state 参与）
+  const [sysExpanded, setSysExpanded] = useState(false);
   const visible = useMemo(() => {
     if (!msg.entries) return [];
     return msg.entries.filter((e) => {
@@ -2057,6 +2064,9 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
       // 委派/后台 shell 结果:解析 ⏺ 摘要行(红绿灯三色);其他 kind:纯文本
       const isResult = kind === "delegation" || kind === "shell";
       const rows = isResult ? body.split("\n").filter((l) => l.startsWith("⏺ ")) : [];
+      // 指令型（给 Mint 的行为指令）默认折叠成标签条——用户无需读正文，点击展开可查原文
+      const collapsible = COLLAPSIBLE_SYSTEM_KINDS.has(kind);
+      const collapsed = collapsible && !sysExpanded;
       return (
         <div
           className="flex gap-4 items-start"
@@ -2066,17 +2076,30 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
           <div style={{ width: 34, flexShrink: 0 }} />
           <div className="relative w-fit max-w-[75%] min-w-0 my-1" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
             <div className="msg-bubble-system rounded-[10px] rounded-bl-[4px] border border-border bg-surface-elevated overflow-hidden">
-              {/* 头部:系统图标 + kind 标签(区别于 assistant 的 Mint 头像气泡) */}
-              <div className="flex items-center gap-1.5 px-[14px] pt-1.5 text-[length:var(--text-11)] text-text-secondary">
+              {/* 头部:系统图标 + kind 标签(区别于 assistant 的 Mint 头像气泡);指令型整行可点展开/收起 */}
+              <button
+                type="button"
+                className={`flex items-center gap-1.5 px-[14px] pt-1.5 w-full text-left text-[length:var(--text-11)] text-text-secondary ${collapsible ? "hover:bg-surface-hover cursor-pointer select-none" : ""}`}
+                onClick={collapsible ? () => setSysExpanded((v) => !v) : undefined}
+                title={collapsible ? (collapsed ? "展开详情" : "收起") : undefined}
+              >
                 <svg className="shrink-0 text-info" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
                   <circle cx="8" cy="8" r="6.5" />
                   <path d="M8 7.5V11" />
                   <path d="M8 5h.01" />
                 </svg>
                 <span>{SYSTEM_KIND_LABELS[kind] ?? "系统消息"}</span>
-              </div>
-              {/* 内容区 */}
-              <div className="px-[14px] pb-1.5 leading-[1.55]">
+                {collapsible && (
+                  <svg className="ml-1 shrink-0 transition-transform" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: collapsed ? "rotate(0deg)" : "rotate(180deg)" }}>
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                )}
+              </button>
+              {collapsed && (
+                <div className="px-[14px] pb-1.5 text-[length:var(--text-11)] text-text-muted">点击展开查看详情</div>
+              )}
+              {/* 内容区（指令型折叠时省略） */}
+              {!collapsed && <div className="px-[14px] pb-1.5 leading-[1.55]">
                 {isResult ? (
                   rows.map((row, i) => {
                     const m = row.match(/^⏺ (.+?) — (完成|失败|中止)(?: · (\d+)s)?$/);
@@ -2101,7 +2124,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
                 ) : (
                   <div className="whitespace-pre-wrap [overflow-wrap:anywhere] text-text-primary">{body}</div>
                 )}
-              </div>
+              </div>}
             </div>
             {/* 与其他气泡一致:复制完整文本 + 钉住(悬停显示) */}
             <BubbleActions text={body} onPin={onPin} sid={sid} visible={actionsVisible} />
