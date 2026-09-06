@@ -347,8 +347,8 @@ html[data-platform="win32"] {
   /* 角色选择器文字态(暗色):选中=白、未选中=灰 */
   --color-role-selected: var(--color-text-primary);
   --color-role-idle: var(--color-text-secondary);
-  --color-tooltip-bg: #cccccc;
-  --color-tooltip-text: #050505;
+  --color-tooltip-bg: #232323;
+  --color-tooltip-text: #ffffff;
 
   /* ── Text ────────────────────────── */
   --color-text-primary: #d4d4d4;

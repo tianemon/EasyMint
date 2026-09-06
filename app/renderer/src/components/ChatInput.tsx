@@ -291,7 +291,7 @@ export const ChatInput = memo(function ChatInput({
         </div>
         <span className="inp-gap" />
         {cacheRate !== null && (
-          <Tooltip className="shrink-0" tip="平均缓存命中：缓存读占全部输入的比例。含冷启动回合——新会话或长时间未对话后的首轮，供应商缓存已过期属正常开销，同样计费">
+          <Tooltip className="shrink-0" tip="缓存读占全部输入的比例。含冷启动回合——新会话或长时间未对话后的首轮，供应商缓存已过期属正常开销，同样计费">
             <span className="text-[length:var(--text-3xs)] px-1.5 py-0.5 rounded-full bg-surface-hover text-text-secondary tabular-nums">
               平均缓存命中 {cacheRate}%
             </span>
