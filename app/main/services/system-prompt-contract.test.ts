@@ -14,7 +14,6 @@ import {
   systemMessage,
   type SystemMessageKind,
   buildInitTriggerPrompt,
-  buildProjectCreatedPrompt,
   buildDirectCreatePrompt,
   buildFeatureRecommendPrompt,
 } from "../../shared/prompts";
@@ -65,7 +64,6 @@ describe("[系统消息] 前缀协议", () => {
   it("prompts.ts 的系统消息构建函数 content 均以 [系统消息] 开头（业务层前缀约定）", () => {
     const samples = [
       buildInitTriggerPrompt("/proj", "上下文", "指令"),
-      buildProjectCreatedPrompt("项目描述"),
       buildDirectCreatePrompt("测试项目", ""),
       buildFeatureRecommendPrompt("项目信息"),
     ];
