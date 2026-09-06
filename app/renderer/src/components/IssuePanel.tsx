@@ -138,7 +138,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
             className="relative bg-surface border border-border rounded-xl w-[760px] h-[600px] flex flex-col overflow-hidden shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-4 py-2.5 bg-surface-alt shrink-0">
+            <div className="flex items-center justify-between px-4 py-1.5 bg-surface-alt shrink-0">
               <span className="text-sm font-medium text-text-primary">{form.mode === "new" ? "记录问题" : "编辑问题"}</span>
               <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setForm(null)} title="关闭">✕</button>
             </div>
@@ -164,7 +164,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
                 />
               </div>
             </div>
-            <div className="flex items-center justify-end gap-2 px-4 py-2.5 bg-surface-alt shrink-0">
+            <div className="flex items-center justify-end gap-2 px-4 py-1 bg-surface-alt shrink-0">
               <button
                 type="button"
                 className="h-8 px-4 whitespace-nowrap rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0"
