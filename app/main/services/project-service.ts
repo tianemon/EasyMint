@@ -150,6 +150,13 @@ export class ProjectService {
     return { ...updated, exists: fs.existsSync(updated.path) };
   }
 
+  /** 创建目标预检（Step1 即时预警用）：目录已存在且非空 = 冲突（创建会被拒，见 create） */
+  checkTargetDir(basePath: string, name: string): { conflict: boolean } {
+    if (/[\\/]/.test(name)) return { conflict: true }; // 名称含路径分隔符，create 必拒
+    const targetDir = path.resolve(resolveHome(basePath), name);
+    return { conflict: fs.existsSync(targetDir) && fs.readdirSync(targetDir).length > 0 };
+  }
+
   /** 导入已有目录为项目（不复制 template，目录已存在） */
   import_(dirPath: string): (Project & { exists: boolean; isNew: boolean }) {
     const resolved = path.resolve(dirPath);

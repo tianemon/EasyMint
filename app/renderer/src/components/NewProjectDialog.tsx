@@ -116,6 +116,17 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     return () => clearTimeout(t);
   }, [data.name, resolveDirName]);
 
+  // 目录冲突即时预检：目录名与基目录确定后探测「已存在非空」——Step1 就红字预警（创建必被拒）
+  const [dirConflict, setDirConflict] = useState(false);
+  useEffect(() => {
+    if (!previewDirName || !data.dir.trim()) { setDirConflict(false); return; }
+    let cancelled = false;
+    window.electronAPI.project.checkDir(data.dir.trim(), previewDirName)
+      .then((r) => { if (!cancelled) setDirConflict(r.conflict); })
+      .catch(() => { if (!cancelled) setDirConflict(false); });
+    return () => { cancelled = true; };
+  }, [previewDirName, data.dir]);
+
   const visibleSteps = ALL_STEPS;
 
   useEffect(() => {
@@ -272,7 +283,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
 
   const renderStepContent = () => {
     switch (stepNumber) {
-      case 1: return <Step1Form data={data} onChange={updateData} previewDirName={previewDirName} />;
+      case 1: return <Step1Form data={data} onChange={updateData} previewDirName={previewDirName} dirConflict={dirConflict} />;
       case 2: return <Step2Form data={data} onChange={updateData} onRecommendFeatures={handleRecommendFeatures} loadingRec={loadingRec} />;
       case 3: return <Step3Form data={data} onChange={updateData} />;
       case 4: return <Step4Form data={data} onChange={updateData} />;

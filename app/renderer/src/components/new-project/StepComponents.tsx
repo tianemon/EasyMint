@@ -92,7 +92,7 @@ function Select({ value, onChange, options, placeholder }: { value: string; onCh
 
 // ---- Step 1: 基本信息 ----
 
-function Step1Form({ data, onChange, previewDirName }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void; previewDirName?: string | null }): JSX.Element {
+function Step1Form({ data, onChange, previewDirName, dirConflict }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void; previewDirName?: string | null; dirConflict?: boolean }): JSX.Element {
   const updateTarget = (i: number, value: string) => {
     const next = [...data.targets];
     next[i] = value;
@@ -120,11 +120,17 @@ function Step1Form({ data, onChange, previewDirName }: { data: ProjectFormData; 
         >
           <span className="text-text-secondary">{data.dir || "点击选择目录..."}</span>
         </button>
-        {/* 实时路径预览——教会用户「我的文件在哪」；翻译/冲突信息也在此行呈现 */}
+        {/* 实时路径预览——教会用户「我的文件在哪」；目录冲突在此行红字预警（创建必被拒） */}
         {previewDirName && (
-          <p className="mt-1 text-[length:var(--text-3xs)] text-text-muted">
-            将创建于 <span className="font-mono text-text-secondary">{data.dir}/{previewDirName}</span>
-          </p>
+          dirConflict ? (
+            <p className="mt-1 text-[length:var(--text-3xs)] text-danger">
+              该目录已存在且非空或名称含特殊字符，无法创建——请换一个项目名称或目录
+            </p>
+          ) : (
+            <p className="mt-1 text-[length:var(--text-3xs)] text-text-muted">
+              将创建于 <span className="font-mono text-text-secondary">{data.dir}/{previewDirName}</span>
+            </p>
+          )
         )}
       </div>
       <div>

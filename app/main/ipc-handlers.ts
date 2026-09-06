@@ -110,6 +110,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // project:*
   ipcMain.handle("project:list", () => projectService.list());
   ipcMain.handle("project:create", (_e, opts) => projectService.create(opts));
+  ipcMain.handle("project:check-dir", (_e, { dir, name }: { dir: string; name: string }) => projectService.checkTargetDir(dir, name));
   ipcMain.handle("project:delete", async (_e, { id }) => {
     if (closeProjectWindows) closeProjectWindows(id);
     await projectService.delete(id);

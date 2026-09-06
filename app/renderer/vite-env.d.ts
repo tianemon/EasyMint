@@ -165,6 +165,7 @@ interface ElectronAPI {
   project: {
     list: () => Promise<Project[]>;
     create: (opts: { name: string; path: string }) => Promise<Project>;
+    checkDir: (dir: string, name: string) => Promise<{ conflict: boolean }>;
     delete: (id: string) => Promise<void>;
     get: (id: string) => Promise<Project | undefined>;
     update: (id: string, patch: { name?: string; path?: string }) => Promise<Project | undefined>;
