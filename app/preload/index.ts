@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     list: () => ipcRenderer.invoke("project:list"),
     create: (opts: { name: string; path: string }) => ipcRenderer.invoke("project:create", opts),
     checkDir: (dir: string, name: string) => ipcRenderer.invoke("project:check-dir", { dir, name }) as Promise<{ conflict: boolean }>,
+    openedInWindows: () => ipcRenderer.invoke("project:opened-in-windows") as Promise<string[]>,
     delete: (id: string) => ipcRenderer.invoke("project:delete", { id }),
     get: (id: string) => ipcRenderer.invoke("project:get", { id }),
     update: (id: string, patch: { name?: string; path?: string }) => ipcRenderer.invoke("project:update", { id, patch }),

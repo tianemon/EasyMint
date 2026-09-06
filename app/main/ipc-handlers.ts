@@ -111,6 +111,16 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("project:list", () => projectService.list());
   ipcMain.handle("project:create", (_e, opts) => projectService.create(opts));
   ipcMain.handle("project:check-dir", (_e, { dir, name }: { dir: string; name: string }) => projectService.checkTargetDir(dir, name));
+  // 所有窗口当前打开的项目 id（hash 路由 #/project/{id}）——正被任何窗口打开的项目禁止删除
+  ipcMain.handle("project:opened-in-windows", () => {
+    const ids = new Set<string>();
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (win.isDestroyed()) continue;
+      const m = win.webContents.getURL().match(/#\/project\/([^/?]+)/);
+      if (m) ids.add(m[1]);
+    }
+    return [...ids];
+  });
   ipcMain.handle("project:delete", async (_e, { id }) => {
     if (closeProjectWindows) closeProjectWindows(id);
     await projectService.delete(id);
