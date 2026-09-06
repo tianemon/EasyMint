@@ -145,6 +145,12 @@ npm run lint         # ESLint + TypeScript 类型检查
 
 EasyMint 以开源的 Pi Coding Agent 为引擎，提供完整的 Agent 编排、多角色协作与上下文管理能力；上层通过引导流程降低上手门槛，覆盖从想法到成品的主要路径。
 
+## 开发纪事
+
+EasyMint 的开发本身就是一次「AI 编程」实践：项目约 99% 由 DeepSeek 模型完成（7 月起为最便宜的 flash 档），从 14 个文件的 shell 模板长成如今的桌面产品。
+
+[**用最便宜的模型，做出专业级的桌面编程 Agent**](PROJECT_STORY.md)
+
 ---
 
 > English speakers interested in EasyMint? Let me know via [Issues](https://github.com/tianemon/EasyMint/issues) — an English version will be arranged if there's demand.
