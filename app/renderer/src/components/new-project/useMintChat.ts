@@ -54,7 +54,10 @@ export function useMintChat(pathRef: React.RefObject<string | null>) {
         if (!workspaceChatIdRef.current) workspaceChatIdRef.current = r.chatId;
         return await r.replyText;
       })
-      .catch(() => "")
+      .catch((e: unknown) => {
+        console.warn("[askWorkspace] 请求失败（返回空串，调用方按未翻译处理）:", e);
+        return "";
+      })
       .finally(() => { unsubSession(); });
   }, []);
 
