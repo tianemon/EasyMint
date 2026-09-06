@@ -42,7 +42,12 @@ export function useMintChat(pathRef: React.RefObject<string | null>) {
    */
   const askWorkspace = useCallback((prompt: string, systemPayload?: SystemMessagePayload): Promise<string> => {
     const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => {
-      if (sid) workspaceSidRef.current = sid;
+      if (sid) {
+        const first = !workspaceSidRef.current;
+        workspaceSidRef.current = sid;
+        // 首次建会话时命名——表单停留期间临时会话在列表里可见，有名字避免「未命名」困惑
+        if (first) window.electronAPI.conv.rename(sid, "项目创建中", WORKSPACE_DIR).catch(() => {});
+      }
     });
     return postToAgent({ cwd: WORKSPACE_DIR, sessionId: workspaceSidRef.current, systemPayload }, prompt)
       .then(async (r) => {
