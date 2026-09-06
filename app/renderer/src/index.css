@@ -145,7 +145,7 @@ html[data-platform="win32"] {
   --color-role-selected: var(--color-text-primary);
   --color-role-idle: var(--color-text-secondary);
   --color-tooltip-bg: #fdfdfd;
-  --color-tooltip-text: #1a1a1a;
+  --color-tooltip-text: var(--color-text-secondary);
 
   /* ── Text（中性灰，对齐原型 --fg 系列）────────────── */
   --color-text-primary: #1a1a1a;
@@ -348,7 +348,7 @@ html[data-platform="win32"] {
   --color-role-selected: var(--color-text-primary);
   --color-role-idle: var(--color-text-secondary);
   --color-tooltip-bg: #232323;
-  --color-tooltip-text: #ffffff;
+  --color-tooltip-text: var(--color-text-secondary);
 
   /* ── Text ────────────────────────── */
   --color-text-primary: #d4d4d4;
