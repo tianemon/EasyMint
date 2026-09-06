@@ -455,7 +455,7 @@ html[data-platform="win32"] {
   --color-file-other-stroke: #7f7f7f;
 
   /* ── Code block（暗色：蓝黑系，正文深一档） ── */
-  --color-code-block-bg: #16161e;
+  --color-code-block-bg: #1a1a26;
   --color-code-block-header: #1e1e2e;
 
   /* ── v3 Layer tokens（暗色反向：L0 最暗 → L4 最亮）── */
