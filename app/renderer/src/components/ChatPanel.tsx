@@ -2179,22 +2179,21 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
             {blocks.map((block, i) => (
               <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} />
             ))}
+            {/* 回合 usage：气泡内容区底部右对齐——贴内容右下，与 hover 复制工具条（气泡外）永不冲突。
+                 口径：输入 = 未缓存 + 缓存读 + 缓存写（全部输入成本）；命中率 = 缓存读 / 全部输入 */}
+            {msg.usage && (() => {
+              const total = (msg.usage.inputTokens || 0) + (msg.usage.cacheReadTokens || 0) + (msg.usage.cacheWriteTokens || 0);
+              const read = msg.usage.cacheReadTokens || 0;
+              return (
+                <div className="mt-1 flex justify-end whitespace-nowrap text-[length:var(--text-2xs)] text-text-muted tabular-nums">
+                  输入 {fmtTokenCount(total)}
+                  {" · "}输出 {fmtTokenCount(msg.usage.outputTokens || 0)}
+                  {read > 0 && total > 0 ? ` · 缓存 ${((read / total) * 100).toFixed(2)}%` : ""}
+                </div>
+              );
+            })()}
           </div>
           <BubbleActions text={copyText} onPin={onPin} sid={sid} visible={actionsVisible} />
-          {/* 回合 usage：absolute 定位在气泡右下（不占流内高度——否则把 hover 复制工具条推到下一行）；
-              与 BubbleActions（left-0 同 top-full）同行左右分布 = 视觉平行。
-              口径：输入 = 未缓存 input + 缓存读 + 缓存写（全部输入成本）；命中率 = 缓存读 / 全部输入 */}
-          {msg.usage && (() => {
-            const total = (msg.usage.inputTokens || 0) + (msg.usage.cacheReadTokens || 0) + (msg.usage.cacheWriteTokens || 0);
-            const read = msg.usage.cacheReadTokens || 0;
-            return (
-              <div className="absolute top-full right-0 mt-1 whitespace-nowrap text-[length:var(--text-2xs)] text-text-muted tabular-nums">
-                输入 {fmtTokenCount(total)}
-                {" · "}输出 {fmtTokenCount(msg.usage.outputTokens || 0)}
-                {read > 0 && total > 0 ? ` · 缓存 ${((read / total) * 100).toFixed(2)}%` : ""}
-              </div>
-            );
-          })()}
         </div>
       </div>
     </div>
