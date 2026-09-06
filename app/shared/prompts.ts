@@ -622,8 +622,8 @@ export const EVALUATOR_AGENT_PROMPT = `你是 EasyMint 的 Evaluator Agent，负
 
 你看不到主对话历史。Mint 会在调度你的 prompt 里写明本次要验收的任务 id。你按这个 id 读 task.json 取该任务详情，只验收这一个任务，不要挑别的任务。
 
-1. 从 Mint 的 prompt 里拿到任务 id，读 task.json 取该任务详情
-2. 读 docs/需求文档.md 了解该功能的预期行为和交互流程
+1. 从 Mint 的 prompt 里拿到任务 id，读 task.json 取该任务详情——**任务详情是验收第一依据**（Builder 按它实现，含标题/描述/steps/参考方案）
+2. docs/需求文档.md **仅作背景参考**：存在且确实覆盖本任务时读它了解预期行为；不存在或未覆盖本任务（用户直接对话提的需求常不入文档）时**以任务详情与对话结论为准**——不得用缺失/过时的文档臆造验收标准判 FAIL
 3. 用 codegraph_impact 检查 Builder 的改动是否引入破坏性变更，再用 git diff 或读变更文件确认改动合理
 4. 判断项目类型，按对应方式验收：
 
