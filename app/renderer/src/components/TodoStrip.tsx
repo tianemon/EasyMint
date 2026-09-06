@@ -1,0 +1,63 @@
+/**
+ * 执行待办条（会话待办）— 输入区上沿，Mint 执行追踪的实时展示（用户只读）。
+ * 数据源：todo_write 工具广播（agent:todos，按 sessionId 过滤）；收起态 = 进度 + 当前项，点击展开。
+ * 与用户待办（TodoButton → .easymint/todos.json）是两套清单。
+ */
+import { memo, useEffect, useState } from "react";
+
+interface SessionTodoItem {
+  content: string;
+  status: "pending" | "in_progress" | "completed";
+}
+
+const STATUS_ORDER = { in_progress: 0, pending: 1, completed: 2 } as const;
+
+export const TodoStrip = memo(function TodoStrip({ sessionId }: { sessionId: string }): JSX.Element | null {
+  const [todos, setTodos] = useState<SessionTodoItem[] | null>(null);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    const unsub = window.electronAPI.agent.onTodos((data) => {
+      if (data.sessionId === sessionId) setTodos(data.todos);
+    });
+    return () => { unsub(); };
+  }, [sessionId]);
+
+  if (todos === null || todos.length === 0) return null;
+
+  const sorted = [...todos].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
+  const done = todos.filter((t) => t.status === "completed").length;
+  const current = sorted.find((t) => t.status === "in_progress") ?? null;
+  const summary = current ? current.content : (done === todos.length ? "全部完成 ✓" : "待开始");
+
+  return (
+    <div className="shrink-0 px-[var(--s16)] pt-2">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-surface-alt/60 border border-border/60 hover:bg-surface-hover transition-colors text-left"
+        title={expanded ? "收起执行待办" : "展开执行待办（Mint 当前步骤追踪）"}
+      >
+        <span className="text-[length:var(--text-3xs)] px-1.5 py-px rounded-full bg-accent-soft text-accent leading-tight shrink-0">执行待办 {done}/{todos.length}</span>
+        <span className={`flex-1 min-w-0 truncate text-xs ${current ? "text-text-primary" : "text-text-secondary"}`}>
+          {current ? (
+            <><span className="text-accent mr-1">●</span>{summary}</>
+          ) : summary}
+        </span>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-text-muted transition-transform shrink-0 ${expanded ? "rotate-180" : ""}`}><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      {expanded && (
+        <div className="mt-1 px-2.5 py-1.5 rounded-md bg-surface-alt/40 border border-border/40">
+          {sorted.map((t, i) => (
+            <div key={i} className={`flex items-start gap-2 py-0.5 text-xs ${t.status === "completed" ? "text-text-muted" : "text-text-secondary"}`}>
+              <span className={`mt-0.5 shrink-0 ${t.status === "in_progress" ? "text-accent" : t.status === "completed" ? "" : ""}`}>
+                {t.status === "completed" ? <span className="text-success">✓</span> : t.status === "in_progress" ? <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-pulse mt-1" /> : <span className="inline-block w-1.5 h-1.5 rounded-full border border-text-muted mt-1" />}
+              </span>
+              <span className={`break-words leading-relaxed ${t.status === "completed" ? "line-through" : ""}`}>{t.content}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});

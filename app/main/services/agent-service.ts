@@ -695,6 +695,9 @@ export class AgentService {
       // ask_user 仅主会话装——worker（runWorker，无前端卡片）调用挂起交互工具会永久挂起（无 UI 可响应）
       if (!opts?.worker) {
         allTools.push(await createAskUserTool(sessionId));
+        // 执行待办（todo_write）：进度条在 ChatPanel，worker 无 UI 不装
+        const { createTodoWriteTool } = await import("./tools/todo-tool");
+        allTools.push(await createTodoWriteTool(projectPath, sessionId));
       }
       // manage_skill 受开关控制（D8：AI 写入能力默认关闭，设置→插件→Skills 一键开启；
       // 活跃会话工具集固定于创建时——开关对新建/重启恢复的会话生效）
@@ -1754,6 +1757,16 @@ export class AgentService {
     try {
       await chat.session.compact(instructions);
       // 成功路径:SDK 内部发 compaction_end → compacted 广播清除蒙版
+      // 压缩后注入当前执行待办——todo 落盘文件,恢复 Mint 对步骤清单的记忆（对齐 delegation 通知注入模式）
+      try {
+        const realSid = (chat.session as { sessionId?: string } | null)?.sessionId ?? sessionId;
+        const { readSessionTodos } = await import("./session-todos");
+        const todos = readSessionTodos(chat.projectPath, realSid);
+        if (todos.length > 0) {
+          const lines = todos.map((t) => `- [${t.status === "completed" ? "完成" : t.status === "in_progress" ? "进行中" : "待办"}] ${t.content}`).join("\n");
+          this.injectSystemMessage(realSid, `当前执行待办（${todos.length} 项，其中 ${todos.filter((t) => t.status === "completed").length} 完成）：\n${lines}\n\n按清单继续推进（完成项已做过，不要重做）；清单与用户待办（.easymint/todos.json）不是一回事`, "summary");
+        }
+      } catch { /* 注入失败不阻断压缩 */ }
     } catch (e) {
       console.error(`[agent] compact failed: chatId=${chat.chatId}`, e);
       // 压缩失败:compaction_end 不会到达(或带 error),蒙版会卡死——发错误提示

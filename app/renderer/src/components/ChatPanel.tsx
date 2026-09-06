@@ -15,6 +15,7 @@ import { StatusBar } from "./StatusBar";
 import { useDelegationStore } from "../stores/delegation-store";
 import { normalizeApiError } from "../../../shared/api-errors";
 import { ChatInput, AttachPreview } from "./ChatInput";
+import { TodoStrip } from "./TodoStrip";
 import { ImageViewer, type ImageViewerState } from "./ImageViewer";
 import { SessionStatsPopup } from "./SessionStatsPopup";
 import { CompactionDialog } from "./CompactionDialog";
@@ -1652,6 +1653,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const inputWrapRef = useRef<HTMLDivElement>(null);
   const renderChatInput = (
     <div ref={inputWrapRef}>
+      {/* 执行待办条（Mint 执行追踪，用户只读）——todo_write 广播实时更新 */}
+      <TodoStrip sessionId={sidRef.current} />
       <ChatInput
         projectPath={projectPath}
         busy={busy}

@@ -264,6 +264,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:learn-closed", handler);
       return () => ipcRenderer.removeListener("agent:learn-closed", handler);
     },
+    onTodos: (callback: (data: { sessionId: string; todos: Array<{ content: string; status: "pending" | "in_progress" | "completed" }> }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string; todos: Array<{ content: string; status: "pending" | "in_progress" | "completed" }> }) => callback(data);
+      ipcRenderer.on("agent:todos", handler);
+      return () => ipcRenderer.removeListener("agent:todos", handler);
+    },
     abort: (runId: string) => ipcRenderer.invoke("agent:abort", { runId }),
     setModel: (sessionId: string, model: string, provider?: string) => ipcRenderer.invoke("agent:setModel", { sessionId, model, provider }) as Promise<void>,
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => ipcRenderer.invoke("agent:spawnAgentChat", { projectPath, templateId, message }) as Promise<{ chatId: string }>,

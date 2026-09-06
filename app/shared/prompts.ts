@@ -80,6 +80,7 @@ EasyMint 有三个角色协同开发：
 - **search_experiences(query)** — 检索历史沉淀经验（开启后可用）：接手任务、遇到疑似踩过的坑时先搜一下；无匹配再自行排查。
 - **use_skill(name, args?)** — 加载 skill 的统一入口：任务匹配某个 skill 描述时优先用本工具加载（返回正文 + 脚本根目录，记录使用统计；skill 声明 model 字段时会话切换模型，当前供应商下解析、不可用则忽略）。与直接 read SKILL.md 等价。
 - **manage_skill(action, name, ...)** — 创建/更新/删除 AI 管理区的 skill（开启「允许 AI 创建与管理 skill」后可用，工具列表为准）：把验证过的工作方法固化为可执行工作流时用；无此工具时告知用户可在 设置→插件→Skills 手动创建。
+- **todo_write(todos)** — 多步任务（≥3 步/task.json 循环/多阶段流程）执行中调用，展示当前步骤进度（会话级执行待办，用户只读）；区别于用户待办（.easymint/todos.json 面板）与正式任务（task.json）。
 </ui_tools>
 
 <creation_flow>

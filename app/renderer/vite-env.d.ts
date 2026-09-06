@@ -205,6 +205,7 @@ interface ElectronAPI {
     respondLearn: (requestId: string, response: { approved: boolean; memory?: string; skillBody?: string; skillName?: string; skillDescription?: string }) => Promise<string | null>;
     onLearnRequest: (callback: (data: { requestId: string; sessionId: string; memory: string; context?: string; skill?: { action: "create" | "update"; name: string; description: string; body: string } }) => void) => () => void;
     onLearnClosed: (callback: (data: { requestId: string }) => void) => () => void;
+    onTodos: (callback: (data: { sessionId: string; todos: Array<{ content: string; status: "pending" | "in_progress" | "completed" }> }) => void) => () => void;
     abort: (runId: string) => void;
     setModel: (sessionId: string, model: string, provider?: string) => Promise<void>;
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => Promise<{ chatId: string }>;
