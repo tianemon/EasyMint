@@ -108,7 +108,7 @@ export function SettingsDialog({ open, onClose, initialTab, projectPath }: Setti
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-6 py-2 border-t border-border bg-surface-alt">
+        <div className="flex items-center justify-end gap-2 px-6 py-2 bg-surface-alt">
           <button
             className="px-5 py-1.5 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm"
             onClick={handleClose}

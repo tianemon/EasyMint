@@ -91,7 +91,7 @@ export function DelegationProgress({ delegation }: { delegation: DelegationUiSta
   return (
     <div className="w-[420px] my-2 rounded-[10px] border border-border bg-surface-elevated overflow-hidden text-xs">
       {/* 标题行 */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-accent-bg">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-accent-bg">
         {delegation.finished ? (
           <>
             <svg className="text-success shrink-0" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="6.5" /><path d="M5 8l2 2 4-4" /></svg>

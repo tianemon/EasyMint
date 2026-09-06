@@ -60,7 +60,7 @@ export function AgentBar({ sessionId }: { sessionId?: string }): JSX.Element | n
       {/* 任务列表浮层(向上展开,覆盖输入卡片上方;最多显示 5 行,超出滚动) */}
       {expanded && (
         <div className="absolute bottom-full left-0 mb-1 w-72 max-h-[210px] overflow-y-auto rounded-[8px] border border-border bg-surface-elevated shadow-xl z-50 text-xs">
-          <div className="px-3 py-1.5 border-b border-border bg-accent-bg text-text-secondary font-medium">
+          <div className="px-3 py-1.5 bg-accent-bg text-text-secondary font-medium">
             执行中的任务({agentTasks.length})
           </div>
           <div className="divide-y divide-border/60">

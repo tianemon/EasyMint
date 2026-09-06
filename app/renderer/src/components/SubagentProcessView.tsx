@@ -157,7 +157,7 @@ export function SubagentProcessView({
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部:第一行 = spinner + 标题 + 状态 + 关闭;第二行 = 显示开关 */}
-        <div className="border-b border-border bg-accent-bg">
+        <div className="bg-accent-bg">
           <div className="flex items-center gap-2 px-4 py-2.5">
             <svg className="animate-spin text-accent shrink-0" width="13" height="13" viewBox="0 0 16 16" fill="none">
               <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />

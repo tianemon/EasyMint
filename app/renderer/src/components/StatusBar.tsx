@@ -120,7 +120,7 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
         </div>
       )}
       {summarizing && (
-        <div className="flex items-center gap-2 px-4 py-2 text-text-primary text-sm bg-accent-bg border-b border-accent-border-light shrink-0">
+        <div className="flex items-center gap-2 px-4 py-2 text-text-primary text-sm bg-accent-bg shrink-0">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4 text-accent animate-spin"><circle cx="8" cy="8" r="6" strokeOpacity="0.3"/><path d="M8 2a6 6 0 015.5 3.5" strokeLinecap="round"/></svg>
           <span>正在进行会话摘要，将在新会话继续。</span>
         </div>

@@ -210,7 +210,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
       <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${CARD_COLORS[colorIdx]}`} />
       {/* 标题栏（拖动把手） */}
       <div
-        className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-alt border-b border-border cursor-grab active:cursor-grabbing select-none"
+        className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-alt cursor-grab active:cursor-grabbing select-none"
         onPointerDown={onDragStart}
       >
         <PinIcon className="w-3 h-3 text-text-secondary shrink-0" />
