@@ -85,7 +85,7 @@ function cleanupOldLogs(logDir: string): void {
  * 3. PATH 上的 bash.exe(Cygwin/MSYS2/WSL)
  * 找不到返回 null(调用方回退 shell:true → cmd.exe)
  */
-function findBashOnWindows(): string | null {
+export function findBashOnWindows(): string | null {
   const candidates: string[] = [];
   const pf = process.env.ProgramFiles;
   const pf86 = process.env["ProgramFiles(x86)"];
@@ -156,9 +156,15 @@ class BackgroundShellRegistry {
   }
 
   /** 启动后台命令,立即返回 id + 输出文件路径;进程退出时自动注销并回调 onExit。
-   *  command = 实际执行内容（可能含沙盒 wrap env 前缀）；displayCommand = 面板/通知展示用（缺省 = command） */
-  start(command: string, cwd: string, onExit?: (shell: BackgroundShell) => void, sessionId?: string, displayCommand?: string): { id: string; logPath: string } {
-    const display = displayCommand ?? command;
+   *  command = 实际执行内容（shell 字符串，或沙盒 argv 规格）；displayCommand = 面板/通知展示用（缺省 = 原命令） */
+  start(
+    command: string | { argv: string[]; env: NodeJS.ProcessEnv },
+    cwd: string,
+    onExit?: (shell: BackgroundShell) => void,
+    sessionId?: string,
+    displayCommand?: string,
+  ): { id: string; logPath: string } {
+    const display = displayCommand ?? (typeof command === "string" ? command : "(沙盒命令)");
     const id = `shell-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     // 完整输出落盘项目级 .easymint/shell-logs/(持久可回看);
     // 启动时顺带清理超过保留期的旧日志,防积累
@@ -179,7 +185,11 @@ class BackgroundShellRegistry {
     // Windows 用 Git Bash -c 执行(对齐 Pi 工具:支持 Git Bash 语法/cd /c/.../管道 tail);
     // Windows 无 Git Bash → 报错注入结果,不 spawn(错误信息让 Mint 读到后自行调整);
     // Unix 保持 shell:true + detached(独立进程组,kill(-pid) 杀树)
-    const { file, args, opts, error } = resolveSpawn(command, cwd);
+    // argv 规格（Windows 沙盒 srt-win 两跳）不走 resolveSpawn——直接 spawn(argv[0], rest, { shell:false, env })
+    const spawnPlan = typeof command === "string"
+      ? resolveSpawn(command, cwd)
+      : { file: command.argv[0] ?? "", args: command.argv.slice(1), opts: { cwd, env: command.env }, error: undefined };
+    const { file, args, opts, error } = spawnPlan;
     if (error) {
       // 构造已失败 shell:输出=错误信息,立即走退出注销路径(结果注入主会话,Mint 读到后自行调整)
       logStream?.write(error);

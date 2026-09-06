@@ -24,10 +24,17 @@ const config = {
 await SandboxManager.initialize(config);
 log("[smoke] initialize OK");
 
-const wrapped = await SandboxManager.wrapWithSandbox("echo SMOKE-OK");
-const r = spawnSync(wrapped, { shell: true, cwd: process.cwd(), encoding: "utf8", timeout: 60000 });
+// Windows：srt 不支持 shell 字符串包装，必须用 argv 形态（srt-win 两跳）+ shell:false；
+// Unix：shell 字符串包装（wrapWithSandbox）。
+const isWin = process.platform === "win32";
+const wrapped = isWin
+  ? await SandboxManager.wrapWithSandboxArgv("echo SMOKE-OK")
+  : await SandboxManager.wrapWithSandbox("echo SMOKE-OK");
+const r = isWin
+  ? spawnSync(wrapped.argv[0], wrapped.argv.slice(1), { cwd: process.cwd(), encoding: "utf8", timeout: 60000, env: { ...process.env, ...wrapped.env } })
+  : spawnSync(wrapped, { shell: true, cwd: process.cwd(), encoding: "utf8", timeout: 60000 });
 if (r.status !== 0) {
-  console.error("[smoke] 执行失败:", { status: r.status, stdout: r.stdout, stderr: r.stderr, wrapped: String(wrapped).slice(0, 200) });
+  console.error("[smoke] 执行失败:", { status: r.status, stdout: r.stdout, stderr: r.stderr, wrapped: isWin ? wrapped.argv : String(wrapped).slice(0, 200) });
   process.exit(1);
 }
 if (!r.stdout.includes("SMOKE-OK")) {

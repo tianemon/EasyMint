@@ -156,10 +156,27 @@ export async function ensureSandbox(cwd: string): Promise<SandboxInitResult> {
   }
 }
 
-/** 包装命令为沙盒执行形态（调用前须 ensureSandbox ok；失败抛错由调用方转报错文本） */
-export async function wrapForSandbox(command: string): Promise<string> {
+/** 沙盒执行规格——执行层按 kind 选择 spawn 方式 */
+export type SandboxSpawnSpec =
+  /** darwin/linux：wrapWithSandbox 返回 shell 字符串，走 resolveSpawn 原路径（shell:true / Git Bash -c） */
+  | { kind: "shell"; command: string }
+  /** win32：srt 不支持 shell 字符串包装（srt-win 两跳），必须 argv + shell:false + 注入 env */
+  | { kind: "argv"; argv: string[]; env: NodeJS.ProcessEnv };
+
+/**
+ * 包装命令为沙盒执行规格（调用前须 ensureSandbox ok；失败抛错由调用方转报错文本）。
+ * Windows 分支：wrapWithSandboxArgv + Git Bash 绝对路径（EM Windows bash 统一走 Git Bash，
+ * 与 resolveSpawn 的 findBashOnWindows 一致——gitBashPath 由调用方传入避免重复探测）。
+ */
+export async function wrapForSandbox(command: string, opts?: { gitBashPath?: string }): Promise<SandboxSpawnSpec> {
   const srt = await getSrt();
-  return srt.SandboxManager.wrapWithSandbox(command);
+  if (process.platform === "win32") {
+    const exe = opts?.gitBashPath;
+    if (!exe) throw new Error("Windows 沙盒需要 Git Bash 绝对路径（gitBashPath）");
+    const wrapped = await srt.SandboxManager.wrapWithSandboxArgv(command, { exe, args: ["-c"] });
+    return { kind: "argv", argv: wrapped.argv, env: wrapped.env };
+  }
+  return { kind: "shell", command: await srt.SandboxManager.wrapWithSandbox(command) };
 }
 
 /** 违规归因：把沙盒拦截事件注解进 stderr（Operation not permitted → 大白话违规说明） */
