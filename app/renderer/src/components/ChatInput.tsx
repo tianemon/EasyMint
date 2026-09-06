@@ -295,7 +295,7 @@ export const ChatInput = memo(function ChatInput({
         {cacheRate !== null && (
           <span
             className="text-[length:var(--text-3xs)] px-1.5 py-0.5 rounded-full bg-surface-hover text-text-secondary tabular-nums shrink-0"
-            title="本会话平均缓存命中率（缓存读 ÷ 全部输入）——供应商按命中 token 折扣计费"
+            title="平均缓存命中：缓存读占全部输入的比例。含冷启动回合——新会话或长时间未对话后的首轮，供应商缓存已过期属正常开销，同样计费"
           >
             平均缓存命中 {cacheRate}%
           </span>
