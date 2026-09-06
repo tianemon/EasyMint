@@ -11,7 +11,8 @@
         "{{STEP_2}}",
         "{{STEP_3}}"
       ],
-      "passes": false
+      "tdd": false,
+      "dependsOn": []
     }
   ]
 }
