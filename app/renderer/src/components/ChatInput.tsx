@@ -295,7 +295,7 @@ export const ChatInput = memo(function ChatInput({
             className="text-[length:var(--text-3xs)] px-1.5 py-0.5 rounded-full bg-surface-hover text-text-secondary tabular-nums shrink-0"
             title="本会话平均缓存命中率（缓存读 ÷ 全部输入）——供应商按命中 token 折扣计费"
           >
-            缓存 {cacheRate}%
+            平均缓存命中 {cacheRate}%
           </span>
         )}
         <span className="inp-lbl">权限</span>

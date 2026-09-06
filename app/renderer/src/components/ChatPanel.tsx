@@ -1074,6 +1074,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         handleBlocks(event.blocks, event.timestamp ?? Date.now());
         // 回合完整消息（message_end，partial=false）携带 usage → 挂到本回合 AI 消息
         if (!event.partial && event.usage && latestAiIdRef.current) {
+          // 取证日志：核对 Pi usage 字段语义（input 是否含缓存读——决定命中率公式，确认后移除）
+          console.info("[usage]", event.usage);
           useChatStore.getState().setMessageUsage(sidRef.current, latestAiIdRef.current, event.usage);
         }
       }
@@ -2181,12 +2183,12 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
             ))}
           </div>
           <BubbleActions text={copyText} onPin={onPin} sid={sid} visible={actionsVisible} />
-          {/* 回合 usage：输入(含缓存读)/输出/缓存命中率——SDK 数据（message_end 携带）；无 usage 不显示 */}
+          {/* 回合 usage：气泡右下（与 hover 复制工具条同行平行）——SDK 数据（message_end 携带）；无 usage 不显示 */}
           {msg.usage && (
-            <div className="mt-0.5 text-[length:var(--text-3xs)] text-text-muted tabular-nums">
+            <div className="mt-1 flex justify-end text-[length:var(--text-2xs)] text-text-muted tabular-nums">
               输入 {fmtTokenCount((msg.usage.inputTokens || 0) + (msg.usage.cacheReadTokens || 0))}
               {" · "}输出 {fmtTokenCount(msg.usage.outputTokens || 0)}
-              {msg.usage.cacheReadTokens ? ` · 缓存命中 ${Math.round((msg.usage.cacheReadTokens / ((msg.usage.inputTokens || 0) + msg.usage.cacheReadTokens)) * 100)}%` : ""}
+              {msg.usage.cacheReadTokens ? ` · 缓存 ${Math.round((msg.usage.cacheReadTokens / ((msg.usage.inputTokens || 0) + msg.usage.cacheReadTokens)) * 100)}%` : ""}
             </div>
           )}
         </div>
