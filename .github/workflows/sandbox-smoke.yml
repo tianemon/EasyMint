@@ -18,6 +18,8 @@ jobs:
           node-version: 22
       - name: 安装沙盒系统依赖
         run: sudo apt-get update && sudo apt-get install -y bubblewrap socat ripgrep
+      - name: 放开 unprivileged userns（Ubuntu 24.04+ 默认限制 bwrap netns——真实用户机器同样需此配置或 AppArmor profile）
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: 安装依赖
         run: npm ci --ignore-scripts
       - name: 沙盒冒烟（initialize + wrap + 执行）

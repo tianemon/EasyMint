@@ -110,13 +110,28 @@ async function platformFailureReason(e: Error): Promise<string | null> {
   return null; // macOS 无系统依赖，原样报错
 }
 
+/**
+ * Windows 专属配置注入：srt 要求显式指定 srt-win.exe 路径（vendor 随包分发，
+ * asarUnpack 后路径仍有效）。VENDORED_SRT_WIN_EXE 是 srt 导出的包内常量。
+ */
+async function applyWindowsConfig(cfg: SandboxRuntimeConfig): Promise<SandboxRuntimeConfig> {
+  if (process.platform !== "win32") return cfg;
+  try {
+    const srt = await getSrt();
+    return { ...cfg, windows: { srtWin: { path: srt.VENDORED_SRT_WIN_EXE } } };
+  } catch (e) {
+    console.warn("[sandbox] srt-win 路径注入失败:", (e as Error).message);
+    return cfg;
+  }
+}
+
 /** 懒加载初始化（幂等）。失败原因保留供权限层 fail-closed 拒绝时展示。 */
 export async function ensureSandbox(cwd: string): Promise<SandboxInitResult> {
   if (_state === "ok") return { ok: true };
   if (_state === "failed") return { ok: false, reason: _failReason };
   try {
     const srt = await getSrt();
-    await srt.SandboxManager.initialize(buildSandboxConfig(cwd));
+    await srt.SandboxManager.initialize(await applyWindowsConfig(buildSandboxConfig(cwd)));
     _state = "ok";
     return { ok: true };
   } catch (e) {
