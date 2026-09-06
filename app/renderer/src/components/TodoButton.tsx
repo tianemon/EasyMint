@@ -96,7 +96,7 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
       {open && (
         <div className="absolute bottom-full left-0 mb-1.5 w-[360px] max-w-[85vw] rounded-lg border border-border bg-surface-elevated shadow-xl z-40 overflow-hidden">
           {/* 头部 */}
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+          <div className="flex items-center justify-between px-3 py-2">
             <span className="text-xs font-medium text-text-primary">待办（想法与计划）</span>
             <span className="text-[length:var(--text-3xs)] text-text-muted">{todos === null ? "…" : `${todos.filter((t) => t.status === "open").length} 未完成 · ${todos.length} 条`}</span>
           </div>
@@ -151,7 +151,7 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
           </div>
 
           {/* 添加 */}
-          <div className="flex items-center gap-1.5 px-3 py-2 border-t border-border">
+          <div className="flex items-center gap-1.5 px-3 py-2">
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
