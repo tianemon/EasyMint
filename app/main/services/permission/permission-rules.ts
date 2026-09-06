@@ -27,7 +27,7 @@ export const SAFE_TOOLS: readonly string[] = [
 
   // WebFetch 已移除：可被滥用为 SSRF
   // TodoWrite 已移除：修改 Agent 计划状态，非只读操作
-  // 注意：AskUserQuestion 不在此列表 — 由 canUseTool 拦截并展示交互式 UI
+  // 注意：ask_user 不在此列表——它是挂起交互工具（执行时弹卡片等用户回答，非只读），走标准放行
 ]
 
 /** 安全的 Bash 命令模式（只读操作） */
