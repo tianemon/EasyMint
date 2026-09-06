@@ -157,9 +157,9 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") add(); }}
               placeholder="添加待办（回车确认）…"
-              className="flex-1 min-w-0 text-xs bg-surface-alt border border-border rounded-md px-2 py-1.5 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors"
+              className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs"
             />
-            <button type="button" onClick={add} disabled={!draft.trim()} className="btn-accent px-2.5 py-1.5 rounded-md text-xs disabled:opacity-40 disabled:cursor-not-allowed">添加</button>
+            <button type="button" onClick={add} disabled={!draft.trim()} className="btn-accent h-8 px-3 rounded-lg text-xs disabled:opacity-40 disabled:cursor-not-allowed shrink-0">添加</button>
           </div>
         </div>
       )}

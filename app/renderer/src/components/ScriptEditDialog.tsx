@@ -88,7 +88,7 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
   return createPortal(
     <div ref={overlayRef} className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40" onClick={onClose}>
       <div className="relative bg-surface rounded-xl border border-border shadow-2xl w-[760px] h-[600px] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-surface-alt shrink-0">
+        <div className="flex items-center justify-between px-4 py-2.5 bg-surface-alt shrink-0">
           <span className="text-sm font-medium text-text-primary">编辑脚本</span>
           <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} title="关闭">✕</button>
         </div>
@@ -108,7 +108,7 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
             />
           </div>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2.5 border-t border-border bg-surface-alt shrink-0">
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-surface-alt shrink-0">
           {scriptPath && (
             <button onClick={handleEditScript}
               className="h-8 px-3 whitespace-nowrap rounded-lg border border-accent-border text-accent text-xs hover:bg-accent-subtle transition-colors shrink-0">
