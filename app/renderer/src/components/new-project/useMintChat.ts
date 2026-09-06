@@ -29,8 +29,8 @@ export function useMintChat(pathRef: React.RefObject<string | null>) {
   }, [pathRef]);
 
   /**
-   * One-shot workspace ask for lightweight tasks like name translation.
-   * Always creates a fresh chat with a fast model, deletes the session after.
+   * One-shot workspace ask for lightweight tasks（名称翻译/功能推荐等）——用完即删的旁路会话。
+   * 模型不在此指定——一律按用户配置的默认模型走（postToAgent 不传 model）。
    *
    * 时序：等 onExit（SDK 正常完成） → killChat（关闭 chat，触发 SDK flush 并阻止后续写入）
    * → 延迟确保 flush 完成 → deleteSession（删文件） → 刷新会话列表。
@@ -42,7 +42,7 @@ export function useMintChat(pathRef: React.RefObject<string | null>) {
     const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => {
       if (sid) capturedSessionId = sid;
     });
-    return postToAgent({ cwd: WORKSPACE_DIR, sessionId: null, model: "deepseek-v4-flash", systemPayload }, prompt)
+    return postToAgent({ cwd: WORKSPACE_DIR, sessionId: null, systemPayload }, prompt)
       .then(async (r) => { capturedChatId = r.chatId; return await r.replyText; })
       .catch(() => "")
       .finally(() => {

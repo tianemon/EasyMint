@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { buildProjectCreatedPrompt, buildFeatureRecommendPrompt, buildDirectoryTranslationPrompt, buildDirectCreatePrompt, buildInitTriggerPrompt, buildInitInstruction, detectProfile, composeProfile, systemMessage } from "../../../shared/prompts";
+import { buildFeatureRecommendPrompt, buildDirectoryTranslationPrompt, buildDirectCreatePrompt, buildInitTriggerPrompt, buildInitInstruction, detectProfile, composeProfile, systemMessage } from "../../../shared/prompts";
 import type { ProjectDimensions, DeployMode } from "../../../shared/prompts";
 import { StepDots, Step1Form, Step2Form, Step3Form, Step4Form } from "./new-project/StepComponents";
 import { ALL_STEPS, DEFAULT_DATA, SCENE_OPTIONS, TARGET_OPTIONS, UI_STYLE_OPTIONS, type ProjectFormData, type FeatureItem } from "./new-project/ProjectFormTypes";
@@ -114,15 +114,12 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
         }
 
         // Step 1b: Create project with (possibly translated) name
+        // （S1：不再在此建预确认会话——表单期对话调用走旁路，正式会话在最终「创建项目」时创建）
         const project = await window.electronAPI.project.create({ name: dirName, path: data.dir.trim() });
         setProjectPath(project.path);
         pathRef.current = project.path;
         setCreatedProject(project);
         setCreateError(null);
-
-        // Step 1c: Force a new session under the project path (not workspace)
-        const createdPrompt = buildProjectCreatedPrompt(buildContext(data, 1));
-        await ask(createdPrompt, { forceNewSession: true, systemPayload: systemMessage("flow", createdPrompt) });
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : "创建项目失败";
         setCreateError(msg);
@@ -140,7 +137,8 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     setLoadingRec("features");
     const ctx = `项目名称：${data.name}，${buildContext(data, 1)}`;
     const featurePrompt = buildFeatureRecommendPrompt(ctx);
-    const resp = await ask(featurePrompt, { systemPayload: systemMessage("flow", featurePrompt) });
+    // 走旁路会话（不再注入正式会话产生隐藏回合）；默认主模型（不传 opts.model）
+    const resp = await askWorkspace(featurePrompt, systemMessage("flow", featurePrompt));
     setLoadingRec(null);
     if (resp) {
       // Extract the first contiguous block of bullet-point lines only.
@@ -196,7 +194,8 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
         // 持久化项目产品类型规范,供后续 Mint 会话 buildSystemPrompt 注入
         window.electronAPI.project.saveProfile(createdProject.path, profile.platformSpec).catch(() => {});
         const initPrompt = buildInitTriggerPrompt(createdProject.path, buildContext(data), buildInitInstruction(profile), data.targets);
-        ask(initPrompt, { systemPayload: systemMessage("project-created", initPrompt) }).catch(() => {});
+        // S1：Step1 不再预建会话——最终创建必须 forceNewSession（cwd=项目目录，正式会话在此诞生）
+        ask(initPrompt, { forceNewSession: true, systemPayload: systemMessage("project-created", initPrompt) }).catch(() => {});
         // 轮询 session 文件，等 custom_message(project-created) 落盘后再跳转
         for (let i = 0; i < 100; i++) {
           await new Promise((r) => setTimeout(r, 100));
