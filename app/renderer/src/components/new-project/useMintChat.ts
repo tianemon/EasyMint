@@ -4,9 +4,13 @@ import { sessionListActions } from "../../stores/session-list-actions";
 import { getWorkspaceDir } from "../../lib/getWorkspaceDir";
 import type { SystemMessagePayload } from "../../../../shared/prompts";
 
-/** AI 助手:项目会话问答 + 一次性 workspace 问答(用于名称翻译等轻量任务) */
+/** AI 助手:项目会话问答 + 表单流程级共享的 workspace 旁路问答(名称翻译/功能推荐等轻量任务)
+ *  旁路会话一次创建、流程内复用(翻译/推荐都发往同一会话),组件卸载时 dispose 统一清理——
+ *  避免每次调用都建/删一个会话。模型不在此指定,一律按配置默认模型走。 */
 export function useMintChat(pathRef: React.RefObject<string | null>) {
   const sidRef = useRef<string | null>(null);      // project session
+  const workspaceSidRef = useRef<string | null>(null);   // workspace 旁路会话（流程级共享）
+  const workspaceChatIdRef = useRef<string | null>(null);
 
   const WORKSPACE_DIR = getWorkspaceDir();
 
@@ -29,38 +33,41 @@ export function useMintChat(pathRef: React.RefObject<string | null>) {
   }, [pathRef]);
 
   /**
-   * One-shot workspace ask for lightweight tasks（名称翻译/功能推荐等）——用完即删的旁路会话。
-   * 模型不在此指定——一律按用户配置的默认模型走（postToAgent 不传 model）。
+   * Workspace 旁路问答（名称翻译/功能推荐等）——首次调用创建会话，之后复用同一会话发消息。
+   * 由调用方在流程结束（弹窗关闭/创建完成）时调 disposeWorkspaceSession 统一删除。
    *
-   * 时序：等 onExit（SDK 正常完成） → killChat（关闭 chat，触发 SDK flush 并阻止后续写入）
-   * → 延迟确保 flush 完成 → deleteSession（删文件） → 刷新会话列表。
-   * killChat 必须在 delete 之前，否则 SDK 内部状态在 chat 销毁时重新写回元数据到磁盘。
+   * 时序（dispose）：killChat（关闭 channel + abort + flush） → 延迟确保 flush 完成 →
+   * deleteSession（删文件） → 刷新会话列表。killChat 必须在 delete 之前，否则 SDK 内部状态
+   * 在 chat 销毁时重新写回元数据到磁盘。
    */
   const askWorkspace = useCallback((prompt: string, systemPayload?: SystemMessagePayload): Promise<string> => {
-    let capturedSessionId = "";
-    let capturedChatId = "";
     const unsubSession = window.electronAPI.agent.onChatSession(({ sessionId: sid }) => {
-      if (sid) capturedSessionId = sid;
+      if (sid) workspaceSidRef.current = sid;
     });
-    return postToAgent({ cwd: WORKSPACE_DIR, sessionId: null, systemPayload }, prompt)
-      .then(async (r) => { capturedChatId = r.chatId; return await r.replyText; })
+    return postToAgent({ cwd: WORKSPACE_DIR, sessionId: workspaceSidRef.current, systemPayload }, prompt)
+      .then(async (r) => {
+        if (!workspaceChatIdRef.current) workspaceChatIdRef.current = r.chatId;
+        return await r.replyText;
+      })
       .catch(() => "")
-      .finally(() => {
-        unsubSession();
-        if (capturedSessionId && capturedChatId) {
-          // ① 先 killChat——关闭 channel + abort + close query，触发 SDK flush
-          window.electronAPI.agent.killChat(capturedChatId).catch(() => {});
-          // ② 延迟后 delete——确保 flush 完成再删文件
-          setTimeout(() => {
-            window.electronAPI.conv.delete(capturedSessionId, WORKSPACE_DIR)
-              .then(() => sessionListActions.refresh())
-              .catch(() => {});
-          }, 500);
-        } else {
-          console.warn("[askWorkspace] missing sessionId or chatId, skip delete");
-        }
-      });
+      .finally(() => { unsubSession(); });
   }, []);
 
-  return { ask, askWorkspace, sidRef };
+  /** 清理流程级 workspace 旁路会话（弹窗卸载/创建完成后调用；无会话时为空操作） */
+  const disposeWorkspaceSession = useCallback((): void => {
+    const sid = workspaceSidRef.current;
+    const chatId = workspaceChatIdRef.current;
+    workspaceSidRef.current = null;
+    workspaceChatIdRef.current = null;
+    if (sid && chatId) {
+      window.electronAPI.agent.killChat(chatId).catch(() => {});
+      setTimeout(() => {
+        window.electronAPI.conv.delete(sid, WORKSPACE_DIR)
+          .then(() => sessionListActions.refresh())
+          .catch(() => {});
+      }, 500);
+    }
+  }, []);
+
+  return { ask, askWorkspace, disposeWorkspaceSession, sidRef };
 }

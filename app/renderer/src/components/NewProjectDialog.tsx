@@ -75,9 +75,12 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   const pathRef = useRef<string | null>(null);
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
   const [loadingRec, setLoadingRec] = useState<string | null>(null);
-  const { ask, askWorkspace, sidRef } = useMintChat(pathRef);
+  const { ask, askWorkspace, disposeWorkspaceSession, sidRef } = useMintChat(pathRef);
 
   const updateData = useCallback((patch: Partial<ProjectFormData>) => setData((prev) => ({ ...prev, ...patch })), []);
+
+  // 卸载时清理流程级旁路会话（成功创建导航离开/取消/直接关闭都走这里）
+  useEffect(() => () => { disposeWorkspaceSession(); }, [disposeWorkspaceSession]);
 
   const visibleSteps = ALL_STEPS;
 
