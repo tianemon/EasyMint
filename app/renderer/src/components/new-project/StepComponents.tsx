@@ -92,7 +92,7 @@ function Select({ value, onChange, options, placeholder }: { value: string; onCh
 
 // ---- Step 1: 基本信息 ----
 
-function Step1Form({ data, onChange, previewDirName, dirConflict }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void; previewDirName?: string | null; dirConflict?: boolean }): JSX.Element {
+function Step1Form({ data, onChange, previewDirName, dirConflict, translating }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void; previewDirName?: string | null; dirConflict?: boolean; translating?: boolean }): JSX.Element {
   const updateTarget = (i: number, value: string) => {
     const next = [...data.targets];
     next[i] = value;
@@ -129,6 +129,7 @@ function Step1Form({ data, onChange, previewDirName, dirConflict }: { data: Proj
           ) : (
             <p className="mt-1 text-[length:var(--text-3xs)] text-text-muted">
               将创建于 <span className="font-mono text-text-secondary">{data.dir}/{previewDirName}</span>
+              {translating && <span className="ml-1.5 text-text-muted">翻译目录名中…</span>}
             </p>
           )
         )}

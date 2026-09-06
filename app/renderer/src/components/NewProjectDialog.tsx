@@ -112,14 +112,17 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   }, [askWorkspace]);
 
   // 预热：name 输入停顿 1s 后悄悄翻译并缓存（最终创建零等待），预览行同步更新
+  const [translating, setTranslating] = useState(false);
   useEffect(() => {
     const name = data.name.trim();
-    if (!name) { setPreviewDirName(null); return; }
-    if (!/[^\x00-\x7F]/.test(name)) { setPreviewDirName(name); return; }
-    // 非 ASCII：先即时显示原名（预览不空窗），1s 停顿后翻译覆盖
+    if (!name) { setPreviewDirName(null); setTranslating(false); return; }
+    if (!/[^\x00-\x7F]/.test(name)) { setPreviewDirName(name); setTranslating(false); return; }
+    // 非 ASCII：先即时显示原名（预览不空窗），1s 停顿后翻译覆盖；等待期标「翻译中」让在途可见
     setPreviewDirName(name);
+    setTranslating(true);
     const t = setTimeout(async () => {
       setPreviewDirName(await resolveDirName(name));
+      setTranslating(false);
     }, 1000);
     return () => clearTimeout(t);
   }, [data.name, resolveDirName]);
@@ -289,7 +292,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
 
   const renderStepContent = () => {
     switch (stepNumber) {
-      case 1: return <Step1Form data={data} onChange={updateData} previewDirName={previewDirName} dirConflict={dirConflict} />;
+      case 1: return <Step1Form data={data} onChange={updateData} previewDirName={previewDirName} dirConflict={dirConflict} translating={translating} />;
       case 2: return <Step2Form data={data} onChange={updateData} onRecommendFeatures={handleRecommendFeatures} loadingRec={loadingRec} />;
       case 3: return <Step3Form data={data} onChange={updateData} />;
       case 4: return <Step4Form data={data} onChange={updateData} />;
