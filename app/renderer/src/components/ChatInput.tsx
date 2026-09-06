@@ -15,6 +15,9 @@ import { BreatheGlow } from "./BreatheGlow";
 
 interface AttachItem { name: string; path: string; dataUrl?: string; kind: "image" | "doc"; }
 
+/** 空消息数组常量（selector 缺省用——避免每次渲染新建引用触发 zustand 快照循环） */
+const EMPTY_MSGS: unknown[] = [];
+
 interface ChatInputProps {
   projectPath: string;
   busy: boolean;
@@ -117,8 +120,10 @@ export const ChatInput = memo(function ChatInput({
   const indicatorOrder = useDelegationStore((s) => s.order);
   const ctxPct = useStatusStore((s) => s.bySession[sessionId]?.ctxPct ?? null);
   const summarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
-  // 本会话平均缓存命中率：全部消息 usage 累加（cacheRead / (未缓存输入 + cacheRead)）——口径同单条显示
-  const sessionMsgs = useChatStore((s) => s.messagesBySession[sessionId] || []);
+  // 本会话平均缓存命中率：全部消息 usage 累加（cacheRead / (未缓存输入 + cacheRead)）——口径同单条显示。
+  // selector 直接返回 store 引用（不建新数组——zustand 快照比较要求引用稳定，否则无限循环）
+  const sessionMsgsRaw = useChatStore((s) => s.messagesBySession[sessionId]);
+  const sessionMsgs = sessionMsgsRaw ?? EMPTY_MSGS;
   const cacheRate = useMemo(() => {
     let read = 0, uncached = 0;
     for (const m of sessionMsgs) {
