@@ -41,14 +41,17 @@ describe("Mint 系统提示词 override 契约（纯替换架构）", () => {
     expect(MINT_SYSTEM_PROMPT).not.toContain("You are an expert coding assistant operating inside pi");
   });
   it("结构关键段存在（防结构漂移）", () => {
-    for (const seg of ["<identity>", "<easymint>", "<rules>", "**13. 排查问题**"]) {
+    // 规则去编号后锚标题（标题语义锚比数字锚稳定——插入新规则不重排）
+    for (const seg of ["<identity>", "<easymint>", "<rules>", "**通用规则引用**", "**排查问题**"]) {
       expect(MINT_SYSTEM_PROMPT).toContain(seg);
     }
   });
-  it("Mint 专属规则段齐全（需求理解规则 12 与排查规则 13）", () => {
-    expect(MINT_SYSTEM_PROMPT).toContain("**12. 需求理解**");
+  it("Mint 专属规则段齐全（需求理解与排查基调）", () => {
+    expect(MINT_SYSTEM_PROMPT).toContain("**需求理解**");
     expect(MINT_SYSTEM_PROMPT).toContain("表象描述先映射术语再对齐");
-    expect(MINT_SYSTEM_PROMPT).toContain("bash 执行前预判");
+    // 排查通用条目已下沉 AGENTS.md 模板——Mint 侧保留对话基调（实测真相），模板侧锚通用引用行
+    expect(MINT_SYSTEM_PROMPT).toContain("**用户实测即真相**");
+    expect(MINT_SYSTEM_PROMPT).toContain("AGENTS.md");
   });
 });
 
