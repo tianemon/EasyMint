@@ -100,6 +100,8 @@ Mint 侧规则：
 
 ## CHANGELOG.md（正式发布日志）
 
+**条件触发**：项目无对外发布需求（本地工具/个人项目）时**不建不维护** CHANGELOG；用户明确要发版/发布时才创建并按其规范维护。
+
 遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/) 规范，**只记录 release 的用户可见变更**：
 
 - **日常变更先记入 `[Unreleased]` 区块**，发版时整理成版本条目
