@@ -132,6 +132,11 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     },
   });
 
+  // macOS：启动即铺满可用屏幕（非全屏，保留菜单栏/Dock）——避免固定 1400×900 在小屏上呈「满高不满宽」
+  if (process.platform === "darwin") {
+    window.maximize();
+  }
+
   // Windows 自绘按钮需要最大化状态：主进程监听并广播
   if (process.platform === "win32") {
     window.on("maximize", () => window.webContents.send("win:maximized-changed", true));
