@@ -157,6 +157,7 @@ export async function createEnhancedBashTool(
       ...(Array.isArray(native.promptGuidelines) ? native.promptGuidelines : []),
       "后台命令(background: true)的输出会被系统自动收集并落盘——不要在命令里手动重定向 `> file 2>&1` 或 `| tee`(会绕过自动收集,面板和退出通知无输出)",
       "后台命令返回的输出文件路径(logPath)可直接用 read 工具读取完整输出",
+      "事件等待：需要等某事件/任务完成才能继续(CI 构建、服务就绪、下载、长任务收尾等)时，命令里必须实际等待——用 sleep 轮询/条件循环/gh run watch 等，前后台均可、优先前台(配足 timeout，命令返回即拿到结果继续)；长时间等待(约 >60s)用后台 watch/sleep，退出自动注入通知。禁止只承诺「等完成再汇报」却不挂任何等待命令——没有命令退出事件就没有主动唤醒，承诺无法兑现",
     ],
     parameters: {
       type: "object" as const,
