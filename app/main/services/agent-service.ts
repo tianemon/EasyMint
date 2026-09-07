@@ -511,7 +511,8 @@ async function createAskUserTool(sessionId: string): Promise<ToolDefinition> {
     description:
       "向用户提出结构化选择题（可多个问题，每题单选，支持级联联动）。调用后回合暂停等待用户回答。"
       + "适用场景：方案对比选择、范围取舍确认、让用户从候选中拍板等需要用户决策的时刻。"
-      + "选项要精炼：label 简短（≤10 字）+ 说明放选项括号里；每题 2-4 个选项为宜。",
+      + "选项结构（重要）：每个 option 必须同时含 value 与 label 两个字段，缺一会报参数校验错误——value 是机器标识、答案按它返回（简短英文小写下划线，如 keep_current，勿用中文）；label 是人看到的显示文本（简短，≤10 字）；补充说明放 description 字段（可空）。"
+      + "示例：{ value: \"opt_a\", label: \"方案A\", description: \"……\" }。每题 2-4 个选项为宜。",
     promptSnippet: "向用户提问（选择题/级联）",
     promptGuidelines: [
       "触发场景分层：应该用——新功能设计（需求拆解、功能范围、交互/视觉选择）、方案调整（技术选型、实现方式、取舍权衡）；不应该用——修 bug（目标明确的修复直接执行）、简单确认（继续吗/这样可以吗用文本即可）",
@@ -536,9 +537,9 @@ async function createAskUserTool(sessionId: string): Promise<ToolDefinition> {
                 items: {
                   type: "object" as const,
                   properties: {
-                    value: { type: "string" as const, description: "选项值（答案中返回）" },
-                    label: { type: "string" as const, description: "选项显示文本（简短）" },
-                    description: { type: "string" as const, description: "选项补充说明（一句）" },
+                    value: { type: "string" as const, description: "选项机器标识，答案按此返回（简短英文小写下划线，如 mode_a；必填）" },
+                    label: { type: "string" as const, description: "选项显示文本，人看（简短，≤10 字；必填）" },
+                    description: { type: "string" as const, description: "选项补充说明，人看（一句；可空）" },
                   },
                   required: ["value", "label"],
                 },
