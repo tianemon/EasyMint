@@ -13,6 +13,7 @@
 import {
   SAFE_TOOLS,
   isSafeBashCommand,
+  isReadOnlyPipeline,
   isDangerousCommand,
   hasDangerousStructure,
   isForbiddenWritePath,
@@ -20,6 +21,7 @@ import {
   isSystemForbidden,
   isSecretForbidden,
   isUserDirForbidden,
+  isDevNull,
   extractPathsFromCommand,
   normalizePath,
   CURL_WRITE_PARAM_RE,
@@ -189,8 +191,8 @@ export class AgentPermissionService {
         // 路径提取：含变量/命令替换 → 路径无法静态确认（判不了域）
         //   标准模式 → 沙盒（沙盒内变量展开读凭据/写工作区外同样被拦，运行时兜底）；
         //   完全访问 → 放行（用户显式信任）
-        const cmdPaths = extractPathsFromCommand(cmd)
-        if (cmdPaths === null) {
+        const cmdPathsRaw = extractPathsFromCommand(cmd)
+        if (cmdPathsRaw === null) {
           if (mode !== 'full') {
             const sb = await ensureSandbox(cwd)
             if (!sb.ok) return deny(`沙盒不可用（${sb.reason}），且命令含变量/命令替换无法确认范围：${cmd.slice(0, 100)}——请切换「完全访问」`)
@@ -198,6 +200,8 @@ export class AgentPermissionService {
           }
           return allow()
         }
+        // 路径禁区检查前排除 /dev/null（黑洞设备:丢弃数据非落盘,写它无害不属禁区）
+        const cmdPaths = cmdPathsRaw.filter((p) => !isDevNull(p))
         if (isWriteLikeCommand(cmd)) {
           // 写类命令：系统核心/凭据禁写；用户目录禁写（cwd 内豁免）
           const sys = cmdPaths.find((p) => isSystemForbidden(p) || isSecretForbidden(p))
@@ -224,8 +228,12 @@ export class AgentPermissionService {
         if (isDangerousCommand(cmd) && !isLoopbackCurl) {
           return deny(`危险命令（标准模式拒绝，请切换「完全访问」并按需操作）：${cmd.slice(0, 120)}`)
         }
+        // 只读管道/链式查询（grep x | head / ls 2>/dev/null | grep 等——全段只读）→ 放行,
+        // 不做「危险结构」一刀切拒绝。放在危险命令检查之后:危险命令即使纯管道也不放行
+        if (isReadOnlyPipeline(cmd)) return allow()
         if (hasDangerousStructure(cmd)) {
-          const redirPaths = extractRedirTargets(cmd)
+          // 重定向目标检查（跳过 /dev/null——黑洞丢弃非写盘,不参与 cwd 半径判定）
+          const redirPaths = extractRedirTargets(cmd).filter((p) => !isDevNull(p))
           for (const p of redirPaths) {
             if (!isWithinCwd(p, cwd)) return deny(`标准模式仅可写工作空间内文件，重定向目标：${p}`)
           }
@@ -268,10 +276,10 @@ export class AgentPermissionService {
     // 安全工具白名单（大小写不敏感：SDK 工具名 Read/read 混用）
     if (SAFE_TOOLS.some((s) => s.toLowerCase() === toolName.toLowerCase())) return true
 
-    // Bash 工具：检查命令是否匹配安全模式
+    // Bash 工具：检查命令是否匹配安全模式（含只读管道/丢弃 stderr 的组合——见 isReadOnlyPipeline）
     if (toolName.toLowerCase() === 'bash') {
       const command = typeof input.command === 'string' ? input.command : ''
-      return isSafeBashCommand(command)
+      return isSafeBashCommand(command) || isReadOnlyPipeline(command)
     }
 
     return false
@@ -420,7 +428,10 @@ function scanScriptContent(content: string): string | null {
   if (/\b(?:reg\s+add|reg\s+delete|diskpart|bcdedit|format)\b/.test(c)) return 'Windows 系统级命令'
   // 2. 写操作指向禁区路径（rm/mv/cp/tee/ln 后跟 /etc /usr 等系统核心，或 ~/.ssh 等凭据）
   //    注意：m 标志必须——$ 需匹配行尾（脚本多行时 rm -rf /etc\n 的换行会阻断无 m 的匹配）
-  if (/(?:^|[;&|\n])\s*(?:rm|mv|cp|tee|install|ln)\s+[^|;&\n]*\/(?:etc|usr|System|bin|sbin|var|dev|private|Windows)(?:\/|$)/m.test(c)) return '写系统核心目录'
+  //    根级限定：系统目录段必须是路径开头（/etc、/Users/.../dev 里中间的 dev 段不算）——
+  //    否则 rm /Users/amon/dev/... 这类「用户路径含 dev 段」会被误判为写系统 /dev
+  if (/(?:^|[;&|\n])\s*(?:rm|mv|cp|tee|install|ln)\s+[^|;&\n]*?\/(?:etc|usr|System|bin|sbin|var|private|Windows)(?:\/|$)/m.test(c)) return '写系统核心目录'
+  if (/(?:^|[;&|\n])\s*(?:rm|mv|cp|tee|install|ln)\s+(?:-\w+\s+)*\/dev(?:\/|\s|$)/m.test(c)) return '写系统核心目录(/dev)'
   if (/~\/\.(?:ssh|aws|gnupg|kube|docker)/.test(c)) return '操作凭据目录'
   if (/(?:^|[;&|\n])\s*(?:echo|printf|cat)\s+[^|;&\n]*>\s*\/etc\//m.test(c)) return '重定向写 /etc'
   // 3. 下载执行 / 混淆绕过

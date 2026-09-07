@@ -101,11 +101,39 @@ export function hasDangerousStructure(command: string): boolean {
 
 /**
  * 判断 Bash 命令是否匹配安全模式
+ * ① 无危险结构且段首是只读命令 → 安全；② 含丢弃重定向（>/dev/null 等）时,剥离后仍只读 → 安全。
  */
 export function isSafeBashCommand(command: string): boolean {
   const trimmed = command.trim()
   if (hasDangerousStructure(trimmed)) return false
   return SAFE_BASH_PATTERNS.some((pattern) => pattern.test(trimmed))
+}
+
+/**
+ * 只读命令判定（宽松版——覆盖「只读查询 + 管道/丢弃 stderr」的组合,消除高频误拦）：
+ * 按 | && ; 分段,每段剥离 `2>/dev/null`/`>/dev/null`/`2>&1` 丢弃重定向后,
+ * 段首仍是 SAFE_BASH_PATTERNS 只读命令 → 该段只读;全段只读 → 整体只读放行。
+ * 不新增白名单命令(保守:非名单命令即使带管道仍走原审查)。
+ */
+export function isReadOnlyPipeline(command: string): boolean {
+  const segments = command.trim().split(/[|;&]{1,2}/)
+  if (segments.length === 0) return false
+  for (const seg of segments) {
+    const s = seg.trim()
+    if (!s) continue
+    // cd 段（cd xxx / cd ~/proj）本身无读写副作用——切目录,后续段已分别校验;跳过
+    if (/^cd\s+/.test(s)) continue
+    // 剥离丢弃类重定向:2>/dev/null / >/dev/null / 2>&1 / 1>&2 后的纯读命令;
+    // 注意 `> file`(真写文件)不剥——只在丢到 /dev/null 或 fd 重定向时才视为无害
+    const cleaned = s
+      .replace(/2?>?\s*\/dev\/null/g, " ")
+      .replace(/2?>?&1/g, " ")
+      .trim()
+    if (!cleaned) continue
+    // 段首必须是只读白名单命令(段尾可能还有下一个只读段;grep x | head 两端都只读)
+    if (!SAFE_BASH_PATTERNS.some((p) => p.test(cleaned))) return false
+  }
+  return true
 }
 
 /**
@@ -204,6 +232,12 @@ export function isSystemForbidden(p: string): boolean {
   return hitsAnyPrefix(p, SYSTEM_FORBIDDEN) !== null;
 }
 
+/** 黑洞设备判定：/dev/null 读写都无害（丢弃数据,非落盘）——路径禁区检查前先豁免 */
+export function isDevNull(p: string): boolean {
+  const norm = normalizePath(p);
+  return norm === "/dev/null";
+}
+
 /** 凭据目录判定——读写都禁，不可豁免 */
 export function isSecretForbidden(p: string): boolean {
   return hitsAnyPrefix(p, SECRET_FORBIDDEN) !== null;
@@ -263,11 +297,11 @@ export function extractPathsFromCommand(command: string): string[] | null {
     const inner = q.slice(1, -1).trim();
     if (inner && /[\\/]/.test(inner)) paths.push(inner);
   }
-  // 重定向目标 > file / >> file
+  // 重定向目标 > file / >> file（跳过 /dev/null——黑洞设备丢弃数据,非写盘路径）
   const redirs = command.match(/>+[\s]*([^\s"'|;&]+)/g) || [];
   for (const r of redirs) {
     const target = r.replace(/^>+[\s]*/, "");
-    if (target) paths.push(target);
+    if (target && target !== "/dev/null") paths.push(target);
   }
   // 绝对路径 token（/ 开头或盘符开头），排除命令名本身
   const tokens = command.split(/[\s"'=]+/).filter((t) => /^\/|^[A-Za-z]:[\\/]|^~[\\/]/.test(t));

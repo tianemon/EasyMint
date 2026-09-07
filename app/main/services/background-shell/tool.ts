@@ -123,7 +123,7 @@ const PREVIEW_TAIL_LINES = 10;
 export function formatShellResult(shell: BackgroundShell): string {
   const status = shell.stopped ? "已由用户中断" : (shell.exitCode === 0 ? "完成" : "失败");
   const dur = Math.max(0, Math.round((Date.now() - shell.startedAt) / 1000));
-  const summary = `⏺ 后台命令 — ${status}${dur > 0 ? ` · ${dur}s` : ""}`;
+  const summary = `⏺ 后台命令 - ${status}${dur > 0 ? ` · ${dur}s` : ""}`;
   const head = `命令: ${shell.command}\n退出码: ${shell.exitCode ?? "?"}`;
   // 注入主会话文本剥 ANSI + 凭据脱敏(shell.output 保留原始供面板彩色渲染;模型/消息区要干净文本)
   const tail = maskSecrets(stripAnsi(shell.output.trim().split("\n").slice(-PREVIEW_TAIL_LINES).join("\n").trim()));

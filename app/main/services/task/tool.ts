@@ -45,7 +45,7 @@ function formatDelegationResult(result: BatchResult): string {
     const status = r.error ? "失败" : (r.aborted ? "中止" : "完成");
     const title = r.title || r.task.slice(0, 40);
     const dur = r.durationMs ? ` · ${Math.round(r.durationMs / 1000)}s` : "";
-    summary.push(`⏺ ${title} — ${status}${dur}`);
+    summary.push(`⏺ ${title} - ${status}${dur}`);
   }
   if (result.results.length > 1) {
     const ok = result.results.filter((r) => !r.error && !r.aborted).length;
@@ -261,7 +261,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
             const dur = Math.max(0, Math.round(progress.durationMs / 1000));
             // 单任务委派被停止:无后续通知,开回合让 Mint 回应;批量中停止单个不开回合。
             // 文本明确「用户中断」——Mint 不要误判为意外失败自动重启
-            ctx.onTaskAborted?.(record.parentSessionId, `⏺ ${title} — 已由用户中断${dur > 0 ? ` · ${dur}s` : ""}`, record.tasks.length === 1);
+            ctx.onTaskAborted?.(record.parentSessionId, `⏺ ${title} - 已由用户中断${dur > 0 ? ` · ${dur}s` : ""}`, record.tasks.length === 1);
           }
         }
         // 单任务提前完成(委派还有任务在跑)→ 立即注入完成通知,Mint 判断继续等待
@@ -273,7 +273,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
               notifiedTerminal.add(key);
               const title = record.tasks[progress.index]?.title || progress.task.slice(0, 40);
               const dur = Math.max(0, Math.round(progress.durationMs / 1000));
-              ctx.onTaskCompleted?.(record.parentSessionId, `⏺ ${title} — 完成${dur > 0 ? ` · ${dur}s` : ""}`);
+              ctx.onTaskCompleted?.(record.parentSessionId, `⏺ ${title} - 完成${dur > 0 ? ` · ${dur}s` : ""}`);
             }
           }
         }
