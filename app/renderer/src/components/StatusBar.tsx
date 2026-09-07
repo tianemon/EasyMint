@@ -12,7 +12,7 @@ const TICK_MS = 150;
 const PAUSE_MS = 500;
 
 /** 流光渐变样式:由 --shimmer-1..5 变量驱动(JS 按启用组色彩注入)。
- *  一圈 = 颜色数 × 3s;shimmerSweep 位移 600%(2 个渐变宽度)= 2 圈 → 总时长 = 颜色数 × 6s */
+ *  一圈 = 颜色数 × 4s;shimmerSweep 位移 600%(2 个渐变宽度)= 2 圈 → 总时长 = 颜色数 × 8s */
 function buildShimmerStyle(durationSec: number): CSSProperties {
   return {
     background: `linear-gradient(90deg, var(--shimmer-1), var(--shimmer-2), var(--shimmer-3), var(--shimmer-4), var(--shimmer-5), var(--shimmer-2), var(--shimmer-1))`,
@@ -99,10 +99,11 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
 
   if (!showSymbols && !summarizing) return null;
 
-  // 流光时长:一圈 = 颜色数 × 3s(shimmerSweep 位移 600% = 2 圈,总时长 = 颜色数 × 6s)
+  // 流光时长:一圈 = 颜色数 × 4s(shimmerSweep 位移 600% = 2 圈,总时长 = 颜色数 × 8s)
+  // 速度档位:每周期 4s 由用户确认(原 3s 偏快);想再慢把系数 8 改大(每周期 = 系数/2 s)
   const shimmerDuration = statusTextStyle === "shimmer"
-    ? Math.max(1, (shimmerColors.length > 0 ? shimmerColors.length : 1)) * 6
-    : 6;
+    ? Math.max(1, (shimmerColors.length > 0 ? shimmerColors.length : 1)) * 8
+    : 8;
   const shimmerStyle = buildShimmerStyle(shimmerDuration);
 
   // 文本样式:solid 单色(statusColor,独立配置)/shimmer 流光(shimmerStyle 变量驱动)

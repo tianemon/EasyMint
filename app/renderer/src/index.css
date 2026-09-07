@@ -216,11 +216,10 @@ html[data-platform="win32"] {
   --color-dot-red: #dc2626;
   --color-dot-blue: #3b82f6;
 
-  /* ── Thinking 折叠块(亮色:淡绿,暗色保留紫)── */
-  --thinking-border: #16a34a33;
-  --thinking-bg: #16a34a0a;
-  --thinking-hover: #16a34a0f;
-  --thinking-label: #15803d;
+  /* ── Thinking 思考过程(融入气泡:标题中性灰 + 内容左竖线引用式,非独立卡片)── */
+  --thinking-body: #e9ece9;   /* 内容底:比气泡 card-agent(#f3f6f3)深一档 */
+  --thinking-rule: #c9cdc9;   /* 内容区左竖线 */
+  --thinking-title-hover: #333333; /* 标题 hover:比常态 secondary(#555)更深一档(亮色下变深表强调) */
 
   /* ── Code highlight（GitHub Light 中性色板）── */
   --color-code-kw: #cf222e;
@@ -405,11 +404,10 @@ html[data-platform="win32"] {
   --color-dot-red: #ef4444;
   --color-dot-blue: #3b82f6;
 
-  /* ── Thinking 折叠块(暗色保留紫)── */
-  --thinking-border: #a855f733;
-  --thinking-bg: #a855f70a;
-  --thinking-hover: #a855f70f;
-  --thinking-label: #b076e8;
+  /* ── Thinking 思考过程(融入气泡:标题中性灰 + 内容左竖线引用式,非独立卡片)── */
+  --thinking-body: #171717;   /* 内容底:比气泡 card-agent(#1c1c1c)深一档 */
+  --thinking-rule: #444444;   /* 内容区左竖线 */
+  --thinking-title-hover: #b5b5b5; /* 标题 hover:比常态 secondary(#909090)亮一档(暗色下变亮) */
 
   /* ── Code highlight — 灰度 ───────── */
   --color-code-kw: #b2b2b2;

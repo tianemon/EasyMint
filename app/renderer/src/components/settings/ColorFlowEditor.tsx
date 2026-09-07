@@ -33,8 +33,9 @@ export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readon
     if (picking && colors[picking.idx] === undefined) setPicking(null);
   }, [colors, picking]);
 
-  /** 复制色块:克隆当前色块插入其右侧(duplicate) */
+  /** 复制色块:克隆当前色块插入其右侧(duplicate);结构性变更 → 收起取色面板(否则 picking.idx 指向的颜色随插入右移而错位) */
   const handleDuplicate = (idx: number): void => {
+    setPicking(null);
     const next = [...colors];
     next.splice(idx + 1, 0, colors[idx]!);
     onChange(next);
@@ -147,10 +148,10 @@ export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readon
           >
             <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
           </button>
-          {/* 移除颜色(右上角,Lucide X);拖拽中不显示 */}
+          {/* 移除颜色(右上角,Lucide X);拖拽中不显示;结构性变更 → 收起取色面板(删除会使后续 idx 前移) */}
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onChange(colors.filter((_, j) => j !== i)); }}
+            onClick={(e) => { e.stopPropagation(); setPicking(null); onChange(colors.filter((_, j) => j !== i)); }}
             className={`absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-surface border border-border text-text-muted hover:text-danger flex items-center justify-center opacity-0 transition-opacity ${
               dragIdx === i ? "" : "group-hover:opacity-100"
             }`}
