@@ -27,6 +27,14 @@ export const TodoStrip = memo(function TodoStrip({ sessionId }: { sessionId: str
     return () => { unsub(); };
   }, [sessionId]);
 
+  // 全部完成 5s 后自动消失（用户不再需要手动关闭）
+  const allCompleted = todos !== null && todos.length > 0 && todos.every((t) => t.status === "completed");
+  useEffect(() => {
+    if (!allCompleted || dismissed) return;
+    const t = setTimeout(() => setDismissed(true), 5000);
+    return () => clearTimeout(t);
+  }, [allCompleted, dismissed]);
+
   if (todos === null || todos.length === 0 || dismissed) return null;
 
   const sorted = [...todos].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
