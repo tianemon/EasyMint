@@ -67,8 +67,7 @@ export const DANGEROUS_COMMANDS: readonly string[] = [
   'mv',
   'dd',
   'kill', 'killall', 'pkill',
-  'git push', 'git reset', 'git rebase', 'git checkout',
-  'git clean', 'git branch -D', 'git branch -d',
+  // git 命令放行:项目内操作有 reflog/版本库可恢复,非系统级变更(用户拍板:当前项目 git 全放行)
   'npm publish',
   'curl', 'wget',
   'ssh', 'scp',
@@ -84,6 +83,8 @@ export const CURL_WRITE_PARAM_RE = /\s(-o|-O|--output|--upload-file|-T)\b|--data
  *
  * 检测管道、输出重定向、exec 子命令等危险模式。
  * MVP 阶段使用简单字符串检测，后续可升级为 shell AST 解析。
+ * 注意:仅作“结构存在”提示——链式命令是否放行由链式分段判定(isChainWithinCwd)决定,
+ * 有结构不等于拒绝(标准模式设计初衷是防越界,不防链式语法本身)。
  */
 export function hasDangerousStructure(command: string): boolean {
   // 管道操作
@@ -97,6 +98,128 @@ export function hasDangerousStructure(command: string): boolean {
   // 子 shell / 命令替换（$(...) 和反引号）
   if (/\$\(/.test(command) || /`/.test(command)) return true
   return false
+}
+
+/**
+ * 链式命令逐段分类判定(标准模式)——设计初衷:防“越出 cwd / 触碰禁区”,不防链式语法本身。
+ * 按 `| ; && ||` 分段(与 isReadOnlyPipeline 同一拆分口径),逐段判:
+ *  - cd 段/空段:无读写副作用,通过
+ *  - 只读白名单段(如 ls/git status 尾段):通过
+ *  - 写类段(mv/cp/tee/npm install 等):段内路径全部在 cwd 内 → 通过(禁区由调用方先行检查)
+ *  - 其余段(执行类信任通道:git 非只读子命令/npm run/node script/项目脚本等):通过
+ * 返回 { ok:true } 全部通过;{ deny: 原因 } 某段越界。
+ */
+export function isChainWithinCwd(command: string, cwd: string): { ok: boolean; deny?: string } {
+  const segments = command.trim().split(/[|;&]{1,2}/)
+  // 当前基准目录:cd 段切换后,后续写段的相对路径按新基准解析(否则 cd ~/Desktop 后 rm x
+  // 的相对路径误按原 cwd 判为项目内,实际落在用户目录)。cd 本身无限制(标准模式可读项目外),限制的是写
+  let base = cwd
+  let baseInCwd = true // base 是否仍落在工作区内(写段隐含目标判定用)
+  for (const seg of segments) {
+    const s = seg.trim()
+    if (!s) continue
+    // cd 段:更新基准目录(目标任意——读项目外是标准模式允许的;无参/cd ~/cd - 回 home/上次目录,
+    // 后续写段的相对路径自然解析到工作区外被拦)
+    const cdM = /^cd(?:\s+("?)([^"\s]+)\1?)?\s*$/.exec(s)
+    if (cdM) {
+      const target = cdM[2]
+      let nextBase = base
+      if (target && target !== "-" && target !== "~") {
+        nextBase = /^\/|^[A-Za-z]:/.test(target) || target.startsWith("~/")
+          ? normalizePath(target)
+          : normalizePath(require("node:path").resolve(base, target))
+      } else {
+        nextBase = normalizePath(require("node:os").homedir()) // 无参/cd ~/cd - → home(不可静态追踪 cd -)
+      }
+      base = nextBase
+      baseInCwd = base === normalizePath(cwd) || base.startsWith(normalizePath(cwd) + "/")
+      continue
+    }
+    // 剥离丢弃类重定向后再判段首命令(ls 2>/dev/null | head 的中间段)
+    const cleaned = s
+      .replace(/2?>?\s*\/dev\/null/g, " ")
+      .replace(/2?>?&1/g, " ")
+      .trim()
+    if (!cleaned) continue
+    const segLower = cleaned.toLowerCase()
+    // 系统级变更/提权藏在链中间（整串前缀检查认不出 cd x && sudo …）：段级拦截
+    if (/^(?:sudo|su|launchctl|systemctl|diskutil|mount|umount|mkfs|fdisk|parted|shutdown|reboot|halt|poweroff|csrutil|nvram|pmset|osascript|dd)\b/.test(segLower)) {
+      return { ok: false, deny: `系统级变更命令 ${segLower.split(/\s+/)[0]}` }
+    }
+    // 危险命令藏在链中间（git push/curl 等——整串前缀认不出,段级补拦）:
+    // 标准模式语义与单命令一致(危险命令名单内即拒);回环 curl 例外由整串判定已处理。
+    // 本地文件操作段(rm/mv/chmod/chown)例外:路径由下方写类检查兜底(项目内允许,与单命令豁免一致)
+    const segIsFileOp = /^(?:rm|rmdir|mv|chmod|chown)\b/.test(segLower)
+    if (!segIsFileOp && isDangerousCommand(cleaned)) {
+      return { ok: false, deny: `危险命令 ${cleaned.split(/\s+/)[0]}` }
+    }
+    // 段内重定向目标（echo x > ~/Desktop/a / tee 落盘等——echo/cat 等写文件靠重定向,前缀名单认不出）：
+    // 目标必须落在工作区内(按当前基准解析相对路径)
+    const redirTargets = extractRedirTargets(s).filter((p) => !isDevNullPath(p))
+    for (const p of redirTargets) {
+      if (!withinCwdStrict(p, cwd, base)) return { ok: false, deny: p }
+    }
+    // 写类段:段内路径必须落在工作区内(绝对路径直接判;相对路径按当前基准解析)
+    if (/^(?:rm|rmdir|mv|cp|mkdir|touch|chmod|chown|ln|tee|install|truncate|sed\s+-i|perl\s+-i|ruby\s+-i)\b/.test(segLower)) {
+      const paths = extractPathsFromCommand(s)
+      if (paths === null) {
+        // rm/rmdir 路径含变量无法确认目标(如 rm $FILE)——删除不可逆,保守拒
+        if (segIsFileOp) return { ok: false, deny: `${segLower.split(/\s+/)[0]} 路径含变量,无法确认操作目标` }
+        // 其他写段含变量:服务层已先行沙盒(此层不崩即可),继续
+        continue
+      }
+      if (paths.length > 0) {
+        for (const p of paths) {
+          if (!isDevNullPath(p) && !withinCwdStrict(p, cwd, base)) return { ok: false, deny: p }
+        }
+      } else if (!baseInCwd) {
+        // 无显式路径(mkdir x / touch a——隐含写在当前基准):基准已出工作区 → 拒
+        return { ok: false, deny: base }
+      } else if (segIsFileOp && /(?:^|\s)\.\.\/|(?:^|\s)\.\.$/.test(segLower)) {
+        // rm/mv 含 ../:按当前基准解析后可能出工作区(rm ../x 在 cwd 根时删上级)
+        // 取命令中所有 .. 路径段,相对 base 解析逐个判
+        const dots = segLower.match(/[^\s|;&>]+/g) ?? []
+        for (const tok of dots) {
+          if (!tok.includes("..")) continue
+          if (!withinCwdStrict(tok, cwd, base)) return { ok: false, deny: tok }
+        }
+      }
+      continue
+    }
+    // 只读白名单段
+    if (SAFE_BASH_PATTERNS.some((pat) => pat.test(cleaned))) continue
+    // 其余(执行类/信任通道):通过
+    continue
+  }
+  return { ok: true }
+}
+
+/** 写目标必须落在工作区(cwd)内:绝对路径直接判;相对路径按当前基准(base,cd 后)解析成绝对路径再判——
+ *  cd ~/Desktop 后 touch x 的相对路径解析到用户目录 → 出工作区拒 */
+function withinCwdStrict(p: string, cwd: string, base: string): boolean {
+  const np = normalizePath(p)
+  const nc = normalizePath(cwd)
+  if (!np) return true
+  const abs = /^\/|^[A-Za-z]:/.test(np)
+    ? np
+    : normalizePath(require("node:path").resolve(base, np))
+  return abs === nc || abs.startsWith(nc + "/")
+}
+
+/** 提取重定向目标（> file / >> file）——段级判定重定向写盘目标用 */
+function extractRedirTargets(cmd: string): string[] {
+  const out: string[] = []
+  const re = />+[\s]*([^\s"'|;&]+)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(cmd)) !== null) {
+    if (m[1]) out.push(m[1])
+  }
+  return out
+}
+
+/** 段内 /dev/null 判断(丢弃数据非落盘) */
+function isDevNullPath(p: string): boolean {
+  return normalizePath(p) === "/dev/null"
 }
 
 /**
@@ -290,27 +413,35 @@ export function isForbiddenReadPath(p: string): boolean {
 export function extractPathsFromCommand(command: string): string[] | null {
   // 含命令替换/变量展开 → 无法静态解析，返回 null（保守拒绝写类命令）
   if (/\$\(/.test(command) || /`/.test(command) || /\$\{?[A-Za-z_]/.test(command)) return null;
+  // 剥离 heredoc 块（<<EOF … EOF）：正文是输入数据不是命令参数——正文里的字面路径
+  // （如测试内容里出现 /etc/hosts、~/Desktop 字符串）参与路径提取会误拦真正的写目标
+  const hd = /(?:^|[\s;|&])(?:cat|tee|dd)\s+[^|;&]*<<-?[\s]*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?/.exec(command);
+  let effective = command;
+  if (hd) {
+    const cutAt = command.indexOf("<<");
+    effective = cutAt >= 0 ? command.slice(0, cutAt) : command;
+  }
   const paths: string[] = [];
   // 引号字符串
-  const quoted = command.match(/(["'])(.*?)\1/g) || [];
+  const quoted = effective.match(/(["'])(.*?)\1/g) || [];
   for (const q of quoted) {
     const inner = q.slice(1, -1).trim();
     if (inner && /[\\/]/.test(inner)) paths.push(inner);
   }
   // 重定向目标 > file / >> file（跳过 /dev/null——黑洞设备丢弃数据,非写盘路径）
-  const redirs = command.match(/>+[\s]*([^\s"'|;&]+)/g) || [];
+  const redirs = effective.match(/>+[\s]*([^\s"'|;&]+)/g) || [];
   for (const r of redirs) {
     const target = r.replace(/^>+[\s]*/, "");
     if (target && target !== "/dev/null") paths.push(target);
   }
   // 绝对路径 token（/ 开头或盘符开头），排除命令名本身
-  const tokens = command.split(/[\s"'=]+/).filter((t) => /^\/|^[A-Za-z]:[\\/]|^~[\\/]/.test(t));
+  const tokens = effective.split(/[\s"'=]+/).filter((t) => /^\/|^[A-Za-z]:[\\/]|^~[\\/]/.test(t));
   for (const t of tokens) {
     // 跳过纯选项（-f 等带路径的形式已在 split 后单独成 token）
     paths.push(t);
   }
   // ~ 开头（cd ~/foo 等）
-  const tilde = command.match(/~[^\s"'|;&>]+/g) || [];
+  const tilde = effective.match(/~[^\s"'|;&>]+/g) || [];
   for (const t of tilde) paths.push(t);
   return [...new Set(paths)];
 }

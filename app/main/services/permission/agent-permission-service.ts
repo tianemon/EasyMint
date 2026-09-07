@@ -16,6 +16,7 @@ import {
   isReadOnlyPipeline,
   isDangerousCommand,
   hasDangerousStructure,
+  isChainWithinCwd,
   isForbiddenWritePath,
   isForbiddenReadPath,
   isSystemForbidden,
@@ -223,27 +224,39 @@ export class AgentPermissionService {
           return { behavior: 'allow' as const, updatedInput: { ...input, sandbox: true } }
         }
         // ── 危险命令：curl/wget 回环纯读（classify null = 可判本地访问）从名单豁免继续结构检查；
+        //    rm 目标全部在项目内 → 豁免危险拒绝(与 mkdir/touch 同为项目内写操作,路径检查兜底出区删除);
         //    其余危险命令维持拒绝 ──
         const isLoopbackCurl = sandboxKind === null && /\b(?:curl|wget)\b/.test(cmd)
-        if (isDangerousCommand(cmd) && !isLoopbackCurl) {
+        // 本地文件操作(rm/mv/chmod/chown)豁免:目标全在项目内 → 危险拒绝豁免
+        // (与 mkdir/touch 同为项目内文件操作,路径检查兜底出区)。
+        // 相对路径(rm temp/x)默认在 cwd 内操作——bash 语义;仅绝对路径/~/../ 目标需逐个查是否出区。
+        // 网络/进程/系统级(git push/curl/ssh/kill/sudo/dd 等)不豁免——项目内也拒
+        const rmTargets = (cmdPathsRaw ?? []).filter((p) => !isDevNull(p))
+        const fileOpInCwd = (() => {
+          const c = cmd.trim().toLowerCase()
+          if (!/^(?:rm|rmdir|mv|chmod|chown)\b/.test(c)) return false
+          // ../ 相对路径可逃出 cwd,静态判不了落点 → 不豁免(保守拒,引导切完全访问)
+          if (/(?:^|\s)\.\.\/|(?:^|\s)\.\.$/.test(c)) return false
+          // 不含可判绝对路径 → 视为项目内(相对路径操作)
+          if (rmTargets.length === 0) return true
+          // 含绝对/~/../ 目标:全部须在 cwd 内
+          return rmTargets.every((p) => isWithinCwd(p, cwd))
+        })()
+        if (isDangerousCommand(cmd) && !isLoopbackCurl && !fileOpInCwd) {
           return deny(`危险命令（标准模式拒绝，请切换「完全访问」并按需操作）：${cmd.slice(0, 120)}`)
         }
         // 只读管道/链式查询（grep x | head / ls 2>/dev/null | grep 等——全段只读）→ 放行,
         // 不做「危险结构」一刀切拒绝。放在危险命令检查之后:危险命令即使纯管道也不放行
         if (isReadOnlyPipeline(cmd)) return allow()
+        // 链式命令（管道/&&/;/||——非全只读,如 cd x && npm run lint / mkdir a && touch a/b）:
+        // 设计初衷是防越界(写 cwd 外/禁区),不防链式语法本身——逐段判定:写类段路径须在 cwd 内,
+        // 只读/执行类段通过。不再“有结构即拒”(旧逻辑误拦大量项目内合法链式命令)
         if (hasDangerousStructure(cmd)) {
-          // 重定向目标检查（跳过 /dev/null——黑洞丢弃非写盘,不参与 cwd 半径判定）
-          const redirPaths = extractRedirTargets(cmd).filter((p) => !isDevNull(p))
-          for (const p of redirPaths) {
-            if (!isWithinCwd(p, cwd)) return deny(`标准模式仅可写工作空间内文件，重定向目标：${p}`)
-          }
-          // 危险结构但无重定向（如管道、&&）→ 标准模式保守拒绝
-          if (redirPaths.length === 0) {
-            return deny(`命令含管道/链接等危险结构（标准模式拒绝，请切换「完全访问」）：${cmd.slice(0, 120)}`)
-          }
+          const segCheck = isChainWithinCwd(cmd, cwd)
+          if (!segCheck.ok) return deny(`标准模式仅可操作工作空间内文件：${segCheck.deny}（如需访问工作区外，请切换「完全访问」）`)
           return allow()
         }
-        // 写类命令 cwd 沙盒（禁区已在上面检查）
+        // 单段写类命令 cwd 沙盒（禁区已在上面检查;无结构链接的单命令）
         if (isWriteLikeCommand(cmd)) {
           const outside = cmdPaths.find((p) => !isWithinCwd(p, cwd))
           if (outside) return deny(`标准模式仅可操作工作空间内文件：${outside}（如需访问工作区外，请切换「完全访问」）`)
@@ -320,10 +333,15 @@ const WRITE_COMMANDS: readonly string[] = [
   'crontab', 'launchctl', 'systemctl', 'defaults write', 'plutil -replace',
 ];
 
-/** 命令是否写类（含重定向、写命令前缀、编辑器直写、curl/wget 文件写参——后者的目标路径是工具参数非 shell 重定向） */
+/** 命令是否写类（含重定向、写命令前缀、编辑器直写、curl/wget 文件写参——后者的目标路径是工具参数非 shell 重定向）。
+ *  重定向仅指向 /dev/null 或 fd(2>&1 等)时不算写文件——黑洞/fd 重定向不落盘(如 cat f > /dev/null 是纯读+丢弃) */
 function isWriteLikeCommand(cmd: string): boolean {
   const c = cmd.trim().toLowerCase()
-  if (/>+/.test(c)) return true
+  if (/>+/.test(c)) {
+    // 剥离丢弃类重定向(/dev/null、fd 数字重定向)后若仍有写文件重定向 → 写类
+    const remaining = c.replace(/\d*>?\s*\/dev\/null\b/g, " ").replace(/\d*>?&\d+/g, " ")
+    if (/>+\s*[^\s"'|;&]/.test(remaining)) return true
+  }
   if (CURL_WRITE_PARAM_RE.test(c)) return true
   return WRITE_COMMANDS.some((w) => c.startsWith(w))
 }
@@ -439,17 +457,6 @@ function scanScriptContent(content: string): string | null {
   if (/\beval\s*\(\s*["']?\$\(/.test(c)) return 'eval 命令替换'
   if (/base64\s+-d\s*[|>]/.test(c)) return 'base64 解码执行'
   return null
-}
-
-/** 提取重定向目标（> file / >> file） */
-function extractRedirTargets(cmd: string): string[] {
-  const out: string[] = []
-  const re = />+[\s]*([^\s"'|;&]+)/g
-  let m: RegExpExecArray | null
-  while ((m = re.exec(cmd)) !== null) {
-    if (m[1]) out.push(m[1])
-  }
-  return out
 }
 
 /** 路径是否在当前工作空间（cwd）内——相对路径按 cwd resolve 后判定 */
