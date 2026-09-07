@@ -2188,7 +2188,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
                 <div className="mt-1 flex justify-end whitespace-nowrap text-[length:var(--text-2xs)] text-text-muted tabular-nums">
                   输入 {fmtTokenCount(total)}
                   {" · "}输出 {fmtTokenCount(msg.usage.outputTokens || 0)}
-                  {read > 0 && total > 0 ? ` · 缓存 ${((read / total) * 100).toFixed(2)}%` : ""}
+                  {read > 0 && total > 0 ? ` · 缓存命中 ${((read / total) * 100).toFixed(2)}%` : ""}
                 </div>
               );
             })()}
