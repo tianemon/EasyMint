@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type DragEvent } from "react";
+import { ColorPickerPanel, type ColorPickerAnchor } from "../ColorPicker";
 
 interface ColorFlowEditorProps {
   /** 当前色彩组合(有序) */
@@ -12,14 +13,13 @@ interface ColorFlowEditorProps {
 }
 
 /**
- * 色彩组合编辑器:点击色块直接打开系统色板改色 + 拖拽排序 + 悬停移除 + 添加。
+ * 色彩组合编辑器:点击色块弹出自绘取色面板改色 + 拖拽排序 + 悬停移除 + 添加。
  * 光效色彩组合与状态流光组合共用;readonly 时仅展示色块(内置预设)。
  */
 export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readonly = false }: ColorFlowEditorProps): JSX.Element {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
-  // 单个隐藏色板:点击色块时程序化触发,避免透明 input 盖住色块拦截拖拽 mousedown
-  const [pickIdx, setPickIdx] = useState<number | null>(null);
-  const colorInputRef = useRef<HTMLInputElement>(null);
+  // 取色状态:被点色块 index + 点击瞬间的视口矩形(面板 fixed 锚定此矩形,渲染后测超出翻)
+  const [picking, setPicking] = useState<{ idx: number; rect: ColorPickerAnchor } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // 拖拽中隐藏过的按钮(组件卸载兜底恢复,防 inline opacity 残留)
   const hiddenBtnsRef = useRef<HTMLElement[]>([]);
@@ -28,14 +28,10 @@ export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readon
     hiddenBtnsRef.current = [];
   }, []);
 
-  // 色板 Esc 取消:复位 pickIdx(原生 cancel 事件,React 类型未暴露)
+  /** 面板打开期间该位颜色被移除(如拖拽排序) → 关闭面板防越界写 */
   useEffect(() => {
-    const el = colorInputRef.current;
-    if (!el) return;
-    const onCancel = (): void => setPickIdx(null);
-    el.addEventListener("cancel", onCancel);
-    return () => el.removeEventListener("cancel", onCancel);
-  }, []);
+    if (picking && colors[picking.idx] === undefined) setPicking(null);
+  }, [colors, picking]);
 
   /** 复制色块:克隆当前色块插入其右侧(duplicate) */
   const handleDuplicate = (idx: number): void => {
@@ -44,10 +40,13 @@ export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readon
     onChange(next);
   };
 
-  const openPicker = (idx: number): void => {
-    setPickIdx(idx);
-    // 等 React 渲染出对应 value 后再触发
-    requestAnimationFrame(() => colorInputRef.current?.click());
+  /** 取色面板选色写回被点色块;实时预览(拖选)/点击色板即应用 */
+  const handlePickColor = (hex: string): void => {
+    if (!picking) return;
+    const next = [...colors];
+    if (next[picking.idx] === undefined) return;
+    next[picking.idx] = hex;
+    onChange(next);
   };
 
   const handleDrop = (targetIdx: number): void => {
@@ -77,9 +76,10 @@ export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readon
     handleDrop(best);
   };
 
-  // 拖拽开始:声明 move(无 copy 徽标"+");拖影 = 源色块自身截图(跟随鼠标),
-  // 快照前隐藏 hover 按钮——拖影只有纯色块,源色块按钮也由 dragIdx 条件隐藏
+  // 拖拽开始:声明 move(无 copy 徽标"+");与取色互斥:拖拽即收起面板,避免追着被移动色块。
+  // 拖影 = 源色块自身截图(跟随鼠标),快照前隐藏 hover 按钮——拖影只有纯色块,源色块按钮也由 dragIdx 条件隐藏
   const handleDragStart = (e: DragEvent, idx: number): void => {
+    setPicking(null);
     e.dataTransfer.effectAllowed = "move";
     const btns = e.currentTarget.querySelectorAll("button");
     btns.forEach((b) => { (b as HTMLElement).style.opacity = "0"; });
@@ -95,13 +95,6 @@ export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readon
     });
     hiddenBtnsRef.current = [];
     setDragIdx(null);
-  };
-
-  const handleColorChange = (value: string): void => {
-    if (pickIdx === null) return;
-    const next = [...colors];
-    next[pickIdx] = value;
-    onChange(next);
   };
 
   // 只读(内置预设):仅展示色块,不可改色/拖拽/移除/添加
@@ -127,16 +120,6 @@ export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readon
       onDragOver={(e: DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
       onDrop={handleContainerDrop}
     >
-      {/* 单个隐藏色板:点击色块时 openPicker 触发;系统色板确认(选色或 Esc 取消)后即应用/复位 */}
-      <input
-        ref={colorInputRef}
-        type="color"
-        value={pickIdx === null ? "#000000" : (colors[pickIdx] ?? "#000000")}
-        onChange={(e) => handleColorChange(e.target.value)}
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden="true"
-      />
       {colors.map((c, i) => (
         <div
           key={`${c}-${i}`}
@@ -146,7 +129,7 @@ export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readon
           onDragOver={(e: DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
           onDragEnd={(e: DragEvent) => handleDragEnd(e)}
           onDrop={() => handleDrop(i)}
-          onClick={() => openPicker(i)}
+          onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setPicking({ idx: i, rect: { left: r.left, top: r.top, width: r.width, height: r.height } }); }}
           className={`group relative w-8 h-8 rounded-lg cursor-grab border border-border shadow-sm transition-transform ${
             dragIdx === i ? "opacity-50 scale-90" : "hover:scale-105"
           }`}
@@ -184,6 +167,17 @@ export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readon
         className="w-8 h-8 rounded-lg border border-dashed border-border text-text-muted hover:text-text-secondary hover:border-accent text-lg flex items-center justify-center transition-colors"
        
       >+</button>
+      {/* 取色面板:锚定被点色块;拖拽/移除会收面板(见 handleDragStart/移除后兜底) */}
+      {picking && colors[picking.idx] !== undefined && (
+        <ColorPickerPanel
+          key={picking.idx}
+          value={colors[picking.idx] ?? addColor}
+          onChange={handlePickColor}
+          onClose={() => setPicking(null)}
+          anchorRect={picking.rect}
+          anchorEl={containerRef.current}
+        />
+      )}
     </div>
   );
 }

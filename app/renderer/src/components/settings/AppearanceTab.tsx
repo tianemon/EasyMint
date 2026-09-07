@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSettingsStore } from "../../stores/settings-store";
 import { useThemeStore } from "../../stores/theme-store";
 import { GlowGroupManager } from "./GlowGroupManager";
+import { ColorPickerField } from "../ColorPicker";
 
 /** 界面设置:聊天/界面字体缩放 + 状态指示光效 */
 export function AppearanceTab(): JSX.Element {
@@ -182,7 +183,7 @@ export function AppearanceTab(): JSX.Element {
                   // 不用 label 包裹:label 的关联触发会让点击文字/空白区域也打开取色器(触发区域大于视觉按钮)
                   <div className="flex items-center gap-2 text-xs text-text-secondary">
                     <span>光效颜色</span>
-                    <input type="color" value={glowColor} onChange={(e) => setGlowColor(e.target.value)} className="w-7 h-7 rounded cursor-pointer border border-border bg-transparent" />
+                    <ColorPickerField value={glowColor} onChange={setGlowColor} />
                   </div>
                 ) : (
                   <GlowGroupManager groups={glowGroups} activeId={activeGlowGroup} onChangeGroups={setGlowGroups} onChangeActive={setActiveGlowGroup} />
@@ -212,7 +213,7 @@ export function AppearanceTab(): JSX.Element {
             {statusTextStyle === "solid" && (
               <div className="flex items-center gap-2 text-xs text-text-secondary mt-2">
                 <span>文本颜色</span>
-                <input type="color" value={statusColor} onChange={(e) => setStatusColor(e.target.value)} className="w-7 h-7 rounded cursor-pointer border border-border bg-transparent" />
+                <ColorPickerField value={statusColor} onChange={setStatusColor} />
               </div>
             )}
             {/* 流光模式:分组管理(内置「默认」不可删 + 自定义 ≤4) */}
