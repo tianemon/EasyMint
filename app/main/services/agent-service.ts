@@ -30,6 +30,7 @@ import { backgroundShellRegistry, type BackgroundShell } from "./background-shel
 import { systemMessage, type SystemMessageKind, type SystemMessagePayload } from "../../shared/prompts";
 import { normalizeApiError } from "../../shared/api-errors";
 import { createProductTools } from "./builtin-mcp";
+import { readSessionTodos } from "./session-todos";
 import { loadMcpTools } from "./permission/mcp-adapter";
 import { permissionService } from "./permission/agent-permission-service";
 import type { CanUseToolOptions, PermissionResult } from "./permission/agent-permission-service";
@@ -1782,7 +1783,11 @@ export class AgentService {
   /** 手动压缩上下文 */
   async compact(sessionId: string, instructions?: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
-    if (!chat?.session) return;
+    console.log(`[compact] sessionId=${sessionId} chat=${!!chat} session=${!!chat?.session}`);
+    if (!chat?.session) {
+      console.error(`[compact] 未找到活跃会话: ${sessionId}（activeChats=${this.activeChats.size}）`);
+      return;
+    }
     broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "compact" });
     // 手动压缩桥接：compact() 直接调 SDK（不经 promptAndBridge 的 subscribe），
     // compaction_start/end 事件无人转发 → 前端收不到 compacted、压缩后使用率不刷新
@@ -1820,13 +1825,27 @@ export class AgentService {
         console.error("[agent] compact bridge error:", e);
       }
     });
+    // 防卡死：SDK compact() 开头 await this.abort() → waitForIdle()——若 isStreaming 残留 true
+    // （上个回合异常结束/超时中断后 SDK isStreaming 未复位）waitForIdle 永不返回，compact 永久挂起：
+    // 无 compaction_start/end 事件、无返回——前端只看到入口日志后一切静止（对齐 sendMessage 1091 复位逻辑）
+    if ((chat.session as unknown as { isStreaming?: boolean }).isStreaming && !this.activePromptSessions.has(sessionId)) {
+      console.warn(`[compact] session ${sessionId} isStreaming 残留，强制复位后再压缩`);
+      try { await chat.session.abort(); } catch { /* abort 无副作用 */ }
+      await chat.session.waitForIdle().catch(() => {});
+    }
     try {
-      await chat.session.compact(instructions);
+      console.log(`[compact] 调用 SDK compact（chatId=${chat.chatId}）…`);
+      // 压缩超时保护:SDK compact 摘要生成(调 LLM)可能网络挂起——EM 层 120s 超时,
+      // 超时后广播错误让用户可重试(不无限等;SDK 内部仍可能最终完成,下次压缩会走 Already compacted 判定)
+      await Promise.race([
+        chat.session.compact(instructions),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Compaction timed out (120s)")), 120_000)),
+      ]);
+      console.log(`[compact] SDK compact 返回（chatId=${chat.chatId}）`);
       // 成功路径:SDK 内部发 compaction_end → compacted 广播清除蒙版
       // 压缩后注入当前待办——todo 落盘文件,恢复 Mint 对步骤清单的记忆（对齐 delegation 通知注入模式）
       try {
         const realSid = (chat.session as { sessionId?: string } | null)?.sessionId ?? sessionId;
-        const { readSessionTodos } = await import("./session-todos");
         const todos = readSessionTodos(chat.projectPath, realSid);
         if (todos.length > 0) {
           const lines = todos.map((t) => `- [${t.status === "completed" ? "完成" : t.status === "in_progress" ? "进行中" : "待办"}] ${t.content}`).join("\n");
@@ -1834,9 +1853,18 @@ export class AgentService {
         }
       } catch { /* 注入失败不阻断压缩 */ }
     } catch (e) {
-      // 失败提示已由桥接 compaction_end(errorMessage) 分支广播(SDK 先 emit compaction_end 再 throw,
-      // 源码实证 agent-session.js compact catch 路径)——此处只记日志,避免同一失败双条提示
-      console.error(`[agent] compact failed: chatId=${chat.chatId}`, (e as Error).message);
+      const errMsg = (e as Error).message;
+      // 超时场景:SDK compact 挂起未 emit compaction_end(无桥接广播)——需主动广播错误提示;
+      // 其他失败已由桥接 compaction_end(errorMessage) 分支广播(SDK 先 emit 再 throw,源码实证),只记日志防双条
+      if (errMsg.includes("timed out")) {
+        console.error(`[agent] compact 超时: chatId=${chat.chatId}`);
+        broadcast("agent:stream", {
+          type: "error", sessionId, chatId: chat.chatId,
+          message: "上下文压缩超时（120s），请稍后重试", canRetry: true,
+        });
+      } else {
+        console.error(`[agent] compact failed: chatId=${chat.chatId}`, errMsg);
+      }
     } finally {
       unsub();
       // 无论成败都清除蒙版(compaction_end 的 compacted 可能因 aborted/无 result 不广播)

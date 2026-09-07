@@ -230,7 +230,10 @@ export const ChatInput = memo(function ChatInput({
       {/* Compact 蒙版 */}
       {compacting && (
         <div className="absolute inset-0 z-10 rounded-[10px] bg-surface/70 backdrop-blur-[2px] flex items-center justify-center">
-          <span className="text-sm text-text-secondary font-medium">正在整理上下文，请稍候…</span>
+          <div className="flex items-center gap-2">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4 text-accent animate-spin"><circle cx="8" cy="8" r="6" strokeOpacity="0.3"/><path d="M8 2a6 6 0 015.5 3.5" strokeLinecap="round"/></svg>
+            <span className="text-sm text-text-secondary font-medium">正在整理上下文，请稍候…</span>
+          </div>
         </div>
       )}
       {/* 上半：输入框 */}

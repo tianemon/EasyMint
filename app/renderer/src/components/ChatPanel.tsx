@@ -506,28 +506,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 按会话读压缩/摘要状态(须在 sidRef 声明后——useStatusStore selector 渲染期执行)
   const summarizing = useStatusStore((s) => s.bySession[sidRef.current]?.summarizing ?? false);
   const compacting = useStatusStore((s) => s.bySession[sidRef.current]?.compacting ?? false);
-  const [compactDone, setCompactDone] = useState(false);
-  const prevCompacting = useRef(false);
-  useEffect(() => {
-    if (prevCompacting.current && !compacting) setCompactDone(true);
-    prevCompacting.current = compacting;
-  }, [compacting]);
-  useEffect(() => {
-    if (!compactDone) return;
-    const t = setTimeout(() => setCompactDone(false), 3000);
-    return () => clearTimeout(t);
-  }, [compactDone]);
-  // 压缩超时兜底:SDK 压缩卡死(无 compaction_end)时 60s 后强制清除蒙版
-  useEffect(() => {
-    if (!compacting) return;
-    const t = setTimeout(() => {
-      useStatusStore.getState().setCompacting(sidRef.current, false);
-      useStatusStore.getState().setSummarizing(sidRef.current, false);
-      useStatusStore.getState().popSignal(sidRef.current, "compact");
-      useStatusStore.getState().popSignal(sidRef.current, "summary");
-    }, 60000);
-    return () => clearTimeout(t);
-  }, [compacting]);
   // 防御性兜底:临时 sid → 真实 sessionId 的常规迁移已由 onChatSession(698 行)同步完成,
   // 此处仅防 prop 直变(existingSid 从 undefined 一步到位)的遗漏场景,正常路径恒不命中
   useEffect(() => {
@@ -1117,7 +1095,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useStatusStore.getState().pushSignal(sidRef.current, "compact",
           manualCompactingRef.current ? "正在整理会话..." : "检测到上下文需整理，正在整理…");
       }
-      // compacted = 压缩完成：清除 compacting（触发"会话已整理完毕"提示），
+      // compacted = 压缩完成：清除 compacting（蒙版消失）、
       // 并兜底清除 summarizing（防御轮转总结路径的残留）。压缩开始置 busy(compacting 事件
       // setSessionRunning(true))——此处必须恢复,否则空闲压缩后按钮卡"停止"态直到下条消息
       if (event.type === "compacted") {
@@ -1836,12 +1814,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                 >
                   确认开发
                 </button>
-              </div>
-            )}
-            {/* Compact 完成提示 */}
-            {compactDone && (
-              <div className="flex justify-center py-3">
-                <span className="text-[length:var(--text-11)] text-text-secondary bg-surface-alt px-3 py-1 rounded-full border border-border/50">会话已整理完毕</span>
               </div>
             )}
 
