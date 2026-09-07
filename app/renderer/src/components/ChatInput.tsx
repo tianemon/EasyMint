@@ -289,7 +289,9 @@ export const ChatInput = memo(function ChatInput({
         {/* 用户待办：想法与计划清单（.easymint/todos.json）——与 Mint 执行追踪(session-todos)是两套 */}
         <TodoButton projectPath={projectPath} />
         {/* 后台指示器胶囊:agent/shell 按出现顺序排列,谁先出现谁靠左;按会话过滤(委派是主会话发起的) */}
-        <div className="flex items-center gap-2 shrink-0">
+        {/* ml-[7px]:补偿左侧 TodoButton 角标 badge 的向右溢出(5px+ring 2px)——胶囊与角标视觉间距对齐其他按钮的 8px */}
+        {/* gap-3:胶囊之间(agent/shell 并排)间距 12px,对称生效与排列顺序无关 */}
+        <div className="flex items-center gap-3 shrink-0 ml-[7px]">
           {indicatorOrder.map((k) => (k === "agent" ? <AgentBar key="agent" sessionId={sessionId} /> : <ShellBar key="shell" sessionId={sessionId} />))}
         </div>
         <span className="inp-gap" />

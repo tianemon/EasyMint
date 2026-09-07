@@ -92,13 +92,14 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
       <button
         type="button"
         className="inp-icon-btn relative"
+        style={{ transform: "translateY(1px)" }}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
         {/* 用户待办图标(lucide list-todo):方框勾选清单 */}
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><rect x="3" y="4" width="6" height="6" rx="1"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><rect x="3" y="4" width="6" height="6" rx="1"/></svg>
         {openCount > 0 && (
-          <span className="absolute -top-[1px] -right-[5px] min-w-[12px] h-[12px] px-0.5 rounded-full bg-accent text-text-inverse text-[8px] font-semibold leading-[12px] text-center pointer-events-none ring-2 ring-[var(--color-input-field)]">
+          <span className="absolute top-0 -right-[4px] min-w-[11px] h-[11px] px-0.5 rounded-full bg-accent text-text-inverse text-[8px] font-semibold leading-[11px] text-center pointer-events-none ring-2 ring-[var(--color-input-field)]">
             {openCount}
           </span>
         )}
