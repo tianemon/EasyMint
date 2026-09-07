@@ -51,14 +51,14 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
         className="agent-breath info-glow rounded-[8px] bg-info-soft px-2 py-0.5 text-[length:var(--text-11)] font-bold text-info cursor-pointer hover:bg-info-high"
        
       >
-        命令•{shellTasks.length}
+        Shell•{shellTasks.length}
       </button>
 
       {/* 命令列表浮层(向上展开,覆盖输入卡片上方) */}
       {expanded && (
         <div className="absolute bottom-full left-0 mb-1 w-80 max-h-64 overflow-y-auto rounded-[8px] border border-border bg-surface-elevated shadow-xl z-50 text-xs">
           <div className="px-3 py-1.5 bg-accent-bg text-text-secondary font-medium">
-            运行中的后台命令({shellTasks.length})
+            运行中的 Shell({shellTasks.length})
           </div>
           <div className="divide-y divide-border/60">
             {shellTasks.map((task) => (
