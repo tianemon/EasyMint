@@ -2177,7 +2177,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
           </div>
           <div className="msg-bubble-agent rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
             {blocks.map((block, i) => (
-              <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} />
+              <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} isStreamingTail={busy && i === blocks.length - 1} />
             ))}
             {/* 回合 usage：气泡内容区底部右对齐——贴内容右下，与 hover 复制工具条（气泡外）永不冲突。
                  口径：输入 = 未缓存 + 缓存读 + 缓存写（全部输入成本）；命中率 = 缓存读 / 全部输入 */}

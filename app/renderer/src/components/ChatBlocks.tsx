@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { marked } from "marked";
 import type { StreamEntry } from "./StreamPanel";
 import { inferLang, tokenizeLines } from "../lib/diff-highlight";
@@ -238,21 +238,87 @@ export function TextBlockView({ block, streaming }: { block: TextBlock; streamin
   );
 }
 
-function ThinkingBlockView({ block }: { block: ThinkingBlock }): JSX.Element {
+function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: boolean }): JSX.Element {
+  // active = 流式中且本块是消息尾块(思考正在增长):自动展开;思考结束(不再是尾块)自动收起。
   const [open, setOpen] = useState(false);
-  const preview = block.text.slice(0, 140);
-  // 双主题变量:亮色淡绿(EM 品牌绿系),暗色保留紫——见 index.css --thinking-*
+  // 用户是否手动展开过:手动干预后不再随思考结束自动收起(保留用户意图,想看历史就留着)
+  const userCtrlRef = useRef(false);
+  const prevActiveRef = useRef(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  // 自动贴底跟随:用户滚离底部(dist>8)暂停,回底恢复(对齐 OutputWindow 交互)
+  const autoScrollRef = useRef(true);
+
+  // active true(思考开始/思考中持续):自动展开;标记非用户手动(供结束自动收起判定)
+  useEffect(() => {
+    if (active) {
+      userCtrlRef.current = false;
+      autoScrollRef.current = true; // 思考自动展开 → 贴底跟随最新
+      setOpen(true);
+    }
+  }, [active]);
+
+  // active true→false(思考结束,正文/工具开始):用户没手动干预过才自动收起
+  useEffect(() => {
+    const act = !!active;
+    if (!act && prevActiveRef.current && !userCtrlRef.current) setOpen(false);
+    prevActiveRef.current = act;
+  }, [active]);
+
+  // 内容增长自动贴底;手动展开(查看历史)从顶部看——开头是新思考,底部跟随无意义
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || !open) return;
+    if (autoScrollRef.current) el.scrollTop = el.scrollHeight;
+  }, [block.text, open]);
+
+  const onScroll = (): void => {
+    const el = boxRef.current;
+    if (!el) return;
+    const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+    autoScrollRef.current = dist < 8;
+  };
+
+  const toggle = (): void => {
+    userCtrlRef.current = true;
+    setOpen((o) => {
+      if (!o) autoScrollRef.current = false; // 手动展开:从顶部看历史
+      return !o;
+    });
+  };
+
   return (
-    <div className="mt-1.5 mb-1 rounded-md border border-[var(--thinking-border)] bg-[var(--thinking-bg)]">
+    // 融入气泡式(非独立卡片):无外框——标题行中性灰文字,内容区左竖线 + 比气泡深一档底色
+    <div className="mt-1.5 mb-1">
       <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-[var(--thinking-hover)] transition-colors"
+        onClick={toggle}
+        className="inline-flex items-center gap-1.5 py-0.5 text-left rounded transition-colors group"
       >
-        <span className="text-[var(--thinking-label)] uppercase tracking-wider font-semibold" style={{ fontSize: "var(--text-caption)" }}>思考过程</span>
-        <span className="text-text-secondary italic truncate flex-1" style={{ fontSize: "var(--text-detail)" }}>{open ? "" : preview}{!open && block.text.length > 140 ? "…" : ""}</span>
-        <span className="text-text-secondary" style={{ fontSize: "var(--text-meta)" }}>{open ? "▲" : "▼"}</span>
+        <span
+          className="text-text-secondary group-hover:text-[var(--thinking-title-hover)] uppercase tracking-wider font-semibold transition-colors"
+          style={{ fontSize: "var(--text-caption)" }}
+        >思考过程</span>
+        {active && <span className="text-text-muted text-[length:var(--text-meta)]">…</span>}
+        {/* 折叠箭头在文字右侧:展开时常显 ▼(向下),折叠态 hover 才出现 >(提示可展开) */}
+        <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={`w-2.5 h-2.5 shrink-0 text-text-secondary group-hover:text-[var(--thinking-title-hover)] transition-all duration-150 ${open ? "rotate-90 opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+          <path d="M3.5 2l3 3-3 3"/>
+        </svg>
       </button>
-      {open && <pre className="px-3 py-2 text-text-secondary font-mono whitespace-pre-wrap leading-relaxed border-t border-[var(--thinking-border)]" style={{ fontSize: "var(--text-detail)" }}>{block.text}</pre>}
+      {open && (
+        // 展开态:左竖线引用式(其余三边无框)+ 底色比气泡深一档;封顶 6 行超出滚动——永远不完全展开
+        // 输出区上下外间距:上方 mt-[5px](原 2px +3)、下方 mb-[3px](新增)——背景块与标题/下缘拉开呼吸
+        <div
+          ref={boxRef}
+          onScroll={onScroll}
+          className="overflow-y-auto overscroll-contain rounded-r-md mt-[5px] mb-[3px]"
+          style={{
+            borderLeft: "2px solid var(--thinking-rule)",
+            background: "var(--thinking-body)",
+            maxHeight: "calc(var(--text-detail) * 9.75 + 12px)", // 6 行文字 + pre 上下 padding 12px
+          }}
+        >
+          <pre className="px-3 py-1.5 text-text-secondary font-mono whitespace-pre-wrap leading-[1.625]" style={{ fontSize: "var(--text-detail)" }}>{block.text}</pre>
+        </div>
+      )}
     </div>
   );
 }
@@ -575,10 +641,10 @@ function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }
 
 // ── Exported render function ──────────────────────────
 
-export function ChatBlockView({ block, streaming }: { block: Block; streaming?: boolean }): JSX.Element | null {
+export function ChatBlockView({ block, streaming, isStreamingTail }: { block: Block; streaming?: boolean; isStreamingTail?: boolean }): JSX.Element | null {
   switch (block.kind) {
     case "text": return <TextBlockView block={block} streaming={streaming} />;
-    case "thinking": return <ThinkingBlockView block={block} />;
+    case "thinking": return <ThinkingBlockView block={block} active={isStreamingTail} />;
     case "tool-group": return <ToolGroupView block={block} />;
     case "system": return null;
     case "tool-result-only": return <ToolResultOnlyView block={block} />;
