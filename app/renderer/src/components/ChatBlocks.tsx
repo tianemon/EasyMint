@@ -2,6 +2,13 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { marked } from "marked";
 import type { StreamEntry } from "./StreamPanel";
 import { inferLang, tokenizeLines } from "../lib/diff-highlight";
+import { useTabStore } from "../stores/tab-store";
+
+/** 从文件路径取文件名(tab 标题/标题行显示用) */
+function baseName(p: string): string {
+  const seg = p.split(/[\\/]/).pop();
+  return seg || p;
+}
 
 // 链接渲染:加 target="_blank" rel="noopener"——新窗口打开,
 // 主进程 setWindowOpenHandler 拦截后转系统浏览器(否则点击链接窗口内跳走,EM 界面被替换无法返回)
@@ -341,26 +348,28 @@ function ToolGroupView({ block }: { block: ToolGroupBlock }): JSX.Element {
   const summary = Array.from(families.entries()).map(([f, c]) => `${FAMILY_LABELS[f] || f} ×${c}`).join(", ");
 
   return (
-    <div className="mt-1.5 mb-1 border border-border rounded-md overflow-hidden">
-      <button
+    // 融入气泡式(非独立卡片):标题行无边框,展开区左竖线 + 深一档底(对齐思考块/单工具卡)
+    <div className="mt-1.5 mb-1">
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-2 px-3 py-1.5 bg-surface-alt hover:bg-surface-hover transition-colors text-left"
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen((o) => !o); } }}
+        className="flex items-center gap-1.5 py-0.5 cursor-pointer select-none group"
       >
-        <span style={{ fontSize: "var(--text-meta)" }}>{open
-          ? <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><path d="M2 3.5l3 3 3-3"/></svg>
-          : <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><path d="M3.5 2l3 3-3 3"/></svg>
-        }</span>
-        <span className="text-text-secondary" style={{ fontSize: "var(--text-caption)" }}>{summary}</span>
-      </button>
-      <div className={`grid transition-all ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
-        <div className="overflow-hidden">
-          <div className="border-t border-border px-3 py-2 space-y-1">
-            {items.map((item, i) => (
-              <SingleToolCard key={i} item={item} compact />
-            ))}
-          </div>
-        </div>
+        <span className="text-text-secondary group-hover:text-[var(--thinking-title-hover)] transition-colors" style={{ fontSize: "var(--text-caption)" }}>{summary}</span>
+        {/* 折叠箭头在文字右侧(对齐思考块):展开常显 ▼(旋转朝下),折叠态 hover 才出现 > */}
+        <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={`w-2.5 h-2.5 shrink-0 text-text-secondary group-hover:text-[var(--thinking-title-hover)] transition-all duration-150 ${open ? "rotate-90 opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+          <path d="M3.5 2l3 3-3 3"/>
+        </svg>
       </div>
+      {open && (
+        <div className="mt-[2px] rounded-r-md space-y-0.5" style={{ borderLeft: "2px solid var(--thinking-rule)", background: "var(--thinking-body)", padding: "2px 0" }}>
+          {items.map((item, i) => (
+            <SingleToolCard key={i} item={item} compact />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -579,6 +588,29 @@ function numberLines(text: string): string {
   return text.split("\n").map((l, i) => `${String(i + 1).padStart(4)}  ${l}`).join("\n");
 }
 
+/**
+ * 命令链 → 可读分段(标题行/展开区共用):
+ * - `&&` / `;` / `||` / 换行 → 拆成独立段(每段一行,不再挤成一长条)
+ * - `|` 单管道 → 不拆(同一逻辑命令,如 cat a | grep x 保持一段)
+ * 实现:分隔符正则只含 ||(逻辑或)与 &&/;/换行——单 | 不在其中,自然保留在段内
+ */
+function splitCommandChain(cmd: string): string[] {
+  return cmd
+    .split(/\n+|&&|;|\|\|/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** 提取 bash 命令文本(input 可能是纯字符串命令或 { command } 对象) */
+function getBashCommand(input: unknown): string | undefined {
+  if (typeof input === "string") return input;
+  if (input && typeof input === "object") {
+    const c = (input as Record<string, unknown>).command;
+    if (typeof c === "string") return c;
+  }
+  return undefined;
+}
+
 function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }): JSX.Element {
   const isDiffResult = !!item.result && item.result.includes("变更内容:");
   // diff 结果默认展开(可读结果必显),用户可手动收起;bash 等普通结果默认折叠
@@ -592,46 +624,75 @@ function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }
 
   const isPathTool = item.name === "edit" || item.name === "write" || item.name === "read";
   const diffStats_ = isDiffResult ? diffCount(item.result!) : null;
-  // 人话摘要(标题行):bash→命令,文件工具→路径;用户只看"AI 在做什么",技术参数/JSON 不展示
-  const summary = item.name === "bash"
-    ? (typeof item.input === "string" ? item.input : ((item.input as Record<string, unknown>)?.command as string | undefined))
-    : isPathTool ? editFilePath(item)
-    : undefined;
-  const label = item.name === "edit" ? "编辑" : item.name === "read" ? "读取" : item.name === "write" ? "写入" : item.name;
+  // bash 命令文本(展开区分段展示用)
+  const bashCmd = item.name === "bash" ? getBashCommand(item.input) : undefined;
+  const bashSegs = bashCmd ? splitCommandChain(bashCmd) : [];
+  // 文件工具 → 绝对路径 + 文件名(标题行只显文件名,链接点击在 tab 打开;悬停 title 提示完整路径)
+  const filePath = isPathTool ? editFilePath(item) : undefined;
+  const label = item.name === "bash" ? "命令" : item.name === "edit" ? "编辑" : item.name === "read" ? "读取" : item.name === "write" ? "编写" : item.name;
+
+  // 打开文件 tab(对齐 FileTree 点击行为)
+  const openFile = (e: React.MouseEvent): void => {
+    e.stopPropagation();
+    if (!filePath) return;
+    useTabStore.getState().openTab({ id: "", type: "file", title: baseName(filePath), filePath });
+  };
+
+  const contentErr = item.resultError;
 
   return (
-    <div className={compact ? "" : `mt-1.5 mb-1 border rounded-md overflow-hidden ${item.resultError ? "border-danger/40" : "border-border"}`} style={compact ? { fontSize: "var(--text-code)" } : undefined}>
-      <button
+    // 融入气泡式(非独立卡片):无外框——标题行中性灰,展开区左竖线 + 深一档底(对齐思考块)
+    <div className="mt-1.5 mb-1">
+      {/* 标题行:div 整行可点展开;文件名链接为独立按钮(点击开文件,不触发展开) */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setShowInput((o) => !o)}
-        className={`flex items-center gap-1.5 ${item.resultError ? "text-danger hover:text-danger" : "text-text-secondary hover:text-text-primary"} transition-colors ${compact ? "py-0.5" : "w-full px-3 py-1.5 bg-surface-alt hover:bg-surface-hover"}`}
-        style={{ fontSize: "var(--text-caption)" }}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowInput((o) => !o); } }}
+        className={`flex items-center gap-1.5 cursor-pointer select-none group ${compact ? "py-0.5" : "py-0.5"}`}
       >
-        <span style={{ fontSize: "var(--text-meta)" }}>{showInput ? "▼" : "▶"}</span>
-        {/* shrink-0:标题栏内容挤压时标签不被压缩(否则"编辑"两字会竖排) */}
-        <span className="shrink-0 whitespace-nowrap">{label}</span>
-        {summary && <span className="text-text-secondary truncate font-mono" style={{ fontSize: "var(--text-detail)" }}>{summary}</span>}
-        {item.result && !compact && (
-          diffStats_ && (diffStats_.added > 0 || diffStats_.removed > 0) ? (
-            <span className={`ml-auto shrink-0 normal-case tracking-normal ${item.resultError ? "text-danger" : "text-text-muted"}`} style={{ fontSize: "var(--text-meta)" }}>
-              {diffStats_.added > 0 && <span className="text-success">+{diffStats_.added}</span>}
-              {diffStats_.added > 0 && diffStats_.removed > 0 && " · "}
-              {diffStats_.removed > 0 && <span className="text-danger">-{diffStats_.removed}</span>}
-            </span>
-          ) : (
-            <span className={`ml-auto shrink-0 ${item.resultError ? "text-danger" : "text-text-muted"}`} style={{ fontSize: "var(--text-meta)" }}>
-              {item.resultError ? "失败" : "完成"}
-            </span>
-          )
+        {/* 动作词(编辑/读取/编写/命令) */}
+        <span className={`shrink-0 whitespace-nowrap ${contentErr ? "text-danger" : "text-text-secondary group-hover:text-text-primary"} transition-colors`} style={{ fontSize: "var(--text-caption)" }}>{label}</span>
+        {/* 文件名链接:独立按钮,点击在 tab 打开文件;不触发展开 toggle */}
+        {filePath && (
+          <button
+            type="button"
+            onClick={openFile}
+            title={filePath}
+            className="shrink-0 max-w-[260px] truncate font-mono text-accent hover:underline transition-colors cursor-pointer"
+            style={{ fontSize: "var(--text-detail)" }}
+          >{baseName(filePath)}</button>
         )}
-      </button>
+        {/* 折叠箭头在文字右侧(对齐思考块):展开常显 ▼(旋转朝下),折叠态 hover 才出现 > */}
+        <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={`w-2.5 h-2.5 shrink-0 ${contentErr ? "text-danger" : "text-text-secondary group-hover:text-[var(--thinking-title-hover)]"} transition-all duration-150 ${showInput ? "rotate-90 opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+          <path d="M3.5 2l3 3-3 3"/>
+        </svg>
+        {/* 变更统计(+N -M,仅编辑类有 diff)——执行成败不展示状态文案(用户无需知道,AI 自行处理失败) */}
+        {!compact && item.result && diffStats_ && (diffStats_.added > 0 || diffStats_.removed > 0) && (
+          <span className={`ml-auto shrink-0 normal-case tracking-normal ${contentErr ? "text-danger" : "text-text-muted"}`} style={{ fontSize: "var(--text-meta)" }}>
+            {diffStats_.added > 0 && <span className="text-success">+{diffStats_.added}</span>}
+            {diffStats_.added > 0 && diffStats_.removed > 0 && " · "}
+            {diffStats_.removed > 0 && <span className="text-danger">-{diffStats_.removed}</span>}
+          </span>
+        )}
+      </div>
       {showInput && item.result && (
-        <div className="bg-surface border-t border-border">
+        // 展开区:左竖线 + 深一档底色(对齐思考块展开区);内容随工具类型
+        <div className="mt-[2px] rounded-r-md" style={{ borderLeft: "2px solid var(--thinking-rule)", background: "var(--thinking-body)" }}>
           {isDiffResult ? (
-            <div className="px-3 py-2"><DiffView text={item.result} filePath={editFilePath(item)} /></div>
+            <div className="px-3 py-2"><DiffView text={item.result} filePath={filePath} /></div>
           ) : (
-            <pre className={`text-text-secondary font-mono overflow-x-auto px-3 py-2 whitespace-pre-wrap ${item.resultError ? "text-danger" : ""}`} style={{ fontSize: "var(--text-detail)" }}>
-              {truncateResult(item.result)}
-            </pre>
+            // bash 结果区:命令分段多行 + 输出截断(展开才看,多段不挤一行)
+            <div className="px-3 py-2">
+              {bashSegs.length > 0 && (
+                <pre className="text-text-secondary font-mono whitespace-pre-wrap mb-1.5" style={{ fontSize: "var(--text-detail)" }}>
+                  {bashSegs.join("\n")}
+                </pre>
+              )}
+              <pre className={`text-text-secondary font-mono overflow-x-auto whitespace-pre-wrap ${bashSegs.length > 0 ? "border-t border-border pt-1.5" : ""} ${contentErr ? "text-danger" : ""}`} style={{ fontSize: "var(--text-detail)" }}>
+                {truncateResult(item.result)}
+              </pre>
+            </div>
           )}
         </div>
       )}
