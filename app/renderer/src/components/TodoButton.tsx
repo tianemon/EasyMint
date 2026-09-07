@@ -35,7 +35,11 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
     }
   }, [projectPath]);
 
-  // 打开时加载最新；常驻订阅 Mint 侧 todo_user 工具写入（todos:changed）→ 即时同步面板
+  // 挂载即加载：徽标未完成数常驻显示（不等点击面板）；面板开关时刷新保持最新
+  useEffect(() => {
+    load();
+  }, [load]);
+
   useEffect(() => {
     if (open) load();
   }, [open, load]);
