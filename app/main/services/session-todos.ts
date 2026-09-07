@@ -40,7 +40,7 @@ export function readSessionTodos(projectPath: string, sessionId: string): Sessio
     }
     return [];
   } catch {
-    return []; // 损坏按空清单（执行待办可丢弃重建，非用户数据）
+    return []; // 损坏按空清单（执行步骤可丢弃重建，非用户数据）
   }
 }
 

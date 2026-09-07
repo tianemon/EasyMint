@@ -235,11 +235,20 @@ export function bridgeSessionEvents(
     }
 
     case "compaction_end": {
-      // 无论成功/中止都广播——前端清除压缩蒙版(aborted/无 result 时不广播会导致蒙版卡死)
-      callbacks.onEvent({
-        type: "compacted", sessionId: "",
-        summary: !event.aborted && event.result ? event.result.summary : undefined,
-      });
+      // 区分成败:成功(有 result)→ compacted;失败(带 errorMessage)→ error 提示——
+      // SDK 失败也发 compaction_end,若不区分前端会清蒙版显示"已整理完毕",失败伪装成成功
+      if (!event.aborted && !event.errorMessage && event.result) {
+        callbacks.onEvent({
+          type: "compacted", sessionId: "",
+          summary: event.result.summary,
+        });
+      } else if (!event.aborted && event.errorMessage) {
+        callbacks.onEvent({
+          type: "error", sessionId: "",
+          message: event.errorMessage || "上下文压缩失败，请稍后重试", canRetry: true,
+        });
+      }
+      // aborted(中止):不广播——清蒙版由上层 context-summarizing done 兜底
       break;
     }
 

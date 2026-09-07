@@ -385,7 +385,7 @@ async function createReadAgentLogTool(sessionId: string): Promise<ToolDefinition
 interface PendingAsk {
   resolve: (text: string) => void;
   sessionId: string;
-  questions: Array<{ id: string; question: string }>;
+  questions: Array<{ id: string; question: string; options?: Array<{ value: string; label: string }> }>;
 }
 
 const pendingAsks = new Map<string, PendingAsk>();
@@ -399,9 +399,19 @@ export function respondAsk(requestId: string, answers: Array<{ questionId: strin
   if (!answers || answers.length === 0) {
     pending.resolve("（用户取消了提问，未作答）");
   } else {
-    const byId = new Map(pending.questions.map((q) => [q.id, q.question]));
-    const lines = answers.map((a) => `- ${byId.get(a.questionId) ?? a.questionId}: ${a.values.join("、")}`);
-    pending.resolve(`用户回答：\n${lines.join("\n")}`);
+    // 格式化:每题「问题行 + 回答行」上下排列、无标题——展开区/结果简洁可读;
+    // 回答把机器 value 映射回人看 label(此前只显示机器 value 且压成一行)
+    const byQ = new Map(pending.questions.map((q) => [q.id, q]));
+    const blocks = answers.map((a) => {
+      const q = byQ.get(a.questionId);
+      const qText = q?.question ?? a.questionId;
+      const chosen = a.values.map((v) => {
+        const opt = q?.options?.find((o) => o.value === v);
+        return opt ? `${opt.label}(${v})` : v;
+      }).join("、");
+      return `${qText}\n${chosen}`;
+    });
+    pending.resolve(blocks.join("\n\n"));
   }
   broadcast("agent:ask-closed", { requestId });
   return pending.sessionId;
@@ -537,11 +547,11 @@ async function createAskUserTool(sessionId: string): Promise<ToolDefinition> {
                 items: {
                   type: "object" as const,
                   properties: {
-                    value: { type: "string" as const, description: "选项机器标识，答案按此返回（简短英文小写下划线，如 mode_a；必填）" },
+                    value: { type: "string" as const, description: "选项机器标识，答案按此返回（简短英文小写下划线，如 mode_a；强烈建议填——缺省时系统自动按 label 生成）" },
                     label: { type: "string" as const, description: "选项显示文本，人看（简短，≤10 字；必填）" },
                     description: { type: "string" as const, description: "选项补充说明，人看（一句；可空）" },
                   },
-                  required: ["value", "label"],
+                  required: ["label"],
                 },
               },
               multi_select: { type: "boolean" as const, description: "是否多选（默认 false）" },
@@ -566,6 +576,21 @@ async function createAskUserTool(sessionId: string): Promise<ToolDefinition> {
       const questions = rawQuestions.map((q) => q as Record<string, unknown>);
       if (questions.some((q) => typeof q.id !== "string" || typeof q.question !== "string")) {
         return { content: [{ type: "text" as const, text: "ask_user 参数错误：每个问题必须含 id(string) 和 question(string)" }] };
+      }
+      // 选项 value 自动补全:模型偶尔漏 value(schema 已放宽 required 只留 label)——
+      // 缺省时用 label 做机器标识;跨题重复时追加序号保证唯一(答案按 value 返回,必须不重)
+      const usedValues = new Set<string>();
+      for (const q of questions) {
+        const opts = q.options;
+        if (!Array.isArray(opts)) continue;
+        for (const opt of opts as Array<Record<string, unknown>>) {
+          let v = typeof opt.value === "string" && opt.value.trim() ? opt.value.trim() : String(opt.label ?? `opt_${opts.length}`);
+          const base = v;
+          let i = 1;
+          while (usedValues.has(v)) { v = `${base}_${++i}`; }
+          usedValues.add(v);
+          opt.value = v;
+        }
       }
       const requestId = randomUUID();
       // 新会话时工具闭包绑定的 sessionId 是临时 UUID（buildExtraTools 时尚未创建 Pi 会话），
@@ -592,7 +617,17 @@ async function createAskUserTool(sessionId: string): Promise<ToolDefinition> {
         pendingAsks.set(requestId, {
           sessionId: realSid,
           resolve: wrappedResolve,
-          questions: questions.map((q) => ({ id: String(q.id), question: String(q.question) })),
+          questions: questions.map((q) => ({
+            id: String(q.id),
+            question: String(q.question),
+            // 选项表:answer 格式化时把机器 value 映射回人看的 label(展开区/结果可读性)
+            options: Array.isArray(q.options)
+              ? (q.options as Array<Record<string, unknown>>).map((o) => ({
+                  value: String(o.value ?? ""),
+                  label: String(o.label ?? o.value ?? ""),
+                }))
+              : [],
+          })),
         });
         // run 级 signal：用户打断 / killChat 时 abort → 取消挂起并通知前端关闭卡片
         signal?.addEventListener("abort", onAbort, { once: true });
@@ -696,7 +731,7 @@ export class AgentService {
       // ask_user 仅主会话装——worker（runWorker，无前端卡片）调用挂起交互工具会永久挂起（无 UI 可响应）
       if (!opts?.worker) {
         allTools.push(await createAskUserTool(sessionId));
-        // 执行待办（todo_write）：进度条在 ChatPanel，worker 无 UI 不装
+        // 待办（todo_write）：进度条在 ChatPanel，worker 无 UI 不装
         const { createTodoWriteTool } = await import("./tools/todo-tool");
         allTools.push(await createTodoWriteTool(projectPath, sessionId));
         // 用户待办（todo_user）：输入卡片「待办」面板同源清单，worker 无 UI 不装
@@ -1757,16 +1792,29 @@ export class AgentService {
         if (event.type === "compaction_start") {
           broadcast("agent:stream", { type: "compacting", sessionId, chatId: chat.chatId });
         } else if (event.type === "compaction_end") {
-          broadcast("agent:stream", { type: "compacted", sessionId, chatId: chat.chatId });
-          // 压缩后刷新使用率:压缩后无新回复时 getContextUsage 返回 percent null(旧 usage
-          // 不可信)→ 上报 0,UI 不再残留压缩前的旧百分比(下条回复后更新为真实值)
-          const usage = chat.session?.getContextUsage();
-          if (usage) {
-            broadcast("agent:context-usage", {
-              chatId: chat.chatId, percentage: usage.percent ?? null,
-              totalTokens: usage.tokens ?? 0, maxTokens: usage.contextWindow,
+          // 区分成败:失败(带 errorMessage/无 result)也发 compaction_end——若按成功广播,
+          // 前端蒙版消失且显示"已整理完毕",实际未压缩(用户感知"看似完成但没生效、无提示")
+          if (!event.aborted && !event.errorMessage && event.result) {
+            broadcast("agent:stream", { type: "compacted", sessionId, chatId: chat.chatId });
+            // 压缩后刷新使用率:压缩后无新回复时 getContextUsage 返回 percent null(旧 usage
+            // 不可信)→ 上报 0,UI 不再残留压缩前的旧百分比(下条回复后更新为真实值)
+            const usage = chat.session?.getContextUsage();
+            if (usage) {
+              broadcast("agent:context-usage", {
+                chatId: chat.chatId, percentage: usage.percent ?? null,
+                totalTokens: usage.tokens ?? 0, maxTokens: usage.contextWindow,
+              });
+            }
+          } else if (!event.aborted && event.errorMessage) {
+            // 失败:广播 error(前端红字提示),随后 catch/finally 清蒙版——不伪装成功
+            console.error(`[agent] compact failed: ${event.errorMessage}`);
+            broadcast("agent:stream", {
+              type: "error", sessionId, chatId: chat.chatId,
+              message: event.errorMessage || "上下文压缩失败，请稍后重试",
+              canRetry: true,
             });
           }
+          // aborted(用户中止压缩):不广播错误——按钮状态即反馈,静默收尾
         }
       } catch (e) {
         console.error("[agent] compact bridge error:", e);
@@ -1775,23 +1823,20 @@ export class AgentService {
     try {
       await chat.session.compact(instructions);
       // 成功路径:SDK 内部发 compaction_end → compacted 广播清除蒙版
-      // 压缩后注入当前执行待办——todo 落盘文件,恢复 Mint 对步骤清单的记忆（对齐 delegation 通知注入模式）
+      // 压缩后注入当前待办——todo 落盘文件,恢复 Mint 对步骤清单的记忆（对齐 delegation 通知注入模式）
       try {
         const realSid = (chat.session as { sessionId?: string } | null)?.sessionId ?? sessionId;
         const { readSessionTodos } = await import("./session-todos");
         const todos = readSessionTodos(chat.projectPath, realSid);
         if (todos.length > 0) {
           const lines = todos.map((t) => `- [${t.status === "completed" ? "完成" : t.status === "in_progress" ? "进行中" : "待办"}] ${t.content}`).join("\n");
-          this.injectSystemMessage(realSid, `当前执行待办（${todos.length} 项，其中 ${todos.filter((t) => t.status === "completed").length} 完成）：\n${lines}\n\n按清单继续推进（完成项已做过，不要重做）；清单与用户待办（.easymint/todos.json）不是一回事`, "summary");
+          this.injectSystemMessage(realSid, `当前待办（${todos.length} 项，其中 ${todos.filter((t) => t.status === "completed").length} 完成）：\n${lines}\n\n按清单继续推进（完成项已做过，不要重做）；清单与用户待办（.easymint/todos.json）不是一回事`, "summary");
         }
       } catch { /* 注入失败不阻断压缩 */ }
     } catch (e) {
-      console.error(`[agent] compact failed: chatId=${chat.chatId}`, e);
-      // 压缩失败:compaction_end 不会到达(或带 error),蒙版会卡死——发错误提示
-      broadcast("agent:stream", {
-        type: "error", sessionId, chatId: chat.chatId,
-        message: "上下文压缩失败，请稍后重试", canRetry: true,
-      });
+      // 失败提示已由桥接 compaction_end(errorMessage) 分支广播(SDK 先 emit compaction_end 再 throw,
+      // 源码实证 agent-session.js compact catch 路径)——此处只记日志,避免同一失败双条提示
+      console.error(`[agent] compact failed: chatId=${chat.chatId}`, (e as Error).message);
     } finally {
       unsub();
       // 无论成败都清除蒙版(compaction_end 的 compacted 可能因 aborted/无 result 不广播)
