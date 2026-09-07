@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
-import { colorAt, halfEllipseProfile, pathAt, hexToRgb } from "./glow-paths";
+import { colorAtLoop, halfEllipseProfile, pathAt, hexToRgb } from "./glow-paths";
 import { useGlowCanvas } from "./useGlowCanvas";
 
 /**
  * slide 顶部滑动 canvas 绘制:仅上边框弧段(顶边 + 左右圆角)——
  * 微光层(常亮低透明带) + 凸起层(半椭圆鼓包沿弧段往返移动)。
+ * 颜色沿顶边空间分布并随时间单向循环流动(色带流动,与 orbit 同语义)。
  * CSS 版圆角处直线条贴不上弧线(悬空/侵入),canvas 沿路径绘制解决。方案见 docs/design/状态指示光效方案.md。
  */
 interface SlideGlowProps {
@@ -16,6 +17,8 @@ interface SlideGlowProps {
 const THICKNESS = 2;
 const SPEED = 4;
 const TAIL_WIDTH = 120;
+/** 色带沿弧段流完一圈的秒数(颜色循环流动周期) */
+const FLOW_PERIOD = 6;
 
 /** 凸起高度方向的透明度衰减:0-70% 实心,70-90% 渐隐,90%+ 消失(沿用 CSS 版定稿值) */
 const CORE_SOLID = 0.7;
@@ -57,9 +60,10 @@ export function SlideGlow({ colors }: SlideGlowProps): JSX.Element {
       const span = topLen + 2 * arc;
       const half = t / 2;
       const rgbList = cs.map(rgbOf);
-      const c0 = rgbList[0]!;
+      // 色带流动相位:单向循环递增(0→1→0 无缝),颜色沿弧段持续朝一个方向流动
+      const flow = ((now / 1000) / FLOW_PERIOD) % 1;
 
-      // ── 微光层:沿弧段常亮带,两端渐隐 ──
+      // ── 微光层:沿弧段渐变色带(颜色随位置分布 + 流动相位平移,形成循环流动),两端渐隐 ──
       const glowFadeLen = Math.min(20, span * 0.05); // 端部渐隐长度(px)
       const n1 = Math.max(4, Math.ceil(span / 2));
       for (let i = 0; i < n1; i++) {
@@ -73,7 +77,9 @@ export function SlideGlow({ colors }: SlideGlowProps): JSX.Element {
         const a = Math.min(GLOW_ALPHA * (dist / glowFadeLen), GLOW_ALPHA);
         const a2 = Math.min(GLOW_ALPHA * (dist2 / glowFadeLen), GLOW_ALPHA);
         if (a <= 0.004 && a2 <= 0.004) continue;
-        ctx.fillStyle = `rgba(${c0[0]},${c0[1]},${c0[2]},${(a + a2) / 2})`;
+        // 颜色:沿弧段循环分布 + 流动相位——色带随时间朝一个方向平移(首尾无缝接续)
+        const c = colorAtLoop(rgbList, pos + flow);
+        ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${(a + a2) / 2})`;
         ctx.beginPath();
         ctx.moveTo(p0.tx, p0.ty);
         ctx.lineTo(p1.tx, p1.ty);
@@ -100,7 +106,9 @@ export function SlideGlow({ colors }: SlideGlowProps): JSX.Element {
         const p0 = corePt(s7 + arc + sCenter + (pos - 0.5) * coreLen, w, h, r, t, half, profile);
         const p1 = corePt(s7 + arc + sCenter + (pos2 - 0.5) * coreLen, w, h, r, t, half, profile2);
         if (p0 === null || p1 === null) continue;
-        const c = colorAt(rgbList, (pos + pos2) / 2);
+        // 凸起颜色:取该段在弧段上的空间位置 + 流动相位——凸起随色带流动变色,而非自身固定渐变
+        const sAbs = arc + sCenter + (pos - 0.5) * coreLen; // 距弧段起点的弧长(顶边直段内)
+        const c = colorAtLoop(rgbList, sAbs / span + flow);
         // 高度方向渐变:底部实 → 顶部 90% 消失(每段独立渐变,顶点沿法线)
         const g = ctx.createLinearGradient(p0.bx, p0.by, p0.tx, p0.ty);
         g.addColorStop(0, `rgba(${c[0]},${c[1]},${c[2]},1)`);

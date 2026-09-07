@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
-import { AttachItem, ChatMessage, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolLabel, mapSessionMessages, getMsgCopyText } from "./chat-utils";
+import { AttachItem, ChatMessage, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, mapSessionMessages, getMsgCopyText } from "./chat-utils";
 import { chatActions } from "../stores/chat-actions";
 import { confirmDialog } from "./ui/ConfirmDialog";
 import { resolveThinkingLevel } from "@shared/thinking-levels";
@@ -95,6 +95,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const ctxThresholdFiredRef = useRef(0); // 已按阈值触发过主动压缩（防止同轮重复触发）
   // 压缩弹窗「下次回复完触发」:回复结束(agent:exit)后重置阈值防重 → 重新弹窗走同样流程
   const rearmAfterExitRef = useRef(false);
+  // 待执行的压缩（回合中点了压缩——SDK 压缩需空闲，等 agent:exit 回合结束后执行）
+  const pendingCompactRef = useRef<{ instructions?: string } | null>(null);
   // 手动压缩标记(context-summarizing type=compact 已广播):compacting 事件据此区分
   // 手动压缩 vs SDK 自动压缩(阈值/溢出)——自动压缩时给用户原因提示
   const manualCompactingRef = useRef(false);
@@ -116,15 +118,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const [attaches, setAttaches] = useState<AttachItem[]>([]);
   const [previewImage, setPreviewImage] = useState<ImageViewerState | null>(null);
   const openViewer = useCallback((src: string, name: string) => setPreviewImage({ src, name }), []);
-  const [permissionMode, setPermissionMode] = useState("standard");
+  // 权限模式:新会话默认取全局持久化值(输入条切换即更新全局——用户不需要每次重选);
+  // 只读一次作初始值,不订阅全局变化(会话内以手动切换为准)
+  const globalPermissionMode = useSettingsStore((s) => s.chatPermissionMode);
+  const [permissionMode, setPermissionMode] = useState<"standard" | "full">(globalPermissionMode || "standard");
   // 权限模式最新值（订阅回调里引用 state 会拿到挂载时的旧闭包，用 ref 取最新）
-  const permissionModeRef = useRef("standard");
+  const permissionModeRef = useRef(permissionMode);
+  useEffect(() => { permissionModeRef.current = permissionMode; }, [permissionMode]);
   // 新会话首条消息窗口期：已发送、onChatSession 尚未回绑真实 sid。期间主进程广播已用真实 sid，
   // 而 sidRef 还是 __new_xxx——ask/learn 等按会话过滤的订阅在此窗口放行，避免提问卡片丢失
   const pendingFirstTurnRef = useRef(false);
   const storeModel = useSettingsStore((s) => s.model);
   const setStoreModel = useSettingsStore((s) => s.setModel);
-  const showThinking = useSettingsStore((s) => s.showThinking);
   // 全局聊天思考等级:仅作为新会话的初始默认(方案 B,聊天下拉可临时改)
   const globalThinkingLevel = useSettingsStore((s) => s.chatThinkingLevel);
   const [thinkingLevel, setThinkingLevel] = useState(globalThinkingLevel || "medium");
@@ -411,7 +416,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     return () => document.removeEventListener("mousedown", handler, true);
   }, []);
 
-  const showToolUse = useSettingsStore((s) => s.showToolUse);
   const [chatModel, setChatModel] = useState("");
   // 会话绑定的供应商 piId(需求 5:不同会话不同供应商)
   const [chatProvider, setChatProvider] = useState<string>("");
@@ -433,8 +437,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     if (sid) { window.electronAPI.agent.setModel(sid, m, chatProvider || undefined).catch(() => {}); }
   }, [setStoreModel, chatProvider]);
 
-  /** 权限模式切换：标准 → 完全访问需警告确认（可访问项目外文件，但系统敏感位置仍禁止）；降级直接切 */
-  const handlePermissionModeChange = useCallback(async (mode: string) => {
+  /** 权限模式切换：标准 → 完全访问需警告确认（可访问项目外文件，但系统敏感位置仍禁止）；降级直接切。
+   *  切换即持久化为全局默认(chatPermissionMode)——新会话自动沿用,免每次重选 */
+  const handlePermissionModeChange = useCallback(async (mode: "standard" | "full") => {
     if (mode === "full" && permissionMode !== "full") {
       const ok = await confirmDialog({
         title: "切换【完全访问】？",
@@ -444,6 +449,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       if (!ok) return;
     }
     setPermissionMode(mode);
+    if (mode === "standard" || mode === "full") {
+      useSettingsStore.getState().setChatPermissionMode(mode);
+    }
   }, [permissionMode]);
   const [showStats, setShowStats] = useState(false);
   // 压缩确认弹层：auto=阈值自动触发 / manual=统计弹窗按钮
@@ -972,21 +980,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     return () => { cancelled = true; };
   }, [existingSid, projectPath]);
 
-  // showThinking / showToolUse 切换时重新从磁盘加载，使过滤生效
-  useEffect(() => {
-    if (!existingSid) return;
-    const projectDir = projectPath || getWorkspaceDir();
-    let cancelled = false;
-    (async () => {
-      const msgs = await window.electronAPI.conv.messages(existingSid, projectDir);
-      if (!cancelled && msgs.length > 0) {
-        const mapped = mapSessionMessages(msgs);
-        if (mapped.length > 0) useChatStore.getState().loadSession(sidRef.current, mapped);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [showThinking, showToolUse]);
-
   useEffect(() => {
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       if (event.source === "worker") return;
@@ -1057,8 +1050,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useStatusStore.getState().pushSignal(sidRef.current, "request", "等待模型响应...");
         latestAiIdRef.current = 0;
         steeringRef.current = false;
-        // 用户已在弹窗打开期间继续对话 → 关闭压缩询问(选项 1/4 会 abort 新回合,不能误打断)
-        setCompactDialog(null);
+        // 不在此关闭压缩弹窗:turn_start 在回合内每个工具批次都会发,Mint 输出中触发弹窗会被
+        // 下一批次秒关(一闪即逝)。关闭逻辑在 sendText(用户真实发起新消息)处
       }
       // message_start = 新输出段消息(磁盘逐条 assistant)开始:下个内容帧创建新块;
       // 非流式消息(message_start 携带完整内容)直接渲染
@@ -1080,7 +1073,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // tool progress — 状态栏工具信号;shell 计数由后台命令事件驱动(agent:shell-count),
       // 不再按工具事件累加(前台瞬时工具不计入 shell•N)
       if (event.type === "tool_progress" && event.toolName) {
-        const label = displayToolLabel(event.toolName, event.toolArgs);
+        const label = displayToolAction(event.toolName, event.toolArgs);
         // 开始执行工具 → 思考信号结束(否则 tool pop 后回退显示「正在思考」);
         // 按 toolCallId 区分信号——连续工具互不干扰(前一个 tool_done 不误 pop 后一个)
         useStatusStore.getState().popSignal(sidRef.current, "request");
@@ -1119,15 +1112,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 手动/自动统一在此显示：手动路径的 type=compact 只标记来源,不预显示
       if (event.type === "compacting") {
         useTabStore.getState().setSessionRunning(sidRef.current, true);
+        busyRef.current = true; // 同步 busyRef(doCompact/steer 按它判断;压缩期间再点压缩应拦截)
         useStatusStore.getState().setCompacting(sidRef.current, true);
         useStatusStore.getState().pushSignal(sidRef.current, "compact",
           manualCompactingRef.current ? "正在整理会话..." : "检测到上下文需整理，正在整理…");
       }
       // compacted = 压缩完成：清除 compacting（触发"会话已整理完毕"提示），
-      // 并兜底清除 summarizing（防御轮转总结路径的残留）
+      // 并兜底清除 summarizing（防御轮转总结路径的残留）。压缩开始置 busy(compacting 事件
+      // setSessionRunning(true))——此处必须恢复,否则空闲压缩后按钮卡"停止"态直到下条消息
       if (event.type === "compacted") {
         useStatusStore.getState().setCompacting(sidRef.current, false);
         useStatusStore.getState().setSummarizing(sidRef.current, false);
+        useTabStore.getState().setSessionRunning(sidRef.current, false);
+        busyRef.current = false;
         manualCompactingRef.current = false;
         // 压缩后 Pi 重发的帧是摘要内容 → 作为新输出段块处理
         latestAiIdRef.current = 0;
@@ -1175,7 +1172,24 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useStatusStore.getState().setCtxPct(sidRef.current, event.percentage || 0);
       }
     });
-    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => { if (!currentChatRef.current) return; if (runId !== currentChatRef.current) return; if (Date.now() - interruptAtRef.current < 1500) return; latestAiIdRef.current = 0; busyRef.current = false; setBusy(false); useStatusStore.getState().popSignal(sidRef.current, "request"); useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:"); onActivity?.(); if (rearmAfterExitRef.current) { rearmAfterExitRef.current = false; ctxThresholdFiredRef.current = 0; } });
+    const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => {
+      if (!currentChatRef.current) return;
+      if (runId !== currentChatRef.current) return;
+      if (Date.now() - interruptAtRef.current < 1500) return;
+      latestAiIdRef.current = 0;
+      busyRef.current = false; setBusy(false);
+      useStatusStore.getState().popSignal(sidRef.current, "request");
+      useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:");
+      onActivity?.();
+      if (rearmAfterExitRef.current) { rearmAfterExitRef.current = false; ctxThresholdFiredRef.current = 0; }
+      // 回合中点了压缩 → 回合已结束（空闲），现在执行待压压缩
+      const pend = pendingCompactRef.current;
+      if (pend) {
+        pendingCompactRef.current = null;
+        useStatusStore.getState().pushSignal(sidRef.current, "compact", "回合已结束，正在压缩上下文...");
+        window.electronAPI.agent.compact(sidRef.current, pend.instructions || undefined).catch(() => {});
+      }
+    });
     const unsubSid = window.electronAPI.agent.onChatSession(({ sessionId: realSid, chatId: eventChatId }) => {
       if (currentChatRef.current && eventChatId !== currentChatRef.current) return;
       if (!currentChatRef.current && (!existingSid || realSid !== existingSid)) return;
@@ -1270,11 +1284,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       if (!currentChatRef.current) return;
       if (ctxChatId !== currentChatRef.current) return;
       if (type === "done") {
-        // 压缩/总结结束兜底:清除压缩蒙版与总结状态(compacted 可能因中止不广播)
+        // 压缩/总结结束兜底:清除压缩蒙版与总结状态(compacted 可能因中止不广播),
+        // 并恢复 busy(压缩置位后此处兜底清——防 compacted 未达时残留)
         useStatusStore.getState().setCompacting(sidRef.current, false);
         useStatusStore.getState().setSummarizing(sidRef.current, false);
         useStatusStore.getState().popSignal(sidRef.current, "summary");
         useStatusStore.getState().popSignal(sidRef.current, "compact");
+        useTabStore.getState().setSessionRunning(sidRef.current, false);
+        busyRef.current = false;
         manualCompactingRef.current = false;
         // 压缩完成 = 新周期,重置阈值防重标记——不依赖 pct<55 兜底
         // (压缩失败/跳过/弹窗关闭等残留都会导致 ref 卡在 threshold,75% 后不再弹窗)
@@ -1301,13 +1318,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       if (sidRef.current && !sidRef.current.startsWith("__new_")) {
         window.electronAPI.sessionCache.write(sidRef.current, { contextUsage: pct }).catch(() => {});
       }
-      // 主动压缩：使用率达到设置阈值就弹窗询问（不直接压缩——用户可跳过或带命令压缩）
+      // 主动压缩：使用率达到设置阈值就弹窗询问（不直接压缩——用户可跳过或带命令压缩）。
+      // 回合中(busy)不弹——SDK 压缩需会话空闲,输出中点击会导致 abort 后压缩竞态失败;
+      // 回合结束的强制上报(成功/错误路径)会再次触发此判断,届时空闲自然弹窗
       const threshold = useSettingsStore.getState().contextThreshold || 75;
       const sid = sidRef.current;
       const st = useStatusStore.getState().bySession[sid];
+      const runningNow = useTabStore.getState().runningSessions.has(sid);
       if (
         pct !== null &&
         pct >= threshold &&
+        !runningNow &&
         !st?.compacting && !st?.summarizing &&
         ctxThresholdFiredRef.current !== threshold &&
         currentChatRef.current
@@ -1455,9 +1476,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
   // ── Send ───────────────────────────────────────────
 
-  const sendText = useCallback(async (text: string) => {
+  const sendText = useCallback(async (text: string, opts?: { skipAppend?: boolean }) => {
     const msg = text.trim();
     if (!msg && attaches.length === 0) return;
+    // 用户发新消息 → 关闭压缩询问(继续对话 = 弹窗作废;选项 1/4 会 abort 新回合,不能误打断)。
+    // 关闭动作放发送入口而非 turn_start——turn_start 回合内每工具批次都发,会误关 Mint 输出中
+    // 刚弹出的自动压缩弹窗(一闪即逝)
+    setCompactDialog(null);
     // 用户发新消息 → 取消当前会话挂起的 ask_user（对齐 cc：发消息 = 转向，提问等待无意义）
     const asks = useAskStore.getState().asks;
     for (const k in asks) {
@@ -1488,16 +1513,21 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const agentText = parts.join("\n");
 
     const ts = Date.now();
-    useChatStore.getState().appendUserMsg(sidRef.current, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
+    // 编辑重发(skipAppend):气泡文本已由 updateUserMsgText 替换,不再 append 新气泡
+    if (!opts?.skipAppend) {
+      useChatStore.getState().appendUserMsg(sidRef.current, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
+    }
     // 首条消息:输入卡片从居中平滑下移到底部(FLIP)
     if (!messages.length && !existingSid) {
       startCardLeave();
     }
     // 新用户消息 → 重置输出段块状态(steer 插话不触发 turn_start 时兜底)
     latestAiIdRef.current = 0;
-    setAttaches([]);
-    onActivity?.();
-    stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
+    if (!opts?.skipAppend) {
+      setAttaches([]);
+      onActivity?.();
+      stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
+    }
 
     // 编码图片附件为 Pi ImageContent 格式(steer 插话与正常发送共用——steer 原先不带图,插话图片被静默丢弃)
     const images: Array<{ type: "image"; data: string; mimeType: string }> = [];
@@ -1568,48 +1598,51 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const showConfirmDev = confirmDevFlag || (!busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_confirm_dev"));
   const showNewProjectBtn = onNewProject && (newProjectFlag || (!busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_new_project")));
 
+  // ── 用户消息编辑重发(发送后打断 → 改原问题重发) ───────────────
+  // 可编辑条件:回合已停止(busy=false)且页面最后一条是 user 消息(该消息刚被打断,无响应) ——
+  // 常驻显示铅笔图标(用户已确认),点击进入编辑态回车重发
+  const editableUserMsgId = useMemo(() => {
+    if (busy) return null;
+    const last = messages[messages.length - 1];
+    return last && last.role === "user" ? last.id : null;
+  }, [busy, messages]);
+  // 编辑态状态(提升到 ChatPanel:嵌套 UserBubble 无 hooks,避免重挂载丢状态)
+  const [editingMsg, setEditingMsg] = useState<{ id: number; draft: string } | null>(null);
+  const startEdit = useCallback((msg: ChatMessage) => {
+    setEditingMsg({ id: msg.id, draft: msg.text ?? "" });
+  }, []);
+  const cancelEdit = useCallback(() => setEditingMsg(null), []);
+  // 重发:替换本地气泡文本 → 确保回合已停(打断后 busy 已 false,兜底再 abort) → 重新 sendMessage(跳过 append)。
+  // 注意:原文未修改也照常发送(打断后不改字重发 = 重新触发回复,不静默吞)
+  const handleResend = useCallback((msg: ChatMessage, newText: string) => {
+    setEditingMsg(null);
+    // 本地替换该气泡文本(不新增气泡;未修改时文本不变,无副作用)
+    useChatStore.getState().updateUserMsgText(sidRef.current, msg.id, newText);
+    // 兜底中止可能残留的回合(打断后正常已停;防边缘状态)
+    const rid = currentChatRef.current;
+    if (rid) window.electronAPI.agent.abort(rid).catch(() => {});
+    // 重新触发 Mint 回复(跳过 append——气泡已替换,不产生新用户气泡)
+    sendText(newText, { skipAppend: true });
+  }, [sendText]);
+
   // ── Render user bubble ─────────────────────────────
 
-  function UserBubble({ msg }: { msg: ChatMessage }): JSX.Element {
+  const userBubble = useCallback((msg: ChatMessage) => {
+    const isEditingThis = editingMsg?.id === msg.id;
     return (
-      /* 宽度钳制由外层 relative（shrink-0 max-w-[75%]）负责；
-         此处不再设 max-w/w-fit，避免相对 fit-content 层的循环依赖导致短文本被压窄 */
-      <div className="flex gap-4 items-start">
-        <div className="min-w-0">
-          <div className="msg-from text-right">USER</div>
-          <div className="msg-bubble-user rounded-[10px] rounded-br-[4px] px-[14px] py-1.5 leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]">
-          {msg.attaches && msg.attaches.length > 0 && (
-            <div className="flex gap-1.5 mb-2 flex-wrap">
-              {msg.attaches.map((a, i) => (
-                a.kind === "image" ? (
-                  a.dataUrl ? (
-                    <img key={`img-${i}`} src={a.dataUrl} alt={a.name} className="max-w-[260px] max-h-[220px] rounded-lg object-contain cursor-zoom-in hover:opacity-90 transition-opacity" onClick={() => { if (a.dataUrl) openViewer(a.dataUrl, a.name); }} />
-                  ) : (
-                    <div key={`doc-${i}`} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/10 max-w-[200px]">
-                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-4 h-4 shrink-0"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><circle cx="5" cy="6" r="1.3"/><path d="M1.5 11l3.5-3.5 2.5 2.5 3-4 4 5"/></svg>
-                      <span className="text-[length:var(--text-11)] truncate">{a.name}</span>
-                    </div>
-                  )
-                ) : (
-                  <div key={`udoc-${i}`} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/10 max-w-[200px]">
-                    <DocIcon name={a.name} />
-                    <span className="text-[length:var(--text-11)] truncate">{a.name}</span>
-                  </div>
-                )
-              ))}
-            </div>
-          )}
-          {msg.text ? <div className="whitespace-pre-wrap [overflow-wrap:anywhere] min-w-0">{msg.text}</div> : null}
-          </div>
-        </div>
-        <div className="msg-avatar user">U</div>
-      </div>
+      <UserBubble
+        msg={msg}
+        editable={editableUserMsgId === msg.id}
+        editing={isEditingThis}
+        draft={isEditingThis ? editingMsg!.draft : undefined}
+        onStartEdit={() => startEdit(msg)}
+        onDraftChange={(v) => setEditingMsg((cur) => (cur ? { ...cur, draft: v } : cur))}
+        onCommit={() => { const d = editingMsg?.draft.trim(); if (d) handleResend(msg, d); }}
+        onCancel={cancelEdit}
+        onViewImage={(src, name) => openViewer(src, name)}
+      />
     );
-  }
-
-  const userBubble = useCallback((msg: ChatMessage) => (
-    <UserBubble msg={msg} />
-  ), []);
+  }, [editableUserMsgId, editingMsg, startEdit, cancelEdit, handleResend, openViewer]);
 
   const handlePin = useCallback((text: string) => {
     usePinStore.getState().addPin(sidRef.current, text);
@@ -1669,7 +1702,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const inputWrapRef = useRef<HTMLDivElement>(null);
   const renderChatInput = (
     <div ref={inputWrapRef}>
-      {/* 执行待办条（Mint 执行追踪，用户只读）——todo_write 广播实时更新 */}
+      {/* 执行步骤条（Mint 执行追踪，用户只读）——todo_write 广播实时更新 */}
       <TodoStrip sessionId={sidRef.current} />
       <ChatInput
         projectPath={projectPath}
@@ -1677,7 +1710,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         attaches={attaches}
         setAttaches={setAttaches}
         onSend={sendText}
-        onStop={() => { stoppedRef.current = true; busyRef.current = false; interruptAtRef.current = Date.now(); const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); }}
+        onStop={() => { stoppedRef.current = true; busyRef.current = false; interruptAtRef.current = Date.now(); const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); /* 打断=取消排队的压缩(用户已改意图;不取消则 exit 被 interrupt 过滤,pending 残留到下次回合误执行) */ pendingCompactRef.current = null; }}
         onPaste={handlePaste}
         imgInputRef={imgInputRef}
         docInputRef={docInputRef}
@@ -1700,11 +1733,23 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
   // 立即压缩：手动点选项①与 auto 倒计时到点(onExpire)共用同一动作。
   // 不预置 compacting——蒙版显示完全跟随 SDK 真实状态(compacting 事件);
-  // SDK 未真正开始压缩(如 abort 挂起)则不显示,避免误导
-  const handleImmediateCompact = useCallback(() => {
-    window.electronAPI.agent.compact(sidRef.current).catch(() => {});
-    setCompactDialog(null);
+  // SDK 未真正开始压缩(如 abort 挂起)则不显示,避免误导。
+  // 回合中(busy)不直接调 SDK——compact() 会先 abort 当前回合,输出中触发存在压缩竞态;
+  // 挂到 pendingCompactRef,agent:exit(回合结束空闲)后再执行
+  const doCompact = useCallback((instructions?: string) => {
+    // 压缩进行中(compacting):忽略重复触发——等当前压缩结束(其完成事件清 busy 后用户可再触发)
+    if (useStatusStore.getState().bySession[sidRef.current]?.compacting) return;
+    if (busyRef.current) {
+      pendingCompactRef.current = { instructions };
+      useStatusStore.getState().pushSignal(sidRef.current, "compact", "当前回合结束后自动压缩...");
+      return;
+    }
+    window.electronAPI.agent.compact(sidRef.current, instructions).catch(() => {});
   }, []);
+  const handleImmediateCompact = useCallback(() => {
+    doCompact();
+    setCompactDialog(null);
+  }, [doCompact]);
 
   return (
     <div className="absolute inset-0 flex flex-col" onDragOver={handleDragOver} onDrop={handleDrop}>
@@ -1753,8 +1798,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     />
                     <MemoChatMessage
                       msg={msg}
-                      showThinking={showThinking}
-                      showToolUse={showToolUse}
                       busy={vi.index === messages.length - 1 && busy}
                       userBubble={userBubble}
                       onPin={handlePin}
@@ -1966,7 +2009,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
             : undefined}
           onImmediate={handleImmediateCompact}
           onWithInstructions={(instructions) => {
-            window.electronAPI.agent.compact(sidRef.current, instructions || undefined).catch(() => {});
+            doCompact(instructions || undefined);
             setCompactDialog(null);
           }}
           onWriteHandoff={() => {
@@ -2006,8 +2049,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
 interface MemoChatMessageProps {
   msg: ChatMessage;
-  showThinking: boolean;
-  showToolUse: boolean;
   busy: boolean;
   userBubble: (msg: ChatMessage) => JSX.Element;
   onPin: (text: string) => void;
@@ -2015,20 +2056,11 @@ interface MemoChatMessageProps {
   sid: string;
 }
 
-const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showToolUse, busy, userBubble, onPin, onContextMenu, sid }: MemoChatMessageProps) {
+const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, onPin, onContextMenu, sid }: MemoChatMessageProps) {
   // 指令型系统消息的展开/收起（事件型不折叠——无此 state 参与）
   const [sysExpanded, setSysExpanded] = useState(false);
-  const visible = useMemo(() => {
-    if (!msg.entries) return [];
-    return msg.entries.filter((e) => {
-      if (e.kind === "text") return true;
-      if (e.kind === "thinking") return showThinking;
-      // 开发工具结果始终显示(edit diff / read/write/bash 精简摘要,原设计意图);
-      // 其余工具结果(如 mcp_tavily 搜索结果)跟随开关,关闭时不渲染
-      if (e.kind === "tool_result") return showToolUse || e.name === "edit" || e.name === "read" || e.name === "write" || e.name === "bash";
-      return showToolUse;
-    });
-  }, [msg.entries, showThinking, showToolUse]);
+  // 思考/工具固定显示(无显示开关)——全部 entries 参与建块
+  const visible = msg.entries ?? [];
 
   // 工具 input 查找表(toolUseId → input):隐藏工具调用时,tool-result-only 块仍能取 file_path 做语言高亮
   const toolInputs = useMemo(() => {
@@ -2113,19 +2145,18 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
               {!collapsed && <div className="px-[14px] pb-1.5 leading-[1.55]">
                 {isResult ? (
                   rows.map((row, i) => {
-                    const m = row.match(/^⏺ (.+?) — (完成|失败|中止)(?: · (\d+)s)?$/);
-                    // 中止=人为打断(黄),失败=意外中断(红),完成=绿——原生 ⏺ 字符
+                    // 兼容新旧分隔符:新数据用连字符 `-`,存量/旧版主进程仍发 em-dash `—`——两者都解析
+                    const m = row.match(/^⏺ (.+?) [-—] (完成|失败|中止|已由用户中断)(?: · (\d+)s)?$/);
+                    // 中止/已由用户中断=人为打断(黄),失败=意外中断(红),完成=绿——原生 ⏺ 字符
                     const status = m?.[2];
-                    const dotColor = status === "中止" ? "text-interrupt" : status === "失败" ? "text-fail" : "text-done";
+                    const dotColor = (status === "中止" || status === "已由用户中断") ? "text-interrupt" : status === "失败" ? "text-fail" : "text-done";
                     return (
-                      <div key={i} className="flex items-center gap-2 py-0.5">
-                        <span className={`${dotColor} shrink-0 text-[length:var(--text-2xs)] leading-none`}>⏺</span>
+                      // 普通文本流而非 flex:flex 项间的源码换行在选择复制时会作为真实换行保留
+                      // (复制结果断行);inline 布局换行折叠为空格,复制文本与视觉一致
+                      <div key={i} className="py-0.5 leading-[1.55]">
+                        <span className={`${dotColor} text-[length:var(--text-caption)] align-baseline`}>⏺ </span>
                         {m ? (
-                          <>
-                            <span className="text-text-primary">{m[1]}</span>
-                            <span className={`${dotColor}`}>— {m[2]}</span>
-                            {m[3] && <span className="text-text-secondary/70 tabular-nums">· {m[3]}s</span>}
-                          </>
+                          <><span className="text-text-primary">{m[1]}</span><span className={`${dotColor} text-[length:var(--text-caption)] font-semibold`}> - {m[2]}</span>{m[3] && <span className="text-text-secondary/70 text-[length:var(--text-caption)] tabular-nums"> • {m[3]}s</span>}</>
                         ) : (
                           <span className="text-text-secondary">{row.slice(2)}</span>
                         )}
@@ -2199,3 +2230,91 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showThinking, showT
     </div>
   );
 });
+
+// 用户消息气泡(模块级稳定组件——嵌套定义每次渲染重建类型会致整棵 remount,输入/按钮事件丢失)
+function UserBubble({ msg, editable, editing, draft, onStartEdit, onDraftChange, onCommit, onCancel, onViewImage }: {
+  msg: ChatMessage;
+  editable?: boolean;
+  editing?: boolean;
+  draft?: string;
+  onStartEdit?: () => void;
+  onDraftChange?: (v: string) => void;
+  onCommit?: () => void;
+  onCancel?: () => void;
+  onViewImage?: (src: string, name: string) => void;
+}): JSX.Element {
+  const isEditing = !!editing;
+  const curDraft = draft ?? "";
+  return (
+    /* 宽度钳制由外层 relative（shrink-0 max-w-[75%]）负责；
+       此处不再设 max-w/w-fit，避免相对 fit-content 层的循环依赖导致短文本被压窄 */
+    <div className="flex gap-4 items-start">
+      <div className="min-w-0">
+        <div className="msg-from text-right">USER</div>
+        <div className="msg-bubble-user rounded-[10px] rounded-br-[4px] px-[14px] py-1.5 leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]">
+        {!isEditing && msg.attaches && msg.attaches.length > 0 && (
+          <div className="flex gap-1.5 mb-2 flex-wrap">
+            {msg.attaches.map((a, i) => (
+              a.kind === "image" ? (
+                a.dataUrl ? (
+                  <img key={`img-${i}`} src={a.dataUrl} alt={a.name} className="max-w-[260px] max-h-[220px] rounded-lg object-contain cursor-zoom-in hover:opacity-90 transition-opacity" onClick={() => { if (a.dataUrl) onViewImage?.(a.dataUrl, a.name); }} />
+                ) : (
+                  <div key={`doc-${i}`} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/10 max-w-[200px]">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-4 h-4 shrink-0"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><circle cx="5" cy="6" r="1.3"/><path d="M1.5 11l3.5-3.5 2.5 2.5 3-4 4 5"/></svg>
+                    <span className="text-[length:var(--text-11)] truncate">{a.name}</span>
+                  </div>
+                )
+              ) : (
+                <div key={`udoc-${i}`} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/10 max-w-[200px]">
+                  <DocIcon name={a.name} />
+                  <span className="text-[length:var(--text-11)] truncate">{a.name}</span>
+                </div>
+              )
+            ))}
+          </div>
+        )}
+        {isEditing ? (
+          <div className="relative">
+            <textarea
+              autoFocus
+              value={curDraft}
+              onChange={(e) => onDraftChange?.(e.target.value)}
+              onKeyDown={(e) => {
+                // 中文输入法组合中回车的 keydown 不带 isComposing 保护会误提交/漏提交——组合确认键跳过
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); onCommit?.(); }
+                else if (e.key === "Escape") { e.preventDefault(); onCancel?.(); }
+              }}
+              onBlur={onCancel}
+              rows={Math.max(2, Math.min(6, (curDraft.match(/\n/g)?.length ?? 0) + 1))}
+              placeholder="修改消息…"
+              className="w-full bg-transparent outline-none resize-none pr-8 text-[length:var(--text-detail)]"
+            />
+            {/* 发送按钮右下角悬浮。提交放 onMouseDown 而非 onClick：
+               click 前 textarea 先 blur → onBlur 取消编辑 → 节点卸载 → click 丢失(点击无效)。
+               mousedown 先于 blur 触发,提交在取消竞态前完成;preventDefault 兜底拦默认焦点转移 */}
+            <button
+              type="button"
+              title="发送"
+              aria-label="发送修改后的消息"
+              onMouseDown={(e) => { e.preventDefault(); onCommit?.(); }}
+              className="absolute right-1 bottom-1 p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-white/10 transition-colors"
+            >
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
+            </button>
+          </div>
+        ) : (
+          msg.text ? <div className="whitespace-pre-wrap [overflow-wrap:anywhere] min-w-0">{msg.text}</div> : null
+        )}
+        </div>
+        {editable && !isEditing && (
+          <div className="flex justify-end mt-0.5">
+            <button type="button" onClick={onStartEdit} title="修改并重新发送" className="p-0.5 text-text-muted hover:text-text-primary transition-colors" aria-label="编辑消息">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="msg-avatar user">U</div>
+    </div>
+  );
+}

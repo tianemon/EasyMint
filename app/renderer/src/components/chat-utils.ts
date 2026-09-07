@@ -154,6 +154,30 @@ export function displayToolLabel(name: string, args?: Record<string, unknown>): 
   return name;
 }
 
+/**
+ * 工具名 → 状态栏精简动作文案（只显示「在做什么」,不显示具体文件名/命令/URL——
+ * 状态栏是实时提示,用户只需知道动作类别;细节在消息内工具卡可见）。
+ * 统一带「正在」前缀(与「正在思考/正在处理」等状态文案风格一致)。
+ * 与 displayToolLabel 分工:弹层/卡片用详细版,状态栏用本精简版。
+ */
+export function displayToolAction(name: string, args?: Record<string, unknown>): string {
+  const n = name.toLowerCase();
+  if (n === "use_skill" || n.startsWith("skill__") || args?.skill) return "正在加载技能";
+  if (n === "learn") return "正在沉淀经验";
+  if (n === "manage_skill") return "正在管理技能";
+  if (n === "search_experiences") return "正在搜索经验库";
+  if (n.startsWith("mcp__")) return "正在调用外部工具";
+  if (n === "read" || n === "glob") return "正在读取文件";
+  if (n === "write") return "正在写入文件";
+  if (n === "edit") return "正在编辑文件";
+  if (n === "grep") return "正在搜索内容";
+  if (n === "bash") return "正在执行命令";
+  if (n === "task") return "正在调度 Agent";
+  if (n === "webfetch") return "正在获取网页";
+  if (n === "websearch") return "正在联网搜索";
+  return "正在处理";
+}
+
 /** 解析消息文本中的附件标记 [Image #1: path] / [File #1: path] */
 export function parseAttachMarkers(text: string): { attaches: AttachItem[]; cleanText: string } {
   const attaches: AttachItem[] = [];

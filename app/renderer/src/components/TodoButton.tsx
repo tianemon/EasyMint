@@ -91,16 +91,16 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
     <div className="relative shrink-0" ref={wrapRef}>
       <button
         type="button"
-        className="flex items-center gap-1.5 px-1.5 py-1 rounded-md text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
-       
+        className="inp-icon-btn relative"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        {/* 清单图标 */}
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 6h11M10 12h11M10 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>
-        <span className="text-xs">待办</span>
+        {/* 用户待办图标(lucide list-todo):方框勾选清单 */}
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><rect x="3" y="4" width="6" height="6" rx="1"/></svg>
         {openCount > 0 && (
-          <span className="text-[length:var(--text-3xs)] px-1 py-px rounded-full bg-accent-soft text-accent leading-tight">{openCount}</span>
+          <span className="absolute -top-[1px] -right-[5px] min-w-[12px] h-[12px] px-0.5 rounded-full bg-accent text-text-inverse text-[8px] font-semibold leading-[12px] text-center pointer-events-none ring-2 ring-[var(--color-input-field)]">
+            {openCount}
+          </span>
         )}
       </button>
 
@@ -108,7 +108,7 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
         <div className="absolute bottom-full left-0 mb-1.5 w-[360px] max-w-[85vw] rounded-lg border border-border bg-surface-elevated shadow-xl z-40 overflow-hidden">
           {/* 头部 */}
           <div className="flex items-center justify-between px-3 py-2">
-            <span className="text-xs font-medium text-text-primary">待办</span>
+            <span className="text-xs font-medium text-text-primary">用户待办</span>
             <span className="text-[length:var(--text-3xs)] text-text-muted">{todos === null ? "…" : `${todos.filter((t) => t.status === "open").length} 未完成 · ${todos.length} 条`}</span>
           </div>
 

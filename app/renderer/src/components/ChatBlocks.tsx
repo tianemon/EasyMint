@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { marked } from "marked";
 import type { StreamEntry } from "./StreamPanel";
 import { inferLang, tokenizeLines } from "../lib/diff-highlight";
@@ -8,6 +8,63 @@ import { useTabStore } from "../stores/tab-store";
 function baseName(p: string): string {
   const seg = p.split(/[\\/]/).pop();
   return seg || p;
+}
+
+// ── 工具标题元数据:中文动作词 + Lucide 图标(按工具名归类) ──────────────
+// 基础工具:bash→命令/终端, edit→编辑/方笔, read→查看/眼, write→编写/笔
+// 自定义工具按类别配图标:agent=bot, 知识技能=wrench, 项目=folder-kanban,
+// issue=bug, 网络=globe, 待办=list-clock, ask=message-question, 图片=scan-search
+const TOOL_LABELS: Record<string, string> = {
+  bash: "命令", edit: "编辑", read: "查看", write: "编写",
+  task: "调度 Agent", create_agent_template: "创建模板", list_agents: "查看 Agent",
+  read_agent_log: "读取日志", stop_agent: "停止 Agent",
+  use_skill: "加载技能", manage_skill: "管理技能", learn: "沉淀经验",
+  search_experiences: "搜索经验", import_skill: "导入", import_mcp_server: "导入",
+  show_confirm_dev: "确认开发", show_new_project: "新建项目", refresh_tasks: "刷新任务",
+  set_task_status: "更新任务", rename_project: "重命名项目", show_prototype: "预览原型",
+  list_issues: "查看 Issue", set_issue_status: "更新 Issue",
+  web_fetch: "抓取网页",
+  todo_write: "待办", todo_user: "用户待办",
+  ask_user: "提问", describe_image: "查看图片",
+};
+
+/** 工具图标:按 name 归类的 Lucide SVG path(不含外层 svg——ToolIcon 统一包) */
+function toolIconPaths(name: string): JSX.Element | null {
+  let n = name.toLowerCase();
+  if (n.startsWith("mcp__")) n = "mcp"; // MCP 工具统一扳手
+  switch (n) {
+    case "bash": return (<><path d="m7 11 2-2-2-2"/><path d="M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/></>);
+    case "edit": return (<><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></>);
+    case "read": return (<><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></>);
+    case "write": return (<><path d="M13 21h8"/><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></>);
+    // agent 类(bot)
+    case "task": case "create_agent_template": case "list_agents": case "read_agent_log": case "stop_agent":
+      return (<><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></>);
+    // 知识/技能 + MCP + 导入(wrench)
+    case "use_skill": case "manage_skill": case "learn": case "search_experiences":
+    case "import_skill": case "import_mcp_server": case "mcp":
+      return (<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/>);
+    // 项目类(folder-kanban)
+    case "show_confirm_dev": case "show_new_project": case "refresh_tasks": case "set_task_status":
+    case "rename_project": case "show_prototype":
+      return (<><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/><path d="M8 10v4"/><path d="M12 10v2"/><path d="M16 10v6"/></>);
+    // issue(bug)
+    case "list_issues": case "set_issue_status":
+      return (<><path d="M12 20v-9"/><path d="M14 7a4 4 0 0 1 4 4v3a6 6 0 0 1-12 0v-3a4 4 0 0 1 4-4z"/><path d="M14.12 3.88 16 2"/><path d="M21 21a4 4 0 0 0-3.81-4"/><path d="M21 5a4 4 0 0 1-3.55 3.97"/><path d="M22 13h-4"/><path d="M3 21a4 4 0 0 1 3.81-4"/><path d="M3 5a4 4 0 0 0 3.55 3.97"/><path d="M6 13H2"/><path d="m8 2 1.88 1.88"/><path d="M9 7.13V6a3 3 0 1 1 6 0v1.13"/></>);
+    // 网络(globe)
+    case "web_fetch":
+      return (<><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></>);
+    // 待办(list-clock)
+    case "todo_write": case "todo_user":
+      return (<><path d="M16 13v2.2l1.6 1"/><path d="M3 12h3.458"/><path d="M3 19h3.832"/><path d="M3 5h18"/><circle cx="16" cy="15" r="6"/></>);
+    // ask(message-circle-question-mark)
+    case "ask_user":
+      return (<><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></>);
+    // 图片(scan-search)
+    case "describe_image":
+      return (<><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/><path d="m16 16-1.9-1.9"/></>);
+    default: return null;
+  }
 }
 
 // 链接渲染:加 target="_blank" rel="noopener"——新窗口打开,
@@ -39,6 +96,8 @@ interface ToolItem {
   result?: string;
   /** 结果是否错误(tool_result 的 is_error) */
   resultError?: boolean;
+  /** 执行中标记:本批 entries 内尚无匹配 tool_result(与 streaming 结合显示转圈;回合结束的残留不转) */
+  pending?: boolean;
 }
 
 interface ToolGroupBlock {
@@ -78,6 +137,12 @@ export function buildBlocks(
   let thinkBuf = "";
   let toolBuf: ToolItem[] = [];
   let sysBuf = "";
+  // 预扫描:本批 entries 中已到达的 tool_result id 集合——tool_use 的 result 可能因文本分隔
+  // 被拆到独立 tool-result-only 块(组内关联不到),但执行已完成,不得显示转圈
+  const resultIds = new Set<string>();
+  for (const e of entries) {
+    if (e.kind === "tool_result" && e.toolUseId) resultIds.add(e.toolUseId);
+  }
 
   const flushText = () => { if (textBuf) { blocks.push({ kind: "text", text: textBuf.trim(), keyPrefix }); textBuf = ""; } };
   const flushThink = () => { if (thinkBuf) { blocks.push({ kind: "thinking", text: thinkBuf.trim() }); thinkBuf = ""; } };
@@ -88,7 +153,7 @@ export function buildBlocks(
     if (e.kind === "text") { flushThink(); flushTool(); flushSys(); textBuf += (textBuf ? "\n" : "") + e.text; }
     else if (e.kind === "thinking") { flushText(); flushTool(); flushSys(); thinkBuf += (thinkBuf ? "\n" : "") + e.text; }
     else if (e.kind === "system") { flushText(); flushThink(); flushTool(); sysBuf += (sysBuf ? "\n" : "") + e.message; }
-    else if (e.kind === "tool_use") { flushText(); flushThink(); flushSys(); toolBuf.push({ name: e.name, input: e.input, id: e.id }); }
+    else if (e.kind === "tool_use") { flushText(); flushThink(); flushSys(); toolBuf.push({ name: e.name, input: e.input, id: e.id, pending: !(e.id && resultIds.has(e.id)) }); }
     else if (e.kind === "tool_result") {
       // 按 toolUseId 关联结果到对应工具调用块;无匹配(工具调用被过滤/未显示)时单独渲染
       const target = [...toolBuf].reverse().find((t) => t.id === e.toolUseId);
@@ -175,7 +240,7 @@ function CodeBlock({ language, children }: { language?: string; children: string
           {copied ? "已复制" : "复制"}
         </button>
       </div>
-      <pre className="m-0 px-3 py-2 overflow-x-auto leading-relaxed font-mono text-text-primary whitespace-pre" style={{ background: 'var(--color-code-block-bg)', fontSize: "var(--text-detail)" }}>
+      <pre className="m-0 px-3 py-2 overflow-x-auto x-thin-scroll leading-relaxed font-mono text-text-primary whitespace-pre" style={{ background: 'var(--color-code-block-bg)', fontSize: "var(--text-detail)" }}>
         <code>{children}</code>
       </pre>
     </div>
@@ -248,12 +313,26 @@ export function TextBlockView({ block, streaming }: { block: TextBlock; streamin
 function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: boolean }): JSX.Element {
   // active = 流式中且本块是消息尾块(思考正在增长):自动展开;思考结束(不再是尾块)自动收起。
   const [open, setOpen] = useState(false);
+  // 展开区内容是否渲染:收起动画结束后卸载 body——折叠时思考内容不参与气泡宽度计算
+  // (仅 0fr 藏高度时,思考内不可断行长行/URL 仍把气泡撑到展开宽度)
+  const [bodyMounted, setBodyMounted] = useState(false);
   // 用户是否手动展开过:手动干预后不再随思考结束自动收起(保留用户意图,想看历史就留着)
   const userCtrlRef = useRef(false);
   const prevActiveRef = useRef(false);
   const boxRef = useRef<HTMLDivElement>(null);
   // 自动贴底跟随:用户滚离底部(dist>8)暂停,回底恢复(对齐 OutputWindow 交互)
   const autoScrollRef = useRef(true);
+
+  // body 挂载与 open 同步:展开立即挂载;收起等 0fr 过渡(200ms)播完再卸载(宽度随动画收窄)。
+  // 手动展开需先挂载(0fr)下一帧再置 open——同帧置 1fr 无过渡,展开动画消失(见 toggle)
+  useEffect(() => {
+    if (open) { setBodyMounted(true); return; }
+    const t = setTimeout(() => setBodyMounted(false), 230);
+    return () => clearTimeout(t);
+  }, [open]);
+  // 手动展开的 rAF 延迟(自动展开 active 路径直接 setOpen,不走此)
+  const rafRef = useRef<number>(0);
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 
   // active true(思考开始/思考中持续):自动展开;标记非用户手动(供结束自动收起判定)
   useEffect(() => {
@@ -287,10 +366,15 @@ function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: b
 
   const toggle = (): void => {
     userCtrlRef.current = true;
-    setOpen((o) => {
-      if (!o) autoScrollRef.current = false; // 手动展开:从顶部看历史
-      return !o;
-    });
+    if (!open) {
+      // 手动展开:先挂载(0fr 隐藏),下一帧置 open 播 0fr→1fr 动画
+      setBodyMounted(true);
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => setOpen(true));
+      autoScrollRef.current = false; // 手动展开:从顶部看历史
+    } else {
+      setOpen(false);
+    }
   };
 
   return (
@@ -300,47 +384,103 @@ function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: b
         onClick={toggle}
         className="inline-flex items-center gap-1.5 py-0.5 text-left rounded transition-colors group"
       >
+        {/* 大脑图标(Lucide brain)——思考块标识,与输入卡片思考等级图标统一 */}
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[var(--color-tool-title)] group-hover:text-text-primary transition-colors">
+          <path d="M12 18V5"/>
+          <path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"/>
+          <path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"/>
+          <path d="M17.997 5.125a4 4 0 0 1 2.526 5.77"/>
+          <path d="M18 18a4 4 0 0 0 2-7.464"/>
+          <path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517"/>
+          <path d="M6 18a4 4 0 0 1-2-7.464"/>
+          <path d="M6.003 5.125a4 4 0 0 0-2.526 5.77"/>
+        </svg>
         <span
-          className="text-text-secondary group-hover:text-[var(--thinking-title-hover)] uppercase tracking-wider font-semibold transition-colors"
+          className="text-[var(--color-tool-title)] group-hover:text-text-primary uppercase tracking-wider font-semibold transition-colors"
           style={{ fontSize: "var(--text-caption)" }}
-        >思考过程</span>
-        {active && <span className="text-text-muted text-[length:var(--text-meta)]">…</span>}
+        >思考</span>
+        {/* 思考中指示:active(流式尾块)时转圈——原「…」三点换更明确的活动反馈 */}
+        {active && (
+          <svg className="animate-spin text-accent" width="12" height="12" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+            <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        )}
         {/* 折叠箭头在文字右侧:展开时常显 ▼(向下),折叠态 hover 才出现 >(提示可展开) */}
-        <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={`w-2.5 h-2.5 shrink-0 text-text-secondary group-hover:text-[var(--thinking-title-hover)] transition-all duration-150 ${open ? "rotate-90 opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+        <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={`w-2.5 h-2.5 shrink-0 text-[var(--color-tool-title)] group-hover:text-text-primary transition-all duration-150 ${open ? "rotate-90 opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
           <path d="M3.5 2l3 3-3 3"/>
         </svg>
       </button>
-      {open && (
-        // 展开态:左竖线引用式(其余三边无框)+ 底色比气泡深一档;封顶 6 行超出滚动——永远不完全展开
-        // 输出区上下外间距:上方 mt-[5px](原 2px +3)、下方 mb-[3px](新增)——背景块与标题/下缘拉开呼吸
-        <div
-          ref={boxRef}
-          onScroll={onScroll}
-          className="overflow-y-auto overscroll-contain rounded-r-md mt-[5px] mb-[3px]"
-          style={{
-            borderLeft: "2px solid var(--thinking-rule)",
-            background: "var(--thinking-body)",
-            maxHeight: "calc(var(--text-detail) * 9.75 + 12px)", // 6 行文字 + pre 上下 padding 12px
-          }}
-        >
-          <pre className="px-3 py-1.5 text-text-secondary font-mono whitespace-pre-wrap leading-[1.625]" style={{ fontSize: "var(--text-detail)" }}>{block.text}</pre>
+      {/* 展开动画:grid-rows 0fr↔1fr 平滑展开/收起。折叠时 body 不渲染(bodyMounted)——
+          思考内容不参与气泡宽度计算;收起时 0fr 过渡播放完才卸载,宽度随动画收窄 */}
+      {bodyMounted && (
+      <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+        <div className="overflow-hidden">
+          {/* 展开区:纯色块(无左竖线),底色比气泡深一档;封顶 6 行超出滚动(溢出时外层 1fr 轨匹配内层 maxHeight) */}
+          <div
+            ref={boxRef}
+            onScroll={onScroll}
+            className="overflow-y-auto overscroll-contain rounded-md mt-[5px] mb-[3px]"
+            style={{
+              background: "var(--thinking-body)",
+              maxHeight: "calc(var(--text-detail) * 9.75 + 12px)", // 6 行文字 + pre 上下 padding 12px
+            }}
+          >
+            <pre className="px-3 py-1.5 text-text-secondary font-mono whitespace-pre-wrap leading-[1.625]" style={{ fontSize: "var(--text-detail)" }}>{block.text}</pre>
+          </div>
         </div>
+      </div>
       )}
     </div>
   );
 }
 
-function ToolGroupView({ block }: { block: ToolGroupBlock }): JSX.Element {
+/** 折叠展开区内容挂载控制(通用,供工具块等手动折叠用):
+ *  折叠(bodyMounted=false)时内容不渲染——不参与气泡宽度计算(0fr 只藏高度,不可断行长行仍撑宽);
+ *  展开:先挂载(0fr 隐藏),下一帧切 open 播 grid-rows 0fr→1fr 动画;
+ *  收起:先播 1fr→0fr 动画,结束后卸载 body(宽度随即收回,不遮挡收起过程)。
+ *  返回 { bodyMounted, contentReady, toggle }——contentReady=动画态(用于箭头/网格类) */
+function useFoldBody(open: boolean, setOpen: (v: boolean) => void): {
+  bodyMounted: boolean;
+  contentReady: boolean;
+  toggle: () => void;
+} {
+  // 内容是否挂载(渲染于 grid 内;未挂载 = 零宽度贡献)
+  const [bodyMounted, setBodyMounted] = useState(false);
+  // 首帧挂载后动画才就绪:挂载同一帧切 1fr 无过渡(从 0fr 起步才播动画),用 rAF 延迟一帧
+  const rafRef = useRef<number>(0);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 挂载状态与 open 同步(单卡初始折叠 bodyMounted=false;打开瞬间挂载+置 open)
+  const toggle = useCallback(() => {
+    if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
+    if (!open) {
+      // 展开:先挂载(0fr 隐藏) → 下一帧切 1fr 播高度动画
+      setBodyMounted(true);
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => setOpen(true));
+    } else {
+      // 收起:先播 0fr 动画 → 结束后卸载 body(宽度收回)
+      setOpen(false);
+      hideTimerRef.current = setTimeout(() => setBodyMounted(false), 230); // 200ms 过渡 + 余量
+    }
+  }, [open, setOpen]);
+  // 组件卸载清理:取消挂起的 rAF/卸载 timer(虚拟列表行回收时防泄漏/卸载后 setState)
+  useEffect(() => () => {
+    cancelAnimationFrame(rafRef.current);
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+  }, []);
+
+  return { bodyMounted, contentReady: open, toggle };
+}
+
+function ToolGroupView({ block, streaming }: { block: ToolGroupBlock; streaming?: boolean }): JSX.Element {
   const items = block.items;
-  // 组内含 diff(edit 结果)时默认展开——diff 是可读结果,不随组折叠隐藏(与关工具调用开关时 diff 全显保持一致)
-  const hasDiff = items.some((it) => it.result?.includes("变更内容:"));
-  const [open, setOpen] = useState(hasDiff);
-  // 流式后到时结果补上:有 diff 则展开(幂等,用户手动折叠不受影响——依赖不变不重跑)
-  useEffect(() => {
-    if (hasDiff) setOpen(true);
-  }, [hasDiff]);
+  // 默认折叠(含 diff 组——用户要求不自动展开,点击才展开)
+  const [open, setOpen] = useState(false);
+  // 展开区内容挂载控制:折叠时 body 不渲染,宽度不被隐藏内容撑开(见 useFoldBody)
+  const fold = useFoldBody(open, setOpen);
   if (items.length === 1) {
-    return <SingleToolCard item={items[0]!} />;
+    return <SingleToolCard item={items[0]!} streaming={streaming} />;
   }
   // Group by family for summary
   const families = new Map<string, number>();
@@ -353,22 +493,37 @@ function ToolGroupView({ block }: { block: ToolGroupBlock }): JSX.Element {
       <div
         role="button"
         tabIndex={0}
-        onClick={() => setOpen((o) => !o)}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen((o) => !o); } }}
-        className="flex items-center gap-1.5 py-0.5 cursor-pointer select-none group"
+        onClick={fold.toggle}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fold.toggle(); } }}
+        className="flex w-fit items-center gap-1.5 py-0.5 cursor-pointer select-none group"
       >
-        <span className="text-text-secondary group-hover:text-[var(--thinking-title-hover)] transition-colors" style={{ fontSize: "var(--text-caption)" }}>{summary}</span>
+        <span className="text-[var(--color-tool-title)] group-hover:text-text-primary transition-colors" style={{ fontSize: "var(--text-caption)" }}>{summary}</span>
+        {/* 执行中指示(组内任一项 pending 且回合活跃):折叠时子卡转圈不可见,标题行给反馈 */}
+        {streaming && items.some((i) => i.pending) && (
+          <svg className="animate-spin text-accent" width="12" height="12" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+            <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        )}
         {/* 折叠箭头在文字右侧(对齐思考块):展开常显 ▼(旋转朝下),折叠态 hover 才出现 > */}
-        <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={`w-2.5 h-2.5 shrink-0 text-text-secondary group-hover:text-[var(--thinking-title-hover)] transition-all duration-150 ${open ? "rotate-90 opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+        <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={`w-2.5 h-2.5 shrink-0 text-[var(--color-tool-title)] group-hover:text-text-primary transition-all duration-150 ${open ? "rotate-90 opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
           <path d="M3.5 2l3 3-3 3"/>
         </svg>
       </div>
-      {open && (
-        <div className="mt-[2px] rounded-r-md space-y-0.5" style={{ borderLeft: "2px solid var(--thinking-rule)", background: "var(--thinking-body)", padding: "2px 0" }}>
-          {items.map((item, i) => (
-            <SingleToolCard key={i} item={item} compact />
-          ))}
+      {/* 展开动画:grid rows 0fr↔1fr 高度过渡;宽度块级自适应——气泡内其他内容更宽则铺满,
+          组内容更宽则撑开气泡;折叠时 body 不渲染(bodyMounted)宽度零贡献 */}
+      {fold.bodyMounted && (
+      <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+        <div className="overflow-hidden min-w-0">
+          {/* 组展开容器:深色块 padding 左右 8px + 上下 1px(用户确认:上下边距主要由工具行自身 mt/mb 贡献,
+              容器 padding 只做微调,2px→1px 后视觉仍均匀);折叠时高度 0 背景自然不可见 */}
+          <div className="mt-[2px] rounded-md space-y-0.5" style={{ background: "var(--thinking-body)", padding: "1px 8px" }}>
+            {items.map((item, i) => (
+              <SingleToolCard key={i} item={item} compact streaming={streaming} />
+            ))}
+          </div>
         </div>
+      </div>
       )}
     </div>
   );
@@ -378,14 +533,14 @@ function ToolGroupView({ block }: { block: ToolGroupBlock }): JSX.Element {
 function DiffLine({ line, lang, segments, lineNoWidth }: { line: string; lang?: string; segments?: Array<{ text: string; color?: string }> | null; lineNoWidth?: number }): JSX.Element {
   if (line.startsWith("+")) {
     return (
-      <div className="bg-[color-mix(in_oklab,var(--color-success)_12%,transparent)] px-2 -mx-2">
+      <div className="bg-[var(--color-diff-add)] px-2 -mx-2">
         <HighlightedCode code={line.slice(1)} lang={lang} segments={segments} prefix="+" prefixClass="text-success" lineNoWidth={lineNoWidth} />
       </div>
     );
   }
   if (line.startsWith("-")) {
     return (
-      <div className="bg-[color-mix(in_oklab,var(--color-danger)_12%,transparent)] px-2 -mx-2">
+      <div className="bg-[var(--color-diff-del)] px-2 -mx-2">
         <HighlightedCode code={line.slice(1)} lang={lang} segments={segments} prefix="-" prefixClass="text-danger" lineNoWidth={lineNoWidth} />
       </div>
     );
@@ -611,16 +766,26 @@ function getBashCommand(input: unknown): string | undefined {
   return undefined;
 }
 
-function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }): JSX.Element {
+/**
+ * 工具标题图标(Lucide)——按工具名归类取图标(见 toolIconPaths 映射表)
+ */
+function ToolIcon({ name }: { name: string }): JSX.Element | null {
+  const paths = toolIconPaths(name);
+  if (!paths) return null;
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+      {paths}
+    </svg>
+  );
+}
+
+function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?: boolean; streaming?: boolean }): JSX.Element {
   const isDiffResult = !!item.result && item.result.includes("变更内容:");
-  // diff 结果默认展开(可读结果必显),用户可手动收起;bash 等普通结果默认折叠
-  const [showInput, setShowInput] = useState(isDiffResult);
-  // 流式后到时结果补上:diff 自动展开(幂等,用户手动收起后依赖不变不重跑)
-  useEffect(() => {
-    if (item.result && (item.result.includes("变更内容:") || item.resultError)) {
-      setShowInput(true);
-    }
-  }, [item.result]);
+  // 默认折叠(含 diff——用户要求不自动展开,点击才展开)
+  const [showInput, setShowInput] = useState(false);
+  // 展开区内容是否渲染:收起动画结束后卸载 body——折叠时隐藏内容不再撑开气泡宽度(仅高度隐藏时
+  // 不可断行长行/diff 仍把宽度撑到展开态);展开时先挂载下一帧再播 grid 动画(见 useFoldBody)
+  const fold = useFoldBody(showInput, setShowInput);
 
   const isPathTool = item.name === "edit" || item.name === "write" || item.name === "read";
   const diffStats_ = isDiffResult ? diffCount(item.result!) : null;
@@ -629,7 +794,8 @@ function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }
   const bashSegs = bashCmd ? splitCommandChain(bashCmd) : [];
   // 文件工具 → 绝对路径 + 文件名(标题行只显文件名,链接点击在 tab 打开;悬停 title 提示完整路径)
   const filePath = isPathTool ? editFilePath(item) : undefined;
-  const label = item.name === "bash" ? "命令" : item.name === "edit" ? "编辑" : item.name === "read" ? "读取" : item.name === "write" ? "编写" : item.name;
+  // 动作词:查 TOOL_LABELS 映射表(自定义工具各配中文名),未知工具兑底「工具」
+  const label = TOOL_LABELS[item.name.toLowerCase()] ?? (item.name.toLowerCase().startsWith("mcp__") ? "MCP 工具" : "工具");
 
   // 打开文件 tab(对齐 FileTree 点击行为)
   const openFile = (e: React.MouseEvent): void => {
@@ -639,62 +805,133 @@ function SingleToolCard({ item, compact }: { item: ToolItem; compact?: boolean }
   };
 
   const contentErr = item.resultError;
+  // 展开区有可显示内容:bash 命令来自 input(工具调用即带)——执行阶段就可展开看命令,
+  // 不必等 result(输出本来就不展示);其他工具(diff/write 内容等)内容来自 result,仍等结果到达
+  const hasExpandable = item.name === "bash"
+    ? (bashSegs.length > 0 || !!bashCmd) && !contentErr
+    : !!item.result && !contentErr;
+
+  // read(查看)特例:文件内容已在链接中(点击文件名在 tab 打开即可看),结果不再展示、无需展开——
+  // 只渲染「查看 + 文件链接」标题行(无折叠箭头/无展开区)
+  if (item.name === "read") {
+    return (
+      <div className="mt-1.5 mb-1 flex items-center gap-1.5 group">
+        <span className="shrink-0 flex items-center gap-1.5 min-w-0 text-[var(--color-tool-title)] group-hover:text-text-primary transition-colors">
+          <ToolIcon name="read" />
+          <span className="whitespace-nowrap" style={{ fontSize: "var(--text-caption)" }}>{TOOL_LABELS.read ?? "查看"}</span>
+          {/* 执行状态:转圈(执行中)/ ✓ 成功 / ✗ 报错——与主工具卡一致 */}
+          {streaming && item.pending ? (
+            <svg className="animate-spin text-accent" width="12" height="12" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+              <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          ) : !item.pending && contentErr ? (
+            <svg className="shrink-0 text-danger" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          ) : !item.pending && item.result !== undefined ? (
+            <svg className="shrink-0 state-ok" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          ) : null}
+        </span>
+        {filePath ? (
+          <button
+            type="button"
+            onClick={openFile}
+            title={filePath}
+            className="shrink-0 max-w-[260px] truncate font-mono text-[var(--color-link)] hover:underline transition-colors cursor-pointer"
+            style={{ fontSize: "var(--text-detail)" }}
+          >{baseName(filePath)}</button>
+        ) : (
+          <span className="text-text-muted font-mono" style={{ fontSize: "var(--text-detail)" }}>(未知文件)</span>
+        )}
+      </div>
+    );
+  }
 
   return (
     // 融入气泡式(非独立卡片):无外框——标题行中性灰,展开区左竖线 + 深一档底(对齐思考块)
     <div className="mt-1.5 mb-1">
-      {/* 标题行:div 整行可点展开;文件名链接为独立按钮(点击开文件,不触发展开) */}
+      {/* 标题行:点击区收窄到内容(w-fit,对齐思考块——不整行可点);文件名链接为独立按钮(点击开文件,不触发展开) */}
       <div
         role="button"
         tabIndex={0}
-        onClick={() => setShowInput((o) => !o)}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowInput((o) => !o); } }}
-        className={`flex items-center gap-1.5 cursor-pointer select-none group ${compact ? "py-0.5" : "py-0.5"}`}
+        onClick={fold.toggle}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fold.toggle(); } }}
+        className="flex w-fit items-center gap-1.5 cursor-pointer select-none group py-0.5"
       >
-        {/* 动作词(编辑/读取/编写/命令) */}
-        <span className={`shrink-0 whitespace-nowrap ${contentErr ? "text-danger" : "text-text-secondary group-hover:text-text-primary"} transition-colors`} style={{ fontSize: "var(--text-caption)" }}>{label}</span>
+        {/* 动作词(编辑/查看/编写/命令)——前加对应 Lucide 图标(bash=终端/edit=方笔/read=眼/write=笔) */}
+        <span className="shrink-0 flex items-center gap-1.5 min-w-0 text-[var(--color-tool-title)] group-hover:text-text-primary transition-colors">
+          <ToolIcon name={item.name} />
+          <span className="whitespace-nowrap" style={{ fontSize: "var(--text-caption)" }}>{label}</span>
+          {/* 执行中指示:tool_use 已到、result 未到且回合仍活跃(busy)→ 转圈;回合结束的残留(中断无 result)不转 */}
+          {streaming && item.pending && (
+            <svg className="animate-spin text-accent" width="12" height="12" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+              <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          )}
+          {/* 执行完状态:成功 ✓ / 报错 ✗——与转圈互斥(pending=false 即完成,立即显示,不等回合结束) */}
+          {!item.pending && contentErr ? (
+            <svg className="shrink-0 text-danger" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          ) : !item.pending && item.result !== undefined ? (
+            <svg className="shrink-0 state-ok" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          ) : null}
+        </span>
         {/* 文件名链接:独立按钮,点击在 tab 打开文件;不触发展开 toggle */}
         {filePath && (
           <button
             type="button"
             onClick={openFile}
             title={filePath}
-            className="shrink-0 max-w-[260px] truncate font-mono text-accent hover:underline transition-colors cursor-pointer"
+            className="shrink-0 max-w-[260px] truncate font-mono text-[var(--color-link)] hover:underline transition-colors cursor-pointer"
             style={{ fontSize: "var(--text-detail)" }}
           >{baseName(filePath)}</button>
         )}
-        {/* 折叠箭头在文字右侧(对齐思考块):展开常显 ▼(旋转朝下),折叠态 hover 才出现 > */}
-        <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={`w-2.5 h-2.5 shrink-0 ${contentErr ? "text-danger" : "text-text-secondary group-hover:text-[var(--thinking-title-hover)]"} transition-all duration-150 ${showInput ? "rotate-90 opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
-          <path d="M3.5 2l3 3-3 3"/>
-        </svg>
-        {/* 变更统计(+N -M,仅编辑类有 diff)——执行成败不展示状态文案(用户无需知道,AI 自行处理失败) */}
+        {/* 变更统计(+N -M)紧跟文件名后——编辑类有 diff;执行成败不展示状态文案 */}
         {!compact && item.result && diffStats_ && (diffStats_.added > 0 || diffStats_.removed > 0) && (
-          <span className={`ml-auto shrink-0 normal-case tracking-normal ${contentErr ? "text-danger" : "text-text-muted"}`} style={{ fontSize: "var(--text-meta)" }}>
+          <span className="shrink-0 normal-case tracking-normal text-text-muted" style={{ fontSize: "var(--text-caption)" }}>
             {diffStats_.added > 0 && <span className="text-success">+{diffStats_.added}</span>}
-            {diffStats_.added > 0 && diffStats_.removed > 0 && " · "}
+            {diffStats_.added > 0 && diffStats_.removed > 0 && " • "}
             {diffStats_.removed > 0 && <span className="text-danger">-{diffStats_.removed}</span>}
           </span>
         )}
+        {/* 折叠箭头在文字右侧(对齐思考块):展开常显 ▼(旋转朝下),折叠态 hover 才出现 > */}
+        <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={`w-2.5 h-2.5 shrink-0 text-[var(--color-tool-title)] group-hover:text-text-primary transition-all duration-150 ${showInput ? "rotate-90 opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+          <path d="M3.5 2l3 3-3 3"/>
+        </svg>
       </div>
-      {showInput && item.result && (
-        // 展开区:左竖线 + 深一档底色(对齐思考块展开区);内容随工具类型
-        <div className="mt-[2px] rounded-r-md" style={{ borderLeft: "2px solid var(--thinking-rule)", background: "var(--thinking-body)" }}>
-          {isDiffResult ? (
-            <div className="px-3 py-2"><DiffView text={item.result} filePath={filePath} /></div>
-          ) : (
-            // bash 结果区:命令分段多行 + 输出截断(展开才看,多段不挤一行)
-            <div className="px-3 py-2">
-              {bashSegs.length > 0 && (
-                <pre className="text-text-secondary font-mono whitespace-pre-wrap mb-1.5" style={{ fontSize: "var(--text-detail)" }}>
-                  {bashSegs.join("\n")}
-                </pre>
-              )}
-              <pre className={`text-text-secondary font-mono overflow-x-auto whitespace-pre-wrap ${bashSegs.length > 0 ? "border-t border-border pt-1.5" : ""} ${contentErr ? "text-danger" : ""}`} style={{ fontSize: "var(--text-detail)" }}>
-                {truncateResult(item.result)}
-              </pre>
-            </div>
+      {/* 展开动画:grid rows 0fr↔1fr 高度过渡;宽度不设 w-fit/grid-cols——块级自适应:
+          气泡内其他内容(文本等)更宽则展开区铺满气泡,展开内容更宽则撑开气泡(max-w 75% 内)。
+          折叠时 body 不渲染(bodyMounted)——隐藏内容不再撑开气泡宽度 */}
+      {fold.bodyMounted && (
+      <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${showInput && hasExpandable ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+        <div className="overflow-hidden min-w-0">
+          {hasExpandable && (
+            // 展开区:纯色块,底色比气泡深一档;内容随工具类型
+            // 失败(contentErr)时不渲染任何正文——标题已标红即失败提示(报错/状态文案都不展示)
+            isDiffResult ? (
+              <div className="mt-[2px] rounded-md" style={{ background: "var(--thinking-body)" }}>
+                <div className="px-3 py-2"><DiffView text={item.result!} filePath={filePath} /></div>
+              </div>
+            ) : item.name === "bash" ? (
+              <div className="mt-[2px] rounded-md" style={{ background: "var(--thinking-body)" }}>
+                {/* bash:只显示命令分段(输出结果不展示) */}
+                <div className="px-3 py-2">
+                  <pre className="text-text-secondary font-mono whitespace-pre-wrap break-all" style={{ fontSize: "var(--text-detail)" }}>
+                    {bashSegs.length > 0 ? bashSegs.join("\n") : (bashCmd ?? "")}
+                  </pre>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-[2px] rounded-md" style={{ background: "var(--thinking-body)" }}>
+                <div className="px-3 py-2">
+                  <pre className="text-text-secondary font-mono overflow-x-auto x-thin-scroll whitespace-pre-wrap" style={{ fontSize: "var(--text-detail)" }}>
+                    {truncateResult(item.result!)}
+                  </pre>
+                </div>
+              </div>
+            )
           )}
         </div>
+      </div>
       )}
     </div>
   );
@@ -706,7 +943,7 @@ export function ChatBlockView({ block, streaming, isStreamingTail }: { block: Bl
   switch (block.kind) {
     case "text": return <TextBlockView block={block} streaming={streaming} />;
     case "thinking": return <ThinkingBlockView block={block} active={isStreamingTail} />;
-    case "tool-group": return <ToolGroupView block={block} />;
+    case "tool-group": return <ToolGroupView block={block} streaming={streaming} />;
     case "system": return null;
     case "tool-result-only": return <ToolResultOnlyView block={block} />;
   }
@@ -743,7 +980,7 @@ function ToolResultOnlyView({ block }: { block: ToolResultOnlyBlock }): JSX.Elem
         {stats && (stats.added > 0 || stats.removed > 0) && (
           <span className="normal-case tracking-normal font-normal shrink-0">
             {stats.added > 0 && <span className="text-success">+{stats.added}</span>}
-            {stats.added > 0 && stats.removed > 0 && " · "}
+            {stats.added > 0 && stats.removed > 0 && " • "}
             {stats.removed > 0 && <span className="text-danger">-{stats.removed}</span>}
           </span>
         )}
@@ -754,7 +991,7 @@ function ToolResultOnlyView({ block }: { block: ToolResultOnlyBlock }): JSX.Elem
         </div>
       )}
       {writeContent !== undefined && (
-        <div className="bg-surface px-3 py-2 overflow-x-auto">
+        <div className="bg-surface px-3 py-2 overflow-x-auto x-thin-scroll">
           <pre className="text-text-secondary font-mono leading-relaxed" style={{ fontSize: "var(--text-detail)" }}>{numberLines(writeContent)}</pre>
         </div>
       )}

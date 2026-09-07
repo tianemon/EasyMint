@@ -56,9 +56,6 @@ export function SubagentProcessView({
     autoScrollRef.current = true;
     setAwayFromBottom(false);
   };
-  // 显示开关:默认都隐藏(只看文本);思考过程/工具调用点击展开
-  const [showThinking, setShowThinking] = useState(false);
-  const [showToolUse, setShowToolUse] = useState(false);
 
   /** 消息纯文本(重载合并判断用) */
   const textOf = (m: ChatMessage): string =>
@@ -156,7 +153,7 @@ export function SubagentProcessView({
         className="relative flex flex-col w-[80vw] h-[80vh] rounded-[12px] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 头部:第一行 = spinner + 标题 + 状态 + 关闭;第二行 = 显示开关 */}
+        {/* 头部:spinner + 标题 + 状态 + 关闭(思考/工具与主聊天一致常显,无显示开关) */}
         <div className="bg-accent-bg">
           <div className="flex items-center gap-2 px-4 py-2.5">
             <svg className="animate-spin text-accent shrink-0" width="13" height="13" viewBox="0 0 16 16" fill="none">
@@ -177,40 +174,9 @@ export function SubagentProcessView({
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
           </div>
-          {/* 显示开关行:多选框样式(纯 div 实现,无原生 input 闪烁),默认都隐藏 */}
-          <div className="flex items-center gap-4 px-4 pb-2.5">
-            <button
-              type="button"
-              onClick={() => setShowThinking((o) => !o)}
-              className="flex items-center gap-1.5 cursor-pointer select-none text-[length:var(--text-11)] text-text-secondary hover:text-text-primary transition-colors bg-transparent border-none p-0"
-            >
-              <span
-                className={`w-3.5 h-3.5 rounded-[4px] border flex items-center justify-center transition-colors ${showThinking ? "bg-accent border-accent" : "border-border bg-surface"}`}
-              >
-                {showThinking && (
-                  <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="var(--color-text-inverse)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                )}
-              </span>
-              思考过程
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowToolUse((o) => !o)}
-              className="flex items-center gap-1.5 cursor-pointer select-none text-[length:var(--text-11)] text-text-secondary hover:text-text-primary transition-colors bg-transparent border-none p-0"
-            >
-              <span
-                className={`w-3.5 h-3.5 rounded-[4px] border flex items-center justify-center transition-colors ${showToolUse ? "bg-accent border-accent" : "border-border bg-surface"}`}
-              >
-                {showToolUse && (
-                  <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="var(--color-text-inverse)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                )}
-              </span>
-              工具调用
-            </button>
-          </div>
         </div>
 
-        {/* 消息区(思考/工具调用按开关显示,默认只显示文本;可选中复制) */}
+        {/* 消息区(思考/工具与主聊天一致常显;可选中复制) */}
         {/* 阅读型内容区:字号随「阅读字体」缩放(与聊天区 .chat-messages 同思路) */}
         <div ref={scrollRef} onScroll={handleScroll} onWheel={handleUserInput} onTouchStart={handleUserInput} onMouseDown={handleUserInput} className="subagent-output flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-[var(--color-sidebar)]/40" style={{ fontSize: "var(--text-body)" }}>
           {!loaded && !sessionFile && (
@@ -222,7 +188,7 @@ export function SubagentProcessView({
           {loaded && msgs.length === 0 && (
             <div className="text-center text-text-secondary py-8">暂无消息</div>
           )}
-          {msgs.map((m) => <SubagentMessage key={m.keyId ?? m.id} msg={m} showThinking={showThinking} showToolUse={showToolUse} />)}
+          {msgs.map((m) => <SubagentMessage key={m.keyId ?? m.id} msg={m} running={running} />)}
           {running && <div className="flex justify-center"><span className="text-[length:var(--text-11)] text-text-secondary animate-pulse">● 运行中</span></div>}
         </div>
 
@@ -243,8 +209,8 @@ export function SubagentProcessView({
   );
 }
 
-/** 精简只读消息气泡(user 右 / ai 左,Mint 气泡复用主聊天样式;思考/工具按开关显示) */
-function SubagentMessage({ msg, showThinking, showToolUse }: { msg: ChatMessage; showThinking: boolean; showToolUse: boolean }): JSX.Element {
+/** 精简只读消息气泡(user 右 / ai 左,Mint 气泡复用主聊天样式;思考/工具常显) */
+function SubagentMessage({ msg, running }: { msg: ChatMessage; running: boolean }): JSX.Element {
   if (msg.role === "user") {
     return (
       <div className="flex justify-end">
@@ -253,33 +219,39 @@ function SubagentMessage({ msg, showThinking, showToolUse }: { msg: ChatMessage;
     );
   }
   const entries = msg.entries ?? [];
-  // 按显示开关过滤可见条目——纯思考/纯工具消息在开关关闭时无可视内容,
-  // 不渲染气泡容器(否则隐藏内容后留下空白气泡)
-  const visible = entries.filter((e) =>
-    e.kind === "text" ||
-    (e.kind === "thinking" && showThinking) ||
-    ((e.kind === "tool_use" || e.kind === "tool_result") && showToolUse)
-  );
-  if (visible.length === 0) return <></>;
+  // 无任何条目时不渲染气泡(避免空容器留白)
+  if (entries.length === 0) return <></>;
+  // 扫描本条消息内已到达的 tool_result:toolUseId → isError(跨条目关联,供 tool_use 行显示状态)
+  const resultMap = new Map<string, boolean>();
+  for (const e of entries) {
+    if (e.kind === "tool_result" && e.toolUseId) resultMap.set(e.toolUseId, e.isError);
+  }
   return (
     <div className="flex gap-3 items-start">
       <div className="msg-avatar agent shrink-0">M</div>
       <div className="min-w-0 flex-1">
         <div className="msg-bubble-agent rounded-[10px] rounded-bl-[4px] px-3 py-1.5 text-[length:var(--text-detail)] overflow-hidden">
-          {visible.map((e, i) => <SubagentEntry key={i} entry={e} showThinking={showThinking} showToolUse={showToolUse} />)}
+          {entries.map((e, i) => {
+            // 工具状态:有 result → ✓/✗;执行中(无 result 且任务运行)→ 转圈;已结束无 result(中断残留)→ 无图标
+            let toolStatus: "ok" | "err" | "pending" | undefined;
+            if (e.kind === "tool_use" && e.id) {
+              if (resultMap.has(e.id)) toolStatus = resultMap.get(e.id) ? "err" : "ok";
+              else if (running) toolStatus = "pending";
+            }
+            return <SubagentEntry key={i} entry={e} toolStatus={toolStatus} />;
+          })}
         </div>
       </div>
     </div>
   );
 }
 
-/** 单条流式条目(文本常显;思考/工具调用按开关显示) */
-function SubagentEntry({ entry, showThinking, showToolUse }: { entry: StreamEntry; showThinking: boolean; showToolUse: boolean }): JSX.Element {
+/** 单条流式条目(文本/思考/工具全显;工具行带执行状态指示) */
+function SubagentEntry({ entry, toolStatus }: { entry: StreamEntry; toolStatus?: "ok" | "err" | "pending" }): JSX.Element {
   if (entry.kind === "text") {
     return <div className="whitespace-pre-wrap break-words text-text-primary">{entry.text}</div>;
   }
   if (entry.kind === "thinking") {
-    if (!showThinking) return <></>;
     return (
       <div className="mb-1.5 flex gap-2 items-start">
         <span className="shrink-0 text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-[var(--color-sidebar-hover)] text-text-muted mt-0.5">思考</span>
@@ -288,7 +260,6 @@ function SubagentEntry({ entry, showThinking, showToolUse }: { entry: StreamEntr
     );
   }
   if (entry.kind === "tool_use") {
-    if (!showToolUse) return <></>;
     const input = (entry as unknown as { input?: unknown }).input;
     const args = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
     return (
@@ -296,11 +267,23 @@ function SubagentEntry({ entry, showThinking, showToolUse }: { entry: StreamEntr
         <span className="shrink-0 text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-[var(--color-sidebar-hover)] text-text-muted">工具</span>
         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="var(--color-text-secondary)" strokeWidth="2" strokeLinecap="round" className="shrink-0"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
         <span className="text-[var(--color-accent)]">{displayToolLabel((entry as unknown as { name: string }).name, args)}</span>
+        {/* 执行状态:转圈(进行中)/ ✓ 成功 / ✗ 报错——与主聊天工具块一致 */}
+        {toolStatus === "pending" && (
+          <svg className="animate-spin text-accent" width="12" height="12" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+            <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        )}
+        {toolStatus === "err" && (
+          <svg className="shrink-0 text-danger" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        )}
+        {toolStatus === "ok" && (
+          <svg className="shrink-0 state-ok" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        )}
       </div>
     );
   }
   if (entry.kind === "tool_result") {
-    if (!showToolUse) return <></>;
     const content = String((entry as unknown as { content: string }).content ?? "").trim();
     // edit 结果含 "变更内容:" diff → 复用主聊天的 DiffView 红绿渲染
     if (content.includes("变更内容:")) {

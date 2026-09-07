@@ -188,6 +188,12 @@ html[data-platform="win32"] {
   --color-permission-on: #ed7482;
   --color-success-soft: color-mix(in oklab, var(--color-success) 10%, transparent);
   --color-success-high: color-mix(in oklab, var(--color-success) 20%, transparent);
+  /* diff 行背景(亮色)——比 12% 透明更实,红绿可辨但盖不住文字 */
+  --color-diff-add: #d6f0de;
+  --color-diff-del: #fbdddd;
+  /* 链接/文件引用蓝 + 工具标题浅灰(亮色)——正文链接/工具卡文件路径、标题动作词统一 */
+  --color-link: #2563eb;
+  --color-tool-title: #8a8a8a;
   --color-warning-soft: color-mix(in oklab, var(--color-warning) 10%, transparent);
   --color-info: #0891b2;
   --color-info-bg: color-mix(in oklab, var(--color-info) 12%, transparent);
@@ -216,10 +222,8 @@ html[data-platform="win32"] {
   --color-dot-red: #dc2626;
   --color-dot-blue: #3b82f6;
 
-  /* ── Thinking 思考过程(融入气泡:标题中性灰 + 内容左竖线引用式,非独立卡片)── */
+  /* ── Thinking 思考过程(融入气泡:标题中性灰 + 内容底色)── */
   --thinking-body: #e9ece9;   /* 内容底:比气泡 card-agent(#f3f6f3)深一档 */
-  --thinking-rule: #c9cdc9;   /* 内容区左竖线 */
-  --thinking-title-hover: #333333; /* 标题 hover:比常态 secondary(#555)更深一档(亮色下变深表强调) */
 
   /* ── Code highlight（GitHub Light 中性色板）── */
   --color-code-kw: #cf222e;
@@ -388,6 +392,9 @@ html[data-platform="win32"] {
   --color-danger-soft: #421212;
   --color-success-soft: #122616;
   --color-success-high: color-mix(in oklab, var(--color-success) 20%, transparent);
+  /* diff 行背景(暗色)——保持原 12% 透明混合观感 */
+  --color-diff-add: color-mix(in oklab, var(--color-success) 12%, transparent);
+  --color-diff-del: color-mix(in oklab, var(--color-danger) 12%, transparent);
   /* 输入卡片任务按钮(AgentBar 胶囊)雾化呼吸灯:暗色绿光晕(按钮字体绿同源) */
   --agent-breath-glow: #17a34a59;
   /* 输入卡片命令胶囊(ShellBar)雾化呼吸灯:暗色蓝光晕(按钮字体蓝同源) */
@@ -396,6 +403,8 @@ html[data-platform="win32"] {
   --color-info-bg: #122226;
   --color-info-soft: #122226;
   --color-info-high: color-mix(in oklab, var(--color-info) 20%, transparent);
+  --color-link: #60a5fa;   /* 链接/文件引用蓝(暗色,亮蓝保证可读) */
+  --color-tool-title: #b0b0b0; /* 工具标题动作词/箭头浅灰(暗色) */
 
   /* ── Status dots — 仅 green + red 有色 ─── */
   --color-dot-gray: #444444;
@@ -404,10 +413,8 @@ html[data-platform="win32"] {
   --color-dot-red: #ef4444;
   --color-dot-blue: #3b82f6;
 
-  /* ── Thinking 思考过程(融入气泡:标题中性灰 + 内容左竖线引用式,非独立卡片)── */
+  /* ── Thinking 思考过程(融入气泡:标题中性灰 + 内容底色)── */
   --thinking-body: #171717;   /* 内容底:比气泡 card-agent(#1c1c1c)深一档 */
-  --thinking-rule: #444444;   /* 内容区左竖线 */
-  --thinking-title-hover: #b5b5b5; /* 标题 hover:比常态 secondary(#909090)亮一档(暗色下变亮) */
 
   /* ── Code highlight — 灰度 ───────── */
   --color-code-kw: #b2b2b2;
@@ -812,13 +819,6 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 .ctx-ring svg { transform: rotate(-90deg); }
 .ctx-ring-track { fill: none; stroke: var(--color-sidebar-hover); stroke-width: 2.5; }
 .ctx-ring-fill { fill: none; stroke: var(--color-accent); stroke-width: 2.5; stroke-linecap: round; transition: stroke-dashoffset 200ms var(--ease-smooth); }
-.ctx-ring-pct {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  /* 圆环仅 20px,百分比文字三位数时需限幅防溢出(UI 字号放大上限) */
-  font-size: clamp(8px, var(--text-4xs), 10px); font-weight: 600; color: var(--color-text-muted); opacity: 0;
-  transition: opacity 120ms;
-}
-.ctx-ring:hover .ctx-ring-pct { opacity: 1; }
 .send-btn {
   width: 32px; height: 32px; border-radius: var(--radius-sm); flex-shrink: 0;
   border: none; background: var(--color-accent); color: var(--color-text-inverse);
@@ -1029,6 +1029,17 @@ button, a, select {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 5px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-text-secondary); }
+
+/* 聊天气泡内代码/结果块的横向滚动条细化:横条高度压到 4px(全局 8px 太粗,盖住代码内容);
+   只覆 height 不动 width——垂直条保持 8px 可点,仅横条变细 */
+.x-thin-scroll::-webkit-scrollbar { height: 4px; }
+.x-thin-scroll::-webkit-scrollbar-track { background: transparent; }
+.x-thin-scroll::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 4px; }
+.x-thin-scroll::-webkit-scrollbar-thumb:hover { background: var(--color-text-secondary); }
+
+/* 工具状态图标:成功对勾——亮色绿 / 暗色灰白(与文字一致,不亮绿;diff 的 +N 仍用 text-success) */
+.state-ok { color: var(--color-success); }
+[data-theme="dark"] .state-ok { color: var(--color-text-primary); }
 
 /* ── Form inputs ──────────────────────────────────── */
 

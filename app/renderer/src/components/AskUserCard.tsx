@@ -154,32 +154,49 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
         </div>
       )}
 
-      {/* 自定义输入 */}
+      {/* 自定义输入：输入框与前进/跳过按钮同一行（按钮固定在右侧） */}
       {request.allowCustom && (
-        <div className="px-3.5 pt-1.5">
+        <div className="px-3.5 pt-1.5 pb-[9px] flex items-center gap-2">
           <input
-            className="em-input w-full px-2.5 py-1.5 text-xs bg-surface/50"
+            className="em-input flex-1 min-w-0 px-2.5 py-1.5 text-xs bg-surface/50"
             placeholder="输入你的答案…"
             value={draft}
             onChange={(e) => setDrafts((prev) => ({ ...prev, [q.id]: e.target.value }))}
+            onKeyDown={(e) => {
+              // 回车提交草稿(无草稿时回车 = 跳过)——与按钮同一行语义一致
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (draftNonEmpty) proceedWithDraft();
+                else skip();
+              }
+            }}
           />
+          <button
+            type="button"
+            onClick={draftNonEmpty ? proceedWithDraft : skip}
+            className={`shrink-0 px-3 py-1.5 rounded-[8px] text-[length:var(--text-2xs)] font-medium transition-all duration-150 ${
+              draftNonEmpty
+                ? "btn-accent"
+                : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
+            }`}
+          >
+            {draftNonEmpty ? "发送" : "跳过"}
+          </button>
         </div>
       )}
 
-      {/* 右下角：跳过（输入内容时变 →） */}
-      <div className="flex justify-end px-3.5 py-2">
-        <button
-          type="button"
-          onClick={draftNonEmpty ? proceedWithDraft : skip}
-          className={`px-3.5 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium transition-all duration-150 ${
-            draftNonEmpty
-              ? "btn-accent"
-              : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
-          }`}
-        >
-          {draftNonEmpty ? "→" : "跳过"}
-        </button>
-      </div>
+      {/* 无自定义输入(纯选项)时:右下角「跳过」按钮独立成行 */}
+      {!request.allowCustom && (
+        <div className="flex justify-end px-3.5 py-2">
+          <button
+            type="button"
+            onClick={skip}
+            className="px-3.5 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-all duration-150"
+          >
+            跳过
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 /**
- * 执行待办条（会话待办）— 输入区上沿，Mint 执行追踪的实时展示（用户只读）。
+ * 待办条（会话待办）— 输入区上沿，Mint 执行追踪的实时展示（用户只读）。
  * 数据源：todo_write 工具广播（agent:todos，按 sessionId 过滤）；收起态 = 进度 + 当前项，点击展开。
  * 与用户待办（TodoButton → .easymint/todos.json）是两套清单。
  */
@@ -43,7 +43,7 @@ export const TodoStrip = memo(function TodoStrip({ sessionId }: { sessionId: str
           className="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-1.5 text-left"
           
         >
-          <span className="text-[length:var(--text-2xs)] px-1.5 py-px rounded-full bg-accent-soft text-accent leading-tight shrink-0">任务 {done}/{todos.length}</span>
+          <span className="text-[length:var(--text-2xs)] px-1.5 py-px rounded-full bg-accent-soft text-accent leading-tight shrink-0">待办 {done}/{todos.length}</span>
           <span className={`flex-1 min-w-0 truncate text-xs ${current ? "text-text-primary" : "text-text-secondary"}`}>
             {current ? (
               <><span className="text-accent mr-1">●</span>{summary}</>
