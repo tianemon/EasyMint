@@ -12,7 +12,7 @@ function baseName(p: string): string {
 
 // ── 工具标题元数据:中文动作词 + Lucide 图标(按工具名归类) ──────────────
 // 基础工具:bash→命令/终端, edit→编辑/方笔, read→查看/眼, write→编写/笔
-// 自定义工具按类别配图标:agent=bot, 知识技能=wrench, 项目=folder-kanban,
+// 自定义工具按类别配图标:agent=bot, 知识技能=wrench, MCP=plug, 项目=folder-kanban,
 // issue=bug, 网络=globe, 待办=list-clock, ask=message-question, 图片=scan-search
 const TOOL_LABELS: Record<string, string> = {
   bash: "命令", edit: "编辑", read: "查看", write: "编写",
@@ -40,10 +40,13 @@ function toolIconPaths(name: string): JSX.Element | null {
     // agent 类(bot)
     case "task": case "create_agent_template": case "list_agents": case "read_agent_log": case "stop_agent":
       return (<><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></>);
-    // 知识/技能 + MCP + 导入(wrench)
+    // 知识/技能(wrench)
     case "use_skill": case "manage_skill": case "learn": case "search_experiences":
-    case "import_skill": case "import_mcp_server": case "mcp":
+    case "import_skill": case "import_mcp_server":
       return (<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/>);
+    // MCP 工具调用(plug 插头)
+    case "mcp":
+      return (<><path d="M12 22v-5"/><path d="M15 8V2"/><path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z"/><path d="M9 8V2"/></>);
     // 项目类(folder-kanban)
     case "show_confirm_dev": case "show_new_project": case "refresh_tasks": case "set_task_status":
     case "rename_project": case "show_prototype":
@@ -779,6 +782,35 @@ function ToolIcon({ name }: { name: string }): JSX.Element | null {
   );
 }
 
+/** MCP/技能类工具的展开区名称文本(标题行只显类别,具体名进展开区):
+ *  - mcp__tavily__search → "tavily / search"(server / tool)
+ *  - use_skill → "技能: xxx"；manage_skill → "技能: xxx"(create/update/delete 前缀)
+ *  其他工具返回 null(展开区照常显示结果) */
+function toolDetailLabel(item: ToolItem): string | null {
+  const n = item.name.toLowerCase();
+  const inp = (item.input ?? {}) as Record<string, unknown>;
+  if (n.startsWith("mcp__")) {
+    return item.name.replace(/^mcp__/, "").split("__").filter(Boolean).join(" / ");
+  }
+  if (n === "use_skill" || n === "import_skill") {
+    const name = typeof inp.name === "string" ? inp.name : undefined;
+    return name ? `技能：${name}` : "技能";
+  }
+  if (n === "manage_skill") {
+    const action = typeof inp.action === "string" ? inp.action : undefined;
+    const name = typeof inp.name === "string" ? inp.name : undefined;
+    if (name) return `技能：${name}${action ? `（${action}）` : ""}`;
+    if (action) return `技能管理（${action}）`;
+    return "技能管理";
+  }
+  if (n === "learn") {
+    const skill = (typeof inp.skill === "object" && inp.skill !== null ? inp.skill : undefined) as Record<string, unknown> | undefined;
+    const name = skill && typeof skill.name === "string" ? skill.name : undefined;
+    return name ? `沉淀技能：${name}` : null; // 纯 memory 沉淀无技能名,仍显示结果
+  }
+  return null;
+}
+
 function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?: boolean; streaming?: boolean }): JSX.Element {
   const isDiffResult = !!item.result && item.result.includes("变更内容:");
   // 默认折叠(含 diff——用户要求不自动展开,点击才展开)
@@ -794,8 +826,11 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
   const bashSegs = bashCmd ? splitCommandChain(bashCmd) : [];
   // 文件工具 → 绝对路径 + 文件名(标题行只显文件名,链接点击在 tab 打开;悬停 title 提示完整路径)
   const filePath = isPathTool ? editFilePath(item) : undefined;
-  // 动作词:查 TOOL_LABELS 映射表(自定义工具各配中文名),未知工具兑底「工具」
-  const label = TOOL_LABELS[item.name.toLowerCase()] ?? (item.name.toLowerCase().startsWith("mcp__") ? "MCP 工具" : "工具");
+  // 动作词:查 TOOL_LABELS 映射表(自定义工具各配中文名),MCP 标题只显「MCP」(不带工具二字),skill 类显示动作词
+  const label = TOOL_LABELS[item.name.toLowerCase()]
+    ?? (item.name.toLowerCase().startsWith("mcp__") ? "MCP" : "工具");
+  // MCP/技能类:展开区显示具体名(标题行保持类别;其余工具展开区照常显示结果)
+  const detailLabel = toolDetailLabel(item);
 
   // 打开文件 tab(对齐 FileTree 点击行为)
   const openFile = (e: React.MouseEvent): void => {
@@ -805,10 +840,10 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
   };
 
   const contentErr = item.resultError;
-  // 展开区有可显示内容:bash 命令来自 input(工具调用即带)——执行阶段就可展开看命令,
-  // 不必等 result(输出本来就不展示);其他工具(diff/write 内容等)内容来自 result,仍等结果到达
+  // 展开区有可显示内容:bash 命令来自 input(工具调用即带)——执行阶段/失败都可就展开看命令
+  // (命令是输入,失败更需看到它排查;输出本来就不展示);其他工具(diff/write 内容等)内容来自 result,仍等结果到达
   const hasExpandable = item.name === "bash"
-    ? (bashSegs.length > 0 || !!bashCmd) && !contentErr
+    ? (bashSegs.length > 0 || !!bashCmd)
     : !!item.result && !contentErr;
 
   // read(查看)特例:文件内容已在链接中(点击文件名在 tab 打开即可看),结果不再展示、无需展开——
@@ -918,6 +953,13 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
                   <pre className="text-text-secondary font-mono whitespace-pre-wrap break-all" style={{ fontSize: "var(--text-detail)" }}>
                     {bashSegs.length > 0 ? bashSegs.join("\n") : (bashCmd ?? "")}
                   </pre>
+                </div>
+              </div>
+            ) : detailLabel ? (
+              // MCP/技能类:展开区显示具体工具/技能名(不铺结果——名称即本次调用的对象)
+              <div className="mt-[2px] rounded-md" style={{ background: "var(--thinking-body)" }}>
+                <div className="px-3 py-2">
+                  <span className="font-mono text-text-secondary" style={{ fontSize: "var(--text-detail)" }}>{detailLabel}</span>
                 </div>
               </div>
             ) : (
