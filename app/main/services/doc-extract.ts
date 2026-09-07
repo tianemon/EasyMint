@@ -45,7 +45,7 @@ const DOC_FORMATS: Record<string, string> = {
   rtf: "rtf",
   xls: "xlsx",
   xlsx: "xlsx",
-  ppt: "pptx",
+  ppt: "ppt", // 老二进制 .ppt 与新版 .pptx 分开——OLE2 无纯 JS 解析器,单独引导
   pptx: "pptx",
   odt: "odf",
   ods: "odf",
@@ -68,7 +68,7 @@ function sniffDocFormat(filePath: string, ext: string): string | undefined {
     }
     if (head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0) {
       // OLE2（老 doc/xls/ppt）
-      return ext === "doc" ? "doc" : ext === "xls" ? "xlsx" : undefined;
+      return ext === "doc" ? "doc" : ext === "xls" ? "xlsx" : ext === "ppt" ? "ppt" : undefined;
     }
   } catch { /* 读取失败交给扩展名路由 */ }
   return undefined;
@@ -111,6 +111,25 @@ async function extractZipText(filePath: string, wanted: string[], stripTags: boo
     }
   }
   return texts.join("\n\n");
+}
+
+/** 抽取 pptx 每页文本:按 slide 序号排序(勿依赖 zip 条目顺序——slide10 可能在 slide2 前) +
+ *  每页加「--- 第 N 页 ---」分隔——模型按页理解长课件,不再是一坨无边界文本 */
+async function extractPptxText(filePath: string): Promise<string> {
+  const JSZip = require("jszip") as any;
+  const data = readFileSync(filePath);
+  const zip = await JSZip.loadAsync(data);
+  const slides: Array<{ n: number; text: string }> = [];
+  for (const name of Object.keys(zip.files)) {
+    const m = /^ppt\/slides\/slide(\d+)\.xml$/.exec(name);
+    if (!m) continue;
+    const content = await zip.files[name]!.async("string");
+    const t = extractXmlText(content);
+    if (t) slides.push({ n: Number(m[1]), text: t });
+  }
+  slides.sort((a, b) => a.n - b.n);
+  if (slides.length === 0) return "";
+  return slides.map((s) => `--- 第 ${s.n} 页 ---\n${s.text}`).join("\n\n");
 }
 
 /**
@@ -167,8 +186,15 @@ export async function extractDocumentText(filePath: string): Promise<DocExtractR
         break;
       }
       case "pptx": {
-        raw = await extractZipText(filePath, ["ppt/slides/slide"], true);
+        raw = await extractPptxText(filePath);
         break;
+      }
+      case "ppt": {
+        // 老二进制 .ppt(OLE2):无纯 JS 解析器(仅 Apache POI/LibreOffice 可读)——给可执行引导而非模型自行纠结
+        return {
+          ok: false,
+          message: "老版 .ppt 格式暂不支持直接解析。请用 WPS/Office 打开后「另存为」.pptx，再重新发送或读取（步骤：打开文件 → 文件 → 另存为 → 选择 .pptx 格式）",
+        };
       }
       case "odf": {
         raw = await extractZipText(filePath, ["content.xml"], true);

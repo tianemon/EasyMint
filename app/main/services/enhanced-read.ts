@@ -44,8 +44,12 @@ export async function createEnhancedReadTool(
           : require("node:path").resolve(cwd, rawPath);
         const result = await extractDocumentText(absolute);
         if (result && result.ok) {
+          // pptx 只含文字层——明确告知不含图/表/版式视觉内容,模型据此如实向用户说明能力边界
+          const visualNote = result.format === "pptx"
+            ? "\n(注:仅抽取到文字内容——图片/图表/版式等视觉信息不在其中;如需看图可让用户把相关页导出为图片或 PDF)"
+            : "";
           const note = `Read document [${result.format}${result.truncated ? ", 已截断" : ""}]\n`;
-          return { content: [{ type: "text" as const, text: note + result.text }] };
+          return { content: [{ type: "text" as const, text: note + result.text + visualNote }] };
         }
         if (result && !result.ok) {
           // 格式已知但解析失败 → 明确报错，让模型如实告知用户（不静默）
