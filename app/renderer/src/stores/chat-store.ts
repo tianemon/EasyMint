@@ -10,6 +10,8 @@ interface ChatState {
   loadSession: (sessionId: string, messages: StoredMessage[]) => void;
   evictSession: (sessionId: string) => void;
   appendUserMsg: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai" }) => void;
+  /** 替换指定 user 消息文本（编辑重发——打断后改原问题重发,不新增气泡） */
+  updateUserMsgText: (sessionId: string, msgId: number, text: string) => void;
   /** 按 Pi 落盘时间戳有序插入——插到第一条 piTs 更大的消息之前,否则追加尾部。
    *  实时渲染顺序 = jsonl 落盘顺序(广播到达顺序 ≠ 落盘顺序,不能按到达顺序追加) */
   insertUserMsgAt: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai"; piTs?: number }, piTs: number) => number;
@@ -60,6 +62,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messagesBySession: {
         ...s.messagesBySession,
         [sessionId]: [...(s.messagesBySession[sessionId] || []), { ...msg, id }],
+      },
+    }));
+  },
+
+  /** 替换指定 user 消息的文本（编辑重发用——发送后打断,改原问题重发,不产生新气泡） */
+  updateUserMsgText: (sessionId, msgId, text) => {
+    set((s) => ({
+      messagesBySession: {
+        ...s.messagesBySession,
+        [sessionId]: (s.messagesBySession[sessionId] || []).map((m) =>
+          m.id === msgId ? { ...m, text, attaches: undefined } : m
+        ),
       },
     }));
   },
