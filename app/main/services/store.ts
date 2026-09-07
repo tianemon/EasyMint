@@ -38,10 +38,10 @@ interface Settings {
   lastProjectId?: string;
   setupComplete?: boolean;
   contextThreshold?: number;
-  showThinking?: boolean;
-  showToolUse?: boolean;
   /** 全局聊天思考等级(仅作为新聊天会话的初始默认,不控制 agent/task) */
   chatThinkingLevel?: string;
+  /** 全局默认权限模式(仅作为新聊天会话的初始默认,可临时切回) */
+  chatPermissionMode?: "standard" | "full";
   /** 旧版聊天字号级别(1-6,默认 3;仅兼容读取,新版本用 chatFontScale) */
   chatFontLevel?: number;
   /** 聊天字号缩放系数(0.9-1.3,默认 1):消息内容字号 */
@@ -203,9 +203,8 @@ export class Store {
       setupComplete: emData.setupComplete as boolean | undefined,
       lastProjectId: emData.lastProjectId as string | undefined,
       contextThreshold: (emData.contextThreshold as number) ?? EM_DEFAULTS.contextThreshold,
-      showThinking: emData.showThinking as boolean | undefined,
-      showToolUse: emData.showToolUse as boolean | undefined,
       chatThinkingLevel: (emData.chatThinkingLevel as string) ?? "medium",
+      chatPermissionMode: (emData.chatPermissionMode as "standard" | "full") ?? "standard",
       chatFontLevel: (emData.chatFontLevel as number) ?? 3,
       // chatFontScale 不兜底:老用户磁盘无此字段时须返回 undefined,
       // 前端 loadFromElectron 才能走 LEGACY_CHAT_FONT_SCALE 旧级别迁移(?? 1 会吞掉迁移)
@@ -292,9 +291,8 @@ export class Store {
     if (settings.learnEnabled !== undefined) data.learnEnabled = settings.learnEnabled;
     if (settings.importExternalSkills !== undefined) data.importExternalSkills = settings.importExternalSkills;
     if (settings.contextThreshold !== undefined) data.contextThreshold = settings.contextThreshold;
-    if (settings.showThinking !== undefined) data.showThinking = settings.showThinking;
-    if (settings.showToolUse !== undefined) data.showToolUse = settings.showToolUse;
     if (settings.chatThinkingLevel) data.chatThinkingLevel = settings.chatThinkingLevel;
+    if (settings.chatPermissionMode) data.chatPermissionMode = settings.chatPermissionMode;
     if (settings.chatFontLevel !== undefined) data.chatFontLevel = settings.chatFontLevel;
     if (settings.chatFontScale !== undefined) data.chatFontScale = settings.chatFontScale;
     if (settings.uiFontScale !== undefined) data.uiFontScale = settings.uiFontScale;

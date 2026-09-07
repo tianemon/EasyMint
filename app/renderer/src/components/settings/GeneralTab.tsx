@@ -186,17 +186,13 @@ function CacheManagementSection(): JSX.Element {
   );
 }
 
-/** 通用设置:默认项目路径 / 聊天开关 / 压缩阈值 / 缓存 / 环境检测 */
+/** 通用设置:默认项目路径 / 压缩阈值 / 缓存 / 环境检测 */
 export function GeneralTab(): JSX.Element {
   const {
     defaultProjectDir,
     contextThreshold,
-    showThinking,
-    showToolUse,
     setDefaultProjectDir,
     setContextThreshold,
-    setShowThinking,
-    setShowToolUse,
   } = useSettingsStore();
 
   return (
@@ -212,31 +208,6 @@ export function GeneralTab(): JSX.Element {
             onChange={(e) => setDefaultProjectDir(e.target.value)}
           />
           <p className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">新建项目的默认位置，workspace 会话也存于此</p>
-        </div>
-      </section>
-
-      {/* 聊天 */}
-      <section>
-        <h3 className="text-sm font-medium text-text-secondary mb-2">聊天</h3>
-        <div className="bg-surface-alt rounded-lg border border-border px-4 py-3 space-y-3">
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={showThinking}
-              onChange={(e) => setShowThinking(e.target.checked)}
-              className="w-3.5 h-3.5 rounded accent-accent"
-            />
-            <span className="text-xs text-text-primary">思考过程</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={showToolUse}
-              onChange={(e) => setShowToolUse(e.target.checked)}
-              className="w-3.5 h-3.5 rounded accent-accent"
-            />
-            <span className="text-xs text-text-primary">工具调用（Bash、Read、Edit、Task 等）</span>
-          </div>
         </div>
       </section>
 

@@ -62,10 +62,10 @@ interface SettingsState {
   availableModels: string[];
   setupComplete: boolean;
   contextThreshold: number;
-  showThinking: boolean;
-  showToolUse: boolean;
   /** 全局聊天思考等级(新聊天会话初始默认,不控制 agent/task) */
   chatThinkingLevel: string;
+  /** 全局默认权限模式(新聊天会话初始默认;输入条可临时切换,切换即更新默认) */
+  chatPermissionMode: "standard" | "full";
   /** 聊天字号缩放系数(0.9~1.3,默认 1):控制消息内容(正文/代码/思考/工具折叠)字号 */
   chatFontScale: number;
   /** 界面字号缩放系数(0.9~1.3,默认 1):统一控制 UI 骨架(文件列表/侧边栏/状态栏/设置页/会话列表等)文字 */
@@ -104,9 +104,8 @@ interface SettingsState {
   setDefaultProjectDir: (dir: string) => void;
   setModel: (model: string) => void;
   setContextThreshold: (pct: number) => void;
-  setShowThinking: (enabled: boolean) => void;
-  setShowToolUse: (enabled: boolean) => void;
   setChatThinkingLevel: (level: string) => void;
+  setChatPermissionMode: (mode: "standard" | "full") => void;
   setChatFontScale: (scale: number) => void;
   setUiFontScale: (scale: number) => void;
   setGlowEffect: (v: "orbit" | "slide" | "breathe" | "off") => void;
@@ -137,9 +136,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setupComplete: false,
   contextThreshold: 75,
-  showThinking: false,
-  showToolUse: false,
   chatThinkingLevel: "medium",
+  chatPermissionMode: "standard",
   chatFontScale: 1,
   uiFontScale: 1,
   glowEffect: "orbit",
@@ -170,17 +168,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ contextThreshold: pct });
     window.electronAPI?.settings?.set?.("contextThreshold", pct);
   },
-  setShowThinking: (enabled: boolean) => {
-    set({ showThinking: enabled });
-    window.electronAPI?.settings?.set?.("showThinking", enabled);
-  },
-  setShowToolUse: (enabled: boolean) => {
-    set({ showToolUse: enabled });
-    window.electronAPI?.settings?.set?.("showToolUse", enabled);
-  },
   setChatThinkingLevel: (level: string) => {
     set({ chatThinkingLevel: level });
     window.electronAPI?.settings?.set?.("chatThinkingLevel", level);
+  },
+  setChatPermissionMode: (mode: "standard" | "full") => {
+    set({ chatPermissionMode: mode });
+    window.electronAPI?.settings?.set?.("chatPermissionMode", mode);
   },
   setChatFontScale: (scale: number) => {
     set({ chatFontScale: scale });
@@ -254,9 +248,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           model: settings.model ?? "",
           availableModels: settings.availableModels ?? [],
           contextThreshold: settings.contextThreshold ?? 75,
-          showThinking: settings.showThinking ?? false,
-          showToolUse: settings.showToolUse ?? false,
           chatThinkingLevel: settings.chatThinkingLevel ?? "medium",
+          chatPermissionMode: (settings.chatPermissionMode as "standard" | "full") ?? "standard",
           chatFontScale: settings.chatFontScale ?? LEGACY_CHAT_FONT_SCALE[settings.chatFontLevel ?? 3] ?? 1,
           uiFontScale: settings.uiFontScale ?? 1,
           glowEffect: (settings.glowEffect as "orbit" | "slide" | "breathe" | "off") ?? "orbit",

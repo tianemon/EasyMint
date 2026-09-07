@@ -37,6 +37,30 @@ function ChatThinkingLevelSection(): JSX.Element {
   );
 }
 
+/** 全局默认权限模式:仅作为新聊天会话的初始默认;输入条开关切换时同步更新此默认 */
+function ChatPermissionModeSection(): JSX.Element {
+  const chatPermissionMode = useSettingsStore((s) => s.chatPermissionMode);
+  const setChatPermissionMode = useSettingsStore((s) => s.setChatPermissionMode);
+
+  return (
+    <section>
+      <h3 className="text-sm font-medium text-text-primary mb-2">默认权限模式(聊天)</h3>
+      <div className="bg-surface-alt rounded-lg border border-border px-4 py-3">
+        <Select
+          block
+          value={chatPermissionMode}
+          onChange={(v) => setChatPermissionMode(v as "standard" | "full")}
+          options={[
+            { value: "standard", label: "标准（仅项目内）" },
+            { value: "full", label: "完全访问（项目外可读写）" },
+          ]}
+        />
+        <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">新聊天会话的初始权限模式；完全访问可读写项目外文件，但系统敏感位置始终禁止。输入条开关可随时切换并同步此默认。</p>
+      </div>
+    </section>
+  );
+}
+
 // ── Built-in Tools Section ────────────────────────────────────────────────────
 
 function BuiltinToolsSection(): JSX.Element {
@@ -172,6 +196,8 @@ export function ProvidersTab(): JSX.Element {
       <ProvidersManager />
       <hr className="border-border" />
       <ChatThinkingLevelSection />
+      <hr className="border-border" />
+      <ChatPermissionModeSection />
       <hr className="border-border" />
       <BuiltinToolsSection />
     </div>
