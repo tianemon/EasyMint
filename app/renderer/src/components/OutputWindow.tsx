@@ -1,7 +1,18 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ansiToHtml } from "../lib/ansi-colors";
 import { registerOverlay } from "../lib/overlay-stack";
+import type { LogLine } from "../stores/process-store";
+
+/**
+ * 单行日志 — memo + 稳定 key：store 追加只改数组引用、已存行对象不变，
+ * memo 浅比较命中跳过重渲染 → ansiToHtml 每行只算一次；
+ * 头部裁剪(>500 行)只卸载裁掉的行，其余行 key(id)不变不位移不重算
+ */
+const LogRow = memo(function LogRow({ line }: { line: LogLine }): JSX.Element {
+  const html = useMemo(() => ansiToHtml(line.text), [line]);
+  return <div className="text-text-primary whitespace-pre-wrap break-all" dangerouslySetInnerHTML={{ __html: html }} />;
+});
 
 /**
  * 统一输出窗口 — 运行日志 / 后台 shell 共用（此前两套独立窗口，维护双份）。
@@ -17,8 +28,8 @@ interface OutputWindowProps {
   label?: string;
   /** 运行中状态（头部 spinner + 状态文字） */
   running: boolean;
-  /** 逐行日志模式（运行日志） */
-  logs?: string[];
+  /** 逐行日志模式（运行日志——元素为带稳定 id 的日志行） */
+  logs?: LogLine[];
   /** 整块内容模式（后台 shell） */
   content?: string;
   /** 提供则显示「停止」按钮（运行日志可停止进程） */
@@ -179,8 +190,8 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
             logs.length === 0 ? (
               <span className="text-text-secondary">等待输出...</span>
             ) : (
-              logs.map((line, i) => (
-                <div key={i} className="text-text-primary whitespace-pre-wrap break-all" dangerouslySetInnerHTML={{ __html: ansiToHtml(line) }} />
+              logs.map((line) => (
+                <LogRow key={line.id} line={line} />
               ))
             )
           ) : content ? (

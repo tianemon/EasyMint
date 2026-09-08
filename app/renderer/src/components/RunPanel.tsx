@@ -154,7 +154,19 @@ function TitleMarquee({ text, onClick }: { text: string; onClick: () => void }):
 }
 
 export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
-  const { runnables, cmdStates, activeLogId, detect, start, stop, restart, openLog, appendLog, setRunning, loadStatus } = useProcessStore();
+  // 细 selector 订阅（zustand 默认整店订阅 → 任意字段变更都重渲染整个面板；
+  // 日志行高频追加只动 store.logLines，本面板只关心命令状态，分开订阅后日志不再触发卡片重渲染）
+  const runnables = useProcessStore((s) => s.runnables);
+  const cmdStates = useProcessStore((s) => s.cmdStates);
+  const activeLogId = useProcessStore((s) => s.activeLogId);
+  const detect = useProcessStore((s) => s.detect);
+  const start = useProcessStore((s) => s.start);
+  const stop = useProcessStore((s) => s.stop);
+  const restart = useProcessStore((s) => s.restart);
+  const openLog = useProcessStore((s) => s.openLog);
+  const appendLog = useProcessStore((s) => s.appendLog);
+  const setRunning = useProcessStore((s) => s.setRunning);
+  const loadStatus = useProcessStore((s) => s.loadStatus);
   const [detectSpinning, setDetectSpinning] = useState(false);
   const [portStatuses, setPortStatuses] = useState<Record<string, PortStatus>>({});
   const [customPorts, setCustomPorts] = useState<Record<string, string>>({});
@@ -276,7 +288,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
         ) : (
           <div className="space-y-1.5">
             {runnables.map((r) => {
-              const st = cmdStates[r.id] || { running: false, logs: [] };
+              const st = cmdStates[r.id] || { running: false };
               const ps = portStatuses[r.id];
               const port = extractPort(r.url);
               const portBusy = ps && !ps.free;

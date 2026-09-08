@@ -57,10 +57,16 @@ export function ProjectPage(): JSX.Element {
     });
   }, []);
 
+  // 会话归属校验基准路径：真 useRef + 同步 effect。订阅 effect deps=[] 只在挂载跑一次，
+  // 直接读 state 的闭包值会陈旧成初始 ""（曾用普通对象 {current: projectPath} 冒充 ref，
+  // 同样只捕获首帧值——校验实际从未生效）；ref 随 projectPath 变化同步，事件回调总是读到当前窗口路径
+  const projectPathRef = useRef("");
+  useEffect(() => {
+    projectPathRef.current = projectPath;
+  }, [projectPath]);
+
   // 监听新会话的 sessionId → 更新 Tab，使历史列表点击能复用而非重复打开
   useEffect(() => {
-    // 归属校验用 ref 取最新 projectPath——effect deps=[] 时闭包值会陈旧成初始 ""（曾致校验永不生效）
-    const projectPathRef = { current: projectPath };
     return window.electronAPI.agent.onChatSession(({ sessionId, tabId, projectPath: eventPath }) => {
       const ts = useTabStore.getState();
       // 无 tabId 的会话创建（旁路 workspace 翻译/推荐等）不能 fallback 绑到本项目的空 tab：
