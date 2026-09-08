@@ -1,9 +1,12 @@
 name: CI
 
-# 零质量门禁：push / pull_request 时跑 lint（eslint + 三段 tsc）与单元测试。
+# 零质量门禁：分支 push / pull_request 时跑 lint（eslint + 三段 tsc）与单元测试。
+# 限定 branches（不含 tag）：发版时 tag 与 main 指向同一 commit，裸 on: push 会让
+# 同一次提交重复跑两遍（tag 那次与 main 那次完全等价）。
 
 on:
   push:
+    branches: ['**']
   pull_request:
 
 permissions:
