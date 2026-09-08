@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useSettingsStore } from "../../stores/settings-store";
 import { getPreset } from "@shared/platform-presets";
 import type { ProviderConfig } from "@shared/platform-presets";
-import { Select } from "../Select";
+import { THINKING_ORDER, THINKING_LABELS } from "@shared/thinking-levels";
+import { Select, type SelectOption } from "../Select";
 import { BRAND_BY_PI_ID, providerSelectOptions } from "../../lib/provider-brands";
 import { toast } from "../ui/Toast";
 
@@ -46,6 +47,28 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   const availableModels = isCustom
     ? customModelsText.split("\n").map((s) => s.trim()).filter(Boolean)
     : Array.from(new Set([...models, ...extraModels]));
+
+  // 每个模型支持的思考等级(静态模型规格查表,经 agent:getModelThinkingSupport);
+  // 值 undefined = 未拉到,null = 规格未知 → 下拉按全部档位展示(与聊天页行为一致)
+  const [modelSupports, setModelSupports] = useState<Record<string, string[] | null>>({});
+  const modelListKey = availableModels.join("\n");
+  useEffect(() => {
+    if (!modelListKey) return;
+    let cancelled = false;
+    Promise.all(
+      modelListKey.split("\n").filter(Boolean).map(async (id) =>
+        [id, await window.electronAPI.agent.getModelThinkingSupport(id).catch(() => null)] as const
+      )
+    ).then((pairs) => {
+      if (cancelled) return;
+      setModelSupports((prev) => {
+        const next = { ...prev };
+        for (const [id, levels] of pairs) next[id] = levels;
+        return next;
+      });
+    });
+    return () => { cancelled = true; };
+  }, [modelListKey]);
 
   // 读取该供应商已保存的「按模型思考等级」
   // 自定义供应商在运行时里按 config.id 注册,键随之(新建未保存时拿不到 id,故仅编辑态可用)
@@ -252,33 +275,49 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
 
       {/* 按模型设置思考等级:不同模型支持的等级不同,全局等级会被裁到该模型支持的最近档位;
           这里可给单个模型固定等级,优先于全局设置(自定义供应商需已保存过,要用到其供应商 id) */}
-      {(!isCustom || levelProviderKey) && availableModels.length > 0 && (
-        <div>
-          <label className="text-xs text-text-secondary block mb-1.5">按模型设置思考等级（可选）</label>
-          <div className="bg-surface-alt rounded-lg border border-border px-2.5 py-2 max-h-52 overflow-y-auto space-y-1.5">
-            {availableModels.map((m) => (
-              <div key={m} className="flex items-center gap-2">
-                <span className="flex-1 min-w-0 truncate text-[length:var(--text-2xs)] text-text-primary" >{m}</span>
-                <select
-                  className="em-input shrink-0 w-[104px] h-7 px-1.5 text-[length:var(--text-2xs)] text-text-primary"
-                  value={modelLevels[m] || ""}
-                  onChange={(e) => setModelLevels((prev) => ({ ...prev, [m]: e.target.value }))}
-                >
-                  <option value="">跟随全局</option>
-                  <option value="off">关闭</option>
-                  <option value="minimal">极简</option>
-                  <option value="low">低</option>
-                  <option value="medium">中</option>
-                  <option value="high">高</option>
-                  <option value="xhigh">超高</option>
-                  <option value="max">最高</option>
-                </select>
-              </div>
-            ))}
+      {(!isCustom || levelProviderKey) && availableModels.length > 0 && (() => {
+        const setCount = availableModels.filter((m) => modelLevels[m]).length;
+        return (
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs text-text-secondary">按模型设置思考等级（可选）</label>
+              {setCount > 0 && (
+                <span className="text-[length:var(--text-2xs)] text-text-muted">已为 {setCount} 个模型固定等级</span>
+              )}
+            </div>
+            <div className="bg-surface-alt rounded-lg border border-border px-2.5 py-2 max-h-52 overflow-y-auto space-y-1">
+              {availableModels.map((m) => {
+                const supported = modelSupports[m];
+                // 规格未知(null/未拉到)时展示全部档位;已知则只列出该模型支持的档位(按档位顺序)
+                const levels = supported && supported.length > 0
+                  ? THINKING_ORDER.filter((l) => supported.includes(l))
+                  : [...THINKING_ORDER];
+                const cur = modelLevels[m] || "";
+                const options: SelectOption[] = [
+                  { value: "", label: "跟随全局" },
+                  ...levels.map((l) => ({ value: l, label: THINKING_LABELS[l] || l })),
+                ];
+                // 旧数据/模型规格变化导致所选档位已不被支持:兜底展示原值,避免下拉显示空值
+                if (cur && !options.some((o) => o.value === cur)) {
+                  options.push({ value: cur, label: `原设置：${THINKING_LABELS[cur] || cur}（不再支持）` });
+                }
+                return (
+                  <div key={m} className="flex items-center gap-2">
+                    <span className="flex-1 min-w-0 truncate text-xs font-mono text-text-primary" title={m}>{m}</span>
+                    <Select
+                      className="shrink-0 w-[112px] [&>button]:w-full [&>button]:text-xs"
+                      value={cur}
+                      onChange={(v: string) => setModelLevels((prev) => ({ ...prev, [m]: v }))}
+                      options={options}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">下拉仅列出该模型支持的档位；固定等级优先于全局思考等级</p>
           </div>
-          <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">模型不支持所选等级时，自动取最接近的可用档位</p>
-        </div>
-      )}
+        );
+      })()}
 
       {isCustom && (<>
       {/* 自定义供应商:模型列表 */}
