@@ -856,15 +856,7 @@ export class AgentService {
             chat.compactCount++;
             console.log(`[agent] compact #${chat.compactCount}: chatId=${chatId}`);
           }
-          // 压缩后刷新使用率:压缩后无新回复时 getContextUsage 返回 percent null(旧 usage
-          // 不可信)→ 上报 0,UI 不再残留压缩前的旧百分比(下条回复后更新为真实值)
-          const usage = chat.session?.getContextUsage();
-          if (usage) {
-            broadcast("agent:context-usage", {
-              chatId, percentage: usage.percent ?? null,
-              totalTokens: usage.tokens ?? 0, maxTokens: usage.contextWindow,
-            });
-          }
+          this.broadcastPostCompactionUsage(chat, event.result?.estimatedTokensAfter);
         }
 
         // ── learn 硬信号采集（期3）：单轮口径——agent_start 归零。
@@ -1349,6 +1341,28 @@ export class AgentService {
     }
   }
 
+  /** 压缩后上报使用率。
+   *  优先用 SDK compaction_end 事件里的 estimatedTokensAfter（压缩完成时已算好的估算值）——
+   *  getContextUsage 在「压缩后尚无新回复」时故意返回 percent null（压缩前的 usage 不可信），
+   *  只用它拿 contextWindow 并兼作估算值缺失时的兑底（此时 UI 显示「—」，等下一条回复才刷新）。 */
+  private broadcastPostCompactionUsage(chat: ActiveChat, estimatedAfter?: number): void {
+    const usage = chat.session?.getContextUsage();
+    const contextWindow = usage?.contextWindow ?? 0;
+    if (typeof estimatedAfter === "number" && estimatedAfter > 0 && contextWindow > 0) {
+      broadcast("agent:context-usage", {
+        chatId: chat.chatId, percentage: (estimatedAfter / contextWindow) * 100,
+        totalTokens: estimatedAfter, maxTokens: contextWindow,
+      });
+      return;
+    }
+    if (usage) {
+      broadcast("agent:context-usage", {
+        chatId: chat.chatId, percentage: usage.percent ?? null,
+        totalTokens: usage.tokens ?? 0, maxTokens: usage.contextWindow,
+      });
+    }
+  }
+
   /**
    * 查「按模型设置」的思考等级（Pi 全局设置，键 `<provider>/<modelId>`）。
    * 配了就优先于全局默认与会话内选择——用户专门为该模型固定了等级。
@@ -1820,15 +1834,7 @@ export class AgentService {
           // 前端蒙版消失且显示"已整理完毕",实际未压缩(用户感知"看似完成但没生效、无提示")
           if (!event.aborted && !event.errorMessage && event.result) {
             broadcast("agent:stream", { type: "compacted", sessionId, chatId: chat.chatId });
-            // 压缩后刷新使用率:压缩后无新回复时 getContextUsage 返回 percent null(旧 usage
-            // 不可信)→ 上报 0,UI 不再残留压缩前的旧百分比(下条回复后更新为真实值)
-            const usage = chat.session?.getContextUsage();
-            if (usage) {
-              broadcast("agent:context-usage", {
-                chatId: chat.chatId, percentage: usage.percent ?? null,
-                totalTokens: usage.tokens ?? 0, maxTokens: usage.contextWindow,
-              });
-            }
+            this.broadcastPostCompactionUsage(chat, event.result.estimatedTokensAfter);
           } else if (!event.aborted && event.errorMessage) {
             // 失败:广播 error(前端红字提示),随后 catch/finally 清蒙版——不伪装成功
             console.error(`[agent] compact failed: ${event.errorMessage}`);
