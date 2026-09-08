@@ -49,7 +49,10 @@ function formatDelegationResult(result: BatchResult): string {
   }
   if (result.results.length > 1) {
     const ok = result.results.filter((r) => !r.error && !r.aborted).length;
-    summary.unshift(`共 ${result.results.length} 个子任务: ${ok} 成功, ${result.results.length - ok} 失败`);
+    // 中止与失败分开计数：用户主动停止 ≠ 执行报错（此前用 length - ok 把中止也算作失败）
+    const failed = result.results.filter((r) => r.error).length;
+    const aborted = result.results.filter((r) => r.aborted).length;
+    summary.unshift(`共 ${result.results.length} 个子任务: ${ok} 成功${failed > 0 ? `, ${failed} 失败` : ""}${aborted > 0 ? `, ${aborted} 中止` : ""}`);
   }
   // 详细段:Mint 汇报用(前端只渲染 ● 摘要行)
   const detail: string[] = [];
