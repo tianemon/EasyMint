@@ -161,7 +161,7 @@ function SkillRow({ s, stat, onToggle, onDelete }: {
   );
 }
 
-function SkillsTab(): JSX.Element {
+function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
   const [skills, setSkills] = useState<SkillRowData[]>([]);
   const [stats, setStats] = useState<Record<string, SkillStatData>>({});
   const [loadError, setLoadError] = useState("");
@@ -209,7 +209,7 @@ function SkillsTab(): JSX.Element {
   const load = async () => {
     try {
       const [list, st] = await Promise.all([
-        window.electronAPI.skill.list(undefined),
+        window.electronAPI.skill.list(projectPath),
         window.electronAPI.skill.getStats(),
       ]);
       setSkills(list);
@@ -227,7 +227,7 @@ function SkillsTab(): JSX.Element {
         setImportExternal(s.importExternalSkills !== false);
       })
       .catch((e: unknown) => setLoadError(String(e)));
-  }, []);
+  }, [projectPath]);
 
   const handleToggle = async (name: string, enabled: boolean) => {
     await window.electronAPI.skill.toggle(name, enabled);
@@ -249,7 +249,8 @@ function SkillsTab(): JSX.Element {
         danger: true,
       });
       if (!ok) return;
-      const r = await window.electronAPI.skill.delete(s.path);
+      // 项目级 skill 需带 projectPath 才能通过 deleteSkill 的目录白名单
+      const r = await window.electronAPI.skill.delete(s.path, projectPath);
       if (!r.ok) {
         setLoadError(r.error || "删除失败");
         return;
@@ -1095,7 +1096,7 @@ export function PluginsTab({ projectPath }: { projectPath?: string }): JSX.Eleme
           ))}
         </div>
       </div>
-      {tab === "skills" ? <SkillsTab /> : <McpTab projectPath={projectPath} />}
+      {tab === "skills" ? <SkillsTab projectPath={projectPath} /> : <McpTab projectPath={projectPath} />}
     </div>
   );
 }
