@@ -943,7 +943,7 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
                   className="px-2 py-2 overflow-y-auto overscroll-contain"
                   style={{ maxHeight: "calc(var(--text-detail) * 9.75 + 28px)" }}
                 >
-                  <div className="rounded-[6px] bg-[var(--color-sidebar)]/40 px-2 py-1.5">
+                  <div className="rounded-[6px] bg-[var(--color-sidebar)]/30 px-2 py-1.5">
                     <pre className="text-text-secondary font-mono whitespace-pre-wrap break-all" style={{ fontSize: "var(--text-detail)" }}>{bashCmd ?? ""}</pre>
                   </div>
                   {bashOutput ? (
