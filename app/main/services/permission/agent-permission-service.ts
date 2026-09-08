@@ -164,7 +164,7 @@ export class AgentPermissionService {
         if (!cmd.trim()) return allow()
         // 系统级变更命令：任何模式拒绝——系统权限「该申请申请」，EM 不绕过
         if (isSystemMutationCommand(cmd)) {
-          return deny(`系统级变更命令（需用户手动执行，权限系统不代做系统级操作）：${cmd.slice(0, 100)}`)
+          return deny(`系统级变更命令被拦截（需用户手动在终端执行，权限系统不代做系统级操作）：${cmd.slice(0, 100)}`)
         }
         // 不可逆数据库操作（drop/truncate）：任何模式拒绝——数据销毁不可逆，先备份再人工执行
         if (isIrreversibleDbCommand(cmd)) {
@@ -190,13 +190,13 @@ export class AgentPermissionService {
           if (hit) return deny(`内联代码含系统敏感操作（${hit}），拒绝执行`)
         }
         // 路径提取：含变量/命令替换 → 路径无法静态确认（判不了域）
-        //   标准模式 → 沙盒（沙盒内变量展开读凭据/写工作区外同样被拦，运行时兜底）；
-        //   完全访问 → 放行（用户显式信任）
+        //   写类命令（rm $FILE / cp $SRC $DST）→ 沙盒兜底（沙盒内变量展开写工作区外同样被拦）；
+        //   只读/执行类（echo $HOME、npm run build --port $P）→ 变量不影响安全半径，放行
         const cmdPathsRaw = extractPathsFromCommand(cmd)
         if (cmdPathsRaw === null) {
-          if (mode !== 'full') {
+          if (mode !== 'full' && isWriteLikeCommand(cmd)) {
             const sb = await ensureSandbox(cwd)
-            if (!sb.ok) return deny(`沙盒不可用（${sb.reason}），且命令含变量/命令替换无法确认范围：${cmd.slice(0, 100)}——请切换「完全访问」`)
+            if (!sb.ok) return deny(`沙盒不可用（${sb.reason}），且写类命令含变量/命令替换无法确认范围：${cmd.slice(0, 100)}——请切换「完全访问」`)
             return { behavior: 'allow' as const, updatedInput: { ...input, sandbox: true } }
           }
           return allow()
@@ -220,17 +220,16 @@ export class AgentPermissionService {
         const sandboxKind = classifyForSandbox(cmd)
         if (sandboxKind === 'network' || sandboxKind === 'inline') {
           const sb = await ensureSandbox(cwd)
-          if (!sb.ok) return deny(`沙盒不可用（${sb.reason}）——出网/内联命令需沙盒执行，请切换「完全访问」或检查沙盒依赖`)
+          if (!sb.ok) return deny(`沙盒不可用（${sb.reason}）——下载即执行/内联命令需沙盒执行，请切换「完全访问」或检查沙盒依赖`)
           return { behavior: 'allow' as const, updatedInput: { ...input, sandbox: true } }
         }
-        // ── 危险命令：curl/wget 回环纯读（classify null = 可判本地访问）从名单豁免继续结构检查；
-        //    rm 目标全部在项目内 → 豁免危险拒绝(与 mkdir/touch 同为项目内写操作,路径检查兜底出区删除);
-        //    其余危险命令维持拒绝 ──
-        const isLoopbackCurl = sandboxKind === null && /\b(?:curl|wget)\b/.test(cmd)
+        // ── 危险命令：rm 目标全部在项目内 → 豁免危险拒绝(与 mkdir/touch 同为项目内写操作,
+        //    路径检查兜底出区删除);其余危险命令维持拒绝。
+        //    （旧代码此处另有「回环 curl 豁免」——curl 已不在危险名单，保留会给链中其他危险命令误开豁免）──
         // 本地文件操作(rm/mv/chmod/chown)豁免:目标全在项目内 → 危险拒绝豁免
         // (与 mkdir/touch 同为项目内文件操作,路径检查兜底出区)。
         // 相对路径(rm temp/x)默认在 cwd 内操作——bash 语义;仅绝对路径/~/../ 目标需逐个查是否出区。
-        // 网络/进程/系统级(git push/curl/ssh/kill/sudo/dd 等)不豁免——项目内也拒
+        // 删除/移动/系统级(rm/mv/sudo/dd 等)不豁免——项目内也拒
         const rmTargets = (cmdPathsRaw ?? []).filter((p) => !isDevNull(p))
         const fileOpInCwd = (() => {
           const c = cmd.trim().toLowerCase()
@@ -242,8 +241,8 @@ export class AgentPermissionService {
           // 含绝对/~/../ 目标:全部须在 cwd 内
           return rmTargets.every((p) => isWithinCwd(p, cwd))
         })()
-        if (isDangerousCommand(cmd) && !isLoopbackCurl && !fileOpInCwd) {
-          return deny(`危险命令（标准模式拒绝，请切换「完全访问」并按需操作）：${cmd.slice(0, 120)}`)
+        if (isDangerousCommand(cmd) && !fileOpInCwd) {
+          return deny(`危险命令被拦截（删除/移动类操作可能造成不可逆的数据丢失）：${cmd.slice(0, 120)}——如确需执行，请把输入框的权限切到「完全访问」`)
         }
         // 只读管道/链式查询（grep x | head / ls 2>/dev/null | grep 等——全段只读）→ 放行,
         // 不做「危险结构」一刀切拒绝。放在危险命令检查之后:危险命令即使纯管道也不放行
@@ -253,13 +252,13 @@ export class AgentPermissionService {
         // 只读/执行类段通过。不再“有结构即拒”(旧逻辑误拦大量项目内合法链式命令)
         if (hasDangerousStructure(cmd)) {
           const segCheck = isChainWithinCwd(cmd, cwd)
-          if (!segCheck.ok) return deny(`标准模式仅可操作工作空间内文件：${segCheck.deny}（如需访问工作区外，请切换「完全访问」）`)
+          if (!segCheck.ok) return deny(`工作区外写入被拦截：${segCheck.deny}（当前工作区：${cwd}）——需要改工作区外的文件，请把输入框的权限切到「完全访问」`)
           return allow()
         }
         // 单段写类命令 cwd 沙盒（禁区已在上面检查;无结构链接的单命令）
         if (isWriteLikeCommand(cmd)) {
           const outside = cmdPaths.find((p) => !isWithinCwd(p, cwd))
-          if (outside) return deny(`标准模式仅可操作工作空间内文件：${outside}（如需访问工作区外，请切换「完全访问」）`)
+          if (outside) return deny(`工作区外写入被拦截：${outside}（当前工作区：${cwd}）——需要改工作区外的文件，请把输入框的权限切到「完全访问」`)
         }
         return allow()
       }
@@ -273,7 +272,7 @@ export class AgentPermissionService {
 
       // 其他写工具（Write/Edit/NotebookEdit）：路径必须在 cwd 内（禁区已在第 1 步检查）
       for (const p of paths()) {
-        if (!isWithinCwd(p, cwd)) return deny(`标准模式仅可操作工作空间内文件：${p}（如需访问工作区外，请切换「完全访问」）`)
+        if (!isWithinCwd(p, cwd)) return deny(`工作区外写入被拦截：${p}（当前工作区：${cwd}）——需要改工作区外的文件，请把输入框的权限切到「完全访问」`)
       }
       // 其余工具（task/ask_user/use_skill 等 EM 工具）：标准模式放行
       return allow()
@@ -350,7 +349,7 @@ function isWriteLikeCommand(cmd: string): boolean {
  * 系统级变更命令（任何模式拒绝——系统权限「该申请申请」，EM 不代做系统级操作，提示用户手动执行）。
  * 与「危险命令」不同：危险命令在标准模式拒、完全访问可（放宽文件范围）；系统级变更命令完全访问也不放。
  */
-function isSystemMutationCommand(cmd: string): boolean {
+export function isSystemMutationCommand(cmd: string): boolean {
   const c = cmd.trim().toLowerCase()
   return SYSTEM_MUTATION_COMMANDS.some((m) => c === m || c.startsWith(m + ' '))
 }

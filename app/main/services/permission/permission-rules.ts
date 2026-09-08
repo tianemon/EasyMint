@@ -59,18 +59,17 @@ export const SAFE_BASH_PATTERNS: readonly RegExp[] = [
   // - find 的 -exec/-delete 可执行任意命令/删除文件
 ]
 
-/** 危险命令前缀（需特别标记⚠️） */
+/** 危险命令前缀（标准模式拒绝）——只收「不可逆破坏」与「系统级变更」。
+ *  放宽依据（2026-09-08 用户拍板「只确保不会有破坏性行为」）：
+ *  - curl/wget/ssh/scp：网络访问不破坏本地数据（写目标仍受禁区/工作区约束）
+ *  - kill/pkill：进程操作可重跑；chmod/chown：权限可恢复（系统/凭据目录另有禁区拦截） */
 export const DANGEROUS_COMMANDS: readonly string[] = [
   'rm', 'rmdir',
   'sudo', 'su',
-  'chmod', 'chown',
   'mv',
   'dd',
-  'kill', 'killall', 'pkill',
   // git 命令放行:项目内操作有 reflog/版本库可恢复,非系统级变更(用户拍板:当前项目 git 全放行)
   'npm publish',
-  'curl', 'wget',
-  'ssh', 'scp',
 ]
 
 /** curl/wget 的文件写参形态（-o/-O/--output/--upload-file/-T + --data @ 本地文件）——
@@ -146,8 +145,8 @@ export function isChainWithinCwd(command: string, cwd: string): { ok: boolean; d
     if (/^(?:sudo|su|launchctl|systemctl|diskutil|mount|umount|mkfs|fdisk|parted|shutdown|reboot|halt|poweroff|csrutil|nvram|pmset|osascript|dd)\b/.test(segLower)) {
       return { ok: false, deny: `系统级变更命令 ${segLower.split(/\s+/)[0]}` }
     }
-    // 危险命令藏在链中间（git push/curl 等——整串前缀认不出,段级补拦）:
-    // 标准模式语义与单命令一致(危险命令名单内即拒);回环 curl 例外由整串判定已处理。
+    // 危险命令藏在链中间（rm/sudo/dd 等——整串前缀认不出,段级补拦）:
+    // 标准模式语义与单命令一致(危险命令名单内即拒)。
     // 本地文件操作段(rm/mv/chmod/chown)例外:路径由下方写类检查兜底(项目内允许,与单命令豁免一致)
     const segIsFileOp = /^(?:rm|rmdir|mv|chmod|chown)\b/.test(segLower)
     if (!segIsFileOp && isDangerousCommand(cleaned)) {

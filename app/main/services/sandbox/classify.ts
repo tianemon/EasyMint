@@ -2,36 +2,20 @@
  * 沙盒域分类（判定器边界原则）——命令静态判定「判不了」的类型。
  *
  * 原则（docs/design/沙盒执行方案.md 二）：能静态判定安全的走权限系统；
- * 判不了行为半径的（下载内容/内联代码/变量展开路径）→ 沙盒运行时兜底。
+ * 判不了行为半径的（下载即执行/内联代码/变量展开路径）→ 沙盒运行时兜底。
  * 第一波只覆盖三类，其余维持现有判定（范围控制，第二波见设计文档五）。
  */
 
-import { CURL_WRITE_PARAM_RE } from "../permission/permission-rules";
-
 export type SandboxKind = "network" | "inline" | "unresolvable";
 
-/** 出网命令前缀（curl/wget——下载/API/探测，内容与目标不可静态判定） */
+/** 出网命令前缀（curl/wget——下载/API/探测） */
 const NETWORK_RE = /(?:^|\s|\||;|&&)(?:curl|wget)(?:\s|$)/;
 
 /** 内联代码执行（node -e / python -c / bash -c…——代码行为不可静态判全） */
 const INLINE_RE = /\b(?:node|nodejs|python|python3|ruby|perl|php|bash|sh|zsh|dash|ksh)\s+-(?:e|c)\b/;
 
-/** 管道/命令链接（下载即执行链 curl|bash 等） */
-const CHAIN_RE = /[|;&]/;
-
-/**
- * 回环例外：curl 目标仅为本机回环（localhost/127.0.0.1）且无文件写参、无管道链接——
- * 静态可判为「访问本机自己起的服务」（本地 IPC 非网络外联），不进沙盒（设计文档 D2 修订）。
- */
-function isLoopbackOnly(cmd: string): boolean {
-  const c = cmd.trim().toLowerCase();
-  if (!/\b(?:localhost|127\.0\.0\.1)\b/.test(c)) return false;
-  if (CURL_WRITE_PARAM_RE.test(c)) return false;
-  if (CHAIN_RE.test(c)) return false;
-  // 目标 URL 只含回环主机（无第二个 URL/目标）——粗略判定：除回环外无 http(s):// 目标
-  const urls = c.match(/https?:\/\/[^\s"']+/g) || [];
-  return urls.every((u) => /\b(?:localhost|127\.0\.0\.1)\b/.test(u));
-}
+/** 管道给解释器执行（curl … | bash——下载内容的行为不可静态判定） */
+const PIPE_TO_INTERPRETER_RE = /\|\s*(?:bash|sh|zsh|dash|ksh|python3?|node|perl|ruby|php)\b/;
 
 /**
  * 判定命令是否落入「判不了」沙盒域。null = 可判定域（走权限系统现有逻辑）。
@@ -41,9 +25,10 @@ export function classifyForSandbox(cmd: string): SandboxKind | null {
   if (!trimmed) return null;
   const c = trimmed.toLowerCase();
 
-  // 1. 出网 curl/wget：回环纯读例外直跑；其余（下载到文件/管道执行/API）进沙盒
+  // 1. 出网 curl/wget：单独执行放行（下载/调 API 是正常需求，2026-09-08 放宽命令名单）；
+  //    仅「下载即执行」（curl … | bash）保留沙盒兜底——下载内容的行为半径不可静态判定
   if (NETWORK_RE.test(c)) {
-    return isLoopbackOnly(trimmed) ? null : "network";
+    return PIPE_TO_INTERPRETER_RE.test(c) ? "network" : null;
   }
   // 2. 内联代码执行
   if (INLINE_RE.test(c)) return "inline";
