@@ -9,7 +9,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { BatchResult, DelegationRecord, DelegationStatus, TaskItem, TaskStatus } from "./types";
+import type { BatchResult, DelegationRecord, DelegationStatus, TaskItem, TaskStatus, TaskStopSource } from "./types";
 
 /** 主会话的 EM 临时 ID（新建会话时 task 工具绑定的 ID;真实 ID 回填后保留作双匹配） */
 export const TEMP_ID_FIELD = "tempParentSessionId";
@@ -45,11 +45,14 @@ export function createDelegation(
     resolveCompletion,
     abortController,
     taskAbortControllers,
+    taskStopSources: tasks.map(() => undefined),
     taskStatuses: tasks.map(() => "pending" as const),
     taskCurrentTools: tasks.map(() => undefined),
     taskToolCounts: tasks.map(() => 0),
-    abort: () => {
+    abort: (source) => {
       if (record.status !== "running") return;
+      // 记录停止来源(整体中止的停止通知文案按此区分;先于 abort,保证回调读到)
+      if (source) record.stopSource = source;
       abortController.abort();
       taskAbortControllers.forEach((c) => c.abort());
       // 等执行器把 status 更新为 aborted 并 resolve
@@ -89,19 +92,20 @@ export function getRunningDelegations(sessionId: string): DelegationRecord[] {
   return out;
 }
 
-/** 中止某主会话的全部运行中委派（调用各子会话 abort） */
-export function abortDelegations(parentSessionId: string): number {
+/** 中止某主会话的全部运行中委派（调用各子会话 abort）；source = 主动停止来源(用户 UI / Mint stop_agent) */
+export function abortDelegations(parentSessionId: string, source?: TaskStopSource): number {
   const running = getRunningDelegations(parentSessionId);
-  for (const r of running) r.abort();
+  for (const r of running) r.abort(source);
   return running.length;
 }
 
-/** 中止委派中的单个任务(ProcessBar 单任务停止) */
-export function abortTask(delegationId: string, taskIndex: number): void {
+/** 中止委派中的单个任务(ProcessBar 单任务停止 / stop_agent 精确停止)；source 记录停止来源 */
+export function abortTask(delegationId: string, taskIndex: number, source: TaskStopSource = "user"): void {
   const record = delegations.get(delegationId);
   if (!record) { console.warn(`[task] abortTask: delegation not found ${delegationId} idx=${taskIndex}`); return; }
   if (record.status !== "running") { console.warn(`[task] abortTask: delegation not running ${delegationId} idx=${taskIndex} status=${record.status}`); return; }
-  console.log(`[task] abortTask ${delegationId} idx=${taskIndex} controllers=${record.taskAbortControllers.length} tasks=${record.tasks.length}`);
+  console.log(`[task] abortTask ${delegationId} idx=${taskIndex} source=${source} controllers=${record.taskAbortControllers.length} tasks=${record.tasks.length}`);
+  if (taskIndex >= 0 && taskIndex < record.taskStopSources.length) record.taskStopSources[taskIndex] = source;
   record.taskAbortControllers[taskIndex]?.abort();
 }
 

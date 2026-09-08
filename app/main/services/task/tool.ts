@@ -13,7 +13,7 @@ import { runSubagents } from "./executor";
 import { createDelegation, resolveParentSessionId, getRunningSummary, setTaskStatus } from "./registry";
 import { writeTaskStatus } from "./task-file";
 import { broadcast } from "../ipc-broadcast";
-import type { TaskItem, BatchResult, AgentProgress } from "./types";
+import type { TaskItem, BatchResult, AgentProgress, TaskStopSource } from "./types";
 
 export interface TaskToolContext {
   cwd: string;
@@ -34,6 +34,15 @@ export interface TaskToolContext {
   onTaskAborted?: (parentSessionId: string, text: string, triggerTurn?: boolean) => void;
   /** 单任务提前完成回调：委派还有任务在跑时立即注入完成通知(对齐 cc 逐个通知) */
   onTaskCompleted?: (parentSessionId: string, text: string) => void;
+}
+
+/** 停止状态文案：按触发来源区分（用户 UI→「已由用户停止」；Mint stop_agent→「已终止」）。
+ *  来源缺失（未标记路径）回落中性「中止」——不冒充用户。
+ *  无论哪种都表「主动停止」：Mint 读到不可误判为意外失败自动重启 */
+function abortStatusLabel(source: TaskStopSource | undefined): string {
+  if (source === "mint") return "已终止";
+  if (source === "user") return "已由用户停止";
+  return "中止";
 }
 
 /** BatchResult → 注入主会话的文本 */
@@ -234,9 +243,10 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         })),
       });
 
-      // 用户点打断（Pi abort 当前回合）→ 中止子 Agent 委派 → completion resolve(aborted)
+      // 用户点打断（Pi abort 当前回合）→ 中止子 Agent 委派 → completion resolve(aborted)。
+      // 来源记 user：打断按钮属用户 UI 停止路径，委派停止通知按此区分文案
       if (signal && !signal.aborted) {
-        signal.addEventListener("abort", () => record.abort(), { once: true });
+        signal.addEventListener("abort", () => record.abort("user"), { once: true });
       }
 
       // 终态通知去重:节流定时器二次触发时 progress 已是终态,防重复注入
@@ -263,8 +273,10 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
             const title = record.tasks[progress.index]?.title || progress.task.slice(0, 40);
             const dur = Math.max(0, Math.round(progress.durationMs / 1000));
             // 单任务委派被停止:无后续通知,开回合让 Mint 回应;批量中停止单个不开回合。
-            // 文本明确「用户中断」——Mint 不要误判为意外失败自动重启
-            ctx.onTaskAborted?.(record.parentSessionId, `⏺ ${title} - 已由用户中断${dur > 0 ? ` · ${dur}s` : ""}`, record.tasks.length === 1);
+            // 文本按停止来源区分(用户→已由用户停止;Mint stop_agent→已终止)——
+            // 但都明确是主动停止,Mint 不要误判为意外失败自动重启
+            const stopLabel = abortStatusLabel(record.taskStopSources[progress.index] ?? record.stopSource);
+            ctx.onTaskAborted?.(record.parentSessionId, `⏺ ${title} - ${stopLabel}${dur > 0 ? ` · ${dur}s` : ""}`, record.tasks.length === 1);
           }
         }
         // 单任务提前完成(委派还有任务在跑)→ 立即注入完成通知,Mint 判断继续等待

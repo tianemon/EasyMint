@@ -139,9 +139,12 @@ export interface EnhancedBashOptions {
 const PREVIEW_TAIL_LINES = 10;
 
 /** 后台命令退出 → 注入主会话的文本(⏺ 摘要行对齐委派通知渲染,前端按状态着色)。
-    stopped = 用户/Mint 主动停止——明确「已由用户中断」,避免 Mint 误判为意外失败自动重启 */
+ *  stopped = 用户/Mint 主动停止——按停止来源区分文案(用户 UI→已由用户停止;Mint→已终止),
+ *  两者都明确是主动停止,避免 Mint 误判为意外失败自动重启 */
 export function formatShellResult(shell: BackgroundShell): string {
-  const status = shell.stopped ? "已由用户中断" : (shell.exitCode === 0 ? "完成" : "失败");
+  const status = shell.stopped
+    ? (shell.stoppedBy === "mint" ? "已终止" : "已由用户停止")
+    : (shell.exitCode === 0 ? "完成" : "失败");
   const dur = Math.max(0, Math.round((Date.now() - shell.startedAt) / 1000));
   const summary = `⏺ 后台命令 - ${status}${dur > 0 ? ` · ${dur}s` : ""}`;
   const head = `命令: ${shell.command}\n退出码: ${shell.exitCode ?? "?"}`;

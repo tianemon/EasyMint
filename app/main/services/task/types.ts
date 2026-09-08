@@ -127,6 +127,11 @@ export interface BatchResult {
 /** 委派状态 */
 export type DelegationStatus = "running" | "completed" | "failed" | "aborted";
 
+/** 主动停止来源：用户 UI 点停止 / Mint 调 stop_agent 工具。
+ *  用于委派停止通知文案区分来源(用户→「已由用户停止」,Mint→「已终止」)——
+ *  两种来源都属「主动停止」,与意外失败区分,Mint 均不可误判为失败自动重启 */
+export type TaskStopSource = "user" | "mint";
+
 /** 委派记录（异步执行的核心：execute 立即返回，后台执行完成后 resolve completion） */
 export interface DelegationRecord {
   delegationId: string;
@@ -147,11 +152,15 @@ export interface DelegationRecord {
   /** 完成时 resolve；agent-service 订阅它向主会话注入结果 */
   completion: Promise<BatchResult>;
   resolveCompletion: (result: BatchResult) => void;
-  /** 统一中止所有子会话（用户 steer 时调用） */
-  abort: () => void;
+  /** 统一中止所有子会话（用户 steer 时调用）;source = 主动停止来源(用户/Mint) */
+  abort: (source?: TaskStopSource) => void;
+  /** 本次主动停止来源(整体中止时由 abort 记录;配合 taskStopSources 生成停止通知文案) */
+  stopSource?: TaskStopSource;
   abortController: AbortController;
   /** 每个任务的独立中止控制器(ProcessBar 单任务停止用) */
   taskAbortControllers: AbortController[];
+  /** 每任务主动停止来源(abortTask 精确停止时记录;委派停止通知按此区分文案) */
+  taskStopSources: (TaskStopSource | undefined)[];
   /** 每任务状态(executor 进度回写;AgentBar 列表按此过滤运行中的任务) */
   taskStatuses: TaskStatus[];
   /** 每任务当前工具(executor progress 实时回写;运行中实时状态,jsonl 不落盘时唯一可靠信息) */

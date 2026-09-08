@@ -189,19 +189,20 @@ async function createStopAgentTool(sessionId: string): Promise<ToolDefinition> {
       const { abortDelegations, abortTask } = await import("./task/registry");
       const reason = params.reason ? String(params.reason) : "Mint 主动停止";
       // 精确停止:delegation_id(+index) 指定单个
+      // 来源记 mint：本工具由 Mint 调用,停止通知文案按此显示「已终止」
       if (params.delegation_id) {
         const did = String(params.delegation_id);
         const { getRunningDelegations } = await import("./task/registry");
         const match = getRunningDelegations(sessionId).find((r) => r.delegationId === did || r.delegationId.startsWith(did));
         if (!match) return { content: [{ type: "text" as const, text: `委派 ${did} 未在运行中` }] };
         if (typeof params.index === "number") {
-          abortTask(match.delegationId, params.index);
+          abortTask(match.delegationId, params.index, "mint");
           return { content: [{ type: "text" as const, text: `已停止任务 ${match.delegationId} 的 #${params.index}${reason ? `(${reason})` : ""}` }] };
         }
-        match.abort();
+        match.abort("mint");
         return { content: [{ type: "text" as const, text: `已停止委派 ${match.delegationId}${reason ? `(${reason})` : ""}` }] };
       }
-      const count = abortDelegations(sessionId);
+      const count = abortDelegations(sessionId, "mint");
       const text = count > 0
         ? `已停止 ${count} 个运行中的子 Agent${reason ? `(${reason})` : ""}`
         : "当前没有运行中的子 Agent";
@@ -1752,7 +1753,8 @@ export class AgentService {
   /** 注入引导消息（中断当前回合并插话） */
   /** 停止委派中的单个任务(ProcessBar 点击停止) */
   async stopDelegationTask(delegationId: string, taskIndex: number): Promise<void> {
-    abortTask(delegationId, taskIndex);
+    // 来源记 user：此入口来自前端按钮(渲染层点停止 → IPC),停止通知文案按此显示「已由用户停止」
+    abortTask(delegationId, taskIndex, "user");
     broadcast("agent:delegation-count", getRunningSummary());
   }
 

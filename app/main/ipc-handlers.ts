@@ -223,7 +223,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     agentService.stopDelegationTask(delegationId, taskIndex),
   );
   ipcMain.handle("agent:stop-shell", (_e, { shellId }) => {
-    backgroundShellRegistry.stop(String(shellId ?? ""));
+    // 渲染层按钮点停止 → 用户 UI 路径:来源记 user,停止通知文案显示「已由用户停止」
+    backgroundShellRegistry.stop(String(shellId ?? ""), "user");
   });
   // 按模型设置思考等级（存 Pi 全局设置 agentDir/settings.json，键 `<provider>/<modelId>`）
   ipcMain.handle("agent:getModelThinkingLevels", async () => {

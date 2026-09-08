@@ -27,6 +27,11 @@ const FORCE_KILL_AFTER_MS = 5000;
 /** 输出流广播节流间隔(dev server 逐字输出,合并 chunk 防 IPC 风暴;退出时强制 flush) */
 const STREAM_THROTTLE_MS = 100;
 
+/** 主动停止来源：用户 UI 点停止 / Mint（预留：后续 Mint 侧停止入口）。
+ *  用于停止通知文案区分(用户→「已由用户停止」,Mint→「已终止」)——
+ *  两种来源都属「主动停止」,与命令自然失败区分 */
+export type ShellStopSource = "user" | "mint";
+
 /** 前端 shell 列表数据(启动/停止/退出时广播 agent:shell-count) */
 export interface ShellSummary {
   id: string;
@@ -54,6 +59,8 @@ export interface BackgroundShell {
   exitCode: number | null;
   /** 被 stop() 主动停止(true 时格式化结果标记「中止」,与自然失败区分) */
   stopped: boolean;
+  /** 主动停止来源(stop() 记录;退出通知文案按此区分「已由用户停止」/「已终止」) */
+  stoppedBy?: ShellStopSource;
   /** 运行状态(running → stopping → 退出注销) */
   status: "running" | "stopping";
   /** 待广播的输出缓冲(100ms 节流合并,agent:shell-output) */
@@ -289,11 +296,14 @@ class BackgroundShellRegistry {
   }
 
   /** 停止后台命令:立即标记 stopping 并广播(前端即时反馈),杀进程树,
-   *  5s 未退出(进程不响应 SIGTERM)强制 SIGKILL 兜底;返回是否找到 */
-  stop(id: string): boolean {
+   *  5s 未退出(进程不响应 SIGTERM)强制 SIGKILL 兜底;返回是否找到。
+   *  source = 主动停止来源(默认 user,前端按钮路径) */
+  stop(id: string, source: ShellStopSource = "user"): boolean {
     const shell = this.shells.get(id);
     if (!shell) return false;
     shell.stopped = true;
+    // 记录停止来源先于进程退出:退出回调(formatShellResult)按它生成文案
+    shell.stoppedBy = source;
     shell.status = "stopping";
     this.broadcastCount();
     console.log(`[bg-shell] stop ${id}: ${shell.command.slice(0, 80)}`);
