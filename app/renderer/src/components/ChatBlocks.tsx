@@ -805,14 +805,24 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
   // 不可断行长行/diff 仍把宽度撑到展开态);展开时先挂载下一帧再播 grid 动画(见 useFoldBody)
   const fold = useFoldBody(showInput, setShowInput);
 
-  // 命令执行中首次收到输出 → 自动展开(折叠状态下实时输出看不到)。
-  // 仅执行中触发:结束后/历史消息不自动展开,避免回到旧会话时所有命令块都摊开
+  // 命令:执行中展开(看实时输出)、结束后收起——与思考块同一套「进行中可见、结束即收」节奏。
+  // autoOpenedRef 标记当前展开是自动的:避免高频输出重渲染时反复重置展开动画,
+  // 也保证结束后只收起「自动展开的」那个(用户手动展开的不动)
   const autoOpenedRef = useRef(false);
+  const userCtrlRef = useRef(false);
   useEffect(() => {
-    if (autoOpenedRef.current || item.name !== "bash" || !item.pending || !item.liveOutput || showInput) return;
-    autoOpenedRef.current = true;
-    fold.toggle();
-  }, [item.name, item.pending, item.liveOutput, showInput]);
+    if (item.name !== "bash" || userCtrlRef.current) return;
+    if (item.pending && !showInput && !autoOpenedRef.current) {
+      autoOpenedRef.current = true;
+      fold.toggle();
+    } else if (!item.pending && showInput && autoOpenedRef.current) {
+      autoOpenedRef.current = false;
+      fold.toggle();
+    }
+  }, [item.name, item.pending, showInput]);
+
+  // 手动折叠:标记后不再受自动展开/收起影响(保留用户意图)
+  const handleToggle = (): void => { userCtrlRef.current = true; fold.toggle(); };
 
   const isPathTool = item.name === "edit" || item.name === "write" || item.name === "read";
   const diffStats_ = isDiffResult ? diffCount(item.result!) : null;
@@ -882,8 +892,8 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
       <div
         role="button"
         tabIndex={0}
-        onClick={fold.toggle}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fold.toggle(); } }}
+        onClick={handleToggle}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleToggle(); } }}
         className="flex w-fit items-center gap-1.5 cursor-pointer select-none group py-0.5"
       >
         {/* 动作词(编辑/查看/编写/命令)——前加对应 Lucide 图标(bash=终端/edit=方笔/read=眼/write=笔) */}
