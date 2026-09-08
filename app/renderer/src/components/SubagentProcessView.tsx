@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChatMessage, mapSessionMessages, piBlocksToEntries, mergeConsecutiveText, displayToolLabel } from "./chat-utils";
-import type { StreamEntry } from "./StreamPanel";
+import { buildBlocks, ChatBlockView } from "./ChatBlocks";
+import { ChatMessage, mapSessionMessages, piBlocksToEntries, mergeConsecutiveText } from "./chat-utils";
 import { useDelegationStore } from "../stores/delegation-store";
-import { DiffView } from "./ChatBlocks";
 import { registerOverlay } from "../lib/overlay-stack";
 
 /**
@@ -188,7 +187,13 @@ export function SubagentProcessView({
           {loaded && msgs.length === 0 && (
             <div className="text-center text-text-secondary py-8">暂无消息</div>
           )}
-          {msgs.map((m) => <SubagentMessage key={m.keyId ?? m.id} msg={m} running={running} />)}
+          {msgs.map((m) => {
+            // 流式尾消息 = 运行中最后一条带 streaming 标记的 AI 消息(实时增长的那条,
+            // 磁盘重载合并也把它追加在末尾)。ChatBlockView 的思考自动展开/收起由
+            // isStreamingTail 驱动——仅尾消息为 true:思考增长中展开,结束(不再是尾块)自动收起
+            const streamTail = running && m.role === "ai" && !!m.streaming && m === msgs[msgs.length - 1];
+            return <SubagentMessage key={m.keyId ?? m.id} msg={m} running={running} streamTail={streamTail} />;
+          })}
           {running && <div className="flex justify-center"><span className="text-[length:var(--text-11)] text-text-secondary animate-pulse">● 运行中</span></div>}
         </div>
 
@@ -209,8 +214,32 @@ export function SubagentProcessView({
   );
 }
 
-/** 精简只读消息气泡(user 右 / ai 左,Mint 气泡复用主聊天样式;思考/工具常显) */
-function SubagentMessage({ msg, running }: { msg: ChatMessage; running: boolean }): JSX.Element {
+/** 只读消息气泡(user 右 / ai 左,Mint 气泡复用主聊天外观)。
+ *  ai 内容走与 ChatPanel 相同的块渲染:buildBlocks 分组 → ChatBlockView,
+ *  思考「流式中展开、完成后自动折叠」、工具卡折叠/展开、文本 Markdown、diff DiffView 全部一致。
+ *  streamTail = 运行中正在增长的尾消息——ChatBlockView 的 isStreamingTail 仅对它的末块为 true:
+ *  思考增长中展开,结束(末块变为文本/工具、或回合结束 running 转 false)自动收起。
+ *  streaming 传 running(回合级,对齐 ChatPanel 的 busy):工具执行中转圈/✓/✗ 由它驱动 */
+function SubagentMessage({ msg, running, streamTail }: { msg: ChatMessage; running: boolean; streamTail?: boolean }): JSX.Element {
+  const entries = msg.entries ?? [];
+  // 工具 input 查找表(toolUseId → input):工具结果被拆到独立块(同批无 tool_use)时,
+  // tool-result-only 块仍能取 file_path 做语言高亮/摘要显示(对齐 ChatPanel 同款构建)
+  const toolInputs = useMemo(() => {
+    const m = new Map<string, Record<string, unknown>>();
+    for (const e of entries) {
+      if (e.kind === "tool_use" && e.id) {
+        const input = typeof e.input === "object" && e.input !== null ? (e.input as Record<string, unknown>) : undefined;
+        if (input) m.set(e.id, input);
+      }
+    }
+    return m;
+  }, [entries]);
+
+  const blocks = useMemo(
+    () => (entries.length > 0 ? buildBlocks(entries, String(msg.id), toolInputs) : []),
+    [entries, msg.id, toolInputs],
+  );
+
   if (msg.role === "user") {
     return (
       <div className="flex justify-end">
@@ -218,87 +247,23 @@ function SubagentMessage({ msg, running }: { msg: ChatMessage; running: boolean 
       </div>
     );
   }
-  const entries = msg.entries ?? [];
-  // 无任何条目时不渲染气泡(避免空容器留白)
-  if (entries.length === 0) return <></>;
-  // 扫描本条消息内已到达的 tool_result:toolUseId → isError(跨条目关联,供 tool_use 行显示状态)
-  const resultMap = new Map<string, boolean>();
-  for (const e of entries) {
-    if (e.kind === "tool_result" && e.toolUseId) resultMap.set(e.toolUseId, e.isError);
-  }
+  // 无任何块时不渲染气泡(避免空容器留白)
+  if (blocks.length === 0) return <></>;
   return (
     <div className="flex gap-3 items-start">
       <div className="msg-avatar agent shrink-0">M</div>
       <div className="min-w-0 flex-1">
         <div className="msg-bubble-agent rounded-[10px] rounded-bl-[4px] px-3 py-1.5 text-[length:var(--text-detail)] overflow-hidden">
-          {entries.map((e, i) => {
-            // 工具状态:有 result → ✓/✗;执行中(无 result 且任务运行)→ 转圈;已结束无 result(中断残留)→ 无图标
-            let toolStatus: "ok" | "err" | "pending" | undefined;
-            if (e.kind === "tool_use" && e.id) {
-              if (resultMap.has(e.id)) toolStatus = resultMap.get(e.id) ? "err" : "ok";
-              else if (running) toolStatus = "pending";
-            }
-            return <SubagentEntry key={i} entry={e} toolStatus={toolStatus} />;
-          })}
+          {blocks.map((block, i) => (
+            <ChatBlockView
+              key={`blk-${msg.id}-${i}`}
+              block={block}
+              streaming={running}
+              isStreamingTail={streamTail && i === blocks.length - 1}
+            />
+          ))}
         </div>
       </div>
     </div>
   );
-}
-
-/** 单条流式条目(文本/思考/工具全显;工具行带执行状态指示) */
-function SubagentEntry({ entry, toolStatus }: { entry: StreamEntry; toolStatus?: "ok" | "err" | "pending" }): JSX.Element {
-  if (entry.kind === "text") {
-    return <div className="whitespace-pre-wrap break-words text-text-primary">{entry.text}</div>;
-  }
-  if (entry.kind === "thinking") {
-    return (
-      <div className="mb-1.5 flex gap-2 items-start">
-        <span className="shrink-0 text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-[var(--color-sidebar-hover)] text-text-muted mt-0.5">思考</span>
-        <div className="text-[length:var(--text-caption)] text-[var(--color-text-secondary)] italic whitespace-pre-wrap break-words opacity-90">{entry.text}</div>
-      </div>
-    );
-  }
-  if (entry.kind === "tool_use") {
-    const input = (entry as unknown as { input?: unknown }).input;
-    const args = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
-    return (
-      <div className="mb-1.5 flex gap-2 items-center">
-        <span className="shrink-0 text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-[var(--color-sidebar-hover)] text-text-muted">工具</span>
-        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="var(--color-text-secondary)" strokeWidth="2" strokeLinecap="round" className="shrink-0"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
-        <span className="text-[var(--color-accent)]">{displayToolLabel((entry as unknown as { name: string }).name, args)}</span>
-        {/* 执行状态:转圈(进行中)/ ✓ 成功 / ✗ 报错——与主聊天工具块一致 */}
-        {toolStatus === "pending" && (
-          <svg className="animate-spin text-accent" width="12" height="12" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
-            <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        )}
-        {toolStatus === "err" && (
-          <svg className="shrink-0 text-danger" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        )}
-        {toolStatus === "ok" && (
-          <svg className="shrink-0 state-ok" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-        )}
-      </div>
-    );
-  }
-  if (entry.kind === "tool_result") {
-    const content = String((entry as unknown as { content: string }).content ?? "").trim();
-    // edit 结果含 "变更内容:" diff → 复用主聊天的 DiffView 红绿渲染
-    if (content.includes("变更内容:")) {
-      return (
-        <div className="mb-1.5 ml-6 rounded bg-[var(--color-sidebar-hover)]/50 px-2 py-1 overflow-x-auto">
-          <DiffView text={content} />
-        </div>
-      );
-    }
-    const short = content.length > 160 ? `${content.slice(0, 160)}…` : content;
-    return (
-      <div className="mb-1.5 ml-6 text-[length:var(--text-caption)] text-[var(--color-text-secondary)] whitespace-pre-wrap break-words font-mono bg-[var(--color-sidebar-hover)]/50 rounded px-2 py-1">
-        {short}
-      </div>
-    );
-  }
-  return <></>;
 }
