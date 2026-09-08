@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dedupeSelfSkills } from "./skill-service";
+import { dedupeExternalSkills, dedupeSelfSkills } from "./skill-service";
 import type { SkillManifest } from "./skill-service";
 
 function m(name: string, level: SkillManifest["level"]): SkillManifest {
@@ -51,5 +51,48 @@ describe("dedupeSelfSkills", () => {
     const list = [m("a", "global"), m("b", "project"), m("c", "builtin")];
     dedupeSelfSkills(list, new Set());
     expect(live(list)).toHaveLength(3);
+  });
+});
+
+function ext(name: string, level: "global" | "project", from: string): SkillManifest {
+  return {
+    name,
+    description: "d",
+    path: `/tmp/${from}-${level}/${name}`,
+    level,
+    source: "imported",
+    enabled: true,
+    importedFrom: from,
+  };
+}
+
+describe("dedupeExternalSkills", () => {
+  it("项目级胜过全局（对齐 Codex / Claude Code 官方）", () => {
+    const list = [ext("foo", "global", "claude"), ext("foo", "project", "claude")];
+    dedupeExternalSkills(list);
+    expect(live(list).map((s) => s.level)).toEqual(["project"]);
+    expect(list.find((s) => s.level === "global")?.shadowed).toBe(true);
+  });
+
+  it("跨 provider 也是项目级胜（scope 优先于 provider 顺序）", () => {
+    const list = [ext("foo", "global", "codex"), ext("foo", "project", "github")];
+    dedupeExternalSkills(list);
+    expect(live(list).map((s) => s.importedFrom)).toEqual(["github"]);
+  });
+
+  it("同 scope 时保留 provider 顺序在前者（claude > codex > github）", () => {
+    const list = [ext("foo", "global", "claude"), ext("foo", "global", "codex")];
+    dedupeExternalSkills(list);
+    expect(live(list).map((s) => s.importedFrom)).toEqual(["claude"]);
+  });
+
+  it("项目级三者同名：保留 claude", () => {
+    const list = [
+      ext("foo", "project", "claude"),
+      ext("foo", "project", "codex"),
+      ext("foo", "project", "github"),
+    ];
+    dedupeExternalSkills(list);
+    expect(live(list).map((s) => s.importedFrom)).toEqual(["claude"]);
   });
 });

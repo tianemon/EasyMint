@@ -98,7 +98,7 @@ interface ExternalSkillSource {
   platform: "claude" | "codex" | "github";
 }
 
-// 顺序即同名优先级（首个胜出，其余标 shadowed）
+// 顺序 = 同 scope 内的同名优先级（首个胜出）；跨 scope 由 dedupeExternalSkills 让项目级胜出
 const EXTERNAL_SOURCES: ExternalSkillSource[] = [
   { resolve: () => path.join(os.homedir(), ".claude", "skills"), level: "global", platform: "claude" },
   { resolve: () => path.join(os.homedir(), ".codex", "skills"), level: "global", platform: "codex" },
@@ -225,6 +225,7 @@ function scanExternalSkills(projectPath: string | undefined, disabled: string[],
     const dir = src.resolve(projectPath ?? "");
     results.push(...scanDir(dir, src.level, disabled, "imported", seen, src.platform));
   }
+  dedupeExternalSkills(results);
   return results;
 }
 
@@ -342,11 +343,9 @@ function nameKey(s: { name: string }): string {
 
 const LEVEL_PRIO: Record<SkillManifest["level"], number> = { project: 0, global: 1, builtin: 2 };
 
-/** EM 自家来源（builtin/global/project）同名去重：保留优先级最高的一条，其余标 shadowed。
- *  优先级 project > global > builtin（对齐 findSkillByName）；EM 核心内置恒最高。
- *  被压过的一条仍在列表里（标记遮蔽）而非静默丢弃——用户可见可处置。 */
-export function dedupeSelfSkills(list: SkillManifest[], protectedNames: Set<string>): void {
-  const prio = (s: SkillManifest): number => (protectedNames.has(s.name) ? -1 : LEVEL_PRIO[s.level]);
+/** 同名只保留优先级最高（数值小）的一条，其余标 shadowed 保留在列表里——
+ *  不静默丢弃：用户可见可处置（对齐外部条目的既有处置方式） */
+function dedupeByPriority(list: SkillManifest[], prio: (s: SkillManifest) => number): void {
   const bestIdx = new Map<string, number>();
   list.forEach((s, i) => {
     const key = nameKey(s);
@@ -363,6 +362,18 @@ export function dedupeSelfSkills(list: SkillManifest[], protectedNames: Set<stri
       list[i] = { ...s, shadowed: true };
     }
   });
+}
+
+/** EM 自家来源（builtin/global/project）同名去重：project > global > builtin
+ *  （对齐 findSkillByName）；EM 核心内置恒最高，不被任何来源顶替 */
+export function dedupeSelfSkills(list: SkillManifest[], protectedNames: Set<string>): void {
+  dedupeByPriority(list, (s) => (protectedNames.has(s.name) ? -1 : LEVEL_PRIO[s.level]));
+}
+
+/** 外部生态同名去重：项目级优先于全局（对齐 Codex / Claude Code 官方「项目级覆盖全局」，
+ *  也与 EM 自家规则一致）；同 scope 时保留扫描顺序在前者（claude > codex > github） */
+export function dedupeExternalSkills(list: SkillManifest[]): void {
+  dedupeByPriority(list, (s) => (s.level === "project" ? 0 : 1));
 }
 
 // ── Read detail ────────────────────────────────────
