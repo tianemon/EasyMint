@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useSettingsStore } from "../../stores/settings-store";
 import { getPreset } from "@shared/platform-presets";
 import type { ProviderConfig } from "@shared/platform-presets";
@@ -351,12 +352,10 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         />
       </div>
 
-      {/* 保存/取消:sticky 底部始终可见(表单较长需滚动)。贴底前提(由外部保证):
-          ① 编辑态下本表单是滚动区最后内容(ProvidersTab 已隐藏后续区块)——sticky 包含块
-          底缘才能到滚动区底部;② 滚动容器编辑态 pb-0(SettingsDialog)——bottom-0 直贴
-          Footer 上缘。-mx-6 px-6 让条背景横向通栏(抵消滚动区 px-6)。
-          -mt-px/mb-px:条整体上移 1px(与上方内容间距 -1px,与 Footer 之间留 1px 呼吸) */}
-      <div className="sticky bottom-0 -mx-6 -mt-px mb-px px-6 pt-2 pb-1 flex justify-end gap-2" style={{ background: "var(--color-input-card)", borderTop: "1px solid var(--color-border)" }}>
+      {/* 保存/取消:sticky 底部始终可见(表单较长需滚动)。宿主须保证表单是滚动区
+          最后内容且滚动区自身无底部 padding——bottom-0 即贴滚动区底缘(独立弹窗 /
+          Onboarding 均满足)。-mx-6 px-6:条背景横向通栏(抵消滚动区 px-6) */}
+      <div className="sticky bottom-0 -mx-6 px-6 pt-2 pb-1 flex justify-end gap-2" style={{ background: "var(--color-input-card)", borderTop: "1px solid var(--color-border)" }}>
         {onCancel && (
           <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消配置</button>
         )}
@@ -368,25 +367,55 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   );
 }
 
+// ── 供应商表单独立弹窗 ────────────────────────────────────────────
+
+/** 添加/编辑供应商的独立弹窗:滚动区即弹窗本体(无外部 Footer),表单的 sticky
+ *  保存条 bottom-0 直接贴滚动区底缘,无需任何 padding hack。Esc / ✕ / 取消 关闭。
+ *  必须 Portal 到 body:设置弹窗面板带 transform(scale),会变成 fixed 后代的包含块,
+ *  直接内联渲染会把遮罩与面板锁在 760×600 的设置窗口里,上下被裁剪。 */
+export function ProviderFormDialog({ initial, onSave, onClose }: {
+  initial?: ProviderConfig | null;
+  onSave: (cfg: ProviderConfig) => void;
+  onClose: () => void;
+}): JSX.Element {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="settings-overlay-v3 open">
+      <div className="settings-panel-v3" style={{ width: 580, height: "min(640px, calc(100vh - 96px))" }}>
+        {/* 标题行:供应商名 + ✕(与设置弹窗 header 同风格) */}
+        <div className="flex items-center gap-3 px-6 h-11 shrink-0 border-b border-border">
+          <span className="text-sm font-medium text-text-primary truncate">
+            {initial ? `编辑供应商${initial.name ? ` · ${initial.name}` : ""}` : "添加供应商"}
+          </span>
+          <button className="settings-close ml-auto" onClick={onClose} aria-label="关闭">✕</button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 pt-4">
+          <ProviderForm initial={initial} onSave={onSave} onCancel={onClose} />
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ── Provider 列表管理器 ──────────────────────────────────────────
 
-export function ProvidersManager({ onEditingChange }: { onEditingChange?: (editing: boolean) => void }) {
+export function ProvidersManager() {
   const { apiProviders, setApiProviders } = useSettingsStore();
-  const [editing, setEditing] = useState<ProviderConfig | null>(null);
-  const [adding, setAdding] = useState(false);
+  // null = 未打开;{ mode: "add" } = 新增;{ mode: "edit", cfg } = 编辑
+  const [dialog, setDialog] = useState<{ mode: "add" } | { mode: "edit"; cfg: ProviderConfig } | null>(null);
   const configs = Object.values(apiProviders?.configs ?? {});
-
-  // 编辑态上报:父级据此隐藏下方无关区块(全局设置/弹窗 Footer)——
-  // 既让表单 sticky 按钮条能贴到底部,也防止误点弹窗「完成」丢失未保存的编辑
-  const isEditing = adding || editing != null;
-  useEffect(() => { onEditingChange?.(isEditing); }, [isEditing, onEditingChange]);
 
   const handleSave = (cfg: ProviderConfig) => {
     const current = apiProviders?.current;
     const updated = { ...(apiProviders?.configs ?? {}), [cfg.id]: cfg };
     setApiProviders({ current: current ?? cfg.id, configs: updated });
-    setEditing(null);
-    setAdding(false);
+    setDialog(null);
   };
 
   const handleDelete = (id: string) => {
@@ -396,21 +425,11 @@ export function ProvidersManager({ onEditingChange }: { onEditingChange?: (editi
     setApiProviders({ current, configs: next });
   };
 
-  if (adding || editing) {
-    return (
-      <ProviderForm
-        initial={editing}
-        onSave={handleSave}
-        onCancel={() => { setEditing(null); setAdding(false); }}
-      />
-    );
-  }
-
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-text-primary">API 供应商</h3>
-        <button onClick={() => setAdding(true)}
+        <button onClick={() => setDialog({ mode: "add" })}
           className="px-3 py-1 rounded-lg border border-accent text-accent text-xs font-medium hover:bg-accent-subtle transition-colors">
           + 添加供应商
         </button>
@@ -439,7 +458,7 @@ export function ProvidersManager({ onEditingChange }: { onEditingChange?: (editi
                   <button onClick={() => setApiProviders({ ...apiProviders!, current: cfg.id, configs: apiProviders!.configs })}
                     className="px-2 py-1 text-[length:var(--text-2xs)] rounded bg-surface border border-border text-text-secondary hover:text-accent hover:border-accent-border-strong transition-colors">启用</button>
                 )}
-                <button onClick={() => setEditing(cfg)}
+                <button onClick={() => setDialog({ mode: "edit", cfg })}
                   className="px-2 py-1 text-[length:var(--text-2xs)] rounded bg-surface border border-border text-text-secondary hover:text-text-primary hover:border-accent-border-strong transition-colors">编辑</button>
                 <button onClick={() => handleDelete(cfg.id)}
                   className="px-2 py-1 text-[length:var(--text-2xs)] rounded bg-surface border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors">删除</button>
@@ -447,6 +466,14 @@ export function ProvidersManager({ onEditingChange }: { onEditingChange?: (editi
             </div>
           );
         })
+      )}
+      {/* 添加/编辑供应商:独立弹窗(悬浮于设置弹窗之上) */}
+      {dialog && (
+        <ProviderFormDialog
+          initial={dialog.mode === "edit" ? dialog.cfg : null}
+          onSave={handleSave}
+          onClose={() => setDialog(null)}
+        />
       )}
     </div>
   );
