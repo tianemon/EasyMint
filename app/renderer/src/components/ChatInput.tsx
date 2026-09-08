@@ -315,7 +315,7 @@ export const ChatInput = memo(function ChatInput({
           aria-checked={permissionMode === "full"}
           
           onClick={() => onPermissionModeChange(permissionMode === "full" ? "standard" : "full")}
-          className="flex items-center gap-1.5 shrink-0 group"
+          className="flex items-center gap-1.5 shrink-0 group rounded-[var(--radius-sm)] px-1.5 -mx-1.5 hover:bg-surface-hover transition-colors"
         >
           <span className={`text-[length:var(--text-xs)] transition-colors ${permissionMode === "full" ? "text-[var(--color-permission-on)]" : "text-text-secondary"}`}>
             {permissionMode === "full" ? "完全访问" : "标准"}

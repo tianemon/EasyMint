@@ -461,9 +461,9 @@ html[data-platform="win32"] {
   --color-file-other-bg: #242424;
   --color-file-other-stroke: #7f7f7f;
 
-  /* ── Code block（暗色：蓝黑系，正文深一档） ── */
-  --color-code-block-bg: #1a1a26;
-  --color-code-block-header: #1e1e2e;
+  /* ── Code block（暗色：深蓝灰系，正文深一档） ── */
+  --color-code-block-bg: #15151f;
+  --color-code-block-header: #1a1a26;
 
   /* ── v3 Layer tokens（暗色反向：L0 最暗 → L4 最亮）── */
   --color-canvas: #181818;
@@ -813,9 +813,10 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   font-size: var(--text-sm); padding: 4px 8px; border-radius: var(--radius-sm);
   background: var(--color-input-field); border: none;
   color: var(--color-text-secondary); outline: none;
-  transition: box-shadow 120ms;
+  transition: box-shadow 120ms, background 120ms;
 }
 .inp-sel:focus { box-shadow: none; /* 与输入框一致:聚焦无 accent 光环 */ }
+.inp-sel:hover:not(:disabled) { background: var(--color-surface-hover); }
 .inp-gap { flex: 1; }
 .ctx-ring { position: relative; width: 20px; height: 20px; flex-shrink: 0; }
 .ctx-ring svg { transform: rotate(-90deg); }
