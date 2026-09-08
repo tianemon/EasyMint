@@ -82,26 +82,44 @@ function syncExtraModelsFile(store: Store): void {
     const providersJson = json.providers;
     const lookup = getModelSpecLookup();
     let changed = false;
+    // 按 presetId 聚合后只写一次：同一 presetId 可存在多份供应商配置（它们共用同一个 SDK
+    // provider）。逐份写入时，后一份（extraModels 为空）会把前一份写好的 models 覆盖成
+    // 空数组——而 models: [] 被 SDK 的 applyModelsJson 判为非法配置直接抛错，凭据同步
+    // 随之失败（表现为「没有有效的 API Key」，改 key / 重建运行时都救不回来，重启后靠
+    // 遍历顺序侥幸避开）。教训：2026-09-09 用户配置里同时存在 DeepSeek 与 DeepSeek22。
+    type ExtraEntry = { id: string } & Record<string, any>;
+    const byPreset = new Map<string, { extras: Map<string, ExtraEntry>; fallbackModel?: string }>();
     for (const [, config] of Object.entries(providers.configs ?? {})) {
       if (!config.presetId || config.presetId === "custom") continue;
       // 已被 SDK 内置的 id 不再声明:models.json 是最高优先级的用户层(applyModelsJson
       // 按 id 覆盖内置条目),升级后 SDK 自带同名模型时,我们的继承条目会遮蔽官方 spec。
       // 以静态数据(SDK 内置模型表)为准——升级后自动让位,无需用户清理 extraModels。
       const siblings = getProviderStaticModels(config.presetId);
+      const bucket = byPreset.get(config.presetId) ?? { extras: new Map<string, ExtraEntry>() };
       // 归一化:旧数据是纯 ID 字符串,新数据是带能力声明的对象(见 ExtraModelCapability)
-      const extras = (config.extraModels ?? [])
-        .map((e) => (typeof e === "string" ? { id: e } : e))
-        .filter((e) => e.id && !siblings.has(e.id));
-      const existing = providersJson[config.presetId]?.models ?? [];
-      // extras 为空且此前也没写过 → 跳过(保留用户手写内容)
-      if (extras.length === 0 && existing.length === 0) continue;
+      for (const e of config.extraModels ?? []) {
+        const entry = (typeof e === "string" ? { id: e } : e) as ExtraEntry;
+        if (entry?.id && !siblings.has(entry.id) && !bucket.extras.has(entry.id)) bucket.extras.set(entry.id, entry);
+      }
+      // 同族能力兜底基准:优先该配置的默认模型(命中内置时),否则用第一个内置模型
+      if (!bucket.fallbackModel && config.model && siblings.has(config.model)) bucket.fallbackModel = config.model;
+      byPreset.set(config.presetId, bucket);
+    }
+    for (const [presetId, bucket] of byPreset) {
+      const existing = providersJson[presetId]?.models ?? [];
+      if (bucket.extras.size === 0) {
+        // 无手动模型:写 models: [] 会被 SDK 判为非法配置,整条移除让 SDK 回落内置定义
+        if (providersJson[presetId]) { delete providersJson[presetId]; changed = true; }
+        continue;
+      }
+      const siblings = getProviderStaticModels(presetId);
       const byId = new Map(existing.map((m) => [m.id, m]));
       // 同族能力兜底:优先同名 spec → 该供应商默认模型 → 第一个内置模型。
       // 继承 api / reasoning / thinkingLevelMap / compat / cost——models.json 未写的字段
       // 由 SDK 按"供应商首个模型"兜底(实测继承到 reasoning=false、无 thinkingLevelMap,
       // 思考等级被 clamp 成 off),手动添加的模型必须显式继承才保住能力声明。
-      const sibling = siblings.get(config.model ?? "") ?? [...siblings.values()][0];
-      const models: ModelEntry[] = extras.map((entry) => {
+      const sibling = (bucket.fallbackModel ? siblings.get(bucket.fallbackModel) : undefined) ?? [...siblings.values()][0];
+      const models: ModelEntry[] = [...bucket.extras.values()].map((entry) => {
         const { id, ...declared } = entry;
         // 能力查表:精确 → 字符级前缀反查(网关别名后缀) → 段级模糊(同品牌新版本,如 v4.1 继承 v4)
         const spec = lookupWithAlias(lookup, id) ?? lookupBySegmentPrefix(lookup, id);
@@ -123,9 +141,9 @@ function syncExtraModelsFile(store: Store): void {
           maxTokens: declared.maxTokens ?? spec?.maxTokens ?? 32768,
         };
       });
-      const entry = { ...providersJson[config.presetId], models };
-      if (JSON.stringify(providersJson[config.presetId]) !== JSON.stringify(entry)) {
-        providersJson[config.presetId] = entry;
+      const entry = { ...providersJson[presetId], models };
+      if (JSON.stringify(providersJson[presetId]) !== JSON.stringify(entry)) {
+        providersJson[presetId] = entry;
         changed = true;
       }
     }
