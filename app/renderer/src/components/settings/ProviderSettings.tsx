@@ -31,9 +31,9 @@ const MAX_OUTPUT_OPTIONS: SelectOption[] = [
   { value: "custom", label: "自定义" },
 ];
 
-/** 窗口 token 数 → 标签文案(1000000 → 1M) */
+/** 窗口 token 数 → 标签文案(1000000 → 1M；向下取整避免 32768 显示成 33K) */
 function formatWindow(tokens: number): string {
-  return tokens >= 1000000 ? `${tokens / 1000000}M` : `${Math.round(tokens / 1000)}K`;
+  return tokens >= 1000000 ? `${tokens / 1000000}M` : `${Math.floor(tokens / 1000)}K`;
 }
 
 /** 下拉 + 自定义输入 → token 数(自动/无效 → undefined,交给内置表推断) */
@@ -415,21 +415,34 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
             {extraModels.length > 0 && (
               <div className="space-y-1.5">
                 <div className="text-[length:var(--text-2xs)] text-text-muted">已添加 {extraModels.length} 个</div>
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5">
                   {extraModels.map((e) => {
                     const id = typeof e === "string" ? e : e.id;
                     const cap = typeof e === "string" ? null : e;
-                    const tags = [
-                      cap?.input?.includes("image") ? "识图" : null,
-                      cap?.contextWindow ? formatWindow(cap.contextWindow) : null,
-                    ].filter(Boolean) as string[];
+                    const chips = [
+                      cap?.input?.includes("image") ? "识图" : "纯文本",
+                      `窗口 ${cap?.contextWindow ? formatWindow(cap.contextWindow) : "自动"}`,
+                      `输出 ${cap?.maxTokens ? formatWindow(cap.maxTokens) : "自动"}`,
+                    ];
                     return (
-                      <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[5px] bg-accent-soft border border-accent-border text-[length:var(--text-2xs)] text-accent">
-                        <button type="button" className="transition-opacity hover:opacity-70" title="点击编辑能力" onClick={() => startExtraEdit(id)}>
-                          {id}{tags.length > 0 && <span className="text-text-muted"> · {tags.join(" / ")}</span>}
-                        </button>
-                        <button type="button" className="text-accent hover:text-danger transition-colors" onClick={() => removeExtraModel(id)}>✕</button>
-                      </span>
+                      <div key={id} className="inline-flex flex-col gap-1.5 px-2 py-1.5 rounded-lg bg-accent-soft border border-accent-border">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            className="max-w-[180px] truncate text-left text-[length:var(--text-2xs)] font-medium text-accent transition-opacity hover:opacity-70"
+                            title={`${id}（点击编辑能力）`}
+                            onClick={() => startExtraEdit(id)}
+                          >
+                            {id}
+                          </button>
+                          <button type="button" className="shrink-0 text-accent hover:text-danger transition-colors" onClick={() => removeExtraModel(id)}>✕</button>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {chips.map((c) => (
+                            <span key={c} className="px-1.5 py-px rounded-[4px] bg-surface text-[length:var(--text-2xs)] text-text-secondary">{c}</span>
+                          ))}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
