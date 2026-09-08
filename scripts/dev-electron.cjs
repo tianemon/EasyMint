@@ -9,52 +9,17 @@
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const esbuild = require("esbuild");
+const { mainOptions, preloadOptions } = require("./build.cjs");
 
 const root = path.join(__dirname, "..");
 const node = process.execPath;
 const electronCli = path.join(root, "node_modules", "electron", "cli.js");
 
-const EXTERNALS = [
-  "electron",
-  // sandbox-runtime 是 ESM-only 且内部用 import.meta.url 推导路径——CJS bundle 会转成
-  // undefined 直接崩（fileURLToPath(undefined)），必须运行时加载（与 build:main 一致）
-  "@anthropic-ai/sandbox-runtime",
-  "@earendil-works/pi-coding-agent",
-  "@earendil-works/pi-agent-core",
-  "@earendil-works/pi-ai",
-  "@earendil-works/pi-ai/compat",
-  "@modelcontextprotocol/sdk",
-  "@modelcontextprotocol/sdk/*",
-  "electron-updater",
-  // unzipper 的可选 S3 支持(运行时才 require,未安装——external 避免 bundle 失败)
-  "@aws-sdk/*",
-  // archiver 8.0 是纯 ESM 包,esbuild CJS bundle 跨平台解析不稳定——运行时 require
-  "archiver",
-  "unzipper",
-  // 文档解析器:运行时按需 require(external 不进 bundle,与 build:main 一致)
-  "pdf-parse",
-  "mammoth",
-  "xlsx",
-  "jszip",
-];
-
 async function main() {
-  // ── 1+2. build main + preload(esbuild JS API,等价 build:main / build:preload) ──
+  // ── 1+2. build main + preload（构建配置见 build.cjs，与生产构建共用同一份）──
   await Promise.all([
-    esbuild.build({
-      entryPoints: [path.join(root, "app/main/index.ts")],
-      bundle: true, platform: "node", format: "cjs",
-      outfile: path.join(root, "app/main/dist/main.cjs"),
-      external: EXTERNALS,
-      logLevel: "info",
-    }),
-    esbuild.build({
-      entryPoints: [path.join(root, "app/preload/index.ts")],
-      bundle: true, platform: "node", format: "cjs",
-      outfile: path.join(root, "app/preload/dist/preload.cjs"),
-      external: ["electron"],
-      logLevel: "info",
-    }),
+    esbuild.build(mainOptions({ logLevel: "info" })),
+    esbuild.build(preloadOptions({ logLevel: "info" })),
   ]);
 
   // ── 3. 启动 electron(cli.js 内部解析真实二进制并 spawn) ──
