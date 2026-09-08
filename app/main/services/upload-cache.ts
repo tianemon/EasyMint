@@ -75,8 +75,7 @@ export function untrackSession(sessionId: string): void {
     if (m.refs.length === 0) toDelete.push(name);
   }
   for (const name of toDelete) {
-    delete meta[name];
-      unlinkSync(path.join(UPLOAD_DIR, name));
+    deleteUploadFile(meta, name);
   }
   writeMeta(meta);
 }
@@ -112,12 +111,41 @@ export function getUploadStats(sortBy: "time" | "size" = "time"): UploadStats {
 
 // ── Cleanup ────────────────────────────────────────
 
+/** 上传文件名安全校验:必须是顶层文件名（无路径分隔符/穿越段）且 resolve 后落在 UPLOAD_DIR 内。
+ *  cleanFiles/untrackSession 收到渲染层传入的文件名——`../../x` 之类经 path.join 会逃出目录删任意文件 */
+function isSafeUploadName(name: string): boolean {
+  if (!name || typeof name !== "string") return false;
+  if (path.basename(name) !== name) return false;
+  const base = path.resolve(UPLOAD_DIR);
+  const target = path.resolve(base, name);
+  return target === base ? false : target.startsWith(base + path.sep);
+}
+
+/** 删除单个上传文件（含元数据条目）。跳过不安全/不存在的目标 */
+function deleteUploadFile(meta: Record<string, FileMeta>, name: string): void {
+  if (!isSafeUploadName(name)) {
+    console.warn(`[upload-cache] 跳过不安全的删除目标: ${name}`);
+    return;
+  }
+  const filePath = path.join(UPLOAD_DIR, name);
+  if (existsSync(filePath)) unlinkSync(filePath);
+  delete meta[name];
+}
+
 /** Delete specified files */
 export function cleanFiles(filenames: string[]): number {
   let deleted = 0;
   const meta = readMeta();
   for (const name of filenames) {
-    unlinkSync(path.join(UPLOAD_DIR, name)); deleted++;
+    if (!isSafeUploadName(name)) {
+      console.warn(`[upload-cache] 跳过不安全的清理目标: ${name}`);
+      continue;
+    }
+    const filePath = path.join(UPLOAD_DIR, name);
+    if (existsSync(filePath)) {
+      unlinkSync(filePath);
+      deleted++;
+    }
     delete meta[name];
   }
   writeMeta(meta);
@@ -129,7 +157,11 @@ export function cleanAll(): number {
   const meta = readMeta();
   let deleted = 0;
   for (const name of Object.keys(meta)) {
-    unlinkSync(path.join(UPLOAD_DIR, name)); deleted++;
+    if (isSafeUploadName(name) && existsSync(path.join(UPLOAD_DIR, name))) {
+      unlinkSync(path.join(UPLOAD_DIR, name));
+      deleted++;
+    }
+    delete meta[name];
   }
   writeMeta({});
   return deleted;

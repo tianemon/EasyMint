@@ -8,6 +8,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { decryptLegacyApiKeys } from "./settings-crypto";
 
 // ── Types ──────────────────────────────────────────
 
@@ -220,7 +221,8 @@ export function scanMcpServers(projectPath?: string): McpServerManifest[] {
 function getApiKeys(): Record<string, string> {
   if (!existsSync(EM_SETTINGS)) return {};
   const data = JSON.parse(readFileSync(EM_SETTINGS, "utf-8"));
-  return (data.apiKeys as Record<string, string>) || {};
+  // 密钥条目已 safeStorage 加密落盘（1.4）——注入 MCP env / 状态判定前需解密，VISION_* 配置项原样
+  return decryptLegacyApiKeys((data.apiKeys as Record<string, string> | undefined)) || {};
 }
 
 // ── Build SDK mcpServers ───────────────────────────

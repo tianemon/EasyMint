@@ -8,7 +8,11 @@ import { AgentService, getDesignSessionIds, respondAsk, respondLearn } from "./s
 import { Store } from "./services/store";
 import { broadcast } from "./services/ipc-broadcast";
 import { resetModelRuntime, getGlobalSettingsManager } from "./services/pi-init";
-import { IMAGE_MIME } from "./utils/paths";
+import { IMAGE_MIME, resolveHome } from "./utils/paths";
+import { maskApiKey, API_KEY_UNCHANGED, isMaskedApiKey, isSecretLegacyEntry } from "../shared/secrets";
+import type { ProviderConfig, ApiProvidersData } from "../shared/platform-presets";
+import { z } from "zod";
+import { guard, expectPayload, pathString } from "./ipc-validation";
 import { execShell } from "./services/shell-service";
 import { backgroundShellRegistry } from "./services/background-shell/registry";
 import { closeProjectWindows } from "./services/window-manager";
@@ -87,7 +91,57 @@ interface Services {
   store: Store;
 }
 
+/**
+ * apiProviders 回传值清洗：渲染层拿到的是掩码 key（settings:get），保存时未改动的条目
+ * 会带掩码/哨兵原文回来——若直接落盘会用掩码覆盖真实 key。这里把掩码/哨兵形态的 apiKey
+ * 还原为主进程已存（解密后）的 key。新填写的明文 key（非掩码形态）原样保留。
+ */
+function resolveIncomingProviders(incoming: ApiProvidersData | undefined, current: ApiProvidersData | undefined): ApiProvidersData | undefined {
+  if (!incoming) return incoming;
+  const configs: Record<string, ProviderConfig> = {};
+  for (const [id, cfg] of Object.entries(incoming.configs ?? {})) {
+    const prevKey = current?.configs?.[id]?.apiKey;
+    const sentKey = cfg.apiKey ?? "";
+    const unchanged = sentKey === API_KEY_UNCHANGED || (!!prevKey && (isMaskedApiKey(sentKey) || sentKey === maskApiKey(prevKey)));
+    configs[id] = { ...cfg, apiKey: unchanged ? (prevKey ?? "") : sentKey };
+  }
+  return { current: incoming.current ?? current?.current ?? null, configs };
+}
+
+/**
+ * 旧版 apiKeys 映射回传清洗（与 apiProviders 同理）：渲染层拿到的是掩码（settings:get），
+ * 保存时未改动的密钥条目会带掩码/哨兵原文回来——直接落盘会用掩码覆盖真实 key。
+ * 这里还原为主进程已存（解密后）的 key；VISION_* 配置项非密钥，原样保留。
+ * 掩码只对密钥语义条目生成（isSecretLegacyEntry），配置项（VISION_BASE_URL 等 URL）不受影响。
+ */
+function resolveIncomingLegacyKeys(incoming: Record<string, string> | undefined, current: Record<string, string> | undefined): Record<string, string> | undefined {
+  if (!incoming) return incoming;
+  const out: Record<string, string> = {};
+  for (const [k, sent] of Object.entries(incoming)) {
+    if (!isSecretLegacyEntry(k)) { out[k] = sent; continue; }
+    const prev = current?.[k] ?? "";
+    const unchanged = sent === API_KEY_UNCHANGED || (!!prev && (isMaskedApiKey(sent) || sent === maskApiKey(prev)));
+    out[k] = unchanged ? prev : sent;
+  }
+  return out;
+}
+
 export function registerIpcHandlers({ mainWindow, projectService, fileService, agentService, store }: Services): void {
+  /**
+   * file:* / shell 日志通道的可信根解析：目标路径必须落在某个已登记项目根之内
+   * （`~/.ssh/id_rsa`、`/etc/passwd`、`~/Documents/../.ssh/id_rsa` 均无项目根包含 → 拒绝）。
+   * 返回包含目标的项目根（baseDir），找不到返回 null。
+   */
+  const projectRootContaining = (target: string | undefined): string | null => {
+    const t = target || "";
+    const abs = p.resolve(resolveHome(t));
+    for (const proj of projectService.list()) {
+      const base = p.resolve(resolveHome(proj.path));
+      if (abs === base || abs.startsWith(base + p.sep)) return base;
+    }
+    return null;
+  };
+
   // dialog:*
   ipcMain.handle("dialog:openDirectory", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -150,12 +204,18 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     return { ok: true };
   });
 
-  // file:*
-  ipcMain.handle("file:readTree", (_e, { dirPath }) => fileService.readTree(dirPath));
-  ipcMain.handle("file:readContent", (_e, { filePath }) => fileService.readContent(filePath));
-  ipcMain.handle("file:writeContent", (_e, { filePath, content }) => fileService.writeContent(filePath, content));
-  ipcMain.handle("file:createFile", (_e, { filePath, content }) => fileService.createFile(filePath, content ?? ""));
-  ipcMain.handle("file:createFolder", (_e, { dirPath }) => fileService.createFolder(dirPath));
+  // file:*（目标路径必须在项目根内——见 projectRootContaining；FileService 内部再做一次 baseDir 包含校验）
+  // 1.7：参数经 zod 运行时校验——畸形 payload（非字符串路径/缺字段）返回明确错误而非静默失败
+  ipcMain.handle("file:readTree", guard(z.object({ dirPath: pathString }).loose(), (data) =>
+    fileService.readTree(projectRootContaining(data.dirPath) ?? "", data.dirPath)));
+  ipcMain.handle("file:readContent", guard(z.object({ filePath: pathString }).loose(), (data) =>
+    fileService.readContent(projectRootContaining(data.filePath) ?? "", data.filePath)));
+  ipcMain.handle("file:writeContent", guard(z.object({ filePath: pathString, content: z.string() }).loose(), (data) =>
+    fileService.writeContent(projectRootContaining(data.filePath) ?? "", data.filePath, data.content)));
+  ipcMain.handle("file:createFile", guard(z.object({ filePath: pathString, content: z.string().optional() }).loose(), (data) =>
+    fileService.createFile(projectRootContaining(data.filePath) ?? "", data.filePath, data.content ?? "")));
+  ipcMain.handle("file:createFolder", guard(z.object({ dirPath: pathString }).loose(), (data) =>
+    fileService.createFolder(projectRootContaining(data.dirPath) ?? "", data.dirPath)));
 
   // todos:* 用户待办（.easymint/todos.json——见 services/todo-service.ts）
   ipcMain.handle("todos:list", (_e, { projectPath }: { projectPath: string }) => listTodos(projectPath));
@@ -356,8 +416,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   });
 
   // upload:*
-  ipcMain.handle("upload:stats", (_e, { sortBy }: { sortBy?: "time" | "size" }) => getUploadStats(sortBy));
-  ipcMain.handle("upload:clean", (_e, { filenames }: { filenames: string[] }) => cleanFiles(filenames));
+  ipcMain.handle("upload:stats", guard(z.object({ sortBy: z.enum(["time", "size"]).optional() }).loose(), (data) => getUploadStats(data.sortBy)));
+  // cleanFiles 内部还有 basename/目录包含双重校验（1.2）——这里先拦非数组/非字符串载荷
+  ipcMain.handle("upload:clean", guard(z.object({ filenames: z.array(z.string().min(1)) }).loose(), (data) => cleanFiles(data.filenames)));
   ipcMain.handle("upload:cleanAll", () => cleanAll());
   ipcMain.handle("upload:openDir", () => {
     const dir = p.join(os.homedir(), ".easymint", "uploads");
@@ -392,10 +453,11 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("task:get-subagent-messages", (_e, { sessionFile }) =>
     getSubagentMessages(sessionFile));
 
-  // shell:read-log — 读取后台命令输出日志(尾部 100KB 截断,弹层展示最近输出)
-  ipcMain.handle("shell:read-log", (_e, { logPath }) => {
+  // shell:read-log — 读取后台命令输出日志(尾部 100KB 截断,弹层展示最近输出)。
+  // 日志在 <项目>/.easymint/shell-logs/ 内——路径须在项目根内(防任意文件读取)。空串/缺省按无内容处理
+  ipcMain.handle("shell:read-log", guard(z.object({ logPath: z.string().max(4096) }).loose(), ({ logPath }) => {
     try {
-      if (!logPath || !fs.existsSync(logPath)) return { content: "", truncated: false };
+      if (!logPath || !fs.existsSync(logPath) || !projectRootContaining(logPath)) return { content: "", truncated: false };
       const stat = fs.statSync(logPath);
       if (stat.size <= 100 * 1024) {
         return { content: fs.readFileSync(logPath, "utf-8"), truncated: false };
@@ -411,12 +473,12 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     } catch {
       return { content: "", truncated: false };
     }
-  });
-  // shell:reveal-in-folder — 在文件夹中显示日志文件(不打开文件)
-  ipcMain.handle("shell:reveal-in-folder", (_e, { logPath }) => {
-    if (!logPath || !fs.existsSync(logPath)) return;
+  }));
+  // shell:reveal-in-folder — 在文件夹中显示日志文件(不打开文件);路径须在项目根内
+  ipcMain.handle("shell:reveal-in-folder", guard(z.object({ logPath: z.string().max(4096) }).loose(), ({ logPath }) => {
+    if (!logPath || !fs.existsSync(logPath) || !projectRootContaining(logPath)) return;
     shell.showItemInFolder(logPath);
-  });
+  }));
   ipcMain.handle("conv:rename", (_e, { id, title, projectPath }) => {
     agentService.onSessionRenamed(id);
     return renameSession(id, title, projectPath);
@@ -445,10 +507,35 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("codegraph:detect", () => detectCodegraph());
 
   // settings:*
-  ipcMain.handle("settings:get", () => store.getSettings());
+  // settings:get 对 apiKey 掩码（sk-****后4位）——渲染层不需要明文，磁盘原文也不回传；
+  // 只掩码真密钥条目（apiProviders 全部条目、旧版 apiKeys 的非 VISION_* 条目），
+  // VISION_BASE_URL/MODEL/MODE 等配置项不是密钥，掩码会破坏 UI 显示与保存。
+  // 渲染层提交时用 API_KEY_UNCHANGED 哨兵 / 掩码原文表示「未改动」（见 settings:set）
+  ipcMain.handle("settings:get", () => {
+    const s = store.getSettings() as { apiKeys?: Record<string, string>; apiProviders?: ApiProvidersData };
+    const out: typeof s = { ...s };
+    if (out.apiKeys) {
+      const m: Record<string, string> = {};
+      for (const [k, v] of Object.entries(out.apiKeys)) m[k] = isSecretLegacyEntry(k) ? maskApiKey(v) : v;
+      out.apiKeys = m;
+    }
+    if (out.apiProviders) {
+      out.apiProviders = {
+        ...out.apiProviders,
+        configs: Object.fromEntries(
+          Object.entries(out.apiProviders.configs ?? {}).map(([id, cfg]) => [id, { ...cfg, apiKey: maskApiKey(cfg.apiKey ?? "") }]),
+        ),
+      };
+    }
+    return out;
+  });
   ipcMain.handle("settings:set", async (_e, { key, value }) => {
     const settings = store.getSettings();
-    (settings as unknown as Record<string, unknown>)[key] = value;
+    // apiProviders / apiKeys 回传值里掩码/哨兵形态的 apiKey → 保留主进程已存的 key（防掩码覆盖明文）
+    let val = value;
+    if (key === "apiProviders") val = resolveIncomingProviders(val as ApiProvidersData | undefined, settings.apiProviders);
+    else if (key === "apiKeys") val = resolveIncomingLegacyKeys(val as Record<string, string> | undefined, settings.apiKeys);
+    (settings as unknown as Record<string, unknown>)[key] = val;
     store.saveSettings(settings);
     // 供应商配置/激活变更 → 重置模型缓存,切换供应商后新会话立即用新供应商的默认/兜底模型
     if (key === "apiProviders") {
@@ -462,7 +549,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     }
   });
   ipcMain.handle("settings:fetchModels", async (_e, modelsUrl?: string, apiKey?: string) => {
-    const key = apiKey || store.getActiveApiKey();
+    // 掩码/未提供 key 时回落主进程已存 key（渲染层持有的是掩码，不能直接用于鉴权）
+    const key = apiKey && !isMaskedApiKey(apiKey) && apiKey !== API_KEY_UNCHANGED ? apiKey : store.getActiveApiKey();
     if (!key) throw new Error("请先配置 API Key");
     if (!modelsUrl) throw new Error("该平台未配置模型列表地址");
 
@@ -572,8 +660,13 @@ const filePath = p.join(projectPath, "task.json");
     return `data:${mime};base64,${buf.toString("base64")}`;
   });
 
-  // shell:exec — run a shell command in project directory, stream output
-  ipcMain.handle("shell:exec", async (event, { projectPath, command }) => {
+  // shell:exec — run a shell command in project directory, stream output。
+  // 命令内容经 shell-service 禁区检查(1.6);参数这里做类型/空值校验(1.7)
+  ipcMain.handle("shell:exec", async (event, payload: unknown) => {
+    const { projectPath, command } = expectPayload(
+      z.object({ projectPath: pathString, command: z.string().min(1) }).loose(),
+      payload,
+    );
     const result = await execShell(
       projectPath,
       command,

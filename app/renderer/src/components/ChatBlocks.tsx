@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 import type { StreamEntry } from "./StreamPanel";
 import { inferLang, tokenizeLines } from "../lib/diff-highlight";
 import { useTabStore } from "../stores/tab-store";
@@ -75,9 +76,26 @@ function toolIconPaths(name: string): JSX.Element | null {
 // 链接渲染:加 target="_blank" rel="noopener"——新窗口打开,
 // 主进程 setWindowOpenHandler 拦截后转系统浏览器(否则点击链接窗口内跳走,EM 界面被替换无法返回)
 const mdRenderer = new marked.Renderer();
+
+/** HTML 属性值转义(& " < >)——href/title 拼进标签前必须转义,防属性逃逸注入(如 onerror=) */
+function escapeHtmlAttr(v: string): string {
+  return v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** href 协议白名单:http/https/mailto;其余(含 javascript:/data:/vbscript: 与未知协议)→ null(降级纯文本) */
+function safeHref(href: string): string | null {
+  const trimmed = href.trim();
+  // 控制字符/空白(如 "java\nscript:")可绕过协议匹配,白名单通过后再拒一次
+  if (/[\u0000-\u0020]/.test(trimmed)) return null;
+  return /^(https?:|mailto:)/i.test(trimmed) ? trimmed : null;
+}
+
 mdRenderer.link = ({ href, title, tokens }) => {
   const text = tokens.map((t) => t.raw).join("");
-  return `<a href="${href}" target="_blank" rel="noopener noreferrer"${title ? `` : ""}>${text}</a>`;
+  const safe = safeHref(href);
+  if (!safe) return text; // 协议不在白名单 → 渲染纯文本,不生成可点击链接
+  const titleAttr = title ? ` title="${escapeHtmlAttr(title)}"` : "";
+  return `<a href="${escapeHtmlAttr(safe)}" target="_blank" rel="noopener noreferrer"${titleAttr}>${text}</a>`;
 };
 
 // ── Block types ──────────────────────────────────────
@@ -312,8 +330,10 @@ export function TextBlockView({ block, streaming }: { block: TextBlock; streamin
         return (
           <div
             key={k}
+            // marked 输出统一经 DOMPurify 净化——AI 输出/被读取的项目文件可含 <script>/<img onerror>
+            // 等载荷,直接进 dangerouslySetInnerHTML 会执行(配合 1.6 形成完整 RCE 链)
             dangerouslySetInnerHTML={{
-              __html: marked.parse(part.content, { breaks: true, renderer: mdRenderer }) as string,
+              __html: DOMPurify.sanitize(marked.parse(part.content, { breaks: true, renderer: mdRenderer }) as string),
             }}
           />
         );

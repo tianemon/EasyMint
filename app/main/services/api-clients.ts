@@ -8,6 +8,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { basename, extname } from "node:path";
 import { homedir } from "node:os";
 import { resolveHome, IMAGE_MIME } from "../utils/paths";
+import { decryptLegacyApiKeys } from "./settings-crypto";
 
 // ── Config ──────────────────────────────────────────
 
@@ -38,7 +39,8 @@ function readEmSettings(): Record<string, unknown> {
 }
 
 function readApiKeys(): Record<string, string> {
-  return (readEmSettings().apiKeys as Record<string, string>) || {};
+  // apiKeys 里的密钥条目已 safeStorage 加密落盘（1.4）——旁路读取需解密，VISION_* 配置项原样
+  return decryptLegacyApiKeys((readEmSettings().apiKeys as Record<string, string> | undefined)) || {};
 }
 
 export function isToolEnabled(name: "vision" | "webFetch"): boolean {
