@@ -14,7 +14,7 @@ import { createPiSession, getPiSessionDir } from "../pi-session";
 import { getBaseTools, getReadOnlyTools } from "../tool-registry";
 import { createEnhancedEditTool } from "../enhanced-edit";
 import { getActiveModel, getModelRuntime } from "../pi-init";
-import { getStaticModelSpec, supportedThinkingLevelsOfSpec } from "../pi-init-static";
+import { getStaticModelSpecWithAlias, supportedThinkingLevelsOfSpec } from "../pi-init-static";
 import { getTemplate } from "../agent-templates";
 import { resolveThinkingLevel } from "../../../shared/thinking-levels";
 import { PERMISSION_RULES_PROMPT } from "../prompt-sections";
@@ -99,7 +99,7 @@ function adaptSubagentThinkingLevel(base: string, model: Awaited<ReturnType<type
   const id = (model as any)?.id as string | undefined;
   if (!id) return base as ThinkingLevel;
   try {
-    const supported = supportedThinkingLevelsOfSpec(getStaticModelSpec(id));
+    const supported = supportedThinkingLevelsOfSpec(getStaticModelSpecWithAlias(id));
     if (supported) return resolveThinkingLevel(base, supported) as ThinkingLevel;
   } catch { /* 查不到能力表按原值 */ }
   return base as ThinkingLevel;

@@ -1403,8 +1403,9 @@ export class AgentService {
   async getModelThinkingSupport(modelId: string): Promise<string[] | null> {
     if (!modelId) return null;
     try {
-      const { getStaticModelSpec, supportedThinkingLevelsOfSpec } = await import("./pi-init-static");
-      return supportedThinkingLevelsOfSpec(getStaticModelSpec(modelId));
+      const { getStaticModelSpecWithAlias, supportedThinkingLevelsOfSpec } = await import("./pi-init-static");
+      // 带别名回查:-x 后缀的网关模型也能落到官方同族模型的档位(与聊天页会话内一致)
+      return supportedThinkingLevelsOfSpec(getStaticModelSpecWithAlias(modelId));
     } catch { return null; }
   }
 

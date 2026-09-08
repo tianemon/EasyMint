@@ -215,6 +215,35 @@ export function getStaticModelSpec(modelId: string): Record<string, any> | undef
   return _staticModelById.get(modelId);
 }
 
+/** 前缀反查:官方 id 是 modelId 的前缀(自定义 = 官方 id + 后缀)时取最长匹配。
+ *  分隔符约束(-/./:):防误伤近亲——gpt-5o-x 不会落到 gpt-5(官方表没有 gpt-5o 时才可能),
+ *  分隔符不成立则视为无关模型,不匹配。 */
+export function lookupWithAlias<V>(map: Map<string, V>, modelId: string): V | undefined {
+  const direct = map.get(modelId);
+  if (direct) return direct;
+  let best: V | undefined;
+  let bestLen = 0;
+  for (const [id, v] of map) {
+    if (id.length <= bestLen || !modelId.startsWith(id)) continue;
+    const sep = modelId.charAt(id.length);
+    if (sep !== "-" && sep !== "." && sep !== ":" && sep !== "/") continue;
+    best = v;
+    bestLen = id.length;
+  }
+  return best;
+}
+
+/** 按 id 查静态规格,查不到时反查官方同族模型:自定义供应商的转售模型常带别名后缀
+ *  (能量站 -x、网关渠道后缀、日期版本等),官方 id 是它的前缀时继承官方能力——
+ *  不反查会导致带后缀模型查不到 spec(思考档位/窗口全退化,页面按"未知"展示全档位)。 */
+export function getStaticModelSpecWithAlias(modelId: string): Record<string, any> | undefined {
+  const direct = getStaticModelSpec(modelId);
+  if (direct) return direct;
+  if (!_staticModelById) return undefined;
+  // getStaticModelSpec 已确认直查未中,这里只做反查(lookupWithAlias 内部也支持直查)
+  return lookupWithAlias(_staticModelById, modelId);
+}
+
 /**
  * 取某内置供应商的完整模型 spec（按模型 id）。
  * 用途：供应商页手动添加的模型(extraModels)注册时继承同族内置模型的能力声明

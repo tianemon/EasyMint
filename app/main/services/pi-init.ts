@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Store } from "./store";
-import { getModelSpecLookup, getProviderStaticModels, getStaticModelSpec } from "./pi-init-static";
+import { getModelSpecLookup, getProviderStaticModels, getStaticModelSpecWithAlias, lookupWithAlias } from "./pi-init-static";
 import {
   getModelRuntimeClass,
   getSettingsManagerClass,
@@ -266,15 +266,15 @@ async function syncProviders(store: Store) {
           api: (config as any).apiType || "anthropic-messages",
           models: (config.models || []).map((m: string) => {
             const id = typeof m === "string" ? m : (m as any).id || String(m);
-            // 网关常给模型加别名后缀(如能量站的 -x),原名查不到时去后缀回查官方
-            // 同名模型——命中则拿到真实窗口(1M)与思考档位,查不到才回落 200k
-            const alias = id.replace(/-x$/, "");
-            const spec = lookup.get(id) ?? lookup.get(alias);
+            // 网关常给转售模型加别名后缀(能量站的 -x、渠道后缀、日期版本等),原名查不到时
+            // 反查官方同族模型(官方 id 是自定义 id 的前缀,取最长匹配)——命中则拿到真实窗口(1M)
+            // 与思考档位,查不到才回落 200k
+            const spec = lookupWithAlias(lookup, id);
             // 同一模型 id 在官方数据里可查(第三方网关/镜像站转售常见)→ 继承其内在能力。
             // 不继承会退化成"只支持到 high、不支持读图",与内置供应商行为不一致
             // (实测:自定义供应商设全局"最高"会被静默压成"高")。
             // api / baseUrl / compat 属协议层,跟随用户配置,不继承。
-            const inherited = pickModelCapability(getStaticModelSpec(id) ?? getStaticModelSpec(alias));
+            const inherited = pickModelCapability(getStaticModelSpecWithAlias(id));
             return {
               id, name: id, reasoning: true, input: ["text"],
               ...inherited,
