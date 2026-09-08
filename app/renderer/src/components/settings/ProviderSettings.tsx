@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { createPortal } from "react-dom";
 import { useSettingsStore } from "../../stores/settings-store";
 import { getPreset } from "@shared/platform-presets";
@@ -12,13 +12,21 @@ interface PiModelInfo {
   id: string; name: string; contextWindow: number;
 }
 
+export interface ProviderFormHandle {
+  /** 校验并保存;成功返回 true(内部已调 onSave),失败(校验不过)返回 false */
+  save: () => Promise<boolean>;
+}
+
 export interface ProviderFormProps {
   onSave: (cfg: ProviderConfig) => void;
   onCancel?: () => void;
   initial?: ProviderConfig | null;
+  /** 隐藏表单自带的底部保存条(宿主自带操作栏时用,如独立弹窗) */
+  bare?: boolean;
 }
 
-export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
+export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
+  function ProviderForm({ onSave, onCancel, initial, bare }: ProviderFormProps, ref) {
   const [presetId, setPresetId] = useState<string>(initial?.presetId || "custom");
   const preset = getPreset(presetId);
   const isCustom = presetId === "custom" || initial?.presetId === "custom";
@@ -123,10 +131,10 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
   };
 
 
-  const handleSave = async () => {
-    if (!name.trim()) { toast("请输入名称"); return; }
-    if (!apiKey.trim()) { toast("请输入 API Key"); return; }
-    if (isCustom && !baseUrl.trim()) { toast("自定义供应商需填写 Base URL"); return; }
+  const handleSave = async (): Promise<boolean> => {
+    if (!name.trim()) { toast("请输入名称"); return false; }
+    if (!apiKey.trim()) { toast("请输入 API Key"); return false; }
+    if (isCustom && !baseUrl.trim()) { toast("自定义供应商需填写 Base URL"); return false; }
     const modelList = isCustom
       ? customModelsText.split("\n").map((s) => s.trim()).filter(Boolean)
       : Array.from(new Set([...models, ...extraModels]));
@@ -155,7 +163,11 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       }
     }
     onSave(cfg);
+    return true;
   };
+
+  // 暴露 save 给宿主(独立弹窗底部操作栏经 ref 触发)
+  useImperativeHandle(ref, () => ({ save: handleSave }));
 
   const SELF_PROVIDER = { value: "custom", label: "自定义供应商", icon: "" };
   const SELF_PROVIDER_OPTIONS = [SELF_PROVIDER, ...providerSelectOptions()];
@@ -334,8 +346,10 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       </div>
       </>)}
 
-      {/* 子 Agent 默认模型:task 工具委派子 Agent 未指定时用(per-provider 配置) */}
-      <div>
+      {/* 子 Agent 默认模型:task 工具委派子 Agent 未指定时用(per-provider 配置)。
+          mb-1.5:弹窗(bare)下此块是滚动区最后内容,与底部操作栏之间留 6px 呼吸;
+          非 bare 场景相邻兄弟间距由 space-y-4 折叠提供,此处不影响 */}
+      <div className="mb-1.5">
         <div className="flex items-center justify-between mb-1.5">
           <label className="text-xs text-text-secondary">子 Agent 默认模型（委派任务时使用）</label>
           {subagentDefaultModel && (
@@ -352,50 +366,72 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         />
       </div>
 
-      {/* 保存/取消:sticky 底部始终可见(表单较长需滚动)。宿主须保证表单是滚动区
-          最后内容且滚动区自身无底部 padding——bottom-0 即贴滚动区底缘(独立弹窗 /
-          Onboarding 均满足)。-mx-6 px-6:条背景横向通栏(抵消滚动区 px-6) */}
-      <div className="sticky bottom-0 -mx-6 px-6 pt-2 pb-1 flex justify-end gap-2" style={{ background: "var(--color-input-card)", borderTop: "1px solid var(--color-border)" }}>
-        {onCancel && (
-          <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消配置</button>
-        )}
-        <button type="button" onClick={handleSave} className="px-4 py-1.5 rounded-lg btn-accent text-xs font-medium">
-          保存供应商配置
-        </button>
-      </div>
+      {/* 保存/取消条(仅非 bare 宿主,如 Onboarding 内联场景):sticky 底部始终可见。
+          设计语言:底部分区不用横线,靠 bg-surface-alt 底色分区 */}
+      {!bare && (
+        <div className="sticky bottom-0 -mx-6 px-6 pt-2 pb-1 flex justify-end gap-2 bg-surface-alt">
+          {onCancel && (
+            <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消配置</button>
+          )}
+          <button type="button" onClick={handleSave} className="px-4 py-1.5 rounded-lg btn-accent text-xs font-medium">
+            保存供应商配置
+          </button>
+        </div>
+      )}
     </div>
   );
-}
+  },
+);
 
 // ── 供应商表单独立弹窗 ────────────────────────────────────────────
 
-/** 添加/编辑供应商的独立弹窗:滚动区即弹窗本体(无外部 Footer),表单的 sticky
- *  保存条 bottom-0 直接贴滚动区底缘,无需任何 padding hack。Esc / ✕ / 取消 关闭。
- *  必须 Portal 到 body:设置弹窗面板带 transform(scale),会变成 fixed 后代的包含块,
- *  直接内联渲染会把遮罩与面板锁在 760×600 的设置窗口里,上下被裁剪。 */
+/** 添加/编辑供应商的独立弹窗。视觉遵循设计语言(2026-09-06 拍板):
+ *  头/尾与内容间不做分隔横线,靠 bg-surface-alt 底色 + 留白分区;头 py-1.5 / 尾 py-1
+ *  收紧(仅比按钮高一点);点遮罩 / Esc / ✕ / 取消 关闭。
+ *  Portal 到 body:设置弹窗面板带 transform(scale)会劫持 fixed 包含块;
+ *  Esc 用捕获阶段 + stopImmediatePropagation——下层设置弹窗的 Esc( bubble 监听)
+ *  不会同时触发,避免一次按键关两层。 */
 export function ProviderFormDialog({ initial, onSave, onClose }: {
   initial?: ProviderConfig | null;
   onSave: (cfg: ProviderConfig) => void;
   onClose: () => void;
 }): JSX.Element {
+  const saveRef = useRef<ProviderFormHandle>(null);
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [onClose]);
 
   return createPortal(
-    <div className="settings-overlay-v3 open">
-      <div className="settings-panel-v3" style={{ width: 580, height: "min(640px, calc(100vh - 96px))" }}>
-        {/* 标题行:供应商名 + ✕(与设置弹窗 header 同风格) */}
-        <div className="flex items-center gap-3 px-6 h-11 shrink-0 border-b border-border">
-          <span className="text-sm font-medium text-text-primary truncate">
+    <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="relative bg-surface rounded-xl border border-border shadow-2xl flex flex-col overflow-hidden"
+        style={{ width: 580, height: "min(640px, calc(100vh - 96px))" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 头部:底色分区(无分隔线),仅比文字高一点 */}
+        <div className="flex items-center gap-2 px-4 py-1.5 bg-surface-alt shrink-0">
+          <span className="text-sm font-medium text-text-primary truncate flex-1 min-w-0">
             {initial ? `编辑供应商${initial.name ? ` · ${initial.name}` : ""}` : "添加供应商"}
           </span>
-          <button className="settings-close ml-auto" onClick={onClose} aria-label="关闭">✕</button>
+          <button className="w-7 h-7 shrink-0 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} aria-label="关闭">✕</button>
         </div>
-        <div className="flex-1 overflow-y-auto px-6 pt-4">
-          <ProviderForm initial={initial} onSave={onSave} onCancel={onClose} />
+        {/* 内容区:唯一滚动区——滚动条只存在于此,不会侵入底部操作栏 */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 pt-4">
+          <ProviderForm ref={saveRef} bare initial={initial} onSave={onSave} onCancel={onClose} />
+        </div>
+        {/* 底部操作栏:滚动区外(flex 列结构),与头部同底色分区,无分隔线 */}
+        <div className="flex items-center justify-end gap-2 px-4 py-1 bg-surface-alt shrink-0">
+          <button onClick={onClose}
+            className="h-8 px-4 whitespace-nowrap rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消配置</button>
+          <button onClick={() => saveRef.current?.save()}
+            className="h-8 px-4 whitespace-nowrap rounded-lg btn-accent text-xs font-medium shrink-0">保存供应商配置</button>
         </div>
       </div>
     </div>,

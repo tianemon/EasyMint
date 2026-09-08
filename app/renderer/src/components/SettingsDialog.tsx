@@ -30,16 +30,11 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
 export function SettingsDialog({ open, onClose, initialTab, projectPath }: SettingsDialogProps): JSX.Element | null {
   const { loadFromElectron } = useSettingsStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || "general");
-  // 供应商编辑/新增中:隐藏底部 Footer(「完成」会关闭弹窗丢掉未保存的编辑)
-  const [providerEditing, setProviderEditing] = useState(false);
   // 可更新版本(订阅广播):「关于」标题红点,进入关于页即已读
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
 
   // 外部指定 initialTab 时同步（如点「有新版本」→ 跳到关于页）
   useEffect(() => { if (initialTab) setActiveTab(initialTab); }, [initialTab]);
-
-  // 切 tab 时重置供应商编辑态(编辑中切走,ProvidersTab 卸载,Footer 恢复显示)
-  useEffect(() => { setProviderEditing(false); }, [activeTab]);
 
   // 订阅更新状态:available/downloading/downloaded 记录版本(红点);no-update/error 清除
   useEffect(() => {
@@ -95,9 +90,8 @@ export function SettingsDialog({ open, onClose, initialTab, projectPath }: Setti
           </button>
         </div>
 
-        {/* Body:供应商编辑中底部不设 padding——滚动容器底缘 = Footer 上缘,
-            表单的 sticky 保存条(贴 bottom-0)即可无缝靠住 Footer,不悬空 */}
-        <div className={`px-6 pt-4 flex-1 overflow-y-auto ${providerEditing ? "pb-0" : "pb-4"}`}>
+        {/* Body */}
+        <div className="px-6 py-4 flex-1 overflow-y-auto">
           {activeTab === "general" ? (
             <GeneralTab />
           ) : activeTab === "appearance" ? (
@@ -107,7 +101,7 @@ export function SettingsDialog({ open, onClose, initialTab, projectPath }: Setti
           ) : activeTab === "agent" ? (
             <AgentTab />
           ) : activeTab === "providers" ? (
-            <ProvidersTab onProviderEditingChange={setProviderEditing} />
+            <ProvidersTab />
           ) : activeTab === "about" ? (
             <AboutTab />
           ) : null}
