@@ -137,7 +137,7 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
             <button
               type="button"
               onClick={() => window.electronAPI.shell.revealInFolder(logPath)}
-              className="shrink-0 flex items-center gap-1 max-w-[220px] text-[length:var(--text-2xs)] font-mono text-text-muted hover:text-accent transition-colors"
+              className="shrink-0 flex items-center gap-1 max-w-[40%] text-[length:var(--text-2xs)] font-mono text-text-muted hover:text-accent transition-colors"
               
             >
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
