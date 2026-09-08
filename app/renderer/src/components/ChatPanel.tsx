@@ -2183,10 +2183,11 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
                   <span className={statusColor(headStatus)} style={{ fontSize: "var(--text-11)" }}>⏺</span>
                 )}
                 <span>{SYSTEM_KIND_LABELS[kind] ?? "系统消息"}</span>
-                {/* 状态 + 时长上标题栏(取首个 ⏺ 行) */}
+                {/* 状态 + 时长上标题栏(取首个 ⏺ 行);只有 ⏺ 与状态文字着色,横线/时间保持中性 */}
                 {headStatus && (
-                  <span className={`${statusColor(headStatus)} font-semibold`} style={{ fontSize: "var(--text-11)" }}>
-                    - {headStatus}{headDur ? ` · ${headDur}s` : ""}
+                  <span className="font-semibold" style={{ fontSize: "var(--text-11)" }}>
+                    - <span className={statusColor(headStatus)}>{headStatus}</span>
+                    {headDur ? ` · ${headDur}s` : ""}
                   </span>
                 )}
                 {collapsible && (
@@ -2215,7 +2216,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
                         <div key={i} className="py-0.5 leading-[1.55]">
                           <span className={`${dotColor} text-[length:var(--text-caption)] align-baseline`}>⏺ </span>
                           {m ? (
-                            <><span className="text-text-primary">{m[1]}</span><span className={`${dotColor} text-[length:var(--text-caption)] font-semibold`}> - {m[2]}</span>{m[3] && <span className="text-text-secondary/70 text-[length:var(--text-caption)] tabular-nums"> • {m[3]}s</span>}</>
+                            <><span className="text-text-primary">{m[1]}</span><span className="text-[length:var(--text-caption)] font-semibold"> - <span className={dotColor}>{m[2]}</span></span>{m[3] && <span className="text-text-secondary/70 text-[length:var(--text-caption)] tabular-nums"> • {m[3]}s</span>}</>
                           ) : (
                             <span className="text-text-secondary">{row.slice(2)}</span>
                           )}

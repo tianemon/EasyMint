@@ -383,8 +383,8 @@ html[data-platform="win32"] {
   --color-warning-bg: #221c08;
   --color-warning-border: #8a4414;
   --color-warning-soft: #2a2208;
-  /* 委派通知状态三色(对标 macOS 红绿灯:绿 #28C840 / 黄 #FEBC2E / 红 #FF5F57) */
-  --color-done: #28c840;
+  /* 委派通知状态三色(对标 macOS 红绿灯:绿 #28C840 / 黄 #FEBC2E / 红 #FF5F57);暗色下绿调暗一档 */
+  --color-done: #24ad3a;
   --color-interrupt: #febc2e;
   --color-fail: #ff5f57;
   --color-danger: #ef4444;
@@ -461,9 +461,9 @@ html[data-platform="win32"] {
   --color-file-other-bg: #242424;
   --color-file-other-stroke: #7f7f7f;
 
-  /* ── Code block（暗色：偏灰微蓝，正文深一档） ── */
-  --color-code-block-bg: #18181d;
-  --color-code-block-header: #1d1d23;
+  /* ── Code block（暗色：偏灰微蓝，header 深一档） ── */
+  --color-code-block-bg: #1d1d23;
+  --color-code-block-header: #18181d;
 
   /* ── v3 Layer tokens（暗色反向：L0 最暗 → L4 最亮）── */
   --color-canvas: #181818;
