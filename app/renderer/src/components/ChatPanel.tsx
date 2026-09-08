@@ -50,7 +50,7 @@ const MAX_LIVE_OUTPUT_CHARS = 50_000;
 
 /** 系统消息 kind → 头部标签(系统卡片统一形态的辨识信息) */
 const SYSTEM_KIND_LABELS: Record<string, string> = {
-  delegation: "子 Agent 委派",
+  delegation: "SubAgent",
   shell: "后台命令",
   "project-created": "项目初始化",
   "direct-create": "直接创建",

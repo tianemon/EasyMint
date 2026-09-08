@@ -61,7 +61,7 @@ const SYSTEM_KIND_TITLES: Record<string, string> = {
   flow: "流程指令",
   handoff: "会话交接",
   summary: "上下文摘要",
-  delegation: "子 Agent 委派",
+  delegation: "SubAgent",
   shell: "后台命令",
   learn: "经验沉淀",
 };
