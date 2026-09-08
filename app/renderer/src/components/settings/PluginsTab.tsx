@@ -513,7 +513,8 @@ function SkillsTab(): JSX.Element {
               s={s}
               stat={stats[s.name]}
               onToggle={() => handleToggle(s.name, !s.enabled)}
-              onDelete={s.source === "builtin" ? undefined : () => handleDelete(s)}
+              // imported 为外部生态只读发现，deleteSkill 会拒绝——不给删除入口
+              onDelete={s.source === "builtin" || s.source === "imported" ? undefined : () => handleDelete(s)}
             />
           ))
         ) : (
@@ -548,7 +549,7 @@ function SkillsTab(): JSX.Element {
                 s={s}
                 stat={stats[s.name]}
                 onToggle={() => handleToggle(s.name, !s.enabled)}
-                onDelete={() => handleDelete(s)}
+                onDelete={s.source === "imported" ? undefined : () => handleDelete(s)}
               />
             ))}
           </div>

@@ -98,10 +98,12 @@ interface ExternalSkillSource {
   platform: "claude" | "codex" | "github";
 }
 
+// 顺序即同名优先级（首个胜出，其余标 shadowed）
 const EXTERNAL_SOURCES: ExternalSkillSource[] = [
   { resolve: () => path.join(os.homedir(), ".claude", "skills"), level: "global", platform: "claude" },
   { resolve: () => path.join(os.homedir(), ".codex", "skills"), level: "global", platform: "codex" },
   { resolve: (p) => path.join(p, ".claude", "skills"), level: "project", platform: "claude" },
+  { resolve: (p) => path.join(p, ".codex", "skills"), level: "project", platform: "codex" },
   { resolve: (p) => path.join(p, ".github", "skills"), level: "project", platform: "github" },
 ];
 
@@ -310,22 +312,57 @@ export function scanSkills(projectPath?: string): SkillManifest[] {
     result.push(...scanDir(projectSkillsDir(projectPath), "project", disabled, "authored", seen));
   }
 
-  // External skills（~/.claude/skills、~/.codex/skills、<p>/.claude/skills、<p>/.github/skills）
+  // 三来源内部同名去重：全局与项目级同名原本会产出两条均未遮蔽的记录（界面出现同名两项，
+  // 且两条都进 skillsOverride → 模型看到重复 skill），此处收敛为一条
+  dedupeSelfSkills(result, emBuiltinNames);
+
+  // External skills（~/.claude/skills、~/.codex/skills、<p>/.claude/skills、<p>/.codex/skills、<p>/.github/skills）
   // 排在 EM authored 之后：同名以 EM 自带/手写版本优先（对齐 OMP——自家 native 高于第三方）；
   // 同名外部条目（含与 EM 核心内置同名）仍列出并标 shadowed——界面可见可处置，不静默吞掉
-  const takenNames = new Set(result.map((s) => s.name));
+  const takenNames = new Set(result.map(nameKey));
   for (const s of scanExternalSkills(projectPath, disabled, seen)) {
-    result.push(takenNames.has(s.name) || emBuiltinNames.has(s.name) ? { ...s, shadowed: true } : s);
-    takenNames.add(s.name);
+    // emBuiltinNames 兜底：builtin 目录缺失（dev/未打包）时也不让外部同名项顶替 EM 核心
+    result.push(takenNames.has(nameKey(s)) || emBuiltinNames.has(s.name) ? { ...s, shadowed: true } : s);
+    takenNames.add(nameKey(s));
   }
 
   // Managed skills — 同名时 authored/builtin 优先（shadow 标记，仍列出供管理界面处置）
-  const existingNames = new Set(result.map((s) => s.name));
+  const existingNames = new Set(result.map(nameKey));
   for (const s of scanManagedSkills()) {
-    result.push(existingNames.has(s.name) ? { ...s, shadowed: true } : s);
+    result.push(existingNames.has(nameKey(s)) ? { ...s, shadowed: true } : s);
   }
 
   return result;
+}
+
+/** 名称比较键：大小写不敏感（与 findSkillByName 一致），避免 Foo / foo 各注入一份 */
+function nameKey(s: { name: string }): string {
+  return s.name.toLowerCase();
+}
+
+const LEVEL_PRIO: Record<SkillManifest["level"], number> = { project: 0, global: 1, builtin: 2 };
+
+/** EM 自家来源（builtin/global/project）同名去重：保留优先级最高的一条，其余标 shadowed。
+ *  优先级 project > global > builtin（对齐 findSkillByName）；EM 核心内置恒最高。
+ *  被压过的一条仍在列表里（标记遮蔽）而非静默丢弃——用户可见可处置。 */
+export function dedupeSelfSkills(list: SkillManifest[], protectedNames: Set<string>): void {
+  const prio = (s: SkillManifest): number => (protectedNames.has(s.name) ? -1 : LEVEL_PRIO[s.level]);
+  const bestIdx = new Map<string, number>();
+  list.forEach((s, i) => {
+    const key = nameKey(s);
+    const prev = bestIdx.get(key);
+    if (prev === undefined) {
+      bestIdx.set(key, i);
+      return;
+    }
+    const winner = list[prev]!;
+    if (prio(s) < prio(winner)) {
+      bestIdx.set(key, i);
+      list[prev] = { ...winner, shadowed: true };
+    } else {
+      list[i] = { ...s, shadowed: true };
+    }
+  });
 }
 
 // ── Read detail ────────────────────────────────────
@@ -600,9 +637,9 @@ export function toPiSkill(s: SkillManifest) {
  *  缺 description 的不注入——无描述模型无法判断何时用，属噪声（对齐 OMP requireDescription）；
  *  管理界面仍列出并标注，供用户补全后自动恢复。 */
 export function mergeIntoPiSkills(projectPath: string | undefined, baseSkills: Array<{ name: string }>): ReturnType<typeof toPiSkill>[] {
-  const seen = new Set(baseSkills.map((s) => s.name));
+  const seen = new Set(baseSkills.map(nameKey));
   return scanSkills(projectPath)
-    .filter((s) => s.enabled && !s.shadowed && !seen.has(s.name) && hasDescription(s))
+    .filter((s) => s.enabled && !s.shadowed && !seen.has(nameKey(s)) && hasDescription(s))
     .map(toPiSkill);
 }
 
@@ -630,6 +667,10 @@ export function importSkillFromDir(sourceDir: string, opts?: { name?: string; ov
   const name = (opts?.name || path.basename(src)).trim();
   if (!SKILL_DIR_NAME_RE.test(name)) {
     return { ok: false, error: "skill 名称不合法：「" + name + "」（需小写字母/数字/连字符）" };
+  }
+  // EM 内置核心同名：导入后恒被内置版本遮蔽（界面看不到、会话用不上），直接拦下
+  if (EM_SKILLS.includes(name)) {
+    return { ok: false, error: "「" + name + "」与 EM 内置核心 skill 同名，导入后会被遮蔽——请换名" };
   }
   const dest = path.join(GLOBAL_SKILLS_DIR, name);
   if (existsSync(dest) && !opts?.overwrite) {
