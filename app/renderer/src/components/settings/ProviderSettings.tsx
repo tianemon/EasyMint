@@ -342,94 +342,100 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
         {availableModels.length > 0 && <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">共 {availableModels.length} 个模型可选</p>}
       </div>
 
-      {/* 添加自定义模型:SDK 列表外的模型(新上线/未收录)手动补充,合并去重(仅内置供应商)。
+      {/* 自定义模型:SDK 列表外的模型(新上线/未收录)手动补充,合并去重(仅内置供应商)。
           能力声明随条目保存,写 models.json 时优先于按内置表推断的值 */}
       {!isCustom && (
         <div>
-          <div className="flex items-center gap-2 mt-2">
-            <input
-              className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary disabled:opacity-60"
-              placeholder="添加模型 ID (如 glm-5.3)"
-              value={extraModelInput}
-              onChange={(e) => setExtraModelInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") (editingExtra ? saveExtraModel() : addExtraModel(extraModelInput)); }}
-              disabled={!!editingExtra}
-            />
-            {editingExtra ? (<>
-              <button type="button" className="shrink-0 px-3 h-8 rounded-lg btn-accent text-xs font-medium" onClick={saveExtraModel}>保存</button>
-              <button type="button" className="shrink-0 px-3 h-8 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors" onClick={resetExtraForm}>取消</button>
-            </>) : (
-              <button
-                type="button"
-                className="shrink-0 px-3 h-8 rounded-lg btn-accent text-xs font-medium"
-                onClick={() => addExtraModel(extraModelInput)}
-                disabled={!extraModelInput.trim()}
-              >
-                添加
-              </button>
+          <label className="text-xs text-text-secondary block mb-1.5">自定义模型</label>
+          <div className="bg-surface-alt rounded-lg border border-border px-3 py-2.5 space-y-2.5">
+            <div className="flex items-center gap-2">
+              <input
+                className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary disabled:opacity-60"
+                placeholder="模型 ID（如 glm-5.3）"
+                value={extraModelInput}
+                onChange={(e) => setExtraModelInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") (editingExtra ? saveExtraModel() : addExtraModel(extraModelInput)); }}
+                disabled={!!editingExtra}
+              />
+              {editingExtra ? (<>
+                <button type="button" className="shrink-0 px-3 h-8 rounded-lg btn-accent text-xs font-medium" onClick={saveExtraModel}>保存</button>
+                <button type="button" className="shrink-0 px-3 h-8 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors" onClick={resetExtraForm}>取消</button>
+              </>) : (
+                <button
+                  type="button"
+                  className="shrink-0 px-3 h-8 rounded-lg btn-accent text-xs font-medium"
+                  onClick={() => addExtraModel(extraModelInput)}
+                  disabled={!extraModelInput.trim()}
+                >
+                  添加
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <label className="flex items-center gap-1.5 text-[length:var(--text-2xs)] text-text-secondary cursor-pointer">
+                <input type="checkbox" className="w-3.5 h-3.5 rounded accent-accent shrink-0"
+                  checked={extraVision} onChange={(e) => setExtraVision(e.target.checked)} />
+                支持识图
+              </label>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[length:var(--text-2xs)] text-text-secondary">上下文窗口</span>
+                <Select
+                  className="w-[66px] [&>button]:w-full [&>button]:h-7 [&>button]:text-xs"
+                  value={extraCtx}
+                  onChange={(v: string) => setExtraCtx(v)}
+                  options={CONTEXT_WINDOW_OPTIONS}
+                />
+                {extraCtx === "custom" && (
+                  <input
+                    className="em-input w-[88px] h-7 px-2 text-xs text-text-primary"
+                    placeholder="如 512000"
+                    value={extraCtxCustom}
+                    onChange={(e) => setExtraCtxCustom(e.target.value)}
+                  />
+                )}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[length:var(--text-2xs)] text-text-secondary">最大输出</span>
+                <Select
+                  className="w-[66px] [&>button]:w-full [&>button]:h-7 [&>button]:text-xs"
+                  value={extraMaxOut}
+                  onChange={(v: string) => setExtraMaxOut(v)}
+                  options={MAX_OUTPUT_OPTIONS}
+                />
+                {extraMaxOut === "custom" && (
+                  <input
+                    className="em-input w-[88px] h-7 px-2 text-xs text-text-primary"
+                    placeholder="如 384000"
+                    value={extraMaxOutCustom}
+                    onChange={(e) => setExtraMaxOutCustom(e.target.value)}
+                  />
+                )}
+              </div>
+            </div>
+            {extraModels.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-[length:var(--text-2xs)] text-text-muted">已添加 {extraModels.length} 个</div>
+                <div className="flex flex-wrap gap-1">
+                  {extraModels.map((e) => {
+                    const id = typeof e === "string" ? e : e.id;
+                    const cap = typeof e === "string" ? null : e;
+                    const tags = [
+                      cap?.input?.includes("image") ? "识图" : null,
+                      cap?.contextWindow ? formatWindow(cap.contextWindow) : null,
+                    ].filter(Boolean) as string[];
+                    return (
+                      <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[5px] bg-accent-soft border border-accent-border text-[length:var(--text-2xs)] text-accent">
+                        <button type="button" className="transition-opacity hover:opacity-70" title="点击编辑能力" onClick={() => startExtraEdit(id)}>
+                          {id}{tags.length > 0 && <span className="text-text-muted"> · {tags.join(" / ")}</span>}
+                        </button>
+                        <button type="button" className="text-accent hover:text-danger transition-colors" onClick={() => removeExtraModel(id)}>✕</button>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-1.5">
-            <label className="flex items-center gap-1.5 text-[length:var(--text-2xs)] text-text-secondary cursor-pointer">
-              <input type="checkbox" className="w-3.5 h-3.5 rounded accent-accent shrink-0"
-                checked={extraVision} onChange={(e) => setExtraVision(e.target.checked)} />
-              支持识图
-            </label>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[length:var(--text-2xs)] text-text-secondary">上下文窗口</span>
-              <Select
-                className="w-[66px] [&>button]:w-full [&>button]:h-7 [&>button]:text-xs"
-                value={extraCtx}
-                onChange={(v: string) => setExtraCtx(v)}
-                options={CONTEXT_WINDOW_OPTIONS}
-              />
-              {extraCtx === "custom" && (
-                <input
-                  className="em-input w-[88px] h-7 px-2 text-xs text-text-primary"
-                  placeholder="如 512000"
-                  value={extraCtxCustom}
-                  onChange={(e) => setExtraCtxCustom(e.target.value)}
-                />
-              )}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[length:var(--text-2xs)] text-text-secondary">最大输出</span>
-              <Select
-                className="w-[66px] [&>button]:w-full [&>button]:h-7 [&>button]:text-xs"
-                value={extraMaxOut}
-                onChange={(v: string) => setExtraMaxOut(v)}
-                options={MAX_OUTPUT_OPTIONS}
-              />
-              {extraMaxOut === "custom" && (
-                <input
-                  className="em-input w-[88px] h-7 px-2 text-xs text-text-primary"
-                  placeholder="如 384000"
-                  value={extraMaxOutCustom}
-                  onChange={(e) => setExtraMaxOutCustom(e.target.value)}
-                />
-              )}
-            </div>
-          </div>
-          {extraModels.length > 0 && (
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              {extraModels.map((e) => {
-                const id = typeof e === "string" ? e : e.id;
-                const cap = typeof e === "string" ? null : e;
-                const tags = [
-                  cap?.input?.includes("image") ? "识图" : null,
-                  cap?.contextWindow ? formatWindow(cap.contextWindow) : null,
-                ].filter(Boolean) as string[];
-                return (
-                  <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent-subtle text-[length:var(--text-2xs)] text-accent">
-                    <button type="button" className="transition-opacity hover:opacity-70" title="点击编辑能力" onClick={() => startExtraEdit(id)}>
-                      {id}{tags.length > 0 && <span className="text-text-muted"> · {tags.join(" / ")}</span>}
-                    </button>
-                    <button type="button" className="text-accent hover:text-danger transition-colors" onClick={() => removeExtraModel(id)}>✕</button>
-                  </span>
-                );
-              })}
-            </div>
-          )}
         </div>
       )}
 
