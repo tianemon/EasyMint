@@ -7,6 +7,7 @@ temp/
 .vite/
 .DS_Store
 *.log
+.eslintcache
 .playwright-mcp/
 task-*.png
 .codegraph/
