@@ -1,0 +1,33 @@
+name: CI
+
+# 零质量门禁：push / pull_request 时跑 lint（eslint + 三段 tsc）与单元测试。
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      # 项目 .npmrc 指向 npmmirror(国内本地安装加速),CI runner 在海外——环境变量覆盖回官方源
+      - name: Install dependencies
+        run: npm ci
+        env:
+          npm_config_registry: https://registry.npmjs.org/
+          npm_config_electron_mirror: https://github.com/electron/electron/releases/download/
+
+      - name: Lint & typecheck
+        run: npm run lint
+
+      - name: Unit tests
+        run: npx vitest run
