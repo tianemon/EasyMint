@@ -266,15 +266,22 @@ async function syncProviders(store: Store) {
           api: (config as any).apiType || "anthropic-messages",
           models: (config.models || []).map((m: string) => {
             const id = typeof m === "string" ? m : (m as any).id || String(m);
-            const spec = lookup.get(id);
+            // 网关常给模型加别名后缀(如能量站的 -x),原名查不到时去后缀回查官方
+            // 同名模型——命中则拿到真实窗口(1M)与思考档位,查不到才回落 200k
+            const alias = id.replace(/-x$/, "");
+            const spec = lookup.get(id) ?? lookup.get(alias);
             // 同一模型 id 在官方数据里可查(第三方网关/镜像站转售常见)→ 继承其内在能力。
             // 不继承会退化成"只支持到 high、不支持读图",与内置供应商行为不一致
             // (实测:自定义供应商设全局"最高"会被静默压成"高")。
             // api / baseUrl / compat 属协议层,跟随用户配置,不继承。
-            const inherited = pickModelCapability(getStaticModelSpec(id));
+            const inherited = pickModelCapability(getStaticModelSpec(id) ?? getStaticModelSpec(alias));
             return {
               id, name: id, reasoning: true, input: ["text"],
               ...inherited,
+              // 第三方网关的上游(DeepSeek/Kimi/GLM 官方 API)不认 OpenAI 的 developer
+              // 角色,pi 默认按 OpenAI 官方发 developer → 网关 400 且被 SDK 当正常
+              // 回合结束(前端表现为"发消息无响应")。system 角色 OpenAI 官方也接受
+              compat: { supportsDeveloperRole: false },
               cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
               contextWindow: spec?.contextWindow ?? 200000,
               maxTokens: spec?.maxTokens ?? 4096,
