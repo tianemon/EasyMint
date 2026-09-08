@@ -18,7 +18,6 @@ export interface ProviderFormProps {
 }
 
 export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
-  const editMode = initial != null;
   const [presetId, setPresetId] = useState<string>(initial?.presetId || "custom");
   const preset = getPreset(presetId);
   const isCustom = presetId === "custom" || initial?.presetId === "custom";
@@ -352,13 +351,16 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
         />
       </div>
 
-      {/* 保存/取消:sticky 底部始终可见(表单较长需滚动,防误点设置页 Footer 的「完成」按钮丢编辑) */}
-      <div className="sticky bottom-0 -mx-6 px-6 pt-2 pb-1 flex gap-2" style={{ background: "var(--color-input-card)", borderTop: "1px solid var(--color-border)" }}>
+      {/* 保存/取消:sticky 底部始终可见(表单较长需滚动)。贴底前提(由外部保证):
+          ① 编辑态下本表单是滚动区最后内容(ProvidersTab 已隐藏后续区块)——sticky 包含块
+          底缘才能到滚动区底部;② 滚动容器编辑态 pb-0(SettingsDialog)——bottom-0 直贴
+          Footer 上缘。-mx-6 px-6 让条背景横向通栏(抵消滚动区 px-6) */}
+      <div className="sticky bottom-0 -mx-6 px-6 pt-2 pb-1 flex justify-end gap-2" style={{ background: "var(--color-input-card)", borderTop: "1px solid var(--color-border)" }}>
         {onCancel && (
-          <button type="button" onClick={onCancel} className="flex-1 px-4 py-2 rounded-lg border border-border text-text-secondary text-sm hover:bg-surface-hover transition-colors">取消</button>
+          <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消配置</button>
         )}
-        <button type="button" onClick={handleSave} className="flex-1 px-4 py-2 rounded-lg btn-accent text-sm font-medium">
-          {editMode ? "保存" : "添加"}
+        <button type="button" onClick={handleSave} className="px-4 py-1.5 rounded-lg btn-accent text-xs font-medium">
+          保存供应商配置
         </button>
       </div>
     </div>
@@ -367,11 +369,16 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
 
 // ── Provider 列表管理器 ──────────────────────────────────────────
 
-export function ProvidersManager() {
+export function ProvidersManager({ onEditingChange }: { onEditingChange?: (editing: boolean) => void }) {
   const { apiProviders, setApiProviders } = useSettingsStore();
   const [editing, setEditing] = useState<ProviderConfig | null>(null);
   const [adding, setAdding] = useState(false);
   const configs = Object.values(apiProviders?.configs ?? {});
+
+  // 编辑态上报:父级据此隐藏下方无关区块(全局设置/弹窗 Footer)——
+  // 既让表单 sticky 按钮条能贴到底部,也防止误点弹窗「完成」丢失未保存的编辑
+  const isEditing = adding || editing != null;
+  useEffect(() => { onEditingChange?.(isEditing); }, [isEditing, onEditingChange]);
 
   const handleSave = (cfg: ProviderConfig) => {
     const current = apiProviders?.current;

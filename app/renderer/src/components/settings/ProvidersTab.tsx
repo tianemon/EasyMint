@@ -189,17 +189,22 @@ function BuiltinToolsSection(): JSX.Element {
   );
 }
 
-/** 模型设置:供应商管理 + 全局思考等级 + 模型能力增强 */
-export function ProvidersTab(): JSX.Element {
+/** 模型设置:供应商管理 + 全局思考等级 + 模型能力增强。
+ *  编辑/新增供应商时隐藏下方区块:表单 sticky 按钮条才能贴到弹窗底部(否则 sticky
+ *  包含块底缘到不了滚动容器底部,按钮悬在半空),也避免编辑中被无关区块干扰。 */
+export function ProvidersTab({ onProviderEditingChange }: { onProviderEditingChange?: (editing: boolean) => void }): JSX.Element {
+  const [editing, setEditing] = useState(false);
   return (
     <div className="space-y-5">
-      <ProvidersManager />
-      <hr className="border-border" />
-      <ChatThinkingLevelSection />
-      <hr className="border-border" />
-      <ChatPermissionModeSection />
-      <hr className="border-border" />
-      <BuiltinToolsSection />
+      <ProvidersManager onEditingChange={(v) => { setEditing(v); onProviderEditingChange?.(v); }} />
+      {!editing && (<>
+        <hr className="border-border" />
+        <ChatThinkingLevelSection />
+        <hr className="border-border" />
+        <ChatPermissionModeSection />
+        <hr className="border-border" />
+        <BuiltinToolsSection />
+      </>)}
     </div>
   );
 }
