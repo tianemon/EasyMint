@@ -17,7 +17,7 @@ import {
   getDefaultResourceLoaderClass,
   getCreateCodingTools,
 } from "./pi-sdk";
-import { createEnhancedBashTool } from "./background-shell/tool";
+import { createEnhancedBashTool, createStopShellTool } from "./background-shell/tool";
 import { createEnhancedEditTool } from "./enhanced-edit";
 import { createEnhancedReadTool } from "./enhanced-read";
 import type { BackgroundShell } from "./background-shell/registry";
@@ -90,7 +90,7 @@ async function buildSession(
   // 统一权限包装：extraTools 与基础 coding 工具（Read/Write/Edit/Bash 等）全部生效
   const wrapAll = (tools: ToolDefinition[]): ToolDefinition[] =>
     opts.canUseTool ? tools.map((t) => wrapToolWithPermission(t, { canUseTool: opts.canUseTool })) : tools;
-  const tools = [...wrapAll(opts.extraTools ?? []), ...wrapAll(codingToolsReplaced), ...wrapAll([enhancedBash, enhancedEdit, enhancedRead])];
+  const tools = [...wrapAll(opts.extraTools ?? []), ...wrapAll(codingToolsReplaced), ...wrapAll([enhancedBash, enhancedEdit, enhancedRead, createStopShellTool()])];
 
   const sessionOpts: CreateAgentSessionOptions = {
     cwd: opts.cwd,

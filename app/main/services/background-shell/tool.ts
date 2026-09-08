@@ -245,3 +245,67 @@ export async function createEnhancedBashTool(
     },
   } as unknown as ToolDefinition;
 }
+
+/** 停止后台命令工具 —— Mint 主动停止自己启动的后台命令。
+ *  与 stop_agent 对称：不传 id 停全部；来源记 mint → 退出通知文案显示「已中止」
+ *  （区别于用户点 UI 按钮的「已由用户中止」）。绕过本工具直接 kill 进程会让 EM
+ *  判定为意外退出（通知显示「失败」），故工具描述里明确要求走此入口。 */
+export function createStopShellTool(): ToolDefinition {
+  /** 命令摘要（列表与返回文本共用，单行 + 截断） */
+  const summarize = (s: BackgroundShell): string => s.command.replace(/\s+/g, " ").slice(0, 60);
+  return {
+    name: "stop_shell",
+    label: "停止后台命令",
+    description:
+      "停止当前会话正在运行的后台命令(bash 工具 background: true 启动的)。"
+      + "指定 id 只停该条(后台 ID 由 bash 返回)；不传 id 则停止全部。"
+      + "使用场景:① 命令跑偏/报错刷屏要中止 ② 服务、监听类命令不再需要 ③ 用户要求停下。",
+    promptSnippet: "停止运行中的后台命令(可指定 id,缺省停全部)",
+    promptGuidelines: [
+      "后台命令方向不对、刷屏或用户要求停时用此工具，不要绕过它直接 kill 进程——kill 会让 EM 判定为意外失败(通知显示「失败」)",
+      "不传 id 会停止全部后台命令；只想停某一条时传 bash 返回的后台 ID",
+    ],
+    parameters: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string" as const, description: "可选:后台命令 ID(bash 工具返回)，不传则停止全部" },
+        reason: { type: "string" as const, description: "可选:停止原因(便于记录)" },
+      },
+    },
+    async execute(
+      _tid: string,
+      params: Record<string, unknown>,
+      _signal?: AbortSignal,
+      _onUpdate?: unknown,
+      ctx?: any,
+    ) {
+      // 按发起会话过滤（对齐 stop_agent 的会话语义）：只停本会话启动的命令，
+      // 避免跨会话误停（多窗口/多 tab 并行时各自的后台命令互不干扰）
+      let sessionId: string | undefined;
+      try { sessionId = ctx?.sessionManager?.getSessionId?.(); } catch { /* 会话信息不可用 */ }
+      const mine = (): BackgroundShell[] => {
+        const all = backgroundShellRegistry.list();
+        return sessionId ? all.filter((s) => !s.sessionId || s.sessionId === sessionId) : all;
+      };
+      const reason = params.reason ? `(${String(params.reason)})` : "";
+      if (params.id) {
+        const id = String(params.id);
+        const target = mine().find((s) => s.id === id);
+        if (!target) {
+          const running = mine();
+          const hint = running.length > 0
+            ? `当前运行中: ${running.map((s) => `${s.id}(${summarize(s)})`).join(", ")}`
+            : "当前会话没有运行中的后台命令";
+          return { content: [{ type: "text" as const, text: `后台命令 ${id} 未在运行中。${hint}` }] };
+        }
+        backgroundShellRegistry.stop(id, "mint");
+        return { content: [{ type: "text" as const, text: `已停止后台命令 ${id}: ${summarize(target)}${reason}` }] };
+      }
+      const running = mine();
+      if (running.length === 0) return { content: [{ type: "text" as const, text: "当前会话没有运行中的后台命令" }] };
+      for (const s of running) backgroundShellRegistry.stop(s.id, "mint");
+      const list = running.map((s) => `- ${s.id}: ${summarize(s)}`).join("\n");
+      return { content: [{ type: "text" as const, text: `已停止 ${running.length} 个后台命令${reason}:\n${list}` }] };
+    },
+  } as unknown as ToolDefinition;
+}
