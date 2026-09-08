@@ -236,6 +236,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("agent:steer", { sessionId, text, images }),
       stopDelegation: (delegationId: string, taskIndex: number) =>
         ipcRenderer.invoke("agent:stop-delegation", { delegationId, taskIndex }),
+    getDelegations: (sessionId: string) =>
+      ipcRenderer.invoke("agent:delegations", { sessionId }),
     stopShell: (shellId: string) =>
       ipcRenderer.invoke("agent:stop-shell", { shellId }),
     followUp: (sessionId: string, text: string) =>

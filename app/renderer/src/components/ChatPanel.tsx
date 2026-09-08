@@ -856,6 +856,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 事件回调内跟踪当前委派状态(副作用必须移出 useState updater——
   // updater 渲染期间执行,调用其他 store 会触发跨组件更新警告)
   const delegationsRef = useRef<Record<string, DelegationUiState>>({});
+  // 收到过事件流(init/progress)的委派 id:刷新后对账只清「快照播种后事件流从未接管」的
+  // 卡死记录——事件流接管的委派走自身终态/3s 收起,直接删会与终态 progress 事件竞争
+  // (count 先于最后一条 progress 到达时误删刚完成的委派,破坏聚合渲染/收起逻辑)
+  const liveDelegationIdsRef = useRef<Set<string>>(new Set());
+  // 对账待删队列:count/快照信号「主进程已无此委派」后延迟确认再删——count 广播先于同一
+  // 终态迁移的 progress 事件发出,直接删会让紧随其后的终态 progress 重建残缺卡片
+  const pendingReconcileRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   // 聚合渲染锚点:任意时刻最多显示一张委派卡片(含所有委派任务行),
   // 挂在「最新的 triggerMsgId」对应消息下;全部委派缺 triggerMsgId(Mint 主动发起、
   // 消息未落盘捕获不到)时为 undefined,渲染层兜底挂最后一条 AI 消息
@@ -885,6 +892,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     }) => {
       if (!currentChatRef.current) return;
       if (data.chatId && data.chatId !== currentChatRef.current) return;
+      // 事件流已接管(刷新后快照播种前的实时委派)——对账不再清除它
+      liveDelegationIdsRef.current.add(data.delegationId);
+      // 收到实时事件 → 取消该委派的对账待删(事件流接管,终态由自身收尾)
+      const pend = pendingReconcileRef.current.get(data.delegationId);
+      if (pend) { clearTimeout(pend); pendingReconcileRef.current.delete(data.delegationId); }
       // 初始化:delegationId 对应的全部任务行(pending);后续 progress 事件按 index 更新
       const tasks: DelegationTaskUi[] = data.tasks.map((t) => ({
         index: t.index,
@@ -956,6 +968,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 否则 A 会话的委派进度穿透到所有打开的会话 tab(后台任务通知跨会话显示)
       if (!currentChatRef.current) return;
       if (data.chatId && data.chatId !== currentChatRef.current) return;
+      // 事件流已接管(含快照播种后的实时进度)——对账不再清除它
+      liveDelegationIdsRef.current.add(data.delegationId);
+      // 收到实时事件 → 取消该委派的对账待删(事件流接管,终态由自身收尾)
+      const pend = pendingReconcileRef.current.get(data.delegationId);
+      if (pend) { clearTimeout(pend); pendingReconcileRef.current.delete(data.delegationId); }
       // 按 delegationId 取该委派自己的上一条状态（多委派并存时互不干扰）
       const prev = delegationsRef.current[data.delegationId];
       const task: DelegationTaskUi = {
@@ -1077,8 +1094,132 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     return () => {
       collapseTimersRef.current.forEach((t) => clearTimeout(t));
       collapseTimersRef.current.clear();
+      pendingReconcileRef.current.forEach((t) => clearTimeout(t));
+      pendingReconcileRef.current.clear();
     };
   }, []);
+
+  // 快照播种:只补本地缺失的 delegationId(已存在的 key 以事件流为准——覆盖会把已完成
+  // 委派打回 running,触发收起计时回跳/复活)。无 chatId 的委派无法按门卫过滤归属,不播种。
+  // 返回快照中任一 chatId(供门卫绑定;全部已存在时也要返回以作绑定/一致性判断)
+  const seedDelegationSnapshot = useCallback((snap: DelegationSnapshotItem[]): string | undefined => {
+    const prevRunning = Object.values(delegationsRef.current).some((d) => !d.finished);
+    const merged = { ...delegationsRef.current };
+    let changed = false;
+    let chatIdToBind: string | undefined;
+    for (const d of snap) {
+      if (!chatIdToBind && d.chatId) chatIdToBind = d.chatId;
+      if (merged[d.delegationId]) continue;
+      if (!d.chatId) continue;
+      merged[d.delegationId] = {
+        delegationId: d.delegationId,
+        chatId: d.chatId,
+        // 播种的委派缺 triggerMsgId:补捕获 effect 会锚到最后一条 AI 消息(非原触发消息),
+        // 卡片可能漂移到历史尾部——可接受(1591e53 兜底挂载)
+        triggerMsgId: undefined,
+        tasks: d.tasks.map((t) => ({
+          index: t.index,
+          agent: t.agent,
+          task: t.task,
+          title: t.description || t.title,
+          detail: t.prompt,
+          status: t.status,
+        })),
+        finished: false,
+        startedAt: d.startedAt || Date.now(),
+      };
+      changed = true;
+    }
+    if (changed) {
+      delegationsRef.current = merged;
+      setDelegations(merged);
+      // 快照播种的委派未走 progress 事件,状态栏「调用 Agent」信号自行补推
+      const nowRunning = Object.values(merged).some((d) => !d.finished);
+      if (!prevRunning && nowRunning) useStatusStore.getState().pushSignal(sidRef.current, "agent", "调用 Agent");
+    }
+    return chatIdToBind;
+  }, []);
+
+  // 对账:清除本地已不存在于主进程的卡死委派记录。只清「快照播种后事件流从未接管」的
+  // 委派(盲窗期完成,终态事件被丢弃)→ 事件流接管的委派走自身终态/3s 收起路径,不被删。
+  // 延迟确认再删(见 pendingReconcileRef):count 广播先于同一终态迁移的 progress 事件,
+  // 紧随其后的终态 progress 会标记 finished/接管事件流——待删到期复查跳过即可,
+  // 不破坏 1591e53 的逐委派 3s 收起展示
+  const dropReconciledDelegations = useCallback((alive: Set<string>) => {
+    const local = delegationsRef.current;
+    const live = liveDelegationIdsRef.current;
+    const pending = pendingReconcileRef.current;
+    // 委派重新出现在 count/快照(仍运行)→ 取消待删,避免误清存活委派
+    for (const id of [...pending.keys()]) {
+      if (!alive.has(id)) continue;
+      const t = pending.get(id);
+      if (t) clearTimeout(t);
+      pending.delete(id);
+    }
+    for (const d of Object.values(local)) {
+      if (d.finished) continue;
+      if (alive.has(d.delegationId)) continue;
+      if (live.has(d.delegationId)) continue;
+      if (pending.has(d.delegationId)) continue; // 已在待删队列
+      pending.set(d.delegationId, setTimeout(() => {
+        pending.delete(d.delegationId);
+        const cur = delegationsRef.current[d.delegationId];
+        // 到期复查:期间收到终态 progress(finished/事件流接管)或卡片已被其它路径移除 → 跳过
+        if (!cur || cur.finished) return;
+        if (liveDelegationIdsRef.current.has(d.delegationId)) return;
+        const prevRunning = Object.values(delegationsRef.current).some((x) => !x.finished);
+        const next = { ...delegationsRef.current };
+        delete next[d.delegationId];
+        delegationsRef.current = next;
+        setDelegations(next);
+        // 卡死委派被清后若已无运行中委派,补弹状态栏常驻信号(与 progress 事件路径对齐)
+        const nowRunning = Object.values(next).some((x) => !x.finished);
+        if (prevRunning && !nowRunning) useStatusStore.getState().popSignal(sidRef.current, "agent");
+      }, 1500));
+    }
+  }, []);
+
+  // ── 刷新后委派恢复(#18) ─────────────────────────
+  // 委派卡片状态只靠流式事件(onDelegationInit/Progress)实时构建,Cmd+R 后事件流断开即
+  // 丢失(主进程任务仍在跑)——先订阅事件(上面已注册)、再拉主进程快照播种缺失卡片。
+  // resume 不重播 agent:chat-session → 刷新后 currentChatRef 恒 null,委派事件全被 chatId
+  // 门卫丢弃(只拉快照会得到永不更新的静态卡片)——快照 join 回 chatId,播种后回填绑定
+  // 门卫,事件流恢复实时更新。2.5s 后复拉一次:兜住「拉取与绑定之间完成」的委派
+  // (终态事件被门卫丢弃 → 卡死常驻),对账清除
+  useEffect(() => {
+    if (!existingSid) return;
+    let cancelled = false;
+    const pull = async (allowDrop: boolean) => {
+      const s = sidRef.current;
+      if (!s || cancelled) return;
+      let snap: DelegationSnapshotItem[] = [];
+      try {
+        snap = await window.electronAPI.agent.getDelegations(s);
+      } catch (e) {
+        console.error("[ChatPanel] 拉取运行中委派快照失败:", e);
+        return;
+      }
+      if (cancelled) return;
+      const chatIdToBind = seedDelegationSnapshot(snap);
+      if (chatIdToBind && !currentChatRef.current) {
+        currentChatRef.current = chatIdToBind;
+        setCurrentRunId(chatIdToBind);
+      }
+      if (allowDrop) dropReconciledDelegations(new Set(snap.map((d) => d.delegationId)));
+    };
+    void pull(true);
+    const verify = setTimeout(() => { void pull(true); }, 2500);
+    return () => { cancelled = true; clearTimeout(verify); };
+  }, [existingSid, seedDelegationSnapshot, dropReconciledDelegations]);
+
+  // 对账兜底(agent:delegation-count 全局常驻、不受 chatId 门卫限制):主进程每个委派
+  // 状态迁移都广播——快照播种的卡死委派从计数中消失(主进程已无它)即清掉
+  useEffect(() => {
+    const unsub = window.electronAPI.agent.onDelegationCount((data: { count: number; tasks: Array<{ delegationId: string; index: number; title: string }> }) => {
+      dropReconciledDelegations(new Set(data.tasks.map((t) => t.delegationId)));
+    });
+    return unsub;
+  }, [dropReconciledDelegations]);
 
   useEffect(() => {
     if (!existingSid) return; let cancelled = false;

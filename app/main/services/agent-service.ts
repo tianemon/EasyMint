@@ -24,7 +24,8 @@ import { createLearnTool, createSearchExperiencesTool, type LearnResponse } from
 import { evaluateLearnGate, isFixTool } from "./learn-gate";
 import { searchExperiences, buildExperienceInjection } from "./experience-service";
 import { createImportTools } from "./import-tools";
-import { registerSessionIdMapping, abortTask, getRunningSummary, resolveParentSessionId } from "./task/registry";
+import { registerSessionIdMapping, abortTask, getRunningSummary, getRunningDelegations, resolveParentSessionId } from "./task/registry";
+import type { TaskStatus } from "./task/types";
 import { formatShellResult } from "./background-shell/tool";
 import { backgroundShellRegistry, type BackgroundShell } from "./background-shell/registry";
 import { systemMessage, type SystemMessageKind, type SystemMessagePayload } from "../../shared/prompts";
@@ -106,6 +107,23 @@ export interface ActiveChat {
   learnSuggestDone: boolean;
   /** learn/search_experiences 是否已注册（会话创建时快照——工具集固定于创建时，触发提示按此判断） */
   learnToolInstalled: boolean;
+}
+
+/** 运行中委派快照项（agent:delegations IPC 返回，渲染层播种刷新后消失的委派卡片） */
+export interface RunningDelegationSnapshotItem {
+  delegationId: string;
+  /** join activeChats 反查的 chatId（委派事件按 chatId 过滤，播种后凭它绑定门卫恢复事件流） */
+  chatId?: string;
+  startedAt: number;
+  tasks: Array<{
+    index: number;
+    agent: string;
+    task: string;
+    title?: string;
+    description?: string;
+    prompt?: string;
+    status: TaskStatus;
+  }>;
 }
 
 /** 记录各 session 的 agent 类型 */
@@ -1756,6 +1774,43 @@ export class AgentService {
     // 来源记 user：此入口来自前端按钮(渲染层点停止 → IPC),停止通知文案按此显示「已由用户中止」
     abortTask(delegationId, taskIndex, "user");
     broadcast("agent:delegation-count", getRunningSummary());
+  }
+
+  /**
+   * 刷新/重连后委派快照(agent:delegations IPC)：返回某会话名下运行中委派的完整状态(含任务行)。
+   *
+   * 渲染层刷新(Cmd+R)后委派卡片状态随事件流丢失,主进程任务仍在跑——渲染层启动时
+   * 拉此快照播种缺失卡片。委派记录没有 chatId(只有 parentSessionId/tempParentSessionId),
+   * 而委派事件按 chatId 过滤 → join activeChats 反查 chatId 一并返回:播种后渲染层凭它
+   * 绑定 chatId 门卫,后续委派进度事件才能恢复实时更新(否则刷新后卡片成静态快照)。
+   * 只含运行中的委派:已完成/中止的走「结果注入会话历史」,前端按 delegation-count 对账清除残留。
+   */
+  getRunningDelegationsSnapshot(sessionId: string): RunningDelegationSnapshotItem[] {
+    const records = getRunningDelegations(sessionId);
+    if (records.length === 0) return [];
+    // join activeChats 反查 chatId(sessionId 双键匹配,与 findActiveChat 一致)
+    let chatId: string | undefined;
+    for (const [, chat] of this.activeChats) {
+      if (chat.sessionId === sessionId || chat.tempSessionId === sessionId) {
+        chatId = chat.chatId;
+        break;
+      }
+    }
+    return records.map((r) => ({
+      delegationId: r.delegationId,
+      chatId,
+      startedAt: r.startedAt,
+      tasks: r.tasks.map((t, i) => ({
+        index: i,
+        agent: t.agent || "coder",
+        task: t.task,
+        // 标题回退与 delegation-init 广播一致(播种与实时初始化构建同款任务行)
+        title: t.title || (t.task.split("\n")[0] ?? "").replace(/^##\s*任务[:：]\s*/, "").slice(0, 60),
+        description: t.description,
+        prompt: t.prompt,
+        status: r.taskStatuses[i] ?? ("pending" as TaskStatus),
+      })),
+    }));
   }
 
   /** 运行面板「让 Mint 修复」：找该项目最近注册的 Mint 主会话并注入修复请求（无匹配会话返回 false）。

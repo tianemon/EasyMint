@@ -92,6 +92,23 @@ interface DelegationProgressEvent {
   };
 }
 
+/** 运行中委派快照项（agent:delegations IPC 返回，渲染层播种刷新后消失的委派卡片） */
+interface DelegationSnapshotItem {
+  delegationId: string;
+  /** join activeChats 反查的 chatId（委派事件按 chatId 过滤，播种后凭它绑定门卫恢复事件流） */
+  chatId?: string;
+  startedAt: number;
+  tasks: Array<{
+    index: number;
+    agent: string;
+    task: string;
+    title?: string;
+    description?: string;
+    prompt?: string;
+    status: "pending" | "running" | "completed" | "failed" | "aborted";
+  }>;
+}
+
 /** 子 Agent 实时流广播(agent:subagent-stream)——executor 转发子会话事件,弹层实时展示 */
 interface SubagentStreamEvent {
   delegationId: string;
@@ -198,6 +215,7 @@ interface ElectronAPI {
     sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string; tabId?: string }) => Promise<{ chatId: string }>;
     steer: (sessionId: string, text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>) => Promise<void>;
     stopDelegation: (delegationId: string, taskIndex: number) => Promise<void>;
+    getDelegations: (sessionId: string) => Promise<DelegationSnapshotItem[]>;
     stopShell: (shellId: string) => Promise<void>;
     followUp: (sessionId: string, text: string) => Promise<void>;
     compact: (sessionId: string, instructions?: string) => Promise<void>;

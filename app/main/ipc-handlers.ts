@@ -222,6 +222,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:stop-delegation", (_e, { delegationId, taskIndex }) =>
     agentService.stopDelegationTask(delegationId, taskIndex),
   );
+  ipcMain.handle("agent:delegations", (_e, { sessionId }: { sessionId: string }) =>
+    agentService.getRunningDelegationsSnapshot(sessionId),
+  );
   ipcMain.handle("agent:stop-shell", (_e, { shellId }) => {
     // 渲染层按钮点停止 → 用户 UI 路径:来源记 user,停止通知文案显示「已由用户中止」
     backgroundShellRegistry.stop(String(shellId ?? ""), "user");
