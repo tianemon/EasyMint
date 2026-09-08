@@ -257,9 +257,9 @@ html[data-platform="win32"] {
   --color-terminal-bg: #1a2e1f;
   --color-terminal-text: #86efac;
 
-  /* ── Code block ────────────────── */
-  --color-code-block-bg: #f5f5f5;
-  --color-code-block-header: #dedede;
+  /* ── Code block（亮色：淡暖白） ── */
+  --color-code-block-bg: #faf7f1;
+  --color-code-block-header: #f0ebe3;
 
   /* ── Radius ──────────────────────── */
   --radius-sm: 6px;
