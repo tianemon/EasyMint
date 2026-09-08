@@ -186,6 +186,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 两者都未就绪时初始值会落到 fallback "standard"，若不拦一道，写缓存 effect 会把这个
   // 未就绪的值覆盖到磁盘（磁盘上的 full 被抹掉，重启后永远回 standard）
   const permissionHydratedRef = useRef(false);
+  // 本会话是否有独立的持久化权限值（来自缓存恢复）——有则不跟随全局默认：
+  // 新建会话无缓存，首帧读到的全局值可能还是 store 默认 standard，等真实值到达再同步
+  const sessionPermissionOwnedRef = useRef(false);
   // 权限模式最新值（订阅回调里引用 state 会拿到挂载时的旧闭包，用 ref 取最新）
   const permissionModeRef = useRef(permissionMode);
   useEffect(() => { permissionModeRef.current = permissionMode; }, [permissionMode]);
@@ -1717,12 +1720,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
   // ── Session cache ────────────────────────────────
   useEffect(() => {
+    // 切换会话：两个标记都重置——恢复完成前不写缓存（防未就绪值覆盖）、也不跟随全局
+    permissionHydratedRef.current = false;
+    sessionPermissionOwnedRef.current = false;
     if (!existingSid) { permissionHydratedRef.current = true; return; }
     window.electronAPI.sessionCache.read(existingSid).then((cache) => {
       if (cache) {
         // 恢复权限模式（旧四档值 auto/plan/acceptEdits/bypassPermissions 归一化为两档，
         // 避免开关拿到未知值显示异常——主进程 normalizeMode 同样映射）
         if (cache.permissionMode) {
+          sessionPermissionOwnedRef.current = true;
           const m = cache.permissionMode;
           setPermissionMode(m === "full" || m === "bypassPermissions" ? "full" : "standard");
         }
@@ -1761,6 +1768,15 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       window.electronAPI.sessionCache.write(sidRef.current, { permissionMode }).catch(() => {});
     }
   }, [permissionMode]);
+
+  // 全局默认权限模式异步到达后，若本会话没有自己的持久化值则跟随（新建会话场景：
+  // 首帧的 globalPermissionMode 可能还是 store 默认 standard，真实值到达后同步一次）
+  useEffect(() => {
+    if (!permissionHydratedRef.current) return;
+    if (sessionPermissionOwnedRef.current) return;
+    if (!globalPermissionMode) return;
+    setPermissionMode(globalPermissionMode);
+  }, [globalPermissionMode, existingSid]);
 
   // 按当前模型同步「支持的思考等级」——不依赖会话是否创建(会话要等首条消息才存在),
   // 所以直接按模型 ID 查:新建会话、恢复会话、下拉切模型三种场景都能立即收敛档位列表
