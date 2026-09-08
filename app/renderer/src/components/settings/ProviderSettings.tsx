@@ -354,8 +354,9 @@ export function ProviderForm({ onSave, onCancel, initial }: ProviderFormProps) {
       {/* 保存/取消:sticky 底部始终可见(表单较长需滚动)。贴底前提(由外部保证):
           ① 编辑态下本表单是滚动区最后内容(ProvidersTab 已隐藏后续区块)——sticky 包含块
           底缘才能到滚动区底部;② 滚动容器编辑态 pb-0(SettingsDialog)——bottom-0 直贴
-          Footer 上缘。-mx-6 px-6 让条背景横向通栏(抵消滚动区 px-6) */}
-      <div className="sticky bottom-0 -mx-6 px-6 pt-2 pb-1 flex justify-end gap-2" style={{ background: "var(--color-input-card)", borderTop: "1px solid var(--color-border)" }}>
+          Footer 上缘。-mx-6 px-6 让条背景横向通栏(抵消滚动区 px-6)。
+          -mt-px/mb-px:条整体上移 1px(与上方内容间距 -1px,与 Footer 之间留 1px 呼吸) */}
+      <div className="sticky bottom-0 -mx-6 -mt-px mb-px px-6 pt-2 pb-1 flex justify-end gap-2" style={{ background: "var(--color-input-card)", borderTop: "1px solid var(--color-border)" }}>
         {onCancel && (
           <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消配置</button>
         )}
