@@ -182,6 +182,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 只读一次作初始值,不订阅全局变化(会话内以手动切换为准)
   const globalPermissionMode = useSettingsStore((s) => s.chatPermissionMode);
   const [permissionMode, setPermissionMode] = useState<"standard" | "full">(globalPermissionMode || "standard");
+  // 权限模式「已恢复」标记：读会话缓存是异步的，而初始值来自异步加载的全局设置——
+  // 两者都未就绪时初始值会落到 fallback "standard"，若不拦一道，写缓存 effect 会把这个
+  // 未就绪的值覆盖到磁盘（磁盘上的 full 被抹掉，重启后永远回 standard）
+  const permissionHydratedRef = useRef(false);
   // 权限模式最新值（订阅回调里引用 state 会拿到挂载时的旧闭包，用 ref 取最新）
   const permissionModeRef = useRef(permissionMode);
   useEffect(() => { permissionModeRef.current = permissionMode; }, [permissionMode]);
@@ -1713,7 +1717,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
   // ── Session cache ────────────────────────────────
   useEffect(() => {
-    if (!existingSid) return;
+    if (!existingSid) { permissionHydratedRef.current = true; return; }
     window.electronAPI.sessionCache.read(existingSid).then((cache) => {
       if (cache) {
         // 恢复权限模式（旧四档值 auto/plan/acceptEdits/bypassPermissions 归一化为两档，
@@ -1737,7 +1741,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           applyLevel(cache.thinkingLevel);
         }
       }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => { permissionHydratedRef.current = true; });
     // 打开会话即同步「该模型支持的思考等级 + 当前生效等级」——广播只在切模型/发消息时触发,
     // 只靠广播的话刚打开会话、还没发消息前下拉仍是完整 7 档
     window.electronAPI.agent.getThinkingLevels(existingSid).then((info) => {
@@ -1749,6 +1753,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
   useEffect(() => {
     permissionModeRef.current = permissionMode;
+    // 恢复完成前不写：否则未就绪的初始值会把磁盘上的会话级权限覆盖掉（见 permissionHydratedRef）
+    if (!permissionHydratedRef.current) return;
     // 仅真实会话 id 才写缓存：新会话在发首条消息前的 sid 是 __new_xxx 临时 id，
     // 写入临时 key 主进程读不到（真实 id 由 onChatSession 回绑时补写，见下）
     if (sidRef.current && !sidRef.current.startsWith("__new_")) {
