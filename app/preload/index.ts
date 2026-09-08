@@ -242,6 +242,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("agent:followUp", { sessionId, text }),
     compact: (sessionId: string, instructions?: string) =>
       ipcRenderer.invoke("agent:compact", { sessionId, instructions }),
+    activate: (sessionId: string, projectPath: string) =>
+      ipcRenderer.invoke("agent:activate", { sessionId, projectPath }),
     setThinkingLevel: (sessionId: string, level: string) =>
       ipcRenderer.invoke("agent:setThinkingLevel", { sessionId, level }),
     cycleModel: (sessionId: string, direction?: "forward" | "backward") =>

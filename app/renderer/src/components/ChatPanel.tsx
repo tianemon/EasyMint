@@ -1768,7 +1768,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // SDK 未真正开始压缩(如 abort 挂起)则不显示,避免误导。
   // 回合中(busy)不直接调 SDK——compact() 会先 abort 当前回合,输出中触发存在压缩竞态;
   // 挂到 pendingCompactRef,agent:exit(回合结束空闲)后再执行
-  const doCompact = useCallback((instructions?: string) => {
+  const doCompact = useCallback(async (instructions?: string) => {
     // 压缩进行中(compacting):忽略重复触发——等当前压缩结束(其完成事件清 busy 后用户可再触发)
     if (useStatusStore.getState().bySession[sidRef.current]?.compacting) return;
     if (busyRef.current) {
@@ -1776,8 +1776,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       useStatusStore.getState().pushSignal(sidRef.current, "compact", "当前回合结束后自动压缩...");
       return;
     }
+    // 重启后会话未激活（未发过消息）：主进程 activeChats 里没有它，压缩会直接失败。
+    // 先按需激活（加载历史）拿 chatId——后续 compacted/usage 广播也按它匹配
+    if (!currentChatRef.current) {
+      try {
+        const cid = await window.electronAPI.agent.activate(sidRef.current, projectPath);
+        if (cid) { currentChatRef.current = cid; setCurrentRunId(cid); }
+      } catch (e) { console.error("[ChatPanel] 激活会话失败:", e); }
+    }
     window.electronAPI.agent.compact(sidRef.current, instructions).catch(() => {});
-  }, []);
+  }, [projectPath]);
   const handleImmediateCompact = useCallback(() => {
     doCompact();
     setCompactDialog(null);

@@ -201,6 +201,7 @@ interface ElectronAPI {
     stopShell: (shellId: string) => Promise<void>;
     followUp: (sessionId: string, text: string) => Promise<void>;
     compact: (sessionId: string, instructions?: string) => Promise<void>;
+    activate: (sessionId: string, projectPath: string) => Promise<string | null>;
     setThinkingLevel: (sessionId: string, level: string) => Promise<void>;
     cycleModel: (sessionId: string, direction?: "forward" | "backward") => Promise<void>;
     setActiveTools: (sessionId: string, toolNames: string[]) => Promise<void>;

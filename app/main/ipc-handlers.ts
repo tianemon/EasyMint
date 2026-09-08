@@ -226,6 +226,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:compact", async (_e, { sessionId, instructions }) => {
     await agentService.compact(sessionId, instructions);
   });
+  // 按需激活会话（重启后未发过消息的会话不在主进程活跃列表，压缩前需先恢复）
+  ipcMain.handle("agent:activate", async (_e, { sessionId, projectPath }) => {
+    return agentService.activateSession(sessionId, projectPath);
+  });
   ipcMain.handle("agent:setThinkingLevel", (_e, { sessionId, level }) => {
     agentService.setThinkingLevel(sessionId, level);
   });

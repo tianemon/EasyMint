@@ -91,6 +91,8 @@ export interface ActiveChat {
   firstUserMessage: string;
   assistantUuid: string;
   eventBuffer: PiChatEvent[];
+  /** 按需激活的压缩专用会话（仅加载历史，无工具/系统提示）——发消息时需重建为完整会话 */
+  minimal?: boolean;
   /** 本会话已 compact 次数（轮转取消后仅统计用） */
   compactCount: number;
   /** learn 触发控制（期3）：本轮（单轮）信号累计 + 每会话一次防重 */
@@ -1075,7 +1077,11 @@ export class AgentService {
     // 已有活跃会话 → 直接用
     if (resumeSessionId) {
       const existing = this.findActiveChat(resumeSessionId);
-      if (existing && existing.session) {
+      // 按需激活的压缩专用会话（minimal，无工具/系统提示）不能用于对话——丢弃后用完整配置重建
+      if (existing?.minimal) {
+        this.activeChats.delete(existing.chatId);
+        console.log(`[agent] 丢弃压缩专用会话 ${existing.chatId}，按完整配置重建`);
+      } else if (existing && existing.session) {
         // 应用思考等级(prompt 前同步设置,与新建分支一致)——前端切等级不再立即 IPC,
         // 等级统一随发送应用,消除"切等级 IPC 与发送 IPC 并发"的 SDK 竞态窗口
         if (thinkingLevel) {
@@ -1811,6 +1817,56 @@ export class AgentService {
   async followUp(sessionId: string, text: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
     await chat?.session?.followUp(text);
+  }
+
+  /** 按需恢复会话为活跃 chat（重启后未发过消息的会话不在 activeChats——压缩等操作需要）。
+   *  最小恢复：只加载历史 + 模型，不注入工具/系统提示、不发起对话；返回 chatId。 */
+  async activateSession(sessionId: string, projectPath: string): Promise<string | null> {
+    const existing = this.findActiveChat(sessionId);
+    if (existing?.session) return existing.chatId;
+    const sessions = await listPiSessions(projectPath);
+    const info = sessions.find((s) => s.id === sessionId);
+    if (!info) {
+      console.warn(`[agent] 按需激活失败:未找到会话 ${sessionId}（${projectPath}）`);
+      return null;
+    }
+    const cached = readCache(sessionId);
+    const piModel = await this.getModel(this.store, cached?.provider, cached?.model);
+    if (!piModel) {
+      console.warn("[agent] 按需激活失败:模型不可用");
+      return null;
+    }
+    const session = await resumePiSession({
+      cwd: projectPath,
+      agentDir: this.getAgentDir(),
+      model: piModel,
+      store: this.store,
+      resumeSessionFile: info.path,
+    });
+    const chat: ActiveChat = {
+      chatId: `chat-${++this.chatCounter}`,
+      sessionId,
+      session,
+      minimal: true,
+      abortController: new AbortController(),
+      projectPath,
+      currentModel: cached?.model,
+      provider: cached?.provider,
+      status: "idle",
+      firstUserMessage: "",
+      assistantUuid: randomUUID(),
+      eventBuffer: [],
+      compactCount: 0,
+      toolCallCount: 0,
+      learnErrorSeen: false,
+      learnFixAfterError: false,
+      learnErrorText: "",
+      learnSuggestDone: false,
+      learnToolInstalled: false,
+    };
+    this.activeChats.set(chat.chatId, chat);
+    console.log(`[agent] 按需激活会话 ${sessionId} → ${chat.chatId}`);
+    return chat.chatId;
   }
 
   /** 手动压缩上下文 */
