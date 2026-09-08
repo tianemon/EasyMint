@@ -2103,6 +2103,8 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
       const first = rows[0]?.match(/^⏺ (.+?) [-—] (完成|失败|中止|已由用户中断)(?: · (\d+)s)?$/);
       const headStatus = first?.[2];
       const headDur = first?.[3];
+      // 首个 ⏺ 行的状态/时长已上标题栏,展开内容里跳过该行避免重复
+      const firstDotIdx = lines.findIndex((l) => l.startsWith("⏺ "));
       // 中止/已由用户中断=人为打断(黄),失败=意外中断(红),完成=绿
       const statusColor = (s?: string): string =>
         (s === "中止" || s === "已由用户中断") ? "text-interrupt" : s === "失败" ? "text-fail" : s ? "text-done" : "";
@@ -2121,7 +2123,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
               {/* 头部:系统图标 + kind 标签(区别于 assistant 的 Mint 头像气泡);指令型整行可点展开/收起 */}
               <button
                 type="button"
-                className={`flex items-center gap-1.5 px-[14px] pt-1.5 w-full text-left text-[length:var(--text-11)] text-text-secondary ${collapsible ? "hover:bg-surface-hover cursor-pointer select-none" : ""}`}
+                className={`flex items-center gap-1.5 px-[14px] pt-1.5 w-full text-left text-[length:var(--text-11)] text-text-secondary ${collapsible ? "hover:bg-surface-hover cursor-pointer select-none" : ""} ${collapsed ? "pb-2" : ""}`}
                 onClick={collapsible ? () => setSysExpanded((v) => !v) : undefined}
                 
               >
@@ -2141,6 +2143,10 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
                     <path d="M8 5h.01" />
                   </svg>
                 )}
+                {/* ⏺ 圆点入标题(着状态色,与原生摘要行一致) */}
+                {headStatus && (
+                  <span className={statusColor(headStatus)} style={{ fontSize: "var(--text-11)" }}>⏺</span>
+                )}
                 <span>{SYSTEM_KIND_LABELS[kind] ?? "系统消息"}</span>
                 {/* 状态 + 时长上标题栏(取首个 ⏺ 行) */}
                 {headStatus && (
@@ -2159,6 +2165,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
                 {isResult ? (
                   <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: "calc(var(--text-detail) * 9.75 + 12px)" }}>
                     {lines.map((row, i) => {
+                      if (i === firstDotIdx) return null; // 已上标题栏,不重复显示
                       if (!row.startsWith("⏺ ")) {
                         return row.trim() === "" ? null : (
                           <div key={i} className="text-text-secondary whitespace-pre-wrap [overflow-wrap:anywhere]">{row}</div>
