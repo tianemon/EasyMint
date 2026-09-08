@@ -7,6 +7,7 @@ import { THINKING_ORDER, THINKING_LABELS } from "@shared/thinking-levels";
 import { Select, type SelectOption } from "../Select";
 import { BRAND_BY_PI_ID, providerSelectOptions } from "../../lib/provider-brands";
 import { toast } from "../ui/Toast";
+import { confirmDialog } from "../ui/ConfirmDialog";
 
 interface PiModelInfo {
   id: string; name: string; contextWindow: number;
@@ -621,7 +622,14 @@ export function ProvidersManager() {
     setDialog(null);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
+    const ok = await confirmDialog({
+      title: "删除供应商",
+      message: `将删除「${apiProviders?.configs?.[id]?.name ?? ""}」，其 API Key 与模型配置一并移除，不可恢复。`,
+      confirmText: "删除",
+      danger: true,
+    });
+    if (!ok) return;
     const next = { ...(apiProviders?.configs ?? {}) };
     delete next[id];
     const current: string | null = apiProviders?.current === id ? (Object.keys(next)[0] ?? null) : (apiProviders?.current ?? null);
