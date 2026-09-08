@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "re
 import { createPortal } from "react-dom";
 import { useSettingsStore } from "../../stores/settings-store";
 import { getPreset } from "@shared/platform-presets";
-import type { ProviderConfig } from "@shared/platform-presets";
+import type { ProviderConfig, ExtraModelCapability } from "@shared/platform-presets";
 import { THINKING_ORDER, THINKING_LABELS } from "@shared/thinking-levels";
 import { Select, type SelectOption } from "../Select";
 import { BRAND_BY_PI_ID, providerSelectOptions } from "../../lib/provider-brands";
@@ -10,6 +10,27 @@ import { toast } from "../ui/Toast";
 
 interface PiModelInfo {
   id: string; name: string; contextWindow: number;
+}
+
+/** 上下文窗口预设(自动 = 按内置模型表推断,未知按 200000) */
+const CONTEXT_WINDOW_OPTIONS: SelectOption[] = [
+  { value: "auto", label: "自动" },
+  { value: "131072", label: "128K" },
+  { value: "200000", label: "200K" },
+  { value: "1000000", label: "1M" },
+  { value: "custom", label: "自定义" },
+];
+
+/** 窗口 token 数 → 标签文案(1000000 → 1M) */
+function formatWindow(tokens: number): string {
+  return tokens >= 1000000 ? `${tokens / 1000000}M` : `${Math.round(tokens / 1000)}K`;
+}
+
+/** 下拉 + 自定义输入 → 窗口 token 数(自动/无效 → undefined,交给内置表推断) */
+function resolveContextWindow(selected: string, custom: string): number | undefined {
+  if (selected === "auto") return undefined;
+  const value = Number(selected === "custom" ? custom : selected);
+  return Number.isFinite(value) && value > 0 ? Math.round(value) : undefined;
 }
 
 export interface ProviderFormHandle {
@@ -37,8 +58,14 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const [model, setModel] = useState(initial?.model || "");
   const [models, setModels] = useState<string[]>(initial?.models || []);
   // 用户手动补充的模型(内置供应商:SDK 模型外的自定义模型;如 glm-5.3 等新上线模型)
-  const [extraModels, setExtraModels] = useState<string[]>(initial?.extraModels || []);
+  // string = 仅 ID(能力自动推断);对象 = 带显式能力声明(识图/上下文窗口)
+  const [extraModels, setExtraModels] = useState<Array<string | ExtraModelCapability>>(initial?.extraModels || []);
   const [extraModelInput, setExtraModelInput] = useState("");
+  // 添加/编辑模型的能力声明(写入 models.json,优先于按内置表推断的值)
+  const [extraVision, setExtraVision] = useState(false);
+  const [extraCtx, setExtraCtx] = useState<string>("auto");
+  const [extraCtxCustom, setExtraCtxCustom] = useState<string>("");
+  const [editingExtra, setEditingExtra] = useState<string | null>(null);
   // 该供应商的 task 子 Agent 默认模型(per-provider)
   const [subagentDefaultModel, setSubagentDefaultModel] = useState<string>(initial?.subagentDefaultModel || "");
   // 自定义供应商字段
@@ -52,9 +79,10 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const [modelLevels, setModelLevels] = useState<Record<string, string>>({});
   const [savedModelLevels, setSavedModelLevels] = useState<Record<string, string>>({});
   // 可选的模型列表:内置供应商 = SDK 模型 + 用户补充(去重);自定义从 textarea 解析
+  const extraIds = extraModels.map((e) => (typeof e === "string" ? e : e.id));
   const availableModels = isCustom
     ? customModelsText.split("\n").map((s) => s.trim()).filter(Boolean)
-    : Array.from(new Set([...models, ...extraModels]));
+    : Array.from(new Set([...models, ...extraIds]));
 
   // 每个模型支持的思考等级(静态模型规格查表,经 agent:getModelThinkingSupport);
   // 值 undefined = 未拉到,null = 规格未知 → 下拉按全部档位展示(与聊天页行为一致)
@@ -93,14 +121,56 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     }).catch(() => {});
   }, [levelProviderKey]);
 
+  /** 把表单里的能力声明组装成条目;forceObject = 编辑态保存——总是写对象并显式声明 input
+   *  (未勾选识图写 ["text"]),否则取消勾选后旧条目里的 image 声明会从 handWritten 回流 */
+  const buildExtraEntry = (id: string, forceObject = false): string | ExtraModelCapability => {
+    const cap: ExtraModelCapability = { id, input: extraVision ? ["text", "image"] : ["text"] };
+    const ctx = resolveContextWindow(extraCtx, extraCtxCustom);
+    if (ctx) cap.contextWindow = ctx;
+    return forceObject || extraVision || ctx ? cap : id;
+  };
+
+  const resetExtraForm = () => {
+    setEditingExtra(null);
+    setExtraModelInput("");
+    setExtraVision(false);
+    setExtraCtx("auto");
+    setExtraCtxCustom("");
+  };
+
   // 添加补充模型:去重(与 SDK 模型及已添加的合并),重复则忽略
   const addExtraModel = (raw: string) => {
     const id = raw.trim();
     if (!id) return;
     if (availableModels.includes(id)) { setExtraModelInput(""); return; } // 已存在,忽略
-    setExtraModels((prev) => [...prev, id]);
-    setExtraModelInput("");
+    setExtraModels((prev) => [...prev, buildExtraEntry(id)]);
     if (!model) setModel(id);
+    resetExtraForm();
+  };
+
+  /** 点标签进入编辑态:把该条目的能力声明回填到表单 */
+  const startExtraEdit = (id: string) => {
+    const found = extraModels.find((e) => (typeof e === "string" ? e : e.id) === id);
+    const cap = typeof found === "string" || !found ? null : found;
+    setEditingExtra(id);
+    setExtraModelInput(id);
+    setExtraVision(cap?.input?.includes("image") ?? false);
+    const ctx = cap?.contextWindow;
+    if (!ctx) { setExtraCtx("auto"); setExtraCtxCustom(""); }
+    else if (["131072", "200000", "1000000"].includes(String(ctx))) { setExtraCtx(String(ctx)); setExtraCtxCustom(""); }
+    else { setExtraCtx("custom"); setExtraCtxCustom(String(ctx)); }
+  };
+
+  const saveExtraModel = () => {
+    if (!editingExtra) return;
+    const id = editingExtra;
+    setExtraModels((prev) => prev.map((e) => ((typeof e === "string" ? e : e.id) === id ? buildExtraEntry(id, true) : e)));
+    resetExtraForm();
+  };
+
+  const removeExtraModel = (id: string) => {
+    setExtraModels((prev) => prev.filter((e) => (typeof e === "string" ? e : e.id) !== id));
+    if (editingExtra === id) resetExtraForm();
   };
 
   // 初始化：编辑已有供应商时自动加载模型列表
@@ -137,7 +207,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     if (isCustom && !baseUrl.trim()) { toast("自定义供应商需填写 Base URL"); return false; }
     const modelList = isCustom
       ? customModelsText.split("\n").map((s) => s.trim()).filter(Boolean)
-      : Array.from(new Set([...models, ...extraModels]));
+      : Array.from(new Set([...models, ...extraIds]));
     const cfg: ProviderConfig = {
       id: initial?.id || `${(presetId || "custom")}-${Date.now()}`,
       presetId: isCustom ? "custom" : presetId,
@@ -252,34 +322,75 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
         {availableModels.length > 0 && <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">共 {availableModels.length} 个模型可选</p>}
       </div>
 
-      {/* 添加自定义模型:SDK 列表外的模型(新上线/未收录)手动补充,合并去重(仅内置供应商) */}
+      {/* 添加自定义模型:SDK 列表外的模型(新上线/未收录)手动补充,合并去重(仅内置供应商)。
+          能力声明随条目保存,写 models.json 时优先于按内置表推断的值 */}
       {!isCustom && (
         <div>
           <div className="flex items-center gap-2 mt-2">
             <input
-              className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
+              className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary disabled:opacity-60"
               placeholder="添加模型 ID (如 glm-5.3)"
               value={extraModelInput}
               onChange={(e) => setExtraModelInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") addExtraModel(extraModelInput); }}
+              onKeyDown={(e) => { if (e.key === "Enter") (editingExtra ? saveExtraModel() : addExtraModel(extraModelInput)); }}
+              disabled={!!editingExtra}
             />
-            <button
-              type="button"
-              className="shrink-0 px-3 h-8 rounded-lg btn-accent text-xs font-medium"
-              onClick={() => addExtraModel(extraModelInput)}
-              disabled={!extraModelInput.trim()}
-            >
-              添加
-            </button>
+            {editingExtra ? (<>
+              <button type="button" className="shrink-0 px-3 h-8 rounded-lg btn-accent text-xs font-medium" onClick={saveExtraModel}>保存</button>
+              <button type="button" className="shrink-0 px-3 h-8 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors" onClick={resetExtraForm}>取消</button>
+            </>) : (
+              <button
+                type="button"
+                className="shrink-0 px-3 h-8 rounded-lg btn-accent text-xs font-medium"
+                onClick={() => addExtraModel(extraModelInput)}
+                disabled={!extraModelInput.trim()}
+              >
+                添加
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-4 mt-1.5">
+            <label className="flex items-center gap-1.5 text-[length:var(--text-2xs)] text-text-secondary cursor-pointer">
+              <input type="checkbox" className="w-3.5 h-3.5 rounded accent-accent shrink-0"
+                checked={extraVision} onChange={(e) => setExtraVision(e.target.checked)} />
+              支持识图
+            </label>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[length:var(--text-2xs)] text-text-secondary">上下文窗口</span>
+              <Select
+                className="w-[66px] [&>button]:w-full [&>button]:h-7 [&>button]:text-xs"
+                value={extraCtx}
+                onChange={(v: string) => setExtraCtx(v)}
+                options={CONTEXT_WINDOW_OPTIONS}
+              />
+              {extraCtx === "custom" && (
+                <input
+                  className="em-input w-[88px] h-7 px-2 text-xs text-text-primary"
+                  placeholder="如 512000"
+                  value={extraCtxCustom}
+                  onChange={(e) => setExtraCtxCustom(e.target.value)}
+                />
+              )}
+            </div>
           </div>
           {extraModels.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
-              {extraModels.map((m) => (
-                <span key={m} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent-subtle text-[length:var(--text-2xs)] text-accent">
-                  {m}
-                  <button type="button" className="text-accent hover:text-danger transition-colors" onClick={() => setExtraModels((prev) => prev.filter((x) => x !== m))}>✕</button>
-                </span>
-              ))}
+              {extraModels.map((e) => {
+                const id = typeof e === "string" ? e : e.id;
+                const cap = typeof e === "string" ? null : e;
+                const tags = [
+                  cap?.input?.includes("image") ? "识图" : null,
+                  cap?.contextWindow ? formatWindow(cap.contextWindow) : null,
+                ].filter(Boolean) as string[];
+                return (
+                  <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent-subtle text-[length:var(--text-2xs)] text-accent">
+                    <button type="button" className="transition-opacity hover:opacity-70" title="点击编辑能力" onClick={() => startExtraEdit(id)}>
+                      {id}{tags.length > 0 && <span className="text-text-muted"> · {tags.join(" / ")}</span>}
+                    </button>
+                    <button type="button" className="text-accent hover:text-danger transition-colors" onClick={() => removeExtraModel(id)}>✕</button>
+                  </span>
+                );
+              })}
             </div>
           )}
         </div>

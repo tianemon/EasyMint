@@ -88,7 +88,10 @@ function syncExtraModelsFile(store: Store): void {
       // 按 id 覆盖内置条目),升级后 SDK 自带同名模型时,我们的继承条目会遮蔽官方 spec。
       // 以静态数据(SDK 内置模型表)为准——升级后自动让位,无需用户清理 extraModels。
       const siblings = getProviderStaticModels(config.presetId);
-      const extras = (config.extraModels ?? []).filter((id) => !siblings.has(id));
+      // 归一化:旧数据是纯 ID 字符串,新数据是带能力声明的对象(见 ExtraModelCapability)
+      const extras = (config.extraModels ?? [])
+        .map((e) => (typeof e === "string" ? { id: e } : e))
+        .filter((e) => e.id && !siblings.has(e.id));
       const existing = providersJson[config.presetId]?.models ?? [];
       // extras 为空且此前也没写过 → 跳过(保留用户手写内容)
       if (extras.length === 0 && existing.length === 0) continue;
@@ -98,7 +101,8 @@ function syncExtraModelsFile(store: Store): void {
       // 由 SDK 按"供应商首个模型"兜底(实测继承到 reasoning=false、无 thinkingLevelMap,
       // 思考等级被 clamp 成 off),手动添加的模型必须显式继承才保住能力声明。
       const sibling = siblings.get(config.model ?? "") ?? [...siblings.values()][0];
-      const models: ModelEntry[] = extras.map((id) => {
+      const models: ModelEntry[] = extras.map((entry) => {
+        const { id, ...declared } = entry;
         const spec = lookup.get(id);
         const inherited = pickCapabilityFields(siblings.get(id) ?? sibling);
         // 保留既有条目上的手写字段(如 input 视觉声明、reasoning 微调);
@@ -109,9 +113,11 @@ function syncExtraModelsFile(store: Store): void {
           ...inherited,
           ...vision,
           ...handWritten,
+          // 供应商设置里用户显式声明的能力优先级最高(盖过继承/关键词/手写)
+          ...declared,
           id,
-          contextWindow: spec?.contextWindow ?? 200000,
-          maxTokens: spec?.maxTokens ?? 4096,
+          contextWindow: declared.contextWindow ?? spec?.contextWindow ?? 200000,
+          maxTokens: declared.maxTokens ?? spec?.maxTokens ?? 4096,
         };
       });
       const entry = { ...providersJson[config.presetId], models };
