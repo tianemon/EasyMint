@@ -1,8 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { ansiToHtml } from "../lib/ansi-colors";
-import { registerOverlay } from "../lib/overlay-stack";
 import type { LogLine } from "../stores/process-store";
+import { Modal } from "./ui/Modal";
 
 /**
  * 单行日志 — memo + 稳定 key：store 追加只改数组引用、已存行对象不变，
@@ -49,11 +48,6 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
   const autoScrollRef = useRef(true);
   const lastUserInputRef = useRef(0);
   const [awayFromBottom, setAwayFromBottom] = useState(false);
-  // 遮罩关闭双判断:按下是否落在遮罩本身(拖拽选中移出边缘松开不误关)
-  const overlayDownRef = useRef(false);
-  // 注册到全局弹窗栈:点击本窗口不关闭下层(如侧边栏抽屉)
-  const overlayRef = useRef<HTMLDivElement>(null);
-  useEffect(() => registerOverlay(overlayRef.current), []);
 
   const markUserInput = (): void => { lastUserInputRef.current = Date.now(); };
   const handleUserInput = (): void => markUserInput();
@@ -102,18 +96,16 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  return createPortal(
-    // 遮罩关闭:仅当按下与松开都在遮罩(非窗口内容)才关闭——拖拽选中移出边缘松开不误关
-    // (React onClick 的公共祖先语义:mousedown 在窗口内、mouseup 在遮罩,click 会在遮罩触发)
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40"
-      onMouseDown={(e) => { overlayDownRef.current = e.target === e.currentTarget; }}
-      onMouseUp={(e) => { if (overlayDownRef.current && e.target === e.currentTarget) onClose(); }}
+  // Modal 的遮罩关闭为 press-release 模式(按下+松开都在遮罩才算),复用原有双判断语义:
+  // 拖拽选中日志移出边缘松开不误关。Modal 内部自行 portal + 注册弹窗栈。
+  return (
+    <Modal
+      overlayClose="press-release"
+      overlayClassName="bg-black/40"
+      onClose={onClose}
     >
       <div
         className="output-window relative flex flex-col w-[80vw] h-[80vh] rounded-[12px] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
         // Cmd/Ctrl+A 只全选输出区内容(不选整个页面)
         onKeyDown={(e) => {
@@ -212,13 +204,11 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
             type="button"
             onClick={scrollToBottom}
             className="absolute right-4 bottom-10 w-8 h-8 rounded-full bg-accent text-text-inverse shadow-lg flex items-center justify-center hover:bg-accent-hover transition-colors"
-           
           >
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v9M4.5 8.5L8 12l3.5-3.5"/></svg>
           </button>
         )}
       </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

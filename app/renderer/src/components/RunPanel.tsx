@@ -355,7 +355,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                               }}
                             >详情</span>
                             {showDetail[r.id] && (
-                              <span data-port-detail className="absolute top-full mt-1 text-[length:var(--text-3xs)] text-text-primary bg-surface border border-border rounded-md px-2 py-1 shadow-lg z-10"
+                              <span data-port-detail className="absolute top-full mt-1 text-[length:var(--text-3xs)] text-text-primary bg-surface border border-border rounded-md px-2 py-1 shadow-lg z-dropdown"
                                 style={{ maxWidth: "200px", wordBreak: "break-all", lineHeight: "1.4" }}>
                                 {ps.name || "PID " + ps.pid} (PID {ps.pid})
                               </span>

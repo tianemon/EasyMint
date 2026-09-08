@@ -240,7 +240,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
       {(Object.keys(RESIZE_STYLES) as ResizeDir[]).map((dir) => (
         <div
           key={dir}
-          className={`absolute ${RESIZE_STYLES[dir]} z-10`}
+          className={`absolute ${RESIZE_STYLES[dir]} z-float`}
           onPointerDown={onResizeStart(dir)}
          
         />
@@ -413,7 +413,7 @@ export function PinLayer({ sessionId }: PinLayerProps): JSX.Element {
   }, [sessionId]);
 
   return (
-    <div ref={layerRef} className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
+    <div ref={layerRef} className="absolute inset-0 pointer-events-none z-float overflow-hidden">
       {pins.map((pin, i) => {
         const colorIdx = pin.colorIdx ?? (i % 8);
         return (

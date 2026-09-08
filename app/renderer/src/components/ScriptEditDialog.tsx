@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
 import { useTabStore } from "../stores/tab-store";
-import { registerOverlay } from "../lib/overlay-stack";
+import { Modal } from "./ui/Modal";
 import { toast } from "./ui/Toast";
 
 interface Runnable {
@@ -51,9 +50,6 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
   // 命令引用的脚本文件（相对 cwd 解析为项目内绝对路径）
   const scriptPath = extractScriptPath(runCommand, runnable.cwd, projectPath);
   const scriptFileName = scriptPath ? scriptPath.split("/").pop() || "" : "";
-  // 注册到全局弹窗栈:点击本弹窗不关闭下层(如侧边栏抽屉)
-  const overlayRef = useRef<HTMLDivElement>(null);
-  useEffect(() => registerOverlay(overlayRef.current), []);
 
   const handleSave = async () => {
     if (!label.trim() || !runCommand.trim()) { toast("标题和运行命令必填"); return; }
@@ -83,12 +79,11 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
 
   const inputCls = "em-input w-full h-8 px-2.5 text-xs text-text-primary";
 
-  // createPortal 挂 body：侧边栏抽屉(sb-drawer)常驻 transform 会劫持 fixed 定位
+  // Modal 经 createPortal 挂 body：侧边栏抽屉(sb-drawer)常驻 transform 会劫持 fixed 定位
   // （fixed 相对 transform 祖先而非视口）——弹窗必须脱离才能在软件窗口内居中
-  return createPortal(
-    <div ref={overlayRef} className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="relative bg-surface rounded-xl border border-border shadow-2xl w-[760px] h-[600px] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 py-1.5 bg-surface-alt shrink-0">
+  return (
+    <Modal overlayClassName="bg-black/40" onClose={onClose}>
+      <div className="relative bg-surface rounded-xl border border-border shadow-2xl w-[760px] h-[600px] flex flex-col overflow-hidden">        <div className="flex items-center justify-between px-4 py-1.5 bg-surface-alt shrink-0">
           <span className="text-sm font-medium text-text-primary">编辑脚本</span>
           <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose}>✕</button>
         </div>
@@ -124,7 +119,6 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
           </button>
         </div>
       </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

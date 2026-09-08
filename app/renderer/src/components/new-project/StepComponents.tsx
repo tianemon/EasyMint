@@ -73,7 +73,7 @@ function Select({ value, onChange, options, placeholder }: { value: string; onCh
         </svg>
       </button>
       {open && (
-        <div ref={menuRef} className="fixed z-[9999] bg-surface-elevated border border-border rounded-lg shadow-lg max-h-52 overflow-y-auto" style={{ top: pos.top, left: pos.left, width: pos.width }}>
+        <div ref={menuRef} className="fixed z-dropdown bg-surface-elevated border border-border rounded-lg shadow-lg max-h-52 overflow-y-auto" style={{ top: pos.top, left: pos.left, width: pos.width }}>
           {options.map((o) => (
             <button
               key={o.value}

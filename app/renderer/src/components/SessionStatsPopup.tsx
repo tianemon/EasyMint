@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Modal } from "./ui/Modal";
 
 interface SessionStats {
   userMessages: number;
@@ -45,8 +46,8 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
   const fmtPct = (p: number) => p > 0 ? `${p.toFixed(2)}%` : "<0.01%";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
-      <div className="bg-surface border border-border rounded-xl p-5 max-w-sm w-full shadow-2xl mx-4" onClick={(e) => e.stopPropagation()}>
+    <Modal overlayClassName="bg-black/30" onClose={onClose}>
+      <div className="bg-surface border border-border rounded-xl p-5 max-w-sm w-full shadow-2xl mx-4">
         <div className="flex items-center justify-between mb-4">
           <span className="text-sm font-medium text-text-primary">会话统计</span>
           <button onClick={onClose} className="text-text-secondary hover:text-text-primary">
@@ -122,7 +123,6 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
                   type="button"
                   onClick={onCompress}
                   className="update-install-btn"
-                 
                 >
                   压缩会话
                 </button>
@@ -133,6 +133,6 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
           <div className="text-xs text-text-secondary py-4 text-center">暂无数据</div>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }

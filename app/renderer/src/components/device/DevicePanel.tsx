@@ -164,7 +164,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-end bg-black/20" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-float flex items-start justify-end bg-black/20" onMouseDown={onClose}>
       <div
         ref={ref}
         className="w-[340px] h-full bg-surface-alt border-l border-border shadow-xl flex flex-col"

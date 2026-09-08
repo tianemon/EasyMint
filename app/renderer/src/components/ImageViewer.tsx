@@ -116,7 +116,7 @@ function ImageViewer_({ view, onClose }: { view: ImageViewerState | null; onClos
     <div
       ref={rootRef}
       // no-drag:遮罩盖住顶部 TabBar 拖拽区(40px),否则关闭按钮上半段与遮罩顶部点击会被拖窗口拦截(参考 QuestionHistory 抽屉同款处理)
-      className="no-drag fixed inset-0 z-[200] flex items-center justify-center bg-surface/70 backdrop-blur-[2px] modal-overlay"
+      className="no-drag fixed inset-0 z-top flex items-center justify-center bg-surface/70 backdrop-blur-[2px] modal-overlay"
       onClick={onClose}
     >
       <img

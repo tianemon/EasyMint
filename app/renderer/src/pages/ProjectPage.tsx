@@ -7,6 +7,7 @@ import { ChatPanel } from "../components/ChatPanel";
 import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
 import { NewProjectDialog } from "../components/NewProjectDialog";
 import { confirmDialog } from "../components/ui/ConfirmDialog";
+import { Modal } from "../components/ui/Modal";
 import { toast } from "../components/ui/Toast";
 import { useProcessStore } from "../stores/process-store";
 import { useTabStore } from "../stores/tab-store";
@@ -411,7 +412,7 @@ export function ProjectPage(): JSX.Element {
 
       {/* Rename Project Dialog */}
       {showRenameDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={renamePhase === "input" ? () => setShowRenameDialog(false) : undefined}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-dialog" onClick={renamePhase === "input" ? () => setShowRenameDialog(false) : undefined}>
           <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl w-[400px]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-4 pb-2">
               <h2 className="text-base font-semibold text-text-primary">重命名项目</h2>
@@ -477,8 +478,8 @@ export function ProjectPage(): JSX.Element {
 
       {/* Open Project Picker */}
       {showOpenProject && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowOpenProject(false)}>
-          <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl w-[420px] max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <Modal overlayClassName="bg-black/50" onClose={() => setShowOpenProject(false)}>
+          <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl w-[420px] max-h-[70vh] flex flex-col">
             <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
               <h2 className="text-base font-semibold text-text-primary">打开项目</h2>
               <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setShowOpenProject(false)}>✕</button>
@@ -541,12 +542,12 @@ export function ProjectPage(): JSX.Element {
               </div>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* 窗口选择弹窗：打开/新建项目时，让用户选在当前窗口还是新窗口 */}
       {windowChoiceTarget && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
+        <Modal overlayClassName="bg-black/60" overlayClose={false} onClose={() => setWindowChoiceTarget(null)}>
           <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl p-6 w-[400px] flex flex-col gap-4">
             <p className="text-sm text-text-primary font-medium">当前窗口已打开项目，要在哪里打开？</p>
             <div className="flex gap-3 justify-end">
@@ -576,12 +577,12 @@ export function ProjectPage(): JSX.Element {
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* 删除项目确认弹窗：与窗口选择弹窗同风格 */}
       {deleteTarget && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]">
+        <Modal overlayClassName="bg-black/60" overlayClose={false} onClose={() => setDeleteTarget(null)}>
           <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl p-6 w-[400px] flex flex-col gap-4">
             <p className="text-sm text-text-primary font-medium">确认删除该项目吗？</p>
             <p className="text-xs text-text-secondary">（移动到{window.electronAPI?.platform === "darwin" ? "废纸篓" : "回收站"}）</p>
@@ -600,7 +601,7 @@ export function ProjectPage(): JSX.Element {
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {showNewProject && (

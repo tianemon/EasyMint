@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Modal } from "./ui/Modal";
 
 /**
  * 上下文压缩确认弹层 — 自动触发(阈值)与手动(统计弹窗按钮)共用。
@@ -48,11 +49,8 @@ export function CompactionDialog({
   }, [countdownConfig]);
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/30" onClick={onClose}>
-      <div
-        className="bg-surface border border-border rounded-xl p-5 max-w-md w-full shadow-2xl mx-4"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal tier="modal" overlayClassName="bg-black/30" onClose={onClose}>
+      <div className="bg-surface border border-border rounded-xl p-5 max-w-md w-full shadow-2xl mx-4">
         <div className="flex items-center justify-between mb-1">
           <div className="text-sm font-medium text-text-primary">{title}</div>
           <button onClick={onClose} className="text-text-secondary hover:text-text-primary shrink-0">
@@ -108,6 +106,6 @@ export function CompactionDialog({
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

@@ -81,7 +81,7 @@ export function QuestionHistory({ sessionId, messages, onJump }: QuestionHistory
         type="button"
         onClick={() => setOpen((v) => !v)}
        
-        className="no-drag absolute top-1 right-[18px] z-40 w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
+        className="no-drag absolute top-1 right-[18px] z-float w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
       >
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </button>
@@ -92,7 +92,7 @@ export function QuestionHistory({ sessionId, messages, onJump }: QuestionHistory
         // 列表底部 mask 渐隐(接近边缘的文字淡出),见下方列表容器
         <div
           ref={drawerRef}
-          className="no-drag fixed right-0 top-0 bottom-0 w-[300px] z-[60] flex flex-col rounded-l-xl shadow-2xl animate-[drawer-in_200ms_ease-out]"
+          className="no-drag fixed right-0 top-0 bottom-0 w-[300px] z-dialog flex flex-col rounded-l-xl shadow-2xl animate-[drawer-in_200ms_ease-out]"
           style={{
             background: "color-mix(in oklab, var(--color-surface-elevated) 65%, transparent)",
             backdropFilter: "blur(20px)",

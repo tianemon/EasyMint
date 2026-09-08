@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 import { sessionListActions } from "../stores/session-list-actions";
 import { useTabStore } from "../stores/tab-store";
+import { Modal } from "./ui/Modal";
 
 
 interface SessionItem {
@@ -240,7 +241,7 @@ export function SessionHistory({
 
       {/* Context menu —— hover 项内缩圆角(圆角外不露尖角),无分隔线 */}
       {menu.visible && (
-        <div className="fixed z-[100] bg-surface-elevated border border-border rounded-lg shadow-xl py-1 px-1 min-w-[96px]" style={{ left: menu.x, top: menu.y }}
+        <div className="fixed z-dropdown bg-surface-elevated border border-border rounded-lg shadow-xl py-1 px-1 min-w-[96px]" style={{ left: menu.x, top: menu.y }}
           ref={(el) => {
             if (!el) return;
             const h = el.offsetHeight;
@@ -276,11 +277,8 @@ export function SessionHistory({
 
       {/* 删除确认弹窗 */}
       {pendingDelete && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/30" onClick={() => setPendingDelete(null)}>
-          <div
-            className="bg-surface border border-border rounded-xl p-5 max-w-sm w-full shadow-2xl mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <Modal tier="modal" overlayClassName="bg-black/30" onClose={() => setPendingDelete(null)}>
+          <div className="bg-surface border border-border rounded-xl p-5 max-w-sm w-full shadow-2xl mx-4">
             <div className="text-sm font-medium text-text-primary mb-2">删除会话</div>
             <p className="text-xs text-text-secondary mb-4">
               确定删除「{sessions.find((s) => s.sessionId === pendingDelete)?.title ?? "该会话"}」吗？会话记录将永久删除，此操作不可恢复。
@@ -302,7 +300,7 @@ export function SessionHistory({
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

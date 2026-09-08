@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { ChatMessage, mapSessionMessages, piBlocksToEntries, mergeConsecutiveText } from "./chat-utils";
 import { useDelegationStore } from "../stores/delegation-store";
-import { registerOverlay } from "../lib/overlay-stack";
+import { Modal } from "./ui/Modal";
 
 /**
  * 子 Agent 过程查看弹层 — 精简只读聊天视图。
@@ -33,9 +32,6 @@ export function SubagentProcessView({
   const autoScrollRef = useRef(true); // 流式输出是否自动贴底(用户滚动时停止)
   const lastUserInputRef = useRef(0); // 最近一次用户输入时间(滚动意图判定窗口)
   const [awayFromBottom, setAwayFromBottom] = useState(false); // 回底按钮显示开关
-  // 注册到全局弹窗栈:点击本窗口不关闭下层(如侧边栏抽屉)
-  const overlayRef = useRef<HTMLDivElement>(null);
-  useEffect(() => registerOverlay(overlayRef.current), []);
 
   // 用户输入(wheel/touch/mousedown)标记——500ms 内的 scroll 变化视为用户滚动意图
   const handleUserInput = (): void => { lastUserInputRef.current = Date.now(); };
@@ -149,13 +145,12 @@ export function SubagentProcessView({
     if (el) el.scrollTop = el.scrollHeight;
   }, [msgs]);
 
-  // createPortal 挂 body:弹窗渲染在输入卡片内,空态时气泡锚点容器有 transform
+  // Modal 经 createPortal 挂 body:弹窗渲染在输入卡片内,空态时气泡锚点容器有 transform
   // (translateY(-200px)) 会劫持 fixed 定位——弹窗被推到窗口底部被遮挡(对齐 LogOverlay 的处理)
-  return createPortal(
-    <div ref={overlayRef} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={onClose}>
+  return (
+    <Modal overlayClassName="bg-black/40" onClose={onClose}>
       <div
         className="relative flex flex-col w-[80vw] h-[80vh] rounded-[12px] border border-border bg-surface-alt shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
       >
         {/* 头部:spinner + 标题 + 状态 + 关闭(思考/工具与主聊天一致常显,无显示开关) */}
         <div className="bg-accent-bg">
@@ -212,8 +207,7 @@ export function SubagentProcessView({
           </button>
         )}
       </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }
 

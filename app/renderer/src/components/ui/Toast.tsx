@@ -21,7 +21,7 @@ export function toast(message: string): void {
   timer = setTimeout(() => listenerRef?.(null), 2500);
 }
 
-/** 挂载点：放在 App 根部（z-[140] 高于确认框） */
+/** 挂载点：放在 App 根部（toast 层，高于确认框与弹窗） */
 export function ToastHost(): JSX.Element | null {
   const [t, setToastLocal] = useState<ToastState | null>(null);
   useEffect(() => {
@@ -33,7 +33,7 @@ export function ToastHost(): JSX.Element | null {
   return (
     <div
       key={t.id}
-      className="fixed top-4 left-1/2 -translate-x-1/2 z-[140] px-4 py-2 rounded-lg bg-surface-elevated border border-border shadow-lg text-xs text-text-primary pointer-events-none animate-[fadeIn_150ms_ease]"
+      className="fixed top-4 left-1/2 -translate-x-1/2 z-toast px-4 py-2 rounded-lg bg-surface-elevated border border-border shadow-lg text-xs text-text-primary pointer-events-none animate-[fadeIn_150ms_ease]"
     >
       {t.message}
     </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { StepIndicator } from "./StepIndicator";
 import { useSettingsStore } from "../../stores/settings-store";
+import { Modal } from "../ui/Modal";
 
 /**
  * 接收端迁移确认弹窗:收到迁移包 → 展示来源/项目/大小 → 用户选目标路径 → 接收/拒绝。
@@ -110,7 +111,11 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay">
+    <Modal
+      overlayClassName="bg-black/50 modal-overlay"
+      overlayClose={false}
+      onClose={() => void onReject(incoming.transferId)}
+    >
       <div className="bg-surface-alt rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 460 }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0">
           <h2 className="text-base font-semibold text-text-primary">接收迁移</h2>
@@ -210,6 +215,6 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

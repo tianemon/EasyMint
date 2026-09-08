@@ -107,7 +107,7 @@ export function Select({ value, onChange, options, className, block, placeholder
       {open && pos && createPortal(
         <div
           ref={panelRef}
-          className="fixed z-[300] w-max py-0 overflow-hidden rounded-[8px] border border-border bg-surface-elevated shadow-xl"
+          className="fixed z-dropdown w-max py-0 overflow-hidden rounded-[8px] border border-border bg-surface-elevated shadow-xl"
           style={{ left: pos.left, top: pos.top, minWidth: pos.minWidth, maxHeight: MAX_PANEL_H }}
         >
           <div className="overflow-y-auto" style={{ maxHeight: MAX_PANEL_H }}>

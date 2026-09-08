@@ -168,13 +168,13 @@ export function App(): JSX.Element {
         <ToastHost />
         {/* 迁移回执提示(发送端,3-5s 自动消失) */}
         {receipt && (
-          <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4 py-2.5 rounded-lg border shadow-lg text-sm modal-card ${receipt.ok ? "bg-surface-alt border-border text-text-primary" : "bg-surface-alt border-danger/50 text-danger"}`}>
+          <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-toast px-4 py-2.5 rounded-lg border shadow-lg text-sm modal-card ${receipt.ok ? "bg-surface-alt border-border text-text-primary" : "bg-surface-alt border-danger/50 text-danger"}`}>
             {receipt.text}
           </div>
         )}
         {/* 迁移完成卡片(接收端):模板文案 + 复制,用户粘贴发送给 Mint 对齐上下文 */}
         {migrateDone && (
-          <div className="fixed inset-0 z-[65] bg-black/40 flex items-center justify-center modal-overlay" onMouseDown={() => setMigrateDone(null)}>
+          <div className="fixed inset-0 z-dialog bg-black/40 flex items-center justify-center modal-overlay" onMouseDown={() => setMigrateDone(null)}>
             <div className="bg-surface-alt rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 520, maxHeight: "85vh" }} onMouseDown={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
                 <h2 className="text-sm font-semibold text-text-primary">迁移完成</h2>
@@ -234,7 +234,7 @@ export function App(): JSX.Element {
         )}
         {/* Windows 防火墙放行提示(设备互联端口,一次性) */}
         {firewallHint !== null && (
-          <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-3 px-4 py-2.5 rounded-lg bg-surface-alt border border-border shadow-lg text-xs text-text-primary">
+          <div className="fixed top-3 left-1/2 -translate-x-1/2 z-toast flex items-center gap-3 px-4 py-2.5 rounded-lg bg-surface-alt border border-border shadow-lg text-xs text-text-primary">
             <span>项目迁移需要 Windows 防火墙放行端口 {firewallHint}——首次弹窗时请勾选「专用网络」并允许访问</span>
             <button className="text-text-secondary hover:text-text-primary shrink-0" onClick={() => setFirewallHint(null)}>✕</button>
           </div>

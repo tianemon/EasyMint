@@ -94,7 +94,7 @@ export function SessionBar(props: SessionBarProps): JSX.Element {
 
       {/* 归档列表:浮层底色 + 行圆角块(标题 + 下方时间 + 悬停恢复) */}
       {showArchive && (
-        <div className="archive-panel-in absolute top-full left-3 right-3 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-surface-elevated shadow-lg z-10 p-1.5">
+        <div className="archive-panel-in absolute top-full left-3 right-3 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-surface-elevated shadow-lg z-dropdown p-1.5">
           {archived.length > 0 ? (
             archived.map((s) => (
               <div

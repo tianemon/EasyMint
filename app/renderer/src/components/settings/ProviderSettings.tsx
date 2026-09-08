@@ -581,7 +581,7 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
   }, [onClose]);
 
   return createPortal(
-    <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
         className="relative bg-surface rounded-xl border border-border shadow-2xl flex flex-col overflow-hidden"
         style={{ width: 580, height: "min(640px, calc(100vh - 96px))" }}

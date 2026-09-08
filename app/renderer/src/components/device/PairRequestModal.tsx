@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useDeviceStore } from "../../stores/device-store";
+import { Modal } from "../ui/Modal";
 
 /**
  * 配对请求弹窗(接收端):对方设备发起配对 → 弹窗确认(蓝牙式双向确认)。
@@ -24,7 +25,7 @@ export function PairRequestModal(): JSX.Element | null {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] modal-overlay">
+    <Modal overlayClassName="bg-black/50 modal-overlay" overlayClose={false} onClose={() => void rejectPair()}>
       <div className="bg-surface-alt rounded-xl border border-border shadow-2xl modal-card" style={{ width: 380 }}>
         <div className="px-6 pt-5 pb-2">
           <h2 className="text-base font-semibold text-text-primary">连接请求</h2>
@@ -59,6 +60,6 @@ export function PairRequestModal(): JSX.Element | null {
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

@@ -211,7 +211,7 @@ export function ColorPickerPanel({ value, onChange, onClose, anchorRect, anchorE
     <div
       ref={panelRef}
       role="dialog"
-      className="fixed z-[300] w-[220px] rounded-lg border border-border bg-surface-elevated shadow-xl overflow-hidden p-3 flex flex-col gap-2.5"
+      className="fixed z-dropdown w-[220px] rounded-lg border border-border bg-surface-elevated shadow-xl overflow-hidden p-3 flex flex-col gap-2.5"
       style={{ left: pos.left, top: pos.top }}
     >
       {/* SV 平面:纯色底 + 左白渐变(横向 s)+ 上透下黑渐变(纵向 v) */}

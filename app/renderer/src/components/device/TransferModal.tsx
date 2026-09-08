@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { StepIndicator } from "./StepIndicator";
 import { FileTreeSelector, ScanFileItem } from "./FileTreeSelector";
+import { Modal } from "../ui/Modal";
 
 /**
  * 迁移对话框(发送端,用户直接触发入口):
@@ -162,8 +163,13 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center modal-overlay" onMouseDown={(_e) => { if (!transferring) onClose(); }}>
-      <div className="bg-surface-alt rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 520 }} onMouseDown={(e) => e.stopPropagation()}>
+    <Modal
+      overlayClose="mousedown"
+      canOverlayClose={() => !transferring}
+      overlayClassName="bg-black/50 modal-overlay"
+      onClose={onClose}
+    >
+      <div className="bg-surface-alt rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 520 }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0">
           <h2 className="text-base font-semibold text-text-primary">迁移到 {deviceName}</h2>
           <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} disabled={transferring}>✕</button>
@@ -305,6 +311,6 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

@@ -4,6 +4,7 @@ import type { ProjectDimensions, DeployMode, SystemMessagePayload } from "../../
 import { StepDots, Step1Form, Step2Form, Step3Form, Step4Form } from "./new-project/StepComponents";
 import { ALL_STEPS, DEFAULT_DATA, SCENE_OPTIONS, TARGET_OPTIONS, UI_STYLE_OPTIONS, type ProjectFormData, type FeatureItem } from "./new-project/ProjectFormTypes";
 import { useMintChat } from "./new-project/useMintChat";
+import { Modal } from "./ui/Modal";
 
 // ---- Helpers ----
 
@@ -301,7 +302,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 modal-overlay">
+    <Modal overlayClassName="bg-black/50 modal-overlay" overlayClose={false} onClose={handleCancel}>
       <div className="bg-surface-alt rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 560, maxHeight: "90vh" }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-1 shrink-0">
           <h2 className="text-lg font-semibold text-text-primary">新建项目</h2>
@@ -340,6 +341,6 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

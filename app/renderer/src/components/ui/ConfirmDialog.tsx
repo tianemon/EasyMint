@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Modal } from "./Modal";
 
 /**
  * 通用确认对话框（替换 window.confirm）。
@@ -45,7 +46,7 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
   });
 }
 
-/** 挂载点：放在 App 根部（z-[130]，高于普通弹层） */
+/** 挂载点：放在 App 根部（modal 层，高于普通弹层） */
 export function ConfirmHost(): JSX.Element | null {
   const [pending, setPendingLocal] = useState<PendingConfirm | null>(null);
   useEffect(() => {
@@ -60,11 +61,8 @@ export function ConfirmHost(): JSX.Element | null {
   };
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => close(false)}>
-      <div
-        className="bg-surface border border-border rounded-xl p-5 max-w-md w-full shadow-2xl mx-4"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal tier="modal" overlayClassName="bg-black/40 backdrop-blur-sm" onClose={() => close(false)}>
+      <div className="bg-surface border border-border rounded-xl p-5 max-w-md w-full shadow-2xl mx-4">
         <div className="text-sm font-medium text-text-primary mb-1.5">{pending.title}</div>
         <p className="text-xs text-text-secondary mb-4 leading-relaxed whitespace-pre-line">{pending.message}</p>
         <div className="flex gap-2 justify-end">
@@ -88,6 +86,6 @@ export function ConfirmHost(): JSX.Element | null {
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
