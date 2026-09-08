@@ -612,7 +612,7 @@ export function seedBundledSkills(): void {
 // migrateBuiltinSkills removed — no longer auto-clean global skill/MCP dirs.
 
 /** Skills owned by EM — only injected as builtin, never installed to global. CC cannot see them. */
-const EM_SKILLS = ["ui-sync", "creation-guide", "creation-flow-intent", "creation-flow-features", "creation-flow-cost", "creation-flow-prototype", "creation-flow-techspec", "project-run", "dev-docs", "ui-aesthetic"];
+const EM_SKILLS = ["ui-sync", "creation-guide", "creation-flow-intent", "creation-flow-features", "creation-flow-cost", "creation-flow-prototype", "creation-flow-techspec", "project-run", "dev-docs", "ui-aesthetic", "ui-ux-pro-max"];
 
 /** Skills bundled with EM for convenience — auto-seeded to global on first launch if missing.
  *  Global copy takes priority (user can customize), builtin acts as fallback. CC can use them. */
