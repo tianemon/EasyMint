@@ -3,7 +3,7 @@ import path from "path";
 import os from "os";
 import type { ProviderConfig, ApiProvidersData } from "../../shared/platform-presets";
 import { resolveHome } from "../utils/paths";
-import { encryptLegacyApiKeys, decryptLegacyApiKeys, encryptProviders, decryptProviders } from "./settings-crypto";
+import { dropLegacyEncryptedApiKeys, dropLegacyEncryptedProviderKeys } from "./settings-legacy";
 
 export const DATA_DIR = path.join(os.homedir(), ".easymint");
 
@@ -196,7 +196,7 @@ export class Store {
       defaultProjectDir: resolveHome((emData.defaultProjectDir as string) || EM_DEFAULTS.defaultProjectDir),
       model: (emData.model as string) || undefined,
       availableModels: (emData.availableModels as string[]) || undefined,
-      apiKeys: decryptLegacyApiKeys(emData.apiKeys as Record<string, string> | undefined),
+      apiKeys: dropLegacyEncryptedApiKeys(emData.apiKeys as Record<string, string> | undefined),
       builtinTools: (emData.builtinTools as Record<string, boolean>) || undefined,
       manageSkillEnabled: emData.manageSkillEnabled as boolean | undefined,
       learnEnabled: emData.learnEnabled as boolean | undefined,
@@ -240,7 +240,7 @@ export class Store {
           activeStatusGroupDark: dark.activeId,
         };
       })(),
-      apiProviders: decryptProviders(emData.apiProviders as ApiProvidersData | undefined),
+      apiProviders: dropLegacyEncryptedProviderKeys(emData.apiProviders as ApiProvidersData | undefined),
     };
   }
 
@@ -285,7 +285,7 @@ export class Store {
       if (settings.availableModels) data.availableModels = settings.availableModels;
     }
     if (settings.apiKeys && Object.keys(settings.apiKeys).length > 0) {
-      data.apiKeys = encryptLegacyApiKeys(settings.apiKeys);
+      data.apiKeys = settings.apiKeys;
     }
     if (settings.builtinTools) data.builtinTools = settings.builtinTools;
     if (settings.manageSkillEnabled !== undefined) data.manageSkillEnabled = settings.manageSkillEnabled;
@@ -314,7 +314,7 @@ export class Store {
     if (settings.activeStatusGroupLight) data.activeStatusGroupLight = settings.activeStatusGroupLight;
     if (settings.activeStatusGroupDark) data.activeStatusGroupDark = settings.activeStatusGroupDark;
     if (settings.apiProviders) {
-      data.apiProviders = encryptProviders(settings.apiProviders);
+      data.apiProviders = settings.apiProviders;
     }
     fs.writeFileSync(this.emSettingsPath, JSON.stringify(data, null, 2));
   }

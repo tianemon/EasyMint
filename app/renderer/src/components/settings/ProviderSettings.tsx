@@ -4,7 +4,6 @@ import { useSettingsStore } from "../../stores/settings-store";
 import { getPreset } from "@shared/platform-presets";
 import type { ProviderConfig, ExtraModelCapability } from "@shared/platform-presets";
 import { THINKING_ORDER, THINKING_LABELS } from "@shared/thinking-levels";
-import { API_KEY_UNCHANGED } from "@shared/secrets";
 import { Select, type SelectOption } from "../Select";
 import { BRAND_BY_PI_ID, providerSelectOptions } from "../../lib/provider-brands";
 import { toast } from "../ui/Toast";
@@ -226,10 +225,6 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     if (!name.trim()) { toast("请输入名称"); return false; }
     if (!apiKey.trim()) { toast("请输入 API Key"); return false; }
     if (isCustom && !baseUrl.trim()) { toast("自定义供应商需填写 Base URL"); return false; }
-    // 掩码 key 未改动 → 哨兵标记（主进程保留原已加密 key）——直接回传掩码会覆盖真实 key
-    const maskedInitial = (initial?.apiKey || "").trim();
-    const finalKey = apiKey.trim();
-    const keyToSave = maskedInitial && finalKey === maskedInitial && maskedInitial.includes("****") ? API_KEY_UNCHANGED : finalKey;
     const modelList = isCustom
       ? customModelsText.split("\n").map((s) => s.trim()).filter(Boolean)
       : Array.from(new Set([...models, ...extraIds]));
@@ -237,7 +232,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       id: initial?.id || `${(presetId || "custom")}-${Date.now()}`,
       presetId: isCustom ? "custom" : presetId,
       name: name.trim(),
-      apiKey: keyToSave,
+      apiKey: apiKey.trim(),
       model: model || (modelList[0] ?? ""),
       models: modelList,
       extraModels: isCustom ? undefined : extraModels, // 自定义供应商用 textarea,不存 extra

@@ -9,8 +9,6 @@ import { Store } from "./services/store";
 import { broadcast } from "./services/ipc-broadcast";
 import { resetModelRuntime, getGlobalSettingsManager } from "./services/pi-init";
 import { IMAGE_MIME, resolveHome } from "./utils/paths";
-import { maskApiKey, API_KEY_UNCHANGED, isMaskedApiKey, isSecretLegacyEntry } from "../shared/secrets";
-import type { ProviderConfig, ApiProvidersData } from "../shared/platform-presets";
 import { z } from "zod";
 import { guard, expectPayload, pathString } from "./ipc-validation";
 import { execShell } from "./services/shell-service";
@@ -89,41 +87,6 @@ interface Services {
   fileService: FileService;
   agentService: AgentService;
   store: Store;
-}
-
-/**
- * apiProviders 回传值清洗：渲染层拿到的是掩码 key（settings:get），保存时未改动的条目
- * 会带掩码/哨兵原文回来——若直接落盘会用掩码覆盖真实 key。这里把掩码/哨兵形态的 apiKey
- * 还原为主进程已存（解密后）的 key。新填写的明文 key（非掩码形态）原样保留。
- */
-function resolveIncomingProviders(incoming: ApiProvidersData | undefined, current: ApiProvidersData | undefined): ApiProvidersData | undefined {
-  if (!incoming) return incoming;
-  const configs: Record<string, ProviderConfig> = {};
-  for (const [id, cfg] of Object.entries(incoming.configs ?? {})) {
-    const prevKey = current?.configs?.[id]?.apiKey;
-    const sentKey = cfg.apiKey ?? "";
-    const unchanged = sentKey === API_KEY_UNCHANGED || (!!prevKey && (isMaskedApiKey(sentKey) || sentKey === maskApiKey(prevKey)));
-    configs[id] = { ...cfg, apiKey: unchanged ? (prevKey ?? "") : sentKey };
-  }
-  return { current: incoming.current ?? current?.current ?? null, configs };
-}
-
-/**
- * 旧版 apiKeys 映射回传清洗（与 apiProviders 同理）：渲染层拿到的是掩码（settings:get），
- * 保存时未改动的密钥条目会带掩码/哨兵原文回来——直接落盘会用掩码覆盖真实 key。
- * 这里还原为主进程已存（解密后）的 key；VISION_* 配置项非密钥，原样保留。
- * 掩码只对密钥语义条目生成（isSecretLegacyEntry），配置项（VISION_BASE_URL 等 URL）不受影响。
- */
-function resolveIncomingLegacyKeys(incoming: Record<string, string> | undefined, current: Record<string, string> | undefined): Record<string, string> | undefined {
-  if (!incoming) return incoming;
-  const out: Record<string, string> = {};
-  for (const [k, sent] of Object.entries(incoming)) {
-    if (!isSecretLegacyEntry(k)) { out[k] = sent; continue; }
-    const prev = current?.[k] ?? "";
-    const unchanged = sent === API_KEY_UNCHANGED || (!!prev && (isMaskedApiKey(sent) || sent === maskApiKey(prev)));
-    out[k] = unchanged ? prev : sent;
-  }
-  return out;
 }
 
 export function registerIpcHandlers({ mainWindow, projectService, fileService, agentService, store }: Services): void {
@@ -516,35 +479,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("codegraph:detect", () => detectCodegraph());
 
   // settings:*
-  // settings:get 对 apiKey 掩码（sk-****后4位）——渲染层不需要明文，磁盘原文也不回传；
-  // 只掩码真密钥条目（apiProviders 全部条目、旧版 apiKeys 的非 VISION_* 条目），
-  // VISION_BASE_URL/MODEL/MODE 等配置项不是密钥，掩码会破坏 UI 显示与保存。
-  // 渲染层提交时用 API_KEY_UNCHANGED 哨兵 / 掩码原文表示「未改动」（见 settings:set）
-  ipcMain.handle("settings:get", () => {
-    const s = store.getSettings() as { apiKeys?: Record<string, string>; apiProviders?: ApiProvidersData };
-    const out: typeof s = { ...s };
-    if (out.apiKeys) {
-      const m: Record<string, string> = {};
-      for (const [k, v] of Object.entries(out.apiKeys)) m[k] = isSecretLegacyEntry(k) ? maskApiKey(v) : v;
-      out.apiKeys = m;
-    }
-    if (out.apiProviders) {
-      out.apiProviders = {
-        ...out.apiProviders,
-        configs: Object.fromEntries(
-          Object.entries(out.apiProviders.configs ?? {}).map(([id, cfg]) => [id, { ...cfg, apiKey: maskApiKey(cfg.apiKey ?? "") }]),
-        ),
-      };
-    }
-    return out;
-  });
+  ipcMain.handle("settings:get", () => store.getSettings());
   ipcMain.handle("settings:set", async (_e, { key, value }) => {
     const settings = store.getSettings();
-    // apiProviders / apiKeys 回传值里掩码/哨兵形态的 apiKey → 保留主进程已存的 key（防掩码覆盖明文）
-    let val = value;
-    if (key === "apiProviders") val = resolveIncomingProviders(val as ApiProvidersData | undefined, settings.apiProviders);
-    else if (key === "apiKeys") val = resolveIncomingLegacyKeys(val as Record<string, string> | undefined, settings.apiKeys);
-    (settings as unknown as Record<string, unknown>)[key] = val;
+    (settings as unknown as Record<string, unknown>)[key] = value;
     store.saveSettings(settings);
     // 供应商配置/激活变更 → 重置模型缓存,切换供应商后新会话立即用新供应商的默认/兜底模型
     if (key === "apiProviders") {
@@ -558,8 +496,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     }
   });
   ipcMain.handle("settings:fetchModels", async (_e, modelsUrl?: string, apiKey?: string) => {
-    // 掩码/未提供 key 时回落主进程已存 key（渲染层持有的是掩码，不能直接用于鉴权）
-    const key = apiKey && !isMaskedApiKey(apiKey) && apiKey !== API_KEY_UNCHANGED ? apiKey : store.getActiveApiKey();
+    const key = apiKey || store.getActiveApiKey();
     if (!key) throw new Error("请先配置 API Key");
     if (!modelsUrl) throw new Error("该平台未配置模型列表地址");
 

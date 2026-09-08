@@ -8,7 +8,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { basename, extname } from "node:path";
 import { homedir } from "node:os";
 import { resolveHome, IMAGE_MIME } from "../utils/paths";
-import { decryptLegacyApiKeys } from "./settings-crypto";
+import { dropLegacyEncryptedApiKeys } from "./settings-legacy";
 
 // ── Config ──────────────────────────────────────────
 
@@ -39,8 +39,8 @@ function readEmSettings(): Record<string, unknown> {
 }
 
 function readApiKeys(): Record<string, string> {
-  // apiKeys 里的密钥条目已 safeStorage 加密落盘（1.4）——旁路读取需解密，VISION_* 配置项原样
-  return decryptLegacyApiKeys((readEmSettings().apiKeys as Record<string, string> | undefined)) || {};
+  // 1.4 回退后明文落盘；磁盘残留的旧 safeStorage 密文（em-v1: 前缀）不可解密 → 丢弃视为未配置
+  return dropLegacyEncryptedApiKeys((readEmSettings().apiKeys as Record<string, string> | undefined)) || {};
 }
 
 export function isToolEnabled(name: "vision" | "webFetch"): boolean {
