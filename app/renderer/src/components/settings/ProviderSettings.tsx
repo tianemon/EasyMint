@@ -425,7 +425,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
                       `输出 ${cap?.maxTokens ? formatWindow(cap.maxTokens) : "自动"}`,
                     ];
                     return (
-                      <div key={id} className="inline-flex flex-col gap-1.5 px-2 py-1.5 rounded-lg bg-accent-soft border border-accent-border">
+                      <div key={id} className="inline-flex flex-col gap-1.5 px-2 py-1.5 rounded-lg bg-accent-high">
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
