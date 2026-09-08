@@ -318,6 +318,37 @@ process.on("SIGTERM", () => {
   app.quit();
 });
 
+// ── 全局异常兜底 ──
+// Electron 主进程无兜底时:未捕获异常/异步拒绝会弹「Uncaught Exception」崩溃框并终止进程
+// (窗口全关、未保存状态丢失)。agent 回合类错误已由 agent-service 广播层降级(用户可见),
+// 能漏到这里的多是外围一次性异步任务的偶发故障——记日志 + 落盘后保持运行,明确不弹框、不退出。
+const GLOBAL_ERR_LOG = path.join(EM_HOME, "logs", "error.log");
+function logGlobalError(kind: "uncaughtException" | "unhandledRejection", detail: unknown): void {
+  const stack = detail instanceof Error ? `${detail.name}: ${detail.message}\n${detail.stack ?? ""}` : String(detail);
+  console.error(`[process] ${kind}:\n${stack}`);
+  // 落盘 ~/.easymint/logs/error.log 供事后诊断;超 5MB 滚动为 .old(保留最近一份),防无限增长
+  try {
+    fs.mkdirSync(path.dirname(GLOBAL_ERR_LOG), { recursive: true });
+    if (fs.existsSync(GLOBAL_ERR_LOG) && fs.statSync(GLOBAL_ERR_LOG).size > 5 * 1024 * 1024) {
+      fs.rmSync(`${GLOBAL_ERR_LOG}.old`, { force: true });
+      fs.renameSync(GLOBAL_ERR_LOG, `${GLOBAL_ERR_LOG}.old`);
+    }
+    fs.appendFileSync(GLOBAL_ERR_LOG, `[${new Date().toISOString()}] ${kind}\n${stack}\n\n`, "utf-8");
+  } catch { /* 日志目录只读/磁盘满时放弃落盘,不影响主流程 */ }
+}
+// 同一次故障偶发同时触发两类事件(Exception 先、其异步副作用 Rejection 紧随)——
+// 对同一错误 1s 内去重,避免双份日志刷屏
+let lastGlobalErr = { at: 0, key: "" };
+const reportGlobalErr = (kind: "uncaughtException" | "unhandledRejection", detail: unknown): void => {
+  const key = detail instanceof Error ? detail.message : String(detail);
+  const now = Date.now();
+  if (now - lastGlobalErr.at < 1000 && key === lastGlobalErr.key) return;
+  lastGlobalErr = { at: now, key };
+  logGlobalError(kind, detail);
+};
+process.on("uncaughtException", (err) => reportGlobalErr("uncaughtException", err));
+process.on("unhandledRejection", (reason) => reportGlobalErr("unhandledRejection", reason));
+
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });

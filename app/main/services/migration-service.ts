@@ -288,7 +288,30 @@ class MigrationService extends EventEmitter {
   constructor() {
     super();
     networkService.on("migration-message", (req: { peerId: string; msg: Record<string, unknown> }) => {
-      void this.handleProtocolMessage(req.peerId, req.msg);
+      void this.handleProtocolMessage(req.peerId, req.msg).catch((e: unknown) => {
+        const reason = e instanceof Error ? e.message : String(e);
+        const type = String(req.msg?.type ?? "");
+        const transferId = typeof req.msg?.transferId === "string" ? req.msg.transferId : undefined;
+        console.error(`[migration] 迁移消息处理失败 peer=${req.peerId} type=${type}:`, reason);
+        // 接收侧消息失败:清理 pending 并回「transfer-failed」给发送端——否则发送端等
+        // accept/done 回执会永久挂起(30s 超时是最后兜底)。回执方式与 restoreTransfer
+        // 的已知失败路径一致,发送端收到后其前端展示失败回执。
+        if (transferId && (type === "transfer-request" || type === "transfer-chunk" || type === "transfer-complete")) {
+          if (this.pending.delete(transferId)) {
+            broadcast("migration:failed", { transferId, failures: [reason] });
+          }
+          networkService.sendToDevice(req.peerId, { type: "transfer-failed", transferId, failures: [reason] });
+          return;
+        }
+        // 对端回执(本机为发送侧)处理失败 → 以失败收尾本机侧,避免发送进度卡在等待态
+        if (transferId && this.sentTransfers.has(transferId)) {
+          this.emit("failed", {
+            peerId: req.peerId,
+            projectPath: this.sentTransfers.get(transferId)?.projectPath,
+            failures: [`处理对端消息失败(${type}): ${reason}`],
+          });
+        }
+      });
     });
   }
 

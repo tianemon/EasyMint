@@ -972,6 +972,31 @@ export class AgentService {
     }
   }
 
+  /** fire-and-forget 启动回合的统一收口。promptAndBridge 的回合内错误已由自身 try/catch
+   *  广播处理(前端可见);能逃逸到这里的只有订阅/初始化/finally 阶段的异常——补记日志、
+   *  复位「进行中回合」标记并补发 error/exit,否则该会话后续消息误判 isStreaming 残留、
+   *  且前端「正在请求」无人清除 */
+  private launchPrompt(
+    session: AgentSession,
+    sessionId: string,
+    chatId: string,
+    text: string,
+    chat?: ActiveChat,
+    images?: Array<{ type: "image"; data: string; mimeType: string }>,
+    systemPayload?: SystemMessagePayload,
+  ): void {
+    void this.promptAndBridge(session, sessionId, chatId, text, chat, images, systemPayload).catch((err: unknown) => {
+      const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      console.error(`[agent] 回合启动失败(未预期) chatId=${chatId} sessionId=${sessionId}:`, raw);
+      this.activePromptSessions.delete(sessionId);
+      broadcast("agent:stream", {
+        type: "error", sessionId, chatId,
+        message: "请求未能成功启动，请重试", canRetry: true,
+      });
+      broadcast("agent:exit", { runId: chatId, code: -1 });
+    });
+  }
+
   // ── Worker（one-shot，接口保持） ──────────────────
 
   async runWorker(
@@ -1097,7 +1122,7 @@ export class AgentService {
           try { existing.session.abort(); } catch { /* abort 无副作用 */ }
           await existing.session.waitForIdle().catch(() => {});
         }
-        this.promptAndBridge(existing.session, resumeSessionId, existing.chatId, message, existing, images, systemPayload);
+        this.launchPrompt(existing.session, resumeSessionId, existing.chatId, message, existing, images, systemPayload);
         return { chatId: existing.chatId };
       }
     }
@@ -1266,7 +1291,7 @@ export class AgentService {
     }
 
     // 发起第一轮对话
-    this.promptAndBridge(session, chat.sessionId, chatId, message, chat, images, systemPayload);
+    this.launchPrompt(session, chat.sessionId, chatId, message, chat, images, systemPayload);
 
     return { chatId };
   }
@@ -1752,7 +1777,7 @@ export class AgentService {
     // 会话实际空闲时 steer 只入队不落盘(Pi agent core 的 steering 队列仅在回合循环内消费,
     // 空闲入队永不投递→"消息发出去了但 SDK 没落盘没响应")→ 改走正常发送路径
     if (!chat.session.isStreaming) {
-      this.promptAndBridge(chat.session, chat.sessionId, chat.chatId, text, chat, images);
+      this.launchPrompt(chat.session, chat.sessionId, chat.chatId, text, chat, images);
       return;
     }
     // isStreaming=true 但 EM 无进行中回合 → SDK 残留（如超时中断后 isStreaming 未复位，
@@ -1761,7 +1786,7 @@ export class AgentService {
       console.warn(`[agent] steer: session ${sessionId} isStreaming 残留(无进行中回合)，强制复位`);
       try { chat.session.abort(); } catch { /* abort 无副作用 */ }
       await chat.session.waitForIdle().catch(() => {});
-      this.promptAndBridge(chat.session, chat.sessionId, chat.chatId, text, chat, images);
+      this.launchPrompt(chat.session, chat.sessionId, chat.chatId, text, chat, images);
       return;
     }
     await chat.session.steer(text, images as any);

@@ -278,10 +278,19 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     else mgr.removeModelThinkingLevel(provider, modelId);
   });
   ipcMain.handle("agent:steer", (_e, { sessionId, text, images }) => {
-    agentService.steer(sessionId, text, images);
+    void agentService.steer(sessionId, text, images).catch((err: unknown) => {
+      const raw = err instanceof Error ? err.message : String(err);
+      console.error(`[ipc] agent:steer 失败 sessionId=${sessionId}:`, raw);
+      // 插话投递失败 → 广播 error 让对应会话清 busy 并提示重试,避免前端无响应悬挂
+      broadcast("agent:stream", { type: "error", sessionId, message: "插话发送失败，请重试", canRetry: true });
+    });
   });
   ipcMain.handle("agent:followUp", (_e, { sessionId, text }) => {
-    agentService.followUp(sessionId, text);
+    void agentService.followUp(sessionId, text).catch((err: unknown) => {
+      const raw = err instanceof Error ? err.message : String(err);
+      console.error(`[ipc] agent:followUp 失败 sessionId=${sessionId}:`, raw);
+      broadcast("agent:stream", { type: "error", sessionId, message: "消息发送失败，请重试", canRetry: true });
+    });
   });
   ipcMain.handle("agent:compact", async (_e, { sessionId, instructions }) => {
     await agentService.compact(sessionId, instructions);
@@ -692,6 +701,10 @@ const filePath = p.join(projectPath, "task.json");
         if (sessions.length > 0) {
           agentService.injectSystemMessage(sessions[0]!.sessionId, text, "delegation");
         }
+      }).catch((err) => {
+        // 迁移结果已由上方 migration:receipt(ok:true) 送达前端;此处注入失败只影响
+        // Mint 能否自动衔接下一步,不影响迁移本身——记日志跳过(会话已关闭属正常路径)
+        console.error("[ipc] 迁移完成通知注入 Mint 会话失败:", err);
       });
     }
   });
@@ -704,6 +717,10 @@ const filePath = p.join(projectPath, "task.json");
         if (sessions.length > 0) {
           agentService.injectSystemMessage(sessions[0]!.sessionId, text, "delegation");
         }
+      }).catch((err) => {
+        // 失败原因已由上方 migration:receipt(ok:false) 送达前端;此处注入失败仅影响
+        // Mint 能否看到失败上下文,不影响迁移结果展示——记日志跳过
+        console.error("[ipc] 迁移失败通知注入 Mint 会话失败:", err);
       });
     }
   });
