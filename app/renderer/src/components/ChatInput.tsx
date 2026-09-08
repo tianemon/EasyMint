@@ -321,8 +321,8 @@ export const ChatInput = memo(function ChatInput({
             {permissionMode === "full" ? "完全访问" : "标准"}
           </span>
           <span className={`relative w-8 h-[18px] rounded-full transition-colors overflow-hidden ${permissionMode === "full" ? "bg-[var(--color-permission-on)] border border-[var(--color-permission-on)]" : "bg-surface-hover border border-border"}`}>
-            {/* hover 高亮在圆点上(group-hover):elevated → text-secondary 灰,亮暗主题都可见 */}
-            <span className={`absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-surface-elevated shadow transition-all group-hover:bg-[var(--color-text-secondary)] ${permissionMode === "full" ? "left-[calc(100%-16px)]" : "left-0.5"}`} />
+            {/* hover 高亮在圆点上(group-hover):与模型/思考的 hover 同色(surface-hover) */}
+            <span className={`absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-surface-elevated shadow transition-all group-hover:bg-surface-hover ${permissionMode === "full" ? "left-[calc(100%-16px)]" : "left-0.5"}`} />
           </span>
         </button>
         {/* 模型标签:方盒图标(Lucide box)——替换原「模型」文字;hover 悬浮名称(与缓存命中率一致向上) */}
