@@ -1334,6 +1334,21 @@ export class AgentService {
     else this.broadcastThinkingLevel(chat);
   }
 
+  /** 供应商配置变更后重建活跃会话的模型对象。
+   *  模型定义在会话创建时绑定（sendMessage 对已有会话直接复用 session），配置改动（能力声明/模型列表）
+   *  对已开会话默认不生效——这里按会话当前模型名重新解析并 setModel，使改动对新老会话都即时生效。
+   *  输出中的会话跳过：避免打断当前回合，该会话下次发消息前仍用旧对象。 */
+  async refreshActiveSessionsModel(): Promise<void> {
+    const { getModelRuntime } = await import("./pi-init");
+    await getModelRuntime(this.store);
+    for (const [, chat] of this.activeChats) {
+      if (!chat.session || !chat.currentModel) continue;
+      if (this.activePromptSessions.has(chat.sessionId)) continue;
+      const model = await this.resolveModelByName(chat.currentModel, chat.provider);
+      if (model) await this.applySessionModel(chat, model, chat.currentModel);
+    }
+  }
+
   /**
    * 查「按模型设置」的思考等级（Pi 全局设置，键 `<provider>/<modelId>`）。
    * 配了就优先于全局默认与会话内选择——用户专门为该模型固定了等级。

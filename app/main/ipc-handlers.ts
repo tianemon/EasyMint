@@ -442,13 +442,19 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
 
   // settings:*
   ipcMain.handle("settings:get", () => store.getSettings());
-  ipcMain.handle("settings:set", (_e, { key, value }) => {
+  ipcMain.handle("settings:set", async (_e, { key, value }) => {
     const settings = store.getSettings();
     (settings as unknown as Record<string, unknown>)[key] = value;
     store.saveSettings(settings);
     // 供应商配置/激活变更 → 重置模型缓存,切换供应商后新会话立即用新供应商的默认/兜底模型
     if (key === "apiProviders") {
       resetModelRuntime();
+      // 已开会话的模型对象在创建时绑定,配置改动默认不生效 → 重建(输出中的会话跳过)
+      try {
+        await agentService.refreshActiveSessionsModel();
+      } catch (e) {
+        console.warn("[settings] 重建活跃会话模型失败:", (e as Error).message);
+      }
     }
   });
   ipcMain.handle("settings:fetchModels", async (_e, modelsUrl?: string, apiKey?: string) => {
