@@ -238,6 +238,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
         ipcRenderer.invoke("agent:stop-delegation", { delegationId, taskIndex }),
     getDelegations: (sessionId: string) =>
       ipcRenderer.invoke("agent:delegations", { sessionId }),
+    getRunningState: () =>
+      ipcRenderer.invoke("agent:running-state"),
     stopShell: (shellId: string) =>
       ipcRenderer.invoke("agent:stop-shell", { shellId }),
     followUp: (sessionId: string, text: string) =>

@@ -13,6 +13,7 @@ import { z } from "zod";
 import { guard, expectPayload, pathString } from "./ipc-validation";
 import { execShell } from "./services/shell-service";
 import { backgroundShellRegistry } from "./services/background-shell/registry";
+import { getRunningSummary } from "./services/task/registry";
 import { closeProjectWindows } from "./services/window-manager";
 import { detectGit } from "./utils/git-detector";
 import { detectNode } from "./utils/node-detector";
@@ -229,6 +230,14 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     // 渲染层按钮点停止 → 用户 UI 路径:来源记 user,停止通知文案显示「已由用户中止」
     backgroundShellRegistry.stop(String(shellId ?? ""), "user");
   });
+  // 运行态快照:渲染层挂载/刷新时主动拉取一次——广播只在状态变化时发，
+  // 刷新后不重播（agent:delegation-count / agent:shell-count），不拉取会导致胶囊与状态栏空白
+  ipcMain.handle("agent:running-state", () => ({
+    delegations: getRunningSummary(),
+    shells: backgroundShellRegistry.list().map((s) => ({
+      id: s.id, command: s.command, startedAt: s.startedAt, status: s.status, logPath: s.logPath, sessionId: s.sessionId,
+    })),
+  }));
   // 按模型设置思考等级（存 Pi 全局设置 agentDir/settings.json，键 `<provider>/<modelId>`）
   ipcMain.handle("agent:getModelThinkingLevels", async () => {
     try {

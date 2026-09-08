@@ -68,6 +68,12 @@ export function App(): JSX.Element {
     const off2 = window.electronAPI.agent.onShellCount((data) => {
       useDelegationStore.getState().setShellTasks(data);
     });
+    // 刷新后广播不重播（主进程只在状态变化时发）——挂载时主动拉取一次快照。
+    // 订阅先建立、拉取后到：快照作为初始值，随后到达的事件覆盖它（事件为权威）。
+    void window.electronAPI.agent.getRunningState().then((s) => {
+      useDelegationStore.getState().setAgentTasks(s.delegations.tasks);
+      useDelegationStore.getState().setShellTasks(s.shells);
+    }).catch((e) => { console.error("[app] 拉取运行态快照失败:", e); });
     return () => { off1(); off2(); };
   }, []);
 

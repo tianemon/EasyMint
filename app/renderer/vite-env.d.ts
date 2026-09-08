@@ -216,6 +216,11 @@ interface ElectronAPI {
     steer: (sessionId: string, text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>) => Promise<void>;
     stopDelegation: (delegationId: string, taskIndex: number) => Promise<void>;
     getDelegations: (sessionId: string) => Promise<DelegationSnapshotItem[]>;
+    /** 运行态快照（渲染层挂载/刷新时拉取一次；广播不重播，不拉取会空白） */
+    getRunningState: () => Promise<{
+      delegations: { count: number; tasks: Array<{ delegationId: string; index: number; title: string; sessionId?: string }> };
+      shells: Array<{ id: string; command: string; startedAt: number; status: "running" | "stopping"; logPath: string; sessionId?: string }>;
+    }>;
     stopShell: (shellId: string) => Promise<void>;
     followUp: (sessionId: string, text: string) => Promise<void>;
     compact: (sessionId: string, instructions?: string) => Promise<void>;
