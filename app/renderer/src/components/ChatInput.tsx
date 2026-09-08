@@ -330,13 +330,16 @@ export const ChatInput = memo(function ChatInput({
             <span className={`absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-surface-elevated shadow transition-all group-hover:bg-surface-hover ${permissionMode === "full" ? "left-[calc(100%-16px)]" : "left-0.5"}`} />
           </span>
         </button>
-        {/* 模型标签:方盒图标(Lucide box)——替换原「模型」文字;hover 悬浮名称(与缓存命中率一致向上) */}
+        {/* 模型标签:神经网络节点图标(三点互联)——替换原方盒图标;hover 悬浮名称(与缓存命中率一致向上) */}
         <Tooltip tip="模型" className="shrink-0">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inp-lbl block" style={{ marginRight: -1, marginLeft: 2 }} role="img" aria-label="模型">
             <title>模型</title>
-            <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
-            <path d="m3.3 7 8.7 5 8.7-5"/>
-            <path d="M12 22V12"/>
+            <circle cx="5" cy="12" r="2.6" />
+            <circle cx="19" cy="5.5" r="2.6" />
+            <circle cx="19" cy="18.5" r="2.6" />
+            <path d="M7.4 10.9 16.6 6.6" />
+            <path d="M7.4 13.1 16.6 17.4" />
+            <path d="M19 8.1v7.8" />
           </svg>
         </Tooltip>
         <Select
