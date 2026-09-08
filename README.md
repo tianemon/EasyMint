@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/tianemon/EasyMint/releases"><img src="https://img.shields.io/github/v/release/tianemon/EasyMint?style=flat-square&color=16a34a" alt="Version" /></a>
-  <img src="https://img.shields.io/badge/Pi%20Coding%20Agent-0.84-blue?style=flat-square" alt="Pi Coding Agent" />
+  <img src="https://img.shields.io/badge/Pi%20Coding%20Agent-0.85.1-blue?style=flat-square" alt="Pi Coding Agent" />
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
 </p>
 
@@ -36,6 +36,7 @@ EasyMint 是一个**内置 Pi Agent 的开源桌面 AI 编程平台**——[Pi C
 - **原型先行**——中等及以上项目先产出可交互 HTML 原型（内置设计师 Agent 与品牌库），确认后才进入开发
 - **多 Agent 协作**——项目经理 Agent 拆解需求、编码 Agent 实现、验收 Agent 检查、设计师 Agent 出原型，自动循环直至完成
 - **子 Agent 委派**——查资料、读代码、分析问题等任务委派标准子 Agent 执行并回传摘要，避免挤占主会话上下文；委派过程可视化（进度卡片/过程弹层）
+- **Skill 生态互通**——自动发现并直接使用 Claude Code、Codex、GitHub Agent Skills 生态的 skill，兼容既有技能资产，不锁定单一工具
 - **上下文自管理**——上下文使用率实时显示，达到阈值弹窗确认整理，压缩过程透明可中断；长对话不「失忆」
 - **Issue 闭环**——开发中的问题可记录、编辑、标记状态，Mint 读取清单并同步修复进度
 - **会话管理**——多 Tab 会话、多窗口；会话状态（思考/工具/压缩）按会话隔离互不串扰；会话可归档与恢复
@@ -93,6 +94,15 @@ AI 输出的重要内容可钉成悬浮便签固定在聊天区：一键钉住�
 
 Mint / Builder / Evaluator / Mint-D 各有内置模板，除 Mint 外可编辑；可新建自定义模板，指定职责、供应商、模型与思考级别。
 
+## Skill 生态
+
+EasyMint 与主流 AI 编程工具的 skill 生态互通，已有的技能资产开箱即用：
+
+- **自动发现**：Claude Code（`~/.claude/skills/`）、Codex（`~/.codex/skills/`）与 GitHub Agent Skills（项目 `.github/skills/`）目录下的标准 skill 自动出现在技能列表，只读发现、不改动原目录
+- **项目级优先**：项目内 `.claude/skills/`、`.codex/skills/`、`.github/skills/` 下的 skill 自动可用，与全局同名时以项目内的为准（界面标注来源与被遮蔽状态）
+- **粘贴即装**：把 GitHub 仓库链接或本地 skill 目录发给 Mint 即可安装到技能库（只拷贝文件，不执行仓库内脚本）
+- **AI 管理区**：设置中开启「允许 AI 创建与管理 skill」后，Mint 可在会话中创建、更新、删除自有 skill，与手写 skill 物理隔离
+
 ## 使用流程
 
 1. **新建项目**——直接对话描述想法（Mint 引导补全），或通过表单快速创建
@@ -106,6 +116,7 @@ Mint / Builder / Evaluator / Mint-D 各有内置模板，除 Mint 外可编辑�
 
 - **macOS**：`.dmg`
 - **Windows**：`.exe`
+- **Linux**：`.AppImage` / `.deb`（x64 与 ARM64）
 
 首次启动选择 AI 供应商并配置 API Key。
 
@@ -126,7 +137,7 @@ Mint / Builder / Evaluator / Mint-D 各有内置模板，除 Mint 外可编辑�
 | UI | Tailwind CSS 4 + Radix UI |
 | 状态管理 | Zustand 5 |
 | 代码编辑器 | Monaco Editor |
-| AI 引擎 | Pi Coding Agent 0.84 |
+| AI 引擎 | Pi Coding Agent 0.85.1 |
 
 ## 本地开发
 
