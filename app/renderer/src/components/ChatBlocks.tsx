@@ -101,6 +101,8 @@ interface ToolItem {
   resultError?: boolean;
   /** 执行中标记:本批 entries 内尚无匹配 tool_result(与 streaming 结合显示转圈;回合结束的残留不转) */
   pending?: boolean;
+  /** bash 执行中的累积输出(tool_progress 增量拼接;结束后保留,展开区显示) */
+  liveOutput?: string;
 }
 
 interface ToolGroupBlock {
@@ -177,6 +179,11 @@ export function buildBlocks(
           input: inp,
         });
       }
+    }
+    else if (e.kind === "tool_output") {
+      // 命令执行中的累积输出:关联到同组工具项。不 flush——输出到达不应打断工具分组
+      const target = [...toolBuf].reverse().find((t) => t.id === e.toolUseId);
+      if (target) target.liveOutput = e.text;
     }
     else if (e.kind === "error") { flushText(); flushThink(); flushTool(); blocks.push({ kind: "system", message: e.data }); }
     else if (e.kind === "exit") { flushAll(); /* suppress — user doesn't need to see process exit code */ }
@@ -623,17 +630,17 @@ function diffStats(hunks: DiffHunk[]): { added: number; removed: number } {
   return { added, removed };
 }
 
-/** 裁剪 hunk:单 hunk 全量;多 hunk 每块仅保留变更行 + 前后 3 行上下文(对齐 cc CONTEXT_LINES) */
-function trimHunk(hunk: DiffHunk, singleHunk: boolean): string[] {
-  if (singleHunk) return hunk.lines;
-  const lines = hunk.lines;
-  const changeIdx = lines.map((l, i) => ({ l, i })).filter(({ l }) => l.startsWith("+") || l.startsWith("-"));
-  if (changeIdx.length === 0) return lines;
-  const first = changeIdx[0]!.i;
-  const last = changeIdx[changeIdx.length - 1]!.i;
-  const from = Math.max(0, first - DIFF_CONTEXT_LINES);
-  const to = Math.min(lines.length - 1, last + DIFF_CONTEXT_LINES);
-  return lines.slice(from, to + 1);
+/** 可见区间:全局最靠前的改动 -3 行 → 最后的改动 +3 行。
+ *  区间内全量显示(hunk 之间的未改动行也保留),区间之外才省略——用户要「一段连续区间」,
+ *  而非按 hunk 各自裁剪、hunk 之间插 ...。无改动行(纯上下文)返回 null → 全量。 */
+function visibleDiffRange(lines: string[]): { from: number; to: number } | null {
+  const changed: number[] = [];
+  lines.forEach((l, i) => { if (l.startsWith("+") || l.startsWith("-")) changed.push(i); });
+  if (changed.length === 0) return null;
+  return {
+    from: Math.max(0, changed[0]! - DIFF_CONTEXT_LINES),
+    to: Math.min(lines.length - 1, changed[changed.length - 1]! + DIFF_CONTEXT_LINES),
+  };
 }
 
 /** diff 视图(SubagentProcessView 弹层复用):统计可导出,hunk 直接渲染 */
@@ -653,33 +660,28 @@ export function DiffView({ text, filePath: fp }: { text: string; filePath?: stri
   }
   const lang = filePath ? inferLang(filePath) : undefined;
 
-  // 渲染单元:标准 @@ 多 hunk 之间插 ... 分隔符;Pi 格式整体一段(... 已是内容行)
-  const renderUnits = hunks
-    ? hunks.map((h) => ({
-        sep: (h.lines[0] ?? "").startsWith("@@"),
-        lines: (h.lines[0] ?? "").startsWith("@@") ? trimHunk(h, hunks.length === 1) : h.lines,
-      }))
-    : [{ sep: false, lines: body.split("\n") }];
+  // 渲染行 = 一段连续区间(首个改动 -3 → 末个改动 +3),区间内不再按 hunk 断开
+  const allLines = hunks ? hunks.flatMap((h) => h.lines) : body.split("\n");
+  const range = visibleDiffRange(allLines);
+  const visibleLines = range ? allLines.slice(range.from, range.to + 1) : allLines;
+  const headOmitted = !!range && range.from > 0;
+  const tailOmitted = !!range && range.to < allLines.length - 1;
 
   // 行号列宽:所有行行号的最大位数,右对齐(对齐 cc gutter)
-  const lineNoWidth = renderUnits.reduce((w, u) => {
-    for (const l of u.lines) {
-      if (l.startsWith("+") || l.startsWith("-")) {
-        const m = /^[+-]\s*(\d+)/.exec(l);
-        if (m?.[1]) w = Math.max(w, m[1].length);
-      } else {
-        const m = /^\s*(\d+)/.exec(l);
-        if (m?.[1]) w = Math.max(w, m[1].length);
-      }
+  const lineNoWidth = visibleLines.reduce((w, l) => {
+    if (l.startsWith("+") || l.startsWith("-")) {
+      const m = /^[+-]\s*(\d+)/.exec(l);
+      if (m?.[1]) w = Math.max(w, m[1].length);
+    } else {
+      const m = /^\s*(\d+)/.exec(l);
+      if (m?.[1]) w = Math.max(w, m[1].length);
     }
     return w;
   }, 0);
 
   // 批量 tokenize 全部变更行(一次 warmup,消除逐行闪烁);剥离行号(Pi 格式可含前导空格)
   const [segmentsByLine, setSegmentsByLine] = useState<Array<Array<{ text: string; color?: string }> | null> | null>(null);
-  const allCodes = renderUnits.flatMap((u) =>
-    u.lines.map((l) => (l.startsWith("+") || l.startsWith("-") ? l.slice(1).replace(/^\s*\d+\s+/, "") : "")),
-  );
+  const allCodes = visibleLines.map((l) => (l.startsWith("+") || l.startsWith("-") ? l.slice(1).replace(/^\s*\d+\s+/, "") : ""));
   const hasHighlight = !!lang && allCodes.some((c) => c);
   const codesKey = allCodes.join("|");
   useEffect(() => {
@@ -691,26 +693,23 @@ export function DiffView({ text, filePath: fp }: { text: string; filePath?: stri
     return () => { cancelled = true; };
   }, [codesKey, lang, hasHighlight]);
 
-  let lineIdx = 0;
   return (
-    <div className="font-mono leading-relaxed" style={{ fontSize: "var(--text-code)" }}>
-      {renderUnits.map((u, i) => (
-        <div key={i}>
-          {i > 0 && u.sep && <div className="px-2 -mx-2 text-text-muted">...</div>}
-          {u.lines.map((l) => {
-            const idx = lineIdx++;
-            return (
-              <DiffLine
-                key={idx}
-                line={l}
-                lang={lang}
-                segments={segmentsByLine?.[idx]}
-                lineNoWidth={lineNoWidth}
-              />
-            );
-          })}
-        </div>
+    // 封顶 12 行(行高 1.625)超出滚动;px-2 与 DiffLine 的 -mx-2 抵消,保持原缩进
+    <div
+      className="font-mono leading-relaxed overflow-y-auto overscroll-contain px-2"
+      style={{ fontSize: "var(--text-code)", maxHeight: "calc(var(--text-code) * 19.5)" }}
+    >
+      {headOmitted && <div className="text-text-muted">...</div>}
+      {visibleLines.map((l, idx) => (
+        <DiffLine
+          key={idx}
+          line={l}
+          lang={lang}
+          segments={segmentsByLine?.[idx]}
+          lineNoWidth={lineNoWidth}
+        />
       ))}
+      {tailOmitted && <div className="text-text-muted">...</div>}
     </div>
   );
 }
@@ -744,19 +743,6 @@ function truncateResult(text: string, maxLines = 30, keep = 20): string {
 /** 带行号格式化(等宽对齐):write 内容预览用,参照 cc 的显示方式 */
 function numberLines(text: string): string {
   return text.split("\n").map((l, i) => `${String(i + 1).padStart(4)}  ${l}`).join("\n");
-}
-
-/**
- * 命令链 → 可读分段(标题行/展开区共用):
- * - `&&` / `;` / `||` / 换行 → 拆成独立段(每段一行,不再挤成一长条)
- * - `|` 单管道 → 不拆(同一逻辑命令,如 cat a | grep x 保持一段)
- * 实现:分隔符正则只含 ||(逻辑或)与 &&/;/换行——单 | 不在其中,自然保留在段内
- */
-function splitCommandChain(cmd: string): string[] {
-  return cmd
-    .split(/\n+|&&|;|\|\|/)
-    .map((s) => s.trim())
-    .filter(Boolean);
 }
 
 /** 提取 bash 命令文本(input 可能是纯字符串命令或 { command } 对象) */
@@ -819,11 +805,19 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
   // 不可断行长行/diff 仍把宽度撑到展开态);展开时先挂载下一帧再播 grid 动画(见 useFoldBody)
   const fold = useFoldBody(showInput, setShowInput);
 
+  // 命令执行中首次收到输出 → 自动展开(折叠状态下实时输出看不到)。
+  // 仅执行中触发:结束后/历史消息不自动展开,避免回到旧会话时所有命令块都摊开
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedRef.current || item.name !== "bash" || !item.pending || !item.liveOutput || showInput) return;
+    autoOpenedRef.current = true;
+    fold.toggle();
+  }, [item.name, item.pending, item.liveOutput, showInput]);
+
   const isPathTool = item.name === "edit" || item.name === "write" || item.name === "read";
   const diffStats_ = isDiffResult ? diffCount(item.result!) : null;
   // bash 命令文本(展开区分段展示用)
   const bashCmd = item.name === "bash" ? getBashCommand(item.input) : undefined;
-  const bashSegs = bashCmd ? splitCommandChain(bashCmd) : [];
   // 文件工具 → 绝对路径 + 文件名(标题行只显文件名,链接点击在 tab 打开;悬停 title 提示完整路径)
   const filePath = isPathTool ? editFilePath(item) : undefined;
   // 动作词:查 TOOL_LABELS 映射表(自定义工具各配中文名),MCP 标题只显「MCP」(不带工具二字),skill 类显示动作词
@@ -843,7 +837,7 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
   // 展开区有可显示内容:bash 命令来自 input(工具调用即带)——执行阶段/失败都可就展开看命令
   // (命令是输入,失败更需看到它排查;输出本来就不展示);其他工具(diff/write 内容等)内容来自 result,仍等结果到达
   const hasExpandable = item.name === "bash"
-    ? (bashSegs.length > 0 || !!bashCmd)
+    ? (!!bashCmd || !!item.liveOutput)
     : !!item.result && !contentErr;
 
   // read(查看)特例:文件内容已在链接中(点击文件名在 tab 打开即可看),结果不再展示、无需展开——
@@ -948,11 +942,19 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
               </div>
             ) : item.name === "bash" ? (
               <div className="mt-[2px] rounded-md" style={{ background: "var(--thinking-body)" }}>
-                {/* bash:只显示命令分段(输出结果不展示) */}
+                {/* bash:原始命令(不拆分) + 命令输出(执行中实时累积,6 行封顶滚动——对齐思考块) */}
                 <div className="px-3 py-2">
                   <pre className="text-text-secondary font-mono whitespace-pre-wrap break-all" style={{ fontSize: "var(--text-detail)" }}>
-                    {bashSegs.length > 0 ? bashSegs.join("\n") : (bashCmd ?? "")}
+                    {bashCmd ?? ""}
                   </pre>
+                  {item.liveOutput ? (
+                    <div
+                      className="mt-1.5 rounded-[6px] overflow-y-auto overscroll-contain bg-[var(--color-sidebar)]/40"
+                      style={{ maxHeight: "calc(var(--text-detail) * 9.75 + 12px)" }}
+                    >
+                      <pre className="px-2 py-1.5 text-text-secondary font-mono whitespace-pre-wrap leading-[1.625]" style={{ fontSize: "var(--text-detail)" }}>{item.liveOutput}</pre>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : detailLabel ? (

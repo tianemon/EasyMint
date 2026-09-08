@@ -65,11 +65,21 @@ interface ThinkingEntry {
   source?: string;
 }
 
+/** 工具执行中的增量输出(bash 实时输出):按 toolUseId 关联到工具块,text 为累积全文 */
+interface ToolOutputEntry {
+  kind: "tool_output";
+  toolUseId?: string;
+  text: string;
+  timestamp: number;
+  source?: string;
+}
+
 export type StreamEntry =
   | TextEntry
   | ThinkingEntry
   | ToolUseEntry
   | ToolResultEntry
+  | ToolOutputEntry
   | SystemEntry
   | ErrorEntry
   | ExitEntry

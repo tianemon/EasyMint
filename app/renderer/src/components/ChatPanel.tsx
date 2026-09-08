@@ -45,6 +45,9 @@ interface ChatPanelProps {
   onNewProject?: () => void;
 }
 
+/** 命令实时输出累积上限(超出保留尾部):巨型字符串会拖慢渲染,完整输出仍在模型上下文与日志 */
+const MAX_LIVE_OUTPUT_CHARS = 50_000;
+
 /** 系统消息 kind → 头部标签(系统卡片统一形态的辨识信息) */
 const SYSTEM_KIND_LABELS: Record<string, string> = {
   delegation: "子 Agent 委派",
@@ -1056,6 +1059,22 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         // 按 toolCallId 区分信号——连续工具互不干扰(前一个 tool_done 不误 pop 后一个)
         useStatusStore.getState().popSignal(sidRef.current, "request");
         useStatusStore.getState().pushSignal(sidRef.current, `tool:${event.toolCallId ?? "?"}`, label);
+        // 命令实时输出(bash 增量):按 toolCallId 累积成 tool_output 条目,展开区显示
+        if (event.toolCallId && event.deltaText) {
+          const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
+          const target = msgs.find((m) => m.id === latestAiIdRef.current);
+          if (target && target.role === "ai") {
+            const idx = target.entries.findIndex((e: { kind: string; toolUseId?: string }) => e.kind === "tool_output" && e.toolUseId === event.toolCallId);
+            const prev = idx >= 0 ? String((target.entries[idx] as { text?: string }).text ?? "") : "";
+            // 超长输出只留尾部:避免巨型字符串拖慢渲染(完整输出仍在模型上下文与日志)
+            const text = (prev + event.deltaText).slice(-MAX_LIVE_OUTPUT_CHARS);
+            const entry = { kind: "tool_output" as const, toolUseId: event.toolCallId, text, timestamp: event.timestamp ?? Date.now(), source: "chat" as const };
+            const merged = idx >= 0
+              ? target.entries.map((e: { kind: string; toolUseId?: string }, i: number) => (i === idx ? entry : e))
+              : [...target.entries, entry];
+            useChatStore.getState().replaceAiEntriesById(sidRef.current, target.id, merged);
+          }
+        }
       }
       // tool done — 工具执行结束,pop 自己的工具信号;
       // 回合仍在 → 显示「正在处理」(中性等待态,消除状态栏空档;

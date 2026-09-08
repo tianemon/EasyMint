@@ -118,6 +118,8 @@ interface StreamEvent {
   toolName?: string;
   toolArgs?: Record<string, unknown>;
   toolCallId?: string;
+  /** tool_progress 的工具增量输出(事件桥从 partialResult 提取;bash 执行中实时输出) */
+  deltaText?: string;
   /** tool_result 是否错误(toolResult 消息 isError) */
   isError?: boolean;
   /** tool_result 内容(主进程 event-bridge 转发,与 text 冗余兼容) */

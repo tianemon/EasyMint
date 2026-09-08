@@ -16,6 +16,8 @@ export interface PiChatEvent {
   toolCallId?: string;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
+  /** 工具执行中的增量输出文本(tool_execution_update 的 partialResult 提取;bash 实时输出) */
+  deltaText?: string;
   /** user 消息文本(user_message 事件) */
   text?: string;
   /** tool_result 内容(toolResult 消息转发) */
@@ -94,6 +96,16 @@ function extractUserText(msg: unknown): string {
       .join("");
   }
   return "";
+}
+
+/** 工具增量输出转纯文本(SDK 的 partialResult 是 AgentToolResult:content 为内容块数组) */
+function extractPartialText(partialResult: unknown): string {
+  const content = (partialResult as { content?: unknown } | undefined)?.content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .filter((b): b is { type?: string; text?: string } => typeof b === "object" && b !== null)
+    .map((b) => (b.type === "text" && b.text ? b.text : ""))
+    .join("");
 }
 
 export interface BridgeCallbacks {
@@ -219,7 +231,15 @@ export function bridgeSessionEvents(
     }
 
     case "tool_execution_update": {
-      callbacks.onEvent({ type: "tool_progress", sessionId: "", toolCallId: event.toolCallId, toolName: event.toolName, toolArgs: event.args });
+      // 增量输出(如 bash 实时 stdout)——此前只转发工具名,partialResult 被丢弃
+      callbacks.onEvent({
+        type: "tool_progress",
+        sessionId: "",
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        toolArgs: event.args,
+        deltaText: extractPartialText(event.partialResult),
+      });
       break;
     }
 

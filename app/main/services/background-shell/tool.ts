@@ -1,8 +1,8 @@
 /**
- * 增强 bash 工具 — 前台委托 Pi 原生实现,新增 background: true 后台执行
+ * 增强 bash 工具 — 前台 EM 自 spawn(Windows 下 GBK 解码容错),新增 background: true 后台执行
  *
- * 前台分支:直接调 createBashToolDefinition(cwd) 的原生 execute,
- * 行为零改动(同步执行 + tool_execution_update 实时流式输出)。
+ * 前台分支:同步执行 + 超时 + 截断 + PI_* 注入;执行中经 SDK 的 onUpdate 推增量输出
+ * (tool_execution_update → 前端命令展开区实时显示)。
  * 后台分支:spawn 子进程注册到 BackgroundShellRegistry,立即返回
  * 「已后台启动」,不阻塞回合——对齐 Claude Code run_in_background。
  */
@@ -25,6 +25,8 @@ async function executeForeground(
   timeoutSec?: number,
   ctx?: { model?: { provider?: string; id?: string }; thinkingLevel?: string; sessionManager?: { getSessionId(): string; getSessionFile?(): string } },
   sandboxed?: boolean,
+  /** SDK 增量回调:执行中把输出片段推给 UI(无则跳过,后台/无 UI 场景不受影响) */
+  onUpdate?: (partial: { content: Array<{ type: string; text: string }> }) => void,
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
   return new Promise((resolve, reject) => {
     const spawnPlan = typeof command === "string"
@@ -76,14 +78,32 @@ async function executeForeground(
     // 前台 bash:解码后流式剥 ANSI,返回给 Mint 的文本干净(彩色输出只含控制码,剥离无信息损失)
     const outAnsi = createAnsiStripper();
     const errAnsi = createAnsiStripper();
-    child.stdout?.on("data", (c: Buffer) => { output += outAnsi.feed(outDec.feed(c)); });
-    child.stderr?.on("data", (c: Buffer) => { errOutput += errAnsi.feed(errDec.feed(c)); });
+    // 实时输出节流推送:逐 chunk 推会让 UI 高频重渲染,合并 150ms 内的片段再发。
+    // 推增量而非累积全文——长输出下不必每帧搬运全部内容。
+    // 不脱敏:只用于用户本机 UI 展示(不进模型上下文),增量切片也会破坏密钥匹配的完整性
+    let pendingDelta = "";
+    let deltaTimer: ReturnType<typeof setTimeout> | null = null;
+    const flushDelta = (): void => {
+      if (deltaTimer) { clearTimeout(deltaTimer); deltaTimer = null; }
+      if (!onUpdate || !pendingDelta) return;
+      onUpdate({ content: [{ type: "text", text: pendingDelta }] });
+      pendingDelta = "";
+    };
+    const emitDelta = (chunk: string): void => {
+      if (!onUpdate || !chunk) return;
+      pendingDelta += chunk;
+      if (!deltaTimer) deltaTimer = setTimeout(flushDelta, 150);
+    };
+    child.stdout?.on("data", (c: Buffer) => { const s = outAnsi.feed(outDec.feed(c)); output += s; emitDelta(s); });
+    child.stderr?.on("data", (c: Buffer) => { const s = errAnsi.feed(errDec.feed(c)); errOutput += s; emitDelta(s); });
     child.on("error", (err) => {
       if (timer) clearTimeout(timer);
+      flushDelta();
       reject(new Error(`bash 执行失败: ${err.message}`));
     });
     child.on("exit", (code) => {
       if (timer) clearTimeout(timer);
+      flushDelta();
       output += outAnsi.feed(outDec.finish()) + outAnsi.finish();
       errOutput += errAnsi.feed(errDec.finish()) + errAnsi.finish();
       // 沙盒违规注解：seatbelt/代理产生的拦截在此转成可读说明（仅沙盒执行时）。
@@ -175,7 +195,7 @@ export async function createEnhancedBashTool(
       _toolCallId: string,
       params: Record<string, unknown>,
       signal: AbortSignal | undefined,
-      _onUpdate: any,
+      onUpdate: ((partial: { content: Array<{ type: string; text: string }> }) => void) | undefined,
       ctx: any,
     ) {
       const command = String(params.command || "");
@@ -204,7 +224,7 @@ export async function createEnhancedBashTool(
       // 前台:EM 自己 spawn + 编码容错解码(Windows 下 Pi 的 OutputAccumulator 固定 UTF-8,
       // 解 GBK 字节必乱码;EM 侧按 UTF-8/GBK 自动判定)。行为对齐 Pi:同步 + 超时 + 截断 + PI_* 注入。
       if (params.background !== true) {
-        return executeForeground(execTarget, cwd, signal, typeof params.timeout === "number" ? params.timeout : undefined, ctx, sandboxed);
+        return executeForeground(execTarget, cwd, signal, typeof params.timeout === "number" ? params.timeout : undefined, ctx, sandboxed, onUpdate);
       }
 
       // 后台:spawn + 注册,立即返回
