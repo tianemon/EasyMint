@@ -16,7 +16,7 @@ export interface DelegationTaskUi {
 export interface DelegationUiState {
   delegationId: string;
   chatId?: string;
-  /** 触发委派的消息 id（卡片固定附着在该消息气泡下方,不随新消息移动） */
+  /** 触发委派的消息 id（跨批次合并卡以各委派中最新的 triggerMsgId 为锚点,挂在其消息下方） */
   triggerMsgId?: number;
   tasks: DelegationTaskUi[];
   /** 全部任务进入终态 */
@@ -58,6 +58,15 @@ function StatusIcon({ status }: { status: DelegationTaskUi["status"] }): JSX.Ele
           <path d="M6 6l4 4M10 6l-4 4" />
         </svg>
       );
+    // 中止：双竖线（停止符）——不能用 failed 的红叉（主动停止 ≠ 执行报错），
+    // 也不能落到 default 的灰色空心圈（会与 pending 混淆，看起来像没跑过）
+    case "aborted":
+      return (
+        <svg className="text-text-secondary shrink-0" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+          <circle cx="8" cy="8" r="6.5" />
+          <path d="M6.5 6v4M9.5 6v4" />
+        </svg>
+      );
     default:
       return (
         <svg className="text-text-secondary/60 shrink-0" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -67,38 +76,47 @@ function StatusIcon({ status }: { status: DelegationTaskUi["status"] }): JSX.Ele
   }
 }
 
-/** 子 Agent 委派进度卡片：标题行 + 每任务一行（仅状态图标 + 任务标题,对齐 cc TUI） */
-export function DelegationProgress({ delegation }: { delegation: DelegationUiState }): JSX.Element | null {
-  if (delegation.tasks.length === 0) return null;
+/** 子 Agent 委派进度卡片：标题行 + 每任务一行（仅状态图标 + 任务标题,对齐 cc TUI）
+ *  接收全部活动委派(跨批次合并)——任务行聚合成一张卡,由调用方负责把卡挂在最新 triggerMsgId 下 */
+export function DelegationProgress({ delegations }: { delegations: DelegationUiState[] }): JSX.Element | null {
+  const tasks = delegations.flatMap((d) => d.tasks);
+  if (tasks.length === 0) return null;
 
-  const done = delegation.tasks.filter((t) => t.status === "completed").length;
-  const failed = delegation.tasks.filter((t) => t.status === "failed" || t.status === "aborted").length;
-  const running = delegation.tasks.filter((t) => t.status === "running").length;
+  // 全批完成 = 所有委派都结束(任一委派仍在跑 → 整卡保持「执行中」)
+  const finished = delegations.every((d) => d.finished);
+  const done = tasks.filter((t) => t.status === "completed").length;
+  const failed = tasks.filter((t) => t.status === "failed").length;
+  // 中止与失败分开计数：主动停止 ≠ 执行报错。逐委派汇总——中止 = 明确 aborted + 该委派
+  // 结束时仍未跑完的 running 残留（被 stop_agent 中断时任务来不及回写 aborted 就会停在这个状态）
+  const aborted = delegations.reduce((sum, d) => sum
+    + d.tasks.filter((t) => t.status === "aborted").length
+    + (d.finished ? d.tasks.filter((t) => t.status === "running").length : 0), 0);
 
   // 计时:每秒刷新已耗时(执行中实时走动,完成后定格总耗时)
-  // startedAt 缺失兜底当前时间(旧数据/HMR 残留的委派对象无此字段)
-  const startedAt = delegation.startedAt || Date.now();
-  const [elapsed, setElapsed] = useState(() => Date.now() - startedAt);
+  // 批计时起点 = 最早委派的 startedAt(新委派并入不重置起点);旧数据/HMR 残留缺字段兜底当前时间
+  const startedAt = Math.min(...delegations.map((d) => d.startedAt || Date.now()));
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (delegation.finished) {
-      setElapsed(Date.now() - startedAt);
+    // 全批完成 → 定格总耗时(now 不再更新);执行中每秒走动
+    if (finished) {
+      setNow(Date.now());
       return;
     }
-    const t = setInterval(() => setElapsed(Date.now() - startedAt), 1000);
+    const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
-  }, [startedAt, delegation.finished]);
+  }, [startedAt, finished]);
 
   return (
     <div className="w-[420px] my-2 rounded-[10px] border border-border bg-surface-elevated overflow-hidden text-xs">
       {/* 标题行 */}
       <div className="flex items-center gap-2 px-3 py-1.5 bg-accent-bg">
-        {delegation.finished ? (
+        {finished ? (
           <>
             <svg className="text-success shrink-0" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="6.5" /><path d="M5 8l2 2 4-4" /></svg>
-            <span className="font-medium text-text-primary">委派完成：{done} 成功{failed > 0 ? `, ${failed} 失败` : ""}{running > 0 ? `, ${running} 中止` : ""}</span>
+            <span className="font-medium text-text-primary">委派完成：{done} 成功{failed > 0 ? `, ${failed} 失败` : ""}{aborted > 0 ? `, ${aborted} 中止` : ""}</span>
             <span className="ml-auto flex items-center gap-1 text-text-secondary tabular-nums">
               <svg className="shrink-0" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><circle cx="8" cy="8" r="6.5" /><path d="M8 4.5V8l2.5 1.5" /></svg>
-              {formatElapsed(elapsed)}
+              {formatElapsed(now - startedAt)}
             </span>
           </>
         ) : (
@@ -107,16 +125,17 @@ export function DelegationProgress({ delegation }: { delegation: DelegationUiSta
             <span className="font-medium text-text-primary">派遣 Agent 执行中</span>
             <span className="ml-auto flex items-center gap-1 text-accent tabular-nums">
               <svg className="shrink-0" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><circle cx="8" cy="8" r="6.5" /><path d="M8 4.5V8l2.5 1.5" /></svg>
-              {formatElapsed(elapsed)}
+              {formatElapsed(now - startedAt)}
             </span>
           </>
         )}
       </div>
       {/* 任务列表(默认截断,点击展开完整内容) */}
       <div className="py-1">
-        {delegation.tasks.map((t) => (
-          <TitleRow key={t.index} task={t} />
-        ))}
+        {/* key 含 delegationId:不同委派的 index 均为 0/1/2,跨批次合并到同一张卡后必须唯一 */}
+        {delegations.map((d) => d.tasks.map((t) => (
+          <TitleRow key={`${d.delegationId}-${t.index}`} task={t} />
+        )))}
       </div>
     </div>
   );

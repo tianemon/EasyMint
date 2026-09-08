@@ -771,10 +771,23 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   useEffect(() => { useStatusStore.getState().reset(sidRef.current); }, []);
 
   // ── 子 Agent 委派进度卡片 ─────────────────────────
-  const [delegation, setDelegation] = useState<DelegationUiState | null>(null);
+  // 多委派并存：按 delegationId 索引（此前是单对象 state——新委派直接覆盖旧卡片，
+  // 且旧委派的进度事件到达时按「delegationId 变了=新委派」重置任务行，卡片来回跳）
+  const [delegations, setDelegations] = useState<Record<string, DelegationUiState>>({});
   // 事件回调内跟踪当前委派状态(副作用必须移出 useState updater——
   // updater 渲染期间执行,调用其他 store 会触发跨组件更新警告)
-  const delegationRef = useRef<DelegationUiState | null>(null);
+  const delegationsRef = useRef<Record<string, DelegationUiState>>({});
+  // 聚合渲染锚点:任意时刻最多显示一张委派卡片(含所有委派任务行),
+  // 挂在「最新的 triggerMsgId」对应消息下;全部委派缺 triggerMsgId(Mint 主动发起、
+  // 消息未落盘捕获不到)时为 undefined,渲染层兜底挂最后一条 AI 消息
+  const delegationList = Object.values(delegations);
+  const anchorMsgId = delegationList.reduce<number | undefined>(
+    (latest, d) => (d.triggerMsgId !== undefined && (latest === undefined || d.triggerMsgId > latest) ? d.triggerMsgId : latest),
+    undefined,
+  );
+  // 委派完成 3s 后收起:每委派一个计时器(delegationId → timer),存在即已开始倒计时,
+  // 避免每次 delegations 更新都重建计时器把已完成的委派无限期留在卡上
+  const collapseTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // 委派任务清单订阅：委派创建即初始化全部任务行(pending,含并发排队未启动的)
   useEffect(() => {
@@ -810,8 +823,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         finished: false,
         startedAt: Date.now(),
       };
-      delegationRef.current = next;
-      setDelegation(next);
+      delegationsRef.current = { ...delegationsRef.current, [data.delegationId]: next };
+      setDelegations(delegationsRef.current);
     });
     return unsubInit;
   }, []);
@@ -864,7 +877,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 否则 A 会话的委派进度穿透到所有打开的会话 tab(后台任务通知跨会话显示)
       if (!currentChatRef.current) return;
       if (data.chatId && data.chatId !== currentChatRef.current) return;
-      const prev = delegationRef.current;
+      // 按 delegationId 取该委派自己的上一条状态（多委派并存时互不干扰）
+      const prev = delegationsRef.current[data.delegationId];
       const task: DelegationTaskUi = {
         index: data.progress.index,
         agent: data.progress.agent,
@@ -877,7 +891,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 新委派(首次或 delegationId 变化):捕获触发委派的消息 id
       // (最后一条 AI 消息,含 task 工具调用),卡片固定附着在该消息下方;
       // 同一委派的进度更新沿用原 triggerMsgId(不随新气泡移动)
-      const isNewDelegation = !prev || prev.delegationId !== data.delegationId;
+      const isNewDelegation = !prev;
       // triggerMsgId 缺失时补捕获(init 预初始化未设,首次 progress 补上附着点)。
       // 委派由 Mint 主动发起时消息可能未落盘——由下方 effect 监听消息流补捕获固定
       const needTriggerMsg = isNewDelegation || !prev?.triggerMsgId;
@@ -888,7 +902,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         triggerMsgId = lastAi?.id;
         if (isNewDelegation) scrollToBottom(true);
       }
-      const tasks = prev && prev.delegationId === data.delegationId ? [...prev.tasks] : [];
+      const tasks = prev ? [...prev.tasks] : [];
       const idx = tasks.findIndex((t) => t.index === task.index);
       if (idx >= 0) tasks[idx] = task; else tasks.push(task);
       const finished = tasks.length > 0 && tasks.every((t) =>
@@ -902,12 +916,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         // 委派开始时间:首次事件记录,卡片计时用(同一委派沿用)
         startedAt: isNewDelegation ? Date.now() : prev?.startedAt ?? Date.now(),
       };
-      delegationRef.current = next;
-      // 副作用(事件回调内,合法):委派开始 → 常驻「调用 Agent」;结束 → 清除
-      if (!prev) {
+      // 信号按「是否还有任何进行中的委派」判断而非单个委派——多委派并存时
+      // 不能因某一个结束就清掉状态栏常驻提示;按 running 的转换边沿 push/pop
+      // (不是按「记录里有没有委派」——上一个委派刚完成、尚在 3s 收起窗口内时
+      // 又来新委派,按记录判断会漏推常驻提示)
+      const hadRunning = Object.values(delegationsRef.current).some((d) => !d.finished);
+      delegationsRef.current = { ...delegationsRef.current, [data.delegationId]: next };
+      const anyRunning = Object.values(delegationsRef.current).some((d) => !d.finished);
+      // 副作用(事件回调内,合法):首个进行中的委派出现 → 常驻「调用 Agent」;
+      // 最后一个进行中的委派结束 → 清除
+      if (!hadRunning && anyRunning) {
         useStatusStore.getState().pushSignal(sidRef.current, "agent", "调用 Agent");
-      }
-      if (finished && (!prev || !prev.finished)) {
+      } else if (hadRunning && !anyRunning) {
         useStatusStore.getState().popSignal(sidRef.current, "agent");
       }
       // taskId 关联:委派实时状态写 delegation-store(TaskPanel 行实时视图)
@@ -921,7 +941,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       if (data.progress.sessionFile) {
         useDelegationStore.getState().setSessionFile(data.delegationId, data.progress.index, data.progress.sessionFile);
       }
-      setDelegation(next);
+      setDelegations(delegationsRef.current);
     });
     return unsub;
   }, []);
@@ -930,24 +950,56 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 此处组件直接读 useDelegationStore 按会话过滤显示
 
   // 委派触发消息落盘后固定附着点：Mint 主动发起时回合未结束消息未落盘,
-  // progress 事件捕获不到 triggerMsgId——消息流更新后补捕获并固定,
-  // 卡片不再随"最后一条 AI 消息"漂移(委派完成/打断时 Mint 输出会追加新消息)
+  // progress 事件捕获不到 triggerMsgId——消息流更新后补捕获并固定;
+  // 委派完成/打断时 Mint 会追加新消息,但各委派 triggerMsgId 一旦固定不再漂移,
+  // 合并卡的锚点仅在出现 triggerMsgId 更新的委派时才移动到其消息下
   useEffect(() => {
-    if (!delegation || delegation.triggerMsgId || delegation.finished) return;
+    const pending = Object.values(delegations).filter((d) => !d.triggerMsgId && !d.finished);
+    if (pending.length === 0) return;
     const aiMsgs = messages.filter((m) => m.role === "ai");
     const lastAi = aiMsgs[aiMsgs.length - 1];
     if (!lastAi?.id) return;
-    const fixed: DelegationUiState = { ...delegation, triggerMsgId: lastAi.id };
-    delegationRef.current = fixed;
-    setDelegation(fixed);
-  }, [messages, delegation]);
+    const next = { ...delegationsRef.current };
+    for (const d of pending) next[d.delegationId] = { ...d, triggerMsgId: lastAi.id };
+    delegationsRef.current = next;
+    setDelegations(next);
+  }, [messages, delegations]);
 
-  // 委派全部完成 3 秒后自动收起卡片
+  // 每个委派完成后各自计时 3 秒收起（多委派并存时互不影响）：
+  // 增量调度——只对「刚转 finished 且尚未开始倒计时」的委派建 timer,已有 timer 的不重置;
+  // 未完成委派若带出已建的 timer(状态回跳)则取消;记录中已消失的委派清掉残留 timer
   useEffect(() => {
-    if (!delegation?.finished) return;
-    const t = setTimeout(() => setDelegation(null), 3000);
-    return () => clearTimeout(t);
-  }, [delegation?.finished]);
+    const alive = new Set(Object.keys(delegations));
+    const timers = collapseTimersRef.current;
+    for (const [id, t] of timers) {
+      if (!alive.has(id)) { clearTimeout(t); timers.delete(id); }
+    }
+    for (const d of Object.values(delegations)) {
+      if (!d.finished) {
+        const t = timers.get(d.delegationId);
+        if (t) { clearTimeout(t); timers.delete(d.delegationId); }
+        continue;
+      }
+      if (timers.has(d.delegationId)) continue;
+      timers.set(d.delegationId, setTimeout(() => {
+        timers.delete(d.delegationId);
+        // 触发时委派可能已被其它路径清理——幂等跳过
+        if (!(d.delegationId in delegationsRef.current)) return;
+        const next = { ...delegationsRef.current };
+        delete next[d.delegationId];
+        delegationsRef.current = next;
+        setDelegations(next);
+      }, 3000));
+    }
+  }, [delegations]);
+
+  // 组件卸载时清理未触发的收起计时器
+  useEffect(() => {
+    return () => {
+      collapseTimersRef.current.forEach((t) => clearTimeout(t));
+      collapseTimersRef.current.clear();
+    };
+  }, []);
 
   useEffect(() => {
     if (!existingSid) return; let cancelled = false;
@@ -1844,14 +1896,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                       onContextMenu={handleMsgContextMenu}
                       sid={sid}
                     />
-                    {/* 委派进度卡片：固定附着在触发消息气泡下方(左对齐气泡)；
-                        triggerMsgId 缺失(委派由 Mint 主动发起,消息未落盘时捕获不到)时
+                    {/* 委派进度卡片：任意时刻最多一张(跨批次合并,含所有委派的任务行),
+                        固定在「最新 triggerMsgId」对应消息下方(左对齐气泡)；全部委派缺
+                        triggerMsgId(委派由 Mint 主动发起,消息未落盘时捕获不到)时
                         挂在最后一条 AI 消息下兜底 */}
-                    {(delegation && delegation.triggerMsgId === msg.id) ||
-                      (delegation && !delegation.triggerMsgId && vi.index === messages.length - 1 && msg.role === "ai") ? (
+                    {delegationList.length > 0
+                      && (anchorMsgId === msg.id
+                        || (anchorMsgId === undefined && vi.index === messages.length - 1 && msg.role === "ai")) ? (
                       <div className="flex gap-4 items-start" style={{ padding: "0 var(--s8)" }}>
                         <div style={{ width: 34, flexShrink: 0 }} />
-                        <DelegationProgress delegation={delegation} />
+                        <DelegationProgress delegations={delegationList} />
                       </div>
                     ) : null}
                   </div>
