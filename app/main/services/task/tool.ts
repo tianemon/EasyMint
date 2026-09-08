@@ -36,12 +36,12 @@ export interface TaskToolContext {
   onTaskCompleted?: (parentSessionId: string, text: string) => void;
 }
 
-/** 停止状态文案：按触发来源区分（用户 UI→「已由用户停止」；Mint stop_agent→「已终止」）。
+/** 停止状态文案：按触发来源区分（用户 UI→「已由用户中止」；Mint stop_agent→「已中止」）。
  *  来源缺失（未标记路径）回落中性「中止」——不冒充用户。
  *  无论哪种都表「主动停止」：Mint 读到不可误判为意外失败自动重启 */
 function abortStatusLabel(source: TaskStopSource | undefined): string {
-  if (source === "mint") return "已终止";
-  if (source === "user") return "已由用户停止";
+  if (source === "mint") return "已中止";
+  if (source === "user") return "已由用户中止";
   return "中止";
 }
 
@@ -273,7 +273,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
             const title = record.tasks[progress.index]?.title || progress.task.slice(0, 40);
             const dur = Math.max(0, Math.round(progress.durationMs / 1000));
             // 单任务委派被停止:无后续通知,开回合让 Mint 回应;批量中停止单个不开回合。
-            // 文本按停止来源区分(用户→已由用户停止;Mint stop_agent→已终止)——
+            // 文本按停止来源区分(用户→已由用户中止;Mint stop_agent→已中止)——
             // 但都明确是主动停止,Mint 不要误判为意外失败自动重启
             const stopLabel = abortStatusLabel(record.taskStopSources[progress.index] ?? record.stopSource);
             ctx.onTaskAborted?.(record.parentSessionId, `⏺ ${title} - ${stopLabel}${dur > 0 ? ` · ${dur}s` : ""}`, record.tasks.length === 1);

@@ -112,7 +112,7 @@ async function executeForeground(
       // 凭据脱敏：agent 若违规内联密码/连接串，明文不进模型可见的输出
       const text = maskSecrets([output, errOutput].filter(Boolean).join("\n") || "(无输出)");
       if (timedOut) {
-        resolve({ content: [{ type: "text", text: `${text}\n\n(命令超时,已终止)` }] });
+        resolve({ content: [{ type: "text", text: `${text}\n\n(命令超时,已中止)` }] });
         return;
       }
       // 输出截断提示(对齐 Pi:超过 8KB 仅显示尾部)
@@ -139,11 +139,11 @@ export interface EnhancedBashOptions {
 const PREVIEW_TAIL_LINES = 10;
 
 /** 后台命令退出 → 注入主会话的文本(⏺ 摘要行对齐委派通知渲染,前端按状态着色)。
- *  stopped = 用户/Mint 主动停止——按停止来源区分文案(用户 UI→已由用户停止;Mint→已终止),
+ *  stopped = 用户/Mint 主动停止——按停止来源区分文案(用户 UI→已由用户中止;Mint→已中止),
  *  两者都明确是主动停止,避免 Mint 误判为意外失败自动重启 */
 export function formatShellResult(shell: BackgroundShell): string {
   const status = shell.stopped
-    ? (shell.stoppedBy === "mint" ? "已终止" : "已由用户停止")
+    ? (shell.stoppedBy === "mint" ? "已中止" : "已由用户中止")
     : (shell.exitCode === 0 ? "完成" : "失败");
   const dur = Math.max(0, Math.round((Date.now() - shell.startedAt) / 1000));
   const summary = `⏺ 后台命令 - ${status}${dur > 0 ? ` · ${dur}s` : ""}`;

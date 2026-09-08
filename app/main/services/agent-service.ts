@@ -189,7 +189,7 @@ async function createStopAgentTool(sessionId: string): Promise<ToolDefinition> {
       const { abortDelegations, abortTask } = await import("./task/registry");
       const reason = params.reason ? String(params.reason) : "Mint 主动停止";
       // 精确停止:delegation_id(+index) 指定单个
-      // 来源记 mint：本工具由 Mint 调用,停止通知文案按此显示「已终止」
+      // 来源记 mint：本工具由 Mint 调用,停止通知文案按此显示「已中止」
       if (params.delegation_id) {
         const did = String(params.delegation_id);
         const { getRunningDelegations } = await import("./task/registry");
@@ -1753,7 +1753,7 @@ export class AgentService {
   /** 注入引导消息（中断当前回合并插话） */
   /** 停止委派中的单个任务(ProcessBar 点击停止) */
   async stopDelegationTask(delegationId: string, taskIndex: number): Promise<void> {
-    // 来源记 user：此入口来自前端按钮(渲染层点停止 → IPC),停止通知文案按此显示「已由用户停止」
+    // 来源记 user：此入口来自前端按钮(渲染层点停止 → IPC),停止通知文案按此显示「已由用户中止」
     abortTask(delegationId, taskIndex, "user");
     broadcast("agent:delegation-count", getRunningSummary());
   }

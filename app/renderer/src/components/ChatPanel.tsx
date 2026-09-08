@@ -2327,14 +2327,14 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
       const lines = isResult ? body.split("\n") : [];
       const rows = lines.filter((l) => l.startsWith("⏺ "));
       // 标题栏状态取首个 ⏺ 行(多子任务时各任务状态在展开区看全貌)
-      const first = rows[0]?.match(/^⏺ (.+?) [-—] (完成|失败|中止|已由用户中断|已由用户停止|已终止)(?: · (\d+)s)?$/);
+      const first = rows[0]?.match(/^⏺ (.+?) [-—] (完成|失败|中止|已由用户中断|已由用户中止|已中止)(?: · (\d+)s)?$/);
       const headStatus = first?.[2];
       const headDur = first?.[3];
       // 首个 ⏺ 行的状态/时长已上标题栏,展开内容里跳过该行避免重复
       const firstDotIdx = lines.findIndex((l) => l.startsWith("⏺ "));
-      // 中止/已由用户中断/已由用户停止/已终止=人为主动停止(黄),失败=意外中断(红),完成=绿
+      // 中止/已由用户中断/已由用户中止/已中止=人为主动停止(黄),失败=意外中断(红),完成=绿
       const statusColor = (s?: string): string =>
-        (s === "中止" || s === "已由用户中断" || s === "已由用户停止" || s === "已终止") ? "text-interrupt" : s === "失败" ? "text-fail" : s ? "text-done" : "";
+        (s === "中止" || s === "已由用户中断" || s === "已由用户中止" || s === "已中止") ? "text-interrupt" : s === "失败" ? "text-fail" : s ? "text-done" : "";
       // 结果型(委派/后台命令)与指令型一样默认折叠——完整内容展开看
       const collapsible = COLLAPSIBLE_SYSTEM_KINDS.has(kind) || isResult;
       const collapsed = collapsible && !sysExpanded;
@@ -2418,7 +2418,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
                         );
                       }
                       // 兼容新旧分隔符:新数据用连字符 `-`,存量/旧版主进程仍发 em-dash `—`——两者都解析
-                      const m = row.match(/^⏺ (.+?) [-—] (完成|失败|中止|已由用户中断|已由用户停止|已终止)(?: · (\d+)s)?$/);
+                      const m = row.match(/^⏺ (.+?) [-—] (完成|失败|中止|已由用户中断|已由用户中止|已中止)(?: · (\d+)s)?$/);
                       const dotColor = statusColor(m?.[2]);
                       return (
                         // 普通文本流而非 flex:flex 项间的源码换行在选择复制时会作为真实换行保留

@@ -28,7 +28,7 @@ const FORCE_KILL_AFTER_MS = 5000;
 const STREAM_THROTTLE_MS = 100;
 
 /** 主动停止来源：用户 UI 点停止 / Mint（预留：后续 Mint 侧停止入口）。
- *  用于停止通知文案区分(用户→「已由用户停止」,Mint→「已终止」)——
+ *  用于停止通知文案区分(用户→「已由用户中止」,Mint→「已中止」)——
  *  两种来源都属「主动停止」,与命令自然失败区分 */
 export type ShellStopSource = "user" | "mint";
 
@@ -59,7 +59,7 @@ export interface BackgroundShell {
   exitCode: number | null;
   /** 被 stop() 主动停止(true 时格式化结果标记「中止」,与自然失败区分) */
   stopped: boolean;
-  /** 主动停止来源(stop() 记录;退出通知文案按此区分「已由用户停止」/「已终止」) */
+  /** 主动停止来源(stop() 记录;退出通知文案按此区分「已由用户中止」/「已中止」) */
   stoppedBy?: ShellStopSource;
   /** 运行状态(running → stopping → 退出注销) */
   status: "running" | "stopping";
