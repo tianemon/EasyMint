@@ -635,6 +635,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // (程序性滚动不触发 handleScroll,标记不会被用户滚动逻辑清掉)。
   // 高亮过渡限定 background-color/border-radius:transition-all 会过渡虚拟滚动的 translateY
   // 导致滚动错乱;高亮矩形 mt-[5px] 与上方内容留间距
+  // pendingJumpRef:首次打开会话时 [0,idx) 大量项未实测(估算 100px/项),一次定位偏差可达数千 px;
+  // 且滚过头后目标不在渲染范围、测量不再推进,库的 reconcileScroll 会带着误差提前稳定——
+  // 由下方校正 effect 接管:滚动让途经项被实测(估算区间缩短,2-3 轮收敛),目标入渲染范围后按 DOM 实测对齐
+  const pendingJumpRef = useRef<number | null>(null);
+  const jumpStartedAtRef = useRef(0);
   const jumpToMessage = useCallback((msgId: number) => {
     const idx = messages.findIndex((m) => m.id === msgId);
     if (idx < 0) return;
@@ -644,11 +649,41 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       awayFromBottomRef.current = true;
       setAwayFromBottom(true);
     }
+    pendingJumpRef.current = idx;
+    jumpStartedAtRef.current = Date.now();
     virtualizer.scrollToIndex(idx, { align: "start" });
     setHighlightMsgId(msgId);
     if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
     highlightTimerRef.current = setTimeout(() => setHighlightMsgId(null), 1500);
   }, [messages, virtualizer]);
+
+  // 跳转校正:测量推进(totalSize 变化)时重新对齐;目标进入渲染范围后按 DOM 实测位置
+  // 精确对齐并结束。1.2s 超时保险(测量不再变化时 effect 不再触发,靠超时清理 pending)
+  useEffect(() => {
+    const idx = pendingJumpRef.current;
+    if (idx == null) return;
+    if (Date.now() - jumpStartedAtRef.current > 1200) {
+      pendingJumpRef.current = null;
+      return;
+    }
+    const raf = requestAnimationFrame(() => {
+      if (pendingJumpRef.current == null) return;
+      const items = virtualizer.getVirtualItems();
+      const inRange = items.some((v) => v.index === idx);
+      const c = containerRef.current;
+      if (inRange && c) {
+        const el = c.querySelector(`[data-index="${idx}"]`);
+        if (el) {
+          const delta = el.getBoundingClientRect().top - c.getBoundingClientRect().top;
+          if (Math.abs(delta) > 1) c.scrollBy({ top: delta });
+          pendingJumpRef.current = null;
+          return;
+        }
+      }
+      virtualizer.scrollToIndex(idx, { align: "start" });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [virtualizer.getTotalSize(), virtualizer]);
 
   // 内容增长跟随:totalSize 变化(流式输出/打开会话的测量推进)时,若用户没滚离底部 → 贴底。
   // 这是 anchorTo: "end" 的替代——库的 wasAtEnd 用 totalSize-based 距离判定,与 DOM 实际
