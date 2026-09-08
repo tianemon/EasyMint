@@ -56,7 +56,7 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
 
       {/* 命令列表浮层(向上展开,覆盖输入卡片上方) */}
       {expanded && (
-        <div className="absolute bottom-full left-0 mb-1 w-80 max-h-64 overflow-y-auto rounded-[8px] border border-border bg-surface-elevated shadow-xl z-dropdown text-xs">
+        <div className="absolute bottom-full left-0 mb-1 w-max min-w-[224px] max-w-[40vw] max-h-64 overflow-y-auto rounded-[8px] border border-border bg-surface-elevated shadow-xl z-dropdown text-xs">
           <div className="px-3 py-1.5 bg-accent-bg text-text-secondary font-medium">
             运行中的 Shell({shellTasks.length})
           </div>
@@ -70,8 +70,7 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
                 <button
                   type="button"
                   onClick={() => { setViewing({ id: task.id, command: task.command, logPath: task.logPath }); setExpanded(false); }}
-                  className="truncate flex-1 text-left font-mono text-text-primary hover:text-info transition-colors cursor-pointer"
-                  
+                  className="flex-1 text-left font-mono text-text-primary hover:text-info transition-colors cursor-pointer break-all"
                 >
                   {task.command}
                 </button>

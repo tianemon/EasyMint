@@ -157,8 +157,7 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors"
-           
+            className="shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-text-secondary hover:bg-danger-soft hover:text-danger transition-colors"
           >
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>

@@ -69,7 +69,6 @@ export function TabBar(): JSX.Element | null {
                 setActiveTab(tab.id);
               }}
               className={`tab-v3 ${isActive ? "active" : ""}`}
-              
             >
               {(tab as { dirty?: boolean }).dirty && (
                 <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0 mr-1.5" />
