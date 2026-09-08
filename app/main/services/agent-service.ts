@@ -523,13 +523,15 @@ async function createAskUserTool(sessionId: string): Promise<ToolDefinition> {
       "向用户提出结构化选择题（可多个问题，每题单选，支持级联联动）。调用后回合暂停等待用户回答。"
       + "适用场景：方案对比选择、范围取舍确认、让用户从候选中拍板等需要用户决策的时刻。"
       + "选项结构（重要）：每个 option 必须同时含 value 与 label 两个字段，缺一会报参数校验错误——value 是机器标识、答案按它返回（简短英文小写下划线，如 keep_current，勿用中文）；label 是人看到的显示文本（简短，≤10 字）；补充说明放 description 字段（可空）。"
-      + "示例：{ value: \"opt_a\", label: \"方案A\", description: \"……\" }。每题 2-4 个选项为宜。",
+      + "示例：{ value: \"opt_a\", label: \"方案A\", description: \"……\" }。每题 2-4 个选项为宜。"
+      + "推荐标记：你分析后若某个选项是当前情境下的最优解，给它加 recommended: true——用户会看到「推荐」徽章，但仍可自由选择；没有明显更优解时不要标，不要每题都标。",
     promptSnippet: "向用户提问（选择题/级联）",
     promptGuidelines: [
       "触发场景分层：应该用——新功能设计（需求拆解、功能范围、交互/视觉选择）、方案调整（技术选型、实现方式、取舍权衡）；不应该用——修 bug（目标明确的修复直接执行）、简单确认（继续吗/这样可以吗用文本即可）",
       "例外：修复方案存在重大分叉（两种修法路线不同）才问；选项互斥要清晰；级联问题用 depends_on 关联前置问题的选项值",
       "调用后回合暂停等待用户回答，回答会作为工具结果返回，据此继续推进",
       "用户跳过或取消时结果会说明，可换一种方式再问或继续推进",
+      "有明确最优解时给该选项标 recommended: true（每题至多一个）——帮用户快速拍板；无更优解不标",
     ],
     parameters: {
       type: "object" as const,
@@ -551,6 +553,7 @@ async function createAskUserTool(sessionId: string): Promise<ToolDefinition> {
                     value: { type: "string" as const, description: "选项机器标识，答案按此返回（简短英文小写下划线，如 mode_a；强烈建议填——缺省时系统自动按 label 生成）" },
                     label: { type: "string" as const, description: "选项显示文本，人看（简短，≤10 字；必填）" },
                     description: { type: "string" as const, description: "选项补充说明，人看（一句；可空）" },
+                    recommended: { type: "boolean" as const, description: "是否推荐选项——你分析后的当前情境最优解；每题至多一个，无明显更优解时不填" },
                   },
                   required: ["label"],
                 },

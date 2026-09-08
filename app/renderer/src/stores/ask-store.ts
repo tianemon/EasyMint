@@ -4,7 +4,7 @@ import { create } from "zustand";
 export interface AskQuestion {
   id: string;
   question: string;
-  options?: Array<{ value: string; label: string; description?: string }>;
+  options?: Array<{ value: string; label: string; description?: string; recommended?: boolean }>;
   multi_select?: boolean;
   /** 级联条件：{前置问题id: 选项value}，前置选择匹配才显示本问题 */
   depends_on?: Record<string, string>;

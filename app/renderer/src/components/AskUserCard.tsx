@@ -199,6 +199,11 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
                 <span className="min-w-0">
                   {opt.label}{opt.description ? `（${opt.description}）` : ""}
                 </span>
+                {opt.recommended && (
+                  <span className={`ml-auto shrink-0 px-1.5 py-px rounded-[4px] text-[length:var(--text-2xs)] font-medium transition-colors ${
+                    sel ? "bg-accent text-white" : "bg-accent-soft text-accent"
+                  }`}>推荐</span>
+                )}
               </button>
             );
           })}
