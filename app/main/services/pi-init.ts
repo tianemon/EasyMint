@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Store } from "./store";
-import { getModelSpecLookup, getProviderStaticModels, getStaticModelSpecWithAlias, lookupWithAlias } from "./pi-init-static";
+import { getModelSpecLookup, getProviderStaticModels, getStaticModelSpecWithAlias, lookupWithAlias, lookupBySegmentPrefix } from "./pi-init-static";
 import {
   getModelRuntimeClass,
   getSettingsManagerClass,
@@ -103,8 +103,10 @@ function syncExtraModelsFile(store: Store): void {
       const sibling = siblings.get(config.model ?? "") ?? [...siblings.values()][0];
       const models: ModelEntry[] = extras.map((entry) => {
         const { id, ...declared } = entry;
-        const spec = lookup.get(id);
-        const inherited = pickCapabilityFields(siblings.get(id) ?? sibling);
+        // 能力查表:精确 → 字符级前缀反查(网关别名后缀) → 段级模糊(同品牌新版本,如 v4.1 继承 v4)
+        const spec = lookupWithAlias(lookup, id) ?? lookupBySegmentPrefix(lookup, id);
+        const family = siblings.get(id) ?? lookupBySegmentPrefix(siblings, id) ?? sibling;
+        const inherited = pickCapabilityFields(family);
         // 保留既有条目上的手写字段(如 input 视觉声明、reasoning 微调);
         // id 含视觉关键词时显式补 input: ["text","image"](否则视觉模型被当纯文本)
         const handWritten = byId.get(id) ?? {};
@@ -276,7 +278,7 @@ async function syncProviders(store: Store) {
             // 网关常给转售模型加别名后缀(能量站的 -x、渠道后缀、日期版本等),原名查不到时
             // 反查官方同族模型(官方 id 是自定义 id 的前缀,取最长匹配)——命中则拿到真实窗口(1M)
             // 与思考档位,查不到才回落 200k
-            const spec = lookupWithAlias(lookup, id);
+            const spec = lookupWithAlias(lookup, id) ?? lookupBySegmentPrefix(lookup, id);
             // 同一模型 id 在官方数据里可查(第三方网关/镜像站转售常见)→ 继承其内在能力。
             // 不继承会退化成"只支持到 high、不支持读图",与内置供应商行为不一致
             // (实测:自定义供应商设全局"最高"会被静默压成"高")。

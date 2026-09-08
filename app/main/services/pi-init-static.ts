@@ -233,6 +233,40 @@ export function lookupWithAlias<V>(map: Map<string, V>, modelId: string): V | un
   return best;
 }
 
+/** 段级模糊反查:按 "-" 分段逐段比对,候选段是目标段前缀且后接非字母数字(如 v4 命中 v4.1)时算一段。
+ *  用于同品牌新版本模型(deepseek-v4.1-flash-* 继承 deepseek-v4-flash 的能力)——
+ *  字符级前缀反查对版本号差异无效(v4.1 不以 v4- 开头)。
+ *  至少匹配 2 段(品牌+版本/型号)才认;匹配段数最多者胜,平手取 id 最短(基础型号优先于带后缀变体)。
+ *  继承源不得比目标更具体(段数不多于目标)——否则 deepseek-v4-flash 会反被 vision-exp 变体继承。 */
+export function lookupBySegmentPrefix<V>(map: Map<string, V>, modelId: string): V | undefined {
+  const targetSegs = modelId.split("-");
+  let best: V | undefined;
+  let bestScore = 1; // 阈值:至少匹配 2 段
+  let bestLen = Infinity;
+  for (const [id, v] of map) {
+    if (id === modelId) continue;
+    const segs = id.split("-");
+    // 继承源不得比目标更具体(段数不多于目标):deepseek-v4-flash 不应继承 vision-exp 变体
+    if (segs.length > targetSegs.length) continue;
+    let matched = 0;
+    while (matched < segs.length && matched < targetSegs.length) {
+      const c = segs[matched]!;
+      const t = targetSegs[matched]!;
+      if (c === t) { matched++; continue; }
+      // 段内前缀:候选段是目标段前缀且后接非字母数字(v4 命中 v4.1;v4 不命中 v40)
+      if (t.startsWith(c) && !/[a-zA-Z0-9]/.test(t.charAt(c.length))) { matched++; continue; }
+      break;
+    }
+    if (matched < 2) continue;
+    if (matched > bestScore || (matched === bestScore && id.length < bestLen)) {
+      best = v;
+      bestScore = matched;
+      bestLen = id.length;
+    }
+  }
+  return best;
+}
+
 /** 按 id 查静态规格,查不到时反查官方同族模型:自定义供应商的转售模型常带别名后缀
  *  (能量站 -x、网关渠道后缀、日期版本等),官方 id 是它的前缀时继承官方能力——
  *  不反查会导致带后缀模型查不到 spec(思考档位/窗口全退化,页面按"未知"展示全档位)。 */
@@ -240,8 +274,9 @@ export function getStaticModelSpecWithAlias(modelId: string): Record<string, any
   const direct = getStaticModelSpec(modelId);
   if (direct) return direct;
   if (!_staticModelById) return undefined;
-  // getStaticModelSpec 已确认直查未中,这里只做反查(lookupWithAlias 内部也支持直查)
-  return lookupWithAlias(_staticModelById, modelId);
+  // getStaticModelSpec 已确认直查未中,这里只做反查(lookupWithAlias 内部也支持直查);
+  // 字符级前缀未中时再走段级模糊(同品牌新版本,如 v4.1 继承 v4)
+  return lookupWithAlias(_staticModelById, modelId) ?? lookupBySegmentPrefix(_staticModelById, modelId);
 }
 
 /**

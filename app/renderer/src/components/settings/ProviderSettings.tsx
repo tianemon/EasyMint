@@ -21,13 +21,23 @@ const CONTEXT_WINDOW_OPTIONS: SelectOption[] = [
   { value: "custom", label: "自定义" },
 ];
 
+/** 最大输出预设(自动 = 按内置模型表推断,未知按 32768) */
+const MAX_OUTPUT_OPTIONS: SelectOption[] = [
+  { value: "auto", label: "自动" },
+  { value: "8192", label: "8K" },
+  { value: "16384", label: "16K" },
+  { value: "32768", label: "32K" },
+  { value: "65536", label: "64K" },
+  { value: "custom", label: "自定义" },
+];
+
 /** 窗口 token 数 → 标签文案(1000000 → 1M) */
 function formatWindow(tokens: number): string {
   return tokens >= 1000000 ? `${tokens / 1000000}M` : `${Math.round(tokens / 1000)}K`;
 }
 
-/** 下拉 + 自定义输入 → 窗口 token 数(自动/无效 → undefined,交给内置表推断) */
-function resolveContextWindow(selected: string, custom: string): number | undefined {
+/** 下拉 + 自定义输入 → token 数(自动/无效 → undefined,交给内置表推断) */
+function resolveTokenValue(selected: string, custom: string): number | undefined {
   if (selected === "auto") return undefined;
   const value = Number(selected === "custom" ? custom : selected);
   return Number.isFinite(value) && value > 0 ? Math.round(value) : undefined;
@@ -65,7 +75,8 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const [extraVision, setExtraVision] = useState(false);
   const [extraCtx, setExtraCtx] = useState<string>("auto");
   const [extraCtxCustom, setExtraCtxCustom] = useState<string>("");
-  const [extraMaxTokens, setExtraMaxTokens] = useState<string>("");
+  const [extraMaxOut, setExtraMaxOut] = useState<string>("auto");
+  const [extraMaxOutCustom, setExtraMaxOutCustom] = useState<string>("");
   const [editingExtra, setEditingExtra] = useState<string | null>(null);
   // 该供应商的 task 子 Agent 默认模型(per-provider)
   const [subagentDefaultModel, setSubagentDefaultModel] = useState<string>(initial?.subagentDefaultModel || "");
@@ -126,11 +137,11 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
    *  (未勾选识图写 ["text"]),否则取消勾选后旧条目里的 image 声明会从 handWritten 回流 */
   const buildExtraEntry = (id: string, forceObject = false): string | ExtraModelCapability => {
     const cap: ExtraModelCapability = { id, input: extraVision ? ["text", "image"] : ["text"] };
-    const ctx = resolveContextWindow(extraCtx, extraCtxCustom);
+    const ctx = resolveTokenValue(extraCtx, extraCtxCustom);
     if (ctx) cap.contextWindow = ctx;
-    const maxTok = Number(extraMaxTokens);
-    if (extraMaxTokens && Number.isFinite(maxTok) && maxTok > 0) cap.maxTokens = Math.round(maxTok);
-    return forceObject || extraVision || ctx || cap.maxTokens ? cap : id;
+    const maxOut = resolveTokenValue(extraMaxOut, extraMaxOutCustom);
+    if (maxOut) cap.maxTokens = maxOut;
+    return forceObject || extraVision || ctx || maxOut ? cap : id;
   };
 
   const resetExtraForm = () => {
@@ -139,7 +150,8 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     setExtraVision(false);
     setExtraCtx("auto");
     setExtraCtxCustom("");
-    setExtraMaxTokens("");
+    setExtraMaxOut("auto");
+    setExtraMaxOutCustom("");
   };
 
   // 添加补充模型:去重(与 SDK 模型及已添加的合并),重复则忽略
@@ -163,7 +175,10 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     if (!ctx) { setExtraCtx("auto"); setExtraCtxCustom(""); }
     else if (["131072", "200000", "1000000"].includes(String(ctx))) { setExtraCtx(String(ctx)); setExtraCtxCustom(""); }
     else { setExtraCtx("custom"); setExtraCtxCustom(String(ctx)); }
-    setExtraMaxTokens(cap?.maxTokens ? String(cap.maxTokens) : "");
+    const mt = cap?.maxTokens;
+    if (!mt) { setExtraMaxOut("auto"); setExtraMaxOutCustom(""); }
+    else if (["8192", "16384", "32768", "65536"].includes(String(mt))) { setExtraMaxOut(String(mt)); setExtraMaxOutCustom(""); }
+    else { setExtraMaxOut("custom"); setExtraMaxOutCustom(String(mt)); }
   };
 
   const saveExtraModel = () => {
@@ -354,7 +369,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
               </button>
             )}
           </div>
-          <div className="flex items-center gap-4 mt-1.5">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-1.5">
             <label className="flex items-center gap-1.5 text-[length:var(--text-2xs)] text-text-secondary cursor-pointer">
               <input type="checkbox" className="w-3.5 h-3.5 rounded accent-accent shrink-0"
                 checked={extraVision} onChange={(e) => setExtraVision(e.target.checked)} />
@@ -379,12 +394,20 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-[length:var(--text-2xs)] text-text-secondary">最大输出</span>
-              <input
-                className="em-input w-[76px] h-7 px-2 text-xs text-text-primary"
-                placeholder="自动"
-                value={extraMaxTokens}
-                onChange={(e) => setExtraMaxTokens(e.target.value)}
+              <Select
+                className="w-[66px] [&>button]:w-full [&>button]:h-7 [&>button]:text-xs"
+                value={extraMaxOut}
+                onChange={(v: string) => setExtraMaxOut(v)}
+                options={MAX_OUTPUT_OPTIONS}
               />
+              {extraMaxOut === "custom" && (
+                <input
+                  className="em-input w-[88px] h-7 px-2 text-xs text-text-primary"
+                  placeholder="如 384000"
+                  value={extraMaxOutCustom}
+                  onChange={(e) => setExtraMaxOutCustom(e.target.value)}
+                />
+              )}
             </div>
           </div>
           {extraModels.length > 0 && (
