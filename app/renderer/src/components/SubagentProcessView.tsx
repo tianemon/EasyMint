@@ -149,7 +149,7 @@ export function SubagentProcessView({
   return createPortal(
     <div ref={overlayRef} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="relative flex flex-col w-[80vw] h-[80vh] rounded-[12px] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
+        className="relative flex flex-col w-[80vw] h-[80vh] rounded-[12px] border border-border bg-surface-alt shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部:spinner + 标题 + 状态 + 关闭(思考/工具与主聊天一致常显,无显示开关) */}
@@ -243,7 +243,7 @@ function SubagentMessage({ msg, running, streamTail }: { msg: ChatMessage; runni
   if (msg.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="msg-bubble-user rounded-[10px] rounded-tr-[4px] px-3 py-1.5 text-[length:var(--text-detail)] whitespace-pre-wrap break-words max-w-[80%]">{msg.text}</div>
+        <div className="msg-bubble-user rounded-[10px] rounded-br-[4px] px-[14px] py-1.5 leading-[1.55] whitespace-pre-wrap break-words max-w-[80%]">{msg.text}</div>
       </div>
     );
   }
@@ -253,7 +253,7 @@ function SubagentMessage({ msg, running, streamTail }: { msg: ChatMessage; runni
     <div className="flex gap-3 items-start">
       <div className="msg-avatar agent shrink-0">M</div>
       <div className="min-w-0 flex-1">
-        <div className="msg-bubble-agent rounded-[10px] rounded-bl-[4px] px-3 py-1.5 text-[length:var(--text-detail)] overflow-hidden">
+        <div className="msg-bubble-agent rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
           {blocks.map((block, i) => (
             <ChatBlockView
               key={`blk-${msg.id}-${i}`}
