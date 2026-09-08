@@ -12,7 +12,8 @@
 | 了解待办 | `.easymint/todos.json`（UI「待办」面板） |
 | 发版流程（版本号判定/发版必检/两处提交） | `docs/发版流程.md` |
 | 本机环境（查源码目录/CC 源码/局域网 git） | `docs/本机环境.md`（仅本机存在） |
-| 使用 SDK API | `docs/reference/Pi-SDK-API参考.md` |
+| 使用 SDK API | `docs/reference/pi-api/SDK实操速查.md` |
+| 查全量 API 签名、供应商认证、CLI/RPC、外围包 | `docs/reference/pi-api/README.md`（全量清单系列导读） |
 | 修改系统提示词 | `app/shared/prompts.ts`（主提示词/规则段）；动态 section 与权限段 → `app/main/services/prompt-sections.ts` |
 | 看懂构建流程 | `package.json` scripts + `scripts/build.sh` |
 | 设计方案 / 配置路径 / 需求方法论 / 规则集 | `docs/design/`（按需阅读；新方案定稿落盘于此） |
@@ -279,7 +280,7 @@ npm run lint             # ESLint + TypeScript 类型检查
 |------|------|------|
 | 分析用户需求、设计功能、拆分开发任务 | `docs/design/AI驱动开发需求设计原则.md` | 11 条原则，决定任务粒度和结构 |
 | 新增/修改配置文件、调整存储路径、处理 SDK 数据 | `docs/design/CONFIG_PATHS.md` | 全局和项目级的所有配置路径 |
-| 使用 SDK API、会话管理、工具调用 | `docs/reference/Pi-SDK-API参考.md` | SDK 实操速查(按 EM 场景组织:方法列表/Skill 机制/模型切换/利用程度盘点) |
+| 使用 SDK API、会话管理、工具调用 | `docs/reference/pi-api/SDK实操速查.md` | SDK 实操速查(按 EM 场景组织:方法列表/Skill 机制/模型切换/利用程度盘点) |
 | 查全量 API 签名、供应商认证、CLI/RPC、外围包 | `docs/reference/pi-api/README.md` | pi v0.85.1 全量 API 清单系列(按包组织,4 篇分册,与实操速查互补,版本口径以此为准) |
 
 ## 4.5 关联文档
