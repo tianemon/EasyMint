@@ -2095,11 +2095,19 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
       const body = text
         .replace(/^\[系统消息\]-\[Agent执行结果\]\s*/, "")
         .replace(/^\[系统消息\]\s*/, "");
-      // 委派/后台 shell 结果:解析 ⏺ 摘要行(红绿灯三色);其他 kind:纯文本
+      // 委派/后台 shell 结果:状态/时长上标题栏,默认折叠,展开看完整内容(6 行封顶滚动);其他 kind:纯文本
       const isResult = kind === "delegation" || kind === "shell";
-      const rows = isResult ? body.split("\n").filter((l) => l.startsWith("⏺ ")) : [];
-      // 指令型（给 Mint 的行为指令）默认折叠成标签条——用户无需读正文，点击展开可查原文
-      const collapsible = COLLAPSIBLE_SYSTEM_KINDS.has(kind);
+      const lines = isResult ? body.split("\n") : [];
+      const rows = lines.filter((l) => l.startsWith("⏺ "));
+      // 标题栏状态取首个 ⏺ 行(多子任务时各任务状态在展开区看全貌)
+      const first = rows[0]?.match(/^⏺ (.+?) [-—] (完成|失败|中止|已由用户中断)(?: · (\d+)s)?$/);
+      const headStatus = first?.[2];
+      const headDur = first?.[3];
+      // 中止/已由用户中断=人为打断(黄),失败=意外中断(红),完成=绿
+      const statusColor = (s?: string): string =>
+        (s === "中止" || s === "已由用户中断") ? "text-interrupt" : s === "失败" ? "text-fail" : s ? "text-done" : "";
+      // 结果型(委派/后台命令)与指令型一样默认折叠——完整内容展开看
+      const collapsible = COLLAPSIBLE_SYSTEM_KINDS.has(kind) || isResult;
       const collapsed = collapsible && !sysExpanded;
       return (
         <div
@@ -2117,54 +2125,62 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
                 onClick={collapsible ? () => setSysExpanded((v) => !v) : undefined}
                 
               >
-                {/* 头部图标按 kind:委派=bot、后台命令=终端,其余保持感叹号 */}
+                {/* 头部图标按 kind:委派=bot、后台命令=终端,其余保持感叹号;颜色对齐工具标题(中性灰,不用蓝) */}
                 {kind === "delegation" ? (
-                  <svg className="shrink-0 text-info" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="shrink-0 text-[var(--color-tool-title)]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" />
                   </svg>
                 ) : kind === "shell" ? (
-                  <svg className="shrink-0 text-info" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="shrink-0 text-[var(--color-tool-title)]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="m7 11 2-2-2-2" /><path d="M11 13h4" /><rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
                   </svg>
                 ) : (
-                  <svg className="shrink-0 text-info" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                  <svg className="shrink-0 text-[var(--color-tool-title)]" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
                     <circle cx="8" cy="8" r="6.5" />
                     <path d="M8 7.5V11" />
                     <path d="M8 5h.01" />
                   </svg>
                 )}
                 <span>{SYSTEM_KIND_LABELS[kind] ?? "系统消息"}</span>
+                {/* 状态 + 时长上标题栏(取首个 ⏺ 行) */}
+                {headStatus && (
+                  <span className={`${statusColor(headStatus)} font-semibold`} style={{ fontSize: "var(--text-11)" }}>
+                    - {headStatus}{headDur ? ` · ${headDur}s` : ""}
+                  </span>
+                )}
                 {collapsible && (
                   <svg className="ml-1 shrink-0 transition-transform" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: collapsed ? "rotate(0deg)" : "rotate(180deg)" }}>
                     <path d="M6 9l6 6 6-6" />
                   </svg>
                 )}
               </button>
-              {collapsed && (
-                <div className="px-[14px] pb-1.5 text-[length:var(--text-11)] text-text-muted">点击展开查看详情</div>
-              )}
-              {/* 内容区（指令型折叠时省略） */}
+              {/* 内容区（折叠时省略;结果型展开后 6 行封顶滚动,⏺ 行着色、其余行原文） */}
               {!collapsed && <div className="px-[14px] pb-1.5 leading-[1.55]">
                 {isResult ? (
-                  rows.map((row, i) => {
-                    // 兼容新旧分隔符:新数据用连字符 `-`,存量/旧版主进程仍发 em-dash `—`——两者都解析
-                    const m = row.match(/^⏺ (.+?) [-—] (完成|失败|中止|已由用户中断)(?: · (\d+)s)?$/);
-                    // 中止/已由用户中断=人为打断(黄),失败=意外中断(红),完成=绿——原生 ⏺ 字符
-                    const status = m?.[2];
-                    const dotColor = (status === "中止" || status === "已由用户中断") ? "text-interrupt" : status === "失败" ? "text-fail" : "text-done";
-                    return (
-                      // 普通文本流而非 flex:flex 项间的源码换行在选择复制时会作为真实换行保留
-                      // (复制结果断行);inline 布局换行折叠为空格,复制文本与视觉一致
-                      <div key={i} className="py-0.5 leading-[1.55]">
-                        <span className={`${dotColor} text-[length:var(--text-caption)] align-baseline`}>⏺ </span>
-                        {m ? (
-                          <><span className="text-text-primary">{m[1]}</span><span className={`${dotColor} text-[length:var(--text-caption)] font-semibold`}> - {m[2]}</span>{m[3] && <span className="text-text-secondary/70 text-[length:var(--text-caption)] tabular-nums"> • {m[3]}s</span>}</>
-                        ) : (
-                          <span className="text-text-secondary">{row.slice(2)}</span>
-                        )}
-                      </div>
-                    );
-                  })
+                  <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: "calc(var(--text-detail) * 9.75 + 12px)" }}>
+                    {lines.map((row, i) => {
+                      if (!row.startsWith("⏺ ")) {
+                        return row.trim() === "" ? null : (
+                          <div key={i} className="text-text-secondary whitespace-pre-wrap [overflow-wrap:anywhere]">{row}</div>
+                        );
+                      }
+                      // 兼容新旧分隔符:新数据用连字符 `-`,存量/旧版主进程仍发 em-dash `—`——两者都解析
+                      const m = row.match(/^⏺ (.+?) [-—] (完成|失败|中止|已由用户中断)(?: · (\d+)s)?$/);
+                      const dotColor = statusColor(m?.[2]);
+                      return (
+                        // 普通文本流而非 flex:flex 项间的源码换行在选择复制时会作为真实换行保留
+                        // (复制结果断行);inline 布局换行折叠为空格,复制文本与视觉一致
+                        <div key={i} className="py-0.5 leading-[1.55]">
+                          <span className={`${dotColor} text-[length:var(--text-caption)] align-baseline`}>⏺ </span>
+                          {m ? (
+                            <><span className="text-text-primary">{m[1]}</span><span className={`${dotColor} text-[length:var(--text-caption)] font-semibold`}> - {m[2]}</span>{m[3] && <span className="text-text-secondary/70 text-[length:var(--text-caption)] tabular-nums"> • {m[3]}s</span>}</>
+                          ) : (
+                            <span className="text-text-secondary">{row.slice(2)}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 ) : (
                   <div className="whitespace-pre-wrap [overflow-wrap:anywhere] text-text-primary">{body}</div>
                 )}
