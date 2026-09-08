@@ -560,7 +560,7 @@ async function createAskUserTool(sessionId: string): Promise<ToolDefinition> {
                   required: ["label"],
                 },
               },
-              multi_select: { type: "boolean" as const, description: "是否多选（默认 false）" },
+              multi_select: { type: "boolean" as const, description: "是否多选（默认 false）——卡片会在问题后自动标注「（可多选）」，question 里不要重复写" },
               depends_on: {
                 type: "object" as const,
                 description: "级联条件：{前置问题id: 选项value}，前置选择匹配才显示本问题",

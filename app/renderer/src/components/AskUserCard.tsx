@@ -162,7 +162,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
 
       {/* 问题 */}
       <div className="px-3.5 pt-1.5 text-xs text-text-primary font-medium leading-relaxed">
-        {q.question}{multi ? "（可多选）" : ""}
+        {q.question}{multi && !q.question.includes("多选") ? "（可多选）" : ""}
       </div>
 
       {/* 选项：单选点选即走；多选左侧勾选框、点选切换不跳题 */}
@@ -200,7 +200,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
                   {opt.label}{opt.description ? `（${opt.description}）` : ""}
                 </span>
                 {opt.recommended && (
-                  <span className={`ml-auto shrink-0 px-1.5 py-px rounded-[4px] text-[length:var(--text-2xs)] font-medium transition-colors ${
+                  <span className={`shrink-0 px-1.5 py-px rounded-[4px] text-[length:var(--text-2xs)] font-medium transition-colors ${
                     sel ? "bg-accent text-white" : "bg-accent-soft text-accent"
                   }`}>推荐</span>
                 )}
