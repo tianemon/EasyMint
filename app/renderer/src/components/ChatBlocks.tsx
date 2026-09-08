@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import type { StreamEntry } from "./StreamPanel";
@@ -254,7 +254,26 @@ const LANG_LABELS: Record<string, string> = {
 
 // ── Block rendering ──────────────────────────────────
 
-function CodeBlock({ language, children }: { language?: string; children: string }): JSX.Element {
+// 3.7 流式性能:文本块渲染拆成「静态段」与「流式段」。
+//  - 静态段(完整内容/非尾块):parse 结果按 content 缓存,重渲染同内容不重跑 marked/DOMPurify
+//  - 流式尾块:rAF 帧合并 + 已渲染前缀冻结,每帧只 parse 新增的开放尾部(不再每帧全文重 parse)
+//    完成态输出与静态全文 parse 一致(冻结边界=段落边界/闭合围栏,不切断跨段 markdown 结构)
+
+/** markdown 单段 HTML 渲染(parse 按 content 字符串缓存) */
+const MarkdownHtml = memo(function MarkdownHtml({ content }: { content: string }): JSX.Element {
+  // marked 输出统一经 DOMPurify 净化——AI 输出/被读取的项目文件可含 <script>/<img onerror>
+  // 等载荷,直接进 dangerouslySetInnerHTML 会执行(配合 1.6 形成完整 RCE 链)
+  const html = useMemo(
+    () => DOMPurify.sanitize(marked.parse(content, { breaks: true, renderer: mdRenderer }) as string),
+    [content],
+  );
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+});
+
+type MdRawPart = { type: "html" | "code"; content: string; lang?: string };
+
+/** 代码块(memo:同内容重渲染不重建——流式中已完成代码块不再变化) */
+const CodeBlock = memo(function CodeBlock({ language, children }: { language?: string; children: string }): JSX.Element {
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
     navigator.clipboard.writeText(children).then(() => {
@@ -275,69 +294,165 @@ function CodeBlock({ language, children }: { language?: string; children: string
       </pre>
     </div>
   );
+});
+
+/** 围栏代码提取 + 分段(原 TextBlockView html useMemo 逻辑抽出,静态/流式共用)。
+ *  流式下未闭合围栏(```lang\n 已出现但无闭合)提前按代码块渲染——
+ *  避免闭合瞬间整段跳变(用户感知的"闪一下") */
+function splitMarkdownParts(text: string, streaming: boolean): MdRawPart[] {
+  const parts: MdRawPart[] = [];
+  const codeRegex = /```([\w+#-]*)\n([\s\S]*?)```/g;
+  let lastIdx = 0;
+  let match: RegExpExecArray | null;
+  while ((match = codeRegex.exec(text)) !== null) {
+    if (match.index > lastIdx) parts.push({ type: "html", content: text.slice(lastIdx, match.index) });
+    // 语言:映射表能准确识别 → 标准名称;未知/无法识别 → TEXT;代码块内容 trim 首尾换行(避免 pre 顶部/底部空行空隙)
+    parts.push({
+      type: "code",
+      lang: match[1] ? (LANG_LABELS[match[1]] || "TEXT") : "TEXT",
+      content: match[2]!.replace(/^\n+/, "").replace(/\n+$/, ""),
+    });
+    lastIdx = match.index + match[0].length;
+  }
+  if (streaming && lastIdx < text.length) {
+    const tail = text.slice(lastIdx);
+    const openAt = tail.indexOf("```");
+    if (openAt !== -1) {
+      const open = tail.slice(openAt).match(/^```([\w+#-]*)\n([\s\S]*)$/);
+      if (open) {
+        if (openAt > 0) parts.push({ type: "html", content: tail.slice(0, openAt) });
+        parts.push({
+          type: "code",
+          lang: open[1] ? (LANG_LABELS[open[1]] || "TEXT") : "TEXT",
+          content: open[2]!.replace(/^\n+/, ""),
+        });
+        return parts;
+      }
+    }
+  }
+  if (lastIdx < text.length) parts.push({ type: "html", content: text.slice(lastIdx) });
+  return parts;
 }
 
-export function TextBlockView({ block, streaming }: { block: TextBlock; streaming?: boolean }): JSX.Element {
-  const html = useMemo(() => {
-    // Extract fenced code blocks before html rendering, handle them separately
-    const parts: Array<{ type: "html" | "code"; content: string; lang?: string }> = [];
-    const codeRegex = /```([\w+#-]*)\n([\s\S]*?)```/g;
-    let lastIdx = 0;
-    let match: RegExpExecArray | null;
-    while ((match = codeRegex.exec(block.text)) !== null) {
-      if (match.index > lastIdx) {
-        parts.push({ type: "html", content: block.text.slice(lastIdx, match.index) });
-      }
-      // 语言:映射表能准确识别 → 标准名称;未知/无法识别 → TEXT;代码块内容 trim 首尾换行(避免 pre 顶部/底部空行空隙)
-      parts.push({
-        type: "code",
-        lang: match[1] ? (LANG_LABELS[match[1]] || "TEXT") : "TEXT",
-        content: match[2]!.replace(/^\n+/, "").replace(/\n+$/, ""),
-      });
-      lastIdx = match.index + match[0].length;
-    }
-    // 流式中未闭合的围栏(```lang\n 已出现但尚无闭合 ```):提前按代码块渲染——
-    // 否则代码打完闭合前整段按普通文本显示,闭合瞬间跳变成代码块样式(用户感知的"闪一下")
-    if (streaming && lastIdx < block.text.length) {
-      const tail = block.text.slice(lastIdx);
-      const openAt = tail.indexOf("```");
-      if (openAt !== -1) {
-        const open = tail.slice(openAt).match(/^```([\w+#-]*)\n([\s\S]*)$/);
-        if (open) {
-          if (openAt > 0) parts.push({ type: "html", content: tail.slice(0, openAt) });
-          parts.push({
-            type: "code",
-            lang: open[1] ? (LANG_LABELS[open[1]] || "TEXT") : "TEXT",
-            content: open[2]!.replace(/^\n+/, ""),
-          });
-          return parts;
-        }
-      }
-    }
-    if (lastIdx < block.text.length) {
-      parts.push({ type: "html", content: block.text.slice(lastIdx) });
-    }
-    return parts;
-  }, [block.text, streaming]);
+/** 单段渲染成元素(key 由调用方保证稳定唯一) */
+function renderMdPart(p: MdRawPart, key: string): JSX.Element {
+  return p.type === "code"
+    ? <CodeBlock key={key} language={p.lang}>{p.content}</CodeBlock>
+    : <MarkdownHtml key={key} content={p.content} />;
+}
 
+/** 在 [from, text.length) 里找最靠后的「可安全冻结」前缀终点。
+ *  安全 = 段落边界(空行后)且未切断未闭合围栏;两侧同属一个列表(松列表可跨空行
+ *  延续,空行后跟列表项/缩进续行会合并进前一块)时不冻结——只有已确定的块才固化。
+ *  返回 from 表示尚无已稳定前缀(整个尾部仍是开放内容)。 */
+function findStableEnd(text: string, from: number): number {
+  const len = text.length;
+  let end = from;
+  let inFence = false;
+  // 自上一个冻结边界以来当前块是否为列表(列表跨空行继续时边界必须后延)
+  let curList = false;
+  let candidate = -1; // 最近空行后下一个内容行的起点(=冻结候选)
+  let pos = from;
+  while (pos < len) {
+    const nl = text.indexOf("\n", pos);
+    if (nl === -1) break; // 末行尚无换行(内容未完):不分类/不置冻结,等它写完再定
+    const raw = text.slice(pos, nl);
+    const isBlank = raw.trim() === "";
+    if (isBlank) {
+      if (!inFence) candidate = nl + 1;
+    } else {
+      const isMarker = /^\s{0,3}(?:[-+*]|\d{1,9}[.)])\s/.test(raw);
+      const indented = /^\s{2,}/.test(raw);
+      if (candidate >= 0 && !inFence) {
+        // 空行前的块已完结;若它是列表且新块以列表项/缩进续行开头 → 同属一个松列表,暂不冻结
+        const merges = curList && (isMarker || indented);
+        if (!merges) { end = Math.max(end, candidate); curList = false; }
+        candidate = -1;
+      }
+      if (!inFence && /^\s*```/.test(raw)) { inFence = true; candidate = -1; }
+      else if (inFence && raw.includes("```")) inFence = false;
+      // 块级列表跟踪:列表标记行使本块成为列表;普通非缩进行结束列表
+      if (isMarker) curList = true;
+      else if (!indented) curList = false;
+    }
+    pos = nl + 1;
+  }
+  // 尾随空行:末段已结束可冻结——但末块若是列表(可能继续)则留作开放尾部,等下个非列表块
+  if (candidate >= 0 && !inFence && !curList) end = Math.max(end, candidate);
+  return end;
+}
+
+/** 流式增量构建:冻结已稳定前缀(只 parse 一次),开放尾部每帧重 parse。
+ *  cache 持有 frozen 元素(跨帧复用),disp 为当前展示内容。 */
+interface StreamCache { covered: number; coveredText: string; els: JSX.Element[]; }
+interface StreamDisp { text: string; els: JSX.Element[]; }
+
+function buildStreamDisp(text: string, cache: StreamCache | null, prefix: string): { disp: StreamDisp; cache: StreamCache } {
+  // 内容帧快照原则上只增(累计全文);若回退/改写(非纯追加)→ 前缀缓存失效,整体重建
+  const reset = !cache || !text.startsWith(cache.coveredText);
+  const covered0 = reset ? 0 : cache.covered;
+  const end = findStableEnd(text, covered0);
+  const els = reset ? [] : [...cache.els];
+  if (end > covered0) {
+    // 冻结区段:边界在段落/闭合围栏之后,按静态规则分段并固化为元素(此后不再变化)
+    const parts = splitMarkdownParts(text.slice(covered0, end), false);
+    for (const p of parts) els.push(renderMdPart(p, `${prefix}-f${els.length}`));
+  }
+  const covered = Math.max(covered0, end);
+  // 开放尾部:每帧只 parse 这段(通常 1 个未完段落/未闭合围栏)
+  const tailParts = splitMarkdownParts(text.slice(covered), true);
+  tailParts.forEach((p, idx) => els.push(renderMdPart(p, `${prefix}-t${idx}`)));
+  return { disp: { text, els }, cache: { covered, coveredText: text.slice(0, covered), els } };
+}
+
+/** 流式尾块:rAF 帧合并(高频内容帧只在下一帧提交一次渲染)+ 已渲染前缀冻结 */
+function StreamingMarkdown({ text, prefix }: { text: string; prefix: string }): JSX.Element {
+  const cacheRef = useRef<StreamCache | null>(null);
+  const [disp, setDisp] = useState<StreamDisp>(() => {
+    const built = buildStreamDisp(text, null, prefix);
+    cacheRef.current = built.cache;
+    return built.disp;
+  });
+  const dispRef = useRef(disp);
+  const latestRef = useRef(text);
+  latestRef.current = text;
+  const rafRef = useRef(0);
+  const pendingRef = useRef(false);
+
+  // 内容增长 → 合并到下一帧统一提交(同帧内多次增长只 parse 一次;rAF 延迟 ≤1 帧不可感知)
+  useEffect(() => {
+    if (pendingRef.current) return;
+    if (dispRef.current.text === latestRef.current) return;
+    pendingRef.current = true;
+    rafRef.current = requestAnimationFrame(() => {
+      pendingRef.current = false;
+      const target = latestRef.current;
+      if (target === dispRef.current.text) return;
+      const built = buildStreamDisp(target, cacheRef.current, prefix);
+      cacheRef.current = built.cache;
+      dispRef.current = built.disp;
+      setDisp(built.disp);
+    });
+  }, [text, prefix]);
+  // 卸载清理:虚拟列表行回收/流式结束时取消挂起 rAF(防泄漏/卸载后 setState)
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
+
+  return <>{disp.els}</>;
+}
+
+/** 静态文本块:完整 markdown 一次 parse(内容不变时 memo 跳过,不重跑 parse) */
+const StaticMarkdown = memo(function StaticMarkdown({ text, prefix }: { text: string; prefix: string }): JSX.Element {
+  const parts = useMemo(() => splitMarkdownParts(text, false), [text]);
+  return <>{parts.map((p, i) => renderMdPart(p, `${prefix}-${i}`))}</>;
+});
+
+export function TextBlockView({ block, streaming }: { block: TextBlock; streaming?: boolean }): JSX.Element {
+  const prefix = block.keyPrefix || "md";
   return (
     <div className="leading-relaxed prose prose-sm max-w-none break-words [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_h1]:[font-size:1.5em] [&_code]:[font-size:var(--text-detail)] prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-a:text-accent prose-li:text-text-primary">
-      {html.map((part, i) => {
-        const k = `${block.keyPrefix || "md"}-${i}`;
-        if (part.type === "code") {
-          return <CodeBlock key={k} language={part.lang}>{part.content}</CodeBlock>;
-        }
-        return (
-          <div
-            key={k}
-            // marked 输出统一经 DOMPurify 净化——AI 输出/被读取的项目文件可含 <script>/<img onerror>
-            // 等载荷,直接进 dangerouslySetInnerHTML 会执行(配合 1.6 形成完整 RCE 链)
-            dangerouslySetInnerHTML={{
-              __html: DOMPurify.sanitize(marked.parse(part.content, { breaks: true, renderer: mdRenderer }) as string),
-            }}
-          />
-        );
-      })}
+      {streaming
+        ? <StreamingMarkdown text={block.text} prefix={prefix} />
+        : <StaticMarkdown text={block.text} prefix={prefix} />}
     </div>
   );
 }

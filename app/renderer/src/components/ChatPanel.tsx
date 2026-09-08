@@ -7,7 +7,7 @@ import { confirmDialog } from "./ui/ConfirmDialog";
 import { resolveThinkingLevel } from "@shared/thinking-levels";
 import { useSettingsStore } from "../stores/settings-store";
 import { useTabStore } from "../stores/tab-store";
-import { useChatStore } from "../stores/chat-store";
+import { useChatStore, type FlowErrorCard } from "../stores/chat-store";
 import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
 
 import { useStatusStore } from "../stores/status-store";
@@ -63,6 +63,50 @@ const SYSTEM_KIND_LABELS: Record<string, string> = {
 /** 指令型系统消息（给 Mint 的行为指令，用户无需阅读正文）——默认折叠成标签条，点击展开 */
 const COLLAPSIBLE_SYSTEM_KINDS = new Set(["project-created", "direct-create", "flow", "summary", "learn"]);
 
+/** 消息流内持久错误卡片(3.5):红底警示条 + 重试(可重试时)/关闭。
+ *  悬停显完整文案(长错误信息不撑破气泡)。 */
+function FlowErrorCardView({ card, onRetry, onDismiss }: {
+  card: FlowErrorCard;
+  onRetry: (c: FlowErrorCard) => void;
+  onDismiss: (c: FlowErrorCard) => void;
+}): JSX.Element {
+  const retryable = card.sourceMsgId != null;
+  return (
+    <div
+      className="flex items-start gap-2 rounded-md border border-danger-border bg-danger-bg px-3 py-1.5 w-fit max-w-full"
+      title={card.message}
+    >
+      {/* 警示三角(三角形路径,16 网格) */}
+      <svg className="mt-[2px] shrink-0 text-danger" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+        <path d="M12 9v4" />
+        <path d="M12 17h.01" />
+      </svg>
+      <span className="min-w-0 flex-1 break-words text-text-primary leading-[1.55]" style={{ fontSize: "var(--text-detail)" }}>{card.message}</span>
+      {retryable && (
+        <button
+          type="button"
+          onClick={() => onRetry(card)}
+          className="shrink-0 rounded px-2 py-0.5 font-medium text-danger bg-danger-soft hover:bg-danger transition-colors hover:text-white cursor-pointer"
+          style={{ fontSize: "var(--text-detail)" }}
+        >重试</button>
+      )}
+      <button
+        type="button"
+        onClick={() => onDismiss(card)}
+        title="关闭"
+        aria-label="关闭错误提示"
+        className="shrink-0 p-0.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer"
+      >
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+          <path d="M3 3l10 10M13 3L3 13" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+
 /** token 数格式化（显示用：1.2k / 3.4M） */
 function fmtTokenCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -81,6 +125,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const emptyArr = useRef<ChatMessage[]>([]);
   const rawMsgs = useChatStore((s) => s.messagesBySession[sid]);
   const messages: ChatMessage[] = rawMsgs || (emptyArr.current as ChatMessage[]);
+
+  // 持久错误卡片(3.5):按锚定消息 id 分组,渲染在对应消息行下方
+  const emptyErrorsRef = useRef<FlowErrorCard[]>([]);
+  const sessionErrors = useChatStore((s) => s.errorsBySession[sid]) || emptyErrorsRef.current;
+  const errorsByAnchor = useMemo(() => {
+    const m = new Map<number, FlowErrorCard[]>();
+    for (const c of sessionErrors) {
+      const arr = m.get(c.anchorMsgId);
+      if (arr) arr.push(c);
+      else m.set(c.anchorMsgId, [c]);
+    }
+    return m;
+  }, [sessionErrors]);
 
   const [_currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentChatRef = useRef<string | null>(null);
@@ -770,6 +827,28 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 新挂载时重置本会话残留状态(防止窗口切换/重开后状态栏显示旧文本;按会话隔离,不影响其他 tab)
   useEffect(() => { useStatusStore.getState().reset(sidRef.current); }, []);
 
+  // ── 消息流持久错误卡片(3.5) ────────────────────────────
+  // 错误同时写入消息流(不只有状态栏 8s 提示):卡片锚定失败回合所在消息,
+  // 用户可重试(重发原消息)/关闭;状态栏提示逻辑不变。
+  const showFlowError = useCallback((kind: FlowErrorCard["kind"], message: string, opts?: { sourceMsgId?: number; anchorMsgId?: number }) => {
+    const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
+    if (msgs.length === 0) return; // 空会话(无消息可锚)只走状态栏
+    // 锚点 = 失败发生时的消息流尾部(最后一条消息行)——错误卡片在视野内,用户立即可见;
+    // 显式指定(如发送失败的用户消息)优先
+    const anchor = opts?.anchorMsgId ?? msgs[msgs.length - 1]!.id;
+    // 可重试性:send/round 错误取最近的真实 user 消息为重发目标;system 类(超时等)不可重试
+    let source: number | undefined = opts?.sourceMsgId;
+    if (source == null && kind !== "system") {
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i]!.role === "user" && !msgs[i]!.customType) { source = msgs[i]!.id; break; }
+      }
+    }
+    useChatStore.getState().addFlowError(sidRef.current, {
+      kind, message, anchorMsgId: anchor,
+      ...(source != null ? { sourceMsgId: source } : {}),
+    });
+  }, []);
+
   // ── 子 Agent 委派进度卡片 ─────────────────────────
   // 多委派并存：按 delegationId 索引（此前是单对象 state——新委派直接覆盖旧卡片，
   // 且旧委派的进度事件到达时按「delegationId 变了=新委派」重置任务行，卡片来回跳）
@@ -1224,9 +1303,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         // 不清理则提示消失后回退显示残留的工具信号
         useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:");
         // 打断(abort)是主动操作,按钮状态变化即反馈——不显示提示;
-        // 真实错误(503/429/超时)归一化后停留 8s
+        // 真实错误(503/429/超时)归一化后停留 8s(状态栏);同时写入消息流持久卡片可重试
         if (!/abort|cancel/i.test(event.message || "")) {
-          useStatusStore.getState().pushSignal(sidRef.current, "error", normalizeApiError(event.message) || "出错了", 8000);
+          const errMsg = normalizeApiError(event.message) || "出错了";
+          useStatusStore.getState().pushSignal(sidRef.current, "error", errMsg, 8000);
+          showFlowError("round", errMsg);
         }
       }
       // custom 系统消息(委派完成/后台 shell/流程指令)→ 独立即时显示:
@@ -1433,7 +1514,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const timer = setTimeout(() => {
       useStatusStore.getState().setSummarizing(sidRef.current, false);
       useStatusStore.getState().popSignal(sidRef.current, "summary");
-      useStatusStore.getState().pushSignal(sidRef.current, "error", "摘要超时，将开新会话继续", 8000);
+      const msg = "摘要超时，将开新会话继续";
+      useStatusStore.getState().pushSignal(sidRef.current, "error", msg, 8000);
+      showFlowError("system", msg);
       console.error("[ChatPanel] summarization timed out after 120s");
     }, 120_000);
     return () => clearTimeout(timer);
@@ -1446,7 +1529,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const timer = setTimeout(() => {
       useStatusStore.getState().setCompacting(sidRef.current, false);
       useStatusStore.getState().popSignal(sidRef.current, "compact");
-      useStatusStore.getState().pushSignal(sidRef.current, "error", "压缩状态异常，已恢复界面（压缩可能仍在后台）", 8000);
+      const msg = "压缩状态异常，已恢复界面（压缩可能仍在后台）";
+      useStatusStore.getState().pushSignal(sidRef.current, "error", msg, 8000);
+      showFlowError("system", msg);
       console.error("[ChatPanel] compaction timed out after 120s");
     }, 120_000);
     return () => clearTimeout(timer);
@@ -1560,9 +1645,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
   // ── Send ───────────────────────────────────────────
 
-  const sendText = useCallback(async (text: string, opts?: { skipAppend?: boolean }) => {
-    const msg = text.trim();
-    if (!msg && attaches.length === 0) return;
+  const sendText = useCallback(async (text: string, opts?: { skipAppend?: boolean; sourceMsgId?: number }) => {
+    // 错误卡片重试(sourceMsgId):原文与附件以失败消息气泡为准——此时输入框可能已清空/改写,
+    // 重发必须还原当时的附件(图片 dataUrl 等)
+    let retryMsg: ChatMessage | null = null;
+    if (opts?.sourceMsgId != null) {
+      const stored = useChatStore.getState().messagesBySession[sidRef.current] || [];
+      retryMsg = stored.find((m) => m.id === opts.sourceMsgId && m.role === "user") || null;
+    }
+    const msg = (retryMsg ? (retryMsg.text ?? "") : text).trim();
+    const activeAttaches = retryMsg?.attaches && retryMsg.attaches.length > 0 ? retryMsg.attaches : attaches;
+    if (!msg && activeAttaches.length === 0) return;
     // 用户发新消息 → 关闭压缩询问(继续对话 = 弹窗作废;选项 1/4 会 abort 新回合,不能误打断)。
     // 关闭动作放发送入口而非 turn_start——turn_start 回合内每工具批次都发,会误关 Mint 输出中
     // 刚弹出的自动压缩弹窗(一闪即逝)
@@ -1589,7 +1682,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
     // Build agent message with numbered markers
     const parts: string[] = [];
-    attaches.forEach((a, i) => {
+    activeAttaches.forEach((a, i) => {
       const tag = a.kind === "image" ? "Image" : "File";
       parts.push(`[${tag} #${i + 1}: ${a.path}]`);
     });
@@ -1597,9 +1690,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const agentText = parts.join("\n");
 
     const ts = Date.now();
-    // 编辑重发(skipAppend):气泡文本已由 updateUserMsgText 替换,不再 append 新气泡
+    // 编辑重发/错误重试(skipAppend):气泡已存在,不再 append 新气泡
+    let sentMsgId: number | null = null;
     if (!opts?.skipAppend) {
-      useChatStore.getState().appendUserMsg(sidRef.current, { role: "user", text: msg || undefined, attaches: [...attaches], timestamp: ts });
+      sentMsgId = useChatStore.getState().appendUserMsg(sidRef.current, { role: "user", text: msg || undefined, attaches: [...activeAttaches], timestamp: ts });
+    } else if (retryMsg) {
+      sentMsgId = retryMsg.id;
     }
     // 首条消息:输入卡片从居中平滑下移到底部(FLIP)
     if (!messages.length && !existingSid) {
@@ -1615,7 +1711,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
     // 编码图片附件为 Pi ImageContent 格式(steer 插话与正常发送共用——steer 原先不带图,插话图片被静默丢弃)
     const images: Array<{ type: "image"; data: string; mimeType: string }> = [];
-    for (const a of attaches) {
+    for (const a of activeAttaches) {
       if (a.kind === "image" && a.dataUrl) {
         const m = a.dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
         if (m) images.push({ type: "image" as const, data: m[2]!, mimeType: m[1]! });
@@ -1643,10 +1739,28 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       const roleDesigner = existingSid ? (isDesigner ?? tab?.isDesigner) : chatRole === "mint-d";
       const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "standard", isDesigner: roleDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium", model: chatModel || undefined, preferredProvider: chatProvider || undefined, tabId });
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
-    } catch { pendingFirstTurnRef.current = false; busyRef.current = false; setBusy(false); currentChatRef.current = null; useStatusStore.getState().pushSignal(sidRef.current, "error", "发送失败，请检查网络后重试", 8000); }
+    } catch {
+      pendingFirstTurnRef.current = false; busyRef.current = false; setBusy(false); currentChatRef.current = null;
+      const errText = "发送失败，请检查网络后重试";
+      useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
+      // 同步写入消息流持久错误卡片(锚定刚追加/重试的用户消息,可点重试重新发送)
+      if (sentMsgId != null) showFlowError("send", errText, { sourceMsgId: sentMsgId, anchorMsgId: sentMsgId });
+    }
   }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatModel, chatProvider, chatRole, tabId]);
 
   useEffect(() => { chatActions.register((t: string) => sendText(t)); return () => chatActions.unregister(); }, [sendText]);
+
+  // ── 消息流错误卡片操作(3.5) ──────────────────────────
+  const handleDismissError = useCallback((card: FlowErrorCard) => {
+    useChatStore.getState().dismissFlowError(sidRef.current, card.id);
+  }, []);
+  // 重试 = 重发卡片锚定的用户消息(原文本+附件;skipAppend 不新增气泡);
+  // 卡片先移除——重发若再次失败,showFlowError 会重新落一张卡
+  const handleRetryError = useCallback((card: FlowErrorCard) => {
+    useChatStore.getState().dismissFlowError(sidRef.current, card.id);
+    if (card.sourceMsgId == null) return;
+    sendText("", { skipAppend: true, sourceMsgId: card.sourceMsgId });
+  }, [sendText]);
 
   const hasMessages = messages.length > 0;
 
@@ -1908,6 +2022,22 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                         <DelegationProgress delegations={delegationList} />
                       </div>
                     ) : null}
+                    {/* 持久错误卡片(3.5):锚定消息行下方;可重试(重发原消息)/手动关闭,
+                        不随状态栏 8s 提示消失 */}
+                    {(() => {
+                      const cards = errorsByAnchor.get(msg.id);
+                      if (!cards || cards.length === 0) return null;
+                      return (
+                        <div className="flex gap-4 items-start mt-1" style={{ padding: "0 var(--s8)" }}>
+                          <div style={{ width: 34, flexShrink: 0 }} />
+                          <div className="min-w-0 space-y-1">
+                            {cards.map((card) => (
+                              <FlowErrorCardView key={`flow-err-${card.id}`} card={card} onRetry={handleRetryError} onDismiss={handleDismissError} />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}

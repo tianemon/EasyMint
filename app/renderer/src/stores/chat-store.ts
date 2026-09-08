@@ -2,14 +2,38 @@ import { create } from "zustand";
 
 export type StoredMessage = Record<string, any> & { id: number; role: "user" | "ai" };
 
+/** 消息流内持久错误卡片(3.5):错误除状态栏 8s 提示外,同时落入消息流,
+ *  锚定在失败回合的消息下方,直到用户重试/手动关闭才消失。 */
+export interface FlowErrorCard {
+  id: number;
+  kind: "send" | "round" | "system";
+  message: string;
+  /** 卡片渲染在 anchorMsgId 对应消息的气泡下方 */
+  anchorMsgId: number;
+  /** 重试目标消息 id(重发该 user 消息);缺省 = 不可重试,仅可关闭 */
+  sourceMsgId?: number;
+  ts: number;
+}
+
+/** 单会话错误卡片数上限(防御极端重复错误事件撑爆内存/渲染) */
+const MAX_FLOW_ERRORS_PER_SESSION = 20;
 
 interface ChatState {
   messagesBySession: Record<string, any[]>;
   msgIdBySession: Record<string, number>;
+  /** 按会话持久错误卡片(不进磁盘;会话加载/切换时随 evict 清理) */
+  errorsBySession: Record<string, FlowErrorCard[]>;
+  errorsIdBySession: Record<string, number>;
+
+  /** 追加持久错误卡片(同消息+同文案去重,防重复错误事件堆卡片) */
+  addFlowError: (sessionId: string, card: Omit<FlowErrorCard, "id" | "ts">) => void;
+  /** 关闭单张错误卡片(重试成功/用户手动关闭) */
+  dismissFlowError: (sessionId: string, id: number) => void;
 
   loadSession: (sessionId: string, messages: StoredMessage[]) => void;
   evictSession: (sessionId: string) => void;
-  appendUserMsg: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai" }) => void;
+  /** 追加用户消息,返回新消息 id(发送失败时错误卡片按它锚定重试) */
+  appendUserMsg: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai" }) => number;
   /** 替换指定 user 消息文本（编辑重发——打断后改原问题重发,不新增气泡） */
   updateUserMsgText: (sessionId: string, msgId: number, text: string) => void;
   /** 按 Pi 落盘时间戳有序插入——插到第一条 piTs 更大的消息之前,否则追加尾部。
@@ -26,6 +50,30 @@ interface ChatState {
 export const useChatStore = create<ChatState>((set, get) => ({
   messagesBySession: {},
   msgIdBySession: {},
+  errorsBySession: {},
+  errorsIdBySession: {},
+
+  addFlowError: (sessionId, card) => {
+    const list = get().errorsBySession[sessionId] || [];
+    // 同锚点同文案已存在则不重复堆卡(重复错误事件只保留一张)
+    const dup = list.some((c) => c.anchorMsgId === card.anchorMsgId && c.message === card.message);
+    if (dup) return;
+    const id = (get().errorsIdBySession[sessionId] || 0) + 1;
+    const nextList = [...list, { ...card, id, ts: Date.now() }].slice(-MAX_FLOW_ERRORS_PER_SESSION);
+    set((s) => ({
+      errorsBySession: { ...s.errorsBySession, [sessionId]: nextList },
+      errorsIdBySession: { ...s.errorsIdBySession, [sessionId]: id },
+    }));
+  },
+
+  dismissFlowError: (sessionId, id) => {
+    set((s) => ({
+      errorsBySession: {
+        ...s.errorsBySession,
+        [sessionId]: (s.errorsBySession[sessionId] || []).filter((c) => c.id !== id),
+      },
+    }));
+  },
 
   loadSession: (sessionId, messages) =>
     set((s) => {
@@ -53,17 +101,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
       delete next[sessionId];
       const nextId = { ...s.msgIdBySession };
       delete nextId[sessionId];
-      return { messagesBySession: next, msgIdBySession: nextId };
+      const nextErrors = { ...s.errorsBySession };
+      delete nextErrors[sessionId];
+      const nextErrId = { ...s.errorsIdBySession };
+      delete nextErrId[sessionId];
+      return { messagesBySession: next, msgIdBySession: nextId, errorsBySession: nextErrors, errorsIdBySession: nextErrId };
     }),
 
   appendUserMsg: (sessionId, msg) => {
     const id = get().nextMsgId(sessionId);
-    return set((s) => ({
+    set((s) => ({
       messagesBySession: {
         ...s.messagesBySession,
         [sessionId]: [...(s.messagesBySession[sessionId] || []), { ...msg, id }],
       },
     }));
+    return id;
   },
 
   /** 替换指定 user 消息的文本（编辑重发用——发送后打断,改原问题重发,不产生新气泡） */
