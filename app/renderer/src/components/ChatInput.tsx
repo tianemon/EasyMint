@@ -302,23 +302,10 @@ export const ChatInput = memo(function ChatInput({
             </span>
           </Tooltip>
         )}
-        {/* 权限标签:闪电图标(Lucide zap)——替换原「权限」文字;hover 悬浮名称(与缓存命中率一致向上) */}
+        {/* 权限标签:盾形图标随模式切换(标准=shield-check / 完全访问=shield-alert),颜色与文字一致;hover 悬浮名称 */}
         <Tooltip tip="权限" className="shrink-0">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inp-lbl block" style={{ marginRight: -1, marginLeft: 2 }} role="img" aria-label="权限">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`inp-lbl block transition-colors ${permissionMode === "full" ? "text-[var(--color-permission-on)]" : "text-text-secondary"}`} style={{ marginRight: -1, marginLeft: 2 }} role="img" aria-label="权限">
             <title>权限</title>
-            <path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z"/>
-          </svg>
-        </Tooltip>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={permissionMode === "full"}
-          
-          onClick={() => onPermissionModeChange(permissionMode === "full" ? "standard" : "full")}
-          className="flex items-center gap-1.5 shrink-0 group"
-        >
-          {/* 权限图标随模式切换:标准=shield-check / 完全访问=shield-alert,颜色与文字一致 */}
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 block transition-colors ${permissionMode === "full" ? "text-[var(--color-permission-on)]" : "text-text-secondary"}`}>
             <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
             {permissionMode === "full" ? (
               <><path d="M12 8v4" /><path d="M12 16h.01" /></>
@@ -326,6 +313,15 @@ export const ChatInput = memo(function ChatInput({
               <path d="m9 12 2 2 4-4" />
             )}
           </svg>
+        </Tooltip>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={permissionMode === "full"}
+
+          onClick={() => onPermissionModeChange(permissionMode === "full" ? "standard" : "full")}
+          className="flex items-center gap-1.5 shrink-0 group"
+        >
           <span className={`text-[length:var(--text-xs)] transition-colors ${permissionMode === "full" ? "text-[var(--color-permission-on)]" : "text-text-secondary"}`}>
             {permissionMode === "full" ? "完全访问" : "标准"}
           </span>
