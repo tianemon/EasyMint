@@ -15,7 +15,7 @@ function baseName(p: string): string {
 // 自定义工具按类别配图标:agent=bot, 知识技能=wrench, MCP=plug, 项目=folder-kanban,
 // issue=bug, 网络=globe, 待办=list-clock, ask=message-question, 图片=scan-search
 const TOOL_LABELS: Record<string, string> = {
-  bash: "命令", edit: "编辑", read: "查看", write: "编写",
+  bash: "命令", edit: "编辑", read: "查看", write: "编写", grep: "搜索文件",
   task: "调度 Agent", create_agent_template: "创建模板", list_agents: "查看 Agent",
   read_agent_log: "读取日志", stop_agent: "停止 Agent",
   use_skill: "加载技能", manage_skill: "管理技能", learn: "沉淀经验",
@@ -23,7 +23,7 @@ const TOOL_LABELS: Record<string, string> = {
   show_confirm_dev: "确认开发", show_new_project: "新建项目", refresh_tasks: "刷新任务",
   set_task_status: "更新任务", rename_project: "重命名项目", show_prototype: "预览原型",
   list_issues: "查看 Issue", set_issue_status: "更新 Issue",
-  web_fetch: "抓取网页",
+  web_fetch: "抓取网页", web_search: "搜索网页",
   todo_write: "待办", todo_user: "用户待办",
   ask_user: "提问", describe_image: "查看图片",
 };
@@ -34,9 +34,11 @@ function toolIconPaths(name: string): JSX.Element | null {
   if (n.startsWith("mcp__")) n = "mcp"; // MCP 工具统一扳手
   switch (n) {
     case "bash": return (<><path d="m7 11 2-2-2-2"/><path d="M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/></>);
-    case "edit": return (<><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></>);
+    case "edit": return (<><path d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z"/></>);
     case "read": return (<><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></>);
     case "write": return (<><path d="M13 21h8"/><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></>);
+    // 搜索文件(file-search-corner)
+    case "grep": return (<><path d="M11.1 22H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.589 3.588A2.4 2.4 0 0 1 20 8v3.25"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="m21 22-2.88-2.88"/><circle cx="16" cy="17" r="3"/></>);
     // agent 类(bot)
     case "task": case "create_agent_template": case "list_agents": case "read_agent_log": case "stop_agent":
       return (<><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></>);
@@ -54,18 +56,18 @@ function toolIconPaths(name: string): JSX.Element | null {
     // issue(bug)
     case "list_issues": case "set_issue_status":
       return (<><path d="M12 20v-9"/><path d="M14 7a4 4 0 0 1 4 4v3a6 6 0 0 1-12 0v-3a4 4 0 0 1 4-4z"/><path d="M14.12 3.88 16 2"/><path d="M21 21a4 4 0 0 0-3.81-4"/><path d="M21 5a4 4 0 0 1-3.55 3.97"/><path d="M22 13h-4"/><path d="M3 21a4 4 0 0 1 3.81-4"/><path d="M3 5a4 4 0 0 0 3.55 3.97"/><path d="M6 13H2"/><path d="m8 2 1.88 1.88"/><path d="M9 7.13V6a3 3 0 1 1 6 0v1.13"/></>);
-    // 网络(globe)
-    case "web_fetch":
-      return (<><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></>);
+    // 网络搜索(magnifier)
+    case "web_fetch": case "web_search":
+      return (<><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></>);
     // 待办(list-clock)
     case "todo_write": case "todo_user":
       return (<><path d="M16 13v2.2l1.6 1"/><path d="M3 12h3.458"/><path d="M3 19h3.832"/><path d="M3 5h18"/><circle cx="16" cy="15" r="6"/></>);
     // ask(message-circle-question-mark)
     case "ask_user":
       return (<><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></>);
-    // 图片(scan-search)
+    // 图片(photo-search)
     case "describe_image":
-      return (<><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/><path d="m16 16-1.9-1.9"/></>);
+      return (<><path d="M15 8h.01"/><path d="M11.5 21h-5.5a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v5.5"/><path d="M15 18a3 3 0 1 0 6 0a3 3 0 1 0-6 0"/><path d="M20.2 20.2l1.8 1.8"/><path d="M3 16l5-5c.928-.893 2.072-.893 3 0l2 2"/></>);
     default: return null;
   }
 }
@@ -799,35 +801,19 @@ function toolDetailLabel(item: ToolItem): string | null {
 
 function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?: boolean; streaming?: boolean }): JSX.Element {
   const isDiffResult = !!item.result && item.result.includes("变更内容:");
-  // 默认折叠(含 diff——用户要求不自动展开,点击才展开)
-  const [showInput, setShowInput] = useState(false);
+  // 默认折叠(含 diff——用户要求不自动展开,点击才展开);例外:提问卡默认展开(问题内容需要可见)
+  const [showInput, setShowInput] = useState(item.name === "ask_user");
   // 展开区内容是否渲染:收起动画结束后卸载 body——折叠时隐藏内容不再撑开气泡宽度(仅高度隐藏时
   // 不可断行长行/diff 仍把宽度撑到展开态);展开时先挂载下一帧再播 grid 动画(见 useFoldBody)
   const fold = useFoldBody(showInput, setShowInput);
-
-  // 命令:执行中展开(看实时输出)、结束后收起——与思考块同一套「进行中可见、结束即收」节奏。
-  // autoOpenedRef 标记当前展开是自动的:避免高频输出重渲染时反复重置展开动画,
-  // 也保证结束后只收起「自动展开的」那个(用户手动展开的不动)
-  const autoOpenedRef = useRef(false);
-  const userCtrlRef = useRef(false);
-  useEffect(() => {
-    if (item.name !== "bash" || userCtrlRef.current) return;
-    if (item.pending && !showInput && !autoOpenedRef.current) {
-      autoOpenedRef.current = true;
-      fold.toggle();
-    } else if (!item.pending && showInput && autoOpenedRef.current) {
-      autoOpenedRef.current = false;
-      fold.toggle();
-    }
-  }, [item.name, item.pending, showInput]);
-
-  // 手动折叠:标记后不再受自动展开/收起影响(保留用户意图)
-  const handleToggle = (): void => { userCtrlRef.current = true; fold.toggle(); };
 
   const isPathTool = item.name === "edit" || item.name === "write" || item.name === "read";
   const diffStats_ = isDiffResult ? diffCount(item.result!) : null;
   // bash 命令文本(展开区分段展示用)
   const bashCmd = item.name === "bash" ? getBashCommand(item.input) : undefined;
+  // 输出优先用实时累积;增量未到达时回退到工具结果(内容即输出,可带退出码)——
+  // 保证任何情况下展开都能看到命令输出,而不是只有命令本身
+  const bashOutput = item.liveOutput || (item.name === "bash" ? item.result : undefined);
   // 文件工具 → 绝对路径 + 文件名(标题行只显文件名,链接点击在 tab 打开;悬停 title 提示完整路径)
   const filePath = isPathTool ? editFilePath(item) : undefined;
   // 动作词:查 TOOL_LABELS 映射表(自定义工具各配中文名),MCP 标题只显「MCP」(不带工具二字),skill 类显示动作词
@@ -847,7 +833,7 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
   // 展开区有可显示内容:bash 命令来自 input(工具调用即带)——执行阶段/失败都可就展开看命令
   // (命令是输入,失败更需看到它排查;输出本来就不展示);其他工具(diff/write 内容等)内容来自 result,仍等结果到达
   const hasExpandable = item.name === "bash"
-    ? (!!bashCmd || !!item.liveOutput)
+    ? (!!bashCmd || !!bashOutput)
     : !!item.result && !contentErr;
 
   // read(查看)特例:文件内容已在链接中(点击文件名在 tab 打开即可看),结果不再展示、无需展开——
@@ -892,8 +878,8 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
       <div
         role="button"
         tabIndex={0}
-        onClick={handleToggle}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleToggle(); } }}
+        onClick={fold.toggle}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fold.toggle(); } }}
         className="flex w-fit items-center gap-1.5 cursor-pointer select-none group py-0.5"
       >
         {/* 动作词(编辑/查看/编写/命令)——前加对应 Lucide 图标(bash=终端/edit=方笔/read=眼/write=笔) */}
@@ -952,18 +938,16 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
               </div>
             ) : item.name === "bash" ? (
               <div className="mt-[2px] rounded-md" style={{ background: "var(--thinking-body)" }}>
-                {/* bash:原始命令(不拆分) + 命令输出(执行中实时累积,6 行封顶滚动——对齐思考块) */}
-                <div className="px-3 py-2">
-                  <pre className="text-text-secondary font-mono whitespace-pre-wrap break-all" style={{ fontSize: "var(--text-detail)" }}>
-                    {bashCmd ?? ""}
-                  </pre>
-                  {item.liveOutput ? (
-                    <div
-                      className="mt-1.5 rounded-[6px] overflow-y-auto overscroll-contain bg-[var(--color-sidebar)]/40"
-                      style={{ maxHeight: "calc(var(--text-detail) * 9.75 + 12px)" }}
-                    >
-                      <pre className="px-2 py-1.5 text-text-secondary font-mono whitespace-pre-wrap leading-[1.625]" style={{ fontSize: "var(--text-detail)" }}>{item.liveOutput}</pre>
-                    </div>
+                {/* bash:命令在深色容器内,输出裸文本跟在下方;命令+输出整体一个滚动(封顶 6 行,对齐思考块) */}
+                <div
+                  className="px-2 py-2 overflow-y-auto overscroll-contain"
+                  style={{ maxHeight: "calc(var(--text-detail) * 9.75 + 28px)" }}
+                >
+                  <div className="rounded-[6px] bg-[var(--color-sidebar)]/40 px-2 py-1.5">
+                    <pre className="text-text-secondary font-mono whitespace-pre-wrap break-all" style={{ fontSize: "var(--text-detail)" }}>{bashCmd ?? ""}</pre>
+                  </div>
+                  {bashOutput ? (
+                    <pre className="mt-1.5 text-text-secondary font-mono whitespace-pre-wrap break-all leading-[1.625]" style={{ fontSize: "var(--text-detail)" }}>{bashOutput}</pre>
                   ) : null}
                 </div>
               </div>

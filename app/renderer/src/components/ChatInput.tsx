@@ -304,7 +304,7 @@ export const ChatInput = memo(function ChatInput({
         )}
         {/* 权限标签:闪电图标(Lucide zap)——替换原「权限」文字;hover 悬浮名称(与缓存命中率一致向上) */}
         <Tooltip tip="权限" className="shrink-0">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inp-lbl block" style={{ marginRight: 0, marginLeft: 1 }} role="img" aria-label="权限">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inp-lbl block" style={{ marginRight: -1, marginLeft: 2 }} role="img" aria-label="权限">
             <title>权限</title>
             <path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z"/>
           </svg>
@@ -326,7 +326,7 @@ export const ChatInput = memo(function ChatInput({
         </button>
         {/* 模型标签:方盒图标(Lucide box)——替换原「模型」文字;hover 悬浮名称(与缓存命中率一致向上) */}
         <Tooltip tip="模型" className="shrink-0">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inp-lbl block" style={{ marginRight: 0, marginLeft: 1 }} role="img" aria-label="模型">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inp-lbl block" style={{ marginRight: -1, marginLeft: 2 }} role="img" aria-label="模型">
             <title>模型</title>
             <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
             <path d="m3.3 7 8.7 5 8.7-5"/>
@@ -340,7 +340,7 @@ export const ChatInput = memo(function ChatInput({
         />
         {/* 思考等级标签:大脑图标(Lucide brain)——替换原「思考」文字;hover 悬浮名称(与缓存命中率一致向上) */}
         <Tooltip tip="思考等级" className="shrink-0">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inp-lbl block" style={{ marginRight: 0, marginLeft: 1 }} role="img" aria-label="思考等级">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inp-lbl block" style={{ marginRight: -1, marginLeft: 2 }} role="img" aria-label="思考等级">
             <title>思考等级</title>
             <path d="M12 18V5"/>
             <path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"/>

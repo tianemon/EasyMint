@@ -2117,11 +2117,22 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
                 onClick={collapsible ? () => setSysExpanded((v) => !v) : undefined}
                 
               >
-                <svg className="shrink-0 text-info" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-                  <circle cx="8" cy="8" r="6.5" />
-                  <path d="M8 7.5V11" />
-                  <path d="M8 5h.01" />
-                </svg>
+                {/* 头部图标按 kind:委派=bot、后台命令=终端,其余保持感叹号 */}
+                {kind === "delegation" ? (
+                  <svg className="shrink-0 text-info" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" />
+                  </svg>
+                ) : kind === "shell" ? (
+                  <svg className="shrink-0 text-info" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m7 11 2-2-2-2" /><path d="M11 13h4" /><rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+                  </svg>
+                ) : (
+                  <svg className="shrink-0 text-info" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                    <circle cx="8" cy="8" r="6.5" />
+                    <path d="M8 7.5V11" />
+                    <path d="M8 5h.01" />
+                  </svg>
+                )}
                 <span>{SYSTEM_KIND_LABELS[kind] ?? "系统消息"}</span>
                 {collapsible && (
                   <svg className="ml-1 shrink-0 transition-transform" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: collapsed ? "rotate(0deg)" : "rotate(180deg)" }}>
