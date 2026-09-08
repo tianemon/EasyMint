@@ -2158,7 +2158,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
               {/* 头部:系统图标 + kind 标签(区别于 assistant 的 Mint 头像气泡);指令型整行可点展开/收起 */}
               <button
                 type="button"
-                className={`flex items-center gap-1.5 px-[14px] pt-1.5 pb-2 w-full text-left text-[length:var(--text-11)] text-text-secondary ${collapsible ? "hover:bg-surface-hover cursor-pointer select-none" : ""}`}
+                className={`flex items-center gap-1.5 px-[14px] pt-1.5 pb-2 w-full text-left text-[length:var(--text-11)] text-text-secondary ${collapsible ? "group hover:bg-surface-hover cursor-pointer select-none" : ""}`}
                 onClick={collapsible ? () => setSysExpanded((v) => !v) : undefined}
                 
               >
@@ -2191,13 +2191,14 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
                   </span>
                 )}
                 {collapsible && (
-                  <svg className="ml-1 shrink-0 transition-transform" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: collapsed ? "rotate(0deg)" : "rotate(180deg)" }}>
-                    <path d="M6 9l6 6 6-6" />
+                  /* 折叠符号与工具卡一致:右箭头,折叠态 hover 才出现,展开态旋转 90° 常显 */
+                  <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={`w-2.5 h-2.5 shrink-0 transition-all duration-150 ${collapsed ? "opacity-0 group-hover:opacity-100" : "rotate-90 opacity-100"}`}>
+                    <path d="M3.5 2l3 3-3 3" />
                   </svg>
                 )}
               </button>
-              {/* 内容区（折叠时省略;结果型展开后 6 行封顶滚动,⏺ 行着色、其余行原文） */}
-              {!collapsed && <div className="px-[14px] pb-1.5 leading-[1.55]">
+              {/* 内容区（折叠时省略;结果型展开后 6 行封顶滚动,⏺ 行着色、其余行原文;min-h 兜底空内容也有一行高） */}
+              {!collapsed && <div className="px-[14px] pb-1.5 leading-[1.55] min-h-[1.625em]">
                 {isResult ? (
                   <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: "calc(var(--text-detail) * 9.75 + 12px)" }}>
                     {lines.map((row, i) => {

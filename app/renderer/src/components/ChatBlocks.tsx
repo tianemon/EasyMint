@@ -961,7 +961,7 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
             ) : (
               <div className="mt-[2px] rounded-md" style={{ background: "var(--thinking-body)" }}>
                 <div className="px-3 py-2">
-                  <pre className="text-text-secondary font-mono overflow-x-auto x-thin-scroll whitespace-pre-wrap" style={{ fontSize: "var(--text-detail)" }}>
+                  <pre className="text-text-secondary font-mono overflow-x-auto x-thin-scroll whitespace-pre-wrap min-h-[1.625em]" style={{ fontSize: "var(--text-detail)" }}>
                     {truncateResult(item.result!)}
                   </pre>
                 </div>
