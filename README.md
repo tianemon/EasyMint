@@ -47,9 +47,9 @@ EasyMint 是一个**内置 Pi Agent 的开源桌面 AI 编程平台**——[Pi C
 
 ## 界面预览
 
-| 暗色主题 | 亮色主题 |
+| 主界面 |
 |---|---|
-| ![主界面（暗色）](assets/screenshots/main-dark.png) | ![主界面（亮色）](assets/screenshots/main-light.png) |
+| ![主界面](assets/screenshots/main.png) |
 
 | 任务面板 | 运行面板 |
 |---|---|
