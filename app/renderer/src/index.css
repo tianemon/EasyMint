@@ -224,6 +224,7 @@ html[data-platform="win32"] {
 
   /* ── Thinking 思考过程(融入气泡:标题中性灰 + 内容底色)── */
   --thinking-body: #e9ece9;   /* 内容底:比气泡 card-agent(#f3f6f3)深一档 */
+  --color-cmd-box: #f0f0ee;   /* 命令展开区的命令底色:比 thinking-body 亮一档 */
 
   /* ── Code highlight（GitHub Light 中性色板）── */
   --color-code-kw: #cf222e;
@@ -415,6 +416,7 @@ html[data-platform="win32"] {
 
   /* ── Thinking 思考过程(融入气泡:标题中性灰 + 内容底色)── */
   --thinking-body: #171717;   /* 内容底:比气泡 card-agent(#1c1c1c)深一档 */
+  --color-cmd-box: #202020;   /* 命令展开区的命令底色:比 thinking-body 亮一档 */
 
   /* ── Code highlight — 灰度 ───────── */
   --color-code-kw: #b2b2b2;
