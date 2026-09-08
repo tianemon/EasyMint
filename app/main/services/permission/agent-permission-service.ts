@@ -24,6 +24,7 @@ import {
   isUserDirForbidden,
   isDevNull,
   extractPathsFromCommand,
+  hitForbiddenLiteral,
   normalizePath,
   CURL_WRITE_PARAM_RE,
 } from './permission-rules'
@@ -194,6 +195,12 @@ export class AgentPermissionService {
         //   只读/执行类（echo $HOME、npm run build --port $P）→ 变量不影响安全半径，放行
         const cmdPathsRaw = extractPathsFromCommand(cmd)
         if (cmdPathsRaw === null) {
+          // 含变量/命令替换 → 完整路径静态解析不了，但字面片段仍可能指向禁区
+          // （$HOME/.ssh、$(echo /etc)/x）——不兜底则绝对禁区可被变量写法绕过
+          const literal = hitForbiddenLiteral(cmd)
+          if (literal) {
+            return deny(`命令含变量/命令替换，且字面片段指向禁区（${literal}）：${cmd.slice(0, 100)}`)
+          }
           if (mode !== 'full' && isWriteLikeCommand(cmd)) {
             const sb = await ensureSandbox(cwd)
             if (!sb.ok) return deny(`沙盒不可用（${sb.reason}），且写类命令含变量/命令替换无法确认范围：${cmd.slice(0, 100)}——请切换「完全访问」`)

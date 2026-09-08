@@ -118,3 +118,41 @@ describe("H. 完全访问下的常规放行", () => {
     expect((await bash("npm run build")).behavior).toBe("allow");
   });
 });
+
+describe("I. 含变量命令的禁区兜底（探针——预期全部拦截）", () => {
+  it("rm -rf $HOME/Desktop/x → 应拦截", async () => {
+    const r = await bash("rm -rf $HOME/Desktop/x");
+    expect(r.behavior).toBe("deny");
+  });
+  it("cat $HOME/.ssh/id_rsa → 应拦截", async () => {
+    const r = await bash("cat $HOME/.ssh/id_rsa");
+    expect(r.behavior).toBe("deny");
+  });
+  it("echo x > /etc/$NAME → 应拦截", async () => {
+    const r = await bash("echo x > /etc/$NAME");
+    expect(r.behavior).toBe("deny");
+  });
+  it("rm -rf $(echo /etc)/x → 应拦截", async () => {
+    const r = await bash("rm -rf $(echo /etc)/x");
+    expect(r.behavior).toBe("deny");
+  });
+});
+
+describe("J. 含变量但不涉禁区的命令（探针——预期全部放行，防误拦）", () => {
+  it("export PATH=$PATH:/usr/local/bin → 应放行", async () => {
+    const r = await bash("export PATH=$PATH:/usr/local/bin");
+    expect(r.behavior).toBe("allow");
+  });
+  it("npm run build --prefix $DIR → 应放行", async () => {
+    const r = await bash("npm run build --prefix $DIR");
+    expect(r.behavior).toBe("allow");
+  });
+  it("echo $HOME → 应放行", async () => {
+    const r = await bash("echo $HOME");
+    expect(r.behavior).toBe("allow");
+  });
+  it("cp $SRC $DST → 应放行（非禁区变量，写类走沙盒但不断言）", async () => {
+    const r = await bash("cp $SRC $DST");
+    expect(r.behavior).toBe("allow");
+  });
+});

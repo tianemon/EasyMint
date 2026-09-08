@@ -404,6 +404,43 @@ export function isForbiddenReadPath(p: string): boolean {
   return isSecretForbidden(p);
 }
 
+/** 禁区字面片段（含变量命令无法解析完整路径时的兜底检测用） */
+const FORBIDDEN_LITERAL_FRAGMENTS: readonly string[] = [
+  // 凭据目录
+  ".ssh", ".aws", ".gnupg", ".kube", ".docker", "Keychains",
+  ".npmrc", ".pypirc", ".netrc", ".git-credentials",
+  // 系统核心目录
+  "/etc", "/usr", "/bin", "/sbin", "/var", "/System", "/private", "/proc", "/sys", "/dev",
+  // 用户目录
+  "Desktop", "Documents", "Downloads", "Movies", "Music", "Pictures", "/Library",
+];
+
+/**
+ * 含变量/命令替换命令的禁区兜底。
+ *
+ * extractPathsFromCommand 遇到变量/命令替换会返回 null（完整路径静态解析不了），
+ * 但命令里残留的字面片段仍可能指向禁区（$HOME/.ssh、$(echo /etc)/x、~/Desktop/$F）——
+ * 不做这层兜底，禁区可被变量写法绕过（实测：完全访问下 rm -rf $HOME/Desktop/x 曾放行）。
+ *
+ * 边界检查避免误伤：.ssh 不命中 .sshconfig，/etc 不命中 /etcetera。
+ */
+export function hitForbiddenLiteral(command: string): string | null {
+  const lower = command.toLowerCase();
+  for (const frag of FORBIDDEN_LITERAL_FRAGMENTS) {
+    const f = frag.toLowerCase();
+    let from = 0;
+    for (;;) {
+      const idx = lower.indexOf(f, from);
+      if (idx < 0) break;
+      const before = idx === 0 ? " " : lower[idx - 1];
+      const after = lower[idx + f.length] ?? " ";
+      if (/[\s"'=/($~]/.test(before) && /[\s"')/;|&]/.test(after)) return frag;
+      from = idx + 1;
+    }
+  }
+  return null;
+}
+
 /**
  * 从 bash 命令中提取文件路径（写类操作判定用）。
  * 覆盖：引号字符串、~ 开头、绝对路径、`-f/-o/--file=` 等选项值、重定向目标。
