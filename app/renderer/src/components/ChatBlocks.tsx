@@ -16,7 +16,7 @@ function baseName(p: string): string {
 // issue=bug, 网络=globe, 待办=list-clock, ask=message-question, 图片=scan-search
 const TOOL_LABELS: Record<string, string> = {
   bash: "命令", edit: "编辑", read: "查看", write: "编写", grep: "搜索文件",
-  task: "调度 Agent", create_agent_template: "创建模板", list_agents: "查看 Agent",
+  task: "派遣 Agent", create_agent_template: "创建模板", list_agents: "查看 Agent",
   read_agent_log: "读取日志", stop_agent: "停止 Agent",
   use_skill: "加载技能", manage_skill: "管理技能", learn: "沉淀经验",
   search_experiences: "搜索经验", import_skill: "导入", import_mcp_server: "导入",

@@ -137,7 +137,7 @@ export function displayToolLabel(name: string, args?: Record<string, unknown>): 
     const agent = (args?.agent as string | undefined) || (args?.subagent_type as string | undefined);
     if (agent === "builder") return "委托 Builder 编码";
     if (agent === "evaluator") return "委托 Evaluator 验收";
-    return agent ? `调度 Agent: ${agent}` : "调度 Agent";
+    return agent ? `派遣 Agent: ${agent}` : "派遣 Agent";
   }
 
   if (n === "webfetch") {
@@ -172,7 +172,7 @@ export function displayToolAction(name: string, args?: Record<string, unknown>):
   if (n === "edit") return "正在编辑文件";
   if (n === "grep") return "正在搜索内容";
   if (n === "bash") return "正在执行命令";
-  if (n === "task") return "正在调度 Agent";
+  if (n === "task") return "正在派遣 Agent";
   if (n === "webfetch") return "正在获取网页";
   if (n === "websearch") return "正在联网搜索";
   return "正在处理";

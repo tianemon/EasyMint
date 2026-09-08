@@ -104,7 +104,7 @@ export function DelegationProgress({ delegation }: { delegation: DelegationUiSta
         ) : (
           <>
             <svg className="animate-spin text-accent shrink-0" width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" /><path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-            <span className="font-medium text-text-primary">调度 Agent 执行中</span>
+            <span className="font-medium text-text-primary">派遣 Agent 执行中</span>
             <span className="ml-auto flex items-center gap-1 text-accent tabular-nums">
               <svg className="shrink-0" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><circle cx="8" cy="8" r="6.5" /><path d="M8 4.5V8l2.5 1.5" /></svg>
               {formatElapsed(elapsed)}
