@@ -388,6 +388,7 @@ export function readSkill(skillPath: string): SkillDetail | null {
   const builtinDir = getBuiltinSkillsDir();
   let level: SkillManifest["level"] = "global";
   let source: SkillManifest["source"] = "authored";
+  let importedFrom: string | undefined;
   if (skillPath.startsWith(builtinDir)) {
     level = "builtin";
     source = "builtin";
@@ -395,7 +396,20 @@ export function readSkill(skillPath: string): SkillDetail | null {
     level = "global";
     source = "managed";
   } else if (!skillPath.startsWith(GLOBAL_SKILLS_DIR)) {
-    level = "project";
+    // 外部生态目录(~/.claude、~/.codex、项目 .claude/.codex/.github):与列表侧一致标注 imported
+    const extGlobal = EXTERNAL_SOURCES.find((s) => s.level === "global" && skillPath.startsWith(s.resolve("")));
+    const extProject = extGlobal ? undefined : EXTERNAL_SOURCES.find((s) => s.level === "project" && skillPath.includes(`${path.sep}.${s.platform}${path.sep}skills${path.sep}`));
+    if (extGlobal) {
+      level = "global";
+      source = "imported";
+      importedFrom = extGlobal.platform;
+    } else if (extProject) {
+      level = "project";
+      source = "imported";
+      importedFrom = extProject.platform;
+    } else {
+      level = "project";
+    }
   }
   return {
     name,
@@ -403,6 +417,7 @@ export function readSkill(skillPath: string): SkillDetail | null {
     path: skillPath,
     level,
     source,
+    ...(importedFrom ? { importedFrom } : {}),
     enabled: !disabled.includes(name),
     model: fm.model,
     body: fm.body,

@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { dedupeExternalSkills, dedupeSelfSkills } from "./skill-service";
+import { describe, expect, it, vi } from "vitest";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+vi.mock("electron", () => ({ app: { isPackaged: false } }));
+
+import { dedupeExternalSkills, dedupeSelfSkills, readSkill } from "./skill-service";
 import type { SkillManifest } from "./skill-service";
 
 function m(name: string, level: SkillManifest["level"]): SkillManifest {
@@ -94,5 +100,24 @@ describe("dedupeExternalSkills", () => {
     ];
     dedupeExternalSkills(list);
     expect(live(list).map((s) => s.importedFrom)).toEqual(["claude"]);
+  });
+});
+
+function mkExternalSkill(root: string, platform: "claude" | "codex"): string {
+  const dir = path.join(root, `.${platform}`, "skills", "ext-proj");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, "SKILL.md"), "---\nname: ext-proj\ndescription: 外部测试\n---\n\n正文\n");
+  return dir;
+}
+
+describe("readSkill 外部生态标注", () => {
+  it("项目级外部目录(claude/codex)与列表侧一致标 imported", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "em-readskill-"));
+    for (const platform of ["claude", "codex"] as const) {
+      const d = readSkill(mkExternalSkill(root, platform));
+      expect(d?.source).toBe("imported");
+      expect(d?.importedFrom).toBe(platform);
+      expect(d?.level).toBe("project");
+    }
   });
 });

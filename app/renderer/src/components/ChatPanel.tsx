@@ -2204,6 +2204,23 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
                     {lines.map((row, i) => {
                       if (i === firstDotIdx) return null; // 已上标题栏,不重复显示
                       if (!row.startsWith("⏺ ")) {
+                        // 后台命令的日志路径行 → 可点击在文件夹中显示(全量输出按需查看)
+                        const logMatch = /^完整输出:\s*(\S.*)$/.exec(row);
+                        if (logMatch) {
+                          const logPath = logMatch[1]!.trim();
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); window.electronAPI.shell.revealInFolder(logPath); }}
+                              title="在文件夹中显示"
+                              className="flex items-center gap-1 max-w-full text-left text-[var(--color-link)] hover:underline transition-colors"
+                            >
+                              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /></svg>
+                              <span className="truncate font-mono">{logPath}</span>
+                            </button>
+                          );
+                        }
                         return row.trim() === "" ? null : (
                           <div key={i} className="text-text-secondary whitespace-pre-wrap [overflow-wrap:anywhere]">{row}</div>
                         );
