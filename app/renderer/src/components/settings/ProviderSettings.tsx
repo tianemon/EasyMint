@@ -65,6 +65,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const [extraVision, setExtraVision] = useState(false);
   const [extraCtx, setExtraCtx] = useState<string>("auto");
   const [extraCtxCustom, setExtraCtxCustom] = useState<string>("");
+  const [extraMaxTokens, setExtraMaxTokens] = useState<string>("");
   const [editingExtra, setEditingExtra] = useState<string | null>(null);
   // 该供应商的 task 子 Agent 默认模型(per-provider)
   const [subagentDefaultModel, setSubagentDefaultModel] = useState<string>(initial?.subagentDefaultModel || "");
@@ -127,7 +128,9 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     const cap: ExtraModelCapability = { id, input: extraVision ? ["text", "image"] : ["text"] };
     const ctx = resolveContextWindow(extraCtx, extraCtxCustom);
     if (ctx) cap.contextWindow = ctx;
-    return forceObject || extraVision || ctx ? cap : id;
+    const maxTok = Number(extraMaxTokens);
+    if (extraMaxTokens && Number.isFinite(maxTok) && maxTok > 0) cap.maxTokens = Math.round(maxTok);
+    return forceObject || extraVision || ctx || cap.maxTokens ? cap : id;
   };
 
   const resetExtraForm = () => {
@@ -136,6 +139,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     setExtraVision(false);
     setExtraCtx("auto");
     setExtraCtxCustom("");
+    setExtraMaxTokens("");
   };
 
   // 添加补充模型:去重(与 SDK 模型及已添加的合并),重复则忽略
@@ -159,6 +163,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     if (!ctx) { setExtraCtx("auto"); setExtraCtxCustom(""); }
     else if (["131072", "200000", "1000000"].includes(String(ctx))) { setExtraCtx(String(ctx)); setExtraCtxCustom(""); }
     else { setExtraCtx("custom"); setExtraCtxCustom(String(ctx)); }
+    setExtraMaxTokens(cap?.maxTokens ? String(cap.maxTokens) : "");
   };
 
   const saveExtraModel = () => {
@@ -371,6 +376,15 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
                   onChange={(e) => setExtraCtxCustom(e.target.value)}
                 />
               )}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[length:var(--text-2xs)] text-text-secondary">最大输出</span>
+              <input
+                className="em-input w-[76px] h-7 px-2 text-xs text-text-primary"
+                placeholder="自动"
+                value={extraMaxTokens}
+                onChange={(e) => setExtraMaxTokens(e.target.value)}
+              />
             </div>
           </div>
           {extraModels.length > 0 && (

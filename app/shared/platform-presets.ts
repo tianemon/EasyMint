@@ -13,7 +13,7 @@ export interface ExtraModelCapability {
   input?: Array<"text" | "image">;
   /** 上下文窗口(token);不填按内置模型表推断,未知按 200000 */
   contextWindow?: number;
-  /** 最大输出(token);不填按内置模型表推断,未知按 4096 */
+  /** 最大输出(token);不填按内置模型表推断,未知按 32768 */
   maxTokens?: number;
 }
 

@@ -117,7 +117,8 @@ function syncExtraModelsFile(store: Store): void {
           ...declared,
           id,
           contextWindow: declared.contextWindow ?? spec?.contextWindow ?? 200000,
-          maxTokens: declared.maxTokens ?? spec?.maxTokens ?? 4096,
+          // 思考 token 计入 max_tokens 预算，4k 级默认会让思考未完成即截断（实测 stopReason: length）
+          maxTokens: declared.maxTokens ?? spec?.maxTokens ?? 32768,
         };
       });
       const entry = { ...providersJson[config.presetId], models };
@@ -290,7 +291,7 @@ async function syncProviders(store: Store) {
               compat: { supportsDeveloperRole: false },
               cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
               contextWindow: spec?.contextWindow ?? 200000,
-              maxTokens: spec?.maxTokens ?? 4096,
+              maxTokens: spec?.maxTokens ?? 32768,
             };
           }),
         } as any);
