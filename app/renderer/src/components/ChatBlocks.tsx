@@ -399,10 +399,13 @@ function buildStreamDisp(text: string, cache: StreamCache | null, prefix: string
     for (const p of parts) els.push(renderMdPart(p, `${prefix}-f${els.length}`));
   }
   const covered = Math.max(covered0, end);
-  // 开放尾部:每帧只 parse 这段(通常 1 个未完段落/未闭合围栏)
+  // 开放尾部:每帧只 parse 这段(通常 1 个未完段落/未闭合围栏)。
+  // 尾部元素**不进 cache**——它每帧都要重建,若随 cache 复用会在下一帧被当成已冻结
+  // 内容保留,与新建的尾部叠加,表现为同一句话逐帧累积(逐字重复)。
+  const dispEls = [...els];
   const tailParts = splitMarkdownParts(text.slice(covered), true);
-  tailParts.forEach((p, idx) => els.push(renderMdPart(p, `${prefix}-t${idx}`)));
-  return { disp: { text, els }, cache: { covered, coveredText: text.slice(0, covered), els } };
+  tailParts.forEach((p, idx) => dispEls.push(renderMdPart(p, `${prefix}-t${idx}`)));
+  return { disp: { text, els: dispEls }, cache: { covered, coveredText: text.slice(0, covered), els } };
 }
 
 /** 流式尾块:rAF 帧合并(高频内容帧只在下一帧提交一次渲染)+ 已渲染前缀冻结 */
