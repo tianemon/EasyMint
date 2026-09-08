@@ -2123,7 +2123,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
               {/* 头部:系统图标 + kind 标签(区别于 assistant 的 Mint 头像气泡);指令型整行可点展开/收起 */}
               <button
                 type="button"
-                className={`flex items-center gap-1.5 px-[14px] pt-1.5 w-full text-left text-[length:var(--text-11)] text-text-secondary ${collapsible ? "hover:bg-surface-hover cursor-pointer select-none" : ""} ${collapsed ? "pb-2" : ""}`}
+                className={`flex items-center gap-1.5 px-[14px] pt-1.5 pb-2 w-full text-left text-[length:var(--text-11)] text-text-secondary ${collapsible ? "hover:bg-surface-hover cursor-pointer select-none" : ""}`}
                 onClick={collapsible ? () => setSysExpanded((v) => !v) : undefined}
                 
               >
