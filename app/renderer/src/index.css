@@ -461,9 +461,9 @@ html[data-platform="win32"] {
   --color-file-other-bg: #242424;
   --color-file-other-stroke: #7f7f7f;
 
-  /* ── Code block（暗色：深蓝灰系，正文深一档） ── */
-  --color-code-block-bg: #15151f;
-  --color-code-block-header: #1a1a26;
+  /* ── Code block（暗色：偏灰微蓝，正文深一档） ── */
+  --color-code-block-bg: #18181d;
+  --color-code-block-header: #1d1d23;
 
   /* ── v3 Layer tokens（暗色反向：L0 最暗 → L4 最亮）── */
   --color-canvas: #181818;
