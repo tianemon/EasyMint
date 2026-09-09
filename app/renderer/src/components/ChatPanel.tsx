@@ -400,7 +400,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const wrap = inputWrapRef.current;
     if (!wrap) return;
     const rect = wrap.getBoundingClientRect();
-    const targetTop = window.innerHeight - rect.height - 16; // --s4 = 16px
+    // 底部间距取卡片实际 margin-bottom（原硬编码 16px 与 CSS 耦合，改间距时容易漏改导致动画落点偏移）
+    const card = wrap.querySelector<HTMLElement>(".input-card");
+    const bottomGap = card ? parseFloat(getComputedStyle(card).marginBottom) || 0 : 0;
+    const targetTop = window.innerHeight - rect.height - bottomGap;
     flipDyRef.current = rect.top - targetTop;
     setLeavingStartCard(false); // 布局切换:容器回底部(shrink-0),消息列表出现
   }, []);
@@ -2253,11 +2256,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       )}
 
       {/* 气泡锚点容器:仅用于气泡悬浮定位(独立于输入卡片 DOM,悬浮在卡片上方)。
-          空态时 flex-1 垂直居中基础上再上移 200px(视觉重心偏上),有消息后回底部(shrink-0);
+          空态时 flex-1 垂直居中基础上再上移 195px(视觉重心偏上;补偿输入卡片底部间距 +10px 后内容变高、居中位上移的 5px),有消息后回底部(shrink-0);
           首条消息发送时输入卡片包裹层 FLIP 动画平滑下移 */}
       <div
         className={`relative ${(!hasMessages || leavingStartCard) ? "flex-1 flex flex-col justify-center" : "shrink-0"}`}
-        style={!hasMessages && !leavingStartCard ? { transform: "translateY(-200px)" } : undefined}
+        style={!hasMessages && !leavingStartCard ? { transform: "translateY(-195px)" } : undefined}
       >
         {/* 空态模块:角色选择 + 输入卡片作为整体(角色 ml-4 对齐卡片左 margin 16px)。
             existingSid 会话(磁盘消息加载中)不显示角色选择——恢复会话沿用 tab 的 isDesigner */}
