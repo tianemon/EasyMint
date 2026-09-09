@@ -124,7 +124,7 @@ function ImageViewer_({ view, onClose }: { view: ImageViewerState | null; onClos
         src={view.src}
         alt={view.name ?? "图片预览"}
         draggable={false}
-        className={`max-w-[75vw] max-h-[75vh] object-contain rounded-lg border border-border shadow-2xl select-none ${dragging ? "cursor-grabbing" : scale > 1 ? "cursor-grab" : "cursor-zoom-in"}`}
+        className={`max-w-[75vw] max-h-[75vh] object-contain rounded-[var(--radius-lg)] border border-border shadow-2xl select-none ${dragging ? "cursor-grabbing" : scale > 1 ? "cursor-grab" : "cursor-zoom-in"}`}
         style={{
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
           transformOrigin: "center center",

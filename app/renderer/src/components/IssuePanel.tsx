@@ -32,7 +32,7 @@ function IssueRow({ issue, projectPath, onEdit }: { issue: IssueItem; projectPat
   const isFixed = issue.status === "fixed";
 
   return (
-    <div className={`rounded-lg border px-2.5 py-2 transition-colors ${isFixed ? "border-border/50 opacity-60" : "border-border hover:border-accent-border"}`}>
+    <div className={`rounded-[var(--radius-lg)] border px-2.5 py-2 transition-colors ${isFixed ? "border-border/50 opacity-60" : "border-border hover:border-accent-border"}`}>
       {/* 模块(上方) + 右上时间 */}
       <div className="flex items-center gap-1.5">
         {issue.module ? (
@@ -48,24 +48,24 @@ function IssueRow({ issue, projectPath, onEdit }: { issue: IssueItem; projectPat
       {/* 操作行:编辑(第一位) + 标记已修复 + 删除 */}
       <div className="flex items-center gap-1 mt-1.5">
         <button
-          className="px-1.5 py-0.5 rounded text-[length:var(--text-2xs)] text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors"
+          className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors"
           onClick={() => onEdit?.(issue)}
         >
           编辑
         </button>
         <button
-          className={`px-1.5 py-0.5 rounded text-[length:var(--text-2xs)] transition-colors ${isFixed ? "bg-success-soft text-success" : "text-text-muted hover:bg-surface-hover hover:text-text-primary"}`}
+          className={`px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] transition-colors ${isFixed ? "bg-success-soft text-success" : "text-text-muted hover:bg-surface-hover hover:text-text-primary"}`}
           onClick={() => setStatus(projectPath, issue.id, isFixed ? "open" : "fixed")}
         >
           {isFixed ? "已修复" : "标记已修复"}
         </button>
         {confirmDelete ? (
           <>
-            <button className="px-1.5 py-0.5 rounded text-[length:var(--text-2xs)] text-danger hover:bg-danger-soft transition-colors" onClick={handleDelete}>确认删除</button>
-            <button className="px-1.5 py-0.5 rounded text-[length:var(--text-2xs)] text-text-muted hover:bg-surface-hover transition-colors" onClick={() => setConfirmDelete(false)}>取消</button>
+            <button className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-danger hover:bg-danger-soft transition-colors" onClick={handleDelete}>确认删除</button>
+            <button className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-muted hover:bg-surface-hover transition-colors" onClick={() => setConfirmDelete(false)}>取消</button>
           </>
         ) : (
-          <button className="px-1.5 py-0.5 rounded text-[length:var(--text-2xs)] text-text-muted hover:text-danger hover:bg-danger-soft transition-colors" onClick={handleDelete}>删除</button>
+          <button className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-muted hover:text-danger hover:bg-danger-soft transition-colors" onClick={handleDelete}>删除</button>
         )}
       </div>
     </div>
@@ -129,10 +129,10 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
       {/* 记录/编辑弹层(Modal 经 createPortal 挂 body 脱离抽屉 transform 劫持,全窗口居中大尺寸) */}
       {form && (
         <Modal tier="modal" overlayClassName="bg-black/40" onClose={() => setForm(null)}>
-          <div className="relative bg-surface border border-border rounded-xl w-[760px] h-[600px] flex flex-col overflow-hidden shadow-2xl">
+          <div className="relative bg-surface border border-border rounded-[var(--radius-lg)] w-[760px] h-[600px] flex flex-col overflow-hidden shadow-2xl">
             <div className="flex items-center justify-between px-4 py-1.5 bg-surface-alt shrink-0">
               <span className="text-sm font-medium text-text-primary">{form.mode === "new" ? "记录问题" : "编辑问题"}</span>
-              <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setForm(null)}>✕</button>
+              <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setForm(null)}>✕</button>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto space-y-3 px-4 py-3">
               <div>
@@ -159,14 +159,14 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
             <div className="flex items-center justify-end gap-2 px-4 py-1 bg-surface-alt shrink-0">
               <button
                 type="button"
-                className="h-8 px-4 whitespace-nowrap rounded-md border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0"
+                className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0"
                 onClick={() => setForm(null)}
               >
                 取消
               </button>
               <button
                 type="button"
-                className="h-8 px-4 whitespace-nowrap rounded-md btn-accent text-xs font-medium shrink-0"
+                className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] btn-accent text-xs font-medium shrink-0"
                 onClick={handleSave}
                 disabled={!symptom.trim()}
               >

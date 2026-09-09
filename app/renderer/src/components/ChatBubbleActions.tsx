@@ -15,7 +15,7 @@ function CopyBubbleBtn({ text }: { text: string }): JSX.Element {
     <button
       onClick={handleCopy}
      
-      className="flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
+      className="flex items-center justify-center w-6 h-6 rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
     >
       {copied ? (
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5l3.5 3.5L13 5.5"/></svg>
@@ -38,7 +38,7 @@ function PinBubbleBtn({ text, onPin, sid }: { text: string; onPin: (text: string
     <button
       onClick={handlePin}
       
-      className="flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
+      className="flex items-center justify-center w-6 h-6 rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
     >
       {pinned ? (
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5l3.5 3.5L13 5.5"/></svg>
@@ -53,7 +53,7 @@ function PinBubbleBtn({ text, onPin, sid }: { text: string; onPin: (text: string
     默认隐藏，由消息 hover 状态驱动显隐（visible），隐藏时不可交互 */
 export function BubbleActions({ text, onPin, sid, visible }: { text: string; onPin: (text: string) => void; sid: string; visible: boolean }): JSX.Element {
   return (
-    <div className={`absolute top-full left-0 mt-1 flex items-center rounded-md border border-border bg-surface-elevated shadow-sm overflow-hidden transition-opacity duration-150 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+    <div className={`absolute top-full left-0 mt-1 flex items-center rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-sm overflow-hidden transition-opacity duration-150 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
       <CopyBubbleBtn text={text} />
       <PinBubbleBtn text={text} onPin={onPin} sid={sid} />
     </div>

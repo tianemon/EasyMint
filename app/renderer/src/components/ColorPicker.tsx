@@ -211,13 +211,13 @@ export function ColorPickerPanel({ value, onChange, onClose, anchorRect, anchorE
     <div
       ref={panelRef}
       role="dialog"
-      className="fixed z-dropdown w-[220px] rounded-lg border border-border bg-surface-elevated shadow-xl overflow-hidden p-3 flex flex-col gap-2.5"
+      className="fixed z-dropdown w-[220px] rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-xl overflow-hidden p-3 flex flex-col gap-2.5"
       style={{ left: pos.left, top: pos.top }}
     >
       {/* SV 平面:纯色底 + 左白渐变(横向 s)+ 上透下黑渐变(纵向 v) */}
       <div
         ref={svRef}
-        className="relative h-24 rounded-md cursor-crosshair touch-none select-none overflow-hidden"
+        className="relative h-24 rounded-[var(--radius-lg)] cursor-crosshair touch-none select-none overflow-hidden"
         style={{
           background: `hsl(${hsv.h} 100% 50%)`,
           // 多层渐变:首层(黑)在最上、次层(白)在下——否则左缘 s=0 整列会被白盖住,失去纵向明度
@@ -260,7 +260,7 @@ export function ColorPickerPanel({ value, onChange, onClose, anchorRect, anchorE
               key={c}
               type="button"
               onClick={() => { onChange(c); onClose(); }}
-              className="w-full aspect-square rounded cursor-pointer transition-transform hover:scale-110"
+              className="w-full aspect-square rounded-[var(--radius-lg)] cursor-pointer transition-transform hover:scale-110"
               style={{
                 background: c,
                 boxShadow: selected
@@ -282,7 +282,7 @@ export function ColorPickerPanel({ value, onChange, onClose, anchorRect, anchorE
           className="em-input h-7 flex-1 min-w-0 px-2 text-xs font-mono text-text-primary"
         />
         <div
-          className="w-7 h-7 shrink-0 rounded border border-border"
+          className="w-7 h-7 shrink-0 rounded-[var(--radius-lg)] border border-border"
           style={{ background: value }}
         />
       </div>
@@ -324,7 +324,7 @@ export function ColorPickerField({ value, onChange }: ColorPickerFieldProps): JS
         onClick={toggle}
         aria-label="选择颜色"
         aria-expanded={open}
-        className="w-7 h-7 shrink-0 rounded cursor-pointer border border-border transition-transform hover:scale-105"
+        className="w-7 h-7 shrink-0 rounded-[var(--radius-lg)] cursor-pointer border border-border transition-transform hover:scale-105"
         style={{ background: value }}
       />
       {open && anchor && (

@@ -71,7 +71,7 @@ export const Tooltip = memo(function Tooltip({ tip, children, side = "top", dela
             width: "max-content",
             maxWidth: 300,
             padding: "4px 8px",
-            borderRadius: 6,
+            borderRadius: "var(--radius-lg)",
             fontSize: 11,
             lineHeight: 1.5,
             whiteSpace: "normal",

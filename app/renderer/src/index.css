@@ -543,7 +543,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 .sb-project-name {
   display: flex; align-items: center; gap: var(--s2);
   font-weight: 600; font-size: var(--text-base); color: var(--color-text-primary);
-  padding: var(--s1) var(--s2); border-radius: var(--radius-control);
+  padding: var(--s1) var(--s2); border-radius: var(--radius-lg);
   /* flex 子项可收缩（默认 min-width:auto 按内容撑开，长名称会把 + 按钮顶出区域） */
   min-width: 0;
 }
@@ -559,7 +559,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 .sb-plus-wrap { position: relative; -webkit-app-region: no-drag; }
 .sb-plus-btn {
   width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
-  border-radius: var(--radius-control); border: 1px dashed var(--color-text-muted);
+  border-radius: var(--radius-lg); border: 1px dashed var(--color-text-muted);
   background: transparent; color: var(--color-text-muted); font-size: var(--text-lg); line-height: 1;
   transition: all 120ms var(--ease-smooth);
 }
@@ -569,13 +569,13 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
   position: absolute; top: 100%; left: 0; margin-top: var(--s1);
   min-width: 160px; background: var(--color-sidebar);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md); box-shadow: var(--shadow-menu);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-menu);
   padding: var(--s1); z-index: var(--z-index-dropdown); display: none; flex-direction: column;
 }
 .sb-dropdown.open { display: flex; }
 .sb-dropdown-item {
   display: flex; align-items: center; gap: var(--s2);
-  padding: 8px 10px; border-radius: var(--radius-control);
+  padding: 8px 10px; border-radius: var(--radius-lg);
   font-size: var(--text-xs); color: var(--color-text-secondary); white-space: nowrap;
   transition: background 120ms var(--ease-smooth), color 120ms var(--ease-smooth);
   border: none; background: transparent; width: 100%; text-align: left;
@@ -591,7 +591,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 }
 .sb-tab {
   flex: 1; padding: 5px 0; text-align: center; font-size: var(--text-xs);
-  font-weight: 500; color: var(--color-text-muted); border-radius: var(--radius-control);
+  font-weight: 500; color: var(--color-text-muted); border-radius: var(--radius-lg);
   cursor: pointer; transition: all 120ms var(--ease-smooth);
   border: none; background: transparent;
 }
@@ -609,7 +609,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 }
 .sb-item {
   display: flex; align-items: center; gap: var(--s2);
-  padding: var(--s2) var(--s3); border-radius: var(--radius-control);
+  padding: var(--s2) var(--s3); border-radius: var(--radius-lg);
   font-size: var(--chat-list-size); color: var(--color-text-secondary); cursor: pointer;
   transition: all 120ms var(--ease-smooth);
   border: none; background: transparent; width: 100%; text-align: left;
@@ -630,7 +630,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
               opacity 0.2s cubic-bezier(0.4,0,0.2,1);
 }
 .sb-drawer.open { transform: scaleY(1); pointer-events: auto; opacity: 1; }
-.sb-drawer-body-wrap { background: var(--color-sidebar-active); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); overflow: hidden; }
+.sb-drawer-body-wrap { background: var(--color-sidebar-active); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); overflow: hidden; }
 .sb-drawer-arrow {
   position: absolute; bottom: -6px;
   width: 12px; height: 6px;
@@ -656,7 +656,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 .sb-foot-bottom { display: flex; gap: var(--s1); align-items: center; }
 .sb-foot-btn {
   display: flex; align-items: center; justify-content: center;
-  padding: var(--s2); border-radius: var(--radius-control);
+  padding: var(--s2); border-radius: var(--radius-lg);
   font-size: var(--text-xs); color: var(--color-text-secondary); cursor: pointer;
   transition: all 120ms var(--ease-smooth);
   border: none; background: transparent; min-height: 32px; position: relative;
@@ -670,7 +670,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 .update-install-btn {
   height: 24px; padding: 0 5px;   /* 高度 26→24,左右内边距 6→5 */
   margin-top: 3.5px; margin-left: -4px;   /* 左移 1px(-3→-4),下移 0.5px(3→3.5) */
-  border-radius: 6px;
+  border-radius: var(--radius-lg);
   border: none;
   background: var(--color-surface-hover);   /* 比 sidebar 背景略亮 */
   color: var(--color-text-secondary);
@@ -682,7 +682,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 
 .sb-seg-control {
   display: flex; flex: 1;
-  background: var(--color-sidebar-hover); border-radius: var(--radius-control);
+  background: var(--color-sidebar-hover); border-radius: var(--radius-lg);
   overflow: hidden;
 }
 .sb-seg-btn {
@@ -729,7 +729,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   overflow: hidden; white-space: nowrap;
   font-size: var(--text-xs); font-weight: 500; color: var(--color-text-muted);
   cursor: pointer; border: none; background: var(--color-tab-active);
-  border-radius: var(--radius-control); /* 选中/未选中圆角统一 */
+  border-radius: var(--radius-lg); /* 选中/未选中圆角统一 */
   transition: color 120ms var(--ease-smooth);
   -webkit-app-region: no-drag;
 }
@@ -737,14 +737,14 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 .tab-v3.active {
   color: var(--color-text-primary); font-weight: 600;
   background: transparent;
-  border-radius: var(--radius-control); margin: 4px 0;
+  border-radius: var(--radius-lg); margin: 4px 0;
 }
 .tab-divider-v3 { width: 1px; background: var(--color-border); margin: 8px 0; flex-shrink: 0; }
 .tab-close-v3 {
   margin-left: var(--s1);
   width: 14px; height: 14px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  border-radius: 4px;
+  border-radius: var(--radius-lg);
   font-size: var(--text-xs);
   transition: background 120ms;
   color: var(--color-text-muted);
@@ -781,7 +781,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 /* ── Chat Input Card ─────────────────────────── */
 .input-card {
   /* 最高浮起层:亮色纯白(elevated),与 menu(card) 区分;暗色独立变量深一档 */
-  background: var(--color-input-card); border-radius: var(--radius-md);
+  background: var(--color-input-card); border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   /* overflow visible:AgentBar/ShellBar 浮层向上展开不被裁剪(compact 蒙版自带圆角) */
   overflow: visible;
@@ -817,13 +817,13 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 }
 .inp-icon-btn {
   width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
-  border-radius: var(--radius-control); border: none; background: transparent;
+  border-radius: var(--radius-lg); border: none; background: transparent;
   color: var(--color-text-muted); transition: all 120ms var(--ease-smooth);
 }
 .inp-icon-btn:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); }
 .inp-lbl { font-size: var(--text-xs); color: var(--color-text-muted); }
 .inp-sel {
-  font-size: var(--text-sm); padding: 4px 8px; border-radius: var(--radius-control);
+  font-size: var(--text-sm); padding: 4px 8px; border-radius: var(--radius-lg);
   background: var(--color-input-field); border: none;
   color: var(--color-text-secondary); outline: none;
   transition: box-shadow 120ms, background 120ms;
@@ -836,7 +836,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 .ctx-ring-track { fill: none; stroke: var(--color-sidebar-hover); stroke-width: 2.5; }
 .ctx-ring-fill { fill: none; stroke: var(--color-accent); stroke-width: 2.5; stroke-linecap: round; transition: stroke-dashoffset 200ms var(--ease-smooth); }
 .send-btn {
-  width: 32px; height: 32px; border-radius: var(--radius-control); flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: var(--radius-lg); flex-shrink: 0;
   border: none; background: var(--color-accent); color: var(--color-text-inverse);
   cursor: pointer; display: flex; align-items: center; justify-content: center;
   transition: all 120ms var(--ease-smooth);
@@ -845,7 +845,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 .send-btn:active { transform: scale(0.95); }
 .send-btn:disabled { opacity: 0.4; pointer-events: none; }
 .stop-btn {
-  width: 32px; height: 32px; border-radius: var(--radius-control); flex-shrink: 0;
+  width: 32px; height: 32px; border-radius: var(--radius-lg); flex-shrink: 0;
   border: none; background: var(--color-danger-bg); color: var(--color-danger);
   cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
@@ -881,7 +881,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   padding: var(--s1) var(--s4);
   font-size: var(--text-sm); font-weight: 500;
   color: var(--color-text-muted); cursor: pointer;
-  border: none; background: transparent; border-radius: var(--radius-control);
+  border: none; background: transparent; border-radius: var(--radius-lg);
   transition: all 120ms var(--ease-smooth);
 }
 .settings-header-tab:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); }
@@ -894,7 +894,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 }
 .settings-close {
   width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
-  border-radius: var(--radius-control); border: none; background: transparent;
+  border-radius: var(--radius-lg); border: none; background: transparent;
   color: var(--color-text-muted); cursor: pointer; font-size: var(--text-base);
   transition: all 120ms var(--ease-smooth);
 }
@@ -909,7 +909,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   transform: translateY(40px);
 }
 .chat-empty-icon {
-  width: 44px; height: 44px; border-radius: var(--radius-md);
+  width: 44px; height: 44px; border-radius: var(--radius-lg);
   background: var(--color-card-agent); display: flex;
   align-items: center; justify-content: center; color: var(--color-accent);
 }
@@ -1043,14 +1043,14 @@ button, a, select {
 
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 5px; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: var(--radius-lg); }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-text-secondary); }
 
 /* 聊天气泡内代码/结果块的横向滚动条细化:横条高度压到 4px(全局 8px 太粗,盖住代码内容);
    只覆 height 不动 width——垂直条保持 8px 可点,仅横条变细 */
 .x-thin-scroll::-webkit-scrollbar { height: 4px; }
 .x-thin-scroll::-webkit-scrollbar-track { background: transparent; }
-.x-thin-scroll::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 4px; }
+.x-thin-scroll::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: var(--radius-lg); }
 .x-thin-scroll::-webkit-scrollbar-thumb:hover { background: var(--color-text-secondary); }
 
 /* 工具状态图标:成功对勾——亮色绿 / 暗色灰白(与文字一致,不亮绿;diff 的 +N 仍用 text-success) */
@@ -1078,7 +1078,7 @@ button, a, select {
   width: 100%;
   /* padding 不在此定义:组件 className 自带 px/py 类(含 pr 图标留白),
      此处定义会因优先级高于 Tailwind utilities 而覆盖它们——内边距由组件控制 */
-  border-radius: var(--radius-field);  /* 大号输入框标准圆角,常量见 --radius-field */
+  border-radius: var(--radius-lg);  /* 大号输入框标准圆角,常量见 --radius-field */
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   color: var(--color-text-primary);
@@ -1086,7 +1086,7 @@ button, a, select {
   font-size: var(--font-size-sm);
 }
 /* 紧凑输入框(约 32px 高,与紧凑下拉同档):圆角取 --radius-control 覆盖默认 field 档 */
-.em-input.em-input-compact { border-radius: var(--radius-control); }
+.em-input.em-input-compact { border-radius: var(--radius-lg); }
 
 .em-input::placeholder {
   color: var(--color-text-secondary);
@@ -1110,7 +1110,7 @@ button, a, select {
 .input {
   width: 100%;
   /* padding 由组件 className 控制(同 em-input,避免覆盖 px/pr 等) */
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   color: var(--color-text-primary);
@@ -1150,7 +1150,7 @@ select.input {
   left: 50%;
   transform: translateX(-50%);
   padding: 4px 8px;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-lg);
   background: var(--color-tooltip-bg);
   color: var(--color-tooltip-text);
   font-size: var(--text-11);
@@ -1175,7 +1175,7 @@ select.input {
   color: var(--color-surface);
   font-size: var(--text-11);
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-lg);
   white-space: nowrap;
 
   pointer-events: none;
@@ -1192,7 +1192,7 @@ select.input {
   left: 50%;
   transform: translateX(-50%);
   padding: 3px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-lg);
   background: var(--color-tooltip-bg);
   color: var(--color-tooltip-text);
   font-size: var(--text-11);
@@ -1234,7 +1234,7 @@ select.input {
 
 /* 消息头像 + 来源标签（对齐原型 .msg-avatar / .msg-from） */
 .msg-avatar {
-  width: 34px; height: 34px; border-radius: var(--radius-control); flex-shrink: 0;
+  width: 34px; height: 34px; border-radius: var(--radius-lg); flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   font-size: var(--text-sm); font-weight: 700;
 }
@@ -1500,18 +1500,3 @@ select.input {
 }
 
 
-/* ══ 全圆角统一(用户 2026-09-09,all):所有圆角档位一律映射到 --radius-lg(8px) ══
-   任何写法最终都是 8px:rounded-* 类 / var(--radius-field|control|panel|btn|sm|md|xl…) /
-   裸 rounded / 硬编码档。改圆角只动 --radius-lg 一处。rounded-full 除外(全圆语义)。 */
-:root {
-  --radius-xs: var(--radius-lg);
-  --radius-sm: var(--radius-lg);
-  --radius-md: var(--radius-lg);
-  --radius-xl: var(--radius-lg);
-  --radius-2xl: var(--radius-lg);
-  --radius-3xl: var(--radius-lg);
-  --radius-field: var(--radius-lg);
-  --radius-control: var(--radius-lg);
-  --radius-panel: var(--radius-lg);
-  --radius-btn: var(--radius-lg);
-}

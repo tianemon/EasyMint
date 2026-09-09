@@ -83,9 +83,9 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
   // （fixed 相对 transform 祖先而非视口）——弹窗必须脱离才能在软件窗口内居中
   return (
     <Modal overlayClassName="bg-black/40" onClose={onClose}>
-      <div className="relative bg-surface rounded-xl border border-border shadow-2xl w-[760px] h-[600px] flex flex-col overflow-hidden">        <div className="flex items-center justify-between px-4 py-1.5 bg-surface-alt shrink-0">
+      <div className="relative bg-surface rounded-[var(--radius-lg)] border border-border shadow-2xl w-[760px] h-[600px] flex flex-col overflow-hidden">        <div className="flex items-center justify-between px-4 py-1.5 bg-surface-alt shrink-0">
           <span className="text-sm font-medium text-text-primary">编辑脚本</span>
-          <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose}>✕</button>
+          <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose}>✕</button>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto space-y-3 px-4 py-3">
           <div>
@@ -106,15 +106,15 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
         <div className="flex items-center gap-2 px-4 py-1 bg-surface-alt shrink-0">
           {scriptPath && (
             <button onClick={handleEditScript}
-              className="h-8 px-3 whitespace-nowrap rounded-md border border-accent-border text-accent text-xs hover:bg-accent-subtle transition-colors shrink-0">
+              className="h-8 px-3 whitespace-nowrap rounded-[var(--radius-lg)] border border-accent-border text-accent text-xs hover:bg-accent-subtle transition-colors shrink-0">
               编辑脚本文件
             </button>
           )}
           <div className="flex-1" />
           <button onClick={onClose}
-            className="h-8 px-4 whitespace-nowrap rounded-md border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消</button>
+            className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消</button>
           <button onClick={handleSave} disabled={saving}
-            className="h-8 px-4 whitespace-nowrap rounded-md btn-accent text-xs font-medium shrink-0">
+            className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] btn-accent text-xs font-medium shrink-0">
             {saving ? "保存中…" : "保存"}
           </button>
         </div>

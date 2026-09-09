@@ -103,24 +103,24 @@ function SkillRow({ s, stat, onToggle, onDelete }: {
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <span className="text-xs text-text-primary truncate">{s.name}</span>
-          <span className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded shrink-0 ${sourceCls}`}>{sourceLabel}</span>
+          <span className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] shrink-0 ${sourceCls}`}>{sourceLabel}</span>
           {s.level === "project" && (
-            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-surface text-text-muted shrink-0">项目</span>
+            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-surface text-text-muted shrink-0">项目</span>
           )}
           {s.shadowed && (
-            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-warning-soft text-warning shrink-0">被遮蔽</span>
+            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-warning-soft text-warning shrink-0">被遮蔽</span>
           )}
           {noDesc && (
             <span
-              className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-danger-soft text-danger shrink-0"
+              className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-danger-soft text-danger shrink-0"
              
             >缺描述</span>
           )}
           {stale && (
-            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-surface text-text-muted shrink-0">90天未用</span>
+            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-surface text-text-muted shrink-0">90天未用</span>
           )}
           {highFail && (
-            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-danger-soft text-danger shrink-0">失败多</span>
+            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-danger-soft text-danger shrink-0">失败多</span>
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -349,7 +349,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       {loadError && <p className="text-danger text-xs">{loadError}</p>}
 
       {/* Tab buttons — pill style */}
-      <div className="inline-flex rounded-lg border border-border overflow-hidden">
+      <div className="inline-flex rounded-[var(--radius-lg)] border border-border overflow-hidden">
         {(["builtin", "global", "managed"] as const).map((t, i) => (
           <button
             key={t}
@@ -366,7 +366,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       </div>
 
       {/* 外部生态发现开关（对全部页签生效——只读发现，不改动任何文件） */}
-      <div className="bg-surface-alt rounded-lg border border-border px-3 py-2.5 flex items-center justify-between gap-3">
+      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-2.5 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs text-text-primary">发现外部生态 skill</p>
           <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
@@ -377,7 +377,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       </div>
 
       {/* Skill 导入（粘贴 GitHub 链接或本地目录路径） */}
-      <div className="bg-surface-alt rounded-lg border border-border px-3 py-2.5">
+      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs text-text-primary">导入 skill</p>
@@ -387,7 +387,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
           </div>
           {!skillImportOpen && (
             <button type="button" onClick={() => setSkillImportOpen(true)}
-              className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] text-text-secondary border border-border hover:text-text-primary hover:bg-surface-hover transition-colors shrink-0">
+              className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary border border-border hover:text-text-primary hover:bg-surface-hover transition-colors shrink-0">
               导入
             </button>
           )}
@@ -403,11 +403,11 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
             {skillImportMsg && <p className="text-[length:var(--text-11)] whitespace-pre-line">{skillImportMsg}</p>}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => { setSkillImportOpen(false); setSkillSource(""); setSkillImportMsg(""); }}
-                className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+                className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
                 关闭
               </button>
               <button type="button" disabled={!skillSource.trim() || skillImporting} onClick={handleSkillImport}
-                className="px-3.5 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors disabled:opacity-50">
+                className="px-3.5 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors disabled:opacity-50">
                 {skillImporting ? "导入中…" : "导入"}
               </button>
             </div>
@@ -418,7 +418,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       {/* AI 管理区：写入开关 + 新建表单 */}
       {tab === "managed" && (
         <div className="space-y-3">
-          <div className="bg-surface-alt rounded-lg border border-border px-3 py-2.5 flex items-center justify-between gap-3">
+          <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-2.5 flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs text-text-primary">允许 AI 创建与管理 skill</p>
               <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
@@ -428,7 +428,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
             <Toggle checked={manageSkillEnabled} onChange={saveManageEnabled} />
           </div>
 
-          <div className="bg-surface-alt rounded-lg border border-border px-3 py-2.5 flex items-center justify-between gap-3">
+          <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-2.5 flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs text-text-primary">允许 AI 自沉淀经验</p>
               <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
@@ -439,7 +439,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
           </div>
 
           {showForm ? (
-            <div className="bg-surface-alt rounded-lg border border-border px-3 py-3 space-y-2">
+            <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-3 space-y-2">
               <div>
                 <label className="text-xs text-text-secondary block mb-1">名称（小写字母/数字/连字符）</label>
                 <input
@@ -481,13 +481,13 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
               <div className="flex items-center gap-2 pt-1">
                 <button
                   disabled={!canSubmit}
-                  className={`px-3 py-1 text-xs rounded-md transition-colors ${canSubmit ? "btn-accent" : "bg-surface-hover text-text-muted cursor-not-allowed"}`}
+                  className={`px-3 py-1 text-xs rounded-[var(--radius-lg)] transition-colors ${canSubmit ? "btn-accent" : "bg-surface-hover text-text-muted cursor-not-allowed"}`}
                   onClick={submit}
                 >
                   {submitting ? "创建中…" : "创建"}
                 </button>
                 <button
-                  className="px-3 py-1 text-xs rounded-md text-text-secondary hover:bg-surface-hover transition-colors"
+                  className="px-3 py-1 text-xs rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors"
                   onClick={() => { setShowForm(false); setFormError(""); }}
                 >
                   取消
@@ -496,7 +496,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
             </div>
           ) : (
             <button
-              className="px-3 py-1 text-xs rounded-md border border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
+              className="px-3 py-1 text-xs rounded-[var(--radius-lg)] border border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
               onClick={() => setShowForm(true)}
             >
               + 新建 skill
@@ -506,7 +506,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       )}
 
       {/* Skill list */}
-      <div className="bg-surface-alt rounded-lg border border-border overflow-hidden max-h-[220px] overflow-y-auto divide-y divide-border/50">
+      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border overflow-hidden max-h-[220px] overflow-y-auto divide-y divide-border/50">
         {visibleSkills.length > 0 ? (
           visibleSkills.map((s) => (
             <SkillRow
@@ -529,7 +529,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       {tab === "managed" && suggestions.length > 0 && (
         <div>
           <h4 className="text-xs font-medium text-text-secondary mb-2">优化建议</h4>
-          <div className="bg-surface-alt rounded-lg border border-border px-3 py-2 space-y-1">
+          <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-2 space-y-1">
             {suggestions.map((sug) => (
               <p key={sug.name} className="text-[length:var(--text-11)] text-text-secondary leading-relaxed">
                 <span className="text-text-primary font-mono">{sug.name}</span>：{sug.text}
@@ -543,7 +543,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       {projectSkills.length > 0 && (
         <div>
           <h4 className="text-xs font-medium text-text-secondary mb-2">项目级</h4>
-          <div className="bg-surface-alt rounded-lg border border-border overflow-hidden max-h-[220px] overflow-y-auto divide-y divide-border/50">
+          <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border overflow-hidden max-h-[220px] overflow-y-auto divide-y divide-border/50">
             {projectSkills.map((s) => (
               <SkillRow
                 key={s.path}
@@ -666,7 +666,7 @@ function McpServerForm({
   };
 
   return (
-    <div className="bg-surface-alt rounded-lg border border-border px-3 py-3 space-y-2.5">
+    <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-3 space-y-2.5">
       <div className="flex items-center gap-2">
         <input
           className="em-input flex-1 px-2.5 py-1.5 text-xs font-mono"
@@ -675,7 +675,7 @@ function McpServerForm({
           disabled={!!initial}
           onChange={(e) => setName(e.target.value)}
         />
-        <div className="flex rounded-[8px] border border-border overflow-hidden shrink-0">
+        <div className="flex rounded-[var(--radius-lg)] border border-border overflow-hidden shrink-0">
           {(["stdio", "http", "sse"] as const).map((t) => (
             <button
               key={t}
@@ -728,7 +728,7 @@ function McpServerForm({
               onChange={(e) => setHeadersText(e.target.value)}
             />
           </div>
-          <div className="flex items-center justify-between gap-3 bg-surface rounded-lg px-2.5 py-2">
+          <div className="flex items-center justify-between gap-3 bg-surface rounded-[var(--radius-lg)] px-2.5 py-2">
             <div className="min-w-0">
               <p className="text-[length:var(--text-11)] text-text-primary">此服务器需要 OAuth 登录</p>
               <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
@@ -756,15 +756,15 @@ function McpServerForm({
 
       <div className="flex justify-end gap-2">
         <button type="button" onClick={test} disabled={busy}
-          className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+          className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
           测试连接
         </button>
         <button type="button" onClick={onCancel}
-          className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+          className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
           取消
         </button>
         <button type="button" onClick={save} disabled={busy}
-          className="px-3.5 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors">
+          className="px-3.5 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors">
           保存
         </button>
       </div>
@@ -907,7 +907,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
           <p className="text-[length:var(--text-11)] text-text-secondary mb-3">
             第三方服务密钥，注入到对应 MCP 服务器的环境变量中
           </p>
-          <div className="bg-surface-alt rounded-lg px-4 py-3 space-y-2">
+          <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3 space-y-2">
             {Array.from(allKeys.entries()).filter(([k]) => k !== "VISION_API_KEY" && k !== "TAVILY_API_KEY").map(([key, val]) => (
               <div key={key}>
                 <label className="text-xs text-text-secondary block mb-1">{key}</label>
@@ -941,11 +941,11 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
           {!adding && !editing && !pasteMode && (
             <div className="flex gap-2">
               <button type="button" onClick={() => setPasteMode(true)}
-                className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] text-text-secondary border border-border hover:text-text-primary hover:bg-surface-hover transition-colors">
+                className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary border border-border hover:text-text-primary hover:bg-surface-hover transition-colors">
                 粘贴配置导入
               </button>
               <button type="button" onClick={() => setAdding(true)}
-                className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors">
+                className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors">
                 + 添加服务器
               </button>
             </div>
@@ -959,7 +959,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
         {actionErr && <p className="text-danger text-[length:var(--text-11)] mb-2">{actionErr}</p>}
 
         {pasteMode && (
-          <div className="bg-surface-alt rounded-lg border border-border px-3 py-3 space-y-2">
+          <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-3 space-y-2">
             <p className="text-[length:var(--text-11)] text-text-secondary">
               粘贴配置（mcpServers JSON / claude mcp add 命令行 / npx 启动命令均可）：
             </p>
@@ -972,7 +972,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
             {pasteMsg && <p className="text-[length:var(--text-11)] whitespace-pre-line">{pasteMsg}</p>}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => { setPasteMode(false); setPasteText(""); setPasteMsg(""); }}
-                className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+                className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
                 关闭
               </button>
               <button type="button" disabled={!pasteText.trim() || pasting}
@@ -990,7 +990,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
                   } catch (e2) { setPasteMsg("❌ " + String(e2)); }
                   finally { setPasting(false); }
                 }}
-                className="px-3.5 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors disabled:opacity-50">
+                className="px-3.5 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors disabled:opacity-50">
                 解析并导入
               </button>
             </div>
@@ -1011,7 +1011,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
             还没有 MCP 服务器，点右上角添加。
           </p>
         ) : (
-          <div className="bg-surface-alt rounded-lg border border-border overflow-hidden max-h-[260px] overflow-y-auto divide-y divide-border/50">
+          <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border overflow-hidden max-h-[260px] overflow-y-auto divide-y divide-border/50">
             {servers.map((s) => {
               const badge = statusBadge(s.name, s.enabled);
               return (
@@ -1019,10 +1019,10 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
                       <span className="text-xs text-text-primary truncate">{s.name}</span>
-                      <span className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded shrink-0 ${badge.cls}`}>{badge.text}</span>
-                      <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded bg-surface text-text-muted shrink-0">{typeLabel(s.type)}</span>
+                      <span className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] shrink-0 ${badge.cls}`}>{badge.text}</span>
+                      <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-surface text-text-muted shrink-0">{typeLabel(s.type)}</span>
                       <span
-                        className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded shrink-0 ${s.scope === "user" ? "bg-surface text-text-muted" : "bg-info-soft text-info"}`}
+                        className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] shrink-0 ${s.scope === "user" ? "bg-surface text-text-muted" : "bg-info-soft text-info"}`}
                         
                       >
                         {s.scope === "user" ? "用户级" : s.scope === "project" ? "项目级" : "项目 .mcp.json"}
@@ -1031,22 +1031,22 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
                     <div className="flex items-center gap-1 shrink-0">
                       {s.pendingApproval && (
                         <button type="button" onClick={() => handleApprove(s.name)}
-                          className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] bg-warning-soft text-warning hover:bg-warning/20 transition-colors">
+                          className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] bg-warning-soft text-warning hover:bg-warning/20 transition-colors">
                           待确认
                         </button>
                       )}
                       {statuses[s.name]?.state === "failed" && s.enabled && (
                         <button type="button" onClick={() => handleRetry(s.name)}
-                          className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+                          className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
                           重试
                         </button>
                       )}
                       <button type="button" onClick={() => handleEdit(s.name, s.scope)}
-                        className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
+                        className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
                         编辑
                       </button>
                       <button type="button" onClick={() => handleDelete(s.name, s.scope)}
-                        className="px-1.5 py-0.5 rounded text-[length:var(--text-3xs)] text-text-secondary hover:text-danger hover:bg-surface-hover transition-colors">
+                        className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] text-text-secondary hover:text-danger hover:bg-surface-hover transition-colors">
                         删除
                       </button>
                       <Toggle checked={s.enabled} onChange={(v) => handleToggle(s.name, v)} />
@@ -1079,7 +1079,7 @@ export function PluginsTab({ projectPath }: { projectPath?: string }): JSX.Eleme
   return (
     <div className="space-y-1.5">
       <div className="flex justify-center px-6 pt-4">
-        <div className="inline-flex rounded-lg border border-border overflow-hidden">
+        <div className="inline-flex rounded-[var(--radius-lg)] border border-border overflow-hidden">
           {([["skills", "Skills"], ["mcp", "MCP"]] as const).map(([id, label], i) => (
             <button
               key={id}

@@ -201,7 +201,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
   // 让 mousedown 阶段 DOM 静止,与消息气泡的拖选路径一致;拖动/resize 路径仍按下即置顶
   return (
     <div
-      className="absolute rounded-xl border border-border bg-surface-elevated shadow-xl overflow-hidden animate-[card-in_200ms_ease-out]"
+      className="absolute rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-xl overflow-hidden animate-[card-in_200ms_ease-out]"
       style={{ left: x, top: y, width: pin.width || CARD_W, zIndex: getPinZ(pin.id) ?? (pin.z || 0) }}
       data-pin-id={pin.id}
       onClick={() => usePinStore.getState().bringToFront(sessionId, pin.id)}
@@ -216,7 +216,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
         <PinIcon className="w-3 h-3 text-text-secondary shrink-0" />
         <span className="flex-1 text-xs font-medium text-text-primary truncate">{pin.title}</span>
         <button
-          className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
+          className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
          
           onPointerDown={(e) => e.stopPropagation()}
           onClick={onMinimize}
@@ -224,7 +224,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="w-3 h-3"><path d="M3 8h10" /></svg>
         </button>
         <button
-          className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
+          className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
          
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => usePinStore.getState().removePin(sessionId, pin.id)}
@@ -327,7 +327,7 @@ function PinTab({ pin, sessionId, layerRef, slotY, colorIdx }: PinTabProps): JSX
 
   return (
     <div
-      className={`absolute ${TAB_COLORS[colorIdx]} ${edge === "right" ? "rounded-l-sm" : "rounded-r-sm"} shadow-md cursor-pointer overflow-hidden animate-[tab-in_200ms_ease-out]`}
+      className={`absolute ${TAB_COLORS[colorIdx]} ${edge === "right" ? "rounded-l-[var(--radius-lg)]" : "rounded-r-[var(--radius-lg)]"} shadow-md cursor-pointer overflow-hidden animate-[tab-in_200ms_ease-out]`}
       style={{
         left: x,
         top: y,

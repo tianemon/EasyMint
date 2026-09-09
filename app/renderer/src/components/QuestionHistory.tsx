@@ -81,7 +81,7 @@ export function QuestionHistory({ sessionId, messages, onJump }: QuestionHistory
         type="button"
         onClick={() => setOpen((v) => !v)}
        
-        className="no-drag absolute top-1 right-[18px] z-float w-8 h-8 rounded-md flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
+        className="no-drag absolute top-1 right-[18px] z-float w-8 h-8 rounded-[var(--radius-lg)] flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
       >
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </button>
@@ -92,7 +92,7 @@ export function QuestionHistory({ sessionId, messages, onJump }: QuestionHistory
         // 列表底部 mask 渐隐(接近边缘的文字淡出),见下方列表容器
         <div
           ref={drawerRef}
-          className="no-drag fixed right-0 top-0 bottom-0 w-[300px] z-dialog flex flex-col rounded-l-xl shadow-2xl animate-[drawer-in_200ms_ease-out]"
+          className="no-drag fixed right-0 top-0 bottom-0 w-[300px] z-dialog flex flex-col rounded-l-[var(--radius-lg)] shadow-2xl animate-[drawer-in_200ms_ease-out]"
           style={{
             background: "color-mix(in oklab, var(--color-surface-elevated) 65%, transparent)",
             backdropFilter: "blur(20px)",
@@ -104,7 +104,7 @@ export function QuestionHistory({ sessionId, messages, onJump }: QuestionHistory
             <div className="shrink-0 px-3 pt-[20px] pb-2">
               {/* 容器 onMouseDown 强制聚焦:输入框命中区域异常(用户环境实测点击占位符位置无反应)时,
                   容器内任意位置点击都能聚焦——不依赖 input 盒子位置 */}
-              <div className="relative h-10 rounded-xl border border-border/60 bg-surface/70 overflow-hidden" onMouseDown={() => inputRef.current?.focus()}>
+              <div className="relative h-10 rounded-[var(--radius-lg)] border border-border/60 bg-surface/70 overflow-hidden" onMouseDown={() => inputRef.current?.focus()}>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
                 <input
                   ref={inputRef}
@@ -143,7 +143,7 @@ export function QuestionHistory({ sessionId, messages, onJump }: QuestionHistory
                     key={q.id}
                     type="button"
                     onClick={() => { setOpen(false); onJump(q.id); }}
-                    className="w-full text-left px-3 py-2 rounded-md hover:bg-surface-hover transition-colors"
+                    className="w-full text-left px-3 py-2 rounded-[var(--radius-lg)] hover:bg-surface-hover transition-colors"
                   >
                     <div className="text-[length:var(--text-2xs)] text-text-secondary mb-0.5 tabular-nums">{formatTime(q.timestamp)}</div>
                     <div className="text-xs text-text-primary leading-snug line-clamp-2 break-words">{q.text}</div>

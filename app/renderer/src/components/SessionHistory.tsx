@@ -198,7 +198,7 @@ export function SessionHistory({
       ) : error ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2">
           <p className="text-danger text-sm">{error}</p>
-          <button className="px-3 py-1 text-xs btn-accent rounded" onClick={load}>重试</button>
+          <button className="px-3 py-1 text-xs btn-accent rounded-[var(--radius-lg)]" onClick={load}>重试</button>
         </div>
       ) : sessions.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">暂无对话记录</div>
@@ -241,7 +241,7 @@ export function SessionHistory({
 
       {/* Context menu —— hover 项内缩圆角(圆角外不露尖角),无分隔线 */}
       {menu.visible && (
-        <div className="fixed z-dropdown bg-surface-elevated border border-border rounded-lg shadow-xl py-1 px-1 min-w-[96px]" style={{ left: menu.x, top: menu.y }}
+        <div className="fixed z-dropdown bg-surface-elevated border border-border rounded-[var(--radius-lg)] shadow-xl py-1 px-1 min-w-[96px]" style={{ left: menu.x, top: menu.y }}
           ref={(el) => {
             if (!el) return;
             const h = el.offsetHeight;
@@ -250,25 +250,25 @@ export function SessionHistory({
               el.style.bottom = `${window.innerHeight - menu.y}px`;
             }
           }}>
-          <button className="w-full text-left px-1.5 py-1 text-sm text-text-primary hover:bg-surface-hover rounded-md transition-colors flex items-center gap-1.5" onClick={handlePin}>
+          <button className="w-full text-left px-1.5 py-1 text-sm text-text-primary hover:bg-surface-hover rounded-[var(--radius-lg)] transition-colors flex items-center gap-1.5" onClick={handlePin}>
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="16" x2="12" y2="2"/><polyline points="6 8 12 2 18 8"/></svg>
             {menu.pinned ? "取消置顶" : "置顶"}
           </button>
-          <button className="w-full text-left px-1.5 py-1 text-sm text-text-primary hover:bg-surface-hover rounded-md transition-colors flex items-center gap-1.5" onClick={handleRename}>
+          <button className="w-full text-left px-1.5 py-1 text-sm text-text-primary hover:bg-surface-hover rounded-[var(--radius-lg)] transition-colors flex items-center gap-1.5" onClick={handleRename}>
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             重命名
           </button>
-          <button className="w-full text-left px-1.5 py-1 text-sm text-text-primary hover:bg-surface-hover rounded-md transition-colors flex items-center gap-1.5" onClick={handleArchive}>
+          <button className="w-full text-left px-1.5 py-1 text-sm text-text-primary hover:bg-surface-hover rounded-[var(--radius-lg)] transition-colors flex items-center gap-1.5" onClick={handleArchive}>
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 8l-2-4H4L2 8"/><path d="M2 8v12h20V8"/><path d="M8 13h8"/></svg>
             归档
           </button>
           {activeSessions.has(menu.sessionId) && (
-            <button className="w-full text-left px-1.5 py-1 text-sm text-danger hover:bg-danger-bg rounded-md transition-colors flex items-center gap-1.5" onClick={handleKillSession}>
+            <button className="w-full text-left px-1.5 py-1 text-sm text-danger hover:bg-danger-bg rounded-[var(--radius-lg)] transition-colors flex items-center gap-1.5" onClick={handleKillSession}>
               <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
               结束会话
             </button>
           )}
-          <button className="w-full text-left px-1.5 py-1 text-sm text-danger hover:bg-danger-bg rounded-md transition-colors flex items-center gap-1.5" onClick={handleDelete}>
+          <button className="w-full text-left px-1.5 py-1 text-sm text-danger hover:bg-danger-bg rounded-[var(--radius-lg)] transition-colors flex items-center gap-1.5" onClick={handleDelete}>
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
             删除
           </button>
@@ -278,7 +278,7 @@ export function SessionHistory({
       {/* 删除确认弹窗 */}
       {pendingDelete && (
         <Modal tier="modal" overlayClassName="bg-black/30" onClose={() => setPendingDelete(null)}>
-          <div className="bg-surface border border-border rounded-xl p-5 max-w-sm w-full shadow-2xl mx-4">
+          <div className="bg-surface border border-border rounded-[var(--radius-lg)] p-5 max-w-sm w-full shadow-2xl mx-4">
             <div className="text-sm font-medium text-text-primary mb-2">删除会话</div>
             <p className="text-xs text-text-secondary mb-4">
               确定删除「{sessions.find((s) => s.sessionId === pendingDelete)?.title ?? "该会话"}」吗？会话记录将永久删除，此操作不可恢复。
@@ -287,14 +287,14 @@ export function SessionHistory({
               <button
                 type="button"
                 onClick={() => setPendingDelete(null)}
-                className="px-4 py-1.5 rounded-lg bg-surface-alt text-text-secondary text-xs hover:bg-surface-hover hover:text-text-primary transition-colors"
+                className="px-4 py-1.5 rounded-[var(--radius-lg)] bg-surface-alt text-text-secondary text-xs hover:bg-surface-hover hover:text-text-primary transition-colors"
               >
                 取消
               </button>
               <button
                 type="button"
                 onClick={() => doDelete(pendingDelete)}
-                className="px-4 py-1.5 rounded-lg bg-danger text-text-inverse text-xs font-medium hover:opacity-90 transition-colors"
+                className="px-4 py-1.5 rounded-[var(--radius-lg)] bg-danger text-text-inverse text-xs font-medium hover:opacity-90 transition-colors"
               >
                 删除
               </button>
@@ -329,7 +329,7 @@ function SessionItemRow({ session, active, isDesign, activeSessions, editingId, 
       <div className="px-3 py-1 flex gap-1">
         <input
           autoFocus
-          className="flex-1 px-2 py-1 text-xs bg-surface border border-border rounded-md outline-none text-text-primary"
+          className="flex-1 px-2 py-1 text-xs bg-surface border border-border rounded-[var(--radius-lg)] outline-none text-text-primary"
           value={editTitle}
           onChange={(e) => onEditTitle(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onCommitRename(); if (e.key === "Escape") onCancelEdit(); }}

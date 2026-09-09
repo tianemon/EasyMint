@@ -107,7 +107,7 @@ export function DelegationProgress({ delegations }: { delegations: DelegationUiS
   }, [startedAt, finished]);
 
   return (
-    <div className="w-[420px] my-2 rounded-[10px] border border-border bg-surface-elevated overflow-hidden text-xs">
+    <div className="w-[420px] my-2 rounded-[var(--radius-lg)] border border-border bg-surface-elevated overflow-hidden text-xs">
       {/* 标题行 */}
       <div className="flex items-center gap-2 px-3 py-1.5 bg-accent-bg">
         {finished ? (
@@ -149,7 +149,7 @@ function TitleRow({ task }: { task: DelegationTaskUi }): JSX.Element {
   // 展开显示详情:prompt 优先,缺失回退完整 task
   const detail = task.detail || task.task;
   return (
-    <div className="group rounded-lg transition-colors">
+    <div className="group rounded-[var(--radius-lg)] transition-colors">
       <div
         className="flex items-center gap-2 px-3 py-1.5 cursor-pointer"
         onClick={() => setExpanded(!expanded)}

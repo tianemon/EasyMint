@@ -26,13 +26,13 @@ export function PairRequestModal(): JSX.Element | null {
 
   return (
     <Modal overlayClassName="bg-black/50 modal-overlay" overlayClose={false} onClose={() => void rejectPair()}>
-      <div className="bg-surface-alt rounded-xl border border-border shadow-2xl modal-card" style={{ width: 380 }}>
+      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border shadow-2xl modal-card" style={{ width: 380 }}>
         <div className="px-6 pt-5 pb-2">
           <h2 className="text-base font-semibold text-text-primary">连接请求</h2>
         </div>
         <div className="px-6 py-3">
           <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-md bg-accent-soft text-accent flex items-center justify-center shrink-0">
+            <span className="w-10 h-10 rounded-[var(--radius-lg)] bg-accent-soft text-accent flex items-center justify-center shrink-0">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
             </span>
             <div>
@@ -45,14 +45,14 @@ export function PairRequestModal(): JSX.Element | null {
         </div>
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border">
           <button
-            className="px-4 py-1.5 rounded-md text-text-secondary hover:bg-surface-hover transition-colors text-sm"
+            className="px-4 py-1.5 rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors text-sm"
             onClick={rejectPair}
             disabled={busy}
           >
             拒绝
           </button>
           <button
-            className="px-5 py-1.5 rounded-md btn-accent text-sm font-medium"
+            className="px-5 py-1.5 rounded-[var(--radius-lg)] btn-accent text-sm font-medium"
             onClick={handleAccept}
             disabled={busy}
           >

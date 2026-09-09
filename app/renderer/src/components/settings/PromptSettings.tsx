@@ -115,7 +115,7 @@ export function PromptSettings(): JSX.Element {
       {/* 提示词列表 + 编辑区：左右布局 */}
       <div className="flex gap-3" style={{ minHeight: 260 }}>
         {/* 左侧：列表 */}
-        <div className="w-44 shrink-0 border border-border rounded-lg overflow-hidden flex flex-col">
+        <div className="w-44 shrink-0 border border-border rounded-[var(--radius-lg)] overflow-hidden flex flex-col">
           <div className="divide-y divide-border flex-1 overflow-y-auto">
             {config.prompts.map((prompt) => (
               <div

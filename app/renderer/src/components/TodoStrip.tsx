@@ -44,7 +44,7 @@ export const TodoStrip = memo(function TodoStrip({ sessionId }: { sessionId: str
 
   return (
     <div className="shrink-0 px-[var(--s16)] pt-2">
-      <div className="flex items-center gap-1 rounded-md bg-surface-alt/60 border border-border/60 hover:bg-surface-hover transition-colors">
+      <div className="flex items-center gap-1 rounded-[var(--radius-lg)] bg-surface-alt/60 border border-border/60 hover:bg-surface-hover transition-colors">
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
@@ -76,7 +76,7 @@ export const TodoStrip = memo(function TodoStrip({ sessionId }: { sessionId: str
         </button>
       </div>
       {expanded && (
-        <div className="mt-1 px-2.5 py-1.5 rounded-md bg-surface-alt/40 border border-border/40">
+        <div className="mt-1 px-2.5 py-1.5 rounded-[var(--radius-lg)] bg-surface-alt/40 border border-border/40">
           {sorted.map((t, i) => (
             <div key={i} className={`flex items-start gap-2 py-0.5 text-xs ${t.status === "completed" ? "text-text-muted" : "text-text-secondary"}`}>
               <span className={`mt-0.5 shrink-0 ${t.status === "in_progress" ? "text-accent" : t.status === "completed" ? "" : ""}`}>

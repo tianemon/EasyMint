@@ -38,7 +38,7 @@ export function LearnCard({ request }: Props): JSX.Element {
 
   return (
     <div
-      className="rounded-[var(--radius-md)] shadow-lg animate-[card-in_160ms_ease-out] overflow-hidden"
+      className="rounded-[var(--radius-lg)] shadow-lg animate-[card-in_160ms_ease-out] overflow-hidden"
       style={{
         background: "color-mix(in oklab, var(--color-surface-elevated) 65%, transparent)",
         backdropFilter: "blur(20px)",
@@ -52,7 +52,7 @@ export function LearnCard({ request }: Props): JSX.Element {
           type="button"
           onClick={() => respond(false)}
          
-          className="w-5 h-5 flex items-center justify-center rounded-md text-text-secondary hover:text-danger hover:bg-surface-hover transition-colors"
+          className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-danger hover:bg-surface-hover transition-colors"
         >
           <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
         </button>
@@ -103,7 +103,7 @@ export function LearnCard({ request }: Props): JSX.Element {
         <button
           type="button"
           onClick={() => respond(false)}
-          className="px-3 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
+          className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
         >
           取消
         </button>
@@ -111,7 +111,7 @@ export function LearnCard({ request }: Props): JSX.Element {
           type="button"
           onClick={() => respond(true)}
           disabled={!memoryValid || !skillBodyValid}
-          className={`px-3.5 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium transition-all duration-150 ${
+          className={`px-3.5 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium transition-all duration-150 ${
             memoryValid && skillBodyValid
               ? "btn-accent"
               : "bg-surface-hover text-text-muted cursor-not-allowed"

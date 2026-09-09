@@ -72,7 +72,7 @@ export function SessionBar(props: SessionBarProps): JSX.Element {
     <div ref={barRef} className="sb-label flex items-center justify-between" style={{ padding: "var(--s3) var(--s2) var(--s1)" }}>
       {/* 归档按钮(仅时钟图标) */}
       <button
-        className={`flex items-center justify-center w-6 h-6 rounded-md transition-colors ${showArchive ? "bg-surface-hover text-text-primary" : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"}`}
+        className={`flex items-center justify-center w-6 h-6 rounded-[var(--radius-lg)] transition-colors ${showArchive ? "bg-surface-hover text-text-primary" : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"}`}
        
         onClick={() => { setShowArchive(!showArchive); }}
       >
@@ -81,7 +81,7 @@ export function SessionBar(props: SessionBarProps): JSX.Element {
 
       {/* 新建按钮:直接新建会话(无菜单) */}
       <button
-        className="flex items-center justify-center w-[26px] h-[26px] rounded-md text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
+        className="flex items-center justify-center w-[26px] h-[26px] rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
        
         onClick={() => { onNewSession?.(); setShowArchive(false); }}
       >
@@ -94,12 +94,12 @@ export function SessionBar(props: SessionBarProps): JSX.Element {
 
       {/* 归档列表:浮层底色 + 行圆角块(标题 + 下方时间 + 悬停恢复) */}
       {showArchive && (
-        <div className="archive-panel-in absolute top-full left-3 right-3 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-surface-elevated shadow-lg z-dropdown p-1.5">
+        <div className="archive-panel-in absolute top-full left-3 right-3 mt-1 max-h-48 overflow-y-auto rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-lg z-dropdown p-1.5">
           {archived.length > 0 ? (
             archived.map((s) => (
               <div
                 key={s.sessionId}
-                className="group flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
+                className="group flex items-center gap-2 px-2.5 py-1.5 rounded-[var(--radius-lg)] hover:bg-surface-hover transition-colors cursor-pointer"
                 onClick={() => { onSessionClick?.(s.sessionId); setShowArchive(false); }}
                
               >
@@ -109,7 +109,7 @@ export function SessionBar(props: SessionBarProps): JSX.Element {
                 </div>
                 <button
                   type="button"
-                  className="shrink-0 px-1.5 py-0.5 rounded-md text-[length:var(--text-11)] text-text-secondary border border-border/50 bg-surface/60 hover:text-text-primary hover:bg-surface-hover transition-all opacity-0 group-hover:opacity-100"
+                  className="shrink-0 px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-11)] text-text-secondary border border-border/50 bg-surface/60 hover:text-text-primary hover:bg-surface-hover transition-all opacity-0 group-hover:opacity-100"
                  
                   onClick={(e) => { e.stopPropagation(); handleRestore(s.sessionId); }}
                 >

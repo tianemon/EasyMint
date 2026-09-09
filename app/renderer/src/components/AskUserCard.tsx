@@ -135,7 +135,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
 
   return (
     <div
-      className="rounded-[var(--radius-md)] shadow-lg animate-[card-in_160ms_ease-out] overflow-hidden"
+      className="rounded-[var(--radius-lg)] shadow-lg animate-[card-in_160ms_ease-out] overflow-hidden"
       style={{
         background: "color-mix(in oklab, var(--color-surface-elevated) 65%, transparent)",
         backdropFilter: "blur(20px)",
@@ -149,7 +149,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
           title="上一题"
           onClick={() => setIdx(Math.max(0, idx - 1))}
           disabled={idx === 0}
-          className="w-5 h-5 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors disabled:opacity-30 disabled:cursor-default"
+          className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors disabled:opacity-30 disabled:cursor-default"
         >‹</button>
         <span className="text-[length:var(--text-2xs)] text-text-muted font-mono px-0.5 select-none">{idx + 1}/{total}</span>
         <button
@@ -157,14 +157,14 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
           title={isLast ? undefined : "跳过此题"}
           onClick={advance}
           disabled={isLast}
-          className="w-5 h-5 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors disabled:opacity-30 disabled:cursor-default"
+          className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors disabled:opacity-30 disabled:cursor-default"
         >›</button>
         <span className="w-1" />
         <button
           type="button"
           title="全部跳过（取消提问）"
           onClick={skipAll}
-          className="w-5 h-5 flex items-center justify-center rounded-md text-text-secondary hover:text-danger hover:bg-surface-hover transition-colors"
+          className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-danger hover:bg-surface-hover transition-colors"
         >
           <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
         </button>
@@ -185,13 +185,13 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
                 key={opt.value}
                 type="button"
                 onClick={() => (multi ? toggle(opt.value) : pick(opt.value))}
-                className={`w-full flex items-center gap-2 text-left px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                className={`w-full flex items-center gap-2 text-left px-3 py-1.5 rounded-[var(--radius-lg)] text-xs transition-colors ${
                   sel ? "bg-accent-soft text-accent font-medium" : "text-text-primary hover:bg-surface-hover"
                 }`}
               >
                 {multi && (
                   <span
-                    className={`w-3.5 h-3.5 shrink-0 rounded-[4px] flex items-center justify-center border transition-colors ${
+                    className={`w-3.5 h-3.5 shrink-0 rounded-[var(--radius-lg)] flex items-center justify-center border transition-colors ${
                       sel ? "bg-accent border-accent" : "border-border"
                     }`}
                   >
@@ -210,7 +210,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
                   {opt.label}{opt.description ? `（${opt.description}）` : ""}
                 </span>
                 {opt.recommended && (
-                  <span className={`shrink-0 px-1.5 py-px rounded-[4px] text-[length:var(--text-2xs)] font-medium transition-colors ${
+                  <span className={`shrink-0 px-1.5 py-px rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium transition-colors ${
                     sel ? "bg-accent text-white" : "bg-accent-soft text-accent"
                   }`}>推荐</span>
                 )}
@@ -243,7 +243,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
           <button
             type="button"
             onClick={draftNonEmpty ? proceedWithDraft : advance}
-            className={`shrink-0 px-3 py-1.5 rounded-[8px] text-[length:var(--text-2xs)] font-medium transition-all duration-150 ${
+            className={`shrink-0 px-3 py-1.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium transition-all duration-150 ${
               draftNonEmpty
                 ? "btn-accent"
                 : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
@@ -260,7 +260,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
           <button
             type="button"
             onClick={advance}
-            className="px-3.5 py-1 rounded-[8px] text-[length:var(--text-2xs)] font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-all duration-150"
+            className="px-3.5 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-all duration-150"
           >
             {mainLabel}
           </button>

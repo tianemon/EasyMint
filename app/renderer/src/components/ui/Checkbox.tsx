@@ -26,7 +26,7 @@ export function Checkbox({ checked, onChange, disabled, className, ariaLabel }: 
       aria-checked={mixed ? "mixed" : on}
       aria-label={ariaLabel}
       disabled={disabled}
-      className={`shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${
+      className={`shrink-0 w-3.5 h-3.5 rounded-[var(--radius-lg)] border flex items-center justify-center transition-colors ${
         disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
       } ${
         on || mixed

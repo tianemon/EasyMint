@@ -33,7 +33,7 @@ export function ToastHost(): JSX.Element | null {
   return (
     <div
       key={t.id}
-      className="fixed top-4 left-1/2 -translate-x-1/2 z-toast px-4 py-2 rounded-lg bg-surface-elevated border border-border shadow-lg text-xs text-text-primary pointer-events-none animate-[fadeIn_150ms_ease]"
+      className="fixed top-4 left-1/2 -translate-x-1/2 z-toast px-4 py-2 rounded-[var(--radius-lg)] bg-surface-elevated border border-border shadow-lg text-xs text-text-primary pointer-events-none animate-[fadeIn_150ms_ease]"
     >
       {t.message}
     </div>

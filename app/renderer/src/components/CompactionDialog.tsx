@@ -50,7 +50,7 @@ export function CompactionDialog({
 
   return (
     <Modal tier="modal" overlayClassName="bg-black/30" onClose={onClose}>
-      <div className="bg-surface border border-border rounded-xl p-5 max-w-md w-full shadow-2xl mx-4">
+      <div className="bg-surface border border-border rounded-[var(--radius-lg)] p-5 max-w-md w-full shadow-2xl mx-4">
         <div className="flex items-center justify-between mb-1">
           <div className="text-sm font-medium text-text-primary">{title}</div>
           <button onClick={onClose} className="text-text-secondary hover:text-text-primary shrink-0">
@@ -62,7 +62,7 @@ export function CompactionDialog({
           <button
             type="button"
             onClick={onImmediate}
-            className="w-full text-left px-3 py-2 rounded-md hover:bg-surface-hover text-xs text-text-primary transition-colors"
+            className="w-full text-left px-3 py-2 rounded-[var(--radius-lg)] hover:bg-surface-hover text-xs text-text-primary transition-colors"
           >
             <span className="flex items-center justify-between gap-3">
               <span>是，立即压缩（系统自动总结）</span>
@@ -74,14 +74,14 @@ export function CompactionDialog({
           <button
             type="button"
             onClick={onWriteHandoff}
-            className="w-full text-left px-3 py-2 rounded-md hover:bg-surface-hover text-xs text-text-primary transition-colors"
+            className="w-full text-left px-3 py-2 rounded-[var(--radius-lg)] hover:bg-surface-hover text-xs text-text-primary transition-colors"
           >
             否，开启新会话，帮我写交接提示词
           </button>
           <button
             type="button"
             onClick={onDefer}
-            className="w-full text-left px-3 py-2 rounded-md hover:bg-surface-hover text-xs text-text-primary transition-colors"
+            className="w-full text-left px-3 py-2 rounded-[var(--radius-lg)] hover:bg-surface-hover text-xs text-text-primary transition-colors"
           >
             否，Mint 下次回复完触发
           </button>
@@ -95,12 +95,12 @@ export function CompactionDialog({
             onKeyDown={(e) => { if (e.key === "Enter") onWithInstructions(instructions.trim()); }}
             placeholder="输入压缩指令，例如保留某个上下文信息…"
             autoFocus
-            className="flex-1 min-w-0 px-2.5 py-1.5 rounded-md bg-surface-alt text-xs text-text-primary outline-none placeholder:text-text-muted"
+            className="flex-1 min-w-0 px-2.5 py-1.5 rounded-[var(--radius-lg)] bg-surface-alt text-xs text-text-primary outline-none placeholder:text-text-muted"
           />
           <button
             type="button"
             onClick={() => onWithInstructions(instructions.trim())}
-            className="px-3 py-1.5 rounded-md btn-accent text-xs font-medium shrink-0"
+            className="px-3 py-1.5 rounded-[var(--radius-lg)] btn-accent text-xs font-medium shrink-0"
           >
             是，输入指令
           </button>

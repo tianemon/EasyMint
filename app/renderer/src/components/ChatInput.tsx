@@ -66,24 +66,24 @@ function AttachPreview_({ attaches, setAttaches, onPreview }: AttachPreviewProps
         // 纵横比保持),删除按钮贴容器右上角;点击缩略图(✕ 除外)查看原图
         <div
           key={i}
-          className={`group relative shrink-0 w-16 h-16 rounded-md bg-surface-alt border border-border overflow-hidden ${onPreview ? "cursor-zoom-in" : ""}`}
+          className={`group relative shrink-0 w-16 h-16 rounded-[var(--radius-lg)] bg-surface-alt border border-border overflow-hidden ${onPreview ? "cursor-zoom-in" : ""}`}
           
           onClick={() => { if (onPreview && a.dataUrl) onPreview(a.dataUrl, a.name); }}
         >
           <img src={a.dataUrl} className="w-full h-full object-contain transition-opacity group-hover:opacity-85" alt={a.name} />
           <button
             type="button"
-            className="absolute top-0 right-0 w-5 h-5 rounded-tr-md border-l border-b border-border bg-surface-alt/95 text-text-secondary hover:text-danger transition-colors flex items-center justify-center text-[length:var(--text-11)] leading-none"
+            className="absolute top-0 right-0 w-5 h-5 rounded-tr-[var(--radius-lg)] border-l border-b border-border bg-surface-alt/95 text-text-secondary hover:text-danger transition-colors flex items-center justify-center text-[length:var(--text-11)] leading-none"
             onClick={(e) => removeAttach(i, e)}
           >✕</button>
         </div>
       ) : (
         // 文档附件:与图片同款 64×64 容器,仅显示文档名(单行截断居中,无图标)
-        <div key={i} className="relative shrink-0 w-16 h-16 rounded-md bg-surface-alt border border-border overflow-hidden flex items-center justify-center px-1">
+        <div key={i} className="relative shrink-0 w-16 h-16 rounded-[var(--radius-lg)] bg-surface-alt border border-border overflow-hidden flex items-center justify-center px-1">
           <span className="truncate w-full text-center text-[length:var(--text-11)] text-text-primary leading-tight">{a.name}</span>
           <button
             type="button"
-            className="absolute top-0 right-0 w-5 h-5 rounded-tr-md border-l border-b border-border bg-surface-alt/95 text-text-secondary hover:text-danger transition-colors flex items-center justify-center text-[length:var(--text-11)] leading-none"
+            className="absolute top-0 right-0 w-5 h-5 rounded-tr-[var(--radius-lg)] border-l border-b border-border bg-surface-alt/95 text-text-secondary hover:text-danger transition-colors flex items-center justify-center text-[length:var(--text-11)] leading-none"
             onClick={(e) => removeAttach(i, e)}
           >✕</button>
         </div>
@@ -259,7 +259,7 @@ export const ChatInput = memo(function ChatInput({
       ))}
       {/* Compact 蒙版 */}
       {compacting && (
-        <div className="absolute inset-0 z-float rounded-[var(--radius-md)] bg-surface/70 backdrop-blur-[2px] flex items-center justify-center">
+        <div className="absolute inset-0 z-float rounded-[var(--radius-lg)] bg-surface/70 backdrop-blur-[2px] flex items-center justify-center">
           <div className="flex items-center gap-2">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4 text-accent animate-spin"><circle cx="8" cy="8" r="6" strokeOpacity="0.3"/><path d="M8 2a6 6 0 015.5 3.5" strokeLinecap="round"/></svg>
             <span className="text-sm text-text-secondary font-medium">正在整理上下文，请稍候…</span>
@@ -295,7 +295,7 @@ export const ChatInput = memo(function ChatInput({
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
           </button>
           {attachMenuOpen && (
-            <div className="absolute bottom-full left-0 mb-1.5 rounded-lg border border-border bg-surface-elevated shadow-xl overflow-hidden z-dropdown w-max">
+            <div className="absolute bottom-full left-0 mb-1.5 rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-xl overflow-hidden z-dropdown w-max">
               {/* 列表项按钮面积 = 背景面积：容器无 padding，hover 背景与按钮同矩形，不留缝 */}
               <button
                 type="button"

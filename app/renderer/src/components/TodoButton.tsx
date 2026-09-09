@@ -106,7 +106,7 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 mb-1.5 w-[360px] max-w-[85vw] rounded-lg border border-border bg-surface-elevated shadow-xl z-dropdown overflow-hidden">
+        <div className="absolute bottom-full left-0 mb-1.5 w-[360px] max-w-[85vw] rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-xl z-dropdown overflow-hidden">
           {/* 头部 */}
           <div className="flex items-center justify-between px-3 py-2">
             <span className="text-xs font-medium text-text-primary">用户待办</span>
@@ -171,7 +171,7 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
               placeholder="添加待办（回车确认）…"
               className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs"
             />
-            <button type="button" onClick={add} disabled={!draft.trim()} className="btn-accent h-8 px-3 rounded-md text-xs disabled:opacity-40 disabled:cursor-not-allowed shrink-0">添加</button>
+            <button type="button" onClick={add} disabled={!draft.trim()} className="btn-accent h-8 px-3 rounded-[var(--radius-lg)] text-xs disabled:opacity-40 disabled:cursor-not-allowed shrink-0">添加</button>
           </div>
         </div>
       )}

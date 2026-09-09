@@ -73,7 +73,7 @@ function FlowErrorCardView({ card, onRetry, onDismiss }: {
   const retryable = card.sourceMsgId != null;
   return (
     <div
-      className="flex items-start gap-2 rounded-md border border-danger-border bg-danger-bg px-3 py-1.5 w-fit max-w-full"
+      className="flex items-start gap-2 rounded-[var(--radius-lg)] border border-danger-border bg-danger-bg px-3 py-1.5 w-fit max-w-full"
       title={card.message}
     >
       {/* 警示三角(三角形路径,16 网格) */}
@@ -87,7 +87,7 @@ function FlowErrorCardView({ card, onRetry, onDismiss }: {
         <button
           type="button"
           onClick={() => onRetry(card)}
-          className="shrink-0 rounded px-2 py-0.5 font-medium text-danger bg-danger-soft hover:bg-danger transition-colors hover:text-white cursor-pointer"
+          className="shrink-0 rounded-[var(--radius-lg)] px-2 py-0.5 font-medium text-danger bg-danger-soft hover:bg-danger transition-colors hover:text-white cursor-pointer"
           style={{ fontSize: "var(--text-detail)" }}
         >重试</button>
       )}
@@ -96,7 +96,7 @@ function FlowErrorCardView({ card, onRetry, onDismiss }: {
         onClick={() => onDismiss(card)}
         title="关闭"
         aria-label="关闭错误提示"
-        className="shrink-0 p-0.5 rounded text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer"
+        className="shrink-0 p-0.5 rounded-[var(--radius-lg)] text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer"
       >
         <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
           <path d="M3 3l10 10M13 3L3 13" />
@@ -2164,7 +2164,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                         (圆角始终存在,消失只是淡出,无「圆角变直角」)、仅上边外扩 5px——
                         高亮矩形上边框与消息内容(含头像)留 5px 间距,其余边贴合内容 */}
                     <div
-                      className={`absolute -top-[5px] inset-x-[26px] bottom-0 rounded-[10px] bg-accent-bg transition-opacity duration-500 pointer-events-none ${msg.id === highlightMsgId ? "opacity-100" : "opacity-0"}`}
+                      className={`absolute -top-[5px] inset-x-[26px] bottom-0 rounded-[var(--radius-lg)] bg-accent-bg transition-opacity duration-500 pointer-events-none ${msg.id === highlightMsgId ? "opacity-100" : "opacity-0"}`}
                     />
                     <MemoChatMessage
                       msg={msg}
@@ -2210,7 +2210,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
               <div className="flex justify-center pb-3">
                 <button
                   onClick={() => { setNewProjectFlag(false); consumeShowTools(); onNewProject?.(); }}
-                  className="px-6 py-2.5 rounded-xl btn-accent text-sm font-medium shadow-sm"
+                  className="px-6 py-2.5 rounded-[var(--radius-lg)] btn-accent text-sm font-medium shadow-sm"
                 >
                   新建项目
                 </button>
@@ -2220,7 +2220,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
               <div className="flex justify-center pb-3">
                 <button
                   onClick={() => { setConfirmDevFlag(false); consumeShowTools(); sendText(CONFIRM_DEVELOPMENT_PROMPT); }}
-                  className="px-6 py-2.5 rounded-[10px] btn-accent text-sm font-semibold border-none cursor-pointer transition-all duration-200 hover:-translate-y-px active:translate-y-0"
+                  className="px-6 py-2.5 rounded-[var(--radius-lg)] btn-accent text-sm font-semibold border-none cursor-pointer transition-all duration-200 hover:-translate-y-px active:translate-y-0"
                 >
                   确认开发
                 </button>
@@ -2417,7 +2417,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       <ContextMenu menu={ctxMenu} onClose={closeMenu} />
       {/* 钉住提示 */}
       {pinToast && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-lg bg-surface-elevated border border-border shadow-lg text-xs text-text-primary pointer-events-none">
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-[var(--radius-lg)] bg-surface-elevated border border-border shadow-lg text-xs text-text-primary pointer-events-none">
           {pinToast}
         </div>
       )}
@@ -2510,7 +2510,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
         >
           <div style={{ width: 34, flexShrink: 0 }} />
           <div className="relative w-fit max-w-[75%] min-w-0 my-1" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
-            <div className="msg-bubble-system rounded-[10px] rounded-bl-[4px] border border-border bg-surface-elevated overflow-hidden">
+            <div className="msg-bubble-system rounded-[var(--radius-lg)] rounded-bl-[4px] border border-border bg-surface-elevated overflow-hidden">
               {/* 头部:系统图标 + kind 标签(区别于 assistant 的 Mint 头像气泡);指令型整行可点展开/收起 */}
               <button
                 type="button"
@@ -2641,7 +2641,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
               <span className="text-text-secondary/60 ml-1.5 text-[length:var(--text-2xs)] font-normal">· {msg.forwardedFrom ? `来自 ${msg.forwardedFrom}` : "来自转发"}</span>
             )}
           </div>
-          <div className="msg-bubble-agent rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
+          <div className="msg-bubble-agent rounded-[var(--radius-lg)] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
             {blocks.map((block, i) => (
               <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} isStreamingTail={busy && i === blocks.length - 1} />
             ))}
@@ -2686,21 +2686,21 @@ function UserBubble({ msg, editable, editing, draft, onStartEdit, onDraftChange,
     <div className="flex gap-4 items-start">
       <div className="min-w-0">
         <div className="msg-from text-right">USER</div>
-        <div className="msg-bubble-user rounded-[10px] rounded-br-[4px] px-[14px] py-1.5 leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]">
+        <div className="msg-bubble-user rounded-[var(--radius-lg)] rounded-br-[4px] px-[14px] py-1.5 leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]">
         {!isEditing && msg.attaches && msg.attaches.length > 0 && (
           <div className="flex gap-1.5 mb-2 flex-wrap">
             {msg.attaches.map((a, i) => (
               a.kind === "image" ? (
                 a.dataUrl ? (
-                  <img key={`img-${i}`} src={a.dataUrl} alt={a.name} className="max-w-[260px] max-h-[220px] rounded-lg object-contain cursor-zoom-in hover:opacity-90 transition-opacity" onClick={() => { if (a.dataUrl) onViewImage?.(a.dataUrl, a.name); }} />
+                  <img key={`img-${i}`} src={a.dataUrl} alt={a.name} className="max-w-[260px] max-h-[220px] rounded-[var(--radius-lg)] object-contain cursor-zoom-in hover:opacity-90 transition-opacity" onClick={() => { if (a.dataUrl) onViewImage?.(a.dataUrl, a.name); }} />
                 ) : (
-                  <div key={`doc-${i}`} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/10 max-w-[200px]">
+                  <div key={`doc-${i}`} className="flex items-center gap-1.5 px-2 py-1 rounded-[var(--radius-lg)] bg-white/10 max-w-[200px]">
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-4 h-4 shrink-0"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><circle cx="5" cy="6" r="1.3"/><path d="M1.5 11l3.5-3.5 2.5 2.5 3-4 4 5"/></svg>
                     <span className="text-[length:var(--text-11)] truncate">{a.name}</span>
                   </div>
                 )
               ) : (
-                <div key={`udoc-${i}`} className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/10 max-w-[200px]">
+                <div key={`udoc-${i}`} className="flex items-center gap-1.5 px-2 py-1 rounded-[var(--radius-lg)] bg-white/10 max-w-[200px]">
                   <DocIcon name={a.name} />
                   <span className="text-[length:var(--text-11)] truncate">{a.name}</span>
                 </div>
@@ -2732,7 +2732,7 @@ function UserBubble({ msg, editable, editing, draft, onStartEdit, onDraftChange,
               title="发送"
               aria-label="发送修改后的消息"
               onMouseDown={(e) => { e.preventDefault(); onCommit?.(); }}
-              className="absolute right-1 bottom-1 p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-white/10 transition-colors"
+              className="absolute right-1 bottom-1 p-1 rounded-[var(--radius-lg)] text-text-muted hover:text-text-primary hover:bg-white/10 transition-colors"
             >
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
             </button>

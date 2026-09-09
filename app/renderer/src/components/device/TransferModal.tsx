@@ -170,10 +170,10 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
       overlayClassName="bg-black/50 modal-overlay"
       onClose={onClose}
     >
-      <div className="bg-surface-alt rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 520 }}>
+      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border shadow-2xl modal-card flex flex-col" style={{ width: 520 }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0">
           <h2 className="text-base font-semibold text-text-primary">迁移到 {deviceName}</h2>
-          <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} disabled={transferring}>✕</button>
+          <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} disabled={transferring}>✕</button>
         </div>
 
         <div className="px-6 py-3 space-y-3 flex-1 overflow-y-auto">
@@ -197,7 +197,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
                 placeholder="或直接输入/选择项目目录"
                 className="em-input flex-1 px-2.5 py-1.5 text-xs text-text-primary"
               />
-              <button type="button" className="px-3 py-1.5 rounded-md border border-border text-xs text-text-secondary hover:bg-surface-hover transition-colors shrink-0" onClick={() => void browseProject()}>
+              <button type="button" className="px-3 py-1.5 rounded-[var(--radius-lg)] border border-border text-xs text-text-secondary hover:bg-surface-hover transition-colors shrink-0" onClick={() => void browseProject()}>
                 浏览
               </button>
             </div>
@@ -205,7 +205,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
 
           {/* 扫描状态(选择项目后自动扫描,防抖 300ms) */}
           {projectPath && !scanResult && (
-            <div className="w-full px-3 py-2 rounded-lg border border-border text-xs text-text-secondary text-center">
+            <div className="w-full px-3 py-2 rounded-[var(--radius-lg)] border border-border text-xs text-text-secondary text-center">
               {scanning ? "扫描中…" : "正在扫描…"}
             </div>
           )}
@@ -233,11 +233,11 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
                   <span className="text-[length:var(--text-2xs)] text-text-muted">已选 {selectedSessions.length}/{scanResult.sessions.length} · 仅主会话（不含子会话）</span>
                 </div>
                 {scanResult.sessions.length === 0 ? (
-                  <div className="bg-surface rounded-lg border border-border px-3 py-2.5 text-[length:var(--text-11)] text-text-muted">
+                  <div className="bg-surface rounded-[var(--radius-lg)] border border-border px-3 py-2.5 text-[length:var(--text-11)] text-text-muted">
                     该项目暂无会话记录
                   </div>
                 ) : (
-                  <div className="bg-surface rounded-lg border border-border max-h-32 overflow-y-auto py-1">
+                  <div className="bg-surface rounded-[var(--radius-lg)] border border-border max-h-32 overflow-y-auto py-1">
                     {scanResult.sessions.map((s) => (
                       <div
                         key={s.file}
@@ -292,11 +292,11 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
         </div>
 
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border shrink-0">
-          <button className="px-4 py-1.5 rounded-md text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={onClose} disabled={transferring}>
+          <button className="px-4 py-1.5 rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={onClose} disabled={transferring}>
             取消
           </button>
           <button
-            className="px-5 py-1.5 rounded-md btn-accent text-sm font-medium"
+            className="px-5 py-1.5 rounded-[var(--radius-lg)] btn-accent text-sm font-medium"
             disabled={!scanResult || selectedFiles.length === 0 || transferring}
             onClick={() => void startTransfer()}
           >

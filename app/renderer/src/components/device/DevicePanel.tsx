@@ -25,7 +25,7 @@ function formatLastSeen(ts: number): string {
 
 function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevice; onUnpair: (id: string) => void; onSend: (id: string) => void; onConnect: (id: string) => void }): JSX.Element {
   return (
-    <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-border bg-surface">
+    <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-[var(--radius-lg)] border border-border bg-surface">
       <span className={`w-2 h-2 rounded-full shrink-0 ${device.online ? "bg-success" : "bg-text-muted/40"}`} />
       <div className="flex-1 min-w-0">
         <div className="text-xs text-text-primary truncate">{device.name}</div>
@@ -36,7 +36,7 @@ function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevi
       {!device.online && (
         <button
           type="button"
-          className="text-[length:var(--text-2xs)] px-2 py-1 rounded bg-accent-soft text-accent hover:bg-accent hover:text-text-inverse transition-colors shrink-0"
+          className="text-[length:var(--text-2xs)] px-2 py-1 rounded-[var(--radius-lg)] bg-accent-soft text-accent hover:bg-accent hover:text-text-inverse transition-colors shrink-0"
           onClick={() => onConnect(device.id)}
          
         >
@@ -46,7 +46,7 @@ function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevi
       {device.online && (
         <button
           type="button"
-          className="text-[length:var(--text-2xs)] px-2 py-1 rounded bg-accent-soft text-accent hover:bg-accent hover:text-text-inverse transition-colors shrink-0"
+          className="text-[length:var(--text-2xs)] px-2 py-1 rounded-[var(--radius-lg)] bg-accent-soft text-accent hover:bg-accent hover:text-text-inverse transition-colors shrink-0"
           onClick={() => onSend(device.id)}
          
         >
@@ -55,7 +55,7 @@ function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevi
       )}
       <button
         type="button"
-        className="text-[length:var(--text-2xs)] px-2 py-1 rounded border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors shrink-0"
+        className="text-[length:var(--text-2xs)] px-2 py-1 rounded-[var(--radius-lg)] border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors shrink-0"
         onClick={() => onUnpair(device.id)}
       >
         解除配对
@@ -67,8 +67,8 @@ function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevi
 function DiscoveredRow({ device, onPair }: { device: DiscoveredDevice; onPair: (d: DiscoveredDevice) => void }): JSX.Element {
   const [sending, setSending] = useState(false);
   return (
-    <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-border bg-surface">
-      <span className="w-7 h-7 rounded-md bg-accent-soft text-accent flex items-center justify-center shrink-0">
+    <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-[var(--radius-lg)] border border-border bg-surface">
+      <span className="w-7 h-7 rounded-[var(--radius-lg)] bg-accent-soft text-accent flex items-center justify-center shrink-0">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
       </span>
       <div className="flex-1 min-w-0">
@@ -77,7 +77,7 @@ function DiscoveredRow({ device, onPair }: { device: DiscoveredDevice; onPair: (
       </div>
       <button
         type="button"
-        className="text-xs px-3 py-1 rounded-md btn-accent shrink-0"
+        className="text-xs px-3 py-1 rounded-[var(--radius-lg)] btn-accent shrink-0"
         disabled={sending}
         onClick={async () => { setSending(true); await onPair(device); setSending(false); }}
       >
@@ -168,7 +168,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
     <div className="fixed inset-0 z-dialog flex items-start justify-end bg-black/20" onMouseDown={onClose}>
       <div
         ref={ref}
-        className="w-[340px] h-full flex flex-col rounded-l-xl shadow-2xl animate-[drawer-in_200ms_ease-out] overflow-hidden"
+        className="w-[340px] h-full flex flex-col rounded-l-[var(--radius-lg)] shadow-2xl animate-[drawer-in_200ms_ease-out] overflow-hidden"
         // 毛玻璃(与历史输入抽屉同一观感):半透明底 + 背景模糊,不用实色 bg-surface-alt
         style={{
           background: "color-mix(in oklab, var(--color-surface-elevated) 65%, transparent)",
@@ -185,7 +185,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
 
         <div className="flex-1 overflow-y-auto px-3 pt-1 pb-6 space-y-4 flex flex-col">
           {/* 本机信息 + 可被发现开关 */}
-          <div className="bg-surface rounded-lg border border-border px-3.5 py-3 shrink-0">
+          <div className="bg-surface rounded-[var(--radius-lg)] border border-border px-3.5 py-3 shrink-0">
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-xs font-medium text-text-primary truncate">{self.name}</div>
@@ -295,7 +295,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
             <div className="flex items-center justify-between mb-1.5 px-1">
               <span className="text-xs font-medium text-text-secondary">迁移忽略项</span>
             </div>
-            <div className="bg-surface rounded-lg border border-border py-2 space-y-2 flex flex-col flex-1 overflow-hidden">
+            <div className="bg-surface rounded-[var(--radius-lg)] border border-border py-2 space-y-2 flex flex-col flex-1 overflow-hidden">
               {/* 输入框无边框、宽度与卡片同宽(去掉卡片横向内边距)——视觉上与卡片融为一体 */}
               <textarea
                 value={ignoreText}
@@ -318,7 +318,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                   </button>
                   <button
                     type="button"
-                    className="text-[length:var(--text-2xs)] px-2.5 py-1 rounded btn-accent"
+                    className="text-[length:var(--text-2xs)] px-2.5 py-1 rounded-[var(--radius-lg)] btn-accent"
                     disabled={!ignoreDirty}
                     onClick={() => void saveIgnore()}
                   >

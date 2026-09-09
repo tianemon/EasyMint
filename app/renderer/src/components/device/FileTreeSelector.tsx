@@ -179,7 +179,7 @@ export function FileTreeSelector({ files, onChange }: FileTreeSelectorProps): JS
     return (
       <div key={node.relPath}>
         <div
-          className="flex items-center gap-1.5 py-[3px] pr-2 rounded hover:bg-surface-hover transition-colors cursor-pointer group"
+          className="flex items-center gap-1.5 py-[3px] pr-2 rounded-[var(--radius-lg)] hover:bg-surface-hover transition-colors cursor-pointer group"
           style={{ paddingLeft: 8 + indent }}
           onClick={() => (isDir ? toggleExpand(node) : toggleNode(node))}
         >
@@ -240,7 +240,7 @@ export function FileTreeSelector({ files, onChange }: FileTreeSelectorProps): JS
   };
 
   return (
-    <div className="bg-surface rounded-lg border border-border overflow-hidden">
+    <div className="bg-surface rounded-[var(--radius-lg)] border border-border overflow-hidden">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-border gap-2">
         <div className="flex items-center gap-2 shrink-0">
           <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={selectAll}>全选</button>

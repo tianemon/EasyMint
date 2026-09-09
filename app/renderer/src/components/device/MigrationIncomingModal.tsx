@@ -116,18 +116,18 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
       overlayClose={false}
       onClose={() => void onReject(incoming.transferId)}
     >
-      <div className="bg-surface-alt rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 460 }}>
+      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border shadow-2xl modal-card flex flex-col" style={{ width: 460 }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0">
           <h2 className="text-base font-semibold text-text-primary">接收迁移</h2>
-          <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => void onReject(incoming.transferId)}>✕</button>
+          <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => void onReject(incoming.transferId)}>✕</button>
         </div>
 
         <div className="px-6 py-3 space-y-3">
           {/* 迁移内容摘要 */}
-          <div className="bg-surface rounded-lg border border-border px-4 py-3 space-y-1.5">
+          <div className="bg-surface rounded-[var(--radius-lg)] border border-border px-4 py-3 space-y-1.5">
             <div className="flex items-center gap-2 text-sm">
               <span className="text-text-primary font-medium">{incoming.projectName}</span>
-              <span className="text-[length:var(--text-2xs)] px-1.5 py-0.5 rounded bg-accent-soft text-accent">来自 {incoming.fromName}</span>
+              <span className="text-[length:var(--text-2xs)] px-1.5 py-0.5 rounded-[var(--radius-lg)] bg-accent-soft text-accent">来自 {incoming.fromName}</span>
             </div>
             <div className="text-xs text-text-secondary">
               {incoming.fileCount} 个文件 · {fmtSize(incoming.totalSize)}
@@ -147,7 +147,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
               />
               <button
                 type="button"
-                className="px-3 py-1.5 rounded-md border border-border text-xs text-text-secondary hover:bg-surface-hover transition-colors shrink-0 disabled:opacity-50"
+                className="px-3 py-1.5 rounded-[var(--radius-lg)] border border-border text-xs text-text-secondary hover:bg-surface-hover transition-colors shrink-0 disabled:opacity-50"
                 disabled={browsing}
                 onClick={handleBrowse}
               >
@@ -201,13 +201,13 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
 
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border shrink-0">
           <button
-            className="px-4 py-1.5 rounded-md text-text-secondary hover:bg-surface-hover transition-colors text-sm"
+            className="px-4 py-1.5 rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors text-sm"
             onClick={() => void onReject(incoming.transferId)}
           >
             拒绝
           </button>
           <button
-            className="px-5 py-1.5 rounded-md btn-accent text-sm font-medium"
+            className="px-5 py-1.5 rounded-[var(--radius-lg)] btn-accent text-sm font-medium"
             disabled={accepting}
             onClick={handleAccept}
           >

@@ -183,7 +183,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <p className="text-danger text-sm mb-3">{error}</p>
-          <button className="px-3 py-1 text-xs btn-accent rounded"
+          <button className="px-3 py-1 text-xs btn-accent rounded-[var(--radius-lg)]"
             onClick={() => { setError(null); setLoading(true); window.electronAPI.file.readContent(filePath).then((c) => { setContent(typeof c === "string" ? c : String(c)); setLoading(false); }).catch(() => { setError("重新加载失败"); setLoading(false); }); }}>
             重试</button>
         </div>
@@ -231,7 +231,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
           }}
         />
         {saved && (
-          <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-accent-bg text-accent text-xs">
+          <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-[var(--radius-lg)] bg-accent-bg text-accent text-xs">
             已保存
           </div>
         )}

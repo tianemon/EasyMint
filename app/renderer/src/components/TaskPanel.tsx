@@ -27,7 +27,7 @@ function TaskRow({ task, runningExec }: { task: { id: string; title: string; des
 
   return (
     <div
-      className={`group rounded-lg transition-colors ${displayStatus === "building" || displayStatus === "running" || displayStatus === "evaluating" ? "bg-accent-bg" : displayStatus === "failed" ? "bg-danger-soft" : "hover:bg-accent-subtle"} ${displayStatus === "done" ? "opacity-60" : ""}`}
+      className={`group rounded-[var(--radius-lg)] transition-colors ${displayStatus === "building" || displayStatus === "running" || displayStatus === "evaluating" ? "bg-accent-bg" : displayStatus === "failed" ? "bg-danger-soft" : "hover:bg-accent-subtle"} ${displayStatus === "done" ? "opacity-60" : ""}`}
     >
       <div
         className={`flex items-center gap-2.5 px-2.5 py-2 ${hasDesc ? "cursor-pointer" : "cursor-default"}`}

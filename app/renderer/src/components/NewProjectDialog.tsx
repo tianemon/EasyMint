@@ -303,10 +303,10 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
 
   return (
     <Modal overlayClassName="bg-black/50 modal-overlay" overlayClose={false} onClose={handleCancel}>
-      <div className="bg-surface-alt rounded-xl border border-border shadow-2xl modal-card flex flex-col" style={{ width: 560, maxHeight: "90vh" }}>
+      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border shadow-2xl modal-card flex flex-col" style={{ width: 560, maxHeight: "90vh" }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-1 shrink-0">
           <h2 className="text-lg font-semibold text-text-primary">新建项目</h2>
-          <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={handleCancel}>✕</button>
+          <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={handleCancel}>✕</button>
         </div>
 
         <StepDots total={visibleSteps.length} current={currentStep} />
@@ -322,19 +322,19 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
         </div>
 
         <div className="flex items-center justify-between px-6 pb-5 pt-2 shrink-0">
-          <button className="px-4 py-2 rounded-md text-text-secondary text-sm hover:bg-surface-hover transition-colors disabled:opacity-30" disabled={currentStep === 0} onClick={goPrev}>上一步</button>
+          <button className="px-4 py-2 rounded-[var(--radius-lg)] text-text-secondary text-sm hover:bg-surface-hover transition-colors disabled:opacity-30" disabled={currentStep === 0} onClick={goPrev}>上一步</button>
           <div className="flex gap-3">
             <div className="flex gap-2">
               {/* S2：取消 = 丢弃草稿（落盘已移到最终创建，不再有「取消项目=删真目录」的歧义） */}
-              <button className="ml-0.5 px-2 py-0 rounded-md text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={handleCancel}>取消</button>
-              <button className="px-2 py-0 rounded-md text-text-secondary hover:bg-surface-hover transition-colors text-sm disabled:opacity-50" disabled={initializing} onClick={handleDirectCreate}>
+              <button className="ml-0.5 px-2 py-0 rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={handleCancel}>取消</button>
+              <button className="px-2 py-0 rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors text-sm disabled:opacity-50" disabled={initializing} onClick={handleDirectCreate}>
                 {initializing ? "创建中..." : "直接创建"}
               </button>
             </div>
             {!isLastStep ? (
-              <button className="px-6 py-2 rounded-md btn-accent text-sm font-medium" disabled={!canNext()} onClick={goNext}>下一步</button>
+              <button className="px-6 py-2 rounded-[var(--radius-lg)] btn-accent text-sm font-medium" disabled={!canNext()} onClick={goNext}>下一步</button>
             ) : (
-              <button className="px-6 py-2 rounded-md btn-accent text-sm font-medium" disabled={!canNext() || initializing} onClick={handleCreate}>
+              <button className="px-6 py-2 rounded-[var(--radius-lg)] btn-accent text-sm font-medium" disabled={!canNext() || initializing} onClick={handleCreate}>
                 {initializing ? "创建中..." : "创建项目"}
               </button>
             )}

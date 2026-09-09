@@ -47,7 +47,7 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
 
   return (
     <Modal overlayClassName="bg-black/30" onClose={onClose}>
-      <div className="bg-surface border border-border rounded-xl p-5 max-w-sm w-full shadow-2xl mx-4">
+      <div className="bg-surface border border-border rounded-[var(--radius-lg)] p-5 max-w-sm w-full shadow-2xl mx-4">
         <div className="flex items-center justify-between mb-4">
           <span className="text-sm font-medium text-text-primary">会话统计</span>
           <button onClick={onClose} className="text-text-secondary hover:text-text-primary">
@@ -60,19 +60,19 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
         ) : stats ? (
           <div className="space-y-3 text-xs">
             <div className="grid grid-cols-2 gap-2">
-              <div className="bg-surface-alt rounded-lg p-2.5">
+              <div className="bg-surface-alt rounded-[var(--radius-lg)] p-2.5">
                 <div className="text-text-secondary mb-0.5">用户消息</div>
                 <div className="text-text-primary font-medium">{stats.userMessages}</div>
               </div>
-              <div className="bg-surface-alt rounded-lg p-2.5">
+              <div className="bg-surface-alt rounded-[var(--radius-lg)] p-2.5">
                 <div className="text-text-secondary mb-0.5">AI 回复</div>
                 <div className="text-text-primary font-medium">{stats.assistantMessages}</div>
               </div>
-              <div className="bg-surface-alt rounded-lg p-2.5">
+              <div className="bg-surface-alt rounded-[var(--radius-lg)] p-2.5">
                 <div className="text-text-secondary mb-0.5">工具调用</div>
                 <div className="text-text-primary font-medium">{stats.toolCalls}</div>
               </div>
-              <div className="bg-surface-alt rounded-lg p-2.5">
+              <div className="bg-surface-alt rounded-[var(--radius-lg)] p-2.5">
                 <div className="text-text-secondary mb-0.5">消息总数</div>
                 <div className="text-text-primary font-medium">{stats.totalMessages}</div>
               </div>

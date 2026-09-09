@@ -105,7 +105,7 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
       onClose={onClose}
     >
       <div
-        className="output-window relative flex flex-col w-[80vw] h-[80vh] rounded-[12px] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
+        className="output-window relative flex flex-col w-[80vw] h-[80vh] rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
         tabIndex={-1}
         // Cmd/Ctrl+A 只全选输出区内容(不选整个页面)
         onKeyDown={(e) => {
@@ -151,13 +151,13 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
             <button
               type="button"
               onClick={onStop}
-              className="shrink-0 px-2.5 py-1 rounded-md bg-danger-soft text-danger text-xs hover:bg-danger-bg transition-colors whitespace-nowrap"
+              className="shrink-0 px-2.5 py-1 rounded-[var(--radius-lg)] bg-danger-soft text-danger text-xs hover:bg-danger-bg transition-colors whitespace-nowrap"
             >停止运行</button>
           )}
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-text-secondary hover:bg-danger-soft hover:text-danger transition-colors"
+            className="shrink-0 w-6 h-6 rounded-[var(--radius-lg)] flex items-center justify-center text-text-secondary hover:bg-danger-soft hover:text-danger transition-colors"
           >
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>

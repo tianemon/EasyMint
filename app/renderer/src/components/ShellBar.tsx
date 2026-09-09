@@ -49,7 +49,7 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="agent-breath flex items-center gap-1 rounded-[8px] bg-success-soft px-2 py-0.5 text-[length:var(--text-11)] font-bold text-success cursor-pointer hover:bg-success-high"
+        className="agent-breath flex items-center gap-1 rounded-[var(--radius-lg)] bg-success-soft px-2 py-0.5 text-[length:var(--text-11)] font-bold text-success cursor-pointer hover:bg-success-high"
        
       >
         <ToolIcon name="bash" />
@@ -58,7 +58,7 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
 
       {/* 命令列表浮层(向上展开,覆盖输入卡片上方) */}
       {expanded && (
-        <div className="absolute bottom-full left-0 mb-1 w-max min-w-[224px] max-w-[320px] max-h-64 overflow-y-auto rounded-[8px] border border-border bg-surface-elevated shadow-xl z-dropdown text-xs">
+        <div className="absolute bottom-full left-0 mb-1 w-max min-w-[224px] max-w-[320px] max-h-64 overflow-y-auto rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-xl z-dropdown text-xs">
           <div className="px-3 py-1.5 bg-accent-bg text-text-secondary font-medium">
             运行中的 Shell({shellTasks.length})
           </div>
@@ -78,12 +78,12 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
                 </button>
                 {task.status === "stopping" ? (
                   // 已点停止:杀进程中,按钮禁用避免重复触发
-                  <span className="shrink-0 px-2 py-0.5 rounded-[6px] text-text-secondary text-[length:var(--text-11)]">停止中…</span>
+                  <span className="shrink-0 px-2 py-0.5 rounded-[var(--radius-lg)] text-text-secondary text-[length:var(--text-11)]">停止中…</span>
                 ) : (
                   <button
                     type="button"
                     onClick={() => stopShell(task.id)}
-                    className="shrink-0 px-2 py-0.5 rounded-[6px] border border-danger/40 text-danger hover:bg-danger-soft transition-colors"
+                    className="shrink-0 px-2 py-0.5 rounded-[var(--radius-lg)] border border-danger/40 text-danger hover:bg-danger-soft transition-colors"
                    
                   >
                     停止

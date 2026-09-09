@@ -40,13 +40,13 @@ export function ToolboxPanel({ open, onClose, onOpenDevicePanel }: ToolboxPanelP
   return (
     <div
       ref={ref}
-      className="absolute bottom-[54px] right-3 w-56 bg-surface-alt rounded-lg border border-border shadow-lg overflow-hidden z-float"
+      className="absolute bottom-[54px] right-3 w-56 bg-surface-alt rounded-[var(--radius-lg)] border border-border shadow-lg overflow-hidden z-float"
     >
       <div className="px-4 py-2.5 text-xs font-medium text-text-primary border-b border-border">工具箱</div>
       <div className="p-1.5">
         <button
           type="button"
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md hover:bg-surface-hover transition-colors text-left"
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[var(--radius-lg)] hover:bg-surface-hover transition-colors text-left"
           onClick={() => window.electronAPI.editor.open()}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary shrink-0">
@@ -57,14 +57,14 @@ export function ToolboxPanel({ open, onClose, onOpenDevicePanel }: ToolboxPanelP
           <span className="min-w-0">
             <span className="block text-xs text-text-primary leading-tight">
               HTML 原型编辑器
-              <span className="ml-1.5 text-[length:var(--text-3xs)] px-1 py-px rounded bg-accent-soft text-accent align-middle">实验</span>
+              <span className="ml-1.5 text-[length:var(--text-3xs)] px-1 py-px rounded-[var(--radius-lg)] bg-accent-soft text-accent align-middle">实验</span>
             </span>
             <span className="block text-[length:var(--text-2xs)] text-text-muted leading-tight">可视化编辑页面原型</span>
           </span>
         </button>
         <button
           type="button"
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md hover:bg-surface-hover transition-colors text-left"
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[var(--radius-lg)] hover:bg-surface-hover transition-colors text-left"
           onClick={() => { onClose(); onOpenDevicePanel(); }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary shrink-0">
@@ -76,7 +76,7 @@ export function ToolboxPanel({ open, onClose, onOpenDevicePanel }: ToolboxPanelP
           <span className="min-w-0">
             <span className="block text-xs text-text-primary leading-tight">
               项目迁移
-              <span className="ml-1.5 text-[length:var(--text-3xs)] px-1 py-px rounded bg-accent-soft text-accent align-middle">实验</span>
+              <span className="ml-1.5 text-[length:var(--text-3xs)] px-1 py-px rounded-[var(--radius-lg)] bg-accent-soft text-accent align-middle">实验</span>
             </span>
             <span className="block text-[length:var(--text-2xs)] text-text-muted leading-tight">跨设备迁移会话与项目</span>
           </span>

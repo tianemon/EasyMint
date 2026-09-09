@@ -282,7 +282,7 @@ const CodeBlock = memo(function CodeBlock({ language, children }: { language?: s
     }).catch(() => {});
   };
   return (
-    <div className="not-prose mt-1.5 mb-1 rounded-lg border border-border overflow-hidden">
+    <div className="not-prose mt-1.5 mb-1 rounded-[var(--radius-lg)] border border-border overflow-hidden">
       <div className="flex items-center justify-between px-3 py-1 border-b border-border" style={{ background: 'var(--color-code-block-header)' }}>
         <span className="text-text-muted tracking-wider" style={{ fontSize: "var(--text-caption)" }}>{language || "TEXT"}</span>
         <button onClick={handleCopy} className="text-text-secondary hover:text-text-primary transition-colors" style={{ fontSize: "var(--text-caption)" }}>
@@ -532,7 +532,7 @@ function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: b
     <div className="mt-1.5 mb-1">
       <button
         onClick={toggle}
-        className="inline-flex items-center gap-1.5 py-0.5 text-left rounded transition-colors group"
+        className="inline-flex items-center gap-1.5 py-0.5 text-left rounded-[var(--radius-lg)] transition-colors group"
       >
         {/* 大脑图标(Lucide brain)——思考块标识,与输入卡片思考等级图标统一 */}
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[var(--color-tool-title)] group-hover:text-text-primary transition-colors">
@@ -570,7 +570,7 @@ function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: b
           <div
             ref={boxRef}
             onScroll={onScroll}
-            className="overflow-y-auto overscroll-contain rounded-md mt-[5px] mb-[3px]"
+            className="overflow-y-auto overscroll-contain rounded-[var(--radius-lg)] mt-[5px] mb-[3px]"
             style={{
               background: "var(--thinking-body)",
               maxHeight: "calc(var(--text-detail) * 9.75 + 12px)", // 6 行文字 + pre 上下 padding 12px
@@ -667,7 +667,7 @@ function ToolGroupView({ block, streaming }: { block: ToolGroupBlock; streaming?
         <div className="overflow-hidden min-w-0">
           {/* 组展开容器:深色块 padding 左右 8px + 上下 1px(用户确认:上下边距主要由工具行自身 mt/mb 贡献,
               容器 padding 只做微调,2px→1px 后视觉仍均匀);折叠时高度 0 背景自然不可见 */}
-          <div className="mt-[2px] rounded-md space-y-0.5" style={{ background: "var(--thinking-body)", padding: "1px 8px" }}>
+          <div className="mt-[2px] rounded-[var(--radius-lg)] space-y-0.5" style={{ background: "var(--thinking-body)", padding: "1px 8px" }}>
             {items.map((item, i) => (
               <SingleToolCard key={i} item={item} compact streaming={streaming} />
             ))}
@@ -1071,17 +1071,17 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
             // 展开区:纯色块,底色比气泡深一档;内容随工具类型
             // 失败(contentErr)时不渲染任何正文——标题已标红即失败提示(报错/状态文案都不展示)
             isDiffResult ? (
-              <div className="mt-[2px] rounded-md" style={{ background: "var(--thinking-body)" }}>
+              <div className="mt-[2px] rounded-[var(--radius-lg)]" style={{ background: "var(--thinking-body)" }}>
                 <div className="px-3 py-2"><DiffView text={item.result!} filePath={filePath} /></div>
               </div>
             ) : item.name === "bash" ? (
-              <div className="mt-[2px] rounded-md" style={{ background: "var(--thinking-body)" }}>
+              <div className="mt-[2px] rounded-[var(--radius-lg)]" style={{ background: "var(--thinking-body)" }}>
                 {/* bash:命令在深色容器内,输出裸文本跟在下方;命令+输出整体一个滚动(封顶 6 行,对齐思考块) */}
                 <div
                   className="px-2 py-2 overflow-y-auto overscroll-contain"
                   style={{ maxHeight: "calc(var(--text-detail) * 9.75 + 28px)" }}
                 >
-                  <div className="rounded-[6px] bg-[var(--color-cmd-box)] px-2 py-1.5">
+                  <div className="rounded-[var(--radius-lg)] bg-[var(--color-cmd-box)] px-2 py-1.5">
                     <pre className="text-text-secondary font-mono whitespace-pre-wrap break-all" style={{ fontSize: "var(--text-detail)" }}>{bashCmd ?? ""}</pre>
                   </div>
                   {bashOutput ? (
@@ -1091,13 +1091,13 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
               </div>
             ) : detailLabel ? (
               // MCP/技能类:展开区显示具体工具/技能名(不铺结果——名称即本次调用的对象)
-              <div className="mt-[2px] rounded-md" style={{ background: "var(--thinking-body)" }}>
+              <div className="mt-[2px] rounded-[var(--radius-lg)]" style={{ background: "var(--thinking-body)" }}>
                 <div className="px-3 py-2">
                   <span className="font-mono text-text-secondary" style={{ fontSize: "var(--text-detail)" }}>{detailLabel}</span>
                 </div>
               </div>
             ) : (
-              <div className="mt-[2px] rounded-md" style={{ background: "var(--thinking-body)" }}>
+              <div className="mt-[2px] rounded-[var(--radius-lg)]" style={{ background: "var(--thinking-body)" }}>
                 <div className="px-3 py-2">
                   <pre className="text-text-secondary font-mono overflow-x-auto x-thin-scroll whitespace-pre-wrap min-h-[1.625em]" style={{ fontSize: "var(--text-detail)" }}>
                     {truncateResult(item.result!)}
@@ -1144,7 +1144,7 @@ function ToolResultOnlyView({ block }: { block: ToolResultOnlyBlock }): JSX.Elem
   const writeContent = block.name === "write" && typeof inp?.content === "string" ? inp.content : undefined;
   const writeLines = writeContent ? writeContent.split("\n").length : 0;
   return (
-    <div className={`mt-1.5 mb-1 rounded-md border overflow-hidden ${block.isError ? "border-danger/40" : "border-border"}`}>
+    <div className={`mt-1.5 mb-1 rounded-[var(--radius-lg)] border overflow-hidden ${block.isError ? "border-danger/40" : "border-border"}`}>
       <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-surface-alt text-text-muted uppercase tracking-wider font-semibold border-b border-border" style={{ fontSize: "var(--text-caption)" }}>
         <span className="shrink-0">{label}</span>
         {summary && (

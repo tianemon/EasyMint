@@ -413,11 +413,11 @@ export function ProjectPage(): JSX.Element {
       {/* Rename Project Dialog */}
       {showRenameDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-dialog" onClick={renamePhase === "input" ? () => setShowRenameDialog(false) : undefined}>
-          <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl w-[400px]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-surface-elevated rounded-[var(--radius-lg)] border border-border shadow-2xl w-[400px]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-4 pb-2">
               <h2 className="text-base font-semibold text-text-primary">重命名项目</h2>
               {renamePhase === "input" && (
-                <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setShowRenameDialog(false)}>✕</button>
+                <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setShowRenameDialog(false)}>✕</button>
               )}
             </div>
 
@@ -439,13 +439,13 @@ export function ProjectPage(): JSX.Element {
                 </div>
                 <div className="flex items-center justify-end gap-2 px-5 pb-4">
                   <button
-                    className="px-4 py-2 text-sm text-text-secondary hover:bg-surface-hover rounded-md transition-colors"
+                    className="px-4 py-2 text-sm text-text-secondary hover:bg-surface-hover rounded-[var(--radius-lg)] transition-colors"
                     onClick={() => setShowRenameDialog(false)}
                   >
                     取消
                   </button>
                   <button
-                    className="px-4 py-2 text-sm bg-accent text-text-inverse rounded-md hover:bg-accent-hover transition-colors disabled:opacity-40"
+                    className="px-4 py-2 text-sm bg-accent text-text-inverse rounded-[var(--radius-lg)] hover:bg-accent-hover transition-colors disabled:opacity-40"
                     disabled={!renameNewName.trim() || renameNewName.trim() === projectName}
                     onClick={handleRenameConfirm}
                   >
@@ -479,10 +479,10 @@ export function ProjectPage(): JSX.Element {
       {/* Open Project Picker */}
       {showOpenProject && (
         <Modal overlayClassName="bg-black/50" onClose={() => setShowOpenProject(false)}>
-          <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl w-[420px] max-h-[70vh] flex flex-col">
+          <div className="bg-surface-elevated rounded-[var(--radius-lg)] border border-border shadow-2xl w-[420px] max-h-[70vh] flex flex-col">
             <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
               <h2 className="text-base font-semibold text-text-primary">打开项目</h2>
-              <button className="w-7 h-7 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setShowOpenProject(false)}>✕</button>
+              <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setShowOpenProject(false)}>✕</button>
             </div>
             <p className="px-5 pb-2 text-xs text-text-secondary">选择一个项目，在当前窗口打开。</p>
             <div className="overflow-y-auto flex-1 px-3 pb-3">
@@ -490,7 +490,7 @@ export function ProjectPage(): JSX.Element {
                 <div className="text-center py-8">
                   <p className="text-xs text-text-secondary mb-3">暂无项目</p>
                   <button
-                    className="px-4 py-2 text-sm bg-accent text-text-inverse rounded-md hover:bg-accent-hover transition-colors"
+                    className="px-4 py-2 text-sm bg-accent text-text-inverse rounded-[var(--radius-lg)] hover:bg-accent-hover transition-colors"
                     onClick={() => { setShowOpenProject(false); setShowNewProject(true); }}
                   >
                     + 创建项目
@@ -500,7 +500,7 @@ export function ProjectPage(): JSX.Element {
                 openProjectList.map((p) => (
                   <div key={p.id} className="relative group">
                     <button
-                      className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors mb-0.5 ${p.id === projectId ? "bg-accent-bg" : "hover:bg-surface-hover"}`}
+                      className={`w-full text-left px-3 py-2.5 rounded-[var(--radius-lg)] transition-colors mb-0.5 ${p.id === projectId ? "bg-accent-bg" : "hover:bg-surface-hover"}`}
                       onClick={() => {
                         setShowOpenProject(false);
                         if (projectId && projectId !== p.id) {
@@ -531,7 +531,7 @@ export function ProjectPage(): JSX.Element {
               {/* 浏览文件夹入口 */}
               <div className="border-t border-border mt-2 pt-2">
                 <button
-                  className="w-full text-left px-3 py-2.5 rounded-md text-sm text-text-secondary hover:bg-surface-hover transition-colors flex items-center gap-2"
+                  className="w-full text-left px-3 py-2.5 rounded-[var(--radius-lg)] text-sm text-text-secondary hover:bg-surface-hover transition-colors flex items-center gap-2"
                   onClick={handleBrowseFolder}
                 >
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4">
@@ -548,11 +548,11 @@ export function ProjectPage(): JSX.Element {
       {/* 窗口选择弹窗：打开/新建项目时，让用户选在当前窗口还是新窗口 */}
       {windowChoiceTarget && (
         <Modal overlayClassName="bg-black/60" overlayClose={false} onClose={() => setWindowChoiceTarget(null)}>
-          <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl p-6 w-[400px] flex flex-col gap-4">
+          <div className="bg-surface-elevated rounded-[var(--radius-lg)] border border-border shadow-2xl p-6 w-[400px] flex flex-col gap-4">
             <p className="text-sm text-text-primary font-medium">当前窗口已打开项目，要在哪里打开？</p>
             <div className="flex gap-3 justify-end">
               <button
-                className="px-5 py-2 rounded-md border border-border text-text-secondary text-sm hover:bg-surface-hover transition-colors"
+                className="px-5 py-2 rounded-[var(--radius-lg)] border border-border text-text-secondary text-sm hover:bg-surface-hover transition-colors"
                 onClick={async () => {
                   const t = windowChoiceTarget;
                   setWindowChoiceTarget(null);
@@ -562,7 +562,7 @@ export function ProjectPage(): JSX.Element {
                 在新窗口打开
               </button>
               <button
-                className="px-5 py-2 rounded-md bg-accent text-text-inverse text-sm hover:bg-accent-hover transition-colors font-medium"
+                className="px-5 py-2 rounded-[var(--radius-lg)] bg-accent text-text-inverse text-sm hover:bg-accent-hover transition-colors font-medium"
                 onClick={() => {
                   const t = windowChoiceTarget;
                   setWindowChoiceTarget(null);
@@ -583,18 +583,18 @@ export function ProjectPage(): JSX.Element {
       {/* 删除项目确认弹窗：与窗口选择弹窗同风格 */}
       {deleteTarget && (
         <Modal overlayClassName="bg-black/60" overlayClose={false} onClose={() => setDeleteTarget(null)}>
-          <div className="bg-surface-elevated rounded-xl border border-border shadow-2xl p-6 w-[400px] flex flex-col gap-4">
+          <div className="bg-surface-elevated rounded-[var(--radius-lg)] border border-border shadow-2xl p-6 w-[400px] flex flex-col gap-4">
             <p className="text-sm text-text-primary font-medium">确认删除该项目吗？</p>
             <p className="text-xs text-text-secondary">（移动到{window.electronAPI?.platform === "darwin" ? "废纸篓" : "回收站"}）</p>
             <div className="flex gap-3 justify-end">
               <button
-                className="px-5 py-2 rounded-md border border-border text-text-secondary text-sm hover:bg-surface-hover transition-colors"
+                className="px-5 py-2 rounded-[var(--radius-lg)] border border-border text-text-secondary text-sm hover:bg-surface-hover transition-colors"
                 onClick={() => setDeleteTarget(null)}
               >
                 取消
               </button>
               <button
-                className="px-5 py-2 rounded-md bg-danger text-white text-sm hover:opacity-90 transition-opacity font-medium"
+                className="px-5 py-2 rounded-[var(--radius-lg)] bg-danger text-white text-sm hover:opacity-90 transition-opacity font-medium"
                 onClick={confirmDeleteProject}
               >
                 删除

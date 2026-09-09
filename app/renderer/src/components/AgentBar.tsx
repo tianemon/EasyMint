@@ -52,7 +52,7 @@ export function AgentBar({ sessionId }: { sessionId?: string }): JSX.Element | n
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="agent-breath info-glow flex items-center gap-1 rounded-[8px] bg-info-soft px-2 py-0.5 text-[length:var(--text-11)] font-bold text-info cursor-pointer hover:bg-info-high"
+        className="agent-breath info-glow flex items-center gap-1 rounded-[var(--radius-lg)] bg-info-soft px-2 py-0.5 text-[length:var(--text-11)] font-bold text-info cursor-pointer hover:bg-info-high"
        
       >
         <ToolIcon name="task" />
@@ -61,7 +61,7 @@ export function AgentBar({ sessionId }: { sessionId?: string }): JSX.Element | n
 
       {/* 任务列表浮层(向上展开,覆盖输入卡片上方;最多显示 5 行,超出滚动) */}
       {expanded && (
-        <div className="absolute bottom-full left-0 mb-1 w-72 max-h-[210px] overflow-y-auto rounded-[8px] border border-border bg-surface-elevated shadow-xl z-dropdown text-xs">
+        <div className="absolute bottom-full left-0 mb-1 w-72 max-h-[210px] overflow-y-auto rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-xl z-dropdown text-xs">
           <div className="px-3 py-1.5 bg-accent-bg text-text-secondary font-medium">
             执行中的 Agent({agentTasks.length})
           </div>
@@ -83,7 +83,7 @@ export function AgentBar({ sessionId }: { sessionId?: string }): JSX.Element | n
                 <button
                   type="button"
                   onClick={() => stopTask(task)}
-                  className="shrink-0 px-2 py-0.5 rounded-[6px] border border-danger/40 text-danger hover:bg-danger-soft transition-colors"
+                  className="shrink-0 px-2 py-0.5 rounded-[var(--radius-lg)] border border-danger/40 text-danger hover:bg-danger-soft transition-colors"
                  
                 >
                   停止

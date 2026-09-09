@@ -37,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
               {this.state.error?.message || "未知错误"}
             </p>
             <button
-              className="px-4 py-1.5 text-xs rounded-md btn-accent"
+              className="px-4 py-1.5 text-xs rounded-[var(--radius-lg)] btn-accent"
               onClick={() => this.setState({ hasError: false, error: null })}
             >
               重试

@@ -150,7 +150,7 @@ export function SubagentProcessView({
   return (
     <Modal overlayClassName="bg-black/40" onClose={onClose}>
       <div
-        className="relative flex flex-col w-[80vw] h-[80vh] rounded-[12px] border border-border bg-surface-alt shadow-2xl overflow-hidden"
+        className="relative flex flex-col w-[80vw] h-[80vh] rounded-[var(--radius-lg)] border border-border bg-surface-alt shadow-2xl overflow-hidden"
       >
         {/* 头部:spinner + 标题 + 状态 + 关闭(思考/工具与主聊天一致常显,无显示开关) */}
         <div className="bg-accent-bg">
@@ -167,7 +167,7 @@ export function SubagentProcessView({
             <button
               type="button"
               onClick={onClose}
-              className="shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-text-secondary hover:bg-accent-bg hover:text-text-primary transition-colors"
+              className="shrink-0 w-6 h-6 rounded-[var(--radius-lg)] flex items-center justify-center text-text-secondary hover:bg-accent-bg hover:text-text-primary transition-colors"
             >
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
@@ -240,7 +240,7 @@ function SubagentMessage({ msg, running, streamTail }: { msg: ChatMessage; runni
   if (msg.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="msg-bubble-user rounded-[10px] rounded-br-[4px] px-[14px] py-1.5 leading-[1.55] whitespace-pre-wrap break-words max-w-[80%]">{msg.text}</div>
+        <div className="msg-bubble-user rounded-[var(--radius-lg)] rounded-br-[4px] px-[14px] py-1.5 leading-[1.55] whitespace-pre-wrap break-words max-w-[80%]">{msg.text}</div>
       </div>
     );
   }
@@ -250,7 +250,7 @@ function SubagentMessage({ msg, running, streamTail }: { msg: ChatMessage; runni
     <div className="flex gap-3 items-start">
       <div className="msg-avatar agent shrink-0">M</div>
       <div className="min-w-0 flex-1">
-        <div className="msg-bubble-agent rounded-[10px] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
+        <div className="msg-bubble-agent rounded-[var(--radius-lg)] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
           {blocks.map((block, i) => (
             <ChatBlockView
               key={`blk-${msg.id}-${i}`}
