@@ -1524,10 +1524,13 @@ select.input {
   --hover-2: rgba(0, 0, 0, 0.085);   /* 强档:可点控件 */
   --preset-active: var(--color-accent-soft);  /* 光效预设卡:选中 */
   --preset-idle: var(--color-surface);        /* 光效预设卡:未选中 */
+  --preset-hover: rgba(0, 0, 0, 0.085);       /* 未选中卡 hover(与 idle 同向压暗) */
 }
 [data-theme="dark"] {
   --hover-1: rgba(255, 255, 255, 0.05);
   --hover-2: rgba(255, 255, 255, 0.10);
   --preset-active: var(--color-surface);      /* 暗色互换:选中=深槽 */
   --preset-idle: var(--color-accent-soft);    /* 未选中=亮灰 */
+  /* 未选中卡 hover:压暗(黑 tint 12%)——比自身深、但比选中槽(#1b1b1b)浅 */
+  --preset-hover: rgba(0, 0, 0, 0.12);
 }
