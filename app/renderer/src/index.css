@@ -377,12 +377,7 @@ html[data-platform="win32"] {
   --color-border: #414141;             /* 常规分割线 */
   --color-border-light: #363636;       /* 内部浅分割线 */
   --color-border-strong: #525252;      /* 外框深分割线（最外层） */
-  /* hover 反馈两档(暗色):半透明白 tint,叠加在组件自身底色上轻微提亮 */
-  --hover-1: rgba(255, 255, 255, 0.05);
-  --hover-2: rgba(255, 255, 255, 0.10);
-  /* 光效预设卡底色(暗色):选中=深(surface 暗槽)、未选中=亮灰(accent-soft),与亮色相反 */
-  --preset-active: var(--color-surface);
-  --preset-idle: var(--color-accent-soft);
+
 
   /* ── Accent — 白/灰按钮系 ───────── */
   --color-accent: #d4d4d4;
@@ -1088,16 +1083,7 @@ button, a, select {
   --radius-control: 6px;
   --radius-panel: 12px;
   --radius-btn: 6px;   /* 按钮圆角(2026-09-09 试用 2px 后定回 6px,与控件统一) */
-  /* hover 反馈两档(2026-09-09 无边框语言,用户定义):
-     "浅"=相对组件自身底色只做细微变化,不是泛白/换色。实现=半透明叠加
-     (inset 0 0 0 999px),叠加在任意底色上都只是轻微偏移——暗色提亮、浅色压暗。
-     --hover-1 弱档:不可点击展示行/静态块,似有若无;
-     --hover-2 强档:可点控件/行,变化明显一档,提示"此处可点"。 */
-  --hover-1: rgba(0, 0, 0, 0.045);
-  --hover-2: rgba(0, 0, 0, 0.085);
-  /* 光效预设卡底色(2026-09-09):亮色选中=accent-soft/未选=surface;暗色互换(选中=深槽) */
-  --preset-active: var(--color-accent-soft);
-  --preset-idle: var(--color-surface);
+
 }
 
 /* ── Form inputs ──────────────────────────────────── */
@@ -1530,4 +1516,18 @@ select.input {
   50% { box-shadow: 0 0 1.5px 1.5px var(--agent-breath-glow), inset 0 0 1.5px 1px var(--agent-breath-glow); }
 }
 
-
+/* ══ hover 反馈两档 + 光效预设卡底色(2026-09-09 无边框语言) ══
+   必须置于文件末尾:主题主块(:root 在 128、dark 在 351)之后,暗色定义才能覆盖浅色。
+   hover:「浅」= 相对组件自身底色细微变化,半透明 inset 叠加(暗提亮/浅压暗),非换色。 */
+:root {
+  --hover-1: rgba(0, 0, 0, 0.045);   /* 弱档:不可点展示行/静态块 */
+  --hover-2: rgba(0, 0, 0, 0.085);   /* 强档:可点控件 */
+  --preset-active: var(--color-accent-soft);  /* 光效预设卡:选中 */
+  --preset-idle: var(--color-surface);        /* 光效预设卡:未选中 */
+}
+[data-theme="dark"] {
+  --hover-1: rgba(255, 255, 255, 0.05);
+  --hover-2: rgba(255, 255, 255, 0.10);
+  --preset-active: var(--color-surface);      /* 暗色互换:选中=深槽 */
+  --preset-idle: var(--color-accent-soft);    /* 未选中=亮灰 */
+}
