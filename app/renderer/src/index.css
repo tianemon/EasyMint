@@ -1225,11 +1225,11 @@ select.input {
 .msg-bubble-user {
   background: var(--msg-user-bg);
   color: var(--msg-user-text);
-  box-shadow: var(--msg-user-shadow);
+  box-shadow: none; /* 测试:去用户气泡阴影 */
 }
 .msg-bubble-agent {
   background: var(--color-card-agent);
-  box-shadow: var(--msg-agent-shadow);
+  box-shadow: none; /* 测试:去助手气泡阴影 */
 }
 
 /* 消息头像 + 来源标签（对齐原型 .msg-avatar / .msg-from） */
