@@ -591,7 +591,7 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 }
 .sb-tab {
   flex: 1; padding: 5px 0; text-align: center; font-size: var(--text-xs);
-  font-weight: 500; color: var(--color-text-muted); border-radius: var(--radius-sm);
+  font-weight: 500; color: var(--color-text-muted); border-radius: var(--radius-control);
   cursor: pointer; transition: all 120ms var(--ease-smooth);
   border: none; background: transparent;
 }
