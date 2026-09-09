@@ -178,12 +178,12 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <div className="flex items-center justify-between px-4 pt-3 pb-1">
           <span className="text-sm font-medium text-text-primary">项目迁移</span>
           <button type="button" className="text-text-secondary hover:text-text-primary transition-colors text-sm px-1" onClick={onClose}>✕</button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 pt-3 pb-6 space-y-4 flex flex-col">
+        <div className="flex-1 overflow-y-auto px-3 pt-1 pb-6 space-y-4 flex flex-col">
           {/* 本机信息 + 可被发现开关 */}
           <div className="bg-surface rounded-lg border border-border px-3.5 py-3 shrink-0">
             <div className="flex items-center justify-between gap-2">
