@@ -468,9 +468,9 @@ export function ModelManager({
                       value={draft.alias}
                       onChange={(e) => setDraft({ ...draft, alias: e.target.value })}
                     />
+                    <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">填写后请求使用别名，界面仍显示名称</p>
                   </div>
                 </div>
-                <p className="text-[length:var(--text-2xs)] text-text-muted -mt-1">填写后请求使用别名，界面仍显示名称</p>
               </>
             )}
 
@@ -480,7 +480,7 @@ export function ModelManager({
                 <div className="flex items-center gap-1.5">
                   <Select
                     className="flex-1 min-w-0 [&>button]:w-full [&>button]:h-8 [&>button]:text-xs"
-                    placeholder="必填"
+                    placeholder="请选择"
                     value={draft.ctx}
                     onChange={(v: string) => setDraft({ ...draft, ctx: v })}
                     options={isOfficialDraft ? [{ value: INHERIT, label: "跟随官方" }, ...CTX_PRESETS] : CTX_PRESETS}
@@ -500,7 +500,7 @@ export function ModelManager({
                 <div className="flex items-center gap-1.5">
                   <Select
                     className="flex-1 min-w-0 [&>button]:w-full [&>button]:h-8 [&>button]:text-xs"
-                    placeholder="必填"
+                    placeholder="请选择"
                     value={draft.maxOut}
                     onChange={(v: string) => setDraft({ ...draft, maxOut: v })}
                     options={isOfficialDraft ? [{ value: INHERIT, label: "跟随官方" }, ...MAX_OUT_PRESETS] : MAX_OUT_PRESETS}
