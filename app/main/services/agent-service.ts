@@ -1486,9 +1486,10 @@ export class AgentService {
     if (!modelId) return null;
     try {
       // 优先用运行时 Model 的 thinkingLevelMap：用户在模型管理里声明的档位应优先于官方值，
-      // 按已配置供应商逐个查该模型（不再用静态表近似匹配猜同族）
-      const { getSupportedThinkingLevels } = await import("@earendil-works/pi-ai");
+      // 按已配置供应商逐个查该模型（不再用静态表近似匹配猜同族）。
+      // 不用 SDK 的 getSupportedThinkingLevels：pi-ai 是 ESM-only，主进程 CJS bundle require 不到它
       const { getModelRuntime } = await import("./pi-init");
+      const { supportedThinkingLevelsOfSpec, getStaticModelSpec } = await import("./pi-init-static");
       const runtime = await getModelRuntime(this.store);
       const providers = this.store.getSettings().apiProviders;
       const entries = Object.entries(providers?.configs ?? {});
@@ -1500,10 +1501,9 @@ export class AgentService {
       for (const [configId, cfg] of ordered) {
         const providerId = cfg.presetId === "custom" ? configId : cfg.presetId;
         const model = runtime.getModel(providerId, modelId);
-        if (model) return getSupportedThinkingLevels(model);
+        if (model) return supportedThinkingLevelsOfSpec(model as unknown as Record<string, any>);
       }
       // 运行时里没有该模型（未保存的新条目 / 已删除）→ 静态表精确匹配兜底，未知返回 null（前端按全部档位）
-      const { getStaticModelSpec, supportedThinkingLevelsOfSpec } = await import("./pi-init-static");
       return supportedThinkingLevelsOfSpec(getStaticModelSpec(modelId));
     } catch { return null; }
   }

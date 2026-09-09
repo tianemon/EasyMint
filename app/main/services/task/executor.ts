@@ -9,12 +9,12 @@
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import type { AgentSessionEvent } from "../pi-sdk";
 import { createPiSession, getPiSessionDir } from "../pi-session";
 import { getBaseTools, getReadOnlyTools } from "../tool-registry";
 import { createEnhancedEditTool } from "../enhanced-edit";
 import { getActiveModel, getModelRuntime } from "../pi-init";
+import { supportedThinkingLevelsOfSpec } from "../pi-init-static";
 import { getTemplate } from "../agent-templates";
 import { resolveThinkingLevel } from "../../../shared/thinking-levels";
 import { PERMISSION_RULES_PROMPT } from "../prompt-sections";
@@ -97,12 +97,11 @@ export interface SubagentOptions {
  */
 function adaptSubagentThinkingLevel(base: string, model: Awaited<ReturnType<typeof getActiveModel>>): ThinkingLevel {
   if (!model) return base as ThinkingLevel;
-  try {
-    // 用运行时 Model 的 thinkingLevelMap（用户声明优先）而非静态官方表近似匹配——
-    // 否则用户在设置里覆盖的档位对子 Agent 不生效
-    return resolveThinkingLevel(base, getSupportedThinkingLevels(model)) as ThinkingLevel;
-  } catch { /* 模型能力不可读时按原值 */ }
-  return base as ThinkingLevel;
+  // 用运行时 Model 的 thinkingLevelMap（用户声明优先）而非静态官方表近似匹配——
+  // 否则用户在设置里覆盖的档位对子 Agent 不生效。
+  // 不用 SDK 的 getSupportedThinkingLevels：pi-ai 是 ESM-only，主进程 CJS bundle require 不到它
+  const supported = supportedThinkingLevelsOfSpec(model as unknown as Record<string, any>);
+  return resolveThinkingLevel(base, supported) as ThinkingLevel;
 }
 
 /** 解析子 Agent 模型:委派指定 > AgentTemplate > 子agent默认(settings) > 全局(需求 2/3) */
