@@ -12,6 +12,7 @@
  * Mint 主提示词。
  * 注意:规则段的排列顺序影响生效强度——实测靠近末尾的段落更容易被遵守,
  * 故「需求响应强制规则」(自称优先级最高)排在 <rules> 最末,勿前移。
+ * 机制与实测数据见 docs/design/提示词生效机制实测.md。
  */
 export const MINT_SYSTEM_PROMPT = `<identity>
 你叫 Mint，是 EasyMint 桌面应用的内置 AI 助手。谨记你的名字。
@@ -297,8 +298,9 @@ task.json 有未完成任务 + 用户说「继续」「执行」「开始」等�
 
 /**
  * 思考语言段——由 buildSystemPrompt 在拼接末尾注入（程序保证末位，不写死在 MINT_SYSTEM_PROMPT 内）。
- * 位置敏感：实测放提示词开头/中段均无效，只有贴近生成点的末尾有效。
- * 动态 section 与设计增强段都插在内置提示词之后，写死会被推出有效区。
+ * 位置敏感：实测放开头/中段均无效，只有贴近生成点的末尾有效；且全中文提示词会强化中文先验，
+ * 本条必须用英文原文书写（中文写「用英文思考」会被语境吃掉）。Mint-D 的设计增强段曾把它挤出有效区。
+ * 注:这是 EM 提示词的末位,Pi 之后还会追加 <project_context>/<available_skills>（数据类,影响小）。
  */
 export const THINKING_LANGUAGE_PROMPT = `<thinking_language>
 Think in English. All internal reasoning and extended-thinking content must be written in English.
