@@ -1625,8 +1625,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ chatId: ctxChatId, percentage, maxTokens }) => {
       if (!currentChatRef.current) return;
       if (ctxChatId !== currentChatRef.current) return;
-      // percentage 为 null = 压缩后尚无新回复,使用率未知——置 null 前端显示"—",不显示 0 误导
-      const pct = percentage === null ? null : Math.round(percentage);
+      // percentage: null = 压缩后尚无新回复(显示"—");undefined = 仅更新窗口,百分比保持原值
+      const pct = percentage === undefined ? undefined : percentage === null ? null : Math.round(percentage);
       // maxTokens = 当前模型的上下文窗口(改模型参数后随之变化,hover 显示)
       useStatusStore.getState().setCtxPct(sidRef.current, pct, maxTokens ?? undefined);
       if (sidRef.current && !sidRef.current.startsWith("__new_")) {
@@ -1640,7 +1640,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       const st = useStatusStore.getState().bySession[sid];
       const runningNow = useTabStore.getState().runningSessions.has(sid);
       if (
-        pct !== null &&
+        pct != null &&
         pct >= threshold &&
         !runningNow &&
         !st?.compacting && !st?.summarizing &&
@@ -1652,7 +1652,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         setCompactDialog({ source: "auto", threshold });
       }
       // 使用率显著回落（压缩完成）后允许再次触发
-      if (pct !== null && pct < threshold - 20) ctxThresholdFiredRef.current = 0;
+      if (pct != null && pct < threshold - 20) ctxThresholdFiredRef.current = 0;
     });
     return () => { unsub(); unsubExit(); unsubSid(); unsubModel(); unsubLevel(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(sidRef.current); };
   }, []);

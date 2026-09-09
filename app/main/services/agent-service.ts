@@ -1378,14 +1378,16 @@ export class AgentService {
    * 窗口值优先取会话实时 usage,取不到则用刚绑定的 Model.contextWindow 兜底——
    * 刚 setModel / 压缩后尚无新回复时 usage 可能为空,少了兜底就不上报,圆环会停在旧窗口。
    */
-  private broadcastContextUsage(chat: ActiveChat, fallbackWindow?: number): void {
+  private broadcastContextUsage(chat: ActiveChat, fallbackWindow?: number, windowOnly = false): void {
     try {
       const usage = chat.session?.getContextUsage?.();
       const window = usage?.contextWindow ?? fallbackWindow;
       if (!window) return;
+      // windowOnly:只更新窗口(percent 传 undefined = 前端保持原百分比)——
+      // 无 usage 可算时传 null 会把圆环清成「—」,反而像回退
       broadcast("agent:context-usage", {
         chatId: chat.chatId,
-        percentage: usage?.percent ?? null,
+        percentage: windowOnly ? undefined : (usage?.percent ?? null),
         totalTokens: usage?.tokens ?? 0,
         maxTokens: window,
       });
@@ -1400,22 +1402,41 @@ export class AgentService {
   async refreshActiveSessionsModel(): Promise<void> {
     const { getModelRuntime } = await import("./pi-init");
     await getModelRuntime(this.store);
+    // 未绑定模型的会话(还没发过消息)用激活供应商的默认模型解析——
+    // 否则改了参数要等该会话真正创建后才生效,用户看到的是「必须重启」
+    const providers = this.store.getSettings().apiProviders;
+    const activeId = providers?.current;
+    const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
+    const fallbackModel = activeCfg?.model ?? "";
+    const fallbackProvider = activeCfg
+      ? (activeCfg.presetId === "custom" ? (activeId ?? activeCfg.presetId) : activeCfg.presetId)
+      : undefined;
+
     for (const [, chat] of this.activeChats) {
-      if (!chat.session || !chat.currentModel) {
-        console.log(`[agent] 刷新会话模型跳过 chat=${chat.chatId}（无会话或未绑定模型）`);
+      const modelName = chat.currentModel || fallbackModel;
+      const providerId = chat.provider || fallbackProvider;
+      if (!modelName) {
+        console.log(`[agent] 刷新会话模型跳过 chat=${chat.chatId}（无模型可解析）`);
+        continue;
+      }
+      const model = await this.resolveModelByName(modelName, providerId);
+      if (!model) {
+        console.log(`[agent] 刷新会话模型失败: 运行时查不到 ${modelName}`);
+        continue;
+      }
+      if (!chat.session) {
+        // 会话未创建:只把新窗口推给前端(不动百分比——没有 usage 可算,清空反而误导)
+        console.log(`[agent] 会话 ${chat.chatId} 未创建，仅上报窗口 ${model.contextWindow}`);
+        this.broadcastContextUsage(chat, model.contextWindow, true);
         continue;
       }
       if (this.activePromptSessions.has(chat.sessionId)) {
-        console.log(`[agent] 刷新会话模型跳过 chat=${chat.chatId}（正在输出中）`);
+        console.log(`[agent] 刷新会话模型跳过 chat=${chat.chatId}（正在输出中），仅上报窗口`);
+        this.broadcastContextUsage(chat, model.contextWindow, true);
         continue;
       }
-      const model = await this.resolveModelByName(chat.currentModel, chat.provider);
-      if (model) {
-        console.log(`[agent] 会话 ${chat.chatId} 重新绑定模型 ${chat.currentModel} 窗口=${model.contextWindow}`);
-        await this.applySessionModel(chat, model, chat.currentModel);
-      } else {
-        console.log(`[agent] 刷新会话模型失败: 运行时查不到 ${chat.currentModel}`);
-      }
+      console.log(`[agent] 会话 ${chat.chatId} 重新绑定模型 ${modelName} 窗口=${model.contextWindow}`);
+      await this.applySessionModel(chat, model, modelName);
     }
   }
 
