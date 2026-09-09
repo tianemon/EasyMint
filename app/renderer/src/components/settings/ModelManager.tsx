@@ -246,14 +246,14 @@ export function ModelManager({
       {/* 添加：唯一入口，一次一个，追加到列表（也出现在默认/子 Agent 下拉里） */}
       <div className="flex items-center gap-2">
         <input
-          className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
+          className="em-input em-input-compact flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
           placeholder="模型 ID，如 deepseek-v4-flash"
           value={newId}
           onChange={(e) => setNewId(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addModel(); } }}
         />
         <input
-          className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
+          className="em-input em-input-compact flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
           placeholder="显示名称，如 DeepSeek V4"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
@@ -274,6 +274,7 @@ export function ModelManager({
       ) : (
         <Select
           block
+          className="[&>button]:h-8 [&>button]:text-xs"
           placeholder="选择要编辑的模型"
           value={editingId ?? ""}
           onChange={(v: string) => {
@@ -293,7 +294,7 @@ export function ModelManager({
             <div>
               <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">模型 ID</label>
               <input
-                className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
+                className="em-input em-input-compact w-full h-8 px-2.5 text-xs text-text-primary"
                 placeholder="如 deepseek-v4-flash"
                 value={draft.id}
                 onChange={(e) => setDraft({ ...draft, id: e.target.value })}
@@ -303,7 +304,7 @@ export function ModelManager({
             <div>
               <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">模型名称</label>
               <input
-                className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
+                className="em-input em-input-compact w-full h-8 px-2.5 text-xs text-text-primary"
                 placeholder="如 DeepSeek V4"
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
@@ -326,7 +327,7 @@ export function ModelManager({
                 />
                 {draft.ctx === "custom" && (
                   <input
-                    className="em-input flex-1 min-w-0 h-8 px-2 text-xs text-text-primary"
+                    className="em-input em-input-compact flex-1 min-w-0 h-8 px-2 text-xs text-text-primary"
                     placeholder="如 512000"
                     value={draft.ctxCustom}
                     onChange={(e) => setDraft({ ...draft, ctxCustom: e.target.value })}
@@ -346,7 +347,7 @@ export function ModelManager({
                 />
                 {draft.maxOut === "custom" && (
                   <input
-                    className="em-input flex-1 min-w-0 h-8 px-2 text-xs text-text-primary"
+                    className="em-input em-input-compact flex-1 min-w-0 h-8 px-2 text-xs text-text-primary"
                     placeholder="如 384000"
                     value={draft.maxOutCustom}
                     onChange={(e) => setDraft({ ...draft, maxOutCustom: e.target.value })}

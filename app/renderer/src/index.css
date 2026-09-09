@@ -1084,6 +1084,9 @@ button, a, select {
   outline: none;
   font-size: var(--font-size-sm);
 }
+/* 紧凑输入框(约 32px 高,与紧凑下拉同档):圆角取 --radius-control 覆盖默认 field 档 */
+.em-input.em-input-compact { border-radius: var(--radius-control); }
+
 .em-input::placeholder {
   color: var(--color-text-secondary);
 }

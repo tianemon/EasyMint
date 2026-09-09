@@ -221,8 +221,8 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
         <div className="flex items-center gap-1.5">
           {isCustom ? (
             <input
-              className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
-              style={{ borderRadius: "var(--radius-control)" }}
+              className="em-input em-input-compact flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
+              
               placeholder="https://api.example.com/v1"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
