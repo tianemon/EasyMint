@@ -194,9 +194,12 @@ function syncExtraModelsFile(store: Store): void {
       const siblings = getProviderStaticModels(config.presetId);
       const bucket = byPreset.get(config.presetId)
         ?? { extras: new Map<string, ExtraEntry>(), overrides: new Map<string, ModelParams>() };
-      // 官方模型参数覆盖:只写非空条目(空对象 = 参数全跟随官方,写进去无意义)
+      // 官方模型参数覆盖:只写非空条目(空对象 = 参数全跟随官方,写进去无意义)。
+      // 官方目录里已有的模型一律以 SDK 为准(用户口径 2026-09-09):EM 不再写出覆盖,
+      // 存量覆盖也随之失效——官方模型在界面上本就不可编辑,SDK 升级后跟随官方值才是对的。
       for (const [modelId, params] of Object.entries(config.modelOverrides ?? {})) {
         if (!params || !Object.values(params).some((v) => v !== undefined)) continue;
+        if (siblings.has(modelId)) continue;
         if (!bucket.overrides.has(modelId)) bucket.overrides.set(modelId, params);
       }
       // 别名映射：SDK 的 Model.id 是发给供应商的请求标识(alias ?? 名称)，Model.name 仅用于展示
@@ -205,13 +208,10 @@ function syncExtraModelsFile(store: Store): void {
         // 已是 SDK 内置 id 的不再写 models[](models[] 按 id 整体替换内置条目,升级后 SDK 自带
         // 同名模型时我们的条目会遮蔽官方 spec)——但用户在条目里显式声明的参数(窗口/输出/
         // 识图/档位)必须落到 modelOverrides,否则整条静默消失(改参数没反应)。
+        // 已是 SDK 内置 id:以官方定义为准(不再整体替换,也不再改道写覆盖层——
+        // models[] 同 id 会整体遮蔽官方 spec,覆盖层又会让 SDK 升级后的官方值失效)
         if (siblings.has(n.sdkId)) {
-          const declaredParams = sanitizeModelParams(n.entry ?? { id: n.id }, `手动模型 ${n.sdkId}`);
-          if (Object.keys(declaredParams).length > 0) {
-            console.warn(`[pi-init] 模型 ${n.sdkId} 已是官方模型，手动条目的参数按覆盖层生效(models.json modelOverrides)`);
-            // 先入桶者优先(激活配置 → 其余;modelOverrides → 条目声明),仅补未声明字段
-            bucket.overrides.set(n.sdkId, { ...declaredParams, ...bucket.overrides.get(n.sdkId) });
-          }
+          console.warn(`[pi-init] 模型 ${n.sdkId} 已在官方目录中，以官方参数为准（手动声明不生效）`);
           continue;
         }
         bucket.extras.set(n.sdkId, n.entry ?? { id: n.id });

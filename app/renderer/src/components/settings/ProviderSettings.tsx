@@ -120,6 +120,11 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     if (!name.trim()) { toast("请输入名称"); return false; }
     if (!apiKey.trim()) { toast("请输入 API Key"); return false; }
     if (isCustom && !baseUrl.trim()) { toast("自定义供应商需填写 Base URL"); return false; }
+    // 自添加模型必须显式声明参数:数据层不推断,SDK 兜底(128K/16K)与 EM 兜底都可能与实际不符,
+    // 1M 窗口的模型会过早触发压缩——从入口拦住比事后排查便宜
+    const pending = normalizeExtraModels(extraModels)
+      .find((n) => !n.entry?.contextWindow || !n.entry?.maxTokens);
+    if (pending) { toast(`模型 ${pending.id} 未填写参数，请先在下方选中它补填`); return false; }
     // 模型清单统一为 SDK 请求标识(别名 ?? 名称):聊天页切换与主进程解析都按它找模型
     const modelList = isCustom
       ? Array.from(new Set(extraSdkIds))
@@ -254,9 +259,11 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
         isCustom={isCustom}
         officialModels={officialModels}
         defaultModel={model}
+        subagentDefaultModel={subagentDefaultModel}
         extraModels={extraModels}
         modelSupports={modelSupports}
         onDefaultModelChange={setModel}
+        onSubagentDefaultModelChange={setSubagentDefaultModel}
         onChange={(next) => { setExtraModels(next.extraModels); }}
       />
 

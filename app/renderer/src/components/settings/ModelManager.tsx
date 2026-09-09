@@ -106,16 +106,19 @@ export interface ModelManagerProps {
   officialModels: OfficialModelInfo[] | null;
   /** 当前默认模型（SDK id）——仅用于改名/删除时的默认选择联动（数据层），列表展示不与它联动 */
   defaultModel: string;
+  /** 当前子 Agent 默认模型（SDK id）——改名/删除时同步，避免留下失效 id */
+  subagentDefaultModel: string;
   extraModels: Array<string | ExtraModelCapability>;
   /** 每行模型支持的思考档位（agent:getModelThinkingSupport）；null = 未知 */
   modelSupports: Record<string, string[] | null>;
   onDefaultModelChange: (sdkId: string) => void;
+  onSubagentDefaultModelChange: (sdkId: string) => void;
   onChange: (next: { extraModels: Array<string | ExtraModelCapability> }) => void;
 }
 
 export function ModelManager({
-  isCustom, officialModels, defaultModel, extraModels, modelSupports,
-  onDefaultModelChange, onChange,
+  isCustom, officialModels, defaultModel, subagentDefaultModel, extraModels, modelSupports,
+  onDefaultModelChange, onSubagentDefaultModelChange, onChange,
 }: ModelManagerProps): JSX.Element {
   const [newId, setNewId] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -207,6 +210,7 @@ export function ModelManager({
         : [...extraModels, entry],
     });
     if (defaultModel === draft.editingId) onDefaultModelChange(sdkId);
+    if (subagentDefaultModel === draft.editingId) onSubagentDefaultModelChange(sdkId);
     closeEdit();
   };
 
@@ -217,6 +221,7 @@ export function ModelManager({
     onChange({ extraModels: extraModels.filter((e) => !removeRaws.has(e)) });
     const row = rows.find((r) => r.sdkId === draft.editingId);
     if (row && (defaultModel === row.sdkId || defaultModel === row.name)) onDefaultModelChange("");
+    if (row && (subagentDefaultModel === row.sdkId || subagentDefaultModel === row.name)) onSubagentDefaultModelChange("");
     closeEdit();
   };
 

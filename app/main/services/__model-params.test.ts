@@ -1,8 +1,8 @@
 /**
  * 模型参数统一管理·数据层（迁移 + models.json 写入 + 生效模型）。
  *
- * 真跑一遍 Pi SDK 的 ModelRuntime:验证 models.json 的 models[] / modelOverrides 被 SDK 接受
- * 且生效（别名映射、官方模型参数覆盖、取消近似匹配后的回落值）。
+ * 真跑一遍 Pi SDK 的 ModelRuntime:验证 models.json 的 models[] 被 SDK 接受且生效
+ * （别名映射、取消近似匹配后的回落值、官方同名模型以 SDK 为准）。
  * 用临时 HOME + 临时 PI_CODING_AGENT_DIR 隔离，不碰用户真实数据。
  */
 import { describe, it, expect, vi, beforeAll } from "vitest";
@@ -77,14 +77,12 @@ describe("模型参数统一管理·数据层", () => {
 
     const rt = await getModelRuntime(store);
     const json = JSON.parse(readFileSync(path.join(dataDir, "agent", "models.json"), "utf-8"));
-    // 空对象覆盖不写入;非空覆盖逐字段写入
-    expect(json.providers.deepseek.modelOverrides).toEqual({ "deepseek-v4-flash": { contextWindow: 512000 } });
-    // 无手动模型的供应商:只写 modelOverrides,不写 models(空数组会被 SDK 判非法)
-    expect(json.providers.anthropic.modelOverrides).toEqual({ "claude-opus-4-6": { maxTokens: 64000 } });
-    expect(json.providers.anthropic.models).toBeUndefined();
-    expect(rt.getModel("anthropic", "claude-opus-4-6")!.maxTokens).toBe(64000);
-    // 官方模型参数覆盖生效
-    expect(rt.getModel("deepseek", "deepseek-v4-flash")!.contextWindow).toBe(512000);
+    // 官方目录里已有同名模型 → 以 SDK 为准:EM 不写出覆盖,存量覆盖也不再生效
+    expect(json.providers.deepseek.modelOverrides).toBeUndefined();
+    // 既无手动模型也无有效覆盖的供应商:整条不写(空 models 会被 SDK 判非法)
+    expect(json.providers.anthropic).toBeUndefined();
+    expect(rt.getModel("anthropic", "claude-opus-4-6")!.maxTokens).not.toBe(64000);
+    expect(rt.getModel("deepseek", "deepseek-v4-flash")!.contextWindow).not.toBe(512000);
     expect(rt.getModel("deepseek", "deepseek-v4-pro")!.contextWindow).not.toBe(512000);
     // 别名:请求 id = alias,展示名 = 名称
     const foo = rt.getModel("deepseek", "foo-x")!;
