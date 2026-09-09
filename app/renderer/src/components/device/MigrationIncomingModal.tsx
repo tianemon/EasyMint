@@ -147,7 +147,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
               />
               <button
                 type="button"
-                className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:bg-surface-hover transition-colors shrink-0 disabled:opacity-50"
+                className="px-3 py-1.5 rounded-md border border-border text-xs text-text-secondary hover:bg-surface-hover transition-colors shrink-0 disabled:opacity-50"
                 disabled={browsing}
                 onClick={handleBrowse}
               >
@@ -201,13 +201,13 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
 
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border shrink-0">
           <button
-            className="px-4 py-1.5 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm"
+            className="px-4 py-1.5 rounded-md text-text-secondary hover:bg-surface-hover transition-colors text-sm"
             onClick={() => void onReject(incoming.transferId)}
           >
             拒绝
           </button>
           <button
-            className="px-5 py-1.5 rounded-lg btn-accent text-sm font-medium"
+            className="px-5 py-1.5 rounded-md btn-accent text-sm font-medium"
             disabled={accepting}
             onClick={handleAccept}
           >

@@ -144,14 +144,14 @@ function CacheManagementSection(): JSX.Element {
           {updateSize !== null && updateSize > 0 && (
             <div className="flex items-center gap-1.5 shrink-0">
               <button
-                className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:border-accent-border-strong transition-colors"
+                className="px-3 py-1.5 rounded-md border border-border text-xs text-text-secondary hover:border-accent-border-strong transition-colors"
                 onClick={handleClear}
                 disabled={clearing}
               >
                 {clearing ? "清除中..." : "清除缓存"}
               </button>
               <button
-                className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:border-accent-border-strong transition-colors"
+                className="px-3 py-1.5 rounded-md border border-border text-xs text-text-secondary hover:border-accent-border-strong transition-colors"
                 onClick={() => window.electronAPI?.app?.openUpdateCache?.()}
               >
                 文件夹
@@ -173,7 +173,7 @@ function CacheManagementSection(): JSX.Element {
           </div>
           {uploadSize !== null && uploadSize > 0 && (
             <button
-              className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:border-accent-border-strong transition-colors"
+              className="px-3 py-1.5 rounded-md border border-border text-xs text-text-secondary hover:border-accent-border-strong transition-colors"
               onClick={() => window.electronAPI?.upload?.openDir?.()}
             >
               打开文件夹

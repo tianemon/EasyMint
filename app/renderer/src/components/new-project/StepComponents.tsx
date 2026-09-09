@@ -115,7 +115,7 @@ function Step1Form({ data, onChange, previewDirName, dirConflict, translating }:
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">项目目录 <span className="text-danger">*</span></label>
         <button
-          className="w-full px-3 py-2 rounded-lg bg-surface-alt border border-border text-left text-sm hover:bg-surface-hover transition-colors"
+          className="w-full px-3 py-2 rounded-md bg-surface-alt border border-border text-left text-sm hover:bg-surface-hover transition-colors"
           onClick={async () => { const selected = await window.electronAPI.dialog.openDirectory(); if (selected) onChange({ dir: selected }); }}
         >
           <span className="text-text-secondary">{data.dir || "点击选择目录..."}</span>
@@ -195,10 +195,10 @@ function Step2Form({
       <div className="flex items-center justify-between mb-2">
         <label className="block text-sm font-medium text-text-primary">功能清单 <span className="text-text-muted text-xs font-normal">（可选）</span></label>
         <div className="flex gap-2">
-          <button className="px-3 py-1.5 rounded-lg btn-accent text-sm font-medium" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
+          <button className="px-3 py-1.5 rounded-md btn-accent text-sm font-medium" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
             {loadingRec === "features" ? "Mint 思考中..." : "Mint 推荐"}
           </button>
-          <button className="px-3 py-1.5 rounded-lg border border-accent-border-strong text-accent text-xs hover:border-accent hover:bg-accent-bg transition-colors" onClick={addFeature}>+ 添加功能</button>
+          <button className="px-3 py-1.5 rounded-md border border-accent-border-strong text-accent text-xs hover:border-accent hover:bg-accent-bg transition-colors" onClick={addFeature}>+ 添加功能</button>
         </div>
       </div>
 

@@ -53,7 +53,7 @@ export function LogOverlay({ commandId, projectPath }: LogOverlayProps): JSX.Ele
               type="button"
               onClick={handleAskRepair}
               disabled={asking}
-              className="shrink-0 px-3 py-1.5 rounded-lg bg-accent text-text-inverse text-xs hover:bg-accent-hover transition-colors disabled:opacity-50"
+              className="shrink-0 px-3 py-1.5 rounded-md bg-accent text-text-inverse text-xs hover:bg-accent-hover transition-colors disabled:opacity-50"
             >
               {asking ? "发送中…" : "让 Mint 修复"}
             </button>
