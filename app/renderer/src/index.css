@@ -1498,3 +1498,20 @@ select.input {
   0%, 100% { box-shadow: 0 0 1.5px 0 var(--agent-breath-glow), inset 0 0 1.5px 0 var(--agent-breath-glow); }
   50% { box-shadow: 0 0 1.5px 1.5px var(--agent-breath-glow), inset 0 0 1.5px 1px var(--agent-breath-glow); }
 }
+
+
+/* ══ 全圆角统一(用户 2026-09-09,all):所有圆角档位一律映射到 --radius-lg(8px) ══
+   任何写法最终都是 8px:rounded-* 类 / var(--radius-field|control|panel|btn|sm|md|xl…) /
+   裸 rounded / 硬编码档。改圆角只动 --radius-lg 一处。rounded-full 除外(全圆语义)。 */
+:root {
+  --radius-xs: var(--radius-lg);
+  --radius-sm: var(--radius-lg);
+  --radius-md: var(--radius-lg);
+  --radius-xl: var(--radius-lg);
+  --radius-2xl: var(--radius-lg);
+  --radius-3xl: var(--radius-lg);
+  --radius-field: var(--radius-lg);
+  --radius-control: var(--radius-lg);
+  --radius-panel: var(--radius-lg);
+  --radius-btn: var(--radius-lg);
+}
