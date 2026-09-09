@@ -1328,7 +1328,28 @@ select.input {
   background: #3a3a3a;
   color: var(--color-accent);
 }
-[data-theme="dark"] .btn-accent:hover { background: #454545; }
+[data-theme="dark"] .btn-accent:hover { background: #454545; }/* 实色按钮·立体(试金石:供应商「测试连接」):底部柔和投影抬起 + 顶部 1px 内高光,
+   hover 微抬、active 按压内陷。克制版——不用浮雕双面影,深浅主题各自一套。 */
+.btn-raised {
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transition: box-shadow 0.12s, transform 0.06s;
+}
+.btn-raised:hover { box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.32); }
+.btn-raised:active { transform: translateY(0.5px); box-shadow: 0 0 0 rgba(0,0,0,0), inset 0 1px 3px rgba(0, 0, 0, 0.22); }
+.btn-raised:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+[data-theme="dark"] .btn-raised {
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+[data-theme="dark"] .btn-raised:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.2); }
+[data-theme="dark"] .btn-raised:active { transform: translateY(0.5px); box-shadow: 0 0 0 rgba(0,0,0,0), inset 0 1px 3px rgba(0, 0, 0, 0.4); }
+
+
+
 
 /* Mint 签名字体 — 11 款可选，取消注释切换 */
 @font-face { font-family: 'Mint'; src: url('/fonts/Pacifico.ttf') format('truetype'); font-display: swap; }       /* 圆润可爱 */
