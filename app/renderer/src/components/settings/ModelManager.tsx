@@ -189,9 +189,11 @@ export function ModelManager({
       toast(`模型 ID ${sdkId} 已存在`);
       return;
     }
-    // 别名/名称撞官方目录 id：该条目会被同步层当官方模型改道，参数声明不生效
-    if (!isCustom && officialById.has(sdkId)) {
-      toast(`${sdkId} 与官方模型重名，请换个名称或别名`);
+    // 名称或请求标识撞官方目录 id 一律拒绝:官方模型参数以 SDK 为准,不留绕行——
+    // 「名称用官方名 + 别名换个请求 id」能骗过 sdkId 校验并自定义参数,会让下拉里出现两个
+    // 同名条目且无法分辨,官方 API 通常还不认那个别名 id。改官方参数应等 SDK 更新。
+    if (!isCustom && (officialById.has(name) || officialById.has(sdkId))) {
+      toast(`${officialById.has(name) ? name : sdkId} 与官方模型重名，请换个名称`);
       return;
     }
     const editingRow = rows.find((r) => r.sdkId === draft.editingId);

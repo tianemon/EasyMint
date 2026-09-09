@@ -208,10 +208,12 @@ function syncExtraModelsFile(store: Store): void {
         // 已是 SDK 内置 id 的不再写 models[](models[] 按 id 整体替换内置条目,升级后 SDK 自带
         // 同名模型时我们的条目会遮蔽官方 spec)——但用户在条目里显式声明的参数(窗口/输出/
         // 识图/档位)必须落到 modelOverrides,否则整条静默消失(改参数没反应)。
-        // 已是 SDK 内置 id:以官方定义为准(不再整体替换,也不再改道写覆盖层——
-        // models[] 同 id 会整体遮蔽官方 spec,覆盖层又会让 SDK 升级后的官方值失效)
-        if (siblings.has(n.sdkId)) {
-          console.warn(`[pi-init] 模型 ${n.sdkId} 已在官方目录中，以官方参数为准（手动声明不生效）`);
+        // 已在官方目录:以官方定义为准(不再整体替换,也不再改道写覆盖层——
+        // models[] 同 id 会整体遮蔽官方 spec,覆盖层又会让 SDK 升级后的官方值失效)。
+        // 名称也一并比对:只查请求标识会留下「名称用官方名 + 别名换请求 id」的绕行,
+        // 那样既能自定义参数,又会在下拉里出现两个同名的条目。改官方参数应等 SDK 更新。
+        if (siblings.has(n.sdkId) || siblings.has(n.id)) {
+          console.warn(`[pi-init] 模型 ${n.id} 已在官方目录中，以官方参数为准（手动声明不生效）`);
           continue;
         }
         bucket.extras.set(n.sdkId, n.entry ?? { id: n.id });
