@@ -19,7 +19,7 @@ function EnvRow({ label, info, installUrl }: {
   return (
     <div className="px-4 py-2.5 flex items-center justify-between hover:shadow-[inset_0_0_0_999px_var(--hover-1)] transition-shadow">
       <div className="flex items-center gap-2">
-        <span className="text-sm text-text-primary">{label}</span>
+        <span className="text-sm text-text-secondary">{label}</span>
         {info === null ? (
           <span className="text-xs text-text-muted">检测中...</span>
         ) : info.found ? (
@@ -55,7 +55,7 @@ function CodegraphRow({ info }: { info: { found: boolean; version?: string } | n
   return (
     <div className="px-4 py-2.5 flex items-start justify-between hover:shadow-[inset_0_0_0_999px_var(--hover-1)] transition-shadow">
       <div className="flex items-center gap-2 mt-1">
-        <span className="text-sm text-text-primary">CodeGraph</span>
+        <span className="text-sm text-text-secondary">CodeGraph</span>
         {info === null ? (
           <span className="text-xs text-text-muted">检测中...</span>
         ) : info.found ? (
@@ -132,7 +132,7 @@ function CacheManagementSection(): JSX.Element {
 
         <div className="px-4 py-3 flex items-center justify-between hover:shadow-[inset_0_0_0_999px_var(--hover-1)] transition-shadow">
           <div>
-            <h4 className="text-xs font-medium text-text-primary">安装包缓存</h4>
+            <h4 className="text-xs font-medium text-text-secondary">安装包缓存</h4>
             {updateSize === null ? (
               <p className="text-[length:var(--text-11)] text-text-muted">扫描中...</p>
             ) : updateSize > 0 ? (
@@ -162,7 +162,7 @@ function CacheManagementSection(): JSX.Element {
 
         <div className="px-4 py-3 flex items-center justify-between hover:shadow-[inset_0_0_0_999px_var(--hover-1)] transition-shadow">
           <div>
-            <h4 className="text-xs font-medium text-text-primary">上传缓存</h4>
+            <h4 className="text-xs font-medium text-text-secondary">上传缓存</h4>
             {uploadSize === null ? (
               <p className="text-[length:var(--text-11)] text-text-muted">扫描中...</p>
             ) : uploadSize > 0 ? (

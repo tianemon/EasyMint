@@ -380,7 +380,7 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
       >
         {/* 头部:底色分区(无分隔线),仅比文字高一点 */}
         <div className="flex items-center gap-2 px-4 py-1.5 bg-surface-alt shrink-0">
-          <span className="text-sm font-medium text-text-primary truncate flex-1 min-w-0">
+          <span className="text-sm font-medium text-text-secondary truncate flex-1 min-w-0">
             {initial ? `编辑供应商${initial.name ? ` · ${initial.name}` : ""}` : "添加供应商"}
           </span>
           <button className="w-7 h-7 shrink-0 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} aria-label="关闭">✕</button>

@@ -104,7 +104,7 @@ function BuiltinToolsSection(): JSX.Element {
           <div key={key} className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0 mr-3">
-                <div className="text-xs font-medium text-text-primary">{label}</div>
+                <div className="text-xs font-medium text-text-secondary">{label}</div>
                 <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{desc}</div>
               </div>
               <button type="button" onClick={() => handleToggle(key, !on)}
