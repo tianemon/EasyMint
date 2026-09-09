@@ -452,7 +452,7 @@ export function ModelManager({
               <>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1">模型名称 *</label>
+                    <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">模型名称</label>
                     <input
                       className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
                       placeholder="界面显示用"
@@ -476,7 +476,7 @@ export function ModelManager({
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1">上下文窗口{isOfficialDraft ? "" : " *"}</label>
+                <label className={`text-[length:var(--text-2xs)] text-text-secondary block mb-1${isOfficialDraft ? "" : " em-required"}`}>上下文窗口</label>
                 <div className="flex items-center gap-1.5">
                   <Select
                     className="flex-1 min-w-0 [&>button]:w-full [&>button]:h-8 [&>button]:text-xs"
@@ -496,7 +496,7 @@ export function ModelManager({
                 </div>
               </div>
               <div>
-                <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1">最大输出{isOfficialDraft ? "" : " *"}</label>
+                <label className={`text-[length:var(--text-2xs)] text-text-secondary block mb-1${isOfficialDraft ? "" : " em-required"}`}>最大输出</label>
                 <div className="flex items-center gap-1.5">
                   <Select
                     className="flex-1 min-w-0 [&>button]:w-full [&>button]:h-8 [&>button]:text-xs"

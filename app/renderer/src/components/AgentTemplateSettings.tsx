@@ -194,17 +194,17 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
         </div>
       )}
       <div>
-        <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">名称 *</label>
+        <label className="text-[length:var(--text-11)] text-text-secondary block mb-1 em-required">名称</label>
         <input className="em-input w-full h-8 px-2.5 text-xs text-text-primary disabled:opacity-60"
           placeholder="如 测试员" value={name} onChange={(e) => setName(e.target.value)} disabled={locked || restricted} />
       </div>
       <div>
-        <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">一句话描述 *</label>
+        <label className="text-[length:var(--text-11)] text-text-secondary block mb-1 em-required">一句话描述</label>
         <input className="em-input w-full h-8 px-2.5 text-xs text-text-primary disabled:opacity-60"
           placeholder="如 专门写单元测试" value={desc} onChange={(e) => setDesc(e.target.value)} disabled={locked || restricted} />
       </div>
       <div>
-        <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">人格/职责 prompt（系统提示词）*</label>
+        <label className="text-[length:var(--text-11)] text-text-secondary block mb-1 em-required">人格/职责 prompt（系统提示词）</label>
         <textarea className="em-input w-full px-2.5 py-1.5 text-xs text-text-primary disabled:opacity-60"
           rows={4} placeholder="定义 Agent 的行为方式、专业领域、工作风格..."
           value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={locked || restricted} />

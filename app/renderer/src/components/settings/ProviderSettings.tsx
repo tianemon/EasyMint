@@ -204,7 +204,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       {/* 自定义供应商:Base URL + API 协议(在 API Key 前——新增默认选自定义,先填接入信息) */}
       {isCustom && (<>
       <div>
-        <label className="text-xs text-text-secondary block mb-1.5">Base URL *</label>
+        <label className="text-xs text-text-secondary block mb-1.5 em-required">Base URL</label>
         <input
           className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
           placeholder="https://api.example.com/v1"

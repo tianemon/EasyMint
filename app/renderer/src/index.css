@@ -1083,6 +1083,14 @@ button, a, select {
   box-shadow: none;
 }
 
+/* 必填标识：标签尾部红色星号（规格见 UI元素库「必填标识」）——
+   用 ::after 追加，标签文案里不再手写 *，避免各表单星号颜色/间距不一致 */
+.em-required::after {
+  content: "*";
+  margin-left: 3px;
+  color: var(--color-danger);
+}
+
 /* 兼容旧类名(NewProject 流程用 .input)——与 em-input 同外观 */
 .input {
   width: 100%;
