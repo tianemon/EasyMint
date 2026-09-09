@@ -1401,10 +1401,21 @@ export class AgentService {
     const { getModelRuntime } = await import("./pi-init");
     await getModelRuntime(this.store);
     for (const [, chat] of this.activeChats) {
-      if (!chat.session || !chat.currentModel) continue;
-      if (this.activePromptSessions.has(chat.sessionId)) continue;
+      if (!chat.session || !chat.currentModel) {
+        console.log(`[agent] 刷新会话模型跳过 chat=${chat.chatId}（无会话或未绑定模型）`);
+        continue;
+      }
+      if (this.activePromptSessions.has(chat.sessionId)) {
+        console.log(`[agent] 刷新会话模型跳过 chat=${chat.chatId}（正在输出中）`);
+        continue;
+      }
       const model = await this.resolveModelByName(chat.currentModel, chat.provider);
-      if (model) await this.applySessionModel(chat, model, chat.currentModel);
+      if (model) {
+        console.log(`[agent] 会话 ${chat.chatId} 重新绑定模型 ${chat.currentModel} 窗口=${model.contextWindow}`);
+        await this.applySessionModel(chat, model, chat.currentModel);
+      } else {
+        console.log(`[agent] 刷新会话模型失败: 运行时查不到 ${chat.currentModel}`);
+      }
     }
   }
 

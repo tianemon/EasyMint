@@ -275,6 +275,12 @@ function syncExtraModelsFile(store: Store): void {
     if (changed) {
       mkdirSync(path.dirname(filePath), { recursive: true });
       writeFileSync(filePath, JSON.stringify(json, null, 2), "utf-8");
+      for (const [pid, entry] of Object.entries(providersJson)) {
+        const list = (entry.models ?? []) as Array<Record<string, unknown>>;
+        if (list.length > 0) {
+          console.log(`[pi-init] models.json 已写入 ${pid}: ${list.map((m) => `${m.id}=${m.contextWindow}`).join(", ")}`);
+        }
+      }
     }
   } catch (e) {
     console.warn("[pi-init] 同步手动添加模型到 models.json 失败:", (e as Error).message);
