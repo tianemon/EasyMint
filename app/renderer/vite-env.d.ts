@@ -476,14 +476,7 @@ interface ElectronAPI {
       statusTextGroupsDark?: Array<{ id: string; name: string; colors: string[]; isBuiltin?: boolean }>;
       activeStatusGroupLight?: string;
       activeStatusGroupDark?: string;
-      apiProviders?: {
-        current: string | null;
-        configs: Record<string, {
-          id: string; presetId: string; name: string; apiKey: string;
-          baseUrl?: string; model: string; models: string[];
-          context1M: boolean; createdAt: number;
-        }>;
-      };
+      apiProviders?: import("@shared/platform-presets").ApiProvidersData;
     }>;
     set: (key: string, value: unknown) => Promise<void>;
     setLastProject: (projectId: string) => Promise<void>;

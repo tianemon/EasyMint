@@ -13,19 +13,20 @@ const STEPS = [
 export function OnboardingPage(): JSX.Element {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
-  const { apiProviders, setApiProviders } = useSettingsStore();
+  const { setApiProviders } = useSettingsStore();
 
   // 记录本次已保存的供应商 ID，避免重复保存
   const [savedCfg, setSavedCfg] = useState<ProviderConfig | null>(null);
 
-  const handleProviderSave = (cfg: ProviderConfig) => {
+  const handleProviderSave = async (cfg: ProviderConfig) => {
     // 复用已保存的 ID，避免重复创建
     const id = savedCfg?.id || cfg.id;
     const finalCfg = { ...cfg, id };
-    const configs = { ...(apiProviders?.configs ?? {}), [id]: finalCfg };
+    // 以主进程配置为基底：渲染态未加载完成时为空，用它重建会丢掉已有供应商配置
+    const saved = (await window.electronAPI.settings.get()).apiProviders;
     const nextData: ApiProvidersData = {
       current: id,
-      configs,
+      configs: { ...(saved?.configs ?? {}), [id]: finalCfg },
     };
     setApiProviders(nextData);
     setSavedCfg(finalCfg);

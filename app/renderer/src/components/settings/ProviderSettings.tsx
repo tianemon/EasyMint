@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "re
 import { createPortal } from "react-dom";
 import { useSettingsStore } from "../../stores/settings-store";
 import { getPreset, normalizeExtraModels } from "@shared/platform-presets";
-import type { ProviderConfig, ExtraModelCapability, ApiProvidersData } from "@shared/platform-presets";
+import type { ProviderConfig, ExtraModelCapability } from "@shared/platform-presets";
 import { Select } from "../Select";
 import { BRAND_BY_PI_ID, providerSelectOptions } from "../../lib/provider-brands";
 import { toast } from "../ui/Toast";
@@ -418,8 +418,7 @@ export function ProvidersManager() {
 
   const handleSave = async (cfg: ProviderConfig) => {
     // 以主进程配置为基底：渲染态在 loadFromElectron 未完成/失败时为空，用它重建会把其他供应商连 key 一起覆盖掉
-    const s = await window.electronAPI.settings.get();
-    const saved = s.apiProviders as ApiProvidersData | undefined;
+    const saved = (await window.electronAPI.settings.get()).apiProviders;
     const updated = { ...(saved?.configs ?? {}), [cfg.id]: cfg };
     setApiProviders({ current: saved?.current ?? cfg.id, configs: updated });
     setDialog(null);
