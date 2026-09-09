@@ -665,6 +665,8 @@ async function createAskUserTool(sessionId: string): Promise<ToolDefinition> {
 export class AgentService {
   constructor(private store: Store) {
   }
+  /** 输出期间被跳过重绑的会话存在 → 回合结束后补一次 refreshActiveSessionsModel */
+  private _deferredRefreshNeeded = false;
   private activeRuns: Map<string, ActiveRun> = new Map();
   private activeChats: Map<string, ActiveChat> = new Map();
   /** EM 侧正在进行的回合（promptAndBridge 进行中）——steer 区分真运行 vs isStreaming 残留 */
@@ -988,6 +990,12 @@ export class AgentService {
     } finally {
       unsub();
       this.activePromptSessions.delete(sessionId);
+      // 输出中跳过了模型重绑(避免打断回合)的会话:回合结束(空闲)补一次刷新——
+      // 这样改窗口/参数在会话空闲后自动生效,不用等下次保存/重启
+      if (this._deferredRefreshNeeded) {
+        this._deferredRefreshNeeded = false;
+        void this.refreshActiveSessionsModel().catch((e) => console.warn("[agent] 回合结束补刷新失败:", (e as Error).message));
+      }
     }
   }
 
@@ -1433,6 +1441,8 @@ export class AgentService {
       if (this.activePromptSessions.has(chat.sessionId)) {
         console.log(`[agent] 刷新会话模型跳过 chat=${chat.chatId}（正在输出中），仅上报窗口`);
         this.broadcastContextUsage(chat, model.contextWindow, true);
+        // 标记待补刷新:该会话回合结束后会自动重绑(见 promptAndBridge finally)
+        this._deferredRefreshNeeded = true;
         continue;
       }
       console.log(`[agent] 会话 ${chat.chatId} 重新绑定模型 ${modelName} 窗口=${model.contextWindow}`);
