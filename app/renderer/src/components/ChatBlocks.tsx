@@ -898,7 +898,7 @@ function getBashCommand(input: unknown): string | undefined {
 /**
  * 工具标题图标(Lucide)——按工具名归类取图标(见 toolIconPaths 映射表)
  */
-function ToolIcon({ name }: { name: string }): JSX.Element | null {
+export function ToolIcon({ name }: { name: string }): JSX.Element | null {
   const paths = toolIconPaths(name);
   if (!paths) return null;
   return (

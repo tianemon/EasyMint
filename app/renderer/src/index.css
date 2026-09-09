@@ -1432,7 +1432,8 @@ select.input {
 .agent-breath {
   animation: agent-breath 2.8s ease-in-out infinite;
 }
-/* 命令胶囊(ShellBar)蓝色变体:覆盖光晕色为 info 蓝 */
+/* 呼吸光晕：默认取 --agent-breath-glow（绿），.info-glow 改取 --shell-breath-glow（蓝）。
+   颜色与组件语义已互换（2026-09-09 用户要求）：AgentBar 用蓝（info-glow）、ShellBar 用绿（默认）。 */
 .agent-breath.info-glow {
   --agent-breath-glow: var(--shell-breath-glow);
 }

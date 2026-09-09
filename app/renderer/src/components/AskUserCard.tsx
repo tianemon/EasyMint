@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { useAskStore, type AskQuestion, type AskRequest } from "../stores/ask-store";
 
 interface Props {
@@ -22,6 +22,8 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
   // 每题自定义输入草稿（切换问题保留，返回可改；发送后并入该题答案并清除）
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  // 自定义输入框：随内容自适应高度（超过 max-h 后内部滚动）
+  const draftRef = useRef<HTMLTextAreaElement>(null);
 
   // 可见问题序列：depends_on 前置答案匹配才显示（单题导航按此序列）
   const order = useMemo(() => {
@@ -41,6 +43,14 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
   useEffect(() => {
     if (idx >= order.length) setIdx(Math.max(0, order.length - 1));
   }, [order.length, idx]);
+
+  // 输入内容变化 → 重算 textarea 高度（先置 auto 再按 scrollHeight，否则删字后不会回缩）
+  useEffect(() => {
+    const el = draftRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [drafts, idx]);
 
   const q = order[idx];
   const total = order.length;
@@ -212,15 +222,18 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
 
       {/* 自定义输入行：输入框与主按钮同一行（有草稿时按钮变「发送」，草稿并入该题答案） */}
       {request.allowCustom && (
-        <div className="px-3.5 pt-1.5 pb-[9px] flex items-center gap-2">
-          <input
-            className="em-input flex-1 min-w-0 px-2.5 py-1.5 text-xs bg-surface/50"
+        <div className="px-3.5 pt-1.5 pb-[9px] flex items-end gap-2">
+          <textarea
+            ref={draftRef}
+            rows={1}
+            className="em-input flex-1 min-w-0 px-2.5 py-1.5 text-xs leading-relaxed bg-surface/50 resize-none max-h-[110px] overflow-y-auto"
             placeholder="输入你的答案…"
             value={draft}
             onChange={(e) => setDrafts((prev) => ({ ...prev, [q.id]: e.target.value }))}
             onKeyDown={(e) => {
-              // 回车：有草稿发送（并入该题答案前进），无草稿前进（最后一题=提交已答）
-              if (e.key === "Enter") {
+              // Shift+Enter 换行；Enter 发送/前进。
+              // isComposing：中文输入法选词回车不当作发送（否则候选词确认会直接提交）
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 if (draftNonEmpty) proceedWithDraft();
                 else advance();

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDelegationStore, type RunningTaskInfo } from "../stores/delegation-store";
 import { SubagentProcessView } from "./SubagentProcessView";
+import { ToolIcon } from "./ChatBlocks";
 
 /**
- * Agent 胶囊:显示 Agent•N(输入卡片会话统计右侧),点击展开运行中的子 Agent 任务列表,
+ * Agent 胶囊:显示「图标•N」(输入卡片会话统计右侧),点击展开运行中的子 Agent 任务列表,
  * 每个任务可点击查看执行过程(弹层)、单独停止;点击胶囊外部区域收起菜单(document 级 mousedown 判断)
  */
 export function AgentBar({ sessionId }: { sessionId?: string }): JSX.Element | null {
@@ -51,10 +52,11 @@ export function AgentBar({ sessionId }: { sessionId?: string }): JSX.Element | n
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="agent-breath rounded-[8px] bg-success-soft px-2 py-0.5 text-[length:var(--text-11)] font-bold text-success cursor-pointer hover:bg-success-high"
+        className="agent-breath info-glow flex items-center gap-1 rounded-[8px] bg-info-soft px-2 py-0.5 text-[length:var(--text-11)] font-bold text-info cursor-pointer hover:bg-info-high"
        
       >
-        Agent•{agentTasks.length}
+        <ToolIcon name="task" />
+        •{agentTasks.length}
       </button>
 
       {/* 任务列表浮层(向上展开,覆盖输入卡片上方;最多显示 5 行,超出滚动) */}

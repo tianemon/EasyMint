@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDelegationStore } from "../stores/delegation-store";
 import { ShellProcessView } from "./ShellProcessView";
+import { ToolIcon } from "./ChatBlocks";
 
 /**
- * Shell 胶囊:显示 Shell•N(后台运行中的命令数),点击展开命令列表,
+ * Shell 胶囊:显示「图标•N」(后台运行中的命令数),点击展开命令列表,
  * 每个命令可点击查看输出(弹层)、单独停止;点击胶囊外部区域收起(与 AgentBar 同款交互)
  */
 export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | null {
@@ -48,10 +49,11 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="agent-breath info-glow rounded-[8px] bg-info-soft px-2 py-0.5 text-[length:var(--text-11)] font-bold text-info cursor-pointer hover:bg-info-high"
+        className="agent-breath flex items-center gap-1 rounded-[8px] bg-success-soft px-2 py-0.5 text-[length:var(--text-11)] font-bold text-success cursor-pointer hover:bg-success-high"
        
       >
-        Shell•{shellTasks.length}
+        <ToolIcon name="bash" />
+        •{shellTasks.length}
       </button>
 
       {/* 命令列表浮层(向上展开,覆盖输入卡片上方) */}
