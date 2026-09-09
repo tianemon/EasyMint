@@ -143,7 +143,7 @@ export const ChatInput = memo(function ChatInput({
     return () => { window.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
   }, [attachMenuOpen]);
   const availableModels = useSettingsStore((s) => s.availableModels);
-  // 自添加模型填了别名时,请求标识 ≠ 显示名:下拉按显示名展示(值仍是请求标识)
+  // 自添加模型用名称展示(值 = 请求标识),官方模型显示目录 name
   const modelLabels = useSettingsStore((s) => s.modelLabels);
   const indicatorOrder = useDelegationStore((s) => s.order);
   const ctxPct = useStatusStore((s) => s.bySession[sessionId]?.ctxPct ?? null);

@@ -126,7 +126,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     const pending = normalizeExtraModels(extraModels)
       .find((n) => !n.entry?.contextWindow || !n.entry?.maxTokens);
     if (pending) { toast(`模型 ${pending.id} 未填写参数，请先在下方选中它补填`); return false; }
-    // 模型清单统一为 SDK 请求标识(别名 ?? 名称):聊天页切换与主进程解析都按它找模型
+    // 模型清单 = SDK 请求标识(id):聊天页切换与主进程解析都按它找模型
     const modelList = isCustom
       ? Array.from(new Set(extraSdkIds))
       : Array.from(new Set([...officialIds, ...extraSdkIds]));

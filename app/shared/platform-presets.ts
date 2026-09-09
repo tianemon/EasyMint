@@ -30,10 +30,11 @@ export interface ExtraModelCapability {
   name: string;
   /** 输入能力:含 "image" 即支持识图 */
   input?: Array<"text" | "image">;
-  /** 上下文窗口(token);必填(自添加模型不再推断) */
-  contextWindow: number;
-  /** 最大输出(token);必填 */
-  maxTokens: number;
+  /** 上下文窗口(token)。保存供应商前的必填闸门在 ProviderSettings.handleSave——
+   *  类型上可暂缺(添加即入库、参数在编辑表单补填),未填时同步层回落 200000 */
+  contextWindow?: number;
+  /** 最大输出(token)。同上,未填时回落 32768 */
+  maxTokens?: number;
   reasoning?: boolean;
   thinkingLevelMap?: ModelParams["thinkingLevelMap"];
 }

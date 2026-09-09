@@ -6,9 +6,8 @@
  *   官方目录模型不进管理区（不可编辑），只在默认/子 Agent 下拉里可选；
  *   modelOverrides 不再有 UI 写入点，存量值由 ProviderSettings 原样透传。
  *
- * id / alias / name 语义(单一口径):EM 层只维护「模型 id」+ 可选 alias——
- *   请求标识 = alias ?? id(填了 alias 就用它发请求);
- *   SDK Model.name 兜底取 id(仅为避免该字段为空),界面不显示 name、也不显示 alias。
+ * id / name 与 SDK Model 一一对应(2026-09-09 语义反转后):id = 请求标识、name = 显示名、
+ *   无别名。界面显示一律 name(官方模型显示目录 name);请求只发 id。
  */
 
 import { useState } from "react";
@@ -157,15 +156,19 @@ export function ModelManager({
     };
   };
 
-  /** 添加：一次一个（ID 与名称都必填），追加后自动进入编辑表单补参数 */
+  /** 添加：一次一个（ID 与名称都必填）。追加 { id, name } 对象——名称当场持久化
+   *  （参数/档位由编辑表单补填，未补填前保存供应商会被必填校验拦截） */
   const addModel = () => {
     const id = newId.trim();
     if (!id) { toast("请输入模型 ID"); return; }
-    if (!newName.trim()) { toast("请输入模型名称"); return; }
+    const nm = newName.trim();
+    if (!nm) { toast("请输入模型名称"); return; }
     if (rows.some((r) => r.id === id)) { toast(`模型 ID ${id} 已存在`); return; }
     if (!isCustom && officialById.has(id)) { toast(`${id} 是官方模型，无需添加`); return; }
-    const row: ModelRow = { id, name: newName.trim(), raw: id, legacy: true };
-    onChange({ extraModels: [...extraModels, id] });
+    // 同一对象既进数组又作 row.raw——删除时按引用匹配(e === raw)
+    const entry: ExtraModelCapability = { id, name: nm };
+    const row: ModelRow = { id, name: nm, raw: entry, legacy: false };
+    onChange({ extraModels: [...extraModels, entry] });
     setEditingId(id);
     setDraft(draftOf(row));
     setNewId("");
