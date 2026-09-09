@@ -327,8 +327,8 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
           <div className="flex gap-3">
             <div className="flex gap-2">
               {/* S2：取消 = 丢弃草稿（落盘已移到最终创建，不再有「取消项目=删真目录」的歧义） */}
-              <button className="em-hover-control ml-0.5 px-2 py-0 rounded-[var(--radius-lg)] text-text-secondary transition-all text-sm" onClick={handleCancel}>取消</button>
-              <button className="em-hover-control px-2 py-0 rounded-[var(--radius-lg)] text-text-secondary transition-all text-sm disabled:opacity-50" disabled={initializing} onClick={handleDirectCreate}>
+              <button className="em-hover-control ml-0.5 px-2 py-[5px] rounded-[var(--radius-lg)] text-text-secondary transition-all text-sm" onClick={handleCancel}>取消</button>
+              <button className="em-hover-control px-2 py-[5px] rounded-[var(--radius-lg)] text-text-secondary transition-all text-sm disabled:opacity-50" disabled={initializing} onClick={handleDirectCreate}>
                 {initializing ? "创建中..." : "直接创建"}
               </button>
             </div>
