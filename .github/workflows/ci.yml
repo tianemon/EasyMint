@@ -3,11 +3,15 @@ name: CI
 # 零质量门禁：分支 push / pull_request 时跑 lint（eslint + 三段 tsc）与单元测试。
 # 限定 branches（不含 tag）：发版时 tag 与 main 指向同一 commit，裸 on: push 会让
 # 同一次提交重复跑两遍（tag 那次与 main 那次完全等价）。
+# paths-ignore：纯文档提交（README/CHANGELOG/CLAUDE.md 等）无 lint 与单测可查，跳过；
+# 提交里只要有一个非 .md 文件即照常触发。docs/ 与 .easymint/ 已 gitignore、不进仓库，无需列出。
 
 on:
   push:
     branches: ['**']
+    paths-ignore: ['**/*.md']
   pull_request:
+    paths-ignore: ['**/*.md']
 
 permissions:
   contents: read
