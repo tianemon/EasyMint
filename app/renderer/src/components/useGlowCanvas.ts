@@ -35,7 +35,8 @@ export function useGlowCanvas(): {
     let raf = 0;
     let radius = 10;
     const resize = () => {
-      const dpr = window.devicePixelRatio || 1;
+      // dpr 封顶 2:光效是柔光/细线,高 dpr(2.5-3)多出的像素对观感提升微小、绘制成本成倍(面积按平方),封顶可显著减压
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const pw = Math.round(canvas.clientWidth * dpr);
       const ph = Math.round(canvas.clientHeight * dpr);
       if (canvas.width !== pw || canvas.height !== ph) {
@@ -54,11 +55,22 @@ export function useGlowCanvas(): {
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
+    // 主线程繁忙自适应:聊天流式输出时消息 DOM 更新挤占主线程,rAF 帧间隔被拉大,
+    // 光效仍每帧全量重绘会加剧竞争——按最近帧间隔动态隔帧绘制(把 CPU 让给渲染),空闲自动回满帧。
+    let step = 1;
+    let acc = 0;
+    let lastNow = 0;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
+      const dt = lastNow === 0 ? 0 : now - lastNow;
+      lastNow = now;
       const cssW = canvas.clientWidth;
       const cssH = canvas.clientHeight;
       if (cssW === 0 || cssH === 0) return;
+      if (dt > 34) step = 3;            // 明显掉帧(<~30fps):每 3 帧画 1 帧,优先保证消息渲染流畅
+      else if (dt > 24) step = 2;       // 略忙(<~40fps):隔帧绘制
+      else if (dt > 0 && dt < 20 && step > 1) step = 1;  // 恢复满帧
+      if (++acc % step !== 0) return;   // 跳帧:保留上帧画面(不清空),运动速度按比例略降
       const fn = drawRef.current;
       if (fn) fn(ctx, now, { cssW, cssH, radius });
     };

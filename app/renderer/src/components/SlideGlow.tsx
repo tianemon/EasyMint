@@ -64,11 +64,14 @@ export function SlideGlow({ colors }: SlideGlowProps): JSX.Element {
       const flow = ((now / 1000) / FLOW_PERIOD) % 1;
 
       // ── 微光层:沿弧段渐变色带(颜色随位置分布 + 流动相位平移,形成循环流动),两端渐隐 ──
+      // 段间外扩覆盖(消除半透明 AA 接缝颗粒):每段首尾沿路径外扩 ~0.75px,端点夹 [0,1] 保渐隐
+      const ov = 0.75 / span;
+      const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
       const glowFadeLen = Math.min(20, span * 0.05); // 端部渐隐长度(px)
       const n1 = Math.max(4, Math.ceil(span / 2));
       for (let i = 0; i < n1; i++) {
-        const pos = i / n1;
-        const pos2 = (i + 1) / n1;
+        const pos = clamp01(i / n1 - ov);
+        const pos2 = clamp01((i + 1) / n1 + ov);
         const p0 = edgePt(s7 + span * pos, w, h, r, t, half);
         const p1 = edgePt(s7 + span * pos2, w, h, r, t, half);
         // 端部线性渐隐
@@ -96,9 +99,10 @@ export function SlideGlow({ colors }: SlideGlowProps): JSX.Element {
       const phase = (Math.sin((2 * Math.PI * now) / 1000 / sp) + 1) / 2; // 0→1→0 往返
       const sCenter = coreLen / 2 + phase * (topLen - coreLen); // 凸起中心在顶边内的位置
       const n2 = Math.max(4, Math.ceil(coreLen / 2));
+      const ov2 = 0.75 / coreLen; // 凸起段外扩(同消除接缝)
       for (let i = 0; i < n2; i++) {
-        const pos = i / n2; // 0=左端 1=右端
-        const pos2 = (i + 1) / n2;
+        const pos = clamp01(i / n2 - ov2); // 0=左端 1=右端(端点夹取保收尖)
+        const pos2 = clamp01((i + 1) / n2 + ov2);
         const u = Math.abs(pos * 2 - 1); // 0=中心 1=端
         const u2 = Math.abs(pos2 * 2 - 1);
         const profile = halfEllipseProfile(1 - u); // 路径方向:中心全高、两端收尖

@@ -56,10 +56,14 @@ export function OrbitGlow({ colors }: OrbitGlowProps): JSX.Element {
 
       const rgbList = cs.map(rgbOf);
       const n = Math.max(8, Math.ceil(tailLen / 2)); // 每 ~2px 一个采样点
+      // 段间外扩覆盖(消除颗粒感):相邻半透明段之间 AA 各留一半会露底成细缝(色带呈粒状/断续),
+      // 每段首尾沿路径外扩 ~0.75px 相互交叠(端点段夹到 [0,1] 保留渐隐)
+      const ov = 0.75 / tailLen;
+      const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
       // 逐段小四边形填充(段间颜色/透明度渐变,单段 4 顶点)
       for (let i = 0; i < n; i++) {
-        const p0 = segPt(i / n, sTail, tailLen, fadeLen, w, h, r, t, rgbList);
-        const p1 = segPt((i + 1) / n, sTail, tailLen, fadeLen, w, h, r, t, rgbList);
+        const p0 = segPt(clamp01(i / n - ov), sTail, tailLen, fadeLen, w, h, r, t, rgbList);
+        const p1 = segPt(clamp01((i + 1) / n + ov), sTail, tailLen, fadeLen, w, h, r, t, rgbList);
         if (p0.alpha <= 0.004 && p1.alpha <= 0.004) continue;
         ctx.fillStyle = `rgba(${(p0.c[0] + p1.c[0]) / 2 | 0},${(p0.c[1] + p1.c[1]) / 2 | 0},${(p0.c[2] + p1.c[2]) / 2 | 0},${(p0.alpha + p1.alpha) / 2})`;
         ctx.beginPath();
