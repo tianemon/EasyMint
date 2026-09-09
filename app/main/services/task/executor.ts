@@ -9,12 +9,12 @@
 import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
+import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import type { AgentSessionEvent } from "../pi-sdk";
 import { createPiSession, getPiSessionDir } from "../pi-session";
 import { getBaseTools, getReadOnlyTools } from "../tool-registry";
 import { createEnhancedEditTool } from "../enhanced-edit";
 import { getActiveModel, getModelRuntime } from "../pi-init";
-import { getStaticModelSpecWithAlias, supportedThinkingLevelsOfSpec } from "../pi-init-static";
 import { getTemplate } from "../agent-templates";
 import { resolveThinkingLevel } from "../../../shared/thinking-levels";
 import { PERMISSION_RULES_PROMPT } from "../prompt-sections";
@@ -96,12 +96,12 @@ export interface SubagentOptions {
  * 避免子 Agent 落到 SDK 默认的"向上优先"造成不一致。
  */
 function adaptSubagentThinkingLevel(base: string, model: Awaited<ReturnType<typeof getActiveModel>>): ThinkingLevel {
-  const id = (model as any)?.id as string | undefined;
-  if (!id) return base as ThinkingLevel;
+  if (!model) return base as ThinkingLevel;
   try {
-    const supported = supportedThinkingLevelsOfSpec(getStaticModelSpecWithAlias(id));
-    if (supported) return resolveThinkingLevel(base, supported) as ThinkingLevel;
-  } catch { /* 查不到能力表按原值 */ }
+    // 用运行时 Model 的 thinkingLevelMap（用户声明优先）而非静态官方表近似匹配——
+    // 否则用户在设置里覆盖的档位对子 Agent 不生效
+    return resolveThinkingLevel(base, getSupportedThinkingLevels(model)) as ThinkingLevel;
+  } catch { /* 模型能力不可读时按原值 */ }
   return base as ThinkingLevel;
 }
 

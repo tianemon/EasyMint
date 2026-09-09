@@ -6,8 +6,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import type { ExtraModelCapability, ModelParams } from "../../shared/platform-presets";
 import { Store } from "./store";
-import { getModelSpecLookup, getProviderStaticModels, getStaticModelSpecWithAlias, lookupWithAlias, lookupBySegmentPrefix } from "./pi-init-static";
+import { getProviderStaticModels } from "./pi-init-static";
 import {
   getModelRuntimeClass,
   getSettingsManagerClass,
@@ -27,47 +28,46 @@ export async function getModelRuntime(store: Store) {
   return _modelRuntime;
 }
 
+/** 协议与定价层字段(api / baseUrl / compat / headers / cost):按该供应商官方模型继承——
+ *  这不是「模型能力」推断,而是「怎么跟这个供应商说话」与定价兜底。
+ *  能力参数(reasoning / input / thinkingLevelMap)一律取 extraModels 声明,不再按 id 反查推断。 */
+function pickProtocolFields(spec: Record<string, any> | undefined): Record<string, unknown> {
+  if (!spec) return {};
+  const out: Record<string, unknown> = {};
+  for (const k of ["api", "baseUrl", "compat", "cost", "headers"] as const) {
+    if (spec[k] !== undefined) out[k] = spec[k];
+  }
+  return out;
+}
+
+/** models.json 里一个 provider 条目的形态(SDK ModelDefinition / ModelOverride 的子集) */
+interface ProviderModelsJson {
+  models?: Array<Record<string, any>>;
+  modelOverrides?: Record<string, ModelParams>;
+}
+
 /**
- * 内置供应商手动添加的模型(extraModels)同步到 agentDir/models.json。
+ * 内置供应商手动添加的模型(extraModels)与官方模型参数覆盖(modelOverrides)同步到 agentDir/models.json。
  *
  * Pi runtime 的模型注册表来自 SDK 静态数据,手动添加的模型 ID(如新上线的
  * deepseek-v4-flash-vision-exp)不在其中 → runtime.getModel 查不到 →
  * 会话创建/热切都回落默认模型(实测"切了模型还是旧的"的根因之一)。
  *
  * models.json 是 Pi 原生的用户模型扩展层(默认路径 <agentDir>/models.json):
+ *   - providers[<pid>].models[]          官方目录外的模型(SDK 同 id 整体替换)
+ *   - providers[<pid>].modelOverrides{}  官方目录模型的参数覆盖(逐字段覆盖,最高优先级)
  * 组装时对同 provider 按 id upsert——新增 append、内置模型保留,运行时重建即生效。
  * 注意:对应 provider 的 models 字段由 EM 按 extraModels 全量重建(删除过的
  * extra 模型同步移除);用户手写的同 provider 条目会被覆盖——本文件归 EM 管理。
  */
-/** 模型内在能力(与协议无关,可跨供应商继承):reasoning / input / thinkingLevelMap */
-function pickModelCapability(spec: Record<string, any> | undefined): Record<string, unknown> {
-  if (!spec) return {};
-  const out: Record<string, unknown> = {};
-  for (const k of ["reasoning", "input", "thinkingLevelMap"] as const) {
-    if (spec[k] !== undefined) out[k] = spec[k];
-  }
-  return out;
-}
-
-/** 从内置 spec 中挑出「能力声明」字段(不含 id/name/窗口——这些按用户填写的值走) */
-function pickCapabilityFields(spec: Record<string, any> | undefined): Record<string, unknown> {
-  if (!spec) return {};
-  const out: Record<string, unknown> = {};
-  for (const k of ["api", "baseUrl", "compat", "cost", "headers"] as const) {
-    if (spec[k] !== undefined) out[k] = spec[k];
-  }
-  return { ...out, ...pickModelCapability(spec) };
-}
-
 function syncExtraModelsFile(store: Store): void {
   try {
     const providers = store.getSettings().apiProviders;
     if (!providers) return;
-    interface ModelEntry { id: string; contextWindow?: number; maxTokens?: number; input?: string[] }
     const filePath = path.join(os.homedir(), ".easymint", "agent", "models.json");
-    // 顶层结构固定为 { providers: { <providerId>: { models: [...] } } }——
+    // 顶层结构固定为 { providers: { <providerId>: {...} } }——
     // 写成平铺(providers 缺失)会被 SDK 判为非法 schema 整份丢弃(踩过)
-    let json: { providers: Record<string, { models?: ModelEntry[] } & Record<string, unknown>> } = { providers: {} };
+    let json: { providers: Record<string, ProviderModelsJson> } = { providers: {} };
     if (existsSync(filePath)) {
       try {
         const raw = JSON.parse(readFileSync(filePath, "utf-8"));
@@ -75,75 +75,83 @@ function syncExtraModelsFile(store: Store): void {
           json = raw;
         } else if (raw && typeof raw === "object") {
           // 旧/平铺格式 → 迁移到 providers 层级
-          json = { providers: raw as Record<string, { models?: ModelEntry[] }> };
+          json = { providers: raw as Record<string, ProviderModelsJson> };
         }
       } catch { /* 坏档 → 按需重建 */ }
     }
     const providersJson = json.providers;
-    const lookup = getModelSpecLookup();
     let changed = false;
     // 按 presetId 聚合后只写一次：同一 presetId 可存在多份供应商配置（它们共用同一个 SDK
     // provider）。逐份写入时，后一份（extraModels 为空）会把前一份写好的 models 覆盖成
     // 空数组——而 models: [] 被 SDK 的 applyModelsJson 判为非法配置直接抛错，凭据同步
     // 随之失败（表现为「没有有效的 API Key」，改 key / 重建运行时都救不回来，重启后靠
     // 遍历顺序侥幸避开）。教训：2026-09-09 用户配置里同时存在 DeepSeek 与 DeepSeek22。
-    type ExtraEntry = { id: string } & Record<string, any>;
-    const byPreset = new Map<string, { extras: Map<string, ExtraEntry>; fallbackModel?: string }>();
+    type ExtraEntry = { id: string; alias?: string } & Record<string, any>;
+    const byPreset = new Map<string, {
+      extras: Map<string, ExtraEntry>;
+      overrides: Map<string, ModelParams>;
+      fallbackModel?: string;
+    }>();
     for (const [, config] of Object.entries(providers.configs ?? {})) {
       if (!config.presetId || config.presetId === "custom") continue;
-      // 已被 SDK 内置的 id 不再声明:models.json 是最高优先级的用户层(applyModelsJson
-      // 按 id 覆盖内置条目),升级后 SDK 自带同名模型时,我们的继承条目会遮蔽官方 spec。
-      // 以静态数据(SDK 内置模型表)为准——升级后自动让位,无需用户清理 extraModels。
       const siblings = getProviderStaticModels(config.presetId);
-      const bucket = byPreset.get(config.presetId) ?? { extras: new Map<string, ExtraEntry>() };
-      // 归一化:旧数据是纯 ID 字符串,新数据是带能力声明的对象(见 ExtraModelCapability)
+      const bucket = byPreset.get(config.presetId)
+        ?? { extras: new Map<string, ExtraEntry>(), overrides: new Map<string, ModelParams>() };
+      // 别名映射：SDK 的 Model.id 是发给供应商的请求标识(alias ?? 名称)，Model.name 仅用于展示
       for (const e of config.extraModels ?? []) {
         const entry = (typeof e === "string" ? { id: e } : e) as ExtraEntry;
-        if (entry?.id && !siblings.has(entry.id) && !bucket.extras.has(entry.id)) bucket.extras.set(entry.id, entry);
+        const sdkId = entry?.alias || entry?.id;
+        if (!sdkId) continue;
+        // 已被 SDK 内置的 id 不再声明:models.json 的 models[] 按 id 整体替换内置条目,
+        // 升级后 SDK 自带同名模型时我们的条目会遮蔽官方 spec。这类模型改由 modelOverrides
+        // 管理(逐字段覆盖,未改字段仍跟随官方),以静态数据(SDK 内置模型表)为准。
+        if (siblings.has(sdkId) || bucket.extras.has(sdkId)) continue;
+        bucket.extras.set(sdkId, entry);
       }
-      // 同族能力兜底基准:优先该配置的默认模型(命中内置时),否则用第一个内置模型
+      // 官方模型参数覆盖:只写非空条目(空对象 = 参数全跟随官方,写进去无意义)
+      for (const [modelId, params] of Object.entries(config.modelOverrides ?? {})) {
+        if (!params || !Object.values(params).some((v) => v !== undefined)) continue;
+        if (!bucket.overrides.has(modelId)) bucket.overrides.set(modelId, params);
+      }
+      // 协议/定价层兜底基准:优先该配置的默认模型(命中内置时),否则用第一个内置模型
       if (!bucket.fallbackModel && config.model && siblings.has(config.model)) bucket.fallbackModel = config.model;
       byPreset.set(config.presetId, bucket);
     }
     for (const [presetId, bucket] of byPreset) {
-      const existing = providersJson[presetId]?.models ?? [];
-      if (bucket.extras.size === 0) {
-        // 无手动模型:写 models: [] 会被 SDK 判为非法配置,整条移除让 SDK 回落内置定义
+      const existing = providersJson[presetId] ?? {};
+      const siblings = getProviderStaticModels(presetId);
+      const byId = new Map((existing.models ?? []).map((m) => [m.id as string, m]));
+      // 协议/定价层兜底:该供应商的代表模型(默认模型命中官方时优先,否则首个内置模型)
+      const sibling = (bucket.fallbackModel ? siblings.get(bucket.fallbackModel) : undefined) ?? [...siblings.values()][0];
+      const protocol = pickProtocolFields(sibling);
+      const models = [...bucket.extras.entries()].map(([sdkId, entry]) => {
+        const { id: displayName, alias: _alias, ...declared } = entry;
+        // 保留既有条目上的手写字段(如 samplingParams);窗口/输出只认声明值——
+        // 取消近似匹配后不再反查官方同族模型,存量值已由启动迁移显式化
+        const handWritten = byId.get(sdkId) ?? {};
+        return {
+          ...protocol,
+          ...handWritten,
+          ...declared,
+          id: sdkId,
+          name: displayName,
+          contextWindow: declared.contextWindow ?? 200000,
+          // 思考 token 计入 max_tokens 预算，4k 级默认会让思考未完成即截断（实测 stopReason: length）
+          maxTokens: declared.maxTokens ?? 32768,
+        };
+      });
+      const next: ProviderModelsJson = { ...existing };
+      if (models.length > 0) next.models = models;
+      else delete next.models;
+      if (bucket.overrides.size > 0) next.modelOverrides = Object.fromEntries(bucket.overrides);
+      else delete next.modelOverrides;
+      if (Object.keys(next).length === 0) {
+        // 无手动模型也无参数覆盖:整条移除,让 SDK 回落内置定义
         if (providersJson[presetId]) { delete providersJson[presetId]; changed = true; }
         continue;
       }
-      const siblings = getProviderStaticModels(presetId);
-      const byId = new Map(existing.map((m) => [m.id, m]));
-      // 同族能力兜底:优先同名 spec → 该供应商默认模型 → 第一个内置模型。
-      // 继承 api / reasoning / thinkingLevelMap / compat / cost——models.json 未写的字段
-      // 由 SDK 按"供应商首个模型"兜底(实测继承到 reasoning=false、无 thinkingLevelMap,
-      // 思考等级被 clamp 成 off),手动添加的模型必须显式继承才保住能力声明。
-      const sibling = (bucket.fallbackModel ? siblings.get(bucket.fallbackModel) : undefined) ?? [...siblings.values()][0];
-      const models: ModelEntry[] = [...bucket.extras.values()].map((entry) => {
-        const { id, ...declared } = entry;
-        // 能力查表:精确 → 字符级前缀反查(网关别名后缀) → 段级模糊(同品牌新版本,如 v4.1 继承 v4)
-        const spec = lookupWithAlias(lookup, id) ?? lookupBySegmentPrefix(lookup, id);
-        const family = siblings.get(id) ?? lookupBySegmentPrefix(siblings, id) ?? sibling;
-        const inherited = pickCapabilityFields(family);
-        // 保留既有条目上的手写字段(如 input 视觉声明、reasoning 微调);
-        // id 含视觉关键词时显式补 input: ["text","image"](否则视觉模型被当纯文本)
-        const handWritten = byId.get(id) ?? {};
-        const vision = /vision|vl[-_]|omni/i.test(id) ? { input: ["text", "image"] } : {};
-        return {
-          ...inherited,
-          ...vision,
-          ...handWritten,
-          // 供应商设置里用户显式声明的能力优先级最高(盖过继承/关键词/手写)
-          ...declared,
-          id,
-          contextWindow: declared.contextWindow ?? spec?.contextWindow ?? 200000,
-          // 思考 token 计入 max_tokens 预算，4k 级默认会让思考未完成即截断（实测 stopReason: length）
-          maxTokens: declared.maxTokens ?? spec?.maxTokens ?? 32768,
-        };
-      });
-      const entry = { ...providersJson[presetId], models };
-      if (JSON.stringify(providersJson[presetId]) !== JSON.stringify(entry)) {
-        providersJson[presetId] = entry;
+      if (JSON.stringify(existing) !== JSON.stringify(next)) {
+        providersJson[presetId] = next;
         changed = true;
       }
     }
@@ -282,36 +290,40 @@ async function syncProviders(store: Store) {
     // 用户自定义 provider:调 registerProvider 动态注册
     if (config.presetId === "custom" && config.apiKey && config.baseUrl) {
       try {
-        // 用户配置的模型列表(em-settings 中的 models 字段)
-        // contextWindow/maxTokens 从 SDK 全量 provider 数据查表(命中真实值)——
-        // 硬编码 200k 会导致 1M 窗口模型(kimi-k3/deepseek-v4-flash 等)过早触发压缩
-        const lookup = getModelSpecLookup();
+        // 模型声明(参数由用户显式指定,不再按 id 反查官方同族模型推断):
+        // key = 别名 ?? 名称——SDK 的 Model.id 是发给供应商的请求标识,Model.name 仅用于展示。
+        // 旧数据里 extraModels 可能是纯字符串 id(无参数声明),此时按保守默认值回落。
+        type DeclaredModel = Partial<ExtraModelCapability> & { id: string };
+        const declared: DeclaredModel[] = (config.extraModels ?? [])
+          .map((e) => (typeof e === "string" ? { id: e } : e));
+        const bySdkId = new Map<string, DeclaredModel>();
+        for (const d of declared) {
+          bySdkId.set(d.alias || d.id, d);
+          bySdkId.set(d.id, d);
+        }
+        // 模型清单 = 缓存列表(config.models) ∪ 声明的请求 id(任一来源都能注册)
+        const sdkIds = [...new Set([...(config.models ?? []), ...declared.map((d) => d.alias || d.id)])];
         _modelRuntime.registerProvider(config.id, {
           name: config.name,
           apiKey: config.apiKey,
           baseUrl: config.baseUrl,
           api: (config as any).apiType || "anthropic-messages",
-          models: (config.models || []).map((m: string) => {
-            const id = typeof m === "string" ? m : (m as any).id || String(m);
-            // 网关常给转售模型加别名后缀(能量站的 -x、渠道后缀、日期版本等),原名查不到时
-            // 反查官方同族模型(官方 id 是自定义 id 的前缀,取最长匹配)——命中则拿到真实窗口(1M)
-            // 与思考档位,查不到才回落 200k
-            const spec = lookupWithAlias(lookup, id) ?? lookupBySegmentPrefix(lookup, id);
-            // 同一模型 id 在官方数据里可查(第三方网关/镜像站转售常见)→ 继承其内在能力。
-            // 不继承会退化成"只支持到 high、不支持读图",与内置供应商行为不一致
-            // (实测:自定义供应商设全局"最高"会被静默压成"高")。
-            // api / baseUrl / compat 属协议层,跟随用户配置,不继承。
-            const inherited = pickModelCapability(getStaticModelSpecWithAlias(id));
+          models: sdkIds.map((sdkId) => {
+            const d = bySdkId.get(sdkId);
             return {
-              id, name: id, reasoning: true, input: ["text"],
-              ...inherited,
+              id: sdkId,
+              name: d?.id ?? sdkId,
+              // 未声明时保守默认(与旧版行为一致:推理默认开、纯文本输入)
+              reasoning: d?.reasoning ?? true,
+              input: d?.input ?? ["text"],
+              ...(d?.thinkingLevelMap ? { thinkingLevelMap: d.thinkingLevelMap } : {}),
               // 第三方网关的上游(DeepSeek/Kimi/GLM 官方 API)不认 OpenAI 的 developer
               // 角色,pi 默认按 OpenAI 官方发 developer → 网关 400 且被 SDK 当正常
               // 回合结束(前端表现为"发消息无响应")。system 角色 OpenAI 官方也接受
               compat: { supportsDeveloperRole: false },
               cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-              contextWindow: spec?.contextWindow ?? 200000,
-              maxTokens: spec?.maxTokens ?? 32768,
+              contextWindow: d?.contextWindow ?? 200000,
+              maxTokens: d?.maxTokens ?? 32768,
             };
           }),
         } as any);

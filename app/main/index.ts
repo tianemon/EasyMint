@@ -88,6 +88,7 @@ import { FileService } from "./services/file-service";
 import { AgentService, setMainWindow } from "./services/agent-service";
 import { Store } from "./services/store";
 import { syncNativeModels } from "./services/pi-init";
+import { migrateExtraModels } from "./services/extra-models-migration";
 import { cleanupOrphanCaches, cleanupTempCaches } from "./services/session-cache";
 import { trackProjectWindow } from "./services/window-manager";
 
@@ -254,6 +255,9 @@ app.whenReady().then(() => {
   // 恢复上次打开的项目（仅在 setup 完成后）
   let startHash: string | undefined;
   const tempStore = new Store();
+  // 存量 extraModels(string 形态)显式化参数——取消近似匹配前先固化当前生效值，
+  // 否则窗口会回落 200000 导致过早压缩。一次性写 em-settings.json(幂等)
+  try { migrateExtraModels(tempStore); } catch (e) { console.warn("[main] 模型参数迁移失败:", (e as Error).message); }
   // SDK 升级后新增的内置模型合进缓存模型列表(聊天页下拉/会话页模型选择的数据源),
   // 否则新模型必须"打开供应商配置页保存一次"才会出现
   try { syncNativeModels(tempStore); } catch { /* 同步失败不影响启动 */ }

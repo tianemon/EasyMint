@@ -137,7 +137,8 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   /** 把表单里的能力声明组装成条目;forceObject = 编辑态保存——总是写对象并显式声明 input
    *  (未勾选识图写 ["text"]),否则取消勾选后旧条目里的 image 声明会从 handWritten 回流 */
   const buildExtraEntry = (id: string, forceObject = false): string | ExtraModelCapability => {
-    const cap: ExtraModelCapability = { id, input: extraVision ? ["text", "image"] : ["text"] };
+    // 窗口/输出留空 = 未声明(数据层按 200000/32768 回落);必填校验由模型管理区重构承接
+    const cap = { id, input: extraVision ? ["text", "image"] : ["text"] } as ExtraModelCapability;
     const ctx = resolveTokenValue(extraCtx, extraCtxCustom);
     if (ctx) cap.contextWindow = ctx;
     const maxOut = resolveTokenValue(extraMaxOut, extraMaxOutCustom);

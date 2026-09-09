@@ -78,6 +78,8 @@ interface Settings {
   /** 当前启用的状态流光分组 id(暗色模式) */
   activeStatusGroupDark?: string;
   apiProviders?: ApiProvidersData;
+  /** extraModels 参数显式化迁移已完成(一次性;标记后新条目不再按旧逻辑推断参数) */
+  modelParamsMigrated?: boolean;
 }
 
 /** 多色流光分组:一组命名色彩组合 */
@@ -241,6 +243,7 @@ export class Store {
         };
       })(),
       apiProviders: dropLegacyEncryptedProviderKeys(emData.apiProviders as ApiProvidersData | undefined),
+      modelParamsMigrated: emData.modelParamsMigrated as boolean | undefined,
     };
   }
 
@@ -316,6 +319,7 @@ export class Store {
     if (settings.apiProviders) {
       data.apiProviders = settings.apiProviders;
     }
+    if (settings.modelParamsMigrated) data.modelParamsMigrated = true;
     fs.writeFileSync(this.emSettingsPath, JSON.stringify(data, null, 2));
   }
 

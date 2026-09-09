@@ -1485,9 +1485,26 @@ export class AgentService {
   async getModelThinkingSupport(modelId: string): Promise<string[] | null> {
     if (!modelId) return null;
     try {
-      const { getStaticModelSpecWithAlias, supportedThinkingLevelsOfSpec } = await import("./pi-init-static");
-      // 带别名回查:-x 后缀的网关模型也能落到官方同族模型的档位(与聊天页会话内一致)
-      return supportedThinkingLevelsOfSpec(getStaticModelSpecWithAlias(modelId));
+      // 优先用运行时 Model 的 thinkingLevelMap：用户在模型管理里声明的档位应优先于官方值，
+      // 按已配置供应商逐个查该模型（不再用静态表近似匹配猜同族）
+      const { getSupportedThinkingLevels } = await import("@earendil-works/pi-ai");
+      const { getModelRuntime } = await import("./pi-init");
+      const runtime = await getModelRuntime(this.store);
+      const providers = this.store.getSettings().apiProviders;
+      const entries = Object.entries(providers?.configs ?? {});
+      // 激活供应商优先：同一 modelId 在多家供应商都存在（网关转售同名模型）时，
+      // 应取当前会话真正在用的那家，否则档位会跟着别家能力走
+      const ordered = providers?.current
+        ? [...entries.filter(([id]) => id === providers.current), ...entries.filter(([id]) => id !== providers.current)]
+        : entries;
+      for (const [configId, cfg] of ordered) {
+        const providerId = cfg.presetId === "custom" ? configId : cfg.presetId;
+        const model = runtime.getModel(providerId, modelId);
+        if (model) return getSupportedThinkingLevels(model);
+      }
+      // 运行时里没有该模型（未保存的新条目 / 已删除）→ 静态表精确匹配兜底，未知返回 null（前端按全部档位）
+      const { getStaticModelSpec, supportedThinkingLevelsOfSpec } = await import("./pi-init-static");
+      return supportedThinkingLevelsOfSpec(getStaticModelSpec(modelId));
     } catch { return null; }
   }
 

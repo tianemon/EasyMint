@@ -6,15 +6,32 @@
  *   label（下拉显示名）、brandKey（品牌归属 → 图标，renderer 侧映射）、keyPlaceholder（API key 输入占位）。
  */
 
-/** 手动添加模型的能力声明(用户显式指定,优先于自动推断) */
+import type { ThinkingLevelValue } from "./thinking-levels";
+
+/** 模型参数:显式声明的字段覆盖官方值,未写的字段跟随官方(写 models.json 的 modelOverrides) */
+export interface ModelParams {
+  input?: Array<"text" | "image">;
+  contextWindow?: number;
+  maxTokens?: number;
+  reasoning?: boolean;
+  /** 档位标识映射(null = 该档位不可用);不填继承官方 */
+  thinkingLevelMap?: Partial<Record<ThinkingLevelValue, string | null>>;
+}
+
+/** 手动添加模型的能力声明(用户显式指定,不再自动推断) */
 export interface ExtraModelCapability {
+  /** 名称:界面显示用;未填别名时也作为发给供应商的请求 id */
   id: string;
+  /** 别名(选填):填了则用它作为请求 id,界面仍显示 id(名称) */
+  alias?: string;
   /** 输入能力:含 "image" 即支持识图 */
   input?: Array<"text" | "image">;
-  /** 上下文窗口(token);不填按内置模型表推断,未知按 200000 */
-  contextWindow?: number;
-  /** 最大输出(token);不填按内置模型表推断,未知按 32768 */
-  maxTokens?: number;
+  /** 上下文窗口(token);必填(自添加模型不再推断) */
+  contextWindow: number;
+  /** 最大输出(token);必填 */
+  maxTokens: number;
+  reasoning?: boolean;
+  thinkingLevelMap?: ModelParams["thinkingLevelMap"];
 }
 
 export interface ProviderConfig {
@@ -26,8 +43,10 @@ export interface ProviderConfig {
   models: string[];        // 缓存：上次获取的模型列表
   createdAt: number;
   /** 用户手动补充的模型(SDK 列表外的自定义模型,如新上线;保存时与 models 合并去重)。
-   *  string = 仅 ID,能力按内置表/同族继承自动推断;对象 = 带显式能力声明(优先) */
+   *  string = 仅 ID(存量数据,由启动迁移显式化为对象);对象 = 带显式能力声明 */
   extraModels?: Array<string | ExtraModelCapability>;
+  /** 官方目录模型的参数覆盖(key = 模型 id;空对象 = 参数全跟随官方) */
+  modelOverrides?: Record<string, ModelParams>;
   /** 自定义供应商 API 端点(仅 presetId==="custom" 时有效) */
   baseUrl?: string;
   /** 自定义供应商 API 类型(如 anthropic-messages,仅 presetId==="custom" 时有效) */
