@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { normalizeExtraModels } from "@shared/platform-presets";
 import type { ExtraModelCapability, ModelParams } from "@shared/platform-presets";
 import { THINKING_LABELS, THINKING_ORDER, type ThinkingLevelValue } from "@shared/thinking-levels";
 import { Select, type SelectOption } from "../Select";
@@ -179,15 +180,12 @@ export function ModelManager({
     });
     seen.add(id);
   }
-  for (const item of extraModels) {
-    const entry = typeof item === "string" ? undefined : item;
-    const name = typeof item === "string" ? item : item.id;
-    const sdkId = entry ? (entry.alias || entry.id) : name;
-    if (seen.has(sdkId)) continue;
-    seen.add(sdkId);
+  for (const n of normalizeExtraModels(extraModels)) {
+    if (seen.has(n.sdkId)) continue;
+    seen.add(n.sdkId);
     rows.push({
-      sdkId, name, source: isCustom ? "custom" : "extra", entry, legacy: !entry,
-      isDefault: sdkId === defaultModel || name === defaultModel,
+      sdkId: n.sdkId, name: n.id, source: isCustom ? "custom" : "extra", entry: n.entry, legacy: !n.entry,
+      isDefault: n.sdkId === defaultModel || n.id === defaultModel,
     });
   }
   // 默认模型未纳管也没列在自添加里（如存量缓存里的模型）:补一行,让它也能直接调参
@@ -308,7 +306,7 @@ export function ModelManager({
     const alias = draft.alias.trim();
     const sdkId = alias || name;
     const prevEntry = draft.editingId
-      ? extraModels.map((e) => (typeof e === "string" ? undefined : e)).find((e) => e && (e.alias || e.id) === draft.editingId)
+      ? normalizeExtraModels(extraModels).find((n) => n.sdkId === draft.editingId)?.entry
       : undefined;
     if (sdkId !== draft.editingId && rows.some((r) => r.sdkId === sdkId)) {
       toast(`模型 ID ${sdkId} 已存在`);
@@ -331,13 +329,11 @@ export function ModelManager({
       entry.thinkingLevelMap = buildLevelMap(draft.levels, prevEntry?.thinkingLevelMap);
     }
     // 编辑既有条目则原地替换;新增、或编辑的是未落入 extraModels 的兜底行(如自定义供应商默认模型)→ 追加
-    const editing = !!draft.editingId
-      && extraModels.some((e) => (typeof e === "string" ? e : (e.alias || e.id)) === draft.editingId);
-    const nextExtras = editing
-      ? extraModels.map((e) => {
-        const cur = typeof e === "string" ? e : (e.alias || e.id);
-        return cur === draft.editingId ? entry : e;
-      })
+    const editingTarget = draft.editingId
+      ? normalizeExtraModels(extraModels).find((n) => n.sdkId === draft.editingId)
+      : undefined;
+    const nextExtras = editingTarget
+      ? extraModels.map((e) => (e === editingTarget.raw ? entry : e))
       : [...extraModels, entry];
     commit({ extraModels: nextExtras });
     if (!defaultModel || (draft.editingId && defaultModel === draft.editingId)) onDefaultModelChange(sdkId);
@@ -359,8 +355,11 @@ export function ModelManager({
       commit({ overrides: next });
       return;
     }
+    const removeRaws = new Set(
+      normalizeExtraModels(extraModels).filter((n) => n.sdkId === row.sdkId).map((n) => n.raw),
+    );
     commit({
-      extraModels: extraModels.filter((e) => (typeof e === "string" ? e : (e.alias || e.id)) !== row.sdkId),
+      extraModels: extraModels.filter((e) => !removeRaws.has(e)),
     });
     if (defaultModel === row.sdkId || defaultModel === row.name) onDefaultModelChange("");
   };

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { normalizeExtraModels } from "@shared/platform-presets";
 import type { ApiProvidersData, ProviderConfig } from "@shared/platform-presets";
 import { useTabStore } from "./tab-store";
 
@@ -59,10 +60,7 @@ function applyUiScale(scale: number): void {
 /** 自添加模型的显示名映射(键 = SDK 请求标识 = 别名 ?? 名称)——别名只用于请求,界面一律显示名称 */
 function extraModelLabels(cfg?: ProviderConfig | null): Record<string, string> {
   const map: Record<string, string> = {};
-  for (const item of cfg?.extraModels ?? []) {
-    const entry: { id: string; alias?: string } = typeof item === "string" ? { id: item } : item;
-    map[entry.alias || entry.id] = entry.id;
-  }
+  for (const n of normalizeExtraModels(cfg?.extraModels)) map[n.sdkId] = n.id;
   return map;
 }
 

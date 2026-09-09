@@ -43,7 +43,8 @@ export interface ProviderConfig {
   models: string[];        // 缓存：上次获取的模型列表
   createdAt: number;
   /** 用户手动补充的模型(SDK 列表外的自定义模型,如新上线;保存时与 models 合并去重)。
-   *  string = 仅 ID(存量数据,由启动迁移显式化为对象);对象 = 带显式能力声明 */
+   *  string = 仅 ID(存量数据,由启动迁移显式化为对象);对象 = 带显式能力声明。
+   *  读取一律经 normalizeExtraModels 归一化,不直接分流 string/对象 */
   extraModels?: Array<string | ExtraModelCapability>;
   /** 官方目录模型的参数覆盖(key = 模型 id;空对象 = 参数全跟随官方) */
   modelOverrides?: Record<string, ModelParams>;
@@ -58,6 +59,35 @@ export interface ProviderConfig {
 export interface ApiProvidersData {
   current: string | null;
   configs: Record<string, ProviderConfig>;
+}
+
+/** extraModels 条目的归一化形态(存储仍是 string | ExtraModelCapability union,读取统一经 normalizeExtraModels) */
+export interface NormalizedExtraModel {
+  /** 界面显示名;无别名时同时是请求 id */
+  id: string;
+  /** 请求 id 别名(填了则请求用别名,界面仍显示名称) */
+  alias?: string;
+  /** 发给供应商的请求 id = alias ?? id */
+  sdkId: string;
+  /** 对象条目的完整声明;string 条目(存量遗留)无参数声明 */
+  entry?: ExtraModelCapability;
+  /** 原始条目(保引用,供在原 union 列表里定位替换/删除) */
+  raw: string | ExtraModelCapability;
+}
+
+/** extraModels 归一化:string 条目转 { id }、无 id 的坏条目丢弃。所有读取点的统一入口 */
+export function normalizeExtraModels(
+  list?: ReadonlyArray<string | ExtraModelCapability>,
+): NormalizedExtraModel[] {
+  const out: NormalizedExtraModel[] = [];
+  for (const raw of list ?? []) {
+    if (typeof raw === "string") {
+      if (raw) out.push({ id: raw, sdkId: raw, raw });
+    } else if (raw?.id) {
+      out.push({ id: raw.id, alias: raw.alias, sdkId: raw.alias || raw.id, entry: raw, raw });
+    }
+  }
+  return out;
 }
 
 export interface PlatformPreset {

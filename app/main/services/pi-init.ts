@@ -6,7 +6,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { ExtraModelCapability, ModelParams } from "../../shared/platform-presets";
+import { normalizeExtraModels } from "../../shared/platform-presets";
+import type { NormalizedExtraModel } from "../../shared/platform-presets";
+import type { ModelParams } from "../../shared/platform-presets";
 import { THINKING_ORDER } from "../../shared/thinking-levels";
 import { Store } from "./store";
 import { getProviderStaticModels } from "./pi-init-static";
@@ -198,24 +200,21 @@ function syncExtraModelsFile(store: Store): void {
         if (!bucket.overrides.has(modelId)) bucket.overrides.set(modelId, params);
       }
       // 别名映射：SDK 的 Model.id 是发给供应商的请求标识(alias ?? 名称)，Model.name 仅用于展示
-      for (const e of config.extraModels ?? []) {
-        const entry = (typeof e === "string" ? { id: e } : e) as ExtraEntry;
-        const sdkId = entry?.alias || entry?.id;
-        if (!sdkId) continue;
-        if (bucket.extras.has(sdkId)) continue;
+      for (const n of normalizeExtraModels(config.extraModels)) {
+        if (bucket.extras.has(n.sdkId)) continue;
         // 已是 SDK 内置 id 的不再写 models[](models[] 按 id 整体替换内置条目,升级后 SDK 自带
         // 同名模型时我们的条目会遮蔽官方 spec)——但用户在条目里显式声明的参数(窗口/输出/
         // 识图/档位)必须落到 modelOverrides,否则整条静默消失(改参数没反应)。
-        if (siblings.has(sdkId)) {
-          const declaredParams = sanitizeModelParams(entry, `手动模型 ${sdkId}`);
+        if (siblings.has(n.sdkId)) {
+          const declaredParams = sanitizeModelParams(n.entry ?? { id: n.id }, `手动模型 ${n.sdkId}`);
           if (Object.keys(declaredParams).length > 0) {
-            console.warn(`[pi-init] 模型 ${sdkId} 已是官方模型，手动条目的参数按覆盖层生效(models.json modelOverrides)`);
+            console.warn(`[pi-init] 模型 ${n.sdkId} 已是官方模型，手动条目的参数按覆盖层生效(models.json modelOverrides)`);
             // 先入桶者优先(激活配置 → 其余;modelOverrides → 条目声明),仅补未声明字段
-            bucket.overrides.set(sdkId, { ...declaredParams, ...bucket.overrides.get(sdkId) });
+            bucket.overrides.set(n.sdkId, { ...declaredParams, ...bucket.overrides.get(n.sdkId) });
           }
           continue;
         }
-        bucket.extras.set(sdkId, entry);
+        bucket.extras.set(n.sdkId, n.entry ?? { id: n.id });
       }
       // 协议/定价层兜底基准:优先该配置的默认模型(命中内置时),否则用第一个内置模型
       if (!bucket.fallbackModel && config.model && siblings.has(config.model)) bucket.fallbackModel = config.model;
@@ -411,16 +410,14 @@ async function syncProviders(store: Store, runtime: ModelRuntimeInstance) {
         // 模型声明(参数由用户显式指定,不再按 id 反查官方同族模型推断):
         // key = 别名 ?? 名称——SDK 的 Model.id 是发给供应商的请求标识,Model.name 仅用于展示。
         // 旧数据里 extraModels 可能是纯字符串 id(无参数声明),此时按保守默认值回落。
-        type DeclaredModel = Partial<ExtraModelCapability> & { id: string };
-        const declared: DeclaredModel[] = (config.extraModels ?? [])
-          .map((e) => (typeof e === "string" ? { id: e } : e));
-        const bySdkId = new Map<string, DeclaredModel>();
+        const declared = normalizeExtraModels(config.extraModels);
+        const bySdkId = new Map<string, NormalizedExtraModel>();
         for (const d of declared) {
-          bySdkId.set(d.alias || d.id, d);
-          bySdkId.set(d.id, d);
+          bySdkId.set(d.sdkId, d);
+          if (d.alias) bySdkId.set(d.id, d);
         }
         // 模型清单 = 缓存列表(config.models) ∪ 声明的请求 id(任一来源都能注册)
-        const sdkIds = [...new Set([...(config.models ?? []), ...declared.map((d) => d.alias || d.id)])];
+        const sdkIds = [...new Set([...(config.models ?? []), ...declared.map((d) => d.sdkId)])];
         runtime.registerProvider(config.id, {
           name: config.name,
           apiKey: config.apiKey,
@@ -428,20 +425,21 @@ async function syncProviders(store: Store, runtime: ModelRuntimeInstance) {
           api: (config as any).apiType || "anthropic-messages",
           models: sdkIds.map((sdkId) => {
             const d = bySdkId.get(sdkId);
+            const entry = d?.entry;
             return {
               id: sdkId,
               name: d?.id ?? sdkId,
               // 未声明时保守默认(与旧版行为一致:推理默认开、纯文本输入)
-              reasoning: d?.reasoning ?? true,
-              input: d?.input ?? ["text"],
-              ...(d?.thinkingLevelMap ? { thinkingLevelMap: d.thinkingLevelMap } : {}),
+              reasoning: entry?.reasoning ?? true,
+              input: entry?.input ?? ["text"],
+              ...(entry?.thinkingLevelMap ? { thinkingLevelMap: entry.thinkingLevelMap } : {}),
               // 第三方网关的上游(DeepSeek/Kimi/GLM 官方 API)不认 OpenAI 的 developer
               // 角色,pi 默认按 OpenAI 官方发 developer → 网关 400 且被 SDK 当正常
               // 回合结束(前端表现为"发消息无响应")。system 角色 OpenAI 官方也接受
               compat: { supportsDeveloperRole: false },
               cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-              contextWindow: d?.contextWindow ?? 200000,
-              maxTokens: d?.maxTokens ?? 32768,
+              contextWindow: entry?.contextWindow ?? 200000,
+              maxTokens: entry?.maxTokens ?? 32768,
             };
           }),
         } as any);

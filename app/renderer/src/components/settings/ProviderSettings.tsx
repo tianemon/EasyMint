@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { createPortal } from "react-dom";
 import { useSettingsStore } from "../../stores/settings-store";
-import { getPreset } from "@shared/platform-presets";
+import { getPreset, normalizeExtraModels } from "@shared/platform-presets";
 import type { ProviderConfig, ExtraModelCapability, ModelParams } from "@shared/platform-presets";
 import { THINKING_ORDER, THINKING_LABELS } from "@shared/thinking-levels";
 import { Select, type SelectOption } from "../Select";
@@ -42,7 +42,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     const list = [...(initial?.extraModels ?? [])];
     if (isCustom) {
       // 旧版自定义供应商用 textarea 存模型清单(config.models),并入 extraModels 统一管理
-      const known = new Set(list.map((e) => (typeof e === "string" ? e : (e.alias || e.id))));
+      const known = new Set(normalizeExtraModels(list).map((n) => n.sdkId));
       for (const id of initial?.models ?? []) if (!known.has(id)) list.push(id);
     }
     return list;
@@ -61,15 +61,15 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const [modelLevels, setModelLevels] = useState<Record<string, string>>({});
   const [savedModelLevels, setSavedModelLevels] = useState<Record<string, string>>({});
   // 可选的模型列表(值 = SDK 请求标识):内置供应商 = 官方目录 + 自添加;自定义 = 自添加
-  const extraEntries: Array<{ id: string; alias?: string }> = extraModels.map((e) => (typeof e === "string" ? { id: e } : e));
-  const extraSdkIds = extraEntries.map((e) => e.alias || e.id);
+  const extraEntries = normalizeExtraModels(extraModels);
+  const extraSdkIds = extraEntries.map((n) => n.sdkId);
   const officialIds = officialModels ? officialModels.map((m) => m.id) : (initial?.models ?? []);
   const availableModels = isCustom
     ? Array.from(new Set(extraSdkIds))
     : Array.from(new Set([...officialIds, ...extraSdkIds]));
   // 显示名:自添加模型用名称,官方模型一律用请求标识(与聊天输入条口径一致;别名不该出现在界面上)
   const labelOf = (sdkId: string): string => {
-    const extra = extraEntries.find((e) => (e.alias || e.id) === sdkId);
+    const extra = extraEntries.find((n) => n.sdkId === sdkId);
     return extra?.id ?? sdkId;
   };
 
