@@ -184,15 +184,19 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       </div>
       <div>
         <label className="text-xs text-text-secondary block mb-1.5">API 协议</label>
-        <select
+        {/* 原生 select 的弹出菜单由系统绘制,不受 CSS 控制且在弹窗内会偏移——
+            改用自绘 Select(面板 portal 到 body + fixed 定位,与「选择平台」一致) */}
+        <Select
+          block
+          className="[&>button]:h-8 [&>button]:text-xs"
           value={apiType}
-          onChange={(e) => setApiType(e.target.value)}
-          className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
-        >
-          <option value="anthropic-messages">Anthropic Messages</option>
-          <option value="openai-completions">OpenAI Completions</option>
-          <option value="openai-responses">OpenAI Responses</option>
-        </select>
+          onChange={setApiType}
+          options={[
+            { value: "anthropic-messages", label: "Anthropic Messages" },
+            { value: "openai-completions", label: "OpenAI Completions" },
+            { value: "openai-responses", label: "OpenAI Responses" },
+          ]}
+        />
       </div>
       </>)}
 
