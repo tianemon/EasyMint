@@ -162,66 +162,72 @@ export function AppearanceTab(): JSX.Element {
                 </button>
               ))}
             </div>
-            {/* 光效颜色:单色/多色模式切换(当前编辑模式);参数固定(粗细/速度/拖尾为组件常量) */}
-            {glowEffect !== "off" && (
-              <div className="mt-2 space-y-2">
+          </div>
+
+          {/* 颜色设置:输入卡片光效色与状态文本色两组配置并排(原分散在两处,右侧留白大) */}
+          <div>
+            <span className="text-xs text-text-primary block mb-2">颜色设置</span>
+            <div className="grid grid-cols-2 gap-4">
+              {/* 输入卡片光效颜色:单色/多色模式切换(当前编辑模式);参数固定(粗细/速度/拖尾为组件常量) */}
+              <div className="space-y-2">
+                <span className="text-[length:var(--text-2xs)] text-text-secondary block">输入卡片光效颜色</span>
+                {glowEffect === "off" ? (
+                  <p className="text-[length:var(--text-2xs)] text-text-muted">光效已关闭</p>
+                ) : (
+                  <>
+                    <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden bg-surface">
+                      {(["solid", "multi"] as const).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setGlowColorMode(m)}
+                          className={`px-3 py-1 text-xs transition-all ${
+                            glowColorMode === m ? "bg-accent-soft text-accent font-medium" : "text-text-secondary em-hover-control"
+                          }`}
+                        >
+                          {m === "solid" ? "单色" : "多色"}
+                        </button>
+                      ))}
+                    </div>
+                    {/* 不用 label 包裹:label 的关联触发会让点击文字/空白区域也打开取色器(触发区域大于视觉按钮) */}
+                    {glowColorMode === "solid" ? (
+                      <div className="flex items-center">
+                        <ColorPickerField value={glowColor} onChange={setGlowColor} />
+                      </div>
+                    ) : (
+                      <GlowGroupManager groups={glowGroups} activeId={activeGlowGroup} onChangeGroups={setGlowGroups} onChangeActive={setActiveGlowGroup} />
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* 状态文本颜色:单色/流光模式切换 */}
+              <div className="space-y-2">
+                <span className="text-[length:var(--text-2xs)] text-text-secondary block">状态文本颜色</span>
                 <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden bg-surface">
-                  {(["solid", "multi"] as const).map((m) => (
+                  {(["solid", "shimmer"] as const).map((s) => (
                     <button
-                      key={m}
+                      key={s}
                       type="button"
-                      onClick={() => setGlowColorMode(m)}
+                      onClick={() => setStatusTextStyle(s)}
                       className={`px-3 py-1 text-xs transition-all ${
-                        glowColorMode === m ? "bg-accent-soft text-accent font-medium" : "text-text-secondary em-hover-control"
+                        statusTextStyle === s ? "bg-accent-soft text-accent font-medium" : "text-text-secondary em-hover-control"
                       }`}
                     >
-                      {m === "solid" ? "单色" : "多色"}
+                      {s === "solid" ? "单色" : "流光"}
                     </button>
                   ))}
                 </div>
-                {glowColorMode === "solid" ? (
-                  // 不用 label 包裹:label 的关联触发会让点击文字/空白区域也打开取色器(触发区域大于视觉按钮)
-                  <div className="flex items-center gap-2 text-xs text-text-secondary">
-                    <span>光效颜色</span>
-                    <ColorPickerField value={glowColor} onChange={setGlowColor} />
+                {/* 单色 = 取色器;流光 = 分组管理(内置「默认」不可删 + 自定义 ≤4) */}
+                {statusTextStyle === "solid" ? (
+                  <div className="flex items-center">
+                    <ColorPickerField value={statusColor} onChange={setStatusColor} />
                   </div>
                 ) : (
-                  <GlowGroupManager groups={glowGroups} activeId={activeGlowGroup} onChangeGroups={setGlowGroups} onChangeActive={setActiveGlowGroup} />
+                  <GlowGroupManager groups={statusGroups} activeId={activeStatusGroup} onChangeGroups={setStatusGroups} onChangeActive={setActiveStatusGroup} />
                 )}
               </div>
-            )}
-          </div>
-
-          {/* Mint 状态文本 */}
-          <div>
-            <span className="text-xs text-text-primary block mb-2">Mint 状态文本</span>
-            <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden bg-surface">
-              {(["solid", "shimmer"] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setStatusTextStyle(s)}
-                  className={`px-4 py-1.5 text-xs transition-all ${
-                    statusTextStyle === s ? "bg-accent-soft text-accent font-medium" : "text-text-secondary em-hover-control"
-                  }`}
-                >
-                  {s === "solid" ? "单色" : "流光"}
-                </button>
-              ))}
             </div>
-            {/* 单色模式:颜色选择(当前编辑模式);不用 label 包裹(触发区域问题同上) */}
-            {statusTextStyle === "solid" && (
-              <div className="flex items-center gap-2 text-xs text-text-secondary mt-2">
-                <span>文本颜色</span>
-                <ColorPickerField value={statusColor} onChange={setStatusColor} />
-              </div>
-            )}
-            {/* 流光模式:分组管理(内置「默认」不可删 + 自定义 ≤4) */}
-            {statusTextStyle === "shimmer" && (
-              <div className="mt-2">
-                <GlowGroupManager groups={statusGroups} activeId={activeStatusGroup} onChangeGroups={setStatusGroups} onChangeActive={setActiveStatusGroup} />
-              </div>
-            )}
           </div>
         </div>
       </section>
