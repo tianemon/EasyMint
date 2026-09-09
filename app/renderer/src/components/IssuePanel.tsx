@@ -32,7 +32,7 @@ function IssueRow({ issue, projectPath, onEdit }: { issue: IssueItem; projectPat
   const isFixed = issue.status === "fixed";
 
   return (
-    <div className={`rounded-[var(--radius-lg)] border px-2.5 py-2 transition-colors ${isFixed ? "border-border/50 opacity-60" : "border-border hover:border-accent-border"}`}>
+    <div className={`em-hover-row rounded-[var(--radius-lg)] bg-[var(--color-drawer-card)] px-2.5 py-2 transition-colors ${isFixed ? "opacity-60" : ""}`}>
       {/* 模块(上方) + 右上时间 */}
       <div className="flex items-center gap-1.5">
         {issue.module ? (
@@ -114,7 +114,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
       </div>
 
       {/* Issue 列表 */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 pt-[3px] pb-2">
+      <div className="flex-1 min-h-0 overflow-y-auto px-2.5 pt-[3px] pb-2">
         {issues.length > 0 ? (
           <div className="space-y-1.5">
             {issues.map((issue) => (

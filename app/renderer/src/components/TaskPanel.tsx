@@ -106,8 +106,8 @@ export function TaskPanel(_props: TaskPanelProps): JSX.Element {
       </div>
 
       {/* Task list — mint container always visible, fixed area */}
-      <div className="flex-1 min-h-0 flex flex-col px-2 pt-[3px] pb-2">
-        <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto space-y-0.5">
+      <div className="flex-1 min-h-0 flex flex-col px-2.5 pt-[3px] pb-2">
+        <div ref={listRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto space-y-1.5">
           {reversedTasks.length > 0 ? (
             reversedTasks.map((task) => (
               <TaskRow key={task.id} task={task} runningExec={taskExecutions[task.id]} />
