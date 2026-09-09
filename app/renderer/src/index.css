@@ -866,7 +866,8 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   display: flex; flex-direction: column;
   width: 760px; height: 600px;
   background: var(--color-input-card); border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg); overflow: hidden;
+  /* 无投影:与遮罩的色差已足够区分层级,投影反而显脏 */
+  overflow: hidden;
   transform: scale(0);
   transform-origin: center center;
   transition: transform 0.45s cubic-bezier(0.175,0.885,0.32,1.275);
