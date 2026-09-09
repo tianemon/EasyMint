@@ -81,7 +81,7 @@ export function AgentTemplateSettings(): JSX.Element {
           <h3 className="text-sm font-medium text-text-primary">Agent 模板</h3>
         </div>
         <button onClick={() => setAdding(true)}
-          className="shrink-0 whitespace-nowrap px-3 py-1 rounded-[var(--radius-lg)] border border-accent text-accent text-xs font-medium hover:bg-accent-subtle transition-colors">
+          className="shrink-0 whitespace-nowrap px-3 py-1 rounded-[var(--radius-lg)] text-accent text-xs font-medium hover:bg-accent-subtle transition-colors">
           + 新建模板
         </button>
       </div>
@@ -91,7 +91,7 @@ export function AgentTemplateSettings(): JSX.Element {
         <div className="text-xs text-text-secondary/60 py-4 text-center">暂无自定义模板</div>
       ) : (
         templates.map((tpl) => (
-          <div key={tpl.id} className="group flex items-start gap-3 p-3 rounded-[var(--radius-lg)] border border-border bg-surface hover:border-accent/30 transition-colors">
+          <div key={tpl.id} className="group flex items-start gap-3 p-3 rounded-[var(--radius-lg)] bg-surface-alt hover:shadow-[inset_0_0_0_999px_var(--hover-1)] transition-shadow">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-text-primary">{tpl.name}</span>
@@ -108,14 +108,14 @@ export function AgentTemplateSettings(): JSX.Element {
               {LOCKED_IDS.has(tpl.id) ? (
                 // Mint/Mint-D:统一进入表单页浏览(只读,不可编辑)
                 <button onClick={() => setEditing(tpl)}
-                  className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] bg-surface border border-border text-text-secondary hover:text-text-primary transition-colors">浏览</button>
+                  className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary transition-colors">浏览</button>
               ) : (
                 <>
                   <button onClick={() => setEditing(tpl)}
-                    className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] bg-surface border border-border text-text-secondary hover:text-text-primary transition-colors">编辑</button>
+                    className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary transition-colors">编辑</button>
                   {!BUILTIN_IDS.has(tpl.id) && (
                     <button onClick={() => handleDelete(tpl.id)}
-                      className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] bg-surface border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors">删除</button>
+                      className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] text-text-secondary hover:text-danger transition-colors">删除</button>
                   )}
                 </>
               )}
@@ -178,18 +178,18 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-text-primary">{editMode ? (locked ? "浏览模板" : "编辑模板") : "新建模板"}</h3>
         <button onClick={onCancel} className="text-[length:var(--text-11)] text-text-secondary hover:text-text-primary">{locked ? "关闭" : "取消"}</button>
       </div>
       {locked && (
-        <div className="rounded-[var(--radius-lg)] border border-accent/30 bg-accent-subtle px-3 py-2.5 text-[length:var(--text-11)] text-text-secondary leading-relaxed">
+        <div className="rounded-[var(--radius-lg)] bg-accent-subtle px-3 py-2.5 text-[length:var(--text-11)] text-text-secondary leading-relaxed">
           内置模板「<span className="text-text-primary font-medium">{initial.name}</span>」：系统内置，仅供浏览，不可修改。
         </div>
       )}
       {restricted && (
-        <div className="rounded-[var(--radius-lg)] border border-accent/30 bg-accent-subtle px-3 py-2.5 text-[length:var(--text-11)] text-text-secondary leading-relaxed">
+        <div className="rounded-[var(--radius-lg)] bg-accent-subtle px-3 py-2.5 text-[length:var(--text-11)] text-text-secondary leading-relaxed">
           内置模板「<span className="text-text-primary font-medium">{initial.name}</span>」：名称、描述与人格提示词为系统内置，不可修改。仅可调整下方供应商 / 模型 / 思考等级。
         </div>
       )}
