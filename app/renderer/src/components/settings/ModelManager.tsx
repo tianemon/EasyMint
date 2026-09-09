@@ -90,23 +90,30 @@ function buildLevelMap(
   return map;
 }
 
-/** 三态复选框：indeterminate（横杠）= 未覆盖（跟随官方）——官方模型专用 */
-function TriCheckbox({ checked, indeterminate, disabled, onChange }: {
-  checked: boolean;
-  indeterminate: boolean;
+/** 三态复选框：indeterminate（横杠）= 未覆盖（跟随官方）——官方模型专用。
+ *  每点击一次前进一态：跟随官方（横杠）→ 是（勾）→ 否（空）→ 跟随官方。
+ *  必须完全受控、不读 e.target.checked：原生 checkbox 的 indeterminate 只由 JS 设置，
+ *  用户点击时浏览器会先清掉它再 toggle checked，读事件值就永远回不到「跟随官方」
+ *  （横杠点一下直接变勾，此后只能 是↔否 往返）。
+ *  tristate=false（自添加模型：窗口/输出必填，无「跟随官方」语义）时只在 是 ↔ 否 间切换。 */
+function TriCheckbox({ value, tristate, disabled, onChange }: {
+  value: "inherit" | boolean;
+  tristate: boolean;
   disabled?: boolean;
-  onChange: (checked: boolean) => void;
+  onChange: (next: "inherit" | boolean) => void;
 }): JSX.Element {
   const ref = useRef<HTMLInputElement>(null);
+  const indeterminate = value === INHERIT;
   useEffect(() => { if (ref.current) ref.current.indeterminate = indeterminate; }, [indeterminate]);
+  const next: "inherit" | boolean = indeterminate ? true : value === true ? false : tristate ? INHERIT : true;
   return (
     <input
       ref={ref}
       type="checkbox"
       className="w-3.5 h-3.5 rounded accent-accent shrink-0 disabled:opacity-50"
-      checked={checked}
+      checked={value === true}
       disabled={disabled}
-      onChange={(e) => onChange(e.target.checked)}
+      onChange={() => onChange(next)}
     />
   );
 }
@@ -293,7 +300,12 @@ export function ModelManager({
         if (!maxOut) { toast("请填写最大输出"); return; }
         params.maxTokens = maxOut;
       }
-      if (draft.levelsTouched) params.thinkingLevelMap = buildLevelMap(draft.levels, overrides[sdkId]?.thinkingLevelMap);
+      // 档位：触碰过就按勾选重建；没碰但有既有覆盖时原样保留——
+      // 下方 commit 是整对象替换，不写回等于把用户之前钉住的档位覆盖静默丢弃（与自添加分支语义对齐）。
+      // 未触碰时不调 buildLevelMap：它会把原 map 里省略的档位写成 null，改变语义。
+      const prevOv = overrides[sdkId];
+      if (draft.levelsTouched) params.thinkingLevelMap = buildLevelMap(draft.levels, prevOv?.thinkingLevelMap);
+      else if (prevOv?.thinkingLevelMap) params.thinkingLevelMap = prevOv.thinkingLevelMap;
       commit({ overrides: { ...overrides, [sdkId]: params } });
       setDraft(null);
       return;
@@ -508,17 +520,17 @@ export function ModelManager({
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <label className="flex items-center gap-1.5 text-[length:var(--text-2xs)] text-text-secondary cursor-pointer">
                 <TriCheckbox
-                  checked={draft.vision === true}
-                  indeterminate={draft.vision === INHERIT}
-                  onChange={(checked) => setDraft({ ...draft, vision: checked })}
+                  value={draft.vision}
+                  tristate={isOfficialDraft}
+                  onChange={(next) => setDraft({ ...draft, vision: next })}
                 />
                 支持识图{draft.vision === INHERIT && <span className="text-text-muted">（跟随官方）</span>}
               </label>
               <label className="flex items-center gap-1.5 text-[length:var(--text-2xs)] text-text-secondary cursor-pointer">
                 <TriCheckbox
-                  checked={draft.reasoning === true}
-                  indeterminate={draft.reasoning === INHERIT}
-                  onChange={(checked) => setDraft({ ...draft, reasoning: checked })}
+                  value={draft.reasoning}
+                  tristate={isOfficialDraft}
+                  onChange={(next) => setDraft({ ...draft, reasoning: next })}
                 />
                 推理模型{draft.reasoning === INHERIT && <span className="text-text-muted">（跟随官方）</span>}
               </label>

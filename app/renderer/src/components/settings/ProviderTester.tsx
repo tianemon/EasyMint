@@ -30,7 +30,7 @@ export function ProviderTester({ baseUrl, apiKey, model, apiType }: Props): JSX.
 
   const run = async () => {
     if (!baseUrl.trim()) { toast("请先填写 Base URL"); return; }
-    if (!apiKey.trim()) { toast("请先填写 API Key"); return; }
+    // 不拦空 Key：地址可达与模型列表不需要 Key（空 Bearer → 401 → 显示「认证被拒绝」）
     setTesting(true);
     setError("");
     setResult(null);
