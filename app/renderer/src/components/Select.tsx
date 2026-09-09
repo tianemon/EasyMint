@@ -33,6 +33,8 @@ export function Select({ value, onChange, options, className, block, placeholder
 
   // 打开时计算 fixed 坐标：先按触发器左缘定位；minWidth 用触发器宽度（fixed 元素 min-w-full 会解析为视口宽度）
   const toggle = () => {
+    // 无选项时不展开:空面板只剩上下边框,渲染成一条横线(如自定义供应商未添加模型时)
+    if (options.length === 0) return;
     setOpen((o) => {
       if (!o && ref.current) {
         const r = ref.current.getBoundingClientRect();
