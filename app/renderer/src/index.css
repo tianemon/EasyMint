@@ -786,9 +786,10 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   box-shadow: var(--shadow-sm);
   /* overflow visible:AgentBar/ShellBar 浮层向上展开不被裁剪(compact 蒙版自带圆角) */
   overflow: visible;
-  /* position: 遮罩锚点;flex-shrink 0: 防压缩;底部 16px: 窗口边距(原 chat-input-area 职责) */
+  /* position: 遮罩锚点;flex-shrink 0: 防压缩;底部间距: 窗口边距(原 chat-input-area 职责)
+     +10px: 卡片视觉上移(原 --s4=16px);ChatPanel 的 FLIP 落点改为动态读实际值,不再硬编码 16px */
   position: relative; flex-shrink: 0;
-  margin: 0 var(--s16) var(--s4);
+  margin: 0 var(--s16) calc(var(--s4) + 10px);
 }
 /* 状态指示光效:三预设(orbit/slide/breathe)全 canvas 每帧绘制(OrbitGlow/SlideGlow/BreatheGlow)。
    canvas 定位:替换元素 absolute+inset+width:auto 时布局用 intrinsic 尺寸而非 inset 推导——
@@ -903,18 +904,19 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 
 /* ── 无边框拼色（2026-09-09 用户：主界面无边框、设置页改成同语言）──────
    用「色差分层」替代线条边框：分组块靠深浅底区分（TSX 删 border 类），
-   输入控件凹槽化——去描边、底色保留 surface(canvas)，在分组块上自然形成深一档的槽。
+   输入控件凹槽化——去描边，默认底取 --field-idle（比分组块深一档），
+   聚焦时再深一档（--color-canvas）作为聚焦提示，全程无边框。
    仅作用 .settings-body（设置弹窗内容区），通用控件其它页面保持原样。 */
 .settings-body .em-input { border-color: transparent; background: var(--field-idle); }
 .settings-body .em-input:hover { border-color: transparent; background: var(--field-idle); }
-.settings-body .em-input:focus { border-color: transparent; background: var(--color-surface); }  /* 聚焦=底色加深,无任何边框 */
+.settings-body .em-input:focus { border-color: transparent; background: var(--color-canvas); }  /* 聚焦=底色再深一档,无任何边框 */
 
 
 
 /* Select 触发(无边框拼色):默认与输入同 idle 底、聚焦同加深,无任何边框;hover 强档叠加 */
 .settings-body .em-select-trigger { border-color: transparent; background: var(--field-idle); transition-property: background-color; transition-duration: 120ms; }
 .settings-body .em-select-trigger:hover { border-color: transparent; }
-.settings-body .em-select-trigger:focus { border-color: transparent; background: var(--color-surface); }
+.settings-body .em-select-trigger:focus { border-color: transparent; background: var(--color-canvas); }
 .settings-body .em-select-trigger:disabled { cursor: not-allowed; }
 
 /* ── Chat Empty ─────────────────────────────── */
@@ -1074,42 +1076,36 @@ button, a, select {
 .state-ok { color: var(--color-success); }
 [data-theme="dark"] .state-ok { color: var(--color-text-primary); }
 
-/* ── 圆角标准常量(唯一事实源,2026-09-09) ────────────────
-   所有圆角取值必须取或参考下列常量;UI元素库·圆角曲率约束 引用它们。
-   - radius-field  : 大号表单输入框(名称/API Key 等 py-2 高输入,em-input 默认)
-   - radius-control: 紧凑控件(按钮/下拉/约 32px 高的输入与组合框)
-   - radius-panel  : 卡片/弹窗/浮层面板(8-12px 区间,按层级取) */
-:root {
-  --radius-field: 12px;
-  --radius-control: 6px;
-  --radius-panel: 12px;
-  --radius-btn: 6px;   /* 按钮圆角(2026-09-09 试用 2px 后定回 6px,与控件统一) */
-
-}
+/* ── 圆角(2026-09-09 定稿) ────────────────────────────────
+   全站统一取 var(--radius-lg)(官方 lg 档 = 0.5rem/8px)。
+   官方三档 sm/md/lg 不再覆写;自定档(field/control/panel/btn)在全量替换后已删除——
+   曾按元素层级分档,最终收敛为单档(规格见 UI元素库·圆角)。 */
 
 /* ── Form inputs ──────────────────────────────────── */
 
 /* 统一输入框外观(设置页/弹窗/新建项目/脚本编辑等,参照历史输入搜索框):
-   矩形大圆角(12px) + 柔和边框 + 聚焦时外观完全不变(无任何焦点高亮边框)。
+   矩形圆角(全站统一 8px) + 柔和边框 + 聚焦时无焦点高亮边框/光环。
+   设置页内另有底色变化作聚焦提示(见 .settings-body .em-input)。
    组件用 className="em-input ..." 附加尺寸/内边距;ChatInput 输入卡片除外(.chat-input) */
 .em-input {
   width: 100%;
   /* padding 不在此定义:组件 className 自带 px/py 类(含 pr 图标留白),
      此处定义会因优先级高于 Tailwind utilities 而覆盖它们——内边距由组件控制 */
-  border-radius: var(--radius-lg);  /* 大号输入框标准圆角,常量见 --radius-field */
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   color: var(--color-text-primary);
   outline: none;
   font-size: var(--font-size-sm);
 }
-/* 紧凑输入框(约 32px 高,与紧凑下拉同档):圆角取 --radius-control 覆盖默认 field 档 */
+/* 紧凑输入框(约 32px 高):圆角与默认档一致(全站单档),类名保留供组件标注尺寸语义 */
 .em-input.em-input-compact { border-radius: var(--radius-lg); }
 
 .em-input::placeholder {
   color: var(--color-text-secondary);
 }
-/* 覆盖全局 *:focus-visible 的 accent 光环——输入框聚焦外观完全不变 */
+/* 覆盖全局 *:focus-visible 的 accent 光环——全局范围内输入框聚焦不改变外观;
+   设置页内以底色加深代替(见 .settings-body .em-input:focus) */
 .em-input:focus,
 .em-input:focus-visible {
   outline: none;
@@ -1541,3 +1537,11 @@ select.input {
   /* 未选中卡 hover:压暗(黑 tint 12%)——比自身深、但比选中槽(#1b1b1b)浅 */
   --preset-hover: rgba(0, 0, 0, 0.12);
 }
+
+/* hover 两档语义类——替代散落各处的 shadow-[inset_0_0_0_999px_var(--hover-*)] arbitrary value。
+   em-hover-row    : 行级定位(列表/分组中的整行,无论该行本身是否可点)
+   em-hover-control: 可点控件(按钮/可点条目)
+   过渡由使用方的 transition-* 类控制(各元素过渡范围不同)。
+   前缀 em- 不可省:Monaco 编辑器自带 .hover-row(monaco-hover .hover-row),裸名会污染其 hover 面板 */
+.em-hover-row:hover { box-shadow: inset 0 0 0 999px var(--hover-1); }
+.em-hover-control:hover { box-shadow: inset 0 0 0 999px var(--hover-2); }

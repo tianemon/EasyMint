@@ -121,7 +121,7 @@ export function PromptSettings(): JSX.Element {
               <div
                 key={prompt.id}
                 className={`flex items-center gap-1.5 px-3 py-2 cursor-pointer transition-all text-xs ${
-                  prompt.id === selectedId ? "bg-accent-soft" : "hover:shadow-[inset_0_0_0_999px_var(--hover-2)]"
+                  prompt.id === selectedId ? "bg-accent-soft" : "em-hover-control"
                 }`}
                 onClick={() => setSelectedId(prompt.id)}
                 onMouseEnter={() => setHoveredId(prompt.id)}

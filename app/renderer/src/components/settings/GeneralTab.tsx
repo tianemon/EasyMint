@@ -17,7 +17,7 @@ function EnvRow({ label, info, installUrl }: {
   installUrl?: string;
 }) {
   return (
-    <div className="px-4 py-2.5 flex items-center justify-between hover:shadow-[inset_0_0_0_999px_var(--hover-1)] transition-shadow">
+    <div className="px-4 py-2.5 flex items-center justify-between em-hover-row transition-shadow">
       <div className="flex items-center gap-2">
         <span className="text-sm text-text-secondary">{label}</span>
         {info === null ? (
@@ -53,7 +53,7 @@ function CodegraphRow({ info }: { info: { found: boolean; version?: string } | n
   };
 
   return (
-    <div className="px-4 py-2.5 flex items-start justify-between hover:shadow-[inset_0_0_0_999px_var(--hover-1)] transition-shadow">
+    <div className="px-4 py-2.5 flex items-start justify-between em-hover-row transition-shadow">
       <div className="flex items-center gap-2 mt-1">
         <span className="text-sm text-text-secondary">CodeGraph</span>
         {info === null ? (
@@ -69,7 +69,7 @@ function CodegraphRow({ info }: { info: { found: boolean; version?: string } | n
           <div className="flex items-center gap-1">
             <code className="text-[length:var(--text-2xs)] text-text-secondary bg-surface px-2 py-0.5 rounded-[var(--radius-lg)] select-all">{cmd}</code>
             <button
-              className="shrink-0 px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-accent hover:shadow-[inset_0_0_0_999px_var(--hover-2)] transition-all"
+              className="shrink-0 px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-accent em-hover-control transition-all"
               onClick={handleCopy}
             >
               {copied ? "已复制" : "复制"}
@@ -130,7 +130,7 @@ function CacheManagementSection(): JSX.Element {
       <h3 className="text-sm font-medium text-text-secondary mb-2">缓存管理</h3>
       <div className="bg-surface-alt rounded-[var(--radius-lg)] overflow-hidden">
 
-        <div className="px-4 py-3 flex items-center justify-between hover:shadow-[inset_0_0_0_999px_var(--hover-1)] transition-shadow">
+        <div className="px-4 py-3 flex items-center justify-between em-hover-row transition-shadow">
           <div>
             <h4 className="text-xs font-medium text-text-secondary">安装包缓存</h4>
             {updateSize === null ? (
@@ -144,14 +144,14 @@ function CacheManagementSection(): JSX.Element {
           {updateSize !== null && updateSize > 0 && (
             <div className="flex items-center gap-1.5 shrink-0">
               <button
-                className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary hover:shadow-[inset_0_0_0_999px_var(--hover-2)] transition-shadow"
+                className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary em-hover-control transition-shadow"
                 onClick={handleClear}
                 disabled={clearing}
               >
                 {clearing ? "清除中..." : "清除缓存"}
               </button>
               <button
-                className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary hover:shadow-[inset_0_0_0_999px_var(--hover-2)] transition-shadow"
+                className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary em-hover-control transition-shadow"
                 onClick={() => window.electronAPI?.app?.openUpdateCache?.()}
               >
                 文件夹
@@ -160,7 +160,7 @@ function CacheManagementSection(): JSX.Element {
           )}
         </div>
 
-        <div className="px-4 py-3 flex items-center justify-between hover:shadow-[inset_0_0_0_999px_var(--hover-1)] transition-shadow">
+        <div className="px-4 py-3 flex items-center justify-between em-hover-row transition-shadow">
           <div>
             <h4 className="text-xs font-medium text-text-secondary">上传缓存</h4>
             {uploadSize === null ? (
@@ -173,7 +173,7 @@ function CacheManagementSection(): JSX.Element {
           </div>
           {uploadSize !== null && uploadSize > 0 && (
             <button
-              className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary hover:shadow-[inset_0_0_0_999px_var(--hover-2)] transition-shadow"
+              className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary em-hover-control transition-shadow"
               onClick={() => window.electronAPI?.upload?.openDir?.()}
             >
               打开文件夹

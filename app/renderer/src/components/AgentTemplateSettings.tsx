@@ -91,7 +91,7 @@ export function AgentTemplateSettings(): JSX.Element {
         <div className="text-xs text-text-secondary/60 py-4 text-center">暂无自定义模板</div>
       ) : (
         templates.map((tpl) => (
-          <div key={tpl.id} className="group flex items-start gap-3 p-3 rounded-[var(--radius-lg)] bg-surface-alt hover:shadow-[inset_0_0_0_999px_var(--hover-1)] transition-shadow">
+          <div key={tpl.id} className="group flex items-start gap-3 p-3 rounded-[var(--radius-lg)] bg-surface-alt em-hover-row transition-shadow">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-text-primary">{tpl.name}</span>

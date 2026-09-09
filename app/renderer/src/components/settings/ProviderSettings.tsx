@@ -454,7 +454,7 @@ export function ProvidersManager() {
           const isActive = apiProviders?.current === cfg.id;
           const brand = BRAND_BY_PI_ID.get(cfg.presetId);
           return (
-            <div key={cfg.id} className={`group flex items-center gap-3 p-3 rounded-[var(--radius-lg)] transition-all ${isActive ? "bg-accent-soft" : "bg-surface-alt hover:shadow-[inset_0_0_0_999px_var(--hover-2)]"}`}>
+            <div key={cfg.id} className={`group flex items-center gap-3 p-3 rounded-[var(--radius-lg)] transition-all ${isActive ? "bg-accent-soft" : "bg-surface-alt em-hover-control"}`}>
               {/* 品牌图标 */}
               {brand?.icon && <img src={brand.icon} className="w-5 h-5 rounded-[var(--radius-lg)] shrink-0 object-contain" alt="" />}
               <div className="flex-1 min-w-0">

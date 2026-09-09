@@ -48,7 +48,7 @@ export function GlowGroupManager({ groups, activeId, onChangeGroups, onChangeAct
             className={`group/g relative px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-11)] cursor-pointer transition-all ${
               activeGroup?.id === g.id
                 ? "bg-accent-soft text-accent font-medium"
-                : "bg-surface text-text-secondary hover:shadow-[inset_0_0_0_999px_var(--hover-2)]"
+                : "bg-surface text-text-secondary em-hover-control"
             }`}
             
           >
@@ -67,7 +67,7 @@ export function GlowGroupManager({ groups, activeId, onChangeGroups, onChangeAct
           <button
             type="button"
             onClick={addGroup}
-            className="px-2 py-0.5 rounded-[var(--radius-lg)] text-text-muted hover:text-text-secondary hover:shadow-[inset_0_0_0_999px_var(--hover-2)] text-[length:var(--text-11)] transition-all"
+            className="px-2 py-0.5 rounded-[var(--radius-lg)] text-text-muted hover:text-text-secondary em-hover-control text-[length:var(--text-11)] transition-all"
            
           >+ 添加</button>
         )}

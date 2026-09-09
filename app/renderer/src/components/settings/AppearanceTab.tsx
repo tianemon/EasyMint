@@ -134,7 +134,7 @@ export function AppearanceTab(): JSX.Element {
                 type="button"
                 onClick={() => setEditMode(m)}
                 className={`px-4 py-1.5 text-xs transition-all ${
-                  editMode === m ? "bg-accent-soft text-accent font-medium" : "text-text-secondary hover:shadow-[inset_0_0_0_999px_var(--hover-2)]"
+                  editMode === m ? "bg-accent-soft text-accent font-medium" : "text-text-secondary em-hover-control"
                 }`}
               >
                 {m === "light" ? "亮色" : "暗色"}
@@ -172,7 +172,7 @@ export function AppearanceTab(): JSX.Element {
                       type="button"
                       onClick={() => setGlowColorMode(m)}
                       className={`px-3 py-1 text-xs transition-all ${
-                        glowColorMode === m ? "bg-accent-soft text-accent font-medium" : "text-text-secondary hover:shadow-[inset_0_0_0_999px_var(--hover-2)]"
+                        glowColorMode === m ? "bg-accent-soft text-accent font-medium" : "text-text-secondary em-hover-control"
                       }`}
                     >
                       {m === "solid" ? "单色" : "多色"}
@@ -202,7 +202,7 @@ export function AppearanceTab(): JSX.Element {
                   type="button"
                   onClick={() => setStatusTextStyle(s)}
                   className={`px-4 py-1.5 text-xs transition-all ${
-                    statusTextStyle === s ? "bg-accent-soft text-accent font-medium" : "text-text-secondary hover:shadow-[inset_0_0_0_999px_var(--hover-2)]"
+                    statusTextStyle === s ? "bg-accent-soft text-accent font-medium" : "text-text-secondary em-hover-control"
                   }`}
                 >
                   {s === "solid" ? "单色" : "流光"}

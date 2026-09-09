@@ -96,7 +96,7 @@ function SkillRow({ s, stat, onToggle, onDelete }: {
 
   return (
     <div
-      className={`px-3 py-2 transition-shadow cursor-default ${s.enabled && !s.shadowed ? "hover:shadow-[inset_0_0_0_999px_var(--hover-1)]" : "opacity-60"}`}
+      className={`px-3 py-2 transition-shadow cursor-default ${s.enabled && !s.shadowed ? "em-hover-row" : "opacity-60"}`}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
