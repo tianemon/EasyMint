@@ -900,6 +900,21 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 }
 .settings-close:hover { background: var(--color-sidebar-hover); color: var(--color-text-primary); }
 
+/* ── 无边框拼色（2026-09-09 用户：主界面无边框、设置页改成同语言）──────
+   用「色差分层」替代线条边框：分组块靠深浅底区分（TSX 删 border 类），
+   输入控件凹槽化——去描边、底色保留 surface(canvas)，在分组块上自然形成深一档的槽。
+   仅作用 .settings-body（设置弹窗内容区），通用控件其它页面保持原样。 */
+.settings-body .em-input { border-color: transparent; }
+.settings-body .em-input:hover { border-color: transparent; }
+.settings-body .em-input:focus {
+  border-color: transparent;
+  box-shadow: 0 0 0 2px var(--color-accent-ring);
+}
+[data-theme="dark"] .settings-body .em-input:focus {
+  /* 暗色 accent 为中性灰:聚焦环用不刺眼的灰 */
+  box-shadow: 0 0 0 2px rgba(212, 212, 212, 0.4);
+}
+
 /* ── Chat Empty ─────────────────────────────── */
 .chat-empty {
   flex: 1; display: flex; flex-direction: column;

@@ -90,8 +90,8 @@ export function SettingsDialog({ open, onClose, initialTab, projectPath }: Setti
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-4 flex-1 overflow-y-auto">
+        {/* Body(作用域类:无边框拼色设计语言只作用于此,见 index.css .settings-body) */}
+        <div className="settings-body px-6 py-5 flex-1 overflow-y-auto">
           {activeTab === "general" ? (
             <GeneralTab />
           ) : activeTab === "appearance" ? (

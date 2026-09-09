@@ -92,7 +92,7 @@ function EnvCheckSection(): JSX.Element {
   return (
     <section>
       <h3 className="text-sm font-medium text-text-secondary mb-2">环境检测</h3>
-      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-4 py-3 space-y-3">
+      <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3 space-y-3">
         <EnvRow label="Git" info={gitInfo} installUrl="https://git-scm.com/downloads" />
         <EnvRow label="Node.js" info={nodeInfo} installUrl="https://nodejs.org/" />
         <CodegraphRow info={codegraphInfo} />
@@ -128,7 +128,7 @@ function CacheManagementSection(): JSX.Element {
   return (
     <section>
       <h3 className="text-sm font-medium text-text-secondary mb-2">缓存管理</h3>
-      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border divide-y divide-border">
+      <div className="bg-surface-alt rounded-[var(--radius-lg)] overflow-hidden">
 
         <div className="px-4 py-3 flex items-center justify-between">
           <div>
@@ -144,14 +144,14 @@ function CacheManagementSection(): JSX.Element {
           {updateSize !== null && updateSize > 0 && (
             <div className="flex items-center gap-1.5 shrink-0">
               <button
-                className="px-3 py-1.5 rounded-[var(--radius-lg)] border border-border text-xs text-text-secondary hover:border-accent-border-strong transition-colors"
+                className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary hover:bg-surface-hover transition-colors"
                 onClick={handleClear}
                 disabled={clearing}
               >
                 {clearing ? "清除中..." : "清除缓存"}
               </button>
               <button
-                className="px-3 py-1.5 rounded-[var(--radius-lg)] border border-border text-xs text-text-secondary hover:border-accent-border-strong transition-colors"
+                className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary hover:bg-surface-hover transition-colors"
                 onClick={() => window.electronAPI?.app?.openUpdateCache?.()}
               >
                 文件夹
@@ -173,7 +173,7 @@ function CacheManagementSection(): JSX.Element {
           </div>
           {uploadSize !== null && uploadSize > 0 && (
             <button
-              className="px-3 py-1.5 rounded-[var(--radius-lg)] border border-border text-xs text-text-secondary hover:border-accent-border-strong transition-colors"
+              className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary hover:bg-surface-hover transition-colors"
               onClick={() => window.electronAPI?.upload?.openDir?.()}
             >
               打开文件夹
@@ -200,7 +200,7 @@ export function GeneralTab(): JSX.Element {
       {/* 路径 */}
       <section>
         <h3 className="text-sm font-medium text-text-secondary mb-2">默认项目路径</h3>
-        <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-4 py-3">
+        <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
           <input
             className="em-input w-full px-3 py-2 text-text-primary text-sm"
             placeholder="~/EasyMintProject"
@@ -214,7 +214,7 @@ export function GeneralTab(): JSX.Element {
       {/* Context threshold */}
       <section>
         <h3 className="text-sm font-medium text-text-secondary mb-2">上下文压缩阈值</h3>
-        <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-4 py-3">
+        <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
           <div className="flex items-center gap-3">
             <input
               type="range"
