@@ -301,6 +301,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     isStreaming: (sessionId: string) => ipcRenderer.invoke("agent:isStreaming", { sessionId }) as Promise<boolean>,
     getPiProviders: () => ipcRenderer.invoke("agent:getPiProviders") as Promise<Array<{ id: string; name: string; baseUrl?: string }>>,
     getPiModels: (providerName: string) => ipcRenderer.invoke("agent:getPiModels", { providerName }) as Promise<Array<{ id: string; name: string; contextWindow: number }>>,
+    getPiProviderInfo: (providerName: string) => ipcRenderer.invoke("agent:getPiProviderInfo", { providerName }) as Promise<{ name: string; baseUrl?: string; apis: string[] } | null>,
     getThinkingLevels: (sessionId: string) => ipcRenderer.invoke("agent:getThinkingLevels", { sessionId }) as Promise<{ level?: string; available?: string[] } | null>,
     getModelThinkingSupport: (modelId: string) => ipcRenderer.invoke("agent:getModelThinkingSupport", { modelId }) as Promise<string[] | null>,
     getModelInfo: (modelId: string, providerId?: string) => ipcRenderer.invoke("agent:getModelInfo", { modelId, providerId }) as Promise<{ name: string; contextWindow: number; maxTokens: number } | null>,

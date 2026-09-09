@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ProviderProtocol, ProviderTestResult } from "@shared/provider-test";
+import type { ProviderTestResult } from "@shared/provider-test";
 import { toast } from "../ui/Toast";
 import { Checkbox } from "../ui/Checkbox";
 

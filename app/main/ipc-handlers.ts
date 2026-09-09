@@ -304,6 +304,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     const { getPiModels } = await import("./services/pi-init");
     return getPiModels(providerName);
   });
+  ipcMain.handle("agent:getPiProviderInfo", async (_e, { providerName }) => {
+    const { getPiProviderInfo } = await import("./services/pi-init");
+    return getPiProviderInfo(providerName);
+  });
   ipcMain.handle("agent:isStreaming", (_e, { sessionId }) => {
     return agentService.isStreaming(sessionId);
   });

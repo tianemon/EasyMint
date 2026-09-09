@@ -12,11 +12,15 @@ interface StaticModel {
   id: string;
   name: string;
   contextWindow: number;
+  /** 该模型的接入协议(api 类型,如 anthropic-messages / openai-completions) */
+  api?: string;
 }
 
 export interface StaticProvider {
   name: string;
   baseUrl?: string;
+  /** 该供应商的接入协议集合(模型目录里出现过的 api 类型,去重) */
+  apis: string[];
   models: StaticModel[];
 }
 
@@ -79,25 +83,28 @@ function findDataDir(): string {
   return candidates[0]!;
 }
 
-function parseModels(data: unknown): { models: StaticModel[]; baseUrl?: string } {
+function parseModels(data: unknown): { models: StaticModel[]; baseUrl?: string; apis: string[] } {
   const models: StaticModel[] = [];
+  const apis: string[] = [];
   let baseUrl: string | undefined;
-  if (!data || typeof data !== "object") return { models, baseUrl };
+  if (!data || typeof data !== "object") return { models, baseUrl, apis };
 
-  for (const [, apiGroup] of Object.entries(data as Record<string, unknown>)) {
+  for (const [api, apiGroup] of Object.entries(data as Record<string, unknown>)) {
     if (!apiGroup || typeof apiGroup !== "object") continue;
     for (const [id, m] of Object.entries(apiGroup as Record<string, any>)) {
       if (m && typeof m === "object" && m.id) {
         if (!baseUrl && m.baseUrl) baseUrl = m.baseUrl;
+        if (!apis.includes(api)) apis.push(api);
         models.push({
           id,
           name: m.name || id,
           contextWindow: m.contextWindow || 0,
+          api,
         });
       }
     }
   }
-  return { models, baseUrl };
+  return { models, baseUrl, apis };
 }
 
 export async function getPiProviders(): Promise<Record<string, StaticProvider>> {
@@ -114,6 +121,7 @@ export async function getPiProviders(): Promise<Record<string, StaticProvider>> 
       result[id] = {
         name: info.name,
         baseUrl: parsed.baseUrl,
+        apis: parsed.apis,
         models: parsed.models,
       };
     } catch { /* skip broken files */ }

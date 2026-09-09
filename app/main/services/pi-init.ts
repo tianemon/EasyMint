@@ -402,6 +402,16 @@ export async function getPiModels(providerId: string): Promise<readonly { id: st
   return data[providerId]?.models || [];
 }
 
+/** 供应商级静态参数（官方名 / 官方 Base URL / 接入协议）——设置页内置供应商只读展示用 */
+export async function getPiProviderInfo(
+  providerId: string,
+): Promise<{ name: string; baseUrl?: string; apis: string[] } | null> {
+  const data = await loadStaticData();
+  const p = data[providerId];
+  if (!p) return null;
+  return { name: p.name, baseUrl: p.baseUrl, apis: p.apis };
+}
+
 async function syncProviders(store: Store, runtime: ModelRuntimeInstance) {
   const settings = store.getSettings();
   const providers = settings.apiProviders;

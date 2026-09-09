@@ -241,6 +241,8 @@ interface ElectronAPI {
     chatStatus: (sessionId: string) => Promise<string | null>;
     getPiProviders: () => Promise<Array<{ id: string; name: string; baseUrl?: string }>>;
     getPiModels: (providerName: string) => Promise<Array<{ id: string; name: string; contextWindow: number }>>;
+    /** 供应商级静态参数：官方名 / 官方 Base URL / 接入协议（内置供应商只读展示用） */
+    getPiProviderInfo: (providerName: string) => Promise<{ name: string; baseUrl?: string; apis: string[] } | null>;
     getThinkingLevels: (sessionId: string) => Promise<{ level?: string; available?: string[] } | null>;
     getModelThinkingSupport: (modelId: string) => Promise<string[] | null>;
     /** 按模型 id（含自添加/官方）查模型定义：providerId 缺省用激活供应商 */

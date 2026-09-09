@@ -23,6 +23,20 @@ export interface ProviderFormProps {
   bare?: boolean;
 }
 
+/** SDK api 类型 → 展示文案(未知类型原样显示) */
+function apiTypeLabel(api: string): string {
+  const map: Record<string, string> = {
+    "anthropic-messages": "Anthropic Messages",
+    "openai-completions": "OpenAI Completions",
+    "openai-responses": "OpenAI Responses",
+    "google-generative-ai": "Google Gemini",
+    "google-vertex": "Google Vertex",
+    "mistral-conversations": "Mistral",
+    "openai-codex-responses": "OpenAI Codex",
+  };
+  return map[api] ?? api;
+}
+
 export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   function ProviderForm({ onSave, onCancel, initial, bare }: ProviderFormProps, ref) {
   const [presetId, setPresetId] = useState<string>(initial?.presetId || "custom");
@@ -35,6 +49,11 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const [model, setModel] = useState(initial?.model || "");
   // 官方目录模型(含展示名/窗口;null = 未加载,此时沿用配置里缓存的列表)
   const [officialModels, setOfficialModels] = useState<OfficialModelInfo[] | null>(null);
+  // SDK 预设的连接信息(官方名/官方 Base URL/接入协议)——内置供应商只读展示
+  const [providerInfo, setProviderInfo] = useState<{ name: string; baseUrl?: string; apis: string[] } | null>(null);
+  // 内置供应商的连通测试(只探官方端点,0 token)
+  const [testing, setTesting] = useState(false);
+  const [probe, setProbe] = useState<{ ok: boolean; detail: string } | null>(null);
   // 官方目录外的自添加模型。string = 仅 ID 条目(参数未声明,需在模型管理区补填);
   // 对象 = 带显式参数声明(窗口/输出必填)。自定义供应商的模型清单也存这里。
   const [extraModels, setExtraModels] = useState<Array<string | ExtraModelCapability>>(() => {
@@ -114,6 +133,23 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       const first = piModels[0]?.id;
       if (!model && first) setModel(first);
     } catch (e) { console.error("[ProviderForm] loadModels failed:", e); }
+    // 连接信息(SDK 预设)与模型目录并行拉取
+    window.electronAPI.agent.getPiProviderInfo(providerId).then(setProviderInfo).catch(() => {});
+  };
+
+  /** 内置供应商连通测试:只探官方端点(GET,0 token),不测模型列表/不校验 Key */
+  const runConnectivity = async () => {
+    if (!providerInfo?.baseUrl) return;
+    setTesting(true);
+    setProbe(null);
+    try {
+      const r = await window.electronAPI.settings.testProvider({ baseUrl: providerInfo.baseUrl, apiKey, verifyKey: false });
+      setProbe({ ok: r.reachability.ok, detail: r.reachability.detail });
+    } catch (e) {
+      setProbe({ ok: false, detail: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setTesting(false);
+    }
   };
 
 
@@ -177,8 +213,9 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
           placeholder="如：我的DeepSeek" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
 
-      {/* 自定义供应商:Base URL + API 协议(在 API Key 前——新增默认选自定义,先填接入信息) */}
-      {isCustom && (<>
+      {/* 接入信息:Base URL + 接入协议。
+          自定义=可编辑输入;内置=SDK 预设只读(官方端点/接入协议),URL 值右端内联「连通测试」 */}
+      {isCustom ? (<>
       <div>
         <label className="text-xs text-text-secondary block mb-1.5 em-required">Base URL</label>
         <input
@@ -204,7 +241,36 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
           ]}
         />
       </div>
-      </>)}
+      </>) : (
+      <div className="space-y-3">
+        <div>
+          <label className="text-xs text-text-secondary block mb-1.5">官方 Base URL</label>
+          <div className="flex items-center gap-1.5">
+            <div
+              className="flex-1 min-w-0 h-8 px-2.5 rounded-lg border border-border bg-surface text-xs text-text-primary flex items-center truncate select-text"
+              title={providerInfo?.baseUrl}
+            >{providerInfo?.baseUrl ?? (providerInfo ? "—" : "加载中…")}</div>
+            <button
+              type="button"
+              onClick={() => void runConnectivity()}
+              disabled={testing || !providerInfo?.baseUrl}
+              className="shrink-0 h-8 px-3 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >{testing ? "测试中…" : "连通测试"}</button>
+          </div>
+          {probe && (
+            <p className={`text-[length:var(--text-2xs)] mt-1.5 ${probe.ok ? "text-success" : "text-danger"}`}>
+              {probe.ok ? `连通正常 · ${probe.detail}` : `连接失败 · ${probe.detail}`}
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="text-xs text-text-secondary block mb-1.5">接入协议</label>
+          <div className="h-8 px-2.5 rounded-lg border border-border bg-surface text-xs text-text-secondary flex items-center">
+            {providerInfo ? (providerInfo.apis.length > 0 ? providerInfo.apis.map(apiTypeLabel).join(" · ") : "—") : "加载中…"}
+          </div>
+        </div>
+      </div>
+      )}
 
       {/* API Key */}
       <div>
