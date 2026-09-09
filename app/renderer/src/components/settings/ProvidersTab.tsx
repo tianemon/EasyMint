@@ -83,7 +83,9 @@ function BuiltinToolsSection(): JSX.Element {
   };
 
   const saveKey = async (key: string, value: string) => {
-    const next = { ...apiKeys, [key]: value };
+    // 以主进程配置为基底：组件态在加载失败时为空，用它整体覆盖会清掉其他 key
+    const s = await window.electronAPI.settings.get();
+    const next = { ...(s.apiKeys ?? {}), [key]: value };
     setApiKeys(next);
     await window.electronAPI.settings.set("apiKeys", next);
   };
