@@ -28,14 +28,17 @@ export interface OfficialModelInfo {
 
 /** 上下文窗口预设（自添加模型必填） */
 const CTX_PRESETS: SelectOption[] = [
+  { value: "1000000", label: "1M" },
   { value: "131072", label: "128K" },
   { value: "200000", label: "200K" },
-  { value: "1000000", label: "1M" },
+  { value: "262144", label: "256K" },
+  { value: "400000", label: "400K" },
   { value: "custom", label: "自定义" },
 ];
 
 /** 最大输出预设 */
 const MAX_OUT_PRESETS: SelectOption[] = [
+  { value: "4096", label: "4K" },
   { value: "8192", label: "8K" },
   { value: "16384", label: "16K" },
   { value: "32768", label: "32K" },
@@ -295,43 +298,40 @@ export function ModelManager({
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">上下文窗口</label>
-              <div className="flex items-center gap-1.5">
-                <Select
-                  className="flex-1 min-w-0 [&>button]:w-full [&>button]:h-8 [&>button]:text-xs"
-                  placeholder="请选择"
-                  value={draft.ctx}
-                  onChange={(v: string) => setDraft({ ...draft, ctx: v })}
-                  options={CTX_PRESETS}
+              <Select
+                className="[&>button]:w-full [&>button]:h-8 [&>button]:text-xs"
+                placeholder="请选择"
+                value={draft.ctx}
+                onChange={(v: string) => setDraft({ ...draft, ctx: v })}
+                options={CTX_PRESETS}
+              />
+              {/* 自定义值换行单独一行:与下拉同排会互相挤压(列宽有限),且自定义输入需要完整可视宽度 */}
+              {draft.ctx === "custom" && (
+                <input
+                  className="em-input w-full h-8 px-2.5 text-xs text-text-primary mt-1.5"
+                  placeholder="如 512000"
+                  value={draft.ctxCustom}
+                  onChange={(e) => setDraft({ ...draft, ctxCustom: e.target.value })}
                 />
-                {draft.ctx === "custom" && (
-                  <input
-                    className="em-input w-[86px] h-8 px-2 text-xs text-text-primary"
-                    placeholder="如 512000"
-                    value={draft.ctxCustom}
-                    onChange={(e) => setDraft({ ...draft, ctxCustom: e.target.value })}
-                  />
-                )}
-              </div>
+              )}
             </div>
             <div>
               <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">最大输出</label>
-              <div className="flex items-center gap-1.5">
-                <Select
-                  className="flex-1 min-w-0 [&>button]:w-full [&>button]:h-8 [&>button]:text-xs"
-                  placeholder="请选择"
-                  value={draft.maxOut}
-                  onChange={(v: string) => setDraft({ ...draft, maxOut: v })}
-                  options={MAX_OUT_PRESETS}
+              <Select
+                className="[&>button]:w-full [&>button]:h-8 [&>button]:text-xs"
+                placeholder="请选择"
+                value={draft.maxOut}
+                onChange={(v: string) => setDraft({ ...draft, maxOut: v })}
+                options={MAX_OUT_PRESETS}
+              />
+              {draft.maxOut === "custom" && (
+                <input
+                  className="em-input w-full h-8 px-2.5 text-xs text-text-primary mt-1.5"
+                  placeholder="如 384000"
+                  value={draft.maxOutCustom}
+                  onChange={(e) => setDraft({ ...draft, maxOutCustom: e.target.value })}
                 />
-                {draft.maxOut === "custom" && (
-                  <input
-                    className="em-input w-[86px] h-8 px-2 text-xs text-text-primary"
-                    placeholder="如 384000"
-                    value={draft.maxOutCustom}
-                    onChange={(e) => setDraft({ ...draft, maxOutCustom: e.target.value })}
-                  />
-                )}
-              </div>
+              )}
             </div>
           </div>
 
