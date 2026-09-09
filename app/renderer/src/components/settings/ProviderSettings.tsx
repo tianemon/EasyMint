@@ -259,7 +259,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       {/* 保存/取消条(仅非 bare 宿主,如 Onboarding 内联场景):sticky 底部始终可见。
           设计语言:底部分区不用横线,靠 bg-surface-alt 底色分区 */}
       {!bare && (
-        <div className="sticky bottom-0 -mx-6 px-6 pt-2 pb-1 flex justify-end gap-2 bg-surface-alt">
+        <div className="sticky bottom-0 -mx-6 px-6 pt-2 pb-1 mt-1 flex justify-end gap-2 bg-surface-alt">
           {onCancel && (
             <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消配置</button>
           )}
