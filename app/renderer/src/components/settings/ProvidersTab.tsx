@@ -108,7 +108,7 @@ function BuiltinToolsSection(): JSX.Element {
                 <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{desc}</div>
               </div>
               <button type="button" onClick={() => handleToggle(key, !on)}
-                className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${on ? "bg-accent" : "bg-border"}`}>
+                className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${on ? "bg-accent" : "bg-surface-hover"}`}>
                 <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${on ? "left-4" : "left-0.5"}`} />
               </button>
             </div>
