@@ -81,6 +81,7 @@ import { detectRunnable, startProcess, stopProcess, restartProcess, getStatus, g
 import { networkService } from "./services/network-service";
 import { migrationService, readIgnoreFileRaw, saveIgnoreFileRaw, DEFAULT_IGNORE_CONTENT } from "./services/migration-service";
 import { listTodos, addTodo, updateTodo, toggleTodo, removeTodo } from "./services/todo-service";
+import { testProvider } from "./services/provider-test";
 
 interface Services {
   mainWindow: BrowserWindow;
@@ -508,22 +509,17 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       }
     }
   });
-  ipcMain.handle("settings:fetchModels", async (_e, modelsUrl?: string, apiKey?: string) => {
-    const key = apiKey || store.getActiveApiKey();
-    if (!key) throw new Error("请先配置 API Key");
-    if (!modelsUrl) throw new Error("该平台未配置模型列表地址");
-
-    const resp = await fetch(modelsUrl, { headers: { Authorization: `Bearer ${key}` } });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    let json: { data?: { id: string }[] };
-    try { json = await resp.json() as any; } catch { throw new Error("模型列表返回格式错误"); }
-    const models: string[] = [];
-    if (json.data) {
-      for (const m of json.data) {
-        models.push(typeof m === "string" ? m : (m as { id: string }).id);
-      }
-    }
-    return models;
+  // 供应商「测试接口」:地址可达 → 双协议模型列表 → 可选 Key 校验。
+  // 入参用表单未保存的值(不读 store);apiKey 只进请求头,不进日志(实现见 services/provider-test.ts)。
+  ipcMain.handle("settings:testProvider", async (_e, input: unknown) => {
+    const data = expectPayload(z.object({
+      baseUrl: z.string().min(1, "不能为空"),
+      apiKey: z.string().min(1, "不能为空"),
+      model: z.string().optional(),
+      apiType: z.string().optional(),
+      verifyKey: z.boolean().optional(),
+    }).loose(), input);
+    return testProvider(data);
   });
   ipcMain.handle("settings:fetchBalance", async () => {
     const settings = store.getSettings();

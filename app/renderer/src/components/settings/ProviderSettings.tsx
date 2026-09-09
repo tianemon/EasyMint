@@ -9,6 +9,7 @@ import { BRAND_BY_PI_ID, providerSelectOptions } from "../../lib/provider-brands
 import { toast } from "../ui/Toast";
 import { confirmDialog } from "../ui/ConfirmDialog";
 import { ModelManager, type OfficialModelInfo } from "./ModelManager";
+import { ProviderTester } from "./ProviderTester";
 
 export interface ProviderFormHandle {
   /** 校验并保存;成功返回 true(内部已调 onSave),失败(校验不过)返回 false */
@@ -243,6 +244,11 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
           </button>
         </div>
       </div>
+
+      {/* 测试接口:仅自定义供应商——内置预设的接入信息来自 Pi,不可编辑 */}
+      {isCustom && (
+        <ProviderTester baseUrl={baseUrl} apiKey={apiKey} model={model} apiType={apiType} />
+      )}
 
       {/* 模型(默认):该供应商的默认模型(下拉;值 = SDK 请求标识,显示名走 labelOf) */}
       <div>

@@ -485,7 +485,7 @@ interface ElectronAPI {
     }>;
     set: (key: string, value: unknown) => Promise<void>;
     setLastProject: (projectId: string) => Promise<void>;
-    fetchModels: (modelsUrl: string, apiKey: string) => Promise<string[]>;
+    testProvider: (input: { baseUrl: string; apiKey: string; model?: string; apiType?: string; verifyKey?: boolean }) => Promise<import("@shared/provider-test").ProviderTestResult>;
     fetchBalance: () => Promise<{ balance_infos?: { currency: string; total_balance: string; granted_balance: string }[] }>;
   };
   agentTemplates: {
