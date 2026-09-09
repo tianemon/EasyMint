@@ -77,7 +77,7 @@ export function ConfirmHost(): JSX.Element | null {
             type="button"
             className={`px-4 py-1.5 text-xs rounded-[var(--radius-lg)] transition-colors ${
               pending.danger
-                ? "bg-danger/10 border border-danger/60 text-danger hover:bg-danger/20"
+                ? "bg-danger-soft border border-danger-border text-danger hover:bg-danger hover:text-text-inverse"
                 : "btn-accent"
             }`}
             onClick={() => close(true)}

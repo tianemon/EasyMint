@@ -83,7 +83,7 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
                   <button
                     type="button"
                     onClick={() => stopShell(task.id)}
-                    className="shrink-0 px-2 py-0.5 rounded-[var(--radius-lg)] border border-danger/40 text-danger hover:bg-danger-soft transition-colors"
+                    className="shrink-0 px-2 py-0.5 rounded-[var(--radius-lg)] border border-danger-border text-danger hover:bg-danger-soft transition-colors"
                    
                   >
                     停止

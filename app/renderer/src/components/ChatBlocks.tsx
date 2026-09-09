@@ -1144,7 +1144,7 @@ function ToolResultOnlyView({ block }: { block: ToolResultOnlyBlock }): JSX.Elem
   const writeContent = block.name === "write" && typeof inp?.content === "string" ? inp.content : undefined;
   const writeLines = writeContent ? writeContent.split("\n").length : 0;
   return (
-    <div className={`mt-1.5 mb-1 rounded-[var(--radius-lg)] border overflow-hidden ${block.isError ? "border-danger/40" : "border-border"}`}>
+    <div className={`mt-1.5 mb-1 rounded-[var(--radius-lg)] border overflow-hidden ${block.isError ? "border-danger-border" : "border-border"}`}>
       <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-surface-alt text-text-muted uppercase tracking-wider font-semibold border-b border-border" style={{ fontSize: "var(--text-caption)" }}>
         <span className="shrink-0">{label}</span>
         {summary && (

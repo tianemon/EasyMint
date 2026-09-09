@@ -1033,7 +1033,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
                     <div className="flex items-center gap-1 shrink-0">
                       {s.pendingApproval && (
                         <button type="button" onClick={() => handleApprove(s.name)}
-                          className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] bg-warning-soft text-warning hover:bg-warning/20 transition-colors">
+                          className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] bg-warning-soft text-warning hover:bg-warning hover:text-text-inverse transition-colors">
                           待确认
                         </button>
                       )}

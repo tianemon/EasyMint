@@ -174,7 +174,7 @@ export function App(): JSX.Element {
         <ToastHost />
         {/* 迁移回执提示(发送端,3-5s 自动消失) */}
         {receipt && (
-          <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-toast px-4 py-2.5 rounded-[var(--radius-lg)] border shadow-lg text-sm modal-card ${receipt.ok ? "bg-surface-alt border-border text-text-primary" : "bg-surface-alt border-danger/50 text-danger"}`}>
+          <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-toast px-4 py-2.5 rounded-[var(--radius-lg)] border shadow-lg text-sm modal-card ${receipt.ok ? "bg-surface-alt border-border text-text-primary" : "bg-surface-alt border-danger-border text-danger"}`}>
             {receipt.text}
           </div>
         )}

@@ -426,7 +426,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                           
                         >运行</button>
                         <button
-                          className="w-9 py-1 rounded-[var(--radius-lg)] border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors shrink-0 flex items-center justify-center"
+                          className="w-9 py-1 rounded-[var(--radius-lg)] border border-border text-text-secondary hover:text-danger hover:border-danger-border transition-colors shrink-0 flex items-center justify-center"
                           onClick={() => setConfirmDeleteId(r.id)}
                          
                         >

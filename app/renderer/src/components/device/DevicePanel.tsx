@@ -55,7 +55,7 @@ function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevi
       )}
       <button
         type="button"
-        className="text-[length:var(--text-2xs)] px-2 py-1 rounded-[var(--radius-lg)] border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors shrink-0"
+        className="text-[length:var(--text-2xs)] px-2 py-1 rounded-[var(--radius-lg)] border border-border text-text-secondary hover:text-danger hover:border-danger-border transition-colors shrink-0"
         onClick={() => onUnpair(device.id)}
       >
         解除配对
