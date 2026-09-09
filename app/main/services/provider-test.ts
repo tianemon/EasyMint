@@ -41,6 +41,8 @@ function networkErrorMessage(err: unknown): string {
   if (code === "ECONNREFUSED") return "连接被拒绝（服务未监听或端口不对）";
   if (code === "ECONNRESET" || code === "ECONNABORTED") return "连接被重置";
   if (/CERT|TLS|SSL|UNABLE_TO_VERIFY/i.test(code) || /certificate|TLS/i.test(msg)) return "TLS 证书校验失败";
+  // 非法 URL 会走到这里：undici 报 "Failed to parse URL from xxx"，直出不友好
+  if (/Failed to parse URL|Invalid URL/i.test(msg)) return "Base URL 格式不正确（需以 http 开头）";
   return msg.length > 120 ? `${msg.slice(0, 120)}…` : msg;
 }
 

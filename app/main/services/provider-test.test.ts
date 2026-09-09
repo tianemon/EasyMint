@@ -94,4 +94,10 @@ describe("testProvider", () => {
     expect(r.keyCheck?.ok).toBe(false);
     expect(r.keyCheck?.detail).toContain("模型 id 可能不正确");
   });
+
+  it("baseUrl 非法 → 中文格式提示，不透出英文原始错误", async () => {
+    const r = await testProvider({ baseUrl: "abc", apiKey: "k" });
+    expect(r.reachability.ok).toBe(false);
+    expect(r.reachability.detail).toBe("Base URL 格式不正确（需以 http 开头）");
+  });
 });
