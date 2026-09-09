@@ -220,10 +220,10 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
         <ProviderTester baseUrl={baseUrl} apiKey={apiKey} model={model} apiType={apiType} />
       )}
 
-      {/* 模型(默认) + 子 Agent 默认模型:同一行——两者都是「这个供应商用哪个模型」 */}
+      {/* 默认模型 + SubAgent默认模型:同一行——两者都是「这个供应商用哪个模型」 */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-xs text-text-secondary block mb-1.5">模型(默认)</label>
+          <label className="text-xs text-text-secondary block mb-1.5">默认模型</label>
           <Select
             block
             placeholder={!isCustom && officialModels === null ? "加载中…" : (availableModels.length === 0 ? "无可用模型" : "选择模型")}
@@ -233,7 +233,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
           />
         </div>
         <div>
-          <label className="text-xs text-text-secondary block mb-1.5">子 Agent 模型（委派任务）</label>
+          <label className="text-xs text-text-secondary block mb-1.5">SubAgent默认模型</label>
           <Select
             block
             placeholder={availableModels.length === 0 ? "无可用模型" : "可选"}
