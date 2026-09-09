@@ -18,6 +18,8 @@ import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 export type ActivePanel = "editor" | "files" | "sessions" | "chat";
 
 export function ProjectPage(): JSX.Element {
+  // 重命名弹窗遮罩完整点击:仅 mousedown 也在遮罩上才关闭(拖选输入文字移出遮罩松开不误关)
+  const renameOverlayDownRef = useRef(false);
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -412,7 +414,10 @@ export function ProjectPage(): JSX.Element {
 
       {/* Rename Project Dialog */}
       {showRenameDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-dialog" onClick={renamePhase === "input" ? () => setShowRenameDialog(false) : undefined}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-dialog"
+          onMouseDown={(e) => { renameOverlayDownRef.current = e.target === e.currentTarget; }}
+          onClick={(e) => { if (renamePhase === "input" && e.target === e.currentTarget && renameOverlayDownRef.current) setShowRenameDialog(false); }}
+        >
           <div className="bg-surface-elevated rounded-[var(--radius-lg)] border border-border shadow-2xl w-[400px]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-4 pb-2">
               <h2 className="text-base font-semibold text-text-primary">重命名项目</h2>

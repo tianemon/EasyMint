@@ -24,6 +24,8 @@ function ImageViewer_({ view, onClose }: { view: ImageViewerState | null; onClos
   const scaleRef = useRef(1);
   const offsetRef = useRef({ x: 0, y: 0 });
   const dragRef = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
+  // 遮罩完整点击:仅 mousedown 也在遮罩上才算点外部关闭(拖选/拖图移出遮罩松开不误关)
+  const overlayDownRef = useRef(false);
 
   const commit = useCallback((s: number, o: { x: number; y: number }, isSmooth = false) => {
     scaleRef.current = s;
@@ -117,7 +119,8 @@ function ImageViewer_({ view, onClose }: { view: ImageViewerState | null; onClos
       ref={rootRef}
       // no-drag:遮罩盖住顶部 TabBar 拖拽区(40px),否则关闭按钮上半段与遮罩顶部点击会被拖窗口拦截(参考 QuestionHistory 抽屉同款处理)
       className="no-drag fixed inset-0 z-top flex items-center justify-center bg-surface/70 backdrop-blur-[2px] modal-overlay"
-      onClick={onClose}
+      onMouseDown={(e) => { overlayDownRef.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (e.target === e.currentTarget && overlayDownRef.current) onClose(); }}
     >
       <img
         ref={imgRef}

@@ -360,6 +360,8 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
   onClose: () => void;
 }): JSX.Element {
   const saveRef = useRef<ProviderFormHandle>(null);
+  // 遮罩完整点击判定:仅当 mousedown 也落在遮罩上才算「点击外部」(拖选文字从表单拖到遮罩松开,click 会派发到遮罩但起点在框内,不应关闭)
+  const overlayDownRef = useRef(false);
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -372,7 +374,10 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
   }, [onClose]);
 
   return createPortal(
-    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/40"
+      onMouseDown={(e) => { overlayDownRef.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (e.target === e.currentTarget && overlayDownRef.current) onClose(); }}
+    >
       <div
         className="relative bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl flex flex-col overflow-hidden"
         style={{ width: 580, height: "min(640px, calc(100vh - 96px))" }}

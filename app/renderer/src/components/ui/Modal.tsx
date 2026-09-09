@@ -146,6 +146,8 @@ export function Modal({
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>): void => {
     if (overlayClose !== "click") return;
     if (e.target !== e.currentTarget) return;
+    // 完整点击才算“点外部”:mousedown 也必须落在遮罩上(拖选文字从弹窗内拖到遮罩松开,click 也会在遮罩派发,不应关闭)
+    if (!downOnOverlayRef.current) return;
     if (canOverlayClose && !canOverlayClose()) return;
     onCloseRef.current();
   };
@@ -155,7 +157,9 @@ export function Modal({
       ref={rootRef}
       className={`fixed inset-0 flex items-center justify-center ${TIER_CLASS[tier]} ${overlayClassName}`}
       onMouseDown={
-        overlayClose === "press-release" || overlayClose === "mousedown" ? handleOverlayMouseDown : undefined
+        overlayClose === "press-release" || overlayClose === "mousedown" || overlayClose === "click"
+          ? handleOverlayMouseDown
+          : undefined
       }
       onMouseUp={overlayClose === "press-release" ? handleOverlayMouseUp : undefined}
       onClick={overlayClose === "click" ? handleOverlayClick : undefined}
