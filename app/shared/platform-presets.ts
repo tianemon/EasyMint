@@ -20,9 +20,9 @@ export interface ModelParams {
 
 /** 手动添加模型的能力声明(用户显式指定,不再自动推断) */
 export interface ExtraModelCapability {
-  /** 名称:界面显示用;未填别名时也作为发给供应商的请求 id */
+  /** 模型 ID:未填别名时即发给供应商的请求标识(SDK Model.id);SDK Model.name 兜底取它,界面不显示 name */
   id: string;
-  /** 别名(选填):填了则用它作为请求 id,界面仍显示 id(名称) */
+  /** 别名(选填):填了则用它作为请求标识,界面仍显示模型 ID */
   alias?: string;
   /** 输入能力:含 "image" 即支持识图 */
   input?: Array<"text" | "image">;
@@ -65,7 +65,7 @@ export interface ApiProvidersData {
 export interface NormalizedExtraModel {
   /** 界面显示名;无别名时同时是请求 id */
   id: string;
-  /** 请求 id 别名(填了则请求用别名,界面仍显示名称) */
+  /** 请求 id 别名(填了则请求用别名,界面仍显示模型 ID) */
   alias?: string;
   /** 发给供应商的请求 id = alias ?? id */
   sdkId: string;

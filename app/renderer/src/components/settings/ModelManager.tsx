@@ -172,7 +172,7 @@ export function ModelManager({
   const saveDraft = () => {
     if (!draft) return;
     const name = draft.name.trim();
-    if (!name) { toast("请输入模型名称"); return; }
+    if (!name) { toast("请输入模型 ID"); return; }
     const ctx = resolveTokens(draft.ctx, draft.ctxCustom);
     const maxOut = resolveTokens(draft.maxOut, draft.maxOutCustom);
     if (!ctx) { toast("请填写上下文窗口"); return; }
@@ -267,10 +267,10 @@ export function ModelManager({
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">模型名称</label>
+              <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">模型 ID</label>
               <input
                 className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
-                placeholder="界面显示用"
+                placeholder="如 deepseek-v4-flash"
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
               />
@@ -283,7 +283,7 @@ export function ModelManager({
                 value={draft.alias}
                 onChange={(e) => setDraft({ ...draft, alias: e.target.value })}
               />
-              <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">填写后请求使用别名，界面仍显示名称</p>
+              <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">填写后请求使用别名，界面仍显示模型 ID</p>
             </div>
           </div>
 
