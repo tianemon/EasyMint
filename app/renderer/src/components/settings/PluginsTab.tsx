@@ -1077,7 +1077,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
 export function PluginsTab({ projectPath }: { projectPath?: string }): JSX.Element {
   const [tab, setTab] = useState<"skills" | "mcp">("skills");
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5 -mt-5">
       <div className="flex justify-center px-6 pt-4">
         <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden">
           {([["skills", "Skills"], ["mcp", "MCP"]] as const).map(([id, label], i) => (
