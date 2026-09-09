@@ -237,7 +237,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
             onClick={() => void runTest()}
             disabled={testing || (isCustom ? !baseUrl.trim() : !providerInfo?.baseUrl)}
             className="shrink-0 h-7 px-3 rounded-lg btn-accent text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
-          >{testing ? "测试中…" : "测试接口"}</button>
+          >{testing ? "测试中…" : "测试连接"}</button>
         </div>
         {probe?.detail && (
           <p className={`text-[length:var(--text-2xs)] mt-1.5 ${probe.ok ? "text-success" : "text-danger"}`}>
