@@ -374,7 +374,7 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
   return createPortal(
     <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="relative bg-surface-elevated rounded-[var(--radius-lg)] shadow-2xl flex flex-col overflow-hidden"
+        className="relative bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl flex flex-col overflow-hidden"
         style={{ width: 580, height: "min(640px, calc(100vh - 96px))" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -387,11 +387,8 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
         </div>
         {/* 内容区:唯一滚动区——滚动条只存在于此,不会侵入底部操作栏。
             pb-4 与上方 pt-4 对称:滚到底时最后一块内容不贴底栏(间距靠内容区内边距,不靠底栏外边距) */}
-        <div className="settings-body flex-1 min-h-0 overflow-y-auto px-3 pt-3 pb-3">
-          {/* 表单坐灰块承载(与设置页其它 tab 同构):输入凹槽在灰块上有足够色差,暗色不再与弹窗底相融 */}
-          <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3.5">
-            <ProviderForm ref={saveRef} bare initial={initial} onSave={onSave} onCancel={onClose} />
-          </div>
+        <div className="settings-body flex-1 min-h-0 overflow-y-auto px-6 pt-4 pb-4">
+          <ProviderForm ref={saveRef} bare initial={initial} onSave={onSave} onCancel={onClose} />
         </div>
         {/* 底部操作栏:滚动区外(flex 列结构),与头部同底色分区,无分隔线 */}
         <div className="flex items-center justify-end gap-2 px-4 py-1 bg-surface-alt shrink-0">

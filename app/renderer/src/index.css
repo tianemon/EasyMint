@@ -1524,6 +1524,7 @@ select.input {
   --hover-1: rgba(0, 0, 0, 0.045);   /* 弱档:不可点展示行/静态块 */
   --hover-2: rgba(0, 0, 0, 0.085);   /* 强档:可点控件 */
   --field-idle: #e6e5e1;             /* 输入默认底(2026-09-09):比焦点深槽(surface)浅一档,聚焦时加深作提示 */
+  --modal-fill: #ffffff;             /* 表单类弹窗内容面:直接承载输入,与 idle/focus 拉开层级 */
 
   --preset-active: var(--color-accent-soft);  /* 光效预设卡:选中 */
   --preset-idle: var(--color-surface);        /* 光效预设卡:未选中 */
@@ -1533,6 +1534,7 @@ select.input {
   --hover-1: rgba(255, 255, 255, 0.05);
   --hover-2: rgba(255, 255, 255, 0.10);
   --field-idle: #202020;             /* 暗色输入默认底:比焦点槽(#181818)浅一档 */
+  --modal-fill: #2b2b2b;             /* 暗色表单弹窗内容面:比 input-card(#1c1c1c)亮一档,输入(20/18)在其上可辨 */
 
   --preset-active: var(--color-surface);      /* 暗色互换:选中=深槽 */
   --preset-idle: var(--color-accent-soft);    /* 未选中=亮灰 */
