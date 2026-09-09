@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { StepIndicator } from "./StepIndicator";
 import { FileTreeSelector, ScanFileItem } from "./FileTreeSelector";
 import { Modal } from "../ui/Modal";
+import { Checkbox } from "../ui/Checkbox";
 
 /**
  * 迁移对话框(发送端,用户直接触发入口):
@@ -243,17 +244,9 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
                         className="flex items-center gap-2 px-3 py-1.5 hover:bg-surface-hover transition-colors cursor-pointer"
                         onClick={() => toggleSession(s.file)}
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={selectedSessions.includes(s.file)}
-                          onChange={(e) => {
-                            // 阻止冒泡:避免行 onClick 再次 toggle(双重触发=状态不变)
-                            e.stopPropagation();
-                            toggleSession(s.file);
-                          }}
-                          // click 也会冒泡到行 onClick——必须一并拦截
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-3.5 h-3.5 rounded accent-accent shrink-0"
+                          onChange={() => toggleSession(s.file)}
                         />
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-text-secondary">
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />

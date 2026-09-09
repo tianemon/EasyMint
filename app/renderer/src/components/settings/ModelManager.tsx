@@ -14,6 +14,7 @@ import { normalizeExtraModels } from "@shared/platform-presets";
 import type { ExtraModelCapability } from "@shared/platform-presets";
 import { THINKING_LABELS, THINKING_ORDER, type ThinkingLevelValue } from "@shared/thinking-levels";
 import { Select, type SelectOption } from "../Select";
+import { Checkbox } from "../ui/Checkbox";
 import { toast } from "../ui/Toast";
 
 /** 官方目录模型（agent:getPiModels 返回值） */
@@ -328,21 +329,19 @@ export function ModelManager({
           </div>
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <label className="flex items-center gap-1.5 text-[length:var(--text-2xs)] text-text-secondary cursor-pointer">
-              <input
-                type="checkbox"
-                className="w-3.5 h-3.5 rounded accent-accent shrink-0"
+            <label className="flex items-center gap-1.5 text-[length:var(--text-2xs)] text-text-secondary cursor-pointer"
+              onClick={() => setDraft({ ...draft, vision: !draft.vision })}>
+              <Checkbox
                 checked={draft.vision}
-                onChange={(e) => setDraft({ ...draft, vision: e.target.checked })}
+                onChange={(next) => setDraft({ ...draft, vision: next })}
               />
               支持识图
             </label>
-            <label className="flex items-center gap-1.5 text-[length:var(--text-2xs)] text-text-secondary cursor-pointer">
-              <input
-                type="checkbox"
-                className="w-3.5 h-3.5 rounded accent-accent shrink-0"
+            <label className="flex items-center gap-1.5 text-[length:var(--text-2xs)] text-text-secondary cursor-pointer"
+              onClick={() => setDraft({ ...draft, reasoning: !draft.reasoning })}>
+              <Checkbox
                 checked={draft.reasoning}
-                onChange={(e) => setDraft({ ...draft, reasoning: e.target.checked })}
+                onChange={(next) => setDraft({ ...draft, reasoning: next })}
               />
               推理模型
             </label>
@@ -355,16 +354,25 @@ export function ModelManager({
                 <label
                   key={level}
                   className={`flex items-center gap-1.5 text-[length:var(--text-2xs)] ${reasoningOff ? "text-text-muted cursor-not-allowed" : "text-text-secondary cursor-pointer"}`}
-                >
-                  <input
-                    type="checkbox"
-                    className="w-3.5 h-3.5 rounded accent-accent shrink-0 disabled:opacity-50"
-                    checked={draft.levels.includes(level)}
-                    disabled={reasoningOff}
-                    onChange={(e) => setDraft({
+                  onClick={() => {
+                    if (reasoningOff) return;
+                    const next = !draft.levels.includes(level);
+                    setDraft({
                       ...draft,
                       levelsTouched: true,
-                      levels: e.target.checked
+                      levels: next
+                        ? [...draft.levels, level]
+                        : draft.levels.filter((l) => l !== level),
+                    });
+                  }}
+                >
+                  <Checkbox
+                    checked={draft.levels.includes(level)}
+                    disabled={reasoningOff}
+                    onChange={(next) => setDraft({
+                      ...draft,
+                      levelsTouched: true,
+                      levels: next
                         ? [...draft.levels, level]
                         : draft.levels.filter((l) => l !== level),
                     })}

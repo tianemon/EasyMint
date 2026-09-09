@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Checkbox } from "../ui/Checkbox";
 
 /**
  * 迁移文件树选择器:标准文件树——文件夹可展开、勾选联动(半选)、
@@ -82,25 +83,8 @@ function collectFiles(node: TreeNode, out: TreeNode[]): void {
 }
 
 function TreeCheckbox({ checked, onToggle }: { checked: boolean | null; onToggle: () => void }): JSX.Element {
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (ref.current) ref.current.indeterminate = checked === null;
-  }, [checked]);
-  return (
-    <input
-      ref={ref}
-      type="checkbox"
-      checked={checked === true}
-      onChange={(e) => {
-        // 阻止冒泡:避免行级 onClick 再次触发 toggle(同一操作勾选两次=无效)
-        e.stopPropagation();
-        onToggle();
-      }}
-      // 关键:click 也会冒泡到行 div——只拦 change 不够,点 checkbox 会先触发行 onClick(文件=双 toggle 抵消/目录=误展开)
-      onClick={(e) => e.stopPropagation()}
-      className="w-3.5 h-3.5 rounded accent-accent shrink-0"
-    />
-  );
+  // 自绘复选框内部已 stopPropagation(点框不触发行 onClick);半选态走 checked=null
+  return <Checkbox checked={checked} onChange={onToggle} />;
 }
 
 function ChevronIcon({ expanded }: { expanded: boolean }): JSX.Element {

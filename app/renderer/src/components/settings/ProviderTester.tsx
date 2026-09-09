@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ProviderProtocol, ProviderTestResult } from "@shared/provider-test";
 import { toast } from "../ui/Toast";
+import { Checkbox } from "../ui/Checkbox";
 
 /**
  * 供应商「测试接口」自检面板 —— 自定义供应商表单里的分层探测块。
@@ -52,9 +53,9 @@ export function ProviderTester({ baseUrl, apiKey, model, apiType }: Props): JSX.
   return (
     <div className="rounded-lg border border-border bg-surface-alt px-3 py-2.5">
       <div className="flex items-center justify-between gap-3">
-        <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
-          <input type="checkbox" className="w-3.5 h-3.5 rounded accent-accent shrink-0"
-            checked={verifyKey} onChange={(e) => setVerifyKey(e.target.checked)} />
+        <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer"
+          onClick={() => setVerifyKey(!verifyKey)}>
+          <Checkbox checked={verifyKey} onChange={setVerifyKey} />
           验证密钥（发送最小请求，约消耗 10 个 token）
         </label>
         <button type="button" onClick={run} disabled={testing || (verifyKey && !model.trim())}
