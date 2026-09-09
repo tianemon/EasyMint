@@ -67,10 +67,10 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const availableModels = isCustom
     ? Array.from(new Set(extraSdkIds))
     : Array.from(new Set([...officialIds, ...extraSdkIds]));
-  // 显示名:自添加模型用名称,官方模型用官方名,查不到回落请求标识(别名不该出现在界面上)
+  // 显示名:自添加模型用名称,官方模型一律用请求标识(与聊天输入条口径一致;别名不该出现在界面上)
   const labelOf = (sdkId: string): string => {
     const extra = extraEntries.find((e) => (e.alias || e.id) === sdkId);
-    return extra?.id ?? officialModels?.find((m) => m.id === sdkId)?.name ?? sdkId;
+    return extra?.id ?? sdkId;
   };
 
   // 每个模型支持的思考等级(静态模型规格查表,经 agent:getModelThinkingSupport);

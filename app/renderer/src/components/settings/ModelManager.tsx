@@ -174,7 +174,7 @@ export function ModelManager({
   const seen = new Set<string>();
   for (const [id, params] of Object.entries(overrides)) {
     rows.push({
-      sdkId: id, name: officialById.get(id)?.name ?? id, source: "official",
+      sdkId: id, name: id, source: "official",
       isDefault: id === defaultModel, override: params, officialCtx: officialById.get(id)?.contextWindow,
     });
     seen.add(id);
@@ -193,7 +193,7 @@ export function ModelManager({
   // 默认模型未纳管也没列在自添加里（如存量缓存里的模型）:补一行,让它也能直接调参
   if (defaultModel && !seen.has(defaultModel)) {
     rows.push({
-      sdkId: defaultModel, name: officialById.get(defaultModel)?.name ?? defaultModel,
+      sdkId: defaultModel, name: defaultModel,
       source: isCustom ? "custom" : "official", isDefault: true,
       officialCtx: officialById.get(defaultModel)?.contextWindow,
     });
