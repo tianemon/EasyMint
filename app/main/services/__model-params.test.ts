@@ -109,4 +109,31 @@ describe("模型参数统一管理·数据层", () => {
     expect(migrateModelIdentity(store)).toBe(false);
     expect(existsSync(path.join(dataDir, "agent", "models.json"))).toBe(true);
   }, 60000);
+
+  it("用户在编辑页设置的窗口值确实被 SDK 采用", async () => {
+    const { Store } = await import("./store");
+    const { getModelRuntime, resetModelRuntime } = await import("./pi-init");
+    const store = new Store(dataDir);
+
+    // 模拟用户在模型编辑页把窗口从 512K 改成 200K(新语义下 id 已是请求标识)
+    const settings = store.getSettings();
+    const cfg = settings.apiProviders!.configs!["deepseek-1"]!;
+    const entries = [...(cfg.extraModels ?? [])] as Array<Record<string, unknown>>;
+    const target = entries.find((e) => typeof e !== "string" && e.id === "foo-x") as Record<string, unknown>;
+    expect(target.contextWindow).toBe(512000);
+    target.contextWindow = 200000;
+    cfg.extraModels = entries as never;
+    store.saveSettings(settings);
+    resetModelRuntime();
+
+    const rt = await getModelRuntime(store);
+    // ① 写入 SDK 的用户模型扩展层 models.json
+    const json = JSON.parse(readFileSync(path.join(dataDir, "agent", "models.json"), "utf-8"));
+    const onDisk = (json.providers.deepseek.models as Array<Record<string, unknown>>)
+      .find((m) => m.id === "foo-x");
+    expect(onDisk!.contextWindow).toBe(200000);
+    // ② SDK 运行时解析出的 Model 对象用的就是这个值——自动压缩阈值/溢出判定/使用率都取它
+    expect(rt.getModel("deepseek", "foo-x")!.contextWindow).toBe(200000);
+    expect(rt.getModel("deepseek", "foo-x")!.name).toBe("foo");
+  }, 60000);
 });
