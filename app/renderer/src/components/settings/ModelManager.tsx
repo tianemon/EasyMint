@@ -254,7 +254,7 @@ export function ModelManager({
             const row = rows.find((r) => r.sdkId === v);
             if (row) selectRow(row); else closeEdit();
           }}
-          options={rows.map((r) => ({ value: r.sdkId, label: r.sdkId !== r.name ? `${r.name}（→ ${r.sdkId}）` : r.name }))}
+          options={rows.map((r) => ({ value: r.sdkId, label: r.name }))}
         />
       )}
 
