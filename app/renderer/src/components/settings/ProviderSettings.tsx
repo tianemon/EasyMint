@@ -257,15 +257,18 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       />
 
       {/* 保存/取消条(仅非 bare 宿主,如 Onboarding 内联场景):sticky 底部始终可见。
-          设计语言:底部分区不用横线,靠 bg-surface-alt 底色分区 */}
+          设计语言:底部分区不用横线,靠 bg-surface-alt 底色分区。
+          外层 pt-1 是透明缓冲:sticky 钉住时 margin 不渲染,只有内边距能把色块顶边和上方内容拉开 */}
       {!bare && (
-        <div className="sticky bottom-0 -mx-6 px-6 pt-2 pb-1 mt-1 flex justify-end gap-2 bg-surface-alt">
-          {onCancel && (
-            <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消配置</button>
-          )}
-          <button type="button" onClick={handleSave} className="px-4 py-1.5 rounded-lg btn-accent text-xs font-medium">
-            保存供应商配置
-          </button>
+        <div className="sticky bottom-0 pt-1">
+          <div className="-mx-6 px-6 pt-2 pb-1 flex justify-end gap-2 bg-surface-alt">
+            {onCancel && (
+              <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消配置</button>
+            )}
+            <button type="button" onClick={handleSave} className="px-4 py-1.5 rounded-lg btn-accent text-xs font-medium">
+              保存供应商配置
+            </button>
+          </div>
         </div>
       )}
     </div>
