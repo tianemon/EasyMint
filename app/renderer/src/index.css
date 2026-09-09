@@ -1533,8 +1533,8 @@ select.input {
 [data-theme="dark"] {
   --hover-1: rgba(255, 255, 255, 0.05);
   --hover-2: rgba(255, 255, 255, 0.10);
-  --field-idle: #202020;             /* 暗色输入默认底:比焦点槽(#181818)浅一档 */
-  --modal-fill: #2b2b2b;             /* 暗色表单弹窗内容面:比 input-card(#1c1c1c)亮一档,输入(20/18)在其上可辨 */
+  --field-idle: #1d1d1d;             /* 暗色输入默认底:比焦点槽(#181818)浅、比灰块面(#242424)深一档,默认微凹/聚焦深凹 */
+  --modal-fill: #242424;             /* 暗色表单弹窗内容面:与设置页内容灰块(surface-alt)同层,保持一致语言 */
 
   --preset-active: var(--color-surface);      /* 暗色互换:选中=深槽 */
   --preset-idle: var(--color-accent-soft);    /* 未选中=亮灰 */
