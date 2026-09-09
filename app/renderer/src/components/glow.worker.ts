@@ -1,6 +1,5 @@
 /**
  * 光效 Worker 入口：接收主线程消息 + 自驱循环绘制。
- * 协议与决策见 docs/design/光效 Worker 化方案.md。
  *
  * 注意：Worker 里没有 requestAnimationFrame（Chromium 未实现），用 setTimeout 自驱 +
  * 绝对时间调度（每帧累加 16.67ms 后按实际时刻算下次延迟），避免累积漂移。

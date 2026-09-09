@@ -1,6 +1,5 @@
 /**
  * 主线程侧的光效 Worker 客户端：单例管理 + 消息发送 + 回退判定。
- * 协议与决策见 docs/design/光效 Worker 化方案.md。
  *
  * 单例理由：同一时刻只有一个光效组件渲染（ChatInput 三选一），
  * 而组件会随 glowActive 频繁挂载/卸载——每次新建 Worker 不划算。

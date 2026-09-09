@@ -1,7 +1,7 @@
 /**
  * 自添加模型管理区（供应商表单内）——输入框添加 + 列表行选中编辑。
  *
- * 数据落点（见 docs/design/模型清单架构.md、docs/design/供应商设置页统一改造.md）：
+ * 数据落点：
  *   自添加模型 → ProviderConfig.extraModels（string = 仅 ID 待补参数；对象 = 显式声明，窗口/输出必填）
  *   官方目录模型不进管理区（不可编辑），只在默认/子 Agent 下拉里可选；
  *   modelOverrides 不再有 UI 写入点，存量值由 ProviderSettings 原样透传。

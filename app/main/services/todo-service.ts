@@ -2,8 +2,7 @@
  * 用户待办服务 — .easymint/todos.json（项目级唯一源）
  *
  * 语义：用户的想法与计划清单（跨会话持久），UI 面板（输入卡片「待办」按钮）与 Mint 共读写。
- * 与 task.json（正式执行任务）、session-todos（Mint 执行追踪）三套清单互不混淆（见
- * docs/design/输入卡片附件合并与用户待办方案.md §一）。
+ * 与 task.json（正式执行任务）、session-todos（Mint 执行追踪）三套清单互不混淆。
  *
  * 历史迁移：docs/待办事项.md 存在且 todos.json 不存在时一次性导入（解析 ## 段标题+全文），
  * 原文档改名「待办事项-归档.md」保留可查——之后 md 不再是数据源。

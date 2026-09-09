@@ -1,7 +1,7 @@
 /**
  * 会话待办服务 — .easymint/session-todos/<sessionId>.json
  *
- * Mint 执行追踪清单（AI 全自治、用户只读——见 docs/design/会话待办功能设计方案.md）。
+ * Mint 执行追踪清单（AI 全自治、用户只读）。
  * 与用户待办（.easymint/todos.json，UI 面板管理）是两套清单：本模块管「本次执行中的步骤追踪」。
  */
 

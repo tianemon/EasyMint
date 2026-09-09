@@ -1,5 +1,5 @@
 /**
- * 会话待办校验规则单测（todo_write 全量替换语义——docs/design/会话待办功能设计方案.md §8 验收）。
+ * 会话待办校验规则单测（todo_write 全量替换语义）。
  */
 import { describe, it, expect } from "vitest";
 import { validateSessionTodos } from "./session-todos";

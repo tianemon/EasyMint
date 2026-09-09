@@ -4,7 +4,7 @@ import { cancelDetach, glowWorker, nextGlowSessionId, scheduleDetach } from "./g
 
 /**
  * 光效画布生命周期：默认把绘制交给 Worker（OffscreenCanvas），Worker 不可用时回退主线程 rAF。
- * 协议与决策见 docs/design/光效 Worker 化方案.md。
+ * 迁 Worker 的理由：绘制留在主线程会与流式输出抢帧，主线程繁忙时掉帧明显。
  *
  * 主线程职责仅剩「测量 + 转发」：Worker 读不到 DOM，尺寸/圆角/dpr 必须在这里量好再 postMessage。
  *
