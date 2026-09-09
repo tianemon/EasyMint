@@ -96,7 +96,7 @@ export function Select({ value, onChange, options, className, block, placeholder
         
         disabled={disabled}
         className={block
-          ? `w-full flex items-center justify-between px-3 py-2 rounded-md bg-surface border border-border text-text-primary text-sm outline-none transition-colors ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-accent-border-strong"}`
+          ? `w-full flex items-center justify-between px-3 py-2 rounded-[var(--radius-control)] bg-surface border border-border text-text-primary text-sm outline-none transition-colors ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-accent-border-strong"}`
           : `inp-sel flex items-center gap-1 ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
         onClick={toggle}
       >
@@ -109,7 +109,7 @@ export function Select({ value, onChange, options, className, block, placeholder
       {open && pos && createPortal(
         <div
           ref={panelRef}
-          className="fixed z-dropdown w-max py-0 overflow-hidden rounded-md border border-border bg-surface-elevated shadow-xl"
+          className="fixed z-dropdown w-max py-0 overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface-elevated shadow-xl"
           style={{ left: pos.left, top: pos.top, minWidth: pos.minWidth, maxHeight: MAX_PANEL_H }}
         >
           <div className="overflow-y-auto" style={{ maxHeight: MAX_PANEL_H }}>
