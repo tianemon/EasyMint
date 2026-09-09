@@ -89,7 +89,7 @@
   --color-tab-active: #f1f1ee;
   --color-divider: #e5e5e0;
   --color-accent-ring: rgba(22,163,74,0.22);
-  --radius-sm: 0.25rem;  /* 官方默认(用户 2026-09-09:不覆盖语义档);自定档见 --radius-field/control/panel/btn */
+  --radius-sm: 0.25rem;  /* 官方默认(用户 2026-09-09:不覆盖语义档) */
   --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
   --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
