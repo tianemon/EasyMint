@@ -43,11 +43,6 @@ const MAX_OUT_PRESETS: SelectOption[] = [
 /** 可多选的思考档位（off 是「关闭思考」，不属于档位本身） */
 const LEVELS = THINKING_ORDER.filter((l) => l !== "off");
 
-/** token 数 → 标签文案（1000000 → 1M；向下取整避免 32768 显示成 33K） */
-function formatTokens(tokens: number): string {
-  return tokens >= 1000000 ? `${tokens / 1000000}M` : `${Math.floor(tokens / 1000)}K`;
-}
-
 /** token 数 → 预设下拉选中项（未命中预设则走「自定义」） */
 function presetOf(value: number, presets: SelectOption[]): { sel: string; custom: string } {
   const hit = presets.find((p) => p.value === String(value));
@@ -79,7 +74,6 @@ interface ModelRow {
   sdkId: string;
   /** 界面显示名 */
   name: string;
-  isDefault: boolean;
   entry?: ExtraModelCapability;
   /** 存量 string 条目（参数未声明，需补填） */
   legacy?: boolean;
@@ -107,7 +101,7 @@ export interface ModelManagerProps {
   isCustom: boolean;
   /** 官方目录（内置供应商）；null = 尚未加载。用于添加时重名拦截 */
   officialModels: OfficialModelInfo[] | null;
-  /** 当前默认模型（SDK id） */
+  /** 当前默认模型（SDK id）——仅用于改名/删除时的默认选择联动（数据层），列表展示不与它联动 */
   defaultModel: string;
   extraModels: Array<string | ExtraModelCapability>;
   /** 每行模型支持的思考档位（agent:getModelThinkingSupport）；null = 未知 */
@@ -131,7 +125,6 @@ export function ModelManager({
 
   const rows: ModelRow[] = normalizeExtraModels(extraModels).map((n) => ({
     sdkId: n.sdkId, name: n.id, entry: n.entry, raw: n.raw, legacy: !n.entry,
-    isDefault: n.sdkId === defaultModel || n.id === defaultModel,
   }));
 
   /** 从列表行构建编辑草稿 */
@@ -158,7 +151,7 @@ export function ModelManager({
     if (!id) return;
     if (rows.some((r) => r.sdkId === id)) { toast(`模型 ${id} 已存在`); return; }
     if (!isCustom && officialById.has(id)) { toast(`${id} 是官方模型，无需添加`); return; }
-    const row: ModelRow = { sdkId: id, name: id, isDefault: false, raw: id, legacy: true };
+    const row: ModelRow = { sdkId: id, name: id, raw: id, legacy: true };
     onChange({ extraModels: [...extraModels, id] });
     setEditingId(id);
     setDraft(draftOf(row));
@@ -246,55 +239,22 @@ export function ModelManager({
         >添加</button>
       </div>
 
-      {/* 模型列表（仅自添加模型；点击行选中编辑） */}
+      {/* 编辑模型选择:下拉列出全部自添加模型,选中即在下方展示参数;与默认模型选择互不联动 */}
       {rows.length === 0 ? (
         <p className="text-[length:var(--text-2xs)] text-text-muted">
           还没有自添加模型，输入模型 ID 后点「添加」。
         </p>
       ) : (
-        <div className="rounded-md bg-surface-alt border border-border px-1 py-1 max-h-52 overflow-y-auto space-y-0.5">
-          {rows.map((row) => {
-            const chips: Array<{ text: string; warn?: boolean }> = [];
-            if (row.legacy) chips.push({ text: "参数未填，点击补填", warn: true });
-            else if (row.entry) {
-              chips.push({ text: row.entry.input?.includes("image") ? "识图" : "纯文本" });
-              // 存量对象条目可能缺参数(迁移只覆盖内置供应商),缺则提示补填
-              chips.push(row.entry.contextWindow
-                ? { text: `窗口 ${formatTokens(row.entry.contextWindow)}` }
-                : { text: "窗口未填", warn: true });
-              chips.push(row.entry.maxTokens
-                ? { text: `输出 ${formatTokens(row.entry.maxTokens)}` }
-                : { text: "输出未填", warn: true });
-              chips.push({ text: row.entry.reasoning === false ? "非推理" : "推理" });
-            }
-            const selected = editingId === row.sdkId;
-            return (
-              <button
-                key={row.sdkId}
-                type="button"
-                className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${selected ? "bg-surface-hover" : "hover:bg-surface-hover"}`}
-                onClick={() => selectRow(row)}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-xs text-text-primary truncate">{row.name}</span>
-                    {row.sdkId !== row.name && (
-                      <span className="shrink-0 text-[length:var(--text-2xs)] text-text-muted font-mono truncate max-w-[150px]">→ {row.sdkId}</span>
-                    )}
-                    {row.isDefault && (
-                      <span className="shrink-0 text-[length:var(--text-3xs)] px-1.5 py-0.5 rounded-full bg-accent text-text-inverse">默认</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                    {chips.map((c, i) => (
-                      <span key={i} className={`text-[length:var(--text-3xs)] px-1.5 py-0.5 rounded-full ${c.warn ? "bg-warning-soft text-warning" : "bg-surface-hover text-text-secondary"}`}>{c.text}</span>
-                    ))}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        <Select
+          block
+          placeholder="选择要编辑的模型"
+          value={editingId ?? ""}
+          onChange={(v: string) => {
+            const row = rows.find((r) => r.sdkId === v);
+            if (row) selectRow(row); else closeEdit();
+          }}
+          options={rows.map((r) => ({ value: r.sdkId, label: r.sdkId !== r.name ? `${r.name}（→ ${r.sdkId}）` : r.name }))}
+        />
       )}
 
       {/* 参数编辑表单：唯一编辑入口（保存 / 取消 / 删除） */}
