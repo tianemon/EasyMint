@@ -150,16 +150,17 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
 
   return (
     <div className="space-y-4">
-      {/* 平台选择:下拉展示全部品牌及其接入方式(图标 + 中文名) + 自定义 */}
+      {/* 平台选择:仅添加时可选;编辑态固定(供应商身份不可改,换平台=删了重建) */}
       <div>
         <label className="text-xs text-text-secondary block mb-1.5">选择平台</label>
         <Select
           block
+          disabled={!!initial}
           placeholder="请选择供应商或选自定义"
           value={presetId}
           onChange={handlePresetSelect}
           options={SELF_PROVIDER_OPTIONS}
-         
+
         />
       </div>
 
