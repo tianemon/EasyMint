@@ -13,6 +13,8 @@ import { registerOverlay } from "../../lib/overlay-stack";
  * （OutputWindow 拖拽选中移出边缘不误关）。
  * 本组件以 createPortal 挂到 body：弹窗宿主常在带 transform 的容器内（侧边抽屉/输入卡片），
  * 不脱离会把 fixed 定位劫持到 transform 祖先上导致无法在窗口内居中。
+ * 遮罩带 no-drag：它 fixed inset-0 压在窗口顶部拖拽区(TabBar/侧栏 drag)之上，不声明 no-drag
+ * 时 Electron 的拖拽区会吞掉点击——弹窗顶部的关闭按钮等控件点不动。
  */
 
 export type ModalTier = "dialog" | "modal";
@@ -155,7 +157,7 @@ export function Modal({
   return createPortal(
     <div
       ref={rootRef}
-      className={`fixed inset-0 flex items-center justify-center ${TIER_CLASS[tier]} ${overlayClassName}`}
+      className={`no-drag fixed inset-0 flex items-center justify-center ${TIER_CLASS[tier]} ${overlayClassName}`}
       onMouseDown={
         overlayClose === "press-release" || overlayClose === "mousedown" || overlayClose === "click"
           ? handleOverlayMouseDown

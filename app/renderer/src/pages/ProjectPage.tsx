@@ -414,7 +414,7 @@ export function ProjectPage(): JSX.Element {
 
       {/* Rename Project Dialog */}
       {showRenameDialog && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-dialog"
+        <div className="no-drag fixed inset-0 bg-black/50 flex items-center justify-center z-dialog"
           onMouseDown={(e) => { renameOverlayDownRef.current = e.target === e.currentTarget; }}
           onClick={(e) => { if (renamePhase === "input" && e.target === e.currentTarget && renameOverlayDownRef.current) setShowRenameDialog(false); }}
         >

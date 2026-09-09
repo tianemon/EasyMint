@@ -180,7 +180,7 @@ export function App(): JSX.Element {
         )}
         {/* 迁移完成卡片(接收端):模板文案 + 复制,用户粘贴发送给 Mint 对齐上下文 */}
         {migrateDone && (
-          <div className="fixed inset-0 z-dialog bg-black/40 flex items-center justify-center modal-overlay" onMouseDown={() => setMigrateDone(null)}>
+          <div className="no-drag fixed inset-0 z-dialog bg-black/40 flex items-center justify-center modal-overlay" onMouseDown={() => setMigrateDone(null)}>
             <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border shadow-2xl modal-card flex flex-col" style={{ width: 520, maxHeight: "85vh" }} onMouseDown={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
                 <h2 className="text-sm font-semibold text-text-primary">迁移完成</h2>

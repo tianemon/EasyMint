@@ -165,7 +165,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
 
   return (
     // 层级用 z-dialog(与历史输入抽屉同级):z-float 时聊天页的历史输入按钮会盖在抽屉上方
-    <div className="fixed inset-0 z-dialog flex items-start justify-end bg-black/20" onMouseDown={onClose}>
+    <div className="no-drag fixed inset-0 z-dialog flex items-start justify-end bg-black/20" onMouseDown={onClose}>
       <div
         ref={ref}
         className="w-[340px] h-full flex flex-col rounded-l-[var(--radius-lg)] shadow-2xl animate-[drawer-in_200ms_ease-out] overflow-hidden"

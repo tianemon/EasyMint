@@ -374,7 +374,7 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
   }, [onClose]);
 
   return createPortal(
-    <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/40"
+    <div className="no-drag fixed inset-0 z-modal flex items-center justify-center bg-black/40"
       onMouseDown={(e) => { overlayDownRef.current = e.target === e.currentTarget; }}
       onClick={(e) => { if (e.target === e.currentTarget && overlayDownRef.current) onClose(); }}
     >
