@@ -164,10 +164,17 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
   };
 
   return (
-    <div className="fixed inset-0 z-float flex items-start justify-end bg-black/20" onMouseDown={onClose}>
+    // 层级用 z-dialog(与历史输入抽屉同级):z-float 时聊天页的历史输入按钮会盖在抽屉上方
+    <div className="fixed inset-0 z-dialog flex items-start justify-end bg-black/20" onMouseDown={onClose}>
       <div
         ref={ref}
-        className="w-[340px] h-full bg-surface-alt border-l border-border shadow-xl flex flex-col"
+        className="w-[340px] h-full flex flex-col rounded-l-xl shadow-2xl animate-[drawer-in_200ms_ease-out] overflow-hidden"
+        // 毛玻璃(与历史输入抽屉同一观感):半透明底 + 背景模糊,不用实色 bg-surface-alt
+        style={{
+          background: "color-mix(in oklab, var(--color-surface-elevated) 65%, transparent)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+        }}
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -288,15 +295,16 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
             <div className="flex items-center justify-between mb-1.5 px-1">
               <span className="text-xs font-medium text-text-secondary">迁移忽略项</span>
             </div>
-            <div className="bg-surface rounded-lg border border-border px-3 py-2 space-y-2 flex flex-col flex-1">
+            <div className="bg-surface rounded-lg border border-border py-2 space-y-2 flex flex-col flex-1 overflow-hidden">
+              {/* 输入框无边框、宽度与卡片同宽(去掉卡片横向内边距)——视觉上与卡片融为一体 */}
               <textarea
                 value={ignoreText}
                 onChange={(e) => { setIgnoreText(e.target.value); setIgnoreDirty(true); setIgnoreSaved(false); }}
                 spellCheck={false}
                 placeholder="# 每行一个文件/文件夹路径，# 开头为注释"
-                className="em-input flex-1 resize-none w-full px-2.5 py-2 text-[length:var(--text-2xs)] font-mono leading-relaxed text-text-primary"
+                className="flex-1 resize-none w-full px-3 py-2 bg-transparent border-none outline-none text-[length:var(--text-2xs)] font-mono leading-relaxed text-text-primary"
               />
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between px-3">
                 <span className="text-[length:var(--text-2xs)] text-text-muted">
                   {ignoreSaved ? "已保存 · 下次扫描生效" : ignoreDirty ? "有未保存修改" : ""}
                 </span>
