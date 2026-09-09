@@ -1,7 +1,7 @@
 /**
  * todo_write 工具 — Mint 执行追踪（会话待办）全量替换写入。
  * 对齐 Claude Code TodoWrite：一次调用 = 完整清单（原子、免 id/增量歧义）。
- * 使用规范全在 description/promptGuidelines（宪法零增量——见 会话待办功能设计方案.md §6）。
+ * 使用规范全在 description/promptGuidelines（宪法零增量）。
  */
 import type { ToolDefinition } from "../pi-sdk";
 import { getDefineToolFn } from "../pi-sdk";
