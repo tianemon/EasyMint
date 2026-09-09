@@ -264,6 +264,25 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
         {availableModels.length > 0 && <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">共 {availableModels.length} 个模型可选</p>}
       </div>
 
+      {/* 子 Agent 默认模型:task 工具委派子 Agent 未指定时用(per-provider)。
+          与「模型(默认)」相邻——两者都是「这个供应商用哪个模型」，放一起便于对照 */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="text-xs text-text-secondary">子 Agent 默认模型（委派任务时使用）</label>
+          {subagentDefaultModel && (
+            <button type="button" onClick={() => setSubagentDefaultModel("")} className="text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary transition-colors">清除</button>
+          )}
+        </div>
+        <Select
+          block
+          placeholder={availableModels.length === 0 ? "无可用模型" : "可选"}
+          value={subagentDefaultModel}
+          onChange={(v: string) => setSubagentDefaultModel(v)}
+          options={availableModels.map((m) => ({ value: m, label: labelOf(m) }))}
+         
+        />
+      </div>
+
       {/* 模型管理:官方目录模型与自添加模型统一列表(参数编辑 / 恢复官方 / 移除) */}
       <ModelManager
         isCustom={isCustom}
@@ -321,26 +340,6 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
           </div>
         );
       })()}
-
-      {/* 子 Agent 默认模型:task 工具委派子 Agent 未指定时用(per-provider 配置)。
-          mb-1.5:弹窗(bare)下此块是滚动区最后内容,与底部操作栏之间留 6px 呼吸;
-          非 bare 场景相邻兄弟间距由 space-y-4 折叠提供,此处不影响 */}
-      <div className="mb-1.5">
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="text-xs text-text-secondary">子 Agent 默认模型（委派任务时使用）</label>
-          {subagentDefaultModel && (
-            <button type="button" onClick={() => setSubagentDefaultModel("")} className="text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary transition-colors">清除</button>
-          )}
-        </div>
-        <Select
-          block
-          placeholder={availableModels.length === 0 ? "无可用模型" : "可选"}
-          value={subagentDefaultModel}
-          onChange={(v: string) => setSubagentDefaultModel(v)}
-          options={availableModels.map((m) => ({ value: m, label: labelOf(m) }))}
-         
-        />
-      </div>
 
       {/* 保存/取消条(仅非 bare 宿主,如 Onboarding 内联场景):sticky 底部始终可见。
           设计语言:底部分区不用横线,靠 bg-surface-alt 底色分区 */}
