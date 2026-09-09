@@ -1539,6 +1539,14 @@ select.input {
   --preset-hover: rgba(0, 0, 0, 0.12);
 }
 
+/* ══ 浮层打开时禁用窗口拖拽区 ══════════════════════════════════
+   Electron 的 -webkit-app-region:drag 会吞掉其坐标范围内元素的点击(命中即拖窗口)。
+   浮层经 createPortal 挂到 body,不是拖拽区(TabBar/侧栏)的后代,自身声明 no-drag 不保证被扣除
+   ——曾多次出现弹窗/抽屉顶部按钮(关闭键等)点不动。直接在有浮层时关掉拖拽区最稳,
+   浮层关闭后自动恢复;代价是浮层打开期间不可拖窗口(模态态下合理)。 */
+body:has([class*="z-dialog"], [class*="z-modal"]) .tabbar-v3,
+body:has([class*="z-dialog"], [class*="z-modal"]) .sidebar { -webkit-app-region: no-drag; }
+
 /* hover 两档语义类——替代散落各处的 shadow-[inset_0_0_0_999px_var(--hover-*)] arbitrary value。
    em-hover-row    : 行级定位(列表/分组中的整行,无论该行本身是否可点)
    em-hover-control: 可点控件(按钮/可点条目)
