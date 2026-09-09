@@ -323,7 +323,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
         </div>
 
         <div className="flex items-center justify-between px-6 pb-5 pt-2 shrink-0">
-          <button className="em-hover-control px-4 py-2 rounded-[var(--radius-lg)] text-text-secondary text-sm transition-all disabled:opacity-30" disabled={currentStep === 0} onClick={goPrev}>上一步</button>
+          <button className="em-hover-control px-4 py-[5px] rounded-[var(--radius-lg)] text-text-secondary text-sm transition-all disabled:opacity-30" disabled={currentStep === 0} onClick={goPrev}>上一步</button>
           <div className="flex gap-3">
             <div className="flex gap-2">
               {/* S2：取消 = 丢弃草稿（落盘已移到最终创建，不再有「取消项目=删真目录」的歧义） */}
@@ -333,9 +333,9 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
               </button>
             </div>
             {!isLastStep ? (
-              <button className="px-6 py-2 rounded-[var(--radius-lg)] btn-accent text-sm font-medium" disabled={!canNext()} onClick={goNext}>下一步</button>
+              <button className="px-6 py-[5px] rounded-[var(--radius-lg)] btn-accent text-sm font-medium" disabled={!canNext()} onClick={goNext}>下一步</button>
             ) : (
-              <button className="px-6 py-2 rounded-[var(--radius-lg)] btn-accent text-sm font-medium" disabled={!canNext() || initializing} onClick={handleCreate}>
+              <button className="px-6 py-[5px] rounded-[var(--radius-lg)] btn-accent text-sm font-medium" disabled={!canNext() || initializing} onClick={handleCreate}>
                 {initializing ? "创建中..." : "创建项目"}
               </button>
             )}
