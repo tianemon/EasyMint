@@ -1,16 +1,19 @@
 /**
- * 供应商「测试接口」——分层探测 baseUrl / Key / 模型（设置页「测试接口」按钮的唯一实现）。
+ * 供应商「测试接口」——连通 + 可选密钥校验（设置页「测试接口」按钮的唯一实现）。
  *
- * 分层语义照抄 cc-switch（src-tauri/src/services/stream_check.rs:205-231）：
- * 地址可达只看「能否拿到 HTTP 响应」——任何状态码（401/403/404/500）都算可达，
- * 仅 DNS 失败 / 连接失败 / TLS 错误 / 超时算不可达。其早期版本曾发真实模型请求，
- * 因第三方网关 401/403/WAF 误报被替换——这里沿用，避免把网关限制误判成 Key 无效。
+ * 2026-09-09 用户决定：各家供应商的模型列表接口五花八门，不一定走 OpenAI/Anthropic 协议，
+ * 所有供应商（含内置）都不做模型列表测试，只做连通测试。
+ *   - 连通：GET baseUrl，任何 HTTP 状态码（401/403/404/500）都算可达——沿用 cc-switch
+ *     口径：仅 DNS / 连接 / TLS / 超时算不可达（早期版本曾发真实模型请求，因第三方网关
+ *     401/403/WAF 误报被替换，这里避免把网关限制误判成 Key 无效）。
+ *   - 密钥校验（可选勾选，约 10 token）：按表单所选协议直接发 max_tokens=1 的最小请求，
+ *     不再依赖模型列表判定协议；网关端点路径各异，失败只如实报 HTTP 状态，不断言 Key 无效。
  *
  * 只用 Node 内置 fetch（主进程 CJS bundle 对外部 ESM-only 包敏感，不引新依赖）。
  * apiKey 只进请求头：日志、返回文案、错误信息都不带它。
  */
 
-import type { ProviderProtocol, ProviderProtocolTest, ProviderTestResult, ProviderTestStep } from "../../shared/provider-test";
+import type { ProviderProtocol, ProviderTestResult, ProviderTestStep } from "../../shared/provider-test";
 
 const TIMEOUT_MS = 15_000;
 
@@ -19,7 +22,7 @@ export interface ProviderTestInput {
   apiKey: string;
   /** 表单里已填的默认模型 id（Key 校验必需） */
   model?: string;
-  /** 表单里选择的协议（两种协议都通时用它决定校验哪个） */
+  /** 表单里选择的协议：Key 校验按它选端点与请求头 */
   apiType?: string;
   /** 用户勾选「验证密钥」时才发最小请求 */
   verifyKey?: boolean;
@@ -50,7 +53,6 @@ function networkErrorMessage(err: unknown): string {
 async function request(url: string, init: RequestInit): Promise<HttpOutcome> {
   try {
     const resp = await fetch(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
-    // 读 body 失败不影响「有响应」这一事实（模型列表/错误详情退化为空）
     const text = await resp.text().catch(() => "");
     return { ok: true, status: resp.status, text };
   } catch (err) {
@@ -67,61 +69,6 @@ async function probeReachability(baseUrl: string): Promise<ProviderTestResult["r
   return { ok: true, detail: `HTTP ${r.status} · ${ms}ms`, httpStatus: r.status, ms };
 }
 
-/** 从模型列表响应里解析出模型 id（兼容 OpenAI/Anthropic 的 data[] 与部分网关的 models[]） */
-function parseModelIds(text: string): string[] | null {
-  let json: { data?: unknown; models?: unknown };
-  try { json = JSON.parse(text) as typeof json; } catch { return null; }
-  const list = Array.isArray(json.data) ? json.data : Array.isArray(json.models) ? json.models : null;
-  if (!list) return null;
-  return list
-    .map((m) => (typeof m === "string" ? m : ((m as { id?: string }).id ?? "")))
-    .filter((id) => id.length > 0);
-}
-
-/** 模型列表端点的错误文案映射（口径同 cc-switch src/lib/api/model-fetch.ts:74-107） */
-function modelListErrorDetail(status: number): string {
-  if (status === 401 || status === 403) return "认证被拒绝（Key 可能无效，也可能是网关限制）";
-  if (status === 404 || status === 405) return "该端点无模型列表接口";
-  if (status >= 500) return `服务端错误（HTTP ${status}）`;
-  return `HTTP ${status}`;
-}
-
-/** 步骤二：单协议模型列表探测，200 即判定支持该协议 */
-async function probeModelList(url: string, protocol: ProviderProtocol, apiKey: string): Promise<ProviderProtocolTest> {
-  const headers: Record<string, string> = protocol === "openai"
-    ? { Authorization: `Bearer ${apiKey}` }
-    : { "x-api-key": apiKey, "anthropic-version": "2023-06-01" };
-  const r = await request(url, { method: "GET", headers });
-  if (!r.ok) return { ok: false, detail: r.detail };
-  if (r.status !== 200) return { ok: false, detail: modelListErrorDetail(r.status), httpStatus: r.status };
-  const ids = parseModelIds(r.text);
-  return {
-    ok: true,
-    detail: ids && ids.length > 0 ? `${ids.length} 个模型` : "已响应，但未解析出模型列表",
-    httpStatus: 200,
-    modelCount: ids?.length ?? 0,
-  };
-}
-
-/**
- * O 系模型列表：先探归一化前缀（`{base}/v1`，OpenAI 兼容网关的常规位置），失败再探裸 base
- * （端点挂在根路径的网关）。命中的前缀记下来，Key 校验沿用同一个前缀——否则裸域名 base
- * 的网关会因少一个 /v1 拿不到模型列表，被误判成「只支持 A 系」。
- */
-async function probeOpenAIModelList(
-  base: string,
-  apiBase: string,
-  apiKey: string,
-): Promise<{ test: ProviderProtocolTest; prefix: string }> {
-  const primary = await probeModelList(`${apiBase}/models`, "openai", apiKey);
-  if (primary.ok || apiBase === base) return { test: primary, prefix: apiBase };
-  const fallback = await probeModelList(`${base}/models`, "openai", apiKey);
-  if (fallback.ok) return { test: fallback, prefix: base };
-  // 两个候选都失败：主候选若是「认证被拒/服务端错误」，比另一个候选的 404 更能说明问题
-  const primaryMissing = primary.httpStatus === 404 || primary.httpStatus === 405;
-  return { test: primaryMissing ? fallback : primary, prefix: apiBase };
-}
-
 /** Key 校验的错误文案映射 */
 function keyCheckErrorDetail(status: number, body: string): string {
   if (status === 401 || status === 403) return "认证被拒绝（Key 可能无效，也可能是网关限制）";
@@ -132,7 +79,7 @@ function keyCheckErrorDetail(status: number, body: string): string {
   return `HTTP ${status}`;
 }
 
-/** 步骤三：按协议发 max_tokens=1 的最小调用（约 10 token） */
+/** 步骤二：按协议发 max_tokens=1 的最小调用（约 10 token） */
 async function verifyKey(
   url: string,
   protocol: ProviderProtocol,
@@ -150,52 +97,21 @@ async function verifyKey(
 }
 
 /**
- * 分层探测：地址可达 → 双协议模型列表 → （可选）Key 校验。
- * 地址不可达时后续步骤必然失败，直接跳过（省一次往返，也让清单只标地址可达 ✗）。
+ * 连通 → （可选）密钥校验。地址不可达时跳过校验（省一次往返，也让清单只标地址可达 ✗）。
+ * Key 校验端点按表单所选协议 + base 归一化（已是 /v1 结尾不重复拼接）。
  */
 export async function testProvider(input: ProviderTestInput): Promise<ProviderTestResult> {
   const base = input.baseUrl.trim().replace(/\/+$/, "");
   const reachability = await probeReachability(base);
-  if (!reachability.ok) {
-    return {
-      reachability,
-      modelList: {
-        openai: { ok: false, detail: "地址不可达，未探测" },
-        anthropic: { ok: false, detail: "地址不可达，未探测" },
-      },
-    };
-  }
-
-  // 表单占位符形如 https://api.example.com/v1，已带 /v1 时不再重复拼接（否则 A 系会变成 /v1/v1/messages）；
-  // 裸域名则归一化出 apiBase——OpenAI 兼容网关的端点挂在 /v1 下，不补会让 O 系探测全线 404
-  const apiBase = base.endsWith("/v1") ? base : `${base}/v1`;
-  const [openaiProbe, anthropic] = await Promise.all([
-    probeOpenAIModelList(base, apiBase, input.apiKey),
-    probeModelList(`${apiBase}/models`, "anthropic", input.apiKey),
-  ]);
-  const openai = openaiProbe.test;
-  const result: ProviderTestResult = { reachability, modelList: { openai, anthropic } };
-
-  if (!input.verifyKey) return result;
+  const result: ProviderTestResult = { reachability };
+  if (!reachability.ok || !input.verifyKey) return result;
   if (!input.model?.trim()) {
     result.keyCheck = { ok: false, detail: "未填写模型 id，无法校验密钥" };
     return result;
   }
-  const supported = (["openai", "anthropic"] as const).filter((p) => result.modelList[p].ok);
-  // 两种协议都通时按表单选择的协议校验（用户实际用的那个）；只通一种就用那种
-  const protocol: ProviderProtocol | undefined = supported.length === 1
-    ? supported[0]
-    : supported.length === 2
-      ? (input.apiType === "anthropic-messages" ? "anthropic" : "openai")
-      : undefined;
-  if (!protocol) {
-    result.keyCheck = { ok: false, detail: "模型列表未通过，无法判定协议" };
-    return result;
-  }
-  // Key 校验端点与模型列表用同一个前缀：模型列表命中裸 base 就跟着走裸 base
-  const keyUrl = protocol === "openai"
-    ? `${openaiProbe.prefix}/chat/completions`
-    : `${apiBase}/messages`;
-  result.keyCheck = await verifyKey(keyUrl, protocol, input.apiKey, input.model.trim());
+  const apiBase = base.endsWith("/v1") ? base : `${base}/v1`;
+  const anthropic = input.apiType === "anthropic-messages";
+  const url = anthropic ? `${apiBase}/messages` : `${apiBase}/chat/completions`;
+  result.keyCheck = await verifyKey(url, anthropic ? "anthropic" : "openai", input.apiKey, input.model.trim());
   return result;
 }

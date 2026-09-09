@@ -2,6 +2,10 @@ import { createServer, type Server } from "node:http";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { testProvider } from "./provider-test";
 
+/**
+ * 2026-09-09 起 testProvider 只做两件事：地址可达（连通）+ 可选 Key 校验。
+ * 不做模型列表测试（各家模型列表接口不同），不再推断「支持协议」。
+ */
 let server: Server;
 let base = "";
 const seen: string[] = [];
@@ -15,25 +19,17 @@ beforeAll(async () => {
       res.end(JSON.stringify(body));
     };
     if (url === "/ok") return send(401, { error: "unauthorized" });
-    if (url === "/ok/models") return send(200, { data: [{ id: "m1" }, { id: "m2" }] });
-    if (url === "/ok/v1/models") return send(404, { error: "not found" });
     if (url === "/ok/chat/completions") return send(200, { choices: [] });
-    if (url === "/both/models") return send(200, { data: [{ id: "m1" }] });
-    if (url === "/both/v1/models") return send(200, { models: [{ id: "m2" }] });
-    if (url === "/both/v1/messages") return send(200, { content: [] });
+    if (url === "/both") return send(200, {});
     if (url === "/both/chat/completions") return send(200, { choices: [] });
     if (url === "/both/v1/chat/completions") return send(200, { choices: [] });
-    // 裸域名 + 端点挂在 /v1 下的 OpenAI 兼容网关（M1 误判场景）
-    if (url === "/v1only/models") return send(404, { error: "not found" });
-    if (url === "/v1only/v1/models") return send(200, { data: [{ id: "m1" }] });
+    if (url === "/both/v1/messages") return send(200, { content: [] });
+    // 裸域名 + 端点挂在 /v1 下
+    if (url === "/v1only") return send(200, {});
     if (url === "/v1only/v1/chat/completions") return send(200, { choices: [] });
-    if (url === "/auth/models") return send(401, { error: "bad key" });
-    if (url === "/auth/v1/models") return send(403, { error: "forbidden" });
-    if (url === "/v1suffix/v1/models") return send(200, { data: [{ id: "m1" }] });
     if (url === "/v1suffix/v1/messages") return send(200, { content: [] });
-    if (url === "/modelerr/models") return send(200, { data: [{ id: "m1" }] });
-    if (url === "/modelerr/v1/models") return send(404, {});
-    if (url === "/modelerr/chat/completions") return send(400, { error: { message: "model not found" } });
+    if (url === "/modelerr") return send(200, {});
+    if (url === "/modelerr/v1/chat/completions") return send(400, { error: { message: "model not found" } });
     send(500, { error: "unhandled" });
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
@@ -43,57 +39,51 @@ beforeAll(async () => {
 afterAll(() => { server.close(); });
 
 describe("testProvider", () => {
-  it("401 也算地址可达，只探测到 O 系", async () => {
+  it("任何 HTTP 状态都算连通(401 也算)", async () => {
     const r = await testProvider({ baseUrl: `${base}/ok`, apiKey: "k" });
     expect(r.reachability.ok).toBe(true);
     expect(r.reachability.httpStatus).toBe(401);
-    expect(r.modelList.openai).toMatchObject({ ok: true, modelCount: 2 });
-    expect(r.modelList.anthropic.ok).toBe(false);
-    expect(r.modelList.anthropic.detail).toContain("无模型列表接口");
     expect(r.keyCheck).toBeUndefined();
   });
 
-  it("两种协议都通", async () => {
-    const r = await testProvider({ baseUrl: `${base}/both`, apiKey: "k" });
-    expect(r.modelList.openai.ok).toBe(true);
-    expect(r.modelList.anthropic.ok).toBe(true);
+  it("不勾选校验时不发任何模型/消息请求", async () => {
+    const before = seen.length;
+    await testProvider({ baseUrl: `${base}/ok`, apiKey: "k" });
+    const calls = seen.slice(before);
+    expect(calls).toHaveLength(1); // 只有 GET /ok
+    expect(calls[0]).toBe("GET /ok");
   });
 
-  it("401/403 表述为认证被拒绝，不断言 Key 无效", async () => {
-    const r = await testProvider({ baseUrl: `${base}/auth`, apiKey: "bad" });
-    expect(r.modelList.openai.detail).toBe("认证被拒绝（Key 可能无效，也可能是网关限制）");
-    expect(r.modelList.anthropic.detail).toBe("认证被拒绝（Key 可能无效，也可能是网关限制）");
-  });
-
-  it("地址不可达时只标地址，后续步骤不探测", async () => {
+  it("地址不可达:只标连通失败,不做后续探测", async () => {
     const r = await testProvider({ baseUrl: "http://127.0.0.1:49999", apiKey: "k" });
     expect(r.reachability.ok).toBe(false);
     expect(r.reachability.detail).toContain("连接被拒绝");
-    expect(r.modelList.openai.detail).toBe("地址不可达，未探测");
+    expect(r.keyCheck).toBeUndefined();
   });
 
-  it("baseUrl 已含 /v1 时不重复拼接", async () => {
-    const before = seen.length;
-    const r = await testProvider({ baseUrl: `${base}/v1suffix/v1`, apiKey: "k" });
-    expect(r.modelList.anthropic.ok).toBe(true);
-    expect(seen.slice(before)).not.toContain("GET /v1suffix/v1/v1/models");
-  });
-
-  it("勾选校验 + 有模型 → 走 O 系最小请求", async () => {
+  it("勾选校验 + openai-completions → POST {base}/v1/chat/completions", async () => {
     const r = await testProvider({ baseUrl: `${base}/both`, apiKey: "k", model: "m1", apiType: "openai-completions", verifyKey: true });
     expect(r.keyCheck).toMatchObject({ ok: true, protocol: "openai", detail: "密钥有效" });
+    expect(seen).toContain("POST /both/v1/chat/completions");
   });
 
-  it("裸域名 + 端点挂在 /v1 下 → O 系仍能列出模型，Key 校验沿用 /v1 前缀", async () => {
+  it("baseUrl 已含 /v1 → 不再重复拼接", async () => {
+    const before = seen.length;
+    const r = await testProvider({ baseUrl: `${base}/v1suffix/v1`, apiKey: "k", model: "m1", apiType: "anthropic-messages", verifyKey: true });
+    expect(r.keyCheck).toMatchObject({ ok: true, protocol: "anthropic" });
+    expect(seen.slice(before)).not.toContain("POST /v1suffix/v1/v1/messages");
+  });
+
+  it("裸域名 base → 校验端点归一化到 /v1", async () => {
     const r = await testProvider({ baseUrl: `${base}/v1only`, apiKey: "k", model: "m1", apiType: "openai-completions", verifyKey: true });
-    expect(r.modelList.openai).toMatchObject({ ok: true, modelCount: 1 });
     expect(r.keyCheck).toMatchObject({ ok: true, protocol: "openai" });
     expect(seen).toContain("POST /v1only/v1/chat/completions");
   });
 
-  it("勾选校验 + apiType=anthropic 且两协议都通 → 走 A 系", async () => {
+  it("apiType=anthropic-messages → 走 A 系端点与请求头", async () => {
     const r = await testProvider({ baseUrl: `${base}/both`, apiKey: "k", model: "m1", apiType: "anthropic-messages", verifyKey: true });
     expect(r.keyCheck).toMatchObject({ ok: true, protocol: "anthropic" });
+    expect(seen).toContain("POST /both/v1/messages");
   });
 
   it("勾选校验 + 未填模型 → 直接返回未填写", async () => {
