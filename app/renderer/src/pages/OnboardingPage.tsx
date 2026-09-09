@@ -135,8 +135,8 @@ export function OnboardingPage(): JSX.Element {
                   </div>
                 </div>
                 <button
-                  className="w-full px-4 py-2 rounded-md border border-border text-text-secondary text-xs hover:border-accent-border-strong transition-colors"
-                  onClick={() = setSavedCfg(null)}
+                  className="w-full px-4 py-2 rounded-lg border border-border text-text-secondary text-xs hover:border-accent-border-strong transition-colors"
+                  onClick={() => setSavedCfg(null)}
                 >重新配置</button>
               </div>
             ) : (
@@ -150,26 +150,26 @@ export function OnboardingPage(): JSX.Element {
       <footer className="border-t border-border p-4 flex justify-between bg-surface-alt shrink-0">
         {currentStep === 0 ? (
           <button
-            className="px-6 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium ml-auto"
+            className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium ml-auto"
             onClick={goNext}
-          
+          >
             开始设置
           </button>
         ) : (
           <button
-            className="px-4 py-2 rounded-md text-text-secondary hover:bg-surface-hover transition-colors"
+            className="px-4 py-2 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors"
             onClick={goPrev}
-          
+          >
             返回
           </button>
         )}
         {currentStep !== 0 && (
           <button
-            className="px-6 py-2 rounded-md bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium disabled:opacity-40"
+            className="px-6 py-2 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium disabled:opacity-40"
             disabled={!savedCfg}
             onClick={handleComplete}
             
-          
+          >
             进入工作台
           </button>
         )}

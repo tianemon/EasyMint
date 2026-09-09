@@ -171,7 +171,7 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
               placeholder="添加待办（回车确认）…"
               className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs"
             />
-            <button type="button" onClick={add} disabled={!draft.trim()} className="btn-accent h-8 px-3 rounded-md text-xs disabled:opacity-40 disabled:cursor-not-allowed shrink-0"添加</button>
+            <button type="button" onClick={add} disabled={!draft.trim()} className="btn-accent h-8 px-3 rounded-lg text-xs disabled:opacity-40 disabled:cursor-not-allowed shrink-0">添加</button>
           </div>
         </div>
       )}

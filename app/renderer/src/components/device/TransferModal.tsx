@@ -197,7 +197,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
                 placeholder="或直接输入/选择项目目录"
                 className="em-input flex-1 px-2.5 py-1.5 text-xs text-text-primary"
               />
-              <button type="button" className="px-3 py-1.5 rounded-md border border-border text-xs text-text-secondary hover:bg-surface-hover transition-colors shrink-0" onClick={() = void browseProject()}>
+              <button type="button" className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:bg-surface-hover transition-colors shrink-0" onClick={() => void browseProject()}>
                 浏览
               </button>
             </div>
@@ -292,13 +292,13 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
         </div>
 
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border shrink-0">
-          <button className="px-4 py-1.5 rounded-md text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={onClose} disabled={transferring}
+          <button className="px-4 py-1.5 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={onClose} disabled={transferring}>
             取消
           </button>
           <button
-            className="px-5 py-1.5 rounded-md btn-accent text-sm font-medium"
+            className="px-5 py-1.5 rounded-lg btn-accent text-sm font-medium"
             disabled={!scanResult || selectedFiles.length === 0 || transferring}
-            onClick={() = void startTransfer()}
+            onClick={() => void startTransfer()}
           >
             {transferring ? "传输中…" : `开始迁移${selectedFiles.length > 0 ? `（${selectedFiles.length} 个文件${selectedSessions.length > 0 ? ` · ${selectedSessions.length} 个会话` : ""}）` : ""}`}
           </button>

@@ -439,16 +439,16 @@ export function ProjectPage(): JSX.Element {
                 </div>
                 <div className="flex items-center justify-end gap-2 px-5 pb-4">
                   <button
-                    className="px-4 py-2 text-sm text-text-secondary hover:bg-surface-hover rounded-md transition-colors"
-                    onClick={() = setShowRenameDialog(false)}
+                    className="px-4 py-2 text-sm text-text-secondary hover:bg-surface-hover rounded-lg transition-colors"
+                    onClick={() => setShowRenameDialog(false)}
                   >
                     取消
                   </button>
                   <button
-                    className="px-4 py-2 text-sm bg-accent text-text-inverse rounded-md hover:bg-accent-hover transition-colors disabled:opacity-40"
+                    className="px-4 py-2 text-sm bg-accent text-text-inverse rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-40"
                     disabled={!renameNewName.trim() || renameNewName.trim() === projectName}
                     onClick={handleRenameConfirm}
-                  
+                  >
                     确认重命名
                   </button>
                 </div>
@@ -490,8 +490,8 @@ export function ProjectPage(): JSX.Element {
                 <div className="text-center py-8">
                   <p className="text-xs text-text-secondary mb-3">暂无项目</p>
                   <button
-                    className="px-4 py-2 text-sm bg-accent text-text-inverse rounded-md hover:bg-accent-hover transition-colors"
-                    onClick={() = { setShowOpenProject(false); setShowNewProject(true); }}
+                    className="px-4 py-2 text-sm bg-accent text-text-inverse rounded-lg hover:bg-accent-hover transition-colors"
+                    onClick={() => { setShowOpenProject(false); setShowNewProject(true); }}
                   >
                     + 创建项目
                   </button>
@@ -500,8 +500,8 @@ export function ProjectPage(): JSX.Element {
                 openProjectList.map((p) => (
                   <div key={p.id} className="relative group">
                     <button
-                      className={`w-full text-left px-3 py-2.5 rounded-md transition-colors mb-0.5 ${p.id === projectId ? "bg-accent-bg" : "hover:bg-surface-hover"}`}
-                      onClick={() = {
+                      className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors mb-0.5 ${p.id === projectId ? "bg-accent-bg" : "hover:bg-surface-hover"}`}
+                      onClick={() => {
                         setShowOpenProject(false);
                         if (projectId && projectId !== p.id) {
                           setWindowChoiceTarget({ id: p.id });
@@ -531,9 +531,9 @@ export function ProjectPage(): JSX.Element {
               {/* 浏览文件夹入口 */}
               <div className="border-t border-border mt-2 pt-2">
                 <button
-                  className="w-full text-left px-3 py-2.5 rounded-md text-sm text-text-secondary hover:bg-surface-hover transition-colors flex items-center gap-2"
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-text-secondary hover:bg-surface-hover transition-colors flex items-center gap-2"
                   onClick={handleBrowseFolder}
-                
+                >
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4">
                     <path d="M2 4a1 1 0 011-1h3l1.5 2H13a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/>
                   </svg>
@@ -552,8 +552,8 @@ export function ProjectPage(): JSX.Element {
             <p className="text-sm text-text-primary font-medium">当前窗口已打开项目，要在哪里打开？</p>
             <div className="flex gap-3 justify-end">
               <button
-                className="px-5 py-2 rounded-md border border-border text-text-secondary text-sm hover:bg-surface-hover transition-colors"
-                onClick={async () = {
+                className="px-5 py-2 rounded-lg border border-border text-text-secondary text-sm hover:bg-surface-hover transition-colors"
+                onClick={async () => {
                   const t = windowChoiceTarget;
                   setWindowChoiceTarget(null);
                   await window.electronAPI.window.openProject(t.id, t.sid ?? undefined, t.init ?? false);
@@ -562,8 +562,8 @@ export function ProjectPage(): JSX.Element {
                 在新窗口打开
               </button>
               <button
-                className="px-5 py-2 rounded-md bg-accent text-text-inverse text-sm hover:bg-accent-hover transition-colors font-medium"
-                onClick={() = {
+                className="px-5 py-2 rounded-lg bg-accent text-text-inverse text-sm hover:bg-accent-hover transition-colors font-medium"
+                onClick={() => {
                   const t = windowChoiceTarget;
                   setWindowChoiceTarget(null);
                   const params = new URLSearchParams();
@@ -588,15 +588,15 @@ export function ProjectPage(): JSX.Element {
             <p className="text-xs text-text-secondary">（移动到{window.electronAPI?.platform === "darwin" ? "废纸篓" : "回收站"}）</p>
             <div className="flex gap-3 justify-end">
               <button
-                className="px-5 py-2 rounded-md border border-border text-text-secondary text-sm hover:bg-surface-hover transition-colors"
-                onClick={() = setDeleteTarget(null)}
+                className="px-5 py-2 rounded-lg border border-border text-text-secondary text-sm hover:bg-surface-hover transition-colors"
+                onClick={() => setDeleteTarget(null)}
               >
                 取消
               </button>
               <button
-                className="px-5 py-2 rounded-md bg-danger text-white text-sm hover:opacity-90 transition-opacity font-medium"
+                className="px-5 py-2 rounded-lg bg-danger text-white text-sm hover:opacity-90 transition-opacity font-medium"
                 onClick={confirmDeleteProject}
-              
+              >
                 删除
               </button>
             </div>

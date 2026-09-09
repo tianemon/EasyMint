@@ -328,9 +328,9 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       {!bare && (
         <div className="sticky bottom-0 -mx-6 px-6 pt-2 pb-1 flex justify-end gap-2 bg-surface-alt">
           {onCancel && (
-            <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-md border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors"取消配置</button>
+            <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消配置</button>
           )}
-          <button type="button" onClick={handleSave} className="px-4 py-1.5 rounded-md btn-accent text-xs font-medium"
+          <button type="button" onClick={handleSave} className="px-4 py-1.5 rounded-lg btn-accent text-xs font-medium">
             保存供应商配置
           </button>
         </div>
@@ -387,7 +387,7 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
         {/* 底部操作栏:滚动区外(flex 列结构),与头部同底色分区,无分隔线 */}
         <div className="flex items-center justify-end gap-2 px-4 py-1 bg-surface-alt shrink-0">
           <button onClick={onClose}
-            className="h-8 px-4 whitespace-nowrap rounded-md border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0"取消配置</button>
+            className="h-8 px-4 whitespace-nowrap rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消配置</button>
           <button onClick={() => saveRef.current?.save()}
             className="h-8 px-4 whitespace-nowrap rounded-lg btn-accent text-xs font-medium shrink-0">保存供应商配置</button>
         </div>

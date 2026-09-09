@@ -210,12 +210,12 @@ export function App(): JSX.Element {
                 </div>
               </div>
               <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border shrink-0">
-                <button className="px-4 py-1.5 rounded-md text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={() = setMigrateDone(null)}>
+                <button className="px-4 py-1.5 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={() => setMigrateDone(null)}>
                   关闭
                 </button>
                 <button
-                  className="px-5 py-1.5 rounded-md bg-accent text-text-inverse hover:bg-accent-hover transition-colors text-sm font-medium"
-                  onClick={async () = {
+                  className="px-5 py-1.5 rounded-lg bg-accent text-text-inverse hover:bg-accent-hover transition-colors text-sm font-medium"
+                  onClick={async () => {
                     const text = `【环境变更通知】
 
 本项目已经迁移到另一台电脑，会话记录${migrateDone.sessionRestoredCount > 0 ? "（" + migrateDone.sessionRestoredCount + " 个）" : ""}与项目文件已完整迁移。

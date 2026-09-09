@@ -151,8 +151,8 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
             <button
               type="button"
               onClick={onStop}
-              className="shrink-0 px-2.5 py-1 rounded-md bg-danger-soft text-danger text-xs hover:bg-danger-bg transition-colors whitespace-nowrap"
-            停止运行</button>
+              className="shrink-0 px-2.5 py-1 rounded-lg bg-danger-soft text-danger text-xs hover:bg-danger-bg transition-colors whitespace-nowrap"
+            >停止运行</button>
           )}
           <button
             type="button"

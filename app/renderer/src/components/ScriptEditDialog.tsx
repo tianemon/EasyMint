@@ -106,15 +106,15 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
         <div className="flex items-center gap-2 px-4 py-1 bg-surface-alt shrink-0">
           {scriptPath && (
             <button onClick={handleEditScript}
-              className="h-8 px-3 whitespace-nowrap rounded-md border border-accent-border text-accent text-xs hover:bg-accent-subtle transition-colors shrink-0"
+              className="h-8 px-3 whitespace-nowrap rounded-lg border border-accent-border text-accent text-xs hover:bg-accent-subtle transition-colors shrink-0">
               编辑脚本文件
             </button>
           )}
           <div className="flex-1" />
           <button onClick={onClose}
-            className="h-8 px-4 whitespace-nowrap rounded-md border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0"取消</button>
+            className="h-8 px-4 whitespace-nowrap rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消</button>
           <button onClick={handleSave} disabled={saving}
-            className="h-8 px-4 whitespace-nowrap rounded-md btn-accent text-xs font-medium shrink-0"
+            className="h-8 px-4 whitespace-nowrap rounded-lg btn-accent text-xs font-medium shrink-0">
             {saving ? "保存中…" : "保存"}
           </button>
         </div>
