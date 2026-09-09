@@ -6,7 +6,9 @@
  *   官方目录模型不进管理区（不可编辑），只在默认/子 Agent 下拉里可选；
  *   modelOverrides 不再有 UI 写入点，存量值由 ProviderSettings 原样透传。
  *
- * 别名语义：ExtraModelCapability.id = 界面显示名，alias = 发给供应商的请求标识（SDK Model.id）。
+ * id / alias / name 语义(单一口径):EM 层只维护「模型 id」+ 可选 alias——
+ *   请求标识 = alias ?? id(填了 alias 就用它发请求);
+ *   SDK Model.name 兜底取 id(仅为避免该字段为空),界面不显示 name、也不显示 alias。
  */
 
 import { useState } from "react";
