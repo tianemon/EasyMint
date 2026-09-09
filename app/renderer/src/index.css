@@ -905,14 +905,16 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
    用「色差分层」替代线条边框：分组块靠深浅底区分（TSX 删 border 类），
    输入控件凹槽化——去描边、底色保留 surface(canvas)，在分组块上自然形成深一档的槽。
    仅作用 .settings-body（设置弹窗内容区），通用控件其它页面保持原样。 */
-.settings-body .em-input { border-color: transparent; }
-.settings-body .em-input:hover { border-color: transparent; }
+.settings-body .em-input { border-color: transparent; background: var(--field-idle); }
+.settings-body .em-input:hover { border-color: transparent; background: var(--field-idle); }
+.settings-body .em-input:focus { border-color: transparent; background: var(--color-surface); }  /* 聚焦=底色加深,无任何边框 */
 
 
 
-/* Select 触发(无边框拼色):去描边,底色保持 surface 成凹槽;hover 用强档叠加反馈 */
-.settings-body .em-select-trigger { border-color: transparent; transition-property: color, background-color, border-color, box-shadow; transition-duration: 120ms; }
-.settings-body .em-select-trigger:hover { border-color: transparent; box-shadow: inset 0 0 0 999px var(--hover-2); }
+/* Select 触发(无边框拼色):默认与输入同 idle 底、聚焦同加深,无任何边框;hover 强档叠加 */
+.settings-body .em-select-trigger { border-color: transparent; background: var(--field-idle); transition-property: background-color; transition-duration: 120ms; }
+.settings-body .em-select-trigger:hover { border-color: transparent; }
+.settings-body .em-select-trigger:focus { border-color: transparent; background: var(--color-surface); }
 .settings-body .em-select-trigger:disabled { cursor: not-allowed; }
 
 /* ── Chat Empty ─────────────────────────────── */
@@ -1521,6 +1523,8 @@ select.input {
 :root {
   --hover-1: rgba(0, 0, 0, 0.045);   /* 弱档:不可点展示行/静态块 */
   --hover-2: rgba(0, 0, 0, 0.085);   /* 强档:可点控件 */
+  --field-idle: #e6e5e1;             /* 输入默认底(2026-09-09):比焦点深槽(surface)浅一档,聚焦时加深作提示 */
+
   --preset-active: var(--color-accent-soft);  /* 光效预设卡:选中 */
   --preset-idle: var(--color-surface);        /* 光效预设卡:未选中 */
   --preset-hover: rgba(0, 0, 0, 0.085);       /* 未选中卡 hover(与 idle 同向压暗) */
@@ -1528,6 +1532,8 @@ select.input {
 [data-theme="dark"] {
   --hover-1: rgba(255, 255, 255, 0.05);
   --hover-2: rgba(255, 255, 255, 0.10);
+  --field-idle: #202020;             /* 暗色输入默认底:比焦点槽(#181818)浅一档 */
+
   --preset-active: var(--color-surface);      /* 暗色互换:选中=深槽 */
   --preset-idle: var(--color-accent-soft);    /* 未选中=亮灰 */
   /* 未选中卡 hover:压暗(黑 tint 12%)——比自身深、但比选中槽(#1b1b1b)浅 */
