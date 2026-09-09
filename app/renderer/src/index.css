@@ -1344,15 +1344,15 @@ select.input {
 }
 .btn-raised:active { transform: translateY(0.5px); box-shadow: 0 0 0 rgba(0,0,0,0), inset 0 1px 3px rgba(0, 0, 0, 0.22); }
 .btn-raised:disabled { opacity: 0.4; box-shadow: none; }
-/* 深色:灰底更暗 + 文字用降饱和绿(不鲜亮不冲突)——仅暗调投影与极弱内高光 */
+/* 深色:灰底更暗 + 文字灰白(非纯白非绿,低冲突)——仅暗调投影与极弱内高光 */
 [data-theme="dark"] .btn-raised {
   background: #333333;
-  color: #5fa37b;
+  color: #c9ccc8;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 [data-theme="dark"] .btn-raised:hover {
   background: #3c3c3c;
-  color: #6faf8a;
+  color: #d5d8d3;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 [data-theme="dark"] .btn-raised:active {
