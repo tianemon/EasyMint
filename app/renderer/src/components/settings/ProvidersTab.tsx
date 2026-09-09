@@ -23,7 +23,7 @@ function ChatThinkingLevelSection(): JSX.Element {
   return (
     <section>
       <h3 className="text-sm font-medium text-text-primary mb-2">全局思考等级(聊天)</h3>
-      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-4 py-3">
+      <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
         <Select
           block
           value={chatThinkingLevel}
@@ -45,7 +45,7 @@ function ChatPermissionModeSection(): JSX.Element {
   return (
     <section>
       <h3 className="text-sm font-medium text-text-primary mb-2">默认权限模式(聊天)</h3>
-      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-4 py-3">
+      <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
         <Select
           block
           value={chatPermissionMode}
@@ -195,11 +195,8 @@ export function ProvidersTab(): JSX.Element {
   return (
     <div className="space-y-5">
       <ProvidersManager />
-      <hr className="border-border" />
       <ChatThinkingLevelSection />
-      <hr className="border-border" />
       <ChatPermissionModeSection />
-      <hr className="border-border" />
       <BuiltinToolsSection />
     </div>
   );

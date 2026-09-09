@@ -374,7 +374,7 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
   return createPortal(
     <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="relative bg-surface rounded-[var(--radius-lg)] border border-border shadow-2xl flex flex-col overflow-hidden"
+        className="relative bg-surface-elevated rounded-[var(--radius-lg)] shadow-2xl flex flex-col overflow-hidden"
         style={{ width: 580, height: "min(640px, calc(100vh - 96px))" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -387,13 +387,13 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
         </div>
         {/* 内容区:唯一滚动区——滚动条只存在于此,不会侵入底部操作栏。
             pb-4 与上方 pt-4 对称:滚到底时最后一块内容不贴底栏(间距靠内容区内边距,不靠底栏外边距) */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 pt-4 pb-4">
+        <div className="settings-body flex-1 min-h-0 overflow-y-auto px-6 pt-4 pb-4">
           <ProviderForm ref={saveRef} bare initial={initial} onSave={onSave} onCancel={onClose} />
         </div>
         {/* 底部操作栏:滚动区外(flex 列结构),与头部同底色分区,无分隔线 */}
         <div className="flex items-center justify-end gap-2 px-4 py-1 bg-surface-alt shrink-0">
           <button onClick={onClose}
-            className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消配置</button>
+            className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消配置</button>
           <button onClick={() => saveRef.current?.save()}
             className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] btn-accent text-xs font-medium shrink-0">保存供应商配置</button>
         </div>
@@ -437,7 +437,7 @@ export function ProvidersManager() {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-text-primary">API 供应商</h3>
         <button onClick={() => setDialog({ mode: "add" })}
-          className="px-3 py-1 rounded-[var(--radius-lg)] border border-accent text-accent text-xs font-medium hover:bg-accent-subtle transition-colors">
+          className="px-3 py-1 rounded-[var(--radius-lg)] text-accent text-xs font-medium hover:bg-accent-subtle transition-colors">
           + 添加供应商
         </button>
       </div>
@@ -448,7 +448,7 @@ export function ProvidersManager() {
           const isActive = apiProviders?.current === cfg.id;
           const brand = BRAND_BY_PI_ID.get(cfg.presetId);
           return (
-            <div key={cfg.id} className={`group flex items-center gap-3 p-3 rounded-[var(--radius-lg)] border transition-colors ${isActive ? "border-accent bg-accent-subtle" : "border-border bg-surface hover:border-accent-border-strong"}`}>
+            <div key={cfg.id} className={`group flex items-center gap-3 p-3 rounded-[var(--radius-lg)] transition-all ${isActive ? "bg-accent-soft" : "bg-surface-alt hover:shadow-[inset_0_0_0_999px_var(--hover-2)]"}`}>
               {/* 品牌图标 */}
               {brand?.icon && <img src={brand.icon} className="w-5 h-5 rounded-[var(--radius-lg)] shrink-0 object-contain" alt="" />}
               <div className="flex-1 min-w-0">
@@ -463,12 +463,12 @@ export function ProvidersManager() {
               <div className="flex gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
                 {!isActive && (
                   <button onClick={() => setApiProviders({ ...apiProviders!, current: cfg.id, configs: apiProviders!.configs })}
-                    className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] bg-surface border border-border text-text-secondary hover:text-accent hover:border-accent-border-strong transition-colors">启用</button>
+                    className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] text-text-secondary hover:text-accent transition-colors">启用</button>
                 )}
                 <button onClick={() => setDialog({ mode: "edit", cfg })}
-                  className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] bg-surface border border-border text-text-secondary hover:text-text-primary hover:border-accent-border-strong transition-colors">编辑</button>
+                  className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary transition-colors">编辑</button>
                 <button onClick={() => handleDelete(cfg.id)}
-                  className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] bg-surface border border-border text-text-secondary hover:text-danger hover:border-danger/40 transition-colors">删除</button>
+                  className="px-2 py-1 text-[length:var(--text-2xs)] rounded-[var(--radius-lg)] text-text-secondary hover:text-danger transition-colors">删除</button>
               </div>
             </div>
           );
