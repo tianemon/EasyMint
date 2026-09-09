@@ -287,7 +287,7 @@ export function ModelManager({
 
       {/* 参数编辑表单：唯一编辑入口（保存 / 取消 / 删除） */}
       {draft && (
-        <div className="rounded-[var(--radius-lg)] bg-surface-alt px-2.5 py-2 space-y-2">
+        <div className="space-y-2 px-0.5 pt-1">
           <span className="text-[length:var(--text-2xs)] font-medium text-text-secondary">编辑模型</span>
 
           <div className="grid grid-cols-2 gap-2">
