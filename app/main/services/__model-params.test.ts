@@ -118,7 +118,7 @@ describe("模型参数统一管理·数据层", () => {
     // 模拟用户在模型编辑页把窗口从 512K 改成 200K(新语义下 id 已是请求标识)
     const settings = store.getSettings();
     const cfg = settings.apiProviders!.configs!["deepseek-1"]!;
-    const entries = [...(cfg.extraModels ?? [])] as Array<Record<string, unknown>>;
+    const entries = [...(cfg.extraModels ?? [])] as unknown as Array<Record<string, unknown>>;
     const target = entries.find((e) => typeof e !== "string" && e.id === "foo-x") as Record<string, unknown>;
     expect(target.contextWindow).toBe(512000);
     target.contextWindow = 200000;
