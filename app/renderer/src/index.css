@@ -908,18 +908,18 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 /* ── 无边框拼色（2026-09-09 用户：主界面无边框、设置页改成同语言）──────
    用「色差分层」替代线条边框：分组块靠深浅底区分（TSX 删 border 类），
    输入控件凹槽化——去描边，默认底取 --field-idle（比分组块深一档），
-   聚焦时再深一档（--color-canvas）作为聚焦提示，全程无边框。
+   聚焦时再深一档（--field-focus）作为聚焦提示，全程无边框。
    仅作用 .settings-body（设置弹窗内容区），通用控件其它页面保持原样。 */
 .settings-body .em-input { border-color: transparent; background: var(--field-idle); }
 .settings-body .em-input:hover { border-color: transparent; background: var(--field-idle); }
-.settings-body .em-input:focus { border-color: transparent; background: var(--color-canvas); }  /* 聚焦=底色再深一档,无任何边框 */
+.settings-body .em-input:focus { border-color: transparent; background: var(--field-focus); }  /* 聚焦=底色再深一档,无任何边框 */
 
 
 
 /* Select 触发(无边框拼色):默认与输入同 idle 底、聚焦同加深,无任何边框;hover 强档叠加 */
 .settings-body .em-select-trigger { border-color: transparent; background: var(--field-idle); transition-property: background-color; transition-duration: 120ms; }
 .settings-body .em-select-trigger:hover { border-color: transparent; }
-.settings-body .em-select-trigger:focus { border-color: transparent; background: var(--color-canvas); }
+.settings-body .em-select-trigger:focus { border-color: transparent; background: var(--field-focus); }
 .settings-body .em-select-trigger:disabled { cursor: not-allowed; }
 
 /* ── Chat Empty ─────────────────────────────── */
@@ -1522,9 +1522,10 @@ select.input {
 :root {
   --hover-1: rgba(0, 0, 0, 0.045);   /* 弱档:不可点展示行/静态块 */
   --hover-2: rgba(0, 0, 0, 0.085);   /* 强档:可点控件 */
-  --field-idle: #e6e5e1;             /* 输入默认底(2026-09-09):比焦点深槽(surface)浅一档,聚焦时加深作提示 */
+  --field-idle: #e6e5e1;             /* 输入默认底:比弹窗面(#fafaf8)深 20 级 */
+  --field-focus: #e0e0de;            /* 输入聚焦底:比 idle 再深一档(亮色与 --color-canvas 同值;独立 token 供暗色单独下移) */
   --modal-fill: #fafaf8;             /* 弹窗内容面(全弹窗统一):比纯白沉一点,仍与 idle/focus 拉开 20 级 */
-  /* 抽屉内卡片底:比侧栏抽屉的玻璃底(亮色约 #e5e5e1)亮一档——凹槽(field-idle→canvas)
+  /* 抽屉内卡片底:比侧栏抽屉的玻璃底(亮色约 #e5e5e1)亮一档——凹槽(field-idle→field-focus)
      要求卡面比其更亮，surface-alt 等灰块与玻璃底色差不足 */
   --color-drawer-card: #f6f6f3;
 
@@ -1535,9 +1536,10 @@ select.input {
 [data-theme="dark"] {
   --hover-1: rgba(255, 255, 255, 0.05);
   --hover-2: rgba(255, 255, 255, 0.10);
-  --field-idle: #1d1d1d;             /* 暗色输入默认底:比焦点槽(#181818)浅、比灰块面(#242424)深一档,默认微凹/聚焦深凹 */
+  --field-idle: #1a1a1a;             /* 暗色输入默认底:比弹窗面(#212121)深 7 级 */
+  --field-focus: #151515;            /* 暗色输入聚焦底:比 idle 再深一档 */
   --modal-fill: #212121;             /* 暗色弹窗内容面(全弹窗统一):比原 #242424 沉一档;与输入默认底(#1d1d1d)差 4 级 */
-  /* 暗色抽屉卡片底:比玻璃底(约 #212121)亮一档——凹槽(field-idle #1d1d1d)需卡面更亮才沉得住 */
+  /* 暗色抽屉卡片底:比玻璃底(约 #212121)亮一档——凹槽(field-idle #1a1a1a)需卡面更亮才沉得住 */
   --color-drawer-card: #2a2a2a;
 
   --preset-active: var(--color-surface);      /* 暗色互换:选中=深槽 */

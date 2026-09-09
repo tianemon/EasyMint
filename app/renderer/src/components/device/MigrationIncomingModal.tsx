@@ -112,7 +112,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
 
   return (
     <Modal
-      overlayClassName="bg-black/50 modal-overlay"
+      overlayClassName="bg-black/40 modal-overlay"
       overlayClose={false}
       onClose={() => void onReject(incoming.transferId)}
     >

@@ -46,7 +46,7 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
   const fmtPct = (p: number) => p > 0 ? `${p.toFixed(2)}%` : "<0.01%";
 
   return (
-    <Modal overlayClassName="bg-black/30" onClose={onClose}>
+    <Modal overlayClassName="bg-black/40" onClose={onClose}>
       <div className="bg-[var(--modal-fill)] border border-border rounded-[var(--radius-lg)] p-5 max-w-sm w-full shadow-2xl mx-4">
         <div className="flex items-center justify-between mb-4">
           <span className="text-sm font-medium text-text-primary">会话统计</span>

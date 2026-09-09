@@ -49,7 +49,7 @@ export function CompactionDialog({
   }, [countdownConfig]);
 
   return (
-    <Modal tier="modal" overlayClassName="bg-black/30" onClose={onClose}>
+    <Modal tier="modal" overlayClassName="bg-black/40" onClose={onClose}>
       <div className="bg-[var(--modal-fill)] border border-border rounded-[var(--radius-lg)] p-5 max-w-md w-full shadow-2xl mx-4">
         <div className="flex items-center justify-between mb-1">
           <div className="text-sm font-medium text-text-primary">{title}</div>

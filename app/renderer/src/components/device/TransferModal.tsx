@@ -167,7 +167,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
     <Modal
       overlayClose="mousedown"
       canOverlayClose={() => !transferring}
-      overlayClassName="bg-black/50 modal-overlay"
+      overlayClassName="bg-black/40 modal-overlay"
       onClose={onClose}
     >
       <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] border border-border shadow-2xl modal-card flex flex-col" style={{ width: 520 }}>

@@ -277,7 +277,7 @@ export function SessionHistory({
 
       {/* 删除确认弹窗 */}
       {pendingDelete && (
-        <Modal tier="modal" overlayClassName="bg-black/30" onClose={() => setPendingDelete(null)}>
+        <Modal tier="modal" overlayClassName="bg-black/40" onClose={() => setPendingDelete(null)}>
           <div className="bg-[var(--modal-fill)] border border-border rounded-[var(--radius-lg)] p-5 max-w-sm w-full shadow-2xl mx-4">
             <div className="text-sm font-medium text-text-primary mb-2">删除会话</div>
             <p className="text-xs text-text-secondary mb-4">

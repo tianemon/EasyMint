@@ -302,7 +302,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   };
 
   return (
-    <Modal overlayClassName="bg-black/50 modal-overlay" overlayClose={false} onClose={handleCancel}>
+    <Modal overlayClassName="bg-black/40 modal-overlay" overlayClose={false} onClose={handleCancel}>
       <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl modal-card flex flex-col" style={{ width: 560, maxHeight: "90vh" }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-1 shrink-0">
           <h2 className="text-lg font-semibold text-text-primary">新建项目</h2>

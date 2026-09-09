@@ -323,7 +323,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                   {port && (
                     <div className="relative mt-1 flex items-center gap-1.5 text-[length:var(--text-2xs)] flex-wrap">
                       <input
-                        className="w-14 text-[length:var(--text-2xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-[var(--field-idle)] focus:bg-[var(--color-canvas)] text-text-primary font-mono text-center outline-none"
+                        className="w-14 text-[length:var(--text-2xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-[var(--field-idle)] focus:bg-[var(--field-focus)] text-text-primary font-mono text-center outline-none"
                         value={customPorts[r.id] !== undefined ? customPorts[r.id] : String(port)}
                         onChange={function(e) {
                           const val = e.target.value.replace(/\D/g, "");
