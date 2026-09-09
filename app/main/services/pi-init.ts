@@ -202,21 +202,20 @@ function syncExtraModelsFile(store: Store): void {
         if (siblings.has(modelId)) continue;
         if (!bucket.overrides.has(modelId)) bucket.overrides.set(modelId, params);
       }
-      // 别名映射：SDK 的 Model.id 是发给供应商的请求标识(alias ?? 名称)，Model.name 仅用于展示
+      // 请求标识 = id，显示名 = name（与 SDK Model 一一对应，无别名）
       for (const n of normalizeExtraModels(config.extraModels)) {
-        if (bucket.extras.has(n.sdkId)) continue;
-        // 已是 SDK 内置 id 的不再写 models[](models[] 按 id 整体替换内置条目,升级后 SDK 自带
-        // 同名模型时我们的条目会遮蔽官方 spec)——但用户在条目里显式声明的参数(窗口/输出/
-        // 识图/档位)必须落到 modelOverrides,否则整条静默消失(改参数没反应)。
-        // 已在官方目录:以官方定义为准(不再整体替换,也不再改道写覆盖层——
-        // models[] 同 id 会整体遮蔽官方 spec,覆盖层又会让 SDK 升级后的官方值失效)。
-        // 名称也一并比对:只查请求标识会留下「名称用官方名 + 别名换请求 id」的绕行,
-        // 那样既能自定义参数,又会在下拉里出现两个同名的条目。改官方参数应等 SDK 更新。
-        if (siblings.has(n.sdkId) || siblings.has(n.id)) {
+        if (bucket.extras.has(n.id)) continue;
+        // 已收录进官方目录的请求标识:以官方定义为准——models[] 同 id 会整体遮蔽官方 spec,
+        // 改道写覆盖层又会让 SDK 升级后的官方值失效。改官方参数应等 SDK 更新。
+        if (siblings.has(n.id)) {
           console.warn(`[pi-init] 模型 ${n.id} 已在官方目录中，以官方参数为准（手动声明不生效）`);
           continue;
         }
-        bucket.extras.set(n.sdkId, n.entry ?? { id: n.id });
+        // 写入规范化后的条目:id/name 用归一化结果(旧形态的 alias 已折算进 id、原 id 成为 name),
+        // 并剔除 alias 字段——否则旧条目没有 name,显示名会回落成请求标识
+        const canonical: Record<string, unknown> = n.entry ? { ...n.entry } : {};
+        delete canonical.alias;
+        bucket.extras.set(n.id, { ...canonical, id: n.id, name: n.name });
       }
       // 协议/定价层兜底基准:优先该配置的默认模型(命中内置时),否则用第一个内置模型
       if (!bucket.fallbackModel && config.model && siblings.has(config.model)) bucket.fallbackModel = config.model;
@@ -230,7 +229,7 @@ function syncExtraModelsFile(store: Store): void {
       const sibling = (bucket.fallbackModel ? siblings.get(bucket.fallbackModel) : undefined) ?? [...siblings.values()][0];
       const protocol = pickProtocolFields(sibling);
       const models = [...bucket.extras.entries()].map(([sdkId, entry]) => {
-        const { id: displayName, alias: _alias, ...declared } = entry;
+        const { id: _id, name: displayName, ...declared } = entry;
         // 保留既有条目上的手写字段(如 samplingParams);窗口/输出只认声明值——
         // 取消近似匹配后不再反查官方同族模型,存量值已由启动迁移显式化
         const handWritten = byId.get(sdkId) ?? {};
@@ -239,7 +238,7 @@ function syncExtraModelsFile(store: Store): void {
           ...handWritten,
           ...declared,
           id: sdkId,
-          name: displayName,
+          name: displayName ?? sdkId,
         };
         // 参数字段统一过一遍防御性过滤:坏值会让整份 models.json 被 SDK 丢弃(见 sanitizeModelParams)
         const params = sanitizeModelParams(model, `手动模型 ${sdkId}`);
@@ -412,14 +411,14 @@ async function syncProviders(store: Store, runtime: ModelRuntimeInstance) {
         // 模型声明(参数由用户显式指定,不再按 id 反查官方同族模型推断):
         // key = 别名 ?? 名称——SDK 的 Model.id 是发给供应商的请求标识,Model.name 仅用于展示。
         // 旧数据里 extraModels 可能是纯字符串 id(无参数声明),此时按保守默认值回落。
+        // 请求标识 = id(无别名概念),显示名 = name
         const declared = normalizeExtraModels(config.extraModels);
         const bySdkId = new Map<string, NormalizedExtraModel>();
         for (const d of declared) {
-          bySdkId.set(d.sdkId, d);
-          if (d.alias) bySdkId.set(d.id, d);
+          if (!bySdkId.has(d.id)) bySdkId.set(d.id, d);
         }
         // 模型清单 = 缓存列表(config.models) ∪ 声明的请求 id(任一来源都能注册)
-        const sdkIds = [...new Set([...(config.models ?? []), ...declared.map((d) => d.sdkId)])];
+        const sdkIds = [...new Set([...(config.models ?? []), ...declared.map((d) => d.id)])];
         runtime.registerProvider(config.id, {
           name: config.name,
           apiKey: config.apiKey,
@@ -430,7 +429,7 @@ async function syncProviders(store: Store, runtime: ModelRuntimeInstance) {
             const entry = d?.entry;
             return {
               id: sdkId,
-              name: d?.id ?? sdkId,
+              name: d?.name ?? sdkId,
               // 未声明时保守默认(与旧版行为一致:推理默认开、纯文本输入)
               reasoning: entry?.reasoning ?? true,
               input: entry?.input ?? ["text"],

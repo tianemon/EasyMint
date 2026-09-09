@@ -40,7 +40,7 @@ function pickCapability(spec: Record<string, any> | undefined): Partial<ExtraMod
  * 同族能力(段级反查 → 该供应商默认模型/首个模型兜底) + 视觉关键词 + 跨供应商窗口查表。
  * models.json 里的手写字段由 syncExtraModelsFile 的 handWritten 合并保留,与迁移无关。
  */
-function legacyBuiltinParams(presetId: string, id: string, fallbackModel?: string): Omit<ExtraModelCapability, "id" | "alias"> {
+function legacyBuiltinParams(presetId: string, id: string, fallbackModel?: string): Omit<ExtraModelCapability, "id" | "name"> {
   const lookup = getModelSpecLookup();
   const siblings = getProviderStaticModels(presetId);
   const family =
@@ -60,7 +60,7 @@ function legacyBuiltinParams(presetId: string, id: string, fallbackModel?: strin
 }
 
 /** 自定义供应商模型的旧版生效参数(与旧版 syncProviders 的推断结果一致) */
-function legacyCustomParams(id: string): Omit<ExtraModelCapability, "id" | "alias"> {
+function legacyCustomParams(id: string): Omit<ExtraModelCapability, "id" | "name"> {
   const lookup = getModelSpecLookup();
   const spec = lookupWithAlias(lookup, id) ?? lookupBySegmentPrefix(lookup, id);
   return {
@@ -74,7 +74,7 @@ function legacyCustomParams(id: string): Omit<ExtraModelCapability, "id" | "alia
 }
 
 /** 把条目显式化为对象:用户已声明的字段优先(含手写的未知字段),缺失的用旧版推断值补齐 */
-function toExplicitCapability(entry: DeclaredEntry, legacy: Omit<ExtraModelCapability, "id" | "alias">): ExtraModelCapability {
+function toExplicitCapability(entry: DeclaredEntry, legacy: Omit<ExtraModelCapability, "id" | "name">): ExtraModelCapability {
   const merged = { ...entry } as ExtraModelCapability;
   if (entry.contextWindow === undefined) merged.contextWindow = legacy.contextWindow;
   if (entry.maxTokens === undefined) merged.maxTokens = legacy.maxTokens;
@@ -84,6 +84,52 @@ function toExplicitCapability(entry: DeclaredEntry, legacy: Omit<ExtraModelCapab
     merged.thinkingLevelMap = legacy.thinkingLevelMap;
   }
   return merged;
+}
+
+/**
+ * 模型身份迁移 —— 旧「id=显示名 + alias=请求标识」改写为新「id=请求标识 + name=显示名」(一次性)。
+ *
+ * 背景:早期以为 SDK 只有一个展示字段,于是用 alias 承载请求标识;SDK 的 Model 其实同时有
+ * id(请求) 与 name(展示),别名概念多余且易错。新语义下:
+ *   id   := 旧 alias ?? 旧 id   —— 请求标识保持不变,已存会话/默认模型/模型缓存都不受影响
+ *   name := 旧 id               —— 界面上看到的文字保持不变
+ * 旧版代码读新数据只是显示退化成请求标识(功能正常),新版读旧数据有 normalizeExtraModels 兜底。
+ * 一次性:modelIdentityMigrated 标记后不再改写。只写 em-settings.json。
+ */
+export function migrateModelIdentity(store: Store): boolean {
+  const settings = store.getSettings();
+  if (settings.modelIdentityMigrated) return false;
+  const providers = settings.apiProviders;
+  let changed = false;
+  for (const cfg of Object.values(providers?.configs ?? {})) {
+    const list = cfg.extraModels;
+    if (!list?.length) continue;
+    let cfgChanged = false;
+    const next = list.map((raw) => {
+      if (typeof raw === "string") return raw;
+      const legacy = raw as ExtraModelCapability & { alias?: string };
+      // 已有 name 即新形态;无 name 的旧对象(含纯 { id } 条目)按旧语义改写
+      if (legacy.name !== undefined) return raw;
+      const migrated: ExtraModelCapability = {
+        id: legacy.alias ?? legacy.id,
+        name: legacy.id,
+        contextWindow: legacy.contextWindow,
+        maxTokens: legacy.maxTokens,
+        input: legacy.input,
+        reasoning: legacy.reasoning,
+      };
+      if (legacy.thinkingLevelMap) migrated.thinkingLevelMap = legacy.thinkingLevelMap;
+      cfgChanged = true;
+      return migrated;
+    });
+    if (cfgChanged) {
+      cfg.extraModels = next;
+      changed = true;
+    }
+  }
+  settings.modelIdentityMigrated = true;
+  store.saveSettings(settings);
+  return changed;
 }
 
 /** 语义比较(键序无关——JSON.stringify 直接比会因键序不同误判为「需迁移」) */

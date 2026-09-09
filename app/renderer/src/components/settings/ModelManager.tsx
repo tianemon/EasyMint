@@ -76,8 +76,8 @@ function buildLevelMap(
 
 /** 列表行（渲染用，由 extraModels 聚合，全部为自添加模型） */
 interface ModelRow {
-  /** 请求标识（= 别名 ?? 名称） */
-  sdkId: string;
+  /** 请求标识（发给供应商，SDK Model.id） */
+  id: string;
   /** 界面显示名 */
   name: string;
   entry?: ExtraModelCapability;
@@ -91,8 +91,10 @@ interface ModelRow {
 interface Draft {
   /** 被编辑行的原请求标识 */
   editingId: string;
+  /** 请求标识 */
+  id: string;
+  /** 界面显示名 */
   name: string;
-  alias: string;
   vision: boolean;
   reasoning: boolean;
   ctx: string;
@@ -124,6 +126,7 @@ export function ModelManager({
   onDefaultModelChange, onSubagentDefaultModelChange, onChange,
 }: ModelManagerProps): JSX.Element {
   const [newId, setNewId] = useState("");
+  const [newName, setNewName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
 
@@ -133,7 +136,7 @@ export function ModelManager({
     (modelSupports[sdkId] ?? null)?.filter((l) => l !== "off") ?? null;
 
   const rows: ModelRow[] = normalizeExtraModels(extraModels).map((n) => ({
-    sdkId: n.sdkId, name: n.id, entry: n.entry, raw: n.raw, legacy: !n.entry,
+    id: n.id, name: n.name, entry: n.entry, raw: n.raw, legacy: !n.entry,
   }));
 
   /** 从列表行构建编辑草稿 */
@@ -142,69 +145,70 @@ export function ModelManager({
     const ctx = entry?.contextWindow !== undefined ? presetOf(entry.contextWindow, CTX_PRESETS) : { sel: "", custom: "" };
     const maxOut = entry?.maxTokens !== undefined ? presetOf(entry.maxTokens, MAX_OUT_PRESETS) : { sel: "", custom: "" };
     return {
-      editingId: row.sdkId, name: row.name, alias: entry?.alias ?? "",
+      editingId: row.id, id: row.id, name: row.name,
       vision: entry?.input?.includes("image") ?? false,
       reasoning: entry?.reasoning ?? true,
       ctx: ctx.sel, ctxCustom: ctx.custom, maxOut: maxOut.sel, maxOutCustom: maxOut.custom,
       // 未声明档位时 SDK 默认全档可用（标识即档位名），按此回填
       levels: entry?.thinkingLevelMap
         ? Object.entries(entry.thinkingLevelMap).filter(([, v]) => v !== null).map(([k]) => k)
-        : (supportOf(row.sdkId) ?? [...LEVELS]),
+        : (supportOf(row.id) ?? [...LEVELS]),
       levelsTouched: false,
     };
   };
 
-  /** 添加：一次一个，以 string 条目追加（仅 ID，参数点击行后补填） */
+  /** 添加：一次一个（ID 与名称都必填），追加后自动进入编辑表单补参数 */
   const addModel = () => {
     const id = newId.trim();
-    if (!id) return;
-    if (rows.some((r) => r.sdkId === id)) { toast(`模型 ${id} 已存在`); return; }
+    if (!id) { toast("请输入模型 ID"); return; }
+    if (!newName.trim()) { toast("请输入模型名称"); return; }
+    if (rows.some((r) => r.id === id)) { toast(`模型 ID ${id} 已存在`); return; }
     if (!isCustom && officialById.has(id)) { toast(`${id} 是官方模型，无需添加`); return; }
-    const row: ModelRow = { sdkId: id, name: id, raw: id, legacy: true };
+    const row: ModelRow = { id, name: newName.trim(), raw: id, legacy: true };
     onChange({ extraModels: [...extraModels, id] });
     setEditingId(id);
     setDraft(draftOf(row));
     setNewId("");
+    setNewName("");
   };
 
   const selectRow = (row: ModelRow) => {
-    setEditingId(row.sdkId);
+    setEditingId(row.id);
     setDraft(draftOf(row));
   };
 
   const closeEdit = () => { setEditingId(null); setDraft(null); };
 
-  /** 保存：string 条目替换为显式对象条目（窗口 / 输出必填，数据层不推断） */
+  /** 保存：string 条目替换为显式对象条目（ID / 名称 / 窗口 / 输出必填，数据层不推断） */
   const saveDraft = () => {
     if (!draft) return;
+    const id = draft.id.trim();
     const name = draft.name.trim();
-    if (!name) { toast("请输入模型 ID"); return; }
+    if (!id) { toast("请输入模型 ID"); return; }
+    if (!name) { toast("请输入模型名称"); return; }
     const ctx = resolveTokens(draft.ctx, draft.ctxCustom);
     const maxOut = resolveTokens(draft.maxOut, draft.maxOutCustom);
     if (!ctx) { toast("请填写上下文窗口"); return; }
     if (!maxOut) { toast("请填写最大输出"); return; }
-    const alias = draft.alias.trim();
-    const sdkId = alias || name;
-    if (rows.some((r) => r.sdkId === sdkId && r.sdkId !== draft.editingId)) {
-      toast(`模型 ID ${sdkId} 已存在`);
+    if (rows.some((r) => r.id === id && r.id !== draft.editingId)) {
+      toast(`模型 ID ${id} 已存在`);
       return;
     }
-    // 名称或请求标识撞官方目录 id 一律拒绝:官方模型参数以 SDK 为准,不留绕行——
-    // 「名称用官方名 + 别名换个请求 id」能骗过 sdkId 校验并自定义参数,会让下拉里出现两个
-    // 同名条目且无法分辨,官方 API 通常还不认那个别名 id。改官方参数应等 SDK 更新。
-    if (!isCustom && (officialById.has(name) || officialById.has(sdkId))) {
-      toast(`${officialById.has(name) ? name : sdkId} 与官方模型重名，请换个名称`);
+    // 请求标识撞官方目录 id 一律拒绝:官方模型参数以 SDK 为准,官方 API 才是该 id 的真相源,
+    // 不留「换个请求 id 就能自定义参数」的绕行——改官方参数应等 SDK 更新。
+    if (!isCustom && officialById.has(id)) {
+      toast(`${id} 是官方模型，无需添加`);
       return;
     }
-    const editingRow = rows.find((r) => r.sdkId === draft.editingId);
+    const editingRow = rows.find((r) => r.id === draft.editingId);
     const entry: ExtraModelCapability = {
-      id: name,
+      id,
+      name,
       contextWindow: ctx,
       maxTokens: maxOut,
       input: draft.vision === true ? ["text", "image"] : ["text"],
       reasoning: draft.reasoning === true,
     };
-    if (alias) entry.alias = alias;
     const prevEntry = editingRow?.entry;
     if (draft.levelsTouched || prevEntry?.thinkingLevelMap) {
       entry.thinkingLevelMap = buildLevelMap(draft.levels, prevEntry?.thinkingLevelMap);
@@ -214,19 +218,19 @@ export function ModelManager({
         ? extraModels.map((e) => (e === editingRow.raw ? entry : e))
         : [...extraModels, entry],
     });
-    if (defaultModel === draft.editingId) onDefaultModelChange(sdkId);
-    if (subagentDefaultModel === draft.editingId) onSubagentDefaultModelChange(sdkId);
+    if (defaultModel === draft.editingId) onDefaultModelChange(id);
+    if (subagentDefaultModel === draft.editingId) onSubagentDefaultModelChange(id);
     closeEdit();
   };
 
   const deleteModel = () => {
     if (!draft) return;
-    const removeRaws = new Set(rows.filter((r) => r.sdkId === draft.editingId).map((r) => r.raw));
+    const removeRaws = new Set(rows.filter((r) => r.id === draft.editingId).map((r) => r.raw));
     if (removeRaws.size === 0) { closeEdit(); return; }
     onChange({ extraModels: extraModels.filter((e) => !removeRaws.has(e)) });
-    const row = rows.find((r) => r.sdkId === draft.editingId);
-    if (row && (defaultModel === row.sdkId || defaultModel === row.name)) onDefaultModelChange("");
-    if (row && (subagentDefaultModel === row.sdkId || subagentDefaultModel === row.name)) onSubagentDefaultModelChange("");
+    const row = rows.find((r) => r.id === draft.editingId);
+    if (row && defaultModel === row.id) onDefaultModelChange("");
+    if (row && subagentDefaultModel === row.id) onSubagentDefaultModelChange("");
     closeEdit();
   };
 
@@ -240,9 +244,16 @@ export function ModelManager({
       <div className="flex items-center gap-2">
         <input
           className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
-          placeholder="输入模型 ID，如 deepseek-v4-flash"
+          placeholder="模型 ID，如 deepseek-v4-flash"
           value={newId}
           onChange={(e) => setNewId(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addModel(); } }}
+        />
+        <input
+          className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
+          placeholder="显示名称，如 DeepSeek V4"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addModel(); } }}
         />
         <button
@@ -255,7 +266,7 @@ export function ModelManager({
       {/* 编辑模型选择:下拉列出全部自添加模型,选中即在下方展示参数;与默认模型选择互不联动 */}
       {rows.length === 0 ? (
         <p className="text-[length:var(--text-2xs)] text-text-muted">
-          还没有自添加模型，输入模型 ID 后点「添加」。
+          还没有自添加模型，填写 ID 与名称后点「添加」。
         </p>
       ) : (
         <Select
@@ -263,10 +274,10 @@ export function ModelManager({
           placeholder="选择要编辑的模型"
           value={editingId ?? ""}
           onChange={(v: string) => {
-            const row = rows.find((r) => r.sdkId === v);
+            const row = rows.find((r) => r.id === v);
             if (row) selectRow(row); else closeEdit();
           }}
-          options={rows.map((r) => ({ value: r.sdkId, label: r.name }))}
+          options={rows.map((r) => ({ value: r.id, label: r.name }))}
         />
       )}
 
@@ -281,19 +292,20 @@ export function ModelManager({
               <input
                 className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
                 placeholder="如 deepseek-v4-flash"
+                value={draft.id}
+                onChange={(e) => setDraft({ ...draft, id: e.target.value })}
+              />
+              <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">发给供应商的请求标识</p>
+            </div>
+            <div>
+              <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">模型名称</label>
+              <input
+                className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
+                placeholder="如 DeepSeek V4"
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
               />
-            </div>
-            <div>
-              <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1">别名</label>
-              <input
-                className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
-                placeholder="请求标识（选填）"
-                value={draft.alias}
-                onChange={(e) => setDraft({ ...draft, alias: e.target.value })}
-              />
-              <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">填写后请求使用别名，界面仍显示模型 ID</p>
+              <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">界面显示用</p>
             </div>
           </div>
 

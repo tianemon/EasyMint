@@ -57,18 +57,35 @@ function applyUiScale(scale: number): void {
   document.documentElement.style.setProperty("--ui-scale", String(scale));
 }
 
-/** 自添加模型的显示名映射(键 = SDK 请求标识 = 别名 ?? 名称)——别名只用于请求,界面一律显示名称 */
+/** 自添加模型的显示名映射(键 = 请求标识)——界面一律显示 name,请求标识只用于发请求 */
 function extraModelLabels(cfg?: ProviderConfig | null): Record<string, string> {
   const map: Record<string, string> = {};
-  for (const n of normalizeExtraModels(cfg?.extraModels)) map[n.sdkId] = n.id;
+  for (const n of normalizeExtraModels(cfg?.extraModels)) map[n.id] = n.name;
   return map;
+}
+
+/**
+ * 官方目录模型的显示名映射(键 = 请求标识)——官方模型也显示 name,与自添加模型同口径。
+ * 目录按供应商拉取(内置供应商才有);自定义供应商返回空表。
+ */
+async function officialModelLabels(cfg?: ProviderConfig | null): Promise<Record<string, string>> {
+  const presetId = cfg?.presetId;
+  if (!presetId || presetId === "custom") return {};
+  try {
+    const list = await window.electronAPI.agent.getPiModels(presetId);
+    const map: Record<string, string> = {};
+    for (const m of list ?? []) if (m?.name) map[m.id] = m.name;
+    return map;
+  } catch {
+    return {};
+  }
 }
 
 interface SettingsState {
   defaultProjectDir: string;
   model: string;
   availableModels: string[];
-  /** 模型显示名映射(键 = 请求标识):自添加模型显示名称而非别名;官方模型缺省不在此表 */
+  /** 模型显示名映射(键 = 请求标识):自添加模型显示声明的名称,官方模型显示官方目录的 name */
   modelLabels: Record<string, string>;
   setupComplete: boolean;
   contextThreshold: number;
@@ -225,6 +242,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
     set(patch);
     window.electronAPI?.settings?.set?.("apiProviders", data);
+    // 官方目录的展示名异步补进映射(自添加模型的名称已在上面同步拿到)
+    if (activeCfg) {
+      void officialModelLabels(activeCfg).then((official) => {
+        if (Object.keys(official).length === 0) return;
+        set({ modelLabels: { ...official, ...get().modelLabels } });
+      });
+    }
   },
 
   activateProvider: (providerId: string) => {
@@ -240,6 +264,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
     set(patch);
     window.electronAPI?.settings?.set?.("apiProviders", next);
+    if (activeCfg) {
+      void officialModelLabels(activeCfg).then((official) => {
+        if (Object.keys(official).length === 0) return;
+        set({ modelLabels: { ...official, ...get().modelLabels } });
+      });
+    }
     // 设置中切供应商 → 当前活跃会话同步热切(会话级绑定持久化到 session-cache,
     // 后续 resume 恢复绑定)。主进程 setModel 带 providerId 用指定供应商解析模型
     if (activeCfg?.model) {
@@ -287,6 +317,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           apiProviders: providers,
           modelLabels: extraModelLabels(providers?.current ? providers.configs?.[providers.current] : undefined),
         });
+        // 官方目录的展示名异步补进映射(聊天输入条等消费 modelLabels)
+        const activeCfg = providers?.current ? providers.configs?.[providers.current] : undefined;
+        if (activeCfg) {
+          void officialModelLabels(activeCfg).then((official) => {
+            if (Object.keys(official).length === 0) return;
+            set({ modelLabels: { ...official, ...get().modelLabels } });
+          });
+        }
         // 启动时应用字号 CSS 变量——否则设置只在拖动滑杆时生效,重启后回落默认值
         const chatScale = settings.chatFontScale ?? LEGACY_CHAT_FONT_SCALE[settings.chatFontLevel ?? 3] ?? 1;
         applyChatScale(chatScale);

@@ -41,7 +41,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     const list = [...(initial?.extraModels ?? [])];
     if (isCustom) {
       // 旧版自定义供应商用 textarea 存模型清单(config.models),并入 extraModels 统一管理
-      const known = new Set(normalizeExtraModels(list).map((n) => n.sdkId));
+      const known = new Set(normalizeExtraModels(list).map((n) => n.id));
       for (const id of initial?.models ?? []) if (!known.has(id)) list.push(id);
     }
     return list;
@@ -57,15 +57,16 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const loadedProviderRef = useRef<string>("");
   // 可选的模型列表(值 = SDK 请求标识):内置供应商 = 官方目录 + 自添加;自定义 = 自添加
   const extraEntries = normalizeExtraModels(extraModels);
-  const extraSdkIds = extraEntries.map((n) => n.sdkId);
+  const extraSdkIds = extraEntries.map((n) => n.id);
   const officialIds = officialModels ? officialModels.map((m) => m.id) : (initial?.models ?? []);
   const availableModels = isCustom
     ? Array.from(new Set(extraSdkIds))
     : Array.from(new Set([...officialIds, ...extraSdkIds]));
-  // 显示名:自添加模型用名称,官方模型一律用请求标识(与聊天输入条口径一致;别名不该出现在界面上)
-  const labelOf = (sdkId: string): string => {
-    const extra = extraEntries.find((n) => n.sdkId === sdkId);
-    return extra?.id ?? sdkId;
+  // 显示名一律取 name:自添加模型用其声明的名称,官方模型用官方目录的展示名(与聊天输入条同口径)
+  const labelOf = (modelId: string): string => {
+    const extra = extraEntries.find((n) => n.id === modelId);
+    if (extra) return extra.name;
+    return officialModels?.find((m) => m.id === modelId)?.name ?? modelId;
   };
 
   // 每个模型支持的思考等级(静态模型规格查表,经 agent:getModelThinkingSupport);

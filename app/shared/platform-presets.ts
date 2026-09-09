@@ -18,12 +18,16 @@ export interface ModelParams {
   thinkingLevelMap?: Partial<Record<ThinkingLevelValue, string | null>>;
 }
 
-/** 手动添加模型的能力声明(用户显式指定,不再自动推断) */
+/** 手动添加模型的能力声明(用户显式指定,不再自动推断)。
+ *  id / name 与 SDK Model 一一对应,没有别名概念:
+ *    id   = 发给供应商的请求标识(SDK Model.id),供应商内唯一
+ *    name = 界面显示名(SDK Model.name)
+ *  存量数据的 alias 由启动迁移改写为这套语义(见 extra-models-migration.ts)。 */
 export interface ExtraModelCapability {
-  /** 模型 ID:未填别名时即发给供应商的请求标识(SDK Model.id);SDK Model.name 兜底取它,界面不显示 name */
+  /** 请求标识:发给供应商的模型名(SDK Model.id) */
   id: string;
-  /** 别名(选填):填了则用它作为请求标识,界面仍显示模型 ID */
-  alias?: string;
+  /** 界面显示名(SDK Model.name) */
+  name: string;
   /** 输入能力:含 "image" 即支持识图 */
   input?: Array<"text" | "image">;
   /** 上下文窗口(token);必填(自添加模型不再推断) */
@@ -63,28 +67,34 @@ export interface ApiProvidersData {
 
 /** extraModels 条目的归一化形态(存储仍是 string | ExtraModelCapability union,读取统一经 normalizeExtraModels) */
 export interface NormalizedExtraModel {
-  /** 界面显示名;无别名时同时是请求 id */
+  /** 请求标识:发给供应商的模型名(SDK Model.id) */
   id: string;
-  /** 请求 id 别名(填了则请求用别名,界面仍显示模型 ID) */
-  alias?: string;
-  /** 发给供应商的请求 id = alias ?? id */
-  sdkId: string;
+  /** 界面显示名;存量数据缺 name 时回落请求标识 */
+  name: string;
   /** 对象条目的完整声明;string 条目(存量遗留)无参数声明 */
   entry?: ExtraModelCapability;
   /** 原始条目(保引用,供在原 union 列表里定位替换/删除) */
   raw: string | ExtraModelCapability;
 }
 
-/** extraModels 归一化:string 条目转 { id }、无 id 的坏条目丢弃。所有读取点的统一入口 */
+/**
+ * extraModels 归一化:所有读取点的统一入口,string 条目转 { id, name }、无 id 的坏条目丢弃。
+ *
+ * 兼容旧形态(迁移未跑到时):旧条目 id 是显示名、alias 是请求标识——
+ * 以「有没有 name 字段」区分新旧:id 侧取 alias ?? id,name 侧取 name ?? id。
+ */
 export function normalizeExtraModels(
   list?: ReadonlyArray<string | ExtraModelCapability>,
 ): NormalizedExtraModel[] {
   const out: NormalizedExtraModel[] = [];
   for (const raw of list ?? []) {
     if (typeof raw === "string") {
-      if (raw) out.push({ id: raw, sdkId: raw, raw });
+      if (raw) out.push({ id: raw, name: raw, raw });
     } else if (raw?.id) {
-      out.push({ id: raw.id, alias: raw.alias, sdkId: raw.alias || raw.id, entry: raw, raw });
+      // 新版条目:id 即请求标识;旧版(无 name):id 是显示名,请求标识可能是 alias
+      const legacy = raw.name === undefined && (raw as { alias?: string }).alias;
+      const id = legacy ? ((raw as { alias?: string }).alias as string) : raw.id;
+      out.push({ id, name: raw.name ?? raw.id, entry: raw, raw });
     }
   }
   return out;

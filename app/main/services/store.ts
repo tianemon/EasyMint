@@ -80,6 +80,8 @@ interface Settings {
   apiProviders?: ApiProvidersData;
   /** extraModels 参数显式化迁移已完成(一次性;标记后新条目不再按旧逻辑推断参数) */
   modelParamsMigrated?: boolean;
+  /** 模型身份迁移已完成(一次性:旧 id=显示名 + alias=请求标识 → 新 id=请求标识 + name=显示名) */
+  modelIdentityMigrated?: boolean;
 }
 
 /** 多色流光分组:一组命名色彩组合 */
@@ -244,6 +246,7 @@ export class Store {
       })(),
       apiProviders: dropLegacyEncryptedProviderKeys(emData.apiProviders as ApiProvidersData | undefined),
       modelParamsMigrated: emData.modelParamsMigrated as boolean | undefined,
+      modelIdentityMigrated: emData.modelIdentityMigrated as boolean | undefined,
     };
   }
 
@@ -320,6 +323,7 @@ export class Store {
       data.apiProviders = settings.apiProviders;
     }
     if (settings.modelParamsMigrated) data.modelParamsMigrated = true;
+    if (settings.modelIdentityMigrated) data.modelIdentityMigrated = true;
     fs.writeFileSync(this.emSettingsPath, JSON.stringify(data, null, 2));
   }
 

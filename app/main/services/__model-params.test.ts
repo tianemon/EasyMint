@@ -98,6 +98,15 @@ describe("模型参数统一管理·数据层", () => {
     // 迁移后的存量条目仍在 models.json 中,升级后新增的条目回落默认值
     expect(rt.getModel("deepseek", "deepseek-v4-flash-x")!.contextWindow).toBeGreaterThan(200000);
     expect(rt.getModel("deepseek", "deepseek-v4-pro-x")!.contextWindow).toBe(200000);
+    // 身份迁移:旧「id=显示名 + alias=请求标识」→ 新「id=请求标识 + name=显示名」,请求标识不变
+    const { migrateModelIdentity } = await import("./extra-models-migration");
+    expect(migrateModelIdentity(store)).toBe(true);
+    const after = store.getSettings().apiProviders!.configs!["deepseek-1"]!.extraModels as unknown as Array<Record<string, unknown>>;
+    const fooEntry = after.find((e) => e.id === "foo-x") as Record<string, unknown> | undefined;
+    expect(fooEntry).toMatchObject({ id: "foo-x", name: "foo", contextWindow: 512000 });
+    expect(fooEntry!.alias).toBeUndefined();
+    // 一次性:再次调用不再改写
+    expect(migrateModelIdentity(store)).toBe(false);
     expect(existsSync(path.join(dataDir, "agent", "models.json"))).toBe(true);
   }, 60000);
 });
