@@ -62,7 +62,7 @@ export function ConfirmHost(): JSX.Element | null {
 
   return (
     <Modal tier="modal" overlayClassName="bg-black/40 backdrop-blur-sm" onClose={() => close(false)}>
-      <div className="bg-surface border border-border rounded-[var(--radius-lg)] p-5 max-w-md w-full shadow-2xl mx-4">
+      <div className="bg-[var(--modal-fill)] border border-border rounded-[var(--radius-lg)] p-5 max-w-md w-full shadow-2xl mx-4">
         <div className="text-sm font-medium text-text-primary mb-1.5">{pending.title}</div>
         <p className="text-xs text-text-secondary mb-4 leading-relaxed whitespace-pre-line">{pending.message}</p>
         <div className="flex gap-2 justify-end">

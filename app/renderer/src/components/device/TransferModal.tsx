@@ -170,7 +170,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
       overlayClassName="bg-black/50 modal-overlay"
       onClose={onClose}
     >
-      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border shadow-2xl modal-card flex flex-col" style={{ width: 520 }}>
+      <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] border border-border shadow-2xl modal-card flex flex-col" style={{ width: 520 }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0">
           <h2 className="text-base font-semibold text-text-primary">迁移到 {deviceName}</h2>
           <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} disabled={transferring}>✕</button>

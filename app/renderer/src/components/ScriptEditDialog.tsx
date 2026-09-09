@@ -83,7 +83,7 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
   // （fixed 相对 transform 祖先而非视口）——弹窗必须脱离才能在软件窗口内居中
   return (
     <Modal overlayClassName="bg-black/40" onClose={onClose}>
-      <div className="relative bg-surface rounded-[var(--radius-lg)] border border-border shadow-2xl w-[760px] h-[600px] flex flex-col overflow-hidden">        <div className="flex items-center justify-between px-4 py-1.5 bg-surface-alt shrink-0">
+      <div className="relative bg-[var(--modal-fill)] rounded-[var(--radius-lg)] border border-border shadow-2xl w-[760px] h-[600px] flex flex-col overflow-hidden">        <div className="flex items-center justify-between px-4 py-1.5 bg-surface-alt shrink-0">
           <span className="text-sm font-medium text-text-primary">编辑脚本</span>
           <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose}>✕</button>
         </div>

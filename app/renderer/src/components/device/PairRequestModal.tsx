@@ -26,7 +26,7 @@ export function PairRequestModal(): JSX.Element | null {
 
   return (
     <Modal overlayClassName="bg-black/50 modal-overlay" overlayClose={false} onClose={() => void rejectPair()}>
-      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border shadow-2xl modal-card" style={{ width: 380 }}>
+      <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] border border-border shadow-2xl modal-card" style={{ width: 380 }}>
         <div className="px-6 pt-5 pb-2">
           <h2 className="text-base font-semibold text-text-primary">连接请求</h2>
         </div>

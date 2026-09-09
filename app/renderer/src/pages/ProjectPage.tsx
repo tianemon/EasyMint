@@ -418,7 +418,7 @@ export function ProjectPage(): JSX.Element {
           onMouseDown={(e) => { renameOverlayDownRef.current = e.target === e.currentTarget; }}
           onClick={(e) => { if (renamePhase === "input" && e.target === e.currentTarget && renameOverlayDownRef.current) setShowRenameDialog(false); }}
         >
-          <div className="bg-surface-elevated rounded-[var(--radius-lg)] border border-border shadow-2xl w-[400px]" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] border border-border shadow-2xl w-[400px]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-4 pb-2">
               <h2 className="text-base font-semibold text-text-primary">重命名项目</h2>
               {renamePhase === "input" && (
@@ -484,7 +484,7 @@ export function ProjectPage(): JSX.Element {
       {/* Open Project Picker */}
       {showOpenProject && (
         <Modal overlayClassName="bg-black/50" onClose={() => setShowOpenProject(false)}>
-          <div className="bg-surface-elevated rounded-[var(--radius-lg)] border border-border shadow-2xl w-[420px] max-h-[70vh] flex flex-col">
+          <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] border border-border shadow-2xl w-[420px] max-h-[70vh] flex flex-col">
             <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
               <h2 className="text-base font-semibold text-text-primary">打开项目</h2>
               <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setShowOpenProject(false)}>✕</button>
@@ -553,7 +553,7 @@ export function ProjectPage(): JSX.Element {
       {/* 窗口选择弹窗：打开/新建项目时，让用户选在当前窗口还是新窗口 */}
       {windowChoiceTarget && (
         <Modal overlayClassName="bg-black/60" overlayClose={false} onClose={() => setWindowChoiceTarget(null)}>
-          <div className="bg-surface-elevated rounded-[var(--radius-lg)] border border-border shadow-2xl p-6 w-[400px] flex flex-col gap-4">
+          <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] border border-border shadow-2xl p-6 w-[400px] flex flex-col gap-4">
             <p className="text-sm text-text-primary font-medium">当前窗口已打开项目，要在哪里打开？</p>
             <div className="flex gap-3 justify-end">
               <button
@@ -588,7 +588,7 @@ export function ProjectPage(): JSX.Element {
       {/* 删除项目确认弹窗：与窗口选择弹窗同风格 */}
       {deleteTarget && (
         <Modal overlayClassName="bg-black/60" overlayClose={false} onClose={() => setDeleteTarget(null)}>
-          <div className="bg-surface-elevated rounded-[var(--radius-lg)] border border-border shadow-2xl p-6 w-[400px] flex flex-col gap-4">
+          <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] border border-border shadow-2xl p-6 w-[400px] flex flex-col gap-4">
             <p className="text-sm text-text-primary font-medium">确认删除该项目吗？</p>
             <p className="text-xs text-text-secondary">（移动到{window.electronAPI?.platform === "darwin" ? "废纸篓" : "回收站"}）</p>
             <div className="flex gap-3 justify-end">

@@ -116,7 +116,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
       overlayClose={false}
       onClose={() => void onReject(incoming.transferId)}
     >
-      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border shadow-2xl modal-card flex flex-col" style={{ width: 460 }}>
+      <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] border border-border shadow-2xl modal-card flex flex-col" style={{ width: 460 }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0">
           <h2 className="text-base font-semibold text-text-primary">接收迁移</h2>
           <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => void onReject(incoming.transferId)}>✕</button>

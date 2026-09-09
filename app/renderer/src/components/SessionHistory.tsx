@@ -278,7 +278,7 @@ export function SessionHistory({
       {/* 删除确认弹窗 */}
       {pendingDelete && (
         <Modal tier="modal" overlayClassName="bg-black/30" onClose={() => setPendingDelete(null)}>
-          <div className="bg-surface border border-border rounded-[var(--radius-lg)] p-5 max-w-sm w-full shadow-2xl mx-4">
+          <div className="bg-[var(--modal-fill)] border border-border rounded-[var(--radius-lg)] p-5 max-w-sm w-full shadow-2xl mx-4">
             <div className="text-sm font-medium text-text-primary mb-2">删除会话</div>
             <p className="text-xs text-text-secondary mb-4">
               确定删除「{sessions.find((s) => s.sessionId === pendingDelete)?.title ?? "该会话"}」吗？会话记录将永久删除，此操作不可恢复。

@@ -866,7 +866,8 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 .settings-panel-v3 {
   display: flex; flex-direction: column;
   width: 760px; height: 600px;
-  background: var(--color-input-card); border-radius: var(--radius-lg);
+  /* 面走全弹窗统一档 --modal-fill（原 input-card 同值，统一后由该 token 单点控制） */
+  background: var(--modal-fill); border-radius: var(--radius-lg);
   /* 无投影:与遮罩的色差已足够区分层级,投影反而显脏 */
   overflow: hidden;
   transform: scale(0);
@@ -1522,7 +1523,7 @@ select.input {
   --hover-1: rgba(0, 0, 0, 0.045);   /* 弱档:不可点展示行/静态块 */
   --hover-2: rgba(0, 0, 0, 0.085);   /* 强档:可点控件 */
   --field-idle: #e6e5e1;             /* 输入默认底(2026-09-09):比焦点深槽(surface)浅一档,聚焦时加深作提示 */
-  --modal-fill: #ffffff;             /* 表单类弹窗内容面:直接承载输入,与 idle/focus 拉开层级 */
+  --modal-fill: #fafaf8;             /* 弹窗内容面(全弹窗统一):比纯白沉一点,仍与 idle/focus 拉开 20 级 */
   /* 抽屉内卡片底:比侧栏抽屉的玻璃底(亮色约 #e5e5e1)亮一档——凹槽(field-idle→canvas)
      要求卡面比其更亮，surface-alt 等灰块与玻璃底色差不足 */
   --color-drawer-card: #f6f6f3;
@@ -1535,7 +1536,7 @@ select.input {
   --hover-1: rgba(255, 255, 255, 0.05);
   --hover-2: rgba(255, 255, 255, 0.10);
   --field-idle: #1d1d1d;             /* 暗色输入默认底:比焦点槽(#181818)浅、比灰块面(#242424)深一档,默认微凹/聚焦深凹 */
-  --modal-fill: #242424;             /* 暗色表单弹窗内容面:与设置页内容灰块(surface-alt)同层,保持一致语言 */
+  --modal-fill: #212121;             /* 暗色弹窗内容面(全弹窗统一):比原 #242424 沉一档;与输入默认底(#1d1d1d)差 4 级 */
   /* 暗色抽屉卡片底:比玻璃底(约 #212121)亮一档——凹槽(field-idle #1d1d1d)需卡面更亮才沉得住 */
   --color-drawer-card: #2a2a2a;
 

@@ -105,7 +105,7 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
       onClose={onClose}
     >
       <div
-        className="output-window relative flex flex-col w-[80vw] h-[80vh] rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-2xl overflow-hidden"
+        className="output-window relative flex flex-col w-[80vw] h-[80vh] rounded-[var(--radius-lg)] border border-border bg-[var(--modal-fill)] shadow-2xl overflow-hidden"
         tabIndex={-1}
         // Cmd/Ctrl+A 只全选输出区内容(不选整个页面)
         onKeyDown={(e) => {

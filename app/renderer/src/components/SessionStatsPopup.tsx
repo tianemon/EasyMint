@@ -47,7 +47,7 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
 
   return (
     <Modal overlayClassName="bg-black/30" onClose={onClose}>
-      <div className="bg-surface border border-border rounded-[var(--radius-lg)] p-5 max-w-sm w-full shadow-2xl mx-4">
+      <div className="bg-[var(--modal-fill)] border border-border rounded-[var(--radius-lg)] p-5 max-w-sm w-full shadow-2xl mx-4">
         <div className="flex items-center justify-between mb-4">
           <span className="text-sm font-medium text-text-primary">会话统计</span>
           <button onClick={onClose} className="text-text-secondary hover:text-text-primary">

@@ -150,7 +150,7 @@ export function SubagentProcessView({
   return (
     <Modal overlayClassName="bg-black/40" onClose={onClose}>
       <div
-        className="relative flex flex-col w-[80vw] h-[80vh] rounded-[var(--radius-lg)] border border-border bg-surface-alt shadow-2xl overflow-hidden"
+        className="relative flex flex-col w-[80vw] h-[80vh] rounded-[var(--radius-lg)] border border-border bg-[var(--modal-fill)] shadow-2xl overflow-hidden"
       >
         {/* 头部:spinner + 标题 + 状态 + 关闭(思考/工具与主聊天一致常显,无显示开关) */}
         <div className="bg-accent-bg">

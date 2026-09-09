@@ -129,7 +129,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
       {/* 记录/编辑弹层(Modal 经 createPortal 挂 body 脱离抽屉 transform 劫持,全窗口居中大尺寸) */}
       {form && (
         <Modal tier="modal" overlayClassName="bg-black/40" onClose={() => setForm(null)}>
-          <div className="relative bg-surface border border-border rounded-[var(--radius-lg)] w-[760px] h-[600px] flex flex-col overflow-hidden shadow-2xl">
+          <div className="relative bg-[var(--modal-fill)] border border-border rounded-[var(--radius-lg)] w-[760px] h-[600px] flex flex-col overflow-hidden shadow-2xl">
             <div className="flex items-center justify-between px-4 py-1.5 bg-surface-alt shrink-0">
               <span className="text-sm font-medium text-text-primary">{form.mode === "new" ? "记录问题" : "编辑问题"}</span>
               <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setForm(null)}>✕</button>
