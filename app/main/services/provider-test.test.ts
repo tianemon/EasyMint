@@ -22,6 +22,11 @@ beforeAll(async () => {
     if (url === "/both/v1/models") return send(200, { models: [{ id: "m2" }] });
     if (url === "/both/v1/messages") return send(200, { content: [] });
     if (url === "/both/chat/completions") return send(200, { choices: [] });
+    if (url === "/both/v1/chat/completions") return send(200, { choices: [] });
+    // 裸域名 + 端点挂在 /v1 下的 OpenAI 兼容网关（M1 误判场景）
+    if (url === "/v1only/models") return send(404, { error: "not found" });
+    if (url === "/v1only/v1/models") return send(200, { data: [{ id: "m1" }] });
+    if (url === "/v1only/v1/chat/completions") return send(200, { choices: [] });
     if (url === "/auth/models") return send(401, { error: "bad key" });
     if (url === "/auth/v1/models") return send(403, { error: "forbidden" });
     if (url === "/v1suffix/v1/models") return send(200, { data: [{ id: "m1" }] });
@@ -77,6 +82,13 @@ describe("testProvider", () => {
   it("勾选校验 + 有模型 → 走 O 系最小请求", async () => {
     const r = await testProvider({ baseUrl: `${base}/both`, apiKey: "k", model: "m1", apiType: "openai-completions", verifyKey: true });
     expect(r.keyCheck).toMatchObject({ ok: true, protocol: "openai", detail: "密钥有效" });
+  });
+
+  it("裸域名 + 端点挂在 /v1 下 → O 系仍能列出模型，Key 校验沿用 /v1 前缀", async () => {
+    const r = await testProvider({ baseUrl: `${base}/v1only`, apiKey: "k", model: "m1", apiType: "openai-completions", verifyKey: true });
+    expect(r.modelList.openai).toMatchObject({ ok: true, modelCount: 1 });
+    expect(r.keyCheck).toMatchObject({ ok: true, protocol: "openai" });
+    expect(seen).toContain("POST /v1only/v1/chat/completions");
   });
 
   it("勾选校验 + apiType=anthropic 且两协议都通 → 走 A 系", async () => {

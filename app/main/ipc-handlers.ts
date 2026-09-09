@@ -514,12 +514,14 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("settings:testProvider", async (_e, input: unknown) => {
     const data = expectPayload(z.object({
       baseUrl: z.string().min(1, "不能为空"),
-      apiKey: z.string().min(1, "不能为空"),
+      // Key 可空：地址可达/模型列表是 0-token 步骤，与 Key 无关；空 Key 下模型列表收到 401 →
+      // 已有「认证被拒绝」文案（Key 校验同样由用户勾选后才发）
+      apiKey: z.string().optional(),
       model: z.string().optional(),
       apiType: z.string().optional(),
       verifyKey: z.boolean().optional(),
     }).loose(), input);
-    return testProvider(data);
+    return testProvider({ ...data, apiKey: data.apiKey ?? "" });
   });
   ipcMain.handle("settings:fetchBalance", async () => {
     const settings = store.getSettings();

@@ -103,6 +103,25 @@ async function probeModelList(url: string, protocol: ProviderProtocol, apiKey: s
   };
 }
 
+/**
+ * O 系模型列表：先探归一化前缀（`{base}/v1`，OpenAI 兼容网关的常规位置），失败再探裸 base
+ * （端点挂在根路径的网关）。命中的前缀记下来，Key 校验沿用同一个前缀——否则裸域名 base
+ * 的网关会因少一个 /v1 拿不到模型列表，被误判成「只支持 A 系」。
+ */
+async function probeOpenAIModelList(
+  base: string,
+  apiBase: string,
+  apiKey: string,
+): Promise<{ test: ProviderProtocolTest; prefix: string }> {
+  const primary = await probeModelList(`${apiBase}/models`, "openai", apiKey);
+  if (primary.ok || apiBase === base) return { test: primary, prefix: apiBase };
+  const fallback = await probeModelList(`${base}/models`, "openai", apiKey);
+  if (fallback.ok) return { test: fallback, prefix: base };
+  // 两个候选都失败：主候选若是「认证被拒/服务端错误」，比另一个候选的 404 更能说明问题
+  const primaryMissing = primary.httpStatus === 404 || primary.httpStatus === 405;
+  return { test: primaryMissing ? fallback : primary, prefix: apiBase };
+}
+
 /** Key 校验的错误文案映射 */
 function keyCheckErrorDetail(status: number, body: string): string {
   if (status === 401 || status === 403) return "认证被拒绝（Key 可能无效，也可能是网关限制）";
@@ -147,12 +166,14 @@ export async function testProvider(input: ProviderTestInput): Promise<ProviderTe
     };
   }
 
-  // 表单占位符形如 https://api.example.com/v1，已带 /v1 时不再重复拼接（否则 A 系会变成 /v1/v1/messages）
-  const hasV1 = base.endsWith("/v1");
-  const [openai, anthropic] = await Promise.all([
-    probeModelList(`${base}/models`, "openai", input.apiKey),
-    probeModelList(hasV1 ? `${base}/models` : `${base}/v1/models`, "anthropic", input.apiKey),
+  // 表单占位符形如 https://api.example.com/v1，已带 /v1 时不再重复拼接（否则 A 系会变成 /v1/v1/messages）；
+  // 裸域名则归一化出 apiBase——OpenAI 兼容网关的端点挂在 /v1 下，不补会让 O 系探测全线 404
+  const apiBase = base.endsWith("/v1") ? base : `${base}/v1`;
+  const [openaiProbe, anthropic] = await Promise.all([
+    probeOpenAIModelList(base, apiBase, input.apiKey),
+    probeModelList(`${apiBase}/models`, "anthropic", input.apiKey),
   ]);
+  const openai = openaiProbe.test;
   const result: ProviderTestResult = { reachability, modelList: { openai, anthropic } };
 
   if (!input.verifyKey) return result;
@@ -171,9 +192,10 @@ export async function testProvider(input: ProviderTestInput): Promise<ProviderTe
     result.keyCheck = { ok: false, detail: "模型列表未通过，无法判定协议" };
     return result;
   }
+  // Key 校验端点与模型列表用同一个前缀：模型列表命中裸 base 就跟着走裸 base
   const keyUrl = protocol === "openai"
-    ? `${base}/chat/completions`
-    : hasV1 ? `${base}/messages` : `${base}/v1/messages`;
+    ? `${openaiProbe.prefix}/chat/completions`
+    : `${apiBase}/messages`;
   result.keyCheck = await verifyKey(keyUrl, protocol, input.apiKey, input.model.trim());
   return result;
 }

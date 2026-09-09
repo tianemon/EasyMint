@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { ExtraModelCapability, ModelParams } from "../../shared/platform-presets";
+import { THINKING_ORDER } from "../../shared/thinking-levels";
 import { Store } from "./store";
 import { getProviderStaticModels } from "./pi-init-static";
 import {
@@ -15,17 +16,42 @@ import {
 } from "./pi-sdk";
 import type { Model } from "@earendil-works/pi-ai";
 
-let _modelRuntime: Awaited<ReturnType<typeof getModelRuntimeClass>>["prototype"] | null = null;
+type ModelRuntimeInstance = Awaited<ReturnType<typeof getModelRuntimeClass>>["prototype"];
+
+let _modelRuntime: ModelRuntimeInstance | null = null;
+/** 进行中的构建。并发调用共用同一次构建,reset 时一并作废(见 resetModelRuntime) */
+let _runtimePromise: Promise<ModelRuntimeInstance> | null = null;
 let _activeModel: Model<any> | null = null;
 
 export async function getModelRuntime(store: Store) {
   if (_modelRuntime) return _modelRuntime;
-  // 手动添加模型先落盘(运行时 create 时读取),再构建——保证本次构建即包含
-  syncExtraModelsFile(store);
-  const MR = await getModelRuntimeClass();
-  _modelRuntime = await MR.create({ allowModelNetwork: false });
-  await syncProviders(store);
-  return _modelRuntime;
+  // in-flight 去重:构建是异步的(create + syncProviders 全量组合,阻塞主进程事件循环),
+  // 只判 _modelRuntime 会让并发调用各建一次。设置页会为每个模型各发一次请求(每次都走到这里),
+  // 保存供应商又会 resetModelRuntime(),两者叠加即命中。
+  if (_runtimePromise) return _runtimePromise;
+  const promise = (async () => {
+    // 手动添加模型先落盘(运行时 create 时读取),再构建——保证本次构建即包含
+    syncExtraModelsFile(store);
+    const MR = await getModelRuntimeClass();
+    const rt = await MR.create({ allowModelNetwork: false });
+    await syncProviders(store, rt);
+    // models.json 被 SDK 判非法时整份丢弃(所有模型参数静默失效),错误只挂在实例上、EM 无人读
+    const configError = rt.getError();
+    if (configError) console.warn("[pi-init] 模型运行时报告配置错误:\n" + configError);
+    return rt;
+  })();
+  _runtimePromise = promise;
+  try {
+    const rt = await promise;
+    // 构建期间若发生 reset(保存供应商配置),本次结果基于保存前的配置 → 丢弃不写回;
+    // 缓存由 reset 之后的调用方负责(那时 _runtimePromise 已被替换成新的 promise)
+    if (_runtimePromise === promise) _modelRuntime = rt;
+    return rt;
+  } catch (e) {
+    // 构建失败:清掉 in-flight 缓存允许下次重试,错误照原语义向上抛
+    if (_runtimePromise === promise) _runtimePromise = null;
+    throw e;
+  }
 }
 
 /** 协议与定价层字段(api / baseUrl / compat / headers / cost):按该供应商官方模型继承——
@@ -44,6 +70,68 @@ function pickProtocolFields(spec: Record<string, any> | undefined): Record<strin
 interface ProviderModelsJson {
   models?: Array<Record<string, any>>;
   modelOverrides?: Record<string, ModelParams>;
+}
+
+/** EM 会写入 models.json 的模型参数字段(ModelParams 的键) */
+const MODEL_PARAM_KEYS = ["contextWindow", "maxTokens", "reasoning", "input", "thinkingLevelMap"] as const;
+
+function isPositiveNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v) && v > 0;
+}
+
+/**
+ * 过滤一条模型参数声明，只保留类型合法的字段。
+ *
+ * 为什么必须过滤:SDK 的 ModelConfig.load 对**整份** models.json 做 schema 校验，任一字段
+ * 类型非法就丢弃整份文件——所有供应商的 models[] / modelOverrides 一起静默失效，EM 侧只
+ * 表现为「参数改了不生效」。写入本应只来自 EM 自身(类型安全)，但手改 em-settings / 存量
+ * 数据可能带坏值；坏值丢弃并告警(带模型 id)，影响范围限制在单个字段。
+ * 未知字段不进结果(调用方只取本函数返回值写覆盖层，models[] 条目保留自己的其他字段)。
+ */
+function sanitizeModelParams(raw: unknown, label: string): ModelParams {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const src = raw as Record<string, unknown>;
+  const out: ModelParams = {};
+  const warn = (field: string, value: unknown) =>
+    console.warn(`[pi-init] models.json: ${label} 的 ${field} 值非法(${JSON.stringify(value) ?? String(value)})，已丢弃该字段`);
+  if (src.contextWindow !== undefined) {
+    if (isPositiveNumber(src.contextWindow)) out.contextWindow = src.contextWindow;
+    else warn("contextWindow", src.contextWindow);
+  }
+  if (src.maxTokens !== undefined) {
+    if (isPositiveNumber(src.maxTokens)) out.maxTokens = src.maxTokens;
+    else warn("maxTokens", src.maxTokens);
+  }
+  if (src.reasoning !== undefined) {
+    if (typeof src.reasoning === "boolean") out.reasoning = src.reasoning;
+    else warn("reasoning", src.reasoning);
+  }
+  if (src.input !== undefined) {
+    const input = src.input;
+    // 合法组合:非空数组且元素均为 "text" / "image"(SDK schema 同样只认这两个字面量)
+    if (Array.isArray(input) && input.length > 0 && input.every((v) => v === "text" || v === "image")) {
+      out.input = input as ModelParams["input"];
+    } else warn("input", input);
+  }
+  if (src.thinkingLevelMap !== undefined) {
+    const map = src.thinkingLevelMap;
+    if (map && typeof map === "object" && !Array.isArray(map)) {
+      const clean: Record<string, string | null> = {};
+      let dropped = false;
+      for (const [level, v] of Object.entries(map as Record<string, unknown>)) {
+        if (v === undefined) continue;
+        // 档位名与值都要合法:未知档位名同样会被 SDK schema 拒绝(additionalProperties: false)
+        if (!(THINKING_ORDER as readonly string[]).includes(level) || (v !== null && typeof v !== "string")) {
+          dropped = true;
+          continue;
+        }
+        clean[level] = v as string | null;
+      }
+      if (dropped) warn("thinkingLevelMap", map);
+      if (Object.keys(clean).length > 0) out.thinkingLevelMap = clean as ModelParams["thinkingLevelMap"];
+    } else warn("thinkingLevelMap", map);
+  }
+  return out;
 }
 
 /**
@@ -92,26 +180,42 @@ function syncExtraModelsFile(store: Store): void {
       overrides: Map<string, ModelParams>;
       fallbackModel?: string;
     }>();
-    for (const [, config] of Object.entries(providers.configs ?? {})) {
+    // 同一 presetId 可能有多份配置(如 DeepSeek 与 DeepSeek22 测试配置),它们共用同一个 SDK
+    // provider。聚合口径:激活配置(providers.current 指向的那份)优先——它的 modelOverrides /
+    // extraModels / 默认模型先入桶,其余配置仅在未声明时补入。否则「先遍历到者胜」会让编辑
+    // 非激活配置的参数看似保存成功却不生效(编辑激活配置也可能被非激活配置盖住)。
+    const activeId = providers.current;
+    const configs = Object.entries(providers.configs ?? {})
+      .sort(([a], [b]) => (a === activeId ? -1 : b === activeId ? 1 : 0));
+    for (const [, config] of configs) {
       if (!config.presetId || config.presetId === "custom") continue;
       const siblings = getProviderStaticModels(config.presetId);
       const bucket = byPreset.get(config.presetId)
         ?? { extras: new Map<string, ExtraEntry>(), overrides: new Map<string, ModelParams>() };
+      // 官方模型参数覆盖:只写非空条目(空对象 = 参数全跟随官方,写进去无意义)
+      for (const [modelId, params] of Object.entries(config.modelOverrides ?? {})) {
+        if (!params || !Object.values(params).some((v) => v !== undefined)) continue;
+        if (!bucket.overrides.has(modelId)) bucket.overrides.set(modelId, params);
+      }
       // 别名映射：SDK 的 Model.id 是发给供应商的请求标识(alias ?? 名称)，Model.name 仅用于展示
       for (const e of config.extraModels ?? []) {
         const entry = (typeof e === "string" ? { id: e } : e) as ExtraEntry;
         const sdkId = entry?.alias || entry?.id;
         if (!sdkId) continue;
-        // 已被 SDK 内置的 id 不再声明:models.json 的 models[] 按 id 整体替换内置条目,
-        // 升级后 SDK 自带同名模型时我们的条目会遮蔽官方 spec。这类模型改由 modelOverrides
-        // 管理(逐字段覆盖,未改字段仍跟随官方),以静态数据(SDK 内置模型表)为准。
-        if (siblings.has(sdkId) || bucket.extras.has(sdkId)) continue;
+        if (bucket.extras.has(sdkId)) continue;
+        // 已是 SDK 内置 id 的不再写 models[](models[] 按 id 整体替换内置条目,升级后 SDK 自带
+        // 同名模型时我们的条目会遮蔽官方 spec)——但用户在条目里显式声明的参数(窗口/输出/
+        // 识图/档位)必须落到 modelOverrides,否则整条静默消失(改参数没反应)。
+        if (siblings.has(sdkId)) {
+          const declaredParams = sanitizeModelParams(entry, `手动模型 ${sdkId}`);
+          if (Object.keys(declaredParams).length > 0) {
+            console.warn(`[pi-init] 模型 ${sdkId} 已是官方模型，手动条目的参数按覆盖层生效(models.json modelOverrides)`);
+            // 先入桶者优先(激活配置 → 其余;modelOverrides → 条目声明),仅补未声明字段
+            bucket.overrides.set(sdkId, { ...declaredParams, ...bucket.overrides.get(sdkId) });
+          }
+          continue;
+        }
         bucket.extras.set(sdkId, entry);
-      }
-      // 官方模型参数覆盖:只写非空条目(空对象 = 参数全跟随官方,写进去无意义)
-      for (const [modelId, params] of Object.entries(config.modelOverrides ?? {})) {
-        if (!params || !Object.values(params).some((v) => v !== undefined)) continue;
-        if (!bucket.overrides.has(modelId)) bucket.overrides.set(modelId, params);
       }
       // 协议/定价层兜底基准:优先该配置的默认模型(命中内置时),否则用第一个内置模型
       if (!bucket.fallbackModel && config.model && siblings.has(config.model)) bucket.fallbackModel = config.model;
@@ -129,21 +233,34 @@ function syncExtraModelsFile(store: Store): void {
         // 保留既有条目上的手写字段(如 samplingParams);窗口/输出只认声明值——
         // 取消近似匹配后不再反查官方同族模型,存量值已由启动迁移显式化
         const handWritten = byId.get(sdkId) ?? {};
-        return {
+        const model: Record<string, unknown> = {
           ...protocol,
           ...handWritten,
           ...declared,
           id: sdkId,
           name: displayName,
-          contextWindow: declared.contextWindow ?? 200000,
-          // 思考 token 计入 max_tokens 预算，4k 级默认会让思考未完成即截断（实测 stopReason: length）
-          maxTokens: declared.maxTokens ?? 32768,
         };
+        // 参数字段统一过一遍防御性过滤:坏值会让整份 models.json 被 SDK 丢弃(见 sanitizeModelParams)
+        const params = sanitizeModelParams(model, `手动模型 ${sdkId}`);
+        for (const k of MODEL_PARAM_KEYS) delete model[k];
+        model.contextWindow = params.contextWindow ?? 200000;
+        // 思考 token 计入 max_tokens 预算，4k 级默认会让思考未完成即截断（实测 stopReason: length）
+        model.maxTokens = params.maxTokens ?? 32768;
+        if (params.reasoning !== undefined) model.reasoning = params.reasoning;
+        if (params.input) model.input = params.input;
+        if (params.thinkingLevelMap) model.thinkingLevelMap = params.thinkingLevelMap;
+        return model;
       });
       const next: ProviderModelsJson = { ...existing };
       if (models.length > 0) next.models = models;
       else delete next.models;
-      if (bucket.overrides.size > 0) next.modelOverrides = Object.fromEntries(bucket.overrides);
+      // 覆盖层逐条过滤:坏值或全部字段非法时丢弃该条(空对象无意义,不写)
+      const overrides: Record<string, ModelParams> = {};
+      for (const [modelId, params] of bucket.overrides) {
+        const clean = sanitizeModelParams(params, `模型 ${modelId} 的参数覆盖`);
+        if (Object.keys(clean).length > 0) overrides[modelId] = clean;
+      }
+      if (Object.keys(overrides).length > 0) next.modelOverrides = overrides;
       else delete next.modelOverrides;
       if (Object.keys(next).length === 0) {
         // 无手动模型也无参数覆盖:整条移除,让 SDK 回落内置定义
@@ -183,6 +300,8 @@ export async function getSettingsManager(cwd: string, agentDir: string) {
 
 export function resetModelRuntime(): void {
   _modelRuntime = null;
+  // 同时作废进行中的构建:它基于保存前的配置,完成后不能写回缓存(见 getModelRuntime)
+  _runtimePromise = null;
   _activeModel = null;
 }
 
@@ -277,15 +396,14 @@ export async function getPiModels(providerId: string): Promise<readonly { id: st
   return data[providerId]?.models || [];
 }
 
-async function syncProviders(store: Store) {
-  if (!_modelRuntime) return;
+async function syncProviders(store: Store, runtime: ModelRuntimeInstance) {
   const settings = store.getSettings();
   const providers = settings.apiProviders;
   if (!providers) return;
   for (const [, config] of Object.entries(providers.configs ?? {})) {
     // 内置 provider 只需 setRuntimeApiKey
     if (config.presetId && config.presetId !== "custom" && config.apiKey) {
-      await _modelRuntime.setRuntimeApiKey(config.presetId, config.apiKey);
+      await runtime.setRuntimeApiKey(config.presetId, config.apiKey);
     }
     // 用户自定义 provider:调 registerProvider 动态注册
     if (config.presetId === "custom" && config.apiKey && config.baseUrl) {
@@ -303,7 +421,7 @@ async function syncProviders(store: Store) {
         }
         // 模型清单 = 缓存列表(config.models) ∪ 声明的请求 id(任一来源都能注册)
         const sdkIds = [...new Set([...(config.models ?? []), ...declared.map((d) => d.alias || d.id)])];
-        _modelRuntime.registerProvider(config.id, {
+        runtime.registerProvider(config.id, {
           name: config.name,
           apiKey: config.apiKey,
           baseUrl: config.baseUrl,
@@ -328,7 +446,7 @@ async function syncProviders(store: Store) {
           }),
         } as any);
         if (config.apiKey) {
-          await _modelRuntime.setRuntimeApiKey(config.id, config.apiKey);
+          await runtime.setRuntimeApiKey(config.id, config.apiKey);
         }
       } catch (e) {
         console.warn(`[pi-init] 自定义 provider ${config.id} 注册失败:`, (e as Error).message);
