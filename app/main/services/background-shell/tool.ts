@@ -174,7 +174,9 @@ export async function createEnhancedBashTool(
       + "the result will be injected back when the command exits. "
       + "后台命令的 stdout/stderr 会被自动收集:输出面板实时显示、完整输出落盘日志文件、退出后结果自动注入会话。"
       + "禁止在命令中手动重定向输出(如 `> file 2>&1`、`| tee`、`nohup ... &`)——重定向会绕过自动收集,"
-      + "输出面板和退出通知将无内容;需要读完整输出时,用 read 工具读系统返回的日志文件路径。",
+      + "输出面板和退出通知将无内容;需要读完整输出时,用 read 工具读系统返回的日志文件路径。"
+      + "每次调用都要填 description:一句话中文简述这次命令在做什么(如「查找文件」「提交 git」「推送代码」「安装依赖」),"
+      + "用于聊天页展示给用户看。",
     promptSnippet: "执行 bash 命令(前台同步/后台长驻;后台输出自动收集,勿手动重定向)",
     promptGuidelines: [
       ...(Array.isArray(native.promptGuidelines) ? native.promptGuidelines : []),
@@ -186,6 +188,10 @@ export async function createEnhancedBashTool(
       type: "object" as const,
       properties: {
         command: { type: "string" as const, description: "要执行的命令" },
+        description: {
+          type: "string" as const,
+          description: "一句话中文简述本次命令在做什么(≤12 字,如「查找文件」「提交 git」「推送代码」「安装依赖」),用于聊天页展示",
+        },
         timeout: { type: "number" as const, description: "超时秒数(前台模式)" },
         background: {
           type: "boolean" as const,

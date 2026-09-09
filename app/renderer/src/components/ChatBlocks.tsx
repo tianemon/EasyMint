@@ -895,6 +895,15 @@ function getBashCommand(input: unknown): string | undefined {
   return undefined;
 }
 
+/** 提取 bash 动作标题(Mint 调用时填的 description)——缺失返回 undefined,标题行不显示 */
+function getBashTitle(input: unknown): string | undefined {
+  if (input && typeof input === "object") {
+    const d = (input as Record<string, unknown>).description;
+    if (typeof d === "string" && d.trim()) return d.trim();
+  }
+  return undefined;
+}
+
 /**
  * 工具标题图标(Lucide)——按工具名归类取图标(见 toolIconPaths 映射表)
  */
@@ -949,6 +958,8 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
   const diffStats_ = isDiffResult ? diffCount(item.result!) : null;
   // bash 命令文本(展开区分段展示用)
   const bashCmd = item.name === "bash" ? getBashCommand(item.input) : undefined;
+  // bash 动作标题(标题行展示,由 Mint 调用时填;老会话无此字段则不显示)
+  const bashTitle = item.name === "bash" ? getBashTitle(item.input) : undefined;
   // 输出优先用实时累积;增量未到达时回退到工具结果(内容即输出,可带退出码)——
   // 保证任何情况下展开都能看到命令输出,而不是只有命令本身
   const bashOutput = item.liveOutput || (item.name === "bash" ? item.result : undefined);
@@ -1024,6 +1035,9 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
         <span className="shrink-0 flex items-center gap-1.5 min-w-0 text-[var(--color-tool-title)] group-hover:text-text-primary transition-colors">
           <ToolIcon name={item.name} />
           <span className="whitespace-nowrap" style={{ fontSize: "var(--text-caption)" }}>{label}</span>
+          {bashTitle && (
+            <span className="truncate max-w-[200px] text-text-muted" style={{ fontSize: "var(--text-caption)" }}>· {bashTitle}</span>
+          )}
           {/* 执行中指示:tool_use 已到、result 未到且回合仍活跃(busy)→ 转圈;回合结束的残留(中断无 result)不转 */}
           {streaming && item.pending && (
             <svg className="animate-spin text-accent" width="12" height="12" viewBox="0 0 16 16" fill="none">
