@@ -153,8 +153,8 @@ export function AppearanceTab(): JSX.Element {
                   onClick={() => setGlowEffect(p.id)}
                   className={`text-left px-3 py-2 rounded-[var(--radius-lg)] transition-all ${
                     glowEffect === p.id
-                      ? "bg-accent-soft text-text-primary"
-                      : "bg-surface hover:shadow-[inset_0_0_0_999px_var(--hover-2)] text-text-secondary"
+                      ? "bg-[var(--preset-active)] text-text-primary"
+                      : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--hover-2)] text-text-secondary"
                   }`}
                 >
                   <span className="text-xs font-medium block">{p.label}</span>

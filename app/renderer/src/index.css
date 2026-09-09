@@ -380,6 +380,9 @@ html[data-platform="win32"] {
   /* hover 反馈两档(暗色):半透明白 tint,叠加在组件自身底色上轻微提亮 */
   --hover-1: rgba(255, 255, 255, 0.05);
   --hover-2: rgba(255, 255, 255, 0.10);
+  /* 光效预设卡底色(暗色):选中=深(surface 暗槽)、未选中=亮灰(accent-soft),与亮色相反 */
+  --preset-active: var(--color-surface);
+  --preset-idle: var(--color-accent-soft);
 
   /* ── Accent — 白/灰按钮系 ───────── */
   --color-accent: #d4d4d4;
@@ -1092,6 +1095,9 @@ button, a, select {
      --hover-2 强档:可点控件/行,变化明显一档,提示"此处可点"。 */
   --hover-1: rgba(0, 0, 0, 0.045);
   --hover-2: rgba(0, 0, 0, 0.085);
+  /* 光效预设卡底色(2026-09-09):亮色选中=accent-soft/未选=surface;暗色互换(选中=深槽) */
+  --preset-active: var(--color-accent-soft);
+  --preset-idle: var(--color-surface);
 }
 
 /* ── Form inputs ──────────────────────────────────── */
