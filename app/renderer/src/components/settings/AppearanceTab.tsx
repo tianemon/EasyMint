@@ -73,7 +73,7 @@ export function AppearanceTab(): JSX.Element {
       {/* 阅读字体:动态内容区(聊天/编辑器/Shell 输出等)百分比缩放 */}
       <section>
         <h3 className="text-sm font-medium text-text-secondary mb-2">阅读字体</h3>
-        <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-4 py-3">
+        <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs text-text-primary">字号缩放</span>
             <span className="text-xs text-text-secondary tabular-nums">{Math.round(chatFontScale * 100)}%</span>
@@ -99,7 +99,7 @@ export function AppearanceTab(): JSX.Element {
       {/* 界面字体:百分比缩放统一控制 UI 骨架 */}
       <section>
         <h3 className="text-sm font-medium text-text-secondary mb-2">界面字体</h3>
-        <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-4 py-3">
+        <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs text-text-primary">字号缩放</span>
             <span className="text-xs text-text-secondary tabular-nums">{Math.round(uiFontScale * 100)}%</span>
@@ -125,16 +125,16 @@ export function AppearanceTab(): JSX.Element {
       {/* 状态指示光效 */}
       <section>
         <h3 className="text-sm font-medium text-text-secondary mb-2">状态指示光效</h3>
-        <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-4 py-3 space-y-4">
+        <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3 space-y-4">
           {/* 亮/暗编辑模式切换 */}
-          <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden border border-border bg-surface">
+          <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden bg-surface">
             {(["light", "dark"] as const).map((m) => (
               <button
                 key={m}
                 type="button"
                 onClick={() => setEditMode(m)}
-                className={`px-4 py-1.5 text-xs transition-colors ${
-                  editMode === m ? "bg-accent-soft text-accent font-medium" : "text-text-secondary hover:bg-surface-hover"
+                className={`px-4 py-1.5 text-xs transition-all ${
+                  editMode === m ? "bg-accent-soft text-accent font-medium" : "text-text-secondary hover:shadow-[inset_0_0_0_999px_var(--hover-2)]"
                 }`}
               >
                 {m === "light" ? "亮色" : "暗色"}
@@ -151,10 +151,10 @@ export function AppearanceTab(): JSX.Element {
                   key={p.id}
                   type="button"
                   onClick={() => setGlowEffect(p.id)}
-                  className={`text-left px-3 py-2 rounded-[var(--radius-lg)] border transition-colors ${
+                  className={`text-left px-3 py-2 rounded-[var(--radius-lg)] transition-all ${
                     glowEffect === p.id
-                      ? "border-accent bg-accent-soft text-text-primary"
-                      : "border-border bg-surface hover:bg-surface-hover text-text-secondary"
+                      ? "bg-accent-soft text-text-primary"
+                      : "bg-surface hover:shadow-[inset_0_0_0_999px_var(--hover-2)] text-text-secondary"
                   }`}
                 >
                   <span className="text-xs font-medium block">{p.label}</span>
@@ -165,14 +165,14 @@ export function AppearanceTab(): JSX.Element {
             {/* 光效颜色:单色/多色模式切换(当前编辑模式);参数固定(粗细/速度/拖尾为组件常量) */}
             {glowEffect !== "off" && (
               <div className="mt-2 space-y-2">
-                <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden border border-border bg-surface">
+                <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden bg-surface">
                   {(["solid", "multi"] as const).map((m) => (
                     <button
                       key={m}
                       type="button"
                       onClick={() => setGlowColorMode(m)}
-                      className={`px-3 py-1 text-xs transition-colors ${
-                        glowColorMode === m ? "bg-accent-soft text-accent font-medium" : "text-text-secondary hover:bg-surface-hover"
+                      className={`px-3 py-1 text-xs transition-all ${
+                        glowColorMode === m ? "bg-accent-soft text-accent font-medium" : "text-text-secondary hover:shadow-[inset_0_0_0_999px_var(--hover-2)]"
                       }`}
                     >
                       {m === "solid" ? "单色" : "多色"}
@@ -195,14 +195,14 @@ export function AppearanceTab(): JSX.Element {
           {/* Mint 状态文本 */}
           <div>
             <span className="text-xs text-text-primary block mb-2">Mint 状态文本</span>
-            <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden border border-border bg-surface">
+            <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden bg-surface">
               {(["solid", "shimmer"] as const).map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => setStatusTextStyle(s)}
-                  className={`px-4 py-1.5 text-xs transition-colors ${
-                    statusTextStyle === s ? "bg-accent-soft text-accent font-medium" : "text-text-secondary hover:bg-surface-hover"
+                  className={`px-4 py-1.5 text-xs transition-all ${
+                    statusTextStyle === s ? "bg-accent-soft text-accent font-medium" : "text-text-secondary hover:shadow-[inset_0_0_0_999px_var(--hover-2)]"
                   }`}
                 >
                   {s === "solid" ? "单色" : "流光"}

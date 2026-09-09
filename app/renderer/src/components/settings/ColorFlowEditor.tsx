@@ -165,7 +165,7 @@ export function ColorFlowEditor({ colors, onChange, addColor = "#22c55e", readon
       <button
         type="button"
         onClick={() => onChange([...colors, addColor])}
-        className="w-8 h-8 rounded-[var(--radius-lg)] border border-dashed border-border text-text-muted hover:text-text-secondary hover:border-accent text-lg flex items-center justify-center transition-colors"
+        className="w-8 h-8 rounded-[var(--radius-lg)] text-text-muted hover:text-text-secondary hover:shadow-[inset_0_0_0_999px_var(--hover-2)] text-lg flex items-center justify-center transition-all"
        
       >+</button>
       {/* 取色面板:锚定被点色块;拖拽/移除会收面板(见 handleDragStart/移除后兜底) */}

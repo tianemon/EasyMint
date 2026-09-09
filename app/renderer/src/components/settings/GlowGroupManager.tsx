@@ -45,10 +45,10 @@ export function GlowGroupManager({ groups, activeId, onChangeGroups, onChangeAct
           <span
             key={g.id}
             onClick={() => onChangeActive(g.id)}
-            className={`group/g relative px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-11)] cursor-pointer border transition-colors ${
+            className={`group/g relative px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-11)] cursor-pointer transition-all ${
               activeGroup?.id === g.id
-                ? "border-accent bg-accent-soft text-accent font-medium"
-                : "border-border bg-surface text-text-secondary hover:bg-surface-hover"
+                ? "bg-accent-soft text-accent font-medium"
+                : "bg-surface text-text-secondary hover:shadow-[inset_0_0_0_999px_var(--hover-2)]"
             }`}
             
           >
@@ -67,7 +67,7 @@ export function GlowGroupManager({ groups, activeId, onChangeGroups, onChangeAct
           <button
             type="button"
             onClick={addGroup}
-            className="px-2 py-0.5 rounded-[var(--radius-lg)] border border-dashed border-border text-text-muted hover:text-text-secondary hover:border-accent text-[length:var(--text-11)] transition-colors"
+            className="px-2 py-0.5 rounded-[var(--radius-lg)] text-text-muted hover:text-text-secondary hover:shadow-[inset_0_0_0_999px_var(--hover-2)] text-[length:var(--text-11)] transition-all"
            
           >+ 添加</button>
         )}
