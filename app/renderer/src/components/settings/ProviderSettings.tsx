@@ -222,13 +222,14 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
           {isCustom ? (
             <input
               className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
+              style={{ borderRadius: 6 }}
               placeholder="https://api.example.com/v1"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
             />
           ) : (
             <div
-              className="flex-1 min-w-0 h-8 px-2.5 rounded-lg border border-border bg-surface text-xs text-text-primary flex items-center truncate select-text"
+              className="flex-1 min-w-0 h-8 px-2.5 rounded-md border border-border bg-surface text-xs text-text-primary flex items-center truncate select-text"
               title={isCustom ? undefined : (providerInfo?.baseUrl ? `${providerInfo.baseUrl}（SDK 预设，不可修改）` : undefined)}
             >{providerInfo?.baseUrl ?? (providerInfo ? "—" : "加载中…")}</div>
           )}
@@ -260,7 +261,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
             ]}
           />
         ) : (
-          <div className="h-8 px-2.5 rounded-lg border border-border bg-surface text-xs text-text-secondary flex items-center">
+          <div className="h-8 px-2.5 rounded-md border border-border bg-surface text-xs text-text-secondary flex items-center">
             {providerInfo ? (providerInfo.apis.length > 0 ? providerInfo.apis.map(apiTypeLabel).join(" · ") : "—") : "加载中…"}
           </div>
         )}
