@@ -823,7 +823,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 .inp-icon-btn:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); }
 .inp-lbl { font-size: var(--text-xs); color: var(--color-text-muted); }
 .inp-sel {
-  font-size: var(--text-sm); padding: 4px 8px; border-radius: var(--radius-sm);
+  font-size: var(--text-sm); padding: 4px 8px; border-radius: var(--radius-control);
   background: var(--color-input-field); border: none;
   color: var(--color-text-secondary); outline: none;
   transition: box-shadow 120ms, background 120ms;
@@ -1057,6 +1057,17 @@ button, a, select {
 .state-ok { color: var(--color-success); }
 [data-theme="dark"] .state-ok { color: var(--color-text-primary); }
 
+/* ── 圆角标准常量(唯一事实源,2026-09-09) ────────────────
+   所有圆角取值必须取或参考下列常量;UI元素库·圆角曲率约束 引用它们。
+   - radius-field  : 大号表单输入框(名称/API Key 等 py-2 高输入,em-input 默认)
+   - radius-control: 紧凑控件(按钮/下拉/约 32px 高的输入与组合框)
+   - radius-panel  : 卡片/弹窗/浮层面板(8-12px 区间,按层级取) */
+:root {
+  --radius-field: 12px;
+  --radius-control: 6px;
+  --radius-panel: 12px;
+}
+
 /* ── Form inputs ──────────────────────────────────── */
 
 /* 统一输入框外观(设置页/弹窗/新建项目/脚本编辑等,参照历史输入搜索框):
@@ -1066,7 +1077,7 @@ button, a, select {
   width: 100%;
   /* padding 不在此定义:组件 className 自带 px/py 类(含 pr 图标留白),
      此处定义会因优先级高于 Tailwind utilities 而覆盖它们——内边距由组件控制 */
-  border-radius: 12px;  /* 大号表单输入(名称/Key 等 py-2)保持原圆角;紧凑控件另行覆盖 */
+  border-radius: var(--radius-field);  /* 大号输入框标准圆角,常量见 --radius-field */
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   color: var(--color-text-primary);

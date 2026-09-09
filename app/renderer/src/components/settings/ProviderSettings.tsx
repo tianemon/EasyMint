@@ -222,7 +222,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
           {isCustom ? (
             <input
               className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
-              style={{ borderRadius: 6 }}
+              style={{ borderRadius: "var(--radius-control)" }}
               placeholder="https://api.example.com/v1"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
