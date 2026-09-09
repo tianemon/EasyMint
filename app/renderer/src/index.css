@@ -1066,7 +1066,7 @@ button, a, select {
   --radius-field: 12px;
   --radius-control: 6px;
   --radius-panel: 12px;
-  --radius-btn: 2px;   /* 按钮圆角试用档(2026-09-09,视效果调整/回退) */
+  --radius-btn: 6px;   /* 按钮圆角(2026-09-09 试用 2px 后定回 6px,与控件统一) */
 }
 
 /* ── Form inputs ──────────────────────────────────── */

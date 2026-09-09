@@ -240,7 +240,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
             type="button"
             onClick={() => void runTest()}
             disabled={testing || (isCustom ? !baseUrl.trim() : !providerInfo?.baseUrl)}
-            className="shrink-0 h-7 px-3 rounded-md btn-raised text-xs font-medium disabled:opacity-40"
+            className="shrink-0 h-7 px-3 rounded-[var(--radius-btn)] btn-raised text-xs font-medium disabled:opacity-40"
           >{testing ? "测试中…" : "测试连接"}</button>
         </div>
         {probe?.detail && (
@@ -394,9 +394,9 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
         {/* 底部操作栏:滚动区外(flex 列结构),与头部同底色分区,无分隔线 */}
         <div className="flex items-center justify-end gap-2 px-4 py-1 bg-surface-alt shrink-0">
           <button onClick={onClose}
-            className="h-8 px-4 whitespace-nowrap rounded-md border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消配置</button>
+            className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-btn)] border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消配置</button>
           <button onClick={() => saveRef.current?.save()}
-            className="h-8 px-4 whitespace-nowrap rounded-md btn-accent text-xs font-medium shrink-0">保存供应商配置</button>
+            className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-btn)] btn-accent text-xs font-medium shrink-0">保存供应商配置</button>
         </div>
       </div>
     </div>,
@@ -438,7 +438,7 @@ export function ProvidersManager() {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-text-primary">API 供应商</h3>
         <button onClick={() => setDialog({ mode: "add" })}
-          className="px-3 py-1 rounded-md border border-accent text-accent text-xs font-medium hover:bg-accent-subtle transition-colors">
+          className="px-3 py-1 rounded-[var(--radius-btn)] border border-accent text-accent text-xs font-medium hover:bg-accent-subtle transition-colors">
           + 添加供应商
         </button>
       </div>

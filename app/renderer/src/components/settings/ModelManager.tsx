@@ -287,7 +287,7 @@ export function ModelManager({
 
       {/* 参数编辑表单：唯一编辑入口（保存 / 取消 / 删除） */}
       {draft && (
-        <div className="rounded-[var(--radius-btn)] bg-surface border border-border px-2.5 py-2 space-y-2">
+        <div className="rounded-[var(--radius-control)] bg-surface border border-border px-2.5 py-2 space-y-2">
           <span className="text-[length:var(--text-2xs)] font-medium text-text-primary">编辑模型</span>
 
           <div className="grid grid-cols-2 gap-2">
