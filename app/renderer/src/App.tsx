@@ -192,7 +192,8 @@ export function App(): JSX.Element {
                 复制下方通知，发送给本项目会话的 Mint，让它了解环境变更。
               </div>
               <div className="px-5 py-2 flex-1 overflow-y-auto">
-                <pre className="whitespace-pre-wrap text-[length:var(--text-11)] leading-relaxed bg-surface rounded-lg border border-border p-3 text-text-primary">
+                {/* 通知正文:普通文本(div+pre-wrap 保换行)——不是代码块,不用 pre 的等宽/边框外观 */}
+                <div className="whitespace-pre-wrap select-text text-xs leading-relaxed text-text-primary">
 {`【环境变更通知】
 
 本项目已经迁移到另一台电脑，会话记录${migrateDone.sessionRestoredCount > 0 ? "（" + migrateDone.sessionRestoredCount + " 个）" : ""}与项目文件已完整迁移。
@@ -206,7 +207,7 @@ export function App(): JSX.Element {
 3. 任务进度以 task.json 为唯一真相，重新核对（历史对话中的进度快照仅供参考）
 4. 平台差异：换行符/可执行权限/包管理器/工具链按本机环境
 5. 建议先读一遍项目结构（README/task.json/docs），确认环境后再继续`}
-                </pre>
+                </div>
               </div>
               <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border shrink-0">
                 <button className="px-4 py-1.5 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={() => setMigrateDone(null)}>
