@@ -257,18 +257,15 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       />
 
       {/* 保存/取消条(仅非 bare 宿主,如 Onboarding 内联场景):sticky 底部始终可见。
-          设计语言:底部分区不用横线,靠 bg-surface-alt 底色分区。
-          外层 pt-1 是透明缓冲:sticky 钉住时 margin 不渲染,只有内边距能把色块顶边和上方内容拉开 */}
+          设计语言:底部分区不用横线,靠 bg-surface-alt 底色分区 */}
       {!bare && (
-        <div className="sticky bottom-0 pt-1">
-          <div className="-mx-6 px-6 pt-2 pb-1 flex justify-end gap-2 bg-surface-alt">
-            {onCancel && (
-              <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消配置</button>
-            )}
-            <button type="button" onClick={handleSave} className="px-4 py-1.5 rounded-lg btn-accent text-xs font-medium">
-              保存供应商配置
-            </button>
-          </div>
+        <div className="sticky bottom-0 -mx-6 px-6 pt-2 pb-1 flex justify-end gap-2 bg-surface-alt">
+          {onCancel && (
+            <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消配置</button>
+          )}
+          <button type="button" onClick={handleSave} className="px-4 py-1.5 rounded-lg btn-accent text-xs font-medium">
+            保存供应商配置
+          </button>
         </div>
       )}
     </div>
@@ -319,8 +316,8 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
         <div className="flex-1 min-h-0 overflow-y-auto px-6 pt-4">
           <ProviderForm ref={saveRef} bare initial={initial} onSave={onSave} onCancel={onClose} />
         </div>
-        {/* 底部操作栏:滚动区外(flex 列结构),与头部同底色分区,无分隔线 */}
-        <div className="flex items-center justify-end gap-2 px-4 py-1 bg-surface-alt shrink-0">
+        {/* 底部操作栏:滚动区外(flex 列结构),与头部同底色分区,无分隔线;mt-1 与上方内容拉开 4px */}
+        <div className="flex items-center justify-end gap-2 px-4 py-1 mt-1 bg-surface-alt shrink-0">
           <button onClick={onClose}
             className="h-8 px-4 whitespace-nowrap rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消配置</button>
           <button onClick={() => saveRef.current?.save()}
