@@ -1339,7 +1339,7 @@ select.input {
 }
 .btn-raised:hover { box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.32); }
 .btn-raised:active { transform: translateY(0.5px); box-shadow: 0 0 0 rgba(0,0,0,0), inset 0 1px 3px rgba(0, 0, 0, 0.22); }
-.btn-raised:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+.btn-raised:disabled { opacity: 0.4; box-shadow: none; }
 /* 深色:灰底 + 主题色字(低冲突,忌纯白亮字)——仅用暗调投影与极弱内高光做立体 */
 [data-theme="dark"] .btn-raised {
   background: #3a3a3a;
