@@ -2,9 +2,8 @@ import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "re
 import { createPortal } from "react-dom";
 import { useSettingsStore } from "../../stores/settings-store";
 import { getPreset, normalizeExtraModels } from "@shared/platform-presets";
-import type { ProviderConfig, ExtraModelCapability, ModelParams } from "@shared/platform-presets";
-import { THINKING_ORDER, THINKING_LABELS } from "@shared/thinking-levels";
-import { Select, type SelectOption } from "../Select";
+import type { ProviderConfig, ExtraModelCapability } from "@shared/platform-presets";
+import { Select } from "../Select";
 import { BRAND_BY_PI_ID, providerSelectOptions } from "../../lib/provider-brands";
 import { toast } from "../ui/Toast";
 import { confirmDialog } from "../ui/ConfirmDialog";
@@ -36,7 +35,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const [model, setModel] = useState(initial?.model || "");
   // 官方目录模型(含展示名/窗口;null = 未加载,此时沿用配置里缓存的列表)
   const [officialModels, setOfficialModels] = useState<OfficialModelInfo[] | null>(null);
-  // 官方目录外的自添加模型。string = 存量仅 ID 条目(参数未声明,需在模型管理区补填);
+  // 官方目录外的自添加模型。string = 仅 ID 条目(参数未声明,需在模型管理区补填);
   // 对象 = 带显式参数声明(窗口/输出必填)。自定义供应商的模型清单也存这里。
   const [extraModels, setExtraModels] = useState<Array<string | ExtraModelCapability>>(() => {
     const list = [...(initial?.extraModels ?? [])];
@@ -47,8 +46,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     }
     return list;
   });
-  // 官方模型的参数覆盖(key 存在即代表纳管,空对象 = 参数全跟随官方)
-  const [overrides, setOverrides] = useState<Record<string, ModelParams>>(initial?.modelOverrides ?? {});
+  // 官方模型的参数覆盖不再有 UI 写入点(管理区不可编辑官方模型);存量值保存时原样透传
   // 该供应商的 task 子 Agent 默认模型(per-provider)
   const [subagentDefaultModel, setSubagentDefaultModel] = useState<string>(initial?.subagentDefaultModel || "");
   // 自定义供应商字段
@@ -57,9 +55,6 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const [showKey, setShowKey] = useState(false);
   // 已拉过官方目录的供应商(时序值:只影响加载去重,不进渲染)
   const loadedProviderRef = useRef<string>("");
-  // 按模型设置思考等级(存 Pi 全局设置,键 <provider>/<modelId>);空 = 跟随全局
-  const [modelLevels, setModelLevels] = useState<Record<string, string>>({});
-  const [savedModelLevels, setSavedModelLevels] = useState<Record<string, string>>({});
   // 可选的模型列表(值 = SDK 请求标识):内置供应商 = 官方目录 + 自添加;自定义 = 自添加
   const extraEntries = normalizeExtraModels(extraModels);
   const extraSdkIds = extraEntries.map((n) => n.sdkId);
@@ -94,21 +89,6 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     });
     return () => { cancelled = true; };
   }, [modelListKey]);
-
-  // 读取该供应商已保存的「按模型思考等级」
-  // 自定义供应商在运行时里按 config.id 注册,键随之(新建未保存时拿不到 id,故仅编辑态可用)
-  const levelProviderKey = isCustom ? (initial?.id || "") : presetId;
-  useEffect(() => {
-    if (!levelProviderKey) return;
-    window.electronAPI.agent.getModelThinkingLevels().then((all) => {
-      const map: Record<string, string> = {};
-      for (const [k, v] of Object.entries(all ?? {})) {
-        if (k.startsWith(`${levelProviderKey}/`)) map[k.slice(levelProviderKey.length + 1)] = v;
-      }
-      setModelLevels(map);
-      setSavedModelLevels(map);
-    }).catch(() => {});
-  }, [levelProviderKey]);
 
   // 初始化：编辑已有供应商时自动加载官方模型列表
   useEffect(() => {
@@ -152,23 +132,12 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       model: model || (modelList[0] ?? ""),
       models: modelList,
       extraModels: extraModels.length > 0 ? extraModels : undefined,
-      modelOverrides: Object.keys(overrides).length > 0 ? overrides : undefined,
+      modelOverrides: initial?.modelOverrides,
       subagentDefaultModel: subagentDefaultModel || undefined,
       createdAt: initial?.createdAt || Date.now(),
       baseUrl: isCustom ? baseUrl.trim() || undefined : undefined,
       apiType: isCustom ? apiType : undefined,
     };
-    // 按模型思考等级:只提交与已保存值不同的项(清空 = 删除设置,恢复跟随全局)
-    if (levelProviderKey) {
-      const keys = new Set([...Object.keys(modelLevels), ...Object.keys(savedModelLevels)]);
-      for (const k of keys) {
-        const next = modelLevels[k] || "";
-        const prev = savedModelLevels[k] || "";
-        if (next === prev) continue;
-        try { await window.electronAPI.agent.setModelThinkingLevel(levelProviderKey, k, next || null); }
-        catch { /* 单项失败不阻断保存 */ }
-      }
-    }
     onSave(cfg);
     return true;
   };
@@ -250,96 +219,41 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
         <ProviderTester baseUrl={baseUrl} apiKey={apiKey} model={model} apiType={apiType} />
       )}
 
-      {/* 模型(默认):该供应商的默认模型(下拉;值 = SDK 请求标识,显示名走 labelOf) */}
-      <div>
-        <label className="text-xs text-text-secondary block mb-1.5">模型(默认)</label>
-        <Select
-          block
-          placeholder={!isCustom && officialModels === null ? "加载中…" : (availableModels.length === 0 ? "无可用模型" : "选择模型")}
-          value={model}
-          onChange={(v: string) => setModel(v)}
-          options={availableModels.map((m) => ({ value: m, label: labelOf(m) }))}
-         
-        />
-        {availableModels.length > 0 && <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">共 {availableModels.length} 个模型可选</p>}
-      </div>
-
-      {/* 子 Agent 默认模型:task 工具委派子 Agent 未指定时用(per-provider)。
-          与「模型(默认)」相邻——两者都是「这个供应商用哪个模型」，放一起便于对照 */}
-      <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="text-xs text-text-secondary">子 Agent 默认模型（委派任务时使用）</label>
-          {subagentDefaultModel && (
-            <button type="button" onClick={() => setSubagentDefaultModel("")} className="text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary transition-colors">清除</button>
-          )}
+      {/* 模型(默认) + 子 Agent 默认模型:同一行——两者都是「这个供应商用哪个模型」 */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-text-secondary block mb-1.5">模型(默认)</label>
+          <Select
+            block
+            placeholder={!isCustom && officialModels === null ? "加载中…" : (availableModels.length === 0 ? "无可用模型" : "选择模型")}
+            value={model}
+            onChange={(v: string) => setModel(v)}
+            options={availableModels.map((m) => ({ value: m, label: labelOf(m) }))}
+          />
         </div>
-        <Select
-          block
-          placeholder={availableModels.length === 0 ? "无可用模型" : "可选"}
-          value={subagentDefaultModel}
-          onChange={(v: string) => setSubagentDefaultModel(v)}
-          options={availableModels.map((m) => ({ value: m, label: labelOf(m) }))}
-         
-        />
+        <div>
+          <label className="text-xs text-text-secondary block mb-1.5">子 Agent 模型（委派任务）</label>
+          <Select
+            block
+            placeholder={availableModels.length === 0 ? "无可用模型" : "可选"}
+            value={subagentDefaultModel}
+            onChange={(v: string) => setSubagentDefaultModel(v)}
+            options={[{ value: "", label: "不指定（用默认模型）" }, ...availableModels.map((m) => ({ value: m, label: labelOf(m) }))]}
+          />
+        </div>
       </div>
+      {availableModels.length > 0 && <p className="text-[length:var(--text-2xs)] text-text-muted -mt-2">共 {availableModels.length} 个模型可选</p>}
 
-      {/* 模型管理:官方目录模型与自添加模型统一列表(参数编辑 / 恢复官方 / 移除) */}
+      {/* 模型管理:自添加模型(输入框添加 + 行选中编辑);官方模型不可编辑,只在上面下拉里可选 */}
       <ModelManager
         isCustom={isCustom}
         officialModels={officialModels}
         defaultModel={model}
-        overrides={overrides}
         extraModels={extraModels}
         modelSupports={modelSupports}
         onDefaultModelChange={setModel}
-        onChange={(next) => { setOverrides(next.overrides); setExtraModels(next.extraModels); }}
+        onChange={(next) => { setExtraModels(next.extraModels); }}
       />
-
-      {/* 按模型设置思考等级:不同模型支持的等级不同,全局等级会被裁到该模型支持的最近档位;
-          这里可给单个模型固定等级,优先于全局设置(自定义供应商需已保存过,要用到其供应商 id) */}
-      {(!isCustom || levelProviderKey) && availableModels.length > 0 && (() => {
-        const setCount = availableModels.filter((m) => modelLevels[m]).length;
-        return (
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs text-text-secondary">按模型设置思考等级（可选）</label>
-              {setCount > 0 && (
-                <span className="text-[length:var(--text-2xs)] text-text-muted">已为 {setCount} 个模型固定等级</span>
-              )}
-            </div>
-            <div className="bg-surface-alt rounded-lg border border-border px-2.5 py-2 max-h-52 overflow-y-auto space-y-1">
-              {availableModels.map((m) => {
-                const supported = modelSupports[m];
-                // 规格未知(null/未拉到)时展示全部档位;已知则只列出该模型支持的档位(按档位顺序)
-                const levels = supported && supported.length > 0
-                  ? THINKING_ORDER.filter((l) => supported.includes(l))
-                  : [...THINKING_ORDER];
-                const cur = modelLevels[m] || "";
-                const options: SelectOption[] = [
-                  { value: "", label: "跟随全局" },
-                  ...levels.map((l) => ({ value: l, label: THINKING_LABELS[l] || l })),
-                ];
-                // 旧数据/模型规格变化导致所选档位已不被支持:兜底展示原值,避免下拉显示空值
-                if (cur && !options.some((o) => o.value === cur)) {
-                  options.push({ value: cur, label: `原设置：${THINKING_LABELS[cur] || cur}（不再支持）` });
-                }
-                return (
-                  <div key={m} className="flex items-center gap-2">
-                    <span className="flex-1 min-w-0 truncate text-xs text-text-primary" title={m}>{labelOf(m)}</span>
-                    <Select
-                      className="shrink-0 w-[112px] [&>button]:w-full [&>button]:text-xs"
-                      value={cur}
-                      onChange={(v: string) => setModelLevels((prev) => ({ ...prev, [m]: v }))}
-                      options={options}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-            <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">下拉仅列出该模型支持的档位；固定等级优先于全局思考等级</p>
-          </div>
-        );
-      })()}
 
       {/* 保存/取消条(仅非 bare 宿主,如 Onboarding 内联场景):sticky 底部始终可见。
           设计语言:底部分区不用横线,靠 bg-surface-alt 底色分区 */}

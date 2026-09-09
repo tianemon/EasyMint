@@ -7,7 +7,7 @@ import { FileService } from "./services/file-service";
 import { AgentService, getDesignSessionIds, respondAsk, respondLearn } from "./services/agent-service";
 import { Store } from "./services/store";
 import { broadcast } from "./services/ipc-broadcast";
-import { resetModelRuntime, getGlobalSettingsManager } from "./services/pi-init";
+import { resetModelRuntime } from "./services/pi-init";
 import { IMAGE_MIME, resolveHome } from "./utils/paths";
 import { z } from "zod";
 import { guard, expectPayload, pathString } from "./ipc-validation";
@@ -239,21 +239,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       id: s.id, command: s.command, startedAt: s.startedAt, status: s.status, logPath: s.logPath, sessionId: s.sessionId,
     })),
   }));
-  // 按模型设置思考等级（存 Pi 全局设置 agentDir/settings.json，键 `<provider>/<modelId>`）
-  ipcMain.handle("agent:getModelThinkingLevels", async () => {
-    try {
-      const mgr = await getGlobalSettingsManager();
-      return mgr.getAllModelThinkingLevels();
-    } catch (e) {
-      console.warn("[ipc] getModelThinkingLevels 失败:", (e as Error).message);
-      return {};
-    }
-  });
-  ipcMain.handle("agent:setModelThinkingLevel", async (_e, { provider, modelId, level }: { provider: string; modelId: string; level: string | null }) => {
-    const mgr = await getGlobalSettingsManager();
-    if (level) mgr.setModelThinkingLevel(provider, modelId, level as any);
-    else mgr.removeModelThinkingLevel(provider, modelId);
-  });
   ipcMain.handle("agent:steer", (_e, { sessionId, text, images }) => {
     void agentService.steer(sessionId, text, images).catch((err: unknown) => {
       const raw = err instanceof Error ? err.message : String(err);

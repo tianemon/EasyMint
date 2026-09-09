@@ -301,10 +301,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     isStreaming: (sessionId: string) => ipcRenderer.invoke("agent:isStreaming", { sessionId }) as Promise<boolean>,
     getPiProviders: () => ipcRenderer.invoke("agent:getPiProviders") as Promise<Array<{ id: string; name: string; baseUrl?: string }>>,
     getPiModels: (providerName: string) => ipcRenderer.invoke("agent:getPiModels", { providerName }) as Promise<Array<{ id: string; name: string; contextWindow: number }>>,
-    getModelThinkingLevels: () => ipcRenderer.invoke("agent:getModelThinkingLevels") as Promise<Record<string, string>>,
     getThinkingLevels: (sessionId: string) => ipcRenderer.invoke("agent:getThinkingLevels", { sessionId }) as Promise<{ level?: string; available?: string[] } | null>,
     getModelThinkingSupport: (modelId: string) => ipcRenderer.invoke("agent:getModelThinkingSupport", { modelId }) as Promise<string[] | null>,
-    setModelThinkingLevel: (provider: string, modelId: string, level: string | null) => ipcRenderer.invoke("agent:setModelThinkingLevel", { provider, modelId, level }) as Promise<void>,
     sessionStats: (sessionId: string, projectPath?: string) => ipcRenderer.invoke("agent:sessionStats", { sessionId, projectPath }) as Promise<Record<string, unknown> | null>,
     scheduleIdleTimeout: (sessionId: string, delayMs: number) => ipcRenderer.invoke("agent:scheduleIdleTimeout", { sessionId, delayMs }),
     onStream: (callback: (event: unknown) => void) => {

@@ -241,10 +241,8 @@ interface ElectronAPI {
     chatStatus: (sessionId: string) => Promise<string | null>;
     getPiProviders: () => Promise<Array<{ id: string; name: string; baseUrl?: string }>>;
     getPiModels: (providerName: string) => Promise<Array<{ id: string; name: string; contextWindow: number }>>;
-    getModelThinkingLevels: () => Promise<Record<string, string>>;
     getThinkingLevels: (sessionId: string) => Promise<{ level?: string; available?: string[] } | null>;
     getModelThinkingSupport: (modelId: string) => Promise<string[] | null>;
-    setModelThinkingLevel: (provider: string, modelId: string, level: string | null) => Promise<void>;
     isStreaming: (sessionId: string) => Promise<boolean>;
     sessionStats: (sessionId: string, projectPath?: string) => Promise<Record<string, unknown> | null>;
     getBufferedStream: (sessionId: string) => Promise<unknown[]>;

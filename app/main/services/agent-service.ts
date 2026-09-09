@@ -1129,10 +1129,7 @@ export class AgentService {
         // 应用思考等级(prompt 前同步设置,与新建分支一致)——前端切等级不再立即 IPC,
         // 等级统一随发送应用,消除"切等级 IPC 与发送 IPC 并发"的 SDK 竞态窗口
         if (thinkingLevel) {
-          // 「按模型设置」优先于全局默认/会话内选择
-          const perModel = await this.getPerModelThinkingLevel(existing.provider, existing.currentModel ?? "");
-          if (perModel) { existing.thinkingLevel = perModel; this.broadcastThinkingLevel(existing); }
-          else this.applyThinkingLevel(existing, thinkingLevel);
+          this.applyThinkingLevel(existing, thinkingLevel);
         }
         // 防卡死：isStreaming 残留但 EM 无进行中回合(超时中断等)→ 强制复位再正常发送，
         // 否则 SDK prompt() 抛 "Agent is already processing" → 消息发不出、不调 API
@@ -1302,11 +1299,9 @@ export class AgentService {
       broadcast("agent:chat-session", { chatId, sessionId: chat.sessionId, tabId, projectPath: chat.projectPath });
     }
 
-    // 设置思考级别（在 prompt 前同步设置，避免竞态）；「按模型设置」优先于全局默认
+    // 设置思考级别（在 prompt 前同步设置，避免竞态）
     if (thinkingLevel) {
-      const perModel = await this.getPerModelThinkingLevel(chat.provider, model ?? "");
-      if (perModel) { chat.thinkingLevel = perModel; this.broadcastThinkingLevel(chat); }
-      else this.applyThinkingLevel(chat, thinkingLevel);
+      this.applyThinkingLevel(chat, thinkingLevel);
     }
 
     // 发起第一轮对话
@@ -1368,11 +1363,9 @@ export class AgentService {
     await chat.session!.setModel(model as any);
     chat.currentModel = modelName;
     broadcast("agent:model-changed", { sessionId: chat.sessionId, model: modelName });
-    // SDK 切模型时已按「按模型设置 → 全局默认」推导过等级(可能把 max 压成 off)。
-    // 有按模型设置时以它为准;否则用本会话用户选过的等级恢复,并回传实际生效值
-    const perModel = await this.getPerModelThinkingLevel(chat.provider, modelName);
-    if (perModel) { chat.thinkingLevel = perModel; this.broadcastThinkingLevel(chat); }
-    else if (chat.thinkingLevel) this.applyThinkingLevel(chat, chat.thinkingLevel);
+    // SDK 切模型时已按全局默认推导过等级(可能把 max 压成 off)。
+    // 用本会话用户选过的等级恢复,并回传实际生效值
+    if (chat.thinkingLevel) this.applyThinkingLevel(chat, chat.thinkingLevel);
     else this.broadcastThinkingLevel(chat);
   }
 
@@ -1411,30 +1404,6 @@ export class AgentService {
         totalTokens: usage.tokens ?? 0, maxTokens: usage.contextWindow,
       });
     }
-  }
-
-  /**
-   * 查「按模型设置」的思考等级（Pi 全局设置，键 `<provider>/<modelId>`）。
-   * 配了就优先于全局默认与会话内选择——用户专门为该模型固定了等级。
-   * 未指定供应商时在全部内置供应商里找同名模型（会话绑定供应商主进程侧不总是已知）。
-   */
-  private async getPerModelThinkingLevel(providerId: string | undefined, modelId: string): Promise<string | undefined> {
-    if (!modelId) return undefined;
-    try {
-      const { getGlobalSettingsManager } = await import("./pi-init");
-      const mgr = await getGlobalSettingsManager();
-      const providers = this.store.getSettings().apiProviders;
-      const ids = providerId ? [providerId] : Object.keys(providers?.configs ?? {});
-      for (const id of ids) {
-        const cfg = providers?.configs?.[id];
-        if (!cfg?.presetId) continue;
-        // 自定义供应商在运行时里按 config.id 注册(与内置一样可被 SDK 识别),键保持一致
-        const providerKey = cfg.presetId === "custom" ? id : cfg.presetId;
-        const lv = mgr.getModelThinkingLevel(providerKey, modelId);
-        if (lv) return lv;
-      }
-    } catch { /* 读取失败按未配置处理 */ }
-    return undefined;
   }
 
   /**
