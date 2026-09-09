@@ -46,7 +46,7 @@ import type { Model } from "@earendil-works/pi-ai";
 import { randomUUID } from "node:crypto";
 import { renameSession, hasCustomTitle } from "./session-service";
 import { buildProjectEnvSection, buildProjectProfileSection, readProjectProfile, PERMISSION_RULES_PROMPT } from "./prompt-sections";
-import { MINT_DESIGN_BOOST } from "../../shared/prompts";
+import { MINT_DESIGN_BOOST, THINKING_LANGUAGE_PROMPT } from "../../shared/prompts";
 import { resolveThinkingLevel } from "../../shared/thinking-levels";
 
 // ── 类型 ────────────────────────────────────────────
@@ -823,6 +823,9 @@ export class AgentService {
       const exp = buildExperienceInjection(projectPath);
       if (exp) parts.push(exp);
     }
+
+    // 思考语言段恒排最后——位置敏感，且必须晚于设计增强段与全部动态 section
+    parts.push(THINKING_LANGUAGE_PROMPT);
 
     return parts.join("\n\n");
   }
