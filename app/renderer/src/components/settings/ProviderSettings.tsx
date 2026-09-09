@@ -312,12 +312,13 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
           </span>
           <button className="w-7 h-7 shrink-0 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} aria-label="关闭">✕</button>
         </div>
-        {/* 内容区:唯一滚动区——滚动条只存在于此,不会侵入底部操作栏 */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 pt-4">
+        {/* 内容区:唯一滚动区——滚动条只存在于此,不会侵入底部操作栏。
+            pb-4 与上方 pt-4 对称:滚到底时最后一块内容不贴底栏(间距靠内容区内边距,不靠底栏外边距) */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 pt-4 pb-4">
           <ProviderForm ref={saveRef} bare initial={initial} onSave={onSave} onCancel={onClose} />
         </div>
-        {/* 底部操作栏:滚动区外(flex 列结构),与头部同底色分区,无分隔线;mt-1 与上方内容拉开 4px */}
-        <div className="flex items-center justify-end gap-2 px-4 py-1 mt-1 bg-surface-alt shrink-0">
+        {/* 底部操作栏:滚动区外(flex 列结构),与头部同底色分区,无分隔线 */}
+        <div className="flex items-center justify-end gap-2 px-4 py-1 bg-surface-alt shrink-0">
           <button onClick={onClose}
             className="h-8 px-4 whitespace-nowrap rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消配置</button>
           <button onClick={() => saveRef.current?.save()}
