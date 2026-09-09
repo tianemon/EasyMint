@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSettingsStore } from "../stores/settings-store";
 import { ProviderForm } from "../components/settings/ProviderSettings";
@@ -17,6 +17,17 @@ export function OnboardingPage(): JSX.Element {
 
   // 记录本次已保存的供应商 ID，避免重复保存
   const [savedCfg, setSavedCfg] = useState<ProviderConfig | null>(null);
+
+  // 重新运行引导时预填已配置的供应商（设置 store 异步加载，故订阅而非读一次快照）：
+  // 否则「重看一遍引导」会被迫重填 API Key——配置本身不丢，只是多一道无谓操作
+  const apiProviders = useSettingsStore((s) => s.apiProviders);
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (prefilled.current || !apiProviders?.current) return;
+    const cur = apiProviders.configs?.[apiProviders.current];
+    if (cur) setSavedCfg(cur);
+    prefilled.current = true;
+  }, [apiProviders]);
 
   const handleProviderSave = async (cfg: ProviderConfig) => {
     // 复用已保存的 ID，避免重复创建
@@ -58,13 +69,13 @@ export function OnboardingPage(): JSX.Element {
                   ? "bg-accent"
                   : i === currentStep
                     ? "bg-accent ring-2 ring-accent-border"
-                    : "bg-border"
+                    : "bg-text-muted"
               }`}
             />
             {i < STEPS.length - 1 && (
               <div
                 className={`w-8 h-[2px] transition-colors ${
-                  i < currentStep ? "bg-accent" : "bg-border"
+                  i < currentStep ? "bg-accent" : "bg-text-muted"
                 }`}
               />
             )}
@@ -78,8 +89,8 @@ export function OnboardingPage(): JSX.Element {
           /* ── Step 1: Welcome ── */
           <div className="w-full max-w-[480px] flex flex-col items-center text-center">
             {/* Logo：卡片容器 + 阴影，与主界面元素风格一致 */}
-            <div className="w-24 h-24 mb-6 rounded-[var(--radius-lg)] bg-surface-elevated border border-border shadow-md flex items-center justify-center overflow-hidden">
-              <img src="icon.png" className="w-16 h-16" />
+            <div className="w-24 h-24 mb-6 rounded-[var(--radius-lg)] bg-surface-alt flex items-center justify-center overflow-hidden">
+              <img src="icon.png" alt="EasyMint" className="w-16 h-16" />
             </div>
 
             <h1 className="text-2xl font-bold text-text-primary mb-2">EasyMint</h1>
@@ -92,19 +103,19 @@ export function OnboardingPage(): JSX.Element {
             </p>
 
             <div className="flex flex-col gap-3 w-full">
-              <div className="px-4 py-3 rounded-[var(--radius-lg)] bg-surface-elevated border border-border shadow-sm text-left">
+              <div className="px-4 py-3 rounded-[var(--radius-lg)] bg-surface-alt text-left">
                 <p className="text-sm font-medium text-text-primary">AI 项目管理</p>
                 <p className="text-xs text-text-muted mt-0.5">
                   Mint 自动分析需求、拆分任务、跟进进度
                 </p>
               </div>
-              <div className="px-4 py-3 rounded-[var(--radius-lg)] bg-surface-elevated border border-border shadow-sm text-left">
+              <div className="px-4 py-3 rounded-[var(--radius-lg)] bg-surface-alt text-left">
                 <p className="text-sm font-medium text-text-primary">自动开发执行</p>
                 <p className="text-xs text-text-muted mt-0.5">
                   Builder 编码 → Evaluator 验收，全自动循环
                 </p>
               </div>
-              <div className="px-4 py-3 rounded-[var(--radius-lg)] bg-surface-elevated border border-border shadow-sm text-left">
+              <div className="px-4 py-3 rounded-[var(--radius-lg)] bg-surface-alt text-left">
                 <p className="text-sm font-medium text-text-primary">多供应商 API 支持</p>
                 <p className="text-xs text-text-muted mt-0.5">
                   内置 Anthropic、DeepSeek、MiMo、MiniMax 等供应商
@@ -123,7 +134,7 @@ export function OnboardingPage(): JSX.Element {
             </p>
             {savedCfg ? (
               <div className="bg-surface-alt rounded-[var(--radius-lg)] p-4 space-y-4">
-                <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-lg)] bg-accent-bg border border-accent-border">
+                <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-lg)] bg-accent-soft">
                   <div className="w-2 h-2 rounded-full bg-accent shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -136,7 +147,7 @@ export function OnboardingPage(): JSX.Element {
                   </div>
                 </div>
                 <button
-                  className="w-full px-4 py-2 rounded-[var(--radius-lg)] border border-border text-text-secondary text-xs hover:border-accent-border-strong transition-colors"
+                  className="em-hover-control w-full px-4 py-2 rounded-[var(--radius-lg)] text-text-secondary text-xs transition-all"
                   onClick={() => setSavedCfg(null)}
                 >重新配置</button>
               </div>
@@ -148,17 +159,17 @@ export function OnboardingPage(): JSX.Element {
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-border p-4 flex justify-between bg-surface-alt shrink-0">
+      <footer className="p-4 flex justify-between bg-surface-alt shrink-0">
         {currentStep === 0 ? (
           <button
-            className="px-6 py-2 rounded-[var(--radius-lg)] bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium ml-auto"
+            className="btn-accent px-6 py-2 rounded-[var(--radius-lg)] font-medium ml-auto"
             onClick={goNext}
           >
             开始设置
           </button>
         ) : (
           <button
-            className="px-4 py-2 rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors"
+            className="em-hover-control px-6 py-2 rounded-[var(--radius-lg)] text-text-secondary transition-all"
             onClick={goPrev}
           >
             返回
@@ -166,7 +177,7 @@ export function OnboardingPage(): JSX.Element {
         )}
         {currentStep !== 0 && (
           <button
-            className="px-6 py-2 rounded-[var(--radius-lg)] bg-accent text-text-inverse hover:bg-accent-hover transition-colors font-medium disabled:opacity-40"
+            className="btn-accent px-6 py-2 rounded-[var(--radius-lg)] font-medium"
             disabled={!savedCfg}
             onClick={handleComplete}
             

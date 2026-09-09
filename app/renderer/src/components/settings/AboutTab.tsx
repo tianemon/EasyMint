@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { confirmDialog } from "../ui/ConfirmDialog";
 
 function formatMB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -37,6 +38,19 @@ export function AboutTab(): JSX.Element {
 
   const handleInstallUpdate = () => {
     window.electronAPI?.app?.installUpdate?.();
+  };
+
+  /** 重新运行引导：清掉两处 setupComplete 标记后重载——App 重挂载即回到引导页 */
+  const handleRerunOnboarding = async () => {
+    const ok = await confirmDialog({
+      title: "重新运行引导",
+      message: "将回到初始设置页。已配置的供应商与项目不受影响。",
+      confirmText: "重新运行",
+    });
+    if (!ok) return;
+    localStorage.removeItem("easymint_setup_complete");
+    await window.electronAPI.settings.set("setupComplete", false);
+    window.location.reload();
   };
 
   return (
@@ -116,6 +130,14 @@ export function AboutTab(): JSX.Element {
         <span>Electron · React · TypeScript</span>
         <span>Pi Agent SDK</span>
       </div>
+
+      <button
+        type="button"
+        className="em-hover-control px-4 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary transition-all"
+        onClick={handleRerunOnboarding}
+      >
+        重新运行引导
+      </button>
     </div>
   );
 }
