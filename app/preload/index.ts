@@ -303,6 +303,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getPiModels: (providerName: string) => ipcRenderer.invoke("agent:getPiModels", { providerName }) as Promise<Array<{ id: string; name: string; contextWindow: number }>>,
     getThinkingLevels: (sessionId: string) => ipcRenderer.invoke("agent:getThinkingLevels", { sessionId }) as Promise<{ level?: string; available?: string[] } | null>,
     getModelThinkingSupport: (modelId: string) => ipcRenderer.invoke("agent:getModelThinkingSupport", { modelId }) as Promise<string[] | null>,
+    getModelInfo: (modelId: string, providerId?: string) => ipcRenderer.invoke("agent:getModelInfo", { modelId, providerId }) as Promise<{ name: string; contextWindow: number; maxTokens: number } | null>,
     sessionStats: (sessionId: string, projectPath?: string) => ipcRenderer.invoke("agent:sessionStats", { sessionId, projectPath }) as Promise<Record<string, unknown> | null>,
     scheduleIdleTimeout: (sessionId: string, delayMs: number) => ipcRenderer.invoke("agent:scheduleIdleTimeout", { sessionId, delayMs }),
     onStream: (callback: (event: unknown) => void) => {

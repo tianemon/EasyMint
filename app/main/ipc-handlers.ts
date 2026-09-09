@@ -207,6 +207,24 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   });
   ipcMain.handle("agent:getThinkingLevels", (_e, { sessionId }) => agentService.getThinkingInfo(sessionId));
   ipcMain.handle("agent:getModelThinkingSupport", async (_e, { modelId }) => await agentService.getModelThinkingSupport(modelId));
+  // 按模型 id 查定义（窗口/输出等静态值，无需会话）：providerId 缺省用激活供应商。
+  // 用于聊天页打开即显示上下文窗口——窗口是模型属性，不该等会话/广播
+  ipcMain.handle("agent:getModelInfo", async (_e, input: { modelId?: string; providerId?: string }) => {
+    const modelId = input?.modelId;
+    if (!modelId) return null;
+    const { getModelRuntime } = await import("./services/pi-init");
+    const rt = await getModelRuntime(store);
+    let pid = input?.providerId;
+    if (!pid) {
+      const p = store.getSettings().apiProviders;
+      const activeId = p?.current;
+      const cfg = activeId ? p?.configs?.[activeId] : undefined;
+      pid = cfg ? (cfg.presetId === "custom" ? (activeId ?? cfg.presetId) : cfg.presetId) : undefined;
+    }
+    const model = pid ? rt.getModel(pid, modelId) : undefined;
+    if (!model) return null;
+    return { name: model.name, contextWindow: model.contextWindow, maxTokens: model.maxTokens };
+  });
   ipcMain.handle("agent:setModel", (_e, { sessionId, model, provider }) => {
     return agentService.setModel(sessionId, model, provider);
   });

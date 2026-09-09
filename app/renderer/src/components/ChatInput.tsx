@@ -115,6 +115,20 @@ export const ChatInput = memo(function ChatInput({
 }: ChatInputProps & { sessionId: string; onStatsClick: () => void }): JSX.Element {
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // 上下文窗口是模型静态属性(无需会话/网络):打开页面或切模型时主动查一次并填上,
+  // 这样即使没有会话、也没有 usage 广播,圆环 hover 也能显示窗口
+  useEffect(() => {
+    if (!chatModel || !sessionId) return;
+    let alive = true;
+    window.electronAPI?.agent?.getModelInfo?.(chatModel)
+      .then((info) => {
+        if (alive && info?.contextWindow) {
+          useStatusStore.getState().setCtxPct(sessionId, undefined, info.contextWindow);
+        }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [chatModel, sessionId]);
   // 附件菜单（回形针按钮弹出：图片/文档二选一）
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const attachMenuRef = useRef<HTMLDivElement>(null);

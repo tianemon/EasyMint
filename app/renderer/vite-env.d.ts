@@ -243,6 +243,8 @@ interface ElectronAPI {
     getPiModels: (providerName: string) => Promise<Array<{ id: string; name: string; contextWindow: number }>>;
     getThinkingLevels: (sessionId: string) => Promise<{ level?: string; available?: string[] } | null>;
     getModelThinkingSupport: (modelId: string) => Promise<string[] | null>;
+    /** 按模型 id（含自添加/官方）查模型定义：providerId 缺省用激活供应商 */
+    getModelInfo: (modelId: string, providerId?: string) => Promise<{ name: string; contextWindow: number; maxTokens: number } | null>;
     isStreaming: (sessionId: string) => Promise<boolean>;
     sessionStats: (sessionId: string, projectPath?: string) => Promise<Record<string, unknown> | null>;
     getBufferedStream: (sessionId: string) => Promise<unknown[]>;
