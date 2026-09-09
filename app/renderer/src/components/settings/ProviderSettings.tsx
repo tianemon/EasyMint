@@ -6,9 +6,9 @@ import type { ProviderConfig, ExtraModelCapability } from "@shared/platform-pres
 import { Select } from "../Select";
 import { BRAND_BY_PI_ID, providerSelectOptions } from "../../lib/provider-brands";
 import { toast } from "../ui/Toast";
+import { Checkbox } from "../ui/Checkbox";
 import { confirmDialog } from "../ui/ConfirmDialog";
 import { ModelManager, type OfficialModelInfo } from "./ModelManager";
-import { ProviderTester } from "./ProviderTester";
 
 export interface ProviderFormHandle {
   /** 校验并保存;成功返回 true(内部已调 onSave),失败(校验不过)返回 false */
@@ -51,9 +51,10 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const [officialModels, setOfficialModels] = useState<OfficialModelInfo[] | null>(null);
   // SDK 预设的连接信息(官方名/官方 Base URL/接入协议)——内置供应商只读展示
   const [providerInfo, setProviderInfo] = useState<{ name: string; baseUrl?: string; apis: string[] } | null>(null);
-  // 内置供应商的连通测试(只探官方端点,0 token)
+  // 连通测试(可选的「验证密钥」发最小请求):自定义与内置共用同一入口
   const [testing, setTesting] = useState(false);
-  const [probe, setProbe] = useState<{ ok: boolean; detail: string } | null>(null);
+  const [verifyKey, setVerifyKey] = useState(false);
+  const [probe, setProbe] = useState<{ ok: boolean; detail: string; key?: { ok: boolean; detail: string } } | null>(null);
   // 官方目录外的自添加模型。string = 仅 ID 条目(参数未声明,需在模型管理区补填);
   // 对象 = 带显式参数声明(窗口/输出必填)。自定义供应商的模型清单也存这里。
   const [extraModels, setExtraModels] = useState<Array<string | ExtraModelCapability>>(() => {
@@ -137,14 +138,26 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     window.electronAPI.agent.getPiProviderInfo(providerId).then(setProviderInfo).catch(() => {});
   };
 
-  /** 内置供应商连通测试:只探官方端点(GET,0 token),不测模型列表/不校验 Key */
-  const runConnectivity = async () => {
-    if (!providerInfo?.baseUrl) return;
+  /** 测试接口:连通(GET,0 token)必测;勾选「验证密钥」再按当前协议发最小请求 */
+  const runTest = async () => {
+    const url = (isCustom ? baseUrl.trim() : providerInfo?.baseUrl ?? "").trim();
+    if (!url) { toast(isCustom ? "请先填写 Base URL" : "官方端点尚未加载，请稍后再试"); return; }
+    if (verifyKey && !model.trim()) { toast("需先选择默认模型才能校验密钥"); return; }
     setTesting(true);
     setProbe(null);
     try {
-      const r = await window.electronAPI.settings.testProvider({ baseUrl: providerInfo.baseUrl, apiKey, verifyKey: false });
-      setProbe({ ok: r.reachability.ok, detail: r.reachability.detail });
+      const r = await window.electronAPI.settings.testProvider({
+        baseUrl: url,
+        apiKey,
+        model: verifyKey ? model.trim() || undefined : undefined,
+        apiType: isCustom ? apiType : (providerInfo?.apis?.[0] ?? undefined),
+        verifyKey,
+      });
+      setProbe({
+        ok: r.reachability.ok,
+        detail: r.reachability.detail,
+        key: r.keyCheck ? { ok: r.keyCheck.ok, detail: r.keyCheck.detail } : undefined,
+      });
     } catch (e) {
       setProbe({ ok: false, detail: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -213,64 +226,70 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
           placeholder="如：我的DeepSeek" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
 
-      {/* 接入信息:Base URL + 接入协议。
-          自定义=可编辑输入;内置=SDK 预设只读(官方端点/接入协议),URL 值右端内联「连通测试」 */}
-      {isCustom ? (<>
+      {/* 接入信息:Base URL / API 协议 —— 单一模板。自定义=可编辑;内置=SDK 预设只读。
+          测试按钮在值右端(两页一致);下方为结果区与「验证密钥」可选项 */}
       <div>
         <label className="text-xs text-text-secondary block mb-1.5 em-required">Base URL</label>
-        <input
-          className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
-          placeholder="https://api.example.com/v1"
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
-        />
+        <div className="flex items-center gap-1.5">
+          {isCustom ? (
+            <input
+              className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
+              placeholder="https://api.example.com/v1"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+            />
+          ) : (
+            <div
+              className="flex-1 min-w-0 h-8 px-2.5 rounded-lg border border-border bg-surface text-xs text-text-primary flex items-center truncate select-text"
+              title={isCustom ? undefined : (providerInfo?.baseUrl ? `${providerInfo.baseUrl}（SDK 预设，不可修改）` : undefined)}
+            >{providerInfo?.baseUrl ?? (providerInfo ? "—" : "加载中…")}</div>
+          )}
+          <button
+            type="button"
+            onClick={() => void runTest()}
+            disabled={testing || (isCustom ? !baseUrl.trim() : !providerInfo?.baseUrl)}
+            className="shrink-0 h-7 px-3 rounded-lg btn-accent text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+          >{testing ? "测试中…" : "测试接口"}</button>
+        </div>
+        {probe?.detail && (
+          <p className={`text-[length:var(--text-2xs)] mt-1.5 ${probe.ok ? "text-success" : "text-danger"}`}>
+            {probe.ok ? `连通正常 · ${probe.detail}` : `连接失败 · ${probe.detail}`}
+          </p>
+        )}
+        {probe?.key && (
+          <p className={`text-[length:var(--text-2xs)] mt-1 ${probe.key.ok ? "text-success" : "text-warning"}`}>
+            Key 校验：{probe.key.detail}
+          </p>
+        )}
+        {verifyKey && !model.trim() && (
+          <p className="text-[length:var(--text-2xs)] text-warning mt-1.5">需先选择默认模型才能校验密钥</p>
+        )}
       </div>
       <div>
         <label className="text-xs text-text-secondary block mb-1.5">API 协议</label>
-        {/* 原生 select 的弹出菜单由系统绘制,不受 CSS 控制且在弹窗内会偏移——
-            改用自绘 Select(面板 portal 到 body + fixed 定位,与「选择平台」一致) */}
-        <Select
-          block
-          className="[&>button]:h-8 [&>button]:text-xs"
-          value={apiType}
-          onChange={setApiType}
-          options={[
-            { value: "anthropic-messages", label: "Anthropic Messages" },
-            { value: "openai-completions", label: "OpenAI Completions" },
-            { value: "openai-responses", label: "OpenAI Responses" },
-          ]}
-        />
-      </div>
-      </>) : (
-      <div className="space-y-3">
-        <div>
-          <label className="text-xs text-text-secondary block mb-1.5">官方 Base URL</label>
-          <div className="flex items-center gap-1.5">
-            <div
-              className="flex-1 min-w-0 h-8 px-2.5 rounded-lg border border-border bg-surface text-xs text-text-primary flex items-center truncate select-text"
-              title={providerInfo?.baseUrl}
-            >{providerInfo?.baseUrl ?? (providerInfo ? "—" : "加载中…")}</div>
-            <button
-              type="button"
-              onClick={() => void runConnectivity()}
-              disabled={testing || !providerInfo?.baseUrl}
-              className="shrink-0 h-8 px-3 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >{testing ? "测试中…" : "连通测试"}</button>
-          </div>
-          {probe && (
-            <p className={`text-[length:var(--text-2xs)] mt-1.5 ${probe.ok ? "text-success" : "text-danger"}`}>
-              {probe.ok ? `连通正常 · ${probe.detail}` : `连接失败 · ${probe.detail}`}
-            </p>
-          )}
-        </div>
-        <div>
-          <label className="text-xs text-text-secondary block mb-1.5">接入协议</label>
+        {isCustom ? (
+          <Select
+            block
+            className="[&>button]:h-8 [&>button]:text-xs"
+            value={apiType}
+            onChange={setApiType}
+            options={[
+              { value: "anthropic-messages", label: "Anthropic Messages" },
+              { value: "openai-completions", label: "OpenAI Completions" },
+              { value: "openai-responses", label: "OpenAI Responses" },
+            ]}
+          />
+        ) : (
           <div className="h-8 px-2.5 rounded-lg border border-border bg-surface text-xs text-text-secondary flex items-center">
             {providerInfo ? (providerInfo.apis.length > 0 ? providerInfo.apis.map(apiTypeLabel).join(" · ") : "—") : "加载中…"}
           </div>
-        </div>
+        )}
       </div>
-      )}
+      <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer select-none"
+        onClick={() => setVerifyKey(!verifyKey)}>
+        <Checkbox checked={verifyKey} onChange={setVerifyKey} />
+        验证密钥（发送最小请求，约消耗 10 个 token）
+      </label>
 
       {/* API Key */}
       <div>
@@ -290,11 +309,6 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
           </button>
         </div>
       </div>
-
-      {/* 测试接口:仅自定义供应商——内置预设的接入信息来自 Pi,不可编辑 */}
-      {isCustom && (
-        <ProviderTester baseUrl={baseUrl} apiKey={apiKey} model={model} apiType={apiType} />
-      )}
 
       {/* 默认模型 + 子Agent默认模型:同一行——两者都是「这个供应商用哪个模型」 */}
       <div className="grid grid-cols-2 gap-3">
