@@ -782,7 +782,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 .input-card {
   /* 最高浮起层:亮色纯白(elevated),与 menu(card) 区分;暗色独立变量深一档 */
   background: var(--color-input-card); border-radius: var(--radius-lg);
-  box-shadow: none; /* 测试:去输入卡片阴影 */
+  box-shadow: var(--shadow-sm);
   /* overflow visible:AgentBar/ShellBar 浮层向上展开不被裁剪(compact 蒙版自带圆角) */
   overflow: visible;
   /* position: 遮罩锚点;flex-shrink 0: 防压缩;底部 16px: 窗口边距(原 chat-input-area 职责) */
@@ -864,7 +864,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   display: flex; flex-direction: column;
   width: 760px; height: 600px;
   background: var(--color-input-card); border-radius: var(--radius-lg);
-  box-shadow: none; /* 测试:去掉外部投影看顶部装饰来源 */ overflow: hidden;
+  box-shadow: var(--shadow-lg); overflow: hidden;
   transform: scale(0);
   transform-origin: center center;
   transition: transform 0.45s cubic-bezier(0.175,0.885,0.32,1.275);
@@ -1225,11 +1225,11 @@ select.input {
 .msg-bubble-user {
   background: var(--msg-user-bg);
   color: var(--msg-user-text);
-  box-shadow: none; /* 测试:去用户气泡阴影 */
+  box-shadow: var(--msg-user-shadow);
 }
 .msg-bubble-agent {
   background: var(--color-card-agent);
-  box-shadow: none; /* 测试:去助手气泡阴影 */
+  box-shadow: var(--msg-agent-shadow);
 }
 
 /* 消息头像 + 来源标签（对齐原型 .msg-avatar / .msg-from） */
