@@ -9,6 +9,8 @@ import { Checkbox } from "../ui/Checkbox";
  * 探测语义与文案的唯一来源是主进程 services/provider-test.ts：
  * 地址可达（0 token）→ 双协议模型列表（0 token）→ 可选 Key 校验（约 10 token）。
  * 401/403 一律表述为「认证被拒绝」，不断言 Key 无效（第三方网关/WAF 也会返回 401/403）。
+ * 双协议是后台的分路探测，前台「模型列表」只呈现能不能列出模型（明细取表单所选协议），
+ * 具体支持哪些协议另由「支持协议」一行给出。
  */
 
 const PROTOCOL_NAME: Record<ProviderProtocol, string> = { openai: "O 系", anthropic: "A 系" };
@@ -68,25 +70,23 @@ export function ProviderTester({ baseUrl, apiKey, model, apiType }: Props): JSX.
         <p className="text-[length:var(--text-2xs)] text-warning mt-1.5">需先填写模型 id 才能校验密钥</p>
       )}
       {error && <p className="text-[length:var(--text-2xs)] text-danger mt-1.5">{error}</p>}
-      {result && <Checklist result={result} />}
+      {result && <Checklist result={result} apiType={apiType} />}
     </div>
   );
 }
 
-function Checklist({ result }: { result: ProviderTestResult }): JSX.Element {
+function Checklist({ result, apiType }: { result: ProviderTestResult; apiType: string }): JSX.Element {
   const { modelList } = result;
   const passed = PROTOCOLS.filter((p) => modelList[p].ok);
-  const only = passed.length === 1 ? passed[0] : undefined;
-  const modelDetail = passed.length === 2
-    ? "两种协议均可列出模型"
-    : only
-      ? `${PROTOCOL_NAME[only]}：${modelList[only].detail}`
-      : `O 系：${modelList.openai.detail}；A 系：${modelList.anthropic.detail}`;
+  // 明细来源:表单所选协议优先(它就是用户实际要用的协议),该协议未通过时退回首个通过项;
+  // 全不通时也取所选协议的原因——只呈现「能不能列出模型」,不并列两套协议结果
+  const preferred: ProviderProtocol = apiType === "anthropic-messages" ? "anthropic" : "openai";
+  const source = passed.includes(preferred) ? preferred : (passed[0] ?? preferred);
 
   return (
     <div className="mt-2.5 space-y-1">
       <Row status={result.reachability.ok ? "ok" : "fail"} label="地址可达" detail={result.reachability.detail} />
-      <Row status={passed.length > 0 ? "ok" : "fail"} label="模型列表" detail={modelDetail} />
+      <Row status={passed.length > 0 ? "ok" : "fail"} label="模型列表" detail={modelList[source].detail} />
       <Row status="info" label="支持协议"
         detail={passed.length > 0 ? passed.map((p) => PROTOCOL_NAME[p]).join(" · ") : "无"} />
       {result.keyCheck && (
