@@ -42,7 +42,7 @@ export function BreatheGlow({ colors }: BreatheGlowProps): JSX.Element {
       return v;
     };
 
-    registerDraw((ctx, now, { cssW, cssH, radius }) => {
+    registerDraw((ctx, now, { cssW, cssH, radius, dpr }) => {
       const { colors: cs } = propsRef.current;
       if (cs.length === 0) return;
       ctx.clearRect(0, 0, cssW, cssH);
@@ -95,7 +95,8 @@ export function BreatheGlow({ colors }: BreatheGlowProps): JSX.Element {
       //          ② ctx.globalAlpha 整幅降透明后 drawImage 叠加——alpha 是整幅统一操作,不可能产生接缝
       // 对比旧方案(逐段半透明 fill + 段收窄/补丁):AA 边缘在半透明下叠加必然产生亮痕/暗线,只能最小化
       //   无法消除;离屏合成把"分段"与"半透明"解耦——任何 dpr/缩放下零接缝(不再需要 shrink 收窄)
-      const dpr = window.devicePixelRatio || 1;
+      // dpr 取自主 canvas 位图缩放(已封顶 2)——此处若自读 window.devicePixelRatio,
+      // dpr>2 时离屏内容被放大 dpr 倍、与主 canvas 位图不匹配(光晕偏移并被裁切)
       const off = offRef.current ?? (offRef.current = document.createElement("canvas"));
       if (off.width !== ctx.canvas.width || off.height !== ctx.canvas.height) {
         off.width = ctx.canvas.width;
@@ -104,7 +105,9 @@ export function BreatheGlow({ colors }: BreatheGlowProps): JSX.Element {
       const octx = off.getContext("2d")!;
       octx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const BLOOM_LAYERS = 10;
+      // 层数直接决定成本(每层 = 8 段 fill + 全幅 clearRect + 全幅 drawImage);
+      // 10→7:alpha 与半径分布均按 BLOOM_LAYERS 归一化,层数减少只是离散采样变粗,观感差异极小
+      const BLOOM_LAYERS = 7;
       // 主 ctx 切到物理像素坐标系:drawImage 的 off 尺寸是物理像素,若在 dpr transform 下调用会被
       // 当作 CSS 单位再乘 dpr → 放大 dpr 倍(内容以左上角为锚膨胀,视觉整体偏向右下)——切 identity 后 1:1
       ctx.save();

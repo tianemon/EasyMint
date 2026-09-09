@@ -35,7 +35,7 @@ export function OrbitGlow({ colors }: OrbitGlowProps): JSX.Element {
       return v;
     };
 
-    registerDraw((ctx, now, { cssW, cssH, radius }) => {
+    registerDraw((ctx, now, { cssW, cssH, radius, segScale }) => {
       const { colors: cs } = propsRef.current;
       const t = THICKNESS;
       const sp = SPEED;
@@ -55,7 +55,7 @@ export function OrbitGlow({ colors }: OrbitGlowProps): JSX.Element {
       const sTail = centerS - tailLen / 2;
 
       const rgbList = cs.map(rgbOf);
-      const n = Math.max(8, Math.ceil(tailLen / 2)); // 每 ~2px 一个采样点
+      const n = Math.max(8, Math.ceil(tailLen / (2 * segScale))); // 每 ~2px 一个采样点(主线程繁忙时 4px)
       // 段间外扩覆盖(消除颗粒感):相邻半透明段之间 AA 各留一半会露底成细缝(色带呈粒状/断续),
       // 每段首尾沿路径外扩 ~0.75px 相互交叠(端点段夹到 [0,1] 保留渐隐)
       const ov = 0.75 / tailLen;

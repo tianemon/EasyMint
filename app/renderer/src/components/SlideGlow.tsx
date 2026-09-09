@@ -42,7 +42,7 @@ export function SlideGlow({ colors }: SlideGlowProps): JSX.Element {
       return v;
     };
 
-    registerDraw((ctx, now, { cssW, cssH, radius }) => {
+    registerDraw((ctx, now, { cssW, cssH, radius, segScale }) => {
       const { colors: cs } = propsRef.current;
       const t = THICKNESS;
       const sp = SPEED;
@@ -68,7 +68,7 @@ export function SlideGlow({ colors }: SlideGlowProps): JSX.Element {
       const ov = 0.75 / span;
       const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
       const glowFadeLen = Math.min(20, span * 0.05); // 端部渐隐长度(px)
-      const n1 = Math.max(4, Math.ceil(span / 2));
+      const n1 = Math.max(4, Math.ceil(span / (2 * segScale)));
       for (let i = 0; i < n1; i++) {
         const pos = clamp01(i / n1 - ov);
         const pos2 = clamp01((i + 1) / n1 + ov);
@@ -98,7 +98,7 @@ export function SlideGlow({ colors }: SlideGlowProps): JSX.Element {
       const coreLen = ((tw / 240) * span) / 2; // 凸起沿弧段长度(默认 120 → 25% 弧段)
       const phase = (Math.sin((2 * Math.PI * now) / 1000 / sp) + 1) / 2; // 0→1→0 往返
       const sCenter = coreLen / 2 + phase * (topLen - coreLen); // 凸起中心在顶边内的位置
-      const n2 = Math.max(4, Math.ceil(coreLen / 2));
+      const n2 = Math.max(4, Math.ceil(coreLen / (2 * segScale)));
       const ov2 = 0.75 / coreLen; // 凸起段外扩(同消除接缝)
       for (let i = 0; i < n2; i++) {
         const pos = clamp01(i / n2 - ov2); // 0=左端 1=右端(端点夹取保收尖)

@@ -15,6 +15,10 @@ export interface GlowSize {
   cssH: number;
   /** 卡片圆角 px(父元素 computed style) */
   radius: number;
+  /** 采样间距倍率:1=精细(约 2px/段) 2=降级(约 4px/段),由主线程繁忙度自适应 */
+  segScale: number;
+  /** 主 canvas 位图缩放(dpr,已封顶 2)。离屏 canvas 必须用同一值,否则 dpr>2 时内容被放大错位 */
+  dpr: number;
 }
 
 export type GlowDrawFn = (ctx: CanvasRenderingContext2D, now: number, size: GlowSize) => void;
@@ -34,9 +38,10 @@ export function useGlowCanvas(): {
 
     let raf = 0;
     let radius = 10;
+    // dpr 封顶 2:光效是柔光/细线,高 dpr(2.5-3)多出的像素对观感提升微小、绘制成本成倍(面积按平方),封顶可显著减压
+    let dpr = 1;
     const resize = () => {
-      // dpr 封顶 2:光效是柔光/细线,高 dpr(2.5-3)多出的像素对观感提升微小、绘制成本成倍(面积按平方),封顶可显著减压
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
       const pw = Math.round(canvas.clientWidth * dpr);
       const ph = Math.round(canvas.clientHeight * dpr);
       if (canvas.width !== pw || canvas.height !== ph) {
@@ -55,11 +60,21 @@ export function useGlowCanvas(): {
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    // 主线程繁忙自适应:聊天流式输出时消息 DOM 更新挤占主线程,rAF 帧间隔被拉大,
-    // 光效仍每帧全量重绘会加剧竞争——按最近帧间隔动态隔帧绘制(把 CPU 让给渲染),空闲自动回满帧。
-    let step = 1;
-    let acc = 0;
+    // 主线程繁忙自适应:聊天流式输出时消息 DOM 更新挤占主线程,rAF 帧间隔被拉大。
+    // 旧方案(隔帧跳绘)把"主线程卡顿"转嫁成"光效跳跃"——位置按真实时间算,采样率降低即运动不连续,
+    // 2px 细光带高速跑动时跳帧比降精度更明显。改为保持每帧绘制、忙时放大采样间距(段数减半):
+    // 运动仍平滑,单帧成本同样减半。
+    //
+    // 判据用"帧间隔相对基准的偏离"而非绝对毫秒:30Hz 屏/省电模式的正常帧间隔就是 33ms,
+    // 按绝对值判会永久误判为繁忙且无法恢复。基准首帧取自实际帧间隔(自动适配 30/60/120Hz),
+    // 且只在空闲帧向当前 dt 靠拢——繁忙帧不上浮,否则流式输出期间基准会被繁忙值污染、自适应失效。
+    // 代价:跨屏拖到更低刷新率且基准已锁低时会保持降级(性能弱,降级无害)。
+    let baseDt = 0;
+    let segScale = 1;
+    let busyFrames = 0;
+    let idleFrames = 0;
     let lastNow = 0;
+    let lastDpr = 0;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       const dt = lastNow === 0 ? 0 : now - lastNow;
@@ -67,12 +82,25 @@ export function useGlowCanvas(): {
       const cssW = canvas.clientWidth;
       const cssH = canvas.clientHeight;
       if (cssW === 0 || cssH === 0) return;
-      if (dt > 34) step = 3;            // 明显掉帧(<~30fps):每 3 帧画 1 帧,优先保证消息渲染流畅
-      else if (dt > 24) step = 2;       // 略忙(<~40fps):隔帧绘制
-      else if (dt > 0 && dt < 20 && step > 1) step = 1;  // 恢复满帧
-      if (++acc % step !== 0) return;   // 跳帧:保留上帧画面(不清空),运动速度按比例略降
+      // dpr 变化(跨屏拖动/改系统缩放)不触发 ResizeObserver,这里补检——值变了才重分配位图
+      const curDpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (curDpr !== lastDpr) {
+        lastDpr = curDpr;
+        resize();
+      }
+      if (dt > 0) {
+        if (baseDt === 0) baseDt = dt;
+        if (dt > baseDt * 1.6) { busyFrames++; idleFrames = 0; }
+        else if (dt < baseDt * 1.25) {
+          idleFrames++; busyFrames = 0;
+          baseDt = baseDt * 0.99 + dt * 0.01;  // 空闲帧才校准基准
+        } else { busyFrames = 0; idleFrames = 0; }
+        // 滞回:连续 8 帧繁忙才降级、连续 30 帧空闲才恢复——临界负载下不反复切换(否则光效速度忽快忽慢)
+        if (busyFrames >= 8 && segScale < 2) segScale = 2;
+        else if (idleFrames >= 30 && segScale > 1) segScale = 1;
+      }
       const fn = drawRef.current;
-      if (fn) fn(ctx, now, { cssW, cssH, radius });
+      if (fn) fn(ctx, now, { cssW, cssH, radius, segScale, dpr });
     };
     raf = requestAnimationFrame(loop);
     return () => {
