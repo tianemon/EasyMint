@@ -280,7 +280,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
       </div>
 
       {/* 命令列表 */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 pt-[3px] pb-2">
+      <div className="flex-1 min-h-0 overflow-y-auto px-2.5 pt-[3px] pb-2">
         {runnables.length === 0 ? (
           <div className="flex items-center justify-center h-full text-[length:var(--text-11)] text-text-muted text-center px-4">
             未检测到启动配置<br />Mint 开发完会生成 .easymint/run.json
