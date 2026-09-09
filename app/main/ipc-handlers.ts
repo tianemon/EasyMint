@@ -516,19 +516,13 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       }
     }
   });
-  // 供应商「测试接口」:地址可达 → 双协议模型列表 → 可选 Key 校验。
-  // 入参用表单未保存的值(不读 store);apiKey 只进请求头,不进日志(实现见 services/provider-test.ts)。
+  // 供应商「测试接口」:只做连通(GET base,0 token)——模型列表/密钥校验已移除(各家接口不同)。
+  // 入参用表单未保存的值(不读 store);连通不需要凭据,apiKey 不参与。
   ipcMain.handle("settings:testProvider", async (_e, input: unknown) => {
     const data = expectPayload(z.object({
       baseUrl: z.string().min(1, "不能为空"),
-      // Key 可空：地址可达/模型列表是 0-token 步骤，与 Key 无关；空 Key 下模型列表收到 401 →
-      // 已有「认证被拒绝」文案（Key 校验同样由用户勾选后才发）
-      apiKey: z.string().optional(),
-      model: z.string().optional(),
-      apiType: z.string().optional(),
-      verifyKey: z.boolean().optional(),
     }).loose(), input);
-    return testProvider({ ...data, apiKey: data.apiKey ?? "" });
+    return testProvider(data);
   });
   ipcMain.handle("settings:fetchBalance", async () => {
     const settings = store.getSettings();

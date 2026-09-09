@@ -51,10 +51,9 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const [officialModels, setOfficialModels] = useState<OfficialModelInfo[] | null>(null);
   // SDK 预设的连接信息(官方名/官方 Base URL/接入协议)——内置供应商只读展示
   const [providerInfo, setProviderInfo] = useState<{ name: string; baseUrl?: string; apis: string[] } | null>(null);
-  // 连通测试(可选的「验证密钥」发最小请求):自定义与内置共用同一入口
+  // 连通测试(只探端点,0 token):自定义与内置共用同一入口
   const [testing, setTesting] = useState(false);
-  const [verifyKey, setVerifyKey] = useState(false);
-  const [probe, setProbe] = useState<{ ok: boolean; detail: string; key?: { ok: boolean; detail: string } } | null>(null);
+  const [probe, setProbe] = useState<{ ok: boolean; detail: string } | null>(null);
   // 官方目录外的自添加模型。string = 仅 ID 条目(参数未声明,需在模型管理区补填);
   // 对象 = 带显式参数声明(窗口/输出必填)。自定义供应商的模型清单也存这里。
   const [extraModels, setExtraModels] = useState<Array<string | ExtraModelCapability>>(() => {
@@ -138,26 +137,15 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     window.electronAPI.agent.getPiProviderInfo(providerId).then(setProviderInfo).catch(() => {});
   };
 
-  /** 测试接口:连通(GET,0 token)必测;勾选「验证密钥」再按当前协议发最小请求 */
+  /** 测试接口:只做连通(GET base,0 token,无需 Key/模型)——任何 HTTP 状态都算连通 */
   const runTest = async () => {
     const url = (isCustom ? baseUrl.trim() : providerInfo?.baseUrl ?? "").trim();
     if (!url) { toast(isCustom ? "请先填写 Base URL" : "官方端点尚未加载，请稍后再试"); return; }
-    if (verifyKey && !model.trim()) { toast("需先选择默认模型才能校验密钥"); return; }
     setTesting(true);
     setProbe(null);
     try {
-      const r = await window.electronAPI.settings.testProvider({
-        baseUrl: url,
-        apiKey,
-        model: verifyKey ? model.trim() || undefined : undefined,
-        apiType: isCustom ? apiType : (providerInfo?.apis?.[0] ?? undefined),
-        verifyKey,
-      });
-      setProbe({
-        ok: r.reachability.ok,
-        detail: r.reachability.detail,
-        key: r.keyCheck ? { ok: r.keyCheck.ok, detail: r.keyCheck.detail } : undefined,
-      });
+      const r = await window.electronAPI.settings.testProvider({ baseUrl: url });
+      setProbe({ ok: r.reachability.ok, detail: r.reachability.detail });
     } catch (e) {
       setProbe({ ok: false, detail: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -256,14 +244,6 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
             {probe.ok ? `连通正常 · ${probe.detail}` : `连接失败 · ${probe.detail}`}
           </p>
         )}
-        {probe?.key && (
-          <p className={`text-[length:var(--text-2xs)] mt-1 ${probe.key.ok ? "text-success" : "text-warning"}`}>
-            Key 校验：{probe.key.detail}
-          </p>
-        )}
-        {verifyKey && !model.trim() && (
-          <p className="text-[length:var(--text-2xs)] text-warning mt-1.5">需先选择默认模型才能校验密钥</p>
-        )}
       </div>
       <div>
         <label className="text-xs text-text-secondary block mb-1.5">API 协议</label>
@@ -285,12 +265,6 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
           </div>
         )}
       </div>
-      <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer select-none"
-        onClick={() => setVerifyKey(!verifyKey)}>
-        <Checkbox checked={verifyKey} onChange={setVerifyKey} />
-        验证密钥（发送最小请求，约消耗 10 个 token）
-      </label>
-
       {/* API Key */}
       <div>
         <label className="text-xs text-text-secondary block mb-1.5">API Key</label>
