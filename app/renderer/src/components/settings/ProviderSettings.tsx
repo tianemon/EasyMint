@@ -198,6 +198,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
         <label className="text-xs text-text-secondary block mb-1.5">选择平台</label>
         <Select
           block
+          className="[&>button]:h-8 [&>button]:text-xs"
           disabled={!!initial}
           placeholder="请选择供应商或选自定义"
           value={presetId}
@@ -210,7 +211,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       {/* 名称 */}
       <div>
         <label className="text-xs text-text-secondary block mb-1.5">名称</label>
-        <input className="em-input w-full px-3 py-2 text-text-primary text-sm transition-colors"
+        <input className="em-input em-input-compact w-full h-8 px-2.5 text-text-primary text-xs transition-colors"
           placeholder="如：我的DeepSeek" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
 
@@ -271,7 +272,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
         <label className="text-xs text-text-secondary block mb-1.5">API Key</label>
         <div className="relative">
           <input type={showKey ? "text" : "password"}
-            className="em-input w-full px-3 py-2 pr-9 text-text-primary text-sm transition-colors"
+            className="em-input em-input-compact w-full h-8 px-2.5 pr-9 text-text-primary text-xs transition-colors"
             placeholder={preset?.keyPlaceholder || "sk-..."} value={apiKey}
             onChange={(e) => setApiKey(e.target.value)} />
           <button type="button" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
@@ -291,6 +292,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
           <label className="text-xs text-text-secondary block mb-1.5">默认模型</label>
           <Select
             block
+            className="[&>button]:h-8 [&>button]:text-xs"
             placeholder={!isCustom && officialModels === null ? "加载中…" : (availableModels.length === 0 ? "无可用模型" : "选择模型")}
             value={model}
             onChange={(v: string) => setModel(v)}
@@ -301,6 +303,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
           <label className="text-xs text-text-secondary block mb-1.5">子Agent默认模型</label>
           <Select
             block
+            className="[&>button]:h-8 [&>button]:text-xs"
             placeholder={availableModels.length === 0 ? "无可用模型" : "可选"}
             value={subagentDefaultModel}
             onChange={(v: string) => setSubagentDefaultModel(v)}
