@@ -389,18 +389,18 @@ export function ModelManager({
           <div className="flex items-center justify-between">
             <button
               type="button"
-              className="h-8 px-3 rounded-lg border border-danger-border text-danger text-xs hover:bg-danger-soft transition-colors"
+              className="h-7 px-3 rounded-lg border border-danger-border text-danger text-xs hover:bg-danger-soft transition-colors"
               onClick={deleteModel}
             >删除</button>
             <div className="flex gap-2">
               <button
                 type="button"
-                className="h-8 px-3 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors"
+                className="h-7 px-3 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors"
                 onClick={closeEdit}
               >取消</button>
               <button
                 type="button"
-                className="h-8 px-3 rounded-lg btn-accent text-xs font-medium"
+                className="h-7 px-3 rounded-lg btn-accent text-xs font-medium"
                 onClick={saveDraft}
               >保存</button>
             </div>
