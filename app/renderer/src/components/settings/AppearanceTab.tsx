@@ -154,7 +154,7 @@ export function AppearanceTab(): JSX.Element {
                   className={`text-left px-3 py-2 rounded-[var(--radius-lg)] transition-all ${
                     glowEffect === p.id
                       ? "bg-[var(--preset-active)] text-text-primary"
-                      : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--hover-2)] text-text-secondary"
+                      : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"
                   }`}
                 >
                   <span className="text-xs font-medium block">{p.label}</span>
