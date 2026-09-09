@@ -209,11 +209,11 @@ try/catch 仅在存在有意义的错误处理逻辑时使用：
 
 - **项目名称**: EasyMint
 - **一句话描述**: Electron 桌面应用，让不懂技术的用户通过图形界面创建项目、采集需求，与 AI 对话驱动开发。
-- **核心功能**: 项目管理、需求采集、AI 对话驱动开发（基于 claude-agent-sdk）、Builder/Evaluator 多 Agent 协作
+- **核心功能**: 项目管理、需求采集、AI 对话驱动开发（基于 pi-coding-agent）、Builder/Evaluator 多 Agent 协作
 
 ## 4.2 技术栈与启动
 
-- **技术栈**: Electron 28+, React 18 + Vite 5 + TypeScript 5, Tailwind CSS 3 + Radix UI, zustand, claude-agent-sdk
+- **技术栈**: Electron 43+, React 19 + Vite 8 + TypeScript 6, Tailwind CSS 4, zustand, pi-coding-agent（AI 引擎）
 - **目标平台**: macOS（主）/ Windows / Linux
 - **启动命令**:
 
