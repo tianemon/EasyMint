@@ -1367,6 +1367,23 @@ export class AgentService {
     // 用本会话用户选过的等级恢复,并回传实际生效值
     if (chat.thinkingLevel) this.applyThinkingLevel(chat, chat.thinkingLevel);
     else this.broadcastThinkingLevel(chat);
+    // 立即重报使用率:窗口/输出是模型定义的一部分,改了模型参数后若不重报,
+    // 聊天页的圆环会一直停在旧窗口算出的百分比上(要等下一条消息才刷新)
+    this.broadcastContextUsage(chat);
+  }
+
+  /** 上报当前上下文使用率(圆环数据源);压缩后尚无新回复时 percentage 为 null,前端显示「—」 */
+  private broadcastContextUsage(chat: ActiveChat): void {
+    try {
+      const usage = chat.session?.getContextUsage?.();
+      if (!usage?.contextWindow) return;
+      broadcast("agent:context-usage", {
+        chatId: chat.chatId,
+        percentage: usage.percent ?? null,
+        totalTokens: usage.tokens ?? 0,
+        maxTokens: usage.contextWindow,
+      });
+    } catch { /* 会话状态异常时不上报,下次消息会再报 */ }
   }
 
   /** 供应商配置变更后重建活跃会话的模型对象。

@@ -1622,12 +1622,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       useStatusStore.getState().pushSignal(sidRef.current, "summary", "正在整理并开启新会话...");
       useStatusStore.getState().setSummarizing(sidRef.current, true);
     });
-    const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ chatId: ctxChatId, percentage }) => {
+    const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ chatId: ctxChatId, percentage, maxTokens }) => {
       if (!currentChatRef.current) return;
       if (ctxChatId !== currentChatRef.current) return;
       // percentage 为 null = 压缩后尚无新回复,使用率未知——置 null 前端显示"—",不显示 0 误导
       const pct = percentage === null ? null : Math.round(percentage);
-      useStatusStore.getState().setCtxPct(sidRef.current, pct);
+      // maxTokens = 当前模型的上下文窗口(改模型参数后随之变化,hover 显示)
+      useStatusStore.getState().setCtxPct(sidRef.current, pct, maxTokens ?? undefined);
       if (sidRef.current && !sidRef.current.startsWith("__new_")) {
         window.electronAPI.sessionCache.write(sidRef.current, { contextUsage: pct }).catch(() => {});
       }

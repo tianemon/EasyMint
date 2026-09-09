@@ -93,6 +93,19 @@ function AttachPreview_({ attaches, setAttaches, onPreview }: AttachPreviewProps
 }
 export const AttachPreview = memo(AttachPreview_);
 
+/** token 数 → 窗口文案（1000000 → 1M；向下取整避免 131072 显示成 132K） */
+function formatWindow(tokens: number): string {
+  return tokens >= 1000000 ? `${tokens / 1000000}M` : `${Math.floor(tokens / 1000)}K`;
+}
+
+/** 使用率环的悬浮文案：始终带上当前模型的实际窗口，改参数后一眼能看出是否生效 */
+function ctxTip(pct: number | null, windowTokens: number | null): string {
+  if (windowTokens === null) return pct === null ? "上下文使用率" : `上下文使用率 ${Math.round(pct)}%`;
+  return pct === null
+    ? `上下文窗口 ${formatWindow(windowTokens)}`
+    : `上下文窗口 ${formatWindow(windowTokens)} · 已用 ${Math.round(pct)}%`;
+}
+
 export const ChatInput = memo(function ChatInput({
   projectPath, busy, attaches, setAttaches, onSend, onStop, onPaste,
   imgInputRef, docInputRef, onImgChange, onDocChange, onPreviewImage,
@@ -120,6 +133,7 @@ export const ChatInput = memo(function ChatInput({
   const modelLabels = useSettingsStore((s) => s.modelLabels);
   const indicatorOrder = useDelegationStore((s) => s.order);
   const ctxPct = useStatusStore((s) => s.bySession[sessionId]?.ctxPct ?? null);
+  const ctxWindow = useStatusStore((s) => s.bySession[sessionId]?.ctxWindow ?? null);
   const summarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
   // 本会话平均缓存命中率：全部消息 usage 累加（缓存读 / 全部输入 = 未缓存 + 缓存读 + 缓存写）——口径同单条显示。
   // selector 直接返回 store 引用（不建新数组——zustand 快照比较要求引用稳定，否则无限循环）
@@ -371,7 +385,7 @@ export const ChatInput = memo(function ChatInput({
             .map((l) => ({ value: l, label: THINKING_LABELS[l] ?? l }))}
         />
         {/* 上下文使用率环:点击打开统计;百分比 hover 悬浮显示(圈内不常驻数字,悬浮向上与缓存命中率一致) */}
-        <Tooltip tip={ctxPct === null ? "上下文使用率" : `上下文使用率 ${Math.round(ctxPct)}%`} className="shrink-0">
+        <Tooltip tip={ctxTip(ctxPct, ctxWindow)} className="shrink-0">
           <div className="ctx-ring" onClick={onStatsClick} style={{ cursor: "pointer" }}>
             <svg width="20" height="20" viewBox="0 0 20 20">
               <circle className="ctx-ring-track" cx="10" cy="10" r="8"/>
