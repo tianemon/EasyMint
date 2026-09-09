@@ -23,20 +23,11 @@ export interface OfficialModelInfo {
   contextWindow: number;
 }
 
-/** 模型来源标签（列表行展示） */
+/** 模型来源（列表行判定用） */
 type ModelSource = "official" | "extra" | "custom";
 
-const SOURCE_LABELS: Record<ModelSource, string> = {
-  official: "官方",
-  extra: "补充",
-  custom: "自定义",
-};
-
-const SOURCE_CLASSES: Record<ModelSource, string> = {
-  official: "bg-accent-soft text-accent",
-  extra: "bg-info-soft text-info",
-  custom: "bg-warning-soft text-warning",
-};
+/** 来源标签样式：仅自定义供应商的模型打标——官方与手动补充的不打（用户要求，2026-09-09） */
+const CUSTOM_SOURCE_CLASS = "bg-warning-soft text-warning";
 
 /** 上下文窗口预设（官方模型多一项「跟随官方」，自添加模型必填） */
 const CTX_PRESETS: SelectOption[] = [
@@ -625,9 +616,11 @@ export function ModelManager({
                       {row.sdkId !== row.name && (
                         <span className="shrink-0 text-[length:var(--text-2xs)] text-text-muted font-mono truncate max-w-[150px]">→ {row.sdkId}</span>
                       )}
-                      <span className={`shrink-0 text-[length:var(--text-3xs)] px-1.5 py-0.5 rounded-full ${SOURCE_CLASSES[row.source]}`}>
-                        {SOURCE_LABELS[row.source]}
-                      </span>
+                      {row.source === "custom" && (
+                        <span className={`shrink-0 text-[length:var(--text-3xs)] px-1.5 py-0.5 rounded-full ${CUSTOM_SOURCE_CLASS}`}>
+                          自定义
+                        </span>
+                      )}
                       {overridden && (
                         <span className="shrink-0 text-[length:var(--text-3xs)] px-1.5 py-0.5 rounded-full bg-accent-high text-accent">已覆盖</span>
                       )}
