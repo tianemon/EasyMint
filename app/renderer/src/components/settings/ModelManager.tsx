@@ -261,9 +261,9 @@ export function ModelManager({
         />
         <button
           type="button"
-          className="shrink-0 h-8 px-3 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors"
+          className="shrink-0 h-8 px-3 rounded-md border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors"
           onClick={addModel}
-        >添加</button>
+        添加</button>
       </div>
 
       {/* 编辑模型选择:下拉列出全部自添加模型,选中即在下方展示参数;与默认模型选择互不联动 */}
@@ -417,20 +417,20 @@ export function ModelManager({
           <div className="flex items-center justify-between">
             <button
               type="button"
-              className="h-7 px-3 rounded-lg border border-danger-border text-danger text-xs hover:bg-danger-soft transition-colors"
+              className="h-7 px-3 rounded-md border border-danger-border text-danger text-xs hover:bg-danger-soft transition-colors"
               onClick={deleteModel}
-            >删除</button>
+            删除</button>
             <div className="flex gap-2">
               <button
                 type="button"
-                className="h-7 px-3 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors"
+                className="h-7 px-3 rounded-md border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors"
                 onClick={closeEdit}
-              >取消</button>
+              取消</button>
               <button
                 type="button"
-                className="h-7 px-3 rounded-lg btn-accent text-xs font-medium"
+                className="h-7 px-3 rounded-md btn-accent text-xs font-medium"
                 onClick={saveDraft}
-              >保存</button>
+              保存</button>
             </div>
           </div>
         </div>

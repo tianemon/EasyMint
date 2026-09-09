@@ -159,17 +159,17 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
             <div className="flex items-center justify-end gap-2 px-4 py-1 bg-surface-alt shrink-0">
               <button
                 type="button"
-                className="h-8 px-4 whitespace-nowrap rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0"
-                onClick={() => setForm(null)}
+                className="h-8 px-4 whitespace-nowrap rounded-md border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0"
+                onClick={() = setForm(null)}
               >
                 取消
               </button>
               <button
                 type="button"
-                className="h-8 px-4 whitespace-nowrap rounded-lg btn-accent text-xs font-medium shrink-0"
+                className="h-8 px-4 whitespace-nowrap rounded-md btn-accent text-xs font-medium shrink-0"
                 onClick={handleSave}
                 disabled={!symptom.trim()}
-              >
+              
                 保存
               </button>
             </div>

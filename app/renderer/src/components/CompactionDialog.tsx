@@ -62,8 +62,8 @@ export function CompactionDialog({
           <button
             type="button"
             onClick={onImmediate}
-            className="w-full text-left px-3 py-2 rounded-lg hover:bg-surface-hover text-xs text-text-primary transition-colors"
-          >
+            className="w-full text-left px-3 py-2 rounded-md hover:bg-surface-hover text-xs text-text-primary transition-colors"
+          
             <span className="flex items-center justify-between gap-3">
               <span>是，立即压缩（系统自动总结）</span>
               {countdownConfig && remaining > 0 && (
@@ -74,15 +74,15 @@ export function CompactionDialog({
           <button
             type="button"
             onClick={onWriteHandoff}
-            className="w-full text-left px-3 py-2 rounded-lg hover:bg-surface-hover text-xs text-text-primary transition-colors"
-          >
+            className="w-full text-left px-3 py-2 rounded-md hover:bg-surface-hover text-xs text-text-primary transition-colors"
+          
             否，开启新会话，帮我写交接提示词
           </button>
           <button
             type="button"
             onClick={onDefer}
-            className="w-full text-left px-3 py-2 rounded-lg hover:bg-surface-hover text-xs text-text-primary transition-colors"
-          >
+            className="w-full text-left px-3 py-2 rounded-md hover:bg-surface-hover text-xs text-text-primary transition-colors"
+          
             否，Mint 下次回复完触发
           </button>
         </div>

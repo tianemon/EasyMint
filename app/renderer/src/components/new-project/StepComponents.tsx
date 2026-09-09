@@ -115,8 +115,8 @@ function Step1Form({ data, onChange, previewDirName, dirConflict, translating }:
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">项目目录 <span className="text-danger">*</span></label>
         <button
-          className="w-full px-3 py-2 rounded-lg bg-surface-alt border border-border text-left text-sm hover:bg-surface-hover transition-colors"
-          onClick={async () => { const selected = await window.electronAPI.dialog.openDirectory(); if (selected) onChange({ dir: selected }); }}
+          className="w-full px-3 py-2 rounded-md bg-surface-alt border border-border text-left text-sm hover:bg-surface-hover transition-colors"
+          onClick={async () = { const selected = await window.electronAPI.dialog.openDirectory(); if (selected) onChange({ dir: selected }); }}
         >
           <span className="text-text-secondary">{data.dir || "点击选择目录..."}</span>
         </button>
@@ -195,10 +195,10 @@ function Step2Form({
       <div className="flex items-center justify-between mb-2">
         <label className="block text-sm font-medium text-text-primary">功能清单 <span className="text-text-muted text-xs font-normal">（可选）</span></label>
         <div className="flex gap-2">
-          <button className="px-3 py-1.5 rounded-lg btn-accent text-sm font-medium" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
+          <button className="px-3 py-1.5 rounded-md btn-accent text-sm font-medium" onClick={onRecommendFeatures} disabled={loadingRec === "features"}
             {loadingRec === "features" ? "Mint 思考中..." : "Mint 推荐"}
           </button>
-          <button className="px-3 py-1.5 rounded-lg border border-accent-border-strong text-accent text-xs hover:border-accent hover:bg-accent-bg transition-colors" onClick={addFeature}>+ 添加功能</button>
+          <button className="px-3 py-1.5 rounded-md border border-accent-border-strong text-accent text-xs hover:border-accent hover:bg-accent-bg transition-colors" onClick={addFeature}+ 添加功能</button>
         </div>
       </div>
 
@@ -263,8 +263,8 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
             return (
               <button
                 key={opt.value}
-                className={`flex-1 p-3 rounded-lg border transition-colors text-left ${active ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`}
-                onClick={() => onChange({ completeness: opt.value })}
+                className={`flex-1 p-3 rounded-md border transition-colors text-left ${active ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`}
+                onClick={() = onChange({ completeness: opt.value })}
               >
                 <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
                 <div className="text-xs text-text-secondary mt-0.5">{opt.desc}</div>
@@ -286,7 +286,7 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
           ].map((opt) => {
             const active = data.aiIntegration === opt.value;
             return (
-              <button key={opt.value} className={`flex-1 p-2 rounded-lg border transition-colors text-left ${active ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`} onClick={() => onChange({ aiIntegration: opt.value as AIIntegration })}>
+              <button key={opt.value} className={`flex-1 p-2 rounded-md border transition-colors text-left ${active ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`} onClick={() = onChange({ aiIntegration: opt.value as AIIntegration })}>
                 <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
                 <div className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">{opt.desc}</div>
               </button>
@@ -300,22 +300,22 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
         <label className="block text-sm font-medium text-text-primary mb-2">部署方式 <span className="text-text-muted text-xs font-normal">（可选，AI 帮你定）</span></label>
         <div className="flex gap-2">
           <button
-            className={`flex-1 p-2 rounded-lg border transition-colors text-left ${data.deployPlatform === "本地" ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`}
-            onClick={() => onChange({ deployPlatform: "本地" })}
+            className={`flex-1 p-2 rounded-md border transition-colors text-left ${data.deployPlatform === "本地" ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`}
+            onClick={() = onChange({ deployPlatform: "本地" })}
           >
             <div className={`text-sm font-medium ${data.deployPlatform === "本地" ? "text-accent" : "text-text-primary"}`}>本地</div>
             <div className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">本机运行，无需云服务</div>
           </button>
           <button
-            className={`flex-1 p-2 rounded-lg border transition-colors text-left ${data.deployPlatform === "云端" ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`}
-            onClick={() => onChange({ deployPlatform: "云端" })}
+            className={`flex-1 p-2 rounded-md border transition-colors text-left ${data.deployPlatform === "云端" ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`}
+            onClick={() = onChange({ deployPlatform: "云端" })}
           >
             <div className={`text-sm font-medium ${data.deployPlatform === "云端" ? "text-accent" : "text-text-primary"}`}>云端</div>
             <div className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">可互联网访问，有服务器费用</div>
           </button>
           <button
-            className={`flex-1 p-2 rounded-lg border transition-colors text-left ${data.deployPlatform === "混合" ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`}
-            onClick={() => onChange({ deployPlatform: "混合" })}
+            className={`flex-1 p-2 rounded-md border transition-colors text-left ${data.deployPlatform === "混合" ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`}
+            onClick={() = onChange({ deployPlatform: "混合" })}
           >
             <div className={`text-sm font-medium ${data.deployPlatform === "混合" ? "text-accent" : "text-text-primary"}`}>混合</div>
             <div className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">本地 UI + 云端同步</div>
@@ -330,7 +330,7 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
           {BUDGET_OPTIONS.map((opt) => {
             const active = data.techBudget === opt.value;
             return (
-              <button key={opt.value} className={`flex-1 p-3 rounded-lg border transition-colors text-left ${active ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`} onClick={() => onChange({ techBudget: opt.value as BudgetChoice })}>
+              <button key={opt.value} className={`flex-1 p-3 rounded-md border transition-colors text-left ${active ? "bg-accent-high border-accent" : "border-border hover:border-accent-border-strong"}`} onClick={() = onChange({ techBudget: opt.value as BudgetChoice })}>
                 <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
                 <div className="text-xs text-text-secondary mt-0.5">{opt.desc}</div>
               </button>

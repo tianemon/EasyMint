@@ -45,17 +45,17 @@ export function PairRequestModal(): JSX.Element | null {
         </div>
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border">
           <button
-            className="px-4 py-1.5 rounded-lg text-text-secondary hover:bg-surface-hover transition-colors text-sm"
+            className="px-4 py-1.5 rounded-md text-text-secondary hover:bg-surface-hover transition-colors text-sm"
             onClick={rejectPair}
             disabled={busy}
-          >
+          
             拒绝
           </button>
           <button
-            className="px-5 py-1.5 rounded-lg btn-accent text-sm font-medium"
+            className="px-5 py-1.5 rounded-md btn-accent text-sm font-medium"
             onClick={handleAccept}
             disabled={busy}
-          >
+          
             {busy ? "配对中…" : "接受"}
           </button>
         </div>
