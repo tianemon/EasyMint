@@ -1368,21 +1368,28 @@ export class AgentService {
     if (chat.thinkingLevel) this.applyThinkingLevel(chat, chat.thinkingLevel);
     else this.broadcastThinkingLevel(chat);
     // 立即重报使用率:窗口/输出是模型定义的一部分,改了模型参数后若不重报,
-    // 聊天页的圆环会一直停在旧窗口算出的百分比上(要等下一条消息才刷新)
-    this.broadcastContextUsage(chat);
+    // 聊天页的圆环会一直停在旧窗口算出的百分比上(要等下一条消息才刷新)。
+    // 传入模型自身窗口值兜底——刚 setModel 时会话 usage 可能还没更新
+    this.broadcastContextUsage(chat, model.contextWindow);
   }
 
-  /** 上报当前上下文使用率(圆环数据源);压缩后尚无新回复时 percentage 为 null,前端显示「—」 */
-  private broadcastContextUsage(chat: ActiveChat): void {
+  /**
+   * 上报当前上下文使用率(圆环数据源):percentage 为 null 时前端显示「—」。
+   * 窗口值优先取会话实时 usage,取不到则用刚绑定的 Model.contextWindow 兜底——
+   * 刚 setModel / 压缩后尚无新回复时 usage 可能为空,少了兜底就不上报,圆环会停在旧窗口。
+   */
+  private broadcastContextUsage(chat: ActiveChat, fallbackWindow?: number): void {
     try {
       const usage = chat.session?.getContextUsage?.();
-      if (!usage?.contextWindow) return;
+      const window = usage?.contextWindow ?? fallbackWindow;
+      if (!window) return;
       broadcast("agent:context-usage", {
         chatId: chat.chatId,
-        percentage: usage.percent ?? null,
-        totalTokens: usage.tokens ?? 0,
-        maxTokens: usage.contextWindow,
+        percentage: usage?.percent ?? null,
+        totalTokens: usage?.tokens ?? 0,
+        maxTokens: window,
       });
+      console.log(`[agent] 上下文窗口上报 ${window}${usage?.contextWindow ? "" : "（来自模型定义兜底）"} · chat=${chat.chatId}`);
     } catch { /* 会话状态异常时不上报,下次消息会再报 */ }
   }
 
