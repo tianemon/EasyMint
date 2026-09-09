@@ -294,7 +294,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
               const portBusy = ps && !ps.free;
               const canStart = !st.running && !portBusy;
               return (
-                <div key={r.id} className={`rounded-[var(--radius-lg)] border px-2.5 py-2 transition-colors ${st.running ? (r.url && !st.ready ? "border-warning-border bg-warning-soft" : "border-success-border bg-success-soft") : "border-border"}`}>
+                <div key={r.id} className={`rounded-[var(--radius-lg)] px-2.5 py-2 transition-colors ${st.running ? (r.url && !st.ready ? "bg-warning-soft" : "bg-success-soft") : "bg-[var(--color-drawer-card)]"}`}>
                   {/* 第一行：标题（hover 滚动完整显示，点击编辑脚本）+ 运行状态（url 配置的服务就绪前显示「启动中」） */}
                   <div className="flex items-center gap-1.5">
                     <TitleMarquee text={r.label} onClick={() => setEditing({ r, runnables })} />
@@ -323,7 +323,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                   {port && (
                     <div className="relative mt-1 flex items-center gap-1.5 text-[length:var(--text-2xs)] flex-wrap">
                       <input
-                        className="w-14 text-[length:var(--text-2xs)] px-1 py-0.5 rounded-[var(--radius-lg)] border border-border bg-surface text-text-primary font-mono text-center"
+                        className="w-14 text-[length:var(--text-2xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-[var(--field-idle)] focus:bg-[var(--color-canvas)] text-text-primary font-mono text-center outline-none"
                         value={customPorts[r.id] !== undefined ? customPorts[r.id] : String(port)}
                         onChange={function(e) {
                           const val = e.target.value.replace(/\D/g, "");
@@ -355,7 +355,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                               }}
                             >详情</span>
                             {showDetail[r.id] && (
-                              <span data-port-detail className="absolute top-full mt-1 text-[length:var(--text-3xs)] text-text-primary bg-surface border border-border rounded-[var(--radius-lg)] px-2 py-1 shadow-lg z-dropdown"
+                              <span data-port-detail className="absolute top-full mt-1 text-[length:var(--text-3xs)] text-text-primary bg-surface-elevated rounded-[var(--radius-lg)] px-2 py-1 shadow-lg z-dropdown"
                                 style={{ maxWidth: "200px", wordBreak: "break-all", lineHeight: "1.4" }}>
                                 {ps.name || "PID " + ps.pid} (PID {ps.pid})
                               </span>
@@ -376,14 +376,14 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                           onClick={() => stop(r.id)}
                         >停止</button>
                         <button
-                          className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-lg)] border border-border text-text-secondary hover:text-accent hover:border-accent-border-strong transition-colors shrink-0"
+                          className="em-hover-control w-6 h-6 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-accent transition-colors shrink-0"
                           onClick={() => restart(projectPath, r.id)}
                          
                         >
                           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                         </button>
                         <button
-                          className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-lg)] border border-border text-text-secondary hover:text-accent hover:border-accent-border-strong transition-colors shrink-0"
+                          className="em-hover-control w-6 h-6 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-accent transition-colors shrink-0"
                           onClick={() => openLog(r.id)}
                          
                         >
@@ -391,7 +391,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                         </button>
                         {r.url && (
                           <button
-                            className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-lg)] border border-border text-text-secondary hover:text-accent hover:border-accent-border-strong transition-colors shrink-0"
+                            className="em-hover-control w-6 h-6 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-accent transition-colors shrink-0"
                             onClick={() => window.open(r.url, "_blank")}
                             
                           >
@@ -408,7 +408,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                           disabled={saving}
                         >删除</button>
                         <button
-                          className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] border border-border text-text-secondary hover:text-text-primary transition-colors shrink-0"
+                          className="em-hover-control w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary transition-colors shrink-0"
                           onClick={() => setConfirmDeleteId(null)}
                          
                         >✕</button>
@@ -426,7 +426,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                           
                         >运行</button>
                         <button
-                          className="w-9 py-1 rounded-[var(--radius-lg)] border border-border text-text-secondary hover:text-danger hover:border-danger-border transition-colors shrink-0 flex items-center justify-center"
+                          className="em-hover-control w-9 py-1 rounded-[var(--radius-lg)] text-text-secondary hover:text-danger transition-colors shrink-0 flex items-center justify-center"
                           onClick={() => setConfirmDeleteId(r.id)}
                          
                         >
