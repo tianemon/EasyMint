@@ -115,13 +115,13 @@ export function PromptSettings(): JSX.Element {
       {/* 提示词列表 + 编辑区：左右布局 */}
       <div className="flex gap-3" style={{ minHeight: 260 }}>
         {/* 左侧：列表 */}
-        <div className="w-44 shrink-0 border border-border rounded-[var(--radius-lg)] overflow-hidden flex flex-col">
-          <div className="divide-y divide-border flex-1 overflow-y-auto">
+        <div className="w-44 shrink-0 bg-surface-alt rounded-[var(--radius-lg)] overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-y-auto">
             {config.prompts.map((prompt) => (
               <div
                 key={prompt.id}
-                className={`flex items-center gap-1.5 px-3 py-2 cursor-pointer transition-colors text-xs ${
-                  prompt.id === selectedId ? "bg-accent/15" : "hover:bg-surface-hover"
+                className={`flex items-center gap-1.5 px-3 py-2 cursor-pointer transition-all text-xs ${
+                  prompt.id === selectedId ? "bg-accent-soft" : "hover:shadow-[inset_0_0_0_999px_var(--hover-2)]"
                 }`}
                 onClick={() => setSelectedId(prompt.id)}
                 onMouseEnter={() => setHoveredId(prompt.id)}
@@ -153,7 +153,7 @@ export function PromptSettings(): JSX.Element {
             ))}
           </div>
           <button
-            className="w-full py-1.5 text-xs border-t border-border text-accent hover:bg-accent-subtle transition-colors"
+            className="w-full py-1.5 text-xs text-accent hover:bg-accent-subtle transition-colors"
             onClick={handleCreate}
           >
             + 新建

@@ -334,7 +334,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       {!bare && (
         <div className="sticky bottom-0 -mx-6 px-6 pt-2 pb-1 flex justify-end gap-2 bg-surface-alt">
           {onCancel && (
-            <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-[var(--radius-lg)] border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消配置</button>
+            <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-[var(--radius-lg)] text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消配置</button>
           )}
           <button type="button" onClick={handleSave} className="px-4 py-1.5 rounded-[var(--radius-lg)] btn-accent text-xs font-medium">
             保存供应商配置

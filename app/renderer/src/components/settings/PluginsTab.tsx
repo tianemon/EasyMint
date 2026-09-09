@@ -38,7 +38,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   return (
     <button
       onClick={() => onChange(!checked)}
-      className={`relative w-8 h-4 rounded-full transition-colors overflow-hidden shrink-0 ml-2 ${checked ? "bg-accent" : "bg-surface-hover border border-border"}`}
+      className={`relative w-8 h-4 rounded-full transition-colors overflow-hidden shrink-0 ml-2 ${checked ? "bg-accent" : "bg-surface-hover"}`}
       role="switch"
       aria-checked={checked}
     >
@@ -96,7 +96,7 @@ function SkillRow({ s, stat, onToggle, onDelete }: {
 
   return (
     <div
-      className={`px-3 py-2 transition-colors cursor-default ${s.enabled && !s.shadowed ? "hover:bg-surface-hover" : "opacity-60"}`}
+      className={`px-3 py-2 transition-shadow cursor-default ${s.enabled && !s.shadowed ? "hover:shadow-[inset_0_0_0_999px_var(--hover-1)]" : "opacity-60"}`}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
@@ -349,12 +349,12 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       {loadError && <p className="text-danger text-xs">{loadError}</p>}
 
       {/* Tab buttons — pill style */}
-      <div className="inline-flex rounded-[var(--radius-lg)] border border-border overflow-hidden">
+      <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden">
         {(["builtin", "global", "managed"] as const).map((t, i) => (
           <button
             key={t}
             className={`px-4 py-1.5 text-xs font-medium transition-colors ${
-              i > 0 ? "border-l border-border" : ""
+              i > 0 ? "" : ""
             } ${
               tab === t ? "bg-[color-mix(in_oklab,var(--color-accent)_15%,transparent)] text-accent" : "text-text-secondary hover:bg-surface-hover"
             }`}
@@ -366,7 +366,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       </div>
 
       {/* 外部生态发现开关（对全部页签生效——只读发现，不改动任何文件） */}
-      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-2.5 flex items-center justify-between gap-3">
+      <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-2.5 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs text-text-primary">发现外部生态 skill</p>
           <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
@@ -377,7 +377,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       </div>
 
       {/* Skill 导入（粘贴 GitHub 链接或本地目录路径） */}
-      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-2.5">
+      <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs text-text-primary">导入 skill</p>
@@ -387,7 +387,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
           </div>
           {!skillImportOpen && (
             <button type="button" onClick={() => setSkillImportOpen(true)}
-              className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary border border-border hover:text-text-primary hover:bg-surface-hover transition-colors shrink-0">
+              className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors shrink-0">
               导入
             </button>
           )}
@@ -418,7 +418,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       {/* AI 管理区：写入开关 + 新建表单 */}
       {tab === "managed" && (
         <div className="space-y-3">
-          <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-2.5 flex items-center justify-between gap-3">
+          <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-2.5 flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs text-text-primary">允许 AI 创建与管理 skill</p>
               <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
@@ -428,7 +428,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
             <Toggle checked={manageSkillEnabled} onChange={saveManageEnabled} />
           </div>
 
-          <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-2.5 flex items-center justify-between gap-3">
+          <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-2.5 flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs text-text-primary">允许 AI 自沉淀经验</p>
               <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
@@ -439,7 +439,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
           </div>
 
           {showForm ? (
-            <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-3 space-y-2">
+            <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-3 space-y-2">
               <div>
                 <label className="text-xs text-text-secondary block mb-1">名称（小写字母/数字/连字符）</label>
                 <input
@@ -496,7 +496,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
             </div>
           ) : (
             <button
-              className="px-3 py-1 text-xs rounded-[var(--radius-lg)] border border-border text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
+              className="px-3 py-1 text-xs rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
               onClick={() => setShowForm(true)}
             >
               + 新建 skill
@@ -506,7 +506,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       )}
 
       {/* Skill list */}
-      <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border overflow-hidden max-h-[220px] overflow-y-auto divide-y divide-border/50">
+      <div className="bg-surface-alt rounded-[var(--radius-lg)] overflow-hidden max-h-[220px] overflow-y-auto">
         {visibleSkills.length > 0 ? (
           visibleSkills.map((s) => (
             <SkillRow
@@ -529,7 +529,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       {tab === "managed" && suggestions.length > 0 && (
         <div>
           <h4 className="text-xs font-medium text-text-secondary mb-2">优化建议</h4>
-          <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-2 space-y-1">
+          <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-2 space-y-1">
             {suggestions.map((sug) => (
               <p key={sug.name} className="text-[length:var(--text-11)] text-text-secondary leading-relaxed">
                 <span className="text-text-primary font-mono">{sug.name}</span>：{sug.text}
@@ -543,7 +543,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       {projectSkills.length > 0 && (
         <div>
           <h4 className="text-xs font-medium text-text-secondary mb-2">项目级</h4>
-          <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border overflow-hidden max-h-[220px] overflow-y-auto divide-y divide-border/50">
+          <div className="bg-surface-alt rounded-[var(--radius-lg)] overflow-hidden max-h-[220px] overflow-y-auto">
             {projectSkills.map((s) => (
               <SkillRow
                 key={s.path}
@@ -666,7 +666,7 @@ function McpServerForm({
   };
 
   return (
-    <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-3 space-y-2.5">
+    <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-3 space-y-2.5">
       <div className="flex items-center gap-2">
         <input
           className="em-input flex-1 px-2.5 py-1.5 text-xs font-mono"
@@ -675,7 +675,7 @@ function McpServerForm({
           disabled={!!initial}
           onChange={(e) => setName(e.target.value)}
         />
-        <div className="flex rounded-[var(--radius-lg)] border border-border overflow-hidden shrink-0">
+        <div className="flex rounded-[var(--radius-lg)] overflow-hidden shrink-0">
           {(["stdio", "http", "sse"] as const).map((t) => (
             <button
               key={t}
@@ -941,7 +941,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
           {!adding && !editing && !pasteMode && (
             <div className="flex gap-2">
               <button type="button" onClick={() => setPasteMode(true)}
-                className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary border border-border hover:text-text-primary hover:bg-surface-hover transition-colors">
+                className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
                 粘贴配置导入
               </button>
               <button type="button" onClick={() => setAdding(true)}
@@ -959,7 +959,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
         {actionErr && <p className="text-danger text-[length:var(--text-11)] mb-2">{actionErr}</p>}
 
         {pasteMode && (
-          <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border px-3 py-3 space-y-2">
+          <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-3 space-y-2">
             <p className="text-[length:var(--text-11)] text-text-secondary">
               粘贴配置（mcpServers JSON / claude mcp add 命令行 / npx 启动命令均可）：
             </p>
@@ -1011,7 +1011,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
             还没有 MCP 服务器，点右上角添加。
           </p>
         ) : (
-          <div className="bg-surface-alt rounded-[var(--radius-lg)] border border-border overflow-hidden max-h-[260px] overflow-y-auto divide-y divide-border/50">
+          <div className="bg-surface-alt rounded-[var(--radius-lg)] overflow-hidden max-h-[260px] overflow-y-auto">
             {servers.map((s) => {
               const badge = statusBadge(s.name, s.enabled);
               return (
@@ -1079,13 +1079,13 @@ export function PluginsTab({ projectPath }: { projectPath?: string }): JSX.Eleme
   return (
     <div className="space-y-1.5">
       <div className="flex justify-center px-6 pt-4">
-        <div className="inline-flex rounded-[var(--radius-lg)] border border-border overflow-hidden">
+        <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden">
           {([["skills", "Skills"], ["mcp", "MCP"]] as const).map(([id, label], i) => (
             <button
               key={id}
               type="button"
               onClick={() => setTab(id)}
-              className={`px-4 py-1.5 text-xs font-medium transition-colors ${i > 0 ? "border-l border-border" : ""} ${
+              className={`px-4 py-1.5 text-xs font-medium transition-colors ${i > 0 ? "" : ""} ${
                 tab === id
                   ? "bg-[color-mix(in_oklab,var(--color-accent)_15%,transparent)] text-accent"
                   : "text-text-secondary hover:bg-surface-hover"
