@@ -22,7 +22,7 @@ function ChatThinkingLevelSection(): JSX.Element {
 
   return (
     <section>
-      <h3 className="text-sm font-medium text-text-primary mb-2">全局思考等级(聊天)</h3>
+      <h3 className="text-sm font-medium text-text-secondary mb-2">全局思考等级(聊天)</h3>
       <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
         <Select
           block
@@ -44,7 +44,7 @@ function ChatPermissionModeSection(): JSX.Element {
 
   return (
     <section>
-      <h3 className="text-sm font-medium text-text-primary mb-2">默认权限模式(聊天)</h3>
+      <h3 className="text-sm font-medium text-text-secondary mb-2">默认权限模式(聊天)</h3>
       <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
         <Select
           block
@@ -90,7 +90,7 @@ function BuiltinToolsSection(): JSX.Element {
 
   return (
     <section>
-      <h3 className="text-sm font-medium text-text-primary mb-2">模型能力增强</h3>
+      <h3 className="text-sm font-medium text-text-secondary mb-2">模型能力增强</h3>
       <p className="text-[length:var(--text-11)] text-text-secondary mb-3">
         提供视觉识别与网页抓取能力（对非多模态模型），自动注入到每次会话
       </p>

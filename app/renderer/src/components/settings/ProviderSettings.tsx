@@ -435,7 +435,7 @@ export function ProvidersManager() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-text-primary">API 供应商</h3>
+        <h3 className="text-sm font-medium text-text-secondary">API 供应商</h3>
         <button onClick={() => setDialog({ mode: "add" })}
           className="px-3 py-1 rounded-[var(--radius-lg)] text-accent text-xs font-medium hover:bg-accent-subtle transition-colors">
           + 添加供应商

@@ -78,7 +78,7 @@ export function AgentTemplateSettings(): JSX.Element {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-medium text-text-primary">Agent 模板</h3>
+          <h3 className="text-sm font-medium text-text-secondary">Agent 模板</h3>
         </div>
         <button onClick={() => setAdding(true)}
           className="shrink-0 whitespace-nowrap px-3 py-1 rounded-[var(--radius-lg)] text-accent text-xs font-medium hover:bg-accent-subtle transition-colors">
@@ -180,7 +180,7 @@ function TemplateForm({ initial, onSave, onCancel, providerOptions }: {
   return (
     <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3 space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-text-primary">{editMode ? (locked ? "浏览模板" : "编辑模板") : "新建模板"}</h3>
+        <h3 className="text-sm font-medium text-text-secondary">{editMode ? (locked ? "浏览模板" : "编辑模板") : "新建模板"}</h3>
         <button onClick={onCancel} className="text-[length:var(--text-11)] text-text-secondary hover:text-text-primary">{locked ? "关闭" : "取消"}</button>
       </div>
       {locked && (

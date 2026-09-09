@@ -903,7 +903,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
 
       {Array.from(allKeys.entries()).filter(([k]) => k !== "VISION_API_KEY" && k !== "TAVILY_API_KEY").length > 0 && (
         <section>
-          <h3 className="text-sm font-medium text-text-primary mb-2">API Keys</h3>
+          <h3 className="text-sm font-medium text-text-secondary mb-2">API Keys</h3>
           <p className="text-[length:var(--text-11)] text-text-secondary mb-3">
             第三方服务密钥，注入到对应 MCP 服务器的环境变量中
           </p>
@@ -1077,8 +1077,8 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
 export function PluginsTab({ projectPath }: { projectPath?: string }): JSX.Element {
   const [tab, setTab] = useState<"skills" | "mcp">("skills");
   return (
-    <div className="space-y-1.5 -mt-5">
-      <div className="flex justify-center px-6 pt-4">
+    <div className="space-y-1.5">
+      <div className="flex justify-center px-6">
         <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden">
           {([["skills", "Skills"], ["mcp", "MCP"]] as const).map(([id, label], i) => (
             <button
