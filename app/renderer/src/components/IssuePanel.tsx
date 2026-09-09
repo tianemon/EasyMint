@@ -100,7 +100,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[var(--color-drawer-panel)]">
+    <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-2 h-9 px-3 shrink-0">
         <span className="text-[length:var(--text-11)] font-semibold tracking-[0.04em] uppercase text-text-secondary">问题记录</span>

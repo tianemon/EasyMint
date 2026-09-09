@@ -79,8 +79,6 @@
   --color-sidebar: #ededeb;
   --color-sidebar-hover: #e5e5e1;
   --color-sidebar-active: #f6f6f3;
-  /* 任务面板容器底色(比 sidebar-active 深一档,抽屉内更沉的基调) */
-  --color-drawer-panel: #efefec;
   --color-content: #f4f4f2;
   --color-card: #fdfdfd;
   --color-card-agent: #f3f6f3;
@@ -309,8 +307,6 @@ html[data-platform="win32"] {
   --color-sidebar: #ededeb;
   --color-sidebar-hover: #e5e5e1;
   --color-sidebar-active: #f6f6f3;
-  /* 任务面板容器底色(比 sidebar-active 深一档,抽屉内更沉的基调) */
-  --color-drawer-panel: #efefec;
   --color-content: #f4f4f2;
   --color-card: #fdfdfd;
   --color-card-agent: #f3f6f3;
@@ -484,8 +480,6 @@ html[data-platform="win32"] {
   --color-sidebar: #1c1c1c;  /* 与输入卡片(input-card)同色 */
   --color-sidebar-hover: #262626;
   --color-sidebar-active: #2a2a2a;
-  /* 任务面板容器底色(比 sidebar-active 深一档,抽屉内更沉的基调) */
-  --color-drawer-panel: #242424;
   --color-content: #141414;
   --color-card: #222222;
   --color-card-agent: #1c1c1c;  /* 与输入卡片(input-card)同色 */
@@ -623,6 +617,10 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
 .sb-drawer {
   position: absolute; left: var(--s2); right: var(--s2); bottom: 86px;
   z-index: var(--z-index-dialog);
+  /* 玻璃基色：亮色取 --color-surface（比侧栏深一档）——本抽屉悬浮在侧栏之上，若沿用右侧
+     抽屉的 surface-elevated 白色薄纱，近白的卡片底（--color-drawer-card）会与玻璃同色而丢失边界；
+     暗色反取亮一档（见下方 dark 覆盖），压深会与侧栏同色 */
+  --glass-base: var(--color-surface);
   transform-origin: bottom center;
   transform: scaleY(0);
   pointer-events: none;
@@ -630,12 +628,15 @@ html[data-platform="win32"] .sb-drag-strip { height: 35px; }
   transition: transform 0.35s cubic-bezier(0.4,0,0.2,1),
               opacity 0.2s cubic-bezier(0.4,0,0.2,1);
 }
+/* 暗色下侧栏（#1c1c1c）比 surface（#1b1b1b）还亮，压深会让抽屉与侧栏同色——反取亮一档 */
+[data-theme="dark"] .sb-drawer { --glass-base: var(--color-surface-alt); }
 .sb-drawer.open { transform: scaleY(1); pointer-events: auto; opacity: 1; }
-.sb-drawer-body-wrap { background: var(--color-sidebar-active); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); overflow: hidden; }
+/* 外框材质 = 毛玻璃（.em-glass，与右侧滑出抽屉同一观感）——不再实色，透出后面的会话列表 */
+.sb-drawer-body-wrap { border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); overflow: hidden; }
 .sb-drawer-arrow {
   position: absolute; bottom: -6px;
   width: 12px; height: 6px;
-  background: var(--color-sidebar-active);
+  /* 箭头须与外框同材质，否则玻璃面上会留一块实色 */
   clip-path: polygon(0 0,100% 0,50% 100%);
   transition: left 0.25s var(--ease-smooth);
 }
@@ -1522,8 +1523,8 @@ select.input {
   --hover-2: rgba(0, 0, 0, 0.085);   /* 强档:可点控件 */
   --field-idle: #e6e5e1;             /* 输入默认底(2026-09-09):比焦点深槽(surface)浅一档,聚焦时加深作提示 */
   --modal-fill: #ffffff;             /* 表单类弹窗内容面:直接承载输入,与 idle/focus 拉开层级 */
-  /* 抽屉面板内卡片底:比抽屉面(#efefec)亮一档——凹槽(field-idle→canvas)要求卡面比其更亮,
-     而 surface-alt 与抽屉面仅差 2 级、不可用 */
+  /* 抽屉内卡片底:比侧栏抽屉的玻璃底(亮色约 #e5e5e1)亮一档——凹槽(field-idle→canvas)
+     要求卡面比其更亮，surface-alt 等灰块与玻璃底色差不足 */
   --color-drawer-card: #f6f6f3;
 
   --preset-active: var(--color-accent-soft);  /* 光效预设卡:选中 */
@@ -1535,7 +1536,7 @@ select.input {
   --hover-2: rgba(255, 255, 255, 0.10);
   --field-idle: #1d1d1d;             /* 暗色输入默认底:比焦点槽(#181818)浅、比灰块面(#242424)深一档,默认微凹/聚焦深凹 */
   --modal-fill: #242424;             /* 暗色表单弹窗内容面:与设置页内容灰块(surface-alt)同层,保持一致语言 */
-  /* 暗色抽屉卡片底:比抽屉面(#242424)亮一档——surface-alt 与抽屉面同色,凹槽需更亮卡面才成立 */
+  /* 暗色抽屉卡片底:比玻璃底(约 #212121)亮一档——凹槽(field-idle #1d1d1d)需卡面更亮才沉得住 */
   --color-drawer-card: #2a2a2a;
 
   --preset-active: var(--color-surface);      /* 暗色互换:选中=深槽 */
@@ -1559,3 +1560,14 @@ body:has([class*="z-dialog"], [class*="z-modal"]) .sidebar { -webkit-app-region:
    前缀 em- 不可省:Monaco 编辑器自带 .hover-row(monaco-hover .hover-row),裸名会污染其 hover 面板 */
 .em-hover-row:hover { box-shadow: inset 0 0 0 999px var(--hover-1); }
 .em-hover-control:hover { box-shadow: inset 0 0 0 999px var(--hover-2); }
+
+/* ══ 毛玻璃面板（2026-09-10 提取为语义类）══════════════════════
+   半透明底(基色 65%) + 背景模糊 20px：背景内容模糊但轮廓可辨，前景文字保持干净。
+   基色由 --glass-base 覆盖（默认 surface-elevated 的白色薄纱）——见 .sb-drawer 的侧栏变体。
+   引用：右侧滑出抽屉（项目迁移 DevicePanel / 历史输入 QuestionHistory）+ 侧栏抽屉（.sb-drawer-body-wrap / -arrow）。
+   提取原因：同一材质多处引用，改一处生效——此前两处各写一份内联 style。 */
+.em-glass {
+  background: color-mix(in oklab, var(--glass-base, var(--color-surface-elevated)) 65%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}

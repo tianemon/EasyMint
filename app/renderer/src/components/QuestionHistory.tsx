@@ -92,12 +92,7 @@ export function QuestionHistory({ sessionId, messages, onJump }: QuestionHistory
         // 列表底部 mask 渐隐(接近边缘的文字淡出),见下方列表容器
         <div
           ref={drawerRef}
-          className="no-drag fixed right-0 top-0 bottom-0 w-[300px] z-dialog flex flex-col rounded-l-[var(--radius-lg)] shadow-2xl animate-[drawer-in_200ms_ease-out]"
-          style={{
-            background: "color-mix(in oklab, var(--color-surface-elevated) 65%, transparent)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-          }}
+          className="em-glass no-drag fixed right-0 top-0 bottom-0 w-[300px] z-dialog flex flex-col rounded-l-[var(--radius-lg)] shadow-2xl animate-[drawer-in_200ms_ease-out]"
         >
             {/* 搜索框（标准胶囊样式）：input 绝对定位铺满容器——外观即输入框本体，
                 无嵌套矩形；图标/清空按钮 absolute 定位 + pointer-events-none 不挡点击 */}

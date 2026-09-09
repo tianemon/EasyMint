@@ -229,14 +229,14 @@ export function Sidebar({
 
       {/* Drawer — Task / Issue / Run panels */}
       <div ref={drawerRef} className={`sb-drawer ${drawerOpen ? "open" : ""} ${drawerTab === "tasks" ? "ptr-left" : drawerTab === "runs" ? "ptr-mid" : "ptr-right"}`}>
-        <div className="sb-drawer-body-wrap">
+        <div className="sb-drawer-body-wrap em-glass">
           <div className="sb-drawer-body">
             {drawerTab === "tasks" && <TaskPanel onCollapse={() => setDrawerOpen(false)} />}
             {drawerTab === "issues" && <IssuePanel projectPath={projectPath} onCollapse={() => setDrawerOpen(false)} />}
             {drawerTab === "runs" && <RunPanel projectPath={projectPath} onCollapse={() => setDrawerOpen(false)} />}
           </div>
         </div>
-        <div className="sb-drawer-arrow" />
+        <div className="sb-drawer-arrow em-glass" />
       </div>
 
       {/* Footer */}

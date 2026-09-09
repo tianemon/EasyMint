@@ -168,13 +168,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
     <div className="no-drag fixed inset-0 z-dialog flex items-start justify-end bg-black/20" onMouseDown={onClose}>
       <div
         ref={ref}
-        className="w-[340px] h-full flex flex-col rounded-l-[var(--radius-lg)] shadow-2xl animate-[drawer-in_200ms_ease-out] overflow-hidden"
-        // 毛玻璃(与历史输入抽屉同一观感):半透明底 + 背景模糊,不用实色 bg-surface-alt
-        style={{
-          background: "color-mix(in oklab, var(--color-surface-elevated) 65%, transparent)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-        }}
+        className="em-glass w-[340px] h-full flex flex-col rounded-l-[var(--radius-lg)] shadow-2xl animate-[drawer-in_200ms_ease-out] overflow-hidden"
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Header */}
