@@ -95,12 +95,12 @@ export function CompactionDialog({
             onKeyDown={(e) => { if (e.key === "Enter") onWithInstructions(instructions.trim()); }}
             placeholder="输入压缩指令，例如保留某个上下文信息…"
             autoFocus
-            className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-surface-alt text-xs text-text-primary outline-none placeholder:text-text-muted"
+            className="flex-1 min-w-0 px-2.5 py-1.5 rounded-md bg-surface-alt text-xs text-text-primary outline-none placeholder:text-text-muted"
           />
           <button
             type="button"
             onClick={() => onWithInstructions(instructions.trim())}
-            className="px-3 py-1.5 rounded-lg btn-accent text-xs font-medium shrink-0"
+            className="px-3 py-1.5 rounded-md btn-accent text-xs font-medium shrink-0"
           >
             是，输入指令
           </button>

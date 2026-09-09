@@ -33,7 +33,7 @@ function EnvRow({ label, info, installUrl }: {
           href={installUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="px-3 py-1.5 rounded-lg btn-accent text-xs font-medium"
+          className="px-3 py-1.5 rounded-md btn-accent text-xs font-medium"
         >
           点击安装 {label}
         </a>
@@ -92,7 +92,7 @@ function EnvCheckSection(): JSX.Element {
   return (
     <section>
       <h3 className="text-sm font-medium text-text-secondary mb-2">环境检测</h3>
-      <div className="bg-surface-alt rounded-lg border border-border px-4 py-3 space-y-3">
+      <div className="bg-surface-alt rounded-md border border-border px-4 py-3 space-y-3">
         <EnvRow label="Git" info={gitInfo} installUrl="https://git-scm.com/downloads" />
         <EnvRow label="Node.js" info={nodeInfo} installUrl="https://nodejs.org/" />
         <CodegraphRow info={codegraphInfo} />
@@ -128,7 +128,7 @@ function CacheManagementSection(): JSX.Element {
   return (
     <section>
       <h3 className="text-sm font-medium text-text-secondary mb-2">缓存管理</h3>
-      <div className="bg-surface-alt rounded-lg border border-border divide-y divide-border">
+      <div className="bg-surface-alt rounded-md border border-border divide-y divide-border">
 
         <div className="px-4 py-3 flex items-center justify-between">
           <div>
@@ -200,7 +200,7 @@ export function GeneralTab(): JSX.Element {
       {/* 路径 */}
       <section>
         <h3 className="text-sm font-medium text-text-secondary mb-2">默认项目路径</h3>
-        <div className="bg-surface-alt rounded-lg border border-border px-4 py-3">
+        <div className="bg-surface-alt rounded-md border border-border px-4 py-3">
           <input
             className="em-input w-full px-3 py-2 text-text-primary text-sm"
             placeholder="~/EasyMintProject"
@@ -214,7 +214,7 @@ export function GeneralTab(): JSX.Element {
       {/* Context threshold */}
       <section>
         <h3 className="text-sm font-medium text-text-secondary mb-2">上下文压缩阈值</h3>
-        <div className="bg-surface-alt rounded-lg border border-border px-4 py-3">
+        <div className="bg-surface-alt rounded-md border border-border px-4 py-3">
           <div className="flex items-center gap-3">
             <input
               type="range"

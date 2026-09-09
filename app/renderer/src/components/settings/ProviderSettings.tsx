@@ -389,7 +389,7 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
           <button onClick={onClose}
             className="h-8 px-4 whitespace-nowrap rounded-md border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消配置</button>
           <button onClick={() => saveRef.current?.save()}
-            className="h-8 px-4 whitespace-nowrap rounded-lg btn-accent text-xs font-medium shrink-0">保存供应商配置</button>
+            className="h-8 px-4 whitespace-nowrap rounded-md btn-accent text-xs font-medium shrink-0">保存供应商配置</button>
         </div>
       </div>
     </div>,
@@ -431,7 +431,7 @@ export function ProvidersManager() {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-text-primary">API 供应商</h3>
         <button onClick={() => setDialog({ mode: "add" })}
-          className="px-3 py-1 rounded-lg border border-accent text-accent text-xs font-medium hover:bg-accent-subtle transition-colors">
+          className="px-3 py-1 rounded-md border border-accent text-accent text-xs font-medium hover:bg-accent-subtle transition-colors">
           + 添加供应商
         </button>
       </div>

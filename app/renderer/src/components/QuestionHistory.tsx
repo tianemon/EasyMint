@@ -81,7 +81,7 @@ export function QuestionHistory({ sessionId, messages, onJump }: QuestionHistory
         type="button"
         onClick={() => setOpen((v) => !v)}
        
-        className="no-drag absolute top-1 right-[18px] z-float w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
+        className="no-drag absolute top-1 right-[18px] z-float w-8 h-8 rounded-md flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
       >
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </button>
@@ -143,7 +143,7 @@ export function QuestionHistory({ sessionId, messages, onJump }: QuestionHistory
                     key={q.id}
                     type="button"
                     onClick={() => { setOpen(false); onJump(q.id); }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-surface-hover transition-colors"
+                    className="w-full text-left px-3 py-2 rounded-md hover:bg-surface-hover transition-colors"
                   >
                     <div className="text-[length:var(--text-2xs)] text-text-secondary mb-0.5 tabular-nums">{formatTime(q.timestamp)}</div>
                     <div className="text-xs text-text-primary leading-snug line-clamp-2 break-words">{q.text}</div>
