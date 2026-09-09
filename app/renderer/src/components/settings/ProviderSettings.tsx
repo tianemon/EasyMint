@@ -335,9 +335,9 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       {!bare && (
         <div className="sticky bottom-0 -mx-6 px-6 pt-2 pb-1 flex justify-end gap-2 bg-surface-alt">
           {onCancel && (
-            <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-md border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消配置</button>
+            <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-[var(--radius-control)] border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消配置</button>
           )}
-          <button type="button" onClick={handleSave} className="px-4 py-1.5 rounded-md btn-accent text-xs font-medium">
+          <button type="button" onClick={handleSave} className="px-4 py-1.5 rounded-[var(--radius-control)] btn-accent text-xs font-medium">
             保存供应商配置
           </button>
         </div>
@@ -384,7 +384,7 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
           <span className="text-sm font-medium text-text-primary truncate flex-1 min-w-0">
             {initial ? `编辑供应商${initial.name ? ` · ${initial.name}` : ""}` : "添加供应商"}
           </span>
-          <button className="w-7 h-7 shrink-0 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} aria-label="关闭">✕</button>
+          <button className="w-7 h-7 shrink-0 flex items-center justify-center rounded-[var(--radius-control)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} aria-label="关闭">✕</button>
         </div>
         {/* 内容区:唯一滚动区——滚动条只存在于此,不会侵入底部操作栏。
             pb-4 与上方 pt-4 对称:滚到底时最后一块内容不贴底栏(间距靠内容区内边距,不靠底栏外边距) */}
