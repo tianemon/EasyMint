@@ -380,6 +380,7 @@ export function ModelManager({
   return (
     <div>
       <label className="text-xs text-text-secondary block mb-1.5">模型管理</label>
+      <p className="text-[length:var(--text-2xs)] text-text-muted -mt-1 mb-1.5">添加自定义模型，或调整官方模型的窗口、输出等参数</p>
       <div className="bg-surface-alt rounded-lg border border-border px-3 py-2.5 space-y-2.5">
         {/* 搜索 / 直接输入新 ID */}
         <div className="relative flex items-center gap-2">
