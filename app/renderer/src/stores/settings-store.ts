@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ApiProvidersData } from "@shared/platform-presets";
+import type { ApiProvidersData, ProviderConfig } from "@shared/platform-presets";
 import { useTabStore } from "./tab-store";
 
 /** 多色流光分组:一组命名色彩组合 */
@@ -56,10 +56,22 @@ function applyUiScale(scale: number): void {
   document.documentElement.style.setProperty("--ui-scale", String(scale));
 }
 
+/** 自添加模型的显示名映射(键 = SDK 请求标识 = 别名 ?? 名称)——别名只用于请求,界面一律显示名称 */
+function extraModelLabels(cfg?: ProviderConfig | null): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const item of cfg?.extraModels ?? []) {
+    const entry: { id: string; alias?: string } = typeof item === "string" ? { id: item } : item;
+    map[entry.alias || entry.id] = entry.id;
+  }
+  return map;
+}
+
 interface SettingsState {
   defaultProjectDir: string;
   model: string;
   availableModels: string[];
+  /** 模型显示名映射(键 = 请求标识):自添加模型显示名称而非别名;官方模型缺省不在此表 */
+  modelLabels: Record<string, string>;
   setupComplete: boolean;
   contextThreshold: number;
   /** 全局聊天思考等级(新聊天会话初始默认,不控制 agent/task) */
@@ -132,6 +144,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   defaultProjectDir: "~/EasyMintProject",
   model: "",
   availableModels: [],
+  modelLabels: {},
   apiProviders: null,
 
   setupComplete: false,
@@ -210,6 +223,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (activeCfg) {
       if (activeCfg.model) patch.model = activeCfg.model;
       if (activeCfg.models.length > 0) patch.availableModels = activeCfg.models;
+      patch.modelLabels = extraModelLabels(activeCfg);
     }
     set(patch);
     window.electronAPI?.settings?.set?.("apiProviders", data);
@@ -224,6 +238,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (activeCfg) {
       if (activeCfg.model) patch.model = activeCfg.model;
       if (activeCfg.models.length > 0) patch.availableModels = activeCfg.models;
+      patch.modelLabels = extraModelLabels(activeCfg);
     }
     set(patch);
     window.electronAPI?.settings?.set?.("apiProviders", next);
@@ -243,6 +258,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     try {
       if (window.electronAPI?.settings?.get) {
         const settings = await window.electronAPI.settings.get();
+        const providers = (settings.apiProviders as ApiProvidersData | undefined) ?? null;
         set({
           defaultProjectDir: settings.defaultProjectDir || "~/EasyMintProject",
           model: settings.model ?? "",
@@ -270,7 +286,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           activeStatusGroupLight: settings.activeStatusGroupLight ?? BUILTIN_STATUS_GROUP_LIGHT_ID,
           activeStatusGroupDark: settings.activeStatusGroupDark ?? BUILTIN_STATUS_GROUP_DARK_ID,
           setupComplete: settings.setupComplete ?? false,
-          apiProviders: (settings.apiProviders as ApiProvidersData) ?? null,
+          apiProviders: providers,
+          modelLabels: extraModelLabels(providers?.current ? providers.configs?.[providers.current] : undefined),
         });
         // 启动时应用字号 CSS 变量——否则设置只在拖动滑杆时生效,重启后回落默认值
         const chatScale = settings.chatFontScale ?? LEGACY_CHAT_FONT_SCALE[settings.chatFontLevel ?? 3] ?? 1;

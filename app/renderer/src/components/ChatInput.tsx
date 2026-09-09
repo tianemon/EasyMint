@@ -116,6 +116,8 @@ export const ChatInput = memo(function ChatInput({
     return () => { window.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
   }, [attachMenuOpen]);
   const availableModels = useSettingsStore((s) => s.availableModels);
+  // 自添加模型填了别名时,请求标识 ≠ 显示名:下拉按显示名展示(值仍是请求标识)
+  const modelLabels = useSettingsStore((s) => s.modelLabels);
   const indicatorOrder = useDelegationStore((s) => s.order);
   const ctxPct = useStatusStore((s) => s.bySession[sessionId]?.ctxPct ?? null);
   const summarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
@@ -345,7 +347,7 @@ export const ChatInput = memo(function ChatInput({
         <Select
           value={chatModel}
           onChange={onModelChange}
-          options={availableModels.length > 0 ? availableModels.map((m) => ({ value: m, label: m })) : [{ value: "", label: "暂无可选模型" }]}
+          options={availableModels.length > 0 ? availableModels.map((m) => ({ value: m, label: modelLabels[m] ?? m })) : [{ value: "", label: "暂无可选模型" }]}
         />
         {/* 思考等级标签:大脑图标(Lucide brain)——替换原「思考」文字;hover 悬浮名称(与缓存命中率一致向上) */}
         <Tooltip tip="思考等级" className="shrink-0">

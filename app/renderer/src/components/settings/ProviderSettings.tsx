@@ -2,47 +2,13 @@ import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "re
 import { createPortal } from "react-dom";
 import { useSettingsStore } from "../../stores/settings-store";
 import { getPreset } from "@shared/platform-presets";
-import type { ProviderConfig, ExtraModelCapability } from "@shared/platform-presets";
+import type { ProviderConfig, ExtraModelCapability, ModelParams } from "@shared/platform-presets";
 import { THINKING_ORDER, THINKING_LABELS } from "@shared/thinking-levels";
 import { Select, type SelectOption } from "../Select";
 import { BRAND_BY_PI_ID, providerSelectOptions } from "../../lib/provider-brands";
 import { toast } from "../ui/Toast";
 import { confirmDialog } from "../ui/ConfirmDialog";
-
-interface PiModelInfo {
-  id: string; name: string; contextWindow: number;
-}
-
-/** 上下文窗口预设(自动 = 按内置模型表推断,未知按 200000) */
-const CONTEXT_WINDOW_OPTIONS: SelectOption[] = [
-  { value: "auto", label: "自动" },
-  { value: "131072", label: "128K" },
-  { value: "200000", label: "200K" },
-  { value: "1000000", label: "1M" },
-  { value: "custom", label: "自定义" },
-];
-
-/** 最大输出预设(自动 = 按内置模型表推断,未知按 32768) */
-const MAX_OUTPUT_OPTIONS: SelectOption[] = [
-  { value: "auto", label: "自动" },
-  { value: "8192", label: "8K" },
-  { value: "16384", label: "16K" },
-  { value: "32768", label: "32K" },
-  { value: "65536", label: "64K" },
-  { value: "custom", label: "自定义" },
-];
-
-/** 窗口 token 数 → 标签文案(1000000 → 1M；向下取整避免 32768 显示成 33K) */
-function formatWindow(tokens: number): string {
-  return tokens >= 1000000 ? `${tokens / 1000000}M` : `${Math.floor(tokens / 1000)}K`;
-}
-
-/** 下拉 + 自定义输入 → token 数(自动/无效 → undefined,交给内置表推断) */
-function resolveTokenValue(selected: string, custom: string): number | undefined {
-  if (selected === "auto") return undefined;
-  const value = Number(selected === "custom" ? custom : selected);
-  return Number.isFinite(value) && value > 0 ? Math.round(value) : undefined;
-}
+import { ModelManager, type OfficialModelInfo } from "./ModelManager";
 
 export interface ProviderFormHandle {
   /** 校验并保存;成功返回 true(内部已调 onSave),失败(校验不过)返回 false */
@@ -67,35 +33,44 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const [name, setName] = useState(initial?.name || "");
   const [apiKey, setApiKey] = useState(initial?.apiKey || "");
   const [model, setModel] = useState(initial?.model || "");
-  const [models, setModels] = useState<string[]>(initial?.models || []);
-  // 用户手动补充的模型(内置供应商:SDK 模型外的自定义模型;如 glm-5.3 等新上线模型)
-  // string = 仅 ID(能力自动推断);对象 = 带显式能力声明(识图/上下文窗口)
-  const [extraModels, setExtraModels] = useState<Array<string | ExtraModelCapability>>(initial?.extraModels || []);
-  const [extraModelInput, setExtraModelInput] = useState("");
-  // 添加/编辑模型的能力声明(写入 models.json,优先于按内置表推断的值)
-  const [extraVision, setExtraVision] = useState(false);
-  const [extraCtx, setExtraCtx] = useState<string>("auto");
-  const [extraCtxCustom, setExtraCtxCustom] = useState<string>("");
-  const [extraMaxOut, setExtraMaxOut] = useState<string>("auto");
-  const [extraMaxOutCustom, setExtraMaxOutCustom] = useState<string>("");
-  const [editingExtra, setEditingExtra] = useState<string | null>(null);
+  // 官方目录模型(含展示名/窗口;null = 未加载,此时沿用配置里缓存的列表)
+  const [officialModels, setOfficialModels] = useState<OfficialModelInfo[] | null>(null);
+  // 官方目录外的自添加模型。string = 存量仅 ID 条目(参数未声明,需在模型管理区补填);
+  // 对象 = 带显式参数声明(窗口/输出必填)。自定义供应商的模型清单也存这里。
+  const [extraModels, setExtraModels] = useState<Array<string | ExtraModelCapability>>(() => {
+    const list = [...(initial?.extraModels ?? [])];
+    if (isCustom) {
+      // 旧版自定义供应商用 textarea 存模型清单(config.models),并入 extraModels 统一管理
+      const known = new Set(list.map((e) => (typeof e === "string" ? e : (e.alias || e.id))));
+      for (const id of initial?.models ?? []) if (!known.has(id)) list.push(id);
+    }
+    return list;
+  });
+  // 官方模型的参数覆盖(key 存在即代表纳管,空对象 = 参数全跟随官方)
+  const [overrides, setOverrides] = useState<Record<string, ModelParams>>(initial?.modelOverrides ?? {});
   // 该供应商的 task 子 Agent 默认模型(per-provider)
   const [subagentDefaultModel, setSubagentDefaultModel] = useState<string>(initial?.subagentDefaultModel || "");
   // 自定义供应商字段
   const [baseUrl, setBaseUrl] = useState<string>((initial as any)?.baseUrl || "");
   const [apiType, setApiType] = useState<string>((initial as any)?.apiType || "anthropic-messages");
-  const [customModelsText, setCustomModelsText] = useState<string>(initial?.models?.join("\n") || "");
   const [showKey, setShowKey] = useState(false);
-  const [loadingModels, setLoadingModels] = useState(false);
-  const [loadedProvider, setLoadedProvider] = useState<string>("");
+  // 已拉过官方目录的供应商(时序值:只影响加载去重,不进渲染)
+  const loadedProviderRef = useRef<string>("");
   // 按模型设置思考等级(存 Pi 全局设置,键 <provider>/<modelId>);空 = 跟随全局
   const [modelLevels, setModelLevels] = useState<Record<string, string>>({});
   const [savedModelLevels, setSavedModelLevels] = useState<Record<string, string>>({});
-  // 可选的模型列表:内置供应商 = SDK 模型 + 用户补充(去重);自定义从 textarea 解析
-  const extraIds = extraModels.map((e) => (typeof e === "string" ? e : e.id));
+  // 可选的模型列表(值 = SDK 请求标识):内置供应商 = 官方目录 + 自添加;自定义 = 自添加
+  const extraEntries: Array<{ id: string; alias?: string }> = extraModels.map((e) => (typeof e === "string" ? { id: e } : e));
+  const extraSdkIds = extraEntries.map((e) => e.alias || e.id);
+  const officialIds = officialModels ? officialModels.map((m) => m.id) : (initial?.models ?? []);
   const availableModels = isCustom
-    ? customModelsText.split("\n").map((s) => s.trim()).filter(Boolean)
-    : Array.from(new Set([...models, ...extraIds]));
+    ? Array.from(new Set(extraSdkIds))
+    : Array.from(new Set([...officialIds, ...extraSdkIds]));
+  // 显示名:自添加模型用名称,官方模型用官方名,查不到回落请求标识(别名不该出现在界面上)
+  const labelOf = (sdkId: string): string => {
+    const extra = extraEntries.find((e) => (e.alias || e.id) === sdkId);
+    return extra?.id ?? officialModels?.find((m) => m.id === sdkId)?.name ?? sdkId;
+  };
 
   // 每个模型支持的思考等级(静态模型规格查表,经 agent:getModelThinkingSupport);
   // 值 undefined = 未拉到,null = 规格未知 → 下拉按全部档位展示(与聊天页行为一致)
@@ -134,92 +109,29 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     }).catch(() => {});
   }, [levelProviderKey]);
 
-  /** 把表单里的能力声明组装成条目;forceObject = 编辑态保存——总是写对象并显式声明 input
-   *  (未勾选识图写 ["text"]),否则取消勾选后旧条目里的 image 声明会从 handWritten 回流 */
-  const buildExtraEntry = (id: string, forceObject = false): string | ExtraModelCapability => {
-    // 窗口/输出留空 = 未声明(数据层按 200000/32768 回落);必填校验由模型管理区重构承接
-    const cap = { id, input: extraVision ? ["text", "image"] : ["text"] } as ExtraModelCapability;
-    const ctx = resolveTokenValue(extraCtx, extraCtxCustom);
-    if (ctx) cap.contextWindow = ctx;
-    const maxOut = resolveTokenValue(extraMaxOut, extraMaxOutCustom);
-    if (maxOut) cap.maxTokens = maxOut;
-    return forceObject || extraVision || ctx || maxOut ? cap : id;
-  };
-
-  const resetExtraForm = () => {
-    setEditingExtra(null);
-    setExtraModelInput("");
-    setExtraVision(false);
-    setExtraCtx("auto");
-    setExtraCtxCustom("");
-    setExtraMaxOut("auto");
-    setExtraMaxOutCustom("");
-  };
-
-  // 添加补充模型:去重(与 SDK 模型及已添加的合并),重复则忽略
-  const addExtraModel = (raw: string) => {
-    const id = raw.trim();
-    if (!id) return;
-    if (availableModels.includes(id)) { setExtraModelInput(""); return; } // 已存在,忽略
-    setExtraModels((prev) => [...prev, buildExtraEntry(id)]);
-    if (!model) setModel(id);
-    resetExtraForm();
-  };
-
-  /** 点标签进入编辑态:把该条目的能力声明回填到表单 */
-  const startExtraEdit = (id: string) => {
-    const found = extraModels.find((e) => (typeof e === "string" ? e : e.id) === id);
-    const cap = typeof found === "string" || !found ? null : found;
-    setEditingExtra(id);
-    setExtraModelInput(id);
-    setExtraVision(cap?.input?.includes("image") ?? false);
-    const ctx = cap?.contextWindow;
-    if (!ctx) { setExtraCtx("auto"); setExtraCtxCustom(""); }
-    else if (["131072", "200000", "1000000"].includes(String(ctx))) { setExtraCtx(String(ctx)); setExtraCtxCustom(""); }
-    else { setExtraCtx("custom"); setExtraCtxCustom(String(ctx)); }
-    const mt = cap?.maxTokens;
-    if (!mt) { setExtraMaxOut("auto"); setExtraMaxOutCustom(""); }
-    else if (["8192", "16384", "32768", "65536"].includes(String(mt))) { setExtraMaxOut(String(mt)); setExtraMaxOutCustom(""); }
-    else { setExtraMaxOut("custom"); setExtraMaxOutCustom(String(mt)); }
-  };
-
-  const saveExtraModel = () => {
-    if (!editingExtra) return;
-    const id = editingExtra;
-    setExtraModels((prev) => prev.map((e) => ((typeof e === "string" ? e : e.id) === id ? buildExtraEntry(id, true) : e)));
-    resetExtraForm();
-  };
-
-  const removeExtraModel = (id: string) => {
-    setExtraModels((prev) => prev.filter((e) => (typeof e === "string" ? e : e.id) !== id));
-    if (editingExtra === id) resetExtraForm();
-  };
-
-  // 初始化：编辑已有供应商时自动加载模型列表
+  // 初始化：编辑已有供应商时自动加载官方模型列表
   useEffect(() => {
-    if (presetId && presetId !== loadedProvider && presetId !== "custom") {
-      setLoadedProvider(presetId);
+    if (presetId && presetId !== loadedProviderRef.current && presetId !== "custom") {
+      loadedProviderRef.current = presetId;
       loadModels(presetId);
     }
   }, [presetId]);
 
   const handlePresetSelect = async (id: string) => {
     setPresetId(id);
-    if (id === "custom") return;  // 自定义供应商不拉模型列表
+    if (id === "custom") return;  // 自定义供应商不拉官方目录
     // 自动填名称(用户未填写时);加载模型列表
     if (brand && !name.trim()) setName(brand.name);
     loadModels(id);
   };
 
   const loadModels = async (providerId: string) => {
-    setLoadingModels(true);
     try {
-      const piModels: PiModelInfo[] = await window.electronAPI.agent.getPiModels(providerId);
-      const ids = piModels.map((m) => m.id);
-      setModels(ids);
-      if (!model && ids.length > 0 && ids[0]) setModel(ids[0]);
+      const piModels: OfficialModelInfo[] = [...await window.electronAPI.agent.getPiModels(providerId)];
+      setOfficialModels(piModels);
+      const first = piModels[0]?.id;
+      if (!model && first) setModel(first);
     } catch (e) { console.error("[ProviderForm] loadModels failed:", e); }
-    finally { setLoadingModels(false); }
   };
 
 
@@ -227,9 +139,10 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     if (!name.trim()) { toast("请输入名称"); return false; }
     if (!apiKey.trim()) { toast("请输入 API Key"); return false; }
     if (isCustom && !baseUrl.trim()) { toast("自定义供应商需填写 Base URL"); return false; }
+    // 模型清单统一为 SDK 请求标识(别名 ?? 名称):聊天页切换与主进程解析都按它找模型
     const modelList = isCustom
-      ? customModelsText.split("\n").map((s) => s.trim()).filter(Boolean)
-      : Array.from(new Set([...models, ...extraIds]));
+      ? Array.from(new Set(extraSdkIds))
+      : Array.from(new Set([...officialIds, ...extraSdkIds]));
     const cfg: ProviderConfig = {
       id: initial?.id || `${(presetId || "custom")}-${Date.now()}`,
       presetId: isCustom ? "custom" : presetId,
@@ -237,7 +150,8 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       apiKey: apiKey.trim(),
       model: model || (modelList[0] ?? ""),
       models: modelList,
-      extraModels: isCustom ? undefined : extraModels, // 自定义供应商用 textarea,不存 extra
+      extraModels: extraModels.length > 0 ? extraModels : undefined,
+      modelOverrides: Object.keys(overrides).length > 0 ? overrides : undefined,
       subagentDefaultModel: subagentDefaultModel || undefined,
       createdAt: initial?.createdAt || Date.now(),
       baseUrl: isCustom ? baseUrl.trim() || undefined : undefined,
@@ -330,129 +244,31 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
         </div>
       </div>
 
-      {/* 模型(默认):该供应商的默认模型(下拉,替代按钮列表,更紧凑;内置/自定义通用) */}
+      {/* 模型(默认):该供应商的默认模型(下拉;值 = SDK 请求标识,显示名走 labelOf) */}
       <div>
         <label className="text-xs text-text-secondary block mb-1.5">模型(默认)</label>
         <Select
           block
-          placeholder={loadingModels ? "加载中…" : (availableModels.length === 0 ? "无可用模型" : "选择模型")}
+          placeholder={!isCustom && officialModels === null ? "加载中…" : (availableModels.length === 0 ? "无可用模型" : "选择模型")}
           value={model}
           onChange={(v: string) => setModel(v)}
-          options={availableModels.map((m) => ({ value: m, label: m }))}
+          options={availableModels.map((m) => ({ value: m, label: labelOf(m) }))}
          
         />
         {availableModels.length > 0 && <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">共 {availableModels.length} 个模型可选</p>}
       </div>
 
-      {/* 自定义模型:SDK 列表外的模型(新上线/未收录)手动补充,合并去重(仅内置供应商)。
-          能力声明随条目保存,写 models.json 时优先于按内置表推断的值 */}
-      {!isCustom && (
-        <div>
-          <label className="text-xs text-text-secondary block mb-1.5">自定义模型</label>
-          <div className="bg-surface-alt rounded-lg border border-border px-3 py-2.5 space-y-2.5">
-            <div className="flex items-center gap-2">
-              <input
-                className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary disabled:opacity-60"
-                placeholder="模型 ID（如 glm-5.3）"
-                value={extraModelInput}
-                onChange={(e) => setExtraModelInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") (editingExtra ? saveExtraModel() : addExtraModel(extraModelInput)); }}
-                disabled={!!editingExtra}
-              />
-              {editingExtra ? (<>
-                <button type="button" className="shrink-0 px-3 h-8 rounded-lg btn-accent text-xs font-medium" onClick={saveExtraModel}>保存</button>
-                <button type="button" className="shrink-0 px-3 h-8 rounded-lg border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors" onClick={resetExtraForm}>取消</button>
-              </>) : (
-                <button
-                  type="button"
-                  className="shrink-0 px-3 h-8 rounded-lg btn-accent text-xs font-medium"
-                  onClick={() => addExtraModel(extraModelInput)}
-                  disabled={!extraModelInput.trim()}
-                >
-                  添加
-                </button>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <label className="flex items-center gap-1.5 text-[length:var(--text-2xs)] text-text-secondary cursor-pointer">
-                <input type="checkbox" className="w-3.5 h-3.5 rounded accent-accent shrink-0"
-                  checked={extraVision} onChange={(e) => setExtraVision(e.target.checked)} />
-                支持识图
-              </label>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[length:var(--text-2xs)] text-text-secondary">上下文窗口</span>
-                <Select
-                  className="w-[66px] [&>button]:w-full [&>button]:h-7 [&>button]:text-xs"
-                  value={extraCtx}
-                  onChange={(v: string) => setExtraCtx(v)}
-                  options={CONTEXT_WINDOW_OPTIONS}
-                />
-                {extraCtx === "custom" && (
-                  <input
-                    className="em-input w-[88px] h-7 px-2 text-xs text-text-primary"
-                    placeholder="如 512000"
-                    value={extraCtxCustom}
-                    onChange={(e) => setExtraCtxCustom(e.target.value)}
-                  />
-                )}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[length:var(--text-2xs)] text-text-secondary">最大输出</span>
-                <Select
-                  className="w-[66px] [&>button]:w-full [&>button]:h-7 [&>button]:text-xs"
-                  value={extraMaxOut}
-                  onChange={(v: string) => setExtraMaxOut(v)}
-                  options={MAX_OUTPUT_OPTIONS}
-                />
-                {extraMaxOut === "custom" && (
-                  <input
-                    className="em-input w-[88px] h-7 px-2 text-xs text-text-primary"
-                    placeholder="如 384000"
-                    value={extraMaxOutCustom}
-                    onChange={(e) => setExtraMaxOutCustom(e.target.value)}
-                  />
-                )}
-              </div>
-            </div>
-            {extraModels.length > 0 && (
-              <div className="space-y-1.5">
-                <div className="text-[length:var(--text-2xs)] text-text-muted">已添加 {extraModels.length} 个</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {extraModels.map((e) => {
-                    const id = typeof e === "string" ? e : e.id;
-                    const cap = typeof e === "string" ? null : e;
-                    const chips = [
-                      cap?.input?.includes("image") ? "识图" : "纯文本",
-                      `窗口 ${cap?.contextWindow ? formatWindow(cap.contextWindow) : "自动"}`,
-                      `输出 ${cap?.maxTokens ? formatWindow(cap.maxTokens) : "自动"}`,
-                    ];
-                    return (
-                      <div key={id} className="inline-flex flex-col gap-1.5 px-2 py-1.5 rounded-lg bg-accent-high">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            className="max-w-[180px] truncate text-left text-[length:var(--text-2xs)] font-medium text-accent transition-opacity hover:opacity-70"
-                            title={`${id}（点击编辑能力）`}
-                            onClick={() => startExtraEdit(id)}
-                          >
-                            {id}
-                          </button>
-                          <button type="button" className="shrink-0 text-accent hover:text-danger transition-colors" onClick={() => removeExtraModel(id)}>✕</button>
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {chips.map((c) => (
-                            <span key={c} className="px-1.5 py-px rounded-[4px] bg-surface text-[length:var(--text-2xs)] text-text-secondary">{c}</span>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* 模型管理:官方目录模型与自添加模型统一列表(参数编辑 / 恢复官方 / 移除) */}
+      <ModelManager
+        isCustom={isCustom}
+        officialModels={officialModels}
+        defaultModel={model}
+        overrides={overrides}
+        extraModels={extraModels}
+        modelSupports={modelSupports}
+        onDefaultModelChange={setModel}
+        onChange={(next) => { setOverrides(next.overrides); setExtraModels(next.extraModels); }}
+      />
 
       {/* 按模型设置思考等级:不同模型支持的等级不同,全局等级会被裁到该模型支持的最近档位;
           这里可给单个模型固定等级,优先于全局设置(自定义供应商需已保存过,要用到其供应商 id) */}
@@ -484,7 +300,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
                 }
                 return (
                   <div key={m} className="flex items-center gap-2">
-                    <span className="flex-1 min-w-0 truncate text-xs font-mono text-text-primary" title={m}>{m}</span>
+                    <span className="flex-1 min-w-0 truncate text-xs text-text-primary" title={m}>{labelOf(m)}</span>
                     <Select
                       className="shrink-0 w-[112px] [&>button]:w-full [&>button]:text-xs"
                       value={cur}
@@ -499,21 +315,6 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
           </div>
         );
       })()}
-
-      {isCustom && (<>
-      {/* 自定义供应商:模型列表 */}
-      <div>
-        <label className="text-xs text-text-secondary block mb-1.5">模型列表(每行一个模型 ID)</label>
-        <textarea
-          className="em-input w-full px-2.5 py-1.5 text-xs text-text-primary resize-none"
-          rows={5}
-          placeholder={"model-1\nmodel-2\nmodel-3"}
-          value={customModelsText}
-          onChange={(e) => setCustomModelsText(e.target.value)}
-        />
-        <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">保存后在模型下拉中可选</p>
-      </div>
-      </>)}
 
       {/* 子 Agent 默认模型:task 工具委派子 Agent 未指定时用(per-provider 配置)。
           mb-1.5:弹窗(bare)下此块是滚动区最后内容,与底部操作栏之间留 6px 呼吸;
@@ -530,7 +331,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
           placeholder={availableModels.length === 0 ? "无可用模型" : "可选"}
           value={subagentDefaultModel}
           onChange={(v: string) => setSubagentDefaultModel(v)}
-          options={availableModels.map((m) => ({ value: m, label: m }))}
+          options={availableModels.map((m) => ({ value: m, label: labelOf(m) }))}
          
         />
       </div>
