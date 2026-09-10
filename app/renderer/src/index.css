@@ -1571,6 +1571,8 @@ body:has([class*="z-dialog"], [class*="z-modal"]) .sidebar { -webkit-app-region:
    提取原因：同一材质多处引用，改一处生效——此前两处各写一份内联 style。 */
 .em-glass {
   background: color-mix(in oklab, var(--glass-base, var(--color-surface-elevated)) 65%, transparent);
+  /* 只写标准属性：构建时 Lightning CSS 会把「标准 + -webkit-」这对合并成一个——实测只保留前缀版，
+     而 Chromium 根本不认 -webkit-backdrop-filter（前缀版静默失效，毛玻璃退化成半透明底），
+     于是 dev 正常、打包后模糊丢失。前缀由构建工具按 browser targets 自行补。 */
   backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
 }

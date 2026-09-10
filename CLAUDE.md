@@ -101,6 +101,7 @@
 - **提交信息与 CHANGELOG 客观化**：客观描述「修复了什么/新增了什么/优化了什么」，禁止口语化、禁止主观评价（「好看了」「改坏了」等）、禁止按个人上下文思路写（如「因为我理解错了所以…」）——思路/排查过程/决策记录写进 `docs/开发记录/`，不进提交信息与 CHANGELOG
 - **两处提交（主仓库 + docs 本地仓库）**：`docs/` 是独立本地 git 仓库（无 remote，不推送，2026-08-29 建立）——docs 改动在 `docs/` 内提交（`cd docs && git add -A && git commit`），主仓库（代码/README/CHANGELOG）照常提交——**两处分开提交，互不混入**
 - **图标优先用 SVG**：优先使用 SVG 绘制精致图标，降低 emoji 使用率。SVG 可精确控制颜色、尺寸、动效，跨平台一致性好，emoji 在不同 OS 下渲染效果差异大
+- **CSS 前缀不手写**：不要成对写 `standard` + `-webkit-standard`（如 `backdrop-filter` + `-webkit-backdrop-filter`）——生产构建（Lightning CSS）会把这对合并成**只剩前缀版**，而 Chromium 不认该前缀属性（静默失效，无报错），造成「dev 正常 / 打包失效」。只写标准属性，前缀由构建工具按 targets 自行补
 
 ### 注释规范
 
