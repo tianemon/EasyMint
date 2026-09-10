@@ -330,7 +330,8 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       />
 
       {/* 保存/取消条(仅非 bare 宿主,如 Onboarding 内联场景):sticky 底部始终可见。
-          设计语言:底部分区不用横线,靠 bg-surface-alt 底色分区 */}
+          **例外保留底色**:本栏 sticky 在滚动区之内,去底色会让内容从栏下露出;
+          独立弹窗(ProviderFormDialog)的头/尾栏在滚动区之外,不设色块分区 */}
       {!bare && (
         <div className="sticky bottom-0 -mx-6 px-6 pt-2 pb-1 flex justify-end gap-2 bg-surface-alt">
           {onCancel && (
@@ -348,8 +349,8 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
 
 // ── 供应商表单独立弹窗 ────────────────────────────────────────────
 
-/** 添加/编辑供应商的独立弹窗。视觉遵循设计语言(2026-09-06 拍板):
- *  头/尾与内容间不做分隔横线,靠 bg-surface-alt 底色 + 留白分区;头 py-1.5 / 尾 py-1
+/** 添加/编辑供应商的独立弹窗。视觉遵循设计语言：
+ *  头/尾与内容同为面板面(不设色块分区、不做分隔横线),靠留白分隔;头 py-1.5 / 尾 py-1
  *  收紧(仅比按钮高一点);点遮罩 / Esc / ✕ / 取消 关闭。
  *  Portal 到 body:设置弹窗面板带 transform(scale)会劫持 fixed 包含块;
  *  Esc 用捕获阶段 + stopImmediatePropagation——下层设置弹窗的 Esc( bubble 监听)
@@ -383,8 +384,8 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
         style={{ width: 580, height: "min(640px, calc(100vh - 96px))" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 头部:底色分区(无分隔线),仅比文字高一点 */}
-        <div className="flex items-center gap-2 px-4 py-1.5 bg-surface-alt shrink-0">
+        {/* 头部:与内容/底部同为面板面(不设色块分区),仅比文字高一点 */}
+        <div className="flex items-center gap-2 px-4 py-1.5 shrink-0">
           <span className="text-sm font-medium text-text-secondary truncate flex-1 min-w-0">
             {initial ? `编辑供应商${initial.name ? ` · ${initial.name}` : ""}` : "添加供应商"}
           </span>
@@ -395,8 +396,8 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
         <div className="settings-body flex-1 min-h-0 overflow-y-auto px-6 pt-4 pb-4">
           <ProviderForm ref={saveRef} bare initial={initial} onSave={onSave} onCancel={onClose} />
         </div>
-        {/* 底部操作栏:滚动区外(flex 列结构),与头部同底色分区,无分隔线 */}
-        <div className="flex items-center justify-end gap-2 px-4 py-1 bg-surface-alt shrink-0">
+        {/* 底部操作栏:滚动区外(flex 列结构),与头部一致不用色块分区,无分隔线 */}
+        <div className="flex items-center justify-end gap-2 px-4 py-1 shrink-0">
           <button onClick={onClose}
             className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消配置</button>
           <button onClick={() => saveRef.current?.save()}

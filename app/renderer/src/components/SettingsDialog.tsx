@@ -107,8 +107,9 @@ export function SettingsDialog({ open, onClose, initialTab, projectPath }: Setti
           ) : null}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-6 py-2 bg-surface-alt">
+        {/* Footer：与顶部一致——不设色块分区（不加 bg-surface-alt），整窗一个面色；
+            操作区与内容区的分隔靠内边距，底部在滚动区之外不会与内容重叠 */}
+        <div className="flex items-center justify-end gap-2 px-6 py-2">
           <button
             className="px-5 py-1.5 rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors text-sm"
             onClick={handleClose}

@@ -122,7 +122,7 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
         }}
       >
         {/* 头部:命令 + 状态 + 停止(onStop) + 日志路径(logPath) + 关闭 */}
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-surface-alt shrink-0">
+        <div className="flex items-center gap-2 px-4 py-2.5 shrink-0">
           {running && (
             <svg className="animate-spin text-accent shrink-0" width="13" height="13" viewBox="0 0 16 16" fill="none">
               <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
@@ -194,7 +194,7 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
 
         {/* 底部附加区（可选——LogOverlay 的修复按钮等） */}
         {footer && (
-          <div className="shrink-0 px-4 py-2 bg-surface-alt/60">{footer}</div>
+          <div className="shrink-0 px-4 py-2">{footer}</div>
         )}
 
         {/* 回底按钮:滚离底部时显示,点击贴底并恢复自动跟随 */}

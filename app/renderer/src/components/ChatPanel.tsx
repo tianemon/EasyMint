@@ -30,6 +30,7 @@ import { BubbleActions, roleColor, DocIcon } from "./ChatBubbleActions";
 import { AskUserCard } from "./AskUserCard";
 import { useAskStore } from "../stores/ask-store";
 import { LearnCard } from "./LearnCard";
+import { UserMessageText } from "./UserMessageText";
 import { useLearnStore } from "../stores/learn-store";
 
 
@@ -2616,8 +2617,8 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
       <div className="msg-in" onContextMenu={(e) => onContextMenu(msg, e)}>
         <div className="flex justify-end">
           {/* shrink-0：flex 子项不被压缩（中文 min-content 是单字，压缩会逐字换行）；
-             max-w-[75%]：超长文本钳制宽度后由内部 overflow-wrap 换行 */}
-          <div className="relative shrink-0 max-w-[75%] min-w-0" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
+             max-w-[60%]：超长文本钳制宽度后由内部 overflow-wrap 换行 */}
+          <div className="relative shrink-0 max-w-[60%] min-w-0" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
             {userBubble(msg)}
             <BubbleActions text={copyText} onPin={onPin} sid={sid} visible={actionsVisible} />
           </div>
@@ -2684,7 +2685,7 @@ function UserBubble({ msg, editable, editing, draft, onStartEdit, onDraftChange,
   const isEditing = !!editing;
   const curDraft = draft ?? "";
   return (
-    /* 宽度钳制由外层 relative（shrink-0 max-w-[75%]）负责；
+    /* 宽度钳制由外层 relative（shrink-0 max-w-[60%]）负责；
        此处不再设 max-w/w-fit，避免相对 fit-content 层的循环依赖导致短文本被压窄 */
     <div className="flex gap-4 items-start">
       <div className="min-w-0">
@@ -2695,7 +2696,7 @@ function UserBubble({ msg, editable, editing, draft, onStartEdit, onDraftChange,
             {msg.attaches.map((a, i) => (
               a.kind === "image" ? (
                 a.dataUrl ? (
-                  <img key={`img-${i}`} src={a.dataUrl} alt={a.name} className="max-w-[260px] max-h-[220px] rounded-[var(--radius-lg)] object-contain cursor-zoom-in hover:opacity-90 transition-opacity" onClick={() => { if (a.dataUrl) onViewImage?.(a.dataUrl, a.name); }} />
+                  <img key={`img-${i}`} src={a.dataUrl} alt={a.name} className="max-w-[min(260px,100%)] max-h-[220px] rounded-[var(--radius-lg)] object-contain cursor-zoom-in hover:opacity-90 transition-opacity" onClick={() => { if (a.dataUrl) onViewImage?.(a.dataUrl, a.name); }} />
                 ) : (
                   <div key={`doc-${i}`} className="flex items-center gap-1.5 px-2 py-1 rounded-[var(--radius-lg)] bg-white/10 max-w-[200px]">
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-4 h-4 shrink-0"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><circle cx="5" cy="6" r="1.3"/><path d="M1.5 11l3.5-3.5 2.5 2.5 3-4 4 5"/></svg>
@@ -2741,7 +2742,8 @@ function UserBubble({ msg, editable, editing, draft, onStartEdit, onDraftChange,
             </button>
           </div>
         ) : (
-          msg.text ? <div className="whitespace-pre-wrap [overflow-wrap:anywhere] min-w-0">{msg.text}</div> : null
+          /* 封顶规格见 UserMessageText（主聊天与子 Agent 过程视图共用，避免两份实现） */
+          msg.text ? <UserMessageText text={msg.text} /> : null
         )}
         </div>
         {editable && !isEditing && (

@@ -3,6 +3,7 @@ import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { ChatMessage, mapSessionMessages, piBlocksToEntries, mergeConsecutiveText } from "./chat-utils";
 import { useDelegationStore } from "../stores/delegation-store";
 import { Modal } from "./ui/Modal";
+import { UserMessageText } from "./UserMessageText";
 
 /**
  * 子 Agent 过程查看弹层 — 精简只读聊天视图。
@@ -152,26 +153,24 @@ export function SubagentProcessView({
       <div
         className="relative flex flex-col w-[80vw] h-[80vh] rounded-[var(--radius-lg)] border border-border bg-[var(--modal-fill)] shadow-2xl overflow-hidden"
       >
-        {/* 头部:spinner + 标题 + 状态 + 关闭(思考/工具与主聊天一致常显,无显示开关) */}
-        <div className="bg-accent-bg">
-          <div className="flex items-center gap-2 px-4 py-2.5">
-            <svg className="animate-spin text-accent shrink-0" width="13" height="13" viewBox="0 0 16 16" fill="none">
-              <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
-              <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <span className="text-sm font-medium text-text-primary truncate flex-1">{title || "AI 助手"}</span>
-            <span className={`text-[length:var(--text-11)] shrink-0 flex items-center gap-1 ${running ? "text-success" : "text-text-muted"}`}>
-              {running && <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />}
-              {running ? "运行中" : "已结束"}
-            </span>
-            <button
-              type="button"
-              onClick={onClose}
-              className="shrink-0 w-6 h-6 rounded-[var(--radius-lg)] flex items-center justify-center text-text-secondary hover:bg-accent-bg hover:text-text-primary transition-colors"
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-            </button>
-          </div>
+        {/* 头部:spinner + 标题 + 状态 + 关闭（与内容/底部同为面板面，不设色块分区——对齐输出窗口与其他弹窗） */}
+        <div className="flex items-center gap-2 px-4 py-2.5">
+          <svg className="animate-spin text-accent shrink-0" width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
+            <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <span className="text-sm font-medium text-text-primary truncate flex-1">{title || "AI 助手"}</span>
+          <span className={`text-[length:var(--text-11)] shrink-0 flex items-center gap-1 ${running ? "text-success" : "text-text-muted"}`}>
+            {running && <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />}
+            {running ? "运行中" : "已结束"}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 w-6 h-6 rounded-[var(--radius-lg)] flex items-center justify-center text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
         </div>
 
         {/* 消息区(思考/工具与主聊天一致常显;可选中复制) */}
@@ -240,7 +239,7 @@ function SubagentMessage({ msg, running, streamTail }: { msg: ChatMessage; runni
   if (msg.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="msg-bubble-user rounded-[var(--radius-lg)] rounded-br-[4px] px-[14px] py-1.5 leading-[1.55] whitespace-pre-wrap break-words max-w-[80%]">{msg.text}</div>
+        <div className="msg-bubble-user rounded-[var(--radius-lg)] rounded-br-[4px] px-[14px] py-1.5 leading-[1.55] max-w-[60%]">{msg.text && <UserMessageText text={msg.text} />}</div>
       </div>
     );
   }

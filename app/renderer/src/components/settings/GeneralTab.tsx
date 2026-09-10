@@ -3,11 +3,14 @@ import { useSettingsStore } from "../../stores/settings-store";
 
 // ── Git Check ─────────────────────────────────────────────────────────────────
 
+type DetectInfo = { found: boolean; version?: string; reason?: "not-found" | "probe-error" };
+
 function useDetect(cmd: "git" | "nodeRuntime" | "codegraph") {
-  const [info, setInfo] = useState<{ found: boolean; version?: string } | null>(null);
+  const [info, setInfo] = useState<DetectInfo | null>(null);
   const [nonce, setNonce] = useState(0);
   useEffect(() => {
-    window.electronAPI?.[cmd]?.detect().then(setInfo).catch(() => setInfo({ found: false }));
+    // IPC 层报错也是「探测失败」而非「没装」——避免把异常断言成未安装
+    window.electronAPI?.[cmd]?.detect().then(setInfo).catch(() => setInfo({ found: false, reason: "probe-error" }));
   }, [cmd, nonce]);
   /** 重新检测：先置空显示「检测中...」，再触发一次 IPC——装了工具但没重启 EM 时用它重测 */
   const refresh = useCallback(() => {
@@ -19,7 +22,7 @@ function useDetect(cmd: "git" | "nodeRuntime" | "codegraph") {
 
 function EnvRow({ label, info, installUrl }: {
   label: string;
-  info: { found: boolean; version?: string } | null;
+  info: DetectInfo | null;
   installUrl?: string;
 }) {
   return (
@@ -48,9 +51,10 @@ function EnvRow({ label, info, installUrl }: {
   );
 }
 
-function CodegraphRow({ info }: { info: { found: boolean; version?: string } | null }) {
-  // 按平台给对应安装器：Windows 用 PowerShell 脚本，其余平台用 shell 脚本
-  const cmd = window.electronAPI?.platform === "win32"
+function CodegraphRow({ info }: { info: DetectInfo | null }) {
+  // Windows 无 sh：原 curl|sh 在 PowerShell/cmd 下必失败，按平台给对应安装器
+  const isWin = window.electronAPI?.platform === "win32";
+  const cmd = isWin
     ? "irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex"
     : "curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh";
   const [copied, setCopied] = useState(false);
@@ -69,11 +73,13 @@ function CodegraphRow({ info }: { info: { found: boolean; version?: string } | n
           <span className="text-xs text-text-muted">检测中...</span>
         ) : info.found ? (
           <span className="text-xs text-text-secondary">{info.version}</span>
+        ) : info.reason === "probe-error" ? (
+          <span className="text-xs text-danger">检测失败，可点「重新检测」重试</span>
         ) : (
           <span className="text-xs text-danger">未安装</span>
         )}
       </div>
-      {info && !info.found && (
+      {info && !info.found && info.reason !== "probe-error" && (
         <div className="flex flex-col items-end gap-1.5">
           <div className="flex items-center gap-1">
             <code className="text-[length:var(--text-2xs)] text-text-secondary bg-surface px-2 py-0.5 rounded-[var(--radius-lg)] select-all">{cmd}</code>
@@ -85,7 +91,7 @@ function CodegraphRow({ info }: { info: { found: boolean; version?: string } | n
             </button>
           </div>
           <span className="text-[length:var(--text-2xs)] text-text-muted">
-            https://github.com/colbymchenry/codegraph
+            {isWin ? "在 PowerShell 中运行 · " : ""}https://github.com/colbymchenry/codegraph
           </span>
         </div>
       )}
@@ -103,7 +109,7 @@ function EnvCheckSection(): JSX.Element {
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-medium text-text-secondary">环境检测</h3>
         <button
-          className="px-2 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-11)] text-text-secondary em-hover-control transition-shadow"
+          className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary em-hover-control transition-shadow"
           onClick={() => { git.refresh(); nodeRt.refresh(); codegraph.refresh(); }}
         >
           重新检测

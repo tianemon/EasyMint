@@ -596,11 +596,12 @@ function useFoldBody(open: boolean, setOpen: (v: boolean) => void): {
   toggle: () => void;
 } {
   // 内容是否挂载(渲染于 grid 内;未挂载 = 零宽度贡献)
-  const [bodyMounted, setBodyMounted] = useState(false);
+  // 初值跟随 open:默认展开的块(提问卡)首帧就得有内容——只由 toggle 挂载会让它「展开却空白」
+  const [bodyMounted, setBodyMounted] = useState(open);
   // 首帧挂载后动画才就绪:挂载同一帧切 1fr 无过渡(从 0fr 起步才播动画),用 rAF 延迟一帧
   const rafRef = useRef<number>(0);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 挂载状态与 open 同步(单卡初始折叠 bodyMounted=false;打开瞬间挂载+置 open)
+  // toggle:折叠中→先挂载再置 open(播动画);展开中→先收起,过渡完再卸载
   const toggle = useCallback(() => {
     if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
     if (!open) {

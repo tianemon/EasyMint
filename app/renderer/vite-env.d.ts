@@ -405,7 +405,7 @@ interface ElectronAPI {
     detect: () => Promise<{ found: boolean; version?: string }>;
   };
   codegraph: {
-    detect: () => Promise<{ found: boolean; version?: string }>;
+    detect: () => Promise<{ found: boolean; version?: string; reason?: "not-found" | "probe-error" }>;
   };
   conv: {
     list: (projectPath: string) => Promise<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number }[]>;

@@ -130,7 +130,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
       {form && (
         <Modal tier="modal" overlayClassName="bg-black/40" onClose={() => setForm(null)}>
           <div className="relative bg-[var(--modal-fill)] border border-border rounded-[var(--radius-lg)] w-[760px] h-[600px] flex flex-col overflow-hidden shadow-2xl">
-            <div className="flex items-center justify-between px-4 py-1.5 bg-surface-alt shrink-0">
+            <div className="flex items-center justify-between px-4 py-1.5 shrink-0">
               <span className="text-sm font-medium text-text-primary">{form.mode === "new" ? "记录问题" : "编辑问题"}</span>
               <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setForm(null)}>✕</button>
             </div>
@@ -156,7 +156,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
                 />
               </div>
             </div>
-            <div className="flex items-center justify-end gap-2 px-4 py-1 bg-surface-alt shrink-0">
+            <div className="flex items-center justify-end gap-2 px-4 py-1 shrink-0">
               <button
                 type="button"
                 className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0"

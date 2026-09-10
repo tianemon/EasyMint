@@ -142,8 +142,8 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
         WebkitBackdropFilter: "blur(20px)",
       }}
     >
-      {/* 右上角导航：<1/3> 前后切换 + ✕ 全部跳过 */}
-      <div className="flex items-center justify-end gap-0.5 px-3.5 pt-2">
+      {/* 左上角前后切换‹ 1/3 ›，右上角全部跳过 ✕ */}
+      <div className="flex items-center justify-start gap-0.5 px-3.5 pt-2">
         <button
           type="button"
           title="上一题"
@@ -164,7 +164,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
           type="button"
           title="全部跳过（取消提问）"
           onClick={skipAll}
-          className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-danger hover:bg-surface-hover transition-colors"
+          className="ml-auto w-5 h-5 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-danger hover:bg-surface-hover transition-colors"
         >
           <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
         </button>
