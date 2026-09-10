@@ -1,14 +1,20 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSettingsStore } from "../../stores/settings-store";
 
 // ── Git Check ─────────────────────────────────────────────────────────────────
 
 function useDetect(cmd: "git" | "nodeRuntime" | "codegraph") {
   const [info, setInfo] = useState<{ found: boolean; version?: string } | null>(null);
+  const [nonce, setNonce] = useState(0);
   useEffect(() => {
     window.electronAPI?.[cmd]?.detect().then(setInfo).catch(() => setInfo({ found: false }));
-  }, [cmd]);
-  return info;
+  }, [cmd, nonce]);
+  /** 重新检测：先置空显示「检测中...」，再触发一次 IPC——装了工具但没重启 EM 时用它重测 */
+  const refresh = useCallback(() => {
+    setInfo(null);
+    setNonce((n) => n + 1);
+  }, []);
+  return { info, refresh };
 }
 
 function EnvRow({ label, info, installUrl }: {
@@ -43,7 +49,10 @@ function EnvRow({ label, info, installUrl }: {
 }
 
 function CodegraphRow({ info }: { info: { found: boolean; version?: string } | null }) {
-  const cmd = "curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh";
+  // 按平台给对应安装器：Windows 用 PowerShell 脚本，其余平台用 shell 脚本
+  const cmd = window.electronAPI?.platform === "win32"
+    ? "irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex"
+    : "curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh";
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -85,17 +94,25 @@ function CodegraphRow({ info }: { info: { found: boolean; version?: string } | n
 }
 
 function EnvCheckSection(): JSX.Element {
-  const gitInfo = useDetect("git");
-  const nodeInfo = useDetect("nodeRuntime");
-  const codegraphInfo = useDetect("codegraph");
+  const git = useDetect("git");
+  const nodeRt = useDetect("nodeRuntime");
+  const codegraph = useDetect("codegraph");
 
   return (
     <section>
-      <h3 className="text-sm font-medium text-text-secondary mb-2">环境检测</h3>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-medium text-text-secondary">环境检测</h3>
+        <button
+          className="px-2 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-11)] text-text-secondary em-hover-control transition-shadow"
+          onClick={() => { git.refresh(); nodeRt.refresh(); codegraph.refresh(); }}
+        >
+          重新检测
+        </button>
+      </div>
       <div className="bg-surface-alt rounded-[var(--radius-lg)] overflow-hidden">
-        <EnvRow label="Git" info={gitInfo} installUrl="https://git-scm.com/downloads" />
-        <EnvRow label="Node.js" info={nodeInfo} installUrl="https://nodejs.org/" />
-        <CodegraphRow info={codegraphInfo} />
+        <EnvRow label="Git" info={git.info} installUrl="https://git-scm.com/downloads" />
+        <EnvRow label="Node.js" info={nodeRt.info} installUrl="https://nodejs.org/" />
+        <CodegraphRow info={codegraph.info} />
       </div>
     </section>
   );
