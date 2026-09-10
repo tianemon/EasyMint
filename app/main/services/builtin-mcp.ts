@@ -8,7 +8,7 @@ import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { app } from "electron";
 import { broadcast } from "./ipc-broadcast";
-import { describeImage, webFetch, isToolEnabled } from "./api-clients";
+import { describeImage, webFetch, webSearch, isToolEnabled } from "./api-clients";
 import { validateTaskStatus } from "./hooks";
 import type { ToolDefinition } from "./pi-sdk";
 import { getDefineToolFn } from "./pi-sdk";
@@ -198,6 +198,28 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
       async execute(_tid: any, params: any) {
         try { const t = await webFetch(params); return { content: [{ type: "text" as const, text: t }] }; }
         catch (e) { return { content: [{ type: "text" as const, text: `web_fetch 失败: ${(e as Error).message}` }] }; }
+      },
+    } as any) as any);
+  }
+
+  // web_search（按开关，与 web_fetch 共用 TAVILY_API_KEY）
+  if (isToolEnabled("webSearch")) {
+    tools.push(defineTool({
+      name: "web_search", label: "联网搜索",
+      description: "联网搜索并返回结果摘要（标题 + URL + 摘要片段）。适用：需要查实时/最新/在线信息、查某个话题有哪些来源时调用。"
+        + "拿到 URL 后配合 web_fetch 抓取整页读全文。动态渲染、需登录的查询可能无结果；没有匹配结果会明确告知。",
+      promptSnippet: "联网搜索并返回结果摘要",
+      parameters: {
+        type: "object" as const,
+        properties: {
+          query: { type: "string" as const },
+          max_results: { type: "number" as const, description: "返回结果条数（1-50，默认 5）" },
+        },
+        required: ["query"],
+      },
+      async execute(_tid: any, params: any) {
+        try { const t = await webSearch(params); return { content: [{ type: "text" as const, text: t }] }; }
+        catch (e) { return { content: [{ type: "text" as const, text: `web_search 失败: ${(e as Error).message}` }] }; }
       },
     } as any) as any);
   }

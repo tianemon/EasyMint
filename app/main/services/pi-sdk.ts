@@ -97,6 +97,23 @@ export async function getCreateReadOnlyTools(): Promise<
   return sdk.createReadOnlyTools;
 }
 
+// grep/find/ls/powershell：SDK 内置工具，但 getCreateCodingTools 只返回 read/bash/edit/write，
+// 这 4 个默认不激活。这里单独取出来，在 pi-session 工具装配时补上，使所有内置工具可用。
+export async function getCreateExtraBuiltinTools(): Promise<{
+  createGrepToolDefinition: typeof import("@earendil-works/pi-coding-agent").createGrepToolDefinition;
+  createFindToolDefinition: typeof import("@earendil-works/pi-coding-agent").createFindToolDefinition;
+  createLsToolDefinition: typeof import("@earendil-works/pi-coding-agent").createLsToolDefinition;
+  createPowerShellToolDefinition: typeof import("@earendil-works/pi-coding-agent").createPowerShellToolDefinition;
+}> {
+  const sdk = await getSdk();
+  return {
+    createGrepToolDefinition: sdk.createGrepToolDefinition,
+    createFindToolDefinition: sdk.createFindToolDefinition,
+    createLsToolDefinition: sdk.createLsToolDefinition,
+    createPowerShellToolDefinition: sdk.createPowerShellToolDefinition,
+  };
+}
+
 export async function getDefineToolFn() {
   const sdk = await getSdk();
   return sdk.defineTool;

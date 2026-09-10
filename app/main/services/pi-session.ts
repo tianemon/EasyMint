@@ -16,6 +16,7 @@ import {
   getSessionManagerClass,
   getDefaultResourceLoaderClass,
   getCreateCodingTools,
+  getCreateExtraBuiltinTools,
 } from "./pi-sdk";
 import { createEnhancedBashTool, createStopShellTool } from "./background-shell/tool";
 import { createEnhancedEditTool } from "./enhanced-edit";
@@ -87,10 +88,32 @@ async function buildSession(
   // read 用增强版替换(原生 + 二进制文档 pdf/docx/xlsx/pptx 抽取文本):非文档完全委托原生
   const enhancedRead = await createEnhancedReadTool(opts.cwd, codingTools);
   const codingToolsReplaced = codingTools.filter((t) => t.name !== "bash" && t.name !== "edit" && t.name !== "read");
-  // 统一权限包装：extraTools 与基础 coding 工具（Read/Write/Edit/Bash 等）全部生效
+  // grep/find/ls/powershell：SDK 内置但默认不激活（getCreateCodingTools 只含 read/bash/edit/write）。
+  // 这里补齐，使所有内置工具可用——ls/find 纯 JS/macOS 自带立即可用；grep 依赖 rg（SDK 自动下载）；
+  // powershell 需本机安装 PowerShell。
+  const {
+    createGrepToolDefinition,
+    createFindToolDefinition,
+    createLsToolDefinition,
+    createPowerShellToolDefinition,
+  } = await getCreateExtraBuiltinTools();
+  // 统一权限包装：extraTools 与基础 coding 工具、额外内置工具（grep/find/ls/powershell）全部生效
   const wrapAll = (tools: ToolDefinition[]): ToolDefinition[] =>
     opts.canUseTool ? tools.map((t) => wrapToolWithPermission(t, { canUseTool: opts.canUseTool })) : tools;
-  const tools = [...wrapAll(opts.extraTools ?? []), ...wrapAll(codingToolsReplaced), ...wrapAll([enhancedBash, enhancedEdit, enhancedRead, createStopShellTool()])];
+  const tools = [
+    ...wrapAll(opts.extraTools ?? []),
+    ...wrapAll(codingToolsReplaced),
+    ...wrapAll([
+      enhancedBash,
+      enhancedEdit,
+      enhancedRead,
+      createStopShellTool(),
+      createGrepToolDefinition(opts.cwd),
+      createFindToolDefinition(opts.cwd),
+      createLsToolDefinition(opts.cwd),
+      createPowerShellToolDefinition(opts.cwd),
+    ]),
+  ];
 
   const sessionOpts: CreateAgentSessionOptions = {
     cwd: opts.cwd,

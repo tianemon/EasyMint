@@ -64,14 +64,14 @@ function ChatPermissionModeSection(): JSX.Element {
 // ── Built-in Tools Section ────────────────────────────────────────────────────
 
 function BuiltinToolsSection(): JSX.Element {
-  const [builtinTools, setBuiltinTools] = useState<Record<string, boolean>>({ vision: false, webFetch: false });
+  const [builtinTools, setBuiltinTools] = useState<Record<string, boolean>>({ vision: false, webFetch: false, webSearch: false });
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [showKey, setShowKey] = useState(false);
 
   useEffect(() => {
     (async () => {
       const s = await window.electronAPI.settings.get();
-      setBuiltinTools(s.builtinTools ?? { vision: false, webFetch: false });
+      setBuiltinTools(s.builtinTools ?? { vision: false, webFetch: false, webSearch: false });
       setApiKeys(s.apiKeys ?? {});
     })();
   }, []);
@@ -100,6 +100,7 @@ function BuiltinToolsSection(): JSX.Element {
         {([
           { key: "vision", label: "图片识别", desc: "用视觉模型描述图片内容", keyId: "VISION_API_KEY", keyUrl: "https://bailian.console.aliyun.com/cn-beijing?tab=model#/api-key" },
           { key: "webFetch", label: "网页抓取", desc: "读取网页实际内容", keyId: "TAVILY_API_KEY", keyUrl: "https://docs.tavily.com/documentation/mcp" },
+          { key: "webSearch", label: "联网搜索", desc: "联网搜索并返回结果摘要（需配合 web_fetch 读全文）", keyId: "TAVILY_API_KEY", keyUrl: "https://docs.tavily.com/documentation/mcp" },
         ] as const).map(({ key, label, desc, keyId, keyUrl }) => {
           const on = builtinTools[key];
           return (

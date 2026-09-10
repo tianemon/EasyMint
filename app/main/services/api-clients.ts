@@ -43,11 +43,12 @@ function readApiKeys(): Record<string, string> {
   return dropLegacyEncryptedApiKeys((readEmSettings().apiKeys as Record<string, string> | undefined)) || {};
 }
 
-export function isToolEnabled(name: "vision" | "webFetch"): boolean {
+export function isToolEnabled(name: "vision" | "webFetch" | "webSearch"): boolean {
   const settings = readEmSettings();
   const builtin = (settings.builtinTools as Record<string, boolean>) || {};
   const keys = readApiKeys();
   if (name === "vision") return builtin.vision === true && !!keys.VISION_API_KEY;
+  if (name === "webSearch") return builtin.webSearch === true && !!keys.TAVILY_API_KEY;
   return builtin.webFetch === true && !!keys.TAVILY_API_KEY;
 }
 
@@ -170,4 +171,36 @@ export async function webFetch(args: { url: string; prompt?: string }): Promise<
   } catch (e) {
     return `抓取失败: ${(e as Error).message}`;
   }
+}
+
+// ── Web Search ──────────────────────────────────────
+
+export async function webSearch(args: { query: string; max_results?: number }): Promise<string> {
+  const keys = readApiKeys();
+  const tavilyKey = keys.TAVILY_API_KEY;
+  if (!tavilyKey) return "TAVILY_API_KEY 未配置，请在设置→模型能力增强→联网搜索中填写 API Key。";
+  if (!args.query) return "搜索查询不能为空。";
+  const maxResults = Math.min(Math.max(Math.floor(Number(args.max_results) || 5), 1), 50);
+  try {
+    const resp = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: tavilyKey,
+        query: args.query,
+        max_results: maxResults,
+        search_depth: "basic",
+        include_raw_content: false,
+        topic: "general",
+      }),
+    });
+    if (!resp.ok) return `搜索失败 (${resp.status})`;
+    const data = await resp.json() as { results?: Array<{ title?: string; url?: string; snippet?: string }> };
+    const results = data.results || [];
+    if (results.length === 0) return `[Web Search: ${args.query}]\n没有匹配结果。换个关键词试试。`;
+    const lines = results.map((r, i) =>
+      `${i + 1}. ${r.title || "(无标题)"} — ${r.url}\n   ${r.snippet || ""}`.trim()
+    );
+    return `[Web Search: ${args.query}]（${results.length} 条）\n${lines.join("\n\n")}`;
+  } catch { return "搜索请求失败（网络或 API 错误）。请稍后重试。"; }
 }
