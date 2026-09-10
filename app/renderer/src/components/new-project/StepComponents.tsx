@@ -263,11 +263,13 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
             return (
               <button
                 key={opt.value}
-                className={`em-hover-control flex-1 p-3 rounded-[var(--radius-lg)] transition-all text-left ${active ? "bg-accent-soft" : "bg-surface-alt"}`}
+                className={`flex-1 p-3 rounded-[var(--radius-lg)] transition-all text-left ${active
+                  ? "bg-[var(--preset-active)] text-text-primary"
+                  : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`}
                 onClick={() => onChange({ completeness: opt.value })}
               >
-                <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
-                <div className="text-xs text-text-secondary mt-0.5">{opt.desc}</div>
+                <div className="text-sm font-medium">{opt.label}</div>
+                <div className="text-xs text-text-muted mt-0.5">{opt.desc}</div>
               </button>
             );
           })}
@@ -286,9 +288,9 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
           ].map((opt) => {
             const active = data.aiIntegration === opt.value;
             return (
-              <button key={opt.value} className={`em-hover-control flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${active ? "bg-accent-soft" : "bg-surface-alt"}`} onClick={() => onChange({ aiIntegration: opt.value as AIIntegration })}>
-                <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
-                <div className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">{opt.desc}</div>
+              <button key={opt.value} className={`flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${active ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`} onClick={() => onChange({ aiIntegration: opt.value as AIIntegration })}>
+                <div className="text-sm font-medium">{opt.label}</div>
+                <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{opt.desc}</div>
               </button>
             );
           })}
@@ -300,25 +302,25 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
         <label className="block text-sm font-medium text-text-primary mb-2">部署方式 <span className="text-text-muted text-xs font-normal">（可选，AI 帮你定）</span></label>
         <div className="flex gap-2">
           <button
-            className={`em-hover-control flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${data.deployPlatform === "本地" ? "bg-accent-soft" : "bg-surface-alt"}`}
+            className={`flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${data.deployPlatform === "本地" ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`}
             onClick={() => onChange({ deployPlatform: "本地" })}
           >
-            <div className={`text-sm font-medium ${data.deployPlatform === "本地" ? "text-accent" : "text-text-primary"}`}>本地</div>
-            <div className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">本机运行，无需云服务</div>
+            <div className="text-sm font-medium">本地</div>
+            <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">本机运行，无需云服务</div>
           </button>
           <button
-            className={`em-hover-control flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${data.deployPlatform === "云端" ? "bg-accent-soft" : "bg-surface-alt"}`}
+            className={`flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${data.deployPlatform === "云端" ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`}
             onClick={() => onChange({ deployPlatform: "云端" })}
           >
-            <div className={`text-sm font-medium ${data.deployPlatform === "云端" ? "text-accent" : "text-text-primary"}`}>云端</div>
-            <div className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">可互联网访问，有服务器费用</div>
+            <div className="text-sm font-medium">云端</div>
+            <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">可互联网访问，有服务器费用</div>
           </button>
           <button
-            className={`em-hover-control flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${data.deployPlatform === "混合" ? "bg-accent-soft" : "bg-surface-alt"}`}
+            className={`flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${data.deployPlatform === "混合" ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`}
             onClick={() => onChange({ deployPlatform: "混合" })}
           >
-            <div className={`text-sm font-medium ${data.deployPlatform === "混合" ? "text-accent" : "text-text-primary"}`}>混合</div>
-            <div className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">本地 UI + 云端同步</div>
+            <div className="text-sm font-medium">混合</div>
+            <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">本地 UI + 云端同步</div>
           </button>
         </div>
       </div>
@@ -330,9 +332,9 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
           {BUDGET_OPTIONS.map((opt) => {
             const active = data.techBudget === opt.value;
             return (
-              <button key={opt.value} className={`em-hover-control flex-1 p-3 rounded-[var(--radius-lg)] transition-all text-left ${active ? "bg-accent-soft" : "bg-surface-alt"}`} onClick={() => onChange({ techBudget: opt.value as BudgetChoice })}>
-                <div className={`text-sm font-medium ${active ? "text-accent" : "text-text-primary"}`}>{opt.label}</div>
-                <div className="text-xs text-text-secondary mt-0.5">{opt.desc}</div>
+              <button key={opt.value} className={`flex-1 p-3 rounded-[var(--radius-lg)] transition-all text-left ${active ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`} onClick={() => onChange({ techBudget: opt.value as BudgetChoice })}>
+                <div className="text-sm font-medium">{opt.label}</div>
+                <div className="text-xs text-text-muted mt-0.5">{opt.desc}</div>
               </button>
             );
           })}
