@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/icon.png" width="128" alt="EasyMint" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/appicon-dark.png" />
+    <img src="assets/appicon-light.png" width="128" alt="EasyMint" />
+  </picture>
 </p>
 
 <h1 align="center">EasyMint</h1>

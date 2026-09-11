@@ -9,6 +9,7 @@ import { Store } from "./services/store";
 import { broadcast } from "./services/ipc-broadcast";
 import { resetModelRuntime } from "./services/pi-init";
 import { IMAGE_MIME, resolveHome } from "./utils/paths";
+import { applyDockIcon } from "./utils/dock-icon";
 import { isImagePath } from "../shared/image-files";
 import { z } from "zod";
 import { guard, expectPayload, pathString, nonEmptyString } from "./ipc-validation";
@@ -509,6 +510,16 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("git:detect", () => detectGit());
   ipcMain.handle("node:detect", () => detectNode());
   ipcMain.handle("codegraph:detect", () => detectCodegraph());
+
+  // appearance:* — 渲染层上报「当前生效主题」（单一真相源：theme-store 设置 data-theme 的同一处）
+  // 主进程据此切换 macOS Dock 图标；其它平台在 applyDockIcon 内安全跳过
+  ipcMain.handle("appearance:set-effective", guard(
+    z.object({ theme: z.enum(["light", "dark"]) }).loose(),
+    ({ theme }) => {
+      applyDockIcon(theme);
+      return { ok: true };
+    },
+  ));
 
   // settings:*
   ipcMain.handle("settings:get", () => store.getSettings());

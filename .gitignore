@@ -1,6 +1,6 @@
 node_modules/
 dist/
-dist-electron/
+dist-electron*/
 .env
 .env.local
 temp/
@@ -14,6 +14,9 @@ task-*.png
 *.png
 !app/renderer/src/assets/providers/*.png
 !app/renderer/src/assets/mint-avatar-strip*.png
+!assets/avatar/**
+!assets/appicon-*.png
+**/.DS_Store
 !assets/screenshots/*.png
 .easymint/
 .workbuddy/

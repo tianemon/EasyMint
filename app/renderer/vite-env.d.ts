@@ -510,6 +510,10 @@ interface ElectronAPI {
     openUpdateCache: () => Promise<void>;
     onUpdateStatus: (callback: (data: { status: string; version?: string; percent?: number; transferred?: number; totalSize?: number }) => void) => () => void;
   };
+  /** 主题上报：macOS 下主进程据此切换 Dock 图标（其它平台忽略） */
+  appearance: {
+    setEffective: (theme: "light" | "dark") => Promise<{ ok: boolean }>;
+  };
 }
 
 interface Window {

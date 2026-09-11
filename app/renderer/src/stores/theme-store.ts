@@ -19,8 +19,18 @@ function resolveEffective(mode: ThemeMode): "light" | "dark" {
   return mode;
 }
 
+/** 上报当前生效主题给主进程（macOS 用它切换 Dock 图标）。
+ *  故意和 data-theme 写在同一处：界面主题与 Dock 图标共用一个真相源，不另起状态流。 */
+function reportEffectiveTheme(effective: "light" | "dark"): void {
+  window.electronAPI?.appearance?.setEffective?.(effective)?.catch((err: unknown) => {
+    console.error("[theme] 上报生效主题失败:", err);
+  });
+}
+
 function applyDataTheme(mode: ThemeMode): void {
-  document.documentElement.setAttribute("data-theme", resolveEffective(mode));
+  const effective = resolveEffective(mode);
+  document.documentElement.setAttribute("data-theme", effective);
+  reportEffectiveTheme(effective);
 }
 
 // 主题切换扩散动画（View Transitions）：
@@ -74,7 +84,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 }));
 
 /** Call once at app startup. Applies the stored theme and starts listening
- *  for system preference changes (for auto mode). */
+ *  for system preference changes (for auto mode).
+ *  首帧即通过 applyDataTheme 上报一次生效主题（不能等用户手动切主题）。 */
 export function initTheme(): void {
   const stored = readStored();
   applyDataTheme(stored);

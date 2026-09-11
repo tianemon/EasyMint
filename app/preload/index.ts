@@ -246,6 +246,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       return () => ipcRenderer.removeListener("app:update-status", handler);
     },
   },
+  appearance: {
+    // 主题上报：渲染层写 data-theme 的同一处调用；macOS 下主进程据此切换 Dock 图标
+    setEffective: (theme: "light" | "dark") =>
+      ipcRenderer.invoke("appearance:set-effective", { theme }) as Promise<{ ok: boolean }>,
+  },
   tab: {
     save: (data: unknown) => ipcRenderer.invoke("tab:save", data),
     restore: () => ipcRenderer.invoke("tab:restore") as Promise<{ tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string; isDesigner?: boolean; mdView?: "preview" | "source" }>; activeTabId: string | null } | null>,
