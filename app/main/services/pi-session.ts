@@ -89,15 +89,16 @@ async function buildSession(
   const enhancedRead = await createEnhancedReadTool(opts.cwd, codingTools);
   const codingToolsReplaced = codingTools.filter((t) => t.name !== "bash" && t.name !== "edit" && t.name !== "read");
   // grep/find/ls/powershell：SDK 内置但默认不激活（getCreateCodingTools 只含 read/bash/edit/write）。
-  // 这里补齐，使所有内置工具可用——ls/find 纯 JS/macOS 自带立即可用；grep 依赖 rg（SDK 自动下载）；
-  // powershell 需本机安装 PowerShell。
+  // 补齐后均可用——ls/find 纯 JS 立即可用；grep 依赖 rg（SDK 首次调用自动下载）；
+  // powershell 只在 Windows 存在（SDK 在非 win32 下直接抛错，见其 utils/shell.js getPowerShellConfig），
+  // 其他平台注册了也只会白占工具位并写进系统提示词，故按平台门禁。
   const {
     createGrepToolDefinition,
     createFindToolDefinition,
     createLsToolDefinition,
     createPowerShellToolDefinition,
   } = await getCreateExtraBuiltinTools();
-  // 统一权限包装：extraTools 与基础 coding 工具、额外内置工具（grep/find/ls/powershell）全部生效
+  // 统一权限包装：extraTools 与基础 coding 工具、额外内置工具全部生效
   const wrapAll = (tools: ToolDefinition[]): ToolDefinition[] =>
     opts.canUseTool ? tools.map((t) => wrapToolWithPermission(t, { canUseTool: opts.canUseTool })) : tools;
   const tools = [
@@ -111,7 +112,7 @@ async function buildSession(
       createGrepToolDefinition(opts.cwd),
       createFindToolDefinition(opts.cwd),
       createLsToolDefinition(opts.cwd),
-      createPowerShellToolDefinition(opts.cwd),
+      ...(process.platform === "win32" ? [createPowerShellToolDefinition(opts.cwd)] : []),
     ]),
   ];
 

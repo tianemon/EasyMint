@@ -193,6 +193,8 @@ export async function webSearch(args: { query: string; max_results?: number }): 
         include_raw_content: false,
         topic: "general",
       }),
+      // 超时对齐 webFetch 的直连分支：Tavily 无响应时不能让工具调用挂住整个回合
+      signal: AbortSignal.timeout(15000),
     });
     if (!resp.ok) return `搜索失败 (${resp.status})`;
     const data = await resp.json() as { results?: Array<{ title?: string; url?: string; snippet?: string }> };
@@ -202,5 +204,5 @@ export async function webSearch(args: { query: string; max_results?: number }): 
       `${i + 1}. ${r.title || "(无标题)"} — ${r.url}\n   ${r.snippet || ""}`.trim()
     );
     return `[Web Search: ${args.query}]（${results.length} 条）\n${lines.join("\n\n")}`;
-  } catch { return "搜索请求失败（网络或 API 错误）。请稍后重试。"; }
+  } catch (e) { return `搜索请求失败：${(e as Error).message}。请稍后重试。`; }
 }

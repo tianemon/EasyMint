@@ -159,9 +159,14 @@ export class AgentPermissionService {
         return allow()
       }
 
-      // ── 2. bash：禁区检查对所有模式生效（完全访问只放宽文件写范围，不放开系统核心/凭据/用户目录）──
-      if (t === 'bash') {
+      // ── 2. shell 执行类（bash / powershell）：禁区检查对所有模式生效（完全访问只放宽文件写范围，
+      //    不放开系统核心/凭据/用户目录）——两者共用同一套命令审查，否则 powershell 会成为绕过口 ──
+      if (isShellTool(t)) {
         const cmd = String(input.command || '')
+        // 沙盒只有 bash 侧有实现（enhancedBash 读 sandbox 参数）；powershell 的 updatedInput.sandbox 无人认领，
+        // 放行等于假约束——它走「沙盒不可用」分支拒绝并引导切完全访问
+        const canSandbox = t === 'bash'
+        const shellName = t === 'powershell' ? 'PowerShell' : 'Bash'
         if (!cmd.trim()) return allow()
         // 系统级变更命令：任何模式拒绝——系统权限「该申请申请」，EM 不绕过
         if (isSystemMutationCommand(cmd)) {
@@ -202,6 +207,7 @@ export class AgentPermissionService {
             return deny(`命令含变量/命令替换，且字面片段指向禁区（${literal}）：${cmd.slice(0, 100)}`)
           }
           if (mode !== 'full' && isWriteLikeCommand(cmd)) {
+            if (!canSandbox) return deny(`${shellName} 写类命令含变量/命令替换、范围无法静态确认，且无沙盒可兜底：${cmd.slice(0, 100)}——请切换「完全访问」`)
             const sb = await ensureSandbox(cwd)
             if (!sb.ok) return deny(`沙盒不可用（${sb.reason}），且写类命令含变量/命令替换无法确认范围：${cmd.slice(0, 100)}——请切换「完全访问」`)
             return { behavior: 'allow' as const, updatedInput: { ...input, sandbox: true } }
@@ -226,6 +232,7 @@ export class AgentPermissionService {
         // ── standard：判不了域 → 沙盒（运行时约束兜底：写半径=工作区、禁私网/本机）──
         const sandboxKind = classifyForSandbox(cmd)
         if (sandboxKind === 'network' || sandboxKind === 'inline') {
+          if (!canSandbox) return deny(`${shellName} 下载即执行/内联命令（${sandboxKind}）无法静态确认行为，且无沙盒可兜底：${cmd.slice(0, 100)}——请切换「完全访问」`)
           const sb = await ensureSandbox(cwd)
           if (!sb.ok) return deny(`沙盒不可用（${sb.reason}）——下载即执行/内联命令需沙盒执行，请切换「完全访问」或检查沙盒依赖`)
           return { behavior: 'allow' as const, updatedInput: { ...input, sandbox: true } }
@@ -316,9 +323,15 @@ function normalizeMode(raw: string): 'standard' | 'full' {
   return 'standard'
 }
 
-/** 读工具名（Read 及其变体） */
+/** 读工具名（Read 及其变体）——SDK 只读类工具（grep/find/ls）同类处理：
+ *  禁区读检查（系统敏感目录/凭据目录）必须覆盖它们，否则换个读入口就绕过了禁区 */
 function isReadTool(t: string): boolean {
-  return t === 'read' || t === 'mcp__filesystem__read'
+  return t === 'read' || t === 'grep' || t === 'find' || t === 'ls' || t === 'mcp__filesystem__read'
+}
+
+/** shell 执行类工具（bash / powershell）——共用同一套命令审查 */
+function isShellTool(t: string): boolean {
+  return t === 'bash' || t === 'powershell'
 }
 
 /** 写工具名（Write/Edit/NotebookEdit 及其变体） */
@@ -337,6 +350,12 @@ const WRITE_COMMANDS: readonly string[] = [
   'cargo build', 'cargo install', 'go build', 'go install', 'go mod tidy',
   'brew install', 'brew uninstall', 'apt-get', 'apt', 'yum', 'dnf', 'pacman',
   'crontab', 'launchctl', 'systemctl', 'defaults write', 'plutil -replace',
+  // PowerShell 写类动词（与上面同名处理：目标路径须在工作区内）
+  'remove-item', 'move-item', 'copy-item', 'new-item', 'rename-item',
+  'set-content', 'add-content', 'clear-content', 'out-file',
+  'set-itemproperty', 'new-itemproperty', 'remove-itemproperty',
+  'icacls', 'takeown', 'xcopy', 'robocopy', 'attrib',
+  'del ', 'erase ', 'rd ', 'md ', 'copy ',   // cmd.exe 别名（带空格免误匹配 delta/eraseX 之类的词首）
 ];
 
 /** 命令是否写类（含重定向、写命令前缀、编辑器直写、curl/wget 文件写参——后者的目标路径是工具参数非 shell 重定向）。
@@ -371,6 +390,11 @@ const SYSTEM_MUTATION_COMMANDS: readonly string[] = [
   // Windows 系统级
   'reg add', 'reg delete', 'reg import', 'diskpart', 'format', 'bcdedit', 'subst',
   'netsh', 'sc create', 'sc delete', 'sc config', 'wmic process call create',
+  // PowerShell 系统级（与上面 cmd.exe 条目同类）
+  'set-executionpolicy', 'format-volume', 'clear-disk', 'initialize-disk',
+  'set-service', 'stop-service', 'restart-service', 'new-service', 'remove-service',
+  'new-localuser', 'set-localuser', 'disable-localuser', 'add-localgroupmember',
+  'stop-computer', 'restart-computer',
 ]
 
 /** DB 客户端命令前缀（sqlite3/psql/mysql/mongosh…——只有 DB 语境才查不可逆语句，避免误伤读文档等场景） */

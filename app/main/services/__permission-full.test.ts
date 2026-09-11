@@ -156,3 +156,20 @@ describe("J. 含变量但不涉禁区的命令（探针——预期全部放行�
     expect(r.behavior).toBe("allow");
   });
 });
+
+describe("K. 新增内置工具在完全访问下的边界", () => {
+  const ps = (command: string) => canUseTool("powershell", { command }, opts);
+  const grep = (path: string) => canUseTool("grep", { pattern: "TODO", path }, opts);
+  const ls = (path: string) => canUseTool("ls", { path }, opts);
+
+  it("powershell 系统级命令 → 任何模式都拒绝", async () => {
+    expect((await ps("Format-Volume -DriveLetter D")).behavior).toBe("deny");
+  });
+  it("powershell 普通写命令（工作区内）→ 放行", async () => {
+    expect((await ps("Remove-Item ./dist -Recurse")).behavior).toBe("allow");
+  });
+  it("只读工具的绝对禁区仍然拦（完全访问不放开凭据目录）", async () => {
+    expect((await grep("~/.ssh/id_rsa")).behavior).toBe("deny");
+    expect((await ls("/etc/shadow")).behavior).toBe("deny");
+  });
+});

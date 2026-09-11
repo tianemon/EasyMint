@@ -17,6 +17,7 @@ function baseName(p: string): string {
 // issue=bug, 网络=globe, 待办=list-clock, ask=message-question, 图片=scan-search
 const TOOL_LABELS: Record<string, string> = {
   bash: "命令", edit: "编辑", read: "查看", write: "编写", grep: "搜索文件",
+  find: "查找文件", ls: "列出目录", powershell: "PowerShell",
   task: "派遣 Agent", create_agent_template: "创建模板", list_agents: "查看 Agent",
   read_agent_log: "读取日志", stop_agent: "停止 Agent",
   use_skill: "加载技能", manage_skill: "管理技能", learn: "沉淀经验",
@@ -34,12 +35,15 @@ function toolIconPaths(name: string): JSX.Element | null {
   let n = name.toLowerCase();
   if (n.startsWith("mcp__")) n = "mcp"; // MCP 工具统一扳手
   switch (n) {
-    case "bash": return (<><path d="m7 11 2-2-2-2"/><path d="M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/></>);
+    case "bash": case "powershell": return (<><path d="m7 11 2-2-2-2"/><path d="M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/></>);
     case "edit": return (<><path d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z"/></>);
     case "read": return (<><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></>);
     case "write": return (<><path d="M13 21h8"/><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></>);
     // 搜索文件(file-search-corner)
     case "grep": return (<><path d="M11.1 22H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.589 3.588A2.4 2.4 0 0 1 20 8v3.25"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="m21 22-2.88-2.88"/><circle cx="16" cy="17" r="3"/></>);
+    // 目录类(find 展开态 / ls 收起态)——路径数据与 FileTreePanel 的 folder-open / folder 同源(Lucide)
+    case "find": return (<path d="m6 14 1.5-2.9A2 2 0 019.24 10H20a2 2 0 011.94 2.5l-1.54 6a2 2 0 01-1.95 1.5H4a2 2 0 01-2-2V7c0-1.1.9-2 2-2h2"/>);
+    case "ls": return (<path d="M20 20a2 2 0 002-2V8a2 2 0 00-2-2h-7.9a2 2 0 01-1.69-.9L9.6 3.9A2 2 0 007.93 3H4a2 2 0 00-2 2v13a2 2 0 002 2z"/>);
     // agent 类(bot)
     case "task": case "create_agent_template": case "list_agents": case "read_agent_log": case "stop_agent":
       return (<><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></>);

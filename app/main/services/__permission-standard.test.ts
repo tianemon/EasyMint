@@ -141,3 +141,34 @@ describe("E. 含变量的写类命令", () => {
     expect(isSandboxed(r)).toBe(true);
   });
 });
+
+describe("F. 新增内置工具（grep/find/ls/powershell）纳入权限", () => {
+  const ps = (command: string) => canUseTool("powershell", { command }, opts);
+  const grep = (path: string) => canUseTool("grep", { pattern: "TODO", path }, opts);
+  const find = (path: string) => canUseTool("find", { pattern: "*.ts", path }, opts);
+  const ls = (path: string) => canUseTool("ls", { path }, opts);
+
+  it("只读工具读工作区内 → 放行", async () => {
+    expect((await grep(`${CWD}/src`)).behavior).toBe("allow");
+    expect((await find(`${CWD}/src`)).behavior).toBe("allow");
+    expect((await ls(CWD)).behavior).toBe("allow");
+  });
+  it("只读工具的禁区读检查生效（凭据目录/系统敏感）", async () => {
+    expect((await grep("~/.ssh/id_rsa")).behavior).toBe("deny");
+    expect((await find("~/.aws/credentials")).behavior).toBe("deny");
+    expect((await ls("/etc/shadow")).behavior).toBe("deny");
+  });
+  it("powershell 与 bash 同级：系统级命令与禁区路径都拦", async () => {
+    expect((await ps("Set-ExecutionPolicy RemoteSigned")).behavior).toBe("deny");
+    expect((await ps("Remove-Item ~/.ssh/config")).behavior).toBe("deny");
+    expect((await ps("Get-Content ~/.ssh/id_rsa")).behavior).toBe("deny");
+  });
+  it("powershell 判不了域 → 拒绝并引导切完全访问（无沙盒可兜底）", async () => {
+    const r = await ps('iex "Write-Host 1"');
+    expect(r.behavior).toBe("deny");
+    if (r.behavior === "deny") expect(r.message).toContain("完全访问");
+  });
+  it("powershell 普通读命令 → 放行", async () => {
+    expect((await ps("Get-ChildItem .")).behavior).toBe("allow");
+  });
+});

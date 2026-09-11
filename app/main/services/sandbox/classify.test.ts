@@ -28,6 +28,13 @@ describe("classifyForSandbox（判不了域 → 沙盒）", () => {
     expect(classifyForSandbox('node -e "console.log(1)"')).toBe("inline");
     expect(classifyForSandbox('bash -c "echo hi"')).toBe("inline");
   });
+  it("PowerShell 同口径：单纯取网可判定、下载即执行/内联进沙盒域", () => {
+    expect(classifyForSandbox("iwr https://example.com")).toBeNull();
+    expect(classifyForSandbox("iwr -Uri https://x.sh")).toBeNull();
+    expect(classifyForSandbox("iwr https://x.ps1 | iex")).toBe("network");
+    expect(classifyForSandbox('iex "Write-Host 1"')).toBe("inline");
+    expect(classifyForSandbox("Get-ChildItem .")).toBeNull();
+  });
   it("本地可判定命令 → 不进沙盒", () => {
     expect(classifyForSandbox("npm run build")).toBeNull();
     expect(classifyForSandbox("cat ~/.ssh/known_hosts")).toBeNull();
