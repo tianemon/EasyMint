@@ -23,14 +23,27 @@ export function App(): JSX.Element {
   // Restore persisted settings (model list, API keys, etc.) on startup.
   // Also fall back to main-process setupComplete if localStorage was lost
   // (e.g. after Electron userData path change or cache clear).
+  // settingsLoaded 到位前不渲染任何页面：dev 下渲染层跑在 http://localhost:端口，
+  // localStorage 与打包版（file://）不是同一个域，那枚标记往往不存在——
+  // 若先按 setupComplete=false 渲染，就会先闪一下引导页再被切走。
+  // 初值沿用 localStorage：标记已在就无需等异步结果（打包版启动不白一下），只有“不知道”时才闸住。
+  const [settingsLoaded, setSettingsLoaded] = useState(
+    () => localStorage.getItem("easymint_setup_complete") === "true"
+  );
   useEffect(() => {
-    useSettingsStore.getState().loadFromElectron().then(() => {
-      const fromMain = useSettingsStore.getState().setupComplete;
-      if (fromMain && !setupComplete) {
-        localStorage.setItem("easymint_setup_complete", "true");
-        setSetupComplete(true);
-      }
-    });
+    useSettingsStore.getState().loadFromElectron()
+      .then(() => {
+        const fromMain = useSettingsStore.getState().setupComplete;
+        if (fromMain && !setupComplete) {
+          localStorage.setItem("easymint_setup_complete", "true");
+          setSetupComplete(true);
+        }
+      })
+      .catch((e: unknown) => {
+        // 读取失败不能把界面卡在启动态：按“未完成设置”处理，交给引导页
+        console.error("[App] 加载设置失败:", e);
+      })
+      .finally(() => setSettingsLoaded(true));
   }, []);
 
   // 切换供应商 → 活跃会话自动热切到新供应商默认模型。
@@ -156,7 +169,7 @@ export function App(): JSX.Element {
     <ErrorBoundary>
       <div id="app-shell">
         <HashRouter>
-          {!setupComplete ? (
+          {!settingsLoaded ? null : !setupComplete ? (
             <Routes>
               <Route path="*" element={<OnboardingPage />} />
             </Routes>
