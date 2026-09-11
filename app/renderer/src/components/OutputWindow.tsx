@@ -10,7 +10,18 @@ import { Modal } from "./ui/Modal";
  */
 const LogRow = memo(function LogRow({ line }: { line: LogLine }): JSX.Element {
   const html = useMemo(() => ansiToHtml(line.text), [line]);
-  return <div className="text-text-primary whitespace-pre-wrap break-all" dangerouslySetInnerHTML={{ __html: html }} />;
+  // 对象必须 memo：React 比的是对象身份而非 __html 字符串，字面量每次渲染都换新对象 → 每次都重写
+  // innerHTML → 整行 DOM 重建（行渲染缓存全废）
+  const inner = useMemo(() => ({ __html: html }), [html]);
+  return <div className="text-text-primary whitespace-pre-wrap break-all" dangerouslySetInnerHTML={inner} />;
+});
+
+/** 整块输出（后台 shell 的 content 模式）——ANSI 解析按内容缓存：
+ *  这个串每帧都在增长，内联写 ansiToHtml(content) 会让整块内容每帧重解析一遍 */
+const ShellOutputBody = memo(function ShellOutputBody({ content }: { content: string }): JSX.Element {
+  const html = useMemo(() => ansiToHtml(content), [content]);
+  const inner = useMemo(() => ({ __html: html }), [html]);
+  return <pre className="whitespace-pre-wrap break-words text-text-primary leading-relaxed" dangerouslySetInnerHTML={inner} />;
 });
 
 /**
@@ -186,7 +197,7 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
               ))
             )
           ) : content ? (
-            <pre className="whitespace-pre-wrap break-words text-text-primary leading-relaxed" dangerouslySetInnerHTML={{ __html: ansiToHtml(content) }} />
+            <ShellOutputBody content={content} />
           ) : (
             <span className="text-text-secondary">{running ? "等待输出…" : "(无输出)"}</span>
           )}

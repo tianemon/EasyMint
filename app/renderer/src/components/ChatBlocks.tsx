@@ -244,7 +244,11 @@ const LANG_LABELS: Record<string, string> = {
 /** markdown 单段 HTML 渲染(parse 按 content 字符串缓存);管线与编辑器预览共用(见 lib/markdown) */
 const MarkdownHtml = memo(function MarkdownHtml({ content }: { content: string }): JSX.Element {
   const html = useMemo(() => renderMarkdownToHtml(content), [content]);
-  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+  // 对象必须 memo：React 判定 dangerouslySetInnerHTML 变没变比的是对象身份，不是 __html 字符串
+  // （react-dom 的 props diff 用 !== 比对象），字面量每次渲染都是新对象 → 每次都重写 innerHTML
+  // → 内部 DOM 整体重建。内容没变时重建纯属浪费，还会打断内部状态（选中、动画、图片加载结果）。
+  const inner = useMemo(() => ({ __html: html }), [html]);
+  return <div dangerouslySetInnerHTML={inner} />;
 });
 
 type MdRawPart = { type: "html" | "code"; content: string; lang?: string };

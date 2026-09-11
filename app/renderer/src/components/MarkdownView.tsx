@@ -29,6 +29,10 @@ function replaceWithPlaceholder(img: HTMLImageElement, label: string): void {
 export function MarkdownView({ text, baseDir, className }: MarkdownViewProps): JSX.Element {
   const ref = useRef<HTMLDivElement>(null);
   const html = useMemo(() => renderMarkdownToHtml(text), [text]);
+  // 对象必须 memo（同 MarkdownHtml）：字面量每次渲染换身份 → React 每次都重写 innerHTML → 下面那条
+  // 解析相对路径图片的 effect 依赖 html、html 没变就不会重跑，而重建出的 <img> 又回到未解析的相对地址
+  // （既丢已读到的 dataUrl 也会重新触发读取）。memo 后只有内容真的变了才重建。
+  const inner = useMemo(() => ({ __html: html }), [html]);
 
   // 相对路径图片：磁盘图片不能直接给 file:// 路径（dev 下页面源是 http，Chromium 会拦），
   // 必须经主进程读成 dataUrl。外链/data: 一律不碰，保持渲染层原有行为。
@@ -63,7 +67,7 @@ export function MarkdownView({ text, baseDir, className }: MarkdownViewProps): J
     // 外层挂 selectable：index.css 的 `.selectable .prose` 给正文 var(--text-body) 字号，
     // 同时恢复正文可选（应用根是 user-select: none）
     <div ref={ref} className={className ? `selectable ${className}` : "selectable"}>
-      <div className={MARKDOWN_PROSE_CLASS} dangerouslySetInnerHTML={{ __html: html }} />
+      <div className={MARKDOWN_PROSE_CLASS} dangerouslySetInnerHTML={inner} />
     </div>
   );
 }
