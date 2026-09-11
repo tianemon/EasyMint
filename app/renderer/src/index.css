@@ -1308,36 +1308,18 @@ select.input {
 .msg-avatar.user { background: var(--color-sidebar); color: var(--color-text-secondary); }
 /* 用户头像与 Mint 动态头像同尺寸（40px），两侧对称 */
 .msg-avatar.user { width: 40px; height: 40px; }
-/* Mint 动态头像：横向雪碧图（96px 一帧，12 帧），静止态停在第 1 帧（= 设计稿静态样子），
-   只在生成中才播（.avatar-live）；图自带透明圆角，容器不铺底色，露出聊天背景。
-   帧序列 = 前 6 帧 ping-pong 完整版（1,2,3,4,5,6,6,5,4,3,2,1）——两套主题都这么排，
-   原 12 帧版后半段衔接跳变（会突然睁眼），只取前 6 帧来回插；
-   两端重复帧保留（去掉后节奏变急、不平滑）。
-   尺寸比普通头像大（34 → 40）。
-   位移用百分比是必须的：百分比基准是「容器宽 − 图宽」，不是一帧的宽——
-   12 帧走满对应 12 ÷ 11 = 109.0909%，steps 后每步正好一帧。 */
+/* Mint 头像 = 内联的矢量 SVG（见 MintAvatar 组件），不再有帧序列：
+   眨眼的 SMIL 动画由 JS 在 busy / 主题变化时控制（setCurrentTime(0) + pauseAnimations()）。
+   这里只留容器属性——尺寸比普通头像大（34 → 40）；
+   画稿已裁到内容、色块铺满整格 → 容器不能再裁圆角（--radius-lg 的 8px 会削掉画稿自带的更大圆角），
+   形状完全交给图形（四角本来就是透明）。 */
 .msg-avatar.mint {
   width: 40px; height: 40px;
-  /* 画稿已裁到内容，色块铺满整格 → 容器不能再裁圆角（--radius-lg 的 8px 会削掉画稿自带的更大圆角），
-     形状完全交给画稿（四角本来就是透明） */
   border-radius: 0;
-  background-image: url("./assets/mint-avatar-strip.png");
-  background-repeat: no-repeat;
-  background-position: 0 0;
-  background-size: 1200% 100%;
 }
-.msg-avatar.mint.avatar-live { animation: mint-avatar-play 2s steps(12) infinite; }
-@keyframes mint-avatar-play {
-  from { background-position-x: 0; }
-  to { background-position-x: 109.0909%; }
-}
-/* 暗色只换图，帧数与节奏同上 */
-[data-theme="dark"] .msg-avatar.mint {
-  background-image: url("./assets/mint-avatar-strip-dark.png");
-}
-@media (prefers-reduced-motion: reduce) {
-  .msg-avatar.mint.avatar-live { animation: none; }
-}
+/* 内联的 SVG 是替换元素：默认 inline 会在基线上留几像素空隙，尺寸也不跟容器走——
+   统一让它在 viewBox 比例内撑满容器（容器宽高由组件的 size 内联样式给） */
+.mint-avatar > svg { display: block; width: 100%; height: 100%; }
 .msg-from {
   font-size: var(--text-2xs); font-weight: 600; color: var(--color-text-muted);
   margin-bottom: var(--s1); text-transform: uppercase; letter-spacing: 0.06em;

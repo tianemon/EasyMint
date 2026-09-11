@@ -30,6 +30,7 @@ import { BubbleActions, roleColor, DocIcon } from "./ChatBubbleActions";
 import { AskUserCard } from "./AskUserCard";
 import { useAskStore } from "../stores/ask-store";
 import { LearnCard } from "./LearnCard";
+import { MintAvatar } from "./MintAvatar";
 import { UserMessageText } from "./UserMessageText";
 import { useLearnStore } from "../stores/learn-store";
 
@@ -2656,11 +2657,11 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
   return (
     <div className="msg-in" onContextMenu={(e) => onContextMenu(msg, e)}>
       <div className="flex gap-4 items-start max-w-[75%]">
-        {/* Mint 头像：雪碧图，生成中（busy）才播动画，否则停在第 1 帧；角色消息仍用首字母 */}
+        {/* Mint 头像：内联矢量 SVG，生成中（busy）才播眨眼，否则冻结在睁眼静止姿态；角色消息仍用首字母 */}
         {role ? (
           <div className="msg-avatar agent" style={{ backgroundColor: roleColor(role), color: "#fff" }}>{role.charAt(0).toUpperCase()}</div>
         ) : (
-          <div className={`msg-avatar mint${busy ? " avatar-live" : ""}`} />
+          <MintAvatar busy={busy} size={40} className="msg-avatar mint" />
         )}
         <div className="min-w-0 relative" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
           <div className="msg-from">
