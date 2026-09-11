@@ -83,6 +83,8 @@ export interface ActiveChat {
   abortController: AbortController;
   projectPath: string;
   currentModel?: string;
+  /** 本轮提示发出前的分支 leaf id——用户打断且本轮无产出时用它把分支退回（撤回这条消息，见 abort） */
+  leafBeforePrompt?: string | null;
   /** 本会话用户选择的思考等级（切模型后由 SDK 按模型能力推导默认值，需用它恢复用户意图） */
   thinkingLevel?: string;
   /** 本会话使用的供应商（查「按模型思考等级」用；缺省时按模型名全局匹配） */
@@ -1015,6 +1017,8 @@ export class AgentService {
     images?: Array<{ type: "image"; data: string; mimeType: string }>,
     systemPayload?: SystemMessagePayload,
   ): void {
+    // 记本轮起点：打断时若本轮无产出，就退回到这里（消息退出上下文，见 abort 的 rewind）
+    if (chat) chat.leafBeforePrompt = session.sessionManager?.getLeafId?.() ?? null;
     void this.promptAndBridge(session, sessionId, chatId, text, chat, images, systemPayload).catch((err: unknown) => {
       const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
       console.error(`[agent] 回合启动失败(未预期) chatId=${chatId} sessionId=${sessionId}:`, raw);
@@ -1081,7 +1085,10 @@ export class AgentService {
     return { runId };
   }
 
-  abort(runId: string): void {
+  /** 中止回合。opts.clearQueue（用户意图的打断：停止按钮 / 重发前兜底）清掉尚未投递的插话（丢弃，不回传）；
+   *  opts.rewind 且本轮无产出时把分支退回本轮起点（消息退出上下文）。
+   *  内部中止（切模型、压缩、超时）不传 opts——不该丢用户刚插的话，也不该撤回历史。 */
+  async abort(runId: string, opts?: { clearQueue?: boolean; rewind?: boolean }): Promise<void> {
     const run = this.activeRuns.get(runId);
     if (run) {
       run.abortController.abort();
@@ -1096,9 +1103,60 @@ export class AgentService {
         if (c.chatId === runId) { chat = c; break; }
       }
     }
-    if (chat) {
-      chat.abortController.abort();
-      chat.session?.abort().catch(() => {});
+    if (!chat) return;
+    chat.abortController.abort();
+    // 先清队列、再 abort：SDK 的回合后循环用「队列里还有消息」作为 agent.continue() 的依据
+    // （agent-session 的 hasQueuedMessages）——反过来做会留竞态窗口：循环已看到消息 →
+    // 自己起新回合去应答它，表现就是「打断后自动重发、又进 busy」
+    let dropped = 0;
+    if (opts?.clearQueue) {
+      const cleared = chat.session?.clearQueue?.();
+      dropped = (cleared?.steering ?? []).filter((t): t is string => typeof t === "string" && t.trim().length > 0).length;
+    }
+    // 等回合真正停住：runLoop 在每步之间都会 drain steering，不等停就动队列会与"即将投递"竞争
+    await chat.session?.abort().catch(() => {});
+    if (dropped > 0) {
+      console.log(`[agent] 打断：丢弃 ${dropped} 条未投递插话（不退回输入框——回填后容易被回车误发）`);
+    }
+    if (opts?.rewind) await this.rewindIfNoOutput(chat);
+  }
+
+  /** 打断撤回：仅当本轮没有产出可见内容时，把会话分支退回本轮起点（那条消息退出上下文）。
+   *  会话文件是 append-only 树：废弃分支留在文件里，但不再进上下文（历史读取按当前分支）。
+   *  有产出 / 无起点 / 出错 → 不动会话（用户已看到内容，退回会丢掉它）。 */
+  private async rewindIfNoOutput(chat: ActiveChat): Promise<void> {
+    const session = chat.session;
+    const mgr = session?.sessionManager;
+    const startId = chat.leafBeforePrompt ?? null;
+    if (!session || !mgr || !startId) return;
+    try {
+      const entries = mgr.getEntries() as Array<{ id: string; parentId?: string | null; type?: string; message?: { role?: string; content?: unknown } }>;
+      const byId = new Map(entries.map((e) => [e.id, e]));
+      let cur: { id: string; parentId?: string | null } | undefined = mgr.getLeafEntry();
+      const turn: typeof entries = [];
+      while (cur && cur.id !== startId) {
+        const e = byId.get(cur.id);
+        if (!e) break;
+        turn.push(e);
+        cur = e.parentId ? byId.get(e.parentId) : undefined;
+      }
+      // 有可见产出（正文/思考/工具调用任一）就不撤回——用户已看到内容，退回会丢掉它
+      const hasOutput = turn.some((e) => {
+        if (e.type !== "message" || e.message?.role !== "assistant") return false;
+        const content = e.message.content;
+        if (!Array.isArray(content)) return false;
+        return content.some((b) => {
+          const blk = b as { type?: string; text?: string; thinking?: string };
+          if (blk.type === "text") return !!blk.text?.trim();
+          if (blk.type === "thinking") return !!blk.thinking?.trim();
+          return blk.type === "toolCall" || blk.type === "tool_use";
+        });
+      });
+      if (hasOutput) return;
+      await session.navigateTree(startId, { summarize: false });
+      console.log(`[agent] 打断撤回：本轮无产出，分支退回到 ${startId}（消息退出上下文）`);
+    } catch (e) {
+      console.warn("[agent] 打断撤回失败:", (e as Error).message);
     }
   }
 

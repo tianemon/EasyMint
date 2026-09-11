@@ -195,9 +195,11 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:runWorker", (_e, { projectPath, prompt }) =>
     agentService.runWorker(projectPath, prompt, mainWindow)
   );
-  ipcMain.handle("agent:abort", (_e, { runId }) => {
-    // 打断（chat 与 worker 统一处理）：abort 当前回合，保留会话/run 注册表
-    agentService.abort(runId);
+  ipcMain.handle("agent:abort", async (_e, { runId, clearQueue, rewind }) => {
+    // 打断（chat 与 worker 统一处理）：abort 当前回合，保留会话/run 注册表。
+    // clearQueue（停止按钮 / 重发前兜底）返回被丢弃的插话文本；rewind（仅停止按钮）
+    // 在本轮无产出时把分支退回本轮起点并返回被撤回的消息文本，供前端放回输入框
+    return await agentService.abort(runId, { clearQueue: clearQueue === true, rewind: rewind === true });
   });
   ipcMain.handle("agent:chatStatus", (_e, { sessionId }) => {
     return agentService.getChatStatus(sessionId);

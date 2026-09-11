@@ -147,6 +147,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 打断时间戳:打断后 1.5s 内的 agent:exit 是旧回合残留(abort 触发),
   // 忽略不清 busy——打断瞬间后台通知开的新回合(turn_start 已设 busy)不被误清
   const interruptAtRef = useRef(0);
+  // 被打断的回合是否还没退场（exit 未到）：未退场时到达的 turn_start 一律是它的残留——
+  // 不能让界面被打回 busy（SDK 在回合内每个工具批次/续跑都会 emit turn_start）
+  const abortedRunPendingRef = useRef(false);
   // 会话消息加载中(打开已有会话的磁盘读取+解析耗时):显示加载提示,避免空态跳变
   const [sessionLoading, setSessionLoading] = useState(false);
   // 缓存恢复的使用率暂存:消息加载完成后再应用(避免加载期间输入卡片显示旧进度误导)
@@ -1293,11 +1296,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         // 没有活跃 chat，也没有已知 session → 拒绝所有外部事件，防止跨窗口污染
         return;
       }
-      // 打断后:只丢弃被打断回合的残留内容帧;通知(新注入)正常渲染,
-      // 新回合(turn_start,如打断后的 Mint 总结)开始 → 恢复渲染。
+      // 打断后:只丢弃被打断回合的残留帧;通知(新注入)正常渲染,新回合(turn_start)开始 → 恢复渲染。
       // (原实现 return 丢弃一切——打断通知/总结回合全被吞,磁盘有而 UI 无)
+      // 但打断后 1.5s 内到的 turn_start 是**被打断回合自己的残留**(SDK 在回合内每个工具批次/续跑
+      // 都会 emit turn_start)——不能让它把界面打回 busy「等待模型响应」
       if (stoppedRef.current) {
         if (event.type === "turn_start") {
+          if (abortedRunPendingRef.current || Date.now() - interruptAtRef.current < 1500) return;
           stoppedRef.current = false;
         } else if (event.type !== "custom_event") {
           return;
@@ -1492,6 +1497,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => {
       if (!currentChatRef.current) return;
       if (runId !== currentChatRef.current) return;
+      // 被打断的回合已退场 → 后续事件按新回合对待（防 stoppedRef 卡住把真正的
+      // 后续回合全吞掉）；下面的 1.5s 过滤只管「不重复清理界面状态」
+      abortedRunPendingRef.current = false;
+      stoppedRef.current = false;
       if (Date.now() - interruptAtRef.current < 1500) return;
       latestAiIdRef.current = 0;
       busyRef.current = false; setBusy(false);
@@ -1985,8 +1994,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     // 本地替换该气泡文本(不新增气泡;未修改时文本不变,无副作用)
     useChatStore.getState().updateUserMsgText(sidRef.current, msg.id, newText);
     // 兜底中止可能残留的回合(打断后正常已停;防边缘状态)
+    // clearQueue：顺手丢掉队列里那份**旧文本**——不回退会与新文本一起被下一次运行投递；
+    // 不传 rewind：这条消息正在被替换，撤回它会把改好的内容也退掉
     const rid = currentChatRef.current;
-    if (rid) window.electronAPI.agent.abort(rid).catch(() => {});
+    if (rid) window.electronAPI.agent.abort(rid, { clearQueue: true }).catch(() => {});
     // 重新触发 Mint 回复(跳过 append——气泡已替换,不产生新用户气泡)
     sendText(newText, { skipAppend: true });
   }, [sendText]);
@@ -2076,7 +2087,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         attaches={attaches}
         setAttaches={setAttaches}
         onSend={sendText}
-        onStop={() => { stoppedRef.current = true; busyRef.current = false; interruptAtRef.current = Date.now(); const rid = currentChatRef.current; if (rid) window.electronAPI.agent.abort(rid); setBusy(false); /* 打断=取消排队的压缩(用户已改意图;不取消则 exit 被 interrupt 过滤,pending 残留到下次回合误执行) */ pendingCompactRef.current = null; }}
+        onStop={() => { stoppedRef.current = true; busyRef.current = false; interruptAtRef.current = Date.now(); const rid = currentChatRef.current; if (rid) {
+          // 用户点打断 = 作废本轮：clearQueue 丢弃未投递的插话；rewind 在本轮无产出时把这条消息从上下文撤回。
+          // 不把文字退回输入框：那段文字会停在输入框里，随后的回车（打断手势常带按键）会把它再发一次。
+          // 要改后重发 → 点气泡上的铅笔编辑重发
+          void window.electronAPI.agent.abort(rid, { clearQueue: true, rewind: true }).catch(() => {});
+        } setBusy(false); /* 打断=取消排队的压缩(用户已改意图;不取消则 exit 被 interrupt 过滤,pending 残留到下次回合误执行) */ pendingCompactRef.current = null;
+        abortedRunPendingRef.current = true;   // 等它的 exit 到才允许新回合事件重新置 busy
+        // 打断后 exit 在 1.5s 内被过滤，清信号的动作不会执行 → 这里自己清，
+        // 否则状态行会停在「等待模型响应…」
+        useStatusStore.getState().popSignal(sidRef.current, "request");
+        useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:");
+        }}
         onPaste={handlePaste}
         imgInputRef={imgInputRef}
         docInputRef={docInputRef}

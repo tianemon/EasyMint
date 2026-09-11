@@ -198,10 +198,26 @@ function normalizeToolCallBlocks(content: unknown): unknown {
   });
 }
 
+/** 取当前分支（leaf 回溯到根）上的条目。
+ *  会话文件是 append-only 树：打断撤回会把废弃分支留在文件里（消息+空回复）——
+ *  直接读全部条目会把已作废的消息又显示出来，与上下文不一致。 */
+function currentBranchEntries(mgr: { getEntries(): unknown[]; getLeafId(): string | null }): unknown[] {
+  const all = mgr.getEntries() as Array<{ id: string; parentId?: string | null }>;
+  const byId = new Map(all.map((e) => [e.id, e]));
+  const leafId = mgr.getLeafId();
+  let cur = leafId ? byId.get(leafId) : all[all.length - 1];
+  const onPath = new Set<string>();
+  while (cur) {
+    onPath.add(cur.id);
+    cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+  }
+  return all.filter((e) => onPath.has(e.id));
+}
+
 /** SessionManager entries → SessionMessage[](getSessionMessages / getSubagentMessages 共用)
     includeToolResult: 子 Agent 过程读取需要 toolResult(工具输出),主会话历史不需要 */
-async function parseEntriesToMessages(mgr: { getEntries(): unknown[] }, sessionId: string, includeToolResult = false): Promise<SessionMessage[]> {
-  const entries = mgr.getEntries() as Array<{
+async function parseEntriesToMessages(mgr: { getEntries(): unknown[]; getLeafId(): string | null }, sessionId: string, includeToolResult = false): Promise<SessionMessage[]> {
+  const entries = currentBranchEntries(mgr) as Array<{
     type: string;
     id: string;
     timestamp: string;
