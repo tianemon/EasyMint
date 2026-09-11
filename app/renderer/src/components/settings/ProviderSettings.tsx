@@ -55,13 +55,16 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const [name, setName] = useState(initial?.name || "");
   const [apiKey, setApiKey] = useState(initial?.apiKey || "");
   const [model, setModel] = useState(initial?.model || "");
-  // 认证方式：仅 SDK 声明支持账号登录的供应商显示分段，其余整段不出现（行为与原来一致）
+  // 认证方式：仅 SDK 声明支持账号登录的供应商显示分段，其余整段不出现。
+  // 不能拿本地 authType 兜底（曾写 `|| authType === "oauth"`）：认证方式是表单内状态，
+  // 切换预设不会重置，从支持账号登录的供应商切到不支持的（如 OpenAI Codex → OpenAI）时
+  // 账号登录界面会残留，点登录被后端拒，保存还会把 authType: "oauth" 写进不支持的配置里。
   const { supported: oauthSupported, status: oauthStatus, refresh: refreshOAuthStatus } =
     useProviderAuthStatus(isCustom ? null : presetId);
   const [authType, setAuthType] = useState<ProviderAuthType>(
     !isCustom && initial?.authType === "oauth" ? "oauth" : "api_key",
   );
-  const showAuthMode = oauthSupported || authType === "oauth";
+  const showAuthMode = oauthSupported;
   const usesAccountLogin = showAuthMode && authType === "oauth";
   const accountLoggedIn = oauthStatus?.type === "oauth";
   const providerLabel = getPreset(presetId)?.label ?? oauthStatus?.name ?? presetId;
@@ -138,6 +141,8 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
 
   const handlePresetSelect = async (id: string) => {
     setPresetId(id);
+    // 认证方式随供应商走：换供应商就回默认，避免把上一个供应商的选择带过去
+    setAuthType("api_key");
     if (id === "custom") return;  // 自定义供应商不拉官方目录
     // 自动填名称(用户未填写时);加载模型列表
     if (brand && !name.trim()) setName(brand.name);
