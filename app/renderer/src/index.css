@@ -779,6 +779,23 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   color: var(--color-text-muted); min-height: 26px; flex-shrink: 0;
   margin: 0 var(--s16);
 }
+/* 状态栏模型图标参与流光：颜色按 --shimmer-1..5 依次循环（与流光同色系、同节奏）。
+   为什么不是横向扫光：流光是 background-clip: text，只作用于文字字形，SVG 图形裁不到；
+   而让 SVG 渐变平移的 gradientTransform 不是 CSS 属性，Chromium 下只能靠 SMIL/JS。
+   时长由外层用 --glyph-shimmer-dur 传入（= 流光的 colors.length × 8s，不重算）。 */
+.status-glyph-shimmer { animation: statusGlyphShimmer var(--glyph-shimmer-dur, 8s) linear infinite; }
+@keyframes statusGlyphShimmer {
+  0%   { color: var(--shimmer-1); }
+  20%  { color: var(--shimmer-2); }
+  40%  { color: var(--shimmer-3); }
+  60%  { color: var(--shimmer-4); }
+  80%  { color: var(--shimmer-5); }
+  100% { color: var(--shimmer-1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* 降级：不动，但固定在流光首色，避免回到与文字不搭的灰色 */
+  .status-glyph-shimmer { animation: none; color: var(--shimmer-1); }
+}
 
 /* ── Chat Input Card ─────────────────────────── */
 .input-card {
@@ -825,6 +842,38 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
 }
 .inp-icon-btn:hover { color: var(--color-text-secondary); background: var(--color-sidebar-hover); }
 .inp-lbl { font-size: var(--text-xs); color: var(--color-text-muted); }
+
+/* 模型图标动效（ModelGlyph 组件，输入卡片与状态栏共用）：三个节点聚拢（缩到 45%）再散开，循环往复。
+   节点用位移、连线用 scale——整体 scale 会把圆点一起缩小，所以拆开做；
+   连线以三角形中心 (14.33, 12) 为原点缩放，端点自然跟着节点走，三角收拢时连线被圆点吞没。
+   位移量 = (0.45 − 1) × (节点坐标 − 中心)：a = +5.13x，b = −2.57x +3.58y，c = −2.57x −3.58y。 */
+.model-glyph-node-a { animation: model-glyph-gather-a 2.4s ease-in-out infinite; }
+@keyframes model-glyph-gather-a {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(5.13px, 0); }
+}
+.model-glyph-node-b { animation: model-glyph-gather-b 2.4s ease-in-out infinite; }
+@keyframes model-glyph-gather-b {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-2.57px, 3.58px); }
+}
+.model-glyph-node-c { animation: model-glyph-gather-c 2.4s ease-in-out infinite; }
+@keyframes model-glyph-gather-c {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-2.57px, -3.58px); }
+}
+.model-glyph-edge {
+  transform-box: view-box;
+  transform-origin: 14.33px 12px;
+  animation: model-glyph-gather-edge 2.4s ease-in-out infinite;
+}
+@keyframes model-glyph-gather-edge {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(0.45); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .model-glyph-node-a, .model-glyph-node-b, .model-glyph-node-c, .model-glyph-edge { animation: none; }
+}
 .inp-sel {
   font-size: var(--text-sm); padding: 4px 8px; border-radius: var(--radius-lg);
   background: var(--color-input-field); border: none;
@@ -1257,6 +1306,38 @@ select.input {
 }
 .msg-avatar.agent { background: var(--color-sidebar); color: var(--color-text-secondary); }
 .msg-avatar.user { background: var(--color-sidebar); color: var(--color-text-secondary); }
+/* 用户头像与 Mint 动态头像同尺寸（44px），两侧对称 */
+.msg-avatar.user { width: 44px; height: 44px; }
+/* Mint 动态头像：横向雪碧图（96px 一帧，12 帧），静止态停在第 1 帧（= 设计稿静态样子），
+   只在生成中才播（.avatar-live）；图自带透明圆角，容器不铺底色，露出聊天背景。
+   帧序列 = 前 6 帧 ping-pong 完整版（1,2,3,4,5,6,6,5,4,3,2,1）——两套主题都这么排，
+   原 12 帧版后半段衔接跳变（会突然睁眼），只取前 6 帧来回插；
+   两端重复帧保留（去掉后节奏变急、不平滑）。
+   尺寸比普通头像大 30%（34 → 44）。
+   位移用百分比是必须的：百分比基准是「容器宽 − 图宽」，不是一帧的宽——
+   12 帧走满对应 12 ÷ 11 = 109.0909%，steps 后每步正好一帧。 */
+.msg-avatar.mint {
+  width: 44px; height: 44px;
+  /* 画稿已裁到内容，色块铺满整格 → 容器不能再裁圆角（--radius-lg 的 8px 会削掉画稿自带的更大圆角），
+     形状完全交给画稿（四角本来就是透明） */
+  border-radius: 0;
+  background-image: url("./assets/mint-avatar-strip.png");
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  background-size: 1200% 100%;
+}
+.msg-avatar.mint.avatar-live { animation: mint-avatar-play 2s steps(12) infinite; }
+@keyframes mint-avatar-play {
+  from { background-position-x: 0; }
+  to { background-position-x: 109.0909%; }
+}
+/* 暗色只换图，帧数与节奏同上 */
+[data-theme="dark"] .msg-avatar.mint {
+  background-image: url("./assets/mint-avatar-strip-dark.png");
+}
+@media (prefers-reduced-motion: reduce) {
+  .msg-avatar.mint.avatar-live { animation: none; }
+}
 .msg-from {
   font-size: var(--text-2xs); font-weight: 600; color: var(--color-text-muted);
   margin-bottom: var(--s1); text-transform: uppercase; letter-spacing: 0.06em;
@@ -1514,6 +1595,49 @@ select.input {
 @keyframes agent-breath {
   0%, 100% { box-shadow: 0 0 1.5px 0 var(--agent-breath-glow), inset 0 0 1.5px 0 var(--agent-breath-glow); }
   50% { box-shadow: 0 0 1.5px 1.5px var(--agent-breath-glow), inset 0 0 1.5px 1px var(--agent-breath-glow); }
+}
+
+/* Agent 胶囊图标：浮动两次 → 停 500ms → 换镜像 → 再浮动两次 → 再停 500ms → 换镜像（无限循环）。
+   动画挂在外层 span——ToolIcon 是共用组件，不改它的 className。
+   循环边界处的 scaleX 由 -1 回到 1，那就是第二次换镜像（肉眼与中途那次一致）。
+   节奏：一个循环 4.2s = 2 ×（两次浮动 1.6s + 停顿 0.5s）；幅度改 --agent-icon-bob */
+.agent-pill-icon {
+  display: inline-flex;
+  --agent-icon-bob: 1.5px;
+  animation: agent-icon-bob-flip 4.2s ease-in-out infinite;
+}
+@keyframes agent-icon-bob-flip {
+  /* 浮动两次（每次 0.4s 上 + 0.4s 下），接着 0.5s 静止 */
+  0%      { transform: translateY(0) scaleX(1); }
+  9.524%  { transform: translateY(calc(-1 * var(--agent-icon-bob))) scaleX(1); }
+  19.048% { transform: translateY(0) scaleX(1); }
+  28.571% { transform: translateY(calc(-1 * var(--agent-icon-bob))) scaleX(1); }
+  38.095% { transform: translateY(0) scaleX(1); }
+  49.99%  { transform: translateY(0) scaleX(1); }   /* 停顿结束 */
+  50%     { transform: translateY(0) scaleX(-1); }  /* 换镜像（瞬时） */
+  /* 另外一半：同样的两次浮动 + 0.5s 停顿 */
+  59.524% { transform: translateY(calc(-1 * var(--agent-icon-bob))) scaleX(-1); }
+  69.048% { transform: translateY(0) scaleX(-1); }
+  78.571% { transform: translateY(calc(-1 * var(--agent-icon-bob))) scaleX(-1); }
+  88.095% { transform: translateY(0) scaleX(-1); }
+  100%    { transform: translateY(0) scaleX(-1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-pill-icon { animation: none; }
+}
+
+/* Shell 胶囊：终端图标里的光标闪烁（终端语义）。
+   光标路径（icon-cursor）在共用图标里，靠祖先 .shell-pill-icon 限定作用域——
+   聊天里其它地方的同款 bash 图标不受影响。 */
+.shell-pill-icon .icon-cursor {
+  animation: shell-cursor-blink 1.2s linear infinite;
+}
+@keyframes shell-cursor-blink {
+  0%, 45% { opacity: 1; }
+  46%, 100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell-pill-icon .icon-cursor { animation: none; }
 }
 
 /* ══ hover 反馈两档 + 光效预设卡底色 + 抽屉卡片底(无边框语言) ══

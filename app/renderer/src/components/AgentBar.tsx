@@ -55,8 +55,8 @@ export function AgentBar({ sessionId }: { sessionId?: string }): JSX.Element | n
         className="agent-breath info-glow flex items-center gap-1 rounded-[var(--radius-lg)] bg-info-soft px-2 py-0.5 text-[length:var(--text-11)] font-bold text-info cursor-pointer hover:bg-info-high"
        
       >
-        <ToolIcon name="task" />
-        •{agentTasks.length}
+        <span className="agent-pill-icon"><ToolIcon name="task" /></span>
+        {"• "}{agentTasks.length}
       </button>
 
       {/* 任务列表浮层(向上展开,覆盖输入卡片上方;最多显示 5 行,超出滚动) */}

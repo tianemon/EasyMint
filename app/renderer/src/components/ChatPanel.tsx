@@ -2653,13 +2653,17 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
 
   // 群聊消息:按 agentRole 标注角色(头像首字符 + 角色名 + 转发来源标记)
   const role = msg.agentRole;
-  const avatarChar = role ? role.charAt(0).toUpperCase() : "M";
   const displayName = role ?? "Mint";
 
   return (
     <div className="msg-in" onContextMenu={(e) => onContextMenu(msg, e)}>
       <div className="flex gap-4 items-start max-w-[75%]">
-        <div className="msg-avatar agent" style={role ? { backgroundColor: roleColor(role), color: "#fff" } : undefined}>{avatarChar}</div>
+        {/* Mint 头像：雪碧图，生成中（busy）才播动画，否则停在第 1 帧；角色消息仍用首字母 */}
+        {role ? (
+          <div className="msg-avatar agent" style={{ backgroundColor: roleColor(role), color: "#fff" }}>{role.charAt(0).toUpperCase()}</div>
+        ) : (
+          <div className={`msg-avatar mint${busy ? " avatar-live" : ""}`} />
+        )}
         <div className="min-w-0 relative" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
           <div className="msg-from">
             {displayName}

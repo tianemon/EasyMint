@@ -13,6 +13,7 @@ task-*.png
 .codegraph/
 *.png
 !app/renderer/src/assets/providers/*.png
+!app/renderer/src/assets/mint-avatar-strip*.png
 !assets/screenshots/*.png
 .easymint/
 .workbuddy/

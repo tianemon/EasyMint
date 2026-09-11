@@ -1,15 +1,19 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, type CSSProperties } from "react";
+// useRef / useState 随旧符号动画一并停用，恢复旧动画时加回
 import { useStatusStore } from "../stores/status-store";
 import { useTabStore } from "../stores/tab-store";
 import { useSettingsStore } from "../stores/settings-store";
 import { useThemeStore } from "../stores/theme-store";
+import { ModelGlyph } from "./ModelGlyph";
 
-/** 过渡符号动画序列(顺序播放 → 端点停顿 → 倒序播放 → 端点停顿,循环) */
-const SYMBOLS = ["·", "✢", "✻", "✳", "❋"];
+/** 旧的状态栏符号动画：字符序列顺序播放 → 端点停顿 → 倒序播放 → 停顿，循环。
+ *  已由动态模型图标（ModelGlyph）替代，按要求保留代码备查——恢复旧动画时把下面注释解开。
+ *  符号动画序列(顺序播放 → 端点停顿 → 倒序播放 → 端点停顿,循环) */
+// const SYMBOLS = ["·", "✢", "✻", "✳", "❋"];
 /** 符号切换间隔(ms) */
-const TICK_MS = 150;
+// const TICK_MS = 150;
 /** 端点停顿(ms)——正程播完顿一下再反向 */
-const PAUSE_MS = 500;
+// const PAUSE_MS = 500;
 
 /** 流光渐变样式:由 --shimmer-1..5 变量驱动(JS 按启用组色彩注入)。
  *  一圈 = 颜色数 × 4s;shimmerSweep 位移 600%(2 个渐变宽度)= 2 圈 → 总时长 = 颜色数 × 8s */
@@ -63,8 +67,10 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
     }
   }, [statusTextStyle, shimmerColors, statusColor]);
 
-  // 符号动画只在有状态文本时运行(与文本同现同消)——text 空则不显示不运行
+  // 状态图标与状态文本同现同消:有状态信号(busy && text)时一起出现,信号结束一起消失
+  // （变量名沿用 showSymbols:该位置原本放字符符号动画，现由 ModelGlyph 占这个位置）
   const showSymbols = busy && !!text;
+  /* 旧字符符号动画的帧推进（已停用，保留备查——恢复时同时把上方常量与 react import 解开）
   const [symIdx, setSymIdx] = useState(0);
   const idxRef = useRef(0);
   const dirRef = useRef(1);
@@ -96,6 +102,7 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
     return () => clearTimeout(timer);
   }, [showSymbols]);
   const symbol = SYMBOLS[symIdx];
+  */
 
   if (!showSymbols && !summarizing) return null;
 
@@ -111,12 +118,25 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
     ? { color: statusColor }
     : shimmerStyle;
 
+  // 图标颜色循环时长：用户反馈比文字流光慢，缩 1/3（= 原值 × 2/3）。
+  // 参考：文字流光一轮（shimmerSweep 一轮）实际是 shimmerDuration 的一半，要完全同步就改成分母 2。
+  const glyphShimmerDuration = (shimmerDuration * 2) / 3;
+
   return (
     <>
       {showSymbols && (
         <div className="statusbar">
-          {/* 符号(固定宽度,防挤压文本横跳)+ 状态文本,一同出现一同消失 */}
-          <span className="w-[1.25em] inline-flex items-center justify-center text-xs font-bold shrink-0 select-none" style={textStyle}>{symbol}</span>
+          {/* 状态图标（动态模型图标,固定宽度防挤压文本横跳）+ 状态文本,一同出现一同消失。
+              图标只在流光模式下变色：颜色循环靠类 .status-glyph-shimmer，内联 style 只传时长变量。
+              不要在这里铺 textStyle——流光模式的 shimmerStyle 自带 animation（文字扫光），
+              内联 animation 会盖掉类的 color 循环，图标就永远不变色（且该 span 里没有文字，渐变本来也用不上）。
+              原字符符号动画保留为注释（见文件顶部常量与下方 effect） */}
+          <span
+            className={`w-[1.25em] inline-flex items-center justify-center shrink-0${statusTextStyle === "shimmer" ? " status-glyph-shimmer" : ""}`}
+            style={statusTextStyle === "shimmer" ? ({ "--glyph-shimmer-dur": `${glyphShimmerDuration}s` } as CSSProperties) : { color: statusColor }}
+          >
+            <ModelGlyph animated />
+          </span>
           <span className="text-xs font-medium" style={textStyle}>{text}</span>
         </div>
       )}

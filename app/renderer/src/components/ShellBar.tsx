@@ -52,8 +52,8 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
         className="agent-breath flex items-center gap-1 rounded-[var(--radius-lg)] bg-success-soft px-2 py-0.5 text-[length:var(--text-11)] font-bold text-success cursor-pointer hover:bg-success-high"
        
       >
-        <ToolIcon name="bash" />
-        •{shellTasks.length}
+        <span className="shell-pill-icon"><ToolIcon name="bash" /></span>
+        {"• "}{shellTasks.length}
       </button>
 
       {/* 命令列表浮层(向上展开,覆盖输入卡片上方) */}

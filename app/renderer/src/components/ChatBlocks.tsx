@@ -35,7 +35,9 @@ function toolIconPaths(name: string): JSX.Element | null {
   let n = name.toLowerCase();
   if (n.startsWith("mcp__")) n = "mcp"; // MCP 工具统一扳手
   switch (n) {
-    case "bash": case "powershell": return (<><path d="m7 11 2-2-2-2"/><path d="M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/></>);
+    // 光标那笔带 icon-cursor 类：供终端类胶囊做光标闪烁，样式按祖先作用域限定（如 .shell-pill-icon），
+    // 其他地方用到同一图标不受影响
+    case "bash": case "powershell": return (<><path d="m7 11 2-2-2-2"/><path className="icon-cursor" d="M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/></>);
     case "edit": return (<><path d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z"/></>);
     case "read": return (<><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></>);
     case "write": return (<><path d="M13 21h8"/><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></>);
