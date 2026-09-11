@@ -662,9 +662,10 @@ const filePath = p.join(projectPath, "task.json");
   // 为何要体积上限：整张图以 base64 一次性进内存 + 走 IPC，超大图（设计稿/打包产物）会同时拖垮两侧。
   const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
   ipcMain.handle("file:readImage", guard(z.object({ filePath: pathString }).loose(), (data) => {
-    // 只放行图片扩展名，且与其它 file: 通道同口径限制在已登记项目根内——
-    // 否则该通道会变成任意路径读取器（一个能读 /etc 或用户私钥的图片查询接口）。
-    if (!isImagePath(data.filePath) || !projectRootContaining(data.filePath)) return null;
+    // 只放行图片扩展名，**不限项目根**：用户与 Mint 都会看项目外的图（桌面截图、下载目录、临时文件）。
+    // 取舍：该通道因此能读任意路径的图片并 base64 返回（用户定：放宽，换可用性）；
+    // 保底是另外三重校验——扩展名白名单、必须存在且是普通文件、体积上限。
+    if (!isImagePath(data.filePath)) return null;
     const abs = p.resolve(resolveHome(data.filePath));
     // 一次 stat 同时排掉「不存在」与「目录误标成 .png」两种情况（readFileSync 读目录会直接抛）
     const stat = fs.statSync(abs, { throwIfNoEntry: false });
