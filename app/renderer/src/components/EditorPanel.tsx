@@ -5,6 +5,8 @@ import type { editor } from "monaco-editor";
 import { useTabStore } from "../stores/tab-store";
 import { useSettingsStore } from "../stores/settings-store";
 import { conf as mdConf, language as mdLanguage } from "../lib/markdown-monarch";
+import { dirOf, isMarkdownPath } from "../lib/markdown-path";
+import { MarkdownView } from "./MarkdownView";
 
 // Load Monaco from local bundle, not CDN.
 // Worker loading handled by @dvaji/vite-plugin-monaco-editor
@@ -14,6 +16,12 @@ interface EditorPanelProps {
   filePath?: string;
   fileName?: string;
 }
+
+/** markdown 面板右上角的查看方式分段（顺序即界面顺序） */
+const MD_VIEW_OPTIONS: Array<{ id: "preview" | "source"; label: string }> = [
+  { id: "preview", label: "预览" },
+  { id: "source", label: "源码" },
+];
 
 function readCSS(name: string): string {
   const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -96,7 +104,7 @@ function langForFile(name: string | undefined): string {
 
 export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Element {
   const [content, setContent] = useState<string>("");
-  const [_loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -107,8 +115,27 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
   // data-theme 变化时同样重建（亮暗自适应）。
   const tabs = useTabStore((s) => s.tabs);
   const activeTabId = useTabStore((s) => s.activeTabId);
-  const myTabId = tabs.find((t) => t.type === "file" && t.filePath === filePath)?.id;
+  const myTab = tabs.find((t) => t.type === "file" && t.filePath === filePath);
+  const myTabId = myTab?.id;
   const isActive = myTabId !== undefined && myTabId === activeTabId;
+
+  const isMarkdown = !!filePath && isMarkdownPath(filePath);
+  // markdown 默认预览（tab 未设置过 mdView 即默认值）；非 markdown 恒走 Monaco
+  const view: "preview" | "source" = isMarkdown ? (myTab?.mdView ?? "preview") : "source";
+  const showPreview = isMarkdown && view === "preview";
+
+  /** 切换查看方式：选择按 tab 记忆（切走/切回、关掉重开同一文件都保持） */
+  const switchView = (next: "preview" | "source"): void => {
+    if (next === view || !myTabId) return;
+    if (next === "preview") {
+      // 切走前把 Monaco 缓冲区写回 state：预览显示当前编辑内容；切回源码时 Editor 以 value
+      // 重新初始化，否则未保存的修改会随下面那次卸载一起丢
+      const ed = editorRef.current;
+      if (ed) setContent(ed.getValue());
+      editorRef.current = null;
+    }
+    useTabStore.getState().updateTab(myTabId, { mdView: next });
+  };
 
   useEffect(() => {
     const root = document.documentElement;
@@ -194,42 +221,74 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
   return (
     <div className="flex h-full overflow-hidden">
       <div className="flex-1 flex flex-col min-w-0">
-        <Editor
-          key={filePath}
-          height="100%"
-          language={langForFile(fileName)}
-          value={content}
-          loading={<div className="flex items-center justify-center h-full text-text-secondary text-sm">加载中…</div>}
-          beforeMount={(monaco) => {
-            // 使用本地修正版 markdown 定义（标题 token = markup.heading）
-            monaco.languages.setMonarchTokensProvider("markdown", mdLanguage);
-            monaco.languages.setLanguageConfiguration("markdown", mdConf);
-            monaco.editor.defineTheme("easymint", buildMonacoTheme());
-          }}
-          onMount={handleMount}
-          onChange={handleChange}
-          theme="easymint"
-          options={{
-            fontSize: readPx("--text-detail", 13), // 阅读档(13px 基准,与旧 --text-sm 等值,默认 100% 视觉不变)
-            fontFamily: "'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace",
-            lineHeight: Math.round(readPx("--text-detail", 13) * 1.7), // 13px→22px 原比例,随字号缩放
-            lineNumbersMinChars: 4,
-            // 行号与代码间距 = lineDecorationsWidth(默认10) + folding(16) = 26px
-            // 收紧：装饰区 0（折叠箭头保留，间距 16px）
-            lineDecorationsWidth: 10,
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            wordWrap: "on",
-            tabSize: 2,
-            renderWhitespace: "selection",
-            bracketPairColorization: { enabled: true },
-            guides: { bracketPairs: true },
-            padding: { top: 8 },
-            smoothScrolling: false,
-            cursorBlinking: "blink",
-            cursorSmoothCaretAnimation: "off",
-          }}
-        />
+        {isMarkdown && (
+          // 查看方式分段在面板右上角:预览/源码两态,选择按 tab 记忆（见 switchView）
+          <div className="flex items-center justify-end gap-1 px-3 py-1.5 border-b border-border shrink-0">
+            {MD_VIEW_OPTIONS.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => switchView(o.id)}
+                className={`px-2.5 h-6 rounded-[var(--radius-lg)] text-xs transition-all ${
+                  view === o.id
+                    ? "bg-[var(--preset-active)] text-text-primary"
+                    : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {showPreview ? (
+          loading ? (
+            <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">加载中…</div>
+          ) : (
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              <MarkdownView text={content} baseDir={dirOf(filePath)} />
+            </div>
+          )
+        ) : (
+          // 预览时不挂载 Monaco（切回源码重新初始化）：markdown 默认预览，留着实例等于白占一份编辑器状态
+          <div className="flex-1 min-h-0 relative">
+            <Editor
+              key={filePath}
+              height="100%"
+              language={langForFile(fileName)}
+              value={content}
+              loading={<div className="flex items-center justify-center h-full text-text-secondary text-sm">加载中…</div>}
+              beforeMount={(monaco) => {
+                // 使用本地修正版 markdown 定义（标题 token = markup.heading）
+                monaco.languages.setMonarchTokensProvider("markdown", mdLanguage);
+                monaco.languages.setLanguageConfiguration("markdown", mdConf);
+                monaco.editor.defineTheme("easymint", buildMonacoTheme());
+              }}
+              onMount={handleMount}
+              onChange={handleChange}
+              theme="easymint"
+              options={{
+                fontSize: readPx("--text-detail", 13), // 阅读档(13px 基准,与旧 --text-sm 等值,默认 100% 视觉不变)
+                fontFamily: "'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace",
+                lineHeight: Math.round(readPx("--text-detail", 13) * 1.7), // 13px→22px 原比例,随字号缩放
+                lineNumbersMinChars: 4,
+                // 行号与代码间距 = lineDecorationsWidth(默认10) + folding(16) = 26px
+                // 收紧：装饰区 0（折叠箭头保留，间距 16px）
+                lineDecorationsWidth: 10,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                wordWrap: "on",
+                tabSize: 2,
+                renderWhitespace: "selection",
+                bracketPairColorization: { enabled: true },
+                guides: { bracketPairs: true },
+                padding: { top: 8 },
+                smoothScrolling: false,
+                cursorBlinking: "blink",
+                cursorSmoothCaretAnimation: "off",
+              }}
+            />
+          </div>
+        )}
         {saved && (
           <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-[var(--radius-lg)] bg-accent-bg text-accent text-xs">
             已保存

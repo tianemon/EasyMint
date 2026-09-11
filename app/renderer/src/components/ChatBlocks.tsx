@@ -1,8 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
 import type { StreamEntry } from "./StreamPanel";
 import { inferLang, tokenizeLines } from "../lib/diff-highlight";
+import { MARKDOWN_PROSE_CLASS, renderMarkdownToHtml } from "../lib/markdown";
 import { useTabStore } from "../stores/tab-store";
 import { useViewerStore } from "../stores/viewer-store";
 import { isImagePath } from "@shared/image-files";
@@ -80,31 +79,6 @@ function toolIconPaths(name: string): JSX.Element | null {
     default: return null;
   }
 }
-
-// 链接渲染:加 target="_blank" rel="noopener"——新窗口打开,
-// 主进程 setWindowOpenHandler 拦截后转系统浏览器(否则点击链接窗口内跳走,EM 界面被替换无法返回)
-const mdRenderer = new marked.Renderer();
-
-/** HTML 属性值转义(& " < >)——href/title 拼进标签前必须转义,防属性逃逸注入(如 onerror=) */
-function escapeHtmlAttr(v: string): string {
-  return v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-/** href 协议白名单:http/https/mailto;其余(含 javascript:/data:/vbscript: 与未知协议)→ null(降级纯文本) */
-function safeHref(href: string): string | null {
-  const trimmed = href.trim();
-  // 控制字符/空白(如 "java\nscript:")可绕过协议匹配,白名单通过后再拒一次
-  if (/[\u0000-\u0020]/.test(trimmed)) return null;
-  return /^(https?:|mailto:)/i.test(trimmed) ? trimmed : null;
-}
-
-mdRenderer.link = ({ href, title, tokens }) => {
-  const text = tokens.map((t) => t.raw).join("");
-  const safe = safeHref(href);
-  if (!safe) return text; // 协议不在白名单 → 渲染纯文本,不生成可点击链接
-  const titleAttr = title ? ` title="${escapeHtmlAttr(title)}"` : "";
-  return `<a href="${escapeHtmlAttr(safe)}" target="_blank" rel="noopener noreferrer"${titleAttr}>${text}</a>`;
-};
 
 // ── Block types ──────────────────────────────────────
 
@@ -267,14 +241,9 @@ const LANG_LABELS: Record<string, string> = {
 //  - 流式尾块:rAF 帧合并 + 已渲染前缀冻结,每帧只 parse 新增的开放尾部(不再每帧全文重 parse)
 //    完成态输出与静态全文 parse 一致(冻结边界=段落边界/闭合围栏,不切断跨段 markdown 结构)
 
-/** markdown 单段 HTML 渲染(parse 按 content 字符串缓存) */
+/** markdown 单段 HTML 渲染(parse 按 content 字符串缓存);管线与编辑器预览共用(见 lib/markdown) */
 const MarkdownHtml = memo(function MarkdownHtml({ content }: { content: string }): JSX.Element {
-  // marked 输出统一经 DOMPurify 净化——AI 输出/被读取的项目文件可含 <script>/<img onerror>
-  // 等载荷,直接进 dangerouslySetInnerHTML 会执行(配合 1.6 形成完整 RCE 链)
-  const html = useMemo(
-    () => DOMPurify.sanitize(marked.parse(content, { breaks: true, renderer: mdRenderer }) as string),
-    [content],
-  );
+  const html = useMemo(() => renderMarkdownToHtml(content), [content]);
   return <div dangerouslySetInnerHTML={{ __html: html }} />;
 });
 
@@ -460,7 +429,7 @@ const StaticMarkdown = memo(function StaticMarkdown({ text, prefix }: { text: st
 export function TextBlockView({ block, streaming }: { block: TextBlock; streaming?: boolean }): JSX.Element {
   const prefix = block.keyPrefix || "md";
   return (
-    <div className="leading-relaxed prose prose-sm max-w-none break-words [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_h1]:[font-size:1.5em] [&_code]:[font-size:var(--text-detail)] prose-headings:text-text-primary prose-p:text-text-primary prose-strong:text-text-primary prose-a:text-accent prose-li:text-text-primary">
+    <div className={MARKDOWN_PROSE_CLASS}>
       {streaming
         ? <StreamingMarkdown text={block.text} prefix={prefix} />
         : <StaticMarkdown text={block.text} prefix={prefix} />}

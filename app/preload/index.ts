@@ -248,7 +248,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   tab: {
     save: (data: unknown) => ipcRenderer.invoke("tab:save", data),
-    restore: () => ipcRenderer.invoke("tab:restore") as Promise<{ tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string; isDesigner?: boolean }>; activeTabId: string | null } | null>,
+    restore: () => ipcRenderer.invoke("tab:restore") as Promise<{ tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string; isDesigner?: boolean; mdView?: "preview" | "source" }>; activeTabId: string | null } | null>,
   },
   agent: {
     runWorker: (projectPath: string, prompt: string) =>

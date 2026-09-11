@@ -11,6 +11,8 @@ export interface Tab {
   isNewProject?: boolean;
   dirty?: boolean;
   isDesigner?: boolean;
+  /** markdown 文件的查看方式（预览/源码）；未设置 = 默认预览。按 tab 记忆，切走切回不重置 */
+  mdView?: "preview" | "source";
 }
 
 interface TabState {
@@ -165,7 +167,7 @@ useTabStore.subscribe((state) => {
   synced = true;
   try {
     window.electronAPI?.tab?.save?.({
-      tabs: state.tabs.map((t) => ({ id: t.id, type: t.type, title: t.title, filePath: t.filePath, sessionId: t.sessionId, isDesigner: t.isDesigner })),
+      tabs: state.tabs.map((t) => ({ id: t.id, type: t.type, title: t.title, filePath: t.filePath, sessionId: t.sessionId, isDesigner: t.isDesigner, mdView: t.mdView })),
       activeTabId: state.activeTabId,
     });
   } catch { /* ignore */ }
