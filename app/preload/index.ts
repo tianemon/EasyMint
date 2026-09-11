@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("file:createFolder", { dirPath }),
     saveUpload: (name: string, data: Uint8Array) => ipcRenderer.invoke("file:saveUpload", { name, data: Array.from(data) }) as Promise<{ path: string; dataUrl: string }>,
     readUpload: (filePath: string) => ipcRenderer.invoke("file:readUpload", { filePath }) as Promise<string | null>,
+    readImage: (filePath: string) => ipcRenderer.invoke("file:readImage", { filePath }) as Promise<string | null>,
   },
   todos: {
     list: (projectPath: string) => ipcRenderer.invoke("todos:list", { projectPath }),

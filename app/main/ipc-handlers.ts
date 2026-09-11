@@ -9,6 +9,7 @@ import { Store } from "./services/store";
 import { broadcast } from "./services/ipc-broadcast";
 import { resetModelRuntime } from "./services/pi-init";
 import { IMAGE_MIME, resolveHome } from "./utils/paths";
+import { isImagePath } from "../shared/image-files";
 import { z } from "zod";
 import { guard, expectPayload, pathString, nonEmptyString } from "./ipc-validation";
 import { execShell } from "./services/shell-service";
@@ -654,6 +655,24 @@ const filePath = p.join(projectPath, "task.json");
     const mime = IMAGE_MIME[ext] || "image/png";
     return `data:${mime};base64,${buf.toString("base64")}`;
   });
+
+  // file:readImage — 读取图片为 dataUrl，供内置图片查看器显示。
+  // 为何不复用 file:readUpload：那个通道被硬限制在 ~/.easymint/uploads/（上传缓存目录）下，读不了项目内的图片。
+  // 为何返回 dataUrl 而非让渲染层直接用 file://：dev 下页面源是 http://localhost，Chromium 会拦截 file:// 资源。
+  // 为何要体积上限：整张图以 base64 一次性进内存 + 走 IPC，超大图（设计稿/打包产物）会同时拖垮两侧。
+  const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
+  ipcMain.handle("file:readImage", guard(z.object({ filePath: pathString }).loose(), (data) => {
+    // 只放行图片扩展名，且与其它 file: 通道同口径限制在已登记项目根内——
+    // 否则该通道会变成任意路径读取器（一个能读 /etc 或用户私钥的图片查询接口）。
+    if (!isImagePath(data.filePath) || !projectRootContaining(data.filePath)) return null;
+    const abs = p.resolve(resolveHome(data.filePath));
+    // 一次 stat 同时排掉「不存在」与「目录误标成 .png」两种情况（readFileSync 读目录会直接抛）
+    const stat = fs.statSync(abs, { throwIfNoEntry: false });
+    if (!stat?.isFile() || stat.size > MAX_IMAGE_BYTES) return null;
+    const buf = fs.readFileSync(abs);
+    const mime = IMAGE_MIME[p.extname(abs).toLowerCase()] || "image/png";
+    return `data:${mime};base64,${buf.toString("base64")}`;
+  }));
 
   // shell:exec — run a shell command in project directory, stream output。
   // 命令内容经 shell-service 禁区检查(1.6);参数这里做类型/空值校验(1.7)

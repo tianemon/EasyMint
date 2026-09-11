@@ -201,6 +201,7 @@ interface ElectronAPI {
     createFolder: (dirPath: string) => Promise<void>;
     saveUpload: (name: string, data: Uint8Array) => Promise<{ path: string; dataUrl: string }>;
     readUpload: (filePath: string) => Promise<string | null>;
+    readImage: (filePath: string) => Promise<string | null>;
   };
   todos: {
     list: (projectPath: string) => Promise<{ ok: boolean; error?: string; data?: { todos: Array<{ id: number; title: string; note?: string; status: "open" | "done"; createdAt: number; doneAt: number | null }>; migrated?: boolean; migratedCount?: number } }>;

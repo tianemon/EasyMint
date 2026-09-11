@@ -4,6 +4,8 @@ import DOMPurify from "dompurify";
 import type { StreamEntry } from "./StreamPanel";
 import { inferLang, tokenizeLines } from "../lib/diff-highlight";
 import { useTabStore } from "../stores/tab-store";
+import { useViewerStore } from "../stores/viewer-store";
+import { isImagePath } from "@shared/image-files";
 
 /** 从文件路径取文件名(tab 标题/标题行显示用) */
 function baseName(p: string): string {
@@ -978,10 +980,14 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
   // MCP/技能类:展开区显示具体名(标题行保持类别;其余工具展开区照常显示结果)
   const detailLabel = toolDetailLabel(item);
 
-  // 打开文件 tab(对齐 FileTree 点击行为)
+  // 打开文件：图片交给内置查看器（Monaco 打开二进制只会显示乱码），其余仍开编辑器 tab
   const openFile = (e: React.MouseEvent): void => {
     e.stopPropagation();
     if (!filePath) return;
+    if (isImagePath(filePath)) {
+      void useViewerStore.getState().openImageFile(filePath);
+      return;
+    }
     useTabStore.getState().openTab({ id: "", type: "file", title: baseName(filePath), filePath });
   };
 

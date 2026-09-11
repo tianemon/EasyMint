@@ -33,7 +33,7 @@ interface ChatInputProps {
   docInputRef: React.RefObject<HTMLInputElement | null>;
   onImgChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onDocChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  /** 点击附件缩略图查看原图(ImageViewer 挂在 ChatPanel 层) */
+  /** 点击附件缩略图查看原图(ImageViewer 挂载在页面层，状态在 viewer-store) */
   onPreviewImage?: (src: string, name: string) => void;
   permissionMode: "standard" | "full";
   onPermissionModeChange: (v: "standard" | "full") => void;

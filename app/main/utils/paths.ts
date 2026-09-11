@@ -21,9 +21,10 @@ export function getResourcesDir(): string {
 
 // ── 常量 ──────────────────────────────────────────────
 
-/** 图片扩展名 → MIME 类型 */
+/** 图片扩展名 → MIME 类型（须覆盖 shared/image-files.ts 的全部图片扩展名，
+    否则会被兜底成 image/png 发出错误 MIME） */
 export const IMAGE_MIME: Record<string, string> = {
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
   ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp",
-  ".svg": "image/svg+xml",
+  ".avif": "image/avif", ".svg": "image/svg+xml", ".ico": "image/x-icon",
 };

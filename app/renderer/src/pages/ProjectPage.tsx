@@ -4,6 +4,8 @@ import { Sidebar } from "../components/Sidebar";
 import { TabBar } from "../components/TabBar";
 import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
+import { ImageViewer } from "../components/ImageViewer";
+import { isImagePath } from "@shared/image-files";
 import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
 import { NewProjectDialog } from "../components/NewProjectDialog";
 import { confirmDialog } from "../components/ui/ConfirmDialog";
@@ -11,6 +13,7 @@ import { Modal } from "../components/ui/Modal";
 import { toast } from "../components/ui/Toast";
 import { useProcessStore } from "../stores/process-store";
 import { useTabStore } from "../stores/tab-store";
+import { useViewerStore } from "../stores/viewer-store";
 import { useTaskStore, type TaskStatus } from "../stores/task-store";
 import { useProjectStatusStore } from "../stores/project-status-store";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
@@ -93,6 +96,10 @@ export function ProjectPage(): JSX.Element {
   const activeTabId = useTabStore((s) => s.activeTabId);
   const openTab = useTabStore((s) => s.openTab);
   const closeTab = useTabStore((s) => s.closeTab);
+  // 图片查看器挂在这一层（全局唯一）：文件树与聊天里的图片入口都要能打开它，
+  // 挂进 ChatPanel 时「没有聊天 tab / 多个聊天 tab」两种情况下会分别失效与重复挂载
+  const viewerImage = useViewerStore((s) => s.image);
+  const closeViewer = useViewerStore((s) => s.closeImage);
 
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
   const [sessionRefreshKey, setSessionRefreshKey] = useState(0);
@@ -206,6 +213,11 @@ export function ProjectPage(): JSX.Element {
 
   const handleFileClick = useCallback(
     (filePath: string, fileName: string) => {
+      // 图片交给内置查看器（编辑器打开二进制只会显示乱码），其余仍开编辑器 tab
+      if (isImagePath(filePath)) {
+        void useViewerStore.getState().openImageFile(filePath);
+        return;
+      }
       openTab({ id: "", type: "file", title: fileName, filePath });
     },
     [openTab]
@@ -400,6 +412,9 @@ export function ProjectPage(): JSX.Element {
       </main>
 
       <SettingsDialog open={showSettings} onClose={() => { setShowSettings(false); setSettingsTab(undefined); }} initialTab={settingsTab} projectPath={projectPath} />
+
+      {/* 图片查看器：聊天文件链接 / 文件树图片 / 附件缩略图共用（状态在 viewer-store） */}
+      <ImageViewer view={viewerImage} onClose={closeViewer} />
 
       {/* Rename Project Dialog */}
       {showRenameDialog && (

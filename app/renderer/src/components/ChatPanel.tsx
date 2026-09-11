@@ -16,13 +16,13 @@ import { useDelegationStore } from "../stores/delegation-store";
 import { normalizeApiError } from "../../../shared/api-errors";
 import { ChatInput, AttachPreview } from "./ChatInput";
 import { TodoStrip } from "./TodoStrip";
-import { ImageViewer, type ImageViewerState } from "./ImageViewer";
 import { SessionStatsPopup } from "./SessionStatsPopup";
 import { CompactionDialog } from "./CompactionDialog";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 import { blocksToMarkdown, selectionToBlocks } from "../lib/selection-to-markdown";
 import { PinLayer } from "./PinLayer";
 import { usePinStore } from "../stores/pin-store";
+import { useViewerStore } from "../stores/viewer-store";
 import { DelegationProgress, type DelegationUiState, type DelegationTaskUi } from "./DelegationProgress";
 import { ContextMenu, type ContextMenuData, type ContextMenuItem } from "./ContextMenu";
 import { QuestionHistory } from "./QuestionHistory";
@@ -180,8 +180,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const imgInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const [attaches, setAttaches] = useState<AttachItem[]>([]);
-  const [previewImage, setPreviewImage] = useState<ImageViewerState | null>(null);
-  const openViewer = useCallback((src: string, name: string) => setPreviewImage({ src, name }), []);
+  // 点附件缩略图看原图：与聊天文件链接、文件树图片共用同一个查看器（状态在 viewer-store，查看器挂在 ProjectPage）
+  const openViewer = useCallback((src: string, name: string) => useViewerStore.getState().openImage(src, name), []);
   // 权限模式:新会话默认取全局持久化值(输入条切换即更新全局——用户不需要每次重选);
   // 只读一次作初始值,不订阅全局变化(会话内以手动切换为准)
   const globalPermissionMode = useSettingsStore((s) => s.chatPermissionMode);
@@ -2447,8 +2447,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           {pinToast}
         </div>
       )}
-      {/* Image viewer:自实现图片浏览器(缩略图/气泡图片共用) */}
-      <ImageViewer view={previewImage} onClose={() => setPreviewImage(null)} />
     </div>
   );
 }
