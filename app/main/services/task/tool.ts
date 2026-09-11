@@ -167,7 +167,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
     async execute(
       _toolCallId: string,
       params: Record<string, unknown>,
-      signal: AbortSignal | undefined,
+      _signal: AbortSignal | undefined,
       _onUpdate: any,
       _ctx: any,
     ) {
@@ -243,11 +243,10 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         })),
       });
 
-      // 用户点打断（Pi abort 当前回合）→ 中止子 Agent 委派 → completion resolve(aborted)。
-      // 来源记 user：打断按钮属用户 UI 停止路径，委派停止通知按此区分文案
-      if (signal && !signal.aborted) {
-        signal.addEventListener("abort", () => record.abort("user"), { once: true });
-      }
+      // 打断（Pi abort 当前回合）只停主回合，委派继续后台跑：
+      // execute 已立即返回（异步委派），子 Agent 用 record.abortController 独立控制，
+      // 完成结果经 onComplete 注入主会话。要单独停某个委派：ProcessBar / Mint 的 stop_agent。
+      // （历史：这里曾监听 signal.abort → record.abort("user")，导致打断顺手杀掉整批委派）
 
       // 终态通知去重:节流定时器二次触发时 progress 已是终态,防重复注入
       const notifiedTerminal = new Set<string>();
