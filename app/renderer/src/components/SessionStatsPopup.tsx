@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Modal } from "./ui/Modal";
+import { formatTokenWindow } from "../lib/token-format";
 
 interface SessionStats {
   userMessages: number;
@@ -101,7 +102,7 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
                 <div className="text-text-secondary mb-1">上下文用量</div>
                 <div className="flex justify-between"><span className="text-text-secondary">占比</span><span className="text-text-primary tabular-nums">{fmtPct(stats.contextUsage.percent)}</span></div>
                 <div className="flex justify-between"><span className="text-text-secondary">已用</span><span className="text-text-primary tabular-nums">{fmtTokens(stats.contextUsage.tokens)}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">上限</span><span className="text-text-primary tabular-nums">{fmtTokens(stats.contextUsage.contextWindow)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">上限</span><span className="text-text-primary tabular-nums">{formatTokenWindow(stats.contextUsage.contextWindow)}</span></div>
               </div>
             )}
 

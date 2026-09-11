@@ -13,6 +13,7 @@ import { ShellBar } from "./ShellBar";
 import { OrbitGlow } from "./OrbitGlow";
 import { SlideGlow } from "./SlideGlow";
 import { BreatheGlow } from "./BreatheGlow";
+import { formatTokenWindow } from "../lib/token-format";
 
 interface AttachItem { name: string; path: string; dataUrl?: string; kind: "image" | "doc"; }
 
@@ -93,17 +94,12 @@ function AttachPreview_({ attaches, setAttaches, onPreview }: AttachPreviewProps
 }
 export const AttachPreview = memo(AttachPreview_);
 
-/** token 数 → 窗口文案（1000000 → 1M；向下取整避免 131072 显示成 132K） */
-function formatWindow(tokens: number): string {
-  return tokens >= 1000000 ? `${tokens / 1000000}M` : `${Math.floor(tokens / 1000)}K`;
-}
-
 /** 使用率环的悬浮文案：始终带上当前模型的实际窗口，改参数后一眼能看出是否生效 */
 function ctxTip(pct: number | null, windowTokens: number | null): string {
   if (windowTokens === null) return pct === null ? "上下文使用率" : `上下文使用率 ${Math.round(pct)}%`;
   return pct === null
-    ? `上下文窗口 ${formatWindow(windowTokens)}`
-    : `上下文窗口 ${formatWindow(windowTokens)} · 已用 ${Math.round(pct)}%`;
+    ? `上下文窗口 ${formatTokenWindow(windowTokens)}`
+    : `上下文窗口 ${formatTokenWindow(windowTokens)} · 已用 ${Math.round(pct)}%`;
 }
 
 export const ChatInput = memo(function ChatInput({
