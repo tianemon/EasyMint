@@ -127,7 +127,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const emptyArr = useRef<ChatMessage[]>([]);
   const rawMsgs = useChatStore((s) => s.messagesBySession[sid]);
   const messages: ChatMessage[] = rawMsgs || (emptyArr.current as ChatMessage[]);
-
   // 持久错误卡片(3.5):按锚定消息 id 分组,渲染在对应消息行下方
   const emptyErrorsRef = useRef<FlowErrorCard[]>([]);
   const sessionErrors = useChatStore((s) => s.errorsBySession[sid]) || emptyErrorsRef.current;
@@ -666,6 +665,15 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     containerRef.current = el;
     setScrollEl(el);
   }, []);
+  // 眨眼开关落在「最新一条 Mint 消息」所在的行：用户消息和系统通知行没有 Mint 头像，
+  // 若只按「最后一行」判，通知行插到末尾时流式中的头像会突然停眨
+  const liveIndex = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m?.role === "ai" && !m.agentRole) return i;
+    }
+    return -1;
+  }, [messages]);
   const virtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => scrollEl,
@@ -2185,7 +2193,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     data-index={vi.index}
                     ref={virtualizer.measureElement}
                     style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vi.start}px)` }}
-                    className="pb-8"
+                    // mint-live：只给「最新一条 Mint 消息」且会话在跑时加，其内头像眨眼（规则见 index.css）。
+                    // 开关做成祖先容器上的 CSS 类而不是逐个头像传 props：内联 SVG 的 SMIL 时间线是文档级的，
+                    // 多实例各自调用 pause/unpause 会互相覆盖；CSS 类没有执行顺序问题。
+                    className={`pb-8${busy && vi.index === liveIndex ? " mint-live" : ""}`}
                   >
                     {/* 跳转高亮层:常驻 absolute 不占布局(虚拟滚动测量零干扰)、opacity 过渡
                         (圆角始终存在,消失只是淡出,无「圆角变直角」)、仅上边外扩 5px——
@@ -2195,7 +2206,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     />
                     <MemoChatMessage
                       msg={msg}
-                      busy={vi.index === messages.length - 1 && busy}
+                      busy={busy}
                       userBubble={userBubble}
                       onPin={handlePin}
                       onContextMenu={handleMsgContextMenu}
@@ -2657,11 +2668,11 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
   return (
     <div className="msg-in" onContextMenu={(e) => onContextMenu(msg, e)}>
       <div className="flex gap-4 items-start max-w-[75%]">
-        {/* Mint 头像：内联矢量 SVG，生成中（busy）才播眨眼，否则冻结在睁眼静止姿态；角色消息仍用首字母 */}
+        {/* Mint 头像：内联矢量 SVG，有会话在跑时播眨眼（控制值在组件内部取全局态，见 MintAvatar）；角色消息仍用首字母 */}
         {role ? (
           <div className="msg-avatar agent" style={{ backgroundColor: roleColor(role), color: "#fff" }}>{role.charAt(0).toUpperCase()}</div>
         ) : (
-          <MintAvatar busy={busy} size={40} className="msg-avatar mint" />
+          <MintAvatar size={40} className="msg-avatar mint" />
         )}
         <div className="min-w-0 relative" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
           <div className="msg-from">

@@ -1320,6 +1320,30 @@ select.input {
 /* 内联的 SVG 是替换元素：默认 inline 会在基线上留几像素空隙，尺寸也不跟容器走——
    统一让它在 viewBox 比例内撑满容器（容器宽高由组件的 size 内联样式给） */
 .mint-avatar > svg { display: block; width: 100%; height: 100%; }
+
+/* Mint 头像眨眼：CSS 关键帧，开关就是祖先容器上有没有 .mint-live 这一个类。
+   类加在「最新一条 Mint 消息」的行容器上（见 ChatPanel 的 liveIndex）——只有正在输出的那个头像在眨。
+   不靠任何命令式调用，没有执行顺序问题。数值照搬设计稿：rx 25.92 睁 → 2.6 闭，周期 2.5s。
+   用属性选择器认这两只眼睛：它们是当前仅有的 rx 为这两个值的 ellipse（CSS 动画会盖过 rx 表现属性）。 */
+@keyframes mint-blink {
+  0%,
+  40% {
+    rx: 25.92px;
+  }
+  60%,
+  66% {
+    rx: 2.6px;
+  }
+  87%,
+  100% {
+    rx: 25.92px;
+  }
+}
+
+.mint-live .mint-avatar ellipse[rx="25.92"],
+.mint-live .mint-avatar ellipse[rx="25.74"] {
+  animation: mint-blink 2.5s ease-in-out infinite;
+}
 .msg-from {
   font-size: var(--text-2xs); font-weight: 600; color: var(--color-text-muted);
   margin-bottom: var(--s1); text-transform: uppercase; letter-spacing: 0.06em;
