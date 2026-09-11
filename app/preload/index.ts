@@ -110,6 +110,28 @@ contextBridge.exposeInMainWorld("electronAPI", {
     testProvider: (input: { baseUrl: string; apiKey: string; model?: string; apiType?: string; verifyKey?: boolean }) => ipcRenderer.invoke("settings:testProvider", input),
     fetchBalance: () => ipcRenderer.invoke("settings:fetchBalance") as Promise<{ balance_infos?: { currency: string; total_balance: string; granted_balance: string }[] }>,
   },
+  // 供应商账号登录（OAuth）：凭据落盘与刷新在 SDK，这里只驱动流程与查状态
+  provider: {
+    authStatus: (providerIds?: string[]) =>
+      ipcRenderer.invoke("provider:authStatus", { providerIds }) as Promise<Array<{
+        providerId: string; name: string; supportsOAuth: boolean;
+        type: "api_key" | "oauth" | null; hasCredential: boolean; source?: string;
+      }>>,
+    authLogin: (providerId: string, requestId: string) =>
+      ipcRenderer.invoke("provider:authLogin", { providerId, requestId }) as Promise<{ ok: boolean; canceled?: boolean; error?: string }>,
+    authLogout: (providerId: string) =>
+      ipcRenderer.invoke("provider:authLogout", { providerId }) as Promise<{ ok: boolean; error?: string }>,
+    authInput: (requestId: string, value: string) =>
+      ipcRenderer.invoke("provider:authInput", { requestId, value }) as Promise<boolean>,
+    authCancel: (requestId: string) =>
+      ipcRenderer.invoke("provider:authCancel", { requestId }) as Promise<boolean>,
+    openAuthUrl: (url: string) => ipcRenderer.invoke("provider:authOpenUrl", { url }) as Promise<boolean>,
+    onAuthEvent: (callback: (data: { requestId: string; providerId: string; event: unknown }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { requestId: string; providerId: string; event: unknown }) => callback(data);
+      ipcRenderer.on("provider:authEvent", handler);
+      return () => ipcRenderer.removeListener("provider:authEvent", handler);
+    },
+  },
   agentTemplates: {
     list: () => ipcRenderer.invoke("agent-template:list"),
     create: (input: { name: string; description: string; prompt: string; model?: string; provider?: string; agentType?: string; thinkingLevel?: string }) => ipcRenderer.invoke("agent-template:create", { input }),

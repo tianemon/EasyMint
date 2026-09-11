@@ -3,11 +3,14 @@ import { createPortal } from "react-dom";
 import { useSettingsStore } from "../../stores/settings-store";
 import { getPreset, normalizeExtraModels } from "@shared/platform-presets";
 import type { ProviderConfig, ExtraModelCapability } from "@shared/platform-presets";
+import type { ProviderAuthType } from "@shared/provider-auth";
 import { Select } from "../Select";
+import { hasOpenModal } from "../ui/Modal";
 import { BRAND_BY_PI_ID, providerSelectOptions } from "../../lib/provider-brands";
 import { toast } from "../ui/Toast";
 import { confirmDialog } from "../ui/ConfirmDialog";
 import { ModelManager, type OfficialModelInfo } from "./ModelManager";
+import { ACCOUNT_LOGIN_HINTS, ProviderAccountAuth, useProviderAuthStatus } from "./ProviderAccountAuth";
 
 export interface ProviderFormHandle {
   /** 校验并保存;成功返回 true(内部已调 onSave),失败(校验不过)返回 false */
@@ -21,6 +24,12 @@ export interface ProviderFormProps {
   /** 隐藏表单自带的底部保存条(宿主自带操作栏时用,如独立弹窗) */
   bare?: boolean;
 }
+
+/** 认证方式分段（只对支持账号登录的供应商渲染） */
+const AUTH_MODE_OPTIONS: ReadonlyArray<{ id: ProviderAuthType; label: string }> = [
+  { id: "api_key", label: "API Key" },
+  { id: "oauth", label: "账号登录" },
+];
 
 /** SDK api 类型 → 展示文案(未知类型原样显示) */
 function apiTypeLabel(api: string): string {
@@ -46,6 +55,16 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const [name, setName] = useState(initial?.name || "");
   const [apiKey, setApiKey] = useState(initial?.apiKey || "");
   const [model, setModel] = useState(initial?.model || "");
+  // 认证方式：仅 SDK 声明支持账号登录的供应商显示分段，其余整段不出现（行为与原来一致）
+  const { supported: oauthSupported, status: oauthStatus, refresh: refreshOAuthStatus } =
+    useProviderAuthStatus(isCustom ? null : presetId);
+  const [authType, setAuthType] = useState<ProviderAuthType>(
+    !isCustom && initial?.authType === "oauth" ? "oauth" : "api_key",
+  );
+  const showAuthMode = oauthSupported || authType === "oauth";
+  const usesAccountLogin = showAuthMode && authType === "oauth";
+  const accountLoggedIn = oauthStatus?.type === "oauth";
+  const providerLabel = getPreset(presetId)?.label ?? oauthStatus?.name ?? presetId;
   // 官方目录模型(含展示名/窗口;null = 未加载,此时沿用配置里缓存的列表)
   const [officialModels, setOfficialModels] = useState<OfficialModelInfo[] | null>(null);
   // SDK 预设的连接信息(官方名/官方 Base URL/接入协议)——内置供应商只读展示
@@ -155,7 +174,12 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
 
   const handleSave = async (): Promise<boolean> => {
     if (!name.trim()) { toast("请输入名称"); return false; }
-    if (!apiKey.trim()) { toast("请输入 API Key"); return false; }
+    // 账号登录没有本地 key：没登录就存下去，运行时拿不到凭据（表现为发消息无响应）。
+    // 状态尚未查到（打开表单后的首次查询还没回来）时不下结论：该配置本就是账号登录，
+    // 凭据在 auth.json 里，重复保存不该被拦下。
+    if (usesAccountLogin && oauthStatus !== null && !accountLoggedIn) {
+      toast(`请先登录 ${providerLabel}`); return false;
+    } else if (!usesAccountLogin && !apiKey.trim()) { toast("请输入 API Key"); return false; }
     if (isCustom && !baseUrl.trim()) { toast("自定义供应商需填写 Base URL"); return false; }
     // 自添加模型必须显式声明参数:数据层不推断,SDK 兜底(128K/16K)与 EM 兜底都可能与实际不符,
     // 1M 窗口的模型会过早触发压缩——从入口拦住比事后排查便宜
@@ -170,7 +194,9 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       id: initial?.id || `${(presetId || "custom")}-${Date.now()}`,
       presetId: isCustom ? "custom" : presetId,
       name: name.trim(),
-      apiKey: apiKey.trim(),
+      // 账号登录必须清空 apiKey：runtime key 的优先级高于 auth.json，留着会让 OAuth 凭据永远用不上
+      apiKey: usesAccountLogin ? "" : apiKey.trim(),
+      authType: showAuthMode ? authType : undefined,
       model: model || (modelList[0] ?? ""),
       models: modelList,
       extraModels: extraModels.length > 0 ? extraModels : undefined,
@@ -270,24 +296,57 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
           />
         )}
       </div>
-      {/* API Key */}
-      <div>
-        <label className="text-xs text-text-secondary block mb-1.5">API Key</label>
-        <div className="relative">
-          <input type={showKey ? "text" : "password"}
-            className="em-input em-input-compact w-full h-8 px-2.5 pr-9 text-text-primary text-xs transition-colors"
-            placeholder={preset?.keyPlaceholder || "sk-..."} value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)} />
-          <button type="button" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
-            onClick={() => setShowKey(!showKey)}>
-            {showKey ? (
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-            ) : (
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            )}
-          </button>
+      {/* 认证方式分段：只对 SDK 声明支持账号登录的供应商出现，其他供应商整段不存在 */}
+      {showAuthMode && (
+        <div>
+          <label className="text-xs text-text-secondary block mb-1.5">认证方式</label>
+          <div className="flex gap-1.5">
+            {AUTH_MODE_OPTIONS.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setAuthType(m.id)}
+                className={`flex-1 h-8 rounded-[var(--radius-lg)] text-xs transition-all ${
+                  authType === m.id
+                    ? "bg-[var(--preset-active)] text-text-primary"
+                    : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {usesAccountLogin ? (
+        <ProviderAccountAuth
+          providerId={presetId}
+          providerLabel={providerLabel}
+          hint={ACCOUNT_LOGIN_HINTS[presetId]}
+          status={oauthStatus}
+          onChanged={refreshOAuthStatus}
+        />
+      ) : (
+        /* API Key */
+        <div>
+          <label className="text-xs text-text-secondary block mb-1.5">API Key</label>
+          <div className="relative">
+            <input type={showKey ? "text" : "password"}
+              className="em-input em-input-compact w-full h-8 px-2.5 pr-9 text-text-primary text-xs transition-colors"
+              placeholder={preset?.keyPlaceholder || "sk-..."} value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)} />
+            <button type="button" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
+              onClick={() => setShowKey(!showKey)}>
+              {showKey ? (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              ) : (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 默认模型 + 子Agent默认模型:同一行——两者都是「这个供应商用哪个模型」 */}
       <div className="grid grid-cols-2 gap-3">
@@ -366,6 +425,9 @@ export function ProviderFormDialog({ initial, onSave, onClose }: {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // 上层还有 Modal 弹窗（账号登录授权框等）时让位：本弹窗先挂载、先收到 Esc，
+        // 不让位会把下层弹窗关掉而把上层留在屏幕上
+        if (hasOpenModal()) return;
         e.stopImmediatePropagation();
         onClose();
       }

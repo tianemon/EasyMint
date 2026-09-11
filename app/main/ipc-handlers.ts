@@ -10,7 +10,7 @@ import { broadcast } from "./services/ipc-broadcast";
 import { resetModelRuntime } from "./services/pi-init";
 import { IMAGE_MIME, resolveHome } from "./utils/paths";
 import { z } from "zod";
-import { guard, expectPayload, pathString } from "./ipc-validation";
+import { guard, expectPayload, pathString, nonEmptyString } from "./ipc-validation";
 import { execShell } from "./services/shell-service";
 import { backgroundShellRegistry } from "./services/background-shell/registry";
 import { getRunningSummary } from "./services/task/registry";
@@ -82,6 +82,14 @@ import { networkService } from "./services/network-service";
 import { migrationService, readIgnoreFileRaw, saveIgnoreFileRaw, DEFAULT_IGNORE_CONTENT } from "./services/migration-service";
 import { listTodos, addTodo, updateTodo, toggleTodo, removeTodo } from "./services/todo-service";
 import { testProvider } from "./services/provider-test";
+import {
+  getProviderAuthStatus,
+  loginProvider,
+  logoutProvider,
+  respondAuthInput,
+  cancelAuthLogin,
+  openAuthUrl,
+} from "./services/provider-auth";
 
 interface Services {
   mainWindow: BrowserWindow;
@@ -525,6 +533,33 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       baseUrl: z.string().min(1, "不能为空"),
     }).loose(), input);
     return testProvider(data);
+  });
+  // 供应商账号登录(OAuth):登录/退出的凭据由 SDK 写入 auth.json,渲染层只驱动流程与看状态。
+  // 交互往返:主→渲染 provider:authEvent(授权链接/设备码/待输入/进度)、渲染→主 provider:authInput
+  // (提交某步输入) / provider:authCancel(中止流程)。
+  ipcMain.handle("provider:authStatus", async (_e, input: unknown) => {
+    const data = expectPayload(z.object({ providerIds: z.array(z.string().min(1)).optional() }).loose(), input);
+    return getProviderAuthStatus(store, data.providerIds);
+  });
+  ipcMain.handle("provider:authLogin", async (_e, input: unknown) => {
+    const data = expectPayload(z.object({ providerId: nonEmptyString, requestId: nonEmptyString.max(128) }).loose(), input);
+    return loginProvider(store, data.providerId, data.requestId);
+  });
+  ipcMain.handle("provider:authInput", (_e, input: unknown) => {
+    const data = expectPayload(z.object({ requestId: nonEmptyString.max(128), value: z.string() }).loose(), input);
+    return respondAuthInput(data.requestId, data.value);
+  });
+  ipcMain.handle("provider:authCancel", (_e, input: unknown) => {
+    const data = expectPayload(z.object({ requestId: nonEmptyString.max(128) }).loose(), input);
+    return cancelAuthLogin(data.requestId);
+  });
+  ipcMain.handle("provider:authLogout", async (_e, input: unknown) => {
+    const data = expectPayload(z.object({ providerId: nonEmptyString }).loose(), input);
+    return logoutProvider(store, data.providerId);
+  });
+  ipcMain.handle("provider:authOpenUrl", async (_e, input: unknown) => {
+    const data = expectPayload(z.object({ url: z.string().min(1) }).loose(), input);
+    return openAuthUrl(data.url);
   });
   ipcMain.handle("settings:fetchBalance", async () => {
     const settings = store.getSettings();

@@ -24,6 +24,18 @@ const TIER_CLASS: Record<ModalTier, string> = {
   modal: "z-modal", // 强模态：须压过普通弹窗（全局确认框、会话删除确认等）
 };
 
+let openModalCount = 0;
+
+/**
+ * 是否有 Modal 层弹窗开着。
+ *
+ * 给不走本组件的自定义弹窗用：它们同样在 window capture 注册 Esc，且因先挂载而先收到按键——
+ * 不判断就会在 Modal 开着时先关掉自己（把上层留在屏幕上）。
+ */
+export function hasOpenModal(): boolean {
+  return openModalCount > 0;
+}
+
 const FOCUSABLE_SELECTOR = [
   "a[href]",
   "button:not([disabled])",
@@ -68,6 +80,7 @@ export function Modal({
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
+    openModalCount++;
     const unregisterOverlay = registerOverlay(root);
 
     // 面板 = 遮罩根的第一个子元素（各调用方保持「遮罩 > 面板」两层结构）
@@ -120,6 +133,7 @@ export function Modal({
     window.addEventListener("keydown", onKeyDown, true);
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
+      openModalCount--;
       unregisterOverlay();
       const prev = restoreRef.current;
       if (prev && prev.isConnected && document.contains(prev)) prev.focus();

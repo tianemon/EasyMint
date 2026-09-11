@@ -483,6 +483,16 @@ interface ElectronAPI {
     testProvider: (input: { baseUrl: string }) => Promise<import("@shared/provider-test").ProviderTestResult>;
     fetchBalance: () => Promise<{ balance_infos?: { currency: string; total_balance: string; granted_balance: string }[] }>;
   };
+  /** 供应商账号登录（OAuth）：凭据落盘与刷新在 SDK，这里只驱动流程与查状态 */
+  provider: {
+    authStatus: (providerIds?: string[]) => Promise<Array<import("@shared/provider-auth").ProviderAuthStatus>>;
+    authLogin: (providerId: string, requestId: string) => Promise<import("@shared/provider-auth").ProviderLoginResult>;
+    authLogout: (providerId: string) => Promise<import("@shared/provider-auth").ProviderLoginResult>;
+    authInput: (requestId: string, value: string) => Promise<boolean>;
+    authCancel: (requestId: string) => Promise<boolean>;
+    openAuthUrl: (url: string) => Promise<boolean>;
+    onAuthEvent: (callback: (data: import("@shared/provider-auth").ProviderAuthEventMessage) => void) => () => void;
+  };
   agentTemplates: {
     list: () => Promise<{ id: string; name: string; description: string; prompt: string; model?: string; provider?: string; agentType: string; thinkingLevel?: string }[]>;
     create: (input: { name: string; description: string; prompt: string; model?: string; provider?: string; agentType?: string; thinkingLevel?: string }) => Promise<{ id: string; name: string; description: string; prompt: string; model?: string; provider?: string; agentType: string; thinkingLevel?: string }>;

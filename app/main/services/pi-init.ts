@@ -417,8 +417,11 @@ async function syncProviders(store: Store, runtime: ModelRuntimeInstance) {
   const providers = settings.apiProviders;
   if (!providers) return;
   for (const [, config] of Object.entries(providers.configs ?? {})) {
-    // 内置 provider 只需 setRuntimeApiKey
-    if (config.presetId && config.presetId !== "custom" && config.apiKey) {
+    // 内置 provider 只需 setRuntimeApiKey。
+    // 账号登录(authType=oauth)的供应商绝不能设 runtime key:解析优先级是
+    // runtime override > auth.json > 环境变量,override 一设,auth.json 里的 OAuth
+    // 凭据就永远用不上——表现为「登录了但不生效」。
+    if (config.presetId && config.presetId !== "custom" && config.authType !== "oauth" && config.apiKey) {
       await runtime.setRuntimeApiKey(config.presetId, config.apiKey);
     }
     // 用户自定义 provider:调 registerProvider 动态注册
