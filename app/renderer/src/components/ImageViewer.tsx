@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 
-export interface ImageViewerState { src: string; name?: string; }
+export interface ImageViewerState { src: string; name?: string; path?: string; }
 
 // 缩放界限:下限可缩小看全貌,上限够看清长图细节;双击在「适应窗口 ↔ 原始像素」间切换
 const MIN_SCALE = 0.2;
@@ -11,7 +11,12 @@ const INSTANT_TRANSITION = "opacity 150ms ease";
 
 // 自实现图片浏览器(不走系统预览渠道):磨砂遮罩 + 滚轮朝光标缩放 + 拖拽平移 +
 // 双击适应/1:1 切换;Esc / 点击空白 / ✕ 关闭。遮罩与悬浮件全部走设计 token,随 data-theme 亮暗换肤。
-function ImageViewer_({ view, onClose }: { view: ImageViewerState | null; onClose: () => void }): JSX.Element | null {
+// onOpenSource:仅对「文本型图片」开放（目前只有 svg）——位置量图没有可读文本形态，谈不上看源码。
+function isTextBasedImage(p: string): boolean {
+  return p.toLowerCase().endsWith(".svg");
+}
+
+function ImageViewer_({ view, onClose, onOpenSource }: { view: ImageViewerState | null; onClose: () => void; onOpenSource?: (path: string) => void }): JSX.Element | null {
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
@@ -26,6 +31,8 @@ function ImageViewer_({ view, onClose }: { view: ImageViewerState | null; onClos
   const dragRef = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
   // 遮罩完整点击:仅 mousedown 也在遮罩上才算点外部关闭(拖选/拖图移出遮罩松开不误关)
   const overlayDownRef = useRef(false);
+  // 「看源码」只在文本型图片（svg）上出现；位图不提供这个入口
+  const sourcePath = onOpenSource && view?.path && isTextBasedImage(view.path) ? view.path : null;
 
   const commit = useCallback((s: number, o: { x: number; y: number }, isSmooth = false) => {
     scaleRef.current = s;
@@ -145,6 +152,16 @@ function ImageViewer_({ view, onClose }: { view: ImageViewerState | null; onClos
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       />
+      {sourcePath && (
+        <button
+          type="button"
+          className="absolute top-4 right-16 h-9 px-3 rounded-full bg-surface-elevated/90 border border-border text-xs text-text-secondary hover:text-text-primary hover:bg-surface-hover shadow-lg transition-colors flex items-center gap-1.5"
+          onClick={(e) => { e.stopPropagation(); onOpenSource?.(sourcePath); }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>
+          看源码
+        </button>
+      )}
       <button
         type="button"
        

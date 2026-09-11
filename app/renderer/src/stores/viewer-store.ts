@@ -16,8 +16,8 @@ interface ViewerState {
   openImageFile: (path: string) => Promise<void>;
 }
 
-/** 从路径取文件名（查看器底部信息条显示用） */
-function baseName(p: string): string {
+/** 从路径取文件名（查看器底部信息条与打开源码 tab 的标题共用） */
+export function baseName(p: string): string {
   const seg = p.split(/[\\/]/).pop();
   return seg || p;
 }
@@ -35,7 +35,8 @@ export const useViewerStore = create<ViewerState>((set) => ({
         toast("无法读取图片");
         return;
       }
-      set({ image: { src: dataUrl, name: baseName(path) } });
+      // 带上 path：「看源码」（svg）需要知道原文件路径，此调用的入参本就来自它
+      set({ image: { src: dataUrl, name: baseName(path), path } });
     } catch (e) {
       console.error("读取图片失败:", path, e);
       toast("无法读取图片");

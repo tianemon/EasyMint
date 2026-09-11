@@ -13,7 +13,7 @@ import { Modal } from "../components/ui/Modal";
 import { toast } from "../components/ui/Toast";
 import { useProcessStore } from "../stores/process-store";
 import { useTabStore } from "../stores/tab-store";
-import { useViewerStore } from "../stores/viewer-store";
+import { useViewerStore, baseName } from "../stores/viewer-store";
 import { useTaskStore, type TaskStatus } from "../stores/task-store";
 import { useProjectStatusStore } from "../stores/project-status-store";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
@@ -414,7 +414,15 @@ export function ProjectPage(): JSX.Element {
       <SettingsDialog open={showSettings} onClose={() => { setShowSettings(false); setSettingsTab(undefined); }} initialTab={settingsTab} projectPath={projectPath} />
 
       {/* 图片查看器：聊天文件链接 / 文件树图片 / 附件缩略图共用（状态在 viewer-store） */}
-      <ImageViewer view={viewerImage} onClose={closeViewer} />
+      <ImageViewer
+        view={viewerImage}
+        onClose={closeViewer}
+        // 看源码：关掉查看器，按原路径在编辑器 tab 打开（仅 svg 会给出这个入口）
+        onOpenSource={(path) => {
+          closeViewer();
+          openTab({ id: "", type: "file", title: baseName(path), filePath: path });
+        }}
+      />
 
       {/* Rename Project Dialog */}
       {showRenameDialog && (
