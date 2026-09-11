@@ -2735,44 +2735,47 @@ function UserBubble({ msg, editable, editing, draft, onStartEdit, onDraftChange,
           </div>
         )}
         {isEditing ? (
-          <div className="relative">
-            <textarea
-              autoFocus
-              value={curDraft}
-              onChange={(e) => onDraftChange?.(e.target.value)}
-              onKeyDown={(e) => {
-                // 中文输入法组合中回车的 keydown 不带 isComposing 保护会误提交/漏提交——组合确认键跳过
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); onCommit?.(); }
-                else if (e.key === "Escape") { e.preventDefault(); onCancel?.(); }
-              }}
-              onBlur={onCancel}
-              rows={Math.max(2, Math.min(6, (curDraft.match(/\n/g)?.length ?? 0) + 1))}
-              placeholder="修改消息…"
-              className="w-full bg-transparent outline-none resize-none pr-8 text-[length:var(--text-detail)]"
-            />
-            {/* 发送按钮右下角悬浮。提交放 onMouseDown 而非 onClick：
-               click 前 textarea 先 blur → onBlur 取消编辑 → 节点卸载 → click 丢失(点击无效)。
-               mousedown 先于 blur 触发,提交在取消竞态前完成;preventDefault 兜底拦默认焦点转移 */}
-            <button
-              type="button"
-              title="发送"
-              aria-label="发送修改后的消息"
-              onMouseDown={(e) => { e.preventDefault(); onCommit?.(); }}
-              className="absolute right-1 bottom-1 p-1 rounded-[var(--radius-lg)] text-text-muted hover:text-text-primary hover:bg-white/10 transition-colors"
-            >
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
-            </button>
-          </div>
+          /* 编辑框宽高都跟文字走：field-sizing:content 让 textarea 按内容自撑（宽短则窄、高按实际行数），
+             max-w-full 受外层 60% 钳制，高度封顶 12 行与展示态 UserMessageText 同规格 */
+          <textarea
+            autoFocus
+            value={curDraft}
+            onChange={(e) => onDraftChange?.(e.target.value)}
+            onKeyDown={(e) => {
+              // 中文输入法组合中回车的 keydown 不带 isComposing 保护会误提交/漏提交——组合确认键跳过
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); onCommit?.(); }
+              else if (e.key === "Escape") { e.preventDefault(); onCancel?.(); }
+            }}
+            onBlur={onCancel}
+            rows={1}
+            placeholder="修改消息…"
+            className="block max-w-full min-w-[3ch] bg-transparent outline-none resize-none overflow-y-auto overscroll-contain max-h-[calc(12lh+0.5px)] [field-sizing:content]"
+          />
         ) : (
           /* 封顶规格见 UserMessageText（主聊天与子 Agent 过程视图共用，避免两份实现） */
           msg.text ? <UserMessageText text={msg.text} /> : null
         )}
         </div>
-        {editable && !isEditing && (
+        {editable && (
           <div className="flex justify-end mt-0.5">
-            <button type="button" onClick={onStartEdit} title="修改并重新发送" className="p-0.5 text-text-muted hover:text-text-primary transition-colors" aria-label="编辑消息">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>
-            </button>
+            {isEditing ? (
+              /* 发送按钮占编辑按钮原位（气泡下方右侧）。提交放 onMouseDown 而非 onClick：
+                 click 前 textarea 先 blur → onBlur 取消编辑 → 节点卸载 → click 丢失(点击无效)。
+                 mousedown 先于 blur 触发,提交在取消竞态前完成;preventDefault 兜底拦默认焦点转移 */
+              <button
+                type="button"
+                title="发送"
+                aria-label="发送修改后的消息"
+                onMouseDown={(e) => { e.preventDefault(); onCommit?.(); }}
+                className="p-0.5 text-text-muted hover:text-text-primary transition-colors"
+              >
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
+              </button>
+            ) : (
+              <button type="button" onClick={onStartEdit} title="修改并重新发送" className="p-0.5 text-text-muted hover:text-text-primary transition-colors" aria-label="编辑消息">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>
+              </button>
+            )}
           </div>
         )}
       </div>
