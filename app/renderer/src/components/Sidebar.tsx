@@ -30,8 +30,6 @@ interface SidebarProps {
   onRenameProject?: () => void;
   onSettings?: () => void;
   onShowUpdate?: () => void;
-  /** 页签切换(会话/文件)——右侧内容区据此置空或恢复 */
-  onTabChange?: (tab: SidebarTab) => void;
 }
 
 export function Sidebar({
@@ -39,7 +37,7 @@ export function Sidebar({
   activeSessionId, sessionRefreshKey,
   onNewSession, onSessionClick, onSessionDelete,
   onFileClick, onNewProject, onOpenProject, onRenameProject,
-  onSettings, onTabChange,
+  onSettings,
 }: SidebarProps): JSX.Element {
   const [activeTab, setActiveTab] = useState<SidebarTab>("sessions");
   const [drawerTab, setDrawerTab] = useState<DrawerTab>("tasks");
@@ -136,8 +134,7 @@ export function Sidebar({
 
   const switchTab = useCallback((tab: SidebarTab) => {
     setActiveTab(tab);
-    onTabChange?.(tab);
-  }, [onTabChange]);
+  }, []);
 
   const toggleDrawer = useCallback((tab: DrawerTab) => {
     if (drawerTab === tab && drawerOpen) {

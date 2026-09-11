@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { Sidebar, type SidebarTab } from "../components/Sidebar";
+import { Sidebar } from "../components/Sidebar";
 import { TabBar } from "../components/TabBar";
 import { EditorPanel } from "../components/EditorPanel";
 import { ChatPanel } from "../components/ChatPanel";
@@ -93,7 +93,6 @@ export function ProjectPage(): JSX.Element {
   const activeTabId = useTabStore((s) => s.activeTabId);
   const openTab = useTabStore((s) => s.openTab);
   const closeTab = useTabStore((s) => s.closeTab);
-  const contentBlank = useTabStore((s) => s.isContentBlank());
 
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
   const [sessionRefreshKey, setSessionRefreshKey] = useState(0);
@@ -211,11 +210,6 @@ export function ProjectPage(): JSX.Element {
     },
     [openTab]
   );
-
-  // 侧边栏切到「文件」→ 右侧置空等点文件;切回「会话」→ 恢复切走前的样子(见 setContentBlanked)
-  const handleSidebarTabChange = useCallback((tab: SidebarTab) => {
-    useTabStore.getState().setContentBlanked(tab === "files");
-  }, []);
 
   // 会话点击序号:conv.get 异步期间点击了其他会话/新建 → 解析结果作废(防乱序激活)
   const clickSeqRef = useRef(0);
@@ -395,17 +389,12 @@ export function ProjectPage(): JSX.Element {
         onOpenProject={handleOpenProject}
         onRenameProject={projectId && projectExists ? handleRenameProject : undefined}
         onSettings={() => { setSettingsTab(undefined); setShowSettings(true); }}
-        onTabChange={handleSidebarTabChange}
       />
 
       <main className="main-area">
         <TabBar />
-        {/* 置空(侧边栏停在「文件」页签):tab 内容保持挂载不卸载,只做不可见+不可交互——
-            卸载会丢会话/编辑器的组件内状态(输入框草稿、滚动位置),切回时也无法瞬时还原 */}
-        <div
-          className="flex-1 min-h-0 relative"
-          style={contentBlank ? { opacity: 0, pointerEvents: "none" } : undefined}
-        >
+        {/* tab 内容全部保持挂载、按 activeTabId 切显隐(不卸载)：卸载会丢会话/编辑器的组件内状态(输入框草稿、滚动位置) */}
+        <div className="flex-1 min-h-0 relative">
           {renderTabContent()}
         </div>
       </main>

@@ -40,13 +40,12 @@ export function TabBar(): JSX.Element | null {
   const agentTasks = useDelegationStore((s) => s.agentTasks);
   const shellTasks = useDelegationStore((s) => s.shellTasks);
 
-  // 侧边栏停在「文件」页签 → 右侧整块置空等用户点文件,标签栏一并隐藏
-  const contentBlank = useTabStore((s) => s.isContentBlank());
   // 无"真实 tab"(chat 已有 sessionId 或 file tab)时隐藏 tab 条:
-  // 初始空会话 tab(无 sessionId)不显示,发送后 sessionId 绑定自动出现。
+  // 初始空会话 tab 无 sessionId——它是一个特殊会话页,但此时不显示标签是刻意设计(避免空壳标签)；
+  // 发送后 sessionId 绑定,标签自动出现。
   // 空 tab 时仍渲染空拖拽条（min-height 40px）：窗口顶部需要可拖拽区域
   const hasRealTabs = useTabStore((s) => s.tabs.some((t) => (t.type === "chat" && t.sessionId) || t.type === "file"));
-  if (contentBlank || !hasRealTabs) return (
+  if (!hasRealTabs) return (
     <div className="tabbar-v3">
       <WindowControls />
     </div>
