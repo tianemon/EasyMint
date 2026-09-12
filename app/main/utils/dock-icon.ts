@@ -29,7 +29,9 @@ export function getDockIconPath(theme: EffectiveTheme): string {
     : path.join(__dirname, "..", "..", "..", "assets", fileName);
 }
 
-/** 按当前生效主题切换 Dock 图标；非 macOS 平台安全跳过（app.dock 仅 macOS 存在） */
+/** 按当前生效主题切换 Dock 图标；非 macOS 平台安全跳过（app.dock 仅 macOS 存在）。
+ *  注意：应用**有窗口之前**调用它不会立刻改变可见的 Dock 图标（macOS 在 JS 执行前已用 bundle 图标
+ *  画好了启动阶段的 tile，首次可见重绘发生在窗口出现后）——实测取证见 docs/开发记录 2026-09-12。 */
 export function applyDockIcon(theme: EffectiveTheme): void {
   if (process.platform !== "darwin" || !app.dock) return;
   const iconPath = getDockIconPath(theme);
