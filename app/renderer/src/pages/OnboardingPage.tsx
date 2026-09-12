@@ -90,10 +90,10 @@ export function OnboardingPage(): JSX.Element {
         {currentStep === 0 ? (
           /* ── Step 1: Welcome ── */
           <div className="w-full max-w-[480px] flex flex-col items-center text-center">
-            {/* Logo：卡片容器 + 阴影，与主界面元素风格一致；图标跟随主题取亮/暗版（与关于页、Dock 同一套素材） */}
-            <div className="w-24 h-24 mb-6 rounded-[var(--radius-lg)] bg-surface-alt flex items-center justify-center overflow-hidden">
-              <img src={isDark ? "appicon-dark.png" : "appicon-light.png"} alt="EasyMint" className="w-16 h-16" />
-            </div>
+            {/* Logo：直接用图标本身（素材自带圆角口径），不套卡片容器——容器形状会在图标四角外露（形状套两层）、
+                且图标本体只占图片 80.5%，套容器后可见图标更小。与关于页（无容器、图标直接 80px）一致。
+                图标跟随主题取亮/暗版（与关于页、Dock 同一套素材） */}
+            <img src={isDark ? "appicon-dark.png" : "appicon-light.png"} alt="EasyMint" className="w-24 h-24 mb-6" />
 
             <h1 className="text-2xl font-bold text-text-primary mb-2">EasyMint</h1>
             <p className="text-sm text-text-secondary mb-1">
