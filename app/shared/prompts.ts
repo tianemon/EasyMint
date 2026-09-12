@@ -573,6 +573,21 @@ export interface SystemMessagePayload {
   details: { kind: SystemMessageKind } & Record<string, unknown>;
 }
 
+/** 系统消息 kind → 模型侧抬头标签（内容前缀 `[系统消息]-[标签]` 的第二段）。
+ *  此前对所有 kind 硬编码「Agent执行结果」——一条摘要/续接消息顶着「执行结果」抬头，
+ *  模型侧与展开后的用户都会误读。留此表做单一来源。
+ *  注意：仅第二段可变，`[系统消息]` 前缀本身是协议（见 MINT_SYSTEM_PROMPT 与契约测试）。 */
+export const SYSTEM_MESSAGE_LABELS: Record<SystemMessageKind, string> = {
+  delegation: "Agent执行结果",
+  shell: "后台命令",
+  "project-created": "项目初始化",
+  "direct-create": "直接创建",
+  flow: "流程指令",
+  handoff: "会话交接",
+  summary: "上下文摘要",
+  learn: "经验沉淀",
+};
+
 /**
  * 构造 sendCustomMessage 参数。customType 统一 system_message(对齐 cc promptSource: "system"),
  * 细分类型放 details.kind——details 不进 LLM,仅 JSONL/事件/前端使用。

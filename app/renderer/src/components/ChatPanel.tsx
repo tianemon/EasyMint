@@ -9,6 +9,7 @@ import { useSettingsStore } from "../stores/settings-store";
 import { useTabStore } from "../stores/tab-store";
 import { useChatStore, type FlowErrorCard } from "../stores/chat-store";
 import { CONFIRM_DEVELOPMENT_PROMPT } from "../../../shared/prompts";
+import { MARKDOWN_PROSE_CLASS, renderMarkdownToHtml } from "../lib/markdown";
 
 import { useStatusStore } from "../stores/status-store";
 import { StatusBar } from "./StatusBar";
@@ -62,6 +63,19 @@ const SYSTEM_KIND_LABELS: Record<string, string> = {
 
 /** 指令型系统消息（给 Mint 的行为指令，用户无需阅读正文）——默认折叠成标签条，点击展开 */
 const COLLAPSIBLE_SYSTEM_KINDS = new Set(["project-created", "direct-create", "flow", "summary", "learn"]);
+
+/** 摘要卡正文展开时的限高：约 16 行，超出内部滚动（与「委派结果」卡同一思路）。
+ *  实测一份压缩摘要 7000 字上下，不限高展开会把消息流抻得极长。用 lh 单位而非写死倍数——
+ *  随行高变化自动跟随（对齐 UserMessageText 的口径）。 */
+const SUMMARY_BODY_MAX_HEIGHT = "calc(16lh + 0.5px)";
+
+/** 摘要卡正文：内容本身就是 markdown（SDK 生成的 ## 段结构），按正文那套渲染而不是纯文本行。
+ *  对象 memo 的原因同 ChatBlocks 的 MarkdownHtml——dangerouslySetInnerHTML 比的是对象身份。 */
+const SystemMarkdown = memo(function SystemMarkdown({ content }: { content: string }): JSX.Element {
+  const html = useMemo(() => renderMarkdownToHtml(content), [content]);
+  const inner = useMemo(() => ({ __html: html }), [html]);
+  return <div className={MARKDOWN_PROSE_CLASS} dangerouslySetInnerHTML={inner} />;
+});
 
 /** 消息流内持久错误卡片(3.5):红底警示条 + 重试(可重试时)/关闭。
  *  悬停显完整文案(长错误信息不撑破气泡)。 */
@@ -2503,10 +2517,11 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, userBubb
     const kind = msg.customType === "system_message" ? (msg.details as { kind?: string } | undefined)?.kind : undefined;
     if (kind) {
       const body = text
-        .replace(/^\[系统消息\]-\[Agent执行结果\]\s*/, "")
-        .replace(/^\[系统消息\]\s*/, "");
-      // 委派/后台 shell 结果:状态/时长上标题栏,默认折叠,展开看完整内容(6 行封顶滚动);其他 kind:纯文本
+        .replace(/^\[系统消息\](-\[[^\]]*\])?\s*/, "");
+      // 委派/后台 shell 结果:状态/时长上标题栏,默认折叠,展开看完整内容(6 行封顶滚动);
+      // 摘要:内容是 markdown,展开时走 prose 渲染 + 限高滚动;其他 kind:纯文本
       const isResult = kind === "delegation" || kind === "shell";
+      const isSummary = kind === "summary";
       const lines = isResult ? body.split("\n") : [];
       const rows = lines.filter((l) => l.startsWith("⏺ "));
       // 标题栏状态取首个 ⏺ 行(多子任务时各任务状态在展开区看全貌)
@@ -2616,6 +2631,10 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, userBubb
                         </div>
                       );
                     })}
+                  </div>
+                ) : isSummary ? (
+                  <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: SUMMARY_BODY_MAX_HEIGHT }}>
+                    <SystemMarkdown content={body} />
                   </div>
                 ) : (
                   <div className="whitespace-pre-wrap [overflow-wrap:anywhere] text-text-primary">{body}</div>

@@ -88,12 +88,17 @@ export function CompactionDialog({
         </div>
         {/* 分隔线 + 输入指令区 */}
         <div className="border-t border-border/60 my-3" />
+        {/* 说清指令的效力边界：SDK 的摘要提示词要求固定段结构，指令只是追加在末尾的附加关注点
+            （保留/强调某类信息），改不了结构——不写这句会有「我提了要求却没生效」的预期落差 */}
+        <p className="text-[length:var(--text-11)] text-text-muted mb-2">
+          指令只用于强调要保留的信息（摘要的段落结构由引擎固定，不能改）。
+        </p>
         <div className="flex items-center gap-2">
           <input
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") onWithInstructions(instructions.trim()); }}
-            placeholder="输入压缩指令，例如保留某个上下文信息…"
+            placeholder="例如：保留数据库 schema 变更"
             autoFocus
             className="flex-1 min-w-0 px-2.5 py-1.5 rounded-[var(--radius-lg)] bg-surface-alt text-xs text-text-primary outline-none placeholder:text-text-muted"
           />
