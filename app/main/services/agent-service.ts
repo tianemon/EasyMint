@@ -32,7 +32,6 @@ import { backgroundShellRegistry, type BackgroundShell } from "./background-shel
 import { systemMessage, SYSTEM_MESSAGE_LABELS, type SystemMessageKind, type SystemMessagePayload } from "../../shared/prompts";
 import { normalizeApiError } from "../../shared/api-errors";
 import { createProductTools } from "./builtin-mcp";
-import { readSessionTodos } from "./session-todos";
 import { loadMcpTools } from "./permission/mcp-adapter";
 import { permissionService } from "./permission/agent-permission-service";
 import type { CanUseToolOptions, PermissionResult } from "./permission/agent-permission-service";
@@ -463,25 +462,6 @@ interface LearnSessionState {
 const LEARN_STATE_PATH = path.join(os.homedir(), ".easymint", "learn-state.json");
 /** learn-state 容量底线：超出裁剪最旧，防止文件无限增长 */
 const MAX_LEARN_STATE = 500;
-
-/** 压缩用量行（续接通知里给用户看的成本口径）——token 按 k/M 缩写，cost 取供应商实计价。
- *  SDK 的 Usage 形状较宽（部分供应商无 cost），缺项就略去那一段，不编造数字。 */
-function formatCompactionUsage(usage: unknown): string {
-  if (!usage || typeof usage !== "object") return "";
-  const u = usage as { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; cost?: { total?: number } };
-  const num = (n?: number): string => (typeof n !== "number" ? "" : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}k` : String(n));
-  const parts: string[] = [];
-  const input = num(u.input);
-  const output = num(u.output);
-  if (input) parts.push(`输入 ${input} tokens`);
-  if (output) parts.push(`输出 ${output}`);
-  // 缓存读写单列：压缩是单次调用，缓存项通常为 0，非 0 时才提（帮助判断是否有前缀缓存命中）
-  if (u.cacheRead) parts.push(`缓存读 ${num(u.cacheRead)}`);
-  if (u.cacheWrite) parts.push(`缓存写 ${num(u.cacheWrite)}`);
-  const cost = typeof u.cost?.total === "number" ? `约 $${u.cost.total.toFixed(4)}` : "";
-  if (cost) parts.push(cost);
-  return parts.join(" · ");
-}
 
 function loadLearnStates(): Record<string, LearnSessionState> {
   try {
@@ -2033,30 +2013,21 @@ export class AgentService {
     return chat.chatId;
   }
 
-  /** 压缩完成后的续接通知（手动 compact 与阈值自动压缩共用）：摘要原文 + 用量 + 步骤清单。
-   *  摘要在前——用户要看压缩到底产出了什么；步骤清单保留——todo 落盘文件才是进度权威状态，
-   *  压缩摘要不保证完整（手动路径从 v0.21.0 起就在注入清单，自动路径此前漏了）。
-   *  摘要原文本已在压缩后的上下文里，再注入一次是「展示优先」的取舍，代价约等于摘要字数。
+  /** 压缩完成后的续接通知（手动 compact 与阈值自动压缩共用）：只发本次摘要原文。
+   *  摘要原文本已在压缩后的上下文里，再注入一次是「展示优先」的取舍（用户要求：压缩完想直接看到
+   *  摘要内容），代价约等于摘要字数。
    *  流式中调用安全：SDK 对 triggerTurn:false 的消息延迟到回合末尾再落盘（见 agent-session
    *  sendCustomMessage 的 _pendingCustomMessages 分支），不会插在工具调用与结果之间。 */
   private notifyPostCompaction(
     chat: ActiveChat,
     fallbackSessionId: string,
-    result: { summary?: string; usage?: unknown } | undefined,
+    result: { summary?: string } | undefined,
   ): void {
     try {
-      const realSid = (chat.session as { sessionId?: string } | null)?.sessionId ?? fallbackSessionId;
-      const sections: string[] = [];
       const summary = result?.summary?.trim();
-      if (summary) sections.push(`【上下文摘要（本次压缩生成，原文）】\n\n${summary}`);
-      const usageLine = formatCompactionUsage(result?.usage);
-      if (usageLine) sections.push(`【本次压缩用量】${usageLine}`);
-      const todos = readSessionTodos(chat.projectPath, realSid);
-      if (todos.length > 0) {
-        const lines = todos.map((t) => `- [${t.status === "completed" ? "完成" : t.status === "in_progress" ? "进行中" : "待办"}] ${t.content}`).join("\n");
-        sections.push(`【当前步骤清单（${todos.length} 项，其中 ${todos.filter((t) => t.status === "completed").length} 完成）】\n${lines}\n\n按清单继续推进（完成项已做过，不要重做）；清单与用户待办（.easymint/todos.json）不是一回事`);
-      }
-      if (sections.length > 0) this.injectSystemMessage(realSid, sections.join("\n\n"), "summary");
+      if (!summary) return;
+      const realSid = (chat.session as { sessionId?: string } | null)?.sessionId ?? fallbackSessionId;
+      this.injectSystemMessage(realSid, `【上下文摘要（本次压缩生成，原文）】\n\n${summary}`, "summary");
     } catch { /* 通知失败不阻断压缩 */ }
   }
 
@@ -2069,8 +2040,8 @@ export class AgentService {
       return;
     }
     broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "compact" });
-    // 本次压缩结果（摘要 + 用量）——成功后作为续接通知展示（用户要看压缩到底产出了什么）
-    let compactionSummary: { summary?: string; usage?: unknown } | undefined;
+    // 本次压缩产出的摘要——成功后作为续接通知展示（用户要看压缩到底产出了什么）
+    let compactionSummary: { summary?: string } | undefined;
     // 手动压缩桥接：compact() 直接调 SDK（不经 promptAndBridge 的 subscribe），
     // compaction_start/end 事件无人转发 → 前端收不到 compacted、压缩后使用率不刷新
     // （ctxPct 残留旧值）。这里临时订阅，把压缩生命周期事件桥到前端并刷新 usage。
@@ -2082,7 +2053,7 @@ export class AgentService {
           // 区分成败:失败(带 errorMessage/无 result)也发 compaction_end——若按成功广播,
           // 前端蒙版消失且显示"已整理完毕",实际未压缩(用户感知"看似完成但没生效、无提示")
           if (!event.aborted && !event.errorMessage && event.result) {
-            compactionSummary = { summary: event.result.summary, usage: event.result.usage };
+            compactionSummary = { summary: event.result.summary };
             broadcast("agent:stream", { type: "compacted", sessionId, chatId: chat.chatId });
             this.broadcastPostCompactionUsage(chat, event.result.estimatedTokensAfter);
           } else if (!event.aborted && event.errorMessage) {
@@ -2118,7 +2089,7 @@ export class AgentService {
       ]);
       console.log(`[compact] SDK compact 返回（chatId=${chat.chatId}）`);
       // 成功路径:SDK 内部发 compaction_end → compacted 广播清除蒙版
-      // 续接通知（摘要 + 用量 + 步骤清单）统一由 notifyPostCompaction 构造，两条压缩路径共用
+      // 续接通知（摘要原文）统一由 notifyPostCompaction 构造，两条压缩路径共用
       this.notifyPostCompaction(chat, sessionId, compactionSummary);
     } catch (e) {
       const errMsg = (e as Error).message;
