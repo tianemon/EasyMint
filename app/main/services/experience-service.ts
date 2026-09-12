@@ -17,7 +17,7 @@
  *  - 索引损坏改名存证后重建；原文缺失进体检候选
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { randomUUID } from "node:crypto";
@@ -137,7 +137,9 @@ function makeFileName(id: string, title: string): string {
     len += p.length;
     if (len >= 12) break;
   }
-  return `${shortId(id)}-${picked.join("-") || "experience"}.md`;
+  // 去掉结尾残留的连接词（「…-清队列与」读着像断句）
+  const name = picked.join("-").replace(/[-的与和及或在对于由及]+$/, "");
+  return `${shortId(id)}-${name || "experience"}.md`;
 }
 
 export function bodyPath(scope: ExperienceScope, projectPath: string | undefined, entry: { file: string }): string {
@@ -334,7 +336,9 @@ function patchEntry(entry: ExperienceIndexEntry, patch: { title?: string; tags?:
   entry.updatedAt = Date.now();
 }
 
-/** 改写已有条目（纠错/补全/合并）：正文重写文件、索引同步；作用域不变（换作用域用 moveExperience） */
+/** 改写已有条目（纠错/补全/合并）：正文重写文件、索引同步；作用域不变（换作用域用 moveExperience）。
+ *  标题变了就连文件名一起改（短 id 前缀不变，仍是身份锚点）——用户会直接翻这个目录，
+ *  文件名跟内容对不上反而碍事。改名与索引写入不同步时，体检的「原文缺失」会把异常报出来。 */
 export function updateExperience(
   projectPath: string | undefined,
   ref: string,
@@ -345,13 +349,18 @@ export function updateExperience(
   const items = loadIndex(found.dir);
   const hit = items.find((e) => e.id === found.entry.id);
   if (!hit) return { ok: false, error: `未找到经验 ${shortId(ref)}` };
+  const oldBody = readExperienceBody(found.entry.scope, projectPath, hit);
   patchEntry(hit, patch);
-  if (patch.body !== undefined) {
-    writeFileSync(path.join(found.dir, hit.file), renderBody(hit.title, patch.body, hit));
-  } else if (patch.title !== undefined) {
-    // 只改标题也要刷新原文里的标题行（正文保持不变）
-    const old = readExperienceBody(found.entry.scope, projectPath, hit);
-    if (old !== null) writeFileSync(path.join(found.dir, hit.file), renderBody(hit.title, stripHeader(old), hit));
+  const nextBody = patch.body !== undefined ? patch.body : oldBody === null ? null : stripHeader(oldBody);
+  const desired = makeFileName(hit.id, hit.title);
+  const sameName = desired === hit.file;
+  if (nextBody !== null) {
+    writeFileSync(path.join(found.dir, sameName ? hit.file : desired), renderBody(hit.title, nextBody, hit));
+  }
+  if (!sameName) {
+    // 先把新名字的文件写好，再删旧文件——中途失败最多多一份副本，不会两边都没
+    if (existsSync(path.join(found.dir, hit.file))) rmSync(path.join(found.dir, hit.file), { force: true });
+    hit.file = desired;
   }
   saveIndex(found.dir, items);
   return { ok: true, entry: hit };

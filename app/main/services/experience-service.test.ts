@@ -130,17 +130,22 @@ describe("短 id 解析", () => {
 });
 
 describe("改写与移动", () => {
-  it("改写标题会同步原文首行；改写正文重写文件；updatedAt 刷新", () => {
+  it("改写标题会同步原文首行并重命名文件；改写正文重写文件；updatedAt 刷新", () => {
     const { entry } = svc.appendExperience({ title: "旧标题", body: "旧正文" }, { projectPath });
     const r = svc.updateExperience(projectPath, svc.shortId(entry.id), { title: "新标题", kind: "principle" });
     expect(r.ok).toBe(true);
-    const body = readBody(projDir(), entry.file);
+    const renamed = r.ok ? r.entry.file : "";
+    expect(renamed).not.toBe(entry.file);
+    expect(renamed.startsWith(svc.shortId(entry.id))).toBe(true); // 短 id 前缀不变（身份锚点）
+    expect(existsSync(path.join(projDir(), entry.file))).toBe(false);
+    const body = readBody(projDir(), renamed);
     expect(body).toContain("# 新标题");
     expect(body).toContain("旧正文"); // 只改标题不动正文
     svc.updateExperience(projectPath, entry.id, { body: "新正文" });
-    expect(readBody(projDir(), entry.file)).toContain("新正文");
+    expect(readBody(projDir(), renamed)).toContain("新正文");
     const item = readIndex(projDir())[0]!;
     expect(item.title).toBe("新标题");
+    expect(item.file).toBe(renamed);
     expect(item.kind).toBe("principle");
     expect(item.updatedAt as number).toBeGreaterThanOrEqual(entry.createdAt);
   });
