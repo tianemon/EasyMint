@@ -54,7 +54,7 @@ import { resolveThinkingLevel } from "../../shared/thinking-levels";
 // 思考等级判定见 app/shared/thinking-levels.ts（主进程与渲染层共用）
 
 /** 权限回调签名（与 permissionService.createCanUseTool 返回一致） */
-export type CanUseToolFn = (toolName: string, input: Record<string, unknown>, options: CanUseToolOptions) => Promise<PermissionResult>;
+type CanUseToolFn = (toolName: string, input: Record<string, unknown>, options: CanUseToolOptions) => Promise<PermissionResult>;
 
 /** 系统消息 kind → 首条会话标题(SDK 列表优先读 session_info.name,custom 首条时兜底) */
 const SYSTEM_KIND_TITLES: Record<string, string> = {
@@ -73,7 +73,7 @@ interface ActiveRun {
   abortController: AbortController;
 }
 
-export interface ActiveChat {
+interface ActiveChat {
   chatId: string;
   /** 对外 sessionId（Pi 真实 ID；前端迁移/权限/统计都用它） */
   sessionId: string;
@@ -112,7 +112,7 @@ export interface ActiveChat {
 }
 
 /** 运行中委派快照项（agent:delegations IPC 返回，渲染层播种刷新后消失的委派卡片） */
-export interface RunningDelegationSnapshotItem {
+interface RunningDelegationSnapshotItem {
   delegationId: string;
   /** join activeChats 反查的 chatId（委派事件按 chatId 过滤，播种后凭它绑定门卫恢复事件流） */
   chatId?: string;
@@ -442,7 +442,7 @@ export function respondAsk(requestId: string, answers: Array<{ questionId: strin
 }
 
 /** 清理某会话的全部挂起 ask（会话关闭兜底；正常路径走 abort 信号） */
-export function clearPendingAsks(sessionId: string): void {
+function clearPendingAsks(sessionId: string): void {
   for (const [id, p] of pendingAsks) {
     if (p.sessionId !== sessionId) continue;
     pendingAsks.delete(id);

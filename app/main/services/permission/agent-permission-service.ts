@@ -47,7 +47,7 @@ interface PermissionRuleValue {
 }
 
 /** SDK PermissionUpdate（匹配 SDK 0.2.63） */
-export type PermissionUpdate = {
+type PermissionUpdate = {
   type: 'addRules' | 'replaceRules' | 'removeRules'
   rules: PermissionRuleValue[]
   behavior: PermissionBehavior

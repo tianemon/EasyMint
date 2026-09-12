@@ -31,7 +31,7 @@ const SESSION_TYPES_PATH = path.join(DATA_DIR, "session-types.json");
 
 // ── 类型 ────────────────────────────────────────────
 
-export interface SessionListItem {
+interface SessionListItem {
   sessionId: string;
   title: string;
   createdAt: number;
@@ -43,7 +43,7 @@ export interface SessionListItem {
   agentType?: string;
 }
 
-export interface SessionMessage {
+interface SessionMessage {
   type: "user" | "assistant" | "toolResult";
   uuid: string;
   session_id: string;

@@ -280,7 +280,6 @@ interface ElectronAPI {
     onShellOutput: (callback: (data: ShellOutputEvent) => void) => () => void;
     onChatSession: (callback: (data: { chatId: string; sessionId: string; tabId?: string; projectPath?: string }) => void) => () => void;
     onContextSummarizing: (callback: (data: { chatId: string }) => void) => () => void;
-    onContextSummary: (callback: (data: { chatId: string; summary: string }) => void) => () => void;
     onContextRotated: (callback: (data: { chatId: string; sessionId: string }) => void) => () => void;
     onContextUsage: (callback: (data: { chatId: string; percentage: number | null; totalTokens: number; maxTokens: number }) => void) => () => void;
     onTaskStatus: (callback: (data: { taskId: string; status: string; projectPath: string }) => void) => () => void;

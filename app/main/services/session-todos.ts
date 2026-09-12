@@ -8,7 +8,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import path from "node:path";
 
-export type SessionTodoStatus = "pending" | "in_progress" | "completed";
+type SessionTodoStatus = "pending" | "in_progress" | "completed";
 
 export interface SessionTodo {
   content: string;
@@ -19,7 +19,7 @@ export interface SessionTodo {
   waiting?: boolean;
 }
 
-export interface SessionTodosFile {
+interface SessionTodosFile {
   sessionId: string;
   updatedAt: number;
   todos: SessionTodo[];

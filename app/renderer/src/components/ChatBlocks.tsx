@@ -837,7 +837,7 @@ export function DiffView({ text, filePath: fp }: { text: string; filePath?: stri
 }
 
 /** diff 变更统计(add/remove 行数) */
-export function diffCount(text: string): { added: number; removed: number } {
+function diffCount(text: string): { added: number; removed: number } {
   const body = text.includes("变更内容:") ? text.split("变更内容:")[1] ?? "" : text;
   const hunks = parseDiff(body);
   if (!hunks) return { added: 0, removed: 0 };

@@ -390,11 +390,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:context-summarizing", handler);
       return () => ipcRenderer.removeListener("agent:context-summarizing", handler);
     },
-    onContextSummary: (callback: (data: { chatId: string; summary: string }) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: { chatId: string; summary: string }) => callback(data);
-      ipcRenderer.on("agent:context-summary", handler);
-      return () => ipcRenderer.removeListener("agent:context-summary", handler);
-    },
     onContextRotated: (callback: (data: { chatId: string; sessionId: string }) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: { chatId: string; sessionId: string }) => callback(data);
       ipcRenderer.on("agent:context-rotated", handler);

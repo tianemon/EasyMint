@@ -37,7 +37,7 @@ export interface PiChatEvent {
   usage?: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number };
 }
 
-export interface ChatBlock {
+interface ChatBlock {
   type: "text" | "tool_use" | "tool_result" | "thinking";
   text?: string;
   id?: string;
@@ -109,7 +109,7 @@ function extractPartialText(partialResult: unknown): string {
     .join("");
 }
 
-export interface BridgeCallbacks {
+interface BridgeCallbacks {
   onEvent: (event: PiChatEvent) => void;
   getSession: () => { getLastAssistantText(): string | undefined } | null;
   setPendingResult: (result: PiChatEvent) => void;

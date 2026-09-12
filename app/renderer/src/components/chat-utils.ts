@@ -76,90 +76,12 @@ export function piEventToEntries(ev: { type: string; blocks?: Array<{ type: stri
   return [];
 }
 
-/** 工具名 → 中文标签 */
-export function displayToolLabel(name: string, args?: Record<string, unknown>): string {
-  const n = name.toLowerCase();
-  const ctx = (args?.file_path || args?.path || args?.filePath || args?.query || args?.pattern || args?.target_file) as string | undefined;
-  const fname = (ctx && typeof ctx === "string") ? ctx.split("/").pop() || "" : "";
-  const ext = fname.split(".").pop()?.toLowerCase() || "";
-
-  // EM 自定义 skill 工具族（须在下方 skillInInput 检查之前——learn 的 skill 参数是对象，
-  // 误入该分支会渲染成「调用 Skill: [object Object]」）
-  if (n === "use_skill") {
-    const sn = typeof args?.name === "string" ? args.name : "";
-    return sn ? `加载 Skill: ${sn}` : "加载 Skill";
-  }
-  if (n === "learn") return "沉淀经验";
-  if (n === "retire_experiences") return "退役经验";
-  if (n === "manage_skill") {
-    const sn = typeof args?.name === "string" ? args.name : "";
-    const action = args?.action === "create" ? "创建" : args?.action === "update" ? "更新" : "删除";
-    return sn ? `${action} Skill: ${sn}` : `${action} Skill`;
-  }
-  if (n === "search_experiences") return "搜索经验库";
-
-  // Skill / MCP 特殊处理
-  const skillInInput = args?.skill as string | undefined;
-  if (skillInInput) return `调用 Skill: ${skillInInput}`;
-  if (n.startsWith("skill__")) return `调用 Skill: ${name.slice(7)}`;
-  if (n.startsWith("mcp__")) return `调用 MCP: ${name.split("__")[1] || "工具"}`;
-
-  if (n === "read" || n === "glob") {
-    const isConfig = /json|toml|yaml|yml|env|ini|config|cfg|rc$/i.test(ext) || /package\.json|tsconfig|eslint|prettier/i.test(fname);
-    const isDoc = /md|markdown|rst|txt|readme/i.test(ext) || /README|CLAUDE|CHANGELOG|LICENSE/i.test(fname);
-    const isSource = /tsx?|jsx?|py|rs|go|java|c|h|cpp|swift|kt|rb|php|vue|svelte|css|scss|html$/i.test(ext);
-    const isTest = /test|spec|__test__/i.test(fname);
-    if (isConfig) return fname ? `加载配置: ${fname}` : "读取项目配置";
-    if (isTest) return fname ? `查看测试: ${fname}` : "查看测试文件";
-    if (isDoc) return fname ? `阅读文档: ${fname}` : "查阅文档";
-    if (isSource) return fname ? `检查代码: ${fname}` : "分析源代码";
-    if (n === "glob") return fname ? `搜索文件: ${fname}` : "查找文件";
-    return fname ? `读取: ${fname}` : "读取文件";
-  }
-
-  if (n === "write") {
-    if (ext === "json" || /package\.json|tsconfig/i.test(fname)) return fname ? `更新配置: ${fname}` : "写入配置文件";
-    if (ext === "md" || /README|CLAUDE|CHANGELOG/i.test(fname)) return fname ? `撰写文档: ${fname}` : "输出文档";
-    if (/tsx?|jsx?|py|rs|go|css/.test(ext)) return fname ? `编写代码: ${fname}` : "创建源文件";
-    return fname ? `写入: ${fname}` : "写入文件";
-  }
-
-  if (n === "edit") return fname ? `修改: ${fname}` : "编辑文件";
-
-  if (n === "grep") return ctx ? "搜索内容" : "查找代码";
-
-  if (n === "bash") {
-    const cmd = (args?.command as string) || "";
-    const short = cmd.length > 40 ? cmd.slice(0, 40) + "…" : cmd;
-    return short ? `执行: ${short}` : "执行命令";
-  }
-
-  if (n === "task") {
-    const agent = (args?.agent as string | undefined) || (args?.subagent_type as string | undefined);
-    if (agent === "builder") return "委托 Builder 编码";
-    if (agent === "evaluator") return "委托 Evaluator 验收";
-    return agent ? `派遣 Agent: ${agent}` : "派遣 Agent";
-  }
-
-  if (n === "webfetch") {
-    const url = ctx || "";
-    const domain = url ? (() => { try { return new URL(url).hostname; } catch { return url.slice(0, 40); } })() : "";
-    return domain ? `获取网页: ${domain}` : "抓取网页内容";
-  }
-
-  if (n === "websearch") {
-    const query = (args?.query as string) || ctx || "";
-    return query ? `搜索: ${query.slice(0, 30)}` : "联网搜索";
-  }
-
-  return name;
-}
 
 /**
  * 工具名 → 状态栏精简动作文案（只显示「在做什么」,不显示具体文件名/命令/URL——
  * 状态栏是实时提示,用户只需知道动作类别;细节在消息内工具卡可见）。
  * 统一带「正在」前缀(与「正在思考/正在处理」等状态文案风格一致)。
- * 与 displayToolLabel 分工:弹层/卡片用详细版,状态栏用本精简版。
+ * 详细版工具标签在 ChatBlocks 的 TOOL_LABELS（弹层/卡片用），本函数只服务状态栏。
  */
 export function displayToolAction(name: string, args?: Record<string, unknown>): string {
   const n = name.toLowerCase();
@@ -181,7 +103,7 @@ export function displayToolAction(name: string, args?: Record<string, unknown>):
 }
 
 /** 解析消息文本中的附件标记 [Image #1: path] / [File #1: path] */
-export function parseAttachMarkers(text: string): { attaches: AttachItem[]; cleanText: string } {
+function parseAttachMarkers(text: string): { attaches: AttachItem[]; cleanText: string } {
   const attaches: AttachItem[] = [];
   const re = /\[(Image|File)\s+#(\d+):\s*([^\]]+)\]/g;
   let clean = text;
