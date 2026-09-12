@@ -64,6 +64,15 @@ const SYSTEM_KIND_LABELS: Record<string, string> = {
 /** 指令型系统消息（给 Mint 的行为指令，用户无需阅读正文）——默认折叠成标签条，点击展开 */
 const COLLAPSIBLE_SYSTEM_KINDS = new Set(["project-created", "direct-create", "flow", "summary", "learn"]);
 
+/** 结果卡（委派/后台命令）正文展开时的限高：约 6 行，超出内部滚动。
+ *  与摘要卡同口径（lh 随行高/字号变化自动跟随）。原来写死 calc(var(--text-detail) * 9.75 + 12px)：
+ *  既按 13px 算（行文字实际是 14px 的 --text-body），又把行高 1.55 与行内边距 4px 焊进常量，
+ *  改行高或字号时 cap 不跟着变、封顶行数静默漂移（失效模式见 UserMessageText 注释），
+ *  且 138.75px ≈ 6.4 行——滚动边界会切出半行。
+ *  ⚠ 带 ⏺ 的结果行自带 py-0.5（比纯文本行高 4px），同一 cap 下这类行少显约一行；
+ *  要精确封 6 行得再加 6×4px 余量，那就把内边距又焊回常量，故意不做。 */
+const RESULT_BODY_MAX_HEIGHT = "calc(6lh + 0.5px)";
+
 /** 摘要卡正文展开时的限高：约 16 行，超出内部滚动（与「委派结果」卡同一思路）。
  *  实测一份压缩摘要 7000 字上下，不限高展开会把消息流抻得极长。
  *  用 lh 单位而非写死倍数——lh 解析的是**本元素自己**的 line-height，所以容器必须带上与
@@ -2588,10 +2597,10 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, userBubb
                   </svg>
                 )}
               </button>
-              {/* 内容区（折叠时省略;结果型展开后 6 行封顶滚动,⏺ 行着色、其余行原文;min-h 兜底空内容也有一行高） */}
+              {/* 内容区（折叠时省略;结果型展开后限高滚动,⏺ 行着色、其余行原文;min-h 兜底空内容也有一行高） */}
               {!collapsed && <div className="px-[14px] pb-1.5 leading-[1.55] min-h-[1.625em]">
                 {isResult ? (
-                  <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: "calc(var(--text-detail) * 9.75 + 12px)" }}>
+                  <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: RESULT_BODY_MAX_HEIGHT }}>
                     {lines.map((row, i) => {
                       if (i === firstDotIdx) return null; // 已上标题栏,不重复显示
                       if (!row.startsWith("⏺ ")) {
