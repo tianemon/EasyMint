@@ -65,8 +65,9 @@ const SYSTEM_KIND_LABELS: Record<string, string> = {
 const COLLAPSIBLE_SYSTEM_KINDS = new Set(["project-created", "direct-create", "flow", "summary", "learn"]);
 
 /** 摘要卡正文展开时的限高：约 16 行，超出内部滚动（与「委派结果」卡同一思路）。
- *  实测一份压缩摘要 7000 字上下，不限高展开会把消息流抻得极长。用 lh 单位而非写死倍数——
- *  随行高变化自动跟随（对齐 UserMessageText 的口径）。 */
+ *  实测一份压缩摘要 7000 字上下，不限高展开会把消息流抻得极长。
+ *  用 lh 单位而非写死倍数——lh 解析的是**本元素自己**的 line-height，所以容器必须带上与
+ *  正文同值的 leading（prose 是 1.625），否则算出来的是容器的行高而不是正文的行数。 */
 const SUMMARY_BODY_MAX_HEIGHT = "calc(16lh + 0.5px)";
 
 /** 摘要卡正文：内容本身就是 markdown（SDK 生成的 ## 段结构），按正文那套渲染而不是纯文本行。
@@ -2633,7 +2634,8 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, userBubb
                     })}
                   </div>
                 ) : isSummary ? (
-                  <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: SUMMARY_BODY_MAX_HEIGHT }}>
+                  /* leading-relaxed 必须与 prose 同值：上面 maxHeight 的 lh 以本元素行高为准 */
+                  <div className="overflow-y-auto overscroll-contain leading-relaxed" style={{ maxHeight: SUMMARY_BODY_MAX_HEIGHT }}>
                     <SystemMarkdown content={body} />
                   </div>
                 ) : (
