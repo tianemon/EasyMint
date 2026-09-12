@@ -28,6 +28,7 @@ import argparse
 import math
 import re
 import shutil
+import struct
 import subprocess
 import sys
 from pathlib import Path
@@ -36,7 +37,9 @@ from PIL import Image, ImageChops, ImageDraw
 
 ROOT = Path(__file__).resolve().parent.parent
 SIZE = 1024
-INSET = 0.805          # 本体占画布比例（314/390）
+INSET = 0.805          # macOS 口径：本体占画布比例（314/390）——mac 图标网格如此（Dock、包内图标用）
+WIN_INSET = 0.98       # Windows/Linux 口径：形状贴边（这两个系统的图标习惯填满画布；沿用 80.5%
+                       # 会让图标比同屏其它应用小一圈——用户实测反馈）
 SQUIRCLE_N = 5.0       # 超椭圆指数：≈5 最接近 macOS squircle 观感
 BODY_RATIO = 314 / 390
 # Windows 图标尺寸档位：含系统常用档 16/20/24/32/40/48/64/96/128/256——缺失的档位由系统从最近档缩放，
@@ -73,10 +76,42 @@ def render(svg: Path, out: Path) -> None:
     )
 
 
-def squircle_mask(supersample: int = 4) -> Image.Image:
+
+def write_ico(im: Image.Image, sizes: list[tuple[int, int]], out: Path) -> None:
+    """写标准 ICO：每帧 32bpp BMP（BITMAPINFOHEADER 高字段 = 2×H）+ AND 掩码（1 = 透明）。
+
+    不用 Pillow 的 ICO 保存：它默认写 PNG 帧，`bitmap_format="bmp"` 时又省略 AND 掩码——
+    这两种"半标准"结构会让 electron-builder 给 exe 注入图标资源那一步出问题，表现为
+    「程序本体图标异常（方角）、而 NSIS 编译的卸载程序图标正常」（用户实测分叉）。
+    """
+    frames: list[bytes] = []
+    for w, _h in sizes:
+        px = im.resize((w, w), Image.LANCZOS)
+        xor = bytearray()
+        row_bytes = ((w + 31) // 32) * 4
+        mask = bytearray(row_bytes * w)
+        for y in range(w - 1, -1, -1):          # BMP 自下而上
+            for x in range(w):
+                r, g, b, a = px.getpixel((x, y))
+                xor += bytes((b, g, r, a))
+                if a <= 127:                     # 透明 → AND 掩码该位置 1
+                    mask[(w - 1 - y) * row_bytes + (x >> 3)] |= 0x80 >> (x & 7)
+        hdr = struct.pack("<IiiHHIIiiII", 40, w, w * 2, 1, 32, 0, len(xor), 0, 0, 0, 0)
+        frames.append(bytes(hdr) + bytes(xor) + bytes(mask))
+
+    offset = 6 + 16 * len(frames)
+    dirs, blobs = bytearray(), bytearray()
+    for (w, _h), blob in zip(sizes, frames):
+        dirs += struct.pack("<BBBBHHII", 0 if w >= 256 else w, 0 if w >= 256 else w, 0, 0, 1, 32, len(blob), offset)
+        blobs += blob
+        offset += len(blob)
+    out.write_bytes(struct.pack("<HHH", 0, 1, len(frames)) + bytes(dirs) + bytes(blobs))
+
+
+def squircle_mask(supersample: int = 4, inset: float = INSET) -> Image.Image:
     """超椭圆遮罩：超采样后降采样，得到平滑抗锯齿边"""
     hi = SIZE * supersample
-    a = hi / 2 * INSET     # 半轴 = 画布半宽 × 本体占比
+    a = hi / 2 * inset     # 半轴 = 画布半宽 × 占比
     c = hi / 2
     steps = 8192
     pts = []
@@ -105,6 +140,30 @@ def masked(svg: Path, mask: Image.Image, work: Path, tag: str) -> Image.Image:
     out.putalpha(ImageChops.multiply(src.getchannel("A"), mask))
     return out
 
+
+
+def shaped_filled(svg: Path, work: Path, tag: str, inset: float = WIN_INSET) -> Image.Image:
+    """素材 → 本体铺满画布 → 套贴边超椭圆遮罩（Windows/Linux 口径）。
+
+    与 masked（macOS Dock 口径）只差两处：① viewBox 裁到 frame，让图形铺满画布；
+    ② 遮罩半轴按 inset（默认 0.98 贴边）。macOS 本体占 80.5% 是那个系统的图标网格口径，
+    Windows/Linux 直接用会显得比同屏其它应用小一圈。
+    """
+    m = FRAME_ANCHOR.search(svg.read_text(encoding="utf-8"))
+    if not m:
+        raise SystemExit(f"{svg.name}: 未找到 frame-clip 直角矩形，无法定位图形本体")
+    x, y, w, h = m.groups()
+    derived = work / f"filled-{tag}.svg"
+    derived.write_text(
+        re.sub(r'viewBox="[^"]*"', f'viewBox="{x} {y} {w} {h}"', svg.read_text(encoding="utf-8"), count=1),
+        encoding="utf-8",
+    )
+    master = work / f"filled-{tag}.png"
+    render(derived, master)
+    src = Image.open(master).convert("RGBA")
+    out = src.copy()
+    out.putalpha(ImageChops.multiply(src.getchannel("A"), squircle_mask(inset=inset)))
+    return out
 
 def fullbleed(svg: Path, work: Path, tag: str) -> Image.Image:
     """素材 → 满幅直角 1024 母图（裁到本体，形状交给系统套的口径）"""
@@ -165,13 +224,16 @@ def main() -> int:
         print(f"{dest.name}: 本体占比 alpha>127 {body_ratio(img, 127):.4f} / "
               f"alpha>0 {body_ratio(img, 0):.4f} / 理论 {BODY_RATIO:.4f}")
 
-    # 非 mac 包内图标：Windows / Linux 平台不套形状，用与 mac 观感一致的圆角口径
-    light = shaped["light"]
+    # 非 mac 包内图标：Windows / Linux 不套形状，图形要自带形状（贴边口径，见 WIN_INSET）
+    light = shaped_filled(SVGS["light"], work, "light")
     png_dest = ROOT / "assets/icon.png"
     light.save(png_dest)
     ico_dest = ROOT / "assets/icon.ico"
     # 不传保存格式参数：按 .ico 扩展名自动选编码器（多尺寸由 Pillow 从 1024 母图 LANCZOS 生成）
-    light.save(ico_dest, sizes=ICO_SIZES)
+    # bitmap_format="bmp"：帧存成 BMP+AND 掩码（万用兼容格式）。Pillow 默认写 PNG 帧——
+    # NSIS 编译卸载程序时能正确取用，但 electron-builder 给 exe 注入图标资源那一步对 PNG 帧
+    # 支持不佳，会出现"卸载程序图标正常、程序本体图标异常（方角）"的分叉。
+    write_ico(light, ICO_SIZES, ico_dest)
     print(f"{png_dest.name}: {light.size[0]}×{light.size[0]} 圆角（Windows/Linux 包内图标）")
     print(f"{ico_dest.name}: {'/'.join(str(w) for w, _ in ICO_SIZES)} 圆角（Windows 包内图标）")
 
