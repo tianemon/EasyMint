@@ -1,10 +1,12 @@
 /**
  * 运行时 Dock 图标（仅 macOS）：跟随应用的实际主题（亮/暗）切换。
  *
- * 两个图标口径并存，不要混用：
- *  - bundle 图标（assets/icon.icns|ico|png）：满幅直角，形状交给 macOS 26 系统自己套；
- *  - 运行时图标（assets/appicon-{light,dark}.png）：本体占画布 80.5% + 超椭圆遮罩 + 四周透明边。
- *    两张图由 scripts/gen-appicon.py 生成，改素材后重跑该脚本。
+ * 三个图标口径并存，不要混用：
+ *  - mac 包内图标（assets/icon.icns）：满幅直角，形状交给 macOS 26 系统自己套；
+ *  - 非 mac 包内图标（assets/icon.png｜icon.ico）：Windows/Linux 不套形状，用自带形状的
+ *    圆角图（本体占画布 80.5% + 超椭圆遮罩，与 mac 系统渲染出来的观感一致）；
+ *  - 运行时图标（assets/appicon-{light,dark}.png）：同「自带形状」口径，随主题切。
+ *    四种产物由 scripts/gen-appicon.py 生成，改素材后重跑该脚本。
  *
  * WHY 运行时图标必须自带形状：`app.dock.setIcon()` 的图不经过系统的图标遮罩流程
  * （只有 bundle 图标会被套上圆角/超椭圆），所以运行时这张图若也用满幅直角口径，

@@ -149,7 +149,7 @@
         "nsis",
         "portable"
       ],
-      "icon": "assets/icon.png",
+      "icon": "assets/icon.ico",
       "signAndEditExecutable": true,
       "artifactName": "${productName}-windows-${arch}.${ext}"
     },
