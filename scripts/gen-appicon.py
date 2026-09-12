@@ -49,7 +49,10 @@ ICNS_REPS = [
 ]
 
 SVGS = {
-    "light": ROOT / "assets/avatar/icon-frame-light.svg",
+    # light 指向 A 档配色副本（frame 底色 #D9F5E3 → #C9EED9，用户 2026-09-12 选定）——
+    # 影响到 appicon-light.png / icon.png / icon.ico / icon.icns 四条产物；
+    # 原配色素材 assets/avatar/icon-frame-light.svg 保留未动，回退只改这一行并重跑 --icns。
+    "light": ROOT / "assets/avatar/icon-frame-light-A.svg",
     "dark": ROOT / "assets/avatar/icon-frame-dark.svg",
 }
 
