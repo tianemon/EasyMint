@@ -177,7 +177,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
 
   // AI 写入开关（D8：默认关闭，界面一键开启）
   const [manageSkillEnabled, setManageSkillEnabled] = useState(false);
-  // AI 自沉淀开关（learn + search_experiences，D8：默认关闭）
+  // AI 自沉淀开关（learn / search_experiences / retire_experiences 三件同开，D8：默认关闭）
   const [learnEnabled, setLearnEnabled] = useState(false);
   // 外部生态目录发现（~/.claude/skills 等，只读发现，默认开启）
   const [importExternal, setImportExternal] = useState(true);
@@ -432,7 +432,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
             <div className="min-w-0">
               <p className="text-xs text-text-primary">允许 AI 自沉淀经验</p>
               <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-                开启后，Mint 可在任务完成时用 learn 沉淀经验（弹审阅卡片，确认才入库），并可检索历史经验（进行中的会话不生效；默认关闭）
+                开启后，Mint 可在任务完成时自行判断并沉淀经验（直接入库、无需确认，可改可删），并可检索历史经验（进行中的会话不生效；默认关闭）
               </p>
             </div>
             <Toggle checked={learnEnabled} onChange={saveLearnEnabled} />

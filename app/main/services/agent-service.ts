@@ -20,9 +20,10 @@ import { createPiSession, resumePiSession, listPiSessions } from "./pi-session";
 import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
 import { createSkillTool, createManageSkillTool } from "./tools/skill-tool";
-import { createLearnTool, createSearchExperiencesTool, type LearnResponse } from "./tools/learn-tool";
+import { createLearnTool, createSearchExperiencesTool } from "./tools/learn-tool";
+import { createRetireExperiencesTool } from "./tools/experience-tool";
 import { evaluateLearnGate, isFixTool } from "./learn-gate";
-import { searchExperiences, buildExperienceInjection } from "./experience-service";
+import { searchExperiences, buildExperienceInjection, shortId } from "./experience-service";
 import { createImportTools } from "./import-tools";
 import { registerSessionIdMapping, abortTask, getRunningSummary, getRunningDelegations, resolveParentSessionId } from "./task/registry";
 import type { TaskStatus } from "./task/types";
@@ -107,7 +108,7 @@ export interface ActiveChat {
   /** 本轮最近一次工具报错的文本摘录（≤150 字符，供经验回递检索） */
   learnErrorText: string;
   learnSuggestDone: boolean;
-  /** learn/search_experiences 是否已注册（会话创建时快照——工具集固定于创建时，触发提示按此判断） */
+  /** learn / search_experiences / retire_experiences 是否已注册（会话创建时快照——工具集固定于创建时，触发提示按此判断） */
   learnToolInstalled: boolean;
 }
 
@@ -451,43 +452,6 @@ export function clearPendingAsks(sessionId: string): void {
   }
 }
 
-// ── learn 审阅挂起（Mint 沉淀 → 用户审阅卡片确认） ──────────
-
-interface PendingLearn {
-  resolve: (r: LearnResponse) => void;
-  sessionId: string;
-}
-
-const pendingLearns = new Map<string, PendingLearn>();
-
-/** 响应 learn 审阅（IPC learn:respond 调用）。返回 sessionId 供前端过滤，未找到返回 null */
-export function respondLearn(requestId: string, response: unknown): string | null {
-  const pending = pendingLearns.get(requestId);
-  if (!pending) return null;
-  // IPC 载荷校验：approved 必须是 boolean，编辑字段必须是 string/undefined
-  const r = response as { approved?: unknown; memory?: unknown; skillBody?: unknown; skillName?: unknown; skillDescription?: unknown };
-  if (typeof r?.approved !== "boolean") return null;
-  const clean: LearnResponse = { approved: r.approved };
-  for (const k of ["memory", "skillBody", "skillName", "skillDescription"] as const) {
-    const v = r[k];
-    if (v !== undefined && typeof v === "string") clean[k] = v;
-  }
-  pendingLearns.delete(requestId);
-  pending.resolve(clean);
-  broadcast("agent:learn-closed", { requestId });
-  return pending.sessionId;
-}
-
-/** 清理某会话的全部挂起 learn（会话关闭兜底；正常路径走 abort 信号 / 用户取消） */
-export function clearPendingLearns(sessionId: string): void {
-  for (const [id, p] of pendingLearns) {
-    if (p.sessionId !== sessionId) continue;
-    pendingLearns.delete(id);
-    p.resolve({ approved: false });
-    broadcast("agent:learn-closed", { requestId: id });
-  }
-}
-
 // ── learn 触发状态持久化（重启后不重复提示/建议，防重复沉淀） ──────────
 
 interface LearnSessionState {
@@ -713,7 +677,7 @@ export class AgentService {
   private async buildExtraTools(projectPath: string, sessionId: string, chatId?: string, opts?: { worker?: boolean }): Promise<{
     tools: ToolDefinition[];
     canUseTool: CanUseToolFn;
-    /** learn/search_experiences 是否已注册（会话级快照——触发提示按此判断，不按实时设置） */
+    /** 经验工具族（learn / search_experiences / retire_experiences）是否已注册（会话级快照——触发提示按此判断，不按实时设置） */
     learnInstalled: boolean;
   }> {
     // 权限回调：按 sessionId 隔离白名单，由 createPiSession 统一包装所有工具（含基础 coding 工具）。
@@ -775,18 +739,17 @@ export class AgentService {
       if (this.store.getSettings().manageSkillEnabled) {
         allTools.push(await createManageSkillTool(projectPath));
       }
-      // learn + search_experiences 受独立开关控制（D8：自沉淀默认关闭；两工具同进退）。
-      // worker 不装：learn 审阅卡片依赖前端，worker 无 UI，模型调用即永久挂起。
+      // learn / search_experiences / retire_experiences 受独立开关控制（D8：自沉淀默认关闭；三工具同进退）。
+      // 沉淀与退役都**直接落盘、不等用户确认**（判断是模型的职责）；worker 不装——子 Agent 的沉淀
+      // 会写进主 Agent 的经验库，且 worker 无终端可纠正，交由主 Agent 统一判断。
       // 注册结果作为快照返回（记入 chat）——活跃会话工具集固定于创建时，触发提示必须与快照一致，
       // 不能按实时设置判断（中途开开关会提示指向本会话不存在的工具——实测发生过）
       let learnInstalled = false;
       if (!opts?.worker && this.store.getSettings().learnEnabled) {
         allTools.push(
-          await createLearnTool({
-            projectPath,
-            requestReview: (payload, signal) => this.requestLearnReview(sessionId, payload, signal),
-          }),
+          await createLearnTool({ projectPath }),
           await createSearchExperiencesTool(projectPath),
+          await createRetireExperiencesTool({ projectPath }),
         );
         learnInstalled = true;
       }
@@ -798,7 +761,7 @@ export class AgentService {
     }
   }
 
-  private buildSystemPrompt(projectPath: string, isDesigner?: boolean): string {
+  private buildSystemPrompt(projectPath: string, isDesigner?: boolean, opts?: { worker?: boolean }): string {
     const parts: string[] = [];
 
     // Mint-D 主会话 = 基础 Mint prompt(或用户自定义) + 设计能力增强段(附加不替换)
@@ -822,9 +785,11 @@ export class AgentService {
     // 减少无谓的越界尝试；工具被拒时错误消息会带具体原因（见 permission-rules）
     parts.push(PERMISSION_RULES_PROMPT);
 
-    // 历史经验注入（learn 开关开启时；与工具注册同开关）：项目级优先 + 使用次数排序，
-    // top-N 紧凑块作背景——「经验库里有货」这件事让模型开箱即知，不用等它想起 search
-    if (this.store.getSettings().learnEnabled) {
+    // 历史经验注入（learn 开关开启 且**本会话真的装了经验工具**时）：项目级优先 + 使用次数排序，
+    // top-N 紧凑块作背景——「经验库里有货」这件事让模型开箱即知，不用等它想起 search。
+    // worker 不注入：子会话没有 learn/search/retire 工具（见 buildExtraTools 的注册条件），
+    // 注入了等于指导模型调不存在的工具，也会把子会话的注入计成「送达」抬高价值分
+    if (!opts?.worker && this.store.getSettings().learnEnabled) {
       const exp = buildExperienceInjection(projectPath);
       if (exp) parts.push(exp);
     }
@@ -1064,7 +1029,7 @@ export class AgentService {
           model,
           thinkingLevel: "medium",
           store: this.store,
-          systemPrompt: this.buildSystemPrompt(resolvedPath),
+          systemPrompt: this.buildSystemPrompt(resolvedPath, false, { worker: true }),
           extraTools,
           canUseTool,
         });
@@ -1645,34 +1610,6 @@ export class AgentService {
     return true;
   }
 
-  /** learn 审阅挂起：广播 learn-request → 等用户确认（respondLearn / abort / 会话关闭 resolve） */
-  private async requestLearnReview(
-    sessionId: string,
-    payload: { memory: string; context?: string; skill?: { action: "create" | "update"; name: string; description: string; body: string } },
-    signal: AbortSignal | undefined,
-  ): Promise<LearnResponse> {
-    const requestId = randomUUID();
-    // 工具闭包绑定的可能是 EM 临时 ID——广播前解析真实 ID（同 ask_user 机制）
-    const realSid = resolveParentSessionId(sessionId);
-    broadcast("agent:learn-request", { requestId, sessionId: realSid, ...payload });
-    return new Promise<LearnResponse>((resolve) => {
-      const onAbort = () => {
-        if (!pendingLearns.has(requestId)) return;
-        pendingLearns.delete(requestId);
-        resolve({ approved: false });
-        broadcast("agent:learn-closed", { requestId });
-      };
-      // 正常响应路径解除 abort 监听——长会话多次 learn 不累积监听器
-      const wrappedResolve = (r: LearnResponse) => {
-        signal?.removeEventListener("abort", onAbort);
-        resolve(r);
-      };
-      pendingLearns.set(requestId, { sessionId: realSid, resolve: wrappedResolve });
-      // run 级 signal：用户打断 / killChat → 取消挂起并通知前端关闭卡片
-      signal?.addEventListener("abort", onAbort, { once: true });
-    });
-  }
-
   /** learn 触发：单轮硬信号达到「评估门槛」时提示一次。门槛只是下限——够格被评估，
    *  不等于值得沉淀；值不值得由模型按提示中的判定标准判断（无价值静默跳过）。
    *  双通道（WB 标准工程化）：踩坑修复（报错→修复）价值最高，门槛 8；纯大轮门槛 15。
@@ -1692,7 +1629,7 @@ export class AgentService {
     const headline = gate.channel === "fix"
       ? `本轮出现「工具报错 → 修复」的过程（${chat.toolCallCount} 次工具调用），踩坑类经验复用价值最高，优先评估`
       : `本轮工具调用 ${chat.toolCallCount} 次（达到沉淀评估门槛）`;
-    // 经验回递：用本会话报错文本检索历史经验，命中则注入（在弹沉淀卡片之前先让模型知道
+    // 经验回递：用本会话报错文本检索历史经验，命中则注入（在提示沉淀之前先让模型知道
     // 「上次遇过」——复用价值在存之前就已经兑现；检索失败/无报错文本则正常走评估提示）
     let recallBlock = "";
     const errQ = (chat.learnErrorText ?? "").trim();
@@ -1700,8 +1637,11 @@ export class AgentService {
       try {
         const { hits } = searchExperiences(errQ, chat.projectPath);
         if (hits.length > 0) {
+          // 带短 id：命中项若已过时/不适用，模型可直接 updateId 改写或 retire_experiences 退役
           recallBlock = `\n\n【相关历史经验（已按本会话报错检索到，仅作参考；判断适用再复用，不刻意使用）】\n`
-            + hits.slice(0, 3).map((e) => `- ${e.memory.replace(/\s+/g, " ").slice(0, 240)}`).join("\n");
+            + hits.slice(0, 3)
+              .map((e) => `- [id: ${shortId(e.id)}] ${e.memory.replace(/\s+/g, " ").slice(0, 240)}`)
+              .join("\n");
         }
       } catch (e) {
         console.warn("[learn] 经验回递检索失败（不影响评估提示）:", (e as Error).message);
@@ -1716,7 +1656,7 @@ export class AgentService {
 
 【不值得沉淀——直接跳过】一次性操作（配环境、跑一次命令、本次专属排查）／纯信息问答（读代码讲原理，没有方法论）／已沉淀过（用 search_experiences 确认过）／项目特有细节换项目无用／含敏感信息（密钥、内网地址）。
 
-判定为不值得沉淀时：**静默跳过**——不调 learn、不弹卡片、也不要在回复里提及沉淀，继续正常汇报即可。值得沉淀时才调 learn（会弹审阅卡片，用户确认后落盘）。`,
+判定为不值得沉淀时：**静默跳过**——不调 learn、也不要在回复里提及沉淀，继续正常汇报即可。值得沉淀就调 learn **直接入库（无确认环节）**；入库后仍可随时用 updateId 改写、或用 retire_experiences 退役——沉淀与清理都由你自行判断。`,
       "learn",
       { triggerTurn: true },
     );
@@ -1740,7 +1680,6 @@ export class AgentService {
       chat.session?.abort().catch(() => {});
       chat.session?.dispose();
       clearPendingAsks(chat.sessionId);
-      clearPendingLearns(chat.sessionId);
       this.activeChats.delete(chatId);
       this.cancelReclaim(chat.sessionId);
       // 会话关闭广播:前端会话列表状态点刷新(激活→未激活)
@@ -2191,7 +2130,6 @@ export class AgentService {
       chat.session?.abort().catch(() => {});
       chat.session?.dispose();
       clearPendingAsks(chat.sessionId);
-      clearPendingLearns(chat.sessionId);
       broadcast("agent:exit", { runId: id, code: -1 });
     }
     this.activeChats.clear();

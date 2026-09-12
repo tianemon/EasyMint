@@ -89,7 +89,8 @@ export function displayToolLabel(name: string, args?: Record<string, unknown>): 
     const sn = typeof args?.name === "string" ? args.name : "";
     return sn ? `加载 Skill: ${sn}` : "加载 Skill";
   }
-  if (n === "learn") return "沉淀经验（审阅中）";
+  if (n === "learn") return "沉淀经验";
+  if (n === "retire_experiences") return "退役经验";
   if (n === "manage_skill") {
     const sn = typeof args?.name === "string" ? args.name : "";
     const action = args?.action === "create" ? "创建" : args?.action === "update" ? "更新" : "删除";
@@ -166,6 +167,7 @@ export function displayToolAction(name: string, args?: Record<string, unknown>):
   if (n === "learn") return "正在沉淀经验";
   if (n === "manage_skill") return "正在管理技能";
   if (n === "search_experiences") return "正在搜索经验库";
+  if (n === "retire_experiences") return "正在退役经验";
   if (n.startsWith("mcp__")) return "正在调用外部工具";
   if (n === "read" || n === "glob") return "正在读取文件";
   if (n === "write") return "正在写入文件";

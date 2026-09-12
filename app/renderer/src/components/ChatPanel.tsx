@@ -29,10 +29,8 @@ import { QuestionHistory } from "./QuestionHistory";
 import { BubbleActions, roleColor, DocIcon } from "./ChatBubbleActions";
 import { AskUserCard } from "./AskUserCard";
 import { useAskStore } from "../stores/ask-store";
-import { LearnCard } from "./LearnCard";
 import { MintAvatar } from "./MintAvatar";
 import { UserMessageText } from "./UserMessageText";
-import { useLearnStore } from "../stores/learn-store";
 
 
 interface ChatPanelProps {
@@ -197,7 +195,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const permissionModeRef = useRef(permissionMode);
   useEffect(() => { permissionModeRef.current = permissionMode; }, [permissionMode]);
   // 新会话首条消息窗口期：已发送、onChatSession 尚未回绑真实 sid。期间主进程广播已用真实 sid，
-  // 而 sidRef 还是 __new_xxx——ask/learn 等按会话过滤的订阅在此窗口放行，避免提问卡片丢失
+  // 而 sidRef 还是 __new_xxx——ask 等按会话过滤的订阅在此窗口放行，避免提问卡片丢失
   const pendingFirstTurnRef = useRef(false);
   const storeModel = useSettingsStore((s) => s.model);
   const setStoreModel = useSettingsStore((s) => s.setModel);
@@ -576,7 +574,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const sidRef = useRef<string>(initialSid);
   // 当前会话的 pending ask（Mint 提问卡片，聊天区内嵌）
   const pendingAsk = useAskStore((s) => Object.values(s.asks).find((a) => a.sessionId === sid)) || null;
-  const pendingLearn = useLearnStore((s) => Object.values(s.learns).find((l) => l.sessionId === sid)) || null;
   // 按会话读压缩/摘要状态(须在 sidRef 声明后——useStatusStore selector 渲染期执行)
   const summarizing = useStatusStore((s) => s.bySession[sidRef.current]?.summarizing ?? false);
   const compacting = useStatusStore((s) => s.bySession[sidRef.current]?.compacting ?? false);
@@ -973,32 +970,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     return () => { offReq(); offClosed(); };
   }, []);
 
-  // learn 沉淀审阅卡片：同 ask 模式（按会话过滤 + 关闭清理）
-  useEffect(() => {
-    const offReq = window.electronAPI.agent.onLearnRequest((data) => {
-      // 首条消息窗口期放行（同 ask，见上）
-      if (!data || data.sessionId !== sidRef.current) {
-        if (!(pendingFirstTurnRef.current && sidRef.current?.startsWith("__new_"))) return;
-      }
-      useLearnStore.getState().setLearn(data);
-    });
-    const offClosed = window.electronAPI.agent.onLearnClosed((data) => {
-      useLearnStore.getState().clearLearn(data.requestId);
-    });
-    return () => { offReq(); offClosed(); };
-  }, []);
-
-  // 需用户即时确认的弹出（ask 提问 / learn 审阅卡片）出现时统一贴底：卡片挂在滚动区尾部
+  // 需用户即时确认的弹出（ask 提问卡片）出现时统一贴底：卡片挂在滚动区尾部
   // 文档流、virtualizer 不感知，用户滚离底部时会等一个视口外的卡片——统一走 scrollToBottom
   // （virtualizer.scrollToIndex 原生路径，比 DOM scrollTop 可靠：单次 rAF 会被后续测量重置）
   useEffect(() => {
     if (pendingAsk) scrollToBottom();
   }, [pendingAsk, scrollToBottom]);
-
-  // learn 审阅卡片出现时贴底：卡片挂在滚动区尾部，用户滚离底部时回合会挂起等一个视口外的卡片
-  useEffect(() => {
-    if (pendingLearn) scrollToBottom();
-  }, [pendingLearn, scrollToBottom]);
 
   useEffect(() => {
     const unsub = window.electronAPI.agent.onDelegationProgress((data: DelegationProgressEvent) => {
@@ -1607,7 +1584,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         }
         onSessionCreated?.(realSid);
       }
-      // 首条消息会话已建立 → 关闭首轮窗口（ask/learn 广播按真实 sid 过滤即可，见订阅处）
+      // 首条消息会话已建立 → 关闭首轮窗口（ask 广播按真实 sid 过滤即可，见订阅处）
       pendingFirstTurnRef.current = false;
     });
     // 主进程侧模型切换（skill frontmatter model 字段触发）→ 会话级显示跟随；
@@ -1869,14 +1846,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useAskStore.getState().clearAsk(k);
       }
     }
-    // learn 审阅同样取消（发新消息 = 转向；未确认的沉淀不落盘）
-    const learns = useLearnStore.getState().learns;
-    for (const k in learns) {
-      if (learns[k]!.sessionId === sidRef.current) {
-        window.electronAPI.agent.respondLearn(k, { approved: false });
-        useLearnStore.getState().clearLearn(k);
-      }
-    }
+    // learn 已改为模型自主入库（无审阅卡片），发新消息不再需要取消挂起
     // 重入保护:新会话首条消息在途(onChatSession 绑定真实 sid 前)时再发送 → 丢弃。
     // 否则会再建第二个会话、首回合回复丢失;已有会话时走下方 steer 插话分支,不受影响
     if (busyRef.current && !existingSid) return;
@@ -2289,12 +2259,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         {pendingAsk && (
           <div className="mx-[var(--s16)] pt-1 pb-2">
             <AskUserCard key={pendingAsk.requestId} request={pendingAsk} />
-          </div>
-        )}
-        {/* learn 沉淀审阅卡片：同提问卡片位置（key 理由同上） */}
-        {pendingLearn && (
-          <div className="mx-[var(--s16)] pt-1 pb-2">
-            <LearnCard key={pendingLearn.requestId} request={pendingLearn} />
           </div>
         )}
       </div>

@@ -22,12 +22,12 @@ const TOOL_LABELS: Record<string, string> = {
   task: "派遣 Agent", create_agent_template: "创建模板", list_agents: "查看 Agent",
   read_agent_log: "读取日志", stop_agent: "停止 Agent",
   use_skill: "加载技能", manage_skill: "管理技能", learn: "沉淀经验",
-  search_experiences: "搜索经验", import_skill: "导入", import_mcp_server: "导入",
+  search_experiences: "搜索经验", retire_experiences: "退役经验", import_skill: "导入", import_mcp_server: "导入",
   show_confirm_dev: "确认开发", show_new_project: "新建项目", refresh_tasks: "刷新任务",
   set_task_status: "更新任务", rename_project: "重命名项目", show_prototype: "预览原型",
   list_issues: "查看 Issue", set_issue_status: "更新 Issue",
   web_fetch: "抓取网页", web_search: "搜索网页",
-  todo_write: "待办", todo_user: "用户待办",
+  todo_write: "更新步骤", todo_user: "用户待办",
   ask_user: "提问", describe_image: "查看图片",
 };
 

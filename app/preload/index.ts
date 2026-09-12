@@ -294,20 +294,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:ask-closed", handler);
       return () => ipcRenderer.removeListener("agent:ask-closed", handler);
     },
-    respondLearn: (requestId: string, response: { approved: boolean; memory?: string; skillBody?: string; skillName?: string; skillDescription?: string }) =>
-      ipcRenderer.invoke("agent:learn-response", { requestId, response }),
-    onLearnRequest: (callback: (data: unknown) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
-      ipcRenderer.on("agent:learn-request", handler);
-      return () => ipcRenderer.removeListener("agent:learn-request", handler);
-    },
-    onLearnClosed: (callback: (data: { requestId: string }) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: { requestId: string }) => callback(data);
-      ipcRenderer.on("agent:learn-closed", handler);
-      return () => ipcRenderer.removeListener("agent:learn-closed", handler);
-    },
-    onTodos: (callback: (data: { sessionId: string; todos: Array<{ content: string; status: "pending" | "in_progress" | "completed" }> }) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string; todos: Array<{ content: string; status: "pending" | "in_progress" | "completed" }> }) => callback(data);
+    onTodos: (callback: (data: { sessionId: string; todos: Array<{ content: string; status: "pending" | "in_progress" | "completed"; startedAt?: number; waiting?: boolean }> }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string; todos: Array<{ content: string; status: "pending" | "in_progress" | "completed"; startedAt?: number; waiting?: boolean }> }) => callback(data);
       ipcRenderer.on("agent:todos", handler);
       return () => ipcRenderer.removeListener("agent:todos", handler);
     },
