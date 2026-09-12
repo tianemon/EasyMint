@@ -186,11 +186,12 @@ export function SubagentProcessView({
             <div className="text-center text-text-secondary py-8">暂无消息</div>
           )}
           {msgs.map((m) => {
-            // 流式尾消息 = 运行中最后一条带 streaming 标记的 AI 消息(实时增长的那条,
-            // 磁盘重载合并也把它追加在末尾)。ChatBlockView 的思考自动展开/收起由
-            // isStreamingTail 驱动——仅尾消息为 true:思考增长中展开,结束(不再是尾块)自动收起
-            const streamTail = running && m.role === "ai" && !!m.streaming && m === msgs[msgs.length - 1];
-            return <SubagentMessage key={m.keyId ?? m.id} msg={m} running={running} streamTail={streamTail} />;
+            // 正在增长的那条 = 尾块且带实时流标记(实时块由 message_start/磁盘重载终态化,
+            // 磁盘历史消息不带此标记)。一个判据同时驱动文本流式渲染、工具转圈、思考自动展开——
+            // 不再借任务级 running 冒充流式:否则任务运行期间,历史消息正文也走流式渲染器、
+            // 且结果已落到别处的 pending 工具会一直转到任务结束(误导)
+            const streamRow = running && m.role === "ai" && !!m.streaming && m === msgs[msgs.length - 1];
+            return <SubagentMessage key={m.keyId ?? m.id} msg={m} streaming={streamRow} />;
           })}
           {running && <div className="flex justify-center"><span className="text-[length:var(--text-11)] text-text-secondary animate-pulse">● 运行中</span></div>}
         </div>
@@ -213,10 +214,10 @@ export function SubagentProcessView({
 /** 只读消息气泡(user 右 / ai 左,Mint 气泡复用主聊天外观)。
  *  ai 内容走与 ChatPanel 相同的块渲染:buildBlocks 分组 → ChatBlockView,
  *  思考「流式中展开、完成后自动折叠」、工具卡折叠/展开、文本 Markdown、diff DiffView 全部一致。
- *  streamTail = 运行中正在增长的尾消息——ChatBlockView 的 isStreamingTail 仅对它的末块为 true:
- *  思考增长中展开,结束(末块变为文本/工具、或回合结束 running 转 false)自动收起。
- *  streaming 传 running(回合级,对齐 ChatPanel 的 busy):工具执行中转圈/✓/✗ 由它驱动 */
-function SubagentMessage({ msg, running, streamTail }: { msg: ChatMessage; running: boolean; streamTail?: boolean }): JSX.Element {
+ *  streaming = 任务运行中正在增长的那条消息(仅尾块)——同时驱动文本流式渲染、工具转圈,
+ *  isStreamingTail 仅它的末块为 true:思考增长中展开,末块变为文本/工具、或任务结束 running
+ *  转 false 时自动收起 */
+function SubagentMessage({ msg, streaming }: { msg: ChatMessage; streaming?: boolean }): JSX.Element {
   const entries = msg.entries ?? [];
   // 工具 input 查找表(toolUseId → input):工具结果被拆到独立块(同批无 tool_use)时,
   // tool-result-only 块仍能取 file_path 做语言高亮/摘要显示(对齐 ChatPanel 同款构建)
@@ -254,8 +255,8 @@ function SubagentMessage({ msg, running, streamTail }: { msg: ChatMessage; runni
             <ChatBlockView
               key={`blk-${msg.id}-${i}`}
               block={block}
-              streaming={running}
-              isStreamingTail={streamTail && i === blocks.length - 1}
+              streaming={streaming}
+              isStreamingTail={streaming && i === blocks.length - 1}
             />
           ))}
         </div>
