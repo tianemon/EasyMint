@@ -5,7 +5,7 @@
  * 与用户待办（.easymint/todos.json，UI 面板管理）是两套清单：本模块管「本次执行中的步骤追踪」。
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import path from "node:path";
 
 export type SessionTodoStatus = "pending" | "in_progress" | "completed";
@@ -55,6 +55,18 @@ function writeSessionTodos(projectPath: string, sessionId: string, todos: Sessio
   mkdirSync(path.dirname(p), { recursive: true });
   const data: SessionTodosFile = { sessionId, updatedAt: Date.now(), todos };
   writeFileSync(p, JSON.stringify(data, null, 2));
+}
+
+/**
+ * 会话被删除时回收清单文件（调用方：session-service.deleteSession）。
+ * 此前删会话不回收它——孤儿文件永久留存（与用户待办/正式任务三套清单并存，日后排查容易误认）。
+ * sessionId 末自 IPC，且本函数会拼路径后直接删——先限字符集（真会话 id 是 uuid 形态），
+ * 杜绝 `../` 类路径穿越在删除路径上被利用。
+ */
+export function deleteSessionTodos(projectPath: string, sessionId: string): void {
+  if (!/^[A-Za-z0-9_-]+$/.test(sessionId)) return;
+  const p = filePath(projectPath, sessionId);
+  if (existsSync(p)) rmSync(p, { force: true });
 }
 
 /** 校验（设计文档 §2 execute 内强制）——返回错误文案或 null */

@@ -2,10 +2,12 @@
  * 会话待办校验规则单测（todo_write 全量替换语义）。
  */
 import { afterAll, beforeAll, describe, it, expect, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {
   compareSessionTodos,
+  deleteSessionTodos,
   readSessionTodos,
   replaceSessionTodos,
   validateSessionTodos,
@@ -172,5 +174,40 @@ describe("replaceSessionTodos（startedAt 补齐与保留）", () => {
     expect(r.ok).toBe(false);
     expect(r.error).toContain("waiting");
     expect(readSessionTodos(dir, sessionId)).toEqual(before);
+  });
+});
+
+describe("deleteSessionTodos（删会话回收清单文件）", () => {
+  let dir: string;
+  beforeAll(() => {
+    dir = mkdtempSync(path.join(os.tmpdir(), "session-todos-del-"));
+  });
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("清掉该会话的清单文件", () => {
+    const sid = "01a0abc0-1111-7222-8333-444455556666";
+    replaceSessionTodos(dir, sid, [{ content: "跑一步", status: "completed" }]);
+    expect(readSessionTodos(dir, sid)).toHaveLength(1);
+    deleteSessionTodos(dir, sid);
+    expect(readSessionTodos(dir, sid)).toEqual([]); // 文件没了 → 读回空
+    expect(existsSync(path.join(dir, ".easymint", "session-todos", `${sid}.json`))).toBe(false);
+  });
+
+  it("文件不存在时安全 no-op（不抛、不影响其他会话）", () => {
+    const sid = "01a0abc0-9999-7222-8333-444455556666";
+    const other = "01a0abc0-2222-7222-8333-444455556666";
+    replaceSessionTodos(dir, other, [{ content: "别人的清单", status: "completed" }]);
+    expect(() => deleteSessionTodos(dir, sid)).not.toThrow();
+    expect(readSessionTodos(dir, other)).toHaveLength(1);
+  });
+
+  it("拒绝路径穿越形态的 id（删除路径上的护栏）", () => {
+    // 哨兵：若函数真的拼路径删，它会落在 session-todos 目录之外
+    const evil = "../../../sentinel";
+    const sentinel = path.resolve(dir, "sentinel.json");
+    writeFileSync(sentinel, "should survive");
+    deleteSessionTodos(dir, evil);
+    expect(existsSync(sentinel)).toBe(true); // 没被删 = 函数在字符集校验处直接返回
+    rmSync(sentinel, { force: true });
   });
 });

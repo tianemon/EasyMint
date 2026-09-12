@@ -21,6 +21,7 @@ import { deleteCache } from "./session-cache";
 import { listPiSessions, getPiSessionDir } from "./pi-session";
 import { getSessionManagerClass } from "./pi-sdk";
 import { compactionSummaryNotice } from "../../shared/prompts";
+import { deleteSessionTodos } from "./session-todos";
 
 const DATA_DIR = path.join(os.homedir(), ".easymint");
 const PINNED_PATH = path.join(DATA_DIR, "pinned-sessions.json");
@@ -380,6 +381,8 @@ export async function deleteSession(
     writeTitles(titles);
     // 清理缓存
     deleteCache(sessionId);
+    // 清理本会话的执行步骤清单（.easymint/session-todos/<id>.json）——否则会话删了、清单永远留着
+    deleteSessionTodos(resolved, sessionId);
   }
 }
 
