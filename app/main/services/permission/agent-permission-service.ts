@@ -467,13 +467,17 @@ function detectScriptExec(cmd: string): string | null {
  * 命中返回原因；未命中返回 null。只做模式匹配，不追求穷尽（复杂动态脚本无法静态判定，
  * 残余风险由「用户手动确认」兜底）。
  */
-function scanScriptContent(content: string): string | null {
+export function scanScriptContent(content: string): string | null {
   const c = content.slice(0, 200 * 1024) // 扫描前 200KB，防超大脚本
   // 1. 系统级变更命令
   if (/\bsudo\b|\bsu\s+-/.test(c)) return 'sudo/su 提权'
   if (/\bdd\s+if=\/dev\//.test(c)) return 'dd 直接写设备'
   if (/\b(?:launchctl|systemctl|diskutil|mount|umount|mkfs|fdisk|parted|csrutil|nvram)\b/.test(c)) return '系统级管理命令'
-  if (/\b(?:reg\s+add|reg\s+delete|diskpart|bcdedit|format)\b/.test(c)) return 'Windows 系统级命令'
+  if (/\b(?:reg\s+add|reg\s+delete|diskpart|bcdedit)\b/.test(c)) return 'Windows 系统级命令'
+  // format 必须限定为 Windows 盘符命令形态：`format` 作为普通英文单词太常见
+  // （各类 API 的 format 参数、文档里的「格式」），裸词匹配会把正常脚本全拦下——实测踩过。
+  // 两种形态：命令行 `format C: /fs:NTFS` 与 spawn 数组 ['format', 'C:']
+  if (/\bformat\s+[A-Za-z]:|\bformat['"]?\s*,\s*['"]?[A-Za-z]:/.test(c)) return 'Windows 系统级命令'
   // 2. 写操作指向禁区路径（rm/mv/cp/tee/ln 后跟 /etc /usr 等系统核心，或 ~/.ssh 等凭据）
   //    注意：m 标志必须——$ 需匹配行尾（脚本多行时 rm -rf /etc\n 的换行会阻断无 m 的匹配）
   //    根级限定：系统目录段必须是路径开头（/etc、/Users/.../dev 里中间的 dev 段不算）——

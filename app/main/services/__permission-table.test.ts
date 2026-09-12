@@ -4,7 +4,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { isDangerousCommand } from "./permission/permission-rules";
-import { isSystemMutationCommand } from "./permission/agent-permission-service";
+import { isSystemMutationCommand, scanScriptContent } from "./permission/agent-permission-service";
 
 describe("危险命令名单（放宽后）", () => {
   it("网络/进程/权限类 → 不再拦截（非破坏性）", () => {
@@ -36,5 +36,19 @@ describe("系统级变更命令（任何模式拒绝）", () => {
     expect(isSystemMutationCommand("npm run build")).toBe(false);
     expect(isSystemMutationCommand("git status")).toBe(false);
     expect(isSystemMutationCommand("node -e \"console.log(1)\"")).toBe(false);
+  });
+});
+
+describe("脚本内容扫描（防「写脚本再执行」绕过）", () => {
+  it("真正的系统级操作 → 命中", () => {
+    expect(scanScriptContent("#!/bin/bash\nsudo rm -rf dist")).toBe("sudo/su 提权");
+    expect(scanScriptContent("posix_spawn('reg add HKLM\\Software')")).toBe("Windows 系统级命令");
+    expect(scanScriptContent("subprocess.run(['format', 'C:'], check=True)")).toBe("Windows 系统级命令");
+  });
+
+  it("`format` 作为普通单词/参数名 → 不误判（实测踩过：img.save(path, format=\"ICO\") 被拦）", () => {
+    expect(scanScriptContent("img.save(path, format=\"ICO\", sizes=[(16, 16)])")).toBeNull();
+    expect(scanScriptContent("# 保存格式参数说明：按扩展名推断\nlight.save(dest)")).toBeNull();
+    expect(scanScriptContent("const out = data.format(\"json\")")).toBeNull();
   });
 });
