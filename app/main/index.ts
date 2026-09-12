@@ -256,12 +256,9 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
 }
 
 app.whenReady().then(() => {
-  // 先按系统外观应用一次 Dock 图标（仅 macOS 生效，其它平台在 applyDockIcon 内直接返回）。
-  // 实测结论（2026-09-12 探针取证，见 docs/开发记录）：macOS 在 JS 执行前就用 bundle 图标画好了
-  // 启动阶段的 Dock tile，此前的 setIcon 不会让它立刻重绘——首次可见重绘发生在窗口出现之后。
-  // 所以这一步**消不掉启动阶段那段 Electron 图标**（dev 的 bundle 就是 Electron.app），它的作用只是：
-  // 让“窗口出现”那次重绘就用上我们的图标与最接近的主题，而不是等前端加载完再切。
-  // 要从第一帧就正确只能换 bundle 图标（克隆 Electron.app 换 icns），代价是 npm i 会重置。
+  // 先按系统外观应用一次 Dock 图标（仅 macOS；其它平台在 applyDockIcon 内直接返回）。
+  // 已知限制：应用有窗口之前调用不会立刻改变可见图标（启动阶段那张 tile 是 macOS 用 bundle 图标画的，
+  // 要等窗口出现才重绘）——这步只让那次重绘就用上我们的图标与最接近的主题。
   applyDockIcon(nativeTheme.shouldUseDarkColors ? "dark" : "light");
   // GUI 环境引导:提取用户完整环境(zsh -lic env,含 PATH/JAVA_HOME 等),
   // 供 bash/init.sh/运行面板/环境检查继承
