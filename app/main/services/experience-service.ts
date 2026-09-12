@@ -228,12 +228,6 @@ export function appendExperience(
   return { entry, scope };
 }
 
-/** 合并全局 + 项目级经验（项目级在前——更贴近当前上下文）。仅供外部/测试使用的平坦视图；
- *  需要作用域的内部路径走 loadScoped。 */
-export function listExperiences(projectPath?: string): ExperienceEntry[] {
-  return loadScoped(projectPath);
-}
-
 function patchEntry(entry: ExperienceEntry, patch: { memory?: string; context?: string; kind?: ExperienceKind }): void {
   const m = patch.memory?.trim();
   if (m !== undefined && m.length > 0) entry.memory = m;
