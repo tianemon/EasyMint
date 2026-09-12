@@ -2282,16 +2282,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
           </div>
         )}
-        {/* Mint 提问卡片：独立于消息列表（空态也显示），渲染在滚动区尾部；宽度与输入卡片一致 */}
+        {/* Mint 提问卡片：独立于消息列表（空态也显示），渲染在滚动区尾部；宽度与输入卡片一致。
+            key=requestId：同一时刻可能有多条挂起请求排队（模型一批并行调用），一次只显示第一条；
+            前一条被响应后组件若被复用（无 key），后一条会继承前一条的本地 state——已置 true 的
+            submitting 让确认/取消永久点不动，编辑中的正文也会串到下一条上。key 保证换请求即重挂载。 */}
         {pendingAsk && (
           <div className="mx-[var(--s16)] pt-1 pb-2">
-            <AskUserCard request={pendingAsk} />
+            <AskUserCard key={pendingAsk.requestId} request={pendingAsk} />
           </div>
         )}
-        {/* learn 沉淀审阅卡片：同提问卡片位置 */}
+        {/* learn 沉淀审阅卡片：同提问卡片位置（key 理由同上） */}
         {pendingLearn && (
           <div className="mx-[var(--s16)] pt-1 pb-2">
-            <LearnCard request={pendingLearn} />
+            <LearnCard key={pendingLearn.requestId} request={pendingLearn} />
           </div>
         )}
       </div>
