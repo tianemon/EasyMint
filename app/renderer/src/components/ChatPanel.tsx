@@ -1495,7 +1495,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // custom 系统消息(委派完成/后台 shell/流程指令)→ 独立即时显示:
       // triggerTurn: false 注入,立即落盘 + 立即事件(带 streaming 标记,
       // loadSession 时被磁盘版本替代,不重复)
-      if (event.type === "custom_event" && event.text) {
+      // compacted 带 text（摘要卡）走同一条插入路径：实时显示这一张，重开会话时由磁盘的 compaction
+      // 条目重建（见主进程 session-service）——摘要卡不再注入进模型上下文，两处显示同一份摘要
+      if ((event.type === "custom_event" || event.type === "compacted") && event.text) {
         // 幂等:多 tab 的 ChatPanel 同时挂载都处理此事件——同一条通知
         // (同 Pi 落盘时间戳 + 同文本)只插入一次,防重复渲染
         const sysTs = event.timestamp ?? Date.now();

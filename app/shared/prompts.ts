@@ -602,6 +602,14 @@ export function systemMessage(
   return { customType: "system_message", content, display: true, details: { kind, ...extra } };
 }
 
+/** 摘要卡正文（压缩后给用户看的那张卡）。
+ *  两个展示入口共用这一份文本：①实时 = event-bridge 的 compacted 事件；②重开会话 = session-service
+ *  从落盘的 compaction 条目生成。两边各写一份文案就会出现「同一件事两种抬头」的漂移。
+ *  注意：这段文本**不发给模型**（模型从 compaction 记录读摘要），纯展示。 */
+export function compactionSummaryNotice(summary: string): string {
+  return `【上下文摘要（本次压缩生成，原文）】\n\n${summary}`;
+}
+
 // ── 业务 Prompt 构建函数 ────────────────────────────
 
 /** 直接创建项目——跳过表单,触发 Mint 按 creation_flow 对话引导补全信息。

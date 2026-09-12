@@ -6,6 +6,7 @@
  */
 
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import { compactionSummaryNotice } from "../../shared/prompts";
 
 export interface PiChatEvent {
   type: string;
@@ -258,9 +259,14 @@ export function bridgeSessionEvents(
       // 区分成败:成功(有 result)→ compacted;失败(带 errorMessage)→ error 提示——
       // SDK 失败也发 compaction_end,若不区分前端会清蒙版显示"已整理完毕",失败伪装成成功
       if (!event.aborted && !event.errorMessage && event.result) {
+        const summary = event.result.summary;
         callbacks.onEvent({
           type: "compacted", sessionId: "",
-          summary: event.result.summary,
+          summary,
+          // 摘要卡展示内容：与重开会话时的磁盘路径（session-service 从 compaction 条目生成）同一份文本
+          text: summary ? compactionSummaryNotice(summary) : undefined,
+          customType: "system_message",
+          details: { kind: "summary" },
         });
       } else if (!event.aborted && event.errorMessage) {
         callbacks.onEvent({

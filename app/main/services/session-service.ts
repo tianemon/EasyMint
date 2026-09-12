@@ -20,6 +20,7 @@ import { resolveHome } from "../utils/paths";
 import { deleteCache } from "./session-cache";
 import { listPiSessions, getPiSessionDir } from "./pi-session";
 import { getSessionManagerClass } from "./pi-sdk";
+import { compactionSummaryNotice } from "../../shared/prompts";
 
 const DATA_DIR = path.join(os.homedir(), ".easymint");
 const PINNED_PATH = path.join(DATA_DIR, "pinned-sessions.json");
@@ -256,6 +257,9 @@ async function parseEntriesToMessages(mgr: { getEntries(): unknown[]; getLeafId(
         details?: Record<string, unknown>;
         timestamp?: string;
       };
+      // 历史注入的摘要卡（details.kind=summary）不再渲染：摘要卡统一从 compaction 条目生成
+      // （同一份摘要只显示一张；旧会话里已注入过的那种仍旧留在文件里，但不再重复显示）
+      if (custom.details?.kind === "summary") continue;
       messages.push({
         type: "user",
         uuid: entry.id,
@@ -270,6 +274,28 @@ async function parseEntriesToMessages(mgr: { getEntries(): unknown[]; getLeafId(
         parent_tool_use_id: null,
         created_at: new Date(custom.timestamp ?? entry.timestamp).getTime(),
       });
+    } else if (entry.type === "compaction") {
+      // 压缩记录 = 模型的上下文记忆，同时也当摘要卡显示（用户在压缩后要看摘要）。
+      // 显示这一份而不是另注入一条：注入的那条同样进模型上下文，等于同一份摘要存两遍。
+      const comp = entry as unknown as { summary?: string; timestamp?: string };
+      const summary = comp.summary?.trim();
+      if (summary) {
+        const ts = new Date(comp.timestamp ?? entry.timestamp).getTime();
+        messages.push({
+          type: "user",
+          uuid: entry.id,
+          session_id: sessionId,
+          message: {
+            role: "user",
+            content: compactionSummaryNotice(summary),
+            customType: "system_message",
+            details: { kind: "summary" },
+            timestamp: ts,
+          },
+          parent_tool_use_id: null,
+          created_at: ts,
+        });
+      }
     }
   }
   return messages;

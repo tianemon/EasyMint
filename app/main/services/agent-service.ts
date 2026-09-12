@@ -29,7 +29,7 @@ import { registerSessionIdMapping, abortTask, getRunningSummary, getRunningDeleg
 import type { TaskStatus } from "./task/types";
 import { formatShellResult } from "./background-shell/tool";
 import { backgroundShellRegistry, type BackgroundShell } from "./background-shell/registry";
-import { systemMessage, SYSTEM_MESSAGE_LABELS, type SystemMessageKind, type SystemMessagePayload } from "../../shared/prompts";
+import { systemMessage, SYSTEM_MESSAGE_LABELS, compactionSummaryNotice, type SystemMessageKind, type SystemMessagePayload } from "../../shared/prompts";
 import { normalizeApiError } from "../../shared/api-errors";
 import { createProductTools } from "./builtin-mcp";
 import { loadMcpTools } from "./permission/mcp-adapter";
@@ -852,12 +852,8 @@ export class AgentService {
             console.log(`[agent] compact #${chat.compactCount}: chatId=${chatId}`);
           }
           this.broadcastPostCompactionUsage(chat, event.result?.estimatedTokensAfter);
-          // 阈值/溢出自动压缩也要续接：此前续接通知只写在手动 compact() 里，自动路径完全静默——
-          // 而自动压缩才是最常发生的那种（模型同样会丢步骤记忆）。
-          // 流式中调用安全：SDK 把 triggerTurn:false 的消息延迟到回合末尾落盘（见 _flushPendingCustomMessages）
-          if (!event.aborted && !event.errorMessage && event.result) {
-            this.notifyPostCompaction(chat, sessionId, event.result);
-          }
+          // 摘要卡不在这里处理：实时展示走 event-bridge 的 compacted 事件（带展示文本），
+          // 重开会话时从落盘的 compaction 条目重建——两条路共一份文本，不再另注入一条进模型上下文
         }
 
         // ── learn 硬信号采集（期3）：单轮口径——agent_start 归零。
@@ -2013,24 +2009,6 @@ export class AgentService {
     return chat.chatId;
   }
 
-  /** 压缩完成后的续接通知（手动 compact 与阈值自动压缩共用）：只发本次摘要原文。
-   *  摘要原文本已在压缩后的上下文里，再注入一次是「展示优先」的取舍（用户要求：压缩完想直接看到
-   *  摘要内容），代价约等于摘要字数。
-   *  流式中调用安全：SDK 对 triggerTurn:false 的消息延迟到回合末尾再落盘（见 agent-session
-   *  sendCustomMessage 的 _pendingCustomMessages 分支），不会插在工具调用与结果之间。 */
-  private notifyPostCompaction(
-    chat: ActiveChat,
-    fallbackSessionId: string,
-    result: { summary?: string } | undefined,
-  ): void {
-    try {
-      const summary = result?.summary?.trim();
-      if (!summary) return;
-      const realSid = (chat.session as { sessionId?: string } | null)?.sessionId ?? fallbackSessionId;
-      this.injectSystemMessage(realSid, `【上下文摘要（本次压缩生成，原文）】\n\n${summary}`, "summary");
-    } catch { /* 通知失败不阻断压缩 */ }
-  }
-
   /** 手动压缩上下文 */
   async compact(sessionId: string, instructions?: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
@@ -2040,8 +2018,6 @@ export class AgentService {
       return;
     }
     broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "compact" });
-    // 本次压缩产出的摘要——成功后作为续接通知展示（用户要看压缩到底产出了什么）
-    let compactionSummary: { summary?: string } | undefined;
     // 手动压缩桥接：compact() 直接调 SDK（不经 promptAndBridge 的 subscribe），
     // compaction_start/end 事件无人转发 → 前端收不到 compacted、压缩后使用率不刷新
     // （ctxPct 残留旧值）。这里临时订阅，把压缩生命周期事件桥到前端并刷新 usage。
@@ -2053,8 +2029,13 @@ export class AgentService {
           // 区分成败:失败(带 errorMessage/无 result)也发 compaction_end——若按成功广播,
           // 前端蒙版消失且显示"已整理完毕",实际未压缩(用户感知"看似完成但没生效、无提示")
           if (!event.aborted && !event.errorMessage && event.result) {
-            compactionSummary = { summary: event.result.summary };
-            broadcast("agent:stream", { type: "compacted", sessionId, chatId: chat.chatId });
+            const summary = event.result.summary;
+            // 摘要卡实时显示：带展示文本（与磁盘重建同一来源，见 compactionSummaryNotice）
+            broadcast("agent:stream", {
+              type: "compacted", sessionId, chatId: chat.chatId,
+              summary, text: summary ? compactionSummaryNotice(summary) : undefined,
+              customType: "system_message", details: { kind: "summary" },
+            });
             this.broadcastPostCompactionUsage(chat, event.result.estimatedTokensAfter);
           } else if (!event.aborted && event.errorMessage) {
             // 失败:广播 error(前端红字提示),随后 catch/finally 清蒙版——不伪装成功
@@ -2088,9 +2069,7 @@ export class AgentService {
         new Promise((_, reject) => setTimeout(() => reject(new Error("Compaction timed out (120s)")), 120_000)),
       ]);
       console.log(`[compact] SDK compact 返回（chatId=${chat.chatId}）`);
-      // 成功路径:SDK 内部发 compaction_end → compacted 广播清除蒙版
-      // 续接通知（摘要原文）统一由 notifyPostCompaction 构造，两条压缩路径共用
-      this.notifyPostCompaction(chat, sessionId, compactionSummary);
+      // 成功路径:SDK 内部发 compaction_end → 桥接/订阅广播 compacted（带摘要卡展示文本）
     } catch (e) {
       const errMsg = (e as Error).message;
       // 超时场景:SDK compact 挂起未 emit compaction_end(无桥接广播)——需主动广播错误提示;
