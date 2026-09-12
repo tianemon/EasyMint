@@ -383,7 +383,9 @@ export function moveExperience(
   const moved: ExperienceIndexEntry = { ...found.entry, updatedAt: Date.now() };
   delete (moved as Partial<ExperienceHit>).scope;
   delete (moved as Partial<ExperienceHit>).excerpt;
-  saveIndex(toDir, trimCapacity(toDir, targetScope, projectPath, [...loadIndex(toDir), moved], new Set([moved.id])));
+  // 目标索引里若已存在同 id（手工拷贝/上次移动中途失败）先摘掉，避免同一 id 两份
+  const targetItems = loadIndex(toDir).filter((e) => e.id !== moved.id);
+  saveIndex(toDir, trimCapacity(toDir, targetScope, projectPath, [...targetItems, moved], new Set([moved.id])));
   saveIndex(found.dir, loadIndex(found.dir).filter((e) => e.id !== moved.id));
   return { ok: true, entry: moved, scope: targetScope };
 }
