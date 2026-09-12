@@ -1,6 +1,6 @@
 import os from "os";
 import fs from "fs";
-import { app, BrowserWindow, shell, ipcMain, Menu } from "electron";
+import { app, BrowserWindow, shell, ipcMain, Menu, nativeTheme } from "electron";
 import path from "path";
 import { loadUserEnv } from "./utils/user-path";
 import { getResourcesDir } from "./utils/paths";
@@ -91,6 +91,7 @@ import { syncNativeModels } from "./services/pi-init";
 import { migrateExtraModels, migrateModelIdentity } from "./services/extra-models-migration";
 import { cleanupOrphanCaches, cleanupTempCaches } from "./services/session-cache";
 import { trackProjectWindow } from "./services/window-manager";
+import { applyDockIcon } from "./utils/dock-icon";
 
 const isDev = !app.isPackaged;
 
@@ -124,7 +125,13 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     titleBarStyle: "hiddenInset",
     // Windows：隐藏系统标题栏（保留窗口框架/Snap/缩放），窗口按钮由 renderer 自绘（WindowControls）
     ...(process.platform === "win32" ? { titleBarStyle: "hidden" as const } : {}),
-    ...(isDev ? {} : { icon: path.join(__dirname, "..", "..", "..", "assets", "icon.icns") }),
+    // 窗口图标：Windows / Linux 用（macOS 忽略此选项、图标由 bundle 决定，故 mac 不传）。
+    // 按平台选格式（win 认 ico、linux 认 png）—— 曾统一传 icon.icns 且 dev 不传：前者在非 mac
+    // 不受支持（形同无效），后者让 dev 下窗口/任务栏顶着 Electron 默认图标。
+    ...(process.platform === "darwin" ? {} : {
+      icon: path.join(__dirname, "..", "..", "..", "assets",
+        process.platform === "win32" ? "icon.ico" : "icon.png"),
+    }),
     webPreferences: {
       preload: path.join(__dirname, "..", "..", "preload", "dist", "preload.cjs"),
       contextIsolation: true,
@@ -249,6 +256,11 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
 }
 
 app.whenReady().then(() => {
+  // 先按系统外观应用一次 Dock 图标（仅 macOS 生效，其它平台在 applyDockIcon 内直接返回）：
+  // 渲染层 initTheme() 上报生效主题之前，Dock 里会短暂显示 Electron 默认图标（dev 下尤其明显——
+  // 那段窗口期等于整个窗口创建 + 前端加载）。这里先给一个最接近的初值（与渲染层 "auto" 判定同源：
+  // 都看系统外观），用户显式选的亮/暗仍由上报后的那次调用覆盖。
+  applyDockIcon(nativeTheme.shouldUseDarkColors ? "dark" : "light");
   // GUI 环境引导:提取用户完整环境(zsh -lic env,含 PATH/JAVA_HOME 等),
   // 供 bash/init.sh/运行面板/环境检查继承
   loadUserEnv();
