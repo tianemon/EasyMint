@@ -1,9 +1,9 @@
 /**
- * experience-service 单测 —— 治理能力回归（检索分词 / 短 id / 作用域 / 移动 / 退役 / 注入 / 体检 / 淘汰）。
+ * experience-service 单测 —— 索引 + 原文分离架构（用户决策：能索引的就索引，正文按需加载）。
  *
  * 隔离方式：把 HOME 指到项目内临时目录后再动态 import —— 全局库路径在模块加载期由
- * os.homedir() 决定（Node 在 POSIX 上优先读 $HOME），因此必须 stub 后再 resetModules 取新实例，
- * 否则测试会写到用户真实的 ~/.easymint/experiences.json。
+ * os.homedir() 决定（Node 在 POSIX 上读 $HOME、Windows 上读 USERPROFILE，两个都 stub），
+ * 否则测试会写到用户真实的 ~/.easymint/experiences/。
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -16,19 +16,19 @@ let tmpHome: string;
 let projectPath: string;
 let svc: Svc;
 
-function globalFile(): string {
-  return path.join(tmpHome, ".easymint", "experiences.json");
+function projDir(): string {
+  return path.join(projectPath, ".easymint", "experiences");
 }
-function projectFile(): string {
-  return path.join(projectPath, ".easymint", "experiences.json");
+function globalDir(): string {
+  return path.join(tmpHome, ".easymint", "experiences");
 }
-function readJson<T>(file: string): T[] {
-  return existsSync(file) ? (JSON.parse(readFileSync(file, "utf-8")) as T[]) : [];
+function readIndex(dir: string): Array<Record<string, unknown>> {
+  const f = path.join(dir, "index.json");
+  if (!existsSync(f)) return [];
+  return (JSON.parse(readFileSync(f, "utf-8")) as { items: Array<Record<string, unknown>> }).items;
 }
-/** 直接播种库文件（绕过 append 的容量逻辑，用于淘汰/体检这类需要构造大量条目或指定时间戳的用例） */
-function seed(file: string, entries: unknown[]): void {
-  mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify(entries, null, 2));
+function readBody(dir: string, file: string): string {
+  return readFileSync(path.join(dir, file), "utf-8");
 }
 
 beforeEach(async () => {
@@ -36,7 +36,6 @@ beforeEach(async () => {
   projectPath = path.join(tmpHome, "proj");
   mkdirSync(path.join(projectPath, ".easymint"), { recursive: true });
   vi.stubEnv("HOME", tmpHome);
-  // Windows 上 os.homedir() 读 USERPROFILE（不读 HOME）——两个都 stub，否则 Windows/CI 会写到真实用户库
   vi.stubEnv("USERPROFILE", tmpHome);
   vi.resetModules();
   svc = await import("./experience-service");
@@ -47,266 +46,203 @@ afterEach(() => {
   rmSync(tmpHome, { recursive: true, force: true });
 });
 
-describe("检索：分词匹配（原来整串子串匹配导致多词查询必然零命中）", () => {
-  it("多关键词可命中（这是核心回归：改前「图标 圆角」返回空）", () => {
-    const { entry } = svc.appendExperience(
-      { memory: "macOS 26 应用图标是两套口径：包内满幅直角由系统套圆角，运行时图标自带圆角" },
-      { projectPath },
+describe("存储：原文落文件 + 索引进 index.json", () => {
+  it("追加一条：原文文件内容含标题与正文，索引只记标题/文件名/标签/时间", () => {
+    const { entry, scope } = svc.appendExperience(
+      { title: "macOS 26 图标两套口径", body: "问题：图标被套了两层。\n做法：包内给满幅直角。\n验证：Dock 无断层。", tags: ["macos", "electron"], kind: "principle" },
+      { scope: "global", projectPath },
     );
-    const r = svc.searchExperiences("图标 圆角", projectPath);
-    expect(r.hits.map((h) => h.id)).toEqual([entry.id]);
+    expect(scope).toBe("global");
+    const body = readBody(globalDir(), entry.file);
+    expect(body).toContain("# macOS 26 图标两套口径");
+    expect(body).toContain("验证：Dock 无断层。");
+    const items = readIndex(globalDir());
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ title: "macOS 26 图标两套口径", tags: ["macos", "electron"], kind: "principle" });
+    expect(String(items[0]!.file)).toMatch(/^[0-9a-f]{8}-macOS-26-图标两套口径\.md$/);
+    // 索引里不带正文（注入只读索引，正文按需 read）
+    expect(JSON.stringify(items[0])).not.toContain("Dock 无断层");
   });
 
-  it("按命中词数排序（全词命中优先）", () => {
-    svc.appendExperience({ memory: "卡片 按钮 点不动：React 实例复用导致 submitting 卡住" }, { projectPath });
-    const partial = svc.appendExperience({ memory: "卡片样式微调：圆角与间距" }, { projectPath });
-    const r = svc.searchExperiences("卡片 按钮 点不动", projectPath);
-    expect(r.hits[0]!.memory).toContain("submitting");
-    expect(r.hits.map((h) => h.id)).toContain(partial.entry.id);
+  it("默认落项目库；无项目路径时兑现到全局库", () => {
+    svc.appendExperience({ title: "项目内约定", body: "正文" }, { projectPath });
+    expect(readIndex(projDir())).toHaveLength(1);
+    const r = svc.appendExperience({ title: "无项目时写的", body: "正文" }, { scope: "project", projectPath: undefined });
+    expect(r.scope).toBe("global");
+    expect(readIndex(globalDir())).toHaveLength(1);
   });
 
-  it("单关键词行为不回归（仍是子串匹配）", () => {
-    svc.appendExperience({ memory: "squircle 遮罩口径" }, { projectPath });
-    expect(svc.searchExperiences("squircle", projectPath).hits).toHaveLength(1);
+  it("索引损坏：改名存证后重建（不静默清空整库索引）", () => {
+    mkdirSync(projDir(), { recursive: true });
+    writeFileSync(path.join(projDir(), "index.json"), "{ 半截 JSON");
+    expect(svc.searchExperiences("任意", projectPath).hits).toEqual([]);
+    expect(readdirSync(projDir()).some((n) => n.includes("index.json.corrupt-"))).toBe(true);
+  });
+});
+
+describe("检索：标题/标签权重高于正文，返回命中片段", () => {
+  it("标题命中排在只命中正文的条目前面", () => {
+    svc.appendExperience({ title: "其他主题", body: "顺便提到卡片样式调整" }, { projectPath });
+    svc.appendExperience({ title: "卡片 按钮 点不动", body: "React 实例复用导致 submitting 卡死" }, { projectPath });
+    const r = svc.searchExperiences("卡片", projectPath);
+    expect(r.hits[0]!.title).toBe("卡片 按钮 点不动");
   });
 
-  it("无空格的中文多词查询也能命中（2-gram 闸门）", () => {
-    svc.appendExperience({ memory: "应用图标两套口径：包内满幅直角，运行时图标自带圆角" }, { projectPath });
+  it("tags 参与匹配（技术栈检索）", () => {
+    svc.appendExperience({ title: "Flutter 页面转场默认行为", body: "Android 平台默认转场是 X", tags: ["flutter"] }, { projectPath });
+    expect(svc.searchExperiences("flutter", projectPath).hits).toHaveLength(1);
+  });
+
+  it("正文命中时给出片段（供判断要不要读原文）", () => {
+    svc.appendExperience({ title: "无关标题", body: "排查过程：先看 git diff 再对比最近改动" }, { projectPath });
+    const hit = svc.searchExperiences("git diff", projectPath).hits[0]!;
+    expect(hit.excerpt).toContain("git diff");
+  });
+
+  it("无空格中文多词也能命中（2-gram）", () => {
+    svc.appendExperience({ title: "应用图标口径", body: "包内满幅直角，运行时图标自带圆角" }, { projectPath });
     expect(svc.searchExperiences("图标圆角", projectPath).hits).toHaveLength(1);
   });
 
-  it("updateExperience：context 传空串清空、memory 传空串忽略", () => {
-    const { entry } = svc.appendExperience({ memory: "正文", context: "原上下文" }, { projectPath });
-    svc.updateExperience(projectPath, entry.id, { context: "" });
-    expect(readJson<{ context?: string }>(projectFile())[0]!.context).toBeUndefined();
-    svc.updateExperience(projectPath, entry.id, { memory: "   " });
-    expect(readJson<{ memory: string }>(projectFile())[0]!.memory).toBe("正文");
-  });
-
-  it("无匹配返回空且 total 为 0", () => {
-    svc.appendExperience({ memory: "无关内容" }, { projectPath });
-    const r = svc.searchExperiences("绝对不存在的词", projectPath);
-    expect(r.hits).toEqual([]);
-    expect(r.total).toBe(0);
-  });
-
-  it("命中项带作用域标注（注入/检索按文件判定，不按 project 字段）", () => {
-    svc.appendExperience({ memory: "全局经验 abc" }, { scope: "global", projectPath });
-    const r = svc.searchExperiences("abc", projectPath);
-    expect(r.hits[0]!.scope).toBe("global");
+  it("无匹配返回空；命中记 usageCount", () => {
+    svc.appendExperience({ title: "唯一经验", body: "正文" }, { projectPath });
+    expect(svc.searchExperiences("绝对不存在的词", projectPath).total).toBe(0);
+    svc.searchExperiences("唯一", projectPath, { touch: true });
+    expect(readIndex(projDir())[0]!.usageCount).toBe(1);
   });
 });
 
-describe("短 id：前缀解析", () => {
-  it("按 8 字符前缀可定位；太短/未找到/歧义分别报错", () => {
-    const a = svc.appendExperience({ memory: "经验甲" }, { projectPath }).entry;
+describe("短 id 解析", () => {
+  it("唯一前缀可用；太短/未找到/歧义分别报错", () => {
+    const a = svc.appendExperience({ title: "经验甲", body: "正文" }, { projectPath }).entry;
     expect(svc.resolveExperience(projectPath, svc.shortId(a.id))).toMatchObject({ ok: true });
     expect(svc.resolveExperience(projectPath, "abc")).toMatchObject({ ok: false, reason: "too_short" });
     expect(svc.resolveExperience(projectPath, "zzzzzzzz")).toMatchObject({ ok: false, reason: "not_found" });
-    // 歧义：两个 id 共享同一前缀（直接播种构造确定的前缀）——必须报歧义而不是猜一个
-    seed(projectFile(), [
-      { id: "abcdefgh1111-1111-1111-1111-111111111111", memory: "同前缀甲", kind: "convention", createdAt: Date.now() },
-      { id: "abcdefgh2222-2222-2222-2222-222222222222", memory: "同前缀乙", kind: "convention", createdAt: Date.now() },
-    ]);
+    const items = [
+      { id: "abcdefgh1111-1111-1111-1111-111111111111", title: "同前缀甲", file: "abcdefgh1111-甲.md", tags: [], kind: "convention", createdAt: Date.now(), updatedAt: Date.now() },
+      { id: "abcdefgh2222-2222-2222-2222-222222222222", title: "同前缀乙", file: "abcdefgh2222-乙.md", tags: [], kind: "convention", createdAt: Date.now(), updatedAt: Date.now() },
+    ];
+    mkdirSync(projDir(), { recursive: true });
+    writeFileSync(path.join(projDir(), "index.json"), JSON.stringify({ version: 1, updatedAt: Date.now(), items }));
     expect(svc.resolveExperience(projectPath, "abcdefgh")).toMatchObject({ ok: false, reason: "ambiguous", count: 2 });
     expect(svc.resolveExperience(projectPath, "abcdefgh1")).toMatchObject({ ok: true });
-    expect(svc.resolveExperience(projectPath, "abcdefg")).toMatchObject({ ok: false, reason: "too_short" });
-  });
-});
-
-describe("作用域：由落盘文件决定", () => {
-  it("默认写项目库；scope=global 写全局库", () => {
-    svc.appendExperience({ memory: "项目经验" }, { projectPath });
-    svc.appendExperience({ memory: "全局经验" }, { scope: "global", projectPath });
-    expect(readJson<{ memory: string }>(projectFile()).map((e) => e.memory)).toEqual(["项目经验"]);
-    expect(readJson<{ memory: string }>(globalFile()).map((e) => e.memory)).toEqual(["全局经验"]);
-  });
-
-  it("scope=project 但无项目路径 → 兑现到全局库（不静默丢弃）", () => {
-    const r = svc.appendExperience({ memory: "无项目时写的" }, { scope: "project", projectPath: undefined });
-    expect(r.scope).toBe("global");
-    expect(readJson<{ memory: string }>(globalFile())).toHaveLength(1);
-  });
-
-  it("kind 缺省归一化为 convention", () => {
-    const { entry } = svc.appendExperience({ memory: "没写 kind" }, { projectPath });
-    expect(entry.kind).toBe("convention");
-    expect(svc.kindLabel(undefined)).toBe("约定");
   });
 });
 
 describe("改写与移动", () => {
-  it("updateExperience 覆盖正文与 kind 并记 updatedAt", () => {
-    const { entry } = svc.appendExperience({ memory: "旧正文" }, { projectPath });
-    const r = svc.updateExperience(projectPath, svc.shortId(entry.id), { memory: "新正文", kind: "principle" });
+  it("改写标题会同步原文首行；改写正文重写文件；updatedAt 刷新", () => {
+    const { entry } = svc.appendExperience({ title: "旧标题", body: "旧正文" }, { projectPath });
+    const r = svc.updateExperience(projectPath, svc.shortId(entry.id), { title: "新标题", kind: "principle" });
     expect(r.ok).toBe(true);
-    const stored = readJson<{ memory: string; kind: string; updatedAt?: number }>(projectFile())[0]!;
-    expect(stored.memory).toBe("新正文");
-    expect(stored.kind).toBe("principle");
-    expect(stored.updatedAt).toBeGreaterThan(0);
+    const body = readBody(projDir(), entry.file);
+    expect(body).toContain("# 新标题");
+    expect(body).toContain("旧正文"); // 只改标题不动正文
+    svc.updateExperience(projectPath, entry.id, { body: "新正文" });
+    expect(readBody(projDir(), entry.file)).toContain("新正文");
+    const item = readIndex(projDir())[0]!;
+    expect(item.title).toBe("新标题");
+    expect(item.kind).toBe("principle");
+    expect(item.updatedAt as number).toBeGreaterThanOrEqual(entry.createdAt);
   });
 
-  it("moveExperience 项目 → 全局：保留 id 与计数，原库删净（不留双份）", () => {
-    const { entry } = svc.appendExperience({ memory: "该跨项目的原则" }, { projectPath });
-    svc.searchExperiences("该跨项目", projectPath, { touch: true }); // 造一个 usageCount
+  it("移动到全局：原文文件与索引项一起搬，源库清空，计数保留", () => {
+    const { entry } = svc.appendExperience({ title: "该跨项目的事实", body: "正文" }, { projectPath });
+    svc.searchExperiences("该跨项目", projectPath, { touch: true });
     const moved = svc.moveExperience(projectPath, svc.shortId(entry.id), "global");
     expect(moved.ok).toBe(true);
-    expect(readJson(projectFile())).toHaveLength(0);
-    const g = readJson<{ id: string; usageCount?: number; memory: string }>(globalFile());
-    expect(g).toHaveLength(1);
-    expect(g[0]!.id).toBe(entry.id);
-    expect(g[0]!.usageCount).toBe(1);
-  });
-
-  it("moveExperience：目标库已满时，刚移入的条目不会被自身触发的容量淘汰丢掉", () => {
-    const now = Date.now();
-    const full: unknown[] = [];
-    for (let i = 0; i < 200; i += 1) {
-      full.push({ id: `full-${i}-1111-1111-1111-111111111111`, memory: `全局旧条目 ${i}`, kind: "principle", createdAt: now, usageCount: 4 });
-    }
-    seed(globalFile(), full);
-    const { entry } = svc.appendExperience({ memory: "待迁移的低分临时条目", kind: "temporary" }, { projectPath });
-    const moved = svc.moveExperience(projectPath, entry.id, "global");
-    expect(moved.ok).toBe(true);
-    const stored = readJson<{ id: string }>(globalFile());
-    expect(stored.some((e) => e.id === entry.id)).toBe(true); // 不被立即淘汰
-    expect(stored.length).toBe(200); // 仍遵守上限：被淘汰的是旧条目
-    // 被淘汰的旧条目留档（与退役同口径：可回溯）
-    const archived = readJson<{ retiredReason: string }>(path.join(tmpHome, ".easymint", "experiences-archive.json"));
-    expect(archived.some((a) => a.retiredReason.includes("容量淘汰"))).toBe(true);
-  });
-
-  it("库文件损坏：改名存证后重建（不静默清空 200 条）", () => {
-    writeFileSync(projectFile(), "{ 半截 JSON");
-    expect(svc.searchExperiences("任意", projectPath).hits).toEqual([]);
-    const names = readdirSync(path.join(projectPath, ".easymint"));
-    expect(names.some((n) => n.includes("experiences.json.corrupt-"))).toBe(true);
+    expect(readIndex(projDir())).toHaveLength(0);
+    expect(existsSync(path.join(projDir(), entry.file))).toBe(false);
+    expect(existsSync(path.join(globalDir(), entry.file))).toBe(true);
+    const g = readIndex(globalDir())[0]!;
+    expect(g.id).toBe(entry.id);
+    expect(g.usageCount).toBe(1);
   });
 });
 
-describe("退役：移除 + 档案留档", () => {
-  it("从库中移除，原文与理由进档案；未找到的 id 进 failures", () => {
-    const a = svc.appendExperience({ memory: "临时结论：发版窗口内先这样" }, { projectPath }).entry;
-    svc.appendExperience({ memory: "保留的经验" }, { projectPath });
+describe("退役与容量淘汰：原文进 archive，可回溯", () => {
+  it("退役：索引摘除 + 原文移入 archive + 理由登记；未找到进 failures", () => {
+    const a = svc.appendExperience({ title: "临时结论", body: "发版窗口内先这样", kind: "temporary" }, { projectPath }).entry;
+    svc.appendExperience({ title: "保留的经验", body: "正文" }, { projectPath });
     const r = svc.retireExperiences(projectPath, [svc.shortId(a.id), "zzzzzzzz"], "发版窗口已结束");
     expect(r.retired).toHaveLength(1);
     expect(r.failures).toHaveLength(1);
-    expect(readJson<{ memory: string }>(projectFile()).map((e) => e.memory)).toEqual(["保留的经验"]);
-    const archived = readJson<{ memory: string; retiredReason: string }>(
-      path.join(projectPath, ".easymint", "experiences-archive.json"),
-    );
-    expect(archived).toHaveLength(1);
-    expect(archived[0]!.memory).toContain("发版窗口内先这样");
-    expect(archived[0]!.retiredReason).toBe("发版窗口已结束");
+    expect(readIndex(projDir()).map((e) => e.title)).toEqual(["保留的经验"]);
+    expect(existsSync(path.join(projDir(), a.file))).toBe(false);
+    expect(existsSync(path.join(svc.archiveDir("project", projectPath), a.file))).toBe(true);
+    const log = JSON.parse(readFileSync(path.join(svc.archiveDir("project", projectPath), "index.json"), "utf-8")) as Array<{ retiredReason: string; title: string }>;
+    expect(log[0]!.retiredReason).toBe("发版窗口已结束");
+    expect(log[0]!.title).toBe("临时结论");
   });
 
-  it("档案文件损坏时不阻断退役：改名存证后重建（档案是回溯的唯一依据，不能静默丢）", () => {
-    const a = svc.appendExperience({ memory: "待退役条目" }, { projectPath }).entry;
-    const af = path.join(projectPath, ".easymint", "experiences-archive.json");
-    writeFileSync(af, "{ 这不是合法 JSON");
-    const r = svc.retireExperiences(projectPath, [svc.shortId(a.id)], "测试损坏容忍");
-    expect(r.retired).toHaveLength(1);
-    expect(readJson<{ memory: string }>(af)).toHaveLength(1);
-    expect(readdirSync(path.join(projectPath, ".easymint")).some((n) => n.includes("experiences-archive.json.corrupt-"))).toBe(true);
-  });
-});
-
-describe("注入块：排序 / 标记 / 短 id / 正文压缩 / 送达计数", () => {
-  it("带作用域与 kind 标记、短 id；长正文保留首尾两段", () => {
-    const head = "问题：第一步该做什么".repeat(10);
-    const tail = "验证：跑 lint 三段全绿";
-    svc.appendExperience({ memory: `${head}${"中间内容".repeat(60)}${tail}`, kind: "principle" }, { scope: "global", projectPath });
-    const block = svc.buildExperienceInjection(projectPath);
-    expect(block).toContain("[全局·原则]");
-    expect(block).toContain("[id: ");
-    expect(block).toContain("问题：第一步该做什么");
-    expect(block).toContain(tail);
-    expect(block).toContain("…");
-  });
-
-  it("送达计数递增（injectedCount / lastInjectedAt）", () => {
-    svc.appendExperience({ memory: "会被注入的经验" }, { projectPath });
-    svc.buildExperienceInjection(projectPath);
-    svc.buildExperienceInjection(projectPath);
-    const stored = readJson<{ injectedCount?: number; lastInjectedAt?: number }>(projectFile())[0]!;
-    expect(stored.injectedCount).toBe(2);
-    expect(stored.lastInjectedAt).toBeGreaterThan(0);
-  });
-
-  it("价值分排序：principle + 有命中 优先于 零命中的 convention", () => {
-    const weak = svc.appendExperience({ memory: "普通约定 aaa" }, { projectPath }).entry;
-    const strong = svc.appendExperience({ memory: "跨项目原则 bbb", kind: "principle" }, { projectPath }).entry;
-    svc.searchExperiences("bbb", projectPath, { touch: true });
-    const block = svc.buildExperienceInjection(projectPath, 1);
-    expect(block).toContain("bbb");
-    expect(block).not.toContain("aaa");
-    expect(weak.id).not.toBe(strong.id);
-  });
-});
-
-describe("体检候选：下限筛选，价值判断交给模型", () => {
-  it("超期临时经验进候选，普通条目不进", () => {
-    const old = Date.now() - 20 * 86400000;
-    seed(projectFile(), [
-      { id: "11111111-1111-1111-1111-111111111111", memory: "临时：发版窗口内先这样绕", kind: "temporary", createdAt: old },
-      { id: "22222222-2222-2222-2222-222222222222", memory: "长期约定：docs 是本地仓库", kind: "convention", createdAt: old },
-      { id: "33333333-3333-3333-3333-333333333333", memory: "新的临时经验", kind: "temporary", createdAt: Date.now() },
-    ]);
-    const items = svc.buildReviewCandidates(projectPath);
-    expect(items).toHaveLength(1);
-    expect(items[0]!.shortIds).toEqual(["11111111"]);
-    expect(items[0]!.reason).toContain("临时经验已 20 天");
-  });
-
-  it("开头相同的重复条目整组给出；开头过短的不误报", () => {
-    const prefix = "复核待办清单时逐条从当前代码取证不要照抄备注";
-    seed(projectFile(), [
-      { id: "aaaa1111-1111-1111-1111-111111111111", memory: `${prefix}（第 1 份）`, kind: "principle", createdAt: Date.now() },
-      { id: "aaaa2222-2222-2222-2222-222222222222", memory: `${prefix}（第 2 份）`, kind: "principle", createdAt: Date.now() },
-      { id: "bbbb1111-1111-1111-1111-111111111111", memory: "短", kind: "convention", createdAt: Date.now() },
-    ]);
-    const items = svc.buildReviewCandidates(projectPath);
-    expect(items).toHaveLength(1);
-    expect(items[0]!.shortIds.sort()).toEqual(["aaaa1111", "aaaa2222"]);
-  });
-
-  it("体检清单会附在注入块末尾；无候选时不出现该段", () => {
-    seed(projectFile(), [
-      { id: "11111111-1111-1111-1111-111111111111", memory: "临时经验甲", kind: "temporary", createdAt: Date.now() - 30 * 86400000 },
-    ]);
-    expect(svc.buildExperienceInjection(projectPath)).toContain("【待体检 1 条】");
-    seed(projectFile(), [{ id: "11111111-1111-1111-1111-111111111111", memory: "普通经验", kind: "convention", createdAt: Date.now() }]);
-    expect(svc.buildExperienceInjection(projectPath)).not.toContain("待体检");
-  });
-});
-
-describe("容量淘汰：按价值分丢最低分（不再按最旧）", () => {
-  it("超上限时丢掉低分条目，高分（principle + 命中）保留", () => {
+  it("容量淘汰：超上限时最低分条目进 archive（新写入的受保护）", () => {
     const now = Date.now();
-    const rows: unknown[] = [];
-    for (let i = 0; i < 200; i += 1) {
-      rows.push({
-        id: `low-${i.toString().padStart(4, "0")}-1111-1111-1111-111111111111`,
-        memory: `低分条目 ${i}`,
-        kind: "convention",
-        createdAt: now,
-      });
+    const items: unknown[] = [];
+    for (let i = 0; i < 100; i += 1) {
+      items.push({ id: `old-${i.toString().padStart(3, "0")}-1111-1111-1111-111111111111`, title: `旧条目 ${i}`, file: `old-${i}.md`, tags: [], kind: "convention", createdAt: now, updatedAt: now });
     }
-    rows.push({
-      id: "keep-me-1111-1111-1111-111111111111",
-      memory: "高分条目：跨项目原则且被引用过",
-      kind: "principle",
-      createdAt: now - 400 * 86400000, // 最旧——若按时间淘汰它必被丢
-      usageCount: 4,
-    });
-    // 全局库没有项目加成，分数差异只来自 kind 与命中，判定更干净
-    seed(globalFile(), rows);
-    const added = svc.appendExperience({ memory: "新条目" }, { scope: "global" });
-    const stored = readJson<{ id: string }>(globalFile());
-    expect(stored).toHaveLength(200);
-    expect(stored.some((e) => e.id === "keep-me-1111-1111-1111-111111111111")).toBe(true);
-    expect(stored.some((e) => e.id === added.entry.id)).toBe(true);
-    expect(stored.some((e) => e.id.startsWith("low-"))).toBe(true);
-    expect(stored.filter((e) => e.id.startsWith("low-"))).toHaveLength(198);
+    mkdirSync(projDir(), { recursive: true });
+    writeFileSync(path.join(projDir(), "index.json"), JSON.stringify({ version: 1, updatedAt: now, items }));
+    const added = svc.appendExperience({ title: "新条目", body: "正文", kind: "principle" }, { projectPath }).entry;
+    const after = readIndex(projDir());
+    expect(after).toHaveLength(100);
+    expect(after.some((e) => e.id === added.id)).toBe(true);
+    const log = JSON.parse(readFileSync(path.join(svc.archiveDir("project", projectPath), "index.json"), "utf-8")) as Array<{ retiredReason: string }>;
+    expect(log.some((l) => l.retiredReason.includes("容量淘汰"))).toBe(true);
+  });
+});
+
+describe("注入：只给索引；通用常驻 + 技术栈按项目匹配", () => {
+  it("注入内容只有标题与文件名，不含正文", () => {
+    svc.appendExperience({ title: "通用工作方式", body: "保密正文内容 ABC", tags: [] }, { scope: "global", projectPath });
+    const block = svc.buildExperienceInjection(projectPath);
+    expect(block).toContain("通用工作方式");
+    expect(block).toContain("file ");
+    expect(block).not.toContain("保密正文内容");
+    expect(block).toContain(globalDir()); // 给出目录，供拼路径 read
+  });
+
+  it("技术栈条目：匹配当前项目才注入（flutter 条目在 react 项目里不出现）", () => {
+    writeFileSync(path.join(projectPath, "package.json"), JSON.stringify({ dependencies: { react: "^19.0.0", electron: "^43.0.0" } }));
+    svc.appendExperience({ title: "Flutter 页面转场", body: "正文", tags: ["flutter"] }, { scope: "global", projectPath });
+    svc.appendExperience({ title: "Electron 主进程调试", body: "正文", tags: ["electron"] }, { scope: "global", projectPath });
+    const block = svc.buildExperienceInjection(projectPath);
+    expect(block).toContain("Electron 主进程调试");
+    expect(block).not.toContain("Flutter 页面转场");
+  });
+
+  it("注入记送达次数；无匹配条目时给出提示", () => {
+    svc.appendExperience({ title: "常驻条目", body: "正文", tags: [] }, { scope: "global", projectPath });
+    svc.buildExperienceInjection(projectPath);
+    expect(readIndex(globalDir())[0]!.injectedCount).toBe(1);
+    // 只存了带标签的技术栈条目、而当前项目探测不到该技术栈 → 不注入，只给提示
+    rmSync(globalDir(), { recursive: true, force: true });
+    svc.appendExperience({ title: "Flutter 专有经验", body: "正文", tags: ["flutter"] }, { scope: "global", projectPath: undefined });
+    const noMatch = svc.buildExperienceInjection(projectPath);
+    expect(noMatch).toContain("没有匹配到该注入的条目");
+    expect(noMatch).not.toContain("Flutter 专有经验");
+  });
+
+  it("detectProjectStacks：读标志文件与关键词（含平台标签）", () => {
+    writeFileSync(path.join(projectPath, "package.json"), JSON.stringify({ devDependencies: { vite: "^8.0.0", tailwindcss: "^4.0.0", typescript: "^6.0.0" } }));
+    const stacks = svc.detectProjectStacks(projectPath);
+    expect(stacks).toEqual(expect.arrayContaining(["node", "vite", "tailwind", "typescript"]));
+    expect(svc.detectProjectStacks(undefined)).toEqual([]);
+  });
+});
+
+describe("体检候选：原文缺失 / 标题重复 / 超期临时", () => {
+  it("三类候选都能报出，且注入块会附上", () => {
+    const a = svc.appendExperience({ title: "重复标题示例甲", body: "正文" }, { projectPath }).entry;
+    svc.appendExperience({ title: "重复标题示例乙", body: "正文" }, { projectPath });
+    const b = svc.appendExperience({ title: "原文会丢的条目", body: "正文" }, { projectPath }).entry;
+    rmSync(path.join(projDir(), b.file));
+    const old = Date.now() - 20 * 86400000;
+    const items = readIndex(projDir()).map((e) => (e.id === a.id ? { ...e, title: "重复标题示例甲", updatedAt: old, kind: "temporary" } : e));
+    writeFileSync(path.join(projDir(), "index.json"), JSON.stringify({ version: 1, updatedAt: Date.now(), items }));
+    const candidates = svc.buildReviewCandidates(projectPath);
+    const flat = candidates.map((c) => c.reason).join("\n");
+    expect(flat).toContain("原文缺失");
+    expect(flat).toMatch(/疑似重复|已 \d+ 天未更新/);
+    expect(svc.buildExperienceInjection(projectPath)).toContain("待体检");
   });
 });

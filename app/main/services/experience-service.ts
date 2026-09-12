@@ -1,350 +1,494 @@
 /**
- * Experience Service — AI 自沉淀经验库。
+ * Experience Service — AI 自沉淀经验库（索引 + 原文分离，模型上下文有限：能索引的就索引）。
  *
- * 存储：全局 ~/.easymint/experiences.json + 项目级 <project>/.easymint/experiences.json。
- * 风格对齐 session-service 的 JSON 元数据文件（同步 readFileSync/writeFileSync，无数据库）。
+ * 存储（每条原文一个 markdown 文件，索引单独一份）：
+ *   全局： ~/.easymint/experiences/{index.json, <短id>-<标题>.md, archive/}
+ *   项目： <项目>/.easymint/experiences/{index.json, <短id>-<标题>.md, archive/}
  *
- * 治理口径（2026-09-12 定案）：
- *  - **作用域由所在文件决定，不存字段**——避免「字段与位置不一致」的第二真相源
- *  - `kind` 决定注入标记与体检规则：principle（与具体项目无关的通用知识）/ convention（项目内约定）/ temporary（临时）
- *  - 条目上限 200/库，超出按**价值分**淘汰最低分（kind 权重 + 命中 + 新鲜度），不再按「最旧」
- *  - 退役（删除）不弹确认：模型自主判断，原文进同目录 experiences-archive.json 可回溯
- *  - 经验非真相源：读失败返回空数组（可丢失重建，同 skill-registry 原则）
+ * 两条铁律：
+ *  - **注入的只有索引**（标题 + 文件名 + 标签 + 计数），正文从不进注入——模型判断相关时用 read 读原文；
+ *  - **作用域由所在目录决定**（不落字段，避免「字段与位置不一致」的第二真相源）。
+ *
+ * 其它口径：
+ *  - `tags` 决定注入时机：空 = 通用（本机环境/工作方式，常驻注入）；带技术栈/平台标签 = 只在与当前
+ *    项目技术栈匹配时注入（Flutter 经验不会出现在 React 项目里）
+ *  - `kind`：principle（与具体项目无关的通用知识）/ convention（项目内约定）/ temporary（临时，过时应退役）
+ *  - 退役与容量淘汰都把原文移进 archive/（含理由，可回溯），不直接删
+ *  - 索引损坏改名存证后重建；原文缺失进体检候选
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { randomUUID } from "node:crypto";
 
 export type ExperienceKind = "principle" | "convention" | "temporary";
-/** 作用域 = 条目落在哪个库（项目级 / 全局） */
+/** 作用域 = 条目落在哪个目录（项目级 / 全局） */
 export type ExperienceScope = "project" | "global";
 
-export interface ExperienceEntry {
+/** 索引条目——注入与检索只碰这个结构，正文在 file 指向的 markdown 里 */
+export interface ExperienceIndexEntry {
   id: string;
-  memory: string;
-  context?: string;
-  /** 时效性质：principle 与具体项目无关的通用知识 / convention 项目内约定 / temporary 临时（缺省按 convention） */
-  kind?: ExperienceKind;
-  /** 写入时会话所属项目路径——**仅溯源**，不参与作用域判定（作用域看落在哪个文件） */
-  project?: string;
+  /** 一句话说明（索引展示与检索的主字段） */
+  title: string;
+  /** 原文文件名（相对索引所在目录） */
+  file: string;
+  /** 技术栈/平台标签（如 flutter、electron、macos）；**空数组 = 通用条目，常驻注入** */
+  tags: string[];
+  kind: ExperienceKind;
   createdAt: number;
-  /** 最近一次改写（纠错/补全/移动）时间；新鲜度按它算 */
-  updatedAt?: number;
-  /** search_experiences 命中次数（模型主动检索 = 经验被实际用上的证据；注入不计，防自增强） */
+  updatedAt: number;
+  /** search_experiences 命中次数（模型主动检索 = 被用上的证据） */
   usageCount?: number;
-  /** 最近一次被 search 命中的时间 */
   lastUsedAt?: number;
   /** 被注入进系统提示词（送达模型上下文）的次数 */
   injectedCount?: number;
   lastInjectedAt?: number;
 }
 
-/** 检索/注入结果条目：带上来源作用域（仅内存标注，不落盘） */
-export interface ExperienceHit extends ExperienceEntry {
+/** 检索结果：索引条目 + 命中片段（便于模型判断要不要读原文） */
+export interface ExperienceHit extends ExperienceIndexEntry {
   scope: ExperienceScope;
+  excerpt?: string;
 }
 
-/** 档案条目：退役时追加，保留原文与理由，便于误删回溯 */
-export interface ArchivedExperience extends ExperienceEntry {
+/** 档案条目（退役/淘汰时写入 archive/index.json） */
+export interface ArchivedExperience {
+  id: string;
+  title: string;
+  file: string;
+  kind: ExperienceKind;
+  tags: string[];
+  createdAt: number;
   retiredAt: number;
   retiredReason: string;
 }
 
-/** 体检候选（会话启动时交给模型判断的「可能该处理」条目） */
 export interface ExperienceReviewItem {
-  /** 相关条目的短 id（重复项会给出整组） */
   shortIds: string[];
   reason: string;
 }
 
-const GLOBAL_EXPERIENCES = path.join(os.homedir(), ".easymint", "experiences.json");
-const MAX_ENTRIES = 200;
-const MAX_ARCHIVE_ENTRIES = 200;
-const SEARCH_LIMIT = 10;
-const REVIEW_LIMIT = 5;
-/** 短 id 长度：注入块与检索输出只暴露这一截（完整 uuid 另存；解析按前缀唯一匹配） */
-const SHORT_ID_LEN = 8;
-/** 注入正文上限（首段 + 末段拼接，保住「怎么做」与「怎么验证」） */
-const INJECT_TEXT_LIMIT = 200;
-/** 临时经验超过该天数即进体检候选 */
-const TEMPORARY_STALE_DAYS = 14;
-
-function projectExperiencesFile(projectPath: string): string {
-  return path.join(projectPath, ".easymint", "experiences.json");
+interface IndexFile {
+  version: number;
+  updatedAt: number;
+  items: ExperienceIndexEntry[];
 }
 
-/** 短 id：给模型的引用形式（8 字符丢碰撞概率极低，冲突时解析会要求更长前缀） */
+const GLOBAL_DIR = path.join(os.homedir(), ".easymint", "experiences");
+const INDEX_VERSION = 1;
+/** 每库条目上限：索引会随条数增长（注入成本），条数收敛是设计的一部分 */
+const MAX_ITEMS = 100;
+const MAX_ARCHIVE = 200;
+const SEARCH_LIMIT = 10;
+const REVIEW_LIMIT = 5;
+const SHORT_ID_LEN = 8;
+/** 常驻额度：本项目条目、全局通用条目、全局技术栈匹配条目各一份额度（索引行很短，但总额度仍是设计的一部分） */
+const INJECT_PROJECT_LIMIT = 4;
+const INJECT_COMMON_LIMIT = 4;
+const INJECT_STACK_LIMIT = 3;
+const TITLE_MAX = 60;
+const TEMPORARY_STALE_DAYS = 14;
+
 export function shortId(id: string): string {
   return id.slice(0, SHORT_ID_LEN);
 }
 
-/** 作用域 → 文件；project 作用域但无项目路径（无项目工作区）→ 退回全局，不静默丢弃 */
-function storeFile(scope: ExperienceScope, projectPath?: string): string {
-  return scope === "project" && projectPath ? projectExperiencesFile(projectPath) : GLOBAL_EXPERIENCES;
+export function normalizeKind(kind: unknown): ExperienceKind {
+  return kind === "principle" || kind === "temporary" ? kind : "convention";
 }
 
-/** 档案文件绝对路径（退役/淘汰留档用；工具把它回给模型，便于回溯） */
-export function archivePath(scope: ExperienceScope, projectPath?: string): string {
-  return storeFile(scope, projectPath).replace(/experiences\.json$/, "experiences-archive.json");
+const KIND_LABEL: Record<ExperienceKind, string> = { principle: "原则", convention: "约定", temporary: "临时" };
+
+export function kindLabel(kind: unknown): string {
+  return KIND_LABEL[normalizeKind(kind)];
 }
 
-/** 损坏文件改名存证（不静默丢弃——库文件也是用户积累，重建前先留底） */
+export function storeDir(scope: ExperienceScope, projectPath?: string): string {
+  return scope === "global" || !projectPath ? GLOBAL_DIR : path.join(projectPath, ".easymint", "experiences");
+}
+
+/** 档案目录（退役/淘汰的原文与理由落这里） */
+export function archiveDir(scope: ExperienceScope, projectPath?: string): string {
+  return path.join(storeDir(scope, projectPath), "archive");
+}
+
+/** 当前会话可见的两个库目录（项目库可能还没建） */
+export function listStoreDirs(projectPath?: string): Array<{ scope: ExperienceScope; dir: string }> {
+  const dirs: Array<{ scope: ExperienceScope; dir: string }> = [];
+  if (projectPath) dirs.push({ scope: "project", dir: storeDir("project", projectPath) });
+  dirs.push({ scope: "global", dir: GLOBAL_DIR });
+  return dirs;
+}
+
+function indexPath(dir: string): string {
+  return path.join(dir, "index.json");
+}
+
+/** 文件名：短 id 打头（稳定、可读、改标题不换文件名）+ 标题前几个「汉字/字母/数字」词组。
+ *  按词组累加而不是直接截断——否则文件名会断在半个词上（如「…包内满幅-运」） */
+function makeFileName(id: string, title: string): string {
+  const parts = title.match(/[\p{Script=Han}A-Za-z0-9]+/gu) ?? [];
+  const picked: string[] = [];
+  let len = 0;
+  for (const p of parts) {
+    if (picked.length > 0 && len + p.length > 20) break;
+    picked.push(p);
+    len += p.length;
+    if (len >= 12) break;
+  }
+  return `${shortId(id)}-${picked.join("-") || "experience"}.md`;
+}
+
+export function bodyPath(scope: ExperienceScope, projectPath: string | undefined, entry: { file: string }): string {
+  return path.join(storeDir(scope, projectPath), entry.file);
+}
+
+function stamp(ts: number): string {
+  return new Date(ts).toISOString().slice(0, 10);
+}
+
+function renderBody(title: string, body: string, entry: { id: string; createdAt: number; updatedAt: number }): string {
+  const meta = `<!-- id ${shortId(entry.id)} · 记录 ${stamp(entry.createdAt)} · 更新 ${stamp(entry.updatedAt)} -->`;
+  return `# ${title}\n\n${body.trim()}\n\n${meta}\n`;
+}
+
+/** 损坏文件改名存证（不静默丢弃） */
 function quarantine(file: string): void {
   try {
     renameSync(file, `${file}.corrupt-${Date.now()}`);
     console.warn(`[experience] 文件损坏，已改名存证后重建: ${file}`);
   } catch (e) {
-    // 改名失败（权限/只读卷）不阻断主流程——但会把失败原因写进日志，不静默
-    console.warn(`[experience] 文件损坏且改名存证失败（继续按空处理）: ${file}`, (e as Error).message);
+    console.warn(`[experience] 文件损坏且改名存证失败（按空处理）: ${file}`, (e as Error).message);
   }
 }
 
-function loadFile(file: string): ExperienceEntry[] {
+function normalizeEntry(raw: unknown): ExperienceIndexEntry | null {
+  const e = raw as Partial<ExperienceIndexEntry> | null;
+  if (!e || typeof e !== "object" || typeof e.id !== "string" || typeof e.title !== "string" || typeof e.file !== "string") return null;
+  return {
+    id: e.id,
+    title: e.title,
+    file: e.file,
+    tags: Array.isArray(e.tags) ? e.tags.filter((t): t is string => typeof t === "string") : [],
+    kind: normalizeKind(e.kind),
+    createdAt: typeof e.createdAt === "number" ? e.createdAt : Date.now(),
+    updatedAt: typeof e.updatedAt === "number" ? e.updatedAt : Date.now(),
+    usageCount: e.usageCount,
+    lastUsedAt: e.lastUsedAt,
+    injectedCount: e.injectedCount,
+    lastInjectedAt: e.lastInjectedAt,
+  };
+}
+
+function loadIndex(dir: string): ExperienceIndexEntry[] {
+  const file = indexPath(dir);
   if (!existsSync(file)) return [];
   try {
-    const data: unknown = JSON.parse(readFileSync(file, "utf-8"));
-    if (!Array.isArray(data)) return [];
-    return data.filter(
-      (e): e is ExperienceEntry =>
-        !!e && typeof e === "object" && typeof (e as ExperienceEntry).memory === "string" && (e as ExperienceEntry).memory.trim().length > 0,
-    );
+    const data = JSON.parse(readFileSync(file, "utf-8")) as Partial<IndexFile>;
+    if (!Array.isArray(data.items)) return [];
+    return data.items.map(normalizeEntry).filter((e): e is ExperienceIndexEntry => e !== null);
   } catch {
-    // 读路径遇到损坏就地留底：否则下一次写入会把整库（最多 200 条）静默覆盖掉
+    // 读路径遇到损坏就地留底：否则下一次写入会把整库索引静默覆盖掉
     quarantine(file);
     return [];
   }
 }
 
-function saveFile(file: string, entries: unknown[]): void {
-  const dir = path.dirname(file);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  // 原子写：先写临时文件再 rename——进程崩溃在 writeFileSync 中途不会留下半截 JSON
-  // （loadFile 对损坏按空数组处理，非原子写会让 200 条经验在下次写入时被静默清空）
-  const tmp = file + ".tmp";
-  writeFileSync(tmp, JSON.stringify(entries, null, 2));
-  renameSync(tmp, file);
+function saveIndex(dir: string, items: ExperienceIndexEntry[]): void {
+  mkdirSync(dir, { recursive: true });
+  const payload: IndexFile = { version: INDEX_VERSION, updatedAt: Date.now(), items };
+  const tmp = indexPath(dir) + ".tmp";
+  writeFileSync(tmp, JSON.stringify(payload, null, 2));
+  renameSync(tmp, indexPath(dir));
 }
 
-/** 当前会话可见的两个库文件（项目库可能不存在） */
-function storeFiles(projectPath?: string): string[] {
-  return projectPath ? [projectExperiencesFile(projectPath), GLOBAL_EXPERIENCES] : [GLOBAL_EXPERIENCES];
-}
-
-/** 两个库一并读出，标注来源（读取侧唯一入口——作用域只能从这里得到） */
+/** 两个库的索引合并读出（读取侧唯一入口——作用域只能从这里得到） */
 function loadScoped(projectPath?: string): ExperienceHit[] {
-  const project = projectPath ? loadFile(projectExperiencesFile(projectPath)) : [];
-  return [
-    ...project.map((e) => ({ ...e, scope: "project" as const })),
-    ...loadFile(GLOBAL_EXPERIENCES).map((e) => ({ ...e, scope: "global" as const })),
-  ];
+  const out: ExperienceHit[] = [];
+  for (const { scope, dir } of listStoreDirs(projectPath)) {
+    for (const e of loadIndex(dir)) out.push({ ...e, scope });
+  }
+  return out;
 }
 
-/** 归一化 kind（老条目缺省 convention） */
-export function normalizeKind(kind: unknown): ExperienceKind {
-  return kind === "principle" || kind === "temporary" ? kind : "convention";
+export function readExperienceBody(scope: ExperienceScope, projectPath: string | undefined, entry: { file: string }): string | null {
+  const p = bodyPath(scope, projectPath, entry);
+  return existsSync(p) ? readFileSync(p, "utf-8") : null;
 }
 
 /** 价值分：kind 权重 + 命中次数 + 新鲜度 + 项目级加成（注入排序与容量淘汰共用） */
-function valueScore(e: ExperienceEntry, scope: ExperienceScope): number {
+function valueScore(e: ExperienceIndexEntry, scope: ExperienceScope): number {
   const kind = normalizeKind(e.kind);
   const kindW = kind === "principle" ? 3 : kind === "temporary" ? 1 : 2;
   const used = Math.min(e.usageCount ?? 0, 4);
-  const ageDays = (Date.now() - (e.updatedAt ?? e.createdAt)) / 86400000;
+  const ageDays = (Date.now() - e.updatedAt) / 86400000;
   const fresh = ageDays < 30 ? 2 : ageDays < 90 ? 1 : 0;
   return kindW + used + fresh + (scope === "project" ? 1 : 0);
 }
 
-/** 按 ref（完整 uuid 或 ≥8 字符前缀）定位条目；前缀命中多条时报歧义而不是猜 */
 export type ResolveResult =
-  | { ok: true; entry: ExperienceHit; file: string }
+  | { ok: true; entry: ExperienceHit; dir: string }
   | { ok: false; reason: "not_found" | "too_short" | "ambiguous"; count?: number };
 
+/** 按 ref（完整 uuid 或 ≥8 字符前缀）定位；前缀命中多条报歧义而不是猜 */
 export function resolveExperience(projectPath: string | undefined, ref: string): ResolveResult {
   const id = ref.trim();
   if (!id) return { ok: false, reason: "not_found" };
   const all = loadScoped(projectPath);
-  const exact = all.filter((e) => e.id === id);
-  if (exact.length > 0) return { ok: true, entry: exact[0]!, file: storeFile(exact[0]!.scope, projectPath) };
+  const exact = all.find((e) => e.id === id);
+  if (exact) return { ok: true, entry: exact, dir: storeDir(exact.scope, projectPath) };
   if (id.length < SHORT_ID_LEN) return { ok: false, reason: "too_short" };
   const prefixed = all.filter((e) => e.id.startsWith(id));
   if (prefixed.length === 0) return { ok: false, reason: "not_found" };
   if (prefixed.length > 1) return { ok: false, reason: "ambiguous", count: prefixed.length };
-  return { ok: true, entry: prefixed[0]!, file: storeFile(prefixed[0]!.scope, projectPath) };
+  const hit = prefixed[0]!;
+  return { ok: true, entry: hit, dir: storeDir(hit.scope, projectPath) };
 }
 
-/** 容量淘汰：超出上限时丢**价值分最低**的（不再按最旧）——保持数组原顺序，只筛掉落选者。
- *  `protect` 里的条目永不被淘汰：本次新增/刚移动进来的条目若被自身写入触发的淘汰立即丢掉，
- *  会表现为「工具报成功但条目没了」（移动场景还会两边都丢）。 */
-function evictByScore(entries: ExperienceEntry[], scope: ExperienceScope, protect = new Set<string>()): {
-  kept: ExperienceEntry[];
-  evicted: ExperienceEntry[];
-} {
-  if (entries.length <= MAX_ENTRIES) return { kept: entries, evicted: [] };
-  const dropCount = entries.length - MAX_ENTRIES;
-  const ranked = entries
-    .map((e, i) => ({ i, score: valueScore(e, scope) }))
-    .filter((r) => !protect.has(entries[r.i]!.id))
-    .sort((a, b) => a.score - b.score);
-  const drop = new Set(ranked.slice(0, dropCount).map((r) => r.i));
-  return {
-    kept: entries.filter((_, i) => !drop.has(i)),
-    evicted: entries.filter((_, i) => drop.has(i)),
-  };
-}
-
-/** 容量淘汰的条目也进档案（与退役同一口径：可回溯，理由写「容量淘汰」） */
-function archiveEvicted(evicted: ExperienceEntry[], scope: ExperienceScope, projectPath?: string): void {
-  if (evicted.length === 0) return;
-  const af = archivePath(scope, projectPath);
-  const stamp = Date.now();
-  const rows: ArchivedExperience[] = evicted.map((e) => ({
-    ...e,
-    retiredAt: stamp,
-    retiredReason: `容量淘汰（${MAX_ENTRIES} 条上限，价值分最低）`,
-  }));
-  saveFile(af, [...loadArchive(af), ...rows].slice(-MAX_ARCHIVE_ENTRIES));
-}
-
-/** 追加一条经验，返回落库条目与它的实际作用域（project 作用域无项目路径时兑到全局） */
-export function appendExperience(
-  input: { memory: string; context?: string; kind?: ExperienceKind },
-  target: { scope?: ExperienceScope; projectPath?: string },
-): { entry: ExperienceEntry; scope: ExperienceScope } {
-  const scope: ExperienceScope = target.scope === "global" ? "global" : target.projectPath ? "project" : "global";
-  const entry: ExperienceEntry = {
-    id: randomUUID(),
-    memory: input.memory.trim(),
-    context: input.context?.trim() || undefined,
-    kind: normalizeKind(input.kind),
-    project: target.projectPath || undefined,
-    createdAt: Date.now(),
-  };
-  const file = storeFile(scope, target.projectPath);
-  const { kept, evicted } = evictByScore([...loadFile(file), entry], scope, new Set([entry.id]));
-  archiveEvicted(evicted, scope, target.projectPath);
-  saveFile(file, kept);
-  return { entry, scope };
-}
-
-function patchEntry(entry: ExperienceEntry, patch: { memory?: string; context?: string; kind?: ExperienceKind }): void {
-  const m = patch.memory?.trim();
-  if (m !== undefined && m.length > 0) entry.memory = m;
-  if (patch.context !== undefined) entry.context = patch.context.trim() || undefined;
-  if (patch.kind !== undefined) entry.kind = normalizeKind(patch.kind);
-  entry.updatedAt = Date.now();
-}
-
-/** 改写已有条目（纠错/补全/合并）；作用域不变（改作用域用 moveExperience） */
-export function updateExperience(
-  projectPath: string | undefined,
-  ref: string,
-  patch: { memory?: string; context?: string; kind?: ExperienceKind },
-): { ok: true; entry: ExperienceEntry } | { ok: false; error: string } {
-  const found = resolveExperience(projectPath, ref);
-  if (!found.ok) return { ok: false, error: resolveErrorText(ref, found) };
-  const entries = loadFile(found.file);
-  const hit = entries.find((e) => e.id === found.entry.id);
-  if (!hit) return { ok: false, error: `未找到经验 ${shortId(ref)}` };
-  patchEntry(hit, patch);
-  saveFile(found.file, entries);
-  return { ok: true, entry: hit };
-}
-
-/** 移动条目到另一作用域（项目 ⇄ 全局）：保留 id 与计数，避免「复制出两份」的不一致 */
-export function moveExperience(
-  projectPath: string | undefined,
-  ref: string,
-  targetScope: ExperienceScope,
-): { ok: true; entry: ExperienceEntry; scope: ExperienceScope } | { ok: false; error: string } {
-  const found = resolveExperience(projectPath, ref);
-  if (!found.ok) return { ok: false, error: resolveErrorText(ref, found) };
-  if (!projectPath && targetScope === "project") {
-    return { ok: false, error: "当前会话没有项目路径，无法移到项目库（全局库不变）" };
-  }
-  if (found.entry.scope === targetScope) return { ok: true, entry: found.entry, scope: targetScope };
-  const moved: ExperienceEntry = { ...found.entry, updatedAt: Date.now() };
-  delete (moved as Partial<ExperienceHit>).scope;
-  // 写序：**先写目标库、再从源库删**——反过来一旦目标写入失败，条目就两边都没了（丢数据）；
-  // 这个顺序最坏情况是两份（可被发现、可重跑）；失败时先回滚已写的目标
-  const to = storeFile(targetScope, projectPath);
-  const { kept, evicted } = evictByScore([...loadFile(to), moved], targetScope, new Set([moved.id]));
-  archiveEvicted(evicted, targetScope, projectPath);
-  saveFile(to, kept);
-  try {
-    saveFile(found.file, loadFile(found.file).filter((e) => e.id !== found.entry.id));
-  } catch (e) {
-    saveFile(to, loadFile(to).filter((x) => x.id !== found.entry.id));
-    return { ok: false, error: `写入目标库后删除源条目失败，已回滚：${(e as Error).message}` };
-  }
-  return { ok: true, entry: moved, scope: targetScope };
-}
-
-function resolveErrorText(ref: string, r: { reason: "not_found" | "too_short" | "ambiguous"; count?: number }): string {
-  if (r.reason === "too_short") return `id「${ref}」太短：至少给 ${SHORT_ID_LEN} 个字符（短 id 见检索结果或注入块）`;
+export function resolveErrorText(ref: string, r: { reason: "not_found" | "too_short" | "ambiguous"; count?: number }): string {
+  if (r.reason === "too_short") return `id「${ref}」太短：至少给 ${SHORT_ID_LEN} 个字符（短 id 见检索结果或注入索引）`;
   if (r.reason === "ambiguous") return `id「${ref}」命中 ${r.count ?? 2} 条，请给更长的 id`;
   return `未找到经验「${ref}」（可能已退役或被容量淘汰）`;
 }
 
-/** 档案读取：损坏时不静默清空——改名存证后再重开一份（档案是误删回溯的唯一依据） */
-function loadArchive(file: string): ArchivedExperience[] {
-  if (!existsSync(file)) return [];
-  const raw = readFileSync(file, "utf-8");
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed.filter(Boolean) as ArchivedExperience[]) : [];
-  } catch {
+/** 退役/淘汰通用：原文移进 archive/ + 档案登记（可回溯），返回是否成功 */
+function moveToArchive(scope: ExperienceScope, projectPath: string | undefined, entry: ExperienceIndexEntry, reason: string): void {
+  const dir = storeDir(scope, projectPath);
+  const adir = archiveDir(scope, projectPath);
+  mkdirSync(adir, { recursive: true });
+  const src = path.join(dir, entry.file);
+  const dst = path.join(adir, entry.file);
+  if (existsSync(src)) renameSync(src, dst);
+  const log = path.join(adir, "index.json");
+  let rows: ArchivedExperience[] = [];
+  if (existsSync(log)) {
     try {
-      renameSync(file, `${file}.corrupt-${Date.now()}`);
-    } catch { /* 改名失败（如权限）不阻断——下面的覆盖仍会写入新档案 */ }
-    console.warn(`[experience] 档案文件损坏，已改名存证后重建: ${file}`);
-    return [];
+      const parsed: unknown = JSON.parse(readFileSync(log, "utf-8"));
+      if (Array.isArray(parsed)) rows = parsed as ArchivedExperience[];
+    } catch {
+      quarantine(log);
+    }
   }
+  rows.push({
+    id: entry.id,
+    title: entry.title,
+    file: entry.file,
+    kind: normalizeKind(entry.kind),
+    tags: entry.tags,
+    createdAt: entry.createdAt,
+    retiredAt: Date.now(),
+    retiredReason: reason,
+  });
+  writeFileSync(log, JSON.stringify(rows.slice(-MAX_ARCHIVE), null, 2));
 }
 
-/** 退役（删除）一批条目：先留档、再从库中移除（反过来一旦档案写失败，原文就永远没了），不弹确认 */
+/** 容量淘汰：超出上限时按**价值分最低**移入档案（protect 里的条目永不被淘汰） */
+function trimCapacity(
+  dir: string,
+  scope: ExperienceScope,
+  projectPath: string | undefined,
+  items: ExperienceIndexEntry[],
+  protect: Set<string>,
+): ExperienceIndexEntry[] {
+  if (items.length <= MAX_ITEMS) return items;
+  const ranked = items
+    .map((e, i) => ({ i, score: valueScore(e, scope) }))
+    .filter((r) => !protect.has(items[r.i]!.id))
+    .sort((a, b) => a.score - b.score);
+  const drop = new Set(ranked.slice(0, items.length - MAX_ITEMS).map((r) => r.i));
+  for (const e of items.filter((_, i) => drop.has(i))) {
+    moveToArchive(scope, projectPath, e, `容量淘汰（${MAX_ITEMS} 条上限，价值分最低）`);
+  }
+  return items.filter((_, i) => !drop.has(i));
+}
+
+/** 追加一条经验：写原文文件 + 登记索引。返回落库的索引条目与它的作用域 */
+export function appendExperience(
+  input: { title: string; body: string; tags?: string[]; kind?: ExperienceKind },
+  target: { scope?: ExperienceScope; projectPath?: string },
+): { entry: ExperienceIndexEntry; scope: ExperienceScope } {
+  const scope: ExperienceScope = target.scope === "global" || !target.projectPath ? "global" : "project";
+  const dir = storeDir(scope, target.projectPath);
+  const id = randomUUID();
+  const now = Date.now();
+  const entry: ExperienceIndexEntry = {
+    id,
+    title: input.title.trim().slice(0, TITLE_MAX),
+    file: makeFileName(id, input.title.trim()),
+    tags: [...new Set((input.tags ?? []).map((t) => t.trim().toLowerCase()).filter(Boolean))],
+    kind: normalizeKind(input.kind),
+    createdAt: now,
+    updatedAt: now,
+  };
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, entry.file), renderBody(entry.title, input.body, entry));
+  saveIndex(dir, trimCapacity(dir, scope, target.projectPath, [...loadIndex(dir), entry], new Set([entry.id])));
+  return { entry, scope };
+}
+
+function patchEntry(entry: ExperienceIndexEntry, patch: { title?: string; tags?: string[]; kind?: ExperienceKind }): void {
+  if (patch.title !== undefined && patch.title.trim()) entry.title = patch.title.trim().slice(0, TITLE_MAX);
+  if (patch.tags !== undefined) entry.tags = [...new Set(patch.tags.map((t) => t.trim().toLowerCase()).filter(Boolean))];
+  if (patch.kind !== undefined) entry.kind = normalizeKind(patch.kind);
+  entry.updatedAt = Date.now();
+}
+
+/** 改写已有条目（纠错/补全/合并）：正文重写文件、索引同步；作用域不变（换作用域用 moveExperience） */
+export function updateExperience(
+  projectPath: string | undefined,
+  ref: string,
+  patch: { title?: string; body?: string; tags?: string[]; kind?: ExperienceKind },
+): { ok: true; entry: ExperienceIndexEntry } | { ok: false; error: string } {
+  const found = resolveExperience(projectPath, ref);
+  if (!found.ok) return { ok: false, error: resolveErrorText(ref, found) };
+  const items = loadIndex(found.dir);
+  const hit = items.find((e) => e.id === found.entry.id);
+  if (!hit) return { ok: false, error: `未找到经验 ${shortId(ref)}` };
+  patchEntry(hit, patch);
+  if (patch.body !== undefined) {
+    writeFileSync(path.join(found.dir, hit.file), renderBody(hit.title, patch.body, hit));
+  } else if (patch.title !== undefined) {
+    // 只改标题也要刷新原文里的标题行（正文保持不变）
+    const old = readExperienceBody(found.entry.scope, projectPath, hit);
+    if (old !== null) writeFileSync(path.join(found.dir, hit.file), renderBody(hit.title, stripHeader(old), hit));
+  }
+  saveIndex(found.dir, items);
+  return { ok: true, entry: hit };
+}
+
+/** 去掉原文文件的首行标题与尾部元信息注释，取回纯正文 */
+export function stripHeader(raw: string): string {
+  return raw
+    .replace(/^#\s+.*\n+/, "")
+    .replace(/\n*<!--\s*id\s[^>]*-->\s*$/m, "")
+    .trim();
+}
+
+/** 移动条目到另一作用域：原文文件与索引项一起搬，保留 id 与计数（不留双份） */
+export function moveExperience(
+  projectPath: string | undefined,
+  ref: string,
+  targetScope: ExperienceScope,
+): { ok: true; entry: ExperienceIndexEntry; scope: ExperienceScope } | { ok: false; error: string } {
+  const found = resolveExperience(projectPath, ref);
+  if (!found.ok) return { ok: false, error: resolveErrorText(ref, found) };
+  if (!projectPath && targetScope === "project") return { ok: false, error: "当前会话没有项目路径，无法移到项目库" };
+  if (found.entry.scope === targetScope) return { ok: true, entry: found.entry, scope: targetScope };
+  const toDir = storeDir(targetScope, projectPath);
+  mkdirSync(toDir, { recursive: true });
+  const src = path.join(found.dir, found.entry.file);
+  // 写序：先搬原文、再登记目标库、最后从源库摘掉——任一步失败最多留一份副本，不会两边都丢
+  if (existsSync(src)) renameSync(src, path.join(toDir, found.entry.file));
+  const moved: ExperienceIndexEntry = { ...found.entry, updatedAt: Date.now() };
+  delete (moved as Partial<ExperienceHit>).scope;
+  delete (moved as Partial<ExperienceHit>).excerpt;
+  saveIndex(toDir, trimCapacity(toDir, targetScope, projectPath, [...loadIndex(toDir), moved], new Set([moved.id])));
+  saveIndex(found.dir, loadIndex(found.dir).filter((e) => e.id !== moved.id));
+  return { ok: true, entry: moved, scope: targetScope };
+}
+
+/** 退役（删除）一批条目：原文与理由进 archive（可回溯），不弹确认 */
 export function retireExperiences(
   projectPath: string | undefined,
   refs: string[],
   reason: string,
-): { retired: Array<{ id: string; memory: string; scope: ExperienceScope }>; failures: Array<{ ref: string; error: string }> } {
-  const retired: Array<{ id: string; memory: string; scope: ExperienceScope }> = [];
+): { retired: Array<{ id: string; title: string; scope: ExperienceScope }>; failures: Array<{ ref: string; error: string }> } {
+  const retired: Array<{ id: string; title: string; scope: ExperienceScope }> = [];
   const failures: Array<{ ref: string; error: string }> = [];
-  const stamp = Date.now();
-  // 逐个处理：一个 ref 解析失败不影响其余
   for (const ref of refs) {
     const found = resolveExperience(projectPath, ref);
     if (!found.ok) {
       failures.push({ ref, error: resolveErrorText(ref, found) });
       continue;
     }
-    const archived: ArchivedExperience = { ...found.entry, retiredAt: stamp, retiredReason: reason.trim() || "未给理由" };
-    delete (archived as Partial<ExperienceHit>).scope;
-    const af = archivePath(found.entry.scope, projectPath);
-    saveFile(af, [...loadArchive(af), archived].slice(-MAX_ARCHIVE_ENTRIES));
-    // 两个库都按 id 清一遍：同 id 双份（手工拷贝/移动中途崩溃会产生）只删一份，
-    // 条目会继续出现在检索与注入里，模型却以为已退役
-    for (const file of storeFiles(projectPath)) {
-      const entries = loadFile(file);
-      const next = entries.filter((e) => e.id !== found.entry.id);
-      if (next.length !== entries.length) saveFile(file, next);
+    moveToArchive(found.entry.scope, projectPath, found.entry, reason.trim() || "未给理由");
+    // 两个库都按 id 摘一遍：同 id 双份（手工拷贝会产生）只摘一份会让条目继续出现在检索与注入里
+    for (const { dir } of listStoreDirs(projectPath)) {
+      const items = loadIndex(dir);
+      const next = items.filter((e) => e.id !== found.entry.id);
+      if (next.length !== items.length) saveIndex(dir, next);
     }
-    retired.push({ id: found.entry.id, memory: found.entry.memory, scope: found.entry.scope });
+    retired.push({ id: found.entry.id, title: found.entry.title, scope: found.entry.scope });
   }
   return { retired, failures };
 }
 
-const KIND_LABEL: Record<ExperienceKind, string> = { principle: "原则", convention: "约定", temporary: "临时" };
+// ── 项目技术栈探测（决定带标签的条目是否该出现在本项目的注入里） ──
 
-/** 时效性质的中文标签（注入与检索输出共用） */
-export function kindLabel(kind: unknown): string {
-  return KIND_LABEL[normalizeKind(kind)];
+function readIfExists(p: string): string {
+  return existsSync(p) ? readFileSync(p, "utf-8") : "";
 }
 
+const PKG_KEYWORDS: Array<[RegExp, string]> = [
+  [/(^|[^a-z])react([^a-z]|$)/i, "react"],
+  [/(^|[^a-z])vue([^a-z]|$)/i, "vue"],
+  [/svelte/i, "svelte"],
+  [/(^|[^a-z])next([^a-z]|$)/i, "nextjs"],
+  [/nuxt/i, "nuxt"],
+  [/electron/i, "electron"],
+  [/vite/i, "vite"],
+  [/tailwind/i, "tailwind"],
+  [/typescript/i, "typescript"],
+  [/express/i, "express"],
+  [/nestjs/i, "nestjs"],
+];
+
+/** 当前项目的技术栈/平台标签（与条目 tags 取交集）——启发式：读标志文件 + 关键词，不做依赖解析 */
+export function detectProjectStacks(projectPath?: string): string[] {
+  if (!projectPath) return [];
+  const tags = new Set<string>();
+  if (process.platform === "darwin") tags.add("macos");
+  if (process.platform === "win32") tags.add("windows");
+  if (process.platform === "linux") tags.add("linux");
+
+  const has = (f: string): boolean => existsSync(path.join(projectPath, f));
+  const read = (f: string): string => readIfExists(path.join(projectPath, f));
+
+  const pkg = read("package.json");
+  if (pkg) {
+    tags.add("node");
+    for (const [re, tag] of PKG_KEYWORDS) if (re.test(pkg)) tags.add(tag);
+  }
+  if (has("pubspec.yaml")) {
+    tags.add("flutter");
+    tags.add("dart");
+  }
+  if (has("pom.xml")) {
+    tags.add("java");
+    tags.add("maven");
+    if (/spring/i.test(read("pom.xml"))) tags.add("spring");
+  }
+  if (has("build.gradle") || has("build.gradle.kts")) {
+    tags.add("gradle");
+    tags.add("java");
+    const g = read("build.gradle") + read("build.gradle.kts");
+    if (/kotlin/i.test(g)) tags.add("kotlin");
+    if (/android/i.test(g)) tags.add("android");
+  }
+  if (has("Cargo.toml")) tags.add("rust");
+  if (has("go.mod")) tags.add("go");
+  if (has("requirements.txt") || has("pyproject.toml") || has("setup.py")) {
+    tags.add("python");
+    const py = read("requirements.txt") + read("pyproject.toml");
+    if (/django/i.test(py)) tags.add("django");
+    if (/flask/i.test(py)) tags.add("flask");
+    if (/fastapi/i.test(py)) tags.add("fastapi");
+  }
+  if (has("composer.json")) tags.add("php");
+  if (has("Gemfile")) tags.add("ruby");
+  if (has("Package.swift")) {
+    tags.add("swift");
+    tags.add("apple");
+  }
+  return [...tags];
+}
+
+// ── 检索（索引 + 原文全文，返回命中片段供模型判断要不要读原文） ──
+
+const KIND_LABEL_ALL = KIND_LABEL;
 /** 查询切词：按空白与常见中英文标点切分，丢弃长度 < 2 的片段、去重、限 12 个；
- *  对**无空格的中文长串**（≥4 字）额外补 2-gram——「图标圆角」这种写法若只当成一个词，
- *  仍等价于整串子串匹配，命中不到「图标两套口径」与「圆角」分开写的条目。 */
+ *  无空格的中文长串（≥4 字）额外补 2-gram（「图标圆角」若当成一个词，命中不到分开写的条目）。 */
 const TOKEN_SEP = /[\s,，、。;；:：!！?？\\|(){}'"“”‘’~@#$%^&*+=<>—–_\-/\[\]]+/;
 const CJK_RUN = /[\u4e00-\u9fff]{4,}/g;
 
@@ -357,9 +501,9 @@ function tokenize(query: string): string[] {
   return [...new Set([...tokens, ...grams])].slice(0, 12);
 }
 
-/** 关键词检索：按**命中词数**排序（全词命中优先），其次命中次数与时间；上限 10 条。
- *  opts.touch=true 时命中条目记 usageCount/lastUsedAt 并落盘——仅供模型主动检索的
- *  search_experiences 工具使用；自动回递/注入等内部调用不 touch（防自增强反馈环）。 */
+/** 关键词检索：标题/标签命中权重 2、正文命中权重 1；按总分排序（同分看命中次数与更新时间）。
+ *  opts.touch=true 时命中条目记 usageCount/lastUsedAt——仅供模型主动检索的工具使用
+ *  （自动回递等内部调用不 touch，防自增强反馈环）；计数写盘失败不影响检索结果。 */
 export function searchExperiences(
   query: string,
   projectPath?: string,
@@ -368,103 +512,111 @@ export function searchExperiences(
   const q = query.trim().toLowerCase();
   if (!q) return { hits: [], total: 0 };
   const parsed = tokenize(q);
-  // 单字查询/无有效词 → 退回整串子串匹配（保持既有行为，不静默变空）
-  const tokens = parsed.length > 0 ? parsed : [q];
+  const tokens = parsed.length > 0 ? parsed : [q]; // 单字查询/无有效词 → 退回整串子串匹配
   const scored = loadScoped(projectPath)
     .map((e) => {
-      const text = `${e.memory} ${e.context ?? ""}`.toLowerCase();
-      return { e, n: tokens.filter((t) => text.includes(t)).length };
+      const head = `${e.title} ${e.tags.join(" ")}`.toLowerCase();
+      const raw = readExperienceBody(e.scope, projectPath, e);
+      const body = raw === null ? "" : stripHeader(raw);
+      const bodyLower = body.toLowerCase();
+      let n = 0;
+      let at = -1;
+      for (const t of tokens) {
+        if (head.includes(t)) {
+          n += 2;
+          continue;
+        }
+        const i = bodyLower.indexOf(t);
+        if (i >= 0) {
+          n += 1;
+          if (at < 0) at = i;
+        }
+      }
+      const excerpt = at >= 0 ? body.replace(/\s+/g, " ").slice(Math.max(0, at - 60), at + 100).trim() : undefined;
+      return { e, n, excerpt };
     })
     .filter((s) => s.n > 0)
-    .sort((a, b) => b.n - a.n || (b.e.usageCount ?? 0) - (a.e.usageCount ?? 0) || b.e.createdAt - a.e.createdAt);
-  const hits = scored.slice(0, SEARCH_LIMIT).map((s) => s.e);
-  if (hits.length > 0 && opts?.touch) touchHits(projectPath, new Set(hits.map((e) => e.id)));
+    .sort((a, b) => b.n - a.n || (b.e.usageCount ?? 0) - (a.e.usageCount ?? 0) || b.e.updatedAt - a.e.updatedAt);
+  const hits = scored.slice(0, SEARCH_LIMIT).map((s) => ({ ...s.e, excerpt: s.excerpt }));
+  if (hits.length > 0 && opts?.touch) touchHits(projectPath, new Set(hits.map((h) => h.id)));
   return { hits, total: scored.length };
 }
 
-/** 命中计数落盘：项目级 + 全局两库各扫一遍（命中条目可能来自任一库） */
+/** 命中计数落盘（两个库各扫一遍；写盘失败只记日志，不连坐检索） */
 function touchHits(projectPath: string | undefined, ids: Set<string>): void {
   const now = Date.now();
-  const files: string[] = [];
-  if (projectPath) files.push(projectExperiencesFile(projectPath));
-  files.push(GLOBAL_EXPERIENCES);
-  for (const file of files) {
+  for (const { dir } of listStoreDirs(projectPath)) {
     try {
-      const entries = loadFile(file);
+      const items = loadIndex(dir);
       let changed = false;
-      for (const e of entries) {
+      for (const e of items) {
         if (ids.has(e.id)) {
           e.usageCount = (e.usageCount ?? 0) + 1;
           e.lastUsedAt = now;
           changed = true;
         }
       }
-      if (changed) saveFile(file, entries);
+      if (changed) saveIndex(dir, items);
     } catch (e) {
-      // 计数是辅助信息，写盘失败不得连坐检索本身（与 §2.1 的差别在此明确：
-      // 这里不是「隐藏错误」，而是把失败降级为可见的日志，主路径继续）
       console.warn("[experience] 命中计数写盘失败（不影响检索结果）:", (e as Error).message);
     }
   }
 }
 
-/** 注入正文压缩：短则原样；长则「首段 + 末段」拼接——保住「怎么做」与「怎么验证」，
- *  而不是只截到问题描述就断（原来 slice(0,160) 会把结论整段丢掉） */
-function compactMemory(memory: string, limit = INJECT_TEXT_LIMIT): string {
-  const text = memory.replace(/\s+/g, " ").trim();
-  if (text.length <= limit) return text;
-  const half = Math.floor(limit / 2) - 1;
-  return `${text.slice(0, half)}…${text.slice(-half)}`;
+// ── 注入（只给索引：标题 + 文件名 + 计数；正文由模型按需 read） ──
+
+function compact(text: string, limit: number): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  return t.length <= limit ? t : `${t.slice(0, limit - 1)}…`;
 }
 
-/** 送达计数（注入时调一次）：写盘失败不影响注入结果 */
+function stampShort(ts: number): string {
+  return new Date(ts).toISOString().slice(5, 10); // MM-DD
+}
+
 function bumpInjected(hits: ExperienceHit[], projectPath?: string): void {
   const now = Date.now();
-  const byScope = new Map<ExperienceScope, Set<string>>();
-  for (const h of hits) byScope.set(h.scope, new Set([...(byScope.get(h.scope) ?? []), h.id]));
-  for (const [scope, ids] of byScope) {
+  const byDir = new Map<string, Set<string>>();
+  for (const h of hits) {
+    const dir = storeDir(h.scope, projectPath);
+    byDir.set(dir, new Set([...(byDir.get(dir) ?? []), h.id]));
+  }
+  for (const [dir, ids] of byDir) {
     try {
-      const file = storeFile(scope, projectPath);
-      const entries = loadFile(file);
+      const items = loadIndex(dir);
       let changed = false;
-      for (const e of entries) {
+      for (const e of items) {
         if (ids.has(e.id)) {
           e.injectedCount = (e.injectedCount ?? 0) + 1;
           e.lastInjectedAt = now;
           changed = true;
         }
       }
-      if (changed) saveFile(file, entries);
+      if (changed) saveIndex(dir, items);
     } catch (e) {
       console.warn("[experience] 送达计数写盘失败（不影响注入）:", (e as Error).message);
     }
   }
 }
 
-/** 体检候选：只做「够格被评估」的下限筛选，价值判断交给模型（同 learn-gate 的哲学）。
- *  初版只启用两条不依赖命中数据的规则（超期临时、疑似重复）——命中类规则要等
- *  检索可用、usageCount 可信之后再启用，否则会拿不可信数据把好经验当垃圾清掉。
- *  候选行带正文摘录与作用域/时效：只给短 id 的话模型无法判断该改写还是退役。 */
+/** 体检候选：只做「够格被评估」的下限筛选，价值判断交给模型。
+ *  三条不依赖命中数据的规则：原文缺失（索引指向的文件没了）、标题高度的重复组、超期临时经验。 */
 export function buildReviewCandidates(projectPath?: string): ExperienceReviewItem[] {
   const all = loadScoped(projectPath);
-  const summarize = (e: ExperienceHit): string =>
-    `${shortId(e.id)}（${e.scope === "project" ? "项目" : "全局"}·${kindLabel(e.kind)}）${compactMemory(e.memory, 80)}`;
-
+  const missing: ExperienceReviewItem[] = [];
   const stale: ExperienceReviewItem[] = [];
   for (const e of all) {
+    if (!existsSync(bodyPath(e.scope, projectPath, e))) {
+      missing.push({ shortIds: [shortId(e.id)], reason: `原文缺失（${e.file}）：${e.title}` });
+    }
     if (normalizeKind(e.kind) !== "temporary") continue;
-    // 口径与 valueScore 一致：改写会把 updatedAt 刷新，否则「刚改成临时」会报「已 300 天」
-    const days = Math.floor((Date.now() - (e.updatedAt ?? e.createdAt)) / 86400000);
-    if (days >= TEMPORARY_STALE_DAYS) stale.push({ shortIds: [shortId(e.id)], reason: `临时经验已 ${days} 天未更新：${summarize(e)}` });
+    const days = Math.floor((Date.now() - e.updatedAt) / 86400000);
+    if (days >= TEMPORARY_STALE_DAYS) stale.push({ shortIds: [shortId(e.id)], reason: `临时经验已 ${days} 天未更新：${e.title}` });
   }
-
   const groups = new Map<string, ExperienceHit[]>();
   for (const e of all) {
-    // 取开头 12 字符作分组键：实测那两条重复经验（「永远不要怀疑用户使用旧代码（第 1/10 条…）」
-    // 与「第 2/10 条…」）在第 16 字符处分叉，键取 40 字就抓不到；取 12 字（约一个完整分句）
-    // 既能抓到，又不至于把开头相同的无关条目归为一组。
-    const key = e.memory.replace(/\s+/g, " ").trim().slice(0, 12);
-    if (key.length < 12) continue; // 开头太短不足以判重，不报
+    const key = e.title.replace(/\s+/g, "").slice(0, 10);
+    if (key.length < 6) continue; // 标题太短不足以判重
     groups.set(key, [...(groups.get(key) ?? []), e]);
   }
   const dupes: ExperienceReviewItem[] = [];
@@ -472,33 +624,49 @@ export function buildReviewCandidates(projectPath?: string): ExperienceReviewIte
     if (list.length < 2) continue;
     dupes.push({
       shortIds: list.map((e) => shortId(e.id)),
-      reason: `内容疑似重复（开头同为「${list[0]!.memory.replace(/\s+/g, " ").trim().slice(0, 12)}…」）：${list.map(summarize).join("；")}`,
+      reason: `标题疑似重复：「${list[0]!.title}」等 ${list.length} 条`,
     });
   }
-
-  // 两类各留一半额度：否则临时条目多时重复组永远轮不上（反之一样）
   const half = Math.ceil(REVIEW_LIMIT / 2);
-  return [...dupes.slice(0, half), ...stale.slice(0, half), ...dupes.slice(half), ...stale.slice(half)].slice(0, REVIEW_LIMIT);
+  return [...missing.slice(0, half), ...dupes.slice(0, half), ...stale.slice(0, half)].slice(0, REVIEW_LIMIT);
 }
 
-/** 会话启动注入块：按价值分取 top-N + 标注作用域/时效/命中 + 短 id（供改写与退役引用），
- *  末尾附体检候选清单。 */
-export function buildExperienceInjection(projectPath?: string, limit = 5): string {
+/** 会话启动注入：**只有索引**（标题 + 文件名 + 计数），分三桶——本项目条目、全局通用（无 tags）、
+ *  全局技术栈匹配（tags 与当前项目技术栈有交集）。正文一律不给：模型判断相关时按「目录 + file 名」read 原文。 */
+export function buildExperienceInjection(projectPath?: string): string {
   const all = loadScoped(projectPath);
   if (all.length === 0) return "";
-  const sorted = [...all]
-    .sort((a, b) => valueScore(b, b.scope) - valueScore(a, a.scope) || b.createdAt - a.createdAt)
-    .slice(0, limit);
-  const lines = sorted.map((e) => {
-    const scopeLabel = e.scope === "project" ? "项目" : "全局";
-    const used = e.usageCount ?? 0;
-    return `- [${scopeLabel}·${KIND_LABEL[normalizeKind(e.kind)]}${used > 0 ? `·命中${used}` : ""}] ${compactMemory(e.memory)} [id: ${shortId(e.id)}]`;
-  });
-  bumpInjected(sorted, projectPath);
+  const stacks = detectProjectStacks(projectPath);
+  const byScore = (a: ExperienceHit, b: ExperienceHit): number => valueScore(b, b.scope) - valueScore(a, a.scope) || b.updatedAt - a.updatedAt;
+  const project = all.filter((e) => e.scope === "project").sort(byScore).slice(0, INJECT_PROJECT_LIMIT);
+  const common = all.filter((e) => e.scope === "global" && e.tags.length === 0).sort(byScore).slice(0, INJECT_COMMON_LIMIT);
+  const matched = all
+    .filter((e) => e.scope === "global" && e.tags.length > 0 && e.tags.some((t) => stacks.includes(t)))
+    .sort(byScore)
+    .slice(0, INJECT_STACK_LIMIT);
+  const picked = [...project, ...common, ...matched];
+
+  const line = (e: ExperienceHit): string =>
+    `- ${compact(e.title, 50)} — file ${e.file}（${e.scope === "project" ? "项目" : "全局"}·${KIND_LABEL_ALL[normalizeKind(e.kind)]}·使用${e.usageCount ?? 0}·更新 ${stampShort(e.updatedAt)}）`;
+
+  const dirs = listStoreDirs(projectPath);
+  const parts: string[] = [
+    "历史沉淀经验索引（模型上下文有限，这里只给索引；判断与本任务相关时，用 read 读原文，路径 = 目录 + file 名）",
+    ...dirs.map((d) => `- ${d.scope === "project" ? "本项目" : "本机/通用"}目录：${d.dir}`),
+  ];
+  if (project.length > 0) parts.push(`【本项目 ${project.length} 条】`, ...project.map(line));
+  if (common.length > 0) parts.push(`【全局通用·常驻 ${common.length} 条】`, ...common.map(line));
+  if (matched.length > 0) {
+    parts.push(`【技术栈匹配（${stacks.filter((t) => matched.some((m) => m.tags.includes(t))).join("/")}）${matched.length} 条】`, ...matched.map(line));
+  }
+  if (picked.length === 0) parts.push("（本会话没有匹配到该注入的条目；需要时可 search_experiences 检索）");
+
+  bumpInjected(picked, projectPath);
+
   const candidates = buildReviewCandidates(projectPath);
   const review = candidates.length > 0
-    ? `\n\n【待体检 ${candidates.length} 条】可能已过时或重复，判断后可用 retire_experiences 退役，或用 learn 带 updateId 改写：\n`
+    ? `\n【待体检 ${candidates.length} 条】可能已过时或重复，判断后可用 retire_experiences 退役，或用 learn 带 updateId 改写：\n`
       + candidates.map((c) => `- ${c.shortIds.join("、")}：${c.reason}`).join("\n")
     : "";
-  return `历史沉淀经验（top ${sorted.length}，仅作背景参考；与本任务相关再复用，不必刻意使用）：\n${lines.join("\n")}${review}`;
+  return `${parts.join("\n")}${review}`;
 }

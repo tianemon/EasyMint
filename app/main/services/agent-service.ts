@@ -1637,10 +1637,11 @@ export class AgentService {
       try {
         const { hits } = searchExperiences(errQ, chat.projectPath);
         if (hits.length > 0) {
-          // 带短 id：命中项若已过时/不适用，模型可直接 updateId 改写或 retire_experiences 退役
+          // 只给索引（标题 + 文件名 + 短 id）——正文按需 read；命中项若已过时/不适用，
+          // 模型可直接 updateId 改写或 retire_experiences 退役
           recallBlock = `\n\n【相关历史经验（已按本会话报错检索到，仅作参考；判断适用再复用，不刻意使用）】\n`
             + hits.slice(0, 3)
-              .map((e) => `- [id: ${shortId(e.id)}] ${e.memory.replace(/\s+/g, " ").slice(0, 240)}`)
+              .map((e) => `- [id: ${shortId(e.id)}] ${e.title}（file ${e.file}）${e.excerpt ? `\n  片段：${e.excerpt.slice(0, 160)}` : ""}`)
               .join("\n");
         }
       } catch (e) {
