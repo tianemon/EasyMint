@@ -29,7 +29,7 @@ import { registerSessionIdMapping, abortTask, getRunningSummary, getRunningDeleg
 import type { TaskStatus } from "./task/types";
 import { formatShellResult } from "./background-shell/tool";
 import { backgroundShellRegistry, type BackgroundShell } from "./background-shell/registry";
-import { systemMessage, SYSTEM_MESSAGE_LABELS, compactionSummaryNotice, type SystemMessageKind, type SystemMessagePayload } from "../../shared/prompts";
+import { systemMessage, SYSTEM_MESSAGE_LABELS, compactionCardFields, type SystemMessageKind, type SystemMessagePayload } from "../../shared/prompts";
 import { normalizeApiError } from "../../shared/api-errors";
 import { createProductTools } from "./builtin-mcp";
 import { loadMcpTools } from "./permission/mcp-adapter";
@@ -1923,7 +1923,7 @@ export class AgentService {
     if (!chat?.session) return;
     // content 保留 [系统消息] 前缀(模型侧识别);结构身份走 customType/kind(JSONL/事件/前端)
     // 第二段按 kind 取标签——非委派消息不该顶着「Agent执行结果」抬头(单一来源见 SYSTEM_MESSAGE_LABELS)
-    const payload = systemMessage(kind, `[系统消息]-[${SYSTEM_MESSAGE_LABELS[kind] ?? "系统通知"}]\n${text}`);
+    const payload = systemMessage(kind, `[系统消息]-[${SYSTEM_MESSAGE_LABELS[kind]}]\n${text}`);
     // 一次性事件桥:sendCustomMessage 的 message_start/end 事件同步触发,
     // 广播到前端(custom_event);无回合,广播完即退订
     const unsub = chat.session.subscribe((event: AgentSessionEvent) => {
@@ -2034,11 +2034,11 @@ export class AgentService {
           // 前端蒙版消失且显示"已整理完毕",实际未压缩(用户感知"看似完成但没生效、无提示")
           if (!event.aborted && !event.errorMessage && event.result) {
             const summary = event.result.summary;
-            // 摘要卡实时显示：带展示文本（与磁盘重建同一来源，见 compactionSummaryNotice）
+            // 摘要卡实时显示：字段拼装与自动压缩路径共用（见 compactionCardFields）
             broadcast("agent:stream", {
               type: "compacted", sessionId, chatId: chat.chatId,
-              summary, text: summary ? compactionSummaryNotice(summary) : undefined,
-              customType: "system_message", details: { kind: "summary" },
+              summary,
+              ...compactionCardFields(summary),
             });
             this.broadcastPostCompactionUsage(chat, event.result.estimatedTokensAfter);
           } else if (!event.aborted && event.errorMessage) {

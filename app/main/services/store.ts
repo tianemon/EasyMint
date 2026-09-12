@@ -32,7 +32,7 @@ interface Settings {
   builtinTools?: Record<string, boolean>;
   /** 允许 AI 在会话中写 managed skill 区（manage_skill 工具注册开关，D8 默认关闭） */
   manageSkillEnabled?: boolean;
-  /** 允许 AI 自沉淀（learn + search_experiences 工具注册开关，D8 默认关闭） */
+  /** 允许 AI 自沉淀（learn / search_experiences / retire_experiences 三工具同开的注册开关，D8 默认关闭） */
   learnEnabled?: boolean;
   /** 发现外部生态 skill 目录（~/.claude/skills、<p>/.github/skills 等，只读发现，默认开启） */
   importExternalSkills?: boolean;

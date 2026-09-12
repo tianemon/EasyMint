@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""图标生成管线：一条素材（assets/avatar/icon-frame-{light,dark}.svg）出全部图标产物。
+"""图标生成管线：一条素材（light 用 assets/avatar/icon-frame-light-A.svg，dark 用 icon-frame-dark.svg）出全部图标产物。
+   light 的原配色版 icon-frame-light.svg 保留作回退（改 gen-appicon.py 的 SVGS["light"] 指向它再重跑即可）。
 
 两套口径并存，不要混用（混用会出现形状断层 / 图标内容变小）：
   - **包内 mac 图标** assets/icon.icns：满幅直角（图形本体铺满 1024 画布），形状交给
@@ -119,8 +120,9 @@ def fullbleed(svg: Path, work: Path, tag: str) -> Image.Image:
     return Image.open(out).convert("RGBA")
 
 
-def build_icns(master: Image.Image, work: Path) -> Path:
-    """满幅直角母图 → icns（sips 出 iconset → iconutil 打包）"""
+def build_icns(work: Path) -> Path:
+    """满幅直角母图（work/fullbleed-master.png）→ icns（sips 出 iconset → iconutil 打包）
+    母图不通过参数传：本函数靠 sips 从磁盘读它（调用方负责先落盘）。"""
     iconset = work / "icon.iconset"
     shutil.rmtree(iconset, ignore_errors=True)
     iconset.mkdir(parents=True)
@@ -174,7 +176,7 @@ def main() -> int:
     if args.icns:
         master = fullbleed(SVGS["light"], work, "master")
         master.save(work / "fullbleed-master.png")
-        dest = build_icns(master, work)
+        dest = build_icns(work)
         print(f"{dest.name}: 满幅直角（macOS 包内图标，形状由系统套）")
     else:
         print("assets/icon.icns 未改动（满幅直角口径，仅 --icns 时重建）")

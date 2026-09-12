@@ -6,7 +6,7 @@
  */
 
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { compactionSummaryNotice } from "../../shared/prompts";
+import { compactionCardFields } from "../../shared/prompts";
 
 export interface PiChatEvent {
   type: string;
@@ -263,10 +263,7 @@ export function bridgeSessionEvents(
         callbacks.onEvent({
           type: "compacted", sessionId: "",
           summary,
-          // 摘要卡展示内容：与重开会话时的磁盘路径（session-service 从 compaction 条目生成）同一份文本
-          text: summary ? compactionSummaryNotice(summary) : undefined,
-          customType: "system_message",
-          details: { kind: "summary" },
+          ...compactionCardFields(summary),
         });
       } else if (!event.aborted && event.errorMessage) {
         callbacks.onEvent({

@@ -1,5 +1,5 @@
 /**
- * 待办条（会话待办）— 输入区上沿，Mint 执行追踪的实时展示（用户只读）。
+ * 步骤条（会话步骤）— 输入区上沿，Mint 执行追踪的实时展示（用户只读）。
  * 数据源：todo_write 工具广播（agent:todos，按 sessionId 过滤）；收起态 = 进度 + 当前项（耗时/等待态），点击展开。
  * 与用户待办（TodoButton → .easymint/todos.json）是两套清单。
  */

@@ -602,10 +602,26 @@ export function systemMessage(
   return { customType: "system_message", content, display: true, details: { kind, ...extra } };
 }
 
+/** 摘要卡的可广播字段（实时展示用）——三处构造点共用这一份，避免只改两处造成字段漂移：
+ *  ①event-bridge 的 compacted 事件（自动压缩）②agent-service 手动压缩的自建订阅 ③session-service
+ *  从落盘 compaction 条目重建（走 systemMessage 同形结构，不用本函数）。
+ *  text 的文案来自 compactionSummaryNotice（单一来源）；摘要为空时 text 为 undefined（前端据此跳过建卡）。
+ *  注意：这些字段**不发给模型**（模型从 compaction 记录读摘要），纯展示。 */
+export function compactionCardFields(summary: string | undefined): {
+  text?: string;
+  customType: "system_message";
+  details: { kind: "summary" };
+} {
+  return {
+    text: summary ? compactionSummaryNotice(summary) : undefined,
+    customType: "system_message",
+    details: { kind: "summary" },
+  };
+}
+
 /** 摘要卡正文（压缩后给用户看的那张卡）。
- *  两个展示入口共用这一份文本：①实时 = event-bridge 的 compacted 事件；②重开会话 = session-service
- *  从落盘的 compaction 条目生成。两边各写一份文案就会出现「同一件事两种抬头」的漂移。
- *  注意：这段文本**不发给模型**（模型从 compaction 记录读摘要），纯展示。 */
+ *  实时（compacted 事件）与重开会话（从落盘 compaction 条目重建）两个展示入口共用这份文案，
+ *  两边各写一份就会出现「同一件事两种抬头」的漂移。 */
 export function compactionSummaryNotice(summary: string): string {
   return `【上下文摘要（本次压缩生成，原文）】\n\n${summary}`;
 }

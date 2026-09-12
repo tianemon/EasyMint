@@ -27,7 +27,7 @@ export type ExperienceKind = "principle" | "convention" | "temporary";
 export type ExperienceScope = "project" | "global";
 
 /** 索引条目——注入与检索只碰这个结构，正文在 file 指向的 markdown 里 */
-export interface ExperienceIndexEntry {
+interface ExperienceIndexEntry {
   id: string;
   /** 一句话说明（索引展示与检索的主字段） */
   title: string;
@@ -47,13 +47,13 @@ export interface ExperienceIndexEntry {
 }
 
 /** 检索结果：索引条目 + 命中片段（便于模型判断要不要读原文） */
-export interface ExperienceHit extends ExperienceIndexEntry {
+interface ExperienceHit extends ExperienceIndexEntry {
   scope: ExperienceScope;
   excerpt?: string;
 }
 
 /** 档案条目（退役/淘汰时写入 archive/index.json） */
-export interface ArchivedExperience {
+interface ArchivedExperience {
   id: string;
   title: string;
   file: string;
@@ -64,7 +64,7 @@ export interface ArchivedExperience {
   retiredReason: string;
 }
 
-export interface ExperienceReviewItem {
+interface ExperienceReviewItem {
   shortIds: string[];
   reason: string;
 }
@@ -94,7 +94,7 @@ export function shortId(id: string): string {
   return id.slice(0, SHORT_ID_LEN);
 }
 
-export function normalizeKind(kind: unknown): ExperienceKind {
+function normalizeKind(kind: unknown): ExperienceKind {
   return kind === "principle" || kind === "temporary" ? kind : "convention";
 }
 
@@ -114,7 +114,7 @@ export function archiveDir(scope: ExperienceScope, projectPath?: string): string
 }
 
 /** 当前会话可见的两个库目录（项目库可能还没建） */
-export function listStoreDirs(projectPath?: string): Array<{ scope: ExperienceScope; dir: string }> {
+function listStoreDirs(projectPath?: string): Array<{ scope: ExperienceScope; dir: string }> {
   const dirs: Array<{ scope: ExperienceScope; dir: string }> = [];
   if (projectPath) dirs.push({ scope: "project", dir: storeDir("project", projectPath) });
   dirs.push({ scope: "global", dir: GLOBAL_DIR });
@@ -142,7 +142,7 @@ function makeFileName(id: string, title: string): string {
   return `${shortId(id)}-${name || "experience"}.md`;
 }
 
-export function bodyPath(scope: ExperienceScope, projectPath: string | undefined, entry: { file: string }): string {
+function bodyPath(scope: ExperienceScope, projectPath: string | undefined, entry: { file: string }): string {
   return path.join(storeDir(scope, projectPath), entry.file);
 }
 
@@ -214,7 +214,7 @@ function loadScoped(projectPath?: string): ExperienceHit[] {
   return out;
 }
 
-export function readExperienceBody(scope: ExperienceScope, projectPath: string | undefined, entry: { file: string }): string | null {
+function readExperienceBody(scope: ExperienceScope, projectPath: string | undefined, entry: { file: string }): string | null {
   const p = bodyPath(scope, projectPath, entry);
   return existsSync(p) ? readFileSync(p, "utf-8") : null;
 }
@@ -229,7 +229,7 @@ function valueScore(e: ExperienceIndexEntry, scope: ExperienceScope): number {
   return kindW + used + fresh + (scope === "project" ? 1 : 0);
 }
 
-export type ResolveResult =
+type ResolveResult =
   | { ok: true; entry: ExperienceHit; dir: string }
   | { ok: false; reason: "not_found" | "too_short" | "ambiguous"; count?: number };
 
@@ -248,7 +248,7 @@ export function resolveExperience(projectPath: string | undefined, ref: string):
   return { ok: true, entry: hit, dir: storeDir(hit.scope, projectPath) };
 }
 
-export function resolveErrorText(ref: string, r: { reason: "not_found" | "too_short" | "ambiguous"; count?: number }): string {
+function resolveErrorText(ref: string, r: { reason: "not_found" | "too_short" | "ambiguous"; count?: number }): string {
   if (r.reason === "too_short") return `id「${ref}」太短：至少给 ${SHORT_ID_LEN} 个字符（短 id 见检索结果或注入索引）`;
   if (r.reason === "ambiguous") return `id「${ref}」命中 ${r.count ?? 2} 条，请给更长的 id`;
   return `未找到经验「${ref}」（可能已退役或被容量淘汰）`;
@@ -367,7 +367,7 @@ export function updateExperience(
 }
 
 /** 去掉原文文件的首行标题与尾部元信息注释，取回纯正文 */
-export function stripHeader(raw: string): string {
+function stripHeader(raw: string): string {
   return raw
     .replace(/^#\s+.*\n+/, "")
     .replace(/\n*<!--\s*id\s[^>]*-->\s*$/m, "")
@@ -497,7 +497,6 @@ export function detectProjectStacks(projectPath?: string): string[] {
 
 // ── 检索（索引 + 原文全文，返回命中片段供模型判断要不要读原文） ──
 
-const KIND_LABEL_ALL = KIND_LABEL;
 /** 查询切词：按空白与常见中英文标点切分，丢弃长度 < 2 的片段、去重、限 12 个；
  *  无空格的中文长串（≥4 字）额外补 2-gram（「图标圆角」若当成一个词，命中不到分开写的条目）。 */
 const TOKEN_SEP = /[\s,，、。;；:：!！?？\\|(){}'"“”‘’~@#$%^&*+=<>—–_\-/\[\]]+/;
@@ -658,7 +657,7 @@ export function buildExperienceInjection(projectPath?: string): string {
   const picked = [...project, ...common, ...matched];
 
   const line = (e: ExperienceHit): string =>
-    `- ${compact(e.title, 50)} — file ${e.file}（${e.scope === "project" ? "项目" : "全局"}·${KIND_LABEL_ALL[normalizeKind(e.kind)]}·使用${e.usageCount ?? 0}·更新 ${stampShort(e.updatedAt)}）`;
+    `- ${compact(e.title, 50)} — file ${e.file}（${e.scope === "project" ? "项目" : "全局"}·${kindLabel(e.kind)}·使用${e.usageCount ?? 0}·更新 ${stampShort(e.updatedAt)}）`;
 
   const dirs = listStoreDirs(projectPath);
   const parts: string[] = [

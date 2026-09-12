@@ -4,10 +4,10 @@
      那条留白仍是遮罩的形状空间，不要裁（详见下方原注释）。
      管线 gen-appicon.py 的 light 项指向本文件；回退 = 改回 icon-frame-light.svg 再重跑一次图标管线。 -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="1.5 0 390 390" role="img" aria-label="light M avatar (refit)">
-  <!-- 应用图标衍生版：由 avatar-light.svg 派生，仅把 frame 从圆角矩形换成同宽的直角矩形
+  <!-- 应用图标衍生版：由同几何的圆角版头像素材派生，仅把 frame 从圆角矩形换成同宽的直角矩形
        （x 39.5→353.5、y 38→352，314×314，无圆角），直角是为了交给 macOS 的
-       squircle 遮罩去裁形，使图标本体占画布约 80.5%；原稿 avatar-light.svg
-       仍是圆角版（半径 68），一个字节未动。
+       squircle 遮罩去裁形，使图标本体占画布约 80.5%；圆角版原稿（半径 68）为设计交付物、已不在仓库；
+       仓库内的圆角版是 avatar-light-blink.svg / avatar-light-blink-A.svg（应用内头像用），几何与本地 frame 完全一致。
        width/height/viewBox 是为了按 1024×1024 出图：本体 314 占画布 390 的 80.5%。
        **四周留白（每边 38 单位 = 9.74%）是故意的、不要裁**：win/linux 走的超椭圆遮罩半轴 =
        画布半宽 × 0.805，而 0.805 = 314/390——遮罩边界刚好落在本体边缘、切掉四角，得到与 macOS

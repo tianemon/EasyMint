@@ -19,7 +19,7 @@ function summarize(todos: SessionTodo[]): string {
   const inProgress = todos.filter((t) => t.status === "in_progress").length;
   const completed = todos.filter((t) => t.status === "completed").length;
   const lines = todos.map((t) => `- [${STATUS_LABEL[t.status] ?? t.status}] ${t.content}`).join("\n");
-  return `已更新待办（共 ${todos.length} 项，${inProgress} 进行中，${completed} 完成）：\n${lines}`;
+  return `已更新步骤（共 ${todos.length} 项，${inProgress} 进行中，${completed} 完成）：\n${lines}`;
 }
 
 export async function createTodoWriteTool(
@@ -31,13 +31,13 @@ export async function createTodoWriteTool(
     name: "todo_write",
     label: "更新步骤",
     description:
-      "全量替换本会话的待办清单（Mint 执行追踪——给用户看的当前步骤进度承诺）。"
+      "全量替换本会话的步骤清单（Mint 执行追踪——给用户看的当前进度承诺）。"
       + "传完整清单（含已完成项，用 status 标记），不是增量 patch。"
       + "校验：1-20 项、content ≤200 字符、至多 1 项 in_progress（当前焦点唯一）；waiting 只能标在 in_progress 项上。"
       + "调用后前端即时展示：条上显示当前项耗时与等待状态。"
-      + "务必及时更新待办进度：每完成一步立即把该项标 completed，并把你正在做的那一项标 in_progress。"
+      + "务必及时更新步骤进度：每完成一步立即把该项标 completed，并把你正在做的那一项标 in_progress。"
       + "条停在已完成的项上，用户会读成「卡住了」；确实在等用户时，把该项标 waiting: true，content 写成在等什么（如「等待你确认 X」）。",
-    promptSnippet: "更新待办清单（全量替换：本次待办的进度展示）",
+    promptSnippet: "更新步骤清单（全量替换：本次进度的展示）",
     promptGuidelines: [
       "何时用：≥3 步的多步任务、task.json 执行循环（核实进度→building→委派→evaluating→记录）、多阶段流程——建单让用户看到当前在做什么、下一步是什么",
       "何时不用：单步/L0 直接做的任务不建单；修 bug 目标明确的不建单",

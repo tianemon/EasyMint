@@ -78,7 +78,7 @@ describe("compareSessionTodos（只读比对警告）", () => {
       [{ content: "写记录", status: "completed" }],
       [{ content: "写记录", status: "pending" }],
     );
-    expect(w.some((x) => x.includes("从已完成被改回") || x.includes("上一轮已完成"))).toBe(true);
+    expect(w.some((x) => x.includes("上一轮已完成") && x.includes("被改回"))).toBe(true);
   });
   it("丢项 → 命中，列出少了哪几项", () => {
     const w = compareSessionTodos(
