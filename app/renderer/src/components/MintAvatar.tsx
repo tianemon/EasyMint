@@ -2,8 +2,10 @@ import { useId, useMemo } from "react";
 import { useThemeStore } from "../stores/theme-store";
 // 取 SVG 源码文本（?raw）而非资源 URL：内联进 DOM 才能给每个实例的 id 加后缀（重复 id 会串 clip-path），
 // 并能用同一份标记按主题换配色；用 <img src> 时每个实例是独立文档、拿不到元素也无法改内部 id。
+// 浅色用 A 档配色副本（主体色加深一档，用户 2026-09-12 选定）——原配色版 avatar-light-blink.svg
+// 仍在同目录（保留以便回退），只是不再被引用；暗色未调整。
 import darkBlinkSvg from "../assets/avatar/avatar-dark-blink.svg?raw";
-import lightBlinkSvg from "../assets/avatar/avatar-light-blink.svg?raw";
+import lightBlinkSvg from "../assets/avatar/avatar-light-blink-A.svg?raw";
 
 /**
  * 给内联 SVG 里的 id 加实例后缀，并同步改写引用它们的 url(#id)。
