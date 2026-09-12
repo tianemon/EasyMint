@@ -4,6 +4,10 @@
        squircle 遮罩去裁形，使图标本体占画布约 80.5%；原稿 avatar-dark.svg
        仍是圆角版（半径 68），一个字节未动。
        width/height/viewBox 是为了按 1024×1024 出图：本体 314 占画布 390 的 80.5%。
+       **四周留白（每边 38 单位 = 9.74%）是故意的、不要裁**：win/linux 走的超椭圆遮罩半轴 =
+       画布半宽 × 0.805，而 0.805 = 314/390——遮罩边界刚好落在本体边缘、切掉四角，得到与 macOS
+       系统渲染一致的 squircle；裁掉留白会让 win/linux 图标变成硬边方块。mac 包内 icns 那条路径
+       由管线自己按 frame-clip 矩形改写 viewBox（裁到本体）另行出图，所以本文件保持整幅即可。
        内容元素（M 形块、眼睛、短棒、斜带）坐标与原稿完全一致。 -->
   <defs>
     <clipPath id="frame-clip"><rect x="39.5" y="38" width="314" height="314"/></clipPath>
