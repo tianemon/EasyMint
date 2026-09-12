@@ -2016,6 +2016,8 @@ export class AgentService {
       return;
     }
     broadcast("agent:context-summarizing", { chatId: chat.chatId, type: "compact" });
+    // 本次压缩生成的摘要原文——成功后作为续接通知展示（用户要看压缩到底产出了什么）
+    let compactionSummary: string | undefined;
     // 手动压缩桥接：compact() 直接调 SDK（不经 promptAndBridge 的 subscribe），
     // compaction_start/end 事件无人转发 → 前端收不到 compacted、压缩后使用率不刷新
     // （ctxPct 残留旧值）。这里临时订阅，把压缩生命周期事件桥到前端并刷新 usage。
@@ -2027,6 +2029,7 @@ export class AgentService {
           // 区分成败:失败(带 errorMessage/无 result)也发 compaction_end——若按成功广播,
           // 前端蒙版消失且显示"已整理完毕",实际未压缩(用户感知"看似完成但没生效、无提示")
           if (!event.aborted && !event.errorMessage && event.result) {
+            compactionSummary = event.result.summary;
             broadcast("agent:stream", { type: "compacted", sessionId, chatId: chat.chatId });
             this.broadcastPostCompactionUsage(chat, event.result.estimatedTokensAfter);
           } else if (!event.aborted && event.errorMessage) {
@@ -2062,14 +2065,21 @@ export class AgentService {
       ]);
       console.log(`[compact] SDK compact 返回（chatId=${chat.chatId}）`);
       // 成功路径:SDK 内部发 compaction_end → compacted 广播清除蒙版
-      // 压缩后注入当前待办——todo 落盘文件,恢复 Mint 对步骤清单的记忆（对齐 delegation 通知注入模式）
+      // 压缩后续接通知：**摘要原文在前**（用户要看的压缩产物）+ 步骤清单在后（todo 落盘文件，
+      // 恢复 Mint 对进度的记忆，对齐 delegation 通知注入模式）。摘要原文本已在 SDK 压缩结果里，
+      // 再注入一次是「展示优先」的取舍——代价是刚压缩的上下文多出摘要等量的 token（实测一次约 2k）。
       try {
         const realSid = (chat.session as { sessionId?: string } | null)?.sessionId ?? sessionId;
         const todos = readSessionTodos(chat.projectPath, realSid);
+        const sections: string[] = [];
+        if (compactionSummary?.trim()) {
+          sections.push(`【上下文摘要（本次压缩生成，原文）】\n${compactionSummary.trim()}`);
+        }
         if (todos.length > 0) {
           const lines = todos.map((t) => `- [${t.status === "completed" ? "完成" : t.status === "in_progress" ? "进行中" : "待办"}] ${t.content}`).join("\n");
-          this.injectSystemMessage(realSid, `当前待办（${todos.length} 项，其中 ${todos.filter((t) => t.status === "completed").length} 完成）：\n${lines}\n\n按清单继续推进（完成项已做过，不要重做）；清单与用户待办（.easymint/todos.json）不是一回事`, "summary");
+          sections.push(`【当前步骤清单（${todos.length} 项，其中 ${todos.filter((t) => t.status === "completed").length} 完成）】\n${lines}\n\n按清单继续推进（完成项已做过，不要重做）；清单与用户待办（.easymint/todos.json）不是一回事`);
         }
+        if (sections.length > 0) this.injectSystemMessage(realSid, sections.join("\n\n"), "summary");
       } catch { /* 注入失败不阻断压缩 */ }
     } catch (e) {
       const errMsg = (e as Error).message;
