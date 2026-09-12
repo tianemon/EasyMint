@@ -630,7 +630,7 @@ function ToolGroupView({ block, streaming }: { block: ToolGroupBlock; streaming?
         className="flex w-fit items-center gap-1.5 py-0.5 cursor-pointer select-none group"
       >
         <span className="text-[var(--color-tool-title)] group-hover:text-text-primary transition-colors" style={{ fontSize: "var(--text-caption)" }}>{summary}</span>
-        {/* 执行中指示(组内任一项 pending 且回合活跃):折叠时子卡转圈不可见,标题行给反馈 */}
+        {/* 执行中指示(组内任一项 pending 且本行正在增长):折叠时子卡转圈不可见,标题行给反馈 */}
         {streaming && items.some((i) => i.pending) && (
           <svg className="animate-spin text-accent" width="12" height="12" viewBox="0 0 16 16" fill="none">
             <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
@@ -1024,7 +1024,7 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
           {bashTitle && (
             <span className="truncate max-w-[200px] text-text-muted" style={{ fontSize: "var(--text-caption)" }}>· {bashTitle}</span>
           )}
-          {/* 执行中指示:tool_use 已到、result 未到且回合仍活跃(busy)→ 转圈;回合结束的残留(中断无 result)不转 */}
+          {/* 执行中指示:tool_use 已到、result 未到且本行正在增长→ 转圈;回合结束的残留(中断无 result)不转 */}
           {streaming && item.pending && (
             <svg className="animate-spin text-accent" width="12" height="12" viewBox="0 0 16 16" fill="none">
               <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />

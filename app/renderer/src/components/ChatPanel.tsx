@@ -677,7 +677,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 流式渲染落在「正在增长的那条」上（= 末尾最后一条 ai 消息）。与 liveIndex 的区别：
   //  - liveIndex 供头像眨眼用，跳过 agentRole 行（角色消息不带 Mint 头像）；这条不跳——角色消息也实时收内容
   //  - 末尾是用户真实输入时返回 -1：新一轮还没有输出，不能把上一轮当成正在增长
-  //    （否则上一轮的思考块会被自动展开、正文走流式渲染器）
+  //    （否则上一轮的思考块会被自动展开、正文走流式渲染器）。steer 插话也落在这条上——发送处已重置
+  //    输出段 id，下一帧会建新消息，窗口期只是短暂没有行处于流式态
   // 回合中插到末尾的系统通知行跳过继续向前找（它们不承载内容）
   const streamIndex = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
