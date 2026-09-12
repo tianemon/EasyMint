@@ -58,13 +58,16 @@ export async function createLearnTool(deps: LearnToolDeps): Promise<ToolDefiniti
       + "（什么情况 / 做了什么 / 为什么有效）；scope 决定写项目库还是全局库（默认项目）、kind 标时效性质"
       + "（默认约定）；可选 skill 参数同时创建/更新 AI 管理区的 skill（把经验固化为可执行工作流时用）。"
       + "落盘后可随时用 updateId 改写、用 retire_experiences 退役。"
-      + "适用：踩坑修复（报错→根因→解法）、验证过的流程方法、跨项目通用的协作约定。",
+      + "适用：踩坑修复（报错→根因→解法）、验证过的流程方法、本机与工具链层面的通用知识（如操作系统、环境变量、git 习惯）",
     promptSnippet: "沉淀经验（直接入库；可选同时建 skill）",
     promptGuidelines: [
       "**不沉淀（重要）**：一次性操作（配环境、跑一次命令、本次专属排查）／纯信息问答／已沉淀过（先 search_experiences 确认）／项目特有细节换项目无用／含敏感信息（密钥、内网地址）——这些不要调 learn，也不要在回复里提沉淀",
       "**自行判断、直接入库**：判断值得就调 learn，落盘立即生效（没有确认环节）；判断不值得就静默跳过——不要在回复里问用户「要不要沉淀」",
       "learn 前先用 search_experiences 查重：命中近似经验时优先带 updateId 改写它（补全/纠错/合并），确属新经验才不带 updateId 新增",
-      "**判定作用域与时效**（scope / kind，按内容判断而不是按习惯）：跨项目通用的协作习惯与方法论 → scope=global + kind=principle；本项目的架构决策/约定/踩坑结论 → scope=project + kind=convention（默认）；只在当前阶段成立的（发版窗口、临时绕行方案）→ kind=temporary，过了就该退役",
+      "**判定作用域与时效**（scope / kind，按内容判断而不是按习惯）——**全局库放的是「与做哪个项目无关」的通用知识，不是用来跨项目共用项目经验的**："
+      + "scope=global：本机与环境层面的事实与习惯（操作系统与版本、路径与目录约定、shell/环境变量、git 配置与提交习惯、包管理器与工具安装位置、常用命令等）、以及跨项目成立的工作方式；"
+      + "scope=project（默认）：与某个仓库/项目绑定的一切（架构决策、业务规则、代码位置、踩坑结论、项目约定）——**项目经验不要写进全局库**；"
+      + "kind=principle（跨项目成立的通用知识，如本机环境与工作方式）/ kind=convention（项目内约定，默认）/ kind=temporary（只在当前阶段成立，过了就退役）",
       "memory 要自包含：换一个会话不看上下文也能看懂——写清触发条件与做法，不写一次性细节",
       "memory 按「问题 → 做法 → 验证」三段组织：先一句话说清场景与问题，再写做法（可执行），最后写怎么确认有效（成功标志/验证方式）——结构化的经验检索命中率更高，注入时也会保留首尾两段",
       "**纠错回流**：用户纠正/推翻某条经验的适用性时（「这条不对」「规矩改了」），或你发现经验与当前代码事实冲突 → 立刻用 updateId 改写它；整条不再成立则用 retire_experiences 退役——不要只在回复里承认",
@@ -76,8 +79,8 @@ export async function createLearnTool(deps: LearnToolDeps): Promise<ToolDefiniti
         memory: { type: "string" as const, description: "必填。持久自包含的经验：什么情况 / 做了什么 / 为什么有效" },
         context: { type: "string" as const, description: "可选。来源上下文（触发场景、报错摘要等，帮助检索）" },
         updateId: { type: "string" as const, description: "可选。要改写的已有经验 id（短 id 即可，检索结果或注入块里有）——代替新增" },
-        scope: { type: "string" as const, description: "可选。写入哪个库：project（默认，本项目）/ global（跨项目通用）" },
-        kind: { type: "string" as const, description: "可选。时效性质：principle（跨项目原则）/ convention（项目约定，默认）/ temporary（临时，过时应退役）" },
+        scope: { type: "string" as const, description: "可选。写入哪个库：project（默认，本项目）/ global（本机环境与通用工具/习惯类知识，与具体项目无关）" },
+        kind: { type: "string" as const, description: "可选。时效性质：principle（跨项目成立的通用知识）/ convention（项目内约定，默认）/ temporary（临时，过时应退役）" },
         skill: {
           type: "object" as const,
           description: "可选。同时沉淀为 managed skill（AI 管理区），把经验固化为可执行工作流时用",

@@ -6,7 +6,7 @@
  *
  * 治理口径（2026-09-12 定案）：
  *  - **作用域由所在文件决定，不存字段**——避免「字段与位置不一致」的第二真相源
- *  - `kind` 决定注入标记与体检规则：principle（跨项目原则）/ convention（项目约定）/ temporary（临时）
+ *  - `kind` 决定注入标记与体检规则：principle（与具体项目无关的通用知识）/ convention（项目内约定）/ temporary（临时）
  *  - 条目上限 200/库，超出按**价值分**淘汰最低分（kind 权重 + 命中 + 新鲜度），不再按「最旧」
  *  - 退役（删除）不弹确认：模型自主判断，原文进同目录 experiences-archive.json 可回溯
  *  - 经验非真相源：读失败返回空数组（可丢失重建，同 skill-registry 原则）
@@ -25,7 +25,7 @@ export interface ExperienceEntry {
   id: string;
   memory: string;
   context?: string;
-  /** 时效性质：principle 跨项目原则 / convention 项目约定 / temporary 临时（缺省按 convention） */
+  /** 时效性质：principle 与具体项目无关的通用知识 / convention 项目内约定 / temporary 临时（缺省按 convention） */
   kind?: ExperienceKind;
   /** 写入时会话所属项目路径——**仅溯源**，不参与作用域判定（作用域看落在哪个文件） */
   project?: string;
