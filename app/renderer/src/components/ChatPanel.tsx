@@ -674,6 +674,20 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     }
     return -1;
   }, [messages]);
+  // 流式渲染落在「正在增长的那条」上（= 末尾最后一条 ai 消息）。与 liveIndex 的区别：
+  //  - liveIndex 供头像眨眼用，跳过 agentRole 行（角色消息不带 Mint 头像）；这条不跳——角色消息也实时收内容
+  //  - 末尾是用户真实输入时返回 -1：新一轮还没有输出，不能把上一轮当成正在增长
+  //    （否则上一轮的思考块会被自动展开、正文走流式渲染器）
+  // 回合中插到末尾的系统通知行跳过继续向前找（它们不承载内容）
+  const streamIndex = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (!m) continue;
+      if (m.role === "ai") return i;
+      if (m.role === "user" && !m.customType) return -1;
+    }
+    return -1;
+  }, [messages]);
   const virtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => scrollEl,
@@ -2206,7 +2220,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     />
                     <MemoChatMessage
                       msg={msg}
-                      busy={busy}
+                      streaming={busy && vi.index === streamIndex}
                       userBubble={userBubble}
                       onPin={handlePin}
                       onContextMenu={handleMsgContextMenu}
@@ -2467,14 +2481,15 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
 interface MemoChatMessageProps {
   msg: ChatMessage;
-  busy: boolean;
+  /** 本条消息是否正在增长（只有末尾那条为真）——驱动流式 markdown 与思考块的流式态 */
+  streaming: boolean;
   userBubble: (msg: ChatMessage) => JSX.Element;
   onPin: (text: string) => void;
   onContextMenu: (msg: ChatMessage, e: React.MouseEvent) => void;
   sid: string;
 }
 
-const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, onPin, onContextMenu, sid }: MemoChatMessageProps) {
+const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, userBubble, onPin, onContextMenu, sid }: MemoChatMessageProps) {
   // 指令型系统消息的展开/收起（事件型不折叠——无此 state 参与）
   const [sysExpanded, setSysExpanded] = useState(false);
   // 思考/工具固定显示(无显示开关)——全部 entries 参与建块
@@ -2683,7 +2698,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, busy, userBubble, o
           </div>
           <div className="msg-bubble-agent rounded-[var(--radius-lg)] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
             {blocks.map((block, i) => (
-              <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={busy} isStreamingTail={busy && i === blocks.length - 1} />
+              <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={streaming} isStreamingTail={streaming && i === blocks.length - 1} />
             ))}
             {/* 回合 usage：气泡内容区底部右对齐——贴内容右下，与 hover 复制工具条（气泡外）永不冲突。
                  口径：输入 = 未缓存 + 缓存读 + 缓存写（全部输入成本）；命中率 = 缓存读 / 全部输入 */}
