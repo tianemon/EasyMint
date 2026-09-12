@@ -651,7 +651,7 @@ function ToolGroupView({ block, streaming }: { block: ToolGroupBlock; streaming?
               容器 padding 只做微调,2px→1px 后视觉仍均匀);折叠时高度 0 背景自然不可见 */}
           <div className="mt-[2px] rounded-[var(--radius-lg)] space-y-0.5" style={{ background: "var(--thinking-body)", padding: "1px 8px" }}>
             {items.map((item, i) => (
-              <SingleToolCard key={i} item={item} compact streaming={streaming} />
+              <SingleToolCard key={i} item={item} streaming={streaming} />
             ))}
           </div>
         </div>
@@ -928,7 +928,7 @@ function toolDetailLabel(item: ToolItem): string | null {
   return null;
 }
 
-function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?: boolean; streaming?: boolean }): JSX.Element {
+function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boolean }): JSX.Element {
   const isDiffResult = !!item.result && item.result.includes("变更内容:");
   // 默认折叠(含 diff——用户要求不自动展开,点击才展开);例外:提问卡默认展开(问题内容需要可见)
   const [showInput, setShowInput] = useState(item.name === "ask_user");
@@ -1048,8 +1048,9 @@ function SingleToolCard({ item, compact, streaming }: { item: ToolItem; compact?
             style={{ fontSize: "var(--text-detail)" }}
           >{baseName(filePath)}</button>
         )}
-        {/* 变更统计(+N -M)紧跟文件名后——编辑类有 diff;执行成败不展示状态文案 */}
-        {!compact && item.result && diffStats_ && (diffStats_.added > 0 || diffStats_.removed > 0) && (
+        {/* 变更统计(+N -M)紧跟文件名后——编辑类有 diff;执行成败不展示状态文案。
+            收进工具组的行同样显示:统计挂在展开区体内,组默认折叠,只有标题行可见 */}
+        {item.result && diffStats_ && (diffStats_.added > 0 || diffStats_.removed > 0) && (
           <span className="shrink-0 normal-case tracking-normal text-text-muted" style={{ fontSize: "var(--text-caption)" }}>
             {diffStats_.added > 0 && <span className="text-success">+{diffStats_.added}</span>}
             {diffStats_.added > 0 && diffStats_.removed > 0 && " • "}
