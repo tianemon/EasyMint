@@ -542,6 +542,9 @@ async function createAskUserTool(sessionId: string): Promise<ToolDefinition> {
   return defineTool({
     name: "ask_user",
     label: "向用户提问",
+    // 挂起式工具（等用户回答）必须串行：SDK 默认同批工具并行，两张卡片会同时挂起，
+    // 而前端一次只显示一条——后到者既看不见也无人回答，回合白等
+    executionMode: "sequential",
     description:
       "向用户提出结构化选择题（可多个问题，每题单选，支持级联联动）。调用后回合暂停等待用户回答。"
       + "适用场景：方案对比选择、范围取舍确认、让用户从候选中拍板等需要用户决策的时刻。"

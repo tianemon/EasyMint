@@ -44,6 +44,9 @@ export async function createLearnTool(deps: LearnToolDeps): Promise<ToolDefiniti
   return defineTool({
     name: "learn",
     label: "沉淀经验",
+    // 挂起式工具（等用户审阅）必须串行：SDK 默认同批工具并行，多张审阅卡片会同时挂起，
+    // 而前端一次只显示一条——后到者既看不见也无人确认，回合白等
+    executionMode: "sequential",
     description:
       "把本会话验证过的可复用经验沉淀入库（一次调用完成）：memory 是持久自包含的经验"
       + "（什么情况 / 做了什么 / 为什么有效），可选 skill 参数同时创建/更新 AI 管理区的 skill"
@@ -183,9 +186,11 @@ export async function createSearchExperiencesTool(projectPath?: string): Promise
         const date = new Date(e.createdAt).toISOString().slice(0, 10);
         const ctx = e.context ? `\n  上下文: ${e.context.slice(0, 200)}` : "";
         const proj = e.project ? `（项目沉淀）` : "";
-        return `- [${date}]${proj} ${e.memory}${ctx}`;
+        // id 必须回传：updateId 是「更新已有经验」的唯一入口（按 id 精确匹配），
+        // 不回传则模型无从引用，只能重复新增同一经验
+        return `- [${date}]${proj}[id: ${e.id}] ${e.memory}${ctx}`;
       });
-      return text(`匹配 ${total} 条（显示前 ${hits.length} 条）：\n${lines.join("\n")}`);
+      return text(`匹配 ${total} 条（显示前 ${hits.length} 条；纠错/补全已有经验时用 learn 带 updateId=<id> 更新）：\n${lines.join("\n")}`);
     },
   } as any) as ToolDefinition;
 }
