@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { confirmDialog } from "../ui/ConfirmDialog";
+import { useThemeStore } from "../../stores/theme-store";
 
 function formatMB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -11,6 +12,7 @@ export interface UpdateStatusState {
 
 /** 关于:版本号 + 更新检测 + 开源链接 */
 export function AboutTab(): JSX.Element {
+  const isDark = useThemeStore((s) => s.effective) === "dark";
   const [appVersion, setAppVersion] = useState("");
   const [updateStatus, setUpdateStatus] = useState<UpdateStatusState>({ status: "idle" });
   const [checking, setChecking] = useState(false);
@@ -55,7 +57,9 @@ export function AboutTab(): JSX.Element {
 
   return (
     <div className="flex flex-col items-center justify-center py-12 space-y-6">
-      <img src="./icon.png" className="w-20 h-20 mb-2" />
+      {/* 应用图标：跟随主题取亮/暗版（与 Dock 图标同一套素材 appicon-{light,dark}.png，
+          形状口径一致（自带圆角）；不再固定用亮色版的 icon.png */}
+      <img src={isDark ? "./appicon-dark.png" : "./appicon-light.png"} className="w-20 h-20 mb-2" />
       <div className="text-center">
         <h2 className="text-2xl font-bold text-text-primary">EasyMint</h2>
         <p className="text-sm text-text-secondary mt-1">AI 驱动开发，简单的操作让想法变为现实</p>

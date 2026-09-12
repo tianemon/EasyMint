@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSettingsStore } from "../stores/settings-store";
+import { useThemeStore } from "../stores/theme-store";
 import { ProviderForm } from "../components/settings/ProviderSettings";
 import { WindowControls } from "../components/WindowControls";
 import type { ProviderConfig, ApiProvidersData } from "@shared/platform-presets";
@@ -12,6 +13,7 @@ const STEPS = [
 
 export function OnboardingPage(): JSX.Element {
   const navigate = useNavigate();
+  const isDark = useThemeStore((s) => s.effective) === "dark";
   const [currentStep, setCurrentStep] = useState(0);
   const { setApiProviders } = useSettingsStore();
 
@@ -88,9 +90,9 @@ export function OnboardingPage(): JSX.Element {
         {currentStep === 0 ? (
           /* ── Step 1: Welcome ── */
           <div className="w-full max-w-[480px] flex flex-col items-center text-center">
-            {/* Logo：卡片容器 + 阴影，与主界面元素风格一致 */}
+            {/* Logo：卡片容器 + 阴影，与主界面元素风格一致；图标跟随主题取亮/暗版（与关于页、Dock 同一套素材） */}
             <div className="w-24 h-24 mb-6 rounded-[var(--radius-lg)] bg-surface-alt flex items-center justify-center overflow-hidden">
-              <img src="icon.png" alt="EasyMint" className="w-16 h-16" />
+              <img src={isDark ? "appicon-dark.png" : "appicon-light.png"} alt="EasyMint" className="w-16 h-16" />
             </div>
 
             <h1 className="text-2xl font-bold text-text-primary mb-2">EasyMint</h1>
