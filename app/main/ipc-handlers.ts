@@ -21,6 +21,7 @@ import { execShell } from "./services/shell-service";
 import { pathHitsAny, protectedCredentialPaths } from "./services/permission/access-policy";
 import { backgroundShellRegistry } from "./services/background-shell/registry";
 import { getRunningSummary } from "./services/task/registry";
+import { readShellLogTail } from "./services/shell-log";
 import { closeProjectWindows, listOpenProjectIds } from "./services/window-manager";
 import { detectGit } from "./utils/git-detector";
 import { detectNode } from "./utils/node-detector";
@@ -496,24 +497,11 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
 
   // shell:read-log — 读取后台命令输出日志(尾部 100KB 截断,弹层展示最近输出)。
   // 日志在 <项目>/.easymint/shell-logs/ 内——路径须在项目根内(防任意文件读取)。空串/缺省按无内容处理
+  // 尾部读取实现与远程命令 shell.readLog 共用（services/shell-log.ts），只有路径校验这一层不同：
+  //   这里路径来自渲染层→需项目根包含校验；手机那边只传 shellId，路径由 registry 给，天然受控。
   ipcMain.handle("shell:read-log", guard(z.object({ logPath: z.string().max(4096) }).loose(), ({ logPath }) => {
-    try {
-      if (!logPath || !fs.existsSync(logPath) || !projectRootContaining(logPath)) return { content: "", truncated: false };
-      const stat = fs.statSync(logPath);
-      if (stat.size <= 100 * 1024) {
-        return { content: fs.readFileSync(logPath, "utf-8"), truncated: false };
-      }
-      const buf = Buffer.alloc(100 * 1024);
-      const fd = fs.openSync(logPath, "r");
-      try {
-        fs.readSync(fd, buf, 0, 100 * 1024, stat.size - 100 * 1024);
-      } finally {
-        fs.closeSync(fd);
-      }
-      return { content: buf.toString("utf-8"), truncated: true };
-    } catch {
-      return { content: "", truncated: false };
-    }
+    if (!logPath || !fs.existsSync(logPath) || !projectRootContaining(logPath)) return { content: "", truncated: false };
+    return readShellLogTail(logPath);
   }));
   // shell:reveal-in-folder — 在文件夹中显示日志文件(不打开文件);路径须在项目根内
   ipcMain.handle("shell:reveal-in-folder", guard(z.object({ logPath: z.string().max(4096) }).loose(), ({ logPath }) => {

@@ -351,7 +351,15 @@ export class RemoteTerminalService extends EventEmitter {
       const projectAllowed = projectId && this.projectSubscriptions.get(connection.deviceId)?.has(projectId);
       const globalEvent = event.channel === "project:open-windows-changed";
       const filteredTaskEvent = event.channel === "agent:shell-count" || event.channel === "agent:delegation-count";
-      if (!sessionAllowed && !projectAllowed && !globalEvent && !filteredTaskEvent) continue;
+      // 流式正文与后台命令输出是高频大载荷（每帧带全量累计正文）：只认「会话订阅」，**项目订阅不放行**。
+      // 手机端在首页拉一次会话列表（带 projectId）就会拿到项目订阅；若这里按项目放行，PC 一边输出
+      // 就会把整条流推给没打开该会话的手机——手机侧要逐帧解密+解析（纯 JS AES-GCM），JS 线程被吃死，
+      // 表现为：启动转圈半天加载不出来、聊天页能上下滑动但点不动。
+      // 手机打开会话会走 session.snapshot 补订会话，切回时也会重取快照，不会丢内容。
+      const payloadHeavy = event.channel === "agent:stream" || event.channel === "agent:shell-output";
+      if (payloadHeavy
+        ? !sessionAllowed
+        : (!sessionAllowed && !projectAllowed && !globalEvent && !filteredTaskEvent)) continue;
       this.sendEncrypted(connection, {
         version: REMOTE_PROTOCOL_VERSION,
         connectionId: connection.connectionId,

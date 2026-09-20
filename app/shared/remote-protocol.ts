@@ -20,6 +20,7 @@ export const remoteCommandNameSchema = z.enum([
   "session.pin",
   "session.archive",
   "shell.stop",
+  "shell.readLog",
   "delegation.stop",
   "capability.models",
 ]);

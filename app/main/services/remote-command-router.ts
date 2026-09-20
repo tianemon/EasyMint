@@ -19,6 +19,7 @@ import {
   unarchiveSession,
 } from "./session-service";
 import { readCache, writeCache } from "./session-cache";
+import { readShellLogTail } from "./shell-log";
 import type { Store } from "./store";
 import type { SessionCoordinator } from "./session-coordinator";
 import { trackUpload } from "./upload-cache";
@@ -111,6 +112,7 @@ export class RemoteCommandRouter {
     if (name === "session.pin") return this.pin(command);
     if (name === "session.archive") return this.archive(command);
     if (name === "shell.stop") return this.stopShell(command);
+    if (name === "shell.readLog") return this.readShellLog(command);
     if (name === "delegation.stop") return this.stopDelegation(command);
     if (name === "capability.models") return this.models();
     throw Object.assign(new Error(`不支持的命令：${name}`), { code: "UNSUPPORTED_COMMAND" });
@@ -257,6 +259,22 @@ export class RemoteCommandRouter {
     // source=user：停止来自用户操作（手机上的停止按钮），中止通知显示「已由用户中止」
     backgroundShellRegistry.stop(shellId, "user");
     return { ok: true };
+  }
+
+  /**
+   * 读后台命令输出的尾部（手机端的「查看完整输出」弹层）。
+   * 归属校验与 shell.stop 完全同一条：只能读本会话（含其子会话）发起过的命令。
+   * **只接受 shellId，不回传本机日志路径**——手机不需要它，多暴露一份本机路径没有收益。
+   */
+  private async readShellLog(command: RemoteCommandEnvelope): Promise<{ content: string; truncated: boolean }> {
+    const sessionId = await this.requireOwnedSession(command);
+    const shellId = z.string().min(1).max(128).parse(dataObject(command).shellId);
+    const owned = getOwnedSessionIds(sessionId);
+    const target = backgroundShellRegistry.list().find((shell) => shell.id === shellId);
+    if (!target || !target.sessionId || !owned.has(target.sessionId)) {
+      throw Object.assign(new Error("后台命令不存在或不属于该会话"), { code: "SHELL_NOT_FOUND" });
+    }
+    return readShellLogTail(target.logPath);
   }
 
   /** 停止委派中的单个任务——与桌面端 AgentBar 的停止按钮同一条底层（stopDelegationTask）。 */

@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { RemoteCommandRouter } from "./remote-command-router";
 import { backgroundShellRegistry, type BackgroundShell } from "./background-shell/registry";
 import { createDelegation, resetRegistry } from "./task/registry";
@@ -55,7 +58,7 @@ function createRouter() {
   return { router, requireSession, stopDelegationTask };
 }
 
-function stubShells(shells: Array<{ id: string; sessionId?: string }>): void {
+function stubShells(shells: Array<{ id: string; sessionId?: string; logPath?: string }>): void {
   vi.spyOn(backgroundShellRegistry, "list")
     .mockReturnValue(shells.map((shell) => shell as unknown as BackgroundShell));
 }
@@ -89,6 +92,30 @@ describe("RemoteCommandRouter · shell.stop", () => {
     await expect(router.handle("device-1", envelope("shell.stop", { shellId: "shell-1" })))
       .rejects.toMatchObject({ code: "SHELL_NOT_FOUND" });
     await expect(router.handle("device-1", envelope("shell.stop", { shellId: "shell-404" })))
+      .rejects.toMatchObject({ code: "SHELL_NOT_FOUND" });
+  });
+});
+
+describe("RemoteCommandRouter · shell.readLog", () => {
+  it("按 shellId 读本会话命令的日志尾部，不回传本机路径", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-shell-log-"));
+    const logPath = path.join(dir, "shell.log");
+    fs.writeFileSync(logPath, "line-1\nline-2\n");
+    stubShells([{ id: "shell-1", sessionId: "session-1", logPath }]);
+    const { router } = createRouter();
+
+    const result = await router.handle("device-1", envelope("shell.readLog", { shellId: "shell-1" }));
+    expect(result).toEqual({ content: "line-1\nline-2\n", truncated: false });
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("拒绝其他会话的后台命令与不存在的命令（归属校验与 shell.stop 同一条）", async () => {
+    stubShells([{ id: "shell-1", sessionId: "session-2", logPath: "/tmp/whatever.log" }]);
+    const { router } = createRouter();
+
+    await expect(router.handle("device-1", envelope("shell.readLog", { shellId: "shell-1" })))
+      .rejects.toMatchObject({ code: "SHELL_NOT_FOUND" });
+    await expect(router.handle("device-1", envelope("shell.readLog", { shellId: "shell-404" })))
       .rejects.toMatchObject({ code: "SHELL_NOT_FOUND" });
   });
 });

@@ -125,6 +125,15 @@ async function receiveEvent(connection: PhoneConnection): Promise<{ kind: string
   return JSON.parse(plaintext!) as { kind: string; payload: { channel: string; data: Record<string, unknown> } };
 }
 
+/** 「不应收到」的反向断言：ms 内收不到则 resolve，收到了则 reject */
+function receiveNothing(connection: PhoneConnection, ms: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { connection.socket.off("message", onMessage); resolve(); }, ms);
+    const onMessage = (): void => { clearTimeout(timer); reject(new Error("收到了不该收到的事件")); };
+    connection.socket.on("message", onMessage);
+  });
+}
+
 describe("RemoteTerminalService", () => {
   it("完成扫码配对、认证和加密命令往返", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
@@ -179,6 +188,58 @@ describe("RemoteTerminalService", () => {
     expect(envelope.kind).toBe("event");
     expect(envelope.payload.channel).toBe("agent:context-summarizing");
     expect(envelope.payload.data).toMatchObject({ chatId: "chat-1", sessionId: "session-1", type: "compact" });
+    connection.socket.close();
+  });
+
+  it("流式正文只按会话订阅放行：只有项目订阅的手机收不到（避免灌死手机端 JS）", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    service.on("error", () => {});
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+
+    const offer = await service.createPairingOffer();
+    const connection = await connectPhone(service, offer);
+    // 手机在首页拉一次会话列表：命令带 projectId、不带 sessionId → 只登记「项目订阅」
+    await sendCommand(connection, 1, {
+      version: 1,
+      sentAt: Date.now(),
+      kind: "command",
+      requestId: "request-1",
+      projectId: "project-1",
+      payload: { command: "session.list", data: { projectId: "project-1" } },
+    });
+
+    // 列表类事件仍按项目放行（手机要能跟着刷新列表）
+    service.forwardAppEvent({
+      sequence: 1,
+      channel: "session:list-changed",
+      data: { projectId: "project-1" },
+      emittedAt: Date.now(),
+    });
+    expect((await receiveEvent(connection)).payload.channel).toBe("session:list-changed");
+
+    // 流式正文是高频大载荷（每帧全量累计正文）：没打开该会话就不推——否则手机逐帧解密+解析，JS 线程被吃死
+    const streamEvent = {
+      sequence: 2,
+      channel: "agent:stream" as const,
+      data: { sessionId: "session-1", projectId: "project-1", type: "turn_start" },
+      emittedAt: Date.now(),
+    };
+    service.forwardAppEvent(streamEvent);
+    await expect(receiveNothing(connection, 150)).resolves.toBeUndefined();
+
+    // 打开会话后（带 sessionId 的命令登记会话订阅）才放行
+    await sendCommand(connection, 2, {
+      version: 1,
+      sentAt: Date.now(),
+      kind: "command",
+      requestId: "request-2",
+      projectId: "project-1",
+      sessionId: "session-1",
+      payload: { command: "project.listOpen", data: {} },
+    });
+    service.forwardAppEvent({ ...streamEvent, sequence: 3 });
+    expect((await receiveEvent(connection)).payload.channel).toBe("agent:stream");
     connection.socket.close();
   });
 });
