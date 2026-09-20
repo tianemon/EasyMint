@@ -172,7 +172,9 @@ EasyMint 与主流 AI 编程工具的 skill 生态互通，已有的技能资产
 
 ## 手机端（Android / iOS）
 
-EasyMint 还有一个手机端：[**tianemon/EasyMintMobile**](https://github.com/tianemon/EasyMintMobile)。手机和电脑在**同一局域网**里扫码配对后，就能在手机上操作电脑上当前打开的项目和会话——发消息、看模型的思考与工具调用过程、回答提问、查看后台任务与子 Agent 进度，也可以把图片和文档随消息一起发过去。适合离开座位时继续盯着任务、或者躺在沙发上给 AI 补一句。
+EasyMint 支持**在同一局域网内用手机连接并控制桌面端**——手机与电脑扫码配对后，即可远程操作电脑上当前打开的项目和会话：发消息、看模型的思考与工具调用过程、回答提问、查看后台任务与子 Agent 进度，也可以把图片和文档随消息一起发过去。适合离开座位时继续盯着任务、或者躺在沙发上给 AI 补一句。
+
+手机客户端仓库：[**tianemon/EasyMintMobile**](https://github.com/tianemon/EasyMintMobile)
 
 - **安装**：到 [EasyMintMobile 的 Releases](https://github.com/tianemon/EasyMintMobile/releases) 下载 Android APK 安装（iOS 需要自行签名，该仓库里带本地打包脚本）
 - **配对**：电脑端侧边栏底部的「工具箱」→「连接手机」生成二维码 → 手机扫码并核对六位数字 → 在电脑上确认
