@@ -89,21 +89,26 @@ function saveHiddenSkills(list: string[]): void {
 }
 
 // ── 外部生态目录发现（imported 来源，对齐 oh-my-pi 的多 provider 思路） ────
-// 只读发现：用户装过 Claude Code / Codex 生态的 skill、或项目带 GitHub Agent Skills
+// 只读发现：用户装过 Claude Code / Codex / Pi 生态的 skill、或项目带 GitHub Agent Skills
 // 标准布局的 .github/skills/，EM 直接可用——零安装动作。优先级低于 EM authored 区。
 interface ExternalSkillSource {
   resolve: (projectPath: string) => string;
   level: "global" | "project";
   /** 平台标识（界面徽章） */
-  platform: "claude" | "codex" | "github";
+  platform: "claude" | "codex" | "github" | "pi";
 }
 
 // 顺序 = 同 scope 内的同名优先级（首个胜出）；跨 scope 由 dedupeExternalSkills 让项目级胜出
 const EXTERNAL_SOURCES: ExternalSkillSource[] = [
   { resolve: () => path.join(os.homedir(), ".claude", "skills"), level: "global", platform: "claude" },
   { resolve: () => path.join(os.homedir(), ".codex", "skills"), level: "global", platform: "codex" },
+  // Pi 全局 skills 目录（agentDir/skills）；EM 的 agentDir 被重定向到 ~/.easymint/agent，
+  // 故这里读的是原生 pi 自己的位置——只读，不写
+  { resolve: () => path.join(os.homedir(), ".pi", "agent", "skills"), level: "global", platform: "pi" },
   { resolve: (p) => path.join(p, ".claude", "skills"), level: "project", platform: "claude" },
   { resolve: (p) => path.join(p, ".codex", "skills"), level: "project", platform: "codex" },
+  // 项目级 .pi/ 是原生 pi 的配置目录（EM 的项目级目录是 .easymint/，两边隔离）
+  { resolve: (p) => path.join(p, ".pi", "skills"), level: "project", platform: "pi" },
   { resolve: (p) => path.join(p, ".github", "skills"), level: "project", platform: "github" },
 ];
 

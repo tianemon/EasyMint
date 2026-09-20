@@ -103,7 +103,7 @@ describe("dedupeExternalSkills", () => {
   });
 });
 
-function mkExternalSkill(root: string, platform: "claude" | "codex"): string {
+function mkExternalSkill(root: string, platform: "claude" | "codex" | "pi"): string {
   const dir = path.join(root, `.${platform}`, "skills", "ext-proj");
   mkdirSync(dir, { recursive: true });
   writeFileSync(path.join(dir, "SKILL.md"), "---\nname: ext-proj\ndescription: 外部测试\n---\n\n正文\n");
@@ -111,9 +111,9 @@ function mkExternalSkill(root: string, platform: "claude" | "codex"): string {
 }
 
 describe("readSkill 外部生态标注", () => {
-  it("项目级外部目录(claude/codex)与列表侧一致标 imported", () => {
+  it("项目级外部目录(claude/codex/pi)与列表侧一致标 imported", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "em-readskill-"));
-    for (const platform of ["claude", "codex"] as const) {
+    for (const platform of ["claude", "codex", "pi"] as const) {
       const d = readSkill(mkExternalSkill(root, platform));
       expect(d?.source).toBe("imported");
       expect(d?.importedFrom).toBe(platform);

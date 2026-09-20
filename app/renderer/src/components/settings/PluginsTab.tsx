@@ -76,13 +76,13 @@ function SkillRow({ s, stat, onToggle, onDelete }: {
     }
   };
 
-  // imported 徽章带来源平台（Claude / Codex / GitHub），便于区分外部生态导入
+  // imported 徽章带来源平台（Claude / Codex / GitHub / Pi），便于区分外部生态导入
   const sourceLabel = s.source === "managed"
     ? "AI"
     : s.source === "builtin"
       ? "内置"
       : s.source === "imported"
-        ? `外部·${s.importedFrom === "github" ? "GitHub" : s.importedFrom === "codex" ? "Codex" : "Claude"}`
+        ? `外部·${s.importedFrom === "github" ? "GitHub" : s.importedFrom === "codex" ? "Codex" : s.importedFrom === "pi" ? "Pi" : "Claude"}`
         : "手写";
   const sourceCls = s.source === "managed"
     ? "bg-warning-soft text-warning"
@@ -370,7 +370,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
         <div className="min-w-0">
           <p className="text-xs text-text-primary">发现外部生态 skill</p>
           <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-            自动识别主流工具的 skill 目录（Claude Code、Codex、GitHub），标记为「外部」即可用；只读，不改动原目录
+            自动识别主流工具的 skill 目录（Claude Code、Codex、GitHub、Pi），标记为「外部」即可用；只读，不改动原目录
           </p>
         </div>
         <Toggle checked={importExternal} onChange={saveImportExternal} />
