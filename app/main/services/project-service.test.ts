@@ -91,10 +91,20 @@ describe("会话目录就绪性 —— 同步入口的兜底与搬迁（回归�
     process.env.PI_CODING_AGENT_DIR = agentDir;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // 兜底等待：本组有「未就绪」用例会调 update() → 搬迁被 deferSessionDirRename 挂到预热完成之后
+    // （fire-and-forget 的 async IIFE）。若不等它，补偿会在下面 env 还原**之后**才跑 → 用真实
+    // agentDir 算路径 → 往用户真实的 ~/.easymint/agent/sessions 里 mkdir 空壳
+    // （实测：每跑一次套件多 1~2 个 `--var-folders-...-T-em-project-svc-*--` 目录）。
+    // 等待本身也让「延后补偿确实补做」这件事在本组内被真正跑到。
+    try {
+      const { primeSessionManagerClass } = await import("./pi-session-dir");
+      await primeSessionManagerClass();
+      for (let i = 0; i < 3; i++) await new Promise((r) => setTimeout(r, 0));
+    } catch { /* 等待失败不掩盖用例结论 */ }
     if (prevAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = prevAgentDir;
-  });
+  }, SDK_IMPORT_TIMEOUT_MS);
 
   it("改项目路径：会话目录整体搬到新编码目录（此前被「算路径即 mkdir」挡住，整段静默跳过）", async () => {
     // 回归点：getPiSessionDir(newCwd) 会把新目录建出来 → 调用方自己写的
