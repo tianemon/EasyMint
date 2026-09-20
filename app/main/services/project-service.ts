@@ -5,6 +5,16 @@ import os from "os";
 import { shell } from "electron";
 import { Store } from "./store";
 import { resolveHome } from "../utils/paths";
+// 会话目录工具用静态导入：本模块只依赖 pi-sdk 的**类型**（运行时零负担），比 `require` 更可靠
+// —— `update()` 是同步入口，原先用 `require("./pi-session")`，而 require 在测试环境解析不了，
+// 导致这段路径「测不到」，2026-09-20 的 mkdir 副作用缺陷正是这样溜过去的。
+import {
+  ensureSessionManagerClass,
+  getPiSessionDir,
+  isEmptyDirShell,
+  moveSessionDir,
+  tryGetPiSessionDir,
+} from "./pi-session-dir";
 
 interface Project {
   id: string;
@@ -26,6 +36,34 @@ function getTemplateDir(): string {
   }
   // Development: __dirname = app/main/dist → up 3 levels to project root → template/
   return path.resolve(__dirname, "..", "..", "..", "template");
+}
+
+/**
+ * 会话目录改名的**延后补偿**。
+ *
+ * `ProjectService.update()` 是同步入口（改项目路径的记录更新），不能 await 启动期的
+ * 「SDK 预热 + 旧目录迁移」（首次 dynamic import SDK 冷启实测 7~10 秒）。而路径变更后会话目录名按
+ * **新** cwd 编码，旧目录不会自己跟过来——若预热未完成时直接跳过，这次路径变更会让历史会话
+ * 在新路径下**永久不可见**（正是本次会话目录对齐要修的那类现象），且启动期的旧目录迁移也补不了
+ * （它按会话文件首行 cwd 重算目录名，文件里的 cwd 仍是旧值）。
+ * 故此处把改名挂到预热完成之后补做；预热失败只记日志（下次路径变更会再触发一次）。
+ */
+function deferSessionDirRename(oldCwd: string, newCwd: string): void {
+  void (async () => {
+    const { moveSessionDir, primeSessionManagerClass } = await import("./pi-session-dir");
+    try {
+      await primeSessionManagerClass();
+    } catch (e) {
+      console.warn("[project] 会话目录延后改名未执行（SDK 预热失败）:", (e as Error).message);
+      return;
+    }
+    try {
+      const action = moveSessionDir(oldCwd, newCwd);
+      if (action !== "noop") console.log(`[project] 会话目录已延后${action === "moved" ? "改名" : "并入"}：${oldCwd} → ${newCwd}`);
+    } catch (e) {
+      console.warn("[project] 会话目录延后改名失败:", (e as Error).message);
+    }
+  })();
 }
 
 /** lastOpenedAt → 时间戳。缺失/非法（旧数据、手改过的 json）一律当 0 排到最后，避免 NaN 打乱顺序 */
@@ -104,9 +142,12 @@ export class ProjectService {
       }
       // Pi 会话目录 → 废纸篓。注意 getPiSessionDir 是经 SessionManager 向 SDK 取路径的，
       // 副作用是会把该目录 mkdir 出来——空目录（项目从未聊过/会话已清空）直接回收，不塞废纸篓。
-      const { getPiSessionDir } = await import("./pi-session");
-      const sessionDir = getPiSessionDir(project.path);
-      if (fs.readdirSync(sessionDir).length === 0) {
+      // 用不抛的 tryGet：启动期 SDK 预热未完成时取不到目录，此时**跳过会话目录处理**即可，
+      // 不能让「删除项目」整条失败（项目记录照删，残留的会话目录留待下次启动清理）。
+      const sessionDir = tryGetPiSessionDir(project.path);
+      if (!sessionDir) {
+        console.warn("[project] 会话目录未就绪（SDK 预热中），删除项目时跳过会话目录处理:", project.path);
+      } else if (isEmptyDirShell(sessionDir)) {
         try {
           fs.rmdirSync(sessionDir);
         } catch { /* 被占用则保留空目录，无数据损失 */ }
@@ -141,11 +182,18 @@ export class ProjectService {
     // 路径变更 → 迁移 SDK session 目录
     if (patch.path && patch.path !== project.path) {
       // Pi SDK 会话目录(agent/sessions/<路径编码>)——v0.7.2 起会话落盘于此
-      const { getPiSessionDir } = require("./pi-session") as typeof import("./pi-session");
-      const oldPiDir = getPiSessionDir(project.path);
-      const newPiDir = getPiSessionDir(patch.path);
-      if (fs.existsSync(oldPiDir) && !fs.existsSync(newPiDir)) {
-        fs.renameSync(oldPiDir, newPiDir);
+      // 用不抛的 tryGet（本函数是同步入口，不能 await 启动期的「SDK 预热 + 旧目录迁移」），
+      // 搬迁本身交给 moveSessionDir —— 它内部处置「算路径即 mkdir」的副作用，调用方自己写
+      // 「算两个路径 + 判 existsSync」会因新目录刚被 mkdir 而**整段跳过且不报错**（实测踩过）。
+      // 注意这里**不吞** moveSessionDir 的 fs 错误：会话目录搬迁是路径变更的一部分，真搬不动
+      // （权限/跨设备）就让这次变更整体失败、用户可重试——静默放过等于历史会话在新路径下消失。
+      // （删项目不同：那里项目都要没了，跳过会话侧处理才是对的，故用 tryGet 兜底。）
+      if (tryGetPiSessionDir(project.path) && tryGetPiSessionDir(patch.path)) {
+        moveSessionDir(project.path, patch.path);
+      } else {
+        // 预热未完成：旧目录不会自己跟到新路径下（新目录名按新 cwd 编码）→ 挂到预热完成后补做，
+        // 否则这次路径变更会让历史会话在新路径下**永久不可见**。
+        deferSessionDirRename(project.path, patch.path);
       }
       // 旧 Claude SDK 遗留目录(v0.7.2 起不再产生,兜底清理)
       const sdkDir = path.join(os.homedir(), ".easymint", "projects");
@@ -232,12 +280,23 @@ export class ProjectService {
       }
 
       // Pi SDK 会话目录(v0.7.2 起会话落盘 ~/.easymint/agent/sessions/<路径编码>)
-      // ——必须一并迁移,否则重命名后历史会话在新路径下不可见
-      const { getPiSessionDir } = await import("./pi-session");
-      const oldPiSessDir = getPiSessionDir(oldDir);
-      const newPiSessDir = getPiSessionDir(newDir);
-      if (fs.existsSync(oldPiSessDir) && !fs.existsSync(newPiSessDir)) {
-        await cp(oldPiSessDir, newPiSessDir, { recursive: true });
+      // ——必须一并复制，否则重命名后历史会话在新路径下不可见。
+      // 这里用「复制」而非搬迁：旧目录留给下面的清理任务删（源目录此时还在用）。
+      // ⚠️ 目标目录会被 getPiSessionDir 顺手 mkdir 出来 → 必须先清空壳再复制，
+      //    直接判 `!existsSync(新目录)` 恒为假、**根本不会复制**（实测踩过）。
+      // 这是 async 流程，先 await 就绪门再取目录（拿到确定结果）；取不到只跳过这一段，
+      // **不把整条重命名流程判失败**（目录已复制完成，会话目录问题不该回滚用户的重命名）。
+      let oldPiSessDir: string | undefined;
+      try {
+        await ensureSessionManagerClass();
+        oldPiSessDir = getPiSessionDir(oldDir);
+        const newPiSessDir = getPiSessionDir(newDir);
+        if (fs.existsSync(oldPiSessDir) && fs.readdirSync(oldPiSessDir).length > 0) {
+          if (isEmptyDirShell(newPiSessDir)) fs.rmdirSync(newPiSessDir);
+          await cp(oldPiSessDir, newPiSessDir, { recursive: true });
+        }
+      } catch (e) {
+        console.warn("[project] 重命名项目时会话目录未迁移（历史会话可能需重新指定路径）:", (e as Error).message);
       }
 
       // 更新 projects.json

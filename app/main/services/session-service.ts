@@ -18,7 +18,8 @@ import path from "node:path";
 import os from "node:os";
 import { resolveHome } from "../utils/paths";
 import { deleteCache } from "./session-cache";
-import { listPiSessions, getPiSessionDir } from "./pi-session";
+import { listPiSessions, getPiSessionDir, tryGetPiSessionDir } from "./pi-session";
+import { isEmptyDirShell } from "./pi-session-dir";
 import { getSessionManagerClass } from "./pi-sdk";
 import { compactionSummaryNotice } from "../../shared/prompts";
 import { deleteSessionTodos } from "./session-todos";
@@ -437,8 +438,15 @@ export function cleanupProjectSessions(projectPath: string): string[] {
   const resolved = path.resolve(resolveHome(projectPath));
   // getPiSessionDir 经 SDK 取默认目录，副作用是会把该目录 mkdir 出来——空目录（含"本次刚被建出"的
   // 情况）查询完即回收，避免删项目/清理后留下空壳。
-  const sessionDir = getPiSessionDir(resolved);
-  if (readdirSync(sessionDir).length === 0) {
+  // 用不抛的 tryGet：本函数是同步入口，启动期 SDK 预热未完成时（约前几秒）不能因取不到目录
+  // 就把「删除项目」整条流程带崩——那种情况下本次不清理，返回空列表，元数据留待下次清理。
+  const sessionDir = tryGetPiSessionDir(resolved);
+  if (!sessionDir) {
+    console.warn("[session] 会话目录未就绪（SDK 预热中），本次跳过会话元数据清理:", projectPath);
+    return [];
+  }
+  // 空壳（含「本次算路径时刚被 mkdir 出来」的情况）直接回收，避免删项目/清理后留下空目录
+  if (isEmptyDirShell(sessionDir)) {
     try {
       rmdirSync(sessionDir);
     } catch { /* 被占用则保留空目录，无数据损失 */ }

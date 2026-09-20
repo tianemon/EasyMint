@@ -52,7 +52,7 @@ const unzipper = require("unzipper") as {
 };
 import { networkService } from "./network-service";
 import { broadcast } from "./ipc-broadcast";
-import { getPiSessionDir } from "./pi-session";
+import { tryGetPiSessionDir } from "./pi-session";
 
 // ── 常量 ──
 const CHUNK_SIZE = 256 * 1024; // 256KB/块
@@ -343,17 +343,21 @@ class MigrationService extends EventEmitter {
     walk(root, "");
     // 全部主会话(编码目录根下 jsonl,不含 subagents/ 子会话)——按修改时间倒序(最新在前)
     const sessions: SessionItem[] = [];
-    try {
-      const dir = getPiSessionDir(root);
-      const names = fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).sort();
-      for (const name of names) {
-        const abs = path.join(dir, name);
-        let mtime = 0;
-        try { mtime = fs.statSync(abs).mtimeMs; } catch { continue; }
-        sessions.push({ file: name, name: extractSessionName(abs) || name, mtime });
-      }
-      sessions.sort((a, b) => b.mtime - a.mtime);
-    } catch { /* 无会话 */ }
+    // 本方法同步（迁移面板的扫描入口）：用不抛的 tryGet，未预热时按「无会话」处理，
+    // 不让异常逃出去（那会让整块扫描失败）。读目录本身失败仍由下面的 catch 兜住。
+    const dir = tryGetPiSessionDir(root);
+    if (dir) {
+      try {
+        const names = fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl")).sort();
+        for (const name of names) {
+          const abs = path.join(dir, name);
+          let mtime = 0;
+          try { mtime = fs.statSync(abs).mtimeMs; } catch { continue; }
+          sessions.push({ file: name, name: extractSessionName(abs) || name, mtime });
+        }
+        sessions.sort((a, b) => b.mtime - a.mtime);
+      } catch { /* 无会话 */ }
+    }
     const noneExcluded = files.filter((f) => !f.excluded);
     return {
       files,
@@ -394,9 +398,20 @@ class MigrationService extends EventEmitter {
     const safeName = projectName.replace(/[\\/:*?"<>|]/g, "_").trim() || "migrated-project";
     const zipName = `${safeName}-${transferId}.zip`;
     const zipPath = path.join(MIGRATION_CACHE_DIR, zipName);
+    // 会话目录：本方法 async，先 await 就绪门（SDK 预热 + 旧目录迁移）再取，拿确定结果。
+    // 取不到就**明确报错**、不静默少打包会话——下面的「会话文件缺失即失败」硬校验同理，
+    // 静默漏掉会让用户以为迁移是完整的。
+    let sessionDir: string;
+    try {
+      const { getPiSessionDir, ensureSessionManagerClass } = await import("./pi-session-dir");
+      await ensureSessionManagerClass();
+      sessionDir = getPiSessionDir(path.resolve(projectPath));
+    } catch (e) {
+      return { ok: false, error: `会话目录未就绪（SDK 加载中），请稍后重试：${(e as Error).message}` };
+    }
     // 完整性校验:选中会话已声明但文件缺失 → 打包失败(不静默跳过)
     const missingSessions = selectedSessions.filter((s) => {
-      const sessionAbs = path.join(getPiSessionDir(path.resolve(projectPath)), s.file);
+      const sessionAbs = path.join(sessionDir, s.file);
       return !fs.existsSync(sessionAbs);
     });
     if (missingSessions.length > 0) {
@@ -405,7 +420,7 @@ class MigrationService extends EventEmitter {
     this.emit("send-progress", { transferId, sent: 0, total: 0, phase: "packing" });
     try {
       fs.mkdirSync(MIGRATION_CACHE_DIR, { recursive: true });
-      await this.buildZip(selectedFiles, selectedSessions.map((s) => s.file), zipPath, projectPath);
+      await this.buildZip(selectedFiles, selectedSessions.map((s) => s.file), zipPath, sessionDir);
     } catch (e) {
       return { ok: false, error: `打包失败: ${(e as Error).message}` };
     }
@@ -477,7 +492,7 @@ class MigrationService extends EventEmitter {
   }
 
   /** 打包 zip:选中的项目文件(相对项目根) + 选中的会话文件(前缀 .easymint-session/) */
-  private buildZip(files: ScanFileItem[], sessionFiles: string[], zipPath: string, projectPath: string): Promise<void> {
+  private buildZip(files: ScanFileItem[], sessionFiles: string[], zipPath: string, sessionDir: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const output = fs.createWriteStream(zipPath);
       const archive = new ZipArchive({ zlib: { level: 6 } });
@@ -489,9 +504,9 @@ class MigrationService extends EventEmitter {
         archive.file(f.absPath, { name: f.relPath });
       }
       // 会话文件:.easymint-session/ 前缀(接收端识别并恢复)
-      // 注意:编码必须用真实项目路径(与 scanProject 一致)——用 projectName 会解析成
-      // 当前工作目录下的路径,会话目录编码错误 → 文件找不到 → 没打进 zip(实测踩坑)
-      const sessionDir = getPiSessionDir(path.resolve(projectPath));
+      // sessionDir 由调用方（prepareAndTransfer）在等待就绪门后取好传入——本函数在 Promise
+      // executor（同步回调）里跑，自己取不了目录；编码必须是真实项目路径算出的那份，
+      // 用 projectName 会解析成当前工作目录、文件找不到（实测踩坑）
       for (const name of sessionFiles) {
         const sessionAbs = path.join(sessionDir, name);
         if (fs.existsSync(sessionAbs)) {
@@ -751,6 +766,18 @@ class MigrationService extends EventEmitter {
   /** 从 zip 恢复全部会话:读取 .easymint-session/*.jsonl → 改写 cwd → 放入全局 sessions 目录。返回恢复成功数量 */
   private async restoreSessionsFromZip(zipPath: string, projectPath: string): Promise<number> {
     let restoredCount = 0;
+    // 会话目录：本方法 async，先 await 就绪门再取（消息回调是同步上下文，取不了目录）。
+    // 取不到则返回 0：回执里的 sessionRestoredCount 会体现出来，用户可重发；
+    // 不把异常抛出去中断整个接收流程（项目文件已解压完成）。
+    let targetSessionDir: string;
+    try {
+      const { getPiSessionDir, ensureSessionManagerClass } = await import("./pi-session-dir");
+      await ensureSessionManagerClass();
+      targetSessionDir = getPiSessionDir(path.resolve(projectPath));
+    } catch (e) {
+      console.warn("[migration] 会话目录未就绪，本次未恢复会话:", (e as Error).message);
+      return 0;
+    }
     await new Promise<void>((resolve) => {
       fs.createReadStream(zipPath)
         .pipe(unzipper.Parse())
@@ -763,7 +790,7 @@ class MigrationService extends EventEmitter {
               try {
                 const buf = Buffer.concat(chunks);
                 // 恢复成功 = 落盘 + 验证(文件存在且首行 cwd 为项目路径)——不满足不算成功
-                if (this.restoreSession(buf, rel.split("/").pop()!, projectPath)) restoredCount++;
+                if (this.restoreSession(buf, rel.split("/").pop()!, projectPath, targetSessionDir)) restoredCount++;
               } catch { /* 恢复失败 */ }
             });
           } else {
@@ -775,17 +802,17 @@ class MigrationService extends EventEmitter {
     return restoredCount;
   }
 
-  /** 会话恢复:改写首行 cwd 为项目路径 → 写入全局 sessions 编码目录。
+  /** 会话恢复:改写首行 cwd 为项目路径 → 写入全局 sessions 编码目录（目录由调用方取好传入——
+      本函数在消息回调的同步上下文里跑，自己 await 不了就绪门）。
       返回 true 仅当:文件成功写入 且 存在 且 首行 cwd 正确(硬性保证会话文件有) */
-  private restoreSession(content: Buffer, fileName: string, projectPath: string): boolean {
+  private restoreSession(content: Buffer, fileName: string, projectPath: string, sessionDir: string): boolean {
     const lines = content.toString("utf-8").split("\n").filter((l) => l.trim());
     if (lines.length === 0) return false;
     const first = JSON.parse(lines[0]!);
     first.cwd = projectPath;
     lines[0] = JSON.stringify(first);
-    const dir = getPiSessionDir(projectPath);
-    fs.mkdirSync(dir, { recursive: true });
-    const dest = path.join(dir, fileName);
+    const dest = path.join(sessionDir, fileName);
+    fs.mkdirSync(sessionDir, { recursive: true });
     fs.writeFileSync(dest, lines.join("\n") + "\n");
     // 验证落盘 + cwd 正确(JSON.parse 比较——字符串 includes 会被反斜杠转义误判,
     // Windows 路径 D:\x → 文件里是 D:\\x,includes 匹配不上 → 文件在了却报失败,实测踩坑)

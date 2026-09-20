@@ -32,8 +32,9 @@ import { mergeIntoPiSkills } from "./skill-service";
 
 // 目录工具再导出：既有调用点（project-service / session-service / migration-service /
 // task/executor / agent-service）仍从本模块引用，避免无谓的 import 面改动。
-// 实现在 pi-session-dir（独立模块，依赖面小、可单测）。
-export { getPiSessionDir };
+// 实现在 pi-session-dir（独立模块，依赖面小、可单测）。`tryGetPiSessionDir` 供同步调用点
+// 兜底（未预热时返回 undefined 而不抛），判据见其注释。
+export { getPiSessionDir, tryGetPiSessionDir } from "./pi-session-dir";
 
 // ── 类型 ────────────────────────────────────────────
 
