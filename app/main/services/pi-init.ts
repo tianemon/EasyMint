@@ -322,12 +322,34 @@ export async function getGlobalSettingsManager() {
 }
 
 /**
- * 把 SDK 内置模型合进各内置供应商的缓存模型列表(config.models)。
+ * 把内置供应商的「模型清单」与 SDK 目录对齐——**以 SDK 目录为准**。做两件事：
  *
- * 聊天页下拉用的是缓存列表,而它只在"打开供应商配置页并保存"时才刷新——
- * SDK 升级新增的模型(如 0.84.4 内置的 deepseek-v4-flash-vision-exp)不打开设置
- * 就永远不出现。启动时合并一次,新增模型自动可选;已有顺序与默认模型保持不变。
- * 返回是否有变更(有变更时调用方需要让 UI 重新读取设置)。
+ *   A. `config.models`（缓存列表）增删对齐。聊天页下拉 / 会话页模型选择都读它，而它过去只在
+ *      「打开供应商配置页并保存」时才重建（renderer 侧 ProviderSettings.handleSave）。只靠那条
+ *      手动路径有两个后果：SDK 升级**新增**的模型不打开设置就永远不出现（本函数最初只做并集
+ *      追加就是为了这个）；SDK 升级**移除 / 改名**的模型会永久留在列表里，选中它静默回落默认
+ *      模型（0.86.0 把 deepseek-v4-flash 改名 deepseek-flash、移除 Codex 的 gpt-5.4 即属此类）。
+ *      对齐后**集合**与「手动保存一次」一致（`SDK 目录 ∪ extraModels 中不在目录的请求标识`，
+ *      同口径见 ProviderSettings.handleSave）；**顺序**取最小扰动——保留现有顺序、只剔失效项、
+ *      新模型追加尾部（启动期重排用户可见的下拉顺序属越权，且 models[0] 是默认模型兜底值）。
+ *
+ *   B. `extraModels` 中「请求标识已在官方目录」的条目清理。这类条目**不产生任何效果**
+ *      （syncExtraModelsFile 遇同 id 跳过写入 models[]，modelOverrides 同样跳过），却会让界面
+ *      显示手填的名字而非官方名（settings-store 的 modelLabels 合并顺序是 `{ ...official,
+ *      ...自添加 }`，自添加胜出）——同一个 id 顶着两个名字：参数走官方、标题写手填值。
+ *
+ * 不误伤的三条边界：
+ *   1. **自定义供应商一律跳过**：它的模型清单完全由用户声明（extraModels），没有 SDK 目录
+ *      可比对——按目录重建 / 清理会把用户手填的模型整份清空。
+ *   2. **`extraModels` 里不在目录的请求标识无条件保留**：那是用户显式声明的第三方 / 转售模型，
+ *      即使不在目录里也不能删；被清掉的只有「已在官方目录」的那一类（见 B）。
+ *   3. **目录为空时整条跳过**（presetId 不在 PROVIDER_FILES / 数据文件缺失）：宁可不梳理，
+ *      也不要把用户可见的模型列表清空。
+ * 另：默认模型(cfg.model)不在此函数内改写——若它已失效，保留原值等于维持既有行为
+ * （运行时查不到会回落），避免启动期静默改掉用户选择的模型。
+ *
+ * 返回是否有变更。启动期调用（app/main/index.ts，早于 createWindow）无需消费返回值——
+ * 前端在窗口创建后才读设置，读到的已是新值；返回值主要供测试断言。
  */
 export function syncNativeModels(store: Store): boolean {
   try {
@@ -335,15 +357,56 @@ export function syncNativeModels(store: Store): boolean {
     const providers = settings.apiProviders;
     if (!providers?.configs) return false;
     let changed = false;
-    for (const [, cfg] of Object.entries(providers.configs)) {
+    for (const [cfgId, cfg] of Object.entries(providers.configs)) {
       if (!cfg.presetId || cfg.presetId === "custom") continue;
       const nativeIds = [...getProviderStaticModels(cfg.presetId).keys()];
       if (nativeIds.length === 0) continue;
-      const cached = new Set(cfg.models ?? []);
-      const added = nativeIds.filter((id) => !cached.has(id));
-      if (added.length === 0) continue;
-      cfg.models = [...(cfg.models ?? []), ...added];
+      const native = new Set(nativeIds);
+      const extras = normalizeExtraModels(cfg.extraModels);
+      const declared = extras.map((n) => n.id).filter((id) => !native.has(id));
+      // 清理「请求标识已在官方目录」的 extraModels 条目——以内置为准的另一半。
+      // 这类条目**不产生任何效果**：syncExtraModelsFile 遇到同 id 会跳过写入 models[]，
+      // modelOverrides 同样跳过，参数一律取官方 spec。但它会让界面显示**手填的名字**而不是
+      // 官方名（settings-store 的 modelLabels 合并顺序是 `{ ...official, ...自添加 }`，自添加胜出），
+      // 于是同一个 id 顶着两个名字：参数走官方、标题写手填值——2026-09-20 用户报的
+      // 「模型管理区还留着 deepseek flash，而列表里显示 DeepSeek V4.1 Flash」即此。
+      // 只清「已在目录」的；不在目录的一律保留（用户显式声明的第三方 / 转售模型）。
+      const dupRaws = new Set(extras.filter((n) => native.has(n.id)).map((n) => n.raw));
+      if (dupRaws.size > 0) {
+        const keptExtra = (cfg.extraModels ?? []).filter((e) => !dupRaws.has(e));
+        cfg.extraModels = keptExtra.length > 0 ? keptExtra : undefined;
+        changed = true;
+        console.log(
+          `[pi-init] 清理 ${cfgId}(${cfg.presetId}) 中已在官方目录的 extraModels：` +
+            `${[...dupRaws].map((e) => (typeof e === "string" ? e : e.id)).join(", ")}` +
+            "（参数与显示名一律以官方为准）",
+        );
+      }
+      const allowed = new Set([...nativeIds, ...declared]);
+      const prev = cfg.models ?? [];
+      // 顺序以保留现有为准（启动期不重排用户可见的下拉顺序）：只删已失效的，新出现的按目录序追加到尾部。
+      // 集合结果与"供应商页保存一次"一致，顺序则取最小扰动——目录顺序与用户顺序不同时不做无谓重排。
+      const kept = prev.filter((id) => allowed.has(id));
+      const keptSet = new Set(kept);
+      // 过一遍 Set：kept 来自 prev、declared 来自 extraModels，两者都可能自带重复项
+      // （normalizeExtraModels 不去重，存量数据也可能重复）→ 不去重会让下拉出现重复条目；
+      // Set 保序，不影响上面「最小扰动」的顺序策略。
+      const next = [
+        ...new Set([
+          ...kept,
+          ...nativeIds.filter((id) => !keptSet.has(id)),
+          ...declared.filter((id) => !keptSet.has(id)),
+        ]),
+      ];
+      if (prev.length === next.length && prev.every((id, i) => id === next[i])) continue;
+      const removed = prev.filter((id) => !next.includes(id));
+      const added = next.filter((id) => !prev.includes(id));
+      cfg.models = next;
       changed = true;
+      console.log(
+        `[pi-init] 模型列表对齐 SDK 目录 ${cfgId}(${cfg.presetId})：新增 ${added.length}、移除 ${removed.length}` +
+          (removed.length > 0 ? `（移除 ${removed.join(", ")}）` : ""),
+      );
     }
     if (changed) store.saveSettings(settings);
     return changed;
