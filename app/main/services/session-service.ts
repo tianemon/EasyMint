@@ -13,7 +13,7 @@
  *  - session-types.json      → { sessionId: "mint"|"designer" }
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync, rmdirSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { resolveHome } from "../utils/paths";
@@ -435,8 +435,15 @@ export async function hasCustomTitle(sessionId: string, projectPath?: string): P
  *  供删除项目时调用；会话目录本身由调用方移废纸篓，session-types 由 agent-service 的 removeSessionTypes 清理。 */
 export function cleanupProjectSessions(projectPath: string): string[] {
   const resolved = path.resolve(resolveHome(projectPath));
+  // getPiSessionDir 经 SDK 取默认目录，副作用是会把该目录 mkdir 出来——空目录（含"本次刚被建出"的
+  // 情况）查询完即回收，避免删项目/清理后留下空壳。
   const sessionDir = getPiSessionDir(resolved);
-  if (!existsSync(sessionDir)) return [];
+  if (readdirSync(sessionDir).length === 0) {
+    try {
+      rmdirSync(sessionDir);
+    } catch { /* 被占用则保留空目录，无数据损失 */ }
+    return [];
+  }
 
   const sids = new Set<string>();
   const collect = (dir: string): void => {

@@ -102,10 +102,15 @@ export class ProjectService {
         const { removeSessionTypes } = await import("./agent-service");
         removeSessionTypes(sids);
       }
-      // Pi 会话目录 → 废纸篓
+      // Pi 会话目录 → 废纸篓。注意 getPiSessionDir 是经 SessionManager 向 SDK 取路径的，
+      // 副作用是会把该目录 mkdir 出来——空目录（项目从未聊过/会话已清空）直接回收，不塞废纸篓。
       const { getPiSessionDir } = await import("./pi-session");
       const sessionDir = getPiSessionDir(project.path);
-      if (fs.existsSync(sessionDir)) {
+      if (fs.readdirSync(sessionDir).length === 0) {
+        try {
+          fs.rmdirSync(sessionDir);
+        } catch { /* 被占用则保留空目录，无数据损失 */ }
+      } else {
         await shell.trashItem(sessionDir);
       }
       // 旧 Claude SDK 遗留目录（v0.7.2 起不再产生，兜底清理）

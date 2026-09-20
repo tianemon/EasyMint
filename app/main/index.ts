@@ -89,6 +89,8 @@ import { FileService } from "./services/file-service";
 import { AgentService, setMainWindow } from "./services/agent-service";
 import { Store } from "./services/store";
 import { syncNativeModels } from "./services/pi-init";
+import { armSessionDirReady, primeSessionManagerClass } from "./services/pi-session-dir";
+import { migrateLegacySessionDirs } from "./services/session-dir-migration";
 import { migrateExtraModels, migrateModelIdentity } from "./services/extra-models-migration";
 import { cleanupOrphanCaches, cleanupTempCaches } from "./services/session-cache";
 import { watchProjectWindow } from "./services/window-manager";
@@ -316,13 +318,40 @@ app.whenReady().then(() => {
   try { migrateExtraModels(tempStore); } catch (e) { console.warn("[main] 模型参数迁移失败:", (e as Error).message); }
   // 模型身份改写:旧「id=显示名 + alias=请求标识」→ 新「id=请求标识 + name=显示名」(请求标识不变)
   try { migrateModelIdentity(tempStore); } catch (e) { console.warn("[main] 模型身份迁移失败:", (e as Error).message); }
-  // SDK 升级后新增的内置模型合进缓存模型列表(聊天页下拉/会话页模型选择的数据源),
-  // 否则新模型必须"打开供应商配置页保存一次"才会出现
+  // 缓存模型列表(聊天页下拉/会话页模型选择的数据源)与 SDK 目录对齐——**以目录为准(增+删)**：
+  // 只增不减会让新模型必须"打开供应商配置页保存一次"才出现，而被移除/改名的模型永久残留
+  // （选中后静默回落默认模型）。自定义供应商与 extraModels 显式声明的条目不参与剔除，
+  // 边界见 syncNativeModels 注释；默认模型(cfg.model)不在此处改写。
   try { syncNativeModels(tempStore); } catch { /* 同步失败不影响启动 */ }
   // 兜底清理历史遗留的临时会话缓存(__new_ 前缀,真实会话创建后不再被读取)——防磁盘堆积
   try { cleanupTempCaches(); } catch { /* 清理失败不影响启动 */ }
   // 清理孤儿会话缓存(会话已删除/项目已移除的残留 key)——防磁盘堆积
   try { cleanupOrphanCaches(); } catch { /* 清理失败不影响启动 */ }
+  // 会话目录对齐 Pi：① 预热 SessionManager 类（getPiSessionDir 经它向 SDK 取默认路径）
+  // ② 把 EM 旧编码目录迁到 Pi 默认编码——必须早于任何会话读写，否则历史会话落在旧目录、
+  //    在新编码路径下不可见。详见 docs/design/会话目录对齐 pi 方案.md
+  // **不能在 createWindow 之前 await**：首次 dynamic import SDK 实测约 7 秒（包体大），会把窗口
+  // 出现推迟同样久。改为后台任务 + 注册「会话目录就绪门」：pi-session-dir 的异步会话入口
+  // （create/resume/list）会先 await 这道门，保证读写发生在迁移之后，窗口则照旧立即出现。
+  // 注意：NEW_SESSIONS_DIR 必须与顶部 PI_CODING_AGENT_DIR 推导出的 agentDir/sessions 一致，
+  // 否则迁移扫的目录 ≠ 会话实际落盘目录（迁了个寂寞）；改任一处都要同时改另一处。
+  // ⚠️ 一次性迁移（待移除）：清理清单见 session-dir-migration.ts 顶部
+  armSessionDirReady(
+    (async () => {
+      try {
+        await primeSessionManagerClass();
+        const r = migrateLegacySessionDirs(NEW_SESSIONS_DIR);
+        if (r.renamed > 0 || r.merged > 0 || r.failed > 0) {
+          console.log(
+            `[migrate] 会话目录对齐 Pi：改名 ${r.renamed}、并入 ${r.merged}、跳过 ${r.skipped}、失败 ${r.failed}`,
+          );
+        }
+      } catch (e) {
+        // 迁移或预热失败不阻断启动：数据保持原样，下次启动重试（迁移幂等）
+        console.error("[migrate] 会话目录对齐 Pi 未完成（下次启动重试）:", (e as Error).message);
+      }
+    })(),
+  );
   const settings = tempStore.getSettings();
   if (settings.setupComplete) {
     const lastId = tempStore.getLastProjectId();

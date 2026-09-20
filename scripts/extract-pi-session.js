@@ -5,7 +5,8 @@
  * 默认只输出 user/assistant 的纯文本对话，跳过思考块、工具调用、系统消息
  * 等噪音，最大限度节省 token。适合让 AI 快速读取一段历史会话。
  *
- * Pi 会话落盘位置：~/.easymint/agent/sessions/<编码路径>/<时间戳>_<sessionId>.jsonl
+ * Pi 会话落盘位置：~/.easymint/agent/sessions/--<编码cwd>--/<时间戳>_<sessionId>.jsonl
+ * （子目录名由 SDK 计算，与原生 pi 完全一致；编码规则见 docs/design/会话目录对齐 pi 方案.md）
  * 每行是一个 SessionEntry：{type, id, parentId, timestamp, message}
  * （type !== "message" 的行是 header/session_info/compaction 等，直接跳过）
  *
@@ -22,7 +23,7 @@
  *   -h, --help        显示帮助
  *
  * 示例：
- *   node scripts/extract-pi-session.js ~/.easymint/agent/sessions/-Users-x-project/xxx_sid.jsonl
+ *   node scripts/extract-pi-session.js ~/.easymint/agent/sessions/--Users-x-project--/xxx_sid.jsonl
  *   node scripts/extract-pi-session.js abc.jsonl --thinking --tools
  *   node scripts/extract-pi-session.js abc.jsonl -o out.txt --max-chars 50000
  */
@@ -209,10 +210,10 @@ function main() {
   -o, --output 文件 写入文件而非 stdout
   -h, --help        显示此帮助
 
-会话文件位置: ~/.easymint/agent/sessions/<编码路径>/<时间戳>_<sessionId>.jsonl
+会话文件位置: ~/.easymint/agent/sessions/--<编码cwd>--/<时间戳>_<sessionId>.jsonl
 
 示例:
-  node scripts/extract-pi-session.js ~/.easymint/agent/sessions/-Users-x-project/abc_sid.jsonl
+  node scripts/extract-pi-session.js ~/.easymint/agent/sessions/--Users-x-project--/abc_sid.jsonl
   node scripts/extract-pi-session.js abc.jsonl --thinking --tools
   node scripts/extract-pi-session.js abc.jsonl -o out.txt --max-chars 50000`);
     process.exit(opts.help ? 0 : 2);

@@ -4,7 +4,6 @@
  * 通过 pi-sdk.ts wrapper 懒加载 Pi SDK（ESM-only → CJS dynamic import）
  */
 
-import * as path from "node:path";
 import type {
   AgentSession,
   CreateAgentSessionOptions,
@@ -13,11 +12,11 @@ import type {
 } from "./pi-sdk";
 import {
   createAgentSession,
-  getSessionManagerClass,
   getDefaultResourceLoaderClass,
   getCreateCodingTools,
   getCreateExtraBuiltinTools,
 } from "./pi-sdk";
+import { ensureSessionManagerClass, getPiSessionDir } from "./pi-session-dir";
 import { createEnhancedBashTool, createStopShellTool } from "./background-shell/tool";
 import { createEnhancedPowerShellTool } from "./background-shell/powershell-tool";
 import { createEnhancedEditTool } from "./enhanced-edit";
@@ -30,6 +29,11 @@ import { Store } from "./store";
 import { wrapToolWithPermission } from "./permission/wrap-tool";
 import type { CanUseToolOptions, PermissionResult } from "./permission/agent-permission-service";
 import { mergeIntoPiSkills } from "./skill-service";
+
+// 目录工具再导出：既有调用点（project-service / session-service / migration-service /
+// task/executor / agent-service）仍从本模块引用，避免无谓的 import 面改动。
+// 实现在 pi-session-dir（独立模块，依赖面小、可单测）。
+export { getPiSessionDir };
 
 // ── 类型 ────────────────────────────────────────────
 
@@ -135,8 +139,8 @@ async function buildSession(
 }
 
 export async function createPiSession(opts: PiSessionOptions): Promise<AgentSession> {
+  const SM = await ensureSessionManagerClass();
   const sessionDir = opts.sessionDir ?? getPiSessionDir(opts.cwd);
-  const SM = await getSessionManagerClass();
   const sessionManager = SM.create(opts.cwd, sessionDir);
   return buildSession(opts, sessionManager);
 }
@@ -145,25 +149,15 @@ export async function resumePiSession(opts: PiSessionOptions): Promise<AgentSess
   if (!opts.resumeSessionFile) {
     throw new Error("resumeSessionFile is required for resume");
   }
+  const SM = await ensureSessionManagerClass();
   const sessionDir = getPiSessionDir(opts.cwd);
-  const SM = await getSessionManagerClass();
   const sessionManager = SM.open(opts.resumeSessionFile, sessionDir, opts.cwd);
   return buildSession(opts, sessionManager);
 }
 
-// ── 辅助 ────────────────────────────────────────────
-
-const os = require("node:os");
-
-/** 全局会话目录：agentDir/sessions/<项目路径编码>/（Pi 默认布局；agentDir = ~/.easymint/agent，v0.7.2 起归默认） */
-export function getPiSessionDir(cwd: string): string {
-  const base = path.join(os.homedir(), ".easymint", "agent", "sessions");
-  const encoded = cwd.replace(/[:/\\]/g, "-");
-  return path.join(base, encoded);
-}
 
 export async function listPiSessions(cwd: string) {
-  const SM = await getSessionManagerClass();
+  const SM = await ensureSessionManagerClass();
   const sessionDir = getPiSessionDir(cwd);
   return SM.list(cwd, sessionDir);
 }
