@@ -26,11 +26,13 @@ beforeAll(() => {
       configs: {
         "deepseek-1": {
           id: "deepseek-1", presetId: "deepseek", name: "DeepSeek", apiKey: "sk-test",
-          model: "deepseek-v4-flash", models: ["deepseek-v4-flash", "deepseek-v4-pro"], createdAt: 1,
+          // 官方 id 会随 SDK 目录变化：deepseek-v4-flash 在 SDK 0.86.0 被改名为 deepseek-flash
+          // （本文件的"前置探针"用例会在 id 失效时给出可归因的失败，而不是让断言以 undefined 报错）
+          model: "deepseek-flash", models: ["deepseek-flash", "deepseek-v4-pro"], createdAt: 1,
           // 存量数据:纯字符串条目 / 缺参对象条目 / 带别名条目
           extraModels: ["deepseek-v4-flash-x", { id: "glm-5.3-x" }, { id: "foo", alias: "foo-x", contextWindow: 512000, maxTokens: 32768 }],
           // 官方模型参数覆盖(空对象 = 全跟随官方,应跳过不写)
-          modelOverrides: { "deepseek-v4-flash": { contextWindow: 512000 }, "deepseek-v4-pro": {} },
+          modelOverrides: { "deepseek-flash": { contextWindow: 512000 }, "deepseek-v4-pro": {} },
         },
         "custom-1": {
           id: "custom-1", presetId: "custom", name: "网关", apiKey: "sk-test",
@@ -50,6 +52,28 @@ beforeAll(() => {
 });
 
 describe("模型参数统一管理·数据层", () => {
+  it("前置探针：本用例依赖的官方模型 id 在当前 SDK 目录中确实存在", async () => {
+    // 本文件的断言围绕「官方目录里已有同名模型 → EM 不写覆盖」展开，因此依赖 SDK 静态目录的具体 id。
+    // 而 SDK 升级会改名/移除模型（2026-09-20：0.86.0 把 deepseek-v4-flash 改名为 deepseek-flash，
+    // 并移除 Codex 的 gpt-5.4）。没有探针时，id 失效会退化成 "Cannot read properties of undefined"
+    // 这类无指向的报错；有探针则一眼看出该改哪里。
+    const { getProviderStaticModels } = await import("./pi-init-static");
+    const required: Record<string, string[]> = {
+      deepseek: ["deepseek-flash", "deepseek-v4-pro"],
+      anthropic: ["claude-opus-4-6"],
+    };
+    for (const [providerId, ids] of Object.entries(required)) {
+      const siblings = getProviderStaticModels(providerId);
+      expect(siblings.size, `${providerId} 目录为空（SDK 数据文件路径变了？）`).toBeGreaterThan(0);
+      for (const id of ids) {
+        expect(
+          siblings.has(id),
+          `${providerId}/${id} 已不在 SDK 目录：SDK 改名或移除了它 → 请更新本测试文件里的模型 id`,
+        ).toBe(true);
+      }
+    }
+  });
+
   it("存量迁移 / 参数覆盖 / 别名映射 / 取消近似匹配", async () => {
     const { Store } = await import("./store");
     const { migrateExtraModels } = await import("./extra-models-migration");
@@ -82,7 +106,7 @@ describe("模型参数统一管理·数据层", () => {
     // 既无手动模型也无有效覆盖的供应商:整条不写(空 models 会被 SDK 判非法)
     expect(json.providers.anthropic).toBeUndefined();
     expect(rt.getModel("anthropic", "claude-opus-4-6")!.maxTokens).not.toBe(64000);
-    expect(rt.getModel("deepseek", "deepseek-v4-flash")!.contextWindow).not.toBe(512000);
+    expect(rt.getModel("deepseek", "deepseek-flash")!.contextWindow).not.toBe(512000);
     expect(rt.getModel("deepseek", "deepseek-v4-pro")!.contextWindow).not.toBe(512000);
     // 别名:请求 id = alias,展示名 = 名称
     const foo = rt.getModel("deepseek", "foo-x")!;
