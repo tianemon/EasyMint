@@ -1,7 +1,7 @@
+import { toast } from "../components/ui/Toast";
 import { create } from "zustand";
 import { normalizeExtraModels } from "@shared/platform-presets";
 import type { ApiProvidersData, ProviderConfig } from "@shared/platform-presets";
-import { useTabStore } from "./tab-store";
 
 /** 多色流光分组:一组命名色彩组合 */
 export interface GlowColorGroup {
@@ -153,7 +153,7 @@ interface SettingsState {
   setStatusTextGroupsDark: (v: GlowColorGroup[]) => void;
   setActiveStatusGroupLight: (v: string) => void;
   setActiveStatusGroupDark: (v: string) => void;
-  setApiProviders: (data: ApiProvidersData) => void;
+  setApiProviders: (data: ApiProvidersData) => Promise<boolean>;
   activateProvider: (providerId: string) => void;
   loadFromElectron: () => Promise<void>;
 }
@@ -190,7 +190,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setModel: (model: string) => {
     set({ model });
-    window.electronAPI?.settings?.set?.("model", model);
+    window.electronAPI?.settings?.set?.("model", model).then(() => get().loadFromElectron()).catch((error: Error) => {
+      toast(`保存默认模型失败：${error.message}`);
+      void get().loadFromElectron();
+    });
   },
   setDefaultProjectDir: (dir) => {
     set({ defaultProjectDir: dir });
@@ -202,7 +205,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   setChatThinkingLevel: (level: string) => {
     set({ chatThinkingLevel: level });
-    window.electronAPI?.settings?.set?.("chatThinkingLevel", level);
+    window.electronAPI?.settings?.set?.("chatThinkingLevel", level).then(() => get().loadFromElectron()).catch((error: Error) => {
+      toast(`保存默认思考等级失败：${error.message}`);
+      void get().loadFromElectron();
+    });
   },
   setChatPermissionMode: (mode: "readonly" | "standard" | "full") => {
     set({ chatPermissionMode: mode });
@@ -238,56 +244,21 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setActiveStatusGroupLight: (v) => { set({ activeStatusGroupLight: v }); window.electronAPI?.settings?.set?.("activeStatusGroupLight", v); },
   setActiveStatusGroupDark: (v) => { set({ activeStatusGroupDark: v }); window.electronAPI?.settings?.set?.("activeStatusGroupDark", v); },
 
-  setApiProviders: (data: ApiProvidersData) => {
-    // 同步激活供应商的模型信息到旧字段（ChatPanel 下拉引用）
-    const activeId = data.current;
-    const activeCfg = activeId ? data.configs[activeId] : undefined;
-    const patch: Partial<SettingsState> = { apiProviders: data };
-    if (activeCfg) {
-      if (activeCfg.model) patch.model = activeCfg.model;
-      if (activeCfg.models.length > 0) patch.availableModels = activeCfg.models;
-      patch.modelLabels = extraModelLabels(activeCfg);
-    }
-    set(patch);
-    window.electronAPI?.settings?.set?.("apiProviders", data);
-    // 官方目录的展示名异步补进映射(自添加模型的名称已在上面同步拿到)
-    if (activeCfg) {
-      void officialModelLabels(activeCfg).then((official) => {
-        if (Object.keys(official).length === 0) return;
-        set({ modelLabels: { ...official, ...get().modelLabels } });
-      });
+  setApiProviders: async (data: ApiProvidersData) => {
+    try {
+      await window.electronAPI.settings.set("apiProviders", data);
+      await get().loadFromElectron();
+      return true;
+    } catch (error) {
+      toast(`保存供应商失败：${(error as Error).message}`);
+      await get().loadFromElectron();
+      return false;
     }
   },
 
   activateProvider: (providerId: string) => {
     const current = get().apiProviders;
-    if (!current) return;
-    const next: ApiProvidersData = { ...current, current: providerId };
-    const activeCfg = next.configs[providerId];
-    const patch: Partial<SettingsState> = { apiProviders: next };
-    if (activeCfg) {
-      if (activeCfg.model) patch.model = activeCfg.model;
-      if (activeCfg.models.length > 0) patch.availableModels = activeCfg.models;
-      patch.modelLabels = extraModelLabels(activeCfg);
-    }
-    set(patch);
-    window.electronAPI?.settings?.set?.("apiProviders", next);
-    if (activeCfg) {
-      void officialModelLabels(activeCfg).then((official) => {
-        if (Object.keys(official).length === 0) return;
-        set({ modelLabels: { ...official, ...get().modelLabels } });
-      });
-    }
-    // 设置中切供应商 → 当前活跃会话同步热切(会话级绑定持久化到 session-cache,
-    // 后续 resume 恢复绑定)。主进程 setModel 带 providerId 用指定供应商解析模型
-    if (activeCfg?.model) {
-      const { tabs, activeTabId } = useTabStore.getState();
-      const tab = tabs.find((t) => t.id === activeTabId && t.type === "chat" && t.sessionId);
-      if (tab?.sessionId) {
-        window.electronAPI?.agent?.setModel?.(tab.sessionId, activeCfg.model, providerId).catch(() => {});
-        window.electronAPI?.sessionCache?.write?.(tab.sessionId, { provider: providerId, model: activeCfg.model }).catch(() => {});
-      }
-    }
+    if (current) void get().setApiProviders({ ...current, current: providerId });
   },
 
   loadFromElectron: async () => {

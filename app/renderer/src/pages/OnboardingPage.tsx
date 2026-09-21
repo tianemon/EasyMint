@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSettingsStore } from "../stores/settings-store";
 import { useThemeStore } from "../stores/theme-store";
+import { PiImport } from "../components/settings/PiImport";
 import { ProviderForm } from "../components/settings/ProviderSettings";
 import { EnvPanel } from "../components/env/EnvPanel";
 import { TavilyKeySection } from "../components/settings/TavilyKeySection";
@@ -44,16 +45,16 @@ export function OnboardingPage(): JSX.Element {
 
   const handleProviderSave = async (cfg: ProviderConfig) => {
     // 复用已保存的 ID，避免重复创建
-    const id = savedCfg?.id || cfg.id;
+    const id = cfg.id;
     const finalCfg = { ...cfg, id };
     // 以主进程配置为基底：渲染态未加载完成时为空，用它重建会丢掉已有供应商配置
     const saved = (await window.electronAPI.settings.get()).apiProviders;
     const nextData: ApiProvidersData = {
+      ...saved,
       current: id,
       configs: { ...(saved?.configs ?? {}), [id]: finalCfg },
     };
-    setApiProviders(nextData);
-    setSavedCfg(finalCfg);
+    if (await setApiProviders(nextData)) setSavedCfg(finalCfg);
   };
 
   const handleComplete = () => {
@@ -171,6 +172,7 @@ export function OnboardingPage(): JSX.Element {
               <p className="text-text-secondary text-center text-sm mb-6">
                 选择一个平台并填写 API Key 即可开始使用
               </p>
+              <PiImport />
               {savedCfg ? (
                 <div className="bg-surface-alt rounded-[var(--radius-lg)] p-4 space-y-4">
                   <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-lg)] bg-accent-soft">

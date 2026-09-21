@@ -10,6 +10,7 @@ import { BRAND_BY_PI_ID, providerSelectOptions } from "../../lib/provider-brands
 import { authModeView } from "../../lib/auth-mode";
 import { toast } from "../ui/Toast";
 import { confirmDialog } from "../ui/ConfirmDialog";
+import { PiImport } from "./PiImport";
 import { ModelManager, type OfficialModelInfo } from "./ModelManager";
 import { ACCOUNT_LOGIN_HINTS, ProviderAccountAuth, useProviderAuthStatus } from "./ProviderAccountAuth";
 
@@ -19,7 +20,7 @@ export interface ProviderFormHandle {
 }
 
 export interface ProviderFormProps {
-  onSave: (cfg: ProviderConfig) => void;
+  onSave: (cfg: ProviderConfig) => void | Promise<void>;
   onCancel?: () => void;
   initial?: ProviderConfig | null;
   /** 隐藏表单自带的底部保存条(宿主自带操作栏时用,如独立弹窗) */
@@ -156,7 +157,8 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
   const loadModels = async (providerId: string) => {
     try {
       const piModels: OfficialModelInfo[] = [...await window.electronAPI.agent.getPiModels(providerId)];
-      setOfficialModels(piModels);
+      const declared = new Set(normalizeExtraModels(initial?.extraModels).map(m => m.id));
+      setOfficialModels(piModels.filter(m => !declared.has(m.id)));
       const first = piModels[0]?.id;
       if (!model && first) setModel(first);
     } catch (e) { console.error("[ProviderForm] loadModels failed:", e); }
@@ -188,8 +190,8 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     // 凭据在 auth.json 里，重复保存不该被拦下。
     if (usesAccountLogin && oauthStatus !== null && !accountLoggedIn) {
       toast(`请先登录 ${providerLabel}`); return false;
-    } else if (!usesAccountLogin && !apiKey.trim()) { toast("请输入 API Key"); return false; }
-    if (isCustom && !baseUrl.trim()) { toast("自定义供应商需填写 Base URL"); return false; }
+    }
+    if (isCustom && !initial && !baseUrl.trim()) { toast("自定义供应商需填写 Base URL"); return false; }
     // 自添加模型必须显式声明参数:数据层不推断,SDK 兜底(128K/16K)与 EM 兜底都可能与实际不符,
     // 1M 窗口的模型会过早触发压缩——从入口拦住比事后排查便宜
     const pending = normalizeExtraModels(extraModels)
@@ -200,7 +202,8 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       ? Array.from(new Set(extraSdkIds))
       : Array.from(new Set([...officialIds, ...extraSdkIds]));
     const cfg: ProviderConfig = {
-      id: initial?.id || `${(presetId || "custom")}-${Date.now()}`,
+      nativeRevision: initial?.nativeRevision,
+      id: initial?.id || (isCustom ? `custom-${Date.now()}` : presetId),
       presetId: isCustom ? "custom" : presetId,
       name: name.trim(),
       // 账号登录必须清空 apiKey：runtime key 的优先级高于 auth.json，留着会让 OAuth 凭据永远用不上
@@ -213,11 +216,11 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
       extraModels: extraModels.length > 0 ? extraModels : undefined,
       modelOverrides: initial?.modelOverrides,
       createdAt: initial?.createdAt || Date.now(),
-      baseUrl: isCustom ? baseUrl.trim() || undefined : undefined,
-      apiType: isCustom ? apiType : undefined,
+      baseUrl: isCustom ? baseUrl.trim() || undefined : initial?.baseUrl,
+      apiType: isCustom ? (initial && !initial.apiType && apiType === "anthropic-messages" ? undefined : apiType) : initial?.apiType,
     };
-    onSave(cfg);
-    return true;
+    try { await onSave(cfg); return true; }
+    catch (error) { toast((error as Error).message); return false; }
   };
 
   // 暴露 save 给宿主(独立弹窗底部操作栏经 ref 触发)
@@ -411,7 +414,7 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
  *  不会同时触发,避免一次按键关两层。 */
 export function ProviderFormDialog({ initial, onSave, onClose }: {
   initial?: ProviderConfig | null;
-  onSave: (cfg: ProviderConfig) => void;
+  onSave: (cfg: ProviderConfig) => void | Promise<void>;
   onClose: () => void;
 }): JSX.Element {
   const saveRef = useRef<ProviderFormHandle>(null);
@@ -478,14 +481,15 @@ export function ProvidersManager() {
     // 以主进程配置为基底：渲染态在 loadFromElectron 未完成/失败时为空，用它重建会把其他供应商连 key 一起覆盖掉
     const saved = (await window.electronAPI.settings.get()).apiProviders;
     const updated = { ...(saved?.configs ?? {}), [cfg.id]: cfg };
-    setApiProviders({ current: saved?.current ?? cfg.id, configs: updated });
-    setDialog(null);
+    if (dialog?.mode === "add" && saved?.configs?.[cfg.id]) throw new Error("该供应商已存在，请编辑已有配置");
+    const ok = await setApiProviders({ ...saved, current: saved?.current ?? cfg.id, configs: updated });
+    if (ok) setDialog(null);
   };
 
   const handleDelete = async (id: string) => {
     const ok = await confirmDialog({
       title: "删除供应商",
-      message: `将删除「${apiProviders?.configs?.[id]?.name ?? ""}」，其 API Key 与模型配置一并移除，不可恢复。`,
+      message: `将删除「${apiProviders?.configs?.[id]?.name ?? ""}」，其 API Key 与模型配置将移除，原配置会保留备份。`,
       confirmText: "删除",
       danger: true,
     });
@@ -493,11 +497,12 @@ export function ProvidersManager() {
     const next = { ...(apiProviders?.configs ?? {}) };
     delete next[id];
     const current: string | null = apiProviders?.current === id ? (Object.keys(next)[0] ?? null) : (apiProviders?.current ?? null);
-    setApiProviders({ current, configs: next });
+    await setApiProviders({ ...apiProviders!, current, configs: next });
   };
 
   return (
     <div className="space-y-3">
+      <PiImport />
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-text-secondary">API 供应商</h3>
         <button onClick={() => setDialog({ mode: "add" })}
