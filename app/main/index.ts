@@ -138,7 +138,6 @@ function watchRendererGone(window: BrowserWindow): void {
 }
 
 export async function createWindow(hash?: string, _isMain = false): Promise<BrowserWindow> {
-  await getNativeConfig(new Store());
   const window = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -314,13 +313,15 @@ app.whenReady().then(async () => {
   // 恢复上次打开的项目（仅在 setup 完成后）
   let startHash: string | undefined;
   const tempStore = new Store();
-  // Migration must finish before any window can read/write provider settings.
-  try { await getNativeConfig(tempStore); }
-  catch (error) {
+  // 配置迁移在后台进行，不阻塞窗口出现：所有读配置的入口（settings:get / settings:set /
+  // agent:*）都经 getNativeConfig 自然等它就绪，「迁移早于任何配置读写」仍然成立。
+  // 在此 await 会把窗口出现推迟首次 SDK 冷导入的时长（实测约 9 秒）——与本文件下方
+  // 「会话目录对齐 Pi」注释记载的规则（不能在 createWindow 之前 await SDK 导入）同源。
+  const configReady = getNativeConfig(tempStore);
+  configReady.catch((error) => {
     dialog.showErrorBox("配置加载失败", `${(error as Error).message}\n原始配置或迁移备份已保留，请修复配置后重新启动。`);
     app.quit();
-    return;
-  }
+  });
   // 兜底清理历史遗留的临时会话缓存(__new_ 前缀,真实会话创建后不再被读取)——防磁盘堆积
   try { cleanupTempCaches(); } catch { /* 清理失败不影响启动 */ }
   // 清理孤儿会话缓存(会话已删除/项目已移除的残留 key)——防磁盘堆积
