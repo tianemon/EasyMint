@@ -240,9 +240,11 @@ export class NativeConfig {
     return this.storage.read(this.files.em).legacyProviderIds?.[id] ?? id;
   }
   async importPi(sourceDir: string, apply = false, probe = false) {
+    // probe 是零 IO 的目录存在性检查（不碰本实例状态、不读文件内容），
+    // 不进 serial 队列——挂在引导页/设置页挂载时机，若与导入等重事务互斥排队，
+    // 探测会被无关事务拖延。
+    if (probe) return probePiImport(sourceDir);
     return this.serial(async () => {
-      // probe：挂载探测，只看目录里有没有东西，不做 refresh、不读任何文件内容
-      if (probe) return probePiImport(sourceDir);
       await this.refresh();
       const plan = await buildPiImport(this, sourceDir);
       if (!apply || !plan.summary.found) return plan.summary;

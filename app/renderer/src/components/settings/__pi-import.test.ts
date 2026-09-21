@@ -21,7 +21,7 @@ vi.mock("../../stores/settings-store", () => {
 vi.mock("../ui/ConfirmDialog", () => ({ confirmDialog: vi.fn(async (): Promise<boolean> => true) }));
 vi.mock("../ui/Toast", () => ({ toast: vi.fn() }));
 
-const { PiImportCard, PiImportSection, envAutoAdvanceAllowed, piImportConfirmMessage, runPiImportFlow } =
+const { PiImportCard, PiImportSection, envAutoAdvanceAllowed, manualSkipDropsAutoAdvance, piImportConfirmMessage, runPiImportFlow } =
   await import("./PiImport");
 const { confirmDialog } = await import("../ui/ConfirmDialog");
 const { toast } = await import("../ui/Toast");
@@ -77,6 +77,18 @@ describe("Step 2 自动跳转门控（envAutoAdvanceAllowed）", () => {
 
   it("未命中 → 放行：Step 2 保持纯过场原行为（大多数用户无感知）", () => {
     expect(envAutoAdvanceAllowed("miss", false)).toBe(true);
+  });
+});
+
+describe("手动跳过后的自动跳转收敛（manualSkipDropsAutoAdvance）", () => {
+  it("命中且未导入 → 收走：返回重挂走普通态，不再发被门控拦的 onReady", () => {
+    expect(manualSkipDropsAutoAdvance("hit", false)).toBe(true);
+  });
+
+  it("未命中 / 已导入 / 探测未落定 → 保持既有语义（跳过不影响自动跳转）", () => {
+    expect(manualSkipDropsAutoAdvance("miss", false)).toBe(false);
+    expect(manualSkipDropsAutoAdvance("hit", true)).toBe(false);
+    expect(manualSkipDropsAutoAdvance("pending", false)).toBe(false);
   });
 });
 

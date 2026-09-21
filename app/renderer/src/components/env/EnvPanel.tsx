@@ -265,13 +265,17 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, ref }
   // ── 就绪即交回宿主（引导流程据此自动进入下一步）───────────────────────────────
   // 判据用**必装项**：可选项（如 Windows 的 Git Bash）没装不挡路，只在副标题里提一句。
   // 还要等过最短停留：否则"探一下就完事"的机器上，交回宿主 → 页面立刻跳走，动画等于没显示。
+  // handedOff 守卫（2026-09-21）：交回过一次就不再重复发信号——宿主可能把信号挂起
+  // （如引导页 Step 2 检测到 pi 配置时收走自动跳转），挂起期间 report 刷新 / holdMin
+  // 走完都会让本 effect 重跑；此前依赖宿主回调自身幂等兜着，属于隐式契约，现在面板侧显式保证。
   useEffect(() => {
-    if (!onReady || !report || probing || probeFailed) return;
+    if (!onReady || handedOff) return;
+    if (!report || probing || probeFailed) return;
     if (requiredBroken > 0) return;
     if (holdMin) return;
     setHandedOff(true);   // 副标题据此改口为"正在进入下一步"，别让用户以为卡住了
     onReady();
-  }, [onReady, report, probing, probeFailed, requiredBroken, holdMin]);
+  }, [onReady, handedOff, report, probing, probeFailed, requiredBroken, holdMin]);
 
   const turnOffSandbox = async (): Promise<void> => {
     const okToOff = await confirmDialog({

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSettingsStore } from "../stores/settings-store";
 import { useThemeStore } from "../stores/theme-store";
-import { PiImportCard, envAutoAdvanceAllowed } from "../components/settings/PiImport";
+import { PiImportCard, envAutoAdvanceAllowed, manualSkipDropsAutoAdvance } from "../components/settings/PiImport";
 import { ProviderForm } from "../components/settings/ProviderSettings";
 import { EnvPanel } from "../components/env/EnvPanel";
 import { TavilyKeySection } from "../components/settings/TavilyKeySection";
@@ -64,7 +64,6 @@ export function OnboardingPage(): JSX.Element {
     navigate("/");
   };
 
-  const goNext = useCallback(() => setCurrentStep((s) => Math.min(s + 1, STEPS.length - 1)), []);
   const goPrev = useCallback(() => setCurrentStep((s) => Math.max(s - 1, 0)), []);
 
   // ── Step 2 的 pi 配置检测（2026-09-21 布点，用户拍板）──
@@ -125,6 +124,16 @@ export function OnboardingPage(): JSX.Element {
     setWillAutoAdvance(false);
     setCurrentStep((s) => (s === 1 ? s + 1 : s));
   }, []);
+
+  // 手动离开 Step 2 时：门控场景（命中 pi 未导入）下收走「就绪即自动离开」——
+  // 跳过是显式决定，返回重挂走普通态（依赖状态列表 + 仍可导入的 pi 卡片），
+  // 而不是过场动画 + 每次都被门控拦住的 onReady（行为对但路径绕）。
+  const goNext = useCallback(() => {
+    if (currentStep === 1 && manualSkipDropsAutoAdvance(piProbe, piImported.current)) {
+      setWillAutoAdvance(false);
+    }
+    setCurrentStep((s) => Math.min(s + 1, STEPS.length - 1));
+  }, [currentStep, piProbe]);
 
   return (
     <div className="flex flex-col h-full">

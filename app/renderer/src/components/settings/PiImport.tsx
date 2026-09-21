@@ -26,6 +26,16 @@ export function envAutoAdvanceAllowed(piProbe: "pending" | "hit" | "miss", piImp
   return true;
 }
 
+/**
+ * 用户手动离开 Step 2（点「下一步」跳过导入）后，返回重挂时还要不要「就绪即自动离开」。
+ * 命中 pi 且未导入 → 收走：跳过是用户的显式决定，返回时 EnvPanel 走普通态
+ * （显示依赖状态），pi 卡片仍在可导入；留着的话 onReady 每次都发、每次被门控拦，
+ * 行为对但路径绕。未命中 / 已导入 → 保持既有语义（miss 放行、导入完成路径自会收走）。
+ */
+export function manualSkipDropsAutoAdvance(piProbe: "pending" | "hit" | "miss", piImported: boolean): boolean {
+  return piProbe === "hit" && !piImported;
+}
+
 /** 确认弹窗正文：逐项说明会导入什么、跳过什么（message 走 whitespace-pre-line，\n 即换行） */
 export function piImportConfirmMessage(plan: PiImportSummary): string {
   const lines = [`供应商 ${plan.providers} 个 · 会话 ${plan.sessions} 个 · 项目记录 ${plan.projects} 个`];
