@@ -118,3 +118,9 @@ export async function getDefineToolFn() {
   const sdk = await getSdk();
   return sdk.defineTool;
 }
+
+/** Read-only parsing helpers; importing a transcript must never open/write the source session. */
+export async function getSessionDataHelpers() {
+  const sdk = await getSdk();
+  return { currentVersion: sdk.CURRENT_SESSION_VERSION, parseSessionEntries: sdk.parseSessionEntries, migrateSessionEntries: sdk.migrateSessionEntries, buildSessionContext: sdk.buildSessionContext };
+}

@@ -1,6 +1,6 @@
 import os from "os";
 import fs from "fs";
-import { app, BrowserWindow, shell, ipcMain, Menu, nativeTheme } from "electron";
+import { app, BrowserWindow, shell, ipcMain, Menu, nativeTheme, dialog } from "electron";
 import path from "path";
 import { loadUserEnv } from "./utils/user-path";
 import { installSystemProxyFetch, redactProxyUrl } from "./services/system-proxy";
@@ -88,10 +88,10 @@ import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
 import { AgentService, setMainWindow } from "./services/agent-service";
 import { Store } from "./services/store";
-import { syncNativeModels } from "./services/pi-init";
+import { getNativeConfig } from "./services/native-config";
 import { armSessionDirReady, primeSessionManagerClass } from "./services/pi-session-dir";
 import { migrateLegacySessionDirs } from "./services/session-dir-migration";
-import { migrateExtraModels, migrateModelIdentity } from "./services/extra-models-migration";
+
 import { cleanupOrphanCaches, cleanupTempCaches } from "./services/session-cache";
 import { watchProjectWindow } from "./services/window-manager";
 import { SessionCoordinator } from "./services/session-coordinator";
@@ -138,6 +138,7 @@ function watchRendererGone(window: BrowserWindow): void {
 }
 
 export async function createWindow(hash?: string, _isMain = false): Promise<BrowserWindow> {
+  await getNativeConfig(new Store());
   const window = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -294,7 +295,7 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
   return window;
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // 先按系统外观应用一次 Dock 图标（仅 macOS；其它平台在 applyDockIcon 内直接返回）。
   // 已知限制：应用有窗口之前调用不会立刻改变可见图标（启动阶段那张 tile 是 macOS 用 bundle 图标画的，
   // 要等窗口出现才重绘）——这步只让那次重绘就用上我们的图标与最接近的主题。
@@ -313,16 +314,13 @@ app.whenReady().then(() => {
   // 恢复上次打开的项目（仅在 setup 完成后）
   let startHash: string | undefined;
   const tempStore = new Store();
-  // 存量 extraModels(string 形态)显式化参数——取消近似匹配前先固化当前生效值，
-  // 否则窗口会回落 200000 导致过早压缩。一次性写 em-settings.json(幂等)
-  try { migrateExtraModels(tempStore); } catch (e) { console.warn("[main] 模型参数迁移失败:", (e as Error).message); }
-  // 模型身份改写:旧「id=显示名 + alias=请求标识」→ 新「id=请求标识 + name=显示名」(请求标识不变)
-  try { migrateModelIdentity(tempStore); } catch (e) { console.warn("[main] 模型身份迁移失败:", (e as Error).message); }
-  // 缓存模型列表(聊天页下拉/会话页模型选择的数据源)与 SDK 目录对齐——**以目录为准(增+删)**：
-  // 只增不减会让新模型必须"打开供应商配置页保存一次"才出现，而被移除/改名的模型永久残留
-  // （选中后静默回落默认模型）。自定义供应商与 extraModels 显式声明的条目不参与剔除，
-  // 边界见 syncNativeModels 注释；默认模型(cfg.model)不在此处改写。
-  try { syncNativeModels(tempStore); } catch { /* 同步失败不影响启动 */ }
+  // Migration must finish before any window can read/write provider settings.
+  try { await getNativeConfig(tempStore); }
+  catch (error) {
+    dialog.showErrorBox("配置加载失败", `${(error as Error).message}\n原始配置或迁移备份已保留，请修复配置后重新启动。`);
+    app.quit();
+    return;
+  }
   // 兜底清理历史遗留的临时会话缓存(__new_ 前缀,真实会话创建后不再被读取)——防磁盘堆积
   try { cleanupTempCaches(); } catch { /* 清理失败不影响启动 */ }
   // 清理孤儿会话缓存(会话已删除/项目已移除的残留 key)——防磁盘堆积

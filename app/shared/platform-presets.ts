@@ -40,12 +40,14 @@ export interface ExtraModelCapability {
 }
 
 export interface ProviderConfig {
+  /** Read revision carried by an open editor; never persisted. */
+  nativeRevision?: string;
   id: string;              // 用户配置 ID
   presetId: string;        // Pi Provider.id,自定义供应商用 "custom"
   name: string;            // 用户自定义名称
   apiKey: string;
   model: string;           // 该供应商的默认模型(激活时优先使用)
-  models: string[];        // 缓存：上次获取的模型列表
+  models: string[];        // SDK 解析后的模型列表（内存视图，不落盘）
   createdAt: number;
   /** 用户手动补充的模型(SDK 列表外的自定义模型,如新上线;保存时与 models 合并去重)。
    *  string = 仅 ID(存量数据,由启动迁移显式化为对象);对象 = 带显式能力声明。
@@ -63,7 +65,9 @@ export interface ProviderConfig {
   authType?: "api_key" | "oauth";
 }
 
+/** UI projection of pi configuration; never persisted as an EM provider database. */
 export interface ApiProvidersData {
+  revision?: string;
   current: string | null;
   configs: Record<string, ProviderConfig>;
 }

@@ -1,151 +1,183 @@
-/**
- * 缓存模型列表与 SDK 目录的对齐（syncNativeModels）。
- *
- * 语义：内置供应商的 config.models 以 SDK 目录为准「增 + 删」——集合与用户在供应商页保存一次
- * 的结果一致；顺序取最小扰动（保留现有顺序、剔除失效项、新模型追加尾部）。
- * 自定义供应商与 extraModels 显式声明的条目不参与剔除。
- *
- * 断言纪律：期望值一律取自 getProviderStaticModels() 的实际输出，**不硬编码官方模型 id**。
- * 硬编码会在 SDK 升级改名/增删模型时变成假红（2026-09-20：0.86.0 把 deepseek-v4-flash
- * 改名为 deepseek-flash，就 red 掉了一个硬编码旧 id 的用例）。
- * 隔离手段同 __model-params.test.ts：临时 HOME + 临时 PI_CODING_AGENT_DIR。
- */
-import { describe, it, expect, vi, beforeAll } from "vitest";
-import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
+/** Integration tests against the installed SDK, with explicit temporary paths. */
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { Store } from "./store";
+import { NativeConfig } from "./native-config";
+import { NativeConfigStorage, atomicWrite, encode } from "./native-config-storage";
+import { getProviderStaticModels } from "./pi-init-static";
 
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir() } }));
+const dirs: string[] = [];
+const read = (file: string) => JSON.parse(fs.readFileSync(file, "utf8"));
+function fixture(em: Record<string, any> = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-native-config-")); dirs.push(dir);
+  const store = new Store(dir);
+  atomicWrite(path.join(dir, "em-settings.json"), encode(em));
+  return { dir, store, file: (name: string) => path.join(dir, "agent", `${name}.json`) };
+}
+const custom = {
+  id: "custom-local", presetId: "custom", name: "Local", apiKey: "test-key", createdAt: 1,
+  baseUrl: "http://localhost:1234/v1", apiType: "openai-completions", model: "test-model",
+  models: ["test-model"], extraModels: [{ id: "test-model", name: "Test", contextWindow: 100000, maxTokens: 8000 }],
+};
+afterEach(() => { vi.restoreAllMocks(); for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true }); });
 
-let dataDir = "";
-/** 目标供应商（deepseek）的 SDK 目录 id，顺序即目录顺序 */
-let dirIds: string[] = [];
+describe("pi-native configuration", () => {
+  it("migrates credentials, custom models and defaults once, with exact backups and duplicate selection", async () => {
+    const id = [...getProviderStaticModels("deepseek").keys()][0]!;
+    const builtin = { ...custom, id: "ds-active", presetId: "deepseek", model: id, models: [id], extraModels: [] };
+    const old = { setupComplete: true, apiKeys: { TAVILY_API_KEY: "search-test" }, chatThinkingLevel: "high", apiProviders: {
+      current: "ds-active", configs: { "ds-other": { ...builtin, id: "ds-other", apiKey: "other-key" }, "ds-active": builtin, [custom.id]: custom },
+    } };
+    const { dir, store, file } = fixture(old);
+    atomicWrite(file("auth"), encode({ "openai-codex": { type: "oauth", access: "test-access", refresh: "test-refresh", expires: 9999999999999 } }));
+    const before = fs.readFileSync(path.join(dir, "em-settings.json"), "utf8");
+    const repo = await NativeConfig.create(store);
+    expect(read(file("auth")).deepseek).toEqual({ type: "api_key", key: "test-key" });
+    expect(read(file("auth"))["openai-codex"].refresh).toBe("test-refresh");
+    expect(read(file("settings"))).toMatchObject({ defaultProvider: "deepseek", defaultModel: id, defaultThinkingLevel: "high" });
+    expect((await repo.getRuntime()).getModel(custom.id, "test-model")?.contextWindow).toBe(100000);
+    const em = read(path.join(dir, "em-settings.json"));
+    expect(em.apiProviders).toBeUndefined(); expect(em.chatThinkingLevel).toBeUndefined();
+    expect(em.apiKeys).toEqual(old.apiKeys);
+    expect(em.nativeConfigMigration.duplicateConfigIds).toEqual(["ds-other"]);
+    expect(repo.resolveProviderId("ds-active")).toBe("deepseek");
+    const backupDir = path.join(dir, "config-backups", fs.readdirSync(path.join(dir, "config-backups"))[0]!);
+    expect(fs.readFileSync(path.join(backupDir, "em-settings.json"), "utf8")).toBe(before);
+    const snapshot = [file("models"), file("auth"), file("settings")].map(p => fs.readFileSync(p, "utf8"));
+    await NativeConfig.create(new Store(dir));
+    expect([file("models"), file("auth"), file("settings")].map(p => fs.readFileSync(p, "utf8"))).toEqual(snapshot);
+    store.saveSettings({ ...store.getSettings(), lastProjectId: "project" });
+    expect(read(path.join(dir, "em-settings.json")).apiProviders).toBeUndefined();
+  }, 60000);
 
-/** 夹具里"必定不在任何 SDK 目录"的假 id */
-const GHOST = "ghost-removed-model";
-/** 夹具里用户显式声明的第三方请求标识（官方目录未收录） */
-const THIRD_PARTY = "third-party-x";
-/** 旧形态声明（无 name，请求标识在 alias）归一化后的请求标识 */
-const LEGACY_ALIAS = "legacy-alias-x";
+  it("reads existing pi files and edits only requested fields, preserving advanced declarations", async () => {
+    const { store, file } = fixture();
+    const native = { providers: { local: {
+      name: "Hand written", api: "openai-completions", baseUrl: "http://localhost:1234/v1", headers: { "X-Test": "keep" },
+      models: [{ id: "m", name: "M", contextWindow: 50000, maxTokens: 4000, samplingParams: { temperature: 0.3 }, compat: { supportsDeveloperRole: false } }],
+    } } };
+    atomicWrite(file("models"), encode(native));
+    const repo = await NativeConfig.create(store);
+    expect(repo.view().apiProviders.configs.local?.models).toEqual(["m"]);
+    const view = repo.view().apiProviders;
+    view.configs.local!.extraModels![0] = { ...(view.configs.local!.extraModels![0] as any), contextWindow: 60000 };
+    view.current = "local";
+    await repo.saveProviders(view);
+    expect(read(file("models")).providers.local.models[0]).toMatchObject({ contextWindow: 60000, samplingParams: { temperature: 0.3 }, compat: { supportsDeveloperRole: false } });
+    expect(read(file("models")).providers.local.headers).toEqual({ "X-Test": "keep" });
+    expect((await repo.getRuntime()).getModel("local", "m")?.contextWindow).toBe(60000);
+    const bytes = fs.readFileSync(file("models"), "utf8");
+    await repo.saveProviders(repo.view().apiProviders);
+    expect(fs.readFileSync(file("models"), "utf8")).toBe(bytes);
+  }, 60000);
 
-beforeAll(async () => {
-  const home = mkdtempSync(path.join(os.tmpdir(), "em-models-sync-"));
-  process.env.HOME = home;
-  process.env.PI_CODING_AGENT_DIR = path.join(home, ".easymint", "agent");
-  dataDir = path.join(home, ".easymint");
-  mkdirSync(dataDir, { recursive: true });
+  it("does not rewrite commented models files on startup, provider selection or default edits", async () => {
+    const { store, file } = fixture();
+    const modelId = [...getProviderStaticModels("deepseek").keys()][0]!;
+    const text = `{\n// retain this comment\n"providers":{"deepseek":{"name":"DS","modelOverrides":{"${modelId}":{"contextWindow":654321}}}}}\n`;
+    atomicWrite(file("models"), text);
+    const repo = await NativeConfig.create(store);
+    expect((await repo.getRuntime()).getModel("deepseek", modelId)?.contextWindow).toBe(654321);
+    await repo.setThinkingLevel("high");
+    const view = repo.view().apiProviders; view.current = "deepseek";
+    await repo.saveProviders(view);
+    expect(fs.readFileSync(file("models"), "utf8")).toBe(text);
+  }, 60000);
 
-  const { getProviderStaticModels } = await import("./pi-init-static");
-  dirIds = [...getProviderStaticModels("deepseek").keys()];
-  // 前置探针：本用例依赖目录至少两个模型（用于验证"保序不重排"）；不足时报明确原因
-  expect(dirIds.length, "deepseek 目录模型不足 2 个，无法验证保序").toBeGreaterThanOrEqual(2);
-
-  writeFileSync(
-    path.join(dataDir, "em-settings.json"),
-    JSON.stringify(
-      {
-        defaultProjectDir: "~/Desktop",
-        apiProviders: {
-          current: "ds-1",
-          configs: {
-            // 内置供应商：目录序被打乱 + 混入失效残留 + 含一条重复项（存量脏数据）+ extraModels
-            // 有目录外的显式声明。只保留一个**不同**的目录 id——另一个必须由对齐逻辑**补入**
-            // （覆盖「SDK 新增模型自动出现」这条核心路径；两个都留着的话该分支永远不被执行）
-            "ds-1": {
-              id: "ds-1", presetId: "deepseek", name: "DeepSeek", apiKey: "sk-test",
-              model: "keep-me", createdAt: 1,
-              models: [dirIds[1], GHOST, dirIds[1]],
-              extraModels: [
-                { id: THIRD_PARTY, name: "第三方", contextWindow: 128000, maxTokens: 16384 },
-                { id: "legacy-name", alias: LEGACY_ALIAS, contextWindow: 128000, maxTokens: 16384 },
-              ],
-            },
-            // 内置供应商 + 手填了「官方目录已有」的模型：这条声明不生效（参数一律取官方），
-            // 还会让界面显示手填的名字而非官方名 → 应被清理；同表里不在目录的那条必须留下
-            "ds-2": {
-              id: "ds-2", presetId: "deepseek", name: "DeepSeek 备用", apiKey: "sk-test",
-              model: dirIds[0], createdAt: 2,
-              models: [dirIds[0]],
-              extraModels: [
-                { id: dirIds[0], name: "我手填的名字", contextWindow: 1, maxTokens: 1 },
-                { id: THIRD_PARTY, name: "第三方", contextWindow: 128000, maxTokens: 16384 },
-              ],
-            },
-            // 自定义供应商：模型清单完全由用户声明，一律不许碰。
-            // 特意放一个与官方目录**同名**的 id（网关转售官方模型的常见形态），锚住"不误伤"。
-            // 注：custom 眼下有双重保护（本函数显式跳过 + getProviderStaticModels("custom") 恒空），
-            // 本用例锚的是**行为**——即使将来该 provider 有了目录数据，这几条也不能被剔除。
-            "custom-1": {
-              id: "custom-1", presetId: "custom", name: "网关", apiKey: "sk-test",
-              baseUrl: "https://gw.example.com/v1", apiType: "anthropic-messages",
-              model: "my-model", createdAt: 1,
-              models: [dirIds[0], "my-model", "another-model", GHOST],
-              extraModels: [{ id: "my-model", name: "我的模型", contextWindow: 128000, maxTokens: 16384 }],
-            },
-            // 目录缺失的 presetId（不在 PROVIDER_FILES）：不清空，整条跳过
-            "ghost-provider-1": {
-              id: "ghost-provider-1", presetId: "not-a-real-provider", name: "未知", apiKey: "sk",
-              model: "whatever", models: ["whatever", GHOST], createdAt: 1,
-            },
-          },
-        },
-      },
-      null,
-      2,
-    ),
-  );
-});
-
-describe("缓存模型列表与 SDK 目录对齐", () => {
-  it("内置供应商：剔失效项 + 补入目录新增项 + 保留现有顺序 + 声明项追加尾部", async () => {
-    const { Store } = await import("./store");
-    const { syncNativeModels } = await import("./pi-init");
-
-    expect(syncNativeModels(new Store(dataDir))).toBe(true);
-
-    const cfg = new Store(dataDir).getSettings().apiProviders!.configs!["ds-1"]!;
-    // 夹具原值 [dirIds[1], GHOST, dirIds[1]] → 期望：
-    //   dirIds[1]  保留在首位，且**只出现一次**（重复项被 Set 去掉）
-    //              （若实现按目录序重排，首位会变成 dirIds[0] → 断言失败）
-    //   dirIds[0]  由目录**补入**（原列表里没有它）
-    //   THIRD_PARTY / LEGACY_ALIAS 声明项追加尾部
-    expect(cfg.models).toEqual([dirIds[1], dirIds[0], THIRD_PARTY, LEGACY_ALIAS]);
-    // 失效残留被剔除
-    expect(cfg.models).not.toContain(GHOST);
-    // 默认模型不在此函数内改写（处理失效默认模型是另一件事）
-    expect(cfg.model).toBe("keep-me");
+  it("rejects malformed original files without marking migration complete or rewriting originals", async () => {
+    const { dir, store, file } = fixture({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
+    atomicWrite(file("models"), "{ broken");
+    await expect(NativeConfig.create(store)).rejects.toThrow();
+    expect(fs.readFileSync(file("models"), "utf8")).toBe("{ broken");
+    expect(read(path.join(dir, "em-settings.json")).nativeConfigVersion).toBeUndefined();
   });
 
-  it("自定义供应商完全不动（与官方目录重名的 id 也不剔除，models 与 extraModels 一字不改）", async () => {
-    const { Store } = await import("./store");
-    const cfg = new Store(dataDir).getSettings().apiProviders!.configs!["custom-1"]!;
-    expect(cfg.models).toEqual([dirIds[0], "my-model", "another-model", GHOST]);
-    expect(cfg.extraModels).toEqual([
-      { id: "my-model", name: "我的模型", contextWindow: 128000, maxTokens: 16384 },
-    ]);
+  it("rejects invalid model edits and stale saves without changing credentials or disk", async () => {
+    const { store, file } = fixture({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
+    const repo = await NativeConfig.create(store);
+    const view = repo.view().apiProviders;
+    (view.configs[custom.id]!.extraModels![0] as any).input = ["invalid"];
+    const before = fs.readFileSync(file("models"), "utf8");
+    await expect(repo.saveProviders(view)).rejects.toThrow("校验失败");
+    expect(fs.readFileSync(file("models"), "utf8")).toBe(before);
+    const stale = repo.view().apiProviders;
+    await repo.setThinkingLevel("low");
+    await expect(repo.saveProviders(stale)).rejects.toThrow("已更新");
+  }, 60000);
+
+  it("recovers a partially completed transaction before reading configuration", async () => {
+    const { dir } = fixture();
+    const target = path.join(dir, "agent", "settings.json");
+    atomicWrite(target, encode({ defaultModel: "after" }));
+    atomicWrite(path.join(dir, "native-config-transaction.json"), encode({ version: 1, backup: "test", changes: [
+      { file: target, before: encode({ defaultModel: "before" }), after: encode({ defaultModel: "after" }) },
+    ] }));
+    await new NativeConfigStorage(dir).initialize();
+    expect(read(target).defaultModel).toBe("before");
+    expect(fs.existsSync(path.join(dir, "native-config-transaction.json"))).toBe(false);
   });
 
-  it("目录缺失的 presetId 不清空列表", async () => {
-    const { Store } = await import("./store");
-    const cfg = new Store(dataDir).getSettings().apiProviders!.configs!["ghost-provider-1"]!;
-    expect(cfg.models).toEqual(["whatever", GHOST]);
+  it("does not overwrite an independent edit when recovering", async () => {
+    const { dir } = fixture(); const target = path.join(dir, "agent", "settings.json");
+    atomicWrite(target, encode({ defaultModel: "external" }));
+    atomicWrite(path.join(dir, "native-config-transaction.json"), encode({ version: 1, backup: "test", changes: [
+      { file: target, before: "{}", after: encode({ defaultModel: "after" }) },
+    ] }));
+    const storage = new NativeConfigStorage(dir);
+    await expect(storage.initialize()).rejects.toThrow("外部修改");
+    await expect(storage.commit(new Map([[target, {}]]), "new-edit")).rejects.toThrow("未完成");
+    expect(read(target).defaultModel).toBe("external");
+  });
+  it("rolls back earlier credential writes when a later file write fails", async () => {
+    const { dir, file } = fixture();
+    const storage = new NativeConfigStorage(dir); await storage.initialize();
+    atomicWrite(file("settings"), encode({ defaultModel: "before" }));
+    const rename = fs.renameSync;
+    let failOnce = true;
+    vi.spyOn(fs, "renameSync").mockImplementation((from, to) => {
+      if (to === file("settings") && failOnce) { failOnce = false; throw new Error("simulated write failure"); }
+      return rename(from, to);
+    });
+    await expect(storage.commit(new Map([
+      [file("auth"), { test: { type: "api_key", key: "new-key" } }],
+      [file("settings"), { defaultModel: "after" }],
+    ]), "failure-test")).rejects.toThrow("simulated write failure");
+    expect(fs.existsSync(file("auth"))).toBe(false);
+    expect(read(file("settings"))).toEqual({ defaultModel: "before" });
+    expect(fs.existsSync(path.join(dir, "native-config-transaction.json"))).toBe(false);
   });
 
-  it("清理 extraModels 中已在官方目录的声明（同表里不在目录的保留）", async () => {
-    const { Store } = await import("./store");
-    // 第一个用例已跑过一轮对齐（遍历全部配置），这里直接看结果
-    const cfg = new Store(dataDir).getSettings().apiProviders!.configs!["ds-2"]!;
-    expect(cfg.extraModels).toHaveLength(1);
-    expect((cfg.extraModels![0] as { id: string }).id).toBe(THIRD_PARTY);
-    // 声明虽被清掉，模型依然可选——官方目录本就提供它（且显示名/参数一律取官方）
-    expect(cfg.models).toContain(dirIds[0]);
+  it("refuses newer migration versions and preserves the original", async () => {
+    const { dir, store } = fixture({ nativeConfigVersion: 2, future: "keep" });
+    await expect(NativeConfig.create(store)).rejects.toThrow("更新版本");
+    expect(read(path.join(dir, "em-settings.json"))).toEqual({ nativeConfigVersion: 2, future: "keep" });
   });
 
-  it("幂等：再次调用返回 false 且内容不变", async () => {
-    const { Store } = await import("./store");
-    const { syncNativeModels } = await import("./pi-init");
-    const before = JSON.stringify(new Store(dataDir).getSettings().apiProviders);
-    expect(syncNativeModels(new Store(dataDir))).toBe(false);
-    expect(JSON.stringify(new Store(dataDir).getSettings().apiProviders)).toBe(before);
-  });
+  it("keeps runtime identity after editing and rejects an old editor even with a fresh list revision", async () => {
+    const { store } = fixture({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
+    const repo = await NativeConfig.create(store);
+    const runtime = await repo.getRuntime();
+    const oldEditor = repo.view().apiProviders.configs[custom.id]!;
+    await repo.setThinkingLevel("high");
+    expect(await repo.getRuntime()).toBe(runtime);
+    const fresh = repo.view().apiProviders;
+    fresh.configs[custom.id] = { ...oldEditor, name: "Stale edit" };
+    await expect(repo.saveProviders(fresh)).rejects.toThrow("编辑期间已更新");
+  }, 60000);
+
+  it("persists a selected model as the pi-native default", async () => {
+    const { store, file } = fixture({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
+    const repo = await NativeConfig.create(store);
+    const view = repo.view().apiProviders;
+    const second = { id: "second-model", name: "Second", contextWindow: 64000, maxTokens: 8000 };
+    view.configs[custom.id]!.extraModels = [...(view.configs[custom.id]!.extraModels ?? []), second];
+    await repo.saveProviders(view);
+    await repo.setDefaultModel(second.id);
+    expect(read(file("settings"))).toMatchObject({ defaultProvider: custom.id, defaultModel: second.id });
+    expect(repo.view().model).toBe(second.id);
+  }, 60000);
+
 });

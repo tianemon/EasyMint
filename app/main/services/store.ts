@@ -5,6 +5,7 @@ import type { ProviderConfig, ApiProvidersData } from "../../shared/platform-pre
 import { resolveHome } from "../utils/paths";
 import { dropLegacyEncryptedApiKeys, dropLegacyEncryptedProviderKeys } from "./settings-legacy";
 import { LEGACY_PERMISSION_MODE_ALIASES, type PermissionMode } from "./permission/execution-context";
+import { atomicWrite, lockConfigDirectory } from "./native-config-storage";
 
 /** 磁盘上的旧权限模式值归一到新三档（`restricted` / `sandbox` → `readonly`）。 */
 function normalizeStoredPermissionMode(raw: unknown): PermissionMode {
@@ -32,6 +33,7 @@ interface Project {
 }
 
 interface Settings {
+  nativeConfigMigration?: { migratedAt: string; duplicateConfigIds: string[] };
   defaultProjectDir: string;
   model?: string;
   availableModels?: string[];
@@ -151,6 +153,12 @@ const EM_DEFAULTS = {
   sandboxDisabled: false,
 };
 
+type NativeSettingsView = Pick<Settings, "apiProviders" | "chatThinkingLevel" | "model" | "availableModels">;
+const nativeViews = new Map<string, () => NativeSettingsView>();
+export function registerNativeSettingsView(dataDir: string, read: () => NativeSettingsView): void {
+  nativeViews.set(dataDir, read);
+}
+
 export class Store {
   private dataDir: string;
   private projectsPath: string;
@@ -163,13 +171,14 @@ export class Store {
     this.ensureFiles();
   }
 
+  getDataDir(): string { return this.dataDir; }
+
   private ensureFiles(): void {
-    if (!fs.existsSync(this.projectsPath)) {
-      fs.writeFileSync(this.projectsPath, JSON.stringify({ projects: [] }, null, 2));
-    }
-    if (!fs.existsSync(this.emSettingsPath)) {
-      fs.writeFileSync(this.emSettingsPath, JSON.stringify(EM_DEFAULTS, null, 2));
-    }
+    const release = lockConfigDirectory(this.dataDir);
+    try {
+      if (!fs.existsSync(this.projectsPath)) atomicWrite(this.projectsPath, JSON.stringify({ projects: [] }, null, 2));
+      if (!fs.existsSync(this.emSettingsPath)) atomicWrite(this.emSettingsPath, JSON.stringify(EM_DEFAULTS, null, 2));
+    } finally { release(); }
   }
 
   getProjects(): Project[] {
@@ -185,7 +194,9 @@ export class Store {
   }
 
   saveProjects(projects: Project[]): void {
-    fs.writeFileSync(this.projectsPath, JSON.stringify({ projects }, null, 2));
+    const release = lockConfigDirectory(this.dataDir);
+    try { atomicWrite(this.projectsPath, JSON.stringify({ projects }, null, 2)); }
+    finally { release(); }
   }
 
   updateProject(id: string, patch: { name?: string; path?: string }): Project | undefined {
@@ -207,8 +218,9 @@ export class Store {
   }
 
   getSettings(): Settings {
-    const emData = this.readEmSettings();
+    const emData: Record<string, unknown> = { ...this.readEmSettings(), ...nativeViews.get(this.dataDir)?.() };
     return {
+      nativeConfigMigration: emData.nativeConfigMigration as Settings["nativeConfigMigration"],
       defaultProjectDir: resolveHome((emData.defaultProjectDir as string) || EM_DEFAULTS.defaultProjectDir),
       model: (emData.model as string) || undefined,
       availableModels: (emData.availableModels as string[]) || undefined,
@@ -262,15 +274,7 @@ export class Store {
     };
   }
 
-  /** 获取当前活跃供应商的 API Key */
-  getActiveApiKey(): string {
-    const settings = this.getSettings();
-    const providers = settings.apiProviders;
-    const activeCfg = providers?.current ? providers.configs?.[providers.current] : undefined;
-    return activeCfg?.apiKey || "";
-  }
-
-    getLastProjectId(): string | null {
+  getLastProjectId(): string | null {
     return this.getSettings().lastProjectId ?? null;
   }
 
@@ -298,12 +302,14 @@ export class Store {
 
   /** Write EM-only fields to ~/.easymint/settings.json */
   private writeEmSettings(settings: Settings): void {
-    const dir = path.dirname(this.emSettingsPath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    const data: Record<string, unknown> = {};
-    if (fs.existsSync(this.emSettingsPath)) {
-      Object.assign(data, JSON.parse(fs.readFileSync(this.emSettingsPath, "utf-8")));
-    }
+    const release = lockConfigDirectory(this.dataDir);
+    try {
+      const dir = path.dirname(this.emSettingsPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const data: Record<string, unknown> = {};
+      if (fs.existsSync(this.emSettingsPath)) {
+        Object.assign(data, JSON.parse(fs.readFileSync(this.emSettingsPath, "utf-8")));
+      }
     data.defaultProjectDir = settings.defaultProjectDir;
     data.sandboxDisabled = Boolean(settings.sandboxDisabled);
     data.lastProjectId = settings.lastProjectId;
@@ -352,7 +358,11 @@ export class Store {
     }
     if (settings.modelParamsMigrated) data.modelParamsMigrated = true;
     if (settings.modelIdentityMigrated) data.modelIdentityMigrated = true;
-    fs.writeFileSync(this.emSettingsPath, JSON.stringify(data, null, 2));
+    if (nativeViews.has(this.dataDir) || data.nativeConfigVersion === 1) {
+      for (const key of ["apiProviders", "model", "availableModels", "chatThinkingLevel", "modelParamsMigrated", "modelIdentityMigrated"]) delete data[key];
+    }
+      atomicWrite(this.emSettingsPath, JSON.stringify(data, null, 2));
+    } finally { release(); }
   }
 
   saveSettings(settings: Settings): void {

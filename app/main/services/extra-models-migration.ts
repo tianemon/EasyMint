@@ -110,15 +110,12 @@ export function migrateModelIdentity(store: Store): boolean {
       const legacy = raw as ExtraModelCapability & { alias?: string };
       // 已有 name 即新形态;无 name 的旧对象(含纯 { id } 条目)按旧语义改写
       if (legacy.name !== undefined) return raw;
+      const { alias, ...rest } = legacy;
       const migrated: ExtraModelCapability = {
-        id: legacy.alias ?? legacy.id,
+        ...rest,
+        id: alias ?? legacy.id,
         name: legacy.id,
-        contextWindow: legacy.contextWindow,
-        maxTokens: legacy.maxTokens,
-        input: legacy.input,
-        reasoning: legacy.reasoning,
       };
-      if (legacy.thinkingLevelMap) migrated.thinkingLevelMap = legacy.thinkingLevelMap;
       cfgChanged = true;
       return migrated;
     });

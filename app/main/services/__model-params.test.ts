@@ -1,163 +1,41 @@
-/**
- * 模型参数统一管理·数据层（迁移 + models.json 写入 + 生效模型）。
- *
- * 真跑一遍 Pi SDK 的 ModelRuntime:验证 models.json 的 models[] 被 SDK 接受且生效
- * （别名映射、取消近似匹配后的回落值、官方同名模型以 SDK 为准）。
- * 用临时 HOME + 临时 PI_CODING_AGENT_DIR 隔离，不碰用户真实数据。
- */
-import { describe, it, expect, vi, beforeAll } from "vitest";
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+/** Legacy model identities/parameters survive the one-time move to native files. */
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { Store } from "./store";
+import { NativeConfig } from "./native-config";
+import { atomicWrite, encode } from "./native-config-storage";
+import { getProviderStaticModels } from "./pi-init-static";
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir() } }));
-
-let dataDir = "";
-beforeAll(() => {
-  const home = mkdtempSync(path.join(os.tmpdir(), "em-model-params-"));
-  process.env.HOME = home;
-  process.env.PI_CODING_AGENT_DIR = path.join(home, ".easymint", "agent");
-  dataDir = path.join(home, ".easymint");
-  mkdirSync(dataDir, { recursive: true });
-  writeFileSync(path.join(dataDir, "em-settings.json"), JSON.stringify({
-    defaultProjectDir: "~/Desktop",
-    apiProviders: {
-      current: "deepseek-1",
-      configs: {
-        "deepseek-1": {
-          id: "deepseek-1", presetId: "deepseek", name: "DeepSeek", apiKey: "sk-test",
-          // 官方 id 会随 SDK 目录变化：deepseek-v4-flash 在 SDK 0.86.0 被改名为 deepseek-flash
-          // （本文件的"前置探针"用例会在 id 失效时给出可归因的失败，而不是让断言以 undefined 报错）
-          model: "deepseek-flash", models: ["deepseek-flash", "deepseek-v4-pro"], createdAt: 1,
-          // 存量数据:纯字符串条目 / 缺参对象条目 / 带别名条目
-          extraModels: ["deepseek-v4-flash-x", { id: "glm-5.3-x" }, { id: "foo", alias: "foo-x", contextWindow: 512000, maxTokens: 32768 }],
-          // 官方模型参数覆盖(空对象 = 全跟随官方,应跳过不写)
-          modelOverrides: { "deepseek-flash": { contextWindow: 512000 }, "deepseek-v4-pro": {} },
-        },
-        "custom-1": {
-          id: "custom-1", presetId: "custom", name: "网关", apiKey: "sk-test",
-          baseUrl: "https://gw.example.com/v1", apiType: "anthropic-messages",
-          model: "bar-x", models: ["bar-x", "baz-y"], createdAt: 1,
-          extraModels: [{ id: "bar", alias: "bar-x", contextWindow: 1000000, maxTokens: 384000 }],
-        },
-        // 只有官方模型参数覆盖、无手动模型的供应商
-        "anthropic-1": {
-          id: "anthropic-1", presetId: "anthropic", name: "Anthropic", apiKey: "sk-test",
-          model: "claude-opus-4-6", models: ["claude-opus-4-6"], createdAt: 1,
-          modelOverrides: { "claude-opus-4-6": { maxTokens: 64000 } },
-        },
-      },
-    },
-  }, null, 2));
-});
-
-describe("模型参数统一管理·数据层", () => {
-  it("前置探针：本用例依赖的官方模型 id 在当前 SDK 目录中确实存在", async () => {
-    // 本文件的断言围绕「官方目录里已有同名模型 → EM 不写覆盖」展开，因此依赖 SDK 静态目录的具体 id。
-    // 而 SDK 升级会改名/移除模型（2026-09-20：0.86.0 把 deepseek-v4-flash 改名为 deepseek-flash，
-    // 并移除 Codex 的 gpt-5.4）。没有探针时，id 失效会退化成 "Cannot read properties of undefined"
-    // 这类无指向的报错；有探针则一眼看出该改哪里。
-    const { getProviderStaticModels } = await import("./pi-init-static");
-    const required: Record<string, string[]> = {
-      deepseek: ["deepseek-flash", "deepseek-v4-pro"],
-      anthropic: ["claude-opus-4-6"],
-    };
-    for (const [providerId, ids] of Object.entries(required)) {
-      const siblings = getProviderStaticModels(providerId);
-      expect(siblings.size, `${providerId} 目录为空（SDK 数据文件路径变了？）`).toBeGreaterThan(0);
-      for (const id of ids) {
-        expect(
-          siblings.has(id),
-          `${providerId}/${id} 已不在 SDK 目录：SDK 改名或移除了它 → 请更新本测试文件里的模型 id`,
-        ).toBe(true);
-      }
-    }
-  });
-
-  it("存量迁移 / 参数覆盖 / 别名映射 / 取消近似匹配", async () => {
-    const { Store } = await import("./store");
-    const { migrateExtraModels } = await import("./extra-models-migration");
-    const { getModelRuntime, resetModelRuntime } = await import("./pi-init");
-    const store = new Store(dataDir);
-
-    // ① 迁移:存量条目显式化,已声明字段不被改写
-    expect(migrateExtraModels(store)).toBe(true);
-    const extras = store.getSettings().apiProviders!.configs!["deepseek-1"]!.extraModels as unknown as Array<Record<string, unknown>>;
-    expect(extras[0]).toMatchObject({ id: "deepseek-v4-flash-x" });
-    expect(extras[0]!.contextWindow).toBeGreaterThan(200000); // 旧版推断的生效窗口被保留
-    expect(extras[1]).toMatchObject({ id: "glm-5.3-x" });
-    expect(typeof extras[1]!.maxTokens).toBe("number");
-    expect(extras[2]).toMatchObject({ id: "foo", alias: "foo-x", contextWindow: 512000, maxTokens: 32768 });
-    // 一次性标记:再次调用不再迁移
-    expect(migrateExtraModels(store)).toBe(false);
-
-    // ② 升级后新增的模型(旧 UI 写的纯字符串)不再推断参数
-    const settings = store.getSettings();
-    const cfg = settings.apiProviders!.configs!["deepseek-1"]!;
-    cfg.extraModels = [...(cfg.extraModels ?? []), "deepseek-v4-pro-x"];
-    store.saveSettings(settings);
-    expect(migrateExtraModels(store)).toBe(false);
-    resetModelRuntime();
-
-    const rt = await getModelRuntime(store);
-    const json = JSON.parse(readFileSync(path.join(dataDir, "agent", "models.json"), "utf-8"));
-    // 官方目录里已有同名模型 → 以 SDK 为准:EM 不写出覆盖,存量覆盖也不再生效
-    expect(json.providers.deepseek.modelOverrides).toBeUndefined();
-    // 既无手动模型也无有效覆盖的供应商:整条不写(空 models 会被 SDK 判非法)
-    expect(json.providers.anthropic).toBeUndefined();
-    expect(rt.getModel("anthropic", "claude-opus-4-6")!.maxTokens).not.toBe(64000);
-    expect(rt.getModel("deepseek", "deepseek-flash")!.contextWindow).not.toBe(512000);
-    expect(rt.getModel("deepseek", "deepseek-v4-pro")!.contextWindow).not.toBe(512000);
-    // 别名:请求 id = alias,展示名 = 名称
-    const foo = rt.getModel("deepseek", "foo-x")!;
-    expect(foo.name).toBe("foo");
-    expect(foo.contextWindow).toBe(512000);
-    // 自定义供应商:别名映射 + 声明参数
-    const bar = rt.getModel("custom-1", "bar-x")!;
-    expect(bar.name).toBe("bar");
-    expect(bar.contextWindow).toBe(1000000);
-    expect(bar.maxTokens).toBe(384000);
-    // 自定义供应商未声明参数的模型 → 回落默认(不再按官方同族推断)
-    expect(rt.getModel("custom-1", "baz-y")!.contextWindow).toBe(200000);
-    // 迁移后的存量条目仍在 models.json 中,升级后新增的条目回落默认值
-    expect(rt.getModel("deepseek", "deepseek-v4-flash-x")!.contextWindow).toBeGreaterThan(200000);
-    expect(rt.getModel("deepseek", "deepseek-v4-pro-x")!.contextWindow).toBe(200000);
-    // 身份迁移:旧「id=显示名 + alias=请求标识」→ 新「id=请求标识 + name=显示名」,请求标识不变
-    const { migrateModelIdentity } = await import("./extra-models-migration");
-    expect(migrateModelIdentity(store)).toBe(true);
-    const after = store.getSettings().apiProviders!.configs!["deepseek-1"]!.extraModels as unknown as Array<Record<string, unknown>>;
-    const fooEntry = after.find((e) => e.id === "foo-x") as Record<string, unknown> | undefined;
-    expect(fooEntry).toMatchObject({ id: "foo-x", name: "foo", contextWindow: 512000 });
-    expect(fooEntry!.alias).toBeUndefined();
-    // 一次性:再次调用不再改写
-    expect(migrateModelIdentity(store)).toBe(false);
-    expect(existsSync(path.join(dataDir, "agent", "models.json"))).toBe(true);
-  }, 60000);
-
-  it("用户在编辑页设置的窗口值确实被 SDK 采用", async () => {
-    const { Store } = await import("./store");
-    const { getModelRuntime, resetModelRuntime } = await import("./pi-init");
-    const store = new Store(dataDir);
-
-    // 模拟用户在模型编辑页把窗口从 512K 改成 200K(新语义下 id 已是请求标识)
-    const settings = store.getSettings();
-    const cfg = settings.apiProviders!.configs!["deepseek-1"]!;
-    const entries = [...(cfg.extraModels ?? [])] as unknown as Array<Record<string, unknown>>;
-    const target = entries.find((e) => typeof e !== "string" && e.id === "foo-x") as Record<string, unknown>;
-    expect(target.contextWindow).toBe(512000);
-    target.contextWindow = 200000;
-    cfg.extraModels = entries as never;
-    store.saveSettings(settings);
-    resetModelRuntime();
-
-    const rt = await getModelRuntime(store);
-    // ① 写入 SDK 的用户模型扩展层 models.json
-    const json = JSON.parse(readFileSync(path.join(dataDir, "agent", "models.json"), "utf-8"));
-    const onDisk = (json.providers.deepseek.models as Array<Record<string, unknown>>)
-      .find((m) => m.id === "foo-x");
-    expect(onDisk!.contextWindow).toBe(200000);
-    // ② SDK 运行时解析出的 Model 对象用的就是这个值——自动压缩阈值/溢出判定/使用率都取它
-    expect(rt.getModel("deepseek", "foo-x")!.contextWindow).toBe(200000);
-    expect(rt.getModel("deepseek", "foo-x")!.name).toBe("foo");
+const dirs: string[] = [];
+afterEach(() => { for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true }); });
+describe("legacy model migration", () => {
+  it("keeps request aliases, explicit limits and custom defaults; does not activate dormant official overrides", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-model-migration-")); dirs.push(dir);
+    const store = new Store(dir);
+    const nativeModel = [...getProviderStaticModels("deepseek").keys()][0]!;
+    atomicWrite(path.join(dir, "em-settings.json"), encode({ apiProviders: { current: "ds-old", configs: {
+      "ds-old": { id: "ds-old", presetId: "deepseek", name: "DS", apiKey: "test", model: nativeModel,
+        models: [nativeModel], createdAt: 1, extraModels: [{ id: "Display", alias: "request-id", contextWindow: 512000, maxTokens: 32000, samplingParams: { temperature: 0.4 } }],
+        modelOverrides: { [nativeModel]: { contextWindow: 1 } } },
+      local: { id: "local", presetId: "custom", name: "Local", apiKey: "test", model: "bar-id", createdAt: 2,
+        baseUrl: "http://localhost:1234/v1", apiType: "openai-completions", models: ["bar-id", "other"],
+        extraModels: [{ id: "Bar", alias: "bar-id", contextWindow: 1000000, maxTokens: 128000 }] },
+    } } }));
+    atomicWrite(path.join(dir, "session-cache", "old-session.json"), encode({ provider: "ds-old", model: nativeModel, permissionMode: "readonly", other: "keep" }));
+    const repo = await NativeConfig.create(store);
+    const rt = await repo.getRuntime();
+    expect(rt.getModel("deepseek", "request-id")).toMatchObject({ name: "Display", contextWindow: 512000, maxTokens: 32000 });
+    expect(JSON.parse(fs.readFileSync(repo.files.models, "utf8")).providers.deepseek.models[0].samplingParams).toEqual({ temperature: 0.4 });
+    expect(rt.getModel("local", "bar-id")).toMatchObject({ name: "Bar", contextWindow: 1000000, maxTokens: 128000 });
+    expect(rt.getModel("local", "other")?.contextWindow).toBe(200000);
+    expect(rt.getModel("deepseek", nativeModel)?.contextWindow).not.toBe(1);
+    expect(JSON.parse(fs.readFileSync(path.join(dir, "session-cache", "old-session.json"), "utf8"))).toMatchObject({ provider: "deepseek", permissionMode: "readonly", other: "keep" });
+    const data = repo.view().apiProviders;
+    (data.configs.deepseek!.extraModels![0] as any).contextWindow = 200000;
+    await repo.saveProviders(data);
+    expect((await repo.getRuntime()).getModel("deepseek", "request-id")?.contextWindow).toBe(200000);
+    expect(JSON.parse(fs.readFileSync(path.join(dir, "em-settings.json"), "utf8")).apiProviders).toBeUndefined();
   }, 60000);
 });

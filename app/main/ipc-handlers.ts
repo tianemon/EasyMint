@@ -8,7 +8,7 @@ import { FileService } from "./services/file-service";
 import { AgentService, getDesignSessionIds, respondAsk } from "./services/agent-service";
 import { Store } from "./services/store";
 import { broadcast } from "./services/ipc-broadcast";
-import { resetModelRuntime } from "./services/pi-init";
+import { getNativeConfig } from "./services/native-config";
 import { setSandboxDisabledProvider, resetSandboxState } from "./services/sandbox/manager";
 import { probeEnvironment } from "./services/provisioning/probe";
 import { installDependencies, fixUserns } from "./services/provisioning/run";
@@ -347,15 +347,15 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   });
   ipcMain.handle("agent:getPiProviders", async () => {
     const { getPiProviders } = await import("./services/pi-init");
-    return await getPiProviders();
+    return await getPiProviders(store);
   });
   ipcMain.handle("agent:getPiModels", async (_e, { providerName }) => {
     const { getPiModels } = await import("./services/pi-init");
-    return getPiModels(providerName);
+    return getPiModels(providerName, store);
   });
   ipcMain.handle("agent:getPiProviderInfo", async (_e, { providerName }) => {
     const { getPiProviderInfo } = await import("./services/pi-init");
-    return getPiProviderInfo(providerName);
+    return getPiProviderInfo(providerName, store);
   });
   ipcMain.handle("agent:isStreaming", (_e, { sessionId }) => {
     return agentService.isStreaming(sessionId);
@@ -616,15 +616,28 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     },
   ));
 
+  ipcMain.handle("settings:piImport", async (_e, input: unknown) => {
+    const data = expectPayload(z.object({ sourceDir: z.string().optional(), apply: z.boolean().optional() }), input);
+    const config = await getNativeConfig(store);
+    return config.importPi(data.sourceDir ?? p.join(os.homedir(), ".pi", "agent"), data.apply === true);
+  });
   // settings:*
-  ipcMain.handle("settings:get", () => store.getSettings());
+  ipcMain.handle("settings:get", async () => {
+    await (await getNativeConfig(store)).getRuntime();
+    return store.getSettings();
+  });
   ipcMain.handle("settings:set", async (_e, { key, value }) => {
-    const settings = store.getSettings();
-    (settings as unknown as Record<string, unknown>)[key] = value;
-    store.saveSettings(settings);
-    // 供应商配置/激活变更 → 重置模型缓存,切换供应商后新会话立即用新供应商的默认/兜底模型
+    const config = await getNativeConfig(store);
+    if (key === "apiProviders") await config.saveProviders(value);
+    else if (key === "chatThinkingLevel") await config.setThinkingLevel(value);
+    else if (key === "model") await config.setDefaultModel(z.string().min(1).parse(value));
+    else {
+      const settings = store.getSettings();
+      (settings as unknown as Record<string, unknown>)[key] = value;
+      store.saveSettings(settings);
+    }
+    // 原生配置已完成保存和重载，更新已开会话所引用的模型参数。
     if (key === "apiProviders") {
-      resetModelRuntime();
       // 已开会话的模型对象在创建时绑定,配置改动默认不生效 → 重建(输出中的会话跳过)
       try {
         await agentService.refreshActiveSessionsModel();
@@ -673,15 +686,16 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     const providers = settings.apiProviders;
     const activeId = providers?.current;
     const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
-    const apiKey = store.getActiveApiKey();
     // 仅 DeepSeek 支持余额查询 API(/user/balance);其他供应商返回 null(前端不显示)
-    if (activeCfg?.presetId && activeCfg.presetId !== "deepseek") return null;
+    if (!activeId || activeCfg?.presetId !== "deepseek") return null;
+    const runtime = await (await getNativeConfig(store)).getRuntime();
+    const apiKey = (await runtime.getAuth(activeId))?.auth.apiKey;
     if (!apiKey) return null;
     // Pi 内置 provider — 从 Pi 拿 baseUrl
     let rawUrl = "https://api.deepseek.com";
     if (activeCfg?.presetId) {
       const { getPiProviders } = await import("./services/pi-init");
-      const providers = await getPiProviders();
+      const providers = await getPiProviders(store);
       const pi = providers.find((p) => p.id === activeCfg.presetId);
       if (pi?.baseUrl) rawUrl = pi.baseUrl;
     }

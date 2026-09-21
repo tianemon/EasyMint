@@ -125,6 +125,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     setDefault: (id: string) => ipcRenderer.invoke("system-prompt:set-default", { id }),
   },
   settings: {
+    piImport: (input: { sourceDir?: string; apply?: boolean } = {}) => ipcRenderer.invoke("settings:piImport", input),
     get: () => ipcRenderer.invoke("settings:get"),
     set: (key: string, value: unknown) => ipcRenderer.invoke("settings:set", { key, value }),
     setLastProject: (projectId: string) => ipcRenderer.invoke("settings:set-last-project", { projectId }),
