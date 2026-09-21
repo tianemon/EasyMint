@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSettingsStore } from "../../stores/settings-store";
 import { EnvPanel, type EnvPanelHandle } from "../env/EnvPanel";
 import { EnvRetestButton } from "../env/EnvRetestButton";
+import { PiImportSection } from "./PiImport";
 
 // ── Git Check ─────────────────────────────────────────────────────────────────
 
@@ -213,7 +214,7 @@ function CacheManagementSection(): JSX.Element {
   );
 }
 
-/** 通用设置:默认项目路径 / 压缩阈值 / 缓存 / 环境检测 */
+/** 通用设置:默认项目路径 / 压缩阈值 / 缓存 / 环境检测 / 原生 pi 配置导入 */
 export function GeneralTab(): JSX.Element {
   const {
     defaultProjectDir,
@@ -263,6 +264,9 @@ export function GeneralTab(): JSX.Element {
 
       {/* 环境检测 */}
       <EnvCheckSection />
+
+      {/* 原生 pi 配置导入（手动触发；引导页 Step 2 是同一份流程的自动探测形态） */}
+      <PiImportSection />
     </div>
   );
 }

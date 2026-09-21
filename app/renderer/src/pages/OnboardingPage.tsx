@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSettingsStore } from "../stores/settings-store";
 import { useThemeStore } from "../stores/theme-store";
-import { PiImport } from "../components/settings/PiImport";
+import { PiImportCard, envAutoAdvanceAllowed } from "../components/settings/PiImport";
 import { ProviderForm } from "../components/settings/ProviderSettings";
 import { EnvPanel } from "../components/env/EnvPanel";
 import { TavilyKeySection } from "../components/settings/TavilyKeySection";
@@ -67,6 +67,23 @@ export function OnboardingPage(): JSX.Element {
   const goNext = useCallback(() => setCurrentStep((s) => Math.min(s + 1, STEPS.length - 1)), []);
   const goPrev = useCallback(() => setCurrentStep((s) => Math.max(s - 1, 0)), []);
 
+  // ── Step 2 的 pi 配置检测（2026-09-21 布点，用户拍板）──
+  // 进入引导即做零 IO 存在性探测（probe 不读会话内容）：命中 → Step 2 渲染「导入 pi 配置」
+  // 卡片，并把「就绪即自动离开」收走（跳过只由「下一步」或导入完成触发，**不锁定**）；
+  // 未命中 → Step 2 保持纯过场原样（就绪即自动走，2026-09-15 的定位不变——大多数用户无感知）。
+  // 探测失败按未命中：导入是增值项，不能挡主流程。
+  const [piProbe, setPiProbe] = useState<"pending" | "hit" | "miss">("pending");
+  const piImported = useRef(false);
+  /** env 就绪信号先到、pi 探测未落定时的记账（probe 落定后由重放 effect 兑现） */
+  const envReadySeen = useRef(false);
+  useEffect(() => {
+    let active = true;
+    window.electronAPI.settings.piImport({ probe: true })
+      .then((summary) => { if (active) setPiProbe(summary.found ? "hit" : "miss"); })
+      .catch(() => { if (active) setPiProbe("miss"); });
+    return () => { active = false; };
+  }, []);
+
   // 环境就绪 → **直接**进入下一步（用户 2026-09-15：这一步是纯过场，"没问题就直接跳供应商页面"）。
   // 守卫用 ref 而非 state：**只自动跳一次**——用户自己按「返回」回到本步时不该被立刻推走（否则回不去）。
   // 早先这里有 1.2s 延迟，是为让"正在进入下一步…"那句被看见；用户已明确不要那句文案，
@@ -77,9 +94,35 @@ export function OnboardingPage(): JSX.Element {
   const [willAutoAdvance, setWillAutoAdvance] = useState(true);
   const handleEnvReady = useCallback((): void => {
     if (envAutoAdvanced.current) return;
+    // pi 门控（见 envAutoAdvanceAllowed）：检测未落定 / 命中且未导入 → 先记账不放行——
+    // 自动跳过去等于把导入入口收走；落定为未命中时由下方重放 effect 把挂起的信号兑现
+    if (!envAutoAdvanceAllowed(piProbe, piImported.current)) {
+      envReadySeen.current = true;
+      return;
+    }
     envAutoAdvanced.current = true;
     setWillAutoAdvance(false);
     // 函数式更新并判当前步：交回宿主是异步的，期间用户可能已经按「返回」
+    setCurrentStep((s) => (s === 1 ? s + 1 : s));
+  }, [piProbe]);
+
+  // probe 落定后重放被挂起的 env 就绪信号（只在「env 探测快于 pi 探测」的窗口期会走到）
+  useEffect(() => {
+    if (!envReadySeen.current || envAutoAdvanced.current) return;
+    if (!envAutoAdvanceAllowed(piProbe, piImported.current)) return;
+    envAutoAdvanced.current = true;
+    setWillAutoAdvance(false);
+    setCurrentStep((s) => (s === 1 ? s + 1 : s));
+  }, [piProbe]);
+
+  // 导入完成 → 直接进 Step 3（用户拍板：Step 3 会像平常一样直接展示导入的供应商——
+  // prefill effect 订阅 settings store，导入后的 apiProviders.current 会渲染成「使用中」卡片）。
+  // 置 envAutoAdvanced：用户「返回」再进本步时不被自动推走。EnvPanel 随之卸载，
+  // 与既有「底部下一步跳过」是同一条路径（本来就允许在装依赖途中离开本步）。
+  const handlePiImported = useCallback((): void => {
+    piImported.current = true;
+    envAutoAdvanced.current = true;
+    setWillAutoAdvance(false);
     setCurrentStep((s) => (s === 1 ? s + 1 : s));
   }, []);
 
@@ -154,15 +197,21 @@ export function OnboardingPage(): JSX.Element {
           ) : currentStep === 1 ? (
             /* ── Step 2: 环境准备（缺失依赖在这里装/引导，避免进工作台后命令全跑不了）──
                刷新按钮由本页提供（面板自身不再渲染）：动作与设置页是同一份实现。
-               autoFix：进来就自动装（不再要求用户点「一键安装」）；就绪即自动进下一步 */
-            /* 这里**不放「重新检测」按钮**（用户 2026-09-15：那个按钮不该出现在动画下方）——
+               autoFix：进来就自动装（不再要求用户点「一键安装」）；就绪即自动进下一步。
+               pi 检测命中时追加「导入 pi 配置」卡片（2026-09-21）：卡片与 EnvPanel 并列，
+               自动跳转由 handleEnvReady 的门控收走，跳过走底部「下一步」（不锁定）；
+               未命中/探测中不渲染任何额外内容——本步保持纯过场。
+               这里**不放「重新检测」按钮**（用户 2026-09-15：那个按钮不该出现在动画下方）——
                这一步的出路是「一键安装/一键修复」（面板内）或底部的「下一步」跳过；
                真要重测，去「设置 → 环境检测」（那里的按钮由设置页提供，是全项目唯一一处）。 */
-            <EnvPanel
-              variant="onboarding"
-              autoFix
-              onReady={willAutoAdvance ? handleEnvReady : undefined}
-            />
+            <div className="w-full max-w-[540px] space-y-4">
+              <EnvPanel
+                variant="onboarding"
+                autoFix
+                onReady={willAutoAdvance ? handleEnvReady : undefined}
+              />
+              {piProbe === "hit" && <PiImportCard onImported={handlePiImported} />}
+            </div>
           ) : (
             /* ── Step 3: Provider Setup ── */
             <div className="w-full max-w-[540px]">
@@ -172,7 +221,8 @@ export function OnboardingPage(): JSX.Element {
               <p className="text-text-secondary text-center text-sm mb-6">
                 选择一个平台并填写 API Key 即可开始使用
               </p>
-              <PiImport />
+              {/* pi 导入入口在 Step 2（命中才出现）；导入完成后这里的 prefill 会把导入的
+                  供应商直接显示成「使用中」卡片 */}
               {savedCfg ? (
                 <div className="bg-surface-alt rounded-[var(--radius-lg)] p-4 space-y-4">
                   <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-lg)] bg-accent-soft">

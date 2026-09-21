@@ -10,7 +10,6 @@ import { BRAND_BY_PI_ID, providerSelectOptions } from "../../lib/provider-brands
 import { authModeView } from "../../lib/auth-mode";
 import { toast } from "../ui/Toast";
 import { confirmDialog } from "../ui/ConfirmDialog";
-import { PiImport } from "./PiImport";
 import { ModelManager, type OfficialModelInfo } from "./ModelManager";
 import { ACCOUNT_LOGIN_HINTS, ProviderAccountAuth, useProviderAuthStatus } from "./ProviderAccountAuth";
 
@@ -504,7 +503,6 @@ export function ProvidersManager() {
 
   return (
     <div className="space-y-3">
-      <PiImport />
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-text-secondary">API 供应商</h3>
         <button onClick={() => setDialog({ mode: "add" })}
