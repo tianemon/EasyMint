@@ -5,6 +5,7 @@ import { AttachItem, ChatMessage, piBlocksToEntries, mergeConsecutiveText, piEve
 import { chatActions } from "../stores/chat-actions";
 import { confirmFullAccess } from "./permission-confirmation";
 import { resolveThinkingLevel } from "@shared/thinking-levels";
+import { sessionOverrides } from "@shared/session-resume-policy";
 import { useSettingsStore } from "../stores/settings-store";
 import { useTabStore } from "../stores/tab-store";
 import { useChatStore, type FlowErrorCard } from "../stores/chat-store";
@@ -211,6 +212,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 两者都未就绪时初始值会落到 fallback "standard"，若不拦一道，写缓存 effect 会把这个
   // 未就绪的值覆盖到磁盘（磁盘上的 full 被抹掉，重启后永远回 standard）
   const permissionHydratedRef = useRef(false);
+  const sessionHydrationRef = useRef<Promise<void>>(Promise.resolve());
   // 本会话是否有独立的持久化权限值（来自缓存恢复）——有则不跟随全局默认：
   // 新建会话无缓存，首帧读到的全局值可能还是 store 默认 standard，等真实值到达再同步
   const sessionPermissionOwnedRef = useRef(false);
@@ -514,18 +516,21 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const [chatModel, setChatModel] = useState("");
   // 会话绑定的供应商 piId(需求 5:不同会话不同供应商)
   const [chatProvider, setChatProvider] = useState<string>("");
+  // 恢复会话只有在缓存明确记录过选择时才向主进程传覆盖值；否则让 SDK 从 JSONL 恢复。
+  const sessionModelOwnedRef = useRef(false);
+  const sessionThinkingOwnedRef = useRef(false);
   // 最新值 ref：onChatSession 订阅闭包拿不到最新 state，补写缓存/判断时用 ref
   const chatModelRef = useRef("");
   const chatProviderRef = useRef("");
   useEffect(() => { chatModelRef.current = chatModel; }, [chatModel]);
   useEffect(() => { chatProviderRef.current = chatProvider; }, [chatProvider]);
-  // 全局默认模型变化(设置中切供应商联动更新 store.model)→ 主会话模型跟随,全局生效;
-  // 挂载时同步初始值;会话缓存恢复(其后执行)可覆盖为会话绑定模型
+  // 全局默认模型只初始化新会话；已有会话保持自己的 transcript/cache 状态。
   useEffect(() => {
-    if (storeModel) setChatModel(storeModel);
-  }, [storeModel]);
+    if (!existingSid && storeModel) setChatModel(storeModel);
+  }, [storeModel, existingSid]);
 
   const handleModelChange = useCallback(async (m: string) => {
+    sessionModelOwnedRef.current = true;
     setChatModel(m); setStoreModel(m);
     const sid = sidRef.current;
     // 带上会话绑定供应商——否则按全局当前供应商解析，绑定供应商不同时模型解析不到、切换静默丢失
@@ -555,6 +560,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   }, []);
 
   const handleThinkingLevelChange = useCallback((level: string) => {
+    sessionThinkingOwnedRef.current = true;
     userChangedThinkingRef.current = true;
     manualThinkingSidRef.current = sidRef.current;
     desiredThinkingRef.current = level;
@@ -1795,8 +1801,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     // 切换会话：两个标记都重置——恢复完成前不写缓存（防未就绪值覆盖）、也不跟随全局
     permissionHydratedRef.current = false;
     sessionPermissionOwnedRef.current = false;
-    if (!existingSid) { permissionHydratedRef.current = true; return; }
-    window.electronAPI.sessionCache.read(existingSid).then((cache) => {
+    sessionModelOwnedRef.current = !existingSid;
+    sessionThinkingOwnedRef.current = !existingSid;
+    if (!existingSid) { permissionHydratedRef.current = true; sessionHydrationRef.current = Promise.resolve(); return; }
+    const hydration = window.electronAPI.sessionCache.read(existingSid).then((cache) => {
       if (cache) {
         // 恢复权限模式（旧四档值 auto/plan/acceptEdits/bypassPermissions 归一化为两档，
         // 避免开关拿到未知值显示异常——主进程 normalizeMode 同样映射）
@@ -1811,6 +1819,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         }
         if (cache.model) setChatModel(cache.model);
         if (cache.provider) setChatProvider(cache.provider);
+        // 历史缓存曾只写 model、不写 provider；半截身份不能安全覆盖 transcript。
+        if (cache.model && cache.provider) sessionModelOwnedRef.current = true;
         if (cache.contextUsage !== null && cache.contextUsage > 0) pendingCtxRef.current = cache.contextUsage; // 暂存,消息加载完成后再应用
         // 会话绑定的供应商(设置中切供应商时写入)→ 活跃会话热切应用;
         // 未活跃时会话由重建分支用 preferredProvider 恢复,无需在此处理
@@ -1819,12 +1829,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         }
         // 恢复本会话持久化的思考等级:标为"已选过",全局设置不再覆盖;并按模型能力自适应显示
         if (cache.thinkingLevel) {
+          sessionThinkingOwnedRef.current = true;
           userChangedThinkingRef.current = true;
           desiredThinkingRef.current = cache.thinkingLevel;
           applyLevel(cache.thinkingLevel);
         }
       }
     }).catch(() => {}).finally(() => { permissionHydratedRef.current = true; });
+    sessionHydrationRef.current = hydration;
     // 打开会话即同步「该模型支持的思考等级 + 当前生效等级」——广播只在切模型/发消息时触发,
     // 只靠广播的话刚打开会话、还没发消息前下拉仍是完整 7 档
     window.electronAPI.agent.getThinkingLevels(existingSid).then((info) => {
@@ -1874,6 +1886,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   }, [supportModelId, applyLevel]);
 
   useEffect(() => {
+    if (existingSid && (!permissionHydratedRef.current || !sessionModelOwnedRef.current)) return;
     if (sidRef.current && !sidRef.current.startsWith("__new_") && chatModel) {
       // provider 一并持久化——读取端按 model+provider 恢复会话绑定供应商,此前 provider 从未写入导致恢复热切永不执行
       const data: Record<string, unknown> = { model: chatModel };
@@ -1967,9 +1980,20 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       currentChatRef.current = null;
       const tab = useTabStore.getState().tabs.find(function(t) { return t.sessionId === sid || (!t.sessionId && !existingSid); });
       const effectivePath = projectPath || getWorkspaceDir();
+      // Cache ownership decides whether values may override the transcript. Wait for that small
+      // local read so a very fast first send cannot race hydration and discard an explicit choice.
+      await sessionHydrationRef.current;
       // 新会话:角色取自空状态选择(chatRole);恢复会话:沿用 tab 的 isDesigner
       const roleDesigner = existingSid ? (isDesigner ?? tab?.isDesigner) : chatRole === "mint-d";
-      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "standard", isDesigner: roleDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: thinkingLevel ?? "medium", model: chatModel || undefined, preferredProvider: chatProvider || undefined, tabId });
+      const overrides = sessionOverrides({
+        existingSession: !!existingSid,
+        modelOwned: sessionModelOwnedRef.current,
+        thinkingOwned: sessionThinkingOwnedRef.current,
+        model: chatModel || undefined,
+        provider: chatProvider || undefined,
+        thinkingLevel: thinkingLevel ?? "medium",
+      });
+      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "standard", isDesigner: roleDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: overrides.thinkingLevel, model: overrides.model, preferredProvider: overrides.provider, tabId });
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
     } catch {
       pendingFirstTurnRef.current = false; busyRef.current = false; setBusy(false); currentChatRef.current = null;

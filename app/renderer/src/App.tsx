@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { HashRouter, Routes, Route } from "react-router-dom";
 import { ProjectPage } from "./pages/ProjectPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
@@ -45,31 +45,6 @@ export function App(): JSX.Element {
       })
       .finally(() => setSettingsLoaded(true));
   }, []);
-
-  // 切换供应商 → 活跃会话自动热切到新供应商默认模型。
-  // resume 未激活会话不在主进程 activeChats(setModel 无效)但首次发送时自动用新供应商,无需处理。
-  const currentProvider = useSettingsStore((s) => s.apiProviders?.current);
-  const prevProviderRef = useRef(currentProvider);
-  useEffect(() => {
-    const prev = prevProviderRef.current;
-    if (prev && currentProvider && prev !== currentProvider) {
-      const cfg = useSettingsStore.getState().apiProviders?.configs?.[currentProvider];
-      const newModel = cfg?.model || cfg?.models?.[0];
-      if (newModel) {
-        for (const t of useTabStore.getState().tabs) {
-          if (t.type === "chat" && t.sessionId) {
-            window.electronAPI.agent.setModel(t.sessionId, newModel).catch(() => {});
-            // 持久化会话绑定供应商——否则重启后绑定丢失,恢复会话回落全局默认。
-            // 新会话 tab 的 sessionId 是 __new_xxx 临时 id（主进程按真实 sid 读缓存），跳过避免垃圾 key
-            if (!t.sessionId.startsWith("__new_")) {
-              window.electronAPI.sessionCache.write(t.sessionId, { provider: currentProvider, model: newModel }).catch(() => {});
-            }
-          }
-        }
-      }
-    }
-    prevProviderRef.current = currentProvider;
-  }, [currentProvider]);
 
   // 委派/shell 状态全局订阅(App 常驻)——不能只在 ChatPanel 订阅:
   // 所有 tab 关闭时无订阅者,广播无人接收,store 残留旧状态,重开 tab 显示假活跃。

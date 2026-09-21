@@ -15,7 +15,8 @@ import { resolveHome } from "../utils/paths";
 import { broadcast } from "./ipc-broadcast";
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
-import { getActiveModel, resetModelRuntime } from "./pi-init";
+import { getActiveModel } from "./pi-init";
+import { getNativeConfig } from "./native-config";
 import { createPiSession, resumePiSession, listPiSessions } from "./pi-session";
 import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
@@ -1273,13 +1274,8 @@ export class AgentService {
     // 新会话
     const chatId = `chat-${++this.chatCounter}`;
     const piModel = await this.getModel(this.store, preferredProvider, model);
-    if (!piModel) {
+    if (!piModel && !resumeSessionId) {
       throw new Error("未配置 AI 模型，请在设置中配置 API");
-    }
-
-    // 验证 API Key 已配置
-    if (!this.store.getActiveApiKey()) {
-      console.warn("[agent] 未检测到有效的 API Key，请求可能失败");
     }
 
     // 恢复会话时补全 isDesigner：tab 恢复不会带此标记，从持久化的 session 类型中读取
@@ -1324,7 +1320,8 @@ export class AgentService {
           return resumePiSession({
             cwd: resolvedPath,
             agentDir: this.getAgentDir(),
-            model: piModel,
+            model: model ? piModel ?? undefined : undefined,
+            thinkingLevel: thinkingLevel as Parameters<typeof resumePiSession>[0]["thinkingLevel"],
             store: this.store,
             resumeSessionFile: info.path,
             systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
@@ -1338,7 +1335,7 @@ export class AgentService {
       return createPiSession({
         cwd: resolvedPath,
         agentDir: this.getAgentDir(),
-        model: piModel,
+        model: piModel ?? undefined,
         store: this.store,
         systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
         extraTools,
@@ -1378,7 +1375,8 @@ export class AgentService {
       eventBuffer: [],
       compactCount: 0,
       // 会话绑定供应商（缺省用全局当前），供「按模型思考等级」查表
-      provider: preferredProvider || this.store.getSettings().apiProviders?.current || undefined,
+      provider: session.model?.provider,
+      currentModel: session.model?.id,
       toolCallCount: 0,
       learnErrorSeen: false,
       learnFixAfterError: false,
@@ -1401,6 +1399,19 @@ export class AgentService {
     }
 
     this.activeChats.set(chatId, chat);
+
+    // 旧版会话可能没有 EM 缓存。以 SDK 从 JSONL 恢复出的真值补建缓存，之后 UI 才能
+    // 显示并显式传递会话选择；首次恢复绝不能先用全局默认覆盖这两个值。
+    if (resumeSessionId) {
+      writeCache(resumeSessionId, {
+        ...(session.model ? { provider: session.model.provider, model: session.model.id } : {}),
+        thinkingLevel: session.thinkingLevel,
+      });
+      if (session.model) {
+        broadcast("agent:model-changed", { sessionId: resumeSessionId, model: session.model.id });
+      }
+      this.broadcastThinkingLevel(chat);
+    }
 
     // 记录 agent 类型
     if (chat.agentType && chat.sessionId) {
@@ -1483,10 +1494,10 @@ export class AgentService {
     const runtime = await getModelRuntime(this.store);
     const providers = this.store.getSettings().apiProviders;
     // 会话级切换:指定供应商优先(设置中切供应商时联动传入);缺省用全局 current
-    const activeId = providerId || providers?.current;
+    const activeId = providerId ? (await getNativeConfig(this.store)).resolveProviderId(providerId) : providers?.current;
     const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
     if (!activeCfg || !activeId) return null;
-    const provider = activeCfg.presetId === "custom" ? activeId : activeCfg.presetId;
+    const provider = activeId;
     return (runtime.getModel(provider, modelName) as Model<any>) ?? null;
   }
 
@@ -1540,9 +1551,7 @@ export class AgentService {
     const activeId = providers?.current;
     const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
     const fallbackModel = activeCfg?.model ?? "";
-    const fallbackProvider = activeCfg
-      ? (activeCfg.presetId === "custom" ? (activeId ?? activeCfg.presetId) : activeCfg.presetId)
-      : undefined;
+    const fallbackProvider = activeId ?? undefined;
 
     for (const [, chat] of this.activeChats) {
       const modelName = chat.currentModel || fallbackModel;
@@ -1657,8 +1666,8 @@ export class AgentService {
       const ordered = providers?.current
         ? [...entries.filter(([id]) => id === providers.current), ...entries.filter(([id]) => id !== providers.current)]
         : entries;
-      for (const [configId, cfg] of ordered) {
-        const providerId = cfg.presetId === "custom" ? configId : cfg.presetId;
+      for (const [configId] of ordered) {
+        const providerId = configId;
         const model = runtime.getModel(providerId, modelId);
         if (model) return supportedThinkingLevelsOfSpec(model as unknown as Record<string, any>);
       }
@@ -1681,18 +1690,10 @@ export class AgentService {
   async setModel(sessionId: string, modelName: string, providerId?: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session) return;
-    // 按用户选的模型名直接找 Model 对象热切（不依赖"当前供应商默认模型"比较——
-    // 原实现选非默认模型时 id 不匹配走 resetModelRuntime，实际没切到所选模型）
+    // Runtime checks native file revisions before resolving the requested model.
     const model = await this.resolveModelByName(modelName, providerId);
-    if (model) {
-      await this.applySessionModel(chat, model, modelName);
-    } else {
-      // 模型不在运行时（新供应商 apiKey 未注册）→ 重建运行时（重建时全量 sync 配置）后重试一次——
-      // 原实现重建后直接返回，切换静默丢失
-      resetModelRuntime();
-      const retry = await this.resolveModelByName(modelName, providerId);
-      if (retry) await this.applySessionModel(chat, retry, modelName);
-    }
+    if (!model) throw new Error(`模型不可用：${modelName}，请检查供应商配置`);
+    await this.applySessionModel(chat, model, modelName);
   }
 
   /** skill frontmatter `model` 字段触发的会话级切换；模型不存在降级忽略（不重建运行时，返回 false 由调用方说明） */

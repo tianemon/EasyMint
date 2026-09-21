@@ -41,7 +41,7 @@ export { getPiSessionDir, tryGetPiSessionDir } from "./pi-session-dir";
 export interface PiSessionOptions {
   cwd: string;
   agentDir: string;
-  model: Model<any>;
+  model?: Model<any>;
   thinkingLevel?: ThinkingLevel;
   store: Store;
   resumeSessionFile?: string;
@@ -127,7 +127,7 @@ async function buildSession(
     agentDir: opts.agentDir,
     modelRuntime: modelRuntime as any,
     model: opts.model as any,
-    thinkingLevel: opts.thinkingLevel ?? "medium",
+    thinkingLevel: opts.thinkingLevel,
     settingsManager: settingsMgr as any,
     resourceLoader,
     sessionManager: sessionManager as any,
