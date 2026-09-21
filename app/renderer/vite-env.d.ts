@@ -533,7 +533,7 @@ interface ElectronAPI {
     setDefault: (id: string) => Promise<void>;
   };
   settings: {
-    piImport: (input?: { sourceDir?: string; apply?: boolean }) => Promise<import("@shared/pi-config-import").PiImportSummary>;
+    piImport: (input?: { sourceDir?: string; apply?: boolean; probe?: boolean }) => Promise<import("@shared/pi-config-import").PiImportSummary>;
     get: () => Promise<{
       nativeConfigMigration?: { migratedAt: string; duplicateConfigIds: string[] };
       defaultProjectDir?: string; setupComplete?: boolean;

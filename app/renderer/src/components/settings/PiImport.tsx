@@ -13,7 +13,8 @@ export function PiImport() {
   useEffect(() => {
     let active = true;
     window.electronAPI.settings.get().then(settings => { if (active) setDuplicateAccounts(settings.nativeConfigMigration?.duplicateConfigIds.length ?? 0); }).catch(() => {});
-    window.electronAPI.settings.piImport().then(value => { if (active) setSummary(value); }).catch(() => {});
+    // 挂载只做存在性探测（不读任何会话内容）：完整预览会全量解析会话，放到点击后
+    window.electronAPI.settings.piImport({ probe: true }).then(value => { if (active) setSummary(value); }).catch(() => {});
     return () => { active = false; };
   }, []);
   const run = async (choose = false) => {

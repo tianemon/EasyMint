@@ -1,7 +1,7 @@
 /** Pi files are the configuration source. ProviderConfig is only an EM view model. */
 import path from "node:path";
 import fs from "node:fs";
-import { buildPiImport } from "./pi-config-import";
+import { buildPiImport, probePiImport } from "./pi-config-import";
 import { createHash } from "node:crypto";
 import type { Model, Api } from "@earendil-works/pi-ai";
 import { getPiConfigSdk } from "./pi-config-sdk";
@@ -239,8 +239,10 @@ export class NativeConfig {
   resolveProviderId(id: string): string {
     return this.storage.read(this.files.em).legacyProviderIds?.[id] ?? id;
   }
-  async importPi(sourceDir: string, apply = false) {
+  async importPi(sourceDir: string, apply = false, probe = false) {
     return this.serial(async () => {
+      // probe：挂载探测，只看目录里有没有东西，不做 refresh、不读任何文件内容
+      if (probe) return probePiImport(sourceDir);
       await this.refresh();
       const plan = await buildPiImport(this, sourceDir);
       if (!apply || !plan.summary.found) return plan.summary;

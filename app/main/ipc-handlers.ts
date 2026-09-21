@@ -617,9 +617,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ));
 
   ipcMain.handle("settings:piImport", async (_e, input: unknown) => {
-    const data = expectPayload(z.object({ sourceDir: z.string().optional(), apply: z.boolean().optional() }), input);
+    const data = expectPayload(z.object({ sourceDir: z.string().optional(), apply: z.boolean().optional(), probe: z.boolean().optional() }), input);
     const config = await getNativeConfig(store);
-    return config.importPi(data.sourceDir ?? p.join(os.homedir(), ".pi", "agent"), data.apply === true);
+    return config.importPi(data.sourceDir ?? p.join(os.homedir(), ".pi", "agent"), data.apply === true, data.probe === true);
   });
   // settings:*
   ipcMain.handle("settings:get", async () => {

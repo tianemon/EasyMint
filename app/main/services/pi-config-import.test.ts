@@ -67,4 +67,40 @@ describe("pi import", () => {
     expect(read(repo.files.models).providers.local.baseUrl).toBe("http://em.example/v1");
     expect(fs.existsSync(path.join(target, "agent", "sessions", "--project--", "conflicted-session.jsonl"))).toBe(false);
   }, 60000);
+
+  it("deduplicates against existing sessions and never overwrites corrupt targets", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-import-idx-")); roots.push(root);
+    const source = path.join(root, "pi", "agent"); const target = path.join(root, "em");
+    const store = new Store(target); const repo = await NativeConfig.create(store);
+    const cwd = path.join(root, "project");
+    const dirName = `--${cwd.slice(1).replaceAll("/", "-")}--`;
+    const transcript = [
+      { type: "session", version: 3, id: "dup-one", cwd, timestamp: new Date().toISOString() },
+      { type: "model_change", id: "a", parentId: null, provider: "local", modelId: "m", timestamp: new Date().toISOString() },
+    ].map(x => JSON.stringify(x)).join("\n") + "\n";
+    // EM 已有一份同 id 同内容的会话
+    atomicWrite(path.join(target, "agent", "sessions", dirName, "dup-one.jsonl"), transcript);
+    // 目标落点放一个损坏文件：另一个源会话会落到同一路径（不进索引 → 回读全文兜底比对）
+    atomicWrite(path.join(target, "agent", "sessions", dirName, "dup-two.jsonl"), "not-jsonl");
+    const second = [
+      { type: "session", version: 3, id: "dup-two", cwd, timestamp: new Date().toISOString() },
+      { type: "model_change", id: "a", parentId: null, provider: "local", modelId: "m", timestamp: new Date().toISOString() },
+    ].map(x => JSON.stringify(x)).join("\n") + "\n";
+    atomicWrite(path.join(source, "sessions", dirName, "dup-one.jsonl"), transcript);
+    atomicWrite(path.join(source, "sessions", dirName, "dup-two.jsonl"), second);
+    const result = await repo.importPi(source, true);
+    // 同 id 同内容 → duplicate；落点被损坏文件占住（内容不同）→ conflict，均不导入
+    expect(result).toMatchObject({ sessions: 0, duplicates: 1, conflicts: 1 });
+    expect(fs.readFileSync(path.join(target, "agent", "sessions", dirName, "dup-two.jsonl"), "utf8")).toBe("not-jsonl");
+  }, 60000);
+
+  it("probe reports existence without reading session contents", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-probe-")); roots.push(root);
+    const source = path.join(root, "pi", "agent"); const target = path.join(root, "em");
+    const store = new Store(target); const repo = await NativeConfig.create(store);
+    expect((await repo.importPi(source, false, true)).found).toBe(false);
+    atomicWrite(path.join(source, "sessions", "--x--", "s.jsonl"), "garbage-not-json");
+    const probe = await repo.importPi(source, false, true);
+    expect(probe).toMatchObject({ found: true, providers: 0, sessions: 0 });
+  });
 });

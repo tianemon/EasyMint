@@ -50,6 +50,55 @@ function sessionsIn(root: string, maxVersion: number): { files: Array<{ relative
   return { files, invalid };
 }
 
+/**
+ * 目标目录的会话索引（id → 相对路径）：只读每个文件的首行取 id。
+ * 与 sessionsIn 的差异：不做完整校验、不解正文——目标侧只用于「同 id 去重」，
+ * 命中时才回读全文比对内容（duplicate vs conflict）。
+ * 与 sessionsIn 同为**一层**布局（pi 的会话就是一层）：实测递归覆盖 EM 的
+ * <主会话ID>/subagents/ 分层（497 个文件）要 1481 ms，比一层全量解析（556 ms）更慢，
+ * 且子会话 id 是 EM 运行时生成的 UUID，与源会话碰撞的概率可以忽略——故不递归。
+ * 实测首行索引：会话头最大 172 字节、2 KB 足够解析，32 个文件约 100 ms 内。
+ */
+function sessionIdsUnder(root: string): Map<string, string> {
+  const out = new Map<string, string>();
+  if (!fs.existsSync(root)) return out;
+  for (const dir of fs.readdirSync(root, { withFileTypes: true })) {
+    if (!dir.isDirectory()) continue;
+    for (const entry of fs.readdirSync(path.join(root, dir.name), { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
+      const full = path.join(root, dir.name, entry.name);
+      try {
+        const fd = fs.openSync(full, "r");
+        let header: JsonObject;
+        try {
+          const buffer = Buffer.alloc(2048);
+          const length = fs.readSync(fd, buffer, 0, 2048, 0);
+          header = JSON.parse(buffer.slice(0, length).toString("utf8").split("\n", 1)[0]!);
+        } finally { fs.closeSync(fd); }
+        if (typeof header.id === "string") out.set(header.id, path.relative(root, full));
+      } catch {
+        // 无法解析的文件不进索引：同 id 会话落到同一路径时会走 readText(target) 兜底，
+        // 按内容不一致判冲突跳过，不会被静默覆盖
+      }
+    }
+  }
+  return out;
+}
+
+/** 挂载探测：只看目录里有没有可导入的东西，不读任何文件内容（完整的数量统计留给点击后的预览）。 */
+export function probePiImport(sourceDir: string): PiImportSummary {
+  const dir = path.resolve(sourceDir);
+  const has = (name: string) => fs.existsSync(path.join(dir, name));
+  let hasSessions = false;
+  const sessionsDir = path.join(dir, "sessions");
+  if (fs.existsSync(sessionsDir)) {
+    hasSessions = fs.readdirSync(sessionsDir, { withFileTypes: true }).some((e) => e.isDirectory());
+  }
+  const found = has("models.json") || has("auth.json") || has("settings.json") || hasSessions;
+  return { sourceDir: dir, found, providers: 0, sessions: 0, projects: 0, conflicts: 0, duplicates: 0,
+    invalidSessions: 0, providerConflictSessions: 0, oauth: false, skippedSettings: [] };
+}
+
 export async function buildPiImport(repo: NativeConfig, sourceDir: string) {
   sourceDir = path.resolve(sourceDir);
   if (sourceDir === path.resolve(repo.storage.agentDir)) throw new Error("不能从 EM 自己的配置目录导入");
@@ -69,8 +118,12 @@ export async function buildPiImport(repo: NativeConfig, sourceDir: string) {
   if (settings.defaultThinkingLevel !== undefined && !(THINKING_ORDER as readonly unknown[]).includes(settings.defaultThinkingLevel)) throw new Error("pi 默认思考等级无效");
   const sessionHelpers = await getSessionDataHelpers();
   const sessionSource = sessionsIn(path.join(sourceDir, "sessions"), sessionHelpers.currentVersion);
-  const existingSessions = sessionsIn(path.join(repo.storage.agentDir, "sessions"), sessionHelpers.currentVersion);
-  const existingIds = new Map(existingSessions.files.map(s => [s.id, s.text]));
+  // 目标（EM 自己的会话）只需要 id 做去重——只读首行建索引，碰撞时再回读全文；
+  // 源目录仍走 sessionsIn 的完整校验（版本、id 形态、parent 图），导入前的把关强度不变。
+  // 懒加载：源目录没有会话时目标索引用不上，不建（常见情形：本机没有 pi 会话，仅导配置）。
+  const existingSessionIds = sessionSource.files.length > 0
+    ? sessionIdsUnder(path.join(repo.storage.agentDir, "sessions"))
+    : new Map<string, string>();
   const currentModels = repo.storage.read(repo.files.models); currentModels.providers ??= {};
   const currentAuth = repo.storage.read(repo.files.auth);
   const currentSettings = repo.storage.read(repo.files.settings);
@@ -105,7 +158,10 @@ export async function buildPiImport(repo: NativeConfig, sourceDir: string) {
   const projects = new Set(projectData.projects.map((p: JsonObject) => path.resolve(p.path)));
   for (const session of sessionSource.files) {
     const target = path.join(repo.storage.agentDir, "sessions", session.relative);
-    const existing = existingIds.get(session.id) ?? readText(target);
+    const existingRelative = existingSessionIds.get(session.id);
+    const existing = existingRelative != null
+      ? readText(path.join(repo.storage.agentDir, "sessions", existingRelative))
+      : readText(target);
     if (existing != null) {
       if (existing === session.text) summary.duplicates++; else summary.conflicts++;
       continue;
@@ -119,7 +175,7 @@ export async function buildPiImport(repo: NativeConfig, sourceDir: string) {
       summary.conflicts++;
       continue;
     }
-    sessions.set(target, session.text); originals.set(target, null); existingIds.set(session.id, session.text); summary.sessions++;
+    sessions.set(target, session.text); originals.set(target, null); existingSessionIds.set(session.id, session.relative); summary.sessions++;
     const cacheFile = path.join(repo.store.getDataDir(), "session-cache", `${session.id}.json`);
     if (readText(cacheFile) === null) {
       originals.set(cacheFile, null);
