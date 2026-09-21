@@ -108,6 +108,24 @@ describe("pi-native configuration", () => {
     await expect(repo.saveProviders(stale)).rejects.toThrow("已更新");
   }, 60000);
 
+  it("rejects adding a provider without an API key; re-saving an existing one is not blocked", async () => {
+    const { store, file } = fixture();
+    const repo = await NativeConfig.create(store);
+    // 新增 + 空 key → 拒绝，且不写凭据条目（auth.json 本身在初始化时就会被 SDK 建为空文件）
+    const first = repo.view().apiProviders;
+    await expect(repo.saveProviders({ ...first, configs: { ...first.configs, [custom.id]: { ...custom, apiKey: "" } } }))
+      .rejects.toThrow("缺少 API Key");
+    expect(read(file("auth"))[custom.id]).toBeUndefined();
+    expect(fs.existsSync(file("models"))).toBe(false);
+    // 新增 + 带 key → 成功
+    const second = repo.view().apiProviders;
+    await repo.saveProviders({ ...second, configs: { ...second.configs, [custom.id]: custom } });
+    expect(read(file("auth"))[custom.id]).toEqual({ type: "api_key", key: "test-key" });
+    // 编辑态（凭据已在 auth.json）→ 不被拦
+    await repo.saveProviders(repo.view().apiProviders);
+    expect(read(file("auth"))[custom.id].key).toBe("test-key");
+  }, 60000);
+
   it("recovers a partially completed transaction before reading configuration", async () => {
     const { dir } = fixture();
     const target = path.join(dir, "agent", "settings.json");

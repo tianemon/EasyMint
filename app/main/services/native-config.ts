@@ -295,6 +295,11 @@ export class NativeConfig {
         const previous = before.configs[id];
         if (same(previous, cfg)) continue;
         if (previous && cfg.nativeRevision && cfg.nativeRevision !== previous.nativeRevision) throw new Error("此供应商在编辑期间已更新，请重新打开编辑窗口");
+        // 新建必填凭据：界面层已拦（ProviderSettings 仅在新增时要求 API Key），这里是绕过界面时的兜底。
+        // 编辑态凭据可能只在 auth.json，不拦——空 apiKey 也不会抹掉已有凭据（只在非空时才写 auth）。
+        if (!previous && cfg.authType !== "oauth" && !cfg.apiKey?.trim() && auth[id]?.type !== "api_key") {
+          throw new Error(`新建供应商「${cfg.name || id}」缺少 API Key`);
+        }
         const raw: JsonObject = { ...(models.providers[id] ?? {}) };
         for (const [ui, native] of [["name", "name"], ["baseUrl", "baseUrl"], ["apiType", "api"]] as const) {
           if (!same(cfg[ui], previous?.[ui])) {

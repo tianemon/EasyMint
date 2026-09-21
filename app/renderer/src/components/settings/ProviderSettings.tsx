@@ -191,6 +191,8 @@ export const ProviderForm = forwardRef<ProviderFormHandle, ProviderFormProps>(
     if (usesAccountLogin && oauthStatus !== null && !accountLoggedIn) {
       toast(`请先登录 ${providerLabel}`); return false;
     }
+    // 空 API Key 只在新建时拦：编辑态的凭据可能已在 auth.json，由主进程的事实决定，重复保存不该被拦
+    if (!usesAccountLogin && !initial && !apiKey.trim()) { toast("请输入 API Key"); return false; }
     if (isCustom && !initial && !baseUrl.trim()) { toast("自定义供应商需填写 Base URL"); return false; }
     // 自添加模型必须显式声明参数:数据层不推断,SDK 兜底(128K/16K)与 EM 兜底都可能与实际不符,
     // 1M 窗口的模型会过早触发压缩——从入口拦住比事后排查便宜

@@ -310,57 +310,57 @@ export class Store {
       if (fs.existsSync(this.emSettingsPath)) {
         Object.assign(data, JSON.parse(fs.readFileSync(this.emSettingsPath, "utf-8")));
       }
-    data.defaultProjectDir = settings.defaultProjectDir;
-    data.sandboxDisabled = Boolean(settings.sandboxDisabled);
-    data.lastProjectId = settings.lastProjectId;
-    data.setupComplete = settings.setupComplete;
-    // 同步激活供应商的模型列表到旧字段（ChatPanel 下拉引用）
-    const providers = settings.apiProviders;
-    const activeId = providers?.current;
-    const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
-    if (activeCfg) {
-      if (activeCfg.model) data.model = activeCfg.model;
-      if (activeCfg.models.length > 0) data.availableModels = activeCfg.models;
-    } else {
-      if (settings.model) data.model = settings.model;
-      if (settings.availableModels) data.availableModels = settings.availableModels;
-    }
-    if (settings.apiKeys && Object.keys(settings.apiKeys).length > 0) {
-      data.apiKeys = settings.apiKeys;
-    }
-    if (settings.manageSkillEnabled !== undefined) data.manageSkillEnabled = settings.manageSkillEnabled;
-    if (settings.learnEnabled !== undefined) data.learnEnabled = settings.learnEnabled;
-    if (settings.importExternalSkills !== undefined) data.importExternalSkills = settings.importExternalSkills;
-    if (settings.contextThreshold !== undefined) data.contextThreshold = settings.contextThreshold;
-    if (settings.chatThinkingLevel) data.chatThinkingLevel = settings.chatThinkingLevel;
-    if (settings.chatPermissionMode) data.chatPermissionMode = settings.chatPermissionMode;
-    if (settings.chatFontLevel !== undefined) data.chatFontLevel = settings.chatFontLevel;
-    if (settings.chatFontScale !== undefined) data.chatFontScale = settings.chatFontScale;
-    if (settings.uiFontScale !== undefined) data.uiFontScale = settings.uiFontScale;
-    if (settings.glowEffect) data.glowEffect = settings.glowEffect;
-    if (settings.glowColorMode) data.glowColorMode = settings.glowColorMode;
-    if (settings.glowColorLight) data.glowColorLight = settings.glowColorLight;
-    if (settings.glowColorDark) data.glowColorDark = settings.glowColorDark;
-    // 分组只写自定义组(内置组为代码常量,不落盘,防误改)
-    if (settings.glowGroupsLight?.length) data.glowGroupsLight = settings.glowGroupsLight.filter((g) => !g.isBuiltin);
-    if (settings.glowGroupsDark?.length) data.glowGroupsDark = settings.glowGroupsDark.filter((g) => !g.isBuiltin);
-    if (settings.activeGlowGroupLight) data.activeGlowGroupLight = settings.activeGlowGroupLight;
-    if (settings.activeGlowGroupDark) data.activeGlowGroupDark = settings.activeGlowGroupDark;
-    if (settings.statusTextStyle) data.statusTextStyle = settings.statusTextStyle;
-    if (settings.statusColorLight) data.statusColorLight = settings.statusColorLight;
-    if (settings.statusColorDark) data.statusColorDark = settings.statusColorDark;
-    if (settings.statusTextGroupsLight?.length) data.statusTextGroupsLight = settings.statusTextGroupsLight.filter((g) => !g.isBuiltin);
-    if (settings.statusTextGroupsDark?.length) data.statusTextGroupsDark = settings.statusTextGroupsDark.filter((g) => !g.isBuiltin);
-    if (settings.activeStatusGroupLight) data.activeStatusGroupLight = settings.activeStatusGroupLight;
-    if (settings.activeStatusGroupDark) data.activeStatusGroupDark = settings.activeStatusGroupDark;
-    if (settings.apiProviders) {
-      data.apiProviders = settings.apiProviders;
-    }
-    if (settings.modelParamsMigrated) data.modelParamsMigrated = true;
-    if (settings.modelIdentityMigrated) data.modelIdentityMigrated = true;
-    if (nativeViews.has(this.dataDir) || data.nativeConfigVersion === 1) {
-      for (const key of ["apiProviders", "model", "availableModels", "chatThinkingLevel", "modelParamsMigrated", "modelIdentityMigrated"]) delete data[key];
-    }
+      data.defaultProjectDir = settings.defaultProjectDir;
+      data.sandboxDisabled = Boolean(settings.sandboxDisabled);
+      data.lastProjectId = settings.lastProjectId;
+      data.setupComplete = settings.setupComplete;
+      // 同步激活供应商的模型列表到旧字段（ChatPanel 下拉引用）
+      const providers = settings.apiProviders;
+      const activeId = providers?.current;
+      const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
+      if (activeCfg) {
+        if (activeCfg.model) data.model = activeCfg.model;
+        if (activeCfg.models.length > 0) data.availableModels = activeCfg.models;
+      } else {
+        if (settings.model) data.model = settings.model;
+        if (settings.availableModels) data.availableModels = settings.availableModels;
+      }
+      if (settings.apiKeys && Object.keys(settings.apiKeys).length > 0) {
+        data.apiKeys = settings.apiKeys;
+      }
+      if (settings.manageSkillEnabled !== undefined) data.manageSkillEnabled = settings.manageSkillEnabled;
+      if (settings.learnEnabled !== undefined) data.learnEnabled = settings.learnEnabled;
+      if (settings.importExternalSkills !== undefined) data.importExternalSkills = settings.importExternalSkills;
+      if (settings.contextThreshold !== undefined) data.contextThreshold = settings.contextThreshold;
+      if (settings.chatThinkingLevel) data.chatThinkingLevel = settings.chatThinkingLevel;
+      if (settings.chatPermissionMode) data.chatPermissionMode = settings.chatPermissionMode;
+      if (settings.chatFontLevel !== undefined) data.chatFontLevel = settings.chatFontLevel;
+      if (settings.chatFontScale !== undefined) data.chatFontScale = settings.chatFontScale;
+      if (settings.uiFontScale !== undefined) data.uiFontScale = settings.uiFontScale;
+      if (settings.glowEffect) data.glowEffect = settings.glowEffect;
+      if (settings.glowColorMode) data.glowColorMode = settings.glowColorMode;
+      if (settings.glowColorLight) data.glowColorLight = settings.glowColorLight;
+      if (settings.glowColorDark) data.glowColorDark = settings.glowColorDark;
+      // 分组只写自定义组(内置组为代码常量,不落盘,防误改)
+      if (settings.glowGroupsLight?.length) data.glowGroupsLight = settings.glowGroupsLight.filter((g) => !g.isBuiltin);
+      if (settings.glowGroupsDark?.length) data.glowGroupsDark = settings.glowGroupsDark.filter((g) => !g.isBuiltin);
+      if (settings.activeGlowGroupLight) data.activeGlowGroupLight = settings.activeGlowGroupLight;
+      if (settings.activeGlowGroupDark) data.activeGlowGroupDark = settings.activeGlowGroupDark;
+      if (settings.statusTextStyle) data.statusTextStyle = settings.statusTextStyle;
+      if (settings.statusColorLight) data.statusColorLight = settings.statusColorLight;
+      if (settings.statusColorDark) data.statusColorDark = settings.statusColorDark;
+      if (settings.statusTextGroupsLight?.length) data.statusTextGroupsLight = settings.statusTextGroupsLight.filter((g) => !g.isBuiltin);
+      if (settings.statusTextGroupsDark?.length) data.statusTextGroupsDark = settings.statusTextGroupsDark.filter((g) => !g.isBuiltin);
+      if (settings.activeStatusGroupLight) data.activeStatusGroupLight = settings.activeStatusGroupLight;
+      if (settings.activeStatusGroupDark) data.activeStatusGroupDark = settings.activeStatusGroupDark;
+      if (settings.apiProviders) {
+        data.apiProviders = settings.apiProviders;
+      }
+      if (settings.modelParamsMigrated) data.modelParamsMigrated = true;
+      if (settings.modelIdentityMigrated) data.modelIdentityMigrated = true;
+      if (nativeViews.has(this.dataDir) || data.nativeConfigVersion === 1) {
+        for (const key of ["apiProviders", "model", "availableModels", "chatThinkingLevel", "modelParamsMigrated", "modelIdentityMigrated"]) delete data[key];
+      }
       atomicWrite(this.emSettingsPath, JSON.stringify(data, null, 2));
     } finally { release(); }
   }
