@@ -12,6 +12,9 @@ const lockfile = require("proper-lockfile") as {
 };
 
 /** Shared by native transactions and ordinary EM settings/project writes, including other app processes. */
+// Atomics.wait 是真·同步休眠（主线程可用，不需要 worker）：同步 API 下没法 await，
+// 忙等（while 自旋）会在锁竞争时烧 CPU 并占住事件循环，锁持有者还会被拖慢。
+const lockSleeper = new Int32Array(new SharedArrayBuffer(4));
 export function lockConfigDirectory(dataDir: string): () => void {
   fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   let lastError: unknown;
@@ -23,8 +26,7 @@ export function lockConfigDirectory(dataDir: string): () => void {
       if ((error as NodeJS.ErrnoException).code !== "ELOCKED" || attempt === 9) throw error;
       // Settings writes are synchronous throughout Store. Keep the retry bounded so callers do
       // not need a second async API merely to coordinate two desktop processes.
-      const start = Date.now();
-      while (Date.now() - start < 20) { /* bounded lock retry */ }
+      Atomics.wait(lockSleeper, 0, 0, 20);
     }
   }
   throw lastError;

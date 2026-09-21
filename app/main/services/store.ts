@@ -174,8 +174,12 @@ export class Store {
   getDataDir(): string { return this.dataDir; }
 
   private ensureFiles(): void {
+    // 快路径：文件都在时不加锁——Store 会被多处构造（pi-init 的默认参数、IPC 默认值），
+    // 每次构造都 lock+unlock 一次 proper-lockfile 是无谓的磁盘 IO
+    if (fs.existsSync(this.projectsPath) && fs.existsSync(this.emSettingsPath)) return;
     const release = lockConfigDirectory(this.dataDir);
     try {
+      // 锁内复查（两个进程同时构造时避免 TOCTOU）
       if (!fs.existsSync(this.projectsPath)) atomicWrite(this.projectsPath, JSON.stringify({ projects: [] }, null, 2));
       if (!fs.existsSync(this.emSettingsPath)) atomicWrite(this.emSettingsPath, JSON.stringify(EM_DEFAULTS, null, 2));
     } finally { release(); }
