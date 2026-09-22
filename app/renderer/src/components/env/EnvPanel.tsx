@@ -58,15 +58,16 @@ export function onboardingHint(s: {
  * 于是那段时间**闪出一屏依赖列表**（用户报："检测没问题，还是会进入手动检测页面闪一下才跳到
  * 供应商页面"）。所以引导流程里只要"没问题且宿主会自己离开"，工作屏幕就**一直持续到本步被卸载**。
  *
- * 三种"该露出列表"的情形各自成一因：
+ * 工作屏幕与状态列表的切换：
  * - 有问题（检测失败 / 缺必装项）→ 立刻让位给提醒与建议操作，不让人对着动画干等
  * - 宿主没接管自动跳转（设置页；或用户自己按「返回」又进来）→ 该正常显示状态与「下一步」
- * - 已交回宿主（`handedOff`）仍算工作屏幕 —— 跳转前那 1.2s 不能留缝
+ * - 已通知宿主（`handedOff`）默认保持工作屏幕，避免切页前闪出列表
+ * - 宿主等待用户选择（`waitForUser`）时，实际工作结束便显示状态列表
  */
 export function workScreenVisible(s: {
   /** 真在探测/安装 */
   busy: boolean;
-  /** 已就绪并交回宿主，宿主正在切页 */
+  /** 已发送就绪通知；是否等待用户选择由宿主另外指定 */
   handedOff: boolean;
   /** 引导流程（只有它自动装、自动走） */
   autoFix: boolean;
@@ -74,8 +75,10 @@ export function workScreenVisible(s: {
   willAutoLeave: boolean;
   /** 有必须用户处理的事：检测失败，或缺必装项 */
   hasProblem: boolean;
+  /** 环境就绪后仍需等用户选择（如是否导入 pi），不再显示过场动画。 */
+  waitForUser?: boolean;
 }): boolean {
-  return s.busy || s.handedOff || (s.autoFix && s.willAutoLeave && !s.hasProblem);
+  return s.busy || (!s.waitForUser && (s.handedOff || (s.autoFix && s.willAutoLeave && !s.hasProblem)));
 }
 
 /** 引导页"工作屏幕"（只有标题 + 动画）的最短停留：用户 2026-09-15"这个页面设置一个最小显示时间，
@@ -128,13 +131,15 @@ export interface EnvPanelHandle {
   retest: () => void;
 }
 
-export function EnvPanel({ variant = "settings", autoFix = false, onReady, ref }: {
+export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitForUser = false, ref }: {
   variant?: "onboarding" | "settings";
   /** **进入即自动装**：探测完自动开始安装（引导流程用，用户要求"不需要点击"）。
    *  只自动跑一次每种动作——失败/被系统授权框拒绝后不再自动重试，按钮留着交给用户决定。 */
   autoFix?: boolean;
   /** 必装项全部就绪时回调一次（引导流程据此自动进入下一步）。宿主需传稳定引用（useCallback）。 */
   onReady?: () => void;
+  /** 保留就绪通知，但在检测和最短展示结束后显示状态，等待用户选择。 */
+  waitForUser?: boolean;
   /** 宿主用它驱动重探。**面板自身不再渲染任何「重新检测」按钮**——
    *  按钮由宿主提供，全项目只有一处定义（EnvRetestButton），避免同屏两个、刷一半的两套逻辑 */
   ref?: Ref<EnvPanelHandle>;
@@ -195,8 +200,9 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, ref }
   const willAutoLeave = onReady !== undefined;
   /** 只留「标题 + 动画」（用户 2026-09-15 定："不要显示具体的在安装什么依赖，一个标题，一个动画"）。
    *  规则与三个例外见 workScreenVisible 的 docstring —— 那里也解释了为什么判据不含 holdMin。 */
-  const working = workScreenVisible({ busy, handedOff, autoFix, willAutoLeave, hasProblem });
-  /** 工作屏幕期间刻意静默（"一个标题，一个动画"）；交回宿主后才改口"正在进入下一步" */
+  const working = workScreenVisible({ busy, handedOff, autoFix, willAutoLeave, hasProblem,
+    waitForUser: waitForUser && !holdMin });
+  /** 实际工作期间刻意静默（"一个标题，一个动画"），就绪后允许显示检测结论。 */
   const quiet = working && !handedOff;
 
   const install = async (): Promise<void> => {
@@ -273,7 +279,7 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, ref }
     if (!report || probing || probeFailed) return;
     if (requiredBroken > 0) return;
     if (holdMin) return;
-    setHandedOff(true);   // 副标题据此改口为"正在进入下一步"，别让用户以为卡住了
+    setHandedOff(true);   // 只通知一次；宿主可用 waitForUser 保留当前页并结束过场动画
     onReady();
   }, [onReady, handedOff, report, probing, probeFailed, requiredBroken, holdMin]);
 

@@ -189,6 +189,18 @@ describe("工作屏幕（只有标题 + 动画）的可见性 —— 修掉「�
     expect(workScreenVisible({ ...s, busy: true })).toBe(true);
   });
 
+  it.each([false, true])("等待导入选择时结束动画，不受就绪通知先后影响（已通知：%s）", (handedOff) => {
+    expect(workScreenVisible({ ...s, handedOff, waitForUser: true })).toBe(false);
+    // 实际检测/安装仍需展示进度，不应被导入选项提前结束。
+    expect(workScreenVisible({ ...s, handedOff, waitForUser: true, busy: true })).toBe(true);
+  });
+
+  it("pi 探测晚于环境就绪：挂起期间保持动画，命中后显示状态", () => {
+    const ready = { ...s, handedOff: true };
+    expect(workScreenVisible({ ...ready, waitForUser: false })).toBe(true);
+    expect(workScreenVisible({ ...ready, waitForUser: true })).toBe(false);
+  });
+
   it("有问题（检测失败 / 缺必装项）→ 才让出位置，不让人对着动画干等", () => {
     expect(workScreenVisible({ ...s, hasProblem: true })).toBe(false);
   });

@@ -217,6 +217,7 @@ export function OnboardingPage(): JSX.Element {
               <EnvPanel
                 variant="onboarding"
                 autoFix
+                waitForUser={piProbe === "hit" && !piImported.current}
                 onReady={willAutoAdvance ? handleEnvReady : undefined}
               />
               {piProbe === "hit" && <PiImportCard onImported={handlePiImported} />}
