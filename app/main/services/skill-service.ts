@@ -15,6 +15,7 @@ import path from "node:path";
 import os from "node:os";
 import { getResourcesDir, emHome } from "../utils/paths";
 import { readExternalField, writeExternalField } from "./em-settings-schema";
+import { atomicWrite, lockConfigDirectory } from "./native-config-storage";
 
 // ── Types ──────────────────────────────────────────
 
@@ -79,14 +80,17 @@ function getHiddenSkills(): string[] {
 }
 
 function saveHiddenSkills(list: string[]): void {
-  const dir = path.dirname(DISABLED_FILE);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const data: Record<string, unknown> = {};
-  if (existsSync(DISABLED_FILE)) {
-    Object.assign(data, JSON.parse(readFileSync(DISABLED_FILE, "utf-8")));
-  }
-  writeExternalField(data, "hiddenSkills", list);
-  writeFileSync(DISABLED_FILE, JSON.stringify(data, null, 2));
+  // em-settings.json 是 store / native-config / mcp-service / 本模块共用的文件：同一把目录锁
+  // 内读-改-写 + 原子写（理由见 mcp-service 同名注释：双实例互相覆盖、半截 JSON 变配置损坏）
+  const release = lockConfigDirectory(emHome());
+  try {
+    const data: Record<string, unknown> = {};
+    if (existsSync(DISABLED_FILE)) {
+      Object.assign(data, JSON.parse(readFileSync(DISABLED_FILE, "utf-8")));
+    }
+    writeExternalField(data, "hiddenSkills", list);
+    atomicWrite(DISABLED_FILE, JSON.stringify(data, null, 2));
+  } finally { release(); }
 }
 
 // ── 外部生态目录发现（imported 来源，对齐 oh-my-pi 的多 provider 思路） ────

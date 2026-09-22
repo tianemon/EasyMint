@@ -5,12 +5,16 @@
  * 首次启动时一次性迁移旧共享配置;Enable/disable 由 em-settings.json 管理。
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { dropLegacyEncryptedApiKeys } from "./settings-legacy";
 import { apiKeysFromDisk, readExternalField, writeExternalField } from "./em-settings-schema";
 import { emHome } from "../utils/paths";
+// em-settings.json 是 store / native-config / 本模块**共用**的文件：写入必须走同一把目录锁
+// 并原子写——否则双实例（EM 没有单实例锁）会互相覆盖，且 writeFileSync 写一半被杀会留下
+// 半截 JSON，下次启动直接报「配置损坏」。见下方各写入点。
+import { atomicWrite, lockConfigDirectory } from "./native-config-storage";
 
 // ── Types ──────────────────────────────────────────
 
@@ -162,16 +166,18 @@ function getApprovedMcp(): string[] {
 
 /** 确认一个项目级 server（写入 em-settings.json 的 `mcp.approved`） */
 export function approveMcpServer(projectPath: string, name: string): void {
-  const dir = path.dirname(EM_SETTINGS);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const data: Record<string, unknown> = existsSync(EM_SETTINGS)
-    ? JSON.parse(readFileSync(EM_SETTINGS, "utf-8"))
-    : {};
-  const list = getApprovedMcp();
-  const key = `${projectPath}::${name}`;
-  if (!list.includes(key)) list.push(key);
-  writeExternalField(data, "mcpApproved", list);
-  writeFileSync(EM_SETTINGS, JSON.stringify(data, null, 2));
+  // 锁要包住**整个读-改-写**：只在写那一步加锁的话，读到的旧快照照样能把别人刚写的覆盖掉
+  const release = lockConfigDirectory(emHome());
+  try {
+    const data: Record<string, unknown> = existsSync(EM_SETTINGS)
+      ? JSON.parse(readFileSync(EM_SETTINGS, "utf-8"))
+      : {};
+    const list = getApprovedMcp();
+    const key = `${projectPath}::${name}`;
+    if (!list.includes(key)) list.push(key);
+    writeExternalField(data, "mcpApproved", list);
+    atomicWrite(EM_SETTINGS, JSON.stringify(data, null, 2));
+  } finally { release(); }
 }
 
 /** 多来源扫描：用户级（可写）> EM 项目级（可写）> 项目根 .mcp.json（只读兼容） */
@@ -356,7 +362,7 @@ export function saveMcpServer(
   servers[name] = cfg;
   data.mcpServers = servers;
   try {
-    writeFileSync(configPath, JSON.stringify(data, null, 2), "utf-8");
+    atomicWrite(configPath, JSON.stringify(data, null, 2));
   } catch (e) {
     return { ok: false, error: `写入失败：${(e as Error).message}` };
   }
@@ -381,16 +387,20 @@ export function deleteMcpServer(
     if (!servers[name]) return { ok: false, error: `未找到服务器「${name}」` };
     delete servers[name];
     data.mcpServers = servers;
-    writeFileSync(configPath, JSON.stringify(data, null, 2), "utf-8");
+    atomicWrite(configPath, JSON.stringify(data, null, 2));
     // 清禁用名单残留，避免同名重建时被误判为停用
-    const settings: Record<string, unknown> = existsSync(EM_SETTINGS)
-      ? JSON.parse(readFileSync(EM_SETTINGS, "utf-8"))
-      : {};
-    const hidden = (readExternalField(settings, "hiddenMcpServers") as string[]) || [];
-    if (hidden.includes(name)) {
-      writeExternalField(settings, "hiddenMcpServers", hidden.filter((n) => n !== name));
-      writeFileSync(EM_SETTINGS, JSON.stringify(settings, null, 2));
-    }
+    // 同 approveMcpServer：锁包住整个读-改-写，写用原子替换
+    const release = lockConfigDirectory(emHome());
+    try {
+      const settings: Record<string, unknown> = existsSync(EM_SETTINGS)
+        ? JSON.parse(readFileSync(EM_SETTINGS, "utf-8"))
+        : {};
+      const hidden = (readExternalField(settings, "hiddenMcpServers") as string[]) || [];
+      if (hidden.includes(name)) {
+        writeExternalField(settings, "hiddenMcpServers", hidden.filter((n) => n !== name));
+        atomicWrite(EM_SETTINGS, JSON.stringify(settings, null, 2));
+      }
+    } finally { release(); }
     return { ok: true };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
@@ -416,21 +426,22 @@ export function getMcpConfigPath(): string {
 // ── Toggle ─────────────────────────────────────────
 
 export function toggleMcpServer(name: string, enabled: boolean): void {
-  const dir = path.dirname(EM_SETTINGS);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  // 同 approveMcpServer：锁包住整个读-改-写，写用原子替换
+  const release = lockConfigDirectory(emHome());
+  try {
+    const data: Record<string, unknown> = existsSync(EM_SETTINGS)
+      ? JSON.parse(readFileSync(EM_SETTINGS, "utf-8"))
+      : {};
 
-  const data: Record<string, unknown> = existsSync(EM_SETTINGS)
-    ? JSON.parse(readFileSync(EM_SETTINGS, "utf-8"))
-    : {};
-
-  let list: string[] = (readExternalField(data, "hiddenMcpServers") as string[]) || [];
-  if (enabled) {
-    list = list.filter((n) => n !== name);
-  } else {
-    if (!list.includes(name)) list.push(name);
-  }
-  writeExternalField(data, "hiddenMcpServers", list);
-  writeFileSync(EM_SETTINGS, JSON.stringify(data, null, 2));
+    let list: string[] = (readExternalField(data, "hiddenMcpServers") as string[]) || [];
+    if (enabled) {
+      list = list.filter((n) => n !== name);
+    } else {
+      if (!list.includes(name)) list.push(name);
+    }
+    writeExternalField(data, "hiddenMcpServers", list);
+    atomicWrite(EM_SETTINGS, JSON.stringify(data, null, 2));
+  } finally { release(); }
 }
 
 // ── Seed built-in MCP configs ─────────────────────
@@ -493,7 +504,7 @@ export function seedDefaultMcp(): void {
 
   if (changed) {
     data.mcpServers = existing;
-    writeFileSync(configPath, JSON.stringify(data, null, 2), "utf-8");
+    atomicWrite(configPath, JSON.stringify(data, null, 2));
   }
 }
 
