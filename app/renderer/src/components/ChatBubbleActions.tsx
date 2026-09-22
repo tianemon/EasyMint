@@ -49,13 +49,37 @@ function PinBubbleBtn({ text, onPin, sid }: { text: string; onPin: (text: string
   );
 }
 
-/** 气泡操作容器：复制 + 钉住按钮统一挂在一体化工具条中；
+/** 气泡重新生成按钮：撤回这条回答的提问后用原文重发（语义/顺序见 ChatPanel.handleRegenerate）；
+    不可用时置灰并把原因放进 title（同 user 气泡的编辑入口） */
+function RegenerateBubbleBtn({ disabledReason, onClick }: { disabledReason?: string; onClick: () => void }): JSX.Element {
+  return (
+    <button
+      onClick={onClick}
+      disabled={!!disabledReason}
+      title={disabledReason ?? "重新生成"}
+      aria-label="重新生成这条回答"
+      className={`flex items-center justify-center w-6 h-6 rounded-[var(--radius-lg)] text-text-secondary transition-colors ${disabledReason ? "opacity-40 cursor-not-allowed" : "hover:text-text-primary hover:bg-surface-hover"}`}
+    >
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+    </button>
+  );
+}
+
+/** 气泡操作容器：复制 + 钉住 + （仅 assistant 气泡）重新生成按钮统一挂在一体化工具条中；
     默认隐藏，由消息 hover 状态驱动显隐（visible），隐藏时不可交互 */
-export function BubbleActions({ text, onPin, sid, visible }: { text: string; onPin: (text: string) => void; sid: string; visible: boolean }): JSX.Element {
+export function BubbleActions({ text, onPin, sid, visible, regenerate }: {
+  text: string;
+  onPin: (text: string) => void;
+  sid: string;
+  visible: boolean;
+  /** 重新生成入口：只有 assistant 气泡传（undefined = 不渲染该按钮）；不可用时置灰 + title 说明原因 */
+  regenerate?: { disabledReason?: string; onClick: () => void };
+}): JSX.Element {
   return (
     <div className={`absolute top-full left-0 mt-1 flex items-center rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-sm overflow-hidden transition-opacity duration-150 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
       <CopyBubbleBtn text={text} />
       <PinBubbleBtn text={text} onPin={onPin} sid={sid} />
+      {regenerate && <RegenerateBubbleBtn disabledReason={regenerate.disabledReason} onClick={regenerate.onClick} />}
     </div>
   );
 }

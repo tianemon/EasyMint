@@ -49,6 +49,10 @@ interface ChatState {
   replaceAiEntriesById: (sessionId: string, msgId: number, entries: Record<string, any>[]) => number;
   /** 回合完成后挂 usage（message_end 事件携带的 token/缓存统计） */
   setMessageUsage: (sessionId: string, msgId: number, usage: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number }) => void;
+  /** 回填气泡的会话条目 id（entry_appended 事件——编辑/重新生成按它定位节点）。
+   *  传 `undefined` = 清除：气泡被重发复用（编辑重发/错误重试）时，旧 id 指向的条目已失效
+   *  （被撤回或不在分支上），必须清掉等新条目重新认领（见 ChatPanel.sendText / claimEntryBubble） */
+  setMessageEntryId: (sessionId: string, msgId: number, entryId: string | undefined) => void;
   nextMsgId: (sessionId: string) => number;
 }
 
@@ -199,6 +203,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
         [sessionId]: (s.messagesBySession[sessionId] || []).map((m) =>
           m.id === msgId ? { ...m, usage } : m
         ),
+      },
+    }));
+  },
+
+  setMessageEntryId: (sessionId, msgId, entryId) => {
+    set((s) => ({
+      messagesBySession: {
+        ...s.messagesBySession,
+        [sessionId]: (s.messagesBySession[sessionId] || []).map((m) => {
+          if (m.id !== msgId) return m;
+          if (entryId === undefined) {
+            // 删掉字段而不是置 undefined——认领规则用 `!m.entryId` 判未认领，两种写法等价，
+            // 但删字段让「这个气泡没有 id」在调试/序列化里都是同一件事
+            const { entryId: _cleared, ...rest } = m;
+            return rest;
+          }
+          return { ...m, entryId };
+        }),
       },
     }));
   },

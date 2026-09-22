@@ -1,7 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
-import { AttachItem, ChatMessage, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, mapSessionMessages, getMsgCopyText, acceptStreamEvent } from "./chat-utils";
+import { AttachItem, ChatMessage, PendingUserBubble, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason } from "./chat-utils";
+import { confirmDialog } from "./ui/ConfirmDialog";
 import { chatActions } from "../stores/chat-actions";
 import { confirmFullAccess } from "./permission-confirmation";
 import { resolveThinkingLevel } from "@shared/thinking-levels";
@@ -605,6 +606,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const autoScrollRef = useRef(true);
   // 最新回合输出块 id:thinking/tool 块归入目标(不做文本 diff,流式临时内容)
   const latestAiIdRef = useRef(0);
+  // 本窗口发出去的用户气泡,按发送顺序排队(带点击时刻,供认领规则做时间窗判定与超时清理)。
+  // 不能按 timestamp 精确配对:本地气泡时间戳是点击时刻,条目时间戳由 SDK 收到 prompt 时生成(两者不等);
+  // 但两者差一个 IPC + 预处理抖动(同量级),而「本窗口每次发送必然先建/复用一个气泡」是确定性锚点
+  // ——两者合用见 chat-utils.claimEntryBubble(只有队列里的气泡有资格被认领:系统通知/远端消息插入的
+  // 气泡不在队列里,抢不走 id)。
+  const pendingUserBubbleRef = useRef<PendingUserBubble[]>([]);
   // steer 打断标记
   const steeringRef = useRef(false);
   const sidRef = useRef<string>(initialSid);
@@ -1447,6 +1454,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           useChatStore.getState().setMessageUsage(sidRef.current, latestAiIdRef.current, event.usage);
         }
       }
+      // entry_appended — 条目 id 回填(气泡 ↔ 会话条目 id 贯通):
+      // 主进程在条目落盘后发出(SDK 不对普通 message 条目 emit entry_appended,见 event-bridge)。
+      // assistant 气泡的 piTs 与落盘消息时间戳同源 → 精确匹配;
+      // 本窗口发出去的 user 气泡时间戳是点击时刻(与落盘不等)→ 按发送队列认领(见 claimEntryBubble)。
+      // 匹配不到就是正常降级(旧数据/其它终端发的消息/事件丢失):留空即可,由编辑入口置灰,
+      // 不报错也不猜(猜错会让编辑撤回到错误的节点)
+      if (event.type === "entry_appended" && event.entryId) {
+        const store = useChatStore.getState();
+        const msgs: ChatMessage[] = store.messagesBySession[sidRef.current] || [];
+        const target = claimEntryBubble(msgs, event, pendingUserBubbleRef.current);
+        if (target) store.setMessageEntryId(sidRef.current, target.id, event.entryId);
+        else console.warn(`[chat] entry_appended 未认领到气泡(entry=${event.entryId} role=${event.entryRole} ts=${event.timestamp})——本窗口没发过这条消息(远端终端/旧数据)时属正常降级,该气泡入口置灰`);
+      }
       // tool progress — 状态栏工具信号;shell 计数由后台命令事件驱动(agent:shell-count),
       // 不再按工具事件累加(前台瞬时工具不计入 shell•N)
       if (event.type === "tool_progress" && event.toolName) {
@@ -1959,6 +1979,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     } else if (retryMsg) {
       sentMsgId = retryMsg.id;
     }
+    // 入队 + 清旧 id:复用的气泡(编辑重发/错误重试)身上可能挂着**上一条**条目的 id——
+    // 那条条目随重发已失效(被撤回、或重发后不在当前分支上),留着会让第二次编辑撤到旧节点而报
+    // 「目标消息不在当前对话分支上」。清空后气泡回到「未认领」,本次新条目落盘后重新认领它
+    // (见 chat-utils.claimEntryBubble)。
+    if (sentMsgId != null) {
+      if (opts?.skipAppend) useChatStore.getState().setMessageEntryId(sidRef.current, sentMsgId, undefined);
+      pendingUserBubbleRef.current.push({ id: sentMsgId, ts });
+    }
     // 首条消息:输入卡片从居中平滑下移到底部(FLIP)
     if (!messages.length && !existingSid) {
       startCardLeave();
@@ -2066,35 +2094,106 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   };
   const showConfirmDev = confirmDevFlag || (!busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_confirm_dev"));
 
-  // ── 用户消息编辑重发(发送后打断 → 改原问题重发) ───────────────
-  // 可编辑条件:回合已停止(busy=false)且页面最后一条是 user 消息(该消息刚被打断,无响应) ——
-  // 常驻显示铅笔图标(用户已确认),点击进入编辑态回车重发
-  const editableUserMsgId = useMemo(() => {
-    if (busy) return null;
-    const last = messages[messages.length - 1];
-    return last && last.role === "user" ? last.id : null;
-  }, [busy, messages]);
+  // ── 用户消息编辑重发(任意一条 user 气泡 → 级联撤回后重发) ──────────────
+  // 铅笔常驻在每条 user 气泡下(用户已确认);可用性判据见 chat-utils.editUnavailableReason
+  // (回合进行中 / 该气泡没认领到条目 id)——不可用时置灰并把原因放进 title
   // 编辑态状态(提升到 ChatPanel:嵌套 UserBubble 无 hooks,避免重挂载丢状态)
   const [editingMsg, setEditingMsg] = useState<{ id: number; draft: string } | null>(null);
   const startEdit = useCallback((msg: ChatMessage) => {
     setEditingMsg({ id: msg.id, draft: msg.text ?? "" });
   }, []);
   const cancelEdit = useCallback(() => setEditingMsg(null), []);
-  // 重发:替换本地气泡文本 → 确保回合已停(打断后 busy 已 false,兜底再 abort) → 重新 sendMessage(跳过 append)。
-  // 注意:原文未修改也照常发送(打断后不改字重发 = 重新触发回复,不静默吞)
-  const handleResend = useCallback((msg: ChatMessage, newText: string) => {
+  /**
+   * 编辑重发:**级联撤回 → 本地替换气泡文本 → 用新文本重发**。
+   *
+   * 撤回目标是这条消息**自身**的条目 id——SDK 对 user 目标会把 leaf 落到它的父节点,于是这条消息
+   * 及其之后的全部内容都退出上下文。不提供「只改这一条、后面留着」的行为(那是单条移出上下文的轻量档)。
+   * 因此它之后还有内容时先确认(判据见 chat-utils.needsEditConfirm)。
+   *
+   * 顺序:撤回落点用的是**清空前**的条目 id,所以必须「先撤回、后 sendText」——sendText 复用气泡时
+   * 会清掉旧 id 并重新入队(见 sendText 内注释),先发就会拿不到撤回目标。
+   * 撤回失败:提示且**不发**新文本(否则旧版仍在上下文里、新版又发出去,两版并存);
+   * 本地气泡文本也不动——就地改成新文本会让人以为已经生效。
+   * 注意:原文未修改也照常发送(不改字重发 = 重新触发回复,不静默吞)。
+   */
+  const handleEditSubmit = useCallback(async (msg: ChatMessage, newText: string) => {
     setEditingMsg(null);
+    const entryId = msg.entryId;
+    if (!entryId) return; // 入口已置灰,兜底
+    const stored = useChatStore.getState().messagesBySession[sidRef.current] || [];
+    if (needsEditConfirm(stored, msg.id)) {
+      const ok = await confirmDialog({
+        title: "重新发送这条消息？",
+        message: "这条消息之后的对话会重来。",
+        confirmText: "重新发送",
+      });
+      if (!ok) return;
+    }
+    const res = await window.electronAPI.agent.rewindToNode(sidRef.current, entryId);
+    if (!res.ok) {
+      console.error(`[chat] 编辑撤回失败：session=${sidRef.current} entry=${entryId} ${res.error ?? ""}`);
+      const errText = res.error ? `修改失败：${res.error}` : "修改失败，请重试";
+      useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
+      // 锚在这条消息下方:卡片就在用户刚才操作的位置,并说明这条消息仍在上下文里
+      showFlowError("system", errText, { anchorMsgId: msg.id, hint: "这条消息仍在上下文里，未发送新内容。" });
+      return;
+    }
     // 本地替换该气泡文本(不新增气泡;未修改时文本不变,无副作用)
     useChatStore.getState().updateUserMsgText(sidRef.current, msg.id, newText);
-    // 兜底中止可能残留的回合(打断后正常已停;防边缘状态)
-    // clearQueue：顺手丢掉队列里那份**旧文本**——不回退会与新文本一起被下一次运行投递；
-    // 不传 rewind：这里能撤的是「本轮已发出的消息」，而改好的新文本还没发送、不会因此退掉——
-    // 当前实现只替换本地气泡文本，旧文本仍留在 Pi 历史里（模型会看到新旧两版）
-    const rid = currentChatRef.current;
-    if (rid) window.electronAPI.agent.abort(rid, { clearQueue: true }).catch(() => {});
-    // 重新触发 Mint 回复(跳过 append——气泡已替换,不产生新用户气泡)
-    sendText(newText, { skipAppend: true });
-  }, [sendText]);
+    // 委托 sendText 重发:传 sourceMsgId → 走「复用气泡」路径(跳过 append + 清旧条目 id + 重新入队),
+    // 本次新条目落盘后回填新 id。不传则这条消息认领不到新条目(气泡带着已失效的旧 id,
+    // 第二次编辑直接报「不在当前分支」)。sendText 有 sourceMsgId 时以 store 里的气泡文本为准,
+    // 所以上一步的本地替换必须先做。
+    sendText(newText, { skipAppend: true, sourceMsgId: msg.id });
+  }, [sendText, showFlowError]);
+
+  // ── 重新生成某条回答（撤回它的提问 → 用原文重发） ───────────────
+  /**
+   * 重新生成：先撤回这条回答**所属的提问**（沿 parentId 向上找的第一条 user 条目），再用原文重发。
+   * 会话树只有 main 侧有，所以定位由 main 完成（rewindToNode 的 target:"prompt"），返回 promptEntryId。
+   *
+   * 语义与编辑同为级联：提问及其之后的全部内容退出上下文（这条回答本身也被新回答替掉）。
+   * 因此回答之后还有内容时先确认（判据同编辑），它就是最后一条时无需确认。
+   * 顺序同编辑：**先撤回、成功后才发送**——撤回失败就不发（否则新旧两版答案并存），只给可见提示。
+   *
+   * 重发复用那条提问的气泡（skipAppend + sourceMsgId）：气泡里就是原文与附件，不必再读一次会话
+   * 记录；sendText 的复用路径会清掉气泡上已失效的旧条目 id，本次新条目落盘后重新认领（见 chat-utils）。
+   * 本窗口找不到那条提问的气泡（提问来自手机/其他窗口，或它没认领到条目 id）时不重发：拿不到原件
+   * 就重发等于猜——附件会丢、暂存在输入框里的附件会被错带，只给可见提示。
+   */
+  const handleRegenerate = useCallback(async (msg: ChatMessage) => {
+    const entryId = msg.entryId;
+    if (!entryId) return; // 入口已置灰,兜底
+    const stored = useChatStore.getState().messagesBySession[sidRef.current] || [];
+    if (needsEditConfirm(stored, msg.id)) {
+      const ok = await confirmDialog({
+        title: "重新生成这条回答？",
+        message: "这条回答之后的对话会重来。",
+        confirmText: "重新生成",
+      });
+      if (!ok) return;
+    }
+    // 撤回成功后提问本身也不在上下文里了，所以才能用「原文重发」——撤回前发就是两版并存
+    const res = await window.electronAPI.agent.rewindToNode(sidRef.current, entryId, "prompt");
+    if (!res.ok) {
+      console.error(`[chat] 重新生成撤回失败：session=${sidRef.current} entry=${entryId} ${res.error ?? ""}`);
+      const errText = res.error ? `重新生成失败：${res.error}` : "重新生成失败，请重试";
+      useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
+      // 锚在这条回答下方：卡片就在用户刚才操作的位置，并说明它仍在上下文里
+      showFlowError("system", errText, { anchorMsgId: msg.id, hint: "这条回答仍在上下文里，未生成新内容。" });
+      return;
+    }
+    const promptBubble = stored.find((m) => m.role === "user" && m.entryId != null && m.entryId === res.promptEntryId);
+    if (!promptBubble) {
+      console.error(`[chat] 重新生成未重发：本窗口没有这条提问的气泡（session=${sidRef.current} prompt=${res.promptEntryId ?? "?"}）`);
+      const errText = "未能重新发送提问";
+      useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
+      showFlowError("system", errText, { anchorMsgId: msg.id, hint: "本窗口没有这条提问的记录（可能来自其他终端）。这条回答已退出上下文，请重新输入问题发送。" });
+      return;
+    }
+    // 文本与附件以那条提问气泡为准（sendText 有 sourceMsgId 时以此为准，同编辑路径；附件只在这里能保住）
+    sendText(promptBubble.text ?? "", { skipAppend: true, sourceMsgId: promptBubble.id });
+  }, [sendText, showFlowError]);
 
   // ── Render user bubble ─────────────────────────────
 
@@ -2103,17 +2202,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     return (
       <UserBubble
         msg={msg}
-        editable={editableUserMsgId === msg.id}
+        editDisabledReason={rewindUnavailableReason(msg, busy, "修改")}
         editing={isEditingThis}
         draft={isEditingThis ? editingMsg!.draft : undefined}
         onStartEdit={() => startEdit(msg)}
         onDraftChange={(v) => setEditingMsg((cur) => (cur ? { ...cur, draft: v } : cur))}
-        onCommit={() => { const d = editingMsg?.draft.trim(); if (d) handleResend(msg, d); }}
+        onCommit={() => { const d = editingMsg?.draft.trim(); if (d) void handleEditSubmit(msg, d); }}
         onCancel={cancelEdit}
         onViewImage={(src, name) => openViewer(src, name)}
       />
     );
-  }, [editableUserMsgId, editingMsg, startEdit, cancelEdit, handleResend, openViewer]);
+  }, [busy, editingMsg, startEdit, cancelEdit, handleEditSubmit, openViewer]);
 
   const handlePin = useCallback((text: string) => {
     usePinStore.getState().addPin(sidRef.current, text);
@@ -2294,6 +2393,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                       streaming={busy && vi.index === streamIndex}
                       userBubble={userBubble}
                       onPin={handlePin}
+                      onRegenerate={handleRegenerate}
+                      busy={busy}
                       onContextMenu={handleMsgContextMenu}
                       sid={sid}
                     />
@@ -2525,13 +2626,17 @@ interface MemoChatMessageProps {
   msg: ChatMessage;
   /** 本条消息是否正在增长（只有末尾那条为真）——驱动流式 markdown 与思考块的流式态 */
   streaming: boolean;
+  /** 本会话是否处于回合中（重新生成入口的临时不可用判据，与编辑入口同一套） */
+  busy: boolean;
   userBubble: (msg: ChatMessage) => JSX.Element;
   onPin: (text: string) => void;
+  /** 重新生成这条回答（撤回它的提问后用原文重发） */
+  onRegenerate: (msg: ChatMessage) => void;
   onContextMenu: (msg: ChatMessage, e: React.MouseEvent) => void;
   sid: string;
 }
 
-const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, userBubble, onPin, onContextMenu, sid }: MemoChatMessageProps) {
+const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, userBubble, onPin, onRegenerate, onContextMenu, sid }: MemoChatMessageProps) {
   // 指令型系统消息的展开/收起（事件型不折叠——无此 state 参与）
   const [sysExpanded, setSysExpanded] = useState(false);
   // 思考/工具固定显示(无显示开关)——全部 entries 参与建块
@@ -2763,7 +2868,13 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, userBubb
               );
             })()}
           </div>
-          <BubbleActions text={copyText} onPin={onPin} sid={sid} visible={actionsVisible} />
+          <BubbleActions
+            text={copyText}
+            onPin={onPin}
+            sid={sid}
+            visible={actionsVisible}
+            regenerate={{ disabledReason: rewindUnavailableReason(msg, busy, "重新生成"), onClick: () => onRegenerate(msg) }}
+          />
         </div>
       </div>
     </div>
@@ -2771,9 +2882,10 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, userBubb
 });
 
 // 用户消息气泡(模块级稳定组件——嵌套定义每次渲染重建类型会致整棵 remount,输入/按钮事件丢失)
-function UserBubble({ msg, editable, editing, draft, onStartEdit, onDraftChange, onCommit, onCancel, onViewImage }: {
+function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDraftChange, onCommit, onCancel, onViewImage }: {
   msg: ChatMessage;
-  editable?: boolean;
+  /** 有值 = 编辑入口置灰（原因为 title，如回合进行中 / 气泡未认领到条目 id） */
+  editDisabledReason?: string;
   editing?: boolean;
   draft?: string;
   onStartEdit?: () => void;
@@ -2834,28 +2946,34 @@ function UserBubble({ msg, editable, editing, draft, onStartEdit, onDraftChange,
           msg.text ? <UserMessageText text={msg.text} /> : null
         )}
         </div>
-        {editable && (
-          <div className="flex justify-end mt-0.5">
-            {isEditing ? (
-              /* 发送按钮占编辑按钮原位（气泡下方右侧）。提交放 onMouseDown 而非 onClick：
-                 click 前 textarea 先 blur → onBlur 取消编辑 → 节点卸载 → click 丢失(点击无效)。
-                 mousedown 先于 blur 触发,提交在取消竞态前完成;preventDefault 兜底拦默认焦点转移 */
-              <button
-                type="button"
-                title="发送"
-                aria-label="发送修改后的消息"
-                onMouseDown={(e) => { e.preventDefault(); onCommit?.(); }}
-                className="p-0.5 text-text-muted hover:text-text-primary transition-colors"
-              >
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
-              </button>
-            ) : (
-              <button type="button" onClick={onStartEdit} title="修改并重新发送" className="p-0.5 text-text-muted hover:text-text-primary transition-colors" aria-label="编辑消息">
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>
-              </button>
-            )}
-          </div>
-        )}
+        {/* 铅笔常驻在每条 user 气泡下（用户已确认）；不可用时置灰并给出原因（title） */}
+        <div className="flex justify-end mt-0.5">
+          {isEditing ? (
+            /* 发送按钮占编辑按钮原位（气泡下方右侧）。提交放 onMouseDown 而非 onClick：
+               click 前 textarea 先 blur → onBlur 取消编辑 → 节点卸载 → click 丢失(点击无效)。
+               mousedown 先于 blur 触发,提交在取消竞态前完成;preventDefault 兜底拦默认焦点转移 */
+            <button
+              type="button"
+              title="发送"
+              aria-label="发送修改后的消息"
+              onMouseDown={(e) => { e.preventDefault(); onCommit?.(); }}
+              className="p-0.5 text-text-muted hover:text-text-primary transition-colors"
+            >
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onStartEdit}
+              disabled={!!editDisabledReason}
+              title={editDisabledReason ?? "修改并重新发送"}
+              aria-label="编辑消息"
+              className={`p-0.5 transition-colors ${editDisabledReason ? "text-text-muted opacity-40 cursor-not-allowed" : "text-text-muted hover:text-text-primary"}`}
+            >
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>
+            </button>
+          )}
+        </div>
       </div>
       <div className="msg-avatar user">U</div>
     </div>

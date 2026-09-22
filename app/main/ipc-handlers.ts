@@ -235,6 +235,13 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     // 无产出时把分支退回本轮起点，让该消息退出上下文——两者都无返回值（abort(): Promise<void>）
     return await agentService.abort(runId, { clearQueue: clearQueue === true, rewind: rewind === true });
   });
+  // 按节点撤回（编辑消息/重新生成用）：不依赖运行中的回合，返回 {ok,promptEntryId?} | {ok:false,error}
+  // ——非法目标/回合进行中/压缩中都是明确错误（error 文案可直接给用户看），且不改动会话状态
+  // target="prompt"：把传入条目当「某条回答」，由主进程沿 parentId 定位所属提问并撤回它，
+  // 返回 promptEntryId 供渲染层找到那条提问气泡复用重发
+  ipcMain.handle("agent:rewindToNode", async (_e, { sessionId, entryId, target }: { sessionId: string; entryId: string; target?: "entry" | "prompt" }) => {
+    return await agentService.rewindToNode(sessionId, entryId, target ? { target } : undefined);
+  });
   ipcMain.handle("agent:chatStatus", (_e, { sessionId }) => {
     return agentService.getChatStatus(sessionId);
   });

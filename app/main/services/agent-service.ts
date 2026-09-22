@@ -41,6 +41,7 @@ import { permissionService } from "./permission/agent-permission-service";
 import type { CanUseToolOptions, PermissionResult } from "./permission/agent-permission-service";
 import {
   bridgeSessionEvents,
+  createMessageEntryTracker,
   type PiChatEvent,
 } from "./event-bridge";
 import type { AgentSession, AgentSessionEvent, ToolDefinition } from "./pi-sdk";
@@ -891,16 +892,22 @@ export class AgentService {
       }
     };
 
+    const emitEvent = (ev: PiChatEvent) => {
+      ev.sessionId = sessionId;
+      ev.chatId = chatId;
+      broadcast("agent:stream", ev);
+      this.bufferEvent(sessionId, ev);
+      reportCtxThrottled();
+    };
+    // 条目 id 回填:SDK 不对普通 message 条目 emit entry_appended(见 createMessageEntryTracker),
+    // 在落盘后回查 sessionManager 补发——前端据此给气泡回填 entryId(编辑/重新生成入口的锚点)
+    const entryTracker = createMessageEntryTracker({ getSession: () => session, emit: emitEvent });
+
     const unsub = session.subscribe((event: AgentSessionEvent) => {
       try {
+        entryTracker.observe(event);
         bridgeSessionEvents(event, {
-          onEvent: (ev) => {
-            ev.sessionId = sessionId;
-            ev.chatId = chatId;
-            broadcast("agent:stream", ev);
-            this.bufferEvent(sessionId, ev);
-            reportCtxThrottled();
-          },
+          onEvent: emitEvent,
           getSession: () => session,
           setPendingResult: (ev: PiChatEvent) => { pendingResult = ev; },
         });
@@ -1220,16 +1227,110 @@ export class AgentService {
         return;
       }
       console.log(`[agent] 撤回执行前：leaf=${leafBefore} startId=${startId} 回溯 ${turn.length} 条 isStreaming=${session.isStreaming} isCompacting=${session.isCompacting}`);
-      await session.navigateTree(startId, { summarize: false });
-      // 钉住撤回后的位置：SDK 的 leaf **只存在内存里**（session-manager 全程不写盘），重开时
-      // _buildIndex 把 leaf 重置为文件最后一条 → 不钉住的话被撤回的消息在重开会话后会复活
-      // （上下文与界面历史都回来）。追加一条 custom 条目把文件尾落在撤回后的位置：
-      // SDK 写明 custom 条目「不参与上下文」（sessionEntryToContextMessages），EM 的历史
-      // 读取（parseEntriesToMessages）也只认 message/custom_message/compaction。
-      const pinId = mgr.appendCustomEntry("em_rewind_pin", { leaf: startId });
-      console.log(`[agent] 打断撤回：leaf ${leafBefore} → ${mgr.getLeafId() ?? "null"}（钉住 ${pinId}，起点 ${startId}）`);
+      await this.rewindBranchTo(session, startId);
     } catch (e) {
       console.warn(`[agent] 打断撤回失败：${(e as Error).name}: ${(e as Error).message}`);
+    }
+  }
+
+  /** 撤回的原子动作：把分支退到 targetId，再追加 em_rewind_pin 把文件尾钉在撤回后的位置。
+   *  SDK 的 leaf **只存在内存里**（session-manager 全程不写盘），重开时 _buildIndex 把 leaf 重置为
+   *  文件最后一条 → 不钉住的话被撤回的消息在重开会话后会复活（上下文与界面历史都回来）。追加一条
+   *  custom 条目把文件尾落在撤回后的位置：SDK 写明 custom 条目「不参与上下文」
+   *  （sessionEntryToContextMessages），EM 的历史读取（parseEntriesToMessages）也只认
+   *  message/custom_message/compaction——注意别用 custom_message，那个会渲染成 user 消息。 */
+  private async rewindBranchTo(session: AgentSession, targetId: string): Promise<void> {
+    const mgr = session.sessionManager;
+    const leafBefore = mgr.getLeafId();
+    await session.navigateTree(targetId, { summarize: false });
+    const pinId = mgr.appendCustomEntry("em_rewind_pin", { leaf: targetId });
+    console.log(`[agent] 撤回：leaf ${leafBefore ?? "null"} → ${mgr.getLeafId() ?? "null"}（钉住 ${pinId}，目标 ${targetId}）`);
+  }
+
+  /** 按节点撤回（编辑消息 / 重新生成用）：不依赖运行中的回合，把分支退到指定条目。
+   *  与 abort() 上的撤回（rewindIfNoOutput：仅本轮无产出时退到本轮起点）相互独立——编辑场景没有
+   *  回合可打断，所以是单独入口。目标必须存在且在当前分支路径上，非法目标**不改动任何状态**。
+   *
+   *  `opts.target === "prompt"`（重新生成用）：把传入条目当「某条回答」，先沿 parentId 向上解析出它的
+   *  **所属提问**（第一条 role=user 的消息条目），再撤回那个提问（leaf 落到提问的父节点）。
+   *  走语义参数而不是新增 IPC：撤回的动作与全部守卫（会话已加载 / 分支路径 / 回合中 / 压缩中 /
+   *  em_rewind_pin 落盘 / SDK 错误文案映射）完全一致，另开一条通路只会多一份同样的守卫；
+   *  「回归到这条回答所属的提问」本就只是撤回目标的一种解析方式。
+   *  返回 `promptEntryId`：调用方按它找到本地那条提问气泡，复用气泡重发（保附件、免再读记录）。 */
+  async rewindToNode(
+    sessionId: string,
+    targetEntryId: string,
+    opts?: { target?: "entry" | "prompt" },
+  ): Promise<{ ok: true; promptEntryId?: string } | { ok: false; error: string }> {
+    const toPrompt = opts?.target === "prompt";
+    const chat = this.findActiveChat(sessionId);
+    const session = chat?.session;
+    if (!chat || !session) {
+      console.log(`[agent] 按节点撤回跳过：会话未加载（sessionId=${sessionId} chat=${!!chat} session=${!!session}）`);
+      return { ok: false, error: "会话未加载，无法撤回（重新打开该会话后重试）" };
+    }
+    const mgr = session.sessionManager;
+    if (!targetEntryId) {
+      console.log(`[agent] 按节点撤回拒绝：目标 id 为空（sessionId=${sessionId}）`);
+      return { ok: false, error: "撤回目标缺失，无法撤回" };
+    }
+    const targetEntry = mgr.getEntry(targetEntryId);
+    if (!targetEntry) {
+      console.log(`[agent] 按节点撤回拒绝：目标条目不存在（sessionId=${sessionId} target=${targetEntryId}）`);
+      return { ok: false, error: "目标消息不在当前会话里，无法撤回" };
+    }
+    // 重新生成：先把目标解析成「这条回答所属的提问」——沿条目自己的 parentId 向上回溯（工具结果 /
+    // 系统注入 / 压缩记录 / 撤回 pin 都不是提问）。不用 getBranch()：界面上留着的旧回答气泡可能已不在
+    // 当前分支上，只有沿它自己的 parentId 才找得到它当初的提问。
+    let rewindId = targetEntryId;
+    if (toPrompt) {
+      let cur: ReturnType<typeof mgr.getEntry> = targetEntry;
+      while (cur && !(cur.type === "message" && cur.message.role === "user")) {
+        cur = cur.parentId ? mgr.getEntry(cur.parentId) : undefined;
+      }
+      if (!cur) {
+        console.log(`[agent] 按节点撤回拒绝：找不到所属提问（sessionId=${sessionId} target=${targetEntryId}）`);
+        return { ok: false, error: "找不到这条回答对应的提问，无法重新生成" };
+      }
+      rewindId = cur.id;
+    }
+    const rewindEntry = mgr.getEntry(rewindId)!;
+    // 分支路径校验用 getBranch（从当前 leaf 沿 parentId 回溯）：只认当前分支上的节点，
+    // 否则会悄悄把另一条废弃分支上的历史接回来。
+    // 允许多一种等价安全的形态：目标是 **user 消息**且它的父节点在当前分支上——此时目标自己已被撤回掉
+    // （气泡还在界面上：打断撤回后的最后一条、或上一次编辑重发留在列表里的旧气泡），而 navigateTree 对
+    // user 目标把 leaf 落到它的父节点（见 SDK agent-session.navigateTree），所以撤回结果同样只是
+    // 「截断到父节点」，不会接回任何废弃分支；再往后发新文本正好把截断点之后的内容（含撤回后新写上去的
+    // 同级子树）一并丢掉，与用户确认过的级联语义一致。
+    // 不放开这条：「打断后改字重发」这条既有路径会直接失效——那条气泡的条目在打断撤回后必然已不在分支上。
+    // 非 user 目标（如 assistant 条目）不受此宽免：它对 leaf 的落点是自身，不在分支上就等于接回旧分支。
+    const branchIds = new Set(mgr.getBranch().map((e) => e.id));
+    const userParentId = rewindEntry.type === "message" && rewindEntry.message.role === "user" ? rewindEntry.parentId : undefined;
+    if (!branchIds.has(rewindId) && !(userParentId && branchIds.has(userParentId))) {
+      console.log(`[agent] 按节点撤回拒绝：目标不在当前分支（sessionId=${sessionId} target=${rewindId} parent=${userParentId ?? "null"} leaf=${mgr.getLeafId() ?? "null"}）`);
+      return { ok: false, error: "目标消息不在当前对话分支上，无法撤回" };
+    }
+    // 运行态用 EM 自己的 activePromptSessions（SDK 的 isStreaming 在超时中断等路径会残留，见 isSessionRunning）
+    if (this.isSessionRunning(chat.sessionId)) {
+      console.log(`[agent] 按节点撤回拒绝：回合进行中（sessionId=${chat.sessionId} target=${rewindId}）`);
+      return { ok: false, error: "当前回答还在进行中，停止后才能撤回" };
+    }
+    if (session.isCompacting) {
+      console.log(`[agent] 按节点撤回拒绝：会话压缩中（sessionId=${chat.sessionId} target=${rewindId}）`);
+      return { ok: false, error: "会话正在压缩中，请稍后重试" };
+    }
+    try {
+      await this.rewindBranchTo(session, rewindId);
+      return toPrompt ? { ok: true, promptEntryId: rewindId } : { ok: true };
+    } catch (e) {
+      const err = e as Error;
+      console.warn(`[agent] 按节点撤回失败：session=${chat.sessionId} target=${rewindId} ${err.name}: ${err.message}`);
+      // SDK 拒绝时抛英文原文（回合进行中 / 压缩中 / 目标不存在）——转成可读文案，原始信息只进日志
+      const msg = err.message ?? "";
+      if (msg.includes("current response to finish")) return { ok: false, error: "当前回答还在进行中，停止后才能撤回" };
+      if (msg.includes("compaction")) return { ok: false, error: "会话正在压缩中，请稍后重试" };
+      if (msg.includes("not found")) return { ok: false, error: "目标消息不在当前会话里，无法撤回" };
+      return { ok: false, error: "撤回失败，请重试（详情见主进程日志）" };
     }
   }
 

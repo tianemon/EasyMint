@@ -13,6 +13,12 @@ export interface ChatMessage {
   role: "user" | "ai";
   /** 磁盘 uuid(若有):SubagentProcessView 用它做稳定 React key(重载不重复) */
   keyId?: string;
+  /**
+   * 该气泡对应的 Pi 会话条目 id(磁盘 uuid)——编辑/重新生成按它定位节点。
+   * 历史气泡加载磁盘时即有;本轮新产生的气泡由 entry_appended 事件回填(见 ChatPanel)。
+   * 两者都没有时留空:入口置灰并说明原因,不做猜测性撤回。
+   */
+  entryId?: string;
   text?: string;
   attaches?: AttachItem[];
   entries?: StreamEntry[];
@@ -137,7 +143,7 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
         const msgObj = m.message as { customType?: string; details?: Record<string, unknown> };
         const id = ++nextId;
         mapped.push({
-          id, role: "user", text: cleanText, keyId: uuid ? `d-${uuid}-${id}` : undefined,
+          id, role: "user", text: cleanText, keyId: uuid ? `d-${uuid}-${id}` : undefined, entryId: uuid,
           attaches: attaches.length > 0 ? attaches : undefined, timestamp: ts,
           // 系统消息结构身份(custom_message 条目):前端按 customType/kind 渲染
           customType: msgObj.customType, details: msgObj.details,
@@ -166,7 +172,7 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
         // 磁盘消息携带 Pi 归一化 usage（input 未缓存输入/cacheRead 缓存读）——历史会话也显示 token 行（显示层持久化）
         const u = (m.message as { usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number } }).usage;
         mapped.push({
-          id, role: "ai", entries, timestamp: ts, keyId: uuid ? `d-${uuid}-${id}` : undefined,
+          id, role: "ai", entries, timestamp: ts, keyId: uuid ? `d-${uuid}-${id}` : undefined, entryId: uuid,
           usage: u ? { inputTokens: u.input ?? 0, outputTokens: u.output ?? 0, cacheReadTokens: u.cacheRead ?? 0, cacheWriteTokens: u.cacheWrite ?? 0 } : undefined,
         });
       }
@@ -203,12 +209,112 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
         }
         if (!matched) {
           const id = ++nextId;
-          mapped.push({ id, role: "ai", entries: [resultEntry], timestamp: ts, keyId: uuid ? `d-${uuid}-${id}` : undefined });
+          mapped.push({ id, role: "ai", entries: [resultEntry], timestamp: ts, keyId: uuid ? `d-${uuid}-${id}` : undefined, entryId: uuid });
         }
       }
     }
   }
   return mapped;
+}
+
+/** 本窗口发出去、还在等条目 id 回填的用户气泡（发送顺序 = 条目落盘顺序） */
+export interface PendingUserBubble {
+  /** 气泡 id（useChatStore 里的消息 id） */
+  id: number;
+  /** 入队时刻（本地点击时间）——超时清理与时间窗判定都用它 */
+  ts: number;
+}
+
+/** 入队后超过这个时长还没等到自己的条目 id 就丢弃。纯内存清理：该气泡永久留空（降级），不影响别人。 */
+export const PENDING_BUBBLE_TTL_MS = 10 * 60_000;
+
+/**
+ * 认领时，条目时间戳与气泡入队时刻允许的最大差值。
+ *
+ * 两者同源同量级但不等：气泡时间戳是点击时刻，条目时间戳由 SDK 收到 prompt 时生成
+ * （差一个 IPC + 预处理/建会话抖动，正常 < 1s）。而「自己那次发送的事件被门卫丢掉 / 认不出」
+ * 的陈旧气泡，与后来的事件差着整轮对话的时间。这个窗口就是把两者分开：
+ * 宁可让陈旧气泡留空（入口置灰降级），也绝不把新条目的 id 写到旧气泡上——
+ * 认错气泡 = 编辑/重新生成撤回到错误节点。
+ */
+export const CLAIM_WINDOW_MS = 15_000;
+
+/**
+ * entry_appended 事件 → 承接这个条目 id 的气泡（气泡 ↔ 会话条目 id 贯通的认领规则）。
+ *
+ * 两条路径：
+ * - assistant：气泡的 `piTs` 与落盘消息时间戳同源（message_end 帧携带的就是该消息对象的时间戳）
+ *   → 按时间戳精确匹配；同一毫秒可能有多条条目（时间戳相同），取最近一条并记日志。
+ * - user：本地气泡的时间戳是点击时刻，与 SDK 生成、落盘的时间戳不等 → 无法按时间戳精确匹配，
+ *   改按本窗口的发送队列认领（本窗口每次发送必然先建/复用一个气泡，发送顺序 = 落盘顺序）。
+ *   候选集 =「队列里的气泡」∩「未认领的 user 气泡」——**只有本窗口发出去的气泡才有资格**：
+ *   系统通知（custom_event）与其它终端（手机/另一窗口）的 user_message 插入的气泡不在队列里，
+ *   抢不走 id（此前按「最近一条未认领气泡」找，会被它们顶掉，本窗口那条永远拿不到 id）。
+ *   时间戳只用来排除陈旧项（见 CLAIM_WINDOW_MS），不参与精确定位。
+ *
+ * 认不出就返回 undefined（旧数据 / 事件丢失 / 其它终端发的消息）：留空降级，由编辑入口置灰，
+ * **不猜**——认错气泡会让编辑/重新生成撤回到错误的节点。**未命中不消费队列**（否则那条真事件
+ * 回来时已经没有可配对的气泡了），只清理已死项（气泡已不在 / 已有 id / 超时）。
+ */
+export function claimEntryBubble(
+  msgs: ChatMessage[],
+  ev: { entryRole?: string; entryId?: string; timestamp?: number },
+  pending: PendingUserBubble[],
+  now: number = Date.now(),
+): ChatMessage | undefined {
+  if (!ev.entryId) return undefined;
+  if (ev.entryRole === "assistant") {
+    const hits = msgs.filter((m) => m.role === "ai" && m.piTs === ev.timestamp && !m.entryId);
+    if (hits.length > 1) console.warn(`[chat] entry_appended 同一时间戳 ${ev.timestamp} 匹配到 ${hits.length} 条 ai 气泡，取最近一条`);
+    return hits[hits.length - 1];
+  }
+  if (ev.entryRole !== "user") return undefined;
+  for (let i = pending.length - 1; i >= 0; i--) {
+    if (now - pending[i]!.ts > PENDING_BUBBLE_TTL_MS) pending.splice(i, 1);
+  }
+  // 取「最早那次发送」且还活着的气泡（落盘顺序 = 发送顺序，最早的那条最可能是本条事件的主人）
+  for (let i = 0; i < pending.length; i++) {
+    const p = pending[i]!;
+    const bubble = msgs.find((m) => m.id === p.id);
+    // 气泡已不在（会话切换/重载）或已从别的途径拿到 id（磁盘重载）→ 这一项出局，不要挡在队首
+    if (!bubble || bubble.role !== "user" || bubble.entryId) { pending.splice(i, 1); i--; continue; }
+    // 时间戳差出窗口 = 这条事件不是它的（早得多的陈旧项，或时钟异常的异常项）→ 跳过它看下一条，
+    // 不认领也不消费：它自己那条事件若还会来，仍能配对
+    if (ev.timestamp != null && Math.abs(ev.timestamp - p.ts) > CLAIM_WINDOW_MS) {
+      console.warn(`[chat] entry_appended: 气泡 #${p.id} 入队时刻与条目时间戳差 ${Math.abs(ev.timestamp - p.ts)}ms（> ${CLAIM_WINDOW_MS}ms），不是它的条目 → 跳过（该气泡若一直等不到自己的事件则永久留空）`);
+      continue;
+    }
+    pending.splice(i, 1);
+    return bubble;
+  }
+  return undefined;
+}
+
+/**
+ * 编辑某条用户消息前是否需要确认「这条之后的对话会重来」。
+ *
+ * 编辑=级联撤回（见 ChatPanel.handleEditSubmit）：目标之后的**全部**内容都退出上下文且不可恢复，
+ * 所以之后还有内容时先确认；它就是最后一条时没有可丢的东西，多一次确认只是噪音。
+ * 判据只看它在当前消息列表里的位置——之后任何一条消息（Mint 回答、系统通知卡片）都会被撤回。
+ * 重新生成（ChatPanel.handleRegenerate）用同一条判据，锚点是那条回答：撤回点是它的提问，
+ * 回答之后还有内容时同样会被一并丢掉。
+ */
+export function needsEditConfirm(msgs: ChatMessage[], msgId: number): boolean {
+  const idx = msgs.findIndex((m) => m.id === msgId);
+  return idx >= 0 && idx < msgs.length - 1;
+}
+
+/**
+ * 撤回类入口（编辑消息 / 重新生成回答）不可用的原因（undefined = 可用）。
+ *
+ * 两个前提都是撤回能力本身的硬约束：回合进行中 SDK 拒绝撤回；气泡没认领到条目 id 就定位不出撤回目标
+ * （见 claimEntryBubble）。**永久性原因排在前面**——先报「拿不到 id」再报「回合进行中」，
+ * 否则用户等回合结束会发现入口仍是灰的。
+ */
+export function rewindUnavailableReason(msg: ChatMessage, busy: boolean, action: "修改" | "重新生成"): string | undefined {
+  if (!msg.entryId) return `这条消息无法定位到会话记录，暂不支持${action}`;
+  if (busy) return `本轮回复进行中，结束后可${action}`;
+  return undefined;
 }
 
 /** 消息可复制全文：user 取 text，ai 取全部 text entries 合并 */

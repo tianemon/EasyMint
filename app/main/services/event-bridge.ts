@@ -5,7 +5,7 @@
  * message_update 触发时直接读取，不需要手动累加。
  */
 
-import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import type { AgentSessionEvent, SessionEntry, SessionManager, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
 import { compactionCardFields } from "../../shared/prompts";
 
 export interface PiChatEvent {
@@ -35,7 +35,14 @@ export interface PiChatEvent {
   canRetry?: boolean;
   summary?: string;
   usage?: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number };
+  /** 落盘条目 id(entry_appended 事件;前端给气泡回填 entryId 用) */
+  entryId?: string;
+  /** 条目消息角色(entry_appended 事件)——前端据此判断回填到 user 还是 ai 气泡 */
+  entryRole?: PiEntryRole;
 }
+
+/** 条目的消息角色(AgentMessage.role 全集)——不对应气泡的角色由前端忽略 */
+export type PiEntryRole = SessionMessageEntry["message"]["role"];
 
 interface ChatBlock {
   type: "text" | "tool_use" | "tool_result" | "thinking";
@@ -107,6 +114,90 @@ function extractPartialText(partialResult: unknown): string {
     .filter((b): b is { type?: string; text?: string } => typeof b === "object" && b !== null)
     .map((b) => (b.type === "text" && b.text ? b.text : ""))
     .join("");
+}
+
+/**
+ * 会话条目 → entry_appended 事件。
+ *
+ * 只处理能对到前端气泡的条目:user/assistant 的 message 条目带 message 对象,其 timestamp
+ * 与流式帧(前端气泡的 piTs)同源,前端可按时间戳精确回填 entryId。其余一律返回 null 不转发——
+ * toolResult 合并显示在 AI 气泡里(无自己的气泡)、状态变更/压缩/标签不对应气泡、
+ * custom_message 条目只有 ISO 时间戳(与消息时间戳不同源,前端也匹配不上)。
+ */
+export function entryAppendedEvent(entry: SessionEntry): PiChatEvent | null {
+  if (entry.type !== "message") return null;
+  if (entry.message.role !== "user" && entry.message.role !== "assistant") return null;
+  return {
+    type: "entry_appended",
+    sessionId: "",
+    entryId: entry.id,
+    entryRole: entry.message.role,
+    timestamp: (entry.message as { timestamp?: number }).timestamp,
+  };
+}
+
+/** message 条目的 entryId 回填器(见 createMessageEntryTracker 的说明) */
+export interface MessageEntryTracker {
+  /** 每个 SDK 事件都要过一遍:挂起 message_end 的消息、结算已落盘的挂起项 */
+  observe(event: AgentSessionEvent): void;
+  flush(): void;
+}
+
+/**
+ * message 条目的 entryId 回填器。
+ *
+ * **SDK 不对 message 条目 emit `entry_appended`**——源码实证(agent-session.js):该事件只在
+ * boundary draft / context_edit / 扩展 appendEntry / cache warmer 四处发出,普通消息落盘走的是
+ * `message_end` 分支里的 `sessionManager.appendMessage(event.message)`,id 只存进私有的
+ * `_entryIdsByMessage`,事件流里拿不到。
+ *
+ * 而落盘发生在 message_end 派发之后的同一段同步代码里(先 `_emit(event)`,再 appendMessage),
+ * 所以这里把 message_end 的消息**按对象身份**挂起,在随后的事件或微任务里回查 sessionManager
+ * 得到条目 id,再以 `entry_appended` 同形状事件推给前端。用对象身份而非时间戳,同毫秒多条目
+ * 也不会错配(前端才需要按 role+timestamp 落到气泡上)。
+ */
+export function createMessageEntryTracker(opts: {
+  getSession: () => { sessionManager: SessionManager } | null;
+  emit: (event: PiChatEvent) => void;
+}): MessageEntryTracker {
+  const pending: unknown[] = [];
+  let scheduled = false;
+
+  const flush = (): void => {
+    scheduled = false;
+    if (pending.length === 0) return;
+    const entries = opts.getSession()?.sessionManager.getEntries() ?? [];
+    // 正序遍历:发出的顺序 = 消息落盘顺序(前端 user 气泡按发送队列 FIFO 配对,依赖这个顺序)
+    for (let i = 0; i < pending.length; ) {
+      const entry = entries.find((e) => e.type === "message" && e.message === pending[i]);
+      // 还没落盘(SDK 的持久化在本事件的派发之后)→ 留着等下一个事件再查,不丢
+      if (!entry) { i++; continue; }
+      pending.splice(i, 1);
+      const ev = entryAppendedEvent(entry);
+      if (ev) opts.emit(ev);
+    }
+  };
+
+  return {
+    observe(event) {
+      flush();
+      if (event.type === "message_end") {
+        pending.push(event.message);
+        if (!scheduled) {
+          scheduled = true;
+          // 微任务:当前同步段(含落盘)结束后立刻结算,用户消息不必等到下一个流事件才有 id
+          queueMicrotask(flush);
+        }
+        return;
+      }
+      // 回合结束仍查不到(appendMessage 是同步的,理论不可达)→ 丢弃并记日志,不留悬挂状态
+      if (event.type === "agent_end" && pending.length > 0) {
+        console.warn(`[event-bridge] entry_appended: ${pending.length} 条消息在会话文件里找不到条目,放弃回填`);
+        pending.length = 0;
+      }
+    },
+    flush,
+  };
 }
 
 interface BridgeCallbacks {
@@ -272,6 +363,15 @@ export function bridgeSessionEvents(
         });
       }
       // aborted(中止):不广播——清蒙版由上层 context-summarizing done 兜底
+      break;
+    }
+
+    case "entry_appended": {
+      // SDK 自带条目事件(boundary draft / context_edit / 扩展 appendEntry 等)。
+      // 注意:普通 message 条目 SDK 不发此事件(id 在私有 _entryIdsByMessage 里)——
+      // 那部分由 createMessageEntryTracker 在落盘后补发,前端收到的形状与此一致
+      const ev = entryAppendedEvent(event.entry);
+      if (ev) callbacks.onEvent(ev);
       break;
     }
 

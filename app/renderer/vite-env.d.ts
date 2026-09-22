@@ -170,7 +170,7 @@ interface StreamEvent {
   sessionId?: string;
   chatId?: string;       // event-bridge 注入（agent:stream 广播时设置）
   type: "message_start" | "message" | "turn_start" | "turn_end" | "thinking"
-      | "tool_progress" | "tool_done" | "tool_result" | "compacting" | "compacted" | "error" | "context_usage" | "status" | "user_message" | "custom_event";
+      | "tool_progress" | "tool_done" | "tool_result" | "compacting" | "compacted" | "error" | "context_usage" | "status" | "user_message" | "custom_event" | "entry_appended";
   blocks?: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; thinking?: string }>;
   partial?: boolean;
   toolName?: string;
@@ -196,6 +196,10 @@ interface StreamEvent {
   canRetry?: boolean;
   summary?: string;
   usage?: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number };
+  /** 落盘条目 id（entry_appended 事件；气泡据此回填 ChatMessage.entryId） */
+  entryId?: string;
+  /** 条目消息角色（entry_appended 事件）——只发 user/assistant（对应前端 user / ai 气泡） */
+  entryRole?: "user" | "assistant";
   percentage?: number;
   data?: Record<string, unknown>;
   source?: "worker" | "evaluator" | "chat";
@@ -275,6 +279,10 @@ interface ElectronAPI {
     onAskClosed: (callback: (data: { requestId: string }) => void) => () => void;
     onTodos: (callback: (data: { sessionId: string; todos: Array<{ content: string; status: "pending" | "in_progress" | "completed"; startedAt?: number; waiting?: boolean }> }) => void) => () => void;
     abort: (runId: string, opts?: { clearQueue?: boolean; rewind?: boolean }) => Promise<void>;
+    /** 按节点撤回（编辑消息/重新生成用）：不依赖运行中的回合；失败返回可读 error（目标非法/回合中/压缩中）
+     *  target="prompt"：把 entryId 当「某条回答」，主进程沿 parentId 定位所属提问并撤回它，
+     *  返回 promptEntryId（提问条目 id）供渲染层找到那条提问气泡复用重发 */
+    rewindToNode: (sessionId: string, entryId: string, target?: "entry" | "prompt") => Promise<{ ok: boolean; error?: string; promptEntryId?: string }>;
     setModel: (sessionId: string, model: string, provider?: string) => Promise<void>;
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => Promise<{ chatId: string }>;
     chatStatus: (sessionId: string) => Promise<string | null>;
