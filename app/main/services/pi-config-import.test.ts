@@ -94,6 +94,29 @@ describe("pi import", () => {
     expect(fs.readFileSync(path.join(target, "agent", "sessions", dirName, "dup-two.jsonl"), "utf8")).toBe("not-jsonl");
   }, 60000);
 
+  it.each([false, true])("deduplicates IDs within one import batch (conflicting content: %s)", async (conflicting) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-batch-")); roots.push(root);
+    const source = path.join(root, "pi", "agent"); const target = path.join(root, "em");
+    const repo = await NativeConfig.create(new Store(target));
+    const transcript = (level: string) => [
+      { type: "session", version: 3, id: "same-id", cwd: root, timestamp: "2026-09-22T00:00:00Z" },
+      { type: "thinking_level_change", id: "a", parentId: null, thinkingLevel: level, timestamp: "2026-09-22T00:00:00Z" },
+    ].map(x => JSON.stringify(x)).join("\n") + "\n";
+    const first = transcript("low");
+    const second = conflicting ? transcript("high") : first;
+    atomicWrite(path.join(source, "sessions", "--project--", "a.jsonl"), first);
+    atomicWrite(path.join(source, "sessions", "--project--", "b.jsonl"), second);
+    const expected = { sessions: 1, duplicates: conflicting ? 0 : 1, conflicts: conflicting ? 1 : 0 };
+
+    expect(await repo.importPi(source)).toMatchObject(expected);
+    expect(fs.existsSync(path.join(target, "agent", "sessions"))).toBe(false);
+    expect(await repo.importPi(source, true)).toMatchObject(expected);
+    expect(fs.readFileSync(path.join(target, "agent", "sessions", "--project--", "a.jsonl"), "utf8")).toBe(first);
+    expect(fs.existsSync(path.join(target, "agent", "sessions", "--project--", "b.jsonl"))).toBe(false);
+    expect(read(path.join(target, "session-cache", "same-id.json")).thinkingLevel).toBe("low");
+    expect(fs.readFileSync(path.join(source, "sessions", "--project--", "b.jsonl"), "utf8")).toBe(second);
+  }, 60000);
+
   it("probe reports existence without reading session contents", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-probe-")); roots.push(root);
     const source = path.join(root, "pi", "agent"); const target = path.join(root, "em");

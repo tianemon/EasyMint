@@ -159,8 +159,10 @@ export async function buildPiImport(repo: NativeConfig, sourceDir: string) {
   for (const session of sessionSource.files) {
     const target = path.join(repo.storage.agentDir, "sessions", session.relative);
     const existingRelative = existingSessionIds.get(session.id);
+    // 本批次的会话尚未落盘：先读待提交正文，才能对源目录内的同 ID 会话去重。
     const existing = existingRelative != null
-      ? readText(path.join(repo.storage.agentDir, "sessions", existingRelative))
+      ? sessions.get(path.join(repo.storage.agentDir, "sessions", existingRelative))
+        ?? readText(path.join(repo.storage.agentDir, "sessions", existingRelative))
       : readText(target);
     if (existing != null) {
       if (existing === session.text) summary.duplicates++; else summary.conflicts++;
