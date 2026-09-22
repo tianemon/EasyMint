@@ -5,6 +5,8 @@ import { Modal } from "./Modal";
  * 通用确认对话框（替换 window.confirm）。
  * promise-based：`confirmDialog({...})` 返回 Promise<boolean>，确认/取消后 resolve。
  * 样式复用项目弹窗 token（对齐 CompactionDialog / PermissionPrompt 的遮罩与卡片）。
+ * 并发调用（如权限确认卡还开着时点编辑发送）**排队**，前一个关掉后依次弹出——曾经的「直接
+ * resolve(false)」在调用方看来与「用户取消」完全一样，表现为「点了没反应」（编辑那条链路就踩过）。
  * 确认按钮三种观感：
  *  - 危险操作（删除/关闭应用等）→ `danger`，危险色线框（低强调，避免误点）
  *  - 放开权限（进入「完全访问」）→ `permissionConfirm`，权限色实心（与输入卡权限盾形图标同色，
@@ -28,6 +30,8 @@ interface PendingConfirm extends ConfirmOptions {
 }
 
 let pendingRef: PendingConfirm | null = null;
+/** 已有确认框时新来的请求排在这里（弹出顺序 = 调用顺序） */
+const queueRef: PendingConfirm[] = [];
 let listenerRef: ((p: PendingConfirm | null) => void) | null = null;
 
 function setPending(p: PendingConfirm | null): void {
@@ -43,9 +47,9 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
       resolve(false);
       return;
     }
-    // 若已有未决确认框（并发调用），直接拒绝新请求（避免覆盖）
+    // 已有未决确认框（并发调用）→ 排队，不覆盖也不静默 false（静默 false 与用户取消无法区分）
     if (pendingRef) {
-      resolve(false);
+      queueRef.push({ ...opts, resolve });
       return;
     }
     setPending({ ...opts, resolve });
@@ -62,8 +66,9 @@ export function ConfirmHost(): JSX.Element | null {
   if (!pending) return null;
 
   const close = (v: boolean) => {
-    setPending(null);
+    // 先兑现当前这个，再把队首的接上来（顺序不能倒：setPending 会触发重渲染）
     pending.resolve(v);
+    setPending(queueRef.shift() ?? null);
   };
 
   return (

@@ -23,6 +23,13 @@ export interface FlowErrorCard {
 /** 单会话错误卡片数上限(防御极端重复错误事件撑爆内存/渲染) */
 const MAX_FLOW_ERRORS_PER_SESSION = 20;
 
+/** 气泡重新拿到内容（流式写入 / 编辑重发）→ 它又回到上下文里，清掉「已退出上下文」标记。
+ *  与 setMessageEntryId 同一手法：删字段而不是置 undefined。 */
+const asLive = (m: Record<string, any>): Record<string, any> => {
+  const { outOfContext: _nowLive, ...rest } = m;
+  return rest;
+};
+
 interface ChatState {
   messagesBySession: Record<string, any[]>;
   msgIdBySession: Record<string, number>;
@@ -41,6 +48,11 @@ interface ChatState {
   appendUserMsg: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai" }) => number;
   /** 替换指定 user 消息文本（编辑重发——打断后改原问题重发,不新增气泡） */
   updateUserMsgText: (sessionId: string, msgId: number, text: string) => void;
+  /** 标记「已退出上下文」（撤回后本地列表不裁剪，见 ChatPanel.handleEditSubmit）：从 fromMsgId 起
+   *  （includeFrom 为 true 时含它自己）之后的全部气泡打标——它们已不在当前分支上，界面据此显式说明，
+   *  免得「界面顺序 = 上下文顺序」被误读。重开会话后它们随磁盘分支一起消失，标记只活在本面板内；
+   *  气泡重新拿到内容时标记自动清掉（见 replaceAiEntriesById / updateUserMsgText）。 */
+  markOutOfContext: (sessionId: string, fromMsgId: number, includeFrom?: boolean) => void;
   /** 按 Pi 落盘时间戳有序插入——插到第一条 piTs 更大的消息之前,否则追加尾部。
    *  实时渲染顺序 = jsonl 落盘顺序(广播到达顺序 ≠ 落盘顺序,不能按到达顺序追加) */
   insertUserMsgAt: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai"; piTs?: number }, piTs: number) => number;
@@ -128,16 +140,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return id;
   },
 
-  /** 替换指定 user 消息的文本（编辑重发用——发送后打断,改原问题重发,不产生新气泡） */
+  /** 替换指定 user 消息的文本（编辑重发用——发送后打断,改原问题重发,不产生新气泡）。
+   *  附件**保留**：编辑框只改文本，重发以气泡为准（sendText 的 sourceMsgId 路径直接取气泡的 attaches），
+   *  清掉 attaches 会静默丢掉图片/文档，还会把输入框里当时的其它附件错带上去。 */
   updateUserMsgText: (sessionId, msgId, text) => {
     set((s) => ({
       messagesBySession: {
         ...s.messagesBySession,
         [sessionId]: (s.messagesBySession[sessionId] || []).map((m) =>
-          m.id === msgId ? { ...m, text, attaches: undefined } : m
+          m.id === msgId ? { ...asLive(m), text } : m
         ),
       },
     }));
+  },
+
+  markOutOfContext: (sessionId, fromMsgId, includeFrom) => {
+    set((s) => {
+      const list = s.messagesBySession[sessionId] || [];
+      const idx = list.findIndex((m: { id: number }) => m.id === fromMsgId);
+      if (idx < 0) return {};
+      const from = includeFrom ? idx : idx + 1;
+      return {
+        messagesBySession: {
+          ...s.messagesBySession,
+          [sessionId]: list.map((m, i) => (i >= from ? { ...m, outOfContext: true } : m)),
+        },
+      };
+    });
   },
 
   insertUserMsgAt: (sessionId, msg, piTs) => {
@@ -162,7 +191,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messagesBySession: {
           ...s.messagesBySession,
           [sessionId]: (s.messagesBySession[sessionId] || []).map((m) =>
-            m.id === last.id ? { ...m, entries } : m
+            m.id === last.id ? { ...asLive(m), entries } : m
           ),
         },
       }));
@@ -186,7 +215,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messagesBySession: {
           ...s.messagesBySession,
           [sessionId]: (s.messagesBySession[sessionId] || []).map((m) =>
-            m.id === msgId ? { ...m, entries } : m
+            // 流式写入 = 这条气泡是新回答的载体 → 抹掉「已退出上下文」（编辑/重新生成后新回答
+            // 可能落在被撤回的那条旧气泡上，标记留着会把当前回答误标成已退出上下文）
+            m.id === msgId ? { ...asLive(m), entries } : m
           ),
         },
       }));
@@ -219,7 +250,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const { entryId: _cleared, ...rest } = m;
             return rest;
           }
-          return { ...m, entryId };
+          // 认领到新条目 = 这条又重新在上下文里了 → 抹掉「已退出上下文」（复用气泡重发、重试都走这里）
+          return { ...asLive(m), entryId };
         }),
       },
     }));

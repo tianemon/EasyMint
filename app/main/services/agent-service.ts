@@ -13,6 +13,7 @@ import { BrowserWindow } from "electron";
 import { resolveHome, emHome } from "../utils/paths";
 import { broadcast } from "./ipc-broadcast";
 import { Store } from "./store";
+import { isStaleSdkBusyRefusal } from "./rewind-policy";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { getActiveModel } from "./pi-init";
 import { getNativeConfig } from "./native-config";
@@ -1227,24 +1228,82 @@ export class AgentService {
         return;
       }
       console.log(`[agent] 撤回执行前：leaf=${leafBefore} startId=${startId} 回溯 ${turn.length} 条 isStreaming=${session.isStreaming} isCompacting=${session.isCompacting}`);
-      await this.rewindBranchTo(session, startId);
+      const rewind = await this.rewindBranchTo(session, startId);
+      // 打断路径没有界面可提示（用户按的是停止，撤回失败只是消息留在上下文里，不会两版并存）→ 只记日志；
+      // 落点不符时没写 pin、文件尾仍在原处，重开即原样
+      if (!rewind.ok) console.warn(`[agent] 打断撤回未生效：${rewind.error}（startId=${startId}）`);
     } catch (e) {
       console.warn(`[agent] 打断撤回失败：${(e as Error).name}: ${(e as Error).message}`);
     }
   }
 
-  /** 撤回的原子动作：把分支退到 targetId，再追加 em_rewind_pin 把文件尾钉在撤回后的位置。
+  /** 撤回的原子动作：把分支退到 targetId、校验落点，再追加 em_rewind_pin 把文件尾钉在撤回后的位置。
    *  SDK 的 leaf **只存在内存里**（session-manager 全程不写盘），重开时 _buildIndex 把 leaf 重置为
    *  文件最后一条 → 不钉住的话被撤回的消息在重开会话后会复活（上下文与界面历史都回来）。追加一条
    *  custom 条目把文件尾落在撤回后的位置：SDK 写明 custom 条目「不参与上下文」
    *  （sessionEntryToContextMessages），EM 的历史读取（parseEntriesToMessages）也只认
-   *  message/custom_message/compaction——注意别用 custom_message，那个会渲染成 user 消息。 */
-  private async rewindBranchTo(session: AgentSession, targetId: string): Promise<void> {
+   *  message/custom_message/compaction——注意别用 custom_message，那个会渲染成 user 消息。
+   *
+   *  **为什么必须自己处理「目标就是当前 leaf」**：SDK 的 navigateTree 在 `targetId === getLeafId()`
+   *  时直接 return（agent-session.navigateTree 的第一段），**早于**它按条目类型决定落点的那段（user
+   *  消息 / custom_message 目标 → leaf = 父节点）。而编辑路径传的是**被编辑消息自身**的 entryId：该消息
+   *  正是文件尾那条时（回合中强退 / 进程被杀后重开最常见）撤回变成空操作 → 旧文本留在上下文里，重发的
+   *  新文本又加进去，两版并存。手工执行同一语义（落点 = 父节点）后按 SDK 规则对账。
+   *
+   *  **为什么落点要对账**：`em_rewind_pin` 把 leaf 固化进文件，落点错了重开后也错（且撤回不可逆）。
+   *  不符就不写 pin 并返回错误，由调用方转成可见提示。 */
+  private async rewindBranchTo(
+    session: AgentSession,
+    targetId: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
     const mgr = session.sessionManager;
     const leafBefore = mgr.getLeafId();
-    await session.navigateTree(targetId, { summarize: false });
+    const target = mgr.getEntry(targetId);
+    // SDK 的落点规则（agent-session.navigateTree 的类型分支）：user 消息与 custom_message 目标 → 父节点，
+    // 其余（assistant / 工具结果 / 压缩记录 / 自定义条目）→ 目标自身
+    const userLikeTarget = !!target
+      && (target.type === "custom_message" || (target.type === "message" && target.message.role === "user"));
+    const parentId = target?.parentId ?? null;
+    const expectedLeaf = userLikeTarget ? parentId : targetId;
+    // 手工落点（与 navigateTree 的非摘要路径逐行一致）：branch()/resetLeaf() + 从投影重建上下文
+    // （_refreshFinalizedContext；不重建则内存里的 agent.state.messages 还是旧投影，下一次提问仍带着被撤回的内容）。
+    const applyManualLanding = (): void => {
+      if (expectedLeaf === null) mgr.resetLeaf();
+      else mgr.branch(expectedLeaf);
+      session.refreshContext();
+    };
+    if (userLikeTarget && targetId === leafBefore) {
+      // 命中 SDK 的早返回。这里直接落点，不再改传 parentId 走一趟 navigateTree：父节点自己也是 user 消息时
+      // （上一轮没有产出，两条询问相邻）navigateTree 会再往上跳一层、多撤一条。
+      applyManualLanding();
+    } else {
+      try {
+        await session.navigateTree(targetId, { summarize: false });
+      } catch (err) {
+        const msg = (err as Error)?.message ?? String(err);
+        // SDK 报忙而本进程无运行中回合 = SDK 运行态标志残留（isStreaming/isCompacting 未复位，
+        // 见 isSessionRunning 的注释）。此时回退手工落点，否则撤回会以「当前回答还在进行中」告吹——
+        // 而真实原因只是那个标志没被复位。
+        if (!isStaleSdkBusyRefusal(msg, { running: this.isSessionRunning(session.sessionId), compacting: session.isCompacting })) {
+          throw err;
+        }
+        console.warn(`[agent] 撤回回退手工落点：SDK 报忙但本进程无运行中回合（session=${session.sessionId} 原因=${msg}）`);
+        applyManualLanding();
+      }
+    }
+    const leafAfter = mgr.getLeafId();
+    if (leafAfter !== expectedLeaf) {
+      // 落点不符：把 leaf 放回撤回前的位置（撤回等于没发生）+ 重建内存上下文。
+      // 不写 pin——pin 会把错的落点固化进文件，而这个错落点还可能在会话继续时被当成新的父节点
+      if (leafBefore === null) mgr.resetLeaf();
+      else mgr.branch(leafBefore);
+      session.refreshContext();
+      console.warn(`[agent] 撤回未生效：目标 ${targetId} 预期落点 ${expectedLeaf ?? "null"}，实际 ${leafAfter ?? "null"}（已还原到 ${leafBefore ?? "null"}）——不写 pin`);
+      return { ok: false, error: "撤回未生效（会话未改动），请重试" };
+    }
     const pinId = mgr.appendCustomEntry("em_rewind_pin", { leaf: targetId });
-    console.log(`[agent] 撤回：leaf ${leafBefore ?? "null"} → ${mgr.getLeafId() ?? "null"}（钉住 ${pinId}，目标 ${targetId}）`);
+    console.log(`[agent] 撤回：leaf ${leafBefore ?? "null"} → ${leafAfter ?? "null"}（钉住 ${pinId}，目标 ${targetId}）`);
+    return { ok: true };
   }
 
   /** 按节点撤回（编辑消息 / 重新生成用）：不依赖运行中的回合，把分支退到指定条目。
@@ -1320,7 +1379,8 @@ export class AgentService {
       return { ok: false, error: "会话正在压缩中，请稍后重试" };
     }
     try {
-      await this.rewindBranchTo(session, rewindId);
+      const rewind = await this.rewindBranchTo(session, rewindId);
+      if (!rewind.ok) return rewind;
       return toPrompt ? { ok: true, promptEntryId: rewindId } : { ok: true };
     } catch (e) {
       const err = e as Error;

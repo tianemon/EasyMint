@@ -34,6 +34,10 @@ export interface ChatMessage {
   usage?: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number };
   /** 流式标记:实时渲染临时消息(重载/加载磁盘时被替代或合并) */
   streaming?: boolean;
+  /** 已退出上下文:撤回（编辑重发 / 重新生成）后本地列表不裁剪，这条气泡的条目已不在当前分支上——
+   *  界面据此显式标出（重开会话后它随磁盘分支一起消失，标记只活在本面板内）。
+   *  气泡重新拿到内容（流式写入 / 编辑重发）时清掉：那一刻它又回到上下文里。 */
+  outOfContext?: boolean;
   /** 群聊消息的 Agent 角色(群聊视图标注来源;无 = 普通会话) */
   agentRole?: string;
   /** 群聊转发消息标记(该回合由其他 Agent 转发触发,显示来源标签) */
@@ -295,13 +299,15 @@ export function claimEntryBubble(
  *
  * 编辑=级联撤回（见 ChatPanel.handleEditSubmit）：目标之后的**全部**内容都退出上下文且不可恢复，
  * 所以之后还有内容时先确认；它就是最后一条时没有可丢的东西，多一次确认只是噪音。
- * 判据只看它在当前消息列表里的位置——之后任何一条消息（Mint 回答、系统通知卡片）都会被撤回。
+ * 判据只看它在当前消息列表里的位置——之后任何一条**还在上下文里**的消息（Mint 回答、系统通知卡片）
+ * 都会被撤回；已退出上下文的旧气泡（outOfContext，撤回后留在列表里那种）不算——它们早就不在上下文里了，
+ * 拿它们当「会被丢掉的内容」只会让第二次编辑多弹一次确认。
  * 重新生成（ChatPanel.handleRegenerate）用同一条判据，锚点是那条回答：撤回点是它的提问，
  * 回答之后还有内容时同样会被一并丢掉。
  */
 export function needsEditConfirm(msgs: ChatMessage[], msgId: number): boolean {
   const idx = msgs.findIndex((m) => m.id === msgId);
-  return idx >= 0 && idx < msgs.length - 1;
+  return idx >= 0 && msgs.some((m, i) => i > idx && !m.outOfContext);
 }
 
 /**
@@ -312,7 +318,9 @@ export function needsEditConfirm(msgs: ChatMessage[], msgId: number): boolean {
  * 否则用户等回合结束会发现入口仍是灰的。
  */
 export function rewindUnavailableReason(msg: ChatMessage, busy: boolean, action: "修改" | "重新生成"): string | undefined {
-  if (!msg.entryId) return `这条消息无法定位到会话记录，暂不支持${action}`;
+  // 文案只陈述事实、不归因：没 id 的两种成因（还没认领到条目 / 被撤回后清掉了）用户分不出来，
+  // 写成「无法定位到会话记录」会让人以为出了故障（实测里它其实常常是主动清掉的那种）
+  if (!msg.entryId) return `这条消息不在会话记录中，暂不支持${action}`;
   if (busy) return `本轮回复进行中，结束后可${action}`;
   return undefined;
 }

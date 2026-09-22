@@ -1934,7 +1934,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
   // ── Send ───────────────────────────────────────────
 
-  const sendText = useCallback(async (text: string, opts?: { skipAppend?: boolean; sourceMsgId?: number }) => {
+  const sendText = useCallback(async (text: string, opts?: { skipAppend?: boolean; sourceMsgId?: number; afterRewind?: boolean }) => {
     // 错误卡片重试(sourceMsgId):原文与附件以失败消息气泡为准——此时输入框可能已清空/改写,
     // 重发必须还原当时的附件(图片 dataUrl 等)
     let retryMsg: ChatMessage | null = null;
@@ -2044,8 +2044,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       pendingFirstTurnRef.current = false; busyRef.current = false; setBusy(false); currentChatRef.current = null;
       const errText = "发送失败，请检查网络后重试";
       useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
-      // 同步写入消息流持久错误卡片(锚定刚追加/重试的用户消息,可点重试重新发送)
-      if (sentMsgId != null) showFlowError("send", errText, { sourceMsgId: sentMsgId, anchorMsgId: sentMsgId, tone: "warn" });
+      // 同步写入消息流持久错误卡片(锚定刚追加/重试的用户消息,可点重试重新发送)。
+      // afterRewind（编辑重发 / 重新生成）：撤回已经生效——这条（新）消息还没进上下文，重试就是把它发进去；
+      // 不说这一句的话用户只看到「发送失败」，不知道上下文已经被截断了
+      if (sentMsgId != null) showFlowError("send", errText, { sourceMsgId: sentMsgId, anchorMsgId: sentMsgId, tone: "warn", ...(opts?.afterRewind ? { hint: "这条消息已退出上下文，点重试重新发送。" } : {}) });
     }
   }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatModel, chatProvider, chatRole, tabId]);
 
@@ -2103,6 +2105,39 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     setEditingMsg({ id: msg.id, draft: msg.text ?? "" });
   }, []);
   const cancelEdit = useCallback(() => setEditingMsg(null), []);
+  /** 撤回失败的统一出口：状态栏提示 + 锚在操作位置的错误卡片（说明这条仍在上下文里、未发新内容）。 */
+  const reportRewindFailure = useCallback((msg: ChatMessage, action: "修改" | "重新生成", detail: string) => {
+    console.error(`[chat] ${action}撤回失败：session=${sidRef.current} entry=${msg.entryId ?? "?"} ${detail}`);
+    const errText = detail ? `${action}失败：${detail}` : `${action}失败，请重试`;
+    useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
+    const hint = action === "修改" ? "这条消息仍在上下文里，未发送新内容。" : "这条回答仍在上下文里，未生成新内容。";
+    showFlowError("system", errText, { anchorMsgId: msg.id, hint });
+  }, [showFlowError]);
+  /**
+   * 调 main 侧撤回（编辑 / 重新生成共用）：失败（返回 ok:false 或 IPC 抛错）走同一条可见提示并返回 null。
+   *
+   * IPC 这一层必须 try/catch——它抛错以前是静默 unhandled rejection（编辑框已关、无任何提示，
+   * 用户只看到「点了发送没反应」）。
+   */
+  const rewindNode = useCallback(async (
+    entryId: string,
+    msg: ChatMessage,
+    action: "修改" | "重新生成",
+    target?: "prompt",
+  ): Promise<{ promptEntryId?: string } | null> => {
+    let res: { ok: boolean; error?: string; promptEntryId?: string };
+    try {
+      res = await window.electronAPI.agent.rewindToNode(sidRef.current, entryId, target);
+    } catch (e) {
+      reportRewindFailure(msg, action, e instanceof Error ? e.message : String(e));
+      return null;
+    }
+    if (!res.ok) {
+      reportRewindFailure(msg, action, res.error ?? "");
+      return null;
+    }
+    return res;
+  }, [reportRewindFailure]);
   /**
    * 编辑重发:**级联撤回 → 本地替换气泡文本 → 用新文本重发**。
    *
@@ -2114,38 +2149,36 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
    * 会清掉旧 id 并重新入队(见 sendText 内注释),先发就会拿不到撤回目标。
    * 撤回失败:提示且**不发**新文本(否则旧版仍在上下文里、新版又发出去,两版并存);
    * 本地气泡文本也不动——就地改成新文本会让人以为已经生效。
+   * 确认框取消:草稿放回编辑态(编辑框重新打开),不静默丢掉用户刚写的字。
    * 注意:原文未修改也照常发送(不改字重发 = 重新触发回复,不静默吞)。
    */
   const handleEditSubmit = useCallback(async (msg: ChatMessage, newText: string) => {
-    setEditingMsg(null);
     const entryId = msg.entryId;
     if (!entryId) return; // 入口已置灰,兜底
+    setEditingMsg(null);
     const stored = useChatStore.getState().messagesBySession[sidRef.current] || [];
     if (needsEditConfirm(stored, msg.id)) {
       const ok = await confirmDialog({
         title: "重新发送这条消息？",
-        message: "这条消息之后的对话会重来。",
+        message: "这条消息之后的回答、系统卡片与委派结果会一并重来。",
         confirmText: "重新发送",
       });
-      if (!ok) return;
+      // 取消 = 什么都没发生（包括刚才关掉的编辑框）：草稿放回去，用户接着改
+      if (!ok) { setEditingMsg({ id: msg.id, draft: newText }); return; }
     }
-    const res = await window.electronAPI.agent.rewindToNode(sidRef.current, entryId);
-    if (!res.ok) {
-      console.error(`[chat] 编辑撤回失败：session=${sidRef.current} entry=${entryId} ${res.error ?? ""}`);
-      const errText = res.error ? `修改失败：${res.error}` : "修改失败，请重试";
-      useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
-      // 锚在这条消息下方:卡片就在用户刚才操作的位置,并说明这条消息仍在上下文里
-      showFlowError("system", errText, { anchorMsgId: msg.id, hint: "这条消息仍在上下文里，未发送新内容。" });
-      return;
-    }
+    const res = await rewindNode(entryId, msg, "修改");
+    if (!res) return;
+    // 撤回成功后本地列表不裁剪（见 §3.3 已知局限）：这条之后的旧气泡已不在上下文里，就地打标，
+    // 免得界面顺序看着像还在对话里（重开会话后它们随磁盘分支一起消失）
+    useChatStore.getState().markOutOfContext(sidRef.current, msg.id);
     // 本地替换该气泡文本(不新增气泡;未修改时文本不变,无副作用)
     useChatStore.getState().updateUserMsgText(sidRef.current, msg.id, newText);
     // 委托 sendText 重发:传 sourceMsgId → 走「复用气泡」路径(跳过 append + 清旧条目 id + 重新入队),
     // 本次新条目落盘后回填新 id。不传则这条消息认领不到新条目(气泡带着已失效的旧 id,
     // 第二次编辑直接报「不在当前分支」)。sendText 有 sourceMsgId 时以 store 里的气泡文本为准,
     // 所以上一步的本地替换必须先做。
-    sendText(newText, { skipAppend: true, sourceMsgId: msg.id });
-  }, [sendText, showFlowError]);
+    sendText(newText, { skipAppend: true, sourceMsgId: msg.id, afterRewind: true });
+  }, [sendText, rewindNode]);
 
   // ── 重新生成某条回答（撤回它的提问 → 用原文重发） ───────────────
   /**
@@ -2168,21 +2201,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     if (needsEditConfirm(stored, msg.id)) {
       const ok = await confirmDialog({
         title: "重新生成这条回答？",
-        message: "这条回答之后的对话会重来。",
+        message: "这条回答之后的回答、系统卡片与委派结果会一并重来。",
         confirmText: "重新生成",
       });
       if (!ok) return;
     }
     // 撤回成功后提问本身也不在上下文里了，所以才能用「原文重发」——撤回前发就是两版并存
-    const res = await window.electronAPI.agent.rewindToNode(sidRef.current, entryId, "prompt");
-    if (!res.ok) {
-      console.error(`[chat] 重新生成撤回失败：session=${sidRef.current} entry=${entryId} ${res.error ?? ""}`);
-      const errText = res.error ? `重新生成失败：${res.error}` : "重新生成失败，请重试";
-      useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
-      // 锚在这条回答下方：卡片就在用户刚才操作的位置，并说明它仍在上下文里
-      showFlowError("system", errText, { anchorMsgId: msg.id, hint: "这条回答仍在上下文里，未生成新内容。" });
-      return;
-    }
+    const res = await rewindNode(entryId, msg, "重新生成", "prompt");
+    if (!res) return;
+    // 撤回点（那条提问）之后的全部内容都退出了上下文，其中也包括这条旧回答本身——就地打标，
+    // 免得界面顺序看着像它还在对话里（新回答会作为新气泡接在后面流式渲染）
+    useChatStore.getState().markOutOfContext(sidRef.current, msg.id, true);
     const promptBubble = stored.find((m) => m.role === "user" && m.entryId != null && m.entryId === res.promptEntryId);
     if (!promptBubble) {
       console.error(`[chat] 重新生成未重发：本窗口没有这条提问的气泡（session=${sidRef.current} prompt=${res.promptEntryId ?? "?"}）`);
@@ -2192,8 +2221,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       return;
     }
     // 文本与附件以那条提问气泡为准（sendText 有 sourceMsgId 时以此为准，同编辑路径；附件只在这里能保住）
-    sendText(promptBubble.text ?? "", { skipAppend: true, sourceMsgId: promptBubble.id });
-  }, [sendText, showFlowError]);
+    sendText(promptBubble.text ?? "", { skipAppend: true, sourceMsgId: promptBubble.id, afterRewind: true });
+  }, [sendText, rewindNode]);
 
   // ── Render user bubble ─────────────────────────────
 
@@ -2620,6 +2649,17 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   );
 }
 
+/** 「已退出上下文」标记（状态标签徽章·胶囊规格）：撤回后本地列表不裁剪，用它在气泡上显式说明
+ *  这条已不在当前上下文里——重开会话后这些气泡随磁盘分支一起消失，标记只活在本面板内。
+ *  默认样式压住 .msg-from 的继承（大写 + 字间距是那个标题栏的，不是徽章的）。 */
+function OutOfContextTag({ className = "" }: { className?: string }): JSX.Element {
+  return (
+    <span className={`inline-block shrink-0 px-1.5 py-0.5 rounded-full bg-surface-alt text-text-secondary text-[length:var(--text-3xs)] font-normal normal-case tracking-normal align-middle ${className}`}>
+      已退出上下文
+    </span>
+  );
+}
+
 // ── Memo message item: avoids re-rendering all messages on each stream event ──
 
 interface MemoChatMessageProps {
@@ -2739,6 +2779,8 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
                   <span className={statusColor(headStatus)} style={{ fontSize: "var(--text-11)" }}>⏺</span>
                 )}
                 <span>{SYSTEM_KIND_LABELS[kind] ?? "系统消息"}</span>
+                {/* 系统卡片（委派结果 / 后台命令 / 摘要）也会随撤回一并退出上下文 */}
+                {msg.outOfContext ? <OutOfContextTag /> : null}
                 {/* 状态 + 时长上标题栏(取首个 ⏺ 行);只有 ⏺ 与状态文字着色,横线/时间保持中性 */}
                 {headStatus && (
                   <span className="font-semibold" style={{ fontSize: "var(--text-11)" }}>
@@ -2846,6 +2888,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
         <div className="min-w-0 relative" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
           <div className="msg-from">
             {displayName}
+            {msg.outOfContext ? <OutOfContextTag className="ml-1.5" /> : null}
             {role && msg.forwarded && (
               <span className="text-text-secondary/60 ml-1.5 text-[length:var(--text-2xs)] font-normal">· {msg.forwardedFrom ? `来自 ${msg.forwardedFrom}` : "来自转发"}</span>
             )}
@@ -2903,7 +2946,8 @@ function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDr
       <div className="min-w-0">
         <div className="msg-from text-right">USER</div>
         <div className="msg-bubble-user rounded-[var(--radius-lg)] rounded-br-[4px] px-[14px] py-1.5 leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]">
-        {!isEditing && msg.attaches && msg.attaches.length > 0 && (
+        {msg.attaches && msg.attaches.length > 0 && (
+          /* 编辑态也显示附件：编辑只改文本，重发会带上它们（sendText 以气泡为准） */
           <div className="flex gap-1.5 mb-2 flex-wrap">
             {msg.attaches.map((a, i) => (
               a.kind === "image" ? (
@@ -2947,7 +2991,9 @@ function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDr
         )}
         </div>
         {/* 铅笔常驻在每条 user 气泡下（用户已确认）；不可用时置灰并给出原因（title） */}
-        <div className="flex justify-end mt-0.5">
+        <div className="flex items-center justify-end gap-2 mt-0.5">
+          {/* 撤回后本地列表不裁剪：这条已被撤回时显式说明（编辑态不显示——那正是重发它的过程） */}
+          {!isEditing && msg.outOfContext ? <OutOfContextTag className="mr-auto" /> : null}
           {isEditing ? (
             /* 发送按钮占编辑按钮原位（气泡下方右侧）。提交放 onMouseDown 而非 onClick：
                click 前 textarea 先 blur → onBlur 取消编辑 → 节点卸载 → click 丢失(点击无效)。

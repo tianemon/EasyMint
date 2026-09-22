@@ -200,14 +200,27 @@ function normalizeToolCallBlocks(content: unknown): unknown {
   });
 }
 
-/** 取当前分支（leaf 回溯到根）上的条目。
+/** 取当前分支（文件尾回溯到根）上的条目。
  *  会话文件是 append-only 树：打断撤回会把废弃分支留在文件里（消息+空回复）——
- *  直接读全部条目会把已作废的消息又显示出来，与上下文不一致。 */
+ *  直接读全部条目会把已作废的消息又显示出来，与上下文不一致。
+ *
+ *  **真相源是文件尾而不是 SessionManager 的 leaf**：leaf 只存内存、不落盘，SDK 重开文件时
+ *  一律把它设成最后一条条目（`_buildIndex`），所以它并不可靠；而撤回成功后追加的
+ *  `em_rewind_pin`（见 agent-service 的 rewindBranchTo）保证「文件尾 = 当前分支末端」。
+ *  两者不一致时按文件尾解析并留痕——不一致本身就是「有撤回没被钉住」的信号。 */
 function currentBranchEntries(mgr: { getEntries(): unknown[]; getLeafId(): string | null }): unknown[] {
   const all = mgr.getEntries() as Array<{ id: string; parentId?: string | null }>;
+  if (all.length === 0) return [];
   const byId = new Map(all.map((e) => [e.id, e]));
+  const tail = all[all.length - 1];
   const leafId = mgr.getLeafId();
-  let cur = leafId ? byId.get(leafId) : all[all.length - 1];
+  if (leafId && leafId !== tail.id) {
+    console.warn(
+      `[session] 分支起点与文件尾不一致（leaf=${leafId} tail=${tail.id}）——按文件尾解析；` +
+      `该组合通常意味着存在未被钉住的撤回`,
+    );
+  }
+  let cur = byId.get(tail.id);
   const onPath = new Set<string>();
   while (cur) {
     onPath.add(cur.id);
