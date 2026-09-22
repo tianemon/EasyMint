@@ -153,6 +153,24 @@ const EM_DEFAULTS = {
   sandboxDisabled: false,
 };
 
+/**
+ * 已下线功能在 em-settings.json 里的落盘残留。
+ *
+ * 功能移除时只删了代码：本文件写入走「先读旧文件、再覆盖已知字段」（见 writeEmSettings），
+ * 未知字段会被原样带下去，于是这些字段在磁盘上一直存活，且全仓（含 origin/main）零引用。
+ * 逐组依据：`builtinTools` 能力判据只看 key（docs/开发记录/2026-09-16.md）、
+ * `showThinking`/`showToolUse` 显示开关移除（2026-09-08.md）、`terminalFontSize`
+ * xterm 残留（2026-08-28.md）、`context1M` 废弃（2026-09-10.md）、旧字号四项与
+ * 旧光效六项分别由 chatFontScale / glowGroups 取代、多 Agent 分组五项对应实现已全删。
+ * 写入时统一剔除——用户升级后随首次保存设置自动清干净。
+ */
+const OBSOLETE_EM_FIELDS = [
+  "builtinTools", "showThinking", "showToolUse", "terminalFontSize", "claudePath", "context1M",
+  "chatFontSize", "chatListFontSize", "chatBubbleFontSize", "chatDetailFontSize",
+  "glowThickness", "glowSpeed", "glowTailWidth", "glowTravel", "glowOrbitFade", "glowOrbitBlur",
+  "maxGroupAgents", "groupForwardStrategy", "groupInjectMode", "maxForwardDepth", "groupPresets",
+];
+
 type NativeSettingsView = Pick<Settings, "apiProviders" | "chatThinkingLevel" | "model" | "availableModels">;
 const nativeViews = new Map<string, () => NativeSettingsView>();
 export function registerNativeSettingsView(dataDir: string, read: () => NativeSettingsView): void {
@@ -365,6 +383,9 @@ export class Store {
       if (nativeViews.has(this.dataDir) || data.nativeConfigVersion === 1) {
         for (const key of ["apiProviders", "model", "availableModels", "chatThinkingLevel", "modelParamsMigrated", "modelIdentityMigrated"]) delete data[key];
       }
+      // 已下线功能的残留（见 OBSOLETE_EM_FIELDS）：读取侧本就只挑已知字段，
+      // 这里顺手把磁盘上的历史值一并清掉，否则它们会随每次保存无限期带下去。
+      for (const key of OBSOLETE_EM_FIELDS) delete data[key];
       atomicWrite(this.emSettingsPath, JSON.stringify(data, null, 2));
     } finally { release(); }
   }

@@ -29,3 +29,27 @@ describe("Store 构造的按需加锁", () => {
     expect(lockConfigDirectory).not.toHaveBeenCalled();
   });
 });
+
+describe("已下线功能残留的清理", () => {
+  it("保存设置剔除废弃字段，未识别字段仍原样保留", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-store-obsolete-")); dirs.push(dir);
+    const store = new Store(dir);
+    const file = path.join(dir, "em-settings.json");
+    fs.writeFileSync(file, JSON.stringify({
+      setupComplete: true,
+      groupPresets: [{ id: "dev-trio" }], builtinTools: { webSearch: true }, glowThickness: 2,
+      someFutureField: "keep-me",
+    }));
+
+    store.saveSettings(store.getSettings());
+
+    const after = JSON.parse(fs.readFileSync(file, "utf8"));
+    // 功能已下线的字段：写入时剔除，不再无限期随文件带下去
+    expect(after.groupPresets).toBeUndefined();
+    expect(after.builtinTools).toBeUndefined();
+    expect(after.glowThickness).toBeUndefined();
+    // 已知字段与「本版本不认识」的字段都不能被顺手删掉（跨版本兼容）
+    expect(after.setupComplete).toBe(true);
+    expect(after.someFutureField).toBe("keep-me");
+  });
+});
