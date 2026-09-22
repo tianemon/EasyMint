@@ -7,13 +7,14 @@
  *   Managed:  ~/.easymint/managed-skills/      (AI 产物，manage_skill/learn 写入)
  *
  * 与 Claude Code 解耦:EM 用独立目录,不再读写 ~/.claude/skills/。
- * EasyMint maintains its own disabled-skills list in em-settings.json.
+ * EasyMint maintains its own disabled-skills list in em-settings.json (`skills.hidden`).
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, cpSync, lstatSync, rmSync, unlinkSync, renameSync, realpathSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { getResourcesDir } from "../utils/paths";
+import { readExternalField, writeExternalField } from "./em-settings-schema";
 
 // ── Types ──────────────────────────────────────────
 
@@ -68,7 +69,7 @@ function getHiddenSkills(): string[] {
   if (!existsSync(DISABLED_FILE)) return [];
   try {
     const data = JSON.parse(readFileSync(DISABLED_FILE, "utf-8"));
-    const list = data.hiddenSkills;
+    const list = readExternalField(data, "hiddenSkills");
     return Array.isArray(list) ? list.filter((n): n is string => typeof n === "string") : [];
   } catch (e) {
     // 设置文件损坏按未隐藏处理（skill 全量展示），不阻塞扫描
@@ -84,7 +85,7 @@ function saveHiddenSkills(list: string[]): void {
   if (existsSync(DISABLED_FILE)) {
     Object.assign(data, JSON.parse(readFileSync(DISABLED_FILE, "utf-8")));
   }
-  data.hiddenSkills = list;
+  writeExternalField(data, "hiddenSkills", list);
   writeFileSync(DISABLED_FILE, JSON.stringify(data, null, 2));
 }
 

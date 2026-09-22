@@ -13,6 +13,7 @@ import { getModelRuntimeClass } from "./pi-sdk";
 import { getProviderStaticModels } from "./pi-init-static";
 import { migrateExtraModels, migrateModelIdentity } from "./extra-models-migration";
 import { NativeConfigStorage, readText, type JsonObject } from "./native-config-storage";
+import { EM_PATH, EM_SCHEMA_VERSION, EXTERNAL_FIELD_MOVES, NATIVE_CONFIG_FIELDS, SETTINGS_FIELDS, applyApiKeysToDisk, deletePath, getPath, setPath } from "./em-settings-schema";
 
 const repositories = new Map<string, Promise<NativeConfig>>();
 const LEGACY_FIELDS = ["apiProviders", "model", "availableModels", "chatThinkingLevel", "modelParamsMigrated", "modelIdentityMigrated"];
@@ -74,7 +75,7 @@ export class NativeConfig {
   private revision(): string {
     return createHash("sha256").update(JSON.stringify([
       readText(this.files.models), readText(this.files.auth), readText(this.files.settings),
-      this.storage.read(this.files.em).providerPreferences,
+      getPath(this.storage.read(this.files.em), EM_PATH.providerPreferences),
     ])).digest("hex");
   }
   private originals() { return new Map(Object.values(this.files).map(file => [file, readText(file)])); }
@@ -108,7 +109,7 @@ export class NativeConfig {
     const models = this.storage.read(this.files.models).providers ?? {};
     const auth = this.storage.read(this.files.auth);
     const settings = this.storage.read(this.files.settings);
-    const preferences = this.storage.read(this.files.em).providerPreferences ?? {};
+    const preferences = (getPath(this.storage.read(this.files.em), EM_PATH.providerPreferences) ?? {}) as JsonObject;
     const ids = new Set<string>([...Object.keys(models), ...Object.keys(auth), ...Object.keys(preferences)]);
     if (settings.defaultProvider) ids.add(settings.defaultProvider);
     for (const p of this.runtime.getProviders()) if (this.runtime.hasConfiguredAuth(p.id)) ids.add(p.id);
@@ -145,11 +146,72 @@ export class NativeConfig {
     };
   }
 
+  /**
+   * 两段一次性迁移。**顺序不能颠倒**：先重排 em-settings.json 的结构，再跑 pi 原生真源迁移——
+   * 后者读写的 `providerPreferences` 等字段要到第一步之后才位于新路径上；反过来的话它会读不到，
+   * 会把用户已有的供应商 UI 元数据当成"没有"而重建。
+   */
   private async migrate(): Promise<void> {
+    this.assertSupportedVersions();
+    await this.migrateEmSettingsShape();
+    await this.migratePiNative();
+  }
+
+  /**
+   * 版本检查：任一标记高于本版支持值就拒绝加载，且**不碰文件**。
+   * 必须独立于具体迁移步骤——否则第一步已经改了文件、第二步才发现版本过高，
+   * 就把"拒绝新版本、原文件保持原样"这条承诺破坏了。
+   */
+  private assertSupportedVersions(): void {
+    const em = this.storage.read(this.files.em);
+    const schema = getPath(em, EM_PATH.migrationSchemaVersion);
+    if (schema !== undefined && schema !== EM_SCHEMA_VERSION) throw new Error("此配置来自更新版本的 EM，请使用对应版本打开");
+    // 兼容读旧扁平键：版本标记本身也可能还在旧位置
+    const native = getPath(em, EM_PATH.migrationNativeVersion) ?? em.nativeConfigVersion;
+    if (native !== undefined && native !== 1) throw new Error("此配置来自更新版本的 EM，请使用对应版本打开");
+  }
+
+  /**
+   * 一次性把 em-settings.json 从扁平结构重排为分组结构（**只改位置，不改语义**）。
+   *
+   * 搬迁范围（路径声明集中在 `em-settings-schema`）：
+   * - `SETTINGS_FIELDS` / `NATIVE_CONFIG_FIELDS`：Store 与本文件读写的字段；
+   * - `EXTERNAL_FIELD_MOVES`：外部模块直写的字段（hiddenSkills / hiddenMcpServers /
+   *   mcpApproved / sandboxExtraDomains）；
+   * - `apiKeys`：拆成 `capabilities.vision.*` + `capabilities.web.apiKey` + `env` 池。
+   *   这是唯一"改名"的一处——它的键名本就是注入给 MCP server 的环境变量名，
+   *   不能改成嵌套对象，否则注入契约断掉。
+   *
+   * 安全要点：**幂等**（版本已是当前值就直接返回，连文件都不碰）；**走事务**
+   * （与 pi 原生迁移共用 `storage.commit`，白得备份、恢复日志、外部修改检测与中断回滚）；
+   * **值原样**（除 apiKeys 的结构拆分外一个字节不改，也不做类型归一化——那是读侧职责）。
+   */
+  private async migrateEmSettingsShape(): Promise<void> {
+    const em = this.storage.read(this.files.em);
+    if (getPath(em, EM_PATH.migrationSchemaVersion) === EM_SCHEMA_VERSION) return;
+    const originals = this.originals();
+
+    for (const [field, flatKey] of [...SETTINGS_FIELDS, ...NATIVE_CONFIG_FIELDS, ...EXTERNAL_FIELD_MOVES]) {
+      if (!(flatKey in em)) continue;   // 旧键不在：新位置可能已有值，保持不动
+      const value = em[flatKey];
+      deletePath(em, flatKey);
+      if (value !== undefined) setPath(em, field, value);
+    }
+    if (em.apiKeys !== undefined) {
+      applyApiKeysToDisk(em, em.apiKeys as Record<string, string>);
+      deletePath(em, "apiKeys");
+    }
+    setPath(em, EM_PATH.migrationSchemaVersion, EM_SCHEMA_VERSION);
+
+    await this.storage.commit(new Map([[this.files.em, em]]), "em-settings-shape", originals);
+  }
+
+  private async migratePiNative(): Promise<void> {
     const originals = this.originals();
     const em = this.storage.read(this.files.em);
-    if (em.nativeConfigVersion === 1) return;
-    if (em.nativeConfigVersion !== undefined) throw new Error("此配置来自更新版本的 EM，请使用对应版本打开");
+    // 幂等：原生迁移已完成就不再动文件。版本过高不在这里判——`assertSupportedVersions()` 已在
+    // **动文件之前**拦下（见 `migrate()` 的调用顺序），此处再判一次是永不成立的分支。
+    if (getPath(em, EM_PATH.migrationNativeVersion) === 1) return;
     const models = this.storage.read(this.files.models);
     models.providers ??= {};
     const auth = this.storage.read(this.files.auth);
@@ -165,7 +227,7 @@ export class NativeConfig {
     const selected = new Set<string>();
     const aliases: Record<string, string> = {};
     const duplicates: string[] = [];
-    const preferences: JsonObject = { ...(em.providerPreferences ?? {}) };
+    const preferences: JsonObject = { ...((getPath(em, EM_PATH.providerPreferences) as JsonObject | undefined) ?? {}) };
     for (const cfg of ordered) {
       const id = nativeProviderId(cfg) || cfg.id;
       aliases[cfg.id] = id;
@@ -210,10 +272,11 @@ export class NativeConfig {
     }
     const hadThinkingLevel = em.chatThinkingLevel !== undefined;
     if (em.chatThinkingLevel && (THINKING_ORDER as readonly string[]).includes(em.chatThinkingLevel)) settings.defaultThinkingLevel = em.chatThinkingLevel;
-    em.providerPreferences = preferences;
-    em.legacyProviderIds = { ...em.legacyProviderIds, ...aliases }; // Old EM tab/session-cache references only.
-    em.nativeConfigVersion = 1;
-    em.nativeConfigMigration = { migratedAt: new Date().toISOString(), duplicateConfigIds: duplicates };
+    setPath(em, EM_PATH.providerPreferences, preferences);
+    // Old EM tab/session-cache references only.
+    setPath(em, EM_PATH.providerLegacyIds, { ...(getPath(em, EM_PATH.providerLegacyIds) as JsonObject | undefined), ...aliases });
+    setPath(em, EM_PATH.migrationNativeVersion, 1);
+    setPath(em, EM_PATH.migrationNativeRecord, { migratedAt: new Date().toISOString(), duplicateConfigIds: duplicates });
     for (const field of LEGACY_FIELDS) delete em[field];
     validateDefaults(settings);
     await this.storage.validateModels(models);
@@ -237,7 +300,8 @@ export class NativeConfig {
   }
 
   resolveProviderId(id: string): string {
-    return this.storage.read(this.files.em).legacyProviderIds?.[id] ?? id;
+    const legacy = getPath(this.storage.read(this.files.em), EM_PATH.providerLegacyIds) as Record<string, string> | undefined;
+    return legacy?.[id] ?? id;
   }
   async importPi(sourceDir: string, apply = false, probe = false) {
     // probe 是零 IO 的目录存在性检查（不碰本实例状态、不读文件内容），
@@ -291,7 +355,8 @@ export class NativeConfig {
       const auth = this.storage.read(this.files.auth);
       const settings = this.storage.read(this.files.settings);
       const em = this.storage.read(this.files.em);
-      const preferences = em.providerPreferences ??= {};
+      if (getPath(em, EM_PATH.providerPreferences) === undefined) setPath(em, EM_PATH.providerPreferences, {});
+      const preferences = getPath(em, EM_PATH.providerPreferences) as JsonObject;
       const seen = new Set<string>();
       for (const [id, cfg] of Object.entries(data.configs)) {
         if (!id || id !== cfg.id || nativeProviderId(cfg) !== id || seen.has(id)) throw new Error("每个供应商只能保存一份配置");

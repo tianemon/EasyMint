@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { dropLegacyEncryptedApiKeys } from "./settings-legacy";
+import { apiKeysFromDisk, readExternalField, writeExternalField } from "./em-settings-schema";
 
 // ── Types ──────────────────────────────────────────
 
@@ -118,7 +119,7 @@ const EM_SETTINGS = path.join(os.homedir(), ".easymint", "em-settings.json");
 function getHiddenMcpServers(): string[] {
   if (!existsSync(EM_SETTINGS)) return [];
   const data = JSON.parse(readFileSync(EM_SETTINGS, "utf-8"));
-  return (data.hiddenMcpServers as string[]) || [];
+  return (readExternalField(data, "hiddenMcpServers") as string[]) || [];
 }
 
 // ── Scan ───────────────────────────────────────────
@@ -151,14 +152,14 @@ function getApprovedMcp(): string[] {
   if (!existsSync(EM_SETTINGS)) return [];
   try {
     const data = JSON.parse(readFileSync(EM_SETTINGS, "utf-8")) as Record<string, unknown>;
-    const list = data.mcpApproved;
+    const list = readExternalField(data, "mcpApproved");
     return Array.isArray(list) ? list.filter((n): n is string => typeof n === "string") : [];
   } catch {
     return [];
   }
 }
 
-/** 确认一个项目级 server（写入 em-settings.json 的 mcpApproved） */
+/** 确认一个项目级 server（写入 em-settings.json 的 `mcp.approved`） */
 export function approveMcpServer(projectPath: string, name: string): void {
   const dir = path.dirname(EM_SETTINGS);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -168,7 +169,7 @@ export function approveMcpServer(projectPath: string, name: string): void {
   const list = getApprovedMcp();
   const key = `${projectPath}::${name}`;
   if (!list.includes(key)) list.push(key);
-  data.mcpApproved = list;
+  writeExternalField(data, "mcpApproved", list);
   writeFileSync(EM_SETTINGS, JSON.stringify(data, null, 2));
 }
 
@@ -221,8 +222,9 @@ export function scanMcpServers(projectPath?: string): McpServerManifest[] {
 function getApiKeys(): Record<string, string> {
   if (!existsSync(EM_SETTINGS)) return {};
   const data = JSON.parse(readFileSync(EM_SETTINGS, "utf-8"));
+  // 磁盘是分组结构（capabilities.* + env 池），组装回「环境变量名 → 值」——键名即注入 MCP 的变量名。
   // 1.4 回退后明文落盘；磁盘残留的旧 safeStorage 密文（em-v1: 前缀）不可解密 → 丢弃视为未配置
-  return dropLegacyEncryptedApiKeys((data.apiKeys as Record<string, string> | undefined)) || {};
+  return dropLegacyEncryptedApiKeys(apiKeysFromDisk(data) ?? (data.apiKeys as Record<string, string> | undefined)) || {};
 }
 
 // ── Build SDK mcpServers ───────────────────────────
@@ -383,9 +385,9 @@ export function deleteMcpServer(
     const settings: Record<string, unknown> = existsSync(EM_SETTINGS)
       ? JSON.parse(readFileSync(EM_SETTINGS, "utf-8"))
       : {};
-    const hidden = (settings.hiddenMcpServers as string[]) || [];
+    const hidden = (readExternalField(settings, "hiddenMcpServers") as string[]) || [];
     if (hidden.includes(name)) {
-      settings.hiddenMcpServers = hidden.filter((n) => n !== name);
+      writeExternalField(settings, "hiddenMcpServers", hidden.filter((n) => n !== name));
       writeFileSync(EM_SETTINGS, JSON.stringify(settings, null, 2));
     }
     return { ok: true };
@@ -420,13 +422,13 @@ export function toggleMcpServer(name: string, enabled: boolean): void {
     ? JSON.parse(readFileSync(EM_SETTINGS, "utf-8"))
     : {};
 
-  let list: string[] = (data.hiddenMcpServers as string[]) || [];
+  let list: string[] = (readExternalField(data, "hiddenMcpServers") as string[]) || [];
   if (enabled) {
     list = list.filter((n) => n !== name);
   } else {
     if (!list.includes(name)) list.push(name);
   }
-  data.hiddenMcpServers = list;
+  writeExternalField(data, "hiddenMcpServers", list);
   writeFileSync(EM_SETTINGS, JSON.stringify(data, null, 2));
 }
 

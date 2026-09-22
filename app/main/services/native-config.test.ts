@@ -7,6 +7,7 @@ import { Store } from "./store";
 import { NativeConfig } from "./native-config";
 import { NativeConfigStorage, atomicWrite, encode } from "./native-config-storage";
 import { getProviderStaticModels } from "./pi-init-static";
+import { apiKeysFromDisk } from "./em-settings-schema";
 
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir() } }));
 const dirs: string[] = [];
@@ -41,10 +42,19 @@ describe("pi-native configuration", () => {
     expect((await repo.getRuntime()).getModel(custom.id, "test-model")?.contextWindow).toBe(100000);
     const em = read(path.join(dir, "em-settings.json"));
     expect(em.apiProviders).toBeUndefined(); expect(em.chatThinkingLevel).toBeUndefined();
-    expect(em.apiKeys).toEqual(old.apiKeys);
-    expect(em.nativeConfigMigration.duplicateConfigIds).toEqual(["ds-other"]);
+    // apiKeys 已拆成「能力增强」的结构化位置，旧扁平键不再保留；
+    // 断言「组装回来与写入前等价」——保护强度不低于原来那条 toEqual
+    expect(em.apiKeys).toBeUndefined();
+    expect(em.capabilities.web.apiKey).toBe(old.apiKeys.TAVILY_API_KEY);
+    expect(apiKeysFromDisk(em)).toEqual(old.apiKeys);
+    expect(em.migration.nativeConfigMigration.duplicateConfigIds).toEqual(["ds-other"]);
     expect(repo.resolveProviderId("ds-active")).toBe("deepseek");
-    const backupDir = path.join(dir, "config-backups", fs.readdirSync(path.join(dir, "config-backups"))[0]!);
+    // 结构迁移与原生迁移各建一个备份目录（commit 按 label 命名）；readdir 顺序 POSIX 未定义，
+    // 断言「备份 == 迁移前原文」必须点名结构迁移那一个——否则 Linux 上可能取到原生那份（已是新结构）。
+    const backups = fs.readdirSync(path.join(dir, "config-backups"));
+    const shapeBackup = backups.find((n) => n.startsWith("em-settings-shape-"));
+    expect(shapeBackup, "应存在结构迁移备份").toBeDefined();
+    const backupDir = path.join(dir, "config-backups", shapeBackup!);
     expect(fs.readFileSync(path.join(backupDir, "em-settings.json"), "utf8")).toBe(before);
     const snapshot = [file("models"), file("auth"), file("settings")].map(p => fs.readFileSync(p, "utf8"));
     await NativeConfig.create(new Store(dir));
@@ -87,12 +97,18 @@ describe("pi-native configuration", () => {
     expect(fs.readFileSync(file("models"), "utf8")).toBe(text);
   }, 60000);
 
-  it("rejects malformed original files without marking migration complete or rewriting originals", async () => {
+  it("rejects malformed native files without touching them or marking the native step done", async () => {
     const { dir, store, file } = fixture({ apiProviders: { current: custom.id, configs: { [custom.id]: custom } } });
     atomicWrite(file("models"), "{ broken");
     await expect(NativeConfig.create(store)).rejects.toThrow();
+    // 原生文件一个字节不动、原生迁移标记不落盘 → 下次启动只重试这一步
     expect(fs.readFileSync(file("models"), "utf8")).toBe("{ broken");
-    expect(read(path.join(dir, "em-settings.json")).nativeConfigVersion).toBeUndefined();
+    const em = read(path.join(dir, "em-settings.json"));
+    expect(em.migration?.nativeConfigVersion).toBeUndefined();
+    // 结构重排是**前一步、独立事务**，它自身完整且幂等，此时已提交；读侧对新旧两种结构都能读，
+    // 所以"原生步骤失败"不会让这一步的成果变成坏状态（见 native-config.ts 的 migrate 顺序说明）。
+    expect(em.migration?.schemaVersion).toBe(1);
+    expect(em.apiProviders).toEqual({ current: custom.id, configs: { [custom.id]: custom } });
   });
 
   it("rejects invalid model edits and stale saves without changing credentials or disk", async () => {

@@ -6,6 +6,7 @@ import { resolveHome } from "../utils/paths";
 import { dropLegacyEncryptedApiKeys, dropLegacyEncryptedProviderKeys } from "./settings-legacy";
 import { LEGACY_PERMISSION_MODE_ALIASES, type PermissionMode } from "./permission/execution-context";
 import { atomicWrite, lockConfigDirectory } from "./native-config-storage";
+import { EM_PATH, SETTINGS_FIELDS, PROJECTED_FIELDS, applyApiKeysToDisk, deletePath, flattenEmSettings, getPath, setPath } from "./em-settings-schema";
 
 /** 磁盘上的旧权限模式值归一到新三档（`restricted` / `sandbox` → `readonly`）。 */
 function normalizeStoredPermissionMode(raw: unknown): PermissionMode {
@@ -32,7 +33,7 @@ interface Project {
   description: string;
 }
 
-interface Settings {
+export interface Settings {
   nativeConfigMigration?: { migratedAt: string; duplicateConfigIds: string[] };
   defaultProjectDir: string;
   model?: string;
@@ -171,6 +172,18 @@ const OBSOLETE_EM_FIELDS = [
   "maxGroupAgents", "groupForwardStrategy", "groupInjectMode", "maxForwardDepth", "groupPresets",
 ];
 
+/**
+ * 与原写入语义一致：undefined / 空字符串 / 空数组视为「无值」，不覆盖磁盘既有值。
+ *
+ * ⚠️ `GROUP_ARRAY_KEYS` 那四个分组数组**不适用**——它们的空数组是「用户把自定义组全删了」
+ * 这一有效状态，跳过写入会让磁盘上的旧分组在下次启动复活（见 `writeEmSettings`）。
+ */
+const isEmptyValue = (value: unknown): boolean =>
+  value === undefined || value === "" || (Array.isArray(value) && value.length === 0);
+
+/** 这四个是「内置组 + 自定义组」的合并结果，落盘只保留自定义组（内置组是代码常量，防误改）。 */
+const GROUP_ARRAY_KEYS = new Set(["glowGroupsLight", "glowGroupsDark", "statusTextGroupsLight", "statusTextGroupsDark"]);
+
 type NativeSettingsView = Pick<Settings, "apiProviders" | "chatThinkingLevel" | "model" | "availableModels">;
 const nativeViews = new Map<string, () => NativeSettingsView>();
 export function registerNativeSettingsView(dataDir: string, read: () => NativeSettingsView): void {
@@ -240,7 +253,8 @@ export class Store {
   }
 
   getSettings(): Settings {
-    const emData: Record<string, unknown> = { ...this.readEmSettings(), ...nativeViews.get(this.dataDir)?.() };
+    // 磁盘是分组结构：先按 SETTINGS_FIELDS 展平成内存键（含旧扁平结构兜底），再叠加原生配置投影。
+    const emData: Record<string, unknown> = { ...flattenEmSettings(this.readEmSettings()), ...nativeViews.get(this.dataDir)?.() };
     return {
       nativeConfigMigration: emData.nativeConfigMigration as Settings["nativeConfigMigration"],
       defaultProjectDir: resolveHome((emData.defaultProjectDir as string) || EM_DEFAULTS.defaultProjectDir),
@@ -322,7 +336,21 @@ export class Store {
     this.saveProjects(projects);
   }
 
-  /** Write EM-only fields to ~/.easymint/settings.json */
+  /**
+   * 把 EM 设置写回 `em-settings.json`（分组结构，路径见 em-settings-schema）。
+   *
+   * 与其它写入点的协作约定：
+   * - **保留未识别字段**：`skills.hidden` / `mcp.approved` / `sandbox.extraDomains` 由外部模块直写，
+   *   不在本表内，靠这里「先读旧文件」原样带下去，不能被抹掉。
+   * - **清掉旧扁平键**：结构迁移把老字段搬到新位置后，这里顺手删除同名旧键——读侧虽有兜底，
+   *   但新旧并存会让「哪份才是准的」不可判断。
+   * - **空值跳过**：undefined / 空串 / 空数组不写，不把磁盘既有值抹成空。
+   *   例外是 `GROUP_ARRAY_KEYS` 那四个分组数组——它们的空数组是「用户删光自定义组」的有效状态，
+   *   必须照写，否则旧分组下次启动复活。
+   * - **投影字段有前提**：`model` / `availableModels` / `apiProviders` / `chatThinkingLevel` /
+   *   `*Migrated` 的真源在 pi 原生文件，但删除必须等原生视图注册或迁移标记落盘——
+   *   启动早期 Store 先落一次盘会把迁移正要读的值抹掉（见下方注释）。
+   */
   private writeEmSettings(settings: Settings): void {
     const release = lockConfigDirectory(this.dataDir);
     try {
@@ -332,60 +360,39 @@ export class Store {
       if (fs.existsSync(this.emSettingsPath)) {
         Object.assign(data, JSON.parse(fs.readFileSync(this.emSettingsPath, "utf-8")));
       }
-      data.defaultProjectDir = settings.defaultProjectDir;
-      data.sandboxDisabled = Boolean(settings.sandboxDisabled);
-      data.lastProjectId = settings.lastProjectId;
-      data.setupComplete = settings.setupComplete;
-      // 同步激活供应商的模型列表到旧字段（ChatPanel 下拉引用）
-      const providers = settings.apiProviders;
-      const activeId = providers?.current;
-      const activeCfg = activeId ? providers?.configs?.[activeId] : undefined;
-      if (activeCfg) {
-        if (activeCfg.model) data.model = activeCfg.model;
-        if (activeCfg.models.length > 0) data.availableModels = activeCfg.models;
-      } else {
-        if (settings.model) data.model = settings.model;
-        if (settings.availableModels) data.availableModels = settings.availableModels;
+      const record = settings as unknown as Record<string, unknown>;
+      for (const [field, key] of SETTINGS_FIELDS) {
+        const raw = record[key];
+        if (GROUP_ARRAY_KEYS.has(key)) {
+          // 分组是「内置组 + 自定义组」的合并结果，落盘只保留自定义组（内置组为代码常量，防误改）。
+          // 这里**必须连空数组一起写**：过滤后为空正是"用户把自定义组全删了"，跳过写入会让磁盘上
+          // 的旧分组在下次启动复活（内置组不落盘，清空不会丢内置组）。
+          if (!Array.isArray(raw)) continue;
+          setPath(data, field, raw.filter((g) => !(g as { isBuiltin?: boolean } | null)?.isBuiltin));
+          continue;
+        }
+        if (isEmptyValue(raw)) continue;
+        setPath(data, field, raw);
       }
-      if (settings.apiKeys && Object.keys(settings.apiKeys).length > 0) {
-        data.apiKeys = settings.apiKeys;
-      }
-      if (settings.manageSkillEnabled !== undefined) data.manageSkillEnabled = settings.manageSkillEnabled;
-      if (settings.learnEnabled !== undefined) data.learnEnabled = settings.learnEnabled;
-      if (settings.importExternalSkills !== undefined) data.importExternalSkills = settings.importExternalSkills;
-      if (settings.contextThreshold !== undefined) data.contextThreshold = settings.contextThreshold;
-      if (settings.chatThinkingLevel) data.chatThinkingLevel = settings.chatThinkingLevel;
-      if (settings.chatPermissionMode) data.chatPermissionMode = settings.chatPermissionMode;
-      if (settings.chatFontLevel !== undefined) data.chatFontLevel = settings.chatFontLevel;
-      if (settings.chatFontScale !== undefined) data.chatFontScale = settings.chatFontScale;
-      if (settings.uiFontScale !== undefined) data.uiFontScale = settings.uiFontScale;
-      if (settings.glowEffect) data.glowEffect = settings.glowEffect;
-      if (settings.glowColorMode) data.glowColorMode = settings.glowColorMode;
-      if (settings.glowColorLight) data.glowColorLight = settings.glowColorLight;
-      if (settings.glowColorDark) data.glowColorDark = settings.glowColorDark;
-      // 分组只写自定义组(内置组为代码常量,不落盘,防误改)
-      if (settings.glowGroupsLight?.length) data.glowGroupsLight = settings.glowGroupsLight.filter((g) => !g.isBuiltin);
-      if (settings.glowGroupsDark?.length) data.glowGroupsDark = settings.glowGroupsDark.filter((g) => !g.isBuiltin);
-      if (settings.activeGlowGroupLight) data.activeGlowGroupLight = settings.activeGlowGroupLight;
-      if (settings.activeGlowGroupDark) data.activeGlowGroupDark = settings.activeGlowGroupDark;
-      if (settings.statusTextStyle) data.statusTextStyle = settings.statusTextStyle;
-      if (settings.statusColorLight) data.statusColorLight = settings.statusColorLight;
-      if (settings.statusColorDark) data.statusColorDark = settings.statusColorDark;
-      if (settings.statusTextGroupsLight?.length) data.statusTextGroupsLight = settings.statusTextGroupsLight.filter((g) => !g.isBuiltin);
-      if (settings.statusTextGroupsDark?.length) data.statusTextGroupsDark = settings.statusTextGroupsDark.filter((g) => !g.isBuiltin);
-      if (settings.activeStatusGroupLight) data.activeStatusGroupLight = settings.activeStatusGroupLight;
-      if (settings.activeStatusGroupDark) data.activeStatusGroupDark = settings.activeStatusGroupDark;
-      if (settings.apiProviders) {
-        data.apiProviders = settings.apiProviders;
-      }
-      if (settings.modelParamsMigrated) data.modelParamsMigrated = true;
-      if (settings.modelIdentityMigrated) data.modelIdentityMigrated = true;
-      if (nativeViews.has(this.dataDir) || data.nativeConfigVersion === 1) {
-        for (const key of ["apiProviders", "model", "availableModels", "chatThinkingLevel", "modelParamsMigrated", "modelIdentityMigrated"]) delete data[key];
-      }
-      // 已下线功能的残留（见 OBSOLETE_EM_FIELDS）：读取侧本就只挑已知字段，
-      // 这里顺手把磁盘上的历史值一并清掉，否则它们会随每次保存无限期带下去。
-      for (const key of OBSOLETE_EM_FIELDS) delete data[key];
+      // apiKeys 是一对多形态（结构化位置 + env 池）：值为 undefined 时不动磁盘，避免误清空已配置的 key
+      if (settings.apiKeys !== undefined) applyApiKeysToDisk(data, settings.apiKeys);
+      // 旧扁平键、旧 apiKeys、已下线字段：一律抹掉，杜绝新旧并存（读侧都有兜底，不会因此读不到值）。
+      // 注意**不含** native-config 管的三个键（providerPreferences / legacyProviderIds /
+      // nativeConfigVersion）——Store 不读它们，若在这里删掉，启动早期 Store 先写一次就会把
+      // 「尚未迁移」的值抹掉。它们由结构迁移负责搬迁。
+      // （nativeConfigMigration 在表内：它要经 `getSettings()` 交给界面，且值已先写到新路径，
+      //  删掉旧扁平键是安全的。）
+      for (const [, key] of SETTINGS_FIELDS) deletePath(data, key);
+      for (const key of ["apiKeys", ...OBSOLETE_EM_FIELDS]) deletePath(data, key);
+      // 投影字段（model / availableModels / apiProviders / chatThinkingLevel / *Migrated）的真源是
+      // pi 原生文件，本就不该落盘——但**只有原生视图已注册（迁移已跑完）时才删**。
+      // 否则启动早期 Store 先写一次（窗口先出现，ProjectPage 挂载即写 lastProjectId，而
+      // `getNativeConfig` 还在后台做 SDK 冷导入），会把 pi 原生迁移正要读的 apiProviders /
+      // chatThinkingLevel 抹掉，用户的供应商、默认模型与思考等级会整体丢失。
+      // 判据与改造前一致：原生视图已注册，或迁移标记已落盘（新路径优先，兼容旧扁平键）。
+      const nativeMigrated = nativeViews.has(this.dataDir)
+        || (getPath(data, EM_PATH.migrationNativeVersion) ?? data.nativeConfigVersion) === 1;
+      if (nativeMigrated) for (const key of PROJECTED_FIELDS) deletePath(data, key);
       atomicWrite(this.emSettingsPath, JSON.stringify(data, null, 2));
     } finally { release(); }
   }

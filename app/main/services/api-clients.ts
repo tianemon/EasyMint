@@ -9,10 +9,11 @@ import { basename, extname } from "node:path";
 import { homedir } from "node:os";
 import { resolveHome, IMAGE_MIME } from "../utils/paths";
 import { dropLegacyEncryptedApiKeys } from "./settings-legacy";
+import { apiKeysFromDisk } from "./em-settings-schema";
 
 // ── Config ──────────────────────────────────────────
 
-// 视觉模型/API 地址可配置:em-settings apiKeys 的 VISION_MODEL / VISION_BASE_URL / VISION_MODE,
+// 视觉模型/API 地址可配置:em-settings 的 capabilities.vision.model / .baseUrl / .mode,
 // 默认 qwen3.7-flash + 公共 DashScope(阿里云百炼免费额度可用)
 const DEFAULT_VISION_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 const DEFAULT_VISION_MODEL = "qwen3.7-flash";
@@ -39,8 +40,11 @@ function readEmSettings(): Record<string, unknown> {
 }
 
 function readApiKeys(): Record<string, string> {
+  const raw = readEmSettings();
+  // 磁盘上是分组结构（capabilities.* + env 池），这里组装回「环境变量名 → 值」的 Record——键名即
+  // 注入给 MCP server 的环境变量名，不能改成嵌套对象。apiKeysFromDisk 内含旧扁平结构兜底。
   // 1.4 回退后明文落盘；磁盘残留的旧 safeStorage 密文（em-v1: 前缀）不可解密 → 丢弃视为未配置
-  return dropLegacyEncryptedApiKeys((readEmSettings().apiKeys as Record<string, string> | undefined)) || {};
+  return dropLegacyEncryptedApiKeys(apiKeysFromDisk(raw) ?? (raw.apiKeys as Record<string, string> | undefined)) || {};
 }
 
 /**

@@ -26,6 +26,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { parse as parseShell } from "shell-quote";
+import { readExternalField } from "../em-settings-schema";
 
 /**
  * 常用开发基础设施白名单。
@@ -172,7 +173,8 @@ export const DEVELOPMENT_ALLOWED_DOMAINS: readonly string[] = [
  * 否则一次真实误伤就会把用户推回"关掉沙盒"。
  *
  * 读取位置（任一存在即合并，去重）：
- * - `~/.easymint/em-settings.json` 的 `sandboxExtraDomains: string[]`（全局）
+ * - `$EASYMINT_HOME/em-settings.json`（默认 `~/.easymint/em-settings.json`）的
+ *   `sandbox.extraDomains: string[]`（全局）
  * - `<工作区>/.easymint/sandbox.json` 的 `allowedDomains: string[]`（项目级，随项目走）
  *
  * 校验与 srt 的 schema 对齐：拒绝 `*` 与 `*.com` 这类过宽模式（srt 原话：
@@ -188,7 +190,7 @@ export function extraAllowedDomains(workspaceRealPath?: string): string[] {
   for (const file of candidates) {
     try {
       const raw = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
-      const list = file.endsWith("sandbox.json") ? raw.allowedDomains : raw.sandboxExtraDomains;
+      const list = file.endsWith("sandbox.json") ? raw.allowedDomains : readExternalField(raw, "sandboxExtraDomains");
       if (Array.isArray(list)) collected.push(...list.filter((v): v is string => typeof v === "string"));
     } catch {
       // 文件不存在/解析失败都按"没有额外域名"处理
