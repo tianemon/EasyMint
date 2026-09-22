@@ -46,6 +46,9 @@ export function atomicWrite(file: string, content: string): void {
   } finally { fs.rmSync(temp, { force: true }); }
 }
 
+/** 备份目录保留数量（含本次刚建的那个）。为什么要设上限见 `NativeConfigStorage.pruneBackups`。 */
+const KEEP_BACKUPS = 20;
+
 interface Change { file: string; before: string | null; after: string }
 interface Journal { version: 1; changes: Change[]; backup: string }
 
@@ -71,19 +74,34 @@ export class NativeConfigStorage {
   read(file: string): JsonObject {
     const text = readText(file);
     if (text === null) return {};
-    const value = JSON.parse(this.sdk.stripJsonComments(text.replace(/^\uFEFF/, "")));
+    let value: unknown;
+    try {
+      value = JSON.parse(this.sdk.stripJsonComments(text.replace(/^\uFEFF/, "")));
+    } catch (error) {
+      // 裸 SyntaxError 只有「Unexpected token … in JSON at position N」——EM 有 4 个配置文件，
+      // 用户拿到这句无从知道坏的是哪个。补上路径；**不带文件原文**，否则凭据会进错误信息与日志。
+      throw new Error(`配置文件不是合法 JSON：${file}（${(error as Error).message}）`);
+    }
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`配置必须是对象：${file}`);
     return value;
   }
   async validateModels(value: JsonObject): Promise<void> {
+    // 校验走临时文件（不碰真文件），但**报错必须指向用户真正的 models.json**——否则用户拿着
+    // `.validate-models-<uuid>.json` 这个路径去找，什么也找不到，只会以为升级搞坏了东西。
+    const modelsPath = path.join(this.agentDir, "models.json");
     const file = path.join(this.dataDir, `.validate-models-${randomUUID()}.json`);
     try {
       atomicWrite(file, encode(value));
+      // SDK 会把「它加载的那个文件路径」写进报错（形如 `File: <临时校验文件>`）。必须替换成用户
+      // 真正的 models.json——否则用户拿着那个临时路径去找，什么也找不到（而且它已被删掉）。
+      const describe = (message: string) => message.split(file).join(modelsPath);
       const config = await this.sdk.ModelConfig.load(file);
-      if (config.error) throw new Error(`模型配置校验失败，未保存：${config.error}`);
+      if (config.error) throw new Error(`模型配置（${modelsPath}）无法通过校验：${describe(config.error)}`);
       const MR = await getModelRuntimeClass();
       const runtime = await MR.create({ modelsPath: file, credentials: this.sdk.AuthStorage.inMemory(), refreshOnCreate: false, allowModelNetwork: false });
-      if (runtime.getError()) throw new Error(`模型配置校验失败，未保存：${runtime.getError()}`);
+      // 存变量再判：方法每次调用在类型上都是独立的 `string | undefined`，直接内联会过不了收窄
+      const runtimeError = runtime.getError();
+      if (runtimeError) throw new Error(`模型配置（${modelsPath}）无法通过校验：${describe(runtimeError)}`);
     } finally { fs.rmSync(file, { force: true }); }
   }
   private replace(change: Change, reverse = false): void {
@@ -125,33 +143,59 @@ export class NativeConfigStorage {
     const release = lockConfigDirectory(this.dataDir);
     try {
       this.assertReady();
-    const changes = [...values].map(([file, value]) => ({
-      file, before: originals?.has(file) ? originals.get(file)! : readText(file), after: encode(value),
-    })).filter(c => c.before !== c.after && (c.before === null || encode(this.read(c.file)) !== c.after));
-    for (const [file, after] of textFiles) {
-      const before = originals?.has(file) ? originals.get(file)! : readText(file);
-      if (before !== after) changes.push({ file, before, after });
-    }
+      // 两道判断缺一不可：
+      // ① `before !== after` 快速排除「值没变」；
+      // ② 再按**语义**比一次 `encode(read(file)) !== after`——带注释的 models.json（pi 支持行
+      //    注释）原文与序列化结果永不相等，只靠 ① 会把注释文件无谓重写一遍（注释随之丢失）。
+      const changes = [...values].map(([file, value]) => ({
+        file, before: originals?.has(file) ? originals.get(file)! : readText(file), after: encode(value),
+      })).filter(c => c.before !== c.after && (c.before === null || encode(this.read(c.file)) !== c.after));
+      for (const [file, after] of textFiles) {
+        const before = originals?.has(file) ? originals.get(file)! : readText(file);
+        if (before !== after) changes.push({ file, before, after });
+      }
       if (!changes.length) return;
-    for (const c of changes) if (readText(c.file) !== c.before) throw new Error("配置已更新，请重新加载后再保存");
-    const backup = path.join(this.dataDir, "config-backups", `${label}-${Date.now()}-${randomUUID().slice(0, 8)}`);
-    fs.mkdirSync(backup, { recursive: true, mode: 0o700 });
-    for (const c of changes) if (c.before !== null) atomicWrite(path.join(backup, path.relative(this.dataDir, c.file)), c.before);
-    atomicWrite(path.join(backup, "manifest.json"), encode({
-      version: 1, createdAt: new Date().toISOString(),
-      files: changes.map(c => ({ path: path.relative(this.dataDir, c.file), existed: c.before !== null,
-        afterSha256: createHash("sha256").update(c.after).digest("hex") })),
-    }));
-    const journal: Journal = { version: 1, changes, backup };
-    atomicWrite(this.journalPath, encode(journal));
+      for (const c of changes) if (readText(c.file) !== c.before) throw new Error("配置已更新，请重新加载后再保存");
+      const backup = path.join(this.dataDir, "config-backups", `${label}-${Date.now()}-${randomUUID().slice(0, 8)}`);
+      fs.mkdirSync(backup, { recursive: true, mode: 0o700 });
+      for (const c of changes) if (c.before !== null) atomicWrite(path.join(backup, path.relative(this.dataDir, c.file)), c.before);
+      atomicWrite(path.join(backup, "manifest.json"), encode({
+        version: 1, createdAt: new Date().toISOString(),
+        files: changes.map(c => ({ path: path.relative(this.dataDir, c.file), existed: c.before !== null,
+          afterSha256: createHash("sha256").update(c.after).digest("hex") })),
+      }));
+      const journal: Journal = { version: 1, changes, backup };
+      atomicWrite(this.journalPath, encode(journal));
       try {
         for (const c of changes) this.replace(c);
         fs.rmSync(this.journalPath);
+        this.pruneBackups(backup);
         return backup;
       } catch (error) {
         await this.rollback(journal);
         throw error;
       }
     } finally { release(); }
+  }
+
+  /**
+   * 备份目录的保留策略：只留最近 `KEEP_BACKUPS` 个（含本次刚建的那个）。
+   *
+   * 为什么需要：保存供应商 / 改思考等级 / 改默认模型 / 导入 pi 配置都会走 commit 建一个目录，
+   * 活跃用户一年能积累几百个。而备份里含 `auth.json`（**明文 api_key**）与整套配置——等于把
+   * 用户删过、轮换过的历史凭据长期留在磁盘上。只增不减是安全债，不只是占地方。
+   *
+   * 只在提交成功后调用、且跳过本次刚建的那个；任何失败都吞掉（清理不该影响提交结果）。
+   */
+  private pruneBackups(justCreated: string): void {
+    try {
+      const dir = path.join(this.dataDir, "config-backups");
+      const keepName = path.basename(justCreated);
+      const older = fs.readdirSync(dir, { withFileTypes: true })
+        .filter(e => e.isDirectory() && e.name !== keepName)
+        .map(e => ({ name: e.name, mtime: fs.statSync(path.join(dir, e.name)).mtimeMs }))
+        .sort((a, b) => b.mtime - a.mtime);   // 新的在前
+      for (const old of older.slice(KEEP_BACKUPS - 1)) fs.rmSync(path.join(dir, old.name), { recursive: true, force: true });
+    } catch { /* 清理失败不影响提交结果 */ }
   }
 }

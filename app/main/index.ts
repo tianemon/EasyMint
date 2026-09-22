@@ -318,7 +318,19 @@ app.whenReady().then(async () => {
   // 「会话目录对齐 Pi」注释记载的规则（不能在 createWindow 之前 await SDK 导入）同源。
   const configReady = getNativeConfig(tempStore);
   configReady.catch((error) => {
-    dialog.showErrorBox("配置加载失败", `${(error as Error).message}\n原始配置或迁移备份已保留，请修复配置后重新启动。`);
+    // 这里会让 EM **完全打不开**，所以错误框必须可操作：只报「配置加载失败」+ 原文的话，
+    // 用户既不知道坏的是哪个文件、也不知道备份在哪、下一步做什么——只能重装或来报 bug。
+    const dataDir = tempStore.getDataDir();
+    const backups = path.join(dataDir, "config-backups");
+    const lines = [(error as Error).message, "", `配置目录：${dataDir}`];
+    if (fs.existsSync(backups)) lines.push(`改动前的备份：${backups}（可从最近一份里取回被改坏的文件）`);
+    lines.push(
+      "",
+      "排查建议：",
+      "① 按上面的信息定位到那个文件，确认它是合法 JSON；",
+      `② 若无法定位，把整个「${dataDir}」目录改名（如加 -bak 后缀）后重新启动——EM 会以全新配置开始，原数据仍留在改名后的目录里。`,
+    );
+    dialog.showErrorBox("配置加载失败", lines.join("\n"));
     app.quit();
   });
   // 兜底清理历史遗留的临时会话缓存(__new_ 前缀,真实会话创建后不再被读取)——防磁盘堆积

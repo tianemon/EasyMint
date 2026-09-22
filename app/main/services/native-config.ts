@@ -111,7 +111,15 @@ export class NativeConfig {
     const settings = this.storage.read(this.files.settings);
     const preferences = (getPath(this.storage.read(this.files.em), EM_PATH.providerPreferences) ?? {}) as JsonObject;
     const ids = new Set<string>([...Object.keys(models), ...Object.keys(auth), ...Object.keys(preferences)]);
-    if (settings.defaultProvider) ids.add(settings.defaultProvider);
+    // 默认供应商只在**真实存在**时才纳入列表：settings.json 被外部改过（或跨版本混用）时它可能
+    // 是一个早就删掉的 id，无条件 add 会让界面上多出一个点不开的空壳条目（无凭据、无模型——
+    // 实测过：删掉供应商后手改 defaultProvider，列表里就多一条）。三处声明与 runtime 都不认识
+    // 它就判为悬空、不纳入；模型侧另有回落（findInitialModel 会挑一个可用的），不受影响。
+    if (settings.defaultProvider
+      && (models[settings.defaultProvider] || auth[settings.defaultProvider]
+        || preferences[settings.defaultProvider] || this.runtime.getProvider(settings.defaultProvider))) {
+      ids.add(settings.defaultProvider);
+    }
     for (const p of this.runtime.getProviders()) if (this.runtime.hasConfiguredAuth(p.id)) ids.add(p.id);
     const configs: Record<string, ProviderConfig> = {};
     const revision = this.revision();
@@ -155,6 +163,10 @@ export class NativeConfig {
     this.assertSupportedVersions();
     await this.migrateEmSettingsShape();
     await this.migratePiNative();
+    // 第三步：清掉会话缓存里指向「已不存在的供应商」的绑定。**刻意不设版本标记**——它幂等、
+    // 只在真有悬挂时才写盘，而且必须能覆盖「迁移之后才产生的悬挂」（删供应商发生在任意时刻，
+    // 不是一次性事件）。前置的两步只改写「在本次迁移映射里」的 id，管不到后续的悬挂。
+    await this.pruneDanglingSessionRefs();
   }
 
   /**
@@ -195,7 +207,9 @@ export class NativeConfig {
       if (!(flatKey in em)) continue;   // 旧键不在：新位置可能已有值，保持不动
       const value = em[flatKey];
       deletePath(em, flatKey);
-      if (value !== undefined) setPath(em, field, value);
+      // **新位置优先**：两处都有值时不用旧值盖掉已排好的新值。正常路径下不可达（新位置只在
+      // 本步跑过之后才存在），写成这样是为了让这段循环被复用时不会静默用旧值覆盖新值。
+      if (value !== undefined && getPath(em, field) === undefined) setPath(em, field, value);
     }
     if (em.apiKeys !== undefined) {
       applyApiKeysToDisk(em, em.apiKeys as Record<string, string>);
@@ -297,6 +311,57 @@ export class NativeConfig {
     }
     const backup = await this.storage.commit(values, "pi-native-v1", originals);
     if (ordered.length) console.info(`[config] 原生配置迁移完成，备份：${backup}；重复配置 ${duplicates.length} 份保留在备份中`);
+  }
+
+  /**
+   * 把会话缓存里指向「已不存在的供应商」的绑定清掉（`provider` 与 `model` 两个字段）。
+   *
+   * 为什么需要：删供应商不会回头改会话缓存（另一条存储），被删的 id 会长期留在那些会话的缓存里。
+   * 之后打开这些会话时模型解析失败、只能回落到全局默认——会话能用，但显示的模型与它实际用过
+   * 的对不上，且没有任何提示（用户实测里就有这么一个：9/12 删掉的供应商，缓存里留到今天）。
+   *
+   * 判据用「三处声明（models / auth / preferences）都查不到」，**不用 runtime**——调用时机可能在
+   * runtime 建立之前（迁移段）。三处全空时直接跳过：那是「还没配过任何供应商」的全新配置，
+   * 不是「供应商被删了」，不能把人家所有绑定当悬空清掉。
+   *
+   * 返回改动（文件 → 新内容），由调用方并入自己的事务；无改动即空 Map。会顺带把 `originals`
+   * 补上这些文件的原文（commit 需要它才能做外部修改检测与备份）。
+   */
+  private pruneSessionCacheRefs(
+    models: JsonObject, auth: JsonObject, preferences: JsonObject, originals: Map<string, string | null>,
+  ): Map<string, JsonObject> {
+    const changes = new Map<string, JsonObject>();
+    const known = new Set([...Object.keys(models.providers ?? {}), ...Object.keys(auth), ...Object.keys(preferences)]);
+    if (!known.size) return changes;
+    const dir = path.join(this.store.getDataDir(), "session-cache");
+    if (!fs.existsSync(dir)) return changes;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+      const file = path.join(dir, entry.name);
+      const before = readText(file);
+      let cache: JsonObject;
+      try { cache = this.storage.read(file); } catch { continue; }   // 已损坏的缓存不碰
+      if (typeof cache.provider !== "string" || known.has(cache.provider)) continue;
+      const next: JsonObject = { ...cache };
+      delete next.provider;
+      delete next.model;   // 模型名脱离供应商就没有意义了（同名模型可能属于别的供应商）
+      originals.set(file, before);
+      changes.set(file, next);
+    }
+    return changes;
+  }
+
+  /** 启动兜底：清存量悬挂引用。无悬挂时**不写盘、不产生备份**。 */
+  private async pruneDanglingSessionRefs(): Promise<void> {
+    const originals = this.originals();
+    const em = this.storage.read(this.files.em);
+    const changes = this.pruneSessionCacheRefs(
+      this.storage.read(this.files.models), this.storage.read(this.files.auth),
+      (getPath(em, EM_PATH.providerPreferences) ?? {}) as JsonObject, originals,
+    );
+    if (!changes.size) return;
+    const backup = await this.storage.commit(changes, "session-cache-prune", originals);
+    console.info(`[config] 清理了 ${changes.size} 个指向已删除供应商的会话缓存（备份：${backup}）`);
   }
 
   resolveProviderId(id: string): string {
@@ -412,9 +477,14 @@ export class NativeConfig {
       } else if (!data.current) { delete settings.defaultProvider; delete settings.defaultModel; }
       validateDefaults(settings);
       await this.storage.validateModels(models);
-      await this.storage.commit(new Map([
+      const values = new Map<string, JsonObject>([
         [this.files.models, models], [this.files.auth, auth], [this.files.settings, settings], [this.files.em, em],
-      ]), "provider-edit", originals);
+      ]);
+      // 删供应商的**源头清理**：会话缓存里指向它的绑定要一起清掉，否则那些会话今后每次打开
+      // 都会走「模型不可用 → 回落全局默认」（见 pruneSessionCacheRefs）。并入同一事务 →
+      // 与供应商删除同生共死，不会出现「配置删了、缓存没清」的半截状态。
+      for (const [file, value] of this.pruneSessionCacheRefs(models, auth, preferences, originals)) values.set(file, value);
+      await this.storage.commit(values, "provider-edit", originals);
       await this.refresh();
     });
   }

@@ -117,7 +117,12 @@ describe("pi-native configuration", () => {
     const view = repo.view().apiProviders;
     (view.configs[custom.id]!.extraModels![0] as any).input = ["invalid"];
     const before = fs.readFileSync(file("models"), "utf8");
-    await expect(repo.saveProviders(view)).rejects.toThrow("校验失败");
+    // 报错必须指向**用户真正的 models.json**，而不是内部临时校验文件（.validate-models-<uuid>.json）：
+    // 后者在用户机器上根本不存在，用户拿着它只会以为升级搞坏了东西。
+    const failure = await repo.saveProviders(view).catch((e: Error) => e.message) as string;
+    expect(failure).toContain("无法通过校验");
+    expect(failure).toContain(path.join("agent", "models.json"));
+    expect(failure).not.toContain(".validate-models-");
     expect(fs.readFileSync(file("models"), "utf8")).toBe(before);
     const stale = repo.view().apiProviders;
     await repo.setThinkingLevel("low");
