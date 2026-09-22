@@ -7,11 +7,10 @@
  * 对外接口（IPC handlers 调用）完全不变。
  */
 
-import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 import { BrowserWindow } from "electron";
-import { resolveHome } from "../utils/paths";
+import { resolveHome, emHome } from "../utils/paths";
 import { broadcast } from "./ipc-broadcast";
 import { Store } from "./store";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
@@ -137,7 +136,7 @@ interface RunningDelegationSnapshotItem {
 
 /** 记录各 session 的 agent 类型 */
 const sessionAgentTypes = new Map<string, string>();
-const SESSION_TYPES_PATH = path.join(os.homedir(), ".easymint", "session-types.json");
+const SESSION_TYPES_PATH = path.join(emHome(), "session-types.json");
 
 function loadSessionTypes(): Map<string, string> {
   try {
@@ -486,7 +485,7 @@ interface LearnSessionState {
   savedAt?: number;
 }
 
-const LEARN_STATE_PATH = path.join(os.homedir(), ".easymint", "learn-state.json");
+const LEARN_STATE_PATH = path.join(emHome(), "learn-state.json");
 /** learn-state 容量底线：超出裁剪最旧，防止文件无限增长 */
 const MAX_LEARN_STATE = 500;
 
@@ -683,7 +682,7 @@ export class AgentService {
   // ── 内部辅助 ──────────────────────────────────────
 
   private getAgentDir(): string {
-    return path.join(os.homedir(), ".easymint", "agent");
+    return path.join(emHome(), "agent");
   }
 
   private async getModel(store: Store, preferredProvider?: string, preferredModel?: string): Promise<Model<any> | null> {

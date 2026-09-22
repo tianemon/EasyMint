@@ -9,6 +9,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently --kill-others \"node node_modules/vite/bin/vite.js --config app/renderer/vite.config.ts\" \"node scripts/dev-electron.cjs\"",
+    "dev:isolated": "EASYMINT_HOME=$HOME/.easymint-dev npm run dev",
     "dev:renderer": "node node_modules/vite/bin/vite.js --config app/renderer/vite.config.ts",
     "dev:electron": "npm run build:main && npm run build:preload && node node_modules/electron/cli.js .",
     "build": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder",

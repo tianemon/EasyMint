@@ -21,6 +21,7 @@ import {
   type RemoteEnvelope,
 } from "../../shared/remote-protocol";
 import type { AppEvent } from "./app-event-bus";
+import { emHome } from "../utils/paths";
 
 const DEFAULT_PORT = 47_778;
 const OFFER_TTL_MS = 60_000;
@@ -28,7 +29,7 @@ const PAIR_REQUEST_TTL_MS = 60_000;
 const MAX_CONNECTIONS = 8;
 // 附件命令经历「文件 base64 → 加密包再次 base64」，15 MB 原始附件最终约 27 MB。
 const MAX_PAYLOAD_BYTES = 32 * 1024 * 1024;
-const PAIRED_MOBILE_FILE = path.join(os.homedir(), ".easymint", "paired-mobile-devices.json");
+const PAIRED_MOBILE_FILE = path.join(emHome(), "paired-mobile-devices.json");
 
 interface StoredMobileDevice {
   id: string;

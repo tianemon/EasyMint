@@ -19,8 +19,8 @@
 
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { randomUUID } from "node:crypto";
+import { emHome } from "../utils/paths";
 
 export type ExperienceKind = "principle" | "convention" | "temporary";
 /** 作用域 = 条目落在哪个目录（项目级 / 全局） */
@@ -75,7 +75,7 @@ interface IndexFile {
   items: ExperienceIndexEntry[];
 }
 
-const GLOBAL_DIR = path.join(os.homedir(), ".easymint", "experiences");
+const GLOBAL_DIR = path.join(emHome(), "experiences");
 const INDEX_VERSION = 1;
 /** 每库条目上限：索引会随条数增长（注入成本），条数收敛是设计的一部分 */
 const MAX_ITEMS = 100;

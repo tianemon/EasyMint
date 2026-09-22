@@ -6,8 +6,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { basename, extname } from "node:path";
-import { homedir } from "node:os";
-import { resolveHome, IMAGE_MIME } from "../utils/paths";
+import { resolveHome, IMAGE_MIME, emHome } from "../utils/paths";
 import { dropLegacyEncryptedApiKeys } from "./settings-legacy";
 import { apiKeysFromDisk } from "./em-settings-schema";
 
@@ -32,7 +31,7 @@ function readVisionConfig(): { baseUrl: string; model: string; mode: VisionMode 
 // ── Settings helpers ────────────────────────────────
 
 function readEmSettings(): Record<string, unknown> {
-  const p = `${homedir()}/.easymint/em-settings.json`;
+  const p = `${emHome()}/em-settings.json`;
   try {
     if (!existsSync(p)) return {};
     return JSON.parse(readFileSync(p, "utf-8"));

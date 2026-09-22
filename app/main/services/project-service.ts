@@ -1,10 +1,9 @@
 import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
-import os from "os";
 import { shell } from "electron";
 import { Store } from "./store";
-import { resolveHome } from "../utils/paths";
+import { resolveHome, emHome } from "../utils/paths";
 // 会话目录工具用静态导入：本模块只依赖 pi-sdk 的**类型**（运行时零负担），比 `require` 更可靠
 // —— `update()` 是同步入口，原先用 `require("./pi-session")`，而 require 在测试环境解析不了，
 // 导致这段路径「测不到」，2026-09-20 的 mkdir 副作用缺陷正是这样溜过去的。
@@ -155,7 +154,7 @@ export class ProjectService {
         await shell.trashItem(sessionDir);
       }
       // 旧 Claude SDK 遗留目录（v0.7.2 起不再产生，兜底清理）
-      const sdkProjectsDir = path.join(os.homedir(), ".easymint", "projects");
+      const sdkProjectsDir = path.join(emHome(), "projects");
       const encodedPath = project.path.replace(/[:/\\]/g, "-");
       const sdkDir = path.join(sdkProjectsDir, encodedPath);
       if (fs.existsSync(sdkDir)) await shell.trashItem(sdkDir);
@@ -196,7 +195,7 @@ export class ProjectService {
         deferSessionDirRename(project.path, patch.path);
       }
       // 旧 Claude SDK 遗留目录(v0.7.2 起不再产生,兜底清理)
-      const sdkDir = path.join(os.homedir(), ".easymint", "projects");
+      const sdkDir = path.join(emHome(), "projects");
       const oldEncoded = project.path.replace(/[:/\\]/g, "-");
       const newEncoded = patch.path.replace(/[:/\\]/g, "-");
       const oldDir = path.join(sdkDir, oldEncoded);
@@ -257,7 +256,7 @@ export class ProjectService {
     if (fs.existsSync(newDir)) return { ok: false, error: `目标目录已存在: ${newDir}` };
     if (!fs.existsSync(oldDir)) return { ok: false, error: `项目目录不存在: ${oldDir}` };
 
-    const newSessDir = path.join(os.homedir(), ".easymint", "projects",
+    const newSessDir = path.join(emHome(), "projects",
       newDir.replace(/[:\\/]/g, "-"));
 
     // 失败时清理半成品
@@ -273,7 +272,7 @@ export class ProjectService {
       await cp(oldDir, newDir, { recursive: true });
 
       // 复制 SDK session
-      const oldSessDir = path.join(os.homedir(), ".easymint", "projects",
+      const oldSessDir = path.join(emHome(), "projects",
         oldDir.replace(/[:\\/]/g, "-"));
       if (fs.existsSync(oldSessDir)) {
         await cp(oldSessDir, newSessDir, { recursive: true });
@@ -300,7 +299,7 @@ export class ProjectService {
       }
 
       // 更新 projects.json
-      const projectsPath = path.join(os.homedir(), ".easymint", "projects.json");
+      const projectsPath = path.join(emHome(), "projects.json");
       if (fs.existsSync(projectsPath)) {
         const data = JSON.parse(fs.readFileSync(projectsPath, "utf-8"));
         const found = (data.projects as Array<Record<string, unknown>>).find((prj) => {
@@ -329,7 +328,7 @@ export class ProjectService {
       }
 
       // 写清理任务
-      const cleanFile = path.join(os.homedir(), ".easymint", ".cleanup-pending.json");
+      const cleanFile = path.join(emHome(), ".cleanup-pending.json");
       const cleanTask = { oldDir, oldSessionDir: oldSessDir, oldPiSessionDir: oldPiSessDir, timestamp: Date.now() };
       const cleanTasks = fs.existsSync(cleanFile)
         ? (() => { try { return JSON.parse(fs.readFileSync(cleanFile, "utf-8")); } catch { return []; } })()

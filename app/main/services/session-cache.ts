@@ -9,9 +9,9 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { emHome } from "../utils/paths";
 
-const CACHE_DIR = path.join(os.homedir(), ".easymint", "session-cache");
+const CACHE_DIR = path.join(emHome(), "session-cache");
 
 export interface SessionCache {
   permissionMode: string;
@@ -80,7 +80,7 @@ export function purgeOrphanedCaches(validSessionIds: Set<string>, skipTemp = fal
  * 返回删除的文件数。
  */
 export function cleanupOrphanCaches(): number {
-  const sessionsRoot = path.join(os.homedir(), ".easymint", "agent", "sessions");
+  const sessionsRoot = path.join(emHome(), "agent", "sessions");
   const valid = new Set<string>();
   const walk = (d: string): void => {
     let entries;

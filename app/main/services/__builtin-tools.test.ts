@@ -18,7 +18,13 @@ vi.mock("node:fs", () => ({
   existsSync: (): boolean => true,
   readFileSync: (): string => JSON.stringify(settings),
 }));
-vi.mock("node:os", () => ({ homedir: (): string => "/tmp/fake-home" }));
+// 实现经 utils/paths.ts 的 emHome() 读 homedir，那里用的是**默认导入**（import os from "node:os"）；
+// 所以 mock 必须同时给出 default，只提供具名导出会让 emHome 抛 "No default export"。
+// 注意 vi.mock 的工厂会被提升到文件顶部，不能在工厂里引用外部变量（要在工厂内部定义）。
+vi.mock("node:os", () => {
+  const homedir = (): string => "/tmp/fake-home";
+  return { homedir, default: { homedir } };
+});
 vi.mock("electron", () => ({ app: { isPackaged: false } }));
 
 import { isToolEnabled } from "./api-clients";

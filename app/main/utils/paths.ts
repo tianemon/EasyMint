@@ -13,6 +13,22 @@ export function resolveHome(dir: string): string {
 }
 
 /**
+ * EM 全局数据目录（默认 `~/.easymint`）。
+ *
+ * `EASYMINT_HOME` 可覆盖它。用途：开发版与安装版默认共用同一份配置，跨版本混开时旧版本
+ * 读不到新结构的字段（见 `em-settings-schema` 的结构迁移）；把开发版指到独立目录即可互不干扰，
+ * `npm run dev:isolated` 就是这个用法。
+ *
+ * ⚠️ **只影响全局目录**——项目级的 `<项目>/.easymint/` 跟项目走，不受此变量影响。
+ * ⚠️ 在**模块加载时**求值（多处是模块级常量），所以必须在启动进程**之前**设置该变量：
+ * 代码里再赋值已经晚了——要写在 `package.json` 的 script 或命令行前置 env 里。
+ */
+export function emHome(): string {
+  const override = process.env.EASYMINT_HOME?.trim();
+  return override ? resolveHome(override) : path.join(os.homedir(), ".easymint");
+}
+
+/**
  * 返回 dir 自身、或其最近的、真实存在的祖先目录；都不存在（或 dir 为空）时返回 undefined。
  *
  * 用于 dialog.defaultPath：Electron 要求传**绝对路径**且不解析 `~`；提示性路径（如项目目录）

@@ -23,7 +23,6 @@
 import { EventEmitter } from "node:events";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as os from "node:os";
 import * as crypto from "node:crypto";
 // archiver 8.0 是 ESM 风格导出 class(ZipArchive)——主进程是 CJS bundle,用 require 取运行时
 const { ZipArchive } = require("archiver") as {
@@ -53,12 +52,13 @@ const unzipper = require("unzipper") as {
 import { networkService } from "./network-service";
 import { broadcast } from "./ipc-broadcast";
 import { tryGetPiSessionDir } from "./pi-session";
+import { emHome } from "../utils/paths";
 
 // ── 常量 ──
 const CHUNK_SIZE = 256 * 1024; // 256KB/块
 const MAX_TRANSFER_SIZE = 500 * 1024 * 1024; // 单次传输上限 500MB
 /** 迁移缓存目录(接收端 zip 落位,恢复成功才删) */
-const MIGRATION_CACHE_DIR = path.join(os.homedir(), ".easymint", "migration-cache");
+const MIGRATION_CACHE_DIR = path.join(emHome(), "migration-cache");
 
 /** 扫描到的单个文件(带大小 + 排除标记——排除项可见但默认不勾选) */
 export interface ScanFileItem {
@@ -76,7 +76,7 @@ export interface SessionItem {
 }
 
 /** 迁移忽略规则文件(全局配置,类似 .gitignore:每行一项,# 开头为注释) */
-const IGNORE_FILE = path.join(os.homedir(), ".easymint", "migration-ignore");
+const IGNORE_FILE = path.join(emHome(), "migration-ignore");
 
 /** 默认忽略规则模板(首次生成写入;用户可编辑内置项;恢复默认也用它)。
     覆盖常见框架/语言排除项,按需保留或删除 */

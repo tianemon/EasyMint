@@ -7,7 +7,7 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { emHome } from "../utils/paths";
 
 // ── Types ──────────────────────────────────────────
 
@@ -31,7 +31,7 @@ export interface UploadStats {
 
 // ── Paths ──────────────────────────────────────────
 
-const UPLOAD_DIR = path.join(os.homedir(), ".easymint", "uploads");
+const UPLOAD_DIR = path.join(emHome(), "uploads");
 const META_FILE = path.join(UPLOAD_DIR, ".meta.json");
 
 function ensureDir(): void {

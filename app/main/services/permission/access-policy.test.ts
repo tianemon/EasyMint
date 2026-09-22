@@ -13,6 +13,7 @@ import {
   standardWriteRoots,
 } from "./access-policy";
 import { developmentRuntimeFor, developmentRuntimesRoot } from "./development-runtime";
+import { emHome } from "../../utils/paths";
 import type { ExecutionContext } from "./execution-context";
 
 describe("统一资源策略", () => {
@@ -89,8 +90,8 @@ describe("统一资源策略", () => {
     const credentials = protectedCredentialPaths();
     expect(credentials).toContain(path.join(os.homedir(), ".ssh"));
     expect(credentials).not.toContain(path.join(os.homedir(), "Documents"));
-    expect(credentials).toContain(path.join(os.homedir(), ".easymint", "em-settings.json"));
-    expect(credentials).toContain(path.join(os.homedir(), ".easymint", ".control-tmp"));
+    expect(credentials).toContain(path.join(emHome(), "em-settings.json"));
+    expect(credentials).toContain(path.join(emHome(), ".control-tmp"));
     expect(credentials).toContain(path.join(os.homedir(), ".zshrc"));
     expect(credentials).toContain(path.join(os.homedir(), ".curlrc"));
     expect(credentials).toContain(path.join(os.homedir(), ".wgetrc"));

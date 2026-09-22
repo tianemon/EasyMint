@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { emHome } from "../utils/paths";
 
 export interface SkillStat {
   usageCount: number;
@@ -17,7 +17,7 @@ export interface SkillStat {
 
 export type SkillRegistry = Record<string, SkillStat>;
 
-const REGISTRY_FILE = path.join(os.homedir(), ".easymint", "skill-registry.json");
+const REGISTRY_FILE = path.join(emHome(), "skill-registry.json");
 
 export function loadSkillRegistry(): SkillRegistry {
   if (!existsSync(REGISTRY_FILE)) return {};

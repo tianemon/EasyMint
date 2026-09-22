@@ -7,9 +7,9 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { emHome } from "../utils/paths";
 
-const DATA_DIR = path.join(os.homedir(), ".easymint");
+const DATA_DIR = emHome();
 const PINS_PATH = path.join(DATA_DIR, "session-pins.json");
 
 export interface Pin {

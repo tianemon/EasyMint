@@ -1,8 +1,7 @@
 import fs from "fs";
 import path from "path";
-import os from "os";
 import type { ProviderConfig, ApiProvidersData } from "../../shared/platform-presets";
-import { resolveHome } from "../utils/paths";
+import { resolveHome, emHome } from "../utils/paths";
 import { dropLegacyEncryptedApiKeys, dropLegacyEncryptedProviderKeys } from "./settings-legacy";
 import { LEGACY_PERMISSION_MODE_ALIASES, type PermissionMode } from "./permission/execution-context";
 import { atomicWrite, lockConfigDirectory } from "./native-config-storage";
@@ -14,7 +13,7 @@ function normalizeStoredPermissionMode(raw: unknown): PermissionMode {
   return typeof raw === "string" ? (LEGACY_PERMISSION_MODE_ALIASES[raw] ?? "standard") : "standard";
 }
 
-export const DATA_DIR = path.join(os.homedir(), ".easymint");
+export const DATA_DIR = emHome();
 
 // ── 多平台 API 供应商配置 ──────────────────────
 // 类型定义见 app/shared/platform-presets.ts

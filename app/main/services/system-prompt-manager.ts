@@ -10,8 +10,8 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { MINT_SYSTEM_PROMPT } from "../../shared/prompts";
+import { emHome } from "../utils/paths";
 
 // ── Types ──────────────────────────────────────────
 
@@ -55,7 +55,7 @@ export const BUILTIN_DEFAULT_PROMPT: SystemPrompt = {
 
 // ── Paths ──────────────────────────────────────────
 
-const DATA_DIR = path.join(os.homedir(), ".easymint");
+const DATA_DIR = emHome();
 const CONFIG_PATH = path.join(DATA_DIR, "system-prompts.json");
 
 function ensureDir(): void {

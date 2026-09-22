@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import type { BrowserWindow } from "electron";
 import { z } from "zod";
@@ -23,6 +22,7 @@ import { readShellLogTail } from "./shell-log";
 import type { Store } from "./store";
 import type { SessionCoordinator } from "./session-coordinator";
 import { trackUpload } from "./upload-cache";
+import { emHome } from "../utils/paths";
 
 const textSchema = z.string().trim().max(100_000).default("");
 const permissionSchema = z.enum(["readonly", "standard", "full"]);
@@ -38,7 +38,7 @@ type PiImage = { type: "image"; data: string; mimeType: string };
 
 function saveRemoteAttachments(raw: unknown): { markers: string[]; images: PiImage[]; details: Array<{ name: string; path: string; kind: "image" | "doc" }> } {
   const attachments = z.array(attachmentSchema).max(10).default([]).parse(raw);
-  const uploadDir = path.join(os.homedir(), ".easymint", "uploads");
+  const uploadDir = path.join(emHome(), "uploads");
   if (attachments.length) fs.mkdirSync(uploadDir, { recursive: true });
   const markers: string[] = [];
   const images: PiImage[] = [];

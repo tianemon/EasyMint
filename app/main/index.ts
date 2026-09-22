@@ -1,10 +1,9 @@
-import os from "os";
 import fs from "fs";
 import { app, BrowserWindow, shell, ipcMain, Menu, nativeTheme, dialog } from "electron";
 import path from "path";
 import { loadUserEnv } from "./utils/user-path";
 import { installSystemProxyFetch, redactProxyUrl } from "./services/system-proxy";
-import { getResourcesDir } from "./utils/paths";
+import { getResourcesDir, emHome } from "./utils/paths";
 import {
   startAutoUpdater,
   checkForUpdatesManually,
@@ -18,7 +17,7 @@ import {
 
 // 统一配置目录：所有 Pi SDK 和 EM 数据都在 ~/.easymint/ 下
 // agentDir 用 ~/.easymint/agent（严格对应 Pi 默认的 ~/.pi/agent 层级，不再有 pi/pi-agent 子目录）
-const EM_HOME = path.join(os.homedir(), ".easymint");
+const EM_HOME = emHome();
 process.env.PI_CODING_AGENT_DIR = path.join(EM_HOME, "agent");
 // Pi SDK 品牌定制：项目级配置目录 .pi → .easymint（官方定制点 piConfig.configDir，幂等补写）。
 // 定位本地实际安装的 SDK 包（开发=项目 node_modules；打包=.asar.unpacked，@earendil-works 在 asarUnpack 名单）。
@@ -246,7 +245,7 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     // with a proper session detection/management UI in a future update.
 
     // Process pending rename cleanup tasks (from project:rename-exec)
-    const cleanFile = path.join(os.homedir(), ".easymint", ".cleanup-pending.json");
+    const cleanFile = path.join(emHome(), ".cleanup-pending.json");
     if (fs.existsSync(cleanFile)) {
       try {
         const tasks = JSON.parse(fs.readFileSync(cleanFile, "utf-8")) as Array<{

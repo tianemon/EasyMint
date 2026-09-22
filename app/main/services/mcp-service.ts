@@ -10,6 +10,7 @@ import path from "node:path";
 import os from "node:os";
 import { dropLegacyEncryptedApiKeys } from "./settings-legacy";
 import { apiKeysFromDisk, readExternalField, writeExternalField } from "./em-settings-schema";
+import { emHome } from "../utils/paths";
 
 // ── Types ──────────────────────────────────────────
 
@@ -109,12 +110,12 @@ export interface McpServerManifest {
 
 /** EM 独立 MCP 配置(与 Claude Code 解耦,不再读写 ~/.claude/.claude.json) */
 function emMcpPath(): string {
-  return path.join(os.homedir(), ".easymint", "mcp.json");
+  return path.join(emHome(), "mcp.json");
 }
 
 // ── Disabled list ──────────────────────────────────
 
-const EM_SETTINGS = path.join(os.homedir(), ".easymint", "em-settings.json");
+const EM_SETTINGS = path.join(emHome(), "em-settings.json");
 
 function getHiddenMcpServers(): string[] {
   if (!existsSync(EM_SETTINGS)) return [];

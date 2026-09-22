@@ -16,12 +16,12 @@ import * as http from "node:http";
 import * as crypto from "node:crypto";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import type { OAuthClientInformationMixed, OAuthClientMetadata, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
+import { emHome } from "../utils/paths";
 
 const DEFAULT_CALLBACK_PORT = 31173;
-const CRED_FILE = path.join(os.homedir(), ".easymint", "mcp-oauth.json");
+const CRED_FILE = path.join(emHome(), "mcp-oauth.json");
 
 export function oauthRedirectUrl(callbackPort: number): string {
   return `http://127.0.0.1:${callbackPort}/callback`;

@@ -4,6 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ToolDefinition } from "../pi-sdk";
 import { getDefineToolFn } from "../pi-sdk";
+import { emHome } from "../../utils/paths";
 import {
   canonicalPolicyPath,
   isWithin,
@@ -14,7 +15,7 @@ import {
 } from "../permission/access-policy";
 
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const MANAGED_DIR = path.join(os.homedir(), ".easymint");
+const MANAGED_DIR = emHome();
 const MANAGED_ENV = path.join(MANAGED_DIR, "environment.sh");
 const CONTROL_TMP = path.join(MANAGED_DIR, ".control-tmp");
 const LEGACY_HOOK_RE = /(?:^|\n)# >>> EasyMint managed environment >>>\n[\s\S]*?\n# <<< EasyMint managed environment <<<(?:\n|$)/g;

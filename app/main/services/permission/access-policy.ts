@@ -6,6 +6,7 @@ import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { developmentRuntimeFor, developmentRuntimesRoot } from "./development-runtime";
 import { allowedDomainsFor, sandboxProfileOptions, sshAgentSockets } from "../sandbox/compat-policy";
 import type { ExecutionContext, PermissionMode } from "./execution-context";
+import { emHome } from "../../utils/paths";
 
 export type { PermissionMode } from "./execution-context";
 
@@ -69,12 +70,16 @@ export function protectedCredentialPaths(platform: NodeJS.Platform = process.pla
     path.join(".config", "gcloud"), path.join(".config", "gh"),
     ".netrc", ".npmrc", ".pypirc", ".git-credentials", ".curlrc", ".wgetrc",
     ".zshrc", ".zprofile", ".bashrc", ".bash_profile", ".profile",
-    path.join(".easymint", "em-settings.json"),
-    path.join(".easymint", "mcp-oauth.json"),
-    path.join(".easymint", "environment.sh"),
-    path.join(".easymint", ".control-tmp"),
-    path.join(".easymint", "agent", "auth.json"),
   ].map((p) => path.join(home, p));
+  // EM 自己的全局配置**单独列出**：它们的根目录可被 EASYMINT_HOME 覆盖，不能假设在 home 下——
+  // 否则换了数据目录之后，这些含凭据的文件会整批掉出保护名单（`path.join` 也不接受绝对路径拼接）。
+  common.push(
+    path.join(emHome(), "em-settings.json"),
+    path.join(emHome(), "mcp-oauth.json"),
+    path.join(emHome(), "environment.sh"),
+    path.join(emHome(), ".control-tmp"),
+    path.join(emHome(), "agent", "auth.json"),
+  );
   if (platform === "darwin") common.push(path.join(home, "Library", "Keychains"));
   if (platform === "win32") {
     if (process.env.APPDATA) common.push(path.join(process.env.APPDATA, "Microsoft", "Credentials"));
@@ -93,9 +98,9 @@ export function protectedCredentialPaths(platform: NodeJS.Platform = process.pla
 export function protectedPersistencePaths(cwd: string, platform: NodeJS.Platform = process.platform): string[] {
   const home = os.homedir();
   const paths = [
-    path.join(home, ".easymint", "mcp.json"),
-    path.join(home, ".easymint", "agent", "settings.json"),
-    path.join(home, ".easymint", "agent", "models.json"),
+    path.join(emHome(), "mcp.json"),
+    path.join(emHome(), "agent", "settings.json"),
+    path.join(emHome(), "agent", "models.json"),
     path.join(home, ".config", "autostart"),
     path.join(home, ".config", "systemd"),
     path.join(home, ".config", "environment.d"),
@@ -121,10 +126,9 @@ export function protectedPersistencePaths(cwd: string, platform: NodeJS.Platform
 
 /** EasyMint 的会话状态（缓存、提示词覆盖）。改它不构成提权，完全访问下放开。 */
 export function protectedStatePaths(): string[] {
-  const home = os.homedir();
   return [
-    path.join(home, ".easymint", "session-cache"),
-    path.join(home, ".easymint", "system-prompts.json"),
+    path.join(emHome(), "session-cache"),
+    path.join(emHome(), "system-prompts.json"),
   ];
 }
 

@@ -12,7 +12,7 @@ import { getNativeConfig } from "./services/native-config";
 import { setSandboxDisabledProvider, resetSandboxState } from "./services/sandbox/manager";
 import { probeEnvironment } from "./services/provisioning/probe";
 import { installDependencies, fixUserns } from "./services/provisioning/run";
-import { IMAGE_MIME, resolveHome, nearestExistingDir } from "./utils/paths";
+import { IMAGE_MIME, resolveHome, nearestExistingDir, emHome } from "./utils/paths";
 import { applyDockIcon } from "./utils/dock-icon";
 import { isImagePath } from "../shared/image-files";
 import { z } from "zod";
@@ -463,7 +463,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("upload:clean", guard(z.object({ filenames: z.array(z.string().min(1)) }).loose(), (data) => cleanFiles(data.filenames)));
   ipcMain.handle("upload:cleanAll", () => cleanAll());
   ipcMain.handle("upload:openDir", () => {
-    const dir = p.join(os.homedir(), ".easymint", "uploads");
+    const dir = p.join(emHome(), "uploads");
     shell.openPath(dir);
   });
 
@@ -750,7 +750,7 @@ const filePath = p.join(projectPath, "task.json");
 
   // file:saveUpload — save uploaded image to ~/.easymint/uploads/
   ipcMain.handle("file:saveUpload", async (_e, { name, data }: { name: string; data: number[] }) => {
-    const uploadDir = p.join(os.homedir(), ".easymint", "uploads");
+    const uploadDir = p.join(emHome(), "uploads");
     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
     const timestamp = Date.now();
     const safeName = `${timestamp}-${name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
@@ -767,7 +767,7 @@ const filePath = p.join(projectPath, "task.json");
   // file:readUpload — read an uploaded file and return as data URL (for history restore)
   ipcMain.handle("file:readUpload", async (_e, { filePath }: { filePath: string }) => {
     // Security: only allow files under ~/.easymint/uploads/
-    const allowedDir = p.resolve(p.join(os.homedir(), ".easymint", "uploads"));
+    const allowedDir = p.resolve(p.join(emHome(), "uploads"));
     if (!p.resolve(filePath).startsWith(allowedDir)) return null;
     if (!fs.existsSync(filePath)) return null;
     const buf = fs.readFileSync(filePath);

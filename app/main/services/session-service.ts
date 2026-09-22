@@ -15,8 +15,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync, rmdirSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
-import { resolveHome } from "../utils/paths";
+import { resolveHome, emHome } from "../utils/paths";
 import { deleteCache } from "./session-cache";
 import { listPiSessions, getPiSessionDir, tryGetPiSessionDir } from "./pi-session";
 import { isEmptyDirShell } from "./pi-session-dir";
@@ -24,7 +23,7 @@ import { getSessionManagerClass } from "./pi-sdk";
 import { compactionSummaryNotice } from "../../shared/prompts";
 import { deleteSessionTodos } from "./session-todos";
 
-const DATA_DIR = path.join(os.homedir(), ".easymint");
+const DATA_DIR = emHome();
 const PINNED_PATH = path.join(DATA_DIR, "pinned-sessions.json");
 const ARCHIVED_PATH = path.join(DATA_DIR, "archived-sessions.json");
 const TITLES_PATH = path.join(DATA_DIR, "session-titles.json");

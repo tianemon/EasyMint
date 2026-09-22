@@ -13,7 +13,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, cpSync, lstatSync, rmSync, unlinkSync, renameSync, realpathSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { getResourcesDir } from "../utils/paths";
+import { getResourcesDir, emHome } from "../utils/paths";
 import { readExternalField, writeExternalField } from "./em-settings-schema";
 
 // ── Types ──────────────────────────────────────────
@@ -52,10 +52,10 @@ export interface ManagedSkillResult {
 
 // ── Constants ──────────────────────────────────────
 
-const GLOBAL_SKILLS_DIR = path.join(os.homedir(), ".easymint", "skills");
+const GLOBAL_SKILLS_DIR = path.join(emHome(), "skills");
 
 // AI 产物区（manage_skill/learn 工具写入），与用户手写区物理隔离
-const MANAGED_SKILLS_DIR = path.join(os.homedir(), ".easymint", "managed-skills");
+const MANAGED_SKILLS_DIR = path.join(emHome(), "managed-skills");
 
 function projectSkillsDir(projectPath: string): string {
   return path.join(projectPath, ".easymint", "skills");
@@ -63,7 +63,7 @@ function projectSkillsDir(projectPath: string): string {
 
 // ── Disabled skills list ───────────────────────────
 
-const DISABLED_FILE = path.join(os.homedir(), ".easymint", "em-settings.json");
+const DISABLED_FILE = path.join(emHome(), "em-settings.json");
 
 function getHiddenSkills(): string[] {
   if (!existsSync(DISABLED_FILE)) return [];

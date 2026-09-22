@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { emHome } from "../../utils/paths";
 
 export interface DevelopmentRuntime {
   id: string;
@@ -17,7 +18,7 @@ export interface DevelopmentRuntime {
 }
 
 export function developmentRuntimesRoot(): string {
-  return path.join(os.homedir(), ".easymint", "runtimes");
+  return path.join(emHome(), "runtimes");
 }
 
 function canonicalWorkspace(workspace: string): string {

@@ -19,6 +19,7 @@ import { execFileSync } from "node:child_process";
 import { WebSocketServer, WebSocket } from "ws";
 import { Bonjour } from "bonjour-service";
 import { generateKeyPair, deriveSharedKey, encrypt, decrypt, makeChallenge } from "./device-crypto";
+import { emHome } from "../utils/paths";
 
 // ── 常量（频率对齐蓝牙指导值，见方案文档频率参数表） ──
 // 注:mDNS 通告间隔由协议层维护(蓝牙 2s 阈值的对应物),应用侧无需定时发布
@@ -26,8 +27,8 @@ const HEARTBEAT_INTERVAL = 30 * 1000; // 已连接心跳 30s(完全手动连接�
 const WS_PORT = 47777; // 局域网 WS 监听端口（固定，防火墙放行一次）
 const DISCOVERABLE_TIMEOUT = 60 * 1000; // 可被发现持续 1 分钟自动停止(用户定稿)
 const SERVICE_TYPE = "easymint"; // mDNS 服务类型
-const PAIRED_FILE = path.join(os.homedir(), ".easymint", "paired-devices.json");
-const DEVICE_ID_FILE = path.join(os.homedir(), ".easymint", "device-id.json");
+const PAIRED_FILE = path.join(emHome(), "paired-devices.json");
+const DEVICE_ID_FILE = path.join(emHome(), "device-id.json");
 
 // ── 类型 ──
 export interface PairedDevice {

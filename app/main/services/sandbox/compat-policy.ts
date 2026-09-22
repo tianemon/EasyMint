@@ -21,12 +21,12 @@
  * - **两种模式共用本文件**：完全访问不套沙盒，因此这一层对它不生效（不是"也给它开白名单"）。
  */
 
-import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { parse as parseShell } from "shell-quote";
 import { readExternalField } from "../em-settings-schema";
+import { emHome } from "../../utils/paths";
 
 /**
  * 常用开发基础设施白名单。
@@ -184,7 +184,7 @@ export const DEVELOPMENT_ALLOWED_DOMAINS: readonly string[] = [
 export function extraAllowedDomains(workspaceRealPath?: string): string[] {
   const collected: string[] = [];
   const candidates = [
-    path.join(os.homedir(), ".easymint", "em-settings.json"),
+    path.join(emHome(), "em-settings.json"),
     workspaceRealPath ? path.join(workspaceRealPath, ".easymint", "sandbox.json") : "",
   ].filter(Boolean);
   for (const file of candidates) {

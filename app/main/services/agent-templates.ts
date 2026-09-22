@@ -11,10 +11,10 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { randomUUID } from "node:crypto";
 import { BUILDER_AGENT_PROMPT, EVALUATOR_AGENT_PROMPT, DESIGNER_AGENT_PROMPT, MINT_SYSTEM_PROMPT } from "../../shared/prompts";
 import { DESIGNER_TEMPLATE_FILES, START_POINT_FREE, START_POINT_TEMPLATE_PREFIX } from "../../shared/designer-templates";
+import { emHome } from "../utils/paths";
 
 // ── Types ──────────────────────────────────────────
 
@@ -41,7 +41,7 @@ export interface AgentTemplateInput {
 
 // ── Storage ────────────────────────────────────────
 
-const DATA_DIR = path.join(os.homedir(), ".easymint");
+const DATA_DIR = emHome();
 const STORE_PATH = path.join(DATA_DIR, "agent-templates.json");
 
 function ensureDir(): void {
