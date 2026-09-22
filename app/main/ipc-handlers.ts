@@ -231,8 +231,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   );
   ipcMain.handle("agent:abort", async (_e, { runId, clearQueue, rewind }) => {
     // 打断（chat 与 worker 统一处理）：abort 当前回合，保留会话/run 注册表。
-    // clearQueue（停止按钮 / 重发前兜底）返回被丢弃的插话文本；rewind（仅停止按钮）
-    // 在本轮无产出时把分支退回本轮起点并返回被撤回的消息文本，供前端放回输入框
+    // clearQueue（停止按钮 / 重发前兜底）丢弃未投递的插话；rewind（仅停止按钮）在本轮
+    // 无产出时把分支退回本轮起点，让该消息退出上下文——两者都无返回值（abort(): Promise<void>）
     return await agentService.abort(runId, { clearQueue: clearQueue === true, rewind: rewind === true });
   });
   ipcMain.handle("agent:chatStatus", (_e, { sessionId }) => {

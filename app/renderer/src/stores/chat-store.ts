@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { ErrorTone } from "../../../shared/api-errors";
 
 export type StoredMessage = Record<string, any> & { id: number; role: "user" | "ai" };
 
@@ -8,6 +9,10 @@ export interface FlowErrorCard {
   id: number;
   kind: "send" | "round" | "system";
   message: string;
+  /** 视觉档位,来自 classifyApiError;缺省按 error 渲染(见 FlowErrorCardView) */
+  tone?: ErrorTone;
+  /** 简短建议文案(可选,与 message 同卡第二行) */
+  hint?: string;
   /** 卡片渲染在 anchorMsgId 对应消息的气泡下方 */
   anchorMsgId: number;
   /** 重试目标消息 id(重发该 user 消息);缺省 = 不可重试,仅可关闭 */

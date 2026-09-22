@@ -15,7 +15,7 @@ import { MARKDOWN_PROSE_CLASS, renderMarkdownToHtml } from "../lib/markdown";
 import { useStatusStore } from "../stores/status-store";
 import { StatusBar } from "./StatusBar";
 import { useDelegationStore } from "../stores/delegation-store";
-import { normalizeApiError } from "../../../shared/api-errors";
+import { classifyApiError, type ErrorTone } from "../../../shared/api-errors";
 import { ChatInput, AttachPreview, type PermissionMode } from "./ChatInput";
 import { TodoStrip } from "./TodoStrip";
 import { SessionStatsPopup } from "./SessionStatsPopup";
@@ -87,7 +87,15 @@ const SystemMarkdown = memo(function SystemMarkdown({ content }: { content: stri
   return <div className={MARKDOWN_PROSE_CLASS} dangerouslySetInnerHTML={inner} />;
 });
 
-/** 消息流内持久错误卡片(3.5):红底警示条 + 重试(可重试时)/关闭。
+/** 档位 → 语义色。类名必须是完整字面量(Tailwind 扫描不到拼接类名)。 */
+const ERROR_TONE_STYLE: Record<ErrorTone, { border: string; icon: string }> = {
+  warn: { border: "border-warning-border", icon: "text-warning" },
+  error: { border: "border-danger-border", icon: "text-danger" },
+};
+
+/** 消息流内持久错误卡片(3.5):中性底 + 语义色描边与图标 + 重试(可重试时)/关闭。
+ *  底色不带语义色、按钮不给语义色——整块红底与红按钮是「扎眼」的来源;错误条保留
+ *  danger 描边是 UI 元素库的既有约定(语义辨识),故只收掉底色与按钮两处。
  *  悬停显完整文案(长错误信息不撑破气泡)。 */
 function FlowErrorCardView({ card, onRetry, onDismiss }: {
   card: FlowErrorCard;
@@ -95,23 +103,29 @@ function FlowErrorCardView({ card, onRetry, onDismiss }: {
   onDismiss: (c: FlowErrorCard) => void;
 }): JSX.Element {
   const retryable = card.sourceMsgId != null;
+  const tone = ERROR_TONE_STYLE[card.tone ?? "error"];
   return (
     <div
-      className="flex items-start gap-2 rounded-[var(--radius-lg)] border border-danger-border bg-danger-bg px-3 py-1.5 w-fit max-w-full"
-      title={card.message}
+      className={`flex items-start gap-2 rounded-[var(--radius-lg)] border ${tone.border} bg-surface-elevated px-3 py-1.5 w-fit max-w-full`}
+      title={card.hint ? `${card.message}\n${card.hint}` : card.message}
     >
       {/* 警示三角(三角形路径,16 网格) */}
-      <svg className="mt-[2px] shrink-0 text-danger" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg className={`mt-[2px] shrink-0 ${tone.icon}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
         <path d="M12 9v4" />
         <path d="M12 17h.01" />
       </svg>
-      <span className="min-w-0 flex-1 break-words text-text-primary leading-[1.55]" style={{ fontSize: "var(--text-detail)" }}>{card.message}</span>
+      <div className="min-w-0 flex-1">
+        <div className="break-words text-text-primary leading-[1.55]" style={{ fontSize: "var(--text-detail)" }}>{card.message}</div>
+        {card.hint && (
+          <div className="break-words text-text-muted leading-[1.55]" style={{ fontSize: "var(--text-detail)" }}>{card.hint}</div>
+        )}
+      </div>
       {retryable && (
         <button
           type="button"
           onClick={() => onRetry(card)}
-          className="shrink-0 rounded-[var(--radius-lg)] px-2 py-0.5 font-medium text-danger bg-danger-soft hover:bg-danger transition-colors hover:text-white cursor-pointer"
+          className="shrink-0 rounded-[var(--radius-lg)] px-2 py-0.5 font-medium text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
           style={{ fontSize: "var(--text-detail)" }}
         >重试</button>
       )}
@@ -893,7 +907,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // ── 消息流持久错误卡片(3.5) ────────────────────────────
   // 错误同时写入消息流(不只有状态栏 8s 提示):卡片锚定失败回合所在消息,
   // 用户可重试(重发原消息)/关闭;状态栏提示逻辑不变。
-  const showFlowError = useCallback((kind: FlowErrorCard["kind"], message: string, opts?: { sourceMsgId?: number; anchorMsgId?: number }) => {
+  const showFlowError = useCallback((kind: FlowErrorCard["kind"], message: string, opts?: { sourceMsgId?: number; anchorMsgId?: number; tone?: ErrorTone; hint?: string }) => {
     const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
     if (msgs.length === 0) return; // 空会话(无消息可锚)只走状态栏
     // 锚点 = 失败发生时的消息流尾部(最后一条消息行)——错误卡片在视野内,用户立即可见;
@@ -908,6 +922,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     }
     useChatStore.getState().addFlowError(sidRef.current, {
       kind, message, anchorMsgId: anchor,
+      ...(opts?.tone ? { tone: opts.tone } : {}),
+      ...(opts?.hint ? { hint: opts.hint } : {}),
       ...(source != null ? { sourceMsgId: source } : {}),
     });
   }, []);
@@ -1519,9 +1535,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         // 打断(abort)是主动操作,按钮状态变化即反馈——不显示提示;
         // 真实错误(503/429/超时)归一化后停留 8s(状态栏);同时写入消息流持久卡片可重试
         if (!/abort|cancel/i.test(event.message || "")) {
-          const errMsg = normalizeApiError(event.message) || "出错了";
-          useStatusStore.getState().pushSignal(sidRef.current, "error", errMsg, 8000);
-          showFlowError("round", errMsg);
+          // 分类后再呈现:文案(含可选建议)与视觉档位同源(见 shared/api-errors)
+          const info = classifyApiError(event.message);
+          useStatusStore.getState().pushSignal(sidRef.current, "error", info.message, 8000);
+          showFlowError("round", info.message, { tone: info.tone, ...(info.hint ? { hint: info.hint } : {}) });
         }
       }
       // custom 系统消息(委派完成/后台 shell/流程指令)→ 独立即时显示:
@@ -2000,7 +2017,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       const errText = "发送失败，请检查网络后重试";
       useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
       // 同步写入消息流持久错误卡片(锚定刚追加/重试的用户消息,可点重试重新发送)
-      if (sentMsgId != null) showFlowError("send", errText, { sourceMsgId: sentMsgId, anchorMsgId: sentMsgId });
+      if (sentMsgId != null) showFlowError("send", errText, { sourceMsgId: sentMsgId, anchorMsgId: sentMsgId, tone: "warn" });
     }
   }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatModel, chatProvider, chatRole, tabId]);
 
@@ -2071,7 +2088,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     useChatStore.getState().updateUserMsgText(sidRef.current, msg.id, newText);
     // 兜底中止可能残留的回合(打断后正常已停;防边缘状态)
     // clearQueue：顺手丢掉队列里那份**旧文本**——不回退会与新文本一起被下一次运行投递；
-    // 不传 rewind：这条消息正在被替换，撤回它会把改好的内容也退掉
+    // 不传 rewind：这里能撤的是「本轮已发出的消息」，而改好的新文本还没发送、不会因此退掉——
+    // 当前实现只替换本地气泡文本，旧文本仍留在 Pi 历史里（模型会看到新旧两版）
     const rid = currentChatRef.current;
     if (rid) window.electronAPI.agent.abort(rid, { clearQueue: true }).catch(() => {});
     // 重新触发 Mint 回复(跳过 append——气泡已替换,不产生新用户气泡)

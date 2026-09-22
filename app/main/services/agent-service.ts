@@ -1133,7 +1133,10 @@ export class AgentService {
         if (c.chatId === runId) { chat = c; break; }
       }
     }
-    if (!chat) return;
+    if (!chat) {
+      console.warn(`[agent] abort 未找到 chat（runId=${runId}）——撤回与清队列均跳过`);
+      return;
+    }
     chat.abortController.abort();
     // 先清队列、再 abort：SDK 的回合后循环用「队列里还有消息」作为 agent.continue() 的依据
     // （agent-session 的 hasQueuedMessages）——反过来做会留竞态窗口：循环已看到消息 →
@@ -1149,6 +1152,7 @@ export class AgentService {
       console.log(`[agent] 打断：丢弃 ${dropped} 条未投递插话（不退回输入框——回填后容易被回车误发）`);
     }
     if (opts?.rewind) await this.rewindIfNoOutput(chat);
+    else console.log(`[agent] 打断未请求撤回（runId=${runId}）：编辑重发/关闭等路径，消息保留在上下文`);
   }
 
   /** 权限收紧时撤销主会话及其后代仍在运行的旧权限执行上下文。 */
@@ -1181,7 +1185,10 @@ export class AgentService {
     const session = chat.session;
     const mgr = session?.sessionManager;
     const startId = chat.leafBeforePrompt ?? null;
-    if (!session || !mgr || !startId) return;
+    if (!session || !mgr || !startId) {
+      console.log(`[agent] 撤回跳过：session=${!!session} mgr=${!!mgr} startId=${startId ?? "null"}`);
+      return;
+    }
     try {
       const entries = mgr.getEntries() as Array<{ id: string; parentId?: string | null; type?: string; message?: { role?: string; content?: unknown } }>;
       const byId = new Map(entries.map((e) => [e.id, e]));
@@ -1205,11 +1212,24 @@ export class AgentService {
           return blk.type === "toolCall" || blk.type === "tool_use";
         });
       });
-      if (hasOutput) return;
+      // 撤回失败长期静默（仅 catch 一行 warn）：命中的分支与当时状态必须可见，
+      // 否则「该撤没撤」只能靠翻会话文件反推。以下日志为诊断用，无行为影响。
+      const leafBefore = mgr.getLeafId();
+      if (hasOutput) {
+        console.log(`[agent] 撤回跳过：本轮有产出（leaf=${leafBefore} startId=${startId} 回溯 ${turn.length} 条）`);
+        return;
+      }
+      console.log(`[agent] 撤回执行前：leaf=${leafBefore} startId=${startId} 回溯 ${turn.length} 条 isStreaming=${session.isStreaming} isCompacting=${session.isCompacting}`);
       await session.navigateTree(startId, { summarize: false });
-      console.log(`[agent] 打断撤回：本轮无产出，分支退回到 ${startId}（消息退出上下文）`);
+      // 钉住撤回后的位置：SDK 的 leaf **只存在内存里**（session-manager 全程不写盘），重开时
+      // _buildIndex 把 leaf 重置为文件最后一条 → 不钉住的话被撤回的消息在重开会话后会复活
+      // （上下文与界面历史都回来）。追加一条 custom 条目把文件尾落在撤回后的位置：
+      // SDK 写明 custom 条目「不参与上下文」（sessionEntryToContextMessages），EM 的历史
+      // 读取（parseEntriesToMessages）也只认 message/custom_message/compaction。
+      const pinId = mgr.appendCustomEntry("em_rewind_pin", { leaf: startId });
+      console.log(`[agent] 打断撤回：leaf ${leafBefore} → ${mgr.getLeafId() ?? "null"}（钉住 ${pinId}，起点 ${startId}）`);
     } catch (e) {
-      console.warn("[agent] 打断撤回失败:", (e as Error).message);
+      console.warn(`[agent] 打断撤回失败：${(e as Error).name}: ${(e as Error).message}`);
     }
   }
 
