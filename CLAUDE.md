@@ -309,7 +309,7 @@ npm run lint             # ESLint + TypeScript 类型检查
 |------|------|------|
 | 新增/修改配置文件、调整存储路径、处理 SDK 数据 | `docs/design/CONFIG_PATHS.md` | 全局和项目级的所有配置路径 |
 | 使用 SDK API、会话管理、工具调用 | `docs/reference/pi-api/SDK实操速查.md` | SDK 实操速查(按 EM 场景组织:方法列表/Skill 机制/模型切换/利用程度盘点) |
-| 查全量 API 签名、供应商认证、CLI/RPC、外围包 | `docs/reference/pi-api/README.md` | pi v0.85.1 全量 API 清单系列(按包组织,4 篇分册,与实操速查互补,版本口径以此为准) |
+| 查全量 API 签名、供应商认证、CLI/RPC、外围包 | `docs/reference/pi-api/README.md` | pi v0.87.0 全量 API 清单系列(按包组织,4 篇分册,与实操速查互补,版本口径以此为准) |
 
 ### 提示词与工具描述边界（用户明确要求，2026-09）
 
