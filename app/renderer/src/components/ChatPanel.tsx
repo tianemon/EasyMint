@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
-import { AttachItem, ChatMessage, PendingUserBubble, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason, retryStatusText } from "./chat-utils";
+import { AttachItem, ChatMessage, PendingUserBubble, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason, contextEditAction, retryStatusText, BUSY_PROBE_INTERVAL_MS, BUSY_PROBE_CLEAR_STREAK, stepBusyProbe } from "./chat-utils";
 import { confirmDialog } from "./ui/ConfirmDialog";
 import { chatActions } from "../stores/chat-actions";
 import { confirmFullAccess } from "./permission-confirmation";
@@ -53,6 +53,17 @@ const MAX_LIVE_OUTPUT_CHARS = 50_000;
 
 /** 打断丢弃插话的提示停留时长——足够读完条数与内容，又不至于赖在输入卡上方不走 */
 const DROPPED_NOTICE_MS = 10_000;
+
+/** 气泡级动作（都会改模型上下文，失败出口共用一份）：用户看到的动作名 = 日志与错误卡片标题用词 */
+type MsgAction = "修改" | "重新生成" | "移出上下文" | "恢复进上下文";
+
+/** 各动作失败时告诉用户「这一步没生效」的后果——不写的话失败卡只有一句错误，用户得自己猜上下文变了没有 */
+const MSG_ACTION_HINTS: Record<MsgAction, string> = {
+  修改: "这条消息仍在上下文里，未发送新内容。",
+  重新生成: "这条回答仍在上下文里，未生成新内容。",
+  移出上下文: "这条消息仍在上下文里，未做改动。",
+  恢复进上下文: "这条消息仍未回到上下文里。",
+};
 
 /** 系统消息 kind → 头部标签(系统卡片统一形态的辨识信息) */
 const SYSTEM_KIND_LABELS: Record<string, string> = {
@@ -1856,21 +1867,54 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     return () => clearTimeout(timer);
   }, [compacting]);
 
-  // Busy 卡住兜底：30s 无事件时，用 session.isStreaming 核实
+  // 忙碌态兜底（O3）：busy 为真时每 5s 问一次主进程「这个会话还在占着吗」，连续 2 次报空闲才清
+  //（≈10s 宽限，见 chat-utils.stepBusyProbe）。为什么需要它：界面 busy 全靠事件推演，丢一条
+  // turn_end / agent_end 就卡在忙碌态（历史多次），而事件是没法补发的——只能拿主进程的登记去对账。
+  // 清理动作与打断路径一致（busyRef + store + 回合信号）；**只清忙碌态这一项**，
+  // abortedRunPendingRef/stoppedRef 等状态机字段各有主人，不在兜底职责内。
+  // 临时 __new_* 会话不探测：主进程查不到这个 id（真实 id 在 SDK 侧生成），探测恒为空闲，
+  // 查两次就会把「新会话首条消息正在跑」误清。退出条件是三个：非 busy（依赖变化即清理）、
+  // 组件卸载、会话切换（sid 变化 → 依赖变化 → 清理重开，计数从头数）。
   useEffect(() => {
-    if (!busy || !existingSid) return;
-    const interval = setInterval(async () => {
+    if (!busy || sid.startsWith("__new_")) return;
+    let consecutiveIdle = 0;
+    let stopped = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const stop = () => { stopped = true; if (timer !== null) clearInterval(timer); };
+    // sdkIdle 只用于排查、不参与判定：主进程报忙而 SDK 报空闲的**持续**错配，是「本进程回合登记未清」
+    // 那类的签名——本兜底清不了它（判定只看 busy），但至少让它在日志里看得见，而不是无声卡住。
+    let mismatchStreak = 0;
+    let mismatchLogged = false;
+    const probe = async () => {
+      let state: { busy: boolean; sdkIdle: boolean };
       try {
-        const streaming = await window.electronAPI.agent.isStreaming(sidRef.current);
-        if (!streaming) {
-          setBusy(false);
-          useStatusStore.getState().popSignal(sidRef.current, "request");
-          useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:");
-        }
-      } catch { /* 网络错误忽略 */ }
-    }, 30_000);
-    return () => clearInterval(interval);
-  }, [busy, existingSid]);
+        state = await window.electronAPI.agent.busyState(sid);
+      } catch (e) {
+        // 查询失败不推进计数：IPC 异常不该被当成「主进程说空闲」
+        console.error("[ChatPanel] 忙碌态兜底查询失败:", e);
+        return;
+      }
+      if (stopped) return;
+      const step = stepBusyProbe(consecutiveIdle, state.busy);
+      consecutiveIdle = step.consecutiveIdle;
+      // 同一个「连续 2 次」口径：单次错配可能只是状态切换的瞬间（主进程先登记、SDK 后置运行标志）
+      mismatchStreak = state.busy && state.sdkIdle ? mismatchStreak + 1 : 0;
+      if (!mismatchLogged && mismatchStreak >= BUSY_PROBE_CLEAR_STREAK) {
+        mismatchLogged = true;
+        console.warn(`[chat] 忙碌态错配：主进程报忙、SDK 报空闲（连续 ${mismatchStreak} 次探测）session=${sid}——回合登记未清那类，本兜底不清它（判定只看 busy），留日志供排查`);
+      }
+      if (!step.clear) return;
+      // 清完立刻停：不等 busy 变假后依赖触发的清理，避免 "清理还没渲染、定时器又探一次" 重复记账
+      stop();
+      console.warn(`[chat] 忙碌态兜底触发：主进程连续 ${BUSY_PROBE_CLEAR_STREAK} 次报会话空闲，已清理界面忙碌态（session=${sid} sdkIdle=${state.sdkIdle}）——若频繁出现，说明有事件在丢失`);
+      busyRef.current = false;
+      setBusy(false);
+      useStatusStore.getState().popSignal(sid, "request");
+      useStatusStore.getState().popSignalsByPrefix(sid, "tool:");
+    };
+    timer = setInterval(() => { void probe(); }, BUSY_PROBE_INTERVAL_MS);
+    return stop;
+  }, [busy, sid]);
 
   // 打开会话（0 → N 条）贴底：virtualizer.scrollToIndex 官方 API——
   // scrollState 在测量变化时持续校正对齐直到稳定(库原生处理估算→实测,正规手段)。
@@ -2161,13 +2205,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     setEditingMsg({ id: msg.id, draft: msg.text ?? "" });
   }, []);
   const cancelEdit = useCallback(() => setEditingMsg(null), []);
-  /** 撤回失败的统一出口：状态栏提示 + 锚在操作位置的错误卡片（说明这条仍在上下文里、未发新内容）。 */
-  const reportRewindFailure = useCallback((msg: ChatMessage, action: "修改" | "重新生成", detail: string) => {
-    console.error(`[chat] ${action}撤回失败：session=${sidRef.current} entry=${msg.entryId ?? "?"} ${detail}`);
+  /** 气泡级动作失败的统一出口（撤回链路与「移出/恢复上下文」共用）：状态栏提示 + 锚在操作位置的错误
+   *  卡片，hint 说明「这一步没生效」的后果——四个动作都是「改上下文失败」，失败可见性完全同构。 */
+  const reportMsgActionFailure = useCallback((msg: ChatMessage, action: MsgAction, detail: string) => {
+    console.error(`[chat] ${action}失败：session=${sidRef.current} entry=${msg.entryId ?? "?"} ${detail}`);
     const errText = detail ? `${action}失败：${detail}` : `${action}失败，请重试`;
     useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
-    const hint = action === "修改" ? "这条消息仍在上下文里，未发送新内容。" : "这条回答仍在上下文里，未生成新内容。";
-    showFlowError("system", errText, { anchorMsgId: msg.id, hint });
+    showFlowError("system", errText, { anchorMsgId: msg.id, hint: MSG_ACTION_HINTS[action] });
   }, [showFlowError]);
   /**
    * 调 main 侧撤回（编辑 / 重新生成共用）：失败（返回 ok:false 或 IPC 抛错）走同一条可见提示并返回 null。
@@ -2185,15 +2229,44 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     try {
       res = await window.electronAPI.agent.rewindToNode(sidRef.current, entryId, target);
     } catch (e) {
-      reportRewindFailure(msg, action, e instanceof Error ? e.message : String(e));
+      reportMsgActionFailure(msg, action, e instanceof Error ? e.message : String(e));
       return null;
     }
     if (!res.ok) {
-      reportRewindFailure(msg, action, res.error ?? "");
+      reportMsgActionFailure(msg, action, res.error ?? "");
       return null;
     }
     return res;
-  }, [reportRewindFailure]);
+  }, [reportMsgActionFailure]);
+  /**
+   * 单条消息移出 / 恢复模型上下文（轻档，消息右键菜单入口）。
+   *
+   * 与「修改」的差别（菜单文案点明）：轻档只把这一条从模型视野里拿掉，**不重来它之后的对话**——
+   * main 侧只追加一条 context_edit（不截断分支、不裁剪本地列表），所以不弹确认框；而「修改」是级联撤回。
+   * 两者都常驻同一个右键菜单，靠 contextEditAction 决定给哪个入口（没条目 id / 已被撤回掉就不给）。
+   *
+   * 失败可见（同撤回链路，不静默）：状态栏提示 + 锚在这条消息下方的错误卡片；IPC 抛错也走同一条。
+   * 成功后只改这一个气泡的标记：摘掉→打「已退出上下文」（可恢复），恢复→清掉这组标记。
+   */
+  const setEntryInContext = useCallback(async (msg: ChatMessage, inContext: boolean) => {
+    const entryId = msg.entryId;
+    if (!entryId) return; // 没条目 id 时菜单根本不出入口（见 contextEditAction），兜底
+    const action: MsgAction = inContext ? "恢复进上下文" : "移出上下文";
+    let res: { ok: boolean; error?: string };
+    try {
+      res = await window.electronAPI.agent.setEntryInContext(sidRef.current, entryId, inContext);
+    } catch (e) {
+      reportMsgActionFailure(msg, action, e instanceof Error ? e.message : String(e));
+      return;
+    }
+    if (!res.ok) {
+      reportMsgActionFailure(msg, action, res.error ?? "");
+      return;
+    }
+    const store = useChatStore.getState();
+    if (inContext) store.restoreIntoContext(sidRef.current, msg.id);
+    else store.markDroppedFromContext(sidRef.current, msg.id);
+  }, [reportMsgActionFailure]);
   /**
    * 编辑重发:**级联撤回 → 本地替换气泡文本 → 用新文本重发**。
    *
@@ -2346,8 +2419,18 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         if (!ok) showPinToast("该内容已钉为便签");
       } },
     ];
+    // 轻档入口（与「修改」的级联重推同级不同档）：只把这一条从模型视野里拿掉，它之后的对话照旧——
+    // 文案必须点明这条差别，否则与铅笔的「修改」看着是一件事而实际差很多（那个会把后面的对话全部重来）。
+    // 已摘掉的给「恢复」：再追加一条带原内容的编辑（见 main 的 setEntryInContext），等于撤销。
+    // 两者都不弹确认框：虽然会落盘（重开会话仍生效），但随时可恢复，不构成不可逆操作。
+    const ctxAction = contextEditAction(msg);
+    if (ctxAction === "drop") {
+      items.push({ label: "移出上下文（后续对话不重来）", onClick: () => { void setEntryInContext(msg, false); } });
+    } else if (ctxAction === "restore") {
+      items.push({ label: "恢复进上下文", onClick: () => { void setEntryInContext(msg, true); } });
+    }
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
-  }, []);
+  }, [setEntryInContext]);
 
   // 气泡动态鼓出:与当前宽度反比(窄滑块鼓多、宽滑块鼓少),两边视觉膨胀感一致;
   // 基准=标准按钮宽(首渲染时 ref 未绑,回退 48+3)

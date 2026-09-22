@@ -38,6 +38,11 @@ export interface ChatMessage {
    *  界面据此显式标出（重开会话后它随磁盘分支一起消失，标记只活在本面板内）。
    *  气泡重新拿到内容（流式写入 / 编辑重发）时清掉：那一刻它又回到上下文里。 */
   outOfContext?: boolean;
+  /** 本条被「单条移出上下文」（轻档，appendContextEdit）摘掉——它的条目**仍在当前分支上**，只是不在
+   *  模型视野里，追加一条带原内容的编辑就能恢复（见 main 的 setEntryInContext）。
+   *  与 outOfContext 的区别正在此：撤回残留的气泡已不在分支上，恢复不了，右键菜单不给入口
+   *  （见 contextEditAction）。为真时 outOfContext 同时为真（标记与清除同进退）。 */
+  contextDropped?: boolean;
   /** 群聊消息的 Agent 角色(群聊视图标注来源;无 = 普通会话) */
   agentRole?: string;
   /** 群聊转发消息标记(该回合由其他 Agent 转发触发,显示来源标签) */
@@ -128,7 +133,7 @@ function parseAttachMarkers(text: string): { attaches: AttachItem[]; cleanText: 
 }
 
 /** 历史会话消息（conv.messages）→ ChatMessage[] */
-export function mapSessionMessages(msgs: Array<{ type: string; message: unknown }>): ChatMessage[] {
+export function mapSessionMessages(msgs: Array<{ type: string; message: unknown; out_of_context?: boolean }>): ChatMessage[] {
   let nextId = 0;
   const mapped: ChatMessage[] = [];
   for (const m of msgs) {
@@ -151,6 +156,9 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
           attaches: attaches.length > 0 ? attaches : undefined, timestamp: ts,
           // 系统消息结构身份(custom_message 条目):前端按 customType/kind 渲染
           customType: msgObj.customType, details: msgObj.details,
+          // 被「单条移出上下文」摘掉的历史消息：条目还在分支上，标出来并给恢复入口（见 contextEditAction）。
+          // 条件展开而不是赋 undefined——本文件的约定是「没这回事就不落字段」（与 chat-store 的 asLive 同一手法）
+          ...(m.out_of_context ? { outOfContext: true, contextDropped: true } : {}),
         });
       }
     } else if (m.type === "assistant") {
@@ -178,6 +186,8 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown 
         mapped.push({
           id, role: "ai", entries, timestamp: ts, keyId: uuid ? `d-${uuid}-${id}` : undefined, entryId: uuid,
           usage: u ? { inputTokens: u.input ?? 0, outputTokens: u.output ?? 0, cacheReadTokens: u.cacheRead ?? 0, cacheWriteTokens: u.cacheWrite ?? 0 } : undefined,
+          // 被「单条移出上下文」摘掉的历史回答：标记 + 恢复入口（同 user 分支）
+          ...(m.out_of_context ? { outOfContext: true, contextDropped: true } : {}),
         });
       }
     } else if (m.type === "toolResult") {
@@ -326,6 +336,21 @@ export function rewindUnavailableReason(msg: ChatMessage, busy: boolean, action:
 }
 
 /**
+ * 消息右键菜单里「移出 / 恢复上下文」的入口（undefined = 不给入口）。
+ *
+ * 判据只看气泡自己的标记：没认领到条目 id 就没得摘（旧数据 / 事件丢失，与编辑入口同一降级口径）；
+ * 已摘掉的给「恢复」——但**只给轻档自己摘掉的那些**（contextDropped）：撤回（编辑重发 / 重新生成）
+ * 后残留的气泡虽然也标着「已退出上下文」，它们的条目已不在当前分支上，main 侧的 appendContextEdit
+ * 会直接拒（返回可读错误）——给入口等于给一个点不通的按钮。
+ */
+export function contextEditAction(msg: ChatMessage): "drop" | "restore" | undefined {
+  if (!msg.entryId) return undefined;
+  if (msg.contextDropped) return "restore";
+  if (msg.outOfContext) return undefined;
+  return "drop";
+}
+
+/**
  * 自动重试态的状态栏文案（retry_state start / SDK auto_retry_start）。
  *
  * 退避等待期间显示，让用户知道「刚才那段失败不是终点、X 秒后会再试」，而不是看到一张失败卡。
@@ -412,4 +437,27 @@ export function acceptStreamEvent(input: {
   // 未绑定 chat → 只能按会话 id 认领；会话也未知时拒绝一切（宁可丢也不跨窗口串流）
   if (ownSessionId) return !!eventSessionId && eventSessionId === ownSessionId;
   return false;
+}
+
+/**
+ * 忙碌态兜底的探测节奏（ChatPanel 轮询主进程 `agent:busyState` 用）。
+ *
+ * 界面 busy 是**事件推演**出来的（turn_start 置真、agent_end/turn_end 等置假），事件丢一条就卡在
+ * 忙碌态；主进程的登记才是真相源。5s 一次、**连续 2 次**报空闲才清（≈10s 宽限）——宽限期不是
+ * 保守，是必要：界面 busy 可能早于主进程登记（刚 prompt、SDK 还没置运行标志），一次空闲不足以
+ * 判定回合结束。改小这两个数就等于把那个窗口让出来，会误清正在跑的回合。
+ */
+export const BUSY_PROBE_INTERVAL_MS = 5000;
+export const BUSY_PROBE_CLEAR_STREAK = 2;
+
+/**
+ * 忙碌态兜底的判据：把一次探测结果折进「连续空闲次数」，返回是否该清界面忙碌态。
+ *
+ * 纯函数（ChatPanel 只负责定时与清理动作，判据在这里保证可测）。要求**连续**：
+ * 中间任何一次报忙碌都从零重数，否则「忙-闲-忙」的抖动会把空闲次数累加成一串而误清。
+ */
+export function stepBusyProbe(consecutiveIdle: number, mainBusy: boolean): { consecutiveIdle: number; clear: boolean } {
+  if (mainBusy) return { consecutiveIdle: 0, clear: false };
+  const consecutive = consecutiveIdle + 1;
+  return { consecutiveIdle: consecutive, clear: consecutive >= BUSY_PROBE_CLEAR_STREAK };
 }

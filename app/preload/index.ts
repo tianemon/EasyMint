@@ -325,9 +325,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
     },
     abort: (runId: string, opts?: { clearQueue?: boolean; rewind?: boolean }) => ipcRenderer.invoke("agent:abort", { runId, ...opts }) as Promise<void>,
     rewindToNode: (sessionId: string, entryId: string, target?: "entry" | "prompt") => ipcRenderer.invoke("agent:rewindToNode", { sessionId, entryId, target }) as Promise<{ ok: boolean; error?: string; promptEntryId?: string }>,
+    setEntryInContext: (sessionId: string, entryId: string, inContext: boolean) => ipcRenderer.invoke("agent:setEntryInContext", { sessionId, entryId, inContext }) as Promise<{ ok: boolean; error?: string }>,
     setModel: (sessionId: string, model: string, provider?: string) => ipcRenderer.invoke("agent:setModel", { sessionId, model, provider }) as Promise<void>,
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => ipcRenderer.invoke("agent:spawnAgentChat", { projectPath, templateId, message }) as Promise<{ chatId: string }>,
     chatStatus: (sessionId: string) => ipcRenderer.invoke("agent:chatStatus", { sessionId }),
+    /** 忙碌态兜底：busy=主进程登记的占用态（唯一判据），sdkIdle 仅供日志排查 */
+    busyState: (sessionId: string) => ipcRenderer.invoke("agent:busyState", { sessionId }) as Promise<{ busy: boolean; sdkIdle: boolean }>,
     getBufferedStream: (sessionId: string) => ipcRenderer.invoke("agent:getBufferedStream", { sessionId }) as Promise<unknown[]>,
     killChat: (chatId: string) => ipcRenderer.invoke("agent:killChat", { chatId }) as Promise<void>,
     killSession: (sessionId: string) => ipcRenderer.invoke("agent:kill-session", { sessionId }) as Promise<void>,
@@ -339,7 +342,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:chat-closed", handler);
       return () => ipcRenderer.removeListener("agent:chat-closed", handler);
     },
-    isStreaming: (sessionId: string) => ipcRenderer.invoke("agent:isStreaming", { sessionId }) as Promise<boolean>,
     getPiProviders: () => ipcRenderer.invoke("agent:getPiProviders") as Promise<Array<{ id: string; name: string; baseUrl?: string }>>,
     getPiModels: (providerName: string) => ipcRenderer.invoke("agent:getPiModels", { providerName }) as Promise<Array<{ id: string; name: string; contextWindow: number }>>,
     getPiProviderInfo: (providerName: string) => ipcRenderer.invoke("agent:getPiProviderInfo", { providerName }) as Promise<{ name: string; baseUrl?: string; apis: string[] } | null>,

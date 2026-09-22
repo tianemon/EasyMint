@@ -297,9 +297,14 @@ interface ElectronAPI {
      *  target="prompt"：把 entryId 当「某条回答」，主进程沿 parentId 定位所属提问并撤回它，
      *  返回 promptEntryId（提问条目 id）供渲染层找到那条提问气泡复用重发 */
     rewindToNode: (sessionId: string, entryId: string, target?: "entry" | "prompt") => Promise<{ ok: boolean; error?: string; promptEntryId?: string }>;
+    /** 单条消息移出（inContext=false）/ 恢复（true）模型上下文——轻档，只改会话投影、
+     *  不影响它之后的对话（与 rewindToNode 的级联撤回是轻/重两档）；失败返回可读 error */
+    setEntryInContext: (sessionId: string, entryId: string, inContext: boolean) => Promise<{ ok: boolean; error?: string }>;
     setModel: (sessionId: string, model: string, provider?: string) => Promise<void>;
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => Promise<{ chatId: string }>;
     chatStatus: (sessionId: string) => Promise<string | null>;
+    /** 忙碌态兜底：busy=主进程登记的占用态（唯一判据），sdkIdle 仅供日志排查 */
+    busyState: (sessionId: string) => Promise<{ busy: boolean; sdkIdle: boolean }>;
     getPiProviders: () => Promise<Array<{ id: string; name: string; baseUrl?: string }>>;
     getPiModels: (providerName: string) => Promise<Array<{ id: string; name: string; contextWindow: number }>>;
     /** 供应商级静态参数：官方名 / 官方 Base URL / 接入协议（内置供应商只读展示用） */
@@ -308,7 +313,6 @@ interface ElectronAPI {
     getModelThinkingSupport: (modelId: string) => Promise<string[] | null>;
     /** 按模型 id（含自添加/官方）查模型定义：providerId 缺省用激活供应商 */
     getModelInfo: (modelId: string, providerId?: string) => Promise<{ name: string; contextWindow: number; maxTokens: number } | null>;
-    isStreaming: (sessionId: string) => Promise<boolean>;
     sessionStats: (sessionId: string, projectPath?: string) => Promise<Record<string, unknown> | null>;
     getBufferedStream: (sessionId: string) => Promise<unknown[]>;
     killChat: (chatId: string) => Promise<void>;
@@ -517,7 +521,7 @@ interface ElectronAPI {
     list: (projectPath: string) => Promise<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number }[]>;
 	    listDesign: (projectPath: string) => Promise<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number }[]>;
     get: (id: string, projectPath: string) => Promise<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number } | null>;
-    messages: (id: string, projectPath: string) => Promise<{ type: string; uuid: string; session_id: string; message: unknown; parent_tool_use_id: string | null }[]>;
+    messages: (id: string, projectPath: string) => Promise<{ type: string; uuid: string; session_id: string; message: unknown; parent_tool_use_id: string | null; out_of_context?: boolean }[]>;
     rename: (id: string, title: string, projectPath: string) => Promise<void>;
     designSessions: () => Promise<string[]>;
     delete: (id: string, projectPath: string) => Promise<void>;

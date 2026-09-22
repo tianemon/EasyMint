@@ -20,6 +20,7 @@ import { deleteCache } from "./session-cache";
 import { listPiSessions, getPiSessionDir, tryGetPiSessionDir } from "./pi-session";
 import { isEmptyDirShell } from "./pi-session-dir";
 import { getSessionManagerClass, type AgentSession } from "./pi-sdk";
+import { droppedContextIds } from "./context-edit";
 import { broadcast } from "./ipc-broadcast";
 import { compactionSummaryNotice } from "../../shared/prompts";
 import { deleteSessionTodos } from "./session-todos";
@@ -51,6 +52,10 @@ interface SessionMessage {
   message: unknown;
   parent_tool_use_id: string | null;
   created_at?: number;
+  /** 本条被「移出上下文」（轻档，appendContextEdit）摘掉——它的条目仍在当前分支上、历史上照旧可见，
+   *  只是不在模型视野里。前端据此在气泡上标「已退出上下文」并给「恢复进上下文」入口
+   *  （不标的话重开会话后这条看起来与在上下文里无异，而模型其实看不到它）。 */
+  out_of_context?: boolean;
 }
 
 // ── 工具函数 ────────────────────────────────────────
@@ -242,6 +247,8 @@ async function parseEntriesToMessages(mgr: { getEntries(): unknown[]; getLeafId(
     content?: unknown;
     details?: Record<string, unknown>;
   }>;
+  // 被移出上下文的条目（轻档）：它们的条目还在文件里、还在分支上，光看历史分不出「在不在模型视野里」
+  const dropped = droppedContextIds(entries);
   const messages: SessionMessage[] = [];
   for (const entry of entries) {
     if (entry.type === "message") {
@@ -262,6 +269,7 @@ async function parseEntriesToMessages(mgr: { getEntries(): unknown[]; getLeafId(
         message: outMsg,
         parent_tool_use_id: null,
         created_at: (msg.created_at as number) ?? new Date(entry.timestamp).getTime(),
+        ...(dropped.has(entry.id) ? { out_of_context: true } : {}),
       });
     } else if (entry.type === "custom_message") {
       // 系统消息(customType: system_message):以 user 形态返回,
@@ -288,6 +296,7 @@ async function parseEntriesToMessages(mgr: { getEntries(): unknown[]; getLeafId(
         },
         parent_tool_use_id: null,
         created_at: new Date(custom.timestamp ?? entry.timestamp).getTime(),
+        ...(dropped.has(entry.id) ? { out_of_context: true } : {}),
       });
     } else if (entry.type === "compaction") {
       // 压缩记录 = 模型的上下文记忆，同时也当摘要卡显示（用户在压缩后要看摘要）。

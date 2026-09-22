@@ -247,8 +247,19 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:rewindToNode", async (_e, { sessionId, entryId, target }: { sessionId: string; entryId: string; target?: "entry" | "prompt" }) => {
     return await agentService.rewindToNode(sessionId, entryId, target ? { target } : undefined);
   });
+  // 单条消息移出/恢复模型上下文（轻档）：只摘掉这一条，不动分支、不影响它之后的对话
+  // ——与 agent:rewindToNode 的级联撤回是轻/重两档。inContext=false 移出、true 用原内容恢复
+  // （撤销），两者都返回 {ok} | {ok:false,error}，error 文案可直接给用户看且不改动会话状态
+  ipcMain.handle("agent:setEntryInContext", async (_e, { sessionId, entryId, inContext }: { sessionId: string; entryId: string; inContext: boolean }) => {
+    return await agentService.setEntryInContext(sessionId, entryId, inContext === true);
+  });
   ipcMain.handle("agent:chatStatus", (_e, { sessionId }) => {
     return agentService.getChatStatus(sessionId);
+  });
+  // 忙碌态兜底查询：渲染层 busy 由事件驱动，事件丢失时会卡在忙碌态——定时问主进程要真相源
+  //（busy=本进程登记的占用态，唯一判据；sdkIdle 只用于日志排查，见 AgentService.getBusyState）
+  ipcMain.handle("agent:busyState", (_e, { sessionId }) => {
+    return agentService.getBusyState(sessionId);
   });
   ipcMain.handle("agent:getBufferedStream", (_e, { sessionId }) => {
     return agentService.getBufferedStream(sessionId);
@@ -368,9 +379,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:getPiProviderInfo", async (_e, { providerName }) => {
     const { getPiProviderInfo } = await import("./services/pi-init");
     return getPiProviderInfo(providerName, store);
-  });
-  ipcMain.handle("agent:isStreaming", (_e, { sessionId }) => {
-    return agentService.isStreaming(sessionId);
   });
   ipcMain.handle("agent:sessionStats", async (_e, { sessionId, projectPath }) => {
     return agentService.getSessionStats(sessionId, projectPath);

@@ -23,10 +23,10 @@ export interface FlowErrorCard {
 /** 单会话错误卡片数上限(防御极端重复错误事件撑爆内存/渲染) */
 const MAX_FLOW_ERRORS_PER_SESSION = 20;
 
-/** 气泡重新拿到内容（流式写入 / 编辑重发）→ 它又回到上下文里，清掉「已退出上下文」标记。
- *  与 setMessageEntryId 同一手法：删字段而不是置 undefined。 */
+/** 气泡重新拿到内容（流式写入 / 编辑重发 / 恢复进上下文）→ 它又回到模型视野里，清掉「已退出上下文」
+ *  这组标记（含轻档的 contextDropped，两者同进退）。与 setMessageEntryId 同一手法：删字段而不是置 undefined。 */
 const asLive = (m: Record<string, any>): Record<string, any> => {
-  const { outOfContext: _nowLive, ...rest } = m;
+  const { outOfContext: _nowLive, contextDropped: _nowRestorable, ...rest } = m;
   return rest;
 };
 
@@ -51,8 +51,15 @@ interface ChatState {
   /** 标记「已退出上下文」（撤回后本地列表不裁剪，见 ChatPanel.handleEditSubmit）：从 fromMsgId 起
    *  （includeFrom 为 true 时含它自己）之后的全部气泡打标——它们已不在当前分支上，界面据此显式说明，
    *  免得「界面顺序 = 上下文顺序」被误读。重开会话后它们随磁盘分支一起消失，标记只活在本面板内；
-   *  气泡重新拿到内容时标记自动清掉（见 replaceAiEntriesById / updateUserMsgText）。 */
+   *  气泡重新拿到内容时标记自动清掉（见 replaceAiEntriesById / updateUserMsgText）。
+   *  批量撤回会顺带清掉 contextDropped——这些气泡的条目刚离开当前分支，轻档的「恢复」已不可能。 */
   markOutOfContext: (sessionId: string, fromMsgId: number, includeFrom?: boolean) => void;
+  /** 单条移出上下文（轻档，appendContextEdit）成功后打标：只标这一条，且它是**可恢复的**
+   *  （条目仍在分支上）——右键菜单据此给「恢复进上下文」（见 chat-utils.contextEditAction）。
+   *  与 markOutOfContext 分开：那个是成片的、不可恢复的（条目已被撤回掉）。 */
+  markDroppedFromContext: (sessionId: string, msgId: number) => void;
+  /** 恢复进上下文成功 → 清掉这一条的标记（见 asLive） */
+  restoreIntoContext: (sessionId: string, msgId: number) => void;
   /** 按 Pi 落盘时间戳有序插入——插到第一条 piTs 更大的消息之前,否则追加尾部。
    *  实时渲染顺序 = jsonl 落盘顺序(广播到达顺序 ≠ 落盘顺序,不能按到达顺序追加) */
   insertUserMsgAt: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai"; piTs?: number }, piTs: number) => number;
@@ -163,10 +170,35 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return {
         messagesBySession: {
           ...s.messagesBySession,
-          [sessionId]: list.map((m, i) => (i >= from ? { ...m, outOfContext: true } : m)),
+          [sessionId]: list.map((m, i) => {
+            if (i < from) return m;
+            // 顺带清 contextDropped：这些气泡的条目刚被撤回到分支之外，轻档的「恢复」已经不可能
+            const { contextDropped: _noLongerRestorable, ...rest } = m;
+            return { ...rest, outOfContext: true };
+          }),
         },
       };
     });
+  },
+
+  markDroppedFromContext: (sessionId, msgId) => {
+    set((s) => ({
+      messagesBySession: {
+        ...s.messagesBySession,
+        [sessionId]: (s.messagesBySession[sessionId] || []).map((m) =>
+          m.id === msgId ? { ...m, outOfContext: true, contextDropped: true } : m
+        ),
+      },
+    }));
+  },
+
+  restoreIntoContext: (sessionId, msgId) => {
+    set((s) => ({
+      messagesBySession: {
+        ...s.messagesBySession,
+        [sessionId]: (s.messagesBySession[sessionId] || []).map((m) => (m.id === msgId ? asLive(m) : m)),
+      },
+    }));
   },
 
   insertUserMsgAt: (sessionId, msg, piTs) => {

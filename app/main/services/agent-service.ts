@@ -1401,6 +1401,98 @@ export class AgentService {
     }
   }
 
+  /** 单条消息移出 / 恢复模型上下文（轻量档）：只改会话投影，**不截断分支、不影响它之后的对话**。
+   *
+   *  与 rewindToNode（级联撤回，编辑重推 / 重新生成用）是同一批能力的轻/重两档：那个把 leaf 退到目标之前、
+   *  目标之后的全部内容退出上下文且不可恢复；这个只追加一条 context_edit 条目（SDK `appendContextEdit`），
+   *  对话内容与顺序（分支路径）原样不动，目标之后的对话照旧在上下文里、界面上也不消失（只是模型看不到那一条）。
+   *
+   *  ⚠「不动 leaf」的说法不准确（SDK 文档只说「不改 raw history / usage / UI history」）：追加条目照例把
+   *  **leaf 前进到新的编辑条目**（`_appendEntry` 对所有 append 一视同仁）。这不但无害、还是重开后仍然生效的
+   *  前提——编辑条目必须落在分支路径上，leaf 不前进它就不在路径上，被摘掉的那条重开会话后会静默复活。
+   *
+   *  **必须 refreshContext()**：appendContextEdit 改的是 SessionManager 的条目（会话投影），内存里已构建的
+   *  `agent.state.messages` 只有 `_refreshFinalizedContext` 会重建——不重建则下一轮提问仍带着被摘掉的那条。
+   *  （SDK 自己的 `_omitRecoveryAttempt` 也是 append 后立刻 refresh，同一条规则。）
+   *
+   *  `inContext = true` 是**恢复**（＝可撤销）：再追加一条带**原内容**的 context_edit。投影对同一目标只认
+   *  **最后一条** edit（SDK buildSessionProjection 的 edits Map 后写覆盖先写），而原条目从未被改动——
+   *  内容从原条目读回即可原样还原（含思考块 / 工具调用，不是只还原文本）。
+   *
+   *  一个布尔两个方向而不是两条 IPC：两条路径的守卫、日志风格与错误文案完全同构，另开通路只会多一份同样的守卫。
+   */
+  async setEntryInContext(
+    sessionId: string,
+    targetEntryId: string,
+    inContext: boolean,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    const verb = inContext ? "恢复进上下文" : "移出上下文";
+    const chat = this.findActiveChat(sessionId);
+    const session = chat?.session;
+    if (!chat || !session) {
+      console.log(`[agent] ${verb}跳过：会话未加载（sessionId=${sessionId} chat=${!!chat} session=${!!session}）`);
+      return { ok: false, error: `会话未加载，无法${verb}（重新打开该会话后重试）` };
+    }
+    const mgr = session.sessionManager;
+    if (!targetEntryId) {
+      console.log(`[agent] ${verb}拒绝：目标 id 为空（sessionId=${sessionId}）`);
+      return { ok: false, error: `目标缺失，无法${verb}` };
+    }
+    const target = mgr.getEntry(targetEntryId);
+    if (!target) {
+      console.log(`[agent] ${verb}拒绝：目标条目不存在（sessionId=${sessionId} target=${targetEntryId}）`);
+      return { ok: false, error: `目标不在当前会话记录里，无法${verb}` };
+    }
+    // 分支校验与 SDK 自己的 appendContextEdit 同款（从当前 leaf 沿 parentId 回溯）：界面留着的旧气泡
+    // （撤回后没被裁掉那种）常常已不在分支上，提前拦下来才能给可读文案（否则只有 SDK 的英文原文）。
+    // 注意这里**没有** rewindToNode 的「user 消息且父节点在分支上」宽免：那个宽免的前提是撤回会把 leaf
+    // 落到父节点、分支被截断到那里；移出上下文不截断分支，目标不在分支上就等于把废弃分支接回来（SDK 也正是这么判的）。
+    const branchIds = new Set(mgr.getBranch().map((e) => e.id));
+    if (!branchIds.has(targetEntryId)) {
+      console.log(`[agent] ${verb}拒绝：目标不在当前分支（sessionId=${sessionId} target=${targetEntryId} leaf=${mgr.getLeafId() ?? "null"}）`);
+      return { ok: false, error: `这条消息不在当前对话分支上，无法${verb}` };
+    }
+    // 回合进行中拒绝：appendContextEdit 会把 leaf 前移，而 refreshContext() 会用投影**整个重建
+    // agent.state.messages**——正在增长的那条回复此时只在内存里（还没落盘成条目，投影里没有它），
+    // 重建等于把它从内存上下文里换掉，而运行中的回合还在改这个数组。与撤回链路同一取舍：
+    // 宁可让用户等回合结束，也不并发改写运行中的会话状态。
+    // 运行态判据用 EM 自己的 activePromptSessions（SDK 的 isStreaming 在超时中断等路径会残留，见 isSessionRunning）。
+    if (this.isSessionRunning(chat.sessionId)) {
+      console.log(`[agent] ${verb}拒绝：回合进行中（sessionId=${chat.sessionId} target=${targetEntryId}）`);
+      return { ok: false, error: `当前回答还在进行中，停止后才能${verb}` };
+    }
+    if (session.isCompacting) {
+      console.log(`[agent] ${verb}拒绝：会话压缩中（sessionId=${chat.sessionId} target=${targetEntryId}）`);
+      return { ok: false, error: "会话正在压缩中，请稍后重试" };
+    }
+    // 恢复用的原内容：投影对 message 条目直接用条目里的 message（content 为 null 时按空数组归一，
+    // 见 SDK sessionEntryToContextMessages），custom_message 条目用条目自己的 content——两处都取原值，
+    // 不做文本重建（文本重建会丢掉思考块与工具调用）。
+    const rawOriginal = target.type === "custom_message"
+      ? target.content
+      : target.type === "message"
+        ? (target.message as { content?: unknown }).content
+        : undefined;
+    try {
+      const replacement = inContext
+        ? { content: typeof rawOriginal === "string" || Array.isArray(rawOriginal) ? rawOriginal : [] }
+        : null;
+      const editId = mgr.appendContextEdit(targetEntryId, replacement);
+      session.refreshContext();
+      console.log(`[agent] ${verb}：目标 ${targetEntryId} → 编辑条目 ${editId}（leaf=${mgr.getLeafId() ?? "null"}，模型上下文 ${session.messages.length} 条）`);
+      return { ok: true };
+    } catch (e) {
+      const err = e as Error;
+      console.warn(`[agent] ${verb}失败：session=${chat.sessionId} target=${targetEntryId} ${err.name}: ${err.message}`);
+      // SDK 的英文原文只进日志，对用户给可读文案（与 rewindToNode 同一手法）
+      const msg = err.message ?? "";
+      if (msg.includes("not found")) return { ok: false, error: `目标不在当前会话记录里，无法${verb}` };
+      if (msg.includes("not on the active branch")) return { ok: false, error: `这条消息不在当前对话分支上，无法${verb}` };
+      if (msg.includes("editable model content")) return { ok: false, error: `这类条目不支持${verb}` };
+      return { ok: false, error: `${verb}失败，请重试（详情见主进程日志）` };
+    }
+  }
+
 
 // ── Chat（长生命周期会话） ─────────────────────────
 
@@ -1643,6 +1735,26 @@ export class AgentService {
    *  远程快照据此判定永远空闲（手机重开会话看不到运行中）。 */
   getChatStatus(sessionId: string): "running" | "idle" {
     return this.isSessionRunning(sessionId) ? "running" : "idle";
+  }
+
+  /** 忙碌态查询（渲染层忙碌态兜底的「主进程为准」）：渲染层的 busy 由事件推演，事件丢失或
+   *  登记未清时会卡在忙碌态，这里给一个可以随时问的真相源。
+   *
+   *  - busy 用 isSessionRunning 而不是裸 activePromptSessions.has：前者把 id 归一到 chat.sessionId，
+   *    且会话已被回收时判空闲——残留登记配着已回收的会话会让界面永远卡住，正是本兜底要救的场景。
+   *  - 压缩计入 busy：手动压缩是空闲起跑，activePromptSessions 里没有它，而界面此刻是忙碌态
+   *    （compacting 事件置位）→ 不计入的话兜底会在压缩中途把界面误清成空闲，而「停止」按钮
+   *    正是取消长压缩的入口（SDK abort() 内含 abortCompaction）。SDK 的两条压缩路径都在 finally 里
+   *    复位 isCompacting，压缩挂死时点「停止」也能把 abort 传进去，不会变成新的卡死路径。
+   *  - sdkIdle 只用于日志/排查，不参与判定（它的取值语义见 SDK agent-session 的 isIdle：
+   *    无运行中回合且无压缩）。 */
+  getBusyState(sessionId: string): { busy: boolean; sdkIdle: boolean } {
+    const chat = this.findActiveChat(sessionId);
+    return {
+      busy: this.isSessionRunning(sessionId) || chat?.session?.isCompacting === true,
+      // 会话未加载（无活实例）时取真：主进程没有它的 SDK 会话＝必然空闲。该字段不进判定，取值不影响行为
+      sdkIdle: chat?.session?.isIdle ?? true,
+    };
   }
 
   private bufferEvent(key: string, event: PiChatEvent): void {
@@ -2023,12 +2135,6 @@ export class AgentService {
   onSessionRenamed(sessionId: string): void {
     const chat = this.findActiveChat(sessionId);
     if (chat) chat.firstUserMessage = "";
-  }
-
-  /** 查询 session 真实流状态——前端 busy 卡住时的兜底 */
-  isStreaming(sessionId: string): boolean {
-    const chat = this.findActiveChat(sessionId);
-    return chat?.session?.isStreaming ?? false;
   }
 
   /** 获取会话统计（token 消耗、费用等）——活跃会话走内存，磁盘会话直接读 JSONL */
