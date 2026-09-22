@@ -13,6 +13,7 @@ import { Modal } from "../components/ui/Modal";
 import { toast } from "../components/ui/Toast";
 import { useProcessStore } from "../stores/process-store";
 import { useTabStore } from "../stores/tab-store";
+import { sessionListActions } from "../stores/session-list-actions";
 import { useViewerStore, baseName } from "../stores/viewer-store";
 import { useTaskStore, type TaskStatus } from "../stores/task-store";
 import { useProjectStatusStore } from "../stores/project-status-store";
@@ -54,13 +55,20 @@ export function ProjectPage(): JSX.Element {
     });
   }, []);
 
-  // 监听会话自动命名 → 同步 Tab 标题
+  // 会话改名（自动命名 / 右键改名 / 手机端改名）→ 列表项 + 已打开 tab 标题统一在此更新，
+  // 改名入口不再各自手写同步（落点见 sessionListActions.applyTitle）
   useEffect(() => {
-    return window.electronAPI.agent.onSessionRenamed(({ sessionId, title }) => {
-      const ts = useTabStore.getState();
-      const tab = ts.tabs.find((t) => t.sessionId === sessionId);
-      if (tab) ts.updateTab(tab.id, { title });
+    const offRenamed = window.electronAPI.agent.onSessionRenamed(({ sessionId, title }) => {
+      sessionListActions.applyTitle(sessionId, title);
     });
+    // SDK setSessionName 在回合内 emit 的改名回执（event-bridge → agent:stream）。
+    // 空闲态改名没有这条（订阅随回合拆除），靠上面的改名广播覆盖
+    const offStream = window.electronAPI.agent.onStream((event: StreamEvent) => {
+      if (event.type === "session_info_changed" && event.sessionId) {
+        sessionListActions.applyTitle(event.sessionId, event.title ?? "");
+      }
+    });
+    return () => { offRenamed(); offStream(); };
   }, []);
 
   // 会话归属校验基准路径：真 useRef + 同步 effect。订阅 effect deps=[] 只在挂载跑一次，

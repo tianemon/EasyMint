@@ -19,7 +19,8 @@ import { resolveHome, emHome } from "../utils/paths";
 import { deleteCache } from "./session-cache";
 import { listPiSessions, getPiSessionDir, tryGetPiSessionDir } from "./pi-session";
 import { isEmptyDirShell } from "./pi-session-dir";
-import { getSessionManagerClass } from "./pi-sdk";
+import { getSessionManagerClass, type AgentSession } from "./pi-sdk";
+import { broadcast } from "./ipc-broadcast";
 import { compactionSummaryNotice } from "../../shared/prompts";
 import { deleteSessionTodos } from "./session-todos";
 
@@ -348,26 +349,57 @@ export async function getSessionInfo(
   return toListItem(info, pinned, archived, titles);
 }
 
+/**
+ * 活会话解析器：由主进程启动时接线（返回内存里的 AgentSession，取不到给 null）。
+ * 用注入而不是 import agent-service（两者会成循环依赖），session-service 也不需要知道
+ * 会话是怎么被管理起来的。
+ */
+let liveSessionLookup: ((sessionId: string) => AgentSession | null) | null = null;
+
+export function setLiveSessionLookup(fn: (sessionId: string) => AgentSession | null): void {
+  liveSessionLookup = fn;
+}
+
 export async function renameSession(
   sessionId: string,
   title: string,
   projectPath: string,
 ): Promise<void> {
-  const resolved = path.resolve(resolveHome(projectPath));
-  try {
-    const sessions = await listPiSessions(resolved);
-    const info = sessions.find((s) => s.id === sessionId);
-    if (info) {
-      const SM = await getSessionManagerClass();
-      const mgr = SM.open(info.path, getPiSessionDir(resolved), resolved);
-      mgr.appendSessionInfo(title); // Pi 原生写入 session_info 条目
-      return;
+  // 换行会把列表项撑破，与 SDK appendSessionInfo 同口径先归一
+  const clean = title.replace(/[\r\n]+/g, " ").trim();
+
+  // 有活实例 → 走 SDK 的 setSessionName：它写 session_info 条目并 emit session_info_changed
+  // （event-bridge 转成前端事件）。不另开 SessionManager 直写文件——那样 SDK 内存态与文件分叉，
+  // 也拿不到事件（原实现的问题，见待办 #55）。
+  const live = liveSessionLookup?.(sessionId);
+  if (live) {
+    live.setSessionName(clean);
+  } else {
+    // 无活实例（在列表里给未打开的会话改名）：直写文件，不为此新开一个 SessionManager 会话
+    const resolved = path.resolve(resolveHome(projectPath));
+    let written = false;
+    try {
+      const sessions = await listPiSessions(resolved);
+      const info = sessions.find((s) => s.id === sessionId);
+      if (info) {
+        const SM = await getSessionManagerClass();
+        const mgr = SM.open(info.path, getPiSessionDir(resolved), resolved);
+        mgr.appendSessionInfo(clean); // Pi 原生写入 session_info 条目
+        written = true;
+      }
+    } catch { /* 回退到 metadata 文件 */ }
+    if (!written) {
+      // 找不到 Pi session 文件时回退
+      const titles = readTitles();
+      titles[sessionId] = clean;
+      writeTitles(titles);
     }
-  } catch { /* 回退到 metadata 文件 */ }
-  // 找不到 Pi session 文件时回退
-  const titles = readTitles();
-  titles[sessionId] = title;
-  writeTitles(titles);
+  }
+
+  // 渲染层的唯一改名广播：列表项 + 已打开 tab 标题由它统一更新（见 session-list-actions.applyTitle）。
+  // 放在这里而不是各个调用处——所有改名入口（列表右键/远程命令/自动标题）与未来新增入口
+  // 都只经过本函数，漏一处就是「列表变了 tab 没变」。无活实例时没有 SDK 事件，这条广播就是唯一通知。
+  broadcast("agent:session-renamed", { sessionId, title: clean });
 }
 
 export async function deleteSession(

@@ -1395,7 +1395,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // error 后 1s 内的残留事件(tool_result/message_end 等)不重新设 busy——
       // error 分支已清 busy(回合结束),残留事件会把按钮打回打断态;新回合 turn_start 除外。
       // custom_event(系统消息通知)不设 busy:通知无回合,置 busy 后无 turn_end 可清(残留"等待模型响应")
-      if (event.type === "custom_event") {
+      // session_info_changed(会话改名回执)同理:自动命名发生在 agent:exit 之后,
+      // 回合已清 busy 才收到它——置 busy 就再无人清
+      if (event.type === "custom_event" || event.type === "session_info_changed") {
         // 通知仅落气泡,不触碰 busy
       } else if (event.type === "turn_start" || Date.now() - lastErrorAtRef.current > 1000) {
         setBusy(true);

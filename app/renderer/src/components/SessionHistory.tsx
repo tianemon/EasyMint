@@ -83,10 +83,14 @@ export function SessionHistory({
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (refreshKey) load(); }, [refreshKey, load]);
-  // 允许其他组件（如 askWorkspace 后台删会话）触发本列表刷新
+  // 允许其他组件（如 askWorkspace 后台删会话）触发本列表刷新；改名广播就地改标题
   useEffect(() => {
     sessionListActions.register(load);
-    return () => sessionListActions.unregister();
+    sessionListActions.registerTitle((sessionId, title) => {
+      // 就地改标题，不重读磁盘：重读会按文件 mtime 重排，把刚改名的会话顶到列表最前
+      setSessions((prev) => prev.map((s) => (s.sessionId === sessionId ? { ...s, title } : s)));
+    });
+    return () => { sessionListActions.unregister(); sessionListActions.unregisterTitle(); };
   }, [load]);
   useEffect(() => {
     const onFocus = () => load();
@@ -172,6 +176,8 @@ export function SessionHistory({
     if (title) {
       const path = projectPath || getWorkspaceDir();
       await window.electronAPI.conv.rename(editingId, title, path);
+      // 主进程已广播改名事件（列表项 + tab 标题由 sessionListActions.applyTitle 统一更新），
+      // 这两句保留为兜底：广播丢失时本次操作仍立即生效
       setSessions((prev) => prev.map((s) => (s.sessionId === editingId ? { ...s, title } : s)));
       // 同步更新已打开的 Tab 标题
       const ts = useTabStore.getState();

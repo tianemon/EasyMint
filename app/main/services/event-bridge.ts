@@ -39,6 +39,8 @@ export interface PiChatEvent {
   entryId?: string;
   /** 条目消息角色(entry_appended 事件)——前端据此判断回填到 user 还是 ai 气泡 */
   entryRole?: PiEntryRole;
+  /** 会话标题(session_info_changed 事件;name 为空时表示标题被清掉) */
+  title?: string;
 }
 
 /** 条目的消息角色(AgentMessage.role 全集)——不对应气泡的角色由前端忽略 */
@@ -372,6 +374,14 @@ export function bridgeSessionEvents(
       // 那部分由 createMessageEntryTracker 在落盘后补发,前端收到的形状与此一致
       const ev = entryAppendedEvent(event.entry);
       if (ev) callbacks.onEvent(ev);
+      break;
+    }
+
+    case "session_info_changed": {
+      // 会话改名回执：SDK 的 setSessionName 写 session_info 条目后 emit（agent-session.js 实证）。
+      // 注意本事件只在会话有订阅者时才能到达前端——订阅随回合建立/拆除（见 promptAndBridge），
+      // 因此它只管「回合进行中的改名」，空闲态改名由 renameSession 直接广播 agent:session-renamed 兜底。
+      callbacks.onEvent({ type: "session_info_changed", sessionId: "", title: event.name });
       break;
     }
 

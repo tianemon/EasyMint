@@ -80,6 +80,7 @@ import {
   togglePin,
   archiveSession,
   unarchiveSession,
+  setLiveSessionLookup,
 } from "./services/session-service";
 import { readCache, writeCache, deleteCache } from "./services/session-cache";
 import { listIssues, addIssue, setStatus, updateIssue, deleteIssue } from "./services/issue-service";
@@ -129,6 +130,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // 沙盒「关闭运行」开关的读取器接线：用注入的读取函数而非缓存字段，设置一改即生效
   // （Linux 兜底通道，见 sandbox/manager.isSandboxBypassed 的政策说明）
   setSandboxDisabledProvider(() => Boolean(store.getSettings().sandboxDisabled));
+
+  // 改名分流的活会话读取器接线：在内存里有 AgentSession 的会话走 SDK setSessionName（能拿事件），
+  // 没打开的会话直写文件（见 session-service.renameSession）
+  setLiveSessionLookup((sessionId) => agentService.findActiveChat(sessionId)?.session ?? null);
 
   /** 进行中的依赖安装（同一时刻只允许一个，取消靠 abort） */
   let envInstallAbort: AbortController | null = null;

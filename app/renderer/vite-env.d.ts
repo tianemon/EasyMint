@@ -170,7 +170,7 @@ interface StreamEvent {
   sessionId?: string;
   chatId?: string;       // event-bridge 注入（agent:stream 广播时设置）
   type: "message_start" | "message" | "turn_start" | "turn_end" | "thinking"
-      | "tool_progress" | "tool_done" | "tool_result" | "compacting" | "compacted" | "error" | "context_usage" | "status" | "user_message" | "custom_event" | "entry_appended";
+      | "tool_progress" | "tool_done" | "tool_result" | "compacting" | "compacted" | "error" | "context_usage" | "status" | "user_message" | "custom_event" | "entry_appended" | "session_info_changed";
   blocks?: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; thinking?: string }>;
   partial?: boolean;
   toolName?: string;
@@ -200,6 +200,8 @@ interface StreamEvent {
   entryId?: string;
   /** 条目消息角色（entry_appended 事件）——只发 user/assistant（对应前端 user / ai 气泡） */
   entryRole?: "user" | "assistant";
+  /** 会话标题（session_info_changed 事件；SDK setSessionName 的回执，空 = 标题被清掉） */
+  title?: string;
   percentage?: number;
   data?: Record<string, unknown>;
   source?: "worker" | "evaluator" | "chat";
