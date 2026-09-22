@@ -325,6 +325,33 @@ export function rewindUnavailableReason(msg: ChatMessage, busy: boolean, action:
   return undefined;
 }
 
+/**
+ * 自动重试态的状态栏文案（retry_state start / SDK auto_retry_start）。
+ *
+ * 退避等待期间显示，让用户知道「刚才那段失败不是终点、X 秒后会再试」，而不是看到一张失败卡。
+ * 秒数取整（SDK 的 baseDelayMs 默认 2000ms，实际 2/4/8s 递增）；取整后为 0 时只留「正在重试 N/M」——
+ * 「约 0 秒后」没有信息量，那点退避等于立刻重试。
+ */
+export function retryStatusText(attempt: number, maxAttempts: number, delayMs: number): string {
+  const head = `正在重试 ${attempt}/${maxAttempts}`;
+  const seconds = Math.round(delayMs / 1000);
+  return seconds > 0 ? `${head}（约 ${seconds} 秒后）` : head;
+}
+
+/**
+ * 打断时被丢弃插话的展示数据——输入卡片上沿提示条的内容摘要。
+ *
+ * 丢弃项是用户刚发的原话（可能带换行与 [Image #1: path] 附件标记），压成单行后用「、」拼接：
+ * 提示条只有一行，换行会在条内撑出多行把输入卡片推上去。空白项不进展示（清队列的返回里可能有）。
+ */
+export function steerQueueSummary(...lists: Array<readonly string[] | undefined>): { count: number; text: string } {
+  const items = lists
+    .flatMap((list) => list ?? [])
+    .map((t) => t.replace(/\s+/g, " ").trim())
+    .filter((t) => t.length > 0);
+  return { count: items.length, text: items.join("、") };
+}
+
 /** 消息可复制全文：user 取 text，ai 取全部 text entries 合并 */
 export function getMsgCopyText(msg: ChatMessage): string {
   if (msg.role === "user") return msg.text || "";

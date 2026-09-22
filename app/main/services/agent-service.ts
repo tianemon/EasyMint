@@ -1123,7 +1123,8 @@ export class AgentService {
     return { runId };
   }
 
-  /** 中止回合。opts.clearQueue（用户意图的打断：停止按钮 / 重发前兜底）清掉尚未投递的插话（丢弃，不回传）；
+  /** 中止回合。opts.clearQueue（用户意图的打断：停止按钮 / 重发前兜底）清掉尚未投递的插话
+   *  （丢弃、不回填输入框；丢弃内容随 queue_dropped 事件给渲染层出可见提示）；
    *  opts.rewind 且本轮无产出时把分支退回本轮起点（消息退出上下文）。
    *  内部中止（切模型、压缩、超时）不传 opts——不该丢用户刚插的话，也不该撤回历史。 */
   async abort(runId: string, opts?: { clearQueue?: boolean; rewind?: boolean }): Promise<void> {
@@ -1149,15 +1150,21 @@ export class AgentService {
     // 先清队列、再 abort：SDK 的回合后循环用「队列里还有消息」作为 agent.continue() 的依据
     // （agent-session 的 hasQueuedMessages）——反过来做会留竞态窗口：循环已看到消息 →
     // 自己起新回合去应答它，表现就是「打断后自动重发、又进 busy」
-    let dropped = 0;
+    let dropped: string[] = [];
     if (opts?.clearQueue) {
       const cleared = chat.session?.clearQueue?.();
-      dropped = (cleared?.steering ?? []).filter((t): t is string => typeof t === "string" && t.trim().length > 0).length;
+      dropped = [...(cleared?.steering ?? []), ...(cleared?.followUp ?? [])]
+        .filter((t): t is string => typeof t === "string" && t.trim().length > 0);
     }
     // 等回合真正停住：runLoop 在每步之间都会 drain steering，不等停就动队列会与"即将投递"竞争
     await chat.session?.abort().catch(() => {});
-    if (dropped > 0) {
-      console.log(`[agent] 打断：丢弃 ${dropped} 条未投递插话（不退回输入框——回填后容易被回车误发）`);
+    if (dropped.length > 0) {
+      console.log(`[agent] 打断：丢弃 ${dropped.length} 条未投递插话（不退回输入框——回填后容易被回车误发）`);
+      // 丢弃必须让用户看得见：插话气泡已经乐观留在界面上，不提示就会被当成"还在队里、已被模型读到"。
+      // 走 agent:stream（与 retry_state 同类的事件载荷），不注入系统消息——它是界面状态，不进模型上下文
+      broadcast("agent:stream", {
+        type: "queue_dropped", sessionId: chat.sessionId, chatId: chat.chatId, queueDropped: dropped,
+      });
     }
     if (opts?.rewind) await this.rewindIfNoOutput(chat);
     else console.log(`[agent] 打断未请求撤回（runId=${runId}）：编辑重发/关闭等路径，消息保留在上下文`);

@@ -41,6 +41,18 @@ export interface PiChatEvent {
   entryRole?: PiEntryRole;
   /** 会话标题(session_info_changed 事件;name 为空时表示标题被清掉) */
   title?: string;
+  /** 重试态阶段(retry_state 事件):start = 进入退避等待;end = 重试链结束(成功/最终失败/被取消) */
+  retryPhase?: "start" | "end";
+  /** 第几次尝试(retry_state 事件) */
+  retryAttempt?: number;
+  /** 重试上限(retry_state start 事件;settings.retry.maxRetries,默认 3) */
+  retryMaxAttempts?: number;
+  /** 退避等待时长 ms(retry_state start 事件;前端「约 N 秒后」文案用) */
+  retryDelayMs?: number;
+  /** 本次重试链是否成功(retry_state end 事件;false 时 message = 最终错误原文) */
+  retrySuccess?: boolean;
+  /** 打断时丢弃的未投递插话原文(queue_dropped 事件) */
+  queueDropped?: string[];
 }
 
 /** 条目的消息角色(AgentMessage.role 全集)——不对应气泡的角色由前端忽略 */
@@ -307,7 +319,10 @@ export function bridgeSessionEvents(
       // 消息的 stopReason=error，广播 error 事件让前端提示用户
       const endMsgs = (event as { messages?: Array<{ stopReason?: string; errorMessage?: string }> }).messages;
       const lastMsg = endMsgs && endMsgs.length > 0 ? endMsgs[endMsgs.length - 1] : undefined;
-      if (lastMsg?.stopReason === "error") {
+      // willRetry(SDK agent-session._willRetryAfterAgentEnd 实证字段):这次失败已被判定要自动重试,
+      // 此刻报错误卡是误报——卡片会一直挂到用户手动关,重试成功后也没人清(重试期间改走 retry_state 状态);
+      // 重试耗尽时 willRetry=false,最终失败仍在这里出错误卡(带错误原文,canRetry 语义不变)
+      if (lastMsg?.stopReason === "error" && !event.willRetry) {
         callbacks.onEvent({
           type: "error", sessionId: "",
           message: lastMsg.errorMessage || "API 请求失败（可能额度用完或供应商不可用）",
@@ -386,7 +401,30 @@ export function bridgeSessionEvents(
     }
 
     case "auto_retry_start": {
-      callbacks.onEvent({ type: "error", sessionId: "", message: event.errorMessage, canRetry: true });
+      // SDK 正在自动重试(退避等待中)——不是回合失败,出错误卡是误报。改推重试态:
+      // 前端在状态栏显示「正在重试 N/M（约 X 秒后）」,失败卡只留到重试真正失败时(见 agent_end)
+      callbacks.onEvent({
+        type: "retry_state", sessionId: "",
+        retryPhase: "start",
+        retryAttempt: event.attempt,
+        retryMaxAttempts: event.maxAttempts,
+        retryDelayMs: event.delayMs,
+        message: event.errorMessage,
+      });
+      break;
+    }
+
+    case "auto_retry_end": {
+      // 重试链结束(成功 / 重试耗尽 / 用户打断取消)——前端据此清掉重试态:
+      //  成功 → 回「正在处理…」;失败 → 最终失败由上面 willRetry=false 的 agent_end 错误卡承担(此处不重复出卡);
+      //  取消(finalError=Retry cancelled)→ 只清态,不出卡(打断是用户主动操作)
+      callbacks.onEvent({
+        type: "retry_state", sessionId: "",
+        retryPhase: "end",
+        retryAttempt: event.attempt,
+        retrySuccess: event.success,
+        ...(event.finalError ? { message: event.finalError } : {}),
+      });
       break;
     }
   }

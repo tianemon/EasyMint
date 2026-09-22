@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
-import { AttachItem, ChatMessage, PendingUserBubble, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason } from "./chat-utils";
+import { AttachItem, ChatMessage, PendingUserBubble, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason, retryStatusText } from "./chat-utils";
 import { confirmDialog } from "./ui/ConfirmDialog";
 import { chatActions } from "../stores/chat-actions";
 import { confirmFullAccess } from "./permission-confirmation";
@@ -19,6 +19,7 @@ import { useDelegationStore } from "../stores/delegation-store";
 import { classifyApiError, type ErrorTone } from "../../../shared/api-errors";
 import { ChatInput, AttachPreview, type PermissionMode } from "./ChatInput";
 import { TodoStrip } from "./TodoStrip";
+import { DroppedSteerNotice } from "./DroppedSteerNotice";
 import { SessionStatsPopup } from "./SessionStatsPopup";
 import { CompactionDialog } from "./CompactionDialog";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
@@ -49,6 +50,9 @@ interface ChatPanelProps {
 
 /** 命令实时输出累积上限(超出保留尾部):巨型字符串会拖慢渲染,完整输出仍在模型上下文与日志 */
 const MAX_LIVE_OUTPUT_CHARS = 50_000;
+
+/** 打断丢弃插话的提示停留时长——足够读完条数与内容，又不至于赖在输入卡上方不走 */
+const DROPPED_NOTICE_MS = 10_000;
 
 /** 系统消息 kind → 头部标签(系统卡片统一形态的辨识信息) */
 const SYSTEM_KIND_LABELS: Record<string, string> = {
@@ -1344,6 +1348,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     return () => { cancelled = true; };
   }, [existingSid, projectPath]);
 
+  // 打断丢弃插话的提示（queue_dropped 事件）——输入卡片上沿，10s 自动消失。
+  // 为什么需要它：插话气泡已乐观留在界面上，不提示的话用户会以为那几句还在队列里等着投递（实际已丢）。
+  const [droppedQueue, setDroppedQueue] = useState<string[] | null>(null);
+  const droppedQueueTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (droppedQueueTimerRef.current) clearTimeout(droppedQueueTimerRef.current); }, []);
+
   useEffect(() => {
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       if (event.source === "worker") return;
@@ -1384,7 +1394,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         if (event.type === "turn_start") {
           if (abortedRunPendingRef.current || Date.now() - interruptAtRef.current < 1500) return;
           stoppedRef.current = false;
-        } else if (event.type !== "custom_event") {
+        } else if (event.type !== "custom_event" && event.type !== "queue_dropped") {
+          // queue_dropped 放行:打断就是丢弃的触发者(session.abort 里先 clearQueue 再 abort),
+          // 这条事件紧跟打断到达——被门卫丢掉就等于「丢弃提示永远不出现」
           return;
         }
       }
@@ -1397,8 +1409,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // custom_event(系统消息通知)不设 busy:通知无回合,置 busy 后无 turn_end 可清(残留"等待模型响应")
       // session_info_changed(会话改名回执)同理:自动命名发生在 agent:exit 之后,
       // 回合已清 busy 才收到它——置 busy 就再无人清
-      if (event.type === "custom_event" || event.type === "session_info_changed") {
-        // 通知仅落气泡,不触碰 busy
+      // retry_state(自动重试态)同理:它只是状态显示事件，不携带回合边界——重试期间 busy 由 turn_start 置着，
+      // 本事件只负责换状态栏文本;走通用分支则打断取消后 SDK 补发的那条 auto_retry_end（那时回合已收尾）
+      // 会把 busy 打回去且无人再清
+      // queue_dropped(打断丢弃提示)同理:只描述队列，不携带回合边界——丢弃发生在打断之后(那时回合已收尾),
+      // 走通用分支会把 busy 打回去且无人再清(卡在「等待模型响应…」)
+      if (event.type === "custom_event" || event.type === "session_info_changed" || event.type === "retry_state"
+        || event.type === "queue_dropped") {
+        // 通知/状态类事件仅改显示,不触碰 busy
       } else if (event.type === "turn_start" || Date.now() - lastErrorAtRef.current > 1000) {
         setBusy(true);
       }
@@ -1431,6 +1449,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // Pi 新 assistant turn 开始 → 重置输出段块状态
       // (turn_start 不创建消息——磁盘上无空消息;首个内容帧才创建块)
       if (event.type === "turn_start") {
+        // 重试退避等待结束(新一次尝试真跑起来了) → 清重试态:退避窗口已过,
+        // 留着会让「正在重试 1/3（约 2 秒后）」挂到本次尝试结束(甚至重试成功后)
+        useStatusStore.getState().popSignal(sidRef.current, "retry");
         // 回合开始 → 保持「等待模型响应」(同 id 更新)——turn_start 在 SDK 发起 API 请求前 emit,
         // 至首个响应块到达前状态栏语义 = 等待 API 返回;收到 thinking 块才转「正在思考」
         useStatusStore.getState().pushSignal(sidRef.current, "request", "等待模型响应...");
@@ -1551,6 +1572,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         lastErrorAtRef.current = Date.now();
         busyRef.current = false; setBusy(false);
         useStatusStore.getState().popSignal(sidRef.current, "request");
+        // 清重试态:重试耗尽的最终失败会同时带来 error(错误卡)与 auto_retry_end(SDK 源码里
+        // agent_end 先于 auto_retry_end),两条都清一遍,别让"正在重试"留在信号栈里等到下一回合冒出来
+        useStatusStore.getState().popSignal(sidRef.current, "retry");
         // 清工具信号:打断时 bash 工具执行信号("sleep 90" 等)残留栈里,
         // 不清理则提示消失后回退显示残留的工具信号
         useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:");
@@ -1561,6 +1585,33 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           const info = classifyApiError(event.message);
           useStatusStore.getState().pushSignal(sidRef.current, "error", info.message, 8000);
           showFlowError("round", info.message, { tone: info.tone, ...(info.hint ? { hint: info.hint } : {}) });
+        }
+      }
+      // retry_state — SDK 自动重试(退避等待)的状态显示:
+      // 重试期间**不出失败卡**(那不是最终失败),状态栏显「正在重试 N/M（约 X 秒后）」;
+      //   start → 入栈重试信号(同一 id 反复 push 只换文本,不堆叠);
+      //   end → 出栈:成功回「正在处理…」(回合仍在,后续 turn_start 会接上「等待模型响应」);
+      //         重试耗尽失败时 agent_end 已出错误卡(带错误原文),此处只清态不重复出卡;
+      //         被用户打断取消(Retry cancelled)只清态——打断是主动操作,不出卡
+      if (event.type === "retry_state") {
+        if (event.retryPhase === "start") {
+          useStatusStore.getState().pushSignal(sidRef.current, "retry",
+            retryStatusText(event.retryAttempt ?? 1, event.retryMaxAttempts ?? 1, event.retryDelayMs ?? 0));
+        } else {
+          useStatusStore.getState().popSignal(sidRef.current, "retry");
+          if (event.retrySuccess && busyRef.current) {
+            useStatusStore.getState().pushSignal(sidRef.current, "request", "正在处理...");
+          }
+        }
+      }
+      // queue_dropped — 打断丢弃未投递插话：此前只有主进程日志，用户看到气泡还在界面上，
+      // 会以为那些话还在队列里等着投递（实际已丢）→ 在这里出可见提示，说清几条、内容是什么
+      if (event.type === "queue_dropped") {
+        const dropped = event.queueDropped ?? [];
+        setDroppedQueue(dropped.length > 0 ? dropped : null);
+        if (droppedQueueTimerRef.current) clearTimeout(droppedQueueTimerRef.current);
+        if (dropped.length > 0) {
+          droppedQueueTimerRef.current = setTimeout(() => setDroppedQueue(null), DROPPED_NOTICE_MS);
         }
       }
       // custom 系统消息(委派完成/后台 shell/流程指令)→ 独立即时显示:
@@ -1603,6 +1654,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       latestAiIdRef.current = 0;
       busyRef.current = false; setBusy(false);
       useStatusStore.getState().popSignal(sidRef.current, "request");
+      // 重试信号同样不能留给下一回合:回合异常收尾(如 launchPrompt 的兜底 error/exit)时
+      // auto_retry_end 可能不再到达,残留文本会在下次 busy 时冒出来
+      useStatusStore.getState().popSignal(sidRef.current, "retry");
       useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:");
       onActivity?.();
       if (rearmAfterExitRef.current) { rearmAfterExitRef.current = false; ctxThresholdFiredRef.current = 0; }
@@ -2305,6 +2359,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     <div ref={inputWrapRef}>
       {/* 执行步骤条（Mint 执行追踪，用户只读）——todo_write 广播实时更新 */}
       <TodoStrip sessionId={sidRef.current} />
+      {/* 打断丢弃插话的提示——紧贴输入卡：「我刚发出去那条到底发没发出去」与输入动作同一视线区域 */}
+      <DroppedSteerNotice dropped={droppedQueue} />
       <ChatInput
         projectPath={projectPath}
         busy={busy}
@@ -2321,6 +2377,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         // 打断后 exit 在 1.5s 内被过滤，清信号的动作不会执行 → 这里自己清，
         // 否则状态行会停在「等待模型响应…」
         useStatusStore.getState().popSignal(sidRef.current, "request");
+        // 重试退避等待中打断:SDK 会报 auto_retry_end(Retry cancelled),但那个事件会被
+        // 上面的 stoppedRef 门卫丢掉 → 重试态只能在这里清
+        useStatusStore.getState().popSignal(sidRef.current, "retry");
         useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:");
         }}
         onPaste={handlePaste}

@@ -170,7 +170,7 @@ interface StreamEvent {
   sessionId?: string;
   chatId?: string;       // event-bridge 注入（agent:stream 广播时设置）
   type: "message_start" | "message" | "turn_start" | "turn_end" | "thinking"
-      | "tool_progress" | "tool_done" | "tool_result" | "compacting" | "compacted" | "error" | "context_usage" | "status" | "user_message" | "custom_event" | "entry_appended" | "session_info_changed";
+      | "tool_progress" | "tool_done" | "tool_result" | "compacting" | "compacted" | "error" | "context_usage" | "status" | "user_message" | "custom_event" | "entry_appended" | "session_info_changed" | "retry_state" | "queue_dropped";
   blocks?: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; thinking?: string }>;
   partial?: boolean;
   toolName?: string;
@@ -202,6 +202,18 @@ interface StreamEvent {
   entryRole?: "user" | "assistant";
   /** 会话标题（session_info_changed 事件；SDK setSessionName 的回执，空 = 标题被清掉） */
   title?: string;
+  /** 重试态阶段（retry_state 事件）：start = 进入退避等待；end = 重试链结束（成功/重试耗尽/被取消） */
+  retryPhase?: "start" | "end";
+  /** 第几次尝试（retry_state 事件） */
+  retryAttempt?: number;
+  /** 重试上限（retry_state start 事件；settings.retry.maxRetries，默认 3） */
+  retryMaxAttempts?: number;
+  /** 退避等待时长 ms（retry_state start 事件） */
+  retryDelayMs?: number;
+  /** 本次重试链是否成功（retry_state end 事件；false 时 message = 最终错误原文或「Retry cancelled」） */
+  retrySuccess?: boolean;
+  /** 打断时被丢弃的未投递插话原文（queue_dropped 事件） */
+  queueDropped?: string[];
   percentage?: number;
   data?: Record<string, unknown>;
   source?: "worker" | "evaluator" | "chat";
