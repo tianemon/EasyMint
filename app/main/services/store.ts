@@ -158,10 +158,10 @@ const EM_DEFAULTS = {
  *
  * 功能移除时只删了代码：本文件写入走「先读旧文件、再覆盖已知字段」（见 writeEmSettings），
  * 未知字段会被原样带下去，于是这些字段在磁盘上一直存活，且全仓（含 origin/main）零引用。
- * 逐组依据：`builtinTools` 能力判据只看 key（docs/开发记录/2026-09-16.md）、
- * `showThinking`/`showToolUse` 显示开关移除（2026-09-08.md）、`terminalFontSize`
- * xterm 残留（2026-08-28.md）、`context1M` 废弃（2026-09-10.md）、旧字号四项与
- * 旧光效六项分别由 chatFontScale / glowGroups 取代、多 Agent 分组五项对应实现已全删。
+ * 逐组依据（各组均已按「全仓 + origin/main 零引用、且功能实现本身已删除」核实）：
+ * `builtinTools` 能力判据只看 key、`showThinking`/`showToolUse` 显示开关移除、
+ * `terminalFontSize` 是 xterm 残留、`context1M` 废弃、旧字号四项与旧光效六项分别由
+ * chatFontScale / glowGroups 取代、多 Agent 分组五项对应实现已全删。
  * 写入时统一剔除——用户升级后随首次保存设置自动清干净。
  */
 const OBSOLETE_EM_FIELDS = [

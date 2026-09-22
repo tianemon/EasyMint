@@ -552,7 +552,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
 
   // env:* — 环境自检与依赖安装（引导流程 / 启动自检共用同一引擎）
   // 不走权限系统：这些是**产品自身的前置依赖**，不是 AI 提出的操作；命令由 provisioning/plan 白名单生成，
-  // 提权交给系统弹窗（Linux pkexec → polkit / Windows UAC）。见 docs/design/环境检测与依赖安装引导实施方案.md
+  // 提权交给系统弹窗（Linux pkexec → polkit / Windows UAC）。
   ipcMain.handle("env:probe", () => probeEnvironment());
   // 「重新检测」：先重置沙盒失败缓存——否则装好依赖仍会被缓存的 fail-closed 挡住，用户以为白装了
   ipcMain.handle("env:retest", async () => {

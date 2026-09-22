@@ -8,7 +8,7 @@
  *
  * 背景（为什么不再自己算路径）：EM 早期自实现 `cwd.replace(/[:/\\]/g, "-")`，与 Pi 的
  * `--<cwd 去首分隔符、把 / \ : 换成 ->--` 并不一致，且 Pi 把编码输入从 cwd 改成
- * `resolvePath(cwd)` 后 EM 不会跟随（静默漂移）。详见 docs/design/会话目录对齐 pi 方案.md。
+ * `resolvePath(cwd)` 后 EM 不会跟随（静默漂移）。故一律向 SDK 取路径，不自己算。
  */
 
 import * as fs from "node:fs";

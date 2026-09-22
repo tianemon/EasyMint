@@ -95,7 +95,7 @@ module.exports = { EXTERNALS, mainOptions, preloadOptions, windowsSandboxWorkerO
  * 它只报大小、不报来源——dev 里看到一个 `[1] app/main/dist/main.cjs 1.0mb ⚠️` 无从下手。
  * 这里在构建后补一行"谁贡献的"，只在越线时输出（不越线完全静默）。
  *
- * 处置顺序（各手段的收益 2026-09-15 均实测过，明细见 docs/开发记录/2026-09-15.md）：
+ * 处置顺序（各手段的收益均已实测过）：
  * ① 大头是纯 JS 第三方依赖 → 加进 EXTERNALS，这是**唯一高性价比**的手段（node_modules 本就在
  *    安装包里，等于零成本搬家）。前提：在 dependencies 里、且在 electron-builder 产物 node_modules
  *    内，可用 @electron/asar 的 listPackage() 核验

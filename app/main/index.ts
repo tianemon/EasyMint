@@ -327,7 +327,7 @@ app.whenReady().then(async () => {
   try { cleanupOrphanCaches(); } catch { /* 清理失败不影响启动 */ }
   // 会话目录对齐 Pi：① 预热 SessionManager 类（getPiSessionDir 经它向 SDK 取默认路径）
   // ② 把 EM 旧编码目录迁到 Pi 默认编码——必须早于任何会话读写，否则历史会话落在旧目录、
-  //    在新编码路径下不可见。详见 docs/design/会话目录对齐 pi 方案.md
+  //    在新编码路径下不可见，故启动时改名并合并。
   // **不能在 createWindow 之前 await**：首次 dynamic import SDK 冷启实测 7~10 秒（包体大，几乎全是文件 IO），会把窗口
   // 出现推迟同样久。改为后台任务 + 注册「会话目录就绪门」：pi-session-dir 的异步会话入口
   // （create/resume/list）会先 await 这道门，保证读写发生在迁移之后，窗口则照旧立即出现。

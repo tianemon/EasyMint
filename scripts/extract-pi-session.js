@@ -6,7 +6,7 @@
  * 等噪音，最大限度节省 token。适合让 AI 快速读取一段历史会话。
  *
  * Pi 会话落盘位置：~/.easymint/agent/sessions/--<编码cwd>--/<时间戳>_<sessionId>.jsonl
- * （子目录名由 SDK 计算，与原生 pi 完全一致；编码规则见 docs/design/会话目录对齐 pi 方案.md）
+ * （子目录名由 SDK 计算，与原生 pi 完全一致——EM 不自己算，避免编码漂移）
  * 每行是一个 SessionEntry：{type, id, parentId, timestamp, message}
  * （type !== "message" 的行是 header/session_info/compaction 等，直接跳过）
  *
