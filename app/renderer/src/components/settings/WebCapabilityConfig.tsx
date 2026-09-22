@@ -14,10 +14,10 @@ import { useEffect, useRef, useState } from "react";
 export const TAVILY_KEY_URL = "https://app.tavily.com/home";
 
 /**
- * 免费额度的四个小胶囊（`是什么 → 多少`），最后一条是"够用多少"——那才是用户真正会算的。
+ * 免费额度的四项（`是什么 → 多少`），最后一条是"够用多少"——那才是用户真正会算的。
  *
- * 排版刻意用胶囊而不是整段文字：三段并列、数字给强调色，一眼扫完且不压高度——
- * 引导页那一列很窄，写成句子会把表单顶下去。
+ * 排版：四项并排、**共用一块底色**（2026-09-22 用户：别各自一个胶囊，看着零碎），
+ * 数字给强调色，一眼扫完且不压高度——引导页那一列很窄，写成句子会把表单顶下去。
  *
  * 数字来源：Tavily 官方 Credits & Pricing（Free 1000 credits/月、basic search 1 credit/次、
  * basic extract 每 5 次成功抓取 1 credit），本应用两处调用都走 basic 档（见 api-clients.ts 的
@@ -27,7 +27,7 @@ export const TAVILY_QUOTA: ReadonlyArray<{ label: string; value: string; highlig
   { label: "每月免费", value: "1000 积分" },
   { label: "搜索", value: "1 积分/次" },
   { label: "抓取", value: "每 5 次 1 积分" },
-  // 最后一条是"够用多少"——用户真正会算的那个数，用强调底色单独挑出来（同 GlowGroupManager 的选中态）
+  // 最后一条是"够用多少"——用户真正会算的那个数，用强调色单独挑出来（不再单独铺底；色阶同 GlowGroupManager 的选中态）
   { label: "够用", value: "约 1000 次搜索/月", highlight: true },
 ];
 
@@ -37,7 +37,7 @@ export function shouldPersistTavilyKey(raw: string, loaded: boolean, persisted: 
 }
 
 export interface WebCapabilityConfigProps {
-  /** 未填写 key 时是否展示免费额度胶囊（引导页展示；设置页已有完整说明，不重复占高） */
+  /** 未填写 key 时是否展示免费额度提示块（引导页展示；设置页已有完整说明，不重复占高） */
   showQuotaHints?: boolean;
 }
 
@@ -71,6 +71,18 @@ export function WebCapabilityConfig({ showQuotaHints = false }: WebCapabilityCon
     persistedValue.current = v;
   };
 
+  // 获取说明：压到一行（此前那句把 URL 整串印出来、还带一句设置路径，在窄栏里要占两行）。
+  // 抽成一份共用片段——与额度数字共块时并进块内，设置页里仍作为独立一行纯文字。
+  const hintLine = (
+    <p className="text-[length:var(--text-2xs)] text-text-muted">
+      在{" "}
+      <a href={TAVILY_KEY_URL} target="_blank" rel="noreferrer" className="text-accent hover:underline">
+        app.tavily.com
+      </a>{" "}
+      的「API Keys」创建一个，粘贴到上方即启用
+    </p>
+  );
+
   return (
     <div className="space-y-2">
       <div>
@@ -102,41 +114,33 @@ export function WebCapabilityConfig({ showQuotaHints = false }: WebCapabilityCon
 
       {value.trim() ? (
         <p className="text-[length:var(--text-2xs)] text-text-muted">已启用联网搜索与网页抓取；清空此处即停用</p>
-      ) : (
-        <div>
-          {/* 获取说明压到一行（此前那句把 URL 整串印出来、还带一句设置路径，在窄栏里要占两行） */}
-          <p className="text-[length:var(--text-2xs)] text-text-muted">
-            在{" "}
-            <a href={TAVILY_KEY_URL} target="_blank" rel="noreferrer" className="text-accent hover:underline">
-              app.tavily.com
-            </a>{" "}
-            的「API Keys」创建一个，粘贴到上方即启用
-          </p>
-          {showQuotaHints && (
-            /* 额度数字的来源与同步约定见 TAVILY_QUOTA 上方注释 */
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {TAVILY_QUOTA.map((q) => (
+      ) : showQuotaHints ? (
+        /* 说明行与额度数字**同处一块底色**（2026-09-22 用户：说明书那行也并进来）。
+           容器给底色、内边距与行距，块内只留文字——不让说明行单独浮在块外。
+           设置页不展示额度（showQuotaHints=false），那里走下面那个分支：仍是纯文字、不额外铺底。 */
+        <div className="rounded-[var(--radius-lg)] bg-surface-hover px-2.5 py-1.5 space-y-1.5">
+          {hintLine}
+          {/* 额度数字的来源与同步约定见 TAVILY_QUOTA 上方注释。
+              「够用」那条仍用强调色——它是用户真正会算的结论，但不再单独铺底。 */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {TAVILY_QUOTA.map((q) => (
+              <span key={q.label} className="inline-flex items-baseline gap-1 whitespace-nowrap">
+                <span className={`text-[length:var(--text-2xs)] ${q.highlight ? "text-accent" : "text-text-muted"}`}>
+                  {q.label}
+                </span>
                 <span
-                  key={q.label}
-                  className={`inline-flex items-baseline gap-1 whitespace-nowrap rounded-[var(--radius-lg)] px-2 py-0.5 ${
-                    q.highlight ? "bg-accent-soft" : "bg-surface-hover"
+                  className={`text-[length:var(--text-2xs)] font-medium ${
+                    q.highlight ? "text-accent" : "text-text-primary"
                   }`}
                 >
-                  <span className={`text-[length:var(--text-2xs)] ${q.highlight ? "text-accent" : "text-text-muted"}`}>
-                    {q.label}
-                  </span>
-                  <span
-                    className={`text-[length:var(--text-2xs)] font-medium ${
-                      q.highlight ? "text-accent" : "text-text-primary"
-                    }`}
-                  >
-                    {q.value}
-                  </span>
+                  {q.value}
                 </span>
-              ))}
-            </div>
-          )}
+              </span>
+            ))}
+          </div>
         </div>
+      ) : (
+        hintLine
       )}
     </div>
   );

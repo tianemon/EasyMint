@@ -1033,18 +1033,20 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
    用「色差分层」替代线条边框：分组块靠深浅底区分（TSX 删 border 类），
    输入控件凹槽化——去描边，默认底取 --field-idle（比分组块深一档），
    聚焦时再深一档（--field-focus）作为聚焦提示，全程无边框。
-   仅作用 .settings-body（设置弹窗内容区），通用控件其它页面保持原样。 */
-.settings-body .em-input { border-color: transparent; background: var(--field-idle); }
-.settings-body .em-input:hover { border-color: transparent; background: var(--field-idle); }
-.settings-body .em-input:focus { border-color: transparent; background: var(--field-focus); }  /* 聚焦=底色再深一档,无任何边框 */
-
-
+   作用域是两个钩子，**共用同一份规则**（别复制出第二套，两处必然漂移）：
+   - `.settings-body`：设置弹窗内容区
+   - `.em-flat-fields`：其它同类面板（引导页的供应商卡片 / 联网能力卡片等）
+   通用控件在其它页面保持原样（新建项目、脚本编辑等仍带描边）。
+   注：`:is()` 取参数里最具体者的优先级 → 与原先 `.settings-body .em-input` 同为 (0,2,0)。 */
+:is(.settings-body, .em-flat-fields) .em-input { border-color: transparent; background: var(--field-idle); }
+:is(.settings-body, .em-flat-fields) .em-input:hover { border-color: transparent; background: var(--field-idle); }
+:is(.settings-body, .em-flat-fields) .em-input:focus { border-color: transparent; background: var(--field-focus); }  /* 聚焦=底色再深一档,无任何边框 */
 
 /* Select 触发(无边框拼色):默认与输入同 idle 底、聚焦同加深,无任何边框;hover 强档叠加 */
-.settings-body .em-select-trigger { border-color: transparent; background: var(--field-idle); transition-property: background-color; transition-duration: 120ms; }
-.settings-body .em-select-trigger:hover { border-color: transparent; }
-.settings-body .em-select-trigger:focus { border-color: transparent; background: var(--field-focus); }
-.settings-body .em-select-trigger:disabled { cursor: not-allowed; }
+:is(.settings-body, .em-flat-fields) .em-select-trigger { border-color: transparent; background: var(--field-idle); transition-property: background-color; transition-duration: 120ms; }
+:is(.settings-body, .em-flat-fields) .em-select-trigger:hover { border-color: transparent; }
+:is(.settings-body, .em-flat-fields) .em-select-trigger:focus { border-color: transparent; background: var(--field-focus); }
+:is(.settings-body, .em-flat-fields) .em-select-trigger:disabled { cursor: not-allowed; }
 
 /* ── Chat Empty ─────────────────────────────── */
 .chat-empty {

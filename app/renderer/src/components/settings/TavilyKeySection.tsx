@@ -12,7 +12,9 @@ import { WebCapabilityConfig } from "./WebCapabilityConfig";
 
 export function TavilyKeySection(): JSX.Element {
   return (
-    <div className="mt-4 bg-surface-alt rounded-[var(--radius-lg)] p-4">
+    // em-flat-fields：本卡片是「无边框拼色」字段区（见 index.css），
+    // 卡片里的输入框与设置页同语言——去描边、靠底色深浅分层。
+    <div className="em-flat-fields mt-4 bg-surface-alt rounded-[var(--radius-lg)] p-4">
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-text-primary">联网能力</span>
         <span className="text-[length:var(--text-2xs)] px-1.5 py-0.5 rounded-[var(--radius-lg)] bg-surface-hover text-text-muted">

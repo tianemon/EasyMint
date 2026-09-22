@@ -253,7 +253,13 @@ export function OnboardingPage(): JSX.Element {
                   >重新配置</button>
                 </div>
               ) : (
-                <ProviderForm onSave={handleProviderSave} />
+                /* 与上方「使用中」卡片、下方联网能力同一套卡片外壳（bg-surface-alt + p-4）：
+                   表单字段与「保存供应商配置」同处一个区域内，保存条不再自己色块单列。
+                   em-flat-fields：本卡片是「无边框拼色」字段区（见 index.css 那段），
+                   卡片内的输入/Select 与设置页同语言——去描边、靠底色深浅分层。 */
+                <div className="em-flat-fields bg-surface-alt rounded-[var(--radius-lg)] p-4">
+                  <ProviderForm onSave={handleProviderSave} />
+                </div>
               )}
               {/* 联网能力（可选）：与供应商独立存储（settings.apiKeys）、失焦即生效，
                   所以放在表单之外——不随「保存供应商配置」提交，也不需要第二个保存按钮 */}
@@ -263,8 +269,9 @@ export function OnboardingPage(): JSX.Element {
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="p-4 flex justify-between bg-surface-alt shrink-0">
+      {/* Footer：竖向内边距 11px（原 p-4=16px），整条比原先矮 10px（16×2 → 11×2）。
+          横向仍是 px-4——只压高度，右侧按钮的水平位置不动。 */}
+      <footer className="py-[11px] px-4 flex justify-between bg-surface-alt shrink-0">
         {currentStep === 0 ? (
           <button
             className="btn-accent px-6 py-2 rounded-[var(--radius-lg)] font-medium ml-auto"
