@@ -129,10 +129,8 @@ export interface BatchResult {
 /** 委派状态 */
 export type DelegationStatus = "running" | "completed" | "failed" | "aborted";
 
-/** 主动停止来源：用户 UI 点停止 / Mint 调 stop_agent 工具。
- *  用于委派停止通知文案区分来源(用户→「已由用户中止」,Mint→「已中止」)——
- *  两种来源都属「主动停止」,与意外失败区分,Mint 均不可误判为失败自动重启 */
-export type TaskStopSource = "user" | "mint";
+/** 主动停止来源：用户 UI / Mint stop_agent / 权限切换撤销。 */
+export type TaskStopSource = "user" | "mint" | "revoke";
 
 /** 委派记录（异步执行的核心：execute 立即返回，后台执行完成后 resolve completion） */
 export interface DelegationRecord {

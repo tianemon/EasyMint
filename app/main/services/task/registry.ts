@@ -105,7 +105,7 @@ export function getOwnedSessionIds(sessionId: string): Set<string> {
   return owned;
 }
 
-/** 中止某主会话的全部运行中委派（调用各子会话 abort）；source = 主动停止来源(用户 UI / Mint stop_agent) */
+/** 中止某主会话的全部运行中委派（调用各子会话 abort）；source 标记真实停止来源。 */
 export function abortDelegations(parentSessionId: string, source?: TaskStopSource): number {
   const running = getRunningDelegations(parentSessionId);
   for (const r of running) r.abort(source);

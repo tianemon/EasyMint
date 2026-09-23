@@ -21,6 +21,7 @@ import {
   type RemoteEnvelope,
 } from "../../shared/remote-protocol";
 import type { AppEvent } from "./app-event-bus";
+import { appEventBus } from "./app-event-bus";
 import { emHome } from "../utils/paths";
 
 const DEFAULT_PORT = 47_778;
@@ -132,6 +133,7 @@ export class RemoteTerminalService extends EventEmitter {
   private commandResults = new Map<string, CachedCommandResult>();
   private projectSubscriptions = new Map<string, Set<string>>();
   private sessionSubscriptions = new Map<string, Set<string>>();
+  private subscriptionVersions = new Map<string, number>();
   private readonly pcId: string;
 
   constructor(
@@ -262,6 +264,7 @@ export class RemoteTerminalService extends EventEmitter {
     this.devices = this.devices.filter((device) => device.id !== deviceId);
     this.projectSubscriptions.delete(deviceId);
     this.sessionSubscriptions.delete(deviceId);
+    this.subscriptionVersions.delete(deviceId);
     for (const [socket, connection] of this.connections) {
       if (connection.deviceId !== deviceId) continue;
       this.connections.delete(socket);
@@ -529,11 +532,18 @@ export class RemoteTerminalService extends EventEmitter {
 
     this.pruneCommandResults();
     const cacheKey = `${connection.deviceId}:${command.requestId}`;
+    // 同一手机可能连续点开两个会话；较早的慢快照完成后不能把订阅切回旧会话。
+    const navigation = command.payload.command === "session.list" || command.payload.command === "session.snapshot" || command.payload.command === "session.send";
+    const subscriptionVersion = navigation ? (this.subscriptionVersions.get(connection.deviceId) ?? 0) + 1 : undefined;
+    if (subscriptionVersion !== undefined) this.subscriptionVersions.set(connection.deviceId, subscriptionVersion);
     let cached = this.commandResults.get(cacheKey);
     if (!cached) {
       try {
-        const data = await this.commandHandler(connection.deviceId, command);
-        this.updateSubscriptions(connection.deviceId, command, data);
+        const handled = await this.commandHandler(connection.deviceId, command);
+        // 快照生成与订阅正式生效之间的帧从应用事件环形缓冲补齐；之后的新帧走实时订阅。
+        const data = command.payload.command === "session.snapshot" && command.sessionId
+          ? this.catchUpSnapshot(handled, command.sessionId)
+          : handled;
         cached = {
           expiresAt: Date.now() + 10 * 60_000,
           payload: { ok: true, data },
@@ -550,6 +560,10 @@ export class RemoteTerminalService extends EventEmitter {
         };
       }
       this.commandResults.set(cacheKey, cached);
+    }
+    const result = cached.payload as { ok?: boolean; data?: unknown };
+    if (result.ok && subscriptionVersion === this.subscriptionVersions.get(connection.deviceId)) {
+      this.updateSubscriptions(connection.deviceId, command, result.data);
     }
     this.sendEncrypted(connection, {
       version: REMOTE_PROTOCOL_VERSION,
@@ -578,21 +592,34 @@ export class RemoteTerminalService extends EventEmitter {
     connection.socket.send(JSON.stringify({ type: "mobile-encrypted", ...encrypted }));
   }
 
+  private catchUpSnapshot(result: unknown, sessionId: string): unknown {
+    if (!result || typeof result !== "object") return result;
+    const snapshot = result as Record<string, unknown>;
+    const cursor = snapshot.eventSequence;
+    if (typeof cursor !== "number" || !Array.isArray(snapshot.bufferedEvents)) return result;
+    const missed = appEventBus.eventsAfter(cursor, (event) => {
+      if (event.channel !== "agent:stream") return false;
+      const data = event.data;
+      return typeof data === "object" && data !== null && (data as { sessionId?: unknown }).sessionId === sessionId;
+    });
+    if (missed === null) throw new Error("快照期间事件缓冲已过期，请重新打开会话");
+    return { ...snapshot, bufferedEvents: [...snapshot.bufferedEvents,
+      ...missed.map((event) => ({ ...(event.data as Record<string, unknown>), eventSequence: event.sequence }))] };
+  }
+
   private updateSubscriptions(deviceId: string, command: RemoteCommandEnvelope, result: unknown): void {
-    if (command.projectId) {
-      let projects = this.projectSubscriptions.get(deviceId);
-      if (!projects) { projects = new Set(); this.projectSubscriptions.set(deviceId, projects); }
-      projects.add(command.projectId);
+    // 订阅表示手机当前浏览的项目/会话，不随历史访问次数累加。
+    if (command.projectId && (command.payload.command === "session.list" || command.payload.command === "session.snapshot" || command.payload.command === "session.send")) {
+      if (!this.projectSubscriptions.get(deviceId)?.has(command.projectId)) this.sessionSubscriptions.delete(deviceId);
+      this.projectSubscriptions.set(deviceId, new Set([command.projectId]));
     }
     const resultSessionId = typeof result === "object" && result !== null
       && typeof (result as { sessionId?: unknown }).sessionId === "string"
       ? (result as { sessionId: string }).sessionId
       : undefined;
     const sessionId = command.sessionId ?? resultSessionId;
-    if (sessionId) {
-      let sessions = this.sessionSubscriptions.get(deviceId);
-      if (!sessions) { sessions = new Set(); this.sessionSubscriptions.set(deviceId, sessions); }
-      sessions.add(sessionId);
+    if (sessionId && (command.payload.command === "session.snapshot" || command.payload.command === "session.send")) {
+      this.sessionSubscriptions.set(deviceId, new Set([sessionId]));
     }
   }
 

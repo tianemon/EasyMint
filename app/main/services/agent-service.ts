@@ -11,7 +11,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { BrowserWindow } from "electron";
 import { resolveHome, emHome } from "../utils/paths";
-import { broadcast } from "./ipc-broadcast";
+import { broadcast, broadcastEvent } from "./ipc-broadcast";
 import { Store } from "./store";
 import { isStaleSdkBusyRefusal } from "./rewind-policy";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
@@ -678,7 +678,7 @@ export class AgentService {
   private runCounter = 0;
   private chatCounter = 0;
   onWorkerComplete: ((projectPath: string) => void) | null = null;
-  private streamBuffer: Map<string, PiChatEvent[]> = new Map();
+  private streamBuffer: Map<string, Array<PiChatEvent & { eventSequence: number }>> = new Map();
   /** 委派完成通知积压：Mint 忙碌时记下,回合结束后以新回合发送 */
 
   // ── 内部辅助 ──────────────────────────────────────
@@ -896,8 +896,8 @@ export class AgentService {
     const emitEvent = (ev: PiChatEvent) => {
       ev.sessionId = sessionId;
       ev.chatId = chatId;
-      broadcast("agent:stream", ev);
-      this.bufferEvent(sessionId, ev);
+      const sent = broadcastEvent("agent:stream", ev);
+      this.bufferEvent(sessionId, ev, sent.sequence);
       reportCtxThrottled();
     };
     // 条目 id 回填:SDK 不对普通 message 条目 emit entry_appended(见 createMessageEntryTracker),
@@ -970,8 +970,8 @@ export class AgentService {
       if (pr) {
         pr.sessionId = sessionId;
         pr.chatId = chatId;
-        broadcast("agent:stream", pr);
-        this.bufferEvent(sessionId, pr);
+        const sent = broadcastEvent("agent:stream", pr);
+        this.bufferEvent(sessionId, pr, sent.sequence);
         // 载荷带 sessionId：远程通道按订阅会话过滤，缺它会被直接丢弃（手机端靠该事件清「回合结束」状态）
         broadcast("agent:exit", { runId: chatId, sessionId, code: 0 });
 
@@ -1185,7 +1185,7 @@ export class AgentService {
       for (const owned of getOwnedSessionIds(id)) ownedIds.add(owned);
     }
     for (const id of ownedIds) backgroundShellRegistry.stopBySession(id);
-    abortDelegations(parentId, "user");
+    abortDelegations(parentId, "revoke");
     await closeMcpContexts(ids);
     // 切档不中止主会话正在跑的回合——用户 2026-09-18 明确要求「切换权限不打断回答」。
     // 这里曾按「降级后继续跑等于绕过刚做的收紧」在中止一行（原判据 chat.status !== "idle" 因字段恒 idle 从未生效），
@@ -1757,13 +1757,13 @@ export class AgentService {
     };
   }
 
-  private bufferEvent(key: string, event: PiChatEvent): void {
+  private bufferEvent(key: string, event: PiChatEvent, eventSequence: number): void {
     let buf = this.streamBuffer.get(key);
     if (!buf) {
       buf = [];
       this.streamBuffer.set(key, buf);
     }
-    buf.push(event);
+    buf.push({ ...event, eventSequence });
     if (buf.length > 500) buf.splice(0, buf.length - 500);
   }
 
@@ -2324,8 +2324,8 @@ export class AgentService {
             if (!opts?.triggerTurn && (ev.type === "turn_start" || ev.type === "turn_end")) return;
             ev.sessionId = sessionId;
             ev.chatId = chat.chatId;
-            broadcast("agent:stream", ev);
-            this.bufferEvent(sessionId, ev);
+            const sent = broadcastEvent("agent:stream", ev);
+            this.bufferEvent(sessionId, ev, sent.sequence);
           },
           getSession: () => chat.session,
           // triggerTurn: true 的汇总回合结束(agent_end → turn_end)时广播 agent:exit——

@@ -13,6 +13,7 @@ import {
   remoteProof,
 } from "./remote-crypto";
 import { RemoteTerminalService, type MobilePairRequest } from "./remote-terminal-service";
+import { appEventBus } from "./app-event-bus";
 
 const cleanup: Array<() => void> = [];
 
@@ -135,6 +136,28 @@ function receiveNothing(connection: PhoneConnection, ms: number): Promise<void> 
 }
 
 describe("RemoteTerminalService", () => {
+  it("快照生成后、订阅生效前的流式帧从事件游标补齐", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(async () => {
+      const eventSequence = appEventBus.currentSequence();
+      appEventBus.publish("agent:stream", { sessionId: "session-1", type: "message", blocks: [{ type: "text", text: "补帧" }] });
+      return { messages: [], bufferedEvents: [], eventSequence };
+    }, { port: 0, pairedFile: path.join(dir, "paired.json") });
+    service.on("error", () => {});
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+    const offer = await service.createPairingOffer();
+    const connection = await connectPhone(service, offer);
+    const response = await sendCommand(connection, 1, {
+      version: 1, sentAt: Date.now(), kind: "command", requestId: "snapshot-catchup",
+      projectId: "project-1", sessionId: "session-1", payload: { command: "session.snapshot", data: {} },
+    });
+    const payload = response.payload as { ok: boolean; data: { bufferedEvents: Array<{ type: string; eventSequence: number }> } };
+    expect(payload.ok).toBe(true);
+    expect(payload.data.bufferedEvents).toMatchObject([{ type: "message" }]);
+    expect(payload.data.bufferedEvents[0]?.eventSequence).toBeGreaterThan(0);
+    connection.socket.close();
+  });
+
   it("完成扫码配对、认证和加密命令往返", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
     const handler = vi.fn(async () => [{ id: "project-1", name: "Demo", status: "development" }]);
@@ -175,7 +198,7 @@ describe("RemoteTerminalService", () => {
       requestId: "request-1",
       projectId: "project-1",
       sessionId: "session-1",
-      payload: { command: "project.listOpen", data: {} },
+      payload: { command: "session.snapshot", data: {} },
     });
 
     service.forwardAppEvent({
@@ -236,11 +259,40 @@ describe("RemoteTerminalService", () => {
       requestId: "request-2",
       projectId: "project-1",
       sessionId: "session-1",
-      payload: { command: "project.listOpen", data: {} },
+      payload: { command: "session.snapshot", data: {} },
     });
     service.forwardAppEvent({ ...streamEvent, sequence: 3 });
     expect((await receiveEvent(connection)).payload.channel).toBe("agent:stream");
     connection.socket.close();
   });
-});
 
+  it("切换会话后旧会话不再推送事件", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-mobile-terminal-"));
+    const service = new RemoteTerminalService(vi.fn(async () => ({})), { port: 0, pairedFile: path.join(dir, "paired.json") });
+    service.on("error", () => {});
+    cleanup.push(() => { service.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+    const offer = await service.createPairingOffer();
+    const connection = await connectPhone(service, offer);
+
+    for (const [sequence, sessionId] of [[1, "session-1"], [2, "session-2"]] as const) {
+      await sendCommand(connection, sequence, {
+        version: 1, sentAt: Date.now(), kind: "command", requestId: `request-${sequence}`,
+        projectId: "project-1", sessionId, payload: { command: "session.snapshot", data: {} },
+      });
+    }
+    const stream = (sessionId: string, sequence: number) => ({
+      sequence, channel: "agent:stream", data: { sessionId, type: "turn_start" }, emittedAt: Date.now(),
+    });
+    service.forwardAppEvent(stream("session-1", 10));
+    await expect(receiveNothing(connection, 150)).resolves.toBeUndefined();
+    service.forwardAppEvent(stream("session-2", 11));
+    expect((await receiveEvent(connection)).payload.data.sessionId).toBe("session-2");
+    await sendCommand(connection, 3, {
+      version: 1, sentAt: Date.now(), kind: "command", requestId: "request-3",
+      projectId: "project-2", payload: { command: "session.list", data: {} },
+    });
+    service.forwardAppEvent(stream("session-2", 12));
+    await expect(receiveNothing(connection, 150)).resolves.toBeUndefined();
+    connection.socket.close();
+  });
+});

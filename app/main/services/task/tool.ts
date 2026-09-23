@@ -38,22 +38,23 @@ export interface TaskToolContext {
   onTaskCompleted?: (parentSessionId: string, text: string) => void;
 }
 
-/** 停止状态文案：按触发来源区分（用户 UI→「已由用户中止」；Mint stop_agent→「已中止」）。
+/** 停止状态文案：按触发来源区分（用户 UI / Mint stop_agent / 权限切换）。
  *  来源缺失（未标记路径）回落中性「中止」——不冒充用户。
  *  无论哪种都表「主动停止」：Mint 读到不可误判为意外失败自动重启 */
 function abortStatusLabel(source: TaskStopSource | undefined): string {
+  if (source === "revoke") return "已随权限切换中止";
   if (source === "mint") return "已中止";
   if (source === "user") return "已由用户中止";
   return "中止";
 }
 
 /** BatchResult → 注入主会话的文本 */
-function formatDelegationResult(result: BatchResult): string {
+export function formatDelegationResult(result: BatchResult, stopSource?: TaskStopSource): string {
   // 摘要段:每任务一行(● 标题 — 状态 · 耗时),前端按此渲染绿色结果气泡
   const summary: string[] = [];
-  if (result.aborted) summary.push("(委派被中止)");
+  if (result.aborted) summary.push(`(委派${stopSource === "revoke" ? "已随权限切换中止" : "被中止"})`);
   for (const r of result.results) {
-    const status = r.error ? "失败" : (r.aborted ? "中止" : "完成");
+    const status = r.error ? "失败" : (r.aborted ? (stopSource === "revoke" ? "已随权限切换中止" : "中止") : "完成");
     const title = r.title || r.task.slice(0, 40);
     const dur = r.durationMs ? ` · ${Math.round(r.durationMs / 1000)}s` : "";
     summary.push(`⏺ ${title} - ${status}${dur}`);
@@ -313,7 +314,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
           && result.results[0]?.aborted
           && !record.abortController.signal.aborted; // 整体中止无即时通知,汇总必须发
         if (!singleTaskAborted) {
-          ctx.onComplete?.(record.parentSessionId, formatDelegationResult(result));
+          ctx.onComplete?.(record.parentSessionId, formatDelegationResult(result, record.stopSource));
         }
       }).catch(() => {});
 

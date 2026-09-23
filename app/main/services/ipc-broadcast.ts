@@ -5,14 +5,19 @@
  */
 
 import { BrowserWindow } from "electron";
-import { appEventBus } from "./app-event-bus";
+import { appEventBus, type AppEvent } from "./app-event-bus";
 
 /** 已经报过「渲染帧不可用」的 webContents id，避免每个事件都刷一遍同样的日志 */
 const reportedDeadFrames = new Set<number>();
 
 export function broadcast(channel: string, data: unknown): void {
+  broadcastEvent(channel, data);
+}
+
+/** 需要将广播事件序号写入快照缓冲的调用点使用此入口。 */
+export function broadcastEvent(channel: string, data: unknown): AppEvent {
   // 主进程事件先进入统一总线。Electron 窗口和后续手机终端都消费同一份权威事件。
-  appEventBus.publish(channel, data);
+  const event = appEventBus.publish(channel, data);
   BrowserWindow.getAllWindows().forEach((win) => {
     // ⚠ isDestroyed() 只判断**窗口对象**，判断不了**渲染帧**：页面重载或渲染进程退出后，
     // 窗口对象还在、帧已经没了，此时 send 会抛
@@ -26,6 +31,7 @@ export function broadcast(channel: string, data: unknown): void {
       reportDeadFrame(win.webContents.id, channel, error);
     }
   });
+  return event;
 }
 
 /** 同一个窗口只报一次：帧一旦销毁就会持续失败，逐事件打印只会把控制台刷满（曾把 dev 日志刷了几万行） */

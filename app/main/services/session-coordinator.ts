@@ -6,6 +6,7 @@ import { getSessionInfo, getSessionMessages, listSessions } from "./session-serv
 import { readCache } from "./session-cache";
 import { backgroundShellRegistry } from "./background-shell/registry";
 import { getRunningSummary } from "./task/registry";
+import { appEventBus } from "./app-event-bus";
 import type { RemoteOpenProject, RemoteThinkingInfo } from "../../shared/remote-protocol";
 
 export class RemoteAccessError extends Error {
@@ -26,6 +27,8 @@ export interface RemoteSessionSnapshot {
   thinking: RemoteThinkingInfo | null;
   pendingAsks: ReturnType<typeof getPendingAskSnapshots>;
   bufferedEvents: unknown[];
+  /** 快照构建完成时的应用事件游标，手机据此合并请求期间的实时事件。 */
+  eventSequence: number;
   background: {
     shells: Array<{ id: string; command: string; startedAt: number; status: "running" | "stopping"; output: string }>;
     agents: Array<{ delegationId: string; index: number; title: string }>;
@@ -65,12 +68,32 @@ export class SessionCoordinator {
     ]);
     return {
       session,
-      messages,
+      // 手机快照与流式 message_end 使用同一套字段；桌面历史读取仍保留 Pi 原生形状。
+      messages: messages.map((entry) => {
+        if (entry.type !== "assistant" || !entry.message || typeof entry.message !== "object") return entry;
+        const message = entry.message as Record<string, unknown>;
+        const usage = message.usage;
+        if (!usage || typeof usage !== "object") return entry;
+        const u = usage as Record<string, unknown>;
+        return {
+          ...entry,
+          message: {
+            ...message,
+            usage: {
+              inputTokens: u.input ?? 0,
+              outputTokens: u.output ?? 0,
+              cacheReadTokens: u.cacheRead ?? 0,
+              cacheWriteTokens: u.cacheWrite ?? 0,
+            },
+          },
+        };
+      }),
       cache: readCache(sessionId),
       status: this.agentService.getChatStatus(sessionId),
       thinking: this.agentService.getThinkingInfo(sessionId),
       pendingAsks: getPendingAskSnapshots(sessionId),
       bufferedEvents: this.agentService.peekBufferedStream(sessionId),
+      eventSequence: appEventBus.currentSequence(),
       background: {
         shells: backgroundShellRegistry.list()
           .filter((shell) => shell.sessionId === sessionId)
