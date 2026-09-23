@@ -154,7 +154,7 @@ function compatMcpPath(projectPath: string): string {
 
 // ── 项目级首次审批（CC 的 Pending approval 设计） ──────
 
-/** 已确认的项目级 server 键列表（`<项目路径>::<服务器名>[::<定义指纹>]`，见 definitionFingerprint） */
+/** 已确认的项目级 server 键列表（`<项目路径>::<服务器名>::<定义指纹>`）。 */
 function getApprovedMcp(): string[] {
   if (!existsSync(EM_SETTINGS)) return [];
   try {
@@ -167,16 +167,23 @@ function getApprovedMcp(): string[] {
 }
 
 /**
- * 审批身份绑定**服务器定义**：同名 server 改了 command/args/url 必须重新确认。
+ * 审批身份绑定**完整的执行定义**：同名 server 的命令、环境或连接配置变化后重新确认。
  *
  * 为什么：审批键原本只有 `<项目路径>::<名>`——共享仓库里别人改过 .mcp.json 的同名条目，
  * 用户先前那次「确认」会被静默挪用给一段没审过的新命令。
  *
- * 指纹取**原始**定义（`${VAR}` 占位符不展开）：改环境变量不该触发重新确认，改定义文本才该。
+ * 指纹取配置文件中的原始定义（`${VAR}` 占位符不展开）；修改定义里的 env/headers
+ * 仍会改变子进程或网络请求行为，必须重新确认。
  */
 function definitionFingerprint(cfg: McpServerConfig): string {
+  const sorted = (values?: Record<string, string>) => values
+    ? Object.entries(values).sort(([a], [b]) => a.localeCompare(b))
+    : null;
   return createHash("sha256")
-    .update(JSON.stringify([cfg.type, cfg.command ?? null, cfg.args ?? null, cfg.url ?? null]))
+    .update(JSON.stringify([
+      cfg.type, cfg.command ?? null, cfg.args ?? null, sorted(cfg.env), cfg.url ?? null,
+      sorted(cfg.headers), cfg.timeout ?? null, cfg.oauth ?? null, cfg.callbackPort ?? null,
+    ]))
     .digest("hex")
     .slice(0, 32);
 }
@@ -202,37 +209,24 @@ function writeMcpApproval(projectPath: string, name: string, entry: string): voi
   } finally { release(); }
 }
 
-/** 项目级（含项目根 .mcp.json 兼容来源）某 server 的当前定义——审批要据此算指纹 */
-function scopedServerConfig(projectPath: string, name: string): McpServerConfig | null {
-  return readMcpServersFrom(projectMcpPath(projectPath))[name]
-    ?? readMcpServersFrom(compatMcpPath(projectPath))[name]
-    ?? null;
-}
-
 /** 确认一个项目级 server（写入 em-settings.json 的 `mcp.approved`） */
 export function approveMcpServer(projectPath: string, name: string): void {
-  const cfg = scopedServerConfig(projectPath, name);
-  // 读不到定义（文件刚被删/改坏）时退回无指纹形态：下次扫描按「旧记录」把这时的定义采纳为基线
-  writeMcpApproval(projectPath, name, cfg
-    ? approvalEntry(projectPath, name, definitionFingerprint(cfg))
-    : approvalEntry(projectPath, name));
+  const manifest = scanMcpServers(projectPath).find((server) => server.name === name);
+  if (!manifest || manifest.scope === "user") throw new Error(`服务器「${name}」的项目级定义已不存在，请刷新列表`);
+  const cfg = getMcpServerConfig(name, { scope: manifest.scope, projectPath });
+  if (!cfg) throw new Error(`服务器「${name}」的项目级定义已不存在，请刷新列表`);
+  writeMcpApproval(projectPath, name, approvalEntry(projectPath, name, definitionFingerprint(cfg)));
 }
 
 /**
  * 该 server 是否已确认启用。
  *
- * 旧记录（无指纹）**无感迁移**：把当前定义采纳为基线并落一枚指纹——升级不能让用户已确认的
- * server 平白变成「待确认」。迁移会**消费掉**旧键（见 writeMcpApproval）：留着它的话，之后
- * 每次改定义都会再命中一次，等于这个 server 永远不再需要确认。
+ * 旧记录没有原定义可核对，不能把当前文件（可能已被改动）静默采纳为新基线。
+ * 首次扫描将其视为待确认，用户确认后 writeMcpApproval 会清掉旧键。
  */
 function isMcpApproved(approved: readonly string[], projectPath: string, name: string, cfg: McpServerConfig): boolean {
-  const base = `${projectPath}::${name}`;
   const entry = approvalEntry(projectPath, name, definitionFingerprint(cfg));
   if (approved.includes(entry)) return true;
-  if (approved.includes(base)) {
-    writeMcpApproval(projectPath, name, entry);
-    return true;
-  }
   return false;
 }
 

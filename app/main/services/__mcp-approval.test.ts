@@ -2,10 +2,9 @@
  * 项目级 MCP server 审批身份（回归锚点）。
  *
  * 保护两条：
- * ① 审批绑定服务器**定义**——同名条目改了 command/args/url 必须重新确认，否则共享仓库里
+ * ① 审批绑定服务器**定义**——同名条目改了命令、环境或连接配置必须重新确认，否则共享仓库里
  *    别人改过的 .mcp.json 同名条目会静默挪用用户先前那次「确认」；
- * ② 旧审批记录（无指纹）**无感迁移**——升级不把用户已确认的 server 打回「待确认」，但旧键
- *    必须被消费掉，否则以后改定义再也不会转待确认。
+ * ② 旧审批记录（无指纹）没有原定义可核对，必须要求重新确认；缺失定义不能预埋旧式审批键。
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -99,20 +98,46 @@ describe("项目级 MCP 审批身份", () => {
     expect(pending(dir, "argsChanged")).toBeFalsy();
   });
 
-  it("旧审批记录（无指纹）首次扫描即无感迁移：不待确认、落指纹、旧键被消费", () => {
+  it("修改 env、headers 等执行或连接配置后重新待确认", () => {
+    writeApproved([]);
+    const dir = projectWith({
+      envChanged: { type: "stdio", command: "node", args: ["server.js"], env: { PATH: "/bin" } },
+      headersChanged: { type: "http", url: "https://example.test/mcp", headers: { Authorization: "old" } },
+    });
+    mcp.approveMcpServer(dir, "envChanged");
+    mcp.approveMcpServer(dir, "headersChanged");
+    writeServers(dir, {
+      envChanged: { type: "stdio", command: "node", args: ["server.js"], env: { PATH: "/tmp/bin" } },
+      headersChanged: { type: "http", url: "https://example.test/mcp", headers: { Authorization: "new" } },
+    });
+    expect(pending(dir, "envChanged")).toBe(true);
+    expect(pending(dir, "headersChanged")).toBe(true);
+  });
+
+  it("旧审批记录需要显式重新确认，之后只保留当前指纹", () => {
     const dir = projectWith({ legacy: STDIO(["x"]) });
     writeApproved([`${dir}::legacy`]); // 升级前的记录形态
-
-    expect(pending(dir, "legacy")).toBeFalsy(); // 用户无感：不出现「待确认」
-
+    expect(pending(dir, "legacy")).toBe(true);
+    expect(readApproved()).toEqual([`${dir}::legacy`]);
+    mcp.approveMcpServer(dir, "legacy");
     const entries = readApproved();
     expect(entries).toHaveLength(1);
     const prefix = `${dir}::legacy::`;
     expect(entries[0]!.slice(0, prefix.length)).toBe(prefix);
-    expect(entries[0]!.slice(prefix.length)).toMatch(/^[0-9a-f]{32}$/); // 采纳当前定义为基线
+    expect(entries[0]!.slice(prefix.length)).toMatch(/^[0-9a-f]{32}$/);
 
     // 旧键已消费：定义再变仍转回待确认（留着旧键会变成永久放行）
     writeServers(dir, { legacy: STDIO(["y"]) });
     expect(pending(dir, "legacy")).toBe(true);
+  });
+
+  it("定义消失后确认失败，不留下能批准未来同名定义的旧式键", () => {
+    writeApproved([]);
+    const dir = projectWith({ stale: STDIO(["old"]) });
+    writeServers(dir, {});
+    expect(() => mcp.approveMcpServer(dir, "stale")).toThrow("定义已不存在");
+    expect(readApproved()).toEqual([]);
+    writeServers(dir, { stale: STDIO(["new"]) });
+    expect(pending(dir, "stale")).toBe(true);
   });
 });

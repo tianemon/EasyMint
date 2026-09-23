@@ -134,6 +134,7 @@ export class RemoteTerminalService extends EventEmitter {
   private projectSubscriptions = new Map<string, Set<string>>();
   private sessionSubscriptions = new Map<string, Set<string>>();
   private subscriptionVersions = new Map<string, number>();
+  private lastSessionSelection = new Map<string, { connectionId: string; sequence: number }>();
   private readonly pcId: string;
 
   constructor(
@@ -265,6 +266,7 @@ export class RemoteTerminalService extends EventEmitter {
     this.projectSubscriptions.delete(deviceId);
     this.sessionSubscriptions.delete(deviceId);
     this.subscriptionVersions.delete(deviceId);
+    this.lastSessionSelection.delete(deviceId);
     for (const [socket, connection] of this.connections) {
       if (connection.deviceId !== deviceId) continue;
       this.connections.delete(socket);
@@ -533,7 +535,8 @@ export class RemoteTerminalService extends EventEmitter {
     this.pruneCommandResults();
     const cacheKey = `${connection.deviceId}:${command.requestId}`;
     // 同一手机可能连续点开两个会话；较早的慢快照完成后不能把订阅切回旧会话。
-    const navigation = command.payload.command === "session.list" || command.payload.command === "session.snapshot" || command.payload.command === "session.send";
+    // session.list 也会由首页后台刷新发出，不能作废正在打开的会话快照。
+    const navigation = command.payload.command === "session.snapshot" || command.payload.command === "session.send";
     const subscriptionVersion = navigation ? (this.subscriptionVersions.get(connection.deviceId) ?? 0) + 1 : undefined;
     if (subscriptionVersion !== undefined) this.subscriptionVersions.set(connection.deviceId, subscriptionVersion);
     let cached = this.commandResults.get(cacheKey);
@@ -562,7 +565,7 @@ export class RemoteTerminalService extends EventEmitter {
       this.commandResults.set(cacheKey, cached);
     }
     const result = cached.payload as { ok?: boolean; data?: unknown };
-    if (result.ok && subscriptionVersion === this.subscriptionVersions.get(connection.deviceId)) {
+    if (result.ok && (subscriptionVersion === undefined || subscriptionVersion === this.subscriptionVersions.get(connection.deviceId))) {
       this.updateSubscriptions(connection.deviceId, command, result.data);
     }
     this.sendEncrypted(connection, {
@@ -608,18 +611,27 @@ export class RemoteTerminalService extends EventEmitter {
   }
 
   private updateSubscriptions(deviceId: string, command: RemoteCommandEnvelope, result: unknown): void {
-    // 订阅表示手机当前浏览的项目/会话，不随历史访问次数累加。
-    if (command.projectId && (command.payload.command === "session.list" || command.payload.command === "session.snapshot" || command.payload.command === "session.send")) {
-      if (!this.projectSubscriptions.get(deviceId)?.has(command.projectId)) this.sessionSubscriptions.delete(deviceId);
-      this.projectSubscriptions.set(deviceId, new Set([command.projectId]));
+    const name = command.payload.command;
+    if (name === "session.list") {
+      const selected = this.lastSessionSelection.get(deviceId);
+      // 较早发出的列表请求若晚于快照完成，不能再把项目订阅切回旧项目。
+      if (selected?.connectionId === command.connectionId && command.sequence < selected.sequence) return;
+      if (command.projectId) {
+        // session.list 也可能是后台刷新；列表请求无权取消当前会话的实时订阅。
+        this.projectSubscriptions.set(deviceId, new Set([command.projectId]));
+      }
+      return;
     }
+    if (name !== "session.snapshot" && name !== "session.send") return;
+    if (command.projectId) this.projectSubscriptions.set(deviceId, new Set([command.projectId]));
     const resultSessionId = typeof result === "object" && result !== null
       && typeof (result as { sessionId?: unknown }).sessionId === "string"
       ? (result as { sessionId: string }).sessionId
       : undefined;
     const sessionId = command.sessionId ?? resultSessionId;
-    if (sessionId && (command.payload.command === "session.snapshot" || command.payload.command === "session.send")) {
+    if (sessionId) {
       this.sessionSubscriptions.set(deviceId, new Set([sessionId]));
+      this.lastSessionSelection.set(deviceId, { connectionId: command.connectionId, sequence: command.sequence });
     }
   }
 

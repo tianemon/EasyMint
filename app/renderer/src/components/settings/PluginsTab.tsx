@@ -867,7 +867,12 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
 
   const handleApprove = async (name: string) => {
     if (!projectPath) { setActionErr("未打开项目，无法确认项目级服务器"); return; }
-    await window.electronAPI.mcp.approve(name, projectPath);
+    try {
+      await window.electronAPI.mcp.approve(name, projectPath);
+      setActionErr("");
+    } catch (error) {
+      setActionErr(error instanceof Error ? error.message : "确认失败，请刷新列表后重试");
+    }
     load();
   };
 

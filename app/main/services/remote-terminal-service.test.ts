@@ -289,9 +289,21 @@ describe("RemoteTerminalService", () => {
     expect((await receiveEvent(connection)).payload.data.sessionId).toBe("session-2");
     await sendCommand(connection, 3, {
       version: 1, sentAt: Date.now(), kind: "command", requestId: "request-3",
-      projectId: "project-2", payload: { command: "session.list", data: {} },
+      projectId: "project-1", payload: { command: "session.list", data: {} },
     });
     service.forwardAppEvent(stream("session-2", 12));
+    expect((await receiveEvent(connection)).payload.data.sessionId).toBe("session-2");
+    await sendCommand(connection, 4, {
+      version: 1, sentAt: Date.now(), kind: "command", requestId: "request-4",
+      projectId: "project-2", payload: { command: "session.list", data: {} },
+    });
+    service.forwardAppEvent(stream("session-2", 13));
+    expect((await receiveEvent(connection)).payload.data.sessionId).toBe("session-2");
+    await sendCommand(connection, 5, {
+      version: 1, sentAt: Date.now(), kind: "command", requestId: "request-5",
+      projectId: "project-2", sessionId: "session-3", payload: { command: "session.snapshot", data: {} },
+    });
+    service.forwardAppEvent(stream("session-2", 14));
     await expect(receiveNothing(connection, 150)).resolves.toBeUndefined();
     connection.socket.close();
   });
