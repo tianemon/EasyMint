@@ -13,7 +13,7 @@ import { spawnSync } from "node:child_process";
 import type { ToolDefinition } from "../pi-sdk";
 import { getDefineToolFn } from "../pi-sdk";
 import { scanMcpServers, getMcpServerConfig, expandServerConfig } from "../mcp-service";
-import type { McpServerConfig, McpServerStatus } from "../mcp-service";
+import type { McpServerConfig, McpServerManifest, McpServerStatus } from "../mcp-service";
 import { auth } from "@modelcontextprotocol/sdk/client/auth.js";
 import { EmOAuthProvider } from "../mcp-oauth";
 import { ensureSandbox, isSandboxBypassedForMode, wrapForSandbox } from "../sandbox/manager";
@@ -205,15 +205,20 @@ async function connect(
   throw new Error(`不支持的 MCP 传输类型: ${cfg.type}`);
 }
 
-/** 拉取一个 server 的工具（内部用：并发调度 + 状态记录） */
+/** 拉取一个 server 的工具（内部用：并发调度 + 状态记录）
+ *  参数收完整 manifest（而非只收 name/type）：定义来源必须由**扫描结果自带的 scope** 决定。
+ *  漏传 scope 时 getMcpServerConfig 只读用户级 mcp.json → 项目级（EM 项目级 / 项目根 .mcp.json）
+ *  的定义恒取不到、一律写成「配置已不存在」，项目级 MCP 就连不上——这是阶段B加 scope 时漏改的调用点。 */
 async function loadOneServer(
-  s: { name: string; type: McpServerConfig["type"] },
+  s: McpServerManifest,
   defineTool: Awaited<ReturnType<typeof getDefineToolFn>>,
   projectPath?: string,
   getMode: () => PermissionMode = () => "standard",
   contextId = "shared",
 ): Promise<ToolDefinition[]> {
-  const raw = getMcpServerConfig(s.name);
+  // scope 取 manifest 的胜出来源，不按名字猜、不额外让调用方传参：
+  // 用户级 > EM 项目级 > 项目根 .mcp.json 的优先级已由 scanMcpServers 定完，这里只照它读同一个文件
+  const raw = getMcpServerConfig(s.name, { scope: s.scope, projectPath });
   if (!raw) {
     statusMap.set(statusKey(projectPath, s.name), { name: s.name, state: "failed", error: "配置已不存在" });
     return [];

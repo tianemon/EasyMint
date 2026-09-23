@@ -7,6 +7,8 @@
  *
  * 沙盒三处被替掉：`wrapForSandbox` 是 spawn 前最后一步，本用例断言它不被调用即「没到拉起
  * 子进程那一步」；替掉也免得真去初始化 srt（绕过沙盒档与完全访问档的行为一致）。
+ * 它被调到就抛错——「确认之后」那条本来就要走完拉取流程，抛错既终止在 spawn 边界，也让
+ * 状态里的失败原因一眼看出是替身而不是真的连不上。
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -15,9 +17,15 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir() } }));
 
-const mocks = vi.hoisted(() => ({ wrapForSandbox: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  // 跑到 spawn 边界就停：本用例只验门卫与「要不要继续往下走」，不真拉起子进程
+  // （原先这里留空实现，且 mock 路径写成了不存在的 ../../sandbox/manager，替换从未生效）
+  wrapForSandbox: vi.fn(async () => {
+    throw new Error("测试替身：不拉起子进程");
+  }),
+}));
 
-vi.mock("../../sandbox/manager", () => ({
+vi.mock("../sandbox/manager", () => ({
   isSandboxBypassedForMode: () => true,
   ensureSandbox: async () => ({ ok: true }),
   annotateSandboxFailures: (s: string) => s,
