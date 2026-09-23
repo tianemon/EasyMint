@@ -194,6 +194,7 @@ interface StreamEvent {
   details?: Record<string, unknown>;
   message?: string;
   canRetry?: boolean;
+  operation?: "prompt" | "compaction";
   summary?: string;
   usage?: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number };
   /** 落盘条目 id（entry_appended 事件；气泡据此回填 ChatMessage.entryId） */
@@ -272,7 +273,7 @@ interface ElectronAPI {
   };
   agent: {
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
-    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string; tabId?: string }) => Promise<{ chatId: string }>;
+    sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string; tabId?: string }) => Promise<{ chatId: string; sessionId: string }>;
     steer: (sessionId: string, text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>, tabId?: string) => Promise<void>;
     stopDelegation: (delegationId: string, taskIndex: number) => Promise<void>;
     getDelegations: (sessionId: string) => Promise<DelegationSnapshotItem[]>;
@@ -292,14 +293,18 @@ interface ElectronAPI {
     onAskRequest: (callback: (data: any) => void) => () => void;
     onAskClosed: (callback: (data: { requestId: string }) => void) => () => void;
     onTodos: (callback: (data: { sessionId: string; todos: Array<{ content: string; status: "pending" | "in_progress" | "completed"; startedAt?: number; waiting?: boolean }> }) => void) => () => void;
-    abort: (runId: string, opts?: { clearQueue?: boolean; rewind?: boolean }) => Promise<void>;
+    abort: (runId: string, opts?: { clearQueue?: boolean; rewind?: boolean }) => Promise<{ rewound: boolean; stopTimedOut?: boolean }>;
     /** 按节点撤回（编辑消息/重新生成用）：不依赖运行中的回合；失败返回可读 error（目标非法/回合中/压缩中）
      *  target="prompt"：把 entryId 当「某条回答」，主进程沿 parentId 定位所属提问并撤回它，
      *  返回 promptEntryId（提问条目 id）供渲染层找到那条提问气泡复用重发 */
-    rewindToNode: (sessionId: string, entryId: string, target?: "entry" | "prompt") => Promise<{ ok: boolean; error?: string; promptEntryId?: string }>;
+    rewindToNode: (sessionId: string, entryId: string, target?: "entry" | "prompt", projectPath?: string) => Promise<{ ok: boolean; error?: string; promptEntryId?: string }>;
     /** 单条消息移出（inContext=false）/ 恢复（true）模型上下文——轻档，只改会话投影、
      *  不影响它之后的对话（与 rewindToNode 的级联撤回是轻/重两档）；失败返回可读 error */
-    setEntryInContext: (sessionId: string, entryId: string, inContext: boolean) => Promise<{ ok: boolean; error?: string }>;
+    setEntryInContext: (sessionId: string, entryId: string, inContext: boolean, projectPath?: string) => Promise<{ ok: boolean; error?: string }>;
+    imageRetryCandidates: (sessionId: string, failedEntryId: string, projectPath?: string) => Promise<{ ok: boolean; error?: string; candidates?: Array<{ entryId: string; imageCount: number; encodedBytes: number; preview: string; timestamp: number }> }>;
+    contextImageStats: (sessionId: string, projectPath?: string) => Promise<{ ok: boolean; error?: string; candidates?: Array<{ entryId: string; imageCount: number; encodedBytes: number; preview: string; timestamp: number }>; encodedBytes?: number; maxRequestBytes?: number }>;
+    removeContextImages: (sessionId: string, selectedEntryIds: string[], projectPath?: string) => Promise<{ ok: boolean; error?: string; reloadRequired?: boolean; removedBytes?: number; removedImages?: number }>;
+    prepareImageRetry: (sessionId: string, failedEntryId: string, selectedEntryIds: string[], omitCurrentImages: boolean, projectPath?: string) => Promise<{ ok: boolean; error?: string; reloadRequired?: boolean; removedBytes?: number; removedImages?: number }>;
     setModel: (sessionId: string, model: string, provider?: string) => Promise<void>;
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => Promise<{ chatId: string }>;
     chatStatus: (sessionId: string) => Promise<string | null>;
@@ -521,7 +526,7 @@ interface ElectronAPI {
     list: (projectPath: string) => Promise<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number }[]>;
 	    listDesign: (projectPath: string) => Promise<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number }[]>;
     get: (id: string, projectPath: string) => Promise<{ sessionId: string; title: string; createdAt: number; updatedAt: number; pinnedAt?: number } | null>;
-    messages: (id: string, projectPath: string) => Promise<{ type: string; uuid: string; session_id: string; message: unknown; parent_tool_use_id: string | null; out_of_context?: boolean }[]>;
+    messages: (id: string, projectPath: string) => Promise<{ type: string; uuid: string; session_id: string; message: unknown; parent_tool_use_id: string | null; out_of_context?: boolean; image_stripped?: boolean }[]>;
     rename: (id: string, title: string, projectPath: string) => Promise<void>;
     designSessions: () => Promise<string[]>;
     delete: (id: string, projectPath: string) => Promise<void>;

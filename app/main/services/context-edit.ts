@@ -24,3 +24,23 @@ export function droppedContextIds(entries: readonly unknown[]): Set<string> {
   }
   return dropped;
 }
+
+/** Targets whose latest context edit removed image blocks while keeping the message itself. */
+export function imageStrippedContextIds(entries: readonly unknown[]): Set<string> {
+  const originalImages = new Set<string>();
+  for (const raw of entries) {
+    const entry = raw as { id?: string; type?: string; message?: { content?: unknown }; content?: unknown } | null;
+    if (!entry?.id) continue;
+    const content = entry.type === "message" ? entry.message?.content : entry.type === "custom_message" ? entry.content : undefined;
+    if (Array.isArray(content) && content.some((block) => block?.type === "image")) originalImages.add(entry.id);
+  }
+  const stripped = new Set<string>();
+  for (const raw of entries) {
+    const edit = raw as { type?: string; targetId?: string; replacement?: { content?: unknown } | null } | null;
+    if (edit?.type !== "context_edit" || !edit.targetId || !originalImages.has(edit.targetId)) continue;
+    const content = edit.replacement?.content;
+    if (Array.isArray(content) && !content.some((block) => block?.type === "image")) stripped.add(edit.targetId);
+    else stripped.delete(edit.targetId);
+  }
+  return stripped;
+}

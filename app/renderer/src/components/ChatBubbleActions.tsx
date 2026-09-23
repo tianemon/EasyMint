@@ -67,16 +67,18 @@ function RegenerateBubbleBtn({ disabledReason, onClick }: { disabledReason?: str
 
 /** 气泡操作容器：复制 + 钉住 + （仅 assistant 气泡）重新生成按钮统一挂在一体化工具条中；
     默认隐藏，由消息 hover 状态驱动显隐（visible），隐藏时不可交互 */
-export function BubbleActions({ text, onPin, sid, visible, regenerate }: {
+export function BubbleActions({ text, onPin, sid, visible, regenerate, inline = false }: {
   text: string;
   onPin: (text: string) => void;
   sid: string;
   visible: boolean;
   /** 重新生成入口：只有 assistant 气泡传（undefined = 不渲染该按钮）；不可用时置灰 + title 说明原因 */
   regenerate?: { disabledReason?: string; onClick: () => void };
+  /** 用户气泡与铅笔共用一行；其它气泡仍悬浮在气泡下方。 */
+  inline?: boolean;
 }): JSX.Element {
   return (
-    <div className={`absolute top-full left-0 mt-1 flex items-center rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-sm overflow-hidden transition-opacity duration-150 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+    <div className={`${inline ? "shrink-0" : "absolute top-full left-0 mt-1"} flex items-center rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-sm overflow-hidden transition-opacity duration-150 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
       <CopyBubbleBtn text={text} />
       <PinBubbleBtn text={text} onPin={onPin} sid={sid} />
       {regenerate && <RegenerateBubbleBtn disabledReason={regenerate.disabledReason} onClick={regenerate.onClick} />}

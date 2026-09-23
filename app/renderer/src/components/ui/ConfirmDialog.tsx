@@ -66,6 +66,8 @@ export function ConfirmHost(): JSX.Element | null {
   if (!pending) return null;
 
   const close = (v: boolean) => {
+    // 同一帧的双击/遮罩与按钮事件只能结算一次；否则 queue.shift() 会跳过下一张确认框。
+    if (pendingRef !== pending) return;
     // 先兑现当前这个，再把队首的接上来（顺序不能倒：setPending 会触发重渲染）
     pending.resolve(v);
     setPending(queueRef.shift() ?? null);

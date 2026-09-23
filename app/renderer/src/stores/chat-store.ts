@@ -13,10 +13,14 @@ export interface FlowErrorCard {
   tone?: ErrorTone;
   /** 简短建议文案(可选,与 message 同卡第二行) */
   hint?: string;
+  /** 请求体超限提供历史图片整理动作，避免原样重试再次 413。 */
+  errorKind?: "request_too_large";
   /** 卡片渲染在 anchorMsgId 对应消息的气泡下方 */
   anchorMsgId: number;
   /** 重试目标消息 id(重发该 user 消息);缺省 = 不可重试,仅可关闭 */
   sourceMsgId?: number;
+  /** 这张卡来自已生效的级联撤回；重试失败时需继续说明当前分支已截断。 */
+  afterRewind?: boolean;
   ts: number;
 }
 
@@ -26,7 +30,7 @@ const MAX_FLOW_ERRORS_PER_SESSION = 20;
 /** 气泡重新拿到内容（流式写入 / 编辑重发 / 恢复进上下文）→ 它又回到模型视野里，清掉「已退出上下文」
  *  这组标记（含轻档的 contextDropped，两者同进退）。与 setMessageEntryId 同一手法：删字段而不是置 undefined。 */
 const asLive = (m: Record<string, any>): Record<string, any> => {
-  const { outOfContext: _nowLive, contextDropped: _nowRestorable, ...rest } = m;
+  const { outOfContext: _nowLive, contextDropped: _nowRestorable, imageStripped: _imageRestored, ...rest } = m;
   return rest;
 };
 
@@ -48,15 +52,12 @@ interface ChatState {
   appendUserMsg: (sessionId: string, msg: Record<string, any> & { role: "user" | "ai" }) => number;
   /** 替换指定 user 消息文本（编辑重发——打断后改原问题重发,不新增气泡） */
   updateUserMsgText: (sessionId: string, msgId: number, text: string) => void;
-  /** 标记「已退出上下文」（撤回后本地列表不裁剪，见 ChatPanel.handleEditSubmit）：从 fromMsgId 起
-   *  （includeFrom 为 true 时含它自己）之后的全部气泡打标——它们已不在当前分支上，界面据此显式说明，
-   *  免得「界面顺序 = 上下文顺序」被误读。重开会话后它们随磁盘分支一起消失，标记只活在本面板内；
-   *  气泡重新拿到内容时标记自动清掉（见 replaceAiEntriesById / updateUserMsgText）。
-   *  批量撤回会顺带清掉 contextDropped——这些气泡的条目刚离开当前分支，轻档的「恢复」已不可能。 */
-  markOutOfContext: (sessionId: string, fromMsgId: number, includeFrom?: boolean) => void;
+  /** 级联撤回成功后，保留要重发的提问，立即移除它之后的旧气泡和错误卡。 */
+  truncateAfter: (sessionId: string, msgId: number) => void;
+  /** 打断且本轮无产出时，从本轮用户消息起移除已退出分支的气泡和错误卡。 */
+  truncateFrom: (sessionId: string, msgId: number) => void;
   /** 单条移出上下文（轻档，appendContextEdit）成功后打标：只标这一条，且它是**可恢复的**
-   *  （条目仍在分支上）——右键菜单据此给「恢复进上下文」（见 chat-utils.contextEditAction）。
-   *  与 markOutOfContext 分开：那个是成片的、不可恢复的（条目已被撤回掉）。 */
+   *  （条目仍在分支上）——右键菜单据此给「恢复进上下文」（见 chat-utils.contextEditAction）。 */
   markDroppedFromContext: (sessionId: string, msgId: number) => void;
   /** 恢复进上下文成功 → 清掉这一条的标记（见 asLive） */
   restoreIntoContext: (sessionId: string, msgId: number) => void;
@@ -72,6 +73,8 @@ interface ChatState {
    *  传 `undefined` = 清除：气泡被重发复用（编辑重发/错误重试）时，旧 id 指向的条目已失效
    *  （被撤回或不在分支上），必须清掉等新条目重新认领（见 ChatPanel.sendText / claimEntryBubble） */
   setMessageEntryId: (sessionId: string, msgId: number, entryId: string | undefined) => void;
+  markImagesStripped: (sessionId: string, entryIds: string[]) => void;
+  setImagesPathOnly: (sessionId: string, msgId: number, value: boolean) => void;
   nextMsgId: (sessionId: string) => number;
 }
 
@@ -161,21 +164,35 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
   },
 
-  markOutOfContext: (sessionId, fromMsgId, includeFrom) => {
+  truncateAfter: (sessionId, msgId) => {
     set((s) => {
       const list = s.messagesBySession[sessionId] || [];
-      const idx = list.findIndex((m: { id: number }) => m.id === fromMsgId);
+      const idx = list.findIndex((m: { id: number }) => m.id === msgId);
       if (idx < 0) return {};
-      const from = includeFrom ? idx : idx + 1;
+      const kept = list.slice(0, idx + 1);
+      const keptIds = new Set(kept.map((m: { id: number }) => m.id));
       return {
-        messagesBySession: {
-          ...s.messagesBySession,
-          [sessionId]: list.map((m, i) => {
-            if (i < from) return m;
-            // 顺带清 contextDropped：这些气泡的条目刚被撤回到分支之外，轻档的「恢复」已经不可能
-            const { contextDropped: _noLongerRestorable, ...rest } = m;
-            return { ...rest, outOfContext: true };
-          }),
+        messagesBySession: { ...s.messagesBySession, [sessionId]: kept },
+        errorsBySession: {
+          ...s.errorsBySession,
+          [sessionId]: (s.errorsBySession[sessionId] || []).filter((card) => keptIds.has(card.anchorMsgId)),
+        },
+      };
+    });
+  },
+
+  truncateFrom: (sessionId, msgId) => {
+    set((s) => {
+      const list = s.messagesBySession[sessionId] || [];
+      const idx = list.findIndex((m: { id: number }) => m.id === msgId);
+      if (idx < 0) return {};
+      const kept = list.slice(0, idx);
+      const keptIds = new Set(kept.map((m: { id: number }) => m.id));
+      return {
+        messagesBySession: { ...s.messagesBySession, [sessionId]: kept },
+        errorsBySession: {
+          ...s.errorsBySession,
+          [sessionId]: (s.errorsBySession[sessionId] || []).filter((card) => keptIds.has(card.anchorMsgId)),
         },
       };
     });
@@ -186,7 +203,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messagesBySession: {
         ...s.messagesBySession,
         [sessionId]: (s.messagesBySession[sessionId] || []).map((m) =>
-          m.id === msgId ? { ...m, outOfContext: true, contextDropped: true } : m
+          m.id === msgId ? { ...m, outOfContext: true, contextDropped: true, imageStripped: false } : m
         ),
       },
     }));
@@ -197,6 +214,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messagesBySession: {
         ...s.messagesBySession,
         [sessionId]: (s.messagesBySession[sessionId] || []).map((m) => (m.id === msgId ? asLive(m) : m)),
+      },
+    }));
+  },
+
+  markImagesStripped: (sessionId, entryIds) => {
+    const selected = new Set(entryIds);
+    set((s) => ({
+      messagesBySession: {
+        ...s.messagesBySession,
+        [sessionId]: (s.messagesBySession[sessionId] || []).map((m) => selected.has(m.entryId) ? { ...m, imageStripped: true } : m),
+      },
+    }));
+  },
+
+  setImagesPathOnly: (sessionId, msgId, value) => {
+    set((s) => ({
+      messagesBySession: {
+        ...s.messagesBySession,
+        [sessionId]: (s.messagesBySession[sessionId] || []).map((m) => {
+          if (m.id !== msgId) return m;
+          if (value) return { ...m, imagesPathOnly: true };
+          const { imagesPathOnly: _cleared, ...rest } = m;
+          return rest;
+        }),
       },
     }));
   },

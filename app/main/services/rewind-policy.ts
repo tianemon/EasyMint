@@ -27,3 +27,14 @@ export function isStaleSdkBusyRefusal(
 ): boolean {
   return isSdkBusyRefusal(message) && !emBusy.running && !emBusy.compacting;
 }
+
+/** 已撤回的 user 气泡仅在当前落点紧贴它原父节点时可重发。
+ *  允许 leaf=父节点，或 leaf 是挂在父节点后的撤回 pin；祖先仍在分支上不足以放行，
+ *  否则另一个窗口已经续写的新内容会被旧气泡的操作静默截断。 */
+export function canRewindDetachedUser(
+  parentId: string | null,
+  leafId: string | null,
+  leafPin?: { parentId: string | null },
+): boolean {
+  return parentId === leafId || (leafPin !== undefined && leafPin.parentId === parentId);
+}

@@ -177,7 +177,8 @@ export class RemoteCommandRouter {
     const projectId = requireProjectId(command);
     const sessionId = requireSessionId(command);
     await this.coordinator.requireSession(projectId, sessionId);
-    await this.agentService.abort(sessionId, { clearQueue: true, rewind: true });
+    const result = await this.agentService.abort(sessionId, { clearQueue: true, rewind: true });
+    if (result?.stopTimedOut) throw Object.assign(new Error("停止未确认完成，请稍后重试"), { code: "ABORT_TIMEOUT" });
     return { ok: true };
   }
 

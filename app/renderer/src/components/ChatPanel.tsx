@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
-import { AttachItem, ChatMessage, PendingUserBubble, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason, contextEditAction, retryStatusText, BUSY_PROBE_INTERVAL_MS, BUSY_PROBE_CLEAR_STREAK, stepBusyProbe } from "./chat-utils";
+import { AttachItem, ChatMessage, PendingUserBubble, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason, contextEditAction, retryStatusText, BUSY_PROBE_INTERVAL_MS, BUSY_PROBE_CLEAR_STREAK, stepBusyProbe, stopTarget, needsDeferredStop, shouldSteerSend, resolveSendSessionId } from "./chat-utils";
 import { confirmDialog } from "./ui/ConfirmDialog";
 import { chatActions } from "../stores/chat-actions";
 import { confirmFullAccess } from "./permission-confirmation";
@@ -35,6 +35,8 @@ import { AskUserCard } from "./AskUserCard";
 import { useAskStore } from "../stores/ask-store";
 import { MintAvatar } from "./MintAvatar";
 import { UserMessageText } from "./UserMessageText";
+import { ImageRecoveryDialog } from "./ImageRecoveryDialog";
+import { IMAGE_PATH_ONLY_NOTE, pendingImageBase64Bytes, type ContextImageEntry } from "@shared/image-context";
 
 
 interface ChatPanelProps {
@@ -113,12 +115,13 @@ const ERROR_TONE_STYLE: Record<ErrorTone, { border: string; icon: string }> = {
  *  底色不带语义色、按钮不给语义色——整块红底与红按钮是「扎眼」的来源;错误条保留
  *  danger 描边是 UI 元素库的既有约定(语义辨识),故只收掉底色与按钮两处。
  *  悬停显完整文案(长错误信息不撑破气泡)。 */
-function FlowErrorCardView({ card, onRetry, onDismiss }: {
+function FlowErrorCardView({ card, onRetry, onRecoverImages, onDismiss }: {
   card: FlowErrorCard;
   onRetry: (c: FlowErrorCard) => void;
+  onRecoverImages: (c: FlowErrorCard) => void;
   onDismiss: (c: FlowErrorCard) => void;
 }): JSX.Element {
-  const retryable = card.sourceMsgId != null;
+  const retryable = card.sourceMsgId != null && card.errorKind !== "request_too_large";
   const tone = ERROR_TONE_STYLE[card.tone ?? "error"];
   return (
     <div
@@ -144,6 +147,9 @@ function FlowErrorCardView({ card, onRetry, onDismiss }: {
           className="shrink-0 rounded-[var(--radius-lg)] px-2 py-0.5 font-medium text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
           style={{ fontSize: "var(--text-detail)" }}
         >重试</button>
+      )}
+      {card.errorKind === "request_too_large" && card.sourceMsgId != null && (
+        <button type="button" onClick={() => onRecoverImages(card)} className="shrink-0 rounded-[var(--radius-lg)] px-2 py-0.5 font-medium text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer" style={{ fontSize: "var(--text-detail)" }}>整理图片</button>
       )}
       <button
         type="button"
@@ -182,6 +188,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // 持久错误卡片(3.5):按锚定消息 id 分组,渲染在对应消息行下方
   const emptyErrorsRef = useRef<FlowErrorCard[]>([]);
   const sessionErrors = useChatStore((s) => s.errorsBySession[sid]) || emptyErrorsRef.current;
+  const [imageRecovery, setImageRecovery] = useState<({ mode: "retry"; card: FlowErrorCard; candidates: ContextImageEntry[]; currentImageCount: number } | { mode: "manage"; candidates: ContextImageEntry[] }) | null>(null);
+  const [contextImageBytes, setContextImageBytes] = useState(0);
+  const [contextImageWarnAt, setContextImageWarnAt] = useState(32 * 1024 * 1024);
   const errorsByAnchor = useMemo(() => {
     const m = new Map<number, FlowErrorCard[]>();
     for (const c of sessionErrors) {
@@ -194,6 +203,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
   const [_currentRunId, setCurrentRunId] = useState<string | null>(null);
   const currentChatRef = useRef<string | null>(null);
+  // sendMessage IPC 尚未返回 chatId 时，停止动作先记在这次发送上；拿到 id 后立即补发 abort。
+  // 复用旧提问气泡的发送（编辑/重新生成/重试）打断时保留提问，不走普通新消息的无输出撤回。
+  const pendingSendRef = useRef<{ preservePromptOnStop: boolean; sourceMsgId?: number; stopRequested: boolean; abortIssued: boolean; awaitingChatId: boolean; resolvedSessionId?: string; stopSid?: string; stopVersion?: number; ready: Promise<void>; resolveReady: () => void } | null>(null);
   const stoppedRef = useRef(false);
   const busyRef = useRef(false);
   // 打断时间戳:打断后 1.5s 内的 agent:exit 是旧回合残留(abort 触发),
@@ -232,6 +244,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const imgInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const [attaches, setAttaches] = useState<AttachItem[]>([]);
+  const pendingImageBytes = useMemo(() => attaches.reduce((total, attachment) => total + pendingImageBase64Bytes(attachment.dataUrl), 0), [attaches]);
   // 点附件缩略图看原图：与聊天文件链接、文件树图片共用同一个查看器（状态在 viewer-store，查看器挂在 ProjectPage）
   const openViewer = useCallback((src: string, name: string) => useViewerStore.getState().openImage(src, name), []);
   // 权限模式:新会话默认取全局持久化值(输入条切换即更新全局——用户不需要每次重选);
@@ -929,7 +942,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   // ── 消息流持久错误卡片(3.5) ────────────────────────────
   // 错误同时写入消息流(不只有状态栏 8s 提示):卡片锚定失败回合所在消息,
   // 用户可重试(重发原消息)/关闭;状态栏提示逻辑不变。
-  const showFlowError = useCallback((kind: FlowErrorCard["kind"], message: string, opts?: { sourceMsgId?: number; anchorMsgId?: number; tone?: ErrorTone; hint?: string }) => {
+  const showFlowError = useCallback((kind: FlowErrorCard["kind"], message: string, opts?: { sourceMsgId?: number; anchorMsgId?: number; tone?: ErrorTone; hint?: string; afterRewind?: boolean; errorKind?: FlowErrorCard["errorKind"] }) => {
     const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
     if (msgs.length === 0) return; // 空会话(无消息可锚)只走状态栏
     // 锚点 = 失败发生时的消息流尾部(最后一条消息行)——错误卡片在视野内,用户立即可见;
@@ -946,6 +959,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       kind, message, anchorMsgId: anchor,
       ...(opts?.tone ? { tone: opts.tone } : {}),
       ...(opts?.hint ? { hint: opts.hint } : {}),
+      ...(opts?.errorKind ? { errorKind: opts.errorKind } : {}),
+      ...(opts?.afterRewind ? { afterRewind: true } : {}),
       ...(source != null ? { sourceMsgId: source } : {}),
     });
   }, []);
@@ -1405,9 +1420,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         if (event.type === "turn_start") {
           if (abortedRunPendingRef.current || Date.now() - interruptAtRef.current < 1500) return;
           stoppedRef.current = false;
-        } else if (event.type !== "custom_event" && event.type !== "queue_dropped") {
+        } else if (event.type !== "custom_event" && event.type !== "queue_dropped" && event.type !== "entry_appended") {
           // queue_dropped 放行:打断就是丢弃的触发者(session.abort 里先 clearQueue 再 abort),
           // 这条事件紧跟打断到达——被门卫丢掉就等于「丢弃提示永远不出现」
+          // entry_appended 放行:重新生成后的提问即使立即打断也已落盘，气泡必须认领新条目 id。
           return;
         }
       }
@@ -1425,8 +1441,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 会把 busy 打回去且无人再清
       // queue_dropped(打断丢弃提示)同理:只描述队列，不携带回合边界——丢弃发生在打断之后(那时回合已收尾),
       // 走通用分支会把 busy 打回去且无人再清(卡在「等待模型响应…」)
+      // entry_appended 也是落盘后的异步认领通知，可能晚于 agent_end/exit；不得重新置 busy。
       if (event.type === "custom_event" || event.type === "session_info_changed" || event.type === "retry_state"
-        || event.type === "queue_dropped") {
+        || event.type === "queue_dropped" || event.type === "entry_appended") {
         // 通知/状态类事件仅改显示,不触碰 busy
       } else if (event.type === "turn_start" || Date.now() - lastErrorAtRef.current > 1000) {
         setBusy(true);
@@ -1591,11 +1608,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:");
         // 打断(abort)是主动操作,按钮状态变化即反馈——不显示提示;
         // 真实错误(503/429/超时)归一化后停留 8s(状态栏);同时写入消息流持久卡片可重试
-        if (!/abort|cancel/i.test(event.message || "")) {
-          // 分类后再呈现:文案(含可选建议)与视觉档位同源(见 shared/api-errors)
-          const info = classifyApiError(event.message);
+        // 主进程有的路径已把 AbortError 归一化为「已停止」；按分类结果判定，
+        // 否则英文原文被改写后反而会出现一张「已停止」错误卡。
+        const info = classifyApiError(event.message);
+        if (info.message !== "已停止") {
           useStatusStore.getState().pushSignal(sidRef.current, "error", info.message, 8000);
-          showFlowError("round", info.message, { tone: info.tone, ...(info.hint ? { hint: info.hint } : {}) });
+          showFlowError(event.operation === "compaction" ? "system" : "round", info.message, { tone: info.tone, ...(info.hint ? { hint: info.hint } : {}), ...(event.operation !== "compaction" && info.kind ? { errorKind: info.kind } : {}) });
         }
       }
       // retry_state — SDK 自动重试(退避等待)的状态显示:
@@ -1655,12 +1673,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       }
     });
     const unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => {
-      if (!currentChatRef.current) return;
+      if (pendingSendRef.current?.awaitingChatId) {
+        // 同一会话不同回合会复用 chatId；回包前的 exit 可能属于旧回合，不能据此取消待补发的停止。
+        return;
+      }
+      if (!currentChatRef.current) {
+        return;
+      }
       if (runId !== currentChatRef.current) return;
       // 被打断的回合已退场 → 后续事件按新回合对待（防 stoppedRef 卡住把真正的
       // 后续回合全吞掉）；下面的 1.5s 过滤只管「不重复清理界面状态」
       abortedRunPendingRef.current = false;
       stoppedRef.current = false;
+      if (pendingSendRef.current && !pendingSendRef.current.awaitingChatId) pendingSendRef.current = null;
       if (Date.now() - interruptAtRef.current < 1500) return;
       latestAiIdRef.current = 0;
       busyRef.current = false; setBusy(false);
@@ -2034,16 +2059,55 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
   // ── Send ───────────────────────────────────────────
 
-  const sendText = useCallback(async (text: string, opts?: { skipAppend?: boolean; sourceMsgId?: number; afterRewind?: boolean }) => {
+  /** 主进程确认无产出撤回后，把页面同步到该分支；新消息已开始时不覆盖它的乐观气泡。 */
+  const applyStopRewind = useCallback(async (
+    result: { rewound: boolean; stopTimedOut?: boolean },
+    sourceMsgId: number | undefined,
+    stoppedSid: string,
+    stopVersion: number,
+  ) => {
+    if (sidRef.current !== stoppedSid) return;
+    if (result.stopTimedOut) {
+      busyRef.current = true;
+      setBusy(true);
+      useStatusStore.getState().pushSignal(stoppedSid, "error", "停止尚未完成，当前会话仍在处理，请稍后重试", 10000);
+      return;
+    }
+    if (!result.rewound) return;
+    const store = useChatStore.getState();
+    if ((store.msgIdBySession[stoppedSid] ?? 0) > stopVersion) return;
+    if (sourceMsgId != null) {
+      store.truncateFrom(stoppedSid, sourceMsgId);
+      pendingUserBubbleRef.current = pendingUserBubbleRef.current.filter((item) => item.id < sourceMsgId);
+      return;
+    }
+    // 本窗口没有发送气泡（例如恢复运行中的会话后按停止）：从磁盘读取真实分支。
+    try {
+      const history = await window.electronAPI.conv.messages(stoppedSid, projectPath || getWorkspaceDir());
+      if (sidRef.current !== stoppedSid || (useChatStore.getState().msgIdBySession[stoppedSid] ?? 0) > stopVersion) return;
+      useChatStore.getState().evictSession(stoppedSid);
+      useChatStore.getState().loadSession(stoppedSid, mapSessionMessages(history));
+    } catch (e) {
+      console.error("[chat] 打断撤回后重载页面失败:", e);
+    }
+  }, [projectPath]);
+
+  const sendText = useCallback(async (text: string, opts?: { skipAppend?: boolean; sourceMsgId?: number; afterRewind?: boolean; forceNewTurn?: boolean; omitImages?: boolean }) => {
+    // 上一次发送尚未拿到 chatId（或正补发停止）时先排队；回包后按实时 busyRef 决定插话/新回合。
+    // 直接 return 会吞掉用户刚发的消息。
+    const previousPending = pendingSendRef.current;
+    if (previousPending?.awaitingChatId) await previousPending.ready;
+    const sendSessionId = resolveSendSessionId(existingSid, previousPending?.resolvedSessionId, sidRef.current);
     // 错误卡片重试(sourceMsgId):原文与附件以失败消息气泡为准——此时输入框可能已清空/改写,
     // 重发必须还原当时的附件(图片 dataUrl 等)
     let retryMsg: ChatMessage | null = null;
     if (opts?.sourceMsgId != null) {
       const stored = useChatStore.getState().messagesBySession[sidRef.current] || [];
       retryMsg = stored.find((m) => m.id === opts.sourceMsgId && m.role === "user") || null;
+      if (!retryMsg) return; // 气泡已被会话切换/裁剪移除；不能误用当前输入框的内容与附件
     }
     const msg = (retryMsg ? (retryMsg.text ?? "") : text).trim();
-    const activeAttaches = retryMsg?.attaches && retryMsg.attaches.length > 0 ? retryMsg.attaches : attaches;
+    const activeAttaches = retryMsg ? (retryMsg.attaches ?? []) : attaches;
     if (!msg && activeAttaches.length === 0) return;
     // 用户发新消息 → 关闭压缩询问(继续对话 = 弹窗作废;选项 1/4 会 abort 新回合,不能误打断)。
     // 关闭动作放发送入口而非 turn_start——turn_start 回合内每工具批次都发,会误关 Mint 输出中
@@ -2060,7 +2124,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     // learn 已改为模型自主入库（无审阅卡片），发新消息不再需要取消挂起
     // 重入保护:新会话首条消息在途(onChatSession 绑定真实 sid 前)时再发送 → 丢弃。
     // 否则会再建第二个会话、首回合回复丢失;已有会话时走下方 steer 插话分支,不受影响
-    if (busyRef.current && !existingSid) return;
+    if (busyRef.current && !sendSessionId) return;
 
     // Build agent message with numbered markers
     const parts: string[] = [];
@@ -2068,6 +2132,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       const tag = a.kind === "image" ? "Image" : "File";
       parts.push(`[${tag} #${i + 1}: ${a.path}]`);
     });
+    if (opts?.omitImages && activeAttaches.some((attachment) => attachment.kind === "image")) {
+      parts.push(IMAGE_PATH_ONLY_NOTE);
+    }
     if (msg) parts.push(msg);
     const agentText = parts.join("\n");
 
@@ -2088,38 +2155,55 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       pendingUserBubbleRef.current.push({ id: sentMsgId, ts });
     }
     // 首条消息:输入卡片从居中平滑下移到底部(FLIP)
-    if (!messages.length && !existingSid) {
+    if (!messages.length && !sendSessionId) {
       startCardLeave();
     }
     // 新用户消息 → 重置输出段块状态(steer 插话不触发 turn_start 时兜底)
     latestAiIdRef.current = 0;
     if (!opts?.skipAppend) {
       setAttaches([]);
-      onActivity?.();
-      stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
     }
+    // 复用旧提问气泡（编辑、重新生成、错误重试）也是真实的新发送：解除上轮停止门卫、
+    // 更新会话活动时间并滚到新回答位置，随后走同一套 busy/状态栏/流式事件流程。
+    onActivity?.();
+    stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
 
     // 编码图片附件为 Pi ImageContent 格式(steer 插话与正常发送共用——steer 原先不带图,插话图片被静默丢弃)
     const images: Array<{ type: "image"; data: string; mimeType: string }> = [];
-    for (const a of activeAttaches) {
+    for (const a of opts?.omitImages ? [] : activeAttaches) {
       if (a.kind === "image" && a.dataUrl) {
         const m = a.dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
         if (m) images.push({ type: "image" as const, data: m[2]!, mimeType: m[1]! });
       }
     }
+    if (sentMsgId != null && activeAttaches.some((attachment) => attachment.kind === "image")) {
+      useChatStore.getState().setImagesPathOnly(sidRef.current, sentMsgId, images.length === 0);
+    }
 
     // Mint 输出期间发送消息 → steer 插话，不需新建会话
-    if (busy && currentChatRef.current && existingSid) {
+    if (sendSessionId && shouldSteerSend({ forceNewTurn: opts?.afterRewind || opts?.forceNewTurn, busy: busyRef.current, chatId: currentChatRef.current, existingSession: true })) {
       steeringRef.current = true;
       try {
-        await window.electronAPI.agent.steer(existingSid, agentText, images.length > 0 ? images : undefined, tabId);
+        await window.electronAPI.agent.steer(sendSessionId, agentText, images.length > 0 ? images : undefined, tabId);
       } catch { /* steer 失败不影响 UI */ }
       return;
     }
 
+    let resolveReady: () => void = () => {};
+    const ready = new Promise<void>((resolve) => { resolveReady = resolve; });
+    const pendingSend: NonNullable<typeof pendingSendRef.current> = {
+      preservePromptOnStop: opts?.skipAppend === true,
+      sourceMsgId: sentMsgId ?? undefined,
+      stopRequested: false,
+      abortIssued: false,
+      awaitingChatId: true,
+      ready,
+      resolveReady,
+    };
+    pendingSendRef.current = pendingSend;
     busyRef.current = true; setBusy(true); useStatusStore.getState().pushSignal(sidRef.current, "request", "等待模型响应...");
     // 新会话首条消息窗口开启：onChatSession 回绑真实 sid 后关闭（见订阅处）
-    if (!existingSid) pendingFirstTurnRef.current = true;
+    if (!sendSessionId) pendingFirstTurnRef.current = true;
 
     try {
       currentChatRef.current = null;
@@ -2129,27 +2213,49 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // local read so a very fast first send cannot race hydration and discard an explicit choice.
       await sessionHydrationRef.current;
       // 新会话:角色取自空状态选择(chatRole);恢复会话:沿用 tab 的 isDesigner
-      const roleDesigner = existingSid ? (isDesigner ?? tab?.isDesigner) : chatRole === "mint-d";
+      const roleDesigner = sendSessionId ? (isDesigner ?? tab?.isDesigner) : chatRole === "mint-d";
       const overrides = sessionOverrides({
-        existingSession: !!existingSid,
+        existingSession: !!sendSessionId,
         modelOwned: sessionModelOwnedRef.current,
         thinkingOwned: sessionThinkingOwnedRef.current,
         model: chatModel || undefined,
         provider: chatProvider || undefined,
         thinkingLevel: thinkingLevel ?? "medium",
       });
-      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: existingSid ?? null, permissionMode: permissionMode ?? "standard", isDesigner: roleDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: overrides.thinkingLevel, model: overrides.model, preferredProvider: overrides.provider, tabId });
+      const result = await window.electronAPI.agent.sendMessage(effectivePath, agentText, { sessionId: sendSessionId, permissionMode: permissionMode ?? "standard", isDesigner: roleDesigner, images: images.length > 0 ? images : undefined, thinkingLevel: overrides.thinkingLevel, model: overrides.model, preferredProvider: overrides.provider, tabId });
+      pendingSend.resolvedSessionId = result.sessionId;
       setCurrentRunId(result.chatId); currentChatRef.current = result.chatId;
+      if (needsDeferredStop(pendingSend)) {
+        pendingSend.abortIssued = true;
+        void window.electronAPI.agent.abort(result.chatId, { clearQueue: true, rewind: !pendingSend.preservePromptOnStop })
+          .then((result) => applyStopRewind(result, pendingSend.sourceMsgId, pendingSend.stopSid ?? sidRef.current, pendingSend.stopVersion ?? 0))
+          .catch((e) => { console.error("[chat] 延迟打断失败:", e); })
+          .finally(() => {
+            pendingSend.awaitingChatId = false;
+            pendingSend.resolveReady();
+            if (pendingSendRef.current !== pendingSend) return;
+            pendingSendRef.current = null;
+            abortedRunPendingRef.current = false;
+            stoppedRef.current = false;
+          });
+      } else {
+        pendingSend.awaitingChatId = false;
+        pendingSend.resolveReady();
+      }
     } catch {
+      pendingSend.awaitingChatId = false;
+      pendingSend.resolveReady();
+      if (pendingSendRef.current === pendingSend) pendingSendRef.current = null;
+      abortedRunPendingRef.current = false;
       pendingFirstTurnRef.current = false; busyRef.current = false; setBusy(false); currentChatRef.current = null;
       const errText = "发送失败，请检查网络后重试";
       useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
       // 同步写入消息流持久错误卡片(锚定刚追加/重试的用户消息,可点重试重新发送)。
       // afterRewind（编辑重发 / 重新生成）：撤回已经生效——这条（新）消息还没进上下文，重试就是把它发进去；
       // 不说这一句的话用户只看到「发送失败」，不知道上下文已经被截断了
-      if (sentMsgId != null) showFlowError("send", errText, { sourceMsgId: sentMsgId, anchorMsgId: sentMsgId, tone: "warn", ...(opts?.afterRewind ? { hint: "这条消息已退出上下文，点重试重新发送。" } : {}) });
+      if (sentMsgId != null) showFlowError("send", errText, { sourceMsgId: sentMsgId, anchorMsgId: sentMsgId, tone: "warn", ...(opts?.afterRewind ? { hint: "这条消息已退出上下文，点重试重新发送。", afterRewind: true } : {}) });
     }
-  }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatModel, chatProvider, chatRole, tabId]);
+  }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatModel, chatProvider, chatRole, tabId, applyStopRewind]);
 
   useEffect(() => { chatActions.register((t: string) => sendText(t)); return () => chatActions.unregister(); }, [sendText]);
 
@@ -2162,8 +2268,85 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const handleRetryError = useCallback((card: FlowErrorCard) => {
     useChatStore.getState().dismissFlowError(sidRef.current, card.id);
     if (card.sourceMsgId == null) return;
-    sendText("", { skipAppend: true, sourceMsgId: card.sourceMsgId });
+    sendText("", { skipAppend: true, sourceMsgId: card.sourceMsgId, forceNewTurn: true, afterRewind: card.afterRewind });
   }, [sendText]);
+
+  const handleRecoverImages = useCallback(async (card: FlowErrorCard) => {
+    const source = (useChatStore.getState().messagesBySession[sidRef.current] || []).find((msg) => msg.id === card.sourceMsgId && msg.role === "user");
+    if (!source?.entryId) {
+      showFlowError("system", "无法定位失败的提问，请重新打开会话后重试", { anchorMsgId: card.anchorMsgId });
+      return;
+    }
+    try {
+      const result = await window.electronAPI.agent.imageRetryCandidates(sidRef.current, source.entryId, projectPath || getWorkspaceDir());
+      if (!result.ok) throw new Error(result.error || "无法读取历史图片");
+      const currentImageCount = (source.attaches ?? []).filter((attachment: AttachItem) => attachment.kind === "image").length;
+      if (!result.candidates?.length && currentImageCount === 0) {
+        showFlowError("system", "没有可整理的历史图片，请减少本次附件后重新发送", { anchorMsgId: card.anchorMsgId });
+        return;
+      }
+      setImageRecovery({ mode: "retry", card, candidates: result.candidates ?? [], currentImageCount });
+    } catch (error) {
+      showFlowError("system", error instanceof Error ? error.message : "无法读取历史图片", { anchorMsgId: card.anchorMsgId });
+    }
+  }, [projectPath, showFlowError]);
+
+  const reloadAfterImageMutationFailure = useCallback(async (message: string): Promise<null> => {
+    const activeSid = sidRef.current;
+    try {
+      const history = await window.electronAPI.conv.messages(activeSid, projectPath || getWorkspaceDir());
+      if (sidRef.current === activeSid && history.length > 0) {
+        useChatStore.getState().evictSession(activeSid);
+        useChatStore.getState().loadSession(activeSid, mapSessionMessages(history));
+      }
+    } catch (error) {
+      console.error("[chat] 图片整理失败后重新加载会话也失败:", error);
+    }
+    setImageRecovery(null);
+    useStatusStore.getState().pushSignal(activeSid, "error", `${message}。请重新打开会话后再发送`, 10000);
+    return null;
+  }, [projectPath]);
+
+  const confirmImageRecovery = useCallback(async (entryIds: string[], omitCurrentImages: boolean): Promise<string | null> => {
+    const recovery = imageRecovery;
+    if (!recovery) return "整理窗口已关闭";
+    if (recovery.mode === "manage") {
+      const result = await window.electronAPI.agent.removeContextImages(sidRef.current, entryIds, projectPath || getWorkspaceDir());
+      if (!result.ok) return result.reloadRequired ? reloadAfterImageMutationFailure(result.error || "整理失败") : result.error || "整理失败，请重试";
+      useChatStore.getState().markImagesStripped(sidRef.current, entryIds);
+      setContextImageBytes((previous) => Math.max(0, previous - (result.removedBytes ?? 0)));
+      setImageRecovery(null);
+      return null;
+    }
+    const source = (useChatStore.getState().messagesBySession[sidRef.current] || []).find((msg) => msg.id === recovery.card.sourceMsgId && msg.role === "user");
+    if (!source?.entryId) return "失败的提问已变化，请重新打开会话";
+    const result = await window.electronAPI.agent.prepareImageRetry(sidRef.current, source.entryId, entryIds, omitCurrentImages, projectPath || getWorkspaceDir());
+    if (!result.ok) return result.reloadRequired ? reloadAfterImageMutationFailure(result.error || "整理失败") : result.error || "整理失败，请重试";
+    useChatStore.getState().markImagesStripped(sidRef.current, entryIds);
+    useChatStore.getState().truncateAfter(sidRef.current, source.id);
+    useChatStore.getState().dismissFlowError(sidRef.current, recovery.card.id);
+    setImageRecovery(null);
+    void sendText("", { skipAppend: true, sourceMsgId: source.id, forceNewTurn: true, afterRewind: true, omitImages: omitCurrentImages });
+    return null;
+  }, [imageRecovery, projectPath, reloadAfterImageMutationFailure, sendText]);
+
+  useEffect(() => {
+    if (sid.startsWith("__new_") || busy || sessionLoading) return;
+    let cancelled = false;
+    void window.electronAPI.agent.contextImageStats(sid, projectPath || getWorkspaceDir()).then((result) => {
+      if (!cancelled && result.ok) {
+        setContextImageBytes(result.encodedBytes ?? 0);
+        setContextImageWarnAt(result.maxRequestBytes ? Math.min(32 * 1024 * 1024, result.maxRequestBytes * 0.75) : 32 * 1024 * 1024);
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [sid, busy, sessionLoading, messages.length, projectPath]);
+
+  const manageContextImages = useCallback(async () => {
+    const result = await window.electronAPI.agent.contextImageStats(sidRef.current, projectPath || getWorkspaceDir());
+    if (!result.ok || !result.candidates?.length) return;
+    setImageRecovery({ mode: "manage", candidates: result.candidates });
+  }, [projectPath]);
 
   const hasMessages = messages.length > 0;
 
@@ -2227,7 +2410,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   ): Promise<{ promptEntryId?: string } | null> => {
     let res: { ok: boolean; error?: string; promptEntryId?: string };
     try {
-      res = await window.electronAPI.agent.rewindToNode(sidRef.current, entryId, target);
+      res = await window.electronAPI.agent.rewindToNode(sidRef.current, entryId, target, projectPath || getWorkspaceDir());
     } catch (e) {
       reportMsgActionFailure(msg, action, e instanceof Error ? e.message : String(e));
       return null;
@@ -2237,7 +2420,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       return null;
     }
     return res;
-  }, [reportMsgActionFailure]);
+  }, [reportMsgActionFailure, projectPath]);
   /**
    * 单条消息移出 / 恢复模型上下文（轻档，消息右键菜单入口）。
    *
@@ -2254,7 +2437,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const action: MsgAction = inContext ? "恢复进上下文" : "移出上下文";
     let res: { ok: boolean; error?: string };
     try {
-      res = await window.electronAPI.agent.setEntryInContext(sidRef.current, entryId, inContext);
+      res = await window.electronAPI.agent.setEntryInContext(sidRef.current, entryId, inContext, projectPath || getWorkspaceDir());
     } catch (e) {
       reportMsgActionFailure(msg, action, e instanceof Error ? e.message : String(e));
       return;
@@ -2266,7 +2449,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const store = useChatStore.getState();
     if (inContext) store.restoreIntoContext(sidRef.current, msg.id);
     else store.markDroppedFromContext(sidRef.current, msg.id);
-  }, [reportMsgActionFailure]);
+  }, [reportMsgActionFailure, projectPath]);
   /**
    * 编辑重发:**级联撤回 → 本地替换气泡文本 → 用新文本重发**。
    *
@@ -2297,9 +2480,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     }
     const res = await rewindNode(entryId, msg, "修改");
     if (!res) return;
-    // 撤回成功后本地列表不裁剪（见 §3.3 已知局限）：这条之后的旧气泡已不在上下文里，就地打标，
-    // 免得界面顺序看着像还在对话里（重开会话后它们随磁盘分支一起消失）
-    useChatStore.getState().markOutOfContext(sidRef.current, msg.id);
+    // 磁盘分支已经截断：同步裁掉页面上的后续旧气泡，仅保留将复用重发的提问。
+    useChatStore.getState().truncateAfter(sidRef.current, msg.id);
     // 本地替换该气泡文本(不新增气泡;未修改时文本不变,无副作用)
     useChatStore.getState().updateUserMsgText(sidRef.current, msg.id, newText);
     // 委托 sendText 重发:传 sourceMsgId → 走「复用气泡」路径(跳过 append + 清旧条目 id + 重新入队),
@@ -2338,24 +2520,37 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     // 撤回成功后提问本身也不在上下文里了，所以才能用「原文重发」——撤回前发就是两版并存
     const res = await rewindNode(entryId, msg, "重新生成", "prompt");
     if (!res) return;
-    // 撤回点（那条提问）之后的全部内容都退出了上下文，其中也包括这条旧回答本身——就地打标，
-    // 免得界面顺序看着像它还在对话里（新回答会作为新气泡接在后面流式渲染）
-    useChatStore.getState().markOutOfContext(sidRef.current, msg.id, true);
     const promptBubble = stored.find((m) => m.role === "user" && m.entryId != null && m.entryId === res.promptEntryId);
     if (!promptBubble) {
       console.error(`[chat] 重新生成未重发：本窗口没有这条提问的气泡（session=${sidRef.current} prompt=${res.promptEntryId ?? "?"}）`);
+      // 撤回已经落盘，不能继续展示已退出分支的旧回答。此分支没有可复用的提问气泡，
+      // 因而不存在发送队列/条目认领竞态；直接从磁盘重建页面与当前分支同步。
+      const rewindSid = sidRef.current;
+      try {
+        const history = await window.electronAPI.conv.messages(rewindSid, projectPath || getWorkspaceDir());
+        if (sidRef.current === rewindSid) {
+          useChatStore.getState().evictSession(rewindSid);
+          useChatStore.getState().loadSession(rewindSid, mapSessionMessages(history));
+        }
+      } catch (e) {
+        console.error("[chat] 撤回后重载会话历史失败:", e);
+        if (sidRef.current === rewindSid) useChatStore.getState().evictSession(rewindSid);
+      }
+      if (sidRef.current !== rewindSid) return;
       const errText = "未能重新发送提问";
       useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
-      showFlowError("system", errText, { anchorMsgId: msg.id, hint: "本窗口没有这条提问的记录（可能来自其他终端）。这条回答已退出上下文，请重新输入问题发送。" });
+      showFlowError("system", errText, { hint: "本窗口没有这条提问的记录（可能来自其他终端）。这条回答已退出上下文，请重新输入问题发送。" });
       return;
     }
+    // 与磁盘撤回后的当前分支同步；旧回答立即从页面消失，重发进入普通发送状态机。
+    useChatStore.getState().truncateAfter(sidRef.current, promptBubble.id);
     // 文本与附件以那条提问气泡为准（sendText 有 sourceMsgId 时以此为准，同编辑路径；附件只在这里能保住）
     sendText(promptBubble.text ?? "", { skipAppend: true, sourceMsgId: promptBubble.id, afterRewind: true });
-  }, [sendText, rewindNode]);
+  }, [sendText, rewindNode, projectPath, showFlowError]);
 
   // ── Render user bubble ─────────────────────────────
 
-  const userBubble = useCallback((msg: ChatMessage) => {
+  const userBubble = useCallback((msg: ChatMessage, actions: UserBubbleActionProps) => {
     const isEditingThis = editingMsg?.id === msg.id;
     return (
       <UserBubble
@@ -2368,6 +2563,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         onCommit={() => { const d = editingMsg?.draft.trim(); if (d) void handleEditSubmit(msg, d); }}
         onCancel={cancelEdit}
         onViewImage={(src, name) => openViewer(src, name)}
+        actions={actions}
       />
     );
   }, [busy, editingMsg, startEdit, cancelEdit, handleEditSubmit, openViewer]);
@@ -2429,6 +2625,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     } else if (ctxAction === "restore") {
       items.push({ label: "恢复进上下文", onClick: () => { void setEntryInContext(msg, true); } });
     }
+    if (msg.imageStripped && msg.entryId && !msg.outOfContext) {
+      items.push({ label: "恢复原图进上下文", onClick: () => { void setEntryInContext(msg, true); } });
+    }
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
   }, [setEntryInContext]);
 
@@ -2444,26 +2643,53 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       <TodoStrip sessionId={sidRef.current} />
       {/* 打断丢弃插话的提示——紧贴输入卡：「我刚发出去那条到底发没发出去」与输入动作同一视线区域 */}
       <DroppedSteerNotice dropped={droppedQueue} />
+      {contextImageBytes + pendingImageBytes >= contextImageWarnAt && !busy && (
+        <div className="mx-[var(--s16)] mb-2 px-3 py-2 rounded-[var(--radius-lg)] border border-warning-border bg-surface-elevated text-xs text-text-secondary flex items-center justify-between gap-3">
+          <span>
+            图片数据较多{contextImageBytes > 0 ? `：历史约 ${(contextImageBytes / (1024 * 1024)).toFixed(1)} MB` : ""}{pendingImageBytes > 0 ? `，本次原图编码约 ${(pendingImageBytes / (1024 * 1024)).toFixed(1)} MB` : ""}。发送时会缩小新图片，最终请求仍可能超过服务商上限。
+          </span>
+          {contextImageBytes > 0 && <button type="button" className="shrink-0 text-text-primary underline cursor-pointer" onClick={() => { void manageContextImages(); }}>整理历史图片</button>}
+        </div>
+      )}
       <ChatInput
         projectPath={projectPath}
         busy={busy}
         attaches={attaches}
         setAttaches={setAttaches}
         onSend={sendText}
-        onStop={() => { stoppedRef.current = true; busyRef.current = false; interruptAtRef.current = Date.now(); const rid = currentChatRef.current; if (rid) {
-          // 用户点打断 = 作废本轮：clearQueue 丢弃未投递的插话；rewind 在本轮无产出时把这条消息从上下文撤回。
-          // 不把文字退回输入框：那段文字会停在输入框里，随后的回车（打断手势常带按键）会把它再发一次。
-          // 要改后重发 → 点气泡上的铅笔编辑重发
-          void window.electronAPI.agent.abort(rid, { clearQueue: true, rewind: true }).catch(() => {});
-        } setBusy(false); /* 打断=取消排队的压缩(用户已改意图;不取消则 exit 被 interrupt 过滤,pending 残留到下次回合误执行) */ pendingCompactRef.current = null;
-        abortedRunPendingRef.current = true;   // 等它的 exit 到才允许新回合事件重新置 busy
-        // 打断后 exit 在 1.5s 内被过滤，清信号的动作不会执行 → 这里自己清，
-        // 否则状态行会停在「等待模型响应…」
-        useStatusStore.getState().popSignal(sidRef.current, "request");
-        // 重试退避等待中打断:SDK 会报 auto_retry_end(Retry cancelled),但那个事件会被
-        // 上面的 stoppedRef 门卫丢掉 → 重试态只能在这里清
-        useStatusStore.getState().popSignal(sidRef.current, "retry");
-        useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:");
+        onStop={() => {
+          stoppedRef.current = true;
+          busyRef.current = false;
+          interruptAtRef.current = Date.now();
+          const stoppedSid = sidRef.current;
+          const stopVersion = useChatStore.getState().msgIdBySession[stoppedSid] ?? 0;
+          const pendingSend = pendingSendRef.current;
+          const target = stopTarget(currentChatRef.current, pendingSend);
+          const rid = target.chatId;
+          if (pendingSend) {
+            pendingSend.stopRequested = true;
+            pendingSend.stopSid = stoppedSid;
+            pendingSend.stopVersion = stopVersion;
+          }
+          if (rid) {
+            // 普通新消息无输出时撤回；复用提问的编辑/重新生成则保留提问，只停止回答。
+            if (pendingSend) pendingSend.abortIssued = true;
+            void window.electronAPI.agent.abort(rid, { clearQueue: true, rewind: target.rewind })
+              .then((result) => applyStopRewind(result, pendingSend?.sourceMsgId, stoppedSid, stopVersion))
+              .catch((e) => { console.error("[chat] 打断失败:", e); })
+              .finally(() => {
+                if (pendingSendRef.current !== pendingSend) return;
+                pendingSendRef.current = null;
+                abortedRunPendingRef.current = false;
+                stoppedRef.current = false;
+              });
+          }
+          setBusy(false);
+          pendingCompactRef.current = null;
+          abortedRunPendingRef.current = !!(rid || pendingSend); // 无 chatId 时回包后补 abort
+          useStatusStore.getState().popSignal(stoppedSid, "request");
+          useStatusStore.getState().popSignal(stoppedSid, "retry");
+          useStatusStore.getState().popSignalsByPrefix(stoppedSid, "tool:");
         }}
         onPaste={handlePaste}
         imgInputRef={imgInputRef}
@@ -2593,7 +2819,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                           <div style={{ width: 40, flexShrink: 0 }} />
                           <div className="min-w-0 space-y-1">
                             {cards.map((card) => (
-                              <FlowErrorCardView key={`flow-err-${card.id}`} card={card} onRetry={handleRetryError} onDismiss={handleDismissError} />
+                              <FlowErrorCardView key={`flow-err-${card.id}`} card={card} onRetry={handleRetryError} onRecoverImages={(item) => { void handleRecoverImages(item); }} onDismiss={handleDismissError} />
                             ))}
                           </div>
                         </div>
@@ -2778,6 +3004,16 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           }}
         />
       )}
+      {imageRecovery && (
+        <ImageRecoveryDialog
+          key={imageRecovery.mode === "retry" ? imageRecovery.card.id : "manage"}
+          mode={imageRecovery.mode}
+          candidates={imageRecovery.candidates}
+          currentImageCount={imageRecovery.mode === "retry" ? imageRecovery.currentImageCount : 0}
+          onCancel={() => setImageRecovery(null)}
+          onConfirm={confirmImageRecovery}
+        />
+      )}
       {/* 内容便签悬浮层：仅当前会话可见，随 tab 显隐 */}
       <PinLayer sessionId={sid} />
       {/* 用户历史提问：右上角按钮 + 右侧抽屉（跳转消息顶部对齐并高亮） */}
@@ -2793,8 +3029,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   );
 }
 
-/** 「已退出上下文」标记（状态标签徽章·胶囊规格）：撤回后本地列表不裁剪，用它在气泡上显式说明
- *  这条已不在当前上下文里——重开会话后这些气泡随磁盘分支一起消失，标记只活在本面板内。
+/** 「已退出上下文」标记（状态标签徽章·胶囊规格）：单条移出上下文后仍显示历史气泡，用它显式说明
+ *  这条已不在模型视野里；重开会话后仍会按磁盘 context_edit 条目显示此标记。
  *  默认样式压住 .msg-from 的继承（大写 + 字间距是那个标题栏的，不是徽章的）。 */
 function OutOfContextTag({ className = "" }: { className?: string }): JSX.Element {
   return (
@@ -2802,6 +3038,14 @@ function OutOfContextTag({ className = "" }: { className?: string }): JSX.Elemen
       已退出上下文
     </span>
   );
+}
+
+function ImageStrippedTag({ className = "" }: { className?: string }): JSX.Element {
+  return <span className={`inline-block shrink-0 px-1.5 py-0.5 rounded-full bg-surface-alt text-text-secondary text-[length:var(--text-3xs)] font-normal normal-case tracking-normal align-middle ${className}`}>历史图片已整理</span>;
+}
+
+function ImagePathOnlyTag(): JSX.Element {
+  return <span className="inline-block shrink-0 px-1.5 py-0.5 rounded-full bg-surface-alt text-text-secondary text-[length:var(--text-3xs)] font-normal normal-case tracking-normal align-middle">图片仅传路径</span>;
 }
 
 // ── Memo message item: avoids re-rendering all messages on each stream event ──
@@ -2812,7 +3056,7 @@ interface MemoChatMessageProps {
   streaming: boolean;
   /** 本会话是否处于回合中（重新生成入口的临时不可用判据，与编辑入口同一套） */
   busy: boolean;
-  userBubble: (msg: ChatMessage) => JSX.Element;
+  userBubble: (msg: ChatMessage, actions: UserBubbleActionProps) => JSX.Element;
   onPin: (text: string) => void;
   /** 重新生成这条回答（撤回它的提问后用原文重发） */
   onRegenerate: (msg: ChatMessage) => void;
@@ -2925,6 +3169,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
                 <span>{SYSTEM_KIND_LABELS[kind] ?? "系统消息"}</span>
                 {/* 系统卡片（委派结果 / 后台命令 / 摘要）也会随撤回一并退出上下文 */}
                 {msg.outOfContext ? <OutOfContextTag /> : null}
+                {msg.imageStripped && !msg.outOfContext ? <ImageStrippedTag /> : null}
                 {/* 状态 + 时长上标题栏(取首个 ⏺ 行);只有 ⏺ 与状态文字着色,横线/时间保持中性 */}
                 {headStatus && (
                   <span className="font-semibold" style={{ fontSize: "var(--text-11)" }}>
@@ -3006,8 +3251,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
           {/* shrink-0：flex 子项不被压缩（中文 min-content 是单字，压缩会逐字换行）；
              max-w-[60%]：超长文本钳制宽度后由内部 overflow-wrap 换行 */}
           <div className="relative shrink-0 max-w-[60%] min-w-0" onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
-            {userBubble(msg)}
-            <BubbleActions text={copyText} onPin={onPin} sid={sid} visible={actionsVisible} />
+            {userBubble(msg, { text: copyText, onPin, sid, visible: actionsVisible })}
           </div>
         </div>
       </div>
@@ -3033,6 +3277,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
           <div className="msg-from">
             {displayName}
             {msg.outOfContext ? <OutOfContextTag className="ml-1.5" /> : null}
+            {msg.imageStripped && !msg.outOfContext ? <ImageStrippedTag className="ml-1.5" /> : null}
             {role && msg.forwarded && (
               <span className="text-text-secondary/60 ml-1.5 text-[length:var(--text-2xs)] font-normal">· {msg.forwardedFrom ? `来自 ${msg.forwardedFrom}` : "来自转发"}</span>
             )}
@@ -3069,7 +3314,14 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
 });
 
 // 用户消息气泡(模块级稳定组件——嵌套定义每次渲染重建类型会致整棵 remount,输入/按钮事件丢失)
-function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDraftChange, onCommit, onCancel, onViewImage }: {
+interface UserBubbleActionProps {
+  text: string;
+  onPin: (text: string) => void;
+  sid: string;
+  visible: boolean;
+}
+
+function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDraftChange, onCommit, onCancel, onViewImage, actions }: {
   msg: ChatMessage;
   /** 有值 = 编辑入口置灰（原因为 title，如回合进行中 / 气泡未认领到条目 id） */
   editDisabledReason?: string;
@@ -3080,6 +3332,7 @@ function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDr
   onCommit?: () => void;
   onCancel?: () => void;
   onViewImage?: (src: string, name: string) => void;
+  actions: UserBubbleActionProps;
 }): JSX.Element {
   const isEditing = !!editing;
   const curDraft = draft ?? "";
@@ -3135,9 +3388,12 @@ function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDr
         )}
         </div>
         {/* 铅笔常驻在每条 user 气泡下（用户已确认）；不可用时置灰并给出原因（title） */}
-        <div className="flex items-center justify-end gap-2 mt-0.5">
-          {/* 撤回后本地列表不裁剪：这条已被撤回时显式说明（编辑态不显示——那正是重发它的过程） */}
-          {!isEditing && msg.outOfContext ? <OutOfContextTag className="mr-auto" /> : null}
+        <div className="flex items-center justify-between gap-1 mt-0.5 min-h-6">
+          <BubbleActions text={actions.text} onPin={actions.onPin} sid={actions.sid} visible={actions.visible && !isEditing} inline />
+          {/* 单条移出上下文后仍显示气泡，编辑态不显示标记（即将重发它）。 */}
+          {!isEditing && msg.outOfContext ? <OutOfContextTag /> : null}
+          {!isEditing && msg.imageStripped && !msg.outOfContext ? <ImageStrippedTag /> : null}
+          {!isEditing && msg.imagesPathOnly ? <ImagePathOnlyTag /> : null}
           {isEditing ? (
             /* 发送按钮占编辑按钮原位（气泡下方右侧）。提交放 onMouseDown 而非 onClick：
                click 前 textarea 先 blur → onBlur 取消编辑 → 节点卸载 → click 丢失(点击无效)。

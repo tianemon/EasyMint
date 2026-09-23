@@ -239,21 +239,33 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:abort", async (_e, { runId, clearQueue, rewind }) => {
     // 打断（chat 与 worker 统一处理）：abort 当前回合，保留会话/run 注册表。
     // clearQueue（停止按钮 / 重发前兜底）丢弃未投递的插话；rewind（仅停止按钮）在本轮
-    // 无产出时把分支退回本轮起点，让该消息退出上下文——两者都无返回值（abort(): Promise<void>）
+    // 无产出时把分支退回本轮起点，让该消息退出上下文；返回 rewound 供页面同步裁剪气泡
     return await agentService.abort(runId, { clearQueue: clearQueue === true, rewind: rewind === true });
   });
   // 按节点撤回（编辑消息/重新生成用）：不依赖运行中的回合，返回 {ok,promptEntryId?} | {ok:false,error}
   // ——非法目标/回合进行中/压缩中都是明确错误（error 文案可直接给用户看），且不改动会话状态
   // target="prompt"：把传入条目当「某条回答」，由主进程沿 parentId 定位所属提问并撤回它，
   // 返回 promptEntryId 供渲染层找到那条提问气泡复用重发
-  ipcMain.handle("agent:rewindToNode", async (_e, { sessionId, entryId, target }: { sessionId: string; entryId: string; target?: "entry" | "prompt" }) => {
-    return await agentService.rewindToNode(sessionId, entryId, target ? { target } : undefined);
+  ipcMain.handle("agent:rewindToNode", async (_e, { sessionId, entryId, target, projectPath }: { sessionId: string; entryId: string; target?: "entry" | "prompt"; projectPath?: string }) => {
+    return await agentService.rewindToNode(sessionId, entryId, { target, projectPath });
   });
   // 单条消息移出/恢复模型上下文（轻档）：只摘掉这一条，不动分支、不影响它之后的对话
   // ——与 agent:rewindToNode 的级联撤回是轻/重两档。inContext=false 移出、true 用原内容恢复
   // （撤销），两者都返回 {ok} | {ok:false,error}，error 文案可直接给用户看且不改动会话状态
-  ipcMain.handle("agent:setEntryInContext", async (_e, { sessionId, entryId, inContext }: { sessionId: string; entryId: string; inContext: boolean }) => {
-    return await agentService.setEntryInContext(sessionId, entryId, inContext === true);
+  ipcMain.handle("agent:setEntryInContext", async (_e, { sessionId, entryId, inContext, projectPath }: { sessionId: string; entryId: string; inContext: boolean; projectPath?: string }) => {
+    return await agentService.setEntryInContext(sessionId, entryId, inContext === true, projectPath);
+  });
+  ipcMain.handle("agent:imageRetryCandidates", async (_e, { sessionId, failedEntryId, projectPath }: { sessionId: string; failedEntryId: string; projectPath?: string }) => {
+    return await agentService.getImageRetryCandidates(sessionId, failedEntryId, projectPath);
+  });
+  ipcMain.handle("agent:contextImageStats", async (_e, { sessionId, projectPath }: { sessionId: string; projectPath?: string }) => {
+    return await agentService.getContextImageStats(sessionId, projectPath);
+  });
+  ipcMain.handle("agent:removeContextImages", async (_e, { sessionId, selectedEntryIds, projectPath }: { sessionId: string; selectedEntryIds: string[]; projectPath?: string }) => {
+    return await agentService.removeContextImages(sessionId, selectedEntryIds, projectPath);
+  });
+  ipcMain.handle("agent:prepareImageRetry", async (_e, { sessionId, failedEntryId, selectedEntryIds, omitCurrentImages, projectPath }: { sessionId: string; failedEntryId: string; selectedEntryIds: string[]; omitCurrentImages: boolean; projectPath?: string }) => {
+    return await agentService.prepareImageRetry(sessionId, failedEntryId, selectedEntryIds, omitCurrentImages === true, projectPath);
   });
   ipcMain.handle("agent:chatStatus", (_e, { sessionId }) => {
     return agentService.getChatStatus(sessionId);

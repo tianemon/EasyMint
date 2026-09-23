@@ -323,9 +323,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:todos", handler);
       return () => ipcRenderer.removeListener("agent:todos", handler);
     },
-    abort: (runId: string, opts?: { clearQueue?: boolean; rewind?: boolean }) => ipcRenderer.invoke("agent:abort", { runId, ...opts }) as Promise<void>,
-    rewindToNode: (sessionId: string, entryId: string, target?: "entry" | "prompt") => ipcRenderer.invoke("agent:rewindToNode", { sessionId, entryId, target }) as Promise<{ ok: boolean; error?: string; promptEntryId?: string }>,
-    setEntryInContext: (sessionId: string, entryId: string, inContext: boolean) => ipcRenderer.invoke("agent:setEntryInContext", { sessionId, entryId, inContext }) as Promise<{ ok: boolean; error?: string }>,
+    abort: (runId: string, opts?: { clearQueue?: boolean; rewind?: boolean }) => ipcRenderer.invoke("agent:abort", { runId, ...opts }) as Promise<{ rewound: boolean; stopTimedOut?: boolean }>,
+    rewindToNode: (sessionId: string, entryId: string, target?: "entry" | "prompt", projectPath?: string) => ipcRenderer.invoke("agent:rewindToNode", { sessionId, entryId, target, projectPath }) as Promise<{ ok: boolean; error?: string; promptEntryId?: string }>,
+    setEntryInContext: (sessionId: string, entryId: string, inContext: boolean, projectPath?: string) => ipcRenderer.invoke("agent:setEntryInContext", { sessionId, entryId, inContext, projectPath }) as Promise<{ ok: boolean; error?: string }>,
+    imageRetryCandidates: (sessionId: string, failedEntryId: string, projectPath?: string) => ipcRenderer.invoke("agent:imageRetryCandidates", { sessionId, failedEntryId, projectPath }) as Promise<{ ok: boolean; error?: string; candidates?: Array<{ entryId: string; imageCount: number; encodedBytes: number; preview: string; timestamp: number }> }>,
+    contextImageStats: (sessionId: string, projectPath?: string) => ipcRenderer.invoke("agent:contextImageStats", { sessionId, projectPath }) as Promise<{ ok: boolean; error?: string; candidates?: Array<{ entryId: string; imageCount: number; encodedBytes: number; preview: string; timestamp: number }>; encodedBytes?: number; maxRequestBytes?: number }>,
+    removeContextImages: (sessionId: string, selectedEntryIds: string[], projectPath?: string) => ipcRenderer.invoke("agent:removeContextImages", { sessionId, selectedEntryIds, projectPath }) as Promise<{ ok: boolean; error?: string; reloadRequired?: boolean; removedBytes?: number; removedImages?: number }>,
+    prepareImageRetry: (sessionId: string, failedEntryId: string, selectedEntryIds: string[], omitCurrentImages: boolean, projectPath?: string) => ipcRenderer.invoke("agent:prepareImageRetry", { sessionId, failedEntryId, selectedEntryIds, omitCurrentImages, projectPath }) as Promise<{ ok: boolean; error?: string; reloadRequired?: boolean; removedBytes?: number; removedImages?: number }>,
     setModel: (sessionId: string, model: string, provider?: string) => ipcRenderer.invoke("agent:setModel", { sessionId, model, provider }) as Promise<void>,
     spawnAgentChat: (projectPath: string, templateId: string, message: string) => ipcRenderer.invoke("agent:spawnAgentChat", { projectPath, templateId, message }) as Promise<{ chatId: string }>,
     chatStatus: (sessionId: string) => ipcRenderer.invoke("agent:chatStatus", { sessionId }),

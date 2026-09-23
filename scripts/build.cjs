@@ -57,6 +57,9 @@ function mainOptions(overrides = {}) {
   return {
     entryPoints: [path.join(ROOT, "app/main/index.ts")],
     bundle: true, platform: "node", format: "cjs",
+    // 提示词含大量中文：默认 ASCII 转义会膨胀约 110KB。Node 原生读取 UTF-8，
+    // 保留中文原字节即可降到 1MiB 提示线内，也保留未压缩产物的可读堆栈。
+    charset: "utf8",
     outfile: path.join(ROOT, "app/main/dist/main.cjs"),
     external: EXTERNALS,
     ...overrides,
@@ -108,7 +111,7 @@ module.exports = { EXTERNALS, mainOptions, preloadOptions, windowsSandboxWorkerO
  */
 const SIZE_LIMIT = 1024 * 1024;
 /**
- * 第三方清单只报 ≥ 该体积的包（当前主进程产物约 815KB，32KB ≈ 4%）。
+ * 第三方清单只报 ≥ 该体积的包（主进程产物约 920KB，32KB ≈ 3%）。
  *
  * 定过 8KB，结果把 `shell-quote`（9KB，`agent-permission-service` 的 shell 解析）报了出来：
  * 它的体积收益不足 1%，却会让这行**每次构建都出现**——而常驻的告警一定会被无视，
@@ -119,7 +122,7 @@ const THIRD_PARTY_MIN = 32 * 1024;
 /**
  * 构建后报告产物构成（两条互不干扰的规则）：
  *
- * 1) **总是列出被打进 bundle 的第三方包**（≥ 8KB，含路径分组）。
+ * 1) **总是列出被打进 bundle 的第三方包**（≥ 32KB，含路径分组）。
  *    这一条是为了取代"新增依赖时凭经验判断该不该 external"这种纸面纪律——判断依赖人的记忆，
  *    而**漏判不会痛**（只是产物大一点），所以必然被忽略。反例即 2026-09-15 发现的 `ws`：
  *    122KB 一直被打进 bundle，存在期间没人判断过（而且它当时还是幽灵依赖）。

@@ -1,4 +1,5 @@
 import type { StreamEntry, TextEntry } from "./StreamPanel";
+import { IMAGE_PATH_ONLY_NOTE } from "@shared/image-context";
 
 /** 附件项（图片或文档） */
 export interface AttachItem {
@@ -34,15 +35,16 @@ export interface ChatMessage {
   usage?: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number };
   /** 流式标记:实时渲染临时消息(重载/加载磁盘时被替代或合并) */
   streaming?: boolean;
-  /** 已退出上下文:撤回（编辑重发 / 重新生成）后本地列表不裁剪，这条气泡的条目已不在当前分支上——
-   *  界面据此显式标出（重开会话后它随磁盘分支一起消失，标记只活在本面板内）。
-   *  气泡重新拿到内容（流式写入 / 编辑重发）时清掉：那一刻它又回到上下文里。 */
+  /** 已退出上下文：单条移出上下文后仍保留历史气泡，界面据此显式标出。 */
   outOfContext?: boolean;
   /** 本条被「单条移出上下文」（轻档，appendContextEdit）摘掉——它的条目**仍在当前分支上**，只是不在
    *  模型视野里，追加一条带原内容的编辑就能恢复（见 main 的 setEntryInContext）。
-   *  与 outOfContext 的区别正在此：撤回残留的气泡已不在分支上，恢复不了，右键菜单不给入口
-   *  （见 contextEditAction）。为真时 outOfContext 同时为真（标记与清除同进退）。 */
+   *  为真时 outOfContext 同时为真（标记与清除同进退）。 */
   contextDropped?: boolean;
+  /** 原消息仍在，只有图片块不再进入后续模型请求。 */
+  imageStripped?: boolean;
+  /** 图片缩略图保留在界面，但本条发给模型时只提供了文件路径。 */
+  imagesPathOnly?: boolean;
   /** 群聊消息的 Agent 角色(群聊视图标注来源;无 = 普通会话) */
   agentRole?: string;
   /** 群聊转发消息标记(该回合由其他 Agent 转发触发,显示来源标签) */
@@ -133,7 +135,7 @@ function parseAttachMarkers(text: string): { attaches: AttachItem[]; cleanText: 
 }
 
 /** 历史会话消息（conv.messages）→ ChatMessage[] */
-export function mapSessionMessages(msgs: Array<{ type: string; message: unknown; out_of_context?: boolean }>): ChatMessage[] {
+export function mapSessionMessages(msgs: Array<{ type: string; uuid?: string; message: unknown; out_of_context?: boolean; image_stripped?: boolean }>): ChatMessage[] {
   let nextId = 0;
   const mapped: ChatMessage[] = [];
   for (const m of msgs) {
@@ -141,7 +143,7 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown;
     const ts = (m.message as { timestamp?: number })?.timestamp ?? Date.now();
     // Pi entry id 是 uuidv7 后 8 位(仅实例内查重,跨实例可能碰撞)→ keyId 在 push 时用 ++nextId 序号,
     // 与 id 完全同步,保证 keyId 唯一(即使 uuid 碰撞,序号也区分)
-    const uuid = (m as { uuid?: string }).uuid;
+    const uuid = m.uuid;
     if (m.type === "user") {
       const content = (m.message as { content?: string | unknown[] })?.content;
       const text = typeof content === "string" ? content : Array.isArray(content)
@@ -149,16 +151,19 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown;
         : "";
       if (text) {
         const { attaches, cleanText } = parseAttachMarkers(text);
+        const imagesPathOnly = cleanText.includes(IMAGE_PATH_ONLY_NOTE);
         const msgObj = m.message as { customType?: string; details?: Record<string, unknown> };
         const id = ++nextId;
         mapped.push({
-          id, role: "user", text: cleanText, keyId: uuid ? `d-${uuid}-${id}` : undefined, entryId: uuid,
+          id, role: "user", text: imagesPathOnly ? cleanText.replace(IMAGE_PATH_ONLY_NOTE, "").trim() : cleanText, keyId: uuid ? `d-${uuid}-${id}` : undefined, entryId: uuid,
           attaches: attaches.length > 0 ? attaches : undefined, timestamp: ts,
           // 系统消息结构身份(custom_message 条目):前端按 customType/kind 渲染
           customType: msgObj.customType, details: msgObj.details,
           // 被「单条移出上下文」摘掉的历史消息：条目还在分支上，标出来并给恢复入口（见 contextEditAction）。
           // 条件展开而不是赋 undefined——本文件的约定是「没这回事就不落字段」（与 chat-store 的 asLive 同一手法）
           ...(m.out_of_context ? { outOfContext: true, contextDropped: true } : {}),
+          ...(m.image_stripped ? { imageStripped: true } : {}),
+          ...(imagesPathOnly ? { imagesPathOnly: true } : {}),
         });
       }
     } else if (m.type === "assistant") {
@@ -188,6 +193,7 @@ export function mapSessionMessages(msgs: Array<{ type: string; message: unknown;
           usage: u ? { inputTokens: u.input ?? 0, outputTokens: u.output ?? 0, cacheReadTokens: u.cacheRead ?? 0, cacheWriteTokens: u.cacheWrite ?? 0 } : undefined,
           // 被「单条移出上下文」摘掉的历史回答：标记 + 恢复入口（同 user 分支）
           ...(m.out_of_context ? { outOfContext: true, contextDropped: true } : {}),
+          ...(m.image_stripped ? { imageStripped: true } : {}),
         });
       }
     } else if (m.type === "toolResult") {
@@ -310,8 +316,7 @@ export function claimEntryBubble(
  * 编辑=级联撤回（见 ChatPanel.handleEditSubmit）：目标之后的**全部**内容都退出上下文且不可恢复，
  * 所以之后还有内容时先确认；它就是最后一条时没有可丢的东西，多一次确认只是噪音。
  * 判据只看它在当前消息列表里的位置——之后任何一条**还在上下文里**的消息（Mint 回答、系统通知卡片）
- * 都会被撤回；已退出上下文的旧气泡（outOfContext，撤回后留在列表里那种）不算——它们早就不在上下文里了，
- * 拿它们当「会被丢掉的内容」只会让第二次编辑多弹一次确认。
+ * 都会被撤回；单条移出上下文的气泡（outOfContext）不算，它仍显示在历史里但已不在模型视野中。
  * 重新生成（ChatPanel.handleRegenerate）用同一条判据，锚点是那条回答：撤回点是它的提问，
  * 回答之后还有内容时同样会被一并丢掉。
  */
@@ -339,9 +344,7 @@ export function rewindUnavailableReason(msg: ChatMessage, busy: boolean, action:
  * 消息右键菜单里「移出 / 恢复上下文」的入口（undefined = 不给入口）。
  *
  * 判据只看气泡自己的标记：没认领到条目 id 就没得摘（旧数据 / 事件丢失，与编辑入口同一降级口径）；
- * 已摘掉的给「恢复」——但**只给轻档自己摘掉的那些**（contextDropped）：撤回（编辑重发 / 重新生成）
- * 后残留的气泡虽然也标着「已退出上下文」，它们的条目已不在当前分支上，main 侧的 appendContextEdit
- * 会直接拒（返回可读错误）——给入口等于给一个点不通的按钮。
+ * 已摘掉的给「恢复」（contextDropped）：级联撤回后的旧气泡会直接从列表移除，不会出现在菜单里。
  */
 export function contextEditAction(msg: ChatMessage): "drop" | "restore" | undefined {
   if (!msg.entryId) return undefined;
@@ -460,4 +463,32 @@ export function stepBusyProbe(consecutiveIdle: number, mainBusy: boolean): { con
   if (mainBusy) return { consecutiveIdle: 0, clear: false };
   const consecutive = consecutiveIdle + 1;
   return { consecutiveIdle: consecutive, clear: consecutive >= BUSY_PROBE_CLEAR_STREAK };
+}
+
+/** 停止按钮的目标：IPC 尚未回传新 chatId 时，界面上残留的旧 id 不能拿来中止本次发送。 */
+export function stopTarget(
+  currentChatId: string | null,
+  pending?: { awaitingChatId: boolean; preservePromptOnStop: boolean } | null,
+): { chatId: string | null; rewind: boolean } {
+  return {
+    chatId: pending?.awaitingChatId ? null : currentChatId,
+    rewind: !pending?.preservePromptOnStop,
+  };
+}
+
+/** 停止发生在 sendMessage 回包前：只有这次发送仍在跑，才补发中止。 */
+export function needsDeferredStop(
+  pending: { stopRequested: boolean; abortIssued: boolean },
+): boolean {
+  return pending.stopRequested && !pending.abortIssued;
+}
+
+/** 级联撤回已在 main 侧确认空闲；重发必须新建回合，不能被残留的界面 busy 状态改送进插话队列。 */
+export function shouldSteerSend(input: { forceNewTurn?: boolean; busy: boolean; chatId: string | null; existingSession: boolean }): boolean {
+  return !input.forceNewTurn && input.busy && !!input.chatId && input.existingSession;
+}
+
+/** 首条发送在途时组件的 existingSid 仍是旧闭包值；用 IPC 回包的真实 id 接续下一条。 */
+export function resolveSendSessionId(existingSid: string | undefined, resolvedSid: string | undefined, currentSid: string): string | null {
+  return existingSid ?? resolvedSid ?? (currentSid.startsWith("__new_") ? null : currentSid);
 }

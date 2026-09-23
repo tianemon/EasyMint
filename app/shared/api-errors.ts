@@ -19,6 +19,7 @@ export interface ApiErrorInfo {
   message: string;
   /** 简短建议(可选,纯文案,不产生动作按钮) */
   hint?: string;
+  kind?: "request_too_large";
 }
 
 interface ErrorRule {
@@ -26,6 +27,7 @@ interface ErrorRule {
   tone: ErrorTone;
   message: string;
   hint?: string;
+  kind?: "request_too_large";
 }
 
 /** 顺序敏感:具体在前、宽泛在后(413 先于其它 4xx,超时先于网络抖动) */
@@ -35,10 +37,11 @@ const RULES: ErrorRule[] = [
 
   // 请求体超限——网关/代理在缓冲请求体时拒绝。只有改小请求体才有用,重试无效
   {
-    re: /413|payload too large|request entity too large|failed to buffer the request body|length limit exceeded|请求内容太大/i,
+    re: /413|request_too_large|request exceeds the maximum size|payload too large|request entity too large|failed to buffer the request body|length limit exceeded|请求内容太大/i,
     tone: "error",
     message: "请求内容太大，超出服务商能接收的上限",
-    hint: "压缩会话或减少附件后再试",
+    hint: "可整理历史图片后重试，或减少本次附件",
+    kind: "request_too_large",
   },
   // 上下文超限(模型侧的 token 上限)
   {
@@ -120,9 +123,12 @@ export function classifyApiError(err: unknown): ApiErrorInfo {
   const raw = err instanceof Error ? err.message : String(err);
   for (const rule of RULES) {
     if (rule.re.test(raw)) {
-      return rule.hint
-        ? { tone: rule.tone, message: rule.message, hint: rule.hint }
-        : { tone: rule.tone, message: rule.message };
+      return {
+        tone: rule.tone,
+        message: rule.message,
+        ...(rule.hint ? { hint: rule.hint } : {}),
+        ...(rule.kind ? { kind: rule.kind } : {}),
+      };
     }
   }
   return { tone: "error", message: cleanupRaw(raw) || "请求失败" };

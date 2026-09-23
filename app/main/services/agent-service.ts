@@ -13,7 +13,8 @@ import { BrowserWindow } from "electron";
 import { resolveHome, emHome } from "../utils/paths";
 import { broadcast, broadcastEvent } from "./ipc-broadcast";
 import { Store } from "./store";
-import { isStaleSdkBusyRefusal } from "./rewind-policy";
+import { canRewindDetachedUser, isStaleSdkBusyRefusal } from "./rewind-policy";
+import { waitForAbortSettlement } from "./abort-settlement";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { getActiveModel } from "./pi-init";
 import { getNativeConfig } from "./native-config";
@@ -34,7 +35,9 @@ import type { TaskStatus } from "./task/types";
 import { formatShellResult } from "./background-shell/tool";
 import { backgroundShellRegistry, type BackgroundShell } from "./background-shell/registry";
 import { systemMessage, SYSTEM_MESSAGE_LABELS, compactionCardFields, type SystemMessageKind, type SystemMessagePayload } from "../../shared/prompts";
-import { normalizeApiError } from "../../shared/api-errors";
+import { classifyApiError, normalizeApiError } from "../../shared/api-errors";
+import { contentWithoutImages, contextImageEntries, type ContextImageEntry } from "../../shared/image-context";
+import { rollbackImageContextBranch } from "./image-context-rollback";
 import { createProductTools } from "./builtin-mcp";
 import { closeMcpContexts, loadMcpTools } from "./permission/mcp-adapter";
 import { revokeWindowsExecutionOwners } from "./sandbox/windows-execution-manager";
@@ -46,7 +49,7 @@ import {
   type PiChatEvent,
 } from "./event-bridge";
 import type { AgentSession, AgentSessionEvent, ToolDefinition } from "./pi-sdk";
-import { getDefineToolFn } from "./pi-sdk";
+import { getDefineToolFn, getSessionManagerClass } from "./pi-sdk";
 import { readCache, writeCache } from "./session-cache";
 import type { Model } from "@earendil-works/pi-ai";
 import { randomUUID } from "node:crypto";
@@ -74,11 +77,18 @@ const SYSTEM_KIND_TITLES: Record<string, string> = {
   learn: "经验沉淀",
 };
 
+/** 停止最多等待 SDK 与本轮 prompt 完成；超时后不触碰仍可能在写入的会话树。 */
+const ABORT_SETTLEMENT_TIMEOUT_MS = 8_000;
+
 interface ActiveRun {
   runId: string;
   session: AgentSession | null;
   abortController: AbortController;
 }
+
+type ImageMutationResult =
+  | { ok: true; removedBytes: number; removedImages: number }
+  | { ok: false; error: string; reloadRequired?: boolean };
 
 interface ActiveChat {
   chatId: string;
@@ -92,6 +102,8 @@ interface ActiveChat {
   currentModel?: string;
   /** 本轮提示发出前的分支 leaf id——用户打断且本轮无产出时用它把分支退回（撤回这条消息，见 abort） */
   leafBeforePrompt?: string | null;
+  /** 本轮 prompt 的完整生命周期；停止须等预处理和落盘结束，才能判定是否撤回用户消息。 */
+  promptDone?: Promise<void>;
   /** 本会话用户选择的思考等级（切模型后由 SDK 按模型能力推导默认值，需用它恢复用户意图） */
   thinkingLevel?: string;
   /** 本会话使用的供应商（查「按模型思考等级」用；缺省时按模型名全局匹配） */
@@ -100,7 +112,7 @@ interface ActiveChat {
   firstUserMessage: string;
   assistantUuid: string;
   eventBuffer: PiChatEvent[];
-  /** 按需激活的压缩专用会话（仅加载历史，无工具/系统提示）——发消息时需重建为完整会话 */
+  /** 按需激活的历史操作会话（压缩/撤回/移出上下文；无工具/系统提示）——发消息时需重建 */
   minimal?: boolean;
   /** 从只读放宽后需要重建工具集，才能安全地按需加载此前未连接的 MCP。 */
   rebuildToolsOnNextMessage?: boolean;
@@ -673,6 +685,11 @@ export class AgentService {
   private _deferredRefreshNeeded = false;
   private activeRuns: Map<string, ActiveRun> = new Map();
   private activeChats: Map<string, ActiveChat> = new Map();
+  /** 同一历史会话同时打开时只创建一个最小 SDK 实例，避免两个 SessionManager 同写一个文件。 */
+  private activationPromises: Map<string, Promise<string | null>> = new Map();
+  /** 会话树修改与新回合启动互斥；并发操作保守拒绝，避免两窗口同时改写同一 JSONL 分支。 */
+  private mutatingSessions = new Set<string>();
+  private startingSessions = new Set<string>();
   /** EM 侧正在进行的回合（promptAndBridge 进行中）——steer 区分真运行 vs isStreaming 残留 */
   private activePromptSessions: Set<string> = new Set();
   private runCounter = 0;
@@ -872,6 +889,8 @@ export class AgentService {
     systemPayload?: SystemMessagePayload,
   ): Promise<void> {
     let pendingResult: PiChatEvent | null = null;
+    // 固定本轮 signal；后续回合会重建 chat.abortController，不能让旧回合的预处理误读新 signal。
+    const promptAbortSignal = chat?.abortController.signal;
     // 标记进行中回合（steer 用它区分「真在运行」vs「isStreaming 残留」——超时中断后
     // SDK isStreaming 可能残留 true，若无此标记 steer 会把消息入队永不消费）
     this.activePromptSessions.add(sessionId);
@@ -896,6 +915,15 @@ export class AgentService {
     const emitEvent = (ev: PiChatEvent) => {
       ev.sessionId = sessionId;
       ev.chatId = chatId;
+      if (ev.type === "error" && classifyApiError(ev.message ?? "").kind === "request_too_large") {
+        const retained = contextImageEntries(session.sessionManager.buildSessionProjection().entries);
+        console.warn("[agent] 413 image payload:", {
+          sessionId, provider: session.model?.provider, model: session.model?.id,
+          retainedImages: retained.reduce((sum, entry) => sum + entry.imageCount, 0),
+          retainedImageBase64Bytes: retained.reduce((sum, entry) => sum + entry.encodedBytes, 0),
+          modelMaxRequestBytes: session.model?.inputLimits?.maxRequestBytes ?? null,
+        });
+      }
       const sent = broadcastEvent("agent:stream", ev);
       this.bufferEvent(sessionId, ev, sent.sequence);
       reportCtxThrottled();
@@ -962,7 +990,17 @@ export class AgentService {
       // 会误掐断；且曾因只 reject 不取消底层导致会话卡死）。中断由用户主动打断触发。
       const send = systemPayload
         ? session.sendCustomMessage(systemPayload, { triggerTurn: true })
-        : session.prompt(text, images ? { images } : undefined);
+        : session.prompt(text, {
+          ...(images ? { images } : {}),
+          // abort 可能发生在 SDK prompt 的异步预处理（认证/扩展/图片归一）期间。
+          // 此时 session.abort() 看到 idle 会立即返回，而 SDK 随后仍会启动请求。
+          // preflightResult 紧邻 _runAgentPrompt；微任务里补 abort，确保刚进入运行态就停。
+          preflightResult: (accepted) => {
+            if (accepted && promptAbortSignal?.aborted) {
+              queueMicrotask(() => { void session.abort().catch((e) => console.warn("[agent] 预处理后补打断失败:", e)); });
+            }
+          },
+        });
       await send;
 
       // (系统消息通知走 injectSystemMessage 的 triggerTurn: false 路径,不经此回合)
@@ -996,8 +1034,9 @@ export class AgentService {
           const isNamed = await hasCustomTitle(sessionId, chat.projectPath);
           if (!isNamed) {
             const title = firstMsg.length > 15 ? firstMsg.slice(0, 15) + "…" : firstMsg;
-            renameSession(sessionId, title, chat.projectPath).catch(() => {});
-            broadcast("agent:session-renamed", { sessionId, title });
+              void renameSession(sessionId, title, chat.projectPath).catch((e) => {
+                console.warn(`[agent] 自动命名未落盘：session=${sessionId}`, e);
+              });
           }
         }
 
@@ -1009,6 +1048,16 @@ export class AgentService {
       const msg = normalizeApiError(err);
       const raw = err instanceof Error ? err.message : String(err);
       console.error(`[agent] prompt error: chatId=${chatId}`, raw);
+      if (classifyApiError(raw).kind === "request_too_large") {
+        // SDK 已缩放并落盘的图片才是后续请求反复携带的载荷；本地上传原图大小不能替代这个指标。
+        const retained = contextImageEntries(session.sessionManager.buildSessionProjection().entries);
+        console.warn("[agent] 413 image payload:", {
+          sessionId, provider: session.model?.provider, model: session.model?.id,
+          retainedImages: retained.reduce((sum, entry) => sum + entry.imageCount, 0),
+          retainedImageBase64Bytes: retained.reduce((sum, entry) => sum + entry.encodedBytes, 0),
+          modelMaxRequestBytes: session.model?.inputLimits?.maxRequestBytes ?? null,
+        });
+      }
       // Pi 压缩进行中拒绝新 prompt(user 消息不落盘,前端无响应)→ 明确提示可重试
       const compactionBlocked = raw.toLowerCase().includes("compaction");
       broadcast("agent:stream", {
@@ -1056,8 +1105,11 @@ export class AgentService {
     systemPayload?: SystemMessagePayload,
   ): void {
     // 记本轮起点：打断时若本轮无产出，就退回到这里（消息退出上下文，见 abort 的 rewind）
-    if (chat) chat.leafBeforePrompt = session.sessionManager?.getLeafId?.() ?? null;
-    void this.promptAndBridge(session, sessionId, chatId, text, chat, images, systemPayload).catch((err: unknown) => {
+    if (chat) {
+      chat.leafBeforePrompt = session.sessionManager?.getLeafId?.() ?? null;
+      chat.abortController = new AbortController();
+    }
+    const promptDone = this.promptAndBridge(session, sessionId, chatId, text, chat, images, systemPayload).catch((err: unknown) => {
       const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
       console.error(`[agent] 回合启动失败(未预期) chatId=${chatId} sessionId=${sessionId}:`, raw);
       this.activePromptSessions.delete(sessionId);
@@ -1067,6 +1119,10 @@ export class AgentService {
       });
       broadcast("agent:exit", { runId: chatId, sessionId, code: -1 });
     });
+    if (chat) {
+      chat.promptDone = promptDone;
+      void promptDone.finally(() => { if (chat.promptDone === promptDone) chat.promptDone = undefined; });
+    }
   }
 
   // ── Worker（one-shot，接口保持） ──────────────────
@@ -1127,7 +1183,7 @@ export class AgentService {
    *  （丢弃、不回填输入框；丢弃内容随 queue_dropped 事件给渲染层出可见提示）；
    *  opts.rewind 且本轮无产出时把分支退回本轮起点（消息退出上下文）。
    *  内部中止（切模型、压缩、超时）不传 opts——不该丢用户刚插的话，也不该撤回历史。 */
-  async abort(runId: string, opts?: { clearQueue?: boolean; rewind?: boolean }): Promise<void> {
+  async abort(runId: string, opts?: { clearQueue?: boolean; rewind?: boolean }): Promise<{ rewound: boolean; stopTimedOut?: boolean }> {
     const run = this.activeRuns.get(runId);
     if (run) {
       run.abortController.abort();
@@ -1144,8 +1200,9 @@ export class AgentService {
     }
     if (!chat) {
       console.warn(`[agent] abort 未找到 chat（runId=${runId}）——撤回与清队列均跳过`);
-      return;
+      return { rewound: false };
     }
+    const hadCurrentPrompt = this.activePromptSessions.has(chat.sessionId) || !!chat.promptDone;
     chat.abortController.abort();
     // 先清队列、再 abort：SDK 的回合后循环用「队列里还有消息」作为 agent.continue() 的依据
     // （agent-session 的 hasQueuedMessages）——反过来做会留竞态窗口：循环已看到消息 →
@@ -1156,8 +1213,6 @@ export class AgentService {
       dropped = [...(cleared?.steering ?? []), ...(cleared?.followUp ?? [])]
         .filter((t): t is string => typeof t === "string" && t.trim().length > 0);
     }
-    // 等回合真正停住：runLoop 在每步之间都会 drain steering，不等停就动队列会与"即将投递"竞争
-    await chat.session?.abort().catch(() => {});
     if (dropped.length > 0) {
       console.log(`[agent] 打断：丢弃 ${dropped.length} 条未投递插话（不退回输入框——回填后容易被回车误发）`);
       // 丢弃必须让用户看得见：插话气泡已经乐观留在界面上，不提示就会被当成"还在队里、已被模型读到"。
@@ -1166,8 +1221,20 @@ export class AgentService {
         type: "queue_dropped", sessionId: chat.sessionId, chatId: chat.chatId, queueDropped: dropped,
       });
     }
-    if (opts?.rewind) await this.rewindIfNoOutput(chat);
-    else console.log(`[agent] 打断未请求撤回（runId=${runId}）：编辑重发/关闭等路径，消息保留在上下文`);
+    // session.abort() 在 SDK 异步预处理期间会把 idle 误当成已停；promptDone 等到
+    // 预处理后补打断、消息落盘和回合退出都完成。若请求挂死，停止须按时返回，
+    // 且不能在 SDK 仍可能写入时撤回分支。
+    const settled = await waitForAbortSettlement(
+      chat.session?.abort() ?? Promise.resolve(), chat.promptDone, ABORT_SETTLEMENT_TIMEOUT_MS,
+    );
+    if (!settled || this.activePromptSessions.has(chat.sessionId)) {
+      console.warn(`[agent] 停止未在 ${ABORT_SETTLEMENT_TIMEOUT_MS}ms 内确认完成，跳过撤回：session=${chat.sessionId}`);
+      return { rewound: false, stopTimedOut: true };
+    }
+    if (opts?.rewind && hadCurrentPrompt) return { rewound: await this.rewindIfNoOutput(chat) };
+    if (opts?.rewind) return { rewound: false }; // 界面残留忙碌态不能撤掉上一轮已结束的提问
+    console.log(`[agent] 打断未请求撤回（runId=${runId}）：编辑重发/关闭等路径，消息保留在上下文`);
+    return { rewound: false };
   }
 
   /** 权限收紧时撤销主会话及其后代仍在运行的旧权限执行上下文。 */
@@ -1195,14 +1262,14 @@ export class AgentService {
 
   /** 打断撤回：仅当本轮没有产出可见内容时，把会话分支退回本轮起点（那条消息退出上下文）。
    *  会话文件是 append-only 树：废弃分支留在文件里，但不再进上下文（历史读取按当前分支）。
-   *  有产出 / 无起点 / 出错 → 不动会话（用户已看到内容，退回会丢掉它）。 */
-  private async rewindIfNoOutput(chat: ActiveChat): Promise<void> {
+   *  有产出 / 起点不在当前分支 / 出错 → 不动会话（用户已看到内容，退回会丢掉它）。 */
+  private async rewindIfNoOutput(chat: ActiveChat): Promise<boolean> {
     const session = chat.session;
     const mgr = session?.sessionManager;
     const startId = chat.leafBeforePrompt ?? null;
-    if (!session || !mgr || !startId) {
+    if (!session || !mgr) {
       console.log(`[agent] 撤回跳过：session=${!!session} mgr=${!!mgr} startId=${startId ?? "null"}`);
-      return;
+      return false;
     }
     try {
       const entries = mgr.getEntries() as Array<{ id: string; parentId?: string | null; type?: string; message?: { role?: string; content?: unknown } }>;
@@ -1214,6 +1281,10 @@ export class AgentService {
         if (!e) break;
         turn.push(e);
         cur = e.parentId ? byId.get(e.parentId) : undefined;
+      }
+      if (startId !== null && cur?.id !== startId) {
+        console.warn(`[agent] 撤回跳过：回合起点不在当前分支（startId=${startId} leaf=${mgr.getLeafId() ?? "null"}）`);
+        return false;
       }
       // 有可见产出（正文/思考/工具调用任一）就不撤回——用户已看到内容，退回会丢掉它
       const hasOutput = turn.some((e) => {
@@ -1232,15 +1303,39 @@ export class AgentService {
       const leafBefore = mgr.getLeafId();
       if (hasOutput) {
         console.log(`[agent] 撤回跳过：本轮有产出（leaf=${leafBefore} startId=${startId} 回溯 ${turn.length} 条）`);
-        return;
+        return false;
       }
       console.log(`[agent] 撤回执行前：leaf=${leafBefore} startId=${startId} 回溯 ${turn.length} 条 isStreaming=${session.isStreaming} isCompacting=${session.isCompacting}`);
-      const rewind = await this.rewindBranchTo(session, startId);
+      const rewind = startId === null
+        ? this.rewindBranchToRoot(session)
+        : await this.rewindBranchTo(session, startId);
       // 打断路径没有界面可提示（用户按的是停止，撤回失败只是消息留在上下文里，不会两版并存）→ 只记日志；
       // 落点不符时没写 pin、文件尾仍在原处，重开即原样
       if (!rewind.ok) console.warn(`[agent] 打断撤回未生效：${rewind.error}（startId=${startId}）`);
+      return rewind.ok;
     } catch (e) {
       console.warn(`[agent] 打断撤回失败：${(e as Error).name}: ${(e as Error).message}`);
+      return false;
+    }
+  }
+
+  /** 首轮回合起点是根（leaf=null）时的无输出撤回；同样用 pin 固化空分支。 */
+  private rewindBranchToRoot(session: AgentSession): { ok: true } | { ok: false; error: string } {
+    const mgr = session.sessionManager;
+    const leafBefore = mgr.getLeafId();
+    try {
+      mgr.resetLeaf();
+      session.refreshContext();
+      if (mgr.getLeafId() !== null) throw new Error("根节点落点不符");
+      mgr.appendCustomEntry("em_rewind_pin", { leaf: null });
+      console.log(`[agent] 撤回首轮无输出消息：leaf ${leafBefore ?? "null"} → 根节点（已钉住文件尾）`);
+      return { ok: true };
+    } catch (e) {
+      if (leafBefore === null) mgr.resetLeaf();
+      else mgr.branch(leafBefore);
+      session.refreshContext();
+      console.warn("[agent] 根节点撤回失败，已还原分支:", e);
+      return { ok: false, error: "撤回未生效（会话未改动），请重试" };
     }
   }
 
@@ -1326,78 +1421,100 @@ export class AgentService {
   async rewindToNode(
     sessionId: string,
     targetEntryId: string,
-    opts?: { target?: "entry" | "prompt" },
+    opts?: { target?: "entry" | "prompt"; projectPath?: string },
   ): Promise<{ ok: true; promptEntryId?: string } | { ok: false; error: string }> {
-    const toPrompt = opts?.target === "prompt";
-    const chat = this.findActiveChat(sessionId);
-    const session = chat?.session;
-    if (!chat || !session) {
-      console.log(`[agent] 按节点撤回跳过：会话未加载（sessionId=${sessionId} chat=${!!chat} session=${!!session}）`);
-      return { ok: false, error: "会话未加载，无法撤回（重新打开该会话后重试）" };
+    if (this.mutatingSessions.has(sessionId) || this.startingSessions.has(sessionId)) {
+      return { ok: false, error: "会话正在处理另一项操作，请稍后重试" };
     }
-    const mgr = session.sessionManager;
-    if (!targetEntryId) {
-      console.log(`[agent] 按节点撤回拒绝：目标 id 为空（sessionId=${sessionId}）`);
-      return { ok: false, error: "撤回目标缺失，无法撤回" };
-    }
-    const targetEntry = mgr.getEntry(targetEntryId);
-    if (!targetEntry) {
-      console.log(`[agent] 按节点撤回拒绝：目标条目不存在（sessionId=${sessionId} target=${targetEntryId}）`);
-      return { ok: false, error: "目标消息不在当前会话里，无法撤回" };
-    }
-    // 重新生成：先把目标解析成「这条回答所属的提问」——沿条目自己的 parentId 向上回溯（工具结果 /
-    // 系统注入 / 压缩记录 / 撤回 pin 都不是提问）。不用 getBranch()：界面上留着的旧回答气泡可能已不在
-    // 当前分支上，只有沿它自己的 parentId 才找得到它当初的提问。
-    let rewindId = targetEntryId;
-    if (toPrompt) {
-      let cur: ReturnType<typeof mgr.getEntry> = targetEntry;
-      while (cur && !(cur.type === "message" && cur.message.role === "user")) {
-        cur = cur.parentId ? mgr.getEntry(cur.parentId) : undefined;
-      }
-      if (!cur) {
-        console.log(`[agent] 按节点撤回拒绝：找不到所属提问（sessionId=${sessionId} target=${targetEntryId}）`);
-        return { ok: false, error: "找不到这条回答对应的提问，无法重新生成" };
-      }
-      rewindId = cur.id;
-    }
-    const rewindEntry = mgr.getEntry(rewindId)!;
-    // 分支路径校验用 getBranch（从当前 leaf 沿 parentId 回溯）：只认当前分支上的节点，
-    // 否则会悄悄把另一条废弃分支上的历史接回来。
-    // 允许多一种等价安全的形态：目标是 **user 消息**且它的父节点在当前分支上——此时目标自己已被撤回掉
-    // （气泡还在界面上：打断撤回后的最后一条、或上一次编辑重发留在列表里的旧气泡），而 navigateTree 对
-    // user 目标把 leaf 落到它的父节点（见 SDK agent-session.navigateTree），所以撤回结果同样只是
-    // 「截断到父节点」，不会接回任何废弃分支；再往后发新文本正好把截断点之后的内容（含撤回后新写上去的
-    // 同级子树）一并丢掉，与用户确认过的级联语义一致。
-    // 不放开这条：「打断后改字重发」这条既有路径会直接失效——那条气泡的条目在打断撤回后必然已不在分支上。
-    // 非 user 目标（如 assistant 条目）不受此宽免：它对 leaf 的落点是自身，不在分支上就等于接回旧分支。
-    const branchIds = new Set(mgr.getBranch().map((e) => e.id));
-    const userParentId = rewindEntry.type === "message" && rewindEntry.message.role === "user" ? rewindEntry.parentId : undefined;
-    if (!branchIds.has(rewindId) && !(userParentId && branchIds.has(userParentId))) {
-      console.log(`[agent] 按节点撤回拒绝：目标不在当前分支（sessionId=${sessionId} target=${rewindId} parent=${userParentId ?? "null"} leaf=${mgr.getLeafId() ?? "null"}）`);
-      return { ok: false, error: "目标消息不在当前对话分支上，无法撤回" };
-    }
-    // 运行态用 EM 自己的 activePromptSessions（SDK 的 isStreaming 在超时中断等路径会残留，见 isSessionRunning）
-    if (this.isSessionRunning(chat.sessionId)) {
-      console.log(`[agent] 按节点撤回拒绝：回合进行中（sessionId=${chat.sessionId} target=${rewindId}）`);
-      return { ok: false, error: "当前回答还在进行中，停止后才能撤回" };
-    }
-    if (session.isCompacting) {
-      console.log(`[agent] 按节点撤回拒绝：会话压缩中（sessionId=${chat.sessionId} target=${rewindId}）`);
-      return { ok: false, error: "会话正在压缩中，请稍后重试" };
-    }
+    this.mutatingSessions.add(sessionId);
     try {
-      const rewind = await this.rewindBranchTo(session, rewindId);
-      if (!rewind.ok) return rewind;
-      return toPrompt ? { ok: true, promptEntryId: rewindId } : { ok: true };
-    } catch (e) {
-      const err = e as Error;
-      console.warn(`[agent] 按节点撤回失败：session=${chat.sessionId} target=${rewindId} ${err.name}: ${err.message}`);
-      // SDK 拒绝时抛英文原文（回合进行中 / 压缩中 / 目标不存在）——转成可读文案，原始信息只进日志
-      const msg = err.message ?? "";
-      if (msg.includes("current response to finish")) return { ok: false, error: "当前回答还在进行中，停止后才能撤回" };
-      if (msg.includes("compaction")) return { ok: false, error: "会话正在压缩中，请稍后重试" };
-      if (msg.includes("not found")) return { ok: false, error: "目标消息不在当前会话里，无法撤回" };
-      return { ok: false, error: "撤回失败，请重试（详情见主进程日志）" };
+      const toPrompt = opts?.target === "prompt";
+      let chat = this.findActiveChat(sessionId);
+      if (!chat?.session && opts?.projectPath) {
+        try {
+          await this.activateSession(sessionId, opts.projectPath);
+          chat = this.findActiveChat(sessionId);
+        } catch (e) {
+          console.warn(`[agent] 按节点撤回加载会话失败：session=${sessionId}`, e);
+          return { ok: false, error: "会话加载失败，无法撤回，请重试" };
+        }
+      }
+      const session = chat?.session;
+      if (!chat || !session) {
+        console.log(`[agent] 按节点撤回跳过：会话未加载（sessionId=${sessionId} chat=${!!chat} session=${!!session}）`);
+        return { ok: false, error: "会话未加载，无法撤回（重新打开该会话后重试）" };
+      }
+      const mgr = session.sessionManager;
+      if (!targetEntryId) {
+        console.log(`[agent] 按节点撤回拒绝：目标 id 为空（sessionId=${sessionId}）`);
+        return { ok: false, error: "撤回目标缺失，无法撤回" };
+      }
+      const targetEntry = mgr.getEntry(targetEntryId);
+      if (!targetEntry) {
+        console.log(`[agent] 按节点撤回拒绝：目标条目不存在（sessionId=${sessionId} target=${targetEntryId}）`);
+        return { ok: false, error: "目标消息不在当前会话里，无法撤回" };
+      }
+      // 重新生成：沿目标条目的 parentId 找所属提问（工具结果/系统注入/压缩记录都不是提问）。
+      // 解析用条目自己的父链；稍后仍要求该回答在当前分支上，避免过期窗口重放旧回答截断新内容。
+      let rewindId = targetEntryId;
+      if (toPrompt) {
+        let cur: ReturnType<typeof mgr.getEntry> = targetEntry;
+        while (cur && !(cur.type === "message" && cur.message.role === "user")) {
+          cur = cur.parentId ? mgr.getEntry(cur.parentId) : undefined;
+        }
+        if (!cur) {
+          console.log(`[agent] 按节点撤回拒绝：找不到所属提问（sessionId=${sessionId} target=${targetEntryId}）`);
+          return { ok: false, error: "找不到这条回答对应的提问，无法重新生成" };
+        }
+        rewindId = cur.id;
+      }
+      const rewindEntry = mgr.getEntry(rewindId)!;
+      // 分支路径校验用 getBranch（从当前 leaf 沿 parentId 回溯）：只认当前分支上的节点，
+      // 否则会悄悄把另一条废弃分支上的历史接回来。
+      // 打断撤回后的 user 气泡可重发，但仅当当前落点仍紧贴它原父节点（或停在其后的撤回 pin）。
+      // 「父节点在分支上的任意位置」太宽：另一窗口在父节点后续写后，旧窗口仍可点过期气泡，
+      // 会把新内容无提示截断。assistant 目标没有此例外。
+      const branchIds = new Set(mgr.getBranch().map((e) => e.id));
+      if (toPrompt && !branchIds.has(targetEntryId)) {
+        console.log(`[agent] 重新生成拒绝：回答已不在当前分支（sessionId=${sessionId} target=${targetEntryId}）`);
+        return { ok: false, error: "这条回答已不在当前对话分支上，请重新加载会话" };
+      }
+      const userParentId = rewindEntry.type === "message" && rewindEntry.message.role === "user" ? rewindEntry.parentId : undefined;
+      const leafId = mgr.getLeafId();
+      const leafEntry = leafId ? mgr.getEntry(leafId) : undefined;
+      const leafPin = leafEntry?.type === "custom" && leafEntry.customType === "em_rewind_pin"
+        ? { parentId: leafEntry.parentId }
+        : undefined;
+      const safeDetachedUser = userParentId !== undefined && canRewindDetachedUser(userParentId, leafId, leafPin);
+      if (!branchIds.has(rewindId) && !safeDetachedUser) {
+        console.log(`[agent] 按节点撤回拒绝：目标不在当前分支（sessionId=${sessionId} target=${rewindId} parent=${userParentId ?? "null"} leaf=${mgr.getLeafId() ?? "null"}）`);
+        return { ok: false, error: "目标消息不在当前对话分支上，无法撤回" };
+      }
+      // 运行态用 EM 自己的 activePromptSessions（SDK 的 isStreaming 在超时中断等路径会残留，见 isSessionRunning）
+      if (this.isSessionRunning(chat.sessionId)) {
+        console.log(`[agent] 按节点撤回拒绝：回合进行中（sessionId=${chat.sessionId} target=${rewindId}）`);
+        return { ok: false, error: "当前回答还在进行中，停止后才能撤回" };
+      }
+      if (session.isCompacting) {
+        console.log(`[agent] 按节点撤回拒绝：会话压缩中（sessionId=${chat.sessionId} target=${rewindId}）`);
+        return { ok: false, error: "会话正在压缩中，请稍后重试" };
+      }
+      try {
+        const rewind = await this.rewindBranchTo(session, rewindId);
+        if (!rewind.ok) return rewind;
+        return toPrompt ? { ok: true, promptEntryId: rewindId } : { ok: true };
+      } catch (e) {
+        const err = e as Error;
+        console.warn(`[agent] 按节点撤回失败：session=${chat.sessionId} target=${rewindId} ${err.name}: ${err.message}`);
+        // SDK 拒绝时抛英文原文（回合进行中 / 压缩中 / 目标不存在）——转成可读文案，原始信息只进日志
+        const msg = err.message ?? "";
+        if (msg.includes("current response to finish")) return { ok: false, error: "当前回答还在进行中，停止后才能撤回" };
+        if (msg.includes("compaction")) return { ok: false, error: "会话正在压缩中，请稍后重试" };
+        if (msg.includes("not found")) return { ok: false, error: "目标消息不在当前会话里，无法撤回" };
+        return { ok: false, error: "撤回失败，请重试（详情见主进程日志）" };
+      }
+    } finally {
+      this.mutatingSessions.delete(sessionId);
     }
   }
 
@@ -1425,71 +1542,258 @@ export class AgentService {
     sessionId: string,
     targetEntryId: string,
     inContext: boolean,
+    projectPath?: string,
   ): Promise<{ ok: true } | { ok: false; error: string }> {
-    const verb = inContext ? "恢复进上下文" : "移出上下文";
-    const chat = this.findActiveChat(sessionId);
-    const session = chat?.session;
-    if (!chat || !session) {
-      console.log(`[agent] ${verb}跳过：会话未加载（sessionId=${sessionId} chat=${!!chat} session=${!!session}）`);
-      return { ok: false, error: `会话未加载，无法${verb}（重新打开该会话后重试）` };
+    if (this.mutatingSessions.has(sessionId) || this.startingSessions.has(sessionId)) {
+      return { ok: false, error: "会话正在处理另一项操作，请稍后重试" };
     }
-    const mgr = session.sessionManager;
-    if (!targetEntryId) {
-      console.log(`[agent] ${verb}拒绝：目标 id 为空（sessionId=${sessionId}）`);
-      return { ok: false, error: `目标缺失，无法${verb}` };
-    }
-    const target = mgr.getEntry(targetEntryId);
-    if (!target) {
-      console.log(`[agent] ${verb}拒绝：目标条目不存在（sessionId=${sessionId} target=${targetEntryId}）`);
-      return { ok: false, error: `目标不在当前会话记录里，无法${verb}` };
-    }
-    // 分支校验与 SDK 自己的 appendContextEdit 同款（从当前 leaf 沿 parentId 回溯）：界面留着的旧气泡
-    // （撤回后没被裁掉那种）常常已不在分支上，提前拦下来才能给可读文案（否则只有 SDK 的英文原文）。
-    // 注意这里**没有** rewindToNode 的「user 消息且父节点在分支上」宽免：那个宽免的前提是撤回会把 leaf
-    // 落到父节点、分支被截断到那里；移出上下文不截断分支，目标不在分支上就等于把废弃分支接回来（SDK 也正是这么判的）。
-    const branchIds = new Set(mgr.getBranch().map((e) => e.id));
-    if (!branchIds.has(targetEntryId)) {
-      console.log(`[agent] ${verb}拒绝：目标不在当前分支（sessionId=${sessionId} target=${targetEntryId} leaf=${mgr.getLeafId() ?? "null"}）`);
-      return { ok: false, error: `这条消息不在当前对话分支上，无法${verb}` };
-    }
-    // 回合进行中拒绝：appendContextEdit 会把 leaf 前移，而 refreshContext() 会用投影**整个重建
-    // agent.state.messages**——正在增长的那条回复此时只在内存里（还没落盘成条目，投影里没有它），
-    // 重建等于把它从内存上下文里换掉，而运行中的回合还在改这个数组。与撤回链路同一取舍：
-    // 宁可让用户等回合结束，也不并发改写运行中的会话状态。
-    // 运行态判据用 EM 自己的 activePromptSessions（SDK 的 isStreaming 在超时中断等路径会残留，见 isSessionRunning）。
-    if (this.isSessionRunning(chat.sessionId)) {
-      console.log(`[agent] ${verb}拒绝：回合进行中（sessionId=${chat.sessionId} target=${targetEntryId}）`);
-      return { ok: false, error: `当前回答还在进行中，停止后才能${verb}` };
-    }
-    if (session.isCompacting) {
-      console.log(`[agent] ${verb}拒绝：会话压缩中（sessionId=${chat.sessionId} target=${targetEntryId}）`);
-      return { ok: false, error: "会话正在压缩中，请稍后重试" };
-    }
-    // 恢复用的原内容：投影对 message 条目直接用条目里的 message（content 为 null 时按空数组归一，
-    // 见 SDK sessionEntryToContextMessages），custom_message 条目用条目自己的 content——两处都取原值，
-    // 不做文本重建（文本重建会丢掉思考块与工具调用）。
-    const rawOriginal = target.type === "custom_message"
-      ? target.content
-      : target.type === "message"
-        ? (target.message as { content?: unknown }).content
-        : undefined;
+    this.mutatingSessions.add(sessionId);
     try {
-      const replacement = inContext
-        ? { content: typeof rawOriginal === "string" || Array.isArray(rawOriginal) ? rawOriginal : [] }
-        : null;
-      const editId = mgr.appendContextEdit(targetEntryId, replacement);
+      const verb = inContext ? "恢复进上下文" : "移出上下文";
+      let chat = this.findActiveChat(sessionId);
+      if (!chat?.session && projectPath) {
+        try {
+          await this.activateSession(sessionId, projectPath);
+          chat = this.findActiveChat(sessionId);
+        } catch (e) {
+          console.warn(`[agent] ${verb}加载会话失败：session=${sessionId}`, e);
+          return { ok: false, error: `会话加载失败，无法${verb}，请重试` };
+        }
+      }
+      const session = chat?.session;
+      if (!chat || !session) {
+        console.log(`[agent] ${verb}跳过：会话未加载（sessionId=${sessionId} chat=${!!chat} session=${!!session}）`);
+        return { ok: false, error: `会话未加载，无法${verb}（重新打开该会话后重试）` };
+      }
+      const mgr = session.sessionManager;
+      if (!targetEntryId) {
+        console.log(`[agent] ${verb}拒绝：目标 id 为空（sessionId=${sessionId}）`);
+        return { ok: false, error: `目标缺失，无法${verb}` };
+      }
+      const target = mgr.getEntry(targetEntryId);
+      if (!target) {
+        console.log(`[agent] ${verb}拒绝：目标条目不存在（sessionId=${sessionId} target=${targetEntryId}）`);
+        return { ok: false, error: `目标不在当前会话记录里，无法${verb}` };
+      }
+      // 分支校验与 SDK 自己的 appendContextEdit 同款（从当前 leaf 沿 parentId 回溯）：界面留着的旧气泡
+      // （撤回后没被裁掉那种）常常已不在分支上，提前拦下来才能给可读文案（否则只有 SDK 的英文原文）。
+      // 注意这里**没有** rewindToNode 的「user 消息且父节点在分支上」宽免：那个宽免的前提是撤回会把 leaf
+      // 落到父节点、分支被截断到那里；移出上下文不截断分支，目标不在分支上就等于把废弃分支接回来（SDK 也正是这么判的）。
+      const branchIds = new Set(mgr.getBranch().map((e) => e.id));
+      if (!branchIds.has(targetEntryId)) {
+        console.log(`[agent] ${verb}拒绝：目标不在当前分支（sessionId=${sessionId} target=${targetEntryId} leaf=${mgr.getLeafId() ?? "null"}）`);
+        return { ok: false, error: `这条消息不在当前对话分支上，无法${verb}` };
+      }
+      // 回合进行中拒绝：appendContextEdit 会把 leaf 前移，而 refreshContext() 会用投影**整个重建
+      // agent.state.messages**——正在增长的那条回复此时只在内存里（还没落盘成条目，投影里没有它），
+      // 重建等于把它从内存上下文里换掉，而运行中的回合还在改这个数组。与撤回链路同一取舍：
+      // 宁可让用户等回合结束，也不并发改写运行中的会话状态。
+      // 运行态判据用 EM 自己的 activePromptSessions（SDK 的 isStreaming 在超时中断等路径会残留，见 isSessionRunning）。
+      if (this.isSessionRunning(chat.sessionId)) {
+        console.log(`[agent] ${verb}拒绝：回合进行中（sessionId=${chat.sessionId} target=${targetEntryId}）`);
+        return { ok: false, error: `当前回答还在进行中，停止后才能${verb}` };
+      }
+      if (session.isCompacting) {
+        console.log(`[agent] ${verb}拒绝：会话压缩中（sessionId=${chat.sessionId} target=${targetEntryId}）`);
+        return { ok: false, error: "会话正在压缩中，请稍后重试" };
+      }
+      // 恢复用的原内容：投影对 message 条目直接用条目里的 message（content 为 null 时按空数组归一，
+      // 见 SDK sessionEntryToContextMessages），custom_message 条目用条目自己的 content——两处都取原值，
+      // 不做文本重建（文本重建会丢掉思考块与工具调用）。
+      const rawOriginal = target.type === "custom_message"
+        ? target.content
+        : target.type === "message"
+          ? (target.message as { content?: unknown }).content
+          : undefined;
+      try {
+        const replacement = inContext
+          ? { content: typeof rawOriginal === "string" || Array.isArray(rawOriginal) ? rawOriginal : [] }
+          : null;
+        const editId = mgr.appendContextEdit(targetEntryId, replacement);
+        session.refreshContext();
+        console.log(`[agent] ${verb}：目标 ${targetEntryId} → 编辑条目 ${editId}（leaf=${mgr.getLeafId() ?? "null"}，模型上下文 ${session.messages.length} 条）`);
+        return { ok: true };
+      } catch (e) {
+        const err = e as Error;
+        console.warn(`[agent] ${verb}失败：session=${chat.sessionId} target=${targetEntryId} ${err.name}: ${err.message}`);
+        // SDK 的英文原文只进日志，对用户给可读文案（与 rewindToNode 同一手法）
+        const msg = err.message ?? "";
+        if (msg.includes("not found")) return { ok: false, error: `目标不在当前会话记录里，无法${verb}` };
+        if (msg.includes("not on the active branch")) return { ok: false, error: `这条消息不在当前对话分支上，无法${verb}` };
+        if (msg.includes("editable model content")) return { ok: false, error: `这类条目不支持${verb}` };
+        return { ok: false, error: `${verb}失败，请重试（详情见主进程日志）` };
+      }
+    } finally {
+      this.mutatingSessions.delete(sessionId);
+    }
+  }
+
+  /** Images before the failed user prompt that are still sent to the model. */
+  async getImageRetryCandidates(
+    sessionId: string,
+    failedEntryId: string,
+    projectPath?: string,
+  ): Promise<{ ok: true; candidates: ContextImageEntry[] } | { ok: false; error: string }> {
+    let chat = this.findActiveChat(sessionId);
+    if (!chat?.session && projectPath) {
+      try {
+        await this.activateSession(sessionId, projectPath);
+        chat = this.findActiveChat(sessionId);
+      } catch {
+        return { ok: false, error: "会话加载失败，请重新打开后重试" };
+      }
+    }
+    const session = chat?.session;
+    if (!session) return { ok: false, error: "会话未加载，请重新打开后重试" };
+    const branch = session.sessionManager.getBranch();
+    const failedIndex = branch.findIndex((entry) => entry.id === failedEntryId && entry.type === "message" && entry.message.role === "user");
+    if (failedIndex < 0) return { ok: false, error: "失败的提问已不在当前对话分支上" };
+    const SM = await getSessionManagerClass();
+    const preview = SM.inMemory(session.sessionManager.getCwd(), undefined, [session.sessionManager.getHeader()!, ...branch.slice(0, failedIndex)]);
+    const candidates = contextImageEntries(preview.buildSessionProjection().entries);
+    return { ok: true, candidates };
+  }
+
+  /** Current normalized image payload retained in the model context. */
+  async getContextImageStats(sessionId: string, projectPath?: string): Promise<{ ok: true; candidates: ContextImageEntry[]; encodedBytes: number; maxRequestBytes?: number } | { ok: false; error: string }> {
+    let chat = this.findActiveChat(sessionId);
+    if (!chat?.session && projectPath) {
+      try {
+        await this.activateSession(sessionId, projectPath);
+        chat = this.findActiveChat(sessionId);
+      } catch {
+        return { ok: false, error: "会话加载失败" };
+      }
+    }
+    if (!chat?.session) return { ok: false, error: "会话未加载" };
+    const candidates = contextImageEntries(chat.session.sessionManager.buildSessionProjection().entries);
+    return { ok: true, candidates, encodedBytes: candidates.reduce((total, entry) => total + entry.encodedBytes, 0), maxRequestBytes: chat.session.model?.inputLimits?.maxRequestBytes };
+  }
+
+  /** Proactive cleanup; no user turn is rewound. */
+  async removeContextImages(sessionId: string, selectedEntryIds: string[], projectPath?: string): Promise<ImageMutationResult> {
+    if (this.mutatingSessions.has(sessionId) || this.startingSessions.has(sessionId)) return { ok: false, error: "会话正在处理另一项操作，请稍后重试" };
+    this.mutatingSessions.add(sessionId);
+    let rollback: { session: AgentSession; leaf: string | null } | null = null;
+    try {
+      let chat = this.findActiveChat(sessionId);
+      if (!chat?.session && projectPath) {
+        try {
+          await this.activateSession(sessionId, projectPath);
+          chat = this.findActiveChat(sessionId);
+        } catch {
+          return { ok: false, error: "会话加载失败" };
+        }
+      }
+      const session = chat?.session;
+      if (!session) return { ok: false, error: "会话未加载" };
+      if (this.isSessionRunning(sessionId) || session.isCompacting) return { ok: false, error: "当前回答或压缩尚未结束，请稍后再整理" };
+      const selected = new Set(selectedEntryIds);
+      if (selected.size === 0 || selected.size !== selectedEntryIds.length) return { ok: false, error: "请至少选择一条历史图片消息" };
+      const projection = session.sessionManager.buildSessionProjection();
+      const candidates = contextImageEntries(projection.entries);
+      const chosen = candidates.filter((entry) => selected.has(entry.entryId));
+      if (chosen.length !== selected.size) return { ok: false, error: "图片记录已变化，请重新打开整理窗口" };
+      rollback = { session, leaf: session.sessionManager.getLeafId() };
+      for (const candidate of chosen) {
+        const entry = projection.entries.find((item) => item.sourceEntry.id === candidate.entryId)!;
+        const content = contentWithoutImages((entry.messages[0] as { content?: unknown }).content);
+        session.sessionManager.appendContextEdit(candidate.entryId, { content: content as Array<{ type: "text"; text: string }> });
+      }
       session.refreshContext();
-      console.log(`[agent] ${verb}：目标 ${targetEntryId} → 编辑条目 ${editId}（leaf=${mgr.getLeafId() ?? "null"}，模型上下文 ${session.messages.length} 条）`);
-      return { ok: true };
-    } catch (e) {
-      const err = e as Error;
-      console.warn(`[agent] ${verb}失败：session=${chat.sessionId} target=${targetEntryId} ${err.name}: ${err.message}`);
-      // SDK 的英文原文只进日志，对用户给可读文案（与 rewindToNode 同一手法）
-      const msg = err.message ?? "";
-      if (msg.includes("not found")) return { ok: false, error: `目标不在当前会话记录里，无法${verb}` };
-      if (msg.includes("not on the active branch")) return { ok: false, error: `这条消息不在当前对话分支上，无法${verb}` };
-      if (msg.includes("editable model content")) return { ok: false, error: `这类条目不支持${verb}` };
-      return { ok: false, error: `${verb}失败，请重试（详情见主进程日志）` };
+      rollback = null;
+      return { ok: true, removedBytes: chosen.reduce((total, entry) => total + entry.encodedBytes, 0), removedImages: chosen.reduce((total, entry) => total + entry.imageCount, 0) };
+    } catch (error) {
+      console.error("[agent] 预先整理历史图片失败:", error);
+      if (rollback) {
+        const restored = rollbackImageContextBranch(rollback.session, rollback.leaf);
+        return restored
+          ? { ok: false, error: "整理未完成，原会话已恢复，请重试" }
+          : { ok: false, error: "整理未完成，请重新加载会话以核对当前内容", reloadRequired: true };
+      }
+      return { ok: false, error: "整理历史图片失败，请重试" };
+    } finally {
+      this.mutatingSessions.delete(sessionId);
+    }
+  }
+
+  /** Rewind the failed turn, then persist image-only context edits before it is retried. */
+  async prepareImageRetry(
+    sessionId: string,
+    failedEntryId: string,
+    selectedEntryIds: string[],
+    omitCurrentImages: boolean,
+    projectPath?: string,
+  ): Promise<ImageMutationResult> {
+    if (this.mutatingSessions.has(sessionId) || this.startingSessions.has(sessionId)) {
+      return { ok: false, error: "会话正在处理另一项操作，请稍后重试" };
+    }
+    this.mutatingSessions.add(sessionId);
+    let rollback: { session: AgentSession; leaf: string | null } | null = null;
+    try {
+      let chat = this.findActiveChat(sessionId);
+      if (!chat?.session && projectPath) {
+        try {
+          await this.activateSession(sessionId, projectPath);
+          chat = this.findActiveChat(sessionId);
+        } catch {
+          return { ok: false, error: "会话加载失败，请重新打开后重试" };
+        }
+      }
+      const session = chat?.session;
+      if (!session) return { ok: false, error: "会话未加载，请重新打开后重试" };
+      if (this.isSessionRunning(sessionId) || session.isCompacting) {
+        return { ok: false, error: "当前回答或压缩尚未结束，请稍后重试" };
+      }
+      const mgr = session.sessionManager;
+      const branch = mgr.getBranch();
+      const failedIndex = branch.findIndex((entry) => entry.id === failedEntryId && entry.type === "message" && entry.message.role === "user");
+      if (failedIndex < 0) return { ok: false, error: "失败的提问已不在当前对话分支上" };
+      const laterUser = branch.slice(failedIndex + 1).some((entry) => entry.type === "message" && entry.message.role === "user");
+      if (laterUser) return { ok: false, error: "此后已有新提问，请重新打开会话后整理图片" };
+      const selected = new Set(selectedEntryIds);
+      if ((!omitCurrentImages && selected.size === 0) || selected.size !== selectedEntryIds.length) {
+        return { ok: false, error: "请选择历史图片，或改为按文件路径重试" };
+      }
+      // Preview the branch that rewind will expose. A later SDK compaction may currently hide
+      // older images; counting today's projection would miss images restored by the rewind.
+      const SM = await getSessionManagerClass();
+      const preview = SM.inMemory(mgr.getCwd(), undefined, [mgr.getHeader()!, ...branch.slice(0, failedIndex)]);
+      const projection = preview.buildSessionProjection();
+      const candidates = contextImageEntries(projection.entries);
+      const chosen = candidates.filter((entry) => selected.has(entry.entryId));
+      if (chosen.length !== selected.size) return { ok: false, error: "图片记录已变化，请重新打开整理窗口" };
+      const replacements = chosen.map((candidate) => {
+        const projected = projection.entries.find((entry) => entry.sourceEntry.id === candidate.entryId)!;
+        return { candidate, content: contentWithoutImages((projected.messages[0] as { content?: unknown }).content) };
+      });
+      rollback = { session, leaf: mgr.getLeafId() };
+      const rewind = await this.rewindBranchTo(session, failedEntryId);
+      if (!rewind.ok) {
+        rollback = null;
+        return rewind;
+      }
+      for (const { candidate, content } of replacements) {
+        mgr.appendContextEdit(candidate.entryId, { content: content as Array<{ type: "text"; text: string }> });
+      }
+      session.refreshContext();
+      rollback = null;
+      return {
+        ok: true,
+        removedBytes: chosen.reduce((total, entry) => total + entry.encodedBytes, 0),
+        removedImages: chosen.reduce((total, entry) => total + entry.imageCount, 0),
+      };
+    } catch (error) {
+      console.error("[agent] 整理历史图片失败:", error);
+      if (rollback) {
+        const restored = rollbackImageContextBranch(rollback.session, rollback.leaf);
+        return restored
+          ? { ok: false, error: "整理未完成，原会话已恢复，请重试" }
+          : { ok: false, error: "整理未完成，请重新加载会话以核对当前内容", reloadRequired: true };
+      }
+      return { ok: false, error: "整理历史图片失败，请重试" };
+    } finally {
+      this.mutatingSessions.delete(sessionId);
     }
   }
 
@@ -1516,202 +1820,221 @@ export class AgentService {
     /** 前端发起发送的 tab id(透传回 chat-session 广播,前端精确绑定 tab,防多新 tab 错配) */
     tabId?: string,
   ): Promise<{ chatId: string; sessionId: string }> {
-    const resolvedPath = path.resolve(resolveHome(projectPath));
-    // 无项目时 cwd 是 workspace 兜底目录——确保存在(不存在则 Pi 会话创建失败)
-    if (!fs.existsSync(resolvedPath)) fs.mkdirSync(resolvedPath, { recursive: true });
-
-    // 已有活跃会话 → 直接用
     if (resumeSessionId) {
-      const existing = this.findActiveChat(resumeSessionId);
-      if (existing?.rebuildToolsOnNextMessage && existing.session && !existing.session.isStreaming) {
-        existing.session.dispose();
-        this.activeChats.delete(existing.chatId);
-        console.log(`[agent] 权限从只读放宽，重建会话工具集 ${resumeSessionId}`);
+      if (this.startingSessions.has(resumeSessionId) || this.mutatingSessions.has(resumeSessionId)) {
+        throw new Error("会话正在处理另一项操作，请稍后重试");
       }
-      // 按需激活的压缩专用会话（minimal，无工具/系统提示）不能用于对话——丢弃后用完整配置重建
-      else if (existing?.minimal) {
-        this.activeChats.delete(existing.chatId);
-        console.log(`[agent] 丢弃压缩专用会话 ${existing.chatId}，按完整配置重建`);
-      } else if (existing && existing.session) {
-        // 应用思考等级(prompt 前同步设置,与新建分支一致)——前端切等级不再立即 IPC,
-        // 等级统一随发送应用,消除"切等级 IPC 与发送 IPC 并发"的 SDK 竞态窗口
-        if (thinkingLevel) {
-          this.applyThinkingLevel(existing, thinkingLevel);
-        }
-        // 防卡死：isStreaming 残留但 EM 无进行中回合(超时中断等)→ 强制复位再正常发送，
-        // 否则 SDK prompt() 抛 "Agent is already processing" → 消息发不出、不调 API
-        if (existing.session.isStreaming && !this.activePromptSessions.has(resumeSessionId)) {
-          console.warn(`[agent] sendMessage: session ${resumeSessionId} isStreaming 残留，强制复位`);
-          try { existing.session.abort(); } catch { /* abort 无副作用 */ }
-          await existing.session.waitForIdle().catch(() => {});
-        }
-        this.launchPrompt(existing.session, resumeSessionId, existing.chatId, message, existing, images, systemPayload);
-        return { chatId: existing.chatId, sessionId: existing.sessionId };
-      }
+      this.startingSessions.add(resumeSessionId);
     }
+    try {
+      const resolvedPath = path.resolve(resolveHome(projectPath));
+      // 无项目时 cwd 是 workspace 兜底目录——确保存在(不存在则 Pi 会话创建失败)
+      if (!fs.existsSync(resolvedPath)) fs.mkdirSync(resolvedPath, { recursive: true });
 
-    // 新会话
-    const chatId = `chat-${++this.chatCounter}`;
-    const piModel = await this.getModel(this.store, preferredProvider, model);
-    if (!piModel && !resumeSessionId) {
-      throw new Error("未配置 AI 模型，请在设置中配置 API");
-    }
-
-    // 恢复会话时补全 isDesigner：tab 恢复不会带此标记，从持久化的 session 类型中读取
-    const designer = isDesigner || sessionAgentTypes.get(resumeSessionId ?? "") === "designer";
-
-    // 新会话用临时 ID（task 工具绑定它），真实 sessionId 在 createPiSession 返回后更新
-    const newSessionId = randomUUID();
-
-    // 前端权限模式 → 写入会话缓存：canUseTool 每次调用实时读 readCache(sessionId)。
-    // 前端在发首条消息前切的模式写的是 __new_xxx 临时缓存，主进程的 sessionId 是 randomUUID，
-    // 读不到 → 新会话首条消息前切的「完全访问」会被忽略（一直按标准跑）。随发送落盘修正。
-    if (permissionMode) {
-      const cacheId = resumeSessionId ?? newSessionId;
-      const previousMode = readCache(cacheId)?.permissionMode;
-      writeCache(resumeSessionId ?? newSessionId, { permissionMode });
-      if (isPermissionModeTightening(previousMode, permissionMode)) {
-        await this.revokeElevatedExecution(cacheId);
-      }
-    }
-
-    // 新建与恢复会话统一注入工具（历史实现恢复分支留空 → 恢复会话无 task/产品工具、无权限控制）
-    const { tools: extraTools, canUseTool, learnInstalled } = await this.buildExtraTools(
-      resolvedPath,
-      resumeSessionId ?? newSessionId,
-      chatId,
-    );
-
-    // 后台 shell 退出 → 结果注入主会话(临时 ID 解析为真实 ID,同 task 委派)
-    // 每条 shell 通知都开回合让 Mint 回应:shell 命令是独立工作(无批次关联),
-    // 退出通知 = 该工作的最终通知,对应 agent 单任务委派=汇总必回应的原则
-    // (命令跑得久,退出时回合已结束;不开回合则 Mint 永远不会读到并回应)
-    const shellExitInject = (shell: BackgroundShell): void => {
-      const sid = resolveParentSessionId(resumeSessionId ?? newSessionId);
-      this.injectSystemMessage(sid, formatShellResult(shell), "shell", { triggerTurn: true });
-    };
-
-    const session: AgentSession = await (async () => {
+      // 已有活跃会话 → 直接用
       if (resumeSessionId) {
-        const sessions = await listPiSessions(resolvedPath);
-        const info = sessions.find((s) => s.id === resumeSessionId);
-        if (info) {
-          return resumePiSession({
-            cwd: resolvedPath,
-            agentDir: this.getAgentDir(),
-            model: model ? piModel ?? undefined : undefined,
-            thinkingLevel: thinkingLevel as Parameters<typeof resumePiSession>[0]["thinkingLevel"],
-            store: this.store,
-            resumeSessionFile: info.path,
-            systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
-            extraTools,
-            canUseTool,
-            onShellExit: shellExitInject,
-          });
+        await this.activationPromises.get(resumeSessionId)?.catch(() => null);
+        const inFlight = this.findActiveChat(resumeSessionId);
+        if (inFlight?.promptDone && this.activePromptSessions.has(resumeSessionId)) {
+          // sendMessage 是新回合入口；运行中的插话走单独的 steer IPC。
+          // 等上轮完整结算（含预处理期的补中止），避免两个 prompt 抢同一会话。
+          const settled = await waitForAbortSettlement(Promise.resolve(), inFlight.promptDone, ABORT_SETTLEMENT_TIMEOUT_MS);
+          if (!settled) throw new Error("上一轮仍未结束，请稍后重试");
         }
-        console.warn(`[agent] resume NOT found: ${resumeSessionId} (共 ${sessions.length} 个会话)——将新建会话`);
+        const existing = this.findActiveChat(resumeSessionId);
+        if (existing?.rebuildToolsOnNextMessage && existing.session && !existing.session.isStreaming) {
+          existing.session.dispose();
+          this.activeChats.delete(existing.chatId);
+          console.log(`[agent] 权限从只读放宽，重建会话工具集 ${resumeSessionId}`);
+        }
+        // 按需激活的历史操作会话（minimal，无工具/系统提示）不能用于对话——丢弃后用完整配置重建
+        else if (existing?.minimal) {
+          existing.session?.dispose();
+          this.activeChats.delete(existing.chatId);
+          console.log(`[agent] 丢弃按需激活的会话 ${existing.chatId}，按完整配置重建`);
+        } else if (existing && existing.session) {
+          // 应用思考等级(prompt 前同步设置,与新建分支一致)——前端切等级不再立即 IPC,
+          // 等级统一随发送应用,消除"切等级 IPC 与发送 IPC 并发"的 SDK 竞态窗口
+          if (thinkingLevel) {
+            this.applyThinkingLevel(existing, thinkingLevel);
+          }
+          // 防卡死：isStreaming 残留但 EM 无进行中回合(超时中断等)→ 强制复位再正常发送，
+          // 否则 SDK prompt() 抛 "Agent is already processing" → 消息发不出、不调 API
+          if (existing.session.isStreaming && !this.activePromptSessions.has(resumeSessionId)) {
+            console.warn(`[agent] sendMessage: session ${resumeSessionId} isStreaming 残留，强制复位`);
+            try { existing.session.abort(); } catch { /* abort 无副作用 */ }
+            await existing.session.waitForIdle().catch(() => {});
+          }
+          this.launchPrompt(existing.session, resumeSessionId, existing.chatId, message, existing, images, systemPayload);
+          return { chatId: existing.chatId, sessionId: existing.sessionId };
+        }
       }
-      return createPiSession({
-        cwd: resolvedPath,
-        agentDir: this.getAgentDir(),
-        model: piModel ?? undefined,
-        store: this.store,
-        systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
-        extraTools,
-        canUseTool,
-        onShellExit: shellExitInject,
-      });
-    })();
 
-    // 注册临时 ID → 真实 ID 映射：task 委派创建时解析,按真实 ID 建子会话目录
-    if (!resumeSessionId) {
-      registerSessionIdMapping(newSessionId, session.sessionId);
-      // 会话缓存迁移：首条消息前 sendMessage 把权限模式/思考等级落盘在临时 key（newSessionId），
-      // 而 canUseTool 解析到真实 sid 后、前端补写前读的是真实 key——这里同步迁移，消除竞态窗口
-      const tmp = readCache(newSessionId);
-      if (tmp) {
-        const migrate: Record<string, unknown> = {};
-        if (tmp.permissionMode !== undefined) migrate.permissionMode = tmp.permissionMode;
-        if (tmp.thinkingLevel !== undefined) migrate.thinkingLevel = tmp.thinkingLevel;
-        if (Object.keys(migrate).length > 0) writeCache(session.sessionId, migrate);
+      // 新会话
+      const chatId = `chat-${++this.chatCounter}`;
+      const piModel = await this.getModel(this.store, preferredProvider, model);
+      if (!piModel && !resumeSessionId) {
+        throw new Error("未配置 AI 模型，请在设置中配置 API");
       }
-    }
 
-    const chat: ActiveChat = {
-      chatId,
-      sessionId: resumeSessionId ?? session.sessionId,
-      tempSessionId: resumeSessionId ? undefined : newSessionId,
-      session,
-      abortController: new AbortController(),
-      projectPath: resolvedPath,
-      agentType: undefined,
-      // 系统消息(custom payload)作为首条时,用 kind 中文标签作标题——
-      // SDK 的 buildSessionInfo 过滤 custom 角色消息,不兜底会显示 "(no messages)"
-      firstUserMessage: systemPayload
-        ? (SYSTEM_KIND_TITLES[systemPayload.details.kind as string] ?? "系统消息")
-        : message,
-      assistantUuid: randomUUID(),
-      eventBuffer: [],
-      compactCount: 0,
-      // 会话绑定供应商（缺省用全局当前），供「按模型思考等级」查表
-      provider: session.model?.provider,
-      currentModel: session.model?.id,
-      toolCallCount: 0,
-      learnErrorSeen: false,
-      learnFixAfterError: false,
-      learnErrorText: "",
-      learnSuggestDone: false,
-      learnToolInstalled: learnInstalled,
-    };
-    // learn 去重标记从磁盘恢复（重启后同一会话不重复提示/建议，防重复沉淀）
-    const learnState = loadLearnStates()[chat.sessionId];
-    if (learnState) {
-      chat.learnSuggestDone = !!learnState.suggestDone;
-    }
+      // 恢复会话时补全 isDesigner：tab 恢复不会带此标记，从持久化的 session 类型中读取
+      const designer = isDesigner || sessionAgentTypes.get(resumeSessionId ?? "") === "designer";
 
-    if (isDesigner) {
-      chat.agentType = "designer";
-      if (resolvedPath) {
-        // 种子模板/品牌库播种（与委派 designer 子 Agent 的入口共用同一函数）
-        ensureDesignerTemplates(resolvedPath);
+      // 新会话用临时 ID（task 工具绑定它），真实 sessionId 在 createPiSession 返回后更新
+      const newSessionId = randomUUID();
+
+      // 前端权限模式 → 写入会话缓存：canUseTool 每次调用实时读 readCache(sessionId)。
+      // 前端在发首条消息前切的模式写的是 __new_xxx 临时缓存，主进程的 sessionId 是 randomUUID，
+      // 读不到 → 新会话首条消息前切的「完全访问」会被忽略（一直按标准跑）。随发送落盘修正。
+      if (permissionMode) {
+        const cacheId = resumeSessionId ?? newSessionId;
+        const previousMode = readCache(cacheId)?.permissionMode;
+        writeCache(resumeSessionId ?? newSessionId, { permissionMode });
+        if (isPermissionModeTightening(previousMode, permissionMode)) {
+          await this.revokeElevatedExecution(cacheId);
+        }
       }
-    }
 
-    this.activeChats.set(chatId, chat);
+      // 新建与恢复会话统一注入工具（历史实现恢复分支留空 → 恢复会话无 task/产品工具、无权限控制）
+      const { tools: extraTools, canUseTool, learnInstalled } = await this.buildExtraTools(
+        resolvedPath,
+        resumeSessionId ?? newSessionId,
+        chatId,
+      );
 
-    // 旧版会话可能没有 EM 缓存。以 SDK 从 JSONL 恢复出的真值补建缓存，之后 UI 才能
-    // 显示并显式传递会话选择；首次恢复绝不能先用全局默认覆盖这两个值。
-    if (resumeSessionId) {
-      writeCache(resumeSessionId, {
-        ...(session.model ? { provider: session.model.provider, model: session.model.id } : {}),
-        thinkingLevel: session.thinkingLevel,
-      });
-      if (session.model) {
-        broadcast("agent:model-changed", { sessionId: resumeSessionId, model: session.model.id });
+      // 后台 shell 退出 → 结果注入主会话(临时 ID 解析为真实 ID,同 task 委派)
+      // 每条 shell 通知都开回合让 Mint 回应:shell 命令是独立工作(无批次关联),
+      // 退出通知 = 该工作的最终通知,对应 agent 单任务委派=汇总必回应的原则
+      // (命令跑得久,退出时回合已结束;不开回合则 Mint 永远不会读到并回应)
+      const shellExitInject = (shell: BackgroundShell): void => {
+        const sid = resolveParentSessionId(resumeSessionId ?? newSessionId);
+        this.injectSystemMessage(sid, formatShellResult(shell), "shell", { triggerTurn: true });
+      };
+
+      const session: AgentSession = await (async () => {
+        if (resumeSessionId) {
+          const sessions = await listPiSessions(resolvedPath);
+          const info = sessions.find((s) => s.id === resumeSessionId);
+          if (info) {
+            return resumePiSession({
+              cwd: resolvedPath,
+              agentDir: this.getAgentDir(),
+              model: model ? piModel ?? undefined : undefined,
+              thinkingLevel: thinkingLevel as Parameters<typeof resumePiSession>[0]["thinkingLevel"],
+              store: this.store,
+              resumeSessionFile: info.path,
+              systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
+              extraTools,
+              canUseTool,
+              onShellExit: shellExitInject,
+            });
+          }
+          console.warn(`[agent] resume NOT found: ${resumeSessionId} (共 ${sessions.length} 个会话)——将新建会话`);
+        }
+        return createPiSession({
+          cwd: resolvedPath,
+          agentDir: this.getAgentDir(),
+          model: piModel ?? undefined,
+          store: this.store,
+          systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
+          extraTools,
+          canUseTool,
+          onShellExit: shellExitInject,
+        });
+      })();
+
+      // 注册临时 ID → 真实 ID 映射：task 委派创建时解析,按真实 ID 建子会话目录
+      if (!resumeSessionId) {
+        registerSessionIdMapping(newSessionId, session.sessionId);
+        // 会话缓存迁移：首条消息前 sendMessage 把权限模式/思考等级落盘在临时 key（newSessionId），
+        // 而 canUseTool 解析到真实 sid 后、前端补写前读的是真实 key——这里同步迁移，消除竞态窗口
+        const tmp = readCache(newSessionId);
+        if (tmp) {
+          const migrate: Record<string, unknown> = {};
+          if (tmp.permissionMode !== undefined) migrate.permissionMode = tmp.permissionMode;
+          if (tmp.thinkingLevel !== undefined) migrate.thinkingLevel = tmp.thinkingLevel;
+          if (Object.keys(migrate).length > 0) writeCache(session.sessionId, migrate);
+        }
       }
-      this.broadcastThinkingLevel(chat);
+
+      const chat: ActiveChat = {
+        chatId,
+        sessionId: resumeSessionId ?? session.sessionId,
+        tempSessionId: resumeSessionId ? undefined : newSessionId,
+        session,
+        abortController: new AbortController(),
+        projectPath: resolvedPath,
+        agentType: undefined,
+        // 系统消息(custom payload)作为首条时,用 kind 中文标签作标题——
+        // SDK 的 buildSessionInfo 过滤 custom 角色消息,不兜底会显示 "(no messages)"
+        firstUserMessage: systemPayload
+          ? (SYSTEM_KIND_TITLES[systemPayload.details.kind as string] ?? "系统消息")
+          : message,
+        assistantUuid: randomUUID(),
+        eventBuffer: [],
+        compactCount: 0,
+        // 会话绑定供应商（缺省用全局当前），供「按模型思考等级」查表
+        provider: session.model?.provider,
+        currentModel: session.model?.id,
+        toolCallCount: 0,
+        learnErrorSeen: false,
+        learnFixAfterError: false,
+        learnErrorText: "",
+        learnSuggestDone: false,
+        learnToolInstalled: learnInstalled,
+      };
+      // learn 去重标记从磁盘恢复（重启后同一会话不重复提示/建议，防重复沉淀）
+      const learnState = loadLearnStates()[chat.sessionId];
+      if (learnState) {
+        chat.learnSuggestDone = !!learnState.suggestDone;
+      }
+
+      if (isDesigner) {
+        chat.agentType = "designer";
+        if (resolvedPath) {
+          // 种子模板/品牌库播种（与委派 designer 子 Agent 的入口共用同一函数）
+          ensureDesignerTemplates(resolvedPath);
+        }
+      }
+
+      this.activeChats.set(chatId, chat);
+
+      // 旧版会话可能没有 EM 缓存。以 SDK 从 JSONL 恢复出的真值补建缓存，之后 UI 才能
+      // 显示并显式传递会话选择；首次恢复绝不能先用全局默认覆盖这两个值。
+      if (resumeSessionId) {
+        writeCache(resumeSessionId, {
+          ...(session.model ? { provider: session.model.provider, model: session.model.id } : {}),
+          thinkingLevel: session.thinkingLevel,
+        });
+        if (session.model) {
+          broadcast("agent:model-changed", { sessionId: resumeSessionId, model: session.model.id });
+        }
+        this.broadcastThinkingLevel(chat);
+      }
+
+      // 记录 agent 类型
+      if (chat.agentType && chat.sessionId) {
+        sessionAgentTypes.set(chat.sessionId, chat.agentType);
+        saveSessionTypes(sessionAgentTypes);
+      }
+
+      // 广播 session_id（前端需要）；projectPath 供前端校验会话归属（旁路 workspace 会话不绑项目空 tab）
+      if (chat.sessionId) {
+        broadcast("agent:chat-session", { chatId, sessionId: chat.sessionId, tabId, projectPath: chat.projectPath });
+      }
+
+      // 设置思考级别（在 prompt 前同步设置，避免竞态）
+      if (thinkingLevel) {
+        this.applyThinkingLevel(chat, thinkingLevel);
+      }
+
+      // 发起第一轮对话
+      this.launchPrompt(session, chat.sessionId, chatId, message, chat, images, systemPayload);
+
+      return { chatId, sessionId: chat.sessionId };
+    } finally {
+      if (resumeSessionId) this.startingSessions.delete(resumeSessionId);
     }
-
-    // 记录 agent 类型
-    if (chat.agentType && chat.sessionId) {
-      sessionAgentTypes.set(chat.sessionId, chat.agentType);
-      saveSessionTypes(sessionAgentTypes);
-    }
-
-    // 广播 session_id（前端需要）；projectPath 供前端校验会话归属（旁路 workspace 会话不绑项目空 tab）
-    if (chat.sessionId) {
-      broadcast("agent:chat-session", { chatId, sessionId: chat.sessionId, tabId, projectPath: chat.projectPath });
-    }
-
-    // 设置思考级别（在 prompt 前同步设置，避免竞态）
-    if (thinkingLevel) {
-      this.applyThinkingLevel(chat, thinkingLevel);
-    }
-
-    // 发起第一轮对话
-    this.launchPrompt(session, chat.sessionId, chatId, message, chat, images, systemPayload);
-
-    return { chatId, sessionId: chat.sessionId };
   }
 
   findActiveChat(sessionId: string): ActiveChat | undefined {
@@ -2351,11 +2674,24 @@ export class AgentService {
     await chat?.session?.followUp(text);
   }
 
-  /** 按需恢复会话为活跃 chat（重启后未发过消息的会话不在 activeChats——压缩等操作需要）。
+  /** 按需恢复会话为活跃 chat（重启后未发过消息的会话不在 activeChats——压缩/撤回等操作需要）。
    *  最小恢复：只加载历史 + 模型，不注入工具/系统提示、不发起对话；返回 chatId。 */
   async activateSession(sessionId: string, projectPath: string): Promise<string | null> {
     const existing = this.findActiveChat(sessionId);
     if (existing?.session) return existing.chatId;
+    if (this.startingSessions.has(sessionId)) return null; // 完整会话正在启动，不能并行创建最小实例
+    const pending = this.activationPromises.get(sessionId);
+    if (pending) return pending;
+    const activation = this.activateSessionInner(sessionId, projectPath);
+    this.activationPromises.set(sessionId, activation);
+    try {
+      return await activation;
+    } finally {
+      if (this.activationPromises.get(sessionId) === activation) this.activationPromises.delete(sessionId);
+    }
+  }
+
+  private async activateSessionInner(sessionId: string, projectPath: string): Promise<string | null> {
     const sessions = await listPiSessions(projectPath);
     const info = sessions.find((s) => s.id === sessionId);
     if (!info) {
@@ -2364,14 +2700,12 @@ export class AgentService {
     }
     const cached = readCache(sessionId);
     const piModel = await this.getModel(this.store, cached?.provider, cached?.model);
-    if (!piModel) {
-      console.warn("[agent] 按需激活失败:模型不可用");
-      return null;
-    }
+    // 历史编辑操作（撤回/移出上下文）不应因原供应商已删除而无法打开会话。
+    // SDK 的 summarize:false 树导航可在无模型会话上运行；真正重发时再由 sendMessage 校验模型。
     const session = await resumePiSession({
       cwd: projectPath,
       agentDir: this.getAgentDir(),
-      model: piModel,
+      model: piModel ?? undefined,
       store: this.store,
       resumeSessionFile: info.path,
     });
@@ -2435,7 +2769,7 @@ export class AgentService {
             broadcast("agent:stream", {
               type: "error", sessionId, chatId: chat.chatId,
               message: event.errorMessage || "上下文压缩失败，请稍后重试",
-              canRetry: true,
+              canRetry: true, operation: "compaction",
             });
           }
           // aborted(用户中止压缩):不广播错误——按钮状态即反馈,静默收尾
@@ -2470,7 +2804,7 @@ export class AgentService {
         console.error(`[agent] compact 超时: chatId=${chat.chatId}`);
         broadcast("agent:stream", {
           type: "error", sessionId, chatId: chat.chatId,
-          message: "上下文压缩超时（120s），请稍后重试", canRetry: true,
+          message: "上下文压缩超时（120s），请稍后重试", canRetry: true, operation: "compaction",
         });
       } else {
         console.error(`[agent] compact failed: chatId=${chat.chatId}`, errMsg);

@@ -33,6 +33,7 @@ export interface PiChatEvent {
   details?: Record<string, unknown>;
   message?: string;
   canRetry?: boolean;
+  operation?: "prompt" | "compaction";
   summary?: string;
   usage?: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number };
   /** 落盘条目 id(entry_appended 事件;前端给气泡回填 entryId 用) */
@@ -376,7 +377,7 @@ export function bridgeSessionEvents(
       } else if (!event.aborted && event.errorMessage) {
         callbacks.onEvent({
           type: "error", sessionId: "",
-          message: event.errorMessage || "上下文压缩失败，请稍后重试", canRetry: true,
+          message: event.errorMessage || "上下文压缩失败，请稍后重试", canRetry: true, operation: "compaction",
         });
       }
       // aborted(中止):不广播——清蒙版由上层 context-summarizing done 兜底
