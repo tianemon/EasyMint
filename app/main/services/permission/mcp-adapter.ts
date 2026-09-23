@@ -416,6 +416,23 @@ export async function closeMcpContexts(contextIds: readonly string[]): Promise<v
   await Promise.allSettled(dropped.map((client) => closeClient(client)));
 }
 
+/**
+ * 应用退出：关闭全部 MCP 客户端（含本地 stdio 进程）。
+ *
+ * 为什么单独有这一条：stdio MCP server（如 `codegraph serve --mcp`、`npx @playwright/mcp`）
+ * 是 EM spawn 的**常驻**子进程，生命周期本就该跟着 EM 走。退出时不关，它们会继续活着——
+ * 白占内存/端口，且会被 macOS 26+ 归因为「应用退出后仍活跃的后台任务」。
+ * （配置变更走 dropMcpClient、权限降级走 closeMcpContexts，两者都不是退出路径。）
+ * 由 index.ts 的退出清场 await；单个客户端关闭失败不影响其它（allSettled）。
+ */
+export async function closeAllMcpClients(): Promise<void> {
+  const dropped = [...clients.values()];
+  clients.clear();
+  statusMap.clear();
+  toolsCache.clear();
+  await Promise.allSettled(dropped.map((client) => closeClient(client)));
+}
+
 /** 单个 server 重试：断开旧连接并清缓存，立即重连一次（界面「重试连接」） */
 export async function retryMcpServer(name: string, projectPath?: string): Promise<{ ok: boolean; error?: string }> {
   await dropMcpClient(name);
@@ -425,6 +442,9 @@ export async function retryMcpServer(name: string, projectPath?: string): Promis
   const s = scanMcpServers(projectPath).find((x) => x.name === name);
   if (!s) return { ok: false, error: `未找到服务器「${name}」` };
   if (!s.enabled) return { ok: false, error: "服务器已停用，请先启用" };
+  // 门卫必须在适配器层：待确认的项目级 server 一律不拉起（loadOneServer 会 spawn 子进程）。
+  // 界面现在不给待确认行重试按钮，但 UI 会变，不能只靠 UI 不放入口。
+  if (s.pendingApproval) return { ok: false, error: `服务器「${name}」尚未确认启用——请先在 MCP 列表中确认` };
   const defineTool = await getDefineToolFn();
   const tools = await loadOneServer(s, defineTool, projectPath);
   // 合并回缓存：其他 server 的工具仍有效时保留（替换掉该 server 的旧工具）

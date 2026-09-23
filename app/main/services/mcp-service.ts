@@ -6,6 +6,7 @@
  */
 
 import { readFileSync, existsSync, mkdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import os from "node:os";
 import { dropLegacyEncryptedApiKeys } from "./settings-legacy";
@@ -106,7 +107,8 @@ export interface McpServerManifest {
   scope: McpScope;
   /** project-compat 为只读——不提供编辑/删除入口 */
   writable: boolean;
-  /** 项目级（含 compat）首次使用需用户确认（CC 的 Pending approval 设计） */
+  /** 项目级（含 compat）首次使用需用户确认（CC 的 Pending approval 设计）；
+   *  定义（command/args/url）变更后重新转回待确认，见 definitionFingerprint */
   pendingApproval?: boolean;
 }
 
@@ -152,7 +154,7 @@ function compatMcpPath(projectPath: string): string {
 
 // ── 项目级首次审批（CC 的 Pending approval 设计） ──────
 
-/** 已确认的项目级 server 键列表（"项目路径::服务器名"） */
+/** 已确认的项目级 server 键列表（`<项目路径>::<服务器名>[::<定义指纹>]`，见 definitionFingerprint） */
 function getApprovedMcp(): string[] {
   if (!existsSync(EM_SETTINGS)) return [];
   try {
@@ -164,20 +166,74 @@ function getApprovedMcp(): string[] {
   }
 }
 
-/** 确认一个项目级 server（写入 em-settings.json 的 `mcp.approved`） */
-export function approveMcpServer(projectPath: string, name: string): void {
+/**
+ * 审批身份绑定**服务器定义**：同名 server 改了 command/args/url 必须重新确认。
+ *
+ * 为什么：审批键原本只有 `<项目路径>::<名>`——共享仓库里别人改过 .mcp.json 的同名条目，
+ * 用户先前那次「确认」会被静默挪用给一段没审过的新命令。
+ *
+ * 指纹取**原始**定义（`${VAR}` 占位符不展开）：改环境变量不该触发重新确认，改定义文本才该。
+ */
+function definitionFingerprint(cfg: McpServerConfig): string {
+  return createHash("sha256")
+    .update(JSON.stringify([cfg.type, cfg.command ?? null, cfg.args ?? null, cfg.url ?? null]))
+    .digest("hex")
+    .slice(0, 32);
+}
+
+function approvalEntry(projectPath: string, name: string, fingerprint?: string): string {
+  const base = `${projectPath}::${name}`;
+  return fingerprint ? `${base}::${fingerprint}` : base;
+}
+
+/** 写入审批记录：先清掉该 server 的旧条目（含无指纹的旧记录），只留当前定义这一条 */
+function writeMcpApproval(projectPath: string, name: string, entry: string): void {
   // 锁要包住**整个读-改-写**：只在写那一步加锁的话，读到的旧快照照样能把别人刚写的覆盖掉
   const release = lockConfigDirectory(emHome());
   try {
     const data: Record<string, unknown> = existsSync(EM_SETTINGS)
       ? JSON.parse(readFileSync(EM_SETTINGS, "utf-8"))
       : {};
-    const list = getApprovedMcp();
-    const key = `${projectPath}::${name}`;
-    if (!list.includes(key)) list.push(key);
+    const base = `${projectPath}::${name}`;
+    const list = getApprovedMcp().filter((k) => k !== base && !k.startsWith(`${base}::`));
+    list.push(entry);
     writeExternalField(data, "mcpApproved", list);
     atomicWrite(EM_SETTINGS, JSON.stringify(data, null, 2));
   } finally { release(); }
+}
+
+/** 项目级（含项目根 .mcp.json 兼容来源）某 server 的当前定义——审批要据此算指纹 */
+function scopedServerConfig(projectPath: string, name: string): McpServerConfig | null {
+  return readMcpServersFrom(projectMcpPath(projectPath))[name]
+    ?? readMcpServersFrom(compatMcpPath(projectPath))[name]
+    ?? null;
+}
+
+/** 确认一个项目级 server（写入 em-settings.json 的 `mcp.approved`） */
+export function approveMcpServer(projectPath: string, name: string): void {
+  const cfg = scopedServerConfig(projectPath, name);
+  // 读不到定义（文件刚被删/改坏）时退回无指纹形态：下次扫描按「旧记录」把这时的定义采纳为基线
+  writeMcpApproval(projectPath, name, cfg
+    ? approvalEntry(projectPath, name, definitionFingerprint(cfg))
+    : approvalEntry(projectPath, name));
+}
+
+/**
+ * 该 server 是否已确认启用。
+ *
+ * 旧记录（无指纹）**无感迁移**：把当前定义采纳为基线并落一枚指纹——升级不能让用户已确认的
+ * server 平白变成「待确认」。迁移会**消费掉**旧键（见 writeMcpApproval）：留着它的话，之后
+ * 每次改定义都会再命中一次，等于这个 server 永远不再需要确认。
+ */
+function isMcpApproved(approved: readonly string[], projectPath: string, name: string, cfg: McpServerConfig): boolean {
+  const base = `${projectPath}::${name}`;
+  const entry = approvalEntry(projectPath, name, definitionFingerprint(cfg));
+  if (approved.includes(entry)) return true;
+  if (approved.includes(base)) {
+    writeMcpApproval(projectPath, name, entry);
+    return true;
+  }
+  return false;
 }
 
 /** 多来源扫描：用户级（可写）> EM 项目级（可写）> 项目根 .mcp.json（只读兼容） */
@@ -203,7 +259,7 @@ export function scanMcpServers(projectPath?: string): McpServerManifest[] {
       result.push({
         name, type: cfg.type, command: cfg.command, args: cfg.args, url: cfg.url,
         enabled: !disabled.includes(name), scope: "project", writable: true,
-        pendingApproval: !approved.includes(`${projectPath}::${name}`),
+        pendingApproval: !isMcpApproved(approved, projectPath, name, cfg),
       });
       taken.add(name);
     }
@@ -213,7 +269,7 @@ export function scanMcpServers(projectPath?: string): McpServerManifest[] {
       result.push({
         name, type: cfg.type, command: cfg.command, args: cfg.args, url: cfg.url,
         enabled: !disabled.includes(name), scope: "project-compat", writable: false,
-        pendingApproval: !approved.includes(`${projectPath}::${name}`),
+        pendingApproval: !isMcpApproved(approved, projectPath, name, cfg),
       });
       taken.add(name);
     }
