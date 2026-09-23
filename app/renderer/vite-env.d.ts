@@ -254,7 +254,7 @@ interface ElectronAPI {
   };
   file: {
     readTree: (dirPath: string) => Promise<FileNode[]>;
-    readContent: (filePath: string) => Promise<string>;
+    readContent: (filePath: string) => Promise<{ ok: true; content: string } | { ok: false; reason: "missing" | "outside-project" }>;
     writeContent: (filePath: string, content: string) => Promise<void>;
     createFile: (filePath: string, content?: string) => Promise<void>;
     createFolder: (dirPath: string) => Promise<void>;

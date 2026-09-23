@@ -213,7 +213,9 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("file:readTree", guard(z.object({ dirPath: pathString }).loose(), (data) =>
     fileService.readTree(projectRootContaining(data.dirPath) ?? "", data.dirPath)));
   ipcMain.handle("file:readContent", guard(z.object({ filePath: pathString }).loose(), (data) =>
-    fileService.readContent(projectRootContaining(data.filePath) ?? "", data.filePath)));
+    // 项目根可能为 null（路径不属于任何已登记项目）：不抛错也不返回空串，交给 FileService 出原因码，
+    // 渲染层据此提示（原先把「越界」与「不存在」都压成 ""，界面是一片空白）
+    fileService.readContent(projectRootContaining(data.filePath), data.filePath)));
   ipcMain.handle("file:writeContent", guard(z.object({ filePath: pathString, content: z.string() }).loose(), (data) =>
     fileService.writeContent(projectRootContaining(data.filePath) ?? "", data.filePath, data.content)));
   ipcMain.handle("file:createFile", guard(z.object({ filePath: pathString, content: z.string().optional() }).loose(), (data) =>

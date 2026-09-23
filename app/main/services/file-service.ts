@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { resolveHome } from "../utils/paths";
+import type { FileReadResult } from "../../shared/file-read";
 import { canonicalPolicyPath, isWithin, pathHitsAny, protectedCredentialPaths, protectedWriteRoots } from "./permission/access-policy";
 
 interface FileNode {
@@ -53,11 +54,22 @@ export class FileService {
       });
   }
 
-  readContent(baseDir: string, filePath: string): string {
-    if (!filePath || !this.isPathSafe(filePath, baseDir)) return "";
+  /**
+   * 读取文本文件内容（file:readContent 通道）。
+   *
+   * 失败不再返回空串，而是带上原因码：调用方据此给用户一句准确提示——原先「越界」与
+   * 「文件不存在」都返回 ""，渲染层无法与空文件区分，表现为空白 tab 且无任何提示。
+   * 存在性判定在归属判定之前：链接指向一个已改名/删除的文件时，先说「不在项目内」会掩盖真正的原因。
+   * baseDir 可为 null（路径不属于任何已登记项目根时，由调用方传入）。
+   */
+  readContent(baseDir: string | null, filePath: string): FileReadResult {
+    if (!filePath) return { ok: false, reason: "missing" };
     const expanded = this.expand(filePath);
-    if (!fs.existsSync(expanded)) return "";
-    return fs.readFileSync(expanded, "utf-8");
+    // throwIfNoEntry：不存在时返回 undefined，不在 existsSync 与 statSync 之间留竞态窗口
+    const stat = fs.statSync(expanded, { throwIfNoEntry: false });
+    if (!stat?.isFile()) return { ok: false, reason: "missing" };
+    if (!baseDir || !this.isPathSafe(filePath, baseDir)) return { ok: false, reason: "outside-project" };
+    return { ok: true, content: fs.readFileSync(expanded, "utf-8") };
   }
 
   writeContent(baseDir: string, filePath: string, content: string): void {

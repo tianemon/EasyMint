@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Editor, { loader, type OnMount } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import type { editor } from "monaco-editor";
@@ -7,6 +7,7 @@ import { useSettingsStore } from "../stores/settings-store";
 import { conf as mdConf, language as mdLanguage } from "../lib/markdown-monarch";
 import { dirOf, isMarkdownPath } from "../lib/markdown-path";
 import { MarkdownView } from "./MarkdownView";
+import { FILE_READ_HINTS } from "@shared/file-read";
 
 // Load Monaco from local bundle, not CDN.
 // Worker loading handled by @dvaji/vite-plugin-monaco-editor
@@ -157,16 +158,25 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
     editorRef.current?.updateOptions({ fontSize: size, lineHeight: Math.round(size * 1.7) });
   }, [chatFontScale]);
 
-  // Load file content
-  useEffect(() => {
+  // Load file content：失败给一句可读的提示（原因码 → 文案），不留一片空白编辑器
+  // （口径见 @shared/file-read：空文件与读失败必须区分得开）
+  const load = useCallback(async (): Promise<void> => {
     if (!filePath) { setContent(""); setError(null); dirtyRef.current = false; return; }
     setLoading(true);
     setError(null);
     dirtyRef.current = false;
-    window.electronAPI.file.readContent(filePath)
-      .then((c) => { setContent(typeof c === "string" ? c : String(c)); setLoading(false); })
-      .catch((e: unknown) => { setError(e instanceof Error ? e.message : "加载文件失败"); setLoading(false); });
+    try {
+      const res = await window.electronAPI.file.readContent(filePath);
+      if (res.ok) setContent(res.content);
+      else { setContent(""); setError(FILE_READ_HINTS[res.reason]); }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "加载文件失败");
+    } finally {
+      setLoading(false);
+    }
   }, [filePath]);
+
+  useEffect(() => { void load(); }, [load]);
 
   const handleMount: OnMount = (editor) => {
     editorRef.current = editor;
@@ -211,7 +221,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
         <div className="text-center">
           <p className="text-danger text-sm mb-3">{error}</p>
           <button className="px-3 py-1 text-xs btn-accent rounded-[var(--radius-lg)]"
-            onClick={() => { setError(null); setLoading(true); window.electronAPI.file.readContent(filePath).then((c) => { setContent(typeof c === "string" ? c : String(c)); setLoading(false); }).catch(() => { setError("重新加载失败"); setLoading(false); }); }}>
+            onClick={() => { void load(); }}>
             重试</button>
         </div>
       </div>
