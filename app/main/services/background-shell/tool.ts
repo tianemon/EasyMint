@@ -17,6 +17,7 @@ import { EXECUTION_POLICY } from "../permission/wrap-tool";
 import { createExecutionContext, type ExecutionContext } from "../permission/execution-context";
 import { maskSecrets } from "../../utils/secret-mask";
 import { getOwnedSessionIds } from "../task/registry";
+import { trackChild, untrackChild } from "../process-registry";
 
 /**
  * 已编译的执行目标 —— **必须携带环境**。
@@ -102,6 +103,9 @@ export async function executeForeground(
       (opts as { env?: Record<string, string> }).env = composeExecutionEnvironment(opts.env, ctx);
     }
     const child = spawn(file, args, opts);
+    // 登记进退出清场：退出瞬间这条命令若还在跑（长命令/dev server），随 EM 一起收掉。
+    // detached 取自 spawn 规格（Unix 下 resolveSpawn 给 shell:true + detached → 可整组杀）
+    trackChild(child, { detached: (opts as { detached?: boolean } | undefined)?.detached === true });
     const outDec = createCodingAwareDecoder();
     const errDec = createCodingAwareDecoder();
     let output = "";
@@ -144,12 +148,14 @@ export async function executeForeground(
     child.stdout?.on("data", (c: Buffer) => { const s = outAnsi.feed(outDec.feed(c)); output += s; emitDelta(s); });
     child.stderr?.on("data", (c: Buffer) => { const s = errAnsi.feed(errDec.feed(c)); errOutput += s; emitDelta(s); });
     child.on("error", (err) => {
+      untrackChild(child);
       if (timer) clearTimeout(timer);
       flushDelta();
       if (typeof command !== "string") void command.release?.();
       reject(new Error(`bash 执行失败: ${err.message}`));
     });
     child.on("exit", (code) => {
+      untrackChild(child);
       if (timer) clearTimeout(timer);
       flushDelta();
       if (typeof command !== "string") void command.release?.();

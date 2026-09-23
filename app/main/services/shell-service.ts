@@ -1,5 +1,6 @@
 import { spawn } from "child_process";
 import { resolveHome } from "../utils/paths";
+import { trackChild, untrackChild } from "./process-registry";
 import { createCodingAwareDecoder } from "./background-shell/encoding";
 import { isSystemMutationCommand } from "./permission/agent-permission-service";
 import { ensureSandbox, wrapForSandbox, annotateSandboxFailures } from "./sandbox/manager";
@@ -51,9 +52,19 @@ export async function execShell(
     return { code: -1, stdout: "", stderr: `安全执行包装失败：${(e as Error).message}` };
   }
   return new Promise((resolve) => {
+    // Unix 下 detached：与前台 bash / 后台 shell 同策略，让命令自成进程组，
+    // 退出清场能整组收掉（否则 kill 只能命中 sh 本身，其子进程留成孤儿）。
+    // Windows 不加 detached（会使 stdout/stderr 管道收不到数据，见 background-shell/registry）。
+    const spawnOpts = {
+      cwd,
+      env: spec.env,
+      detached: process.platform !== "win32",
+    };
     const proc = spec.kind === "argv"
-      ? spawn(spec.argv[0]!, spec.argv.slice(1), { cwd, env: spec.env, shell: false })
-      : spawn(spec.command, { cwd, env: spec.env, shell: true });
+      ? spawn(spec.argv[0]!, spec.argv.slice(1), { ...spawnOpts, shell: false })
+      : spawn(spec.command, { ...spawnOpts, shell: true });
+    // 登记进退出清场（EM 退出时统一杀，见 services/process-registry.ts）
+    trackChild(proc, { detached: spawnOpts.detached });
 
     let stdout = "";
     let stderr = "";
@@ -76,6 +87,7 @@ export async function execShell(
     });
 
     proc.on("close", (code) => {
+      untrackChild(proc);
       void spec.release?.();
       // 沙盒违规注解（与前台/后台同源）：UI 终端里用户直接读 stderr，
       // 没有注解就只看到"命令失败"，无从判断是边界还是故障（见 manager.annotateSandboxFailures）。
@@ -87,6 +99,7 @@ export async function execShell(
     });
 
     proc.on("error", (err) => {
+      untrackChild(proc);
       void spec.release?.();
       resolve({ code: -1, stdout, stderr: err.message });
     });

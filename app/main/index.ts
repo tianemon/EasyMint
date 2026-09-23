@@ -99,6 +99,10 @@ import { RemoteTerminalService } from "./services/remote-terminal-service";
 import { appEventBus } from "./services/app-event-bus";
 import { applyDockIcon } from "./utils/dock-icon";
 import { shutdownWindowsExecutionWorkers } from "./services/sandbox/windows-execution-manager";
+import { backgroundShellRegistry } from "./services/background-shell/registry";
+import { closeAllMcpClients } from "./services/permission/mcp-adapter";
+import { snapshotProcessPids, stopAllProcesses } from "./services/process-service";
+import { signalTrackedChildren, snapshotTrackedChildren } from "./services/process-registry";
 
 const isDev = !app.isPackaged;
 
@@ -403,31 +407,85 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => { app.quit(); });
 
-app.on("before-quit", () => {
-  if (sharedServices) {
-    sharedServices.agentService.shutdown();
+// ── 退出清场 ──
+// Electron 主进程退出**不会**带走自己 spawn 的子进程。EM 的常驻子进程有四类：
+// ① 后台 shell 注册表（Mint 的 background:true）② 运行面板进程组（run.json 里的 dev server）
+// ③ 前台命令通道（bash / install_dependency / shell:exec）④ stdio MCP server（codegraph 等）。
+// 不收尾的后果：进程成孤儿——占着端口/内存而 EM 再也管不到（下次启动面板显示「未运行」、
+// 端口却仍被占），macOS 26+ 还会把「App 退出后仍活跃的后台任务」显性提示给用户。
+//
+// **唯一例外**：macOS 更新替换脚本是**刻意**留在退出后跑完的（见 auto-updater.installUpdate），
+// 它不在任何登记表里，清场不会碰它——所以这套收尾不会打断更新。
+//
+// 时序：before-quit 先 preventDefault 拦住退出 → 异步清场 → 置位后再 app.quit() 放行。
+/** 清场总预算：收尾而已，绝不能让用户卡在「点了退出却迟迟不退」 */
+const QUIT_CLEANUP_TIMEOUT_MS = 3000;
+/** SIGTERM 与 SIGKILL 之间的宽限期：给进程自己清理的机会 */
+const QUIT_KILL_GRACE_MS = 300;
+
+let quitCleanupState: "idle" | "running" | "done" = "idle";
+/** 退出请求计数：用户再次要求退出（连点退出 / Ctrl+C 第二次）→ 不再等清场 */
+let quitRequests = 0;
+
+async function runQuitCleanup(): Promise<void> {
+  // 每一步独立失败：某条通道出问题不能拖累其余清理（清场必须走完）
+  const step = async (label: string, fn: () => void | Promise<void>): Promise<void> => {
+    try { await fn(); } catch (e) { console.warn(`[quit] ${label} 清理失败（忽略）:`, (e as Error).message); }
+  };
+  // 第一轮信号后父进程可能先退出、登记表随之删项；先冻结进程组，第二轮仍能杀存活的子进程。
+  const shellPids = backgroundShellRegistry.list().map((shell) => shell.child.pid).filter((pid): pid is number => !!pid);
+  const processPids = snapshotProcessPids();
+  const trackedChildren = snapshotTrackedChildren();
+
+  // MCP 关闭可能等待远端超时；先启动它，但不能让它挡住本地进程的 TERM/KILL 两阶段清理。
+  const mcpCleanup = step("MCP 客户端", () => closeAllMcpClients());
+  const windowsCleanup = step("Windows 沙盒 worker", () => shutdownWindowsExecutionWorkers());
+  await step("会话与后台命令", () => {
+    if (!sharedServices) return;
+    sharedServices.agentService.shutdown();   // 内部含 backgroundShellRegistry.stopAll()
     sharedServices.remoteTerminalService.close();
+  });
+  await step("运行面板进程", () => { stopAllProcesses("SIGTERM", processPids); });
+  await step("命令通道进程", () => { signalTrackedChildren("SIGTERM", trackedChildren); });
+
+  // 宽限后仍活着的补 SIGKILL：后台 shell 的「5s 未退出就强杀」兜底此刻不会执行
+  // （主进程马上退出，那个定时器永不触发），所以由清场直接补刀。
+  await new Promise((resolve) => setTimeout(resolve, QUIT_KILL_GRACE_MS));
+  await step("后台命令强制收尾", () => backgroundShellRegistry.forceKillAll(shellPids));
+  await step("运行面板进程强制收尾", () => { stopAllProcesses("SIGKILL", processPids); });
+  await step("命令通道进程强制收尾", () => { signalTrackedChildren("SIGKILL", trackedChildren); });
+  await Promise.all([mcpCleanup, windowsCleanup]);
+}
+
+app.on("before-quit", (event) => {
+  if (quitCleanupState === "done") return;      // 清场已完成 → 放行，真正退出
+  quitRequests++;
+  if (quitRequests > 1) {
+    // 再次收到退出请求：清场是「尽量收干净」，不能变成「退不掉」的理由——直接放行
+    quitCleanupState = "done";
+    return;
   }
-  void shutdownWindowsExecutionWorkers();
+  event.preventDefault();                        // 先拦住，等清场做完再退
+  quitCleanupState = "running";
+  void (async () => {
+    try {
+      await Promise.race([
+        runQuitCleanup(),
+        new Promise((resolve) => setTimeout(resolve, QUIT_CLEANUP_TIMEOUT_MS)),  // 超时兜底：绝不阻塞退出
+      ]);
+    } finally {
+      quitCleanupState = "done";
+      app.quit();
+    }
+  })();
 });
 
 // 异常退出兜底:dev 模式 Ctrl+C(SIGINT)/进程被 SIGTERM 时不触发 before-quit,
-// 后台 shell 会变孤儿进程——显式挂信号监听调 shutdown 后退出。
-// 注意:注册监听会替换 Node 默认行为,必须显式 app.quit()(shutdown 幂等,重复执行无害)
-process.on("SIGINT", () => {
-  if (sharedServices) {
-    sharedServices.agentService.shutdown();
-    sharedServices.remoteTerminalService.close();
-  }
-  app.quit();
-});
-process.on("SIGTERM", () => {
-  if (sharedServices) {
-    sharedServices.agentService.shutdown();
-    sharedServices.remoteTerminalService.close();
-  }
-  app.quit();
-});
+// 后台 shell 会变孤儿进程——显式挂信号监听后退出。
+// 注意:注册监听会替换 Node 默认行为,必须显式 app.quit()(清场幂等,重复执行无害)
+// 具体的收尾动作已统一收在 before-quit 的清场里,这里只负责把退出请求转进去。
+process.on("SIGINT", () => { app.quit(); });
+process.on("SIGTERM", () => { app.quit(); });
 
 // ── 全局异常兜底 ──
 // Electron 主进程无兜底时:未捕获异常/异步拒绝会弹「Uncaught Exception」崩溃框并终止进程

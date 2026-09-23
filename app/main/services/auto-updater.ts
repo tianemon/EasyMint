@@ -167,6 +167,11 @@ export function checkForUpdatesManually(): void {
   ).finally(() => { checking = false; });
 }
 
+/** shell 单引号转义：路径含空格或引号时仍作为一个参数传递。 */
+function shQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
 /** 安装更新（Windows 走原生 NSIS，macOS 走 shell 脚本替换） */
 export function installUpdate(): void {
   if (!downloadedVersion) return;
@@ -181,20 +186,33 @@ export function installUpdate(): void {
 
   const appPath = path.dirname(path.dirname(path.dirname(app.getPath("exe"))));
   const tmpExtract = "/tmp/em-update-extract";
+  // ⚠️ 这个脚本是**刻意**留在退出后继续跑的（替换正在运行的 app，必须先退出），
+  // 因此它**不登记**进 process-registry —— index.ts 的退出清场不会碰它。
   const script = [
     "#!/bin/bash",
-    "sleep 2",
-    `rm -rf "${tmpExtract}"`,
-    `ditto -xk "${downloadedFile}" "${tmpExtract}"`,
-    `ditto "${tmpExtract}/EasyMint.app" "${appPath}"`,
-    `rm -rf "${tmpExtract}" "${downloadedFile}"`,
-    `open "${appPath}"`,
+    "set -u",
+    'exec >>"/tmp/easymint-update.log" 2>&1',
+    'echo "=== em update start: $(date) ==="',
+    `APP=${shQuote(appPath)}`,
+    `ZIP=${shQuote(downloadedFile)}`,
+    `TMP=${shQuote(tmpExtract)}`,
+    'NEW="$APP.new"',
+    'BAK="$APP.bak"',
+    "",
+    "sleep 4",
+    'rm -rf "$TMP" "$NEW" "$BAK"',
+    'ditto -xk "$ZIP" "$TMP" || exit 1',
+    'ditto "$TMP/EasyMint.app" "$NEW" || exit 1',
+    'mv "$APP" "$BAK" || exit 1',
+    'mv "$NEW" "$APP" || { mv "$BAK" "$APP"; open "$APP"; exit 1; }',
+    'echo "=== em update swapped: $(date) ==="',
+    'rm -rf "$BAK" "$TMP" "$ZIP"',
+    'open "$APP"',
   ].join("\n");
 
   const scriptPath = path.join(os.tmpdir(), "easymint-update.sh");
   fs.writeFileSync(scriptPath, script, { mode: 0o755 });
 
-  // spawn imported from top-level
   spawn("bash", [scriptPath], { detached: true, stdio: "ignore" }).unref();
 
   app.quit();

@@ -20,6 +20,7 @@ import { broadcast } from "../ipc-broadcast";
 import { decodeSeg, finalDecode } from "./encoding";
 import { readManagedEnvironment } from "../tools/environment-tool";
 import { annotateSandboxFailures } from "../sandbox/manager";
+import { trackChild, untrackChild } from "../process-registry";
 // 纯类型导入（编译后擦除，不产生运行时循环：tool.ts 运行时依赖本文件）
 import type { ExecutionTarget } from "./tool";
 
@@ -239,6 +240,8 @@ class BackgroundShellRegistry {
       return { id, logPath };
     }
     const child = spawn(file, args, opts);
+    // shell 父进程退出后可能仍有组内子进程；登记表按进程组存活期保留它，退出清场才能找到。
+    if ((opts as { detached?: boolean } | undefined)?.detached) trackChild(child, { detached: true });
     const shell: BackgroundShell = {
       id, command: display, startedAt: Date.now(), child, output: "", logPath,
       exitCode: null, stopped: false, status: "running", streamBuf: "", flushTimer: null, onExit,
@@ -280,6 +283,7 @@ class BackgroundShellRegistry {
     child.stdout?.on("data", (c) => collect(c, outBuf));
     child.stderr?.on("data", (c) => collect(c, errBuf));
     child.on("exit", (code) => {
+      untrackChild(child);
       // 冲掉残留缓冲(终局解码:不再等待未完成序列,UTF-8 尝试失败则 GBK)
       const outTail = finalDecode(outBuf.bytes);
       let errTail = finalDecode(errBuf.bytes);
@@ -305,6 +309,7 @@ class BackgroundShellRegistry {
       this.broadcastCount();
     });
     child.on("error", (err) => {
+      untrackChild(child);
       // spawn 失败(如 shell 不存在)——同 exit 路径注销,避免悬挂
       if (this.shells.has(id)) {
         this.flushStream(shell);
@@ -358,6 +363,25 @@ class BackgroundShellRegistry {
   /** 停止并清空全部后台进程(会话关闭/应用退出时调用) */
   stopAll(): void {
     for (const id of [...this.shells.keys()]) this.stop(id);
+  }
+
+  /**
+   * 退出清场：对仍未退出的进程组立刻补 SIGKILL。
+   *
+   * 为什么需要它：stop() 的「5s 未响应 SIGTERM → SIGKILL」依赖主进程活着，而退出路径上
+   * 主进程先走，那个 setTimeout 永远不会执行（写了等于没写）——忽略 SIGTERM 的进程
+   * 就会以孤儿身份留下。退出清场在宽限期后直接调这里补刀，不依赖定时器。
+   */
+  forceKillAll(pids: readonly number[] = this.list().map((shell) => shell.child.pid).filter((pid): pid is number => !!pid)): void {
+    for (const pid of pids) {
+      try {
+        if (process.platform === "win32") {
+          spawn("taskkill", ["/pid", String(pid), "/T", "/F"]).on("error", () => {});
+        } else {
+          process.kill(-pid, "SIGKILL");
+        }
+      } catch { /* 整组已退出 */ }
+    }
   }
 
   /** 权限收紧时撤销该会话旧进程持有的执行能力。 */

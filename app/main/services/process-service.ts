@@ -315,6 +315,33 @@ export function stopProcess(commandId: string): void {
   broadcastStatus(commandId, false);
 }
 
+/**
+ * 退出清场：收掉运行面板起的全部进程组。
+ *
+ * 为什么必须由 EM 来收：这些进程是 detached 独立进程组（Unix），EM 退出不会带走它们，
+ * 而 EM 一旦退出就再也管不到——下次启动面板显示「未运行」、端口却仍被占。
+ * 与 stopProcess 的差别：不广播状态、不清 Map（窗口正在关闭，进程正被清场）。
+ * 由 index.ts 的退出清场在 SIGTERM 后再补一发 SIGKILL。
+ */
+export function snapshotProcessPids(): number[] {
+  return [...processes.values()].map((info) => info.pid).filter((pid) => pid > 0);
+}
+
+export function stopAllProcesses(signal: NodeJS.Signals = "SIGTERM", pids: readonly number[] = snapshotProcessPids()): number {
+  let sent = 0;
+  for (const pid of pids) {
+    try {
+      if (process.platform === "win32") {
+        spawn("taskkill", ["/pid", String(pid), "/T", "/F"]).on("error", () => {});
+      } else {
+        process.kill(-pid, signal);
+      }
+      sent++;
+    } catch { /* 进程组已退出 */ }
+  }
+  return sent;
+}
+
 /** 重启：停旧进程 → 等旧进程组退出（防端口未释放，最多 5s）→ 启新进程。
  *  async 保证 IPC resolve 时新进程已就位——此前 setTimeout 500ms 窗口内
  *  前端 loadStatus 拉到空 Map 返回 false，覆盖 true 导致重启后状态丢失 */
