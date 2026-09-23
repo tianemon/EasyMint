@@ -38,6 +38,8 @@ export const remoteEnvelopeSchema = z.object({
   requestId: idSchema.optional(),
   projectId: idSchema.optional(),
   sessionId: idSchema.optional(),
+  // payload 有意留作 unknown：命令与事件的载荷类型目前在两端各自声明，尚未收敛到本文件。
+  // 改协议字段时请顺手把对应的载荷类型搬来此处由两端共用——曾因各自声明漂移过两处（thinking 形状、ask-request 缺字段）。
   payload: z.unknown(),
 }).strict();
 
