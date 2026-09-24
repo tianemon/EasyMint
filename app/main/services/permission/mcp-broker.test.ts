@@ -1,15 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ToolDefinition } from "../pi-sdk";
+import { INTENT_REQUIREMENT } from "../../../shared/tool-intent";
 
 const fixture = vi.hoisted(() => ({
   servers: [{ name: "github", enabled: true, pendingApproval: false }] as Array<
     { name: string; enabled: boolean; pendingApproval: boolean; description?: string }
   >,
+  /** server 的协议自述（缓存里的值）；undefined = 这个 server 没写或还没连接过 */
+  instructions: undefined as string | undefined,
   load: vi.fn(),
   execute: vi.fn(async () => ({ content: [{ type: "text", text: "done" }], details: {} })),
 }));
 vi.mock("../pi-sdk", () => ({ getDefineToolFn: async () => (definition: unknown) => definition }));
-vi.mock("../mcp-service", () => ({ scanMcpServers: () => fixture.servers }));
+vi.mock("../mcp-service", () => ({
+  scanMcpServers: () => fixture.servers,
+  // describeServers 要按 manifest 的 scope 取配置，才能查自述缓存的键
+  getMcpServerConfig: () => ({ type: "stdio", command: "x" }),
+}));
+vi.mock("../mcp-instructions", () => ({ readMcpInstructions: () => fixture.instructions }));
 vi.mock("./mcp-adapter", () => ({ loadMcpServerTools: fixture.load }));
 
 import { createMcpBrokerTools, ensureMcpBrokerActive } from "./mcp-broker";
@@ -24,9 +32,25 @@ const tool = {
   execute: fixture.execute,
 };
 
+/** 真实 MCP 工具长这样：名字与描述都是英文，中文关键词靠子串永远匹配不到。
+ *  描述尾部拼着 mcp-adapter 加的意图要求——与 loadOneServer 的真实产物一致。 */
+const screenshotTool = {
+  name: "mcp__playwright__browser_take_screenshot",
+  description: `Take a screenshot of the current page\n${INTENT_REQUIREMENT}`,
+  parameters: { type: "object", properties: {} },
+  execute: fixture.execute,
+};
+const closeTool = {
+  name: "mcp__playwright__browser_close",
+  description: "Close the current page",
+  parameters: { type: "object", properties: {} },
+  execute: fixture.execute,
+};
+
 beforeEach(() => {
   fixture.load.mockReset().mockResolvedValue([tool]);
   fixture.execute.mockClear();
+  fixture.instructions = undefined;
   fixture.servers = [{ name: "github", enabled: true, pendingApproval: false }];
 });
 
@@ -115,6 +139,70 @@ describe("MCP 按需工具入口", () => {
     const result = await run(search!, { query: "github issue" });
     expect(JSON.parse((result.content[0] as { text: string }).text).tools[0].name).toBe(tool.name);
     expect(fixture.load).toHaveBeenCalledTimes(1);
+  });
+
+  it("中文关键词经别名展开后能命中英文工具（子串匹配本身跨不了语言）", async () => {
+    fixture.load.mockResolvedValue([screenshotTool, closeTool]);
+    const [search] = await createMcpBrokerTools("/tmp/project", "session", () => "standard", async () => ({ behavior: "allow" }));
+    const result = await run(search!, { server: "github", query: "帮我截图" });
+    const payload = JSON.parse((result.content[0] as { text: string }).text);
+    // 「帮我截图」整体匹配不到任何英文词，靠「截图 → screenshot」才命中；去掉别名表此断言必红
+    expect(payload.tools[0].name).toBe("mcp__playwright__browser_take_screenshot");
+  });
+
+  it("只返回命中项；全不命中时给工具名清单，而不是 0 分占位", async () => {
+    fixture.load.mockResolvedValue([screenshotTool, closeTool]);
+    const [search] = await createMcpBrokerTools("/tmp/project", "session", () => "standard", async () => ({ behavior: "allow" }));
+    const text = async (query: string) => JSON.parse(((await run(search!, { server: "github", query })).content[0] as { text: string }).text);
+
+    // 默认 limit=5，但只命中 1 个 —— 不拿 0 分结果补到 5（未命中时补的正是最不相关的一批）
+    expect((await text("screenshot")).tools.map((t: { name: string }) => t.name))
+      .toEqual(["mcp__playwright__browser_take_screenshot"]);
+
+    // 全不命中：tools 必须为空，并给出真实工具名供模型改口重搜（否则模型会误判"没有该能力"）
+    const miss = await text("zzz");
+    expect(miss.tools).toEqual([]);
+    expect(miss.names).toContain("mcp__playwright__browser_close");
+    expect(miss.hint).toBeTruthy();
+  });
+
+  it("搜索结果里剥掉「每次调用都要填 _intent」——那句只写给直接调用看", async () => {
+    fixture.load.mockResolvedValue([screenshotTool]);
+    const [search] = await createMcpBrokerTools("/tmp/project", "session", () => "standard", async () => ({ behavior: "allow" }));
+    const payload = JSON.parse(((await run(search!, { server: "github", query: "screenshot" })).content[0] as { text: string }).text);
+    // 夹具描述尾部正是适配层拼的意图要求（见 screenshotTool）；经代理调用时意图填在 call_mcp_tool.intent，
+    // 留着会让模型两头各填一份。参数 schema 里的 _intent 不动——那是 server 可能自带的字段，无法区分。
+    expect(payload.tools[0].description).toBe("Take a screenshot of the current page");
+    expect(payload.tools[0].description).not.toContain("每次调用都要填");
+  });
+
+  it("没填用途时用 server 自述首句兜底；手填的优先；都没有就只露名字", async () => {
+    fixture.instructions = "# GitHub MCP Server\n\nThe GitHub MCP Server provides tools to interact with GitHub platform.\n\nTool selection guidance: ...";
+    const [withAuto] = await createMcpBrokerTools("/tmp/project", "session", () => "standard", async () => ({ behavior: "allow" }));
+    // 跳过 markdown 标题行，取第一句正文当用途说明——新接一个 server 因此不必手工配
+    expect(withAuto!.description).toContain("github（The GitHub MCP Server provides tools to interac");
+
+    fixture.servers = [{ name: "github", enabled: true, pendingApproval: false, description: "代码仓库与 issue" }];
+    const [withManual] = await createMcpBrokerTools("/tmp/project", "session", () => "standard", async () => ({ behavior: "allow" }));
+    expect(withManual!.description).toContain("github（代码仓库与 issue）");
+    expect(withManual!.description).not.toContain("Tool selection");
+
+    fixture.servers = [{ name: "plain", enabled: true, pendingApproval: false }];
+    fixture.instructions = undefined;
+    const [neither] = await createMcpBrokerTools("/tmp/project", "session", () => "standard", async () => ({ behavior: "allow" }));
+    expect(neither!.description).toContain("plain");
+    expect(neither!.description).not.toContain("plain（");
+  });
+
+  it("搜索结果带上 server 自述，且同一会话只给一次（重复塞会白烧 token）", async () => {
+    fixture.instructions = "# Codegraph\n\nCodegraph is a SQLite knowledge graph of every symbol and file.\n\n更多说明";
+    const [search] = await createMcpBrokerTools("/tmp/project", "session", () => "standard", async () => ({ behavior: "allow" }));
+    const text = async () => JSON.parse(((await run(search!, { server: "github", query: "issue" })).content[0] as { text: string }).text);
+
+    const first = await text();
+    expect(first.instructions).toContain("SQLite knowledge graph");
+    // 第二次不再重复——自述是"怎么用这个 server"，给一次就够
+    expect(await text()).not.toHaveProperty("instructions");
   });
 
   it("只读和待确认 server 均不能经代理拉起", async () => {

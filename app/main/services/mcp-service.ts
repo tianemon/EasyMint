@@ -180,7 +180,9 @@ function getApprovedMcp(): string[] {
  * 指纹取配置文件中的原始定义（`${VAR}` 占位符不展开）；修改定义里的 env/headers
  * 仍会改变子进程或网络请求行为，必须重新确认。
  */
-function definitionFingerprint(cfg: McpServerConfig): string {
+/** 配置指纹：定义里任何"影响行为或影响模型"的字段变了都要变。
+ *  除了审批（isMcpApproved），`mcp-instructions` 也拿它当缓存键——server 自述的失效判据。 */
+export function definitionFingerprint(cfg: McpServerConfig): string {
   const sorted = (values?: Record<string, string>) => values
     ? Object.entries(values).sort(([a], [b]) => a.localeCompare(b))
     : null;
