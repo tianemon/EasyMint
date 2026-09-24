@@ -438,8 +438,10 @@ export function filterBenignViolations(stderr: string): string {
  * 违规事件（见 ensureSandbox 的 enableLogMonitor），而**它的停止闭包只在
  * SandboxManager.reset() 里被调用**（srt 内部变量 logMonitorShutdown，见
  * node_modules/@anthropic-ai/sandbox-runtime/dist/sandbox/sandbox-manager.js）。退出清场若不调它，
- * 监控进程会失去父进程（PPID=1）常驻：LaunchServices 据此把 EasyMint 记为
- * exited-with-subordinates，macOS 26+ 会在 Dock 上持续提示「仍在后台运行」（2026-09-24 实测）。
+ * 监控进程会失去父进程（PPID=1）继续运行：LaunchServices 据此把 EasyMint 记为
+ * exited-with-subordinates，macOS 26+ 会在 Dock 上持续提示「仍在后台运行」（2026-09-24 实测
+ * 该进程在退出后存活 6 分钟以上；存活条件未完全查清——独立进程实验未能复现，但主动释放总比
+ * 等它自己退出可靠）。
  *
  * 顺带把 _state 重置为 untouched：调用方要么正在退出，要么打算重新初始化。
  */
