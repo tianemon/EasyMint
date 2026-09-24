@@ -32,12 +32,13 @@ const TOOL_LABELS: Record<string, string> = {
   web_fetch: "抓取网页", web_search: "搜索网页",
   todo_write: "更新步骤", todo_user: "用户待办",
   ask_user: "提问", describe_image: "查看图片",
+  search_mcp_tools: "查找 MCP", call_mcp_tool: "MCP",
 };
 
 /** 工具图标:按 name 归类的 Lucide SVG path(不含外层 svg——ToolIcon 统一包) */
 function toolIconPaths(name: string): JSX.Element | null {
   let n = name.toLowerCase();
-  if (n.startsWith("mcp__")) n = "mcp"; // MCP 工具统一扳手
+  if (n.startsWith("mcp__") || n === "search_mcp_tools" || n === "call_mcp_tool") n = "mcp"; // MCP 工具统一扳手
   switch (n) {
     // 光标那笔带 icon-cursor 类：供终端类胶囊做光标闪烁，样式按祖先作用域限定（如 .shell-pill-icon），
     // 其他地方用到同一图标不受影响
@@ -967,6 +968,10 @@ function toolDetailLabel(item: ToolItem): string | null {
   if (n.startsWith("mcp__")) {
     return item.name.replace(/^mcp__/, "").split("__").filter(Boolean).join(" / ");
   }
+  if (n === "call_mcp_tool" && typeof inp.name === "string") {
+    return inp.name.replace(/^mcp__/, "").split("__").filter(Boolean).join(" / ");
+  }
+  if (n === "search_mcp_tools") return typeof inp.server === "string" ? `查找 ${inp.server}` : "查找服务器";
   if (n === "use_skill" || n === "import_skill") {
     const name = typeof inp.name === "string" ? inp.name : undefined;
     return name ? `技能：${name}` : "技能";
@@ -1011,14 +1016,16 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
   // MCP/技能类:展开区显示具体名(标题行保持类别;其余工具展开区照常显示结果)
   const detailLabel = toolDetailLabel(item);
   // 调用意图与具体名:只给 MCP 用(技能类的 detailLabel 自带"技能:"前缀,与动作词重复,暂不提上来)
-  const isMcp = item.name.toLowerCase().startsWith("mcp__");
+  const isMcp = item.name.toLowerCase().startsWith("mcp__") || item.name === "call_mcp_tool";
   const titleDetail = isMcp ? detailLabel : null;
   // _intent 由模型填(仅 MCP——schema 是我们拼给模型看的那份,执行前已剥掉);
   // 取不到时回退到参数摘要,让老会话/漏填时也能看出做了什么。
   // web_search / web_fetch 同样填(它们的 _intent 是我们自己的内置工具加的,与 MCP 同一套机制);
   // 漏填时回退 query / url —— 搜了什么、抓了哪个站,比"搜索网页"这个动作词有信息量
   const showIntent = isMcp || item.name.toLowerCase() === "web_search" || item.name.toLowerCase() === "web_fetch";
-  const toolIntent = showIntent ? intentFromInput(item.input) : undefined;
+  const brokerIntent = (item.input as Record<string, unknown> | undefined)?.intent;
+  const toolIntent = showIntent ? (item.name === "call_mcp_tool" && typeof brokerIntent === "string"
+    ? brokerIntent : intentFromInput(item.input)) : undefined;
 
   // 打开文件：图片交给内置查看器（Monaco 打开二进制只会显示乱码），其余仍开编辑器 tab
   const openFile = (e: React.MouseEvent): void => {

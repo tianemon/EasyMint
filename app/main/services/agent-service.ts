@@ -39,7 +39,8 @@ import { classifyApiError, normalizeApiError } from "../../shared/api-errors";
 import { contentWithoutImages, contextImageEntries, type ContextImageEntry } from "../../shared/image-context";
 import { rollbackImageContextBranch } from "./image-context-rollback";
 import { createProductTools } from "./builtin-mcp";
-import { closeMcpContexts, loadMcpTools } from "./permission/mcp-adapter";
+import { closeMcpContexts } from "./permission/mcp-adapter";
+import { createMcpBrokerTools, ensureMcpBrokerActive } from "./permission/mcp-broker";
 import { revokeWindowsExecutionOwners } from "./sandbox/windows-execution-manager";
 import { permissionService } from "./permission/agent-permission-service";
 import type { CanUseToolOptions, PermissionResult } from "./permission/agent-permission-service";
@@ -783,11 +784,11 @@ export class AgentService {
         const sid = resolveParentSessionId(sessionId);
         return normalizePermissionMode(readCache(sid)?.permissionMode);
       };
-      // 只读会话不能为了发现工具而启动本地 MCP 或连接远程 MCP。MCP 工具集在会话创建时固定，
-      // 因此从只读放宽后需新建/恢复会话才能加载 MCP；安全上宁可少工具，也不能预连接。
+      // 首轮只注册两个稳定入口，不为发现工具而连接全部 MCP；搜索时才连接指定 server。
+      // 只读会话不注册入口，放宽权限后走会话工具重建。
       const mcpTools = resolveMode() === "readonly"
         ? []
-        : await loadMcpTools(projectPath, resolveMode, sessionId);
+        : await createMcpBrokerTools(projectPath, sessionId, resolveMode, canUseTool);
       const agentTemplateTool = await createAgentTemplateTool();
       const stopAgentTool = await createStopAgentTool(sessionId);
       const listAgentsTool = await createListAgentsTool(sessionId);
@@ -1942,6 +1943,7 @@ export class AgentService {
           onShellExit: shellExitInject,
         });
       })();
+      ensureMcpBrokerActive(session);
 
       // 注册临时 ID → 真实 ID 映射：task 委派创建时解析,按真实 ID 建子会话目录
       if (!resumeSessionId) {

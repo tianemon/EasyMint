@@ -108,6 +108,8 @@ export function displayToolAction(name: string, args?: Record<string, unknown>):
   if (n === "search_experiences") return "正在搜索经验库";
   if (n === "retire_experiences") return "正在退役经验";
   if (n.startsWith("mcp__")) return "正在调用外部工具";
+  if (n === "search_mcp_tools") return "正在查找外部工具";
+  if (n === "call_mcp_tool") return "正在调用外部工具";
   if (n === "read" || n === "glob") return "正在读取文件";
   if (n === "write") return "正在写入文件";
   if (n === "edit") return "正在编辑文件";

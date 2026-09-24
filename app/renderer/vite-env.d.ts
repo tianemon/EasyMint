@@ -67,6 +67,8 @@ interface McpServerCfg {
   timeout?: number;
   oauth?: boolean;
   callbackPort?: number;
+  /** 一句话用途（如「浏览器控制」）——写进按需搜索入口的说明，供模型判断何时该用它 */
+  description?: string;
 }
 
 interface Project {

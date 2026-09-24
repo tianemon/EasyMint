@@ -596,6 +596,7 @@ function McpServerForm({
     Object.entries(initial?.cfg.headers ?? {}).map(([k, v]) => `${k}: ${v}`).join("\n"),
   );
   const [oauth, setOauth] = useState(!!initial?.cfg.oauth);
+  const [desc, setDesc] = useState(initial?.cfg.description ?? "");
   const [err, setErr] = useState("");
   const [testResult, setTestResult] = useState<string>("");
   const [busy, setBusy] = useState(false);
@@ -615,9 +616,11 @@ function McpServerForm({
       const i = t.indexOf(":");
       if (i > 0) headers[t.slice(0, i).trim()] = t.slice(i + 1).trim();
     }
+    // 用途说明与传输类型无关，两个分支都要带上
+    const base = { description: desc.trim() || undefined };
     return type === "stdio"
-      ? { type, command: command.trim() || undefined, args: argsText.trim() ? argsText.trim().split(/\s+/) : undefined, env: Object.keys(env).length ? env : undefined }
-      : { type, url: url.trim() || undefined, headers: Object.keys(headers).length ? headers : undefined, env: Object.keys(env).length ? env : undefined, oauth: oauth || undefined };
+      ? { ...base, type, command: command.trim() || undefined, args: argsText.trim() ? argsText.trim().split(/\s+/) : undefined, env: Object.keys(env).length ? env : undefined }
+      : { ...base, type, url: url.trim() || undefined, headers: Object.keys(headers).length ? headers : undefined, env: Object.keys(env).length ? env : undefined, oauth: oauth || undefined };
   };
 
   const validate = (): string | null => {
@@ -690,6 +693,13 @@ function McpServerForm({
           ))}
         </div>
       </div>
+
+      <input
+        className="em-input w-full px-2.5 py-1.5 text-xs"
+        placeholder="用途说明（可选，如「浏览器控制」）——Mint 据此判断何时该用这个服务器"
+        value={desc}
+        onChange={(e) => setDesc(e.target.value)}
+      />
 
       {type === "stdio" ? (
         <>

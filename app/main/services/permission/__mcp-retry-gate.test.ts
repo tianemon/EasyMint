@@ -81,6 +81,13 @@ describe("MCP 重试门卫", () => {
     expect(statusOf(dir, "gate")).toBe("pending");
   });
 
+  it("待确认的 server：按需搜索入口同样不能连接", async () => {
+    const dir = projectWithGateServer();
+    await expect(adapter.loadMcpServerTools("gate", dir, () => "standard", "gate-search"))
+      .rejects.toThrow("尚未确认启用");
+    expect(mocks.wrapForSandbox).not.toHaveBeenCalled();
+  });
+
   it("确认之后同一条调用不再被门卫拦住（走完 loadOneServer）", async () => {
     const dir = projectWithGateServer();
     mcp.approveMcpServer(dir, "gate");

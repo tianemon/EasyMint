@@ -125,6 +125,15 @@ describe("项目级 MCP 取定义带 scope", () => {
     expect(st.get("shared-name")?.error ?? "").not.toContain(CMD.projectShared);
   });
 
+  it("按需入口只读取指定项目级 server 的定义", async () => {
+    const dir = projectFixture();
+    mcp.approveMcpServer(dir, "proj-only");
+    await expect(adapter.loadMcpServerTools("proj-only", dir, () => "standard", "scope-lazy"))
+      .rejects.toThrow(CMD.projectOnly);
+    expect(statusMap(dir).get("user-only")?.error).toBeUndefined();
+    expect(mocks.wrapForSandbox).not.toHaveBeenCalled();
+  });
+
   it("门卫仍有效：未确认的项目级 server 取不到工具、状态停「待确认」", async () => {
     const dir = projectFixture();
 

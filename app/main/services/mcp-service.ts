@@ -32,6 +32,9 @@ export interface McpServerConfig {
   oauth?: boolean;
   /** OAuth 回调端口（固定值——DCR redirect_uris 精确匹配），缺省 31173 */
   callbackPort?: number;
+  /** 可选：一句话说明这个 server 能做什么（如「浏览器控制」）。写进 search_mcp_tools 的工具说明，
+   *  让模型在"该不该找外部能力"这一步就能判断；不填就只能露出服务器名。 */
+  description?: string;
 }
 
 /** 服务器名规范（对齐 CC/OMP：小写字母数字 + 连字符/下划线） */
@@ -102,6 +105,8 @@ export interface McpServerManifest {
   command?: string;
   args?: string[];
   url?: string;
+  /** 可选：一句话用途（来自配置的 description），按需入口拿它给模型做提示 */
+  description?: string;
   enabled: boolean;
   /** 来源作用域：用户级 / EM 项目级 / 项目根 .mcp.json（只读兼容 CC/OMP） */
   scope: McpScope;
@@ -183,6 +188,9 @@ function definitionFingerprint(cfg: McpServerConfig): string {
     .update(JSON.stringify([
       cfg.type, cfg.command ?? null, cfg.args ?? null, sorted(cfg.env), cfg.url ?? null,
       sorted(cfg.headers), cfg.timeout ?? null, cfg.oauth ?? null, cfg.callbackPort ?? null,
+      // description 会进模型提示词（见 mcp-broker 的 describeServers），属于"影响模型行为"的定义：
+      // 不纳入指纹的话，外部仓库更新 .mcp.json 里这段文字就能绕过审批直接进上下文。
+      cfg.description ?? null,
     ]))
     .digest("hex")
     .slice(0, 32);
@@ -240,6 +248,7 @@ export function scanMcpServers(projectPath?: string): McpServerManifest[] {
   for (const [name, cfg] of Object.entries(readMcpServersFrom(emMcpPath()))) {
     result.push({
       name, type: cfg.type, command: cfg.command, args: cfg.args, url: cfg.url,
+      description: cfg.description,
       enabled: !disabled.includes(name), scope: "user", writable: true,
     });
     taken.add(name);
@@ -251,6 +260,7 @@ export function scanMcpServers(projectPath?: string): McpServerManifest[] {
       if (taken.has(name)) continue;
       result.push({
         name, type: cfg.type, command: cfg.command, args: cfg.args, url: cfg.url,
+        description: cfg.description,
         enabled: !disabled.includes(name), scope: "project", writable: true,
         pendingApproval: !isMcpApproved(approved, projectPath, name, cfg),
       });
@@ -261,6 +271,7 @@ export function scanMcpServers(projectPath?: string): McpServerManifest[] {
       if (taken.has(name)) continue;
       result.push({
         name, type: cfg.type, command: cfg.command, args: cfg.args, url: cfg.url,
+        description: cfg.description,
         enabled: !disabled.includes(name), scope: "project-compat", writable: false,
         pendingApproval: !isMcpApproved(approved, projectPath, name, cfg),
       });
@@ -271,8 +282,6 @@ export function scanMcpServers(projectPath?: string): McpServerManifest[] {
   return result;
 }
 
-// ── Build SDK mcpServers ───────────────────────────
-
 // ── API keys ───────────────────────────────────────
 
 function getApiKeys(): Record<string, string> {
@@ -281,30 +290,6 @@ function getApiKeys(): Record<string, string> {
   // 磁盘是分组结构（capabilities.* + env 池），组装回「环境变量名 → 值」——键名即注入 MCP 的变量名。
   // 1.4 回退后明文落盘；磁盘残留的旧 safeStorage 密文（em-v1: 前缀）不可解密 → 丢弃视为未配置
   return dropLegacyEncryptedApiKeys(apiKeysFromDisk(data) ?? (data.apiKeys as Record<string, string> | undefined)) || {};
-}
-
-// ── Build SDK mcpServers ───────────────────────────
-
-/** Build the mcpServers object for SDK's options (full config with env, apiKeys merged) */
-export function buildMcpServersOption(): Record<string, McpServerConfig> | undefined {
-  const disabled = getHiddenMcpServers();
-  const servers = readMcpServersFrom(emMcpPath());
-  const apiKeys = getApiKeys();
-
-  const result: Record<string, McpServerConfig> = {};
-  for (const [name, cfg] of Object.entries(servers)) {
-    if (disabled.includes(name)) continue;
-    // Merge apiKeys into env: MCP config values take priority, but skip empty strings
-    const cfgEnv = cfg.env || {};
-    const filteredCfgEnv: Record<string, string> = {};
-    for (const [k, v] of Object.entries(cfgEnv)) {
-      if (v) filteredCfgEnv[k] = v; // Skip empty/placeholder values
-    }
-    const env = { ...apiKeys, ...filteredCfgEnv };
-    result[name] = { ...cfg, env: Object.keys(env).length > 0 ? env : undefined };
-  }
-
-  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 /** Discover which env vars each MCP server needs. 只返回状态（已配置/未配置），不泄露实际值。 */

@@ -1,7 +1,7 @@
 /**
  * omp MCP 系统 → EM 适配层
  *
- * 封装 omp mcp/ 的完整 MCPManager，提供 EM 所需的 loadMcpTools() 接口。
+ * 封装 omp mcp/ 的完整 MCPManager，提供 EM 所需的 MCP 工具加载能力。
  * 使用 @modelcontextprotocol/sdk 的 transport（替代 omp 自定义 Bun 实现）。
  */
 
@@ -35,8 +35,8 @@ async function closeClient(client: Client): Promise<void> {
   try { await client.close(); }
   finally { await clientSandboxLeases.get(client)?.(); clientSandboxLeases.delete(client); }
 }
-/** 工具缓存按项目分键——多项目切换时项目级 MCP 不串台（原全局单缓存会在 B 项目看到 A 项目的工具） */
-const toolsCache = new Map<string, ToolDefinition[]>();
+/** 同一会话并发搜索/调用一个 server 时只建立一次连接；完成后不缓存定义，配置变更仍即时生效。 */
+const pendingServerLoads = new Map<string, Promise<ToolDefinition[]>>();
 /** 项目维度 + server 名 → 连接状态（不同项目的同名 server 状态不串扰） */
 const statusMap = new Map<string, McpServerStatus>();
 function statusKey(projectPath: string | undefined, name: string): string {
@@ -56,7 +56,7 @@ function redact(msg: string): string {
 const MCP_CONNECT_TIMEOUT_MS = 8000;
 const MCP_LIST_TIMEOUT_MS = 5000;
 
-/** Promise.race 超时包装:MCP 服务器挂起时抛错由调用方跳过,不阻塞 loadMcpTools */
+/** Promise.race 超时包装:MCP 服务器挂起时抛错由调用方跳过,不阻塞工具加载 */
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
     p,
@@ -235,7 +235,7 @@ async function loadOneServer(
   let client = clients.get(initialKey);
   if (!client) {
     try {
-      // 超时保护:冷启动首连挂起的 MCP 直接跳过,不让 loadMcpTools 阻塞发送链路
+      // 超时保护:冷启动首连挂起的 MCP 直接跳过,不让工具加载阻塞发送链路
       const timeout = raw.timeout || MCP_CONNECT_TIMEOUT_MS;
       client = await connect(s.name, cfg, { projectPath: projectPath ?? process.cwd(), mode: initialMode, contextId }, timeout);
       clients.set(initialKey, client);
@@ -303,16 +303,17 @@ async function loadOneServer(
   }
 }
 
+/**
+ * 全量加载：一次扫描并连接**所有**已启用的 server，返回全部 MCP 工具定义。
+ *
+ * ⚠️ 生产路径已不再调用它——会话创建改走按需入口（`mcp-broker` 的 search/call），
+ * 免得普通对话为了"发现工具"就把全部 server 连上。保留的原因：它是唯一"一次拿全"的能力，
+ * 现有测试仍依赖它；将来若要给 broker 加降级路径也会回到这里。
+ * 新增调用点前想清楚：这一步会拉起所有 MCP 子进程。
+ */
 export async function loadMcpTools(projectPath?: string, getMode?: () => PermissionMode, contextId = "shared"): Promise<ToolDefinition[]> {
   // 防御式门禁：调用方即使误调用，也不能在只读模式下扫描后连接 MCP。
   if (getMode?.() === "readonly") return [];
-  // 工具列表不变，缓存避免重复扫描（按项目分键）
-  const key = cacheKey(projectPath);
-  const cached = getMode ? undefined : toolsCache.get(key);
-  if (cached) return cached;
-  // 注意:空结果不缓存(不入 map)——某次全部连接失败时若缓存了 [],
-  // 后续所有会话都拿不到 MCP 工具直到重启;失败应下次重试
-
   const defineTool = await getDefineToolFn();
   const servers = scanMcpServers(projectPath);
 
@@ -340,9 +341,47 @@ export async function loadMcpTools(projectPath?: string, getMode?: () => Permiss
   for (const r of settled) {
     if (r.status === "fulfilled") tools.push(...r.value);
   }
-
-  if (tools.length > 0 && !getMode) toolsCache.set(key, tools);
   return tools;
+}
+
+/** 按需读取单个 server 的工具；搜索/调用入口不应为了一个 server 拉起全部 MCP。 */
+export async function loadMcpServerTools(
+  name: string,
+  projectPath?: string,
+  getMode: () => PermissionMode = () => "standard",
+  contextId = "shared",
+): Promise<ToolDefinition[]> {
+  if (getMode() === "readonly") throw new Error("只读模式不连接 MCP");
+  const manifest = scanMcpServers(projectPath).find((server) => server.name === name);
+  if (!manifest) throw new Error(`未找到 MCP 服务器「${name}」`);
+  if (!manifest.enabled) throw new Error(`MCP 服务器「${name}」已停用`);
+  if (manifest.pendingApproval) throw new Error(`MCP 服务器「${name}」尚未确认启用`);
+  const originalDefinition = getMcpServerConfig(name, { scope: manifest.scope, projectPath });
+  if (!originalDefinition) throw new Error(`MCP 服务器「${name}」的定义已不存在`);
+  const initialMode = getMode();
+  const key = clientKey(name, projectPath, initialMode, contextId);
+  const running = pendingServerLoads.get(key);
+  if (running) return running;
+  const pending = (async () => {
+    const defineTool = await getDefineToolFn();
+    const tools = await loadOneServer(manifest, defineTool, projectPath, getMode, contextId);
+    if (getMode() !== initialMode) {
+      await closeMcpContexts([contextId]);
+      throw new Error("权限模式已变化，请重新搜索 MCP 工具");
+    }
+    const current = scanMcpServers(projectPath).find((server) => server.name === name);
+    const currentDefinition = current && getMcpServerConfig(name, { scope: current.scope, projectPath });
+    if (!current?.enabled || current.pendingApproval || JSON.stringify(currentDefinition) !== JSON.stringify(originalDefinition)) {
+      await closeMcpContexts([contextId]);
+      throw new Error(`MCP 服务器「${name}」的定义已变化，请重新搜索`);
+    }
+    const status = statusMap.get(statusKey(projectPath, name));
+    if (tools.length === 0 && status?.state === "failed") throw new Error(status.error || `MCP 服务器「${name}」连接失败`);
+    return tools;
+  })();
+  pendingServerLoads.set(key, pending);
+  try { return await pending; }
+  finally { if (pendingServerLoads.get(key) === pending) pendingServerLoads.delete(key); }
 }
 
 /** 获取各 server 连接状态（界面状态列与诊断）。
@@ -380,15 +419,18 @@ export function ensureStatusProbe(projectPath?: string): void {
   }
 }
 
-/** 配置变更后调用：清工具缓存（保留已建立的连接复用），新会话创建时重新拉取工具（SDK 无热更新 API，进行中会话工具集固定） */
+/** 配置变更后丢弃在途的按需加载。
+ *  工具定义本来就不缓存（每次从当前配置重新扫描），所以这里只需断开"正在进行中"的那几个；
+ *  client 的丢弃走 dropMcpClient——不要靠这个函数去让已建立的连接失效。 */
 export function reloadMcpTools(): void {
-  toolsCache.clear();
+  pendingServerLoads.clear();
 }
 
 /** 丢弃指定 server 的已建连接与状态记录（保存/删除/开关后调用）。
  *  必要性：clients 按名复用连接——改配置（如换/清 PAT）不丢弃会一直用旧连接，
  *  实测：删除 github 后不填令牌重加，状态仍显示「连接成功」。 */
 export async function dropMcpClient(name: string): Promise<void> {
+  for (const key of pendingServerLoads.keys()) if (key.endsWith(`::${name}`)) pendingServerLoads.delete(key);
   const dropped: Client[] = [];
   for (const [key, client] of clients) {
     if (!key.endsWith(`::${name}`)) continue;
@@ -434,16 +476,13 @@ export async function closeAllMcpClients(): Promise<void> {
   const dropped = [...clients.values()];
   clients.clear();
   statusMap.clear();
-  toolsCache.clear();
+  pendingServerLoads.clear();
   await Promise.allSettled(dropped.map((client) => closeClient(client)));
 }
 
 /** 单个 server 重试：断开旧连接并清缓存，立即重连一次（界面「重试连接」） */
 export async function retryMcpServer(name: string, projectPath?: string): Promise<{ ok: boolean; error?: string }> {
   await dropMcpClient(name);
-  const key = cacheKey(projectPath);
-  const prev = toolsCache.get(key);
-  toolsCache.delete(key);
   const s = scanMcpServers(projectPath).find((x) => x.name === name);
   if (!s) return { ok: false, error: `未找到服务器「${name}」` };
   if (!s.enabled) return { ok: false, error: "服务器已停用，请先启用" };
@@ -451,12 +490,9 @@ export async function retryMcpServer(name: string, projectPath?: string): Promis
   // 界面现在不给待确认行重试按钮，但 UI 会变，不能只靠 UI 不放入口。
   if (s.pendingApproval) return { ok: false, error: `服务器「${name}」尚未确认启用——请先在 MCP 列表中确认` };
   const defineTool = await getDefineToolFn();
-  const tools = await loadOneServer(s, defineTool, projectPath);
-  // 合并回缓存：其他 server 的工具仍有效时保留（替换掉该 server 的旧工具）
-  const prefix = `mcp__${name}__`;
-  const others = (prev ?? []).filter((t: ToolDefinition) => !t.name.startsWith(prefix));
-  const merged = [...others, ...tools];
-  if (merged.length > 0) toolsCache.set(key, merged);
+  // 重连即生效：连接与 statusMap 在这里刷新；工具定义不缓存（按需入口每次从当前配置取），
+  // 所以不需要往任何缓存里回写
+  await loadOneServer(s, defineTool, projectPath);
   const st = statusMap.get(statusKey(projectPath, name));
   return st?.state === "connected" ? { ok: true } : { ok: false, error: st?.error || "连接失败" };
 }
