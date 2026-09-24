@@ -130,6 +130,8 @@ interface ActiveChat {
   learnSuggestDone: boolean;
   /** learn / search_experiences / retire_experiences 是否已注册（会话创建时快照——工具集固定于创建时，触发提示按此判断） */
   learnToolInstalled: boolean;
+  /** 本次激活后的首个 API usage 已记录（只记数量，不记录提示词和参数内容）。 */
+  firstUsageLogged?: boolean;
 }
 
 /** 运行中委派快照项（agent:delegations IPC 返回，渲染层播种刷新后消失的委派卡片） */
@@ -941,6 +943,42 @@ export class AgentService {
           getSession: () => session,
           setPendingResult: (ev: PiChatEvent) => { pendingResult = ev; },
         });
+
+        // 首次请求输入体量的观测埋点：只记数量，不记提示词与参数内容。
+        // 放在主链路之后并单独兜错——观测失败不该影响事件分发（外层 catch 一旦接住，
+        // 本条事件就不再进 entryTracker / bridge，等于丢一次实时更新）。
+        if (chat && !chat.firstUsageLogged && event.type === "message_end"
+          && event.message.role === "assistant" && event.message.usage) {
+          chat.firstUsageLogged = true;
+          try {
+            const usage = event.message.usage;
+            const active = new Set(session.getActiveToolNames());
+            const definitions = session.getAllTools().filter((tool) => active.has(tool.name));
+            const prompt = session.systemPrompt;
+            const sectionChars = (name: string): number => {
+              const open = `<${name}>`;
+              const close = `</${name}>`;
+              const start = prompt.indexOf(open);
+              const end = start < 0 ? -1 : prompt.indexOf(close, start + open.length);
+              return end < 0 ? 0 : end + close.length - start;
+            };
+            console.info("[agent] 首次请求输入体量", {
+              sessionId, model: session.model?.id,
+              // 兜底口径与 event-bridge 的 extractUsage 一致：provider 不一定回 cache 字段
+              inputTokens: (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0),
+              cacheReadTokens: usage.cacheRead ?? 0,
+              activeToolCount: definitions.length,
+              // broker 生效后应当恒为 0——留着当"没有悄悄退回全量加载"的断言
+              mcpToolCount: definitions.filter((tool) => tool.name.startsWith("mcp__")).length,
+              toolDefinitionChars: definitions.reduce((sum, tool) => sum + JSON.stringify({ name: tool.name, description: tool.description, parameters: tool.parameters }).length, 0),
+              systemPromptChars: prompt.length,
+              projectContextChars: sectionChars("project_context"),
+              skillCatalogChars: sectionChars("skills"),
+            });
+          } catch (e) {
+            console.warn("[agent] 首次请求输入体量统计失败:", (e as Error).message);
+          }
+        }
 
         // ── 压缩追踪 ──
         if (chat && event.type === "compaction_end") {
