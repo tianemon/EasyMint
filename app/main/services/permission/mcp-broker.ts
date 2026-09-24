@@ -94,123 +94,11 @@ function stripIntentRequirement(description: string): string {
   return description.replace(INTENT_REQUIREMENT, "").trim();
 }
 
-/** 中文关键词 → 英文别名。
- *  工具名与描述几乎都是英文，而检索是纯子串匹配、**跨不了语言**：实测在本机配置的 playwright
- *  （25 个工具）上，「截图」「打开网页」「点击按钮」等 8 种中文说法全部 0 分，与空查询同分，
- *  于是稳定排序退化成按 listTools 顺序取前 5 个——正好是最不相关的一批，且不报任何错。
- *  命中中文词时补上对应英文词参与打分；原词保留，别名只做加法、不改既有行为。
- *
- *  **收词原则**（决定这张表会不会变成随 server 增长的手工活）：
- *  ① 只收**跨领域通用词**——通用动词（创建/删除/搜索/发送…）与通用名词（文件/图片/文档…）,
- *     它们不随 server 数量增长，一次写够即可封顶；
- *  ② 不收**单一产品特有**的词（金价、持仓、某业务字段…）——那交给 server 自述（见 getInstructions）
- *     与"无命中回工具名清单"兜底，否则每接一个 server 都要来改这张表；
- *  ③ 不收**在该 server 每个工具名里都出现**的词（如 browser、page）——它们只会把所有工具分数
- *     拉平，让排序退化成 listTools 顺序，反而制造"看起来有结果"的错答案（实测：加 `page` 后
- *     「刷新页面」「看网页源码」首位变成 browser_close；去掉后这两条诚实回退成工具名清单，
- *     而「截图」「获取页面内容」等正确答案一条都没变差）。 */
-const QUERY_ALIASES: ReadonlyArray<readonly [string, readonly string[]]> = [
-  // 打开与浏览
-  ["打开", ["navigate", "open"]],
-  ["访问", ["navigate"]],
-  ["导航", ["navigate"]],
-  ["刷新", ["reload"]],
-  ["关闭", ["close"]],
-  ["前进", ["forward"]],
-  ["后退", ["back"]],
-  ["标签页", ["tab"]],
-  // 页面内容与交互
-  ["截图", ["screenshot"]],
-  ["快照", ["snapshot"]],
-  ["内容", ["content", "snapshot"]],
-  ["抓取", ["snapshot", "fetch"]],
-  ["点击", ["click"]],
-  ["悬停", ["hover"]],
-  ["输入", ["type", "fill"]],
-  ["填写", ["fill"]],
-  ["表单", ["form"]],
-  ["选择", ["select"]],
-  ["拖拽", ["drag"]],
-  ["拖动", ["drag"]],
-  ["滚动", ["scroll"]],
-  ["等待", ["wait"]],
-  ["尺寸", ["resize"]],
-  ["调整", ["resize"]],
-  // 键盘与对话框
-  ["键盘", ["key", "press"]],
-  ["按键", ["key", "press"]],
-  ["对话框", ["dialog"]],
-  ["弹窗", ["dialog", "popup"]],
-  // 请求与执行
-  ["控制台", ["console"]],
-  ["网络", ["network"]],
-  ["请求", ["request"]],
-  ["执行代码", ["evaluate"]],
-  ["执行", ["execute", "run"]],
-  ["运行", ["run", "execute"]],
-  // 增删改查
-  ["创建", ["create"]],
-  ["新建", ["create"]],
-  ["建立", ["create"]],
-  ["删除", ["delete"]],
-  ["移除", ["remove"]],
-  ["更新", ["update"]],
-  ["修改", ["update", "edit"]],
-  ["编辑", ["edit"]],
-  ["读取", ["read"]],
-  ["获取", ["get", "fetch"]],
-  ["搜索", ["search"]],
-  ["查找", ["find", "search"]],
-  ["查询", ["query", "search"]],
-  ["列出", ["list"]],
-  ["列表", ["list"]],
-  ["移动", ["move"]],
-  ["复制", ["copy"]],
-  ["重命名", ["rename"]],
-  // 文件与数据
-  ["文件", ["file"]],
-  ["文件夹", ["folder"]],
-  ["目录", ["directory", "folder"]],
-  ["图片", ["image", "picture"]],
-  ["文档", ["document"]],
-  ["表格", ["table", "sheet"]],
-  ["上传", ["upload"]],
-  ["下载", ["download"]],
-  // 协作与版本
-  ["提交", ["commit", "submit"]],
-  ["分支", ["branch"]],
-  ["仓库", ["repo", "repository"]],
-  ["合并", ["merge"]],
-  ["拉取", ["pull"]],
-  ["评论", ["comment"]],
-  ["标签", ["tag", "label"]],
-  ["版本", ["version", "release"]],
-  ["发布", ["release", "publish"]],
-  // 通信与账户
-  ["发送", ["send"]],
-  ["消息", ["message"]],
-  ["邮件", ["mail", "email"]],
-  ["登录", ["login", "sign"]],
-  ["用户", ["user"]],
-  ["权限", ["permission", "access"]],
-  ["日程", ["calendar", "event"]],
-  ["任务", ["task"]],
-  // 运维
-  ["安装", ["install"]],
-  ["部署", ["deploy"]],
-  ["配置", ["config"]],
-  ["设置", ["setting", "config"]],
-];
-
-/** 打分用的关键词 = 原词 + 中文别名展开（去重保序）。 */
-function queryWords(query: string): string[] {
-  const base = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const extra: string[] = [];
-  for (const [zh, en] of QUERY_ALIASES) {
-    if (query.includes(zh)) extra.push(...en);
-  }
-  return [...new Set([...base, ...extra])];
-}
+// 检索只做**字面比较**（工具名命中 3 分、描述命中 1 分），没有同义词表、也没有跨语言映射。
+// 曾经加过一张"中文 → 英文"别名表，后来删了：翻本机真实会话记录（~/.easymint/agent/sessions
+// 里对 search_mcp_tools 的调用）发现模型一直自己写英文关键词，一次中文都没出现过——真正起作用的
+// 是工具描述里那句"query 优先用英文"（模型照做）+ 无命中时回工具名清单（不依赖模型配合）。
+// 别再往回加翻译表：它是随表达方式增长的手工活，而且泛化词会拉平排序（page / browser 曾如此）。
 
 export async function createMcpBrokerTools(
   projectPath: string,
@@ -226,14 +114,14 @@ export async function createMcpBrokerTools(
   const search = defineTool({
     name: "search_mcp_tools",
     label: "查找 MCP 工具",
-    description: `按需查找 MCP 工具。可用服务器：${describeServers(servers, projectPath) || "无"}。任务需要上述外部能力时先查一次，再用 call_mcp_tool 调用；不要猜工具参数。query 优先用英文关键词——工具名与描述都是英文，中文只覆盖「截图/打开/点击」这类常见操作词。只读模式下不可用。`,
+    description: `按需查找 MCP 工具。可用服务器：${describeServers(servers, projectPath) || "无"}。任务需要上述外部能力时先查一次，再用 call_mcp_tool 调用；不要猜工具参数。query 用英文关键词（工具名与描述都是英文）；不带 query 则返回全部工具名与前几个的完整定义。只读模式下不可用。`,
     promptSnippet: "按服务器和用途查找 MCP 工具及参数；只在需要外部能力时调用",
     parameters: {
       type: "object" as const,
       properties: {
         server: { type: "string" as const, description: "MCP 服务器名；省略时只列出可用服务器" },
-        query: { type: "string" as const, description: "用途或工具名关键词；指定 server 后可省略" },
-        limit: { type: "number" as const, description: "最多返回多少个工具，默认 5、上限 8" },
+        query: { type: "string" as const, description: "英文关键词（用途或工具名）；省略则列出该服务器的全部工具名与前几个的完整定义" },
+        limit: { type: "number" as const, description: "最多返回几个工具的完整定义，默认 5、上限 8" },
       },
     },
     async execute(_id: string, params: { server?: string; query?: string; limit?: number }) {
@@ -243,7 +131,8 @@ export async function createMcpBrokerTools(
       if (!server) return { content: [{ type: "text" as const, text: JSON.stringify({ servers: current.map((s) => s.name) }) }], details: {} };
       if (!current.some((s) => s.name === server)) throw new Error(`服务器「${server}」不可用或尚未确认启用`);
       const tools = await loadMcpServerTools(server, projectPath, getMode, contextId);
-      const words = queryWords(params.query?.trim() ?? "");
+      const query = params.query?.trim() ?? "";
+      const words = query.toLowerCase().split(/\s+/).filter(Boolean);
       const ranked = tools.map((tool) => ({
         tool,
         score: words.reduce((score, word) => score + (tool.name.toLowerCase().includes(word) ? 3 : 0)
@@ -262,17 +151,27 @@ export async function createMcpBrokerTools(
         : sanitizeInstructions(serverInstructions(manifest, projectPath) ?? "");
       if (instructions) instructionsShown.add(server);
       const base = { server, total: tools.length, ...(instructions ? { instructions } : {}) };
-      // 首位分数 <3 表示**没有任何工具名被命中**，只是描述里的偶合——这种"弱匹配"看着像命中却
-      // 未必贴切，所以连工具名清单一起给，让模型自己判断。
-      const payload = hits.length > 0
-        ? {
-            ...base,
-            tools: hits.map(({ tool }) => ({ name: tool.name, description: stripIntentRequirement(tool.description), parameters: tool.parameters })),
-            ...((hits[0]?.score ?? 0) < 3
-              ? { hint: "以下按描述模糊匹配，未必贴切；不合适可改用英文关键词，或从下列工具名中选：", names }
-              : {}),
-          }
-        : { ...base, tools: [], hint: "没有匹配的工具。可改用英文关键词，或从下列工具名中选一个：", names };
+      const entry = (tool: ToolDefinition) => ({
+        name: tool.name,
+        description: stripIntentRequirement(tool.description),
+        parameters: tool.parameters,
+      });
+      // 不带 query = "把目录给我"（真实会话里模型第一句就是 {server, limit} 不带 query）：
+      // 给**全部工具名** + 前 limit 个的完整定义——既一眼看到有什么，又能直接调最可能的那几个，
+      // 省掉"看到名字 → 再搜一次拿参数"的往返。这与"搜了但没命中"是两种语义，后者只给名单。
+      const browsing = words.length === 0;
+      const picked = browsing ? tools.slice(0, limit) : hits.map(({ tool }) => tool);
+      let extra: { hint: string; names: string[] } | null = null;
+      if (picked.length === 0) {
+        extra = { hint: "没有匹配的工具。可改用英文关键词，或从下列工具名中选一个：", names };
+      } else if (browsing) {
+        extra = { hint: `共 ${tools.length} 个工具，以上为前 ${picked.length} 个的完整定义；names 是完整名单，需要其余工具的参数就按名字再查一次。`, names };
+      } else if ((hits[0]?.score ?? 0) < 3) {
+        // 首位分数 <3 表示**没有任何工具名被命中**，只是描述里的偶合——这种"弱匹配"看着像命中
+        // 却未必贴切，所以连工具名清单一起给，让模型自己判断。
+        extra = { hint: "以下按描述模糊匹配，未必贴切；不合适可改用英文关键词，或从下列工具名中选：", names };
+      }
+      const payload = { ...base, tools: picked.map(entry), ...(extra ?? {}) };
       return { content: [{ type: "text" as const, text: JSON.stringify(payload) }], details: {} };
     },
   }) as BrokerTool;

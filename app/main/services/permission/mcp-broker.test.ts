@@ -141,13 +141,17 @@ describe("MCP 按需工具入口", () => {
     expect(fixture.load).toHaveBeenCalledTimes(1);
   });
 
-  it("中文关键词经别名展开后能命中英文工具（子串匹配本身跨不了语言）", async () => {
-    fixture.load.mockResolvedValue([screenshotTool, closeTool]);
+  it("不带 query 时给全部工具名 + 前 limit 个的完整定义（省一次「看名字再搜参数」的往返）", async () => {
+    fixture.load.mockResolvedValue([tool, screenshotTool, closeTool]);
     const [search] = await createMcpBrokerTools("/tmp/project", "session", () => "standard", async () => ({ behavior: "allow" }));
-    const result = await run(search!, { server: "github", query: "帮我截图" });
-    const payload = JSON.parse((result.content[0] as { text: string }).text);
-    // 「帮我截图」整体匹配不到任何英文词，靠「截图 → screenshot」才命中；去掉别名表此断言必红
-    expect(payload.tools[0].name).toBe("mcp__playwright__browser_take_screenshot");
+    const payload = JSON.parse(((await run(search!, { server: "github", limit: 2 })).content[0] as { text: string }).text);
+
+    expect(payload.total).toBe(3);
+    expect(payload.tools).toHaveLength(2);
+    // 完整定义（含参数 schema），不是只有名字
+    expect(payload.tools[0].parameters).toBeDefined();
+    // 完整名单一次给全，模型不用再分批猜关键词
+    expect(payload.names).toEqual([tool.name, screenshotTool.name, closeTool.name]);
   });
 
   it("只返回命中项；全不命中时给工具名清单，而不是 0 分占位", async () => {
