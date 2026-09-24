@@ -430,8 +430,22 @@ export function filterBenignViolations(stderr: string): string {
   return `${before}<sandbox_violations>\n${kept.join("\n")}\n</sandbox_violations>${after}`;
 }
 
-/** 仅供测试：释放代理、监控器和全局状态。生产按每次 wrap 的策略隔离工作区。 */
-export async function resetSandboxForTest(): Promise<void> {
+/**
+ * 释放沙盒的全局状态与常驻资源：srt 的 macOS 日志监控、Windows ACL、bwrap 挂载点等。
+ *
+ * **三条路径共用这一个原语**：测试清理、依赖变化后重建、**应用退出收尾**。
+ * 退出那一路是必需的——srt 在 macOS 上 initialize 时会 spawn 一个常驻 `log stream` 收集
+ * 违规事件（见 ensureSandbox 的 enableLogMonitor），而**它的停止闭包只在
+ * SandboxManager.reset() 里被调用**（srt 内部变量 logMonitorShutdown，见
+ * node_modules/@anthropic-ai/sandbox-runtime/dist/sandbox/sandbox-manager.js）。退出清场若不调它，
+ * 监控进程会失去父进程（PPID=1）常驻：LaunchServices 据此把 EasyMint 记为
+ * exited-with-subordinates，macOS 26+ 会在 Dock 上持续提示「仍在后台运行」（2026-09-24 实测）。
+ *
+ * 顺带把 _state 重置为 untouched：调用方要么正在退出，要么打算重新初始化。
+ */
+export async function releaseSandbox(): Promise<void> {
+  // _srt 在 getSrt() 之后即非 null（哪怕 initialize 失败），此时仍要 reset——
+  // 半初始化的会话同样可能已经把监控进程起起来了。
   if (_srt) await _srt.SandboxManager.reset();
   _state = "untouched";
   _failReason = "";
@@ -442,5 +456,5 @@ export async function resetSandboxForTest(): Promise<void> {
  * 让「装完即生效」不必重启 EasyMint——否则失败状态会一直被缓存住继续 fail-closed。
  */
 export async function resetSandboxState(): Promise<void> {
-  await resetSandboxForTest();
+  await releaseSandbox();
 }

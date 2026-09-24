@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ensureSandbox, resetSandboxForTest, wrapForSandbox } from "./manager";
+import { ensureSandbox, releaseSandbox, wrapForSandbox } from "./manager";
 import { createExecutionContext } from "../permission/execution-context";
 
 describe("执行策略真实 I/O", () => {
@@ -17,7 +17,7 @@ describe("执行策略真实 I/O", () => {
 
   afterAll(async () => {
     fs.rmSync(root, { recursive: true, force: true });
-    await resetSandboxForTest();
+    await releaseSandbox();
   });
 
   function run(command: string, env?: NodeJS.ProcessEnv): ReturnType<typeof spawnSync> {

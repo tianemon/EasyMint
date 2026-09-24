@@ -45,7 +45,7 @@ import {
   isSandboxBypassed,
   isSandboxBypassedForMode,
   isSandboxEnabledForMode,
-  resetSandboxForTest,
+  releaseSandbox,
   wrapForSandbox,
 } from "./manager";
 import { DEVELOPMENT_ALLOWED_DOMAINS, isSandboxExcludedCommand, sshAgentSockets } from "./compat-policy";
@@ -55,7 +55,7 @@ const WS = path.join(process.cwd(), "temp", "sandbox-mode-routing-test");
 const ctx = (mode: "readonly" | "standard" | "full") => createExecutionContext(WS, mode);
 
 describe("三档 → 沙盒路由", () => {
-  beforeEach(async () => { await resetSandboxForTest(); });
+  beforeEach(async () => { await releaseSandbox(); });
 
   it("完全访问：命令原样执行，不调 srt、不出现 sandbox-exec", async () => {
     const before = wrapCalls.length;
@@ -108,7 +108,7 @@ describe("三档 → 沙盒路由", () => {
     await ensureSandbox(WS, "readonly");            // 幂等：已 ok 不再 init
     expect(initCalls.length).toBe(1);
 
-    await resetSandboxForTest();
+    await releaseSandbox();
     expect((await ensureSandbox(WS, "full")).ok).toBe(true);
     expect(initCalls.length, "完全访问不该初始化 srt").toBe(1);
   });

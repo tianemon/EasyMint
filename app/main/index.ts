@@ -99,6 +99,7 @@ import { RemoteTerminalService } from "./services/remote-terminal-service";
 import { appEventBus } from "./services/app-event-bus";
 import { applyDockIcon } from "./utils/dock-icon";
 import { shutdownWindowsExecutionWorkers } from "./services/sandbox/windows-execution-manager";
+import { releaseSandbox } from "./services/sandbox/manager";
 import { backgroundShellRegistry } from "./services/background-shell/registry";
 import { closeAllMcpClients } from "./services/permission/mcp-adapter";
 import { snapshotProcessPids, stopAllProcesses } from "./services/process-service";
@@ -408,9 +409,13 @@ app.whenReady().then(async () => {
 app.on("window-all-closed", () => { app.quit(); });
 
 // ── 退出清场 ──
-// Electron 主进程退出**不会**带走自己 spawn 的子进程。EM 的常驻子进程有四类：
+// Electron 主进程退出**不会**带走自己 spawn 的子进程。EM 的常驻子进程有五类：
 // ① 后台 shell 注册表（Mint 的 background:true）② 运行面板进程组（run.json 里的 dev server）
-// ③ 前台命令通道（bash / install_dependency / shell:exec）④ stdio MCP server（codegraph 等）。
+// ③ 前台命令通道（bash / install_dependency / shell:exec）④ stdio MCP server（codegraph 等）
+// ⑤ **沙盒的 macOS 日志监控**——srt 内部 spawn 的常驻 log stream。前四类由本函数直接杀；
+//    第五类只能经 srt 的 reset 释放（见 sandbox/manager 的 releaseSandbox）。漏掉它时主进程照样
+//    干净退出，但监控进程会变孤儿（PPID=1）→ LaunchServices 把 EasyMint 记为
+//    exited-with-subordinates，macOS 26+ 据此在 Dock 上持续提示「仍在后台运行」（2026-09-24 实测）。
 // 不收尾的后果：进程成孤儿——占着端口/内存而 EM 再也管不到（下次启动面板显示「未运行」、
 // 端口却仍被占），macOS 26+ 还会把「App 退出后仍活跃的后台任务」显性提示给用户。
 //
@@ -454,6 +459,10 @@ async function runQuitCleanup(): Promise<void> {
   await step("后台命令强制收尾", () => backgroundShellRegistry.forceKillAll(shellPids));
   await step("运行面板进程强制收尾", () => { stopAllProcesses("SIGKILL", processPids); });
   await step("命令通道进程强制收尾", () => { signalTrackedChildren("SIGKILL", trackedChildren); });
+  // 沙盒的常驻监控：位置有两处讲究——必须在进程收尾之后（Linux 侧 reset 会强清 bwrap 挂载点，
+  // 子进程还活着时清不安全），又必须排在 MCP 关闭之前（MCP 关闭可能等远端超时，排它后面会被
+  // 3s 的清场总预算截断，那就等于没修）。
+  await step("沙盒监控", () => releaseSandbox());
   await Promise.all([mcpCleanup, windowsCleanup]);
 }
 
