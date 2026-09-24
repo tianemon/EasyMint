@@ -133,6 +133,10 @@ describe("按需入口（search_mcp_tools / call_mcp_tool）：同样要能看�
       result: "结果文本",
     });
     // intentFromInput 走的是顶层 `_intent` / 参数摘要：此处应显示模型填的外层意图，而不是工具名
+    // （实测过：把分支换回 intentFromInput，本条即红——它钉的就是这条取值路径）。
+    // 这里**故意不加** not.toContain("内层字段") 的反例：折叠卡片根本不渲染 arguments，
+    // 那条断言恒真、永远不会红，加了只会给出虚假信心。同文件其余用例的 not.toContain 之所以
+    // 有效，是因为那些串确实可能出现在 DOM 里。
     expect(out).toContain("点登录按钮");
   });
 

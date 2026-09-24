@@ -171,6 +171,11 @@ describe("MCP 按需工具入口", () => {
     // 截断了就必须说实话——否则与同时返回的 total 自相矛盾，模型会以为剩下 10 个不存在
     expect(payload.hint).toContain("另有 10 个未列出");
     expect(payload.hint).not.toContain("是全部工具名");
+
+    // 另外两个分支也带 names，同样要说明截断（别只在 browsing 分支如实）
+    const miss = JSON.parse(((await run(search!, { server: "github", query: "zzz" })).content[0] as { text: string }).text);
+    expect(miss.tools).toEqual([]);
+    expect(miss.hint).toContain("仅列出前 120 个");
   });
 
   it("只返回命中项；全不命中时给工具名清单，而不是 0 分占位", async () => {
@@ -226,6 +231,18 @@ describe("MCP 按需工具入口", () => {
     expect(first.instructions).toContain("SQLite knowledge graph");
     // 第二次不再重复——自述是"怎么用这个 server"，给一次就够
     expect(await text()).not.toHaveProperty("instructions");
+  });
+
+  it("query 里点名 server 时按名字长度降序推断——git 不能抢走 github 的查询", async () => {
+    fixture.servers = [
+      { name: "git", enabled: true, pendingApproval: false },
+      { name: "github", enabled: true, pendingApproval: false },
+    ];
+    const [search] = await createMcpBrokerTools("/tmp/project", "session", () => "standard", async () => ({ behavior: "allow" }));
+    await run(search!, { query: "github issue" });
+    // `"github issue".includes("git")` 为真：若改回 find（取扫描序首个命中）就会选中 git，
+    // 与 call_mcp_tool 的「最长前缀优先」也会不一致
+    expect(fixture.load).toHaveBeenCalledWith("github", "/tmp/project", expect.any(Function), "session");
   });
 
   it("只读和待确认 server 均不能经代理拉起", async () => {

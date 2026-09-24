@@ -156,6 +156,9 @@ export async function createMcpBrokerTools(
       const names = tools.map((tool) => tool.name).slice(0, NAME_LIST_LIMIT);
       const omitted = tools.length - names.length;
       const namesNote = omitted > 0 ? `names 为工具名前 ${names.length} 个（另有 ${omitted} 个未列出）` : "names 是全部工具名";
+      // 另外两个分支（未命中 / 弱匹配）也会带 names，同样可能被截断——用同一个后缀如实说明，
+      // 别让模型以为看到的就是全部
+      const listScope = omitted > 0 ? `（共 ${tools.length} 个，仅列出前 ${names.length} 个）` : "";
       // 顺带把 server 的协议自述交给模型（连接已建立，零额外成本）：它回答"这个 server 怎么用"，
       // 是模型后续在同一 server 上挑工具的依据；每会话每个 server 只给一次。
       const manifest = current.find((s) => s.name === server);
@@ -176,13 +179,13 @@ export async function createMcpBrokerTools(
       const picked = browsing ? tools.slice(0, limit) : hits.map(({ tool }) => tool);
       let extra: { hint: string; names: string[] } | null = null;
       if (picked.length === 0) {
-        extra = { hint: "没有匹配的工具。可改用英文关键词，或从下列工具名中选一个：", names };
+        extra = { hint: `没有匹配的工具。可改用英文关键词，或从下列工具名中选一个${listScope}：`, names };
       } else if (browsing) {
         extra = { hint: `共 ${tools.length} 个工具，以上为前 ${picked.length} 个的完整定义；${namesNote}，需要其余工具的参数就按名字再查一次。`, names };
       } else if ((hits[0]?.score ?? 0) < 3) {
         // 首位分数 <3 表示**没有任何工具名被命中**，只是描述里的偶合——这种"弱匹配"看着像命中
         // 却未必贴切，所以连工具名清单一起给，让模型自己判断。
-        extra = { hint: "以下按描述模糊匹配，未必贴切；不合适可改用英文关键词，或从下列工具名中选：", names };
+        extra = { hint: `以下按描述模糊匹配，未必贴切；不合适可改用英文关键词，或从下列工具名中选${listScope}：`, names };
       }
       const payload = { ...base, tools: picked.map(entry), ...(extra ?? {}) };
       return { content: [{ type: "text" as const, text: JSON.stringify(payload) }], details: {} };
