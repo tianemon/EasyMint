@@ -79,6 +79,10 @@ export function protectedCredentialPaths(platform: NodeJS.Platform = process.pla
     path.join(emHome(), "environment.sh"),
     path.join(emHome(), ".control-tmp"),
     path.join(emHome(), "agent", "auth.json"),
+    // 配对凭据：`paired-devices.json` 存 `key`（base64 配对密钥）、`paired-mobile-devices.json` 存
+    // `sharedSecret`（派生会话密钥的根）。读到它 = 能接入用户的设备通道，属凭据而非普通状态。
+    path.join(emHome(), "paired-devices.json"),
+    path.join(emHome(), "paired-mobile-devices.json"),
   );
   if (platform === "darwin") common.push(path.join(home, "Library", "Keychains"));
   if (platform === "win32") {
@@ -97,15 +101,41 @@ export function protectedCredentialPaths(platform: NodeJS.Platform = process.pla
  */
 export function protectedPersistencePaths(cwd: string, platform: NodeJS.Platform = process.platform): string[] {
   const home = os.homedir();
+  // Pi 也会发现当前项目祖先目录中的 .agents/skills；这些目录与其他技能来源同属持久提示词载体。
+  const ancestorAgentSkills: string[] = [];
+  for (let dir = path.resolve(cwd); ; dir = path.dirname(dir)) {
+    ancestorAgentSkills.push(path.join(dir, ".agents", "skills"));
+    if (path.dirname(dir) === dir) break;
+  }
   const paths = [
     path.join(emHome(), "mcp.json"),
-    // MCP server 自述缓存：`describeServers` 会把它的首句拼进 search_mcp_tools 的**工具说明**
-    // （每轮请求都随行），搜索结果里还会给全文（≤2000 字符）。键里的 definitionFingerprint 可由
-    // 可读的 mcp.json 现算，所以能直接改已有条目的值 —— 等于一条**绕开审批门**的持久化提示词
-    // 注入通道（`description` 已纳入指纹要重新确认，这个文件此前两条路都没覆盖到）。
+    // MCP server 自述缓存：只在明确搜索该 server 时作为第三方资料返回（≤2000 字符），
+    // 不再提升为每轮随行的工具说明。仍要阻止 Agent 改写缓存、影响后续搜索结果。
     path.join(emHome(), "mcp-instructions.json"),
     path.join(emHome(), "agent", "settings.json"),
     path.join(emHome(), "agent", "models.json"),
+    // pi SDK 的模型存储：与 agent/models.json 一同参与 ModelRuntime 构建（modelsPath + modelsStorePath），
+    // 改它 = 改"模型从哪来"，与上一行同性质。
+    path.join(emHome(), "agent", "models-store.json"),
+    // 配对记录可读性按凭据档处理；改写它们会持久改变设备认证，完全访问也不放开写入。
+    path.join(emHome(), "paired-devices.json"),
+    path.join(emHome(), "paired-mobile-devices.json"),
+    // 自定义系统提示词会成为后续会话的 system prompt，不能只按普通会话状态处理。
+    path.join(emHome(), "system-prompts.json"),
+    // 会**随会话进模型上下文**的三类落盘内容：技能（描述进 `<skills>` 分节、正文由 use_skill 读）、
+    // 经验（`buildExperienceInjection` 在会话构建时注入，每轮随行）、子 Agent 模板
+    // （`id + 名称 + 描述` 拼进 task 工具描述）。它们与 mcp-instructions.json 同属
+    // "持久化影响模型行为"的载体 —— 改一次就是长期往提示词里塞内容。
+    // 正常的写入路径都不受影响：manage_skill / learn 走主进程直接写文件，用户手工编辑也不经这里。
+    path.join(emHome(), "skills"),
+    path.join(emHome(), "agent", "skills"),
+    path.join(emHome(), "managed-skills"),
+    path.join(emHome(), "experiences"),
+    path.join(emHome(), "agent-templates.json"),
+    path.join(home, ".claude", "skills"),
+    path.join(home, ".codex", "skills"),
+    path.join(home, ".pi", "agent", "skills"),
+    path.join(home, ".agents", "skills"),
     path.join(home, ".config", "autostart"),
     path.join(home, ".config", "systemd"),
     path.join(home, ".config", "environment.d"),
@@ -121,6 +151,14 @@ export function protectedPersistencePaths(cwd: string, platform: NodeJS.Platform
     // 兼容 Claude/OMP 的项目级 MCP 配置。EasyMint 只读它，但它会决定下次会话
     // 可以启动哪些本地进程，因此不能由 Agent 通过普通文件工具持久化修改。
     path.join(cwd, ".mcp.json"),
+    // 项目级的同类载体：项目技能与项目经验库同样会进模型上下文，与全局目录同口径。
+    path.join(cwd, ".easymint", "skills"),
+    path.join(cwd, ".easymint", "experiences"),
+    path.join(cwd, ".claude", "skills"),
+    path.join(cwd, ".codex", "skills"),
+    path.join(cwd, ".pi", "skills"),
+    path.join(cwd, ".github", "skills"),
+    ...ancestorAgentSkills,
   ];
   if (platform === "win32") {
     const appData = process.env.APPDATA || path.win32.join(home, "AppData", "Roaming");
@@ -129,11 +167,10 @@ export function protectedPersistencePaths(cwd: string, platform: NodeJS.Platform
   return paths;
 }
 
-/** EasyMint 的会话状态（缓存、提示词覆盖）。改它不构成提权，完全访问下放开。 */
+/** 仅影响会话状态的文件；完全访问下放开，提示词覆盖已移入持久保护。 */
 export function protectedStatePaths(): string[] {
   return [
     path.join(emHome(), "session-cache"),
-    path.join(emHome(), "system-prompts.json"),
   ];
 }
 

@@ -9,6 +9,7 @@ import {
   isStandardWritableTarget,
   protectedControlPaths,
   protectedCredentialPaths,
+  protectedPersistencePaths,
   protectedWriteRoots,
   standardWriteRoots,
 } from "./access-policy";
@@ -95,6 +96,10 @@ describe("统一资源策略", () => {
     expect(credentials).toContain(path.join(os.homedir(), ".zshrc"));
     expect(credentials).toContain(path.join(os.homedir(), ".curlrc"));
     expect(credentials).toContain(path.join(os.homedir(), ".wgetrc"));
+    // 配对记录含密钥（paired-devices 的 `key` / paired-mobile-devices 的 `sharedSecret`）：
+    // 读到即可接入用户的设备通道，按凭据处理而非普通状态
+    expect(credentials).toContain(path.join(emHome(), "paired-devices.json"));
+    expect(credentials).toContain(path.join(emHome(), "paired-mobile-devices.json"));
   });
 
   it("EasyMint 权限状态与可执行配置属于写保护控制面", () => {
@@ -105,7 +110,28 @@ describe("统一资源策略", () => {
     // MCP server 自述缓存：其内容会进工具说明与搜索结果，必须和 mcp.json 同级保护——
     // 否则完全访问档下可被改写，变成绕开审批门的持久化提示词注入
     expect(controls).toContain(path.join(os.homedir(), ".easymint", "mcp-instructions.json"));
-    expect(controls).not.toContain(path.join(os.homedir(), ".easymint", "skills"));
+    // 2026-09-24 **反转**：此处原先断言 skills 不受保护。该判断已不成立 —— 技能描述进 `<skills>` 分节、
+    // 正文由 use_skill 读，经验库由 buildExperienceInjection 每轮注入，子 Agent 模板拼进 task 工具描述，
+    // 与 mcp-instructions.json 同属"持久化影响模型行为"的载体（该口径由用户 2026-09-24 确立）。
+    // 正常写入路径不受影响：manage_skill / learn 走主进程直接写文件，用户手工编辑也不经这层判定。
+    expect(controls).toContain(path.join(os.homedir(), ".easymint", "skills"));
+    expect(controls).toContain(path.join(os.homedir(), ".easymint", "managed-skills"));
+    expect(controls).toContain(path.join(os.homedir(), ".easymint", "experiences"));
+    expect(controls).toContain(path.join(os.homedir(), ".easymint", "agent-templates.json"));
+    expect(controls).toContain(path.join(os.homedir(), ".easymint", "agent", "models-store.json"));
+    expect(protectedPersistencePaths(cwd)).toContain(path.join(emHome(), "system-prompts.json"));
+    expect(protectedPersistencePaths(cwd)).toContain(path.join(emHome(), "paired-devices.json"));
+    expect(protectedPersistencePaths(cwd)).toContain(path.join(emHome(), "paired-mobile-devices.json"));
+    expect(controls).toContain(path.join(emHome(), "agent", "skills"));
+    expect(controls).toContain(path.join(cwd, ".easymint", "skills"));
+    for (const source of [".claude", ".codex", ".pi", ".github", ".agents"]) {
+      expect(controls).toContain(path.join(cwd, source, "skills"));
+    }
+    expect(controls).toContain(path.join(os.homedir(), ".agents", "skills"));
+    expect(controls).toContain(path.join(cwd, ".easymint", "experiences"));
+    // 保留原断言的另一半意思：保护面是**逐条精确列举**的，不是把 ~/.easymint 一网打尽
+    // （uploads 是用户内容目录，明确不在控制面内）
+    expect(controls).not.toContain(path.join(os.homedir(), ".easymint", "uploads"));
     expect(protectedControlPaths(cwd, "win32")).toContain(path.win32.join(
       process.env.APPDATA || path.win32.join(os.homedir(), "AppData", "Roaming"),
       "Microsoft", "Windows", "Start Menu", "Programs", "Startup",

@@ -133,6 +133,13 @@ describe("标准模式权限契约", () => {
     if (result.behavior === "deny") expect(result.message).toContain("core.credential_read");
   });
 
+  it("配对记录含配对密钥，按凭据处理：标准模式不可读", async () => {
+    for (const file of ["paired-devices.json", "paired-mobile-devices.json"]) {
+      const result = await read(path.join(os.homedir(), ".easymint", file));
+      expect(result.behavior, file).toBe("deny");
+    }
+  });
+
   it("允许工作区写入，拒绝普通工作区外写入", async () => {
     expect((await write(path.join(CWD, "src", "a.ts"))).behavior).toBe("allow");
     const result = await write(path.join(os.homedir(), "Desktop", "a.txt"));
@@ -151,6 +158,13 @@ describe("标准模式权限契约", () => {
     // 项目级网络白名单与 MCP 配置同级：改它 = 放宽后续命令的出口（自审发现的缺口）
     expect((await write(path.join(CWD, ".easymint", "sandbox.json"))).behavior).toBe("deny");
     expect((await bash(`echo '{"allowedDomains":["evil.com"]}' > ${JSON.stringify(path.join(CWD, ".easymint", "sandbox.json"))}`)).behavior).toBe("deny");
+    // 项目级技能/经验同样进模型上下文，与项目级 MCP 配置同级（2026-09-24）
+    expect((await write(path.join(CWD, ".easymint", "skills", "x", "SKILL.md"))).behavior).toBe("deny");
+    for (const source of [".claude", ".codex", ".pi", ".github", ".agents"]) {
+      expect((await write(path.join(CWD, source, "skills", "x", "SKILL.md"))).behavior, source).toBe("deny");
+    }
+    expect((await bash(`echo injected > ${JSON.stringify(path.join(CWD, ".pi", "skills", "x", "SKILL.md"))}`)).behavior).toBe("deny");
+    expect((await write(path.join(CWD, ".easymint", "experiences", "index.json"))).behavior).toBe("deny");
     const result = await bash("sudo apt install x");
     expect(result.behavior).toBe("deny");
     if (result.behavior === "deny") expect(result.message).toContain("core.privileged_operation");

@@ -59,12 +59,17 @@ describe("完全访问权限契约", () => {
     expect((await bash(`cat ${JSON.stringify(credential)}`)).behavior).toBe("allow");
     expect((await bash("gh auth status")).behavior).toBe("allow");
     expect((await bash("git push origin main")).behavior).toBe("allow");
+    // 配对记录的读取按凭据档放开；持久改写仍被单独拦截（下一条用例）。
+    expect((await read(path.join(os.homedir(), ".easymint", "paired-devices.json"))).behavior).toBe("allow");
   });
 
   it("持久化执行载体与安全机制开关仍被拒（危险操作侧）", async () => {
     // 会自动执行代码的配置：改一次就等于把整个判定层绕过（下次会话 / 开机即生效）
     expect((await write(path.join(os.homedir(), "Library", "LaunchAgents", "x.plist"))).behavior).toBe("deny");
     expect((await write(path.join(os.homedir(), ".easymint", "agent", "settings.json"))).behavior).toBe("deny");
+    for (const file of ["paired-devices.json", "paired-mobile-devices.json", "system-prompts.json"]) {
+      expect((await write(path.join(os.homedir(), ".easymint", file))).behavior, file).toBe("deny");
+    }
     // 关闭安全机制 / 系统级变更：命令预检
     for (const command of [
       "spctl --master-disable",
@@ -81,6 +86,11 @@ describe("完全访问权限契约", () => {
   it("系统核心写入和系统控制命令仍被拒", async () => {
     expect((await write("/etc/easymint.conf")).behavior).toBe("deny");
     expect((await write(path.join(CWD, ".mcp.json"))).behavior).toBe("deny");
+    // 2026-09-24 新纳入：会随会话进模型上下文的落盘内容（技能 / 子 Agent 模板）与 MCP 配置同级
+    expect((await write(path.join(os.homedir(), ".easymint", "skills", "x", "SKILL.md"))).behavior).toBe("deny");
+    expect((await write(path.join(os.homedir(), ".easymint", "agent", "skills", "x", "SKILL.md"))).behavior).toBe("deny");
+    expect((await write(path.join(os.homedir(), ".codex", "skills", "x", "SKILL.md"))).behavior).toBe("deny");
+    expect((await write(path.join(os.homedir(), ".easymint", "agent-templates.json"))).behavior).toBe("deny");
     expect((await bash("launchctl unload x")).behavior).toBe("deny");
     expect((await bash("sudo apt install x")).behavior).toBe("deny");
   });
@@ -103,6 +113,10 @@ describe("完全访问权限契约", () => {
       "sed -i '' s/a/b/ /etc/hosts",
       "dd of=/dev/mem if=/dev/zero count=1",
       "echo x >> ~/.easymint/mcp.json",
+      "echo x >> ~/.easymint/paired-mobile-devices.json",
+      "echo x >> ~/.easymint/system-prompts.json",
+      "echo x >> ~/.easymint/experiences/index.json",
+      "echo x >> ~/.easymint/managed-skills/x/SKILL.md",
       "rm -rf /",
       "rm -rf ~",
     ]) {

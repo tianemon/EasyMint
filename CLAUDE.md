@@ -321,6 +321,17 @@ npm run lint             # ESLint + TypeScript 类型检查
 - **某模板/某角色的调用契约写在该模板自己的 `description` 里**（如 designer 的「委派须写明起点」）——模板清单由 `id + 名称 + 描述` 拼进 task 工具描述，契约随之带出；写在模板 `prompt` 里委派方看不到
 - **同一条规则只存一份**：判档标准归 `creation-guide` 等 skill，提示词与工具描述里不复述档位与走法（多处副本必然漂移，改一处漏一处）
 
+### 改动的影响面（本项目专属清单，2026-09）
+
+通用原则见 `template/AGENTS.md` §2.3「影响面自查」。以下是本仓库**具体的清单与守卫**，改对应处时照这张表核对：
+
+- **落盘到 `~/.easymint`**：跑 `npm run check:em-home`（漏登记即红）——它把源码里的落盘条目与 `access-policy.ts` 三个 `protected*` 清单交叉核对，新条目须同时进 `scripts/check-em-home-paths.mjs` 的 `DECLARED` 表。判定：内容会进模型上下文或决定后续执行能力 → `persistence`；含凭据 → `credential`；只影响本机 UI → `none`（`none` 也要写理由）
+- **新增工具**：只读档白名单 `agent-permission-service.ts` 的 `readonlyDenyReason` 是 **fail-closed**（新工具默认被拒——要显式声明能力，别靠兜底规则恰好拦住）；前端 `ChatBlocks.tsx` 的 `TOOL_LABELS` / `toolIconPaths` / `toolDetailLabel` / `isMcp` 与 `chat-utils.ts` 的 `displayToolAction` 都要跟上
+- **新增 MCP 字段**：`mcp-service.ts` 的 `McpServerConfig` ↔ `vite-env.d.ts` 的 `McpServerCfg` ↔ `PluginsTab.tsx` 表单三处；**纳入 `definitionFingerprint` 意味着外部改动需重新确认**，且既有 `mcpApproved` 记录会当场失配 → 必须在 CHANGELOG 交代
+- **改提示词 / 规则**：`app/shared/prompts.ts`（MINT_SYSTEM_PROMPT）+ `template/AGENTS.md` 与 `CLAUDE.md` 两处（专属章节的分化属正常，差异由用户手工同步，**别主动收敛或建校验脚本**）
+- **给模型看的文案**：工具描述 / `promptSnippet` / 提示词里点名的工具名与"完整 / 全部"类承诺，改实现时逐句回代码核对（按需加载后 `mcp__*` 不在首轮工具列表里，文案照旧指名会引导模型去找一个不存在的名字，多一次往返还促成重复调用）
+- 完整流程、跨版本检查与易漂移热点对见 skill `easymint-change-impact`
+
 ## 4.5 关联文档
 
 > 以下内容增量更新频繁，独立存放，此处仅作路径指引。
