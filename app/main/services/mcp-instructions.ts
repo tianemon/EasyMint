@@ -14,7 +14,7 @@
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { atomicWrite } from "./native-config-storage";
+import { atomicWrite, lockConfigDirectory } from "./native-config-storage";
 import { definitionFingerprint, getMcpConfigPath } from "./mcp-service";
 import type { McpServerConfig } from "./mcp-service";
 
@@ -65,13 +65,20 @@ export function writeMcpInstructions(
 ): void {
   const value = text.trim().slice(0, MAX_INSTRUCTIONS_CHARS);
   if (!value) return;
-  const store = readStore();
-  const key = storeKey(name, cfg, projectPath);
-  if (store.entries[key] === value) return;
-  const prefix = `${projectPath ?? ""}\u0000${name}\u0000`;
-  for (const existing of Object.keys(store.entries)) {
-    if (existing !== key && existing.startsWith(prefix)) delete store.entries[existing];
+  // 锁要包住**整个读-改-写**（同 writeMcpApproval 的做法）：EM 没有单实例锁，
+  // 只在写那一步加锁的话，读到的旧快照照样能把另一个实例刚写的条目覆盖掉。
+  const release = lockConfigDirectory(path.dirname(storePath()));
+  try {
+    const store = readStore();
+    const key = storeKey(name, cfg, projectPath);
+    if (store.entries[key] === value) return;
+    const prefix = `${projectPath ?? ""}\u0000${name}\u0000`;
+    for (const existing of Object.keys(store.entries)) {
+      if (existing !== key && existing.startsWith(prefix)) delete store.entries[existing];
+    }
+    store.entries[key] = value;
+    atomicWrite(storePath(), JSON.stringify(store));
+  } finally {
+    release();
   }
-  store.entries[key] = value;
-  atomicWrite(storePath(), JSON.stringify(store));
 }

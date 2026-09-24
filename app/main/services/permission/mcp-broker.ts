@@ -100,6 +100,11 @@ function stripIntentRequirement(description: string): string {
 // 是工具描述里那句"query 优先用英文"（模型照做）+ 无命中时回工具名清单（不依赖模型配合）。
 // 别再往回加翻译表：它是随表达方式增长的手工活，而且泛化词会拉平排序（page / browser 曾如此）。
 
+/** 工具名清单的上限，只作防爆阀：实测最大的 server（github）45 个工具，120 条足够覆盖。
+ *  真超了必须在提示语里说明"另有 N 个未列出"——不能让文案声称"完整名单"（那是假的，
+ *  而且与同时返回的 `total` 自相矛盾，模型会据此重演"这个服务器没有该能力"的误判）。 */
+const NAME_LIST_LIMIT = 120;
+
 export async function createMcpBrokerTools(
   projectPath: string,
   contextId: string,
@@ -127,7 +132,13 @@ export async function createMcpBrokerTools(
     async execute(_id: string, params: { server?: string; query?: string; limit?: number }) {
       if (getMode() === "readonly") throw new Error("只读模式不可使用 MCP");
       const current = availableServers(projectPath);
-      const server = params.server ?? current.find((s) => params.query?.toLowerCase().includes(s.name.toLowerCase()))?.name;
+      // 从 query 里隐式推断 server：**按名字长度降序**取首个命中——否则 `git` 会抢走 `github`
+      // 的查询（`"github issue".includes("git")` 为真，扫描序里短名在前就选错了 server）。
+      // 与 call_mcp_tool 的前缀匹配保持同一取向（那里也是长度降序）。
+      const server = params.server ?? current
+        .map((s) => s.name)
+        .filter((name) => params.query?.toLowerCase().includes(name.toLowerCase()))
+        .sort((a, b) => b.length - a.length)[0];
       if (!server) return { content: [{ type: "text" as const, text: JSON.stringify({ servers: current.map((s) => s.name) }) }], details: {} };
       if (!current.some((s) => s.name === server)) throw new Error(`服务器「${server}」不可用或尚未确认启用`);
       const tools = await loadMcpServerTools(server, projectPath, getMode, contextId);
@@ -142,7 +153,9 @@ export async function createMcpBrokerTools(
       // 只返回真正命中的：0 分结果占位会让模型把"没搜到"读成"这个服务器没有该能力"——
       // 未命中时所有工具同分，稳定排序退化成 listTools 顺序的前 N 个（最不相关的一批）。
       const hits = ranked.filter(({ score }) => score > 0).slice(0, limit);
-      const names = tools.map((tool) => tool.name).slice(0, 40);
+      const names = tools.map((tool) => tool.name).slice(0, NAME_LIST_LIMIT);
+      const omitted = tools.length - names.length;
+      const namesNote = omitted > 0 ? `names 为工具名前 ${names.length} 个（另有 ${omitted} 个未列出）` : "names 是全部工具名";
       // 顺带把 server 的协议自述交给模型（连接已建立，零额外成本）：它回答"这个 server 怎么用"，
       // 是模型后续在同一 server 上挑工具的依据；每会话每个 server 只给一次。
       const manifest = current.find((s) => s.name === server);
@@ -165,7 +178,7 @@ export async function createMcpBrokerTools(
       if (picked.length === 0) {
         extra = { hint: "没有匹配的工具。可改用英文关键词，或从下列工具名中选一个：", names };
       } else if (browsing) {
-        extra = { hint: `共 ${tools.length} 个工具，以上为前 ${picked.length} 个的完整定义；names 是完整名单，需要其余工具的参数就按名字再查一次。`, names };
+        extra = { hint: `共 ${tools.length} 个工具，以上为前 ${picked.length} 个的完整定义；${namesNote}，需要其余工具的参数就按名字再查一次。`, names };
       } else if ((hits[0]?.score ?? 0) < 3) {
         // 首位分数 <3 表示**没有任何工具名被命中**，只是描述里的偶合——这种"弱匹配"看着像命中
         // 却未必贴切，所以连工具名清单一起给，让模型自己判断。

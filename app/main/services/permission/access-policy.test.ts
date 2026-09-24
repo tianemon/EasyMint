@@ -102,6 +102,9 @@ describe("统一资源策略", () => {
     expect(controls).toContain(path.join(os.homedir(), ".easymint", "session-cache"));
     expect(controls).toContain(path.join(cwd, ".easymint", "mcp.json"));
     expect(controls).toContain(path.join(cwd, ".mcp.json"));
+    // MCP server 自述缓存：其内容会进工具说明与搜索结果，必须和 mcp.json 同级保护——
+    // 否则完全访问档下可被改写，变成绕开审批门的持久化提示词注入
+    expect(controls).toContain(path.join(os.homedir(), ".easymint", "mcp-instructions.json"));
     expect(controls).not.toContain(path.join(os.homedir(), ".easymint", "skills"));
     expect(protectedControlPaths(cwd, "win32")).toContain(path.win32.join(
       process.env.APPDATA || path.win32.join(os.homedir(), "AppData", "Roaming"),

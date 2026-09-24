@@ -152,6 +152,25 @@ describe("MCP 按需工具入口", () => {
     expect(payload.tools[0].parameters).toBeDefined();
     // 完整名单一次给全，模型不用再分批猜关键词
     expect(payload.names).toEqual([tool.name, screenshotTool.name, closeTool.name]);
+    // 没超上限，文案才可以说"全部"
+    expect(payload.hint).toContain("names 是全部工具名");
+  });
+
+  it("工具名清单超上限时如实报出未列出的条数（不声称「完整名单」）", async () => {
+    fixture.load.mockResolvedValue(Array.from({ length: 130 }, (_, i) => ({
+      name: `mcp__github__tool_${String(i).padStart(3, "0")}`,
+      description: `tool ${i}`,
+      parameters: { type: "object", properties: {} },
+      execute: fixture.execute,
+    })));
+    const [search] = await createMcpBrokerTools("/tmp/project", "session", () => "standard", async () => ({ behavior: "allow" }));
+    const payload = JSON.parse(((await run(search!, { server: "github" })).content[0] as { text: string }).text);
+
+    expect(payload.total).toBe(130);
+    expect(payload.names).toHaveLength(120);
+    // 截断了就必须说实话——否则与同时返回的 total 自相矛盾，模型会以为剩下 10 个不存在
+    expect(payload.hint).toContain("另有 10 个未列出");
+    expect(payload.hint).not.toContain("是全部工具名");
   });
 
   it("只返回命中项；全不命中时给工具名清单，而不是 0 分占位", async () => {

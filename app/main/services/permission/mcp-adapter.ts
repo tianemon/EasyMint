@@ -393,8 +393,9 @@ export async function loadMcpServerTools(
 }
 
 /** 获取各 server 连接状态（界面状态列与诊断）。
- *  查找顺序：项目键 → 全局键——prewarm 以无项目路径连接（状态记全局键），
- *  界面按项目路径查询时若会话尚未加载过，回落全局，避免永远显示「连接中」 */
+ *  查找顺序：项目键 → 全局键——状态可能由**不带项目路径**的调用写进全局键（如设置页
+ *  `mcp:status` 未带 projectPath 时的后台探测），界面按项目路径查询时回落它，
+ *  避免已经连上的 server 永远显示「连接中」 */
 export function getMcpStatus(projectPath?: string): McpServerStatus[] {
   return scanMcpServers(projectPath).map((s) => {
     if (!s.enabled) return { name: s.name, state: "disabled" as const };
@@ -427,9 +428,11 @@ export function ensureStatusProbe(projectPath?: string): void {
   }
 }
 
-/** 配置变更后丢弃在途的按需加载。
- *  工具定义本来就不缓存（每次从当前配置重新扫描），所以这里只需断开"正在进行中"的那几个；
- *  client 的丢弃走 dropMcpClient——不要靠这个函数去让已建立的连接失效。 */
+/** 配置变更后丢弃"正在进行中"的按需加载记录。
+ *  **能力边界**：它无法取消已经发出的 Promise——在途的 loadOneServer 仍会跑完并写
+ *  clients / statusMap；清 map 只是让后续调用不再复用那份在途结果（别按"能中断加载"理解）。
+ *  工具定义本来就不缓存（每次从当前配置重新扫描），client 的丢弃走 dropMcpClient——
+ *  不要靠这个函数去让已建立的连接失效。 */
 export function reloadMcpTools(): void {
   pendingServerLoads.clear();
 }

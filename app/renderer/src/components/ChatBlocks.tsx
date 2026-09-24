@@ -1016,7 +1016,10 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
   // MCP/技能类:展开区显示具体名(标题行保持类别;其余工具展开区照常显示结果)
   const detailLabel = toolDetailLabel(item);
   // 调用意图与具体名:只给 MCP 用(技能类的 detailLabel 自带"技能:"前缀,与动作词重复,暂不提上来)
-  const isMcp = item.name.toLowerCase().startsWith("mcp__") || item.name === "call_mcp_tool";
+  // 两个按需入口要一起算进来:toolDetailLabel 里给 search_mcp_tools 备了「查找 <server>」,
+  // 漏掉它 → isMcp=false → titleDetail=null,那段就成了算出来却永不显示的死代码
+  const isMcp = item.name.toLowerCase().startsWith("mcp__")
+    || item.name === "call_mcp_tool" || item.name === "search_mcp_tools";
   const titleDetail = isMcp ? detailLabel : null;
   // _intent 由模型填(仅 MCP——schema 是我们拼给模型看的那份,执行前已剥掉);
   // 取不到时回退到参数摘要,让老会话/漏填时也能看出做了什么。

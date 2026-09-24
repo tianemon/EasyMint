@@ -164,10 +164,13 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
       description: "抓取网页内容并提取正文文本（在线文档、博客、API 页面等静态可访问网页）。"
         + "动态渲染、需登录、或返回非文本内容（如 PDF 文件、图片）的 URL 可能抓取失败，"
         + "失败会返回明确的错误信息，不会产生乱码——不确定能否抓取时直接尝试。"
-        // 与 Tavily MCP 的等价关系必须写明：实测模型会同时调 web_fetch 和 mcp__tavily__extract
-        // 查同一个 URL（两者底层都是 Tavily extract），既重复消耗额度又得到两份相同结果
-        + "**与 Tavily MCP 是同一个东西**：工具列表里的 mcp__tavily__extract 走的是同一套 Tavily 抓取，"
-        + "同一个 URL 只抓一次——用了本工具就不要再调 Tavily MCP（反之亦然）。"
+        // 与 Tavily MCP 的等价关系必须写明：实测模型会同时调 web_fetch 和 Tavily 的抓取工具
+        // 查同一个 URL（两者底层都是 Tavily extract），既重复消耗额度又得到两份相同结果。
+        // 措辞已随「MCP 按需加载」更新：那两个工具名不再出现在工具列表里（首轮只注册
+        // search_mcp_tools / call_mcp_tool），照旧写「工具列表里的 X」会引导模型去找一个
+        // 它看不到的名字——反而多一次往返。
+        + "**与 Tavily MCP 是同一个东西**：MCP 服务器 tavily 的抓取工具（需先用 search_mcp_tools 查找）"
+        + "走的是同一套 Tavily 抓取；同一个 URL 只抓一次——用了本工具就不要再调 Tavily MCP（反之亦然）。"
         + `\n${INTENT_REQUIREMENT}`,
       promptSnippet: "抓取网页内容并提取文本",
       // _intent 只给模型看（聊天页展示这次抓取在查什么），转发前剥掉（见 execute）
@@ -193,9 +196,10 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
       name: "web_search", label: "联网搜索",
       description: "联网搜索并返回结果摘要（标题 + URL + 摘要片段）。适用：需要查实时/最新/在线信息、查某个话题有哪些来源时调用。"
         + "拿到 URL 后配合 web_fetch 抓取整页读全文。动态渲染、需登录的查询可能无结果；没有匹配结果会明确告知。"
-        // 同上：模型曾为同一个问题既调 web_search 又调 mcp__tavily__search
-        + "**与 Tavily MCP 是同一个东西**：工具列表里的 mcp__tavily__search 底层就是 Tavily 搜索，"
-        + "同一个问题只搜一次——用了本工具就不要再调 Tavily MCP（反之亦然）。"
+        // 同上：模型曾为同一个问题既调 web_search 又调 Tavily 的搜索工具。
+        // 措辞同样随按需加载更新（工具列表里已无 mcp__tavily__search 这个名字）。
+        + "**与 Tavily MCP 是同一个东西**：MCP 服务器 tavily 的搜索工具（需先用 search_mcp_tools 查找）"
+        + "底层就是 Tavily 搜索；同一个问题只搜一次——用了本工具就不要再调 Tavily MCP（反之亦然）。"
         + `\n${INTENT_REQUIREMENT}`,
       promptSnippet: "联网搜索并返回结果摘要",
       parameters: withIntentParam({

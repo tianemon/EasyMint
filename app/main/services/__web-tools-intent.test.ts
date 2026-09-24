@@ -72,14 +72,19 @@ describe("web_search / web_fetch 的意图字段", () => {
 });
 
 describe("与 Tavily MCP 等价：描述里必须写明「只用一个」", () => {
-  it("web_search 点名 mcp__tavily__search，web_fetch 点名 mcp__tavily__extract", async () => {
+  it("点名 tavily 服务器并说明要先查找——不再指向已不存在的工具名", async () => {
     const all = await tools();
     const search = all.find((x) => x.name === "web_search")!;
     const fetch = all.find((x) => x.name === "web_fetch")!;
     // 实测：模型不知道二者同源，会为同一个问题各调一次（重复消耗额度、结果重复）
-    expect(search.description).toContain("mcp__tavily__search");
-    expect(fetch.description).toContain("mcp__tavily__extract");
     expect(search.description).toContain("同一个东西");
     expect(fetch.description).toContain("同一个东西");
+    // 「MCP 按需加载」后 mcp__tavily__* 不再出现在工具列表里，描述必须按"先查找"指路。
+    // 旧断言锚定的正是「工具列表里的 mcp__tavily__search」那套已失效的写法，这里连反例一起钉住。
+    for (const d of [search.description, fetch.description]) {
+      expect(d).toContain("MCP 服务器 tavily");
+      expect(d).toContain("search_mcp_tools");
+      expect(d).not.toContain("工具列表里的");
+    }
   });
 });

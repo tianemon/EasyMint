@@ -113,3 +113,36 @@ describe("联网两件套的图标要能互相区分", () => {
     expect(renderCard({ name: "web_fetch", input: { url: "https://a.com" } })).not.toContain("m21 21-4.34-4.34");
   });
 });
+
+describe("按需入口（search_mcp_tools / call_mcp_tool）：同样要能看出调了谁、做了什么", () => {
+  it("call_mcp_tool：具体名取自 input.name，意图取自 input.intent", () => {
+    const out = renderCard({
+      name: "call_mcp_tool",
+      input: { name: "mcp__playwright__browser_navigate", arguments: { url: "https://a.com" }, intent: "打开官网" },
+      result: "结果文本",
+    });
+    expect(out).toContain("playwright / browser_navigate");
+    expect(out).toContain("打开官网");
+    expect(out).toContain("MCP");
+  });
+
+  it("call_mcp_tool：意图只认外层 intent——若误用参数摘要，这里会退化成工具名", () => {
+    const out = renderCard({
+      name: "call_mcp_tool",
+      input: { name: "mcp__playwright__browser_click", arguments: { _intent: "内层字段" }, intent: "点登录按钮" },
+      result: "结果文本",
+    });
+    // intentFromInput 走的是顶层 `_intent` / 参数摘要：此处应显示模型填的外层意图，而不是工具名
+    expect(out).toContain("点登录按钮");
+  });
+
+  it("search_mcp_tools：显示在查哪个 server，以及查了什么", () => {
+    const out = renderCard({
+      name: "search_mcp_tools",
+      input: { server: "playwright", query: "screenshot navigate" },
+      result: "结果文本",
+    });
+    expect(out).toContain("查找 playwright");
+    expect(out).toContain("screenshot navigate");
+  });
+});

@@ -89,8 +89,8 @@ export function protectedCredentialPaths(platform: NodeJS.Platform = process.pla
 }
 
 /**
- * 能在**后续会话或开机**时执行任意代码的持久化载体：MCP 配置（决定下次会话启动哪些本地进程）、
- * EasyMint 的模型/供应商设置（能把请求转发到别的端点）、自启目录（开机即执行）。
+ * 能在**后续会话或开机**时执行任意代码、或**持久化影响模型行为**的载体：MCP 配置（决定下次会话
+ * 启动哪些本地进程）、EasyMint 的模型/供应商设置（能把请求转发到别的端点）、自启目录（开机即执行）。
  *
  * 它们不是"系统核心"，但改一次就等于把整个判定层绕过去——所以归到"危险操作"一侧，
  * **完全访问也保留保护**（2026-09-16 用户口径：除系统核心与危险操作外全放开）。
@@ -99,6 +99,11 @@ export function protectedPersistencePaths(cwd: string, platform: NodeJS.Platform
   const home = os.homedir();
   const paths = [
     path.join(emHome(), "mcp.json"),
+    // MCP server 自述缓存：`describeServers` 会把它的首句拼进 search_mcp_tools 的**工具说明**
+    // （每轮请求都随行），搜索结果里还会给全文（≤2000 字符）。键里的 definitionFingerprint 可由
+    // 可读的 mcp.json 现算，所以能直接改已有条目的值 —— 等于一条**绕开审批门**的持久化提示词
+    // 注入通道（`description` 已纳入指纹要重新确认，这个文件此前两条路都没覆盖到）。
+    path.join(emHome(), "mcp-instructions.json"),
     path.join(emHome(), "agent", "settings.json"),
     path.join(emHome(), "agent", "models.json"),
     path.join(home, ".config", "autostart"),

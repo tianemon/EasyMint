@@ -446,10 +446,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("mcp:toggle", (_e, { name, enabled }: { name: string; enabled: boolean }) => {
     void dropMcpClient(name); // 开关变更丢弃旧连接，按新状态重连
     toggleMcpServer(name, enabled);
-    reloadMcpTools(); // 清缓存，新会话生效（进行中会话工具集固定）
+    reloadMcpTools(); // 丢弃在途的按需加载记录（定义不缓存、也不中断已发出的请求，见 mcp-adapter 的能力边界注释）
   });
   ipcMain.handle("mcp:requiredKeys", () => getMcpRequiredKeys());
-  // 配置管理（阶段A）：增删改 + 测试连接 + 状态 + 变更清缓存（新会话生效）
+  // 配置管理（阶段A）：增删改 + 测试连接 + 状态。变更后统一「丢连接（dropMcpClient）+ 丢在途加载（reloadMcpTools）」
   ipcMain.handle("mcp:save", (_e, { name, cfg, scope, projectPath }: { name: string; cfg: McpServerConfig; scope?: McpScope; projectPath?: string }) => {
     const r = saveMcpServer(name, cfg, { scope, projectPath });
     if (r.ok) {
