@@ -60,6 +60,7 @@ export class FileService {
    * 失败不再返回空串，而是带上原因码：调用方据此给用户一句准确提示——原先「越界」与
    * 「文件不存在」都返回 ""，渲染层无法与空文件区分，表现为空白 tab 且无任何提示。
    * 存在性判定在归属判定之前：链接指向一个已改名/删除的文件时，先说「不在项目内」会掩盖真正的原因。
+   * 这会区分越界路径的存在性；本结果只返回本机 UI。若接入模型或远程命令，须先校验归属。
    * baseDir 可为 null（路径不属于任何已登记项目根时，由调用方传入）。
    */
   readContent(baseDir: string | null, filePath: string): FileReadResult {
@@ -68,7 +69,7 @@ export class FileService {
     // throwIfNoEntry：不存在时返回 undefined，不在 existsSync 与 statSync 之间留竞态窗口
     const stat = fs.statSync(expanded, { throwIfNoEntry: false });
     if (!stat?.isFile()) return { ok: false, reason: "missing" };
-    if (!baseDir || !this.isPathSafe(filePath, baseDir)) return { ok: false, reason: "outside-project" };
+    if (!this.isPathSafe(filePath, baseDir ?? undefined)) return { ok: false, reason: "outside-project" };
     return { ok: true, content: fs.readFileSync(expanded, "utf-8") };
   }
 

@@ -197,7 +197,7 @@ const PREVIEW_TAIL_LINES = 10;
 /** 后台命令退出 → 注入主会话的文本(⏺ 摘要行对齐委派通知渲染,前端按状态着色)。 */
 export function formatShellResult(shell: BackgroundShell): string {
   const status = shell.stopped
-    ? (shell.stoppedBy === "revoke" ? "已随权限切换中止" : shell.stoppedBy === "mint" ? "已中止" : "已由用户中止")
+    ? (shell.stoppedBy === "revoke" ? "已随权限切换中止" : shell.stoppedBy === "user" ? "已由用户中止" : "已中止")
     : (shell.exitCode === 0 ? "完成" : "失败");
   const dur = Math.max(0, Math.round((Date.now() - shell.startedAt) / 1000));
   const summary = `⏺ 后台命令 - ${status}${dur > 0 ? ` · ${dur}s` : ""}`;

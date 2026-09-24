@@ -1,5 +1,5 @@
 import type { StreamEntry, TextEntry } from "./StreamPanel";
-import { IMAGE_PATH_ONLY_NOTE } from "@shared/image-context";
+import { IMAGE_PARTIAL_PATH_NOTE, IMAGE_PATH_ONLY_NOTE } from "@shared/image-context";
 
 /** 附件项（图片或文档） */
 export interface AttachItem {
@@ -155,7 +155,7 @@ export function mapSessionMessages(msgs: Array<{ type: string; uuid?: string; me
         const msgObj = m.message as { customType?: string; details?: Record<string, unknown> };
         const id = ++nextId;
         mapped.push({
-          id, role: "user", text: imagesPathOnly ? cleanText.replace(IMAGE_PATH_ONLY_NOTE, "").trim() : cleanText, keyId: uuid ? `d-${uuid}-${id}` : undefined, entryId: uuid,
+          id, role: "user", text: cleanText.replace(IMAGE_PATH_ONLY_NOTE, "").replace(IMAGE_PARTIAL_PATH_NOTE, "").trim(), keyId: uuid ? `d-${uuid}-${id}` : undefined, entryId: uuid,
           attaches: attaches.length > 0 ? attaches : undefined, timestamp: ts,
           // 系统消息结构身份(custom_message 条目):前端按 customType/kind 渲染
           customType: msgObj.customType, details: msgObj.details,
@@ -284,6 +284,7 @@ export function claimEntryBubble(
 ): ChatMessage | undefined {
   if (!ev.entryId) return undefined;
   if (ev.entryRole === "assistant") {
+    if (ev.timestamp == null) return undefined;
     const hits = msgs.filter((m) => m.role === "ai" && m.piTs === ev.timestamp && !m.entryId);
     if (hits.length > 1) console.warn(`[chat] entry_appended 同一时间戳 ${ev.timestamp} 匹配到 ${hits.length} 条 ai 气泡，取最近一条`);
     return hits[hits.length - 1];

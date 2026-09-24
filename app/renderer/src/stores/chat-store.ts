@@ -202,9 +202,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((s) => ({
       messagesBySession: {
         ...s.messagesBySession,
-        [sessionId]: (s.messagesBySession[sessionId] || []).map((m) =>
-          m.id === msgId ? { ...m, outOfContext: true, contextDropped: true, imageStripped: false } : m
-        ),
+        [sessionId]: (s.messagesBySession[sessionId] || []).map((m) => {
+          if (m.id !== msgId) return m;
+          const { imageStripped: _cleared, ...rest } = m;
+          return { ...rest, outOfContext: true, contextDropped: true };
+        }),
       },
     }));
   },

@@ -226,8 +226,7 @@ export function approveMcpServer(projectPath: string, name: string): void {
  */
 function isMcpApproved(approved: readonly string[], projectPath: string, name: string, cfg: McpServerConfig): boolean {
   const entry = approvalEntry(projectPath, name, definitionFingerprint(cfg));
-  if (approved.includes(entry)) return true;
-  return false;
+  return approved.includes(entry);
 }
 
 /** 多来源扫描：用户级（可写）> EM 项目级（可写）> 项目根 .mcp.json（只读兼容） */

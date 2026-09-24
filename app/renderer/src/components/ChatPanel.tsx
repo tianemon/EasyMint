@@ -36,7 +36,7 @@ import { useAskStore } from "../stores/ask-store";
 import { MintAvatar } from "./MintAvatar";
 import { UserMessageText } from "./UserMessageText";
 import { ImageRecoveryDialog } from "./ImageRecoveryDialog";
-import { IMAGE_PATH_ONLY_NOTE, pendingImageBase64Bytes, type ContextImageEntry } from "@shared/image-context";
+import { IMAGE_PARTIAL_PATH_NOTE, IMAGE_PATH_ONLY_NOTE, encodeAttachedImages, pendingImageBase64Bytes, type ContextImageEntry } from "@shared/image-context";
 
 
 interface ChatPanelProps {
@@ -2104,7 +2104,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     if (opts?.sourceMsgId != null) {
       const stored = useChatStore.getState().messagesBySession[sidRef.current] || [];
       retryMsg = stored.find((m) => m.id === opts.sourceMsgId && m.role === "user") || null;
-      if (!retryMsg) return; // 气泡已被会话切换/裁剪移除；不能误用当前输入框的内容与附件
+      if (!retryMsg) {
+        // 气泡已被会话切换/裁剪移除；不能误用当前输入框的内容与附件。
+        useStatusStore.getState().pushSignal(sidRef.current, "error", "原提问已变化，无法重新发送，请重新打开会话", 8000);
+        return;
+      }
     }
     const msg = (retryMsg ? (retryMsg.text ?? "") : text).trim();
     const activeAttaches = retryMsg ? (retryMsg.attaches ?? []) : attaches;
@@ -2126,14 +2130,19 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     // 否则会再建第二个会话、首回合回复丢失;已有会话时走下方 steer 插话分支,不受影响
     if (busyRef.current && !sendSessionId) return;
 
+    // 只有成功编码的图片才作为图像传给模型；其余图片保留路径并明确提示模型按需读取。
+    // SVG 的 image/svg+xml 不符合当前图像编码格式，不能只显示路径标签却漏掉读取提示。
+    const { images, imageCount } = encodeAttachedImages(activeAttaches, opts?.omitImages);
+    const hasPathOnlyImage = imageCount > images.length;
+
     // Build agent message with numbered markers
     const parts: string[] = [];
     activeAttaches.forEach((a, i) => {
       const tag = a.kind === "image" ? "Image" : "File";
       parts.push(`[${tag} #${i + 1}: ${a.path}]`);
     });
-    if (opts?.omitImages && activeAttaches.some((attachment) => attachment.kind === "image")) {
-      parts.push(IMAGE_PATH_ONLY_NOTE);
+    if (hasPathOnlyImage) {
+      parts.push(images.length === 0 ? IMAGE_PATH_ONLY_NOTE : IMAGE_PARTIAL_PATH_NOTE);
     }
     if (msg) parts.push(msg);
     const agentText = parts.join("\n");
@@ -2168,15 +2177,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     onActivity?.();
     stoppedRef.current = false; autoScrollRef.current = true; scrollToBottom(true);
 
-    // 编码图片附件为 Pi ImageContent 格式(steer 插话与正常发送共用——steer 原先不带图,插话图片被静默丢弃)
-    const images: Array<{ type: "image"; data: string; mimeType: string }> = [];
-    for (const a of opts?.omitImages ? [] : activeAttaches) {
-      if (a.kind === "image" && a.dataUrl) {
-        const m = a.dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
-        if (m) images.push({ type: "image" as const, data: m[2]!, mimeType: m[1]! });
-      }
-    }
-    if (sentMsgId != null && activeAttaches.some((attachment) => attachment.kind === "image")) {
+    if (sentMsgId != null && imageCount > 0) {
       useChatStore.getState().setImagesPathOnly(sidRef.current, sentMsgId, images.length === 0);
     }
 

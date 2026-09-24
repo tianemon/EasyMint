@@ -101,6 +101,13 @@ function writeTitles(data: Record<string, string>): void {
   writeJson(TITLES_PATH, data);
 }
 
+function clearTitleFallback(sessionId: string): void {
+  const titles = readTitles();
+  if (!(sessionId in titles)) return;
+  delete titles[sessionId];
+  try { writeTitles(titles); } catch (error) { console.warn("[session] 清理旧标题回退记录失败:", error); }
+}
+
 function readSessionTypes(): Record<string, string> {
   return readJson(SESSION_TYPES_PATH, {});
 }
@@ -123,7 +130,8 @@ function toListItem(
 ): SessionListItem {
   return {
     sessionId: info.id,
-    title: info.name || titles[info.id] || info.firstMessage?.slice(0, 30) || "新会话",
+    // SDK 写入失败时的标题回退记录必须优先于仍留在原生文件里的旧标题。
+    title: titles[info.id] || info.name || info.firstMessage?.slice(0, 30) || "新会话",
     createdAt: info.created.getTime(),
     updatedAt: info.modified.getTime(),
     messageCount: info.messageCount,
@@ -386,7 +394,16 @@ export async function renameSession(
   // 也拿不到事件（原实现的问题，见待办 #55）。
   const live = liveSessionLookup?.(sessionId);
   if (live) {
-    live.setSessionName(clean);
+    try {
+      live.setSessionName(clean);
+      clearTitleFallback(sessionId);
+    } catch (error) {
+      // 原生会话写入失败时仍保留用户的标题；下次原生写入成功后会重新成为标题来源。
+      console.warn("[session] 原生会话改名失败，回退到标题记录:", error);
+      const titles = readTitles();
+      titles[sessionId] = clean;
+      writeTitles(titles);
+    }
   } else {
     // 无活实例（在列表里给未打开的会话改名）：直写文件，不为此新开一个 SessionManager 会话
     const resolved = path.resolve(resolveHome(projectPath));
@@ -398,6 +415,7 @@ export async function renameSession(
         const SM = await getSessionManagerClass();
         const mgr = SM.open(info.path, getPiSessionDir(resolved), resolved);
         mgr.appendSessionInfo(clean); // Pi 原生写入 session_info 条目
+        clearTitleFallback(sessionId);
         written = true;
       }
     } catch { /* 回退到 metadata 文件 */ }

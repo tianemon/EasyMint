@@ -6,6 +6,7 @@
  */
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FileService } from "./file-service";
@@ -15,7 +16,7 @@ let sub: string;
 let svc: FileService;
 
 beforeEach(() => {
-  tmp = path.join(process.cwd(), "temp/tests", `file-service-${randomUUID().slice(0, 8)}`);
+  tmp = path.join(os.tmpdir(), `file-service-${randomUUID().slice(0, 8)}`);
   sub = path.join(tmp, "sub");
   mkdirSync(sub, { recursive: true });
   svc = new FileService();

@@ -47,11 +47,13 @@ export function SessionHistory({
   const [activeSessions, setActiveSessions] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [renameError, setRenameError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [menu, setMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0, sessionId: "", title: "", pinned: false });
 
   const initialLoadDone = useRef(false);
+  const renamingRef = useRef(false);
 
   const refreshActive = useCallback(() => {
     window.electronAPI.agent.activeSessions()
@@ -171,20 +173,31 @@ export function SessionHistory({
   };
 
   const commitRename = async () => {
-    if (!editingId) return;
-    const title = editTitle.trim();
-    if (title) {
-      const path = projectPath || getWorkspaceDir();
-      await window.electronAPI.conv.rename(editingId, title, path);
-      // 主进程已广播改名事件（列表项 + tab 标题由 sessionListActions.applyTitle 统一更新），
-      // 这两句保留为兜底：广播丢失时本次操作仍立即生效
-      setSessions((prev) => prev.map((s) => (s.sessionId === editingId ? { ...s, title } : s)));
-      // 同步更新已打开的 Tab 标题
-      const ts = useTabStore.getState();
-      const tab = ts.tabs.find((t) => t.sessionId === editingId);
-      if (tab) ts.updateTab(tab.id, { title });
+    if (!editingId || renamingRef.current) return;
+    renamingRef.current = true;
+    try {
+      const title = editTitle.trim();
+      if (title) {
+        const path = projectPath || getWorkspaceDir();
+        try {
+          await window.electronAPI.conv.rename(editingId, title, path);
+          setRenameError(null);
+        } catch (e) {
+          setRenameError(`改名失败：${e instanceof Error ? e.message : String(e)}`);
+          return;
+        }
+        // 主进程已广播改名事件（列表项 + tab 标题由 sessionListActions.applyTitle 统一更新），
+        // 这两句保留为兜底：广播丢失时本次操作仍立即生效
+        setSessions((prev) => prev.map((s) => (s.sessionId === editingId ? { ...s, title } : s)));
+        // 同步更新已打开的 Tab 标题
+        const ts = useTabStore.getState();
+        const tab = ts.tabs.find((t) => t.sessionId === editingId);
+        if (tab) ts.updateTab(tab.id, { title });
+      }
+      setEditingId(null);
+    } finally {
+      renamingRef.current = false;
     }
-    setEditingId(null);
   };
 
   const pinned = sessions.filter((s) => s.pinnedAt && !s.archivedAt);
@@ -199,6 +212,7 @@ export function SessionHistory({
 
   return (
     <div className="flex flex-col h-full">
+      {renameError && <p role="alert" className="px-3 py-2 text-danger text-xs">{renameError}</p>}
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">加载中...</div>
       ) : error ? (

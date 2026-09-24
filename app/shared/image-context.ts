@@ -1,5 +1,23 @@
 /** Only the model-visible projection is measured. Raw upload cache size is not a request size. */
 export const IMAGE_PATH_ONLY_NOTE = "本次图片只提供文件路径；如需查看原图，请读取上述文件。";
+export const IMAGE_PARTIAL_PATH_NOTE = "本次有图片只提供文件路径；如需查看原图，请读取上述文件。";
+
+/** Returns only inline images the current send path can encode; every other image stays available by path. */
+export function encodeAttachedImages(
+  attachments: readonly { kind: string; dataUrl?: string }[],
+  omitImages = false,
+): { images: Array<{ type: "image"; data: string; mimeType: string }>; imageCount: number } {
+  const images: Array<{ type: "image"; data: string; mimeType: string }> = [];
+  let imageCount = 0;
+  for (const attachment of attachments) {
+    if (attachment.kind !== "image") continue;
+    imageCount++;
+    if (omitImages) continue;
+    const match = attachment.dataUrl?.match(/^data:(image\/\w+);base64,(.+)$/);
+    if (match) images.push({ type: "image", data: match[2]!, mimeType: match[1]! });
+  }
+  return { images, imageCount };
+}
 
 export interface ContextImageEntry {
   entryId: string;
