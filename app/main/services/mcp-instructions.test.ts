@@ -56,12 +56,14 @@ describe("MCP server 自述缓存", () => {
     expect(readMcpInstructions("github", cfg("1"), "/p")).toBeUndefined();
   });
 
-  it("空白自述不落盘；超长的按上限截断", () => {
+  it("空白自述不落盘，并清掉曾经缓存的旧自述；超长的按上限截断", () => {
     writeMcpInstructions("github", cfg("1"), "/p", "   \n  ");
     expect(readMcpInstructions("github", cfg("1"), "/p")).toBeUndefined();
 
     writeMcpInstructions("github", cfg("1"), "/p", "x".repeat(MAX_INSTRUCTIONS_CHARS + 500));
     expect(readMcpInstructions("github", cfg("1"), "/p")).toHaveLength(MAX_INSTRUCTIONS_CHARS);
+    writeMcpInstructions("github", cfg("1"), "/p", "");
+    expect(readMcpInstructions("github", cfg("1"), "/p")).toBeUndefined();
   });
 
   it("配置为 null（server 已被删掉）时读不到", () => {

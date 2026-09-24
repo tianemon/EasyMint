@@ -204,11 +204,11 @@ describe("MCP 按需工具入口", () => {
     expect(payload.tools[0].description).not.toContain("每次调用都要填");
   });
 
-  it("没填用途时用 server 自述首句兜底；手填的优先；都没有就只露名字", async () => {
+  it("第三方 server 自述不进入常驻工具说明；只用用户填写的用途", async () => {
     fixture.instructions = "# GitHub MCP Server\n\nThe GitHub MCP Server provides tools to interact with GitHub platform.\n\nTool selection guidance: ...";
     const [withAuto] = await createMcpBrokerTools("/tmp/project", "session", () => "standard", async () => ({ behavior: "allow" }));
-    // 跳过 markdown 标题行，取第一句正文当用途说明——新接一个 server 因此不必手工配
-    expect(withAuto!.description).toContain("github（The GitHub MCP Server provides tools to interac");
+    expect(withAuto!.description).toContain("github");
+    expect(withAuto!.description).not.toContain("The GitHub MCP Server provides");
 
     fixture.servers = [{ name: "github", enabled: true, pendingApproval: false, description: "代码仓库与 issue" }];
     const [withManual] = await createMcpBrokerTools("/tmp/project", "session", () => "standard", async () => ({ behavior: "allow" }));
@@ -229,6 +229,7 @@ describe("MCP 按需工具入口", () => {
 
     const first = await text();
     expect(first.instructions).toContain("SQLite knowledge graph");
+    expect(first.instructionsSource).toBe("mcp-server-untrusted");
     // 第二次不再重复——自述是"怎么用这个 server"，给一次就够
     expect(await text()).not.toHaveProperty("instructions");
   });

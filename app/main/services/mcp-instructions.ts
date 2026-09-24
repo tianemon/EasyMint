@@ -1,10 +1,8 @@
 /**
  * 缓存 MCP server 在 initialize 时给出的 `instructions`（协议自述：「本 server 能做什么」）。
  *
- * **为什么必须落盘**：会话创建时**不连接**任何 server（按需加载的前提），而 `search_mcp_tools`
- * 的工具说明在那一刻就拼好了——「这个 server 能干什么」在第一次搜索之前无从得知。连接过一次后
- * 把自述存下来，下一次会话就能拿它当用途说明（用户没手工填 `description` 时），于是
- * **新接一个 server 什么都不用配**。
+ * 自述只在明确搜索该 server 后作为第三方资料返回，不进入常驻工具说明。
+ * 每次连接都用最新自述覆盖缓存；server 不再提供自述时清掉旧值。
  *
  * **失效**靠配置指纹：键含 `definitionFingerprint`（换命令 / 换 URL / 换令牌 / 改用途说明都会变），
  * 旧自述立即不可达——不会拿 A 的说明去描述 B。同一 server 在旧配置下的条目在写入时清掉。
@@ -56,7 +54,7 @@ export function readMcpInstructions(
   return text && text.trim() ? text : undefined;
 }
 
-/** 存下自述（重复内容不重写）。同一 server 在旧配置下的条目一并清掉，避免文件无限增长。 */
+/** 存下自述；空文本清掉旧值。同一 server 的旧配置条目一并清掉。 */
 export function writeMcpInstructions(
   name: string,
   cfg: McpServerConfig,
@@ -64,19 +62,18 @@ export function writeMcpInstructions(
   text: string,
 ): void {
   const value = text.trim().slice(0, MAX_INSTRUCTIONS_CHARS);
-  if (!value) return;
   // 锁要包住**整个读-改-写**（同 writeMcpApproval 的做法）：EM 没有单实例锁，
   // 只在写那一步加锁的话，读到的旧快照照样能把另一个实例刚写的条目覆盖掉。
   const release = lockConfigDirectory(path.dirname(storePath()));
   try {
     const store = readStore();
     const key = storeKey(name, cfg, projectPath);
-    if (store.entries[key] === value) return;
     const prefix = `${projectPath ?? ""}\u0000${name}\u0000`;
-    for (const existing of Object.keys(store.entries)) {
-      if (existing !== key && existing.startsWith(prefix)) delete store.entries[existing];
-    }
-    store.entries[key] = value;
+    const oldKeys = Object.keys(store.entries).filter((existing) => existing.startsWith(prefix));
+    if (store.entries[key] === value && oldKeys.length === 1) return;
+    if (!value && oldKeys.length === 0) return;
+    for (const existing of oldKeys) delete store.entries[existing];
+    if (value) store.entries[key] = value;
     atomicWrite(storePath(), JSON.stringify(store));
   } finally {
     release();

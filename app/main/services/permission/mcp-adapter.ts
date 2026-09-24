@@ -247,12 +247,12 @@ async function loadOneServer(
       return [];
     }
   }
-  // 协议自述（initialize 的 instructions，「本 server 能做什么」）：只在连接之后才拿得到，
-  // 而搜索入口的工具说明在会话创建时就拼好了 → 存下来给下一次会话用（见 mcp-instructions）。
-  // 读失败不阻塞工具加载：自述是纯增益，拿不到就按"这个 server 没写"处理。
+  // 协议自述（initialize 的 instructions）只在搜索结果中作为第三方资料返回，不进常驻工具说明。
+  // 每次连接同步缓存：server 不再提供自述时清掉旧值，避免搜索结果引用过期说明。
+  // 读写失败不阻塞工具加载。
   try {
     const instructions = client.getInstructions();
-    if (instructions?.trim()) writeMcpInstructions(s.name, raw, projectPath, instructions);
+    writeMcpInstructions(s.name, raw, projectPath, instructions ?? "");
   } catch { /* 自述读取失败不影响工具加载 */ }
   try {
     const response = await withTimeout(client.listTools(), MCP_LIST_TIMEOUT_MS, `MCP ${s.name} listTools`);
