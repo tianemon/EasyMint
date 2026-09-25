@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/tianemon/EasyMint/releases"><img src="https://img.shields.io/github/v/release/tianemon/EasyMint?style=flat-square&color=16a34a" alt="Version" /></a>
-  <img src="https://img.shields.io/badge/Pi%20Coding%20Agent-0.85.1-blue?style=flat-square" alt="Pi Coding Agent" />
+  <img src="https://img.shields.io/badge/Pi%20Coding%20Agent-0.87.1-blue?style=flat-square" alt="Pi Coding Agent" />
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
 </p>
 
@@ -21,7 +21,7 @@
 
 ## 定位
 
-EasyMint 是一个**内置 Pi Agent 的开源桌面 AI 编程平台**——[Pi Coding Agent](https://github.com/pi-ai-engineering/pi-coding-agent) 作为内置的 AI 编程引擎，其专业能力足以支撑完整的软件开发流程；EasyMint 在其上提供图形化界面、多 Agent 协作与项目引导，覆盖从需求采集到成品交付的完整链路。
+EasyMint 是一个**内置 Pi Agent 的开源桌面 AI 编程平台**——[Pi Coding Agent](https://github.com/earendil-works/pi) 作为内置的 AI 编程引擎，其专业能力足以支撑完整的软件开发流程；EasyMint 在其上提供图形化界面、多 Agent 协作与项目引导，覆盖从需求采集到成品交付的完整链路。
 
 面向两类使用场景：
 
@@ -217,7 +217,7 @@ Mint 的联网能力（搜索资料、读网页正文）由 [Tavily](https://tav
 | 状态管理 | Zustand 5 |
 | 代码编辑器 / 终端 | Monaco Editor / xterm.js |
 | 插件生态 | Model Context Protocol SDK |
-| AI 引擎 | Pi Coding Agent 0.85.1 |
+| AI 引擎 | Pi Coding Agent 0.87.1 |
 
 ## 本地开发
 
