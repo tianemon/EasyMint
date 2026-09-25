@@ -445,9 +445,9 @@ async function runQuitCleanup(): Promise<void> {
   // MCP 关闭可能等待远端超时；先启动它，但不能让它挡住本地进程的 TERM/KILL 两阶段清理。
   const mcpCleanup = step("MCP 客户端", () => closeAllMcpClients());
   const windowsCleanup = step("Windows 沙盒 worker", () => shutdownWindowsExecutionWorkers());
-  await step("会话与后台命令", () => {
+  await step("会话与后台命令", async () => {
     if (!sharedServices) return;
-    sharedServices.agentService.shutdown();   // 内部含 backgroundShellRegistry.stopAll()
+    await sharedServices.agentService.shutdown();   // 内部含 backgroundShellRegistry.stopAll()
     sharedServices.remoteTerminalService.close();
   });
   await step("运行面板进程", () => { stopAllProcesses("SIGTERM", processPids); });

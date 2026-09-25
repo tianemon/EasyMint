@@ -86,6 +86,7 @@ export const EM_PATH = {
   skillsLearnEnabled: "skills.learnEnabled",
   skillsImportExternal: "skills.importExternal",
   skillsHidden: "skills.hidden",
+  extensionsApproved: "extensions.approved",
   // ── mcp ──
   mcpHidden: "mcp.hidden",
   mcpApproved: "mcp.approved",
@@ -160,6 +161,7 @@ export const PROJECTED_FIELDS = [
  */
 export const EXTERNAL_FIELD_MOVES = [
   [EM_PATH.skillsHidden, "hiddenSkills"],
+  [EM_PATH.extensionsApproved, "approvedPiExtensions"],
   [EM_PATH.mcpHidden, "hiddenMcpServers"],
   [EM_PATH.mcpApproved, "mcpApproved"],
   [EM_PATH.sandboxExtraDomains, "sandboxExtraDomains"],

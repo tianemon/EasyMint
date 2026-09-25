@@ -6,12 +6,17 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { MigrationIncomingModal } from "./components/device/MigrationIncomingModal";
 import { PairRequestModal } from "./components/device/PairRequestModal";
 import { ConfirmHost } from "./components/ui/ConfirmDialog";
-import { ToastHost } from "./components/ui/Toast";
+import { ToastHost, toast } from "./components/ui/Toast";
+import { PiExtensionPromptHost } from "./components/settings/PiExtensionPromptHost";
 import { useSettingsStore } from "./stores/settings-store";
 import { useTabStore, type Tab } from "./stores/tab-store";
 import { useDelegationStore } from "./stores/delegation-store";
 
 export function App(): JSX.Element {
+  useEffect(() => window.electronAPI.piExtension.onError((error) => {
+    toast(`Pi 扩展错误（${error.event}）：${error.error}`);
+  }), []);
+  useEffect(() => window.electronAPI.piExtension.onNotice((notice) => toast(notice.message)), []);
   const [setupComplete, setSetupComplete] = useState(
     localStorage.getItem("easymint_setup_complete") === "true"
   );
@@ -159,6 +164,7 @@ export function App(): JSX.Element {
         <PairRequestModal />
         {/* 全局确认框与轻提示（替换 window.confirm / window.alert 的系统弹窗） */}
         <ConfirmHost />
+        <PiExtensionPromptHost />
         <ToastHost />
         {/* 迁移回执提示(发送端,3-5s 自动消失)。无描边:靠投影 + 底色分层;
             失败态保留 danger 描边——危险语义元素的描边按约定不参与去边框 */}

@@ -34,9 +34,10 @@ function relTime(ms: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ checked, onChange, disabled = false }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <button
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`relative w-8 h-4 rounded-full transition-colors overflow-hidden shrink-0 ml-2 ${checked ? "bg-accent" : "bg-surface-hover"}`}
       role="switch"
@@ -1089,15 +1090,74 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
   );
 }
 
-/** 插件设置:Skills + MCP（projectPath = 窗口内当前打开的项目路径，由 ProjectPage 传入） */
-/** 插件设置:Skill / MCP 分段切换（样式同 Skills 页筛选按钮；与标题左对齐，间距收窄 10px） */
+type PiExtensionRow = Awaited<ReturnType<typeof window.electronAPI.piExtension.list>>[number];
+
+function ExtensionsTab({ projectPath }: { projectPath?: string }): JSX.Element {
+  const [items, setItems] = useState<PiExtensionRow[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const refresh = async () => {
+    setBusy(true);
+    try { setItems(await window.electronAPI.piExtension.list(projectPath)); setError(""); }
+    catch (e) { setError(String(e)); }
+    finally { setBusy(false); }
+  };
+  useEffect(() => { void refresh(); }, [projectPath]);
+  useEffect(() => window.electronAPI.piExtension.onError(() => { void refresh(); }), [projectPath]);
+
+  const toggle = async (item: PiExtensionRow) => {
+    const enable = !item.approved;
+    setBusy(true);
+    try {
+      setItems(await window.electronAPI.piExtension.approve(item.id, item.fingerprint, enable, projectPath));
+      setError("");
+    } catch (e) { setError(String(e)); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <section className="space-y-3 px-1 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-medium text-text-primary">Pi 扩展</h3>
+          <p className="text-xs text-text-secondary mt-1">自动扫描原生 Pi 与 EasyMint 的扩展；启用记录只保存在 EasyMint，原生文件不会改动。</p>
+        </div>
+        <button type="button" className="text-xs text-accent hover:underline" disabled={busy} onClick={() => void refresh()}>刷新</button>
+      </div>
+      {error && <p className="text-xs text-danger">{error}</p>}
+      {!busy && items.length === 0 && <p className="text-xs text-text-muted py-4">未发现 Pi 或 EasyMint 扩展。</p>}
+      {items.map((item) => (
+        <div key={item.id} className="flex items-center justify-between gap-3 rounded-[var(--radius-lg)] bg-surface px-3 py-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-text-primary font-medium truncate">{item.name}</span>
+              <span className="text-[length:var(--text-3xs)] text-text-muted">{item.origin === "pi" ? "原生 Pi" : "EasyMint"}</span>
+              <span className="text-[length:var(--text-3xs)] text-text-muted">{item.scope === "project" ? "当前项目" : "用户级"}</span>
+              <span className="text-[length:var(--text-3xs)] text-text-muted">{{ ready: "已启用", pending: "待确认", disabled: "源配置已禁用", missing: "文件缺失", error: "校验失败" }[item.status]}</span>
+              {item.tools !== undefined && <span className="text-[length:var(--text-3xs)] text-text-muted">{item.tools} 工具 · {item.commands ?? 0} 命令</span>}
+            </div>
+            <p className="text-[length:var(--text-3xs)] text-text-muted truncate mt-1" title={item.path}>{item.path}</p>
+            {item.error && <p className="text-[length:var(--text-3xs)] text-danger mt-1">{item.error}</p>}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {item.fingerprint && <button type="button" className="text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary" onClick={() => void window.electronAPI.piExtension.reveal(item.id, projectPath).catch((e: unknown) => setError(String(e)))}>定位</button>}
+            {!!item.fingerprint && item.enabledInPi && <Toggle checked={item.approved} disabled={busy} onChange={() => void toggle(item)} />}
+          </div>
+        </div>
+      ))}
+      <p className="text-[length:var(--text-3xs)] text-text-muted">启停对新建或重新打开的会话生效；依赖 Pi 终端界面的扩展可能无法在 EasyMint 中显示。</p>
+    </section>
+  );
+}
+
+/** 插件设置:Skills / MCP / Pi 扩展（projectPath = 窗口内当前打开的项目路径） */
 export function PluginsTab({ projectPath }: { projectPath?: string }): JSX.Element {
-  const [tab, setTab] = useState<"skills" | "mcp">("skills");
+  const [tab, setTab] = useState<"skills" | "mcp" | "extensions">("skills");
   return (
     <div className="space-y-1.5">
       <div className="flex justify-center px-6">
         <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden">
-          {([["skills", "Skills"], ["mcp", "MCP"]] as const).map(([id, label], i) => (
+          {([["skills", "Skills"], ["mcp", "MCP"], ["extensions", "扩展"]] as const).map(([id, label], i) => (
             <button
               key={id}
               type="button"
@@ -1113,7 +1173,7 @@ export function PluginsTab({ projectPath }: { projectPath?: string }): JSX.Eleme
           ))}
         </div>
       </div>
-      {tab === "skills" ? <SkillsTab projectPath={projectPath} /> : <McpTab projectPath={projectPath} />}
+      {tab === "skills" ? <SkillsTab projectPath={projectPath} /> : tab === "mcp" ? <McpTab projectPath={projectPath} /> : <ExtensionsTab projectPath={projectPath} />}
     </div>
   );
 }

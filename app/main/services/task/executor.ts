@@ -10,7 +10,7 @@ import * as path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { AgentSessionEvent } from "../pi-sdk";
-import { createPiSession, getPiSessionDir } from "../pi-session";
+import { createPiSession, disposePiSession, getPiSessionDir } from "../pi-session";
 import { getBaseTools, getReadOnlyTools } from "../tool-registry";
 import { createEnhancedEditTool } from "../enhanced-edit";
 import { getActiveModel, getModelRuntime } from "../pi-init";
@@ -441,6 +441,7 @@ async function executeAndCollect(
   } finally {
     unsub();
     opts.signal?.removeEventListener("abort", onAbort);
+    await disposePiSession(session);
   }
 
   const rawOutput = collector.getText();

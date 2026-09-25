@@ -10,6 +10,9 @@ import type {
   ToolDefinition,
   SessionManager,
 } from "./pi-sdk";
+import type { ExtensionError, InlineExtension } from "@earendil-works/pi-coding-agent";
+import fs from "node:fs";
+import path from "node:path";
 import {
   createAgentSession,
   getDefaultResourceLoaderClass,
@@ -29,6 +32,8 @@ import { Store } from "./store";
 import { wrapToolWithPermission } from "./permission/wrap-tool";
 import type { CanUseToolOptions, PermissionResult } from "./permission/agent-permission-service";
 import { mergeIntoPiSkills } from "./skill-service";
+import { discoverAvailableExtensions, recordPiExtensionError, recordPiExtensionStats } from "./pi-extension-service";
+import { createPiExtensionUi } from "./pi-extension-ui";
 
 // 目录工具再导出：既有调用点（project-service / session-service / migration-service /
 // task/executor / agent-service）仍从本模块引用，避免无谓的 import 面改动。
@@ -55,6 +60,7 @@ export interface PiSessionOptions {
   canUseTool?: (toolName: string, input: Record<string, unknown>, options: CanUseToolOptions) => Promise<PermissionResult>;
   /** 后台 shell 进程退出回调（主会话传入,结果注入主会话；缺省不通知） */
   onShellExit?: (shell: BackgroundShell) => void;
+  onExtensionError?: (error: ExtensionError) => void;
 }
 
 // ── 工厂函数 ────────────────────────────────────────
@@ -67,23 +73,16 @@ async function buildSession(
   const modelRuntime = await getModelRuntime(opts.store);
   const DRL = await getDefaultResourceLoaderClass();
   const createTools = await getCreateCodingTools();
-
-  // 保持 Pi SDK 默认行为：资源发现（AGENTS.md/CLAUDE.md、项目 .pi/、SYSTEM.md 等）不做限制，
-  // 仅用 systemPromptOverride 注入 EM 的 Mint 提示词（EM 在 Pi 默认行为之上扩展）。
-  // skill 注入收敛到 Pi 原生 <available_skills>：EM 四来源中 authored（~/.easymint/skills/、
-  // 项目 .easymint/skills/）与 managed 不在 Pi 扫描路径，经 skillsOverride 并入；
-  // 原生发现的（agent/skills 等）优先，EM 来源同名去重。
-  const resourceLoader = new DRL({
-    cwd: opts.cwd,
-    agentDir: opts.agentDir,
-    settingsManager: settingsMgr as any,
-    systemPromptOverride: opts.systemPrompt ? () => opts.systemPrompt! : undefined,
-    skillsOverride: (base) => ({
-      skills: [...base.skills, ...mergeIntoPiSkills(opts.cwd, base.skills)],
-      diagnostics: base.diagnostics,
-    }),
-  });
-  await resourceLoader.reload();
+  const sdk = await import("@earendil-works/pi-coding-agent");
+  const approvedExtensions = (await discoverAvailableExtensions({ projectPath: opts.cwd }))
+    .filter((item) => item.approved && item.enabledInPi && !!item.fingerprint)
+    .map((item) => item.path);
+  const installedPackages = await new sdk.DefaultPackageManager({
+    cwd: opts.cwd, agentDir: opts.agentDir, settingsManager: settingsMgr,
+  }).resolve(async () => "skip");
+  const packagePaths = (items: typeof installedPackages.skills) => items
+    .filter((item) => item.enabled && item.metadata.origin === "package")
+    .map((item) => item.path);
 
   const codingTools = createTools(opts.cwd);
   // bash 用增强版替换(原生 + background 参数):同名工具后者覆盖前者(agent-session Map.set)
@@ -122,6 +121,63 @@ async function buildSession(
     ]),
   ];
 
+  const ownToolNames = new Set(tools.map((tool) => tool.name));
+  const permissionExtension: InlineExtension = {
+    name: "easymint-permission",
+    hidden: true,
+    factory(pi) {
+      pi.on("tool_call", async (event, ctx) => {
+        if (ownToolNames.has(event.toolName) || !opts.canUseTool) return;
+        const decision = await opts.canUseTool(event.toolName, event.input, {
+          signal: ctx.signal ?? new AbortController().signal,
+          toolUseID: event.toolCallId,
+          displayName: event.toolName,
+        });
+        if (decision.behavior === "deny") return { block: true, reason: decision.message || "操作被拒绝" };
+        if (decision.updatedInput) Object.assign(event.input, decision.updatedInput);
+      });
+    },
+  };
+  // Resource discovery must not install packages merely because a project settings.json
+  // names them. Extensions are resolved from the approved, already-installed file paths.
+  const resourceSettings = sdk.SettingsManager.fromStorage({
+    withLock(scope, fn) {
+      const file = scope === "global"
+        ? path.join(opts.agentDir, "settings.json")
+        : path.join(opts.cwd, sdk.CONFIG_DIR_NAME, "settings.json");
+      const raw = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8").replace(/^\uFEFF/, "")) : {};
+      const value = JSON.stringify({ ...raw, packages: [] });
+      if (fn(value) !== undefined) throw new Error("资源扫描禁止修改 Pi 设置");
+    },
+  }, { projectTrusted: true });
+  // 扩展工具不经 customTools 权限包装；此钩子在外部扩展事件处理器之后检查最终参数。
+  // noExtensions 阻止 SDK 默认路径在授权前执行，只有显式列出的已授权入口会加载。
+  const guardedLoader = new DRL({
+    cwd: opts.cwd,
+    agentDir: opts.agentDir,
+    settingsManager: resourceSettings,
+    noExtensions: true,
+    additionalExtensionPaths: approvedExtensions,
+    additionalSkillPaths: packagePaths(installedPackages.skills),
+    additionalPromptTemplatePaths: packagePaths(installedPackages.prompts),
+    additionalThemePaths: packagePaths(installedPackages.themes),
+    extensionFactories: [permissionExtension],
+    systemPromptOverride: opts.systemPrompt ? () => opts.systemPrompt! : undefined,
+    skillsOverride: (base) => ({
+      skills: [...base.skills, ...mergeIntoPiSkills(opts.cwd, base.skills)],
+      diagnostics: base.diagnostics,
+    }),
+  });
+  for (const extensionPath of approvedExtensions) recordPiExtensionError(extensionPath);
+  await guardedLoader.reload();
+  for (const extension of guardedLoader.getExtensions().extensions) {
+    recordPiExtensionStats(extension.resolvedPath, extension.tools.size, extension.commands.size);
+  }
+  for (const error of guardedLoader.getExtensions().errors) {
+    recordPiExtensionError(error.path, error.error);
+    opts.onExtensionError?.({ extensionPath: error.path, event: "load", error: error.error });
+  }
+
   const sessionOpts: CreateAgentSessionOptions = {
     cwd: opts.cwd,
     agentDir: opts.agentDir,
@@ -129,13 +185,22 @@ async function buildSession(
     model: opts.model as any,
     thinkingLevel: opts.thinkingLevel,
     settingsManager: settingsMgr as any,
-    resourceLoader,
+    resourceLoader: guardedLoader,
     sessionManager: sessionManager as any,
     customTools: tools,
     noTools: "builtin",
   };
 
   const { session } = await createAgentSession(sessionOpts);
+  await session.bindExtensions({
+    mode: "rpc",
+    uiContext: createPiExtensionUi(),
+    onError: (error) => {
+      recordPiExtensionError(error.extensionPath, error.error);
+      opts.onExtensionError?.(error);
+      console.error(`[pi-extension] ${error.extensionPath} ${error.event}: ${error.error}`);
+    },
+  });
   return session;
 }
 
@@ -161,4 +226,30 @@ export async function listPiSessions(cwd: string) {
   const SM = await ensureSessionManagerClass();
   const sessionDir = getPiSessionDir(cwd);
   return SM.list(cwd, sessionDir);
+}
+
+const closingSessions = new WeakMap<AgentSession, Promise<void>>();
+
+/** Pi's dispose() is synchronous and does not emit session_shutdown. */
+export function disposePiSession(session: AgentSession): Promise<void> {
+  const existing = closingSessions.get(session);
+  if (existing) return existing;
+  const closing = (async () => {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      if (session.extensionRunner.hasHandlers("session_shutdown")) {
+        await Promise.race([
+          session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" }),
+          new Promise<void>((resolve) => { timeout = setTimeout(resolve, 2000); }),
+        ]);
+      }
+    } catch (error) {
+      console.error("[pi-extension] session_shutdown failed:", error);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+      session.dispose();
+    }
+  })();
+  closingSessions.set(session, closing);
+  return closing;
 }

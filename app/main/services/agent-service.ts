@@ -18,7 +18,7 @@ import { waitForAbortSettlement } from "./abort-settlement";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { getActiveModel } from "./pi-init";
 import { getNativeConfig } from "./native-config";
-import { createPiSession, resumePiSession, listPiSessions } from "./pi-session";
+import { createPiSession, resumePiSession, listPiSessions, disposePiSession } from "./pi-session";
 import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
 import { ensureDesignerTemplates } from "./designer-seed";
@@ -1197,6 +1197,7 @@ export class AgentService {
           systemPrompt: this.buildSystemPrompt(resolvedPath, false, { worker: true }),
           extraTools,
           canUseTool,
+          onExtensionError: (error) => broadcast("pi-extension:error", error),
         });
         run.session = session;
 
@@ -1209,6 +1210,7 @@ export class AgentService {
         broadcast("agent:stderr", { runId, data: msg, timestamp: Date.now() });
         broadcast("agent:exit", { runId, code: -1 });
       } finally {
+        if (run.session) await disposePiSession(run.session);
         this.activeRuns.delete(runId);
       }
     })().catch((e) => {
@@ -1882,13 +1884,13 @@ export class AgentService {
         }
         const existing = this.findActiveChat(resumeSessionId);
         if (existing?.rebuildToolsOnNextMessage && existing.session && !existing.session.isStreaming) {
-          existing.session.dispose();
+          await disposePiSession(existing.session);
           this.activeChats.delete(existing.chatId);
           console.log(`[agent] 权限从只读放宽，重建会话工具集 ${resumeSessionId}`);
         }
         // 按需激活的历史操作会话（minimal，无工具/系统提示）不能用于对话——丢弃后用完整配置重建
         else if (existing?.minimal) {
-          existing.session?.dispose();
+          if (existing.session) await disposePiSession(existing.session);
           this.activeChats.delete(existing.chatId);
           console.log(`[agent] 丢弃按需激活的会话 ${existing.chatId}，按完整配置重建`);
         } else if (existing && existing.session) {
@@ -1965,6 +1967,7 @@ export class AgentService {
               systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
               extraTools,
               canUseTool,
+              onExtensionError: (error) => broadcast("pi-extension:error", error),
               onShellExit: shellExitInject,
             });
           }
@@ -1978,6 +1981,7 @@ export class AgentService {
           systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
           extraTools,
           canUseTool,
+          onExtensionError: (error) => broadcast("pi-extension:error", error),
           onShellExit: shellExitInject,
         });
       })();
@@ -2432,24 +2436,24 @@ export class AgentService {
       undefined, false);
   }
 
-  killChat(chatId: string): void {
+  async killChat(chatId: string): Promise<void> {
     const chat = this.activeChats.get(chatId);
     if (chat) {
       chat.abortController.abort();
       chat.session?.abort().catch(() => {});
-      chat.session?.dispose();
-      clearPendingAsks(chat.sessionId);
       this.activeChats.delete(chatId);
       this.cancelReclaim(chat.sessionId);
+      if (chat.session) await disposePiSession(chat.session);
+      clearPendingAsks(chat.sessionId);
       // 会话关闭广播:前端会话列表状态点刷新(激活→未激活)
       broadcast("agent:chat-closed", { sessionId: chat.sessionId });
     }
   }
 
   /** 按 sessionId 立即结束会话(右键「结束会话」,用户明确点击不做延迟) */
-  killSession(sessionId: string): void {
+  async killSession(sessionId: string): Promise<void> {
     const chat = this.findActiveChat(sessionId);
-    if (chat) this.killChat(chat.chatId);
+    if (chat) await this.killChat(chat.chatId);
   }
 
   /** 活跃会话 sessionId 列表(会话列表状态点用) */
@@ -2483,7 +2487,7 @@ export class AgentService {
   private finishReclaim(sessionId: string): void {
     this.cancelReclaim(sessionId);
     const chat = this.findActiveChat(sessionId);
-    if (chat) this.killChat(chat.chatId);
+    if (chat) void this.killChat(chat.chatId);
   }
 
   scheduleIdleTimeout(_sessionId: string, _delayMs: number): void {
@@ -2748,6 +2752,7 @@ export class AgentService {
       model: piModel ?? undefined,
       store: this.store,
       resumeSessionFile: info.path,
+      onExtensionError: (error) => broadcast("pi-extension:error", error),
     });
     const chat: ActiveChat = {
       chatId: `chat-${++this.chatCounter}`,
@@ -2896,11 +2901,12 @@ export class AgentService {
     if (chat) chat.rebuildToolsOnNextMessage = true;
   }
 
-  shutdown(): void {
+  async shutdown(): Promise<void> {
+    const closing: Promise<void>[] = [];
     for (const [id, chat] of this.activeChats) {
       chat.abortController.abort();
       chat.session?.abort().catch(() => {});
-      chat.session?.dispose();
+      if (chat.session) closing.push(disposePiSession(chat.session));
       clearPendingAsks(chat.sessionId);
       broadcast("agent:exit", { runId: id, sessionId: chat.sessionId, code: -1 });
     }
@@ -2908,9 +2914,11 @@ export class AgentService {
     for (const [id, run] of this.activeRuns) {
       run.abortController.abort();
       run.session?.abort().catch(() => {});
+      if (run.session) closing.push(disposePiSession(run.session));
       broadcast("agent:exit", { runId: id, code: -1 });
     }
     this.activeRuns.clear();
+    await Promise.all(closing);
     // 清理全部后台 shell 进程(杀进程树,防孤儿进程)
     backgroundShellRegistry.stopAll();
   }

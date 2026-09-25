@@ -49,6 +49,8 @@ import {
   importSkillFromDir,
 } from "./services/skill-service";
 import { getSkillStats } from "./services/skill-registry";
+import { discoverAvailableExtensions, setPiExtensionApproved } from "./services/pi-extension-service";
+import { answerPiExtensionPrompt } from "./services/pi-extension-ui";
 import {
   scanMcpServers,
   toggleMcpServer,
@@ -397,9 +399,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:sessionStats", async (_e, { sessionId, projectPath }) => {
     return agentService.getSessionStats(sessionId, projectPath);
   });
-  ipcMain.handle("agent:killChat", (_e, { chatId }) => {
-    agentService.killChat(chatId);
-  });
+  ipcMain.handle("agent:killChat", (_e, { chatId }) => agentService.killChat(chatId));
   // 关闭 tab 回收:保留 2 分钟后 kill(重开时 cancel)
   ipcMain.handle("agent:reclaim-chat", (_e, { sessionId }) => {
     agentService.reclaimChat(sessionId);
@@ -410,7 +410,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   // 会话状态点/结束会话
   ipcMain.handle("agent:active-sessions", () => agentService.listActiveSessions());
   ipcMain.handle("agent:kill-session", (_e, { sessionId }) => {
-    agentService.killSession(sessionId);
+    return agentService.killSession(sessionId);
   });
 
   ipcMain.handle("agent:scheduleIdleTimeout", (_e, { sessionId, delayMs }) => {
@@ -424,6 +424,37 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent-template:delete", (_e, { id }) => { deleteTemplate(id); });
 
   // skill:*
+  ipcMain.handle("pi-extension:list", guard(z.object({ projectPath: pathString.optional() }).loose(), ({ projectPath }) => discoverAvailableExtensions({ projectPath })));
+  ipcMain.handle("pi-extension:approve", async (event, input: unknown) => {
+    const { id, fingerprint, enabled, projectPath } = expectPayload(
+      z.object({ id: nonEmptyString, fingerprint: nonEmptyString, enabled: z.boolean(), projectPath: pathString.optional() }).loose(), input,
+    );
+    const items = await discoverAvailableExtensions({ projectPath });
+    const item = items.find((candidate) => candidate.id === id && candidate.fingerprint === fingerprint);
+    if (!item || !item.enabledInPi || !item.fingerprint) throw new Error("扩展已变更，请刷新列表后重试");
+    if (enabled) {
+      const owner = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
+      const answer = await dialog.showMessageBox(owner, {
+        type: "warning",
+        title: "启用 Pi 扩展",
+        message: `在 EasyMint 中启用「${item.name}」？`,
+        detail: `来源：${item.path}\n\n扩展代码与 EasyMint 主进程同权限运行，可访问本机文件和凭据。启用后从新会话开始加载。`,
+        buttons: ["取消", "启用扩展"], defaultId: 0, cancelId: 0,
+      });
+      if (answer.response !== 1) return items;
+    }
+    await setPiExtensionApproved(id, fingerprint, enabled, { projectPath });
+    return discoverAvailableExtensions({ projectPath });
+  });
+  ipcMain.handle("pi-extension:prompt-answer", (event, input: unknown) => {
+    const { id, value } = expectPayload(z.object({ id: z.string().uuid(), value: z.union([z.string(), z.boolean()]).optional() }).loose(), input);
+    answerPiExtensionPrompt(event.sender.id, id, value);
+  });
+  ipcMain.handle("pi-extension:reveal", guard(z.object({ id: nonEmptyString, projectPath: pathString.optional() }).loose(), async ({ id, projectPath }) => {
+    const item = (await discoverAvailableExtensions({ projectPath })).find((candidate) => candidate.id === id);
+    if (!item || !fs.existsSync(item.path)) throw new Error("扩展文件不存在");
+    shell.showItemInFolder(item.path);
+  }));
   ipcMain.handle("skill:list", (_e, { projectPath }: { projectPath?: string }) => scanSkills(projectPath));
   ipcMain.handle("skill:get", (_e, { skillPath }: { skillPath: string }) => readSkill(skillPath));
   ipcMain.handle("skill:toggle", (_e, { name, enabled }: { name: string; enabled: boolean }) => { toggleSkill(name, enabled); });
@@ -549,7 +580,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("conv:delete", async (_e, { id, projectPath }) => {
     // Step 1: gracefully interrupt and kill the chat
     const chat = agentService.findActiveChat(id);
-    if (chat) agentService.killChat(chat.chatId);
+    if (chat) await agentService.killChat(chat.chatId);
     // Step 2: brief delay for OS to reap the CLI subprocess, then
     //   delete the session file. Without the delay the SDK may
     //   recreate an empty file from a still-alive file descriptor.

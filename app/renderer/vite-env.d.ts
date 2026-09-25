@@ -232,6 +232,16 @@ interface StreamEvent {
 
 interface ElectronAPI {
   platform: string;
+  piExtension: {
+    list: (projectPath?: string) => Promise<Array<{ id: string; name: string; path: string; scope: "user" | "project"; source: string; origin: "pi" | "em"; enabledInPi: boolean; approved: boolean; fingerprint: string; status: "ready" | "pending" | "disabled" | "missing" | "error"; error?: string; tools?: number; commands?: number }>>;
+    approve: (id: string, fingerprint: string, enabled: boolean, projectPath?: string) => Promise<Array<{ id: string; name: string; path: string; scope: "user" | "project"; source: string; origin: "pi" | "em"; enabledInPi: boolean; approved: boolean; fingerprint: string; status: "ready" | "pending" | "disabled" | "missing" | "error"; error?: string; tools?: number; commands?: number }>>;
+    reveal: (id: string, projectPath?: string) => Promise<void>;
+    onError: (callback: (error: { extensionPath: string; event: string; error: string }) => void) => () => void;
+    onPrompt: (callback: (request: { id: string; kind: "select" | "confirm" | "input"; title: string; message?: string; options?: string[] }) => void) => () => void;
+    onPromptExpired: (callback: (id: string) => void) => () => void;
+    answerPrompt: (id: string, value?: string | boolean) => Promise<void>;
+    onNotice: (callback: (notice: { message: string; type: "info" | "warning" | "error" }) => void) => () => void;
+  };
   window: {
     openProject: (projectId: string, sessionId?: string, init?: boolean) => Promise<void>;
     newWindow: () => Promise<void>;

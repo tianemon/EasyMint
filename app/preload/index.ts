@@ -195,6 +195,33 @@ contextBridge.exposeInMainWorld("electronAPI", {
     delete: (skillPath: string, projectPath?: string) => ipcRenderer.invoke("skill:delete", { skillPath, projectPath }),
     getStats: () => ipcRenderer.invoke("skill:getStats"),
   },
+  piExtension: {
+    list: (projectPath?: string) => ipcRenderer.invoke("pi-extension:list", { projectPath }),
+    approve: (id: string, fingerprint: string, enabled: boolean, projectPath?: string) =>
+      ipcRenderer.invoke("pi-extension:approve", { id, fingerprint, enabled, projectPath }),
+    reveal: (id: string, projectPath?: string) => ipcRenderer.invoke("pi-extension:reveal", { id, projectPath }),
+    onError: (callback: (error: { extensionPath: string; event: string; error: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, error: { extensionPath: string; event: string; error: string }) => callback(error);
+      ipcRenderer.on("pi-extension:error", handler);
+      return () => ipcRenderer.removeListener("pi-extension:error", handler);
+    },
+    onPrompt: (callback: (request: { id: string; kind: "select" | "confirm" | "input"; title: string; message?: string; options?: string[] }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, request: { id: string; kind: "select" | "confirm" | "input"; title: string; message?: string; options?: string[] }) => callback(request);
+      ipcRenderer.on("pi-extension:prompt", handler);
+      return () => ipcRenderer.removeListener("pi-extension:prompt", handler);
+    },
+    onPromptExpired: (callback: (id: string) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { id: string }) => callback(data.id);
+      ipcRenderer.on("pi-extension:prompt-expired", handler);
+      return () => ipcRenderer.removeListener("pi-extension:prompt-expired", handler);
+    },
+    answerPrompt: (id: string, value?: string | boolean) => ipcRenderer.invoke("pi-extension:prompt-answer", { id, value }),
+    onNotice: (callback: (notice: { message: string; type: "info" | "warning" | "error" }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, notice: { message: string; type: "info" | "warning" | "error" }) => callback(notice);
+      ipcRenderer.on("pi-extension:notice", handler);
+      return () => ipcRenderer.removeListener("pi-extension:notice", handler);
+    },
+  },
   mcp: {
     list: (projectPath?: string) => ipcRenderer.invoke("mcp:list", { projectPath }),
     toggle: (name: string, enabled: boolean) => ipcRenderer.invoke("mcp:toggle", { name, enabled }),
