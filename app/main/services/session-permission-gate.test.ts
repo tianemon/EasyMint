@@ -119,12 +119,6 @@ describe("createWithPermissionGate 会话创建权限门禁", () => {
 });
 
 describe("withSessionCreationLock 会话创建互斥锁", () => {
-  function deferred<T>() {
-    let resolve!: (value: T) => void;
-    const promise = new Promise<T>((res) => { resolve = res; });
-    return { promise, resolve };
-  }
-
   it("创建持锁期间到达的权限提交排队到创建完成后才执行（顺序：工厂 → 登记 → 提交）", async () => {
     const events: string[] = [];
     // 模拟 sendMessage 的「创建+登记」段持锁：内部在「扩展工厂执行」后暂停（模拟登记前的 await）
