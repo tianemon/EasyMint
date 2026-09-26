@@ -11,8 +11,12 @@
  * 不折算时，非高峰时段的用量会被高估最多一倍——用户实测：一次跨过 18:00 边界的会话，
  * 官方账单 1.32 元而程序显示 2.5 元。
  *
- * 中国法定假日没有本地数据源，这里只按「工作日」判定：假日会被当作高峰（偏高，不会偏低）。
+ * 中国法定节假日取 `cn-holidays.generated.ts`（国务院公告，由 scripts/gen-cn-holidays.mjs 生成）。
+ * 为什么不自己算农历：节日的**实际放假日与调休是每年公告定的**（春节从除夕还是初一开始、连休几天），
+ * 农历只能推出节日当天、推不出放假区间；公告未发布的年份，表里没有对应条目（按工作日 + 周末近似）。
  */
+
+import { CN_HOLIDAYS } from "./cn-holidays.generated";
 
 /** usage 里与计价有关的部分（SDK 已在每轮把 cost 算好写进 transcript） */
 interface UsageLike {
@@ -41,11 +45,23 @@ export interface TimePricingSummary {
   hasOffPeakTurns: boolean;
 }
 
+/** 按北京时间（UTC+8）取日期串——法定节假日按中国日期定义，不能用 UTC 日期判 */
+function beijingDateKey(at: Date): string {
+  return new Date(at.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/** 是否为中国法定节假日（数据见 cn-holidays.generated.ts；未覆盖的年份返回 false） */
+function isCnHoliday(at: Date): boolean {
+  const key = beijingDateKey(at);
+  return CN_HOLIDAYS[key.slice(0, 4)]?.includes(key) ?? false;
+}
+
 /** 高峰时段（UTC 小时，左闭右开） */
 const DEEPSEEK_PEAK_WINDOWS_UTC: Array<[number, number]> = [[1, 4], [6, 10]];
 
-/** DeepSeek 的空闲时段判定：周末全天 + 工作日高峰窗口之外 */
+/** DeepSeek 的空闲时段判定：法定节假日与周末全天 + 工作日高峰窗口之外 */
 export function isDeepSeekOffPeak(at: Date): boolean {
+  if (isCnHoliday(at)) return true; // 官方口径明确把中国法定节假日排除在高峰之外
   const day = at.getUTCDay();
   if (day === 0 || day === 6) return true; // 周末按官方口径全天空闲
   const hour = at.getUTCHours() + at.getUTCMinutes() / 60;

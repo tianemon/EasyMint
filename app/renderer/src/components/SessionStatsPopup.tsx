@@ -49,10 +49,10 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
     return `¥${(c * USD_CNY_RATE).toFixed(4)}`;
   };
   const fmtPct = (p: number) => p > 0 ? `${p.toFixed(2)}%` : "<0.01%";
-  // 费用口径说明：DeepSeek 分时段计价，法定节假日无本地数据源，按高峰近似
+  // 费用口径说明：DeepSeek 分时段计价（法定节假日取国务院公告的放假日期）
   const costBasisTitle = stats?.costBasis
     ? `${stats.costBasis === "deepseek-offpeak" && stats.costPeak ? `未折算的高峰价：${fmtCost(stats.costPeak)}。` : ""}`
-      + "DeepSeek 高峰时段为工作日 09:00–12:00、14:00–18:00（北京时间），其余时段（含周末）按半价计费；法定节假日按高峰估算，实际账单可能更低。最终以官方账单为准。"
+      + "DeepSeek 高峰时段为工作日 09:00–12:00、14:00–18:00（北京时间），其余时段（含周末与中国法定节假日）按半价计费；节假日取国务院公告的放假日期，公告未发布的年份按工作日/周末近似。最终以官方账单为准。"
     : "";
 
   return (
