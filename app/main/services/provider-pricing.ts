@@ -91,10 +91,9 @@ export function summarizeTimePricing(entries: Iterable<PricingEntry>): TimePrici
       if (entry.provider) provider = entry.provider;
       continue;
     }
-    // 计费条目：assistant 消息、以及用量条目（缓存预热等）/压缩摘要在内的其它 LLM 调用
-    const usage = entry.type === "message"
-      ? (entry.message?.role === "assistant" ? entry.message.usage : undefined)
-      : entry.usage;
+    // 计费条目：消息（assistant / toolResult 都可能带 usage）、用量条目（缓存预热等）
+    // 与压缩/分支摘要 LLM 调用——口径对齐 SDK 的 getSessionStats（agent-session.js）
+    const usage = entry.type === "message" ? entry.message?.usage : entry.usage;
     const cost = usage?.cost?.total;
     if (!cost) continue;
 

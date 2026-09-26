@@ -2606,15 +2606,13 @@ export class AgentService {
         }
       }
 
+      // 时段定价折算（DeepSeek 空闲时段半价）：复用同一批 entries，不再重复读文件
+      const adjusted = adjustCostForTimePricing(costUsd, summarizeTimePricing(entries as PricingEntry[]));
       return {
         sessionId, sessionFile: info.path,
         userMessages, assistantMessages, toolCalls, totalMessages,
         tokens: { input: inputTokens, output: outputTokens, cacheRead, cacheWrite, total: inputTokens + outputTokens + cacheRead + cacheWrite },
-        ...(() => {
-          // 时段定价折算（DeepSeek 空闲时段半价）：用同一批 entries，不再重复读文件
-          const adjusted = adjustCostForTimePricing(costUsd, summarizeTimePricing(entries as PricingEntry[]));
-          return { cost: adjusted.cost, costPeak: adjusted.costPeak, costBasis: adjusted.costBasis };
-        })(),
+        cost: adjusted.cost, costPeak: adjusted.costPeak, costBasis: adjusted.costBasis,
       };
     } catch (e) {
       console.error("[agent] getSessionStats disk read failed:", e);

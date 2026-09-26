@@ -138,6 +138,16 @@ describe("summarizeTimePricing 逐轮折算", () => {
     expect(adjustCostForTimePricing(1.5, summary)).toEqual({ cost: 1.5 });
   });
 
+  it("toolResult 消息带 usage 时也计入（口径对齐 SDK 的 getSessionStats）", () => {
+    const entries = [
+      { type: "model_change", timestamp: "2026-09-22T10:00:00Z", provider: "deepseek" } as PricingEntry,
+      { type: "message", timestamp: "2026-09-22T10:05:00Z", message: { role: "toolResult", usage: { cost: { total: 2 } } } } as PricingEntry,
+    ];
+    const summary = summarizeTimePricing(entries)!;
+    expect(summary.peakUsd).toBe(2);
+    expect(summary.adjustedUsd).toBe(1);
+  });
+
   it("非法时间戳不参与折算（按高峰处理）", () => {
     const entries = [
       { type: "model_change", timestamp: "2026-09-25T10:00:00Z", provider: "deepseek" } as PricingEntry,
