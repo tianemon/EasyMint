@@ -38,6 +38,10 @@ const EXTERNALS = [
   "dompurify",
   "zod",
   "jszip",
+  // Pi 扩展的版本区间校验（pi-extension-service 直接 import 的 satisfies / validRange）。
+  // 纯 JS、无原生扩展；内联时占 bundle 62KB（把主进程推过 1MiB 提示线）。外部化后运行时从
+  // node_modules 加载——已用 @electron/asar 的 listPackage() 核验它在安装包 node_modules 内。
+  "semver",
   // mDNS 设备发现（network-service 专用）。它自身 + ws/dns-packet/multicast-dns 依赖树
   // 约占 bundle 225KB（22%）——是主进程里最大的第三方来源。纯 CJS、无原生扩展，
   // 外部化后运行时从 node_modules 加载（已核实其在 electron-builder 产物内）
