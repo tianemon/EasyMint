@@ -44,11 +44,20 @@ Which files and commands it may touch is governed by the permission mode (§4). 
 an "account login" (browser OAuth) flow; in that case the authorization happens in your browser with
 that provider directly.
 
+Images may also go to a second destination: if you enable the image-description channel by filling
+in a vision API key, the images it reads are sent to the **image endpoint you configure — Alibaba
+Cloud DashScope (`https://dashscope.aliyuncs.com`) by default** — not to the provider above.
+Clearing that key disables the channel.
+
 #### 2.2 Web search & page fetching (optional)
 
 If you configure a Tavily API key, web search queries and the URLs to be fetched are sent to
 `api.tavily.com`, and fetched page contents are returned to the model context. Without a key, both
 abilities are simply unavailable.
+
+If Tavily is reachable it does the fetching; when that request fails, the app fetches the page
+**directly from your machine** instead — in that case the target site sees your IP address rather
+than Tavily.
 
 #### 2.3 MCP servers (optional — configured by you)
 
@@ -61,6 +70,9 @@ The packaged application periodically contacts GitHub Releases (via `electron-up
 a new version and, when one exists, downloads it. This is the only recurring outbound request that
 does not originate from the conversation. Installing a skill from a URL also fetches that repository
 from GitHub/GitLab/Gitee.
+
+When the agent's built-in file-search tools run on a machine without `ripgrep`/`fd`, those binaries
+are downloaded from GitHub Releases.
 
 #### 2.5 Local-network connections (optional)
 
@@ -164,10 +176,17 @@ OpenRouter，或你自己填的 OpenAI / Anthropic 兼容接口）。项目方�
 由权限模式约束（见 §4）。部分供应商提供「账号登录」（浏览器 OAuth），授权过程在你的浏览器与该
 供应商之间直接完成。
 
+图片还可能有第二个去处：若你填入视觉 API Key 启用「图片识别」通道，它读取的图片会发往**你配置的图片
+识别端点——默认是阿里云 DashScope（`https://dashscope.aliyuncs.com`）**，而不是上面这家模型供应商；
+清空该 Key 即停用这条通道。
+
 #### 2.2 联网搜索与网页抓取（可选）
 
 若你配置了 Tavily API Key，搜索词与待抓取的 URL 会发送到 `api.tavily.com`，抓回的正文进入模型
 上下文。不填 Key 则两项能力都不可用。
+
+Tavily 可达时由它抓取；该请求失败时改为**由本机直接抓取目标网页**——此时看到你的是目标站点（含你的
+IP），而不是 Tavily。
 
 #### 2.3 MCP 服务器（可选，由你配置）
 
@@ -178,6 +197,8 @@ OpenRouter，或你自己填的 OpenAI / Anthropic 兼容接口）。项目方�
 
 安装版会周期性访问 GitHub Releases（`electron-updater`）检查新版本并在有更新时下载——这是唯一
 **不来自对话**的周期性外部请求。从 URL 安装 skill 时，也会从 GitHub / GitLab / Gitee 拉取该仓库。
+
+内置的文件搜索工具在缺少 `ripgrep`/`fd` 的机器上，会从 GitHub Releases 下载对应二进制。
 
 #### 2.5 局域网连接（可选）
 
