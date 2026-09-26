@@ -50,7 +50,7 @@ import {
 } from "./services/skill-service";
 import { getSkillStats } from "./services/skill-registry";
 import { discoverAvailableExtensions, setPiExtensionApproved } from "./services/pi-extension-service";
-import { answerPiExtensionPrompt } from "./services/pi-extension-ui";
+import { answerPiExtensionPrompt, bindPiExtensionWindow } from "./services/pi-extension-ui";
 import {
   scanMcpServers,
   toggleMcpServer,
@@ -235,9 +235,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("todos:remove", (_e, { projectPath, id }: { projectPath: string; id: number }) => removeTodo(projectPath, id));
 
   // agent:*
-  ipcMain.handle("agent:runWorker", (_e, { projectPath, prompt }) =>
-    agentService.runWorker(projectPath, prompt, mainWindow)
-  );
+  ipcMain.handle("agent:runWorker", (event, { projectPath, prompt }) => {
+    bindPiExtensionWindow(projectPath, event.sender.id);
+    return agentService.runWorker(projectPath, prompt, mainWindow);
+  });
   ipcMain.handle("agent:abort", async (_e, { runId, clearQueue, rewind }) => {
     // 打断（chat 与 worker 统一处理）：abort 当前回合，保留会话/run 注册表。
     // clearQueue（停止按钮 / 重发前兜底）丢弃未投递的插话；rewind（仅停止按钮）在本轮
@@ -303,10 +304,12 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:setModel", (_e, { sessionId, model, provider }) => {
     return agentService.setModel(sessionId, model, provider);
   });
-  ipcMain.handle("agent:spawnAgentChat", (_e, { projectPath, templateId, message }) => {
+  ipcMain.handle("agent:spawnAgentChat", (event, { projectPath, templateId, message }) => {
+    bindPiExtensionWindow(projectPath, event.sender.id);
     return agentService.spawnAgentChat(projectPath, templateId, message);
   });
-  ipcMain.handle("agent:sendMessage", async (_e, { projectPath, message, sessionId, permissionMode, model, isDesigner, images, thinkingLevel, systemPayload, preferredProvider, tabId }) => {
+  ipcMain.handle("agent:sendMessage", async (event, { projectPath, message, sessionId, permissionMode, model, isDesigner, images, thinkingLevel, systemPayload, preferredProvider, tabId }) => {
+    bindPiExtensionWindow(projectPath, event.sender.id);
     try {
       const result = await agentService.sendMessage(projectPath, message, sessionId ?? null, permissionMode, mainWindow, model, isDesigner, images, thinkingLevel, systemPayload, preferredProvider, tabId);
       broadcast("agent:stream", {
@@ -368,7 +371,8 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     await agentService.compact(sessionId, instructions);
   });
   // 按需激活会话（重启后未发过消息的会话不在主进程活跃列表，压缩前需先恢复）
-  ipcMain.handle("agent:activate", async (_e, { sessionId, projectPath }) => {
+  ipcMain.handle("agent:activate", async (event, { sessionId, projectPath }) => {
+    bindPiExtensionWindow(projectPath, event.sender.id);
     return agentService.activateSession(sessionId, projectPath);
   });
   ipcMain.handle("agent:setThinkingLevel", (_e, { sessionId, level }) => {
@@ -438,7 +442,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
         type: "warning",
         title: "启用 Pi 扩展",
         message: `在 EasyMint 中启用「${item.name}」？`,
-        detail: `来源：${item.path}\n\n扩展代码与 EasyMint 主进程同权限运行，可访问本机文件和凭据。启用后从新会话开始加载。`,
+        detail: `来源：${item.path}\n\n扩展代码与 EasyMint 主进程同权限运行，可访问本机文件和凭据。仅完全访问模式会加载，新会话开始生效。`,
         buttons: ["取消", "启用扩展"], defaultId: 0, cancelId: 0,
       });
       if (answer.response !== 1) return items;
@@ -602,11 +606,13 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     if (isPermissionModeTightening(previous, next)) {
       await agentService.revokeElevatedExecution(sessionId);
     }
+    const closingFull = next !== undefined && normalizePermissionMode(previous) === "full" && normalizePermissionMode(next) !== "full";
     // 只读会话没有预连接 MCP；放宽后下一条消息前重建工具集，用户无需手动重开会话。
-    if (previous !== undefined && next !== undefined
-      && normalizePermissionMode(previous) === "readonly"
-      && normalizePermissionMode(next) !== "readonly") {
-      agentService.schedulePermissionToolRebuild(sessionId);
+    if (closingFull || next !== undefined && (
+      normalizePermissionMode(previous) === "readonly" && normalizePermissionMode(next) !== "readonly" ||
+      normalizePermissionMode(previous) !== "full" && normalizePermissionMode(next) === "full"
+    )) {
+      agentService.schedulePermissionToolRebuild(sessionId, closingFull);
     }
   });
   ipcMain.handle("session-cache:delete", (_e, { sessionId }) => { deleteCache(sessionId); });

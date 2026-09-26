@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { satisfies, validRange } from "semver";
 import { emHome } from "../utils/paths";
 import { readExternalField, writeExternalField } from "./em-settings-schema";
 import { atomicWrite, lockConfigDirectory } from "./native-config-storage";
@@ -60,40 +61,143 @@ function readApprovals(settingsDir: string): Record<string, string> {
   return Object.fromEntries(Object.entries(raw).filter(([key, value]) => key.length > 0 && typeof value === "string"));
 }
 
+function packageSource(value: unknown): string | undefined {
+  return typeof value === "string" ? value
+    : value && typeof value === "object" && typeof (value as { source?: unknown }).source === "string"
+      ? (value as { source: string }).source : undefined;
+}
+
+function gitInstallParts(source: string): { host: string; repo: string } | undefined {
+  const raw = source.startsWith("git:") ? source.slice(4) : source;
+  let host = "";
+  let repo = "";
+  if (/^[a-z]+:\/\//i.test(raw)) {
+    const url = new URL(raw);
+    host = url.hostname;
+    repo = url.pathname.replace(/^\/+/, "");
+  } else if (raw.startsWith("git@")) {
+    const match = raw.match(/^git@([^:]+):(.+)$/);
+    host = match?.[1] ?? "";
+    repo = match?.[2] ?? "";
+  } else if (source.startsWith("git:")) {
+    const slash = raw.indexOf("/");
+    host = slash < 0 ? "" : raw.slice(0, slash);
+    repo = slash < 0 ? "" : raw.slice(slash + 1);
+  }
+  const refAt = repo.lastIndexOf("@");
+  if (refAt > repo.lastIndexOf("/")) repo = repo.slice(0, refAt);
+  repo = repo.replace(/\.git$/, "").replace(/\/$/, "");
+  if (!/^[A-Za-z0-9.-]+$/.test(host) || host === "." || host === ".." || repo.includes("\\") ||
+    repo.split("/").length < 2 || repo.split("/").some((part) => !part || part === "." || part === "..")) return undefined;
+  return { host, repo };
+}
+
+function packageIdentity(source: string, baseDir: string): string {
+  if (source.startsWith("npm:")) {
+    const spec = source.slice(4);
+    const versionAt = spec.lastIndexOf("@");
+    return `npm:${versionAt > 0 ? spec.slice(0, versionAt) : spec}`;
+  }
+  if (source.startsWith("git:") || /^https?:\/\//.test(source)) {
+    const parts = gitInstallParts(source);
+    if (parts) return `git:${parts.host}/${parts.repo}`.toLowerCase();
+  }
+  return `local:${path.resolve(baseDir, source)}`;
+}
+
+function packageVersionMatches(source: string, installedPath: string): boolean {
+  if (!source.startsWith("npm:")) return true;
+  const spec = source.slice(4);
+  const versionAt = spec.lastIndexOf("@");
+  if (versionAt <= 0) return true;
+  const range = validRange(spec.slice(versionAt + 1));
+  if (!range) return true;
+  const manifest = readSettings(path.join(installedPath, "package.json"));
+  return typeof manifest.version === "string" && satisfies(manifest.version, range);
+}
+
 function fingerprint(file: string): string {
   const hash = createHash("sha256");
-  if (fs.statSync(file).size > 8 * 1024 * 1024) throw new Error("扩展入口文件过大，无法自动校验");
-  hash.update(fs.readFileSync(file));
-  let root = path.dirname(file);
+  const directoryEntry = fs.statSync(file).isDirectory();
+  if (!directoryEntry) {
+    if (fs.statSync(file).size > 8 * 1024 * 1024) throw new Error("扩展入口文件过大，无法自动校验");
+    hash.update(fs.readFileSync(file));
+  }
+  let root = directoryEntry ? file : path.dirname(file);
   let dir = root;
-  let packageRoot = false;
-  for (let i = 0; i < 5; i++) {
+  let packageRoot = directoryEntry;
+  for (let i = 0; !directoryEntry && i < 5; i++) {
     const manifest = path.join(dir, "package.json");
     if (fs.existsSync(manifest)) { root = dir; packageRoot = true; break; }
-    if (["extensions", ".pi", ".easymint"].includes(path.basename(dir))) break;
+    if (path.basename(dir) === "extensions" && ["agent", ".pi", ".easymint"].includes(path.basename(path.dirname(dir)))) break;
+    if ([".pi", ".easymint"].includes(path.basename(dir))) break;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
   let count = 0;
   let bytes = 0;
+  const visitedDirs = new Set<string>();
   const visit = (current: string): void => {
+    const realDir = fs.realpathSync(current);
+    if (visitedDirs.has(realDir)) return;
+    visitedDirs.add(realDir);
     for (const entry of fs.readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-      if (entry.name === "node_modules" || entry.name === ".git") continue;
+      if (entry.name === ".git") continue;
       const full = path.join(current, entry.name);
       if (entry.isDirectory()) { visit(full); continue; }
-      if (entry.isSymbolicLink()) { hash.update(path.relative(root, full)); hash.update(fs.readlinkSync(full)); continue; }
+      if (entry.isSymbolicLink()) {
+        hash.update(path.relative(root, full));
+        hash.update(fs.readlinkSync(full));
+        const target = fs.realpathSync(full);
+        if (fs.statSync(target).isDirectory()) visit(target);
+        else if (fs.statSync(target).isFile()) {
+          count++;
+          bytes += fs.statSync(target).size;
+          if (count > 50000 || bytes > 512 * 1024 * 1024) throw new Error("扩展文件过多或过大，无法自动校验");
+          hash.update(target);
+          hash.update(fs.readFileSync(target));
+        }
+        continue;
+      }
       if (!entry.isFile()) continue;
       const size = fs.statSync(full).size;
       count++;
       bytes += size;
-      if (count > 5000 || bytes > 64 * 1024 * 1024) throw new Error("扩展文件过多或过大，无法自动校验");
+      if (count > 50000 || bytes > 512 * 1024 * 1024) throw new Error("扩展文件过多或过大，无法自动校验");
       hash.update(path.relative(root, full));
       hash.update(fs.readFileSync(full));
     }
   };
   if (packageRoot || /^index\.(ts|js)$/.test(path.basename(file))) {
     visit(root);
+    if (packageRoot) {
+      const checkedPackages = new Set<string>();
+      const visitDependencies = (packageDir: string): void => {
+        const realPackage = fs.realpathSync(packageDir);
+        if (checkedPackages.has(realPackage)) return;
+        checkedPackages.add(realPackage);
+        if (checkedPackages.size > 1000) throw new Error("扩展依赖过多，无法自动校验");
+        const manifest = readSettings(path.join(packageDir, "package.json"));
+        const dependencies = manifest.dependencies;
+        if (!dependencies || typeof dependencies !== "object" || Array.isArray(dependencies)) return;
+        for (const name of Object.keys(dependencies).sort()) {
+          let cursor = packageDir;
+          let found: string | undefined;
+          while (true) {
+            const candidate = path.join(cursor, "node_modules", name);
+            if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) { found = candidate; break; }
+            const parent = path.dirname(cursor);
+            if (parent === cursor) break;
+            cursor = parent;
+          }
+          if (!found) continue;
+          visit(found);
+          visitDependencies(found);
+        }
+      };
+      visitDependencies(root);
+    }
   } else {
     const seen = new Set<string>();
     const scanImports = (modulePath: string): void => {
@@ -120,7 +224,7 @@ function fingerprint(file: string): string {
   return hash.digest("hex");
 }
 
-function projectSettingsForPi(projectPath: string, configDir: ".pi" | ".easymint", installedPath: (source: string) => string | undefined): string {
+function projectSettingsForPi(projectPath: string, configDir: ".pi" | ".easymint", installedPath: (source: string) => string | undefined, userInstalledPath: (source: string) => string | undefined, userPackages: unknown[]): string {
   const piDir = path.join(projectPath, configDir);
   const raw = readSettings(path.join(piDir, "settings.json"));
   const localize = (source: string): string => {
@@ -139,11 +243,14 @@ function projectSettingsForPi(projectPath: string, configDir: ".pi" | ".easymint
   const autoDir = path.join(piDir, "extensions");
   if (fs.existsSync(autoDir)) raw.extensions = [autoDir, ...(Array.isArray(raw.extensions) ? raw.extensions : [])];
   if (Array.isArray(raw.packages)) raw.packages = raw.packages.map((value) => {
-    if (typeof value === "string") return localize(value);
-    if (value && typeof value === "object" && typeof (value as { source?: unknown }).source === "string") {
-      return { ...value, source: localize((value as { source: string }).source) };
-    }
-    return value;
+    const source = packageSource(value);
+    if (!source) return value;
+    const delta = typeof value === "object" && value !== null && (value as { autoload?: unknown }).autoload === false;
+    const userMatch = delta ? userPackages.map(packageSource).find((candidate) => candidate && packageIdentity(candidate, path.dirname(piDir)) === packageIdentity(source, piDir)) : undefined;
+    const resolved = userMatch ? userInstalledPath(userMatch) : undefined;
+    const localized = resolved && fs.existsSync(resolved) ? resolved : localize(source);
+    if (typeof value === "string") return localized;
+    return { ...value, source: localized };
   });
   return JSON.stringify(raw);
 }
@@ -154,22 +261,41 @@ export async function discoverPiExtensions(options: DiscoveryOptions = {}): Prom
   const projectConfigDir = options.projectConfigDir ?? ".pi";
   const projectPath = options.projectPath ? path.resolve(options.projectPath) : undefined;
   const sdk = await import("@earendil-works/pi-coding-agent");
-  const projectManager = projectPath ? new sdk.DefaultPackageManager({
-    cwd: projectPath, agentDir: nativeAgentDir,
-    settingsManager: sdk.SettingsManager.inMemory({}, { projectTrusted: true }),
-  }) : undefined;
+  const userManager = new sdk.DefaultPackageManager({
+    cwd: projectPath ?? os.homedir(), agentDir: nativeAgentDir,
+    settingsManager: sdk.SettingsManager.inMemory(),
+  });
   const projectInstalledPath = (source: string): string | undefined => {
     if (!projectPath) return undefined;
-    const sdkPath = projectManager?.getInstalledPath(source, "project");
-    if (!sdkPath) return undefined;
-    const fromProject = path.relative(projectPath, sdkPath);
-    if (fromProject.startsWith("..") || path.isAbsolute(fromProject)) return sdkPath;
-    const relative = fromProject.split(path.sep).slice(1);
-    return path.join(projectPath, projectConfigDir, ...relative);
+    const base = path.join(projectPath, projectConfigDir);
+    let installed: string;
+    if (source.startsWith("npm:")) {
+      installed = path.join(base, "npm", "node_modules", packageIdentity(source, base).slice(4));
+    } else if (source.startsWith("git:") || /^https?:\/\//.test(source)) {
+      const parts = gitInstallParts(source);
+      if (!parts) return undefined;
+      installed = path.join(base, "git", parts.host, parts.repo);
+    } else {
+      installed = source === "~" || source.startsWith("~/") ? path.join(os.homedir(), source.slice(2)) : path.resolve(base, source);
+    }
+    return fs.existsSync(installed) && packageVersionMatches(source, installed) ? installed : undefined;
   };
-  const projectSettings = projectPath ? projectSettingsForPi(projectPath, projectConfigDir, projectInstalledPath) : "{}";
   const rawUserSettings = readSettings(path.join(nativeAgentDir, "settings.json"));
-  const userSettings = JSON.stringify(rawUserSettings);
+  const userPackages = Array.isArray(rawUserSettings.packages) ? rawUserSettings.packages : [];
+  const rawProjectSettings = projectPath ? readSettings(path.join(projectPath, projectConfigDir, "settings.json")) : {};
+  const projectPackages = Array.isArray(rawProjectSettings.packages) ? rawProjectSettings.packages : [];
+  const replaced = new Set(projectPackages.filter((pkg) => !(pkg && typeof pkg === "object" && (pkg as { autoload?: unknown }).autoload === false))
+    .map(packageSource).filter((source): source is string => !!source).map((source) => packageIdentity(source, path.join(projectPath!, projectConfigDir))));
+  const userSettings = JSON.stringify({ ...rawUserSettings,
+    packages: userPackages.filter((pkg) => {
+      const source = packageSource(pkg);
+      return !source || !replaced.has(packageIdentity(source, nativeAgentDir));
+    }),
+  });
+  const projectSettings = projectPath ? projectSettingsForPi(projectPath, projectConfigDir, projectInstalledPath, (source) => {
+    const installed = userManager.getInstalledPath(source, "user");
+    return installed && packageVersionMatches(source, installed) ? installed : undefined;
+  }, userPackages) : "{}";
   const storage = {
     withLock(scope: "global" | "project", fn: (current: string | undefined) => string | undefined): void {
       if (fn(scope === "global" ? userSettings : projectSettings) !== undefined) throw new Error("Pi 扩展扫描禁止写入设置");
@@ -177,7 +303,8 @@ export async function discoverPiExtensions(options: DiscoveryOptions = {}): Prom
   };
   const settings = sdk.SettingsManager.fromStorage(storage, { projectTrusted: true });
   const manager = new sdk.DefaultPackageManager({ cwd: projectPath ?? os.homedir(), agentDir: nativeAgentDir, settingsManager: settings });
-  const resolved = await manager.resolve(async () => "skip");
+  const unavailable = new Set<string>();
+  const resolved = await manager.resolve(async (source) => { unavailable.add(source); return "skip"; });
   const wrongProjectDir = projectConfigDir === ".pi" ? ".easymint" : ".pi";
   const resources: ResolvedResource[] = resolved.extensions.filter((item) => !projectPath || !item.path.startsWith(path.join(projectPath, wrongProjectDir) + path.sep));
   const approved = readApprovals(settingsDir);
@@ -189,7 +316,10 @@ export async function discoverPiExtensions(options: DiscoveryOptions = {}): Prom
     const id = `${scope}:${fs.existsSync(resolvedPath) ? fs.realpathSync(resolvedPath) : resolvedPath}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    const exists = fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile();
+    const exists = fs.existsSync(resolvedPath) && (
+      fs.statSync(resolvedPath).isFile() || fs.statSync(resolvedPath).isDirectory() &&
+      ["index.ts", "index.js"].some((name) => fs.existsSync(path.join(resolvedPath, name)))
+    );
     let digest = "";
     let error: string | undefined;
     if (exists) {
@@ -198,7 +328,7 @@ export async function discoverPiExtensions(options: DiscoveryOptions = {}): Prom
     }
     if (approved[id] === digest) error ??= runtimeErrors.get(resolvedPath);
     const enabledInPi = item.enabled;
-    const stats = runtimeStats.get(resolvedPath);
+    const stats = approved[id] === digest ? runtimeStats.get(resolvedPath) : undefined;
     const fileName = path.basename(resolvedPath);
     const name = /^index\.(ts|js)$/.test(fileName) ? path.basename(path.dirname(resolvedPath)) : fileName.replace(/\.(ts|js)$/, "");
     result.push({
@@ -213,13 +343,14 @@ export async function discoverPiExtensions(options: DiscoveryOptions = {}): Prom
     for (const pkg of raw.packages) {
       const source = typeof pkg === "string" ? pkg : pkg && typeof pkg === "object" ? (pkg as { source?: unknown }).source : undefined;
       if (typeof source !== "string") continue;
+      if (scope === "user" && replaced.has(packageIdentity(source, nativeAgentDir))) continue;
       const installed = scope === "project" ? projectInstalledPath(source) : manager.getInstalledPath(source, "user");
-      if (installed && fs.existsSync(installed)) continue;
+      if (installed && fs.existsSync(installed) && !unavailable.has(source) && packageVersionMatches(source, installed)) continue;
       const id = `${scope}:missing-package:${source}`;
       if (seen.has(id)) continue;
       seen.add(id);
       result.push({ id, name: source, path: installed ?? source, scope, source, origin: projectConfigDir === ".pi" ? "pi" : "em",
-        enabledInPi: false, approved: false, fingerprint: "", status: "missing", error: "来源尚未安装或路径不存在" });
+        enabledInPi: false, approved: false, fingerprint: "", status: "missing", error: "来源尚未安装、路径不存在或版本不匹配" });
     }
   };
   packageEntries(rawUserSettings, "user");

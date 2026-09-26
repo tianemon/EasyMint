@@ -17,6 +17,10 @@ import type {
   SettingsManager,
   DefaultResourceLoader,
 } from "@earendil-works/pi-coding-agent";
+import { createRequire } from "node:module";
+import fs from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 // 重新导出类型（type-only 不影响运行时，esbuild 会擦除）
 export type {
@@ -34,6 +38,18 @@ export type {
 // ── 懒加载实例 ──────────────────────────────────────
 
 let _sdk: typeof import("@earendil-works/pi-coding-agent") | null = null;
+
+/** Pi's cache is process-wide; a fresh ResourceLoader does not invalidate factories from earlier sessions. */
+export async function clearPiExtensionCache(): Promise<void> {
+  const require = createRequire(path.join(__dirname, "pi-sdk.cjs"));
+  const loaderPath = (require.resolve.paths("@earendil-works/pi-coding-agent") ?? [])
+    .map((root) => path.join(root, "@earendil-works", "pi-coding-agent", "dist", "core", "extensions", "loader.js"))
+    .find((file) => fs.existsSync(file));
+  if (!loaderPath) throw new Error("找不到 Pi 扩展缓存接口");
+  const loader = await import(/* @vite-ignore */ pathToFileURL(loaderPath).href);
+  if (typeof loader.clearExtensionCache !== "function") throw new Error("Pi 扩展缓存接口不可用");
+  loader.clearExtensionCache();
+}
 
 async function getSdk() {
   if (!_sdk) _sdk = await import("@earendil-works/pi-coding-agent");

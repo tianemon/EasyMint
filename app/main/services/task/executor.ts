@@ -90,6 +90,7 @@ export interface SubagentOptions {
   parentModel?: string;
   /** 主会话当前模型所属供应商（与 parentModel 搭配） */
   parentProvider?: string;
+  permissionMode?: string;
   /** 主会话权限回调（跟随主会话权限模式：标准/完全访问 + 绝对禁区）；缺省不拦截 */
   canUseTool?: (toolName: string, input: Record<string, unknown>, options: any) => Promise<{ behavior: "allow" | "deny"; message?: string; updatedInput?: Record<string, unknown> }>;
 }
@@ -241,6 +242,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
       sessionDir: opts.sessionDir,
       // 跟随主会话权限（standard/full + 禁区）；pi-session 对 extraTools 统一包装
       canUseTool: opts.canUseTool as any,
+      permissionMode: opts.readOnly ? "readonly" : opts.permissionMode,
     });
     // 记录子会话 jsonl 路径(前端查看 Agent 过程用)
     opts.childSessionFiles[opts.index] = session2.sessionFile ?? "";
@@ -264,6 +266,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
       sessionDir: opts.sessionDir,
       // 跟随主会话权限（standard/full + 禁区）；pi-session 对 extraTools 统一包装
       canUseTool: opts.canUseTool as any,
+      permissionMode: opts.readOnly ? "readonly" : opts.permissionMode,
     });
     // 记录子会话 jsonl 路径(前端查看 Agent 过程用)
     opts.childSessionFiles[opts.index] = session.sessionFile ?? "";
@@ -504,6 +507,7 @@ export interface DelegationRuntime {
   parentModel?: string;
   /** 主会话当前模型所属供应商 */
   parentProvider?: string;
+  parentPermissionMode?: string;
   /** 主会话权限回调（子 Agent 跟随主会话权限模式 + 绝对禁区）；缺省走旧只读包装 */
   canUseTool?: (toolName: string, input: Record<string, unknown>, options: any) => Promise<{ behavior: "allow" | "deny"; message?: string; updatedInput?: Record<string, unknown> }>;
   onProgress?: (progress: AgentProgress) => void;
@@ -552,6 +556,7 @@ export async function runSubagents(
       parentThinkingLevel: runtime.parentThinkingLevel,
       parentModel: runtime.parentModel,
       parentProvider: runtime.parentProvider,
+      permissionMode: runtime.parentPermissionMode,
       canUseTool: runtime.canUseTool,
     },
   }));

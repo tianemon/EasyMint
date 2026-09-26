@@ -770,6 +770,7 @@ export class AgentService {
           if (chat?.currentModel) return { model: chat.currentModel, provider: chat.provider };
           return undefined;
         },
+        getParentPermissionMode: () => readCache(resolveParentSessionId(sessionId))?.permissionMode,
         // 子 Agent 跟随主会话权限（standard/full + 绝对禁区）——委派写操作与主会话同边界
         canUseTool,
         // 委派收尾汇总 → 开回合让 Mint 自动响应总结(最后一条通知,无后续排队;
@@ -1197,6 +1198,7 @@ export class AgentService {
           systemPrompt: this.buildSystemPrompt(resolvedPath, false, { worker: true }),
           extraTools,
           canUseTool,
+          permissionMode: "standard",
           onExtensionError: (error) => broadcast("pi-extension:error", error),
         });
         run.session = session;
@@ -1882,6 +1884,17 @@ export class AgentService {
           const settled = await waitForAbortSettlement(Promise.resolve(), inFlight.promptDone, ABORT_SETTLEMENT_TIMEOUT_MS);
           if (!settled) throw new Error("上一轮仍未结束，请稍后重试");
         }
+        if (permissionMode) {
+          const previous = readCache(resumeSessionId)?.permissionMode;
+          const before = normalizePermissionMode(previous);
+          const after = normalizePermissionMode(permissionMode);
+          if (before !== after && (before === "full" || after === "full")) {
+            writeCache(resumeSessionId, { permissionMode });
+            if (isPermissionModeTightening(previous, permissionMode)) await this.revokeElevatedExecution(resumeSessionId);
+            const active = this.findActiveChat(resumeSessionId);
+            if (active) await this.killChat(active.chatId);
+          }
+        }
         const existing = this.findActiveChat(resumeSessionId);
         if (existing?.rebuildToolsOnNextMessage && existing.session && !existing.session.isStreaming) {
           await disposePiSession(existing.session);
@@ -1967,6 +1980,8 @@ export class AgentService {
               systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
               extraTools,
               canUseTool,
+              permissionMode: permissionMode ?? readCache(resumeSessionId)?.permissionMode,
+              getPermissionMode: () => readCache(resolveParentSessionId(resumeSessionId))?.permissionMode,
               onExtensionError: (error) => broadcast("pi-extension:error", error),
               onShellExit: shellExitInject,
             });
@@ -1981,6 +1996,8 @@ export class AgentService {
           systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
           extraTools,
           canUseTool,
+          permissionMode: permissionMode ?? readCache(newSessionId)?.permissionMode,
+          getPermissionMode: () => readCache(resolveParentSessionId(newSessionId))?.permissionMode,
           onExtensionError: (error) => broadcast("pi-extension:error", error),
           onShellExit: shellExitInject,
         });
@@ -2752,6 +2769,7 @@ export class AgentService {
       model: piModel ?? undefined,
       store: this.store,
       resumeSessionFile: info.path,
+      permissionMode: "standard",
       onExtensionError: (error) => broadcast("pi-extension:error", error),
     });
     const chat: ActiveChat = {
@@ -2896,9 +2914,18 @@ export class AgentService {
   }
 
   /** 只读会话创建时不会连接 MCP；放宽后在下一条消息前重建会话工具集。 */
-  schedulePermissionToolRebuild(sessionId: string): void {
+  schedulePermissionToolRebuild(sessionId: string, closeWhenIdle = false): void {
     const chat = this.findActiveChat(sessionId);
-    if (chat) chat.rebuildToolsOnNextMessage = true;
+    if (!chat) return;
+    chat.rebuildToolsOnNextMessage = true;
+    if (closeWhenIdle && chat.session) {
+      const session = chat.session;
+      void session.waitForIdle().then(async () => {
+        if (this.findActiveChat(sessionId)?.session === session && normalizePermissionMode(readCache(sessionId)?.permissionMode) !== "full") {
+          await this.killChat(chat.chatId);
+        }
+      }).catch((error) => console.error("[agent] 扩展权限切换后关闭会话失败:", error));
+    }
   }
 
   async shutdown(): Promise<void> {

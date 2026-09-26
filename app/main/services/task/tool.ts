@@ -27,6 +27,7 @@ export interface TaskToolContext {
   getParentThinkingLevel?: () => string | undefined;
   /** 懒取主会话当前模型——子 Agent 模型的**唯一来源**（委派方不再能指定模型） */
   getParentModel?: () => { model?: string; provider?: string } | undefined;
+  getParentPermissionMode?: () => string | undefined;
   /** 主会话权限回调（子 Agent 跟随主会话权限模式 standard/full + 绝对禁区） */
   canUseTool?: (toolName: string, input: Record<string, unknown>, options: any) => Promise<{ behavior: "allow" | "deny"; message?: string; updatedInput?: Record<string, unknown> }>;
   /** 委派完成回调：结果注入主会话（agent-service 提供） */
@@ -303,6 +304,7 @@ export async function createTaskTool(ctx: TaskToolContext): Promise<ToolDefiniti
         parentThinkingLevel: ctx.getParentThinkingLevel?.(),
         parentModel: parentModel?.model,
         parentProvider: parentModel?.provider,
+        parentPermissionMode: ctx.getParentPermissionMode?.(),
         canUseTool: ctx.canUseTool,
         onProgress: broadcastProgress,
       }).catch(() => {});

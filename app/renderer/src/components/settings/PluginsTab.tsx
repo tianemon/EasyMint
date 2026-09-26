@@ -1133,7 +1133,7 @@ function ExtensionsTab({ projectPath }: { projectPath?: string }): JSX.Element {
               <span className="text-xs text-text-primary font-medium truncate">{item.name}</span>
               <span className="text-[length:var(--text-3xs)] text-text-muted">{item.origin === "pi" ? "原生 Pi" : "EasyMint"}</span>
               <span className="text-[length:var(--text-3xs)] text-text-muted">{item.scope === "project" ? "当前项目" : "用户级"}</span>
-              <span className="text-[length:var(--text-3xs)] text-text-muted">{{ ready: "已启用", pending: "待确认", disabled: "源配置已禁用", missing: "文件缺失", error: "校验失败" }[item.status]}</span>
+              <span className="text-[length:var(--text-3xs)] text-text-muted">{{ ready: "已授权·完全访问时运行", pending: "待确认", disabled: "源配置已禁用", missing: "文件缺失", error: "校验失败" }[item.status]}</span>
               {item.tools !== undefined && <span className="text-[length:var(--text-3xs)] text-text-muted">{item.tools} 工具 · {item.commands ?? 0} 命令</span>}
             </div>
             <p className="text-[length:var(--text-3xs)] text-text-muted truncate mt-1" title={item.path}>{item.path}</p>
@@ -1145,7 +1145,7 @@ function ExtensionsTab({ projectPath }: { projectPath?: string }): JSX.Element {
           </div>
         </div>
       ))}
-      <p className="text-[length:var(--text-3xs)] text-text-muted">启停对新建或重新打开的会话生效；依赖 Pi 终端界面的扩展可能无法在 EasyMint 中显示。</p>
+      <p className="text-[length:var(--text-3xs)] text-text-muted">可执行扩展仅在完全访问模式加载；启停对新建或重新打开的会话生效。依赖 Pi 终端界面的扩展可能无法显示。</p>
     </section>
   );
 }

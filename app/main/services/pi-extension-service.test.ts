@@ -91,6 +91,62 @@ describe("native Pi extension discovery", () => {
     expect(fs.existsSync(nativeAgentDir)).toBe(false);
   });
 
+  it("lets a project npm package replace the user package with the same identity", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-package-override-"));
+    roots.push(root);
+    const nativeAgentDir = path.join(root, "pi", "agent");
+    const projectPath = path.join(root, "project");
+    const settingsDir = path.join(root, "em");
+    for (const [dir, version, entry] of [
+      [path.join(nativeAgentDir, "npm", "node_modules", "override-fixture"), "1.0.0", "global.ts"],
+      [path.join(projectPath, ".pi", "npm", "node_modules", "override-fixture"), "2.0.0", "project.ts"],
+    ]) {
+      fs.mkdirSync(path.join(dir, "extensions"), { recursive: true });
+      fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "override-fixture", version, pi: { extensions: [`extensions/${entry}`] } }));
+      fs.writeFileSync(path.join(dir, "extensions", entry), "export default () => {};");
+    }
+    fs.mkdirSync(settingsDir, { recursive: true });
+    fs.writeFileSync(path.join(nativeAgentDir, "settings.json"), JSON.stringify({ packages: ["npm:override-fixture@1.0.0"] }));
+    fs.writeFileSync(path.join(projectPath, ".pi", "settings.json"), JSON.stringify({ packages: ["npm:override-fixture@2.0.0"] }));
+    const items = await discoverPiExtensions({ nativeAgentDir, projectPath, settingsDir });
+    expect(items.filter((item) => item.status !== "missing").map((item) => item.name)).toEqual(["project"]);
+  });
+
+  it("applies a project autoload delta to the user package", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-package-delta-"));
+    roots.push(root);
+    const nativeAgentDir = path.join(root, "pi", "agent");
+    const projectPath = path.join(root, "project");
+    const settingsDir = path.join(root, "em");
+    const pkg = path.join(nativeAgentDir, "npm", "node_modules", "delta-fixture");
+    fs.mkdirSync(path.join(pkg, "extensions"), { recursive: true });
+    fs.mkdirSync(path.join(projectPath, ".pi"), { recursive: true });
+    fs.mkdirSync(settingsDir, { recursive: true });
+    fs.writeFileSync(path.join(pkg, "package.json"), JSON.stringify({ name: "delta-fixture", version: "1.0.0", pi: { extensions: ["extensions/*.ts"] } }));
+    fs.writeFileSync(path.join(pkg, "extensions", "allowed.ts"), "export default () => {};");
+    fs.writeFileSync(path.join(pkg, "extensions", "blocked.ts"), "export default () => {};");
+    fs.writeFileSync(path.join(nativeAgentDir, "settings.json"), JSON.stringify({ packages: ["npm:delta-fixture@1.0.0"] }));
+    fs.writeFileSync(path.join(projectPath, ".pi", "settings.json"), JSON.stringify({ packages: [{ source: "npm:delta-fixture@1.0.0", autoload: false, extensions: ["-extensions/blocked.ts"] }] }));
+    const items = await discoverPiExtensions({ nativeAgentDir, projectPath, settingsDir });
+    expect(items.find((item) => item.name === "allowed")?.enabledInPi).toBe(true);
+    expect(items.find((item) => item.name === "blocked")?.enabledInPi).toBe(false);
+  });
+
+  it("finds project packages when the native and embedded Pi config directories differ", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-config-dir-"));
+    roots.push(root);
+    const projectPath = path.join(root, "project");
+    const pkg = path.join(projectPath, ".easymint", "npm", "node_modules", "config-dir-fixture");
+    const settingsDir = path.join(root, "em");
+    fs.mkdirSync(path.join(pkg, "extensions"), { recursive: true });
+    fs.mkdirSync(settingsDir, { recursive: true });
+    fs.writeFileSync(path.join(pkg, "package.json"), JSON.stringify({ name: "config-dir-fixture", version: "1.0.0", pi: { extensions: ["extensions/entry.ts"] } }));
+    fs.writeFileSync(path.join(pkg, "extensions", "entry.ts"), "export default () => {};");
+    fs.writeFileSync(path.join(projectPath, ".easymint", "settings.json"), JSON.stringify({ packages: ["npm:config-dir-fixture@1.0.0"] }));
+    const items = await discoverPiExtensions({ projectPath, nativeAgentDir: path.join(root, "pi", "agent"), settingsDir, projectConfigDir: ".easymint" });
+    expect(items.find((item) => item.name === "entry")?.status).toBe("pending");
+  });
+
   it("reports malformed native settings without preventing EM sessions", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-bad-settings-"));
     roots.push(root);
@@ -129,6 +185,69 @@ describe("native Pi extension discovery", () => {
     fs.writeFileSync(path.join(nativeAgentDir, "settings.json"), JSON.stringify({ extensions: ["./gone.ts"] }));
     const items = await discoverPiExtensions({ nativeAgentDir, settingsDir });
     expect(items).toMatchObject([{ name: "gone.ts", status: "missing" }]);
+  });
+
+  it("reports an installed npm package whose version does not satisfy settings", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-version-mismatch-"));
+    roots.push(root);
+    const nativeAgentDir = path.join(root, "pi", "agent");
+    const settingsDir = path.join(root, "em");
+    const pkg = path.join(nativeAgentDir, "npm", "node_modules", "wrong-version");
+    fs.mkdirSync(path.join(pkg, "extensions"), { recursive: true });
+    fs.mkdirSync(settingsDir, { recursive: true });
+    fs.writeFileSync(path.join(pkg, "package.json"), JSON.stringify({ name: "wrong-version", version: "0.9.0", pi: { extensions: ["extensions/entry.ts"] } }));
+    fs.writeFileSync(path.join(pkg, "extensions", "entry.ts"), "export default () => {};");
+    fs.writeFileSync(path.join(nativeAgentDir, "settings.json"), JSON.stringify({ packages: ["npm:wrong-version@^1.0.0"] }));
+    const items = await discoverPiExtensions({ nativeAgentDir, settingsDir });
+    expect(items).toMatchObject([{ name: "npm:wrong-version@^1.0.0", status: "missing" }]);
+    const projectPath = path.join(root, "project");
+    const projectPkg = path.join(projectPath, ".pi", "npm", "node_modules", "wrong-version");
+    fs.mkdirSync(path.join(projectPkg, "extensions"), { recursive: true });
+    fs.writeFileSync(path.join(projectPkg, "package.json"), JSON.stringify({ name: "wrong-version", version: "0.9.0", pi: { extensions: ["extensions/project.ts"] } }));
+    fs.writeFileSync(path.join(projectPkg, "extensions", "project.ts"), "export default () => {};");
+    fs.writeFileSync(path.join(projectPath, ".pi", "settings.json"), JSON.stringify({ packages: ["npm:wrong-version@^1.0.0"] }));
+    const withProject = await discoverPiExtensions({ nativeAgentDir, projectPath, settingsDir });
+    expect(withProject.some((item) => item.name === "project")).toBe(false);
+    expect(withProject.find((item) => item.scope === "project" && item.status === "missing")?.name).toBe("npm:wrong-version@^1.0.0");
+  });
+
+  it("allows a configured extension directory with an index entry", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-dir-ext-"));
+    roots.push(root);
+    const nativeAgentDir = path.join(root, "pi", "agent");
+    const settingsDir = path.join(root, "em");
+    const packageDir = path.join(nativeAgentDir, "my-extension");
+    fs.mkdirSync(packageDir, { recursive: true });
+    fs.mkdirSync(settingsDir, { recursive: true });
+    fs.writeFileSync(path.join(packageDir, "index.js"), "export default () => {};");
+    fs.writeFileSync(path.join(nativeAgentDir, "settings.json"), JSON.stringify({ packages: ["./my-extension"] }));
+    const options = { nativeAgentDir, settingsDir };
+    const [item] = await discoverPiExtensions(options);
+    expect(item).toMatchObject({ name: "my-extension", status: "pending" });
+    await setPiExtensionApproved(item!.id, item!.fingerprint, true, options);
+    expect((await discoverPiExtensions(options))[0]?.status).toBe("ready");
+  });
+
+  it("requires renewed approval when an installed package dependency changes", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-dependency-change-"));
+    roots.push(root);
+    const nativeAgentDir = path.join(root, "pi", "agent");
+    const settingsDir = path.join(root, "em");
+    const pkg = path.join(nativeAgentDir, "npm", "node_modules", "dependency-fixture");
+    const dependency = path.join(nativeAgentDir, "npm", "node_modules", "fixture-dep");
+    fs.mkdirSync(path.join(pkg, "extensions"), { recursive: true });
+    fs.mkdirSync(dependency, { recursive: true });
+    fs.mkdirSync(settingsDir, { recursive: true });
+    fs.writeFileSync(path.join(pkg, "package.json"), JSON.stringify({ name: "dependency-fixture", version: "1.0.0", dependencies: { "fixture-dep": "1.0.0" }, pi: { extensions: ["extensions/entry.ts"] } }));
+    fs.writeFileSync(path.join(pkg, "extensions", "entry.ts"), "export default () => {};\n");
+    fs.writeFileSync(path.join(dependency, "package.json"), JSON.stringify({ name: "fixture-dep", version: "1.0.0" }));
+    fs.writeFileSync(path.join(dependency, "index.js"), "export default 'before';");
+    fs.writeFileSync(path.join(nativeAgentDir, "settings.json"), JSON.stringify({ packages: ["npm:dependency-fixture@1.0.0"] }));
+    const options = { nativeAgentDir, settingsDir };
+    const before = (await discoverPiExtensions(options)).find((item) => item.name === "entry")!;
+    await setPiExtensionApproved(before.id, before.fingerprint, true, options);
+    fs.writeFileSync(path.join(dependency, "index.js"), "export default 'after';");
+    expect((await discoverPiExtensions(options)).find((item) => item.name === "entry")?.status).toBe("pending");
   });
 
   it("applies project Pi exclusions to its auto-discovered directory", async () => {

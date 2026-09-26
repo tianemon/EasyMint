@@ -18,6 +18,7 @@ import {
   getDefaultResourceLoaderClass,
   getCreateCodingTools,
   getCreateExtraBuiltinTools,
+  clearPiExtensionCache,
 } from "./pi-sdk";
 import { ensureSessionManagerClass, getPiSessionDir } from "./pi-session-dir";
 import { createEnhancedBashTool, createStopShellTool } from "./background-shell/tool";
@@ -34,6 +35,7 @@ import type { CanUseToolOptions, PermissionResult } from "./permission/agent-per
 import { mergeIntoPiSkills } from "./skill-service";
 import { discoverAvailableExtensions, recordPiExtensionError, recordPiExtensionStats } from "./pi-extension-service";
 import { createPiExtensionUi } from "./pi-extension-ui";
+import { normalizePermissionMode } from "./permission/execution-context";
 
 // 目录工具再导出：既有调用点（project-service / session-service / migration-service /
 // task/executor / agent-service）仍从本模块引用，避免无谓的 import 面改动。
@@ -61,6 +63,9 @@ export interface PiSessionOptions {
   /** 后台 shell 进程退出回调（主会话传入,结果注入主会话；缺省不通知） */
   onShellExit?: (shell: BackgroundShell) => void;
   onExtensionError?: (error: ExtensionError) => void;
+  /** Executable Pi extensions require a full-access session. */
+  permissionMode?: string;
+  getPermissionMode?: () => string | undefined;
 }
 
 // ── 工厂函数 ────────────────────────────────────────
@@ -74,9 +79,11 @@ async function buildSession(
   const DRL = await getDefaultResourceLoaderClass();
   const createTools = await getCreateCodingTools();
   const sdk = await import("@earendil-works/pi-coding-agent");
-  const approvedExtensions = (await discoverAvailableExtensions({ projectPath: opts.cwd }))
-    .filter((item) => item.approved && item.enabledInPi && !!item.fingerprint)
-    .map((item) => item.path);
+  const approvedExtensions = normalizePermissionMode(opts.permissionMode) === "full"
+    ? (await discoverAvailableExtensions({ projectPath: opts.cwd }))
+      .filter((item) => item.approved && item.enabledInPi && !!item.fingerprint)
+      .map((item) => item.path)
+    : [];
   const installedPackages = await new sdk.DefaultPackageManager({
     cwd: opts.cwd, agentDir: opts.agentDir, settingsManager: settingsMgr,
   }).resolve(async () => "skip");
@@ -128,6 +135,9 @@ async function buildSession(
     factory(pi) {
       pi.on("tool_call", async (event, ctx) => {
         if (ownToolNames.has(event.toolName) || !opts.canUseTool) return;
+        if (normalizePermissionMode(opts.getPermissionMode?.() ?? opts.permissionMode) !== "full") {
+          return { block: true, reason: "Pi 扩展工具仅在完全访问模式可用" };
+        }
         const decision = await opts.canUseTool(event.toolName, event.input, {
           signal: ctx.signal ?? new AbortController().signal,
           toolUseID: event.toolCallId,
@@ -169,6 +179,7 @@ async function buildSession(
     }),
   });
   for (const extensionPath of approvedExtensions) recordPiExtensionError(extensionPath);
+  await clearPiExtensionCache();
   await guardedLoader.reload();
   for (const extension of guardedLoader.getExtensions().extensions) {
     recordPiExtensionStats(extension.resolvedPath, extension.tools.size, extension.commands.size);
@@ -194,7 +205,7 @@ async function buildSession(
   const { session } = await createAgentSession(sessionOpts);
   await session.bindExtensions({
     mode: "rpc",
-    uiContext: createPiExtensionUi(),
+    uiContext: createPiExtensionUi(opts.cwd),
     onError: (error) => {
       recordPiExtensionError(error.extensionPath, error.error);
       opts.onExtensionError?.(error);
