@@ -9,6 +9,10 @@ interface SessionStats {
   totalMessages: number;
   tokens: { input: number; output: number; cacheRead: number; cacheWrite: number; total: number };
   cost: number;
+  /** 未折算的高峰价合计（仅当发生了空闲时段折算时给出） */
+  costPeak?: number;
+  /** 费用口径：分时段计价的会话（DeepSeek）才有值，供界面标注 */
+  costBasis?: "deepseek-offpeak" | "deepseek-peak";
   contextUsage?: { percent: number; tokens: number; contextWindow: number };
   /** 当前模型(判断 cost 币种:DeepSeek=¥, 其他=$) */
   model?: string;
@@ -45,6 +49,11 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
     return `¥${(c * USD_CNY_RATE).toFixed(4)}`;
   };
   const fmtPct = (p: number) => p > 0 ? `${p.toFixed(2)}%` : "<0.01%";
+  // 费用口径说明：DeepSeek 分时段计价，法定节假日无本地数据源，按高峰近似
+  const costBasisTitle = stats?.costBasis
+    ? `${stats.costBasis === "deepseek-offpeak" && stats.costPeak ? `未折算的高峰价：${fmtCost(stats.costPeak)}。` : ""}`
+      + "DeepSeek 高峰时段为工作日 09:00–12:00、14:00–18:00（北京时间），其余时段（含周末）按半价计费；法定节假日按高峰估算，实际账单可能更低。最终以官方账单为准。"
+    : "";
 
   return (
     <Modal overlayClassName="bg-black/40" onClose={onClose}>
@@ -110,6 +119,12 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
               <span className="text-text-secondary">估算费用</span>
               <span className="text-accent font-medium text-sm tabular-nums">{fmtCost(stats.cost)}</span>
             </div>
+
+            {stats.costBasis && (
+              <div className="mt-1 text-right text-[length:var(--text-2xs)] text-text-muted" title={costBasisTitle}>
+                {stats.costBasis === "deepseek-offpeak" ? "已按 DeepSeek 空闲时段折算" : "按 DeepSeek 高峰价估算"}
+              </div>
+            )}
 
             {balance !== null && (
               <div className="border-t border-border pt-3 flex justify-between items-center">

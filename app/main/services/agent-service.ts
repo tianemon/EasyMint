@@ -23,6 +23,7 @@ import { createWithPermissionGate, withSessionCreationLock } from "./session-per
 import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
 import { ensureDesignerTemplates } from "./designer-seed";
+import { adjustCostForTimePricing, summarizeTimePricing, type AdjustedCost, type PricingEntry } from "./provider-pricing";
 import { createSkillTool, createManageSkillTool } from "./tools/skill-tool";
 import { createLearnTool, createSearchExperiencesTool } from "./tools/learn-tool";
 import { createRetireExperiencesTool } from "./tools/experience-tool";
@@ -2548,11 +2549,13 @@ export class AgentService {
     if (chat?.session) {
       try {
         const stats = chat.session.getSessionStats();
+        const adjusted = await this.adjustCostForSession(stats.cost, stats.sessionFile, projectPath);
         return {
           sessionId: stats.sessionId, sessionFile: stats.sessionFile,
           userMessages: stats.userMessages, assistantMessages: stats.assistantMessages,
           toolCalls: stats.toolCalls, totalMessages: stats.totalMessages,
-          tokens: stats.tokens, cost: stats.cost, contextUsage: stats.contextUsage,
+          tokens: stats.tokens, cost: adjusted.cost, costPeak: adjusted.costPeak, costBasis: adjusted.costBasis,
+          contextUsage: stats.contextUsage,
           // 当前模型(前端按 provider 判断 cost 币种:DeepSeek=¥, 其他=$)
           model: chat.currentModel ?? undefined,
         };
@@ -2607,11 +2610,32 @@ export class AgentService {
         sessionId, sessionFile: info.path,
         userMessages, assistantMessages, toolCalls, totalMessages,
         tokens: { input: inputTokens, output: outputTokens, cacheRead, cacheWrite, total: inputTokens + outputTokens + cacheRead + cacheWrite },
-        cost: costUsd,
+        ...(() => {
+          // 时段定价折算（DeepSeek 空闲时段半价）：用同一批 entries，不再重复读文件
+          const adjusted = adjustCostForTimePricing(costUsd, summarizeTimePricing(entries as PricingEntry[]));
+          return { cost: adjusted.cost, costPeak: adjusted.costPeak, costBasis: adjusted.costBasis };
+        })(),
       };
     } catch (e) {
       console.error("[agent] getSessionStats disk read failed:", e);
       return null;
+    }
+  }
+
+  /** 读会话 transcript 并把费用按时段定价折算（DeepSeek 空闲时段半价）；读不到时原样返回 */
+  private async adjustCostForSession(costUsd: number, sessionFile: string | undefined, projectPath: string | undefined): Promise<AdjustedCost> {
+    if (!sessionFile || !projectPath || costUsd <= 0) return { cost: costUsd };
+    try {
+      const { getSessionManagerClass } = await import("./pi-sdk");
+      const { getPiSessionDir } = await import("./pi-session");
+      const resolved = path.resolve(resolveHome(projectPath));
+      const SM = await getSessionManagerClass();
+      const mgr = SM.open(sessionFile, getPiSessionDir(resolved), resolved);
+      return adjustCostForTimePricing(costUsd, summarizeTimePricing(mgr.getEntries() as PricingEntry[]));
+    } catch (error) {
+      // 兜底：折算失败就按 SDK 原值显示（费用估算不该因折算报错而消失）
+      console.error("[agent] 时段定价折算失败，按原值显示:", error instanceof Error ? error.message : String(error));
+      return { cost: costUsd };
     }
   }
 
