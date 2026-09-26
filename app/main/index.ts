@@ -14,6 +14,7 @@ import {
   getUpdateCacheSize,
   openUpdateCacheDir,
 } from "./services/auto-updater";
+import { readWindowState, trackWindowState, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH } from "./services/window-state";
 
 // 统一配置目录：所有 Pi SDK 和 EM 数据都在 ~/.easymint/ 下
 // agentDir 用 ~/.easymint/agent（严格对应 Pi 默认的 ~/.pi/agent 层级，不再有 pi/pi-agent 子目录）
@@ -141,12 +142,16 @@ function watchRendererGone(window: BrowserWindow): void {
   });
 }
 
-export async function createWindow(hash?: string, _isMain = false): Promise<BrowserWindow> {
+export async function createWindow(hash?: string, isMain = false): Promise<BrowserWindow> {
+  // 主窗口恢复上次的几何状态；其它窗口（Cmd+N / 打开项目到新窗口）不恢复——同一份记录被多窗口
+  // 共用会互相覆盖，且新窗口叠在主窗口上不如默认尺寸顺手。
+  const saved = isMain ? readWindowState() : null;
   const window = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 1024,
-    minHeight: 700,
+    width: saved?.width ?? 1400,
+    height: saved?.height ?? 900,
+    ...(saved ? { x: saved.x, y: saved.y } : {}),
+    minWidth: WINDOW_MIN_WIDTH,
+    minHeight: WINDOW_MIN_HEIGHT,
     titleBarStyle: "hiddenInset",
     // Windows：隐藏系统标题栏（保留窗口框架/Snap/缩放），窗口按钮由 renderer 自绘（WindowControls）
     ...(process.platform === "win32" ? { titleBarStyle: "hidden" as const } : {}),
@@ -165,9 +170,13 @@ export async function createWindow(hash?: string, _isMain = false): Promise<Brow
     },
   });
   watchProjectWindow(window);
+  if (isMain) trackWindowState(window);
 
-  // macOS：启动即铺满可用屏幕（非全屏，保留菜单栏/Dock）——避免固定 1400×900 在小屏上呈「满高不满宽」
-  if (process.platform === "darwin") {
+  // 有记录 ⇒ 恢复用户上次的状态（是否最大化照旧）；无记录 ⇒ 保持 macOS 既有的「启动即铺满可用屏幕」
+  // 默认（非全屏，保留菜单栏/Dock）——避免固定 1400×900 在小屏上呈「满高不满宽」
+  if (saved) {
+    if (saved.maximized) window.maximize();
+  } else if (process.platform === "darwin") {
     window.maximize();
   }
 
@@ -528,7 +537,8 @@ process.on("uncaughtException", (err) => reportGlobalErr("uncaughtException", er
 process.on("unhandledRejection", (reason) => reportGlobalErr("unhandledRejection", reason));
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  // 关光窗口后从 Dock 重开：按主窗口处理，恢复上次的几何状态
+  if (BrowserWindow.getAllWindows().length === 0) createWindow(undefined, true);
 });
 
 // ── Multi-window IPC ──
