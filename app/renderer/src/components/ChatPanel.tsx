@@ -731,6 +731,21 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     markUserInput();
   }, [markUserInput]);
 
+  // 按住指针期间暂停贴底（理由见下方 anchorTo）：必须用 state 而非 ref——库在每次渲染时
+  // 应用 options，ref 变化不会触发重渲染，anchorTo 就换不过来
+  const [holdPointer, setHoldPointer] = useState(false);
+  const handlePointerDown = useCallback(() => {
+    setHoldPointer(true);
+    // 松手可能落在容器外（拖动到窗口边缘），所以挂在 window 上而非容器事件
+    const release = (): void => {
+      setHoldPointer(false);
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+    };
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+  }, []);
+
   // 消息列表虚拟化：只渲染可视区 ± overscan 的消息，长对话时 DOM 从数千节点降到 ~30
   // HMR 防御：容器元素用 state 驱动（而非 ref）——DOM 重建时 ref 回调触发 setState，
   // 强制重渲染让 virtualizer 的 _willUpdate 检测到 scrollElement 变化并重新绑定 observer
@@ -771,7 +786,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     // 正规手段(替代手写贴底链):anchorTo: "end" 是库原生聊天列表机制——
     // 用户在底部时内容测量变化(流式增长)自动保持贴底;用户滚动离开自动停止跟随。
     // scrollToIndex 的 scrollState 在测量变化时持续校正对齐直到稳定(官方处理估算→实测)
-    anchorTo: "end",
+    //
+    // 按住指针期间暂停贴底：流式时持续贴底会把指针下的内容顶走，按下与松手之间指针下的
+    // 元素换掉后浏览器就不再派发 click（气泡里的图片/文件链接、折叠箭头、复制按钮都点不动，
+    // 用户 2026-09-23 反馈）。暂停后内容改为在下方增长，指针下的元素不动；松手即恢复。
+    anchorTo: holdPointer ? undefined : "end",
     // measureElement 在 React commit 阶段触发 onChange，默认的 flushSync 会
     // 报 "flushSync was called from inside a lifecycle method"——改走普通调度
     useFlushSync: false,
@@ -2752,6 +2771,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         onTouchStart={handleUserInput}
         onTouchMove={handleUserInput}
         onMouseDown={handleUserInput}
+        onPointerDown={handlePointerDown}
         className="chat-messages flex-1 overflow-y-auto overflow-x-hidden pb-2"
         style={{ fontSize: "var(--text-body)" }}
       >
