@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Modal } from "./ui/Modal";
 import { formatTokenWindow } from "../lib/token-format";
+import { costFormula, formatCostCny } from "@shared/usd-cny-rate";
 
 interface SessionStats {
   userMessages: number;
@@ -41,13 +42,9 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
   }, [sessionId, projectPath]);
 
   const fmtTokens = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
-  // Pi 的 usage.cost 统一为美元(模型定价 $/M token × tokens)——不再按模型名猜币种。
-  // 汇率:USD→CNY 央行中间价(2026-08-10 为 6.7884),显示层统一换算为 ¥。
-  const USD_CNY_RATE = 6.7884;
-  const fmtCost = (c: number) => {
-    if (c <= 0) return "—";
-    return `¥${(c * USD_CNY_RATE).toFixed(4)}`;
-  };
+  // 费用显示（两位小数 + ≈）与 USD→CNY 估算换算统一在 @shared/usd-cny-rate——那里写了来源、报价日
+  // 与更新策略；这里不再自己拿汇率
+  const fmtCost = formatCostCny;
   const fmtPct = (p: number) => p > 0 ? `${p.toFixed(2)}%` : "<0.01%";
   // 费用口径说明：DeepSeek 分时段计价（法定节假日取国务院公告的放假日期）
   const costBasisTitle = stats?.costBasis
@@ -117,7 +114,7 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
 
             <div className="border-t border-border pt-3 flex justify-between items-center">
               <span className="text-text-secondary">估算费用</span>
-              <span className="text-accent font-medium text-sm tabular-nums">{fmtCost(stats.cost)}</span>
+              <span className="text-accent font-medium text-sm tabular-nums" title={costFormula(stats.cost)}>{fmtCost(stats.cost)}</span>
             </div>
 
             {stats.costSubagents && stats.costSubagents > 0 ? (
