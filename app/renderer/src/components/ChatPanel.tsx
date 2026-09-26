@@ -2584,6 +2584,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
   // 消息右键菜单：有选区时复制/钉住选区（markdown 还原），无选区时复制/钉住全文
   const handleMsgContextMenu = useCallback((msg: ChatMessage, e: React.MouseEvent) => {
+    // 只有气泡内的右键才出菜单：容器铺满整行，气泡水平方向的空白此前会一并命中（用户 2026-09-26 反馈）。
+    // 判断用 e.target 而非改绑定点——绑定必须留在行容器上，下方「全选」靠 e.currentTarget 找气泡元素。
+    if (!(e.target as HTMLElement).closest(".msg-bubble-user, .msg-bubble-agent, .msg-bubble-system")) return;
     e.preventDefault();
     const container = e.currentTarget as HTMLElement;
     const sel = window.getSelection();
