@@ -16,10 +16,10 @@
  */
 
 /** 人民币对美元中间价（1 USD = ? CNY） */
-export const USD_CNY_RATE = 6.7884;
+export const USD_CNY_RATE = 6.7489;
 
 /** 上面的汇率取自哪一天的中间价——显示层写进算式，便于用户核对 */
-export const USD_CNY_RATE_DATE = "2026-08-10";
+export const USD_CNY_RATE_DATE = "2026-09-24";
 
 /**
  * 估算费用显示：两位小数 + `≈`（不假装精确）；金额不足 1 分钱时给 `<¥0.01`，与弹窗里「命中率」的

@@ -4,7 +4,7 @@ import { costFormula, formatCostCny, USD_CNY_RATE, USD_CNY_RATE_DATE } from "./u
 describe("formatCostCny 估算费用显示", () => {
   it("两位小数 + ≈（不假装精确）", () => {
     expect(formatCostCny(1)).toBe(`≈¥${(1 * USD_CNY_RATE).toFixed(2)}`);
-    expect(formatCostCny(0.4273)).toBe("≈¥2.90");
+    expect(formatCostCny(0.4273)).toBe("≈¥2.88");
   });
 
   it("不足 1 分钱给 <¥0.01，与弹窗里「命中率」的 <0.01% 同风格", () => {
