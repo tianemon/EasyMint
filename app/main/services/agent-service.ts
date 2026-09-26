@@ -19,6 +19,7 @@ import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { getActiveModel } from "./pi-init";
 import { getNativeConfig } from "./native-config";
 import { createPiSession, resumePiSession, listPiSessions, disposePiSession } from "./pi-session";
+import { createWithPermissionGate, withSessionCreationLock } from "./session-permission-gate";
 import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
 import { ensureDesignerTemplates } from "./designer-seed";
@@ -1965,100 +1966,119 @@ export class AgentService {
         this.injectSystemMessage(sid, formatShellResult(shell), "shell", { triggerTurn: true });
       };
 
-      const session: AgentSession = await (async () => {
-        if (resumeSessionId) {
-          const sessions = await listPiSessions(resolvedPath);
-          const info = sessions.find((s) => s.id === resumeSessionId);
-          if (info) {
-            return resumePiSession({
-              cwd: resolvedPath,
-              agentDir: this.getAgentDir(),
-              model: model ? piModel ?? undefined : undefined,
-              thinkingLevel: thinkingLevel as Parameters<typeof resumePiSession>[0]["thinkingLevel"],
-              store: this.store,
-              resumeSessionFile: info.path,
-              systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
-              extraTools,
-              canUseTool,
-              permissionMode: permissionMode ?? readCache(resumeSessionId)?.permissionMode,
-              getPermissionMode: () => readCache(resolveParentSessionId(resumeSessionId))?.permissionMode,
-              onExtensionError: (error) => broadcast("pi-extension:error", error),
-              onShellExit: shellExitInject,
-            });
+      // 会话创建+登记与权限提交共用一把互斥锁（session-permission-gate.withSessionCreationLock）：
+      // await loader.reload() 内部「模块 import → 工厂执行」没有可插入检查的同步点，主防线是把
+      // 「创建+登记」与「切档提交」串行化——创建期间到达的提交排队到登记之后，
+      // schedulePermissionToolRebuild 一定能找到会话安排关闭（waitForIdle 后 killChat，不打断输出），
+      // 不再出现「提交落在 reload 中途、既无法撤销已执行的工厂、关闭安排又落空」的窗口。
+      // buildSession 内的实时门禁与下方 createWithPermissionGate 是锁失效时的纵深防御。
+      const chat = await withSessionCreationLock(async (): Promise<ActiveChat> => {
+        const createSessionWithMode = async (modeForCreation: string | undefined): Promise<AgentSession> => {
+          if (resumeSessionId) {
+            const sessions = await listPiSessions(resolvedPath);
+            const info = sessions.find((s) => s.id === resumeSessionId);
+            if (info) {
+              return resumePiSession({
+                cwd: resolvedPath,
+                agentDir: this.getAgentDir(),
+                model: model ? piModel ?? undefined : undefined,
+                thinkingLevel: thinkingLevel as Parameters<typeof resumePiSession>[0]["thinkingLevel"],
+                store: this.store,
+                resumeSessionFile: info.path,
+                systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
+                extraTools,
+                canUseTool,
+                permissionMode: modeForCreation,
+                getPermissionMode: () => readCache(resolveParentSessionId(resumeSessionId))?.permissionMode,
+                onExtensionError: (error) => broadcast("pi-extension:error", error),
+                onShellExit: shellExitInject,
+              });
+            }
+            console.warn(`[agent] resume NOT found: ${resumeSessionId} (共 ${sessions.length} 个会话)——将新建会话`);
           }
-          console.warn(`[agent] resume NOT found: ${resumeSessionId} (共 ${sessions.length} 个会话)——将新建会话`);
-        }
-        return createPiSession({
-          cwd: resolvedPath,
-          agentDir: this.getAgentDir(),
-          model: piModel ?? undefined,
-          store: this.store,
-          systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
-          extraTools,
-          canUseTool,
-          permissionMode: permissionMode ?? readCache(newSessionId)?.permissionMode,
-          getPermissionMode: () => readCache(resolveParentSessionId(newSessionId))?.permissionMode,
-          onExtensionError: (error) => broadcast("pi-extension:error", error),
-          onShellExit: shellExitInject,
+          return createPiSession({
+            cwd: resolvedPath,
+            agentDir: this.getAgentDir(),
+            model: piModel ?? undefined,
+            store: this.store,
+            systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
+            extraTools,
+            canUseTool,
+            permissionMode: modeForCreation,
+            getPermissionMode: () => readCache(resolveParentSessionId(newSessionId))?.permissionMode,
+            onExtensionError: (error) => broadcast("pi-extension:error", error),
+            onShellExit: shellExitInject,
+          });
+        };
+        // 创建期间权限收紧的纵深防御（正常时序下提交已被锁推迟到登记之后）：
+        // 若锁外路径（或未来回归）让 standard 在创建中生效，登记前复核并按收紧后的模式重建。
+        const session: AgentSession = await createWithPermissionGate<AgentSession>({
+          initialMode: permissionMode ?? readCache(resumeSessionId ?? newSessionId)?.permissionMode,
+          readLiveMode: () => readCache(resumeSessionId ?? newSessionId)?.permissionMode,
+          create: createSessionWithMode,
+          dispose: (stale) => disposePiSession(stale),
+          onStale: () => console.warn(`[agent] 会话创建期间权限从完全访问收紧，弃用已建会话重建 ${resumeSessionId ?? newSessionId}`),
         });
-      })();
-      ensureMcpBrokerActive(session);
+        ensureMcpBrokerActive(session);
 
-      // 注册临时 ID → 真实 ID 映射：task 委派创建时解析,按真实 ID 建子会话目录
-      if (!resumeSessionId) {
-        registerSessionIdMapping(newSessionId, session.sessionId);
-        // 会话缓存迁移：首条消息前 sendMessage 把权限模式/思考等级落盘在临时 key（newSessionId），
-        // 而 canUseTool 解析到真实 sid 后、前端补写前读的是真实 key——这里同步迁移，消除竞态窗口
-        const tmp = readCache(newSessionId);
-        if (tmp) {
-          const migrate: Record<string, unknown> = {};
-          if (tmp.permissionMode !== undefined) migrate.permissionMode = tmp.permissionMode;
-          if (tmp.thinkingLevel !== undefined) migrate.thinkingLevel = tmp.thinkingLevel;
-          if (Object.keys(migrate).length > 0) writeCache(session.sessionId, migrate);
+        // 注册临时 ID → 真实 ID 映射：task 委派创建时解析,按真实 ID 建子会话目录
+        if (!resumeSessionId) {
+          registerSessionIdMapping(newSessionId, session.sessionId);
+          // 会话缓存迁移：首条消息前 sendMessage 把权限模式/思考等级落盘在临时 key（newSessionId），
+          // 而 canUseTool 解析到真实 sid 后、前端补写前读的是真实 key——这里同步迁移，消除竞态窗口
+          const tmp = readCache(newSessionId);
+          if (tmp) {
+            const migrate: Record<string, unknown> = {};
+            if (tmp.permissionMode !== undefined) migrate.permissionMode = tmp.permissionMode;
+            if (tmp.thinkingLevel !== undefined) migrate.thinkingLevel = tmp.thinkingLevel;
+            if (Object.keys(migrate).length > 0) writeCache(session.sessionId, migrate);
+          }
         }
-      }
 
-      const chat: ActiveChat = {
-        chatId,
-        sessionId: resumeSessionId ?? session.sessionId,
-        tempSessionId: resumeSessionId ? undefined : newSessionId,
-        session,
-        abortController: new AbortController(),
-        projectPath: resolvedPath,
-        agentType: undefined,
-        // 系统消息(custom payload)作为首条时,用 kind 中文标签作标题——
-        // SDK 的 buildSessionInfo 过滤 custom 角色消息,不兜底会显示 "(no messages)"
-        firstUserMessage: systemPayload
-          ? (SYSTEM_KIND_TITLES[systemPayload.details.kind as string] ?? "系统消息")
-          : message,
-        assistantUuid: randomUUID(),
-        eventBuffer: [],
-        compactCount: 0,
-        // 会话绑定供应商（缺省用全局当前），供「按模型思考等级」查表
-        provider: session.model?.provider,
-        currentModel: session.model?.id,
-        toolCallCount: 0,
-        learnErrorSeen: false,
-        learnFixAfterError: false,
-        learnErrorText: "",
-        learnSuggestDone: false,
-        learnToolInstalled: learnInstalled,
-      };
-      // learn 去重标记从磁盘恢复（重启后同一会话不重复提示/建议，防重复沉淀）
-      const learnState = loadLearnStates()[chat.sessionId];
-      if (learnState) {
-        chat.learnSuggestDone = !!learnState.suggestDone;
-      }
-
-      if (isDesigner) {
-        chat.agentType = "designer";
-        if (resolvedPath) {
-          // 种子模板/品牌库播种（与委派 designer 子 Agent 的入口共用同一函数）
-          ensureDesignerTemplates(resolvedPath);
+        const created: ActiveChat = {
+          chatId,
+          sessionId: resumeSessionId ?? session.sessionId,
+          tempSessionId: resumeSessionId ? undefined : newSessionId,
+          session,
+          abortController: new AbortController(),
+          projectPath: resolvedPath,
+          agentType: undefined,
+          // 系统消息(custom payload)作为首条时,用 kind 中文标签作标题——
+          // SDK 的 buildSessionInfo 过滤 custom 角色消息,不兜底会显示 "(no messages)"
+          firstUserMessage: systemPayload
+            ? (SYSTEM_KIND_TITLES[systemPayload.details.kind as string] ?? "系统消息")
+            : message,
+          assistantUuid: randomUUID(),
+          eventBuffer: [],
+          compactCount: 0,
+          // 会话绑定供应商（缺省用全局当前），供「按模型思考等级」查表
+          provider: session.model?.provider,
+          currentModel: session.model?.id,
+          toolCallCount: 0,
+          learnErrorSeen: false,
+          learnFixAfterError: false,
+          learnErrorText: "",
+          learnSuggestDone: false,
+          learnToolInstalled: learnInstalled,
+        };
+        // learn 去重标记从磁盘恢复（重启后同一会话不重复提示/建议，防重复沉淀）
+        const learnState = loadLearnStates()[created.sessionId];
+        if (learnState) {
+          created.learnSuggestDone = !!learnState.suggestDone;
         }
-      }
 
-      this.activeChats.set(chatId, chat);
+        if (isDesigner) {
+          created.agentType = "designer";
+          if (resolvedPath) {
+            // 种子模板/品牌库播种（与委派 designer 子 Agent 的入口共用同一函数）
+            ensureDesignerTemplates(resolvedPath);
+          }
+        }
+
+        this.activeChats.set(chatId, created);
+        return created;
+      });
+      const session = chat.session as AgentSession; // 锁内刚创建并登记，必不为空
 
       // 旧版会话可能没有 EM 缓存。以 SDK 从 JSONL 恢复出的真值补建缓存，之后 UI 才能
       // 显示并显式传递会话选择；首次恢复绝不能先用全局默认覆盖这两个值。

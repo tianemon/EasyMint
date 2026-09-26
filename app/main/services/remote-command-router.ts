@@ -10,6 +10,7 @@ import { backgroundShellRegistry } from "./background-shell/registry";
 import { getOwnedSessionIds, getRunningSummary } from "./task/registry";
 import { broadcast } from "./ipc-broadcast";
 import { isPermissionModeTightening, normalizePermissionMode } from "./permission/execution-context";
+import { withSessionCreationLock } from "./session-permission-gate";
 import {
   archiveSession,
   getSessionInfo,
@@ -219,15 +220,19 @@ export class RemoteCommandRouter {
     const sessionId = requireSessionId(command);
     await this.coordinator.requireSession(projectId, sessionId);
     const mode = permissionSchema.parse(dataObject(command).mode);
-    const previous = readCache(sessionId)?.permissionMode;
-    writeCache(sessionId, { permissionMode: mode });
-    if (isPermissionModeTightening(previous, mode)) await this.agentService.revokeElevatedExecution(sessionId);
-    if (previous !== undefined && normalizePermissionMode(previous) === "readonly" && mode !== "readonly") {
-      this.agentService.schedulePermissionToolRebuild(sessionId);
-    }
-    broadcast("agent:permission-mode-changed", { sessionId, mode });
-    broadcast("agent:remote-settings-changed", { sessionId, permissionMode: mode, revision: readCache(sessionId)?.updatedAt });
-    return { ok: true };
+    // 与桌面端 session-cache:write 同一把会话创建互斥锁：切档提交与「创建+登记」串行化，
+    // 创建期间到达的提交排队到登记之后，关闭安排不落空（见 session-permission-gate 注释）
+    return withSessionCreationLock(async () => {
+      const previous = readCache(sessionId)?.permissionMode;
+      writeCache(sessionId, { permissionMode: mode });
+      if (isPermissionModeTightening(previous, mode)) await this.agentService.revokeElevatedExecution(sessionId);
+      if (previous !== undefined && normalizePermissionMode(previous) === "readonly" && mode !== "readonly") {
+        this.agentService.schedulePermissionToolRebuild(sessionId);
+      }
+      broadcast("agent:permission-mode-changed", { sessionId, mode });
+      broadcast("agent:remote-settings-changed", { sessionId, permissionMode: mode, revision: readCache(sessionId)?.updatedAt });
+      return { ok: true as const };
+    });
   }
 
   private async answerAsk(command: RemoteCommandEnvelope): Promise<{ ok: true }> {

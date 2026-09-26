@@ -79,7 +79,13 @@ async function buildSession(
   const DRL = await getDefaultResourceLoaderClass();
   const createTools = await getCreateCodingTools();
   const sdk = await import("@earendil-works/pi-coding-agent");
-  const approvedExtensions = normalizePermissionMode(opts.permissionMode) === "full"
+  // 实时权限门（纵深防御）：主防线是 agent-service 的 withSessionCreationLock——切档提交与
+  // 「创建+登记」串行化，提交不会落在 reload 中途。锁外路径或未来回归下，这里在创建期异步
+  // 边界复核实时模式：standard 一旦正式提交，后续边界不再把扩展交给 loader / bindExtensions。
+  // 注意 await reload() 是单个 await，其内部「import → 工厂执行」无法插入检查——那个窗口
+  // 只能靠锁的串行化消除，不是本门禁的能力范围。
+  const liveMode = () => normalizePermissionMode(opts.getPermissionMode?.() ?? opts.permissionMode);
+  const approvedExtensions = liveMode() === "full"
     ? (await discoverAvailableExtensions({ projectPath: opts.cwd }))
       .filter((item) => item.approved && item.enabledInPi && !!item.fingerprint)
       .map((item) => item.path)
@@ -162,12 +168,14 @@ async function buildSession(
   }, { projectTrusted: true });
   // 扩展工具不经 customTools 权限包装；此钩子在外部扩展事件处理器之后检查最终参数。
   // noExtensions 阻止 SDK 默认路径在授权前执行，只有显式列出的已授权入口会加载。
+  // loader 构造前最后一次复核实时模式：若创建期间已切离 full，本会话不加载任何扩展。
+  const extensionPaths = liveMode() === "full" ? approvedExtensions : [];
   const guardedLoader = new DRL({
     cwd: opts.cwd,
     agentDir: opts.agentDir,
     settingsManager: resourceSettings,
     noExtensions: true,
-    additionalExtensionPaths: approvedExtensions,
+    additionalExtensionPaths: extensionPaths,
     additionalSkillPaths: packagePaths(installedPackages.skills),
     additionalPromptTemplatePaths: packagePaths(installedPackages.prompts),
     additionalThemePaths: packagePaths(installedPackages.themes),
@@ -178,7 +186,7 @@ async function buildSession(
       diagnostics: base.diagnostics,
     }),
   });
-  for (const extensionPath of approvedExtensions) recordPiExtensionError(extensionPath);
+  for (const extensionPath of extensionPaths) recordPiExtensionError(extensionPath);
   await clearPiExtensionCache();
   await guardedLoader.reload();
   for (const extension of guardedLoader.getExtensions().extensions) {
@@ -203,15 +211,19 @@ async function buildSession(
   };
 
   const { session } = await createAgentSession(sessionOpts);
-  await session.bindExtensions({
-    mode: "rpc",
-    uiContext: createPiExtensionUi(opts.cwd),
-    onError: (error) => {
-      recordPiExtensionError(error.extensionPath, error.error);
-      opts.onExtensionError?.(error);
-      console.error(`[pi-extension] ${error.extensionPath} ${error.event}: ${error.error}`);
-    },
-  });
+  // reload 期间切档的兜底：工厂已在 reload 中执行（单个 await 内无法抢占），但不再把
+  // 扩展事件与 UI 绑定进会话；调用方（agent-service 的创建门禁）会弃用此会话按收紧后的模式重建。
+  if (extensionPaths.length === 0 || liveMode() === "full") {
+    await session.bindExtensions({
+      mode: "rpc",
+      uiContext: createPiExtensionUi(opts.cwd),
+      onError: (error) => {
+        recordPiExtensionError(error.extensionPath, error.error);
+        opts.onExtensionError?.(error);
+        console.error(`[pi-extension] ${error.extensionPath} ${error.event}: ${error.error}`);
+      },
+    });
+  }
   return session;
 }
 

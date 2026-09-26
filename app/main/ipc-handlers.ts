@@ -89,6 +89,7 @@ import { listIssues, addIssue, setStatus, updateIssue, deleteIssue } from "./ser
 import { getPins, setPins } from "./services/pin-service";
 import type { IssueStatus } from "./services/issue-service";
 import { isPermissionModeTightening, normalizePermissionMode } from "./services/permission/execution-context";
+import { withSessionCreationLock } from "./services/session-permission-gate";
 import { detectRunnable, startProcess, stopProcess, restartProcess, getStatus, getRunningIds, checkPort, killPort, ensureRunJsonWatch, saveRunJson } from "./services/process-service";
 import { networkService } from "./services/network-service";
 import { migrationService, readIgnoreFileRaw, saveIgnoreFileRaw, DEFAULT_IGNORE_CONTENT } from "./services/migration-service";
@@ -598,22 +599,31 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("pin:set", (_e, { sessionId, pins }) => { setPins(sessionId, pins); });
   ipcMain.handle("session-cache:read", (_e, { sessionId }) => readCache(sessionId));
   ipcMain.handle("session-cache:write", async (_e, { sessionId, data }) => {
-    const previous = readCache(sessionId)?.permissionMode;
+    // 权限模式变更走会话创建互斥锁（session-permission-gate）：与 sendMessage 的「创建+登记」
+    // 串行化——创建期间到达的切档提交排队到会话登记之后，schedulePermissionToolRebuild
+    // 不再因「会话尚未登记」落空；reload 内已开始的扩展加载按提交前的模式完成，随后关闭。
+    if (data && typeof data === "object" && !Array.isArray(data) && (data as { permissionMode?: unknown }).permissionMode !== undefined) {
+      await withSessionCreationLock(async () => {
+        const previous = readCache(sessionId)?.permissionMode;
+        writeCache(sessionId, data);
+        // 任何权限收紧（full → standard/readonly、standard → readonly）都要撤销旧执行上下文；
+        // 只写其它字段（不发 permissionMode）时不动。
+        const next = (data as { permissionMode?: unknown }).permissionMode as string | undefined;
+        if (isPermissionModeTightening(previous, next)) {
+          await agentService.revokeElevatedExecution(sessionId);
+        }
+        const closingFull = next !== undefined && normalizePermissionMode(previous) === "full" && normalizePermissionMode(next) !== "full";
+        // 只读会话没有预连接 MCP；放宽后下一条消息前重建工具集，用户无需手动重开会话。
+        if (closingFull || next !== undefined && (
+          normalizePermissionMode(previous) === "readonly" && normalizePermissionMode(next) !== "readonly" ||
+          normalizePermissionMode(previous) !== "full" && normalizePermissionMode(next) === "full"
+        )) {
+          agentService.schedulePermissionToolRebuild(sessionId, closingFull);
+        }
+      });
+      return;
+    }
     writeCache(sessionId, data);
-    // 任何权限收紧（full → standard/readonly、standard → readonly）都要撤销旧执行上下文；
-    // 只写其它字段（不发 permissionMode）时不动。
-    const next = data?.permissionMode;
-    if (isPermissionModeTightening(previous, next)) {
-      await agentService.revokeElevatedExecution(sessionId);
-    }
-    const closingFull = next !== undefined && normalizePermissionMode(previous) === "full" && normalizePermissionMode(next) !== "full";
-    // 只读会话没有预连接 MCP；放宽后下一条消息前重建工具集，用户无需手动重开会话。
-    if (closingFull || next !== undefined && (
-      normalizePermissionMode(previous) === "readonly" && normalizePermissionMode(next) !== "readonly" ||
-      normalizePermissionMode(previous) !== "full" && normalizePermissionMode(next) === "full"
-    )) {
-      agentService.schedulePermissionToolRebuild(sessionId, closingFull);
-    }
   });
   ipcMain.handle("session-cache:delete", (_e, { sessionId }) => { deleteCache(sessionId); });
 
