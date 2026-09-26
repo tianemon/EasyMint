@@ -13,6 +13,8 @@ interface SessionStats {
   costPeak?: number;
   /** 费用口径：分时段计价的会话（DeepSeek）才有值，供界面标注 */
   costBasis?: "deepseek-offpeak" | "deepseek-peak";
+  /** 费用里属于委派子 Agent 的部分（同样已按时段折算） */
+  costSubagents?: number;
   contextUsage?: { percent: number; tokens: number; contextWindow: number };
 }
 
@@ -117,6 +119,12 @@ export function SessionStatsPopup({ sessionId, projectPath, onClose, onCompress 
               <span className="text-text-secondary">估算费用</span>
               <span className="text-accent font-medium text-sm tabular-nums">{fmtCost(stats.cost)}</span>
             </div>
+
+            {stats.costSubagents && stats.costSubagents > 0 ? (
+              <div className="mt-1 text-right text-[length:var(--text-2xs)] text-text-muted">
+                其中委派子 Agent {fmtCost(stats.costSubagents)}
+              </div>
+            ) : null}
 
             {stats.costBasis && (
               <div className="mt-1 text-right text-[length:var(--text-2xs)] text-text-muted" title={costBasisTitle}>

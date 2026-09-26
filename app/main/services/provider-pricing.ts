@@ -74,6 +74,33 @@ export function offPeakFactor(provider: string | undefined): number {
   return provider === "deepseek" ? 0.5 : 1;
 }
 
+/** usage 的聚合值（与 SDK 的 usage-totals 同口径） */
+export interface UsageTotals {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  costUsd: number;
+}
+
+/** 累加条目里的 token 与费用（费用用条目里已算好的 usage.cost.total） */
+export function sumUsage(entries: Iterable<PricingEntry>): UsageTotals {
+  const totals: UsageTotals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0 };
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object") continue;
+    const usage = (entry.type === "message" ? entry.message?.usage : entry.usage) as
+      | { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; cost?: { total?: number } }
+      | undefined;
+    if (!usage) continue;
+    totals.input += usage.input ?? 0;
+    totals.output += usage.output ?? 0;
+    totals.cacheRead += usage.cacheRead ?? 0;
+    totals.cacheWrite += usage.cacheWrite ?? 0;
+    if (usage.cost?.total) totals.costUsd += usage.cost.total;
+  }
+  return totals;
+}
+
 /**
  * 遍历 transcript 条目，按每轮的时间戳累计「高峰价合计」与「时段折算后合计」。
  * 逐轮计价用条目里已算好的 `usage.cost.total`（SDK 写的），本模块不重算单价。
@@ -119,6 +146,8 @@ export interface AdjustedCost {
   costPeak?: number;
   /** 费用口径（供界面标注）；无时段定价的会话为 undefined */
   costBasis?: "deepseek-offpeak" | "deepseek-peak";
+  /** 实际用的时段系数（0.5~1）；供调用方把各部分拆开如实展示 */
+  ratio?: number;
 }
 
 /**
@@ -128,7 +157,7 @@ export interface AdjustedCost {
  */
 export function adjustCostForTimePricing(costUsd: number, summary: TimePricingSummary | null): AdjustedCost {
   if (!summary || !summary.hasTimeBasedTurns || summary.peakUsd <= 0) return { cost: costUsd };
-  if (!summary.hasOffPeakTurns) return { cost: costUsd, costBasis: "deepseek-peak" };
+  if (!summary.hasOffPeakTurns) return { cost: costUsd, costBasis: "deepseek-peak", ratio: 1 };
   const ratio = summary.adjustedUsd / summary.peakUsd;
-  return { cost: costUsd * ratio, costPeak: costUsd, costBasis: "deepseek-offpeak" };
+  return { cost: costUsd * ratio, costPeak: costUsd, costBasis: "deepseek-offpeak", ratio };
 }

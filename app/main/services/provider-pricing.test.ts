@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adjustCostForTimePricing, isDeepSeekOffPeak, summarizeTimePricing, type PricingEntry } from "./provider-pricing";
+import { adjustCostForTimePricing, isDeepSeekOffPeak, sumUsage, summarizeTimePricing, type PricingEntry } from "./provider-pricing";
 
 /** 造一个带时间戳的 assistant 消息条目 */
 function turn(iso: string, cost: number, provider?: string): PricingEntry {
@@ -63,7 +63,7 @@ describe("summarizeTimePricing 逐轮折算", () => {
     expect(summary.peakUsd).toBe(10);
     expect(summary.adjustedUsd).toBe(5);
     expect(summary.hasOffPeakTurns).toBe(true);
-    expect(adjustCostForTimePricing(10, summary)).toEqual({ cost: 5, costPeak: 10, costBasis: "deepseek-offpeak" });
+    expect(adjustCostForTimePricing(10, summary)).toEqual({ cost: 5, costPeak: 10, costBasis: "deepseek-offpeak", ratio: 0.5 });
   });
 
   it("跨过 18:00（北京）边界 → 按各自时段分别计，比例介于 0.5 与 1 之间", () => {
@@ -86,7 +86,7 @@ describe("summarizeTimePricing 逐轮折算", () => {
     ];
     const summary = summarizeTimePricing(entries)!;
     expect(summary.hasOffPeakTurns).toBe(false);
-    expect(adjustCostForTimePricing(5, summary)).toEqual({ cost: 5, costBasis: "deepseek-peak" });
+    expect(adjustCostForTimePricing(5, summary)).toEqual({ cost: 5, costBasis: "deepseek-peak", ratio: 1 });
   });
 
   it("法定节假日当天全部按空闲计（中秋 2026-09-25 是周五，落在高峰窗口内也折算）", () => {
@@ -160,5 +160,22 @@ describe("summarizeTimePricing 逐轮折算", () => {
 
   it("summary 为 null 时原样返回（读不到 transcript 的兜底）", () => {
     expect(adjustCostForTimePricing(2.5, null)).toEqual({ cost: 2.5 });
+  });
+});
+
+describe("sumUsage 用量汇总", () => {
+  it("把消息、usage 条目、压缩摘要的 token 与费用一并累加", () => {
+    const totals = sumUsage([
+      { type: "message", message: { role: "assistant", usage: { input: 100, output: 20, cacheRead: 900, cacheWrite: 0, cost: { total: 0.5 } } } } as PricingEntry,
+      { type: "usage", usage: { input: 10, output: 0, cacheRead: 0, cacheWrite: 0, cost: { total: 0.01 } } } as PricingEntry,
+      { type: "compaction", usage: { input: 500, output: 30, cacheRead: 0, cacheWrite: 0, cost: { total: 0.2 } } } as PricingEntry,
+      { type: "label" } as PricingEntry,
+    ]);
+    expect(totals).toEqual({ input: 610, output: 50, cacheRead: 900, cacheWrite: 0, costUsd: 0.71 });
+  });
+
+  it("缺字段按 0 计，不会出现 NaN", () => {
+    const totals = sumUsage([{ type: "message", message: { role: "assistant", usage: {} } } as PricingEntry]);
+    expect(totals).toEqual({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0 });
   });
 });

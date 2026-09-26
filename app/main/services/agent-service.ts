@@ -23,7 +23,7 @@ import { createWithPermissionGate, withSessionCreationLock } from "./session-per
 import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
 import { ensureDesignerTemplates } from "./designer-seed";
-import { adjustCostForTimePricing, summarizeTimePricing, type AdjustedCost, type PricingEntry } from "./provider-pricing";
+import { adjustCostForTimePricing, sumUsage, summarizeTimePricing, type AdjustedCost, type PricingEntry } from "./provider-pricing";
 import { createSkillTool, createManageSkillTool } from "./tools/skill-tool";
 import { createLearnTool, createSearchExperiencesTool } from "./tools/learn-tool";
 import { createRetireExperiencesTool } from "./tools/experience-tool";
@@ -2549,12 +2549,24 @@ export class AgentService {
     if (chat?.session) {
       try {
         const stats = chat.session.getSessionStats();
-        const adjusted = await this.adjustCostForSession(stats.cost, stats.sessionFile, projectPath);
+        // 子 Agent（委派）的调用账单照收但不在主会话 transcript 里，一并汇总（见 readSubagentEntries）
+        const subagentEntries = await this.readSubagentEntries(stats.sessionId, projectPath);
+        const sub = sumUsage(subagentEntries);
+        const costUsd = stats.cost + sub.costUsd;
+        const adjusted = await this.adjustCostForSession(costUsd, stats.sessionFile, projectPath, subagentEntries);
         return {
           sessionId: stats.sessionId, sessionFile: stats.sessionFile,
           userMessages: stats.userMessages, assistantMessages: stats.assistantMessages,
           toolCalls: stats.toolCalls, totalMessages: stats.totalMessages,
-          tokens: stats.tokens, cost: adjusted.cost, costPeak: adjusted.costPeak, costBasis: adjusted.costBasis,
+          tokens: {
+            input: stats.tokens.input + sub.input,
+            output: stats.tokens.output + sub.output,
+            cacheRead: stats.tokens.cacheRead + sub.cacheRead,
+            cacheWrite: stats.tokens.cacheWrite + sub.cacheWrite,
+            total: stats.tokens.total + sub.input + sub.output + sub.cacheRead + sub.cacheWrite,
+          },
+          cost: adjusted.cost, costPeak: adjusted.costPeak, costBasis: adjusted.costBasis,
+          costSubagents: adjusted.ratio ? sub.costUsd * adjusted.ratio : sub.costUsd,
           contextUsage: stats.contextUsage,
         };
       } catch { /* fall through to disk read */ }
@@ -2575,31 +2587,13 @@ export class AgentService {
       const entries = mgr.getEntries();
 
       let userMessages = 0, assistantMessages = 0, toolCalls = 0, totalMessages = 0;
-      let inputTokens = 0, outputTokens = 0, cacheRead = 0, cacheWrite = 0;
-      let costUsd = 0;
 
-      // 计费与 token 口径对齐 SDK 的 getSessionStats（pi-coding-agent 的 agent-session.js +
-      // core/usage-totals.js）：除了消息（assistant / toolResult 都可能带 usage），还含
-      // `usage` 条目（缓存预热等）与压缩/分支摘要的 LLM 调用——否则同一会话「打开时」与
-      // 「关掉重开后」数字不一致（重开后偏小）
-      interface UsageLike { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; cost?: { total?: number } }
-      const addUsage = (usage: UsageLike | undefined): void => {
-        if (!usage) return;
-        inputTokens += usage.input ?? 0;
-        outputTokens += usage.output ?? 0;
-        cacheRead += usage.cacheRead ?? 0;
-        cacheWrite += usage.cacheWrite ?? 0;
-        if (usage.cost?.total) costUsd += usage.cost.total;
-      };
-
+      // 消息计数只看主会话（界面上的「用户消息/AI 回复/工具调用」是主会话的语义）；
+      // token 与费用走 sumUsage（含 usage 条目、压缩/分支摘要与子 Agent），口径对齐 SDK
       for (const entry of entries) {
-        if (entry.type !== "message") {
-          addUsage((entry as { usage?: UsageLike }).usage);
-          continue;
-        }
+        if (entry.type !== "message") continue;
         totalMessages++;
-        const msg = entry.message as unknown as { role?: string; usage?: UsageLike; content?: Array<{ type?: string }> };
-        addUsage(msg.usage);
+        const msg = entry.message as unknown as { role?: string; content?: Array<{ type?: string }> };
         if (msg.role === "user") userMessages++;
         else if (msg.role === "assistant") {
           assistantMessages++;
@@ -2610,12 +2604,21 @@ export class AgentService {
       }
 
       // 时段定价折算（DeepSeek 空闲时段半价）：复用同一批 entries，不再重复读文件
-      const adjusted = adjustCostForTimePricing(costUsd, summarizeTimePricing(entries as PricingEntry[]));
+      const subagentEntries = await this.readSubagentEntries(sessionId, projectPath);
+      const allEntries = [...entries, ...subagentEntries];
+      const usageTotals = sumUsage(allEntries as PricingEntry[]);
+      const adjusted = adjustCostForTimePricing(usageTotals.costUsd, summarizeTimePricing(allEntries as PricingEntry[]));
+      const sub = sumUsage(subagentEntries);
       return {
         sessionId, sessionFile: info.path,
         userMessages, assistantMessages, toolCalls, totalMessages,
-        tokens: { input: inputTokens, output: outputTokens, cacheRead, cacheWrite, total: inputTokens + outputTokens + cacheRead + cacheWrite },
+        tokens: {
+          input: usageTotals.input, output: usageTotals.output,
+          cacheRead: usageTotals.cacheRead, cacheWrite: usageTotals.cacheWrite,
+          total: usageTotals.input + usageTotals.output + usageTotals.cacheRead + usageTotals.cacheWrite,
+        },
         cost: adjusted.cost, costPeak: adjusted.costPeak, costBasis: adjusted.costBasis,
+        costSubagents: adjusted.ratio ? sub.costUsd * adjusted.ratio : sub.costUsd,
       };
     } catch (e) {
       console.error("[agent] getSessionStats disk read failed:", e);
@@ -2623,8 +2626,35 @@ export class AgentService {
     }
   }
 
+  /** 读会话的**子 Agent** transcript（`<会话目录>/<会话ID>/subagents/*.jsonl`）
+   *
+   *  委派出去的子会话是独立 transcript（task/executor.ts 的 runSubagents），其调用同样计入供应商账单，
+   *  但不在主会话里——不汇总它们，弹窗数字会系统性偏低（2026-09-26 用户对比账单时发现）。 */
+  private async readSubagentEntries(sessionId: string, projectPath: string | undefined): Promise<PricingEntry[]> {
+    if (!projectPath) return [];
+    try {
+      const { getSessionManagerClass } = await import("./pi-sdk");
+      const { getPiSessionDir } = await import("./pi-session");
+      const resolved = path.resolve(resolveHome(projectPath));
+      const sessionDir = getPiSessionDir(resolved);
+      const subagentDir = path.join(sessionDir, sessionId, "subagents");
+      if (!fs.existsSync(subagentDir)) return [];
+      const SM = await getSessionManagerClass();
+      const entries: PricingEntry[] = [];
+      for (const name of fs.readdirSync(subagentDir)) {
+        if (!name.endsWith(".jsonl")) continue;
+        entries.push(...(SM.open(path.join(subagentDir, name), sessionDir, resolved).getEntries() as PricingEntry[]));
+      }
+      return entries;
+    } catch (error) {
+      // 兜底：读不到子会话就只统计主会话（宁可偏小，也不能让统计整个失败）
+      console.error("[agent] 子 Agent 会话读取失败，仅统计主会话:", error instanceof Error ? error.message : String(error));
+      return [];
+    }
+  }
+
   /** 读会话 transcript 并把费用按时段定价折算（DeepSeek 空闲时段半价）；读不到时原样返回 */
-  private async adjustCostForSession(costUsd: number, sessionFile: string | undefined, projectPath: string | undefined): Promise<AdjustedCost> {
+  private async adjustCostForSession(costUsd: number, sessionFile: string | undefined, projectPath: string | undefined, extraEntries: PricingEntry[] = []): Promise<AdjustedCost> {
     if (!sessionFile || !projectPath || costUsd <= 0) return { cost: costUsd };
     try {
       const { getSessionManagerClass } = await import("./pi-sdk");
@@ -2632,7 +2662,9 @@ export class AgentService {
       const resolved = path.resolve(resolveHome(projectPath));
       const SM = await getSessionManagerClass();
       const mgr = SM.open(sessionFile, getPiSessionDir(resolved), resolved);
-      return adjustCostForTimePricing(costUsd, summarizeTimePricing(mgr.getEntries() as PricingEntry[]));
+      // 折算比例按「主会话 + 子 Agent」的合并口径算，否则两部分用的时段比例会不一致
+      const entries = [...(mgr.getEntries() as PricingEntry[]), ...extraEntries];
+      return adjustCostForTimePricing(costUsd, summarizeTimePricing(entries));
     } catch (error) {
       // 兜底：折算失败就按 SDK 原值显示（费用估算不该因折算报错而消失）
       console.error("[agent] 时段定价折算失败，按原值显示:", error instanceof Error ? error.message : String(error));
