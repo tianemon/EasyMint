@@ -2556,8 +2556,6 @@ export class AgentService {
           toolCalls: stats.toolCalls, totalMessages: stats.totalMessages,
           tokens: stats.tokens, cost: adjusted.cost, costPeak: adjusted.costPeak, costBasis: adjusted.costBasis,
           contextUsage: stats.contextUsage,
-          // 当前模型(前端按 provider 判断 cost 币种:DeepSeek=¥, 其他=$)
-          model: chat.currentModel ?? undefined,
         };
       } catch { /* fall through to disk read */ }
     }
@@ -2578,30 +2576,35 @@ export class AgentService {
 
       let userMessages = 0, assistantMessages = 0, toolCalls = 0, totalMessages = 0;
       let inputTokens = 0, outputTokens = 0, cacheRead = 0, cacheWrite = 0;
-      // 费用:jsonl 每条 assistant 消息的 usage.cost 是 SDK 按模型定价算好的美元值,直接累加(与活跃分支 stats.cost 单位一致)
       let costUsd = 0;
 
+      // 计费与 token 口径对齐 SDK 的 getSessionStats（pi-coding-agent 的 agent-session.js +
+      // core/usage-totals.js）：除了消息（assistant / toolResult 都可能带 usage），还含
+      // `usage` 条目（缓存预热等）与压缩/分支摘要的 LLM 调用——否则同一会话「打开时」与
+      // 「关掉重开后」数字不一致（重开后偏小）
+      interface UsageLike { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; cost?: { total?: number } }
+      const addUsage = (usage: UsageLike | undefined): void => {
+        if (!usage) return;
+        inputTokens += usage.input ?? 0;
+        outputTokens += usage.output ?? 0;
+        cacheRead += usage.cacheRead ?? 0;
+        cacheWrite += usage.cacheWrite ?? 0;
+        if (usage.cost?.total) costUsd += usage.cost.total;
+      };
+
       for (const entry of entries) {
-        if (entry.type !== "message") continue;
+        if (entry.type !== "message") {
+          addUsage((entry as { usage?: UsageLike }).usage);
+          continue;
+        }
         totalMessages++;
-        const msg = entry.message as unknown as Record<string, unknown>;
+        const msg = entry.message as unknown as { role?: string; usage?: UsageLike; content?: Array<{ type?: string }> };
+        addUsage(msg.usage);
         if (msg.role === "user") userMessages++;
         else if (msg.role === "assistant") {
           assistantMessages++;
-          const usage = (msg as any).usage;
-          if (usage) {
-            inputTokens += usage.input ?? 0;
-            outputTokens += usage.output ?? 0;
-            cacheRead += usage.cacheRead ?? usage.cacheCreation?.[""] ?? 0;
-            cacheWrite += usage.cacheWrite ?? 0;
-            const c = (usage as { cost?: { total?: number } }).cost;
-            if (c?.total) costUsd += c.total;
-          }
-          const content = msg.content as Array<{ type: string }> | undefined;
-          if (content) {
-            for (const block of content) {
-              if (block.type === "toolCall") toolCalls++;
-            }
+          for (const block of msg.content ?? []) {
+            if (block.type === "toolCall") toolCalls++;
           }
         }
       }

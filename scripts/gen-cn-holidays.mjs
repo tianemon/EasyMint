@@ -27,7 +27,7 @@ const OUT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "app",
 /** @type {Map<string, string[]>} 年份 → 该年的法定节假日日期（ISO） */
 const byYear = new Map();
 const papers = new Set();
-const covered = [];
+const failures = [];
 
 for (let year = FROM; year <= TO; year++) {
   const url = `${BASE}/${year}.json`;
@@ -38,12 +38,11 @@ for (let year = FROM; year <= TO; year++) {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     payload = await resp.json();
   } catch (error) {
-    console.error(`[cn-holidays] 拉取 ${year} 失败：${error instanceof Error ? error.message : String(error)}`);
-    process.exitCode = 1;
+    // 部分年份拉不下来时**不写文件**：残缺的表比没有表更危险（会静默少掉那几年的节假日）
+    failures.push(`${year}（${error instanceof Error ? error.message : String(error)}）`);
     continue;
   }
   for (const paper of payload.papers ?? []) papers.add(paper);
-  covered.push(year);
   for (const day of payload.days ?? []) {
     if (!day.isOffDay) continue; // 调休上班日：DeepSeek 口径按「周一至周五」判定，周末本就是空闲
     // 按日期本身的年份归档：国务院文件标题年份与日期年份可能不一致（12 月的日期可能被次年的文件决定）
@@ -56,6 +55,10 @@ for (let year = FROM; year <= TO; year++) {
 
 const years = [...byYear.keys()].sort();
 const total = years.reduce((sum, y) => sum + byYear.get(y).length, 0);
+if (failures.length > 0) {
+  console.error(`[cn-holidays] 失败年份：${failures.join("、")}——为了不写出残缺的表，本次不生成文件`);
+  process.exit(1);
+}
 if (total === 0) {
   console.error("[cn-holidays] 没抓到任何数据，不覆盖生成物");
   process.exit(1);
