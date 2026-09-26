@@ -3373,7 +3373,10 @@ function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDr
             {msg.attaches.map((a, i) => (
               a.kind === "image" ? (
                 a.dataUrl ? (
-                  <img key={`img-${i}`} src={a.dataUrl} alt={a.name} className="max-w-[min(260px,100%)] max-h-[220px] rounded-[var(--radius-lg)] object-contain cursor-zoom-in hover:opacity-90 transition-opacity" onClick={() => { if (a.dataUrl) onViewImage?.(a.dataUrl, a.name); }} />
+                  /* max-w 必须是**固定长度**：写成 min(260px,100%) 会让「百分比依赖气泡宽度、气泡宽度又取决于图片」
+                     形成循环依赖——算固有宽度时百分比按 auto 处理，图片按原始宽度撑气泡（宽图把气泡顶到外层
+                     60% 上限，图片自己却仍被压回 260px，右边空一大块）。min-w-0 保证窄窗口下仍能被 flex 收缩 */
+                  <img key={`img-${i}`} src={a.dataUrl} alt={a.name} className="max-w-[260px] min-w-0 max-h-[220px] rounded-[var(--radius-lg)] object-contain cursor-zoom-in hover:opacity-90 transition-opacity" onClick={() => { if (a.dataUrl) onViewImage?.(a.dataUrl, a.name); }} />
                 ) : (
                   <div key={`doc-${i}`} className="flex items-center gap-1.5 px-2 py-1 rounded-[var(--radius-lg)] bg-white/10 max-w-[200px]">
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-4 h-4 shrink-0"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><circle cx="5" cy="6" r="1.3"/><path d="M1.5 11l3.5-3.5 2.5 2.5 3-4 4 5"/></svg>
