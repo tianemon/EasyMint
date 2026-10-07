@@ -11,7 +11,7 @@ import path from "node:path";
 import os from "node:os";
 import { dropLegacyEncryptedApiKeys } from "./settings-legacy";
 import { apiKeysFromDisk, readExternalField, writeExternalField } from "./em-settings-schema";
-import { emHome } from "../utils/paths";
+import { emHome, emAgentDir } from "../utils/paths";
 // em-settings.json 是 store / native-config / 本模块**共用**的文件：写入必须走同一把目录锁
 // 并原子写——否则双实例（EM 没有单实例锁）会互相覆盖，且 writeFileSync 写一半被杀会留下
 // 半截 JSON，下次启动直接报「配置损坏」。见下方各写入点。
@@ -119,8 +119,19 @@ export interface McpServerManifest {
 
 // ── Config sources ─────────────────────────────────
 
-/** EM 独立 MCP 配置(与 Claude Code 解耦,不再读写 ~/.claude/.claude.json) */
+/**
+ * EM 独立 MCP 配置(与Claude Code 解耦,不再读写 ~/.claude/.claude.json)。
+ *
+ * 落在 `emAgentDir()`（`~/.easymint/agent/`）下，与 Pi 自身摆放mcp.json / mcp-auth.json /
+ * mcp.log 的那一层一致：1.0.4 起 Pi 内置 MCP 会从 `getAgentDir()` 读配置，EM 的配置若留在
+ * `emHome()` 根下就会与 SDK 读到的文件分裂成两份。层级严格对应 Pi 默认的 `~/.pi/agent`。
+ */
 function emMcpPath(): string {
+  return path.join(emAgentDir(), "mcp.json");
+}
+
+/** 归位前的旧位置（`~/.easymint/mcp.json`）——只读兜底，见mcp-config-migration。 */
+function legacyMcpPath(): string {
   return path.join(emHome(), "mcp.json");
 }
 
@@ -145,6 +156,40 @@ function readMcpServersFrom(filePath: string): Record<string, McpServerConfig> {
     console.error(`[mcp] 解析 MCP 配置失败 (${filePath}):`, (e as Error).message);
     return {};
   }
+}
+
+/**
+ * 用户级配置的**生效路径**：新位置优先，新位置没有可读配置时回落旧位置。
+ *
+ * 为什么读和写都要走这一个函数（而不是只给读加回落）：
+ * - 只让读回落、写仍写新位置 ⇒ 用户在设置页改一个 server 时，配置被劈成两份
+ *   （旧文件里原有的 + 新文件里刚改的），下一次读新位置非空就不再回落，其余 server 看起来"消失"。
+ * - 路径切换的职责归迁移本身（`mcp-config-migration`）：搬成功后 `emMcpPath()` 自然接管；
+ *   搬失败就一直沿用旧位置，行为与迁移前逐字一致。
+ *
+ * 归位迁移（`~/.easymint/mcp.json` → `~/.easymint/agent/mcp.json`）是 best-effort 的
+ * （失败不阻断启动，下次启动重试），所以这个回落窗口真实存在。
+ */
+let legacyPathWarned = false;
+function userMcpPath(): string {
+  const current = emMcpPath();
+  if (Object.keys(readMcpServersFrom(current)).length > 0) return current;
+  const legacy = legacyMcpPath();
+  if (Object.keys(readMcpServersFrom(legacy)).length > 0) {
+    // 只警告一次：本函数在扫描/取定义/写入等处都会被调用，迁移长期未完成时会刷屏
+    if (!legacyPathWarned) {
+      legacyPathWarned = true;
+      console.warn("[mcp] 未在 agent/ 下找到配置，仍沿用旧位置 ~/.easymint/mcp.json（迁移未完成？）");
+    }
+    return legacy;
+  }
+  // 两边都没有：新位置优先（迁移后首写、seedDefaultMcp 的落点）
+  return current;
+}
+
+/** 读用户级配置（生效路径，见 userMcpPath） */
+function readUserMcpServers(): Record<string, McpServerConfig> {
+  return readMcpServersFrom(userMcpPath());
 }
 
 /** 项目级目录：EM 项目配置（可写） */
@@ -247,7 +292,7 @@ export function scanMcpServers(projectPath?: string): McpServerManifest[] {
   const taken = new Set<string>();
 
   // 1) 用户级
-  for (const [name, cfg] of Object.entries(readMcpServersFrom(emMcpPath()))) {
+  for (const [name, cfg] of Object.entries(readUserMcpServers())) {
     result.push({
       name, type: cfg.type, command: cfg.command, args: cfg.args, url: cfg.url,
       description: cfg.description,
@@ -296,7 +341,7 @@ function getApiKeys(): Record<string, string> {
 
 /** Discover which env vars each MCP server needs. 只返回状态（已配置/未配置），不泄露实际值。 */
 export function getMcpRequiredKeys(): Record<string, Record<string, string>> {
-  const servers = readMcpServersFrom(emMcpPath());
+  const servers = readUserMcpServers();
   const apiKeys = getApiKeys();
 
   const result: Record<string, Record<string, string>> = {};
@@ -381,7 +426,7 @@ export function saveMcpServer(
 
   const configPath = opts?.scope === "project" && opts.projectPath
     ? projectMcpPath(opts.projectPath)
-    : emMcpPath();
+    : userMcpPath();
   const dir = path.dirname(configPath);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
@@ -415,7 +460,7 @@ export function deleteMcpServer(
   }
   const configPath = opts?.scope === "project" && opts.projectPath
     ? projectMcpPath(opts.projectPath)
-    : emMcpPath();
+    : userMcpPath();
   if (!existsSync(configPath)) return { ok: false, error: "配置文件不存在" };
   try {
     const data = JSON.parse(readFileSync(configPath, "utf-8")) as Record<string, unknown>;
@@ -449,14 +494,21 @@ export function getMcpServerConfig(name: string, opts?: { scope?: McpScope; proj
     ? projectMcpPath(opts.projectPath)
     : opts?.scope === "project-compat" && opts.projectPath
       ? compatMcpPath(opts.projectPath)
-      : emMcpPath();
+      : userMcpPath();
   const servers = readMcpServersFrom(file);
   return servers[name] ?? null;
 }
 
-/** 配置文件路径（界面提示用） */
+/**
+ * 配置文件路径（界面提示用）。
+ *
+ * 返回**生效路径**而不是恒定新位置：设置页会把这条路径显示给用户（"配置在 xxx"），
+ * 迁移未完成时若显示新位置，用户照着去编辑的是空文件，而程序读的是旧文件。
+ * 副作用正好也是要的——`mcp-instructions.ts` 用 `dirname(getMcpConfigPath())` 定位指令缓存，
+ * 跟着生效路径走才不会与配置分家。
+ */
 export function getMcpConfigPath(): string {
-  return emMcpPath();
+  return userMcpPath();
 }
 
 // ── Toggle ─────────────────────────────────────────
@@ -497,10 +549,11 @@ const DEFAULT_MCP_SERVERS: Record<string, McpServerConfig> = {
 
 /** Write default MCP server configs on first launch. Merges into existing
  *  config — never overwrites servers already configured.
- *  与 Claude Code 解耦:EM 配置独立存 ~/.easymint/mcp.json。
+ *  与 Claude Code 解耦:EM 配置独立存 ~/.easymint/agent/mcp.json（与 Pi 的 agentDir 同层）。
  *  首次启动时若旧共享配置(~/.claude/.claude.json)存在 → 一次性迁移导入,此后不再读写 CC 配置。 */
 export function seedDefaultMcp(): void {
-  const configPath = emMcpPath();
+  // 走生效路径：迁移未完成时旧位置才是正在被读的那份，往新位置播种会把配置劈成两份
+  const configPath = userMcpPath();
   const configDir = path.dirname(configPath);
   if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true });
 

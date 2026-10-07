@@ -29,6 +29,23 @@ export function emHome(): string {
 }
 
 /**
+ * Pi SDK 的 agentDir：`~/.easymint/agent`，**严格对应 Pi 默认的 `~/.pi/agent` 层级**。
+ *
+ * 为什么要一个 helper：Pi 把它自己的东西（settings/auth/models/sessions，以及 1.0.4 起的
+ * mcp.json、mcp-auth.json、mcp.log）全放在这一层。主进程启动时用官方 env 通道
+ * `PI_CODING_AGENT_DIR` 告诉 SDK（见 `app/main/index.ts`），SDK 侧由
+ * `config.jsgetAgentDir()` 读取；EM 自己要访问同一批文件时**必须走这里**，不能各处
+ * `path.join(emHome(), "agent")` 硬拼——那份目录名一旦被官方 env 或 Pi 内部布局改动带偏，
+ * 硬拼处会静默指向另一个目录（写进去的配置再也读不到，且无任何报错）。
+ *
+ * 另：项目级配置目录是 `CONFIG_DIR_NAME`（由 `piConfig.configDir` 定制为 `.easymint`），
+ * 拿不到该常量时按 `path.join(cwd, ".easymint")` 拼，见各调用点注释。
+ */
+export function emAgentDir(): string {
+  return path.join(emHome(), "agent");
+}
+
+/**
  * 返回 dir 自身、或其最近的、真实存在的祖先目录；都不存在（或 dir 为空）时返回 undefined。
  *
  * 用于 dialog.defaultPath：Electron 要求传**绝对路径**且不解析 `~`；提示性路径（如项目目录）

@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir() } }));
 
-import { emHome, resolveHome } from "../utils/paths";
+import { emHome, emAgentDir, resolveHome } from "../utils/paths";
 import { DATA_DIR } from "./store";
 import { getMcpConfigPath } from "./mcp-service";
 
@@ -22,6 +22,12 @@ describe("EASYMINT_HOME 覆盖", () => {
     expect(emHome()).toBe(expected);
     // 模块级常量（加载时求值）同样采纳
     expect(DATA_DIR).toBe(expected);
-    expect(getMcpConfigPath()).toBe(path.join(expected, "mcp.json"));
+    // MCP 配置随 EM_HOME 一起平移。注意这里只断言"落在 emHome 之下"而不是"必须在 agent 层"：
+    // getMcpConfigPath() 返回的是**生效路径**——归位迁移 best-effort，旧位置仍有配置时
+    // 会沿用旧位置（见 mcp-service 的 userMcpPath），此时它就是 emHome/mcp.json。
+    // 锚住"绝不写到 emHome 之外"才是本文件要防的（漏一处 = 一半数据在新目录、一半在旧目录）。
+    expect(emAgentDir()).toBe(path.join(expected, "agent"));
+    expect([path.join(expected, "agent", "mcp.json"), path.join(expected, "mcp.json")])
+      .toContain(getMcpConfigPath());
   });
 });

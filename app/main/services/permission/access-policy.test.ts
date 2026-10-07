@@ -100,6 +100,10 @@ describe("统一资源策略", () => {
     // 读到即可接入用户的设备通道，按凭据处理而非普通状态
     expect(credentials).toContain(path.join(emHome(), "paired-devices.json"));
     expect(credentials).toContain(path.join(emHome(), "paired-mobile-devices.json"));
+    // MCP OAuth 凭据（safeStorage 密文）：已改名归位到 agent/mcp-auth.json（对齐 Pi），
+    // 旧位置 mcp-oauth.json 在迁移窗口内仍被 loadCreds 回落读取——两处都要按凭据保护。
+    expect(credentials).toContain(path.join(emHome(), "agent", "mcp-auth.json"));
+    expect(credentials).toContain(path.join(emHome(), "mcp-oauth.json"));
   });
 
   it("EasyMint 权限状态与可执行配置属于写保护控制面", () => {
@@ -108,8 +112,10 @@ describe("统一资源策略", () => {
     expect(controls).toContain(path.join(cwd, ".easymint", "mcp.json"));
     expect(controls).toContain(path.join(cwd, ".mcp.json"));
     // MCP server 自述缓存：其内容会进工具说明与搜索结果，必须和 mcp.json 同级保护——
-    // 否则完全访问档下可被改写，变成绕开审批门的持久化提示词注入
-    expect(controls).toContain(path.join(os.homedir(), ".easymint", "mcp-instructions.json"));
+    // 否则完全访问档下可被改写，变成绕开审批门的持久化提示词注入。
+    // 位置跟随 mcp.json（已归位到 agent/），两个目录都要在保护名单里。
+    expect(controls).toContain(path.join(emHome(), "agent", "mcp-instructions.json"));
+    expect(controls).toContain(path.join(emHome(), "mcp-instructions.json"));
     // 2026-09-24 **反转**：此处原先断言 skills 不受保护。该判断已不成立 —— 技能描述进 `<skills>` 分节、
     // 正文由 use_skill 读，经验库由 buildExperienceInjection 每轮注入，子 Agent 模板拼进 task 工具描述，
     // 与 mcp-instructions.json 同属"持久化影响模型行为"的载体（该口径由用户 2026-09-24 确立）。
@@ -119,6 +125,11 @@ describe("统一资源策略", () => {
     expect(controls).toContain(path.join(os.homedir(), ".easymint", "experiences"));
     expect(controls).toContain(path.join(os.homedir(), ".easymint", "agent-templates.json"));
     expect(controls).toContain(path.join(os.homedir(), ".easymint", "agent", "models-store.json"));
+
+    // 用户级 MCP 配置：已归位到 agent/（与 Pi 的 agentDir 同层）；旧位置在迁移未完成的窗口内
+    // 仍会被 readUserMcpServers 回落读取，故也必须在保护名单内——漏掉等于该窗口内配置可被改写。
+    expect(controls).toContain(path.join(emHome(), "agent", "mcp.json"));
+    expect(controls).toContain(path.join(emHome(), "mcp.json"));
     expect(protectedPersistencePaths(cwd)).toContain(path.join(emHome(), "system-prompts.json"));
     expect(protectedPersistencePaths(cwd)).toContain(path.join(emHome(), "paired-devices.json"));
     expect(protectedPersistencePaths(cwd)).toContain(path.join(emHome(), "paired-mobile-devices.json"));

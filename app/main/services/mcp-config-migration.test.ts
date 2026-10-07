@@ -1,0 +1,109 @@
+/**
+ * MCP 配置归位迁移的守卫测试。
+ *
+ * 关注三件事：① 旧文件真的搬到了 agent/；② **新位置已有数据时不覆盖**（保守，
+ * 宁可留两份也不丢用户当前配置）；③ 幂等——重复执行不报错也不二次搬动。
+ * 另外锚定 `mcp-oauth.json → mcp-auth.json` 的改名（对齐 Pi 的官方文件名）。
+ */
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir() } }));
+
+const roots: string[] = [];
+let home: string;
+
+function writeAt(dir: string, name: string, content: string): void {
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, name), content);
+}
+
+beforeEach(() => {
+  home = fs.mkdtempSync(path.join(os.tmpdir(), "em-mcp-migrate-"));
+  roots.push(home);
+  process.env.EASYMINT_HOME = home;
+});
+
+afterEach(() => {
+  delete process.env.EASYMINT_HOME;
+  for (const dir of roots.splice(0)) {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
+  }
+  vi.resetModules();
+});
+
+async function loadMigration() {
+  vi.resetModules();
+  return (await import("./mcp-config-migration")).migrateMcpConfigFiles;
+}
+
+describe("MCP 配置归位迁移", () => {
+  it("把三个文件从 emHome根下搬到 agent/ 下，OAuth 凭据同时改名对齐 Pi", async () => {
+    writeAt(home, "mcp.json", JSON.stringify({ mcpServers: { a: { command: "x" } } }));
+    writeAt(home, "mcp-oauth.json", JSON.stringify({ srv: { tokens: "enc" } }));
+    writeAt(home, "mcp-instructions.json", JSON.stringify({ srv: "自述" }));
+
+    const migrate = await loadMigration();
+    const r = migrate();
+
+    expect(r.failed).toEqual([]);
+    expect(r.moved.sort()).toEqual(["mcp-instructions.json", "mcp-oauth.json", "mcp.json"]);
+    const agent = path.join(home, "agent");
+    // 内容逐字保持（尤其 OAuth 密文，动了就等于凭据失效）
+    expect(JSON.parse(fs.readFileSync(path.join(agent, "mcp.json"), "utf8")).mcpServers.a.command).toBe("x");
+    expect(JSON.parse(fs.readFileSync(path.join(agent, "mcp-auth.json"), "utf8")).srv.tokens).toBe("enc");
+    expect(JSON.parse(fs.readFileSync(path.join(agent, "mcp-instructions.json"), "utf8")).srv).toBe("自述");
+    // 旧文件已搬走（不是复制），避免出现两份配置各自被改
+    expect(fs.existsSync(path.join(home, "mcp.json"))).toBe(false);
+    expect(fs.existsSync(path.join(home, "mcp-oauth.json"))).toBe(false);
+  });
+
+  it("新位置已有配置时不覆盖、不删除旧文件", async () => {
+    writeAt(home, "mcp.json", JSON.stringify({ mcpServers: { old: {} } }));
+    writeAt(path.join(home, "agent"), "mcp.json", JSON.stringify({ mcpServers: { current: {} } }));
+
+    const migrate = await loadMigration();
+    const r = migrate();
+
+    expect(r.moved).toEqual([]);
+    expect(r.skipped).toContain("mcp.json");
+    // 当前配置原样保留，旧文件也留着（破坏性删除交由用户手工确认）
+    expect(JSON.parse(fs.readFileSync(path.join(home, "agent", "mcp.json"), "utf8")).mcpServers).toHaveProperty("current");
+    expect(fs.existsSync(path.join(home, "mcp.json"))).toBe(true);
+  });
+
+  it("幂等：重复执行不报错也不二次搬动", async () => {
+    writeAt(home, "mcp.json", JSON.stringify({ mcpServers: {} }));
+    const migrate = await loadMigration();
+
+    expect(migrate().moved).toEqual(["mcp.json"]);
+    const second = migrate();
+    expect(second.moved).toEqual([]);
+    expect(second.failed).toEqual([]);
+    expect(fs.existsSync(path.join(home, "agent", "mcp.json"))).toBe(true);
+  });
+
+  it("无旧文件时是空操作（不凭空建目录外的任何东西）", async () => {
+    const migrate = await loadMigration();
+    const r = migrate();
+    expect(r).toEqual({ moved: [], skipped: [], failed: [] });
+  });
+
+  it("项目级配置不在迁移范围内（本来已对齐 CONFIG_DIR_NAME）", async () => {
+    const project = fs.mkdtempSync(path.join(os.tmpdir(), "em-mcp-proj-"));
+    roots.push(project);
+    const projectMcp = path.join(project, ".easymint", "mcp.json");
+    writeAt(path.join(project, ".easymint"), "mcp.json", JSON.stringify({ mcpServers: { p: {} } }));
+    writeAt(project, ".mcp.json", JSON.stringify({ mcpServers: { q: {} } }));
+
+    const migrate = await loadMigration();
+    migrate();
+
+    // 两个项目级来源都原地不动
+    expect(fs.existsSync(projectMcp)).toBe(true);
+    expect(fs.existsSync(path.join(project, ".mcp.json"))).toBe(true);
+    expect(fs.existsSync(path.join(home, "agent", "mcp.json"))).toBe(false);
+  });
+});

@@ -16,6 +16,7 @@
  *
  * **覆盖的写法**：
  *   path.join(emHome(), "a", "b.json")   `${emHome()}/a.json`   path.join(DATA_DIR, "a.json")
+ *   path.join(emAgentDir(), "a.json")                                ← 容器型helper，还原成 agent/a.json
  *   path.join(path.dirname(getMcpConfigPath()), "a.json")      ← 间接派生，见 INDIRECT
  * 别名取自 `const X = emHome()` 的既有惯例（DATA_DIR / MANAGED_DIR / EM_HOME）。
  * **已知边界**：把 emHome 再往下传（当参数递给别的函数）的写法扫不到；用了新的间接写法而不在
@@ -48,15 +49,18 @@ const KLASS_FN = {
  */
 const DECLARED = [
   // ── credential：高敏凭据（只读档与标准档都不可读；完全访问免读、但仍禁写）──
-  { entry: "em-settings.json", klass: "credential", why: "含 API 密钥与供应商设置" },
-  { entry: "mcp-oauth.json", klass: "credential", why: "MCP OAuth 令牌" },
+  { entry: "em-settings.json", klass: "credential", why: "含API 密钥与供应商设置" },
+  { entry: "agent/mcp-auth.json", klass: "credential", why: "MCP OAuth 令牌（safeStorage 密文）；已改名对齐 Pi 的 mcp-auth.json" },
+  { entry: "mcp-oauth.json", klass: "credential", why: "上面的旧位置，只作迁移来源与回落读取期间的兜底" },
   { entry: "environment.sh", klass: "credential", why: "宿主导出的环境变量（可能含密钥）" },
   { entry: ".control-tmp", klass: "credential", why: "宿主控制通道的临时区" },
   { entry: "agent/auth.json", klass: "credential", why: "模型供应商登录凭据" },
 
   // ── persistence：完全访问也禁止改写（改一次 = 绕过整个判定层或影响模型行为）──
-  { entry: "mcp.json", klass: "persistence", why: "决定下次会话启动哪些本地进程" },
-  { entry: "mcp-instructions.json", klass: "persistence", why: "server 自述，会进工具说明与搜索结果（提示词注入面）" },
+  { entry: "agent/mcp.json", klass: "persistence", why: "决定下次会话启动哪些本地进程；已归位到 agent 层（与 Pi 同层）" },
+  { entry: "mcp.json", klass: "persistence", why: "上面的旧位置，只作迁移来源与回落读取期间的兜底" },
+  { entry: "agent/mcp-instructions.json", klass: "persistence", why: "server 自述，会进工具说明与搜索结果（提示词注入面）；位置跟随 mcp.json" },
+  { entry: "mcp-instructions.json", klass: "persistence", why: "上面的旧位置，只作迁移来源与回落读取期间的兜底" },
   { entry: "agent/settings.json", klass: "persistence", why: "agent 运行期设置" },
   { entry: "agent/models.json", klass: "persistence", why: "模型清单，可把请求转发到别的端点" },
   { entry: "system-prompts.json", klass: "persistence", why: "下次会话的系统提示词内容" },
@@ -99,7 +103,8 @@ const DECLARED = [
 const ALIASES = ["DATA_DIR", "MANAGED_DIR", "EM_HOME"];
 const LITERALS = String.raw`((?:"[^"]+"\s*,\s*)*"[^"]+")`;
 /**
- * 间接派生：`path.dirname(getMcpConfigPath())` 就是 emHome()（mcp.json 恒在数据目录根）。
+ * 间接派生：`path.dirname(getMcpConfigPath())` 就是 **emAgentDir()**（`~/.easymint/agent/`，
+ * MCP 配置已归位到该层，与 Pi 摆放 mcp.json 的一层一致）。
  * **新增这类间接写法时必须在这里补一条**，否则那个新文件会逃过扫描 ——
  * 这正是本脚本的软肋：它认形式，而形式是可以绕的（实测：mcp-instructions.json 就是这么写的）。
  */
@@ -111,7 +116,16 @@ const PATTERNS = [
   { re: new RegExp(String.raw`\bjoin\(\s*(?:${ALIASES.join("|")})\s*,\s*${LITERALS}`, "g"), kind: "alias" },
   { re: new RegExp(String.raw`\$\{emHome\(\)\}\/([^/"'\s` + "`" + String.raw`]+)`, "g"), kind: "template" },
   ...INDIRECT.map((re) => ({ re, kind: "indirect" })),
+  /**
+   * `emAgentDir()`（`~/.easymint/agent`，见 utils/paths.ts）落在 emHome 下**一级**，
+   * 所以扫到 `path.join(emAgentDir(), "mcp.json")` 必须还原成 `agent/mcp.json` 再去比表——
+   * 否则条目会以裸 `mcp.json` 的身份匹配到旧位置的登记行，看起来"已登记"实则对不上。
+   */
+  { re: new RegExp(String.raw`emAgentDir\(\),\s*${LITERALS}`, "g"), kind: "agent-dir", prefix: "agent" },
 ];
+
+/** 源码里出现的路径前缀（相对 emHome 的容器目录），见 PATTERNS 的 `prefix` */
+const KIND_PREFIX = { "agent-dir": "agent" };
 
 function lineAt(content, index) {
   return content.slice(0, index).split("\n").length;
@@ -119,11 +133,14 @@ function lineAt(content, index) {
 
 /** 从源码里抽出所有 `emHome()/<条目>`（最多两段；含变量插值的段跳过） */
 function entriesIn(content, collect) {
-  for (const { re } of PATTERNS) {
+  for (const { re, kind } of PATTERNS) {
     for (const m of content.matchAll(re)) {
       const segs = [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
-      const raw = segs.length > 0 ? segs.slice(0, 2).join("/") : m[1];
+      let raw = segs.length > 0 ? segs.slice(0, 2).join("/") : m[1];
       if (!raw || raw.includes("${") || raw.includes("\\")) continue;
+      // 容器型 helper（如 emAgentDir()）自身是 emHome 下的一层，拼回去才是完整相对路径
+      const prefix = KIND_PREFIX[kind];
+      if (prefix) raw = `${prefix}/${raw}`;
       collect(raw, lineAt(content, m.index ?? 0));
     }
   }

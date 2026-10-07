@@ -74,6 +74,19 @@ if (fs.existsSync(OLD_SESSIONS_DIR)) {
     }
   }
 }
+// 一次性迁移：MCP 配置归位到 agent/（与 Pi 的 agentDir 同层，见 mcp-config-migration 头注）
+try {
+  const mcpMigration = migrateMcpConfigFiles();
+  if (mcpMigration.moved.length > 0) {
+    console.log(`[mcp-migration] 已归位到 agent/: ${mcpMigration.moved.join(", ")}`);
+  }
+  if (mcpMigration.skipped.length > 0) {
+    console.log(`[mcp-migration] 新位置已有配置，旧文件保留未覆盖: ${mcpMigration.skipped.join(", ")}`);
+  }
+  if (mcpMigration.failed.length > 0) {
+    console.warn(`[mcp-migration] 迁移失败（下次启动重试，读写仍回落旧位置）: ${mcpMigration.failed.join(", ")}`);
+  }
+} catch (e) { console.warn("[mcp-migration] 迁移异常（不影响启动）:", (e as Error).message); }
 // Redirect Electron userData to our directory so all data lives in one place
 app.setPath("userData", path.join(EM_HOME, "electron"));
 
@@ -91,6 +104,7 @@ import { Store } from "./services/store";
 import { getNativeConfig } from "./services/native-config";
 import { armSessionDirReady, primeSessionManagerClass } from "./services/pi-session-dir";
 import { migrateLegacySessionDirs } from "./services/session-dir-migration";
+import { migrateMcpConfigFiles } from "./services/mcp-config-migration";
 
 import { cleanupOrphanCaches, cleanupTempCaches } from "./services/session-cache";
 import { watchProjectWindow } from "./services/window-manager";

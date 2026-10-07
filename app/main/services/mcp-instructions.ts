@@ -23,7 +23,7 @@ interface Store {
   entries: Record<string, string>;
 }
 
-/** 与 mcp.json 同目录（~/.easymint/）；每次调用现取，测试可经 mock 的 getMcpConfigPath 改路径。 */
+/** 与 mcp.json 同目录（`~/.easymint/agent/`）；每次调用现取，测试可经 mock 的 getMcpConfigPath 改路径。 */
 function storePath(): string {
   return path.join(path.dirname(getMcpConfigPath()), "mcp-instructions.json");
 }

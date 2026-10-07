@@ -7,8 +7,10 @@
  * 设计决策：
  * - 回调端口固定 31173（DCR 的 redirect_uris 精确匹配，动态端口会导致注册与回调不符；
  *   避开 OMP 默认的 3000；可在配置 callbackPort 调整）
- * - 凭据用 Electron safeStorage（系统钥匙串）加密后落 ~/.easymint/mcp-oauth.json——
- *   比 OMP 的明文 db 更安全；safeStorage 不可用时（极少数 Linux 环境）降级明文并告警
+ * - 凭据用 Electron safeStorage（系统钥匙串）加密后落 ~/.easymint/agent/mcp-auth.json——
+ *   比 OMP 的明文 db 更安全；safeStorage 不可用时（极少数 Linux 环境）降级明文并告警。
+ *   路径与 Pi 自身摆放凭据的agentDir 同层（文件名对齐 Pi 的 mcp-auth.json），
+ *   便于后续切到 Pi 内置 MCP 时由官方 store 接管同一位置
  * - 授权码等待超时 5 分钟（用户在浏览器操作的时间预算）
  */
 
@@ -18,10 +20,12 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import type { OAuthClientInformationMixed, OAuthClientMetadata, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
-import { emHome } from "../utils/paths";
+import { emAgentDir, emHome } from "../utils/paths";
 
 const DEFAULT_CALLBACK_PORT = 31173;
-const CRED_FILE = path.join(emHome(), "mcp-oauth.json");
+const CRED_FILE = path.join(emAgentDir(), "mcp-auth.json");
+/** 归位前的旧位置——只读兜底，见 loadCreds。 */
+const LEGACY_CRED_FILE = path.join(emHome(), "mcp-oauth.json");
 
 export function oauthRedirectUrl(callbackPort: number): string {
   return `http://127.0.0.1:${callbackPort}/callback`;
@@ -34,10 +38,33 @@ interface StoredCreds {
   client?: string;   // safeStorage 加密后的 base64（DCR 注册信息）
 }
 
+/**
+ * 凭据文件的**生效路径**：新位置优先，新位置没有可读凭据时沿用旧位置。
+ *
+ * 读写必须同一个来源：只让读回落、写仍固定新位置的话，迁移失败期间新授权的 token 写进新文件，
+ * 下一读又优先取新文件（里面只有那一个 server），旧文件里其余 server 的令牌就被"弄丢"了 ——
+ * 表现为其它 MCP server 反复要求重新登录。
+ */
+function credFile(): string {
+  for (const file of [CRED_FILE, LEGACY_CRED_FILE]) {
+    if (!existsSync(file)) continue;
+    try {
+      const data = JSON.parse(readFileSync(file, "utf-8")) as Record<string, StoredCreds>;
+      if (data && typeof data === "object" && Object.keys(data).length > 0) return file;
+    } catch {
+      // 损坏：当作这一份没有凭据，继续看下一个位置（迁移窗口内旧文件往往还是好的）
+    }
+  }
+  return CRED_FILE; // 两边都没有（或都损坏）：新位置优先
+}
+
 function loadCreds(): Record<string, StoredCreds> {
-  if (!existsSync(CRED_FILE)) return {};
+  // 归位迁移是 best-effort（失败不阻断启动），新位置为空时沿用旧位置，
+  // 否则用户会看到"已授权的 server 又要重新登录"
+  const file = credFile();
+  if (!existsSync(file)) return {};
   try {
-    const data = JSON.parse(readFileSync(CRED_FILE, "utf-8")) as Record<string, StoredCreds>;
+    const data = JSON.parse(readFileSync(file, "utf-8")) as Record<string, StoredCreds>;
     return data && typeof data === "object" ? data : {};
   } catch {
     return {};
@@ -45,9 +72,10 @@ function loadCreds(): Record<string, StoredCreds> {
 }
 
 function saveCreds(all: Record<string, StoredCreds>): void {
-  const dir = path.dirname(CRED_FILE);
+  const file = credFile();
+  const dir = path.dirname(file);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  writeFileSync(CRED_FILE, JSON.stringify(all, null, 2));
+  writeFileSync(file, JSON.stringify(all, null, 2));
 }
 
 let encWarned = false;

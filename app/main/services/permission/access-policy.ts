@@ -6,7 +6,7 @@ import type { SandboxRuntimeConfig } from "@anthropic-ai/sandbox-runtime";
 import { developmentRuntimeFor, developmentRuntimesRoot } from "./development-runtime";
 import { allowedDomainsFor, sandboxProfileOptions, sshAgentSockets } from "../sandbox/compat-policy";
 import type { ExecutionContext, PermissionMode } from "./execution-context";
-import { emHome } from "../../utils/paths";
+import { emHome, emAgentDir } from "../../utils/paths";
 
 export type { PermissionMode } from "./execution-context";
 
@@ -75,10 +75,13 @@ export function protectedCredentialPaths(platform: NodeJS.Platform = process.pla
   // 否则换了数据目录之后，这些含凭据的文件会整批掉出保护名单（`path.join` 也不接受绝对路径拼接）。
   common.push(
     path.join(emHome(), "em-settings.json"),
-    path.join(emHome(), "mcp-oauth.json"),
     path.join(emHome(), "environment.sh"),
     path.join(emHome(), ".control-tmp"),
     path.join(emHome(), "agent", "auth.json"),
+    // MCP OAuth 凭据（safeStorage 加密）。**新旧两个位置都要列**：归位迁移是 best-effort，
+    // 失败时旧文件仍在且仍被 loadCreds 回落读取——漏掉它等于迁移窗口内凭据可被改写。
+    path.join(emAgentDir(), "mcp-auth.json"),
+    path.join(emHome(), "mcp-oauth.json"),
     // 配对凭据：`paired-devices.json` 存 `key`（base64 配对密钥）、`paired-mobile-devices.json` 存
     // `sharedSecret`（派生会话密钥的根）。读到它 = 能接入用户的设备通道，属凭据而非普通状态。
     path.join(emHome(), "paired-devices.json"),
@@ -108,9 +111,14 @@ export function protectedPersistencePaths(cwd: string, platform: NodeJS.Platform
     if (path.dirname(dir) === dir) break;
   }
   const paths = [
+    // MCP 配置：决定"下次会话能启动哪些本地进程 / 连哪些远端"，属后续执行能力的载体。
+    // 新位置（agent/ 下，与 Pi 同层）；旧位置一并列出——迁移未完成时 readUserMcpServers 仍回落读它。
+    path.join(emAgentDir(), "mcp.json"),
     path.join(emHome(), "mcp.json"),
     // MCP server 自述缓存：只在明确搜索该 server 时作为第三方资料返回（≤2000 字符），
     // 不再提升为每轮随行的工具说明。仍要阻止 Agent 改写缓存、影响后续搜索结果。
+    // 位置跟随 mcp.json（storePath 取其 dirname），故两个目录都要列。
+    path.join(emAgentDir(), "mcp-instructions.json"),
     path.join(emHome(), "mcp-instructions.json"),
     path.join(emHome(), "agent", "settings.json"),
     path.join(emHome(), "agent", "models.json"),
