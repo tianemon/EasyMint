@@ -95,4 +95,13 @@ describe("MCP 配置：迁移未完成时的回落读写", () => {
     expect(mcp.saveMcpServer("fresh", { type: "stdio", command: "f", args: [] }).ok).toBe(true);
     expect(servers(path.join(home, "agent"), "mcp.json")).toEqual(["fresh"]);
   });
+
+  it("deleting the final current server never resurrects preserved legacy definitions", async () => {
+    writeAt(path.join(home, "agent"), "mcp.json", JSON.stringify({ mcpServers: { current: { type: "stdio", command: "current" } } }));
+    writeAt(home, "mcp.json", JSON.stringify({ mcpServers: { stale: { type: "stdio", command: "stale" } } }));
+    const mcp = await loadService();
+    expect(mcp.deleteMcpServer("current").ok).toBe(true);
+    expect(mcp.getMcpConfigPath()).toBe(path.join(home, "agent", "mcp.json"));
+    expect(mcp.scanMcpServers()).toEqual([]);
+  });
 });

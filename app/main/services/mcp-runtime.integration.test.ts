@@ -123,6 +123,36 @@ describe("Pi MCP host integration", () => {
     await expect(script(session, echoCode, "readonly")).rejects.toThrow("只读");
   }, 15000);
 
+  it("rejects reuse of a full-access transport as soon as the live mode tightens", async () => {
+    writeProject(); approveMcpServer(cwd, "echo");
+    let mode = "full";
+    const session = await create(() => mode);
+    await waitFor(() => getMcpStatus(cwd)[0]?.state === "connected");
+    // A nested call can reach send() after the cache commit but before the revocation await.
+    mode = "standard";
+    const result = await script(session, echoCode, "mode-drift");
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain("权限已撤销");
+  }, 15000);
+
+  it("disposing a parent session leaves a still-running child's MCP usable", async () => {
+    writeProject(); approveMcpServer(cwd, "echo");
+    let mode = "standard";
+    const parent = await create(() => mode);
+    const child = await createPiSession({ cwd, agentDir, store: new Store(root), executionOwner: parent.sessionId,
+      permissionMode: mode, getPermissionMode: () => mode, canUseTool: async () => ({ behavior: "allow" }) });
+    active.push(child);
+    expect(JSON.stringify((await script(child, echoCode, "child-before")).content)).toContain("echo:hello");
+    await disposePiSession(parent);
+    await expect(script(child, echoCode, "child-after")).resolves.toMatchObject({
+      content: expect.arrayContaining([{ type: "text", text: "echo:hello" }]),
+    });
+    // The same parent alias still recursively revokes descendants when permissions tighten.
+    mode = "readonly";
+    await closeMcpContexts([parent.sessionId]);
+    await expect(script(child, echoCode, "child-revoked")).rejects.toThrow("只读");
+  }, 15000);
+
   it("reloads changed definitions only after reapproval and preserves tool identity", async () => {
     writeProject(); approveMcpServer(cwd, "echo");
     const session = await create();

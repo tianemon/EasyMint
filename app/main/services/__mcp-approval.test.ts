@@ -140,4 +140,14 @@ describe("项目级 MCP 审批身份", () => {
     writeServers(dir, { stale: STDIO(["new"]) });
     expect(pending(dir, "stale")).toBe(true);
   });
+
+  it("toolExposure pattern order changes require reapproval", () => {
+    writeApproved([]);
+    const dir = projectWith({ ordered: { ...STDIO([]), toolExposure: { "*": "hidden", "danger*": "direct" } } });
+    mcp.approveMcpServer(dir, "ordered");
+    expect(pending(dir, "ordered")).toBeFalsy();
+    // Pi uses the first matching pattern: this reorder exposes previously hidden tools.
+    writeServers(dir, { ordered: { ...STDIO([]), toolExposure: { "danger*": "direct", "*": "hidden" } } });
+    expect(pending(dir, "ordered")).toBe(true);
+  });
 });

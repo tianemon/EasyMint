@@ -18,6 +18,7 @@ export class ProtectedMcpTransport implements McpTransport {
   private released?: Promise<void>;
   private finished?: Promise<void>;
   private pid?: number;
+  private executionMode?: PermissionMode;
   private messages = new Set<(message: JsonRpcMessage) => void>();
   private errors = new Set<(error: Error) => void>();
   private closes = new Set<() => void>();
@@ -64,15 +65,16 @@ export class ProtectedMcpTransport implements McpTransport {
       try { await this.releaseOnce(); } finally { this.emitClose(); }
     })();
   }
-  private check(mode?: PermissionMode) {
-    if (this.closed || this.options.mode() === "readonly" || (mode && this.options.mode() !== mode)) {
+  private check(mode = this.executionMode) {
+    const currentMode = this.options.mode();
+    if (this.closed || currentMode === "readonly" || (mode && currentMode !== mode)) {
       throw new Error("MCP 执行权限已撤销");
     }
     this.options.validate?.();
   }
   start(): Promise<void> { return this.starting ??= this.prepare(); }
   private async prepare(): Promise<void> {
-    const mode = this.options.mode();
+    const mode = this.executionMode = this.options.mode();
     try {
       this.check(mode);
       const { StdioTransport, StreamableHttpTransport } = await import("@earendil-works/pi-mcp");

@@ -152,19 +152,28 @@ function getHiddenMcpServers(): string[] {
 
 // ── Scan ───────────────────────────────────────────
 
-function readMcpServersFrom(filePath: string): Record<string, McpServerConfig> {
-  if (!existsSync(filePath)) return {};
+function readMcpServersFile(filePath: string): Record<string, McpServerConfig> | undefined {
+  if (!existsSync(filePath)) return undefined;
   try {
     const data = JSON.parse(readFileSync(filePath, "utf-8"));
-    return (data.mcpServers as Record<string, McpServerConfig>) || {};
+    if (!data || typeof data !== "object" || Array.isArray(data)) return undefined;
+    const servers = data.mcpServers;
+    if (servers === undefined) return {};
+    if (!servers || typeof servers !== "object" || Array.isArray(servers)) return undefined;
+    return servers as Record<string, McpServerConfig>;
   } catch (e) {
     console.error(`[mcp] 解析 MCP 配置失败 (${filePath}):`, (e as Error).message);
-    return {};
+    return undefined;
   }
 }
 
+function readMcpServersFrom(filePath: string): Record<string, McpServerConfig> {
+  return readMcpServersFile(filePath) ?? {};
+}
+
 /**
- * 用户级配置的**生效路径**：新位置优先，新位置没有可读配置时回落旧位置。
+ * 用户级配置的**生效路径**：新位置有有效配置就接管，空配置同样有效。
+ * 仅在新文件缺失或损坏时回落；否则删除最后一个 server 会让旧备份重新生效。
  *
  * 为什么读和写都要走这一个函数（而不是只给读加回落）：
  * - 只让读回落、写仍写新位置 ⇒ 用户在设置页改一个 server 时，配置被劈成两份
@@ -178,7 +187,7 @@ function readMcpServersFrom(filePath: string): Record<string, McpServerConfig> {
 let legacyPathWarned = false;
 function userMcpPath(): string {
   const current = emMcpPath();
-  if (Object.keys(readMcpServersFrom(current)).length > 0) return current;
+  if (readMcpServersFile(current) !== undefined) return current;
   const legacy = legacyMcpPath();
   if (Object.keys(readMcpServersFrom(legacy)).length > 0) {
     // 只警告一次：本函数在扫描/取定义/写入等处都会被调用，迁移长期未完成时会刷屏
@@ -245,7 +254,8 @@ export function definitionFingerprint(cfg: McpServerConfig): string {
       cfg.description ?? null,
       // Keep old approvals valid when no new fields are present.
       ...(cfg.cwd !== undefined || cfg.requestTimeoutSeconds !== undefined || cfg.exposure !== undefined || cfg.toolExposure !== undefined
-        ? [{ cwd: cfg.cwd, requestTimeoutSeconds: cfg.requestTimeoutSeconds, exposure: cfg.exposure, toolExposure: sorted(cfg.toolExposure) }] : []),
+        // Pi uses the first matching pattern, so toolExposure order is behavior, unlike env/headers.
+        ? [{ cwd: cfg.cwd, requestTimeoutSeconds: cfg.requestTimeoutSeconds, exposure: cfg.exposure, toolExposure: cfg.toolExposure ? Object.entries(cfg.toolExposure) : null }] : []),
     ]))
     .digest("hex")
     .slice(0, 32);

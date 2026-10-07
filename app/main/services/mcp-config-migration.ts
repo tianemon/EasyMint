@@ -14,7 +14,7 @@
  * Pi 1.0.4 起内置 MCP 从 `getAgentDir()` 读 `mcp.json`，留着旧位就会与 SDK 读到的文件分裂成两份。
  *
  * 设计要点（与 `session-dir-migration` 同口径）：
- * - **幂等**：新位置已存在则不覆盖、不删除旧文件（保守：宁可留一份也不丢用户配置）。
+ * - **幂等**：排他复制到新位置，保留源备份；并发创建的新文件也绝不覆盖。
  * - **best-effort**：单个文件失败只记日志、保持原样，不阻断启动（下次启动自动重试）。
  * - **不碰项目级**：`<项目>/.easymint/mcp.json` 本来就对齐（`CONFIG_DIR_NAME` 定制为 `.easymint`），
  *   项目根 `.mcp.json` 是只读兼容来源——两者都不动。
@@ -25,7 +25,7 @@ import * as path from "node:path";
 import { emHome, emAgentDir } from "../utils/paths";
 
 export interface McpConfigMigrationResult {
-  /** 新位置原本不存在、已从旧位置搬过来的文件名 */
+  /** 已在新位置创建的文件名；源文件保留为备份 */
   moved: string[];
   /** 新位置已存在而跳过（不覆盖用户当前配置） */
   skipped: string[];
@@ -67,17 +67,15 @@ export function migrateMcpConfigFiles(): McpConfigMigrationResult {
       continue;
     }
     try {
-      fs.renameSync(from, to);
+      // The existence check above is only an optimization. EXCL is the atomic no-overwrite gate.
+      // Keep the source: removing it could race an older app instance writing the legacy path.
+      fs.copyFileSync(from, to, fs.constants.COPYFILE_EXCL);
       result.moved.push(oldName);
-    } catch {
-      // 跨设备（EASYMINT_HOME 指向另一个卷）等场景 rename 会失败，退回复制
-      try {
-        fs.copyFileSync(from, to);
-        result.moved.push(oldName);
-        console.warn(`[mcp-migration] ${oldName} 跨设备搬移失败，已改为复制（旧文件保留）`);
-      } catch (e2) {
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") result.skipped.push(oldName);
+      else {
         result.failed.push(oldName);
-        console.error(`[mcp-migration] 迁移 ${from} → ${to} 失败:`, (e2 as Error).message);
+        console.error(`[mcp-migration] 迁移 ${from} → ${to} 失败:`, (error as Error).message);
       }
     }
   }

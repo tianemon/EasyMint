@@ -9,6 +9,7 @@ import { emAgentDir } from "../utils/paths";
 import { createPiExtensionUi } from "./pi-extension-ui";
 
 interface SessionMcp {
+  manager: object;
   project: string;
   owners: Set<string>;
   mode: () => PermissionMode;
@@ -50,10 +51,10 @@ function configSource(scope: string, project: string): string {
 }
 
 export async function createMcpSessionExtensions(options: {
-  cwd: string; agentDir: string; owner: string; sessionId: string; getMode: () => string | undefined;
+  cwd: string; agentDir: string; owner: string; sessionId: string; manager: object; getMode: () => string | undefined;
 }): Promise<InlineExtension[]> {
   const sdk = await import("@earendil-works/pi-coding-agent");
-  const record: SessionMcp = { project: path.resolve(options.cwd), owners: new Set([options.owner, options.sessionId]),
+  const record: SessionMcp = { manager: options.manager, project: path.resolve(options.cwd), owners: new Set([options.owner, options.sessionId]),
     mode: () => record.disposed ? "readonly" : normalizePermissionMode(options.getMode()), statuses: [], disposed: false };
   const rawDefinitions = new Map<string, { fingerprint: string; timeout: number }>();
   const configSignature = () => JSON.stringify([record.mode(), scanMcpServers(record.project).map(server => {
@@ -179,8 +180,10 @@ export async function closeAllMcpClients(): Promise<void> {
   probeStatuses.clear();
 }
 
-export async function disposeMcpSession(sessionId: string): Promise<void> {
-  const closing = [...sessions].filter(record => record.owners.has(sessionId));
+export async function disposeMcpSession(manager: object): Promise<void> {
+  // Owner aliases are for recursive permission revocation. Ordinary disposal belongs only to
+  // this manager instance, even when children or a resumed session share the logical session id.
+  const closing = [...sessions].filter(record => record.manager === manager);
   for (const record of closing) { record.disposed = true; sessions.delete(record); }
   await Promise.all(closing.map(record => record.controller?.close()));
 }

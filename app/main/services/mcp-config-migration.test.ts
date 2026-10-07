@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { syncBuiltinESMExports } from "node:module";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir() } }));
@@ -27,6 +28,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks(); syncBuiltinESMExports();
   delete process.env.EASYMINT_HOME;
   for (const dir of roots.splice(0)) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
@@ -55,9 +57,9 @@ describe("MCP 配置归位迁移", () => {
     expect(JSON.parse(fs.readFileSync(path.join(agent, "mcp.json"), "utf8")).mcpServers.a.command).toBe("x");
     expect(JSON.parse(fs.readFileSync(path.join(agent, "mcp-auth.json"), "utf8")).srv.tokens).toBe("enc");
     expect(JSON.parse(fs.readFileSync(path.join(agent, "mcp-instructions.json"), "utf8")).srv).toBe("自述");
-    // 旧文件已搬走（不是复制），避免出现两份配置各自被改
-    expect(fs.existsSync(path.join(home, "mcp.json"))).toBe(false);
-    expect(fs.existsSync(path.join(home, "mcp-oauth.json"))).toBe(false);
+    // 源备份保留；新位置（包括空配置）一旦有效就接管，不会因删除末项而复活旧定义。
+    expect(fs.existsSync(path.join(home, "mcp.json"))).toBe(true);
+    expect(fs.existsSync(path.join(home, "mcp-oauth.json"))).toBe(true);
   });
 
   it("新位置已有配置时不覆盖、不删除旧文件", async () => {
@@ -105,5 +107,30 @@ describe("MCP 配置归位迁移", () => {
     expect(fs.existsSync(projectMcp)).toBe(true);
     expect(fs.existsSync(path.join(project, ".mcp.json"))).toBe(true);
     expect(fs.existsSync(path.join(home, "agent", "mcp.json"))).toBe(false);
+  });
+
+  it("never overwrites a destination created between existence check and migration", async () => {
+    const old = JSON.stringify({ mcpServers: { old: { command: "old" } } });
+    const current = JSON.stringify({ mcpServers: { current: { command: "current" } } });
+    writeAt(home, "mcp.json", old);
+    fs.mkdirSync(path.join(home, "agent"));
+    const destination = path.join(home, "agent", "mcp.json");
+    const migrate = await loadMigration();
+    const exists = fs.existsSync;
+    let raced = false;
+    vi.spyOn(fs, "existsSync").mockImplementation(file => {
+      if (String(file) === destination && !raced) {
+        raced = true;
+        // Another running instance writes its configuration immediately after the observed miss.
+        fs.writeFileSync(destination, current);
+        return false;
+      }
+      return exists(file);
+    });
+    syncBuiltinESMExports();
+    migrate();
+    expect(raced).toBe(true);
+    expect(fs.readFileSync(destination, "utf8")).toBe(current);
+    expect(fs.readFileSync(path.join(home, "mcp.json"), "utf8")).toBe(old);
   });
 });

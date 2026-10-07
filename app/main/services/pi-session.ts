@@ -177,7 +177,7 @@ async function buildSession(
   const extensionPaths = liveMode() === "full" ? approvedExtensions : [];
   const mcpExtensions = opts.canUseTool ? await createMcpSessionExtensions({
     cwd: opts.cwd, agentDir: opts.agentDir, owner: opts.executionOwner ?? sessionManager.getSessionId(),
-    sessionId: sessionManager.getSessionId(), getMode: () => opts.getPermissionMode?.() ?? opts.permissionMode,
+    sessionId: sessionManager.getSessionId(), manager: sessionManager, getMode: () => opts.getPermissionMode?.() ?? opts.permissionMode,
   }) : [];
   const guardedLoader = new DRL({
     cwd: opts.cwd,
@@ -270,7 +270,7 @@ export function disposePiSession(session: AgentSession): Promise<void> {
     let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
       // MCP owns OS processes/leases. Its closure must finish before the generic extension timeout.
-      await disposeMcpSession(session.sessionId);
+      await disposeMcpSession(session.sessionManager);
       if (session.extensionRunner.hasHandlers("session_shutdown")) {
         await Promise.race([
           session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" }),
