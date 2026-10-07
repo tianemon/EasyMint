@@ -96,7 +96,7 @@ function isGitSource(source: string): boolean {
   return source.startsWith("git:") || /^(https?|ssh|git):\/\//i.test(source);
 }
 
-// Pi 通过 jiti 别名向扩展提供的模块（来源：锁定 SDK 0.87.1 dist/core/extensions/loader.js
+// Pi 通过 jiti别名向扩展提供的模块（来源：锁定 SDK 1.0.4 dist/core/extensions/loader.js
 // 的 getAliases——@earendil-works/* 与旧作用域 @mariozechner/* 指向 SDK 自身入口；
 // typebox 与 @sinclair/typebox（含 /compile、/value 子路径）指向 SDK 的 typebox 依赖）。
 // 这些由 EM 锁定的 SDK 版本提供，不属于用户可执行内容；版本锚定测试钉住 SDK 版本，
@@ -264,7 +264,7 @@ function fingerprint(file: string): string {
         if (spec.startsWith("node:")) continue;
         const name = spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0]!;
         if (builtinModules.includes(name)) continue;
-        // Pi 提供的模块（jiti 别名，来源 SDK 0.87.1 loader.js getAliases，版本锚定测试钉住版本）：
+        // Pi 提供的模块（jiti 别名，来源 SDK 1.0.4 loader.js getAliases，版本锚定测试钉住版本）：
         // @earendil-works/* 与旧作用域 @mariozechner/* 映射到 SDK 自身入口；typebox 与
         // @sinclair/typebox（含 /compile、/value 子路径）映射到 SDK 的 typebox 依赖。
         // 它们由 EM 锁定的 SDK 版本提供，与用户扩展代码无关，不纳入指纹。

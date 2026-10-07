@@ -83,6 +83,29 @@ function findDataDir(): string {
   return candidates[0]!;
 }
 
+/**
+ *剥掉 Pi 静态模型表 key 上的模型类型前缀。
+ *
+ * Pi 自 v1.0.0 起把静态表（`pi-ai/dist/providers/data/*.json`）的 key 写成
+ * `<type>:<id>`（`chat:` / `image:` / `classifier:`），而 `ModelRuntime` 暴露给
+ * 调用方的 `model.id` 是**剥掉前缀的裸 id**（见 pi-ai `utils/model-operations.ts`
+ * 的 `getModelType`：类型来自 `model.type` 字段，不来自 key）。
+ *
+ * 本模块两处都绕过 SDK 直读原始 JSON，因此必须自己剥前缀，否则：
+ *   - `getProviderStaticModels`的表key 与 runtime、`models.json` 的 `modelOverrides`
+ *     键全都对不上（用户设置的上下文长度会静默失效）；
+ *   - 设置页模型列表会显示成 `chat:gpt-5` 这类带前缀的名字。
+ *
+ * 返回裸 id；非 chat 类型（image / classifier）返回 undefined——它们不是对话模型，
+ * 不进模型选择器与 override 表。
+ */
+function stripModelTypePrefix(rawId: string): string | undefined {
+  const m = /^([a-z]+):(.+)$/.exec(rawId);
+  if (!m) return rawId; // 无前缀（0.87.1 及更早，或第三方数据档）
+  if (m[1] !== "chat") return undefined;
+  return m[2];
+}
+
 function parseModels(data: unknown): { models: StaticModel[]; baseUrl?: string; apis: string[] } {
   const models: StaticModel[] = [];
   const apis: string[] = [];
@@ -91,8 +114,10 @@ function parseModels(data: unknown): { models: StaticModel[]; baseUrl?: string; 
 
   for (const [api, apiGroup] of Object.entries(data as Record<string, unknown>)) {
     if (!apiGroup || typeof apiGroup !== "object") continue;
-    for (const [id, m] of Object.entries(apiGroup as Record<string, any>)) {
+    for (const [rawId, m] of Object.entries(apiGroup as Record<string, any>)) {
       if (m && typeof m === "object" && m.id) {
+        const id = stripModelTypePrefix(rawId);
+        if (id === undefined) continue;
         if (!baseUrl && m.baseUrl) baseUrl = m.baseUrl;
         if (!apis.includes(api)) apis.push(api);
         models.push({
@@ -305,11 +330,19 @@ export function getProviderStaticModels(providerId: string): Map<string, Record<
         const data = JSON.parse(readFileSync(filePath, "utf-8"));
         for (const apiGroup of Object.values(data as Record<string, unknown>)) {
           if (!apiGroup || typeof apiGroup !== "object") continue;
-          for (const [id, m] of Object.entries(apiGroup as Record<string, any>)) {
-            if (m && typeof m === "object") models.set(id, m);
+          for (const [rawId, m] of Object.entries(apiGroup as Record<string, any>)) {
+            if (!m || typeof m !== "object") continue;
+            // Pi 自 v1.0.0 起给静态表的 key 加了模型类型前缀（`chat:` / `image:` /
+            // `classifier:`），而 ModelRuntime 暴露给调用方的 `id` 是剥掉前缀的裸id。
+            // 本表绕过 SDK 直读原始 JSON，因此必须自己剥前缀，否则表里的 id 与
+            // runtime / models.json modelOverrides 的键全都对不上（0.87.1 时无此前缀）。
+            // 只收 chat 类：image / classifier 不是对话模型，不进模型选择器。
+            const id = stripModelTypePrefix(rawId);
+            if (id === undefined) continue;
+            models.set(id, m);
           }
         }
-      } catch { /* 坏档 → 返回空表，调用方走保守兜底 */ }
+      } catch { /* 坏档→ 返回空表，调用方走保守兜底 */ }
     }
   }
   _staticModelsByProvider.set(providerId, models);
