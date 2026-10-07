@@ -1,9 +1,11 @@
+import fs from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProtectedMcpTransport } from "./mcp-transport";
 
 const mocks = vi.hoisted(() => ({ wrap: vi.fn(), release: vi.fn(async () => {}), start: vi.fn(async () => {}), close: vi.fn(async () => {}), initialize: vi.fn(async () => ({ ok: true })) }));
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => "/tmp" } }));
-vi.mock("./permission/execution-context", () => ({ bindExecutionOwner: (value: unknown) => value, createExecutionContext: () => ({ environment: { SAFE: "yes" } }) }));
+vi.mock("./permission/execution-context", () => ({ bindExecutionOwner: (value: unknown) => value, createExecutionContext: () => ({ environment: { SAFE: "yes", PATH: "D:\\managed\\bin;C:\\Windows\\System32", LOCALAPPDATA: "D:\\sandbox\\Local" } }) }));
+vi.mock("./background-shell/registry", () => ({ findBashOnWindows: () => "C:\\Git\\bin\\bash.exe" }));
 vi.mock("./sandbox/manager", () => ({ ensureSandbox: mocks.initialize, isSandboxBypassedForMode: (mode: string) => mode === "full", wrapForSandbox: mocks.wrap }));
 vi.mock("@earendil-works/pi-mcp", () => ({
   StreamableHttpTransport: class {},
@@ -11,10 +13,32 @@ vi.mock("@earendil-works/pi-mcp", () => ({
     onMessage() {} onError() {} onClose() {} start = mocks.start; close = mocks.close;
   },
 }));
-afterEach(() => { vi.clearAllMocks(); });
+afterEach(() => { vi.clearAllMocks(); vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 const entry = { name: "fixture", source: "test", config: { command: "node" } };
 
 describe("MCP async transport boundary", () => {
+  it.each(["standard", "full"] as const)("launches a Windows standalone CodeGraph through its own node in %s mode", async mode => {
+    const platform = process.platform;
+    Object.defineProperty(process, "platform", { value: "win32" });
+    try {
+      vi.stubEnv("LOCALAPPDATA", "C:\\Users\\Test User\\AppData\\Local");
+      vi.stubEnv("CODEGRAPH_INSTALL_DIR", "");
+      const bundle = "C:\\Users\\Test User\\AppData\\Local\\codegraph\\current";
+      const files = new Set([`${bundle}\\bin\\codegraph.cmd`, `${bundle}\\node.exe`, `${bundle}\\lib\\dist\\bin\\codegraph.js`]);
+      vi.spyOn(fs, "existsSync").mockImplementation(value => files.has(String(value)));
+      mocks.wrap.mockResolvedValue({ kind: "argv", argv: ["mock-worker"], env: {}, release: mocks.release });
+      const transport = new ProtectedMcpTransport({ entry: { name: "codegraph", source: "test", config: { command: "codegraph", args: ["serve", "--mcp"] } }, cwd: "D:\\project", owner: "session", mode: () => mode });
+      await transport.start();
+      expect(mocks.wrap).toHaveBeenCalledWith(`'${bundle}\\node.exe' '${bundle}\\lib\\dist\\bin\\codegraph.js' 'serve' '--mcp'`, expect.objectContaining({
+        context: expect.objectContaining({ environment: expect.objectContaining({
+          PATH: expect.stringContaining("D:\\managed\\bin;C:\\Windows\\System32"), LOCALAPPDATA: "D:\\sandbox\\Local",
+        }) }), gitBashPath: "C:\\Git\\bin\\bash.exe",
+      }));
+      await transport.close();
+      expect(mocks.release).toHaveBeenCalledTimes(1);
+    } finally { Object.defineProperty(process, "platform", { value: platform }); }
+  });
+
   it("releases exactly once if closed while sandbox preparation is pending", async () => {
     let resolve!: (spec: unknown) => void;
     mocks.wrap.mockReturnValue(new Promise(done => { resolve = done; }));

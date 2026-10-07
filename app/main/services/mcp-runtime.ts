@@ -23,6 +23,10 @@ const redact = (value: string) => value.replace(/(authorization|token|secret|key
 const scopeKey = (project: string | undefined, name: string) => `${project ? path.resolve(project) : "global"}::${name}`;
 type SignInPrompt = Parameters<typeof import("@earendil-works/pi-coding-agent").signInMcpServer>[0]["prompt"];
 const signIns = new Map<string, { abort: AbortController; promise: Promise<{ ok: boolean; error?: string }> }>();
+// CodeGraph may catch up its index before answering initialize. Explicit user timeouts win.
+export function mcpConnectTimeout(name: string, cfg: McpServerConfig): number {
+  return cfg.timeout ?? (name === "codegraph" || /^(codegraph|codegraph\.cmd)$/i.test(cfg.command ?? "") ? 30000 : 8000);
+}
 function accountKey(name: string, projectPath?: string): string {
   const manifest = scanMcpServers(projectPath).find(server => server.name === name);
   const cfg = manifest && getMcpServerConfig(name, { projectPath, scope: manifest.scope });
@@ -81,7 +85,7 @@ export async function createMcpSessionExtensions(options: {
         const namespace = manifest.name.replace(/-/g, "_");
         if (namespaces.has(namespace)) throw new Error("服务器名称规范化后冲突，请重命名其中一个服务器");
         namespaces.add(namespace);
-        rawDefinitions.set(manifest.name, { fingerprint: definitionFingerprint(raw), timeout: raw.timeout ?? 8000 });
+        rawDefinitions.set(manifest.name, { fingerprint: definitionFingerprint(raw), timeout: mcpConnectTimeout(manifest.name, raw) });
         loaded.servers.push(entry);
       } catch (error) { loaded.errors.push(`${manifest.name}: ${redact((error as Error).message)}`); }
     }
@@ -109,7 +113,16 @@ export async function createMcpSessionExtensions(options: {
       },
     }),
     openUrl: url => { void import("electron").then(({ shell }) => shell.openExternal(url)); },
-    onStatus: statuses => { record.statuses = statuses.map(status => ({ ...status, error: status.error && redact(status.error) })); },
+    onStatus: statuses => {
+      const next = statuses.map(status => ({ ...status, error: status.error && redact(status.error) }));
+      for (const status of next) {
+        const prior = record.statuses.find(item => item.name === status.name);
+        if (status.state === "failed" && (prior?.state !== status.state || prior.error !== status.error)) {
+          console.warn(`[mcp] ${status.name} 连接失败：${status.error ?? "未知原因"}`);
+        }
+      }
+      record.statuses = next;
+    },
     onController: controller => { record.controller = controller; },
     updateConfig: () => { throw new Error("请通过 EasyMint 设置页修改 MCP 配置"); },
   });
@@ -123,7 +136,13 @@ export async function createMcpSessionExtensions(options: {
     { name: "easymint-mcp", hidden: true, factory: pi => {
       sessions.add(record);
       pi.on("before_agent_start", async () => {
-        if (loadedSignature !== configSignature()) await record.controller?.reload();
+        if (loadedSignature !== configSignature()) {
+          await record.controller?.reload();
+        } else if (!record.disposed && record.mode() !== "readonly") {
+          // Retry only failed discovery, keeping successful servers and their tools alive.
+          await Promise.allSettled(record.statuses.filter(status => status.state === "failed")
+            .map(status => record.controller?.reconnect(status.name)));
+        }
       });
       wrapFactory(mcpFactory)(pi);
       pi.on("session_shutdown", () => { record.disposed = true; sessions.delete(record); });
@@ -277,7 +296,7 @@ async function probeConnection(name: string, cfg: McpServerConfig, projectPath: 
     const owner = `mcp-test-${randomUUID()}`;
     connection = new sdk.McpServerConnection({
       entry, cwd: projectPath, credentials,
-      connectTimeoutMs: cfg.timeout ?? 8000, onTools: () => {},
+      connectTimeoutMs: mcpConnectTimeout(name, cfg), onTools: () => {},
       createTransport: (server, cwd, authProvider) => new ProtectedMcpTransport({ entry: server, cwd, authProvider, owner, mode, validate }),
     });
     await connection.getClient();

@@ -4,6 +4,7 @@ import type { McpServerEntry } from "@earendil-works/pi-coding-agent";
 import { ensureSandbox, isSandboxBypassedForMode, wrapForSandbox } from "./sandbox/manager";
 import { bindExecutionOwner, createExecutionContext, type PermissionMode } from "./permission/execution-context";
 import { findBashOnWindows } from "./background-shell/registry";
+import { codegraphEnvironment, codegraphInvocation } from "../utils/codegraph-command";
 
 const shellQuote = (value: string) => `'${value.replace(/'/g, `'"'"'`)}'`;
 
@@ -85,6 +86,12 @@ export class ProtectedMcpTransport implements McpTransport {
         this.inner = new StreamableHttpTransport({ url: config.url, headers: config.headers, authProvider: this.options.authProvider });
       } else {
         const context = bindExecutionOwner(createExecutionContext(this.options.cwd, mode, config.env), this.options.owner);
+        const isCodegraph = /^(codegraph|codegraph\.cmd)$/i.test(config.command);
+        // Preserve managed/runtime PATH entries, but locate host installations before the
+        // sandbox's APPDATA/LOCALAPPDATA redirection takes effect.
+        const resolvedEnv = isCodegraph ? codegraphEnvironment({ ...process.env, ...config.env, PATH: context.environment.PATH }) : undefined;
+        if (resolvedEnv) context.environment.PATH = resolvedEnv.PATH;
+        const invocation = isCodegraph ? codegraphInvocation(config.command, config.args ?? [], resolvedEnv!) : { command: config.command, args: config.args, shellCommand: undefined };
         if (!isSandboxBypassedForMode(mode)) {
           const initialized = await ensureSandbox(this.options.cwd, mode);
           if (!initialized.ok) throw new Error(`MCP 安全执行后端不可用：${initialized.reason}`);
@@ -92,7 +99,7 @@ export class ProtectedMcpTransport implements McpTransport {
         this.check(mode);
         const gitBashPath = process.platform === "win32" ? findBashOnWindows() : undefined;
         if (process.platform === "win32" && !gitBashPath) throw new Error("Windows MCP 需要 Git Bash");
-        const spec = await wrapForSandbox([config.command, ...(config.args ?? [])].map(shellQuote).join(" "), { context, gitBashPath: gitBashPath ?? undefined });
+        const spec = await wrapForSandbox([invocation.shellCommand ?? invocation.command, ...(invocation.args ?? [])].map(shellQuote).join(" "), { context, gitBashPath: gitBashPath ?? undefined });
         this.release = spec.release;
         this.check(mode);
         this.inner = new StdioTransport({

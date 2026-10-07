@@ -7,7 +7,7 @@ import type { AgentSession } from "./pi-sdk";
 import { Store } from "./store";
 import { createPiSession, disposePiSession } from "./pi-session";
 import { approveMcpServer, definitionFingerprint, saveMcpServer, scanMcpServers, type McpServerConfig } from "./mcp-service";
-import { closeMcpContexts, getMcpStatus, reloadMcpTools, retryMcpServer, toPiMcpEntry } from "./mcp-runtime";
+import { closeMcpContexts, getMcpStatus, mcpConnectTimeout, reloadMcpTools, retryMcpServer, toPiMcpEntry } from "./mcp-runtime";
 
 vi.mock("electron", () => ({
   app: { isPackaged: false, getPath: () => os.tmpdir() },
@@ -70,6 +70,36 @@ async function script(session: AgentSession, code: string, id = "outer") {
 const echoCode = 'const r = await tools.mcp__echo__echo({text:"hello"}); text(r.content[0].text);';
 
 describe("Pi MCP host integration", () => {
+  it("gives CodeGraph time to catch up while preserving explicit millisecond timeouts", () => {
+    expect(mcpConnectTimeout("codegraph", { type: "stdio", command: "codegraph" })).toBe(30000);
+    expect(mcpConnectTimeout("connection-test", { type: "stdio", command: "codegraph" })).toBe(30000);
+    expect(mcpConnectTimeout("codegraph", config({ timeout: 1234 }))).toBe(1234);
+    expect(mcpConnectTimeout("other", { type: "stdio", command: "node" })).toBe(8000);
+  });
+
+  it.each(["initialize", "tools/list"])("cleans up a %s timeout and retries discovery on the next prompt without restarting healthy servers", async phase => {
+    const pidFile = path.join(root, "failed.pid");
+    const fixture = path.resolve("tests/fixtures/echo-mcp.cjs");
+    const firstStart = phase === "initialize" ? "setInterval(()=>{},1000);" : `process.env.EM_ECHO_LIST_DELAY_MS='5000';require(${JSON.stringify(fixture)});`;
+    const code = `const fs=require('fs');if(!fs.existsSync(${JSON.stringify(pidFile)})){fs.writeFileSync(${JSON.stringify(pidFile)},String(process.pid));${firstStart}}else{require(${JSON.stringify(fixture)});}`;
+    writeProject();
+    fs.writeFileSync(path.join(cwd, ".easymint/mcp.json"), JSON.stringify({ mcpServers: {
+      echo: config(), codegraph: config({ args: ["-e", code], timeout: 800, requestTimeoutSeconds: phase === "tools/list" ? 0.8 : 10 }),
+    } }));
+    approveMcpServer(cwd, "echo"); approveMcpServer(cwd, "codegraph");
+    const session = await create();
+    await waitFor(() => getMcpStatus(cwd).some(status => status.name === "codegraph" && status.state === "failed"));
+    const failedPid = Number(fs.readFileSync(pidFile, "utf8"));
+    await waitFor(() => { try { process.kill(failedPid, 0); return false; } catch { return true; } });
+    if (phase === "initialize") expect(getMcpStatus(cwd).find(status => status.name === "codegraph")?.error).toContain("initialize timed out after 800 ms");
+    expect(sandbox.release).toHaveBeenCalledTimes(1);
+    expect(getMcpStatus(cwd).find(status => status.name === "echo")?.state).toBe("connected");
+    await session.extensionRunner.emitBeforeAgentStart("retry discovery", undefined, { cwd });
+    expect(getMcpStatus(cwd).find(status => status.name === "codegraph")).toMatchObject({ state: "connected", toolCount: 1 });
+    expect(sandbox.wrap).toHaveBeenCalledTimes(3);
+    expect(JSON.stringify((await script(session, 'text((await tools.mcp__codegraph__echo({text:"recovered"})).content[0].text);')).content)).toContain("echo:recovered");
+  }, 15000);
+
   it("never starts unapproved or readonly servers, including direct retry", async () => {
     writeProject();
     await create();

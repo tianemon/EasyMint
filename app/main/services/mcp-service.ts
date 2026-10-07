@@ -26,7 +26,7 @@ export interface McpServerConfig {
   env?: Record<string, string>;
   url?: string;
   headers?: Record<string, string>;
-  /** 可选：连接超时（毫秒）；缺省走 adapter 默认（8000） */
+  /** 可选：连接超时（毫秒）；缺省 8000，CodeGraph 缺省 30000 */
   timeout?: number;
   /** 远程 server 需要 OAuth 登录（浏览器授权，凭据经系统钥匙串加密存储） */
   oauth?: boolean;

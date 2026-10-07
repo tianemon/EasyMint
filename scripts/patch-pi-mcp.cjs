@@ -110,9 +110,16 @@ patch("dist/extensions/mcp/index.js", `                const connection = await 
 patch("dist/extensions/mcp/runtime.js", `        this.createTransport = options.createTransport;`, `        this.createTransport = options.createTransport;
         this.connectTimeoutMs = options.connectTimeoutMs;`);
 patch("dist/extensions/mcp/runtime.js", `            await client.connect(transport);`, `            let connectTimer;
+            let connectTimedOut = false;
             try {
-                if (this.connectTimeoutMs) connectTimer = setTimeout(() => { void closeClient(); }, this.connectTimeoutMs);
+                if (this.connectTimeoutMs) connectTimer = setTimeout(() => {
+                    connectTimedOut = true;
+                    void closeClient();
+                }, this.connectTimeoutMs);
                 await client.connect(transport);
+            } catch (error) {
+                if (connectTimedOut) throw new Error("MCP initialize timed out after " + this.connectTimeoutMs + " ms");
+                throw error;
             } finally { clearTimeout(connectTimer); }`);
 patch("dist/extensions/mcp/index.js", `                credentials: getCredentials(runtime),`, `                credentials: getCredentials(runtime),
                 connectTimeoutMs: options.connectTimeoutMs?.(server.entry),`);

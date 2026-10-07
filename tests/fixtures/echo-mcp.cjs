@@ -3,13 +3,16 @@ const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio
 const { ListToolsRequestSchema, CallToolRequestSchema } = require("@modelcontextprotocol/sdk/types.js");
 
 const server = new Server({ name: "echo-test", version: "1.0.0" }, { capabilities: { tools: {} } });
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [{
-    name: "echo",
-    description: "Echo back text",
-    inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
-  }],
-}));
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  if (process.env.EM_ECHO_LIST_DELAY_MS) await new Promise(resolve => setTimeout(resolve, Number(process.env.EM_ECHO_LIST_DELAY_MS)));
+  return {
+    tools: [{
+      name: "echo",
+      description: "Echo back text",
+      inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
+    }],
+  };
+});
 server.setRequestHandler(CallToolRequestSchema, async ({ params }) => ({
   content: [{ type: "text", text: `echo:${params.arguments.text}` }],
 }));
