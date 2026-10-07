@@ -25,7 +25,7 @@ import { mapWithConcurrencyLimit, type ParallelResult } from "./parallel";
 import { ResultCollector, extractAssistantText } from "./collector";
 import { judgeSubagentTerminal } from "./terminal";
 import { subagentModelChoice, subagentThinkingLevel } from "./model-resolution";
-import { finishDelegation } from "./registry";
+import { finishDelegation, getDelegation } from "./registry";
 import { wrapToolWithPermission } from "../permission/wrap-tool";
 import { bridgeSessionEvents } from "../event-bridge";
 import { broadcast } from "../ipc-broadcast";
@@ -243,6 +243,8 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
       // 跟随主会话权限（standard/full + 禁区）；pi-session 对 extraTools 统一包装
       canUseTool: opts.canUseTool as any,
       permissionMode: opts.readOnly ? "readonly" : opts.permissionMode,
+      getPermissionMode: () => opts.readOnly || opts.signal?.aborted ? "readonly" : opts.permissionMode,
+      executionOwner: getDelegation(opts.delegationId)?.parentSessionId,
     });
     // 记录子会话 jsonl 路径(前端查看 Agent 过程用)
     opts.childSessionFiles[opts.index] = session2.sessionFile ?? "";
@@ -267,6 +269,8 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
       // 跟随主会话权限（standard/full + 禁区）；pi-session 对 extraTools 统一包装
       canUseTool: opts.canUseTool as any,
       permissionMode: opts.readOnly ? "readonly" : opts.permissionMode,
+      getPermissionMode: () => opts.readOnly || opts.signal?.aborted ? "readonly" : opts.permissionMode,
+      executionOwner: getDelegation(opts.delegationId)?.parentSessionId,
     });
     // 记录子会话 jsonl 路径(前端查看 Agent 过程用)
     opts.childSessionFiles[opts.index] = session.sessionFile ?? "";

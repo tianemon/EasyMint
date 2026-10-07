@@ -16,7 +16,7 @@
     "build:mac": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --mac && rm -rf dist-electron/mac* dist-electron/*.zip*",
     "build:linux": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --linux",
     "build:ci": "npm run build:renderer && npm run build:main && npm run build:preload && electron-builder --publish never",
-    "postinstall": "node scripts/patch-pi-config.cjs && node scripts/patch-sandbox-runtime.cjs",
+    "postinstall": "node scripts/patch-pi-config.cjs && node scripts/patch-sandbox-runtime.cjs && node scripts/patch-pi-mcp.cjs",
     "build:renderer": "vite build --config app/renderer/vite.config.ts",
     "build:main": "node scripts/build.cjs main",
     "build:preload": "node scripts/build.cjs preload",
@@ -34,7 +34,6 @@
     "@earendil-works/pi-agent-core": "1.0.4",
     "@earendil-works/pi-ai": "1.0.4",
     "@earendil-works/pi-coding-agent": "1.0.4",
-    "@modelcontextprotocol/sdk": "^1.30.0",
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-virtual": "^3.14.13",
     "archiver": "^8.0.0",
@@ -59,7 +58,9 @@
     "xterm": "^5.3.0",
     "xterm-addon-fit": "^0.8.0",
     "zod": "^4.6.5",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "@earendil-works/pi-mcp": "1.0.4",
+    "@earendil-works/pi-codemode": "1.0.4"
   },
   "devDependencies": {
     "@dvaji/vite-plugin-monaco-editor": "^2.0.0",
@@ -85,7 +86,8 @@
     "typescript": "~6.0.0",
     "typescript-eslint": "^8.70.0",
     "vite": "^8.3.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "@modelcontextprotocol/sdk": "^1.30.0"
   },
   "build": {
     "appId": "com.easymint.app",
@@ -113,7 +115,8 @@
       "app/main/dist/windows-sandbox-worker.cjs",
       "node_modules/@anthropic-ai/**",
       "node_modules/@earendil-works/**",
-      "node_modules/@oh-my-pi/**"
+      "node_modules/@oh-my-pi/**",
+      "node_modules/quickjs-wasi/**"
     ],
     "publish": {
       "provider": "github"

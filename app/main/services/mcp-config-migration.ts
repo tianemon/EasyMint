@@ -4,7 +4,7 @@
  * ⚠️【待移除的一次性代码】迁移跑够之后应**整体删除**（清理清单）：
  *   1. 本文件与其测试 `mcp-config-migration.test.ts`
  *   2. `app/main/index.ts` 里的 `migrateMcpConfigFiles` 调用块与 import
- *   3. `mcp-service.ts` 的 `legacyMcpPath` + `mcp-oauth.ts` 的 `LEGACY_CRED_FILE`
+ *   3. `mcp-service.ts` 的 `legacyMcpPath` + 保留的旧版 OAuth 凭据（新版按 URL 绑定账号，不接管无 URL 的旧令牌）
  *      与两处的回落读取分支（`readUserMcpServers` / `loadCreds`）
  *   移除时机：从含本迁移的版本起发布 2~3 个 minor 版本（EM 无遥测，取保守值）。
  *

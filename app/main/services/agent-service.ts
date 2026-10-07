@@ -41,8 +41,7 @@ import { classifyApiError, normalizeApiError } from "../../shared/api-errors";
 import { contentWithoutImages, contextImageEntries, type ContextImageEntry } from "../../shared/image-context";
 import { rollbackImageContextBranch } from "./image-context-rollback";
 import { createProductTools } from "./builtin-mcp";
-import { closeMcpContexts } from "./permission/mcp-adapter";
-import { createMcpBrokerTools, ensureMcpBrokerActive } from "./permission/mcp-broker";
+import { closeMcpContexts } from "./mcp-runtime";
 import { revokeWindowsExecutionOwners } from "./sandbox/windows-execution-manager";
 import { permissionService } from "./permission/agent-permission-service";
 import type { CanUseToolOptions, PermissionResult } from "./permission/agent-permission-service";
@@ -785,20 +784,11 @@ export class AgentService {
         onTaskCompleted: (sid, text) => this.injectSystemMessage(sid, text, "delegation"),
       });
       const productTools = await createProductTools(projectPath);
-      const resolveMode = () => {
-        const sid = resolveParentSessionId(sessionId);
-        return normalizePermissionMode(readCache(sid)?.permissionMode);
-      };
-      // 首轮只注册两个稳定入口，不为发现工具而连接全部 MCP；搜索时才连接指定 server。
-      // 只读会话不注册入口，放宽权限后走会话工具重建。
-      const mcpTools = resolveMode() === "readonly"
-        ? []
-        : await createMcpBrokerTools(projectPath, sessionId, resolveMode, canUseTool);
       const agentTemplateTool = await createAgentTemplateTool();
       const stopAgentTool = await createStopAgentTool(sessionId);
       const listAgentsTool = await createListAgentsTool(sessionId);
       const readAgentLogTool = await createReadAgentLogTool(sessionId);
-      const allTools = [taskTool, agentTemplateTool, stopAgentTool, listAgentsTool, readAgentLogTool, ...productTools, ...mcpTools];
+      const allTools = [taskTool, agentTemplateTool, stopAgentTool, listAgentsTool, readAgentLogTool, ...productTools];
       // 粘贴导入工具（用户明确意图驱动，恒装——见 import-tools.ts 头注释）
       allTools.push(...(await createImportTools()));
       // use_skill 非挂起类（读+统计），worker 也装——提示词多处「用 use_skill 加载」在 worker 同样成立；
@@ -1201,6 +1191,7 @@ export class AgentService {
           extraTools,
           canUseTool,
           permissionMode: "standard",
+          executionOwner: runId,
           onExtensionError: (error) => broadcast("pi-extension:error", error),
         });
         run.session = session;
@@ -1298,7 +1289,7 @@ export class AgentService {
     }
     for (const id of ownedIds) backgroundShellRegistry.stopBySession(id);
     abortDelegations(parentId, "revoke");
-    await closeMcpContexts(ids);
+    await closeMcpContexts([...ownedIds]);
     // 切档不中止主会话正在跑的回合——用户 2026-09-18 明确要求「切换权限不打断回答」。
     // 这里曾按「降级后继续跑等于绕过刚做的收紧」在中止一行（原判据 chat.status !== "idle" 因字段恒 idle 从未生效），
     // 已按用户口径移除；不要加回来。旧权限执行上下文的撤销仍由下面 revokeWindowsExecutionOwners 与停后台任务承担。
@@ -1990,6 +1981,7 @@ export class AgentService {
                 extraTools,
                 canUseTool,
                 permissionMode: modeForCreation,
+                executionOwner: resumeSessionId,
                 getPermissionMode: () => readCache(resolveParentSessionId(resumeSessionId))?.permissionMode,
                 onExtensionError: (error) => broadcast("pi-extension:error", error),
                 onShellExit: shellExitInject,
@@ -2006,6 +1998,7 @@ export class AgentService {
             extraTools,
             canUseTool,
             permissionMode: modeForCreation,
+            executionOwner: newSessionId,
             getPermissionMode: () => readCache(resolveParentSessionId(newSessionId))?.permissionMode,
             onExtensionError: (error) => broadcast("pi-extension:error", error),
             onShellExit: shellExitInject,
@@ -2020,7 +2013,6 @@ export class AgentService {
           dispose: (stale) => disposePiSession(stale),
           onStale: () => console.warn(`[agent] 会话创建期间权限从完全访问收紧，弃用已建会话重建 ${resumeSessionId ?? newSessionId}`),
         });
-        ensureMcpBrokerActive(session);
 
         // 注册临时 ID → 真实 ID 映射：task 委派创建时解析,按真实 ID 建子会话目录
         if (!resumeSessionId) {

@@ -618,7 +618,7 @@ function McpServerForm({
       if (i > 0) headers[t.slice(0, i).trim()] = t.slice(i + 1).trim();
     }
     // 用途说明与传输类型无关，两个分支都要带上
-    const base = { description: desc.trim() || undefined };
+    const base = { description: desc.trim() || undefined, timeout: initial?.cfg.timeout, callbackPort: initial?.cfg.callbackPort, cwd: initial?.cfg.cwd, requestTimeoutSeconds: initial?.cfg.requestTimeoutSeconds, exposure: initial?.cfg.exposure, toolExposure: initial?.cfg.toolExposure };
     return type === "stdio"
       ? { ...base, type, command: command.trim() || undefined, args: argsText.trim() ? argsText.trim().split(/\s+/) : undefined, env: Object.keys(env).length ? env : undefined }
       : { ...base, type, url: url.trim() || undefined, headers: Object.keys(headers).length ? headers : undefined, env: Object.keys(env).length ? env : undefined, oauth: oauth || undefined };
@@ -626,6 +626,7 @@ function McpServerForm({
 
   const validate = (): string | null => {
     if (!MCP_NAME_RE.test(name)) return "名称需用小写字母/数字/连字符（如 my-server），长度 1-64";
+    if (type === "sse") return "请切换到 HTTP，并填写服务端提供的新 Streamable HTTP 端点";
     if (type === "stdio" && !command.trim()) return "本地进程类型必须填写启动命令（如 npx）";
     if (type !== "stdio") {
       if (!url.trim()) return `${type.toUpperCase()} 类型必须填写 URL`;
@@ -644,7 +645,7 @@ function McpServerForm({
     setErr("");
     setTestResult("正在连接…");
     try {
-      const r = await window.electronAPI.mcp.test(buildCfg());
+      const r = await window.electronAPI.mcp.test(buildCfg(), projectPath);
       setTestResult(r.ok ? `连接成功，发现 ${r.toolCount ?? 0} 个工具` : `连接失败：${r.error}`);
     } catch (e2) {
       setTestResult(`测试失败：${String(e2)}`);
@@ -680,7 +681,7 @@ function McpServerForm({
           onChange={(e) => setName(e.target.value)}
         />
         <div className="flex rounded-[var(--radius-lg)] overflow-hidden shrink-0">
-          {(["stdio", "http", "sse"] as const).map((t) => (
+          {(["stdio", "http"] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -832,12 +833,13 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
   };
   useEffect(() => { load(); }, []);
 
-  // 存在「连接中」的服务器时轮询刷新——主进程后台探测落定后状态自动更新，全部落定即停
+  // Status reads never connect. Keep disconnect/auth changes visible while the panel is open.
   useEffect(() => {
-    if (!Object.values(statuses).some((x) => x.state === "connecting")) return;
-    const t = setTimeout(load, 2500);
-    return () => clearTimeout(t);
-  }, [statuses]);
+    const timer = setInterval(() => {
+      void window.electronAPI.mcp.status(projectPath || undefined).then(items => setStatuses(Object.fromEntries(items.map(item => [item.name, item]))));
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [projectPath]);
 
   const handleToggle = async (name: string, enabled: boolean) => {
     await window.electronAPI.mcp.toggle(name, enabled);
@@ -892,6 +894,10 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
     const st = statuses[name];
     if (!st || st.state === "connecting") return { text: "连接中", cls: "bg-surface text-text-muted" };
     if (st.state === "connected") return { text: `已连接${st.toolCount ? `（${st.toolCount} 工具）` : ""}`, cls: "bg-success-soft text-success" };
+    if (st.state === "idle" && st.toolCount !== undefined) return { text: `测试通过（${st.toolCount} 工具）`, cls: "bg-success-soft text-success" };
+    if (st.state === "idle" || st.state === "closed") return { text: "未连接", cls: "bg-surface text-text-muted" };
+    if (st.state === "disconnected") return { text: "已断开", cls: "bg-warning-soft text-warning" };
+    if (st.state === "needs-auth") return { text: "待登录", cls: "bg-warning-soft text-warning" };
     if (st.state === "pending") return { text: "待确认", cls: "bg-warning-soft text-warning" };
     return { text: "连接失败", cls: "bg-danger-soft text-danger" };
   };
@@ -1053,12 +1059,22 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
                           待确认
                         </button>
                       )}
-                      {statuses[s.name]?.state === "failed" && s.enabled && (
+                      {["failed", "disconnected", "idle", "closed"].includes(statuses[s.name]?.state ?? "") && s.enabled && !s.pendingApproval && (
                         <button type="button" onClick={() => handleRetry(s.name)}
                           className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
                           重试
                         </button>
                       )}
+                      {s.enabled && !s.pendingApproval && s.type === "http" && <button type="button" onClick={async () => {
+                        const result = await window.electronAPI.mcp.login(s.name, projectPath);
+                        setActionErr(result.ok ? "" : result.error || "登录失败");
+                        void load();
+                      }} className="px-1.5 py-0.5 text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary">登录</button>}
+                      {s.enabled && !s.pendingApproval && s.type === "http" && <button type="button" onClick={async () => {
+                        const result = await window.electronAPI.mcp.logout(s.name, projectPath);
+                        setActionErr(result.ok ? "" : result.error || "退出登录失败");
+                        void load();
+                      }} className="px-1.5 py-0.5 text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary">退出登录</button>}
                       <button type="button" onClick={() => handleEdit(s.name, s.scope)}
                         className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
                         编辑

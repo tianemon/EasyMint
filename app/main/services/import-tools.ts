@@ -12,7 +12,7 @@
 import type { ToolDefinition } from "./pi-sdk";
 import { getDefineToolFn } from "./pi-sdk";
 import { parseMcpConfig, saveMcpServer } from "./mcp-service";
-import { reloadMcpTools } from "./permission/mcp-adapter";
+import { reloadMcpTools } from "./mcp-runtime";
 import { importSkillFromDir, importSkillFromUrl } from "./skill-service";
 
 export async function createImportTools(): Promise<ToolDefinition[]> {

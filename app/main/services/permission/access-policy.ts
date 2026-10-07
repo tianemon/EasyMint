@@ -81,6 +81,11 @@ export function protectedCredentialPaths(platform: NodeJS.Platform = process.pla
     // MCP OAuth 凭据（safeStorage 加密）。**新旧两个位置都要列**：归位迁移是 best-effort，
     // 失败时旧文件仍在且仍被 loadCreds 回落读取——漏掉它等于迁移窗口内凭据可被改写。
     path.join(emAgentDir(), "mcp-auth.json"),
+    path.join(emAgentDir(), "mcp-auth-v2.json"),
+    path.join(emAgentDir(), "mcp-auth-v2.json.lockdir"),
+    path.join(emAgentDir(), "mcp-auth-refresh-locks"),
+    path.join(emAgentDir(), "mcp.log"),
+    path.join(emAgentDir(), "mcp.log.1"),
     path.join(emHome(), "mcp-oauth.json"),
     // 配对凭据：`paired-devices.json` 存 `key`（base64 配对密钥）、`paired-mobile-devices.json` 存
     // `sharedSecret`（派生会话密钥的根）。读到它 = 能接入用户的设备通道，属凭据而非普通状态。

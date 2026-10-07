@@ -8,7 +8,7 @@
  *
  * 本文件锚定的不变量：**读与写必须落在同一个生效文件上**。否则用户在设置页改一个 server 时，
  * 配置会被劈成两份（旧文件里的原有条目 + 新文件里刚写的一条），下次读新文件非空就不再回落，
- * 其余 server 看起来"消失"。凭据同理（`mcp-oauth.ts` 的 `credFile()`）。
+ * 其余 server 看起来"消失"。新版凭据的 URL 隔离与密文往返由 mcp-auth-store.test.ts 覆盖。
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -17,16 +17,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({
   app: { isPackaged: false, getPath: () => os.tmpdir() },
-  // 报不可用 → mcp-oauth 的 encrypt/decrypt 走明文 base64 分支（两支对称），
-  // 正好与 encryptStub 一致，往返内容可断言
-  safeStorage: { isEncryptionAvailable: () => false },
+
 }));
 
 const roots: string[] = [];
 let home: string;
-
-/** 与 mcp-oauth.ts 的 encrypt() 对称：safeStorage 替身 = 明文 base64 */
-const encryptStub = (v: unknown): string => Buffer.from(JSON.stringify(v), "utf-8").toString("base64");
 
 function writeAt(dir: string, name: string, content: string): void {
   fs.mkdirSync(dir, { recursive: true });
@@ -99,46 +94,5 @@ describe("MCP 配置：迁移未完成时的回落读写", () => {
     expect(mcp.getMcpConfigPath()).toBe(path.join(home, "agent", "mcp.json"));
     expect(mcp.saveMcpServer("fresh", { type: "stdio", command: "f", args: [] }).ok).toBe(true);
     expect(servers(path.join(home, "agent"), "mcp.json")).toEqual(["fresh"]);
-  });
-});
-
-describe("MCP OAuth 凭据：迁移未完成时的回落读写", () => {
-  // safeStorage 在测试环境不可用会降级明文；这里给出确定性替身，好断言往返内容
-  const TOKENS_A = { access_token: "tok-a", token_type: "Bearer" };
-  const TOKENS_B = { access_token: "tok-b", token_type: "Bearer" };
-
-  async function loadOauth() {
-    vi.resetModules();
-    return import("./mcp-oauth");
-  }
-
-  it("只有旧位置有凭据时，新授权写回旧文件（否则旧文件里其它 server 的令牌会被'弄丢'）", async () => {
-    writeAt(home, "mcp-oauth.json", JSON.stringify({ srvA: { tokens: encryptStub(TOKENS_A) } }));
-    const { EmOAuthProvider } = await loadOauth();
-
-    // 旧凭据读得到（不必重新登录）
-    expect(EmOAuthProvider.hasCredentials("srvA")).toBe(true);
-    expect(new EmOAuthProvider("srvA", "http://127.0.0.1:1/mcp").tokens()).toEqual(TOKENS_A);
-
-    // 新授权写进同一份文件，而不是另起一份
-    new EmOAuthProvider("srvB", "http://127.0.0.1:2/mcp").saveTokens(TOKENS_B);
-    const merged = JSON.parse(fs.readFileSync(path.join(home, "mcp-oauth.json"), "utf8"));
-    expect(Object.keys(merged).sort()).toEqual(["srvA", "srvB"]);
-    // 没有在新位置留下第二份
-    expect(fs.existsSync(path.join(home, "agent", "mcp-auth.json"))).toBe(false);
-  });
-
-  it("新位置已有凭据时完全接管", async () => {
-    writeAt(path.join(home, "agent"), "mcp-auth.json", JSON.stringify({ srvA: { tokens: encryptStub({ ...TOKENS_A, access_token: "new-a" }) } }));
-    writeAt(home, "mcp-oauth.json", JSON.stringify({ srvA: { tokens: encryptStub(TOKENS_A) } }));
-    const { EmOAuthProvider } = await loadOauth();
-
-    expect(new EmOAuthProvider("srvA", "http://127.0.0.1:1/mcp").tokens()?.access_token).toBe("new-a");
-    new EmOAuthProvider("srvB", "http://127.0.0.1:2/mcp").saveTokens(TOKENS_B);
-    expect(Object.keys(JSON.parse(fs.readFileSync(path.join(home, "agent", "mcp-auth.json"), "utf8"))).sort())
-      .toEqual(["srvA", "srvB"]);
-    // 清除授权也落在新位置，不会"删了还在"
-    EmOAuthProvider.clearCredentials("srvB");
-    expect(EmOAuthProvider.hasCredentials("srvB")).toBe(false);
   });
 });

@@ -50,6 +50,11 @@ const KLASS_FN = {
 const DECLARED = [
   // ── credential：高敏凭据（只读档与标准档都不可读；完全访问免读、但仍禁写）──
   { entry: "em-settings.json", klass: "credential", why: "含API 密钥与供应商设置" },
+  { entry: "agent/mcp-auth-v2.json", klass: "credential", why: "Pi MCP URL 绑定的系统钥匙串密文" },
+  { entry: "agent/mcp-auth-v2.json.lockdir", klass: "credential", why: "MCP 凭据读改写锁" },
+  { entry: "agent/mcp-auth-refresh-locks", klass: "credential", why: "跨进程 OAuth 刷新锁" },
+  { entry: "agent/mcp.log", klass: "credential", why: "第三方 server 日志可能携带敏感信息" },
+  { entry: "agent/mcp.log.1", klass: "credential", why: "轮换后的 MCP 日志" },
   { entry: "agent/mcp-auth.json", klass: "credential", why: "MCP OAuth 令牌（safeStorage 密文）；已改名对齐 Pi 的 mcp-auth.json" },
   { entry: "mcp-oauth.json", klass: "credential", why: "上面的旧位置，只作迁移来源与回落读取期间的兜底" },
   { entry: "environment.sh", klass: "credential", why: "宿主导出的环境变量（可能含密钥）" },

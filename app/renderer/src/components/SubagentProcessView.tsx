@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
-import { ChatMessage, mapSessionMessages, piBlocksToEntries, mergeConsecutiveText, followDecision, USER_INPUT_WINDOW_MS } from "./chat-utils";
+import { ChatMessage, mapSessionMessages, applyNestedToolEvent, piBlocksToEntries, mergeConsecutiveText, followDecision, USER_INPUT_WINDOW_MS } from "./chat-utils";
 import { useDelegationStore } from "../stores/delegation-store";
 import { Modal } from "./ui/Modal";
 import { UserMessageText } from "./UserMessageText";
@@ -93,6 +93,16 @@ export function SubagentProcessView({
     const unsub = window.electronAPI.agent.onSubagentStream((data) => {
       if (data.delegationId !== delegationId || data.index !== index) return;
       const ev = data.ev;
+      if (ev.type === "nested_tool") {
+        setMsgs(prev => prev.map(msg => msg.entries ? { ...msg, entries: applyNestedToolEvent(msg.entries, ev) } : msg));
+        return;
+      }
+      if (ev.type === "tool_result" && ev.toolCallId) {
+        setMsgs(prev => prev.map(msg => msg.entries?.some(entry => entry.kind === "tool_use" && entry.id === ev.toolCallId)
+          ? { ...msg, entries: [...msg.entries, { kind: "tool_result", toolUseId: ev.toolCallId!, name: ev.toolName, content: ev.content ?? "", isError: !!ev.isError, nestedCalls: ev.nestedCalls, timestamp: Date.now() }] }
+          : msg));
+        return;
+      }
       // message_start = 新输出段消息(磁盘逐条 assistant)开始:终态化当前 streaming 块,
       // 下个内容帧创建新气泡——与主聊天 ChatPanel 一致(每条 assistant 消息独立气泡)
       if (ev.type === "message_start") {

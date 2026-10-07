@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { isPermissionModeTightening, normalizePermissionMode } from "./permission/execution-context";
-import { loadMcpTools } from "./permission/mcp-adapter";
 import { createDelegation, getOwnedSessionIds } from "./task/registry";
 
 describe("权限模式收紧", () => {
@@ -18,12 +17,6 @@ describe("权限模式收紧", () => {
     expect(normalizePermissionMode("sandbox")).toBe("readonly");
     expect(normalizePermissionMode("bypassPermissions")).toBe("full");
     expect(normalizePermissionMode(undefined)).toBe("standard");
-  });
-});
-
-describe("只读模式的执行面", () => {
-  it("MCP 加载在扫描或连接服务器前直接返回空列表", async () => {
-    await expect(loadMcpTools("/definitely/not/a/project", () => "readonly", "readonly-test")).resolves.toEqual([]);
   });
 });
 

@@ -11,6 +11,7 @@ import { parse as parseShell } from "shell-quote";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   canonicalPolicyPath,
   isStandardWritableTarget,
@@ -185,7 +186,7 @@ export class AgentPermissionService {
         return allow(bindExecutionOwner(createExecutionContext(cwd, mode), sid));
       }
 
-      if (name.startsWith("mcp__") && explicitPaths.length > 0) {
+      if ((name.startsWith("mcp__") || name === "read_mcp_resource") && explicitPaths.length > 0) {
         const writeLike = /(?:write|edit|create|delete|remove|move|copy|upload|update|patch|save)/.test(name);
         const readLike = /(?:read|get|list|search|find|fetch|download)/.test(name);
         const protectedTargets = protectedTargetsForMode(mode, cwd);
@@ -270,6 +271,9 @@ function extractExplicitPaths(input: Record<string, unknown>): string[] {
   const result: string[] = [];
   for (const [key, value] of Object.entries(input)) {
     const k = key.toLowerCase();
+    if (k === "uri" && typeof value === "string" && value.startsWith("file:")) {
+      try { result.push(fileURLToPath(value)); } catch { /* malformed URI is validated by the tool */ }
+    }
     if (!keys.has(k) && !k.endsWith("_path")) continue;
     if (typeof value === "string" && value.trim()) result.push(value);
     if (Array.isArray(value)) {

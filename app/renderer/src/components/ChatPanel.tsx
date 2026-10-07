@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
-import { AttachItem, ChatMessage, PendingUserBubble, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason, contextEditAction, retryStatusText, BUSY_PROBE_INTERVAL_MS, BUSY_PROBE_CLEAR_STREAK, stepBusyProbe, stopTarget, needsDeferredStop, shouldSteerSend, resolveSendSessionId } from "./chat-utils";
+import { AttachItem, ChatMessage, PendingUserBubble, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, applyNestedToolEvent, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason, contextEditAction, retryStatusText, BUSY_PROBE_INTERVAL_MS, BUSY_PROBE_CLEAR_STREAK, stepBusyProbe, stopTarget, needsDeferredStop, shouldSteerSend, resolveSendSessionId } from "./chat-utils";
 import { confirmDialog } from "./ui/ConfirmDialog";
 import { chatActions } from "../stores/chat-actions";
 import { confirmFullAccess } from "./permission-confirmation";
@@ -1569,12 +1569,21 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useStatusStore.getState().popSignal(sidRef.current, `tool:${event.toolCallId ?? "?"}`);
         if (busyRef.current) useStatusStore.getState().pushSignal(sidRef.current, "request", "正在处理...");
       }
+      if (event.type === "nested_tool" && event.parentToolCallId) {
+        const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
+        for (const msg of msgs) {
+          if (msg.role !== "ai" || !msg.entries) continue;
+          const entries = applyNestedToolEvent(msg.entries, event);
+          if (entries.some((entry, i) => entry !== msg.entries[i])) useChatStore.getState().replaceAiEntriesById(sidRef.current, msg.id, entries);
+        }
+      }
       // tool_result — 工具执行结果(主进程 event-bridge 转发 toolResult 消息):
       // 按 toolCallId 追加 tool_result entry,渲染时关联到对应工具块显示结果
       if (event.type === "tool_result" && event.toolCallId) {
         const resultEntry = {
           kind: "tool_result" as const,
           toolUseId: event.toolCallId,
+          nestedCalls: event.nestedCalls,
           name: event.toolName,
           content: event.content ?? "",          isError: event.isError ?? false,
           timestamp: event.timestamp ?? Date.now(),

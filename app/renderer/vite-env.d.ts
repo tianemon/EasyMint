@@ -69,6 +69,10 @@ interface McpServerCfg {
   callbackPort?: number;
   /** 一句话用途（如「浏览器控制」）——写进按需搜索入口的说明，供模型判断何时该用它 */
   description?: string;
+  cwd?: string;
+  requestTimeoutSeconds?: number;
+  exposure?: "codemode" | "deferred" | "direct" | "hidden";
+  toolExposure?: Record<string, "codemode" | "deferred" | "direct" | "hidden">;
 }
 
 interface Project {
@@ -172,12 +176,15 @@ interface StreamEvent {
   sessionId?: string;
   chatId?: string;       // event-bridge 注入（agent:stream 广播时设置）
   type: "message_start" | "message" | "turn_start" | "turn_end" | "thinking"
-      | "tool_progress" | "tool_done" | "tool_result" | "compacting" | "compacted" | "error" | "context_usage" | "status" | "user_message" | "custom_event" | "entry_appended" | "session_info_changed" | "retry_state" | "queue_dropped";
+      | "tool_progress" | "tool_done" | "tool_result" | "compacting" | "compacted" | "error" | "context_usage" | "status" | "user_message" | "custom_event" | "entry_appended" | "session_info_changed" | "retry_state" | "queue_dropped" | "nested_tool";
   blocks?: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; thinking?: string }>;
   partial?: boolean;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
   toolCallId?: string;
+  parentToolCallId?: string;
+  nestedPhase?: "start" | "update" | "end";
+  nestedCalls?: import("../shared/nested-calls").NestedToolCalls;
   /** tool_progress 的工具增量输出(事件桥从 partialResult 提取;bash 执行中实时输出) */
   deltaText?: string;
   /** tool_result 是否错误(toolResult 消息 isError) */
@@ -469,8 +476,10 @@ interface ElectronAPI {
     delete: (name: string, scope?: "user" | "project" | "project-compat", projectPath?: string) => Promise<{ ok: boolean; error?: string }>;
     get: (name: string, scope?: "user" | "project" | "project-compat", projectPath?: string) => Promise<McpServerCfg | null>;
     configPath: () => Promise<string>;
-    status: (projectPath?: string) => Promise<{ name: string; state: "connected" | "connecting" | "failed" | "disabled" | "pending"; toolCount?: number; error?: string }[]>;
-    test: (cfg: McpServerCfg) => Promise<{ ok: boolean; error?: string; toolCount?: number }>;
+    status: (projectPath?: string) => Promise<{ name: string; state: "connected" | "connecting" | "failed" | "disabled" | "pending" | "idle" | "disconnected" | "needs-auth" | "closed"; toolCount?: number; error?: string }[]>;
+    test: (cfg: McpServerCfg, projectPath?: string) => Promise<{ ok: boolean; error?: string; toolCount?: number }>;
+    login: (name: string, projectPath?: string) => Promise<{ ok: boolean; error?: string }>;
+    logout: (name: string, projectPath?: string) => Promise<{ ok: boolean; error?: string }>;
     retry: (name: string, projectPath?: string) => Promise<{ ok: boolean; error?: string }>;
     approve: (name: string, projectPath: string) => Promise<void>;
     importText: (text: string) => Promise<{ ok: boolean; error?: string; message?: string; notes?: string[] }>;

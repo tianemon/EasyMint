@@ -116,7 +116,7 @@ import { applyDockIcon } from "./utils/dock-icon";
 import { shutdownWindowsExecutionWorkers } from "./services/sandbox/windows-execution-manager";
 import { releaseSandbox } from "./services/sandbox/manager";
 import { backgroundShellRegistry } from "./services/background-shell/registry";
-import { closeAllMcpClients } from "./services/permission/mcp-adapter";
+import { closeAllMcpClients } from "./services/mcp-runtime";
 import { snapshotProcessPids, stopAllProcesses } from "./services/process-service";
 import { signalTrackedChildren, snapshotTrackedChildren } from "./services/process-registry";
 

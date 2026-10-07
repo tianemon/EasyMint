@@ -64,7 +64,7 @@ import {
   type McpServerConfig,
   type McpScope,
 } from "./services/mcp-service";
-import { getMcpStatus, ensureStatusProbe, reloadMcpTools, dropMcpClient, retryMcpServer, testMcpServer } from "./services/permission/mcp-adapter";
+import { getMcpStatus, reloadMcpTools, retryMcpServer, testMcpServer, loginMcpServer, logoutMcpServer } from "./services/mcp-runtime";
 import {
   trackUpload,
   getUploadStats,
@@ -478,18 +478,16 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       : importSkillFromDir(source, { name, overwrite }));
 
   // mcp:*
-  ipcMain.handle("mcp:list", () => scanMcpServers());
+  ipcMain.handle("mcp:list", (_e, { projectPath } = {} as { projectPath?: string }) => scanMcpServers(projectPath));
   ipcMain.handle("mcp:toggle", (_e, { name, enabled }: { name: string; enabled: boolean }) => {
-    void dropMcpClient(name); // 开关变更丢弃旧连接，按新状态重连
     toggleMcpServer(name, enabled);
-    reloadMcpTools(); // 丢弃在途的按需加载记录（定义不缓存、也不中断已发出的请求，见 mcp-adapter 的能力边界注释）
+    reloadMcpTools(); // 关闭旧连接，按当前配置快照重建 Pi MCP
   });
   ipcMain.handle("mcp:requiredKeys", () => getMcpRequiredKeys());
-  // 配置管理（阶段A）：增删改 + 测试连接 + 状态。变更后统一「丢连接（dropMcpClient）+ 丢在途加载（reloadMcpTools）」
+  // 配置写入完成后由 Pi 控制接口重建连接；状态查询自身不发起连接。
   ipcMain.handle("mcp:save", (_e, { name, cfg, scope, projectPath }: { name: string; cfg: McpServerConfig; scope?: McpScope; projectPath?: string }) => {
     const r = saveMcpServer(name, cfg, { scope, projectPath });
     if (r.ok) {
-      void dropMcpClient(name); // 配置变更丢弃旧连接——clients 按名复用，不丢弃会一直用旧配置的连接
       reloadMcpTools();
     }
     return r;
@@ -497,7 +495,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("mcp:delete", (_e, { name, scope, projectPath }: { name: string; scope?: McpScope; projectPath?: string }) => {
     const r = deleteMcpServer(name, { scope, projectPath });
     if (r.ok) {
-      void dropMcpClient(name);
       reloadMcpTools();
     }
     return r;
@@ -505,17 +502,20 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("mcp:get", (_e, { name, scope, projectPath }: { name: string; scope?: McpScope; projectPath?: string }) => getMcpServerConfig(name, { scope, projectPath }));
   ipcMain.handle("mcp:configPath", () => getMcpConfigPath());
   ipcMain.handle("mcp:status", (_e, { projectPath }: { projectPath?: string }) => {
-    ensureStatusProbe(projectPath); // 无状态记录的后台探测，避免界面永远「连接中」
     return getMcpStatus(projectPath);
   });
-  ipcMain.handle("mcp:test", (_e, { cfg }: { cfg: McpServerConfig }) => testMcpServer(cfg));
+  ipcMain.handle("mcp:test", (_e, { cfg, projectPath }: { cfg: McpServerConfig; projectPath?: string }) => testMcpServer(cfg, projectPath));
+  ipcMain.handle("mcp:login", (event, { name, projectPath }: { name: string; projectPath?: string }) => {
+    if (projectPath) bindPiExtensionWindow(projectPath, event.sender.id);
+    return loginMcpServer(name, projectPath);
+  });
+  ipcMain.handle("mcp:logout", (_e, { name, projectPath }: { name: string; projectPath?: string }) => logoutMcpServer(name, projectPath));
   ipcMain.handle("mcp:retry", (_e, { name, projectPath }: { name: string; projectPath?: string }) => retryMcpServer(name, projectPath));
   ipcMain.handle("mcp:importText", (_e, { text }: { text: string }) => {
     const parsed = parseMcpConfig(text);
     if (!parsed.ok) return { ok: false, error: parsed.error };
     const results: string[] = [];
     for (const [name, cfg] of Object.entries(parsed.parsed.servers)) {
-      void dropMcpClient(name); // 同名重导入按新配置重连
       const r = saveMcpServer(name, cfg);
       results.push(r.ok ? `✅ ${name}（${cfg.type}）已添加` : `❌ ${name}：${r.error}`);
     }

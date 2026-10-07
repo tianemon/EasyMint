@@ -36,6 +36,7 @@ import { mergeIntoPiSkills } from "./skill-service";
 import { discoverAvailableExtensions, recordPiExtensionError, recordPiExtensionStats } from "./pi-extension-service";
 import { createPiExtensionUi } from "./pi-extension-ui";
 import { normalizePermissionMode } from "./permission/execution-context";
+import { createMcpSessionExtensions, disposeMcpSession } from "./mcp-runtime";
 
 // 目录工具再导出：既有调用点（project-service / session-service / migration-service /
 // task/executor / agent-service）仍从本模块引用，避免无谓的 import 面改动。
@@ -66,6 +67,7 @@ export interface PiSessionOptions {
   /** Executable Pi extensions require a full-access session. */
   permissionMode?: string;
   getPermissionMode?: () => string | undefined;
+  executionOwner?: string;
 }
 
 // ── 工厂函数 ────────────────────────────────────────
@@ -140,8 +142,11 @@ async function buildSession(
     hidden: true,
     factory(pi) {
       pi.on("tool_call", async (event, ctx) => {
-        if (ownToolNames.has(event.toolName) || !opts.canUseTool) return;
-        if (normalizePermissionMode(opts.getPermissionMode?.() ?? opts.permissionMode) !== "full") {
+        if (!opts.canUseTool) return;
+        const origin = pi.getAllTools().find(tool => tool.name === event.toolName)?.sourceInfo.path;
+        if (ownToolNames.has(event.toolName) && origin === `<sdk:${event.toolName}>`) return;
+        const trustedMcp = origin === "<inline:easymint-mcp>" || origin === "<inline:easymint-codemode>" || origin === "<inline:easymint-tool-search>";
+        if (!trustedMcp && normalizePermissionMode(opts.getPermissionMode?.() ?? opts.permissionMode) !== "full") {
           return { block: true, reason: "Pi 扩展工具仅在完全访问模式可用" };
         }
         const decision = await opts.canUseTool(event.toolName, event.input, {
@@ -170,6 +175,10 @@ async function buildSession(
   // noExtensions 阻止 SDK 默认路径在授权前执行，只有显式列出的已授权入口会加载。
   // loader 构造前最后一次复核实时模式：若创建期间已切离 full，本会话不加载任何扩展。
   const extensionPaths = liveMode() === "full" ? approvedExtensions : [];
+  const mcpExtensions = opts.canUseTool ? await createMcpSessionExtensions({
+    cwd: opts.cwd, agentDir: opts.agentDir, owner: opts.executionOwner ?? sessionManager.getSessionId(),
+    sessionId: sessionManager.getSessionId(), getMode: () => opts.getPermissionMode?.() ?? opts.permissionMode,
+  }) : [];
   const guardedLoader = new DRL({
     cwd: opts.cwd,
     agentDir: opts.agentDir,
@@ -179,7 +188,7 @@ async function buildSession(
     additionalSkillPaths: packagePaths(installedPackages.skills),
     additionalPromptTemplatePaths: packagePaths(installedPackages.prompts),
     additionalThemePaths: packagePaths(installedPackages.themes),
-    extensionFactories: [permissionExtension],
+    extensionFactories: [...mcpExtensions, permissionExtension],
     systemPromptOverride: opts.systemPrompt ? () => opts.systemPrompt! : undefined,
     skillsOverride: (base) => ({
       skills: [...base.skills, ...mergeIntoPiSkills(opts.cwd, base.skills)],
@@ -260,6 +269,8 @@ export function disposePiSession(session: AgentSession): Promise<void> {
   const closing = (async () => {
     let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
+      // MCP owns OS processes/leases. Its closure must finish before the generic extension timeout.
+      await disposeMcpSession(session.sessionId);
       if (session.extensionRunner.hasHandlers("session_shutdown")) {
         await Promise.race([
           session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" }),

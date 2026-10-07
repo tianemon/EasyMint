@@ -7,6 +7,7 @@
 
 import type { AgentSessionEvent, SessionEntry, SessionManager, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
 import { compactionCardFields } from "../../shared/prompts";
+import type { NestedToolCalls } from "../../shared/nested-calls";
 
 export interface PiChatEvent {
   type: string;
@@ -15,6 +16,9 @@ export interface PiChatEvent {
   blocks?: ChatBlock[];
   partial?: boolean;
   toolCallId?: string;
+  parentToolCallId?: string;
+  nestedPhase?: "start" | "update" | "end";
+  nestedCalls?: NestedToolCalls;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
   /** 工具执行中的增量输出文本(tool_execution_update 的 partialResult 提取;bash 实时输出) */
@@ -225,6 +229,14 @@ export function bridgeSessionEvents(
   event: AgentSessionEvent,
   callbacks: BridgeCallbacks,
 ): void {
+  if ("parentToolCallId" in event && event.parentToolCallId && event.type.startsWith("tool_execution_")) {
+    const nested = event as { type: string; parentToolCallId: string; toolCallId: string; toolName: string; args?: Record<string, unknown>; isError?: boolean; result?: unknown };
+    callbacks.onEvent({ type: "nested_tool", sessionId: "", parentToolCallId: nested.parentToolCallId,
+      toolCallId: nested.toolCallId, toolName: nested.toolName, toolArgs: nested.args,
+      nestedPhase: nested.type === "tool_execution_start" ? "start" : nested.type === "tool_execution_end" ? "end" : "update",
+      isError: nested.isError, content: nested.isError ? extractPartialText(nested.result as never) : undefined });
+    return;
+  }
   switch (event.type) {
     case "turn_start": {
       // Pi 新一轮 assistant 回复开始 — 比 message_start 更可靠的分界信号
@@ -263,6 +275,7 @@ export function bridgeSessionEvents(
             toolName: (msg as { toolName?: string }).toolName,
             content: extractUserText(msg),
             isError: !!(msg as { isError?: boolean }).isError,
+            nestedCalls: (msg as { nestedCalls?: NestedToolCalls }).nestedCalls,
           });
         } else {
           const customType = (msg as { customType?: string }).customType;

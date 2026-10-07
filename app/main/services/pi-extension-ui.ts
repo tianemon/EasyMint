@@ -104,17 +104,24 @@ function targetWindow(projectPath?: string): BrowserWindow | undefined {
   return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows().find((win) => !win.isDestroyed());
 }
 
-function ask(request: Omit<ExtensionPromptRequest, "id">, projectPath?: string): Promise<string | boolean | undefined> {
+function ask(request: Omit<ExtensionPromptRequest, "id">, projectPath?: string, signal?: AbortSignal): Promise<string | boolean | undefined> {
+  if (signal?.aborted) return Promise.resolve(undefined);
   const win = targetWindow(projectPath);
   if (!win || win.webContents.isDestroyed()) return Promise.resolve(undefined);
   const id = randomUUID();
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
+      const item = pending.get(id);
       pending.delete(id);
-      resolve(undefined);
+      item?.done(undefined);
       if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("pi-extension:prompt-expired", { id });
     }, 5 * 60_000);
-    pending.set(id, { senderId: win.webContents.id, done: resolve, timer });
+    const onAbort = () => {
+      answerPiExtensionPrompt(win.webContents.id, id, undefined);
+      if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("pi-extension:prompt-expired", { id });
+    };
+    pending.set(id, { senderId: win.webContents.id, done: value => { signal?.removeEventListener("abort", onAbort); resolve(value); }, timer });
+    signal?.addEventListener("abort", onAbort, { once: true });
     win.webContents.send("pi-extension:prompt", { ...request, id });
   });
 }
@@ -134,8 +141,8 @@ export function createPiExtensionUi(projectPath?: string): ExtensionUIContext {
       return typeof value === "string" && options.includes(value) ? value : undefined;
     },
     confirm: async (title: string, message: string) => (await ask({ kind: "confirm", title, message }, projectPath)) === true,
-    input: async (title: string, placeholder?: string) => {
-      const value = await ask({ kind: "input", title, message: placeholder }, projectPath);
+    input: async (title: string, placeholder?: string, options?: { signal?: AbortSignal }) => {
+      const value = await ask({ kind: "input", title, message: placeholder }, projectPath, options?.signal);
       return typeof value === "string" ? value : undefined;
     },
     notify: (message: string, type: "info" | "warning" | "error" = "info") => {

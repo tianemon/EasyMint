@@ -2,6 +2,8 @@
  *  StreamPanel 组件 / normalizeEvent / StreamEntryView 等 v2 展示层已废弃删除
  *  （Pi 迁移后无渲染处，ChatPanel 仅使用 StreamEntry 类型）。 */
 
+import type { NestedToolCalls } from "@shared/nested-calls";
+
 export interface TextEntry {
   kind: "text";
   text: string;
@@ -16,6 +18,7 @@ interface ToolUseEntry {
   input: unknown;
   timestamp: number;
   collapsed: boolean;
+  nestedCalls?: NestedToolCalls;
   source?: string;
 }
 
@@ -26,6 +29,7 @@ interface ToolResultEntry {
   name?: string;
   content: string;
   isError: boolean;
+  nestedCalls?: NestedToolCalls;
   timestamp: number;
   source?: string;
 }

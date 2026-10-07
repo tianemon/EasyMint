@@ -2,11 +2,8 @@
  * 工具调用的「意图」：让聊天页**不展开**也能知道这次调用在做什么。
  *
  * 两种来源，按可靠性排序：
- * 1. **`_intent`**（模型调用时填）—— bash 已用同样的方式（`description` 参数 + 工具说明里
- *    写死要求，见 `background-shell/tool.ts`）稳定生效。MCP 工具的 schema 由第三方 server 定义、
- *    我们改不了，但**把工具交给模型**和**把调用发给 server** 这两头都在 EM 手里：
- *    给模型看的那份 schema 加 `_intent`，`mcp-adapter` 转发前用 `stripIntentParams()` 剥掉，
- *    **server 永远不会看到它**，所以不会有"未知参数"的报错风险。
+ * 1. **`_intent`**（模型调用时填）——EM 自家工具在 schema 中声明，聊天页直接读取。
+ *    codemode 嵌套调用仍保留这个参数。Pi MCP 使用服务器原始 schema，不再由 EM 注入该字段。
  * 2. **参数摘要**（`summarizeInput`）—— 老会话、或模型没填时的兜底：取参数里最有语义的
  *    那个字符串值（query / url / name …）。
  *
@@ -14,10 +11,10 @@
  * `description` 参数，撞了会覆盖真实参数。下划线前缀的冲突概率极低。
  */
 
-/** 模型填报意图所用的参数名（仅 EM 内部使用，不会传给 MCP server） */
+/** EM 自家工具与历史会话使用的展示参数名。 */
 export const INTENT_PARAM = "_intent";
 
-/** 追加到 MCP 工具说明末尾的那一句——与 bash 的写法一致，实测能让模型每次都填 */
+/** EM 自家工具的意图填写说明。 */
 export const INTENT_REQUIREMENT =
   `每次调用都要填 ${INTENT_PARAM}：一句话中文简述这次调用在做什么（≤12 字，如「查竞品资料」「建 issue」），` +
   "用于聊天页展示；该字段只用于展示，不会传给工具。";

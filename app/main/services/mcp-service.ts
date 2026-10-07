@@ -35,6 +35,11 @@ export interface McpServerConfig {
   /** 可选：一句话说明这个 server 能做什么（如「浏览器控制」）。写进 search_mcp_tools 的工具说明，
    *  让模型在"该不该找外部能力"这一步就能判断；不填就只能露出服务器名。 */
   description?: string;
+  /** Pi's per-request timeout, in seconds; legacy timeout above remains milliseconds. */
+  requestTimeoutSeconds?: number;
+  cwd?: string;
+  exposure?: "codemode" | "deferred" | "direct" | "hidden";
+  toolExposure?: Record<string, "codemode" | "deferred" | "direct" | "hidden">;
 }
 
 /** 服务器名规范（对齐 CC/OMP：小写字母数字 + 连字符/下划线） */
@@ -43,7 +48,7 @@ export const MCP_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 /** MCP 连接状态（界面状态列与诊断用） */
 export interface McpServerStatus {
   name: string;
-  state: "connected" | "connecting" | "failed" | "disabled" | "pending";
+  state: "connected" | "connecting" | "failed" | "disabled" | "pending" | "idle" | "disconnected" | "needs-auth" | "closed";
   toolCount?: number;
   /** 脱敏后的失败原因（仅 failed 时有） */
   error?: string;
@@ -137,11 +142,11 @@ function legacyMcpPath(): string {
 
 // ── Disabled list ──────────────────────────────────
 
-const EM_SETTINGS = path.join(emHome(), "em-settings.json");
+const emSettingsPath = () => path.join(emHome(), "em-settings.json");
 
 function getHiddenMcpServers(): string[] {
-  if (!existsSync(EM_SETTINGS)) return [];
-  const data = JSON.parse(readFileSync(EM_SETTINGS, "utf-8"));
+  if (!existsSync(emSettingsPath())) return [];
+  const data = JSON.parse(readFileSync(emSettingsPath(), "utf-8"));
   return (readExternalField(data, "hiddenMcpServers") as string[]) || [];
 }
 
@@ -206,9 +211,9 @@ function compatMcpPath(projectPath: string): string {
 
 /** 已确认的项目级 server 键列表（`<项目路径>::<服务器名>::<定义指纹>`）。 */
 function getApprovedMcp(): string[] {
-  if (!existsSync(EM_SETTINGS)) return [];
+  if (!existsSync(emSettingsPath())) return [];
   try {
-    const data = JSON.parse(readFileSync(EM_SETTINGS, "utf-8")) as Record<string, unknown>;
+    const data = JSON.parse(readFileSync(emSettingsPath(), "utf-8")) as Record<string, unknown>;
     const list = readExternalField(data, "mcpApproved");
     return Array.isArray(list) ? list.filter((n): n is string => typeof n === "string") : [];
   } catch {
@@ -226,7 +231,7 @@ function getApprovedMcp(): string[] {
  * 仍会改变子进程或网络请求行为，必须重新确认。
  */
 /** 配置指纹：定义里任何"影响行为或影响模型"的字段变了都要变。
- *  除了审批（isMcpApproved），`mcp-instructions` 也拿它当缓存键——server 自述的失效判据。 */
+ *  审批与运行中的 transport 都用它检测定义变化。 */
 export function definitionFingerprint(cfg: McpServerConfig): string {
   const sorted = (values?: Record<string, string>) => values
     ? Object.entries(values).sort(([a], [b]) => a.localeCompare(b))
@@ -235,9 +240,12 @@ export function definitionFingerprint(cfg: McpServerConfig): string {
     .update(JSON.stringify([
       cfg.type, cfg.command ?? null, cfg.args ?? null, sorted(cfg.env), cfg.url ?? null,
       sorted(cfg.headers), cfg.timeout ?? null, cfg.oauth ?? null, cfg.callbackPort ?? null,
-      // description 会进模型提示词（见 mcp-broker 的 describeServers），属于"影响模型行为"的定义：
+      // description 会进入 Pi 的 mcp_servers 分节，属于"影响模型行为"的定义：
       // 不纳入指纹的话，外部仓库更新 .mcp.json 里这段文字就能绕过审批直接进上下文。
       cfg.description ?? null,
+      // Keep old approvals valid when no new fields are present.
+      ...(cfg.cwd !== undefined || cfg.requestTimeoutSeconds !== undefined || cfg.exposure !== undefined || cfg.toolExposure !== undefined
+        ? [{ cwd: cfg.cwd, requestTimeoutSeconds: cfg.requestTimeoutSeconds, exposure: cfg.exposure, toolExposure: sorted(cfg.toolExposure) }] : []),
     ]))
     .digest("hex")
     .slice(0, 32);
@@ -253,14 +261,14 @@ function writeMcpApproval(projectPath: string, name: string, entry: string): voi
   // 锁要包住**整个读-改-写**：只在写那一步加锁的话，读到的旧快照照样能把别人刚写的覆盖掉
   const release = lockConfigDirectory(emHome());
   try {
-    const data: Record<string, unknown> = existsSync(EM_SETTINGS)
-      ? JSON.parse(readFileSync(EM_SETTINGS, "utf-8"))
+    const data: Record<string, unknown> = existsSync(emSettingsPath())
+      ? JSON.parse(readFileSync(emSettingsPath(), "utf-8"))
       : {};
     const base = `${projectPath}::${name}`;
     const list = getApprovedMcp().filter((k) => k !== base && !k.startsWith(`${base}::`));
     list.push(entry);
     writeExternalField(data, "mcpApproved", list);
-    atomicWrite(EM_SETTINGS, JSON.stringify(data, null, 2));
+    atomicWrite(emSettingsPath(), JSON.stringify(data, null, 2));
   } finally { release(); }
 }
 
@@ -332,8 +340,8 @@ export function scanMcpServers(projectPath?: string): McpServerManifest[] {
 // ── API keys ───────────────────────────────────────
 
 function getApiKeys(): Record<string, string> {
-  if (!existsSync(EM_SETTINGS)) return {};
-  const data = JSON.parse(readFileSync(EM_SETTINGS, "utf-8"));
+  if (!existsSync(emSettingsPath())) return {};
+  const data = JSON.parse(readFileSync(emSettingsPath(), "utf-8"));
   // 磁盘是分组结构（capabilities.* + env 池），组装回「环境变量名 → 值」——键名即注入 MCP 的变量名。
   // 1.4 回退后明文落盘；磁盘残留的旧 safeStorage 密文（em-v1: 前缀）不可解密 → 丢弃视为未配置
   return dropLegacyEncryptedApiKeys(apiKeysFromDisk(data) ?? (data.apiKeys as Record<string, string> | undefined)) || {};
@@ -389,9 +397,26 @@ export function validateMcpServer(name: string, cfg: McpServerConfig): McpValida
   if (!MCP_NAME_RE.test(name)) {
     return { ok: false, error: "名称需用小写字母/数字/连字符（如 my-server），长度 1-64" };
   }
-  if (!cfg || !["stdio", "http", "sse"].includes(cfg.type)) {
-    return { ok: false, error: "传输类型必须是 stdio / http / sse" };
+  if (!cfg || !["stdio", "http"].includes(cfg.type)) {
+    return { ok: false, error: "传输类型必须是 stdio / http；旧 HTTP+SSE 请迁移到 Streamable HTTP 端点" };
   }
+  for (const field of ["command", "url", "description", "cwd"] as const) {
+    if (cfg[field] !== undefined && typeof cfg[field] !== "string") return { ok: false, error: `${field} 必须是字符串` };
+  }
+  if (cfg.args !== undefined && (!Array.isArray(cfg.args) || cfg.args.some(value => typeof value !== "string"))) return { ok: false, error: "args 必须是字符串数组" };
+  for (const field of ["env", "headers", "toolExposure"] as const) {
+    const value = cfg[field];
+    if (value !== undefined && (!value || typeof value !== "object" || Array.isArray(value) || Object.values(value).some(item => typeof item !== "string"))) {
+      return { ok: false, error: `${field} 必须是字符串字典` };
+    }
+  }
+  if (cfg.callbackPort !== undefined && (!Number.isInteger(cfg.callbackPort) || cfg.callbackPort < 1 || cfg.callbackPort > 65535)) return { ok: false, error: "callbackPort 必须是有效端口" };
+  if (cfg.timeout !== undefined && (!Number.isFinite(cfg.timeout) || cfg.timeout <= 0)) return { ok: false, error: "连接超时必须为正数（毫秒）" };
+  if (cfg.requestTimeoutSeconds !== undefined && (!Number.isFinite(cfg.requestTimeoutSeconds) || cfg.requestTimeoutSeconds <= 0)) return { ok: false, error: "请求超时必须为正数（秒）" };
+  const exposures = ["codemode", "deferred", "direct", "hidden"];
+  if (cfg.exposure !== undefined && !exposures.includes(cfg.exposure)) return { ok: false, error: "不支持的 exposure" };
+  if (cfg.toolExposure && Object.values(cfg.toolExposure).some(value => !exposures.includes(value))) return { ok: false, error: "不支持的 toolExposure" };
+  if (cfg.oauth !== undefined && typeof cfg.oauth !== "boolean") return { ok: false, error: "EasyMint 的 oauth 字段必须是布尔值" };
   if (cfg.type === "stdio") {
     if (!cfg.command?.trim()) return { ok: false, error: "stdio 类型必须填写启动命令（如 npx）" };
     if (cfg.url) return { ok: false, error: "stdio 类型不能同时填写 URL" };
@@ -473,13 +498,13 @@ export function deleteMcpServer(
     // 同 approveMcpServer：锁包住整个读-改-写，写用原子替换
     const release = lockConfigDirectory(emHome());
     try {
-      const settings: Record<string, unknown> = existsSync(EM_SETTINGS)
-        ? JSON.parse(readFileSync(EM_SETTINGS, "utf-8"))
+      const settings: Record<string, unknown> = existsSync(emSettingsPath())
+        ? JSON.parse(readFileSync(emSettingsPath(), "utf-8"))
         : {};
       const hidden = (readExternalField(settings, "hiddenMcpServers") as string[]) || [];
       if (hidden.includes(name)) {
         writeExternalField(settings, "hiddenMcpServers", hidden.filter((n) => n !== name));
-        atomicWrite(EM_SETTINGS, JSON.stringify(settings, null, 2));
+        atomicWrite(emSettingsPath(), JSON.stringify(settings, null, 2));
       }
     } finally { release(); }
     return { ok: true };
@@ -504,7 +529,7 @@ export function getMcpServerConfig(name: string, opts?: { scope?: McpScope; proj
  *
  * 返回**生效路径**而不是恒定新位置：设置页会把这条路径显示给用户（"配置在 xxx"），
  * 迁移未完成时若显示新位置，用户照着去编辑的是空文件，而程序读的是旧文件。
- * 副作用正好也是要的——`mcp-instructions.ts` 用 `dirname(getMcpConfigPath())` 定位指令缓存，
+ * 调用方通过这个路径保持配置读写同源，
  * 跟着生效路径走才不会与配置分家。
  */
 export function getMcpConfigPath(): string {
@@ -517,8 +542,8 @@ export function toggleMcpServer(name: string, enabled: boolean): void {
   // 同 approveMcpServer：锁包住整个读-改-写，写用原子替换
   const release = lockConfigDirectory(emHome());
   try {
-    const data: Record<string, unknown> = existsSync(EM_SETTINGS)
-      ? JSON.parse(readFileSync(EM_SETTINGS, "utf-8"))
+    const data: Record<string, unknown> = existsSync(emSettingsPath())
+      ? JSON.parse(readFileSync(emSettingsPath(), "utf-8"))
       : {};
 
     let list: string[] = (readExternalField(data, "hiddenMcpServers") as string[]) || [];
@@ -528,7 +553,7 @@ export function toggleMcpServer(name: string, enabled: boolean): void {
       if (!list.includes(name)) list.push(name);
     }
     writeExternalField(data, "hiddenMcpServers", list);
-    atomicWrite(EM_SETTINGS, JSON.stringify(data, null, 2));
+    atomicWrite(emSettingsPath(), JSON.stringify(data, null, 2));
   } finally { release(); }
 }
 

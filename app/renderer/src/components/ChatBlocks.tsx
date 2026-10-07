@@ -8,6 +8,7 @@ import { useViewerStore } from "../stores/viewer-store";
 import { isImagePath } from "@shared/image-files";
 import { intentFromInput } from "@shared/tool-intent";
 import { followDecision } from "./chat-utils";
+import type { NestedToolCalls } from "@shared/nested-calls";
 
 /** 从文件路径取文件名(tab 标题/标题行显示用) */
 function baseName(p: string): string {
@@ -33,6 +34,8 @@ const TOOL_LABELS: Record<string, string> = {
   todo_write: "更新步骤", todo_user: "用户待办",
   ask_user: "提问", describe_image: "查看图片",
   search_mcp_tools: "查找 MCP", call_mcp_tool: "MCP",
+  codemode: "运行脚本", tool_search: "查找工具",
+  list_mcp_resources: "列出资源", list_mcp_resource_templates: "列出资源模板", read_mcp_resource: "读取资源",
 };
 
 /** 工具图标:按 name 归类的 Lucide SVG path(不含外层 svg——ToolIcon 统一包) */
@@ -112,6 +115,7 @@ interface ToolItem {
   pending?: boolean;
   /** bash 执行中的累积输出(tool_progress 增量拼接;结束后保留,展开区显示) */
   liveOutput?: string;
+  nestedCalls?: NestedToolCalls;
 }
 
 interface ToolGroupBlock {
@@ -154,8 +158,10 @@ export function buildBlocks(
   // 预扫描:本批 entries 中已到达的 tool_result id 集合——tool_use 的 result 可能因文本分隔
   // 被拆到独立 tool-result-only 块(组内关联不到),但执行已完成,不得显示转圈
   const resultIds = new Set<string>();
+  const nestedResults = new Map<string, NestedToolCalls>();
   for (const e of entries) {
     if (e.kind === "tool_result" && e.toolUseId) resultIds.add(e.toolUseId);
+    if (e.kind === "tool_result" && e.nestedCalls) nestedResults.set(e.toolUseId, e.nestedCalls);
   }
 
   const flushText = () => { if (textBuf) { blocks.push({ kind: "text", text: textBuf.trim(), keyPrefix }); textBuf = ""; } };
@@ -167,7 +173,7 @@ export function buildBlocks(
     if (e.kind === "text") { flushThink(); flushTool(); flushSys(); textBuf += (textBuf ? "\n" : "") + e.text; }
     else if (e.kind === "thinking") { flushText(); flushTool(); flushSys(); thinkBuf += (thinkBuf ? "\n" : "") + e.text; }
     else if (e.kind === "system") { flushText(); flushThink(); flushTool(); sysBuf += (sysBuf ? "\n" : "") + e.message; }
-    else if (e.kind === "tool_use") { flushText(); flushThink(); flushSys(); toolBuf.push({ name: e.name, input: e.input, id: e.id, pending: !(e.id && resultIds.has(e.id)) }); }
+    else if (e.kind === "tool_use") { flushText(); flushThink(); flushSys(); toolBuf.push({ name: e.name, input: e.input, id: e.id, pending: !(e.id && resultIds.has(e.id)), nestedCalls: (e.id && nestedResults.get(e.id)) || e.nestedCalls }); }
     else if (e.kind === "tool_result") {
       // 按 toolUseId 关联结果到对应工具调用块;无匹配(工具调用被过滤/未显示)时单独渲染
       const target = [...toolBuf].reverse().find((t) => t.id === e.toolUseId);
@@ -1202,6 +1208,17 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
         </div>
       </div>
       )}
+      {item.nestedCalls && <div className="ml-3 mt-1 space-y-1 border-l border-border pl-2">
+        {item.nestedCalls.calls.map(call => <details key={call.id} className="text-text-secondary text-[length:var(--text-detail)]">
+          <summary className="cursor-pointer break-all">
+            {intentFromInput(call.arguments) || call.name} · {call.status === "unfinished" ? (item.pending ? "执行中" : "未完成") : call.status === "error" ? "失败" : "完成"}
+            {call.durationMs !== undefined && ` · ${call.durationMs}ms`}
+          </summary>
+          <pre className="whitespace-pre-wrap break-all font-mono">{call.arguments === undefined ? "参数未保留" : JSON.stringify(call.arguments, null, 2)}</pre>
+          {call.error && <p className="text-danger whitespace-pre-wrap">{call.error}</p>}
+        </details>)}
+        {!item.pending && !item.nestedCalls.complete && <p className="text-text-muted text-[length:var(--text-caption)]">部分嵌套调用或参数未保留</p>}
+      </div>}
     </div>
   );
 }

@@ -1,5 +1,12 @@
 import type { StreamEntry, TextEntry } from "./StreamPanel";
 import { IMAGE_PARTIAL_PATH_NOTE, IMAGE_PATH_ONLY_NOTE } from "@shared/image-context";
+import { updateNestedCalls, type NestedToolCalls, type NestedToolEvent } from "@shared/nested-calls";
+
+export function applyNestedToolEvent(entries: StreamEntry[], event: NestedToolEvent): StreamEntry[] {
+  return entries.map(entry => entry.kind === "tool_use" && entry.id &&
+    (entry.id === event.parentToolCallId || event.parentToolCallId?.startsWith(`${entry.id}/`))
+    ? { ...entry, nestedCalls: updateNestedCalls(entry.nestedCalls, event) } : entry);
+}
 
 /** 附件项（图片或文档） */
 export interface AttachItem {
@@ -200,12 +207,13 @@ export function mapSessionMessages(msgs: Array<{ type: string; uuid?: string; me
       }
     } else if (m.type === "toolResult") {
       // 独立 toolResult 消息(磁盘):按 toolCallId 关联到 AI 消息的 tool_use;无匹配则追加到最近 AI 消息(独立结果)
-      const tm = m.message as { toolCallId?: string; toolName?: string; content?: unknown; isError?: boolean };
+      const tm = m.message as { toolCallId?: string; toolName?: string; content?: unknown; isError?: boolean; nestedCalls?: NestedToolCalls };
       const content = Array.isArray(tm.content)
         ? tm.content.map((b: unknown) => (b as { text?: string })?.text ?? "").join("")
         : String(tm.content ?? "");
       const resultEntry: StreamEntry = {
         kind: "tool_result", toolUseId: tm.toolCallId || "", name: tm.toolName, content, isError: !!tm.isError, timestamp: ts, source: "chat",
+        nestedCalls: tm.nestedCalls,
       };
       // 先找含匹配 tool_use 的 AI 消息;无匹配则追加到最近 AI 消息
       let matched = false;
