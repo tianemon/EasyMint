@@ -54,7 +54,7 @@ describe("执行策略真实 I/O", () => {
     // 前置探针：先证明**沙盒在本机能真正 apply**。
     // 否则下面"写入被拒"的断言会因 `sandbox_apply: Operation not permitted` 一起失败而**假通过**
     // ——要求失败的断言因别的原因失败而通过，是"本机绿不等于验证"的典型形态
-    // （见 skill code-review §3.3；嵌套沙盒限制见 skill easymint-sandbox-srt §4）。
+    // 嵌套沙盒可能不支持再次 apply，因此必须先排除环境不可用，再验证写入边界。
     const probe = await spawnSandboxed("echo sandbox-probe-ok", "standard");
     expect(
       probe.result.status,
