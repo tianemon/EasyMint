@@ -279,10 +279,10 @@ interface PendingTransfer {
 
 class MigrationService extends EventEmitter {
   private pending = new Map<string, PendingTransfer>();
-  /** 发送端记录:transferId → { manifest(完整性校验), projectPath(回执定位项目注入系统消息) } */
-  private sentTransfers = new Map<string, { manifest: MigrationManifest; projectPath: string }>();
+  /** 发送端记录绑定目标设备；终态回执后移除，避免重复回执与记录堆积。 */
+  private sentTransfers = new Map<string, { peerId: string; manifest: MigrationManifest; projectPath: string }>();
   /** 发送端两阶段握手:transferId → 等待 accept/reject 的 resolver */
-  private acceptWaiters = new Map<string, { resolve: (v: "accepted" | "rejected" | "timeout") => void; timer: NodeJS.Timeout }>();
+  private acceptWaiters = new Map<string, { peerId: string; resolve: (v: "accepted" | "rejected" | "timeout") => void; timer: NodeJS.Timeout }>();
   private nextId = 0;
 
   constructor() {
@@ -297,19 +297,20 @@ class MigrationService extends EventEmitter {
         // accept/done 回执会永久挂起(30s 超时是最后兜底)。回执方式与 restoreTransfer
         // 的已知失败路径一致,发送端收到后其前端展示失败回执。
         if (transferId && (type === "transfer-request" || type === "transfer-chunk" || type === "transfer-complete")) {
-          if (this.pending.delete(transferId)) {
+          if (this.pending.get(transferId)?.peerId === req.peerId && this.pending.delete(transferId)) {
             broadcast("migration:failed", { transferId, failures: [reason] });
           }
           networkService.sendToDevice(req.peerId, { type: "transfer-failed", transferId, failures: [reason] });
           return;
         }
         // 对端回执(本机为发送侧)处理失败 → 以失败收尾本机侧,避免发送进度卡在等待态
-        if (transferId && this.sentTransfers.has(transferId)) {
+        if (transferId && this.sentTransfers.get(transferId)?.peerId === req.peerId) {
           this.emit("failed", {
             peerId: req.peerId,
             projectPath: this.sentTransfers.get(transferId)?.projectPath,
             failures: [`处理对端消息失败(${type}): ${reason}`],
           });
+          this.sentTransfers.delete(transferId);
         }
       });
     });
@@ -444,19 +445,23 @@ class MigrationService extends EventEmitter {
     };
 
     // 3. 两阶段握手(等接收端确认)
+    this.sentTransfers.set(transferId, { peerId: deviceId, manifest, projectPath });
     const ok = networkService.sendToDevice(deviceId, { type: "transfer-request", transferId, manifest });
     if (!ok) {
+      this.sentTransfers.delete(transferId);
       fs.rmSync(zipPath, { force: true });
       return { ok: false, error: "发送失败(连接已断开)" };
     }
     this.emit("send-progress", { transferId, sent: 0, total: zipSize, phase: "waiting" });
-    const accepted = await this.waitAccept(transferId);
+    const accepted = await this.waitAccept(transferId, deviceId);
     if (accepted === "rejected") {
+      this.sentTransfers.delete(transferId);
       fs.rmSync(zipPath, { force: true });
       this.emit("send-progress", { transferId, sent: 0, total: zipSize, phase: "rejected" });
       return { ok: false, error: "对方拒绝了迁移" };
     }
     if (accepted !== "accepted") {
+      this.sentTransfers.delete(transferId);
       fs.rmSync(zipPath, { force: true });
       this.emit("send-progress", { transferId, sent: 0, total: zipSize, phase: "timeout" });
       return { ok: false, error: "等待对方确认超时" };
@@ -476,6 +481,7 @@ class MigrationService extends EventEmitter {
         data: chunk.toString("base64"),
       });
       if (!ok2) {
+        this.sentTransfers.delete(transferId);
         fs.rmSync(zipPath, { force: true });
         return { ok: false, error: "传输中断(连接断开)" };
       }
@@ -486,7 +492,6 @@ class MigrationService extends EventEmitter {
     // 传输完成:发送端临时 zip 删除(接收端恢复完成后会回执)
     fs.rmSync(zipPath, { force: true });
     networkService.sendToDevice(deviceId, { type: "transfer-complete", transferId });
-    this.sentTransfers.set(transferId, { manifest, projectPath });
     this.emit("send-progress", { transferId, sent: zipSize, total: zipSize, phase: "sent" });
     return { ok: true, transferId };
   }
@@ -522,7 +527,8 @@ class MigrationService extends EventEmitter {
   private async handleProtocolMessage(peerId: string, msg: Record<string, unknown>): Promise<void> {
     switch (msg.type) {
       case "transfer-request":
-        await this.handleTransferRequest({ fromId: peerId, ...msg });
+        // Identity comes from the authenticated channel, never from the peer's payload.
+        await this.handleTransferRequest({ ...msg, fromId: peerId });
         break;
       case "transfer-chunk":
         this.handleChunk(peerId, msg);
@@ -531,57 +537,64 @@ class MigrationService extends EventEmitter {
         await this.completeTransfer(peerId, msg);
         break;
       case "transfer-accept":
-        this.resolveAccept(msg.transferId as string, "accepted");
+        this.resolveAccept(peerId, msg.transferId as string, "accepted");
         break;
       case "transfer-reject":
-        this.resolveAccept(msg.transferId as string, "rejected");
+        this.resolveAccept(peerId, msg.transferId as string, "rejected");
         break;
       case "transfer-done": {
         // 发送端收到回执 → 完整性确认(双重确认,接收端异常会带 failed 而非 done):
         // ① 恢复文件数 === 发送文件数 ② 声明的会话必须全部恢复成功
         const rec = this.sentTransfers.get(msg.transferId as string);
-        const m = rec?.manifest;
+        if (!rec || rec.peerId !== peerId) return;
+        this.sentTransfers.delete(msg.transferId as string);
+        const m = rec.manifest;
         const restoredCount = Number(msg.restoredCount ?? -1);
         const sessionRestoredCount = Number(msg.sessionRestoredCount ?? -1);
-        const countOk = m ? restoredCount === m.fileCount : false;
-        const sessionOk = m ? (m.sessionFiles.length > 0 ? sessionRestoredCount === m.sessionFiles.length : true) : false;
-        if (m && !(countOk && sessionOk)) {
+        const countOk = restoredCount === m.fileCount;
+        const sessionOk = m.sessionFiles.length === 0 || sessionRestoredCount === m.sessionFiles.length;
+        if (!(countOk && sessionOk)) {
           // 完整性不一致 → 按失败处理
           const why = !countOk ? `文件数不匹配(回执 ${restoredCount}/${m.fileCount})` : `会话未全部恢复(${sessionRestoredCount}/${m.sessionFiles.length})`;
-          this.emit("failed", { peerId, projectPath: rec?.projectPath, failures: [`接收端完整性校验未通过: ${why}`] });
+          this.emit("failed", { peerId, projectPath: rec.projectPath, failures: [`接收端完整性校验未通过: ${why}`] });
           break;
         }
-        this.emit("done", { peerId, projectPath: rec?.projectPath, ...msg });
+        this.emit("done", { ...msg, peerId, projectPath: rec.projectPath });
         break;
       }
-      case "transfer-failed":
-        this.emit("failed", { peerId, projectPath: this.sentTransfers.get(msg.transferId as string)?.projectPath, ...msg });
+      case "transfer-failed": {
+        const rec = this.sentTransfers.get(msg.transferId as string);
+        if (!rec || rec.peerId !== peerId) return;
+        this.sentTransfers.delete(msg.transferId as string);
+        this.resolveAccept(peerId, msg.transferId as string, "rejected");
+        this.emit("failed", { ...msg, peerId, projectPath: rec.projectPath });
         break;
+      }
       default:
         this.emit("message", { peerId, msg });
     }
   }
 
-  private resolveAccept(transferId: string, result: "accepted" | "rejected"): void {
+  private resolveAccept(peerId: string, transferId: string, result: "accepted" | "rejected"): void {
     const w = this.acceptWaiters.get(transferId);
-    if (!w) return;
+    if (!w || w.peerId !== peerId) return;
     clearTimeout(w.timer);
     this.acceptWaiters.delete(transferId);
     w.resolve(result);
   }
 
-  private waitAccept(transferId: string): Promise<"accepted" | "rejected" | "timeout"> {
+  private waitAccept(transferId: string, peerId: string): Promise<"accepted" | "rejected" | "timeout"> {
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         this.acceptWaiters.delete(transferId);
         resolve("timeout");
       }, 30_000);
-      this.acceptWaiters.set(transferId, { resolve, timer });
+      this.acceptWaiters.set(transferId, { peerId, resolve, timer });
     });
   }
 
   private async handleTransferRequest(req: { fromId: string; fromName?: string; transferId?: string; manifest?: MigrationManifest }): Promise<void> {
-    if (!req.transferId || !req.manifest) return;
+    if (!req.transferId || !req.manifest || this.pending.has(req.transferId)) return;
     this.pending.set(req.transferId, {
       transferId: req.transferId,
       fromName: req.manifest.fromName ?? req.fromName ?? "未知设备",
@@ -628,7 +641,7 @@ class MigrationService extends EventEmitter {
 
   handleChunk(peerId: string, msg: { transferId?: string; index?: number; data?: string }): void {
     const t = this.pending.get(msg.transferId ?? "");
-    if (!t) return;
+    if (!t || t.peerId !== peerId) return;
     t.chunks[msg.index ?? 0] = Buffer.from(msg.data ?? "", "base64");
     t.receivedBytes += t.chunks[msg.index ?? 0]!.length;
     broadcast("migration:progress", { transferId: msg.transferId, received: t.receivedBytes });
@@ -638,7 +651,7 @@ class MigrationService extends EventEmitter {
   async completeTransfer(peerId: string, msg: { transferId?: string }): Promise<void> {
     const transferId = msg.transferId ?? "";
     const t = this.pending.get(transferId);
-    if (!t) return;
+    if (!t || t.peerId !== peerId) return;
     if (!t.targetPath) {
       t.completeArrived = true;
       return; // 用户还没确认,等 acceptTransfer 时落位
