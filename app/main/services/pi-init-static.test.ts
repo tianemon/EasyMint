@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { getProviderStaticModels } from "./pi-init-static";
+import { getProviderStaticModels, getModelSpecLookup, getStaticModelSpec, getStaticModelSpecWithAlias } from "./pi-init-static";
 
 /** 定位锁定 SDK 内pi-ai 的静态数据目录（与 pi-init-static.findDataDir 同一候选顺序）。 */
 function findDataDir(): string | undefined {
@@ -26,6 +26,28 @@ function findDataDir(): string | undefined {
 }
 
 describe("静态供应商模型表", () => {
+  it("跨供应商窗口与能力索引也接受裸 id 和网关别名，只包含对话模型", () => {
+    const models = getProviderStaticModels("deepseek");
+    expect(models.size).toBeGreaterThan(0);
+    const [id, spec] = [...models][0]!;
+    expect(getModelSpecLookup().get(id)?.contextWindow).toBeGreaterThanOrEqual(spec.contextWindow);
+    expect(getStaticModelSpec(id)).toMatchObject({ reasoning: spec.reasoning, input: spec.input });
+    expect(getStaticModelSpecWithAlias(`${id}-gateway`)).toEqual(getStaticModelSpec(id));
+    for (const key of getModelSpecLookup().keys()) expect(key).not.toMatch(/^(chat|image|classifier):/);
+    const dir = findDataDir()!;
+    for (const file of fs.readdirSync(dir).filter(f => f.endsWith(".json"))) {
+      const data = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
+      for (const group of Object.values(data) as Record<string, unknown>[]) {
+        for (const key of Object.keys(group)) {
+          if (/^(image|classifier):/.test(key)) {
+            const bare = key.slice(key.indexOf(":") + 1);
+            expect(getStaticModelSpec(bare)?.type).not.toBe("image");
+            expect(getStaticModelSpec(bare)?.type).not.toBe("classifier");
+          }
+        }
+      }
+    }
+  });
   it("剥掉 Pi v1.0.0 起给静态表 key 加的模型类型前缀，只留 chat 类", () => {
     const dir = findDataDir();
     expect(dir).toBeDefined();

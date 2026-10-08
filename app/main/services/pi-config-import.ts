@@ -7,6 +7,43 @@ import { readText, type JsonObject } from "./native-config-storage";
 import type { PiImportSummary } from "../../shared/pi-config-import";
 import { getSessionDataHelpers } from "./pi-sdk";
 import { THINKING_ORDER } from "../../shared/thinking-levels";
+import { getPiConfigSdk } from "./pi-config-sdk";
+import { getMcpConfigPath, validateMcpServer, type McpServerConfig } from "./mcp-service";
+import { EM_PATH, getPath, setPath } from "./em-settings-schema";
+
+function importedMcpConfig(name: string, raw: unknown, validate: (name: string, raw: unknown) => JsonObject | string):
+  { config: McpServerConfig; enabled: boolean } | { error: string } {
+  // Pi's validator resolves exposure aliases and validates optional fields against the installed SDK.
+  const native = validate(name, raw);
+  if (typeof native === "string") return { error: "Pi MCP 配置格式无效" };
+  if (native.auth) return { error: "暂不支持复用供应商账号的 auth.provider" };
+  if (native.oauth && Object.keys(native.oauth).some(key => key !== "callbackPort")) {
+    return { error: "暂不支持除 callbackPort 外的 OAuth 参数" };
+  }
+  if ([...Object.values(native.env ?? {}), ...Object.values(native.headers ?? {})]
+    .some(value => typeof value === "string" && value.startsWith("!"))) {
+    return { error: "暂不支持通过命令读取环境变量或请求头" };
+  }
+  const config: McpServerConfig = {
+    type: native.url !== undefined ? "http" : "stdio",
+    ...(native.command !== undefined ? { command: native.command } : {}),
+    ...(native.args !== undefined ? { args: native.args } : {}),
+    ...(native.env !== undefined ? { env: native.env } : {}),
+    ...(native.cwd !== undefined ? { cwd: native.cwd } : {}),
+    ...(native.url !== undefined ? { url: native.url,
+      // Pi discovers OAuth on HTTP 401 unless an Authorization header supplies authentication.
+      oauth: !!native.oauth || !Object.keys(native.headers ?? {}).some(key => key.toLowerCase() === "authorization"),
+      ...(native.oauth?.callbackPort !== undefined ? { callbackPort: native.oauth.callbackPort } : {}),
+    } : {}),
+    ...(native.headers !== undefined ? { headers: native.headers } : {}),
+    ...(native.timeout !== undefined ? { requestTimeoutSeconds: native.timeout } : {}),
+    ...(native.description !== undefined ? { description: native.description } : {}),
+    ...(native.exposure !== undefined ? { exposure: native.exposure } : {}),
+    ...(native.toolExposure !== undefined ? { toolExposure: native.toolExposure } : {}),
+  };
+  const checked = validateMcpServer(name, config);
+  return checked.ok ? { config, enabled: native.enabled !== false } : { error: checked.error! };
+}
 
 function sessionsIn(root: string, maxVersion: number): { files: Array<{ relative: string; text: string; id: string; cwd: string }>; invalid: number } {
   const files: Array<{ relative: string; text: string; id: string; cwd: string }> = [];
@@ -94,9 +131,10 @@ export function probePiImport(sourceDir: string): PiImportSummary {
   if (fs.existsSync(sessionsDir)) {
     hasSessions = fs.readdirSync(sessionsDir, { withFileTypes: true }).some((e) => e.isDirectory());
   }
-  const found = has("models.json") || has("auth.json") || has("settings.json") || hasSessions;
+  const found = has("models.json") || has("auth.json") || has("settings.json") || has("mcp.json") || hasSessions;
   return { sourceDir: dir, found, providers: 0, sessions: 0, projects: 0, conflicts: 0, duplicates: 0,
-    invalidSessions: 0, providerConflictSessions: 0, oauth: false, skippedSettings: [] };
+    invalidSessions: 0, providerConflictSessions: 0, oauth: false, skippedSettings: [],
+    mcpServers: 0, mcpOAuth: false, skippedMcpServers: [] };
 }
 
 export async function buildPiImport(repo: NativeConfig, sourceDir: string) {
@@ -114,6 +152,10 @@ export async function buildPiImport(repo: NativeConfig, sourceDir: string) {
     }
   }
   const settings = source("settings");
+  const mcp = source("mcp");
+  if (mcp.mcpServers !== undefined && (!mcp.mcpServers || typeof mcp.mcpServers !== "object" || Array.isArray(mcp.mcpServers))) {
+    throw new Error("pi mcp.json 的 mcpServers 必须是对象，未导入");
+  }
   for (const key of ["defaultProvider", "defaultModel"]) if (settings[key] !== undefined && typeof settings[key] !== "string") throw new Error(`pi ${key} 无效`);
   if (settings.defaultThinkingLevel !== undefined && !(THINKING_ORDER as readonly unknown[]).includes(settings.defaultThinkingLevel)) throw new Error("pi 默认思考等级无效");
   const sessionHelpers = await getSessionDataHelpers();
@@ -139,8 +181,44 @@ export async function buildPiImport(repo: NativeConfig, sourceDir: string) {
     sourceDir, found: providerIds.size > 0 || sessionSource.files.length > 0 || supportedSettings.some(key => settings[key] !== undefined),
     providers: 0, sessions: 0, projects: 0, conflicts: 0, duplicates: 0, invalidSessions: sessionSource.invalid,
     providerConflictSessions: 0,
-    oauth: Object.values(auth).some(c => c.type === "oauth"), skippedSettings: Object.keys(settings).filter(key => !supportedSettings.includes(key)),
+    mcpServers: 0, mcpOAuth: false, skippedMcpServers: [],
+    oauth: Object.values(auth).some(c => c.type === "oauth"), skippedSettings: [
+      ...Object.keys(settings).filter(key => !supportedSettings.includes(key)),
+      ...Object.keys(mcp).filter(key => key !== "mcpServers").map(key => `mcp.${key}`),
+    ],
   };
+  const mcpValues = new Map<string, JsonObject>();
+  if (Object.keys(mcp.mcpServers ?? {}).length) {
+    const sdk = await getPiConfigSdk();
+    const target = getMcpConfigPath(repo.store.getDataDir());
+    originals.set(target, readText(target));
+    const current = repo.storage.read(target);
+    current.mcpServers ??= {};
+    if (typeof current.mcpServers !== "object" || Array.isArray(current.mcpServers)) throw new Error("EM MCP 配置格式无效");
+    const em = repo.storage.read(repo.files.em);
+    const hidden = new Set<string>((getPath(em, EM_PATH.mcpHidden) ?? []) as string[]);
+    const namespaces = new Set(Object.keys(current.mcpServers).map(name => name.replace(/-/g, "_")));
+    for (const [name, raw] of Object.entries(mcp.mcpServers)) {
+      const namespace = name.replace(/-/g, "_");
+      if (namespaces.has(namespace)) { summary.conflicts++; continue; }
+      const imported = importedMcpConfig(name, raw, sdk.validateMcpServerConfig);
+      if ("error" in imported) { summary.skippedMcpServers.push(`${name}：${imported.error}`); continue; }
+      current.mcpServers[name] = imported.config;
+      namespaces.add(namespace);
+      if (!imported.enabled) hidden.add(name);
+      if (imported.config.oauth) summary.mcpOAuth = true;
+      summary.mcpServers++;
+    }
+    // Conflicts still count as detected content, so repeated imports show what was skipped.
+    if (summary.mcpServers || summary.conflicts) summary.found = true;
+    if (summary.mcpServers) {
+      mcpValues.set(target, current);
+      if (hidden.size) {
+        setPath(em, EM_PATH.mcpHidden, [...hidden]);
+        mcpValues.set(repo.files.em, em);
+      }
+    }
+  }
   for (const id of providerIds) {
     if (existingProviders.has(id)) { providerConflicts.add(id); summary.conflicts++; continue; }
     if (models.providers?.[id]) currentModels.providers[id] = models.providers[id];
@@ -192,7 +270,7 @@ export async function buildPiImport(repo: NativeConfig, sourceDir: string) {
     }
   }
   await repo.storage.validateModels(currentModels);
-  const values = new Map<string, JsonObject>(cacheFiles);
+  const values = new Map<string, JsonObject>([...cacheFiles, ...mcpValues]);
   if (summary.providers) { values.set(repo.files.models, currentModels); values.set(repo.files.auth, currentAuth); }
   if (supportedSettings.some(key => currentSettings[key] !== undefined)) values.set(repo.files.settings, currentSettings);
   if (summary.projects) values.set(projectsFile, projectData);

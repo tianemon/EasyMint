@@ -91,7 +91,7 @@ function findDataDir(): string {
  * 调用方的 `model.id` 是**剥掉前缀的裸 id**（见 pi-ai `utils/model-operations.ts`
  * 的 `getModelType`：类型来自 `model.type` 字段，不来自 key）。
  *
- * 本模块两处都绕过 SDK 直读原始 JSON，因此必须自己剥前缀，否则：
+ * 本模块的静态索引都绕过 SDK 直读原始 JSON，因此必须自己剥前缀，否则：
  *   - `getProviderStaticModels`的表key 与 runtime、`models.json` 的 `modelOverrides`
  *     键全都对不上（用户设置的上下文长度会静默失效）；
  *   - 设置页模型列表会显示成 `chat:gpt-5` 这类带前缀的名字。
@@ -202,8 +202,10 @@ export function getModelSpecLookup(): Map<string, ModelSpec> {
       if (!data || typeof data !== "object") continue;
       for (const apiGroup of Object.values(data as Record<string, unknown>)) {
         if (!apiGroup || typeof apiGroup !== "object") continue;
-        for (const [id, m] of Object.entries(apiGroup as Record<string, any>)) {
+        for (const [rawId, m] of Object.entries(apiGroup as Record<string, any>)) {
           if (!m || typeof m !== "object") continue;
+          const id = stripModelTypePrefix(rawId);
+          if (id === undefined) continue;
           const ctx = typeof m.contextWindow === "number" ? m.contextWindow : 0;
           const max = typeof m.maxTokens === "number" ? m.maxTokens : 0;
           if (ctx <= 0 && max <= 0) continue;
@@ -237,7 +239,9 @@ export function getStaticModelSpec(modelId: string): Record<string, any> | undef
         if (!data || typeof data !== "object") continue;
         for (const apiGroup of Object.values(data as Record<string, unknown>)) {
           if (!apiGroup || typeof apiGroup !== "object") continue;
-          for (const [id, m] of Object.entries(apiGroup as Record<string, any>)) {
+          for (const [rawId, m] of Object.entries(apiGroup as Record<string, any>)) {
+            const id = stripModelTypePrefix(rawId);
+            if (id === undefined) continue;
             if (m && typeof m === "object" && !byId.has(id)) byId.set(id, m);
           }
         }

@@ -34,7 +34,7 @@ const piImportCalls: PiImportInput[] = [];
 const preview: PiImportSummary = {
   sourceDir: "/home/u/.pi/agent", found: true, providers: 2, sessions: 5, projects: 1,
   conflicts: 0, duplicates: 0, invalidSessions: 0, providerConflictSessions: 0,
-  oauth: false, skippedSettings: [],
+  oauth: false, skippedSettings: [], mcpServers: 0, mcpOAuth: false, skippedMcpServers: [],
 };
 const applied: PiImportSummary = { ...preview };
 const piImportMock = vi.fn(async (input: PiImportInput = {}): Promise<PiImportSummary> => {
@@ -93,6 +93,13 @@ describe("手动跳过后的自动跳转收敛（manualSkipDropsAutoAdvance）",
 });
 
 describe("确认弹窗逐项说明（piImportConfirmMessage）", () => {
+  it("列出 MCP 数量、跳过原因与重新授权提示", () => {
+    const text = piImportConfirmMessage(plan({ mcpServers: 2, mcpOAuth: true, skippedMcpServers: ["private：暂不支持 auth.provider"], skippedSettings: ["mcp.autoEnableCodemode"] }));
+    expect(text).toContain("MCP 服务器 2 个");
+    expect(text).toContain("private：暂不支持 auth.provider");
+    expect(text).toContain("mcp.autoEnableCodemode");
+    expect(text).toContain("导入后需重新授权");
+  });
   it("列出供应商 / 会话 / 项目记录数量，与「EM 已有配置优先」的口径", () => {
     const text = piImportConfirmMessage(plan({}));
     expect(text).toContain("供应商 2 个");
@@ -111,6 +118,14 @@ describe("确认弹窗逐项说明（piImportConfirmMessage）", () => {
 });
 
 describe("runPiImportFlow 调用序列", () => {
+  it("只有不支持的 MCP 条目时显示原因且不下发 apply", async () => {
+    piImportMock.mockResolvedValueOnce(plan({ found: false, skippedMcpServers: ["private：暂不支持 auth.provider"] }));
+    expect(await runPiImportFlow()).toBeNull();
+    expect(toast).toHaveBeenCalledWith(expect.stringContaining("private：暂不支持 auth.provider"));
+    expect(confirmDialog).not.toHaveBeenCalled();
+    expect(piImportMock).toHaveBeenCalledTimes(1);
+    expect(piImportMock).not.toHaveBeenCalledWith(expect.objectContaining({ apply: true }));
+  });
   it("未找到 → 返回 null、toast 提示；不下发确认与 apply（绝不写盘）", async () => {
     piImportMock.mockResolvedValueOnce(plan({ found: false }));
     const r = await runPiImportFlow();

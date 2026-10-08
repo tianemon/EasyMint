@@ -38,21 +38,26 @@ export function manualSkipDropsAutoAdvance(piProbe: "pending" | "hit" | "miss", 
 
 /** 确认弹窗正文：逐项说明会导入什么、跳过什么（message 走 whitespace-pre-line，\n 即换行） */
 export function piImportConfirmMessage(plan: PiImportSummary): string {
-  const lines = [`供应商 ${plan.providers} 个 · 会话 ${plan.sessions} 个 · 项目记录 ${plan.projects} 个`];
+  const lines = [`供应商 ${plan.providers} 个 · MCP 服务器 ${plan.mcpServers} 个 · 会话 ${plan.sessions} 个 · 项目记录 ${plan.projects} 个`];
   const skipped = [
     plan.conflicts > 0 ? `${plan.conflicts} 项冲突` : "",
     plan.duplicates > 0 ? `${plan.duplicates} 个重复会话` : "",
     plan.invalidSessions > 0 ? `${plan.invalidSessions} 个无效会话` : "",
   ].filter(Boolean);
   if (skipped.length > 0) lines.push(`跳过：${skipped.join("、")}`);
+  if (plan.skippedMcpServers.length) lines.push(`未导入的 MCP 服务器：\n${plan.skippedMcpServers.join("\n")}`);
+  if (plan.skippedSettings.length) lines.push(`未导入设置：${plan.skippedSettings.join("、")}`);
   lines.push("EM 已有配置优先；项目级配置与扩展不导入");
   if (plan.oauth) lines.push("OAuth 账号复制后两份令牌独立，后续可能需要重新登录");
+  if (plan.mcpOAuth) lines.push("MCP 登录凭据不复制，导入后需重新授权");
   return lines.join("\n");
 }
 
 /** 导入完成的结果摘要（toast 与卡片/小节的结果行共用一份口径） */
 export function piImportResultText(s: PiImportSummary): string {
-  return `已导入 ${s.providers} 个供应商、${s.sessions} 个会话、${s.projects} 个项目；跳过 ${s.conflicts} 项冲突（含 ${s.providerConflictSessions} 个供应商冲突会话）、${s.duplicates} 个重复会话、${s.invalidSessions} 个无效会话。`;
+  return `已导入 ${s.providers} 个供应商、${s.mcpServers} 个 MCP 服务器、${s.sessions} 个会话、${s.projects} 个项目；跳过 ${s.conflicts} 项冲突（含 ${s.providerConflictSessions} 个供应商冲突会话）、${s.duplicates} 个重复会话、${s.invalidSessions} 个无效会话。` +
+    (s.skippedMcpServers.length ? ` 未导入的 MCP 服务器：${s.skippedMcpServers.join("；")}。` : "") +
+    (s.mcpOAuth ? " MCP 账号需重新授权。" : "");
 }
 
 /**
@@ -62,7 +67,9 @@ export function piImportResultText(s: PiImportSummary): string {
 export async function runPiImportFlow(sourceDir?: string): Promise<PiImportSummary | null> {
   const plan = await window.electronAPI.settings.piImport({ sourceDir });
   if (!plan.found) {
-    toast("未找到可导入的 pi 配置或会话，可尝试「选择目录」指定 pi 的 agent 目录");
+    toast(plan.skippedMcpServers.length
+      ? `未找到可导入内容；未导入的 MCP 服务器：${plan.skippedMcpServers.join("；")}`
+      : "未找到可导入的 pi 配置或会话，可尝试「选择目录」指定 pi 的 agent 目录");
     return null;
   }
   const ok = await confirmDialog({
@@ -117,7 +124,7 @@ export function PiImportCard({ onImported }: { onImported?: () => void }): JSX.E
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm text-text-primary font-medium">检测到本机 pi 配置</div>
-          <p className="text-xs text-text-secondary mt-0.5">导入原生 pi 的供应商、会话与项目记录；跳过请点「下一步」</p>
+          <p className="text-xs text-text-secondary mt-0.5">导入原生 pi 的供应商、MCP 服务器、会话与项目记录；跳过请点「下一步」</p>
         </div>
         <div className="flex gap-2 shrink-0">
           <button

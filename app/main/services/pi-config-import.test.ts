@@ -10,6 +10,67 @@ const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
 const read = (file: string) => JSON.parse(fs.readFileSync(file, "utf8"));
 describe("pi import", () => {
+  it("detects and imports MCP-only configurations without changing pi; converts Pi semantics and preserves disabled servers", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-mcp-")); roots.push(root);
+    const source = path.join(root, "pi", "agent");
+    const repo = await NativeConfig.create(new Store(path.join(root, "em")));
+    const mcp = { mcpServers: {
+      echo: { command: "node", args: ["echo.js"], cwd: "/tmp", env: { TOKEN: "${TEST_TOKEN}" }, enabled: false, timeout: 120, exposure: "codemode-deferred", toolExposure: { "read*": "direct" } },
+      remote: { type: "streamable-http", url: "https://example.com/mcp", oauth: { callbackPort: 12345 }, timeout: 90 },
+      bearer: { url: "https://example.com/bearer", headers: { Authorization: "Bearer test" } },
+    } };
+    const original = encode(mcp);
+    atomicWrite(path.join(source, "mcp.json"), original);
+    expect(await repo.importPi(source, false, true)).toMatchObject({ found: true });
+    expect(await repo.importPi(source)).toMatchObject({ found: true, mcpServers: 3, mcpOAuth: true, skippedMcpServers: [] });
+    const target = path.join(repo.storage.agentDir, "mcp.json");
+    expect(fs.existsSync(target)).toBe(false);
+    const imported = await repo.importPi(source, true);
+    expect(imported.backup).toBeTruthy();
+    expect(read(target).mcpServers.echo).toMatchObject({ type: "stdio", command: "node", requestTimeoutSeconds: 120, exposure: "codemode", cwd: "/tmp", toolExposure: { "read*": "direct" } });
+    expect(read(target).mcpServers.echo.timeout).toBeUndefined();
+    expect(read(target).mcpServers.remote).toMatchObject({ type: "http", oauth: true, callbackPort: 12345, requestTimeoutSeconds: 90 });
+    expect(read(target).mcpServers.bearer.oauth).toBe(false);
+    expect(read(repo.files.em).mcp.hidden).toContain("echo");
+    expect(fs.readFileSync(path.join(source, "mcp.json"), "utf8")).toBe(original);
+    expect(await repo.importPi(source, true)).toMatchObject({ mcpServers: 0, conflicts: 3 });
+  });
+
+  it("merges MCP alongside providers using the existing target path and keeps colliding definitions and target metadata", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-mcp-merge-")); roots.push(root);
+    const source = path.join(root, "pi", "agent"); const home = path.join(root, "em");
+    const repo = await NativeConfig.create(new Store(home));
+    const legacy = path.join(home, "mcp.json");
+    atomicWrite(legacy, encode({ autoEnableCodemode: false, mcpServers: { existing: { type: "stdio", command: "keep" }, "foo-bar": { type: "stdio", command: "keep-namespace" } } }));
+    atomicWrite(path.join(source, "auth.json"), encode({ deepseek: { type: "api_key", key: "test" } }));
+    atomicWrite(path.join(source, "mcp.json"), encode({ mcpServers: { existing: { command: "replace" }, foo_bar: { command: "collision" }, added: { command: "new" } } }));
+    const result = await repo.importPi(source, true);
+    expect(result).toMatchObject({ providers: 1, mcpServers: 1, conflicts: 2 });
+    expect(read(legacy)).toEqual({ autoEnableCodemode: false, mcpServers: { existing: { type: "stdio", command: "keep" }, "foo-bar": { type: "stdio", command: "keep-namespace" }, added: { type: "stdio", command: "new" } } });
+    expect(fs.existsSync(path.join(repo.storage.agentDir, "mcp.json"))).toBe(false);
+    expect(read(path.join(result.backup!, "mcp.json")).mcpServers.existing.command).toBe("keep");
+  });
+
+  it("reports unsupported or invalid MCP definitions without importing credentials or silently weakening authentication", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-mcp-skip-")); roots.push(root);
+    const source = path.join(root, "pi", "agent");
+    const repo = await NativeConfig.create(new Store(path.join(root, "em")));
+    atomicWrite(path.join(source, "mcp.json"), encode({ autoEnableCodemode: false, mcpServers: {
+      provider_auth: { url: "https://example.com/mcp", auth: { provider: "openai" } },
+      oauth_client: { url: "https://example.com/oauth", oauth: { clientId: "registered-client" } },
+      invalid: { command: "node", args: "invalid" },
+      secret_command: { url: "https://example.com/secret", headers: { Authorization: "!secret-command" } },
+    } }));
+    atomicWrite(path.join(source, "mcp-auth.json"), encode({ secret: "do-not-copy" }));
+    const result = await repo.importPi(source, true);
+    expect(result).toMatchObject({ found: false, mcpServers: 0, skippedSettings: ["mcp.autoEnableCodemode"] });
+    expect(result.skippedMcpServers).toHaveLength(4);
+    expect(result.skippedMcpServers.join("\n")).toContain("provider_auth");
+    expect(result.skippedMcpServers.join("\n")).not.toContain("registered-client");
+    expect(result.skippedMcpServers.join("\n")).not.toContain("!secret-command");
+    expect(fs.existsSync(path.join(repo.storage.agentDir, "mcp.json"))).toBe(false);
+    expect(fs.existsSync(path.join(repo.storage.agentDir, "mcp-auth.json"))).toBe(false);
+  });
   it("previews without writing, imports once, keeps conflicts and transcripts, and seeds session model state", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-pi-import-")); roots.push(root);
     const source = path.join(root, "pi", "agent"); const target = path.join(root, "em");

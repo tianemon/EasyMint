@@ -185,10 +185,10 @@ function readMcpServersFrom(filePath: string): Record<string, McpServerConfig> {
  * （失败不阻断启动，下次启动重试），所以这个回落窗口真实存在。
  */
 let legacyPathWarned = false;
-function userMcpPath(): string {
-  const current = emMcpPath();
+function userMcpPath(dataDir?: string): string {
+  const current = dataDir ? path.join(dataDir, "agent", "mcp.json") : emMcpPath();
   if (readMcpServersFile(current) !== undefined) return current;
-  const legacy = legacyMcpPath();
+  const legacy = dataDir ? path.join(dataDir, "mcp.json") : legacyMcpPath();
   if (Object.keys(readMcpServersFrom(legacy)).length > 0) {
     // 只警告一次：本函数在扫描/取定义/写入等处都会被调用，迁移长期未完成时会刷屏
     if (!legacyPathWarned) {
@@ -542,8 +542,8 @@ export function getMcpServerConfig(name: string, opts?: { scope?: McpScope; proj
  * 调用方通过这个路径保持配置读写同源，
  * 跟着生效路径走才不会与配置分家。
  */
-export function getMcpConfigPath(): string {
-  return userMcpPath();
+export function getMcpConfigPath(dataDir?: string): string {
+  return userMcpPath(dataDir);
 }
 
 // ── Toggle ─────────────────────────────────────────

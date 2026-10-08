@@ -7,10 +7,18 @@ import { Store } from "./store";
 import { NativeConfig } from "./native-config";
 import { atomicWrite, encode } from "./native-config-storage";
 import { getProviderStaticModels } from "./pi-init-static";
+import { migrateExtraModels } from "./extra-models-migration";
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir() } }));
 const dirs: string[] = [];
 afterEach(() => { for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true }); });
 describe("legacy model migration", () => {
+  it("inherits SDK limits and capabilities for old gateway models while preserving explicit values", () => {
+    const [id, spec] = [...getProviderStaticModels("deepseek")][0]!;
+    let settings = { apiProviders: { configs: { local: { presetId: "custom", extraModels: [id, { id: `${id}-gateway`, contextWindow: 123456, maxTokens: 4567 }] } } } };
+    migrateExtraModels({ getSettings: () => settings, saveSettings: (value: unknown) => { settings = value as typeof settings; } } as unknown as Store);
+    expect(settings.apiProviders.configs.local.extraModels[0]).toMatchObject({ id, contextWindow: spec.contextWindow, maxTokens: spec.maxTokens, input: spec.input, reasoning: spec.reasoning });
+    expect(settings.apiProviders.configs.local.extraModels[1]).toMatchObject({ contextWindow: 123456, maxTokens: 4567, input: spec.input });
+  });
   it("keeps request aliases, explicit limits and custom defaults; does not activate dormant official overrides", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "em-model-migration-")); dirs.push(dir);
     const store = new Store(dir);

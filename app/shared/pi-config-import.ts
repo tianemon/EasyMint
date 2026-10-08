@@ -2,6 +2,9 @@ export interface PiImportSummary {
   sourceDir: string;
   found: boolean;
   providers: number;
+  mcpServers: number;
+  skippedMcpServers: string[];
+  mcpOAuth: boolean;
   sessions: number;
   projects: number;
   conflicts: number;
