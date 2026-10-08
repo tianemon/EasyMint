@@ -102,7 +102,7 @@ export function App(): JSX.Element {
   // 打开 EM 无任何 tab 时,自动建一个"新会话"空 tab(与点新建会话一致,仅 tab 条隐藏)
   function ensureDefaultTab(): void {
     if (useTabStore.getState().tabs.length === 0) {
-      useTabStore.getState().openTab({ id: `new-${Date.now()}`, type: "chat", title: uiText("ui.App.newSession") });
+      useTabStore.getState().openTab({ id: `new-${Date.now()}`, type: "chat", title: uiText("ui.App.newSession"), titleKey: "ui.App.newSession" });
     }
   }
 

@@ -75,7 +75,7 @@ export function TabBar(): JSX.Element | null {
               {(tab as { dirty?: boolean }).dirty && (
                 <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0 mr-1.5" />
               )}
-              <span className="tab-text-v3"><span className="tab-text-inner">{tab.title}</span></span>
+              <span className="tab-text-v3"><span className="tab-text-inner">{tab.titleKey ? t(tab.titleKey) : tab.title}</span></span>
               <span
                 className="tab-close-v3"
                 onClick={async (e) => {

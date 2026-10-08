@@ -81,6 +81,15 @@ describe("localization regression", () => {
     expect(costFormula(1, "en")).toContain("central parity rate");
   });
 
+  it("uses independent count labels for mixed Pi import totals and accurate settings guidance", async () => {
+    await uiI18n.changeLanguage("en");
+    const summary = uiText("ui.PiImport.providersMcpServersSessionsProjectRecords", { v0: 1, v1: 0, v2: 1, v3: 2 });
+    expect(summary).toBe("Providers: 1 · MCP servers: 0 · Sessions: 1 · Project records: 2");
+    expect(uiText("ui.PiImport.duplicateSessions", { v0: 1 })).toBe("Duplicate sessions: 1");
+    expect(uiText("ui.PluginsTab.configurationIsStoredInEasymintMcpJson")).toContain("~/.easymint/agent/mcp.json");
+    expect(uiText("ui.ProvidersTab.initialThinkingLevelForNewChatsAnd")).toContain("preferring a lower level");
+  });
+
   it("localizes permission chrome while preserving paths and unrelated tool output", async () => {
     await uiI18n.changeLanguage("en");
     const text = toolResultText("original", { kind: "permission_denied", rule: "standard.write_scope", mode: "standard", operation: "write", target: "/用户/代码.ts", detail: "写入工作区外文件" });

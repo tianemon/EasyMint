@@ -116,7 +116,7 @@ export function ProjectPage(): JSX.Element {
     // 切换项目时清空标签页和任务
     useTabStore.getState().clearTabs();
     // 补建空会话 tab(与打开 EM 初始态一致):切换项目后内容区不空白、新建会话按钮保持可用
-    useTabStore.getState().openTab({ id: `new-${Date.now()}`, type: "chat", title: uiText("ui.App.newSession") });
+    useTabStore.getState().openTab({ id: `new-${Date.now()}`, type: "chat", title: uiText("ui.App.newSession"), titleKey: "ui.App.newSession" });
     useTaskStore.getState().clearTasks();
     useProjectStatusStore.getState().reset();
     if (projectId) {
@@ -140,7 +140,7 @@ export function ProjectPage(): JSX.Element {
           const isNewProject = params.get("init") === "1";
           if (urlSessionId) {
             setActiveSessionId(urlSessionId);
-            openTab({ id: urlSessionId, type: "chat", title: uiText("ui.ProjectPage.newProject"), sessionId: urlSessionId, isNewProject });
+            openTab({ id: urlSessionId, type: "chat", title: uiText("ui.ProjectPage.newProject"), titleKey: "ui.ProjectPage.newProject", sessionId: urlSessionId, isNewProject });
             // URL 直达真实会话 → 关掉补建的空 tab
             useTabStore.getState().closeEmptyTab();
           }
@@ -179,7 +179,7 @@ export function ProjectPage(): JSX.Element {
 
       // 打开绑定新会话的 tab
       const tabId = `rotate-${Date.now()}`;
-      ts.openTab({ id: tabId, type: "chat" as const, title: uiText("ui.App.newSession"), sessionId });
+      ts.openTab({ id: tabId, type: "chat" as const, title: uiText("ui.App.newSession"), titleKey: "ui.App.newSession", sessionId });
       ts.setActiveTab(tabId);
       setActiveSessionId(sessionId);
 
@@ -265,7 +265,7 @@ export function ProjectPage(): JSX.Element {
     }
     const tabId = `new-${Date.now()}`;
     // sessionId undefined = ChatPanel treats as brand-new session, not resume
-    ts.openTab({ id: tabId, type: "chat" as const, title: uiText("ui.App.newSession") });
+    ts.openTab({ id: tabId, type: "chat" as const, title: uiText("ui.App.newSession"), titleKey: "ui.App.newSession" });
   }, []);
 
   const handleSessionDelete = useCallback((sessionId: string) => {
@@ -373,7 +373,7 @@ export function ProjectPage(): JSX.Element {
                   tabId={tab.id}
                   isDesigner={tab.isDesigner}
                   onSessionCreated={(sid) => {
-                    useTabStore.getState().updateTab(tab.id, { sessionId: sid, title: uiText("ui.App.newSession") });
+                    useTabStore.getState().updateTab(tab.id, { sessionId: sid, title: uiText("ui.App.newSession"), titleKey: "ui.App.newSession" });
                     setActiveSessionId(sid);
                     setSessionRefreshKey((k) => k + 1);
                   }}

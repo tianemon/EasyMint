@@ -136,7 +136,7 @@ function loadApp(window: BrowserWindow, hash = ""): void {
 }
 
 // Tab 状态备份（macOS 合盖崩溃恢复），新建窗口时需清空防止跨窗口污染
-let tabBackup: { tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string }>; activeTabId: string | null } | null = null;
+let tabBackup: { tabs: Array<{ id: string; type: string; title: string; titleKey?: string; filePath?: string; sessionId?: string }>; activeTabId: string | null } | null = null;
 
 let sharedServices: {
   store: Store;

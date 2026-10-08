@@ -7,6 +7,8 @@ export interface Tab {
   id: string;
   type: "file" | "chat";
   title: string;
+  /** App-owned placeholder; real session names and file names never get a key. */
+  titleKey?: "ui.App.newSession" | "ui.ProjectPage.newProject" | "ui.tab-store.conversation";
   filePath?: string;
   sessionId?: string;
   isNewProject?: boolean;
@@ -95,7 +97,7 @@ export const useTabStore = create<TabState>()(
           // 关闭所有 tab → 自动回到默认页面(补建空会话 tab,输入卡片居中);
           // suppressDefaultTab=true(如 closeEmptyTab 联动清理)时不补建
           if (nextTabs.length === 0 && !suppressDefaultTab) {
-            const defaultTab: Tab = { id: genId(), type: "chat", title: uiText("ui.App.newSession") };
+            const defaultTab: Tab = { id: genId(), type: "chat", title: uiText("ui.App.newSession"), titleKey: "ui.App.newSession" };
             return { tabs: [defaultTab], activeTabId: defaultTab.id };
           }
           let nextActiveId = s.activeTabId;
@@ -120,7 +122,7 @@ export const useTabStore = create<TabState>()(
       })),
 
       updateTab: (id, patch) => set((s) => ({
-        tabs: s.tabs.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+        tabs: s.tabs.map((t) => (t.id === id ? { ...t, ...(patch.title !== undefined ? { titleKey: undefined } : {}), ...patch } : t)),
       })),
 
       setSessionRunning: (sessionId, running) => set((s) => {
@@ -143,11 +145,11 @@ export const useTabStore = create<TabState>()(
         // 已有同 session 的 tab → 激活并同步标题(会话列表点击带真实标题,覆盖"对话"占位)
         const existing = get().tabs.find((t) => t.type === "chat" && t.sessionId === sessionId);
         if (existing) {
-          if (title && existing.title !== title) get().updateTab(existing.id, { title });
+          if (title && (existing.title !== title || existing.titleKey)) get().updateTab(existing.id, { title });
           set({ activeTabId: existing.id });
           return;
         }
-        get().openTab({ id: "", type: "chat", title: title || uiText("ui.tab-store.conversation"), sessionId });
+        get().openTab({ id: "", type: "chat", title: title || uiText("ui.tab-store.conversation"), titleKey: title ? undefined : "ui.tab-store.conversation", sessionId });
       },
     }),
     {
@@ -168,7 +170,7 @@ useTabStore.subscribe((state) => {
   synced = true;
   try {
     window.electronAPI?.tab?.save?.({
-      tabs: state.tabs.map((t) => ({ id: t.id, type: t.type, title: t.title, filePath: t.filePath, sessionId: t.sessionId, isDesigner: t.isDesigner, mdView: t.mdView })),
+      tabs: state.tabs.map((t) => ({ id: t.id, type: t.type, title: t.title, titleKey: t.titleKey, filePath: t.filePath, sessionId: t.sessionId, isDesigner: t.isDesigner, mdView: t.mdView })),
       activeTabId: state.activeTabId,
     });
   } catch { /* ignore */ }

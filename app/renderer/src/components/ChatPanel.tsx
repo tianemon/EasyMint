@@ -3375,7 +3375,7 @@ function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDr
        此处不再设 max-w/w-fit，避免相对 fit-content 层的循环依赖导致短文本被压窄 */
     <div className="flex gap-4 items-start">
       <div className="min-w-0">
-        <div className="msg-from text-right">USER</div>
+        <div className="msg-from text-right">{uiText("ui.ChatPanel.user")}</div>
         <div className="msg-bubble-user rounded-[var(--radius-lg)] rounded-br-[4px] px-[14px] py-1.5 leading-[1.55] overflow-hidden min-w-0 [overflow-wrap:anywhere]">
         {msg.attaches && msg.attaches.length > 0 && (
           /* 编辑态也显示附件：编辑只改文本，重发会带上它们（sendText 以气泡为准） */

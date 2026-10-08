@@ -936,7 +936,7 @@
   "ui.PluginsTab.varDefault": "${VAR:-默认值}",
   "ui.PluginsTab.testConnection": "测试连接",
   "ui.PluginsTab.theProjectSRootMcpJsonIs": "项目根 .mcp.json 为只读来源，请直接编辑该文件删除",
-  "ui.PluginsTab.userSettingsEasymintMcpJson": "用户级配置（~/.easymint/mcp.json）",
+  "ui.PluginsTab.userSettingsEasymintMcpJson": "用户级配置（~/.easymint/agent/mcp.json）",
   "ui.PluginsTab.projectSettingsProjectEasymintMcpJson": "项目级配置（<项目>/.easymint/mcp.json）",
   "ui.PluginsTab.deleteMcpServer": "删除 MCP 服务器「{{v0}}」？",
   "ui.PluginsTab.permanentlyRemoveThisServerConfigurationIncludingCredentials": "将从{{v0}}中永久移除该服务器配置（含 API Key 等凭据信息），不可恢复。",
@@ -956,7 +956,7 @@
   "ui.PluginsTab.notSet": "未设置",
   "ui.PluginsTab.pasteConfiguration": "粘贴配置导入",
   "ui.PluginsTab.addServer": "+ 添加服务器",
-  "ui.PluginsTab.configurationIsStoredInEasymintMcpJson": "配置存于 ~/.easymint/mcp.json。添加/修改后**新会话**生效（进行中的会话保持原工具集）。",
+  "ui.PluginsTab.configurationIsStoredInEasymintMcpJson": "配置存于 ~/.easymint/agent/mcp.json。添加/修改后**新会话**生效（进行中的会话保持原工具集）。",
   "ui.PluginsTab.pasteConfigurationMcpserversJsonClaudeMcpAdd": "粘贴配置（mcpServers JSON / claude mcp add 命令行 / npx 启动命令均可）：",
   "ui.PluginsTab.mcpserversGithubTypeHttpUrlHttpsApi": "{\"mcpServers\":{\"github\":{\"type\":\"http\",\"url\":\"https://api.githubcopilot.com/mcp/\"}}}\n\n或：npx -y @modelcontextprotocol/server-filesystem /tmp",
   "ui.PluginsTab.parsing": "解析中…",
@@ -1030,7 +1030,7 @@
   "ui.ProvidersTab.veryHigh": "极高",
   "ui.ProvidersTab.maximum": "最高",
   "ui.ProvidersTab.defaultThinkingLevelChat": "全局思考等级(聊天)",
-  "ui.ProvidersTab.initialThinkingLevelForNewChatsAnd": "仅作为新聊天会话的初始默认值；标准委派子 Agent 跟随主会话当前的模型与思考等级。模型不支持所选等级时自动适配到最接近的支持档位，已打开的聊天可在输入栏切换。",
+  "ui.ProvidersTab.initialThinkingLevelForNewChatsAnd": "仅作为新聊天会话的初始默认值；标准委派子 Agent 跟随主会话当前的模型与思考等级。模型不支持所选等级时自动适配到支持的档位（优先向下），已打开的聊天可在输入栏切换。",
   "ui.ProvidersTab.defaultPermissionModeChat": "默认权限模式(聊天)",
   "ui.ProvidersTab.readOnlyOrdinaryProjectContentExcludingCredentials": "只读（普通项目可读，敏感凭据除外）",
   "ui.ProvidersTab.standardOsSandboxWorkspaceWritesAllowed": "标准（系统沙盒内执行，工作区可写）",
@@ -1686,5 +1686,7 @@
   "thinking.high": "高",
   "thinking.xhigh": "极高",
   "thinking.max": "最高",
-  "summary.generatedOriginal": "【上下文摘要（本次压缩生成，原文）】"
+  "summary.generatedOriginal": "【上下文摘要（本次压缩生成，原文）】",
+  "nav.issues": "问题",
+  "ui.ChatPanel.user": "用户"
 }

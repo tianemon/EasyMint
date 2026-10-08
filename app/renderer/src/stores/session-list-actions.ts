@@ -49,6 +49,6 @@ export const sessionListActions = {
     _setTitle?.(sessionId, title);
     const ts = useTabStore.getState();
     const tab = ts.tabs.find((t) => t.sessionId === sessionId);
-    if (tab && tab.title !== title) ts.updateTab(tab.id, { title });
+    if (tab && (tab.title !== title || tab.titleKey)) ts.updateTab(tab.id, { title });
   },
 };

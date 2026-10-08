@@ -21,21 +21,22 @@ const { LanguageSelector } = await import("./LanguageSelector");
 const { GeneralTab } = await import("./GeneralTab");
 const { AboutTab } = await import("./AboutTab");
 
-afterEach(async () => { await uiI18n.changeLanguage("zh-CN"); });
+afterEach(async () => { state.uiLanguage = "zh-CN"; await uiI18n.changeLanguage("zh-CN"); });
 
 describe("localized settings rendering", () => {
   it("renders a discoverable selector in both languages with stable stored values", async () => {
-    const zh = renderToStaticMarkup(createElement(LanguageSelector));
-    expect(zh).toContain("界面语言");
-    expect(zh).toContain("跟随系统");
-    await uiI18n.changeLanguage("en");
-    const en = renderToStaticMarkup(createElement(LanguageSelector));
-    expect(en).toContain("Interface language");
-    expect(en).toContain("Follow system");
-    expect(en).toContain('value="zh-CN"');
-    expect(en).toContain('value="system"');
-    expect(en).toContain("简体中文");
-    expect(en).toContain("English");
+    for (const [locale, label] of [["zh-CN", "界面语言"], ["en", "Interface language"]] as const) {
+      await uiI18n.changeLanguage(locale);
+      for (const [value, text] of [["system", locale === "en" ? "Follow system" : "跟随系统"], ["zh-CN", "简体中文"], ["en", "English"]] as const) {
+        state.uiLanguage = value;
+        const html = renderToStaticMarkup(createElement(LanguageSelector));
+        expect(html).toContain(label);
+        expect(html).toContain(text);
+        expect(html).toContain('class="em-select-trigger');
+        expect(html).toContain('aria-haspopup="listbox"');
+        expect(html).not.toContain("<select");
+      }
+    }
     expect(state.setUiLanguage).not.toHaveBeenCalled();
   });
 

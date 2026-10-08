@@ -497,8 +497,8 @@ interface ElectronAPI {
     delete: (projectPath: string, id: string) => Promise<void>;
   };
   tab: {
-    save: (data: { tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string; groupId?: string }>; activeTabId: string | null }) => Promise<void>;
-    restore: () => Promise<{ tabs: Array<{ id: string; type: string; title: string; filePath?: string; sessionId?: string; groupId?: string }>; activeTabId: string | null } | null>;
+    save: (data: { tabs: Array<{ id: string; type: string; title: string; titleKey?: string; filePath?: string; sessionId?: string; groupId?: string }>; activeTabId: string | null }) => Promise<void>;
+    restore: () => Promise<{ tabs: Array<{ id: string; type: string; title: string; titleKey?: string; filePath?: string; sessionId?: string; groupId?: string }>; activeTabId: string | null } | null>;
   };
   process: {
     detect: (projectPath: string) => Promise<Array<{ id: string; platform: string; label: string; run_command: string; cwd?: string; install_command?: string; url?: string }>>;
