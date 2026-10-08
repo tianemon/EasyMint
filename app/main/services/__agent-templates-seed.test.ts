@@ -92,6 +92,19 @@ describe("seedDefaults 的模板字段卫生", () => {
     expect(byId("mint")!.prompt).not.toBe("旧提示词");
     expect(byId("mint")!.description).not.toBe("旧描述");
   });
+  it("只读内置角色同步新提示词，保留展示字段和自定义模板", () => {
+    writeStore([
+      { id: "default-builder", name: "Builder", description: "保留说明", prompt: "旧规则", agentType: "builder" },
+      { id: "default-evaluator", name: "Evaluator", description: "保留说明", prompt: "旧规则", agentType: "evaluator" },
+      { id: "custom-health", name: "Custom", description: "自定义", prompt: "用户规则", agentType: "custom" },
+    ]);
+    mod.seedDefaults();
+    for (const id of ["default-builder", "default-evaluator"]) {
+      expect(byId(id)!.prompt).toContain("CodeGraph 可用时");
+      expect(byId(id)!.description).toBe("保留说明");
+    }
+    expect(byId("custom-health")!.prompt).toBe("用户规则");
+  });
 });
 
 describe("内置模板权限", () => {

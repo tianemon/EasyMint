@@ -172,10 +172,10 @@ export function seedDefaults(): void {
   for (const d of DEFAULTS) {
     const existing = current.find((t) => t.id === d.id);
     if (existing) {
-      // Mint 始终强制内置提示词;其余内置模板保留用户看到的那份(它们本就不可改)
+      // 内置模板只读，提示词必须跟随版本更新；名称等展示数据仍保留。
       synced.push(d.id === MINT_TEMPLATE_ID
         ? { ...existing, prompt: d.prompt, description: d.description }
-        : existing);
+        : { ...existing, prompt: d.prompt });
     } else {
       synced.push({ ...d });
     }

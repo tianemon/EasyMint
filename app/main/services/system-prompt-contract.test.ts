@@ -10,6 +10,8 @@
 import { describe, it, expect } from "vitest";
 import {
   MINT_SYSTEM_PROMPT,
+  BUILDER_AGENT_PROMPT,
+  EVALUATOR_AGENT_PROMPT,
   systemMessage,
   type SystemMessageKind,
   buildInitTriggerPrompt,
@@ -30,6 +32,19 @@ const ALL_KINDS: SystemMessageKind[] = [
 ];
 
 describe("Mint 系统提示词 override 契约（纯替换架构）", () => {
+  it("子 Agent 模板与主会话模型来源、可选任务 ID 及 MCP 发现方式一致", () => {
+    expect(MINT_SYSTEM_PROMPT).not.toContain("模板决定了子 Agent 的 system prompt 与思考级别");
+    expect(MINT_SYSTEM_PROMPT).toContain("模型与思考级别跟随主会话");
+    for (const prompt of [BUILDER_AGENT_PROMPT, EVALUATOR_AGENT_PROMPT]) {
+      expect(prompt).toContain("不要求创建 task.json");
+      expect(prompt).toContain("CodeGraph 可用时");
+      expect(prompt).toContain("searchTools");
+      expect(prompt).toContain("不可用时");
+      expect(prompt).toContain("不为验收引入构建工具");
+    }
+    expect(BUILDER_AGENT_PROMPT).toContain("只暂存本任务的变更");
+    expect(PERMISSION_RULES_PROMPT).toContain("系统许可不等于用户授权");
+  });
   it("Mint 身份在、Pi 默认身份句不在", () => {
     expect(MINT_SYSTEM_PROMPT).toContain("你叫 Mint");
     expect(MINT_SYSTEM_PROMPT).not.toContain("You are an expert coding assistant operating inside pi");

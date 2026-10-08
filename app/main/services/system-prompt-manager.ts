@@ -91,6 +91,5 @@ export function resolveEffectivePrompt(): string {
   const config = readConfig();
   const promptId = config.defaultPromptId ?? BUILTIN_DEFAULT_ID;
   const prompt = config.prompts.find((p) => p.id === promptId);
-  return prompt?.content ?? "";
+  return prompt?.content ?? MINT_SYSTEM_PROMPT;
 }
-

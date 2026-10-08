@@ -17,6 +17,11 @@ afterEach(() => {
 });
 
 describe("prompt runtime after removing unused editing APIs", () => {
+  it("falls back to builtin rules when the selected prompt no longer exists", async () => {
+    fs.writeFileSync(path.join(root, "system-prompts.json"), JSON.stringify({ defaultPromptId: "removed-prompt", prompts: [] }));
+    const { resolveEffectivePrompt } = await import("./system-prompt-manager");
+    expect(resolveEffectivePrompt()).toBe(MINT_SYSTEM_PROMPT);
+  });
   it("uses the current builtin prompt when there is no saved configuration", async () => {
     const { resolveEffectivePrompt } = await import("./system-prompt-manager");
     expect(resolveEffectivePrompt()).toBe(MINT_SYSTEM_PROMPT);

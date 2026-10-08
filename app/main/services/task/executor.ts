@@ -236,7 +236,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
     const fullPrompt = opts.task + schemaHint + "\n\n" + PERMISSION_RULES_PROMPT;
     const session2 = await createPiSession({
       cwd: resolvedPath, agentDir: opts.agentDir, model,
-      // 思考等级按模板归属解析（Mint/Mint-D 跟随主会话，其余默认 high），再按模型能力自适应
+      // 思考等级跟随主会话，再按模型能力自适应
       thinkingLevel: adaptSubagentThinkingLevel(subagentThinkingBase, model),
       store: opts.store, systemPrompt: fullPrompt, extraTools,
       sessionDir: opts.sessionDir,
@@ -262,7 +262,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
   try {
     const session = await createPiSession({
       cwd: resolvedPath, agentDir: opts.agentDir, model,
-      // 思考等级按模板归属解析，并按子 Agent 模型能力自适应
+      // 思考等级跟随主会话，并按模型能力自适应
       thinkingLevel: adaptSubagentThinkingLevel(subagentThinkingBase, model),
       store: opts.store, systemPrompt, extraTools,
       sessionDir: opts.sessionDir,
