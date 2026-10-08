@@ -1,8 +1,10 @@
+import type messages from "./i18n/locales/zh-CN.json";
+
 /**
  * 思考等级：大小关系与自适应判定（主进程与渲染层共用唯一真相源）
  *
  * 主进程用它把期望等级落到会话生效等级，渲染层用它把界面选中值落到模型支持的档位——
- * 两处必须一致，否则会出现「下拉显示英文原名」这类选中值不在选项里的问题。
+ * 两处必须一致，否则选中值会落到选项之外；显示名称另由当前语言解析。
  */
 
 /** 档位顺序（关闭 < 极低 < 轻度 < 中 < 高 < 极高 < 最高） */
@@ -10,16 +12,16 @@ export const THINKING_ORDER = ["off", "minimal", "low", "medium", "high", "xhigh
 
 export type ThinkingLevelValue = (typeof THINKING_ORDER)[number];
 
-/** 档位中文名（界面展示用） */
-export const THINKING_LABELS: Record<string, string> = {
-  off: "关闭",
-  minimal: "极低",
-  low: "轻度",
-  medium: "中",
-  high: "高",
-  xhigh: "极高",
-  max: "最高",
-};
+/** Display keys are shared; only the renderer resolves them for the active locale. */
+export const THINKING_LABEL_KEYS = {
+  off: "thinking.off",
+  minimal: "thinking.minimal",
+  low: "thinking.low",
+  medium: "thinking.medium",
+  high: "thinking.high",
+  xhigh: "thinking.xhigh",
+  max: "thinking.max",
+} as const satisfies Record<ThinkingLevelValue, keyof typeof messages>;
 
 /**
  * 把期望等级落到模型实际支持的档位（用户拍板：向下优先，保守取用）：

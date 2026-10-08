@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   INTENT_PARAM,
   INTENT_REQUIREMENT,
+  TOOL_DISPLAY_DESCRIPTION,
   intentFromInput,
   stripIntentParams,
   summarizeInput,
@@ -115,6 +116,15 @@ describe("转发给 server 前剥离", () => {
 describe("工具说明里的要求", () => {
   it("要求句必须带参数名，否则模型不知道填什么", () => {
     expect(INTENT_REQUIREMENT).toContain(INTENT_PARAM);
+  });
+
+  it("display captions follow the user language without changing the tool parameter", () => {
+    const schema = withIntentParam({ type: "object", properties: {} }) as { properties: Record<string, { description: string }> };
+    expect(INTENT_REQUIREMENT).toContain(TOOL_DISPLAY_DESCRIPTION);
+    expect(schema.properties[INTENT_PARAM]!.description).toContain("使用用户所用的语言");
+    expect(INTENT_REQUIREMENT).not.toContain("一句话中文");
+    expect(schema.properties[INTENT_PARAM]!.description).not.toContain("一句话中文");
+    expect(stripIntentParams({ command: "echo unchanged", _intent: "Check the build" })).toEqual({ command: "echo unchanged" });
   });
 
   it("字段名用下划线前缀（避开 server 可能已有的 description 参数）", () => {

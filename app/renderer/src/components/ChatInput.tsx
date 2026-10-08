@@ -2,7 +2,7 @@ import { uiText, useUiLocale } from "../lib/i18n";
 import { memo, useRef, useState, useCallback, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useSettingsStore } from "../stores/settings-store";
-import { THINKING_LABELS, THINKING_ORDER } from "@shared/thinking-levels";
+import { thinkingLevelOptions } from "../lib/thinking-options";
 import { useStatusStore } from "../stores/status-store";
 import { useChatStore } from "../stores/chat-store";
 import { useDelegationStore } from "../stores/delegation-store";
@@ -226,7 +226,7 @@ function PermissionModePicker({ value, onChange }: { value: PermissionMode; onCh
   );
 }
 
-// 档位名称与顺序见 @shared/thinking-levels（主进程与渲染层共用）
+// 档位值与顺序共用；显示名称由当前界面语言解析。
 
 interface AttachPreviewProps {
   attaches: AttachItem[];
@@ -538,8 +538,7 @@ export const ChatInput = memo(function ChatInput({
         <Select
           value={thinkingLevel}
           onChange={onThinkingLevelChange}
-          options={(thinkingLevels && thinkingLevels.length > 0 ? THINKING_ORDER.filter((l) => thinkingLevels.includes(l)) : THINKING_ORDER)
-            .map((l) => ({ value: l, label: THINKING_LABELS[l] ?? l }))}
+          options={thinkingLevelOptions(thinkingLevels)}
           align="center"
           borderless
         />

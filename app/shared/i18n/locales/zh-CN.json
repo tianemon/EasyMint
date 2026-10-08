@@ -1678,5 +1678,13 @@
   "ui.ImageRecoveryDialog.historicalImagesSelectedReducingAboutOfImage_one": "已选 {{v0}} 张历史图片，预计减少 {{v1}} 图片数据",
   "ui.ImageRecoveryDialog.historicalImagesSelectedReducingAboutOfImage_other": "已选 {{v0}} 张历史图片，预计减少 {{v1}} 图片数据",
   "ui.ImageRecoveryDialog.noHistoricalImagesSelected_one": "未选择历史图片",
-  "ui.ImageRecoveryDialog.noHistoricalImagesSelected_other": "未选择历史图片"
+  "ui.ImageRecoveryDialog.noHistoricalImagesSelected_other": "未选择历史图片",
+  "thinking.off": "关闭",
+  "thinking.minimal": "极低",
+  "thinking.low": "轻度",
+  "thinking.medium": "中",
+  "thinking.high": "高",
+  "thinking.xhigh": "极高",
+  "thinking.max": "最高",
+  "summary.generatedOriginal": "【上下文摘要（本次压缩生成，原文）】"
 }

@@ -1,3 +1,4 @@
+import { compactionSummaryBody } from "@shared/prompts";
 import { toolPresentation } from "@shared/tool-presentation";
 import { uiText, appMessage } from "../lib/i18n";
 import type { StreamEntry, TextEntry } from "./StreamPanel";
@@ -505,4 +506,8 @@ export function shouldSteerSend(input: { forceNewTurn?: boolean; busy: boolean; 
 /** 首条发送在途时组件的 existingSid 仍是旧闭包值；用 IPC 回包的真实 id 接续下一条。 */
 export function resolveSendSessionId(existingSid: string | undefined, resolvedSid: string | undefined, currentSid: string): string | null {
   return existingSid ?? resolvedSid ?? (currentSid.startsWith("__new_") ? null : currentSid);
+}
+
+export function displayCompactionSummary(notice: string): string {
+  return `${uiText("summary.generatedOriginal")}\n\n${compactionSummaryBody(notice)}`;
 }

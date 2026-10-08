@@ -3,7 +3,7 @@ import { uiText, useUiLocale, appText, appMessage } from "../lib/i18n";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
-import { AttachItem, ChatMessage, PendingUserBubble, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, applyNestedToolEvent, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason, contextEditAction, retryStatusText, BUSY_PROBE_INTERVAL_MS, BUSY_PROBE_CLEAR_STREAK, stepBusyProbe, stopTarget, needsDeferredStop, shouldSteerSend, resolveSendSessionId } from "./chat-utils";
+import { AttachItem, ChatMessage, PendingUserBubble, displayCompactionSummary, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, applyNestedToolEvent, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason, contextEditAction, retryStatusText, BUSY_PROBE_INTERVAL_MS, BUSY_PROBE_CLEAR_STREAK, stepBusyProbe, stopTarget, needsDeferredStop, shouldSteerSend, resolveSendSessionId } from "./chat-utils";
 import { confirmDialog } from "./ui/ConfirmDialog";
 import { confirmFullAccess } from "./permission-confirmation";
 import { resolveThinkingLevel } from "@shared/thinking-levels";
@@ -3265,7 +3265,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
                 ) : isSummary ? (
                   /* leading-relaxed 必须与 prose 同值：上面 maxHeight 的 lh 以本元素行高为准 */
                   <div className="overflow-y-auto overscroll-contain leading-relaxed" style={{ maxHeight: SUMMARY_BODY_MAX_HEIGHT }}>
-                    <SystemMarkdown content={body} />
+                    <SystemMarkdown content={displayCompactionSummary(body)} />
                   </div>
                 ) : (
                   <div className="whitespace-pre-wrap [overflow-wrap:anywhere] text-text-primary">{body}</div>

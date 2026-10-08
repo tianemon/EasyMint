@@ -1,3 +1,4 @@
+import { TOOL_DISPLAY_DESCRIPTION } from "../../../shared/tool-intent";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({ app: { isPackaged: false } }));
@@ -12,6 +13,14 @@ describe("前台 bash 增量输出", () => {
     expect(sandboxGitBashPath("win32", () => "C:\\Program Files\\Git\\bin\\bash.exe"))
       .toBe("C:\\Program Files\\Git\\bin\\bash.exe");
     expect(sandboxGitBashPath("darwin", () => "unused")).toBeUndefined();
+  });
+
+  it("uses the user-language caption requirement in both tool and parameter descriptions", async () => {
+    const tool = await createEnhancedBashTool(process.cwd());
+    expect(tool.description).toContain(TOOL_DISPLAY_DESCRIPTION);
+    const parameters = tool.parameters as unknown as { properties: { description: { description: string } } };
+    expect(parameters.properties.description.description).toBe(TOOL_DISPLAY_DESCRIPTION);
+    expect(tool.description).not.toContain("一句话中文");
   });
 
   it("执行中经 onUpdate 推送 stdout", async () => {

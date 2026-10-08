@@ -1,3 +1,4 @@
+import { thinkingLevelOptions } from "../../lib/thinking-options";
 import { uiText, useUiLocale } from "../../lib/i18n";
 import { useEffect, useState } from "react";
 import { useSettingsStore } from "../../stores/settings-store";
@@ -7,16 +8,6 @@ import { confirmFullAccess } from "../permission-confirmation";
 import { WebCapabilityConfig } from "./WebCapabilityConfig";
 
 // ── Chat Thinking Level Section ───────────────────────────────────────────────
-
-const CHAT_THINKING_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "off", get label() { return uiText("common.off"); } },
-  { value: "minimal", get label() { return uiText("ui.ProvidersTab.minimal"); } },
-  { value: "low", get label() { return uiText("ui.ProvidersTab.low"); } },
-  { value: "medium", get label() { return uiText("ui.ProvidersTab.medium"); } },
-  { value: "high", get label() { return uiText("ui.ProvidersTab.high"); } },
-  { value: "xhigh", get label() { return uiText("ui.ProvidersTab.veryHigh"); } },
-  { value: "max", get label() { return uiText("ui.ProvidersTab.maximum"); } },
-];
 
 /** 全局聊天思考等级:仅作为新聊天会话的初始默认,不控制 agent/task 委派 */
 function ChatThinkingLevelSection(): JSX.Element {
@@ -32,7 +23,7 @@ function ChatThinkingLevelSection(): JSX.Element {
           block
           value={chatThinkingLevel}
           onChange={setChatThinkingLevel}
-          options={CHAT_THINKING_OPTIONS}
+          options={thinkingLevelOptions()}
          
         />
         <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">{uiText("ui.ProvidersTab.initialThinkingLevelForNewChatsAnd")}</p>

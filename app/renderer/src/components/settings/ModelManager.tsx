@@ -1,3 +1,4 @@
+import { thinkingLevelLabel } from "../../lib/thinking-options";
 import { uiText, useUiLocale } from "../../lib/i18n";
 /**
  * 自添加模型管理区（供应商表单内）——输入框添加 + 列表行选中编辑。
@@ -14,7 +15,7 @@ import { uiText, useUiLocale } from "../../lib/i18n";
 import { useState } from "react";
 import { normalizeExtraModels } from "@shared/platform-presets";
 import type { ExtraModelCapability } from "@shared/platform-presets";
-import { THINKING_LABELS, THINKING_ORDER, type ThinkingLevelValue } from "@shared/thinking-levels";
+import { THINKING_ORDER, type ThinkingLevelValue } from "@shared/thinking-levels";
 import { Select, type SelectOption } from "../Select";
 import { Checkbox } from "../ui/Checkbox";
 import { toast } from "../ui/Toast";
@@ -400,7 +401,7 @@ export function ModelManager({
                         : draft.levels.filter((l) => l !== level),
                     })}
                   />
-                  {THINKING_LABELS[level] ?? level}
+                  {thinkingLevelLabel(level)}
                 </label>
               ))}
             </div>

@@ -621,8 +621,15 @@ export function compactionCardFields(summary: string | undefined): {
 /** 摘要卡正文（压缩后给用户看的那张卡）。
  *  实时（compacted 事件）与重开会话（从落盘 compaction 条目重建）两个展示入口共用这份文案，
  *  两边各写一份就会出现「同一件事两种抬头」的漂移。 */
+export const COMPACTION_SUMMARY_HEADER = "【上下文摘要（本次压缩生成，原文）】";
+
 export function compactionSummaryNotice(summary: string): string {
-  return `【上下文摘要（本次压缩生成，原文）】\n\n${summary}`;
+  return `${COMPACTION_SUMMARY_HEADER}\n\n${summary}`;
+}
+
+export function compactionSummaryBody(notice: string): string {
+  const prefix = `${COMPACTION_SUMMARY_HEADER}\n\n`;
+  return notice.startsWith(prefix) ? notice.slice(prefix.length) : notice;
 }
 
 // ── 业务 Prompt 构建函数 ────────────────────────────

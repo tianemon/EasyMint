@@ -14,10 +14,11 @@
 /** EM 自家工具与历史会话使用的展示参数名。 */
 export const INTENT_PARAM = "_intent";
 
+/** Tool captions follow the user language; the instruction itself stays in Chinese. */
+export const TOOL_DISPLAY_DESCRIPTION = "使用用户所用的语言，简短描述本次调用在做什么（不超过 28 字符，中文建议 ≤12 字）；仅用于聊天页展示";
+
 /** EM 自家工具的意图填写说明。 */
-export const INTENT_REQUIREMENT =
-  `每次调用都要填 ${INTENT_PARAM}：一句话中文简述这次调用在做什么（≤12 字，如「查竞品资料」「建 issue」），` +
-  "用于聊天页展示；该字段只用于展示，不会传给工具。";
+export const INTENT_REQUIREMENT = `每次调用都要填 ${INTENT_PARAM}：${TOOL_DISPLAY_DESCRIPTION}，该字段不会传给工具。`;
 
 /** 参数摘要的优先键：这些值最能说明"做了什么" */
 const SUMMARY_KEYS = [
@@ -71,7 +72,7 @@ export function withIntentParam<T>(schema: T): T {
       ...(props as Record<string, unknown>),
       [INTENT_PARAM]: {
         type: "string",
-        description: "一句话中文简述本次调用在做什么（≤12 字，如「查竞品资料」「建 issue」）；仅用于聊天页展示，不会传给工具",
+        description: `${TOOL_DISPLAY_DESCRIPTION}，不会传给工具`,
       },
     },
   } as unknown as T; // 结构与入参同型（只多一个可选字段），调用处无需断言
