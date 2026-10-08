@@ -1,3 +1,5 @@
+[简体中文](README.md) | [English](README.en.md)
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/appicon-dark.png" />
@@ -249,4 +251,8 @@ EasyMint 的开发本身就是一次「AI 编程」实践：项目约 99% 由 De
 
 ---
 
-> English speakers interested in EasyMint? Let me know via [Issues](https://github.com/tianemon/EasyMint/issues) — an English version will be arranged if there's demand.
+## 界面语言
+
+首次设置的欢迎页或「设置 → 通用 → 界面语言」可选择简体中文、English 或跟随系统。已有安装默认保留简体中文。
+
+英文界面正在分批覆盖，当前支持主要导航、通用设置与关于页等入口；模型、插件、聊天及环境检测等模块仍有中文文案。语言切换不改写历史聊天、用户内容或内置提示词，AI 回复继续跟随用户语言。

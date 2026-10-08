@@ -1,3 +1,6 @@
+import { LanguageSelector } from "../components/settings/LanguageSelector";
+import { useTranslation } from "react-i18next";
+import "../lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSettingsStore } from "../stores/settings-store";
@@ -10,10 +13,10 @@ import { WindowControls } from "../components/WindowControls";
 import type { ProviderConfig, ApiProvidersData } from "@shared/platform-presets";
 
 const STEPS = [
-  { number: 1, title: "欢迎使用 EasyMint" },
+  { number: 1, title: "onboarding.welcome" },
   // 依赖问题必须在"进入工作台之前"处理掉：放到对话中途才发现，用户已经聊了几轮、挫败感最强
-  { number: 2, title: "准备运行环境" },
-  { number: 3, title: "选择 AI 供应商" },
+  { number: 2, title: "onboarding.environment" },
+  { number: 3, title: "onboarding.provider" },
 ];
 
 /** 各步骤的「内容整体上移量」(px)，0 或缺省即保持居中。两处都是用户直接指定的观感：
@@ -24,6 +27,7 @@ const STEPS = [
 const STEP_LIFT_PX: Record<number, number> = { 0: 80, 1: 60 };
 
 export function OnboardingPage(): JSX.Element {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const isDark = useThemeStore((s) => s.effective) === "dark";
   const [currentStep, setCurrentStep] = useState(0);
@@ -200,8 +204,11 @@ export function OnboardingPage(): JSX.Element {
                   若将来文案变长，会退化成内容区横向滚动（不裁字）。行高保持 tight，万一折行也不显散。
                   下方原有三张能力卡已按用户要求（2026-09-15）删除。 */}
               <h1 className="text-[length:var(--text-2xl)] leading-tight font-semibold text-text-primary whitespace-nowrap">
-                欢迎使用EasyMint，简单设置过后，进行开发你的第一个APP吧
+                {t("onboarding.intro")}
               </h1>
+              <div className="mt-6 w-64 text-left">
+                <LanguageSelector />
+              </div>
             </div>
           ) : currentStep === 1 ? (
             /* ── Step 2: 环境准备（缺失依赖在这里装/引导，避免进工作台后命令全跑不了）──
@@ -226,10 +233,10 @@ export function OnboardingPage(): JSX.Element {
             /* ── Step 3: Provider Setup ── */
             <div className="w-full max-w-[540px]">
               <h1 className="text-xl font-semibold text-center mb-1">
-                选择 AI 供应商
+                {t("onboarding.provider")}
               </h1>
               <p className="text-text-secondary text-center text-sm mb-6">
-                选择一个平台并填写 API Key 即可开始使用
+                {t("onboarding.providerHint")}
               </p>
               {/* pi 导入入口在 Step 2（命中才出现）；导入完成后这里的 prefill 会把导入的
                   供应商直接显示成「使用中」卡片 */}
@@ -240,17 +247,17 @@ export function OnboardingPage(): JSX.Element {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-text-primary font-medium truncate">{savedCfg.name}</span>
-                        <span className="text-[length:var(--text-2xs)] px-1.5 py-0.5 rounded-[var(--radius-lg)] bg-accent-high text-accent shrink-0">使用中</span>
+                        <span className="text-[length:var(--text-2xs)] px-1.5 py-0.5 rounded-[var(--radius-lg)] bg-accent-high text-accent shrink-0">{t("onboarding.active")}</span>
                       </div>
                       <div className="text-[length:var(--text-11)] text-text-muted mt-0.5">
-                        模型 {savedCfg.models.length} 个 · {savedCfg.model}
+                        {t("onboarding.models", { count: savedCfg.models.length, model: savedCfg.model })}
                       </div>
                     </div>
                   </div>
                   <button
                     className="em-hover-control w-full px-4 py-2 rounded-[var(--radius-lg)] text-text-secondary text-xs transition-all"
                     onClick={() => setSavedCfg(null)}
-                  >重新配置</button>
+                  >{t("onboarding.reconfigure")}</button>
                 </div>
               ) : (
                 /* 与上方「使用中」卡片、下方联网能力同一套卡片外壳（bg-surface-alt + p-4）：
@@ -277,14 +284,14 @@ export function OnboardingPage(): JSX.Element {
             className="btn-accent px-6 py-2 rounded-[var(--radius-lg)] font-medium ml-auto"
             onClick={goNext}
           >
-            开始设置
+            {t("onboarding.start")}
           </button>
         ) : (
           <button
             className="em-hover-control px-6 py-2 rounded-[var(--radius-lg)] text-text-secondary transition-all"
             onClick={goPrev}
           >
-            返回
+            {t("common.back")}
           </button>
         )}
         {currentStep === 1 && (
@@ -292,7 +299,7 @@ export function OnboardingPage(): JSX.Element {
             className="btn-accent px-6 py-2 rounded-[var(--radius-lg)] font-medium"
             onClick={goNext}
           >
-            下一步
+            {t("common.next")}
           </button>
         )}
         {currentStep === 2 && (
@@ -301,7 +308,7 @@ export function OnboardingPage(): JSX.Element {
             disabled={!savedCfg}
             onClick={handleComplete}
           >
-            进入工作台
+            {t("onboarding.openWorkbench")}
           </button>
         )}
       </footer>

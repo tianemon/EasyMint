@@ -1,3 +1,4 @@
+import type { UiLanguageState } from "../shared/i18n/locale";
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
@@ -118,6 +119,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
     delete: (sessionId: string) => ipcRenderer.invoke("session-cache:delete", { sessionId }),
   },
   settings: {
+    getUiLanguage: () => ipcRenderer.invoke("settings:getUiLanguage") as Promise<UiLanguageState>,
+    onUiLanguageChanged: (callback: (state: UiLanguageState) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: UiLanguageState) => callback(state);
+      ipcRenderer.on("settings:uiLanguageChanged", handler);
+      return () => ipcRenderer.removeListener("settings:uiLanguageChanged", handler);
+    },
     piImport: (input: { sourceDir?: string; apply?: boolean; probe?: boolean } = {}) => ipcRenderer.invoke("settings:piImport", input),
     get: () => ipcRenderer.invoke("settings:get"),
     set: (key: string, value: unknown) => ipcRenderer.invoke("settings:set", { key, value }),

@@ -576,6 +576,8 @@ interface ElectronAPI {
     delete: (sessionId: string) => Promise<void>;
   };
   settings: {
+    getUiLanguage: () => Promise<import("../shared/i18n/locale").UiLanguageState>;
+    onUiLanguageChanged: (callback: (state: import("../shared/i18n/locale").UiLanguageState) => void) => () => void;
     piImport: (input?: { sourceDir?: string; apply?: boolean; probe?: boolean }) => Promise<import("@shared/pi-config-import").PiImportSummary>;
     get: () => Promise<{
       nativeConfigMigration?: { migratedAt: string; duplicateConfigIds: string[] };

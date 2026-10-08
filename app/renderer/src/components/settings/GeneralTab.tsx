@@ -1,3 +1,6 @@
+import { LanguageSelector } from "./LanguageSelector";
+import { useTranslation } from "react-i18next";
+import "../../lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSettingsStore } from "../../stores/settings-store";
 import { EnvPanel, type EnvPanelHandle } from "../env/EnvPanel";
@@ -28,16 +31,17 @@ function EnvRow({ label, info, installUrl }: {
   info: DetectInfo | null;
   installUrl?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="px-4 py-2.5 flex items-center justify-between em-hover-row transition-shadow">
       <div className="flex items-center gap-2">
         <span className="text-sm text-text-secondary">{label}</span>
         {info === null ? (
-          <span className="text-xs text-text-muted">检测中...</span>
+          <span className="text-xs text-text-muted">{t("settings.detecting")}</span>
         ) : info.found ? (
           <span className="text-xs text-text-secondary">{info.version}</span>
         ) : (
-          <span className="text-xs text-danger">未安装</span>
+          <span className="text-xs text-danger">{t("settings.notInstalled")}</span>
         )}
       </div>
       {info && !info.found && installUrl && (
@@ -47,7 +51,7 @@ function EnvRow({ label, info, installUrl }: {
           rel="noopener noreferrer"
           className="px-3 py-1.5 rounded-[var(--radius-lg)] btn-accent text-xs font-medium"
         >
-          点击安装 {label}
+          {t("settings.installTool", { name: label })}
         </a>
       )}
     </div>
@@ -55,6 +59,7 @@ function EnvRow({ label, info, installUrl }: {
 }
 
 function CodegraphRow({ info }: { info: DetectInfo | null }) {
+  const { t } = useTranslation();
   // Windows 无 sh：原 curl|sh 在 PowerShell/cmd 下必失败，按平台给对应安装器
   const isWin = window.electronAPI?.platform === "win32";
   const cmd = isWin
@@ -73,13 +78,13 @@ function CodegraphRow({ info }: { info: DetectInfo | null }) {
       <div className="flex items-center gap-2 mt-1">
         <span className="text-sm text-text-secondary">CodeGraph</span>
         {info === null ? (
-          <span className="text-xs text-text-muted">检测中...</span>
+          <span className="text-xs text-text-muted">{t("settings.detecting")}</span>
         ) : info.found ? (
           <span className="text-xs text-text-secondary">{info.version}</span>
         ) : info.reason === "probe-error" ? (
-          <span className="text-xs text-danger">检测失败，可点「重新检测」重试</span>
+          <span className="text-xs text-danger">{t("settings.detectFailed")}</span>
         ) : (
-          <span className="text-xs text-danger">未安装</span>
+          <span className="text-xs text-danger">{t("settings.notInstalled")}</span>
         )}
       </div>
       {info && !info.found && info.reason !== "probe-error" && (
@@ -90,11 +95,11 @@ function CodegraphRow({ info }: { info: DetectInfo | null }) {
               className="shrink-0 px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-accent em-hover-control transition-all"
               onClick={handleCopy}
             >
-              {copied ? "已复制" : "复制"}
+              {copied ? t("common.copied") : t("common.copy")}
             </button>
           </div>
           <span className="text-[length:var(--text-2xs)] text-text-muted">
-            {isWin ? "在 PowerShell 中运行 · " : ""}https://github.com/colbymchenry/codegraph
+            {isWin ? t("settings.powerShell") : ""}https://github.com/colbymchenry/codegraph
           </span>
         </div>
       )}
@@ -103,6 +108,7 @@ function CodegraphRow({ info }: { info: DetectInfo | null }) {
 }
 
 function EnvCheckSection(): JSX.Element {
+  const { t } = useTranslation();
   const git = useDetect("git");
   const nodeRt = useDetect("nodeRuntime");
   const codegraph = useDetect("codegraph");
@@ -113,7 +119,7 @@ function EnvCheckSection(): JSX.Element {
   return (
     <section>
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-medium text-text-secondary">环境检测</h3>
+        <h3 className="text-sm font-medium text-text-secondary">{t("settings.environment")}</h3>
         <EnvRetestButton
           panel={envPanel}
           onBeforeRetest={() => { git.refresh(); nodeRt.refresh(); codegraph.refresh(); }}
@@ -136,6 +142,7 @@ function formatMB(bytes: number): string {
 }
 
 function CacheManagementSection(): JSX.Element {
+  const { t } = useTranslation();
   const [clearing, setClearing] = useState(false);
   const [updateSize, setUpdateSize] = useState<number | null>(null);
   const [uploadSize, setUploadSize] = useState<number | null>(null);
@@ -155,18 +162,18 @@ function CacheManagementSection(): JSX.Element {
 
   return (
     <section>
-      <h3 className="text-sm font-medium text-text-secondary mb-2">缓存管理</h3>
+      <h3 className="text-sm font-medium text-text-secondary mb-2">{t("settings.cache")}</h3>
       <div className="bg-surface-alt rounded-[var(--radius-lg)] overflow-hidden">
 
         <div className="px-4 py-3 flex items-center justify-between em-hover-row transition-shadow">
           <div>
-            <h4 className="text-xs font-medium text-text-secondary">安装包缓存</h4>
+            <h4 className="text-xs font-medium text-text-secondary">{t("settings.installerCache")}</h4>
             {updateSize === null ? (
-              <p className="text-[length:var(--text-11)] text-text-muted">扫描中...</p>
+              <p className="text-[length:var(--text-11)] text-text-muted">{t("settings.scanning")}</p>
             ) : updateSize > 0 ? (
               <p className="text-[length:var(--text-11)] text-text-secondary">{formatMB(updateSize)}</p>
             ) : (
-              <p className="text-[length:var(--text-11)] text-text-muted">暂无缓存</p>
+              <p className="text-[length:var(--text-11)] text-text-muted">{t("settings.noCache")}</p>
             )}
           </div>
           {updateSize !== null && updateSize > 0 && (
@@ -176,13 +183,13 @@ function CacheManagementSection(): JSX.Element {
                 onClick={handleClear}
                 disabled={clearing}
               >
-                {clearing ? "清除中..." : "清除缓存"}
+                {clearing ? t("settings.clearing") : t("settings.clearCache")}
               </button>
               <button
                 className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary em-hover-control transition-shadow"
                 onClick={() => window.electronAPI?.app?.openUpdateCache?.()}
               >
-                文件夹
+                {t("common.folder")}
               </button>
             </div>
           )}
@@ -190,13 +197,13 @@ function CacheManagementSection(): JSX.Element {
 
         <div className="px-4 py-3 flex items-center justify-between em-hover-row transition-shadow">
           <div>
-            <h4 className="text-xs font-medium text-text-secondary">上传缓存</h4>
+            <h4 className="text-xs font-medium text-text-secondary">{t("settings.uploadCache")}</h4>
             {uploadSize === null ? (
-              <p className="text-[length:var(--text-11)] text-text-muted">扫描中...</p>
+              <p className="text-[length:var(--text-11)] text-text-muted">{t("settings.scanning")}</p>
             ) : uploadSize > 0 ? (
               <p className="text-[length:var(--text-11)] text-text-secondary">{formatMB(uploadSize)}</p>
             ) : (
-              <p className="text-[length:var(--text-11)] text-text-muted">暂无缓存</p>
+              <p className="text-[length:var(--text-11)] text-text-muted">{t("settings.noCache")}</p>
             )}
           </div>
           {uploadSize !== null && uploadSize > 0 && (
@@ -204,7 +211,7 @@ function CacheManagementSection(): JSX.Element {
               className="px-3 py-1.5 rounded-[var(--radius-lg)] text-xs text-text-secondary em-hover-control transition-shadow"
               onClick={() => window.electronAPI?.upload?.openDir?.()}
             >
-              打开文件夹
+              {t("common.openFolder")}
             </button>
           )}
         </div>
@@ -216,6 +223,7 @@ function CacheManagementSection(): JSX.Element {
 
 /** 通用设置:默认项目路径 / 压缩阈值 / 缓存 / 环境检测 / 原生 pi 配置导入 */
 export function GeneralTab(): JSX.Element {
+  const { t } = useTranslation();
   const {
     defaultProjectDir,
     contextThreshold,
@@ -225,9 +233,12 @@ export function GeneralTab(): JSX.Element {
 
   return (
     <div className="space-y-5">
+      <section>
+        <LanguageSelector />
+      </section>
       {/* 路径 */}
       <section>
-        <h3 className="text-sm font-medium text-text-secondary mb-2">默认项目路径</h3>
+        <h3 className="text-sm font-medium text-text-secondary mb-2">{t("settings.defaultProjectDir")}</h3>
         <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
           <input
             className="em-input w-full px-3 py-2 text-text-primary text-sm"
@@ -235,13 +246,13 @@ export function GeneralTab(): JSX.Element {
             value={defaultProjectDir}
             onChange={(e) => setDefaultProjectDir(e.target.value)}
           />
-          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">新建项目的默认位置，workspace 会话也存于此</p>
+          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-0.5">{t("settings.defaultProjectDirHint")}</p>
         </div>
       </section>
 
       {/* Context threshold */}
       <section>
-        <h3 className="text-sm font-medium text-text-secondary mb-2">上下文压缩阈值</h3>
+        <h3 className="text-sm font-medium text-text-secondary mb-2">{t("settings.contextThreshold")}</h3>
         <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
           <div className="flex items-center gap-3">
             <input
@@ -255,7 +266,7 @@ export function GeneralTab(): JSX.Element {
             />
             <span className="text-sm text-text-primary font-medium w-10 text-right">{contextThreshold}%</span>
           </div>
-          <p className="text-[length:var(--text-11)] text-text-secondary mt-1">达到阈值时询问是否压缩（可跳过）；SDK 在接近满时自动压缩。范围 60%-80%，建议 75%</p>
+          <p className="text-[length:var(--text-11)] text-text-secondary mt-1">{t("settings.contextThresholdHint")}</p>
         </div>
       </section>
 

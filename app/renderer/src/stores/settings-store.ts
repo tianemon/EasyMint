@@ -1,3 +1,5 @@
+import type { UiLanguage, UiLanguageState } from "@shared/i18n/locale";
+import { applyUiLanguage } from "../lib/i18n";
 import { toast } from "../components/ui/Toast";
 import { create } from "zustand";
 import { normalizeExtraModels } from "@shared/platform-presets";
@@ -82,6 +84,9 @@ async function officialModelLabels(cfg?: ProviderConfig | null): Promise<Record<
 }
 
 interface SettingsState {
+  uiLanguage: UiLanguage;
+  setUiLanguage: (language: UiLanguage) => Promise<void>;
+  syncUiLanguage: (state: UiLanguageState) => Promise<void>;
   defaultProjectDir: string;
   model: string;
   availableModels: string[];
@@ -159,6 +164,14 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
+  uiLanguage: "zh-CN",
+  syncUiLanguage: async (state) => {
+    set({ uiLanguage: state.preference });
+    await applyUiLanguage(state);
+  },
+  setUiLanguage: async (language) => {
+    await window.electronAPI.settings.set("uiLanguage", language);
+  },
   defaultProjectDir: "~/EasyMintProject",
   model: "",
   availableModels: [],

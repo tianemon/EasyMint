@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import "../../lib/i18n";
 import { useEffect, useState } from "react";
 import { Modal } from "./Modal";
 
@@ -58,6 +60,7 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
 
 /** 挂载点：放在 App 根部（modal 层，高于普通弹层） */
 export function ConfirmHost(): JSX.Element | null {
+  const { t } = useTranslation();
   const [pending, setPendingLocal] = useState<PendingConfirm | null>(null);
   useEffect(() => {
     listenerRef = (p) => setPendingLocal(p);
@@ -84,7 +87,7 @@ export function ConfirmHost(): JSX.Element | null {
             className="px-4 py-1.5 text-xs rounded-[var(--radius-lg)] bg-surface-alt border border-border text-text-secondary hover:text-text-primary transition-colors"
             onClick={() => close(false)}
           >
-            {pending.cancelText ?? "取消"}
+            {pending.cancelText ?? t("common.cancel")}
           </button>
           <button
             type="button"
@@ -100,7 +103,7 @@ export function ConfirmHost(): JSX.Element | null {
             }`}
             onClick={() => close(true)}
           >
-            {pending.confirmText ?? "确认"}
+            {pending.confirmText ?? t("common.confirm")}
           </button>
         </div>
       </div>

@@ -1,3 +1,5 @@
+import { connectUiLanguage } from "./lib/i18n";
+import { useSettingsStore } from "./stores/settings-store";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App";
@@ -18,8 +20,21 @@ console.warn = (...args: unknown[]) => {
 };
 
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+async function mount(): Promise<void> {
+  try {
+    const unsubscribe = await connectUiLanguage(
+      window.electronAPI.settings,
+      (state) => useSettingsStore.getState().syncUiLanguage(state),
+    );
+    window.addEventListener("unload", unsubscribe, { once: true });
+  } catch (error) {
+    console.error("[i18n] Failed to load UI language; using Chinese", error);
+  }
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+}
+
+void mount();

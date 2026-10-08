@@ -41,6 +41,7 @@ export const EM_SCHEMA_VERSION = 1;
 
 /** 磁盘路径常量：外部写入点引用这里，避免同名字段在不同模块写成不同路径。 */
 export const EM_PATH = {
+  uiLanguage: "appearance.language",
   // ── project ──
   projectDefaultDir: "project.defaultDir",
   projectLastId: "project.lastId",
@@ -106,6 +107,7 @@ export const EM_PATH = {
  * 一旦写上 `: readonly [string, string][]` 这类注解，键会被拓宽成 `string`，检查随之失效。
  */
 export const SETTINGS_FIELDS = [
+  [EM_PATH.uiLanguage, "uiLanguage"],
   [EM_PATH.projectDefaultDir, "defaultProjectDir"],
   [EM_PATH.projectLastId, "lastProjectId"],
   [EM_PATH.projectSetupComplete, "setupComplete"],

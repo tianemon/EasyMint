@@ -1,3 +1,4 @@
+import { applyUiLanguage, mainUiI18n, t } from "./services/ui-language";
 import fs from "fs";
 import { app, BrowserWindow, shell, ipcMain, Menu, nativeTheme, dialog } from "electron";
 import path from "path";
@@ -394,38 +395,43 @@ app.whenReady().then(async () => {
     const lastId = tempStore.getLastProjectId();
     if (lastId) startHash = `/project/${lastId}`;
   }
+  await applyUiLanguage(tempStore);
   createWindow(startHash, true);
 
-  if (process.platform === "darwin") {
-    const template: Electron.MenuItemConstructorOptions[] = [
-      {
-        label: "EasyMint",
-        submenu: [
-          { role: "about" as const },
-          { type: "separator" as const },
-          { role: "quit" as const },
-        ],
-      },
-      {
-        label: "File",
-        submenu: [
-          {
-            label: "New Window",
-            accelerator: "Cmd+N",
-            click: () => createWindow("/?fresh=1"),
-          },
-          { type: "separator" as const },
-          { role: "close" as const },
-        ],
-      },
-      { label: "Edit", submenu: [{ role: "undo" as const }, { role: "redo" as const }, { type: "separator" as const }, { role: "cut" as const }, { role: "copy" as const }, { role: "paste" as const }, { role: "selectAll" as const }] },
-      { label: "View", submenu: [{ role: "reload" as const }, { role: "toggleDevTools" as const }, { type: "separator" as const }, { role: "zoomIn" as const }, { role: "zoomOut" as const }, { role: "resetZoom" as const }] },
-    ];
-    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
-  } else {
-    // Windows/Linux：移除 Electron 默认菜单栏（File/Edit/View/Window/Help），与 macOS 观感一致
-    Menu.setApplicationMenu(null);
-  }
+  const updateApplicationMenu = () => {
+    if (process.platform === "darwin") {
+      const template: Electron.MenuItemConstructorOptions[] = [
+        {
+          label: "EasyMint",
+          submenu: [
+            { role: "about" as const },
+            { type: "separator" as const },
+            { role: "quit" as const },
+          ],
+        },
+        {
+          label: t("menu.file"),
+          submenu: [
+            {
+              label: t("menu.newWindow"),
+              accelerator: "Cmd+N",
+              click: () => createWindow("/?fresh=1"),
+            },
+            { type: "separator" as const },
+            { role: "close" as const },
+          ],
+        },
+        { label: t("menu.edit"), submenu: [{ role: "undo" as const }, { role: "redo" as const }, { type: "separator" as const }, { role: "cut" as const }, { role: "copy" as const }, { role: "paste" as const }, { role: "selectAll" as const }] },
+        { label: t("menu.view"), submenu: [{ role: "reload" as const }, { role: "toggleDevTools" as const }, { type: "separator" as const }, { role: "zoomIn" as const }, { role: "zoomOut" as const }, { role: "resetZoom" as const }] },
+      ];
+      Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+    } else {
+      // Windows/Linux：移除 Electron 默认菜单栏（File/Edit/View/Window/Help），与 macOS 观感一致
+      Menu.setApplicationMenu(null);
+    }
+  };
+  updateApplicationMenu();
+  mainUiI18n.on("languageChanged", updateApplicationMenu);
 });
 
 app.on("window-all-closed", () => { app.quit(); });

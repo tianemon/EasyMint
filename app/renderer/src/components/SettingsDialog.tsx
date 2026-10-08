@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import "../lib/i18n";
 import { useEffect, useState, useCallback } from "react";
 import { useSettingsStore } from "../stores/settings-store";
 import { readVersion, markRead } from "../lib/update-notice";
@@ -19,15 +21,16 @@ interface SettingsDialogProps {
 }
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
-  { id: "general", label: "通用" },
-  { id: "appearance", label: "界面" },
-  { id: "providers", label: "模型" },
-  { id: "plugins", label: "插件" },
-  { id: "agent", label: "Agent" },
-  { id: "about", label: "关于" },
+  { id: "general", label: "settings.general" },
+  { id: "appearance", label: "settings.appearance" },
+  { id: "providers", label: "settings.providers" },
+  { id: "plugins", label: "settings.plugins" },
+  { id: "agent", label: "settings.agent" },
+  { id: "about", label: "settings.about" },
 ];
 
 export function SettingsDialog({ open, onClose, initialTab, projectPath }: SettingsDialogProps): JSX.Element | null {
+  const { t } = useTranslation();
   const { loadFromElectron } = useSettingsStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || "general");
   // 可更新版本(订阅广播):「关于」标题红点,进入关于页即已读
@@ -75,14 +78,14 @@ export function SettingsDialog({ open, onClose, initialTab, projectPath }: Setti
         {/* Header */}
         <div className="settings-header">
           <div className="settings-header-tabs">
-            {TABS.map((t) => (
+            {TABS.map((tab) => (
               <button
-                key={t.id}
-                className={`settings-header-tab ${activeTab === t.id ? "active" : ""}`}
-                onClick={() => setActiveTab(t.id)}
+                key={tab.id}
+                className={`settings-header-tab ${activeTab === tab.id ? "active" : ""}`}
+                onClick={() => setActiveTab(tab.id)}
               >
-                {t.label}
-                {t.id === "about" && aboutDot && <span className="tab-update-dot" />}
+                {t(tab.label)}
+                {tab.id === "about" && aboutDot && <span className="tab-update-dot" />}
               </button>
             ))}
           </div>
@@ -114,13 +117,13 @@ export function SettingsDialog({ open, onClose, initialTab, projectPath }: Setti
             className="px-5 py-1.5 rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors text-sm"
             onClick={handleClose}
           >
-            取消
+            {t("common.cancel")}
           </button>
           <button
             className="px-5 py-1.5 rounded-[var(--radius-lg)] btn-accent text-sm font-medium"
             onClick={handleClose}
           >
-            完成
+            {t("common.done")}
           </button>
         </div>
       </div>

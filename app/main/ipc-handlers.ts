@@ -1,3 +1,5 @@
+import { applyUiLanguage, getUiLanguageState, t } from "./services/ui-language";
+import { isUiLanguage } from "../shared/i18n/locale";
 import { BrowserWindow, ipcMain, dialog, app, shell } from "electron";
 import p from "path";
 import fs from "fs";
@@ -151,7 +153,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("dialog:openDirectory", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ["openDirectory", "createDirectory"],
-      title: "选择项目目录",
+      title: t("dialogs.selectProjectDirectory"),
       defaultPath: nearestExistingDir(store.getSettings().defaultProjectDir),
     });
     return result.canceled ? null : result.filePaths[0] ?? null;
@@ -426,10 +428,10 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       const owner = BrowserWindow.fromWebContents(event.sender) ?? mainWindow;
       const answer = await dialog.showMessageBox(owner, {
         type: "warning",
-        title: "启用 Pi 扩展",
-        message: `在 EasyMint 中启用「${item.name}」？`,
-        detail: `来源：${item.path}\n\n扩展代码与 EasyMint 主进程同权限运行，可访问本机文件和凭据。仅完全访问模式会加载，新会话开始生效。`,
-        buttons: ["取消", "启用扩展"], defaultId: 0, cancelId: 0,
+        title: t("dialogs.enableExtension"),
+        message: t("dialogs.enableExtensionMessage", { name: item.name }),
+        detail: t("dialogs.enableExtensionDetail", { path: item.path }),
+        buttons: [t("common.cancel"), t("dialogs.enableExtensionButton")], defaultId: 0, cancelId: 0,
       });
       if (answer.response !== 1) return items;
     }
@@ -689,12 +691,23 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     if (data.apply && !data.probe && result.mcpServers > 0) reloadMcpTools();
     return result;
   });
+  ipcMain.handle("settings:getUiLanguage", () => getUiLanguageState(store));
+
   // settings:*
   ipcMain.handle("settings:get", async () => {
     await (await getNativeConfig(store)).getRuntime();
     return store.getSettings();
   });
   ipcMain.handle("settings:set", async (_e, { key, value }) => {
+    if (key === "uiLanguage") {
+      if (!isUiLanguage(value)) throw new Error("Invalid UI language");
+      const settings = store.getSettings();
+      settings.uiLanguage = value;
+      store.saveSettings(settings);
+      const state = await applyUiLanguage(store);
+      broadcast("settings:uiLanguageChanged", state);
+      return state;
+    }
     const config = await getNativeConfig(store);
     if (key === "apiProviders") await config.saveProviders(value);
     else if (key === "chatThinkingLevel") await config.setThinkingLevel(value);

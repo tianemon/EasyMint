@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import "../lib/i18n";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { isInsideOverlay } from "../lib/overlay-stack";
 import { SessionHistory } from "./SessionHistory";
@@ -41,6 +43,7 @@ export function Sidebar({
   onFileClick, onNewProject, onOpenProject, onRenameProject,
   onSettings,
 }: SidebarProps): JSX.Element {
+  const { t, i18n } = useTranslation();
   const [activeTab, setActiveTab] = useState<SidebarTab>("sessions");
   const [drawerTab, setDrawerTab] = useState<DrawerTab>("tasks");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -131,7 +134,7 @@ export function Sidebar({
     align();
     window.addEventListener("resize", align);
     return () => window.removeEventListener("resize", align);
-  }, [drawerOpen, drawerTab]);
+  }, [drawerOpen, drawerTab, i18n.resolvedLanguage]);
 
   const mode = useThemeStore((s) => s.mode);
   const toggleTheme = useCallback(() => {
@@ -165,7 +168,7 @@ export function Sidebar({
         <button
           type="button"
           className="sb-project-name sb-project-switch"
-          title="打开项目"
+          title={t("nav.openProject")}
           onClick={() => onOpenProject?.()}
         >
           <svg
@@ -177,7 +180,7 @@ export function Sidebar({
             <path d="m6 9 6 6 6-6" />
           </svg>
           <span className="sb-project-name-clip">
-            <span className="sb-project-name-inner">{!projectId ? "无工作空间" : (projectDeleted ? projectName + "（已删除）" : projectName)}</span>
+            <span className="sb-project-name-inner">{!projectId ? t("nav.noWorkspace") : (projectDeleted ? t("nav.deletedProject", { name: projectName }) : projectName)}</span>
           </span>
         </button>
         <div className="sb-menu-wrap" ref={menuWrapRef}>
@@ -191,20 +194,20 @@ export function Sidebar({
             <div className="sb-dropdown open">
               <button className="sb-dropdown-item" onClick={() => { setMenuOpen(false); onNewProject?.(); }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><path d="M12 10v6"/><path d="M9 13h6"/></svg>
-                新建项目
+                {t("nav.newProject")}
               </button>
               <button className="sb-dropdown-item" onClick={() => { setMenuOpen(false); onOpenProject?.(); }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>
-                打开项目
+                {t("nav.openProject")}
               </button>
               <button className="sb-dropdown-item" onClick={() => { setMenuOpen(false); onRenameProject?.(); }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M2 11.5V5a2 2 0 0 1 2-2h3.9c.7 0 1.3.3 1.7.9l.8 1.2c.4.6 1 .9 1.7.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-9.5"/><path d="M11.378 13.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/></svg>
-                重命名项目
+                {t("nav.renameProject")}
               </button>
               <div className="sb-dropdown-div" />
               <button className="sb-dropdown-item" onClick={() => { setMenuOpen(false); window.electronAPI?.window?.newWindow?.(); }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01"/><path d="M10 8h.01"/><path d="M14 8h.01"/></svg>
-                新建窗口
+                {t("nav.newWindow")}
               </button>
             </div>
           )}
@@ -213,8 +216,8 @@ export function Sidebar({
 
       {/* Tabs: 会话 | 文件 */}
       <div className="sb-tabs">
-        <button className={`sb-tab ${activeTab === "sessions" ? "active" : ""}`} onClick={() => switchTab("sessions")}>会话</button>
-        <button className={`sb-tab ${activeTab === "files" ? "active" : ""}`} onClick={() => switchTab("files")}>文件</button>
+        <button className={`sb-tab ${activeTab === "sessions" ? "active" : ""}`} onClick={() => switchTab("sessions")}>{t("nav.sessions")}</button>
+        <button className={`sb-tab ${activeTab === "files" ? "active" : ""}`} onClick={() => switchTab("files")}>{t("nav.files")}</button>
       </div>
 
       {/* Content */}
@@ -263,11 +266,11 @@ export function Sidebar({
           <div className="sb-seg-control" ref={segRef}>
             <button className={`sb-seg-btn ${drawerTab === "tasks" && drawerOpen ? "active" : ""} ${drawerTab === "tasks" ? "on" : ""}`} onClick={() => toggleDrawer("tasks")}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg>
-              <span className="sb-seg-label">任务</span>
+              <span className="sb-seg-label">{t("nav.tasks")}</span>
             </button>
             <button className={`sb-seg-btn ${drawerTab === "runs" && drawerOpen ? "active" : ""}`} onClick={() => toggleDrawer("runs")}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
-              <span className="sb-seg-label">运行</span>
+              <span className="sb-seg-label">{t("nav.runs")}</span>
             </button>
             <button className={`sb-seg-btn ${drawerTab === "issues" && drawerOpen ? "active" : ""}`} onClick={() => toggleDrawer("issues")}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -288,7 +291,7 @@ export function Sidebar({
                 onClick={() => { window.electronAPI?.app?.installUpdate?.(); }}
                
               >
-                重启升级
+                {t("nav.restartUpdate")}
               </button>
             )}
           </div>

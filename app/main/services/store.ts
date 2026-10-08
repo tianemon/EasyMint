@@ -1,4 +1,5 @@
 import fs from "fs";
+import { normalizeUiLanguage, type UiLanguage } from "../../shared/i18n/locale";
 import path from "path";
 import type { ProviderConfig, ApiProvidersData } from "../../shared/platform-presets";
 import { resolveHome, emHome } from "../utils/paths";
@@ -33,6 +34,7 @@ interface Project {
 }
 
 export interface Settings {
+  uiLanguage?: UiLanguage;
   nativeConfigMigration?: { migratedAt: string; duplicateConfigIds: string[] };
   defaultProjectDir: string;
   model?: string;
@@ -255,6 +257,7 @@ export class Store {
     // 磁盘是分组结构：先按 SETTINGS_FIELDS 展平成内存键（含旧扁平结构兜底），再叠加原生配置投影。
     const emData: Record<string, unknown> = { ...flattenEmSettings(this.readEmSettings()), ...nativeViews.get(this.dataDir)?.() };
     return {
+      uiLanguage: normalizeUiLanguage(emData.uiLanguage),
       nativeConfigMigration: emData.nativeConfigMigration as Settings["nativeConfigMigration"],
       defaultProjectDir: resolveHome((emData.defaultProjectDir as string) || EM_DEFAULTS.defaultProjectDir),
       model: (emData.model as string) || undefined,

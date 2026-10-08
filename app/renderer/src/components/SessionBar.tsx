@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t, uiI18n } from "../lib/i18n";
 import { useState, useEffect, useRef } from "react";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 
@@ -26,15 +28,16 @@ function fmtArchiveTime(ts: number): string {
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const startOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   if (startOfDay === startOfToday) {
-    return `今天 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    return t("sessions.today", { time: d.toLocaleTimeString(uiI18n.language, { hour: "2-digit", minute: "2-digit", hour12: false }) });
   }
-  if (startOfDay === startOfToday - 86400000) return "昨天";
-  if (d.getFullYear() === now.getFullYear()) return `${d.getMonth() + 1}月${d.getDate()}日`;
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  if (startOfDay === startOfToday - 86400000) return t("sessions.yesterday");
+  if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString(uiI18n.language, { month: "long", day: "numeric" });
+  return d.toLocaleDateString(uiI18n.language, { year: "numeric", month: "long", day: "numeric" });
 }
 
 /** 会话功能条:归档 + 新建 平级(各自展开自己的列表) */
 export function SessionBar(props: SessionBarProps): JSX.Element {
+  const { t } = useTranslation();
   const { projectPath, onNewSession, onSessionClick, refreshKey, onRestored } = props;
   const [showArchive, setShowArchive] = useState(false);
   const [archived, setArchived] = useState<ArchivedSession[]>([]);
@@ -116,12 +119,12 @@ export function SessionBar(props: SessionBarProps): JSX.Element {
                  
                   onClick={(e) => { e.stopPropagation(); handleRestore(s.sessionId); }}
                 >
-                  恢复
+                  {t("sessions.restore")}
                 </button>
               </div>
             ))
           ) : (
-            <div className="px-3 py-2 text-[length:var(--text-11)] text-text-secondary text-center">暂无归档会话</div>
+            <div className="px-3 py-2 text-[length:var(--text-11)] text-text-secondary text-center">{t("sessions.noArchives")}</div>
           )}
         </div>
       )}

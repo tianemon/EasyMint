@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { t } from "../lib/i18n";
 import { useTabStore } from "../stores/tab-store";
 import { useDelegationStore } from "../stores/delegation-store";
 import { WindowControls } from "./WindowControls";
@@ -24,13 +26,14 @@ function runningHint(
   agentTasks: Array<{ sessionId?: string }>,
   shellTasks: Array<{ sessionId?: string }>,
 ): string {
-  if (runningSessions.has(sid)) return "Mint 正在思考中，确认关闭吗？";
-  if (agentTasks.some((t) => !t.sessionId || t.sessionId === sid)) return "还有开发任务正在进行，关闭会中断任务，确认关闭吗？";
-  if (shellTasks.some((t) => !t.sessionId || t.sessionId === sid)) return "后台命令还在运行，关闭后命令结果将无法显示在对话里，确认关闭吗？";
-  return "确认关闭吗？";
+  if (runningSessions.has(sid)) return t("tabs.closeThinking");
+  if (agentTasks.some((t) => !t.sessionId || t.sessionId === sid)) return t("tabs.closeTasks");
+  if (shellTasks.some((t) => !t.sessionId || t.sessionId === sid)) return t("tabs.closeShell");
+  return t("tabs.closeConfirm");
 }
 
 export function TabBar(): JSX.Element | null {
+  const { t } = useTranslation();
   const tabs = useTabStore((s) => s.tabs);
   const activeTabId = useTabStore((s) => s.activeTabId);
   const setActiveTab = useTabStore((s) => s.setActiveTab);
@@ -79,9 +82,9 @@ export function TabBar(): JSX.Element | null {
                   e.stopPropagation();
                   if (tab.type === "chat" && tab.sessionId && isTabRunning(tab, runningSessions, agentTasks, shellTasks)) {
                     const ok = await confirmDialog({
-                      title: "关闭会话？",
+                      title: t("tabs.closeSession"),
                       message: runningHint(tab.sessionId, runningSessions, agentTasks, shellTasks),
-                      confirmText: "关闭",
+                      confirmText: t("common.close"),
                     });
                     if (!ok) return;
                   }
