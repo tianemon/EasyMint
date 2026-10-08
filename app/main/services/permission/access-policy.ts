@@ -78,8 +78,7 @@ export function protectedCredentialPaths(platform: NodeJS.Platform = process.pla
     path.join(emHome(), "environment.sh"),
     path.join(emHome(), ".control-tmp"),
     path.join(emHome(), "agent", "auth.json"),
-    // MCP OAuth 凭据（safeStorage 加密）。**新旧两个位置都要列**：归位迁移是 best-effort，
-    // 失败时旧文件仍在且仍被 loadCreds 回落读取——漏掉它等于迁移窗口内凭据可被改写。
+    // 历史 OAuth 文件虽已停用，磁盘上仍可能有凭据；保留写保护，避免清理迁移时暴露旧文件。
     path.join(emAgentDir(), "mcp-auth.json"),
     path.join(emAgentDir(), "mcp-auth-v2.json"),
     path.join(emAgentDir(), "mcp-auth-v2.json.lockdir"),
@@ -120,9 +119,7 @@ export function protectedPersistencePaths(cwd: string, platform: NodeJS.Platform
     // 新位置（agent/ 下，与 Pi 同层）；旧位置一并列出——迁移未完成时 readUserMcpServers 仍回落读它。
     path.join(emAgentDir(), "mcp.json"),
     path.join(emHome(), "mcp.json"),
-    // MCP server 自述缓存：只在明确搜索该 server 时作为第三方资料返回（≤2000 字符），
-    // 不再提升为每轮随行的工具说明。仍要阻止 Agent 改写缓存、影响后续搜索结果。
-    // 位置跟随 mcp.json（storePath 取其 dirname），故两个目录都要列。
+    // 历史服务器自述已停用，仍保护旧文件，兼容旧版应用回退。
     path.join(emAgentDir(), "mcp-instructions.json"),
     path.join(emHome(), "mcp-instructions.json"),
     path.join(emHome(), "agent", "settings.json"),

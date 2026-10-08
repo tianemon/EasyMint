@@ -3,7 +3,7 @@
  *
  * 关注三件事：① 旧文件真的搬到了 agent/；② **新位置已有数据时不覆盖**（保守，
  * 宁可留两份也不丢用户当前配置）；③ 幂等——重复执行不报错也不二次搬动。
- * 另外锚定 `mcp-oauth.json → mcp-auth.json` 的改名（对齐 Pi 的官方文件名）。
+ * 已停用的凭据和服务器自述文件不再复制，历史文件保持原样。
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -42,24 +42,33 @@ async function loadMigration() {
 }
 
 describe("MCP 配置归位迁移", () => {
-  it("把三个文件从 emHome根下搬到 agent/ 下，OAuth 凭据同时改名对齐 Pi", async () => {
+  it.each([false, true])("只迁移 mcp.json，不复制或修改已停用的凭据与自述（已有副本：%s）", async (existing) => {
     writeAt(home, "mcp.json", JSON.stringify({ mcpServers: { a: { command: "x" } } }));
     writeAt(home, "mcp-oauth.json", JSON.stringify({ srv: { tokens: "enc" } }));
     writeAt(home, "mcp-instructions.json", JSON.stringify({ srv: "自述" }));
+    const agent = path.join(home, "agent");
+    if (existing) {
+      writeAt(agent, "mcp-auth.json", "historical-credentials");
+      writeAt(agent, "mcp-instructions.json", "historical-instructions");
+    }
 
     const migrate = await loadMigration();
     const r = migrate();
 
     expect(r.failed).toEqual([]);
-    expect(r.moved.sort()).toEqual(["mcp-instructions.json", "mcp-oauth.json", "mcp.json"]);
-    const agent = path.join(home, "agent");
-    // 内容逐字保持（尤其 OAuth 密文，动了就等于凭据失效）
+    expect(r.moved).toEqual(["mcp.json"]);
     expect(JSON.parse(fs.readFileSync(path.join(agent, "mcp.json"), "utf8")).mcpServers.a.command).toBe("x");
-    expect(JSON.parse(fs.readFileSync(path.join(agent, "mcp-auth.json"), "utf8")).srv.tokens).toBe("enc");
-    expect(JSON.parse(fs.readFileSync(path.join(agent, "mcp-instructions.json"), "utf8")).srv).toBe("自述");
+    if (existing) {
+      expect(fs.readFileSync(path.join(agent, "mcp-auth.json"), "utf8")).toBe("historical-credentials");
+      expect(fs.readFileSync(path.join(agent, "mcp-instructions.json"), "utf8")).toBe("historical-instructions");
+    } else {
+      expect(fs.existsSync(path.join(agent, "mcp-auth.json"))).toBe(false);
+      expect(fs.existsSync(path.join(agent, "mcp-instructions.json"))).toBe(false);
+    }
     // 源备份保留；新位置（包括空配置）一旦有效就接管，不会因删除末项而复活旧定义。
     expect(fs.existsSync(path.join(home, "mcp.json"))).toBe(true);
-    expect(fs.existsSync(path.join(home, "mcp-oauth.json"))).toBe(true);
+    expect(fs.readFileSync(path.join(home, "mcp-oauth.json"), "utf8")).toBe(JSON.stringify({ srv: { tokens: "enc" } }));
+    expect(fs.readFileSync(path.join(home, "mcp-instructions.json"), "utf8")).toBe(JSON.stringify({ srv: "自述" }));
   });
 
   it("新位置已有配置时不覆盖、不删除旧文件", async () => {

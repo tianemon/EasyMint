@@ -100,8 +100,7 @@ describe("统一资源策略", () => {
     // 读到即可接入用户的设备通道，按凭据处理而非普通状态
     expect(credentials).toContain(path.join(emHome(), "paired-devices.json"));
     expect(credentials).toContain(path.join(emHome(), "paired-mobile-devices.json"));
-    // MCP OAuth 凭据（safeStorage 密文）：已改名归位到 agent/mcp-auth.json（对齐 Pi），
-    // 旧位置 mcp-oauth.json 在迁移窗口内仍被 loadCreds 回落读取——两处都要按凭据保护。
+    // 历史 OAuth 凭据不再读取或迁移，但两个位置的遗留文件仍按凭据保护。
     expect(credentials).toContain(path.join(emHome(), "agent", "mcp-auth.json"));
     expect(credentials).toContain(path.join(emHome(), "mcp-oauth.json"));
   });

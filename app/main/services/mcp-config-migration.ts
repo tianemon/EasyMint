@@ -4,8 +4,8 @@
  * ⚠️【待移除的一次性代码】迁移跑够之后应**整体删除**（清理清单）：
  *   1. 本文件与其测试 `mcp-config-migration.test.ts`
  *   2. `app/main/index.ts` 里的 `migrateMcpConfigFiles` 调用块与 import
- *   3. `mcp-service.ts` 的 `legacyMcpPath` + 保留的旧版 OAuth 凭据（新版按 URL 绑定账号，不接管无 URL 的旧令牌）
- *      与两处的回落读取分支（`readUserMcpServers` / `loadCreds`）
+ *   3. `mcp-service.ts` 的 `legacyMcpPath` 与 `userMcpPath` 的旧路径回落分支
+ *   历史凭据文件的写保护独立保留：磁盘上可能仍有旧文件，不能随迁移一起移除。
  *   移除时机：从含本迁移的版本起发布 2~3 个 minor 版本（EM 无遥测，取保守值）。
  *
  * 背景：EM 的构想是「只把 `~/.pi` 换成 `~/.easymint`，其余层级不变」。
@@ -35,10 +35,8 @@ export interface McpConfigMigrationResult {
 
 /** 旧位置 → 新文件名。键是旧文件名，值是新文件名。 */
 const MOVE_MAP: ReadonlyArray<readonly [oldName: string, newName: string]> = [
-  // 凭据文件同时改名对齐 Pi（Pi 1.0.0+ 用 mcp-auth.json）
-  ["mcp-oauth.json", "mcp-auth.json"],
+  // 旧凭据不再接管，服务器自述已停用；不再复制它们，历史文件保持原样。
   ["mcp.json", "mcp.json"],
-  ["mcp-instructions.json", "mcp-instructions.json"],
 ];
 
 export function migrateMcpConfigFiles(): McpConfigMigrationResult {
