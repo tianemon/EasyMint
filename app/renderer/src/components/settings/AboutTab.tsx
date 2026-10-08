@@ -1,3 +1,4 @@
+import { appText } from "../../lib/i18n";
 import { useTranslation } from "react-i18next";
 import "../../lib/i18n";
 import { useEffect, useState } from "react";
@@ -131,9 +132,9 @@ export function AboutTab(): JSX.Element {
             {updateStatus.errorMessage && (
               <span
                 className="text-[length:var(--text-2xs)] text-text-muted break-all text-center"
-                title={updateStatus.errorMessage}
+                title={appText(updateStatus.errorMessage)}
               >
-                {updateStatus.errorMessage}
+                {appText(updateStatus.errorMessage)}
               </span>
             )}
           </div>

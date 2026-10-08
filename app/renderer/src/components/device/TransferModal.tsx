@@ -1,3 +1,6 @@
+import { appMessage } from "../../lib/i18n";
+import { appText } from "../../lib/i18n";
+import { uiText, useUiLocale } from "../../lib/i18n";
 import { useEffect, useState } from "react";
 import { StepIndicator } from "./StepIndicator";
 import { FileTreeSelector, ScanFileItem } from "./FileTreeSelector";
@@ -49,6 +52,7 @@ function fmtTime(ms: number): string {
 }
 
 export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _onSent }: TransferModalProps): JSX.Element | null {
+  useUiLocale();
   const [projectPath, setProjectPath] = useState("");
   // 已打开过的项目(下拉选择,免手动找路径)
   const [projects, setProjects] = useState<Array<{ id: string; name: string; path: string }>>([]);
@@ -67,10 +71,10 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
       setPhase(d.phase ?? "transferring");
       setProgressPct(d.total > 0 ? Math.min(100, Math.round((d.sent / d.total) * 100)) : 0);
       if (d.phase === "rejected") {
-        setError("对方拒绝了迁移");
+        setError(uiText("ui.TransferModal.theOtherDeviceDeclinedTheTransfer"));
         setTransferring(false);
       } else if (d.phase === "timeout") {
-        setError("等待对方确认超时(30s)——对方可能不在线或未响应");
+        setError(uiText("ui.TransferModal.confirmationTimedOut30sTheOtherDevice"));
         setTransferring(false);
       } else if (d.phase === "sent") {
         // 传输完成 → 解除禁用,可关闭(恢复结果由回执另行提示)
@@ -116,9 +120,9 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
         setScanResult(scan);
         // 默认选中:最新会话(列表已按时间倒序,第一个即最新)
         setSelectedSessions(scan.sessions.length > 0 ? [scan.sessions[0]!.file] : []);
-        if (scan.files.length === 0) setError("未扫描到可迁移文件");
+        if (scan.files.length === 0) setError(uiText("ui.TransferModal.noTransferableFilesFound"));
       })
-      .catch((e: Error) => setError(`扫描失败: ${e.message}`))
+      .catch((e: Error) => setError(uiText("ui.TransferModal.scanFailed", { v0: appMessage(e.message) })))
       .finally(() => setScanning(false));
   };
 
@@ -143,7 +147,7 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
 
   const startTransfer = async (): Promise<void> => {
     if (!scanResult || selectedFiles.length === 0) return;
-    if (overLimit) { setError(`选中内容超过 500MB 上限（当前 ${fmtSize(selectedTotalSize)}），请取消部分文件`); return; }
+    if (overLimit) { setError(uiText("ui.TransferModal.selectionExceedsThe500MbLimitCurrently", { v0: fmtSize(selectedTotalSize) })); return; }
     setTransferring(true);
     setError(null);
     setPhase("waiting"); // 先显示等待确认(主进程广播会覆盖)
@@ -151,14 +155,14 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
       // 统一入口:主进程内部扫描 + 按选中清单打包 zip + 传输
       const r = await window.electronAPI.migration.start(projectPath.trim(), deviceId, { files: selectedFiles, sessions: selectedSessions });
       if (!r.ok) {
-        setError(r.error ?? "传输失败");
+        setError(r.error ?? uiText("ui.TransferModal.transferFailed"));
         setTransferring(false);
         return;
       }
       // 传输成功(数据已全部发出);接收端恢复完成会经回执提示(App 层),此处停留展示
       setPhase("sent");
     } catch (e) {
-      setError(`传输失败: ${(e as Error).message}`);
+      setError(uiText("ui.TransferModal.transferFailed2", { v0: appMessage((e as Error).message) }));
       setTransferring(false);
     }
   };
@@ -172,20 +176,20 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
     >
       <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl modal-card flex flex-col" style={{ width: 520 }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0 bg-[var(--color-surface-alt)]">
-          <h2 className="text-base font-semibold text-text-primary">迁移到 {deviceName}</h2>
+          <h2 className="text-base font-semibold text-text-primary">{uiText("ui.TransferModal.transferTo")}{deviceName}</h2>
           <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose} disabled={transferring}>✕</button>
         </div>
 
         <div className="px-6 py-3 space-y-3 flex-1 overflow-y-auto">
           {/* 项目:已打开的项目下拉 + 自由输入 */}
           <div>
-            <label className="text-xs text-text-secondary block mb-1">选择项目</label>
+            <label className="text-xs text-text-secondary block mb-1">{uiText("ui.TransferModal.chooseProject")}</label>
             <select
               className="em-input w-full px-2.5 py-1.5 text-xs text-text-primary mb-1.5"
               value={projectPath}
               onChange={(e) => { setProjectPath(e.target.value); setScanResult(null); }}
             >
-              <option value="">选择已打开的项目…</option>
+              <option value="">{uiText("ui.TransferModal.chooseAnOpenProject")}</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.path}>{p.name}</option>
               ))}
@@ -194,19 +198,18 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
               <input
                 value={projectPath}
                 onChange={(e) => { setProjectPath(e.target.value); setScanResult(null); }}
-                placeholder="或直接输入/选择项目目录"
+                placeholder={uiText("ui.TransferModal.orEnterOrSelectAProjectDirectory")}
                 className="em-input flex-1 px-2.5 py-1.5 text-xs text-text-primary"
               />
               <button type="button" className="px-3 py-1.5 rounded-[var(--radius-lg)] border border-border text-xs text-text-secondary hover:bg-surface-hover transition-colors shrink-0" onClick={() => void browseProject()}>
-                浏览
-              </button>
+                {uiText("ui.AgentTemplateSettings.browse")}</button>
             </div>
           </div>
 
           {/* 扫描状态(选择项目后自动扫描,防抖 300ms) */}
           {projectPath && !scanResult && (
             <div className="w-full px-3 py-2 rounded-[var(--radius-lg)] border border-border text-xs text-text-secondary text-center">
-              {scanning ? "扫描中…" : "正在扫描…"}
+              {scanning ? uiText("ui.DevicePanel.scanning") : uiText("ui.TransferModal.scanning")}
             </div>
           )}
 
@@ -215,9 +218,9 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
             <>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-text-secondary">项目文件</label>
+                  <label className="text-xs text-text-secondary">{uiText("ui.TransferModal.projectFiles")}</label>
                   <span className="text-[length:var(--text-2xs)] text-text-muted tabular-nums">
-                    已选择 {selectedFiles.length}/{scanResult.files.length} 个文件 · {fmtSize(selectedTotalSize)}
+                    {uiText("ui.TransferModal.selected")}{selectedFiles.length}/{scanResult.files.length} {uiText("ui.MigrationIncomingModal.files")}{fmtSize(selectedTotalSize)}
                   </span>
                 </div>
                 <FileTreeSelector
@@ -229,13 +232,12 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
               {/* 会话记录:仅主会话,默认勾选最新 */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-text-secondary">会话记录</label>
-                  <span className="text-[length:var(--text-2xs)] text-text-muted">已选 {selectedSessions.length}/{scanResult.sessions.length} · 仅主会话（不含子会话）</span>
+                  <label className="text-xs text-text-secondary">{uiText("ui.TransferModal.sessionRecords")}</label>
+                  <span className="text-[length:var(--text-2xs)] text-text-muted">{uiText("ui.TransferModal.selected2")}{selectedSessions.length}/{scanResult.sessions.length} {uiText("ui.TransferModal.mainSessionsOnlyNoSubsessions")}</span>
                 </div>
                 {scanResult.sessions.length === 0 ? (
                   <div className="bg-surface rounded-[var(--radius-lg)] border border-border px-3 py-2.5 text-[length:var(--text-11)] text-text-muted">
-                    该项目暂无会话记录
-                  </div>
+                    {uiText("ui.TransferModal.noSessionsInThisProject")}</div>
                 ) : (
                   <div className="bg-surface rounded-[var(--radius-lg)] border border-border max-h-32 overflow-y-auto py-1">
                     {scanResult.sessions.map((s) => (
@@ -267,11 +269,11 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
             <div className="space-y-2">
               <StepIndicator
                 steps={[
-                  { id: "scanning", label: "扫描" },
-                  { id: "packing", label: "打包" },
-                  { id: "waiting", label: "等待确认" },
-                  { id: "transferring", label: "传输" },
-                  { id: "sent", label: "已发送" },
+                  { id: "scanning", label: uiText("ui.DevicePanel.scan") },
+                  { id: "packing", label: uiText("ui.TransferModal.package") },
+                  { id: "waiting", label: uiText("ui.TransferModal.awaitConfirmation") },
+                  { id: "transferring", label: uiText("ui.TransferModal.transfer") },
+                  { id: "sent", label: uiText("ui.TransferModal.sent") },
                 ]}
                 current={phase ?? "scanning"}
               />
@@ -280,27 +282,26 @@ export function TransferModal({ open, deviceId, deviceName, onClose, onSent: _on
                   <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
                     <div className="h-full bg-accent rounded-full transition-all duration-200" style={{ width: `${progressPct}%` }} />
                   </div>
-                  <div className="text-[length:var(--text-2xs)] text-text-secondary">传输中 {progressPct}%</div>
+                  <div className="text-[length:var(--text-2xs)] text-text-secondary">{uiText("ui.TransferModal.transferring")}{progressPct}%</div>
                 </div>
               )}
               {phase === "sent" && (
-                <div className="text-[length:var(--text-2xs)] text-text-secondary">传输完成，等待接收端恢复（恢复结果会另行提示）</div>
+                <div className="text-[length:var(--text-2xs)] text-text-secondary">{uiText("ui.TransferModal.transferCompleteWaitingForTheReceivingDevice")}</div>
               )}
             </div>
           )}
-          {error && <div className="text-[length:var(--text-11)] text-danger">{error}</div>}
+          {error && <div className="text-[length:var(--text-11)] text-danger">{appText(error)}</div>}
         </div>
 
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border shrink-0">
           <button className="px-4 py-1.5 rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={onClose} disabled={transferring}>
-            取消
-          </button>
+            {uiText("common.cancel")}</button>
           <button
             className="px-5 py-1.5 rounded-[var(--radius-lg)] btn-accent text-sm font-medium"
             disabled={!scanResult || selectedFiles.length === 0 || transferring}
             onClick={() => void startTransfer()}
           >
-            {transferring ? "传输中…" : `开始迁移${selectedFiles.length > 0 ? `（${selectedFiles.length} 个文件${selectedSessions.length > 0 ? ` · ${selectedSessions.length} 个会话` : ""}）` : ""}`}
+            {transferring ? uiText("ui.TransferModal.transferring2") : uiText("ui.TransferModal.startTransfer", { v0: selectedFiles.length > 0 ? uiText("ui.extra.fileSelection", { files: selectedFiles.length, count: selectedFiles.length, sessions: selectedSessions.length > 0 ? uiText("ui.MigrationIncomingModal.includesSessions", { v0: selectedSessions.length }) : "" }) : "" })}
           </button>
         </div>
       </div>

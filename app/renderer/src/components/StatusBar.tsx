@@ -1,3 +1,4 @@
+import { uiText, useUiLocale, appText } from "../lib/i18n";
 import { useEffect, useMemo, type CSSProperties } from "react";
 // useRef / useState 随旧符号动画一并停用，恢复旧动画时加回
 import { useStatusStore } from "../stores/status-store";
@@ -34,6 +35,7 @@ function buildShimmerStyle(durationSec: number): CSSProperties {
  * 符号动画与状态文本同现同消:有状态信号(busy && text)时符号+文本一起出现,信号结束一起消失。
  */
 export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | null {
+  useUiLocale();
   // 按会话读状态信号(多 tab 各自显示自己的状态,不穿透)
   const session = useStatusStore((s) => s.bySession[sessionId]);
   const text = session?.signals ? [...session.signals].sort((a, b) => b.seq - a.seq)[0]?.text ?? "" : "";
@@ -137,13 +139,13 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
           >
             <ModelGlyph animated />
           </span>
-          <span className="text-xs font-medium" style={textStyle}>{text}</span>
+          <span className="text-xs font-medium" style={textStyle}>{appText(text)}</span>
         </div>
       )}
       {summarizing && (
         <div className="flex items-center gap-2 px-4 py-2 text-text-primary text-sm bg-accent-bg shrink-0">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4 text-accent animate-spin"><circle cx="8" cy="8" r="6" strokeOpacity="0.3"/><path d="M8 2a6 6 0 015.5 3.5" strokeLinecap="round"/></svg>
-          <span>正在进行会话摘要，将在新会话继续。</span>
+          <span>{uiText("ui.StatusBar.summarizingThisSessionToContinueInA")}</span>
         </div>
       )}
     </>

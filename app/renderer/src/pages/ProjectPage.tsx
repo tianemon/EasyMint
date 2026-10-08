@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../lib/i18n";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Sidebar } from "../components/Sidebar";
@@ -20,6 +21,7 @@ import { useProjectStatusStore } from "../stores/project-status-store";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 
 export function ProjectPage(): JSX.Element {
+  const locale = useUiLocale();
   // 重命名弹窗遮罩完整点击:仅 mousedown 也在遮罩上才关闭(拖选输入文字移出遮罩松开不误关)
   const renameOverlayDownRef = useRef(false);
   const { projectId } = useParams<{ projectId: string }>();
@@ -114,7 +116,7 @@ export function ProjectPage(): JSX.Element {
     // 切换项目时清空标签页和任务
     useTabStore.getState().clearTabs();
     // 补建空会话 tab(与打开 EM 初始态一致):切换项目后内容区不空白、新建会话按钮保持可用
-    useTabStore.getState().openTab({ id: `new-${Date.now()}`, type: "chat", title: "新会话" });
+    useTabStore.getState().openTab({ id: `new-${Date.now()}`, type: "chat", title: uiText("ui.App.newSession") });
     useTaskStore.getState().clearTasks();
     useProjectStatusStore.getState().reset();
     if (projectId) {
@@ -122,8 +124,8 @@ export function ProjectPage(): JSX.Element {
         if (p) {
           setProjectExists(p.exists ?? false);
           if (!p.exists) {
-            setProjectName(p.name + "（目录已删除）");
-            document.title = `项目已删除 — EasyMint`;
+            setProjectName(p.name);
+            document.title = uiText("ui.ProjectPage.projectDeletedEasymint");
             return;
           }
           setProjectPath(p.path);
@@ -138,7 +140,7 @@ export function ProjectPage(): JSX.Element {
           const isNewProject = params.get("init") === "1";
           if (urlSessionId) {
             setActiveSessionId(urlSessionId);
-            openTab({ id: urlSessionId, type: "chat", title: "新项目", sessionId: urlSessionId, isNewProject });
+            openTab({ id: urlSessionId, type: "chat", title: uiText("ui.ProjectPage.newProject"), sessionId: urlSessionId, isNewProject });
             // URL 直达真实会话 → 关掉补建的空 tab
             useTabStore.getState().closeEmptyTab();
           }
@@ -148,6 +150,10 @@ export function ProjectPage(): JSX.Element {
       document.title = "EasyMint";
     }
   }, [projectId]);
+
+  useEffect(() => {
+    if (projectId && !projectExists && projectName) document.title = uiText("ui.ProjectPage.projectDeletedEasymint");
+  }, [projectId, projectExists, projectName, locale]);
 
   // tab 切换 → 会话列表选中态跟随:当前 tab 是哪个会话,列表选中哪个;
   // 非会话 tab / 新会话 tab(无 sessionId)→ 都不选中
@@ -173,7 +179,7 @@ export function ProjectPage(): JSX.Element {
 
       // 打开绑定新会话的 tab
       const tabId = `rotate-${Date.now()}`;
-      ts.openTab({ id: tabId, type: "chat" as const, title: "新会话", sessionId });
+      ts.openTab({ id: tabId, type: "chat" as const, title: uiText("ui.App.newSession"), sessionId });
       ts.setActiveTab(tabId);
       setActiveSessionId(sessionId);
 
@@ -259,7 +265,7 @@ export function ProjectPage(): JSX.Element {
     }
     const tabId = `new-${Date.now()}`;
     // sessionId undefined = ChatPanel treats as brand-new session, not resume
-    ts.openTab({ id: tabId, type: "chat" as const, title: "新会话" });
+    ts.openTab({ id: tabId, type: "chat" as const, title: uiText("ui.App.newSession") });
   }, []);
 
   const handleSessionDelete = useCallback((sessionId: string) => {
@@ -338,16 +344,16 @@ export function ProjectPage(): JSX.Element {
     }
     // 二次确认：提醒用户 EM 将关闭
     const ok = await confirmDialog({
-      title: "重命名将关闭 EasyMint？",
-      message: `新名称: ${trimmed}\n新路径: ${projectPath.replace(/[^/]+$/, trimmed)}\n\n请确保所有工作已保存。`,
-      confirmText: "重命名",
+      title: uiText("ui.ProjectPage.renamingWillCloseEasymintContinue"),
+      message: uiText("ui.ProjectPage.newNameNewPathSaveYourWork", { v0: trimmed, v1: projectPath.replace(/[^/]+$/, trimmed) }),
+      confirmText: uiText("ui.SessionHistory.rename"),
       danger: true,
     });
     if (!ok) return;
     setRenamePhase("copying");
     window.electronAPI.project.renameExec(projectPath, trimmed).then((res) => {
       if (!res.ok) {
-        toast(res.error || "重命名失败");
+        toast(res.error || uiText("ui.ProjectPage.couldNotRename"));
         setRenamePhase("input");
       }
     });
@@ -367,7 +373,7 @@ export function ProjectPage(): JSX.Element {
                   tabId={tab.id}
                   isDesigner={tab.isDesigner}
                   onSessionCreated={(sid) => {
-                    useTabStore.getState().updateTab(tab.id, { sessionId: sid, title: "新会话" });
+                    useTabStore.getState().updateTab(tab.id, { sessionId: sid, title: uiText("ui.App.newSession") });
                     setActiveSessionId(sid);
                     setSessionRefreshKey((k) => k + 1);
                   }}
@@ -437,7 +443,7 @@ export function ProjectPage(): JSX.Element {
         >
           <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl w-[400px]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 pt-4 pb-2">
-              <h2 className="text-base font-semibold text-text-primary">重命名项目</h2>
+              <h2 className="text-base font-semibold text-text-primary">{uiText("nav.renameProject")}</h2>
               {renamePhase === "input" && (
                 <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setShowRenameDialog(false)}>✕</button>
               )}
@@ -446,17 +452,16 @@ export function ProjectPage(): JSX.Element {
             {renamePhase === "input" ? (
               <>
                 <p className="px-5 pb-3 text-xs text-text-secondary">
-                  重命名将关闭 EasyMint，把项目完整复制到新位置，验证通过后清理旧数据，然后自动重启。
-                </p>
+                  {uiText("ui.ProjectPage.easymintWillCloseCopyTheProjectTo")}</p>
                 <div className="px-5 pb-4">
-                  <label className="block text-xs text-text-secondary mb-1.5">新名称</label>
+                  <label className="block text-xs text-text-secondary mb-1.5">{uiText("ui.ProjectPage.newName")}</label>
                   <input
                     className="w-full input px-3 py-2"
                     value={renameNewName}
                     onChange={(e) => setRenameNewName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") handleRenameConfirm(); if (e.key === "Escape") setShowRenameDialog(false); }}
                     autoFocus
-                    placeholder="输入新名称"
+                    placeholder={uiText("ui.ProjectPage.enterANewName")}
                   />
                 </div>
                 <div className="flex items-center justify-end gap-2 px-5 pb-4">
@@ -464,15 +469,13 @@ export function ProjectPage(): JSX.Element {
                     className="px-4 py-2 text-sm text-text-secondary hover:bg-surface-hover rounded-[var(--radius-lg)] transition-colors"
                     onClick={() => setShowRenameDialog(false)}
                   >
-                    取消
-                  </button>
+                    {uiText("common.cancel")}</button>
                   <button
                     className="px-4 py-2 text-sm bg-accent text-text-inverse rounded-[var(--radius-lg)] hover:bg-accent-hover transition-colors disabled:opacity-40"
                     disabled={!renameNewName.trim() || renameNewName.trim() === projectName}
                     onClick={handleRenameConfirm}
                   >
-                    确认重命名
-                  </button>
+                    {uiText("ui.ProjectPage.confirmRename")}</button>
                 </div>
               </>
             ) : (
@@ -484,10 +487,10 @@ export function ProjectPage(): JSX.Element {
                   </svg>
                 </div>
                 <p className="text-sm text-text-primary font-medium mb-1">
-                  {renamePhase === "copying" ? "正在复制项目文件…" : "正在收尾…"}
+                  {renamePhase === "copying" ? uiText("ui.ProjectPage.copyingProjectFiles") : uiText("ui.ProjectPage.finishing")}
                 </p>
                 <p className="text-xs text-text-secondary">
-                  {renamePhase === "copying" ? "文件较多时可能需要一些时间" : "即将重启 EasyMint"}
+                  {renamePhase === "copying" ? uiText("ui.ProjectPage.largeProjectsMayTakeAWhile") : uiText("ui.ProjectPage.easymintWillRestartShortly")}
                 </p>
                 <div className="mt-4 w-full bg-surface-alt rounded-full h-1.5 overflow-hidden">
                   <div className="h-full bg-accent rounded-full animate-progress-indeterminate" style={{ width: "40%" }} />
@@ -503,20 +506,19 @@ export function ProjectPage(): JSX.Element {
         <Modal overlayClassName="bg-black/40" onClose={() => setShowOpenProject(false)}>
           <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl w-[420px] max-h-[70vh] flex flex-col">
             <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0">
-              <h2 className="text-base font-semibold text-text-primary">打开项目</h2>
+              <h2 className="text-base font-semibold text-text-primary">{uiText("nav.openProject")}</h2>
               <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setShowOpenProject(false)}>✕</button>
             </div>
-            <p className="px-5 pb-2 text-xs text-text-secondary">选择一个项目，在当前窗口打开。</p>
+            <p className="px-5 pb-2 text-xs text-text-secondary">{uiText("ui.ProjectPage.chooseAProjectToOpenInThis")}</p>
             <div className="overflow-y-auto flex-1 px-3 pb-3">
               {openProjectList.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-xs text-text-secondary mb-3">暂无项目</p>
+                  <p className="text-xs text-text-secondary mb-3">{uiText("ui.ProjectPage.noProjects")}</p>
                   <button
                     className="px-4 py-2 text-sm bg-accent text-text-inverse rounded-[var(--radius-lg)] hover:bg-accent-hover transition-colors"
                     onClick={() => { setShowOpenProject(false); setShowNewProject(true); }}
                   >
-                    + 创建项目
-                  </button>
+                    {uiText("ui.ProjectPage.createProject")}</button>
                 </div>
               ) : (
                 openProjectList.map((p) => (
@@ -534,7 +536,7 @@ export function ProjectPage(): JSX.Element {
                     >
                       <div className="flex items-center gap-1.5">
                         <span className={`text-sm font-medium ${p.id === projectId ? "text-accent" : "text-text-primary"}`}>{p.name}</span>
-                        {p.exists === false && <span className="text-[length:var(--text-2xs)] text-danger">目录已删除</span>}
+                        {p.exists === false && <span className="text-[length:var(--text-2xs)] text-danger">{uiText("ui.ProjectPage.directoryDeleted2")}</span>}
                       </div>
                       <div className="text-[length:var(--text-11)] text-text-secondary truncate">{p.path}</div>
                     </button>
@@ -559,8 +561,7 @@ export function ProjectPage(): JSX.Element {
                   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4">
                     <path d="M2 4a1 1 0 011-1h3l1.5 2H13a1 1 0 011 1v6a1 1 0 01-1 1H3a1 1 0 01-1-1V4z"/>
                   </svg>
-                  浏览文件夹…
-                </button>
+                  {uiText("ui.ProjectPage.browseFolders")}</button>
               </div>
             </div>
           </div>
@@ -571,7 +572,7 @@ export function ProjectPage(): JSX.Element {
       {windowChoiceTarget && (
         <Modal overlayClassName="bg-black/40" overlayClose={false} onClose={() => setWindowChoiceTarget(null)}>
           <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl p-6 w-[400px] flex flex-col gap-4">
-            <p className="text-sm text-text-primary font-medium">当前窗口已打开项目，要在哪里打开？</p>
+            <p className="text-sm text-text-primary font-medium">{uiText("ui.ProjectPage.thisWindowAlreadyHasAProjectWhere")}</p>
             <div className="flex gap-3 justify-end">
               <button
                 className="px-5 py-2 rounded-[var(--radius-lg)] text-text-secondary text-sm hover:bg-surface-hover transition-colors"
@@ -581,8 +582,7 @@ export function ProjectPage(): JSX.Element {
                   await window.electronAPI.window.openProject(t.id, t.sid ?? undefined, t.init ?? false);
                 }}
               >
-                在新窗口打开
-              </button>
+                {uiText("ui.ProjectPage.openInNewWindow")}</button>
               <button
                 className="px-5 py-2 rounded-[var(--radius-lg)] bg-accent text-text-inverse text-sm hover:bg-accent-hover transition-colors font-medium"
                 onClick={() => {
@@ -595,8 +595,7 @@ export function ProjectPage(): JSX.Element {
                   navigate(`/project/${t.id}${qs ? `?${qs}` : ""}`);
                 }}
               >
-                在当前窗口打开
-              </button>
+                {uiText("ui.ProjectPage.openInThisWindow")}</button>
             </div>
           </div>
         </Modal>
@@ -606,21 +605,19 @@ export function ProjectPage(): JSX.Element {
       {deleteTarget && (
         <Modal overlayClassName="bg-black/40" overlayClose={false} onClose={() => setDeleteTarget(null)}>
           <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl p-6 w-[400px] flex flex-col gap-4">
-            <p className="text-sm text-text-primary font-medium">确认删除该项目吗？</p>
-            <p className="text-xs text-text-secondary">（移动到{window.electronAPI?.platform === "darwin" ? "废纸篓" : "回收站"}）</p>
+            <p className="text-sm text-text-primary font-medium">{uiText("ui.ProjectPage.deleteThisProject")}</p>
+            <p className="text-xs text-text-secondary">{uiText("ui.ProjectPage.moveTo")}{window.electronAPI?.platform === "darwin" ? uiText("ui.ProjectPage.trash") : uiText("ui.ProjectPage.recycleBin")}）</p>
             <div className="flex gap-3 justify-end">
               <button
                 className="px-5 py-2 rounded-[var(--radius-lg)] text-text-secondary text-sm hover:bg-surface-hover transition-colors"
                 onClick={() => setDeleteTarget(null)}
               >
-                取消
-              </button>
+                {uiText("common.cancel")}</button>
               <button
                 className="px-5 py-2 rounded-[var(--radius-lg)] bg-danger text-white text-sm hover:opacity-90 transition-opacity font-medium"
                 onClick={confirmDeleteProject}
               >
-                删除
-              </button>
+                {uiText("ui.AgentTemplateSettings.delete")}</button>
             </div>
           </div>
         </Modal>

@@ -1,3 +1,4 @@
+import { uiText } from "../lib/i18n";
 import { create } from "zustand";
 import type { ImageViewerState } from "../components/ImageViewer";
 import { toast } from "../components/ui/Toast";
@@ -32,14 +33,14 @@ export const useViewerStore = create<ViewerState>((set) => ({
     try {
       const dataUrl = await window.electronAPI.file.readImage(path);
       if (!dataUrl) {
-        toast("无法读取图片");
+        toast(uiText("ui.viewer-store.couldNotReadImage"));
         return;
       }
       // 带上 path：「看源码」（svg）需要知道原文件路径，此调用的入参本就来自它
       set({ image: { src: dataUrl, name: baseName(path), path } });
     } catch (e) {
       console.error("读取图片失败:", path, e);
-      toast("无法读取图片");
+      toast(uiText("ui.viewer-store.couldNotReadImage"));
     }
   },
 }));

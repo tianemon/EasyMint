@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useEffect, useState, useCallback, useRef } from "react";
 import type { CSSProperties } from "react";
 import { useProcessStore, type RunPlatform, type Runnable } from "../stores/process-store";
@@ -154,6 +155,7 @@ function TitleMarquee({ text, onClick }: { text: string; onClick: () => void }):
 }
 
 export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
+  useUiLocale();
   // 细 selector 订阅（zustand 默认整店订阅 → 任意字段变更都重渲染整个面板；
   // 日志行高频追加只动 store.logLines，本面板只关心命令状态，分开订阅后日志不再触发卡片重渲染）
   const runnables = useProcessStore((s) => s.runnables);
@@ -199,7 +201,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
       setConfirmDeleteId(null);
     } catch (e) {
       console.error("[RunPanel] delete script failed:", e);
-      toast("删除失败，请检查 run.json 是否被占用");
+      toast(uiText("ui.RunPanel.couldNotDeleteCheckWhetherRunJson"));
     } finally {
       setSaving(false);
     }
@@ -264,7 +266,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-2 h-9 px-3 shrink-0">
-        <span className="text-[length:var(--text-11)] font-semibold tracking-[0.04em] uppercase text-text-secondary">运行</span>
+        <span className="text-[length:var(--text-11)] font-semibold tracking-[0.04em] uppercase text-text-secondary">{uiText("nav.runs")}</span>
         <div className="flex-1" />
         <button
           className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors"
@@ -283,8 +285,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
       <div className="flex-1 min-h-0 overflow-y-auto px-[9px] pt-[3px] pb-2">
         {runnables.length === 0 ? (
           <div className="flex items-center justify-center h-full text-[length:var(--text-11)] text-text-muted text-center px-4">
-            未检测到启动配置<br />Mint 开发完会生成 .easymint/run.json
-          </div>
+            {uiText("ui.RunPanel.noLaunchConfigurationDetected")}<br />{uiText("ui.RunPanel.mintGeneratesEasymintRunJsonAfterDevelopment")}</div>
         ) : (
           <div className="space-y-1.5">
             {runnables.map((r) => {
@@ -301,8 +302,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                     {st.running && (r.url && !st.ready ? (
                       <span className="text-[length:var(--text-3xs)] text-warning flex items-center gap-1 shrink-0">
                         <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
-                        启动中…
-                      </span>
+                        {uiText("ui.RunPanel.starting")}</span>
                     ) : (
                       <span className="text-[length:var(--text-3xs)] text-success flex items-center gap-1 shrink-0">
                         <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
@@ -339,9 +339,9 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                       />
                       <span className="text-text-muted">·</span>
                       {ps ? (ps.free
-                        ? <span className="text-success">空闲</span>
+                        ? <span className="text-success">{uiText("ui.RunPanel.idle")}</span>
                         : <>
-                            <span className="text-danger">占用</span>
+                            <span className="text-danger">{uiText("ui.RunPanel.inUse")}</span>
                             <span
                               data-port-toggle
                               className="text-danger underline cursor-pointer select-none"
@@ -353,7 +353,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                                   return next;
                                 });
                               }}
-                            >详情</span>
+                            >{uiText("ui.RunPanel.details")}</span>
                             {showDetail[r.id] && (
                               <span data-port-detail className="absolute top-full mt-1 text-[length:var(--text-3xs)] text-text-primary bg-surface-elevated rounded-[var(--radius-lg)] px-2 py-1 shadow-lg z-dropdown"
                                 style={{ maxWidth: "200px", wordBreak: "break-all", lineHeight: "1.4" }}>
@@ -363,9 +363,9 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                             <button
                               className="text-[length:var(--text-3xs)] px-1.5 py-0.5 rounded-[var(--radius-lg)] bg-danger-soft text-danger hover:bg-danger-bg active:scale-95 transition-all duration-100"
                               onClick={function() { handleKillPort(r.id, r.url); }}
-                            >释放</button>
+                            >{uiText("ui.RunPanel.release")}</button>
                           </>
-                      ) : <span className="text-text-muted">检测中</span>}
+                      ) : <span className="text-text-muted">{uiText("ui.RunPanel.checking")}</span>}
                     </div>
                   )}
                   <div className="flex items-center gap-1 mt-1.5">
@@ -374,7 +374,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                         <button
                           className="flex-1 px-2 py-1 rounded-[var(--radius-lg)] bg-danger-soft text-danger text-[length:var(--text-2xs)] font-medium hover:bg-danger-bg transition-colors"
                           onClick={() => stop(r.id)}
-                        >停止</button>
+                        >{uiText("ui.AgentBar.stop")}</button>
                         <button
                           className="em-hover-control w-6 h-6 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-accent transition-colors shrink-0"
                           onClick={() => restart(projectPath, r.id)}
@@ -401,12 +401,12 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                       </>
                     ) : confirmDeleteId === r.id ? (
                       <div className="flex-1 flex items-center gap-1">
-                        <span className="flex-1 text-center text-[length:var(--text-2xs)] text-danger">删除脚本？</span>
+                        <span className="flex-1 text-center text-[length:var(--text-2xs)] text-danger">{uiText("ui.RunPanel.deleteScript")}</span>
                         <button
                           className="shrink-0 px-2 py-1 rounded-[var(--radius-lg)] bg-danger-soft text-danger text-[length:var(--text-2xs)] font-medium hover:bg-danger-bg transition-colors"
                           onClick={() => { void handleDelete(r); }}
                           disabled={saving}
-                        >删除</button>
+                        >{uiText("ui.AgentTemplateSettings.delete")}</button>
                         <button
                           className="em-hover-control w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary transition-colors shrink-0"
                           onClick={() => setConfirmDeleteId(null)}
@@ -424,7 +424,7 @@ export function RunPanel({ projectPath }: RunPanelProps): JSX.Element {
                           }}
                           disabled={!canStart}
                           
-                        >运行</button>
+                        >{uiText("nav.runs")}</button>
                         <button
                           className="em-hover-control w-9 py-1 rounded-[var(--radius-lg)] text-text-secondary hover:text-danger transition-colors shrink-0 flex items-center justify-center"
                           onClick={() => setConfirmDeleteId(r.id)}

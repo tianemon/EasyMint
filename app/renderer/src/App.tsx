@@ -1,3 +1,6 @@
+import { appMessage } from "./lib/i18n";
+import { appText } from "./lib/i18n";
+import { uiText, useUiLocale } from "./lib/i18n";
 import { useState, useEffect } from "react";
 import { HashRouter, Routes, Route } from "react-router-dom";
 import { ProjectPage } from "./pages/ProjectPage";
@@ -13,8 +16,9 @@ import { useTabStore, type Tab } from "./stores/tab-store";
 import { useDelegationStore } from "./stores/delegation-store";
 
 export function App(): JSX.Element {
+  useUiLocale();
   useEffect(() => window.electronAPI.piExtension.onError((error) => {
-    toast(`Pi 扩展错误（${error.event}）：${error.error}`);
+    toast(uiText("ui.App.piExtensionError", { v0: error.event, v1: appMessage(error.error) }));
   }), []);
   useEffect(() => window.electronAPI.piExtension.onNotice((notice) => toast(notice.message)), []);
   const [setupComplete, setSetupComplete] = useState(
@@ -98,7 +102,7 @@ export function App(): JSX.Element {
   // 打开 EM 无任何 tab 时,自动建一个"新会话"空 tab(与点新建会话一致,仅 tab 条隐藏)
   function ensureDefaultTab(): void {
     if (useTabStore.getState().tabs.length === 0) {
-      useTabStore.getState().openTab({ id: `new-${Date.now()}`, type: "chat", title: "新会话" });
+      useTabStore.getState().openTab({ id: `new-${Date.now()}`, type: "chat", title: uiText("ui.App.newSession") });
     }
   }
 
@@ -122,8 +126,8 @@ export function App(): JSX.Element {
       setReceipt({
         ok: d.ok,
         text: d.ok
-          ? `迁移完成: 已在目标设备恢复「${d.projectName ?? ""}」(${d.projectPath ?? ""})`
-          : `迁移失败: ${(d.failures && d.failures.length > 0 ? d.failures.join("；") : "接收端恢复失败")}`,
+          ? uiText("ui.App.transferCompleteRestoredOnTheTargetDevice", { v0: d.projectName ?? "", v1: d.projectPath ?? "" })
+          : uiText("ui.App.transferFailed", { v0: (d.failures && d.failures.length > 0 ? d.failures.join("；") : uiText("ui.extra.receiveRestoreFailed")) }),
       });
       setTimeout(() => setReceipt(null), 8000);
     });
@@ -170,7 +174,7 @@ export function App(): JSX.Element {
             失败态保留 danger 描边——危险语义元素的描边按约定不参与去边框 */}
         {receipt && (
           <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-toast px-4 py-2.5 rounded-[var(--radius-lg)] shadow-lg text-sm modal-card ${receipt.ok ? "bg-surface-alt text-text-primary" : "bg-surface-alt border border-danger-border text-danger"}`}>
-            {receipt.text}
+            {appText(receipt.text)}
           </div>
         )}
         {/* 迁移完成卡片(接收端):模板文案 + 复制,用户粘贴发送给 Mint 对齐上下文 */}
@@ -178,14 +182,11 @@ export function App(): JSX.Element {
           <div className="no-drag fixed inset-0 z-dialog bg-black/40 flex items-center justify-center modal-overlay" onMouseDown={() => setMigrateDone(null)}>
             <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl modal-card flex flex-col" style={{ width: 520, maxHeight: "85vh" }} onMouseDown={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between px-5 pt-4 pb-2 shrink-0 bg-[var(--color-surface-alt)]">
-                <h2 className="text-sm font-semibold text-text-primary">迁移完成</h2>
+                <h2 className="text-sm font-semibold text-text-primary">{uiText("ui.App.transferComplete")}</h2>
                 <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setMigrateDone(null)}>✕</button>
               </div>
               <div className="px-5 py-2 text-xs text-text-secondary">
-                「{migrateDone.projectName}」已恢复到本机（{migrateDone.projectPath}）
-                {migrateDone.sessionRestoredCount > 0 && `，${migrateDone.sessionRestoredCount} 个会话记录已恢复`}。
-                复制下方通知，发送给本项目会话的 Mint，让它了解环境变更。
-              </div>
+                {uiText("ui.App.projectRestored", { name: migrateDone.projectName, path: migrateDone.projectPath, sessions: migrateDone.sessionRestoredCount > 0 ? uiText("ui.App.sessionsRestored", { v0: migrateDone.sessionRestoredCount }) : "" })}</div>
               <div className="px-5 py-2 flex-1 overflow-y-auto">
                 {/* 通知正文:普通文本(div+pre-wrap 保换行)——不是代码块,不用 pre 的等宽/边框外观 */}
                 <div className="whitespace-pre-wrap select-text text-xs leading-relaxed text-text-primary">
@@ -206,8 +207,7 @@ export function App(): JSX.Element {
               </div>
               <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border shrink-0">
                 <button className="px-4 py-1.5 rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors text-sm" onClick={() => setMigrateDone(null)}>
-                  关闭
-                </button>
+                  {uiText("common.close")}</button>
                 <button
                   className="px-5 py-1.5 rounded-[var(--radius-lg)] bg-accent text-text-inverse hover:bg-accent-hover transition-colors text-sm font-medium"
                   onClick={async () => {
@@ -228,8 +228,7 @@ export function App(): JSX.Element {
                     setMigrateDone(null);
                   }}
                 >
-                  复制并关闭
-                </button>
+                  {uiText("ui.App.copyAndClose")}</button>
               </div>
             </div>
           </div>
@@ -237,7 +236,7 @@ export function App(): JSX.Element {
         {/* Windows 防火墙放行提示(项目迁移/连接手机端口,各通道一次) */}
         {firewallHint !== null && (
           <div className="fixed top-3 left-1/2 -translate-x-1/2 z-toast flex items-center gap-3 px-4 py-2.5 rounded-[var(--radius-lg)] bg-surface-alt shadow-lg text-xs text-text-primary">
-            <span>项目迁移与连接手机需要 Windows 防火墙放行端口 {firewallHint}——首次弹窗时请勾选「专用网络」并允许访问</span>
+            <span>{uiText("ui.App.projectTransfersAndPhoneConnectionsRequireWindows")}{firewallHint}{uiText("ui.App.selectPrivateNetworksAndAllowAccessWhen")}</span>
             <button className="text-text-secondary hover:text-text-primary shrink-0" onClick={() => setFirewallHint(null)}>✕</button>
           </div>
         )}

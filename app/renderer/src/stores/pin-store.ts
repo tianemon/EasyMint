@@ -1,3 +1,4 @@
+import { uiText } from "../lib/i18n";
 import { create } from "zustand";
 
 export interface Pin {
@@ -21,7 +22,7 @@ export interface Pin {
 function makeTitle(content: string): string {
   const firstLine = content.split("\n").find((l) => l.trim()) || "";
   const clean = firstLine.replace(/^#+\s*/, "").replace(/[*_`~]/g, "").trim();
-  return clean.slice(0, 20) || "便签";
+  return clean.slice(0, 20) || uiText("ui.pin-store.note");
 }
 
 /** 分配调色板索引：从现存便签未使用的颜色中随机选（保持不重复），用尽则数量取模兜底；无 colorIdx 的旧数据按位置 index%8 视为已占用（与渲染层兜底一致） */

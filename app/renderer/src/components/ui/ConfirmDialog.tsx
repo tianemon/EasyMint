@@ -1,3 +1,4 @@
+import { appText } from "../../lib/i18n";
 import { useTranslation } from "react-i18next";
 import "../../lib/i18n";
 import { useEffect, useState } from "react";
@@ -79,15 +80,15 @@ export function ConfirmHost(): JSX.Element | null {
   return (
     <Modal tier="modal" overlayClassName="bg-black/40 backdrop-blur-sm" onClose={() => close(false)}>
       <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] p-5 max-w-md w-full shadow-2xl mx-4">
-        <div className="text-sm font-medium text-text-primary mb-1.5">{pending.title}</div>
-        <p className="text-xs text-text-secondary mb-4 leading-relaxed whitespace-pre-line">{pending.message}</p>
+        <div className="text-sm font-medium text-text-primary mb-1.5">{appText(pending.title)}</div>
+        <p className="text-xs text-text-secondary mb-4 leading-relaxed whitespace-pre-line">{appText(pending.message)}</p>
         <div className="flex gap-2 justify-end">
           <button
             type="button"
             className="px-4 py-1.5 text-xs rounded-[var(--radius-lg)] bg-surface-alt border border-border text-text-secondary hover:text-text-primary transition-colors"
             onClick={() => close(false)}
           >
-            {pending.cancelText ?? t("common.cancel")}
+            {pending.cancelText ? appText(pending.cancelText) : t("common.cancel")}
           </button>
           <button
             type="button"
@@ -103,7 +104,7 @@ export function ConfirmHost(): JSX.Element | null {
             }`}
             onClick={() => close(true)}
           >
-            {pending.confirmText ?? t("common.confirm")}
+            {pending.confirmText ? appText(pending.confirmText) : t("common.confirm")}
           </button>
         </div>
       </div>

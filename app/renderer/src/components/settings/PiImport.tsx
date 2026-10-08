@@ -1,3 +1,5 @@
+import { appMessage } from "../../lib/i18n";
+import { uiText, useUiLocale } from "../../lib/i18n";
 import { useEffect, useState } from "react";
 import type { PiImportSummary } from "@shared/pi-config-import";
 import { useSettingsStore } from "../../stores/settings-store";
@@ -38,26 +40,26 @@ export function manualSkipDropsAutoAdvance(piProbe: "pending" | "hit" | "miss", 
 
 /** 确认弹窗正文：逐项说明会导入什么、跳过什么（message 走 whitespace-pre-line，\n 即换行） */
 export function piImportConfirmMessage(plan: PiImportSummary): string {
-  const lines = [`供应商 ${plan.providers} 个 · MCP 服务器 ${plan.mcpServers} 个 · 会话 ${plan.sessions} 个 · 项目记录 ${plan.projects} 个`];
+  const lines = [uiText("ui.PiImport.providersMcpServersSessionsProjectRecords", { v0: plan.providers, v1: plan.mcpServers, v2: plan.sessions, v3: plan.projects })];
   const skipped = [
-    plan.conflicts > 0 ? `${plan.conflicts} 项冲突` : "",
-    plan.duplicates > 0 ? `${plan.duplicates} 个重复会话` : "",
-    plan.invalidSessions > 0 ? `${plan.invalidSessions} 个无效会话` : "",
+    plan.conflicts > 0 ? uiText("ui.PiImport.conflicts", { v0: plan.conflicts }) : "",
+    plan.duplicates > 0 ? uiText("ui.PiImport.duplicateSessions", { v0: plan.duplicates }) : "",
+    plan.invalidSessions > 0 ? uiText("ui.PiImport.invalidSessions", { v0: plan.invalidSessions }) : "",
   ].filter(Boolean);
-  if (skipped.length > 0) lines.push(`跳过：${skipped.join("、")}`);
-  if (plan.skippedMcpServers.length) lines.push(`未导入的 MCP 服务器：\n${plan.skippedMcpServers.join("\n")}`);
-  if (plan.skippedSettings.length) lines.push(`未导入设置：${plan.skippedSettings.join("、")}`);
-  lines.push("EM 已有配置优先；项目级配置与扩展不导入");
-  if (plan.oauth) lines.push("OAuth 账号复制后两份令牌独立，后续可能需要重新登录");
-  if (plan.mcpOAuth) lines.push("MCP 登录凭据不复制，导入后需重新授权");
+  if (skipped.length > 0) lines.push(uiText("ui.PiImport.skipped", { v0: skipped.join("、") }));
+  if (plan.skippedMcpServers.length) lines.push(uiText("ui.PiImport.mcpServersNotImported", { v0: plan.skippedMcpServers.join("\n") }));
+  if (plan.skippedSettings.length) lines.push(uiText("ui.PiImport.settingsNotImported", { v0: plan.skippedSettings.join("、") }));
+  lines.push(uiText("ui.PiImport.existingEasymintSettingsTakePrecedenceProjectSettings"));
+  if (plan.oauth) lines.push(uiText("ui.PiImport.copiedOauthAccountsHaveSeparateTokensAnd"));
+  if (plan.mcpOAuth) lines.push(uiText("ui.PiImport.mcpLoginCredentialsAreNotCopiedAuthorize"));
   return lines.join("\n");
 }
 
 /** 导入完成的结果摘要（toast 与卡片/小节的结果行共用一份口径） */
 export function piImportResultText(s: PiImportSummary): string {
-  return `已导入 ${s.providers} 个供应商、${s.mcpServers} 个 MCP 服务器、${s.sessions} 个会话、${s.projects} 个项目；跳过 ${s.conflicts} 项冲突（含 ${s.providerConflictSessions} 个供应商冲突会话）、${s.duplicates} 个重复会话、${s.invalidSessions} 个无效会话。` +
-    (s.skippedMcpServers.length ? ` 未导入的 MCP 服务器：${s.skippedMcpServers.join("；")}。` : "") +
-    (s.mcpOAuth ? " MCP 账号需重新授权。" : "");
+  return uiText("ui.PiImport.importedProvidersMcpServersSessionsAndProjects", { v0: s.providers, v1: s.mcpServers, v2: s.sessions, v3: s.projects, v4: s.conflicts, v5: s.providerConflictSessions, v6: s.duplicates, v7: s.invalidSessions }) +
+    (s.skippedMcpServers.length ? uiText("ui.PiImport.mcpServersNotImported2", { v0: s.skippedMcpServers.join("；") }) : "") +
+    (s.mcpOAuth ? uiText("ui.PiImport.mcpAccountsNeedReauthorization") : "");
 }
 
 /**
@@ -68,14 +70,14 @@ export async function runPiImportFlow(sourceDir?: string): Promise<PiImportSumma
   const plan = await window.electronAPI.settings.piImport({ sourceDir });
   if (!plan.found) {
     toast(plan.skippedMcpServers.length
-      ? `未找到可导入内容；未导入的 MCP 服务器：${plan.skippedMcpServers.join("；")}`
-      : "未找到可导入的 pi 配置或会话，可尝试「选择目录」指定 pi 的 agent 目录");
+      ? uiText("ui.PiImport.noImportableContentFoundMcpServersNot", { v0: plan.skippedMcpServers.join("；") })
+      : uiText("ui.PiImport.noPiSettingsOrSessionsFoundUse"));
     return null;
   }
   const ok = await confirmDialog({
-    title: "检测到 pi 配置",
+    title: uiText("ui.PiImport.piSettingsDetected"),
     message: piImportConfirmMessage(plan),
-    confirmText: "导入",
+    confirmText: uiText("ui.ChatBlocks.import"),
   });
   if (!ok) return null;
   const imported = await window.electronAPI.settings.piImport({ sourceDir: plan.sourceDir, apply: true });
@@ -108,7 +110,7 @@ function usePiImportRun(onSuccess?: (summary: PiImportSummary) => void) {
       toast(text);
       onSuccess?.(imported);
     } catch (error) {
-      toast(`导入失败：${(error as Error).message}`);
+      toast(uiText("ui.PiImport.importFailed", { v0: appMessage((error as Error).message) }));
     } finally {
       setBusy(false);
     }
@@ -118,13 +120,14 @@ function usePiImportRun(onSuccess?: (summary: PiImportSummary) => void) {
 
 /** 引导页 Step 2 宿主：命中 pi 时由 OnboardingPage 渲染（宿主负责 probe 与自动跳转门控）。 */
 export function PiImportCard({ onImported }: { onImported?: () => void }): JSX.Element {
+  useUiLocale();
   const { busy, result, run } = usePiImportRun(() => onImported?.());
   return (
     <div className="rounded-[var(--radius-lg)] bg-surface-alt p-4 space-y-2">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm text-text-primary font-medium">检测到本机 pi 配置</div>
-          <p className="text-xs text-text-secondary mt-0.5">导入原生 pi 的供应商、MCP 服务器、会话与项目记录；跳过请点「下一步」</p>
+          <div className="text-sm text-text-primary font-medium">{uiText("ui.PiImport.localPiSettingsDetected")}</div>
+          <p className="text-xs text-text-secondary mt-0.5">{uiText("ui.PiImport.importNativePiProvidersMcpServersSessions")}</p>
         </div>
         <div className="flex gap-2 shrink-0">
           <button
@@ -133,15 +136,14 @@ export function PiImportCard({ onImported }: { onImported?: () => void }): JSX.E
             disabled={busy}
             onClick={() => void run(true)}
           >
-            选择目录
-          </button>
+            {uiText("ui.PiImport.chooseDirectory")}</button>
           <button
             type="button"
             className="btn-accent px-3 py-1.5 rounded-[var(--radius-lg)] text-xs font-medium"
             disabled={busy}
             onClick={() => void run()}
           >
-            {busy ? "导入中…" : "导入 pi 配置"}
+            {busy ? uiText("ui.PiImport.importing") : uiText("ui.PiImport.importPiSettings")}
           </button>
         </div>
       </div>
@@ -155,6 +157,7 @@ export function PiImportCard({ onImported }: { onImported?: () => void }): JSX.E
  * 未命中 → toast 一句；命中 → runPiImportFlow 的明细弹窗（即「弹窗提示检测到 pi 的配置」）。
  */
 export function PiImportSection(): JSX.Element {
+  useUiLocale();
   const { busy, result, run } = usePiImportRun();
   // 升级合并同供应商多账号的遗留提示（一次性，只在升级备份里还有未选账号时有值）
   const [duplicateAccounts, setDuplicateAccounts] = useState(0);
@@ -167,14 +170,13 @@ export function PiImportSection(): JSX.Element {
   }, []);
   return (
     <section>
-      <h3 className="text-sm font-medium text-text-secondary mb-2">原生 pi 配置</h3>
+      <h3 className="text-sm font-medium text-text-secondary mb-2">{uiText("ui.PiImport.nativePiSettings")}</h3>
       <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <h4 className="text-xs font-medium text-text-secondary">从 pi 导入</h4>
+            <h4 className="text-xs font-medium text-text-secondary">{uiText("ui.PiImport.importFromPi")}</h4>
             <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-              检测本机原生 pi 的配置与会话，确认后导入（一次性复制，不改动 pi 目录）
-            </p>
+              {uiText("ui.PiImport.detectLocalPiSettingsAndSessionsThen")}</p>
           </div>
           <div className="flex gap-1.5 shrink-0">
             <button
@@ -183,22 +185,20 @@ export function PiImportSection(): JSX.Element {
               disabled={busy}
               onClick={() => void run(true)}
             >
-              选择目录
-            </button>
+              {uiText("ui.PiImport.chooseDirectory")}</button>
             <button
               type="button"
               className="px-3 py-1.5 rounded-[var(--radius-lg)] btn-accent text-xs font-medium"
               disabled={busy}
               onClick={() => void run()}
             >
-              {busy ? "处理中…" : "检测"}
+              {busy ? uiText("ui.PiImport.processing") : uiText("ui.PiImport.detect")}
             </button>
           </div>
         </div>
         {duplicateAccounts > 0 && (
           <p className="text-[length:var(--text-11)] text-text-muted mt-2">
-            升级已合并同一供应商的账号配置，{duplicateAccounts} 份未选账号保存在 ~/.easymint/config-backups 的升级备份中
-          </p>
+            {uiText("ui.PiImport.theUpgradeMergedAccountsForTheSame")}{duplicateAccounts} {uiText("ui.PiImport.unselectedAccountsAreSavedInUpgradeBackups")}</p>
         )}
         {result && <p className="text-[length:var(--text-11)] text-text-secondary mt-2 leading-relaxed">{result}</p>}
       </div>

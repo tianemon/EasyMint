@@ -1,3 +1,5 @@
+import { appText } from "../lib/i18n";
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useState, useEffect, useRef, useCallback } from "react";
 import Editor, { loader, type OnMount } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
@@ -20,8 +22,8 @@ interface EditorPanelProps {
 
 /** markdown 面板右上角的查看方式分段（顺序即界面顺序） */
 const MD_VIEW_OPTIONS: Array<{ id: "preview" | "source"; label: string }> = [
-  { id: "preview", label: "预览" },
-  { id: "source", label: "源码" },
+  { id: "preview", get label() { return uiText("ui.EditorPanel.preview"); } },
+  { id: "source", get label() { return uiText("ui.EditorPanel.source"); } },
 ];
 
 function readCSS(name: string): string {
@@ -104,6 +106,7 @@ function langForFile(name: string | undefined): string {
 }
 
 export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Element {
+  useUiLocale();
   const [content, setContent] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -170,7 +173,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
       if (res.ok) setContent(res.content);
       else { setContent(""); setError(FILE_READ_HINTS[res.reason]); }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "加载文件失败");
+      setError(e instanceof Error ? e.message : uiText("ui.EditorPanel.couldNotLoadFile"));
     } finally {
       setLoading(false);
     }
@@ -208,8 +211,8 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
     return (
       <div className="flex items-center justify-center h-full text-text-secondary">
         <div className="text-center -mt-10">
-          <p className="text-base font-medium text-text-primary mb-1">欢迎使用 EasyMint</p>
-          <p className="text-sm">点击按钮或者与 Mint 聊天开始创建项目</p>
+          <p className="text-base font-medium text-text-primary mb-1">{uiText("onboarding.welcome")}</p>
+          <p className="text-sm">{uiText("ui.EditorPanel.useTheButtonsOrChatWithMint")}</p>
         </div>
       </div>
     );
@@ -219,10 +222,10 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <p className="text-danger text-sm mb-3">{error}</p>
+          <p className="text-danger text-sm mb-3">{appText(error)}</p>
           <button className="px-3 py-1 text-xs btn-accent rounded-[var(--radius-lg)]"
             onClick={() => { void load(); }}>
-            重试</button>
+            {uiText("ui.ChatPanel.retry")}</button>
         </div>
       </div>
     );
@@ -252,7 +255,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
         )}
         {showPreview ? (
           loading ? (
-            <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">加载中…</div>
+            <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">{uiText("ui.EditorPanel.loading")}</div>
           ) : (
             <div className="flex-1 overflow-y-auto px-6 py-5">
               <MarkdownView text={content} baseDir={dirOf(filePath)} />
@@ -266,7 +269,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
               height="100%"
               language={langForFile(fileName)}
               value={content}
-              loading={<div className="flex items-center justify-center h-full text-text-secondary text-sm">加载中…</div>}
+              loading={<div className="flex items-center justify-center h-full text-text-secondary text-sm">{uiText("ui.EditorPanel.loading")}</div>}
               beforeMount={(monaco) => {
                 // 使用本地修正版 markdown 定义（标题 token = markup.heading）
                 monaco.languages.setMonarchTokensProvider("markdown", mdLanguage);
@@ -301,8 +304,7 @@ export function EditorPanel({ filePath, fileName }: EditorPanelProps): JSX.Eleme
         )}
         {saved && (
           <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-[var(--radius-lg)] bg-accent-bg text-accent text-xs">
-            已保存
-          </div>
+            {uiText("ui.EditorPanel.saved")}</div>
         )}
       </div>
     </div>

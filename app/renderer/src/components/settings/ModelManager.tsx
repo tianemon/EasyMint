@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../../lib/i18n";
 /**
  * 自添加模型管理区（供应商表单内）——输入框添加 + 列表行选中编辑。
  *
@@ -32,7 +33,7 @@ const CTX_PRESETS: SelectOption[] = [
   { value: "200000", label: "200K" },
   { value: "262144", label: "256K" },
   { value: "400000", label: "400K" },
-  { value: "custom", label: "自定义" },
+  { value: "custom", get label() { return uiText("ui.ProjectFormTypes.custom"); } },
 ];
 
 /** 最大输出预设 */
@@ -42,7 +43,7 @@ const MAX_OUT_PRESETS: SelectOption[] = [
   { value: "16384", label: "16K" },
   { value: "32768", label: "32K" },
   { value: "65536", label: "64K" },
-  { value: "custom", label: "自定义" },
+  { value: "custom", get label() { return uiText("ui.ProjectFormTypes.custom"); } },
 ];
 
 /** 可多选的思考档位（off 是「关闭思考」，不属于档位本身） */
@@ -121,6 +122,7 @@ export function ModelManager({
   isCustom, officialModels, defaultModel, extraModels, modelSupports,
   onDefaultModelChange, onChange,
 }: ModelManagerProps): JSX.Element {
+  useUiLocale();
   const [newId, setNewId] = useState("");
   const [newName, setNewName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -157,11 +159,11 @@ export function ModelManager({
    *  （参数/档位由编辑表单补填，未补填前保存供应商会被必填校验拦截） */
   const addModel = () => {
     const id = newId.trim();
-    if (!id) { toast("请输入模型 ID"); return; }
+    if (!id) { toast(uiText("ui.ModelManager.enterAModelId")); return; }
     const nm = newName.trim();
-    if (!nm) { toast("请输入模型名称"); return; }
-    if (rows.some((r) => r.id === id)) { toast(`模型 ID ${id} 已存在`); return; }
-    if (!isCustom && officialById.has(id)) { toast(`${id} 是官方模型，无需添加`); return; }
+    if (!nm) { toast(uiText("ui.ModelManager.enterAModelName")); return; }
+    if (rows.some((r) => r.id === id)) { toast(uiText("ui.ModelManager.modelIdAlreadyExists", { v0: id })); return; }
+    if (!isCustom && officialById.has(id)) { toast(uiText("ui.ModelManager.isAnOfficialModelNoNeedTo", { v0: id })); return; }
     // 同一对象既进数组又作 row.raw——删除时按引用匹配(e === raw)
     const entry: ExtraModelCapability = { id, name: nm };
     const row: ModelRow = { id, name: nm, raw: entry, legacy: false };
@@ -184,20 +186,20 @@ export function ModelManager({
     if (!draft) return;
     const id = draft.id.trim();
     const name = draft.name.trim();
-    if (!id) { toast("请输入模型 ID"); return; }
-    if (!name) { toast("请输入模型名称"); return; }
+    if (!id) { toast(uiText("ui.ModelManager.enterAModelId")); return; }
+    if (!name) { toast(uiText("ui.ModelManager.enterAModelName")); return; }
     const ctx = resolveTokens(draft.ctx, draft.ctxCustom);
     const maxOut = resolveTokens(draft.maxOut, draft.maxOutCustom);
-    if (!ctx) { toast("请填写上下文窗口"); return; }
-    if (!maxOut) { toast("请填写最大输出"); return; }
+    if (!ctx) { toast(uiText("ui.ModelManager.enterTheContextWindowSize")); return; }
+    if (!maxOut) { toast(uiText("ui.ModelManager.enterTheMaximumOutputSize")); return; }
     if (rows.some((r) => r.id === id && r.id !== draft.editingId)) {
-      toast(`模型 ID ${id} 已存在`);
+      toast(uiText("ui.ModelManager.modelIdAlreadyExists", { v0: id }));
       return;
     }
     // 请求标识撞官方目录 id 一律拒绝:官方模型参数以 SDK 为准,官方 API 才是该 id 的真相源,
     // 不留「换个请求 id 就能自定义参数」的绕行——改官方参数应等 SDK 更新。
     if (!isCustom && officialById.has(id)) {
-      toast(`${id} 是官方模型，无需添加`);
+      toast(uiText("ui.ModelManager.isAnOfficialModelNoNeedTo", { v0: id }));
       return;
     }
     const editingRow = rows.find((r) => r.id === draft.editingId);
@@ -236,20 +238,20 @@ export function ModelManager({
 
   return (
     <div className="space-y-2">
-      <label className="text-xs text-text-secondary block">自添加模型</label>
+      <label className="text-xs text-text-secondary block">{uiText("ui.ModelManager.customModels")}</label>
 
       {/* 添加：唯一入口，一次一个，追加到列表（也出现在默认模型下拉里） */}
       <div className="flex items-center gap-2">
         <input
           className="em-input em-input-compact flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
-          placeholder="模型 ID，如 deepseek-v4-flash"
+          placeholder={uiText("ui.ModelManager.modelIdEGDeepseekV4Flash")}
           value={newId}
           onChange={(e) => setNewId(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addModel(); } }}
         />
         <input
           className="em-input em-input-compact flex-1 min-w-0 h-8 px-2.5 text-xs text-text-primary"
-          placeholder="显示名称，如 DeepSeek V4"
+          placeholder={uiText("ui.ModelManager.displayNameEGDeepseekV4")}
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addModel(); } }}
@@ -258,19 +260,18 @@ export function ModelManager({
           type="button"
           className="shrink-0 h-8 px-3 rounded-[var(--radius-lg)] text-text-secondary text-xs hover:bg-surface-hover transition-colors"
           onClick={addModel}
-        >添加</button>
+        >{uiText("ui.TodoButton.add")}</button>
       </div>
 
       {/* 编辑模型选择:下拉列出全部自添加模型,选中即在下方展示参数;与默认模型选择互不联动 */}
       {rows.length === 0 ? (
         <p className="text-[length:var(--text-2xs)] text-text-muted">
-          还没有自添加模型，填写 ID 与名称后点「添加」。
-        </p>
+          {uiText("ui.ModelManager.noCustomModelsEnterAnIdAnd")}</p>
       ) : (
         <Select
           block
           className="[&>button]:h-8 [&>button]:text-xs"
-          placeholder="选择要编辑的模型"
+          placeholder={uiText("ui.ModelManager.chooseAModelToEdit")}
           value={editingId ?? ""}
           onChange={(v: string) => {
             const row = rows.find((r) => r.id === v);
@@ -283,39 +284,39 @@ export function ModelManager({
       {/* 参数编辑表单：唯一编辑入口（保存 / 取消 / 删除） */}
       {draft && (
         <div className="space-y-2 px-0.5 pt-1">
-          <span className="text-[length:var(--text-2xs)] font-medium text-text-secondary">编辑模型</span>
+          <span className="text-[length:var(--text-2xs)] font-medium text-text-secondary">{uiText("ui.ModelManager.editModel")}</span>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">模型 ID</label>
+              <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">{uiText("ui.ModelManager.modelId")}</label>
               <input
                 className="em-input em-input-compact w-full h-8 px-2.5 text-xs text-text-primary"
-                placeholder="如 deepseek-v4-flash"
+                placeholder={uiText("ui.ModelManager.eGDeepseekV4Flash")}
                 value={draft.id}
                 onChange={(e) => setDraft({ ...draft, id: e.target.value })}
               />
-              <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">发给供应商的请求标识</p>
+              <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">{uiText("ui.ModelManager.identifierSentToTheProvider")}</p>
             </div>
             <div>
-              <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">模型名称</label>
+              <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">{uiText("ui.ModelManager.modelName")}</label>
               <input
                 className="em-input em-input-compact w-full h-8 px-2.5 text-xs text-text-primary"
-                placeholder="如 DeepSeek V4"
+                placeholder={uiText("ui.ModelManager.eGDeepseekV4")}
                 value={draft.name}
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
               />
-              <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">界面显示用</p>
+              <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">{uiText("ui.ModelManager.displayNameInTheInterface")}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">上下文窗口</label>
+              <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">{uiText("ui.ModelManager.contextWindow")}</label>
               {/* 下拉按内容宽度(不撑满),选「自定义」时输入框占用右侧空出的位置 */}
               <div className="flex items-center gap-1.5">
                 <Select
                   className="shrink-0 [&>button]:h-8 [&>button]:text-xs"
-                  placeholder="请选择"
+                  placeholder={uiText("ui.ModelManager.choose")}
                   value={draft.ctx}
                   onChange={(v: string) => setDraft({ ...draft, ctx: v })}
                   options={CTX_PRESETS}
@@ -323,7 +324,7 @@ export function ModelManager({
                 {draft.ctx === "custom" && (
                   <input
                     className="em-input em-input-compact flex-1 min-w-0 h-8 px-2 text-xs text-text-primary"
-                    placeholder="如 512000"
+                    placeholder={uiText("ui.ModelManager.eG512000")}
                     value={draft.ctxCustom}
                     onChange={(e) => setDraft({ ...draft, ctxCustom: e.target.value })}
                   />
@@ -331,11 +332,11 @@ export function ModelManager({
               </div>
             </div>
             <div>
-              <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">最大输出</label>
+              <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 em-required">{uiText("ui.ModelManager.maximumOutput")}</label>
               <div className="flex items-center gap-1.5">
                 <Select
                   className="shrink-0 [&>button]:h-8 [&>button]:text-xs"
-                  placeholder="请选择"
+                  placeholder={uiText("ui.ModelManager.choose")}
                   value={draft.maxOut}
                   onChange={(v: string) => setDraft({ ...draft, maxOut: v })}
                   options={MAX_OUT_PRESETS}
@@ -343,7 +344,7 @@ export function ModelManager({
                 {draft.maxOut === "custom" && (
                   <input
                     className="em-input em-input-compact flex-1 min-w-0 h-8 px-2 text-xs text-text-primary"
-                    placeholder="如 384000"
+                    placeholder={uiText("ui.ModelManager.eG384000")}
                     value={draft.maxOutCustom}
                     onChange={(e) => setDraft({ ...draft, maxOutCustom: e.target.value })}
                   />
@@ -359,20 +360,18 @@ export function ModelManager({
                 checked={draft.vision}
                 onChange={(next) => setDraft({ ...draft, vision: next })}
               />
-              支持识图
-            </label>
+              {uiText("ui.ModelManager.imageInput")}</label>
             <label className="flex items-center gap-1.5 text-[length:var(--text-2xs)] text-text-secondary cursor-pointer"
               onClick={() => setDraft({ ...draft, reasoning: !draft.reasoning })}>
               <Checkbox
                 checked={draft.reasoning}
                 onChange={(next) => setDraft({ ...draft, reasoning: next })}
               />
-              推理模型
-            </label>
+              {uiText("ui.ModelManager.reasoningModel")}</label>
           </div>
 
           <div>
-            <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1">支持思考档位</label>
+            <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1">{uiText("ui.ModelManager.thinkingLevels")}</label>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
               {LEVELS.map((level) => (
                 <label
@@ -406,7 +405,7 @@ export function ModelManager({
               ))}
             </div>
             <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">
-              {reasoningOff ? "推理模型已关闭，档位不生效" : "档位标识因供应商而异，改错可能导致请求失败"}
+              {reasoningOff ? uiText("ui.ModelManager.reasoningDisabledThinkingLevelsDoNotApply") : uiText("ui.ModelManager.levelIdentifiersVaryByProviderInvalidValues")}
             </p>
           </div>
 
@@ -415,18 +414,18 @@ export function ModelManager({
               type="button"
               className="h-7 px-3 rounded-[var(--radius-lg)] text-danger text-xs hover:bg-danger-soft transition-colors"
               onClick={deleteModel}
-            >删除</button>
+            >{uiText("ui.AgentTemplateSettings.delete")}</button>
             <div className="flex gap-2">
               <button
                 type="button"
                 className="h-7 px-3 rounded-[var(--radius-lg)] text-text-secondary text-xs hover:bg-surface-hover transition-colors"
                 onClick={closeEdit}
-              >取消</button>
+              >{uiText("common.cancel")}</button>
               <button
                 type="button"
                 className="h-7 px-3 rounded-[var(--radius-lg)] btn-accent text-xs font-medium"
                 onClick={saveDraft}
-              >保存</button>
+              >{uiText("ui.AgentTemplateSettings.save")}</button>
             </div>
           </div>
         </div>

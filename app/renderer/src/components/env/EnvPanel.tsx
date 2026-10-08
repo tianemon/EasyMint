@@ -1,3 +1,5 @@
+import { appText } from "../../lib/i18n";
+import { uiText, useUiLocale } from "../../lib/i18n";
 /**
  * 环境准备面板 —— 引导流程与设置页「环境检测」共用同一套 UI 与逻辑（避免两处各写一份）。
  *
@@ -38,16 +40,16 @@ export function onboardingHint(s: {
   if (s.busy || (!s.hasReport && !s.probeFailed)) return null;
   // 引导页**没有「重新检测」按钮**（用户 2026-09-15：那个按钮不该出现在这里），故不指向按钮，
   // 改为指向设置页；同时告诉他当前这一步可以先继续。
-  if (s.probeFailed) return "检查没能完成——可先点「下一步」继续，稍后在「设置 → 环境检测」里重试";
+  if (s.probeFailed) return uiText("ui.EnvPanel.checkCouldNotFinishSelectNextTo");
   // 注意：**没有「正在进入下一步」这一档**（用户 2026-09-15：「也不用显示即将进入下一页」）——
   // 没问题时这一步是纯过场，跳转前不留任何文案。
   if (s.requiredBroken > 0) {
-    return `还有 ${s.requiredBroken} 项必须处理——缺少它们时命令会被拦下，下面的说明写了怎么装`;
+    return uiText("ui.EnvPanel.requiredItemsNeedAttentionCommandsWillBe", { v0: s.requiredBroken });
   }
   if (s.optionalBroken > 0) {
-    return `运行环境已就绪，点下方「下一步」继续；另有 ${s.optionalBroken} 项可选组件未安装，可按需安装`;
+    return uiText("ui.EnvPanel.environmentReadySelectNextToContinueOptional", { v0: s.optionalBroken });
   }
-  return "检查完毕——运行环境已就绪，点下方「下一步」继续";
+  return uiText("ui.EnvPanel.checksCompleteEnvironmentReadySelectNextTo");
 }
 
 /**
@@ -92,7 +94,7 @@ const MIN_WORK_SCREEN_MS = 5000;
  * 面板会因用户点「返回」而卸载、再进来时重新挂载，`useRef` 随之重置，于是**又自动弹一次系统
  * 授权框**——而"失败或被拒授权后不再自动重试"（否则反复弹 UAC）是 nextAutoAction 的明确意图。
  * 模块级 Set 的生命周期＝渲染进程，语义正好是"这次运行里别再自动动第二次"。
- * 用户随后手动点按钮不受影响（按钮文案会据此显示"重试安装"）。
+ * 用户随后手动点按钮不受影响（按钮文案会据此显示uiText("ui.extra.retryInstall")）。
  * 设置页传 autoFix=false，本集合对它无作用。
  */
 const autoDoneOnce = new Set<"pkg" | "userns">();
@@ -144,6 +146,7 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
    *  按钮由宿主提供，全项目只有一处定义（EnvRetestButton），避免同屏两个、刷一半的两套逻辑 */
   ref?: Ref<EnvPanelHandle>;
 }): JSX.Element {
+  useUiLocale();
   const [report, setReport] = useState<EnvReportShape | null>(null);
   const [probeFailed, setProbeFailed] = useState(false);
   const [probing, setProbing] = useState(false);
@@ -207,7 +210,7 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
 
   const install = async (): Promise<void> => {
     if (installable.length === 0) return;
-    autoDoneOnce.add("pkg"); // 手动点过一次也算——失败后按钮据此改口"重试安装"，别让用户以为是第一次
+    autoDoneOnce.add("pkg"); // 手动点过一次也算——失败后按钮据此改口uiText("ui.extra.retryInstall")，别让用户以为是第一次
     setInstalling(true);
     setResult(null);
     try {
@@ -285,12 +288,12 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
 
   const turnOffSandbox = async (): Promise<void> => {
     const okToOff = await confirmDialog({
-      title: "关闭沙盒模式？",
+      title: uiText("ui.EnvPanel.disableSandboxMode"),
       message:
-        "关闭后，Mint 执行的命令不再受系统层限制（例如无法再阻止它写工作区外的文件）。\n\n"
-        + "仍然保留的只有有限预检：结构化文件工具仍检查路径，已识别的提权和系统控制命令仍会被拒绝；但 shell、Python、Node 等命令可访问当前用户有权限访问的文件，包括凭据与用户目录。\n\n"
-        + "你可以先用起来，等方便时在「设置 → 环境检测」里装好组件并随时开回来，不会影响已有项目与对话。",
-      confirmText: "我了解，先关闭",
+        uiText("ui.EnvPanel.commandsWillNoLongerHaveOsLevel")
+        + uiText("ui.EnvPanel.onlyLimitedPreflightChecksRemainStructuredFile")
+        + uiText("ui.EnvPanel.youCanInstallTheComponentsLaterUnder"),
+      confirmText: uiText("ui.EnvPanel.iUnderstandDisableSandbox"),
       danger: true,
     });
     if (okToOff) setSandboxDisabled(true);
@@ -298,10 +301,10 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
 
   const statusText = (s: EnvItemShape["status"]): { text: string; cls: string } => {
     switch (s) {
-      case "ok": return { text: "可用", cls: "text-text-secondary" };
-      case "missing": return { text: "未安装", cls: "text-danger" };
-      case "blocked": return { text: "被系统策略拦住", cls: "text-danger" };
-      default: return { text: "检测失败（已安装？）", cls: "text-danger" };
+      case "ok": return { text: uiText("ui.EnvPanel.available"), cls: "text-text-secondary" };
+      case "missing": return { text: uiText("settings.notInstalled"), cls: "text-danger" };
+      case "blocked": return { text: uiText("ui.EnvPanel.blockedBySystemPolicy"), cls: "text-danger" };
+      default: return { text: uiText("ui.EnvPanel.checkFailedAlreadyInstalled"), cls: "text-danger" };
     }
   };
 
@@ -318,11 +321,11 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
     <div className={variant === "onboarding" ? "w-full max-w-[540px]" : ""}>
       {variant === "onboarding" && (
         <>
-          <h1 className="text-xl font-semibold text-center mb-1 relative -top-[10px]">准备运行环境</h1>
+          <h1 className="text-xl font-semibold text-center mb-1 relative -top-[10px]">{uiText("onboarding.environment")}</h1>
           {/* 检测/安装进行中**连副标题也不显示**（用户 2026-09-15 逐条点名去掉了"正在为你检查…"
               与阶段文案）：忙的时候只有标题 + 动画，任何文字都不抢它。 */}
           {hint !== null && (
-            <p className="text-text-secondary text-center text-sm mb-6">{hint}</p>
+            <p className="text-text-secondary text-center text-sm mb-6">{appText(hint)}</p>
           )}
         </>
       )}
@@ -332,29 +335,29 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
           {probeFailed && (
             <div className="px-4 py-3 text-xs text-danger">
               {variant === "onboarding"
-                ? "检测失败——不影响继续，可稍后在「设置 → 环境检测」里重试"
-                : "检测失败，可点「重新检测」重试"}
+                ? uiText("ui.EnvPanel.checkFailedYouCanContinueAndRetry")
+                : uiText("settings.detectFailed")}
             </div>
           )}
           {!probeFailed && items.length === 0 && (
-            <div className="px-4 py-3 text-xs text-text-muted">无需额外组件</div>
+            <div className="px-4 py-3 text-xs text-text-muted">{uiText("ui.EnvPanel.noAdditionalComponentsNeeded")}</div>
           )}
           {items.map((item) => {
             const st = statusText(item.status);
             return (
               <div key={item.id} className="px-4 py-2.5 em-hover-row transition-shadow">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-text-secondary">{item.label}</span>
+                  <span className="text-sm text-text-secondary">{appText(item.label)}</span>
                   <span className={`text-xs ${st.cls}`}>
                     {item.status === "ok" && item.version ? item.version : st.text}
                   </span>
                 </div>
                 {/* 影响说明放最前：用户要先知道"不装会怎样"，再看状态原因与命令 */}
                 {item.status !== "ok" && item.impact && (
-                  <p className="mt-1 text-[length:var(--text-xs)] text-text-secondary leading-relaxed">{item.impact}</p>
+                  <p className="mt-1 text-[length:var(--text-xs)] text-text-secondary leading-relaxed">{appText(item.impact)}</p>
                 )}
                 {item.detail && (
-                  <p className="mt-1 text-[length:var(--text-xs)] text-text-muted leading-relaxed break-all">{item.detail}</p>
+                  <p className="mt-1 text-[length:var(--text-xs)] text-text-muted leading-relaxed break-all">{appText(item.detail)}</p>
                 )}
                 {/* 自助命令：装不了/被挡时唯一的出路（必须能复制，不能只有"一键"）。
                     可能是多行步骤（用 \n 分隔）——按多行展示，别用 truncate 截掉后半截。 */}
@@ -367,7 +370,7 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
                       className="shrink-0 px-1.5 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-xs)] text-text-secondary hover:text-accent em-hover-control transition-all"
                       onClick={() => void copy(item.fix.manual!.command!)}
                     >
-                      {copied === item.fix.manual.command ? "已复制" : "复制"}
+                      {copied === item.fix.manual.command ? uiText("common.copied") : uiText("common.copy")}
                     </button>
                   </div>
                 )}
@@ -381,7 +384,7 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
                     rel="noreferrer"
                     className="mt-1.5 inline-block text-[length:var(--text-xs)] text-accent hover:underline"
                   >
-                    {item.fix.manual.command ? "查看官方说明" : "前往下载"}
+                    {item.fix.manual.command ? uiText("ui.EnvPanel.officialInstructions") : uiText("ui.EnvPanel.download")}
                   </a>
                 )}
               </div>
@@ -425,18 +428,17 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
 
       {result && !result.ok && (
         <div className="mt-3 px-3 py-2 rounded-[var(--radius-lg)] bg-surface text-[length:var(--text-xs)] text-text-secondary leading-relaxed">
-          <p>{result.reason}</p>
+          <p>{appText(result.reason)}</p>
           {result.manualCommand && (
             <p className="mt-1">
-              可复制到终端自己执行：
-              <code className="select-all whitespace-pre-wrap break-all">{result.manualCommand}</code>
+              {uiText("ui.EnvPanel.copyAndRunInYourTerminal")}<code className="select-all whitespace-pre-wrap break-all">{result.manualCommand}</code>
             </p>
           )}
         </div>
       )}
       {result?.ok && (
         <p className="mt-3 text-xs text-text-secondary">
-          {broken.length === 0 ? "环境已就绪 ✓" : "所选组件已安装，请继续处理其余环境问题"}
+          {broken.length === 0 ? uiText("ui.EnvPanel.environmentReady") : uiText("ui.EnvPanel.selectedComponentsInstalledResolveTheRemainingEnvironment")}
         </p>
       )}
 
@@ -450,7 +452,7 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
               disabled={installing}
               onClick={() => void fixUserns()}
             >
-              {installing ? "正在修复…" : "一键修复（需系统授权）"}
+              {installing ? uiText("ui.EnvPanel.repairing") : uiText("ui.EnvPanel.repairSystemAuthorizationRequired")}
             </button>
           )}
           {installable.length > 0 && (
@@ -461,8 +463,8 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
             >
               {/* 自动装过一次后改口为"重试"：否则用户会以为是第一次，不知道自己刚才拒绝过授权框 */}
               {installing
-                ? "正在安装…"
-                : `${autoDoneOnce.has("pkg") ? "重试安装" : "一键安装"} ${installable.length} 项`}
+                ? uiText("ui.EnvPanel.installing")
+                : uiText("ui.EnvPanel.items", { v0: autoDoneOnce.has("pkg") ? uiText("ui.extra.retryInstall") : uiText("ui.extra.install"), v1: installable.length })}
             </button>
           )}
           {installing && (
@@ -470,8 +472,7 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
               className="em-hover-control px-3 py-2 rounded-[var(--radius-lg)] text-xs text-text-secondary"
               onClick={() => void window.electronAPI.env.cancel()}
             >
-              取消
-            </button>
+              {uiText("common.cancel")}</button>
           )}
           {/* 兜底：只在真有问题时出现（Linux 专属），且先讲清风险与可回退 */}
           {sandboxOffAvailable && !sandboxDisabled && (
@@ -479,23 +480,20 @@ export function EnvPanel({ variant = "settings", autoFix = false, onReady, waitF
               className="ml-auto em-hover-control px-3 py-2 rounded-[var(--radius-lg)] text-xs text-danger"
               onClick={() => void turnOffSandbox()}
             >
-              关闭沙盒运行
-            </button>
+              {uiText("ui.EnvPanel.runWithoutSandbox")}</button>
           )}
           {sandboxDisabled && (
             <button
               className="ml-auto em-hover-control px-3 py-2 rounded-[var(--radius-lg)] text-xs text-text-secondary"
               onClick={() => setSandboxDisabled(false)}
             >
-              重新开启沙盒
-            </button>
+              {uiText("ui.EnvPanel.reEnableSandbox")}</button>
           )}
         </div>
       )}
       {sandboxDisabled && (
         <p className="mt-1.5 text-[length:var(--text-xs)] text-danger">
-          沙盒已关闭：shell、Python、Node 等命令可访问当前用户有权限访问的文件（不推荐长期如此）
-        </p>
+          {uiText("ui.EnvPanel.sandboxDisabledShellPythonAndNodeCan")}</p>
       )}
     </div>
   );

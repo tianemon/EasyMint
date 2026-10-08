@@ -1,3 +1,7 @@
+import { toolResultText } from "../lib/tool-result-text";
+import { diffBody, protectionRule, toolPresentation, type ToolPresentation } from "@shared/tool-presentation";
+import { appText } from "../lib/i18n";
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
 import type { StreamEntry } from "./StreamPanel";
 import { inferLang, tokenizeLines } from "../lib/diff-highlight";
@@ -21,21 +25,21 @@ function baseName(p: string): string {
 // 自定义工具按类别配图标:agent=bot, 知识技能=wrench, MCP=plug, 项目=folder-kanban,
 // issue=bug, 网络=globe, 待办=list-clock, ask=message-question, 图片=scan-search
 const TOOL_LABELS: Record<string, string> = {
-  bash: "命令", edit: "编辑", read: "查看", write: "编写", grep: "搜索文件",
-  find: "查找文件", ls: "列出目录", powershell: "PowerShell",
-  task: "派遣 Agent", create_agent_template: "创建模板", list_agents: "查看 Agent",
-  read_agent_log: "读取日志", stop_agent: "停止 Agent",
-  use_skill: "加载技能", manage_skill: "管理技能", learn: "沉淀经验",
-  search_experiences: "搜索经验", retire_experiences: "退役经验", import_skill: "导入", import_mcp_server: "导入",
-  show_confirm_dev: "确认开发", refresh_tasks: "刷新任务",
-  set_task_status: "更新任务", show_prototype: "预览原型",
-  list_issues: "查看 Issue", set_issue_status: "更新 Issue",
-  web_fetch: "抓取网页", web_search: "搜索网页",
-  todo_write: "更新步骤", todo_user: "用户待办",
-  ask_user: "提问", describe_image: "查看图片",
-  search_mcp_tools: "查找 MCP", call_mcp_tool: "MCP",
-  codemode: "运行脚本", tool_search: "查找工具",
-  list_mcp_resources: "列出资源", list_mcp_resource_templates: "列出资源模板", read_mcp_resource: "读取资源",
+  get bash() { return uiText("ui.ChatBlocks.command"); }, get edit() { return uiText("menu.edit"); }, get read() { return uiText("ui.ChatBlocks.view"); }, get write() { return uiText("ui.ChatBlocks.write"); }, get grep() { return uiText("ui.ChatBlocks.searchFiles"); },
+  get find() { return uiText("ui.ChatBlocks.findFiles"); }, get ls() { return uiText("ui.ChatBlocks.listDirectory"); }, powershell: "PowerShell",
+  get task() { return uiText("ui.ChatBlocks.delegateAgent"); }, get create_agent_template() { return uiText("ui.ChatBlocks.createTemplate"); }, get list_agents() { return uiText("ui.ChatBlocks.viewAgents"); },
+  get read_agent_log() { return uiText("ui.ChatBlocks.readLogs"); }, get stop_agent() { return uiText("ui.ChatBlocks.stopAgent"); },
+  get use_skill() { return uiText("ui.ChatBlocks.loadSkill"); }, get manage_skill() { return uiText("ui.ChatBlocks.manageSkills"); }, get learn() { return uiText("ui.ChatBlocks.saveExperience"); },
+  get search_experiences() { return uiText("ui.ChatBlocks.searchExperiences"); }, get retire_experiences() { return uiText("ui.ChatBlocks.retireExperience"); }, get import_skill() { return uiText("ui.ChatBlocks.import"); }, get import_mcp_server() { return uiText("ui.ChatBlocks.import"); },
+  get show_confirm_dev() { return uiText("ui.ChatBlocks.confirmDevelopment"); }, get refresh_tasks() { return uiText("ui.ChatBlocks.refreshTasks"); },
+  get set_task_status() { return uiText("ui.ChatBlocks.updateTask"); }, get show_prototype() { return uiText("ui.ChatBlocks.previewPrototype"); },
+  get list_issues() { return uiText("ui.ChatBlocks.viewIssues"); }, get set_issue_status() { return uiText("ui.ChatBlocks.updateIssue"); },
+  get web_fetch() { return uiText("ui.ChatBlocks.fetchPage"); }, get web_search() { return uiText("ui.ChatBlocks.searchWeb"); },
+  get todo_write() { return uiText("ui.ChatBlocks.updateSteps"); }, get todo_user() { return uiText("ui.ChatBlocks.userToDos"); },
+  get ask_user() { return uiText("ui.ChatBlocks.askQuestion"); }, get describe_image() { return uiText("ui.ChatBlocks.viewImage"); },
+  get search_mcp_tools() { return uiText("ui.ChatBlocks.findMcpTools"); }, call_mcp_tool: "MCP",
+  get codemode() { return uiText("ui.ChatBlocks.runScript"); }, get tool_search() { return uiText("ui.ChatBlocks.findTools"); },
+  get list_mcp_resources() { return uiText("ui.ChatBlocks.listResources"); }, get list_mcp_resource_templates() { return uiText("ui.ChatBlocks.listResourceTemplates"); }, get read_mcp_resource() { return uiText("ui.ChatBlocks.readResource"); },
 };
 
 /** 工具图标:按 name 归类的 Lucide SVG path(不含外层 svg——ToolIcon 统一包) */
@@ -109,6 +113,7 @@ interface ToolItem {
   id?: string;
   /** 工具执行结果(由 tool_result 事件按 toolUseId 关联;edit 的返回含 diff) */
   result?: string;
+  presentation?: ToolPresentation;
   /** 结果是否错误(tool_result 的 is_error) */
   resultError?: boolean;
   /** 执行中标记:本批 entries 内尚无匹配 tool_result(与 streaming 结合显示转圈;回合结束的残留不转) */
@@ -131,6 +136,7 @@ interface SystemBlock {
 /** 工具结果独立块(工具调用被隐藏/未显示时的结果,如 edit diff) */
 interface ToolResultOnlyBlock {
   kind: "tool-result-only";
+  presentation?: ToolPresentation;
   content: string;
   isError?: boolean;
   /** 工具名(edit → "编辑" 标签,其他 → 工具名) */
@@ -179,6 +185,7 @@ export function buildBlocks(
       const target = [...toolBuf].reverse().find((t) => t.id === e.toolUseId);
       if (target) {
         target.result = e.content;
+        target.presentation = e.presentation ?? toolPresentation(e.content, undefined, e.isError);
         target.resultError = e.isError;
       } else {
         flushText(); flushThink(); flushTool();
@@ -188,6 +195,7 @@ export function buildBlocks(
         blocks.push({
           kind: "tool-result-only",
           content: e.content,
+          presentation: e.presentation ?? toolPresentation(e.content, undefined, e.isError),
           isError: e.isError,
           name: e.name,
           filePath: typeof fp === "string" ? fp : undefined,
@@ -221,7 +229,7 @@ function toolFamily(name: string): string {
   return "other";
 }
 
-const FAMILY_LABELS: Record<string, string> = { file: "文件操作", bash: "命令执行", search: "搜索", web: "网络", other: "工具" };
+const FAMILY_LABELS: Record<string, string> = { get file() { return uiText("ui.ChatBlocks.fileOperation"); }, get bash() { return uiText("ui.ChatBlocks.runCommand"); }, get search() { return uiText("ui.ChatBlocks.search"); }, get web() { return uiText("ui.ChatBlocks.network"); }, get other() { return uiText("ui.ChatBlocks.tool"); } };
 
 /** 代码块语言 → 准确显示名;不在表内/无法准确识别 → TEXT */
 const LANG_LABELS: Record<string, string> = {
@@ -272,6 +280,7 @@ type MdRawPart = { type: "html" | "code"; content: string; lang?: string };
 
 /** 代码块(memo:同内容重渲染不重建——流式中已完成代码块不再变化) */
 const CodeBlock = memo(function CodeBlock({ language, children }: { language?: string; children: string }): JSX.Element {
+  useUiLocale();
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
     navigator.clipboard.writeText(children).then(() => {
@@ -284,7 +293,7 @@ const CodeBlock = memo(function CodeBlock({ language, children }: { language?: s
       <div className="flex items-center justify-between px-3 py-1 border-b border-border" style={{ background: 'var(--color-code-block-header)' }}>
         <span className="text-text-muted tracking-wider" style={{ fontSize: "var(--text-caption)" }}>{language || "TEXT"}</span>
         <button onClick={handleCopy} className="text-text-secondary hover:text-text-primary transition-colors" style={{ fontSize: "var(--text-caption)" }}>
-          {copied ? "已复制" : "复制"}
+          {copied ? uiText("common.copied") : uiText("common.copy")}
         </button>
       </div>
       <pre className="m-0 px-3 py-2 overflow-x-auto x-thin-scroll leading-relaxed font-mono text-text-primary whitespace-pre" style={{ background: 'var(--color-code-block-bg)', fontSize: "var(--text-detail)" }}>
@@ -473,6 +482,7 @@ export function TextBlockView({ block, streaming, tail }: { block: TextBlock; st
 }
 
 function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: boolean }): JSX.Element {
+  useUiLocale();
   // active = 流式中且本块是消息尾块(思考正在增长):自动展开;思考结束(不再是尾块)自动收起。
   const [open, setOpen] = useState(false);
   // 展开区内容是否渲染:收起动画结束后卸载 body——折叠时思考内容不参与气泡宽度计算
@@ -577,7 +587,7 @@ function ThinkingBlockView({ block, active }: { block: ThinkingBlock; active?: b
         <span
           className="text-[var(--color-tool-title)] group-hover:text-text-primary uppercase tracking-wider font-semibold transition-colors"
           style={{ fontSize: "var(--text-caption)" }}
-        >思考</span>
+        >{uiText("ui.ChatBlocks.thinking")}</span>
         {/* 思考中指示:active(流式尾块)时转圈——原「…」三点换更明确的活动反馈 */}
         {active && (
           <svg className="animate-spin text-accent" width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -817,9 +827,9 @@ function visibleDiffRange(lines: string[]): { from: number; to: number } | null 
 }
 
 /** diff 视图(SubagentProcessView 弹层复用):统计可导出,hunk 直接渲染 */
-export function DiffView({ text, filePath: fp }: { text: string; filePath?: string }): JSX.Element {
+export function DiffView({ text, filePath: fp, presentation }: { text: string; filePath?: string; presentation?: ToolPresentation }): JSX.Element {
   // 提取 "变更内容:" 后的 diff 体
-  const body = text.includes("变更内容:") ? text.split("变更内容:")[1] ?? "" : text;
+  const body = diffBody(text, presentation);
   const hunks = parseDiff(body);
   // 语言推断:优先用工具 input 的 file_path(可靠),其次从 diff 文本的 ---/+++ 行
   let filePath = fp || "";
@@ -888,8 +898,8 @@ export function DiffView({ text, filePath: fp }: { text: string; filePath?: stri
 }
 
 /** diff 变更统计(add/remove 行数) */
-function diffCount(text: string): { added: number; removed: number } {
-  const body = text.includes("变更内容:") ? text.split("变更内容:")[1] ?? "" : text;
+function diffCount(text: string, presentation?: ToolPresentation): { added: number; removed: number } {
+  const body = diffBody(text, presentation);
   const hunks = parseDiff(body);
   if (!hunks) return { added: 0, removed: 0 };
   return diffStats(hunks);
@@ -910,21 +920,17 @@ function editFilePath(item: ToolItem): string | undefined {
 function truncateResult(text: string, maxLines = 30, keep = 20): string {
   const lines = text.split("\n");
   if (lines.length <= maxLines) return text;
-  return lines.slice(-keep).join("\n") + `\n\n[输出过长，仅显示尾部 ${keep} 行。完整输出见日志]`;
+  return lines.slice(-keep).join("\n") + uiText("ui.ChatBlocks.outputTruncatedToTheLastLinesSee", { v0: keep });
 }
 
 /** 共同底线拦截属于后台系统保护，不渲染成红色命令错误。
  *  结果仍以 error 传回 Agent，保证它知道操作没有成功，也不会把拒绝当成执行成功。 */
-function isQuietSystemProtectionBlock(content: string | undefined, isError: boolean | undefined): boolean {
-  if (!isError || !content) return false;
-  return content.includes("操作被阻止：")
-    && /规则：core\.(?:protected_write|credential_read|privileged_operation)/.test(content);
+function isQuietSystemProtectionBlock(content: string | undefined, isError: boolean | undefined, presentation?: ToolPresentation): boolean {
+  return !!isError && /^core\.(?:protected_write|credential_read|privileged_operation)$/.test(protectionRule(content, presentation) ?? "");
 }
 
-function isFullAccessRequiredBlock(content: string | undefined, isError: boolean | undefined): boolean {
-  return !!isError && !!content
-    && content.includes("操作被阻止：")
-    && content.includes("规则：standard.write_scope");
+function isFullAccessRequiredBlock(content: string | undefined, isError: boolean | undefined, presentation?: ToolPresentation): boolean {
+  return !!isError && protectionRule(content, presentation) === "standard.write_scope";
 }
 
 /** 带行号格式化(等宽对齐):write 内容预览用,参照 cc 的显示方式 */
@@ -977,28 +983,29 @@ function toolDetailLabel(item: ToolItem): string | null {
   if (n === "call_mcp_tool" && typeof inp.name === "string") {
     return inp.name.replace(/^mcp__/, "").split("__").filter(Boolean).join(" / ");
   }
-  if (n === "search_mcp_tools") return typeof inp.server === "string" ? `查找 ${inp.server}` : "查找服务器";
+  if (n === "search_mcp_tools") return typeof inp.server === "string" ? uiText("ui.ChatBlocks.find", { v0: inp.server }) : uiText("ui.ChatBlocks.findServer");
   if (n === "use_skill" || n === "import_skill") {
     const name = typeof inp.name === "string" ? inp.name : undefined;
-    return name ? `技能：${name}` : "技能";
+    return name ? uiText("ui.ChatBlocks.skill", { v0: name }) : uiText("ui.ChatBlocks.skill2");
   }
   if (n === "manage_skill") {
     const action = typeof inp.action === "string" ? inp.action : undefined;
     const name = typeof inp.name === "string" ? inp.name : undefined;
-    if (name) return `技能：${name}${action ? `（${action}）` : ""}`;
-    if (action) return `技能管理（${action}）`;
-    return "技能管理";
+    if (name) return uiText("ui.ChatBlocks.skill3", { v0: name, v1: action ? `（${action}）` : "" });
+    if (action) return uiText("ui.ChatBlocks.skillManagement", { v0: action });
+    return uiText("ui.ChatBlocks.skillManagement2");
   }
   if (n === "learn") {
     const skill = (typeof inp.skill === "object" && inp.skill !== null ? inp.skill : undefined) as Record<string, unknown> | undefined;
     const name = skill && typeof skill.name === "string" ? skill.name : undefined;
-    return name ? `沉淀技能：${name}` : null; // 纯 memory 沉淀无技能名,仍显示结果
+    return name ? uiText("ui.ChatBlocks.saveSkill", { v0: name }) : null; // 纯 memory 沉淀无技能名,仍显示结果
   }
   return null;
 }
 
 function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boolean }): JSX.Element {
-  const isDiffResult = !!item.result && item.result.includes("变更内容:");
+  useUiLocale();
+  const isDiffResult = (item.presentation ?? toolPresentation(item.result))?.kind === "edit_diff";
   // 默认折叠(含 diff——用户要求不自动展开,点击才展开);例外:提问卡默认展开(问题内容需要可见)
   const [showInput, setShowInput] = useState(item.name === "ask_user");
   // 展开区内容是否渲染:收起动画结束后卸载 body——折叠时隐藏内容不再撑开气泡宽度(仅高度隐藏时
@@ -1006,7 +1013,7 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
   const fold = useFoldBody(showInput, setShowInput);
 
   const isPathTool = item.name === "edit" || item.name === "write" || item.name === "read";
-  const diffStats_ = isDiffResult ? diffCount(item.result!) : null;
+  const diffStats_ = isDiffResult ? diffCount(item.result!, item.presentation) : null;
   // bash 命令文本(展开区分段展示用)
   const bashCmd = item.name === "bash" ? getBashCommand(item.input) : undefined;
   // bash 动作标题(标题行展示,由 Mint 调用时填;老会话无此字段则不显示)
@@ -1018,7 +1025,7 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
   const filePath = isPathTool ? editFilePath(item) : undefined;
   // 动作词:查 TOOL_LABELS 映射表(自定义工具各配中文名),MCP 标题只显「MCP」(不带工具二字),skill 类显示动作词
   const label = TOOL_LABELS[item.name.toLowerCase()]
-    ?? (item.name.toLowerCase().startsWith("mcp__") ? "MCP" : "工具");
+    ?? (item.name.toLowerCase().startsWith("mcp__") ? "MCP" : uiText("ui.ChatBlocks.tool"));
   // MCP/技能类:展开区显示具体名(标题行保持类别;其余工具展开区照常显示结果)
   const detailLabel = toolDetailLabel(item);
   // 调用意图与具体名:只给 MCP 用(技能类的 detailLabel 自带"技能:"前缀,与动作词重复,暂不提上来)
@@ -1048,8 +1055,8 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
   };
 
   const contentErr = item.resultError;
-  const quietProtectionBlock = isQuietSystemProtectionBlock(item.result, contentErr);
-  const fullAccessRequired = isFullAccessRequiredBlock(item.result, contentErr);
+  const quietProtectionBlock = isQuietSystemProtectionBlock(item.result, contentErr, item.presentation);
+  const fullAccessRequired = isFullAccessRequiredBlock(item.result, contentErr, item.presentation);
   const visualError = contentErr && !quietProtectionBlock && !fullAccessRequired;
   // 展开区有可显示内容:bash 命令来自 input(工具调用即带)——执行阶段/失败都可就展开看命令
   // (命令是输入,失败更需看到它排查;输出本来就不展示);其他工具(diff/write 内容等)内容来自 result,仍等结果到达
@@ -1064,7 +1071,7 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
       <div className="mt-1.5 mb-1 flex items-center gap-1.5 group">
         <span className="shrink-0 flex items-center gap-1.5 min-w-0 text-[var(--color-tool-title)] group-hover:text-text-primary transition-colors">
           <ToolIcon name="read" />
-          <span className="whitespace-nowrap" style={{ fontSize: "var(--text-caption)" }}>{TOOL_LABELS.read ?? "查看"}</span>
+          <span className="whitespace-nowrap" style={{ fontSize: "var(--text-caption)" }}>{TOOL_LABELS.read ?? uiText("ui.ChatBlocks.view")}</span>
           {/* 执行状态:转圈(执行中)/ ✓ 成功 / ✗ 报错——与主工具卡一致 */}
           {streaming && item.pending ? (
             <svg className="animate-spin text-accent" width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -1074,7 +1081,7 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
           ) : !item.pending && visualError ? (
             <svg className="shrink-0 text-danger" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           ) : !item.pending && fullAccessRequired ? (
-            <span className="text-text-muted normal-case font-normal" style={{ fontSize: "var(--text-caption)" }}>需要完全访问</span>
+            <span className="text-text-muted normal-case font-normal" style={{ fontSize: "var(--text-caption)" }}>{uiText("ui.ChatBlocks.fullAccessRequired")}</span>
           ) : !item.pending && item.result !== undefined && !contentErr ? (
             <svg className="shrink-0 state-ok" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
           ) : null}
@@ -1088,7 +1095,7 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
             style={{ fontSize: "var(--text-detail)" }}
           >{baseName(filePath)}</button>
         ) : (
-          <span className="text-text-muted font-mono" style={{ fontSize: "var(--text-detail)" }}>(未知文件)</span>
+          <span className="text-text-muted font-mono" style={{ fontSize: "var(--text-detail)" }}>{uiText("ui.ChatBlocks.unknownFile")}</span>
         )}
       </div>
     );
@@ -1130,7 +1137,7 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
           {!item.pending && visualError ? (
             <svg className="shrink-0 text-danger" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           ) : !item.pending && fullAccessRequired ? (
-            <span className="text-text-muted normal-case font-normal" style={{ fontSize: "var(--text-caption)" }}>· 需要完全访问</span>
+            <span className="text-text-muted normal-case font-normal" style={{ fontSize: "var(--text-caption)" }}>{uiText("ui.ChatBlocks.fullAccessRequired2")}</span>
           ) : !item.pending && item.result !== undefined && !contentErr ? (
             <svg className="shrink-0 state-ok" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
           ) : null}
@@ -1170,7 +1177,7 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
             // 失败(contentErr)时不渲染任何正文——标题已标红即失败提示(报错/状态文案都不展示)
             isDiffResult ? (
               <div className="mt-[2px] rounded-[var(--radius-lg)]" style={{ background: "var(--thinking-body)" }}>
-                <div className="px-3 py-2"><DiffView text={item.result!} filePath={filePath} /></div>
+                <div className="px-3 py-2"><DiffView text={item.result!} filePath={filePath} presentation={item.presentation} /></div>
               </div>
             ) : item.name === "bash" ? (
               <div className="mt-[2px] rounded-[var(--radius-lg)]" style={{ background: "var(--thinking-body)" }}>
@@ -1192,7 +1199,7 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
               <div className="mt-[2px] rounded-[var(--radius-lg)]" style={{ background: "var(--thinking-body)" }}>
                 <div className="px-3 py-2">
                   <pre className="text-text-secondary font-mono overflow-x-auto x-thin-scroll whitespace-pre-wrap min-h-[1.625em]" style={{ fontSize: "var(--text-detail)" }}>
-                    {truncateResult(item.result)}
+                    {truncateResult(toolResultText(item.result, item.presentation, !!item.resultError))}
                   </pre>
                 </div>
               </div>
@@ -1211,13 +1218,13 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
       {item.nestedCalls && <div className="ml-3 mt-1 space-y-1 border-l border-border pl-2">
         {item.nestedCalls.calls.map(call => <details key={call.id} className="text-text-secondary text-[length:var(--text-detail)]">
           <summary className="cursor-pointer break-all">
-            {intentFromInput(call.arguments) || call.name} · {call.status === "unfinished" ? (item.pending ? "执行中" : "未完成") : call.status === "error" ? "失败" : "完成"}
+            {intentFromInput(call.arguments) || call.name} · {call.status === "unfinished" ? (item.pending ? uiText("ui.ChatBlocks.running") : uiText("ui.ChatBlocks.incomplete")) : call.status === "error" ? uiText("ui.ChatBlocks.failed") : uiText("common.done")}
             {call.durationMs !== undefined && ` · ${call.durationMs}ms`}
           </summary>
-          <pre className="whitespace-pre-wrap break-all font-mono">{call.arguments === undefined ? "参数未保留" : JSON.stringify(call.arguments, null, 2)}</pre>
-          {call.error && <p className="text-danger whitespace-pre-wrap">{call.error}</p>}
+          <pre className="whitespace-pre-wrap break-all font-mono">{call.arguments === undefined ? uiText("ui.ChatBlocks.argumentsNotRetained") : JSON.stringify(call.arguments, null, 2)}</pre>
+          {call.error && <p className="text-danger whitespace-pre-wrap">{appText(call.error)}</p>}
         </details>)}
-        {!item.pending && !item.nestedCalls.complete && <p className="text-text-muted text-[length:var(--text-caption)]">部分嵌套调用或参数未保留</p>}
+        {!item.pending && !item.nestedCalls.complete && <p className="text-text-muted text-[length:var(--text-caption)]">{uiText("ui.ChatBlocks.someNestedCallsOrArgumentsWereNot")}</p>}
       </div>}
     </div>
   );
@@ -1238,15 +1245,16 @@ export function ChatBlockView({ block, streaming, isStreamingTail }: { block: Bl
 /** 工具结果独立显示(工具调用隐藏时):edit 显示 diff;write 显示内容预览(参照 cc);
  *  read/bash 路径/命令显示在标题行;其他显示结果 */
 function ToolResultOnlyView({ block }: { block: ToolResultOnlyBlock }): JSX.Element | null {
+  useUiLocale();
   // 工具调用本身被过滤时，共同底线拦截也保持安静；Agent 侧仍收到原始 error。
-  if (isQuietSystemProtectionBlock(block.content, block.isError)) return null;
-  if (isFullAccessRequiredBlock(block.content, block.isError)) {
-    return <div className="mt-1.5 mb-1 text-text-muted" style={{ fontSize: "var(--text-caption)" }}>需要完全访问</div>;
+  if (isQuietSystemProtectionBlock(block.content, block.isError, block.presentation)) return null;
+  if (isFullAccessRequiredBlock(block.content, block.isError, block.presentation)) {
+    return <div className="mt-1.5 mb-1 text-text-muted" style={{ fontSize: "var(--text-caption)" }}>{uiText("ui.ChatBlocks.fullAccessRequired")}</div>;
   }
-  const isDiff = block.content.includes("变更内容:");
+  const isDiff = (block.presentation ?? toolPresentation(block.content))?.kind === "edit_diff";
   // 标签:工具原名(与工具卡片一致);缺省"工具结果"
-  const label = block.name || "工具结果";
-  const stats = isDiff ? diffCount(block.content) : null;
+  const label = block.name || uiText("ui.ChatBlocks.toolResult");
+  const stats = isDiff ? diffCount(block.content, block.presentation) : null;
   // 精简显示:read/write → 路径;bash → 命令(显示在标题行,不占内容区)
   const inp = block.input;
   // Pi 工具参数兼容 file_path 与 path 两种写法
@@ -1266,7 +1274,7 @@ function ToolResultOnlyView({ block }: { block: ToolResultOnlyBlock }): JSX.Elem
           <span className="normal-case tracking-normal font-normal text-text-secondary font-mono truncate">{summary}</span>
         )}
         {writeLines > 0 && (
-          <span className="normal-case tracking-normal font-normal shrink-0 text-text-secondary">{writeLines} 行</span>
+          <span className="normal-case tracking-normal font-normal shrink-0 text-text-secondary">{writeLines} {uiText("ui.ChatBlocks.lines")}</span>
         )}
         {stats && (stats.added > 0 || stats.removed > 0) && (
           <span className="normal-case tracking-normal font-normal shrink-0">
@@ -1278,7 +1286,7 @@ function ToolResultOnlyView({ block }: { block: ToolResultOnlyBlock }): JSX.Elem
       </div>
       {isDiff && (
         <div className="bg-surface px-3 py-2">
-          <DiffView text={block.content} filePath={block.filePath} />
+          <DiffView text={block.content} filePath={block.filePath} presentation={block.presentation} />
         </div>
       )}
       {writeContent !== undefined && (
@@ -1288,7 +1296,7 @@ function ToolResultOnlyView({ block }: { block: ToolResultOnlyBlock }): JSX.Elem
       )}
       {!isDiff && !summary && writeContent === undefined && (
         <div className="bg-surface px-3 py-2">
-          <pre className={`text-text-secondary font-mono whitespace-pre-wrap ${block.isError ? "text-danger" : ""}`} style={{ fontSize: "var(--text-detail)" }}>{truncateResult(block.content)}</pre>
+          <pre className={`text-text-secondary font-mono whitespace-pre-wrap ${block.isError ? "text-danger" : ""}`} style={{ fontSize: "var(--text-detail)" }}>{truncateResult(toolResultText(block.content, block.presentation, !!block.isError))}</pre>
         </div>
       )}
     </div>

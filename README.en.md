@@ -248,4 +248,6 @@ EasyMint's development is itself an experiment in AI coding: approximately 99% o
 
 Choose Simplified Chinese, English, or Follow system on the welcome page or under **Settings → General → Interface language** (设置 → 通用 → 界面语言). Existing installations keep Simplified Chinese by default.
 
-English coverage is being added in stages. Main navigation, General settings, About, and related entry points are supported; model, plugin, chat, and environment-check modules still contain Chinese text. Switching the interface language does not rewrite chat history, user content, or built-in prompts. AI responses continue to follow the user's language.
+Application controls support Simplified Chinese and English, including settings, project creation and management, chat actions, permission and error messages, environment checks, device transfers, and the HTML prototype editor. Manual language changes apply without restarting and synchronize across application windows.
+
+Switching language does not rewrite chat history, user-defined names, project files, built-in prompts, or prototype template content. AI responses continue to follow the user's language. Third-party output and raw diagnostics retain their original language; native system controls follow the platform language.

@@ -1,3 +1,5 @@
+import { formatDate } from "../lib/locale-format";
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ChatMessage } from "./chat-utils";
@@ -13,14 +15,15 @@ function formatTime(ts: number): string {
   const d = new Date(ts);
   const now = new Date();
   if (d.toDateString() === now.toDateString()) {
-    return d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+    return formatDate(d, { hour: "2-digit", minute: "2-digit" });
   }
-  return d.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
+  return formatDate(d, { month: "2-digit", day: "2-digit" });
 }
 
 /** 历史提问记录：消息区右上角按钮 + 右侧滑出抽屉（半透明玻璃感，遮罩点击/Escape 关闭）。
  *  列表 = 当前会话 role=user 且有文本的非系统消息，最新在上；点击跳转到对应消息（顶部对齐） */
 export function QuestionHistory({ sessionId, messages, onJump }: QuestionHistoryProps): JSX.Element {
+  useUiLocale();
   const [open, setOpen] = useState(false);
 
   // 会话切换自动关闭（抽屉属于具体会话的提问列表）
@@ -106,7 +109,7 @@ export function QuestionHistory({ sessionId, messages, onJump }: QuestionHistory
                   ref={inputRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="搜索历史输入"
+                  placeholder={uiText("ui.QuestionHistory.searchInputHistory")}
                   onMouseDown={() => inputRef.current?.focus()}
                   // 上下各留 2px:输入框实际高度略小于胶囊外形,避免顶满边框
                   className="absolute left-0 right-0 top-0.5 bottom-0.5 w-full h-full pl-9 pr-8 bg-transparent border-none outline-none appearance-none text-xs text-text-primary placeholder:text-text-muted"
@@ -132,7 +135,7 @@ export function QuestionHistory({ sessionId, messages, onJump }: QuestionHistory
               }}
             >
               {list.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-xs text-text-muted">{query.trim() ? "无匹配结果" : "暂无提问记录"}</div>
+                <div className="flex items-center justify-center h-full text-xs text-text-muted">{query.trim() ? uiText("ui.QuestionHistory.noMatchingResults") : uiText("ui.QuestionHistory.noInputHistory")}</div>
               ) : (
                 list.map((q) => (
                   <button

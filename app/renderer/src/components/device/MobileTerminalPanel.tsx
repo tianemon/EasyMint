@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../../lib/i18n";
 import { useEffect, useRef } from "react";
 import { MobileTerminalSection } from "./MobileTerminalSection";
 
@@ -17,6 +18,7 @@ interface MobileTerminalPanelProps {
 }
 
 export function MobileTerminalPanel({ open, onClose }: MobileTerminalPanelProps): JSX.Element | null {
+  useUiLocale();
   const ref = useRef<HTMLDivElement>(null);
 
   // 点击遮罩/Esc 关闭
@@ -39,7 +41,7 @@ export function MobileTerminalPanel({ open, onClose }: MobileTerminalPanelProps)
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-3 pb-1">
-          <span className="text-sm font-medium text-text-primary">连接手机</span>
+          <span className="text-sm font-medium text-text-primary">{uiText("ui.MobileTerminalPanel.connectPhone")}</span>
           <button type="button" className="text-text-secondary hover:text-text-primary transition-colors text-sm px-1" onClick={onClose}>✕</button>
         </div>
 

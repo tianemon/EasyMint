@@ -19,7 +19,7 @@
     #toolbar button.primary:hover { background: #15803d; }
     #toolbar .sep { width: 1px; height: 20px; background: #e4e4e7; margin: 0 4px; }
     #toolbar .title { font-size: 13px; font-weight: 600; color: #52525b; }
-    #toolbar #status { font-size: 11px; color: #a1a1aa; margin-left: auto; }
+    #toolbar #status { font-size: 11px; color: #a1a1aa; margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* 主体区 */
     #main { display: flex; flex: 1; overflow: hidden; }
@@ -69,73 +69,73 @@
   <div id="toolbar">
     <span class="title">EM HTML Editor</span>
     <span class="sep"></span>
-    <button onclick="loadFile()">打开 HTML</button>
-    <button onclick="selectFolder()" style="font-size:12px">选择文件夹</button>
-    <button onclick="openInBrowser()" id="btn-browser" title="在系统浏览器中打开原型" disabled>在浏览器中打开</button>
+    <button onclick="loadFile()" data-em-i18n="editor.openHtml">打开 HTML</button>
+    <button onclick="selectFolder()" style="font-size:12px" data-em-i18n="editor.chooseFolder">选择文件夹</button>
+    <button onclick="openInBrowser()" id="btn-browser" title="在系统浏览器中打开原型" data-em-i18n-title="editor.openPrototypeInSystemBrowser" disabled data-em-i18n="editor.openInBrowser">在浏览器中打开</button>
     <span class="sep"></span>
-    <button onclick="toggleEditor()" id="btn-toggle" class="primary">启动编辑</button>
-    <span id="status">选择 HTML 文件开始</span>
+    <button onclick="toggleEditor()" id="btn-toggle" class="primary" data-em-i18n="editor.startEditing">启动编辑</button>
+    <span id="status" data-em-i18n="editor.chooseAnHtmlFileToBegin">选择 HTML 文件开始</span>
   </div>
 
   <!-- 主体 -->
   <div id="main">
     <!-- 左侧元素树 -->
     <div id="tree-panel">
-      <h3>元素结构</h3>
+      <h3 data-em-i18n="editor.elementTree">元素结构</h3>
       <div id="tree-content"></div>
     </div>
 
     <!-- 中间预览区 -->
     <div id="preview-area">
       <iframe id="preview" sandbox="allow-same-origin allow-scripts"></iframe>
-      <div id="drop-hint"><span>拖入 HTML 文件</span></div>
+      <div id="drop-hint"><span data-em-i18n="editor.dropAnHtmlFile">拖入 HTML 文件</span></div>
     </div>
 
     <!-- 右侧编辑面板 -->
     <div id="sidebar">
-      <h3>历史</h3>
+      <h3 data-em-i18n="editor.history">历史</h3>
       <div class="btn-row">
-        <button onclick="act('undo')" id="btn-undo" title="撤销 Ctrl+Z" disabled>↩ 撤销</button>
-        <button onclick="act('redo')" id="btn-redo" title="重做 Ctrl+Shift+Z" disabled>↪ 重做</button>
-        <button onclick="act('export')" style="font-size:11px">导出</button>
+        <button onclick="act('undo')" id="btn-undo" title="撤销 Ctrl+Z" data-em-i18n-title="editor.undoCtrlZ" disabled data-em-i18n="editor.undo">↩ 撤销</button>
+        <button onclick="act('redo')" id="btn-redo" title="重做 Ctrl+Shift+Z" data-em-i18n-title="editor.redoCtrlShiftZ" disabled data-em-i18n="editor.redo">↪ 重做</button>
+        <button onclick="act('export')" style="font-size:11px" data-em-i18n="editor.export">导出</button>
       </div>
 
-      <h3>添加</h3>
+      <h3 data-em-i18n="editor.add">添加</h3>
       <div class="btn-row">
-        <button onclick="act('add-text')">+ 文字</button>
-        <button onclick="act('add-image')">+ 图片</button>
+        <button onclick="act('add-text')" data-em-i18n="editor.text">+ 文字</button>
+        <button onclick="act('add-image')" data-em-i18n="editor.image">+ 图片</button>
       </div>
 
-      <h3>字号</h3>
+      <h3 data-em-i18n="editor.fontSize">字号</h3>
       <div class="btn-row">
-        <button onclick="act('font-')" class="icon-btn" title="缩小">A-</button>
-        <button onclick="act('font+')" class="icon-btn" title="增大">A+</button>
+        <button onclick="act('font-')" class="icon-btn" title="缩小" data-em-i18n-title="editor.smaller">A-</button>
+        <button onclick="act('font+')" class="icon-btn" title="增大" data-em-i18n-title="editor.larger">A+</button>
       </div>
 
-      <h3>对齐</h3>
+      <h3 data-em-i18n="editor.alignment">对齐</h3>
       <div class="btn-row">
-        <button onclick="act('align-left')" class="icon-btn" title="左对齐">⬅</button>
-        <button onclick="act('align-center')" class="icon-btn" title="居中">⬌</button>
-        <button onclick="act('align-right')" class="icon-btn" title="右对齐">➡</button>
+        <button onclick="act('align-left')" class="icon-btn" title="左对齐" data-em-i18n-title="editor.alignLeft">⬅</button>
+        <button onclick="act('align-center')" class="icon-btn" title="居中" data-em-i18n-title="editor.center">⬌</button>
+        <button onclick="act('align-right')" class="icon-btn" title="右对齐" data-em-i18n-title="editor.alignRight">➡</button>
       </div>
 
-      <h3>文字样式</h3>
+      <h3 data-em-i18n="editor.textStyle">文字样式</h3>
       <div class="btn-row">
-        <button onclick="act('bold-toggle')" class="icon-btn" title="粗体" style="font-weight:700">B</button>
-        <button onclick="act('italic-toggle')" class="icon-btn" title="斜体" style="font-style:italic">I</button>
+        <button onclick="act('bold-toggle')" class="icon-btn" title="粗体" data-em-i18n-title="editor.bold" style="font-weight:700">B</button>
+        <button onclick="act('italic-toggle')" class="icon-btn" title="斜体" data-em-i18n-title="editor.italic" style="font-style:italic">I</button>
       </div>
 
-      <h3>间距</h3>
+      <h3 data-em-i18n="editor.spacing">间距</h3>
       <div class="btn-row">
-        <button onclick="act('line-height-')" class="icon-btn" title="缩小行高">↕-</button>
-        <button onclick="act('line-height+')" class="icon-btn" title="增大行高">↕+</button>
-        <button onclick="act('padding-')" class="icon-btn" title="缩小边距">⬜-</button>
-        <button onclick="act('padding+')" class="icon-btn" title="增大边距">⬜+</button>
-        <button onclick="act('radius-')" class="icon-btn" title="缩小圆角">◯-</button>
-        <button onclick="act('radius+')" class="icon-btn" title="增大圆角">◯+</button>
+        <button onclick="act('line-height-')" class="icon-btn" title="缩小行高" data-em-i18n-title="editor.decreaseLineHeight">↕-</button>
+        <button onclick="act('line-height+')" class="icon-btn" title="增大行高" data-em-i18n-title="editor.increaseLineHeight">↕+</button>
+        <button onclick="act('padding-')" class="icon-btn" title="缩小边距" data-em-i18n-title="editor.decreasePadding">⬜-</button>
+        <button onclick="act('padding+')" class="icon-btn" title="增大边距" data-em-i18n-title="editor.increasePadding">⬜+</button>
+        <button onclick="act('radius-')" class="icon-btn" title="缩小圆角" data-em-i18n-title="editor.decreaseCornerRadius">◯-</button>
+        <button onclick="act('radius+')" class="icon-btn" title="增大圆角" data-em-i18n-title="editor.increaseCornerRadius">◯+</button>
       </div>
 
-      <h3>文字颜色</h3>
+      <h3 data-em-i18n="editor.textColor">文字颜色</h3>
       <div class="btn-row" style="margin-bottom:4px">
         <input type="color" id="text-color-picker" value="#111111"
           style="width:28px;height:28px;border:1px solid #d4d4d8;border-radius:4px;cursor:pointer;padding:1px"
@@ -143,7 +143,7 @@
       </div>
       <div class="btn-row" id="text-colors"></div>
 
-      <h3>背景颜色</h3>
+      <h3 data-em-i18n="editor.backgroundColor">背景颜色</h3>
       <div class="btn-row" style="margin-bottom:4px">
         <input type="color" id="bg-color-picker" value="#ffffff"
           style="width:28px;height:28px;border:1px solid #d4d4d8;border-radius:4px;cursor:pointer;padding:1px"
@@ -154,7 +154,29 @@
   </div>
 </div>
 
+<script src="i18n.js"></script>
 <script>
+  function editorText(source) { return window.EMEditorLocale.value(source); }
+  function setEditorText(element, source, localize) {
+    if (localize === false) {
+      element.removeAttribute("data-em-i18n");
+      element.textContent = source;
+      return;
+    }
+    element.setAttribute("data-em-i18n", source);
+    element.textContent = editorText(source);
+  }
+  function setEditorLanguage(locale) {
+    window.EMEditorLocale.setLanguage(locale);
+    document.documentElement.lang = window.EMEditorLocale.language;
+    window.EMEditorLocale.apply(document);
+    var api = em();
+    if (api && api.setUiLanguage) api.setUiLanguage();
+  }
+  if (window.electronAPI && window.electronAPI.settings) {
+    var unsubscribeLocale = window.electronAPI.settings.onUiLanguageChanged(function (state) { setEditorLanguage(state.locale); });
+    window.addEventListener("unload", unsubscribeLocale, { once: true });
+  }
   var editorActive = false;
   var currentHTML = "";
   var currentFilePath = "";
@@ -164,6 +186,7 @@
   var status = document.getElementById("status");
   var dropHint = document.getElementById("drop-hint");
   var runtimeCode = "";
+  setEditorLanguage(window.EMEditorLocale.language);
 
   // 获取 iframe 内的 EMEditor
   function em() {
@@ -219,6 +242,7 @@
     var btn = document.createElement("button");
     btn.className = "color-btn";
     btn.title = label;
+    btn.setAttribute("data-em-i18n-title", label);
     btn.style.background = color === "transparent"
       ? "linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%)"
       : color;
@@ -229,6 +253,7 @@
     var btn = document.createElement("button");
     btn.className = "color-btn";
     btn.title = label;
+    btn.setAttribute("data-em-i18n-title", label);
     btn.style.background = color === "transparent"
       ? "linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%)"
       : color;
@@ -244,9 +269,11 @@
   // 加载 runtime.js
   fetch("runtime.js?v=" + Date.now()).then(function(r) { return r.text(); }).then(function(code) {
     runtimeCode = code;
-    status.textContent = "就绪 — 选择 HTML 文件开始";
+    setEditorText(status, editorText("就绪 — 选择 HTML 文件开始"));
   }).catch(function() {
-    status.textContent = "runtime.js 加载失败，请通过 HTTP 服务打开此页面";
+  function editorText(source) { return window.EMEditorLocale ? window.EMEditorLocale.value(source) : source; }
+
+    setEditorText(status, editorText("runtime.js 加载失败，请通过 HTTP 服务打开此页面"));
   });
 
   // 拖入文件/文件夹/ZIP
@@ -261,10 +288,10 @@
     if (items && items[0] && items[0].webkitGetAsEntry && items[0].webkitGetAsEntry()) {
       var entry = items[0].webkitGetAsEntry();
       if (entry.isDirectory) {
-        status.textContent = "读取文件夹...";
+        setEditorText(status, editorText("读取文件夹..."));
         readFolderEntry(entry, "", function() {
           loadFromTree();
-          status.textContent = "文件夹就绪";
+          setEditorText(status, editorText("文件夹就绪"));
         });
         return;
       }
@@ -312,8 +339,8 @@
       html = inlineCSS(html, fileTree);
       currentHTML = html;
       loadPreview(html);
-      status.textContent = file.name + " · " + (file.size < 1024 ? file.size + " B" : (file.size / 1024).toFixed(1) + " KB");
-      btnToggle.textContent = "启动编辑";
+      setEditorText(status, file.name + " · " + (file.size < 1024 ? file.size + " B" : (file.size / 1024).toFixed(1) + " KB"), false);
+      setEditorText(btnToggle, editorText("启动编辑"));
       btnToggle.classList.add("primary");
       editorActive = false;
     };
@@ -321,7 +348,7 @@
   }
 
   function readZip(file) {
-    status.textContent = "解压中...";
+    setEditorText(status, editorText("解压中..."));
     var reader = new FileReader();
     reader.onload = function() {
       JSZip.loadAsync(reader.result).then(function(zip) {
@@ -338,10 +365,10 @@
         });
         Promise.all(promises).then(function() {
           loadFromTree();
-          status.textContent = file.name + " · " + (file.size < 1024 ? file.size + " B" : (file.size / 1024).toFixed(1) + " KB");
+          setEditorText(status, file.name + " · " + (file.size < 1024 ? file.size + " B" : (file.size / 1024).toFixed(1) + " KB"), false);
         });
       }).catch(function(e) {
-        status.textContent = "ZIP 解析失败: " + e.message;
+        setEditorText(status, editorText("ZIP 解析失败: ") + e.message);
       });
     };
     reader.readAsArrayBuffer(file);
@@ -412,12 +439,12 @@
       html = fileTree[htmlKey];
       html = inlineCSS(html, fileTree);
     } else {
-      status.textContent = "未找到 HTML 文件";
+      setEditorText(status, editorText("未找到 HTML 文件"));
       return;
     }
     currentHTML = html;
     loadPreview(html);
-    btnToggle.textContent = "启动编辑";
+    setEditorText(btnToggle, editorText("启动编辑"));
     btnToggle.classList.add("primary");
     editorActive = false;
   }
@@ -490,6 +517,7 @@
       var doc = iframe.contentDocument || iframe.contentWindow.document;
       if (!doc || !runtimeCode) return;
       var script = doc.createElement("script");
+      iframe.contentWindow.EMEditorLocale = window.EMEditorLocale;
       script.textContent = runtimeCode;
       doc.head.appendChild(script);
     } catch(e) { /* */ }
@@ -500,8 +528,8 @@
     currentHTML = html;
     currentFilePath = filePath || "";
     btnBrowser.disabled = !currentFilePath;
-    status.textContent = filename + " · " + (html.length < 1024 ? html.length + " B" : (html.length / 1024).toFixed(1) + " KB");
-    btnToggle.textContent = "启动编辑";
+    setEditorText(status, filename + " · " + (html.length < 1024 ? html.length + " B" : (html.length / 1024).toFixed(1) + " KB"), false);
+    setEditorText(btnToggle, editorText("启动编辑"));
     btnToggle.classList.add("primary");
     editorActive = false;
     var blob = new Blob([html], { type: "text/html" });
@@ -516,9 +544,9 @@
           if (win && win.EMEditor) {
             clearInterval(checkReady);
             win.EMEditor.start();
-            btnToggle.textContent = "停止编辑";
+            setEditorText(btnToggle, editorText("停止编辑"));
             btnToggle.classList.remove("primary");
-            status.textContent = "编辑中 — 点击元素开始修改";
+            setEditorText(status, editorText("编辑中 — 点击元素开始修改"));
             editorActive = true;
             refreshBtnState();
           }
@@ -530,38 +558,38 @@
 
   /** 在系统浏览器中打开当前原型（file:// 下相对路径基于文件目录解析，图片/样式正常） */
   function openInBrowser() {
-    if (!currentFilePath) { status.textContent = "无原型文件路径"; return; }
+    if (!currentFilePath) { setEditorText(status, editorText("无原型文件路径")); return; }
     if (window.electronAPI && window.electronAPI.editor) {
-      window.electronAPI.editor.openInBrowser(currentFilePath).catch(function() { status.textContent = "打开失败"; });
+      window.electronAPI.editor.openInBrowser(currentFilePath).catch(function() { setEditorText(status, editorText("打开失败")); });
     } else {
-      status.textContent = "浏览器打开不可用（非 EM 环境）";
+      setEditorText(status, editorText("浏览器打开不可用（非 EM 环境）"));
     }
   }
 
   function toggleEditor() {
     try {
       var api = em();
-      if (!api) { status.textContent = "runtime 未加载"; return; }
+      if (!api) { setEditorText(status, editorText("runtime 未加载")); return; }
       if (!editorActive) {
         api.start();
-        btnToggle.textContent = "停止编辑";
+        setEditorText(btnToggle, editorText("停止编辑"));
         btnToggle.classList.remove("primary");
-        status.textContent = "编辑中 — 点击元素开始修改";
+        setEditorText(status, editorText("编辑中 — 点击元素开始修改"));
       } else {
         api.stop();
-        btnToggle.textContent = "启动编辑";
+        setEditorText(btnToggle, editorText("启动编辑"));
         btnToggle.classList.add("primary");
-        status.textContent = "已停止编辑";
+        setEditorText(status, editorText("已停止编辑"));
       }
       editorActive = !editorActive;
       refreshBtnState();
-    } catch(e) { status.textContent = "错误: " + e.message; }
+    } catch(e) { setEditorText(status, editorText("错误: ") + e.message); }
   }
 
   window.addEventListener("message", function(e) {
     if (e.data && e.data.type === "em-editor-export") {
       currentHTML = e.data.html;
-      status.textContent = "已导出";
+      setEditorText(status, editorText("已导出"));
       // 父窗口触发下载（iframe sandbox 无 allow-downloads）
       var blob = new Blob([currentHTML], { type: "text/html" });
       var url = URL.createObjectURL(blob);

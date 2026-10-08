@@ -1,3 +1,6 @@
+import { appText } from "../../lib/i18n";
+import { formatRelativeTimestamp } from "../../lib/locale-format";
+import { uiText, useUiLocale } from "../../lib/i18n";
 import { useEffect, useRef, useState } from "react";
 import { useDeviceStore, type PairedDevice, type DiscoveredDevice } from "../../stores/device-store";
 import { TransferModal } from "./TransferModal";
@@ -16,22 +19,17 @@ interface DevicePanelProps {
   onClose: () => void;
 }
 
-function formatLastSeen(ts: number): string {
-  const diff = Date.now() - ts;
-  if (diff < 60_000) return "刚刚";
-  if (diff < 3600_000) return `${Math.floor(diff / 60_000)} 分钟前`;
-  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)} 小时前`;
-  return `${Math.floor(diff / 86400_000)} 天前`;
-}
+const formatLastSeen = formatRelativeTimestamp;
 
 function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevice; onUnpair: (id: string) => void; onSend: (id: string) => void; onConnect: (id: string) => void }): JSX.Element {
+  useUiLocale();
   return (
     <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-[var(--radius-lg)] border border-border bg-surface">
       <span className={`w-2 h-2 rounded-full shrink-0 ${device.online ? "bg-success" : "bg-text-muted/40"}`} />
       <div className="flex-1 min-w-0">
         <div className="text-xs text-text-primary truncate">{device.name}</div>
         <div className="text-[length:var(--text-2xs)] text-text-muted">
-          {device.online ? "在线 · 已连接" : `离线 · ${formatLastSeen(device.lastSeen)}`}
+          {device.online ? uiText("ui.DevicePanel.onlineConnected") : uiText("ui.DevicePanel.offline", { v0: formatLastSeen(device.lastSeen) })}
         </div>
       </div>
       {!device.online && (
@@ -41,8 +39,7 @@ function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevi
           onClick={() => onConnect(device.id)}
          
         >
-          连接
-        </button>
+          {uiText("ui.DevicePanel.connect")}</button>
       )}
       {device.online && (
         <button
@@ -51,21 +48,20 @@ function PairedRow({ device, onUnpair, onSend, onConnect }: { device: PairedDevi
           onClick={() => onSend(device.id)}
          
         >
-          迁移
-        </button>
+          {uiText("ui.DevicePanel.transfer")}</button>
       )}
       <button
         type="button"
         className="text-[length:var(--text-2xs)] px-2 py-1 rounded-[var(--radius-lg)] border border-border text-text-secondary hover:text-danger hover:border-danger-border transition-colors shrink-0"
         onClick={() => onUnpair(device.id)}
       >
-        解除配对
-      </button>
+        {uiText("ui.DevicePanel.unpair")}</button>
     </div>
   );
 }
 
 function DiscoveredRow({ device, onPair }: { device: DiscoveredDevice; onPair: (d: DiscoveredDevice) => void }): JSX.Element {
+  useUiLocale();
   const [sending, setSending] = useState(false);
   return (
     <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-[var(--radius-lg)] border border-border bg-surface">
@@ -74,7 +70,7 @@ function DiscoveredRow({ device, onPair }: { device: DiscoveredDevice; onPair: (
       </span>
       <div className="flex-1 min-w-0">
         <div className="text-xs text-text-primary truncate">{device.name}</div>
-        <div className="text-[length:var(--text-2xs)] text-text-muted">通过局域网发现 · {device.address}:{device.port}</div>
+        <div className="text-[length:var(--text-2xs)] text-text-muted">{uiText("ui.DevicePanel.discoveredOnLocalNetwork")}{device.address}:{device.port}</div>
       </div>
       <button
         type="button"
@@ -82,13 +78,14 @@ function DiscoveredRow({ device, onPair }: { device: DiscoveredDevice; onPair: (
         disabled={sending}
         onClick={async () => { setSending(true); await onPair(device); setSending(false); }}
       >
-        {sending ? "请求中" : "配对"}
+        {sending ? uiText("ui.DevicePanel.requesting") : uiText("ui.DevicePanel.pair")}
       </button>
     </div>
   );
 }
 
 export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | null {
+  useUiLocale();
   const ref = useRef<HTMLDivElement>(null);
   const {
     self, paired, discovered, pairMode,
@@ -146,7 +143,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
   const handlePair = async (d: DiscoveredDevice) => {
     setPairError(null);
     const r = await requestPair(d);
-    if (!r.ok) setPairError(r.error ?? "配对失败");
+    if (!r.ok) setPairError(r.error ?? uiText("ui.DevicePanel.pairingFailed"));
   };
 
   const saveIgnore = async (): Promise<void> => {
@@ -174,7 +171,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-3 pb-1">
-          <span className="text-sm font-medium text-text-primary">项目迁移</span>
+          <span className="text-sm font-medium text-text-primary">{uiText("ui.DevicePanel.projectTransfer")}</span>
           <button type="button" className="text-text-secondary hover:text-text-primary transition-colors text-sm px-1" onClick={onClose}>✕</button>
         </div>
 
@@ -184,7 +181,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-xs font-medium text-text-primary truncate">{self.name}</div>
-                <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">本机 · {self.id.slice(0, 8)}</div>
+                <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{uiText("ui.DevicePanel.thisComputer")}{self.id.slice(0, 8)}</div>
               </div>
               <button
                 type="button"
@@ -199,7 +196,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                 }}
                 className="text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary shrink-0"
               >
-                {editingName ? "保存" : "重命名"}
+                {editingName ? uiText("ui.AgentTemplateSettings.save") : uiText("ui.SessionHistory.rename")}
               </button>
             </div>
             {editingName && (
@@ -212,7 +209,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
               />
             )}
             <div className="flex items-center justify-between mt-3">
-              <span className="text-xs text-text-secondary">可被发现</span>
+              <span className="text-xs text-text-secondary">{uiText("ui.DevicePanel.discoverable")}</span>
               <button
                 type="button"
                 onClick={() => (pairMode ? stopPair() : startPair())}
@@ -223,15 +220,15 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
               </button>
             </div>
             {pairMode && pairCountdown !== null && (
-              <div className="mt-2 text-[length:var(--text-2xs)] text-text-secondary">广播中 · {pairCountdown}s 后自动停止</div>
+              <div className="mt-2 text-[length:var(--text-2xs)] text-text-secondary">{uiText("ui.DevicePanel.broadcasting")}{pairCountdown}{uiText("ui.DevicePanel.sUntilAutomaticStop")}</div>
             )}
           </div>
 
           {/* 已配对设备 */}
           <div className="shrink-0">
-            <div className="text-xs font-medium text-text-secondary mb-1.5 px-1">已配对设备</div>
+            <div className="text-xs font-medium text-text-secondary mb-1.5 px-1">{uiText("ui.DevicePanel.pairedDevices")}</div>
             {paired.length === 0 ? (
-              <div className="text-[length:var(--text-11)] text-text-muted px-1">尚未配对任何设备。开启可被发现，或等待其他设备开启后在此配对。</div>
+              <div className="text-[length:var(--text-11)] text-text-muted px-1">{uiText("ui.DevicePanel.noPairedDevicesEnableDiscoverabilityHereOr")}</div>
             ) : (
               <div className="space-y-1.5">
                 {paired.map((d) => (
@@ -240,7 +237,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                     device={d}
                     onUnpair={unpair}
                     onConnect={(id) => {
-                      void connect(id).then((r) => { if (!r.ok) setPairError(r.error ?? "连接失败"); });
+                      void connect(id).then((r) => { if (!r.ok) setPairError(r.error ?? uiText("ui.DevicePanel.connectionFailed")); });
                     }}
                     onSend={(id) => { const dev = paired.find((p) => p.id === id); if (dev) setTransferTarget({ id: dev.id, name: dev.name }); }}
                   />
@@ -253,8 +250,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
           <div className="shrink-0">
             <div className="flex items-center justify-between mb-1.5 px-1">
               <span className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
-                可用设备
-                {/* 手动扫描中指示 */}
+                {uiText("ui.DevicePanel.availableDevices")}{/* 手动扫描中指示 */}
                 {scanning && (
                   <svg className="w-3 h-3 animate-spin text-accent" viewBox="0 0 24 24" fill="none">
                     <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
@@ -271,12 +267,12 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                   void manualScan().finally(() => setTimeout(() => setScanning(false), 3000));
                 }}
               >
-                {scanning ? "扫描中…" : "扫描"}
+                {scanning ? uiText("ui.DevicePanel.scanning") : uiText("ui.DevicePanel.scan")}
               </button>
             </div>
             {discovered.length === 0 ? (
               <div className="text-[length:var(--text-11)] text-text-muted px-1">
-                {scanning ? "正在发现附近的设备…" : "点击「扫描」发现附近的设备（对方需开启「可被发现」）。"}
+                {scanning ? uiText("ui.DevicePanel.discoveringNearbyDevices") : uiText("ui.DevicePanel.selectScanToDiscoverNearbyDevicesThe")}
               </div>
             ) : (
               <div className="space-y-1.5">
@@ -288,7 +284,7 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
           {/* 迁移忽略项:全局配置(类似 .gitignore,文本编辑,换行即一项) */}
           <div className="flex flex-col flex-1 min-h-[9rem]">
             <div className="flex items-center justify-between mb-1.5 px-1">
-              <span className="text-xs font-medium text-text-secondary">迁移忽略项</span>
+              <span className="text-xs font-medium text-text-secondary">{uiText("ui.DevicePanel.transferIgnoreRules")}</span>
             </div>
             <div className="bg-surface rounded-[var(--radius-lg)] border border-border py-2 space-y-2 flex flex-col flex-1 overflow-hidden">
               {/* 输入框无边框、宽度与卡片同宽(去掉卡片横向内边距)——视觉上与卡片融为一体 */}
@@ -296,12 +292,12 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                 value={ignoreText}
                 onChange={(e) => { setIgnoreText(e.target.value); setIgnoreDirty(true); setIgnoreSaved(false); }}
                 spellCheck={false}
-                placeholder="# 每行一个文件/文件夹路径，# 开头为注释"
+                placeholder={uiText("ui.DevicePanel.oneFileOrFolderPathPerLine")}
                 className="flex-1 resize-none w-full px-3 py-2 bg-transparent border-none outline-none text-[length:var(--text-2xs)] font-mono leading-relaxed text-text-primary"
               />
               <div className="flex items-center justify-between px-3">
                 <span className="text-[length:var(--text-2xs)] text-text-muted">
-                  {ignoreSaved ? "已保存 · 下次扫描生效" : ignoreDirty ? "有未保存修改" : ""}
+                  {ignoreSaved ? uiText("ui.DevicePanel.savedAppliesToTheNextScan") : ignoreDirty ? uiText("ui.DevicePanel.unsavedChanges") : ""}
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -309,23 +305,21 @@ export function DevicePanel({ open, onClose }: DevicePanelProps): JSX.Element | 
                     className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors"
                     onClick={() => void resetIgnore()}
                   >
-                    恢复默认
-                  </button>
+                    {uiText("ui.DevicePanel.restoreDefaults")}</button>
                   <button
                     type="button"
                     className="text-[length:var(--text-2xs)] px-2.5 py-1 rounded-[var(--radius-lg)] btn-accent"
                     disabled={!ignoreDirty}
                     onClick={() => void saveIgnore()}
                   >
-                    保存
-                  </button>
+                    {uiText("ui.AgentTemplateSettings.save")}</button>
                 </div>
               </div>
             </div>
           </div>
 
           {pairError && (
-            <div className="text-[length:var(--text-11)] text-danger px-1">{pairError}</div>
+            <div className="text-[length:var(--text-11)] text-danger px-1">{appText(pairError)}</div>
           )}
         </div>
       </div>

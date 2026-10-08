@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../../lib/i18n";
 import { useState, useRef, useEffect } from "react";
 import {
   TARGET_OPTIONS, SCENE_OPTIONS, COMPLETENESS_OPTIONS, UI_STYLE_OPTIONS, BUDGET_OPTIONS,
@@ -20,6 +21,7 @@ function StepDots({ total, current }: { total: number; current: number }): JSX.E
 // ---- Custom Select (matches white+green theme) ----
 
 function Select({ value, onChange, options, placeholder }: { value: string; onChange: (v: string) => void; options: readonly { value: string; label: string; desc: string }[]; placeholder?: string }): JSX.Element {
+  useUiLocale();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -66,7 +68,7 @@ function Select({ value, onChange, options, placeholder }: { value: string; onCh
         onClick={() => setOpen(!open)}
       >
         <span className={selected ? "text-text-primary" : "text-text-secondary"}>
-          {selected ? `${selected.label} — ${selected.desc}` : (placeholder || "请选择...")}
+          {selected ? `${selected.label} — ${selected.desc}` : (placeholder || uiText("ui.StepComponents.choose"))}
         </span>
         <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" className={`w-3 h-3 shrink-0 transition-transform text-text-secondary ${open ? "rotate-180" : ""}`}>
           <path d="M3 5l3 3 3-3"/>
@@ -93,6 +95,7 @@ function Select({ value, onChange, options, placeholder }: { value: string; onCh
 // ---- Step 1: 基本信息 ----
 
 function Step1Form({ data, onChange, previewDirName, dirConflict, translating }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void; previewDirName?: string | null; dirConflict?: boolean; translating?: boolean }): JSX.Element {
+  useUiLocale();
   const updateTarget = (i: number, value: string) => {
     const next = [...data.targets];
     next[i] = value;
@@ -109,45 +112,44 @@ function Step1Form({ data, onChange, previewDirName, dirConflict, translating }:
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">项目名称 <span className="text-danger">*</span></label>
-        <input className="em-input px-3 py-2" value={data.name} onChange={(e) => onChange({ name: e.target.value })} placeholder="中文名称会自动翻译为英文目录" />
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.projectName")}<span className="text-danger">*</span></label>
+        <input className="em-input px-3 py-2" value={data.name} onChange={(e) => onChange({ name: e.target.value })} placeholder={uiText("ui.StepComponents.chineseNamesAreTranslatedIntoEnglishDirectory")} />
       </div>
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">项目目录 <span className="text-danger">*</span></label>
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.projectDirectory")}<span className="text-danger">*</span></label>
         <button
           className="em-select-trigger em-hover-control w-full px-3 py-2 rounded-[var(--radius-lg)] bg-surface border border-border text-left text-sm transition-all"
           onClick={async () => { const selected = await window.electronAPI.dialog.openDirectory(); if (selected) onChange({ dir: selected }); }}
         >
-          <span className="text-text-secondary">{data.dir || "点击选择目录..."}</span>
+          <span className="text-text-secondary">{data.dir || uiText("ui.StepComponents.chooseADirectory")}</span>
         </button>
         {/* 实时路径预览——教会用户「我的文件在哪」；目录冲突在此行红字预警（创建必被拒） */}
         {previewDirName && (
           dirConflict ? (
             <p className="mt-1 text-[length:var(--text-3xs)] text-danger">
-              该目录已存在且非空或名称含特殊字符，无法创建——请换一个项目名称或目录
-            </p>
+              {uiText("ui.StepComponents.thisDirectoryExistsAndIsNonemptyOr")}</p>
           ) : (
             <p className="mt-1 text-[length:var(--text-3xs)] text-text-muted">
-              将创建于 <span className="font-mono text-text-secondary">{data.dir}/{previewDirName}</span>
-              {translating && <span className="ml-1.5 text-text-muted">翻译目录名中…</span>}
+              {uiText("ui.StepComponents.willBeCreatedAt")}<span className="font-mono text-text-secondary">{data.dir}/{previewDirName}</span>
+              {translating && <span className="ml-1.5 text-text-muted">{uiText("ui.StepComponents.translatingDirectoryName")}</span>}
             </p>
           )
         )}
       </div>
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">项目描述 <span className="text-text-muted text-xs font-normal">（可选，一句话说清楚想做什么）</span></label>
-        <textarea className="em-input px-3 py-2 min-h-[60px] resize-y" value={data.description} onChange={(e) => onChange({ description: e.target.value })} placeholder="例如：记录每天花销的记账软件，给自己用" />
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.projectDescription")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.optionalDescribeYourIdeaInOneSentence")}</span></label>
+        <textarea className="em-input px-3 py-2 min-h-[60px] resize-y" value={data.description} onChange={(e) => onChange({ description: e.target.value })} placeholder={uiText("ui.StepComponents.eGAPersonalAppForTracking")} />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">这个项目你打算怎么用？ <span className="text-text-muted text-xs font-normal">（可让 Mint 判断）</span></label>
-        <Select value={data.scene} onChange={(v) => onChange({ scene: v as SceneChoice })} options={SCENE_OPTIONS} placeholder="没想好，由AI自己判断" />
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.howWillYouUseThisProject")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.mintCanHelpDecide")}</span></label>
+        <Select value={data.scene} onChange={(v) => onChange({ scene: v as SceneChoice })} options={SCENE_OPTIONS} placeholder={uiText("ui.ProjectFormTypes.notSureLetAiDecide")} />
       </div>
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-sm font-medium text-text-primary">项目形式 <span className="text-text-muted text-xs font-normal">（运行平台与交付形式，可多个）</span></label>
-          <button className="px-2 py-0.5 rounded-[var(--radius-lg)] bg-accent-soft text-accent text-xs hover:bg-accent-bg transition-colors" onClick={addTarget}>+ 添加</button>
+          <label className="text-sm font-medium text-text-primary">{uiText("ui.StepComponents.projectType")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.platformsAndDeliveryFormatsSelectMultiple")}</span></label>
+          <button className="px-2 py-0.5 rounded-[var(--radius-lg)] bg-accent-soft text-accent text-xs hover:bg-accent-bg transition-colors" onClick={addTarget}>{uiText("ui.StepComponents.add")}</button>
         </div>
         <div className="space-y-2">
           {data.targets.map((t, i) => (
@@ -176,6 +178,7 @@ function Step2Form({
   onRecommendFeatures: () => void;
   loadingRec: string | null;
 }): JSX.Element {
+  useUiLocale();
   const addFeature = () => {
     onChange({ features: [...data.features, { name: "" }] });
   };
@@ -193,17 +196,17 @@ function Step2Form({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between mb-2">
-        <label className="block text-sm font-medium text-text-primary">功能清单 <span className="text-text-muted text-xs font-normal">（可选）</span></label>
+        <label className="block text-sm font-medium text-text-primary">{uiText("ui.ProjectFormTypes.features")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.optional")}</span></label>
         <div className="flex gap-2">
           <button className="px-3 py-1.5 rounded-[var(--radius-lg)] btn-accent text-sm font-medium" onClick={onRecommendFeatures} disabled={loadingRec === "features"}>
-            {loadingRec === "features" ? "Mint 思考中..." : "Mint 推荐"}
+            {loadingRec === "features" ? uiText("ui.StepComponents.mintIsThinking") : uiText("ui.StepComponents.mintSuggests")}
           </button>
-          <button className="px-3 py-1.5 rounded-[var(--radius-lg)] bg-accent-soft text-accent text-xs hover:bg-accent-bg transition-colors" onClick={addFeature}>+ 添加功能</button>
+          <button className="px-3 py-1.5 rounded-[var(--radius-lg)] bg-accent-soft text-accent text-xs hover:bg-accent-bg transition-colors" onClick={addFeature}>{uiText("ui.StepComponents.addFeature")}</button>
         </div>
       </div>
 
       {loadingRec === "features" && (
-        <p className="text-xs text-text-secondary py-3 text-center animate-pulse">Mint 正在推荐功能…</p>
+        <p className="text-xs text-text-secondary py-3 text-center animate-pulse">{uiText("ui.StepComponents.mintIsSuggestingFeatures")}</p>
       )}
       {data.features.map((f, i) => (
         <div key={i} className="flex items-center gap-2">
@@ -211,7 +214,7 @@ function Step2Form({
             className="flex-1 em-input px-3 py-2"
             value={f.name}
             onChange={(e) => updateFeature(i, { name: e.target.value })}
-            placeholder={`功能 ${i + 1}`}
+            placeholder={uiText("ui.StepComponents.feature", { v0: i + 1 })}
           />
           <button className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-danger transition-colors text-xs shrink-0" onClick={() => removeFeature(i)}>✕</button>
         </div>
@@ -223,25 +226,26 @@ function Step2Form({
 // ---- Step 3: UI 风格 ----
 
 function Step3Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void }): JSX.Element {
+  useUiLocale();
   const predefined = UI_STYLE_OPTIONS.find((o) => o.value === data.uiStyle);
   const isCustomText = data.uiStyle === "custom" || (!predefined && data.uiStyle !== "");
 
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">想要什么 UI 风格？ <span className="text-text-muted text-xs font-normal">（可选）</span></label>
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.whatUiStyleWouldYouLike")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.optional")}</span></label>
         <Select
           value={predefined ? data.uiStyle : "custom"}
           onChange={(v) => onChange({ uiStyle: v })}
           options={UI_STYLE_OPTIONS}
-          placeholder="让 Mint 推荐"
+          placeholder={uiText("ui.StepComponents.askMintToSuggest")}
         />
-        <p className="text-[length:var(--text-11)] text-text-secondary mt-1">原型阶段可再调整</p>
+        <p className="text-[length:var(--text-11)] text-text-secondary mt-1">{uiText("ui.StepComponents.youCanAdjustThisDuringPrototyping")}</p>
       </div>
       {isCustomText && (
         <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">自定义风格描述</label>
-          <textarea className="em-input px-3 py-2 min-h-[60px] resize-y" value={data.uiStyle === "custom" ? "" : data.uiStyle} onChange={(e) => onChange({ uiStyle: e.target.value })} placeholder="例如：赛博朋克 + 极简主义混搭..." />
+          <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.describeACustomStyle")}</label>
+          <textarea className="em-input px-3 py-2 min-h-[60px] resize-y" value={data.uiStyle === "custom" ? "" : data.uiStyle} onChange={(e) => onChange({ uiStyle: e.target.value })} placeholder={uiText("ui.StepComponents.eGAMixOfCyberpunkAnd")} />
         </div>
       )}
     </div>
@@ -251,12 +255,13 @@ function Step3Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
 // ---- Step 4: 交付方式 ----
 
 function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void }): JSX.Element {
+  useUiLocale();
   return (
     <div className="space-y-5">
 
       {/* 完成度 */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">先做到什么程度？ <span className="text-text-muted text-xs font-normal">（可选，AI 帮你定）</span></label>
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.whatShouldTheFirstVersionInclude")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.optionalAiCanHelpDecide")}</span></label>
         <div className="flex gap-2">
           {COMPLETENESS_OPTIONS.map((opt) => {
             const active = data.completeness === opt.value;
@@ -278,13 +283,13 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
 
       {/* AI 集成 */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">AI 能力集成 <span className="text-text-muted text-xs font-normal">（可选）</span></label>
-        <p className="text-[length:var(--text-11)] text-text-secondary mb-2">AI 辅助 / Agent 需接入大模型 API，按用量计费；部分厂商有免费额度（有时效）</p>
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.aiIntegration")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.optional")}</span></label>
+        <p className="text-[length:var(--text-11)] text-text-secondary mb-2">{uiText("ui.StepComponents.aiAssistanceAndAgentsRequireAnLlm")}</p>
         <div className="flex gap-2">
           {[
-            { value: "none", label: "不需要", desc: "无 AI" },
-            { value: "assistant", label: "AI 辅助", desc: "调用 LLM API 增强功能" },
-            { value: "agent", label: "Agent", desc: "自主决策、工具调用" },
+            { value: "none", label: uiText("ui.StepComponents.notNeeded"), desc: uiText("ui.StepComponents.noAi") },
+            { value: "assistant", label: uiText("ui.NewProjectDialog.aiAssistance"), desc: uiText("ui.StepComponents.enhanceFeaturesWithAnLlmApi") },
+            { value: "agent", label: "Agent", desc: uiText("ui.StepComponents.autonomousDecisionsAndToolUse") },
           ].map((opt) => {
             const active = data.aiIntegration === opt.value;
             return (
@@ -299,35 +304,35 @@ function Step4Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Pa
 
       {/* 部署方式 */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">部署方式 <span className="text-text-muted text-xs font-normal">（可选，AI 帮你定）</span></label>
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.deployment")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.optionalAiCanHelpDecide")}</span></label>
         <div className="flex gap-2">
           <button
             className={`flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${data.deployPlatform === "本地" ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`}
             onClick={() => onChange({ deployPlatform: "本地" })}
           >
-            <div className="text-sm font-medium">本地</div>
-            <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">本机运行，无需云服务</div>
+            <div className="text-sm font-medium">{uiText("ui.StepComponents.local")}</div>
+            <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{uiText("ui.StepComponents.runLocallyWithoutCloudServices")}</div>
           </button>
           <button
             className={`flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${data.deployPlatform === "云端" ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`}
             onClick={() => onChange({ deployPlatform: "云端" })}
           >
-            <div className="text-sm font-medium">云端</div>
-            <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">可互联网访问，有服务器费用</div>
+            <div className="text-sm font-medium">{uiText("ui.StepComponents.cloud")}</div>
+            <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{uiText("ui.StepComponents.accessibleOnlineServerCostsApply")}</div>
           </button>
           <button
             className={`flex-1 p-2 rounded-[var(--radius-lg)] transition-all text-left ${data.deployPlatform === "混合" ? "bg-[var(--preset-active)] text-text-primary" : "bg-[var(--preset-idle)] hover:shadow-[inset_0_0_0_999px_var(--preset-hover)] text-text-secondary"}`}
             onClick={() => onChange({ deployPlatform: "混合" })}
           >
-            <div className="text-sm font-medium">混合</div>
-            <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">本地 UI + 云端同步</div>
+            <div className="text-sm font-medium">{uiText("ui.StepComponents.hybrid")}</div>
+            <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{uiText("ui.StepComponents.localUiWithCloudSync")}</div>
           </button>
         </div>
       </div>
 
       {/* 预算 */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">开发运维成本 <span className="text-text-muted text-xs font-normal">（可选，AI 帮你定）</span></label>
+        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.developmentAndOperationsBudget")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.optionalAiCanHelpDecide")}</span></label>
         <div className="flex gap-2">
           {BUDGET_OPTIONS.map((opt) => {
             const active = data.techBudget === opt.value;

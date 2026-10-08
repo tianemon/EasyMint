@@ -1,3 +1,5 @@
+import { appText } from "../lib/i18n";
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { buildFeatureRecommendPrompt, buildDirectoryTranslationPrompt, buildDirectCreatePrompt, buildInitTriggerPrompt, buildInitInstruction, detectProfile, composeProfile, systemMessage } from "../../../shared/prompts";
 import type { ProjectDimensions, DeployMode, SystemMessagePayload } from "../../../shared/prompts";
@@ -13,7 +15,7 @@ import { Modal } from "./ui/Modal";
 function cleanIpcError(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e ?? "");
   const m = msg.match(/^Error invoking remote method '[^']+': (?:Error: )?([\s\S]+)$/);
-  return (m?.[1]?.trim() || msg).trim() || "创建项目失败";
+  return (m?.[1]?.trim() || msg).trim() || uiText("ui.NewProjectDialog.couldNotCreateProject");
 }
 
 function actualStepNumber(visibleSteps: typeof ALL_STEPS, currentIndex: number): number {
@@ -75,6 +77,7 @@ interface NewProjectDialogProps {
 }
 
 export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps): JSX.Element {
+  useUiLocale();
   const [currentStep, setCurrentStep] = useState(0);
   const [data, setData] = useState<ProjectFormData>(DEFAULT_DATA);
   const [initializing, setInitializing] = useState(false);
@@ -223,7 +226,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   /** S2 原子创建：目录名（预热缓存/现算）→ 落盘 → 建正式会话（cwd=项目目录）→ 导航 */
   const handleCreate = async () => {
     if (creatingRef.current) return;
-    if (!data.name.trim()) { setCreateError("请先填写项目名称"); return; }
+    if (!data.name.trim()) { setCreateError(uiText("ui.NewProjectDialog.enterAProjectNameFirst")); return; }
     creatingRef.current = true;
     setInitializing(true);
     try {
@@ -265,7 +268,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   /** 直接创建：跳过表单后续步骤,创建项目 + 发 direct-create 消息触发 Mint 对话引导补全信息 */
   const handleDirectCreate = async () => {
     if (creatingRef.current) return;
-    if (!data.name.trim()) { setCreateError("请先填写项目名称"); return; }
+    if (!data.name.trim()) { setCreateError(uiText("ui.NewProjectDialog.enterAProjectNameFirst")); return; }
     creatingRef.current = true;
     setInitializing(true);
     try {
@@ -304,7 +307,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     <Modal overlayClassName="bg-black/40 modal-overlay" overlayClose={false} onClose={handleCancel}>
       <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl modal-card flex flex-col" style={{ width: 560, maxHeight: "90vh" }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-1 shrink-0">
-          <h2 className="text-lg font-semibold text-text-primary">新建项目</h2>
+          <h2 className="text-lg font-semibold text-text-primary">{uiText("nav.newProject")}</h2>
           <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={handleCancel}>✕</button>
         </div>
 
@@ -317,25 +320,25 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
         <div className="settings-body px-6 py-4 overflow-y-auto flex-1">
           {renderStepContent()}
           {createError && (
-            <p className="mt-3 text-xs text-danger whitespace-pre-wrap break-all">{createError}</p>
+            <p className="mt-3 text-xs text-danger whitespace-pre-wrap break-all">{appText(createError)}</p>
           )}
         </div>
 
         <div className="flex items-center justify-between px-6 pb-5 pt-2 shrink-0">
-          <button className="em-hover-control px-4 py-[5px] rounded-[var(--radius-lg)] text-text-secondary text-sm transition-all disabled:opacity-30" disabled={currentStep === 0} onClick={goPrev}>上一步</button>
+          <button className="em-hover-control px-4 py-[5px] rounded-[var(--radius-lg)] text-text-secondary text-sm transition-all disabled:opacity-30" disabled={currentStep === 0} onClick={goPrev}>{uiText("ui.NewProjectDialog.previousStep")}</button>
           <div className="flex gap-3">
             <div className="flex gap-2">
               {/* S2：取消 = 丢弃草稿（落盘已移到最终创建，不再有「取消项目=删真目录」的歧义） */}
-              <button className="em-hover-control ml-0.5 px-2 py-[5px] rounded-[var(--radius-lg)] text-text-secondary transition-all text-sm" onClick={handleCancel}>取消</button>
+              <button className="em-hover-control ml-0.5 px-2 py-[5px] rounded-[var(--radius-lg)] text-text-secondary transition-all text-sm" onClick={handleCancel}>{uiText("common.cancel")}</button>
               <button className="em-hover-control px-2 py-[5px] rounded-[var(--radius-lg)] text-text-secondary transition-all text-sm disabled:opacity-50" disabled={initializing} onClick={handleDirectCreate}>
-                {initializing ? "创建中..." : "直接创建"}
+                {initializing ? uiText("ui.NewProjectDialog.creating") : uiText("ui.ChatPanel.directCreation")}
               </button>
             </div>
             {!isLastStep ? (
-              <button className="px-6 py-[5px] rounded-[var(--radius-lg)] btn-accent text-sm font-medium" disabled={!canNext()} onClick={goNext}>下一步</button>
+              <button className="px-6 py-[5px] rounded-[var(--radius-lg)] btn-accent text-sm font-medium" disabled={!canNext()} onClick={goNext}>{uiText("common.next")}</button>
             ) : (
               <button className="px-6 py-[5px] rounded-[var(--radius-lg)] btn-accent text-sm font-medium" disabled={!canNext() || initializing} onClick={handleCreate}>
-                {initializing ? "创建中..." : "创建项目"}
+                {initializing ? uiText("ui.NewProjectDialog.creating") : uiText("ui.NewProjectDialog.createProject")}
               </button>
             )}
           </div>

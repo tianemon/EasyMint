@@ -1,3 +1,5 @@
+import { appText } from "../../lib/i18n";
+import { uiText, useUiLocale } from "../../lib/i18n";
 import { useState } from "react";
 import { useDeviceStore } from "../../stores/device-store";
 import { Modal } from "../ui/Modal";
@@ -8,6 +10,7 @@ import { Modal } from "../ui/Modal";
  */
 
 export function PairRequestModal(): JSX.Element | null {
+  useUiLocale();
   const pairRequest = useDeviceStore((s) => s.pairRequest);
   const acceptPair = useDeviceStore((s) => s.acceptPair);
   const rejectPair = useDeviceStore((s) => s.rejectPair);
@@ -21,14 +24,14 @@ export function PairRequestModal(): JSX.Element | null {
     setError(null);
     const r = await acceptPair(pairRequest);
     setBusy(false);
-    if (!r.ok) setError(r.error ?? "配对失败");
+    if (!r.ok) setError(r.error ?? uiText("ui.DevicePanel.pairingFailed"));
   };
 
   return (
     <Modal overlayClassName="bg-black/40 modal-overlay" overlayClose={false} onClose={() => void rejectPair()}>
       <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl modal-card" style={{ width: 380 }}>
         <div className="px-6 pt-5 pb-2 bg-[var(--color-surface-alt)]">
-          <h2 className="text-base font-semibold text-text-primary">连接请求</h2>
+          <h2 className="text-base font-semibold text-text-primary">{uiText("ui.PairRequestModal.connectionRequest")}</h2>
         </div>
         <div className="px-6 py-3">
           <div className="flex items-center gap-3">
@@ -37,11 +40,11 @@ export function PairRequestModal(): JSX.Element | null {
             </span>
             <div>
               <div className="text-sm font-medium text-text-primary">{pairRequest.name}</div>
-              <div className="text-xs text-text-secondary mt-0.5">请求与这台设备配对连接</div>
+              <div className="text-xs text-text-secondary mt-0.5">{uiText("ui.PairRequestModal.wantsToPairWithThisDevice")}</div>
               <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">{pairRequest.address}:{pairRequest.port}</div>
             </div>
           </div>
-          {error && <div className="text-[length:var(--text-11)] text-danger mt-3">{error}</div>}
+          {error && <div className="text-[length:var(--text-11)] text-danger mt-3">{appText(error)}</div>}
         </div>
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border">
           <button
@@ -49,14 +52,13 @@ export function PairRequestModal(): JSX.Element | null {
             onClick={rejectPair}
             disabled={busy}
           >
-            拒绝
-          </button>
+            {uiText("ui.MigrationIncomingModal.reject")}</button>
           <button
             className="px-5 py-1.5 rounded-[var(--radius-lg)] btn-accent text-sm font-medium"
             onClick={handleAccept}
             disabled={busy}
           >
-            {busy ? "配对中…" : "接受"}
+            {busy ? uiText("ui.PairRequestModal.pairing") : uiText("ui.PairRequestModal.accept")}
           </button>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { applyUiLanguage, getUiLanguageState, t } from "./services/ui-language";
+import { saveUiLanguage, getUiLanguageState, t } from "./services/ui-language";
 import { isUiLanguage } from "../shared/i18n/locale";
 import { BrowserWindow, ipcMain, dialog, app, shell } from "electron";
 import p from "path";
@@ -701,10 +701,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("settings:set", async (_e, { key, value }) => {
     if (key === "uiLanguage") {
       if (!isUiLanguage(value)) throw new Error("Invalid UI language");
-      const settings = store.getSettings();
-      settings.uiLanguage = value;
-      store.saveSettings(settings);
-      const state = await applyUiLanguage(store);
+      const state = await saveUiLanguage(store, value);
       broadcast("settings:uiLanguageChanged", state);
       return state;
     }

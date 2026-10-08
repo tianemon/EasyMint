@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { appText, useUiLocale } from "../lib/i18n";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 export interface ContextMenuItem {
   label: string;
@@ -11,8 +12,28 @@ export interface ContextMenuData {
   items: ContextMenuItem[];
 }
 
+export function contextMenuPosition(x: number, y: number, width: number, height: number, viewportWidth: number, viewportHeight: number) {
+  return {
+    left: Math.max(4, Math.min(x, viewportWidth - width - 4)),
+    top: Math.max(4, Math.min(y, viewportHeight - height - 4)),
+  };
+}
+
 /** 轻量右键菜单：fixed 定位在鼠标处，点击外部/Escape/失焦关闭 */
 export function ContextMenu({ menu, onClose }: { menu: ContextMenuData | null; onClose: () => void }): JSX.Element | null {
+  const locale = useUiLocale();
+  const ref = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ left: menu?.x ?? 0, top: menu?.y ?? 0 });
+  useLayoutEffect(() => {
+    if (!menu) return;
+    const place = () => {
+      const rect = ref.current?.getBoundingClientRect();
+      if (rect) setPosition(contextMenuPosition(menu.x, menu.y, rect.width, rect.height, window.innerWidth, window.innerHeight));
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [menu, locale]);
   useEffect(() => {
     if (!menu) return;
     const onDown = (e: MouseEvent) => {
@@ -31,14 +52,12 @@ export function ContextMenu({ menu, onClose }: { menu: ContextMenuData | null; o
   }, [menu, onClose]);
 
   if (!menu) return null;
-  // 宽度由内容自适应（w-max），右缘 clamp 按菜单典型宽度预留
-  const left = Math.min(menu.x, window.innerWidth - 200);
-  const top = Math.min(menu.y, window.innerHeight - 140);
   return (
     <div
+      ref={ref}
       data-context-menu
-      className="fixed z-dropdown w-max py-0 overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-xl"
-      style={{ left, top }}
+      className="fixed z-dropdown w-max max-w-[calc(100vw-8px)] max-h-[calc(100vh-8px)] py-0 overflow-x-hidden overflow-y-auto rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-xl"
+      style={position}
       onContextMenu={(e) => e.preventDefault()}
     >
       {menu.items.map((item, i) => (
@@ -47,7 +66,7 @@ export function ContextMenu({ menu, onClose }: { menu: ContextMenuData | null; o
           className="w-full flex items-center px-3 py-1.5 text-xs text-text-primary hover:bg-surface-hover transition-colors text-left"
           onClick={() => { onClose(); item.onClick(); }}
         >
-          {item.label}
+          {appText(item.label)}
         </button>
       ))}
     </div>

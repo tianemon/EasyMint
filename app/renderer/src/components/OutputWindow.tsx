@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../lib/i18n";
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ansiToHtml } from "../lib/ansi-colors";
 import type { LogLine } from "../stores/process-store";
@@ -54,6 +55,7 @@ interface OutputWindowProps {
 }
 
 export function OutputWindow({ command, label, running, logs, content, onStop, logPath, truncated, footer, onClose }: OutputWindowProps): JSX.Element {
+  useUiLocale();
   const outputRef = useRef<HTMLDivElement>(null);
   // 自动贴底跟随:用户滚离底部(dist>8)停止,回底按钮恢复
   const autoScrollRef = useRef(true);
@@ -156,14 +158,14 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
             </button>
           )}
           <span className="text-[length:var(--text-11)] text-text-secondary shrink-0">
-            {running ? "运行中" : "已结束"}
+            {running ? uiText("ui.OutputWindow.running") : uiText("ui.OutputWindow.finished")}
           </span>
           {onStop && running && (
             <button
               type="button"
               onClick={onStop}
               className="shrink-0 px-2.5 py-1 rounded-[var(--radius-lg)] bg-danger-soft text-danger text-xs hover:bg-danger-bg transition-colors whitespace-nowrap"
-            >停止运行</button>
+            >{uiText("ui.OutputWindow.stopProcess")}</button>
           )}
           <button
             type="button"
@@ -185,12 +187,12 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
         >
           {truncated && (
             <div className="text-[length:var(--text-code)] text-warning mb-2 break-all">
-              日志较大,仅显示最近输出(完整: {logPath})
+              {uiText("ui.OutputWindow.largeLogShowingRecentOutputOnlyFull")}{logPath})
             </div>
           )}
           {logs ? (
             logs.length === 0 ? (
-              <span className="text-text-secondary">等待输出...</span>
+              <span className="text-text-secondary">{uiText("ui.OutputWindow.waitingForOutput")}</span>
             ) : (
               logs.map((line) => (
                 <LogRow key={line.id} line={line} />
@@ -199,7 +201,7 @@ export function OutputWindow({ command, label, running, logs, content, onStop, l
           ) : content ? (
             <ShellOutputBody content={content} />
           ) : (
-            <span className="text-text-secondary">{running ? "等待输出…" : "(无输出)"}</span>
+            <span className="text-text-secondary">{running ? uiText("ui.OutputWindow.waitingForOutput2") : uiText("ui.OutputWindow.noOutput")}</span>
           )}
         </div>
 

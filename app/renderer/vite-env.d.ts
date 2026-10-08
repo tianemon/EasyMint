@@ -185,6 +185,7 @@ interface StreamEvent {
   parentToolCallId?: string;
   nestedPhase?: "start" | "update" | "end";
   nestedCalls?: import("../shared/nested-calls").NestedToolCalls;
+  presentation?: import("../shared/tool-presentation").ToolPresentation;
   /** tool_progress 的工具增量输出(事件桥从 partialResult 提取;bash 执行中实时输出) */
   deltaText?: string;
   /** tool_result 是否错误(toolResult 消息 isError) */
@@ -580,6 +581,7 @@ interface ElectronAPI {
     onUiLanguageChanged: (callback: (state: import("../shared/i18n/locale").UiLanguageState) => void) => () => void;
     piImport: (input?: { sourceDir?: string; apply?: boolean; probe?: boolean }) => Promise<import("@shared/pi-config-import").PiImportSummary>;
     get: () => Promise<{
+      uiLanguage?: import("../shared/i18n/locale").UiLanguage;
       nativeConfigMigration?: { migratedAt: string; duplicateConfigIds: string[] };
       defaultProjectDir?: string; setupComplete?: boolean;
       apiKeys?: Record<string, string>; model?: string;

@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../lib/i18n";
 /**
  * 打断丢弃插话的提示——输入卡片上沿（复用 TodoStrip 的位置与规格，不新增样式）。
  *
@@ -17,13 +18,14 @@ export const DroppedSteerNotice = memo(function DroppedSteerNotice({ dropped }: 
   /** 被丢弃的插话原文（null = 无提示） */
   dropped: string[] | null;
 }): JSX.Element | null {
+  useUiLocale();
   if (!dropped) return null;
   const summary = steerQueueSummary(dropped);
   if (summary.count === 0) return null;
   return (
     <div className="shrink-0 px-[var(--s16)] pt-2">
       <div className="flex items-center gap-2 rounded-[var(--radius-lg)] bg-surface-alt/60 border border-border/60 px-2.5 py-1.5">
-        <span className={`${BADGE} bg-warning-soft text-warning`}>已丢弃 {summary.count} 条</span>
+        <span className={`${BADGE} bg-warning-soft text-warning`}>{uiText("ui.DroppedSteerNotice.discarded")}{summary.count} {uiText("ui.DroppedSteerNotice.items")}</span>
         <span className="flex-1 min-w-0 truncate text-xs text-text-secondary">{summary.text}</span>
       </div>
     </div>

@@ -5,8 +5,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir(), getLocale: () => "en-US" } }));
 
+vi.mock("./native-config", () => ({ getNativeConfig: vi.fn(async () => ({})) }));
+import { getNativeConfig } from "./native-config";
 import { Store } from "./store";
-import { applyUiLanguage, getUiLanguageState, mainUiI18n, t } from "./ui-language";
+import { applyUiLanguage, saveUiLanguage, getUiLanguageState, mainUiI18n, t } from "./ui-language";
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -47,6 +49,26 @@ describe("persisted UI language", () => {
     } finally {
       mainUiI18n.off("languageChanged", changed);
     }
+  });
+
+  it("waits for startup migration before writing or changing the active language", async () => {
+    const store = makeStore();
+    let resume!: () => void;
+    vi.mocked(getNativeConfig).mockImplementationOnce(() => new Promise(resolve => { resume = () => resolve({} as never); }));
+    const saving = saveUiLanguage(store, "en");
+    expect(store.getSettings().uiLanguage).toBe("zh-CN");
+    expect(mainUiI18n.language).toBe("zh-CN");
+    resume();
+    expect(await saving).toEqual({ preference: "en", locale: "en" });
+    expect(new Store(store.getDataDir()).getSettings().uiLanguage).toBe("en");
+  });
+
+  it("keeps the saved and active language unchanged when migration fails", async () => {
+    const store = makeStore();
+    vi.mocked(getNativeConfig).mockRejectedValueOnce(new Error("migration failed"));
+    await expect(saveUiLanguage(store, "en")).rejects.toThrow("migration failed");
+    expect(store.getSettings().uiLanguage).toBe("zh-CN");
+    expect(mainUiI18n.language).toBe("zh-CN");
   });
 
   it("recovers from an unsupported stored value", () => {

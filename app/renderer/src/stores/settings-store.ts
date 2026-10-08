@@ -1,3 +1,5 @@
+import { appMessage } from "../lib/i18n";
+import { uiText } from "../lib/i18n";
 import type { UiLanguage, UiLanguageState } from "@shared/i18n/locale";
 import { applyUiLanguage } from "../lib/i18n";
 import { toast } from "../components/ui/Toast";
@@ -204,7 +206,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setModel: (model: string) => {
     set({ model });
     window.electronAPI?.settings?.set?.("model", model).then(() => get().loadFromElectron()).catch((error: Error) => {
-      toast(`保存默认模型失败：${error.message}`);
+      toast(uiText("ui.settings-store.couldNotSaveDefaultModel", { v0: appMessage(error.message) }));
       void get().loadFromElectron();
     });
   },
@@ -219,7 +221,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setChatThinkingLevel: (level: string) => {
     set({ chatThinkingLevel: level });
     window.electronAPI?.settings?.set?.("chatThinkingLevel", level).then(() => get().loadFromElectron()).catch((error: Error) => {
-      toast(`保存默认思考等级失败：${error.message}`);
+      toast(uiText("ui.settings-store.couldNotSaveDefaultThinkingLevel", { v0: appMessage(error.message) }));
       void get().loadFromElectron();
     });
   },
@@ -263,7 +265,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       await get().loadFromElectron();
       return true;
     } catch (error) {
-      toast(`保存供应商失败：${(error as Error).message}`);
+      toast(uiText("ui.settings-store.couldNotSaveProvider", { v0: appMessage((error as Error).message) }));
       await get().loadFromElectron();
       return false;
     }

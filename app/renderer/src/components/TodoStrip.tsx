@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../lib/i18n";
 /**
  * 步骤条（会话步骤）— 输入区上沿，Mint 执行追踪的实时展示（用户只读）。
  * 数据源：todo_write 工具广播（agent:todos，按 sessionId 过滤）；收起态 = 进度 + 当前项（耗时/等待态），点击展开。
@@ -27,6 +28,7 @@ function formatElapsed(ms: number): string {
 }
 
 export const TodoStrip = memo(function TodoStrip({ sessionId }: { sessionId: string }): JSX.Element | null {
+  useUiLocale();
   const [todos, setTodos] = useState<SessionTodoItem[] | null>(null);
   const [expanded, setExpanded] = useState(false);
   // 用户关闭横幅后隐藏；新的 todo 广播（Mint 开新任务/更新）到达时自动恢复显示
@@ -95,7 +97,7 @@ export const TodoStrip = memo(function TodoStrip({ sessionId }: { sessionId: str
   const currentElapsed = current ? elapsedText(current) : null;
   // 等待用户时不判「卡住」：那时长是等人的时间，不是 Mint 卡了（否则「等待你」与 warning 色同时出现，观感相反）
   const currentStuck = current && !currentWaiting ? (elapsedMs(current) ?? 0) > STUCK_MS : false;
-  const summary = current ? current.content : (done === list.length ? "全部完成 ✓" : "待开始");
+  const summary = current ? current.content : (done === list.length ? uiText("ui.TodoStrip.allDone") : uiText("ui.TodoStrip.notStarted"));
 
   return (
     <div className="shrink-0 px-[var(--s16)] pt-2">
@@ -105,11 +107,11 @@ export const TodoStrip = memo(function TodoStrip({ sessionId }: { sessionId: str
           onClick={() => setExpanded((v) => !v)}
           className="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-1.5 text-left"
         >
-          <span className="text-[length:var(--text-2xs)] px-1.5 py-px rounded-full bg-accent-soft text-accent leading-tight shrink-0">步骤 {done}/{todos.length}</span>
+          <span className="text-[length:var(--text-2xs)] px-1.5 py-px rounded-full bg-accent-soft text-accent leading-tight shrink-0">{uiText("ui.TodoStrip.steps")}{done}/{todos.length}</span>
           <span className={`flex-1 min-w-0 truncate text-xs ${current ? "text-text-primary" : "text-text-secondary"}`}>
             {current ? (
               currentWaiting ? (
-                <><span className="text-[length:var(--text-2xs)] px-1.5 py-px rounded-full bg-warning-soft text-warning leading-tight mr-1">等待你</span>{summary}</>
+                <><span className="text-[length:var(--text-2xs)] px-1.5 py-px rounded-full bg-warning-soft text-warning leading-tight mr-1">{uiText("ui.TodoStrip.waitingForYou")}</span>{summary}</>
               ) : (
                 <><span className="text-accent mr-1">●</span>{summary}</>
               )
@@ -155,7 +157,7 @@ export const TodoStrip = memo(function TodoStrip({ sessionId }: { sessionId: str
                       : <span className="inline-block w-1.5 h-1.5 rounded-full border border-text-muted mt-1" />}
                 </span>
                 <span className={`break-words leading-relaxed ${t.status === "completed" ? "line-through" : ""}`}>{t.content}</span>
-                {waiting && <span className="shrink-0 text-[length:var(--text-2xs)] px-1.5 py-px rounded-full bg-warning-soft text-warning leading-tight">等待你</span>}
+                {waiting && <span className="shrink-0 text-[length:var(--text-2xs)] px-1.5 py-px rounded-full bg-warning-soft text-warning leading-tight">{uiText("ui.TodoStrip.waitingForYou")}</span>}
                 {elapsed && <span className={`shrink-0 ml-auto text-[length:var(--text-2xs)] tabular-nums ${stuck ? "text-warning" : "text-text-muted"}`}>{elapsed}</span>}
               </div>
             );

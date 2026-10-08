@@ -1,3 +1,5 @@
+import { formatNumber } from "../lib/locale-format";
+import { uiText, useUiLocale, appText, appMessage } from "../lib/i18n";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
@@ -60,22 +62,22 @@ type MsgAction = "修改" | "重新生成" | "移出上下文" | "恢复进上�
 
 /** 各动作失败时告诉用户「这一步没生效」的后果——不写的话失败卡只有一句错误，用户得自己猜上下文变了没有 */
 const MSG_ACTION_HINTS: Record<MsgAction, string> = {
-  修改: "这条消息仍在上下文里，未发送新内容。",
-  重新生成: "这条回答仍在上下文里，未生成新内容。",
-  移出上下文: "这条消息仍在上下文里，未做改动。",
-  恢复进上下文: "这条消息仍未回到上下文里。",
+  get 修改() { return uiText("ui.ChatPanel.thisMessageIsStillInContextNo"); },
+  get 重新生成() { return uiText("ui.ChatPanel.thisResponseIsStillInContextNo"); },
+  get 移出上下文() { return uiText("ui.ChatPanel.thisMessageIsStillInContextNo2"); },
+  get 恢复进上下文() { return uiText("ui.ChatPanel.thisMessageHasNotBeenRestoredTo"); },
 };
 
 /** 系统消息 kind → 头部标签(系统卡片统一形态的辨识信息) */
 const SYSTEM_KIND_LABELS: Record<string, string> = {
   delegation: "SubAgent",
-  shell: "后台命令",
-  "project-created": "项目初始化",
-  "direct-create": "直接创建",
-  flow: "流程指令",
-  handoff: "会话交接",
-  summary: "上下文摘要",
-  learn: "经验沉淀",
+  get shell() { return uiText("ui.ChatPanel.backgroundCommand"); },
+  get "project-created"() { return uiText("ui.ChatPanel.projectInitialization"); },
+  get "direct-create"() { return uiText("ui.ChatPanel.directCreation"); },
+  get flow() { return uiText("ui.ChatPanel.workflowInstruction"); },
+  get handoff() { return uiText("ui.ChatPanel.sessionHandoff"); },
+  get summary() { return uiText("ui.ChatPanel.contextSummary"); },
+  get learn() { return uiText("ui.ChatPanel.experienceRetention"); },
 };
 
 /** 指令型系统消息（给 Mint 的行为指令，用户无需阅读正文）——默认折叠成标签条，点击展开 */
@@ -120,12 +122,13 @@ function FlowErrorCardView({ card, onRetry, onRecoverImages, onDismiss }: {
   onRecoverImages: (c: FlowErrorCard) => void;
   onDismiss: (c: FlowErrorCard) => void;
 }): JSX.Element {
+  useUiLocale();
   const retryable = card.sourceMsgId != null && card.errorKind !== "request_too_large";
   const tone = ERROR_TONE_STYLE[card.tone ?? "error"];
   return (
     <div
       className={`flex items-start gap-2 rounded-[var(--radius-lg)] border ${tone.border} bg-surface-elevated px-3 py-1.5 w-fit max-w-full`}
-      title={card.hint ? `${card.message}\n${card.hint}` : card.message}
+      title={card.hint ? `${appText(card.message)}\n${appText(card.hint)}` : appText(card.message)}
     >
       {/* 警示三角(三角形路径,16 网格) */}
       <svg className={`mt-[2px] shrink-0 ${tone.icon}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -134,9 +137,9 @@ function FlowErrorCardView({ card, onRetry, onRecoverImages, onDismiss }: {
         <path d="M12 17h.01" />
       </svg>
       <div className="min-w-0 flex-1">
-        <div className="break-words text-text-primary leading-[1.55]" style={{ fontSize: "var(--text-detail)" }}>{card.message}</div>
+        <div className="break-words text-text-primary leading-[1.55]" style={{ fontSize: "var(--text-detail)" }}>{appText(card.message)}</div>
         {card.hint && (
-          <div className="break-words text-text-muted leading-[1.55]" style={{ fontSize: "var(--text-detail)" }}>{card.hint}</div>
+          <div className="break-words text-text-muted leading-[1.55]" style={{ fontSize: "var(--text-detail)" }}>{appText(card.hint)}</div>
         )}
       </div>
       {retryable && (
@@ -145,16 +148,16 @@ function FlowErrorCardView({ card, onRetry, onRecoverImages, onDismiss }: {
           onClick={() => onRetry(card)}
           className="shrink-0 rounded-[var(--radius-lg)] px-2 py-0.5 font-medium text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
           style={{ fontSize: "var(--text-detail)" }}
-        >重试</button>
+        >{uiText("ui.ChatPanel.retry")}</button>
       )}
       {card.errorKind === "request_too_large" && card.sourceMsgId != null && (
-        <button type="button" onClick={() => onRecoverImages(card)} className="shrink-0 rounded-[var(--radius-lg)] px-2 py-0.5 font-medium text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer" style={{ fontSize: "var(--text-detail)" }}>整理图片</button>
+        <button type="button" onClick={() => onRecoverImages(card)} className="shrink-0 rounded-[var(--radius-lg)] px-2 py-0.5 font-medium text-text-secondary hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer" style={{ fontSize: "var(--text-detail)" }}>{uiText("ui.ChatPanel.cleanUpImages")}</button>
       )}
       <button
         type="button"
         onClick={() => onDismiss(card)}
-        title="关闭"
-        aria-label="关闭错误提示"
+        title={uiText("common.close")}
+        aria-label={uiText("ui.ChatPanel.dismissError")}
         className="shrink-0 p-0.5 rounded-[var(--radius-lg)] text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer"
       >
         <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
@@ -168,15 +171,14 @@ function FlowErrorCardView({ card, onRetry, onRecoverImages, onDismiss }: {
 
 /** token 数格式化（显示用：1.2k / 3.4M） */
 function fmtTokenCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k`;
-  return String(n);
+  return formatNumber(n, { notation: "compact", maximumFractionDigits: 1 });
 }
 
 /** 压缩弹窗「写交接提示词」:让 Mint 总结当前会话,输出可复制的交接内容(不压缩) */
-const HANDOFF_PROMPT = "请总结当前会话的全部内容，并写一份交接提示词（包含项目状态、已完成的工作、当前进度、遇到的问题、下一步计划），以便在新会话中继续工作。请直接输出交接提示词内容，用中文。";
+const HANDOFF_PROMPT = "请总结当前会话的全部内容，并写一份交接提示词（包含项目状态、已完成的工作、当前进度、遇到的问题、下一步计划），以便在新会话中继续工作。请直接输出交接提示词内容，使用用户所用的语言。";
 
 export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesigner, onSessionCreated, onActivity }: ChatPanelProps): JSX.Element {
+  useUiLocale();
   const tempSidRef = useRef<string | null>(null);
   if (!existingSid && !tempSidRef.current) tempSidRef.current = `__new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const initialSid = existingSid ?? tempSidRef.current!;
@@ -1136,7 +1138,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 副作用(事件回调内,合法):首个进行中的委派出现 → 常驻「调用 Agent」;
       // 最后一个进行中的委派结束 → 清除
       if (!hadRunning && anyRunning) {
-        useStatusStore.getState().pushSignal(sidRef.current, "agent", "调用 Agent");
+        useStatusStore.getState().pushSignal(sidRef.current, "agent", uiText("ui.ChatPanel.callAgent"));
       } else if (hadRunning && !anyRunning) {
         useStatusStore.getState().popSignal(sidRef.current, "agent");
       }
@@ -1249,7 +1251,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       setDelegations(merged);
       // 快照播种的委派未走 progress 事件,状态栏「调用 Agent」信号自行补推
       const nowRunning = Object.values(merged).some((d) => !d.finished);
-      if (!prevRunning && nowRunning) useStatusStore.getState().pushSignal(sidRef.current, "agent", "调用 Agent");
+      if (!prevRunning && nowRunning) useStatusStore.getState().pushSignal(sidRef.current, "agent", uiText("ui.ChatPanel.callAgent"));
     }
     return chatIdToBind;
   }, []);
@@ -1418,7 +1420,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         latestAiIdRef.current = 0;
         busyRef.current = true;
         setBusy(true);
-        useStatusStore.getState().pushSignal(sidRef.current, "request", "等待模型响应...");
+        useStatusStore.getState().pushSignal(sidRef.current, "request", uiText("ui.ChatPanel.waitingForModel"));
         onActivity?.();
         return;
       }
@@ -1479,7 +1481,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         if (hasText) {
           useStatusStore.getState().popSignal(sidRef.current, "request");
         } else if (hasThinking && busyRef.current) {
-          useStatusStore.getState().pushSignal(sidRef.current, "request", "正在思考...");
+          useStatusStore.getState().pushSignal(sidRef.current, "request", uiText("ui.ChatPanel.thinking"));
         }
         const entries = mergeConsecutiveText(rawEntries);
         if (latestAiIdRef.current) {
@@ -1500,7 +1502,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         useStatusStore.getState().popSignal(sidRef.current, "retry");
         // 回合开始 → 保持「等待模型响应」(同 id 更新)——turn_start 在 SDK 发起 API 请求前 emit,
         // 至首个响应块到达前状态栏语义 = 等待 API 返回;收到 thinking 块才转「正在思考」
-        useStatusStore.getState().pushSignal(sidRef.current, "request", "等待模型响应...");
+        useStatusStore.getState().pushSignal(sidRef.current, "request", uiText("ui.ChatPanel.waitingForModel"));
         latestAiIdRef.current = 0;
         steeringRef.current = false;
         // 不在此关闭压缩弹窗:turn_start 在回合内每个工具批次都会发,Mint 输出中触发弹窗会被
@@ -1566,7 +1568,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 下一步 turn_start 转「等待模型响应」/ thinking 帧转「正在思考」/ 文本帧 pop)
       if (event.type === "tool_done") {
         useStatusStore.getState().popSignal(sidRef.current, `tool:${event.toolCallId ?? "?"}`);
-        if (busyRef.current) useStatusStore.getState().pushSignal(sidRef.current, "request", "正在处理...");
+        if (busyRef.current) useStatusStore.getState().pushSignal(sidRef.current, "request", uiText("ui.ChatPanel.processing"));
       }
       if (event.type === "nested_tool" && event.parentToolCallId) {
         const msgs = useChatStore.getState().messagesBySession[sidRef.current] || [];
@@ -1583,6 +1585,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           kind: "tool_result" as const,
           toolUseId: event.toolCallId,
           nestedCalls: event.nestedCalls,
+          presentation: event.presentation,
           name: event.toolName,
           content: event.content ?? "",          isError: event.isError ?? false,
           timestamp: event.timestamp ?? Date.now(),
@@ -1606,7 +1609,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         busyRef.current = true; // 同步 busyRef(doCompact/steer 按它判断;压缩期间再点压缩应拦截)
         useStatusStore.getState().setCompacting(sidRef.current, true);
         useStatusStore.getState().pushSignal(sidRef.current, "compact",
-          manualCompactingRef.current ? "正在整理会话..." : "检测到上下文需整理，正在整理…");
+          manualCompactingRef.current ? uiText("ui.ChatPanel.compactingSession") : uiText("ui.ChatPanel.contextNeedsCompactionCompacting"));
       }
       // compacted = 压缩完成：清除 compacting（蒙版消失）、
       // 并兜底清除 summarizing（防御轮转总结路径的残留）。压缩开始置 busy(compacting 事件
@@ -1638,7 +1641,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         // 主进程有的路径已把 AbortError 归一化为「已停止」；按分类结果判定，
         // 否则英文原文被改写后反而会出现一张「已停止」错误卡。
         const info = classifyApiError(event.message);
-        if (info.message !== "已停止") {
+        if (info.code !== "stopped") {
           useStatusStore.getState().pushSignal(sidRef.current, "error", info.message, 8000);
           showFlowError(event.operation === "compaction" ? "system" : "round", info.message, { tone: info.tone, ...(info.hint ? { hint: info.hint } : {}), ...(event.operation !== "compaction" && info.kind ? { errorKind: info.kind } : {}) });
         }
@@ -1656,7 +1659,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         } else {
           useStatusStore.getState().popSignal(sidRef.current, "retry");
           if (event.retrySuccess && busyRef.current) {
-            useStatusStore.getState().pushSignal(sidRef.current, "request", "正在处理...");
+            useStatusStore.getState().pushSignal(sidRef.current, "request", uiText("ui.ChatPanel.processing"));
           }
         }
       }
@@ -1727,7 +1730,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       const pend = pendingCompactRef.current;
       if (pend) {
         pendingCompactRef.current = null;
-        useStatusStore.getState().pushSignal(sidRef.current, "compact", "回合已结束，正在压缩上下文...");
+        useStatusStore.getState().pushSignal(sidRef.current, "compact", uiText("ui.ChatPanel.turnFinishedCompactingContext"));
         window.electronAPI.agent.compact(sidRef.current, pend.instructions || undefined).catch(() => {});
       }
     });
@@ -1852,7 +1855,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         return;
       }
       // summary 路径(轮转总结)
-      useStatusStore.getState().pushSignal(sidRef.current, "summary", "正在整理并开启新会话...");
+      useStatusStore.getState().pushSignal(sidRef.current, "summary", uiText("ui.ChatPanel.summarizingAndStartingANewSession"));
       useStatusStore.getState().setSummarizing(sidRef.current, true);
     });
     const unsubCtxUsage = window.electronAPI.agent.onContextUsage(({ chatId: ctxChatId, percentage, maxTokens }) => {
@@ -1896,7 +1899,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const timer = setTimeout(() => {
       useStatusStore.getState().setSummarizing(sidRef.current, false);
       useStatusStore.getState().popSignal(sidRef.current, "summary");
-      const msg = "摘要超时，将开新会话继续";
+      const msg = uiText("ui.ChatPanel.summaryTimedOutContinuingInANew");
       useStatusStore.getState().pushSignal(sidRef.current, "error", msg, 8000);
       showFlowError("system", msg);
       console.error("[ChatPanel] summarization timed out after 120s");
@@ -1911,7 +1914,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const timer = setTimeout(() => {
       useStatusStore.getState().setCompacting(sidRef.current, false);
       useStatusStore.getState().popSignal(sidRef.current, "compact");
-      const msg = "压缩状态异常，已恢复界面（压缩可能仍在后台）";
+      const msg = uiText("ui.ChatPanel.compactionStatusWasInconsistentTheInterfaceHas");
       useStatusStore.getState().pushSignal(sidRef.current, "error", msg, 8000);
       showFlowError("system", msg);
       console.error("[ChatPanel] compaction timed out after 120s");
@@ -2097,7 +2100,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     if (result.stopTimedOut) {
       busyRef.current = true;
       setBusy(true);
-      useStatusStore.getState().pushSignal(stoppedSid, "error", "停止尚未完成，当前会话仍在处理，请稍后重试", 10000);
+      useStatusStore.getState().pushSignal(stoppedSid, "error", uiText("ui.ChatPanel.stoppingIsNotCompleteThisSessionIs"), 10000);
       return;
     }
     if (!result.rewound) return;
@@ -2133,7 +2136,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       retryMsg = stored.find((m) => m.id === opts.sourceMsgId && m.role === "user") || null;
       if (!retryMsg) {
         // 气泡已被会话切换/裁剪移除；不能误用当前输入框的内容与附件。
-        useStatusStore.getState().pushSignal(sidRef.current, "error", "原提问已变化，无法重新发送，请重新打开会话", 8000);
+        useStatusStore.getState().pushSignal(sidRef.current, "error", uiText("ui.ChatPanel.theOriginalPromptChangedReopenThisSession"), 8000);
         return;
       }
     }
@@ -2229,7 +2232,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       resolveReady,
     };
     pendingSendRef.current = pendingSend;
-    busyRef.current = true; setBusy(true); useStatusStore.getState().pushSignal(sidRef.current, "request", "等待模型响应...");
+    busyRef.current = true; setBusy(true); useStatusStore.getState().pushSignal(sidRef.current, "request", uiText("ui.ChatPanel.waitingForModel"));
     // 新会话首条消息窗口开启：onChatSession 回绑真实 sid 后关闭（见订阅处）
     if (!sendSessionId) pendingFirstTurnRef.current = true;
 
@@ -2276,12 +2279,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       if (pendingSendRef.current === pendingSend) pendingSendRef.current = null;
       abortedRunPendingRef.current = false;
       pendingFirstTurnRef.current = false; busyRef.current = false; setBusy(false); currentChatRef.current = null;
-      const errText = "发送失败，请检查网络后重试";
+      const errText = uiText("ui.ChatPanel.sendFailedCheckYourConnectionAndTry");
       useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
       // 同步写入消息流持久错误卡片(锚定刚追加/重试的用户消息,可点重试重新发送)。
       // afterRewind（编辑重发 / 重新生成）：撤回已经生效——这条（新）消息还没进上下文，重试就是把它发进去；
       // 不说这一句的话用户只看到「发送失败」，不知道上下文已经被截断了
-      if (sentMsgId != null) showFlowError("send", errText, { sourceMsgId: sentMsgId, anchorMsgId: sentMsgId, tone: "warn", ...(opts?.afterRewind ? { hint: "这条消息已退出上下文，点重试重新发送。", afterRewind: true } : {}) });
+      if (sentMsgId != null) showFlowError("send", errText, { sourceMsgId: sentMsgId, anchorMsgId: sentMsgId, tone: "warn", ...(opts?.afterRewind ? { hint: uiText("ui.ChatPanel.thisMessageHasLeftTheContextSelect"), afterRewind: true } : {}) });
     }
   }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatModel, chatProvider, chatRole, tabId, applyStopRewind]);
 
@@ -2300,20 +2303,20 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const handleRecoverImages = useCallback(async (card: FlowErrorCard) => {
     const source = (useChatStore.getState().messagesBySession[sidRef.current] || []).find((msg) => msg.id === card.sourceMsgId && msg.role === "user");
     if (!source?.entryId) {
-      showFlowError("system", "无法定位失败的提问，请重新打开会话后重试", { anchorMsgId: card.anchorMsgId });
+      showFlowError("system", uiText("ui.ChatPanel.couldNotLocateTheFailedPromptReopen"), { anchorMsgId: card.anchorMsgId });
       return;
     }
     try {
       const result = await window.electronAPI.agent.imageRetryCandidates(sidRef.current, source.entryId, projectPath || getWorkspaceDir());
-      if (!result.ok) throw new Error(result.error || "无法读取历史图片");
+      if (!result.ok) throw new Error(result.error || uiText("ui.ChatPanel.couldNotReadHistoricalImages"));
       const currentImageCount = (source.attaches ?? []).filter((attachment: AttachItem) => attachment.kind === "image").length;
       if (!result.candidates?.length && currentImageCount === 0) {
-        showFlowError("system", "没有可整理的历史图片，请减少本次附件后重新发送", { anchorMsgId: card.anchorMsgId });
+        showFlowError("system", uiText("ui.ChatPanel.noHistoricalImagesToCleanUpReduce"), { anchorMsgId: card.anchorMsgId });
         return;
       }
       setImageRecovery({ mode: "retry", card, candidates: result.candidates ?? [], currentImageCount });
     } catch (error) {
-      showFlowError("system", error instanceof Error ? error.message : "无法读取历史图片", { anchorMsgId: card.anchorMsgId });
+      showFlowError("system", error instanceof Error ? error.message : uiText("ui.ChatPanel.couldNotReadHistoricalImages"), { anchorMsgId: card.anchorMsgId });
     }
   }, [projectPath, showFlowError]);
 
@@ -2329,25 +2332,25 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       console.error("[chat] 图片整理失败后重新加载会话也失败:", error);
     }
     setImageRecovery(null);
-    useStatusStore.getState().pushSignal(activeSid, "error", `${message}。请重新打开会话后再发送`, 10000);
+    useStatusStore.getState().pushSignal(activeSid, "error", uiText("ui.ChatPanel.reopenThisSessionBeforeSendingAgain", { v0: appMessage(message) }), 10000);
     return null;
   }, [projectPath]);
 
   const confirmImageRecovery = useCallback(async (entryIds: string[], omitCurrentImages: boolean): Promise<string | null> => {
     const recovery = imageRecovery;
-    if (!recovery) return "整理窗口已关闭";
+    if (!recovery) return uiText("ui.ChatPanel.imageCleanupDialogClosed");
     if (recovery.mode === "manage") {
       const result = await window.electronAPI.agent.removeContextImages(sidRef.current, entryIds, projectPath || getWorkspaceDir());
-      if (!result.ok) return result.reloadRequired ? reloadAfterImageMutationFailure(result.error || "整理失败") : result.error || "整理失败，请重试";
+      if (!result.ok) return result.reloadRequired ? reloadAfterImageMutationFailure(result.error || uiText("ui.ChatPanel.cleanupFailed")) : result.error || uiText("ui.ChatPanel.cleanupFailedTryAgain");
       useChatStore.getState().markImagesStripped(sidRef.current, entryIds);
       setContextImageBytes((previous) => Math.max(0, previous - (result.removedBytes ?? 0)));
       setImageRecovery(null);
       return null;
     }
     const source = (useChatStore.getState().messagesBySession[sidRef.current] || []).find((msg) => msg.id === recovery.card.sourceMsgId && msg.role === "user");
-    if (!source?.entryId) return "失败的提问已变化，请重新打开会话";
+    if (!source?.entryId) return uiText("ui.ChatPanel.theFailedPromptChangedReopenThisSession");
     const result = await window.electronAPI.agent.prepareImageRetry(sidRef.current, source.entryId, entryIds, omitCurrentImages, projectPath || getWorkspaceDir());
-    if (!result.ok) return result.reloadRequired ? reloadAfterImageMutationFailure(result.error || "整理失败") : result.error || "整理失败，请重试";
+    if (!result.ok) return result.reloadRequired ? reloadAfterImageMutationFailure(result.error || uiText("ui.ChatPanel.cleanupFailed")) : result.error || uiText("ui.ChatPanel.cleanupFailedTryAgain");
     useChatStore.getState().markImagesStripped(sidRef.current, entryIds);
     useChatStore.getState().truncateAfter(sidRef.current, source.id);
     useChatStore.getState().dismissFlowError(sidRef.current, recovery.card.id);
@@ -2418,7 +2421,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
    *  卡片，hint 说明「这一步没生效」的后果——四个动作都是「改上下文失败」，失败可见性完全同构。 */
   const reportMsgActionFailure = useCallback((msg: ChatMessage, action: MsgAction, detail: string) => {
     console.error(`[chat] ${action}失败：session=${sidRef.current} entry=${msg.entryId ?? "?"} ${detail}`);
-    const errText = detail ? `${action}失败：${detail}` : `${action}失败，请重试`;
+    const errText = detail ? uiText("ui.ChatPanel.failed", { v0: appMessage(action), v1: appMessage(detail) }) : uiText("ui.ChatPanel.failedTryAgain", { v0: appMessage(action) });
     useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
     showFlowError("system", errText, { anchorMsgId: msg.id, hint: MSG_ACTION_HINTS[action] });
   }, [showFlowError]);
@@ -2497,9 +2500,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const stored = useChatStore.getState().messagesBySession[sidRef.current] || [];
     if (needsEditConfirm(stored, msg.id)) {
       const ok = await confirmDialog({
-        title: "重新发送这条消息？",
-        message: "这条消息之后的回答、系统卡片与委派结果会一并重来。",
-        confirmText: "重新发送",
+        title: uiText("ui.ChatPanel.resendThisMessage"),
+        message: uiText("ui.ChatPanel.laterResponsesSystemCardsAndDelegatedResults"),
+        confirmText: uiText("ui.ChatPanel.resend"),
       });
       // 取消 = 什么都没发生（包括刚才关掉的编辑框）：草稿放回去，用户接着改
       if (!ok) { setEditingMsg({ id: msg.id, draft: newText }); return; }
@@ -2537,9 +2540,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const stored = useChatStore.getState().messagesBySession[sidRef.current] || [];
     if (needsEditConfirm(stored, msg.id)) {
       const ok = await confirmDialog({
-        title: "重新生成这条回答？",
-        message: "这条回答之后的回答、系统卡片与委派结果会一并重来。",
-        confirmText: "重新生成",
+        title: uiText("ui.ChatPanel.regenerateThisResponse"),
+        message: uiText("ui.ChatPanel.laterResponsesSystemCardsAndDelegatedResults2"),
+        confirmText: uiText("ui.ChatBubbleActions.regenerate"),
       });
       if (!ok) return;
     }
@@ -2563,9 +2566,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         if (sidRef.current === rewindSid) useChatStore.getState().evictSession(rewindSid);
       }
       if (sidRef.current !== rewindSid) return;
-      const errText = "未能重新发送提问";
+      const errText = uiText("ui.ChatPanel.couldNotResendThePrompt");
       useStatusStore.getState().pushSignal(sidRef.current, "error", errText, 8000);
-      showFlowError("system", errText, { hint: "本窗口没有这条提问的记录（可能来自其他终端）。这条回答已退出上下文，请重新输入问题发送。" });
+      showFlowError("system", errText, { hint: uiText("ui.ChatPanel.thisWindowHasNoRecordOfThat") });
       return;
     }
     // 与磁盘撤回后的当前分支同步；旧回答立即从页面消失，重发进入普通发送状态机。
@@ -2623,8 +2626,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     const pinRange = selInMsg ? sel.getRangeAt(0).cloneRange() : null;
 
     const items: ContextMenuItem[] = [
-      { label: "复制", onClick: () => { navigator.clipboard.writeText(selInMsg ? selText : copyText).catch((err: unknown) => console.error("[copy]", err)); } },
-      { label: "全选", onClick: () => {
+      { label: uiText("common.copy"), onClick: () => { navigator.clipboard.writeText(selInMsg ? selText : copyText).catch((err: unknown) => console.error("[copy]", err)); } },
+      { label: uiText("ui.ChatPanel.selectAll"), onClick: () => {
         const bubbleEl = container.querySelector(".msg-bubble-agent, .msg-bubble-user");
         if (!bubbleEl) return;
         const range = document.createRange();
@@ -2633,7 +2636,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         s?.removeAllRanges();
         s?.addRange(range);
       } },
-      { label: "钉住", onClick: () => {
+      { label: uiText("ui.ChatPanel.pin"), onClick: () => {
         let ok: boolean;
         if (pinRange) {
           ok = usePinStore.getState().addPin(sidRef.current, blocksToMarkdown(selectionToBlocks(pinRange)));
@@ -2641,7 +2644,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         } else {
           ok = usePinStore.getState().addPin(sidRef.current, copyText);
         }
-        if (!ok) showPinToast("该内容已钉为便签");
+        if (!ok) showPinToast(uiText("ui.ChatPanel.thisContentIsAlreadyPinned"));
       } },
     ];
     // 轻档入口（与「修改」的级联重推同级不同档）：只把这一条从模型视野里拿掉，它之后的对话照旧——
@@ -2650,12 +2653,12 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     // 两者都不弹确认框：虽然会落盘（重开会话仍生效），但随时可恢复，不构成不可逆操作。
     const ctxAction = contextEditAction(msg);
     if (ctxAction === "drop") {
-      items.push({ label: "移出上下文（后续对话不重来）", onClick: () => { void setEntryInContext(msg, false); } });
+      items.push({ label: uiText("ui.ChatPanel.removeFromContextKeepLaterConversation"), onClick: () => { void setEntryInContext(msg, false); } });
     } else if (ctxAction === "restore") {
-      items.push({ label: "恢复进上下文", onClick: () => { void setEntryInContext(msg, true); } });
+      items.push({ label: uiText("ui.ChatPanel.restoreToContext"), onClick: () => { void setEntryInContext(msg, true); } });
     }
     if (msg.imageStripped && msg.entryId && !msg.outOfContext) {
-      items.push({ label: "恢复原图进上下文", onClick: () => { void setEntryInContext(msg, true); } });
+      items.push({ label: uiText("ui.ChatPanel.restoreOriginalImageToContext"), onClick: () => { void setEntryInContext(msg, true); } });
     }
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
   }, [setEntryInContext]);
@@ -2675,9 +2678,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       {contextImageBytes + pendingImageBytes >= contextImageWarnAt && !busy && (
         <div className="mx-[var(--s16)] mb-2 px-3 py-2 rounded-[var(--radius-lg)] border border-warning-border bg-surface-elevated text-xs text-text-secondary flex items-center justify-between gap-3">
           <span>
-            图片数据较多{contextImageBytes > 0 ? `：历史约 ${(contextImageBytes / (1024 * 1024)).toFixed(1)} MB` : ""}{pendingImageBytes > 0 ? `，本次原图编码约 ${(pendingImageBytes / (1024 * 1024)).toFixed(1)} MB` : ""}。发送时会缩小新图片，最终请求仍可能超过服务商上限。
-          </span>
-          {contextImageBytes > 0 && <button type="button" className="shrink-0 text-text-primary underline cursor-pointer" onClick={() => { void manageContextImages(); }}>整理历史图片</button>}
+            {uiText("ui.ChatPanel.largeImagePayload")}{contextImageBytes > 0 ? uiText("ui.ChatPanel.aboutMbInHistory", { v0: (contextImageBytes / (1024 * 1024)).toFixed(1) }) : ""}{pendingImageBytes > 0 ? uiText("ui.ChatPanel.aboutMbOfNewlyEncodedImages", { v0: (pendingImageBytes / (1024 * 1024)).toFixed(1) }) : ""}{uiText("ui.ChatPanel.newImagesWillBeResizedButThe")}</span>
+          {contextImageBytes > 0 && <button type="button" className="shrink-0 text-text-primary underline cursor-pointer" onClick={() => { void manageContextImages(); }}>{uiText("ui.ChatPanel.cleanUpHistoricalImages")}</button>}
         </div>
       )}
       <ChatInput
@@ -2750,7 +2752,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     if (useStatusStore.getState().bySession[sidRef.current]?.compacting) return;
     if (busyRef.current) {
       pendingCompactRef.current = { instructions };
-      useStatusStore.getState().pushSignal(sidRef.current, "compact", "当前回合结束后自动压缩...");
+      useStatusStore.getState().pushSignal(sidRef.current, "compact", uiText("ui.ChatPanel.contextWillCompactAfterTheCurrentTurn"));
       return;
     }
     // 重启后会话未激活（未发过消息）：主进程 activeChats 里没有它，压缩会直接失败。
@@ -2789,8 +2791,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                 <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
                 <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
-              正在加载会话…
-            </div>
+              {uiText("ui.ChatPanel.loadingSession")}</div>
           ) : (
             <div />
           )
@@ -2865,8 +2866,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                   onClick={() => { setConfirmDevFlag(false); consumeShowTools(); sendText(CONFIRM_DEVELOPMENT_PROMPT); }}
                   className="px-6 py-2.5 rounded-[var(--radius-lg)] btn-accent text-sm font-semibold border-none cursor-pointer transition-all duration-200 hover:-translate-y-px active:translate-y-0"
                 >
-                  确认开发
-                </button>
+                  {uiText("ui.ChatBlocks.confirmDevelopment")}</button>
               </div>
             )}
 
@@ -2904,7 +2904,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         {!hasMessages && !existingSid && !leavingStartCard ? (
           <div className="w-full flex flex-col gap-2">
             <div className="flex items-center gap-2 ml-[66px]">
-              <span className="text-sm text-text-muted">Agent能力</span>
+              <span className="text-sm text-text-muted">{uiText("ui.ChatPanel.agentCapabilities")}</span>
               {/* 轨道(背景框):参考 liquid-glass user info card——blur 20px 雾面 + saturate 140,
                   静止无弹性无 hover 光晕(示例 user card 无 onClick 即无 hover 效果);
                   onMouseMove 仅作滑块弹性的鼠标跟踪源 */}
@@ -2940,7 +2940,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                 <div className="absolute inset-0 z-40 p-1 flex items-center pointer-events-none">
                   {(["mint", "mint-d"] as const).map((r) => (
                     <div key={`lbl-${r}`} className="shrink-0 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs text-role-idle">
-                      {r === "mint" ? "标准" : "增强UI设计"}
+                      {r === "mint" ? uiText("ui.ChatInput.standard") : uiText("ui.ChatPanel.enhancedUiDesign")}
                     </div>
                   ))}
                   <div
@@ -2955,7 +2955,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                   >
                     {(["mint", "mint-d"] as const).map((r) => (
                       <div key={`sel-${r}`} className="shrink-0 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs">
-                        {r === "mint" ? "标准" : "增强UI设计"}
+                        {r === "mint" ? uiText("ui.ChatInput.standard") : uiText("ui.ChatPanel.enhancedUiDesign")}
                       </div>
                     ))}
                   </div>
@@ -2968,7 +2968,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     onClick={() => setChatRole(r)}
                     className="relative z-10 px-2.5 py-0.5 rounded-full text-xs text-transparent cursor-pointer"
                   >
-                    {r === "mint" ? "标准" : "增强UI设计"}
+                    {r === "mint" ? uiText("ui.ChatInput.standard") : uiText("ui.ChatPanel.enhancedUiDesign")}
                   </button>
                 ))}
               </div>
@@ -2992,7 +2992,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
             }}
             
           >
-            {showNewMsg && <span>新消息</span>}
+            {showNewMsg && <span>{uiText("ui.ChatPanel.newMessages")}</span>}
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v9M4.5 8.5L8 12l3.5-3.5"/></svg>
           </button>
         )}
@@ -3008,8 +3008,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       {compactDialog && (
         <CompactionDialog
           title={compactDialog.source === "auto"
-            ? `当前会话已达到自动压缩阈值 ${compactDialog.threshold ?? 75}%，如何处理？`
-            : "压缩当前会话上下文"}
+            ? uiText("ui.ChatPanel.thisSessionReachedTheCompactionThresholdWhat", { v0: compactDialog.threshold ?? 75 })
+            : uiText("ui.ChatPanel.compactThisSessionSContext")}
           countdown={compactDialog.source === "auto"
             ? { total: 60, onExpire: handleImmediateCompact }
             : undefined}
@@ -3063,19 +3063,21 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
  *  这条已不在模型视野里；重开会话后仍会按磁盘 context_edit 条目显示此标记。
  *  默认样式压住 .msg-from 的继承（大写 + 字间距是那个标题栏的，不是徽章的）。 */
 function OutOfContextTag({ className = "" }: { className?: string }): JSX.Element {
+  useUiLocale();
   return (
     <span className={`inline-block shrink-0 px-1.5 py-0.5 rounded-full bg-surface-alt text-text-secondary text-[length:var(--text-3xs)] font-normal normal-case tracking-normal align-middle ${className}`}>
-      已退出上下文
-    </span>
+      {uiText("ui.ChatPanel.removedFromContext")}</span>
   );
 }
 
 function ImageStrippedTag({ className = "" }: { className?: string }): JSX.Element {
-  return <span className={`inline-block shrink-0 px-1.5 py-0.5 rounded-full bg-surface-alt text-text-secondary text-[length:var(--text-3xs)] font-normal normal-case tracking-normal align-middle ${className}`}>历史图片已整理</span>;
+  useUiLocale();
+  return <span className={`inline-block shrink-0 px-1.5 py-0.5 rounded-full bg-surface-alt text-text-secondary text-[length:var(--text-3xs)] font-normal normal-case tracking-normal align-middle ${className}`}>{uiText("ui.ChatPanel.historicalImagesCleanedUp")}</span>;
 }
 
 function ImagePathOnlyTag(): JSX.Element {
-  return <span className="inline-block shrink-0 px-1.5 py-0.5 rounded-full bg-surface-alt text-text-secondary text-[length:var(--text-3xs)] font-normal normal-case tracking-normal align-middle">图片仅传路径</span>;
+  useUiLocale();
+  return <span className="inline-block shrink-0 px-1.5 py-0.5 rounded-full bg-surface-alt text-text-secondary text-[length:var(--text-3xs)] font-normal normal-case tracking-normal align-middle">{uiText("ui.ChatPanel.imagesSentAsPathsOnly")}</span>;
 }
 
 // ── Memo message item: avoids re-rendering all messages on each stream event ──
@@ -3095,6 +3097,7 @@ interface MemoChatMessageProps {
 }
 
 const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, userBubble, onPin, onRegenerate, onContextMenu, sid }: MemoChatMessageProps) {
+  useUiLocale();
   // 指令型系统消息的展开/收起（事件型不折叠——无此 state 参与）
   const [sysExpanded, setSysExpanded] = useState(false);
   // 思考/工具固定显示(无显示开关)——全部 entries 参与建块
@@ -3196,14 +3199,14 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
                 {headStatus && (
                   <span className={statusColor(headStatus)} style={{ fontSize: "var(--text-11)" }}>⏺</span>
                 )}
-                <span>{SYSTEM_KIND_LABELS[kind] ?? "系统消息"}</span>
+                <span>{SYSTEM_KIND_LABELS[kind] ?? uiText("ui.ChatPanel.systemMessage")}</span>
                 {/* 系统卡片（委派结果 / 后台命令 / 摘要）也会随撤回一并退出上下文 */}
                 {msg.outOfContext ? <OutOfContextTag /> : null}
                 {msg.imageStripped && !msg.outOfContext ? <ImageStrippedTag /> : null}
                 {/* 状态 + 时长上标题栏(取首个 ⏺ 行);只有 ⏺ 与状态文字着色,横线/时间保持中性 */}
                 {headStatus && (
                   <span className="font-semibold" style={{ fontSize: "var(--text-11)" }}>
-                    - <span className={statusColor(headStatus)}>{headStatus}</span>
+                    - <span className={statusColor(headStatus)}>{appText(headStatus)}</span>
                     {headDur ? ` · ${headDur}s` : ""}
                   </span>
                 )}
@@ -3230,7 +3233,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
                               key={i}
                               type="button"
                               onClick={(e) => { e.stopPropagation(); window.electronAPI.shell.revealInFolder(logPath); }}
-                              title="在文件夹中显示"
+                              title={uiText("ui.ChatPanel.showInFolder")}
                               className="flex items-center gap-1 max-w-full text-left text-[var(--color-link)] hover:underline transition-colors"
                             >
                               <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /></svg>
@@ -3251,7 +3254,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
                         <div key={i} className="py-0.5 leading-[1.55]">
                           <span className={`${dotColor} text-[length:var(--text-caption)] align-baseline`}>⏺ </span>
                           {m ? (
-                            <><span className="text-text-primary">{m[1]}</span><span className="text-[length:var(--text-caption)] font-semibold"> - <span className={dotColor}>{m[2]}</span></span>{m[3] && <span className="text-text-secondary/70 text-[length:var(--text-caption)] tabular-nums"> • {m[3]}s</span>}</>
+                            <><span className="text-text-primary">{m[1]}</span><span className="text-[length:var(--text-caption)] font-semibold"> - <span className={dotColor}>{appText(m[2])}</span></span>{m[3] && <span className="text-text-secondary/70 text-[length:var(--text-caption)] tabular-nums"> • {m[3]}s</span>}</>
                           ) : (
                             <span className="text-text-secondary">{row.slice(2)}</span>
                           )}
@@ -3309,7 +3312,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
             {msg.outOfContext ? <OutOfContextTag className="ml-1.5" /> : null}
             {msg.imageStripped && !msg.outOfContext ? <ImageStrippedTag className="ml-1.5" /> : null}
             {role && msg.forwarded && (
-              <span className="text-text-secondary/60 ml-1.5 text-[length:var(--text-2xs)] font-normal">· {msg.forwardedFrom ? `来自 ${msg.forwardedFrom}` : "来自转发"}</span>
+              <span className="text-text-secondary/60 ml-1.5 text-[length:var(--text-2xs)] font-normal">· {msg.forwardedFrom ? uiText("ui.ChatPanel.from", { v0: msg.forwardedFrom }) : uiText("ui.ChatPanel.forwarded")}</span>
             )}
           </div>
           <div className="msg-bubble-agent rounded-[var(--radius-lg)] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
@@ -3323,9 +3326,9 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
               const read = msg.usage.cacheReadTokens || 0;
               return (
                 <div className="mt-1 flex justify-end whitespace-nowrap text-[length:var(--text-2xs)] text-text-muted tabular-nums">
-                  输入 {fmtTokenCount(total)}
-                  {" · "}输出 {fmtTokenCount(msg.usage.outputTokens || 0)}
-                  {read > 0 && total > 0 ? ` · 缓存命中 ${((read / total) * 100).toFixed(2)}%` : ""}
+                  {uiText("ui.ChatPanel.input")}{fmtTokenCount(total)}
+                  {" · "}{uiText("ui.ChatPanel.output")}{fmtTokenCount(msg.usage.outputTokens || 0)}
+                  {read > 0 && total > 0 ? uiText("ui.ChatPanel.cacheHit", { v0: ((read / total) * 100).toFixed(2) }) : ""}
                 </div>
               );
             })()}
@@ -3364,6 +3367,7 @@ function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDr
   onViewImage?: (src: string, name: string) => void;
   actions: UserBubbleActionProps;
 }): JSX.Element {
+  useUiLocale();
   const isEditing = !!editing;
   const curDraft = draft ?? "";
   return (
@@ -3412,7 +3416,7 @@ function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDr
             }}
             onBlur={onCancel}
             rows={1}
-            placeholder="修改消息…"
+            placeholder={uiText("ui.ChatPanel.editMessage")}
             className="block max-w-full min-w-[3ch] bg-transparent outline-none resize-none overflow-y-auto overscroll-contain max-h-[calc(12lh+0.5px)] [field-sizing:content]"
           />
         ) : (
@@ -3433,8 +3437,8 @@ function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDr
                mousedown 先于 blur 触发,提交在取消竞态前完成;preventDefault 兜底拦默认焦点转移 */
             <button
               type="button"
-              title="发送"
-              aria-label="发送修改后的消息"
+              title={uiText("ui.AskUserCard.send")}
+              aria-label={uiText("ui.ChatPanel.sendEditedMessage")}
               onMouseDown={(e) => { e.preventDefault(); onCommit?.(); }}
               className="p-0.5 text-text-muted hover:text-text-primary transition-colors"
             >
@@ -3445,8 +3449,8 @@ function UserBubble({ msg, editing, draft, editDisabledReason, onStartEdit, onDr
               type="button"
               onClick={onStartEdit}
               disabled={!!editDisabledReason}
-              title={editDisabledReason ?? "修改并重新发送"}
-              aria-label="编辑消息"
+              title={editDisabledReason ?? uiText("ui.ChatPanel.editAndResend")}
+              aria-label={uiText("ui.ChatPanel.editMessage2")}
               className={`p-0.5 transition-colors ${editDisabledReason ? "text-text-muted opacity-40 cursor-not-allowed" : "text-text-muted hover:text-text-primary"}`}
             >
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>

@@ -1,3 +1,5 @@
+import { appText } from "../../lib/i18n";
+import { uiText, useUiLocale } from "../../lib/i18n";
 import { useEffect, useState } from "react";
 import { StepIndicator } from "./StepIndicator";
 import { useSettingsStore } from "../../stores/settings-store";
@@ -31,6 +33,7 @@ function fmtSize(bytes: number): string {
 }
 
 export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }: MigrationIncomingModalProps): JSX.Element | null {
+  useUiLocale();
   const [targetPath, setTargetPath] = useState("");
   const [browsing, setBrowsing] = useState(false);
   const [accepting, setAccepting] = useState(false);
@@ -92,7 +95,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
     // 父文件夹为空 → 提示
     const finalPath = targetPath.trim();
     if (!finalPath) {
-      setError("请选择或输入项目父文件夹");
+      setError(uiText("ui.MigrationIncomingModal.chooseOrEnterTheParentFolderFor"));
       return;
     }
     setAccepting(true);
@@ -100,7 +103,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
     const r = await onAccept(incoming.transferId, finalPath);
     setAccepting(false);
     if (!r.ok) {
-      setError(r.error ?? "接收失败");
+      setError(r.error ?? uiText("ui.MigrationIncomingModal.couldNotReceiveTransfer"));
       return;
     }
     // 接收成功:显示落位路径,短暂停留后关闭
@@ -118,7 +121,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
     >
       <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl modal-card flex flex-col" style={{ width: 460 }}>
         <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0 bg-[var(--color-surface-alt)]">
-          <h2 className="text-base font-semibold text-text-primary">接收迁移</h2>
+          <h2 className="text-base font-semibold text-text-primary">{uiText("ui.MigrationIncomingModal.receiveProjectTransfer")}</h2>
           <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => void onReject(incoming.transferId)}>✕</button>
         </div>
 
@@ -127,22 +130,22 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
           <div className="bg-surface rounded-[var(--radius-lg)] border border-border px-4 py-3 space-y-1.5">
             <div className="flex items-center gap-2 text-sm">
               <span className="text-text-primary font-medium">{incoming.projectName}</span>
-              <span className="text-[length:var(--text-2xs)] px-1.5 py-0.5 rounded-[var(--radius-lg)] bg-accent-soft text-accent">来自 {incoming.fromName}</span>
+              <span className="text-[length:var(--text-2xs)] px-1.5 py-0.5 rounded-[var(--radius-lg)] bg-accent-soft text-accent">{uiText("ui.MigrationIncomingModal.from")}{incoming.fromName}</span>
             </div>
             <div className="text-xs text-text-secondary">
-              {incoming.fileCount} 个文件 · {fmtSize(incoming.totalSize)}
-              {incoming.sessionCount > 0 ? ` · 含 ${incoming.sessionCount} 个会话记录` : ""}
+              {uiText("counts.files", { count: incoming.fileCount })}{" · "}{fmtSize(incoming.totalSize)}
+              {incoming.sessionCount > 0 ? uiText("ui.MigrationIncomingModal.includesSessions", { v0: incoming.sessionCount }) : ""}
             </div>
           </div>
 
           {/* 项目父文件夹 */}
           <div>
-            <label className="text-xs text-text-secondary block mb-1">项目父文件夹</label>
+            <label className="text-xs text-text-secondary block mb-1">{uiText("ui.MigrationIncomingModal.projectParentFolder")}</label>
             <div className="flex gap-2">
               <input
                 value={targetPath}
                 onChange={(e) => setTargetPath(e.target.value)}
-                placeholder="选择项目要放到的父文件夹"
+                placeholder={uiText("ui.MigrationIncomingModal.chooseTheParentFolderForThisProject")}
                 className="em-input flex-1 px-2.5 py-1.5 text-xs text-text-primary"
               />
               <button
@@ -151,24 +154,24 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
                 disabled={browsing}
                 onClick={handleBrowse}
               >
-                {browsing ? "…" : "浏览"}
+                {browsing ? "…" : uiText("ui.AgentTemplateSettings.browse")}
               </button>
             </div>
-            <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">将在此文件夹下创建「{incoming.projectName}」项目文件夹并恢复；会话会自动恢复到本机项目（以新路径为身份）</p>
+            <p className="text-[length:var(--text-2xs)] text-text-muted mt-1">{uiText("ui.MigrationIncomingModal.aProjectFolderNamed")}{incoming.projectName}{uiText("ui.MigrationIncomingModal.willBeCreatedHereSessionsWillBe")}</p>
           </div>
 
-          {error && <div className="text-[length:var(--text-11)] text-danger">{error}</div>}
+          {error && <div className="text-[length:var(--text-11)] text-danger">{appText(error)}</div>}
 
           {/* 接收端步骤条:接收 → 校验 → 解压 → 会话恢复 → 完成 */}
           {(accepting || accepted) && (
             <div className="space-y-2">
               <StepIndicator
                 steps={[
-                  { id: "receiving", label: "接收" },
-                  { id: "verify", label: "校验" },
-                  { id: "extract", label: "解压" },
-                  { id: "session", label: "会话恢复" },
-                  { id: "done", label: "完成" },
+                  { id: "receiving", label: uiText("ui.MigrationIncomingModal.receive") },
+                  { id: "verify", label: uiText("ui.MigrationIncomingModal.verify") },
+                  { id: "extract", label: uiText("ui.MigrationIncomingModal.extract") },
+                  { id: "session", label: uiText("ui.MigrationIncomingModal.restoreSessions") },
+                  { id: "done", label: uiText("common.done") },
                 ]}
                 current={stage}
               />
@@ -177,7 +180,7 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
                   <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
                     <div className="h-full bg-accent rounded-full transition-all duration-200" style={{ width: `${progressPct}%` }} />
                   </div>
-                  <div className="text-[length:var(--text-2xs)] text-text-secondary">接收中 {progressPct}%</div>
+                  <div className="text-[length:var(--text-2xs)] text-text-secondary">{uiText("ui.MigrationIncomingModal.receiving")}{progressPct}%</div>
                 </div>
               )}
             </div>
@@ -188,12 +191,11 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs text-accent">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                已恢复到：{targetPath}/{incoming.projectName.replace(/[\\/:*?"<>|]/g, "_").trim() || "migrated-project"}
+                {uiText("ui.MigrationIncomingModal.restoredTo")}{targetPath}/{incoming.projectName.replace(/[\\/:*?"<>|]/g, "_").trim() || "migrated-project"}
               </div>
               {sessionRestoredCount > 0 && (
                 <div className="text-[length:var(--text-11)] text-text-secondary">
-                  已恢复 {sessionRestoredCount} 个会话记录
-                </div>
+                  {uiText("counts.sessionsRestored", { count: sessionRestoredCount })}</div>
               )}
             </div>
           )}
@@ -204,14 +206,13 @@ export function MigrationIncomingModal({ incoming, onClose, onAccept, onReject }
             className="px-4 py-1.5 rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors text-sm"
             onClick={() => void onReject(incoming.transferId)}
           >
-            拒绝
-          </button>
+            {uiText("ui.MigrationIncomingModal.reject")}</button>
           <button
             className="px-5 py-1.5 rounded-[var(--radius-lg)] btn-accent text-sm font-medium"
             disabled={accepting}
             onClick={handleAccept}
           >
-            {accepting ? "接收中…" : "接收并恢复"}
+            {accepting ? uiText("ui.MigrationIncomingModal.receiving2") : uiText("ui.MigrationIncomingModal.receiveAndRestore")}
           </button>
         </div>
       </div>

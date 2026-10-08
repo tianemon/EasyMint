@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useEffect, useState } from "react";
 
 /** 委派任务 UI 态（与 AgentProgress 对应,裁剪为渲染所需字段） */
@@ -31,7 +32,7 @@ function formatElapsed(ms: number): string {
   if (sec < 60) return `${sec}s`;
   const m = Math.floor(sec / 60);
   const s = sec % 60;
-  return s > 0 ? `${m}分${s}秒` : `${m}分`;
+  return s > 0 ? uiText("ui.DelegationProgress.mS", { v0: m, v1: s }) : uiText("ui.DelegationProgress.m", { v0: m });
 }
 
 /** 状态图标（内联 SVG,stroke 风格对齐项目规范） */
@@ -79,6 +80,7 @@ function StatusIcon({ status }: { status: DelegationTaskUi["status"] }): JSX.Ele
 /** 子 Agent 委派进度卡片：标题行 + 每任务一行（仅状态图标 + 任务标题,对齐 cc TUI）
  *  接收全部活动委派(跨批次合并)——任务行聚合成一张卡,由调用方负责把卡挂在最新 triggerMsgId 下 */
 export function DelegationProgress({ delegations }: { delegations: DelegationUiState[] }): JSX.Element | null {
+  useUiLocale();
   const tasks = delegations.flatMap((d) => d.tasks);
   if (tasks.length === 0) return null;
 
@@ -113,7 +115,7 @@ export function DelegationProgress({ delegations }: { delegations: DelegationUiS
         {finished ? (
           <>
             <svg className="text-success shrink-0" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="6.5" /><path d="M5 8l2 2 4-4" /></svg>
-            <span className="font-medium text-text-primary">委派完成：{done} 成功{failed > 0 ? `, ${failed} 失败` : ""}{aborted > 0 ? `, ${aborted} 中止` : ""}</span>
+            <span className="font-medium text-text-primary">{uiText("ui.DelegationProgress.delegationComplete")}{done} {uiText("ui.DelegationProgress.succeeded")}{failed > 0 ? uiText("ui.DelegationProgress.failed", { v0: failed }) : ""}{aborted > 0 ? uiText("ui.DelegationProgress.aborted", { v0: aborted }) : ""}</span>
             <span className="ml-auto flex items-center gap-1 text-text-secondary tabular-nums">
               <svg className="shrink-0" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><circle cx="8" cy="8" r="6.5" /><path d="M8 4.5V8l2.5 1.5" /></svg>
               {formatElapsed(now - startedAt)}
@@ -122,7 +124,7 @@ export function DelegationProgress({ delegations }: { delegations: DelegationUiS
         ) : (
           <>
             <svg className="animate-spin text-accent shrink-0" width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" /><path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-            <span className="font-medium text-text-primary">派遣 Agent 执行中</span>
+            <span className="font-medium text-text-primary">{uiText("ui.DelegationProgress.delegatedAgentsRunning")}</span>
             <span className="ml-auto flex items-center gap-1 text-accent tabular-nums">
               <svg className="shrink-0" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><circle cx="8" cy="8" r="6.5" /><path d="M8 4.5V8l2.5 1.5" /></svg>
               {formatElapsed(now - startedAt)}

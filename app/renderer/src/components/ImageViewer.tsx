@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../lib/i18n";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 
 export interface ImageViewerState { src: string; name?: string; path?: string; }
@@ -17,6 +18,7 @@ function isTextBasedImage(p: string): boolean {
 }
 
 function ImageViewer_({ view, onClose, onOpenSource }: { view: ImageViewerState | null; onClose: () => void; onOpenSource?: (path: string) => void }): JSX.Element | null {
+  useUiLocale();
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
@@ -132,7 +134,7 @@ function ImageViewer_({ view, onClose, onOpenSource }: { view: ImageViewerState 
       <img
         ref={imgRef}
         src={view.src}
-        alt={view.name ?? "图片预览"}
+        alt={view.name ?? uiText("ui.ImageViewer.imagePreview")}
         draggable={false}
         className={`max-w-[75vw] max-h-[75vh] object-contain rounded-[var(--radius-lg)] border border-border shadow-2xl select-none ${dragging ? "cursor-grabbing" : scale > 1 ? "cursor-grab" : "cursor-zoom-in"}`}
         style={{
@@ -159,8 +161,7 @@ function ImageViewer_({ view, onClose, onOpenSource }: { view: ImageViewerState 
           onClick={(e) => { e.stopPropagation(); onOpenSource?.(sourcePath); }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg>
-          看源码
-        </button>
+          {uiText("ui.ImageViewer.viewSource")}</button>
       )}
       <button
         type="button"
@@ -175,7 +176,7 @@ function ImageViewer_({ view, onClose, onOpenSource }: { view: ImageViewerState 
         {view.name && <span className="truncate">{view.name}</span>}
         {natural && natural.w > 0 && (
           <span className="shrink-0 tabular-nums">
-            {view.name ? "· " : ""}{natural.w}×{natural.h}{scale === 1 ? " · 滚轮缩放，双击 1:1" : ` · ${Math.round(scale * 100)}%`}
+            {view.name ? "· " : ""}{natural.w}×{natural.h}{scale === 1 ? uiText("ui.ImageViewer.scrollToZoomDoubleClickFor1") : ` · ${Math.round(scale * 100)}%`}
           </span>
         )}
       </div>

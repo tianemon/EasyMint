@@ -1058,7 +1058,7 @@ export class AgentService {
           }
         }, 500);
 
-        // ── 自动标题：新会话首轮完成后生成中文标题 ──
+        // ── 自动标题：新会话首轮完成后从用户原文提取标题 ──
         // (系统消息作为首条时 firstUserMessage 已置空,不生成标题)
         if (chat && chat.firstUserMessage) {
           const firstMsg = chat.firstUserMessage;

@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../../lib/i18n";
 import { useEffect, useRef } from "react";
 import { useDeviceStore } from "../../stores/device-store";
 
@@ -14,6 +15,7 @@ interface ToolboxPanelProps {
 }
 
 export function ToolboxPanel({ open, onClose, onOpenMigrationPanel, onOpenMobilePanel }: ToolboxPanelProps): JSX.Element | null {
+  useUiLocale();
   const ref = useRef<HTMLDivElement>(null);
   const loadDevices = useDeviceStore((s) => s.load);
 
@@ -44,7 +46,7 @@ export function ToolboxPanel({ open, onClose, onOpenMigrationPanel, onOpenMobile
       ref={ref}
       className="absolute bottom-[54px] right-3 w-56 em-glass rounded-[var(--radius-lg)] shadow-lg overflow-hidden z-float"
     >
-      <div className="px-4 py-2.5 text-xs font-medium text-text-primary border-b border-border">工具箱</div>
+      <div className="px-4 py-2.5 text-xs font-medium text-text-primary border-b border-border">{uiText("ui.ToolboxPanel.toolbox")}</div>
       <div className="p-1.5">
         <button
           type="button"
@@ -58,10 +60,9 @@ export function ToolboxPanel({ open, onClose, onOpenMigrationPanel, onOpenMobile
           </svg>
           <span className="min-w-0">
             <span className="block text-xs text-text-primary leading-tight">
-              HTML 原型编辑器
-              <span className="ml-1.5 text-[length:var(--text-3xs)] px-1 py-px rounded-[var(--radius-lg)] bg-accent-soft text-accent align-middle">实验</span>
+              {uiText("ui.ToolboxPanel.htmlPrototypeEditor")}<span className="ml-1.5 text-[length:var(--text-3xs)] px-1 py-px rounded-[var(--radius-lg)] bg-accent-soft text-accent align-middle">{uiText("ui.ToolboxPanel.experimental")}</span>
             </span>
-            <span className="block text-[length:var(--text-2xs)] text-text-muted leading-tight">可视化编辑页面原型</span>
+            <span className="block text-[length:var(--text-2xs)] text-text-muted leading-tight">{uiText("ui.ToolboxPanel.visuallyEditPagePrototypes")}</span>
           </span>
         </button>
         <button
@@ -77,10 +78,9 @@ export function ToolboxPanel({ open, onClose, onOpenMigrationPanel, onOpenMobile
           </svg>
           <span className="min-w-0">
             <span className="block text-xs text-text-primary leading-tight">
-              项目迁移
-              <span className="ml-1.5 text-[length:var(--text-3xs)] px-1 py-px rounded-[var(--radius-lg)] bg-accent-soft text-accent align-middle">实验</span>
+              {uiText("ui.DevicePanel.projectTransfer")}<span className="ml-1.5 text-[length:var(--text-3xs)] px-1 py-px rounded-[var(--radius-lg)] bg-accent-soft text-accent align-middle">{uiText("ui.ToolboxPanel.experimental")}</span>
             </span>
-            <span className="block text-[length:var(--text-2xs)] text-text-muted leading-tight">跨设备迁移会话与项目</span>
+            <span className="block text-[length:var(--text-2xs)] text-text-muted leading-tight">{uiText("ui.ToolboxPanel.transferSessionsAndProjectsBetweenDevices")}</span>
           </span>
         </button>
         <button
@@ -94,10 +94,9 @@ export function ToolboxPanel({ open, onClose, onOpenMigrationPanel, onOpenMobile
           </svg>
           <span className="min-w-0">
             <span className="block text-xs text-text-primary leading-tight">
-              连接手机
-              <span className="ml-1.5 text-[length:var(--text-3xs)] px-1 py-px rounded-[var(--radius-lg)] bg-accent-soft text-accent align-middle">实验</span>
+              {uiText("ui.MobileTerminalPanel.connectPhone")}<span className="ml-1.5 text-[length:var(--text-3xs)] px-1 py-px rounded-[var(--radius-lg)] bg-accent-soft text-accent align-middle">{uiText("ui.ToolboxPanel.experimental")}</span>
             </span>
-            <span className="block text-[length:var(--text-2xs)] text-text-muted leading-tight">扫码配对手机，随时查看会话</span>
+            <span className="block text-[length:var(--text-2xs)] text-text-muted leading-tight">{uiText("ui.ToolboxPanel.pairYourPhoneToViewConversations")}</span>
           </span>
         </button>
       </div>

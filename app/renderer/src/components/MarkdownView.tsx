@@ -1,3 +1,4 @@
+import { uiText } from "../lib/i18n";
 import { useEffect, useMemo, useRef } from "react";
 import { MARKDOWN_PROSE_CLASS, renderMarkdownToHtml } from "../lib/markdown";
 import { resolveRelativePath } from "../lib/markdown-path";
@@ -16,7 +17,7 @@ function replaceWithPlaceholder(img: HTMLImageElement, label: string): void {
   const span = document.createElement("span");
   span.className = "inline-flex items-baseline bg-surface-alt text-text-muted rounded-[var(--radius-lg)] px-2 py-0.5";
   span.style.fontSize = "var(--text-caption)";
-  span.textContent = `图片无法显示：${label}`;
+  span.textContent = uiText("ui.MarkdownView.cannotDisplayImage", { v0: label });
   span.title = label;
   img.replaceWith(span);
 }

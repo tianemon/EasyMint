@@ -10,6 +10,9 @@
 (function () {
   "use strict";
 
+  function editorText(source) { return window.EMEditorLocale ? window.EMEditorLocale.value(source) : source; }
+
+
   // 编辑器直接工作在原始 DOM 上，不转换布局
 
   // ═══════════════════════════════════════════════════════════
@@ -22,16 +25,16 @@
   ];
 
   var BG_COLORS = [
-    { value: "transparent", label: "无" },
-    { value: "#ffffff", label: "白" },
-    { value: "#f5f5f5", label: "浅灰" },
-    { value: "#111111", label: "黑" },
-    { value: "#fecaca", label: "红" },
-    { value: "#fed7aa", label: "橙" },
-    { value: "#fef08a", label: "黄" },
-    { value: "#bbf7d0", label: "绿" },
-    { value: "#bfdbfe", label: "蓝" },
-    { value: "#e9d5ff", label: "紫" }
+    { value: "transparent", label: editorText("无") },
+    { value: "#ffffff", label: editorText("白") },
+    { value: "#f5f5f5", label: editorText("浅灰") },
+    { value: "#111111", label: editorText("黑") },
+    { value: "#fecaca", label: editorText("红") },
+    { value: "#fed7aa", label: editorText("橙") },
+    { value: "#fef08a", label: editorText("黄") },
+    { value: "#bbf7d0", label: editorText("绿") },
+    { value: "#bfdbfe", label: editorText("蓝") },
+    { value: "#e9d5ff", label: editorText("紫") }
   ];
 
   // ═══════════════════════════════════════════════════════════
@@ -95,13 +98,13 @@
         '<button data-em-editor="frame-delete-btn" style="' +
           'width:18px;height:16px;border:none;background:#ef4444;color:#fff;font-size:10px;' +
           'border-radius:4px 4px 0 0;cursor:pointer;pointer-events:auto;line-height:1' +
-        '" title="删除 (Delete)">×</button>' +
+        "\" title=\"删除 (Delete)\" data-em-i18n-title=\"editor.delete\">×</button>" +
         '<div data-em-editor="frame-drag-handle" style="' +
           'min-width:80px;align-self:stretch;min-height:24px;background:#16a34a;border-radius:4px 4px 4px 4px;' +
           'display:flex;align-items:center;justify-content:center;' +
           'cursor:grab;pointer-events:auto;color:#fff;font-size:10px;' +
           'white-space:normal;line-height:1.3;padding:2px 6px;user-select:none' +
-        '"><span id="em-frame-label">拖动</span></div>' +
+        "\"><span id=\"em-frame-label\" data-em-i18n=\"editor.drag\">拖动</span></div>" +
       '</div>' +
       // 四角 resize 手柄
       '<div data-em-editor="frame-resize" data-handle="nw" style="position:absolute;top:-6px;left:-6px;width:10px;height:10px;background:#fff;border:2px solid #16a34a;border-radius:2px;cursor:nwse-resize;pointer-events:auto"></div>' +
@@ -110,6 +113,7 @@
       '<div data-em-editor="frame-resize" data-handle="se" style="position:absolute;bottom:-6px;right:-6px;width:10px;height:10px;background:#fff;border:2px solid #16a34a;border-radius:2px;cursor:nwse-resize;pointer-events:auto"></div>';
 
     document.body.appendChild(frame);
+    if (window.EMEditorLocale) window.EMEditorLocale.apply(frame);
     frame._toolbar = frame.querySelector("[data-em-editor=frame-toolbar]");
     frame._dragHandle = frame.querySelector("[data-em-editor=frame-drag-handle]");
     frame._deleteBtn = frame.querySelector("[data-em-editor=frame-delete-btn]");
@@ -130,6 +134,7 @@
     var label = document.getElementById("em-frame-label");
     if (label) {
       var path = getElementPath(el);
+      label.removeAttribute("data-em-i18n");
       if (label.textContent !== path) label.textContent = path;
     }
     // toolbar wrapper 统一定位（flex 纵向排列 × + handle）
@@ -148,7 +153,7 @@
 
   /** 描述元素的简短标识：tag + 关键 class */
   function describeElement(el) {
-    if (!el) return "(空)";
+    if (!el) return editorText("(空)");
     var tag = el.tagName.toLowerCase();
     var cls = "";
     if (el.classList && el.classList.length) {
@@ -358,46 +363,46 @@
     panel.innerHTML =
       '<div data-em-editor="panel-inner" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">' +
         // Undo / Redo
-        '<button type="button" data-action="undo" id="em-btn-undo" title="撤销 Ctrl+Z" disabled style="width:28px;height:28px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1">↩</button>' +
-        '<button type="button" data-action="redo" id="em-btn-redo" title="重做 Ctrl+Shift+Z" disabled style="width:28px;height:28px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1">↪</button>' +
+        "<button type=\"button\" data-action=\"undo\" id=\"em-btn-undo\" title=\"撤销 Ctrl+Z\" data-em-i18n-title=\"editor.undoCtrlZ\" disabled style=\"width:28px;height:28px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1\">↩</button>" +
+        "<button type=\"button\" data-action=\"redo\" id=\"em-btn-redo\" title=\"重做 Ctrl+Shift+Z\" data-em-i18n-title=\"editor.redoCtrlShiftZ\" disabled style=\"width:28px;height:28px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1\">↪</button>" +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // 添加元素
-        '<button type="button" data-action="add-text" title="添加文字" style="height:28px;padding:0 8px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">+文字</button>' +
-        '<button type="button" data-action="add-image" title="添加图片" style="height:28px;padding:0 8px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">+图片</button>' +
+        "<button type=\"button\" data-action=\"add-text\" title=\"添加文字\" data-em-i18n-title=\"editor.addText\" style=\"height:28px;padding:0 8px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px\" data-em-i18n=\"editor.text2\">+文字</button>" +
+        "<button type=\"button\" data-action=\"add-image\" title=\"添加图片\" data-em-i18n-title=\"editor.addImage\" style=\"height:28px;padding:0 8px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px\" data-em-i18n=\"editor.image2\">+图片</button>" +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // 字号
-        '<button type="button" data-action="font-" title="缩小字号" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1">A-</button>' +
-        '<button type="button" data-action="font+" title="增大字号" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1">A+</button>' +
+        "<button type=\"button\" data-action=\"font-\" title=\"缩小字号\" data-em-i18n-title=\"editor.decreaseFontSize\" style=\"width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1\">A-</button>" +
+        "<button type=\"button\" data-action=\"font+\" title=\"增大字号\" data-em-i18n-title=\"editor.increaseFontSize\" style=\"width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;line-height:1\">A+</button>" +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // 对齐
-        '<button type="button" data-action="align-left" title="左对齐" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">⬅</button>' +
-        '<button type="button" data-action="align-center" title="居中" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">⬌</button>' +
-        '<button type="button" data-action="align-right" title="右对齐" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px">➡</button>' +
+        "<button type=\"button\" data-action=\"align-left\" title=\"左对齐\" data-em-i18n-title=\"editor.alignLeft\" style=\"width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px\">⬅</button>" +
+        "<button type=\"button\" data-action=\"align-center\" title=\"居中\" data-em-i18n-title=\"editor.center\" style=\"width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px\">⬌</button>" +
+        "<button type=\"button\" data-action=\"align-right\" title=\"右对齐\" data-em-i18n-title=\"editor.alignRight\" style=\"width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:12px\">➡</button>" +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // 粗体 + 斜体
-        '<button type="button" data-action="bold-toggle" title="切换粗体" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-weight:700;font-size:12px">B</button>' +
-        '<button type="button" data-action="italic-toggle" title="切换斜体" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-style:italic;font-size:12px">I</button>' +
+        "<button type=\"button\" data-action=\"bold-toggle\" title=\"切换粗体\" data-em-i18n-title=\"editor.toggleBold\" style=\"width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-weight:700;font-size:12px\">B</button>" +
+        "<button type=\"button\" data-action=\"italic-toggle\" title=\"切换斜体\" data-em-i18n-title=\"editor.toggleItalic\" style=\"width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-style:italic;font-size:12px\">I</button>" +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // 行高 + 边距 + 圆角
-        '<button type="button" data-action="line-height-" title="缩小行高" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">↕-</button>' +
-        '<button type="button" data-action="line-height+" title="增大行高" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">↕+</button>' +
+        "<button type=\"button\" data-action=\"line-height-\" title=\"缩小行高\" data-em-i18n-title=\"editor.decreaseLineHeight\" style=\"width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px\">↕-</button>" +
+        "<button type=\"button\" data-action=\"line-height+\" title=\"增大行高\" data-em-i18n-title=\"editor.increaseLineHeight\" style=\"width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px\">↕+</button>" +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
-        '<button type="button" data-action="padding-" title="缩小边距" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">⬜-</button>' +
-        '<button type="button" data-action="padding+" title="增大边距" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">⬜+</button>' +
+        "<button type=\"button\" data-action=\"padding-\" title=\"缩小边距\" data-em-i18n-title=\"editor.decreasePadding\" style=\"width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px\">⬜-</button>" +
+        "<button type=\"button\" data-action=\"padding+\" title=\"增大边距\" data-em-i18n-title=\"editor.increasePadding\" style=\"width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px\">⬜+</button>" +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
-        '<button type="button" data-action="radius-" title="缩小圆角" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">◯-</button>' +
-        '<button type="button" data-action="radius+" title="增大圆角" style="width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px">◯+</button>' +
+        "<button type=\"button\" data-action=\"radius-\" title=\"缩小圆角\" data-em-i18n-title=\"editor.decreaseCornerRadius\" style=\"width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px\">◯-</button>" +
+        "<button type=\"button\" data-action=\"radius+\" title=\"增大圆角\" data-em-i18n-title=\"editor.increaseCornerRadius\" style=\"width:24px;height:24px;border:1px solid #d4d4d8;border-radius:4px;background:#fff;cursor:pointer;font-size:10px\">◯+</button>" +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // 文本颜色
-        '<span style="font-size:10px;color:#666">字色</span>' +
+        "<span style=\"font-size:10px;color:#666\" data-em-i18n=\"editor.text3\">字色</span>" +
         '<span data-em-editor="text-colors" style="display:flex;gap:2px"></span>' +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // 背景色
-        '<span style="font-size:10px;color:#666">底色</span>' +
+        "<span style=\"font-size:10px;color:#666\" data-em-i18n=\"editor.background\">底色</span>" +
         '<span data-em-editor="bg-colors" style="display:flex;gap:2px"></span>' +
         '<span style="color:#d4d4d8;margin:0 2px">|</span>' +
         // 导出
-        '<button type="button" data-action="export" title="导出 HTML" style="height:28px;padding:0 10px;border:1px solid #16a34a;border-radius:4px;background:#16a34a;color:#fff;cursor:pointer;font-size:12px;font-weight:500">导出</button>' +
+        "<button type=\"button\" data-action=\"export\" title=\"导出 HTML\" data-em-i18n-title=\"editor.exportHtml\" style=\"height:28px;padding:0 10px;border:1px solid #16a34a;border-radius:4px;background:#16a34a;color:#fff;cursor:pointer;font-size:12px;font-weight:500\" data-em-i18n=\"editor.export\">导出</button>" +
       '</div>';
 
     Object.assign(panel.style, {
@@ -407,16 +412,17 @@
       boxShadow: "0 4px 24px rgba(0,0,0,0.12)", display: "flex", userSelect: "none",
     });
     document.body.appendChild(panel);
+    if (window.EMEditorLocale) window.EMEditorLocale.apply(panel);
 
     // 填充颜色按钮
     var tc = panel.querySelector("[data-em-editor=text-colors]");
     var bc = panel.querySelector("[data-em-editor=bg-colors]");
     for (var ci = 0; ci < TEXT_COLORS.length; ci++) {
-      makeColorBtn(tc, TEXT_COLORS[ci], TEXT_COLORS[ci], "字色");
+      makeColorBtn(tc, TEXT_COLORS[ci], TEXT_COLORS[ci], editorText("字色"));
     }
     for (var bi = 0; bi < BG_COLORS.length; bi++) {
       var item = BG_COLORS[bi];
-      makeColorBtn(bc, item.value, item.label, "底色");
+      makeColorBtn(bc, item.value, item.label, editorText("底色"));
     }
 
     panel._undoBtn = panel.querySelector("#em-btn-undo");
@@ -429,6 +435,7 @@
     btn.type = "button";
     btn.setAttribute("data-em-editor", "color-btn");
     btn.title = label;
+    btn.setAttribute("data-em-i18n-title", label);
     Object.assign(btn.style, {
       width: "18px", height: "18px", borderRadius: "3px", border: "1px solid #d4d4d8",
       background: colorValue === "transparent"
@@ -438,7 +445,7 @@
     });
     btn.addEventListener("click", function (e) {
       e.stopPropagation();
-      if (type === "字色") EMEditor.setColor(colorValue);
+      if (type === editorText("字色")) EMEditor.setColor(colorValue);
       else EMEditor.setBgColor(colorValue);
     });
     container.appendChild(btn);
@@ -471,6 +478,9 @@
   }
 
   window.EMEditor = {
+    setUiLanguage: function () {
+      if (window.EMEditorLocale) document.querySelectorAll("[data-em-editor]").forEach(function (root) { window.EMEditorLocale.apply(root); });
+    },
     start: function () {
       if (editor) return;
 
@@ -495,7 +505,11 @@
         syncAll(el);
         // 更新 frame 标签显示元素信息
         var label = document.getElementById("em-frame-label");
-        if (label) label.textContent = el ? getElementPath(el) : "拖动";
+        if (label) {
+          label.removeAttribute("data-em-i18n");
+          label.textContent = el ? getElementPath(el) : editorText("拖动");
+          if (!el) label.setAttribute("data-em-i18n", "拖动");
+        }
         // 取消文字编辑
         if (editor._editingText && editor._editingText !== el) {
           editor._editingText.contentEditable = "false";
@@ -882,7 +896,7 @@
       if (!editor) return;
       var container = EMEditor._findContainer();
       var div = document.createElement("div");
-      div.textContent = "双击编辑文字";
+      div.textContent = editorText("双击编辑文字");
       Object.assign(div.style, {
         padding: "12px 16px", fontSize: "16px", color: "#111",
         background: "#fff", border: "1px dashed #16a34a",

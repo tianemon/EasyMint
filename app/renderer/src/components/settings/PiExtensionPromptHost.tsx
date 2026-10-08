@@ -1,9 +1,11 @@
+import { uiText, useUiLocale } from "../../lib/i18n";
 import { useEffect, useState } from "react";
 import { Modal } from "../ui/Modal";
 
 type Request = Parameters<Parameters<typeof window.electronAPI.piExtension.onPrompt>[0]>[0];
 
 export function PiExtensionPromptHost(): JSX.Element | null {
+  useUiLocale();
   const [queue, setQueue] = useState<Request[]>([]);
   const [value, setValue] = useState("");
   useEffect(() => window.electronAPI.piExtension.onPrompt((request) => {
@@ -27,7 +29,7 @@ export function PiExtensionPromptHost(): JSX.Element | null {
         <div>
           <h3 className="text-sm font-medium text-text-primary">{request.title}</h3>
           {request.kind === "confirm" && <p className="text-xs text-text-secondary mt-2 whitespace-pre-wrap">{request.message}</p>}
-          <p className="text-[length:var(--text-3xs)] text-text-muted mt-2">Pi 扩展请求交互</p>
+          <p className="text-[length:var(--text-3xs)] text-text-muted mt-2">{uiText("ui.PiExtensionPromptHost.piExtensionInteractionRequest")}</p>
         </div>
         {request.kind === "input" && (
           <input autoFocus className="w-full rounded-[var(--radius-lg)] bg-surface px-3 py-2 text-sm text-text-primary outline-none" placeholder={request.message} value={value} onChange={(event) => setValue(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") answer(value); }} />
@@ -40,8 +42,8 @@ export function PiExtensionPromptHost(): JSX.Element | null {
           </div>
         )}
         <div className="flex justify-end gap-2">
-          <button type="button" className="px-4 py-2 text-xs text-text-secondary hover:bg-surface-hover rounded-[var(--radius-lg)]" onClick={() => answer()}>取消</button>
-          {request.kind !== "select" && <button type="button" className="btn-accent px-4 py-2 text-xs" onClick={() => answer(request.kind === "confirm" ? true : value)}>确定</button>}
+          <button type="button" className="px-4 py-2 text-xs text-text-secondary hover:bg-surface-hover rounded-[var(--radius-lg)]" onClick={() => answer()}>{uiText("common.cancel")}</button>
+          {request.kind !== "select" && <button type="button" className="btn-accent px-4 py-2 text-xs" onClick={() => answer(request.kind === "confirm" ? true : value)}>{uiText("ui.PiExtensionPromptHost.ok")}</button>}
         </div>
       </div>
     </Modal>

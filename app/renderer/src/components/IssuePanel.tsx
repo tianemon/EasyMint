@@ -1,3 +1,5 @@
+import { formatDate } from "../lib/locale-format";
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useState, useEffect } from "react";
 import { useIssueStore, type IssueItem } from "../stores/issue-store";
 import { Modal } from "./ui/Modal";
@@ -11,12 +13,13 @@ function formatTime(ts: number): string {
   const d = new Date(ts);
   const now = new Date();
   if (d.toDateString() === now.toDateString()) {
-    return d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+    return formatDate(d, { hour: "2-digit", minute: "2-digit" });
   }
-  return d.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
+  return formatDate(d, { month: "2-digit", day: "2-digit" });
 }
 
 function IssueRow({ issue, projectPath, onEdit }: { issue: IssueItem; projectPath: string; onEdit?: (issue: IssueItem) => void }): JSX.Element {
+  useUiLocale();
   const { setStatus, remove } = useIssueStore();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -51,21 +54,20 @@ function IssueRow({ issue, projectPath, onEdit }: { issue: IssueItem; projectPat
           className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-muted hover:bg-surface-hover hover:text-text-primary transition-colors"
           onClick={() => onEdit?.(issue)}
         >
-          编辑
-        </button>
+          {uiText("menu.edit")}</button>
         <button
           className={`px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] transition-colors ${isFixed ? "bg-success-soft text-success" : "text-text-muted hover:bg-surface-hover hover:text-text-primary"}`}
           onClick={() => setStatus(projectPath, issue.id, isFixed ? "open" : "fixed")}
         >
-          {isFixed ? "已修复" : "标记已修复"}
+          {isFixed ? uiText("ui.IssuePanel.fixed") : uiText("ui.IssuePanel.markAsFixed")}
         </button>
         {confirmDelete ? (
           <>
-            <button className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-danger hover:bg-danger-soft transition-colors" onClick={handleDelete}>确认删除</button>
-            <button className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-muted hover:bg-surface-hover transition-colors" onClick={() => setConfirmDelete(false)}>取消</button>
+            <button className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-danger hover:bg-danger-soft transition-colors" onClick={handleDelete}>{uiText("ui.IssuePanel.confirmDeletion")}</button>
+            <button className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-muted hover:bg-surface-hover transition-colors" onClick={() => setConfirmDelete(false)}>{uiText("common.cancel")}</button>
           </>
         ) : (
-          <button className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-muted hover:text-danger hover:bg-danger-soft transition-colors" onClick={handleDelete}>删除</button>
+          <button className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-muted hover:text-danger hover:bg-danger-soft transition-colors" onClick={handleDelete}>{uiText("ui.AgentTemplateSettings.delete")}</button>
         )}
       </div>
     </div>
@@ -73,6 +75,7 @@ function IssueRow({ issue, projectPath, onEdit }: { issue: IssueItem; projectPat
 }
 
 export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
+  useUiLocale();
   const { issues, load, add, update } = useIssueStore();
   // 表单弹层:new=记录 / edit=编辑(预填)
   const [form, setForm] = useState<{ mode: "new" } | { mode: "edit"; issue: IssueItem } | null>(null);
@@ -103,7 +106,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-2 h-9 px-3 shrink-0">
-        <span className="text-[length:var(--text-11)] font-semibold tracking-[0.04em] uppercase text-text-secondary">问题记录</span>
+        <span className="text-[length:var(--text-11)] font-semibold tracking-[0.04em] uppercase text-text-secondary">{uiText("ui.IssuePanel.issues")}</span>
         <button
           className="ml-auto w-6 h-6 flex items-center justify-center rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
           onClick={openNew}
@@ -122,7 +125,7 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
             ))}
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full text-[length:var(--text-11)] text-text-muted">暂无记录的问题</div>
+          <div className="flex items-center justify-center h-full text-[length:var(--text-11)] text-text-muted">{uiText("ui.IssuePanel.noIssuesRecorded")}</div>
         )}
       </div>
 
@@ -131,25 +134,25 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
         <Modal tier="modal" overlayClassName="bg-black/40" onClose={() => setForm(null)}>
           <div className="relative bg-[var(--modal-fill)] rounded-[var(--radius-lg)] w-[760px] h-[600px] flex flex-col overflow-hidden shadow-2xl">
             <div className="flex items-center justify-between px-4 py-1.5 shrink-0 bg-[var(--color-surface-alt)]">
-              <span className="text-sm font-medium text-text-primary">{form.mode === "new" ? "记录问题" : "编辑问题"}</span>
+              <span className="text-sm font-medium text-text-primary">{form.mode === "new" ? uiText("ui.IssuePanel.recordIssue") : uiText("ui.IssuePanel.editIssue")}</span>
               <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={() => setForm(null)}>✕</button>
             </div>
             <div className="settings-body flex-1 min-h-0 overflow-y-auto space-y-3 px-4 py-3">
               <div>
-                <label className="text-xs text-text-secondary block mb-1">功能模块（可选，如：登录页）</label>
+                <label className="text-xs text-text-secondary block mb-1">{uiText("ui.IssuePanel.featureAreaOptionalEGLogin")}</label>
                 <input
                   className="em-input w-full h-8 px-2.5 text-xs text-text-primary"
-                  placeholder="功能模块"
+                  placeholder={uiText("ui.IssuePanel.featureArea")}
                   value={module}
                   onChange={(e) => setModule(e.target.value)}
                   autoFocus
                 />
               </div>
               <div>
-                <label className="text-xs text-text-secondary block mb-1">问题现象</label>
+                <label className="text-xs text-text-secondary block mb-1">{uiText("ui.IssuePanel.issueDescription")}</label>
                 <textarea
                   className="em-input w-full px-2.5 py-1.5 text-xs text-text-primary resize-none"
-                  placeholder="问题现象"
+                  placeholder={uiText("ui.IssuePanel.issueDescription")}
                   rows={10}
                   value={symptom}
                   onChange={(e) => setSymptom(e.target.value)}
@@ -162,16 +165,14 @@ export function IssuePanel({ projectPath }: IssuePanelProps): JSX.Element {
                 className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0"
                 onClick={() => setForm(null)}
               >
-                取消
-              </button>
+                {uiText("common.cancel")}</button>
               <button
                 type="button"
                 className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] btn-accent text-xs font-medium shrink-0"
                 onClick={handleSave}
                 disabled={!symptom.trim()}
               >
-                保存
-              </button>
+                {uiText("ui.AgentTemplateSettings.save")}</button>
             </div>
           </div>
         </Modal>

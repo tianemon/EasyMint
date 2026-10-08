@@ -1,3 +1,5 @@
+import { toolPresentation } from "@shared/tool-presentation";
+import { uiText, appMessage } from "../lib/i18n";
 import type { StreamEntry, TextEntry } from "./StreamPanel";
 import { IMAGE_PARTIAL_PATH_NOTE, IMAGE_PATH_ONLY_NOTE } from "@shared/image-context";
 import { updateNestedCalls, type NestedToolCalls, type NestedToolEvent } from "@shared/nested-calls";
@@ -109,23 +111,23 @@ export function piEventToEntries(ev: { type: string; blocks?: Array<{ type: stri
  */
 export function displayToolAction(name: string, args?: Record<string, unknown>): string {
   const n = name.toLowerCase();
-  if (n === "use_skill" || n.startsWith("skill__") || args?.skill) return "正在加载技能";
-  if (n === "learn") return "正在沉淀经验";
-  if (n === "manage_skill") return "正在管理技能";
-  if (n === "search_experiences") return "正在搜索经验库";
-  if (n === "retire_experiences") return "正在退役经验";
-  if (n.startsWith("mcp__")) return "正在调用外部工具";
-  if (n === "search_mcp_tools") return "正在查找外部工具";
-  if (n === "call_mcp_tool") return "正在调用外部工具";
-  if (n === "read" || n === "glob") return "正在读取文件";
-  if (n === "write") return "正在写入文件";
-  if (n === "edit") return "正在编辑文件";
-  if (n === "grep") return "正在搜索内容";
-  if (n === "bash") return "正在执行命令";
-  if (n === "task") return "正在派遣 Agent";
-  if (n === "webfetch") return "正在获取网页";
-  if (n === "websearch") return "正在联网搜索";
-  return "正在处理";
+  if (n === "use_skill" || n.startsWith("skill__") || args?.skill) return uiText("ui.chat-utils.loadingSkill");
+  if (n === "learn") return uiText("ui.chat-utils.savingExperience");
+  if (n === "manage_skill") return uiText("ui.chat-utils.managingSkills");
+  if (n === "search_experiences") return uiText("ui.chat-utils.searchingExperiences");
+  if (n === "retire_experiences") return uiText("ui.chat-utils.retiringExperience");
+  if (n.startsWith("mcp__")) return uiText("ui.chat-utils.callingExternalTool");
+  if (n === "search_mcp_tools") return uiText("ui.chat-utils.findingExternalTools");
+  if (n === "call_mcp_tool") return uiText("ui.chat-utils.callingExternalTool");
+  if (n === "read" || n === "glob") return uiText("ui.chat-utils.readingFile");
+  if (n === "write") return uiText("ui.chat-utils.writingFile");
+  if (n === "edit") return uiText("ui.chat-utils.editingFile");
+  if (n === "grep") return uiText("ui.chat-utils.searchingContent");
+  if (n === "bash") return uiText("ui.chat-utils.runningCommand");
+  if (n === "task") return uiText("ui.chat-utils.delegatingAgent");
+  if (n === "webfetch") return uiText("ui.chat-utils.fetchingPage");
+  if (n === "websearch") return uiText("ui.chat-utils.searchingWeb");
+  return uiText("ui.chat-utils.processing");
 }
 
 /** 解析消息文本中的附件标记 [Image #1: path] / [File #1: path] */
@@ -207,13 +209,14 @@ export function mapSessionMessages(msgs: Array<{ type: string; uuid?: string; me
       }
     } else if (m.type === "toolResult") {
       // 独立 toolResult 消息(磁盘):按 toolCallId 关联到 AI 消息的 tool_use;无匹配则追加到最近 AI 消息(独立结果)
-      const tm = m.message as { toolCallId?: string; toolName?: string; content?: unknown; isError?: boolean; nestedCalls?: NestedToolCalls };
+      const tm = m.message as { toolCallId?: string; toolName?: string; content?: unknown; isError?: boolean; nestedCalls?: NestedToolCalls; details?: unknown };
       const content = Array.isArray(tm.content)
         ? tm.content.map((b: unknown) => (b as { text?: string })?.text ?? "").join("")
         : String(tm.content ?? "");
       const resultEntry: StreamEntry = {
         kind: "tool_result", toolUseId: tm.toolCallId || "", name: tm.toolName, content, isError: !!tm.isError, timestamp: ts, source: "chat",
         nestedCalls: tm.nestedCalls,
+        presentation: toolPresentation(content, tm.details, !!tm.isError),
       };
       // 先找含匹配 tool_use 的 AI 消息;无匹配则追加到最近 AI 消息
       let matched = false;
@@ -346,8 +349,8 @@ export function needsEditConfirm(msgs: ChatMessage[], msgId: number): boolean {
 export function rewindUnavailableReason(msg: ChatMessage, busy: boolean, action: "修改" | "重新生成"): string | undefined {
   // 文案只陈述事实、不归因：没 id 的两种成因（还没认领到条目 / 被撤回后清掉了）用户分不出来，
   // 写成「无法定位到会话记录」会让人以为出了故障（实测里它其实常常是主动清掉的那种）
-  if (!msg.entryId) return `这条消息不在会话记录中，暂不支持${action}`;
-  if (busy) return `本轮回复进行中，结束后可${action}`;
+  if (!msg.entryId) return uiText("ui.chat-utils.thisMessageIsNotInTheSession", { v0: appMessage(action) });
+  if (busy) return uiText("ui.chat-utils.waitForTheCurrentResponseToFinish", { v0: appMessage(action) });
   return undefined;
 }
 
@@ -372,9 +375,9 @@ export function contextEditAction(msg: ChatMessage): "drop" | "restore" | undefi
  * 「约 0 秒后」没有信息量，那点退避等于立刻重试。
  */
 export function retryStatusText(attempt: number, maxAttempts: number, delayMs: number): string {
-  const head = `正在重试 ${attempt}/${maxAttempts}`;
+  const head = uiText("ui.chat-utils.retrying", { v0: attempt, v1: maxAttempts });
   const seconds = Math.round(delayMs / 1000);
-  return seconds > 0 ? `${head}（约 ${seconds} 秒后）` : head;
+  return seconds > 0 ? uiText("ui.chat-utils.inAboutSeconds", { v0: head, v1: seconds }) : head;
 }
 
 /**

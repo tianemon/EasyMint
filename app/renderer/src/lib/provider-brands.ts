@@ -1,3 +1,4 @@
+import { uiText } from "./i18n";
 /**
  * 供应商品牌图标映射 — 品牌 key → 展示信息（名称/中文名/图标）。
  *
@@ -41,16 +42,16 @@ export interface ProviderBrand {
 const BRANDS: ProviderBrand[] = [
   { key: "anthropic", name: "Anthropic", cnName: "Claude", icon: claudeIcon },
   { key: "openai",    name: "OpenAI",    icon: openaiIcon },
-  { key: "deepseek",  name: "DeepSeek",  cnName: "深度求索", icon: deepseekIcon },
-  { key: "google",    name: "Google Gemini", cnName: "谷歌", icon: geminiIcon },
-  { key: "kimi",      name: "Kimi",      cnName: "月之暗面", icon: moonshotIcon },
-  { key: "zai",       name: "智谱",       cnName: "Z.AI",    icon: zhipuIcon },
-  { key: "minimax",   name: "MiniMax",   cnName: "稀宇科技", icon: minimaxIcon },
-  { key: "qwen",      name: "通义千问",   cnName: "阿里云",   icon: qwenIcon },
-  { key: "xiaomi",    name: "小米 MiMo", cnName: "小米",     icon: xiaomiIcon },
+  { key: "deepseek",  name: "DeepSeek",  get cnName() { return uiText("ui.provider-brands.deepseek"); }, icon: deepseekIcon },
+  { key: "google",    name: "Google Gemini", get cnName() { return uiText("ui.provider-brands.google"); }, icon: geminiIcon },
+  { key: "kimi",      name: "Kimi",      get cnName() { return uiText("ui.provider-brands.moonshotAi"); }, icon: moonshotIcon },
+  { key: "zai",       get name() { return uiText("ui.provider-brands.zhipu"); },       cnName: "Z.AI",    icon: zhipuIcon },
+  { key: "minimax",   name: "MiniMax",   get cnName() { return uiText("ui.provider-brands.minimax"); }, icon: minimaxIcon },
+  { key: "qwen",      get name() { return uiText("ui.provider-brands.qwen"); },   get cnName() { return uiText("ui.provider-brands.alibabaCloud"); },   icon: qwenIcon },
+  { key: "xiaomi",    get name() { return uiText("ui.provider-brands.xiaomiMimo"); }, get cnName() { return uiText("ui.provider-brands.xiaomi"); },     icon: xiaomiIcon },
   { key: "xai",       name: "xAI",       cnName: "Grok",     icon: grokIcon },
   { key: "codex",     name: "OpenAI Codex", icon: openaiIcon },
-  { key: "opencode",  name: "OpenCode",  cnName: "中转",     icon: opencodeIcon },
+  { key: "opencode",  name: "OpenCode",  get cnName() { return uiText("ui.provider-brands.gateway"); },     icon: opencodeIcon },
   // GitHub Copilot 用 GitHub 品牌标（与 Proma 同一份处理）；OpenRouter 用官方 glyph 裁出的方图
   { key: "githubcopilot", name: "GitHub Copilot", icon: githubCopilotIcon },
   { key: "openrouter",    name: "OpenRouter",     icon: openrouterIcon },

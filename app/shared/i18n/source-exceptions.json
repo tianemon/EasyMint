@@ -1,0 +1,242 @@
+[
+  {
+    "file": "app/renderer/src/App.tsx",
+    "text": "【环境变更通知】\n\n本项目已经迁移到另一台电脑，会话记录{{v0}}与项目文件已完整迁移。\n\n原开发设备的会话历史、任务状态（task.json）、项目文件（docs/源码/配置）\n都已同步到当前这台电脑。你现在所在的这台电脑，就是迁移的目标设备。\n\n注意事项：\n1. 项目路径已变更为 {{v1}}——记忆中旧路径（{{v2}}）已失效，读写以新路径为准\n2. 原 git 仓库未迁移，需重新 git init；如有远程仓库（GitHub 等），重新配置 remote origin\n3. 任务进度以 task.json 为唯一真相，重新核对（历史对话中的进度快照仅供参考）\n4. 平台差异：换行符/可执行权限/包管理器/工具链按本机环境\n5. 建议先读一遍项目结构（README/task.json/docs），确认环境后再继续",
+    "reason": "Internal environment handoff prompt; retained in its original language"
+  },
+  {
+    "file": "app/renderer/src/App.tsx",
+    "text": " 个）",
+    "reason": "Internal environment handoff prompt; retained in its original language"
+  },
+  {
+    "file": "app/renderer/src/components/AgentTemplateSettings.tsx",
+    "text": "UI 设计师。",
+    "reason": "Identifies the original built-in description without rewriting editable content"
+  },
+  {
+    "file": "app/renderer/src/components/AskUserCard.tsx",
+    "text": "多选",
+    "reason": "Legacy multiple-choice hint detection in model-provided text"
+  },
+  {
+    "file": "app/renderer/src/components/ChatPanel.tsx",
+    "text": "请总结当前会话的全部内容，并写一份交接提示词（包含项目状态、已完成的工作、当前进度、遇到的问题、下一步计划），以便在新会话中继续工作。请直接输出交接提示词内容，使用用户所用的语言。",
+    "reason": "Stable context-edit action identifier or legacy status discriminator"
+  },
+  {
+    "file": "app/renderer/src/components/ChatPanel.tsx",
+    "text": "恢复进上下文",
+    "reason": "Stable context-edit action identifier or legacy status discriminator"
+  },
+  {
+    "file": "app/renderer/src/components/ChatPanel.tsx",
+    "text": "移出上下文",
+    "reason": "Stable context-edit action identifier or legacy status discriminator"
+  },
+  {
+    "file": "app/renderer/src/components/ChatPanel.tsx",
+    "text": "修改",
+    "reason": "Stable context-edit action identifier or legacy status discriminator"
+  },
+  {
+    "file": "app/renderer/src/components/ChatPanel.tsx",
+    "text": "重新生成",
+    "reason": "Stable context-edit action identifier or legacy status discriminator"
+  },
+  {
+    "file": "app/renderer/src/components/ChatPanel.tsx",
+    "text": "中止",
+    "reason": "Stable context-edit action identifier or legacy status discriminator"
+  },
+  {
+    "file": "app/renderer/src/components/ChatPanel.tsx",
+    "text": "已由用户中断",
+    "reason": "Stable context-edit action identifier or legacy status discriminator"
+  },
+  {
+    "file": "app/renderer/src/components/ChatPanel.tsx",
+    "text": "已由用户中止",
+    "reason": "Stable context-edit action identifier or legacy status discriminator"
+  },
+  {
+    "file": "app/renderer/src/components/ChatPanel.tsx",
+    "text": "已中止",
+    "reason": "Stable context-edit action identifier or legacy status discriminator"
+  },
+  {
+    "file": "app/renderer/src/components/ChatPanel.tsx",
+    "text": "已随权限切换中止",
+    "reason": "Stable context-edit action identifier or legacy status discriminator"
+  },
+  {
+    "file": "app/renderer/src/components/ChatPanel.tsx",
+    "text": "失败",
+    "reason": "Stable context-edit action identifier or legacy status discriminator"
+  },
+  {
+    "file": "app/renderer/src/components/LogOverlay.tsx",
+    "text": "「{{v0}}」运行失败，请帮我修复。\n运行命令: {{v1}}\n最近输出:\n{{v2}}",
+    "reason": "Internal repair instruction for Mint"
+  },
+  {
+    "file": "app/renderer/src/components/LogOverlay.tsx",
+    "text": "(无输出)",
+    "reason": "Internal repair instruction for Mint"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "名称「{{v0}}」，项目形式「{{v1}}」，完成度「{{v2}}」",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "描述「{{v0}}」",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "项目场景「{{v0}}」",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "功能清单：「{{v0}}」",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "无",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "UI 风格「{{v0}}」",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "未指定",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "部署「{{v0}}」",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "AI 辅助",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "Agent 自主决策",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "多 Agent 协作",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "AI 集成「{{v0}}」",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "预算「{{v0}}」",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "项目信息：{{v0}}。",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "名称「{{v0}}」",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "项目形式「{{v0}}」",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "项目名称：{{v0}}，{{v1}}",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "云端",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/NewProjectDialog.tsx",
+    "text": "混合",
+    "reason": "Internal structured project context for the agent"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/ProjectFormTypes.ts",
+    "text": "充足",
+    "reason": "Persisted budget/deployment choice; labels are translated separately"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/ProjectFormTypes.ts",
+    "text": "少量",
+    "reason": "Persisted budget/deployment choice; labels are translated separately"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/ProjectFormTypes.ts",
+    "text": "免费",
+    "reason": "Persisted budget/deployment choice; labels are translated separately"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/ProjectFormTypes.ts",
+    "text": "本地",
+    "reason": "Persisted budget/deployment choice; labels are translated separately"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/StepComponents.tsx",
+    "text": "本地",
+    "reason": "Persisted budget/deployment choice; labels are translated separately"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/StepComponents.tsx",
+    "text": "云端",
+    "reason": "Persisted budget/deployment choice; labels are translated separately"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/StepComponents.tsx",
+    "text": "混合",
+    "reason": "Persisted budget/deployment choice; labels are translated separately"
+  },
+  {
+    "file": "app/renderer/src/components/settings/GlowGroupManager.tsx",
+    "text": "自定义 1",
+    "reason": "Original seed name comparison; renamed user groups remain unchanged"
+  },
+  {
+    "file": "app/renderer/src/components/settings/LanguageSelector.tsx",
+    "text": "简体中文",
+    "reason": "Native language name"
+  },
+  {
+    "file": "app/renderer/src/components/settings/PluginsTab.tsx",
+    "text": "(无描述)",
+    "reason": "Legacy empty-description sentinel"
+  },
+  {
+    "file": "app/renderer/src/stores/settings-store.ts",
+    "text": "默认",
+    "reason": "Persisted built-in color-group name; display uses the stable group ID"
+  },
+  {
+    "file": "app/renderer/src/stores/settings-store.ts",
+    "text": "自定义 1",
+    "reason": "Persisted built-in color-group name; display uses the stable group ID"
+  }
+]

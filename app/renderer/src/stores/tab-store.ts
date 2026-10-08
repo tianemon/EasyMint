@@ -1,3 +1,4 @@
+import { uiText } from "../lib/i18n";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { useChatStore } from "./chat-store";
@@ -94,7 +95,7 @@ export const useTabStore = create<TabState>()(
           // 关闭所有 tab → 自动回到默认页面(补建空会话 tab,输入卡片居中);
           // suppressDefaultTab=true(如 closeEmptyTab 联动清理)时不补建
           if (nextTabs.length === 0 && !suppressDefaultTab) {
-            const defaultTab: Tab = { id: genId(), type: "chat", title: "新会话" };
+            const defaultTab: Tab = { id: genId(), type: "chat", title: uiText("ui.App.newSession") };
             return { tabs: [defaultTab], activeTabId: defaultTab.id };
           }
           let nextActiveId = s.activeTabId;
@@ -146,7 +147,7 @@ export const useTabStore = create<TabState>()(
           set({ activeTabId: existing.id });
           return;
         }
-        get().openTab({ id: "", type: "chat", title: title || "对话", sessionId });
+        get().openTab({ id: "", type: "chat", title: title || uiText("ui.tab-store.conversation"), sessionId });
       },
     }),
     {

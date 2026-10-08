@@ -1,3 +1,4 @@
+import { permissionErrorText } from "../../../shared/tool-presentation";
 /**
  * wrapToolWithPermission — 在每个工具 execute 前做权限拦截
  *
@@ -56,7 +57,7 @@ export function wrapToolWithPermission<T extends { name: string; label?: string;
         },
       );
       if (permission.behavior === "deny") {
-        throw new Error(permission.message || "操作被拒绝");
+        throw new Error(permission.block ? permissionErrorText(permission.block, permission.message) : permission.message || "操作被拒绝");
       }
       // updatedInput 只承载工具参数修订；运行策略用不可枚举 Symbol 单独传递，模型 schema 不可伪造。
       const updated = (permission as { updatedInput?: Record<string, unknown> }).updatedInput;

@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../../lib/i18n";
 import { useEffect, useState } from "react";
 import { useSettingsStore } from "../../stores/settings-store";
 import { ProvidersManager } from "./ProviderSettings";
@@ -8,23 +9,24 @@ import { WebCapabilityConfig } from "./WebCapabilityConfig";
 // ── Chat Thinking Level Section ───────────────────────────────────────────────
 
 const CHAT_THINKING_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "off", label: "关闭" },
-  { value: "minimal", label: "极低" },
-  { value: "low", label: "轻度" },
-  { value: "medium", label: "中" },
-  { value: "high", label: "高" },
-  { value: "xhigh", label: "极高" },
-  { value: "max", label: "最高" },
+  { value: "off", get label() { return uiText("common.off"); } },
+  { value: "minimal", get label() { return uiText("ui.ProvidersTab.minimal"); } },
+  { value: "low", get label() { return uiText("ui.ProvidersTab.low"); } },
+  { value: "medium", get label() { return uiText("ui.ProvidersTab.medium"); } },
+  { value: "high", get label() { return uiText("ui.ProvidersTab.high"); } },
+  { value: "xhigh", get label() { return uiText("ui.ProvidersTab.veryHigh"); } },
+  { value: "max", get label() { return uiText("ui.ProvidersTab.maximum"); } },
 ];
 
 /** 全局聊天思考等级:仅作为新聊天会话的初始默认,不控制 agent/task 委派 */
 function ChatThinkingLevelSection(): JSX.Element {
+  useUiLocale();
   const chatThinkingLevel = useSettingsStore((s) => s.chatThinkingLevel);
   const setChatThinkingLevel = useSettingsStore((s) => s.setChatThinkingLevel);
 
   return (
     <section>
-      <h3 className="text-sm font-medium text-text-secondary mb-2">全局思考等级(聊天)</h3>
+      <h3 className="text-sm font-medium text-text-secondary mb-2">{uiText("ui.ProvidersTab.defaultThinkingLevelChat")}</h3>
       <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
         <Select
           block
@@ -33,7 +35,7 @@ function ChatThinkingLevelSection(): JSX.Element {
           options={CHAT_THINKING_OPTIONS}
          
         />
-        <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">仅作为新聊天会话的初始默认值，也是标准委派子 Agent 的参考；Agent 模板以模板配置为准；模型不支持所选等级时自动适配到该模型最接近的支持档位，已打开的聊天可在输入栏临时切换。</p>
+        <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">{uiText("ui.ProvidersTab.initialThinkingLevelForNewChatsAnd")}</p>
       </div>
     </section>
   );
@@ -41,6 +43,7 @@ function ChatThinkingLevelSection(): JSX.Element {
 
 /** 全局默认权限模式:仅作为新聊天会话的初始默认;输入条开关切换时同步更新此默认 */
 function ChatPermissionModeSection(): JSX.Element {
+  useUiLocale();
   const chatPermissionMode = useSettingsStore((s) => s.chatPermissionMode);
   const setChatPermissionMode = useSettingsStore((s) => s.setChatPermissionMode);
   const handleChange = async (value: string): Promise<void> => {
@@ -51,19 +54,19 @@ function ChatPermissionModeSection(): JSX.Element {
 
   return (
     <section>
-      <h3 className="text-sm font-medium text-text-secondary mb-2">默认权限模式(聊天)</h3>
+      <h3 className="text-sm font-medium text-text-secondary mb-2">{uiText("ui.ProvidersTab.defaultPermissionModeChat")}</h3>
       <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
         <Select
           block
           value={chatPermissionMode}
           onChange={(v) => { void handleChange(v); }}
           options={[
-            { value: "readonly", label: "只读（普通项目可读，敏感凭据除外）" },
-            { value: "standard", label: "标准（系统沙盒内执行，工作区可写）" },
-            { value: "full", label: "完全访问（普通文件无限制）" },
+            { value: "readonly", label: uiText("ui.ProvidersTab.readOnlyOrdinaryProjectContentExcludingCredentials") },
+            { value: "standard", label: uiText("ui.ProvidersTab.standardOsSandboxWorkspaceWritesAllowed") },
+            { value: "full", label: uiText("ui.ProvidersTab.fullAccessUnrestrictedOrdinaryFiles") },
           ]}
         />
-        <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">只读模式可读普通项目内容（敏感凭据除外），但不执行命令、不写文件或应用状态、不联网，适合审阅来源不明的项目。完全访问不套沙盒；系统核心、提权与持久化配置只做执行前尽力拦截，动态脚本不提供强隔离保证。</p>
+        <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">{uiText("ui.ProvidersTab.readOnlyAllowsOrdinaryProjectReadsExcluding")}</p>
       </div>
     </section>
   );
@@ -74,6 +77,7 @@ function ChatPermissionModeSection(): JSX.Element {
 const VISION_KEY_URL = "https://bailian.console.aliyun.com/cn-beijing?tab=model#/api-key";
 
 function BuiltinToolsSection(): JSX.Element {
+  useUiLocale();
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [showKey, setShowKey] = useState(false);
 
@@ -97,37 +101,33 @@ function BuiltinToolsSection(): JSX.Element {
 
   return (
     <section>
-      <h3 className="text-sm font-medium text-text-secondary mb-2">模型能力增强</h3>
+      <h3 className="text-sm font-medium text-text-secondary mb-2">{uiText("ui.ProvidersTab.modelCapabilities")}</h3>
       <p className="text-[length:var(--text-11)] text-text-secondary mb-3">
-        提供视觉识别与联网能力（对非多模态模型），自动注入到每次会话
-      </p>
+        {uiText("ui.ProvidersTab.addVisionAndWebAccessForNon")}</p>
       <div className="space-y-2">
         {/* 图片识别：与联网能力同口径——**填了 key 即启用**，没有开关（用户 2026-09-15 拍板） */}
         <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
-          <div className="text-xs font-medium text-text-secondary">图片识别</div>
+          <div className="text-xs font-medium text-text-secondary">{uiText("ui.ProvidersTab.imageRecognition")}</div>
           <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">
-            用视觉模型描述图片内容（填写 Key 即启用，清空即停用）
-          </div>
+            {uiText("ui.ProvidersTab.describeImagesWithAVisionModelEnter")}</div>
           <div className="mt-2">
-            <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1">API 模式</label>
+            <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1">{uiText("ui.ProvidersTab.apiMode")}</label>
             <div className="flex gap-4 text-xs text-text-primary">
               <label className="flex items-center gap-1.5 cursor-pointer">
                 <input type="radio" name="vision-mode" className="accent-[var(--color-accent)]"
                   checked={!visionAnthropic}
                   onChange={() => saveKey("VISION_MODE", "openai")} />
-                OpenAI 兼容
-              </label>
+                {uiText("ui.ProvidersTab.openaiCompatible")}</label>
               <label className="flex items-center gap-1.5 cursor-pointer">
                 <input type="radio" name="vision-mode" className="accent-[var(--color-accent)]"
                   checked={visionAnthropic}
                   onChange={() => saveKey("VISION_MODE", "anthropic")} />
-                Anthropic 兼容
-              </label>
+                {uiText("ui.ProvidersTab.anthropicCompatible")}</label>
             </div>
             <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 mt-2">
               {visionAnthropic
-                ? "API 地址（Anthropic 兼容，默认阿里公共DashScope，可填写带有业务空间ID的专属API）"
-                : "API 地址（OpenAI 兼容，默认阿里公共DashScope，可填写带有业务空间ID的专属API）"}
+                ? uiText("ui.ProvidersTab.apiUrlAnthropicCompatibleDefaultsToAlibaba")
+                : uiText("ui.ProvidersTab.apiUrlOpenaiCompatibleDefaultsToAlibaba")}
             </label>
             <input type="text"
               className="em-input w-full px-2 py-1.5 text-text-primary text-xs"
@@ -140,7 +140,7 @@ function BuiltinToolsSection(): JSX.Element {
             <div className="relative">
               <input type={showKey ? "text" : "password"}
                 className="em-input w-full px-2 py-1.5 pr-7 text-text-primary text-xs"
-                defaultValue={apiKeys["VISION_API_KEY"] || ""} placeholder="未设置"
+                defaultValue={apiKeys["VISION_API_KEY"] || ""} placeholder={uiText("ui.PluginsTab.notSet")}
                 onBlur={(e) => { const v = e.target.value.trim(); if (v !== (apiKeys["VISION_API_KEY"] || "")) saveKey("VISION_API_KEY", v); }}
                 onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
               />
@@ -153,7 +153,7 @@ function BuiltinToolsSection(): JSX.Element {
                 )}
               </button>
             </div>
-            <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 mt-2">模型（默认 qwen3.7-flash）</label>
+            <label className="text-[length:var(--text-2xs)] text-text-secondary block mb-1 mt-2">{uiText("ui.ProvidersTab.modelDefaultQwen37Flash")}</label>
             <input type="text"
               className="em-input w-full px-2 py-1.5 text-text-primary text-xs"
               defaultValue={apiKeys["VISION_MODEL"] || ""} placeholder="qwen3.7-flash"
@@ -161,7 +161,7 @@ function BuiltinToolsSection(): JSX.Element {
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
             />
             <div className="text-[length:var(--text-2xs)] text-text-muted mt-1">
-              获取 Key：<a href={VISION_KEY_URL} target="_blank" rel="noreferrer" className="text-accent hover:underline break-all">{VISION_KEY_URL}</a>
+              {uiText("ui.ProvidersTab.getAKey")}<a href={VISION_KEY_URL} target="_blank" rel="noreferrer" className="text-accent hover:underline break-all">{VISION_KEY_URL}</a>
             </div>
           </div>
         </div>
@@ -170,10 +170,9 @@ function BuiltinToolsSection(): JSX.Element {
             此前拆成「网页抓取 / 联网搜索」两行、各带一个同 keyId 的输入框——写的是同一处存储，
             用户既不知道该填哪个，也看不出两者共用一份凭据。字段与引导页同源（WebCapabilityConfig）。 */}
         <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
-          <div className="text-xs font-medium text-text-secondary">联网能力</div>
+          <div className="text-xs font-medium text-text-secondary">{uiText("ui.ProvidersTab.webAccess")}</div>
           <div className="text-[length:var(--text-2xs)] text-text-muted mt-0.5">
-            联网搜索资料、读取网页内容（两项共用一个 Tavily Key，填写即启用）
-          </div>
+            {uiText("ui.ProvidersTab.searchTheWebAndReadPagesWith")}</div>
           <div className="mt-2">
             <WebCapabilityConfig />
           </div>

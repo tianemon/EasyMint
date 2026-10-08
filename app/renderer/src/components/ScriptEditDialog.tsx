@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useState } from "react";
 import { useTabStore } from "../stores/tab-store";
 import { Modal } from "./ui/Modal";
@@ -41,6 +42,7 @@ function extractScriptPath(runCommand: string, cwd: string | undefined, projectP
 /** 脚本编辑弹窗：极简（标题+命令）；命令引用脚本文件时可跳转 EM 编辑器编辑文件本体。
  *  保存只更新标题/命令，其余字段（platform/cwd/url 等）继承原条目，不影响面板功能 */
 export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: ScriptEditDialogProps): JSX.Element | null {
+  useUiLocale();
   const [label, setLabel] = useState(runnable?.label || "");
   const [runCommand, setRunCommand] = useState(runnable?.run_command || "");
   const [saving, setSaving] = useState(false);
@@ -52,7 +54,7 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
   const scriptFileName = scriptPath ? scriptPath.split("/").pop() || "" : "";
 
   const handleSave = async () => {
-    if (!label.trim() || !runCommand.trim()) { toast("标题和运行命令必填"); return; }
+    if (!label.trim() || !runCommand.trim()) { toast(uiText("ui.ScriptEditDialog.titleAndCommandAreRequired")); return; }
     setSaving(true);
     try {
       const updated: Runnable = {
@@ -65,7 +67,7 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
       onClose();
     } catch (e) {
       console.error("[ScriptEditDialog] save failed:", e);
-      toast("保存失败，请检查 run.json 是否被占用");
+      toast(uiText("ui.ScriptEditDialog.couldNotSaveCheckWhetherRunJson"));
     } finally {
       setSaving(false);
     }
@@ -85,22 +87,22 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
     <Modal overlayClassName="bg-black/40" onClose={onClose}>
       <div className="relative bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl w-[760px] h-[600px] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-4 py-1.5 shrink-0 bg-[var(--color-surface-alt)]">
-          <span className="text-sm font-medium text-text-primary">编辑脚本</span>
+          <span className="text-sm font-medium text-text-primary">{uiText("ui.ScriptEditDialog.editScript")}</span>
           <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={onClose}>✕</button>
         </div>
         <div className="settings-body flex-1 min-h-0 overflow-y-auto space-y-3 px-4 py-3">
           <div>
-            <label className="text-xs text-text-secondary block mb-1">标题</label>
-            <input className={inputCls} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="如：安卓端打包" />
+            <label className="text-xs text-text-secondary block mb-1">{uiText("ui.ScriptEditDialog.title")}</label>
+            <input className={inputCls} value={label} onChange={(e) => setLabel(e.target.value)} placeholder={uiText("ui.ScriptEditDialog.eGBuildAndroidApp")} />
           </div>
           <div>
-            <label className="text-xs text-text-secondary block mb-1">运行命令</label>
+            <label className="text-xs text-text-secondary block mb-1">{uiText("ui.ScriptEditDialog.command")}</label>
             <textarea
               className="em-input w-full px-2.5 py-1.5 text-[length:var(--text-caption)] text-text-primary resize-none font-mono leading-relaxed"
               rows={8}
               value={runCommand}
               onChange={(e) => setRunCommand(e.target.value)}
-              placeholder="如：flutter build apk 或 bash scripts/release.sh"
+              placeholder={uiText("ui.ScriptEditDialog.eGFlutterBuildApkOrBash")}
             />
           </div>
         </div>
@@ -108,15 +110,14 @@ export function ScriptEditDialog({ projectPath, runnable, runnables, onClose }: 
           {scriptPath && (
             <button onClick={handleEditScript}
               className="h-8 px-3 whitespace-nowrap rounded-[var(--radius-lg)] border border-accent-border text-accent text-xs hover:bg-accent-subtle transition-colors shrink-0">
-              编辑脚本文件
-            </button>
+              {uiText("ui.ScriptEditDialog.editScriptFile")}</button>
           )}
           <div className="flex-1" />
           <button onClick={onClose}
-            className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">取消</button>
+            className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] border border-border text-text-secondary text-xs hover:bg-surface-hover transition-colors shrink-0">{uiText("common.cancel")}</button>
           <button onClick={handleSave} disabled={saving}
             className="h-8 px-4 whitespace-nowrap rounded-[var(--radius-lg)] btn-accent text-xs font-medium shrink-0">
-            {saving ? "保存中…" : "保存"}
+            {saving ? uiText("ui.ScriptEditDialog.saving") : uiText("ui.AgentTemplateSettings.save")}
           </button>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../../lib/i18n";
 /**
  * 联网能力区块（引导流程「选择 AI 供应商」页用）。
  *
@@ -11,18 +12,18 @@
 import { WebCapabilityConfig } from "./WebCapabilityConfig";
 
 export function TavilyKeySection(): JSX.Element {
+  useUiLocale();
   return (
     // em-flat-fields：本卡片是「无边框拼色」字段区（见 index.css），
     // 卡片里的输入框与设置页同语言——去描边、靠底色深浅分层。
     <div className="em-flat-fields mt-4 bg-surface-alt rounded-[var(--radius-lg)] p-4">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-text-primary">联网能力</span>
+        <span className="text-sm font-medium text-text-primary">{uiText("ui.ProvidersTab.webAccess")}</span>
         <span className="text-[length:var(--text-2xs)] px-1.5 py-0.5 rounded-[var(--radius-lg)] bg-surface-hover text-text-muted">
-          可选
-        </span>
+          {uiText("ui.TavilyKeySection.optional")}</span>
       </div>
       <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5 mb-3">
-        让 Mint 能联网搜索资料、读取网页内容；<span className="text-text-muted">不填写则两项都不可用</span>
+        {uiText("ui.TavilyKeySection.letMintSearchTheWebAndRead")}<span className="text-text-muted">{uiText("ui.TavilyKeySection.bothAreUnavailableWithoutAKey")}</span>
       </p>
       <WebCapabilityConfig showQuotaHints />
     </div>

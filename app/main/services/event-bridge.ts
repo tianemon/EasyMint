@@ -1,3 +1,4 @@
+import { toolResultForUi, type ToolPresentation } from "../../shared/tool-presentation";
 /**
  * Pi 事件 → 前端 PiChatEvent 格式转换
  *
@@ -29,6 +30,7 @@ export interface PiChatEvent {
   content?: string;
   /** tool_result 是否错误 */
   isError?: boolean;
+  presentation?: ToolPresentation;
   /** user 消息落盘时间戳(毫秒,磁盘字段实证为 timestamp 而非 created_at) */
   timestamp?: number;
   /** custom 消息类型(custom_event 事件:system_message 等) */
@@ -268,12 +270,14 @@ export function bridgeSessionEvents(
         // 工具结果(toolResult)转发为 tool_result 事件(前端按 toolCallId 关联到工具块显示)
         const role = (msg as { role?: string }).role;
         if (role === "toolResult") {
+          const result = toolResultForUi(extractUserText(msg), (msg as { details?: unknown }).details, !!(msg as { isError?: boolean }).isError);
           callbacks.onEvent({
             type: "tool_result",
             sessionId: "",
             toolCallId: (msg as { toolCallId?: string }).toolCallId,
             toolName: (msg as { toolName?: string }).toolName,
-            content: extractUserText(msg),
+            content: result.content,
+            presentation: result.presentation,
             isError: !!(msg as { isError?: boolean }).isError,
             nestedCalls: (msg as { nestedCalls?: NestedToolCalls }).nestedCalls,
           });

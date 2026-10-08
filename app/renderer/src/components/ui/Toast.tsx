@@ -1,3 +1,4 @@
+import { appText, useUiLocale } from "../../lib/i18n";
 import { useEffect, useState } from "react";
 
 /**
@@ -23,6 +24,7 @@ export function toast(message: string): void {
 
 /** 挂载点：放在 App 根部（toast 层，高于确认框与弹窗） */
 export function ToastHost(): JSX.Element | null {
+  useUiLocale();
   const [t, setToastLocal] = useState<ToastState | null>(null);
   useEffect(() => {
     listenerRef = (v) => setToastLocal(v);
@@ -35,7 +37,7 @@ export function ToastHost(): JSX.Element | null {
       key={t.id}
       className="fixed top-4 left-1/2 -translate-x-1/2 z-toast px-4 py-2 rounded-[var(--radius-lg)] bg-surface-elevated shadow-lg text-xs text-text-primary pointer-events-none animate-[fadeIn_150ms_ease]"
     >
-      {t.message}
+      {appText(t.message)}
     </div>
   );
 }

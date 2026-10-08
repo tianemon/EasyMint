@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useMemo, useRef, useState, useEffect } from "react";
 import { useAskStore, type AskQuestion, type AskRequest } from "../stores/ask-store";
 
@@ -15,6 +16,7 @@ interface Props {
  * - 级联联动：depends_on 前置答案匹配才进入可见序列（多选题命中任一勾选项即显示）
  */
 export function AskUserCard({ request }: Props): JSX.Element | null {
+  useUiLocale();
   // 当前题索引（可见问题序列）
   const [idx, setIdx] = useState(0);
   // 每题答案：选项 value 数组（单选存单元素；跳过的题不在其中）
@@ -131,7 +133,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
 
   if (!q) return null;
 
-  const mainLabel = draftNonEmpty ? "发送" : isLast ? "完成" : "下一题";
+  const mainLabel = draftNonEmpty ? uiText("ui.AskUserCard.send") : isLast ? uiText("common.done") : uiText("ui.AskUserCard.nextQuestion");
 
   return (
     <div
@@ -146,7 +148,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
       <div className="flex items-center justify-start gap-0.5 px-3.5 pt-2">
         <button
           type="button"
-          title="上一题"
+          title={uiText("ui.AskUserCard.previousQuestion")}
           onClick={() => setIdx(Math.max(0, idx - 1))}
           disabled={idx === 0}
           className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors disabled:opacity-30 disabled:cursor-default"
@@ -154,7 +156,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
         <span className="text-[length:var(--text-2xs)] text-text-muted font-mono px-0.5 select-none">{idx + 1}/{total}</span>
         <button
           type="button"
-          title={isLast ? undefined : "跳过此题"}
+          title={isLast ? undefined : uiText("ui.AskUserCard.skipQuestion")}
           onClick={advance}
           disabled={isLast}
           className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors disabled:opacity-30 disabled:cursor-default"
@@ -162,7 +164,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
         <span className="w-1" />
         <button
           type="button"
-          title="全部跳过（取消提问）"
+          title={uiText("ui.AskUserCard.skipAllCancelQuestions")}
           onClick={skipAll}
           className="ml-auto w-5 h-5 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:text-danger hover:bg-surface-hover transition-colors"
         >
@@ -172,7 +174,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
 
       {/* 问题 */}
       <div className="px-3.5 pt-1.5 text-xs text-text-primary font-medium leading-relaxed">
-        {q.question}{multi && !q.question.includes("多选") ? "（可多选）" : ""}
+        {q.question}{multi && !q.question.includes("多选") ? uiText("ui.AskUserCard.multipleSelectionsAllowed") : ""}
       </div>
 
       {/* 选项：单选点选即走；多选左侧勾选框、点选切换不跳题 */}
@@ -212,7 +214,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
                 {opt.recommended && (
                   <span className={`shrink-0 px-1.5 py-px rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium transition-colors ${
                     sel ? "bg-accent text-white" : "bg-accent-soft text-accent"
-                  }`}>推荐</span>
+                  }`}>{uiText("ui.AskUserCard.recommended")}</span>
                 )}
               </button>
             );
@@ -227,7 +229,7 @@ export function AskUserCard({ request }: Props): JSX.Element | null {
             ref={draftRef}
             rows={1}
             className="em-input flex-1 min-w-0 px-2.5 py-1.5 text-xs leading-relaxed bg-surface/50 resize-none max-h-[110px] overflow-y-auto"
-            placeholder="输入你的答案…"
+            placeholder={uiText("ui.AskUserCard.enterYourAnswer")}
             value={draft}
             onChange={(e) => setDrafts((prev) => ({ ...prev, [q.id]: e.target.value }))}
             onKeyDown={(e) => {

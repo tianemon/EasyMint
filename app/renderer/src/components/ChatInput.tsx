@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../lib/i18n";
 import { memo, useRef, useState, useCallback, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useSettingsStore } from "../stores/settings-store";
@@ -54,19 +55,19 @@ export type PermissionMode = "readonly" | "standard" | "full";
 /** 档位文案：下拉菜单展示每档边界，避免用户把“标准”与“完全访问”混为一谈。 */
 const PERMISSION_LABEL: Record<PermissionMode, { text: string; tip: string; description: string }> = {
   readonly: {
-    text: "只读",
-    tip: "只读模式：可读普通项目内容（敏感凭据除外），但不执行命令、不写入文件或应用状态、不联网。不能构建/测试/装依赖或运行 git——适合审阅来源不明的项目",
-    description: "仅浏览项目内容，不执行、不写入、不联网",
+    get text() { return uiText("ui.ChatInput.readOnly"); },
+    get tip() { return uiText("ui.ChatInput.readOnlyInspectOrdinaryProjectContentExcluding"); },
+    get description() { return uiText("ui.ChatInput.readProjectContentWithoutCommandsChangesOr"); },
   },
   standard: {
-    text: "标准",
-    tip: "标准模式：系统沙盒内执行，工作区与任务临时目录可写；越界写入、读取凭据会被拒绝",
-    description: "默认推荐：在系统沙盒内开发",
+    get text() { return uiText("ui.ChatInput.standard"); },
+    get tip() { return uiText("ui.ChatInput.standardRunInTheOsSandboxWrites"); },
+    get description() { return uiText("ui.ChatInput.recommendedDevelopInsideTheOsSandbox"); },
   },
   full: {
-    text: "完全访问",
-    tip: "完全访问：不套沙盒，普通文件不受工作区限制；gh / git push / 浏览器 / Playwright 均可用。系统危险操作仅做执行前尽力拦截",
-    description: "不套沙盒，普通文件不受工作区限制",
+    get text() { return uiText("ui.ChatInput.fullAccess"); },
+    get tip() { return uiText("ui.ChatInput.fullAccessNoSandboxOrWorkspaceRestriction"); },
+    get description() { return uiText("ui.ChatInput.noSandboxOrWorkspaceRestrictionForOrdinary"); },
   },
 };
 
@@ -89,6 +90,7 @@ function PermissionShieldIcon({ mode, className }: { mode: PermissionMode; class
 
 /** 输入栏权限选择器：用清晰的三项菜单替代循环开关，且固定定位避免被聊天容器裁切。 */
 function PermissionModePicker({ value, onChange }: { value: PermissionMode; onChange: (mode: PermissionMode) => void }): JSX.Element {
+  useUiLocale();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -178,7 +180,7 @@ function PermissionModePicker({ value, onChange }: { value: PermissionMode; onCh
           }
         }}
         className={`permission-mode-trigger ${color}`}
-        aria-label={`权限模式：${current.text}`}
+        aria-label={uiText("ui.ChatInput.permissionMode", { v0: current.text })}
         aria-haspopup="menu"
         aria-expanded={open}
       >
@@ -190,7 +192,7 @@ function PermissionModePicker({ value, onChange }: { value: PermissionMode; onCh
         <div
           ref={panelRef}
           role="menu"
-          aria-label="选择权限模式"
+          aria-label={uiText("ui.ChatInput.choosePermissionMode")}
           className="permission-mode-menu"
           style={{ left: position.left, top: position.top, transform: position.above ? "translate(-50%, -100%)" : "translateX(-50%)" }}
         >
@@ -210,10 +212,10 @@ function PermissionModePicker({ value, onChange }: { value: PermissionMode; onCh
               >
                 <span className={`permission-mode-option-icon ${mode === "full" ? "text-[var(--color-permission-on)]" : "text-text-secondary"}`}><PermissionShieldIcon mode={mode} /></span>
                 <span className="min-w-0 flex-1 text-left">
-                  <span className="permission-mode-option-title">{item.text}{mode === "standard" && <span className="permission-mode-default">推荐</span>}</span>
+                  <span className="permission-mode-option-title">{item.text}{mode === "standard" && <span className="permission-mode-default">{uiText("ui.AskUserCard.recommended")}</span>}</span>
                   <span className="permission-mode-option-description">{item.description}</span>
                 </span>
-                {selected && <svg className="shrink-0 text-accent" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-label="当前选择"><path d="m5 12 4 4L19 6" /></svg>}
+                {selected && <svg className="shrink-0 text-accent" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-label={uiText("ui.ChatInput.selected")}><path d="m5 12 4 4L19 6" /></svg>}
               </button>
             );
           })}
@@ -274,10 +276,10 @@ export const AttachPreview = memo(AttachPreview_);
 
 /** 使用率环的悬浮文案：始终带上当前模型的实际窗口，改参数后一眼能看出是否生效 */
 function ctxTip(pct: number | null, windowTokens: number | null): string {
-  if (windowTokens === null) return pct === null ? "上下文使用率" : `上下文使用率 ${Math.round(pct)}%`;
+  if (windowTokens === null) return pct === null ? uiText("ui.ChatInput.contextUsage") : uiText("ui.ChatInput.contextUsage2", { v0: Math.round(pct) });
   return pct === null
-    ? `上下文窗口 ${formatTokenWindow(windowTokens)}`
-    : `上下文窗口 ${formatTokenWindow(windowTokens)} · 已用 ${Math.round(pct)}%`;
+    ? uiText("ui.ChatInput.contextWindow", { v0: formatTokenWindow(windowTokens) })
+    : uiText("ui.ChatInput.contextWindowUsed", { v0: formatTokenWindow(windowTokens), v1: Math.round(pct) });
 }
 
 export const ChatInput = memo(function ChatInput({
@@ -287,6 +289,7 @@ export const ChatInput = memo(function ChatInput({
   thinkingLevel, thinkingCapped: _thinkingCapped, thinkingLevels, onThinkingLevelChange,
   sessionId, onStatsClick,
 }: ChatInputProps & { sessionId: string; onStatsClick: () => void }): JSX.Element {
+  useUiLocale();
   const [input, setInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // 上下文窗口是模型静态属性(无需会话/网络):打开页面或切模型时主动查一次并填上,
@@ -436,7 +439,7 @@ export const ChatInput = memo(function ChatInput({
         <div className="absolute inset-0 z-float rounded-[var(--radius-lg)] bg-surface/70 backdrop-blur-[2px] flex items-center justify-center">
           <div className="flex items-center gap-2">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4 text-accent animate-spin"><circle cx="8" cy="8" r="6" strokeOpacity="0.3"/><path d="M8 2a6 6 0 015.5 3.5" strokeLinecap="round"/></svg>
-            <span className="text-sm text-text-secondary font-medium">正在整理上下文，请稍候…</span>
+            <span className="text-sm text-text-secondary font-medium">{uiText("ui.ChatInput.compactingContextPleaseWait")}</span>
           </div>
         </div>
       )}
@@ -449,7 +452,7 @@ export const ChatInput = memo(function ChatInput({
           onChange={(e) => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={onPaste}
-          placeholder={compacting ? "正在整理上下文，请稍候" : summarizing ? "正在进行会话摘要..." : "Enter 发送，Shift+Enter 换行，可粘贴或拖入图片"}
+          placeholder={compacting ? uiText("ui.ChatInput.compactingContextPleaseWait2") : summarizing ? uiText("ui.ChatInput.summarizingSession") : uiText("ui.ChatInput.enterToSendShiftEnterForA")}
           rows={4}
           disabled={inputDisabled}
           className="chat-input"
@@ -477,7 +480,7 @@ export const ChatInput = memo(function ChatInput({
                 onClick={() => { setAttachMenuOpen(false); imgInputRef.current?.click(); }}
               >
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><circle cx="5" cy="6" r="1.2"/><path d="M1.5 11l3.5-3.5 2.5 2.5 3-4 4 5"/></svg>
-                <span>图片</span>
+                <span>{uiText("ui.ChatInput.image")}</span>
               </button>
               <button
                 type="button"
@@ -485,7 +488,7 @@ export const ChatInput = memo(function ChatInput({
                 onClick={() => { setAttachMenuOpen(false); docInputRef.current?.click(); }}
               >
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M3 2h7l4 4v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M10 2v4h4M6 9h4M6 12h4"/></svg>
-                <span>文档</span>
+                <span>{uiText("ui.ChatInput.document")}</span>
               </button>
             </div>
           )}
@@ -500,28 +503,28 @@ export const ChatInput = memo(function ChatInput({
         </div>
         <span className="inp-gap" />
         {cacheRate !== null && (
-          <Tooltip className="shrink-0" tip="含冷启动回合——新会话或长时间未对话后的首轮，供应商缓存已过期属正常开销，同样计费">
+          <Tooltip className="shrink-0" tip={uiText("ui.ChatInput.includesColdStartTurnsProviderCachesMay")}>
             <span className="text-[length:var(--text-3xs)] px-1.5 py-0.5 rounded-full bg-[var(--color-input-field)] text-text-secondary tabular-nums">
-              平均缓存命中 {cacheRate}%
+              {uiText("ui.ChatInput.averageCacheHitRate")}{cacheRate}%
             </span>
           </Tooltip>
         )}
         <PermissionModePicker value={permissionMode} onChange={onPermissionModeChange} />
         {/* 模型标签:神经网络节点图标(三点互联,带三点聚拢动效)——组件见 ModelGlyph;hover 悬浮名称(与缓存命中率一致向上) */}
-        <Tooltip tip="模型" className="shrink-0">
-          <ModelGlyph label="模型" className="inp-lbl block" style={{ marginRight: -1, marginLeft: 2 }} />
+        <Tooltip tip={uiText("settings.providers")} className="shrink-0">
+          <ModelGlyph label={uiText("settings.providers")} className="inp-lbl block" style={{ marginRight: -1, marginLeft: 2 }} />
         </Tooltip>
         <Select
           value={chatModel}
           onChange={onModelChange}
-          options={availableModels.length > 0 ? availableModels.map((m) => ({ value: m, label: modelLabels[m] ?? m })) : [{ value: "", label: "暂无可选模型" }]}
+          options={availableModels.length > 0 ? availableModels.map((m) => ({ value: m, label: modelLabels[m] ?? m })) : [{ value: "", label: uiText("ui.ChatInput.noModelsAvailable") }]}
           align="center"
           borderless
         />
         {/* 思考等级标签:大脑图标(Lucide brain)——替换原「思考」文字;hover 悬浮名称(与缓存命中率一致向上) */}
-        <Tooltip tip="思考等级" className="shrink-0">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inp-lbl block" style={{ marginRight: -1, marginLeft: 2 }} role="img" aria-label="思考等级">
-            <title>思考等级</title>
+        <Tooltip tip={uiText("ui.ChatInput.thinkingLevel")} className="shrink-0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inp-lbl block" style={{ marginRight: -1, marginLeft: 2 }} role="img" aria-label={uiText("ui.ChatInput.thinkingLevel")}>
+            <title>{uiText("ui.ChatInput.thinkingLevel")}</title>
             <path d="M12 18V5"/>
             <path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"/>
             <path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"/>

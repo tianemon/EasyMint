@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTaskStore } from "../stores/task-store";
 import { useProjectStatusStore } from "../stores/project-status-store";
@@ -18,12 +19,13 @@ const STATUS_ICON: Record<string, JSX.Element> = {
 // ── Task Row (hover to expand) ──────────────────────
 
 function TaskRow({ task, runningExec }: { task: { id: string; title: string; description?: string; status: string; completedAt?: number }; runningExec?: { status: string; durationMs: number } }): JSX.Element {
+  useUiLocale();
   const [expanded, setExpanded] = useState(false);
   const hasDesc = !!task.description;
   // 委派实时执行覆盖静态 building/evaluating 心跳:显示「运行中 · Ns」
   const isRunning = runningExec?.status === "running";
   const displayStatus = isRunning ? "running" : task.status;
-  const durText = isRunning ? `运行中 · ${Math.max(1, Math.round(runningExec.durationMs / 1000))}s` : undefined;
+  const durText = isRunning ? uiText("ui.TaskPanel.runningS", { v0: Math.max(1, Math.round(runningExec.durationMs / 1000)) }) : undefined;
 
   return (
     <div
@@ -62,6 +64,7 @@ function TaskRow({ task, runningExec }: { task: { id: string; title: string; des
 // ── Main Panel ──────────────────────────────────────
 
 export function TaskPanel(_props: TaskPanelProps): JSX.Element {
+  useUiLocale();
   const { tasks } = useTaskStore();
   const { doneCount, taskCount } = useProjectStatusStore();
   const taskExecutions = useDelegationStore((s) => s.taskExecutions);
@@ -99,9 +102,9 @@ export function TaskPanel(_props: TaskPanelProps): JSX.Element {
     <div className="h-full flex flex-col">
       {/* Header:标题 + 进度条 */}
       <div className="flex items-center gap-2 h-9 px-3 shrink-0">
-        <span className="text-[length:var(--text-11)] font-semibold tracking-[0.04em] uppercase text-text-secondary">任务</span>
+        <span className="text-[length:var(--text-11)] font-semibold tracking-[0.04em] uppercase text-text-secondary">{uiText("nav.tasks")}</span>
         {taskCount > 0 && (
-          <span className="ml-auto text-[length:var(--text-2xs)] text-text-secondary tabular-nums">{doneCount}/{taskCount} 完成</span>
+          <span className="ml-auto text-[length:var(--text-2xs)] text-text-secondary tabular-nums">{doneCount}/{taskCount} {uiText("ui.TaskPanel.completed")}</span>
         )}
       </div>
 
@@ -113,7 +116,7 @@ export function TaskPanel(_props: TaskPanelProps): JSX.Element {
               <TaskRow key={task.id} task={task} runningExec={taskExecutions[task.id]} />
             ))
           ) : (
-            <div className="flex items-center justify-center flex-1 py-8 text-[length:var(--text-2xs)] text-text-secondary">暂无任务</div>
+            <div className="flex items-center justify-center flex-1 py-8 text-[length:var(--text-2xs)] text-text-secondary">{uiText("ui.TaskPanel.noTasks")}</div>
           )}
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { uiText } from "../lib/i18n";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 interface Props {
@@ -32,16 +33,15 @@ export class ErrorBoundary extends Component<Props, State> {
                 <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
             </div>
-            <p className="text-sm font-medium text-text-primary mb-1">出了点问题</p>
+            <p className="text-sm font-medium text-text-primary mb-1">{uiText("ui.ErrorBoundary.somethingWentWrong")}</p>
             <p className="text-xs text-text-secondary mb-4">
-              {this.state.error?.message || "未知错误"}
+              {this.state.error?.message || uiText("ui.ErrorBoundary.unknownError")}
             </p>
             <button
               className="px-4 py-1.5 text-xs rounded-[var(--radius-lg)] btn-accent"
               onClick={() => this.setState({ hasError: false, error: null })}
             >
-              重试
-            </button>
+              {uiText("ui.ChatPanel.retry")}</button>
           </div>
         </div>
       );

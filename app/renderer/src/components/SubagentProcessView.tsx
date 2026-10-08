@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { ChatMessage, mapSessionMessages, applyNestedToolEvent, piBlocksToEntries, mergeConsecutiveText, followDecision, USER_INPUT_WINDOW_MS } from "./chat-utils";
@@ -25,6 +26,7 @@ export function SubagentProcessView({
   running: boolean;
   onClose: () => void;
 }): JSX.Element {
+  useUiLocale();
   const sessionFile = useDelegationStore((s) => s.sessionFiles[`${delegationId}:${index}`]);
   const [msgs, setMsgs] = useState<ChatMessage[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -99,7 +101,7 @@ export function SubagentProcessView({
       }
       if (ev.type === "tool_result" && ev.toolCallId) {
         setMsgs(prev => prev.map(msg => msg.entries?.some(entry => entry.kind === "tool_use" && entry.id === ev.toolCallId)
-          ? { ...msg, entries: [...msg.entries, { kind: "tool_result", toolUseId: ev.toolCallId!, name: ev.toolName, content: ev.content ?? "", isError: !!ev.isError, nestedCalls: ev.nestedCalls, timestamp: Date.now() }] }
+          ? { ...msg, entries: [...msg.entries, { kind: "tool_result", toolUseId: ev.toolCallId!, name: ev.toolName, content: ev.content ?? "", isError: !!ev.isError, nestedCalls: ev.nestedCalls, presentation: ev.presentation, timestamp: Date.now() }] }
           : msg));
         return;
       }
@@ -199,10 +201,10 @@ export function SubagentProcessView({
             <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.25" />
             <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
-          <span className="text-sm font-medium text-text-primary truncate flex-1">{title || "AI 助手"}</span>
+          <span className="text-sm font-medium text-text-primary truncate flex-1">{title || uiText("ui.SubagentProcessView.aiAssistant")}</span>
           <span className={`text-[length:var(--text-11)] shrink-0 flex items-center gap-1 ${running ? "text-success" : "text-text-muted"}`}>
             {running && <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />}
-            {running ? "运行中" : "已结束"}
+            {running ? uiText("ui.OutputWindow.running") : uiText("ui.OutputWindow.finished")}
           </span>
           <button
             type="button"
@@ -217,13 +219,13 @@ export function SubagentProcessView({
         {/* 阅读型内容区:字号随「阅读字体」缩放(与聊天区 .chat-messages 同思路) */}
         <div ref={scrollRef} onScroll={handleScroll} onWheel={handleUserInput} onTouchStart={handleUserInput} onMouseDown={handleUserInput} className="subagent-output flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ fontSize: "var(--text-body)" }}>
           {!loaded && !sessionFile && (
-            <div className="text-center text-text-secondary py-8">正在准备任务…</div>
+            <div className="text-center text-text-secondary py-8">{uiText("ui.SubagentProcessView.preparingTask")}</div>
           )}
           {!loaded && sessionFile && (
-            <div className="text-center text-text-secondary py-8">加载中…</div>
+            <div className="text-center text-text-secondary py-8">{uiText("ui.EditorPanel.loading")}</div>
           )}
           {loaded && msgs.length === 0 && (
-            <div className="text-center text-text-secondary py-8">暂无消息</div>
+            <div className="text-center text-text-secondary py-8">{uiText("ui.SubagentProcessView.noMessages")}</div>
           )}
           {msgs.map((m) => {
             // 正在增长的那条 = 尾块且带实时流标记(实时块由 message_start/磁盘重载终态化,
@@ -233,7 +235,7 @@ export function SubagentProcessView({
             const streamRow = running && m.role === "ai" && !!m.streaming && m === msgs[msgs.length - 1];
             return <SubagentMessage key={m.keyId ?? m.id} msg={m} streaming={streamRow} />;
           })}
-          {running && <div className="flex justify-center"><span className="text-[length:var(--text-11)] text-text-secondary animate-pulse">● 运行中</span></div>}
+          {running && <div className="flex justify-center"><span className="text-[length:var(--text-11)] text-text-secondary animate-pulse">{uiText("ui.SubagentProcessView.running")}</span></div>}
         </div>
 
         {/* 回底按钮:滚离底部时显示,点击贴底并恢复自动跟随 */}

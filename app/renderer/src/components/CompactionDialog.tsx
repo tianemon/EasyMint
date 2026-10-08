@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "./ui/Modal";
 
@@ -34,6 +35,7 @@ export function CompactionDialog({
   onDefer: () => void;
   onClose: () => void;
 }): JSX.Element {
+  useUiLocale();
   const [instructions, setInstructions] = useState("");
   // 配置在挂载时固化一次:ChatPanel 常因消息流重渲染、每次会新建 countdown 对象,
   // 直接依赖 prop 会把计时反复重置;弹窗每次打开都是全新挂载,卸载即清定时器。
@@ -83,7 +85,7 @@ export function CompactionDialog({
             <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M3 3l8 8M11 3L3 11"/></svg>
           </button>
         </div>
-        <p className="text-xs text-text-secondary mb-3">压缩会整理对话上下文、释放空间；写交接提示词则不压缩，由 Mint 总结供你复制。</p>
+        <p className="text-xs text-text-secondary mb-3">{uiText("ui.CompactionDialog.compactionSummarizesTheConversationToFreeSpace")}</p>
         <div className="space-y-1">
           <button
             type="button"
@@ -91,12 +93,12 @@ export function CompactionDialog({
             className="w-full text-left px-3 py-2 rounded-[var(--radius-lg)] hover:bg-surface-hover text-xs text-text-primary transition-colors"
           >
             <span className="flex items-center justify-between gap-3">
-              <span>是，立即压缩（系统自动总结）</span>
+              <span>{uiText("ui.CompactionDialog.yesCompactNowAutomaticSummary")}</span>
               {countdownConfig && !frozen && remaining > 0 && (
-                <span className="text-text-secondary tabular-nums shrink-0">{remaining} 秒后自动压缩</span>
+                <span className="text-text-secondary tabular-nums shrink-0">{uiText("compaction.countdown", { count: remaining })}</span>
               )}
               {countdownConfig && frozen && (
-                <span className="text-text-muted shrink-0">已暂停自动压缩</span>
+                <span className="text-text-muted shrink-0">{uiText("ui.CompactionDialog.automaticCompactionPaused")}</span>
               )}
             </span>
           </button>
@@ -105,29 +107,26 @@ export function CompactionDialog({
             onClick={onWriteHandoff}
             className="w-full text-left px-3 py-2 rounded-[var(--radius-lg)] hover:bg-surface-hover text-xs text-text-primary transition-colors"
           >
-            否，开启新会话，帮我写交接提示词
-          </button>
+            {uiText("ui.CompactionDialog.noStartANewSessionAndWrite")}</button>
           <button
             type="button"
             onClick={onDefer}
             className="w-full text-left px-3 py-2 rounded-[var(--radius-lg)] hover:bg-surface-hover text-xs text-text-primary transition-colors"
           >
-            否，Mint 下次回复完触发
-          </button>
+            {uiText("ui.CompactionDialog.noCompactAfterMintSNextResponse")}</button>
         </div>
         {/* 分隔线 + 输入指令区 */}
         <div className="border-t border-border/60 my-3" />
         {/* 说清指令的效力边界：SDK 的摘要提示词要求固定段结构，指令只是追加在末尾的附加关注点
             （保留/强调某类信息），改不了结构——不写这句会有「我提了要求却没生效」的预期落差 */}
         <p className="text-[length:var(--text-11)] text-text-muted mb-2">
-          指令只用于强调要保留的信息（摘要的段落结构由引擎固定，不能改）。
-        </p>
+          {uiText("ui.CompactionDialog.instructionsHighlightWhatToRetainTheEngine")}</p>
         <div className="flex items-center gap-2">
           <input
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") onWithInstructions(instructions.trim()); }}
-            placeholder="例如：保留数据库 schema 变更"
+            placeholder={uiText("ui.CompactionDialog.eGRetainDatabaseSchemaChanges")}
             autoFocus
             className="flex-1 min-w-0 px-2.5 py-1.5 rounded-[var(--radius-lg)] bg-surface-alt text-xs text-text-primary outline-none placeholder:text-text-muted"
           />
@@ -136,8 +135,7 @@ export function CompactionDialog({
             onClick={() => onWithInstructions(instructions.trim())}
             className="px-3 py-1.5 rounded-[var(--radius-lg)] btn-accent text-xs font-medium shrink-0"
           >
-            是，输入指令
-          </button>
+            {uiText("ui.CompactionDialog.yesWithInstructions")}</button>
         </div>
       </div>
     </Modal>

@@ -1,3 +1,7 @@
+import { appMessage } from "../../lib/i18n";
+import { formatDate, formatRelativeTimestamp } from "../../lib/locale-format";
+import { appText } from "../../lib/i18n";
+import { uiText, useUiLocale, uiI18n } from "../../lib/i18n";
 import { useEffect, useState } from "react";
 import { confirmDialog } from "../ui/ConfirmDialog";
 
@@ -25,13 +29,8 @@ const MAX_BODY_BYTES = 64 * 1024 - 256; // frontmatter 余量；主进程对最�
 
 function relTime(ms: number): string {
   if (!ms) return "";
-  const diff = Date.now() - ms;
-  if (diff < 60_000) return "刚刚";
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}分钟前`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}小时前`;
-  if (diff < 30 * 86_400_000) return `${Math.floor(diff / 86_400_000)}天前`;
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return Date.now() - ms < 30 * 86_400_000
+    ? formatRelativeTimestamp(ms) : formatDate(ms, { year: "numeric", month: "short", day: "numeric" });
 }
 
 function Toggle({ checked, onChange, disabled = false }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
@@ -56,6 +55,7 @@ function SkillRow({ s, stat, onToggle, onDelete }: {
   onToggle: () => void;
   onDelete?: () => void;
 }) {
+  useUiLocale();
   const [hover, setHover] = useState(false);
   const [showBody, setShowBody] = useState(false);
   const [body, setBody] = useState<string | null>(null);
@@ -81,10 +81,10 @@ function SkillRow({ s, stat, onToggle, onDelete }: {
   const sourceLabel = s.source === "managed"
     ? "AI"
     : s.source === "builtin"
-      ? "内置"
+      ? uiText("ui.PluginsTab.builtIn")
       : s.source === "imported"
-        ? `外部·${s.importedFrom === "github" ? "GitHub" : s.importedFrom === "codex" ? "Codex" : s.importedFrom === "pi" ? "Pi" : "Claude"}`
-        : "手写";
+        ? uiText("ui.PluginsTab.external", { v0: s.importedFrom === "github" ? "GitHub" : s.importedFrom === "codex" ? "Codex" : s.importedFrom === "pi" ? "Pi" : "Claude" })
+        : uiText("ui.PluginsTab.authored");
   const sourceCls = s.source === "managed"
     ? "bg-warning-soft text-warning"
     : s.source === "imported"
@@ -106,63 +106,62 @@ function SkillRow({ s, stat, onToggle, onDelete }: {
           <span className="text-xs text-text-primary truncate">{s.name}</span>
           <span className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] shrink-0 ${sourceCls}`}>{sourceLabel}</span>
           {s.level === "project" && (
-            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-surface text-text-muted shrink-0">项目</span>
+            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-surface text-text-muted shrink-0">{uiText("ui.PluginsTab.project")}</span>
           )}
           {s.shadowed && (
-            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-warning-soft text-warning shrink-0">被遮蔽</span>
+            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-warning-soft text-warning shrink-0">{uiText("ui.PluginsTab.shadowed")}</span>
           )}
           {noDesc && (
             <span
               className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-danger-soft text-danger shrink-0"
              
-            >缺描述</span>
+            >{uiText("ui.PluginsTab.noDescription")}</span>
           )}
           {stale && (
-            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-surface text-text-muted shrink-0">90天未用</span>
+            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-surface text-text-muted shrink-0">{uiText("ui.PluginsTab.unusedFor90Days")}</span>
           )}
           {highFail && (
-            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-danger-soft text-danger shrink-0">失败多</span>
+            <span className="text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] bg-danger-soft text-danger shrink-0">{uiText("ui.PluginsTab.frequentFailures")}</span>
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {stat && (
             <span className="text-[length:var(--text-3xs)] text-text-muted whitespace-nowrap">
-              {stat.usageCount > 0 ? `${stat.usageCount}次·${relTime(stat.lastUsedAt)}` : "未用过"}
+              {stat.usageCount > 0 ? uiText("ui.PluginsTab.calls", { v0: stat.usageCount, v1: relTime(stat.lastUsedAt) }) : uiText("ui.PluginsTab.neverUsed")}
             </span>
           )}
           <button
             onClick={toggleBody}
             className="text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary transition-colors px-1"
           >
-            正文
-          </button>
+            {uiText("ui.PluginsTab.body")}</button>
           {onDelete && (
             <button
               onClick={onDelete}
               className="text-[length:var(--text-3xs)] text-text-secondary hover:text-danger transition-colors px-1"
             >
-              删除
-            </button>
+              {uiText("ui.AgentTemplateSettings.delete")}</button>
           )}
           <Toggle checked={s.enabled} onChange={onToggle} />
         </div>
       </div>
       {showBody ? (
         bodyError ? (
-          <p className="text-[length:var(--text-11)] text-danger mt-1">{bodyError}</p>
+          <p className="text-[length:var(--text-11)] text-danger mt-1">{appText(bodyError)}</p>
         ) : (
           <pre className="text-[length:var(--text-2xs)] text-text-secondary mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap leading-relaxed select-text">
-            {body ?? "加载中…"}
+            {body ?? uiText("ui.EditorPanel.loading")}
           </pre>
         )
       ) : (
-        hover && <p className="text-[length:var(--text-11)] text-text-secondary mt-1 leading-relaxed">{s.description}</p>
+        hover && <p className="text-[length:var(--text-11)] text-text-secondary mt-1 leading-relaxed">{s.source === "builtin" && uiI18n.exists(`builtinSkills.${s.name}.description`) ? uiText(`builtinSkills.${s.name}.description`) : s.description}</p>
       )}
     </div>
   );
 }
 
 function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
+  useUiLocale();
   const [skills, setSkills] = useState<SkillRowData[]>([]);
   const [stats, setStats] = useState<Record<string, SkillStatData>>({});
   const [loadError, setLoadError] = useState("");
@@ -191,14 +190,14 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
   const handleSkillImport = async () => {
     if (!skillSource.trim()) return;
     setSkillImporting(true);
-    setSkillImportMsg("导入中…");
+    setSkillImportMsg(uiText("ui.PiImport.importing"));
     try {
       const r = await window.electronAPI.skill.import(skillSource.trim());
       if (r.ok) {
-        setSkillImportMsg(`✅ skill「${r.name}」已安装（当前会话即可用 use_skill 加载，重启后进入技能列表）`);
+        setSkillImportMsg(uiText("ui.PluginsTab.skillInstalledLoadItWithUseSkill", { v0: r.name }));
         load();
       } else {
-        setSkillImportMsg("❌ " + (r.error || "导入失败"));
+        setSkillImportMsg("❌ " + (r.error || uiText("ui.PluginsTab.importFailed")));
       }
     } catch (e) {
       setSkillImportMsg("❌ " + String(e));
@@ -239,21 +238,21 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
     if (s.source === "managed") {
       const r = await window.electronAPI.skill.deleteManaged(s.name);
       if (!r.ok) {
-        setLoadError(r.error || "删除失败");
+        setLoadError(r.error || uiText("ui.PluginsTab.couldNotDelete"));
         return;
       }
     } else {
       const ok = await confirmDialog({
-        title: `删除 skill「${s.name}」？`,
-        message: `目录将从磁盘移除：${s.path}`,
-        confirmText: "删除",
+        title: uiText("ui.PluginsTab.deleteSkill", { v0: s.name }),
+        message: uiText("ui.PluginsTab.thisDirectoryWillBeRemoved", { v0: s.path }),
+        confirmText: uiText("ui.AgentTemplateSettings.delete"),
         danger: true,
       });
       if (!ok) return;
       // 项目级 skill 需带 projectPath 才能通过 deleteSkill 的目录白名单
       const r = await window.electronAPI.skill.delete(s.path, projectPath);
       if (!r.ok) {
-        setLoadError(r.error || "删除失败");
+        setLoadError(r.error || uiText("ui.PluginsTab.couldNotDelete"));
         return;
       }
     }
@@ -301,7 +300,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
     try {
       const r = await window.electronAPI.skill.createManaged(formName, formDesc.trim(), formBody);
       if (!r.ok) {
-        setFormError(r.error || "创建失败");
+        setFormError(r.error || uiText("ui.PluginsTab.couldNotCreate"));
         return;
       }
       setShowForm(false);
@@ -332,14 +331,14 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       // 从未调用的 skill 在 registry 无条目（stat 为 undefined）——不能提前 return，
       // managed「尚未被调用」建议正依赖此分支
       if (s.source === "managed" && (!stat || stat.usageCount === 0)) {
-        return { name: s.name, text: "尚未被调用过——描述可能不含触发词，或内容已过时" };
+        return { name: s.name, text: uiText("ui.PluginsTab.neverCalledTheDescriptionMayLackTrigger") };
       }
       if (!stat) return null;
       if (stat.lastUsedAt > 0 && Date.now() - stat.lastUsedAt > 90 * 86_400_000) {
-        return { name: s.name, text: "90 天未使用——考虑删除或合并" };
+        return { name: s.name, text: uiText("ui.PluginsTab.unusedFor90DaysConsiderDeletingOr") };
       }
       if (stat.failCount >= 3 && stat.usageCount > 0 && stat.failCount / stat.usageCount >= 0.3) {
-        return { name: s.name, text: "失败率高——描述与内容可能不匹配，建议修正 description" };
+        return { name: s.name, text: uiText("ui.PluginsTab.highFailureRateCheckWhetherTheDescription") };
       }
       return null;
     })
@@ -347,7 +346,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
 
   return (
     <div className="px-6 py-4 overflow-y-auto space-y-4">
-      {loadError && <p className="text-danger text-xs">{loadError}</p>}
+      {loadError && <p className="text-danger text-xs">{appText(loadError)}</p>}
 
       {/* Tab buttons — pill style */}
       <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden">
@@ -361,7 +360,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
             }`}
             onClick={() => setTab(t)}
           >
-            {t === "builtin" ? "内置" : t === "global" ? "通用" : "AI 管理"}
+            {t === "builtin" ? uiText("ui.PluginsTab.builtIn") : t === "global" ? uiText("settings.general") : uiText("ui.PluginsTab.aiManaged")}
           </button>
         ))}
       </div>
@@ -369,10 +368,9 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       {/* 外部生态发现开关（对全部页签生效——只读发现，不改动任何文件） */}
       <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-2.5 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs text-text-primary">发现外部生态 skill</p>
+          <p className="text-xs text-text-primary">{uiText("ui.PluginsTab.discoverExternalSkills")}</p>
           <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-            自动识别主流工具的 skill 目录（Claude Code、Codex、GitHub、Pi），标记为「外部」即可用；只读，不改动原目录
-          </p>
+            {uiText("ui.PluginsTab.discoverSkillsFromClaudeCodeCodexGithub")}</p>
         </div>
         <Toggle checked={importExternal} onChange={saveImportExternal} />
       </div>
@@ -381,35 +379,32 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-2.5">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs text-text-primary">导入 skill</p>
+            <p className="text-xs text-text-primary">{uiText("ui.PluginsTab.importSkill")}</p>
             <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-              粘贴仓库链接或本地目录路径（需含 SKILL.md）
-            </p>
+              {uiText("ui.PluginsTab.pasteARepositoryUrlOrLocalDirectory")}</p>
           </div>
           {!skillImportOpen && (
             <button type="button" onClick={() => setSkillImportOpen(true)}
               className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors shrink-0">
-              导入
-            </button>
+              {uiText("ui.ChatBlocks.import")}</button>
           )}
         </div>
         {skillImportOpen && (
           <div className="mt-2 space-y-2">
             <input
               className="em-input w-full px-2.5 py-1.5 text-xs font-mono"
-              placeholder="https://github.com/user/skill-repo 或 ~/path/to/skill-dir"
+              placeholder={uiText("ui.PluginsTab.httpsGithubComUserSkillRepoOr")}
               value={skillSource}
               onChange={(e) => setSkillSource(e.target.value)}
             />
-            {skillImportMsg && <p className="text-[length:var(--text-11)] whitespace-pre-line">{skillImportMsg}</p>}
+            {skillImportMsg && <p className="text-[length:var(--text-11)] whitespace-pre-line">{appText(skillImportMsg)}</p>}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => { setSkillImportOpen(false); setSkillSource(""); setSkillImportMsg(""); }}
                 className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
-                关闭
-              </button>
+                {uiText("common.close")}</button>
               <button type="button" disabled={!skillSource.trim() || skillImporting} onClick={handleSkillImport}
                 className="px-3.5 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors disabled:opacity-50">
-                {skillImporting ? "导入中…" : "导入"}
+                {skillImporting ? uiText("ui.PiImport.importing") : uiText("ui.ChatBlocks.import")}
               </button>
             </div>
           </div>
@@ -421,20 +416,18 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
         <div className="space-y-3">
           <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-2.5 flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs text-text-primary">允许 AI 创建与管理 skill</p>
+              <p className="text-xs text-text-primary">{uiText("ui.PluginsTab.allowAiToManageSkills")}</p>
               <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-                开启后，Mint 可在会话中用 manage_skill 工具创建/更新 AI 管理区的 skill（进行中的会话不生效；默认关闭）
-              </p>
+                {uiText("ui.PluginsTab.mintCanCreateAndUpdateAiManaged")}</p>
             </div>
             <Toggle checked={manageSkillEnabled} onChange={saveManageEnabled} />
           </div>
 
           <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-2.5 flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs text-text-primary">允许 AI 自沉淀经验</p>
+              <p className="text-xs text-text-primary">{uiText("ui.PluginsTab.allowAiToRetainExperience")}</p>
               <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-                开启后，Mint 可在任务完成时自行判断并沉淀经验（直接入库、无需确认，可改可删），并可检索历史经验（进行中的会话不生效；默认关闭）
-              </p>
+                {uiText("ui.PluginsTab.mintCanSaveUsefulLessonsAfterTasks")}</p>
             </div>
             <Toggle checked={learnEnabled} onChange={saveLearnEnabled} />
           </div>
@@ -442,7 +435,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
           {showForm ? (
             <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-3 space-y-2">
               <div>
-                <label className="text-xs text-text-secondary block mb-1">名称（小写字母/数字/连字符）</label>
+                <label className="text-xs text-text-secondary block mb-1">{uiText("ui.PluginsTab.nameLowercaseLettersDigitsHyphens")}</label>
                 <input
                   className="em-input w-full px-2 py-1.5 text-text-primary text-xs"
                   value={formName}
@@ -451,48 +444,47 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
                 />
                 {formName && !nameValid && (
                   <p className="text-[length:var(--text-11)] text-danger mt-1">
-                    {"名称需匹配 [a-z0-9][a-z0-9-]{0,63}（小写字母/数字/连字符，≤64 字符）"}
+                    {uiText("ui.PluginsTab.nameMustMatchAZ09A")}
                   </p>
                 )}
               </div>
               <div>
-                <label className="text-xs text-text-secondary block mb-1">描述（单行，注入会话提示词）</label>
+                <label className="text-xs text-text-secondary block mb-1">{uiText("ui.PluginsTab.descriptionOneLineIncludedInSessionPrompts")}</label>
                 <input
                   className="em-input w-full px-2 py-1.5 text-text-primary text-xs"
                   value={formDesc}
-                  placeholder="这个 skill 做什么、什么时候用"
+                  placeholder={uiText("ui.PluginsTab.whatThisSkillDoesAndWhenTo")}
                   onChange={(e) => { setFormDesc(e.target.value); setFormError(""); }}
                 />
               </div>
               <div>
                 <label className="text-xs text-text-secondary block mb-1">
-                  正文（Markdown，{bodyBytes > MAX_BODY_BYTES ? "已超限" : `上限约 ${MAX_BODY_BYTES} 字节`}）
+                  {uiText("ui.PluginsTab.bodyMarkdown")}{bodyBytes > MAX_BODY_BYTES ? uiText("ui.PluginsTab.limitExceeded") : uiText("ui.PluginsTab.limitAboutBytes", { v0: MAX_BODY_BYTES })}）
                 </label>
                 <textarea
                   className="em-input w-full px-2 py-1.5 text-text-primary text-xs min-h-24 resize-y"
                   value={formBody}
-                  placeholder="skill 的完整内容：工作流、约束、示例等"
+                  placeholder={uiText("ui.PluginsTab.fullSkillContentWorkflowConstraintsExamplesEtc")}
                   onChange={(e) => { setFormBody(e.target.value); setFormError(""); }}
                 />
                 {bodyBytes > MAX_BODY_BYTES && (
-                  <p className="text-[length:var(--text-11)] text-danger mt-1">正文超限（{bodyBytes} 字节），需精简</p>
+                  <p className="text-[length:var(--text-11)] text-danger mt-1">{uiText("ui.PluginsTab.bodyExceedsLimit")}{bodyBytes} {uiText("ui.PluginsTab.bytesShortenIt")}</p>
                 )}
               </div>
-              {formError && <p className="text-[length:var(--text-11)] text-danger">{formError}</p>}
+              {formError && <p className="text-[length:var(--text-11)] text-danger">{appText(formError)}</p>}
               <div className="flex items-center gap-2 pt-1">
                 <button
                   disabled={!canSubmit}
                   className={`px-3 py-1 text-xs rounded-[var(--radius-lg)] transition-colors ${canSubmit ? "btn-accent" : "bg-surface-hover text-text-muted cursor-not-allowed"}`}
                   onClick={submit}
                 >
-                  {submitting ? "创建中…" : "创建"}
+                  {submitting ? uiText("ui.PluginsTab.creating") : uiText("ui.PluginsTab.create")}
                 </button>
                 <button
                   className="px-3 py-1 text-xs rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors"
                   onClick={() => { setShowForm(false); setFormError(""); }}
                 >
-                  取消
-                </button>
+                  {uiText("common.cancel")}</button>
               </div>
             </div>
           ) : (
@@ -500,8 +492,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
               className="px-3 py-1 text-xs rounded-[var(--radius-lg)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
               onClick={() => setShowForm(true)}
             >
-              + 新建 skill
-            </button>
+              {uiText("ui.PluginsTab.newSkill")}</button>
           )}
         </div>
       )}
@@ -521,7 +512,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
           ))
         ) : (
           <p className="text-text-muted text-xs text-center py-6">
-            {tab === "builtin" ? "暂无内置 Skill" : tab === "global" ? "暂无通用 Skill" : "暂无 AI 管理的 skill"}
+            {tab === "builtin" ? uiText("ui.PluginsTab.noBuiltInSkills") : tab === "global" ? uiText("ui.PluginsTab.noGeneralSkills") : uiText("ui.PluginsTab.noAiManagedSkills")}
           </p>
         )}
       </div>
@@ -529,11 +520,11 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       {/* 优化建议（AI 管理页；有建议才显示） */}
       {tab === "managed" && suggestions.length > 0 && (
         <div>
-          <h4 className="text-xs font-medium text-text-secondary mb-2">优化建议</h4>
+          <h4 className="text-xs font-medium text-text-secondary mb-2">{uiText("ui.PluginsTab.suggestions")}</h4>
           <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-2 space-y-1">
             {suggestions.map((sug) => (
               <p key={sug.name} className="text-[length:var(--text-11)] text-text-secondary leading-relaxed">
-                <span className="text-text-primary font-mono">{sug.name}</span>：{sug.text}
+                <span className="text-text-primary font-mono">{sug.name}</span>：{appText(sug.text)}
               </p>
             ))}
           </div>
@@ -543,7 +534,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
       {/* Project skills */}
       {projectSkills.length > 0 && (
         <div>
-          <h4 className="text-xs font-medium text-text-secondary mb-2">项目级</h4>
+          <h4 className="text-xs font-medium text-text-secondary mb-2">{uiText("ui.PluginsTab.projectScope")}</h4>
           <div className="bg-surface-alt rounded-[var(--radius-lg)] overflow-hidden max-h-[220px] overflow-y-auto">
             {projectSkills.map((s) => (
               <SkillRow
@@ -560,8 +551,7 @@ function SkillsTab({ projectPath }: { projectPath?: string }): JSX.Element {
 
       {skills.length === 0 && (
         <p className="text-text-secondary text-xs text-center py-8">
-          暂无 Skill。将 skill 放入 ~/.easymint/skills/ 目录即可自动识别。
-        </p>
+          {uiText("ui.PluginsTab.noSkillsPlaceASkillInEasymint")}</p>
       )}
     </div>
   );
@@ -585,6 +575,7 @@ function McpServerForm({
   onCancel: () => void;
   onSaved: () => void;
 }): JSX.Element {
+  useUiLocale();
   const [name, setName] = useState(initial?.name ?? "");
   const [type, setType] = useState<"stdio" | "http" | "sse">(initial?.cfg.type ?? "stdio");
   const [command, setCommand] = useState(initial?.cfg.command ?? "");
@@ -625,15 +616,15 @@ function McpServerForm({
   };
 
   const validate = (): string | null => {
-    if (!MCP_NAME_RE.test(name)) return "名称需用小写字母/数字/连字符（如 my-server），长度 1-64";
-    if (type === "sse") return "请切换到 HTTP，并填写服务端提供的新 Streamable HTTP 端点";
-    if (type === "stdio" && !command.trim()) return "本地进程类型必须填写启动命令（如 npx）";
+    if (!MCP_NAME_RE.test(name)) return uiText("ui.PluginsTab.useLowercaseLettersDigitsAndHyphensE");
+    if (type === "sse") return uiText("ui.PluginsTab.switchToHttpAndEnterTheServer");
+    if (type === "stdio" && !command.trim()) return uiText("ui.PluginsTab.localProcessesRequireACommandEG");
     if (type !== "stdio") {
-      if (!url.trim()) return `${type.toUpperCase()} 类型必须填写 URL`;
+      if (!url.trim()) return uiText("ui.PluginsTab.requiresAUrl", { v0: type.toUpperCase() });
       try {
         const u = new URL(url.trim());
-        if (!/^https?:$/.test(u.protocol)) return "URL 必须是 http/https";
-      } catch { return "URL 格式不正确"; }
+        if (!/^https?:$/.test(u.protocol)) return uiText("ui.PluginsTab.urlMustUseHttpOrHttps");
+      } catch { return uiText("ui.PluginsTab.invalidUrl"); }
     }
     return null;
   };
@@ -643,12 +634,12 @@ function McpServerForm({
     if (e) { setErr(e); return; }
     setBusy(true);
     setErr("");
-    setTestResult("正在连接…");
+    setTestResult(uiText("ui.PluginsTab.connecting"));
     try {
       const r = await window.electronAPI.mcp.test(buildCfg(), projectPath);
-      setTestResult(r.ok ? `连接成功，发现 ${r.toolCount ?? 0} 个工具` : `连接失败：${r.error}`);
+      setTestResult(r.ok ? uiText("ui.PluginsTab.connectedToolsFound", { v0: r.toolCount ?? 0 }) : uiText("ui.PluginsTab.connectionFailed", { v0: appMessage(r.error) }));
     } catch (e2) {
-      setTestResult(`测试失败：${String(e2)}`);
+      setTestResult(uiText("ui.PluginsTab.testFailed", { v0: String(e2) }));
     } finally {
       setBusy(false);
     }
@@ -661,7 +652,7 @@ function McpServerForm({
     setErr("");
     try {
       const r = await window.electronAPI.mcp.save(name, buildCfg(), scope, scope === "project" ? projectPath : undefined);
-      if (!r.ok) { setErr(r.error || "保存失败"); return; }
+      if (!r.ok) { setErr(r.error || uiText("ui.PluginsTab.couldNotSave")); return; }
       onSaved();
     } catch (e2) {
       setErr(String(e2));
@@ -675,7 +666,7 @@ function McpServerForm({
       <div className="flex items-center gap-2">
         <input
           className="em-input flex-1 px-2.5 py-1.5 text-xs font-mono"
-          placeholder="服务器名称（小写字母/数字/连字符）"
+          placeholder={uiText("ui.PluginsTab.serverNameLowercaseLettersDigitsHyphens")}
           value={name}
           disabled={!!initial}
           onChange={(e) => setName(e.target.value)}
@@ -690,7 +681,7 @@ function McpServerForm({
                 type === t ? "bg-accent text-text-inverse" : "text-text-secondary hover:bg-surface-hover"
               }`}
             >
-              {t === "stdio" ? "本地进程" : t.toUpperCase()}
+              {t === "stdio" ? uiText("ui.PluginsTab.localProcess") : t.toUpperCase()}
             </button>
           ))}
         </div>
@@ -698,7 +689,7 @@ function McpServerForm({
 
       <input
         className="em-input w-full px-2.5 py-1.5 text-xs"
-        placeholder="用途说明（可选，如「浏览器控制」）——Mint 据此判断何时该用这个服务器"
+        placeholder={uiText("ui.PluginsTab.purposeOptionalEGBrowserControlMint")}
         value={desc}
         onChange={(e) => setDesc(e.target.value)}
       />
@@ -707,13 +698,13 @@ function McpServerForm({
         <>
           <input
             className="em-input w-full px-2.5 py-1.5 text-xs font-mono"
-            placeholder="启动命令，如 npx"
+            placeholder={uiText("ui.PluginsTab.commandEGNpx")}
             value={command}
             onChange={(e) => setCommand(e.target.value)}
           />
           <input
             className="em-input w-full px-2.5 py-1.5 text-xs font-mono"
-            placeholder="参数，空格分隔，如 -y @modelcontextprotocol/server-filesystem /tmp"
+            placeholder={uiText("ui.PluginsTab.spaceSeparatedArgumentsEGYModelcontextprotocol")}
             value={argsText}
             onChange={(e) => setArgsText(e.target.value)}
           />
@@ -731,8 +722,7 @@ function McpServerForm({
         <>
           <div>
             <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">
-              请求头（每行一条 KEY: VALUE，如 Authorization: Bearer 你的访问令牌）
-            </label>
+              {uiText("ui.PluginsTab.headersOnePerLineKeyValueE")}</label>
             <textarea
               className="em-input w-full px-2.5 py-1.5 text-xs font-mono resize-y min-h-12"
               placeholder={"Authorization: Bearer github_pat_xxx"}
@@ -742,10 +732,9 @@ function McpServerForm({
           </div>
           <div className="flex items-center justify-between gap-3 bg-surface rounded-[var(--radius-lg)] px-2.5 py-2">
             <div className="min-w-0">
-              <p className="text-[length:var(--text-11)] text-text-primary">此服务器需要 OAuth 登录</p>
+              <p className="text-[length:var(--text-11)] text-text-primary">{uiText("ui.PluginsTab.thisServerRequiresOauthLogin")}</p>
               <p className="text-[length:var(--text-11)] text-text-secondary mt-0.5">
-                连接时在浏览器完成授权并自动续期；仅限支持动态注册的服务器（GitHub 官方 MCP 请用上方请求头）
-              </p>
+                {uiText("ui.PluginsTab.authorizeInYourBrowserWhenConnectingTokens")}</p>
             </div>
             <Toggle checked={oauth} onChange={setOauth} />
           </div>
@@ -753,7 +742,7 @@ function McpServerForm({
       )}
       <div>
         <label className="text-[length:var(--text-11)] text-text-secondary block mb-1">
-          环境变量（每行一条 KEY=VALUE，支持 ${"${VAR}"} 与 ${"${VAR:-默认值}"}）
+          {uiText("ui.PluginsTab.environmentVariablesOneKeyValuePerLine")}{"${VAR}"} {uiText("ui.PluginsTab.and")}{uiText("ui.PluginsTab.varDefault")}）
         </label>
         <textarea
           className="em-input w-full px-2.5 py-1.5 text-xs font-mono resize-y min-h-12"
@@ -763,28 +752,26 @@ function McpServerForm({
         />
       </div>
 
-      {err && <p className="text-danger text-[length:var(--text-11)]">{err}</p>}
-      {testResult && <p className="text-text-secondary text-[length:var(--text-11)]">{testResult}</p>}
+      {err && <p className="text-danger text-[length:var(--text-11)]">{appText(err)}</p>}
+      {testResult && <p className="text-text-secondary text-[length:var(--text-11)]">{appText(testResult)}</p>}
 
       <div className="flex justify-end gap-2">
         <button type="button" onClick={test} disabled={busy}
           className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
-          测试连接
-        </button>
+          {uiText("ui.PluginsTab.testConnection")}</button>
         <button type="button" onClick={onCancel}
           className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
-          取消
-        </button>
+          {uiText("common.cancel")}</button>
         <button type="button" onClick={save} disabled={busy}
           className="px-3.5 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors">
-          保存
-        </button>
+          {uiText("ui.AgentTemplateSettings.save")}</button>
       </div>
     </div>
   );
 }
 
 function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX.Element {
+  useUiLocale();
   const [servers, setServers] = useState<{ name: string; type: string; command?: string; args?: string[]; url?: string; enabled: boolean; scope: "user" | "project" | "project-compat"; writable: boolean; pendingApproval?: boolean }[]>([]);
   const [projectPath, setProjectPath] = useState<string>("");
   const [requiredKeys, setRequiredKeys] = useState<Record<string, Record<string, string>>>({});
@@ -849,57 +836,57 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
 
   const handleDelete = async (name: string, scope: "user" | "project" | "project-compat") => {
     // 项目根 .mcp.json 为只读兼容来源（对齐 handleEdit 的提示）
-    if (scope === "project-compat") { setActionErr("项目根 .mcp.json 为只读来源，请直接编辑该文件删除"); return; }
+    if (scope === "project-compat") { setActionErr(uiText("ui.PluginsTab.theProjectSRootMcpJsonIs")); return; }
     // 删除不可逆（配置 + 凭据从磁盘永久移除），二次确认
-    const scopeText = scope === "user" ? "用户级配置（~/.easymint/mcp.json）" : "项目级配置（<项目>/.easymint/mcp.json）";
+    const scopeText = scope === "user" ? uiText("ui.PluginsTab.userSettingsEasymintMcpJson") : uiText("ui.PluginsTab.projectSettingsProjectEasymintMcpJson");
     const ok = await confirmDialog({
-      title: `删除 MCP 服务器「${name}」？`,
-      message: `将从${scopeText}中永久移除该服务器配置（含 API Key 等凭据信息），不可恢复。`,
-      confirmText: "删除",
+      title: uiText("ui.PluginsTab.deleteMcpServer", { v0: name }),
+      message: uiText("ui.PluginsTab.permanentlyRemoveThisServerConfigurationIncludingCredentials", { v0: scopeText }),
+      confirmText: uiText("ui.AgentTemplateSettings.delete"),
       danger: true,
     });
     if (!ok) return;
     const r = await window.electronAPI.mcp.delete(name, scope, projectPath);
-    if (!r.ok) { setActionErr(r.error || "删除失败"); return; }
+    if (!r.ok) { setActionErr(r.error || uiText("ui.PluginsTab.couldNotDelete")); return; }
     setActionErr("");
     load();
   };
 
   const handleRetry = async (name: string) => {
     const r = await window.electronAPI.mcp.retry(name, projectPath);
-    if (!r.ok) setActionErr(r.error || "重连失败");
+    if (!r.ok) setActionErr(r.error || uiText("ui.PluginsTab.couldNotReconnect"));
     else setActionErr("");
     load();
   };
 
   const handleEdit = async (name: string, scope: "user" | "project" | "project-compat") => {
-    if (scope === "project-compat") { setActionErr("项目根 .mcp.json 为只读来源，请直接编辑该文件"); return; }
+    if (scope === "project-compat") { setActionErr(uiText("ui.PluginsTab.theProjectSRootMcpJsonIs2")); return; }
     const cfg = await window.electronAPI.mcp.get(name, scope, projectPath);
     if (cfg) setEditing({ name, cfg, scope });
   };
 
   const handleApprove = async (name: string) => {
-    if (!projectPath) { setActionErr("未打开项目，无法确认项目级服务器"); return; }
+    if (!projectPath) { setActionErr(uiText("ui.PluginsTab.openAProjectToApproveAProject")); return; }
     try {
       await window.electronAPI.mcp.approve(name, projectPath);
       setActionErr("");
     } catch (error) {
-      setActionErr(error instanceof Error ? error.message : "确认失败，请刷新列表后重试");
+      setActionErr(error instanceof Error ? error.message : uiText("ui.PluginsTab.approvalFailedRefreshTheListAndTry"));
     }
     load();
   };
 
   const statusBadge = (name: string, enabled: boolean) => {
-    if (!enabled) return { text: "已停用", cls: "bg-surface text-text-muted" };
+    if (!enabled) return { text: uiText("ui.PluginsTab.disabled"), cls: "bg-surface text-text-muted" };
     const st = statuses[name];
-    if (!st || st.state === "connecting") return { text: "连接中", cls: "bg-surface text-text-muted" };
-    if (st.state === "connected") return { text: `已连接${st.toolCount ? `（${st.toolCount} 工具）` : ""}`, cls: "bg-success-soft text-success" };
-    if (st.state === "idle" && st.toolCount !== undefined) return { text: `测试通过（${st.toolCount} 工具）`, cls: "bg-success-soft text-success" };
-    if (st.state === "idle" || st.state === "closed") return { text: "未连接", cls: "bg-surface text-text-muted" };
-    if (st.state === "disconnected") return { text: "已断开", cls: "bg-warning-soft text-warning" };
-    if (st.state === "needs-auth") return { text: "待登录", cls: "bg-warning-soft text-warning" };
-    if (st.state === "pending") return { text: "待确认", cls: "bg-warning-soft text-warning" };
-    return { text: "连接失败", cls: "bg-danger-soft text-danger" };
+    if (!st || st.state === "connecting") return { text: uiText("ui.PluginsTab.connecting2"), cls: "bg-surface text-text-muted" };
+    if (st.state === "connected") return { text: uiText("ui.PluginsTab.connected", { v0: st.toolCount ? uiText("ui.extra.toolCount", { count: st.toolCount }) : "" }), cls: "bg-success-soft text-success" };
+    if (st.state === "idle" && st.toolCount !== undefined) return { text: uiText("ui.PluginsTab.testPassedTools", { v0: st.toolCount }), cls: "bg-success-soft text-success" };
+    if (st.state === "idle" || st.state === "closed") return { text: uiText("ui.PluginsTab.notConnected"), cls: "bg-surface text-text-muted" };
+    if (st.state === "disconnected") return { text: uiText("ui.PluginsTab.disconnected"), cls: "bg-warning-soft text-warning" };
+    if (st.state === "needs-auth") return { text: uiText("ui.PluginsTab.loginRequired"), cls: "bg-warning-soft text-warning" };
+    if (st.state === "pending") return { text: uiText("ui.PluginsTab.approvalRequired"), cls: "bg-warning-soft text-warning" };
+    return { text: uiText("ui.DevicePanel.connectionFailed"), cls: "bg-danger-soft text-danger" };
   };
 
   const saveKey = async (key: string, value: string) => {
@@ -910,7 +897,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
     await window.electronAPI.settings.set("apiKeys", next);
   };
 
-  const typeLabel = (t: string) => t === "stdio" ? "本地进程" : t === "http" ? "HTTP" : "SSE";
+  const typeLabel = (t: string) => t === "stdio" ? uiText("ui.PluginsTab.localProcess") : t === "http" ? "HTTP" : "SSE";
 
   // Collect all required keys across MCP servers, with their current values.
   // MCP config env (mcp.json) takes priority, then apiKeys from em-settings.json.
@@ -923,14 +910,13 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
 
   return (
     <div className="px-6 py-4 overflow-y-auto space-y-5">
-      {loadError && <p className="text-danger text-xs">{loadError}</p>}
+      {loadError && <p className="text-danger text-xs">{appText(loadError)}</p>}
 
       {Array.from(allKeys.entries()).filter(([k]) => k !== "VISION_API_KEY" && k !== "TAVILY_API_KEY").length > 0 && (
         <section>
           <h3 className="text-sm font-medium text-text-secondary mb-2">API Keys</h3>
           <p className="text-[length:var(--text-11)] text-text-secondary mb-3">
-            第三方服务密钥，注入到对应 MCP 服务器的环境变量中
-          </p>
+            {uiText("ui.PluginsTab.thirdPartyServiceKeysSuppliedAsEnvironment")}</p>
           <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3 space-y-2">
             {Array.from(allKeys.entries()).filter(([k]) => k !== "VISION_API_KEY" && k !== "TAVILY_API_KEY").map(([key, val]) => (
               <div key={key}>
@@ -940,7 +926,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
                     type={showKey ? "text" : "password"}
                     className="em-input w-full px-2 py-1.5 pr-7 text-text-primary text-xs"
                     defaultValue={val}
-                    placeholder="未设置"
+                    placeholder={uiText("ui.PluginsTab.notSet")}
                     onBlur={(e) => { const v = e.target.value.trim(); if (v !== val) saveKey(key, v); }}
                     onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                   />
@@ -966,57 +952,51 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
             <div className="flex gap-2">
               <button type="button" onClick={() => setPasteMode(true)}
                 className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
-                粘贴配置导入
-              </button>
+                {uiText("ui.PluginsTab.pasteConfiguration")}</button>
               <button type="button" onClick={() => setAdding(true)}
                 className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors">
-                + 添加服务器
-              </button>
+                {uiText("ui.PluginsTab.addServer")}</button>
             </div>
           )}
         </div>
         {!adding && !editing && (
           <p className="text-[length:var(--text-11)] text-text-secondary mb-3">
-            配置存于 ~/.easymint/mcp.json。添加/修改后**新会话**生效（进行中的会话保持原工具集）。
-          </p>
+            {uiText("ui.PluginsTab.configurationIsStoredInEasymintMcpJson")}</p>
         )}
-        {actionErr && <p className="text-danger text-[length:var(--text-11)] mb-2">{actionErr}</p>}
+        {actionErr && <p className="text-danger text-[length:var(--text-11)] mb-2">{appText(actionErr)}</p>}
 
         {pasteMode && (
           <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-3 space-y-2">
             <p className="text-[length:var(--text-11)] text-text-secondary">
-              粘贴配置（mcpServers JSON / claude mcp add 命令行 / npx 启动命令均可）：
-            </p>
+              {uiText("ui.PluginsTab.pasteConfigurationMcpserversJsonClaudeMcpAdd")}</p>
             <textarea
               className="em-input w-full px-2.5 py-1.5 text-xs font-mono resize-y min-h-20"
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
-              placeholder={'{"mcpServers":{"github":{"type":"http","url":"https://api.githubcopilot.com/mcp/"}}}\n\n或：npx -y @modelcontextprotocol/server-filesystem /tmp'}
+              placeholder={uiText("ui.PluginsTab.mcpserversGithubTypeHttpUrlHttpsApi")}
             />
             {pasteMsg && <p className="text-[length:var(--text-11)] whitespace-pre-line">{pasteMsg}</p>}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => { setPasteMode(false); setPasteText(""); setPasteMsg(""); }}
                 className="px-3 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
-                关闭
-              </button>
+                {uiText("common.close")}</button>
               <button type="button" disabled={!pasteText.trim() || pasting}
                 onClick={async () => {
                   setPasting(true);
-                  setPasteMsg("解析中…");
+                  setPasteMsg(uiText("ui.PluginsTab.parsing"));
                   try {
                     const r = await window.electronAPI.mcp.importText(pasteText);
                     if (r.ok) {
-                      setPasteMsg((r.message || "导入成功") + (r.notes?.length ? "\n" + r.notes.join("；") : ""));
+                      setPasteMsg((r.message || uiText("ui.PluginsTab.imported")) + (r.notes?.length ? "\n" + r.notes.join("；") : ""));
                       load();
                     } else {
-                      setPasteMsg("❌ " + (r.error || "导入失败"));
+                      setPasteMsg("❌ " + (r.error || uiText("ui.PluginsTab.importFailed")));
                     }
                   } catch (e2) { setPasteMsg("❌ " + String(e2)); }
                   finally { setPasting(false); }
                 }}
                 className="px-3.5 py-1 rounded-[var(--radius-lg)] text-[length:var(--text-2xs)] font-medium bg-accent text-text-inverse hover:bg-accent-hover transition-colors disabled:opacity-50">
-                解析并导入
-              </button>
+                {uiText("ui.PluginsTab.parseAndImport")}</button>
             </div>
           </div>
         )}
@@ -1032,8 +1012,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
 
         {servers.length === 0 && !adding ? (
           <p className="text-text-secondary text-xs text-center py-8">
-            还没有 MCP 服务器，点右上角添加。
-          </p>
+            {uiText("ui.PluginsTab.noMcpServersAddOneUsingThe")}</p>
         ) : (
           <div className="bg-surface-alt rounded-[var(--radius-lg)] overflow-hidden max-h-[260px] overflow-y-auto">
             {servers.map((s) => {
@@ -1049,51 +1028,47 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
                         className={`text-[length:var(--text-3xs)] px-1 py-0.5 rounded-[var(--radius-lg)] shrink-0 ${s.scope === "user" ? "bg-surface text-text-muted" : "bg-info-soft text-info"}`}
                         
                       >
-                        {s.scope === "user" ? "用户级" : s.scope === "project" ? "项目级" : "项目 .mcp.json"}
+                        {s.scope === "user" ? uiText("ui.PluginsTab.userScope") : s.scope === "project" ? uiText("ui.PluginsTab.projectScope") : uiText("ui.PluginsTab.projectMcpJson")}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {s.pendingApproval && (
                         <button type="button" onClick={() => handleApprove(s.name)}
                           className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] bg-warning-soft text-warning hover:bg-warning hover:text-text-inverse transition-colors">
-                          待确认
-                        </button>
+                          {uiText("ui.PluginsTab.approvalRequired")}</button>
                       )}
                       {["failed", "disconnected", "idle", "closed"].includes(statuses[s.name]?.state ?? "") && s.enabled && !s.pendingApproval && (
                         <button type="button" onClick={() => handleRetry(s.name)}
                           className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
-                          重试
-                        </button>
+                          {uiText("ui.ChatPanel.retry")}</button>
                       )}
                       {s.enabled && !s.pendingApproval && s.type === "http" && <button type="button" onClick={async () => {
                         const result = await window.electronAPI.mcp.login(s.name, projectPath);
-                        setActionErr(result.ok ? "" : result.error || "登录失败");
+                        setActionErr(result.ok ? "" : result.error || uiText("ui.OAuthLoginDialog.loginFailed"));
                         void load();
-                      }} className="px-1.5 py-0.5 text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary">登录</button>}
+                      }} className="px-1.5 py-0.5 text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary">{uiText("ui.OAuthLoginDialog.logIn")}</button>}
                       {s.enabled && !s.pendingApproval && s.type === "http" && <button type="button" onClick={async () => {
                         const result = await window.electronAPI.mcp.logout(s.name, projectPath);
-                        setActionErr(result.ok ? "" : result.error || "退出登录失败");
+                        setActionErr(result.ok ? "" : result.error || uiText("ui.PluginsTab.couldNotLogOut"));
                         void load();
-                      }} className="px-1.5 py-0.5 text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary">退出登录</button>}
+                      }} className="px-1.5 py-0.5 text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary">{uiText("ui.PluginsTab.logOut")}</button>}
                       <button type="button" onClick={() => handleEdit(s.name, s.scope)}
                         className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors">
-                        编辑
-                      </button>
+                        {uiText("menu.edit")}</button>
                       <button type="button" onClick={() => handleDelete(s.name, s.scope)}
                         className="px-1.5 py-0.5 rounded-[var(--radius-lg)] text-[length:var(--text-3xs)] text-text-secondary hover:text-danger hover:bg-surface-hover transition-colors">
-                        删除
-                      </button>
+                        {uiText("ui.AgentTemplateSettings.delete")}</button>
                       <Toggle checked={s.enabled} onChange={(v) => handleToggle(s.name, v)} />
                     </div>
                   </div>
                   {statuses[s.name]?.error && (
                     <p className="text-[length:var(--text-3xs)] text-danger mt-1 break-all">
-                      {statuses[s.name]?.error}
+                      {appText(statuses[s.name]?.error)}
                     </p>
                   )}
                   {Object.keys(requiredKeys[s.name] ?? {}).length > 0 && (
                     <p className="text-[length:var(--text-3xs)] text-text-muted mt-1">
-                      需要密钥：{Object.keys(requiredKeys[s.name] ?? {}).join("、")}
+                      {uiText("ui.PluginsTab.requiredKeys")}{Object.keys(requiredKeys[s.name] ?? {}).join("、")}
                     </p>
                   )}
                 </div>
@@ -1109,6 +1084,7 @@ function McpTab({ projectPath: projectPathProp }: { projectPath?: string }): JSX
 type PiExtensionRow = Awaited<ReturnType<typeof window.electronAPI.piExtension.list>>[number];
 
 function ExtensionsTab({ projectPath }: { projectPath?: string }): JSX.Element {
+  useUiLocale();
   const [items, setItems] = useState<PiExtensionRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -1135,45 +1111,46 @@ function ExtensionsTab({ projectPath }: { projectPath?: string }): JSX.Element {
     <section className="space-y-3 px-1 py-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-medium text-text-primary">Pi 扩展</h3>
-          <p className="text-xs text-text-secondary mt-1">自动扫描原生 Pi 与 EasyMint 的扩展；启用记录只保存在 EasyMint，原生文件不会改动。</p>
+          <h3 className="text-sm font-medium text-text-primary">{uiText("ui.PluginsTab.piExtensions")}</h3>
+          <p className="text-xs text-text-secondary mt-1">{uiText("ui.PluginsTab.discoverNativePiAndEasymintExtensionsApproval")}</p>
         </div>
-        <button type="button" className="text-xs text-accent hover:underline" disabled={busy} onClick={() => void refresh()}>刷新</button>
+        <button type="button" className="text-xs text-accent hover:underline" disabled={busy} onClick={() => void refresh()}>{uiText("ui.PluginsTab.refresh")}</button>
       </div>
-      {error && <p className="text-xs text-danger">{error}</p>}
-      {!busy && items.length === 0 && <p className="text-xs text-text-muted py-4">未发现 Pi 或 EasyMint 扩展。</p>}
+      {error && <p className="text-xs text-danger">{appText(error)}</p>}
+      {!busy && items.length === 0 && <p className="text-xs text-text-muted py-4">{uiText("ui.PluginsTab.noPiOrEasymintExtensionsFound")}</p>}
       {items.map((item) => (
         <div key={item.id} className="flex items-center justify-between gap-3 rounded-[var(--radius-lg)] bg-surface px-3 py-2">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-xs text-text-primary font-medium truncate">{item.name}</span>
-              <span className="text-[length:var(--text-3xs)] text-text-muted">{item.origin === "pi" ? "原生 Pi" : "EasyMint"}</span>
-              <span className="text-[length:var(--text-3xs)] text-text-muted">{item.scope === "project" ? "当前项目" : "用户级"}</span>
-              <span className="text-[length:var(--text-3xs)] text-text-muted">{{ ready: "已授权·完全访问时运行", pending: "待确认", disabled: "源配置已禁用", missing: "文件缺失", error: "校验失败" }[item.status]}</span>
-              {item.tools !== undefined && <span className="text-[length:var(--text-3xs)] text-text-muted">{item.tools} 工具 · {item.commands ?? 0} 命令</span>}
+              <span className="text-[length:var(--text-3xs)] text-text-muted">{item.origin === "pi" ? uiText("ui.PluginsTab.nativePi") : "EasyMint"}</span>
+              <span className="text-[length:var(--text-3xs)] text-text-muted">{item.scope === "project" ? uiText("ui.PluginsTab.currentProject") : uiText("ui.PluginsTab.userScope")}</span>
+              <span className="text-[length:var(--text-3xs)] text-text-muted">{{ ready: uiText("ui.PluginsTab.approvedRunsWithFullAccess"), pending: uiText("ui.PluginsTab.approvalRequired"), disabled: uiText("ui.PluginsTab.disabledInSourceConfiguration"), missing: uiText("ui.PluginsTab.fileMissing"), error: uiText("ui.PluginsTab.verificationFailed") }[item.status]}</span>
+              {item.tools !== undefined && <span className="text-[length:var(--text-3xs)] text-text-muted">{item.tools} {uiText("ui.PluginsTab.tools")}{item.commands ?? 0} {uiText("ui.PluginsTab.commands")}</span>}
             </div>
             <p className="text-[length:var(--text-3xs)] text-text-muted truncate mt-1" title={item.path}>{item.path}</p>
-            {item.error && <p className="text-[length:var(--text-3xs)] text-danger mt-1">{item.error}</p>}
+            {item.error && <p className="text-[length:var(--text-3xs)] text-danger mt-1">{appText(item.error)}</p>}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {item.fingerprint && <button type="button" className="text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary" onClick={() => void window.electronAPI.piExtension.reveal(item.id, projectPath).catch((e: unknown) => setError(String(e)))}>定位</button>}
+            {item.fingerprint && <button type="button" className="text-[length:var(--text-3xs)] text-text-secondary hover:text-text-primary" onClick={() => void window.electronAPI.piExtension.reveal(item.id, projectPath).catch((e: unknown) => setError(String(e)))}>{uiText("ui.PluginsTab.reveal")}</button>}
             {!!item.fingerprint && item.enabledInPi && <Toggle checked={item.approved} disabled={busy} onChange={() => void toggle(item)} />}
           </div>
         </div>
       ))}
-      <p className="text-[length:var(--text-3xs)] text-text-muted">可执行扩展仅在完全访问模式加载；启停对新建或重新打开的会话生效。依赖 Pi 终端界面的扩展可能无法显示。</p>
+      <p className="text-[length:var(--text-3xs)] text-text-muted">{uiText("ui.PluginsTab.executableExtensionsLoadOnlyInFullAccess")}</p>
     </section>
   );
 }
 
 /** 插件设置:Skills / MCP / Pi 扩展（projectPath = 窗口内当前打开的项目路径） */
 export function PluginsTab({ projectPath }: { projectPath?: string }): JSX.Element {
+  useUiLocale();
   const [tab, setTab] = useState<"skills" | "mcp" | "extensions">("skills");
   return (
     <div className="space-y-1.5">
       <div className="flex justify-center px-6">
         <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden">
-          {([["skills", "Skills"], ["mcp", "MCP"], ["extensions", "扩展"]] as const).map(([id, label], i) => (
+          {([["skills", "Skills"], ["mcp", "MCP"], ["extensions", uiText("ui.PluginsTab.extensions")]] as const).map(([id, label], i) => (
             <button
               key={id}
               type="button"

@@ -1,3 +1,7 @@
+import { appMessage } from "../lib/i18n";
+import { formatDate } from "../lib/locale-format";
+import { appText } from "../lib/i18n";
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 import { sessionListActions } from "../stores/session-list-actions";
@@ -41,6 +45,7 @@ export function SessionHistory({
   onArchived,
   refreshKey,
 }: SessionHistoryProps): JSX.Element {
+  useUiLocale();
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [designIds, setDesignIds] = useState<Set<string>>(new Set());
   // 活跃会话集合(主进程 activeChats 内存态):状态点 绿=激活 / 灰白=未激活
@@ -67,7 +72,7 @@ export function SessionHistory({
     setError(null);
     window.electronAPI.conv.list(path)
       .then((data) => { setSessions(data); initialLoadDone.current = true; })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "加载失败"))
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : uiText("ui.SessionHistory.couldNotLoad")))
       .finally(() => setLoading(false));
     // 设计会话 ID 集合（区分圆点/菱形点）
     window.electronAPI.conv.designSessions()
@@ -183,7 +188,7 @@ export function SessionHistory({
           await window.electronAPI.conv.rename(editingId, title, path);
           setRenameError(null);
         } catch (e) {
-          setRenameError(`改名失败：${e instanceof Error ? e.message : String(e)}`);
+          setRenameError(uiText("ui.SessionHistory.couldNotRename", { v0: appMessage(e instanceof Error ? e.message : String(e)) }));
           return;
         }
         // 主进程已广播改名事件（列表项 + tab 标题由 sessionListActions.applyTitle 统一更新），
@@ -212,21 +217,21 @@ export function SessionHistory({
 
   return (
     <div className="flex flex-col h-full">
-      {renameError && <p role="alert" className="px-3 py-2 text-danger text-xs">{renameError}</p>}
+      {renameError && <p role="alert" className="px-3 py-2 text-danger text-xs">{appText(renameError)}</p>}
       {loading ? (
-        <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">加载中...</div>
+        <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">{uiText("ui.AgentTemplateSettings.loading")}</div>
       ) : error ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2">
-          <p className="text-danger text-sm">{error}</p>
-          <button className="px-3 py-1 text-xs btn-accent rounded-[var(--radius-lg)]" onClick={load}>重试</button>
+          <p className="text-danger text-sm">{appText(error)}</p>
+          <button className="px-3 py-1 text-xs btn-accent rounded-[var(--radius-lg)]" onClick={load}>{uiText("ui.ChatPanel.retry")}</button>
         </div>
       ) : sessions.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">暂无对话记录</div>
+        <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">{uiText("ui.SessionHistory.noConversations")}</div>
       ) : (
         <div className="flex-1 overflow-y-auto">
           {pinned.length > 0 && (
             <div>
-              <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">置顶</div>
+              <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">{uiText("ui.SessionHistory.pinned")}</div>
               {pinned.map((s) => (
                 <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} activeSessions={activeSessions} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
@@ -234,7 +239,7 @@ export function SessionHistory({
           )}
           {today.length > 0 && (
             <div>
-              <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">今天</div>
+              <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">{uiText("ui.SessionHistory.today")}</div>
               {today.map((s) => (
                 <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} activeSessions={activeSessions} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
@@ -242,7 +247,7 @@ export function SessionHistory({
           )}
           {recent.length > 0 && (
             <div>
-              <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">之前</div>
+              <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">{uiText("ui.SessionHistory.earlier")}</div>
               {recent.map((s) => (
                 <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} activeSessions={activeSessions} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
@@ -250,7 +255,7 @@ export function SessionHistory({
           )}
           {older.length > 0 && (
             <div>
-              <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">更早</div>
+              <div className="px-3 py-1.5 text-[length:var(--text-11)] text-text-secondary font-medium">{uiText("ui.SessionHistory.older")}</div>
               {older.map((s) => (
                 <SessionItemRow key={s.sessionId} session={s} active={activeSessionId === s.sessionId} isDesign={designIds.has(s.sessionId)} activeSessions={activeSessions} editingId={editingId} editTitle={editTitle} onSelect={onSessionClick} onContextMenu={handleContextMenu} onEditTitle={setEditTitle} onCommitRename={commitRename} onCancelEdit={() => setEditingId(null)} />
               ))}
@@ -272,26 +277,22 @@ export function SessionHistory({
           }}>
           <button className="w-full text-left px-1.5 py-1 text-sm text-text-primary hover:bg-surface-hover rounded-[var(--radius-lg)] transition-colors flex items-center gap-1.5" onClick={handlePin}>
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="16" x2="12" y2="2"/><polyline points="6 8 12 2 18 8"/></svg>
-            {menu.pinned ? "取消置顶" : "置顶"}
+            {menu.pinned ? uiText("ui.SessionHistory.unpin") : uiText("ui.SessionHistory.pinned")}
           </button>
           <button className="w-full text-left px-1.5 py-1 text-sm text-text-primary hover:bg-surface-hover rounded-[var(--radius-lg)] transition-colors flex items-center gap-1.5" onClick={handleRename}>
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            重命名
-          </button>
+            {uiText("ui.SessionHistory.rename")}</button>
           <button className="w-full text-left px-1.5 py-1 text-sm text-text-primary hover:bg-surface-hover rounded-[var(--radius-lg)] transition-colors flex items-center gap-1.5" onClick={handleArchive}>
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 8l-2-4H4L2 8"/><path d="M2 8v12h20V8"/><path d="M8 13h8"/></svg>
-            归档
-          </button>
+            {uiText("ui.SessionHistory.archive")}</button>
           {activeSessions.has(menu.sessionId) && (
             <button className="w-full text-left px-1.5 py-1 text-sm text-danger hover:bg-danger-bg rounded-[var(--radius-lg)] transition-colors flex items-center gap-1.5" onClick={handleKillSession}>
               <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
-              结束会话
-            </button>
+              {uiText("ui.SessionHistory.endSession")}</button>
           )}
           <button className="w-full text-left px-1.5 py-1 text-sm text-danger hover:bg-danger-bg rounded-[var(--radius-lg)] transition-colors flex items-center gap-1.5" onClick={handleDelete}>
             <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-            删除
-          </button>
+            {uiText("ui.AgentTemplateSettings.delete")}</button>
         </div>
       )}
 
@@ -299,25 +300,22 @@ export function SessionHistory({
       {pendingDelete && (
         <Modal tier="modal" overlayClassName="bg-black/40" onClose={() => setPendingDelete(null)}>
           <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] p-5 max-w-sm w-full shadow-2xl mx-4">
-            <div className="text-sm font-medium text-text-primary mb-2">删除会话</div>
+            <div className="text-sm font-medium text-text-primary mb-2">{uiText("ui.SessionHistory.deleteSession")}</div>
             <p className="text-xs text-text-secondary mb-4">
-              确定删除「{sessions.find((s) => s.sessionId === pendingDelete)?.title ?? "该会话"}」吗？会话记录将永久删除，此操作不可恢复。
-            </p>
+              {uiText("ui.SessionHistory.delete")}{sessions.find((s) => s.sessionId === pendingDelete)?.title ?? uiText("ui.SessionHistory.thisSession")}{uiText("ui.SessionHistory.sessionRecordsWillBePermanentlyDeletedThis")}</p>
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setPendingDelete(null)}
                 className="px-4 py-1.5 rounded-[var(--radius-lg)] bg-surface-alt text-text-secondary text-xs hover:bg-surface-hover hover:text-text-primary transition-colors"
               >
-                取消
-              </button>
+                {uiText("common.cancel")}</button>
               <button
                 type="button"
                 onClick={() => doDelete(pendingDelete)}
                 className="px-4 py-1.5 rounded-[var(--radius-lg)] bg-danger text-text-inverse text-xs font-medium hover:opacity-90 transition-colors"
               >
-                删除
-              </button>
+                {uiText("ui.AgentTemplateSettings.delete")}</button>
             </div>
           </div>
         </Modal>
@@ -386,7 +384,7 @@ function fmtDate(ts: number): string {
   const now = new Date();
   if (d.toDateString() === now.toDateString()) {
     // 今天组内直接显示时分
-    return d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+    return formatDate(d, { hour: "2-digit", minute: "2-digit" });
   }
-  return `${d.getMonth() + 1}月${d.getDate()}日`;
+  return formatDate(d, { month: "short", day: "numeric" });
 }

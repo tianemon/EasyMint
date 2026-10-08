@@ -25,14 +25,15 @@ export const USD_CNY_RATE_DATE = "2026-09-30";
  * 估算费用显示：两位小数 + `≈`（不假装精确）；金额不足 1 分钱时给 `<¥0.01`，与弹窗里「命中率」的
  * `<0.01%` 同一风格；`<= 0` 视为无数据（界面显示「—」）。
  */
-export function formatCostCny(costUsd: number): string {
+export function formatCostCny(costUsd: number, locale = "zh-CN"): string {
   if (costUsd <= 0) return "—";
   const cny = costUsd * USD_CNY_RATE;
   if (cny < 0.01) return "<¥0.01";
-  return `≈¥${cny.toFixed(2)}`;
+  return `≈¥${new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false }).format(cny)}`;
 }
 
 /** 换算算式（悬停提示用）：让用户能自己核，也一眼看出汇率是哪天的 */
-export function costFormula(costUsd: number): string {
+export function costFormula(costUsd: number, locale = "zh-CN"): string {
+  if (locale === "en") return `$${costUsd.toFixed(4)} × ${USD_CNY_RATE} (${USD_CNY_RATE_DATE} central parity rate)`;
   return `$${costUsd.toFixed(4)} × ${USD_CNY_RATE}（${USD_CNY_RATE_DATE} 中间价）`;
 }

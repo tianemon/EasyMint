@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../../lib/i18n";
 import { useState } from "react";
 import { useSettingsStore } from "../../stores/settings-store";
 import { useThemeStore } from "../../stores/theme-store";
@@ -6,6 +7,7 @@ import { ColorPickerField } from "../ColorPicker";
 
 /** 界面设置:聊天/界面字体缩放 + 状态指示光效 */
 export function AppearanceTab(): JSX.Element {
+  useUiLocale();
   const chatFontScale = useSettingsStore((s) => s.chatFontScale);
   const setChatFontScale = useSettingsStore((s) => s.setChatFontScale);
   const uiFontScale = useSettingsStore((s) => s.uiFontScale);
@@ -62,20 +64,20 @@ export function AppearanceTab(): JSX.Element {
   const setStatusColor = editMode === "light" ? setStatusColorLight : setStatusColorDark;
 
   const GLOW_PRESETS: Array<{ id: "orbit" | "slide" | "breathe" | "off"; label: string; desc: string }> = [
-    { id: "orbit", label: "环绕流光", desc: "沿边框旋转流动" },
-    { id: "slide", label: "顶部滑动", desc: "上边框左右滑动" },
-    { id: "breathe", label: "呼吸灯", desc: "光晕向外发散" },
-    { id: "off", label: "关闭", desc: "不显示光效" },
+    { id: "orbit", label: uiText("ui.AppearanceTab.orbit"), desc: uiText("ui.AppearanceTab.rotatingLightAroundTheBorder") },
+    { id: "slide", label: uiText("ui.AppearanceTab.topSlide"), desc: uiText("ui.AppearanceTab.lightSlidingAcrossTheTopBorder") },
+    { id: "breathe", label: uiText("ui.AppearanceTab.breathe"), desc: uiText("ui.AppearanceTab.glowRadiatingOutward") },
+    { id: "off", label: uiText("common.close"), desc: uiText("ui.AppearanceTab.noLightingEffect") },
   ];
 
   return (
     <div className="space-y-5">
       {/* 阅读字体:动态内容区(聊天/编辑器/Shell 输出等)百分比缩放 */}
       <section>
-        <h3 className="text-sm font-medium text-text-secondary mb-2">阅读字体</h3>
+        <h3 className="text-sm font-medium text-text-secondary mb-2">{uiText("ui.AppearanceTab.readingFont")}</h3>
         <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-text-primary">字号缩放</span>
+            <span className="text-xs text-text-primary">{uiText("ui.AppearanceTab.fontScale")}</span>
             <span className="text-xs text-text-secondary tabular-nums">{Math.round(chatFontScale * 100)}%</span>
           </div>
           <input
@@ -88,20 +90,20 @@ export function AppearanceTab(): JSX.Element {
             className="w-full accent-accent"
           />
           <div className="flex justify-between text-[length:var(--text-3xs)] text-text-muted mt-0.5">
-            <span>小</span>
-            <span>默认(100%)</span>
-            <span>大</span>
+            <span>{uiText("ui.AppearanceTab.small")}</span>
+            <span>{uiText("ui.AppearanceTab.default100")}</span>
+            <span>{uiText("ui.AppearanceTab.large")}</span>
           </div>
-          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1">聊天正文、代码块、代码编辑器、输出日志等阅读内容按百分比整体缩放（界面骨架文字由下方「界面字体」控制）。</p>
+          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1">{uiText("ui.AppearanceTab.scaleChatTextCodeBlocksTheEditor")}</p>
         </div>
       </section>
 
       {/* 界面字体:百分比缩放统一控制 UI 骨架 */}
       <section>
-        <h3 className="text-sm font-medium text-text-secondary mb-2">界面字体</h3>
+        <h3 className="text-sm font-medium text-text-secondary mb-2">{uiText("ui.AppearanceTab.interfaceFont")}</h3>
         <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-text-primary">字号缩放</span>
+            <span className="text-xs text-text-primary">{uiText("ui.AppearanceTab.fontScale")}</span>
             <span className="text-xs text-text-secondary tabular-nums">{Math.round(uiFontScale * 100)}%</span>
           </div>
           <input
@@ -114,17 +116,17 @@ export function AppearanceTab(): JSX.Element {
             className="w-full accent-accent"
           />
           <div className="flex justify-between text-[length:var(--text-3xs)] text-text-muted mt-0.5">
-            <span>小</span>
-            <span>默认(100%)</span>
-            <span>大</span>
+            <span>{uiText("ui.AppearanceTab.small")}</span>
+            <span>{uiText("ui.AppearanceTab.default100")}</span>
+            <span>{uiText("ui.AppearanceTab.large")}</span>
           </div>
-          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1">界面文字（文件列表、侧边栏、按钮、弹窗等）按百分比缩放；阅读内容字号由上方「阅读字体」控制</p>
+          <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1">{uiText("ui.AppearanceTab.scaleFileListsSidebarsButtonsAndDialogs")}</p>
         </div>
       </section>
 
       {/* 状态指示光效 */}
       <section>
-        <h3 className="text-sm font-medium text-text-secondary mb-2">状态指示光效</h3>
+        <h3 className="text-sm font-medium text-text-secondary mb-2">{uiText("ui.AppearanceTab.statusLighting")}</h3>
         <div className="bg-surface-alt rounded-[var(--radius-lg)] px-4 py-3 space-y-4">
           {/* 亮/暗编辑模式切换 */}
           <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden bg-surface">
@@ -137,14 +139,14 @@ export function AppearanceTab(): JSX.Element {
                   editMode === m ? "bg-accent-soft text-accent font-medium" : "text-text-secondary em-hover-control"
                 }`}
               >
-                {m === "light" ? "亮色" : "暗色"}
+                {m === "light" ? uiText("ui.AppearanceTab.light") : uiText("ui.AppearanceTab.dark")}
               </button>
             ))}
           </div>
 
           {/* 输入卡片光效预设 */}
           <div>
-            <span className="text-xs text-text-primary block mb-2">输入卡片光效</span>
+            <span className="text-xs text-text-primary block mb-2">{uiText("ui.AppearanceTab.inputCardEffect")}</span>
             <div className="grid grid-cols-2 gap-2">
               {GLOW_PRESETS.map((p) => (
                 <button
@@ -166,13 +168,13 @@ export function AppearanceTab(): JSX.Element {
 
           {/* 颜色设置:输入卡片光效色与状态文本色两组配置并排(原分散在两处,右侧留白大) */}
           <div>
-            <span className="text-xs text-text-primary block mb-2">颜色设置</span>
+            <span className="text-xs text-text-primary block mb-2">{uiText("ui.AppearanceTab.colorSettings")}</span>
             <div className="grid grid-cols-2 gap-4">
               {/* 输入卡片光效颜色:单色/多色模式切换(当前编辑模式);参数固定(粗细/速度/拖尾为组件常量) */}
               <div className="space-y-2">
-                <span className="text-[length:var(--text-2xs)] text-text-secondary block">输入卡片光效颜色</span>
+                <span className="text-[length:var(--text-2xs)] text-text-secondary block">{uiText("ui.AppearanceTab.inputCardEffectColors")}</span>
                 {glowEffect === "off" ? (
-                  <p className="text-[length:var(--text-2xs)] text-text-muted">光效已关闭</p>
+                  <p className="text-[length:var(--text-2xs)] text-text-muted">{uiText("ui.AppearanceTab.lightingDisabled")}</p>
                 ) : (
                   <>
                     <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden bg-surface">
@@ -185,7 +187,7 @@ export function AppearanceTab(): JSX.Element {
                             glowColorMode === m ? "bg-accent-soft text-accent font-medium" : "text-text-secondary em-hover-control"
                           }`}
                         >
-                          {m === "solid" ? "单色" : "多色"}
+                          {m === "solid" ? uiText("ui.AppearanceTab.singleColor") : uiText("ui.AppearanceTab.multipleColors")}
                         </button>
                       ))}
                     </div>
@@ -203,7 +205,7 @@ export function AppearanceTab(): JSX.Element {
 
               {/* 状态文本颜色:单色/流光模式切换 */}
               <div className="space-y-2">
-                <span className="text-[length:var(--text-2xs)] text-text-secondary block">状态文本颜色</span>
+                <span className="text-[length:var(--text-2xs)] text-text-secondary block">{uiText("ui.AppearanceTab.statusTextColor")}</span>
                 <div className="inline-flex rounded-[var(--radius-lg)] overflow-hidden bg-surface">
                   {(["solid", "shimmer"] as const).map((s) => (
                     <button
@@ -214,7 +216,7 @@ export function AppearanceTab(): JSX.Element {
                         statusTextStyle === s ? "bg-accent-soft text-accent font-medium" : "text-text-secondary em-hover-control"
                       }`}
                     >
-                      {s === "solid" ? "单色" : "流光"}
+                      {s === "solid" ? uiText("ui.AppearanceTab.singleColor") : uiText("ui.AppearanceTab.shimmer")}
                     </button>
                   ))}
                 </div>

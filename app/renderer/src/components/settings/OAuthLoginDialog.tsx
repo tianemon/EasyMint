@@ -1,3 +1,5 @@
+import { appText } from "../../lib/i18n";
+import { uiText, useUiLocale } from "../../lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal } from "../ui/Modal";
 import { toast } from "../ui/Toast";
@@ -22,12 +24,12 @@ type PromptKind = "text" | "secret" | "select" | "manual_code";
  */
 export function submitGuardError(kind: PromptKind, raw: string): string | null {
   if (raw.trim()) return null;
-  return kind === "text" ? null : "请先填写内容";
+  return kind === "text" ? null : uiText("ui.OAuthLoginDialog.enterAValueFirst");
 }
 
 /** 输入步骤的补充说明（按 provider + 步骤类型）；没有则给通用文案 */
 const STEP_HINTS: Record<string, Partial<Record<PromptKind, string>>> = {
-  "github-copilot": { text: "非 GitHub 企业版直接留空即可（留空 = 使用 github.com）" },
+  "github-copilot": { get text() { return uiText("ui.OAuthLoginDialog.leaveEmptyUnlessYouUseGithubEnterprise"); } },
 };
 
 interface PendingStep {
@@ -59,10 +61,10 @@ function newRequestId(): string {
 
 function promptTitle(kind: PromptKind): string {
   switch (kind) {
-    case "manual_code": return "粘贴授权码";
-    case "select": return "请选择";
-    case "secret": return "请填写密钥";
-    default: return "请填写";
+    case "manual_code": return uiText("ui.OAuthLoginDialog.pasteAuthorizationCode");
+    case "select": return uiText("ui.ModelManager.choose");
+    case "secret": return uiText("ui.OAuthLoginDialog.enterYourApiKey");
+    default: return uiText("ui.OAuthLoginDialog.required");
   }
 }
 
@@ -88,22 +90,22 @@ export function failureReason(raw: string | undefined): FailureView {
   const msg = (raw ?? "").trim();
   const view = (reason: string, extra: Partial<FailureView> = {}): FailureView =>
     ({ reason, ...(msg ? { detail: msg } : {}), retryable: true, ...extra });
-  if (!msg) return { reason: "登录失败", retryable: true };
+  if (!msg) return { reason: uiText("ui.OAuthLoginDialog.loginFailed"), retryable: true };
   // 地区限制要排在通用 401/403 之前：它同样带 (403)，但属于**服务方政策**，重试永远不会好
   // （实测：OpenAI Codex 换 token 返回 unsupported_country_region_territory）
   if (/unsupported_country_region_territory|region, or territory not supported/i.test(msg)) {
-    return view("当前所在地区不受支持，无法完成账号登录", {
-      hint: "这是服务方的地区政策。若本机有代理 / VPN，请确认它已开启（程序会跟随系统代理）；否则可在「AI 供应商」里改用 API Key 方式接入其它供应商。",
+    return view(uiText("ui.OAuthLoginDialog.accountLoginIsUnavailableInYourRegion"), {
+      hint: uiText("ui.OAuthLoginDialog.thisIsTheProviderSRegionalPolicy"),
       retryable: false,
     });
   }
-  if (/abort|cancel/i.test(msg)) return view("登录已取消");
-  if (/timeout|timed out|expire/i.test(msg)) return view("授权已超时，请重试");
-  if (/fetch failed|ENOTFOUND|ECONN|EAI_AGAIN|network/i.test(msg)) return view("网络连接失败，请检查网络后重试");
-  if (/accountId/i.test(msg)) return view("账号信息不完整，无法完成登录");
-  if (/credential store/i.test(msg)) return view("登录成功但凭据写入失败，请重试");
-  if (/invalid_grant|\b401\b|\b403\b/.test(msg)) return view("授权被拒绝，请重新登录");
-  return view("登录失败");
+  if (/abort|cancel/i.test(msg)) return view(uiText("ui.OAuthLoginDialog.loginCanceled"));
+  if (/timeout|timed out|expire/i.test(msg)) return view(uiText("ui.OAuthLoginDialog.authorizationTimedOutTryAgain"));
+  if (/fetch failed|ENOTFOUND|ECONN|EAI_AGAIN|network/i.test(msg)) return view(uiText("ui.OAuthLoginDialog.connectionFailedCheckYourNetworkAndTry"));
+  if (/accountId/i.test(msg)) return view(uiText("ui.OAuthLoginDialog.accountInformationIsIncompleteLoginCouldNot"));
+  if (/credential store/i.test(msg)) return view(uiText("ui.OAuthLoginDialog.loginSucceededButCredentialsCouldNotBe"));
+  if (/invalid_grant|\b401\b|\b403\b/.test(msg)) return view(uiText("ui.OAuthLoginDialog.authorizationDeniedLogInAgain"));
+  return view(uiText("ui.OAuthLoginDialog.loginFailed"));
 }
 
 function Spinner(): JSX.Element {
@@ -115,6 +117,7 @@ function Spinner(): JSX.Element {
 }
 
 export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLoginDialogProps): JSX.Element {
+  useUiLocale();
   const [requestId, setRequestId] = useState(newRequestId);
   const [phase, setPhase] = useState<Phase>({ kind: "starting" });
   const [step, setStep] = useState<PendingStep | null>(null);
@@ -186,7 +189,7 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
       .catch((e: unknown) => {
         if (!alive) return;
         runningRef.current = false;
-        setPhase({ kind: "error", reason: "登录失败", detail: e instanceof Error ? e.message : String(e), retryable: true });
+        setPhase({ kind: "error", reason: uiText("ui.OAuthLoginDialog.loginFailed"), detail: e instanceof Error ? e.message : String(e), retryable: true });
       });
 
     return () => {
@@ -227,29 +230,29 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
 
   const openUrl = useCallback((url: string) => {
     void window.electronAPI.provider.openAuthUrl(url).then((ok) => {
-      if (!ok) toast("无法打开浏览器，请复制链接手动访问");
+      if (!ok) toast(uiText("ui.OAuthLoginDialog.couldNotOpenBrowserCopyTheLink"));
     }).catch((e: unknown) => {
       console.error("[OAuthLoginDialog] 打开授权页失败:", e);
-      toast("无法打开浏览器，请复制链接手动访问");
+      toast(uiText("ui.OAuthLoginDialog.couldNotOpenBrowserCopyTheLink"));
     });
   }, []);
 
   const copyUrl = useCallback((url: string) => {
     void navigator.clipboard.writeText(url).then(
-      () => toast("已复制授权链接"),
+      () => toast(uiText("ui.OAuthLoginDialog.authorizationLinkCopied")),
       (e: unknown) => {
         console.error("[OAuthLoginDialog] 复制授权链接失败:", e);
-        toast("复制失败，请手动选中链接复制");
+        toast(uiText("ui.OAuthLoginDialog.couldNotCopySelectTheLinkAnd"));
       },
     );
   }, []);
 
   // 步骤说明：优先按 provider 定制的（如 Copilot 的企业版域名可留空），否则给通用一句
   const stepHint = step?.promptType === "manual_code"
-    ? "授权后浏览器地址栏的内容整段粘贴即可。"
+    ? uiText("ui.OAuthLoginDialog.pasteTheCompleteBrowserAddressAfterAuthorization")
     : step
       ? STEP_HINTS[providerId]?.[step.promptType]
-        ?? (step.promptType === "text" ? "可留空：留空表示使用默认值" : undefined)
+        ?? (step.promptType === "text" ? uiText("ui.OAuthLoginDialog.optionalLeaveEmptyToUseTheDefault") : undefined)
       : undefined;
 
   const stepForm = step && (
@@ -280,7 +283,7 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") submit(input, step.promptType); }}
           />
-          <button type="button" onClick={() => submit(input, step.promptType)} className="shrink-0 h-8 px-4 rounded-[var(--radius-lg)] btn-accent text-xs font-medium">完成</button>
+          <button type="button" onClick={() => submit(input, step.promptType)} className="shrink-0 h-8 px-4 rounded-[var(--radius-lg)] btn-accent text-xs font-medium">{uiText("common.done")}</button>
         </div>
       )}
       {stepHint && (
@@ -293,7 +296,7 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
     <Modal tier="modal" overlayClassName="bg-black/40 backdrop-blur-sm" onClose={dismiss}>
       <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl flex flex-col overflow-hidden" style={{ width: 420 }}>
         <div className="px-5 pt-4 pb-3">
-          <div className="text-sm font-medium text-text-primary">登录 {providerLabel}</div>
+          <div className="text-sm font-medium text-text-primary">{uiText("ui.OAuthLoginDialog.logIn")}{providerLabel}</div>
         </div>
 
         <div className="px-5 pb-4">
@@ -301,46 +304,45 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
           {phase.kind === "starting" && !step && (
             <div className="flex items-center gap-2 text-xs text-text-secondary">
               <Spinner />
-              正在发起授权…
-            </div>
+              {uiText("ui.OAuthLoginDialog.startingAuthorization")}</div>
           )}
 
           {phase.kind === "browser" && (
             <div className="bg-surface-alt rounded-[var(--radius-lg)] p-3">
-              <p className="text-xs text-text-primary">已在浏览器打开授权页</p>
-              <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1">未打开可点「重新打开」，或复制链接手动访问。</p>
+              <p className="text-xs text-text-primary">{uiText("ui.OAuthLoginDialog.authorizationPageOpenedInYourBrowser")}</p>
+              <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1">{uiText("ui.OAuthLoginDialog.selectReopenOrCopyTheLinkIf")}</p>
               <div className="flex gap-2 mt-2">
                 <button type="button" onClick={() => openUrl(phase.url)}
-                  className="h-7 px-3 rounded-[var(--radius-lg)] bg-surface text-text-primary text-xs em-hover-control transition-colors">重新打开</button>
+                  className="h-7 px-3 rounded-[var(--radius-lg)] bg-surface text-text-primary text-xs em-hover-control transition-colors">{uiText("ui.OAuthLoginDialog.reopen")}</button>
                 <button type="button" onClick={() => copyUrl(phase.url)}
-                  className="h-7 px-3 rounded-[var(--radius-lg)] bg-surface text-text-secondary text-xs em-hover-control transition-colors">复制链接</button>
+                  className="h-7 px-3 rounded-[var(--radius-lg)] bg-surface text-text-secondary text-xs em-hover-control transition-colors">{uiText("ui.OAuthLoginDialog.copyLink")}</button>
               </div>
             </div>
           )}
 
           {phase.kind === "device" && (
             <div className="bg-surface-alt rounded-[var(--radius-lg)] p-3">
-              <p className="text-xs text-text-primary">在浏览器中打开授权页并输入设备码</p>
+              <p className="text-xs text-text-primary">{uiText("ui.OAuthLoginDialog.openTheAuthorizationPageAndEnterThe")}</p>
               <div className="mt-2 font-mono text-lg tracking-[0.2em] text-text-primary select-all">{phase.userCode}</div>
               <div className="flex items-center gap-2 mt-2">
                 <button type="button" onClick={() => openUrl(phase.verificationUri)}
-                  className="h-7 px-3 rounded-[var(--radius-lg)] bg-surface text-text-primary text-xs em-hover-control transition-colors">打开授权页</button>
+                  className="h-7 px-3 rounded-[var(--radius-lg)] bg-surface text-text-primary text-xs em-hover-control transition-colors">{uiText("ui.OAuthLoginDialog.openAuthorizationPage")}</button>
                 <button type="button" onClick={() => copyUrl(phase.userCode)}
-                  className="h-7 px-3 rounded-[var(--radius-lg)] bg-surface text-text-secondary text-xs em-hover-control transition-colors">复制设备码</button>
+                  className="h-7 px-3 rounded-[var(--radius-lg)] bg-surface text-text-secondary text-xs em-hover-control transition-colors">{uiText("ui.OAuthLoginDialog.copyDeviceCode")}</button>
               </div>
               {phase.expiresInSeconds !== undefined && (
-                <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">设备码 {Math.max(1, Math.round(phase.expiresInSeconds / 60))} 分钟内有效</p>
+                <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">{uiText("ui.OAuthLoginDialog.deviceCode")}{Math.max(1, Math.round(phase.expiresInSeconds / 60))} {uiText("ui.OAuthLoginDialog.minutesRemaining")}</p>
               )}
             </div>
           )}
 
-          {phase.kind === "success" && <p className="text-xs text-success">登录成功</p>}
+          {phase.kind === "success" && <p className="text-xs text-success">{uiText("ui.OAuthLoginDialog.loggedIn")}</p>}
 
           {phase.kind === "error" && (
             <div>
-              <p className="text-xs text-danger">{phase.reason}</p>
+              <p className="text-xs text-danger">{appText(phase.reason)}</p>
               {phase.detail && <p className="text-[length:var(--text-2xs)] text-text-muted mt-1 break-all">{phase.detail}</p>}
-              {phase.hint && <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">{phase.hint}</p>}
+              {phase.hint && <p className="text-[length:var(--text-2xs)] text-text-secondary mt-1.5">{appText(phase.hint)}</p>}
             </div>
           )}
 
@@ -349,8 +351,7 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
           {(phase.kind === "browser" || phase.kind === "device") && waiting && (
             <div className="flex items-center gap-2 text-[length:var(--text-2xs)] text-text-secondary mt-3">
               <Spinner />
-              等待授权完成…
-            </div>
+              {uiText("ui.OAuthLoginDialog.waitingForAuthorization")}</div>
           )}
         </div>
 
@@ -359,18 +360,18 @@ export function OAuthLoginDialog({ providerId, providerLabel, onClose }: OAuthLo
             phase.retryable ? (
               <>
                 <button type="button" onClick={dismiss}
-                  className="h-8 px-4 rounded-[var(--radius-lg)] text-text-secondary text-xs hover:bg-surface-hover transition-colors">取消</button>
+                  className="h-8 px-4 rounded-[var(--radius-lg)] text-text-secondary text-xs hover:bg-surface-hover transition-colors">{uiText("common.cancel")}</button>
                 <button type="button" onClick={() => setRequestId(newRequestId())}
-                  className="h-8 px-4 rounded-[var(--radius-lg)] btn-accent text-xs font-medium">重试</button>
+                  className="h-8 px-4 rounded-[var(--radius-lg)] btn-accent text-xs font-medium">{uiText("ui.ChatPanel.retry")}</button>
               </>
             ) : (
               /* 不可能成功的失败（地区限制等）不给「重试」：点了只是重复一次同样的拒绝 */
               <button type="button" onClick={dismiss}
-                className="h-8 px-4 rounded-[var(--radius-lg)] btn-accent text-xs font-medium">知道了</button>
+                className="h-8 px-4 rounded-[var(--radius-lg)] btn-accent text-xs font-medium">{uiText("ui.OAuthLoginDialog.gotIt")}</button>
             )
           ) : (
             <button type="button" onClick={dismiss} disabled={phase.kind === "success"}
-              className="h-8 px-4 rounded-[var(--radius-lg)] text-text-secondary text-xs hover:bg-surface-hover transition-colors disabled:opacity-40">取消</button>
+              className="h-8 px-4 rounded-[var(--radius-lg)] text-text-secondary text-xs hover:bg-surface-hover transition-colors disabled:opacity-40">{uiText("common.cancel")}</button>
           )}
         </div>
       </div>

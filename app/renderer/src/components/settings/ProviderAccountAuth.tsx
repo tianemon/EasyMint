@@ -1,3 +1,5 @@
+import { appText } from "../../lib/i18n";
+import { uiText, useUiLocale } from "../../lib/i18n";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "../ui/Toast";
 import { OAuthLoginDialog } from "./OAuthLoginDialog";
@@ -10,10 +12,10 @@ import type { ProviderAuthStatus } from "@shared/provider-auth";
 
 /** 账号登录的订阅说明（key = 供应商预设 id） */
 export const ACCOUNT_LOGIN_HINTS: Record<string, string> = {
-  anthropic: "订阅用量按 token 计费，不占套餐额度",
+  get anthropic() { return uiText("ui.ProviderAccountAuth.subscriptionUsageIsBilledByTokensNot"); },
   // 地区限制是实测结论：OpenAI Codex 换 token 会返回 403 unsupported_country_region_territory。
   // 提前写在这里，免得用户走完浏览器授权才被拒
-  "openai-codex": "需 ChatGPT Plus / Pro 订阅；且需在 OpenAI 支持的国家/地区使用",
+  get "openai-codex"() { return uiText("ui.ProviderAccountAuth.requiresChatgptPlusProAndUseIn"); },
 };
 
 export interface ProviderAuthState {
@@ -64,6 +66,7 @@ interface ProviderAccountAuthProps {
 }
 
 export function ProviderAccountAuth({ providerId, providerLabel, hint, status, onChanged }: ProviderAccountAuthProps): JSX.Element {
+  useUiLocale();
   const [loginOpen, setLoginOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   // 账号登录的"已登录"判据是 OAuth 凭据；API Key 不在此区展示
@@ -77,11 +80,11 @@ export function ProviderAccountAuth({ providerId, providerLabel, hint, status, o
         onChanged();
       } else {
         console.error("[provider-auth] 退出登录失败:", r.error);
-        toast("退出登录失败，请重试");
+        toast(uiText("ui.ProviderAccountAuth.couldNotLogOutTryAgain"));
       }
     } catch (e) {
       console.error("[provider-auth] 退出登录失败:", e);
-      toast("退出登录失败，请重试");
+      toast(uiText("ui.ProviderAccountAuth.couldNotLogOutTryAgain"));
     } finally {
       setLoggingOut(false);
     }
@@ -91,17 +94,17 @@ export function ProviderAccountAuth({ providerId, providerLabel, hint, status, o
     <div className="bg-surface-alt rounded-[var(--radius-lg)] px-3 py-2.5">
       {loggedIn ? (
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-text-primary">已登录</span>
+          <span className="text-xs text-text-primary">{uiText("ui.ProviderAccountAuth.loggedIn")}</span>
           <button type="button" onClick={() => void logout()} disabled={loggingOut}
             className="h-7 px-3 rounded-[var(--radius-lg)] text-text-secondary text-xs hover:text-danger transition-colors disabled:opacity-40">
-            {loggingOut ? "退出中…" : "退出登录"}
+            {loggingOut ? uiText("ui.ProviderAccountAuth.loggingOut") : uiText("ui.PluginsTab.logOut")}
           </button>
         </div>
       ) : (
         <button type="button" onClick={() => setLoginOpen(true)}
-          className="h-8 px-4 rounded-[var(--radius-lg)] btn-raised text-xs font-medium">登录 {providerLabel}</button>
+          className="h-8 px-4 rounded-[var(--radius-lg)] btn-raised text-xs font-medium">{uiText("ui.OAuthLoginDialog.logIn")}{providerLabel}</button>
       )}
-      {hint && <p className="text-[length:var(--text-2xs)] text-text-secondary mt-2">{hint}</p>}
+      {hint && <p className="text-[length:var(--text-2xs)] text-text-secondary mt-2">{appText(hint)}</p>}
       {loginOpen && (
         <OAuthLoginDialog
           providerId={providerId}

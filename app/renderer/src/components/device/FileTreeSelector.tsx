@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../../lib/i18n";
 import { useEffect, useMemo, useState } from "react";
 import { Checkbox } from "../ui/Checkbox";
 
@@ -111,6 +112,7 @@ interface FileTreeSelectorProps {
 }
 
 export function FileTreeSelector({ files, onChange }: FileTreeSelectorProps): JSX.Element {
+  useUiLocale();
   const { tree } = useMemo(() => buildTree(files), [files]);
   const [checked, setChecked] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
@@ -213,7 +215,7 @@ export function FileTreeSelector({ files, onChange }: FileTreeSelectorProps): JS
             {node.name}
           </span>
           <span className="shrink-0 text-[length:var(--text-2xs)] text-text-muted tabular-nums">
-            {isDir ? `${node.fileCount} 个文件 · ${fmtSize(node.size)}` : fmtSize(node.size)}
+            {isDir ? uiText("ui.FileTreeSelector.files", { v0: node.fileCount, v1: fmtSize(node.size) }) : fmtSize(node.size)}
           </span>
         </div>
         {isDir && isExpanded && (
@@ -243,16 +245,16 @@ export function FileTreeSelector({ files, onChange }: FileTreeSelectorProps): JS
     <div className="bg-surface rounded-[var(--radius-lg)] border border-border overflow-hidden">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-border gap-2">
         <div className="flex items-center gap-2 shrink-0">
-          <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={selectAll}>全选</button>
+          <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={selectAll}>{uiText("ui.ChatPanel.selectAll")}</button>
           <span className="text-text-muted">·</span>
-          <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={selectNone}>全否</button>
+          <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={selectNone}>{uiText("ui.FileTreeSelector.deselectAll")}</button>
           <span className="text-text-muted">·</span>
-          <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={selectDefault}>默认</button>
+          <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={selectDefault}>{uiText("ui.AgentTemplateSettings.default")}</button>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={expandAll}>展开全部</button>
+          <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={expandAll}>{uiText("ui.FileTreeSelector.expandAll")}</button>
           <span className="text-text-muted">·</span>
-          <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={collapseAll}>折叠</button>
+          <button type="button" className="text-[length:var(--text-2xs)] text-text-secondary hover:text-accent transition-colors" onClick={collapseAll}>{uiText("ui.FileTreeSelector.collapse")}</button>
         </div>
       </div>
       <div className="max-h-56 overflow-y-auto py-1">

@@ -1,3 +1,5 @@
+import { appText } from "../lib/i18n";
+import { uiText, useUiLocale } from "../lib/i18n";
 /**
  * 待办按钮 — 输入卡片「待办」（用户想法/计划清单 .easymint/todos.json 的面板入口）。
  * 自包含：按钮 + 弹出面板（列表/勾选完成/删除/展开详情/添加）。
@@ -15,6 +17,7 @@ interface UserTodo {
 }
 
 export const TodoButton = memo(function TodoButton({ projectPath }: { projectPath: string }): JSX.Element {
+  useUiLocale();
   const [open, setOpen] = useState(false);
   const [todos, setTodos] = useState<UserTodo[] | null>(null);
   const [migratedNote, setMigratedNote] = useState<string | null>(null);
@@ -28,7 +31,7 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
     if (r.ok && r.data) {
       setTodos(r.data.todos);
       if (r.data.migrated && r.data.migratedCount !== undefined) {
-        setMigratedNote(`已从旧文档导入 ${r.data.migratedCount} 条待办（原文档已归档）`);
+        setMigratedNote(uiText("ui.TodoButton.importedToDosFromTheLegacyDocument", { v0: r.data.migratedCount }));
       }
     } else if (r.error) {
       setErr(r.error);
@@ -109,19 +112,19 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
         <div className="absolute bottom-full left-0 mb-1.5 w-[360px] max-w-[85vw] rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-xl z-dropdown overflow-hidden">
           {/* 头部 */}
           <div className="flex items-center justify-between px-3 py-2">
-            <span className="text-xs font-medium text-text-primary">用户待办</span>
-            <span className="text-[length:var(--text-3xs)] text-text-muted">{todos === null ? "…" : `${todos.filter((t) => t.status === "open").length} 未完成 · ${todos.length} 条`}</span>
+            <span className="text-xs font-medium text-text-primary">{uiText("ui.ChatBlocks.userToDos")}</span>
+            <span className="text-[length:var(--text-3xs)] text-text-muted">{todos === null ? "…" : uiText("ui.TodoButton.remainingItems", { v0: todos.filter((t) => t.status === "open").length, v1: todos.length })}</span>
           </div>
 
           {migratedNote && (
             <div className="px-3 py-1.5 text-[length:var(--text-3xs)] text-info bg-info-soft border-b border-border">{migratedNote}</div>
           )}
-          {err && <div className="px-3 py-1.5 text-[length:var(--text-3xs)] text-danger">{err}</div>}
+          {err && <div className="px-3 py-1.5 text-[length:var(--text-3xs)] text-danger">{appText(err)}</div>}
 
           {/* 列表（容器无 padding——行 hover 面积 = 行面积，不留缝） */}
           <div className="max-h-64 overflow-y-auto">
             {todos !== null && todos.length === 0 && (
-              <div className="px-3 py-3 text-xs text-text-muted text-center">暂无待办——在下方输入想法或计划</div>
+              <div className="px-3 py-3 text-xs text-text-muted text-center">{uiText("ui.TodoButton.noToDosAddAnIdeaOr")}</div>
             )}
             {(todos ?? []).map((t) => (
               <div key={t.id} className="group">
@@ -168,10 +171,10 @@ export const TodoButton = memo(function TodoButton({ projectPath }: { projectPat
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") add(); }}
-              placeholder="添加待办（回车确认）…"
+              placeholder={uiText("ui.TodoButton.addAToDoEnterToConfirm")}
               className="em-input flex-1 min-w-0 h-8 px-2.5 text-xs"
             />
-            <button type="button" onClick={add} disabled={!draft.trim()} className="btn-accent h-8 px-3 rounded-[var(--radius-lg)] text-xs disabled:opacity-40 disabled:cursor-not-allowed shrink-0">添加</button>
+            <button type="button" onClick={add} disabled={!draft.trim()} className="btn-accent h-8 px-3 rounded-[var(--radius-lg)] text-xs disabled:opacity-40 disabled:cursor-not-allowed shrink-0">{uiText("ui.TodoButton.add")}</button>
           </div>
         </div>
       )}

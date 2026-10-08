@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../../lib/i18n";
 import { newGlowGroupId, type GlowColorGroup } from "../../stores/settings-store";
 import { ColorFlowEditor } from "./ColorFlowEditor";
 
@@ -15,6 +16,7 @@ interface GlowGroupManagerProps {
  * 输入卡片光效与 Mint 状态流光共用。
  */
 export function GlowGroupManager({ groups, activeId, onChangeGroups, onChangeActive, maxCustom = 4 }: GlowGroupManagerProps): JSX.Element {
+  useUiLocale();
   const activeGroup = groups.find((g) => g.id === activeId) ?? groups[0];
   const customCount = groups.filter((g) => !g.isBuiltin).length;
 
@@ -22,7 +24,7 @@ export function GlowGroupManager({ groups, activeId, onChangeGroups, onChangeAct
     if (customCount >= maxCustom) return;
     const id = newGlowGroupId();
     // 新组默认空色彩,用户自行添加
-    onChangeGroups([...groups, { id, name: `自定义 ${customCount + 1}`, colors: [] }]);
+    onChangeGroups([...groups, { id, name: uiText("ui.GlowGroupManager.custom", { v0: customCount + 1 }), colors: [] }]);
     onChangeActive(id);
   };
   const removeGroup = (gid: string): void => {
@@ -52,7 +54,7 @@ export function GlowGroupManager({ groups, activeId, onChangeGroups, onChangeAct
             }`}
             
           >
-            {g.name}
+            {g.isBuiltin ? uiText("ui.AgentTemplateSettings.default") : (["glow-custom-v1", "glow-custom-v1-dark"].includes(g.id) && g.name === "自定义 1") ? uiText("ui.GlowGroupManager.custom", { v0: 1 }) : g.name}
             {!g.isBuiltin && (
               <button
                 type="button"
@@ -69,7 +71,7 @@ export function GlowGroupManager({ groups, activeId, onChangeGroups, onChangeAct
             onClick={addGroup}
             className="px-2 py-0.5 rounded-[var(--radius-lg)] text-text-muted hover:text-text-secondary em-hover-control text-[length:var(--text-11)] transition-all"
            
-          >+ 添加</button>
+          >{uiText("ui.StepComponents.add")}</button>
         )}
       </div>
       {/* 当前组色彩:内置「默认」只读展示,自定义可编辑 */}

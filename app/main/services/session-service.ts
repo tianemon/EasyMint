@@ -1,3 +1,4 @@
+import { toolMessageForUi } from "../../shared/tool-presentation";
 /**
  * Session Service — 基于 Pi SessionManager 的会话管理
  *
@@ -270,7 +271,7 @@ async function parseEntriesToMessages(mgr: { getEntries(): unknown[]; getLeafId(
       // 磁盘块归一化(toolCall→tool_use)后再透传,前端只认归一化格式
       const outMsg = role === "assistant" && Array.isArray(msg.content)
         ? { ...msg, content: normalizeToolCallBlocks(msg.content) }
-        : msg;
+        : role === "toolResult" ? toolMessageForUi(msg) : msg;
 
       messages.push({
         type: role,

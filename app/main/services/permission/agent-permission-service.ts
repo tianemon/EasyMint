@@ -1,3 +1,4 @@
+import type { PermissionBlock } from "../../../shared/tool-presentation";
 /**
  * Agent 权限服务。
  *
@@ -51,6 +52,7 @@ export type PermissionResult = {
 } | {
   behavior: "deny";
   message: string;
+  block?: PermissionBlock;
   interrupt?: boolean;
   toolUseID?: string;
   decisionClassification?: PermissionDecisionClassification;
@@ -86,6 +88,7 @@ export class AgentPermissionService {
       });
       const deny = (rule: string, operation: string, target: string, detail: string): PermissionResult => ({
         behavior: "deny",
+        block: { kind: "permission_denied", rule, mode, operation, target, detail },
         message: [
           `操作被阻止：${detail}`,
           `模式：${permissionModeLabel(mode)}`,

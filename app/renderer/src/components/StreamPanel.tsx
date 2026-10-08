@@ -1,3 +1,4 @@
+import type { ToolPresentation } from "@shared/tool-presentation";
 /** 流式条目类型 — 仅类型导出。
  *  StreamPanel 组件 / normalizeEvent / StreamEntryView 等 v2 展示层已废弃删除
  *  （Pi 迁移后无渲染处，ChatPanel 仅使用 StreamEntry 类型）。 */
@@ -24,6 +25,7 @@ interface ToolUseEntry {
 
 interface ToolResultEntry {
   kind: "tool_result";
+  presentation?: ToolPresentation;
   toolUseId: string;
   /** 工具名(独立结果块标签用;edit → "编辑") */
   name?: string;

@@ -1,3 +1,4 @@
+import { translateAppText } from "../shared/i18n/app-messages";
 import { applyUiLanguage, mainUiI18n, t } from "./services/ui-language";
 import fs from "fs";
 import { app, BrowserWindow, shell, ipcMain, Menu, nativeTheme, dialog } from "electron";
@@ -340,6 +341,7 @@ app.whenReady().then(async () => {
   // 恢复上次打开的项目（仅在 setup 完成后）
   let startHash: string | undefined;
   const tempStore = new Store();
+  await applyUiLanguage(tempStore);
   // 配置迁移在后台进行，不阻塞窗口出现：所有读配置的入口（settings:get / settings:set /
   // agent:*）都经 getNativeConfig 自然等它就绪，「迁移早于任何配置读写」仍然成立。
   // 在此 await 会把窗口出现推迟首次 SDK 冷导入的时长（实测约 9 秒）——与本文件下方
@@ -350,15 +352,15 @@ app.whenReady().then(async () => {
     // 用户既不知道坏的是哪个文件、也不知道备份在哪、下一步做什么——只能重装或来报 bug。
     const dataDir = tempStore.getDataDir();
     const backups = path.join(dataDir, "config-backups");
-    const lines = [(error as Error).message, "", `配置目录：${dataDir}`];
-    if (fs.existsSync(backups)) lines.push(`改动前的备份：${backups}（可从最近一份里取回被改坏的文件）`);
+    const lines = [translateAppText(mainUiI18n, (error as Error).message), "", t("startup.directory", { path: dataDir })];
+    if (fs.existsSync(backups)) lines.push(t("startup.backup", { path: backups }));
     lines.push(
       "",
-      "排查建议：",
-      "① 按上面的信息定位到那个文件，确认它是合法 JSON；",
-      `② 若无法定位，把整个「${dataDir}」目录改名（如加 -bak 后缀）后重新启动——EM 会以全新配置开始，原数据仍留在改名后的目录里。`,
+      t("startup.suggestions"),
+      t("startup.checkJson"),
+      t("startup.reset", { path: dataDir }),
     );
-    dialog.showErrorBox("配置加载失败", lines.join("\n"));
+    dialog.showErrorBox(t("startup.failed"), lines.join("\n"));
     app.quit();
   });
   // 兜底清理历史遗留的临时会话缓存(__new_ 前缀,真实会话创建后不再被读取)——防磁盘堆积
@@ -395,7 +397,6 @@ app.whenReady().then(async () => {
     const lastId = tempStore.getLastProjectId();
     if (lastId) startHash = `/project/${lastId}`;
   }
-  await applyUiLanguage(tempStore);
   createWindow(startHash, true);
 
   const updateApplicationMenu = () => {
@@ -592,7 +593,7 @@ ipcMain.handle("editor:open", (_e, filePath?: string) => {
   });
   watchRendererGone(editorWin);
   if (filePath && fs.existsSync(filePath)) {
-    editorWin.loadFile(editorPath);
+    editorWin.loadFile(editorPath, { query: { uiLocale: mainUiI18n.resolvedLanguage ?? "zh-CN" } });
     editorWin.webContents.on("did-finish-load", () => {
       let content = fs.readFileSync(filePath, "utf-8");
       const name = path.basename(filePath);
@@ -605,7 +606,7 @@ ipcMain.handle("editor:open", (_e, filePath?: string) => {
       ).catch(() => {});
     });
   } else {
-    editorWin.loadFile(editorPath);
+    editorWin.loadFile(editorPath, { query: { uiLocale: mainUiI18n.resolvedLanguage ?? "zh-CN" } });
   }
   editorWin.setMenuBarVisibility(false);
 });

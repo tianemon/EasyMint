@@ -1,3 +1,5 @@
+import { appText } from "../lib/i18n";
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useState, useEffect, useCallback } from "react";
 
 interface FileTreePanelProps {
@@ -7,6 +9,7 @@ interface FileTreePanelProps {
 }
 
 export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: FileTreePanelProps): JSX.Element {
+  useUiLocale();
   const [files, setFiles] = useState<FileNode[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -19,7 +22,7 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
       .readTree(projectPath)
       .then(setFiles)
       .catch((e: unknown) => {
-        setError(e instanceof Error ? e.message : "加载文件树失败");
+        setError(e instanceof Error ? e.message : uiText("ui.FileTreePanel.couldNotLoadFileTree"));
       });
   }, [projectPath]);
 
@@ -92,17 +95,16 @@ export function FileTreePanel({ projectPath, onFileClick, collapseAllKey }: File
     <div className="h-full overflow-y-auto">
       {error ? (
         <div className="p-4 text-center">
-          <p className="text-danger text-sm mb-2">{error}</p>
+          <p className="text-danger text-sm mb-2">{appText(error)}</p>
           <button
             className="px-3 py-1 text-xs btn-accent rounded-[var(--radius-lg)]"
             onClick={loadTree}
           >
-            重试
-          </button>
+            {uiText("ui.ChatPanel.retry")}</button>
         </div>
       ) : files.length === 0 ? (
         <div className="flex items-center justify-center h-full">
-          <p className="text-xs text-text-secondary">暂无项目文件</p>
+          <p className="text-xs text-text-secondary">{uiText("ui.FileTreePanel.noProjectFiles")}</p>
         </div>
       ) : (
         renderTree(files)

@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDelegationStore } from "../stores/delegation-store";
 import { ShellProcessView } from "./ShellProcessView";
@@ -8,6 +9,7 @@ import { ToolIcon } from "./ChatBlocks";
  * 每个命令可点击查看输出(弹层)、单独停止;点击胶囊外部区域收起(与 AgentBar 同款交互)
  */
 export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | null {
+  useUiLocale();
   // selector 返回原始数组(稳定引用)——filter 产生新数组会导致 zustand 无限重渲染
   const allShellTasks = useDelegationStore((s) => s.shellTasks);
   // 按发起会话过滤——后台命令是主会话发起的,其他会话 tab 不显示 shell 胶囊(跨会话污染)
@@ -60,7 +62,7 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
       {expanded && (
         <div className="absolute bottom-full left-0 mb-1 w-max min-w-[224px] max-w-[320px] max-h-64 overflow-y-auto rounded-[var(--radius-lg)] border border-border bg-surface-elevated shadow-xl z-dropdown text-xs">
           <div className="px-3 py-1.5 bg-accent-bg text-text-secondary font-medium">
-            运行中的 Shell({shellTasks.length})
+            {uiText("ui.ShellBar.runningShells")}{shellTasks.length})
           </div>
           <div className="divide-y divide-border/60">
             {shellTasks.map((task) => (
@@ -78,7 +80,7 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
                 </button>
                 {task.status === "stopping" ? (
                   // 已点停止:杀进程中,按钮禁用避免重复触发
-                  <span className="shrink-0 px-2 py-0.5 rounded-[var(--radius-lg)] text-text-secondary text-[length:var(--text-11)]">停止中…</span>
+                  <span className="shrink-0 px-2 py-0.5 rounded-[var(--radius-lg)] text-text-secondary text-[length:var(--text-11)]">{uiText("ui.ShellBar.stopping")}</span>
                 ) : (
                   <button
                     type="button"
@@ -86,8 +88,7 @@ export function ShellBar({ sessionId }: { sessionId?: string }): JSX.Element | n
                     className="shrink-0 px-2 py-0.5 rounded-[var(--radius-lg)] border border-danger-border text-danger hover:bg-danger-soft transition-colors"
                    
                   >
-                    停止
-                  </button>
+                    {uiText("ui.AgentBar.stop")}</button>
                 )}
               </div>
             ))}

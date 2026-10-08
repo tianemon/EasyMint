@@ -1,3 +1,4 @@
+import { uiText } from "../../lib/i18n";
 /**
  * 环境检测的「重新检测」—— **全项目唯一一处定义**（设置页与引导流程共用）。
  *
@@ -45,7 +46,6 @@ export function EnvRetestButton({ panel, onBeforeRetest, className = "" }: {
         panel.current?.retest();
       }}
     >
-      重新检测
-    </button>
+      {uiText("ui.EnvRetestButton.checkAgain")}</button>
   );
 }

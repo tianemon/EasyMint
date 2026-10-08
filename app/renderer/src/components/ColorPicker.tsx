@@ -1,3 +1,4 @@
+import { uiText, useUiLocale } from "../lib/i18n";
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as RPointerEvent } from "react";
 import { createPortal } from "react-dom";
 
@@ -320,6 +321,7 @@ interface ColorPickerFieldProps {
  * 替代原生 <input type="color">(弹层位置浏览器控制,靠窗口底部会被截断)。
  */
 export function ColorPickerField({ value, onChange }: ColorPickerFieldProps): JSX.Element {
+  useUiLocale();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [anchor, setAnchor] = useState<ColorPickerAnchor | null>(null);
@@ -341,7 +343,7 @@ export function ColorPickerField({ value, onChange }: ColorPickerFieldProps): JS
         ref={triggerRef}
         type="button"
         onClick={toggle}
-        aria-label="选择颜色"
+        aria-label={uiText("ui.ColorPicker.chooseColor")}
         aria-expanded={open}
         className="w-7 h-7 shrink-0 rounded-[var(--radius-lg)] cursor-pointer border border-border transition-transform hover:scale-105"
         style={{ background: value }}
