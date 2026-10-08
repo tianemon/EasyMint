@@ -59,9 +59,3 @@ export interface ProviderAuthEventMessage {
   providerId: string;
   event: ProviderAuthUiEvent;
 }
-
-/** IPC provider:authInput 的载荷（渲染层提交某一步的输入） */
-export interface ProviderAuthInputPayload {
-  requestId: string;
-  value: string;
-}

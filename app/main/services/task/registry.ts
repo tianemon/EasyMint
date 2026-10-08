@@ -11,9 +11,6 @@
 import { randomUUID } from "node:crypto";
 import type { BatchResult, DelegationRecord, DelegationStatus, TaskItem, TaskStatus, TaskStopSource } from "./types";
 
-/** 主会话的 EM 临时 ID（新建会话时 task 工具绑定的 ID;真实 ID 回填后保留作双匹配） */
-export const TEMP_ID_FIELD = "tempParentSessionId";
-
 const delegations = new Map<string, DelegationRecord>();
 
 /** 保留最近 N 条已完成记录（供查询/调试），超出清理 */

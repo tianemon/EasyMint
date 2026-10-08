@@ -27,13 +27,6 @@ import { detectGit } from "./utils/git-detector";
 import { detectNode } from "./utils/node-detector";
 import { detectCodegraph } from "./utils/codegraph-detector";
 import {
-  getSystemPromptConfig,
-  createSystemPrompt,
-  updateSystemPrompt,
-  deleteSystemPrompt,
-  setDefaultPrompt,
-} from "./services/system-prompt-manager";
-import {
   listTemplates,
   createTemplate,
   updateTemplate,
@@ -305,10 +298,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:setModel", (_e, { sessionId, model, provider }) => {
     return agentService.setModel(sessionId, model, provider);
   });
-  ipcMain.handle("agent:spawnAgentChat", (event, { projectPath, templateId, message }) => {
-    bindPiExtensionWindow(projectPath, event.sender.id);
-    return agentService.spawnAgentChat(projectPath, templateId, message);
-  });
   ipcMain.handle("agent:sendMessage", async (event, { projectPath, message, sessionId, permissionMode, model, isDesigner, images, thinkingLevel, systemPayload, preferredProvider, tabId }) => {
     bindPiExtensionWindow(projectPath, event.sender.id);
     try {
@@ -416,10 +405,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("agent:active-sessions", () => agentService.listActiveSessions());
   ipcMain.handle("agent:kill-session", (_e, { sessionId }) => {
     return agentService.killSession(sessionId);
-  });
-
-  ipcMain.handle("agent:scheduleIdleTimeout", (_e, { sessionId, delayMs }) => {
-    agentService.scheduleIdleTimeout(sessionId, delayMs);
   });
 
   // agent-template:*
@@ -792,13 +777,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       return json;
     } catch { return null; }
   });
-
-  // system-prompt:*
-  ipcMain.handle("system-prompt:get-config", () => getSystemPromptConfig());
-  ipcMain.handle("system-prompt:create", (_e, input) => createSystemPrompt(input));
-  ipcMain.handle("system-prompt:update", (_e, { id, input }) => updateSystemPrompt(id, input));
-  ipcMain.handle("system-prompt:delete", (_e, { id }) => { deleteSystemPrompt(id); });
-  ipcMain.handle("system-prompt:set-default", (_e, { id }) => { setDefaultPrompt(id); });
 
   // project:saveProfile — 持久化项目产品类型规范(NewProjectDialog 创建时写入,
   // 主进程 buildSystemPrompt 读取注入 Mint 提示词)

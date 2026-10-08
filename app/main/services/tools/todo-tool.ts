@@ -67,7 +67,7 @@ export async function createTodoWriteTool(
       },
       required: ["todos"],
     },
-    async execute(toolCallId: string, params: Record<string, unknown>, _signal: AbortSignal | undefined, _onUpdate: unknown, ctx: any) {
+    async execute(_toolCallId: string, params: Record<string, unknown>, _signal: AbortSignal | undefined, _onUpdate: unknown, ctx: any) {
       const raw = params.todos;
       if (!Array.isArray(raw) || raw.length === 0) {
         return text("todo_write 参数错误：todos 必须是非空数组（传完整清单，含已完成项）");

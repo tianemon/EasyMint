@@ -30,14 +30,6 @@ async function getSrt(): Promise<SrtModule> {
   return _srt;
 }
 
-export function isSandboxAvailable(): boolean {
-  return _state === "ok";
-}
-
-export function sandboxUnavailableReason(): string {
-  return _failReason;
-}
-
 /** Linux 沙盒缺失的系统依赖（bwrap/socat/rg 缺任一，srt 都无法初始化） */
 export function missingLinuxSandboxDeps(): string[] {
   if (process.platform !== "linux") return [];

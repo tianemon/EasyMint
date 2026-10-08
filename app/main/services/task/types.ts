@@ -39,16 +39,6 @@ export interface StructuredSubagentOutput {
   error?: string;
 }
 
-/** Agent 定义 */
-export interface AgentDefinition {
-  name: string;
-  description: string;
-  systemPrompt: string;
-  tools?: string[];
-  model?: string;
-  source: "builtin" | "user";
-}
-
 /** 子 Agent 进度（简化版） */
 export interface AgentProgress {
   index: number;

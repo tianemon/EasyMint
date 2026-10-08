@@ -1845,7 +1845,7 @@ export class AgentService {
     message: string,
     resumeSessionId: string | null,
     permissionMode: string | undefined,
-    mainWindow: BrowserWindow,
+    _mainWindow: BrowserWindow,
     model?: string,
     isDesigner?: boolean,
     images?: Array<{ type: "image"; data: string; mimeType: string }>,
@@ -2456,16 +2456,6 @@ export class AgentService {
   }
 
 
-  async spawnAgentChat(
-    projectPath: string,
-    templateId: string,
-    message: string,
-  ): Promise<{ chatId: string }> {
-    return this.sendMessage(projectPath, message, null, "standard",
-      _mainWindow!,
-      undefined, false);
-  }
-
   async killChat(chatId: string): Promise<void> {
     const chat = this.activeChats.get(chatId);
     if (chat) {
@@ -2518,15 +2508,6 @@ export class AgentService {
     this.cancelReclaim(sessionId);
     const chat = this.findActiveChat(sessionId);
     if (chat) void this.killChat(chat.chatId);
-  }
-
-  scheduleIdleTimeout(_sessionId: string, _delayMs: number): void {
-    // Pi 会话不同于 Claude SDK 的 query 进程，无需 idle timeout
-    // 保留接口兼容性
-  }
-
-  private cancelIdleTimeout(_sessionId: string): void {
-    // Pi 无需
   }
 
   onSessionRenamed(sessionId: string): void {
@@ -3018,11 +2999,4 @@ export class AgentService {
     // 清理全部后台 shell 进程(杀进程树,防孤儿进程)
     backgroundShellRegistry.stopAll();
   }
-}
-
-// ── setMainWindow ────────────────────────────────────
-
-let _mainWindow: BrowserWindow | null = null;
-export function setMainWindow(win?: BrowserWindow): void {
-  if (win) _mainWindow = win;
 }

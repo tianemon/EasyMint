@@ -109,7 +109,6 @@ function getFriendlyHostname(): string {
 class NetworkService extends EventEmitter {
   private bonjour = new Bonjour();
   private advertiseService: import("bonjour-service").Service | null = null;
-  private advertiseTimer: NodeJS.Timeout | null = null;
   private pairModeEnd: number | null = null; // 可被发现截止时间
   private pairModeTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;

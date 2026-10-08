@@ -1,9 +1,9 @@
 /**
- * 系统控制命令的提前诊断与旧脚本诊断函数回归。
+ * 系统控制命令的提前诊断回归。
  * 文件系统安全不依赖这些文本扫描，由 execution-policy 集成测试覆盖。
  */
 import { describe, it, expect } from "vitest";
-import { isSystemMutationCommand, scanScriptContent } from "./permission/agent-permission-service";
+import { isSystemMutationCommand } from "./permission/agent-permission-service";
 
 describe("系统级变更命令（任何模式拒绝）", () => {
   it("系统管理/提权/磁盘类 → 拦截", () => {
@@ -42,19 +42,5 @@ describe("系统级变更命令（任何模式拒绝）", () => {
     expect(isSystemMutationCommand("echo `sudo -n true`")).toBe(true);
     expect(isSystemMutationCommand("echo ok\nsudo -n true")).toBe(true);
     expect(isSystemMutationCommand("cat <<EOF\n$(sudo -n true)\nEOF")).toBe(true);
-  });
-});
-
-describe("旧脚本内容诊断函数", () => {
-  it("真正的系统级操作 → 命中", () => {
-    expect(scanScriptContent("#!/bin/bash\nsudo rm -rf dist")).toBe("sudo/su 提权");
-    expect(scanScriptContent("posix_spawn('reg add HKLM\\Software')")).toBe("Windows 系统级命令");
-    expect(scanScriptContent("subprocess.run(['format', 'C:'], check=True)")).toBe("Windows 系统级命令");
-  });
-
-  it("`format` 作为普通单词/参数名 → 不误判（实测踩过：img.save(path, format=\"ICO\") 被拦）", () => {
-    expect(scanScriptContent("img.save(path, format=\"ICO\", sizes=[(16, 16)])")).toBeNull();
-    expect(scanScriptContent("# 保存格式参数说明：按扩展名推断\nlight.save(dest)")).toBeNull();
-    expect(scanScriptContent("const out = data.format(\"json\")")).toBeNull();
   });
 });

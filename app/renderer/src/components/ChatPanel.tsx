@@ -3,7 +3,6 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { AttachItem, ChatMessage, PendingUserBubble, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, applyNestedToolEvent, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason, contextEditAction, retryStatusText, BUSY_PROBE_INTERVAL_MS, BUSY_PROBE_CLEAR_STREAK, stepBusyProbe, stopTarget, needsDeferredStop, shouldSteerSend, resolveSendSessionId } from "./chat-utils";
 import { confirmDialog } from "./ui/ConfirmDialog";
-import { chatActions } from "../stores/chat-actions";
 import { confirmFullAccess } from "./permission-confirmation";
 import { resolveThinkingLevel } from "@shared/thinking-levels";
 import { sessionOverrides } from "@shared/session-resume-policy";
@@ -1888,7 +1887,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // 使用率显著回落（压缩完成）后允许再次触发
       if (pct != null && pct < threshold - 20) ctxThresholdFiredRef.current = 0;
     });
-    return () => { unsub(); unsubExit(); unsubSid(); unsubModel(); unsubLevel(); unsubPermission(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) { useTabStore.getState().setSessionRunning(sidRef.current, false); if (!sidRef.current.startsWith("__new_")) { window.electronAPI.agent.scheduleIdleTimeout(sidRef.current, 10 * 60 * 1000); } } useStatusStore.getState().reset(sidRef.current); };
+    return () => { unsub(); unsubExit(); unsubSid(); unsubModel(); unsubLevel(); unsubPermission(); unsubCtxSum(); unsubCtxUsage(); if (sidRef.current) useTabStore.getState().setSessionRunning(sidRef.current, false); useStatusStore.getState().reset(sidRef.current); };
   }, []);
 
   // Summarizing timeout — 120s safety net
@@ -2285,8 +2284,6 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       if (sentMsgId != null) showFlowError("send", errText, { sourceMsgId: sentMsgId, anchorMsgId: sentMsgId, tone: "warn", ...(opts?.afterRewind ? { hint: "这条消息已退出上下文，点重试重新发送。", afterRewind: true } : {}) });
     }
   }, [busy, attaches, projectPath, permissionMode, thinkingLevel, chatModel, chatProvider, chatRole, tabId, applyStopRewind]);
-
-  useEffect(() => { chatActions.register((t: string) => sendText(t)); return () => chatActions.unregister(); }, [sendText]);
 
   // ── 消息流错误卡片操作(3.5) ──────────────────────────
   const handleDismissError = useCallback((card: FlowErrorCard) => {

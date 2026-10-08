@@ -38,18 +38,6 @@ const STREAM_THROTTLE_MS = 100;
 /** 主动停止来源：用户 UI / Mint / 权限切换撤销。 */
 export type ShellStopSource = "user" | "mint" | "revoke";
 
-/** 前端 shell 列表数据(启动/停止/退出时广播 agent:shell-count) */
-export interface ShellSummary {
-  id: string;
-  command: string;
-  startedAt: number;
-  status: "running" | "stopping";
-  /** 完整输出日志文件路径(前端查看输出弹层定位) */
-  logPath: string;
-  /** 发起会话(前端按会话过滤:后台命令状态只显示在发起会话的 tab) */
-  sessionId?: string;
-}
-
 export interface BackgroundShell {
   id: string;
   command: string;

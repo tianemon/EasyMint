@@ -10,9 +10,7 @@ import { z } from "zod";
 
 /** 常见基础 schema */
 export const nonEmptyString = z.string().min(1, "不能为空");
-export const maybeString = z.string().optional();
 export const pathString = z.string().min(1, "路径不能为空").max(4096);
-export const portNumber = z.number().int().min(0).max(65535);
 
 /** 解析参数并返回校验后数据；失败抛明确错误（带字段路径与原因） */
 export function expectPayload<T>(schema: z.ZodType<T>, args: unknown): T {

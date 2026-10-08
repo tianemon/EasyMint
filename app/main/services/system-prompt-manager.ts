@@ -1,14 +1,13 @@
 /**
- * 系统提示词管理服务（CRUD）
+ * 系统提示词读取服务
  *
- * 管理 Chat 模式的系统提示词 CRUD。
+ * 读取已有的 Chat 模式提示词配置；内置内容随源码同步。
  * 存储在 ~/.easymint/system-prompts.json
  *
  * 提示词内容统一从 app/shared/prompts.ts 引入。
  */
 
-import { randomUUID } from "node:crypto";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { MINT_SYSTEM_PROMPT } from "../../shared/prompts";
 import { emHome } from "../utils/paths";
@@ -27,16 +26,6 @@ export interface SystemPrompt {
 export interface SystemPromptConfig {
   prompts: SystemPrompt[];
   defaultPromptId?: string;
-}
-
-export interface SystemPromptCreateInput {
-  name: string;
-  content: string;
-}
-
-export interface SystemPromptUpdateInput {
-  name?: string;
-  content?: string;
 }
 
 // ── Constants ──────────────────────────────────────
@@ -97,96 +86,6 @@ function readConfig(): SystemPromptConfig {
   };
 }
 
-function writeConfig(config: SystemPromptConfig): void {
-  ensureDir();
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8");
-}
-
-// ── Public API ─────────────────────────────────────
-
-export function getSystemPromptConfig(): SystemPromptConfig {
-  return readConfig();
-}
-
-export function createSystemPrompt(input: SystemPromptCreateInput): SystemPrompt {
-  const config = readConfig();
-  const now = Date.now();
-
-  const prompt: SystemPrompt = {
-    id: randomUUID(),
-    name: input.name,
-    content: input.content,
-    isBuiltin: false,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  config.prompts.push(prompt);
-  writeConfig(config);
-  return prompt;
-}
-
-export function updateSystemPrompt(id: string, input: SystemPromptUpdateInput): SystemPrompt {
-  const config = readConfig();
-  const index = config.prompts.findIndex((p) => p.id === id);
-
-  if (index === -1) {
-    throw new Error(`提示词不存在: ${id}`);
-  }
-
-  const prompt = config.prompts[index]!;
-  if (prompt.isBuiltin) {
-    throw new Error("内置提示词不可编辑");
-  }
-
-  if (input.name !== undefined) prompt.name = input.name;
-  if (input.content !== undefined) prompt.content = input.content;
-  prompt.updatedAt = Date.now();
-
-  writeConfig(config);
-  return prompt;
-}
-
-export function deleteSystemPrompt(id: string): void {
-  const config = readConfig();
-  const prompt = config.prompts.find((p) => p.id === id);
-
-  if (!prompt) {
-    throw new Error(`提示词不存在: ${id}`);
-  }
-
-  if (prompt.isBuiltin) {
-    throw new Error("内置提示词不可删除");
-  }
-
-  config.prompts = config.prompts.filter((p) => p.id !== id);
-
-  // 如果被删除的是默认提示词，重置为内置默认
-  if (config.defaultPromptId === id) {
-    config.defaultPromptId = BUILTIN_DEFAULT_ID;
-  }
-
-  writeConfig(config);
-}
-
-export function setDefaultPrompt(id: string | null): void {
-  const config = readConfig();
-
-  if (id !== null) {
-    const exists = config.prompts.some((p) => p.id === id);
-    if (!exists) {
-      throw new Error(`提示词不存在: ${id}`);
-    }
-  }
-
-  config.defaultPromptId = id ?? BUILTIN_DEFAULT_ID;
-  writeConfig(config);
-}
-
-/**
- * 解析最终的 system prompt 文本
- * 根据 defaultPromptId 找到对应提示词，拼接日期时间和用户名。
- */
 /** Return the static prompt content (no dynamic time/user). Safe to inject on every call. */
 export function resolveEffectivePrompt(): string {
   const config = readConfig();

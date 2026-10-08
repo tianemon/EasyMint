@@ -19,8 +19,6 @@ import { useTaskStore, type TaskStatus } from "../stores/task-store";
 import { useProjectStatusStore } from "../stores/project-status-store";
 import { getWorkspaceDir } from "../lib/getWorkspaceDir";
 
-export type ActivePanel = "editor" | "files" | "sessions" | "chat";
-
 export function ProjectPage(): JSX.Element {
   // 重命名弹窗遮罩完整点击:仅 mousedown 也在遮罩上才关闭(拖选输入文字移出遮罩松开不误关)
   const renameOverlayDownRef = useRef(false);

@@ -325,7 +325,6 @@ interface ElectronAPI {
     removeContextImages: (sessionId: string, selectedEntryIds: string[], projectPath?: string) => Promise<{ ok: boolean; error?: string; reloadRequired?: boolean; removedBytes?: number; removedImages?: number }>;
     prepareImageRetry: (sessionId: string, failedEntryId: string, selectedEntryIds: string[], omitCurrentImages: boolean, projectPath?: string) => Promise<{ ok: boolean; error?: string; reloadRequired?: boolean; removedBytes?: number; removedImages?: number }>;
     setModel: (sessionId: string, model: string, provider?: string) => Promise<void>;
-    spawnAgentChat: (projectPath: string, templateId: string, message: string) => Promise<{ chatId: string }>;
     chatStatus: (sessionId: string) => Promise<string | null>;
     /** 忙碌态兜底：busy=主进程登记的占用态（唯一判据），sdkIdle 仅供日志排查 */
     busyState: (sessionId: string) => Promise<{ busy: boolean; sdkIdle: boolean }>;
@@ -345,7 +344,6 @@ interface ElectronAPI {
     reclaimChat: (sessionId: string) => Promise<void>;
     cancelReclaim: (sessionId: string) => Promise<void>;
     onChatClosed: (callback: (data: { sessionId: string }) => void) => () => void;
-    scheduleIdleTimeout: (sessionId: string, delayMs: number) => void;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
     onConfirmDev: (callback: () => void) => () => void;
@@ -576,13 +574,6 @@ interface ElectronAPI {
     read: (sessionId: string) => Promise<{ permissionMode: string; model?: string; provider?: string; thinkingLevel?: string; contextUsage: number | null; updatedAt: number } | null>;
     write: (sessionId: string, data: Record<string, unknown>) => Promise<void>;
     delete: (sessionId: string) => Promise<void>;
-  };
-  systemPrompt: {
-    getConfig: () => Promise<{ prompts: { id: string; name: string; content: string; isBuiltin: boolean; createdAt: number; updatedAt: number }[]; defaultPromptId?: string }>;
-    create: (input: { name: string; content: string }) => Promise<{ id: string; name: string; content: string; isBuiltin: boolean; createdAt: number; updatedAt: number }>;
-    update: (id: string, input: { name?: string; content?: string }) => Promise<{ id: string; name: string; content: string; isBuiltin: boolean; createdAt: number; updatedAt: number }>;
-    delete: (id: string) => Promise<void>;
-    setDefault: (id: string) => Promise<void>;
   };
   settings: {
     piImport: (input?: { sourceDir?: string; apply?: boolean; probe?: boolean }) => Promise<import("@shared/pi-config-import").PiImportSummary>;

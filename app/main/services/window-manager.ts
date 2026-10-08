@@ -16,12 +16,6 @@ function projectIdFromUrl(url: string): string | null {
   try { return decodeURIComponent(match[1]); } catch { return match[1]; }
 }
 
-export function trackProjectWindow(win: BrowserWindow, projectId: string): void {
-  const before = listOpenProjectIds();
-  projectWindows.set(win.id, projectId);
-  publishIfChanged(before);
-}
-
 /** 跟随 SPA hash 路由，维护真正处于打开状态的项目集合。 */
 export function watchProjectWindow(win: BrowserWindow): void {
   const sync = (url: string): void => {

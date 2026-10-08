@@ -287,7 +287,6 @@ function moveToArchive(scope: ExperienceScope, projectPath: string | undefined, 
 
 /** 容量淘汰：超出上限时按**价值分最低**移入档案（protect 里的条目永不被淘汰） */
 function trimCapacity(
-  dir: string,
   scope: ExperienceScope,
   projectPath: string | undefined,
   items: ExperienceIndexEntry[],
@@ -325,7 +324,7 @@ export function appendExperience(
   };
   mkdirSync(dir, { recursive: true });
   writeFileSync(path.join(dir, entry.file), renderBody(entry.title, input.body, entry));
-  saveIndex(dir, trimCapacity(dir, scope, target.projectPath, [...loadIndex(dir), entry], new Set([entry.id])));
+  saveIndex(dir, trimCapacity(scope, target.projectPath, [...loadIndex(dir), entry], new Set([entry.id])));
   return { entry, scope };
 }
 
@@ -394,7 +393,7 @@ export function moveExperience(
   delete (moved as Partial<ExperienceHit>).excerpt;
   // 目标索引里若已存在同 id（手工拷贝/上次移动中途失败）先摘掉，避免同一 id 两份
   const targetItems = loadIndex(toDir).filter((e) => e.id !== moved.id);
-  saveIndex(toDir, trimCapacity(toDir, targetScope, projectPath, [...targetItems, moved], new Set([moved.id])));
+  saveIndex(toDir, trimCapacity(targetScope, projectPath, [...targetItems, moved], new Set([moved.id])));
   saveIndex(found.dir, loadIndex(found.dir).filter((e) => e.id !== moved.id));
   return { ok: true, entry: moved, scope: targetScope };
 }

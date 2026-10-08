@@ -741,14 +741,3 @@ export function findProtectedReadTarget(command: string, cwd: string): string | 
   }
   return null;
 }
-
-/** 保留给诊断测试；执行安全不再依赖脚本文本扫描。 */
-export function scanScriptContent(content: string): string | null {
-  const c = content.slice(0, 200 * 1024);
-  if (/\bsudo\b|\bsu\s+-/.test(c)) return "sudo/su 提权";
-  if (/\bdd\s+if=\/dev\//.test(c)) return "dd 直接写设备";
-  if (/\b(?:launchctl|systemctl|diskutil|mount|umount|mkfs|fdisk|parted|csrutil|nvram)\b/.test(c)) return "系统级管理命令";
-  if (/\b(?:reg\s+add|reg\s+delete|diskpart|bcdedit)\b/.test(c)) return "Windows 系统级命令";
-  if (/\bformat\s+[A-Za-z]:|\bformat['"]?\s*,\s*['"]?[A-Za-z]:/.test(c)) return "Windows 系统级命令";
-  return null;
-}

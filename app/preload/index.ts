@@ -117,13 +117,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     write: (sessionId: string, data: Record<string, unknown>) => ipcRenderer.invoke("session-cache:write", { sessionId, data }),
     delete: (sessionId: string) => ipcRenderer.invoke("session-cache:delete", { sessionId }),
   },
-  systemPrompt: {
-    getConfig: () => ipcRenderer.invoke("system-prompt:get-config"),
-    create: (input: { name: string; content: string }) => ipcRenderer.invoke("system-prompt:create", input),
-    update: (id: string, input: { name?: string; content?: string }) => ipcRenderer.invoke("system-prompt:update", { id, input }),
-    delete: (id: string) => ipcRenderer.invoke("system-prompt:delete", { id }),
-    setDefault: (id: string) => ipcRenderer.invoke("system-prompt:set-default", { id }),
-  },
   settings: {
     piImport: (input: { sourceDir?: string; apply?: boolean; probe?: boolean } = {}) => ipcRenderer.invoke("settings:piImport", input),
     get: () => ipcRenderer.invoke("settings:get"),
@@ -360,7 +353,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     removeContextImages: (sessionId: string, selectedEntryIds: string[], projectPath?: string) => ipcRenderer.invoke("agent:removeContextImages", { sessionId, selectedEntryIds, projectPath }) as Promise<{ ok: boolean; error?: string; reloadRequired?: boolean; removedBytes?: number; removedImages?: number }>,
     prepareImageRetry: (sessionId: string, failedEntryId: string, selectedEntryIds: string[], omitCurrentImages: boolean, projectPath?: string) => ipcRenderer.invoke("agent:prepareImageRetry", { sessionId, failedEntryId, selectedEntryIds, omitCurrentImages, projectPath }) as Promise<{ ok: boolean; error?: string; reloadRequired?: boolean; removedBytes?: number; removedImages?: number }>,
     setModel: (sessionId: string, model: string, provider?: string) => ipcRenderer.invoke("agent:setModel", { sessionId, model, provider }) as Promise<void>,
-    spawnAgentChat: (projectPath: string, templateId: string, message: string) => ipcRenderer.invoke("agent:spawnAgentChat", { projectPath, templateId, message }) as Promise<{ chatId: string }>,
     chatStatus: (sessionId: string) => ipcRenderer.invoke("agent:chatStatus", { sessionId }),
     /** 忙碌态兜底：busy=主进程登记的占用态（唯一判据），sdkIdle 仅供日志排查 */
     busyState: (sessionId: string) => ipcRenderer.invoke("agent:busyState", { sessionId }) as Promise<{ busy: boolean; sdkIdle: boolean }>,
@@ -382,7 +374,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getModelThinkingSupport: (modelId: string) => ipcRenderer.invoke("agent:getModelThinkingSupport", { modelId }) as Promise<string[] | null>,
     getModelInfo: (modelId: string, providerId?: string) => ipcRenderer.invoke("agent:getModelInfo", { modelId, providerId }) as Promise<{ name: string; contextWindow: number; maxTokens: number } | null>,
     sessionStats: (sessionId: string, projectPath?: string) => ipcRenderer.invoke("agent:sessionStats", { sessionId, projectPath }) as Promise<Record<string, unknown> | null>,
-    scheduleIdleTimeout: (sessionId: string, delayMs: number) => ipcRenderer.invoke("agent:scheduleIdleTimeout", { sessionId, delayMs }),
     onStream: (callback: (event: unknown) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on("agent:stream", handler);

@@ -99,7 +99,7 @@ app.commandLine.appendSwitch("disk-cache-size", "0"); // HTTP 磁盘缓存(net/d
 import { registerIpcHandlers } from "./ipc-handlers";
 import { ProjectService } from "./services/project-service";
 import { FileService } from "./services/file-service";
-import { AgentService, setMainWindow } from "./services/agent-service";
+import { AgentService } from "./services/agent-service";
 import { Store } from "./services/store";
 import { getNativeConfig } from "./services/native-config";
 import { armSessionDirReady, primeSessionManagerClass } from "./services/pi-session-dir";
@@ -225,7 +225,6 @@ export async function createWindow(hash?: string, isMain = false): Promise<Brows
         console.error("[mobile-terminal] 启动失败:", error instanceof Error ? error.message : String(error));
       });
     }
-    setMainWindow(window);
     // Seed default Agent templates on first launch
     const { seedDefaults } = require("./services/agent-templates");
     seedDefaults();
@@ -614,7 +613,7 @@ ipcMain.handle("editor:open-in-browser", (_e, filePath?: string) => {
 function absolutizePrototypePaths(html: string, baseDir: string): string {
   const toFileUrl = (p: string) => "file://" + path.resolve(baseDir, p);
   return html
-    .replace(/(src|href)=(["'])(?!([a-z]+:|data:|#|\/))([^"']*?)\2/g, (m, attr, q, _proto, p) =>
+    .replace(/(src|href)=(["'])(?!([a-z]+:|data:|#|\/))([^"']*?)\2/g, (_m, attr, q, _proto, p) =>
       `${attr}=${q}${toFileUrl(p)}${q}`)
     .replace(/url\((["']?)(?!([a-z]+:|data:|#|\/))([^"')]+?)\1\)/g, (_m, q, _proto, p) =>
       `url(${q}${toFileUrl(p)}${q})`);
