@@ -14,7 +14,7 @@ import { resolveHome, emHome } from "../utils/paths";
 import { broadcast, broadcastEvent } from "./ipc-broadcast";
 import { Store } from "./store";
 import { canRewindDetachedUser, isStaleSdkBusyRefusal } from "./rewind-policy";
-import { waitForAbortSettlement } from "./abort-settlement";
+import { waitForAbortSettlement, settleSessionIdle } from "./abort-settlement";
 import { resolveEffectivePrompt } from "./system-prompt-manager";
 import { getActiveModel } from "./pi-init";
 import { getNativeConfig } from "./native-config";
@@ -835,7 +835,7 @@ export class AgentService {
     }
   }
 
-  private buildSystemPrompt(projectPath: string, isDesigner?: boolean, opts?: { worker?: boolean }): string {
+  private buildSystemPrompt(projectPath: string, isDesigner?: boolean, opts?: { worker?: boolean; learnInstalled?: boolean }): string {
     const parts: string[] = [];
 
     // Mint-D 主会话 = 基础 Mint prompt(或用户自定义) + 设计能力增强段(附加不替换)
@@ -855,7 +855,7 @@ export class AgentService {
     const profile = buildProjectProfileSection(readProjectProfile(projectPath));
     if (profile) parts.push(profile);
 
-    // 权限边界（两模式 + 绝对禁区）——提前告知模型边界与「被拒后如何应对」，
+    // 权限边界（三档 + 绝对禁区）——提前告知模型边界与「被拒后如何应对」，
     // 减少无谓的越界尝试；工具被拒时错误消息会带统一策略的规则、目标和阶段
     parts.push(PERMISSION_RULES_PROMPT);
 
@@ -863,7 +863,7 @@ export class AgentService {
     // top-N 紧凑块作背景——「经验库里有货」这件事让模型开箱即知，不用等它想起 search。
     // worker 不注入：子会话没有 learn/search/retire 工具（见 buildExtraTools 的注册条件），
     // 注入了等于指导模型调不存在的工具，也会把子会话的注入计成「送达」抬高价值分
-    if (!opts?.worker && this.store.getSettings().learnEnabled) {
+    if (!opts?.worker && opts?.learnInstalled) {
       const exp = buildExperienceInjection(projectPath);
       if (exp) parts.push(exp);
     }
@@ -1881,11 +1881,15 @@ export class AgentService {
           const previous = readCache(resumeSessionId)?.permissionMode;
           const before = normalizePermissionMode(previous);
           const after = normalizePermissionMode(permissionMode);
-          if (before !== after && (before === "full" || after === "full")) {
+          if (before !== after) {
             writeCache(resumeSessionId, { permissionMode });
             if (isPermissionModeTightening(previous, permissionMode)) await this.revokeElevatedExecution(resumeSessionId);
-            const active = this.findActiveChat(resumeSessionId);
-            if (active) await this.killChat(active.chatId);
+            if (before === "full" || after === "full") {
+              const active = this.findActiveChat(resumeSessionId);
+              if (active) await this.killChat(active.chatId);
+            } else if (before === "readonly") {
+              this.schedulePermissionToolRebuild(resumeSessionId);
+            }
           }
         }
         const existing = this.findActiveChat(resumeSessionId);
@@ -1909,8 +1913,9 @@ export class AgentService {
           // 否则 SDK prompt() 抛 "Agent is already processing" → 消息发不出、不调 API
           if (existing.session.isStreaming && !this.activePromptSessions.has(resumeSessionId)) {
             console.warn(`[agent] sendMessage: session ${resumeSessionId} isStreaming 残留，强制复位`);
-            try { existing.session.abort(); } catch { /* abort 无副作用 */ }
-            await existing.session.waitForIdle().catch(() => {});
+            if (!await settleSessionIdle(existing.session, ABORT_SETTLEMENT_TIMEOUT_MS)) {
+              throw new Error("会话尚未停止，请稍后重试或关闭会话后重新打开");
+            }
           }
           this.launchPrompt(existing.session, resumeSessionId, existing.chatId, message, existing, images, systemPayload);
           return { chatId: existing.chatId, sessionId: existing.sessionId };
@@ -1977,7 +1982,7 @@ export class AgentService {
                 thinkingLevel: thinkingLevel as Parameters<typeof resumePiSession>[0]["thinkingLevel"],
                 store: this.store,
                 resumeSessionFile: info.path,
-                systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
+                systemPrompt: this.buildSystemPrompt(resolvedPath, designer, { learnInstalled }),
                 extraTools,
                 canUseTool,
                 permissionMode: modeForCreation,
@@ -1994,7 +1999,7 @@ export class AgentService {
             agentDir: this.getAgentDir(),
             model: piModel ?? undefined,
             store: this.store,
-            systemPrompt: this.buildSystemPrompt(resolvedPath, designer),
+            systemPrompt: this.buildSystemPrompt(resolvedPath, designer, { learnInstalled }),
             extraTools,
             canUseTool,
             permissionMode: modeForCreation,
@@ -2720,8 +2725,9 @@ export class AgentService {
     // 实际回合已死）→ 强制 abort 复位，再走正常发送，避免消息入队永不消费
     if (!this.activePromptSessions.has(sessionId)) {
       console.warn(`[agent] steer: session ${sessionId} isStreaming 残留(无进行中回合)，强制复位`);
-      try { chat.session.abort(); } catch { /* abort 无副作用 */ }
-      await chat.session.waitForIdle().catch(() => {});
+      if (!await settleSessionIdle(chat.session, ABORT_SETTLEMENT_TIMEOUT_MS)) {
+        throw new Error("会话尚未停止，请稍后重试或关闭会话后重新打开");
+      }
       this.launchPrompt(chat.session, chat.sessionId, chat.chatId, text, chat, images);
       return;
     }
@@ -2855,6 +2861,10 @@ export class AgentService {
       console.error(`[compact] 未找到活跃会话: ${sessionId}（activeChats=${this.activeChats.size}）`);
       return;
     }
+    if (this.startingSessions.has(sessionId) || this.startingSessions.has(chat.sessionId) || this.mutatingSessions.has(chat.sessionId) || chat.session.isCompacting) {
+      throw new Error("会话正在处理另一项操作，请稍后重试");
+    }
+    this.mutatingSessions.add(chat.sessionId);
     // sessionId 是远程通道的订阅过滤键（remote-terminal-service 按它判会话订阅），缺了会被丢弃
     broadcast("agent:context-summarizing", { chatId: chat.chatId, sessionId, type: "compact" });
     // 手动压缩桥接：compact() 直接调 SDK（不经 promptAndBridge 的 subscribe），
@@ -2894,18 +2904,23 @@ export class AgentService {
     // 防卡死：SDK compact() 开头 await this.abort() → waitForIdle()——若 isStreaming 残留 true
     // （上个回合异常结束/超时中断后 SDK isStreaming 未复位）waitForIdle 永不返回，compact 永久挂起：
     // 无 compaction_start/end 事件、无返回——前端只看到入口日志后一切静止（对齐 sendMessage 1091 复位逻辑）
-    if ((chat.session as unknown as { isStreaming?: boolean }).isStreaming && !this.activePromptSessions.has(sessionId)) {
-      console.warn(`[compact] session ${sessionId} isStreaming 残留，强制复位后再压缩`);
-      try { await chat.session.abort(); } catch { /* abort 无副作用 */ }
-      await chat.session.waitForIdle().catch(() => {});
-    }
+    let compactTimer: ReturnType<typeof setTimeout> | undefined;
     try {
+      if (chat.session.isStreaming && !this.activePromptSessions.has(sessionId)) {
+        console.warn(`[compact] session ${sessionId} isStreaming 残留，强制复位后再压缩`);
+        if (!await settleSessionIdle(chat.session, ABORT_SETTLEMENT_TIMEOUT_MS)) {
+          throw new Error("会话停止等待 timed out (8s)");
+        }
+      }
       console.log(`[compact] 调用 SDK compact（chatId=${chat.chatId}）…`);
       // 压缩超时保护:SDK compact 摘要生成(调 LLM)可能网络挂起——EM 层 120s 超时,
-      // 超时后广播错误让用户可重试(不无限等;SDK 内部仍可能最终完成,下次压缩会走 Already compacted 判定)
+      // 超时时取消 SDK 的压缩请求，避免界面已结束等待、后台仍占着压缩态。
       await Promise.race([
         chat.session.compact(instructions),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Compaction timed out (120s)")), 120_000)),
+        new Promise((_, reject) => { compactTimer = setTimeout(() => {
+          chat.session!.abortCompaction();
+          reject(new Error("Compaction timed out (120s)"));
+        }, 120_000); }),
       ]);
       console.log(`[compact] SDK compact 返回（chatId=${chat.chatId}）`);
       // 成功路径:SDK 内部发 compaction_end → 桥接/订阅广播 compacted（带摘要卡展示文本）
@@ -2917,13 +2932,15 @@ export class AgentService {
         console.error(`[agent] compact 超时: chatId=${chat.chatId}`);
         broadcast("agent:stream", {
           type: "error", sessionId, chatId: chat.chatId,
-          message: "上下文压缩超时（120s），请稍后重试", canRetry: true, operation: "compaction",
+          message: errMsg.includes("8s") ? "会话尚未停止，请稍后重试或关闭会话后重新打开" : "上下文压缩超时（120s），请稍后重试", canRetry: true, operation: "compaction",
         });
       } else {
         console.error(`[agent] compact failed: chatId=${chat.chatId}`, errMsg);
       }
     } finally {
+      if (compactTimer) clearTimeout(compactTimer);
       unsub();
+      this.mutatingSessions.delete(chat.sessionId);
       // 无论成败都清除蒙版(compaction_end 的 compacted 可能因 aborted/无 result 不广播)
       broadcast("agent:context-summarizing", { chatId: chat.chatId, sessionId, type: "done" });
     }

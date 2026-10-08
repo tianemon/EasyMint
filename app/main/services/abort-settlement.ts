@@ -14,3 +14,16 @@ export async function waitForAbortSettlement(
     if (timer) clearTimeout(timer);
   }
 }
+
+/** Residual SDK busy state must not make send/steer/compact wait forever. */
+export async function settleSessionIdle(
+  session: { abort(): Promise<unknown>; waitForIdle(): Promise<unknown>; readonly isStreaming: boolean },
+  timeoutMs: number,
+): Promise<boolean> {
+  const settled = await waitForAbortSettlement(
+    Promise.resolve().then(() => session.abort()),
+    Promise.resolve().then(() => session.waitForIdle()),
+    timeoutMs,
+  );
+  return settled && !session.isStreaming;
+}
