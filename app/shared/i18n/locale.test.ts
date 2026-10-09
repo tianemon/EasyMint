@@ -3,9 +3,9 @@ import { createUiI18n } from "./index";
 import { isUiLanguage, normalizeUiLanguage, resolveUiLocale } from "./locale";
 
 describe("UI language resolution", () => {
-  it("preserves Chinese for existing installations and invalid stored values", () => {
+  it("defaults missing and invalid preferences to system and preserves explicit choices", () => {
     for (const value of [undefined, null, "fr", "en-US", {}, 1]) {
-      expect(normalizeUiLanguage(value)).toBe("zh-CN");
+      expect(normalizeUiLanguage(value)).toBe("system");
       expect(isUiLanguage(value)).toBe(false);
     }
     for (const value of ["zh-CN", "en", "system"] as const) {
@@ -14,7 +14,7 @@ describe("UI language resolution", () => {
   });
 
   it("resolves system variants while explicit preferences take precedence", () => {
-    for (const value of ["zh", "zh-CN", "zh-TW", "ZH_hant"]) {
+    for (const value of ["zh", "zh-CN", "zh-SG", "zh-TW", "zh-HK", "zh-MO", "zh-Hans", "zh-Hant", "zh-Hant-TW", "ZH_hant"]) {
       expect(resolveUiLocale("system", value)).toBe("zh-CN");
     }
     for (const value of ["en-US", "fr-FR", "", "zhong"]) {

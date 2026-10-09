@@ -3,15 +3,17 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir(), getLocale: () => "en-US" } }));
+vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir(), getLocale: vi.fn(() => "en-US") } }));
 
 vi.mock("./native-config", () => ({ getNativeConfig: vi.fn(async () => ({})) }));
 import { getNativeConfig } from "./native-config";
+import { app } from "electron";
 import { Store } from "./store";
 import { applyUiLanguage, saveUiLanguage, getUiLanguageState, mainUiI18n, t } from "./ui-language";
 
 const dirs: string[] = [];
 afterEach(async () => {
+  vi.mocked(app.getLocale).mockReturnValue("en-US");
   await mainUiI18n.changeLanguage("zh-CN");
   for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
 });
@@ -23,9 +25,28 @@ function makeStore(): Store {
 }
 
 describe("persisted UI language", () => {
-  it("defaults existing installations to Chinese and preserves unrelated settings", () => {
+  it("uses Chinese for both system scripts and English for other system languages before a choice is saved", async () => {
     const store = makeStore();
-    expect(getUiLanguageState(store)).toEqual({ preference: "zh-CN", locale: "zh-CN" });
+    for (const systemLocale of ["zh-CN", "zh-TW", "zh-HK", "zh-Hant", "zh-Hans", "en-US", "ja-JP", "de-DE"]) {
+      vi.mocked(app.getLocale).mockReturnValue(systemLocale);
+      const locale = systemLocale.startsWith("zh") ? "zh-CN" : "en";
+      expect(await applyUiLanguage(store)).toEqual({ preference: "system", locale });
+      expect(t("menu.newWindow")).toBe(locale === "zh-CN" ? "新建窗口" : "New Window");
+    }
+  });
+
+  it("keeps saved explicit choices when reopening on a different system language", () => {
+    const store = makeStore();
+    for (const preference of ["zh-CN", "en"] as const) {
+      store.saveSettings({ ...store.getSettings(), uiLanguage: preference });
+      vi.mocked(app.getLocale).mockReturnValue(preference === "en" ? "zh-TW" : "en-US");
+      expect(getUiLanguageState(new Store(store.getDataDir()))).toEqual({ preference, locale: preference });
+    }
+  });
+
+  it("defaults missing preferences to the system locale and preserves unrelated settings", () => {
+    const store = makeStore();
+    expect(getUiLanguageState(store)).toEqual({ preference: "system", locale: "en" });
     store.saveSettings({ ...store.getSettings(), uiLanguage: "en", contextThreshold: 70 });
     const reopened = new Store(store.getDataDir());
     expect(getUiLanguageState(reopened)).toEqual({ preference: "en", locale: "en" });
@@ -56,7 +77,7 @@ describe("persisted UI language", () => {
     let resume!: () => void;
     vi.mocked(getNativeConfig).mockImplementationOnce(() => new Promise(resolve => { resume = () => resolve({} as never); }));
     const saving = saveUiLanguage(store, "en");
-    expect(store.getSettings().uiLanguage).toBe("zh-CN");
+    expect(store.getSettings().uiLanguage).toBe("system");
     expect(mainUiI18n.language).toBe("zh-CN");
     resume();
     expect(await saving).toEqual({ preference: "en", locale: "en" });
@@ -67,13 +88,13 @@ describe("persisted UI language", () => {
     const store = makeStore();
     vi.mocked(getNativeConfig).mockRejectedValueOnce(new Error("migration failed"));
     await expect(saveUiLanguage(store, "en")).rejects.toThrow("migration failed");
-    expect(store.getSettings().uiLanguage).toBe("zh-CN");
+    expect(store.getSettings().uiLanguage).toBe("system");
     expect(mainUiI18n.language).toBe("zh-CN");
   });
 
   it("recovers from an unsupported stored value", () => {
     const store = makeStore();
     fs.writeFileSync(path.join(store.getDataDir(), "em-settings.json"), JSON.stringify({ appearance: { language: "fr" } }));
-    expect(getUiLanguageState(store)).toEqual({ preference: "zh-CN", locale: "zh-CN" });
+    expect(getUiLanguageState(store)).toEqual({ preference: "system", locale: "en" });
   });
 });

@@ -10,9 +10,9 @@ export function isUiLanguage(value: unknown): value is UiLanguage {
   return value === "zh-CN" || value === "en" || value === "system";
 }
 
-// Existing installations retain Chinese until the user chooses another language.
+// Missing or invalid preferences follow the system; explicit choices remain unchanged.
 export function normalizeUiLanguage(value: unknown): UiLanguage {
-  return isUiLanguage(value) ? value : "zh-CN";
+  return isUiLanguage(value) ? value : "system";
 }
 
 export function resolveUiLocale(preference: UiLanguage, systemLocale: string): UiLocale {

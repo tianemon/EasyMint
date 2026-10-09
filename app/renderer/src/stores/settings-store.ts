@@ -166,7 +166,7 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  uiLanguage: "zh-CN",
+  uiLanguage: "system",
   syncUiLanguage: async (state) => {
     set({ uiLanguage: state.preference });
     await applyUiLanguage(state);
