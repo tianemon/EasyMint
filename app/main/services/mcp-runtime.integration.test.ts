@@ -112,6 +112,32 @@ describe("Pi MCP host integration", () => {
     expect(sandbox.wrap).not.toHaveBeenCalled();
   });
 
+  it("closes a pending initialize before its connection timeout and releases the transport", async () => {
+    const pidFile = path.join(root, "connecting.pid");
+    writeProject(config({ timeout: 30000, args: ["-e", `require('fs').writeFileSync(${JSON.stringify(pidFile)},String(process.pid));setInterval(()=>{},1000);`] }));
+    approveMcpServer(cwd, "echo");
+    const session = await create();
+    await waitFor(() => fs.existsSync(pidFile));
+    await disposePiSession(session);
+    const pid = Number(fs.readFileSync(pidFile, "utf8"));
+    await waitFor(() => { try { process.kill(pid, 0); return false; } catch { return true; } });
+    expect(sandbox.release).toHaveBeenCalledTimes(1);
+    expect(getMcpStatus(cwd)[0]?.state).toBe("idle");
+  }, 10000);
+
+  it("does not reopen a session when disposal races with a queued reload", async () => {
+    writeProject(); approveMcpServer(cwd, "echo");
+    const session = await create();
+    await waitFor(() => getMcpStatus(cwd)[0]?.state === "connected");
+    reloadMcpTools();
+    await disposePiSession(session);
+    // A late reload completion must not spawn a replacement connection.
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(sandbox.wrap).toHaveBeenCalledTimes(1);
+    expect(sandbox.release).toHaveBeenCalledTimes(1);
+    expect(getMcpStatus(cwd)[0]?.state).toBe("idle");
+  }, 10000);
+
   it("runs MCP through codemode and EM permission checks, with nested execution events", async () => {
     writeProject(); approveMcpServer(cwd, "echo");
     let deny = true;

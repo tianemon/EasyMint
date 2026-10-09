@@ -207,7 +207,7 @@ export async function disposeMcpSession(manager: object): Promise<void> {
   await Promise.all(closing.map(record => record.controller?.close()));
 }
 
-async function serverAction(name: string, projectPath: string | undefined, action: "reconnect" | "login" | "logout", prompt?: SignInPrompt): Promise<{ ok: boolean; error?: string }> {
+async function serverAction(name: string, projectPath: string | undefined, action: "reconnect" | "login" | "logout", prompt?: SignInPrompt, signal?: AbortSignal): Promise<{ ok: boolean; error?: string }> {
   const manifest = scanMcpServers(projectPath).find(server => server.name === name);
   if (!manifest) return { ok: false, error: "服务器不存在" };
   if (!manifest.enabled || manifest.pendingApproval) return { ok: false, error: "服务器已停用或尚未确认启用" };
@@ -218,8 +218,8 @@ async function serverAction(name: string, projectPath: string | undefined, actio
     if (available.length) {
       if (action === "login") {
         // One account, one browser flow. Other sessions pick up the encrypted stored token.
-        await available[0]!.controller!.login(name, prompt);
-        await Promise.all(available.slice(1).map(record => record.controller!.reconnect(name)));
+        await available[0]!.controller!.login(name, prompt, signal);
+        await Promise.all(available.slice(1).map(record => record.controller!.reconnect(name, signal)));
       } else await Promise.all(available.map(record => record.controller![action](name)));
       return { ok: true };
     }
@@ -236,7 +236,7 @@ async function serverAction(name: string, projectPath: string | undefined, actio
       if (action === "logout") { credentials.remove(name, entry.config.url); return { ok: true }; }
       const ui = createPiExtensionUi(projectPath);
       await sdk.signInMcpServer({ serverUrl: entry.config.url, store: credentials.forServer(name, entry.config.url),
-        settings: { callbackPort: entry.config.oauth?.callbackPort, clientName: entry.config.oauth?.clientName }, prompt: prompt ?? {
+        signal, settings: { callbackPort: entry.config.oauth?.callbackPort, clientName: entry.config.oauth?.clientName }, prompt: prompt ?? {
           showAuthorizationUrl: url => { void import("electron").then(({ shell }) => shell.openExternal(url.href)); },
           promptForRedirectUrl: signal => ui.input("等待浏览器授权；无法自动回调时可粘贴回调 URL", "http://127.0.0.1:.../callback?code=...", { signal }),
         } });
@@ -265,7 +265,7 @@ export function loginMcpServer(name: string, projectPath?: string): Promise<{ ok
   const promise = serverAction(name, projectPath, "login", {
     showAuthorizationUrl: url => { if (!abort.signal.aborted) void import("electron").then(({ shell }) => shell.openExternal(url.href)); },
     promptForRedirectUrl: signal => ui.input("等待浏览器授权；无法自动回调时可粘贴回调 URL", "http://127.0.0.1:.../callback?code=...", { signal: AbortSignal.any([signal, abort.signal]) }),
-  }).finally(() => { signIns.delete(key); });
+  }, abort.signal).finally(() => { signIns.delete(key); });
   signIns.set(key, { abort, promise });
   return promise;
 }

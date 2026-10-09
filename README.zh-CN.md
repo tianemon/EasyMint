@@ -15,7 +15,7 @@
 
 <p align="center">
   <a href="https://github.com/tianemon/EasyMint/releases"><img src="https://img.shields.io/github/v/release/tianemon/EasyMint?style=flat-square&color=16a34a" alt="Version" /></a>
-  <img src="https://img.shields.io/badge/Pi%20Coding%20Agent-1.0.4-blue?style=flat-square" alt="Pi Coding Agent" />
+  <img src="https://img.shields.io/badge/Pi%20Coding%20Agent-1.1.0-blue?style=flat-square" alt="Pi Coding Agent" />
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" />
 </p>
 
@@ -224,7 +224,7 @@ Mint 的联网能力（搜索资料、读网页正文）由 [Tavily](https://tav
 | 状态管理 | Zustand 5 |
 | 代码编辑器 / 终端 | Monaco Editor / xterm.js |
 | 插件生态 | Pi Extensions / Model Context Protocol SDK |
-| AI 引擎 | Pi Coding Agent 1.0.4 |
+| AI 引擎 | Pi Coding Agent 1.1.0 |
 
 ## 本地开发
 
