@@ -178,7 +178,7 @@ function fmtTokenCount(n: number): string {
 const HANDOFF_PROMPT = "请总结当前会话的全部内容，并写一份交接提示词（包含项目状态、已完成的工作、当前进度、遇到的问题、下一步计划），以便在新会话中继续工作。请直接输出交接提示词内容，使用用户所用的语言。";
 
 export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesigner, onSessionCreated, onActivity }: ChatPanelProps): JSX.Element {
-  useUiLocale();
+  const locale = useUiLocale();
   const tempSidRef = useRef<string | null>(null);
   if (!existingSid && !tempSidRef.current) tempSidRef.current = `__new_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const initialSid = existingSid ?? tempSidRef.current!;
@@ -309,7 +309,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       setSliderBox({ left, width, trackW });
     }
   }, [chatRole]);
-  useEffect(() => { syncSlider(); }, [syncSlider]);
+  // Translated labels change button geometry without changing the selected role.
+  useLayoutEffect(() => { syncSlider(); }, [syncSlider, locale]);
   // 滑块鼠标弹性(参考 liquid-glass logout:elasticity 0.35):鼠标靠近时滑块方向性拉伸,
   // 距离衰减(激活区 200px),滞后过渡出"液体"感
   const [sliderStretch, setSliderStretch] = useState({ x: 1, y: 1 });
