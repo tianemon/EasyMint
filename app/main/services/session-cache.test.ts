@@ -77,7 +77,28 @@ describe("session cache persistence boundaries", () => {
       cache.writeCache("concurrent", { model: "new" });
       return sessions;
     });
+    // Wall-clock timestamps and filesystem timestamps are different observations.
+    // Force a mismatch instead of relying on the host filesystem's precision.
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 60_000);
     expect(await cache.cleanupOrphanCaches()).toBe(1);
     expect(cache.readCache("concurrent")?.model).toBe("new");
+  });
+  it.each([false, true])("retains an existing cache rewritten during discovery (in-place=$0)", async inPlace => {
+    const dir = path.join(isolated.root, "agent", "sessions", "project"); fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "fixture.jsonl"), JSON.stringify({ type: "session", version: 3, id: "fixture", timestamp: new Date().toISOString(), cwd: "/fixture" }) + "\n");
+    cache.writeCache("changed", { model: "old" });
+    const file = path.join(isolated.root, "session-cache", "changed.json");
+    const previous = fs.statSync(file);
+    const { getSessionManagerClass } = await import("./pi-sdk"); const SM = await getSessionManagerClass();
+    const sessions = await SM.listAll(dir);
+    vi.spyOn(SM, "listAll").mockImplementationOnce(async () => {
+      if (inPlace) fs.writeFileSync(file, JSON.stringify({ model: "new" }));
+      else cache.writeCache("changed", { model: "new" });
+      // Even a preserved mtime must not turn a rewritten cache into an orphan.
+      fs.utimesSync(file, previous.atime, previous.mtime);
+      return sessions;
+    });
+    expect(await cache.cleanupOrphanCaches()).toBe(0);
+    expect(cache.readCache("changed")?.model).toBe("new");
   });
 });

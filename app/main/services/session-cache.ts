@@ -7,7 +7,8 @@
  * Path: ~/.easymint/session-cache/<sessionId>.json
  */
 
-import { readFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync, lstatSync } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { emHome } from "../utils/paths";
 import { atomicWrite } from "./native-config-storage";
@@ -76,17 +77,29 @@ export function deleteCache(sessionId: string): void {
 /** Purge cache files for sessions that no longer exist in the given list of valid IDs.
  *  skipTemp=true 时跳过 `__new_` 前缀——临时 key 的生命周期由 cleanupTempCaches 的
  *  24h 阈值接管,此处不抢(新会话首条消息回绑真实 sid 前重启,待生效的 UI 状态才不会被清)。 */
-export function purgeOrphanedCaches(validSessionIds: Set<string>, skipTemp = false, notNewerThan?: number): void {
+function cacheFingerprint(file: string): string | null {
+  const stat = lstatSync(file, { bigint: true });
+  if (!stat.isFile()) return null;
+  return `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}:${createHash("sha256").update(readFileSync(file)).digest("hex")}`;
+}
+
+export function purgeOrphanedCaches(validSessionIds: Set<string>, skipTemp = false, snapshot?: ReadonlyMap<string, string>): number {
   ensureDir();
+  let removed = 0;
   for (const file of readdirSync(CACHE_DIR)) {
     if (!file.endsWith(".json")) continue;
     if (skipTemp && file.startsWith("__new_")) continue;
     const sid = file.slice(0, -5);
     if (!validSessionIds.has(sid)) {
-      if (notNewerThan != null && statSync(path.join(CACHE_DIR, file)).mtimeMs >= notNewerThan) continue;
+      if (snapshot) {
+        const original = snapshot.get(file);
+        if (!original || cacheFingerprint(path.join(CACHE_DIR, file)) !== original) continue;
+      }
       unlinkSync(path.join(CACHE_DIR, file));
+      removed++;
     }
   }
+  return removed;
 }
 
 /**
@@ -98,8 +111,15 @@ export function purgeOrphanedCaches(validSessionIds: Set<string>, skipTemp = fal
  * 返回删除的文件数。
  */
 export async function cleanupOrphanCaches(): Promise<number> {
-  const scannedAt = Date.now();
   if (!existsSync(CACHE_DIR)) return 0; // First startup has no maintenance work.
+  // Only pre-existing, unchanged files can be removed after asynchronous discovery.
+  // Date.now and filesystem mtime are not a reliable shared clock/precision boundary.
+  const snapshot = new Map<string, string>();
+  for (const file of readdirSync(CACHE_DIR)) {
+    if (!file.endsWith(".json") || file.startsWith("__new_")) continue;
+    const fingerprint = cacheFingerprint(path.join(CACHE_DIR, file));
+    if (fingerprint) snapshot.set(file, fingerprint);
+  }
   const sessionsRoot = path.join(emHome(), "agent", "sessions");
   const valid = new Set<string>();
   let complete = true;
@@ -135,12 +155,7 @@ export async function cleanupOrphanCaches(): Promise<number> {
       for (const session of sessions) valid.add(session.id);
     }
   }
-  // 计数与清理口径一致：只统计非临时 key
-  const countPersistent = (): number =>
-    readdirSync(CACHE_DIR).filter((f) => f.endsWith(".json") && !f.startsWith("__new_")).length;
-  const before = countPersistent();
-  purgeOrphanedCaches(valid, true, scannedAt);
-  return before - countPersistent();
+  return purgeOrphanedCaches(valid, true, snapshot);
 }
 
 /**
