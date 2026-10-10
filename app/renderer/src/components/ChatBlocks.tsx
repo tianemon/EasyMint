@@ -25,6 +25,7 @@ function baseName(p: string): string {
 // 自定义工具按类别配图标:agent=bot, 知识技能=wrench, MCP=plug, 项目=folder-kanban,
 // issue=bug, 网络=globe, 待办=list-clock, ask=message-question, 图片=scan-search
 const TOOL_LABELS: Record<string, string> = {
+  get generate_image() { return uiText("pi.generateImage"); },
   get bash() { return uiText("ui.ChatBlocks.command"); }, get edit() { return uiText("menu.edit"); }, get read() { return uiText("ui.ChatBlocks.view"); }, get write() { return uiText("ui.ChatBlocks.write"); }, get grep() { return uiText("ui.ChatBlocks.searchFiles"); },
   get find() { return uiText("ui.ChatBlocks.findFiles"); }, get ls() { return uiText("ui.ChatBlocks.listDirectory"); }, powershell: "PowerShell",
   get task() { return uiText("ui.ChatBlocks.delegateAgent"); }, get create_agent_template() { return uiText("ui.ChatBlocks.createTemplate"); }, get list_agents() { return uiText("ui.ChatBlocks.viewAgents"); },
@@ -52,6 +53,7 @@ function toolIconPaths(name: string): JSX.Element | null {
     case "bash": case "powershell": return (<><path d="m7 11 2-2-2-2"/><path className="icon-cursor" d="M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/></>);
     case "edit": return (<><path d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z"/></>);
     case "read": return (<><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></>);
+    case "generate_image": return (<><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1"/><path d="m21 15-5-5L5 21"/></>);
     case "write": return (<><path d="M13 21h8"/><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></>);
     // 搜索文件(file-search-corner)
     case "grep": return (<><path d="M11.1 22H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.589 3.588A2.4 2.4 0 0 1 20 8v3.25"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="m21 22-2.88-2.88"/><circle cx="16" cy="17" r="3"/></>);
@@ -121,6 +123,8 @@ interface ToolItem {
   /** bash 执行中的累积输出(tool_progress 增量拼接;结束后保留,展开区显示) */
   liveOutput?: string;
   nestedCalls?: NestedToolCalls;
+  durationMs?: number;
+  imagePath?: string;
 }
 
 interface ToolGroupBlock {
@@ -136,6 +140,8 @@ interface SystemBlock {
 /** 工具结果独立块(工具调用被隐藏/未显示时的结果,如 edit diff) */
 interface ToolResultOnlyBlock {
   kind: "tool-result-only";
+  durationMs?: number;
+  imagePath?: string;
   presentation?: ToolPresentation;
   content: string;
   isError?: boolean;
@@ -164,9 +170,13 @@ export function buildBlocks(
   // 预扫描:本批 entries 中已到达的 tool_result id 集合——tool_use 的 result 可能因文本分隔
   // 被拆到独立 tool-result-only 块(组内关联不到),但执行已完成,不得显示转圈
   const resultIds = new Set<string>();
+  const imagePaths = new Map<string, string>();
+  const durations = new Map<string, number>();
   const nestedResults = new Map<string, NestedToolCalls>();
   for (const e of entries) {
     if (e.kind === "tool_result" && e.toolUseId) resultIds.add(e.toolUseId);
+    if (e.kind === "tool_result" && e.imagePath) imagePaths.set(e.toolUseId, e.imagePath);
+    if (e.kind === "tool_result" && e.durationMs !== undefined) durations.set(e.toolUseId, e.durationMs);
     if (e.kind === "tool_result" && e.nestedCalls) nestedResults.set(e.toolUseId, e.nestedCalls);
   }
 
@@ -179,7 +189,7 @@ export function buildBlocks(
     if (e.kind === "text") { flushThink(); flushTool(); flushSys(); textBuf += (textBuf ? "\n" : "") + e.text; }
     else if (e.kind === "thinking") { flushText(); flushTool(); flushSys(); thinkBuf += (thinkBuf ? "\n" : "") + e.text; }
     else if (e.kind === "system") { flushText(); flushThink(); flushTool(); sysBuf += (sysBuf ? "\n" : "") + e.message; }
-    else if (e.kind === "tool_use") { flushText(); flushThink(); flushSys(); toolBuf.push({ name: e.name, input: e.input, id: e.id, pending: !(e.id && resultIds.has(e.id)), nestedCalls: (e.id && nestedResults.get(e.id)) || e.nestedCalls }); }
+    else if (e.kind === "tool_use") { flushText(); flushThink(); flushSys(); toolBuf.push({ name: e.name, input: e.input, id: e.id, pending: !(e.id && resultIds.has(e.id)), durationMs: e.id ? durations.get(e.id) : undefined, imagePath: e.id ? imagePaths.get(e.id) : undefined, nestedCalls: (e.id && nestedResults.get(e.id)) || e.nestedCalls }); }
     else if (e.kind === "tool_result") {
       // 按 toolUseId 关联结果到对应工具调用块;无匹配(工具调用被过滤/未显示)时单独渲染
       const target = [...toolBuf].reverse().find((t) => t.id === e.toolUseId);
@@ -194,6 +204,7 @@ export function buildBlocks(
         const fp = inp ? (inp.file_path ?? inp.path) : undefined;
         blocks.push({
           kind: "tool-result-only",
+          durationMs: e.durationMs, imagePath: e.imagePath,
           content: e.content,
           presentation: e.presentation ?? toolPresentation(e.content, undefined, e.isError),
           isError: e.isError,
@@ -1022,7 +1033,7 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
   // 保证任何情况下展开都能看到命令输出,而不是只有命令本身
   const bashOutput = item.liveOutput || (item.name === "bash" ? item.result : undefined);
   // 文件工具 → 绝对路径 + 文件名(标题行只显文件名,链接点击在 tab 打开;悬停 title 提示完整路径)
-  const filePath = isPathTool ? editFilePath(item) : undefined;
+  const filePath = item.name === "generate_image" ? item.imagePath : isPathTool ? editFilePath(item) : undefined;
   // 动作词:查 TOOL_LABELS 映射表(自定义工具各配中文名),MCP 标题只显「MCP」(不带工具二字),skill 类显示动作词
   const label = TOOL_LABELS[item.name.toLowerCase()]
     ?? (item.name.toLowerCase().startsWith("mcp__") ? "MCP" : uiText("ui.ChatBlocks.tool"));
@@ -1097,6 +1108,7 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
         ) : (
           <span className="text-text-muted font-mono" style={{ fontSize: "var(--text-detail)" }}>{uiText("ui.ChatBlocks.unknownFile")}</span>
         )}
+        {item.durationMs !== undefined && <span className="text-text-muted tabular-nums" title={uiText("pi.toolDuration")} style={{ fontSize: "var(--text-caption)" }}>{(item.durationMs / 1000).toFixed(1)}s</span>}
       </div>
     );
   }
@@ -1161,6 +1173,7 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
             {diffStats_.removed > 0 && <span className="text-danger">-{diffStats_.removed}</span>}
           </span>
         )}
+        {item.durationMs !== undefined && <span className="text-text-muted tabular-nums" title={uiText("pi.toolDuration")} style={{ fontSize: "var(--text-caption)" }}>{(item.durationMs / 1000).toFixed(1)}s</span>}
         {/* 折叠箭头在文字右侧(对齐思考块):展开常显 ▼(旋转朝下),折叠态 hover 才出现 > */}
         <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={`w-2.5 h-2.5 shrink-0 text-[var(--color-tool-title)] group-hover:text-text-primary transition-all duration-150 ${showInput ? "rotate-90 opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
           <path d="M3.5 2l3 3-3 3"/>
@@ -1270,6 +1283,8 @@ function ToolResultOnlyView({ block }: { block: ToolResultOnlyBlock }): JSX.Elem
     <div className={`mt-1.5 mb-1 rounded-[var(--radius-lg)] border overflow-hidden ${block.isError ? "border-danger-border" : "border-border"}`}>
       <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-surface-alt text-text-muted uppercase tracking-wider font-semibold border-b border-border" style={{ fontSize: "var(--text-caption)" }}>
         <span className="shrink-0">{label}</span>
+        {block.imagePath && <button type="button" className="normal-case font-mono text-[var(--color-link)] hover:underline" title={block.imagePath} onClick={() => { void useViewerStore.getState().openImageFile(block.imagePath!); }}>{baseName(block.imagePath)}</button>}
+        {block.durationMs !== undefined && <span className="normal-case font-normal tabular-nums" title={uiText("pi.toolDuration")}>{(block.durationMs / 1000).toFixed(1)}s</span>}
         {summary && (
           <span className="normal-case tracking-normal font-normal text-text-secondary font-mono truncate">{summary}</span>
         )}

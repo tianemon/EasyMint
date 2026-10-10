@@ -20,6 +20,8 @@ interface ToolUseEntry {
   timestamp: number;
   collapsed: boolean;
   nestedCalls?: NestedToolCalls;
+  durationMs?: number;
+  imagePath?: string;
   source?: string;
 }
 
@@ -32,6 +34,8 @@ interface ToolResultEntry {
   content: string;
   isError: boolean;
   nestedCalls?: NestedToolCalls;
+  durationMs?: number;
+  imagePath?: string;
   timestamp: number;
   source?: string;
 }

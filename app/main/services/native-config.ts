@@ -1,3 +1,5 @@
+import { AUTO_MODEL_ID, parseNativeAiSettings } from "../../shared/native-ai";
+import { configureAutoModelRouting, hasBusyRoutingSession } from "./auto-model-routing";
 /** Pi files are the configuration source. ProviderConfig is only an EM view model. */
 import path from "node:path";
 import fs from "node:fs";
@@ -76,6 +78,7 @@ export class NativeConfig {
     return createHash("sha256").update(JSON.stringify([
       readText(this.files.models), readText(this.files.auth), readText(this.files.settings),
       getPath(this.storage.read(this.files.em), EM_PATH.providerPreferences),
+      getPath(this.storage.read(this.files.em), EM_PATH.capabilityNativeAi),
     ])).digest("hex");
   }
   private originals() { return new Map(Object.values(this.files).map(file => [file, readText(file)])); }
@@ -93,6 +96,7 @@ export class NativeConfig {
     if (this.runtime) await runtime.refresh({ allowNetwork: false });
     const error = runtime.getError();
     if (error) throw new Error(`无法读取 pi 模型配置：${error}`);
+    configureAutoModelRouting(runtime, parseNativeAiSettings(getPath(this.storage.read(this.files.em), EM_PATH.capabilityNativeAi)));
     const settings = this.storage.read(this.files.settings);
     validateDefaults(settings);
     const sdk = await getPiConfigSdk();
@@ -382,6 +386,33 @@ export class NativeConfig {
       return { ...plan.summary, backup };
     });
   }
+  async setNativeAi(value: unknown, assertIdle?: () => void): Promise<void> {
+    const config = parseNativeAiSettings(value);
+    return this.serial(async () => {
+      await this.refresh();
+      if (config.imageModel && !this.runtime.getModelOfType("image", config.imageModel.provider, config.imageModel.model)) throw new Error("Image model is unavailable");
+      if (config.autoRouting) for (const ref of [config.autoRouting.planning, config.autoRouting.execution]) {
+        if (!this.runtime.getPhysicalModel(ref.provider, ref.model)) throw new Error("Routing model is unavailable");
+      }
+      if (config.autoRouting && this.runtime.getPhysicalModel(config.autoRouting.planning.provider, AUTO_MODEL_ID)) throw new Error("The automatic model ID conflicts with a physical model");
+      const originals = this.originals();
+      const em = this.storage.read(this.files.em);
+      const previous = parseNativeAiSettings(getPath(em, EM_PATH.capabilityNativeAi));
+      if (!same(previous.autoRouting, config.autoRouting)) {
+        assertIdle?.();
+        if (hasBusyRoutingSession(this.runtime)) throw new Error("Wait until the automatic-model run finishes before changing routing");
+      }
+      setPath(em, EM_PATH.capabilityNativeAi, config);
+      try {
+        await this.storage.commit(new Map([[this.files.em, em]]), "native-ai", originals, undefined, () => configureAutoModelRouting(this.runtime, config));
+      } catch (error) {
+        configureAutoModelRouting(this.runtime, previous);
+        throw error;
+      }
+      await this.refresh();
+    });
+  }
+
   async setThinkingLevel(level: string): Promise<void> {
     return this.serial(async () => {
       if (!(THINKING_ORDER as readonly string[]).includes(level)) throw new Error("无效的思考等级");

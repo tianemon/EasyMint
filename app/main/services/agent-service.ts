@@ -1,3 +1,5 @@
+import { AUTO_MODEL_ID } from "../../shared/native-ai";
+import { createImageGenerationTool } from "./tools/image-generation-tool";
 /**
  * Agent Service — Pi SDK 驱动
  *
@@ -93,6 +95,7 @@ type ImageMutationResult =
   | { ok: false; error: string; reloadRequired?: boolean };
 
 interface ActiveChat {
+  waitingForUser?: boolean;
   chatId: string;
   /** 对外 sessionId（Pi 真实 ID；前端迁移/权限/统计都用它） */
   sessionId: string;
@@ -544,7 +547,7 @@ function saveLearnState(sessionId: string, state: LearnSessionState): void {
 /** Mint 向用户结构化提问工具：问题 + 选项点选 + 自定义输入（支持多选与级联联动）。
  *  execute 挂起等待用户回答（run 级 signal 仅显式 abort 触发，正常回合等待安全），
  *  用户答后结果以文本返回，Mint 据此继续推进 */
-async function createAskUserTool(sessionId: string): Promise<ToolDefinition> {
+export async function createAskUserTool(sessionId: string): Promise<ToolDefinition> {
   const defineTool = await getDefineToolFn();
   return defineTool({
     name: "ask_user",
@@ -638,6 +641,7 @@ async function createAskUserTool(sessionId: string): Promise<ToolDefinition> {
       // 手机端把事件体直接当 PendingAsk 用，缺该字段会拿到 undefined。
       const createdAt = Date.now();
       const answer = await new Promise<string>((resolve) => {
+        if (signal?.aborted) { resolve("（提问已取消）"); return; }
         const onAbort = () => {
           if (!pendingAsks.has(requestId)) return;
           pendingAsks.delete(requestId);
@@ -689,6 +693,7 @@ export class AgentService {
   private _deferredRefreshNeeded = false;
   private activeRuns: Map<string, ActiveRun> = new Map();
   private activeChats: Map<string, ActiveChat> = new Map();
+  private closingChats = new Map<string, Promise<void>>();
   /** 同一历史会话同时打开时只创建一个最小 SDK 实例，避免两个 SessionManager 同写一个文件。 */
   private activationPromises: Map<string, Promise<string | null>> = new Map();
   /** 会话树修改与新回合启动互斥；并发操作保守拒绝，避免两窗口同时改写同一 JSONL 分支。 */
@@ -789,6 +794,7 @@ export class AgentService {
       const listAgentsTool = await createListAgentsTool(sessionId);
       const readAgentLogTool = await createReadAgentLogTool(sessionId);
       const allTools = [taskTool, agentTemplateTool, stopAgentTool, listAgentsTool, readAgentLogTool, ...productTools];
+      if (this.store.getSettings().nativeAi?.imageModel) allTools.push(createImageGenerationTool(projectPath, this.store, canUseTool));
       // 粘贴导入工具（用户明确意图驱动，恒装——见 import-tools.ts 头注释）
       allTools.push(...(await createImportTools()));
       // use_skill 非挂起类（读+统计），worker 也装——提示词多处「用 use_skill 加载」在 worker 同样成立；
@@ -872,6 +878,15 @@ export class AgentService {
     parts.push(THINKING_LANGUAGE_PROMPT);
 
     return parts.join("\n\n");
+  }
+
+  private onExtensionPrompt(sessionId: string, waiting: boolean, manager: object): void {
+    const chat = this.findActiveChat(resolveParentSessionId(sessionId));
+    if (!chat || chat.session?.sessionManager !== manager) return;
+    chat.waitingForUser = waiting;
+    const event: PiChatEvent = { type: "waiting_user", sessionId: chat.sessionId, chatId: chat.chatId, waiting };
+    const sent = broadcastEvent("agent:stream", event);
+    this.bufferEvent(chat.sessionId, event, sent.sequence);
   }
 
   /** 处理 prompt → 广播流事件到前端，含压缩追踪和轮转 */
@@ -1063,18 +1078,22 @@ export class AgentService {
         if (chat && chat.firstUserMessage) {
           const firstMsg = chat.firstUserMessage;
           chat.firstUserMessage = "";
-          const isNamed = await hasCustomTitle(sessionId, chat.projectPath);
-          if (!isNamed) {
+          // Naming is post-run metadata work: it must not keep the host busy after
+          // the UI receives exit, or turn a completed model run into a failed one.
+          void hasCustomTitle(sessionId, chat.projectPath).then(isNamed => {
+            if (isNamed) return;
             const title = firstMsg.length > 15 ? firstMsg.slice(0, 15) + "…" : firstMsg;
-              void renameSession(sessionId, title, chat.projectPath).catch((e) => {
-                console.warn(`[agent] 自动命名未落盘：session=${sessionId}`, e);
-              });
-          }
+            return renameSession(sessionId, title, chat.projectPath);
+          }).catch(e => { console.warn(`[agent] 自动命名未落盘：session=${sessionId}`, e); });
         }
 
         // ── learn 分级触发（期3）：回合结束检查累计工具调用数。
         //    缓存中性：系统消息为会话尾部追加，前缀不变，缓存命中不受损 ──
-        if (chat) this.maybeInjectLearnHint(chat);
+        if (chat && pr.outcome === "completed") this.maybeInjectLearnHint(chat);
+      } else {
+        // A prompt intercepted by an extension can resolve without starting an agent run.
+        // Release the UI without inventing a completed outcome.
+        broadcast("agent:exit", { runId: chatId, sessionId, code: 0 });
       }
     } catch (err: unknown) {
       const msg = normalizeApiError(err);
@@ -1092,11 +1111,13 @@ export class AgentService {
       }
       // Pi 压缩进行中拒绝新 prompt(user 消息不落盘,前端无响应)→ 明确提示可重试
       const compactionBlocked = raw.toLowerCase().includes("compaction");
-      broadcast("agent:stream", {
+      emitEvent({
         type: "error", sessionId, chatId,
         message: compactionBlocked ? "正在整理上下文，请稍候再试" : msg,
         canRetry: compactionBlocked,
       });
+      emitEvent({ type: "turn_end", sessionId, chatId,
+        outcome: promptAbortSignal?.aborted || classifyApiError(raw).code === "stopped" ? "cancelled" : "failed" });
       broadcast("agent:exit", { runId: chatId, sessionId, code: -1 });
       // 错误/超时/中断回合也刷新使用率——否则 ctxPct 停留旧值,EM 弹窗可能漏触发
       // (error 回合无 usage → getContextUsage 估算,至少让前端看到当前口径)
@@ -1113,6 +1134,7 @@ export class AgentService {
       }, 500);
     } finally {
       unsub();
+      if (chat) chat.waitingForUser = false;
       this.activePromptSessions.delete(sessionId);
       // 输出中跳过了模型重绑(避免打断回合)的会话:回合结束(空闲)补一次刷新——
       // 这样改窗口/参数在会话空闲后自动生效,不用等下次保存/重启
@@ -1145,10 +1167,14 @@ export class AgentService {
       const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
       console.error(`[agent] 回合启动失败(未预期) chatId=${chatId} sessionId=${sessionId}:`, raw);
       this.activePromptSessions.delete(sessionId);
-      broadcast("agent:stream", {
-        type: "error", sessionId, chatId,
-        message: "请求未能成功启动，请重试", canRetry: true,
-      });
+      const failureEvents: PiChatEvent[] = [
+        { type: "error", sessionId, chatId, message: "请求未能成功启动，请重试", canRetry: true },
+        { type: "turn_end", sessionId, chatId, outcome: chat?.abortController.signal.aborted ? "cancelled" : "failed" },
+      ];
+      for (const event of failureEvents) {
+        const sent = broadcastEvent("agent:stream", event);
+        this.bufferEvent(sessionId, event, sent.sequence);
+      }
       broadcast("agent:exit", { runId: chatId, sessionId, code: -1 });
     });
     if (chat) {
@@ -1987,6 +2013,7 @@ export class AgentService {
                 canUseTool,
                 permissionMode: modeForCreation,
                 executionOwner: resumeSessionId,
+                onUiPrompt: (waiting, manager) => this.onExtensionPrompt(resumeSessionId, waiting, manager),
                 getPermissionMode: () => readCache(resolveParentSessionId(resumeSessionId))?.permissionMode,
                 onExtensionError: (error) => broadcast("pi-extension:error", error),
                 onShellExit: shellExitInject,
@@ -2004,6 +2031,7 @@ export class AgentService {
             canUseTool,
             permissionMode: modeForCreation,
             executionOwner: newSessionId,
+            onUiPrompt: (waiting, manager) => this.onExtensionPrompt(newSessionId, waiting, manager),
             getPermissionMode: () => readCache(resolveParentSessionId(newSessionId))?.permissionMode,
             onExtensionError: (error) => broadcast("pi-extension:error", error),
             onShellExit: shellExitInject,
@@ -2150,12 +2178,17 @@ export class AgentService {
    *    复位 isCompacting，压缩挂死时点「停止」也能把 abort 传进去，不会变成新的卡死路径。
    *  - sdkIdle 只用于日志/排查，不参与判定（它的取值语义见 SDK agent-session 的 isIdle：
    *    无运行中回合且无压缩）。 */
-  getBusyState(sessionId: string): { busy: boolean; sdkIdle: boolean } {
+  getBusyState(sessionId: string): import("../../shared/agent-status").AgentBusyState {
     const chat = this.findActiveChat(sessionId);
     return {
       busy: this.isSessionRunning(sessionId) || chat?.session?.isCompacting === true,
+      running: this.isSessionRunning(sessionId),
       // 会话未加载（无活实例）时取真：主进程没有它的 SDK 会话＝必然空闲。该字段不进判定，取值不影响行为
       sdkIdle: chat?.session?.isIdle ?? true,
+      chatId: chat?.chatId,
+      compacting: chat?.session?.isCompacting === true,
+      waiting: chat?.waitingForUser === true,
+      pendingAsks: getPendingAskSnapshots(chat?.sessionId ?? sessionId),
     };
   }
 
@@ -2206,7 +2239,9 @@ export class AgentService {
   private async applySessionModel(chat: ActiveChat, model: Model<any>, modelName: string): Promise<void> {
     await chat.session!.setModel(model as any);
     chat.currentModel = modelName;
-    broadcast("agent:model-changed", { sessionId: chat.sessionId, model: modelName });
+    chat.provider = model.provider;
+    writeCache(chat.sessionId, { provider: model.provider, model: modelName });
+    broadcast("agent:model-changed", { sessionId: chat.sessionId, model: modelName, provider: model.provider });
     // SDK 切模型时已按全局默认推导过等级(可能把 max 压成 off)。
     // 用本会话用户选过的等级恢复,并回传实际生效值
     if (chat.thinkingLevel) this.applyThinkingLevel(chat, chat.thinkingLevel);
@@ -2243,6 +2278,10 @@ export class AgentService {
    *  模型定义在会话创建时绑定（sendMessage 对已有会话直接复用 session），配置改动（能力声明/模型列表）
    *  对已开会话默认不生效——这里按会话当前模型名重新解析并 setModel，使改动对新老会话都即时生效。
    *  输出中的会话跳过：避免打断当前回合，该会话下次发消息前仍用旧对象。 */
+  hasActiveAutomaticRun(): boolean {
+    return [...this.activeChats.values()].some(chat => chat.session?.model?.api === "pi-virtual" && chat.session.model.id === AUTO_MODEL_ID && this.activePromptSessions.has(chat.sessionId));
+  }
+
   async refreshActiveSessionsModel(): Promise<void> {
     const { getModelRuntime } = await import("./pi-init");
     await getModelRuntime(this.store);
@@ -2261,7 +2300,8 @@ export class AgentService {
         console.log(`[agent] 刷新会话模型跳过 chat=${chat.chatId}（无模型可解析）`);
         continue;
       }
-      const model = await this.resolveModelByName(modelName, providerId);
+      let model = await this.resolveModelByName(modelName, providerId);
+      if (!model && modelName === AUTO_MODEL_ID) model = await getActiveModel(this.store);
       if (!model) {
         console.log(`[agent] 刷新会话模型失败: 运行时查不到 ${modelName}`);
         continue;
@@ -2280,7 +2320,7 @@ export class AgentService {
         continue;
       }
       console.log(`[agent] 会话 ${chat.chatId} 重新绑定模型 ${modelName} 窗口=${model.contextWindow}`);
-      await this.applySessionModel(chat, model, modelName);
+      await this.applySessionModel(chat, model, modelName === AUTO_MODEL_ID ? model.id : modelName);
     }
   }
 
@@ -2462,17 +2502,28 @@ export class AgentService {
 
 
   async killChat(chatId: string): Promise<void> {
+    const closing = this.closingChats.get(chatId);
+    if (closing) return closing;
     const chat = this.activeChats.get(chatId);
-    if (chat) {
-      chat.abortController.abort();
-      chat.session?.abort().catch(() => {});
+    if (!chat) return;
+    if (this.mutatingSessions.has(chat.sessionId)) throw new Error("会话正在处理另一项操作，请稍后重试");
+    this.mutatingSessions.add(chat.sessionId);
+    const work = (async () => {
+      // Callers may delete the transcript after closing. Only confirm closure once
+      // preflight, abort and final SDK writes have actually settled.
+      const stopped = await this.abort(chatId, { clearQueue: true });
+      if (stopped.stopTimedOut) throw new Error("会话尚未停止，已保留会话，请稍后重试");
       this.activeChats.delete(chatId);
       this.cancelReclaim(chat.sessionId);
       if (chat.session) await disposePiSession(chat.session);
       clearPendingAsks(chat.sessionId);
-      // 会话关闭广播:前端会话列表状态点刷新(激活→未激活)
       broadcast("agent:chat-closed", { sessionId: chat.sessionId });
-    }
+    })().finally(() => {
+      this.closingChats.delete(chatId);
+      this.mutatingSessions.delete(chat.sessionId);
+    });
+    this.closingChats.set(chatId, work);
+    return work;
   }
 
   /** 按 sessionId 立即结束会话(右键「结束会话」,用户明确点击不做延迟) */
@@ -2512,7 +2563,9 @@ export class AgentService {
   private finishReclaim(sessionId: string): void {
     this.cancelReclaim(sessionId);
     const chat = this.findActiveChat(sessionId);
-    if (chat) void this.killChat(chat.chatId);
+    if (chat) void this.killChat(chat.chatId).catch(error => {
+      console.warn(`[agent] 延后回收未完成，保留会话：session=${sessionId}`, error);
+    });
   }
 
   onSessionRenamed(sessionId: string): void {
@@ -2715,6 +2768,7 @@ export class AgentService {
     // 插话 = 软打断：Mint 响应新消息,运行中的子 Agent 继续后台执行（对齐 cc 实测行为）
     const chat = this.findActiveChat(sessionId);
     if (!chat?.session) return;
+    if (this.closingChats.has(chat.chatId)) throw new Error("会话正在关闭，请稍后重试");
     // 会话实际空闲时 steer 只入队不落盘(Pi agent core 的 steering 队列仅在回合循环内消费,
     // 空闲入队永不投递→"消息发出去了但 SDK 没落盘没响应")→ 改走正常发送路径
     if (!chat.session.isStreaming) {
@@ -2748,10 +2802,30 @@ export class AgentService {
    */
   injectSystemMessage(sessionId: string, text: string, kind: SystemMessageKind = "delegation", opts?: { triggerTurn?: boolean }): void {
     const chat = this.findActiveChat(sessionId);
-    if (!chat?.session) return;
+    if (!chat?.session || this.closingChats.has(chat.chatId)) return;
     // content 保留 [系统消息] 前缀(模型侧识别);结构身份走 customType/kind(JSONL/事件/前端)
     // 第二段按 kind 取标签——非委派消息不该顶着「Agent执行结果」抬头(单一来源见 SYSTEM_MESSAGE_LABELS)
     const payload = systemMessage(kind, `[系统消息]-[${SYSTEM_MESSAGE_LABELS[kind]}]\n${text}`);
+    if (opts?.triggerTurn) {
+      if (this.activePromptSessions.has(chat.sessionId)) {
+        if (chat.session.isStreaming) {
+          // The existing bridge owns this run; SDK queues the message into that same run.
+          void chat.session.sendCustomMessage(payload, { triggerTurn: true }).catch(e => {
+            console.error("[agent] queued system message failed:", e);
+          });
+        } else {
+          // Settlement/title work may still own the prompt registration. Start the next
+          // bridge only after its finally block releases it, avoiding two owners of one run.
+          const signal = chat.abortController.signal;
+          void chat.promptDone?.then(() => {
+            if (!signal.aborted && this.findActiveChat(sessionId) === chat) this.injectSystemMessage(sessionId, text, kind, opts);
+          });
+        }
+      } else {
+        this.launchPrompt(chat.session, chat.sessionId, chat.chatId, "", chat, undefined, payload);
+      }
+      return;
+    }
     // 一次性事件桥:sendCustomMessage 的 message_start/end 事件同步触发,
     // 广播到前端(custom_event);无回合,广播完即退订
     const unsub = chat.session.subscribe((event: AgentSessionEvent) => {
@@ -2768,13 +2842,7 @@ export class AgentService {
             this.bufferEvent(sessionId, ev, sent.sequence);
           },
           getSession: () => chat.session,
-          // triggerTurn: true 的汇总回合结束(agent_end → turn_end)时广播 agent:exit——
-          // 否则前端 busy 残留(打断按钮卡住),且后续消息误走 steer 路径发送失败
-          setPendingResult: (ev) => {
-            if (ev.type === "turn_end" && opts?.triggerTurn) {
-              broadcast("agent:exit", { runId: chat.chatId, sessionId, code: 0 });
-            }
-          },
+          setPendingResult: () => {},
         });
       } catch (e) {
         console.error("[agent] system message bridge error:", e);
@@ -2896,6 +2964,7 @@ export class AgentService {
             });
           }
           // aborted(用户中止压缩):不广播错误——按钮状态即反馈,静默收尾
+          broadcast("agent:stream", { type: "compaction_finished", sessionId, chatId: chat.chatId });
         }
       } catch (e) {
         console.error("[agent] compact bridge error:", e);

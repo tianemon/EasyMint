@@ -5,6 +5,7 @@ import { useStatusStore } from "../stores/status-store";
 import { useTabStore } from "../stores/tab-store";
 import { useSettingsStore } from "../stores/settings-store";
 import { useThemeStore } from "../stores/theme-store";
+import { useAskStore } from "../stores/ask-store";
 import { ModelGlyph } from "./ModelGlyph";
 
 /** 旧的状态栏符号动画：字符序列顺序播放 → 端点停顿 → 倒序播放 → 停顿，循环。
@@ -32,15 +33,23 @@ function buildShimmerStyle(durationSec: number): CSSProperties {
  * 独立的状态栏——从 status-store 读取，密集更新时只重渲染自己，不牵连 ChatPanel/消息列表。
  * busy 从 tab-store 读取（主会话的 runningSessions）。
  * 常驻活跃动画已移至输入卡片流光(OrbitGlow/SlideGlow/BreatheGlow canvas 组件);
- * 符号动画与状态文本同现同消:有状态信号(busy && text)时符号+文本一起出现,信号结束一起消失。
+ * 符号动画与状态文本同现同消:运行或交互等待时显示状态，回合结束结果短暂保留到 outcome 信号过期。
  */
 export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | null {
   useUiLocale();
   // 按会话读状态信号(多 tab 各自显示自己的状态,不穿透)
   const session = useStatusStore((s) => s.bySession[sessionId]);
-  const text = session?.signals ? [...session.signals].sort((a, b) => b.seq - a.seq)[0]?.text ?? "" : "";
   const summarizing = useStatusStore((s) => s.bySession[sessionId]?.summarizing ?? false);
   const busy = useTabStore((s) => s.runningSessions.has(sessionId));
+  const asking = useAskStore(s => Object.values(s.asks).some(ask => ask.sessionId === sessionId));
+  const signals = [...(session?.signals ?? [])].sort((a, b) => b.seq - a.seq);
+  const current = signals.find(signal => signal.id === "stopping") ?? signals.find(signal => signal.id === "dialog") ??
+    (busy ? signals.find(signal => signal.id === "compact" || signal.id === "summary") ??
+      signals.find(signal => signal.id === "retry") ?? signals.find(signal => signal.id.startsWith("tool:")) ??
+      signals.find(signal => signal.id !== "outcome")
+      : signals.find(signal => signal.id === "error") ?? signals.find(signal => signal.id === "outcome"));
+  const waiting = current?.id !== "stopping" && (asking || current?.id === "dialog");
+  const text = waiting ? uiText("pi.waitingUser") : current?.text ?? "";
   // 状态文本样式配置:单色(solid,独立颜色)/流光(shimmer,启用组色彩注入 --shimmer-1..5)
   const statusTextStyle = useSettingsStore((s) => s.statusTextStyle);
   const statusTextGroupsLight = useSettingsStore((s) => s.statusTextGroupsLight);
@@ -69,9 +78,9 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
     }
   }, [statusTextStyle, shimmerColors, statusColor]);
 
-  // 状态图标与状态文本同现同消:有状态信号(busy && text)时一起出现,信号结束一起消失
+  // 等待用户和结束结果也显示；空闲的旧工具进度不显示。
   // （变量名沿用 showSymbols:该位置原本放字符符号动画，现由 ModelGlyph 占这个位置）
-  const showSymbols = busy && !!text;
+  const showSymbols = !!text && (busy || waiting || current?.id === "outcome" || current?.id === "error" || current?.id === "stopping");
   /* 旧字符符号动画的帧推进（已停用，保留备查——恢复时同时把上方常量与 react import 解开）
   const [symIdx, setSymIdx] = useState(0);
   const idxRef = useRef(0);
@@ -116,7 +125,7 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
   const shimmerStyle = buildShimmerStyle(shimmerDuration);
 
   // 文本样式:solid 单色(statusColor,独立配置)/shimmer 流光(shimmerStyle 变量驱动)
-  const textStyle: CSSProperties = statusTextStyle === "solid"
+  const textStyle: CSSProperties = statusTextStyle === "solid" || !busy || waiting
     ? { color: statusColor }
     : shimmerStyle;
 
@@ -127,7 +136,7 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
   return (
     <>
       {showSymbols && (
-        <div className="statusbar">
+        <div className="statusbar" role="status">
           {/* 状态图标（动态模型图标,固定宽度防挤压文本横跳）+ 状态文本,一同出现一同消失。
               图标只在流光模式下变色：颜色循环靠类 .status-glyph-shimmer，内联 style 只传时长变量。
               不要在这里铺 textStyle——流光模式的 shimmerStyle 自带 animation（文字扫光），
@@ -137,7 +146,7 @@ export function StatusBar({ sessionId }: { sessionId: string }): JSX.Element | n
             className={`w-[1.25em] inline-flex items-center justify-center shrink-0${statusTextStyle === "shimmer" ? " status-glyph-shimmer" : ""}`}
             style={statusTextStyle === "shimmer" ? ({ "--glyph-shimmer-dur": `${glyphShimmerDuration}s` } as CSSProperties) : { color: statusColor }}
           >
-            <ModelGlyph animated />
+            <ModelGlyph animated={busy && !waiting} />
           </span>
           <span className="text-xs font-medium" style={textStyle}>{appText(text)}</span>
         </div>

@@ -439,7 +439,15 @@ async function executeAndCollect(
   });
 
   try {
-    await session.prompt(task);
+    if (!opts.signal?.aborted) await session.prompt(task, {
+      // Abort during asynchronous SDK auth/extensions preparation must also stop
+      // the run which starts after that preparation (session.abort sees idle before it).
+      preflightResult: accepted => {
+        if (accepted && opts.signal?.aborted) queueMicrotask(() => {
+          void session.abort().catch(error => console.warn("[task] 预处理后补中止失败:", error));
+        });
+      },
+    });
     console.log(`[task] subagent prompt resolved idx=${progress.index} aborted=${opts.signal?.aborted ?? false}`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -570,7 +578,9 @@ export async function runSubagents(
     parallelResult = await mapWithConcurrencyLimit(
       runOpts,
       concurrency,
-      async (o) => runSingleSubagent(o.subagentOpts),
+      async (o, _index, signal) => runSingleSubagent({ ...o.subagentOpts,
+        signal: AbortSignal.any([o.subagentOpts.signal, signal]),
+      }),
       record.abortController.signal,
     );
   } catch (e) {

@@ -227,7 +227,7 @@ function isReadTool(name: string): boolean {
 }
 
 function isWriteTool(name: string): boolean {
-  return name === "write" || name === "edit" || name === "notebookedit";
+  return name === "write" || name === "edit" || name === "notebookedit" || name === "generate_image";
 }
 
 function isShellTool(name: string): boolean {

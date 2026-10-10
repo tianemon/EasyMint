@@ -309,6 +309,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     restore: () => ipcRenderer.invoke("tab:restore") as Promise<{ tabs: Array<{ id: string; type: string; title: string; titleKey?: string; filePath?: string; sessionId?: string; isDesigner?: boolean; mdView?: "preview" | "source" }>; activeTabId: string | null } | null>,
   },
   agent: {
+    nativeAiModels: () => ipcRenderer.invoke("agent:nativeAiModels"),
     runWorker: (projectPath: string, prompt: string) =>
       ipcRenderer.invoke("agent:runWorker", { projectPath, prompt }),
     sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string; tabId?: string }) =>
@@ -362,7 +363,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     setModel: (sessionId: string, model: string, provider?: string) => ipcRenderer.invoke("agent:setModel", { sessionId, model, provider }) as Promise<void>,
     chatStatus: (sessionId: string) => ipcRenderer.invoke("agent:chatStatus", { sessionId }),
     /** 忙碌态兜底：busy=主进程登记的占用态（唯一判据），sdkIdle 仅供日志排查 */
-    busyState: (sessionId: string) => ipcRenderer.invoke("agent:busyState", { sessionId }) as Promise<{ busy: boolean; sdkIdle: boolean }>,
+    busyState: (sessionId: string) => ipcRenderer.invoke("agent:busyState", { sessionId }) as Promise<import("../shared/agent-status").AgentBusyState>,
     getBufferedStream: (sessionId: string) => ipcRenderer.invoke("agent:getBufferedStream", { sessionId }) as Promise<unknown[]>,
     killChat: (chatId: string) => ipcRenderer.invoke("agent:killChat", { chatId }) as Promise<void>,
     killSession: (sessionId: string) => ipcRenderer.invoke("agent:kill-session", { sessionId }) as Promise<void>,
@@ -473,8 +474,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:session-renamed", handler);
       return () => ipcRenderer.removeListener("agent:session-renamed", handler);
     },
-    onModelChanged: (callback: (data: { sessionId: string; model: string }) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string; model: string }) => callback(data);
+    onModelChanged: (callback: (data: { sessionId: string; model: string; provider?: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { sessionId: string; model: string; provider?: string }) => callback(data);
       ipcRenderer.on("agent:model-changed", handler);
       return () => ipcRenderer.removeListener("agent:model-changed", handler);
     },

@@ -9,6 +9,7 @@ export interface NestedToolEvent {
   nestedPhase?: "start" | "update" | "end";
   isError?: boolean;
   content?: string;
+  durationMs?: number;
 }
 
 /** Provisional live record. Pi's persisted outer result supplies duration and completeness. */
@@ -26,6 +27,7 @@ export function updateNestedCalls(current: NestedToolCalls | undefined, event: N
   }
   if (call && event.nestedPhase === "end") {
     call.status = event.isError ? "error" : "ok";
+    if (event.durationMs !== undefined) call.durationMs = event.durationMs;
     if (event.isError) call.error = event.content?.slice(0, 500);
   }
   return { calls, complete: false };

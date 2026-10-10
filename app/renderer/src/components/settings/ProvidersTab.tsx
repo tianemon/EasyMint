@@ -1,3 +1,4 @@
+import { NativeAiSettings } from "./NativeAiSettings";
 import { thinkingLevelOptions } from "../../lib/thinking-options";
 import { uiText, useUiLocale } from "../../lib/i18n";
 import { useEffect, useState } from "react";
@@ -182,6 +183,7 @@ export function ProvidersTab(): JSX.Element {
       <ChatThinkingLevelSection />
       <ChatPermissionModeSection />
       <BuiltinToolsSection />
+      <NativeAiSettings />
     </div>
   );
 }

@@ -111,6 +111,7 @@ export async function executeForeground(
     const errDec = createCodingAwareDecoder();
     let output = "";
     let errOutput = "";
+    let finished = false;
     let timedOut = false;
     const timer = timeoutSec
       ? setTimeout(() => {
@@ -146,16 +147,21 @@ export async function executeForeground(
       pendingDelta += chunk;
       if (!deltaTimer) deltaTimer = setTimeout(flushDelta, 150);
     };
-    child.stdout?.on("data", (c: Buffer) => { const s = outAnsi.feed(outDec.feed(c)); output += s; emitDelta(s); });
-    child.stderr?.on("data", (c: Buffer) => { const s = errAnsi.feed(errDec.feed(c)); errOutput += s; emitDelta(s); });
+    child.stdout?.on("data", (c: Buffer) => { if (finished) return; const s = outAnsi.feed(outDec.feed(c)); output += s; emitDelta(s); });
+    child.stderr?.on("data", (c: Buffer) => { if (finished) return; const s = errAnsi.feed(errDec.feed(c)); errOutput += s; emitDelta(s); });
     child.on("error", (err) => {
+      if (finished) return;
+      finished = true;
       untrackChild(child);
       if (timer) clearTimeout(timer);
       flushDelta();
       if (typeof command !== "string") void command.release?.();
       reject(new Error(`bash 执行失败: ${err.message}`));
     });
-    child.on("exit", (code) => {
+    // exit can precede drained stdio: https://nodejs.org/api/child_process.html#event-close
+    child.on("close", (code) => {
+      if (finished) return;
+      finished = true;
       untrackChild(child);
       if (timer) clearTimeout(timer);
       flushDelta();

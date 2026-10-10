@@ -16,6 +16,12 @@ export interface PiChatEvent {
   chatId?: string;
   blocks?: ChatBlock[];
   partial?: boolean;
+  imagePath?: string;
+  durationMs?: number;
+  provider?: string;
+  model?: string;
+  outcome?: "completed" | "cancelled" | "failed";
+  waiting?: boolean;
   toolCallId?: string;
   parentToolCallId?: string;
   nestedPhase?: "start" | "update" | "end";
@@ -76,6 +82,9 @@ interface ChatBlock {
 
 interface AssistantMessageLike {
   role: "assistant";
+  durationMs?: number;
+  provider?: string;
+  model?: string;
   content: Array<{ type: string; text?: string; id?: string; name?: string; input?: Record<string, unknown>; arguments?: Record<string, unknown>; thinking?: string; content?: unknown }>;
   /** Pi 归一化 usage（input 为未缓存输入；cacheRead/cacheWrite 缓存读/写——磁盘统计同源，见 getSessionStats） */
   usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number };
@@ -223,7 +232,7 @@ export function createMessageEntryTracker(opts: {
 
 interface BridgeCallbacks {
   onEvent: (event: PiChatEvent) => void;
-  getSession: () => { getLastAssistantText(): string | undefined } | null;
+  getSession: () => { getLastAssistantText(): string | undefined; messages?: readonly { role: string; stopReason?: string }[] } | null;
   setPendingResult: (result: PiChatEvent) => void;
 }
 
@@ -232,11 +241,11 @@ export function bridgeSessionEvents(
   callbacks: BridgeCallbacks,
 ): void {
   if ("parentToolCallId" in event && event.parentToolCallId && event.type.startsWith("tool_execution_")) {
-    const nested = event as { type: string; parentToolCallId: string; toolCallId: string; toolName: string; args?: Record<string, unknown>; isError?: boolean; result?: unknown };
+    const nested = event as { type: string; parentToolCallId: string; toolCallId: string; toolName: string; args?: Record<string, unknown>; isError?: boolean; result?: unknown; durationMs?: number };
     callbacks.onEvent({ type: "nested_tool", sessionId: "", parentToolCallId: nested.parentToolCallId,
       toolCallId: nested.toolCallId, toolName: nested.toolName, toolArgs: nested.args,
       nestedPhase: nested.type === "tool_execution_start" ? "start" : nested.type === "tool_execution_end" ? "end" : "update",
-      isError: nested.isError, content: nested.isError ? extractPartialText(nested.result as never) : undefined });
+      durationMs: nested.durationMs, isError: nested.isError, content: nested.isError ? extractPartialText(nested.result as never) : undefined });
     return;
   }
   switch (event.type) {
@@ -280,6 +289,8 @@ export function bridgeSessionEvents(
             presentation: result.presentation,
             isError: !!(msg as { isError?: boolean }).isError,
             nestedCalls: (msg as { nestedCalls?: NestedToolCalls }).nestedCalls,
+            durationMs: (msg as { durationMs?: number }).durationMs,
+            imagePath: (msg as { details?: { generatedImagePath?: string } }).details?.generatedImagePath,
           });
         } else {
           const customType = (msg as { customType?: string }).customType;
@@ -326,6 +337,7 @@ export function bridgeSessionEvents(
           timestamp: (msg as { timestamp?: number }).timestamp,
           // 回合完整消息携带 usage——每条回复的 token/缓存统计（前端挂消息渲染）
           usage: extractUsage(msg),
+          durationMs: msg.durationMs, provider: msg.provider, model: msg.model,
         });
       }
       break;
@@ -347,10 +359,16 @@ export function bridgeSessionEvents(
           canRetry: true,
         });
       }
-      callbacks.setPendingResult({ type: "turn_end", sessionId: "", usage: { inputTokens: 0, outputTokens: 0 } });
+
       break;
     }
 
+    case "agent_settled": {
+      const last = callbacks.getSession()?.messages?.filter(message => message.role === "assistant").at(-1);
+      callbacks.setPendingResult({ type: "turn_end", sessionId: "",
+        outcome: event.aborted || last?.stopReason === "aborted" ? "cancelled" : last?.stopReason === "error" ? "failed" : "completed" });
+      break;
+    }
     case "tool_execution_start": {
       // 工具开始执行 → 状态栏显示工具名
       callbacks.onEvent({ type: "tool_progress", sessionId: "", toolCallId: event.toolCallId, toolName: event.toolName, toolArgs: event.args });
@@ -372,7 +390,7 @@ export function bridgeSessionEvents(
 
     case "tool_execution_end": {
       // 工具执行结束 → 通知前端清除状态栏工具名（否则残留「调用中」直到下个事件覆盖）
-      callbacks.onEvent({ type: "tool_done", sessionId: "", toolCallId: event.toolCallId, toolName: event.toolName });
+      callbacks.onEvent({ type: "tool_done", sessionId: "", toolCallId: event.toolCallId, toolName: event.toolName, durationMs: event.durationMs });
       break;
     }
 
@@ -397,7 +415,8 @@ export function bridgeSessionEvents(
           message: event.errorMessage || "上下文压缩失败，请稍后重试", canRetry: true, operation: "compaction",
         });
       }
-      // aborted(中止):不广播——清蒙版由上层 context-summarizing done 兜底
+      // Every automatic/manual compaction must clear its UI lifetime, including cancellation.
+      callbacks.onEvent({ type: "compaction_finished", sessionId: "" });
       break;
     }
 

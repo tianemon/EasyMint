@@ -8,6 +8,7 @@ import { NativeConfig } from "./native-config";
 import { NativeConfigStorage, atomicWrite, encode } from "./native-config-storage";
 import { getProviderStaticModels } from "./pi-init-static";
 import { apiKeysFromDisk } from "./em-settings-schema";
+import { trackRoutingSession } from "./auto-model-routing";
 
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir() } }));
 const dirs: string[] = [];
@@ -26,6 +27,58 @@ const custom = {
 afterEach(() => { vi.restoreAllMocks(); for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true }); });
 
 describe("pi-native configuration", () => {
+  it("persists native AI routing without copying virtual models into models.json", async () => {
+    const { store, file } = fixture();
+    atomicWrite(file("models"), encode({ providers: { local: {
+      api: "openai-completions", baseUrl: "http://example.invalid", apiKey: "fixture",
+      models: [{ id: "strong", contextWindow: 10000, maxTokens: 2000 }, { id: "fast", contextWindow: 10000, maxTokens: 2000 }],
+    } } }));
+    const repo = await NativeConfig.create(store);
+    const config = { autoRouting: { planning: { provider: "local", model: "strong" }, execution: { provider: "local", model: "fast" } } };
+    await repo.setNativeAi(config);
+    expect(store.getSettings().nativeAi).toEqual(config);
+    expect((await repo.getRuntime()).getModel("local", "easymint-auto")?.api).toBe("pi-virtual");
+    expect(read(file("models")).providers.local.models.map((model: { id: string }) => model.id)).toEqual(["strong", "fast"]);
+    const reopened = await NativeConfig.create(new Store(store.getDataDir()));
+    const runtime = await reopened.getRuntime();
+    expect(runtime.getModel("local", "easymint-auto")).toBeDefined();
+    const release = trackRoutingSession(runtime, { model: runtime.getModel("local", "easymint-auto"), isIdle: false });
+    await expect(reopened.setNativeAi({})).rejects.toThrow("run finishes");
+    expect(store.getSettings().nativeAi).toEqual(config);
+    release();
+    await reopened.setNativeAi({});
+    expect((await reopened.getRuntime()).getModel("local", "easymint-auto")).toBeUndefined();
+  });
+  it("rolls back files and virtual-model registration when the synchronous projection fails", async () => {
+    const { store, file } = fixture();
+    atomicWrite(file("models"), encode({ providers: { local: { api: "openai-completions", baseUrl: "http://example.invalid", apiKey: "fixture",
+      models: [{ id: "strong", contextWindow: 10000, maxTokens: 2000 }, { id: "fast", contextWindow: 10000, maxTokens: 2000 }] } } }));
+    const repo = await NativeConfig.create(store);
+    const config = { autoRouting: { planning: { provider: "local", model: "strong" }, execution: { provider: "local", model: "fast" } } };
+    await repo.setNativeAi(config);
+    const runtime = await repo.getRuntime();
+    vi.spyOn(runtime, "registerVirtualModel").mockImplementationOnce(() => { throw new Error("projection failure"); });
+    await expect(repo.setNativeAi({ autoRouting: { planning: config.autoRouting.planning, execution: config.autoRouting.planning } })).rejects.toThrow("projection failure");
+    expect(store.getSettings().nativeAi).toEqual(config);
+    expect(runtime.getModel("local", "easymint-auto")).toBeDefined();
+  });
+  it("rechecks a run that starts while configuration preparation is awaiting", async () => {
+    const { store, file } = fixture();
+    atomicWrite(file("models"), encode({ providers: { local: { api: "openai-completions", baseUrl: "http://example.invalid", apiKey: "fixture",
+      models: [{ id: "strong", contextWindow: 10000, maxTokens: 2000 }, { id: "fast", contextWindow: 10000, maxTokens: 2000 }] } } }));
+    const repo = await NativeConfig.create(store);
+    const config = { autoRouting: { planning: { provider: "local", model: "strong" }, execution: { provider: "local", model: "fast" } } };
+    await repo.setNativeAi(config);
+    let finish!: () => void, entered!: () => void, busy = false;
+    const gate = new Promise<void>(resolve => { finish = resolve; });
+    const ready = new Promise<void>(resolve => { entered = resolve; });
+    const refresh = repo.refresh.bind(repo);
+    vi.spyOn(repo, "refresh").mockImplementationOnce(async () => { entered(); await gate; return refresh(); });
+    const saving = repo.setNativeAi({}, () => { if (busy) throw new Error("run started during preparation"); });
+    await ready; busy = true; finish();
+    await expect(saving).rejects.toThrow("run started during preparation");
+    expect(store.getSettings().nativeAi).toEqual(config);
+  });
   it("migrates credentials, custom models and defaults once, with exact backups and duplicate selection", async () => {
     const id = [...getProviderStaticModels("deepseek").keys()][0]!;
     const builtin = { ...custom, id: "ds-active", presetId: "deepseek", model: id, models: [id], extraModels: [] };

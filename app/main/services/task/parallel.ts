@@ -57,6 +57,9 @@ export async function mapWithConcurrencyLimit<T, R>(
   try {
     await Promise.race([Promise.all(workers), firstErrorPromise]);
   } catch (error) {
+    // A failed batch owns its workers until their abort/cleanup completes. Rejecting
+    // early makes the caller report a terminal state while sibling work still runs.
+    await Promise.allSettled(workers);
     if (signal?.aborted) return { results, aborted: true };
     throw error;
   }

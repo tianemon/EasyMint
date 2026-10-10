@@ -30,7 +30,7 @@ export interface PricingEntry {
   timestamp?: string;
   /** model_change / usage 条目携带 */
   provider?: string;
-  message?: { role?: string; usage?: UsageLike };
+  message?: { role?: string; provider?: string; details?: { usageProvider?: string }; usage?: UsageLike };
   usage?: UsageLike;
 }
 
@@ -118,6 +118,8 @@ export function summarizeTimePricing(entries: Iterable<PricingEntry>): TimePrici
       if (entry.provider) provider = entry.provider;
       continue;
     }
+    // Virtual selections do not identify the billed provider; physical replies do.
+    if (entry.type === "message" && entry.message?.role === "assistant" && entry.message.provider) provider = entry.message.provider;
     // 计费条目：消息（assistant / toolResult 都可能带 usage）、用量条目（缓存预热等）
     // 与压缩/分支摘要 LLM 调用——口径对齐 SDK 的 getSessionStats（agent-session.js）
     const usage = entry.type === "message" ? entry.message?.usage : entry.usage;
@@ -125,7 +127,8 @@ export function summarizeTimePricing(entries: Iterable<PricingEntry>): TimePrici
     if (!cost) continue;
 
     // 用量条目自带 provider（与当前模型可能不同），以它为准
-    const turnProvider = (entry.type === "usage" ? entry.provider : undefined) ?? provider;
+    const toolProvider = entry.message?.role === "toolResult" ? entry.message.details?.usageProvider : undefined;
+    const turnProvider = (entry.type === "usage" ? entry.provider : undefined) ?? toolProvider ?? entry.message?.provider ?? provider;
     const factor = offPeakFactor(turnProvider);
     const at = entry.timestamp ? new Date(entry.timestamp) : null;
     const offPeak = factor < 1 && !!at && !Number.isNaN(at.getTime()) && isDeepSeekOffPeak(at);

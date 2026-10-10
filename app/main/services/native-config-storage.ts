@@ -139,7 +139,7 @@ export class NativeConfigStorage {
     for (const c of [...journal.changes].reverse()) if (readText(c.file) !== c.before) this.replace(c, true);
     fs.rmSync(this.journalPath, { force: true });
   }
-  async commit(values: Map<string, JsonObject>, label: string, originals?: Map<string, string | null>, textFiles = new Map<string, string>()): Promise<string | undefined> {
+  async commit(values: Map<string, JsonObject>, label: string, originals?: Map<string, string | null>, textFiles = new Map<string, string>(), afterWrite?: () => void): Promise<string | undefined> {
     const release = lockConfigDirectory(this.dataDir);
     try {
       this.assertReady();
@@ -168,6 +168,8 @@ export class NativeConfigStorage {
       atomicWrite(this.journalPath, encode(journal));
       try {
         for (const c of changes) this.replace(c);
+        // Synchronous host projections can change with the files before other work resumes.
+        afterWrite?.();
         fs.rmSync(this.journalPath);
         this.pruneBackups(backup);
         return backup;

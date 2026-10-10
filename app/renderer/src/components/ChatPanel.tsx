@@ -1,3 +1,4 @@
+import { applyPiRunStatus, clearPiRunSignals, restorePiRunStatus } from "../lib/pi-run-status";
 import { formatNumber } from "../lib/locale-format";
 import { uiText, useUiLocale, appText, appMessage } from "../lib/i18n";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from "react";
@@ -219,8 +220,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const [sessionLoading, setSessionLoading] = useState(false);
   // 缓存恢复的使用率暂存:消息加载完成后再应用(避免加载期间输入卡片显示旧进度误导)
   const pendingCtxRef = useRef<number | null>(null);
-  // 回合级错误时间戳:error 后 1s 内残留事件不重新设 busy(错误回合已结束)
-  const lastErrorAtRef = useRef(0);
+  // Prevent a remount snapshot from overwriting newer live events.
+  const statusRevisionRef = useRef(0);
   const ctxThresholdFiredRef = useRef(0); // 已按阈值触发过主动压缩（防止同轮重复触发）
   // 压缩弹窗「下次回复完触发」:回复结束(agent:exit)后重置阈值防重 → 重新弹窗走同样流程
   const rearmAfterExitRef = useRef(false);
@@ -685,7 +686,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   }, [existingSid]);
   const runningSessions = useTabStore((s) => s.runningSessions);
   const busy = runningSessions.has(sidRef.current);
-  const setBusy = (v: boolean) => { useTabStore.getState().setSessionRunning(sidRef.current, v); };
+  const setBusy = (v: boolean) => { busyRef.current = v; useTabStore.getState().setSessionRunning(sidRef.current, v); };
 
   // 新消息气泡触发(简化):回合输出完全结束(busy true→false)后,用户不在底部 → 「新消息」状态。
   // 流式中(用户滚离底部)由 awayFromBottom 驱动显示圆圈箭头(常驻)
@@ -1065,8 +1066,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         if (!(pendingFirstTurnRef.current && sidRef.current?.startsWith("__new_"))) return;
       }
       useAskStore.getState().setAsk(data);
+      statusRevisionRef.current++;
     });
     const offClosed = window.electronAPI.agent.onAskClosed((data) => {
+      if (useAskStore.getState().asks[data.requestId]?.sessionId === sidRef.current) statusRevisionRef.current++;
       useAskStore.getState().clearAsk(data.requestId);
     });
     return () => { offReq(); offClosed(); };
@@ -1402,11 +1405,32 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   useEffect(() => () => { if (droppedQueueTimerRef.current) clearTimeout(droppedQueueTimerRef.current); }, []);
 
   useEffect(() => {
+    if (!existingSid) return;
+    let cancelled = false;
+    void (async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const revision = statusRevisionRef.current;
+        const state = await window.electronAPI.agent.busyState(existingSid);
+        if (cancelled || sidRef.current !== existingSid) return;
+        if (statusRevisionRef.current !== revision) continue;
+        if (state.chatId) { currentChatRef.current = state.chatId; setCurrentRunId(state.chatId); }
+        setBusy(state.busy);
+        manualCompactingRef.current = state.compacting && !state.running;
+        restorePiRunStatus(existingSid, state);
+        return;
+      }
+      console.warn("[chat] 会话状态连续变化，保留实时事件状态");
+    })().catch(error => { console.error("[chat] 恢复会话状态失败:", error); });
+    return () => { cancelled = true; };
+  }, [existingSid]);
+
+  useEffect(() => {
     const unsub = window.electronAPI.agent.onStream((event: StreamEvent) => {
       if (event.source === "worker") return;
       // 用户消息由主进程确认后广播给其它终端。发送它的 tab 已做乐观追加，按 sourceTabId 跳过；
       // 其它窗口/手机发来的消息在这里补入，保证同一会话多终端一致。
       if (event.type === "user_message" && event.sessionId === sidRef.current) {
+        statusRevisionRef.current++;
         if (event.details?.sourceTabId === tabId) return;
         const messageId = typeof event.details?.messageId === "string" ? event.details.messageId : undefined;
         const existing = useChatStore.getState().messagesBySession[sidRef.current] || [];
@@ -1433,6 +1457,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         eventChatId: event.chatId,
         eventSessionId: event.sessionId,
       })) return;
+      if (["turn_start", "turn_end", "waiting_user", "compacting", "compaction_finished", "error"].includes(event.type)) statusRevisionRef.current++;
+      if (event.type === "waiting_user" || event.type === "turn_end") applyPiRunStatus(sidRef.current, event, stoppedRef.current);
       // 打断后:只丢弃被打断回合的残留帧;通知(新注入)正常渲染,新回合(turn_start)开始 → 恢复渲染。
       // (原实现 return 丢弃一切——打断通知/总结回合全被吞,磁盘有而 UI 无)
       // 但打断后 1.5s 内到的 turn_start 是**被打断回合自己的残留**(SDK 在回合内每个工具批次/续跑
@@ -1441,7 +1467,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         if (event.type === "turn_start") {
           if (abortedRunPendingRef.current || Date.now() - interruptAtRef.current < 1500) return;
           stoppedRef.current = false;
-        } else if (event.type !== "custom_event" && event.type !== "queue_dropped" && event.type !== "entry_appended") {
+        } else if (event.type !== "custom_event" && event.type !== "queue_dropped" && event.type !== "entry_appended" && event.type !== "compaction_finished") {
           // queue_dropped 放行:打断就是丢弃的触发者(session.abort 里先 clearQueue 再 abort),
           // 这条事件紧跟打断到达——被门卫丢掉就等于「丢弃提示永远不出现」
           // entry_appended 放行:重新生成后的提问即使立即打断也已落盘，气泡必须认领新条目 id。
@@ -1452,23 +1478,10 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         const cid = event.chatId || event.runId;
         if (cid) { currentChatRef.current = cid; setCurrentRunId(cid); }
       }
-      // error 后 1s 内的残留事件(tool_result/message_end 等)不重新设 busy——
-      // error 分支已清 busy(回合结束),残留事件会把按钮打回打断态;新回合 turn_start 除外。
-      // custom_event(系统消息通知)不设 busy:通知无回合,置 busy 后无 turn_end 可清(残留"等待模型响应")
-      // session_info_changed(会话改名回执)同理:自动命名发生在 agent:exit 之后,
-      // 回合已清 busy 才收到它——置 busy 就再无人清
-      // retry_state(自动重试态)同理:它只是状态显示事件，不携带回合边界——重试期间 busy 由 turn_start 置着，
-      // 本事件只负责换状态栏文本;走通用分支则打断取消后 SDK 补发的那条 auto_retry_end（那时回合已收尾）
-      // 会把 busy 打回去且无人再清
-      // queue_dropped(打断丢弃提示)同理:只描述队列，不携带回合边界——丢弃发生在打断之后(那时回合已收尾),
-      // 走通用分支会把 busy 打回去且无人再清(卡在「等待模型响应…」)
-      // entry_appended 也是落盘后的异步认领通知，可能晚于 agent_end/exit；不得重新置 busy。
-      if (event.type === "custom_event" || event.type === "session_info_changed" || event.type === "retry_state"
-        || event.type === "queue_dropped" || event.type === "entry_appended") {
-        // 通知/状态类事件仅改显示,不触碰 busy
-      } else if (event.type === "turn_start" || Date.now() - lastErrorAtRef.current > 1000) {
-        setBusy(true);
-      }
+      if (event.type !== "waiting_user" && event.type !== "turn_end") applyPiRunStatus(sidRef.current, event);
+      // Only an actual run boundary can start a run. Late content/tool/metadata
+      // events may still render, but cannot resurrect a settled or cancelled run.
+      if (event.type === "turn_start") setBusy(true);
       // 输出段块(assistant 消息)内容帧处理:无当前块 → 按消息对象创建时间戳插入新块,
       // 有当前块 → 全量替换内容(帧是累计全文快照)。块 piTs 固定于创建时刻,通知按
       // 各自 ts 插到块之间,UI 顺序 = jsonl 落盘顺序(不依赖广播到达顺序)
@@ -1480,7 +1493,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         // 仅实际文本输出时结束「思考中」;thinking 流式帧保持「思考中」活跃——
         // 思考块还在增长说明 Mint 仍在思考,若信号曾被 tool 等路径 pop,这里恢复
         if (hasText) {
-          useStatusStore.getState().popSignal(sidRef.current, "request");
+          if (busyRef.current) useStatusStore.getState().pushSignal(sidRef.current, "request", uiText("pi.responding"));
         } else if (hasThinking && busyRef.current) {
           useStatusStore.getState().pushSignal(sidRef.current, "request", uiText("ui.ChatPanel.thinking"));
         }
@@ -1498,6 +1511,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // Pi 新 assistant turn 开始 → 重置输出段块状态
       // (turn_start 不创建消息——磁盘上无空消息;首个内容帧才创建块)
       if (event.type === "turn_start") {
+        useStatusStore.getState().popSignal(sidRef.current, "outcome");
         // 重试退避等待结束(新一次尝试真跑起来了) → 清重试态:退避窗口已过,
         // 留着会让「正在重试 1/3（约 2 秒后）」挂到本次尝试结束(甚至重试成功后)
         useStatusStore.getState().popSignal(sidRef.current, "retry");
@@ -1522,8 +1536,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       if (event.type === "message" && Array.isArray(event.blocks)) {
         handleBlocks(event.blocks, event.timestamp ?? Date.now());
         // 回合完整消息（message_end，partial=false）携带 usage → 挂到本回合 AI 消息
-        if (!event.partial && event.usage && latestAiIdRef.current) {
-          useChatStore.getState().setMessageUsage(sidRef.current, latestAiIdRef.current, event.usage);
+        if (!event.partial && latestAiIdRef.current) {
+          useChatStore.getState().setMessageUsage(sidRef.current, latestAiIdRef.current, event.usage, { durationMs: event.durationMs, provider: event.provider, model: event.model });
         }
       }
       // entry_appended — 条目 id 回填(气泡 ↔ 会话条目 id 贯通):
@@ -1585,7 +1599,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         const resultEntry = {
           kind: "tool_result" as const,
           toolUseId: event.toolCallId,
-          nestedCalls: event.nestedCalls,
+          nestedCalls: event.nestedCalls, durationMs: event.durationMs, imagePath: event.imagePath,
           presentation: event.presentation,
           name: event.toolName,
           content: event.content ?? "",          isError: event.isError ?? false,
@@ -1615,11 +1629,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // compacted = 压缩完成：清除 compacting（蒙版消失）、
       // 并兜底清除 summarizing（防御轮转总结路径的残留）。压缩开始置 busy(compacting 事件
       // setSessionRunning(true))——此处必须恢复,否则空闲压缩后按钮卡"停止"态直到下条消息
-      if (event.type === "compacted") {
-        useStatusStore.getState().setCompacting(sidRef.current, false);
-        useStatusStore.getState().setSummarizing(sidRef.current, false);
-        useTabStore.getState().setSessionRunning(sidRef.current, false);
-        busyRef.current = false;
+      if (event.type === "compaction_finished") {
+        // Automatic compaction belongs to an active prompt; its end is not the end of that prompt.
+        if (manualCompactingRef.current) setBusy(false);
         manualCompactingRef.current = false;
         // 压缩后 Pi 重发的帧是摘要内容 → 作为新输出段块处理
         latestAiIdRef.current = 0;
@@ -1628,8 +1640,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       // (否则 SDK 错误回合 turn_start 设的 busy 残留,如打断抛 AbortError 后 Mint 无输出、按钮卡打断态);
       // 后续新回合 turn_start 会重新设 busy。插播错误信号 8s 后自动消失
       if (event.type === "error") {
-        lastErrorAtRef.current = Date.now();
-        busyRef.current = false; setBusy(false);
+        if (event.operation !== "compaction") setBusy(false);
         useStatusStore.getState().popSignal(sidRef.current, "request");
         // 清重试态:重试耗尽的最终失败会同时带来 error(错误卡)与 auto_retry_end(SDK 源码里
         // agent_end 先于 auto_retry_end),两条都清一遍,别让"正在重试"留在信号栈里等到下一回合冒出来
@@ -1688,7 +1699,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         if (!dup) {
           // 通知不开回合:仅当没有进行中的回合(无输出块)时恢复 idle——
           // 回合内到达的通知(用户消息触发的回合)保持 busy 不打断
-          if (!latestAiIdRef.current) setBusy(false);
+          // A notification may arrive while the model is waiting for its first byte.
+          // It carries no run boundary and must not clear the active prompt.
           // 按 Pi 落盘时间戳有序插入:通知插到其时间点之后的第一条消息前,
           // 与 jsonl 落盘顺序一致(广播到达顺序 ≠ 落盘顺序,不能 append)
           useChatStore.getState().insertUserMsgAt(sidRef.current, {
@@ -1712,18 +1724,21 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         return;
       }
       if (runId !== currentChatRef.current) return;
+      statusRevisionRef.current++;
       // 被打断的回合已退场 → 后续事件按新回合对待（防 stoppedRef 卡住把真正的
       // 后续回合全吞掉）；下面的 1.5s 过滤只管「不重复清理界面状态」
       abortedRunPendingRef.current = false;
       stoppedRef.current = false;
       if (pendingSendRef.current && !pendingSendRef.current.awaitingChatId) pendingSendRef.current = null;
       if (Date.now() - interruptAtRef.current < 1500) return;
+      clearPiRunSignals(sidRef.current);
       latestAiIdRef.current = 0;
       busyRef.current = false; setBusy(false);
       useStatusStore.getState().popSignal(sidRef.current, "request");
       // 重试信号同样不能留给下一回合:回合异常收尾(如 launchPrompt 的兜底 error/exit)时
       // auto_retry_end 可能不再到达,残留文本会在下次 busy 时冒出来
       useStatusStore.getState().popSignal(sidRef.current, "retry");
+      useStatusStore.getState().popSignal(sidRef.current, "dialog");
       useStatusStore.getState().popSignalsByPrefix(sidRef.current, "tool:");
       onActivity?.();
       if (rearmAfterExitRef.current) { rearmAfterExitRef.current = false; ctxThresholdFiredRef.current = 0; }
@@ -1807,10 +1822,11 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     });
     // 主进程侧模型切换（skill frontmatter model 字段触发）→ 会话级显示跟随；
     // 只更新本会话 chatModel（触发既有 effect 写 session-cache 持久化），不动全局默认模型
-    const unsubModel = window.electronAPI.agent.onModelChanged(({ sessionId: modelSid, model }) => {
+    const unsubModel = window.electronAPI.agent.onModelChanged(({ sessionId: modelSid, model, provider }) => {
       if (sidRef.current && sidRef.current !== modelSid) return;
       if (!sidRef.current && existingSid && modelSid !== existingSid) return;
-      if (model) setChatModel((prev) => (model !== prev ? model : prev));
+      if (provider) { chatProviderRef.current = provider; setChatProvider(provider); }
+      if (model) { chatModelRef.current = model; setChatModel((prev) => (model !== prev ? model : prev)); }
     });
     // 主进程回传实际生效的思考等级（切模型后 SDK 会按模型能力推导/clamp）→
     // 界面按真实值显示，避免"下拉显示最高、实际 off"
@@ -1965,8 +1981,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       console.warn(`[chat] 忙碌态兜底触发：主进程连续 ${BUSY_PROBE_CLEAR_STREAK} 次报会话空闲，已清理界面忙碌态（session=${sid} sdkIdle=${state.sdkIdle}）——若频繁出现，说明有事件在丢失`);
       busyRef.current = false;
       setBusy(false);
-      useStatusStore.getState().popSignal(sid, "request");
-      useStatusStore.getState().popSignalsByPrefix(sid, "tool:");
+      clearPiRunSignals(sid);
     };
     timer = setInterval(() => { void probe(); }, BUSY_PROBE_INTERVAL_MS);
     return stop;
@@ -2099,10 +2114,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   ) => {
     if (sidRef.current !== stoppedSid) return;
     if (result.stopTimedOut) {
+      useStatusStore.getState().popSignal(stoppedSid, "stopping");
       busyRef.current = true;
       setBusy(true);
       useStatusStore.getState().pushSignal(stoppedSid, "error", uiText("ui.ChatPanel.stoppingIsNotCompleteThisSessionIs"), 10000);
       return;
+    }
+    if (useStatusStore.getState().bySession[stoppedSid]?.signals.some(signal => signal.id === "stopping")) {
+      applyPiRunStatus(stoppedSid, { type: "turn_end", outcome: "cancelled" });
     }
     if (!result.rewound) return;
     const store = useChatStore.getState();
@@ -2233,6 +2252,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
       resolveReady,
     };
     pendingSendRef.current = pendingSend;
+    statusRevisionRef.current++;
+    if (!busyRef.current) applyPiRunStatus(sidRef.current, { type: "turn_start" });
     busyRef.current = true; setBusy(true); useStatusStore.getState().pushSignal(sidRef.current, "request", uiText("ui.ChatPanel.waitingForModel"));
     // 新会话首条消息窗口开启：onChatSession 回绑真实 sid 后关闭（见订阅处）
     if (!sendSessionId) pendingFirstTurnRef.current = true;
@@ -2690,6 +2711,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         setAttaches={setAttaches}
         onSend={sendText}
         onStop={() => {
+          statusRevisionRef.current++;
           stoppedRef.current = true;
           busyRef.current = false;
           interruptAtRef.current = Date.now();
@@ -2708,7 +2730,13 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
             if (pendingSend) pendingSend.abortIssued = true;
             void window.electronAPI.agent.abort(rid, { clearQueue: true, rewind: target.rewind })
               .then((result) => applyStopRewind(result, pendingSend?.sourceMsgId, stoppedSid, stopVersion))
-              .catch((e) => { console.error("[chat] 打断失败:", e); })
+              .catch((e) => {
+                console.error("[chat] 打断失败:", e);
+                if (sidRef.current !== stoppedSid) return;
+                useStatusStore.getState().popSignal(stoppedSid, "stopping");
+                setBusy(true);
+                useStatusStore.getState().pushSignal(stoppedSid, "error", uiText("ui.ChatPanel.stoppingIsNotCompleteThisSessionIs"), 10000);
+              })
               .finally(() => {
                 if (pendingSendRef.current !== pendingSend) return;
                 pendingSendRef.current = null;
@@ -2719,9 +2747,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
           setBusy(false);
           pendingCompactRef.current = null;
           abortedRunPendingRef.current = !!(rid || pendingSend); // 无 chatId 时回包后补 abort
-          useStatusStore.getState().popSignal(stoppedSid, "request");
-          useStatusStore.getState().popSignal(stoppedSid, "retry");
-          useStatusStore.getState().popSignalsByPrefix(stoppedSid, "tool:");
+          clearPiRunSignals(stoppedSid);
+          useStatusStore.getState().popSignal(stoppedSid, "outcome");
+          if (rid || pendingSend) useStatusStore.getState().pushSignal(stoppedSid, "stopping", uiText("pi.stopping"));
         }}
         onPaste={handlePaste}
         imgInputRef={imgInputRef}
@@ -3322,6 +3350,12 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
             ))}
             {/* 回合 usage：气泡内容区底部右对齐——贴内容右下，与 hover 复制工具条（气泡外）永不冲突。
                  口径：输入 = 未缓存 + 缓存读 + 缓存写（全部输入成本）；命中率 = 缓存读 / 全部输入 */}
+            {(msg.model || msg.durationMs !== undefined) && (
+              <div className="mt-1 text-right break-all text-[length:var(--text-2xs)] text-text-muted tabular-nums">
+                {msg.model ? `${msg.provider ? msg.provider + "/" : ""}${msg.model}` : ""}
+                {msg.durationMs !== undefined ? ` · ${(msg.durationMs / 1000).toFixed(1)}s` : ""}
+              </div>
+            )}
             {msg.usage && (() => {
               const total = (msg.usage.inputTokens || 0) + (msg.usage.cacheReadTokens || 0) + (msg.usage.cacheWriteTokens || 0);
               const read = msg.usage.cacheReadTokens || 0;

@@ -148,6 +148,17 @@ describe("summarizeTimePricing 逐轮折算", () => {
     expect(summary.adjustedUsd).toBe(1);
   });
 
+  it("uses the dispatched model and image provider rather than the virtual selection for discounts", () => {
+    const summary = summarizeTimePricing([
+      { type: "model_change", provider: "deepseek" },
+      { type: "message", timestamp: "2026-09-22T10:00:00Z", message: { role: "assistant", provider: "openai", usage: { cost: { total: 2 } } } },
+      { type: "message", timestamp: "2026-09-22T10:00:01Z", message: { role: "assistant", provider: "deepseek", usage: { cost: { total: 2 } } } },
+      { type: "message", timestamp: "2026-09-22T10:00:02Z", message: { role: "toolResult", details: { usageProvider: "openai" }, usage: { cost: { total: 2 } } } },
+    ]);
+    expect(summary.peakUsd).toBe(6);
+    expect(summary.adjustedUsd).toBe(5);
+  });
+
   it("非法时间戳不参与折算（按高峰处理）", () => {
     const entries = [
       { type: "model_change", timestamp: "2026-09-25T10:00:00Z", provider: "deepseek" } as PricingEntry,

@@ -1,3 +1,4 @@
+import { parseNativeAiSettings, type NativeAiSettings } from "../../shared/native-ai";
 import fs from "fs";
 import { normalizeUiLanguage, type UiLanguage } from "../../shared/i18n/locale";
 import path from "path";
@@ -34,6 +35,7 @@ interface Project {
 }
 
 export interface Settings {
+  nativeAi?: NativeAiSettings;
   uiLanguage?: UiLanguage;
   nativeConfigMigration?: { migratedAt: string; duplicateConfigIds: string[] };
   defaultProjectDir: string;
@@ -258,6 +260,7 @@ export class Store {
     const emData: Record<string, unknown> = { ...flattenEmSettings(this.readEmSettings()), ...nativeViews.get(this.dataDir)?.() };
     return {
       uiLanguage: normalizeUiLanguage(emData.uiLanguage),
+      nativeAi: parseNativeAiSettings(emData.nativeAi),
       nativeConfigMigration: emData.nativeConfigMigration as Settings["nativeConfigMigration"],
       defaultProjectDir: resolveHome((emData.defaultProjectDir as string) || EM_DEFAULTS.defaultProjectDir),
       model: (emData.model as string) || undefined,

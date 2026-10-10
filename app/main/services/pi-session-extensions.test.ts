@@ -44,7 +44,11 @@ describe("Pi extension session integration", () => {
     fs.writeFileSync(nativeExt, `import fs from 'node:fs'; export default (pi) => { fs.appendFileSync(${JSON.stringify(marker)}, 'native'); pi.on('session_shutdown', () => fs.appendFileSync(${JSON.stringify(marker)}, 's')); pi.registerTool({ name: 'native_tool', label: 'Native', description: 'fixture', parameters: { type: 'object', properties: {} }, execute: async () => ({ content: [{ type: 'text', text: 'ok' }], details: undefined }) }); };`);
     fs.writeFileSync(emExt, `import fs from 'node:fs'; export default () => fs.appendFileSync(${JSON.stringify(marker)}, 'em');`);
     const store = new Store(emDir);
-    const first = await createPiSession({ cwd, agentDir, store });
+    const onUiPrompt = vi.fn();
+    const first = await createPiSession({ cwd, agentDir, store, onUiPrompt });
+    await first.extensionRunner.getUIContext().input("fixture prompt");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(onUiPrompt.mock.calls.map(call => call[0])).toEqual([true, false]);
     expect(first.resourceLoader.getSkills().skills.some((skill) => skill.name === "fixture-skill")).toBe(true);
     await disposePiSession(first);
     expect(fs.existsSync(marker)).toBe(false);

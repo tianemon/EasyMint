@@ -220,7 +220,7 @@ class BackgroundShellRegistry {
           shell.exitCode = -1;
           this.shells.delete(id);
           logStream?.end();
-          void shell.releaseSandboxLease?.();
+          void shell.releaseSandboxLease?.().catch(error => { console.warn(`[bg-shell] lease release failed ${id}:`, error); });
           shell.onExit?.(shell);
           this.broadcastCount();
         }
@@ -243,7 +243,9 @@ class BackgroundShellRegistry {
     // (decodeSeg/finalDecode 见 encoding.ts 共享模块,前台 bash 同用)
     const outBuf = { bytes: Buffer.alloc(0) };
     const errBuf = { bytes: Buffer.alloc(0) };
+    let finished = false;
     const collect = (chunk: Buffer, holder: { bytes: Buffer }): void => {
+      if (finished) return;
       // 原始字节入日志(日志保持原始字节,查看时用文本)
       if (logStream && logBytes < MAX_LOG_BYTES) {
         logBytes += chunk.length;
@@ -270,7 +272,11 @@ class BackgroundShellRegistry {
     };
     child.stdout?.on("data", (c) => collect(c, outBuf));
     child.stderr?.on("data", (c) => collect(c, errBuf));
-    child.on("exit", (code) => {
+    // Node's close follows stdio closure; exit alone can precede the last data chunk.
+    // https://nodejs.org/api/child_process.html#event-close
+    child.on("close", (code) => {
+      if (finished) return;
+      finished = true;
       untrackChild(child);
       // 冲掉残留缓冲(终局解码:不再等待未完成序列,UTF-8 尝试失败则 GBK)
       const outTail = finalDecode(outBuf.bytes);
@@ -291,7 +297,7 @@ class BackgroundShellRegistry {
       shell.exitCode = code;
       this.shells.delete(id);
       logStream?.end();
-      void shell.releaseSandboxLease?.();
+      void shell.releaseSandboxLease?.().catch(error => { console.warn(`[bg-shell] lease release failed ${id}:`, error); });
       console.log(`[bg-shell] exit ${id}: code=${code} stopped=${shell.stopped}`);
       shell.onExit?.(shell);
       this.broadcastCount();
@@ -299,12 +305,15 @@ class BackgroundShellRegistry {
     child.on("error", (err) => {
       untrackChild(child);
       // spawn 失败(如 shell 不存在)——同 exit 路径注销,避免悬挂
-      if (this.shells.has(id)) {
+      if (!finished && this.shells.has(id)) {
+        finished = true;
+        shell.output = (shell.output + `\n${err.message}`).slice(-MAX_OUTPUT_BYTES);
+        shell.streamBuf += `\n${err.message}`;
         this.flushStream(shell);
         shell.exitCode = -1;
         this.shells.delete(id);
         logStream?.end();
-        void shell.releaseSandboxLease?.();
+        void shell.releaseSandboxLease?.().catch(error => { console.warn(`[bg-shell] lease release failed ${id}:`, error); });
         console.log(`[bg-shell] spawn error ${id}: ${err.message}`);
         shell.onExit?.(shell);
         this.broadcastCount();

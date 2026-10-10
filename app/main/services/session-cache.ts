@@ -7,9 +7,11 @@
  * Path: ~/.easymint/session-cache/<sessionId>.json
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { emHome } from "../utils/paths";
+import { atomicWrite } from "./native-config-storage";
+import { getSessionManagerClass } from "./pi-sdk";
 
 const CACHE_DIR = path.join(emHome(), "session-cache");
 
@@ -20,11 +22,12 @@ export interface SessionCache {
   provider?: string;
   /** 本会话用户选过的思考等级——持久化后重开会话不再被全局设置覆盖 */
   thinkingLevel?: string;
-  contextUsage: number;
+  contextUsage: number | null;
   updatedAt: number;
 }
 
 function cachePath(sessionId: string): string {
+  if (!/^[A-Za-z0-9_.-]{1,256}$/.test(sessionId) || sessionId === "." || sessionId === "..") throw new Error("Invalid session cache identity");
   return path.join(CACHE_DIR, `${sessionId}.json`);
 }
 
@@ -35,7 +38,21 @@ function ensureDir(): void {
 export function readCache(sessionId: string): SessionCache | null {
   const p = cachePath(sessionId);
   if (!existsSync(p)) return null;
-  return JSON.parse(readFileSync(p, "utf-8")) as SessionCache;
+  const text = readFileSync(p, "utf-8");
+  let value: unknown;
+  try { value = JSON.parse(text); }
+  catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    // UI cache is recoverable; malformed contents must not break conversation startup
+    // or expose arbitrary cached text in an error message.
+    console.warn(`[session-cache] Invalid JSON; ignoring UI cache: ${p}`);
+    return null;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    console.warn(`[session-cache] Invalid cache object: ${p}`);
+    return null;
+  }
+  return value as SessionCache;
 }
 
 export function writeCache(sessionId: string, data: Partial<SessionCache>): void {
@@ -48,7 +65,7 @@ export function writeCache(sessionId: string, data: Partial<SessionCache>): void
     ...data,
     updatedAt: Date.now(),
   };
-  writeFileSync(cachePath(sessionId), JSON.stringify(merged, null, 2));
+  atomicWrite(cachePath(sessionId), JSON.stringify(merged, null, 2));
 }
 
 export function deleteCache(sessionId: string): void {
@@ -59,48 +76,70 @@ export function deleteCache(sessionId: string): void {
 /** Purge cache files for sessions that no longer exist in the given list of valid IDs.
  *  skipTemp=true 时跳过 `__new_` 前缀——临时 key 的生命周期由 cleanupTempCaches 的
  *  24h 阈值接管,此处不抢(新会话首条消息回绑真实 sid 前重启,待生效的 UI 状态才不会被清)。 */
-export function purgeOrphanedCaches(validSessionIds: Set<string>, skipTemp = false): void {
+export function purgeOrphanedCaches(validSessionIds: Set<string>, skipTemp = false, notNewerThan?: number): void {
   ensureDir();
   for (const file of readdirSync(CACHE_DIR)) {
     if (!file.endsWith(".json")) continue;
     if (skipTemp && file.startsWith("__new_")) continue;
-    const sid = file.replace(".json", "");
+    const sid = file.slice(0, -5);
     if (!validSessionIds.has(sid)) {
+      if (notNewerThan != null && statSync(path.join(CACHE_DIR, file)).mtimeMs >= notNewerThan) continue;
       unlinkSync(path.join(CACHE_DIR, file));
     }
   }
 }
 
 /**
- * 清理孤儿会话缓存：收集 agent/sessions 下所有真实会话 id（jsonl 文件名
- * `<时间戳>_<sid>.jsonl` 的 sid 段），缓存 key 不在集合中的 = 会话已被删除/项目已移除
+ * 清理孤儿会话缓存：经 SDK 收集 agent/sessions 下真实会话 header id，
+ * 缓存 key 不在集合中的 = 会话已被删除/项目已移除
  * （会话列表不再列出、缓存永远不会被读取）→ 删除。启动时调用，防磁盘堆积。
  * `__new_` 前缀的临时 key 跳过——归 cleanupTempCaches 的 24h 阈值处理,避免误伤
  * 新建会话回绑真实 sid 前重启时待生效的权限/模型选择。
  * 返回删除的文件数。
  */
-export function cleanupOrphanCaches(): number {
+export async function cleanupOrphanCaches(): Promise<number> {
+  const scannedAt = Date.now();
+  if (!existsSync(CACHE_DIR)) return 0; // First startup has no maintenance work.
   const sessionsRoot = path.join(emHome(), "agent", "sessions");
   const valid = new Set<string>();
+  let complete = true;
+  const directories: Array<{ dir: string; files: number }> = [];
   const walk = (d: string): void => {
     let entries;
-    try { entries = readdirSync(d, { withFileTypes: true }); } catch { return; }
+    try { entries = readdirSync(d, { withFileTypes: true }); }
+    catch (error) {
+      complete = false;
+      console.warn(`[session-cache] Session scan incomplete; retaining caches (${(error as NodeJS.ErrnoException).code ?? "unknown"}): ${d}`);
+      return;
+    }
+    let files = 0;
     for (const e of entries) {
       const p = path.join(d, e.name);
       if (e.isDirectory()) walk(p);
-      else if (e.name.endsWith(".jsonl")) {
-        const m = e.name.match(/_([0-9a-f-]{36})\.jsonl$/);
-        if (m) valid.add(m[1]!);
-      }
+      else if (e.name.endsWith(".jsonl")) files++;
     }
+    if (files) directories.push({ dir: d, files });
   };
   walk(sessionsRoot);
-  if (!existsSync(CACHE_DIR)) return 0; // 无任何缓存可清理(首次启动),不建空目录
+  if (!complete) return 0;
+  // The SDK identifies sessions from headers, including imported/custom IDs and
+  // renamed transcript files. Filename guesses cannot prove a cache is orphaned.
+  if (directories.length) {
+    const SM = await getSessionManagerClass();
+    for (const directory of directories) {
+      const sessions = await SM.listAll(directory.dir);
+      if (sessions.length !== directory.files) {
+        console.warn(`[session-cache] Session metadata scan incomplete; retaining caches: ${directory.dir}`);
+        return 0;
+      }
+      for (const session of sessions) valid.add(session.id);
+    }
+  }
   // 计数与清理口径一致：只统计非临时 key
   const countPersistent = (): number =>
     readdirSync(CACHE_DIR).filter((f) => f.endsWith(".json") && !f.startsWith("__new_")).length;
   const before = countPersistent();
-  purgeOrphanedCaches(valid, true);
+  purgeOrphanedCaches(valid, true, scannedAt);
   return before - countPersistent();
 }
 

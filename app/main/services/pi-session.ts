@@ -37,6 +37,9 @@ import { discoverAvailableExtensions, recordPiExtensionError, recordPiExtensionS
 import { createPiExtensionUi } from "./pi-extension-ui";
 import { normalizePermissionMode } from "./permission/execution-context";
 import { createMcpSessionExtensions, disposeMcpSession } from "./mcp-runtime";
+import { trackRoutingSession } from "./auto-model-routing";
+
+const routingReleases = new WeakMap<AgentSession, () => void>();
 
 // 目录工具再导出：既有调用点（project-service / session-service / migration-service /
 // task/executor / agent-service）仍从本模块引用，避免无谓的 import 面改动。
@@ -64,6 +67,7 @@ export interface PiSessionOptions {
   /** 后台 shell 进程退出回调（主会话传入,结果注入主会话；缺省不通知） */
   onShellExit?: (shell: BackgroundShell) => void;
   onExtensionError?: (error: ExtensionError) => void;
+  onUiPrompt?: (waiting: boolean, manager: SessionManager) => void;
   /** Executable Pi extensions require a full-access session. */
   permissionMode?: string;
   getPermissionMode?: () => string | undefined;
@@ -141,6 +145,8 @@ async function buildSession(
     name: "easymint-permission",
     hidden: true,
     factory(pi) {
+      pi.on("ui_prompt_start", () => { opts.onUiPrompt?.(true, sessionManager); });
+      pi.on("ui_prompt_end", () => { opts.onUiPrompt?.(false, sessionManager); });
       pi.on("tool_call", async (event, ctx) => {
         if (!opts.canUseTool) return;
         const origin = pi.getAllTools().find(tool => tool.name === event.toolName)?.sourceInfo.path;
@@ -220,10 +226,11 @@ async function buildSession(
   };
 
   const { session } = await createAgentSession(sessionOpts);
+  routingReleases.set(session, trackRoutingSession(modelRuntime, session));
   // reload 期间切档的兜底：工厂已在 reload 中执行（单个 await 内无法抢占），但不再把
   // 扩展事件与 UI 绑定进会话；调用方（agent-service 的创建门禁）会弃用此会话按收紧后的模式重建。
-  if (extensionPaths.length === 0 || liveMode() === "full") {
-    await session.bindExtensions({
+  try {
+    if (extensionPaths.length === 0 || liveMode() === "full") await session.bindExtensions({
       mode: "rpc",
       uiContext: createPiExtensionUi(opts.cwd),
       onError: (error) => {
@@ -232,6 +239,9 @@ async function buildSession(
         console.error(`[pi-extension] ${error.extensionPath} ${error.event}: ${error.error}`);
       },
     });
+  } catch (error) {
+    await disposePiSession(session);
+    throw error;
   }
   return session;
 }
@@ -281,6 +291,8 @@ export function disposePiSession(session: AgentSession): Promise<void> {
       console.error("[pi-extension] session_shutdown failed:", error);
     } finally {
       if (timeout) clearTimeout(timeout);
+      routingReleases.get(session)?.();
+      routingReleases.delete(session);
       session.dispose();
     }
   })();

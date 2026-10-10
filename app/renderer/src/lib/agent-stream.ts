@@ -1,88 +1,82 @@
-/**
- * Agent 流式通信内核 —— 表单 ask 和聊天 sendText 共用的底层。
- *
- * 职责（仅限"发消息 + 收流过滤 + 提取本轮文本"）：
- *   1. 调 agent.sendMessage 发消息，拿 chatId
- *   2. 按 chatId 过滤 onStream 流，只收本次的流
- *   3. 从 result 事件提取本轮最终文本（result.result），不累加 assistant 事件
- *      —— 避免复用有历史的会话时，历史 assistant 被重放导致"返回所有历史回复"
- *   4. onExit(runId=chatId) 时 resolve 本轮文本
- *
- * 内核绝不做：
- *   - 不写 chat-store（消除双写：表单期不存消息，聊天期由 ChatPanel onStream 入 store）
- *   - 不碰 UI（setBusy/setStatusText/scroll 等由各自 UI 壳负责）
- *   - 不 normalizeEvent（展示层职责）
- */
-
+/** Form requests consume only their own chat's latest assistant snapshot and final exit. */
 export interface PostAgentOptions {
   cwd: string;
-  /** null = 新会话；非空 = resume 已有会话 */
   sessionId: string | null;
   permissionMode?: string;
   model?: string;
-  /** 系统消息 payload(customType: system_message):有则主进程走 sendCustomMessage,不按用户消息发送 */
   systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> };
+  /** Identity comes from this request's IPC result, never a global session broadcast. */
+  onStarted?: (identity: { chatId: string; sessionId: string }) => void;
 }
 
 export interface PostAgentResult {
-  /** 本次会话的 chatId（runId），UI 壳用它过滤自己的 onStream */
   chatId: string;
-  /** 本轮 result 事件返回的最终文本。form 模式 await 它拿回复；chat 模式可忽略 */
+  sessionId: string;
   replyText: Promise<string>;
 }
 
-/**
- * 发消息到 agent 并返回 chatId + 本轮回复文本 Promise。
- *
- * 注意：replyText 只在 result(subtype=success) 时取 result.result。
- * 若模型本轮只调工具没出文本结论，result.result 可能为空字符串。
- */
+interface ResponseState {
+  text: string;
+  error?: string;
+  outcome?: "completed" | "cancelled" | "failed";
+  exited: boolean;
+  exitCode?: number;
+}
+
 export function postToAgent(opts: PostAgentOptions, text: string): Promise<PostAgentResult> {
   return new Promise((resolve, reject) => {
-    let chatId = "";
-    let replyText = "";
-    let unsubStream: (() => void) | null = null;
-    let unsubExit: (() => void) | null = null;
+    let chatId = "", sessionId = "";
     let settled = false;
-
-    const teardown = () => {
-      unsubStream?.();
-      unsubExit?.();
-      unsubStream = null;
-      unsubExit = null;
+    let unsubStream: (() => void) | undefined;
+    let unsubExit: (() => void) | undefined;
+    // Streaming/exit may precede the sendMessage response. Retain only per-chat
+    // summaries until that response identifies our owner; unrelated exits never settle us.
+    const responses = new Map<string, ResponseState>();
+    const stateFor = (id: string) => {
+      let state = responses.get(id);
+      if (!state) { state = { text: "", exited: false }; responses.set(id, state); }
+      return state;
     };
-
-    unsubStream = window.electronAPI.agent.onStream((event: any) => {
-    // 仅收本次 chat 的流（chatId 在 sendMessage 返回后赋值）
-    if (chatId && event.chatId && event.chatId !== chatId) return;
-    if (chatId && event.runId && event.runId !== chatId) return;
-    // 收集 message 事件中的文本
-    if (event.type === "message" && Array.isArray(event.blocks)) {
-      for (const b of event.blocks) {
-        if (b.type === "text" && b.text) replyText = b.text;
-      }
-    }
-  });
-
-    unsubExit = window.electronAPI.agent.onExit(({ runId }: { runId: string }) => {
-      if (chatId && runId !== chatId) return;
+    const teardown = () => { unsubStream?.(); unsubExit?.(); unsubStream = undefined; unsubExit = undefined; responses.clear(); };
+    const finish = () => {
+      if (!chatId || settled) return;
+      const state = responses.get(chatId);
+      if (!state?.exited) return;
+      settled = true;
       teardown();
-      if (!settled) { settled = true; resolve({ chatId, replyText: Promise.resolve(replyText.trim()) }); }
+      if (state.outcome === "cancelled") reject(new Error("Request cancelled"));
+      else if (state.outcome === "failed" || state.error || (state.exitCode != null && state.exitCode !== 0)) {
+        reject(new Error(state.error || "Agent request failed"));
+      } else resolve({ chatId, sessionId, replyText: Promise.resolve(state.text.trim()) });
+    };
+    unsubStream = window.electronAPI.agent.onStream((event: StreamEvent) => {
+      if (settled || event.source === "worker") return;
+      const id = event.chatId || event.runId;
+      if (!id || (chatId && id !== chatId) || (opts.sessionId && event.sessionId && event.sessionId !== opts.sessionId)) return;
+      const state = stateFor(id);
+      if (event.type === "message" && event.blocks) state.text = event.blocks.filter(block => block.type === "text").map(block => block.text ?? "").join("");
+      if (event.type === "error") state.error = event.message || "Agent request failed";
+      if (event.type === "turn_end") {
+        state.outcome = event.outcome;
+        if (event.outcome === "completed") state.error = undefined;
+      }
     });
-
-    window.electronAPI.agent
-      .sendMessage(opts.cwd, text, {
-        sessionId: opts.sessionId,
-        permissionMode: opts.permissionMode,
-        model: opts.model,
-        systemPayload: opts.systemPayload,
-      })
-      .then((result: { chatId: string }) => {
-        chatId = result.chatId;
-      })
-      .catch((e: unknown) => {
-        teardown();
-        if (!settled) { settled = true; reject(e); }
-      });
+    unsubExit = window.electronAPI.agent.onExit(event => {
+      if (settled || !event.runId || (chatId && event.runId !== chatId)) return;
+      const state = stateFor(event.runId);
+      state.exited = true; state.exitCode = event.code;
+      finish();
+    });
+    window.electronAPI.agent.sendMessage(opts.cwd, text, {
+      sessionId: opts.sessionId, permissionMode: opts.permissionMode, model: opts.model, systemPayload: opts.systemPayload,
+    }).then(identity => {
+      chatId = identity.chatId; sessionId = identity.sessionId;
+      const own = responses.get(chatId); responses.clear(); if (own) responses.set(chatId, own);
+      opts.onStarted?.(identity);
+      finish();
+    }).catch(error => {
+      teardown();
+      if (!settled) { settled = true; reject(error); }
+    });
   });
 }

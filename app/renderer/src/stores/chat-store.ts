@@ -68,7 +68,7 @@ interface ChatState {
   /** 按消息 id 全量替换 entries（Pi 帧是累计全文快照，替换而非拼接——见 Proma uuid 方案） */
   replaceAiEntriesById: (sessionId: string, msgId: number, entries: Record<string, any>[]) => number;
   /** 回合完成后挂 usage（message_end 事件携带的 token/缓存统计） */
-  setMessageUsage: (sessionId: string, msgId: number, usage: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number }) => void;
+  setMessageUsage: (sessionId: string, msgId: number, usage: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number } | undefined, metadata?: { durationMs?: number; provider?: string; model?: string }) => void;
   /** 回填气泡的会话条目 id（entry_appended 事件——编辑/重新生成按它定位节点）。
    *  传 `undefined` = 清除：气泡被重发复用（编辑重发/错误重试）时，旧 id 指向的条目已失效
    *  （被撤回或不在分支上），必须清掉等新条目重新认领（见 ChatPanel.sendText / claimEntryBubble） */
@@ -302,12 +302,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return get().replaceAiEntries(sessionId, entries);
   },
 
-  setMessageUsage: (sessionId, msgId, usage) => {
+  setMessageUsage: (sessionId, msgId, usage, metadata) => {
     set((s) => ({
       messagesBySession: {
         ...s.messagesBySession,
         [sessionId]: (s.messagesBySession[sessionId] || []).map((m) =>
-          m.id === msgId ? { ...m, usage } : m
+          m.id === msgId ? { ...m, usage, ...metadata } : m
         ),
       },
     }));

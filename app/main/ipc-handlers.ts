@@ -1,3 +1,4 @@
+import { parseNativeAiSettings } from "../shared/native-ai";
 import { saveUiLanguage, getUiLanguageState, t } from "./services/ui-language";
 import { isUiLanguage } from "../shared/i18n/locale";
 import { BrowserWindow, ipcMain, dialog, app, shell } from "electron";
@@ -694,6 +695,14 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
   ipcMain.handle("settings:getUiLanguage", () => getUiLanguageState(store));
 
   // settings:*
+  ipcMain.handle("agent:nativeAiModels", async () => {
+    const runtime = await (await getNativeConfig(store)).getRuntime();
+    const available = (provider: string) => runtime.hasConfiguredAuth(provider);
+    return {
+      chat: runtime.getModels().filter(model => model.api !== "pi-virtual" && available(model.provider)).map(model => ({ provider: model.provider, model: model.id, name: model.name })),
+      image: (await runtime.getAvailableOfType("image")).map(model => ({ provider: model.provider, model: model.id, name: model.name })),
+    };
+  });
   ipcMain.handle("settings:get", async () => {
     await (await getNativeConfig(store)).getRuntime();
     return store.getSettings();
@@ -706,7 +715,16 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       return state;
     }
     const config = await getNativeConfig(store);
-    if (key === "apiProviders") await config.saveProviders(value);
+    if (key === "nativeAi") {
+      const next = parseNativeAiSettings(value);
+      if (JSON.stringify(next.autoRouting) !== JSON.stringify(store.getSettings().nativeAi?.autoRouting) && agentService.hasActiveAutomaticRun()) {
+        throw new Error("Wait until the automatic-model run finishes before changing routing");
+      }
+      await config.setNativeAi(next, () => {
+        if (agentService.hasActiveAutomaticRun()) throw new Error("Wait until the automatic-model run finishes before changing routing");
+      });
+    }
+    else if (key === "apiProviders") await config.saveProviders(value);
     else if (key === "chatThinkingLevel") await config.setThinkingLevel(value);
     else if (key === "model") await config.setDefaultModel(z.string().min(1).parse(value));
     else {
@@ -715,7 +733,7 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
       store.saveSettings(settings);
     }
     // 原生配置已完成保存和重载，更新已开会话所引用的模型参数。
-    if (key === "apiProviders") {
+    if (key === "apiProviders" || key === "nativeAi") {
       // 已开会话的模型对象在创建时绑定,配置改动默认不生效 → 重建(输出中的会话跳过)
       try {
         await agentService.refreshActiveSessionsModel();

@@ -176,9 +176,15 @@ interface StreamEvent {
   sessionId?: string;
   chatId?: string;       // event-bridge 注入（agent:stream 广播时设置）
   type: "message_start" | "message" | "turn_start" | "turn_end" | "thinking"
-      | "tool_progress" | "tool_done" | "tool_result" | "compacting" | "compacted" | "error" | "context_usage" | "status" | "user_message" | "custom_event" | "entry_appended" | "session_info_changed" | "retry_state" | "queue_dropped" | "nested_tool";
+      | "tool_progress" | "tool_done" | "tool_result" | "compacting" | "compacted" | "compaction_finished" | "error" | "context_usage" | "status" | "user_message" | "custom_event" | "entry_appended" | "session_info_changed" | "retry_state" | "queue_dropped" | "nested_tool" | "waiting_user";
   blocks?: Array<{ type: string; text?: string; name?: string; id?: string; input?: Record<string, unknown>; thinking?: string }>;
   partial?: boolean;
+  imagePath?: string;
+  durationMs?: number;
+  provider?: string;
+  model?: string;
+  outcome?: "completed" | "cancelled" | "failed";
+  waiting?: boolean;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
   toolCallId?: string;
@@ -292,6 +298,7 @@ interface ElectronAPI {
     onChanged: (callback: (data: { projectPath: string }) => void) => () => void;
   };
   agent: {
+    nativeAiModels: () => Promise<{ chat: Array<import("@shared/native-ai").ModelReference & { name: string }>; image: Array<import("@shared/native-ai").ModelReference & { name: string }> }>;
     runWorker: (projectPath: string, prompt: string) => Promise<{ runId: string }>;
     sendMessage: (projectPath: string, message: string, opts?: { sessionId?: string | null; permissionMode?: string; model?: string; isDesigner?: boolean; images?: Array<{ type: "image"; data: string; mimeType: string }>; thinkingLevel?: string; systemPayload?: { customType: string; content: string; display: boolean; details: Record<string, unknown> }; preferredProvider?: string; tabId?: string }) => Promise<{ chatId: string; sessionId: string }>;
     steer: (sessionId: string, text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>, tabId?: string) => Promise<void>;
@@ -328,7 +335,7 @@ interface ElectronAPI {
     setModel: (sessionId: string, model: string, provider?: string) => Promise<void>;
     chatStatus: (sessionId: string) => Promise<string | null>;
     /** 忙碌态兜底：busy=主进程登记的占用态（唯一判据），sdkIdle 仅供日志排查 */
-    busyState: (sessionId: string) => Promise<{ busy: boolean; sdkIdle: boolean }>;
+    busyState: (sessionId: string) => Promise<import("../shared/agent-status").AgentBusyState>;
     getPiProviders: () => Promise<Array<{ id: string; name: string; baseUrl?: string }>>;
     getPiModels: (providerName: string) => Promise<Array<{ id: string; name: string; contextWindow: number }>>;
     /** 供应商级静态参数：官方名 / 官方 Base URL / 接入协议（内置供应商只读展示用） */
@@ -375,7 +382,7 @@ interface ElectronAPI {
     onCommandsChanged: (callback: (data: { commands: Array<{ name: string; description: string; argumentHint: string; aliases?: string[] }> }) => void) => () => void;
     onRenameProgress: (callback: (data: { phase: string }) => void) => () => void;
     onSessionRenamed: (callback: (data: { sessionId: string; title: string }) => void) => () => void;
-    onModelChanged: (callback: (data: { sessionId: string; model: string }) => void) => () => void;
+    onModelChanged: (callback: (data: { sessionId: string; model: string; provider?: string }) => void) => () => void;
     onThinkingLevelChanged: (callback: (data: { sessionId: string; level: string; available?: string[] }) => void) => () => void;
     onPermissionModeChanged: (callback: (data: { sessionId: string; mode: "readonly" | "standard" | "full" }) => void) => () => void;
   };
@@ -582,6 +589,7 @@ interface ElectronAPI {
     piImport: (input?: { sourceDir?: string; apply?: boolean; probe?: boolean }) => Promise<import("@shared/pi-config-import").PiImportSummary>;
     get: () => Promise<{
       uiLanguage?: import("../shared/i18n/locale").UiLanguage;
+      nativeAi?: import("@shared/native-ai").NativeAiSettings;
       nativeConfigMigration?: { migratedAt: string; duplicateConfigIds: string[] };
       defaultProjectDir?: string; setupComplete?: boolean;
       apiKeys?: Record<string, string>; model?: string;

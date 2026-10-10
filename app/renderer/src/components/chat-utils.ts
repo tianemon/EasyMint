@@ -30,6 +30,9 @@ export interface ChatMessage {
    * 两者都没有时留空:入口置灰并说明原因,不做猜测性撤回。
    */
   entryId?: string;
+  durationMs?: number;
+  provider?: string;
+  model?: string;
   text?: string;
   attaches?: AttachItem[];
   entries?: StreamEntry[];
@@ -120,6 +123,7 @@ export function displayToolAction(name: string, args?: Record<string, unknown>):
   if (n.startsWith("mcp__")) return uiText("ui.chat-utils.callingExternalTool");
   if (n === "search_mcp_tools") return uiText("ui.chat-utils.findingExternalTools");
   if (n === "call_mcp_tool") return uiText("ui.chat-utils.callingExternalTool");
+  if (n === "generate_image") return uiText("pi.generatingImage");
   if (n === "read" || n === "glob") return uiText("ui.chat-utils.readingFile");
   if (n === "write") return uiText("ui.chat-utils.writingFile");
   if (n === "edit") return uiText("ui.chat-utils.editingFile");
@@ -147,6 +151,11 @@ function parseAttachMarkers(text: string): { attaches: AttachItem[]; cleanText: 
 }
 
 /** 历史会话消息（conv.messages）→ ChatMessage[] */
+function responseMetadata(value: unknown): { durationMs?: number; provider?: string; model?: string } {
+  const m = value as { durationMs?: number; provider?: string; model?: string };
+  return { durationMs: m.durationMs, provider: m.provider, model: m.model };
+}
+
 export function mapSessionMessages(msgs: Array<{ type: string; uuid?: string; message: unknown; out_of_context?: boolean; image_stripped?: boolean }>): ChatMessage[] {
   let nextId = 0;
   const mapped: ChatMessage[] = [];
@@ -202,6 +211,7 @@ export function mapSessionMessages(msgs: Array<{ type: string; uuid?: string; me
         const u = (m.message as { usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number } }).usage;
         mapped.push({
           id, role: "ai", entries, timestamp: ts, keyId: uuid ? `d-${uuid}-${id}` : undefined, entryId: uuid,
+          ...responseMetadata(m.message),
           usage: u ? { inputTokens: u.input ?? 0, outputTokens: u.output ?? 0, cacheReadTokens: u.cacheRead ?? 0, cacheWriteTokens: u.cacheWrite ?? 0 } : undefined,
           // 被「单条移出上下文」摘掉的历史回答：标记 + 恢复入口（同 user 分支）
           ...(m.out_of_context ? { outOfContext: true, contextDropped: true } : {}),
@@ -210,14 +220,15 @@ export function mapSessionMessages(msgs: Array<{ type: string; uuid?: string; me
       }
     } else if (m.type === "toolResult") {
       // 独立 toolResult 消息(磁盘):按 toolCallId 关联到 AI 消息的 tool_use;无匹配则追加到最近 AI 消息(独立结果)
-      const tm = m.message as { toolCallId?: string; toolName?: string; content?: unknown; isError?: boolean; nestedCalls?: NestedToolCalls; details?: unknown };
+      const tm = m.message as { toolCallId?: string; toolName?: string; content?: unknown; isError?: boolean; nestedCalls?: NestedToolCalls; details?: unknown; durationMs?: number };
       const content = Array.isArray(tm.content)
         ? tm.content.map((b: unknown) => (b as { text?: string })?.text ?? "").join("")
         : String(tm.content ?? "");
       const resultEntry: StreamEntry = {
         kind: "tool_result", toolUseId: tm.toolCallId || "", name: tm.toolName, content, isError: !!tm.isError, timestamp: ts, source: "chat",
-        nestedCalls: tm.nestedCalls,
+        nestedCalls: tm.nestedCalls, durationMs: tm.durationMs,
         presentation: toolPresentation(content, tm.details, !!tm.isError),
+        imagePath: (tm.details as { generatedImagePath?: string } | undefined)?.generatedImagePath,
       };
       // 先找含匹配 tool_use 的 AI 消息;无匹配则追加到最近 AI 消息
       let matched = false;

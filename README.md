@@ -209,6 +209,12 @@ Without the key, Mint cannot search or extract web pages and relies on the model
 
 For text-only models, configure a separate vision model through an OpenAI- or Anthropic-compatible endpoint to read images and check screenshots. Providing a key enables the capability; clearing it disables the capability. There is no separate toggle.
 
+## Native images and automatic models
+
+In **Settings → Models → Native images and automatic models**, select an image model from a configured provider. Start or reopen a chat to ask Mint to generate an asset or edit reference images. Assets are saved in an existing project directory and open from their chat links. Calls use provider credentials and incur image API charges.
+
+Configure planning and execution models, then select `easymint-auto` under the planning provider. Each new message starts with planning; successful file edits switch to execution, while retries keep their model. Replies show the actual provider and model. Wait for an active automatic-model run to finish before changing its configuration. Switching can lose prompt caching or trigger compaction; assess costs on your own workloads.
+
 ## Technology stack
 
 | Layer | Technology |

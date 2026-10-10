@@ -366,7 +366,7 @@ app.whenReady().then(async () => {
   // 兜底清理历史遗留的临时会话缓存(__new_ 前缀,真实会话创建后不再被读取)——防磁盘堆积
   try { cleanupTempCaches(); } catch { /* 清理失败不影响启动 */ }
   // 清理孤儿会话缓存(会话已删除/项目已移除的残留 key)——防磁盘堆积
-  try { cleanupOrphanCaches(); } catch { /* 清理失败不影响启动 */ }
+  void cleanupOrphanCaches().catch(error => { console.warn("[startup] 会话缓存维护未完成，保留缓存:", error); });
   // 会话目录对齐 Pi：① 预热 SessionManager 类（getPiSessionDir 经它向 SDK 取默认路径）
   // ② 把 EM 旧编码目录迁到 Pi 默认编码——必须早于任何会话读写，否则历史会话落在旧目录、
   //    在新编码路径下不可见，故启动时改名并合并。
