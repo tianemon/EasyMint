@@ -1,4 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import * as agentTemplates from "../agent-templates";
+import { DESIGNER_AGENT_PROMPT } from "../../../shared/prompts";
+import { saveProjectDesign } from "../project-design";
 import { runSubagents } from "./executor";
 import { createDelegation, resetRegistry } from "./registry";
 import type { Store } from "../store";
@@ -12,6 +18,37 @@ vi.mock("../ipc-broadcast", () => ({ broadcast: vi.fn() }));
 afterEach(() => { resetRegistry(); vi.clearAllMocks(); vi.restoreAllMocks(); });
 
 describe("subagent lifecycle integration", () => {
+  it("includes the actual project contract in both regular and structured child prompts", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-child-visual-"));
+    try {
+      saveProjectDesign(root, { styleId: "glass" }, "technical", path.resolve("resources"));
+      for (const outputSchema of [undefined, {}]) {
+        const session = { sessionId: "child", model: { id: "fixture" }, subscribe: () => () => {}, abort: vi.fn(async () => {}), prompt: vi.fn(async () => {}) };
+        mocks.create.mockResolvedValueOnce(session);
+        const record = createDelegation("parent", [{ task: "design", outputSchema, readOnly: true }]);
+        await runSubagents(record, { cwd: root, agentDir: root, store: {} as Store });
+        expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain("glass; palette");
+        expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain(".easymint/design/visual-spec.json");
+      }
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("keeps designer personality and skill routing in both regular and structured output sessions", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "em-child-ui-craft-"));
+    try {
+      saveProjectDesign(root, { styleId: "flat" }, "technical", path.resolve("resources"));
+      vi.spyOn(agentTemplates,"getTemplate").mockReturnValue({id:"mint-designer",name:"Mint-D",description:"fixture",agentType:"designer",prompt:DESIGNER_AGENT_PROMPT});
+      for (const outputSchema of [undefined, {}]) {
+        const session = {sessionId:"child",model:{id:"fixture"},subscribe:()=>()=>{},abort:vi.fn(async()=>{}),prompt:vi.fn(async()=>{})};
+        mocks.create.mockResolvedValueOnce(session);
+        const record = createDelegation("parent",[{agent:"mint-designer",task:"design the actual project",outputSchema,readOnly:true}]);
+        await runSubagents(record,{cwd:root,agentDir:root,store:{} as Store});
+        expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain(DESIGNER_AGENT_PROMPT);
+        expect(mocks.create.mock.lastCall?.[0].systemPrompt).toContain("flat; palette");
+      }
+    } finally { fs.rmSync(root,{recursive:true,force:true}); }
+  });
+
   it("never prompts a child cancelled during session preparation", async () => {
     let prepared!: (session: object) => void;
     mocks.create.mockImplementationOnce(() => new Promise(resolve => { prepared = resolve; }));

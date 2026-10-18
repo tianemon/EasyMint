@@ -1,0 +1,1545 @@
+[
+  {
+    "id": "airbnb",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 28,
+      "fontFamily": "'Airbnb Cereal VF', Circular, sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "4px",
+      "sm": "8px",
+      "md": "14px",
+      "lg": "20px",
+      "xl": "32px",
+      "full": "9999px"
+    },
+    "name": "Airbnb",
+    "quality": "derived",
+    "curated": true,
+    "accent": "#ff385c",
+    "ink": "#222222",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/airbnb/DESIGN.md"
+  },
+  {
+    "id": "airtable",
+    "typography": {
+      "bodySize": 14,
+      "displaySize": 48,
+      "fontFamily": "Haas, sans-serif"
+    },
+    "rounded": {
+      "xs": "2px",
+      "sm": "6px",
+      "md": "10px",
+      "lg": "12px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Airtable",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#181d26",
+    "ink": "#181d26",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/airtable/DESIGN.md"
+  },
+  {
+    "id": "apple",
+    "typography": {
+      "bodySize": 17,
+      "displaySize": 56,
+      "fontFamily": "SF Pro Text, system-ui, -apple-system, sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "5px",
+      "sm": "8px",
+      "md": "11px",
+      "lg": "18px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Apple",
+    "quality": "derived",
+    "curated": true,
+    "accent": "#0066cc",
+    "ink": "#1d1d1f",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/apple/DESIGN.md"
+  },
+  {
+    "id": "binance",
+    "typography": {
+      "bodySize": 14,
+      "displaySize": 64,
+      "fontFamily": "BinanceNova, sans-serif"
+    },
+    "rounded": {
+      "xs": "2px",
+      "sm": "4px",
+      "md": "6px",
+      "lg": "8px",
+      "xl": "12px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Binance",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#fcd535",
+    "ink": "#181a20",
+    "source": "brand-tokens/brands/binance/DESIGN.md"
+  },
+  {
+    "id": "bmw",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 64,
+      "fontFamily": "'BMW Type Next Latin', sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "2px",
+      "sm": "4px",
+      "md": "8px",
+      "lg": "12px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Bmw",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#1c69d4",
+    "ink": "#262626",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/bmw/DESIGN.md"
+  },
+  {
+    "id": "bmw-m",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 80,
+      "fontFamily": "BMWTypeNextLatin Light, BMWTypeNextLatin, sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "2px",
+      "sm": "4px",
+      "md": "6px",
+      "full": "9999px"
+    },
+    "name": "Bmw M",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#ffffff",
+    "ink": "#ffffff",
+    "background": "#000000",
+    "source": "brand-tokens/brands/bmw-m/DESIGN.md"
+  },
+  {
+    "id": "bugatti",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 64,
+      "fontFamily": "Bugatti Text Regular, serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Bugatti",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#ffffff",
+    "ink": "#ffffff",
+    "background": "#000000",
+    "source": "brand-tokens/brands/bugatti/DESIGN.md"
+  },
+  {
+    "id": "cal",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 64,
+      "fontFamily": "Inter, sans-serif"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Cal",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#111111",
+    "ink": "#111111",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/cal/DESIGN.md"
+  },
+  {
+    "id": "claude",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 64,
+      "fontFamily": "StyreneB, Inter, sans-serif"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Claude",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#cc785c",
+    "ink": "#141413",
+    "background": "#faf9f5",
+    "source": "brand-tokens/brands/claude/DESIGN.md"
+  },
+  {
+    "id": "clay",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 72,
+      "fontFamily": "Inter, sans-serif"
+    },
+    "rounded": {
+      "xs": "6px",
+      "sm": "8px",
+      "md": "12px",
+      "lg": "16px",
+      "xl": "24px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Clay",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#0a0a0a",
+    "ink": "#0a0a0a",
+    "background": "#fffaf0",
+    "source": "brand-tokens/brands/clay/DESIGN.md"
+  },
+  {
+    "id": "clickhouse",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 72,
+      "fontFamily": "Inter, sans-serif"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Clickhouse",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#faff69",
+    "ink": "#ffffff",
+    "background": "#0a0a0a",
+    "source": "brand-tokens/brands/clickhouse/DESIGN.md"
+  },
+  {
+    "id": "cohere",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 96,
+      "fontFamily": "Unica77 Cohere Web"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "8px",
+      "md": "16px",
+      "lg": "22px",
+      "xl": "30px",
+      "pill": "32px",
+      "full": "9999px"
+    },
+    "name": "Cohere",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#17171c",
+    "ink": "#212121",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/cohere/DESIGN.md"
+  },
+  {
+    "id": "coinbase",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 80,
+      "fontFamily": "'Coinbase Sans', sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "4px",
+      "sm": "8px",
+      "md": "12px",
+      "lg": "16px",
+      "xl": "24px",
+      "pill": "100px",
+      "full": "9999px"
+    },
+    "name": "Coinbase",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#0052ff",
+    "ink": "#0a0b0d",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/coinbase/DESIGN.md"
+  },
+  {
+    "id": "composio",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 72,
+      "fontFamily": "'abcDiatype', ui-sans-serif, system-ui, sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Composio",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#0007cd",
+    "ink": "#ffffff",
+    "background": "#0f0f0f",
+    "source": "brand-tokens/brands/composio/DESIGN.md"
+  },
+  {
+    "id": "cursor",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 72,
+      "fontFamily": "'CursorGothic', sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Cursor",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#f54e00",
+    "ink": "#26251e",
+    "background": "#f7f7f4",
+    "source": "brand-tokens/brands/cursor/DESIGN.md"
+  },
+  {
+    "id": "dell-1996",
+    "typography": {
+      "bodySize": 14,
+      "displaySize": 36,
+      "fontFamily": "Times New Roman"
+    },
+    "rounded": {
+      "none": "0px",
+      "full": "9999px"
+    },
+    "name": "Dell-1996",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#e91d2a",
+    "ink": "#000000",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/dell-1996/DESIGN.md"
+  },
+  {
+    "id": "elevenlabs",
+    "typography": {},
+    "rounded": {},
+    "name": "Elevenlabs",
+    "quality": "reference",
+    "curated": false,
+    "source": "brand-tokens/brands/elevenlabs/DESIGN.md"
+  },
+  {
+    "id": "expo",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 64,
+      "fontFamily": "'Inter', sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "xxl": "24px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Expo",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#000000",
+    "ink": "#171717",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/expo/DESIGN.md"
+  },
+  {
+    "id": "ferrari",
+    "typography": {
+      "bodySize": 14,
+      "displaySize": 80,
+      "fontFamily": "'FerrariSans', sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "2px",
+      "sm": "4px",
+      "md": "6px",
+      "lg": "8px",
+      "xl": "12px",
+      "full": "9999px"
+    },
+    "name": "Ferrari",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#da291c",
+    "ink": "#ffffff",
+    "background": "#181818",
+    "source": "brand-tokens/brands/ferrari/DESIGN.md"
+  },
+  {
+    "id": "figma",
+    "typography": {
+      "bodySize": 20,
+      "displaySize": 86,
+      "fontFamily": "figmaSans"
+    },
+    "rounded": {
+      "xs": "2px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "24px",
+      "xl": "32px",
+      "pill": "50px",
+      "full": "9999px"
+    },
+    "name": "Figma",
+    "quality": "derived",
+    "curated": true,
+    "accent": "#000000",
+    "ink": "#000000",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/figma/DESIGN.md"
+  },
+  {
+    "id": "framer",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 110,
+      "fontFamily": "Inter Variable"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "10px",
+      "lg": "15px",
+      "xl": "20px",
+      "xxl": "30px",
+      "pill": "100px",
+      "full": "9999px"
+    },
+    "name": "Framer",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#ffffff",
+    "ink": "#ffffff",
+    "background": "#090909",
+    "source": "brand-tokens/brands/framer/DESIGN.md"
+  },
+  {
+    "id": "hashicorp",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 80,
+      "fontFamily": "hashicorpSans"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "xxl": "24px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Hashicorp",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#000000",
+    "ink": "#ffffff",
+    "background": "#000000",
+    "source": "brand-tokens/brands/hashicorp/DESIGN.md"
+  },
+  {
+    "id": "hp",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 72,
+      "fontFamily": "Forma DJR Micro"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "2px",
+      "sm": "3px",
+      "md": "4px",
+      "lg": "8px",
+      "xl": "16px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Hp",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#024ad8",
+    "ink": "#1a1a1a",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/hp/DESIGN.md"
+  },
+  {
+    "id": "ibm",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 76,
+      "fontFamily": "IBM Plex Sans"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "2px",
+      "sm": "4px",
+      "md": "6px",
+      "lg": "8px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Ibm",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#0f62fe",
+    "ink": "#161616",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/ibm/DESIGN.md"
+  },
+  {
+    "id": "intercom",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 72,
+      "fontFamily": "Saans"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "xxl": "24px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Intercom",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#111111",
+    "ink": "#111111",
+    "background": "#f5f1ec",
+    "source": "brand-tokens/brands/intercom/DESIGN.md"
+  },
+  {
+    "id": "kraken",
+    "typography": {},
+    "rounded": {},
+    "name": "Kraken",
+    "quality": "reference",
+    "curated": false,
+    "source": "brand-tokens/brands/kraken/DESIGN.md"
+  },
+  {
+    "id": "lamborghini",
+    "typography": {},
+    "rounded": {},
+    "name": "Lamborghini",
+    "quality": "reference",
+    "curated": false,
+    "source": "brand-tokens/brands/lamborghini/DESIGN.md"
+  },
+  {
+    "id": "linear.app",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 80,
+      "fontFamily": "Linear Text"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "xxl": "24px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Linear.app",
+    "quality": "derived",
+    "curated": true,
+    "accent": "#5e6ad2",
+    "ink": "#f7f8f8",
+    "background": "#010102",
+    "source": "brand-tokens/brands/linear.app/DESIGN.md"
+  },
+  {
+    "id": "lovable",
+    "typography": {},
+    "rounded": {},
+    "name": "Lovable",
+    "quality": "reference",
+    "curated": false,
+    "source": "brand-tokens/brands/lovable/DESIGN.md"
+  },
+  {
+    "id": "mastercard",
+    "typography": {},
+    "rounded": {},
+    "name": "Mastercard",
+    "quality": "reference",
+    "curated": false,
+    "source": "brand-tokens/brands/mastercard/DESIGN.md"
+  },
+  {
+    "id": "meta",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 64,
+      "fontFamily": "Optimistic VF"
+    },
+    "rounded": {
+      "xs": "2px",
+      "sm": "4px",
+      "md": "6px",
+      "lg": "8px",
+      "xl": "16px",
+      "xxl": "24px",
+      "xxxl": "32px",
+      "feature": "40px",
+      "full": "100px",
+      "circle": "9999px"
+    },
+    "name": "Meta",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#0064e0",
+    "ink": "#1c1e21",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/meta/DESIGN.md"
+  },
+  {
+    "id": "minimax",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 80,
+      "fontFamily": "DM Sans"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "xxl": "20px",
+      "xxxl": "24px",
+      "hero": "32px",
+      "full": "9999px"
+    },
+    "name": "Minimax",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#0a0a0a",
+    "ink": "#0a0a0a",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/minimax/DESIGN.md"
+  },
+  {
+    "id": "mintlify",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 72,
+      "fontFamily": "Inter"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "xxl": "24px",
+      "full": "9999px"
+    },
+    "name": "Mintlify",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#0a0a0a",
+    "ink": "#0a0a0a",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/mintlify/DESIGN.md"
+  },
+  {
+    "id": "miro",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 80,
+      "fontFamily": "Roobert PRO"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "xxl": "20px",
+      "xxxl": "28px",
+      "feature": "32px",
+      "full": "9999px"
+    },
+    "name": "Miro",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#1c1c1e",
+    "ink": "#1c1c1e",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/miro/DESIGN.md"
+  },
+  {
+    "id": "mistral.ai",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 84,
+      "fontFamily": "Inter"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "xxl": "20px",
+      "full": "9999px"
+    },
+    "name": "Mistral.ai",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#fa520f",
+    "ink": "#1f1f1f",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/mistral.ai/DESIGN.md"
+  },
+  {
+    "id": "mongodb",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 72,
+      "fontFamily": "Euclid Circular A"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "xxl": "24px",
+      "full": "9999px"
+    },
+    "name": "Mongodb",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#00ed64",
+    "ink": "#001e2b",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/mongodb/DESIGN.md"
+  },
+  {
+    "id": "nike",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 96,
+      "fontFamily": "Helvetica Now Text"
+    },
+    "rounded": {
+      "none": "0px",
+      "sm": "18px",
+      "md": "24px",
+      "lg": "30px",
+      "full": "9999px"
+    },
+    "name": "Nike",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#111111",
+    "ink": "#111111",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/nike/DESIGN.md"
+  },
+  {
+    "id": "nintendo-2001",
+    "typography": {
+      "bodySize": 12,
+      "displaySize": 44,
+      "fontFamily": "Arial"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "2px",
+      "sm": "4px",
+      "md": "6px",
+      "lg": "10px",
+      "full": "9999px"
+    },
+    "name": "Nintendo-2001",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#e60012",
+    "ink": "#21242e",
+    "background": "#7a8aba",
+    "source": "brand-tokens/brands/nintendo-2001/DESIGN.md"
+  },
+  {
+    "id": "notion",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 80,
+      "fontFamily": "Notion Sans"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "xxl": "20px",
+      "xxxl": "24px",
+      "full": "9999px"
+    },
+    "name": "Notion",
+    "quality": "derived",
+    "curated": true,
+    "accent": "#5645d4",
+    "ink": "#1a1a1a",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/notion/DESIGN.md"
+  },
+  {
+    "id": "nvidia",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 48,
+      "fontFamily": "NVIDIA-EMEA"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "1px",
+      "sm": "2px",
+      "full": "9999px"
+    },
+    "name": "Nvidia",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#76b900",
+    "ink": "#000000",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/nvidia/DESIGN.md"
+  },
+  {
+    "id": "ollama",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 36,
+      "fontFamily": "ui-sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "full": "9999px"
+    },
+    "name": "Ollama",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#000000",
+    "ink": "#000000",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/ollama/DESIGN.md"
+  },
+  {
+    "id": "opencode.ai",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 38,
+      "fontFamily": "Berkeley Mono"
+    },
+    "rounded": {
+      "none": "0px",
+      "sm": "4px",
+      "full": "9999px"
+    },
+    "name": "Opencode.ai",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#201d1d",
+    "ink": "#201d1d",
+    "background": "#fdfcfc",
+    "source": "brand-tokens/brands/opencode.ai/DESIGN.md"
+  },
+  {
+    "id": "pinterest",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 70,
+      "fontFamily": "Pin Sans"
+    },
+    "rounded": {
+      "none": "0px",
+      "sm": "8px",
+      "md": "16px",
+      "lg": "32px",
+      "full": "9999px"
+    },
+    "name": "Pinterest",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#e60023",
+    "ink": "#000000",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/pinterest/DESIGN.md"
+  },
+  {
+    "id": "playstation",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 54,
+      "fontFamily": "PlayStation SST"
+    },
+    "rounded": {
+      "none": "0px",
+      "sm": "4px",
+      "md": "8px",
+      "lg": "16px",
+      "full": "9999px"
+    },
+    "name": "Playstation",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#0070d1",
+    "ink": "#000000",
+    "source": "brand-tokens/brands/playstation/DESIGN.md"
+  },
+  {
+    "id": "posthog",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 36,
+      "fontFamily": "IBM Plex Sans Variable"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "2px",
+      "sm": "4px",
+      "md": "6px",
+      "lg": "8px",
+      "full": "9999px"
+    },
+    "name": "Posthog",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#f7a501",
+    "ink": "#23251d",
+    "background": "#eeefe9",
+    "source": "brand-tokens/brands/posthog/DESIGN.md"
+  },
+  {
+    "id": "raycast",
+    "typography": {},
+    "rounded": {},
+    "name": "Raycast",
+    "quality": "reference",
+    "curated": false,
+    "source": "brand-tokens/brands/raycast/DESIGN.md"
+  },
+  {
+    "id": "renault",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 56,
+      "fontFamily": "NouvelR"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "2px",
+      "sm": "3px",
+      "md": "4px",
+      "pill": "46px",
+      "full": "9999px"
+    },
+    "name": "Renault",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#ffed00",
+    "ink": "#000000",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/renault/DESIGN.md"
+  },
+  {
+    "id": "replicate",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 128,
+      "fontFamily": "basier-square"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "4px",
+      "sm": "6px",
+      "md": "10px",
+      "lg": "16px",
+      "full": "9999px"
+    },
+    "name": "Replicate",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#ea2804",
+    "ink": "#202020",
+    "background": "#f9f7f3",
+    "source": "brand-tokens/brands/replicate/DESIGN.md"
+  },
+  {
+    "id": "resend",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 96,
+      "fontFamily": "Inter"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "full": "9999px"
+    },
+    "name": "Resend",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#fcfdff",
+    "ink": "#fcfdff",
+    "background": "#000000",
+    "source": "brand-tokens/brands/resend/DESIGN.md"
+  },
+  {
+    "id": "revolut",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 136,
+      "fontFamily": "Inter"
+    },
+    "rounded": {
+      "none": "0px",
+      "sm": "8px",
+      "md": "12px",
+      "lg": "20px",
+      "xl": "28px",
+      "full": "9999px"
+    },
+    "name": "Revolut",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#494fdf",
+    "ink": "#191c1f",
+    "source": "brand-tokens/brands/revolut/DESIGN.md"
+  },
+  {
+    "id": "runwayml",
+    "typography": {},
+    "rounded": {},
+    "name": "Runwayml",
+    "quality": "reference",
+    "curated": false,
+    "source": "brand-tokens/brands/runwayml/DESIGN.md"
+  },
+  {
+    "id": "sanity",
+    "typography": {},
+    "rounded": {},
+    "name": "Sanity",
+    "quality": "reference",
+    "curated": false,
+    "source": "brand-tokens/brands/sanity/DESIGN.md"
+  },
+  {
+    "id": "sentry",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 88,
+      "fontFamily": "Rubik, -apple-system, system-ui, sans-serif"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "10px",
+      "xl": "12px",
+      "xxl": "18px",
+      "full": "9999px"
+    },
+    "name": "Sentry",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#150f23",
+    "ink": "#1f1633",
+    "source": "brand-tokens/brands/sentry/DESIGN.md"
+  },
+  {
+    "id": "shopify",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 96,
+      "fontFamily": "Inter Variable, Inter, Helvetica, Arial, sans-serif"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "5px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "20px",
+      "pill": "9999px"
+    },
+    "name": "Shopify",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#000000",
+    "ink": "#000000",
+    "source": "brand-tokens/brands/shopify/DESIGN.md"
+  },
+  {
+    "id": "slack",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 64,
+      "fontFamily": "Salesforce-Sans, system-ui, -apple-system, sans-serif"
+    },
+    "rounded": {
+      "xs": "2px",
+      "sm": "4px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "xxl": "48px",
+      "pill": "90px"
+    },
+    "name": "Slack",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#4a154b",
+    "ink": "#1d1d1d",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/slack/DESIGN.md"
+  },
+  {
+    "id": "spacex",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 80,
+      "fontFamily": "D-DIN, Arial, Verdana, sans-serif"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "8px",
+      "md": "16px",
+      "pill": "32px",
+      "full": "9999px"
+    },
+    "name": "Spacex",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#000000",
+    "ink": "#000000",
+    "source": "brand-tokens/brands/spacex/DESIGN.md"
+  },
+  {
+    "id": "spotify",
+    "typography": {},
+    "rounded": {},
+    "name": "Spotify",
+    "quality": "reference",
+    "curated": false,
+    "source": "brand-tokens/brands/spotify/DESIGN.md"
+  },
+  {
+    "id": "starbucks",
+    "typography": {},
+    "rounded": {},
+    "name": "Starbucks",
+    "quality": "reference",
+    "curated": false,
+    "source": "brand-tokens/brands/starbucks/DESIGN.md"
+  },
+  {
+    "id": "stripe",
+    "typography": {
+      "bodySize": 16,
+      "displaySize": 56,
+      "fontFamily": "sohne-var, 'SF Pro Display', system-ui, -apple-system, sans-serif"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "pill": "9999px"
+    },
+    "name": "Stripe",
+    "quality": "derived",
+    "curated": true,
+    "accent": "#533afd",
+    "ink": "#0d253d",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/stripe/DESIGN.md"
+  },
+  {
+    "id": "supabase",
+    "typography": {},
+    "rounded": {},
+    "name": "Supabase",
+    "quality": "reference",
+    "curated": false,
+    "source": "brand-tokens/brands/supabase/DESIGN.md"
+  },
+  {
+    "id": "superhuman",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 64,
+      "fontFamily": "'Super Sans VF', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+    },
+    "rounded": {
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "full": "9999px"
+    },
+    "name": "Superhuman",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#1b1938",
+    "ink": "#292827",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/superhuman/DESIGN.md"
+  },
+  {
+    "id": "tesla",
+    "typography": {},
+    "rounded": {},
+    "name": "Tesla",
+    "quality": "reference",
+    "curated": false,
+    "source": "brand-tokens/brands/tesla/DESIGN.md"
+  },
+  {
+    "id": "theverge",
+    "typography": {},
+    "rounded": {},
+    "name": "Theverge",
+    "quality": "reference",
+    "curated": false,
+    "source": "brand-tokens/brands/theverge/DESIGN.md"
+  },
+  {
+    "id": "together.ai",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 64,
+      "fontFamily": "The Future, Inter, Helvetica Neue, Arial, sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "3.25px",
+      "sm": "4px",
+      "md": "8px",
+      "full": "9999px"
+    },
+    "name": "Together.ai",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#000000",
+    "ink": "#000000",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/together.ai/DESIGN.md"
+  },
+  {
+    "id": "uber",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 52,
+      "fontFamily": "UberMoveText, system-ui, Helvetica Neue, Arial, sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "pill": "999px",
+      "pill-tab": "36px",
+      "full": "9999px"
+    },
+    "name": "Uber",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#000000",
+    "ink": "#000000",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/uber/DESIGN.md"
+  },
+  {
+    "id": "vercel",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 48,
+      "fontFamily": "Geist, Inter, system-ui, -apple-system, sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "lg": "12px",
+      "xl": "16px",
+      "pill-sm": "64px",
+      "pill": "100px",
+      "full": "9999px"
+    },
+    "name": "Vercel",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#171717",
+    "ink": "#171717",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/vercel/DESIGN.md"
+  },
+  {
+    "id": "vodafone",
+    "typography": {
+      "bodySize": 22,
+      "displaySize": 144,
+      "fontFamily": "Vodafone, Vodafone Rg, Helvetica Neue, Arial, sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "1px",
+      "sm": "6px",
+      "card": "6px",
+      "pill-md": "32px",
+      "pill-lg": "60px",
+      "full": "9999px"
+    },
+    "name": "Vodafone",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#e60000",
+    "ink": "#25282b",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/vodafone/DESIGN.md"
+  },
+  {
+    "id": "voltagent",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 60,
+      "fontFamily": "Inter, system-ui, -apple-system, sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "4px",
+      "sm": "6px",
+      "md": "8px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Voltagent",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#00d992",
+    "ink": "#f2f2f2",
+    "background": "#101010",
+    "source": "brand-tokens/brands/voltagent/DESIGN.md"
+  },
+  {
+    "id": "warp",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 64,
+      "fontFamily": "Inter, system-ui, -apple-system, sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "xxs": "1px",
+      "xs": "2px",
+      "sm": "3px",
+      "md": "4px",
+      "lg": "6px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Warp",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#f7f5f0",
+    "ink": "#f7f5f0",
+    "background": "#2b2622",
+    "source": "brand-tokens/brands/warp/DESIGN.md"
+  },
+  {
+    "id": "webflow",
+    "typography": {
+      "bodySize": 28.8,
+      "displaySize": 80,
+      "fontFamily": "WF Visual Sans Variable, Inter, system-ui, sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "xs": "2px",
+      "sm": "4px",
+      "md": "8px",
+      "full": "9999px"
+    },
+    "name": "Webflow",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#080808",
+    "ink": "#080808",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/webflow/DESIGN.md"
+  },
+  {
+    "id": "wired",
+    "typography": {
+      "bodySize": 19,
+      "displaySize": 64,
+      "fontFamily": "BreveText, Georgia, \"Times New Roman\", serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "full": "9999px"
+    },
+    "name": "Wired",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#000000",
+    "ink": "#000000",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/wired/DESIGN.md"
+  },
+  {
+    "id": "wise",
+    "typography": {
+      "bodySize": 20,
+      "displaySize": 126,
+      "fontFamily": "Inter, system-ui, sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "sm": "8px",
+      "md": "12px",
+      "lg": "16px",
+      "xl": "24px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Wise",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#9fe870",
+    "ink": "#0e0f0c",
+    "background": "#ffffff",
+    "source": "brand-tokens/brands/wise/DESIGN.md"
+  },
+  {
+    "id": "x.ai",
+    "typography": {
+      "bodySize": 18,
+      "displaySize": 96,
+      "fontFamily": "universalSans, Inter, system-ui, sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "sm": "8px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "X.ai",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#ffffff",
+    "ink": "#ffffff",
+    "background": "#0a0a0a",
+    "source": "brand-tokens/brands/x.ai/DESIGN.md"
+  },
+  {
+    "id": "zapier",
+    "typography": {
+      "bodySize": 20,
+      "displaySize": 56,
+      "fontFamily": "Inter, system-ui, sans-serif"
+    },
+    "rounded": {
+      "none": "0px",
+      "sm": "6px",
+      "md": "12px",
+      "pill": "9999px",
+      "full": "9999px"
+    },
+    "name": "Zapier",
+    "quality": "derived",
+    "curated": false,
+    "accent": "#ff4f00",
+    "ink": "#201515",
+    "background": "#fffefb",
+    "source": "brand-tokens/brands/zapier/DESIGN.md"
+  }
+]

@@ -1,0 +1,6 @@
+import fs from 'node:fs';import path from 'node:path';import {build} from 'esbuild';
+const root=path.resolve(import.meta.dirname,'..');const {outputFiles}=await build({stdin:{contents:'export {createVisualSpec,VISUAL_LAYOUTS} from "./app/shared/visual-design/spec.ts"; export {renderVisualDocument,VISUAL_STYLE_FILES} from "./app/shared/visual-design/document.ts";',resolveDir:root},bundle:true,platform:'node',format:'esm',write:false});
+const {createVisualSpec,VISUAL_LAYOUTS,renderVisualDocument,VISUAL_STYLE_FILES}=await import('data:text/javascript;base64,'+Buffer.from(outputFiles[0].text).toString('base64'));
+const assets={css:VISUAL_STYLE_FILES.map(f=>fs.readFileSync(path.join(root,'resources/visual-design',f),'utf8')).join('\n'),runtime:fs.readFileSync(path.join(root,'resources/visual-design/runtime.js'),'utf8')};
+for(const layout of VISUAL_LAYOUTS){const file=path.join(root,'resources/em-html-editor',`template-${layout}.html`),text=renderVisualDocument(createVisualSpec({styleId:'minimalism',layout}),assets,{title:'Studio'});if(process.argv.includes('--check')){if(fs.readFileSync(file,'utf8')!==text)throw Error('Generated template is stale: '+layout)}else fs.writeFileSync(file,text);}
+console.log('Visual templates match the shared renderer');

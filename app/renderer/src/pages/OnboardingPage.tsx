@@ -2,7 +2,6 @@ import { LanguageSelector } from "../components/settings/LanguageSelector";
 import { useTranslation } from "react-i18next";
 import "../lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useSettingsStore } from "../stores/settings-store";
 import { useThemeStore } from "../stores/theme-store";
 import { PiImportCard, envAutoAdvanceAllowed, manualSkipDropsAutoAdvance } from "../components/settings/PiImport";
@@ -28,7 +27,6 @@ const STEP_LIFT_PX: Record<number, number> = { 0: 80, 1: 60 };
 
 export function OnboardingPage(): JSX.Element {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const isDark = useThemeStore((s) => s.effective) === "dark";
   const [currentStep, setCurrentStep] = useState(0);
   const { setApiProviders } = useSettingsStore();
@@ -64,8 +62,8 @@ export function OnboardingPage(): JSX.Element {
   const handleComplete = () => {
     localStorage.setItem("easymint_setup_complete", "true");
     window.electronAPI?.settings?.set?.("setupComplete", true);
+    // App 在当前路由恢复工作台，重跑引导时保留本窗口的项目及会话参数。
     window.dispatchEvent(new Event("easymint-setup-complete"));
-    navigate("/");
   };
 
   const goPrev = useCallback(() => setCurrentStep((s) => Math.max(s - 1, 0)), []);

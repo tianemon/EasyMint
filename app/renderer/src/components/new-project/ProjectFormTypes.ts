@@ -11,6 +11,8 @@ export interface FeatureItem {
   name: string;
 }
 
+import type { StylePalette, StyleEffect } from "./style-appearance";
+
 export interface ProjectFormData {
   name: string;
   description: string;
@@ -18,8 +20,13 @@ export interface ProjectFormData {
   targets: string[];
   dir: string;
   completeness: CompletenessChoice;
+  deliveryTouched?: Partial<Record<"completeness" | "deployPlatform" | "aiIntegration" | "techBudget", boolean>>;
   features: FeatureItem[];
   uiStyle: string;
+  uiPalette: StylePalette;
+  uiEffect: StyleEffect;
+  uiBrand?: string;
+  uiLayout?: import("../../../../shared/visual-design/spec").VisualLayout;
   techBudget: BudgetChoice;
   deployPlatform: DeployChoice;
   aiIntegration: AIIntegration;
@@ -95,6 +102,8 @@ export const DEFAULT_DATA: ProjectFormData = {
   completeness: "mvp",
   features: [],
   uiStyle: "",
+  uiPalette: "default",
+  uiEffect: "standard",
   techBudget: "少量",
   deployPlatform: "本地",
   aiIntegration: "none",

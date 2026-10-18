@@ -5,13 +5,14 @@ import { registerOverlay } from "../../lib/overlay-stack";
 /**
  * 弹窗基础组件 —— 统一键盘 / 焦点行为（各弹窗原有视觉与遮罩样式经 overlayClassName 传入，保持不变）。
  * 提供三件事：
- *  1. Esc 关闭：capture 阶段监听 + stopImmediatePropagation —— 嵌套弹窗只关最上层（后打开者先注册）
+ *  1. Esc 关闭：按视觉 tier 与打开顺序确定最上层，仅由该层处理键盘
  *  2. 焦点陷阱：Tab/Shift+Tab 在弹窗面板内循环，不穿透到背后页面
  *  3. 关闭后焦点归还触发元素（打开前 document.activeElement，卸载时若仍存活则聚焦回去）
  * 此外自动注册到全局弹窗栈（registerOverlay）：点击本弹窗不关闭下层抽屉等 document 级关闭监听。
  * 遮罩点击关闭有三种模式（click / press-release / false），press-release = 按下与松开都在遮罩才算
  * （OutputWindow 拖拽选中移出边缘不误关）。
- * 本组件以 createPortal 挂到 body：弹窗宿主常在带 transform 的容器内（侧边抽屉/输入卡片），
+ * 默认 createPortal 挂到 body；模板展厅可显式指定 portalTarget 限定局部浮层。
+ * 普通弹窗宿主常在带 transform 的容器内（侧边抽屉/输入卡片），
  * 不脱离会把 fixed 定位劫持到 transform 祖先上导致无法在窗口内居中。
  * 遮罩带 no-drag：它 fixed inset-0 压在窗口顶部拖拽区(TabBar/侧栏 drag)之上，不声明 no-drag
  * 时 Electron 的拖拽区会吞掉点击——弹窗顶部的关闭按钮等控件点不动。
@@ -25,6 +26,35 @@ const TIER_CLASS: Record<ModalTier, string> = {
 };
 
 let openModalCount = 0;
+interface ModalEntry { id: symbol; tier: ModalTier; root: HTMLElement; focus: () => void }
+const modalStack: ModalEntry[] = [];
+const TIER_PRIORITY: Record<ModalTier, number> = { dialog: 0, modal: 1 };
+
+export function selectTopModal<T extends { tier: ModalTier }>(entries: readonly T[]): T | undefined {
+  return entries.reduce<T | undefined>((top, entry) =>
+    !top || TIER_PRIORITY[entry.tier] >= TIER_PRIORITY[top.tier] ? entry : top, undefined);
+}
+
+function topModal(): ModalEntry | undefined { return selectTopModal(modalStack); }
+
+const localEscapeLayers: Array<{ root: HTMLElement; close: () => void }> = [];
+
+/** Local non-modal layers (such as tooltips) dismiss before their owning modal. */
+export function registerLocalEscape(root: HTMLElement, close: () => void): () => void {
+  const entry = { root, close };
+  localEscapeLayers.push(entry);
+  const standalone = (event: KeyboardEvent) => {
+    if (event.key === "Escape" && !topModal() && localEscapeLayers.at(-1) === entry) {
+      event.preventDefault(); event.stopImmediatePropagation(); close();
+    }
+  };
+  window.addEventListener("keydown", standalone);
+  return () => {
+    window.removeEventListener("keydown", standalone);
+    const index = localEscapeLayers.indexOf(entry);
+    if (index >= 0) localEscapeLayers.splice(index, 1);
+  };
+}
 
 /**
  * 是否有 Modal 层弹窗开着。
@@ -47,6 +77,8 @@ const FOCUSABLE_SELECTOR = [
 ].join(", ");
 
 interface ModalProps {
+  /** Template galleries keep their local modal inside the themed artboard. */
+  portalTarget?: HTMLElement;
   /** Esc / 遮罩点击 / 卸载统一入口（父组件通常用它卸载弹窗） */
   onClose: () => void;
   children: ReactNode;
@@ -61,6 +93,7 @@ interface ModalProps {
 }
 
 export function Modal({
+  portalTarget,
   onClose,
   children,
   tier = "dialog",
@@ -81,6 +114,7 @@ export function Modal({
     const root = rootRef.current;
     if (!root) return;
     openModalCount++;
+    const modalId = Symbol("modal");
     const unregisterOverlay = registerOverlay(root);
 
     // 面板 = 遮罩根的第一个子元素（各调用方保持「遮罩 > 面板」两层结构）
@@ -98,16 +132,31 @@ export function Modal({
       return !!a && !!panel && (panel === a || panel.contains(a));
     };
 
-    // 初始焦点进面板：面板内已有 autoFocus 元素（React 提交期已聚焦）则不抢
-    if (!activeInside()) {
-      const list = collectFocusable();
-      if (list.length > 0) list[0]?.focus();
-    }
+    let lastFocused: HTMLElement | null = activeInside() ? document.activeElement as HTMLElement : null;
+    const focus = () => {
+      if (activeInside()) return;
+      const target = lastFocused?.isConnected && panel?.contains(lastFocused) ? lastFocused : collectFocusable()[0];
+      target?.focus({ preventScroll: true });
+    };
+    const entry: ModalEntry = { id: modalId, tier, root, focus };
+    modalStack.push(entry);
+    const rememberFocus = (event: FocusEvent) => {
+      if (event.target instanceof HTMLElement && panel?.contains(event.target)) lastFocused = event.target;
+    };
+    root.addEventListener("focusin", rememberFocus);
+
+    // A late lower-tier dialog (for example an incoming pair request) must not steal focus.
+    topModal()?.focus();
 
     const onKeyDown = (e: KeyboardEvent) => {
+      // Capture listeners run in registration order; only the top modal owns keys.
+      if (topModal()?.id !== modalId) return;
       if (e.key === "Escape") {
-        // capture + stopImmediatePropagation：嵌套弹窗各自在 window capture 注册，
-        // 后打开者先注册先执行并拦截——一次 Esc 只关最上层
+        const local = localEscapeLayers.slice().reverse().find((layer) => root.contains(layer.root));
+        if (local) { e.preventDefault(); e.stopImmediatePropagation(); local.close(); return; }
+        // Open selectors own Escape, including when focus returns to their trigger.
+        if (e.target instanceof Element && e.target.closest('[role="listbox"], [role="combobox"][aria-expanded="true"], [data-overlay-escape="true"]')) return;
+        // The stack, rather than listener registration order, decides ownership.
         e.stopImmediatePropagation();
         onCloseRef.current();
         return;
@@ -133,12 +182,19 @@ export function Modal({
     window.addEventListener("keydown", onKeyDown, true);
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
+      root.removeEventListener("focusin", rememberFocus);
       openModalCount--;
+      const wasTop = topModal()?.id === modalId;
+      const index = modalStack.indexOf(entry);
+      if (index >= 0) modalStack.splice(index, 1);
       unregisterOverlay();
       const prev = restoreRef.current;
-      if (prev && prev.isConnected && document.contains(prev)) prev.focus();
+      if (!wasTop) return;
+      const next = topModal();
+      if (prev?.isConnected && (!next || next.root.contains(prev))) prev.focus({ preventScroll: true });
+      else next?.focus();
     };
-  }, []);
+  }, [tier]);
 
   // 触发元素快照要在挂载副作用前取到——render 期记录即可（首帧 activeElement 即打开前的焦点）
   if (restoreRef.current === null) {
@@ -182,6 +238,6 @@ export function Modal({
     >
       {children}
     </div>,
-    document.body,
+    portalTarget ?? document.body,
   );
 }

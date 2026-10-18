@@ -9,7 +9,6 @@ import type { SystemMessagePayload } from "../../../../shared/prompts";
  *  旁路会话一次创建、流程内复用(翻译/推荐都发往同一会话),组件卸载时 dispose 统一清理——
  *  避免每次调用都建/删一个会话。模型不在此指定,一律按配置默认模型走。 */
 export function useMintChat(pathRef: React.RefObject<string | null>) {
-  const sidRef = useRef<string | null>(null);      // project session
   const workspaceSidRef = useRef<string | null>(null);   // workspace 旁路会话（流程级共享）
   const workspaceChatIdRef = useRef<string | null>(null);
   const workspaceGenerationRef = useRef(0);
@@ -21,16 +20,9 @@ export function useMintChat(pathRef: React.RefObject<string | null>) {
     return pathRef.current || WORKSPACE_DIR;
   }, [pathRef]);
 
-  /** Send a prompt (or system message payload) and wait for the full response. Uses sidRef for session reuse. */
-  const ask = useCallback((prompt: string, opts?: { forceNewSession?: boolean; systemPayload?: SystemMessagePayload }): Promise<string> => {
-    const cwd = getCwd();
-    const sessionId = opts?.forceNewSession ? null : sidRef.current;
-    return postToAgent({ cwd, sessionId, systemPayload: opts?.systemPayload,
-      onStarted: identity => { sidRef.current = identity.sessionId; },
-    }, prompt)
-      .then((r) => r.replyText)
-      .catch(error => { console.warn("[ask] 请求失败（返回空串）:", error); return ""; });
-  }, [pathRef]);
+  /** Resolve on this request's IPC identity; the project page owns streaming and turn errors. */
+  const startSession = useCallback((prompt: string, systemPayload: SystemMessagePayload) =>
+    window.electronAPI.agent.sendMessage(getCwd(), prompt, { sessionId: null, systemPayload }), [getCwd]);
 
   /**
    * Workspace 旁路问答（名称翻译/功能推荐等）——首次调用创建会话，之后复用同一会话发消息。
@@ -78,7 +70,7 @@ export function useMintChat(pathRef: React.RefObject<string | null>) {
     }
   }, []);
 
-  return { ask, askWorkspace, disposeWorkspaceSession, sidRef };
+  return { startSession, askWorkspace, disposeWorkspaceSession };
 }
 
 async function cleanupWorkspace(chatId: string, sessionId: string, cwd: string): Promise<void> {

@@ -8,6 +8,7 @@ import { ChatPanel } from "../components/ChatPanel";
 import { ImageViewer } from "../components/ImageViewer";
 import { isImagePath } from "@shared/image-files";
 import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
+import { ProjectDesignDialog } from "../components/new-project/ProjectDesignDialog";
 import { NewProjectDialog } from "../components/NewProjectDialog";
 import { confirmDialog } from "../components/ui/ConfirmDialog";
 import { Modal } from "../components/ui/Modal";
@@ -29,6 +30,7 @@ export function ProjectPage(): JSX.Element {
   const location = useLocation();
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab | undefined>(undefined);
+  const [showProjectDesign, setShowProjectDesign] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [projectPath, setProjectPath] = useState("");
   const [projectName, setProjectName] = useState("");
@@ -215,13 +217,13 @@ export function ProjectPage(): JSX.Element {
 
   // Mint-D 生成原型后自动打开编辑器
   useEffect(() => {
-    const unsub = window.electronAPI.editor.onOpenPrototype(({ projectPath: eventPath }) => {
-      if (!eventPath) return;
-      const filePath = eventPath + "/prototype/index.html";
+    const unsub = window.electronAPI.editor.onOpenPrototype(({ projectPath: eventPath, filePath: sourceFile }) => {
+      if (!eventPath || eventPath !== projectPath) return;
+      const filePath = sourceFile ?? eventPath + "/prototype/index.html";
       window.electronAPI.editor.open(filePath);
     });
     return () => unsub();
-  }, []);
+  }, [projectPath]);
 
   const handleFileClick = useCallback(
     (filePath: string, fileName: string) => {
@@ -409,6 +411,7 @@ export function ProjectPage(): JSX.Element {
         onSessionDelete={handleSessionDelete}
         onFileClick={handleFileClick}
         onNewProject={() => setShowNewProject(true)}
+        onEditDesign={projectId && projectExists ? () => setShowProjectDesign(true) : undefined}
         onOpenProject={handleOpenProject}
         onRenameProject={projectId && projectExists ? handleRenameProject : undefined}
         onSettings={() => { setSettingsTab(undefined); setShowSettings(true); }}
@@ -416,9 +419,22 @@ export function ProjectPage(): JSX.Element {
 
       <main className="main-area">
         <TabBar />
+
         {/* tab 内容全部保持挂载、按 activeTabId 切显隐(不卸载)：卸载会丢会话/编辑器的组件内状态(输入框草稿、滚动位置) */}
         <div className="flex-1 min-h-0 relative">
           {renderTabContent()}
+          {!projectId && !tabs.some((tab) => tab.sessionId || tab.type === "file") && (
+            <div className="creation-welcome">
+              <div className="creation-welcome-copy">
+                <span className="creation-eyebrow">{uiText("creation.welcome.eyebrow")}</span>
+                <h2>{uiText("creation.welcome.title")}</h2>
+                <p>{uiText("creation.welcome.description")}</p>
+              </div>
+              <button type="button" className="creation-welcome-action btn-accent" onClick={() => setShowNewProject(true)}>
+                {uiText("creation.welcome.action")}
+              </button>
+            </div>
+          )}
         </div>
       </main>
 
@@ -623,6 +639,7 @@ export function ProjectPage(): JSX.Element {
         </Modal>
       )}
 
+      {showProjectDesign && <ProjectDesignDialog projectPath={projectPath} projectName={projectName} onClose={()=>setShowProjectDesign(false)}/>}
       {showNewProject && (
         <NewProjectDialog
           onClose={() => setShowNewProject(false)}

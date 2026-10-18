@@ -25,6 +25,7 @@ import { createWithPermissionGate, withSessionCreationLock } from "./session-per
 import { createTaskTool } from "./task/tool";
 import { createAgentTemplateTool } from "./task/tool";
 import { ensureDesignerTemplates } from "./designer-seed";
+import { projectDesignSection } from "./project-design";
 import { adjustCostForTimePricing, sumUsage, summarizeTimePricing, type AdjustedCost, type PricingEntry } from "./provider-pricing";
 import { createSkillTool, createManageSkillTool } from "./tools/skill-tool";
 import { createLearnTool, createSearchExperiencesTool } from "./tools/learn-tool";
@@ -788,7 +789,7 @@ export class AgentService {
         // 单任务提前完成 → 立即注入完成通知,Mint 输出判断继续等待(对齐 cc)
         onTaskCompleted: (sid, text) => this.injectSystemMessage(sid, text, "delegation"),
       });
-      const productTools = await createProductTools(projectPath);
+      const productTools = await createProductTools(projectPath, () => resolveParentSessionId(sessionId));
       const agentTemplateTool = await createAgentTemplateTool();
       const stopAgentTool = await createStopAgentTool(sessionId);
       const listAgentsTool = await createListAgentsTool(sessionId);
@@ -860,6 +861,8 @@ export class AgentService {
     if (env) parts.push(env);
     const profile = buildProjectProfileSection(readProjectProfile(projectPath));
     if (profile) parts.push(profile);
+    const visual = projectDesignSection(projectPath);
+    if (visual) parts.push(visual);
 
     // 权限边界（三档 + 绝对禁区）——提前告知模型边界与「被拒后如何应对」，
     // 减少无谓的越界尝试；工具被拒时错误消息会带统一策略的规则、目标和阶段

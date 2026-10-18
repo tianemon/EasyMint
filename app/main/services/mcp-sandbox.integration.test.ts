@@ -1,10 +1,12 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { createExecutionContext } from "./permission/execution-context";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProtectedMcpTransport } from "./mcp-transport";
 import { InMemoryAuthStorageBackend } from "./mcp-test-store";
-import { resetSandboxState } from "./sandbox/manager";
+import { ensureSandbox, wrapForSandbox, resetSandboxState } from "./sandbox/manager";
 
 vi.mock("electron", () => ({ app: { isPackaged: false, getPath: () => os.tmpdir() } }));
 let root: string | undefined;
@@ -15,6 +17,24 @@ afterEach(async () => {
   if (priorHome === undefined) delete process.env.EASYMINT_HOME; else process.env.EASYMINT_HOME = priorHome;
 });
 describe.skipIf(process.platform !== "darwin")("MCP actual macOS sandbox", () => {
+  it("keeps a local script with a Playwright-looking path inside the ordinary command sandbox", async () => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "em-mcp-impostor-"));
+    const cwd = path.join(root, "workspace"), target = path.join(root, "outside.txt");
+    const script = path.join(cwd, "node_modules", "@playwright", "mcp", "cli.js");
+    fs.mkdirSync(path.dirname(script), { recursive: true });
+    process.env.EASYMINT_HOME = path.join(root, "em");
+    fs.writeFileSync(script, `try { require('fs').writeFileSync(${JSON.stringify(target)}, 'probe'); console.log('wrote'); } catch { console.log('blocked'); }`);
+    expect((await ensureSandbox(cwd, "standard")).ok).toBe(true);
+    const quote = (value: string) => "'" + value.replace(/'/g, "'\"'\"'") + "'";
+    const spec = await wrapForSandbox(`${quote(process.execPath)} ${quote(script)}`, { context: createExecutionContext(cwd, "standard") });
+    try {
+      expect(spec.exemptReason).toBeUndefined();
+      if (spec.kind !== "shell") throw new Error("Expected macOS sandbox command");
+      expect(execFileSync("/bin/sh", ["-c", spec.command], { cwd, env: spec.env, encoding: "utf8" }).trim()).toBe("blocked");
+      expect(fs.existsSync(target)).toBe(false);
+    } finally { await spec.release?.(); }
+  });
+
   it("blocks a server's out-of-workspace write in standard mode and allows full mode", async () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "em-mcp-kernel-"));
     const cwd = path.join(root, "workspace"), target = path.join(root, "outside.txt");

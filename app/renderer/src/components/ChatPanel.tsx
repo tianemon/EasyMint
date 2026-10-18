@@ -1,3 +1,5 @@
+import { matchesConfirmDevelopment, hasConfirmDevelopment, confirmationEntries, confirmationStart } from "../lib/confirm-development";
+import type { ConfirmDevelopmentRequest } from "../../../shared/creation-flow";
 import { applyPiRunStatus, clearPiRunSignals, restorePiRunStatus } from "../lib/pi-run-status";
 import { formatNumber } from "../lib/locale-format";
 import { uiText, useUiLocale, appText, appMessage } from "../lib/i18n";
@@ -2402,33 +2404,27 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   const hasMessages = messages.length > 0;
 
   // Tool-call driven UI actions — Mint calls show_* tools, frontend detects tool_use entries
-  const lastToolUses = useMemo(() => {
-    if (messages.length === 0) return [];
-    const lastAi = messages.filter((m) => m.role === "ai" && m.entries).pop();
-    if (!lastAi?.entries) return [];
-    return lastAi.entries.filter((e) => e.kind === "tool_use");
-  }, [messages]);
   // 工具广播直连:Mint 调 show_confirm_dev 时立即显示(不受 busy 影响);
   // 点击按钮消费后从消息中移除 show_* 条目,推断分支不再命中(打断/回合结束不会复活)。
-  // 消息推断(lastToolUses)保留作历史恢复兜底。
-  const [confirmDevFlag, setConfirmDevFlag] = useState(false);
+  // 成功工具结果保留作历史恢复兜底，覆盖后续AI说明气泡。
+  const [confirmDevRequest, setConfirmDevRequest] = useState<ConfirmDevelopmentRequest | null>(null);
   useEffect(() => {
-    const off1 = window.electronAPI.agent.onConfirmDev(() => setConfirmDevFlag(true));
+    const off1 = window.electronAPI.agent.onConfirmDev(request => {
+      if (matchesConfirmDevelopment(request, projectPath, sidRef.current)) setConfirmDevRequest(request);
+    });
     return () => { off1(); };
-  }, []);
-  // 点击消费:清 flag + 从最后一条 AI 消息移除 show_* 工具条目(防止推断复活)
+  }, [projectPath]);
+  // 点击消费：清请求并移除当前回合的确认开发调用，防止历史推断复活。
   const consumeShowTools = () => {
     const store = useChatStore.getState();
-    const msgs = store.messagesBySession[sidRef.current] || [];
-    const lastAi = msgs.filter((m) => m.role === "ai" && m.entries).pop();
-    if (lastAi && lastAi.id != null) {
-      const kept = (lastAi.entries as Array<{ kind?: string; name?: string }>).filter(
-        (e) => !(e.kind === "tool_use" && e.name?.startsWith("show_")),
-      );
-      store.replaceAiEntriesById(sidRef.current, lastAi.id as number, kept);
+    const msgs: ChatMessage[] = store.messagesBySession[sidRef.current] || [];
+    const start = confirmationStart(msgs);
+    for (const message of msgs.slice(start)) {
+      if (message.role !== "ai" || !message.entries?.some(entry => entry.kind === "tool_use" && entry.name === "show_confirm_dev")) continue;
+      store.replaceAiEntriesById(sidRef.current, message.id, message.entries.filter(entry => !(entry.kind === "tool_use" && entry.name === "show_confirm_dev")));
     }
   };
-  const showConfirmDev = confirmDevFlag || (!busy && lastToolUses.some((e) => (e as { name?: string }).name === "show_confirm_dev"));
+  const showConfirmDev = matchesConfirmDevelopment(confirmDevRequest, projectPath, sidRef.current) || (!busy && hasConfirmDevelopment(confirmationEntries(messages)));
 
   // ── 用户消息编辑重发(任意一条 user 气泡 → 级联撤回后重发) ──────────────
   // 铅笔常驻在每条 user 气泡下(用户已确认);可用性判据见 chat-utils.editUnavailableReason
@@ -2892,7 +2888,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
             {showConfirmDev && (
               <div className="flex justify-center pb-3">
                 <button
-                  onClick={() => { setConfirmDevFlag(false); consumeShowTools(); sendText(CONFIRM_DEVELOPMENT_PROMPT); }}
+                  onClick={() => { setConfirmDevRequest(null); consumeShowTools(); sendText(CONFIRM_DEVELOPMENT_PROMPT); }}
                   className="px-6 py-2.5 rounded-[var(--radius-lg)] btn-accent text-sm font-semibold border-none cursor-pointer transition-all duration-200 hover:-translate-y-px active:translate-y-0"
                 >
                   {uiText("ui.ChatBlocks.confirmDevelopment")}</button>
@@ -3350,10 +3346,9 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, streaming, busy, us
             ))}
             {/* 回合 usage：气泡内容区底部右对齐——贴内容右下，与 hover 复制工具条（气泡外）永不冲突。
                  口径：输入 = 未缓存 + 缓存读 + 缓存写（全部输入成本）；命中率 = 缓存读 / 全部输入 */}
-            {(msg.model || msg.durationMs !== undefined) && (
+            {msg.durationMs !== undefined && (
               <div className="mt-1 text-right break-all text-[length:var(--text-2xs)] text-text-muted tabular-nums">
-                {msg.model ? `${msg.provider ? msg.provider + "/" : ""}${msg.model}` : ""}
-                {msg.durationMs !== undefined ? ` · ${(msg.durationMs / 1000).toFixed(1)}s` : ""}
+                {(msg.durationMs / 1000).toFixed(1)}s
               </div>
             )}
             {msg.usage && (() => {

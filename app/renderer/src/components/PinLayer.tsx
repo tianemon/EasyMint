@@ -53,6 +53,8 @@ interface PinCardProps {
 }
 
 function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProps): JSX.Element {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   // 渲染 clamp：窗口缩小后便签不丢失（只影响显示，不改持久化坐标）。
   // 左右放开——允许移出边缘隐藏(露出 20px 可拖回)；上锁死不出界(y≥0)；下贴底(现状)
   const layer = layerRef.current;
@@ -133,10 +135,13 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
     target.setPointerCapture(e.pointerId);
     const startClientX = e.clientX;
     const startClientY = e.clientY;
-    const startX = pin.x;
-    const startY = pin.y;
-    const startW = pin.width || CARD_W;
-    const startH = pin.height || 200;
+    const startX = x;
+    const startY = y;
+    // height 保存的是内容区高度；首次为 auto，必须从当前布局测量。
+    const startW = cardRef.current?.getBoundingClientRect().width ?? cardW;
+    const startH = contentRef.current?.getBoundingClientRect().height ?? 100;
+    const minW = Math.min(240, startW);
+    const minH = Math.min(100, startH);
     let released = false;
 
     const onMove = (ev: PointerEvent) => {
@@ -145,8 +150,8 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
       const dx = ev.clientX - startClientX;
       const dy = ev.clientY - startClientY;
       // 宽高上限自适应容器(80%)——放大窗口便签可更大
-      const maxW = Math.min(layerEl.clientWidth * 0.8, layerEl.clientWidth);
-      const maxH = Math.max(100, layerEl.clientHeight * 0.8);
+      const maxW = Math.max(startW, layerEl.clientWidth * 0.8);
+      const maxH = Math.max(startH, 100, layerEl.clientHeight * 0.8);
 
       let nx = startX;
       let ny = startY;
@@ -159,26 +164,26 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
         // 西拖：右边界固定，只动左边界。
         // 先 clamp 左边界(保证 ≥ 0、宽度 ≥ 240)，宽度 = 右边界 - 左边界；
         // 宽度触上限时左边界锁定，右边界保持——右边界恒 = startX+startW 不变
-        nx = Math.min(Math.max(0, startX + dx), startX + startW - 240);
+        nx = Math.min(Math.max(0, startX + dx), startX + startW - minW);
         nw = startX + startW - nx;
         if (nw > maxW) {
           nw = maxW;
           nx = startX + startW - maxW;
         }
-      } else {
-        nw = Math.min(Math.max(240, nw), maxW);
-        if (dir.includes("e")) nw = Math.min(nw, layerEl.clientWidth - startX);
+      } else if (dir.includes("e")) {
+        nw = Math.min(Math.max(minW, nw), maxW);
+        nw = Math.min(nw, Math.max(startW, layerEl.clientWidth - startX));
       }
       if (dir.includes("n")) {
         // 北拖：底边界固定，只动顶边界（与西拖对称）
-        ny = Math.min(Math.max(0, startY + dy), startY + startH - 100);
+        ny = Math.min(Math.max(0, startY + dy), startY + startH - minH);
         nh = startY + startH - ny;
         if (nh > maxH) {
           nh = maxH;
           ny = startY + startH - maxH;
         }
-      } else {
-        nh = Math.min(Math.max(100, nh), maxH);
+      } else if (dir.includes("s")) {
+        nh = Math.min(Math.max(minH, nh), maxH);
       }
 
       const store = usePinStore.getState();
@@ -200,7 +205,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
     target.addEventListener("pointerup", onUp);
     target.addEventListener("pointercancel", onUp);
     window.addEventListener("pointerup", onUp);
-  }, [pin.id, pin.x, pin.y, pin.width, pin.height, sessionId, layerRef]);
+  }, [pin.id, x, y, cardW, sessionId, layerRef]);
 
   // 置顶(bringToFront)在 onClick 触发而非 onPointerDown:pointerdown 时 reorder 卡片 DOM
   // 会与浏览器建立选择锚点竞态,拖选表现为必须先点击一次才能选——挪到 click(拖选完成后)
@@ -209,6 +214,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
     <div
       className="absolute rounded-[var(--radius-lg)] bg-surface-elevated shadow-xl overflow-hidden animate-[card-in_200ms_ease-out]"
       style={{ left: x, top: y, width: pin.width || CARD_W, zIndex: getPinZ(pin.id) ?? (pin.z || 0) }}
+      ref={cardRef}
       data-pin-id={pin.id}
       onClick={() => usePinStore.getState().bringToFront(sessionId, pin.id)}
     >
@@ -239,7 +245,7 @@ function PinCard({ pin, sessionId, layerRef, onMinimize, colorIdx }: PinCardProp
         </button>
       </div>
       {/* 内容区：Markdown 快照，超高滚动 */}
-      <div className="px-3 py-2 overflow-y-auto selectable" style={pin.height ? { height: pin.height } : { maxHeight: layer ? layer.clientHeight * 0.4 : "40vh" }}>
+      <div ref={contentRef} className="px-3 py-2 overflow-y-auto selectable" style={pin.height ? { height: pin.height } : { maxHeight: layer ? layer.clientHeight * 0.4 : "40vh" }}>
         <TextBlockView block={{ kind: "text", text: pin.content }} />
       </div>
       {/* 四周/拐角 resize 拖拽区（透明，hover 显示光标） */}

@@ -10,8 +10,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   editor: {
     open: (filePath?: string) => ipcRenderer.invoke("editor:open", filePath),
     openInBrowser: (filePath?: string) => ipcRenderer.invoke("editor:open-in-browser", filePath),
-    onOpenPrototype: (callback: (data: { projectPath: string }) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: { projectPath: string }) => callback(data);
+    onOpenPrototype: (callback: (data: { projectPath: string; filePath?: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { projectPath: string; filePath?: string }) => callback(data);
       ipcRenderer.on("editor:open-prototype", handler);
       return () => ipcRenderer.removeListener("editor:open-prototype", handler);
     },
@@ -29,7 +29,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     update: (id: string, patch: { name?: string; path?: string }) => ipcRenderer.invoke("project:update", { id, patch }),
     import: (dirPath: string) => ipcRenderer.invoke("project:import", { dirPath }),
     renameExec: (oldPath: string, newName: string) => ipcRenderer.invoke("project:rename-exec", { oldPath, newName }) as Promise<{ ok: boolean; error?: string }>,
-    saveProfile: (projectPath: string, platformSpec: string) => ipcRenderer.invoke("project:saveProfile", { projectPath, platformSpec }),
+    saveProfile: (projectPath: string, platformSpec: string, visualSelection?: import("../shared/visual-design/spec").VisualSelection) => ipcRenderer.invoke("project:saveProfile", { projectPath, platformSpec, visualSelection }),
+    readDesign: (projectPath: string) => ipcRenderer.invoke("project:readDesign", { projectPath }),
+    updateDesign: (projectPath: string, visualSelection: import("../shared/visual-design/spec").VisualSelection) => ipcRenderer.invoke("project:updateDesign", { projectPath, visualSelection }),
   },
   file: {
     readTree: (dirPath: string) => ipcRenderer.invoke("file:readTree", { dirPath }),
@@ -392,8 +394,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("agent:stderr", handler);
       return () => ipcRenderer.removeListener("agent:stderr", handler);
     },
-    onConfirmDev: (callback: () => void) => {
-      const handler = () => callback();
+    onConfirmDev: (callback: (data: import("../shared/creation-flow").ConfirmDevelopmentRequest) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: import("../shared/creation-flow").ConfirmDevelopmentRequest) => callback(data);
       ipcRenderer.on("agent:confirm-dev", handler);
       return () => ipcRenderer.removeListener("agent:confirm-dev", handler);
     },

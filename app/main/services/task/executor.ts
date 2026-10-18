@@ -17,6 +17,8 @@ import { getActiveModel, getModelRuntime } from "../pi-init";
 import { supportedThinkingLevelsOfSpec } from "../pi-init-static";
 import { getTemplate } from "../agent-templates";
 import { ensureDesignerTemplates } from "../designer-seed";
+import { projectDesignSection } from "../project-design";
+import { createProjectDesignTool } from "../project-design-tool";
 import { resolveThinkingLevel } from "../../../shared/thinking-levels";
 import { PERMISSION_RULES_PROMPT } from "../prompt-sections";
 import { Store } from "../store";
@@ -196,6 +198,8 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
         return base.map((t) => (t.name === "edit" ? enhanced : t));
       })();
 
+  if (!opts.readOnly) tools.push(await createProjectDesignTool(resolvedPath));
+
   // 子 Agent 权限跟随主会话。旧调用方没有策略时全部失败关闭，不能让原生 Bash 裸跑。
   const extraTools = opts.canUseTool
     ? tools
@@ -233,7 +237,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
     const schemaHint = typeof opts.outputSchema === "object"
       ? `\n\n完成工作后，必须调 yield 工具返回结果。data 对象需包含以下字段: ${JSON.stringify(opts.outputSchema)}`
       : "";
-    const fullPrompt = opts.task + schemaHint + "\n\n" + PERMISSION_RULES_PROMPT;
+    const fullPrompt = (tpl?.prompt ? tpl.prompt + "\n\n" : "") + opts.task + projectDesignSection(resolvedPath) + schemaHint + "\n\n" + PERMISSION_RULES_PROMPT;
     const session2 = await createPiSession({
       cwd: resolvedPath, agentDir: opts.agentDir, model,
       // 思考等级跟随主会话，再按模型能力自适应
@@ -257,7 +261,7 @@ async function runSingleSubagent(opts: SubagentOptions): Promise<SingleResult> {
   // 模板 prompt:委派指定 agent → 用模板 prompt 作为子 agent system prompt
   // （tpl 与思考等级基础值已在函数早期解析，两个分支共用）
   const tplPrompt = tpl?.prompt;
-  const systemPrompt = (tplPrompt ? tplPrompt + "\n\n" : "") + opts.task + "\n\n在你完成所有工作后，请在最后一条消息中输出你的工作总结。\n\n" + PERMISSION_RULES_PROMPT;
+  const systemPrompt = (tplPrompt ? tplPrompt + "\n\n" : "") + opts.task + projectDesignSection(resolvedPath) + "\n\n在你完成所有工作后，请在最后一条消息中输出你的工作总结。\n\n" + PERMISSION_RULES_PROMPT;
 
   try {
     const session = await createPiSession({

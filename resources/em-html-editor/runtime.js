@@ -7,7 +7,7 @@
  * 借鉴 ClickDeck（patch 式撤销重做、选中机制）和
  * html-deck-editor（画布式布局、拖动/resize 手柄）。
  */
-(function () {
+window.EMEditorInstall = function () {
   "use strict";
 
   function editorText(source) { return window.EMEditorLocale ? window.EMEditorLocale.value(source) : source; }
@@ -252,7 +252,7 @@
       switch (patch.type) {
         case "style":
           if (patch.el) {
-            if (patch.prop === "textContent") patch.el.textContent = value;
+            if (patch.prop === "innerHTML") patch.el.innerHTML = value;
             else if (isStyleable(patch.el)) patch.el.style[patch.prop] = value;
           }
           break;
@@ -277,7 +277,10 @@
           patch.el = restored;
           break;
         case "add":
-          if (patch.el && patch.el.parentNode) patch.el.remove();
+          if (value.present && patch.parent && patch.parent.isConnected) {
+            var sibling = patch.nextSibling && patch.nextSibling.parentNode === patch.parent ? patch.nextSibling : null;
+            patch.parent.insertBefore(patch.el, sibling);
+          } else if (patch.el && patch.el.parentNode) patch.el.remove();
           break;
         case "reparent":
           if (isStyleable(patch.el)) {
@@ -700,7 +703,7 @@
         if (el.querySelector && (el.querySelector("img, video, svg, canvas, iframe"))) return;
 
         editor._editingText = el;
-        var beforeText = el.textContent;
+        var beforeText = el.innerHTML;
         el.contentEditable = "true";
         el.focus();
         // 选中全部文字方便替换
@@ -715,9 +718,9 @@
         var onBlur = function () {
           el.removeEventListener("blur", onBlur);
           el.contentEditable = "false";
-          var afterText = el.textContent;
+          var afterText = el.innerHTML;
           if (beforeText !== afterText) {
-            editor.history.record("style", el, beforeText, afterText, { prop: "textContent" });
+            editor.history.record("style", el, beforeText, afterText, { prop: "innerHTML" });
             refreshHistoryButtons();
           }
           editor._editingText = null;
@@ -740,6 +743,8 @@
 
       // ── 键盘快捷键 ──
       function onKeyDown(e) {
+        // 文字与表单输入保留原生光标、撤销和删除行为。
+        if (e.target && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))) return;
         // Ctrl+Z / Cmd+Z
         if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ" && !e.shiftKey) {
           e.preventDefault();
@@ -819,10 +824,12 @@
 
       // rAF 循环
       var rafId = null;
-      (function syncLoop() {
-        rafId = requestAnimationFrame(syncLoop);
-        if (editor && editor.selected && !editor._dragging) syncAll(editor.selected);
-      })();
+      var activeEditor = editor;
+      function syncLoop() {
+        if (editor !== activeEditor) return;
+        if (editor.selected && !editor._dragging) syncAll(editor.selected);
+        editor._handlers.rafId = requestAnimationFrame(syncLoop);
+      }
 
       editor._handlers = {
         mousemove: onMouseMove, mousedown: onMouseDown, mouseup: onMouseUp,
@@ -830,6 +837,7 @@
         click: onClick, scroll: onScrollOrResize, resize: onScrollOrResize, keydown: onKeyDown,
         rafId: rafId,
       };
+      editor._handlers.rafId = requestAnimationFrame(syncLoop);
 
       return editor;
     },
@@ -849,7 +857,7 @@
         clearTimeout(editor._arrowTimer);
         if (h.rafId) cancelAnimationFrame(h.rafId);
       }
-      document.querySelectorAll("[data-em-editor]").forEach(function (el) { el.remove(); });
+      document.querySelectorAll("[data-em-editor]:not([data-em-editor=base])").forEach(function (el) { el.remove(); });
       editor = null;
     },
 
@@ -991,13 +999,12 @@
       for (var i = 0; i < uiElements.length; i++) {
         uiElements[i].remove();
       }
+      clone.querySelectorAll("base[data-em-editor-base-href]").forEach(function (base) {
+        base.setAttribute("href", base.getAttribute("data-em-editor-base-href"));
+        base.removeAttribute("data-em-editor-base-href");
+      });
       var html = "<!DOCTYPE html>\n" + clone.outerHTML;
       try { window.parent.postMessage({ type: "em-editor-export", html: html }, "*"); } catch (e) { /* */ }
-      var blob = new Blob([html], { type: "text/html" });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement("a");
-      a.href = url; a.download = "edited.html"; a.click();
-      URL.revokeObjectURL(url);
     },
 
     /** 面板调用的样式操作入口 */
@@ -1059,4 +1066,4 @@
       syncAll(el);
     },
   };
-})();
+};

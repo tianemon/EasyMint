@@ -155,6 +155,8 @@
 </div>
 
 <script src="i18n.js"></script>
+<script src="runtime.js"></script>
+<script src="document.js"></script>
 <script>
   function editorText(source) { return window.EMEditorLocale.value(source); }
   function setEditorText(element, source, localize) {
@@ -173,8 +175,8 @@
     var api = em();
     if (api && api.setUiLanguage) api.setUiLanguage();
   }
-  if (window.electronAPI && window.electronAPI.settings) {
-    var unsubscribeLocale = window.electronAPI.settings.onUiLanguageChanged(function (state) { setEditorLanguage(state.locale); });
+  if (window.editorAPI) {
+    var unsubscribeLocale = window.editorAPI.onUiLanguageChanged(function (state) { setEditorLanguage(state.locale); });
     window.addEventListener("unload", unsubscribeLocale, { once: true });
   }
   var editorActive = false;
@@ -183,9 +185,8 @@
   var iframe = document.getElementById("preview");
   var btnToggle = document.getElementById("btn-toggle");
   var btnBrowser = document.getElementById("btn-browser");
-  var status = document.getElementById("status");
+  var statusElement = document.getElementById("status");
   var dropHint = document.getElementById("drop-hint");
-  var runtimeCode = "";
   setEditorLanguage(window.EMEditorLocale.language);
 
   // 获取 iframe 内的 EMEditor
@@ -266,16 +267,6 @@
   TEXT_COLORS.forEach(function(c) { makeColorBtn(tc, c, c); });
   BG_COLORS.forEach(function(c) { makeBgBtn(bc, c, c); });
 
-  // 加载 runtime.js
-  fetch("runtime.js?v=" + Date.now()).then(function(r) { return r.text(); }).then(function(code) {
-    runtimeCode = code;
-    setEditorText(status, editorText("就绪 — 选择 HTML 文件开始"));
-  }).catch(function() {
-  function editorText(source) { return window.EMEditorLocale ? window.EMEditorLocale.value(source) : source; }
-
-    setEditorText(status, editorText("runtime.js 加载失败，请通过 HTTP 服务打开此页面"));
-  });
-
   // 拖入文件/文件夹/ZIP
   document.addEventListener("dragover", function(e) { e.preventDefault(); dropHint.classList.add("show"); });
   document.addEventListener("dragleave", function() { dropHint.classList.remove("show"); });
@@ -288,10 +279,10 @@
     if (items && items[0] && items[0].webkitGetAsEntry && items[0].webkitGetAsEntry()) {
       var entry = items[0].webkitGetAsEntry();
       if (entry.isDirectory) {
-        setEditorText(status, editorText("读取文件夹..."));
+        setEditorText(statusElement, editorText("读取文件夹..."));
         readFolderEntry(entry, "", function() {
           loadFromTree();
-          setEditorText(status, editorText("文件夹就绪"));
+          setEditorText(statusElement, editorText("文件夹就绪"));
         });
         return;
       }
@@ -339,7 +330,7 @@
       html = inlineCSS(html, fileTree);
       currentHTML = html;
       loadPreview(html);
-      setEditorText(status, file.name + " · " + (file.size < 1024 ? file.size + " B" : (file.size / 1024).toFixed(1) + " KB"), false);
+      setEditorText(statusElement, file.name + " · " + (file.size < 1024 ? file.size + " B" : (file.size / 1024).toFixed(1) + " KB"), false);
       setEditorText(btnToggle, editorText("启动编辑"));
       btnToggle.classList.add("primary");
       editorActive = false;
@@ -348,7 +339,7 @@
   }
 
   function readZip(file) {
-    setEditorText(status, editorText("解压中..."));
+    setEditorText(statusElement, editorText("解压中..."));
     var reader = new FileReader();
     reader.onload = function() {
       JSZip.loadAsync(reader.result).then(function(zip) {
@@ -365,10 +356,10 @@
         });
         Promise.all(promises).then(function() {
           loadFromTree();
-          setEditorText(status, file.name + " · " + (file.size < 1024 ? file.size + " B" : (file.size / 1024).toFixed(1) + " KB"), false);
+          setEditorText(statusElement, file.name + " · " + (file.size < 1024 ? file.size + " B" : (file.size / 1024).toFixed(1) + " KB"), false);
         });
       }).catch(function(e) {
-        setEditorText(status, editorText("ZIP 解析失败: ") + e.message);
+        setEditorText(statusElement, editorText("ZIP 解析失败: ") + e.message);
       });
     };
     reader.readAsArrayBuffer(file);
@@ -439,7 +430,7 @@
       html = fileTree[htmlKey];
       html = inlineCSS(html, fileTree);
     } else {
-      setEditorText(status, editorText("未找到 HTML 文件"));
+      setEditorText(statusElement, editorText("未找到 HTML 文件"));
       return;
     }
     currentHTML = html;
@@ -506,90 +497,87 @@
   }
 
   function loadPreview(html) {
-    var blob = new Blob([html], { type: "text/html" });
-    var url = URL.createObjectURL(blob);
-    iframe.onload = function() { URL.revokeObjectURL(url); injectRuntime(); };
-    iframe.src = url;
+    // 手动导入的新内容没有主进程文件路径，不能继续打开上一份原型。
+    currentFilePath = "";
+    btnBrowser.disabled = true;
+    iframe.onload = function() { injectRuntime(); refreshTree(); };
+    iframe.srcdoc = html;
   }
 
   function injectRuntime() {
     try {
       var doc = iframe.contentDocument || iframe.contentWindow.document;
-      if (!doc || !runtimeCode) return;
+      if (!doc || !window.EMEditorInstall) return null;
       var script = doc.createElement("script");
+      script.setAttribute("data-em-editor", "runtime");
       iframe.contentWindow.EMEditorLocale = window.EMEditorLocale;
-      script.textContent = runtimeCode;
+      script.textContent = "(" + window.EMEditorInstall.toString() + ")();";
       doc.head.appendChild(script);
-    } catch(e) { /* */ }
+      return em();
+    } catch(e) {
+      setEditorText(statusElement, editorText("错误: ") + e.message);
+      return null;
+    }
   }
 
   /** 由 EM 主进程注入调用：自动加载文件并启动编辑 */
-  function autoLoad(html, filename, filePath) {
+  function autoLoad(html, filename, filePath, directoryUrl) {
+    html = window.EMEditorDocument.prepare(html, directoryUrl);
     currentHTML = html;
     currentFilePath = filePath || "";
     btnBrowser.disabled = !currentFilePath;
-    setEditorText(status, filename + " · " + (html.length < 1024 ? html.length + " B" : (html.length / 1024).toFixed(1) + " KB"), false);
+    setEditorText(statusElement, filename + " · " + (html.length < 1024 ? html.length + " B" : (html.length / 1024).toFixed(1) + " KB"), false);
     setEditorText(btnToggle, editorText("启动编辑"));
     btnToggle.classList.add("primary");
     editorActive = false;
-    var blob = new Blob([html], { type: "text/html" });
-    var url = URL.createObjectURL(blob);
     iframe.onload = function() {
-      URL.revokeObjectURL(url);
-      injectRuntime();
-      // 等 runtime 就绪后自动启动编辑
-      var checkReady = setInterval(function() {
-        try {
-          var win = iframe.contentWindow;
-          if (win && win.EMEditor) {
-            clearInterval(checkReady);
-            win.EMEditor.start();
-            setEditorText(btnToggle, editorText("停止编辑"));
-            btnToggle.classList.remove("primary");
-            setEditorText(status, editorText("编辑中 — 点击元素开始修改"));
-            editorActive = true;
-            refreshBtnState();
-          }
-        } catch(e) { /* */ }
-      }, 200);
+      var api = injectRuntime();
+      if (!api) { setEditorText(statusElement, editorText("runtime 未加载")); return; }
+      api.start();
+      setEditorText(btnToggle, editorText("停止编辑"));
+      btnToggle.classList.remove("primary");
+      setEditorText(statusElement, editorText("编辑中 — 点击元素开始修改"));
+      editorActive = true;
+      refreshBtnState();
+      refreshTree();
     };
-    iframe.src = url;
+    iframe.srcdoc = html;
   }
 
   /** 在系统浏览器中打开当前原型（file:// 下相对路径基于文件目录解析，图片/样式正常） */
   function openInBrowser() {
-    if (!currentFilePath) { setEditorText(status, editorText("无原型文件路径")); return; }
-    if (window.electronAPI && window.electronAPI.editor) {
-      window.electronAPI.editor.openInBrowser(currentFilePath).catch(function() { setEditorText(status, editorText("打开失败")); });
+    if (!currentFilePath) { setEditorText(statusElement, editorText("无原型文件路径")); return; }
+    if (window.editorAPI) {
+      window.editorAPI.openInBrowser().catch(function() { setEditorText(statusElement, editorText("打开失败")); });
     } else {
-      setEditorText(status, editorText("浏览器打开不可用（非 EM 环境）"));
+      setEditorText(statusElement, editorText("浏览器打开不可用（非 EM 环境）"));
     }
   }
 
   function toggleEditor() {
     try {
       var api = em();
-      if (!api) { setEditorText(status, editorText("runtime 未加载")); return; }
+      if (!api) { setEditorText(statusElement, editorText("runtime 未加载")); return; }
       if (!editorActive) {
         api.start();
         setEditorText(btnToggle, editorText("停止编辑"));
         btnToggle.classList.remove("primary");
-        setEditorText(status, editorText("编辑中 — 点击元素开始修改"));
+        setEditorText(statusElement, editorText("编辑中 — 点击元素开始修改"));
       } else {
         api.stop();
         setEditorText(btnToggle, editorText("启动编辑"));
         btnToggle.classList.add("primary");
-        setEditorText(status, editorText("已停止编辑"));
+        setEditorText(statusElement, editorText("已停止编辑"));
       }
       editorActive = !editorActive;
       refreshBtnState();
-    } catch(e) { setEditorText(status, editorText("错误: ") + e.message); }
+    } catch(e) { setEditorText(statusElement, editorText("错误: ") + e.message); }
   }
 
   window.addEventListener("message", function(e) {
-    if (e.data && e.data.type === "em-editor-export") {
+    if (e.source === iframe.contentWindow && e.data && e.data.type === "em-editor-export" && typeof e.data.html === "string") {
       currentHTML = e.data.html;
-      setEditorText(status, editorText("已导出"));
+      setEditorText(statusElement, editorText("已导出"));
       // 父窗口触发下载（iframe sandbox 无 allow-downloads）
       var blob = new Blob([currentHTML], { type: "text/html" });
       var url = URL.createObjectURL(blob);
@@ -719,9 +707,7 @@
     var api = em();
     if (!api) return;
     var s = api.getState();
-    if (s && s.selectedRef) {
-      highlightTreeRef(s.selectedRef);
-    }
+    highlightTreeRef(s ? s.selectedRef : null);
   }, 800);
 </script>
 </body>

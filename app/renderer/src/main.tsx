@@ -26,7 +26,10 @@ async function mount(): Promise<void> {
       window.electronAPI.settings,
       (state) => useSettingsStore.getState().syncUiLanguage(state),
     );
-    window.addEventListener("unload", unsubscribe, { once: true });
+    window.addEventListener("pagehide", (event) => {
+      // A cached page can return without mounting again; keep its language subscription.
+      if (!event.persisted) unsubscribe();
+    });
   } catch (error) {
     console.error("[i18n] Failed to load UI language; using Chinese", error);
   }

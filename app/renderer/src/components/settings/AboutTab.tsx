@@ -1,3 +1,4 @@
+import { resetOnboardingProgress } from "../../lib/onboarding-progress";
 import { appText } from "../../lib/i18n";
 import { useTranslation } from "react-i18next";
 import "../../lib/i18n";
@@ -50,7 +51,7 @@ export function AboutTab(): JSX.Element {
     window.electronAPI?.app?.installUpdate?.();
   };
 
-  /** 重新运行引导：清掉两处 setupComplete 标记后重载——App 重挂载即回到引导页 */
+  /** 重跑初始设置，并在返回工作台后重播新建项目蒙版。 */
   const handleRerunOnboarding = async () => {
     const ok = await confirmDialog({
       title: t("about.rerunOnboarding"),
@@ -58,8 +59,7 @@ export function AboutTab(): JSX.Element {
       confirmText: t("about.rerun"),
     });
     if (!ok) return;
-    localStorage.removeItem("easymint_setup_complete");
-    await window.electronAPI.settings.set("setupComplete", false);
+    await resetOnboardingProgress((value) => window.electronAPI.settings.set("setupComplete", value));
     window.location.reload();
   };
 

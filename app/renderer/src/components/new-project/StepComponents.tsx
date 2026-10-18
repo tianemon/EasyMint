@@ -1,18 +1,19 @@
 import { uiText, useUiLocale } from "../../lib/i18n";
 import { useState, useRef, useEffect } from "react";
 import {
-  TARGET_OPTIONS, SCENE_OPTIONS, COMPLETENESS_OPTIONS, UI_STYLE_OPTIONS, BUDGET_OPTIONS,
+  TARGET_OPTIONS, SCENE_OPTIONS, COMPLETENESS_OPTIONS, BUDGET_OPTIONS,
   type ProjectFormData, type FeatureItem, type BudgetChoice, type SceneChoice,
 } from "./ProjectFormTypes";
 import type { AIIntegration } from "../../../../shared/prompts";
+import { StylePicker } from "./StylePicker";
 
 export type { ProjectFormData };
 
-function StepDots({ total, current }: { total: number; current: number }): JSX.Element {
+function StepDots({ total, current, steps }: { total: number; current: number; steps?: { title: string }[] }): JSX.Element {
   return (
-    <div className="flex items-center justify-center gap-2 py-4">
+    <div className="creation-progress" role="progressbar" aria-label={uiText("creation.progress")} aria-valuemin={1} aria-valuemax={total} aria-valuenow={current + 1}>
       {Array.from({ length: total }).map((_, i) => (
-        <div key={i} className={`h-1 rounded-full transition-all duration-250 ${i <= current ? "w-6 bg-accent" : "w-2 bg-border"}`} />
+        <div key={i} className={`creation-progress-step ${i === current ? "is-current" : ""} ${i < current ? "is-complete" : ""}`}><span className="creation-progress-line" /><span className="creation-progress-label"><i>{i < current ? "✓" : i + 1}</i>{steps?.[i]?.title}</span></div>
       ))}
     </div>
   );
@@ -64,7 +65,7 @@ function Select({ value, onChange, options, placeholder }: { value: string; onCh
     <div>
       <button
         ref={btnRef}
-        className="em-select-trigger w-full flex items-center justify-between px-3 py-2 rounded-[var(--radius-lg)] bg-surface border border-border text-text-primary text-sm outline-none text-left"
+        className="em-select-trigger w-full flex items-center justify-between px-3 py-2 rounded-[var(--radius-lg)] bg-surface text-text-primary text-sm outline-none text-left"
         onClick={() => setOpen(!open)}
       >
         <span className={selected ? "text-text-primary" : "text-text-secondary"}>
@@ -113,12 +114,12 @@ function Step1Form({ data, onChange, previewDirName, dirConflict, translating }:
     <div className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.projectName")}<span className="text-danger">*</span></label>
-        <input className="em-input px-3 py-2" value={data.name} onChange={(e) => onChange({ name: e.target.value })} placeholder={uiText("ui.StepComponents.chineseNamesAreTranslatedIntoEnglishDirectory")} />
+        <input className="em-input px-3 py-2" aria-label={uiText("ui.StepComponents.projectName")} value={data.name} onChange={(e) => onChange({ name: e.target.value })} placeholder={uiText("creation.namePlaceholder")} />
       </div>
       <div>
         <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.projectDirectory")}<span className="text-danger">*</span></label>
         <button
-          className="em-select-trigger em-hover-control w-full px-3 py-2 rounded-[var(--radius-lg)] bg-surface border border-border text-left text-sm transition-all"
+          className="em-select-trigger em-hover-control w-full px-3 py-2 rounded-[var(--radius-lg)] bg-surface text-left text-sm transition-all"
           onClick={async () => { const selected = await window.electronAPI.dialog.openDirectory(); if (selected) onChange({ dir: selected }); }}
         >
           <span className="text-text-secondary">{data.dir || uiText("ui.StepComponents.chooseADirectory")}</span>
@@ -171,12 +172,13 @@ function Step1Form({ data, onChange, previewDirName, dirConflict, translating }:
 // ---- Step 2: 功能清单 ----
 
 function Step2Form({
-  data, onChange, onRecommendFeatures, loadingRec,
+  data, onChange, onRecommendFeatures, loadingRec, recommendationFailed,
 }: {
   data: ProjectFormData;
   onChange: (p: Partial<ProjectFormData>) => void;
   onRecommendFeatures: () => void;
   loadingRec: string | null;
+  recommendationFailed?: boolean;
 }): JSX.Element {
   useUiLocale();
   const addFeature = () => {
@@ -208,6 +210,7 @@ function Step2Form({
       {loadingRec === "features" && (
         <p className="text-xs text-text-secondary py-3 text-center animate-pulse">{uiText("ui.StepComponents.mintIsSuggestingFeatures")}</p>
       )}
+      {recommendationFailed && <p role="alert" className="text-xs text-danger py-2">{uiText("creation.featuresRetry")}</p>}
       {data.features.map((f, i) => (
         <div key={i} className="flex items-center gap-2">
           <input
@@ -226,30 +229,7 @@ function Step2Form({
 // ---- Step 3: UI 风格 ----
 
 function Step3Form({ data, onChange }: { data: ProjectFormData; onChange: (p: Partial<ProjectFormData>) => void }): JSX.Element {
-  useUiLocale();
-  const predefined = UI_STYLE_OPTIONS.find((o) => o.value === data.uiStyle);
-  const isCustomText = data.uiStyle === "custom" || (!predefined && data.uiStyle !== "");
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.whatUiStyleWouldYouLike")}<span className="text-text-muted text-xs font-normal">{uiText("ui.StepComponents.optional")}</span></label>
-        <Select
-          value={predefined ? data.uiStyle : "custom"}
-          onChange={(v) => onChange({ uiStyle: v })}
-          options={UI_STYLE_OPTIONS}
-          placeholder={uiText("ui.StepComponents.askMintToSuggest")}
-        />
-        <p className="text-[length:var(--text-11)] text-text-secondary mt-1">{uiText("ui.StepComponents.youCanAdjustThisDuringPrototyping")}</p>
-      </div>
-      {isCustomText && (
-        <div>
-          <label className="block text-sm font-medium text-text-primary mb-2">{uiText("ui.StepComponents.describeACustomStyle")}</label>
-          <textarea className="em-input px-3 py-2 min-h-[60px] resize-y" value={data.uiStyle === "custom" ? "" : data.uiStyle} onChange={(e) => onChange({ uiStyle: e.target.value })} placeholder={uiText("ui.StepComponents.eGAMixOfCyberpunkAnd")} />
-        </div>
-      )}
-    </div>
-  );
+  return <StylePicker brandId={data.uiBrand} onBrandChange={uiBrand => onChange({uiBrand, uiPalette:"default"})} layout={data.uiLayout} onLayoutChange={uiLayout => onChange({uiLayout})} targets={data.targets} projectName={data.name} projectDescription={data.description} appearance={{ palette: data.uiPalette, effect: data.uiEffect }} onAppearanceChange={(value) => onChange({ uiPalette: value.palette, uiEffect: value.effect, ...(value.palette!==data.uiPalette?{uiBrand:""}:{}) })} value={data.uiStyle} onChange={(uiStyle) => onChange({ uiStyle })} defaultDevice={!data.targets.includes("web") && data.targets.some((target) => target === "ios-mobile" || target === "android-mobile" || target === "wechat-miniprogram") ? "mobile" : "web"} />;
 }
 
 // ---- Step 4: 交付方式 ----

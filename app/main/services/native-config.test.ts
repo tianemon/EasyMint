@@ -27,6 +27,79 @@ const custom = {
 afterEach(() => { vi.restoreAllMocks(); for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true }); });
 
 describe("pi-native configuration", () => {
+  it("migrates legacy official Kimi overrides transactionally and inherits the official protocol", async () => {
+    const { dir, store, file } = fixture();
+    await NativeConfig.create(store);
+    const original = encode({ providers: { "kimi-coding": { api: "anthropic-messages", baseUrl: "https://api.kimi.com/coding/",
+      headers: { "X-Custom": "keep" }, apiKey: "fixture",
+      models: [{ id: "k3", api: "anthropic-messages", baseUrl: "https://api.kimi.com/coding", contextWindow: 123456, maxTokens: 8192 }],
+      modelOverrides: { "k3-256k": { contextWindow: 234567 } },
+    } } });
+    atomicWrite(file("models"), original);
+    const beforeAuth = fs.existsSync(file("auth")) ? fs.readFileSync(file("auth"), "utf8") : null;
+    const repo = await NativeConfig.create(new Store(dir));
+    const model = (await repo.getRuntime()).getModel("kimi-coding", "k3");
+    expect(model).toMatchObject({ api: "openai-completions", baseUrl: "https://api.kimi.com/coding/v1", contextWindow: 123456 });
+    expect(read(file("models")).providers["kimi-coding"]).toMatchObject({ headers: { "X-Custom": "keep" }, apiKey: "fixture", modelOverrides: { "k3-256k": { contextWindow: 234567 } } });
+    expect(read(file("models")).providers["kimi-coding"].api).toBeUndefined();
+    const backup = fs.readdirSync(path.join(dir, "config-backups")).find(name => name.startsWith("pi-1.3-kimi-"))!;
+    expect(fs.readFileSync(path.join(dir, "config-backups", backup, "agent/models.json"), "utf8")).toBe(original);
+    expect(fs.existsSync(file("auth")) ? fs.readFileSync(file("auth"), "utf8") : null).toBe(beforeAuth);
+    const after = fs.readFileSync(file("models"), "utf8");
+    await NativeConfig.create(new Store(dir));
+    expect(fs.readFileSync(file("models"), "utf8")).toBe(after);
+    expect(fs.readdirSync(path.join(dir, "config-backups")).filter(name => name.startsWith("pi-1.3-kimi-"))).toHaveLength(1);
+  });
+
+  it.each([undefined, "https://api.kimi.com/coding", "https://api.kimi.com/coding/v1"])("preserves effective proxy protocols in mixed Kimi config (base=%s)", async baseUrl => {
+    const { dir, store, file } = fixture(); await NativeConfig.create(store);
+    const proxyUrl = "https://proxy.example.invalid/anthropic";
+    const original = encode({ providers: { "kimi-coding": { api: "anthropic-messages", baseUrl, apiKey: "fixture",
+      models: [
+        { id: "inherited-proxy", baseUrl: proxyUrl, contextWindow: 10000, maxTokens: 1000 },
+        { id: "explicit-proxy", baseUrl: "https://proxy.example.invalid/v1", api: "openai-completions", contextWindow: 12000, maxTokens: 2000 },
+        { id: "explicit-anthropic", baseUrl: proxyUrl, api: "anthropic-messages", contextWindow: 14000, maxTokens: 3000 },
+        { id: "k3", contextWindow: 123456, maxTokens: 8192 },
+      ],
+    } } });
+    atomicWrite(file("models"), original);
+    const repo = await NativeConfig.create(new Store(dir));
+    const runtime = await repo.getRuntime();
+    expect(runtime.getModel("kimi-coding", "inherited-proxy")).toMatchObject({ api: "anthropic-messages", baseUrl: proxyUrl, contextWindow: 10000 });
+    expect(runtime.getModel("kimi-coding", "explicit-proxy")).toMatchObject({ api: "openai-completions", baseUrl: "https://proxy.example.invalid/v1" });
+    expect(runtime.getModel("kimi-coding", "explicit-anthropic")).toMatchObject({ api: "anthropic-messages", baseUrl: proxyUrl });
+    expect(runtime.getModel("kimi-coding", "k3")).toMatchObject({ api: "openai-completions", baseUrl: "https://api.kimi.com/coding/v1", contextWindow: 123456 });
+    const backup = fs.readdirSync(path.join(dir, "config-backups")).find(name => name.startsWith("pi-1.3-kimi-"))!;
+    expect(fs.readFileSync(path.join(dir, "config-backups", backup, "agent/models.json"), "utf8")).toBe(original);
+    const after = fs.readFileSync(file("models"), "utf8");
+    await NativeConfig.create(new Store(dir));
+    expect(fs.readFileSync(file("models"), "utf8")).toBe(after);
+    expect(fs.readdirSync(path.join(dir, "config-backups")).filter(name => name.startsWith("pi-1.3-kimi-"))).toHaveLength(1);
+  });
+
+  it.each([
+    {},
+    [{ id: "invalid-proxy", baseUrl: "https://proxy.example.invalid/anthropic", contextWindow: -1, maxTokens: 1000 }],
+  ])("does not write legacy Kimi files when migrated config fails validation (%j)", async models => {
+    const { dir, store, file } = fixture(); await NativeConfig.create(store);
+    const original = encode({ providers: { "kimi-coding": { baseUrl: "https://api.kimi.com/coding", api: "anthropic-messages", models } } });
+    atomicWrite(file("models"), original);
+    await expect(NativeConfig.create(new Store(dir))).rejects.toThrow(file("models"));
+    expect(fs.readFileSync(file("models"), "utf8")).toBe(original);
+    expect(fs.readdirSync(path.join(dir, "config-backups")).filter(name => name.startsWith("pi-1.3-kimi-"))).toHaveLength(0);
+  });
+
+  it("preserves custom Kimi proxies and unrelated providers byte for byte", async () => {
+    const { dir, store, file } = fixture(); await NativeConfig.create(store);
+    const original = encode({ providers: {
+      "kimi-coding": { api: "anthropic-messages", baseUrl: "https://proxy.example.invalid/kimi", apiKey: "fixture" },
+      local: { api: "anthropic-messages", baseUrl: "https://api.kimi.com/coding", models: [{ id: "custom", contextWindow: 10000, maxTokens: 1000 }] },
+    } });
+    atomicWrite(file("models"), original);
+    await NativeConfig.create(new Store(dir));
+    expect(fs.readFileSync(file("models"), "utf8")).toBe(original);
+  });
+
   it("persists native AI routing without copying virtual models into models.json", async () => {
     const { store, file } = fixture();
     atomicWrite(file("models"), encode({ providers: { local: {

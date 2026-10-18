@@ -1,22 +1,22 @@
-/** Pi 1.1.0 host hooks. Fail closed on upstream drift; no copied connection state machine. */
+/** Pi 1.3.0 host hooks. Fail closed on upstream drift; no copied connection state machine. */
 const fs = require("node:fs");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
 const root = path.join(__dirname, "..", "node_modules/@earendil-works/pi-coding-agent");
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
-if (pkg.version !== "1.1.0") throw new Error("MCP host hooks require a review for Pi " + pkg.version);
+if (pkg.version !== "1.3.0") throw new Error("MCP host hooks require a review for Pi " + pkg.version);
 const expected = {
-  "dist/extensions/mcp/index.js": "ee7e759f8b1e3946226a87f3af5e9af74a5a65106888037b890d4680faaea2d5",
+  "dist/extensions/mcp/index.js": "c0570b9d256120a1df9b65a015964076dff6a3710646e041fcb2770ae7132fde",
   "dist/extensions/mcp/index.d.ts": "2326ac2f37daa7bbf258629846b4ff6d4d8d2c570331777b2da0852525de843e",
-  "dist/extensions/mcp/runtime.js": "55f0d73d76a80b5343781ea5d99b7ab248e201276c4552dc55cce7bee972852c",
-  "dist/extensions/mcp/runtime.d.ts": "15d7bc9ee02e59c1b9e04c254fd43fe45ce4abfc0fc034dfdb12442d0e5b1a9b",
-  "dist/index.js": "5482298b995db935f7b96f5d6056fa1c36ac6fc80456be594ef65b83c62b0d30",
-  "dist/index.d.ts": "b254e36846b1dcc64ce1a8ba72e23fb410df4aa4408ba8c23e69e5b3f934e3cc",
+  "dist/extensions/mcp/runtime.js": "be9e8eea88363f2fefaea2c25c854845393f112394ee5989d22facd2f1acea6e",
+  "dist/extensions/mcp/runtime.d.ts": "d5c9561f03ff23a629e9744971ba218a9092fa1a9635c4079dbda816b99e8178",
+  "dist/index.js": "4569157e6038be9840fa514db4b00a27fd0be9e3622cc7b49a281de6c027d7ff",
+  "dist/index.d.ts": "2f2c87d877a6502a11bcdbaf3be62c12a154ab87d795e954d44c50833d0efbcd",
 };
 const hash = source => createHash("sha256").update(source).digest("hex");
 // Generate from pristine source, not from the previously patched result. Layered patches otherwise
 // cease being idempotent as soon as a later edit changes an earlier replacement's text.
-const cacheFile = path.join(__dirname, "../node_modules/.cache/easymint-pi-mcp-1.1.0.json");
+const cacheFile = path.join(__dirname, "../node_modules/.cache/easymint-pi-mcp-1.3.0.json");
 const cached = fs.existsSync(cacheFile) ? JSON.parse(fs.readFileSync(cacheFile, "utf8")) : {};
 const originals = {}, sources = {}, current = {};
 for (const [file, checksum] of Object.entries(expected)) {
@@ -53,7 +53,7 @@ patch("dist/extensions/mcp/index.js", `        });
         // The first prompt waits for servers`, `        };
         pi.on("session_start", startHostSession);
         // The first prompt waits for servers`);
-// Preserve Pi 1.1.0's abortable lifetime and tracked actions, including pending startup.
+// Preserve Pi 1.3.0's abortable lifetime and tracked actions, including pending startup.
 patch("dist/extensions/mcp/index.js", `        pi.on("session_shutdown", async () => {
             session.abort();
             const closing = connections();
@@ -238,4 +238,4 @@ for (const [file, source] of Object.entries(sources)) {
 fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
 fs.writeFileSync(cacheFile + ".tmp", JSON.stringify(nextCache));
 fs.renameSync(cacheFile + ".tmp", cacheFile);
-console.log("[patch-pi-mcp] Pi 1.1.0 host hooks verified");
+console.log("[patch-pi-mcp] Pi 1.3.0 host hooks verified");

@@ -1,12 +1,16 @@
 import { appText } from "../lib/i18n";
 import { uiText, useUiLocale } from "../lib/i18n";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { buildFeatureRecommendPrompt, buildDirectoryTranslationPrompt, buildDirectCreatePrompt, buildInitTriggerPrompt, buildInitInstruction, detectProfile, composeProfile, systemMessage } from "../../../shared/prompts";
-import type { ProjectDimensions, DeployMode, SystemMessagePayload } from "../../../shared/prompts";
+import { buildFeatureRecommendPrompt, buildDirectoryTranslationPrompt, buildDirectCreatePrompt, buildInitTriggerPrompt, buildInitInstruction, systemMessage } from "../../../shared/prompts";
+import type { SystemMessagePayload } from "../../../shared/prompts";
 import { StepDots, Step1Form, Step2Form, Step3Form, Step4Form } from "./new-project/StepComponents";
 import { ALL_STEPS, DEFAULT_DATA, SCENE_OPTIONS, TARGET_OPTIONS, UI_STYLE_OPTIONS, type ProjectFormData, type FeatureItem } from "./new-project/ProjectFormTypes";
 import { useMintChat } from "./new-project/useMintChat";
 import { Modal } from "./ui/Modal";
+import { createVisualSpec, visualSpecPrompt, type VisualSelection } from "../../../shared/visual-design/spec";
+function visualSelection(data: ProjectFormData): VisualSelection { return {projectName:data.name,projectDescription:data.description,styleId:data.uiStyle,palette:data.uiPalette,effect:data.uiEffect,brandId:data.uiBrand,layout:data.uiLayout,targets:data.targets}; }
+import { DELIVERY_FIELDS, deliveryContext, projectProfile } from "./new-project/project-requirements";
+import { PROJECT_DRAFT_KEY, parseProjectDraft } from "./new-project/project-draft";
 
 // ---- Helpers ----
 
@@ -35,14 +39,16 @@ function buildContext(data: ProjectFormData, step?: number): string {
 
   // Step 2+: features
   if (!step || step >= 2) {
-    const features = data.features.map((f) => f.name).join("；");
+    const features = data.features.map((f) => f.name.trim()).filter(Boolean).join("；");
     push(`功能清单：「${features || "无"}」`);
   }
 
   // Step 3+: UI style
-  if (!step || step >= 3) {
+  if ((!step || step >= 3) && data.targets.some((target) => target !== "cli")) {
     const uiLabel = UI_STYLE_OPTIONS.find((o) => o.value === data.uiStyle)?.label || data.uiStyle;
     push(`UI 风格「${uiLabel || "未指定"}」`);
+    const designContext = visualSpecPrompt(createVisualSpec(visualSelection(data)));
+    if (designContext) push(designContext);
   }
 
   // Step 4+: deploy + AI + budget
@@ -56,8 +62,7 @@ function buildContext(data: ProjectFormData, step?: number): string {
   return `项目信息：${parts.join("。")}。`;
 }
 
-/** 直接创建快照：只传用户主动填的信息（名称/形式/描述/场景），不传默认值——
- *  完成度/功能/UI/部署/AI/预算等未确认项留空，让 Mint 对话引导补全。 */
+/** Carry explicit input, including selected visual tokens, without turning delivery defaults into requirements. */
 function buildDirectCreateContext(data: ProjectFormData): string {
   const targets = data.targets.map((v) => TARGET_OPTIONS.find((o) => o.value === v)?.label || v).join("、");
   const sceneLabel = SCENE_OPTIONS.find((o) => o.value === data.scene)?.label || data.scene;
@@ -66,7 +71,22 @@ function buildDirectCreateContext(data: ProjectFormData): string {
   parts.push(`项目形式「${targets}」`);
   if (data.description) parts.push(`描述「${data.description}」`);
   if (data.scene && data.scene !== "unknown") parts.push(`项目场景「${sceneLabel}」`);
+  const features = data.features.map((feature) => feature.name.trim()).filter(Boolean);
+  if (features.length) parts.push(`功能清单：「${features.join("；")}」`);
+  if (data.targets.some((target) => target !== "cli")) {
+    if (data.uiStyle && data.uiStyle !== "custom") parts.push(`UI 风格「${UI_STYLE_OPTIONS.find((option) => option.value === data.uiStyle)?.label || data.uiStyle}」`);
+    const designContext = visualSpecPrompt(createVisualSpec(visualSelection(data)));
+    if (designContext) parts.push(designContext);
+  }
+  parts.push(...deliveryContext(data, true));
   return parts.join("。");
+}
+
+async function saveProjectProfile(projectPath: string, specification: string, visual?: VisualSelection): Promise<void> {
+  const result: unknown = await window.electronAPI.project.saveProfile(projectPath, specification, visual);
+  if (!result || typeof result !== "object" || !("ok" in result) || result.ok !== true) {
+    throw new Error(result && typeof result === "object" && "error" in result && typeof result.error === "string" ? result.error : uiText("creation.profileSaveFailed"));
+  }
 }
 
 // ---- Main Component ----
@@ -78,17 +98,26 @@ interface NewProjectDialogProps {
 
 export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps): JSX.Element {
   useUiLocale();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [data, setData] = useState<ProjectFormData>(DEFAULT_DATA);
+  const [draft] = useState(() => parseProjectDraft(sessionStorage.getItem(PROJECT_DRAFT_KEY)));
+  const [currentStep, setCurrentStep] = useState(() => Math.min(draft?.step ?? 0, draft?.data.targets.every((target) => target === "cli") ? 2 : 3));
+  const [data, setData] = useState<ProjectFormData>(draft?.data ?? DEFAULT_DATA);
   const [initializing, setInitializing] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const pathRef = useRef<string | null>(null);
   /** 创建成功的项目记录（幂等重试用：会话启动失败后再点「创建项目」跳过建目录直接启动） */
   const projectRef = useRef<Project | null>(null);
   const [loadingRec, setLoadingRec] = useState<string | null>(null);
-  const { ask, askWorkspace, disposeWorkspaceSession, sidRef } = useMintChat(pathRef);
+  const [recommendationFailed, setRecommendationFailed] = useState(false);
+  const { startSession, askWorkspace, disposeWorkspaceSession } = useMintChat(pathRef);
 
-  const updateData = useCallback((patch: Partial<ProjectFormData>) => setData((prev) => ({ ...prev, ...patch })), []);
+  const updateData = useCallback((patch: Partial<ProjectFormData>) => setData((prev) => ({
+    ...prev, ...patch,
+    deliveryTouched: { ...prev.deliveryTouched, ...Object.fromEntries(DELIVERY_FIELDS.filter(key => key in patch).map(key => [key, true])) },
+  })), []);
+
+  useEffect(() => {
+    sessionStorage.setItem(PROJECT_DRAFT_KEY, JSON.stringify({ data, step: currentStep }));
+  }, [data, currentStep]);
 
   // 卸载时清理流程级旁路会话（成功创建导航离开/取消/直接关闭都走这里）
   useEffect(() => () => { disposeWorkspaceSession(); }, [disposeWorkspaceSession]);
@@ -124,11 +153,12 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     // 非 ASCII：先即时显示原名（预览不空窗），1s 停顿后翻译覆盖；等待期标「翻译中」让在途可见
     setPreviewDirName(name);
     setTranslating(true);
+    let cancelled = false;
     const t = setTimeout(async () => {
-      setPreviewDirName(await resolveDirName(name));
-      setTranslating(false);
+      const resolved = await resolveDirName(name);
+      if (!cancelled) { setPreviewDirName(resolved); setTranslating(false); }
     }, 1000);
-    return () => clearTimeout(t);
+    return () => { cancelled = true; clearTimeout(t); };
   }, [data.name, resolveDirName]);
 
   // 目录冲突即时预检：目录名与基目录确定后探测「已存在非空」——Step1 就红字预警（创建必被拒）
@@ -142,7 +172,10 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
     return () => { cancelled = true; };
   }, [previewDirName, data.dir]);
 
-  const visibleSteps = ALL_STEPS;
+  const hasUi = data.targets.some((target) => target !== "cli");
+  const visibleSteps = hasUi ? ALL_STEPS : ALL_STEPS.filter((step) => step.number !== 3);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { bodyRef.current?.scrollTo({ top: 0 }); }, [currentStep]);
 
   useEffect(() => {
     if (currentStep >= visibleSteps.length) setCurrentStep(visibleSteps.length - 1);
@@ -152,8 +185,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   const isLastStep = currentStep === visibleSteps.length - 1;
 
   const canNext = () => {
-    if (stepNumber === 1) return data.name.trim() !== "" && data.dir.trim() !== "";
-    return true;
+    return data.name.trim() !== "" && data.dir.trim() !== "" && !dirConflict && !initializing;
   };
 
   const goPrev = () => setCurrentStep((s) => Math.max(s - 1, 0));
@@ -165,6 +197,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
 
   const handleRecommendFeatures = async () => {
     setLoadingRec("features");
+    setRecommendationFailed(false);
     const ctx = `项目名称：${data.name}，${buildContext(data, 1)}`;
     const featurePrompt = buildFeatureRecommendPrompt(ctx);
     // 走旁路会话（不再注入正式会话产生隐藏回合）；默认主模型（不传 opts.model）
@@ -182,46 +215,34 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
           break; // end of bullet block — skip commentary below
         }
       }
-      if (parsed.length > 0) {
-        const current = data.features;
-        if (current.length === 0) {
-          updateData({ features: parsed });
-        } else {
-          updateData({ features: [...current, ...parsed] });
-        }
-      }
+      if (parsed.length > 0) setData((current) => {
+        const seen = new Set(current.features.map((feature) => feature.name.trim().toLocaleLowerCase()));
+        const additions = parsed.filter((feature) => {
+          const name = feature.name.trim().toLocaleLowerCase();
+          if (seen.has(name)) return false;
+          seen.add(name);
+          return true;
+        });
+        return { ...current, features: [...current.features, ...additions] };
+      });
+      else setRecommendationFailed(true);
     }
+    else setRecommendationFailed(true);
   };
 
-  // S2：取消 = 丢弃草稿（落盘已移到最终创建，表单期无任何磁盘动作）
+  // Closing preserves editable draft values; a formal project is only created on submit.
   const handleCancel = () => {
-    onClose();
+    if (!creatingRef.current) onClose();
   };
 
   const creatingRef = useRef(false);
 
-  /** 等待正式会话 sid 就位（onChatSession 回绑，毫秒级；最多 5s 兜底）——就位即导航，首消息在聊天流式出现 */
-  const waitForSid = async (): Promise<string | null> => {
-    for (let i = 0; i < 50; i++) {
-      if (sidRef.current) return sidRef.current;
-      await new Promise((r) => setTimeout(r, 100));
-    }
-    return sidRef.current;
-  };
-
-  /**
-   * S3 统一启动：kickoff 消息发正式会话（fire-and-forget，首回合在聊天流式进行）→ sid 就位即导航。
-   * 失败路径：ask 失败留在弹窗（createError 可见，项目已建则幂等跳过建目录再点即重试）；
-   * 导航后异常 = 项目页自然态（无会话可随时发起对话），非死胡同——无需专用重试按钮。
-   */
+  /** Only a successful startup identity completes creation; failures retain the project and draft for retry. */
   const launchSession = useCallback(async (project: Project, prompt: string, payload: SystemMessagePayload): Promise<void> => {
-    ask(prompt, { forceNewSession: true, systemPayload: payload }).catch(() => {
-      // 回合启动失败：弹窗可能已导航走（sid 先到）——聊天页空态可自然对话；未导航则 createError 由调用方展示
-      console.error("[NewProjectDialog] session kickoff failed");
-    });
-    const sid = await waitForSid();
-    onCreated(project, sid);
-  }, [ask, onCreated]);
+    const identity = await startSession(prompt, payload);
+    sessionStorage.removeItem(PROJECT_DRAFT_KEY);
+    onCreated(project, identity.sessionId);
+  }, [startSession, onCreated]);
 
   /** S2 原子创建：目录名（预热缓存/现算）→ 落盘 → 建正式会话（cwd=项目目录）→ 导航 */
   const handleCreate = async () => {
@@ -242,19 +263,10 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
 
       // 流程深度（原型/文档/编码）的判定权在 Mint（creation-guide skill），前端不参与——
       // 这里只按 产品形态 / 部署 / AI / 存储 四个维度生成技术规范 platformSpec
-      const dims: ProjectDimensions = {
-        product: detectProfile(data.targets).id as any,
-        deploy: (data.deployPlatform === "云端" ? "cloud" : data.deployPlatform === "混合" ? "hybrid" : "local") as DeployMode,
-        ai: data.aiIntegration,
-        storage: data.deployPlatform === "云端" ? "postgres" : "sqlite",
-        productUsesAI: data.aiIntegration !== "none",
-        needsAuth: data.deployPlatform === "云端",
-        needsPayment: false,
-      };
-      const profile = composeProfile(dims);
+      const profile = projectProfile(data);
       // 持久化项目产品类型规范,供后续 Mint 会话 buildSystemPrompt 注入
-      window.electronAPI.project.saveProfile(project.path, profile.platformSpec).catch(() => {});
-      const initPrompt = buildInitTriggerPrompt(project.path, buildContext(data), buildInitInstruction(profile), data.targets);
+      await saveProjectProfile(project.path, [profile.platformSpec, ...deliveryContext(data)].join("\n"), hasUi ? visualSelection(data) : undefined);
+      const initPrompt = buildInitTriggerPrompt(project.path, buildContext(data), buildInitInstruction(profile), data.targets, profile);
       await launchSession(project, initPrompt, systemMessage("project-created", initPrompt));
     } catch (e: unknown) {
       setCreateError(cleanIpcError(e));
@@ -281,6 +293,8 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
         projectRef.current = project;
       }
       setCreateError(null);
+      const profile = projectProfile(data);
+      await saveProjectProfile(project.path, [profile.platformSpec, ...deliveryContext(data, true)].join("\n"), hasUi ? visualSelection(data) : undefined);
       // 发 direct-create 系统消息（携带项目名 + 用户已填信息快照）,Mint 开回合按 creation_flow 引导
       const directPrompt = buildDirectCreatePrompt(data.name, buildDirectCreateContext(data));
       await launchSession(project, directPrompt, systemMessage("direct-create", directPrompt));
@@ -296,7 +310,7 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   const renderStepContent = () => {
     switch (stepNumber) {
       case 1: return <Step1Form data={data} onChange={updateData} previewDirName={previewDirName} dirConflict={dirConflict} translating={translating} />;
-      case 2: return <Step2Form data={data} onChange={updateData} onRecommendFeatures={handleRecommendFeatures} loadingRec={loadingRec} />;
+      case 2: return <Step2Form data={data} onChange={updateData} onRecommendFeatures={handleRecommendFeatures} loadingRec={loadingRec} recommendationFailed={recommendationFailed} />;
       case 3: return <Step3Form data={data} onChange={updateData} />;
       case 4: return <Step4Form data={data} onChange={updateData} />;
       default: return null;
@@ -304,40 +318,37 @@ export function NewProjectDialog({ onClose, onCreated }: NewProjectDialogProps):
   };
 
   return (
-    <Modal overlayClassName="bg-black/40 modal-overlay" overlayClose={false} onClose={handleCancel}>
-      <div className="bg-[var(--modal-fill)] rounded-[var(--radius-lg)] shadow-2xl modal-card flex flex-col" style={{ width: 560, maxHeight: "90vh" }}>
+    <Modal overlayClassName="creation-dialog-overlay modal-overlay" overlayClose={false} onClose={handleCancel}>
+      <div className="creation-dialog modal-card flex flex-col" data-step={stepNumber} role="dialog" aria-modal="true" aria-labelledby="new-project-title">
         <div className="flex items-center justify-between px-6 pt-5 pb-1 shrink-0">
-          <h2 className="text-lg font-semibold text-text-primary">{uiText("nav.newProject")}</h2>
-          <button className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-lg)] text-text-secondary hover:bg-surface-hover transition-colors" onClick={handleCancel}>✕</button>
+          <h2 id="new-project-title" className="text-sm font-medium text-text-secondary">{uiText("nav.newProject")}</h2>
+          <button className="creation-icon-button" aria-label={uiText("common.close")} disabled={initializing} onClick={handleCancel}>✕</button>
         </div>
 
-        <StepDots total={visibleSteps.length} current={currentStep} />
-
-        <div className="px-6 pb-1 shrink-0">
-        </div>
+        <StepDots total={visibleSteps.length} current={currentStep} steps={visibleSteps} />
 
         {/* settings-body 作用域：输入框/下拉触发器在本弹窗内同样走凹槽化（无边框拼色语言） */}
-        <div className="settings-body px-6 py-4 overflow-y-auto flex-1">
-          {renderStepContent()}
+        <div ref={bodyRef} className="settings-body creation-dialog-body overflow-y-auto flex-1">
+          <fieldset className="creation-step-content" key={stepNumber} disabled={initializing}>
+            {renderStepContent()}
+          </fieldset>
           {createError && (
-            <p className="mt-3 text-xs text-danger whitespace-pre-wrap break-all">{appText(createError)}</p>
+            <p role="alert" className="mt-3 text-xs text-danger whitespace-pre-wrap break-all">{appText(createError)}</p>
           )}
         </div>
 
-        <div className="flex items-center justify-between px-6 pb-5 pt-2 shrink-0">
-          <button className="em-hover-control px-4 py-[5px] rounded-[var(--radius-lg)] text-text-secondary text-sm transition-all disabled:opacity-30" disabled={currentStep === 0} onClick={goPrev}>{uiText("ui.NewProjectDialog.previousStep")}</button>
+        <div className="creation-dialog-footer">
+          <button className="em-hover-control px-3 py-2 rounded-[var(--radius-lg)] text-text-secondary text-sm transition-all disabled:opacity-30" disabled={currentStep === 0 || initializing} onClick={goPrev}>{uiText("ui.NewProjectDialog.previousStep")}</button>
           <div className="flex gap-3">
             <div className="flex gap-2">
-              {/* S2：取消 = 丢弃草稿（落盘已移到最终创建，不再有「取消项目=删真目录」的歧义） */}
-              <button className="em-hover-control ml-0.5 px-2 py-[5px] rounded-[var(--radius-lg)] text-text-secondary transition-all text-sm" onClick={handleCancel}>{uiText("common.cancel")}</button>
-              <button className="em-hover-control px-2 py-[5px] rounded-[var(--radius-lg)] text-text-secondary transition-all text-sm disabled:opacity-50" disabled={initializing} onClick={handleDirectCreate}>
-                {initializing ? uiText("ui.NewProjectDialog.creating") : uiText("ui.ChatPanel.directCreation")}
+              <button className="em-hover-control px-2 py-2 rounded-[var(--radius-lg)] text-text-secondary transition-all text-sm disabled:opacity-50" disabled={!canNext()} onClick={handleDirectCreate} title={uiText("creation.directHint")}>
+                {uiText("ui.ChatPanel.directCreation")}
               </button>
             </div>
             {!isLastStep ? (
-              <button className="px-6 py-[5px] rounded-[var(--radius-lg)] btn-accent text-sm font-medium" disabled={!canNext()} onClick={goNext}>{uiText("common.next")}</button>
+              <button className="px-5 py-2 rounded-[var(--radius-lg)] btn-accent text-sm font-medium" disabled={!canNext()} onClick={goNext}>{uiText("common.next")}</button>
             ) : (
-              <button className="px-6 py-[5px] rounded-[var(--radius-lg)] btn-accent text-sm font-medium" disabled={!canNext() || initializing} onClick={handleCreate}>
+              <button className="px-5 py-2 rounded-[var(--radius-lg)] btn-accent text-sm font-medium" disabled={!canNext()} onClick={handleCreate}>
                 {initializing ? uiText("ui.NewProjectDialog.creating") : uiText("ui.NewProjectDialog.createProject")}
               </button>
             )}

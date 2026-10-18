@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { parse } from "shell-quote";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentSession } from "./pi-sdk";
+import type { AgentSession, ToolDefinition } from "./pi-sdk";
 import { Store } from "./store";
 import { createPiSession, disposePiSession } from "./pi-session";
 import { approveMcpServer, definitionFingerprint, saveMcpServer, scanMcpServers, type McpServerConfig } from "./mcp-service";
@@ -54,18 +54,18 @@ async function waitFor(predicate: () => boolean) {
     await new Promise(resolve => setTimeout(resolve, 15));
   }
 }
-async function create(mode: () => string = () => "standard", canUseTool = vi.fn(async () => ({ behavior: "allow" as const }))) {
-  const session = await createPiSession({ cwd, agentDir, store: new Store(root), permissionMode: mode(), getPermissionMode: mode, canUseTool });
+async function create(mode: () => string = () => "standard", canUseTool = vi.fn(async () => ({ behavior: "allow" as const })), extraTools: ToolDefinition[] = []) {
+  const session = await createPiSession({ cwd, agentDir, store: new Store(root), permissionMode: mode(), getPermissionMode: mode, canUseTool, extraTools });
   active.push(session); return session;
 }
-async function script(session: AgentSession, code: string, id = "outer") {
+async function script(session: AgentSession, code: string, id = "outer", signal = new AbortController().signal) {
   const args = { code };
   const toolCall = { id, name: "codemode", arguments: args };
   session.agent.state.messages.push({ role: "assistant", content: [{ type: "toolCall", ...toolCall }], timestamp: Date.now() } as never);
   const gate = await session.agent.beforeToolCall!({ toolCall, args } as never);
   if (gate?.block) throw new Error(gate.reason);
   const tool = session.agent.state.tools.find(tool => tool.name === "codemode")!;
-  return tool.execute(id, args, new AbortController().signal);
+  return tool.execute(id, args, signal);
 }
 const echoCode = 'const r = await tools.mcp__echo__echo({text:"hello"}); text(r.content[0].text);';
 
@@ -93,12 +93,56 @@ describe("Pi MCP host integration", () => {
     await waitFor(() => { try { process.kill(failedPid, 0); return false; } catch { return true; } });
     if (phase === "initialize") expect(getMcpStatus(cwd).find(status => status.name === "codegraph")?.error).toContain("initialize timed out after 800 ms");
     expect(sandbox.release).toHaveBeenCalledTimes(1);
+    // Server discovery runs concurrently; the healthy server may settle after the failing one.
+    await waitFor(() => getMcpStatus(cwd).find(status => status.name === "echo")?.state === "connected");
     expect(getMcpStatus(cwd).find(status => status.name === "echo")?.state).toBe("connected");
-    await session.extensionRunner.emitBeforeAgentStart("retry discovery", undefined, { cwd });
+    await session.extensionRunner.emitBeforeAgentStart({ messageType: "user", prompt: "retry discovery" }, { cwd });
     expect(getMcpStatus(cwd).find(status => status.name === "codegraph")).toMatchObject({ state: "connected", toolCount: 1 });
     expect(sandbox.wrap).toHaveBeenCalledTimes(3);
     expect(JSON.stringify((await script(session, 'text((await tools.mcp__codegraph__echo({text:"recovered"})).content[0].text);')).content)).toContain("echo:recovered");
   }, 15000);
+
+  it("publishes tools without enumerating resources and preserves non-object structured results", async () => {
+    const resourceLog = path.join(root, "resources.log");
+    writeProject(config({ args: [path.resolve("tests/fixtures/resource-mcp.cjs")], env: { EM_MCP_RESOURCE_LOG: resourceLog } }));
+    approveMcpServer(cwd, "echo");
+    const session = await create();
+    await waitFor(() => getMcpStatus(cwd)[0]?.state === "connected");
+    expect(getMcpStatus(cwd)[0]?.toolCount).toBe(1);
+    expect(fs.existsSync(resourceLog)).toBe(false);
+    const array = await script(session, 'text(JSON.stringify((await tools.mcp__echo__shape({shape:"array"})).structuredContent));');
+    expect(JSON.stringify(array.content)).toContain("[1,2]");
+    const empty = await script(session, 'text(JSON.stringify((await tools.mcp__echo__shape({shape:"null"})).structuredContent));');
+    expect(JSON.stringify(empty.content)).toContain("null");
+    expect(fs.existsSync(resourceLog)).toBe(false);
+  });
+
+  it("honors the official process-wide codemode worker limit and releases capacity after cancellation", async () => {
+    let entered = 0;
+    const releases: Array<() => void> = [];
+    const waitTool: ToolDefinition = { name: "upgrade_wait", label: "Wait", description: "Controlled wait", parameters: { type: "object", properties: {} },
+      execute: async (_id, _args, signal) => { entered++; await new Promise<void>(resolve => {
+        releases.push(resolve); signal?.addEventListener("abort", () => resolve(), { once: true });
+      }); return { content: [], details: undefined }; } };
+    const session = await create(() => "standard", vi.fn(async () => ({ behavior: "allow" as const })), [waitTool]);
+    const other = await create(() => "standard", vi.fn(async () => ({ behavior: "allow" as const })), [waitTool]);
+    session.setActiveToolsByName(["codemode", "upgrade_wait"]);
+    other.setActiveToolsByName(["codemode", "upgrade_wait"]);
+    const abort = new AbortController();
+    const first = script(session, 'await tools.upgrade_wait({});', "first", abort.signal);
+    const second = script(other, 'await tools.upgrade_wait({});', "second");
+    void first.catch(() => {}); void second.catch(() => {});
+    try {
+      await vi.waitFor(() => expect(entered).toBe(2));
+      const third = await script(session, 'text("third must not start");', "third");
+      expect(JSON.stringify(third.content)).toContain("Codemode worker limit reached (2");
+      abort.abort(); await first;
+      await vi.waitFor(async () => {
+        const next = await script(session, 'text("capacity released");', "replacement");
+        expect(JSON.stringify(next.content)).toContain("capacity released");
+      });
+    } finally { abort.abort(); for (const release of releases) release(); await Promise.allSettled([first, second]); }
+  });
 
   it("never starts unapproved or readonly servers, including direct retry", async () => {
     writeProject();

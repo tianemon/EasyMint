@@ -50,7 +50,7 @@ If `python` is not found, try `python3`, then `py -3`. Requires Python 3.x, no e
 
 Choose the smallest search mode that fits the request:
 
-1. **New project/page or system-wide visual direction** → use `--design-system`.
+1. **New visual direction without a confirmed project design** → use `--design-system`; an additional page in an existing design uses a focused domain/stack query instead.
 2. **Targeted concern or component bug** → use one explicit `--domain`.
 3. **Known implementation stack** → use `--stack`; add a separate domain search only for a distinct design concern.
 
@@ -70,9 +70,13 @@ Extract from the user request:
 - **Style keywords**: playful, vibrant, minimal, dark mode, content-first, immersive, etc.
 - **Stack**: detect from the project — check `package.json` deps (react/next/vue/svelte/nuxt/@angular), `pubspec.yaml` (Flutter), `*.xcodeproj`/`Package.swift` (SwiftUI), `composer.json` (Laravel), or React Native markers (`app.json` + `react-native` dep). If nothing is detectable and stack guidance matters, ask the user. **Never assume a stack** — a hardcoded default silently misroutes every recommendation.
 
-### Step 2: Generate Design System (REQUIRED for new pages/projects)
+### Project contract before search
 
-Use `--design-system` when the task needs a coherent product-wide visual direction:
+Read an existing project VisualSpec/style package or confirmed design first. In EasyMint this is `.easymint/design/visual-spec.json` and its actual theme/components/templates. Reuse that decision; use a focused domain/stack search to fill a specific gap, not a fresh palette/layout that overrides it. For craft, material continuity and reducing generic AI composition, use the available `ui-aesthetic` skill. Its guidance and search output remain subordinate to user/project choices.
+
+### Step 2: Generate Design System (new visual directions without an existing contract)
+
+Use `--design-system` when the task needs a new product-wide visual direction and no confirmed project design already supplies it:
 
 ```bash
 python3 "./scripts/search.py" "<product_type> <industry> <keywords>" --design-system [-p "Project Name"]
@@ -87,7 +91,7 @@ python3 "./scripts/search.py" "beauty spa wellness service" --design-system -p "
 
 ### Step 2b: Persist Design System (Master + Overrides Pattern)
 
-To save the design system for retrieval across sessions, add `--persist` **and always pass `--output-dir` pointed at the project root** — without it, files are written relative to whatever directory the tool happens to run from:
+When there is no confirmed project contract, to save the newly chosen design system for retrieval across sessions, add `--persist` **and always pass `--output-dir` pointed at the project root** — without it, files are written relative to whatever directory the tool happens to run from:
 
 ```bash
 python3 "./scripts/search.py" "<query>" --design-system --persist -p "Project Name" --output-dir "<project-root>"
@@ -173,7 +177,7 @@ Do not fabricate output. Instead:
 
 ## Example Workflow
 
-**User request:** "Make an AI search homepage." (stack detected as Next.js from `package.json`)
+**User request:** "Make an AI search homepage." (no confirmed design exists; stack detected as Next.js from `package.json`)
 
 ```bash
 # Step 2: design system
@@ -196,12 +200,12 @@ Then synthesize the design system + detailed searches and implement.
 
 - Keep one dominant intent and 2–5 meaningful terms per query: `"keyboard focus modal"`, not a full audit checklist
 - Retry once with a narrower phrase or explicit domain/stack; do not cycle through unrelated keywords
-- Use `--design-system` for a new project/page and `--domain` for a focused concern
+- Use `--design-system` only for a new visual direction without a confirmed design; use `--domain`/`--stack` for gaps in an existing project, including additional pages
 - Pass the detected stack explicitly for implementation-specific guidance
 
 | Problem | What to Do |
 |---------|------------|
-| Can't decide on style/color | Re-run `--design-system` with different keywords |
+| Can't decide on style/color | Read existing user/project decisions first; if none exist, retry `--design-system` once with a narrower intent, otherwise use focused domain guidance |
 | Dark mode contrast issues | `references/quick-reference.md` §6: `color-dark-mode` + `color-accessible-pairs` |
 | Animations feel unnatural | `references/quick-reference.md` §7: `spring-physics` + `easing` + `exit-faster-than-enter` |
 | Form UX is poor | `references/quick-reference.md` §8: `inline-validation` + `error-clarity` + `focus-management` |

@@ -1,14 +1,18 @@
 ---
 name: creation-guide
 description: >-
-  创建项目引导（新建项目/直接创建时使用）。收到创建类系统消息、需要从模糊想法
-  引导用户到可开发需求时，Read 本 skill 并按清单引导。
+  应用新建入口的创建引导。用户点击新建项目/直接创建后，应用发送 project-created / direct-create
+  创建系统消息时使用；普通自由对话不因出现“创建项目”“做个应用”等词触发。
 ---
 
 # 创建项目引导编排
 
 你（Mint）收到创建项目系统消息后，按本清单引导。总原则：智能严谨、能繁能简。
 系统提示词 <creation_flow> 已给骨架（分工/复杂度判定/两条入口/7 Gate）。引导细节五项由本清单与子 skill 分载：**复杂度判定表**（本文件）＋**场景判定表**（scenarios.md）＋**交付形态判定**（delivery.md，条件式默认不追问）＋**成本映射**（cost-map.md，校验内联见 creation-flow-cost）＋**各阶段引导话术与原型分级**（creation-flow-intent/features/prototype/techspec/cost，按阶段 Read 不一次全读）。
+
+## 触发边界
+
+仅在应用新建入口已发送 project-created / direct-create 创建系统消息时进入本流程。普通对话是独立的自由入口，按用户请求与上下文完成任务，不要求先新建/登记，不自动补齐固定表单，不套用下面的Gate或开场问原型。用户询问流程时可以解释，不因此替用户进入流程。
 
 ## 进入引导
 

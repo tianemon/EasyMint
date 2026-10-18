@@ -159,7 +159,7 @@ export class NativeConfig {
   }
 
   /**
-   * 两段一次性迁移。**顺序不能颠倒**：先重排 em-settings.json 的结构，再跑 pi 原生真源迁移——
+   * 先完成两段一次性迁移，再处理 SDK 兼容配置。**前两段顺序不能颠倒**：先重排 em-settings.json 的结构，再跑 pi 原生真源迁移——
    * 后者读写的 `providerPreferences` 等字段要到第一步之后才位于新路径上；反过来的话它会读不到，
    * 会把用户已有的供应商 UI 元数据当成"没有"而重建。
    */
@@ -167,10 +167,51 @@ export class NativeConfig {
     this.assertSupportedVersions();
     await this.migrateEmSettingsShape();
     await this.migratePiNative();
-    // 第三步：清掉会话缓存里指向「已不存在的供应商」的绑定。**刻意不设版本标记**——它幂等、
+    await this.migrateKimiCoding();
+    // 最后清掉会话缓存里指向「已不存在的供应商」的绑定。**刻意不设版本标记**——它幂等、
     // 只在真有悬挂时才写盘，而且必须能覆盖「迁移之后才产生的悬挂」（删供应商发生在任意时刻，
-    // 不是一次性事件）。前置的两步只改写「在本次迁移映射里」的 id，管不到后续的悬挂。
+    // 不是一次性事件）。原生迁移只改写「在本次迁移映射里」的 id，管不到后续的悬挂。
     await this.pruneDanglingSessionRefs();
+  }
+
+  /** Pi 1.3 官方 Kimi Coding 已改用 Chat Completions；旧官方覆盖重新继承目录。
+   * 自定义 provider / 代理端点保持原意，迁移沿用配置事务的备份与并发校验。 */
+  private async migrateKimiCoding(): Promise<void> {
+    const originals = this.originals();
+    const models = this.storage.read(this.files.models);
+    const provider = models.providers?.["kimi-coding"];
+    if (!provider) return;
+    const current = getProviderStaticModels("kimi-coding").values().next().value;
+    if (!current) return;
+    const canonical = (value: unknown): string | undefined => {
+      if (typeof value !== "string") return undefined;
+      try { return new URL(value).href.replace(/\/$/, ""); } catch { return undefined; }
+    };
+    const legacyBase = "https://api.kimi.com/coding";
+    const currentBase = canonical(current.baseUrl);
+    const isOfficial = (value: unknown) => value === undefined || canonical(value) === legacyBase || (currentBase !== undefined && canonical(value) === currentBase);
+    if (!isOfficial(provider.baseUrl)) return;
+    let changed = false;
+    const inheritOfficial = (record: JsonObject | null) => {
+      if (!record || typeof record !== "object" || Array.isArray(record) || !isOfficial(record.baseUrl)) return;
+      if (canonical(record.baseUrl) === legacyBase) { delete record.baseUrl; changed = true; }
+      if (record.api === "anthropic-messages") { delete record.api; changed = true; }
+    };
+    const inheritedApi = provider.api;
+    inheritOfficial(provider);
+    for (const model of Array.isArray(provider.models) ? provider.models : []) {
+      // 父级旧协议被移除时，为代理模型固定其原有效协议，避免随官方目录切换。
+      if (inheritedApi === "anthropic-messages" && model?.api === undefined && !isOfficial(model?.baseUrl)) {
+        model.api = inheritedApi;
+        changed = true;
+      }
+      inheritOfficial(model);
+    }
+    for (const override of Object.values(provider.modelOverrides ?? {})) inheritOfficial(override as JsonObject);
+    if (!changed) return;
+    ensureNativeProvider(provider);
+    await this.storage.validateModels(models);
+    await this.storage.commit(new Map([[this.files.models, models]]), "pi-1.3-kimi", originals);
   }
 
   /**

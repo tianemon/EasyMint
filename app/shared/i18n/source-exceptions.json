@@ -170,16 +170,6 @@
     "reason": "Internal structured project context for the agent"
   },
   {
-    "file": "app/renderer/src/components/NewProjectDialog.tsx",
-    "text": "云端",
-    "reason": "Internal structured project context for the agent"
-  },
-  {
-    "file": "app/renderer/src/components/NewProjectDialog.tsx",
-    "text": "混合",
-    "reason": "Internal structured project context for the agent"
-  },
-  {
     "file": "app/renderer/src/components/new-project/ProjectFormTypes.ts",
     "text": "充足",
     "reason": "Persisted budget/deployment choice; labels are translated separately"
@@ -238,5 +228,85 @@
     "file": "app/renderer/src/stores/settings-store.ts",
     "text": "自定义 1",
     "reason": "Persisted built-in color-group name; display uses the stable group ID"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-draft.ts",
+    "text": "本地",
+    "reason": "Persisted project form enum value; validation must preserve existing schema identifiers"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-draft.ts",
+    "text": "云端",
+    "reason": "Persisted project form enum value; validation must preserve existing schema identifiers"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-draft.ts",
+    "text": "混合",
+    "reason": "Persisted project form enum value; validation must preserve existing schema identifiers"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-draft.ts",
+    "text": "充足",
+    "reason": "Persisted project form enum value; validation must preserve existing schema identifiers"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-draft.ts",
+    "text": "少量",
+    "reason": "Persisted project form enum value; validation must preserve existing schema identifiers"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-draft.ts",
+    "text": "免费",
+    "reason": "Persisted project form enum value; validation must preserve existing schema identifiers"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "无",
+    "reason": "Internal project requirement prompt and persisted delivery enum; retained in its original language"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "AI 辅助",
+    "reason": "Internal project requirement prompt and persisted delivery enum; retained in its original language"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "Agent 自主决策",
+    "reason": "Internal project requirement prompt and persisted delivery enum; retained in its original language"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "多 Agent 协作",
+    "reason": "Internal project requirement prompt and persisted delivery enum; retained in its original language"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "完成度「{{v0}}」",
+    "reason": "Internal project requirement prompt and persisted delivery enum; retained in its original language"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "部署「{{v0}}」",
+    "reason": "Internal project requirement prompt and persisted delivery enum; retained in its original language"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "AI 集成「{{v0}}」",
+    "reason": "Internal project requirement prompt and persisted delivery enum; retained in its original language"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "预算「{{v0}}」",
+    "reason": "Internal project requirement prompt and persisted delivery enum; retained in its original language"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "云端",
+    "reason": "Internal project requirement prompt and persisted delivery enum; retained in its original language"
+  },
+  {
+    "file": "app/renderer/src/components/new-project/project-requirements.ts",
+    "text": "混合",
+    "reason": "Internal project requirement prompt and persisted delivery enum; retained in its original language"
   }
 ]

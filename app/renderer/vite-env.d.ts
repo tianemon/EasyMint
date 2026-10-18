@@ -262,7 +262,7 @@ interface ElectronAPI {
   };
   editor: {
     open: (filePath?: string) => Promise<void>;
-    onOpenPrototype: (callback: (data: { projectPath: string }) => void) => () => void;
+    onOpenPrototype: (callback: (data: { projectPath: string; filePath?: string }) => void) => () => void;
   };
   dialog: {
     openDirectory: () => Promise<string | null>;
@@ -277,7 +277,9 @@ interface ElectronAPI {
     update: (id: string, patch: { name?: string; path?: string }) => Promise<Project | undefined>;
     import: (dirPath: string) => Promise<Project & { isNew: boolean }>;
     renameExec: (oldPath: string, newName: string) => Promise<{ ok: boolean; error?: string }>;
-    saveProfile: (projectPath: string, platformSpec: string) => Promise<{ ok: boolean; error?: string }>;
+    readDesign: (projectPath: string) => Promise<import("../shared/visual-design/spec").VisualSpec | null>;
+    updateDesign: (projectPath: string, visualSelection: import("../shared/visual-design/spec").VisualSelection) => Promise<import("../shared/visual-design/spec").VisualSpec>;
+    saveProfile: (projectPath: string, platformSpec: string, visualSelection?: import("../shared/visual-design/spec").VisualSelection) => Promise<{ ok: boolean; error?: string }>;
   };
   file: {
     readTree: (dirPath: string) => Promise<FileNode[]>;
@@ -354,7 +356,7 @@ interface ElectronAPI {
     onChatClosed: (callback: (data: { sessionId: string }) => void) => () => void;
     onStream: (callback: (event: StreamEvent) => void) => () => void;
     onStderr: (callback: (data: { runId: string; data: string; timestamp: number }) => void) => () => void;
-    onConfirmDev: (callback: () => void) => () => void;
+    onConfirmDev: (callback: (data: import("../shared/creation-flow").ConfirmDevelopmentRequest) => void) => () => void;
     onExit: (callback: (data: { runId: string; code: number }) => void) => () => void;
     onDelegationProgress: (callback: (data: DelegationProgressEvent) => void) => () => void;
     onDelegationInit: (callback: (data: {

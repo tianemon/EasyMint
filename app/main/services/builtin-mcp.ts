@@ -6,6 +6,7 @@
 
 import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
+import { createProjectDesignTool } from "./project-design-tool";
 import { broadcast } from "./ipc-broadcast";
 import { describeImage, webFetch, webSearch, isToolEnabled } from "./api-clients";
 import { validateTaskStatus } from "./hooks";
@@ -35,12 +36,21 @@ function noArgTool(name: string, label: string, desc: string, fn: () => void | s
 
 // ── 产品工具列表 ────────────────────────────────────
 
-export async function createProductTools(projectPath?: string): Promise<ToolDefinition[]> {
+export async function createProductTools(projectPath?: string, getSessionId?: () => string): Promise<ToolDefinition[]> {
   const defineTool = await getDefineToolFn();
   const tools: ToolDefinition[] = [];
 
   // UI 控制工具（始终注册）
-  tools.push(defineTool(noArgTool("show_confirm_dev", "确认开发", "显示「确认开发」按钮。中等及以上项目就绪时调用。就绪标准：① task.json ≥1 个任务；② README.md 和 AGENTS.md 已写；③ 依赖已安装、环境可构建（按技术栈验证）；④ 需先完成原型并获用户确认的项目已确认（G4）。极简项目不建 task.json，直接开发不走此流程。", () => broadcast("agent:confirm-dev", {}))) as any);
+  tools.push(defineTool(noArgTool("show_confirm_dev", "确认开发", "显示「确认开发」按钮。中等及以上项目就绪时调用。就绪标准：① task.json ≥1 个任务；② README.md 和 AGENTS.md 已写；③ 依赖已安装、环境可构建（按技术栈验证）；④ 需先完成原型并获用户确认的项目已确认（G4）。极简项目不建 task.json，直接开发不走此流程。", () => {
+    const sessionId = getSessionId?.();
+    if (!projectPath || !sessionId) throw new Error("确认开发需要项目会话");
+    const taskFile = join(projectPath, "task.json");
+    if (!existsSync(taskFile) || !existsSync(join(projectPath, "README.md")) || !existsSync(join(projectPath, "AGENTS.md"))) throw new Error("请先准备 task.json、README.md 和 AGENTS.md");
+    const tasks = JSON.parse(readFileSync(taskFile, "utf8")).tasks;
+    if (!Array.isArray(tasks) || !tasks.length) throw new Error("task.json 需要至少一个任务");
+    broadcast("agent:confirm-dev", { projectPath, sessionId });
+    return "Development confirmation ready";
+  })) as any);
   tools.push(defineTool(noArgTool("refresh_tasks", "刷新任务列表", "通知前端重新加载 task.json。", () => {
     if (!projectPath) return "当前无项目路径";
     broadcast("agent:task-status", { taskId: "", status: "pending", projectPath });
@@ -48,9 +58,13 @@ export async function createProductTools(projectPath?: string): Promise<ToolDefi
   })) as any);
   tools.push(defineTool(noArgTool("show_prototype", "显示原型", "打开 EM HTML 编辑器预览原型。**「打开/预览」≠「验证渲染」**：用户要看原型时直接打开即可；渲染正确性审查是交付前的另一步（见 creation-flow-prototype），不要夹带在这里做。", () => {
     if (!projectPath) return "当前无项目路径";
-    broadcast("editor:open-prototype", { projectPath });
+    const original = join(projectPath, "prototype", "index.html");
+    const filePath = existsSync(original) ? original : join(projectPath, ".easymint", "design", "gallery.html");
+    broadcast("editor:open-prototype", { projectPath, filePath });
     return "原型已生成，编辑器窗口即将打开。";
   })) as any);
+
+  tools.push(await createProjectDesignTool(projectPath));
 
   // set_task_status
   tools.push(defineTool({

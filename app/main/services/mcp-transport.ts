@@ -5,6 +5,7 @@ import { ensureSandbox, isSandboxBypassedForMode, wrapForSandbox } from "./sandb
 import { bindExecutionOwner, createExecutionContext, type PermissionMode } from "./permission/execution-context";
 import { findBashOnWindows } from "./background-shell/registry";
 import { codegraphEnvironment, codegraphInvocation } from "../utils/codegraph-command";
+import { isPlaywrightMcpInvocation, playwrightMcpArgs } from "../utils/playwright-mcp";
 
 const shellQuote = (value: string) => `'${value.replace(/'/g, `'"'"'`)}'`;
 
@@ -86,12 +87,18 @@ export class ProtectedMcpTransport implements McpTransport {
         this.inner = new StreamableHttpTransport({ url: config.url, headers: config.headers, authProvider: this.options.authProvider });
       } else {
         const context = bindExecutionOwner(createExecutionContext(this.options.cwd, mode, config.env), this.options.owner);
+        // Playwright 0.0.83 的 socket 默认再套一层 pw-<user>；标准运行区路径较长，
+        // macOS 会触及 Unix socket 上限。直接复用私有 tmp，保留显式覆盖。
+        if (mode !== "full" && isPlaywrightMcpInvocation(config.command, config.args)
+          && !context.environment.PWTEST_SOCKETS_DIR && context.environment.TMPDIR) {
+          context.environment.PWTEST_SOCKETS_DIR = context.environment.TMPDIR;
+        }
         const isCodegraph = /^(codegraph|codegraph\.cmd)$/i.test(config.command);
         // Preserve managed/runtime PATH entries, but locate host installations before the
         // sandbox's APPDATA/LOCALAPPDATA redirection takes effect.
         const resolvedEnv = isCodegraph ? codegraphEnvironment({ ...process.env, ...config.env, PATH: context.environment.PATH }) : undefined;
         if (resolvedEnv) context.environment.PATH = resolvedEnv.PATH;
-        const invocation = isCodegraph ? codegraphInvocation(config.command, config.args ?? [], resolvedEnv!) : { command: config.command, args: config.args, shellCommand: undefined };
+        const invocation = isCodegraph ? codegraphInvocation(config.command, config.args ?? [], resolvedEnv!) : { command: config.command, args: playwrightMcpArgs(config.command, config.args, { ...process.env, ...config.env }), shellCommand: undefined };
         if (!isSandboxBypassedForMode(mode)) {
           const initialized = await ensureSandbox(this.options.cwd, mode);
           if (!initialized.ok) throw new Error(`MCP 安全执行后端不可用：${initialized.reason}`);
@@ -99,7 +106,9 @@ export class ProtectedMcpTransport implements McpTransport {
         this.check(mode);
         const gitBashPath = process.platform === "win32" ? findBashOnWindows() : undefined;
         if (process.platform === "win32" && !gitBashPath) throw new Error("Windows MCP 需要 Git Bash");
-        const spec = await wrapForSandbox([invocation.shellCommand ?? invocation.command, ...(invocation.args ?? [])].map(shellQuote).join(" "), { context, gitBashPath: gitBashPath ?? undefined });
+        const spec = await wrapForSandbox([invocation.shellCommand ?? invocation.command, ...(invocation.args ?? [])].map(shellQuote).join(" "), { context, gitBashPath: gitBashPath ?? undefined,
+          approvedBrowserMcp: !!this.options.validate && isPlaywrightMcpInvocation(config.command, config.args),
+        });
         this.release = spec.release;
         this.check(mode);
         this.inner = new StdioTransport({
@@ -121,10 +130,10 @@ export class ProtectedMcpTransport implements McpTransport {
       throw error;
     }
   }
-  async send(message: JsonRpcMessage): Promise<void> {
+  async send(message: JsonRpcMessage, options?: Parameters<McpTransport["send"]>[1]): Promise<void> {
     this.check();
     if (!this.inner) throw new Error("MCP transport 尚未启动");
-    await this.inner.send(message);
+    await this.inner.send(message, options);
   }
   close(): Promise<void> {
     this.closed = true;

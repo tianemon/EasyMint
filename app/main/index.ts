@@ -6,6 +6,8 @@ import path from "path";
 import { loadUserEnv } from "./utils/user-path";
 import { installSystemProxyFetch, redactProxyUrl } from "./services/system-proxy";
 import { getResourcesDir, emHome } from "./utils/paths";
+import { prototypeBaseUrl } from "./utils/prototype-html";
+import { EditorFileAccess } from "./services/editor-file-access";
 import {
   startAutoUpdater,
   checkForUpdatesManually,
@@ -578,53 +580,51 @@ ipcMain.handle("window:new", () => {
   createWindow("/?fresh=1");
 });
 
-ipcMain.handle("editor:open", (_e, filePath?: string) => {
-  const editorPath = path.join(getResourcesDir(), "em-html-editor", "index.html");
-  const editorWin = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 800,
-    minHeight: 500,
-    title: "EM HTML Editor",
-    webPreferences: {
-      sandbox: false,
-      preload: path.join(__dirname, "..", "..", "preload", "dist", "preload.cjs"),
-    },
-  });
-  watchRendererGone(editorWin);
-  if (filePath && fs.existsSync(filePath)) {
-    editorWin.loadFile(editorPath, { query: { uiLocale: mainUiI18n.resolvedLanguage ?? "zh-CN" } });
-    editorWin.webContents.on("did-finish-load", () => {
-      let content = fs.readFileSync(filePath, "utf-8");
-      const name = path.basename(filePath);
-      // 编辑器用 blob: URL 加载原型（无目录概念），相对资源路径解析失败——
-      // 注入前改写为基于原型目录的绝对路径，图片/样式才能在预览中显示
-      const baseDir = path.dirname(filePath);
-      content = absolutizePrototypePaths(content, baseDir);
-      editorWin.webContents.executeJavaScript(
-        `(function(){var c=${JSON.stringify(content)};var n=${JSON.stringify(name)};var p=${JSON.stringify(filePath)};if(typeof autoLoad==="function")autoLoad(c,n,p);})()`
-      ).catch(() => {});
+const editorFileAccess = new EditorFileAccess();
+ipcMain.handle("editor:open-current", async (event) => {
+  const filePath = editorFileAccess.target(event.sender, event.senderFrame === event.sender.mainFrame);
+  const error = await shell.openPath(filePath);
+  if (error) throw new Error(error);
+});
+
+ipcMain.handle("editor:open", async (_e, filePath?: string) => {
+  try {
+    // 缺失文件不再静默打开一个空白编辑器。读取完成后才创建窗口。
+    const content = filePath ? fs.readFileSync(filePath, "utf-8") : undefined;
+    const editorPath = path.join(getResourcesDir(), "em-html-editor", "index.html");
+    const editorWin = new BrowserWindow({
+      width: 1400,
+      height: 900,
+      minWidth: 800,
+      minHeight: 500,
+      title: "EM HTML Editor",
+      webPreferences: {
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+        preload: path.join(path.dirname(editorPath), "preload.cjs"),
+      },
     });
-  } else {
-    editorWin.loadFile(editorPath, { query: { uiLocale: mainUiI18n.resolvedLanguage ?? "zh-CN" } });
+    const editorContents = editorWin.webContents;
+    editorFileAccess.register(editorContents, filePath);
+    editorContents.once("destroyed", () => editorFileAccess.remove(editorContents));
+    watchRendererGone(editorWin);
+    await editorWin.loadFile(editorPath, { query: { uiLocale: mainUiI18n.resolvedLanguage ?? "zh-CN" } });
+    if (content !== undefined) {
+      await editorWin.webContents.executeJavaScript(
+        `autoLoad(${JSON.stringify(content)},${JSON.stringify(path.basename(filePath!))},${JSON.stringify(filePath)},${JSON.stringify(filePath ? prototypeBaseUrl(path.dirname(filePath)) : undefined)})`
+      );
+    }
+    editorWin.setMenuBarVisibility(false);
+  } catch (error) {
+    console.error("[html-editor] 打开失败", error);
+    dialog.showErrorBox("EM HTML Editor", `${t("editor.couldNotOpen")}: ${(error as Error).message}`);
   }
-  editorWin.setMenuBarVisibility(false);
 });
 
 ipcMain.handle("editor:open-in-browser", (_e, filePath?: string) => {
   if (filePath && fs.existsSync(filePath)) shell.openPath(filePath);
 });
-
-/** 原型 HTML 相对资源路径 → 基于原型目录的绝对 file:// 路径（blob 预览无目录概念，不改写则图片/样式 404）。
- *  改写 src/href/url() 中不以协议、/、# 开头的相对路径；跳过 data: 内联与占位符。 */
-function absolutizePrototypePaths(html: string, baseDir: string): string {
-  const toFileUrl = (p: string) => "file://" + path.resolve(baseDir, p);
-  return html
-    .replace(/(src|href)=(["'])(?!([a-z]+:|data:|#|\/))([^"']*?)\2/g, (_m, attr, q, _proto, p) =>
-      `${attr}=${q}${toFileUrl(p)}${q}`)
-    .replace(/url\((["']?)(?!([a-z]+:|data:|#|\/))([^"')]+?)\1\)/g, (_m, q, _proto, p) =>
-      `url(${q}${toFileUrl(p)}${q})`);
-}
 
 ipcMain.handle("settings:set-last-project", (_e, { projectId }) => {
   if (sharedServices) sharedServices.store.setLastProjectId(projectId);

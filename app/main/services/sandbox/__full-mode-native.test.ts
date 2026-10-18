@@ -146,6 +146,19 @@ describe("沙盒豁免（兼容性兜底）", () => {
     }
   });
 
+  it("Playwright MCP 使用相同的浏览器兼容边界，不能借参数或复合命令豁免", () => {
+    for (const command of [
+      "npx -y @playwright/mcp@latest --headless --isolated",
+      "npm exec --yes -- @playwright/mcp --headless",
+      "node /tmp/node_modules/@playwright/mcp/cli.js --isolated",
+    ]) expect(isSandboxExcludedCommand(command), command).toBe(false);
+    for (const command of [
+      "echo @playwright/mcp", "node -e payload @playwright/mcp",
+      "npm install @playwright/mcp", "npx --call='node payload.js' @playwright/mcp",
+      "npx @playwright/mcp && node payload.js", "npx @playwright/mcp > /tmp/out",
+    ]) expect(isSandboxExcludedCommand(command), command).toBe(false);
+  });
+
   it("普通开发命令不受豁免影响（必须仍然进沙盒）", async () => {
     for (const command of ["npm run build", "git status", "python3 -m http.server", "echo hi"]) {
       expect(isSandboxExcludedCommand(command), command).toBe(false);

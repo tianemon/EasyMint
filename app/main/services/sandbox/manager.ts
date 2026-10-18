@@ -277,10 +277,11 @@ export const sandboxLeaseInternals = { createOnceLease };
  */
 export async function wrapForSandbox(
   command: string,
-  opts: { context: ExecutionContext; gitBashPath?: string; windowsShell?: "bash" | "powershell" },
+  opts: { context: ExecutionContext; gitBashPath?: string; windowsShell?: "bash" | "powershell"; approvedBrowserMcp?: boolean },
 ): Promise<SandboxSpawnSpec> {
   if (isSandboxBypassedForMode(opts.context.mode)) return nativeSpawnSpec(command, opts);
-  if (isSandboxExcludedCommand(command)) {
+  // 此标志只由已复核配置的 MCP 传输传入，不能从命令名称或模型参数取得。
+  if (opts.approvedBrowserMcp || isSandboxExcludedCommand(command)) {
     return {
       ...nativeSpawnSpec(command, opts),
       exemptReason: "该命令需要自建沙盒（浏览器 / 容器），无法在系统沙盒内运行，已在沙盒外执行",

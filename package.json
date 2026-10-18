@@ -1,6 +1,6 @@
 {
   "name": "easymint",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "AI 项目工作台 — 基于 Pi Agent Core 的智能编程助手，让不懂技术的人也能构建软件",
   "private": true,
   "license": "MIT",
@@ -20,7 +20,7 @@
     "build:renderer": "vite build --config app/renderer/vite.config.ts",
     "build:main": "node scripts/build.cjs main",
     "build:preload": "node scripts/build.cjs preload",
-    "lint": "eslint app/ --cache && concurrently --kill-others-on-fail --names main,preload,renderer \"tsc --noEmit -p app/main/tsconfig.json\" \"tsc --noEmit -p app/preload/tsconfig.json\" \"tsc --noEmit -p app/renderer/tsconfig.json\" && node scripts/check-deps.mjs && node scripts/check-em-home-paths.mjs && node scripts/gen-brand-index.mjs --check && node scripts/check-i18n.mjs && node scripts/gen-editor-i18n.mjs --check",
+    "lint": "eslint app/ --cache && concurrently --kill-others-on-fail --names main,preload,renderer \"tsc --noEmit -p app/main/tsconfig.json\" \"tsc --noEmit -p app/preload/tsconfig.json\" \"tsc --noEmit -p app/renderer/tsconfig.json\" && node scripts/check-deps.mjs && node scripts/check-em-home-paths.mjs && node scripts/gen-brand-index.mjs --check && node scripts/check-i18n.mjs && node scripts/gen-editor-i18n.mjs --check && npm run check:visual-design",
     "check:i18n": "node scripts/check-i18n.mjs && node scripts/gen-editor-i18n.mjs --check",
     "check:deps": "node scripts/check-deps.mjs",
     "check:em-home": "node scripts/check-em-home-paths.mjs",
@@ -28,13 +28,17 @@
     "gen:holidays": "node scripts/gen-cn-holidays.mjs",
     "check:brands": "node scripts/gen-brand-index.mjs --check",
     "typecheck": "concurrently --kill-others-on-fail --names main,preload,renderer \"tsc --noEmit -p app/main/tsconfig.json\" \"tsc --noEmit -p app/preload/tsconfig.json\" \"tsc --noEmit -p app/renderer/tsconfig.json\"",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:visual-brands": "node scripts/gen-visual-brands.cjs --check",
+    "check:visual-design": "node scripts/gen-visual-brands.cjs --check && node scripts/gen-visual-templates.mjs --check"
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.75",
-    "@earendil-works/pi-agent-core": "1.1.0",
-    "@earendil-works/pi-ai": "1.1.0",
-    "@earendil-works/pi-coding-agent": "1.1.0",
+    "@earendil-works/pi-agent-core": "1.3.0",
+    "@earendil-works/pi-ai": "1.3.0",
+    "@earendil-works/pi-codemode": "1.3.0",
+    "@earendil-works/pi-coding-agent": "1.3.0",
+    "@earendil-works/pi-mcp": "1.3.0",
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-virtual": "^3.14.13",
     "archiver": "^8.0.0",
@@ -46,6 +50,7 @@
     "jszip": "^3.10.2",
     "mammoth": "^1.12.3",
     "marked": "^18.0.13",
+    "parse5": "8.0.1",
     "pdf-parse": "^2.4.5",
     "proper-lockfile": "4.1.2",
     "qrcode": "^1.5.4",
@@ -61,12 +66,11 @@
     "xterm": "^5.3.0",
     "xterm-addon-fit": "^0.8.0",
     "zod": "^4.6.5",
-    "zustand": "^5.0.14",
-    "@earendil-works/pi-mcp": "1.1.0",
-    "@earendil-works/pi-codemode": "1.1.0"
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@dvaji/vite-plugin-monaco-editor": "^2.0.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.3",
     "@types/archiver": "^8.0.0",
@@ -90,7 +94,7 @@
     "typescript-eslint": "^8.70.0",
     "vite": "^8.3.0",
     "vitest": "^4.1.10",
-    "@modelcontextprotocol/sdk": "^1.30.0"
+    "yaml": "2.9.0"
   },
   "build": {
     "appId": "com.easymint.app",
@@ -144,6 +148,10 @@
       {
         "from": "assets/appicon-dark.png",
         "to": "appicon-dark.png"
+      },
+      {
+        "from": "resources/visual-design",
+        "to": "visual-design"
       }
     ],
     "mac": {
