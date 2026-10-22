@@ -1,4 +1,4 @@
-import { saveProjectDesign, readProjectDesign } from "./services/project-design";
+import { saveProjectDesign } from "./services/project-design";
 import { parseNativeAiSettings } from "../shared/native-ai";
 import { saveUiLanguage, getUiLanguageState, t } from "./services/ui-language";
 import { isUiLanguage } from "../shared/i18n/locale";
@@ -807,16 +807,6 @@ export function registerIpcHandlers({ mainWindow, projectService, fileService, a
     } catch { return null; }
   });
 
-  ipcMain.handle("project:updateDesign", (_e, { projectPath, visualSelection }) => {
-    const registeredRoot = projectRootContaining(projectPath);
-    if (!registeredRoot || p.resolve(registeredRoot) !== p.resolve(projectPath)) throw new Error("Unknown project directory");
-    return saveProjectDesign(projectPath, visualSelection);
-  });
-  ipcMain.handle("project:readDesign", (_e, { projectPath }) => {
-    const registeredRoot = projectRootContaining(projectPath);
-    if (!registeredRoot || p.resolve(registeredRoot) !== p.resolve(projectPath)) throw new Error("Unknown project directory");
-    return readProjectDesign(projectPath);
-  });
   // project:saveProfile — 持久化项目产品类型规范(NewProjectDialog 创建时写入,
   // 主进程 buildSystemPrompt 读取注入 Mint 提示词)
   ipcMain.handle("project:saveProfile", (_e, { projectPath, platformSpec, visualSelection }) => {

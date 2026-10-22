@@ -30,8 +30,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     import: (dirPath: string) => ipcRenderer.invoke("project:import", { dirPath }),
     renameExec: (oldPath: string, newName: string) => ipcRenderer.invoke("project:rename-exec", { oldPath, newName }) as Promise<{ ok: boolean; error?: string }>,
     saveProfile: (projectPath: string, platformSpec: string, visualSelection?: import("../shared/visual-design/spec").VisualSelection) => ipcRenderer.invoke("project:saveProfile", { projectPath, platformSpec, visualSelection }),
-    readDesign: (projectPath: string) => ipcRenderer.invoke("project:readDesign", { projectPath }),
-    updateDesign: (projectPath: string, visualSelection: import("../shared/visual-design/spec").VisualSelection) => ipcRenderer.invoke("project:updateDesign", { projectPath, visualSelection }),
   },
   file: {
     readTree: (dirPath: string) => ipcRenderer.invoke("file:readTree", { dirPath }),

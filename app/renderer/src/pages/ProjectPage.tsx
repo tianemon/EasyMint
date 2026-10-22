@@ -8,7 +8,6 @@ import { ChatPanel } from "../components/ChatPanel";
 import { ImageViewer } from "../components/ImageViewer";
 import { isImagePath } from "@shared/image-files";
 import { SettingsDialog, type SettingsTab } from "../components/SettingsDialog";
-import { ProjectDesignDialog } from "../components/new-project/ProjectDesignDialog";
 import { NewProjectDialog } from "../components/NewProjectDialog";
 import { confirmDialog } from "../components/ui/ConfirmDialog";
 import { Modal } from "../components/ui/Modal";
@@ -30,7 +29,6 @@ export function ProjectPage(): JSX.Element {
   const location = useLocation();
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab | undefined>(undefined);
-  const [showProjectDesign, setShowProjectDesign] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [projectPath, setProjectPath] = useState("");
   const [projectName, setProjectName] = useState("");
@@ -411,7 +409,6 @@ export function ProjectPage(): JSX.Element {
         onSessionDelete={handleSessionDelete}
         onFileClick={handleFileClick}
         onNewProject={() => setShowNewProject(true)}
-        onEditDesign={projectId && projectExists ? () => setShowProjectDesign(true) : undefined}
         onOpenProject={handleOpenProject}
         onRenameProject={projectId && projectExists ? handleRenameProject : undefined}
         onSettings={() => { setSettingsTab(undefined); setShowSettings(true); }}
@@ -639,7 +636,6 @@ export function ProjectPage(): JSX.Element {
         </Modal>
       )}
 
-      {showProjectDesign && <ProjectDesignDialog projectPath={projectPath} projectName={projectName} onClose={()=>setShowProjectDesign(false)}/>}
       {showNewProject && (
         <NewProjectDialog
           onClose={() => setShowNewProject(false)}

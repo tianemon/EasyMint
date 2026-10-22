@@ -277,8 +277,6 @@ interface ElectronAPI {
     update: (id: string, patch: { name?: string; path?: string }) => Promise<Project | undefined>;
     import: (dirPath: string) => Promise<Project & { isNew: boolean }>;
     renameExec: (oldPath: string, newName: string) => Promise<{ ok: boolean; error?: string }>;
-    readDesign: (projectPath: string) => Promise<import("../shared/visual-design/spec").VisualSpec | null>;
-    updateDesign: (projectPath: string, visualSelection: import("../shared/visual-design/spec").VisualSelection) => Promise<import("../shared/visual-design/spec").VisualSpec>;
     saveProfile: (projectPath: string, platformSpec: string, visualSelection?: import("../shared/visual-design/spec").VisualSelection) => Promise<{ ok: boolean; error?: string }>;
   };
   file: {
