@@ -37,6 +37,14 @@ describe('product showcases', () => {
     expect(dark).toContain('sc-track-list'); expect(dark).toContain('data-sc-track');
     expect(flat).toContain('sc-products'); expect(flat).toContain('data-sc-filter');
   });
+  it('gives the paper planner tangible controls for dated settings and writing', () => {
+    const html=renderShowcase(createVisualSpec({styleId:'skeuomorphism'}));
+    expect(html).toContain('data-paper-reminder');
+    expect(html).toContain('data-paper-bookmark');
+    expect(html.match(/data-paper-ink=/g)).toHaveLength(3);
+    expect(html).toContain('paper-switch-track');
+    expect(html).toContain('paper-hardware');
+  });
   it('has a unique product composition per style and no per-style motion destination', () => {
     expect(new Set(Object.values(SHOWCASE_SCENES)).size).toBe(STYLE_PRESETS.length);
     const spec=createVisualSpec({styleId:'tech'});

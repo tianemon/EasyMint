@@ -1,7 +1,7 @@
 import { renderLiquidIcon, type LiquidIconName } from './liquid-icons';
 export function sceneIcon(name:string):string {
   const extra:Record<string,string>={
-    arrow:'<path d="M4 12h15m-6-6 6 6-6 6"/>', check:'<path d="m5 12 4 4 10-10"/>', plus:'<path d="M12 5v14M5 12h14"/>',
+    check:'<path d="m5 12 4 4 10-10"/>', plus:'<path d="M12 5v14M5 12h14"/>',
     clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>', sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>',
     moon:'<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/>', bag:'<path d="M5 8h14l1 13H4L5 8Z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/>',
     mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/>', leaf:'<path d="M20 4C8 2 2 10 6 17s15 1 14-13Z"/><path d="m4 21 12-12"/>',
