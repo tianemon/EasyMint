@@ -290,9 +290,9 @@ html[data-platform="win32"] {
   --shadow-menu: 0 12px 40px rgba(0,0,0,0.16);
   --msg-agent-shadow: 0 1px 4px rgba(0,0,0,0.07),0 0 0 1px rgba(0,0,0,0.03);
   --msg-user-shadow: 0 2px 8px rgba(0,0,0,0.12),0 0 0 1px rgba(0,0,0,0.04);
-  /* 用户气泡：两种主题均沿用参考图的蓝底白字。 */
-  --msg-user-bg: #183e76;
-  --msg-user-text: #f6fafe;
+  /* 用户气泡:亮色沿用 accent 反色;深蓝参考色只在暗色主题使用 */
+  --msg-user-bg: var(--color-accent);
+  --msg-user-text: var(--color-text-inverse);
   --color-input-card: var(--color-elevated);
 
   /* ── Font ────────────────────────── */
@@ -501,7 +501,7 @@ html[data-platform="win32"] {
   --shadow-menu: 0 12px 40px rgba(0,0,0,0.5);
   --msg-agent-shadow: 0 1px 4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
   --msg-user-shadow: 0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
-  /* 用户气泡:深灰(略亮于 AI 气泡 card-agent #242424 以区分),文字转亮色 */
+  /* 用户气泡(暗色):参考图的深蓝底白字,亮色主题不沿用 */
   --msg-user-bg: #183e76;
   --msg-user-text: #f6fafe;
   /* 输入卡片:还原 elevated 原值(独立变量保留,便于将来单独调) */

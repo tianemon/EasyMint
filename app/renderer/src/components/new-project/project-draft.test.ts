@@ -74,13 +74,22 @@ describe("independent style palettes", () => {
     }
   });
 
-  it("keeps the shared color boundaries without imposing a featured layout on other choices", () => {
+  it("marks brief-driven choices without presenting the neutral base as the selected style", () => {
     for (const choice of ["", "custom", "unrecognized-style"]) {
       const context = presetDesignContext(choice);
       expect(context).toContain("minimalism; palette");
-      expect(context).toContain("Reuse this actual composition");
       expect(context).toContain("showcase-mobile.html");
-      if (choice) expect(context).toContain(`User visual brief: ${choice}`);
+      if (!choice) {
+        expect(context).toContain("Reuse this actual composition");
+        expect(context).not.toContain("brief-driven project");
+      } else if (choice === "custom") {
+        expect(context).toContain("without a description");
+        expect(context).not.toContain("Reuse this actual composition");
+      } else {
+        expect(context).toContain("brief-driven project");
+        expect(context).toContain(`User visual brief: ${choice}`);
+        expect(context).not.toContain("Reuse this actual composition");
+      }
       expect(context).not.toContain("Web layout:");
     }
   });

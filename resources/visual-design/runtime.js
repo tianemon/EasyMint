@@ -1679,11 +1679,12 @@ SOFTWARE.
     if (!target) return;
     stop(event);
     const note = notes.get("starter");
-    open(copy("A thought to keep", "\u503C\u5F97\u8BB0\u4F4F\u7684\u60F3\u6CD5"), `<form data-journey-form="bento"><input type="hidden" name="id" value="starter">${field(copy("Title", "\u6807\u9898"), "title", note?.title ?? copy("A thought to keep", "\u503C\u5F97\u8BB0\u4F4F\u7684\u60F3\u6CD5"))}${field(copy("Your thoughts", "\u5199\u4E0B\u5185\u5BB9"), "body", note?.body ?? root.querySelector(".dayboard-note textarea")?.value ?? "", true)}${button2(copy("Keep this note", "\u4FDD\u5B58\u7B14\u8BB0"), 'type="submit"')}</form>`, "compose");
+    open(copy("A thought to keep", "\u503C\u5F97\u8BB0\u4F4F\u7684\u60F3\u6CD5"), `<form data-journey-form="bento"><input type="hidden" name="id" value="starter">${field(copy("Title", "\u6807\u9898"), "title", note?.title ?? copy("A thought to keep", "\u503C\u5F97\u8BB0\u4F4F\u7684\u60F3\u6CD5"))}${field(copy("Your thoughts", "\u5199\u4E0B\u5185\u5BB9"), "body", root.querySelector(".dayboard-note textarea")?.value ?? note?.body ?? "", true)}${button2(copy("Keep this note", "\u4FDD\u5B58\u7B14\u8BB0"), 'type="submit"')}</form>`, "compose");
   };
   const input = (event) => {
     const node = event.target;
     if (!(node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement)) return;
+    if (node.matches(".dayboard-note textarea")) notes.set("starter", { title: root.querySelector(".dayboard-note .scene-eyebrow")?.textContent ?? copy("A thought to keep", "\u503C\u5F97\u8BB0\u4F4F\u7684\u60F3\u6CD5"), body: node.value });
     if (node.matches("[data-journey-project-note],[data-journey-project-check]")) {
       const page = node.closest(".scene-view-project"), index = Number(page?.dataset.projectIndex);
       if (page && Number.isInteger(index)) projectDrafts.set(index, { checks: [...page.querySelectorAll("[data-journey-project-check]")].map((input2) => input2.checked), note: page.querySelector("[data-journey-project-note]")?.value ?? "" });

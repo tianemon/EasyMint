@@ -16,7 +16,7 @@ export async function createProjectDesignTool(projectPath?: string): Promise<Too
                 throw new Error("当前无项目路径");
             const existing = readProjectDesign(projectPath);
             const selection = { ...existing?.selection, ...input };
-            if (input.styleId !== undefined && input.styleId !== existing?.selection.styleId) selection.brief = "";
+            if (input.styleId !== undefined && (input.styleId !== existing?.selection.styleId || existing?.selection.brief)) selection.brief = "";
             if (input.palette !== undefined && input.palette !== existing?.selection.palette && input.brandId === undefined) selection.brandId = "";
             if (input.brandId && input.palette === undefined) selection.palette = "default";
             const spec = Object.keys(input).length ? saveProjectDesign(projectPath, selection) : existing;
