@@ -605,7 +605,7 @@ function ThinkingBlockView({ block, active, running }: { block: ThinkingBlock; a
             onWheel={markUserInput}
             onTouchStart={markUserInput}
             onMouseDown={markUserInput}
-            className="overflow-y-auto overscroll-contain rounded-[var(--radius-lg)] mt-[5px] mb-[3px]"
+            className="msg-process-detail overflow-y-auto overscroll-contain rounded-[var(--radius-lg)] mt-[5px] mb-[3px]"
             style={{
               background: "var(--thinking-body)",
               maxHeight: "calc(var(--text-detail) * 9.75 + 12px)", // 6 行文字 + pre 上下 padding 12px
@@ -666,7 +666,7 @@ function ToolGroupView({ block, streaming }: { block: ToolGroupBlock; streaming?
         <div className="overflow-hidden min-w-0">
           {/* 组展开容器:深色块 padding 左右 8px + 上下 1px(用户确认:上下边距主要由工具行自身 mt/mb 贡献,
               容器 padding 只做微调,2px→1px 后视觉仍均匀);折叠时高度 0 背景自然不可见 */}
-          <div className="mt-[2px] rounded-[var(--radius-lg)] space-y-0.5" style={{ background: "var(--thinking-body)", padding: "1px 8px" }}>
+          <div className="msg-process-detail mt-[2px] rounded-[var(--radius-lg)] space-y-0.5" style={{ background: "var(--thinking-body)", padding: "1px 8px" }}>
             {items.map((item, i) => (
               <SingleToolCard key={i} item={item} streaming={streaming} />
             ))}
@@ -1134,11 +1134,11 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
             // 展开区:纯色块,底色比气泡深一档;内容随工具类型
             // 失败(contentErr)时不渲染任何正文——标题已标红即失败提示(报错/状态文案都不展示)
             isDiffResult ? (
-              <div className="mt-[2px] rounded-[var(--radius-lg)]" style={{ background: "var(--thinking-body)" }}>
+              <div className="msg-process-detail mt-[2px] rounded-[var(--radius-lg)]" style={{ background: "var(--thinking-body)" }}>
                 <div className="px-3 py-2"><DiffView text={item.result!} filePath={filePath} presentation={item.presentation} /></div>
               </div>
             ) : item.name === "bash" ? (
-              <div className="mt-[2px] rounded-[var(--radius-lg)]" style={{ background: "var(--thinking-body)" }}>
+              <div className="msg-process-detail mt-[2px] rounded-[var(--radius-lg)]" style={{ background: "var(--thinking-body)" }}>
                 {/* bash:命令在深色容器内,输出裸文本跟在下方;命令+输出整体一个滚动(封顶 6 行,对齐思考块) */}
                 <div
                   className="px-2 py-2 overflow-y-auto overscroll-contain"
@@ -1154,7 +1154,7 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
               </div>
             ) : item.result ? (
               // 有结果就铺结果——具体名(server/tool、技能名)已提到标题行,展开看结果更有信息量
-              <div className="mt-[2px] rounded-[var(--radius-lg)]" style={{ background: "var(--thinking-body)" }}>
+              <div className="msg-process-detail mt-[2px] rounded-[var(--radius-lg)]" style={{ background: "var(--thinking-body)" }}>
                 <div className="px-3 py-2">
                   <pre className="text-text-secondary font-mono overflow-x-auto x-thin-scroll whitespace-pre-wrap min-h-[1.625em]" style={{ fontSize: "var(--text-detail)" }}>
                     {truncateResult(toolResultText(item.result, item.presentation, !!item.resultError))}
@@ -1163,7 +1163,7 @@ function SingleToolCard({ item, streaming }: { item: ToolItem; streaming?: boole
               </div>
             ) : detailLabel ? (
               // 无结果时至少显示具体名,别让展开区空着
-              <div className="mt-[2px] rounded-[var(--radius-lg)]" style={{ background: "var(--thinking-body)" }}>
+              <div className="msg-process-detail mt-[2px] rounded-[var(--radius-lg)]" style={{ background: "var(--thinking-body)" }}>
                 <div className="px-3 py-2">
                   <span className="font-mono text-text-secondary" style={{ fontSize: "var(--text-detail)" }}>{detailLabel}</span>
                 </div>

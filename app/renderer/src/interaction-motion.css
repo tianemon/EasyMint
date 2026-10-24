@@ -46,8 +46,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  width: calc(75% - 56px - var(--s8) - var(--s4));
-  margin: 0 0 12px calc(var(--s8) + 56px);
+  width: calc(100% - 2 * (var(--s8) + var(--s4)));
+  margin: 0 0 8px calc(var(--s8) + var(--s4));
   padding: 4px 0 9px;
   border: 0;
   border-bottom: 1px solid color-mix(in srgb, var(--color-border) 88%, #000);
@@ -89,4 +89,23 @@
 }
 .msg-in.msg-with-output-meta {
   padding-bottom: max(0px, calc(var(--message-footer-height, 24px) - 28px));
+}
+
+/* Measured footer budget: 380px for long English usage + 3 actions at default scale.
+   Keep a 400px floor without per-message width measurement.
+   Clamp to available space so narrow panes can stack actions without widening the chat. */
+.msg-with-output-meta > .msg-agent-row {
+  --mint-bubble-min-width: calc(400px * var(--ui-scale));
+  min-width: min(100%, var(--mint-bubble-min-width));
+}
+.msg-with-output-meta .msg-agent-content {
+  min-width: min(var(--mint-bubble-min-width), 100%);
+  max-width: 100%;
+}
+.msg-agent-content .msg-output-meta {
+  justify-content: safe flex-end;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }

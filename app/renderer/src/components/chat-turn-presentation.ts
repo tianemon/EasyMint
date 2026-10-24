@@ -49,6 +49,35 @@ function executionGroups(messages: readonly ChatMessage[]): Array<{ start?: Chat
   return groups;
 }
 
+/** A finished model/tool step alone is not an authoritative conclusion. */
+function selectFinalEntries(messages: readonly ChatMessage[], indices: number[], active: boolean): Map<number, StreamEntry[]> {
+  const result = new Map<number, StreamEntry[]>();
+  const lastAi = [...indices].reverse().find(i => messages[i]!.role === 'ai');
+  if (active || lastAi === undefined) return result;
+  const last = messages[lastAi]!;
+  const terminal = (!last.stopReason || last.stopReason === 'stop') &&
+    (last.turnOutcome === 'completed' || (!last.streaming && last.stopReason === 'stop'));
+  if (!terminal || (last.turnOutcome && last.turnOutcome !== 'completed')) return result;
+  const tagged = indices.some(i => messages[i]!.entries?.some(e => e.kind === 'text' && e.phase === 'final_answer'));
+  for (const index of indices) {
+    if (messages[index]!.role !== 'ai') continue;
+    const selected = (messages[index]!.entries ?? []).filter(e => e.kind === 'text' &&
+      (tagged ? e.phase === 'final_answer' : index === lastAi && e.phase !== 'commentary'));
+    if (selected.length) result.set(index, selected);
+  }
+  return result;
+}
+
+/** Shared with folding, including plain replies that do not need an execution heading. */
+export function buildFinalAnswerEntries(messages: readonly ChatMessage[], busy: boolean): Map<number, StreamEntry[]> {
+  const result = new Map<number, StreamEntry[]>();
+  const groups = executionGroups(messages);
+  groups.forEach((group, index) => {
+    for (const [i, entries] of selectFinalEntries(messages, group.indices, busy && index === groups.length - 1)) result.set(i, entries);
+  });
+  return result;
+}
+
 /** Presentation only: original messages, entry IDs and tool associations stay intact. */
 export function buildTurnPresentations(messages: readonly ChatMessage[], busy: boolean): Map<number, TurnPresentation> {
   const result = new Map<number, TurnPresentation>();
@@ -63,13 +92,7 @@ export function buildTurnPresentations(messages: readonly ChatMessage[], busy: b
     const terminal = (!last.stopReason || last.stopReason === "stop") && (last.turnOutcome === "completed" || (!last.streaming && last.stopReason === "stop"));
     if (active || (last.turnOutcome && last.turnOutcome !== "completed") || !terminal || group.some(m => m.agentRole || m.forwarded || m.outOfContext || m.imageStripped)) return;
     if (group.some(m => m.entries?.some(e => e.kind === "error"))) return;
-    const finalEntries = new Map<number, StreamEntry[]>();
-    const tagged = group.some(m => m.entries?.some(e => e.kind === "text" && e.phase === "final_answer"));
-    for (const index of indices) {
-      const entries = messages[index]!.entries ?? [];
-      const selected = entries.filter(e => e.kind === "text" && (tagged ? e.phase === "final_answer" : index === lastAi && e.phase !== "commentary"));
-      if (selected.length) finalEntries.set(index, selected);
-    }
+    const finalEntries = selectFinalEntries(messages, indices, active);
     if (!finalEntries.size) return;
     const hasProcess = indices.some(i => messages[i]!.customType || (messages[i]!.entries ?? []).some(e => !finalEntries.get(i)?.includes(e)));
     if (!hasProcess) return;

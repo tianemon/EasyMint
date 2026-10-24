@@ -200,7 +200,7 @@
   "ui.ChatInput.readProjectContentWithoutCommandsChangesOr": "仅浏览项目内容，不执行、不写入、不联网",
   "ui.ChatInput.standard": "标准",
   "ui.ChatInput.standardRunInTheOsSandboxWrites": "标准模式：系统沙盒内执行，工作区与任务临时目录可写；越界写入、读取凭据会被拒绝",
-  "ui.ChatInput.recommendedDevelopInsideTheOsSandbox": "默认推荐：在系统沙盒内开发",
+  "ui.ChatInput.recommendedDevelopInsideTheOsSandbox": "在系统沙盒内开发",
   "ui.ChatInput.fullAccess": "完全访问",
   "ui.ChatInput.fullAccessNoSandboxOrWorkspaceRestriction": "完全访问：不套沙盒，普通文件不受工作区限制；gh / git push / 浏览器 / Playwright 均可用。系统危险操作仅做执行前尽力拦截",
   "ui.ChatInput.noSandboxOrWorkspaceRestrictionForOrdinary": "不套沙盒，普通文件不受工作区限制",

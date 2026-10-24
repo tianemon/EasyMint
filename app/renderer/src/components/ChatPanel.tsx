@@ -1,6 +1,6 @@
 import { ExecutionTimer } from "./ExecutionTimer";
 import { useProcessDisclosure } from "./chat-process-disclosure";
-import { buildTurnPresentations, executionLabel, runningTurnPosition } from "./chat-turn-presentation";
+import { buildTurnPresentations, buildFinalAnswerEntries, executionLabel, runningTurnPosition } from "./chat-turn-presentation";
 import { matchesConfirmDevelopment, hasConfirmDevelopment, confirmationEntries, confirmationStart } from "../lib/confirm-development";
 import type { ConfirmDevelopmentRequest } from "../../../shared/creation-flow";
 import { applyPiRunStatus, clearPiRunSignals, restorePiRunStatus } from "../lib/pi-run-status";
@@ -8,7 +8,6 @@ import { formatNumber } from "../lib/locale-format";
 import { uiText, useUiLocale, uiI18n, appText, appMessage } from "../lib/i18n";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { buildBlocks, ChatBlockView } from "./ChatBlocks";
 import { AttachItem, ChatMessage, PendingUserBubble, displayCompactionSummary, piBlocksToEntries, mergeConsecutiveText, piEventToEntries, displayToolAction, applyNestedToolEvent, mapSessionMessages, getMsgCopyText, acceptStreamEvent, claimEntryBubble, needsEditConfirm, rewindUnavailableReason, contextEditAction, retryStatusText, BUSY_PROBE_INTERVAL_MS, BUSY_PROBE_CLEAR_STREAK, stepBusyProbe, stopTarget, needsDeferredStop, shouldSteerSend, resolveSendSessionId } from "./chat-utils";
 import { confirmDialog } from "./ui/ConfirmDialog";
 import { confirmFullAccess } from "./permission-confirmation";
@@ -41,6 +40,8 @@ import { BubbleActions, roleColor, DocIcon } from "./ChatBubbleActions";
 import { AskUserCard } from "./AskUserCard";
 import { useAskStore } from "../stores/ask-store";
 import { MintAvatar } from "./MintAvatar";
+import type { StreamEntry } from "./StreamPanel";
+import { AssistantContent } from "./AssistantContent";
 import { startsMessageIdentity } from "./chat-message-presentation";
 import { UserMessageText } from "./UserMessageText";
 import { ImageRecoveryDialog } from "./ImageRecoveryDialog";
@@ -510,7 +511,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
   // 可选内容容器清单:与 index.css 的 user-select:text 白名单一致,新增内容型区域两边同步。
   // 两处使用:Ctrl+A 全选目标判定 + mousedown 记忆更新
-  const CONTENT_SELECTOR = ".msg-bubble-user, .msg-bubble-agent, .msg-bubble-system, .diff-view, .shell-output, .subagent-output, .log-overlay-output, .selectable";
+  const CONTENT_SELECTOR = ".msg-bubble-user, .msg-bubble-agent, .msg-bubble-system, .msg-process-stack, .diff-view, .shell-output, .subagent-output, .log-overlay-output, .selectable";
   // 上次全选/点击的内容容器:点击空白处取消全选时 selection 被完全清空(无锚点),
   // 二次 Ctrl+A 无法判定目标——回退到记忆的容器,无需再点击一次容器才恢复
   const lastContainerRef = useRef<Element | null>(null);
@@ -777,17 +778,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     observer.observe(scrollEl);
     return () => observer.disconnect();
   }, [scrollEl]);
-  // 眨眼开关落在「最新一条 Mint 消息」所在的行：用户消息和系统通知行没有 Mint 头像，
-  // 若只按「最后一行」判，通知行插到末尾时流式中的头像会突然停眨
-  const liveIndex = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const m = messages[i];
-      if (m?.role === "ai" && !m.agentRole) return i;
-    }
-    return -1;
-  }, [messages]);
-  // 流式渲染落在「正在增长的那条」上（= 末尾最后一条 ai 消息）。与 liveIndex 的区别：
-  //  - liveIndex 供头像眨眼用，跳过 agentRole 行（角色消息不带 Mint 头像）；这条不跳——角色消息也实时收内容
+  // 流式渲染只落在正在增长的最后一条 AI 消息；头像由整轮执行状态独立控制。
   //  - 末尾是用户真实输入时返回 -1：新一轮还没有输出，不能把上一轮当成正在增长
   //    （否则上一轮的思考块会被自动展开、正文走流式渲染器）。steer 插话也落在这条上——发送处已重置
   //    输出段 id，下一帧会建新消息，窗口期只是短暂没有行处于流式态
@@ -803,8 +794,14 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
   }, [messages]);
   const expandedTurns = useProcessDisclosure(state => state.expanded);
   const toggleProcess = useProcessDisclosure(state => state.toggle);
+  // Identity animation belongs to the active execution, not the newest streamed message.
+  const activeTurnFirst = useMemo(() => {
+    const first = busy ? runningTurnPosition(messages)?.first : undefined;
+    return first !== undefined && first >= 0 ? first : undefined;
+  }, [messages, busy]);
   const runningTurn = useMemo(() => busy && !manualCompactingRef.current && !summarizing ? runningTurnPosition(messages) : undefined, [messages, busy, compacting, summarizing]);
   const turnPresentations = useMemo(() => buildTurnPresentations(messages, busy), [messages, busy]);
+  const finalAnswerEntries = useMemo(() => buildFinalAnswerEntries(messages, busy), [messages, busy]);
   const isProcessHidden = (index: number): boolean => {
     const turn = turnPresentations.get(index);
     return !!turn && !expandedTurns[`${sid}:${turn.key}`] && !turn.finalEntries.has(index);
@@ -2686,20 +2683,21 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
 
   // 消息右键菜单：有选区时复制/钉住选区（markdown 还原），无选区时复制/钉住全文
   const handleMsgContextMenu = useCallback((msg: ChatMessage, e: React.MouseEvent) => {
-    // 只有气泡内的右键才出菜单：容器铺满整行，气泡水平方向的空白此前会一并命中（用户 2026-09-26 反馈）。
-    // 判断用 e.target 而非改绑定点——绑定必须留在行容器上，下方「全选」靠 e.currentTarget 找气泡元素。
-    if (!(e.target as HTMLElement).closest(".msg-bubble-user, .msg-bubble-agent, .msg-bubble-system")) return;
+    // Only actual content opens a menu. Process rows retain context controls; text actions belong to conclusions.
+    if (!(e.target as HTMLElement).closest(".msg-bubble-user, .msg-conclusion, .msg-process-stack")) return;
+    const textActions = !msg.customType && !!(e.target as HTMLElement).closest(".msg-bubble-user, .msg-conclusion");
     e.preventDefault();
     const container = e.currentTarget as HTMLElement;
     const sel = window.getSelection();
     const hasSel = !!sel && !sel.isCollapsed && !!sel.toString().trim();
-    const selInMsg = hasSel && sel.rangeCount > 0 && container.contains(sel.getRangeAt(0).commonAncestorContainer);
+    const textContainer = (e.target as HTMLElement).closest(".msg-conclusion, .msg-bubble-user") ?? container;
+    const selInMsg = hasSel && sel.rangeCount > 0 && textContainer.contains(sel.getRangeAt(0).commonAncestorContainer);
     const selText = selInMsg ? sel!.toString() : "";
     const copyText = getMsgCopyText(msg);
     // 选区快照：菜单打开期间用户可能改变选区（如 Ctrl+A），钉住用快照而非重读 live Selection
     const pinRange = selInMsg ? sel.getRangeAt(0).cloneRange() : null;
 
-    const items: ContextMenuItem[] = [
+    const items: ContextMenuItem[] = textActions ? [
       { label: uiText("common.copy"), onClick: () => { navigator.clipboard.writeText(selInMsg ? selText : copyText).catch((err: unknown) => console.error("[copy]", err)); } },
       { label: uiText("ui.ChatPanel.selectAll"), onClick: () => {
         const bubbleEl = container.querySelector(".msg-bubble-agent, .msg-bubble-user");
@@ -2720,7 +2718,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
         }
         if (!ok) showPinToast(uiText("ui.ChatPanel.thisContentIsAlreadyPinned"));
       } },
-    ];
+    ] : [];
     // 轻档入口（与「修改」的级联重推同级不同档）：只把这一条从模型视野里拿掉，它之后的对话照旧——
     // 文案必须点明这条差别，否则与铅笔的「修改」看着是一件事而实际差很多（那个会把后面的对话全部重来）。
     // 已摘掉的给「恢复」：再追加一条带原内容的编辑（见 main 的 setEntryInContext），等于撤销。
@@ -2734,7 +2732,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
     if (msg.imageStripped && msg.entryId && !msg.outOfContext) {
       items.push({ label: uiText("ui.ChatPanel.restoreOriginalImageToContext"), onClick: () => { void setEntryInContext(msg, true); } });
     }
-    setCtxMenu({ x: e.clientX, y: e.clientY, items });
+    if (items.length) setCtxMenu({ x: e.clientX, y: e.clientY, items });
   }, [setEntryInContext]);
 
   // 气泡动态鼓出:与当前宽度反比(窄滑块鼓多、宽滑块鼓少),两边视觉膨胀感一致;
@@ -2893,10 +2891,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     data-index={vi.index}
                     ref={virtualizer.measureElement}
                     style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${vi.start}px)` }}
-                    // mint-live：只给「最新一条 Mint 消息」且会话在跑时加，其内头像眨眼（规则见 index.css）。
-                    // 开关做成祖先容器上的 CSS 类而不是逐个头像传 props：内联 SVG 的 SMIL 时间线是文档级的，
-                    // 多实例各自调用 pause/unpause 会互相覆盖；CSS 类没有执行顺序问题。
-                    className={`${hidden ? (header ? "pb-2" : "") : "pb-8"}${busy && vi.index === liveIndex ? " mint-live" : ""}`}
+                    // Identity owns animation lifetime independently of this virtual row.
+                    className={`${hidden ? (header ? "pb-2" : "") : (originalMsg.role === "ai" && !finalAnswerEntries.has(vi.index) || originalMsg.customType) ? "pb-1" : "pb-8"}`}
                   >
                     {/* 跳转高亮层:常驻 absolute 不占布局(虚拟滚动测量零干扰)、opacity 过渡
                         (圆角始终存在,消失只是淡出,无「圆角变直角」)、仅上边外扩 5px——
@@ -2904,6 +2900,9 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     <div
                       className={`absolute -top-[5px] inset-x-[26px] bottom-0 rounded-[var(--radius-lg)] bg-accent-bg transition-opacity duration-500 pointer-events-none ${msg.id === highlightMsgId ? "opacity-100" : "opacity-0"}`}
                     />
+                    {originalMsg.role === "ai" && (header || !turn && !hidden && !!originalMsg.entries?.length && startsMessageIdentity(messages, vi.index)) && (
+                      <AssistantIdentity msg={originalMsg} live={activeTurnFirst !== undefined && vi.index >= activeTurnFirst} />
+                    )}
                     {runningTurn?.first === vi.index && <ExecutionTimer startedAt={runningTurn.startedAt} />}
                     {header && turn && (
                       <button type="button" className="execution-process-toggle" aria-expanded={expanded}
@@ -2923,7 +2922,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     )}
                     {!hidden && <MemoChatMessage
                       msg={msg}
-                      showIdentity={!!turn && !expanded || startsMessageIdentity(messages, vi.index) || (busy && vi.index === liveIndex)}
+                      conclusions={finalAnswerEntries.get(vi.index)}
                       streaming={busy && vi.index === streamIndex}
                       userBubble={userBubble}
                       onPin={handlePin}
@@ -2939,8 +2938,7 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                     {delegationList.length > 0
                       && (anchorMsgId === msg.id
                         || (anchorMsgId === undefined && vi.index === messages.length - 1 && msg.role === "ai")) ? (
-                      <div className="flex gap-4 items-start" style={{ padding: "0 var(--s8)" }}>
-                        <div style={{ width: 40, flexShrink: 0 }} />
+                      <div className="flex gap-4 items-start" style={{ padding: "0 calc(var(--s8) + var(--s4))" }}>
                         <DelegationProgress delegations={delegationList} />
                       </div>
                     ) : null}
@@ -2950,9 +2948,8 @@ export function ChatPanel({ projectPath, sessionId: existingSid, tabId, isDesign
                       const cards = errorsByAnchor.get(msg.id);
                       if (!cards || cards.length === 0) return null;
                       return (
-                        <div className="flex gap-4 items-start mt-1" style={{ padding: "0 var(--s8)" }}>
-                          <div style={{ width: 40, flexShrink: 0 }} />
-                          <div className="min-w-0 space-y-1">
+                        <div className="flex gap-4 items-start mt-1" style={{ padding: "0 calc(var(--s8) + var(--s4))" }}>
+                            <div className="min-w-0 space-y-1">
                             {cards.map((card) => (
                               <FlowErrorCardView key={`flow-err-${card.id}`} card={card} onRetry={handleRetryError} onRecoverImages={(item) => { void handleRecoverImages(item); }} onDismiss={handleDismissError} />
                             ))}
@@ -3185,11 +3182,24 @@ function ImagePathOnlyTag(): JSX.Element {
   return <span className="inline-block shrink-0 px-1.5 py-0.5 rounded-full bg-surface-alt text-text-secondary text-[length:var(--text-3xs)] font-normal normal-case tracking-normal align-middle">{uiText("ui.ChatPanel.imagesSentAsPathsOnly")}</span>;
 }
 
+export function AssistantIdentity({ msg, live }: { msg: ChatMessage; live: boolean }): JSX.Element {
+  useUiLocale();
+  const role = msg.agentRole;
+  return <div className={`msg-in msg-assistant-identity${live ? " mint-live" : ""}`}>
+    {role ? <div className="msg-avatar agent" style={{ backgroundColor: roleColor(role), color: "#fff" }}>{role.charAt(0).toUpperCase()}</div>
+      : <MintAvatar size={28} className="mint-avatar" />}
+    <span>{role ?? "Mint"}</span>
+    {msg.outOfContext && <OutOfContextTag />}
+    {msg.imageStripped && !msg.outOfContext && <ImageStrippedTag />}
+    {role && msg.forwarded && <span className="text-text-secondary">{msg.forwardedFrom ? uiText("ui.ChatPanel.from", { v0: msg.forwardedFrom }) : uiText("ui.ChatPanel.forwarded")}</span>}
+  </div>;
+}
+
 // ── Memo message item: avoids re-rendering all messages on each stream event ──
 
 interface MemoChatMessageProps {
   msg: ChatMessage;
-  showIdentity: boolean;
+  conclusions?: StreamEntry[];
   /** 本条消息是否正在增长（只有末尾那条为真）——驱动流式 markdown 与思考块的流式态 */
   streaming: boolean;
   /** 本会话是否处于回合中（重新生成入口的临时不可用判据，与编辑入口同一套） */
@@ -3202,7 +3212,7 @@ interface MemoChatMessageProps {
   sid: string;
 }
 
-const MemoChatMessage = memo(function MemoChatMessage({ msg, showIdentity, streaming, busy, userBubble, onPin, onRegenerate, onContextMenu, sid }: MemoChatMessageProps) {
+export const MemoChatMessage = memo(function MemoChatMessage({ msg, conclusions, streaming, busy, userBubble, onPin, onRegenerate, onContextMenu, sid }: MemoChatMessageProps) {
   useUiLocale();
   // 指令型系统消息的展开/收起（事件型不折叠——无此 state 参与）
   const [sysExpanded, setSysExpanded] = useState(false);
@@ -3221,13 +3231,9 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showIdentity, strea
     return m;
   }, [msg.entries]);
 
-  const blocks = useMemo(() =>
-    visible.length > 0 ? buildBlocks(visible, String(msg.id), toolInputs) : [],
-    [visible, msg.id, toolInputs],
-  );
-
-  // 气泡全文：所有 text entry 合并（不含思考/工具）
-  const copyText = useMemo(() => getMsgCopyText(msg), [msg]);
+  const hasConclusion = !!conclusions?.length;
+  const conclusionMessage = useMemo(() => ({ ...msg, entries: conclusions ?? [] }), [msg, conclusions]);
+  const copyText = useMemo(() => getMsgCopyText(msg.role === "ai" ? conclusionMessage : msg), [msg, conclusionMessage]);
 
   // 操作条显隐：hover 消息立即显示；离开消息后 1s 缓冲（期间鼠标移到按钮上则继续显示）
   const [actionsVisible, setActionsVisible] = useState(false);
@@ -3278,14 +3284,12 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showIdentity, strea
       const collapsed = collapsible && !sysExpanded;
       return (
         <div
-          className="flex gap-4 items-start"
-          style={{ padding: "0 var(--s8)" }}
+          className="msg-system-row"
           onContextMenu={(e) => onContextMenu(msg, e)}
         >
-          <div style={{ width: 40, flexShrink: 0 }} />
-          <div className="relative w-fit max-w-[75%] min-w-0 my-1" {...actionFocusProps} onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
+          <div className="relative min-w-0 my-1" {...actionFocusProps} onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
             {/* 无描边(用户 2026-09-15):本气泡无投影,靠 bg-surface-elevated 与聊天区底色的层差分区 */}
-            <div className="msg-bubble-system rounded-[var(--radius-lg)] rounded-bl-[4px] bg-surface-elevated overflow-hidden">
+            <div className="msg-system-flow msg-bubble-system overflow-hidden">
               {/* 头部:系统图标 + kind 标签(区别于 assistant 的 Mint 头像气泡);指令型整行可点展开/收起 */}
               <button
                 type="button"
@@ -3386,8 +3390,6 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showIdentity, strea
                 )}
               </div>}
             </div>
-            {/* 与其他气泡一致:复制完整文本 + 钉住(悬停显示) */}
-            <BubbleActions text={body} onPin={onPin} sid={sid} visible={actionsVisible || actionsFocused} />
           </div>
         </div>
       );
@@ -3412,29 +3414,13 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showIdentity, strea
   const displayName = role ?? "Mint";
 
   return (
-    <div className={`msg-in${msg.durationMs !== undefined || msg.usage ? " msg-with-output-meta" : ""}`} onContextMenu={(e) => onContextMenu(msg, e)} aria-label={displayName}>
-      <div className="flex gap-4 items-start max-w-[75%]">
-        {/* Mint 头像：内联矢量 SVG，有会话在跑时播眨眼（控制值在组件内部取全局态，见 MintAvatar）；角色消息仍用首字母 */}
-        {!showIdentity ? <div className={`msg-avatar-spacer${role ? " is-agent" : ""}`} aria-hidden="true" /> : role ? (
-          <div className="msg-avatar agent" style={{ backgroundColor: roleColor(role), color: "#fff" }}>{role.charAt(0).toUpperCase()}</div>
-        ) : (
-          <MintAvatar size={40} className="msg-avatar mint" />
-        )}
-        <div className="min-w-0 relative" {...actionFocusProps} onMouseEnter={showActions} onMouseLeave={scheduleHideActions}>
-          <div className={`msg-from${showIdentity ? "" : " msg-from-continuation"}`}>
-            {displayName}
-            {msg.outOfContext ? <OutOfContextTag className="ml-1.5" /> : null}
-            {msg.imageStripped && !msg.outOfContext ? <ImageStrippedTag className="ml-1.5" /> : null}
-            {role && msg.forwarded && (
-              <span className="text-text-secondary/60 ml-1.5 text-[length:var(--text-2xs)] font-normal">· {msg.forwardedFrom ? uiText("ui.ChatPanel.from", { v0: msg.forwardedFrom }) : uiText("ui.ChatPanel.forwarded")}</span>
-            )}
-          </div>
-          <div className="msg-bubble-agent rounded-[var(--radius-lg)] rounded-bl-[4px] px-[14px] py-1.5 overflow-hidden">
-            {blocks.map((block, i) => (
-              <ChatBlockView key={`blk-${msg.id}-${i}`} block={block} streaming={streaming} running={busy} isStreamingTail={streaming && i === blocks.length - 1} />
-            ))}
-          </div>
-          <BubbleActions
+    <div className={`msg-in msg-ai-flow${hasConclusion && (msg.durationMs !== undefined || msg.usage) ? " msg-with-output-meta" : ""}`} onContextMenu={(e) => onContextMenu((e.target as HTMLElement).closest(".msg-conclusion") ? conclusionMessage : msg, e)} aria-label={displayName}>
+      <div className="msg-agent-row">
+        <div className="msg-agent-content min-w-0 relative">
+          <AssistantContent entries={visible} conclusions={conclusions ?? []} messageId={String(msg.id)} toolInputs={toolInputs}
+            streaming={streaming} running={busy}
+            actionEvents={{ ...actionFocusProps, onMouseEnter: showActions, onMouseLeave: scheduleHideActions }}
+            actions={hasConclusion && <BubbleActions
             text={copyText}
             onPin={onPin}
             sid={sid}
@@ -3454,7 +3440,7 @@ const MemoChatMessage = memo(function MemoChatMessage({ msg, showIdentity, strea
               </div>
             )}
             regenerate={{ disabledReason: rewindUnavailableReason(msg, busy, "重新生成"), onClick: () => onRegenerate(msg) }}
-          />
+          />} />
         </div>
       </div>
     </div>

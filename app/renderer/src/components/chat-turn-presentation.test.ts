@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTurnPresentations, executionLabel, runningTurnPosition } from "./chat-turn-presentation";
+import { buildTurnPresentations, buildFinalAnswerEntries, executionLabel, runningTurnPosition } from "./chat-turn-presentation";
 import { mapSessionMessages, mergeConsecutiveText, piBlocksToEntries, type ChatMessage } from "./chat-utils";
 import type { StreamEntry } from "./StreamPanel";
 const text = (text: string, phase?: "commentary" | "final_answer"): StreamEntry => ({ kind: "text", text, phase, timestamp: 0 });
@@ -133,4 +133,13 @@ describe("system-triggered execution boundaries", () => {
     const messages = mapSessionMessages([{ type: "user", message: { content: "background result", customType: "system_message", details: { kind: "shell", startsExecution: true }, timestamp: 600000 } }]);
     expect(runningTurnPosition(messages)).toEqual({ first: -1, startedAt: 600000 });
   });
+});
+
+it("keeps the active execution start anchored while thinking and tool messages are appended", () => {
+  const messages = [question, ai(2, [text("checking", "commentary")], { stopReason: "toolUse" })];
+  expect(runningTurnPosition(messages)?.first).toBe(1);
+  messages.push(ai(3, [{kind:"thinking",text:"reasoning",timestamp:0}], {stopReason:"toolUse"}));
+  messages.push(ai(4, [text("working", "commentary")], {streaming:true,stopReason:undefined}));
+  expect(runningTurnPosition(messages)?.first).toBe(1);
+  expect(buildFinalAnswerEntries(messages,true).size).toBe(0);
 });

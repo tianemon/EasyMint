@@ -100,7 +100,7 @@ export const TodoStrip = memo(function TodoStrip({ sessionId }: { sessionId: str
   const summary = current ? current.content : (done === list.length ? uiText("ui.TodoStrip.allDone") : uiText("ui.TodoStrip.notStarted"));
 
   return (
-    <div className="shrink-0 px-[var(--s16)] pt-2">
+    <div className="shrink-0 px-[var(--chat-content-inset)] pt-2">
       <div className="flex items-center gap-1 rounded-[var(--radius-lg)] bg-surface-alt/60 border border-border/60 hover:bg-surface-hover transition-colors">
         <button
           type="button"

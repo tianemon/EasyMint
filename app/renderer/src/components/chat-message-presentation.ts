@@ -1,3 +1,4 @@
+import type { StreamEntry } from "./StreamPanel";
 import type { ChatMessage } from "./chat-utils";
 
 /** Presentation only: never merge messages, entries or their context/action targets.
@@ -20,4 +21,17 @@ export function startsMessageIdentity(messages: readonly ChatMessage[], index: n
       || previous.customType !== message.customType;
   }
   return true;
+}
+
+/** Keep entry order and tool associations while separating actionable conclusions from process. */
+export function assistantSegments(entries: readonly StreamEntry[], conclusions: readonly StreamEntry[]) {
+  const selected = new Set(conclusions);
+  const segments: Array<{ conclusion: boolean; entries: StreamEntry[] }> = [];
+  for (const entry of entries) {
+    const conclusion = selected.has(entry) && entry.kind === 'text';
+    const last = segments.at(-1);
+    if (last?.conclusion === conclusion) last.entries.push(entry);
+    else segments.push({ conclusion, entries: [entry] });
+  }
+  return segments;
 }

@@ -949,7 +949,7 @@ html[data-platform="win32"] .tabbar-v3 { padding-right: 120px; }
   display: flex; align-items: center; gap: var(--s2);
   padding: var(--s1) var(--s4); font-size: var(--text-xs);
   color: var(--color-text-muted); min-height: 26px; flex-shrink: 0;
-  margin: 0 var(--s16);
+  margin: 0 var(--chat-content-inset);
 }
 /* 状态栏模型图标参与流光：颜色按 --shimmer-1..5 依次循环（与流光同色系、同节奏）。
    为什么不是横向扫光：流光是 background-clip: text，只作用于文字字形，SVG 图形裁不到；
@@ -1292,12 +1292,13 @@ body {
   -webkit-user-select: none;
 }
 
-/* 内容型区域恢复可选:消息气泡整体(正文/代码/diff/思考块均在内)、系统通知卡片、输入框、
+/* 内容型区域恢复可选:消息正文与过程(含代码/diff/思考块)、系统通知卡片、输入框、
    输出弹层内容区(后台命令/子Agent过程/运行日志)。
    新增内容型区域(便签正文/权限命令描述/问题标题等)统一加 selectable 类,无需逐个改选择器 */
 .chat-input,
 .msg-bubble-user,
 .msg-bubble-agent,
+.msg-process-stack,
 .msg-bubble-system,
 .diff-view,
 .shell-output,
@@ -2052,3 +2053,24 @@ body:has(:is([class*="z-dialog"], [class*="z-modal"]):not([class*="pointer-event
 }
 
 .creation-brand-options{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+
+/* Assistant flow: identity above content, aligned with the composer's text inset. */
+.msg-in.msg-ai-flow, .msg-in.msg-assistant-identity, .msg-system-row {
+  padding-inline: calc(var(--s8) + var(--s4));
+}
+.msg-assistant-identity {
+  display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s2);
+  font-size: var(--text-sm); font-weight: 600; color: var(--color-text-primary);
+}
+.msg-assistant-identity .msg-avatar { width: 28px; height: 28px; }
+.msg-ai-flow .msg-agent-row, .msg-ai-flow .msg-agent-content { width: 100%; min-width: 0; }
+.msg-conclusion {
+  position: relative; background: transparent; box-shadow: none; border: 0;
+}
+.msg-process-stack { margin-block: 2px; min-width: 0; }
+.msg-process-stack .prose { font-size: var(--text-detail); color: var(--color-text-secondary); }
+.msg-process-stack .prose > :first-child { margin-top: 0; }
+.msg-process-stack .prose > :last-child { margin-bottom: 0; }
+.msg-process-stack .msg-process-detail { background: transparent !important; border-radius: 0; }
+.msg-system-flow { background: transparent; box-shadow: none; }
+.msg-system-flow > button, .msg-system-flow > div { padding-inline: 0; }

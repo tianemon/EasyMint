@@ -200,7 +200,7 @@
   "ui.ChatInput.readProjectContentWithoutCommandsChangesOr": "Read project content without commands, changes, or network access",
   "ui.ChatInput.standard": "Standard",
   "ui.ChatInput.standardRunInTheOsSandboxWrites": "Standard: run in the OS sandbox. Writes are allowed in the workspace and task temporary directory. Out-of-scope writes and credential reads are blocked.",
-  "ui.ChatInput.recommendedDevelopInsideTheOsSandbox": "Recommended: develop inside the OS sandbox",
+  "ui.ChatInput.recommendedDevelopInsideTheOsSandbox": "Develop inside the OS sandbox",
   "ui.ChatInput.fullAccess": "Full access",
   "ui.ChatInput.fullAccessNoSandboxOrWorkspaceRestriction": "Full access: no sandbox or workspace restriction for ordinary files. Supports gh, git push, browsers, and Playwright. Dangerous system operations receive best-effort preflight checks only.",
   "ui.ChatInput.noSandboxOrWorkspaceRestrictionForOrdinary": "No sandbox or workspace restriction for ordinary files",
